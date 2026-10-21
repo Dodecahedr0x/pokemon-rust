@@ -95,22 +95,40 @@ pub enum Request {
         obj: u8,
         steps: &'static [Step],
     },
-    /// Until `obj` has finished its movement script.
+    /// Until `obj` has finished its movement script. `0` means the object of the last `Move`
+    /// (Gen3 `sMovingNpcId`).
     WaitMove(u8),
     SetObjectPos {
         obj: u8,
         x: i16,
         y: i16,
     },
+    /// Make a spawned object visible again (Gen3 `showobjectat`). No flag changes.
     ShowObject(u8),
+    /// Make an object invisible but keep it spawned (Gen3 `hideobjectat`). No flag changes.
     HideObject(u8),
+    /// Spawn an object of the current map from its template, whatever its hide flag
+    /// (Gen3 `addobject`).
+    AddObject(u8),
+    /// Despawn an object of the current map and set its hide flag, so it stays gone on
+    /// re-entry (Gen3 `removeobject`).
+    RemoveObject(u8),
     Turn {
         obj: u8,
         dir: Dir,
     },
+    /// Changes the object's template (and the live object if spawned), as Gen3
+    /// `setobjectmovementtype`.
     SetMovementType {
         obj: u8,
         movement: MovementType,
+    },
+    /// Moves the object's template position for the rest of the map visit (Gen3
+    /// `setobjectxyperm`); a spawned object is not moved.
+    SetObjectTemplatePos {
+        obj: u8,
+        x: i16,
+        y: i16,
     },
     // ---- world ----
     Delay(u16),
@@ -129,6 +147,16 @@ pub enum Request {
         blocked: bool,
     },
     RedrawMap,
+    /// Starts the door animation at map cell (x, y) (Gen3 `opendoor`/`closedoor`).
+    Door {
+        x: i16,
+        y: i16,
+        open: bool,
+    },
+    /// Until every door animation has finished (Gen3 `waitdooranim`).
+    WaitDoor,
+    /// Until a pending warp, fade or special-started state is done (Gen3 `waitstate`).
+    WaitState,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -303,6 +331,14 @@ impl Ctx {
         self.unit(Request::HideObject(obj)).await
     }
 
+    pub async fn add_object(&self, obj: u8) {
+        self.unit(Request::AddObject(obj)).await
+    }
+
+    pub async fn remove_object(&self, obj: u8) {
+        self.unit(Request::RemoveObject(obj)).await
+    }
+
     pub async fn turn(&self, obj: u8, dir: Dir) {
         self.unit(Request::Turn { obj, dir }).await
     }
@@ -335,6 +371,22 @@ impl Ctx {
 
     pub async fn redraw_map(&self) {
         self.unit(Request::RedrawMap).await
+    }
+
+    pub async fn set_object_template_pos(&self, obj: u8, x: i16, y: i16) {
+        self.unit(Request::SetObjectTemplatePos { obj, x, y }).await
+    }
+
+    pub async fn door(&self, x: i16, y: i16, open: bool) {
+        self.unit(Request::Door { x, y, open }).await
+    }
+
+    pub async fn wait_door(&self) {
+        self.unit(Request::WaitDoor).await
+    }
+
+    pub async fn wait_state(&self) {
+        self.unit(Request::WaitState).await
     }
 }
 
