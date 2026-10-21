@@ -76,6 +76,8 @@ impl GameData for Emerald {
             var_last_talked: Some(consts::VAR_LAST_TALKED),
             flag_running: Some(consts::FLAG_SYS_B_DASH),
             flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
+            // Task I: HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE.
+            respawn_default: 0,
         }
     }
 

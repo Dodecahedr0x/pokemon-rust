@@ -1,6 +1,8 @@
 //! Static game data the engine consumes. Content builds these as `'static` tables (via build.rs);
 //! the engine never owns or parses files.
 
+use crate::battle::{self, BattleGfx};
+use crate::mon::{self, BattleTables, LandEncounters, TrainerData};
 use crate::script::{Ctx, Script};
 use crate::video::Tile;
 
@@ -58,6 +60,12 @@ id! {
     ScriptId,
     /// Gen3 object graphics id (`OBJ_EVENT_GFX_*`).
     GfxId,
+    /// Content-assigned = Gen3 `SPECIES_*` number; indexes `BattleTables::species`.
+    SpeciesId,
+    /// Content-assigned = Gen3 `MOVE_*` number; indexes `BattleTables::moves`.
+    MoveId,
+    /// Content-assigned = Gen3 `TRAINER_*` number; `GameData::trainer` resolves it.
+    TrainerId,
 }
 
 /// Gen3 local id addressing the player in object commands (`OBJ_EVENT_ID_PLAYER`).
@@ -330,6 +338,8 @@ pub struct SpecialIds {
     /// Flags cleared with the temporary flags and vars on every map change (Gen3
     /// `ClearTempFieldEventData`).
     pub flags_cleared_on_map_change: &'static [FlagId],
+    /// Heal location of a new game (`setrespawn` default; Gen3 `HEAL_LOCATION_*` number).
+    pub respawn_default: u8,
 }
 
 /// Everything game-specific the engine reads. Implemented by the `content` crate.
@@ -355,6 +365,36 @@ pub trait GameData {
     fn behavior(&self, raw: u8) -> Behavior;
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script;
     fn new_game(&self) -> NewGame;
+
+    // ---- battle (Milestone 4); every method has a default so test games keep compiling ----
+
+    /// Species, moves and the type chart.
+    fn battle(&self) -> &'static BattleTables {
+        &mon::EMPTY_TABLES
+    }
+    /// The land encounter table of `map`, if it has one.
+    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
+        let _ = map;
+        None
+    }
+    fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
+        let _ = id;
+        None
+    }
+    /// Gen3-encoded, 0xFF-terminated battle string (`gBattleStringsTable`, `gText_*`).
+    fn battle_text(&self, s: battle::Str) -> &'static [u8] {
+        let _ = s;
+        &[0xFF]
+    }
+    /// Battle interface graphics; the default has empty slices and draws nothing.
+    fn battle_gfx(&self) -> &'static BattleGfx {
+        &battle::EMPTY_GFX
+    }
+    /// Gen3 heal location `id` (`setrespawn`, whiteout): map and player cell.
+    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
+        let _ = id;
+        None
+    }
 }
 
 #[cfg(test)]

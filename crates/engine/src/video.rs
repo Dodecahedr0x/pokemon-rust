@@ -38,6 +38,29 @@ pub mod layout {
     pub const OBJ_PRIORITY: u8 = 2;
     /// BG palette banks 0..13 belong to the field (`data::PALS_TOTAL`).
     pub const WINDOW_PALETTE: u8 = 15;
+
+    /// The battle's own VRAM layout, used while a battle owns the screen.
+    pub mod battle {
+        // BG: (layer, char block, screen block, priority). 32x32 maps only: Gen3's 64-row BG0
+        // trick (scrolling between message / action / move views) becomes redrawing rows 15..20.
+        /// Message box, action and move menus.
+        pub const TEXT: (u8, u8, u8, u8) = (0, 0, 24, 0);
+        /// Yes/no, learn-move, level-up box.
+        pub const WINDOW: (u8, u8, u8, u8) = (1, 1, 28, 0);
+        /// Flashes, transition overlay (tiles 256..).
+        pub const ANIM: (u8, u8, u8, u8) = (2, 1, 30, 1);
+        /// Environment background.
+        pub const ENV: (u8, u8, u8, u8) = (3, 2, 26, 3);
+        // BG palettes: 0..2 textbox (gBattleTextboxPalette), 2..5 environment, 5 menu text
+        // (text_pp.pal colors swapped in for PP), 15 windows on BG1.
+        // OBJ tiles (1D, 1024): enemy pic 0, player pic 64, opponent trainer 128, player trainer
+        // back 192, player healthbox 256 (2x 64x32 = 64), enemy healthbox 320, HP bars 384
+        // (2x 32x8), ball 400 (16x16), anim 448..512; 512.. free (transition, starter screen).
+        // OBJ palettes: 0 enemy mon, 1 player mon, 2 trainer, 3 player back, 4 healthbox,
+        // 5 HP bar, 6 ball, 7..9 anim tints.
+        pub const OBJ_PRIORITY_MON: u8 = 2;
+        pub const OBJ_PRIORITY_BOX: u8 = 1;
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -75,6 +98,11 @@ pub enum Cmd {
     ObjTiles {
         first: u16,
         tiles: &'static [Tile],
+    },
+    /// One dynamic OBJ tile (healthboxes, bars).
+    ObjTile {
+        index: u16,
+        tile: Tile,
     },
     /// Write `entries` into screen block `screen_block` starting at entry `start` (row-major,
     /// 32 per row).
@@ -164,6 +192,9 @@ pub struct Frame {
     /// 0 = normal, `BRIGHTNESS_BLACK` = black: GBA brightness decrease (BLDY) on every BG,
     /// sprite and the backdrop.
     pub brightness: u8,
+    /// `brightness` brightens towards white instead (BLDCNT effect 2): `BRIGHTNESS_BLACK` is then
+    /// fully white.
+    pub lighten: bool,
 }
 
 /// BG VRAM bytes (char blocks 0..3; screen blocks 0..31 overlap them).
@@ -203,6 +234,9 @@ impl Cmd {
                 *first as usize + tiles.len() <= OBJ_TILES,
                 "OBJ tiles past OBJ VRAM",
             ),
+            Cmd::ObjTile { index, .. } => {
+                ok((*index as usize) < OBJ_TILES, "OBJ tile past OBJ VRAM")
+            }
             Cmd::MapEntries {
                 screen_block,
                 start,
@@ -244,6 +278,11 @@ impl Obj {
 }
 
 impl Frame {
+    /// Whether every pixel is black: full brightness decrease (not increase).
+    pub const fn is_black(&self) -> bool {
+        self.brightness >= BRIGHTNESS_BLACK && !self.lighten
+    }
+
     /// Every cmd and obj valid and at most `MAX_OBJS` objs.
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.objs.len() > MAX_OBJS {
@@ -292,6 +331,12 @@ mod tests {
         let obj = |first| Cmd::ObjTiles { first, tiles: &T };
         assert!(obj(1022).validate().is_ok());
         assert!(obj(1023).validate().is_err());
+        let one = |index| Cmd::ObjTile {
+            index,
+            tile: [0; 8],
+        };
+        assert!(one(1023).validate().is_ok());
+        assert!(one(1024).validate().is_err());
         let map = |screen_block, start, n| Cmd::MapEntries {
             screen_block,
             start,
@@ -319,5 +364,33 @@ mod tests {
         assert!(f.validate().is_err());
         f.objs = alloc::vec![Obj::default(); MAX_OBJS + 1];
         assert!(f.validate().is_err());
+    }
+
+    #[test]
+    fn only_full_darkening_is_black() {
+        let mut f = Frame::default();
+        assert!(!f.is_black());
+        f.brightness = BRIGHTNESS_BLACK;
+        assert!(f.is_black());
+        f.lighten = true;
+        assert!(!f.is_black());
+    }
+
+    #[test]
+    fn battle_layout_fits_vram() {
+        use layout::battle::*;
+        let bgs = [TEXT, WINDOW, ANIM, ENV];
+        for (i, &(layer, cb, sb, prio)) in bgs.iter().enumerate() {
+            assert_eq!(layer as usize, i);
+            assert!(cb < 4 && sb < 32 && prio < 4);
+            // Screen blocks sit above every char block in use (each char block holds at most
+            // 512 tiles = 8 screen blocks).
+            for &(_, other_cb, ..) in &bgs {
+                assert!(
+                    sb / 8 != other_cb,
+                    "screen block {sb} inside char block {other_cb}"
+                );
+            }
+        }
     }
 }

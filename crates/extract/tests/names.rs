@@ -530,14 +530,50 @@ fn generate(d: &Path) -> String {
 type Entries = Vec<(i64, String)>;
 
 const GENERATED: &str = "src/names/generated.rs";
+const GENERATED_BATTLE: &str = "src/names/battle.rs";
 
-#[test]
-fn generated_names_match_decomp() {
-    let d = fixtures::decomp();
-    let want = generate(&d);
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(GENERATED);
+/// Battle tables (`src/names/battle.rs`), kept apart from the field tables.
+fn generate_battle(d: &Path) -> String {
+    let env = env(d);
+    let mut out = String::from(
+        "//! Battle constant names, generated from the pokeemerald decomp by `tests/names.rs`; do not\n\
+         //! edit by hand. Regenerate with `PKR_BLESS=1 cargo test -p extract --test names`.\n\n\
+         use super::Table;\n\n",
+    );
+    let trainers = "include/constants/trainers.h";
+    let tables: Vec<(&str, &str, &str, Entries)> = vec![
+        (
+            "SPECIES",
+            "`include/constants/species.h` (the Unown forms included).",
+            "SPECIES_",
+            prefixed(d, &env, "include/constants/species.h", "SPECIES_"),
+        ),
+        (
+            "TRAINER_PICS",
+            "`TRAINER_PIC_*` from `include/constants/trainers.h`.",
+            "TRAINER_PIC_",
+            prefixed(d, &env, trainers, "TRAINER_PIC_"),
+        ),
+        (
+            "TRAINER_BACK_PICS",
+            "`TRAINER_BACK_PIC_*` from `include/constants/trainers.h`.",
+            "TRAINER_BACK_PIC_",
+            prefixed(d, &env, trainers, "TRAINER_BACK_PIC_"),
+        ),
+    ];
+    for (name, doc, prefix, entries) in &tables {
+        render_table(&mut out, name, doc, prefix, entries);
+    }
+    out.truncate(out.trim_end().len());
+    out.push('\n');
+    out
+}
+
+/// Compares `want` with the checked-in `file`, or rewrites it under `PKR_BLESS`.
+fn check_generated(file: &str, want: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
     if std::env::var_os("PKR_BLESS").is_some() {
-        std::fs::write(&path, &want).unwrap();
+        std::fs::write(&path, want).unwrap();
         return;
     }
     let have = std::fs::read_to_string(&path).unwrap();
@@ -548,15 +584,27 @@ fn generated_names_match_decomp() {
         .find(|(_, (h, w))| h != w)
     {
         panic!(
-            "{GENERATED} drifted at line {}: have {h:?}, decomp gives {w:?} (PKR_BLESS=1 to regenerate)",
+            "{file} drifted at line {}: have {h:?}, decomp gives {w:?} (PKR_BLESS=1 to regenerate)",
             i + 1
         );
     }
     assert_eq!(
         have.lines().count(),
         want.lines().count(),
-        "{GENERATED} length (PKR_BLESS=1 to regenerate)"
+        "{file} length (PKR_BLESS=1 to regenerate)"
     );
+}
+
+#[test]
+fn generated_names_match_decomp() {
+    let d = fixtures::decomp();
+    check_generated(GENERATED, &generate(&d));
+}
+
+#[test]
+fn generated_battle_names_match_decomp() {
+    let d = fixtures::decomp();
+    check_generated(GENERATED_BATTLE, &generate_battle(&d));
 }
 
 #[test]

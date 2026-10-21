@@ -1,7 +1,7 @@
 //! Software PPU following GBA mode-0 rules, as mGBA renders them (the parity target).
 //!
 //! Text BGs (4bpp, 32x32 entries), regular sprites with 1D mapping, and BLDY brightness
-//! decrease on everything. Invalid commands (out-of-range banks or VRAM writes) panic: native
+//! decrease (or increase, `Frame::lighten`) on everything. Invalid commands (out-of-range banks or VRAM writes) panic: native
 //! is where contract violations are caught.
 
 use engine::Tile;
@@ -92,6 +92,10 @@ impl Ppu {
             Cmd::ObjTiles { first, tiles } => {
                 self.write_tiles(BG_VRAM + *first as usize * TILE_BYTES, tiles)
             }
+            Cmd::ObjTile { index, tile } => self.write_tiles(
+                BG_VRAM + *index as usize * TILE_BYTES,
+                core::slice::from_ref(tile),
+            ),
             Cmd::MapEntries {
                 screen_block,
                 start,
@@ -138,6 +142,7 @@ impl Ppu {
             .filter_map(Sprite::clean)
             .collect();
         let evy = frame.brightness.min(BRIGHTNESS_BLACK);
+        let blend = if frame.lighten { brighten } else { darken };
         let backdrop = self.bg_palette[0];
         let mut obj_line = [None; SCREEN_W];
         let mut bg_lines = [[None; SCREEN_W]; BG_LAYERS];
@@ -163,7 +168,7 @@ impl Ppu {
                     (Some((_, oc)), None) => oc,
                     (None, None) => backdrop,
                 };
-                *out = darken(color & 0x7FFF, evy);
+                *out = blend(color & 0x7FFF, evy);
             }
         }
     }
@@ -344,6 +349,29 @@ pub const fn darken(color: u16, evy: u8) -> u16 {
         ch += 1;
     }
     out
+}
+
+/// Brightness increase by `evy` (0..=16) of an RGB555 color, exactly as mGBA computes it
+/// (`_brighten`, same 8-bit model as [`darken`]): `(a + (mask - a) * evy / 16) & mask` per
+/// channel, keeping the top 5 bits. Hardware (GBATEK) does `c + (((31 - c) * evy) >> 4)`.
+pub const fn brighten(color: u16, evy: u8) -> u16 {
+    let evy = evy as u32;
+    let mut out = 0;
+    let mut ch = 0;
+    while ch < 3 {
+        let c = ((color >> (ch * 5)) & 31) as u32;
+        let a = ((c << 3) | (c >> 2)) << (ch * 8);
+        let mask = 0xFF << (ch * 8);
+        let b8 = ((a + ((mask - a) * evy) / 16) & mask) >> (ch * 8);
+        out |= ((b8 >> 3) as u16) << (ch * 5);
+        ch += 1;
+    }
+    out
+}
+
+/// GBATEK's brightness increase of one 5-bit channel, for reference and tests.
+pub const fn brighten_channel_hw(c: u16, evy: u8) -> u16 {
+    c + (((31 - c) * evy as u16) >> 4)
 }
 
 /// GBATEK's brightness decrease of one 5-bit channel, for reference and tests.
@@ -951,6 +979,65 @@ mod tests {
         assert!(render(&p, &f).iter().all(|&c| c == 0));
         f.brightness = 0;
         assert_eq!(px(&render(&p, &f), 16, 0), WHITE);
+    }
+
+    #[test]
+    fn lighten_brightens_bg_sprites_and_backdrop() {
+        let mut p = base();
+        p.apply(&with(vec![
+            Cmd::MapEntries {
+                screen_block: 31,
+                start: 0,
+                entries: vec![1],
+            },
+            bg(0, 0, 31),
+        ]));
+        let mut f = Frame {
+            objs: vec![obj(8, 0, 3, 0)],
+            brightness: 8,
+            lighten: true,
+            ..Frame::default()
+        };
+        let fb = render(&p, &f);
+        assert_eq!(px(&fb, 0, 0), brighten(RED, 8));
+        assert_eq!(px(&fb, 8, 0), brighten(BLUE, 8));
+        assert_eq!(px(&fb, 16, 0), WHITE);
+        // (31, 0, 0) at evy 8: red stays, green and blue reach (255 * 8 / 16) >> 3 = 15.
+        assert_eq!(brighten(RED, 8), 31 | 15 << 5 | 15 << 10);
+        f.brightness = BRIGHTNESS_BLACK;
+        assert!(render(&p, &f).iter().all(|&c| c == WHITE));
+        f.brightness = 31;
+        assert!(render(&p, &f).iter().all(|&c| c == WHITE));
+        f.brightness = 0;
+        assert_eq!(px(&render(&p, &f), 0, 0), RED);
+    }
+
+    #[test]
+    fn brighten_matches_hardware_formula_up_to_mgba_rounding() {
+        for c in 0..32u16 {
+            for evy in 0..=16u8 {
+                let hw = brighten_channel_hw(c, evy);
+                for shift in [0, 5, 10] {
+                    let ours = (brighten(c << shift, evy) >> shift) & 31;
+                    assert!(ours.abs_diff(hw) <= 1, "c {c} evy {evy}: {ours} vs {hw}");
+                }
+            }
+        }
+        assert_eq!(brighten(0, 16), 0x7FFF);
+        assert_eq!(brighten(0x1234, 0), 0x1234);
+    }
+
+    #[test]
+    fn obj_tile_writes_one_obj_tile() {
+        let mut p = Ppu::new();
+        p.apply(&with(vec![Cmd::ObjTile {
+            index: 1023,
+            tile: [0x1111_1111, 2, 3, 4, 5, 6, 7, 0x8765_4321],
+        }]));
+        let at = BG_VRAM + 1023 * TILE_BYTES;
+        assert_eq!(&p.vram()[at..at + 4], &[0x11; 4]);
+        assert_eq!(&p.vram()[at + 28..at + 32], &[0x21, 0x43, 0x65, 0x87]);
+        assert!(p.vram()[BG_VRAM..at].iter().all(|&b| b == 0));
     }
 
     #[test]

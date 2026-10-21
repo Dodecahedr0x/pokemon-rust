@@ -7,7 +7,6 @@ mod video;
 
 use content::Emerald;
 use engine::debug::{DebugRegion, input_slot};
-use engine::video::BRIGHTNESS_BLACK;
 use engine::{Buttons, World};
 use video::Video;
 
@@ -21,13 +20,14 @@ const VBLANK_LINE: u16 = 160;
 #[unsafe(no_mangle)]
 static mut PKR_DEBUG: DebugRegion = DebugRegion::new();
 
-// The black-screen test below (`late_black`) is sound only if BLDY at `BRIGHTNESS_BLACK`
-// blackens every pixel: brightness decrease must target BG0-3, OBJ and the backdrop (BLDCNT
-// bits 0-5, mode 3), no window may exclude anything from the effect (DISPCNT bits 13-15 clear;
+// The black-screen test below (`late_black`, `Frame::is_black`) is sound only if BLDY at
+// `BRIGHTNESS_BLACK` blackens every pixel: brightness decrease must target BG0-3, OBJ and the
+// backdrop (BLDCNT bits 0-5, mode 3; `lighten` frames, mode 2, are never black), no window may exclude anything from the effect (DISPCNT bits 13-15 clear;
 // the shell never writes WININ/WINOUT), and no OBJ may be semi-transparent (OBJ mode 1 would
 // alpha-blend instead; `video::oam_entry` always writes mode 0).
 const _: () = {
     assert!(video::BLDCNT_DARKEN_ALL == 0x3F | (3 << 6));
+    assert!(video::BLDCNT_LIGHTEN_ALL == 0x3F | (2 << 6));
     assert!(video::DISPCNT_BASE & (7 << 13) == 0);
 };
 
@@ -61,7 +61,7 @@ fn main(_gba: agb::Gba) -> ! {
     frame.cmds.clear();
     let (mut late, mut late_black) = (0u32, 0u32);
     // Whether the last applied frame left the screen fully black.
-    let mut black = frame.brightness >= BRIGHTNESS_BLACK;
+    let mut black = frame.is_black();
     // Frame 0 publishes the real initial hash rather than the static's placeholder 0.
     publish_debug(world, Buttons::NONE, late, late_black);
     let vblank = agb::interrupt::VBlank::get();
@@ -75,14 +75,14 @@ fn main(_gba: agb::Gba) -> ! {
         // Vblank lasts lines 160..228; back in 0..160 means the apply ran into the picture.
         if woke_late || vcount() < VBLANK_LINE {
             // Black before and after (map loads while faded out): nothing visible differs.
-            let now_black = frame.brightness >= BRIGHTNESS_BLACK;
+            let now_black = frame.is_black();
             if black && now_black {
                 late_black = late_black.wrapping_add(1);
             } else {
                 late = late.wrapping_add(1);
             }
         }
-        black = frame.brightness >= BRIGHTNESS_BLACK;
+        black = frame.is_black();
         let keys = read_keys();
         frame = world.step(&game, keys);
         publish_debug(world, keys, late, late_black);

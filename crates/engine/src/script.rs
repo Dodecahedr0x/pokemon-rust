@@ -4,7 +4,8 @@
 //! reads, var writes…) are answered within the same frame; the others (printing text, walking,
 //! fading…) suspend the script until the host reports completion on a later frame.
 
-use crate::data::{Dir, FlagId, MapId, MovementType, TextId, VarId};
+use crate::battle::BattleOutcome;
+use crate::data::{Dir, FlagId, MapId, MovementType, SpeciesId, TextId, TrainerId, VarId};
 use crate::hash::Fnv64;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -158,6 +159,34 @@ pub enum Request {
     WaitDoor,
     /// Until a pending warp, fade or special-started state is done (Gen3 `waitstate`).
     WaitState,
+    // ---- party and battle (Milestone 4) ----
+    /// Gen3 `givemon`: answers `Value` = `MON_GIVEN_TO_PARTY` (0), `_PC` (1) or
+    /// `MON_CANT_GIVE` (2).
+    GiveMon {
+        species: SpeciesId,
+        level: u8,
+    },
+    /// Gen3 `getpartysize`: answers `Value`.
+    PartySize,
+    /// Gen3 `special HealPlayerParty`.
+    HealParty,
+    /// A wild battle; answers `Value(BattleOutcome as u16)` once the field is back.
+    BattleWild {
+        species: SpeciesId,
+        level: u8,
+        first_battle: bool,
+    },
+    /// A trainer battle; `defeat` is shown when the player wins. Answers
+    /// `Value(BattleOutcome as u16)` once the field is back. A battle that whites out never
+    /// answers: the World aborts the runner.
+    BattleTrainer {
+        trainer: TrainerId,
+        defeat: TextId,
+    },
+    /// Gen3 `special ChooseStarter`: answers `Value(index 0..3)`.
+    ChooseStarter([SpeciesId; 3]),
+    /// Gen3 `setrespawn` (heal location number).
+    SetRespawn(u8),
 }
 
 impl Request {
@@ -212,6 +241,17 @@ impl Request {
             Request::Door { x, y, open } => (33, i(x), i(y), open as u16, 0),
             Request::WaitDoor => (34, 0, 0, 0, 0),
             Request::WaitState => (35, 0, 0, 0, 0),
+            Request::GiveMon { species, level } => (36, species.0, level as u16, 0, 0),
+            Request::PartySize => (37, 0, 0, 0, 0),
+            Request::HealParty => (38, 0, 0, 0, 0),
+            Request::BattleWild {
+                species,
+                level,
+                first_battle,
+            } => (39, species.0, level as u16, first_battle as u16, 0),
+            Request::BattleTrainer { trainer, defeat } => (40, trainer.0, defeat.0, 0, 0),
+            Request::ChooseStarter([a, b, c]) => (41, a.0, b.0, c.0, 0),
+            Request::SetRespawn(id) => (42, id as u16, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -449,6 +489,58 @@ impl Ctx {
     pub async fn wait_state(&self) {
         self.unit(Request::WaitState).await
     }
+
+    /// Gen3 `givemon`: `MON_GIVEN_TO_PARTY` (0), `MON_GIVEN_TO_PC` (1) or `MON_CANT_GIVE` (2).
+    pub async fn give_mon(&self, species: SpeciesId, level: u8) -> u16 {
+        self.request(Request::GiveMon { species, level })
+            .await
+            .value()
+    }
+
+    pub async fn party_size(&self) -> u16 {
+        self.request(Request::PartySize).await.value()
+    }
+
+    pub async fn heal_party(&self) {
+        self.unit(Request::HealParty).await
+    }
+
+    pub async fn battle_wild(
+        &self,
+        species: SpeciesId,
+        level: u8,
+        first_battle: bool,
+    ) -> BattleOutcome {
+        outcome(
+            self.request(Request::BattleWild {
+                species,
+                level,
+                first_battle,
+            })
+            .await,
+        )
+    }
+
+    pub async fn battle_trainer(&self, trainer: TrainerId, defeat: TextId) -> BattleOutcome {
+        outcome(
+            self.request(Request::BattleTrainer { trainer, defeat })
+                .await,
+        )
+    }
+
+    /// The index (0..3) of the chosen species.
+    pub async fn choose_starter(&self, choices: [SpeciesId; 3]) -> u8 {
+        self.request(Request::ChooseStarter(choices)).await.value() as u8
+    }
+
+    pub async fn set_respawn(&self, heal_location: u8) {
+        self.unit(Request::SetRespawn(heal_location)).await
+    }
+}
+
+fn outcome(r: Response) -> BattleOutcome {
+    let v = r.value();
+    BattleOutcome::from_u16(v).unwrap_or_else(|| panic!("expected a B_OUTCOME_* value, got {v}"))
 }
 
 /// The world side of scripts.
@@ -521,6 +613,14 @@ impl Runner {
             None => h.write(&[0xFF]),
             Some(r) => r.hash_into(h),
         }
+    }
+
+    /// Drops the running script and any pending request (Gen3 whiteout resets the script
+    /// context). `issued` is kept, as when a script ends.
+    pub fn abort(&mut self) {
+        self.task = None;
+        self.active = None;
+        *self.io.borrow_mut() = Io::default();
     }
 
     /// Starts `script` (built with `self.ctx()`); it first runs on the next `step`.
@@ -650,6 +750,113 @@ mod tests {
         assert!(r.step(&mut h));
         assert_eq!(h.log.len(), INSTANT_LIMIT as usize);
         assert!(r.step(&mut h));
+    }
+
+    #[test]
+    fn abort_drops_the_script_and_its_pending_request() {
+        let mut r = Runner::new();
+        let mut h = Host::default();
+        r.start(Box::pin(sample(r.ctx())));
+        assert!(r.step(&mut h));
+        assert_eq!(r.waiting_on(), Some(&Request::Delay(3)));
+        r.abort();
+        assert!(!r.is_running());
+        assert_eq!(r.waiting_on(), None);
+        assert!(!r.step(&mut h));
+        assert!(!h.flags[1], "the rest of the script never ran");
+        r.start(Box::pin(sample(r.ctx())));
+        assert!(r.step(&mut h));
+    }
+
+    async fn battles(ctx: Ctx) {
+        let i = ctx
+            .choose_starter([SpeciesId(1), SpeciesId(2), SpeciesId(3)])
+            .await;
+        ctx.set_var(VarId(0), i as u16).await;
+        let o = ctx.battle_wild(SpeciesId(4), 2, true).await;
+        ctx.set_var(VarId(1), o as u16).await;
+        let o = ctx.battle_trainer(TrainerId(5), TextId(6)).await;
+        ctx.set_var(VarId(2), o as u16).await;
+        let n = ctx.give_mon(SpeciesId(1), 5).await;
+        ctx.set_var(VarId(3), n).await;
+        ctx.set_var(VarId(4), ctx.party_size().await).await;
+        ctx.heal_party().await;
+        ctx.set_respawn(7).await;
+    }
+
+    /// Answers the M4 requests with fixed values.
+    struct BattleHost(Vec<Request>, [u16; 8]);
+
+    impl ScriptHost for BattleHost {
+        fn begin(&mut self, r: &Request) -> Option<Response> {
+            self.0.push(r.clone());
+            Some(match *r {
+                Request::ChooseStarter(_) => Response::Value(2),
+                Request::BattleWild { .. } => Response::Value(BattleOutcome::MonFled as u16),
+                Request::BattleTrainer { .. } => Response::Value(BattleOutcome::Won as u16),
+                Request::GiveMon { .. } => Response::Value(0),
+                Request::PartySize => Response::Value(1),
+                Request::SetVar(v, x) => {
+                    self.1[v.0 as usize] = x;
+                    Response::Unit
+                }
+                _ => Response::Unit,
+            })
+        }
+
+        fn resume(&mut self, _: &Request) -> Option<Response> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn battle_requests_round_trip_through_ctx() {
+        let mut r = Runner::new();
+        let mut h = BattleHost(Vec::new(), [0; 8]);
+        r.start(Box::pin(battles(r.ctx())));
+        assert!(!r.step(&mut h));
+        assert_eq!(h.1[..5], [2, 6, 1, 0, 1]);
+        assert!(h.0.contains(&Request::SetRespawn(7)));
+        assert!(h.0.contains(&Request::HealParty));
+    }
+
+    #[test]
+    fn battle_request_hashes_differ() {
+        let hash = |r: Request| {
+            let mut h = Fnv64::new();
+            r.hash_into(&mut h);
+            h.finish()
+        };
+        let all = [
+            Request::GiveMon {
+                species: SpeciesId(1),
+                level: 5,
+            },
+            Request::PartySize,
+            Request::HealParty,
+            Request::BattleWild {
+                species: SpeciesId(1),
+                level: 5,
+                first_battle: false,
+            },
+            Request::BattleWild {
+                species: SpeciesId(1),
+                level: 5,
+                first_battle: true,
+            },
+            Request::BattleTrainer {
+                trainer: TrainerId(1),
+                defeat: TextId(5),
+            },
+            Request::ChooseStarter([SpeciesId(1), SpeciesId(5), SpeciesId(0)]),
+            Request::SetRespawn(1),
+        ];
+        let hashes: Vec<u64> = all.iter().cloned().map(hash).collect();
+        for (i, a) in hashes.iter().enumerate() {
+            for b in &hashes[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
     }
 
     #[test]

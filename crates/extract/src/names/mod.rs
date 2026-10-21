@@ -8,8 +8,11 @@
 //! the first in source order, skipping range bases like `FLAG_HIDDEN_ITEMS_START`.
 
 #[rustfmt::skip]
+mod battle;
+#[rustfmt::skip]
 mod generated;
 
+pub use battle::*;
 pub use generated::*;
 
 /// A `name <-> number` table.
@@ -168,6 +171,9 @@ mod tests {
             &STD_SCRIPTS,
             &MSGBOX_TYPES,
             &TILESETS,
+            &SPECIES,
+            &TRAINER_PICS,
+            &TRAINER_BACK_PICS,
         ] {
             assert!(
                 t.entries.windows(2).all(|w| w[0].0 <= w[1].0),

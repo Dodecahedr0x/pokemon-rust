@@ -39,6 +39,8 @@ pub const DISPCNT_BASE: u16 = (1 << 6) | (1 << 12);
 const DISPCNT_BG0: u16 = 1 << 8;
 /// Brightness decrease on BG0-3, OBJ and backdrop; with BLDY = 0 it is the identity.
 pub const BLDCNT_DARKEN_ALL: u16 = 0x3F | (3 << 6);
+/// Brightness increase on BG0-3, OBJ and backdrop (`Frame::lighten`).
+pub const BLDCNT_LIGHTEN_ALL: u16 = 0x3F | (2 << 6);
 const OAM_HIDDEN: u16 = 1 << 9;
 
 const DMA_ENABLE: u32 = 1 << 31;
@@ -188,7 +190,14 @@ impl Video {
                 write16(BGOFS + 4 * i, x & 0x1FF);
                 write16(BGOFS + 4 * i + 2, y & 0x1FF);
             }
-            write16(BLDCNT, BLDCNT_DARKEN_ALL);
+            write16(
+                BLDCNT,
+                if frame.lighten {
+                    BLDCNT_LIGHTEN_ALL
+                } else {
+                    BLDCNT_DARKEN_ALL
+                },
+            );
             write16(BLDY, frame.brightness.min(BRIGHTNESS_BLACK) as u16);
             write16(DISPCNT, self.dispcnt);
         }
@@ -222,6 +231,9 @@ impl Video {
                         tiles.as_flattened(),
                         OBJ_VRAM + (*first as usize & 0x3FF) * TILE_BYTES,
                     ),
+                    Cmd::ObjTile { index, tile } => {
+                        copy_words(tile, OBJ_VRAM + (*index as usize & 0x3FF) * TILE_BYTES)
+                    }
                     Cmd::MapEntries {
                         screen_block: sb,
                         start,

@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+pub mod battle;
 pub mod data;
 pub mod debug;
 pub mod field;
@@ -10,11 +11,15 @@ pub mod flow;
 pub mod grid;
 pub mod hash;
 pub mod input;
+pub mod mon;
 pub mod objects;
 pub mod rng;
 pub mod script;
+pub mod starter;
 pub mod text;
+pub mod trainer;
 pub mod video;
+pub mod wild;
 pub mod world;
 
 pub use data::GameData;
