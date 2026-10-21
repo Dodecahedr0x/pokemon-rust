@@ -17,6 +17,15 @@
 //!
 //! Canvases are kept in RAM; every call that changes them ends by uploading the changed tiles
 //! with `Cmd::BgTile`. BG0 scroll is expected to stay (0, 0).
+//!
+//! The glyph canvas and the printer state machine live in [`printer`], shared with the battle
+//! windows (`battle::ui`).
+
+mod printer;
+
+#[cfg(test)]
+use self::printer::State;
+pub use self::printer::{Canvas, Colors, Pen, Printer};
 
 use crate::Tile;
 use crate::data::{Font, GameData, UiText, WindowGfx};
@@ -28,8 +37,6 @@ use alloc::vec::Vec;
 
 /// A text window: its tilemap rectangle (in tiles) and its first canvas tile.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-/// Only the `MSG_WINDOW` / `YES_NO_WINDOW` constants exist (fields are private, so `top >= 1`
-/// and the window fits the 32-column map).
 pub struct Window {
     left: u8,
     top: u8,
@@ -138,208 +145,39 @@ pub fn expand(game: &impl GameData, text: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Text colors (palette indices in `WINDOW_PALETTE`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-struct Colors {
-    fg: u8,
-    shadow: u8,
-    bg: u8,
-}
-
-impl Colors {
-    fn of(w: &WindowGfx) -> Self {
-        Self {
-            fg: w.text_fg,
-            shadow: w.text_shadow,
-            bg: w.text_bg,
-        }
-    }
-}
-
-/// Text colors plus a byte -> half-row lookup like Gen3 `sFontHalfRowLookupTable`: one font
-/// byte (4 pixels of 2bpp, leftmost in bits 7-6) -> 4 canvas nibbles (leftmost in the low one).
-struct Pen {
-    colors: Colors,
-    half: [u16; 256],
-}
-
-impl Pen {
-    fn new(colors: Colors) -> Self {
-        let map = [colors.bg, colors.fg, colors.shadow, colors.bg].map(|c| c as u16 & 0xF);
-        let mut half = [0u16; 256];
-        for (b, h) in half.iter_mut().enumerate() {
-            for i in 0..4 {
-                *h |= map[(b >> (6 - 2 * i)) & 3] << (4 * i);
-            }
-        }
-        Self { colors, half }
-    }
-
-    /// 8 pixels of a glyph tile row (`.latfont` u16 as little-endian bytes) as a 4bpp row.
-    fn row(&self, lo: u8, hi: u8) -> u32 {
-        self.half[hi as usize] as u32 | (self.half[lo as usize] as u32) << 16
-    }
-}
-
-/// Mask of the first `n` (<= 8) pixels of a 4bpp row.
-const fn px_mask(n: usize) -> u32 {
-    if n >= 8 { u32::MAX } else { (1 << (4 * n)) - 1 }
-}
-
-const fn fill_word(c: u8) -> u32 {
-    (c as u32 & 0xF) * 0x1111_1111
-}
-
-/// A window's pixels as 4bpp tiles, row-major, with per-tile dirty flags.
-struct Canvas {
-    win: Window,
-    tiles: Vec<Tile>,
-    dirty: Vec<bool>,
-}
-
-impl Canvas {
-    fn new(win: Window) -> Self {
-        let n = win.width as usize * win.height as usize;
-        Self {
-            win,
-            tiles: vec![[0; 8]; n],
-            dirty: vec![false; n],
-        }
-    }
-
-    fn w_px(&self) -> i16 {
-        self.win.width as i16 * 8
-    }
-
-    fn h_px(&self) -> i16 {
-        self.win.height as i16 * 8
-    }
-
-    fn set(&mut self, x: i16, y: i16, c: u8) {
-        if x < 0 || y < 0 || x >= self.w_px() || y >= self.h_px() {
-            return;
-        }
-        let (x, y) = (x as usize, y as usize);
-        let t = (y / 8) * self.win.width as usize + x / 8;
-        let shift = (x % 8) * 4;
-        let row = &mut self.tiles[t][y % 8];
-        *row = (*row & !(0xF << shift)) | ((c as u32 & 0xF) << shift);
-        self.dirty[t] = true;
-    }
-
-    fn fill(&mut self, c: u8) {
-        self.tiles.fill([fill_word(c); 8]);
-        self.dirty.fill(true);
-    }
-
-    fn fill_rect(&mut self, x: i16, y: i16, w: i16, h: i16, c: u8) {
-        for py in y..y + h {
-            for px in x..x + w {
-                self.set(px, py, c);
-            }
-        }
-    }
-
-    /// Gen3 `ScrollWindow` upwards by `n` pixels, filling the bottom with `c`.
-    fn scroll_up(&mut self, n: i16, c: u8) {
-        let (w, h) = (self.win.width as usize, self.h_px() as usize);
-        for tx in 0..w {
-            for py in 0..h {
-                let src = py + n as usize;
-                let word = if src < h {
-                    self.tiles[(src / 8) * w + tx][src % 8]
-                } else {
-                    fill_word(c)
-                };
-                self.tiles[(py / 8) * w + tx][py % 8] = word;
-            }
-        }
-        self.dirty.fill(true);
-    }
-
-    /// Draws glyph `id` with its top-left at (x, y) as Gen3 `CopyGlyphToWindow` does: `width`
-    /// columns and 15 rows, 2bpp values 0/3 -> bg, 1 -> fg, 2 -> shadow. Returns the advance.
-    /// Works on whole tile rows: each 8-pixel glyph half is shifted into two canvas words.
-    fn draw_glyph(&mut self, font: &Font, id: u16, x: i16, y: i16, pen: &Pen) -> i16 {
-        let (Some(glyph), Some(&width)) =
-            (font.glyphs.get(id as usize), font.widths.get(id as usize))
-        else {
-            return 0;
-        };
-        if x < 0 {
-            return width as i16;
-        }
-        let (x, w_tiles) = (x as usize, self.win.width as usize);
-        let width_px = (width as usize).min(16);
-        for row in 0..GLYPH_HEIGHT as i32 {
-            let cy = y as i32 + row;
-            if cy < 0 || cy >= self.h_px() as i32 {
-                continue;
-            }
-            let (cy, row) = (cy as usize, row as usize);
-            for half in 0..2 {
-                if width_px <= half * 8 {
-                    break;
-                }
-                let off = ((row / 8) * 2 + half) * 16 + (row % 8) * 2;
-                let word = pen.row(glyph[off], glyph[off + 1]) as u64;
-                let mask = px_mask(width_px - half * 8) as u64;
-                let px = x + half * 8;
-                let shift = (px % 8) * 4;
-                let (word, mask) = (word << shift, mask << shift);
-                for k in 0..2 {
-                    let tx = px / 8 + k;
-                    let m = (mask >> (32 * k)) as u32;
-                    if tx >= w_tiles || m == 0 {
-                        continue;
-                    }
-                    let t = (cy / 8) * w_tiles + tx;
-                    let r = &mut self.tiles[t][cy % 8];
-                    *r = (*r & !m) | ((word >> (32 * k)) as u32 & m);
-                    self.dirty[t] = true;
-                }
-            }
-        }
-        width as i16
-    }
-
-    /// Draws one line of `text` (stops at 0xFF or `\n`), skipping control codes.
-    fn draw_line(&mut self, font: &Font, text: &[u8], mut x: i16, y: i16, pen: &Pen) {
-        let mut i = 0;
-        while let Some(&b) = text.get(i) {
-            match b {
-                EOS | NEWLINE => break,
-                PROMPT_CLEAR | PROMPT_SCROLL => {}
-                EXTRA_SYMBOL => {
-                    if let Some(&a) = text.get(i + 1) {
-                        x = x.saturating_add(self.draw_glyph(font, 0x100 | a as u16, x, y, pen));
-                    }
-                }
-                EXT_CTRL | PLACEHOLDER | DYNAMIC | KEYPAD_ICON => {}
-                c => x = x.saturating_add(self.draw_glyph(font, c as u16, x, y, pen)),
-            }
-            i += unit_len(text, i);
-        }
-    }
-
-    fn flush(&mut self, f: &mut Frame) {
-        for (i, d) in self.dirty.iter_mut().enumerate() {
-            if core::mem::take(d) {
-                f.cmds.push(Cmd::BgTile {
-                    char_block: layout::TEXT_CHAR_BLOCK,
-                    index: self.win.base + i as u16,
-                    tile: self.tiles[i],
-                });
-            }
-        }
-    }
-}
-
 const fn frame_entry(tile: u16, vflip: bool) -> u16 {
     (FRAME_BASE + tile) | ((vflip as u16) << 11) | ((layout::WINDOW_PALETTE as u16) << 12)
 }
 
 impl Window {
+    /// A window at tile (`left`, `top`) of `width` x `height` tiles whose canvas starts at tile
+    /// `base` of its char block (Gen3 `struct WindowTemplate`).
+    pub const fn new(left: u8, top: u8, width: u8, height: u8, base: u16) -> Self {
+        Self {
+            left,
+            top,
+            width,
+            height,
+            base,
+        }
+    }
+
+    pub const fn left(&self) -> u8 {
+        self.left
+    }
+
+    pub const fn top(&self) -> u8 {
+        self.top
+    }
+
+    pub const fn width(&self) -> u8 {
+        self.width
+    }
+
+    pub const fn height(&self) -> u8 {
+        self.height
+    }
+
     /// Screen-block entry index of the first row returned by [`Window::frame_entries`].
     pub const fn frame_start(&self) -> u16 {
         self.top.saturating_sub(1) as u16 * MAP_SIZE as u16
@@ -395,59 +233,14 @@ impl Window {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum State {
-    /// No message, or the message has been fully printed.
-    Idle,
-    Printing,
-    /// `{PAUSE n}`: frames left.
-    Pause(u8),
-    /// `{PAUSE_UNTIL_PRESS}`.
-    WaitPress,
-    /// `\l`: waiting for A/B before scrolling.
-    WaitScroll,
-    /// Pixels left to scroll.
-    Scrolling(u8),
-    /// `\p`: waiting for A/B before clearing.
-    WaitClear,
-}
-
-impl State {
-    fn tag(self) -> [u8; 2] {
-        match self {
-            State::Idle => [0, 0],
-            State::Printing => [1, 0],
-            State::Pause(n) => [2, n],
-            State::WaitPress => [3, 0],
-            State::WaitScroll => [4, 0],
-            State::Scrolling(n) => [5, n],
-            State::WaitClear => [6, 0],
-        }
-    }
-}
-
-const fn ab(pressed: Buttons) -> bool {
-    pressed.0 & (Buttons::A.0 | Buttons::B.0) != 0
-}
-
 /// The field dialogue window, its text printer and the yes/no menu.
 pub struct TextBox {
     /// BG0 enabled with the window palette and frame tiles loaded.
     bg_on: bool,
     /// Dialogue frame drawn.
     open: bool,
-    state: State,
-    text: Vec<u8>,
-    /// Digest of `text`, computed once per message so the per-frame hash stays O(1).
-    text_digest: u64,
-    pos: usize,
-    x: i16,
-    y: i16,
-    delay: u8,
-    /// A/B was pressed while printing this message (Gen3 `hasPrintBeenSpedUp`).
-    sped_up: bool,
-    pen: Pen,
-    msg: Canvas,
+    /// The message window's printer.
+    printer: Printer,
     yes_no: Canvas,
     /// Cursor position (0 = yes) while the yes/no menu is shown.
     yes_no_cursor: Option<u8>,
@@ -465,17 +258,13 @@ impl TextBox {
         Self {
             bg_on: false,
             open: false,
-            state: State::Idle,
-            text: Vec::new(),
-            text_digest: 0,
-            pos: 0,
-            x: TEXT_X,
-            y: TEXT_Y,
-            delay: 0,
-            sped_up: false,
-            pen: Pen::new(Colors::default()),
-            msg: Canvas::new(MSG_WINDOW),
-            yes_no: Canvas::new(YES_NO_WINDOW),
+            printer: Printer::new(
+                MSG_WINDOW,
+                layout::TEXT_CHAR_BLOCK,
+                (TEXT_X, TEXT_Y),
+                FRAMES_PER_CHAR,
+            ),
+            yes_no: Canvas::new(YES_NO_WINDOW, layout::TEXT_CHAR_BLOCK),
             yes_no_cursor: None,
             yes_no_result: None,
         }
@@ -531,18 +320,16 @@ impl TextBox {
     /// Enables BG0 and draws an empty dialogue window.
     pub fn open(&mut self, game: &impl GameData, f: &mut Frame) {
         self.open_unflushed(game, f);
-        self.msg.flush(f);
+        self.printer.flush(f);
     }
 
     /// [`TextBox::open`] without uploading the cleared canvas (the caller flushes it).
     fn open_unflushed(&mut self, game: &impl GameData, f: &mut Frame) {
         let w = game.window();
-        self.pen = Pen::new(Colors::of(w));
+        self.printer.clear(Colors::of(w));
         self.enable_bg(w, f);
         Self::put_frame(&MSG_WINDOW, f);
-        self.msg.fill(self.pen.colors.bg);
         self.open = true;
-        self.state = State::Idle;
     }
 
     /// Clears the window and starts printing `text` (Gen3-encoded, 0xFF-terminated). Opens the
@@ -553,21 +340,9 @@ impl TextBox {
         if cleared {
             self.open_unflushed(game, f);
         }
-        self.text = expand(game, text);
-        let mut d = Fnv64::new();
-        d.write(&self.text);
-        self.text_digest = d.finish();
-        self.pos = 0;
-        self.x = TEXT_X;
-        self.y = TEXT_Y;
-        self.delay = 0;
-        self.sped_up = false;
-        self.pen = Pen::new(Colors::of(game.window()));
-        if !cleared {
-            self.msg.fill(self.pen.colors.bg);
-        }
-        self.msg.flush(f);
-        self.state = State::Printing;
+        let colors = Colors::of(game.window());
+        self.printer.start(expand(game, text), colors, !cleared);
+        self.printer.flush(f);
     }
 
     /// Advances one frame. `pressed` = buttons newly pressed this frame, `held` = all held.
@@ -575,141 +350,15 @@ impl TextBox {
         if self.yes_no_cursor.is_some() {
             self.update_yes_no(game, pressed, f);
         } else if self.open {
-            self.update_printer(game.font(), pressed, held);
+            self.printer.update(game.font(), pressed, held);
         }
-        self.msg.flush(f);
+        self.printer.flush(f);
         self.yes_no.flush(f);
-    }
-
-    fn update_printer(&mut self, font: &Font, pressed: Buttons, held: Buttons) {
-        let press = ab(pressed);
-        match self.state {
-            State::Idle => {}
-            State::Printing => {
-                // Gen3 `RenderText`, RENDER_STATE_HANDLE_CHAR.
-                if self.sped_up && ab(held) {
-                    self.delay = 0;
-                }
-                if self.delay > 0 {
-                    self.delay -= 1;
-                    if press {
-                        self.sped_up = true;
-                        self.delay = 0;
-                    }
-                } else {
-                    self.step(font);
-                }
-            }
-            State::Pause(n) => {
-                self.state = if n > 0 {
-                    State::Pause(n - 1)
-                } else {
-                    State::Printing
-                };
-            }
-            State::WaitPress if press => self.state = State::Printing,
-            State::WaitScroll if press => {
-                self.x = TEXT_X;
-                self.state = State::Scrolling(LINE_HEIGHT as u8);
-            }
-            State::Scrolling(0) => self.state = State::Printing,
-            State::Scrolling(n) => {
-                let s = n.min(SCROLL_SPEED);
-                self.msg.scroll_up(s as i16, self.pen.colors.bg);
-                self.state = State::Scrolling(n - s);
-            }
-            State::WaitClear if press => {
-                self.msg.fill(self.pen.colors.bg);
-                self.x = TEXT_X;
-                self.y = TEXT_Y;
-                self.state = State::Printing;
-            }
-            State::WaitPress | State::WaitScroll | State::WaitClear => {}
-        }
-    }
-
-    fn next(&mut self) -> u8 {
-        let b = self.text.get(self.pos).copied().unwrap_or(EOS);
-        self.pos += 1;
-        b
-    }
-
-    /// Consumes codes until a glyph is drawn or the state changes (modelled on Gen3 `RenderText`;
-    /// control codes take no frames here).
-    fn step(&mut self, font: &Font) {
-        while self.state == State::Printing {
-            let b = self.next();
-            let glyph = match b {
-                EOS => {
-                    self.state = State::Idle;
-                    return;
-                }
-                NEWLINE => {
-                    self.x = TEXT_X;
-                    self.y = self.y.saturating_add(LINE_HEIGHT);
-                    continue;
-                }
-                PROMPT_SCROLL => {
-                    self.state = State::WaitScroll;
-                    return;
-                }
-                PROMPT_CLEAR => {
-                    self.state = State::WaitClear;
-                    return;
-                }
-                PLACEHOLDER | DYNAMIC | KEYPAD_ICON => {
-                    self.pos += 1;
-                    continue;
-                }
-                EXTRA_SYMBOL => 0x100 | self.next() as u16,
-                EXT_CTRL => match self.ext_ctrl() {
-                    Some(g) => g,
-                    None => continue,
-                },
-                c => c as u16,
-            };
-            let w = self.msg.draw_glyph(font, glyph, self.x, self.y, &self.pen);
-            self.x = self.x.saturating_add(w);
-            self.delay = FRAMES_PER_CHAR - 1;
-            // The message is complete as soon as its last character is on screen.
-            if self.text.get(self.pos).is_none_or(|&b| b == EOS) {
-                self.state = State::Idle;
-            }
-            return;
-        }
-    }
-
-    /// Handles an `FC` code; returns a glyph to draw for `{ESCAPE n}`.
-    fn ext_ctrl(&mut self) -> Option<u16> {
-        let code = self.next();
-        let &len = EXT_ARG_LEN.get(code as usize)?;
-        let at = self.pos;
-        let arg = |i: usize| self.text.get(at + i).copied().unwrap_or(0);
-        let (a0, a1, a2) = (arg(0), arg(1), arg(2));
-        self.pos += len as usize;
-        let c = self.pen.colors;
-        match code {
-            EXT_COLOR => self.pen = Pen::new(Colors { fg: a0, ..c }),
-            EXT_HIGHLIGHT => self.pen = Pen::new(Colors { bg: a0, ..c }),
-            EXT_SHADOW => self.pen = Pen::new(Colors { shadow: a0, ..c }),
-            EXT_COLOR_HIGHLIGHT_SHADOW => {
-                self.pen = Pen::new(Colors {
-                    fg: a0,
-                    bg: a1,
-                    shadow: a2,
-                })
-            }
-            EXT_PAUSE => self.state = State::Pause(a0),
-            EXT_PAUSE_UNTIL_PRESS => self.state = State::WaitPress,
-            EXT_ESCAPE => return Some(0x100 | a0 as u16),
-            _ => {}
-        }
-        None
     }
 
     /// True while a message is being printed, including its `\p`/`\l`/pause waits.
     pub fn is_printing(&self) -> bool {
-        self.state != State::Idle
+        self.printer.is_printing()
     }
 
     /// Shows the yes/no menu (Gen3 `DisplayYesNoMenuDefaultYes`), cursor on yes.
@@ -815,21 +464,8 @@ impl TextBox {
     /// Feeds all state into `h` (parity contract).
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
-        h.write(&[
-            self.bg_on as u8,
-            self.open as u8,
-            self.delay,
-            self.sped_up as u8,
-            self.pen.colors.fg,
-            self.pen.colors.shadow,
-            self.pen.colors.bg,
-        ]);
-        h.write(&self.state.tag());
-        h.write_u32(self.pos as u32);
-        h.write_u16(self.x as u16);
-        h.write_u16(self.y as u16);
-        h.write_u32(self.text.len() as u32);
-        h.write(&self.text_digest.to_le_bytes());
+        h.write(&[self.bg_on as u8, self.open as u8]);
+        self.printer.hash(h);
         h.write(&[
             self.yes_no_cursor.map_or(0xFF, |c| c),
             self.yes_no_result.map_or(0xFF, |r| r as u8),
