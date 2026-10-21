@@ -164,6 +164,94 @@ pub struct Frame {
     pub brightness: u8,
 }
 
+/// BG VRAM bytes (char blocks 0..3; screen blocks 0..31 overlap them).
+pub const BG_VRAM_BYTES: usize = 0x1_0000;
+const CHAR_BLOCK_BYTES: usize = 0x4000;
+const SCREEN_BLOCK_BYTES: usize = 0x800;
+const TILE_BYTES: usize = 32;
+
+impl Cmd {
+    /// Checks the command against the hardware ranges both shells assume: palette bank < 16,
+    /// BG tile and map writes inside BG VRAM, OBJ tiles inside OBJ VRAM, layer < 4 and BG
+    /// control fields within their register widths. Native panics on an error; the GBA shell
+    /// `debug_assert`s it.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        let ok = |c: bool, e| if c { Ok(()) } else { Err(e) };
+        let bg_tiles = |cb: u8, first: u16, n: usize| {
+            ok(
+                cb < 4
+                    && cb as usize * CHAR_BLOCK_BYTES + (first as usize + n) * TILE_BYTES
+                        <= BG_VRAM_BYTES,
+                "BG tiles past BG VRAM",
+            )
+        };
+        match self {
+            Cmd::BgPalette { bank, .. } | Cmd::ObjPalette { bank, .. } => {
+                ok(*bank < 16, "palette bank out of range")
+            }
+            Cmd::BgTiles {
+                char_block,
+                first,
+                tiles,
+            } => bg_tiles(*char_block, *first, tiles.len()),
+            Cmd::BgTile {
+                char_block, index, ..
+            } => bg_tiles(*char_block, *index, 1),
+            Cmd::ObjTiles { first, tiles } => ok(
+                *first as usize + tiles.len() <= OBJ_TILES,
+                "OBJ tiles past OBJ VRAM",
+            ),
+            Cmd::MapEntries {
+                screen_block,
+                start,
+                entries,
+            } => ok(
+                *screen_block < 32
+                    && *screen_block as usize * SCREEN_BLOCK_BYTES
+                        + (*start as usize + entries.len()) * 2
+                        <= BG_VRAM_BYTES,
+                "map entries past BG VRAM",
+            ),
+            Cmd::MapFill { screen_block, .. } => {
+                ok(*screen_block < 32, "screen block out of range")
+            }
+            Cmd::Bg { layer, control } => ok(
+                (*layer as usize) < BG_LAYERS
+                    && control.priority < 4
+                    && control.char_block < 4
+                    && control.screen_block < 32,
+                "BG layer or control out of range",
+            ),
+        }
+    }
+}
+
+impl Obj {
+    /// Fields within their OAM widths (x/y wrap and are always valid).
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if (self.tile as usize) < OBJ_TILES
+            && self.palette < 16
+            && self.size < 4
+            && self.priority < 4
+        {
+            Ok(())
+        } else {
+            Err("obj tile/palette/size/priority out of range")
+        }
+    }
+}
+
+impl Frame {
+    /// Every cmd and obj valid and at most `MAX_OBJS` objs.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.objs.len() > MAX_OBJS {
+            return Err("more than MAX_OBJS objs");
+        }
+        self.cmds.iter().try_for_each(Cmd::validate)?;
+        self.objs.iter().try_for_each(Obj::validate)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +267,55 @@ mod tests {
         assert_eq!(Obj::dimensions(ObjShape::Tall, 2), (16, 32));
         assert_eq!(Obj::shape_for(16, 32), Some((ObjShape::Tall, 2)));
         assert_eq!(Obj::shape_for(24, 24), None);
+    }
+
+    #[test]
+    fn validate_checks_ranges() {
+        static T: [Tile; 2] = [[0; 8]; 2];
+        let pal = |bank| Cmd::BgPalette {
+            bank,
+            colors: [0; 16],
+        };
+        assert!(pal(15).validate().is_ok());
+        assert!(pal(16).validate().is_err());
+        let bg = |char_block, first| Cmd::BgTiles {
+            char_block,
+            first,
+            tiles: &T,
+        };
+        assert!(bg(0, 510).validate().is_ok()); // runs on into char block 1
+        assert!(bg(3, 510).validate().is_ok());
+        assert!(bg(3, 511).validate().is_err());
+        assert!(bg(4, 0).validate().is_err());
+        let obj = |first| Cmd::ObjTiles { first, tiles: &T };
+        assert!(obj(1022).validate().is_ok());
+        assert!(obj(1023).validate().is_err());
+        let map = |screen_block, start, n| Cmd::MapEntries {
+            screen_block,
+            start,
+            entries: alloc::vec![0; n],
+        };
+        assert!(map(31, 0, 1024).validate().is_ok());
+        assert!(map(31, 1, 1024).validate().is_err());
+        assert!(map(32, 0, 1).validate().is_err());
+        let ctl = |layer, priority| Cmd::Bg {
+            layer,
+            control: BgControl {
+                enabled: true,
+                priority,
+                char_block: 0,
+                screen_block: 0,
+            },
+        };
+        assert!(ctl(3, 3).validate().is_ok());
+        assert!(ctl(4, 0).validate().is_err());
+        assert!(ctl(0, 4).validate().is_err());
+        let mut f = Frame::default();
+        f.objs.push(Obj::default());
+        assert!(f.validate().is_ok());
+        f.objs[0].palette = 16;
+        assert!(f.validate().is_err());
+        f.objs = alloc::vec![Obj::default(); MAX_OBJS + 1];
+        assert!(f.validate().is_err());
     }
 }

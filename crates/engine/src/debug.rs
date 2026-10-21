@@ -1,12 +1,12 @@
 //! Debug mirror the GBA build keeps in EWRAM so the studio/emulator can follow the engine.
-//! Write order on the GBA: inputs slot, then hash, then frame (frame last = commit).
+//! Write order on the GBA: inputs slot, then hash, then late, then frame (frame last = commit).
 //! The GBA writer must use `write_volatile` for every field, and readers must sample between
 //! frames (`hash` is a u64 written as two 32-bit stores).
 //!
-//! Display lag: the GBA writes scroll registers at vblank from the *previous* step's
-//! `FrameOut`, so the picture visible when the emulator samples after `run_frame` shows engine
-//! frame `frame - 1`, not `frame`. Pixel comparisons must use a stable (idle) tail or compare
-//! against the native render of `frame - 1`. Harnesses must key on `frame` and the input ring,
+//! Display lag: the GBA applies the *previous* step's `video::Frame` at vblank, so the picture
+//! visible when the emulator samples after `run_frame` shows engine frame `frame - 1`, not
+//! `frame`. Pixel comparisons must use a stable (idle) tail or compare against the native render
+//! of `frame - 1`. Harnesses must key on `frame` and the input ring,
 //! never on emulator frame counts (boot adds an offset).
 
 pub const MAGIC: [u8; 8] = *b"PKRDBG01";
@@ -14,6 +14,7 @@ pub const INPUT_RING: usize = 64;
 pub const OFF_FRAME: u32 = 8;
 pub const OFF_HASH: u32 = 16;
 pub const OFF_INPUTS: u32 = 24;
+pub const OFF_LATE: u32 = 152;
 
 #[repr(C)]
 pub struct DebugRegion {
@@ -25,13 +26,19 @@ pub struct DebugRegion {
     pub hash: u64,
     /// Input consumed by step `f` lives at `input_slot(f)`.
     pub inputs: [u16; INPUT_RING],
+    /// Number of frames the GBA shell applied late: the previous step overran into the next
+    /// frame (vblank catch-up), or applying a `Frame` ran past vblank. Pixels shown while late
+    /// may differ from native; the parity harness requires 0.
+    pub late: u32,
+    pub _pad2: u32,
 }
 
 const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, frame) == OFF_FRAME as usize);
     assert!(core::mem::offset_of!(DebugRegion, hash) == OFF_HASH as usize);
     assert!(core::mem::offset_of!(DebugRegion, inputs) == OFF_INPUTS as usize);
-    assert!(core::mem::size_of::<DebugRegion>() == 152);
+    assert!(core::mem::offset_of!(DebugRegion, late) == OFF_LATE as usize);
+    assert!(core::mem::size_of::<DebugRegion>() == 160);
     // emu scans EWRAM in 8-byte steps.
     assert!(core::mem::align_of::<DebugRegion>() == 8);
 };
@@ -45,6 +52,8 @@ impl DebugRegion {
             _pad: 0,
             hash: 0,
             inputs: [0; INPUT_RING],
+            late: 0,
+            _pad2: 0,
         }
     }
 }
@@ -65,7 +74,8 @@ mod tests {
         assert_eq!(offset_of!(DebugRegion, frame), OFF_FRAME as usize);
         assert_eq!(offset_of!(DebugRegion, hash), OFF_HASH as usize);
         assert_eq!(offset_of!(DebugRegion, inputs), OFF_INPUTS as usize);
-        assert_eq!(size_of::<DebugRegion>(), 152);
+        assert_eq!(offset_of!(DebugRegion, late), OFF_LATE as usize);
+        assert_eq!(size_of::<DebugRegion>(), 160);
     }
 
     #[test]

@@ -1,10 +1,12 @@
-use crate::{Buttons, Rng, hash::Fnv64};
+use crate::scene::MAP_TILES;
+use crate::video::{BgControl, Cmd, Frame};
+use crate::{Buttons, Content, Rng, hash::Fnv64};
+use alloc::vec;
 
-/// Virtual-PPU output of one frame. Grows into full layer/sprite commands later.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub struct FrameOut {
-    pub bg0_scroll: (u16, u16),
-}
+/// M1 scene placement: BG0, char block 0, screen block 31, palette bank 0.
+const SCENE_BG: u8 = 0;
+const SCENE_CHAR_BLOCK: u8 = 0;
+const SCENE_SCREEN_BLOCK: u8 = 31;
 
 /// All mutable game state. Must stay deterministic: same state + same input => same next state.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -27,7 +29,41 @@ impl World {
         }
     }
 
-    pub fn step(&mut self, keys: Buttons) -> FrameOut {
+    /// Frame 0: uploads the scene (palette, tiles, map, BG0 control) and sets the registers.
+    /// Shells apply it before the first step.
+    pub fn initial_frame(&self, content: &dyn Content) -> Frame {
+        let scene = content.scene();
+        let mut f = self.registers();
+        f.cmds = vec![
+            Cmd::BgPalette {
+                bank: 0,
+                colors: scene.palette,
+            },
+            Cmd::BgTiles {
+                char_block: SCENE_CHAR_BLOCK,
+                first: 0,
+                tiles: scene.tiles,
+            },
+            Cmd::MapEntries {
+                screen_block: SCENE_SCREEN_BLOCK,
+                start: 0,
+                entries: scene.map[..MAP_TILES * MAP_TILES].to_vec(),
+            },
+            Cmd::Bg {
+                layer: SCENE_BG,
+                control: BgControl {
+                    enabled: true,
+                    priority: 0,
+                    char_block: SCENE_CHAR_BLOCK,
+                    screen_block: SCENE_SCREEN_BLOCK,
+                },
+            },
+        ];
+        f
+    }
+
+    /// Steps the world; the returned frame only moves BG0 (the scene is uploaded once).
+    pub fn step(&mut self, keys: Buttons) -> Frame {
         if keys.contains(Buttons::RIGHT) {
             self.scroll_x = self.scroll_x.wrapping_add(1);
         }
@@ -42,13 +78,13 @@ impl World {
         }
         self.rng.next_u32();
         self.frame = self.frame.wrapping_add(1);
-        self.frame_out()
+        self.registers()
     }
 
-    pub const fn frame_out(&self) -> FrameOut {
-        FrameOut {
-            bg0_scroll: (self.scroll_x, self.scroll_y),
-        }
+    fn registers(&self) -> Frame {
+        let mut f = Frame::default();
+        f.scroll[SCENE_BG as usize] = (self.scroll_x, self.scroll_y);
+        f
     }
 
     pub const fn frame(&self) -> u32 {
@@ -92,12 +128,45 @@ mod tests {
     fn dpad_scrolls_and_wraps() {
         let mut w = World::new();
         let out = w.step(Buttons::RIGHT | Buttons::DOWN);
-        assert_eq!(out.bg0_scroll, (1, 1));
+        assert_eq!(out.scroll[0], (1, 1));
         let out = w.step(Buttons::LEFT);
-        assert_eq!(out.bg0_scroll, (0, 1));
+        assert_eq!(out.scroll[0], (0, 1));
         let out = w.step(Buttons::LEFT | Buttons::UP);
-        assert_eq!(out.bg0_scroll, (u16::MAX, 0));
+        assert_eq!(out.scroll[0], (u16::MAX, 0));
         assert_eq!(w.frame(), 3);
+    }
+
+    #[test]
+    fn initial_frame_uploads_scene_and_steps_only_scroll() {
+        struct One;
+        static TILES: [crate::Tile; 1] = [[0x1111_1111; 8]];
+        static MAP: [u16; 1024] = [0; 1024];
+        static SCENE: crate::Scene = crate::Scene {
+            palette: [7; 16],
+            tiles: &TILES,
+            map: &MAP,
+        };
+        impl Content for One {
+            fn scene(&self) -> &crate::Scene {
+                &SCENE
+            }
+        }
+        let mut w = World::new();
+        let f0 = w.initial_frame(&One);
+        assert_eq!(f0.scroll[0], (0, 0));
+        assert!(matches!(f0.cmds[0], Cmd::BgPalette { bank: 0, colors } if colors == [7; 16]));
+        assert!(
+            matches!(f0.cmds[1], Cmd::BgTiles { char_block: 0, first: 0, tiles } if tiles.len() == 1)
+        );
+        assert!(
+            matches!(&f0.cmds[2], Cmd::MapEntries { screen_block: 31, start: 0, entries } if entries.len() == 1024)
+        );
+        assert!(matches!(f0.cmds[3], Cmd::Bg { layer: 0, control } if control.enabled));
+        let f1 = w.step(Buttons::RIGHT);
+        assert!(f1.cmds.is_empty());
+        assert_eq!(f1.scroll, [(1, 0), (0, 0), (0, 0), (0, 0)]);
+        assert!(f1.objs.is_empty());
+        assert_eq!(f1.brightness, 0);
     }
 
     #[test]

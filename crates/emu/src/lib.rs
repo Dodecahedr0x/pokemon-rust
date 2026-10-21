@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result, anyhow};
 use engine::Buttons;
-use engine::debug::{INPUT_RING, MAGIC, OFF_FRAME, OFF_HASH, OFF_INPUTS};
+use engine::debug::{INPUT_RING, MAGIC, OFF_FRAME, OFF_HASH, OFF_INPUTS, OFF_LATE};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -26,6 +26,8 @@ pub struct DebugSnapshot {
     pub frame: u32,
     pub hash: u64,
     pub inputs: [u16; INPUT_RING],
+    /// Frames the ROM applied late (see `engine::debug::DebugRegion::late`).
+    pub late: u32,
 }
 
 /// Private scratch directory removed on drop (errors ignored).
@@ -123,6 +125,7 @@ impl Emu {
         let frame = self.read32(base + OFF_FRAME);
         let hash =
             self.read32(base + OFF_HASH) as u64 | (self.read32(base + OFF_HASH + 4) as u64) << 32;
+        let late = self.read32(base + OFF_LATE);
         let mut inputs = [0u16; INPUT_RING];
         for (i, slot) in inputs.iter_mut().enumerate() {
             *slot = self.read16(base + OFF_INPUTS + 2 * i as u32);
@@ -131,6 +134,7 @@ impl Emu {
             frame,
             hash,
             inputs,
+            late,
         })
     }
 
