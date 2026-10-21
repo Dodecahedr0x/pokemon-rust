@@ -493,6 +493,7 @@ dependencies = [
  "content",
  "emu",
  "engine",
+ "extract",
  "game-native",
 ]
 
