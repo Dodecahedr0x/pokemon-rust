@@ -16,18 +16,21 @@
 //! 9. the text box.
 //!
 //! Map loads follow Gen3 `LoadMapFromWarp` + `LoadMapInStepsLocal`: temp flags and vars are
-//! cleared, then `on_transition`, `on_load` (before the first draw, so `setmetatile` lands
-//! first), `on_resume`, object spawning, then `on_warp_into`. A connection crossing runs
-//! `on_transition`, `on_load` and `on_resume` (`LoadMapFromCameraTransition`). Map scripts run
-//! to completion at once (Gen3 `RunScriptImmediately`); a waiting request there is logged and
-//! answered at once.
+//! cleared, then `on_transition` (before the field switches maps, as Gen3 runs it before
+//! `InitMap`), `on_load` (before the first draw, so `setmetatile` lands first), `on_resume`,
+//! object spawning, then `on_warp_into`. A connection crossing runs `on_transition`, `on_load`
+//! and `on_resume` the same way (`LoadMapFromCameraTransition`). Map scripts run to completion
+//! at once (Gen3 `RunScriptImmediately`); a waiting request there is logged and answered at
+//! once, and text, fades and warps there are logged and ignored. A warp load ends the running
+//! script (Gen3 `CB2_LoadMap` resets the script context).
 
 mod host;
 #[cfg(test)]
 mod tests;
 
 use crate::data::{
-    BgKind, Dir, FlagId, GameData, MapData, MapId, ObjectEvent, PLAYER, ScriptId, SpecialIds, VarId,
+    Behavior, BgKind, Dir, FlagId, GameData, MapData, MapId, ObjectEvent, PLAYER, ScriptId,
+    SpecialIds, VarId,
 };
 use crate::field::Field;
 use crate::flow::{
@@ -292,12 +295,21 @@ impl World {
         }
     }
 
-    fn start_script(&mut self, game: &impl GameData, id: ScriptId, talked: Option<(u8, Dir)>) {
+    /// Starts script `id`. `talked` = (local id, player facing, whether the object belongs to
+    /// the current map) for object interactions.
+    fn start_script(
+        &mut self,
+        game: &impl GameData,
+        id: ScriptId,
+        talked: Option<(u8, Dir, bool)>,
+    ) {
         let ids = game.special_ids();
-        self.s.selected = talked.map(|t| t.0);
+        // An NPC left over from the previous map is talked to, but not addressable by local id
+        // (`selected` names a current-map object), so `faceplayer` / `lock` skip it.
+        self.s.selected = talked.filter(|t| t.2).map(|t| t.0);
         self.s
             .set_var_opt(ids.var_last_talked, talked.map_or(0, |t| t.0 as u16));
-        if let Some((_, dir)) = talked {
+        if let Some((_, dir, _)) = talked {
             self.s.set_var_opt(ids.var_facing, dir as u16 + 1);
         }
         let ctx = self.runner.ctx();
@@ -354,20 +366,36 @@ impl World {
             let front = block_behavior(game, map, s.field.block(game, fx, fy));
             let fe = facing_elevation(here, elevation);
             if s.input.is_pressed(Buttons::A) {
-                let target = interact_target(map, fx, fy, fe, facing, front, |x, y, e| {
-                    s.objects.at(x, y, e)
-                });
-                let script = match target {
-                    Some(Target::Object(id)) => s
-                        .template(id)
-                        .and_then(|t| t.script)
-                        .map(|sc| (sc, Some((id, facing)))),
-                    Some(Target::Bg(i)) => match map.bgs[i].kind {
-                        BgKind::Script { script, .. } => Some((script, None)),
-                        BgKind::HiddenItem { .. } => None,
-                    },
-                    None => None,
+                // Gen3 `GetInteractionScript`: the object ahead (or across a counter), then,
+                // if it has no script, the bg event ahead.
+                let (dx, dy) = facing.delta();
+                let npc = |x, y| s.objects.at(x, y, fe);
+                let found = match npc(fx, fy) {
+                    None if front == Behavior::Counter => npc(fx + dx, fy + dy),
+                    f => f,
                 };
+                let object_script = found.and_then(|(id, m)| {
+                    let here = m == s.field.map();
+                    let script = if here {
+                        s.template(id).and_then(|t| t.script)
+                    } else {
+                        game.map(m)
+                            .objects
+                            .iter()
+                            .find(|t| t.local_id == id)?
+                            .script
+                    };
+                    script.map(|sc| (sc, Some((id, facing, here))))
+                });
+                let script = object_script.or_else(|| {
+                    match interact_target(map, fx, fy, fe, facing, front, |_, _, _| None) {
+                        Some(Target::Bg(i)) => match map.bgs[i].kind {
+                            BgKind::Script { script, .. } => Some((script, None)),
+                            BgKind::HiddenItem { .. } => None,
+                        },
+                        _ => None,
+                    }
+                });
                 if let Some((id, talked)) = script {
                     self.start_script(game, id, talked);
                     return false;
@@ -395,6 +423,8 @@ impl World {
                     cross_connection(game, s, f, to, shift);
                 }
             }
+            // Step triggers fire in the frame the step finishes; Gen3 checks them on the next
+            // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
                 let elevation = s.objects.player().elevation;
                 if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
@@ -417,6 +447,14 @@ impl World {
         match s.transition.update(&mut s.fader, moving) {
             TransitionStep::Walk(d) => s.objects.start_moves(PLAYER, &WALK[d as usize]),
             TransitionStep::Load(map, x, y) => {
+                // Gen3 `CB2_LoadMap` restarts the script context: a script that warped ends
+                // here, and the dialogue window goes with the old map.
+                self.runner = Runner::new();
+                s.selected = None;
+                s.last_mover = 0;
+                if s.text.is_open() {
+                    s.text.close(f);
+                }
                 load_map(game, s, f, map, x, y);
                 let b = s.ground(game).behavior(x, y);
                 let facing = s.transition.arrive(b);
@@ -485,12 +523,8 @@ impl World {
         s.vars.hash(&mut h);
         s.fader.hash(&mut h);
         s.transition.hash(&mut h);
-        h.write(&[
-            self.runner.is_running() as u8,
-            s.selected.map_or(0xFF, |x| x),
-            s.last_mover,
-            s.door,
-        ]);
+        self.runner.hash(&mut h);
+        h.write(&[s.selected.map_or(0xFF, |x| x), s.last_mover, s.door]);
         h.write_u16(s.delay);
         h.write_u32(s.templates.len() as u32);
         for t in &s.templates {
@@ -511,15 +545,15 @@ fn load_map(game: &impl GameData, s: &mut State, f: &mut Frame, id: MapId, x: i1
     s.templates = map.objects.to_vec();
     s.objects.spawn_events(id, &[], |_| true, |_| 0);
     s.objects.set_pos(PLAYER, x, y);
+    // Gen3 `LoadMapFromWarp`: `RunOnTransitionMapScript` runs before `InitMap`.
+    if let Some(script) = map.scripts.on_transition {
+        run_immediate(game, s, f, script);
+    }
     s.field
         .enter(game, id, camera_for((x as i32 * 16, y as i32 * 16)), f);
-    for script in [
-        map.scripts.on_transition,
-        map.scripts.on_load,
-        map.scripts.on_resume,
-    ]
-    .into_iter()
-    .flatten()
+    for script in [map.scripts.on_load, map.scripts.on_resume]
+        .into_iter()
+        .flatten()
     {
         run_immediate(game, s, f, script);
     }
@@ -540,17 +574,17 @@ fn cross_connection(
 ) {
     let map = game.map(to);
     s.clear_temp(&game.special_ids());
-    s.field.switch_map_enter(game, to, shift, f);
     s.templates = map.objects.to_vec();
     s.objects
         .enter_connected_events(to, &[], shift, |_| true, |_| 0);
-    for script in [
-        map.scripts.on_transition,
-        map.scripts.on_load,
-        map.scripts.on_resume,
-    ]
-    .into_iter()
-    .flatten()
+    // As a warp load: `on_transition` before the map switch (`InitMap`).
+    if let Some(script) = map.scripts.on_transition {
+        run_immediate(game, s, f, script);
+    }
+    s.field.switch_map_enter(game, to, shift, f);
+    for script in [map.scripts.on_load, map.scripts.on_resume]
+        .into_iter()
+        .flatten()
     {
         run_immediate(game, s, f, script);
     }

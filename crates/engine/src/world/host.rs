@@ -50,6 +50,9 @@ impl<G: GameData> Host<'_, G> {
             Request::Fade(_) => s.fader.is_done(),
             Request::WaitDoor => s.door == 0,
             Request::WaitState => !s.transition.is_active() && s.fader.is_done() && s.door == 0,
+            // Never answered: the warp's map load ends the script (Gen3 `warp` returns TRUE
+            // and `CB2_LoadMap` resets the script context).
+            Request::Warp { .. } => false,
             _ => true,
         }
     }
@@ -135,7 +138,10 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::AddObject(obj) => {
-                if let Some(ev) = s.template(obj).copied() {
+                // Gen3 `TrySpawnObjectEvent`: nothing if it already exists.
+                if s.objects.get(obj).is_none()
+                    && let Some(ev) = s.template(obj).copied()
+                {
                     let vars = &s.vars;
                     s.objects.add(&ev, |v| vars.var(v));
                 }
@@ -171,6 +177,10 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.delay = n;
                 self.wait(r)
             }
+            Request::Fade(_) if self.immediate => {
+                s.log("fade in a map script ignored");
+                UNIT
+            }
             Request::Fade(fade) => {
                 s.fader.start(fade);
                 self.wait(r)
@@ -183,10 +193,11 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 if game.has_map(map) {
                     s.transition.start(game, map, warp, x, y);
                     s.objects.freeze_all();
+                    None
                 } else {
                     s.log("warp to a missing map ignored");
+                    UNIT
                 }
-                UNIT
             }
             Request::SetMetatile {
                 x,
@@ -209,10 +220,15 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.door = DOOR_FRAMES;
                 UNIT
             }
+            Request::WaitMove(obj) => {
+                if obj != 0 {
+                    s.last_mover = obj;
+                }
+                self.wait(r)
+            }
             Request::Message(_)
             | Request::WaitMessage
             | Request::WaitButton
-            | Request::WaitMove(_)
             | Request::WaitDoor
             | Request::WaitState => self.wait(r),
         }

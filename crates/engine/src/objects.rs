@@ -664,17 +664,14 @@ impl Objects {
         self.objs.iter()
     }
 
-    /// The current map's NPC on cell (x, y) at an elevation compatible with `elevation`, if
-    /// any (Gen3 `GetObjectEventIdByPosition`).
-    pub fn at(&self, x: i16, y: i16, elevation: u8) -> Option<u8> {
+    /// The NPC on cell (x, y) at an elevation compatible with `elevation`, if any, as (local
+    /// id, map). Like Gen3 `GetObjectEventIdByPosition` it does not filter by map: an NPC of the
+    /// previous map still in view after a crossing is found too.
+    pub fn at(&self, x: i16, y: i16, elevation: u8) -> Option<(u8, MapId)> {
         self.objs[1..]
             .iter()
-            .find(|o| {
-                o.map == self.map
-                    && (o.x, o.y) == (x, y)
-                    && elevations_compatible(o.elevation, elevation)
-            })
-            .map(|o| o.local_id)
+            .find(|o| (o.x, o.y) == (x, y) && elevations_compatible(o.elevation, elevation))
+            .map(|o| (o.local_id, o.map))
     }
 
     /// Moves every object by (dx, dy) cells, keeping steps in progress.

@@ -5,6 +5,7 @@
 //! fading…) suspend the script until the host reports completion on a later frame.
 
 use crate::data::{Dir, FlagId, MapId, MovementType, TextId, VarId};
+use crate::hash::Fnv64;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
@@ -157,6 +158,66 @@ pub enum Request {
     WaitDoor,
     /// Until a pending warp, fade or special-started state is done (Gen3 `waitstate`).
     WaitState,
+}
+
+impl Request {
+    /// Feeds the request's kind and arguments into `h` (O(1): a movement script counts by its
+    /// length, a log line not at all).
+    pub fn hash_into(&self, h: &mut Fnv64) {
+        let i = |v: i16| v as u16;
+        let (tag, a, b, c, d): (u8, u16, u16, u16, u16) = match *self {
+            Request::GetFlag(f) => (0, f.0, 0, 0, 0),
+            Request::SetFlag(f, on) => (1, f.0, on as u16, 0, 0),
+            Request::GetVar(v) => (2, v.0, 0, 0, 0),
+            Request::SetVar(v, x) => (3, v.0, x, 0, 0),
+            Request::Random(n) => (4, n, 0, 0, 0),
+            Request::PlayerPos => (5, 0, 0, 0, 0),
+            Request::PlayerFacing => (6, 0, 0, 0, 0),
+            Request::Log(_) => (7, 0, 0, 0, 0),
+            Request::Message(t) => (8, t.0, 0, 0, 0),
+            Request::WaitMessage => (9, 0, 0, 0, 0),
+            Request::WaitButton => (10, 0, 0, 0, 0),
+            Request::CloseMessage => (11, 0, 0, 0, 0),
+            Request::YesNo => (12, 0, 0, 0, 0),
+            Request::Lock => (13, 0, 0, 0, 0),
+            Request::LockAll => (14, 0, 0, 0, 0),
+            Request::Release => (15, 0, 0, 0, 0),
+            Request::ReleaseAll => (16, 0, 0, 0, 0),
+            Request::FacePlayer => (17, 0, 0, 0, 0),
+            Request::Move { obj, steps } => (18, obj as u16, steps.len() as u16, 0, 0),
+            Request::WaitMove(obj) => (19, obj as u16, 0, 0, 0),
+            Request::SetObjectPos { obj, x, y } => (20, obj as u16, i(x), i(y), 0),
+            Request::ShowObject(obj) => (21, obj as u16, 0, 0, 0),
+            Request::HideObject(obj) => (22, obj as u16, 0, 0, 0),
+            Request::AddObject(obj) => (23, obj as u16, 0, 0, 0),
+            Request::RemoveObject(obj) => (24, obj as u16, 0, 0, 0),
+            Request::Turn { obj, dir } => (25, obj as u16, dir as u16, 0, 0),
+            Request::SetMovementType { obj, movement } => {
+                let m = crate::objects::movement_code(movement);
+                (26, obj as u16, m[0] as u16 | (m[1] as u16) << 8, 0, 0)
+            }
+            Request::SetObjectTemplatePos { obj, x, y } => (27, obj as u16, i(x), i(y), 0),
+            Request::Delay(n) => (28, n, 0, 0, 0),
+            Request::Fade(f) => (29, f as u16, 0, 0, 0),
+            Request::Warp { map, warp, x, y } => {
+                (30, map.0, warp.map_or(0xFFFF, |w| w as u16), i(x), i(y))
+            }
+            Request::SetMetatile {
+                x,
+                y,
+                metatile,
+                blocked,
+            } => (31, i(x), i(y), metatile, blocked as u16),
+            Request::RedrawMap => (32, 0, 0, 0, 0),
+            Request::Door { x, y, open } => (33, i(x), i(y), open as u16, 0),
+            Request::WaitDoor => (34, 0, 0, 0, 0),
+            Request::WaitState => (35, 0, 0, 0, 0),
+        };
+        h.write(&[tag]);
+        for v in [a, b, c, d] {
+            h.write_u16(v);
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -407,6 +468,8 @@ pub struct Runner {
     task: Option<Script>,
     io: Rc<RefCell<Io>>,
     active: Option<Request>,
+    /// Requests the current script has issued (its progress, for the parity hash).
+    issued: u32,
 }
 
 impl Default for Runner {
@@ -421,6 +484,7 @@ impl Runner {
             task: None,
             io: Rc::new(RefCell::new(Io::default())),
             active: None,
+            issued: 0,
         }
     }
 
@@ -438,10 +502,32 @@ impl Runner {
         self.active.as_ref()
     }
 
+    /// Same as [`Runner::waiting_on`].
+    pub fn active(&self) -> Option<&Request> {
+        self.active.as_ref()
+    }
+
+    /// Requests the current script has issued so far.
+    pub const fn issued(&self) -> u32 {
+        self.issued
+    }
+
+    /// Feeds whether a script runs, its progress and the request it waits on into `h` (O(1)).
+    #[allow(clippy::should_implement_trait)]
+    pub fn hash(&self, h: &mut Fnv64) {
+        h.write(&[self.is_running() as u8]);
+        h.write_u32(self.issued);
+        match &self.active {
+            None => h.write(&[0xFF]),
+            Some(r) => r.hash_into(h),
+        }
+    }
+
     /// Starts `script` (built with `self.ctx()`); it first runs on the next `step`.
     pub fn start(&mut self, script: Script) {
         assert!(self.task.is_none(), "a script is already running");
         *self.io.borrow_mut() = Io::default();
+        self.issued = 0;
         self.task = Some(script);
     }
 
@@ -469,6 +555,7 @@ impl Runner {
                 // Pending on something that is not a request: just wait for the next frame.
                 return true;
             };
+            self.issued = self.issued.wrapping_add(1);
             match host.begin(&req) {
                 Some(resp) => self.io.borrow_mut().response = Some(resp),
                 None => {

@@ -438,6 +438,8 @@ pub struct TextBox {
     open: bool,
     state: State,
     text: Vec<u8>,
+    /// Digest of `text`, computed once per message so the per-frame hash stays O(1).
+    text_digest: u64,
     pos: usize,
     x: i16,
     y: i16,
@@ -465,6 +467,7 @@ impl TextBox {
             open: false,
             state: State::Idle,
             text: Vec::new(),
+            text_digest: 0,
             pos: 0,
             x: TEXT_X,
             y: TEXT_Y,
@@ -527,12 +530,17 @@ impl TextBox {
 
     /// Enables BG0 and draws an empty dialogue window.
     pub fn open(&mut self, game: &impl GameData, f: &mut Frame) {
+        self.open_unflushed(game, f);
+        self.msg.flush(f);
+    }
+
+    /// [`TextBox::open`] without uploading the cleared canvas (the caller flushes it).
+    fn open_unflushed(&mut self, game: &impl GameData, f: &mut Frame) {
         let w = game.window();
         self.pen = Pen::new(Colors::of(w));
         self.enable_bg(w, f);
         Self::put_frame(&MSG_WINDOW, f);
         self.msg.fill(self.pen.colors.bg);
-        self.msg.flush(f);
         self.open = true;
         self.state = State::Idle;
     }
@@ -540,17 +548,24 @@ impl TextBox {
     /// Clears the window and starts printing `text` (Gen3-encoded, 0xFF-terminated). Opens the
     /// window first if needed. The first character appears on the next `update`.
     pub fn print(&mut self, game: &impl GameData, text: &'static [u8], f: &mut Frame) {
-        if !self.open {
-            self.open(game, f);
+        // Opening clears the canvas with the default colours already; it is flushed once below.
+        let cleared = !self.open;
+        if cleared {
+            self.open_unflushed(game, f);
         }
         self.text = expand(game, text);
+        let mut d = Fnv64::new();
+        d.write(&self.text);
+        self.text_digest = d.finish();
         self.pos = 0;
         self.x = TEXT_X;
         self.y = TEXT_Y;
         self.delay = 0;
         self.sped_up = false;
         self.pen = Pen::new(Colors::of(game.window()));
-        self.msg.fill(self.pen.colors.bg);
+        if !cleared {
+            self.msg.fill(self.pen.colors.bg);
+        }
         self.msg.flush(f);
         self.state = State::Printing;
     }
@@ -814,7 +829,7 @@ impl TextBox {
         h.write_u16(self.x as u16);
         h.write_u16(self.y as u16);
         h.write_u32(self.text.len() as u32);
-        h.write(&self.text);
+        h.write(&self.text_digest.to_le_bytes());
         h.write(&[
             self.yes_no_cursor.map_or(0xFF, |c| c),
             self.yes_no_result.map_or(0xFF, |r| r as u8),
