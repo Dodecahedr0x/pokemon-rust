@@ -55,9 +55,53 @@ fn rom() -> Result<PathBuf> {
     Ok(out)
 }
 
+fn write_ppm(path: &Path, fb: &[u16]) -> Result<()> {
+    let mut data = b"P6\n240 160\n255\n".to_vec();
+    for &c in fb {
+        for ch in [c & 31, (c >> 5) & 31, (c >> 10) & 31] {
+            data.push(((ch << 3) | (ch >> 2)) as u8);
+        }
+    }
+    std::fs::write(path, data)?;
+    Ok(())
+}
+
+/// Same idle frames on ROM and native, then dump both images side by side for eyeballing.
+fn shot() -> Result<()> {
+    let rom = rom()?;
+    let mut emu = emu::Emu::open(&rom)?;
+    emu.boot(120)?;
+    let mut native = game_native::Session::new(content::Emerald);
+    for _ in 0..30 {
+        emu.run_frame(engine::Buttons::NONE)?;
+        native.step(engine::Buttons::NONE);
+    }
+    let dir = root().join("target");
+    write_ppm(&dir.join("shot-rom.ppm"), &emu.framebuffer_rgb555())?;
+    write_ppm(&dir.join("shot-native.ppm"), native.framebuffer())?;
+    println!("wrote target/shot-rom.ppm and target/shot-native.ppm");
+    Ok(())
+}
+
+fn parity() -> Result<()> {
+    rom()?;
+    run(Command::new("cargo").current_dir(root()).args([
+        "test",
+        "-p",
+        "emu",
+        "--test",
+        "parity",
+        "--",
+        "--ignored",
+        "--nocapture",
+    ]))
+}
+
 fn main() -> Result<()> {
     match std::env::args().nth(1).as_deref() {
         Some("rom") => rom().map(|_| ()),
-        _ => bail!("usage: cargo xtask <rom>"),
+        Some("parity") => parity(),
+        Some("shot") => shot(),
+        _ => bail!("usage: cargo xtask <rom|parity|shot>"),
     }
 }
