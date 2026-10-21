@@ -532,6 +532,28 @@ type Entries = Vec<(i64, String)>;
 const GENERATED: &str = "src/names/generated.rs";
 const GENERATED_BATTLE: &str = "src/names/battle.rs";
 
+/// The entries of `entries` whose value is below the define `limit` (a `*_COUNT`).
+fn below(env: &HashMap<String, String>, limit: &str, entries: Entries) -> Entries {
+    let limit = Eval { env, depth: 0 }.expr(limit).unwrap();
+    entries.into_iter().filter(|(v, _)| *v < limit).collect()
+}
+
+/// `HEAL_LOCATION_*` ids: the generated enum of `heal_locations.constants.json.txt` is
+/// `HEAL_LOCATION_NONE`, then every `heal_locations.json` id in order.
+fn heal_locations(src: &str) -> Entries {
+    let json: serde_json::Value = serde_json::from_str(src).unwrap();
+    let mut out = vec![(0, "HEAL_LOCATION_NONE".to_string())];
+    for (i, h) in json["heal_locations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+    {
+        out.push((i as i64 + 1, h["id"].as_str().unwrap().to_string()));
+    }
+    out
+}
+
 /// Battle tables (`src/names/battle.rs`), kept apart from the field tables.
 fn generate_battle(d: &Path) -> String {
     let env = env(d);
@@ -541,6 +563,7 @@ fn generate_battle(d: &Path) -> String {
          use super::Table;\n\n",
     );
     let trainers = "include/constants/trainers.h";
+    let pokemon = "include/constants/pokemon.h";
     let tables: Vec<(&str, &str, &str, Entries)> = vec![
         (
             "SPECIES",
@@ -559,6 +582,106 @@ fn generate_battle(d: &Path) -> String {
             "`TRAINER_BACK_PIC_*` from `include/constants/trainers.h`.",
             "TRAINER_BACK_PIC_",
             prefixed(d, &env, trainers, "TRAINER_BACK_PIC_"),
+        ),
+        (
+            "MOVES",
+            "`MOVE_*` below `MOVES_COUNT`, from `include/constants/moves.h`.",
+            "MOVE_",
+            below(
+                &env,
+                "MOVES_COUNT",
+                prefixed(d, &env, "include/constants/moves.h", "MOVE_"),
+            ),
+        ),
+        (
+            "ABILITIES",
+            "`ABILITY_*` from `include/constants/abilities.h`.",
+            "ABILITY_",
+            prefixed(d, &env, "include/constants/abilities.h", "ABILITY_"),
+        ),
+        (
+            "MOVE_EFFECTS",
+            "`EFFECT_*` from `include/constants/battle_move_effects.h`.",
+            "EFFECT_",
+            prefixed(
+                d,
+                &env,
+                "include/constants/battle_move_effects.h",
+                "EFFECT_",
+            ),
+        ),
+        (
+            "TYPES",
+            "`TYPE_*` below `NUMBER_OF_MON_TYPES`, from `include/constants/pokemon.h`.",
+            "TYPE_",
+            below(
+                &env,
+                "NUMBER_OF_MON_TYPES",
+                prefixed(d, &env, pokemon, "TYPE_"),
+            ),
+        ),
+        (
+            "TRAINERS",
+            "`TRAINER_*` below `TRAINERS_COUNT`, from `include/constants/opponents.h`.",
+            "TRAINER_",
+            below(
+                &env,
+                "TRAINERS_COUNT",
+                prefixed(d, &env, "include/constants/opponents.h", "TRAINER_"),
+            ),
+        ),
+        (
+            "TRAINER_CLASSES",
+            "`TRAINER_CLASS_*` from `include/constants/trainers.h`.",
+            "TRAINER_CLASS_",
+            prefixed(d, &env, trainers, "TRAINER_CLASS_"),
+        ),
+        (
+            "STRING_IDS",
+            "`STRINGID_*` from `include/constants/battle_string_ids.h`.",
+            "STRINGID_",
+            prefixed(
+                d,
+                &env,
+                "include/constants/battle_string_ids.h",
+                "STRINGID_",
+            ),
+        ),
+        (
+            "GROWTH_RATES",
+            "`GROWTH_*` from `include/constants/pokemon.h`.",
+            "GROWTH_",
+            prefixed(d, &env, pokemon, "GROWTH_"),
+        ),
+        (
+            "MOVE_TARGETS",
+            "`MOVE_TARGET_*` (bit values) from `include/battle.h`.",
+            "MOVE_TARGET_",
+            prefixed(d, &env, "include/battle.h", "MOVE_TARGET_"),
+        ),
+        (
+            "MOVE_FLAGS",
+            "Move `FLAG_*` bits (`gBattleMoves[].flags`) from `include/constants/pokemon.h`.",
+            "FLAG_",
+            prefixed(d, &env, pokemon, "FLAG_"),
+        ),
+        (
+            "AI_FLAGS",
+            "`AI_SCRIPT_*` bits from `include/constants/battle_ai.h`.",
+            "AI_SCRIPT_",
+            prefixed(d, &env, "include/constants/battle_ai.h", "AI_SCRIPT_"),
+        ),
+        (
+            "HEAL_LOCATIONS",
+            "`HEAL_LOCATION_*`: `HEAL_LOCATION_NONE`, then `src/data/heal_locations.json` in order.",
+            "HEAL_LOCATION_",
+            heal_locations(&read(d, "src/data/heal_locations.json")),
+        ),
+        (
+            "BATTLE_ENVIRONMENTS",
+            "`BATTLE_ENVIRONMENT_*` from `include/constants/battle.h`.",
+            "BATTLE_ENVIRONMENT_",
+            prefixed(d, &env, "include/constants/battle.h", "BATTLE_ENVIRONMENT_"),
         ),
     ];
     for (name, doc, prefix, entries) in &tables {
@@ -673,6 +796,73 @@ fn lookups_and_fallbacks() {
     assert_eq!(names::map_by_constant("MAP_ROUTE101").unwrap().num, 16);
     assert!(names::map(0x7F, 0x7F).is_none());
     assert_eq!(names::MAPS.len(), 518);
+}
+
+#[test]
+fn battle_name_lookups() {
+    assert_eq!(names::MOVES.name(33), Some("MOVE_TACKLE"));
+    assert_eq!(names::MOVES.entries.len(), 355);
+    assert_eq!(names::MOVES.value("MOVE_UNAVAILABLE"), None);
+    assert_eq!(names::ABILITIES.name(65), Some("ABILITY_OVERGROW"));
+    assert_eq!(names::MOVE_EFFECTS.name(0), Some("EFFECT_HIT"));
+    assert_eq!(names::MOVE_EFFECTS.entries.len(), 214);
+    assert_eq!(names::TYPES.name(17), Some("TYPE_DARK"));
+    assert_eq!(names::TYPES.entries.len(), 18);
+    assert_eq!(names::TRAINERS.name(318), Some("TRAINER_CALVIN_1"));
+    assert_eq!(names::TRAINERS.entries.len(), 855);
+    assert_eq!(
+        names::TRAINER_CLASSES.name(0x41),
+        Some("TRAINER_CLASS_RS_PROTAG")
+    );
+    assert_eq!(names::STRING_IDS.name(13), Some("STRINGID_PKMNGAINEDEXP"));
+    assert_eq!(names::GROWTH_RATES.name(3), Some("GROWTH_MEDIUM_SLOW"));
+    assert_eq!(names::MOVE_TARGETS.name(8), Some("MOVE_TARGET_BOTH"));
+    assert_eq!(names::MOVE_FLAGS.name(1), Some("FLAG_MAKES_CONTACT"));
+    assert_eq!(names::MOVE_FLAGS.entries.len(), 6);
+    assert_eq!(
+        names::AI_FLAGS.name(1 << 31),
+        Some("AI_SCRIPT_FIRST_BATTLE")
+    );
+    assert_eq!(
+        names::HEAL_LOCATIONS.name(1),
+        Some("HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F")
+    );
+    assert_eq!(names::HEAL_LOCATIONS.name(0), Some("HEAL_LOCATION_NONE"));
+    assert_eq!(
+        names::BATTLE_ENVIRONMENTS.name(9),
+        Some("BATTLE_ENVIRONMENT_PLAIN")
+    );
+    for t in [
+        &names::SPECIES,
+        &names::TRAINER_PICS,
+        &names::TRAINER_BACK_PICS,
+        &names::MOVES,
+        &names::ABILITIES,
+        &names::MOVE_EFFECTS,
+        &names::TYPES,
+        &names::TRAINERS,
+        &names::TRAINER_CLASSES,
+        &names::STRING_IDS,
+        &names::GROWTH_RATES,
+        &names::MOVE_TARGETS,
+        &names::MOVE_FLAGS,
+        &names::AI_FLAGS,
+        &names::HEAL_LOCATIONS,
+        &names::BATTLE_ENVIRONMENTS,
+    ] {
+        assert!(
+            t.entries.windows(2).all(|w| w[0].0 <= w[1].0),
+            "{} is sorted",
+            t.prefix
+        );
+        for (v, n) in t.iter() {
+            assert!(
+                n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "{}{v:#x}: {n:?}",
+                t.prefix
+            );
+        }
+    }
 }
 
 /// Content turns every name into a Rust constant, so each must be an identifier.
