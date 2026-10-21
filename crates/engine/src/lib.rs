@@ -5,6 +5,7 @@ extern crate alloc;
 
 pub mod data;
 pub mod debug;
+pub mod flow;
 pub mod grid;
 pub mod hash;
 pub mod input;
