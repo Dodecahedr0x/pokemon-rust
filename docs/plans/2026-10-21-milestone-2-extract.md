@@ -62,7 +62,7 @@ pub const ROM_BASE: u32 = 0x0800_0000;
 pub enum GameCode { Bpee, Bpef }
 pub struct Rom { /* bytes, code */ }
 impl Rom {
-    pub fn open(path: &Path) -> Result<Rom>;          // checks 16 MiB max, header code at 0xAC
+    pub fn open(path: &Path) -> Result<Rom>;          // checks 32 MiB max, header code at 0xAC
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Rom>;
     pub fn code(&self) -> GameCode;
     pub fn bytes(&self) -> &[u8];
@@ -80,7 +80,7 @@ impl Rom {
     pub fn pointers_to(&self, target: u32) -> Vec<u32>;
 }
 ```
-`fixtures`: `fr() -> Rom` (`<root>/rom/emeraude-fr.gba`), `us() -> Rom` (`$PKR_ROM_US` or `<root>/../emerald.gba`), `decomp() -> PathBuf` (`$PKR_DECOMP` or `<root>/../pokeemerald`).
+`fixtures`: `fr() -> Rom` (`$PKR_ROM_FR` or `<root>/rom/emeraude-fr.gba`), `us() -> Rom` (`$PKR_ROM_US` or `<root>/../emerald.gba`), `decomp() -> PathBuf` (`$PKR_DECOMP` or `<root>/../pokeemerald`).
 
 ---
 
@@ -183,9 +183,9 @@ Locating the map table:
 - `pointers_to(header)` gives the group-0 table entry at index 9, and `pointers_to(group0_table)` gives `gMapGroups`.
 - Group sizes are a const `[u8; 34]` taken from `map_groups.json`.
 
-Metatile count for secondary tilesets:
-- Primary is always 512.
-- For secondary, collect all tilesets referenced by all layouts and sort their `metatiles` pointers. The count is (next pointer − this pointer) / 16, capped at 512.
+Metatile count (as built):
+- Collect all tilesets referenced by all layouts and sort their `metatiles` and `metatile_attributes` pointers. A tileset's count is the gap to the next such pointer (/ 16 for metatiles), capped at 512, for primaries and secondaries alike.
+- Primaries are usually 512 but can be smaller (`building` has 8, `secret_base` 2). Secondary metatile indices always start at 512, whatever the primary's count.
 - If the decomp oracle disagrees, research how the decomp lays out `data/tilesets/metatiles.inc` and fix it.
 
 Acceptance (US and FR):
@@ -206,7 +206,7 @@ Acceptance (US and FR):
 
 ```rust
 pub struct ObjectGraphics { pub id: u8, pub offset: u32, pub width: u16, pub height: u16, pub palette_tag: u16,
-    pub frames: Vec<Vec<u8>> /* raw 4bpp per frame, size = w*h/2 */, pub palette: [u16; 16] }
+    pub frames: Vec<Vec<u8>> /* raw 4bpp per frame, usually w*h/2 bytes */, pub palette: [u16; 16] }
 pub struct ObjectGraphicsTable { pub offset: u32, pub count: u16, pub palettes_offset: u32 }
 pub fn locate_object_graphics(rom: &Rom) -> Result<ObjectGraphicsTable>;
 impl ObjectGraphicsTable { pub fn get(&self, rom: &Rom, id: u8) -> Result<ObjectGraphics>; }
@@ -223,6 +223,12 @@ Acceptance (US and FR):
 - The palette equals `brendan.pal`.
 - Every id from 0 to `count`−1 decodes without error.
 - `count` equals the number of entries in `object_event_graphics_info_pointers.h`.
+
+As built:
+- **Anchor:** the start of the `gObjectEventGraphicsInfo_BrendanNormal` struct (its `ObjectEventGraphicsInfo` signature), not `walking.png`. The walking.png bytes are still checked by the tests.
+- **Palettes:** the sprite-palette table is found by its first tags, NPC_1..NPC_4 (0x1103..0x1106).
+- **Table length:** bounded by `gMauvilleOldManGraphicsInfoPointers`, the table that directly follows (its start is referenced from code).
+- **Frame sizes:** frames are not always `w*h/2`. BrendanNormal/MayNormal have `size` 512 but 256-byte (16×32) frames. The berry trees share one pic table that mixes 128-byte (16×16 dirt pile, sprouts) and 256-byte (16×32 tree) frames. `get` accepts any frame length equal to `size` or `w*h/2` of an info using the same pic table. Export lays each frame out at its own size, in equal cells (see Task H).
 
 ### Task F: `font` (Latin normal font)
 
@@ -243,6 +249,11 @@ Acceptance (US and FR):
 - The glyph pixels equal `latin_normal.png`.
 - The widths for `A`, `a`, space and `é` (byte values via `text::encode` are not available in this wave, so hard-code them from `charmap.txt`) are plausible: non-zero, at most 16.
 - FR glyph data equals US glyph data, or document any difference.
+
+As built:
+- **Anchor:** the 'A' glyph (0xBB), not the first 64 bytes of the sheet. The widths table immediately follows the 512 × 64-byte glyphs.
+- **FR differences** (pinned in `crates/extract/tests/font.rs`): FR redraws 9 glyphs (0xB1/0xB2 become the guillemets « », plus 0x34, 0x57–0x59, 0x64, 0x105, 0x108) and changes 2 widths (0x34: 10 → 8, 0x64: 3 → 12).
+- **Consequence:** the US charmap mislabels the FR guillemets (and the other redrawn bytes). A per-language charmap overlay is needed (Milestone 3).
 
 ---
 
@@ -270,6 +281,11 @@ Acceptance:
 - **FR, Littleroot:** the walk reaches the same number of texts as in US. All decode without error, and contain at least one accented character overall.
 - **All 3 maps, both ROMs:** `unknown` is empty.
 
+As built:
+- `ScriptScan` also has `movements` (applymovement data) and `braille` (braillemessage strings, braille charset).
+- `unknown` also collects `v*` commands reached without a prior `setvaddress`, besides undecodable opcodes.
+- Standard scripts (`callstd` targets) are not walked.
+
 ### Task G: `render` (map preview PNGs)
 
 **Files:** `src/render.rs`, `tests/render.rs`
@@ -288,6 +304,13 @@ Acceptance:
 - **ROM:** for each of the 3 maps, the FR render equals the US render, except for pixels drawn from the FR-localized tiles. The `general` tileset has 10 translated sign tiles in FR: indices 222, 223, 238, 239, 327–330, 343 and 358 (the ARN gym and POKé SHOP signs). Pin the exact set of differing 8×8 tile *cells* per map: Littleroot and Route 101 must be identical; Oldale (which has a mart) may differ only in cells that use those tile indices. French graphics always come from the ROM, never from the decomp PNGs.
 - **Write previews:** write the FR previews to `target/previews/<Map>.png` so the controller can inspect them.
 - **Sanity check:** the Littleroot preview is 320×320.
+
+As built (matching the game, not the plan above):
+- **Backdrop is black:** `LoadTilesetPalette` forces color 0 of palette slot 0 to black.
+- Palette slots 13–15 (not loaded from tilesets) draw transparent.
+- Metatiles of layer type NORMAL get a 0x3014 tile-entry underlay (what the game puts on BG3).
+- Tile indices past the loaded tile data draw transparent.
+- Uncompressed tilesets load 512 tiles.
 
 ---
 
@@ -321,9 +344,35 @@ Acceptance:
 - **README:** a section "Extract" describing the steps: place the ROM, run the command, see the output.
 - **Gitignore:** `content/extracted/` is git-ignored. `git status` is clean after extraction.
 
+As built:
+- **Text file:** `text/<lang>.ron` by game code: `text/fr.ron` for BPEF, `text/en.ron` for BPEE. Values are raw RON strings (`r"…"`) in the decomp `.string` syntax.
+- **`map.ron`** is a `MapFile` (header, layout, events, connections, scripts) with layout blocks one map row per line.
+- **Sprites:** `OBJ_EVENT_GFX_MAY_NORMAL` = 89. `sprites/<id>.ron` records `frame_sizes`; frames sit in cells as wide as the info and as tall as the tallest frame, drawn top-left.
+- **Manifest** also has `skipped_graphics_ids` (ids used by maps that are not table entries, e.g. `OBJ_EVENT_GFX_VAR_*`) and `unknown_script_ops`.
+- **xtask:** exports into `content/.extracted.tmp/`, moves the previous output aside to `content/.extracted.old/`, renames the new one into place, then deletes the old one. On failure the previous output stays (or is put back). All three paths are git-ignored.
+
 ---
 
 ## Done when
 - `cargo test -p extract` passes, with all ROM-backed tests running on both US and FR.
 - `cargo xtask extract` produces `content/extracted/` with the previews visibly correct (checked by eye), and `text/fr.ron` contains French dialogue for the 3 maps.
 - No ROM-derived bytes are tracked by git.
+
+---
+
+## Findings for Milestone 3
+
+From building and reviewing M2, to address in M3:
+
+- **Script and movement decoding into content:** turn the walker into a decoder that emits instruction lists (or generated Rust), covering `callstd`, `special`s and `trainerbattle`.
+- **Stable symbolic ids instead of ROM offsets:** tilesets by decomp name, texts by script path. ROM offsets belong only in the manifest, as provenance.
+- **Offset formatting:** offsets are decimal in RON but hex in file and key names. Pick one.
+- **More maps:** export the Littleroot interiors (groups 1.0, 1.2, 1.4), Oldale's group 2 maps, and Routes 102/103 (connections), plus their tilesets.
+- **Packed u16 fields** (blocks, metatiles, attributes): decide whether to split them into named fields.
+- **`content/build.rs`** must handle a missing `content/extracted/` (fresh clone, CI), and parity must not depend on it.
+- **Loaders and re-import** of the exported files, with round-trip tests.
+- **Per-language charmap overlay** (FR guillemets and other redrawn glyphs, see Task F).
+- **VAR graphics ids** (`OBJ_EVENT_GFX_VARS` = 240 and up, listed in `skipped_graphics_ids`) resolved through `VAR_OBJ_GFX_ID_*`.
+- **Reflection palettes** for sprites.
+- **Text re-encoding test:** every exported text must re-encode to its ROM bytes.
+- **Cleanups:** dedupe helpers (`Rom::u16s`, `req_ptr` on `Rom`, shared `TILE_BYTES`/512 constants, `gfx::rgb555_to_rgba`); remove the unused `read_latin_normal` and unneeded serde derives; the manifest duplicates map and sprite data; texts shared by several maps get one key per map; `tiles.png` uses palette 0 only.

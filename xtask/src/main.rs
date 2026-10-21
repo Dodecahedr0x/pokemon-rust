@@ -97,7 +97,11 @@ fn parity() -> Result<()> {
     ]))
 }
 
-/// Reads the user's ROM into content/extracted/ (cleared first so no stale files remain).
+/// Reads the user's ROM into content/extracted/, replacing it whole (no stale files remain).
+///
+/// Exports into content/.extracted.tmp/, then moves the previous output aside to
+/// content/.extracted.old/, renames the new export into place and only then deletes the old
+/// one. If any step fails, the previous output is left (or put back) in content/extracted/.
 fn extract(args: &[String]) -> Result<()> {
     let rom_path = match args {
         [] => root().join("rom/emeraude-fr.gba"),
@@ -105,21 +109,40 @@ fn extract(args: &[String]) -> Result<()> {
         _ => bail!("usage: cargo xtask extract [--rom <path>]"),
     };
     let rom = extract::Rom::open(&rom_path)?;
-    // Export next to the output and swap it in only on success, keeping the last good export.
     let out = root().join("content/extracted");
     let tmp = root().join("content/.extracted.tmp");
+    let old = root().join("content/.extracted.old");
     let clear = |dir: &Path| -> Result<()> {
         if dir.exists() {
             std::fs::remove_dir_all(dir).with_context(|| format!("clearing {}", dir.display()))?;
         }
         Ok(())
     };
+    let rename = |from: &Path, to: &Path| -> Result<()> {
+        std::fs::rename(from, to)
+            .with_context(|| format!("renaming {} to {}", from.display(), to.display()))
+    };
+    // A run interrupted mid-swap leaves the last good export in .extracted.old: put it back.
+    if !out.exists() && old.exists() {
+        rename(&old, &out)?;
+    }
+    clear(&old)?;
     clear(&tmp)?;
     let m = extract::export::export(&rom, &tmp)
         .with_context(|| format!("exporting to {}", tmp.display()))?;
-    clear(&out)?;
-    std::fs::rename(&tmp, &out)
-        .with_context(|| format!("renaming {} to {}", tmp.display(), out.display()))?;
+    let had_out = out.exists();
+    if had_out {
+        rename(&out, &old)?;
+    }
+    if let Err(e) = rename(&tmp, &out) {
+        if had_out && let Err(restore) = rename(&old, &out) {
+            return Err(e.context(format!(
+                "also failed to restore the old output: {restore:#}"
+            )));
+        }
+        return Err(e);
+    }
+    clear(&old)?;
     println!(
         "ROM: {} ({}, sha1 {})",
         rom_path.display(),

@@ -180,6 +180,58 @@ fn object_graphics_table_matches_decomp() {
 }
 
 #[test]
+fn berry_tree_sprites_export_with_mixed_frame_sizes() {
+    let text = read("include/constants/event_objects.h");
+    let id = |name: &str| -> u8 {
+        text.lines()
+            .find_map(|l| l.strip_prefix(&format!("#define {name} ")))
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap()
+    };
+    let dirt = png_to_4bpp(
+        &fixtures::decomp().join("graphics/object_events/pics/berry_trees/dirt_pile.png"),
+        16,
+        16,
+    );
+    let dirt = extract::gfx::tiles_4bpp_to_image(&dirt, 2).unwrap();
+    for (name, rom) in roms() {
+        let table = locate_object_graphics(&rom).unwrap();
+        for gfx in [
+            "OBJ_EVENT_GFX_BERRY_TREE",
+            "OBJ_EVENT_GFX_BERRY_TREE_EARLY_STAGES",
+            "OBJ_EVENT_GFX_BERRY_TREE_LATE_STAGES",
+        ] {
+            let g = table.get(&rom, id(gfx)).unwrap();
+            let (img, file) =
+                extract::export::sprite(&g).unwrap_or_else(|e| panic!("{name}: {gfx}: {e:#}"));
+            assert_eq!(file.frames, g.frames.len(), "{name}: {gfx}");
+            assert!(file.frame_sizes.contains(&(16, 32)), "{name}: {gfx}");
+            assert_eq!(
+                (img.width, img.height),
+                (16 * g.frames.len() as u32, 32),
+                "{name}: {gfx}"
+            );
+            // Frame 0 is the 16x16 dirt pile at the top of its cell, blank below.
+            assert_eq!(file.frame_sizes[0], (16, 16), "{name}: {gfx}");
+            for y in 0..32 {
+                let row = &img.pixels[(y * img.width) as usize..][..16];
+                if y < 16 {
+                    assert_eq!(
+                        row,
+                        &dirt.pixels[(y * 16) as usize..][..16],
+                        "{name}: {gfx}"
+                    );
+                } else {
+                    assert!(row.iter().all(|&p| p == 0), "{name}: {gfx}: row {y}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn may_normal_uses_may_palette() {
     let text = read("include/constants/event_objects.h");
     let may: u8 = text
