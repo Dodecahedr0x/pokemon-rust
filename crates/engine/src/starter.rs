@@ -2,7 +2,9 @@
 //!
 //! Bag background, three Poké Ball OBJs and a bobbing hand; left/right move the hand, A shows
 //! the circle with the mon's front pic and asks "Do you choose this POKéMON?" with a yes/no;
-//! B or no returns to the choice; yes fades to black and `update` returns the index.
+//! B or no returns to the choice; yes makes `update` return the index on that frame, with the
+//! screen still visible: as Gen3 `CB2_GiveStarter`, the caller runs the battle transition
+//! straight over it.
 //!
 //! Gen3 order, frame by frame (task functions):
 //! - `Task_StarterChoose`: the species label is drawn and the message box printed; input is read
@@ -14,14 +16,18 @@
 //!   2 px in y per frame toward (120, 64) (`SpriteCB_StarterPokemon`); once there and the
 //!   16-frame affine grow is over (`Task_WaitForStarterSprite`), the question is printed and
 //!   the yes/no shown (`Task_AskConfirmStarter`).
+//! - yes: `gSpecialVar_Result` is set and the screen exits at once
+//!   (`Task_HandleConfirmStarterInput`): `update` returns `Some(index)` from that frame on and
+//!   keeps drawing the screen (the sprites keep animating; no input is read any more).
 //! - no / B: the circle and pic go (`Task_HandleConfirmStarterInput`), then a frame later
 //!   (`Task_DeclineStarter`) back to `Task_StarterChoose`.
 //!
 //! Simplifications (documented):
 //! - no affine scaling: the circle and pic are drawn at full size while they move (Gen3 grows
 //!   the pic from 1/16 to 1x and the circle to 1.25x);
-//! - no window/blend: Gen3 darkens the label's rectangle (WIN0 + BLDY 7); the label is drawn on
-//!   a transparent background here, and the category line (FONT_NARROW) is left out;
+//! - no window/blend: Gen3 darkens the label's rectangle (WIN0 + BLDY 7); here the label canvas
+//!   is filled with the window palette's text color (`WindowGfx::text_fg`, dark gray) as a
+//!   cheap stand-in, and the category line (FONT_NARROW) is left out;
 //! - the message box is the field dialogue box (`text::TextBox`, its frame and yes/no
 //!   positions), and it prints at the field text speed (Gen3 prints these instantly). Gen3
 //!   prints `gText_BirchInTrouble` while choosing; there is no `battle::Str` for it yet, so
@@ -146,7 +152,7 @@ enum Stage {
     YesNo,
     /// `Task_DeclineStarter`.
     Decline,
-    FadeOut,
+    /// Chosen (`Some(selection)`).
     Done,
 }
 
@@ -162,8 +168,7 @@ impl Stage {
             Stage::Ask => [6, 0],
             Stage::YesNo => [7, 0],
             Stage::Decline => [8, 0],
-            Stage::FadeOut => [9, 0],
-            Stage::Done => [10, 0],
+            Stage::Done => [9, 0],
         }
     }
 }
@@ -208,13 +213,14 @@ impl StarterChoice {
     }
 
     /// Uploads one budgeted chunk while black; true when everything is loaded.
+    /// Once loading is done it returns true and leaves `f` alone.
     pub fn load_step(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
-        f.brightness = FADE_MAX;
-        f.lighten = false;
-        f.objs.clear();
         let Stage::Load(n) = self.stage else {
             return true;
         };
+        f.brightness = FADE_MAX;
+        f.lighten = false;
+        f.objs.clear();
         let gfx = game.battle_gfx();
         match n {
             0 => {
@@ -288,12 +294,15 @@ impl StarterChoice {
                         });
                     }
                 }
-                static BLANK: [Tile; LABEL_W * LABEL_H] = [[0; 8]; LABEL_W * LABEL_H];
-                f.cmds.push(Cmd::BgTiles {
-                    char_block: layout::TEXT_CHAR_BLOCK,
-                    first: LABEL_BASE,
-                    tiles: &BLANK,
-                });
+                // The label rows above the name stay filled (see `label_name_tiles`).
+                let fill = fill_word(game.window().text_fg);
+                for i in 0..(NAME_ROW * LABEL_W) as u16 {
+                    f.cmds.push(Cmd::BgTile {
+                        char_block: layout::TEXT_CHAR_BLOCK,
+                        index: LABEL_BASE + i,
+                        tile: [fill; 8],
+                    });
+                }
             }
             3 => {
                 for (i, &species) in self.choices.iter().enumerate() {
@@ -384,10 +393,7 @@ impl StarterChoice {
             Stage::YesNo => {
                 self.text.update(game, pressed, input.held, f);
                 match self.text.yes_no_result() {
-                    Some(true) => {
-                        self.fader.start(Fade::ToBlack);
-                        self.stage = Stage::FadeOut;
-                    }
+                    Some(true) => self.stage = Stage::Done,
                     Some(false) => {
                         self.pic = None;
                         self.stage = Stage::Decline;
@@ -401,13 +407,10 @@ impl StarterChoice {
                 self.text.open(game, f);
                 self.stage = Stage::Enter;
             }
-            Stage::FadeOut | Stage::Done => {}
+            Stage::Done => {}
         }
         self.animate(f);
         f.brightness = self.fader.update();
-        if self.stage == Stage::FadeOut && self.fader.is_done() {
-            self.stage = Stage::Done;
-        }
         (self.stage == Stage::Done).then_some(self.selection)
     }
 
@@ -498,7 +501,7 @@ impl StarterChoice {
             .species
             .get(self.choices[sel as usize].0 as usize)
             .map_or(&[0xFFu8][..], |s| s.name);
-        let tiles = label_name_tiles(game.font(), name);
+        let tiles = label_name_tiles(game.font(), name, game.window().text_fg);
         for (i, tile) in tiles.into_iter().enumerate() {
             f.cmds.push(Cmd::BgTile {
                 char_block: layout::TEXT_CHAR_BLOCK,
@@ -546,14 +549,19 @@ impl StarterChoice {
     }
 }
 
+const fn fill_word(c: u8) -> u32 {
+    (c as u32 & 0xF) * 0x1111_1111
+}
+
 const fn text_screen_block() -> u8 {
     layout::SCREEN_BLOCKS[layout::TEXT_BG as usize]
 }
 
 /// Label tile rows 2..4 (13 tiles each) with `name` (Gen3-encoded) centered in 104 px
 /// (`GetStringCenterAlignXOffset(FONT_NORMAL, name, 0x68)`) at y = 17, as Gen3
-/// `CopyGlyphToWindow`: 2bpp values 1 -> white, 2 -> light gray, 0/3 -> transparent.
-fn label_name_tiles(font: &Font, name: &[u8]) -> Vec<Tile> {
+/// `CopyGlyphToWindow`: 2bpp values 1 -> white, 2 -> light gray, 0/3 -> background, on a
+/// canvas filled with color `fill`.
+fn label_name_tiles(font: &Font, name: &[u8], fill: u8) -> Vec<Tile> {
     let glyphs: Vec<u16> = name
         .iter()
         .take_while(|&&b| b != 0xFF)
@@ -562,7 +570,7 @@ fn label_name_tiles(font: &Font, name: &[u8]) -> Vec<Tile> {
     let width_of = |g: u16| font.widths.get(g as usize).copied().unwrap_or(0) as usize;
     let width: usize = glyphs.iter().map(|&g| width_of(g)).sum();
     let mut x = (LABEL_W * 8).saturating_sub(width) / 2;
-    let mut tiles = vec![[0u32; 8]; LABEL_W * 2];
+    let mut tiles = vec![[fill_word(fill); 8]; LABEL_W * 2];
     let y0 = NAME_Y - NAME_ROW * 8;
     for g in glyphs {
         let (Some(glyph), w) = (font.glyphs.get(g as usize), width_of(g)) else {

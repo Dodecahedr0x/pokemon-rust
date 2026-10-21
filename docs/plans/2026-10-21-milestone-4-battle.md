@@ -593,7 +593,7 @@ Components, each with `hash` and a per-frame `update(&mut self, f: &mut Frame)`,
    - `Cmd::ObjTile` in both shells.
    - `Frame::lighten`: BLDCNT effect 2 brightness increase, `c + (((31 - c) * evy) >> 4)`, in the native PPU and on GBA. Native mirrors mGBA's `_brighten` rounding (`ppu::brighten`).
 2. **`BattleTransition`:**
-   - Intro flashes: Gen3 `TransitionIntro_FadeToGray`/`FadeFromGray`, twice, done with `lighten` + BLDY.
+   - Intro flashes: Gen3 `TransitionIntro_FadeToGray`/`FadeFromGray`, three times (`CreateIntroTask(0, 0, 3, 2, 2)`), done with `lighten` + BLDY.
    - Then a tile-based pattern on BG0 (screen block and tiles in char block 3's free area, or reusing TEXT):
      - `GRID_SQUARES`: squares shrinking per tile over a black backdrop (`Task_GridSquares`), for every wild battle.
      - A horizontal-bars sweep for trainers.
@@ -606,7 +606,7 @@ Components, each with `hash` and a per-frame `update(&mut self, f: &mut Frame)`,
    - A shows the circle with the mon's front pic and "TREECKO / POKéMON <category>?" — the category is optional — then yes/no "Do you choose this POKéMON?" (FR from Task A strings)
    - B or no returns to the choice
    - `new([SpeciesId; 3])`, `load_step`, `update(game, input, f) -> Option<u8>`, `hash`
-   - it fades to black when chosen
+   - on "yes" `update` returns `Some(index)` on that frame with the screen still visible (no fade), as Gen3: `CB2_GiveStarter` then starts the first battle's transition over the starter screen
 4. **Tests:**
    - `lighten` pixels in the PPU
    - `ObjTile` applied in both shells (GBA shell: a host-side unit test of the applier, as M3)
@@ -734,11 +734,11 @@ Components, each with `hash` and a per-frame `update(&mut self, f: &mut Frame)`,
 2. **Field triggers**, in Gen3 `ProcessPlayerFieldInput` order: on step end, coord and warp scripts first, then `wild::try_land_encounter` when the cell is `TallGrass`, the map has a table, and the party has a usable mon. The environment is `Grass` on tall grass and `Plain` otherwise (`BattleSetup_GetEnvironmentId`, simplified).
 3. **ScriptHost** for every new `Request`:
    - `GiveMon` (party, else "can't": no PC), `PartySize`, `HealParty`, `SetRespawn`
-   - `ChooseStarter` (Starter mode, answered on choice)
+   - `ChooseStarter` (Starter mode, answered on choice): `load_step` while black until it returns true, then `update`. When it returns `Some(i)` the starter screen is still visible: answer the request and, for the first battle (`CB2_GiveStarter` → `CB2_StartFirstBattle`), run `BattleTransition` straight over that screen. The starter screen overwrites BG char block 0, screen blocks 6/7, BG0 (text char block, screen block 31), BG palettes 0.. and 15, OBJ tiles 512.. and OBJ palettes 0..4: the field is fully restored afterwards, as after a battle.
    - `BattleWild` / `BattleTrainer`: start a `BattleRun`; answer the outcome after the field has returned.
    - Immediate (map-script) mode logs and answers `Ran` / 0.
 4. **Battle lifecycle:**
-   - **Freeze objects**, transition (G), then while black `scene.load` chunks.
+   - **Freeze objects**, transition (G), then while black `scene.load` chunks. The transition owns `brightness`, `lighten` and `scroll[0]` while it runs and overwrites BG0 (tiles 510/511 of the text char block, screen block 31) and BG palette 15: the field `TextBox` must be closed (`TextBox::close`/`new`) and rebuilt after the battle, never reused as is.
    - **Run:** core + scene; the player party is written back at the end.
    - **Leave:** fade to black, **restore the field** (re-upload tilesets and palettes, redraw, drop the object sprite caches, re-init the text box gfx: hooks on `Field`, `Objects`, `TextBox`), fade in, unfreeze, answer the script.
    - **Lost** (not the first battle): Gen3 `CB2_WhiteOut`, simplified and documented:

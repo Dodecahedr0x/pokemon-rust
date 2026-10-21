@@ -281,6 +281,10 @@ fn loads_in_black_chunks() {
     assert!(has(
         &|c| matches!(c, Cmd::ObjPalette { bank: 4, colors } if colors[0] == 2000)
     ));
+    // Label rows 0..2 are filled with the window's text color (2).
+    assert!(has(
+        &|c| matches!(c, Cmd::BgTile { char_block: 2, index: 200, tile } if tile[0] == 0x2222_2222)
+    ));
     // The text box is set up last.
     assert!(
         load[4]
@@ -433,25 +437,48 @@ fn a_zooms_to_the_center_then_asks() {
 }
 
 #[test]
-fn yes_fades_to_black_and_returns_the_index() {
+fn yes_returns_the_index_at_once_with_the_screen_visible() {
     let g = game();
     let (mut s, _) = loaded(&g);
     step(&mut s, &g, Buttons::RIGHT);
     step(&mut s, &g, NONE);
     step(&mut s, &g, NONE);
     zoom_and_ask(&mut s, &g);
-    let mut f = step(&mut s, &g, A);
-    assert_eq!(f.brightness, 1);
-    let mut n = 1;
-    while !f.is_black() {
-        f = step(&mut s, &g, NONE);
-        n += 1;
-    }
-    assert_eq!(n, 16);
+    let mut f = Frame::default();
+    let input = Input {
+        held: A,
+        pressed: A,
+    };
+    assert_eq!(s.update(&g, &input, &mut f), Some(2));
+    assert_eq!(
+        f.brightness, 0,
+        "no fade: the transition runs over the screen"
+    );
+    assert_eq!(f.objs.len(), 6, "pic and circle still shown");
+    // It keeps answering and ignores input.
+    let f = step(&mut s, &g, B);
+    assert_eq!(f.brightness, 0);
     assert_eq!(s.stage, Stage::Done);
     let mut f = Frame::default();
     assert_eq!(s.update(&g, &Input::default(), &mut f), Some(2));
-    assert!(f.is_black());
+}
+
+#[test]
+fn load_step_is_inert_once_loaded() {
+    let g = game();
+    let (mut s, _) = loaded(&g);
+    let mut f = Frame {
+        brightness: 3,
+        ..Frame::default()
+    };
+    assert!(s.load_step(&g, &mut f));
+    assert_eq!(
+        f,
+        Frame {
+            brightness: 3,
+            ..Frame::default()
+        }
+    );
 }
 
 #[test]
@@ -478,17 +505,17 @@ fn b_or_no_returns_to_the_choice() {
 fn label_name_is_centered_in_104_px_at_y_17() {
     let g = game();
     // Glyphs 1, 2, 1: 6 + 4 + 6 = 16 px, so x = (104 - 16) / 2 = 44.
-    let t = label_name_tiles(g.font, &[1, 2, 1, 0xFF]);
+    let t = label_name_tiles(g.font, &[1, 2, 1, 0xFF], 7);
     assert_eq!(t.len(), 26);
     let px = |x: usize, y: usize| (t[(y / 8) * 13 + x / 8][y % 8] >> (4 * (x % 8))) & 0xF;
     // Row 17 is canvas row 1 of tile row 2.
-    assert_eq!(px(43, 1), 0);
+    assert_eq!(px(43, 1), 7, "opaque fill");
     assert_eq!(px(44, 1), LABEL_FG);
     assert_eq!(px(49, 1), LABEL_FG);
     assert_eq!(px(50, 1), LABEL_SHADOW);
     assert_eq!(px(54, 1), LABEL_FG);
-    assert_eq!(px(60, 1), 0);
-    assert_eq!(px(44, 0), 0, "nothing above y = 17");
+    assert_eq!(px(60, 1), 7);
+    assert_eq!(px(44, 0), 7, "nothing above y = 17");
     assert_eq!(px(44, 15), LABEL_FG, "glyph row 14");
 }
 

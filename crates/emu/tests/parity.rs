@@ -153,6 +153,31 @@ fn the_route_matches_the_content_build() {
     assert!(!rec.moments.is_empty());
 }
 
+/// The probe sequence plays natively: every frame is valid, the starter screen confirms the
+/// middle ball through its scripted input (one decline first), and the transition over it ends
+/// black.
+#[test]
+fn video_probe_sequence_plays() {
+    let (frames, chosen) = probe_scene::all_frames();
+    assert_eq!(chosen, Some(1));
+    for (i, f) in frames.iter().enumerate() {
+        assert_eq!(f.validate(), Ok(()), "probe frame {i}");
+    }
+    assert!(frames.last().unwrap().is_black());
+    let lighten: std::collections::BTreeSet<u8> = frames
+        .iter()
+        .filter(|f| f.lighten)
+        .map(|f| f.brightness)
+        .collect();
+    assert_eq!(lighten.len(), 17);
+    let high_obj_tiles = frames[0]
+        .cmds
+        .iter()
+        .filter(|c| matches!(c, engine::video::Cmd::ObjTile { index, .. } if *index >= 512))
+        .count();
+    assert_eq!(high_obj_tiles, 5);
+}
+
 /// The video probe ROM (`crates/game-gba/src/bin/video_probe.rs`) against the native PPU: every
 /// `Frame::lighten` level, `Cmd::ObjTile` and both battle transitions, frame by frame. The probe
 /// publishes the index of the frame it applied at the last vblank, which is the picture the
@@ -161,7 +186,7 @@ fn the_route_matches_the_content_build() {
 #[ignore = "needs target/video-probe.gba; run `cargo xtask parity`"]
 fn video_probe_matches_native() {
     let rom = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/video-probe.gba");
-    let frames = probe_scene::all_frames();
+    let (frames, _) = probe_scene::all_frames();
     let last = frames.len() as u32 - 1;
     let mut emu = Emu::open(&rom).unwrap_or_else(|e| panic!("open probe: {e:#}"));
     let mut snap = emu

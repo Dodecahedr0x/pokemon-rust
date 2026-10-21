@@ -13,11 +13,13 @@
 //!    - trainer battles: a horizontal-bars sweep: tile rows close 2 columns per frame, even
 //!      rows from the left and odd rows from the right (15 frames), then black.
 //!
-//!    Gen3 picks a wild transition by level and environment (`GetWildBattleTransition`: BLUR,
-//!    SWIRL, SHUFFLE, BIG_POKEBALL) and a trainer one by class (`GetTrainerBattleTransition`),
-//!    with `BLUR` for the first battle. Those are HBlank/window effects; this module
-//!    approximates them with the two tile patterns above (wild, including the first battle:
-//!    grid squares; trainer: bars).
+//!    Gen3 picks a wild transition from `sBattleTransitionTable_Wild` (`battle_setup.c`) by
+//!    map type, the first entry when the enemy is lower level than the player's mon and the
+//!    second otherwise: normal SLICE / WHITE_BARS_FADE, cave CLOCKWISE_WIPE / GRID_SQUARES,
+//!    flash BLUR / GRID_SQUARES, water WAVE / RIPPLE; the first battle uses BLUR. Trainers use
+//!    `sBattleTransitionTable_Trainer` (`GetTrainerBattleTransition`). Most are HBlank/window
+//!    effects; this module approximates them with the two tile patterns above (wild, including
+//!    the first battle: grid squares; trainer: bars).
 //!
 //! The screen ends fully black (`brightness = BRIGHTNESS_BLACK`, not lightened): `update`
 //! returns true from that frame on.
