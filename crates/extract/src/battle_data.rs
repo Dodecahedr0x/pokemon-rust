@@ -29,10 +29,22 @@
 //!
 //! **The wild/foe tag.** BPEE prefixes the nickname (`"Wild "`, `"Foe "`); BPEF appends a
 //! suffix: its `HANDLE_NICKNAME_STRING_CASE` (`BattleStringExpandPlaceholders`, 0x14e884 in
-//! BPEF) copies the nickname, then `StringAppend`s `sText_WildPkmnPrefix` = `" sauvage"` or
-//! `sText_FoePkmnPrefix` = `" ennemi"`, so the French text reads "ZIGZATON sauvage". Both
-//! strings are exported under their decomp names; [`tag_is_suffix`] tells the two forms apart
-//! from the bytes (a suffix starts with a space, a prefix ends with one).
+//! BPEF) copies the nickname, then `StringAppend`s `sText_WildPkmnPrefix` (wild battle) or
+//! `sText_FoePkmnPrefix` (trainer battle), each a space then a word. Both strings are exported
+//! under their decomp names; [`tag_is_suffix`] tells the two forms apart from the bytes (a
+//! suffix starts with a space, a prefix ends with one).
+//!
+//! **Stat-change messages.** BPEE builds "sharply rose!" from two buffer strings,
+//! `STRINGID_STATSHARPLY` (`"sharply "`) then `STRINGID_STATROSE` (`"rose!"`), and likewise
+//! `STRINGID_STATHARSHLY` + `STRINGID_STATFELL`. BPEF's `ExpandBattleTextBuffPlaceholders`
+//! (`B_BUFF_STRING` case, 0x14f3b8 in BPEF: `cmp r2, #0xD1; beq; cmp r2, #0xD3; bne; adds r5,
+//! #3`) skips the next buffer entry after `STRINGID_STATSHARPLY` (0xD1) or
+//! `STRINGID_STATHARSHLY` (0xD3): there the two strings are complete phrases ending in `!`, and
+//! the following "rose!"/"fell!" entry is not printed. [`stat_sharply_is_complete`] tells the
+//! two forms apart from the strings.
+//!
+//! **Stat names** are also exported in `STAT_*` order as `gStatNamesTable_0` ..
+//! `gStatNamesTable_7` ([`STAT_NAME_KEYS`]).
 
 use crate::export::Out;
 use crate::schema::{
@@ -208,6 +220,8 @@ pub struct Locations {
     pub heal_locations: u32,
     pub battle_strings: u32,
     pub stat_names: u32,
+    /// The [`CODE_STRINGS`], in order.
+    pub code_strings: Vec<u32>,
     /// `gText_WhatWillPkmnDo`, the first of [`MENU_STRINGS`].
     pub menu_strings: u32,
     pub confirm_starter_choice: u32,
@@ -395,7 +409,7 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
     let heal_locations = unique_referenced(rom, &heal, "sHealLocations")?;
 
     let battle_strings = locate_battle_strings(rom, &n)?;
-    let (_, stat_names) = walk_code_strings(rom, battle_strings, &n)?;
+    let (code_strings, stat_names) = walk_code_strings(rom, battle_strings, &n)?;
     let menu_strings = locate_menu_strings(rom)?;
     let confirm_starter_choice = locate_confirm_starter(rom)?;
 
@@ -415,6 +429,7 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         heal_locations,
         battle_strings,
         stat_names,
+        code_strings,
         menu_strings,
         confirm_starter_choice,
     })
@@ -563,20 +578,17 @@ fn locate_menu_strings(rom: &Rom) -> Result<u32> {
     };
     let mut start = hit;
     for _ in 0..MENU_ANCHOR {
-        let prev_end = start - 1; // the previous string's 0xFF
-        let before = rom.slice(0, prev_end as usize)?;
-        let p = before
-            .iter()
-            .rposition(|&b| b == 0xFF)
-            .context("menu strings: no string before")? as u32
-            + 1;
-        ensure!(
-            p + string_len(rom, p)? == start,
-            "menu strings: the string at {p:#x} does not end at {start:#x}"
-        );
-        start = p;
+        start = previous_string(rom, start).context("menu strings")?;
     }
     ensure_referenced(rom, start, "gText_WhatWillPkmnDo")?;
+    // The string after the last one is `gText_BattleSwitchWhich2`: the anchor bytes again.
+    let run = string_run(rom, start, MENU_STRINGS.len() + 1)?;
+    let after = run[MENU_STRINGS.len()];
+    ensure!(
+        rom.slice(after, anchor.len())? == &anchor[..],
+        "menu strings: the string after gText_BattleSwitchWhich at {after:#x} is not \
+         gText_BattleSwitchWhich2"
+    );
     Ok(start)
 }
 
@@ -649,8 +661,8 @@ pub fn battle_string_at(rom: &Rom, off: u32) -> Result<String> {
 }
 
 /// Whether a wild/foe tag (`sText_WildPkmnPrefix`, `sText_FoePkmnPrefix`) goes after the
-/// nickname: BPEF's `" sauvage"` starts with a space and is appended, BPEE's `"Wild "` ends with
-/// one and is prepended.
+/// nickname: BPEF's tags start with a space and are appended, BPEE's `"Wild "` ends with one and
+/// is prepended.
 pub fn tag_is_suffix(tag: &str) -> Result<bool> {
     match (tag.starts_with(' '), tag.ends_with(' ')) {
         (true, false) => Ok(true),
@@ -658,6 +670,34 @@ pub fn tag_is_suffix(tag: &str) -> Result<bool> {
         _ => bail!("cannot tell whether the tag {tag:?} is a prefix or a suffix"),
     }
 }
+
+/// Whether `STRINGID_STATSHARPLY` and `STRINGID_STATHARSHLY` are complete messages (BPEF: they
+/// end in `!` and the "rose!"/"fell!" buffer entry after them is skipped) or adverbs that the
+/// next entry completes (BPEE). See the module docs.
+pub fn stat_sharply_is_complete(strings: &BattleStringsFile) -> Result<bool> {
+    let ends = |id: &str| -> Result<bool> {
+        let s = strings.get(id).with_context(|| format!("no {id}"))?;
+        Ok(s.ends_with('!'))
+    };
+    let (sharply, harshly) = (ends("STRINGID_STATSHARPLY")?, ends("STRINGID_STATHARSHLY")?);
+    ensure!(
+        sharply == harshly,
+        "STRINGID_STATSHARPLY and STRINGID_STATHARSHLY disagree on being complete"
+    );
+    Ok(sharply)
+}
+
+/// `strings.ron` keys of `gStatNamesTable`, index = `STAT_*`.
+pub const STAT_NAME_KEYS: [&str; STAT_NAMES] = [
+    "gStatNamesTable_0",
+    "gStatNamesTable_1",
+    "gStatNamesTable_2",
+    "gStatNamesTable_3",
+    "gStatNamesTable_4",
+    "gStatNamesTable_5",
+    "gStatNamesTable_6",
+    "gStatNamesTable_7",
+];
 
 /// `gExperienceTables`: one row per `GROWTH_*`, exp for levels 0..=100.
 pub fn read_experience_tables(rom: &Rom, off: u32) -> Result<Vec<Vec<u32>>> {
@@ -1011,8 +1051,8 @@ fn read_strings(rom: &Rom, loc: &Locations, n: &Counts) -> Result<BattleStringsF
             battle_string_at(rom, off).with_context(|| name)?,
         );
     }
-    let (code, _) = walk_code_strings(rom, loc.battle_strings, n)?;
-    for (name, off) in CODE_STRINGS.iter().zip(code) {
+    let code = &loc.code_strings;
+    for (name, &off) in CODE_STRINGS.iter().zip(code) {
         out.insert(
             name.to_string(),
             battle_string_at(rom, off).with_context(|| name.to_string())?,
@@ -1026,6 +1066,7 @@ fn read_strings(rom: &Rom, loc: &Locations, n: &Counts) -> Result<BattleStringsF
         );
     }
     let birch = previous_string(rom, loc.confirm_starter_choice)?;
+    ensure_referenced(rom, birch, "gText_BirchInTrouble")?;
     for (name, off) in [
         ("gText_BirchInTrouble", birch),
         ("gText_ConfirmStarterChoice", loc.confirm_starter_choice),
@@ -1038,6 +1079,12 @@ fn read_strings(rom: &Rom, loc: &Locations, n: &Counts) -> Result<BattleStringsF
     for tag in ["sText_WildPkmnPrefix", "sText_FoePkmnPrefix"] {
         tag_is_suffix(&out[tag]).with_context(|| tag.to_string())?;
     }
+    let stats = &CODE_STRINGS[CODE_STRINGS.len() - STAT_NAMES..];
+    for (key, name) in STAT_NAME_KEYS.iter().zip(stats) {
+        let s = out[*name].clone();
+        out.insert(key.to_string(), s);
+    }
+    stat_sharply_is_complete(&out)?;
     Ok(out)
 }
 
@@ -1055,7 +1102,7 @@ mod tests {
 
     #[test]
     fn tags() {
-        assert!(tag_is_suffix(" sauvage").unwrap());
+        assert!(tag_is_suffix(" tag").unwrap());
         assert!(!tag_is_suffix("Wild ").unwrap());
         assert!(tag_is_suffix("Foe").is_err());
     }
