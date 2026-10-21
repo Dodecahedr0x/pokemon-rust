@@ -47,7 +47,8 @@ macro_rules! id {
 id! {
     /// Content-assigned map number.
     MapId,
-    /// Gen3 flag number (`FLAG_*`), e.g. 0x4000.. are temporary flags.
+    /// Gen3 flag number (`FLAG_*`): 0x1..0x20 are temporary flags (cleared on map change);
+    /// 0x4000.. are special (system) flags.
     FlagId,
     /// Gen3 var number (`VAR_*`): 0x4000..=0x40FF saved vars, 0x8000..=0x80FF special vars.
     VarId,
@@ -286,6 +287,10 @@ pub struct Font {
 pub struct WindowGfx {
     pub tiles: &'static [Tile],
     pub palette: &'static [u16; 16],
+    /// Palette indices the text printer uses (`WindowFile::text_fg` / `text_shadow` / `text_bg`).
+    pub text_fg: u8,
+    pub text_shadow: u8,
+    pub text_bg: u8,
 }
 
 /// Fixed UI strings the engine draws itself (Gen3-encoded, 0xFF-terminated).

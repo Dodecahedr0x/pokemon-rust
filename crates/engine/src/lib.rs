@@ -5,6 +5,8 @@ extern crate alloc;
 
 pub mod data;
 pub mod debug;
+pub mod field;
+pub mod flow;
 pub mod grid;
 pub mod hash;
 pub mod input;
@@ -12,6 +14,7 @@ pub mod objects;
 pub mod rng;
 pub mod scene;
 pub mod script;
+pub mod text;
 pub mod video;
 pub mod world;
 
