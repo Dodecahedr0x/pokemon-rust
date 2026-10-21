@@ -708,6 +708,8 @@ enum TrainerAnim {
 pub struct TrainerSprite {
     side: Side,
     loaded: bool,
+    /// The pic's Gen3 `.size` (`TrainerPic::y`), 8 until a pic is loaded.
+    size: u8,
     /// Gen3 sprite centre.
     home: (i16, i16),
     off: i16,
@@ -720,20 +722,23 @@ impl TrainerSprite {
         TrainerSprite {
             side,
             loaded: false,
-            home: Self::centre(side),
+            size: 8,
+            home: Self::centre(side, 8),
             off: 0,
             visible: false,
             anim: TrainerAnim::Idle,
         }
     }
 
-    /// Gen3 centres: `OpponentHandleDrawTrainerPic` y = `(8 - gTrainerFrontPicCoords[pic].size)
-    /// * 4 + 40` and `PlayerHandleDrawTrainerPic` y = `(8 - gTrainerBackPicCoords[pic].size) * 4
-    /// + 80`; every Emerald pic has size 8, hence (176, 40) and (80, 80).
-    const fn centre(side: Side) -> (i16, i16) {
+    /// Gen3 centres: `OpponentHandleDrawTrainerPic` y = `(8 - size) * 4 + 40` and
+    /// `PlayerHandleDrawTrainerPic` y = `(8 - size) * 4 + 80`, `size` being the pic's
+    /// `gTrainer{Front,Back}PicCoords[].size` ([`TrainerPic::y`]). Every Emerald pic has size 8,
+    /// hence (176, 40) and (80, 80).
+    const fn centre(side: Side, size: u8) -> (i16, i16) {
+        let dy = (8 - size as i16) * 4;
         match side {
-            Side::Opponent => (176, 40),
-            Side::Player => (80, 80),
+            Side::Opponent => (176, dy + 40),
+            Side::Player => (80, dy + 80),
         }
     }
 
@@ -765,8 +770,10 @@ impl TrainerSprite {
             bank: self.palette_bank(),
             colors: *pic.palette,
         });
+        debug_assert!(pic.y <= 8, "trainer pic size {} > 8", pic.y);
         self.loaded = true;
-        self.home = Self::centre(self.side);
+        self.size = pic.y;
+        self.home = Self::centre(self.side, pic.y);
         self.off = 0;
         self.visible = false;
         self.anim = TrainerAnim::Idle;
@@ -786,7 +793,7 @@ impl TrainerSprite {
     /// Battle intro: from 240 px outside (left for the opponent, right for the player) at
     /// 2 px/frame.
     pub fn slide_in(&mut self) {
-        self.home = Self::centre(self.side);
+        self.home = Self::centre(self.side, self.size);
         self.visible = true;
         let w = SCREEN_W as i16;
         let (off, speed) = match self.side {
@@ -813,7 +820,7 @@ impl TrainerSprite {
     /// The defeated opponent comes back (`OpponentHandleTrainerSlide`): centre x 208, from
     /// 96 px to the right at 2 px/frame.
     pub fn slide_in_defeated(&mut self) {
-        let (x, y) = Self::centre(self.side);
+        let (x, y) = Self::centre(self.side, self.size);
         self.home = (x + 32, y);
         self.visible = true;
         self.off = 96;
@@ -867,7 +874,12 @@ impl TrainerSprite {
 
     #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
-        h.write(&[side_tag(self.side), self.loaded as u8, self.visible as u8]);
+        h.write(&[
+            side_tag(self.side),
+            self.loaded as u8,
+            self.visible as u8,
+            self.size,
+        ]);
         hash_i16(h, self.home.0);
         hash_i16(h, self.home.1);
         hash_i16(h, self.off);
@@ -1252,7 +1264,8 @@ mod tests {
             n += 1;
         }
         assert_eq!(n, 120);
-        assert_eq!(t.pos(), (144, 8));
+        // `trainer_pic()` has size 1: centre y (8 - 1) * 4 + 40 = 68.
+        assert_eq!(t.pos(), (144, 68 - 32));
         t.slide_out();
         let mut n = 0;
         while t.busy() {
@@ -1269,7 +1282,7 @@ mod tests {
             n += 1;
         }
         assert_eq!(n, 48);
-        assert_eq!(t.pos(), (208 - 32, 8));
+        assert_eq!(t.pos(), (208 - 32, 68 - 32));
 
         let gfx = gfx();
         let back: &'static TrainerPic = Box::leak(Box::new(gfx.player_back));
@@ -1290,7 +1303,8 @@ mod tests {
         while p.busy() {
             p.update(&mut Frame::default());
         }
-        assert_eq!(p.pos(), (48, 48));
+        // The test back pic has size 4: centre y (8 - 4) * 4 + 80 = 96.
+        assert_eq!(p.pos(), (48, 96 - 32));
         p.slide_out();
         let mut last = (0, 0);
         let mut n = 0;
@@ -1303,7 +1317,7 @@ mod tests {
             n += 1;
         }
         assert_eq!(n, 51);
-        assert_eq!(last, (-40 - 32, 48));
+        assert_eq!(last, (-40 - 32, 96 - 32));
     }
 
     #[test]

@@ -37,7 +37,7 @@ mod bar;
 mod healthbox;
 mod sprite;
 #[cfg(test)]
-mod test_gfx;
+pub(crate) mod test_gfx;
 
 pub use background::{BG_CHUNK_TILES, Background};
 pub use bar::{BarColor, ExpBar, HpBar, bar_color};
