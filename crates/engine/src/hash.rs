@@ -1,5 +1,12 @@
 /// FNV-1a 64-bit. Used for World hashes compared across GBA and native.
+#[derive(Clone, Debug)]
 pub struct Fnv64(u64);
+
+impl Default for Fnv64 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Fnv64 {
     pub const fn new() -> Self {

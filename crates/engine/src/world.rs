@@ -119,6 +119,27 @@ mod tests {
         assert_ne!(a.hash(), b.hash());
     }
 
+    // Golden values pin the GBA/native parity contract; computed independently
+    // (FNV-1a 64 over LE frame u32, scroll_x u16, scroll_y u16, rng state u32).
+    #[test]
+    fn seed_is_pinned() {
+        assert_eq!(World::SEED, 0x5EED_0001);
+    }
+
+    #[test]
+    fn golden_hash_initial() {
+        assert_eq!(World::new().hash(), 0xb4ea_8cd1_c745_212f);
+    }
+
+    #[test]
+    fn golden_hash_after_inputs() {
+        let mut w = World::new();
+        for i in [Buttons::RIGHT, Buttons::NONE, Buttons::A, Buttons::DOWN] {
+            w.step(i);
+        }
+        assert_eq!(w.hash(), 0x701c_8d8b_3e66_1200);
+    }
+
     #[test]
     fn rng_advances_every_frame() {
         let mut a = World::new();

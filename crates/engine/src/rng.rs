@@ -3,6 +3,7 @@
 pub struct Rng(u32);
 
 impl Rng {
+    /// Seed 0 is replaced by 0x1234_5678, so those two seeds produce the same stream.
     pub const fn new(seed: u32) -> Self {
         Self(if seed == 0 { 0x1234_5678 } else { seed })
     }
