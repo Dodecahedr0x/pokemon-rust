@@ -102,8 +102,16 @@ pub enum Request {
         x: i16,
         y: i16,
     },
+    /// Make a spawned object visible again (Gen3 `showobjectat`). No flag changes.
     ShowObject(u8),
+    /// Make an object invisible but keep it spawned (Gen3 `hideobjectat`). No flag changes.
     HideObject(u8),
+    /// Spawn an object of the current map from its template, whatever its hide flag
+    /// (Gen3 `addobject`).
+    AddObject(u8),
+    /// Despawn an object of the current map and set its hide flag, so it stays gone on
+    /// re-entry (Gen3 `removeobject`).
+    RemoveObject(u8),
     Turn {
         obj: u8,
         dir: Dir,
@@ -301,6 +309,14 @@ impl Ctx {
 
     pub async fn hide_object(&self, obj: u8) {
         self.unit(Request::HideObject(obj)).await
+    }
+
+    pub async fn add_object(&self, obj: u8) {
+        self.unit(Request::AddObject(obj)).await
+    }
+
+    pub async fn remove_object(&self, obj: u8) {
+        self.unit(Request::RemoveObject(obj)).await
     }
 
     pub async fn turn(&self, obj: u8, dir: Dir) {
