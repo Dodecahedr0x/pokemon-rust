@@ -9,3 +9,4 @@ explore.db
 .claude/worktrees/
 content/extracted/
 content/.extracted.tmp/
+content/.extracted.old/
