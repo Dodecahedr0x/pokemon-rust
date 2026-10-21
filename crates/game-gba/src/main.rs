@@ -66,6 +66,8 @@ fn main(_gba: agb::Gba) -> ! {
     let vblank = agb::interrupt::VBlank::get();
     let mut world = World::new();
     let mut out = world.frame_out();
+    // Frame 0 publishes the real initial hash rather than the static's placeholder 0.
+    publish_debug(&world, Buttons::NONE);
     loop {
         vblank.wait_for_vblank();
         // Shows the previous step's FrameOut (one-frame display lag, see engine::debug); the step

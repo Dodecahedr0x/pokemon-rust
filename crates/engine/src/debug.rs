@@ -32,6 +32,8 @@ const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, hash) == OFF_HASH as usize);
     assert!(core::mem::offset_of!(DebugRegion, inputs) == OFF_INPUTS as usize);
     assert!(core::mem::size_of::<DebugRegion>() == 152);
+    // emu scans EWRAM in 8-byte steps.
+    assert!(core::mem::align_of::<DebugRegion>() == 8);
 };
 
 #[allow(clippy::new_without_default)]

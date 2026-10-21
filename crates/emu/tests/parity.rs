@@ -65,6 +65,17 @@ fn rom_and_native_agree() {
         snap.hash
     );
 
+    // Pin the button mapping: native replays what the ROM recorded, so also require that the
+    // ROM recorded exactly what the script sent (catches KEYINPUT/setKeys bit-order regressions).
+    for (i, &k) in consumed.iter().enumerate() {
+        assert_eq!(
+            k,
+            keys_for(i as u32),
+            "ROM consumed a different input at step {}",
+            i + 1
+        );
+    }
+
     let mut native = Session::new(content::Emerald);
     for &k in &consumed {
         native.step(k);

@@ -6,8 +6,7 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 ## Requirements
 - Rust nightly with `rust-src`
 - `cargo install agb-gbafix --version 0.25.0 --locked`
-- cmake (to build the vendored libmgba)
-- Your ROM goes in `rom/` (git-ignored)
+- cmake and libclang (Xcode command-line tools) to build the vendored libmgba
 
 ## Commands
 - `cargo test --workspace`: unit tests
