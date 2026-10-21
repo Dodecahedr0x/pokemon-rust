@@ -3,7 +3,8 @@
 use anyhow::{Context, Result, anyhow};
 use engine::Buttons;
 use engine::debug::{INPUT_RING, MAGIC, OFF_FRAME, OFF_HASH, OFF_INPUTS};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const EWRAM_START: u32 = 0x0200_0000;
 const EWRAM_SIZE: u32 = 256 * 1024;
@@ -15,6 +16,11 @@ pub fn xbgr8_to_rgb555(px: u32) -> u16 {
     (r | g << 5 | b << 10) as u16
 }
 
+/// A copy of the ROM's debug region.
+///
+/// Only consistent when sampled between `run_frame` calls: mGBA returns at the
+/// start of vblank, while the ROM is halted after publishing the frame's state.
+/// A ROM that overruns a frame could leave `hash` belonging to `frame + 1`.
 #[derive(Clone, Debug)]
 pub struct DebugSnapshot {
     pub frame: u32,
@@ -22,26 +28,53 @@ pub struct DebugSnapshot {
     pub inputs: [u16; INPUT_RING],
 }
 
+/// Private scratch directory removed on drop (errors ignored).
+struct ScratchDir(PathBuf);
+
+impl ScratchDir {
+    fn new() -> Result<Self> {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("pkr-emu-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+        Ok(Self(dir))
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 pub struct Emu {
+    // Field order matters: `core` drops (closing its save file) before `_scratch`.
     core: mgba::Core,
     debug_base: Option<u32>,
+    _scratch: ScratchDir,
 }
 
 impl Emu {
+    /// Loads a private copy of `rom`, so mGBA's `.sav` autoload never touches
+    /// (or reads state from) the directory the ROM lives in.
     pub fn open(rom: &Path) -> Result<Self> {
+        let scratch = ScratchDir::new()?;
+        let copy = scratch.0.join("game.gba");
+        std::fs::copy(rom, &copy).with_context(|| format!("copy {}", rom.display()))?;
         let mut core = mgba::Core::new().map_err(|e| anyhow!("mgba core: {e:?}"))?;
-        core.load_rom(rom)
+        core.load_rom(&copy)
             .map_err(|e| anyhow!("load {}: {e:?}", rom.display()))?;
         core.reset().map_err(|e| anyhow!("reset: {e:?}"))?;
         Ok(Self {
             core,
             debug_base: None,
+            _scratch: scratch,
         })
     }
 
     pub fn run_frame(&mut self, keys: Buttons) -> Result<()> {
         self.core
-            .set_keys(keys.0 as u32)
+            .set_keys(Buttons::from_raw(keys.0).0 as u32)
             .map_err(|e| anyhow!("set_keys: {e:?}"))?;
         self.core
             .run_frame()
@@ -77,7 +110,7 @@ impl Emu {
         let m0 = u32::from_le_bytes(MAGIC[0..4].try_into().unwrap());
         let m1 = u32::from_le_bytes(MAGIC[4..8].try_into().unwrap());
         (EWRAM_START..EWRAM_START + EWRAM_SIZE)
-            .step_by(4)
+            .step_by(8) // DebugRegion is 8-byte aligned.
             .find(|&a| self.read32(a) == m0 && self.read32(a + 4) == m1)
     }
 
@@ -109,8 +142,9 @@ impl Emu {
                 return Ok(s);
             }
         }
-        Err(anyhow!("debug region not found after {max_frames} frames"))
-            .context("is the ROM a pokemon-rust build?")
+        Err(anyhow!(
+            "debug region not found after {max_frames} frames (is the ROM a pokemon-rust build?)"
+        ))
     }
 }
 
@@ -135,5 +169,23 @@ mod tests {
     #[test]
     fn open_missing_rom_errors() {
         assert!(Emu::open(Path::new("/nonexistent/definitely-not-a-rom.gba")).is_err());
+    }
+
+    #[test]
+    fn open_does_not_create_sav_next_to_rom() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dir.0.join("x.gba");
+        // Just enough header for mGBA's GBAIsROM (0xEA at 3, 0x96 at 0xB2), so the
+        // load succeeds and reaches mCoreAutoloadSave. With an all-zero file the
+        // load fails first and this test would pass vacuously.
+        let mut bytes = [0u8; 512];
+        bytes[3] = 0xEA;
+        bytes[0xB2] = 0x96;
+        std::fs::write(&rom, bytes).unwrap();
+        let emu = Emu::open(&rom).expect("dummy header should load");
+        assert!(!dir.0.join("x.sav").exists());
+        let scratch = emu._scratch.0.clone();
+        drop(emu);
+        assert!(!scratch.exists(), "scratch dir not removed on drop");
     }
 }
