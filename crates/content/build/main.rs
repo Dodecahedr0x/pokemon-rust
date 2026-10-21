@@ -1,10 +1,12 @@
 //! Compiles `content/extracted/` (written by `cargo xtask extract`) into `'static` tables in
-//! `$OUT_DIR/{consts,data,scripts}.rs`. Without an extracted dir it builds a small built-in
+//! `$OUT_DIR/{consts,data,scripts,battle}.rs` (+ `battle.bin`). Without an extracted dir it builds a small built-in
 //! world instead and sets `cfg(pkr_stub)`.
 //!
 //! `PKR_EXTRACTED_DIR` overrides the extracted dir (tests point it at a fixture, or at a
 //! missing dir to force the stub).
 
+mod battle;
+mod battle_load;
 mod classify;
 mod codegen;
 #[allow(dead_code)]
@@ -15,6 +17,7 @@ use std::path::PathBuf;
 
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(pkr_stub)");
+    println!("cargo::rustc-check-cfg=cfg(pkr_stub_battle)");
     println!("cargo::rerun-if-env-changed=PKR_EXTRACTED_DIR");
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let workspace = manifest_dir.join("../..");
@@ -61,17 +64,26 @@ fn main() {
         println!("cargo::rustc-env=PKR_EXTRACTED=");
         stub::world()
     };
+    if world.battle.stub {
+        // No `battle/` (the stub, or a test fixture): the stub battle data.
+        println!("cargo::rustc-cfg=pkr_stub_battle");
+    }
     let g = codegen::generate(&world).unwrap_or_else(|e| panic!("generating content: {e:#}"));
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     for (name, src) in [
         ("consts.rs", &g.consts),
         ("data.rs", &g.data),
         ("scripts.rs", &g.scripts),
+        ("battle.rs", &g.battle),
     ] {
-        let path = out.join(name);
-        // Keep the mtime when nothing changed.
-        if std::fs::read_to_string(&path).ok().as_ref() != Some(src) {
-            std::fs::write(&path, src).unwrap();
-        }
+        write_if_changed(&out.join(name), src.as_bytes());
+    }
+    write_if_changed(&out.join("battle.bin"), &g.battle_bin);
+}
+
+/// Keeps the mtime when nothing changed.
+fn write_if_changed(path: &std::path::Path, data: &[u8]) {
+    if std::fs::read(path).ok().as_deref() != Some(data) {
+        std::fs::write(path, data).unwrap();
     }
 }

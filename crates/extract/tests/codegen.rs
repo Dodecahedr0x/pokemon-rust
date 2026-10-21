@@ -284,6 +284,121 @@ fn synthetic_compiles() {
     compile_check("synthetic", &root);
 }
 
+/// Map `C`, one root per `trainerbattle` shape (`include/constants/battle_setup.h`):
+/// `C_Single` (type 0, then the already-beaten message), `C_Continue` (type 2 with a continue
+/// script), `C_NoIntro` (type 3, then `givemon`, `getpartysize`, `setrespawn` and a type 4
+/// double, which is unsupported).
+fn synthetic_battle() -> (Rom, Vec<MapRoots>) {
+    let mut a = Asm::new();
+    a.l("single")
+        .b(&[0x5c, 0])
+        .h(1) // TRAINER_SAWYER_1
+        .h(3)
+        .p("t_intro")
+        .p("t_defeat") // trainerbattle_single TRAINER_SAWYER_1, intro, defeat (local 3)
+        .b(&[0x67])
+        .p("t_after") // message
+        .b(&[0x66, 0x6d, 0x6c, 0x02]) // waitmessage ; waitbuttonpress ; release ; end
+        .l("continue")
+        .b(&[0x5c, 2])
+        .h(2)
+        .h(4)
+        .p("t_intro")
+        .p("t_defeat")
+        .p("cont") // trainerbattle_single TRAINER_GRUNT_AQUA_HIDEOUT_1, …, cont
+        .b(&[0x6c, 0x02]) // release ; end
+        .l("cont")
+        .b(&[0x29])
+        .h(0x20) // setflag FLAG_0x20
+        .b(&[0x6c, 0x02])
+        .l("nointro")
+        .b(&[0x5c, 3])
+        .h(1)
+        .h(0)
+        .p("t_defeat") // trainerbattle_no_intro TRAINER_SAWYER_1, defeat
+        .b(&[0x79])
+        .h(0x115)
+        .b(&[5])
+        .h(0)
+        .b(&[0; 9]) // givemon SPECIES_TREECKO, 5
+        .b(&[0x79])
+        .h(0x4051)
+        .b(&[7])
+        .h(13)
+        .b(&[0; 9]) // givemon VAR_0x4051, 7, ITEM_POTION
+        .b(&[0x43]) // getpartysize
+        .b(&[0x9f])
+        .h(0xe) // setrespawn HEAL_LOCATION_OLDALE_TOWN
+        .b(&[0x5c, 4])
+        .h(1)
+        .h(0)
+        .p("t_intro")
+        .p("t_defeat")
+        .p("t_after") // trainerbattle_double (not enough mons text)
+        .b(&[0x02])
+        .text("t_intro", "Fight!")
+        .text("t_defeat", "Lost!")
+        .text("t_after", "Again?");
+    let maps = vec![MapRoots {
+        map: "C".into(),
+        roots: vec![
+            ("C_Single".into(), a.at("single")),
+            ("C_Continue".into(), a.at("continue")),
+            ("C_NoIntro".into(), a.at("nointro")),
+        ],
+    }];
+    (a.rom(), maps)
+}
+
+const GOLDEN_C: &str = r#"// @generated test
+
+pub async fn C_Single(ctx: Ctx) {
+    if trainer_battle(&ctx, TrainerBattle::single(TRAINER_SAWYER_1, 3, C_Single_T0, C_Single_T1)).await {
+        return;
+    }
+    ctx.message(C_Single_T2).await;
+    ctx.wait_message().await;
+    ctx.wait_button().await;
+    ctx.release().await;
+}
+
+pub async fn C_Continue(ctx: Ctx) {
+    if trainer_battle(&ctx, TrainerBattle::continue_script(TRAINER_GRUNT_AQUA_HIDEOUT_1, 4, C_Single_T0, C_Single_T1)).await {
+        Box::pin(C_Continue_L0(ctx.clone())).await;
+        return;
+    }
+    ctx.release().await;
+}
+
+pub async fn C_Continue_L0(ctx: Ctx) {
+    ctx.set_flag(FLAG_UNUSED_0x020, true).await;
+    ctx.release().await;
+}
+
+pub async fn C_NoIntro(ctx: Ctx) {
+    trainer_battle(&ctx, TrainerBattle::no_intro(TRAINER_SAWYER_1, C_Single_T1)).await;
+    ctx.set_var(VAR_RESULT, ctx.give_mon(SPECIES_TREECKO, 5).await).await;
+    ctx.set_var(VAR_RESULT, ctx.give_mon(SpeciesId(ctx.var(VAR_OLDALE_TOWN_STATE).await), 7).await).await; // held item 13 not given
+    ctx.set_var(VAR_RESULT, ctx.party_size().await).await;
+    ctx.set_respawn(HEAL_LOCATION_OLDALE_TOWN).await;
+    unsupported(&ctx, "trainerbattle").await; // 4, 0x1, 0x0, C_Single_T0, C_Single_T1, C_Single_T2
+    // what follows is the already-beaten path
+}
+"#;
+
+#[test]
+fn synthetic_battle_golden_and_compiles() {
+    let (rom, maps) = synthetic_battle();
+    let g = codegen::generate(&rom, &maps, HEADER).unwrap();
+    assert_eq!(g.files["C"], GOLDEN_C, "{}", g.files["C"]);
+    assert_eq!(
+        g.stats.unsupported,
+        BTreeMap::from([("trainerbattle".into(), 1)])
+    );
+    let root = write_generated("battle", &g, "en");
+    compile_check("battle", &root);
+}
+
 /// Writes `scripts/<Map>.rs` and `text/<lang>.ron` under a fresh temp dir.
 fn write_generated(tag: &str, g: &Generated, lang: &str) -> PathBuf {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("codegen-{tag}"));
@@ -326,6 +441,9 @@ fn prelude_consts(texts: &TextFile) -> String {
     table(&mut s, &names::STD_SCRIPTS, "u8", "");
     table(&mut s, &names::OBJ_EVENT_GFX, "u16", "");
     table(&mut s, &names::ITEMS, "u16", "");
+    table(&mut s, &names::SPECIES, "SpeciesId", "SpeciesId");
+    table(&mut s, &names::TRAINERS, "TrainerId", "TrainerId");
+    table(&mut s, &names::HEAL_LOCATIONS, "u8", "");
     for m in names::MAPS {
         let id = u16::from(m.num) | u16::from(m.group) << 8;
         s += &format!("pub const {}: MapId = MapId({id:#x});\n", m.constant);

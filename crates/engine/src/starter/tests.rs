@@ -90,6 +90,7 @@ struct Game {
     tables: &'static BattleTables,
     gfx: &'static BattleGfx,
     question: &'static [u8],
+    birch: &'static [u8],
 }
 
 fn game() -> Game {
@@ -119,6 +120,7 @@ fn game() -> Game {
             ..EMPTY_GFX
         })),
         question: &[1, 1, 1, 0xFF],
+        birch: &[1, 2, 1, 2, 0xFF],
     }
 }
 
@@ -170,6 +172,7 @@ impl GameData for Game {
     fn battle_text(&self, s: Str) -> &'static [u8] {
         match s {
             Str::ConfirmStarterChoice => self.question,
+            Str::BirchInTrouble => self.birch,
             _ => &[0xFF],
         }
     }
@@ -402,7 +405,11 @@ fn zoom_and_ask(s: &mut StarterChoice, g: &Game) -> Vec<Frame> {
 
 #[test]
 fn a_zooms_to_the_center_then_asks() {
-    let g = game();
+    // No BirchInTrouble text, so the first message tile written is the question's.
+    let g = Game {
+        birch: &[0xFF],
+        ..game()
+    };
     let (mut s, _) = loaded(&g);
     let frames = zoom_and_ask(&mut s, &g);
     assert_eq!(label_writes(&frames[0])[0], (label_start(1), false));
@@ -549,4 +556,25 @@ fn hash_follows_the_state() {
     step(&mut a, &g, Buttons::RIGHT);
     step(&mut b, &g, NONE);
     assert_ne!(h(&a), h(&b));
+}
+
+#[test]
+fn birch_in_trouble_prints_while_choosing_and_after_no() {
+    let g = game();
+    let (mut s, _) = loaded(&g);
+    assert!(
+        s.text.is_printing(),
+        "Stage::Enter starts gText_BirchInTrouble"
+    );
+    for _ in 0..60 {
+        step(&mut s, &g, NONE);
+    }
+    assert!(!s.text.is_printing(), "it prints on its own");
+    zoom_and_ask(&mut s, &g);
+    step(&mut s, &g, B);
+    assert_eq!(s.stage, Stage::Decline);
+    step(&mut s, &g, NONE);
+    step(&mut s, &g, NONE);
+    assert_eq!(s.stage, Stage::Choose);
+    assert!(s.text.is_printing(), "reprinted after no");
 }
