@@ -3,6 +3,15 @@ name = "content"
 edition.workspace = true
 version.workspace = true
 publish.workspace = true
+build = "build/main.rs"
 
 [dependencies]
 engine.workspace = true
+
+[build-dependencies]
+extract.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+extract.workspace = true
+anyhow.workspace = true

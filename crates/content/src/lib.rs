@@ -1,7 +1,41 @@
 #![cfg_attr(not(test), no_std)]
 //! The game: all Hoenn-specific data and scripts. Depends on `engine`, never the reverse.
+//!
+//! `build/main.rs` compiles `content/extracted/` into `consts` (Gen3 constants, text ids),
+//! `data` (static tables) and `scripts` (the generated per-map script modules). Without an
+//! extracted dir it builds a small built-in world and sets `cfg(pkr_stub)`.
 
+extern crate alloc;
+
+use engine::data::{
+    Behavior, Dir, Font, GameData, GfxId, MapData, MapId, NewGame, ScriptId, SpriteData, TextId,
+    UiText, WindowGfx,
+};
+use engine::script::{Ctx, Script};
 use engine::{Content, Scene, Tile};
+
+pub mod prelude;
+
+/// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
+/// `OBJ_EVENT_GFX_*`) and one `TextId` per text, named after its key.
+#[allow(non_upper_case_globals, dead_code, unused_imports)]
+pub mod consts {
+    use engine::data::{FlagId, MapId, TextId, VarId};
+    include!(concat!(env!("OUT_DIR"), "/consts.rs"));
+}
+
+/// Static tables: tilesets (`TS_*`), maps (`M_*`), sprites (`S_*`), font, window, texts.
+#[allow(non_upper_case_globals, non_snake_case, dead_code, clippy::all)]
+pub mod data {
+    include!(concat!(env!("OUT_DIR"), "/data.rs"));
+}
+
+/// Generated scripts, one module per map file (`include!`d from the extracted dir).
+pub mod scripts {
+    include!(concat!(env!("OUT_DIR"), "/scripts.rs"));
+}
+
+pub use data::script_ids;
 
 pub const T_GRASS: u16 = 0;
 pub const T_CHECKER: u16 = 1;
@@ -82,6 +116,70 @@ impl Content for Emerald {
         &SCENE
     }
 }
+
+/// Whether `id` is an exported map. `GameData::map` gives [`data::MISSING_MAP`] (0x0 cells,
+/// no events) for the others, e.g. warp destinations outside the slice.
+pub fn has_map(id: MapId) -> bool {
+    data::map(id.0).is_some()
+}
+
+impl GameData for Emerald {
+    fn map(&self, id: MapId) -> &'static MapData {
+        data::map(id.0).unwrap_or(&data::MISSING_MAP)
+    }
+
+    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
+        data::sprite(gfx.0)
+    }
+
+    fn player_sprite(&self) -> &'static SpriteData {
+        data::PLAYER_SPRITE
+    }
+
+    fn font(&self) -> &'static Font {
+        &data::FONT
+    }
+
+    fn window(&self) -> &'static WindowGfx {
+        &data::WINDOW
+    }
+
+    fn text(&self, id: TextId) -> &'static [u8] {
+        data::TEXTS.get(id.0 as usize).copied().unwrap_or(&[0xFF])
+    }
+
+    fn ui_text(&self, t: UiText) -> &'static [u8] {
+        match t {
+            UiText::Yes => data::UI_YES,
+            UiText::No => data::UI_NO,
+            UiText::RivalName => data::UI_RIVAL_NAME,
+        }
+    }
+
+    fn behavior(&self, raw: u8) -> Behavior {
+        data::BEHAVIORS[raw as usize]
+    }
+
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        data::script(id.0, ctx)
+    }
+
+    /// Placeholder (Task I decides): Littleroot, outside the player's house, facing down.
+    fn new_game(&self) -> NewGame {
+        let (map, x, y) = data::NEW_GAME;
+        NewGame {
+            map,
+            x,
+            y,
+            facing: Dir::Down,
+            script: None,
+            player_name: data::PLAYER_NAME,
+        }
+    }
+}
+
+#[cfg(test)]
+mod data_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,157 @@
+//! Unit tests of the build script's name classification (`build/classify.rs`).
+
+#[allow(dead_code)]
+#[path = "../build/classify.rs"]
+mod classify;
+
+use classify::*;
+
+#[test]
+fn behaviors_by_name() {
+    assert_eq!(behavior("MB_NORMAL"), "Normal");
+    assert_eq!(behavior("MB_TALL_GRASS"), "TallGrass");
+    assert_eq!(behavior("MB_JUMP_EAST"), "Ledge(Dir::Right)");
+    assert_eq!(behavior("MB_JUMP_WEST"), "Ledge(Dir::Left)");
+    assert_eq!(behavior("MB_JUMP_NORTH"), "Ledge(Dir::Up)");
+    assert_eq!(behavior("MB_JUMP_SOUTH"), "Ledge(Dir::Down)");
+    assert_eq!(behavior("MB_JUMP_NORTHEAST"), "Normal");
+    assert_eq!(behavior("MB_ANIMATED_DOOR"), "Door");
+    assert_eq!(behavior("MB_PETALBURG_GYM_DOOR"), "Normal");
+    assert_eq!(behavior("MB_BRIDGE_OVER_OCEAN"), "Warp");
+    assert_eq!(behavior("MB_DEEP_SOUTH_WARP"), "Warp");
+    assert_eq!(behavior("MB_CRACKED_FLOOR_HOLE"), "Normal");
+    assert_eq!(behavior("MB_BATTLE_PYRAMID_WARP"), "Normal");
+    assert_eq!(behavior("MB_WATER_DOOR"), "Blocked");
+    assert_eq!(behavior("MB_WATER_SOUTH_ARROW_WARP"), "Blocked");
+    assert_eq!(behavior("MB_NON_ANIMATED_DOOR"), "Warp");
+    assert_eq!(behavior("MB_LADDER"), "Warp");
+    assert_eq!(behavior("MB_SOUTH_ARROW_WARP"), "ArrowWarp(Dir::Down)");
+    assert_eq!(behavior("MB_EAST_ARROW_WARP"), "ArrowWarp(Dir::Right)");
+    assert_eq!(behavior("MB_COUNTER"), "Counter");
+    assert_eq!(behavior("MB_POND_WATER"), "Blocked");
+    assert_eq!(behavior("MB_DEEP_WATER"), "Blocked");
+    assert_eq!(behavior("MB_OCEAN_WATER"), "Blocked");
+    assert_eq!(behavior("MB_SHALLOW_WATER"), "Normal");
+    assert_eq!(behavior("MB_IMPASSABLE_SOUTH"), "Blocked");
+    assert_eq!(behavior("MB_0xF5"), "Normal");
+}
+
+#[test]
+fn every_named_behavior_is_known_to_the_decomp_table() {
+    for name in classify::BLOCKED.iter().chain(classify::WARPS) {
+        assert!(
+            extract::names::METATILE_BEHAVIORS.value(name).is_some(),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn behavior_table_uses_the_names_table() {
+    let t = behavior_table();
+    let jump_east = extract::names::METATILE_BEHAVIORS
+        .value("MB_JUMP_EAST")
+        .unwrap() as usize;
+    assert_eq!(t[jump_east], "Ledge(Dir::Right)");
+    let door = extract::names::METATILE_BEHAVIORS
+        .value("MB_ANIMATED_DOOR")
+        .unwrap() as usize;
+    assert_eq!(t[door], "Door");
+    assert_eq!(t[0xFF], "Normal");
+}
+
+fn movement(name: &str) -> (&'static str, bool) {
+    let (s, exact) = classify::movement(name);
+    (Box::leak(s.into_boxed_str()), exact)
+}
+
+#[test]
+fn movement_types() {
+    assert_eq!(
+        movement("MOVEMENT_TYPE_FACE_UP"),
+        ("MovementType::Face(Dir::Up)", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_LOOK_AROUND"),
+        ("MovementType::LookAround", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_WANDER_AROUND"),
+        ("MovementType::Wander", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_WANDER_DOWN_AND_UP"),
+        ("MovementType::WanderVertical", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_WANDER_RIGHT_AND_LEFT"),
+        ("MovementType::WanderHorizontal", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_WALK_IN_PLACE_LEFT"),
+        ("MovementType::WalkInPlace(Dir::Left)", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_JOG_IN_PLACE_RIGHT"),
+        ("MovementType::WalkInPlace(Dir::Right)", false)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_INVISIBLE"),
+        ("MovementType::Invisible", true)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_FACE_DOWN_AND_RIGHT"),
+        ("MovementType::LookAround", false)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_WALK_UP_AND_DOWN"),
+        ("MovementType::WanderVertical", false)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_WALK_LEFT_AND_RIGHT"),
+        ("MovementType::WanderHorizontal", false)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_BERRY_TREE_GROWTH"),
+        ("MovementType::Face(Dir::Down)", false)
+    );
+    assert_eq!(
+        movement("MOVEMENT_TYPE_NONE"),
+        ("MovementType::Face(Dir::Down)", false)
+    );
+}
+
+#[test]
+fn every_movement_type_maps() {
+    for (_, name) in extract::names::MOVEMENT_TYPES.iter() {
+        assert!(
+            classify::movement(name).0.starts_with("MovementType::"),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn gfx_names() {
+    let base = extract::names::VARS.value("VAR_OBJ_GFX_ID_0").unwrap();
+    assert_eq!(
+        gfx("OBJ_EVENT_GFX_VAR_0"),
+        Some(format!("Gfx::Var(VarId({base:#x}))"))
+    );
+    assert_eq!(
+        gfx("OBJ_EVENT_GFX_VAR_B"),
+        Some(format!("Gfx::Var(VarId({:#x}))", base + 11))
+    );
+    assert_eq!(
+        gfx("OBJ_EVENT_GFX_BRENDAN_NORMAL"),
+        Some("Gfx::Fixed(GfxId(0x0))".into())
+    );
+    assert_eq!(gfx("OBJ_EVENT_GFX_NOPE"), None);
+}
+
+#[test]
+fn hex_fallback_names_are_found() {
+    let src = "setflag(FLAG_0x1AB); VAR_0x4001 x MAP_ROUTE101 FLAG_0x; aFLAG_0x12";
+    let found: Vec<_> = hex_names(src).into_iter().collect();
+    assert_eq!(found, ["FLAG_0x1AB", "VAR_0x4001"]);
+}

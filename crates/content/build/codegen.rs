@@ -1,0 +1,765 @@
+//! Rust source generation: `consts.rs` (Gen3 constants and text ids), `data.rs` (static
+//! tables and dispatch) and `scripts.rs` (per-map script modules).
+
+use crate::classify;
+use crate::input::{Tile, World, warn};
+use anyhow::{Context, Result, bail, ensure};
+use extract::names::{self, Table};
+use extract::schema::{BgKind, ConnectionDir, MapFile, from_rows};
+use extract::text::{Lang, encode_lang};
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
+
+pub struct Generated {
+    pub consts: String,
+    pub data: String,
+    pub scripts: String,
+}
+
+/// All script names with their `ScriptId` (position), and the module (file stem) defining
+/// each one when scripts were generated.
+pub struct Scripts {
+    pub names: Vec<String>,
+    pub module: BTreeMap<String, String>,
+}
+
+fn map_script_refs(m: &MapFile) -> Vec<&str> {
+    let s = &m.scripts;
+    let mut v: Vec<&str> = Vec::new();
+    v.extend(m.objects.iter().filter_map(|o| o.script.as_deref()));
+    v.extend(m.coords.iter().filter_map(|c| c.script.as_deref()));
+    v.extend(m.bgs.iter().filter_map(|b| match &b.kind {
+        BgKind::Script { script, .. } => script.as_deref(),
+        _ => None,
+    }));
+    for o in [
+        &s.on_load,
+        &s.on_transition,
+        &s.on_resume,
+        &s.on_return_to_field,
+        &s.on_dive_warp,
+    ] {
+        v.extend(o.as_deref());
+    }
+    v.extend(s.on_frame.iter().map(|t| t.script.as_str()));
+    v.extend(s.on_warp_into.iter().map(|t| t.script.as_str()));
+    v
+}
+
+/// `ScriptId` numbering: the keys of `scripts/index.ron` in order, then any script a map
+/// refers to that the index lacks (sorted). Without an index: the map references, sorted.
+pub fn scripts(w: &World) -> Scripts {
+    let refs: BTreeSet<String> = w
+        .maps
+        .iter()
+        .flat_map(map_script_refs)
+        .map(str::to_string)
+        .collect();
+    let mut names = Vec::new();
+    let mut module = BTreeMap::new();
+    if let Some(index) = &w.index {
+        for (name, e) in &index.scripts {
+            names.push(name.clone());
+            let stem = std::path::Path::new(&e.file)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(&e.file)
+                .to_string();
+            module.insert(name.clone(), stem);
+        }
+    }
+    for r in refs {
+        if !module.contains_key(&r) {
+            if w.index.is_some() {
+                warn(&format!(
+                    "script {r} is referenced by a map but not in index.ron"
+                ));
+            }
+            names.push(r);
+        }
+    }
+    Scripts { names, module }
+}
+
+/// A table's entries, minus the extra numbers of a name listed at several numbers (the decomp
+/// lists some specials twice, e.g. `ShowGlassWorkshopMenu` at 0x115 and 0x15C). A name keeps
+/// the number `Table::value` gives it, so constants agree with the names lookups; the others
+/// are reported.
+fn entries(t: &'static Table) -> Vec<(u32, &'static str)> {
+    t.iter()
+        .filter(|&(v, n)| {
+            // The lowest number listed under this (cleaned) name, as `Table::value` finds it.
+            let first = t
+                .iter()
+                .find(|&(_, m)| clean(m) == clean(n))
+                .map_or(v, |(w, _)| w);
+            if first != v {
+                warn(&format!(
+                    "{} is listed at {first:#X} and {v:#X}: using {first:#X}",
+                    clean(n)
+                ));
+            }
+            first == v
+        })
+        .collect()
+}
+
+/// A names-table entry without the trailing decomp comment some carry
+/// (`"SPECIAL_ShowContestPainting  @ Unused, …"`).
+fn clean(name: &str) -> &str {
+    name.split_whitespace().next().unwrap_or(name)
+}
+
+fn ident_ok(s: &str) -> bool {
+    !s.is_empty()
+        && !s.starts_with(|c: char| c.is_ascii_digit())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Gen3 `MAP_*` number: `num | group << 8`.
+fn map_id(id: &str) -> Result<u16> {
+    let (g, n) = id.split_once('.').context("map id is not <group>.<num>")?;
+    Ok(u16::from(g.parse::<u8>()?) << 8 | u16::from(n.parse::<u8>()?))
+}
+
+fn table_value(t: &Table, name: &str) -> Result<u32> {
+    t.value(name)
+        .with_context(|| format!("unknown {}* name {name}", t.prefix))
+}
+
+fn bytes_lit(b: &[u8]) -> String {
+    let mut s = String::from("b\"");
+    for &c in b {
+        write!(s, "\\x{c:02X}").unwrap();
+    }
+    s.push('"');
+    s
+}
+
+fn tiles_lit(tiles: &[Tile]) -> String {
+    let mut s = String::from("[");
+    for t in tiles {
+        s.push('[');
+        for r in t {
+            write!(s, "0x{r:08X},").unwrap();
+        }
+        s.push_str("],");
+    }
+    s.push(']');
+    s
+}
+
+fn u16s_lit(v: &[u16]) -> String {
+    let mut s = String::from("[");
+    for x in v {
+        write!(s, "{x:#X},").unwrap();
+    }
+    s.push(']');
+    s
+}
+
+pub fn consts(w: &World) -> Result<String> {
+    let mut o = String::from("// @generated by content/build.rs\n");
+    // Name -> (type, value). Aliases of one constant (`MSGBOX_NPC` in two tables) repeat with
+    // the same value and are emitted once; the same name with another value is an error.
+    let mut seen: BTreeMap<String, (String, String)> = BTreeMap::new();
+    let mut c = |o: &mut String, name: &str, ty: &str, value: String| -> Result<()> {
+        let name = clean(name);
+        ensure!(ident_ok(name), "constant {name:?} is not an identifier");
+        match seen.get(name) {
+            Some((t, v)) => ensure!(
+                t == ty && *v == value,
+                "constant {name} defined twice: {t} = {v} and {ty} = {value}"
+            ),
+            None => {
+                writeln!(o, "pub const {name}: {ty} = {value};").unwrap();
+                seen.insert(name.to_string(), (ty.to_string(), value));
+            }
+        }
+        Ok(())
+    };
+    for (v, n) in entries(&names::FLAGS) {
+        c(&mut o, n, "FlagId", format!("FlagId({v:#X})"))?;
+    }
+    for (v, n) in entries(&names::VARS) {
+        c(&mut o, n, "VarId", format!("VarId({v:#X})"))?;
+    }
+    for m in names::MAPS {
+        let v = u16::from(m.group) << 8 | u16::from(m.num);
+        c(&mut o, m.constant, "MapId", format!("MapId({v:#X})"))?;
+    }
+    c(&mut o, "MAP_DYNAMIC", "MapId", "MapId(0x7F7F)".into())?;
+    c(&mut o, "MAP_UNDEFINED", "MapId", "MapId(0xFFFF)".into())?;
+    for (v, n) in entries(&names::SPECIALS) {
+        c(&mut o, n, "u16", format!("{v:#X}"))?;
+    }
+    for (v, n) in entries(&names::STD_SCRIPTS)
+        .into_iter()
+        .chain(entries(&names::MSGBOX_TYPES))
+    {
+        c(&mut o, n, "u8", format!("{v:#X}"))?;
+        if !n.starts_with("STD_") {
+            c(&mut o, &format!("STD_{n}"), "u8", format!("{v:#X}"))?;
+        }
+    }
+    for (v, n) in entries(&names::OBJ_EVENT_GFX) {
+        c(&mut o, n, "u16", format!("{v:#X}"))?;
+    }
+    for (v, n) in entries(&names::ITEMS) {
+        c(&mut o, n, "u16", format!("{v:#X}"))?;
+    }
+    // Unnamed numbers (`FLAG_0x123`) the maps or scripts use.
+    let mut sources: Vec<String> = Vec::new();
+    for m in &w.maps {
+        sources.push(extract::export::to_ron(m)?);
+    }
+    if let (Some(dir), Some(_)) = (&w.dir, &w.index) {
+        let s = scripts(w);
+        for stem in s.module.values().collect::<BTreeSet<_>>() {
+            let p = dir.join(format!("scripts/{stem}.rs"));
+            sources.push(std::fs::read_to_string(&p).with_context(|| p.display().to_string())?);
+        }
+    }
+    let hex: BTreeSet<String> = sources
+        .iter()
+        .flat_map(|s| classify::hex_names(s))
+        .collect();
+    for n in hex {
+        let (ty, table): (&str, &Table) = match n.split("0x").next().unwrap() {
+            "FLAG_" => ("FlagId", &names::FLAGS),
+            "VAR_" => ("VarId", &names::VARS),
+            "SPECIAL_" => ("u16", &names::SPECIALS),
+            "ITEM_" => ("u16", &names::ITEMS),
+            "OBJ_EVENT_GFX_" => ("u16", &names::OBJ_EVENT_GFX),
+            "STD_" => ("u8", &names::STD_SCRIPTS),
+            _ => continue,
+        };
+        let v = table_value(table, &n)?;
+        let value = match ty {
+            "FlagId" | "VarId" => format!("{ty}({v:#X})"),
+            _ => format!("{v:#X}"),
+        };
+        c(&mut o, &n, ty, value)?;
+    }
+    for (i, k) in w.texts.keys().enumerate() {
+        c(&mut o, k, "TextId", format!("TextId({i})"))?;
+    }
+    Ok(o)
+}
+
+fn dir_of(d: ConnectionDir) -> Option<&'static str> {
+    Some(match d {
+        ConnectionDir::South => "Dir::Down",
+        ConnectionDir::North => "Dir::Up",
+        ConnectionDir::West => "Dir::Left",
+        ConnectionDir::East => "Dir::Right",
+        ConnectionDir::Dive | ConnectionDir::Emerge => return None,
+    })
+}
+
+/// Where a new game starts: outside the player's house in Littleroot (in front of the warp
+/// leading to `LittlerootTown_BrendansHouse_1F`), else the middle of the first map.
+fn new_game(w: &World) -> Result<(u16, i16, i16)> {
+    if let Some(m) = w.maps.iter().find(|m| m.name == "LittlerootTown")
+        && let Some(warp) = m
+            .warps
+            .iter()
+            .find(|wp| wp.dest_map.as_deref() == Some("LittlerootTown_BrendansHouse_1F"))
+    {
+        return Ok((
+            map_id(&format!("{}.{}", m.group, m.num))?,
+            warp.x,
+            warp.y + 1,
+        ));
+    }
+    if w.dir.is_none() {
+        let m = &w.maps[0];
+        let (x, y) = crate::stub::START;
+        return Ok((u16::from(m.group) << 8 | u16::from(m.num), x, y));
+    }
+    let m = w.maps.first().context("no maps")?;
+    Ok((
+        u16::from(m.group) << 8 | u16::from(m.num),
+        (m.layout.width / 2) as i16,
+        (m.layout.height / 2) as i16,
+    ))
+}
+
+fn ui_texts(lang: Lang) -> Result<[(&'static str, Vec<u8>); 4]> {
+    // Gen3 `gText_Yes`/`gText_No`, the default rival name (May: FLORA in French) and the
+    // fixed player name.
+    let (yes, no, rival) = match lang {
+        Lang::Fr => ("OUI", "NON", "FLORA"),
+        Lang::En => ("YES", "NO", "MAY"),
+    };
+    Ok([
+        ("UI_YES", encode_lang(yes, lang)?),
+        ("UI_NO", encode_lang(no, lang)?),
+        ("UI_RIVAL_NAME", encode_lang(rival, lang)?),
+        ("PLAYER_NAME", encode_lang("SACHA", lang)?),
+    ])
+}
+
+pub fn data(w: &World) -> Result<String> {
+    let s = scripts(w);
+    let script_id: BTreeMap<&str, usize> = s
+        .names
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.as_str(), i))
+        .collect();
+    let sid = |name: &str| -> Result<String> {
+        let i = script_id
+            .get(name)
+            .with_context(|| format!("script {name} has no id"))?;
+        Ok(format!("ScriptId({i})"))
+    };
+    let opt_sid = |name: &Option<String>| -> Result<String> {
+        Ok(match name {
+            Some(n) => format!("Some({})", sid(n)?),
+            None => "None".into(),
+        })
+    };
+
+    let mut o = String::from("// @generated by content/build.rs\n");
+    o.push_str("use engine::Tile;\nuse engine::data::*;\nuse engine::script::{Ctx, Script};\nuse alloc::boxed::Box;\n\n");
+
+    // ---- tilesets ----
+    let mut tileset_names = BTreeSet::new();
+    writeln!(
+        o,
+        "static EMPTY_TS: Tileset = Tileset {{ tiles: &[], palettes: &[], metatiles: &[], attributes: &[] }};"
+    )?;
+    for t in &w.tilesets {
+        let n = &t.file.name;
+        ensure!(ident_ok(n), "tileset name {n:?}");
+        tileset_names.insert(n.as_str());
+        let f = &t.file;
+        ensure!(
+            f.metatiles.len() == f.attributes.len(),
+            "tileset {n}: metatiles/attributes length"
+        );
+        writeln!(
+            o,
+            "static TS_{n}_TILES: [Tile; {}] = {};",
+            t.tiles.len(),
+            tiles_lit(&t.tiles)
+        )?;
+        write!(
+            o,
+            "static TS_{n}_PALS: [[u16; 16]; {}] = [",
+            f.palettes.len()
+        )?;
+        for p in &f.palettes {
+            o.push_str(&u16s_lit(p));
+            o.push(',');
+        }
+        o.push_str("];\n");
+        write!(
+            o,
+            "static TS_{n}_METATILES: [[u16; 8]; {}] = [",
+            f.metatiles.len()
+        )?;
+        for m in &f.metatiles {
+            o.push_str(&u16s_lit(m));
+            o.push(',');
+        }
+        o.push_str("];\n");
+        writeln!(
+            o,
+            "static TS_{n}_ATTRS: [u16; {}] = {};",
+            f.attributes.len(),
+            u16s_lit(&f.attributes)
+        )?;
+        writeln!(
+            o,
+            "pub static TS_{n}: Tileset = Tileset {{ tiles: &TS_{n}_TILES, palettes: &TS_{n}_PALS, metatiles: &TS_{n}_METATILES, attributes: &TS_{n}_ATTRS }};"
+        )?;
+    }
+
+    // ---- maps ----
+    let mut map_arms = String::new();
+    let exported: BTreeSet<u16> = w
+        .maps
+        .iter()
+        .map(|m| u16::from(m.group) << 8 | u16::from(m.num))
+        .collect();
+    let mut movement_fallbacks = BTreeSet::new();
+    for m in &w.maps {
+        let n = &m.name;
+        ensure!(ident_ok(n), "map name {n:?}");
+        let l = &m.layout;
+        for ts in [&l.primary, &l.secondary] {
+            ensure!(
+                tileset_names.contains(ts.as_str()),
+                "map {n}: tileset {ts} not exported"
+            );
+        }
+        let blocks = from_rows(&l.blocks);
+        ensure!(
+            blocks.len() == usize::from(l.width) * usize::from(l.height),
+            "map {n}: {} blocks for {}x{}",
+            blocks.len(),
+            l.width,
+            l.height
+        );
+        let border = from_rows(&l.border);
+        ensure!(border.len() == 4, "map {n}: border is not 2x2");
+        writeln!(
+            o,
+            "static M_{n}_BLOCKS: [u16; {}] = {};",
+            blocks.len(),
+            u16s_lit(&blocks)
+        )?;
+
+        let mut objects = String::new();
+        for ob in &m.objects {
+            let gfx = classify::gfx(&ob.gfx)
+                .with_context(|| format!("map {n}: object {} gfx {}", ob.local_id, ob.gfx))?;
+            let (movement, exact) = classify::movement(&ob.movement);
+            if !exact {
+                movement_fallbacks.insert(format!("{} -> {movement}", ob.movement));
+            }
+            let trainer = names::TRAINER_TYPES
+                .value(&ob.trainer_type)
+                .unwrap_or_else(|| {
+                    warn(&format!(
+                        "map {n}: object {}: unknown trainer type {}, using 0",
+                        ob.local_id, ob.trainer_type
+                    ));
+                    0
+                });
+            let flag = match &ob.flag {
+                Some(f) => format!("Some(FlagId({:#X}))", table_value(&names::FLAGS, f)?),
+                None => "None".into(),
+            };
+            write!(
+                objects,
+                "ObjectEvent {{ local_id: {}, gfx: {gfx}, x: {}, y: {}, elevation: {}, movement: {movement}, range: ({}, {}), trainer_type: {trainer}, trainer_sight: {}, script: {}, hide_flag: {flag} }},",
+                ob.local_id,
+                ob.x,
+                ob.y,
+                ob.elevation,
+                ob.range_x,
+                ob.range_y,
+                ob.trainer_sight_or_berry_tree as u8,
+                opt_sid(&ob.script)?
+            )?;
+        }
+        let mut warps = String::new();
+        for wp in &m.warps {
+            write!(
+                warps,
+                "WarpEvent {{ x: {}, y: {}, elevation: {}, dest_map: MapId({:#X}), dest_warp: {} }},",
+                wp.x,
+                wp.y,
+                wp.elevation,
+                map_id(&wp.dest_map_id)?,
+                wp.dest_warp
+            )?;
+        }
+        let mut coords = String::new();
+        for c in &m.coords {
+            // Weather triggers (no var) and script-less coords do nothing in this engine.
+            let (Some(var), Some(script)) = (&c.var, &c.script) else {
+                continue;
+            };
+            write!(
+                coords,
+                "CoordEvent {{ x: {}, y: {}, elevation: {}, var: VarId({:#X}), value: {}, script: {} }},",
+                c.x,
+                c.y,
+                c.elevation,
+                table_value(&names::VARS, var)?,
+                c.value,
+                sid(script)?
+            )?;
+        }
+        let mut bgs = String::new();
+        for b in &m.bgs {
+            let kind = match &b.kind {
+                BgKind::Script {
+                    facing,
+                    script: Some(script),
+                } => {
+                    let facing = match facing {
+                        1 => "Some(Dir::Up)",
+                        2 => "Some(Dir::Down)",
+                        3 => "Some(Dir::Right)",
+                        4 => "Some(Dir::Left)",
+                        _ => "None",
+                    };
+                    format!(
+                        "BgKind::Script {{ facing: {facing}, script: {} }}",
+                        sid(script)?
+                    )
+                }
+                BgKind::HiddenItem { item, flag } => format!(
+                    "BgKind::HiddenItem {{ item: {:#X}, flag: FlagId({:#X}) }}",
+                    table_value(&names::ITEMS, item)?,
+                    table_value(&names::FLAGS, flag)?
+                ),
+                _ => continue,
+            };
+            write!(
+                bgs,
+                "BgEvent {{ x: {}, y: {}, elevation: {}, kind: {kind} }},",
+                b.x, b.y, b.elevation
+            )?;
+        }
+        let mut conns = String::new();
+        for c in &m.connections {
+            let Some(d) = dir_of(c.dir) else { continue };
+            let id = map_id(&c.map_id)?;
+            if c.map.is_none() || !exported.contains(&id) {
+                continue;
+            }
+            write!(
+                conns,
+                "Connection {{ dir: {d}, offset: {}, map: MapId({id:#X}) }},",
+                c.offset
+            )?;
+        }
+        let ms = &m.scripts;
+        let var_scripts = |v: &[extract::schema::VarScript]| -> Result<String> {
+            let mut s = String::from("&[");
+            for t in v {
+                write!(
+                    s,
+                    "VarScript {{ var: VarId({:#X}), value: {}, script: {} }},",
+                    table_value(&names::VARS, &t.var)?,
+                    t.value,
+                    sid(&t.script)?
+                )?;
+            }
+            s.push(']');
+            Ok(s)
+        };
+        writeln!(
+            o,
+            "pub static M_{n}: MapData = MapData {{ name: \"{n}\", width: {}, height: {}, blocks: &M_{n}_BLOCKS, border: {}, primary: &TS_{}, secondary: &TS_{}, objects: &[{objects}], warps: &[{warps}], coords: &[{coords}], bgs: &[{bgs}], connections: &[{conns}], scripts: MapScripts {{ on_load: {}, on_transition: {}, on_resume: {}, on_return_to_field: {}, on_frame: {}, on_warp_into: {} }}, allow_running: {} }};",
+            l.width,
+            l.height,
+            u16s_lit(&border),
+            l.primary,
+            l.secondary,
+            opt_sid(&ms.on_load)?,
+            opt_sid(&ms.on_transition)?,
+            opt_sid(&ms.on_resume)?,
+            opt_sid(&ms.on_return_to_field)?,
+            var_scripts(&ms.on_frame)?,
+            var_scripts(&ms.on_warp_into)?,
+            m.header.allow_running
+        )?;
+        writeln!(
+            map_arms,
+            "        {:#X} => Some(&M_{n}),",
+            u16::from(m.group) << 8 | u16::from(m.num)
+        )?;
+    }
+    writeln!(
+        o,
+        "/// What `GameData::map` returns for a map that was not exported: 0x0 cells, no events.\npub static MISSING_MAP: MapData = MapData {{ name: \"MISSING\", width: 0, height: 0, blocks: &[], border: [0; 4], primary: &EMPTY_TS, secondary: &EMPTY_TS, objects: &[], warps: &[], coords: &[], bgs: &[], connections: &[], scripts: MapScripts {{ on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_frame: &[], on_warp_into: &[] }}, allow_running: false }};"
+    )?;
+    writeln!(
+        o,
+        "/// The exported map with Gen3 number `id` (`MAP_*`).\npub fn map(id: u16) -> Option<&'static MapData> {{\n    match id {{\n{map_arms}        _ => None,\n    }}\n}}"
+    )?;
+    writeln!(o, "pub const MAP_COUNT: usize = {};", w.maps.len())?;
+    write!(o, "pub static MAP_IDS: [MapId; {}] = [", w.maps.len())?;
+    for m in &w.maps {
+        write!(
+            o,
+            "MapId({:#X}),",
+            u16::from(m.group) << 8 | u16::from(m.num)
+        )?;
+    }
+    o.push_str("];\n");
+    for f in &movement_fallbacks {
+        writeln!(o, "// movement fallback: {f}")?;
+    }
+
+    // ---- sprites ----
+    let mut sprite_arms = String::new();
+    for sp in &w.sprites {
+        let n = &sp.file.name;
+        ensure!(ident_ok(n), "sprite name {n:?}");
+        for (k, f) in sp.frames.iter().enumerate() {
+            writeln!(
+                o,
+                "static S_{n}_F{k}: [Tile; {}] = {};",
+                f.len(),
+                tiles_lit(f)
+            )?;
+        }
+        let frames: Vec<String> = (0..sp.frames.len())
+            .map(|k| format!("&S_{n}_F{k}"))
+            .collect();
+        writeln!(
+            o,
+            "static S_{n}_PAL: [u16; 16] = {};\npub static S_{n}: SpriteData = SpriteData {{ width: {}, height: {}, frames: &[{}], palette: &S_{n}_PAL }};",
+            u16s_lit(&sp.file.palette),
+            sp.file.cell_width,
+            sp.file.cell_height,
+            frames.join(",")
+        )?;
+        writeln!(
+            sprite_arms,
+            "        {:#X} => Some(&S_{n}),",
+            sp.file.gfx_id
+        )?;
+    }
+    writeln!(
+        o,
+        "/// The sprite of Gen3 graphics id `gfx` (`OBJ_EVENT_GFX_*`).\npub fn sprite(gfx: u16) -> Option<&'static SpriteData> {{\n    match gfx {{\n{sprite_arms}        _ => None,\n    }}\n}}"
+    )?;
+    let player = w
+        .sprites
+        .iter()
+        .find(|s| s.file.name == "BRENDAN_NORMAL")
+        .context("no BRENDAN_NORMAL sprite")?;
+    ensure!(
+        player.frames.len() == 18,
+        "BRENDAN_NORMAL has {} frames, expected 18 (walk + run)",
+        player.frames.len()
+    );
+    writeln!(
+        o,
+        "pub static PLAYER_SPRITE: &SpriteData = &S_BRENDAN_NORMAL;"
+    )?;
+
+    // ---- font, window ----
+    ensure!(
+        w.glyphs.len() == w.widths.len(),
+        "font glyphs/widths length"
+    );
+    write!(o, "static GLYPHS: [[u8; 64]; {}] = [", w.glyphs.len())?;
+    for g in &w.glyphs {
+        o.push('*');
+        o.push_str(&bytes_lit(g));
+        o.push(',');
+    }
+    o.push_str("];\n");
+    writeln!(
+        o,
+        "static WIDTHS: [u8; {}] = *{};\npub static FONT: Font = Font {{ glyphs: &GLYPHS, widths: &WIDTHS }};",
+        w.widths.len(),
+        bytes_lit(&w.widths)
+    )?;
+    let win = &w.window;
+    writeln!(
+        o,
+        "static WINDOW_TILES: [Tile; {}] = {};\nstatic WINDOW_PAL: [u16; 16] = {};\npub static WINDOW: WindowGfx = WindowGfx {{ tiles: &WINDOW_TILES, palette: &WINDOW_PAL, text_fg: {}, text_shadow: {}, text_bg: {} }};",
+        w.window_tiles.len(),
+        tiles_lit(&w.window_tiles),
+        u16s_lit(&win.palette),
+        win.text_fg,
+        win.text_shadow,
+        win.text_bg
+    )?;
+
+    // ---- texts ----
+    write!(o, "pub static TEXTS: [&[u8]; {}] = [", w.texts.len())?;
+    for b in w.texts.values() {
+        ensure!(b.last() == Some(&0xFF), "text not 0xFF-terminated");
+        o.push_str(&bytes_lit(b));
+        o.push(',');
+    }
+    o.push_str("];\n");
+    write!(o, "pub static TEXT_NAMES: [&str; {}] = [", w.texts.len())?;
+    for k in w.texts.keys() {
+        write!(o, "\"{k}\",")?;
+    }
+    o.push_str("];\n");
+    writeln!(
+        o,
+        "/// `manifest.language`: the charmap of `TEXTS`.\npub const LANG: &str = \"{}\";",
+        w.lang.code()
+    )?;
+    writeln!(
+        o,
+        "/// sha1 of the ROM the data was extracted from (empty for the stub).\npub const SOURCE_SHA1: &str = \"{}\";",
+        w.sha1
+    )?;
+    for (name, b) in ui_texts(w.lang)? {
+        writeln!(o, "pub static {name}: &[u8] = {};", bytes_lit(&b))?;
+    }
+
+    // ---- behaviors, new game ----
+    o.push_str("pub static BEHAVIORS: [Behavior; 256] = [");
+    for b in classify::behavior_table() {
+        write!(o, "Behavior::{b},")?;
+    }
+    o.push_str("];\n");
+    let (map, x, y) = new_game(w)?;
+    writeln!(
+        o,
+        "pub const NEW_GAME: (MapId, i16, i16) = (MapId({map:#X}), {x}, {y});"
+    )?;
+
+    // ---- names for logs ----
+    for (name, table) in [
+        ("SPECIAL_NAMES", &names::SPECIALS),
+        ("STD_NAMES", &names::STD_SCRIPTS),
+    ] {
+        let entries: Vec<_> = table.iter().collect();
+        write!(o, "pub static {name}: [(u16, &str); {}] = [", entries.len())?;
+        for (v, n) in entries {
+            write!(o, "({v:#X}, \"{}\"),", clean(n))?;
+        }
+        o.push_str("];\n");
+    }
+
+    // ---- scripts ----
+    writeln!(o, "pub const SCRIPT_COUNT: usize = {};", s.names.len())?;
+    write!(o, "pub static SCRIPT_NAMES: [&str; {}] = [", s.names.len())?;
+    for n in &s.names {
+        write!(o, "\"{n}\",")?;
+    }
+    o.push_str("];\n");
+    o.push_str("/// `ScriptId` of every script, by name.\n#[allow(unused_imports)]\npub mod script_ids {\n    use engine::data::ScriptId;\n");
+    for (i, n) in s.names.iter().enumerate() {
+        ensure!(ident_ok(n), "script name {n:?}");
+        writeln!(o, "    pub const {n}: ScriptId = ScriptId({i});")?;
+    }
+    o.push_str("}\n");
+    o.push_str("async fn log_only(ctx: Ctx, what: &'static str) {\n    ctx.log(what).await;\n}\n");
+    o.push_str("/// Instantiates script `id`.\npub fn script(id: u16, ctx: Ctx) -> Script {\n    match id {\n");
+    for (i, n) in s.names.iter().enumerate() {
+        match s.module.get(n) {
+            Some(m) => {
+                ensure!(ident_ok(m), "script module {m:?}");
+                writeln!(o, "        {i} => Box::pin(crate::scripts::{m}::{n}(ctx)),")?
+            }
+            None => writeln!(
+                o,
+                "        {i} => Box::pin(log_only(ctx, \"script {n} not generated\")),"
+            )?,
+        }
+    }
+    o.push_str("        _ => Box::pin(log_only(ctx, \"unknown script id\")),\n    }\n}\n");
+    Ok(o)
+}
+
+pub fn scripts_rs(w: &World) -> Result<String> {
+    let s = scripts(w);
+    let mut o = String::from("// @generated by content/build.rs\n");
+    if w.index.is_some() && w.dir.is_none() {
+        bail!("scripts need an extracted dir");
+    }
+    for m in s.module.values().collect::<BTreeSet<_>>() {
+        writeln!(
+            o,
+            "#[allow(non_snake_case, non_upper_case_globals, unused_mut, unused_variables, unused_assignments, unreachable_code, clippy::all)]\npub mod {m} {{\n    use crate::prelude::*;\n    include!(concat!(env!(\"PKR_EXTRACTED\"), \"/scripts/{m}.rs\"));\n}}"
+        )?;
+    }
+    Ok(o)
+}
+
+pub fn generate(w: &World) -> Result<Generated> {
+    Ok(Generated {
+        consts: consts(w)?,
+        data: data(w)?,
+        scripts: scripts_rs(w)?,
+    })
+}
