@@ -11,3 +11,4 @@ engine.workspace = true
 content.workspace = true
 game-native.workspace = true
 extract.workspace = true
+png = "0.17"

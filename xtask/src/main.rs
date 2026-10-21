@@ -52,34 +52,84 @@ fn rom() -> Result<PathBuf> {
         .arg(&out)
         .args(["-t", "PKRUST"]))?;
     println!("ROM: {}", out.display());
+    check_rom_size(&out)?;
     Ok(out)
 }
 
-fn write_ppm(path: &Path, fb: &[u16]) -> Result<()> {
-    let mut data = b"P6\n240 160\n255\n".to_vec();
-    for &c in fb {
-        for ch in [c & 31, (c >> 5) & 31, (c >> 10) & 31] {
-            data.push(((ch << 3) | (ch >> 2)) as u8);
-        }
+/// GBA ROM size limit (32 MiB cartridge address space).
+const ROM_LIMIT: u64 = 32 << 20;
+
+fn check_rom_size(rom: &Path) -> Result<()> {
+    let size = std::fs::metadata(rom)?.len();
+    println!(
+        "ROM size: {size} bytes ({} KiB of {} MiB)",
+        size >> 10,
+        ROM_LIMIT >> 20
+    );
+    if size > ROM_LIMIT {
+        bail!("ROM is {size} bytes, over the 32 MiB GBA limit");
     }
-    std::fs::write(path, data)?;
     Ok(())
 }
 
-/// Same idle frames on ROM and native, then dump both images side by side for eyeballing.
+fn write_png(path: &Path, fb: &[u16]) -> Result<()> {
+    let mut rgb = Vec::with_capacity(fb.len() * 3);
+    for &c in fb {
+        for ch in [c & 31, (c >> 5) & 31, (c >> 10) & 31] {
+            rgb.push(((ch << 3) | (ch >> 2)) as u8);
+        }
+    }
+    let file = std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
+    let mut enc = png::Encoder::new(
+        std::io::BufWriter::new(file),
+        game_native::SCREEN_W as u32,
+        game_native::SCREEN_H as u32,
+    );
+    enc.set_color(png::ColorType::Rgb);
+    enc.set_depth(png::BitDepth::Eight);
+    enc.write_header()?.write_image_data(&rgb)?;
+    Ok(())
+}
+
+/// Plays the parity route on ROM and native and writes `target/shots/<moment>-{rom,native}.png`
+/// for each named moment. The ROM shows step `f`'s picture when it is at engine frame `f + 1`
+/// (display lag), so it is captured there.
 fn shot() -> Result<()> {
     let rom = rom()?;
-    let mut emu = emu::Emu::open(&rom)?;
-    emu.boot(120)?;
+    let rec = game_native::scenario::record_route().map_err(anyhow::Error::msg)?;
+    let checkpoints: Vec<u32> = rec.moments.iter().map(|m| m.frame + 1).collect();
+    let total = rec.frames().max(checkpoints.last().copied().unwrap_or(0));
+    let run = emu::run_rom(&rom, |f| rec.keys_at(f), total, &checkpoints)?;
     let mut native = game_native::Session::new(content::Emerald);
-    for _ in 0..30 {
-        emu.run_frame(engine::Buttons::NONE)?;
-        native.step(engine::Buttons::NONE);
+    let dir = root().join("target/shots");
+    std::fs::create_dir_all(&dir)?;
+    let mut same = 0;
+    for (m, cap) in rec.moments.iter().zip(&run.captures) {
+        while native.world().frame() < m.frame {
+            let f = native.world().frame();
+            native.step(rec.keys_at(f));
+        }
+        let fb = native.framebuffer();
+        write_png(&dir.join(format!("{}-rom.png", m.name)), &cap.fb)?;
+        write_png(&dir.join(format!("{}-native.png", m.name)), fb)?;
+        let equal = cap.fb == fb;
+        same += equal as usize;
+        println!(
+            "{:<20} frame {:>5}  map {:#06x}  rom {} native",
+            m.name,
+            m.frame,
+            m.map.0,
+            if equal { "==" } else { "!=" }
+        );
     }
-    let dir = root().join("target");
-    write_ppm(&dir.join("shot-rom.ppm"), &emu.framebuffer_rgb555())?;
-    write_ppm(&dir.join("shot-native.ppm"), native.framebuffer())?;
-    println!("wrote target/shot-rom.ppm and target/shot-native.ppm");
+    println!(
+        "wrote {} moments to {} ({same} identical)",
+        rec.moments.len(),
+        dir.display()
+    );
+    if same != rec.moments.len() {
+        bail!("ROM and native pictures differ");
+    }
     Ok(())
 }
 
