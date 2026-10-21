@@ -360,21 +360,57 @@ fn four_frames_per_character() {
     assert!(!tb.is_printing());
 }
 
+/// One update with `pressed` newly pressed and `held` held.
+fn tick_held(tb: &mut TextBox, g: &Game, pressed: Buttons, held: Buttons) -> Frame {
+    let mut f = Frame::default();
+    tb.update(g, pressed, held, &mut f);
+    f
+}
+
 #[test]
-fn a_finishes_the_page() {
+fn a_skips_the_delay_then_held_prints_one_glyph_per_frame() {
     let g = game();
-    let mut tb = printing(&g, &[1, 1, 0xFE, 1, 0xFB, 1, 0xFF]);
+    let mut tb = printing(&g, &[1, 1, 1, 1, 1, 0xFF]);
     tick(&mut tb, &g, NONE);
     assert_eq!(tb.x, 3);
+    // The press only clears the delay (Gen3 draws nothing that frame).
     tick(&mut tb, &g, A);
-    // Whole page printed, stopped at the \p wait (the same press does not dismiss it).
+    assert_eq!(tb.x, 3);
+    for x in [6, 9, 12, 15] {
+        tick_held(&mut tb, &g, NONE, A);
+        assert_eq!(tb.x, x, "one glyph per frame while A is held");
+    }
+    assert!(!tb.is_printing());
+}
+
+#[test]
+fn releasing_a_returns_to_normal_speed() {
+    let g = game();
+    let mut tb = printing(&g, &[1, 1, 1, 1, 0xFF]);
+    tick(&mut tb, &g, NONE);
+    tick(&mut tb, &g, A);
+    tick_held(&mut tb, &g, NONE, A);
+    assert_eq!(tb.x, 6);
+    // Released: the delay runs again.
+    for _ in 0..FRAMES_PER_CHAR - 1 {
+        tick(&mut tb, &g, NONE);
+        assert_eq!(tb.x, 6);
+    }
+    tick(&mut tb, &g, NONE);
+    assert_eq!(tb.x, 9);
+}
+
+#[test]
+fn a_does_not_dismiss_a_page_wait_it_did_not_reach() {
+    let g = game();
+    let mut tb = printing(&g, &[1, 0xFB, 1, 0xFF]);
+    run_page(&mut tb, &g);
     assert_eq!(tb.state, State::WaitClear);
-    assert_eq!(px(&tb.msg, 3, 1), FG);
-    assert_eq!(px(&tb.msg, 0, 17), FG);
     tick(&mut tb, &g, NONE);
     assert_eq!(tb.state, State::WaitClear);
     tick(&mut tb, &g, A);
-    tick(&mut tb, &g, A);
+    assert_eq!(tb.state, State::Printing);
+    run_page(&mut tb, &g);
     assert!(!tb.is_printing());
 }
 
@@ -611,15 +647,21 @@ fn rom_layout_glyph_pixels() {
 }
 
 #[test]
-fn full_two_line_page_skips_in_one_update() {
+fn a_full_two_line_page_held_takes_one_frame_per_glyph() {
     let g = game();
     let mut text = vec![1u8; 72];
     text.push(0xFE);
     text.extend([1u8; 72]);
     text.push(0xFF);
     let mut tb = printing(&g, &text);
+    tick(&mut tb, &g, NONE);
     tick(&mut tb, &g, A);
-    assert!(!tb.is_printing());
+    let mut frames = 0;
+    while tb.is_printing() {
+        tick_held(&mut tb, &g, NONE, A);
+        frames += 1;
+    }
+    assert_eq!(frames, 143);
     assert_eq!(px(&tb.msg, 213, 17), FG);
     assert_eq!(px(&tb.msg, 214, 17), SHADOW);
 }

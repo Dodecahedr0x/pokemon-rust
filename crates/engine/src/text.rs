@@ -4,7 +4,10 @@
 //!
 //! Rendering follows Gen3 (glyph shape, colors, positions, line scroll); timing is simplified:
 //! each drawn glyph costs `FRAMES_PER_CHAR` frames and control codes cost nothing, whereas Gen3
-//! "medium" spends about 5 frames per glyph and also charges for control codes.
+//! "medium" spends about 5 frames per glyph and also charges for control codes. A/B speeds
+//! printing up as Gen3 `RenderText` does: a new press skips the current delay, and while A or B
+//! stays held after that, one glyph is drawn per frame (never more, which bounds the frame's
+//! cost on the GBA).
 //!
 //! VRAM use (char block `layout::TEXT_CHAR_BLOCK`, screen block `SCREEN_BLOCKS[TEXT_BG]`):
 //! - tile 0: blank (cleared map entries show nothing),
@@ -439,6 +442,8 @@ pub struct TextBox {
     x: i16,
     y: i16,
     delay: u8,
+    /// A/B was pressed while printing this message (Gen3 `hasPrintBeenSpedUp`).
+    sped_up: bool,
     pen: Pen,
     msg: Canvas,
     yes_no: Canvas,
@@ -464,6 +469,7 @@ impl TextBox {
             x: TEXT_X,
             y: TEXT_Y,
             delay: 0,
+            sped_up: false,
             pen: Pen::new(Colors::default()),
             msg: Canvas::new(MSG_WINDOW),
             yes_no: Canvas::new(YES_NO_WINDOW),
@@ -542,6 +548,7 @@ impl TextBox {
         self.x = TEXT_X;
         self.y = TEXT_Y;
         self.delay = 0;
+        self.sped_up = false;
         self.pen = Pen::new(Colors::of(game.window()));
         self.msg.fill(self.pen.colors.bg);
         self.msg.flush(f);
@@ -549,35 +556,31 @@ impl TextBox {
     }
 
     /// Advances one frame. `pressed` = buttons newly pressed this frame, `held` = all held.
-    pub fn update(
-        &mut self,
-        game: &impl GameData,
-        pressed: Buttons,
-        _held: Buttons,
-        f: &mut Frame,
-    ) {
+    pub fn update(&mut self, game: &impl GameData, pressed: Buttons, held: Buttons, f: &mut Frame) {
         if self.yes_no_cursor.is_some() {
             self.update_yes_no(game, pressed, f);
         } else if self.open {
-            self.update_printer(game.font(), pressed);
+            self.update_printer(game.font(), pressed, held);
         }
         self.msg.flush(f);
         self.yes_no.flush(f);
     }
 
-    fn update_printer(&mut self, font: &Font, pressed: Buttons) {
+    fn update_printer(&mut self, font: &Font, pressed: Buttons, held: Buttons) {
         let press = ab(pressed);
         match self.state {
             State::Idle => {}
             State::Printing => {
-                if press {
-                    // A/B finishes the page at once.
-                    while self.state == State::Printing {
-                        self.delay = 0;
-                        self.step(font);
-                    }
-                } else if self.delay > 0 {
+                // Gen3 `RenderText`, RENDER_STATE_HANDLE_CHAR.
+                if self.sped_up && ab(held) {
+                    self.delay = 0;
+                }
+                if self.delay > 0 {
                     self.delay -= 1;
+                    if press {
+                        self.sped_up = true;
+                        self.delay = 0;
+                    }
                 } else {
                     self.step(font);
                 }
@@ -801,6 +804,7 @@ impl TextBox {
             self.bg_on as u8,
             self.open as u8,
             self.delay,
+            self.sped_up as u8,
             self.pen.colors.fg,
             self.pen.colors.shadow,
             self.pen.colors.bg,
