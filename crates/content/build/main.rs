@@ -26,13 +26,23 @@ fn main() {
     };
     let dir = std::path::absolute(&dir).unwrap();
     let manifest = dir.join("manifest.ron");
-    let world = if manifest.exists() {
+    // An extract in an older format still builds (as the stub, with a warning), so that
+    // `cargo xtask extract`, which links this crate, can run to replace it.
+    let stale =
+        manifest.exists() && input::format_of(&manifest) != Some(extract::schema::FORMAT_VERSION);
+    let world = if manifest.exists() && !stale {
         let dir = dir.canonicalize().unwrap();
         println!("cargo::rerun-if-changed={}", dir.display());
         println!("cargo::rustc-env=PKR_EXTRACTED={}", dir.display());
         input::load(&dir).unwrap_or_else(|e| panic!("reading {}: {e:#}", dir.display()))
     } else {
-        if overridden.is_some() {
+        if stale {
+            println!(
+                "cargo::warning={} is in an older format: building the stub world; run `cargo xtask extract`",
+                dir.display()
+            );
+            println!("cargo::rerun-if-changed={}", manifest.display());
+        } else if overridden.is_some() {
             // An explicit dir that is missing: say so, and stay always dirty (cargo reruns a
             // script whose watched path is missing) so it is picked up once it appears.
             println!(

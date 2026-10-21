@@ -131,6 +131,11 @@ fn glyph_pixels(g: &Glyph, img: &mut IndexedImage, i: u32, per_row: u32) {
     }
 }
 
+/// The `format` of a manifest, if it can be read.
+pub fn format_of(manifest: &Path) -> Option<u32> {
+    read_ron::<Manifest>(manifest).ok().map(|m| m.format)
+}
+
 /// Reads an extracted dir written by `cargo xtask extract` (plus Task B's scripts and texts
 /// when present).
 pub fn load(dir: &Path) -> Result<World> {
