@@ -9,11 +9,25 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 - cmake and libclang (Xcode command-line tools) to build the vendored libmgba
 
 ## Commands
-- `cargo test --workspace`: unit tests
+- `cargo test --workspace`: unit tests plus ROM-backed tests that need both ROMs and the decomp (see Tests)
 - `cargo xtask rom`: build `target/game.gba`
 - `cargo xtask parity`: check that the ROM (in mGBA) and the native build agree
 - `cargo xtask shot`: dump ROM and native screenshots to `target/`
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
+
+## Tests
+`cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
+read both ROMs and the decomp. They fail if these are missing:
+
+| Variable      | Default                 | What                                           |
+|---------------|-------------------------|------------------------------------------------|
+| `PKR_ROM_FR`  | `rom/emeraude-fr.gba`   | Pokémon Émeraude (BPEF) ROM                    |
+| `PKR_ROM_US`  | `../emerald.gba`        | Pokémon Emerald (BPEE) ROM                     |
+| `PKR_DECOMP`  | `../pokeemerald`        | a checkout of the pret/pokeemerald decomp      |
+
+Defaults are relative to this checkout's root (so `../emerald.gba` sits next to it). Set the variables to point elsewhere, e.g.
+`PKR_ROM_US=~/roms/emerald.gba cargo test --workspace`. `cargo test -p extract --lib` runs only
+the extractor's unit tests, which need none of these.
 
 ## Extract
 `cargo xtask extract` reads your French ROM into editable, git-ignored files.
