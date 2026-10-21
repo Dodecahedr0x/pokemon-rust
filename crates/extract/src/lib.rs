@@ -2,6 +2,7 @@
 //! Tables are located through anchors and pointer back-tracing, never hard-coded per version.
 
 pub mod battle_data;
+pub mod battle_gfx;
 pub mod codegen;
 pub mod export;
 pub mod fixtures;

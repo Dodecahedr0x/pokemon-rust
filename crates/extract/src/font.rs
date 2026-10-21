@@ -1,5 +1,6 @@
-//! Latin normal font (`gFontNormalLatinGlyphs` / `gFontNormalLatinGlyphWidths` in the decomp's
-//! `src/fonts.c`).
+//! Latin fonts from the decomp's `src/fonts.c`: normal (`gFontNormalLatinGlyphs` /
+//! `gFontNormalLatinGlyphWidths`) and small (`gFontSmallLatinGlyphs` / `gFontSmallLatinGlyphWidths`,
+//! `FONT_SMALL`, used for the battle healthbox nickname, level and HP numbers).
 //!
 //! Glyphs are stored uncompressed in gbagfx's `.latfont` encoding: 512 glyphs of 64 bytes. Each
 //! glyph is 16x16 pixels made of four 8x8 tiles in the order top-left, top-right, bottom-left,
@@ -25,6 +26,18 @@ const ANCHOR: [u8; GLYPH_BYTES] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
+/// `.latfont` encoding of the `A` glyph from `latin_small.png`. `latin_small_narrow.png` draws the
+/// same `A` (the narrow font differs in its widths), so it matches twice: see
+/// [`locate_latin_small`].
+const ANCHOR_SMALL: [u8; GLYPH_BYTES] = [
+    0x00, 0x00, 0xc0, 0xff, 0xc0, 0xff, 0xc0, 0xff, 0xc0, 0xd6, 0x80, 0x69, 0x80, 0x6d, 0x80, 0x55,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0x69, 0x80, 0x6d, 0x80, 0x6d, 0x80, 0xae, 0xc0, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+/// Glyphs plus widths of one font: `fonts.c` places each widths table right after its glyphs.
+const FONT_BYTES: u32 = (GLYPH_COUNT * GLYPH_BYTES + GLYPH_COUNT) as u32;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Font {
     /// Glyph cell width in pixels (16).
@@ -44,16 +57,40 @@ pub fn locate_latin_normal(rom: &Rom) -> Result<(u32, u32)> {
     let [hit] = hits[..] else {
         bail!("latin normal font anchor: expected 1 match, found {hits:#x?}");
     };
+    offsets_from_anchor(rom, hit, "latin normal")
+}
+
+/// Returns the file offsets of `gFontSmallLatinGlyphs` and `gFontSmallLatinGlyphWidths`.
+///
+/// The `A` anchor matches `gFontSmallNarrowLatinGlyphs` too, which `fonts.c` defines first, its
+/// widths table immediately followed by the small font: the two hits must be exactly one font
+/// apart, and the second is the small font.
+pub fn locate_latin_small(rom: &Rom) -> Result<(u32, u32)> {
+    let hits = rom.find_all(&ANCHOR_SMALL);
+    let [narrow, small] = hits[..] else {
+        bail!("latin small font anchor: expected 2 matches (narrow, small), found {hits:#x?}");
+    };
+    if small - narrow != FONT_BYTES {
+        bail!(
+            "latin small font anchor: matches {narrow:#x} and {small:#x} are not one font \
+             ({FONT_BYTES:#x} bytes) apart"
+        );
+    }
+    offsets_from_anchor(rom, small, "latin small")
+}
+
+/// Glyph and widths offsets of the font whose `A` glyph is at `hit`; checks the widths.
+fn offsets_from_anchor(rom: &Rom, hit: u32, what: &str) -> Result<(u32, u32)> {
     let glyphs = hit
         .checked_sub(ANCHOR_CHAR * GLYPH_BYTES as u32)
-        .with_context(|| format!("latin normal font anchor too close to ROM start ({hit:#x})"))?;
+        .with_context(|| format!("{what} font anchor too close to ROM start ({hit:#x})"))?;
     let widths = glyphs + (GLYPH_COUNT * GLYPH_BYTES) as u32;
     let table = rom
         .slice(widths, GLYPH_COUNT)
-        .with_context(|| format!("latin normal widths at {widths:#x}"))?;
+        .with_context(|| format!("{what} widths at {widths:#x}"))?;
     if let Some(i) = table.iter().position(|&w| w > MAX_WIDTH) {
         bail!(
-            "latin normal widths at {widths:#x}: entry {i:#x} is {} (> {MAX_WIDTH})",
+            "{what} widths at {widths:#x}: entry {i:#x} is {} (> {MAX_WIDTH})",
             table[i]
         );
     }
@@ -76,16 +113,22 @@ fn decode_glyph(bytes: &[u8]) -> Vec<u8> {
 
 /// Reads the font from offsets returned by [`locate_latin_normal`] (avoids a second scan).
 pub fn read_latin_normal_at(rom: &Rom, glyphs_off: u32, widths_off: u32) -> Result<Font> {
+    read_latin_at(rom, glyphs_off, widths_off)
+}
+
+/// Reads any `.latfont` font (512 glyphs of 16x16) from its glyph and widths offsets, as
+/// returned by [`locate_latin_normal`] or [`locate_latin_small`].
+pub fn read_latin_at(rom: &Rom, glyphs_off: u32, widths_off: u32) -> Result<Font> {
     let data = rom
         .slice(glyphs_off, GLYPH_COUNT * GLYPH_BYTES)
-        .with_context(|| format!("latin normal glyphs at {glyphs_off:#x}"))?;
+        .with_context(|| format!("latin glyphs at {glyphs_off:#x}"))?;
     Ok(Font {
         glyph_width_max: GLYPH_SIZE as u8,
         glyph_height: GLYPH_SIZE as u8,
         glyphs: data.chunks_exact(GLYPH_BYTES).map(decode_glyph).collect(),
         widths: rom
             .slice(widths_off, GLYPH_COUNT)
-            .with_context(|| format!("latin normal widths at {widths_off:#x}"))?
+            .with_context(|| format!("latin widths at {widths_off:#x}"))?
             .to_vec(),
     })
 }
@@ -106,6 +149,26 @@ mod tests {
         assert_eq!(px[7], 1);
         assert_eq!(px[15 * 16 + 8], 2);
         assert_eq!(px.iter().filter(|&&p| p != 0).count(), 3);
+    }
+
+    #[test]
+    fn small_font_is_the_second_of_two_anchors_one_font_apart() {
+        let base = 0x100u32;
+        let mut bytes = vec![0u8; (base + 2 * FONT_BYTES) as usize];
+        bytes[0xAC..0xB0].copy_from_slice(b"BPEF");
+        let a = (ANCHOR_CHAR * GLYPH_BYTES as u32) as usize;
+        for font in 0..2 {
+            let at = base as usize + font * FONT_BYTES as usize + a;
+            bytes[at..at + GLYPH_BYTES].copy_from_slice(&ANCHOR_SMALL);
+        }
+        let rom = Rom::from_bytes(bytes.clone()).unwrap();
+        let glyphs = base + FONT_BYTES;
+        let widths = glyphs + (GLYPH_COUNT * GLYPH_BYTES) as u32;
+        assert_eq!(locate_latin_small(&rom).unwrap(), (glyphs, widths));
+        // A single match (no narrow font before it) is an error.
+        let at = base as usize + a;
+        bytes[at..at + GLYPH_BYTES].fill(0);
+        assert!(locate_latin_small(&Rom::from_bytes(bytes).unwrap()).is_err());
     }
 
     #[test]

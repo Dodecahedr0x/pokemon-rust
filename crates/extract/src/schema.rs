@@ -25,15 +25,17 @@
 //!   battle/encounters.ron        EncountersFile (exported maps only)
 //!   battle/heal_locations.ron    HealLocationsFile
 //!   battle/strings.ron           BattleStringsFile (STRINGID_* | gText_* -> decomp `.string`, FR)
-//!   battle/gfx/<name>.{png,ron}  GfxFile: textbox (+tilemap), healthbox_*, hpbar, expbar,
-//!                                status, ball, misc
-//!   battle/env/<Env>.{png,ron}   GfxFile: tiles, 32x? tilemap, palettes (Grass, Plain at least)
-//!   pokemon/<SPECIES>/front.png, back.png (own palette), shiny.pal
+//!   battle/gfx/<name>.{png,ron}  GfxFile: textbox (+tilemap), healthbox_player,
+//!                                healthbox_opponent, hpbar, expbar, status, misc, ball
+//!                                (contents: `battle_gfx.rs`)
+//!   battle/env/<Env>.{png,ron}   GfxFile: tiles, 32x64 tilemap, 3 palettes; all 10
+//!                                `Environment`s by engine name (Grass, ..., Plain)
+//!   pokemon/<SPECIES>/front.png, back.png (64x64, own palette), shiny.pal (JASC)
 //!   pokemon/coords.ron           MonCoordsFile
-//!   trainers/front/<TRAINER_PIC>.png, trainers/back/<TRAINER_BACK_PIC>.png (frames side by
-//!                                side), trainers/pics.ron TrainerPicsFile
+//!   trainers/front/<TRAINER_PIC>.png (64x64), trainers/back/<TRAINER_BACK_PIC>.png (64x64
+//!                                frames side by side), trainers/pics.ron TrainerPicsFile
 //!   font/latin_small.{png,ron}   FontFile
-//!   starter/{bag,ball,circle}.{png,ron}  GfxFile
+//!   starter/{bag,ball,circle}.{png,ron}, starter/grass.ron (tilemap only, bag's tiles)  GfxFile
 //! ```
 //!
 //! **Naming rules** (shared by every writer and reader):
@@ -529,12 +531,21 @@ pub struct TrainerPicsFile {
     pub front: BTreeMap<String, TrainerPicInfo>,
     /// `TRAINER_BACK_PIC_*` -> number of frames side by side in its png.
     pub back: BTreeMap<String, u8>,
+    /// `TRAINER_BACK_PIC_*` -> back pic placement (`gTrainerBackPicCoords`). Task B addition.
+    #[serde(default)]
+    pub back_coords: BTreeMap<String, TrainerPicInfo>,
 }
 
+/// A `gTrainerFrontPicCoords` / `gTrainerBackPicCoords` entry (`struct MonCoords`).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TrainerPicInfo {
-    /// `gTrainerFrontPicCoords[].y_offset`.
+    /// `.y_offset`.
     pub y: u8,
+    /// `.size`. Gen3 places trainer pics with it, not with `y_offset`: the opponent's front pic
+    /// at (176, 40 + 4 * (8 - size)) and the player's back pic at (80, 80 + 4 * (8 - size))
+    /// (`battle_controller_opponent.c` / `battle_controller_player.c`). Task B addition.
+    #[serde(default)]
+    pub size: u8,
 }
 
 /// A battle, environment or starter-screen graphic: tiles in the matching `.png` (4bpp, 16 tiles
@@ -546,7 +557,8 @@ pub struct GfxFile {
     pub width: u16,
     /// Every palette the graphic uses, in load order.
     pub palettes: Vec<[u16; 16]>,
-    /// First BG/OBJ palette bank `palettes[0]` is loaded to in Gen3 (tilemap entries refer to it).
+    /// First BG palette bank `palettes[0]` is loaded to in Gen3 (tilemap entries refer to it).
+    /// 0 for OBJ graphics, whose banks Gen3 allocates by tag at run time.
     pub palette_bank: u8,
     /// Raw GBA screen entries, 32 per row; empty when the graphic has no tilemap.
     pub tilemap: Vec<Row>,

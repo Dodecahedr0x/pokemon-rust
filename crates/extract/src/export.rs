@@ -14,7 +14,7 @@ use crate::schema::{
     MapFile, MapScripts, Object, SpriteFile, TilesetFile, VarScript, Warp, WindowFile,
 };
 use crate::sprites::{self, ObjectGraphics};
-use crate::{GameCode, Rom, battle_data, codegen, font, names, scripts, window};
+use crate::{GameCode, Rom, battle_data, battle_gfx, codegen, font, names, scripts, window};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -57,7 +57,7 @@ const FONT_PALETTE: [[u8; 3]; 4] = [
     [0xFF, 0xFF, 0xFF],
 ];
 /// Glyphs per row of `latin_normal.png` (256 px wide like the decomp's).
-const FONT_GLYPHS_PER_ROW: usize = 16;
+pub(crate) const FONT_GLYPHS_PER_ROW: usize = 16;
 const TILESET_TILES_PER_ROW: u32 = 16;
 
 /// The fixed RON style of every exported file, with a trailing newline.
@@ -78,6 +78,19 @@ pub struct Out {
 }
 
 impl Out {
+    /// Writes under `root` (created as needed) and records nothing yet.
+    pub fn new(root: &Path) -> Out {
+        Out {
+            root: root.to_path_buf(),
+            files: BTreeMap::new(),
+        }
+    }
+
+    /// Relative path -> sha1 of every file written so far.
+    pub fn files(&self) -> &BTreeMap<String, String> {
+        &self.files
+    }
+
     fn path(&self, rel: &str) -> Result<PathBuf> {
         let p = self.root.join(rel);
         if let Some(dir) = p.parent() {
@@ -108,7 +121,8 @@ impl Out {
         self.bytes(rel, to_ron(value)?.as_bytes())
     }
 
-    fn png_indexed(&mut self, rel: &str, img: &IndexedImage, pal: &Palette) -> Result<()> {
+    /// Writes a 4-bit indexed PNG with `pal`.
+    pub fn png_indexed(&mut self, rel: &str, img: &IndexedImage, pal: &Palette) -> Result<()> {
         gfx::write_png_indexed(&self.path(rel)?, img, pal)?;
         self.record(rel)
     }
@@ -338,6 +352,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     let battle = battle_data::extract(rom, &MAPS).context("battle data")?;
     battle.write(&mut o)?;
     provenance.extend(battle.provenance);
+    battle_gfx::export(rom, &mut o, &mut provenance)?;
 
     export_scripts(
         rom,
@@ -664,7 +679,7 @@ pub fn sprite(g: &ObjectGraphics) -> Result<(IndexedImage, SpriteFile)> {
 }
 
 /// 2-bit indexed PNG in `latin_normal.png`'s layout: 16 glyphs per row, gbagfx palette.
-fn font_png(f: &font::Font) -> Result<Vec<u8>> {
+pub(crate) fn font_png(f: &font::Font) -> Result<Vec<u8>> {
     let (gw, gh) = (usize::from(f.glyph_width_max), usize::from(f.glyph_height));
     let rows = f.glyphs.len().div_ceil(FONT_GLYPHS_PER_ROW);
     let (w, h) = (FONT_GLYPHS_PER_ROW * gw, rows * gh);

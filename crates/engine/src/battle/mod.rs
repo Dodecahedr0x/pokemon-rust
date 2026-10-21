@@ -334,16 +334,17 @@ impl GfxImage {
     };
 }
 
-/// Battle interface graphics. Wave 0 proposal: Task B fixes the final list with E, F and G
-/// (additions in their reports); Task I fills it. Empty slices draw nothing.
+/// Battle interface graphics. The exact contents of each field are listed in
+/// `crates/extract/src/battle_gfx.rs` (Task B); Task I fills it. Empty slices draw nothing.
 #[derive(Clone, Copy)]
 pub struct BattleGfx {
-    /// `gBattleTextboxTiles` / `Tilemap` / `Palette`.
+    /// `gBattleTextboxTiles` / `Tilemap` / `Palette`; palettes `[textbox_0, textbox_1, text,
+    /// text_pp]`.
     pub textbox: GfxImage,
     /// `gBattleEnvironment{Tiles,Tilemap,Palette}_*`, by `Environment as usize`.
     pub environments: [GfxImage; 10],
-    /// `healthbox_singles_player` / `_opponent` (64x32 x2, OBJ 1D order), palette in
-    /// `healthbox.palettes[0]`.
+    /// `healthbox_singles_player` (64x64 x2, OBJs at tiles 0 and 64) / `_opponent` (64x32 x2,
+    /// OBJs at tiles 0 and 32), OBJ 1D order, the healthbox palette in `palettes[0]`.
     pub healthbox_player: GfxImage,
     pub healthbox_opponent: GfxImage,
     /// `hpbar` tiles and the HP bar palette.
@@ -351,16 +352,19 @@ pub struct BattleGfx {
     pub expbar: GfxImage,
     /// `status*` icons (FR ROM: may be localized).
     pub status: GfxImage,
-    /// `misc`: level glyph, gender symbols.
+    /// `misc`: the healthbox's black sections and blank "no status" tile, then the HP bar frame
+    /// end. The level, HP numbers and gender symbol are printed with `small_font`.
     pub misc: GfxImage,
+    /// Unused by Gen3 (only the unused battle bar has digit tiles): stays `EMPTY`.
     pub numbers: GfxImage,
     /// `gBallGfx_Poke` + palette (send-out ball).
     pub ball: GfxImage,
     /// `FONT_SMALL` (`gFontSmallLatinGlyphs`), healthbox nicknames.
     pub small_font: &'static Font,
-    /// The player's back pic, frames of 64 tiles side by side.
+    /// The player's back pic, frames of 64 tiles one after the other; `y` is the Gen3 `.size`.
     pub player_back: TrainerPic,
-    /// `starter_choose.c`: bag + grass background, Poké Ball and circle OBJs.
+    /// `starter_choose.c`: bag + grass background (tilemap: the bag map padded to 1024 entries,
+    /// then the grass map), Poké Ball and circle OBJs.
     pub starter_bag: GfxImage,
     pub starter_ball: GfxImage,
     pub starter_circle: GfxImage,
