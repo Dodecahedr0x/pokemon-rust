@@ -6,7 +6,7 @@
 //! maps/<Map>/map.ron           MapFile: header, layout, events, connections, script refs
 //! tilesets/<hex>/tiles.png     indexed, 16 tiles per row, palette 0
 //! tilesets/<hex>/{palettes,metatiles,attributes}.ron
-//! sprites/<id>.png + .ron      frames side by side with their own palette; size, frames, tag
+//! sprites/<id>.png + .ron      frames side by side with their own palette; size, frame sizes, tag
 //! font/latin_normal.png + .ron 2bpp glyph sheet (gbagfx layout and palette); widths
 //! text/<fr,en>.ron            "<Map>.<hex offset>" -> string, for every text the maps' scripts show
 //! previews/<Map>.png           map render
@@ -262,6 +262,10 @@ pub struct SpriteFile {
     pub width: u16,
     pub height: u16,
     pub frames: usize,
+    /// Each frame's (width, height). Usually all `(width, height)`; berry trees mix 16x16 and
+    /// 16x32 frames. Frames are drawn at the top-left of equal cells as wide as `width` and as
+    /// tall as the tallest frame.
+    pub frame_sizes: Vec<(u16, u16)>,
     pub palette_tag: u16,
     /// BGR555, also the PNG's palette.
     pub palette: [u16; 16],
@@ -473,16 +477,8 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
             continue;
         }
         let g = gfx_table.get(rom, id)?;
-        let img = sprite_sheet(&g)?;
+        let (img, file) = sprite(&g)?;
         o.png_indexed(&format!("sprites/{id}.png"), &img, &Palette(g.palette))?;
-        let file = SpriteFile {
-            offset: g.offset,
-            width: g.width,
-            height: g.height,
-            frames: g.frames.len(),
-            palette_tag: g.palette_tag,
-            palette: g.palette,
-        };
         o.ron(&format!("sprites/{id}.ron"), &file)?;
         sprites_out.insert(id, file);
     }
@@ -533,39 +529,63 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     Ok(manifest)
 }
 
-/// Frames side by side, each `width x height` with 8x8 tiles row-major.
-fn sprite_sheet(g: &ObjectGraphics) -> Result<IndexedImage> {
-    let (w, h) = (u32::from(g.width), u32::from(g.height));
+/// The sprite sheet and its `.ron` for one graphics id.
+///
+/// Frames sit side by side in cells of the info's width and the tallest frame's height, 8x8
+/// tiles row-major. A frame keeps the info's width and is `2 * bytes / width` pixels tall, so a
+/// pic table mixing frame sizes (berry trees: 16x16 sprouts, 16x32 trees) draws each frame at
+/// the top-left of its cell, the rest of the cell index 0. `SpriteFile::frame_sizes` records
+/// each frame's size.
+pub fn sprite(g: &ObjectGraphics) -> Result<(IndexedImage, SpriteFile)> {
+    let w = u32::from(g.width);
+    let ctx = || format!("object graphics id {} at {:#x}", g.id, g.offset);
     ensure!(
-        w > 0 && h > 0 && w.is_multiple_of(8) && h.is_multiple_of(8),
-        "object graphics id {} at {:#x}: bad size {w}x{h}",
-        g.id,
-        g.offset
+        w > 0 && w.is_multiple_of(8) && g.height > 0 && g.height.is_multiple_of(8),
+        "{}: bad size {w}x{}",
+        ctx(),
+        g.height
     );
-    let frame_bytes = (w * h / 2) as usize;
-    let n = g.frames.len() as u32;
-    let sheet_w = w * n;
-    let mut pixels = vec![0u8; (sheet_w * h) as usize];
+    let mut frame_sizes = Vec::with_capacity(g.frames.len());
     for (k, frame) in g.frames.iter().enumerate() {
+        let h = 2 * frame.len() as u32 / w;
         ensure!(
-            frame.len() == frame_bytes,
-            "object graphics id {} at {:#x}: frame {k} is {} bytes, expected {frame_bytes}",
-            g.id,
-            g.offset,
+            h > 0 && h.is_multiple_of(8) && (w * h / 2) as usize == frame.len(),
+            "{}: frame {k} is {} bytes, not whole {w}-pixel-wide tile rows",
+            ctx(),
             frame.len()
         );
-        let img = gfx::tiles_4bpp_to_image(frame, w / 8)?;
-        for y in 0..h {
+        frame_sizes.push((g.width, h as u16));
+    }
+    let cell_h = frame_sizes
+        .iter()
+        .map(|&(_, h)| u32::from(h))
+        .max()
+        .unwrap_or(0);
+    let sheet_w = w * g.frames.len() as u32;
+    let mut pixels = vec![0u8; (sheet_w * cell_h) as usize];
+    for (k, frame) in g.frames.iter().enumerate() {
+        let img = gfx::tiles_4bpp_to_image(frame, w / 8).with_context(ctx)?;
+        for y in 0..img.height {
             let src = (y * w) as usize;
             let dst = (y * sheet_w + k as u32 * w) as usize;
             pixels[dst..dst + w as usize].copy_from_slice(&img.pixels[src..src + w as usize]);
         }
     }
-    Ok(IndexedImage {
+    let img = IndexedImage {
         width: sheet_w,
-        height: h,
+        height: cell_h,
         pixels,
-    })
+    };
+    let file = SpriteFile {
+        offset: g.offset,
+        width: g.width,
+        height: g.height,
+        frames: g.frames.len(),
+        frame_sizes,
+        palette_tag: g.palette_tag,
+        palette: g.palette,
+    };
+    Ok((img, file))
 }
 
 /// 2-bit indexed PNG in `latin_normal.png`'s layout: 16 glyphs per row, gbagfx palette.
@@ -617,8 +637,9 @@ mod tests {
         let f0 = vec![0x11; 64];
         let mut f1 = vec![0; 64];
         f1[32..].fill(0x22);
-        let img = sprite_sheet(&graphics(8, 16, vec![f0, f1])).unwrap();
+        let (img, file) = sprite(&graphics(8, 16, vec![f0, f1])).unwrap();
         assert_eq!((img.width, img.height), (16, 16));
+        assert_eq!(file.frame_sizes, vec![(8, 16), (8, 16)]);
         assert_eq!(img.pixels[0], 1);
         assert_eq!(img.pixels[8], 0);
         assert_eq!(img.pixels[8 * 16 + 8], 2);
@@ -626,8 +647,24 @@ mod tests {
     }
 
     #[test]
+    fn sprite_sheet_handles_mixed_frame_sizes() {
+        // An 8x8 info whose pic table mixes an 8x8 frame (all 1s) and an 8x16 frame (all 2s),
+        // like the berry trees' 16x16 sprouts and 16x32 trees.
+        let (img, file) = sprite(&graphics(8, 8, vec![vec![0x11; 32], vec![0x22; 64]])).unwrap();
+        assert_eq!((img.width, img.height), (16, 16));
+        assert_eq!(file.frames, 2);
+        assert_eq!(file.frame_sizes, vec![(8, 8), (8, 16)]);
+        assert_eq!(img.pixels[0], 1);
+        assert_eq!(img.pixels[7 * 16 + 7], 1);
+        assert_eq!(img.pixels[8 * 16], 0, "below the short frame is blank");
+        assert_eq!(img.pixels[8], 2);
+        assert_eq!(img.pixels[15 * 16 + 15], 2);
+    }
+
+    #[test]
     fn sprite_sheet_rejects_odd_frame_size() {
-        let err = sprite_sheet(&graphics(8, 16, vec![vec![0; 32]])).unwrap_err();
+        // 32 bytes at width 16 would be 4 rows: not whole tiles.
+        let err = sprite(&graphics(16, 16, vec![vec![0; 32]])).unwrap_err();
         assert!(format!("{err}").contains("0x100"), "{err}");
     }
 
