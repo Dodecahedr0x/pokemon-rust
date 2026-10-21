@@ -203,6 +203,56 @@ fn new_game_starts_on_a_walkable_cell_of_an_exported_map() {
     assert_eq!(block_collision(block), 0);
 }
 
+/// The new-game state (`new_game.rs`): after the starter, before Route 103, male player.
+#[test]
+fn a_new_world_starts_after_the_starter() {
+    use consts::*;
+    let w = engine::World::new(&Emerald);
+    assert_eq!(w.map(), MAP_LITTLEROOT_TOWN);
+    assert_eq!(
+        w.objects().player().pos(),
+        (data::NEW_GAME.1, data::NEW_GAME.2)
+    );
+    for (v, x) in [
+        (VAR_LITTLEROOT_INTRO_STATE, 7),
+        (VAR_LITTLEROOT_TOWN_STATE, 2),
+        (VAR_LITTLEROOT_HOUSES_STATE_BRENDAN, 2),
+        (VAR_LITTLEROOT_RIVAL_STATE, 3),
+        (VAR_BIRCH_LAB_STATE, 3),
+        (VAR_ROUTE101_STATE, 3),
+        (VAR_OLDALE_TOWN_STATE, 0),
+    ] {
+        assert_eq!(w.var(v), x, "{v:?}");
+    }
+    for f in [
+        FLAG_SYS_POKEMON_GET,
+        FLAG_RESCUED_BIRCH,
+        FLAG_HIDE_LITTLEROOT_TOWN_RIVAL,
+        FLAG_HIDE_ROUTE_101_BIRCH,
+        FLAG_HIDE_OLDALE_TOWN_RIVAL,
+    ] {
+        assert!(w.flag(f), "{f:?}");
+    }
+    for f in [
+        FLAG_SYS_B_DASH,
+        FLAG_ADVENTURE_STARTED,
+        FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH,
+    ] {
+        assert!(!w.flag(f), "{f:?}");
+    }
+    assert!(!w.script_running());
+}
+
+#[test]
+fn special_ids_are_the_gen3_ones() {
+    let ids = Emerald.special_ids();
+    assert_eq!(ids.var_facing, Some(consts::VAR_FACING));
+    assert_eq!(ids.var_last_talked, Some(consts::VAR_LAST_TALKED));
+    assert_eq!(ids.flag_running, Some(consts::FLAG_SYS_B_DASH));
+    assert_eq!(ids.flags_cleared_on_map_change.len(), 5);
+    assert!(ids.flags_cleared_on_map_change.contains(&consts::FLAG_SYS_USE_STRENGTH));
+}
+
 #[test]
 fn unknown_maps_are_missing() {
     assert!(!has_map(consts::MAP_PETALBURG_CITY));
