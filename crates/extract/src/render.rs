@@ -10,10 +10,16 @@
 //!   through colour 0 on every layer) is black.
 //! - A metatile is 8 tile entries: bottom layer TL, TR, BL, BR then top layer TL, TR, BL, BR
 //!   (`DrawMetatile`). Metatile ids >= 512 read `secondary.metatiles[id - 512]`.
+//! - The metatile's layer type is `attributes[id] >> 12` (`METATILE_ATTR_LAYER_MASK`). For
+//!   `METATILE_LAYER_TYPE_NORMAL` the game fills BG3 under the metatile with tile entry 0x3014
+//!   (primary tile 20, palette 3); the other types put the bottom layer on BG3 over the backdrop.
+//!   Either way the bottom layer is drawn below the top layer.
+//! - Palette slots 13-15 hold whatever else the game loaded there, so pixels using them are
+//!   drawn transparent.
 
 use crate::Rom;
 use crate::maps::{MapLayout, TilesetRef};
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 
 /// Tiles per tileset in VRAM; also the base index of secondary tiles and metatiles.
 pub const TILES_PER_TILESET: usize = 512;
@@ -26,6 +32,10 @@ pub const NUM_PALS_TOTAL: usize = 13;
 
 const TILE_BYTES: usize = 32;
 const METATILE_ID_MASK: u16 = 0x3FF;
+/// `METATILE_LAYER_TYPE_NORMAL`: bottom layer on BG2, top on BG1, BG3 filled with [`NORMAL_UNDERLAY`].
+const LAYER_TYPE_NORMAL: u16 = 0;
+/// What `DrawMetatile` writes to BG3 for NORMAL metatiles: primary tile 20, palette 3.
+const NORMAL_UNDERLAY: u16 = 0x3014;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TilesetData {
@@ -76,10 +86,12 @@ pub fn load_tileset(rom: &Rom, t: &TilesetRef) -> Result<TilesetData> {
     })
 }
 
-/// RGBA, (width*16) x (height*16): metatile = 2x2 tiles bottom layer then 2x2 top layer;
+/// RGBA, (width*16) x (height*16): metatile = 2x2 tiles bottom layer then 2x2 top layer, over
+/// a 2x2 underlay of entry 0x3014 for layer type NORMAL (`attributes[id] >> 12 == 0`);
 /// tile entry bits: 0-9 index (>=512 => secondary[idx-512]), 10 hflip, 11 vflip, 12-15 palette
-/// (0-5 primary, 6-12 secondary); colour 0 is transparent over a black backdrop (the game forces
-/// primary palette 0 colour 0 to black).
+/// (0-5 primary, 6-12 secondary, 13-15 drawn transparent); colour 0 is transparent over a black
+/// backdrop (the game forces primary palette 0 colour 0 to black). Tiles past the loaded tile
+/// data are transparent (VRAM is cleared on map load).
 pub fn render_map(
     layout: &MapLayout,
     primary: &TilesetData,
@@ -96,11 +108,18 @@ pub fn render_map(
     let mut out = [0, 0, 0, 255].repeat(stride * h * 16);
     for (i, &block) in layout.blocks.iter().enumerate() {
         let id = (block & METATILE_ID_MASK) as usize;
-        let mt = metatile(id, primary, secondary)
+        let (mt, attr) = metatile(id, primary, secondary)
             .with_context(|| format!("layout at {:#x}, block {i}", layout.offset))?;
         let (bx, by) = (i % w * 16, i / w * 16);
-        for (k, &entry) in mt.iter().enumerate() {
-            let (tx, ty) = (bx + k % 2 * 8, by + k % 4 / 2 * 8);
+        let underlay = [NORMAL_UNDERLAY; 4];
+        let under: &[u16] = if attr >> 12 == LAYER_TYPE_NORMAL {
+            &underlay
+        } else {
+            &[]
+        };
+        for (k, &entry) in under.iter().chain(mt).enumerate() {
+            let k = k % 4;
+            let (tx, ty) = (bx + k % 2 * 8, by + k / 2 * 8);
             draw_tile(&mut out, stride, tx, ty, entry, primary, secondary).with_context(|| {
                 format!("layout at {:#x}, block {i}, metatile {id}", layout.offset)
             })?;
@@ -113,18 +132,25 @@ fn metatile<'a>(
     id: usize,
     primary: &'a TilesetData,
     secondary: &'a TilesetData,
-) -> Result<&'a [u16; 8]> {
+) -> Result<(&'a [u16; 8], u16)> {
     let (set, idx, name) = if id < TILES_PER_TILESET {
         (primary, id, "primary")
     } else {
         (secondary, id - TILES_PER_TILESET, "secondary")
     };
-    set.metatiles.get(idx).with_context(|| {
+    let mt = set.metatiles.get(idx).with_context(|| {
         format!(
             "metatile {id}: {name} tileset has only {} metatiles",
             set.metatiles.len()
         )
-    })
+    })?;
+    let attr = set.attributes.get(idx).with_context(|| {
+        format!(
+            "metatile {id}: {name} tileset has only {} attributes",
+            set.attributes.len()
+        )
+    })?;
+    Ok((mt, *attr))
 }
 
 fn draw_tile(
@@ -155,7 +181,8 @@ fn draw_tile(
     let palette = match pal {
         0..NUM_PALS_IN_PRIMARY => &primary.palettes,
         NUM_PALS_IN_PRIMARY..NUM_PALS_TOTAL => &secondary.palettes,
-        _ => bail!("tile entry {entry:#06x}: palette {pal} is not loaded from tilesets"),
+        // Not loaded from tilesets: undefined contents, drawn transparent.
+        _ => return Ok(()),
     }
     .get(pal)
     .with_context(|| format!("palette {pal} missing"))?;
@@ -293,16 +320,50 @@ mod tests {
     }
 
     #[test]
+    fn palette_slots_13_to_15_draw_transparent() {
+        let (p, mut s) = sets();
+        // Bottom: solid primary tile 2 with palettes 13, 14, 15, 15; top: nothing.
+        s.metatiles[0] = [0xD002, 0xE002, 0xF002, 0xF002, 0, 0, 0, 0];
+        let img = render_map(&layout(vec![512], 1, 1), &p, &s).unwrap();
+        assert!(img.chunks_exact(4).all(|c| c == [0, 0, 0, 255]));
+    }
+
+    /// Primary tileset with 21 tiles where tile 20 is solid colour 4, plus metatile 1:
+    /// bottom TL = tile 1 (one pixel at (0,0)), everything else empty.
+    fn with_garbage_tile() -> (TilesetData, TilesetData) {
+        let (mut p, s) = sets();
+        for _ in 3..20 {
+            p.tiles.extend(tile(|_, _| 0));
+        }
+        p.tiles.extend(tile(|_, _| 4));
+        p.metatiles.push([1, 0, 0, 0, 0, 0, 0, 0]);
+        p.attributes.push(0);
+        (p, s)
+    }
+
+    #[test]
+    fn normal_layer_type_draws_tile_20_palette_3_underneath() {
+        let (mut p, s) = with_garbage_tile();
+        let garbage = col(0x100 + 3 * 16 + 4);
+        for (layer_type, under) in [(0u16, garbage), (1, [0, 0, 0, 255]), (2, [0, 0, 0, 255])] {
+            p.attributes[1] = layer_type << 12 | 0x0012;
+            let img = render_map(&layout(vec![1], 1, 1), &p, &s).unwrap();
+            // The bottom layer still draws on top of the underlay.
+            assert_eq!(px(&img, 16, 0, 0), col(0x100 + 1), "type {layer_type}");
+            for (x, y) in [(1, 0), (8, 0), (0, 8), (15, 15)] {
+                assert_eq!(px(&img, 16, x, y), under, "type {layer_type} ({x},{y})");
+            }
+        }
+    }
+
+    #[test]
     fn bad_references_are_errors() {
         let (p, mut s) = sets();
         // Metatile 1 does not exist in the primary set.
         assert!(render_map(&layout(vec![1], 1, 1), &p, &s).is_err());
-        // Palette 13 is not loaded from tilesets.
-        s.metatiles[0][0] = 0xD002;
+        // Metatile 512 exists but has no attribute.
+        s.attributes.clear();
         assert!(render_map(&layout(vec![512], 1, 1), &p, &s).is_err());
-        // Palette 13 on a fully transparent tile is never looked up.
-        s.metatiles[0][0] = 0xD000;
-        assert!(render_map(&layout(vec![512], 1, 1), &p, &s).is_ok());
         // Block count mismatch.
         assert!(render_map(&layout(vec![0], 2, 1), &p, &s).is_err());
     }
