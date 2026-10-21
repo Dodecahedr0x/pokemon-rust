@@ -42,8 +42,15 @@ pub struct World {
     pub texts: BTreeMap<String, Vec<u8>>,
     /// `scripts/index.ron`, when scripts were generated.
     pub index: Option<ScriptIndex>,
+    /// sha1 of the source ROM (`manifest.sha1`).
+    pub sha1: String,
     /// Absolute extracted dir (`None` for the built-in stub).
     pub dir: Option<PathBuf>,
+}
+
+/// A build warning (shown by cargo).
+pub fn warn(msg: &str) {
+    println!("cargo::warning={msg}");
 }
 
 pub fn lang(code: &str) -> Result<Lang> {
@@ -158,26 +165,60 @@ pub fn load(dir: &Path) -> Result<World> {
     for name in &manifest.sprites {
         let file: SpriteFile = read_ron(&dir.join(format!("sprites/{name}.ron")))?;
         let img = gfx::read_png_indexed(&dir.join(format!("sprites/{name}.png")))?;
-        let frames = file
+        let (cw, ch) = (u32::from(file.cell_width), u32::from(file.cell_height));
+        // Every frame is cut at the cell size: the engine's `SpriteData` has one size. A frame
+        // smaller than its cell (berry tree sprouts, 16x16 in 16x32 cells) sits top-left in its
+        // cell, padded with index 0 (transparent) below.
+        if file
             .frame_sizes
             .iter()
-            .enumerate()
-            .map(|(k, &(w, h))| {
-                let x = k as u32 * u32::from(file.cell_width);
-                tiles_of(&crop(&img, x, 0, w.into(), h.into())?)
-            })
+            .any(|&(w, h)| (u32::from(w), u32::from(h)) != (cw, ch))
+        {
+            warn(&format!(
+                "sprite {name}: frames of mixed sizes {:?}, padded to {cw}x{ch}",
+                file.frame_sizes
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+            ));
+        }
+        let frames = (0..file.frame_sizes.len() as u32)
+            .map(|k| tiles_of(&crop(&img, k * cw, 0, cw, ch)?))
             .collect::<Result<Vec<_>>>()
             .with_context(|| format!("sprite {name}"))?;
         sprites.push(SpriteIn { file, frames });
     }
     let font: FontFile = read_ron(&dir.join("font/latin_normal.ron"))?;
     let img = gfx::read_png_indexed(&dir.join("font/latin_normal.png"))?;
+    let per_row = u32::from(font.glyphs_per_row);
+    ensure!(per_row > 0, "font: glyphs_per_row is 0");
+    let rows = u32::from(font.glyphs).div_ceil(per_row);
+    ensure!(
+        img.width >= per_row * GLYPH && img.height >= rows * GLYPH,
+        "font: png is {}x{}, {} glyphs need {}x{}",
+        img.width,
+        img.height,
+        font.glyphs,
+        per_row * GLYPH,
+        rows * GLYPH
+    );
+    ensure!(
+        font.widths.len() == usize::from(font.glyphs),
+        "font: {} widths for {} glyphs",
+        font.widths.len(),
+        font.glyphs
+    );
     let glyphs = (0..u32::from(font.glyphs))
-        .map(|i| glyph_of(&img, i, font.glyphs_per_row.into()))
+        .map(|i| glyph_of(&img, i, per_row))
         .collect();
     let window: WindowFile = read_ron(&dir.join("window/message_box.ron"))?;
     let img = gfx::read_png_indexed(&dir.join("window/message_box.png"))?;
     let mut window_tiles = tiles_of(&img)?;
+    ensure!(
+        window_tiles.len() >= usize::from(window.tile_count),
+        "window: {} tiles in png, {} in ron",
+        window_tiles.len(),
+        window.tile_count
+    );
     window_tiles.truncate(window.tile_count as usize);
 
     let text_path = dir.join(format!("text/{}.ron", lang.code()));
@@ -206,6 +247,7 @@ pub fn load(dir: &Path) -> Result<World> {
         window_tiles,
         texts,
         index,
+        sha1: manifest.sha1.clone(),
         dir: Some(dir.to_path_buf()),
     })
 }
@@ -242,13 +284,13 @@ pub fn write(w: &World, dir: &Path) -> Result<()> {
             height: ch,
             pixels: vec![0; (cw * ch) as usize * s.frames.len()],
         };
-        for (k, (f, &(fw, fh))) in s.frames.iter().zip(&s.file.frame_sizes).enumerate() {
-            let img = image_of(f, u32::from(fw) / 8)?;
-            for y in 0..u32::from(fh) {
+        for (k, f) in s.frames.iter().enumerate() {
+            let img = image_of(f, cw / 8)?;
+            for y in 0..ch {
                 let src = (y * img.width) as usize;
                 let dst = (y * sheet.width + k as u32 * cw) as usize;
-                sheet.pixels[dst..dst + fw as usize]
-                    .copy_from_slice(&img.pixels[src..src + fw as usize]);
+                sheet.pixels[dst..dst + cw as usize]
+                    .copy_from_slice(&img.pixels[src..src + cw as usize]);
             }
         }
         png(&format!("sprites/{}.png", s.file.name), &sheet)?;
@@ -280,7 +322,7 @@ pub fn write(w: &World, dir: &Path) -> Result<()> {
     let manifest = Manifest {
         format: FORMAT_VERSION,
         game_code: "BPEF".into(),
-        sha1: "fixture".into(),
+        sha1: w.sha1.clone(),
         language: w.lang.code().into(),
         maps: w.maps.iter().map(|m| m.name.clone()).collect(),
         tilesets: w.tilesets.iter().map(|t| t.file.name.clone()).collect(),

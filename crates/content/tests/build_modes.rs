@@ -59,6 +59,8 @@ pub async fn StubTown_Obj1(ctx: Ctx) {
     Box::pin(super::Other::Other_Main(ctx.clone())).await;
     let v = special(&ctx, SPECIAL_HealPlayerParty).await;
     ctx.set_var(VAR_0x4001, v).await;
+    ctx.set_var(VAR_RESULT, check_player_gender(&ctx).await).await;
+    callstd(&ctx, STD_FIND_ITEM).await;
     callstd(&ctx, STD_OBTAIN_ITEM).await;
     unsupported(&ctx, "playse").await;
     ctx.set_movement_type(1, MovementType::Face(Dir::Left)).await;

@@ -21,6 +21,9 @@ pub const BLOCKED: &[&str] = &[
     "MB_NORTHWARD_CURRENT",
     "MB_SOUTHWARD_CURRENT",
     "MB_UNUSED_6F",
+    // Surfable warps (Gen3 `TILE_FLAG_SURFABLE`): unreachable without Surf.
+    "MB_WATER_DOOR",
+    "MB_WATER_SOUTH_ARROW_WARP",
     "MB_IMPASSABLE_EAST",
     "MB_IMPASSABLE_WEST",
     "MB_IMPASSABLE_NORTH",
@@ -34,22 +37,24 @@ pub const BLOCKED: &[&str] = &[
     "MB_SECRET_BASE_IMPASSABLE",
 ];
 
-/// Non-animated warp cells entered by stepping on them (Gen3 `TryStartWarpEventScript`):
-/// stairs (`MB_NON_ANIMATED_DOOR`), ladders, escalators, holes, puzzle warps.
+/// Warp cells entered by stepping on them, as Gen3 `IsWarpMetatileBehavior`
+/// (`field_control_avatar.c`) minus `MetatileBehavior_IsWarpDoor` (`MB_ANIMATED_DOOR`, our
+/// `Door`) and `MB_WATER_DOOR` (surfable, `Blocked`): ladders, escalators, non-animated doors
+/// (stairs), `MB_DEEP_SOUTH_WARP` (both in `IsNonAnimDoor`), the gym and hideout warps, Mt.
+/// Pyre holes, and `MB_BRIDGE_OVER_OCEAN`, which Gen3 reuses as the Union Room exit
+/// (`MetatileBehavior_IsUnionRoomWarp`; there is no `MB_UNION_ROOM_WARP`).
 pub const WARPS: &[&str] = &[
     "MB_NON_ANIMATED_DOOR",
+    "MB_DEEP_SOUTH_WARP",
     "MB_LADDER",
     "MB_UP_ESCALATOR",
     "MB_DOWN_ESCALATOR",
-    "MB_WATER_DOOR",
-    "MB_DEEP_SOUTH_WARP",
-    "MB_LAVARIDGE_GYM_1F_WARP",
     "MB_LAVARIDGE_GYM_B1F_WARP",
+    "MB_LAVARIDGE_GYM_1F_WARP",
     "MB_AQUA_HIDEOUT_WARP",
     "MB_MT_PYRE_HOLE",
     "MB_MOSSDEEP_GYM_WARP",
-    "MB_BATTLE_PYRAMID_WARP",
-    "MB_CRACKED_FLOOR_HOLE",
+    "MB_BRIDGE_OVER_OCEAN",
 ];
 
 fn compass(s: &str) -> Option<&'static str> {
@@ -75,13 +80,16 @@ pub fn behavior(name: &str) -> String {
     }
     if let Some(d) = name
         .strip_suffix("_ARROW_WARP")
-        .and_then(|n| n.strip_prefix("MB_WATER_").or(n.strip_prefix("MB_")))
+        .and_then(|n| n.strip_prefix("MB_"))
         .and_then(compass)
     {
         return format!("ArrowWarp({d})");
     }
     match name {
-        "MB_ANIMATED_DOOR" | "MB_PETALBURG_GYM_DOOR" => "Door",
+        // Gen3 `MetatileBehavior_IsWarpDoor`: the only door `TryDoorWarp` enters.
+        // (`MB_PETALBURG_GYM_DOOR` is only in `IsDoor`, for the door animation of the gym's
+        // scripted room changes; it starts no warp, so it stays `Normal`.)
+        "MB_ANIMATED_DOOR" => "Door",
         "MB_COUNTER" => "Counter",
         "MB_TALL_GRASS" => "TallGrass",
         _ => "Normal",

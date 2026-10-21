@@ -60,7 +60,7 @@ fn name_of(table: &'static [(u16, &'static str)], id: u16) -> Option<&'static st
 }
 
 /// `callstd <std>` other than the msgbox pattern. Item stds act as if the bag had room
-/// (`VAR_RESULT` = TRUE) without giving anything; `STD_FIND_ITEM` also hides the item ball
+/// (`VAR_RESULT` = TRUE) without giving anything; `STD_FIND_ITEM` also removes the item ball
 /// that was talked to. Everything else is logged.
 pub async fn callstd(ctx: &Ctx, std: u8) {
     ctx.log(name_of(&crate::data::STD_NAMES, std.into()).unwrap_or("STD_?"))
@@ -72,7 +72,7 @@ pub async fn callstd(ctx: &Ctx, std: u8) {
             ctx.face_player().await;
             ctx.set_var(VAR_RESULT, 1).await;
             let obj = ctx.var(VAR_LAST_TALKED).await;
-            ctx.hide_object(obj as u8).await;
+            ctx.remove_object(obj as u8).await;
             ctx.release().await;
         }
         _ => {}
@@ -85,6 +85,11 @@ pub async fn callstd(ctx: &Ctx, std: u8) {
 pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     ctx.log(name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?"))
         .await;
+    0
+}
+
+/// `checkplayergender`: Gen3 `MALE` (0). The player is SACHA (Brendan) and the rival is May.
+pub async fn check_player_gender(_ctx: &Ctx) -> u16 {
     0
 }
 

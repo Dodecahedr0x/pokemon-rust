@@ -6,6 +6,15 @@ use engine::data::{Gfx, block_collision};
 use engine::script::{Request, Response, Runner, ScriptHost};
 use std::vec::Vec;
 
+/// The charmap of the generated texts (`data::LANG`).
+fn lang() -> extract::text::Lang {
+    match data::LANG {
+        "fr" => extract::text::Lang::Fr,
+        "en" => extract::text::Lang::En,
+        l => panic!("unknown language {l}"),
+    }
+}
+
 /// Answers every request at once with a value of the right kind; records them.
 #[derive(Default)]
 struct Host {
@@ -129,15 +138,15 @@ fn constants_cover_the_names_tables() {
 }
 
 #[test]
-fn ui_texts_are_french() {
-    let d = |b: &[u8]| {
-        extract::text::decode_lang(b, extract::text::Lang::Fr)
-            .unwrap()
-            .0
+fn ui_texts_follow_the_language() {
+    let d = |b: &[u8]| extract::text::decode_lang(b, lang()).unwrap().0;
+    let (yes, no, rival) = match data::LANG {
+        "fr" => ("OUI", "NON", "FLORA"),
+        _ => ("YES", "NO", "MAY"),
     };
-    assert_eq!(d(Emerald.ui_text(UiText::Yes)), "OUI");
-    assert_eq!(d(Emerald.ui_text(UiText::No)), "NON");
-    assert_eq!(d(Emerald.ui_text(UiText::RivalName)), "FLORA");
+    assert_eq!(d(Emerald.ui_text(UiText::Yes)), yes);
+    assert_eq!(d(Emerald.ui_text(UiText::No)), no);
+    assert_eq!(d(Emerald.ui_text(UiText::RivalName)), rival);
     assert_eq!(d(Emerald.new_game().player_name), "SACHA");
 }
 
@@ -297,6 +306,10 @@ fn fixture_script_runs_through_the_prelude() {
     assert!(log.contains(&Request::Message(text("Other_Main_T0"))));
     assert!(log.contains(&Request::Log("SPECIAL_HealPlayerParty")));
     assert!(log.contains(&Request::Log("STD_OBTAIN_ITEM")));
+    // checkplayergender: male; STD_FIND_ITEM removes the object talked to (VAR_LAST_TALKED,
+    // 0 for this host).
+    assert!(log.contains(&Request::SetVar(consts::VAR_RESULT, 0)));
+    assert!(log.contains(&Request::RemoveObject(0)));
     assert!(log.contains(&Request::Log("playse")));
     assert!(log.contains(&Request::Warp {
         map: consts::MAP_PETALBURG_CITY,
@@ -316,7 +329,7 @@ fn fixture_script_runs_through_the_prelude() {
 
 #[test]
 fn every_text_decodes() {
-    let lang = extract::text::Lang::Fr;
+    let lang = lang();
     for (i, t) in data::TEXTS.iter().enumerate() {
         let (_, n) = extract::text::decode_lang(t, lang).unwrap();
         assert_eq!(n, t.len(), "text {i}");
@@ -364,9 +377,76 @@ fn data_sizes() {
     assert!(ts_bytes + map_bytes + sprite_bytes + font_bytes + text_bytes < 8 << 20);
 }
 
+#[test]
+fn std_find_item_removes_the_last_talked_object() {
+    let mut h = Host::default();
+    h.vars.insert(consts::VAR_LAST_TALKED.0, 4);
+    run(
+        |ctx| Box::pin(async move { prelude::callstd(&ctx, consts::STD_FIND_ITEM).await }),
+        &mut h,
+    );
+    assert!(h.log.contains(&Request::RemoveObject(4)));
+    assert!(!h.log.iter().any(|r| matches!(r, Request::HideObject(_))));
+    assert_eq!(h.vars[&consts::VAR_RESULT.0], 1);
+}
+
 #[cfg(not(pkr_stub))]
 mod extracted {
     use super::*;
+
+    /// The French ROM, when `PKR_ROM_FR` is set and the data was extracted from it.
+    fn source_rom() -> Option<extract::Rom> {
+        std::env::var_os("PKR_ROM_FR")?;
+        let rom = extract::fixtures::fr();
+        if rom.sha1_hex() != data::SOURCE_SHA1 {
+            std::println!("skipped: content/extracted is not from PKR_ROM_FR");
+            return None;
+        }
+        Some(rom)
+    }
+
+    #[test]
+    fn font_glyphs_round_trip_to_the_rom() {
+        let Some(rom) = source_rom() else { return };
+        let (glyphs_off, widths_off) = extract::font::locate_latin_normal(&rom).unwrap();
+        let f = Emerald.font();
+        let raw = rom.slice(glyphs_off, f.glyphs.len() * 64).unwrap();
+        assert!(
+            f.glyphs.as_flattened() == raw,
+            "glyph bytes differ from the ROM"
+        );
+        assert_eq!(f.widths, rom.slice(widths_off, f.widths.len()).unwrap());
+        // And through extract's own decoder.
+        let decoded = extract::font::read_latin_normal_at(&rom, glyphs_off, widths_off).unwrap();
+        assert_eq!(decoded.glyphs.len(), f.glyphs.len());
+    }
+
+    #[test]
+    fn a_tileset_round_trips_to_the_rom() {
+        let Some(rom) = source_rom() else { return };
+        let table = extract::maps::locate_map_table(&rom).unwrap();
+        let header = table
+            .header(&rom, extract::maps::MapId { group: 0, num: 9 })
+            .unwrap();
+        let ours = Emerald.map(consts::MAP_LITTLEROOT_TOWN);
+        for (off, ts) in [
+            (header.layout.primary_tileset, ours.primary),
+            (header.layout.secondary_tileset, ours.secondary),
+        ] {
+            let r = extract::maps::read_tileset(&rom, off, &table).unwrap();
+            let rom_ts = extract::render::load_tileset(&rom, &r).unwrap();
+            let tiles: Vec<u8> = ts
+                .tiles
+                .iter()
+                .flatten()
+                .flat_map(|r| r.to_le_bytes())
+                .collect();
+            assert!(tiles == rom_ts.tiles, "tile bytes differ at {off:#x}");
+            assert_eq!(ts.metatiles, &rom_ts.metatiles[..]);
+            assert_eq!(ts.attributes, &rom_ts.attributes[..]);
+            assert_eq!(ts.palettes, &rom_ts.palettes[..]);
+        }
+    }
 
     #[test]
     fn slice_maps_are_exported() {
