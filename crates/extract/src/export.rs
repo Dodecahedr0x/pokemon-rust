@@ -254,16 +254,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
             let ops = scan.unknown.iter().map(|(&k, &v)| (Hex(k), v)).collect();
             unknown_script_ops.insert(script.clone(), ops);
         }
-        for &pc in &scan.visited {
-            if rom.u8(pc)? == OP_SETVAR
-                && (VAR_OBJ_GFX_ID_0..VAR_OBJ_GFX_ID_0 + 16).contains(&rom.u16(pc + 1)?)
-            {
-                let value = rom.u16(pc + 3)?;
-                gfx_ids.insert(u8::try_from(value).with_context(|| {
-                    format!("script {script}: setvar of graphics id {value} at {pc:#x}")
-                })?);
-            }
-        }
+        gfx_ids.extend(var_gfx_ids(rom, &scan).with_context(|| format!("script {script}"))?);
     }
     for p in PLAYER_SPRITES {
         gfx_ids.insert(names::OBJ_EVENT_GFX.value(p).expect("player gfx") as u8);
@@ -359,13 +350,33 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     Ok(manifest)
 }
 
-fn script_name(canonical: &BTreeMap<u32, String>, off: Option<u32>) -> Option<String> {
+/// The canonical root name of the script at `off`, `None` for a null script.
+/// Graphics ids a walk sets through `setvar VAR_OBJ_GFX_ID_<n>, <gfx>` (the values that
+/// `OBJ_EVENT_GFX_VAR_<n>` objects resolve to).
+pub fn var_gfx_ids(rom: &Rom, scan: &scripts::ScriptScan) -> Result<BTreeSet<u8>> {
+    let mut ids = BTreeSet::new();
+    for &pc in &scan.visited {
+        if rom.u8(pc)? == OP_SETVAR
+            && (VAR_OBJ_GFX_ID_0..VAR_OBJ_GFX_ID_0 + 16).contains(&rom.u16(pc + 1)?)
+        {
+            let value = rom.u16(pc + 3)?;
+            ids.insert(
+                u8::try_from(value)
+                    .with_context(|| format!("setvar of graphics id {value} at {pc:#x}"))?,
+            );
+        }
+    }
+    Ok(ids)
+}
+
+fn script_name(canonical: &BTreeMap<u32, String>, off: Option<u32>) -> Result<Option<String>> {
     off.map(|o| {
         canonical
             .get(&o)
             .cloned()
-            .unwrap_or_else(|| panic!("script {o:#x} is not a named root"))
+            .with_context(|| format!("script {o:#x} is not a named root"))
     })
+    .transpose()
 }
 
 /// `"<group>.<num>"`.
@@ -393,32 +404,47 @@ pub fn map_file(
     let bgs = ev
         .bgs
         .iter()
-        .map(|b| Bg {
-            x: b.x as i16,
-            y: b.y as i16,
-            elevation: b.elevation,
-            kind: match b.kind {
+        .map(|b| {
+            let kind = match b.kind {
                 BgEventKind::Script(s) => BgKind::Script {
                     facing: b.kind_raw,
-                    script: script_name(canonical, s),
+                    script: script_name(canonical, s)?,
                 },
                 BgEventKind::HiddenItem {
                     item,
                     hidden_item_id,
                 } => BgKind::HiddenItem {
                     item: names::item_name(item),
-                    flag: names::flag_name(hidden_items_start + hidden_item_id),
+                    flag: names::flag_name(
+                        hidden_items_start
+                            .checked_add(hidden_item_id)
+                            .with_context(|| {
+                                format!(
+                                    "{}: hidden item id {hidden_item_id} at ({}, {}) overflows the \
+                                     flag range",
+                                    m.name, b.x, b.y
+                                )
+                            })?,
+                    ),
                 },
                 BgEventKind::SecretBase(id) => BgKind::SecretBase { id },
-            },
+            };
+            Ok(Bg {
+                x: b.x as i16,
+                y: b.y as i16,
+                elevation: b.elevation,
+                kind,
+            })
         })
-        .collect();
-    let var_scripts = |list: &[roots::VarScript]| -> Vec<VarScript> {
+        .collect::<Result<_>>()?;
+    let var_scripts = |list: &[roots::VarScript]| -> Result<Vec<VarScript>> {
         list.iter()
-            .map(|v| VarScript {
-                var: names::var_name(v.var),
-                value: v.value,
-                script: script_name(canonical, Some(v.script)).unwrap(),
+            .map(|v| {
+                Ok(VarScript {
+                    var: names::var_name(v.var),
+                    value: v.value,
+                    script: script_name(canonical, Some(v.script))?.expect("non-null"),
+                })
             })
             .collect()
     };
@@ -454,21 +480,23 @@ pub fn map_file(
         objects: ev
             .objects
             .iter()
-            .map(|ob| Object {
-                local_id: ob.local_id,
-                gfx: names::gfx_name(ob.graphics_id),
-                x: ob.x,
-                y: ob.y,
-                elevation: ob.elevation,
-                movement: names::movement_type_name(ob.movement_type),
-                range_x: ob.movement_range_x,
-                range_y: ob.movement_range_y,
-                trainer_type: names::trainer_type_name(ob.trainer_type),
-                trainer_sight_or_berry_tree: ob.trainer_range_berry_tree_id,
-                script: script_name(canonical, ob.script),
-                flag: (ob.flag_id != 0).then(|| names::flag_name(ob.flag_id)),
+            .map(|ob| {
+                Ok(Object {
+                    local_id: ob.local_id,
+                    gfx: names::gfx_name(ob.graphics_id),
+                    x: ob.x,
+                    y: ob.y,
+                    elevation: ob.elevation,
+                    movement: names::movement_type_name(ob.movement_type),
+                    range_x: ob.movement_range_x,
+                    range_y: ob.movement_range_y,
+                    trainer_type: names::trainer_type_name(ob.trainer_type),
+                    trainer_sight_or_berry_tree: ob.trainer_range_berry_tree_id,
+                    script: script_name(canonical, ob.script)?,
+                    flag: (ob.flag_id != 0).then(|| names::flag_name(ob.flag_id)),
+                })
             })
-            .collect(),
+            .collect::<Result<_>>()?,
         warps: ev
             .warps
             .iter()
@@ -484,15 +512,17 @@ pub fn map_file(
         coords: ev
             .coords
             .iter()
-            .map(|c| Coord {
-                x: c.x,
-                y: c.y,
-                elevation: c.elevation,
-                var: (c.trigger_var != 0).then(|| names::var_name(c.trigger_var)),
-                value: c.index,
-                script: script_name(canonical, c.script),
+            .map(|c| {
+                Ok(Coord {
+                    x: c.x,
+                    y: c.y,
+                    elevation: c.elevation,
+                    var: (c.trigger_var != 0).then(|| names::var_name(c.trigger_var)),
+                    value: c.index,
+                    script: script_name(canonical, c.script)?,
+                })
             })
-            .collect(),
+            .collect::<Result<_>>()?,
         bgs,
         connections: h
             .connections
@@ -512,13 +542,13 @@ pub fn map_file(
             })
             .collect(),
         scripts: MapScripts {
-            on_load: script_name(canonical, map_scripts.on_load),
-            on_transition: script_name(canonical, map_scripts.on_transition),
-            on_resume: script_name(canonical, map_scripts.on_resume),
-            on_return_to_field: script_name(canonical, map_scripts.on_return_to_field),
-            on_dive_warp: script_name(canonical, map_scripts.on_dive_warp),
-            on_frame: var_scripts(&map_scripts.on_frame),
-            on_warp_into: var_scripts(&map_scripts.on_warp_into),
+            on_load: script_name(canonical, map_scripts.on_load)?,
+            on_transition: script_name(canonical, map_scripts.on_transition)?,
+            on_resume: script_name(canonical, map_scripts.on_resume)?,
+            on_return_to_field: script_name(canonical, map_scripts.on_return_to_field)?,
+            on_dive_warp: script_name(canonical, map_scripts.on_dive_warp)?,
+            on_frame: var_scripts(&map_scripts.on_frame)?,
+            on_warp_into: var_scripts(&map_scripts.on_warp_into)?,
         },
     })
 }
@@ -710,6 +740,25 @@ mod tests {
         // 32 bytes at width 16 would be 4 rows: not whole tiles.
         let err = sprite(&graphics(16, 16, vec![vec![0; 32]])).unwrap_err();
         assert!(format!("{err}").contains("0x100"), "{err}");
+    }
+
+    #[test]
+    fn setvar_of_a_gfx_var_adds_the_graphics_id() {
+        // setvar VAR_OBJ_GFX_ID_0, 105 ; setvar VAR_TEMP_0, 7 ; setvar VAR_OBJ_GFX_ID_F, 3 ; end
+        let mut b = vec![0u8; 0x100];
+        b[0xAC..0xB0].copy_from_slice(b"BPEE");
+        b.extend([0x16, 0x10, 0x40, 105, 0, 0x16, 0x00, 0x40, 7, 0]);
+        b.extend([0x16, 0x1F, 0x40, 3, 0, 0x02]);
+        b.resize(0x200, 0);
+        let rom = Rom::from_bytes(b).unwrap();
+        let scan = scripts::walk(&rom, &[0x100]).unwrap();
+        assert_eq!(var_gfx_ids(&rom, &scan).unwrap(), BTreeSet::from([3, 105]));
+        // A graphics id that does not fit a byte is an error.
+        let mut b = rom.bytes().to_vec();
+        b[0x104] = 1;
+        let rom = Rom::from_bytes(b).unwrap();
+        let scan = scripts::walk(&rom, &[0x100]).unwrap();
+        assert!(var_gfx_ids(&rom, &scan).is_err());
     }
 
     #[test]

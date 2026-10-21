@@ -52,7 +52,8 @@ fn env(d: &Path) -> HashMap<String, String> {
         .collect();
     files.sort();
     for f in files {
-        for (n, e) in defines(&std::fs::read_to_string(f).unwrap()) {
+        let src = std::fs::read_to_string(f).unwrap();
+        for (n, e) in defines(&src).into_iter().chain(enum_members(&src)) {
             env.entry(n).or_insert(e);
         }
     }
@@ -97,7 +98,7 @@ fn tokens(s: &str) -> Option<Vec<Tok>> {
             if two == "<<" || two == ">>" {
                 out.push(Tok::Op(two));
                 i += 2;
-            } else if "+-*/|&()~".contains(ch) {
+            } else if "+-*/%|&()~".contains(ch) {
                 out.push(Tok::Op(ch.to_string()));
                 i += 1;
             } else {
@@ -117,7 +118,7 @@ impl Eval<'_> {
     fn name(&mut self, n: &str) -> Option<i64> {
         let expr = self.env.get(n)?;
         self.depth += 1;
-        if self.depth > 64 {
+        if self.depth > 1024 {
             return None;
         }
         let v = self.expr(expr);
@@ -141,7 +142,7 @@ impl Eval<'_> {
             "&" => 2,
             "<<" | ">>" => 3,
             "+" | "-" => 4,
-            "*" | "/" => 5,
+            "*" | "/" | "%" => 5,
             _ => return None,
         })
     }
@@ -165,6 +166,7 @@ impl Eval<'_> {
                 "-" => lhs - rhs,
                 "*" => lhs * rhs,
                 "/" => lhs.checked_div(rhs)?,
+                "%" => lhs.checked_rem(rhs)?,
                 _ => unreachable!(),
             };
         }
@@ -223,13 +225,25 @@ fn prefixed(
         if !n.starts_with(prefix) {
             continue;
         }
-        let mut ev = Eval { env, depth: 0 };
-        if let Some(v) = ev.expr(&e) {
-            defs.push((n, v, e));
-        }
+        let v = Eval { env, depth: 0 }
+            .expr(&e)
+            .unwrap_or_else(|| panic!("{file}: {n} = {e} does not evaluate"));
+        defs.push((n, v, e));
     }
     assert!(!defs.is_empty(), "{file}: no {prefix} defines");
     table_entries(&defs)
+}
+
+/// `ITEM_*` item ids: `ITEM_NONE..ITEMS_COUNT`, without the `ITEM_USE_*`/`ITEM_B_USE_*` item
+/// use types and markers such as `ITEM_LIST_END`.
+fn items(d: &Path, env: &HashMap<String, String>) -> Vec<(i64, String)> {
+    let count = Eval { env, depth: 0 }.expr("ITEMS_COUNT").unwrap();
+    prefixed(d, env, "include/constants/items.h", "ITEM_")
+        .into_iter()
+        .filter(|(v, n)| {
+            (0..count).contains(v) && !n.starts_with("ITEM_USE_") && !n.starts_with("ITEM_B_USE_")
+        })
+        .collect()
 }
 
 /// `NAME = value` assembler symbols of an `.inc` file with the given prefix.
@@ -249,24 +263,59 @@ fn asm_symbols(src: &str, prefix: &str) -> Vec<(i64, String)> {
     table_entries(&defs)
 }
 
-fn metatile_behaviors(src: &str) -> Vec<(i64, String)> {
-    let body = &src[src.find("enum {").unwrap() + 6..];
-    let body = &body[..body.find("};").unwrap()];
+/// Members of every `enum {…}` block of a header as `(name, expr)`: an explicit `= expr`, or
+/// `(<previous>) + 1` (`0` for the first). Comments are stripped line by line before splitting.
+fn enum_members(src: &str) -> Vec<(String, String)> {
+    let clean: String = src.lines().map(|l| strip_comments(l) + "\n").collect();
     let mut out = Vec::new();
-    let mut next = 0;
-    for item in body.split(',') {
-        let item = strip_comments(item);
-        let item = item.trim();
-        if item.is_empty() {
+    let mut rest = clean.as_str();
+    while let Some(at) = rest.find("enum") {
+        rest = &rest[at + 4..];
+        let Some(open) = rest.find('{') else { break };
+        if !rest[..open]
+            .trim()
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
             continue;
         }
-        let (name, v) = match item.split_once('=') {
-            Some((n, v)) => (n.trim(), v.trim().parse().unwrap()),
-            None => (item, next),
-        };
-        next = v + 1;
+        let close = rest.find('}').unwrap();
+        let body = &rest[open + 1..close];
+        rest = &rest[close..];
+        let mut prev: Option<String> = None;
+        for item in body.split(',') {
+            let item = item.trim();
+            if item.is_empty() {
+                continue;
+            }
+            let (name, expr) = match item.split_once('=') {
+                Some((n, v)) => (n.trim().to_string(), v.trim().to_string()),
+                None => (
+                    item.to_string(),
+                    prev.as_ref()
+                        .map_or("0".to_string(), |p| format!("({p}) + 1")),
+                ),
+            };
+            assert!(
+                name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "bad enum member {name:?}"
+            );
+            prev = Some(name.clone());
+            out.push((name, expr));
+        }
+    }
+    out
+}
+
+fn metatile_behaviors(d: &Path, env: &HashMap<String, String>) -> Vec<(i64, String)> {
+    let src = read(d, "include/constants/metatile_behaviors.h");
+    let mut out = Vec::new();
+    for (name, expr) in enum_members(&src) {
         if name.starts_with("MB_") {
-            out.push((v, name.to_string()));
+            let v = Eval { env, depth: 0 }
+                .expr(&expr)
+                .unwrap_or_else(|| panic!("{name} = {expr}"));
+            out.push((v, name));
         }
     }
     out
@@ -422,13 +471,13 @@ fn generate(d: &Path) -> String {
             "ITEMS",
             "`include/constants/items.h`.",
             "ITEM_",
-            prefixed(d, &env, "include/constants/items.h", "ITEM_"),
+            items(d, &env),
         ),
         (
             "METATILE_BEHAVIORS",
             "`MB_*` from the enum in `include/constants/metatile_behaviors.h`.",
             "MB_",
-            metatile_behaviors(&read(d, "include/constants/metatile_behaviors.h")),
+            metatile_behaviors(d, &env),
         ),
         (
             "SPECIALS",
@@ -534,6 +583,31 @@ fn lookups_and_fallbacks() {
         "MOVEMENT_ACTION_STEP_END"
     );
     assert_eq!(names::behavior_name(2), "MB_TALL_GRASS");
+    assert_eq!(names::behavior_name(0x12), "MB_DEEP_WATER");
+    assert_eq!(names::behavior_name(0x80), "MB_COUNTER");
+    assert_eq!(names::behavior_name(0x60), "MB_NON_ANIMATED_DOOR");
+    assert_eq!(names::behavior_name(0x38), "MB_JUMP_EAST");
+    assert_eq!(names::METATILE_BEHAVIORS.entries.len(), 240);
+    for (v, n) in names::METATILE_BEHAVIORS.iter() {
+        if let Some(hex) = n.strip_prefix("MB_UNUSED_").filter(|h| h.len() == 2) {
+            assert_eq!(u32::from_str_radix(hex, 16).ok(), Some(v), "{n}");
+        }
+    }
+    // Daily flags (`%` in DAILY_FLAGS_START) and registered-trainer flags (REMATCH_* enum).
+    assert_eq!(names::FLAGS.value("FLAG_UNUSED_0x920"), Some(0x920));
+    assert!(
+        names::FLAGS
+            .value("FLAG_DAILY_CONTEST_LOBBY_RECEIVED_BERRY")
+            .is_some()
+    );
+    assert!(names::FLAGS.value("FLAG_REGISTERED_ROSE").is_some());
+    assert_eq!(names::item_name(0), "ITEM_NONE");
+    assert_eq!(names::ITEMS.value("ITEM_LIST_END"), None);
+    assert!(
+        names::ITEMS
+            .iter()
+            .all(|(v, n)| v < 377 && !n.starts_with("ITEM_USE_"))
+    );
     assert_eq!(names::special_name(0), "SPECIAL_HealPlayerParty");
     assert_eq!(names::std_name(2), "MSGBOX_NPC");
     assert_eq!(names::std_name(0), "STD_OBTAIN_ITEM");
