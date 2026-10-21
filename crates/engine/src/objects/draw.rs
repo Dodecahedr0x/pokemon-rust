@@ -3,7 +3,8 @@
 //! Objects own all of OBJ VRAM and the 16 OBJ palette banks. Each object gets a fixed run of
 //! tiles (first fit) holding its current frame, re-uploaded only when the frame changes. A
 //! palette goes to a bank already holding the same colors, else to an empty bank, else to the
-//! lowest bank no object drawn this frame uses.
+//! lowest bank no object drawn this frame uses. An object whose palette finds no bank (more
+//! than 16 distinct palettes on screen) is not drawn.
 
 use super::Objects;
 use crate::data::GameData;
@@ -48,12 +49,15 @@ impl Objects {
             let Some(first) = self.vram_slot(i, ((w / 8) * (h / 8)) as u16) else {
                 continue;
             };
+            let Some(palette) = self.palette_bank(sprite.palette, &mut used_banks, f) else {
+                continue;
+            };
             let o = &mut self.objs[i];
-            if o.uploaded != Some(frame as u16) {
+            let shown = Some((sprite as *const _ as usize, frame as u16));
+            if o.uploaded != shown {
                 f.cmds.push(Cmd::ObjTiles { first, tiles });
-                o.uploaded = Some(frame as u16);
+                o.uploaded = shown;
             }
-            let palette = self.palette_bank(sprite.palette, &mut used_banks, f);
             out.push((
                 py,
                 Obj {
@@ -112,13 +116,17 @@ impl Objects {
         Some(first)
     }
 
-    fn palette_bank(&mut self, colors: &[u16; 16], used: &mut u16, f: &mut Frame) -> u8 {
+    pub(super) fn palette_bank(
+        &mut self,
+        colors: &[u16; 16],
+        used: &mut u16,
+        f: &mut Frame,
+    ) -> Option<u8> {
         let bank = match self.banks.iter().position(|b| b.as_ref() == Some(colors)) {
             Some(b) => b,
             None => {
                 let b = (self.banks.iter().position(Option::is_none))
-                    .or_else(|| (0..16).find(|b| *used & (1 << b) == 0))
-                    .unwrap_or(15);
+                    .or_else(|| (0..16).find(|b| *used & (1 << b) == 0))?;
                 self.banks[b] = Some(*colors);
                 f.cmds.push(Cmd::ObjPalette {
                     bank: b as u8,
@@ -128,6 +136,6 @@ impl Objects {
             }
         };
         *used |= 1 << bank;
-        bank as u8
+        Some(bank as u8)
     }
 }

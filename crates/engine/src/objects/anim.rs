@@ -88,7 +88,7 @@ impl Anim {
     }
 
     pub(super) fn tick(&mut self) {
-        self.timer += 1;
+        self.timer = self.timer.saturating_add(1);
         if self.timer > self.duration() {
             self.cmd = (self.cmd + 1) & 3;
             self.timer = 1;

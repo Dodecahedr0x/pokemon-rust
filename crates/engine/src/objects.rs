@@ -12,7 +12,7 @@ mod draw;
 mod tests;
 
 use crate::data::{
-    Behavior, Dir, FlagId, Gfx, GfxId, MapData, MovementType, ObjectEvent, PLAYER, VarId,
+    Behavior, Dir, FlagId, Gfx, GfxId, MapData, MapId, MovementType, ObjectEvent, PLAYER, VarId,
     block_collision, block_elevation,
 };
 use crate::hash::Fnv64;
@@ -163,6 +163,9 @@ enum RunState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Object {
     pub local_id: u8,
+    /// Map the object belongs to. Objects of the previous map stay (shifted) after crossing a
+    /// connection until they leave the view; only the current map's are addressed by local id.
+    pub map: MapId,
     /// `None` for the player, drawn with `GameData::player_sprite`.
     pub gfx: Option<GfxId>,
     /// Current cell (the destination while a step plays).
@@ -185,9 +188,10 @@ pub struct Object {
     moves: Option<Moves>,
     idle: Idle,
     anim: Anim,
-    /// OBJ VRAM tiles (first, count) and the frame currently uploaded there.
+    /// Render cache (not hashed): OBJ VRAM tiles (first, count), and the sprite (address) and
+    /// frame currently uploaded there.
     vram: Option<(u16, u16)>,
-    uploaded: Option<u16>,
+    uploaded: Option<(usize, u16)>,
 }
 
 /// Initial facing per movement type (Gen3 `gInitialMovementTypeFacingDirections`).
@@ -201,9 +205,17 @@ const fn initial_facing(m: MovementType) -> Dir {
 }
 
 impl Object {
-    fn new(local_id: u8, gfx: Option<GfxId>, x: i16, y: i16, movement: MovementType) -> Self {
+    fn new(
+        local_id: u8,
+        map: MapId,
+        gfx: Option<GfxId>,
+        x: i16,
+        y: i16,
+        movement: MovementType,
+    ) -> Self {
         Self {
             local_id,
+            map,
             gfx,
             x,
             y,
@@ -225,12 +237,12 @@ impl Object {
         }
     }
 
-    fn from_event(ev: &ObjectEvent, vars: &impl Fn(VarId) -> u16) -> Self {
+    fn from_event(map: MapId, ev: &ObjectEvent, vars: &impl Fn(VarId) -> u16) -> Self {
         let gfx = match ev.gfx {
             Gfx::Fixed(g) => g,
             Gfx::Var(v) => GfxId(vars(v)),
         };
-        let mut o = Self::new(ev.local_id, Some(gfx), ev.x, ev.y, ev.movement);
+        let mut o = Self::new(ev.local_id, map, Some(gfx), ev.x, ev.y, ev.movement);
         o.elevation = ev.elevation;
         o.range = ev.range;
         o
@@ -381,6 +393,7 @@ impl Object {
 
     fn hash(&self, h: &mut Fnv64) {
         h.write(&[self.local_id]);
+        h.write_u16(self.map.0);
         h.write_u16(self.gfx.map_or(0xFFFF, |g| g.0));
         h.write_u16(self.x as u16);
         h.write_u16(self.y as u16);
@@ -440,10 +453,6 @@ impl Object {
             Idle::Done => h.write(&[2]),
         }
         self.anim.hash(h);
-        let (first, count) = self.vram.unwrap_or((0xFFFF, 0));
-        h.write_u16(first);
-        h.write_u16(count);
-        h.write_u16(self.uploaded.unwrap_or(0xFFFF));
     }
 }
 
@@ -479,13 +488,19 @@ const fn elevations_compatible(a: u8, b: u8) -> bool {
     a == 0 || b == 0 || a == b
 }
 
-/// Every object on the current map. Index 0 is always the player.
+/// Gen3 `RemoveObjectEventIfOutsideView`: the kept area around the player's cell
+/// (`pos - 2 ..= pos + 17` by `pos ..= pos + 16`, with the player at `pos + 7`).
+const VIEW_X: (i16, i16) = (-9, 10);
+const VIEW_Y: (i16, i16) = (-7, 9);
+
+/// Every object: the current map's, plus the previous map's still in view after crossing a
+/// connection. Index 0 is always the player.
 pub struct Objects {
     objs: Vec<Object>,
+    /// The current map.
+    map: MapId,
     run_state: RunState,
-    /// `update_player` already advanced the player this frame.
-    player_ticked: bool,
-    /// Colors last uploaded to each OBJ palette bank.
+    /// Render cache (not hashed): colors last uploaded to each OBJ palette bank.
     banks: [Option<[u16; 16]>; 16],
 }
 
@@ -498,47 +513,107 @@ impl Default for Objects {
 impl Objects {
     /// Just the player, at (0, 0) facing down; place it with `set_pos` and `face`.
     pub fn new() -> Self {
-        let player = Object::new(PLAYER, None, 0, 0, MovementType::Face(Dir::Down));
+        let player = Object::new(PLAYER, MapId(0), None, 0, 0, MovementType::Face(Dir::Down));
         Self {
             objs: alloc::vec![player],
+            map: MapId(0),
             run_state: RunState::NotMoving,
-            player_ticked: false,
             banks: [None; 16],
         }
     }
 
-    /// Replaces every NPC with `map`'s objects, skipping those whose `hide_flag` is set and
-    /// resolving `Gfx::Var` through `vars`. The player is kept.
+    /// The current map.
+    pub fn map(&self) -> MapId {
+        self.map
+    }
+
+    fn set_map(&mut self, id: MapId) {
+        self.map = id;
+        self.objs[0].map = id;
+    }
+
+    fn spawn(
+        &mut self,
+        id: MapId,
+        map: &MapData,
+        flags: impl Fn(FlagId) -> bool,
+        vars: impl Fn(VarId) -> u16,
+    ) {
+        for ev in map.objects {
+            if !ev.hide_flag.is_some_and(&flags) {
+                self.objs.push(Object::from_event(id, ev, &vars));
+            }
+        }
+    }
+
+    /// Makes `id` the current map and replaces every NPC with `map`'s objects, skipping those
+    /// whose `hide_flag` is set and resolving `Gfx::Var` through `vars`. The player is kept.
     pub fn spawn_map(
         &mut self,
+        id: MapId,
         map: &MapData,
         flags: impl Fn(FlagId) -> bool,
         vars: impl Fn(VarId) -> u16,
     ) {
         self.objs.truncate(1);
-        for ev in map.objects {
-            if ev.hide_flag.is_some_and(&flags) {
-                continue;
-            }
-            self.objs.push(Object::from_event(ev, &vars));
-        }
+        self.set_map(id);
+        self.spawn(id, map, flags, vars);
     }
 
-    /// Spawns one object (Gen3 `addobject`), replacing any object with the same local id.
+    /// Crossing into connected map `id`: shifts every object by `shift` cells (old map
+    /// coordinates to the new map's), makes `id` current and spawns its objects alongside the
+    /// old map's. Those stay, still moving, until they leave the view (checked here and on
+    /// every `update`), as Gen3 `RemoveObjectEventsOutsideView`. Objects of `id` left over
+    /// from an earlier visit are replaced.
+    pub fn enter_connected(
+        &mut self,
+        id: MapId,
+        map: &MapData,
+        shift: (i16, i16),
+        flags: impl Fn(FlagId) -> bool,
+        vars: impl Fn(VarId) -> u16,
+    ) {
+        self.shift(shift.0, shift.1);
+        self.objs.retain(|o| o.local_id == PLAYER || o.map != id);
+        self.set_map(id);
+        self.spawn(id, map, flags, vars);
+        self.despawn_outside_view();
+    }
+
+    /// Removes other maps' objects whose cell and home are both outside the view (Gen3
+    /// `RemoveObjectEventIfOutsideView`).
+    fn despawn_outside_view(&mut self) {
+        let (px, py) = self.objs[0].pos();
+        let inside = |(x, y): (i16, i16)| {
+            (px + VIEW_X.0..=px + VIEW_X.1).contains(&x)
+                && (py + VIEW_Y.0..=py + VIEW_Y.1).contains(&y)
+        };
+        let map = self.map;
+        self.objs
+            .retain(|o| o.map == map || inside(o.pos()) || inside(o.home));
+    }
+
+    /// Spawns one object of the current map (Gen3 `addobject`), replacing any with the same
+    /// local id.
     pub fn add(&mut self, ev: &ObjectEvent, vars: impl Fn(VarId) -> u16) {
         self.remove(ev.local_id);
-        self.objs.push(Object::from_event(ev, &vars));
+        self.objs.push(Object::from_event(self.map, ev, &vars));
     }
 
-    /// Despawns an object (Gen3 `removeobject`). The player cannot be removed.
+    /// Despawns an object of the current map (Gen3 `removeobject`). The player cannot be
+    /// removed.
     pub fn remove(&mut self, local: u8) {
         if local != PLAYER {
-            self.objs.retain(|o| o.local_id != local);
+            let map = self.map;
+            self.objs.retain(|o| o.local_id != local || o.map != map);
         }
     }
 
+    /// Index of the current map's object `local` (the player for `PLAYER`).
     fn index(&self, local: u8) -> Option<usize> {
-        self.objs.iter().position(|o| o.local_id == local)
+        self.objs
+            .iter()
+            .position(|o| o.local_id == local && o.map == self.map)
     }
 
     fn with(&mut self, local: u8, f: impl FnOnce(&mut Object)) {
@@ -547,29 +622,34 @@ impl Objects {
         }
     }
 
+    /// The current map's object `local`.
     pub fn get(&self, local: u8) -> Option<&Object> {
-        self.objs.iter().find(|o| o.local_id == local)
+        self.index(local).map(|i| &self.objs[i])
     }
 
     pub fn player(&self) -> &Object {
         &self.objs[0]
     }
 
-    /// The player first, then NPCs in spawn order.
+    /// The player first, then NPCs in spawn order (other maps' included).
     pub fn iter(&self) -> impl Iterator<Item = &Object> {
         self.objs.iter()
     }
 
-    /// The NPC whose current cell is (x, y), if any.
-    pub fn at(&self, x: i16, y: i16) -> Option<u8> {
+    /// The current map's NPC on cell (x, y) at an elevation compatible with `elevation`, if
+    /// any (Gen3 `GetObjectEventIdByPosition`).
+    pub fn at(&self, x: i16, y: i16, elevation: u8) -> Option<u8> {
         self.objs[1..]
             .iter()
-            .find(|o| (o.x, o.y) == (x, y))
+            .find(|o| {
+                o.map == self.map
+                    && (o.x, o.y) == (x, y)
+                    && elevations_compatible(o.elevation, elevation)
+            })
             .map(|o| o.local_id)
     }
 
-    /// Moves every object by (dx, dy) cells, keeping steps in progress (the coordinate change
-    /// when crossing into a connected map).
+    /// Moves every object by (dx, dy) cells, keeping steps in progress.
     pub fn shift(&mut self, dx: i16, dy: i16) {
         for o in &mut self.objs {
             o.x += dx;
@@ -698,7 +778,6 @@ impl Objects {
         if self.objs[0].moves.is_some() {
             return PlayerEvent::Idle;
         }
-        self.player_ticked = true;
         self.objs[0].update_elevation(terrain);
         // `CheckMovementInputNotOnBike` runs every frame, even while an action plays.
         let p = &self.objs[0];
@@ -759,10 +838,13 @@ impl Objects {
     }
 
     /// Advances every object one frame: actions in progress, movement scripts, and NPC idle
-    /// movement. The player is only advanced here if `update_player` did not run this frame.
-    pub fn update(&mut self, terrain: &impl Terrain, rng: &mut Rng) {
+    /// movement. `player_updated` says whether `update_player` ran this frame; if not, the
+    /// player's action in progress is played here. The player's movement script always is.
+    /// Then other maps' objects outside the view are despawned.
+    pub fn update(&mut self, terrain: &impl Terrain, rng: &mut Rng, player_updated: bool) {
+        let skip_player = player_updated && self.objs[0].moves.is_none();
         for i in 0..self.objs.len() {
-            if i == 0 && self.player_ticked {
+            if i == 0 && skip_player {
                 continue;
             }
             self.objs[i].update_elevation(terrain);
@@ -771,7 +853,7 @@ impl Objects {
             }
             self.idle(terrain, rng, i);
         }
-        self.player_ticked = false;
+        self.despawn_outside_view();
     }
 
     /// Plays the action in progress or the next scripted step. Returns false if the object is
@@ -857,7 +939,8 @@ impl Objects {
                 return;
             }
             MovementType::LookAround | MovementType::Wander => &Dir::ALL,
-            MovementType::WanderVertical => &[Dir::Up, Dir::Down],
+            // `gUpAndDownDirections` / `gLeftAndRightDirections`.
+            MovementType::WanderVertical => &[Dir::Down, Dir::Up],
             MovementType::WanderHorizontal => &[Dir::Left, Dir::Right],
         };
         if let Idle::Wait(n) = o.idle {
@@ -883,22 +966,15 @@ impl Objects {
         o.idle = Idle::Wait(DELAYS_MEDIUM[random(rng) as usize % 4]);
     }
 
-    /// Hashes everything that affects future frames.
+    /// Hashes everything that affects future frames, except the render cache (VRAM slots,
+    /// uploaded frames and palette banks).
     #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
         h.write_u32(self.objs.len() as u32);
         for o in &self.objs {
             o.hash(h);
         }
-        h.write(&[self.run_state as u8, self.player_ticked as u8]);
-        for b in &self.banks {
-            match b {
-                None => h.write(&[0]),
-                Some(c) => {
-                    h.write(&[1]);
-                    c.iter().for_each(|&v| h.write_u16(v));
-                }
-            }
-        }
+        h.write_u16(self.map.0);
+        h.write(&[self.run_state as u8]);
     }
 }

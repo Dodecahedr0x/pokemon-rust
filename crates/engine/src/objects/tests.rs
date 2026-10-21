@@ -240,7 +240,7 @@ fn objects_block_on_both_cells_of_their_step() {
     o.add(&ev, |_| 0);
     o.start_moves(1, &[Step::Walk(Dir::Left, Speed::Normal)]);
     let mut rng = Rng::new(1);
-    o.update(&g, &mut rng); // NPC now walking (7,5) -> (6,5)
+    o.update(&g, &mut rng, false); // NPC now walking (7,5) -> (6,5)
     assert_eq!(o.get(1).unwrap().pos(), (6, 5));
     assert_eq!(o.collision(&g, PLAYER, Dir::Right), Collision::Object);
     assert_eq!(
@@ -251,12 +251,12 @@ fn objects_block_on_both_cells_of_their_step() {
     let mut o = player_at(5, 5, Dir::Right);
     o.add(&npc(1, 6, 4, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
     o.start_moves(1, &[Step::Walk(Dir::Up, Speed::Normal)]);
-    o.update(&g, &mut rng);
+    o.update(&g, &mut rng, false);
     assert_eq!(o.get(1).unwrap().prev, (6, 4));
     let mut o2 = player_at(6, 5, Dir::Up);
     o2.add(&npc(1, 6, 4, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
     o2.start_moves(1, &[Step::Walk(Dir::Up, Speed::Normal)]);
-    o2.update(&g, &mut rng);
+    o2.update(&g, &mut rng, false);
     assert_eq!(o2.collision(&g, PLAYER, Dir::Up), Collision::Object);
 }
 
@@ -359,7 +359,7 @@ fn run_wander(seed: u32, frames: u32) -> (Objects, Vec<(i16, i16)>) {
     let mut rng = Rng::new(seed);
     let mut cells = Vec::new();
     for _ in 0..frames {
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, false);
         let n = o.get(1).unwrap();
         cells.push(n.pos());
         assert!(
@@ -398,14 +398,14 @@ fn wander_timing_follows_gen3() {
     o.add(&npc(1, 8, 8, MovementType::Wander, (0, 0)), |_| 0);
     let mut rng = Rng::new(7);
     let mut model = Rng::new(7);
-    o.update(&g, &mut rng); // frame 0: face + delay
+    o.update(&g, &mut rng, false); // frame 0: face + delay
     let delay = DELAYS_MEDIUM[(model.next_u32() >> 16) as usize % 4];
     assert_eq!(o.get(1).unwrap().idle, Idle::Wait(delay));
     for _ in 1..delay {
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, false);
         assert!(o.get(1).unwrap().is_settled());
     }
-    o.update(&g, &mut rng); // delay over: direction picked, walk starts
+    o.update(&g, &mut rng, false); // delay over: direction picked, walk starts
     let d = Dir::ALL[(model.next_u32() >> 16) as usize & 3];
     let n = o.get(1).unwrap();
     assert_eq!(n.facing, d);
@@ -425,7 +425,7 @@ fn npcs_never_walk_onto_the_player() {
     o.add(&npc(4, 5, 6, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
     let mut rng = Rng::new(3);
     for _ in 0..3000 {
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, false);
         assert_eq!(o.get(1).unwrap().pos(), (5, 5));
     }
 }
@@ -438,7 +438,7 @@ fn frozen_npcs_do_nothing() {
     o.freeze_all();
     let mut rng = Rng::new(9);
     for _ in 0..2000 {
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, false);
     }
     assert_eq!(o.get(1).unwrap().pos(), (8, 8));
     assert_eq!(rng, Rng::new(9), "no random draw while frozen");
@@ -457,7 +457,7 @@ fn look_around_and_walk_in_place() {
     let mut rng = Rng::new(5);
     let mut facings = Vec::new();
     for _ in 0..3000 {
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, false);
         facings.push(o.get(1).unwrap().facing);
         assert_eq!(o.get(1).unwrap().pos(), (8, 8));
         assert_eq!(o.get(2).unwrap().pos(), (3, 3));
@@ -478,11 +478,11 @@ fn script_frames(steps: &'static [Step]) -> (u32, Objects) {
     let mut o = player_at(5, 8, Dir::Up);
     o.add(&npc(1, 5, 5, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
     let mut rng = Rng::new(1);
-    o.update(&g, &mut rng); // settle the idle facing first
+    o.update(&g, &mut rng, false); // settle the idle facing first
     o.start_moves(1, steps);
     let mut frames = 0;
     while !o.moves_done(1) {
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, false);
         frames += 1;
         assert!(frames < 1000);
     }
@@ -552,7 +552,7 @@ fn moves_wait_for_the_current_action_and_run_back_to_back() {
     let mut o = player_at(5, 5, Dir::Right);
     let mut rng = Rng::new(1);
     o.update_player(&g, hold(Dir::Right)); // mid-step to (6, 5)
-    o.update(&g, &mut rng);
+    o.update(&g, &mut rng, true);
     o.start_moves(
         PLAYER,
         &[
@@ -567,7 +567,7 @@ fn moves_wait_for_the_current_action_and_run_back_to_back() {
             PlayerEvent::Idle,
             "script owns the player"
         );
-        o.update(&g, &mut rng);
+        o.update(&g, &mut rng, true);
         frames += 1;
     }
     assert_eq!(frames, 15 + 32);
@@ -590,9 +590,9 @@ fn object_commands() {
     assert!(o.get(1).unwrap().visible);
     o.set_movement_type(1, MovementType::Face(Dir::Left));
     let mut rng = Rng::new(1);
-    o.update(&Grid::open(), &mut rng);
+    o.update(&Grid::open(), &mut rng, false);
     assert_eq!(o.get(1).unwrap().facing, Dir::Left);
-    assert_eq!(o.at(9, 9), Some(1));
+    assert_eq!(o.at(9, 9, 0), Some(1));
     o.shift(-2, 1);
     assert_eq!(o.get(1).unwrap().pos(), (7, 10));
     assert_eq!(o.player().pos(), (3, 6));
@@ -689,6 +689,7 @@ fn spawn_map_skips_hidden_resolves_vars_keeps_player() {
     let mut o = player_at(3, 3, Dir::Left);
     o.add(&npc(9, 0, 0, MovementType::Wander, (0, 0)), |_| 0);
     o.spawn_map(
+        MapId(5),
         &MAP,
         |f| f == FlagId(7),
         |v| if v == VarId(0x4010) { 42 } else { 0 },
@@ -738,6 +739,14 @@ static NPC_SPRITE: SpriteData = SpriteData {
     frames: &[&N0, &N1, &N2],
     palette: &NPC_PAL,
 };
+static M0: [Tile; 4] = [tile(20); 4];
+/// Same size and palette as `NPC_SPRITE`, other pictures.
+static OTHER_SPRITE: SpriteData = SpriteData {
+    width: 16,
+    height: 16,
+    frames: &[&M0, &M0, &M0],
+    palette: &NPC_PAL,
+};
 
 struct Game;
 
@@ -746,7 +755,11 @@ impl GameData for Game {
         &MAP
     }
     fn sprite(&self, g: GfxId) -> Option<&'static SpriteData> {
-        (g == GfxId(1)).then_some(&NPC_SPRITE)
+        match g {
+            GfxId(1) => Some(&NPC_SPRITE),
+            GfxId(3) => Some(&OTHER_SPRITE),
+            _ => None,
+        }
     }
     fn player_sprite(&self) -> &'static SpriteData {
         &PLAYER_SPRITE
@@ -803,7 +816,7 @@ fn obj_output_for_a_known_state() {
         |_| 0,
     );
     o.objs[4].gfx = Some(GfxId(99)); // no sprite: skipped
-    o.update(&Grid::open(), &mut Rng::new(1));
+    o.update(&Grid::open(), &mut Rng::new(1), false);
     let mut f = Frame::default();
     let cam = camera_on(&o);
     o.draw(&Game, cam, &mut f);
@@ -950,4 +963,134 @@ fn hash_tracks_state() {
     assert_eq!(hash(&a), hash(&b));
     b.update_player(&Grid::open(), hold(Dir::Down));
     assert_ne!(hash(&a), hash(&b));
+}
+
+// ---- follow-ups: decoupled player update, connections, render cache ----
+
+#[test]
+fn skipping_update_on_one_frame_does_not_skip_the_player_later() {
+    let g = Grid::open();
+    let mut o = player_at(5, 5, Dir::Right);
+    let mut rng = Rng::new(1);
+    o.update_player(&g, hold(Dir::Right)); // walk starts; `update` skipped this frame
+    assert_eq!(o.player().offset(), (-15, 0));
+    // Next frame no player control (e.g. a script started): `update` plays the step.
+    o.update(&g, &mut rng, false);
+    assert_eq!(o.player().offset(), (-14, 0));
+    o.update_player(&g, NONE);
+    o.update(&g, &mut rng, true);
+    assert_eq!(o.player().offset(), (-13, 0), "advanced once, not twice");
+}
+
+#[test]
+fn entering_a_connected_map_keeps_old_objects_in_view() {
+    let g = Grid::open();
+    let mut o = Objects::new();
+    let old = MapId(1);
+    o.spawn_map(old, &MAP, |_| true, |_| 0); // every MAP object hidden: just the player
+    o.set_pos(PLAYER, 5, 2);
+    o.add(&npc(2, 5, 4, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
+    o.add(&npc(7, 5, 15, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
+    // The new map lies north: old coordinates move down by 8.
+    o.enter_connected(MapId(5), &MAP, (0, 8), |_| false, |_| 0);
+    assert_eq!(o.map(), MapId(5));
+    assert_eq!(o.player().pos(), (5, 10));
+    assert_eq!(o.player().map, MapId(5));
+    let all: Vec<(MapId, u8)> = o.iter().map(|x| (x.map, x.local_id)).collect();
+    assert_eq!(
+        all,
+        [
+            (MapId(5), PLAYER),
+            (old, 3), // unflagged MAP object at (6, 7), now (6, 15)
+            (old, 2),
+            (MapId(5), 1),
+            (MapId(5), 2),
+            (MapId(5), 3)
+        ],
+        "old NPC 7 (13 cells below) despawned at once"
+    );
+    // Local ids address the current map; the old NPC 2 still blocks.
+    assert_eq!(o.get(2).unwrap().pos(), (4, 5));
+    assert_eq!(o.at(5, 12, 0), None);
+    o.set_pos(PLAYER, 5, 11);
+    assert_eq!(o.collision(&g, PLAYER, Dir::Down), Collision::Object);
+    o.remove(2);
+    assert_eq!(
+        o.iter().filter(|x| x.local_id == 2).count(),
+        1,
+        "old one stays"
+    );
+    // Walk away: once out of view it goes.
+    o.set_pos(PLAYER, 5, 3);
+    o.update(&g, &mut Rng::new(1), false);
+    assert_eq!(o.iter().filter(|x| x.local_id == 2).count(), 1);
+    o.set_pos(PLAYER, 5, 2);
+    o.update(&g, &mut Rng::new(1), false);
+    assert!(o.iter().all(|x| x.map == MapId(5)));
+}
+
+#[test]
+fn at_honours_elevation() {
+    let mut o = player_at(5, 5, Dir::Down);
+    let mut ev = npc(1, 5, 6, MovementType::Face(Dir::Down), (0, 0));
+    ev.elevation = 3;
+    o.add(&ev, |_| 0);
+    assert_eq!(o.at(5, 6, 3), Some(1));
+    assert_eq!(o.at(5, 6, 0), Some(1));
+    assert_eq!(o.at(5, 6, 4), None);
+}
+
+#[test]
+fn hash_ignores_the_render_cache() {
+    let hash = |o: &Objects| {
+        let mut h = Fnv64::new();
+        o.hash(&mut h);
+        h.finish()
+    };
+    let mut o = player_at(5, 5, Dir::Down);
+    let before = hash(&o);
+    let mut f = Frame::default();
+    o.draw(&Game, camera_on(&o), &mut f);
+    assert_eq!(hash(&o), before);
+    o.invalidate_vram();
+    assert_eq!(hash(&o), before);
+}
+
+#[test]
+fn a_17th_palette_skips_the_object() {
+    let mut o = Objects::new();
+    o.banks = core::array::from_fn(|b| Some([b as u16 + 100; 16]));
+    let mut f = Frame::default();
+    let mut used = 0xFFFF;
+    assert_eq!(o.palette_bank(&[7; 16], &mut used, &mut f), None);
+    assert!(f.cmds.is_empty(), "no bank clobbered");
+    let mut used = 0xFFFE;
+    assert_eq!(o.palette_bank(&[7; 16], &mut used, &mut f), Some(0));
+}
+
+#[test]
+fn a_new_sprite_is_uploaded_even_on_the_same_frame_index() {
+    let mut o = player_at(5, 5, Dir::Down);
+    o.add(&npc(1, 6, 5, MovementType::Face(Dir::Down), (0, 0)), |_| 0);
+    let mut f = Frame::default();
+    o.draw(&Game, camera_on(&o), &mut f);
+    o.objs[1].gfx = Some(GfxId(3));
+    let mut f = Frame::default();
+    o.draw(&Game, camera_on(&o), &mut f);
+    assert_eq!(uploads(&f), [(8, 20)]);
+}
+
+#[test]
+fn wander_vertical_picks_south_then_north_as_gen3() {
+    let g = Grid::open();
+    let mut o = player_at(0, 0, Dir::Down);
+    o.add(&npc(1, 8, 8, MovementType::WanderVertical, (0, 0)), |_| 0);
+    let mut rng = Rng::new(11);
+    let mut model = Rng::new(11);
+    let delay = DELAYS_MEDIUM[(model.next_u32() >> 16) as usize % 4];
+    for _ in 0..=delay {
+        o.update(&g, &mut rng, false);
+    }
+    let d = [Dir::Down, Dir::Up][(model.next_u32() >> 16) as usize & 1];
+    assert_eq!(o.get(1).unwrap().facing, d);
 }
