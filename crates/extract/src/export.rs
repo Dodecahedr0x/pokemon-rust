@@ -14,7 +14,7 @@ use crate::schema::{
     MapFile, MapScripts, Object, SpriteFile, TilesetFile, VarScript, Warp, WindowFile,
 };
 use crate::sprites::{self, ObjectGraphics};
-use crate::{GameCode, Rom, codegen, font, names, scripts, window};
+use crate::{GameCode, Rom, battle_data, codegen, font, names, scripts, window};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -334,6 +334,10 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     )?;
     provenance.insert("window/tiles".to_string(), Hex(mb.tiles_offset));
     provenance.insert("window/palette".to_string(), Hex(mb.palette_offset));
+
+    let battle = battle_data::extract(rom, &MAPS).context("battle data")?;
+    battle.write(&mut o)?;
+    provenance.extend(battle.provenance);
 
     export_scripts(
         rom,

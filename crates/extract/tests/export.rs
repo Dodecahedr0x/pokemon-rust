@@ -96,6 +96,18 @@ fn writes_v3_tree() {
     }
     want.insert("scripts/index.ron".to_string());
     want.insert("text/fr.ron".to_string());
+    // Battle data (M4 Task A).
+    for f in [
+        "species",
+        "moves",
+        "types",
+        "trainers",
+        "encounters",
+        "heal_locations",
+        "strings",
+    ] {
+        want.insert(format!("battle/{f}.ron"));
+    }
     for t in &m.tilesets {
         want.insert(format!("tilesets/{t}.ron"));
         want.insert(format!("tilesets/{t}.png"));
