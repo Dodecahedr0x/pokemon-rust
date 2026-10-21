@@ -6,3 +6,4 @@ publish.workspace = true
 
 [dependencies]
 engine.workspace = true
+content.workspace = true
