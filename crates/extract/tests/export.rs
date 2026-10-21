@@ -92,7 +92,10 @@ fn writes_v2_tree() {
     for map in MAPS {
         want.insert(format!("maps/{map}.ron"));
         want.insert(format!("previews/{map}.png"));
+        want.insert(format!("scripts/{map}.rs"));
     }
+    want.insert("scripts/index.ron".to_string());
+    want.insert("text/fr.ron".to_string());
     for t in &m.tilesets {
         want.insert(format!("tilesets/{t}.ron"));
         want.insert(format!("tilesets/{t}.png"));
@@ -101,8 +104,7 @@ fn writes_v2_tree() {
         want.insert(format!("sprites/{s}.ron"));
         want.insert(format!("sprites/{s}.png"));
     }
-    // Every written file but the manifest is checksummed, and nothing else is written (texts and
-    // scripts come with Task B).
+    // Every written file but the manifest is checksummed, and nothing else is written.
     let mut files: BTreeSet<String> = tree(dir).into_keys().collect();
     assert!(files.remove("manifest.ron"));
     assert_eq!(files, want);

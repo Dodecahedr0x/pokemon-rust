@@ -408,6 +408,98 @@ fn target(rom: &Rom, at: u32) -> Result<Option<u32>> {
     rom.ptr(at)
 }
 
+/// One decoded operand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Operand {
+    Byte(u8),
+    Half(u16),
+    /// Opaque word (RAM pointer, native function, value, mart list, ...).
+    Word(u32),
+    /// Script pointer (file offset).
+    Script(u32),
+    /// Text pointer (file offset); `None` for null or RAM. Also the word of `loadword 0, <text>`.
+    Text(Option<u32>),
+    /// Movement data pointer; `None` for null or RAM.
+    Movement(Option<u32>),
+    /// Braille text pointer; `None` for null or RAM.
+    Braille(Option<u32>),
+    /// `setvaddress` operand (raw).
+    VAddress(u32),
+    /// Virtual script pointer (raw, relative to the last `setvaddress`).
+    VScript(u32),
+    /// Virtual text pointer (raw).
+    VText(u32),
+}
+
+/// One decoded script instruction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Insn {
+    /// File offset of the opcode.
+    pub off: u32,
+    pub op: u8,
+    /// Command name from `data/script_cmd_table.inc` (`goto_if`, not the `goto_if_eq` macro).
+    pub name: &'static str,
+    pub args: Vec<Operand>,
+    /// Size in bytes, opcode included.
+    pub len: u32,
+}
+
+impl Insn {
+    /// Whether execution never reaches the next instruction.
+    pub fn is_terminator(&self) -> bool {
+        TERMINATORS.contains(&self.op)
+    }
+}
+
+/// Decodes the instruction at `pc`: `None` for an invalid opcode or `trainerbattle` type.
+/// A null script pointer is an error.
+pub fn decode(rom: &Rom, pc: u32) -> Result<Option<Insn>> {
+    let op = rom.u8(pc)?;
+    let Some(&(name, args)) = OPS.get(op as usize) else {
+        return Ok(None);
+    };
+    let extra: &[Arg] = if op == OP_TRAINERBATTLE {
+        match trainerbattle_args(rom.u8(pc + 1)?) {
+            Some(extra) => extra,
+            None => return Ok(None),
+        }
+    } else {
+        &[]
+    };
+    let ctx = || format!("{name} at {pc:#x}");
+    let mut at = pc + 1;
+    let mut out = Vec::with_capacity(args.len() + extra.len());
+    for (i, &arg) in args.iter().chain(extra).enumerate() {
+        out.push(match arg {
+            B => Operand::Byte(rom.u8(at)?),
+            H => Operand::Half(rom.u16(at)?),
+            W if op == OP_LOAD_WORD && i == 1 && rom.u8(pc + 1)? == 0 => {
+                Operand::Text(target(rom, at).with_context(ctx)?)
+            }
+            W => Operand::Word(rom.u32(at)?),
+            S => Operand::Script(
+                rom.ptr(at)
+                    .with_context(ctx)?
+                    .with_context(|| format!("null target: {}", ctx()))?,
+            ),
+            T => Operand::Text(target(rom, at).with_context(ctx)?),
+            Mv => Operand::Movement(target(rom, at).with_context(ctx)?),
+            Br => Operand::Braille(target(rom, at).with_context(ctx)?),
+            VA => Operand::VAddress(rom.u32(at)?),
+            VS => Operand::VScript(rom.u32(at)?),
+            VT => Operand::VText(rom.u32(at)?),
+        });
+        at += arg.size();
+    }
+    Ok(Some(Insn {
+        off: pc,
+        op,
+        name,
+        args: out,
+        len: at - pc,
+    }))
+}
+
 /// Walks every script reachable from `roots` (file offsets).
 pub fn walk(rom: &Rom, roots: &[u32]) -> Result<ScriptScan> {
     let mut scan = ScriptScan::default();
@@ -416,81 +508,51 @@ pub fn walk(rom: &Rom, roots: &[u32]) -> Result<ScriptScan> {
     while let Some((start, mut vdelta)) = work.pop() {
         let mut pc = start;
         while scan.visited.insert(pc) {
-            let op = rom.u8(pc)?;
-            let Some(&(name, args)) = OPS.get(op as usize) else {
-                scan.unknown.insert(pc, op);
+            let Some(insn) = decode(rom, pc)? else {
+                scan.unknown.insert(pc, rom.u8(pc)?);
                 break;
             };
-            let mut at = pc + 1;
-            let extra: &[Arg] = if op == OP_TRAINERBATTLE {
-                match trainerbattle_args(rom.u8(at)?) {
-                    Some(extra) => extra,
-                    None => {
-                        scan.unknown.insert(pc, op);
-                        break;
+            let mut stop = insn.is_terminator();
+            for arg in &insn.args {
+                match *arg {
+                    Operand::Script(s) => work.push((s, vdelta)),
+                    Operand::Text(Some(t)) => {
+                        scan.texts.insert(t);
                     }
-                }
-            } else {
-                &[]
-            };
-            let mut stop = TERMINATORS.contains(&op);
-            for (i, &arg) in args.iter().chain(extra).enumerate() {
-                let ctx = || format!("{name} at {pc:#x}");
-                match arg {
-                    B | H => {}
-                    W if op == OP_LOAD_WORD && i == 1 && rom.u8(pc + 1)? == 0 => {
-                        if let Some(t) = target(rom, at).with_context(ctx)? {
-                            scan.texts.insert(t);
-                        }
+                    Operand::Movement(Some(m)) => {
+                        scan.movements.insert(m);
                     }
-                    W => {}
-                    S => {
-                        let s = rom.ptr(at).with_context(ctx)?;
-                        work.push((
-                            s.with_context(|| format!("null target: {}", ctx()))?,
-                            vdelta,
-                        ));
+                    Operand::Braille(Some(b)) => {
+                        scan.braille.insert(b);
                     }
-                    T => {
-                        if let Some(t) = target(rom, at).with_context(ctx)? {
-                            scan.texts.insert(t);
-                        }
-                    }
-                    Mv => {
-                        if let Some(m) = target(rom, at).with_context(ctx)? {
-                            scan.movements.insert(m);
-                        }
-                    }
-                    Br => {
-                        if let Some(b) = target(rom, at).with_context(ctx)? {
-                            scan.braille.insert(b);
-                        }
-                    }
-                    VA => vdelta = Some(rom.u32(at)?.wrapping_sub(ROM_BASE + pc)),
-                    VS | VT => {
+                    Operand::VAddress(raw) => vdelta = Some(raw.wrapping_sub(ROM_BASE + pc)),
+                    Operand::VScript(raw) | Operand::VText(raw) => {
                         let Some(d) = vdelta else {
-                            scan.unknown.insert(pc, op);
+                            scan.unknown.insert(pc, insn.op);
                             stop = true;
                             break;
                         };
-                        let addr = rom.u32(at)?.wrapping_sub(d);
+                        let addr = raw.wrapping_sub(d);
                         let off = addr.wrapping_sub(ROM_BASE);
                         if addr < ROM_BASE || off as usize >= rom.bytes().len() {
-                            bail!("{}: virtual pointer {addr:#x} is outside the ROM", ctx());
+                            bail!(
+                                "{} at {pc:#x}: virtual pointer {addr:#x} is outside the ROM",
+                                insn.name
+                            );
                         }
-                        if arg == VS {
+                        if matches!(arg, Operand::VScript(_)) {
                             work.push((off, vdelta));
                         } else {
                             scan.texts.insert(off);
                         }
                     }
+                    _ => {}
                 }
-                at += arg.size();
             }
             if stop {
                 break;
             }
-            pc = at;
+            pc += insn.len;
         }
     }
     Ok(scan)
@@ -597,6 +659,34 @@ mod tests {
         s.extend(item.repeat(300));
         let err = map_scripts(&big_rom(&s, 0x1000), BASE).unwrap_err();
         assert!(format!("{err:#}").contains("list at 0x108"), "{err:#}");
+    }
+
+    #[test]
+    fn decode_gives_typed_operands_and_length() {
+        // loadword 0, text@0x180 ; warp MAP 0.9, warp 0xff, x 0x4051, y 5 ; loadword 1, 0x1234
+        let mut s = vec![0x0f, 0];
+        s.extend(p(0x180));
+        s.extend([
+            0x39, 0, 9, 0xff, 0x51, 0x40, 5, 0, 0x0f, 1, 0x34, 0x12, 0, 0,
+        ]);
+        let r = rom(&s);
+        let i = decode(&r, BASE).unwrap().unwrap();
+        assert_eq!((i.name, i.len), ("loadword", 6));
+        assert_eq!(i.args, [Operand::Byte(0), Operand::Text(Some(0x180))]);
+        let w = decode(&r, BASE + 6).unwrap().unwrap();
+        assert_eq!(
+            w.args,
+            [
+                Operand::Half(0x0900),
+                Operand::Byte(0xff),
+                Operand::Half(0x4051),
+                Operand::Half(5)
+            ]
+        );
+        let l = decode(&r, BASE + 14).unwrap().unwrap();
+        assert_eq!(l.args[1], Operand::Word(0x1234));
+        assert!(!w.is_terminator());
+        assert_eq!(decode(&rom(&[0xf0]), BASE).unwrap(), None);
     }
 
     #[test]
