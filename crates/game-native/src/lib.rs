@@ -9,6 +9,7 @@ const MAP_PX: usize = MAP_TILES * 8;
 
 /// Render BG0 into an RGB555 framebuffer, matching GBA text-BG semantics (256x256 wrap).
 pub fn render(scene: &Scene, scroll: (u16, u16), fb: &mut [u16]) {
+    assert_eq!(fb.len(), SCREEN_W * SCREEN_H);
     for y in 0..SCREEN_H {
         let py = (y + scroll.1 as usize) % MAP_PX;
         for x in 0..SCREEN_W {
@@ -67,10 +68,14 @@ mod tests {
     use engine::{Buttons, Scene, Tile};
 
     fn scene() -> Scene {
-        let tiles: &'static [Tile] =
-            Box::leak(Box::new([[0x1111_1111u32; 8], [0x2222_2222u32; 8]]));
         let mut map = [0u16; 1024];
         map[1] = 1; // tile column 1, row 0
+        scene_with(map)
+    }
+
+    fn scene_with(map: [u16; 1024]) -> Scene {
+        let tiles: &'static [Tile] =
+            Box::leak(Box::new([[0x1111_1111u32; 8], [0x2222_2222u32; 8]]));
         let mut palette = [0u16; 16];
         palette[1] = 0x001F;
         palette[2] = 0x7C00;
@@ -101,10 +106,31 @@ mod tests {
     }
 
     #[test]
+    fn vertical_scroll_shifts_and_wraps_at_256() {
+        let mut map = [0u16; 1024];
+        map[32..64].fill(1); // map row 1 is tile 1, all other rows tile 0
+        let scene = scene_with(map);
+        let mut fb = vec![0u16; SCREEN_W * SCREEN_H];
+        render(&scene, (0, 1), &mut fb);
+        assert_eq!(fb[7 * SCREEN_W], 0x7C00); // map y 8 -> row 1
+        render(&scene, (0, 250), &mut fb);
+        assert_eq!(fb[0], 0x001F); // map y 250 -> row 31
+        assert_eq!(fb[14 * SCREEN_W], 0x7C00); // map y 264 & 255 = 8 -> row 1
+    }
+
+    #[test]
     fn session_steps_and_renders() {
         let mut s = Session::new(content::Emerald);
+        let before = s.framebuffer().to_vec();
         s.step(Buttons::RIGHT);
         assert_eq!(s.world().frame(), 1);
-        assert_eq!(s.framebuffer().len(), SCREEN_W * SCREEN_H);
+        let after = s.framebuffer();
+        assert_eq!(after.len(), SCREEN_W * SCREEN_H);
+        // A one-pixel right scroll shifts the image left by one.
+        for y in [0, 37, 80, SCREEN_H - 1] {
+            for x in 0..SCREEN_W - 1 {
+                assert_eq!(after[y * SCREEN_W + x], before[y * SCREEN_W + x + 1]);
+            }
+        }
     }
 }
