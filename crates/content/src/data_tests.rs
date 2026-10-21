@@ -250,7 +250,10 @@ fn special_ids_are_the_gen3_ones() {
     assert_eq!(ids.var_last_talked, Some(consts::VAR_LAST_TALKED));
     assert_eq!(ids.flag_running, Some(consts::FLAG_SYS_B_DASH));
     assert_eq!(ids.flags_cleared_on_map_change.len(), 5);
-    assert!(ids.flags_cleared_on_map_change.contains(&consts::FLAG_SYS_USE_STRENGTH));
+    assert!(
+        ids.flags_cleared_on_map_change
+            .contains(&consts::FLAG_SYS_USE_STRENGTH)
+    );
 }
 
 #[test]
