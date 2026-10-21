@@ -325,7 +325,13 @@ fn specials(src: &str) -> Vec<(i64, String)> {
     src.lines()
         .filter_map(|l| l.trim().strip_prefix("def_special "))
         .enumerate()
-        .map(|(i, n)| (i as i64, format!("SPECIAL_{}", n.trim())))
+        // Strip `@ …` comments (`def_special ShowContestPainting  @ Unused, …`).
+        .map(|(i, n)| {
+            (
+                i as i64,
+                format!("SPECIAL_{}", n.split('@').next().unwrap().trim()),
+            )
+        })
         .collect()
 }
 
@@ -619,4 +625,36 @@ fn lookups_and_fallbacks() {
     assert_eq!(names::map_by_constant("MAP_ROUTE101").unwrap().num, 16);
     assert!(names::map(0x7F, 0x7F).is_none());
     assert_eq!(names::MAPS.len(), 518);
+}
+
+/// Content turns every name into a Rust constant, so each must be an identifier.
+#[test]
+fn every_name_is_a_rust_identifier() {
+    let ident = |s: &str| {
+        s.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    };
+    for t in [
+        &names::FLAGS,
+        &names::VARS,
+        &names::OBJ_EVENT_GFX,
+        &names::MOVEMENT_TYPES,
+        &names::MOVEMENT_ACTIONS,
+        &names::TRAINER_TYPES,
+        &names::ITEMS,
+        &names::METATILE_BEHAVIORS,
+        &names::SPECIALS,
+        &names::STD_SCRIPTS,
+        &names::MSGBOX_TYPES,
+        &names::TILESETS,
+    ] {
+        for (v, n) in t.iter() {
+            assert!(ident(n), "{}{v:#x}: {n:?}", t.prefix);
+        }
+    }
+    for m in names::MAPS {
+        assert!(ident(m.dir) && ident(m.constant), "{m:?}");
+    }
 }
