@@ -1,0 +1,21 @@
+[package]
+name = "game-gba"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+agb = "0.25.0"
+engine = { path = "../engine" }
+content = { path = "../content" }
+
+[profile.dev]
+opt-level = 3
+debug = true
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+debug = true
