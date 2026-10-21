@@ -21,6 +21,16 @@ const VBLANK_LINE: u16 = 160;
 #[unsafe(no_mangle)]
 static mut PKR_DEBUG: DebugRegion = DebugRegion::new();
 
+// The black-screen test below (`late_black`) is sound only if BLDY at `BRIGHTNESS_BLACK`
+// blackens every pixel: brightness decrease must target BG0-3, OBJ and the backdrop (BLDCNT
+// bits 0-5, mode 3), no window may exclude anything from the effect (DISPCNT bits 13-15 clear;
+// the shell never writes WININ/WINOUT), and no OBJ may be semi-transparent (OBJ mode 1 would
+// alpha-blend instead; `video::oam_entry` always writes mode 0).
+const _: () = {
+    assert!(video::BLDCNT_DARKEN_ALL == 0x3F | (3 << 6));
+    assert!(video::DISPCNT_BASE & (7 << 13) == 0);
+};
+
 fn read_keys() -> Buttons {
     Buttons::from_raw(!unsafe { KEYINPUT.read_volatile() })
 }

@@ -5,7 +5,8 @@
 //! frame's VRAM/palette commands in order. Bulk copies (tile runs, map rows, OAM) use DMA3,
 //! which halts the CPU and moves one word (or halfword) per transfer; small writes are plain
 //! word stores. Large uploads (a whole tileset) can exceed vblank: the engine does them while
-//! the screen is black, and the shell counts such frames in the debug region (`late`).
+//! the screen is black. The shell counts late applies in the debug region: `late_black` when
+//! the screen stays black before and after (nothing visible can differ), `late` otherwise.
 //!
 //! Commands are checked with `Frame::validate` in debug builds (native panics on the same
 //! errors). In release, register fields are masked to their widths; out-of-range VRAM writes
@@ -34,10 +35,10 @@ const TILE_BYTES: usize = 32;
 
 const DISPCNT_FORCED_BLANK: u16 = 1 << 7;
 /// Mode 0, OBJ 1D mapping, OBJ layer on.
-const DISPCNT_BASE: u16 = (1 << 6) | (1 << 12);
+pub const DISPCNT_BASE: u16 = (1 << 6) | (1 << 12);
 const DISPCNT_BG0: u16 = 1 << 8;
 /// Brightness decrease on BG0-3, OBJ and backdrop; with BLDY = 0 it is the identity.
-const BLDCNT_DARKEN_ALL: u16 = 0x3F | (3 << 6);
+pub const BLDCNT_DARKEN_ALL: u16 = 0x3F | (3 << 6);
 const OAM_HIDDEN: u16 = 1 << 9;
 
 const DMA_ENABLE: u32 = 1 << 31;
