@@ -111,7 +111,7 @@ const EXT_ARG_LEN: [u8; 0x19] = [
 ];
 
 /// Bytes taken by the code unit starting at `text[i]` (a character or a code and its arguments).
-fn unit_len(text: &[u8], i: usize) -> usize {
+pub(crate) fn unit_len(text: &[u8], i: usize) -> usize {
     match text.get(i).copied() {
         Some(EXT_CTRL) => match text.get(i + 1) {
             Some(&c) if (c as usize) < EXT_ARG_LEN.len() => 2 + EXT_ARG_LEN[c as usize] as usize,
