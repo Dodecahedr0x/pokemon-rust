@@ -98,6 +98,13 @@ mod tests {
         );
     }
 
+    /// The native renderer ignores flip and palette-bank bits, so content must
+    /// not use them until it supports them (or GBA and native would diverge).
+    #[test]
+    fn map_uses_no_flip_or_palette_bank_bits() {
+        assert!(Emerald.scene().map.iter().all(|&e| e & 0xFC00 == 0));
+    }
+
     #[test]
     fn palette_is_rgb555() {
         assert!(Emerald.scene().palette.iter().all(|&c| c <= 0x7FFF));

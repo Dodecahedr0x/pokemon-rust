@@ -30,6 +30,7 @@ version = "0.1.0"
 name = "game-native"
 version = "0.1.0"
 dependencies = [
+ "content",
  "engine",
 ]
 
