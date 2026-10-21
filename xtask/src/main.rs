@@ -144,25 +144,27 @@ fn extract(args: &[String]) -> Result<()> {
     }
     clear(&old)?;
     println!(
-        "ROM: {} ({}, sha1 {})",
+        "ROM: {} ({}, {}, sha1 {}), format v{}",
         rom_path.display(),
         m.game_code,
-        m.sha1
+        m.language,
+        m.sha1,
+        m.format
     );
-    println!(
-        "maps: {}",
-        m.maps.keys().cloned().collect::<Vec<_>>().join(", ")
-    );
-    println!("tilesets: {}", m.tilesets.len());
-    let ids: Vec<String> = m.sprites.keys().map(u8::to_string).collect();
-    println!("sprites: {} (ids {})", ids.len(), ids.join(", "));
-    if !m.skipped_graphics_ids.is_empty() {
-        println!("skipped graphics ids: {:?}", m.skipped_graphics_ids);
+    println!("maps: {} ({})", m.maps.len(), m.maps.join(", "));
+    println!("tilesets: {} ({})", m.tilesets.len(), m.tilesets.join(", "));
+    println!("sprites: {} ({})", m.sprites.len(), m.sprites.join(", "));
+    if !m.skipped_graphics.is_empty() {
+        let skipped: Vec<&str> = m.skipped_graphics.iter().map(String::as_str).collect();
+        println!("skipped graphics: {}", skipped.join(", "));
     }
-    println!("texts: {} ({})", m.texts, m.text_file);
-    for (map, ops) in &m.unknown_script_ops {
+    println!("font: font/latin_normal, window: window/message_box");
+    let scripts = m.files.keys().filter(|f| f.starts_with("scripts/")).count();
+    let texts = m.files.keys().filter(|f| f.starts_with("text/")).count();
+    println!("scripts: {scripts} files, texts: {texts} files");
+    for (script, ops) in &m.unknown_script_ops {
         println!(
-            "warning: {map}: {} undecoded script instructions",
+            "warning: {script}: {} undecoded script instructions",
             ops.len()
         );
     }

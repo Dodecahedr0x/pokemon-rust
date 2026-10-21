@@ -8,7 +8,6 @@
 
 use crate::Rom;
 use anyhow::{Context, Result, bail};
-use serde::{Deserialize, Serialize};
 
 /// Number of glyphs in the font (`latin_normal.png` is 256x512 px: 32 rows of 16 glyphs).
 pub const GLYPH_COUNT: usize = 512;
@@ -26,7 +25,7 @@ const ANCHOR: [u8; GLYPH_BYTES] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Font {
     /// Glyph cell width in pixels (16).
     pub glyph_width_max: u8,
@@ -73,12 +72,6 @@ fn decode_glyph(bytes: &[u8]) -> Vec<u8> {
         }
     }
     px
-}
-
-/// Locates then reads the font.
-pub fn read_latin_normal(rom: &Rom) -> Result<Font> {
-    let (glyphs_off, widths_off) = locate_latin_normal(rom)?;
-    read_latin_normal_at(rom, glyphs_off, widths_off)
 }
 
 /// Reads the font from offsets returned by [`locate_latin_normal`] (avoids a second scan).

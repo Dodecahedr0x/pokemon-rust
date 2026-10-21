@@ -3,12 +3,11 @@
 //! `gMapGroups` is found by anchoring on the first 64 bytes of Littleroot's `map.bin`, then following
 //! pointers back: map.bin -> `MapLayout` -> `MapHeader` -> group-0 table -> `gMapGroups`.
 
-use crate::Rom;
+use crate::{Rom, names};
 use anyhow::{Context, Result, bail, ensure};
-use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct MapId {
     pub group: u8,
     pub num: u8,
@@ -17,12 +16,6 @@ pub struct MapId {
 pub const LITTLEROOT: MapId = MapId { group: 0, num: 9 };
 pub const OLDALE: MapId = MapId { group: 0, num: 10 };
 pub const ROUTE101: MapId = MapId { group: 0, num: 16 };
-
-/// Maps per group, from `data/maps/map_groups.json` (`group_order`).
-const GROUP_SIZES: [u8; 34] = [
-    57, 5, 5, 6, 7, 8, 9, 7, 7, 14, 8, 17, 10, 23, 13, 15, 15, 2, 2, 2, 3, 1, 1, 1, 108, 61, 89, 2,
-    1, 13, 1, 1, 3, 1,
-];
 
 /// First 64 bytes of `data/layouts/LittlerootTown/map.bin` (unchanged in every Western ROM).
 const LITTLEROOT_ANCHOR: [u8; 64] = [
@@ -36,19 +29,21 @@ const LITTLEROOT_LAYOUT_ID: u16 = 10;
 const LITTLEROOT_WIDTH: u32 = 20;
 const LITTLEROOT_HEIGHT: u32 = 20;
 
-const MAX_METATILES: u32 = 512;
+/// Tiles per tileset in VRAM (`NUM_TILES_IN_PRIMARY`): the base index of secondary tiles.
+pub const TILES_PER_TILESET: usize = 512;
+/// Metatiles per tileset (`NUM_METATILES_IN_PRIMARY`): the base id of secondary metatiles.
+pub const METATILES_PER_TILESET: usize = 512;
 const METATILE_SIZE: u32 = 16;
 /// Largest map dimension accepted before reading block data (Emerald's biggest is well under this).
 const MAX_DIM: u32 = 0x400;
 
 /// `gMapGroups`: `offset` is the table itself, `groups[g][n]` the file offset of each `MapHeader`.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MapTable {
     pub offset: u32,
     pub groups: Vec<Vec<u32>>,
     /// Sorted metatiles/attributes pointers of every tileset the table uses, filled by the first
     /// `read_tileset`. Not serialized and ignored by `PartialEq`.
-    #[serde(skip)]
     tileset_bounds: BoundsCache,
 }
 
@@ -71,7 +66,7 @@ impl std::fmt::Debug for BoundsCache {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MapHeader {
     pub offset: u32,
     pub layout: MapLayout,
@@ -91,7 +86,7 @@ pub struct MapHeader {
     pub battle_type: u8,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MapLayout {
     pub offset: u32,
     pub width: u16,
@@ -108,7 +103,7 @@ pub struct MapLayout {
 
 /// A `Tileset` struct. Pointers are file offsets; `metatiles` holds `metatile_count * 8` u16 and
 /// `metatile_attributes` holds `metatile_count` u16.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TilesetRef {
     pub offset: u32,
     pub compressed: bool,
@@ -120,7 +115,7 @@ pub struct TilesetRef {
     pub metatile_count: u16,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ObjectEvent {
     pub local_id: u8,
     pub graphics_id: u8,
@@ -136,7 +131,7 @@ pub struct ObjectEvent {
     pub flag_id: u16,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Warp {
     pub x: i16,
     pub y: i16,
@@ -145,7 +140,7 @@ pub struct Warp {
     pub dest: MapId,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CoordEvent {
     pub x: i16,
     pub y: i16,
@@ -155,14 +150,14 @@ pub struct CoordEvent {
     pub script: Option<u32>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BgEventKind {
     Script(Option<u32>),
     HiddenItem { item: u16, hidden_item_id: u16 },
     SecretBase(u32),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BgEvent {
     pub x: u16,
     pub y: u16,
@@ -171,7 +166,7 @@ pub struct BgEvent {
     pub kind: BgEventKind,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MapEvents {
     pub objects: Vec<ObjectEvent>,
     pub warps: Vec<Warp>,
@@ -180,7 +175,7 @@ pub struct MapEvents {
 }
 
 /// Decomp `CONNECTION_*` order (1 = south … 6 = emerge).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Direction {
     South,
     North,
@@ -204,7 +199,7 @@ impl Direction {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Connection {
     pub direction: Direction,
     pub offset: i32,
@@ -213,11 +208,6 @@ pub struct Connection {
 
 const BG_EVENT_HIDDEN_ITEM: u8 = 7;
 const BG_EVENT_SECRET_BASE: u8 = 8;
-
-fn req_ptr(rom: &Rom, off: u32, what: &str) -> Result<u32> {
-    rom.ptr(off)?
-        .with_context(|| format!("null {what} pointer at {off:#x}"))
-}
 
 /// Locates `gMapGroups` from the Littleroot map.bin anchor.
 pub fn locate_map_table(rom: &Rom) -> Result<MapTable> {
@@ -276,12 +266,13 @@ pub fn locate_map_table(rom: &Rom) -> Result<MapTable> {
 }
 
 fn read_groups(rom: &Rom, table: u32) -> Result<Vec<Vec<u32>>> {
-    let mut groups = Vec::with_capacity(GROUP_SIZES.len());
-    for (g, &size) in GROUP_SIZES.iter().enumerate() {
-        let list = req_ptr(rom, table + 4 * g as u32, "map group")?;
+    let sizes = names::group_sizes();
+    let mut groups = Vec::with_capacity(sizes.len());
+    for (g, &size) in sizes.iter().enumerate() {
+        let list = rom.req_ptr(table + 4 * g as u32, "map group")?;
         let mut headers = Vec::with_capacity(size as usize);
         for n in 0..size as u32 {
-            headers.push(req_ptr(rom, list + 4 * n, "map header")?);
+            headers.push(rom.req_ptr(list + 4 * n, "map header")?);
         }
         groups.push(headers);
     }
@@ -305,8 +296,8 @@ impl MapTable {
 }
 
 pub fn read_header(rom: &Rom, off: u32) -> Result<MapHeader> {
-    let layout = read_layout(rom, req_ptr(rom, off, "layout")?)?;
-    let events = read_events(rom, req_ptr(rom, off + 4, "events")?)?;
+    let layout = read_layout(rom, rom.req_ptr(off, "layout")?)?;
+    let events = read_events(rom, rom.req_ptr(off + 4, "events")?)?;
     let connections = match rom.ptr(off + 0x0C)? {
         Some(c) => read_connections(rom, c)?,
         None => Vec::new(),
@@ -332,30 +323,23 @@ pub fn read_header(rom: &Rom, off: u32) -> Result<MapHeader> {
     })
 }
 
-fn u16s(bytes: &[u8]) -> Vec<u16> {
-    bytes
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
-        .collect()
-}
-
 pub fn read_layout(rom: &Rom, off: u32) -> Result<MapLayout> {
     let (width, height) = (rom.u32(off)?, rom.u32(off + 4)?);
     ensure!(
         (1..=MAX_DIM).contains(&width) && (1..=MAX_DIM).contains(&height),
         "layout at {off:#x} has bad size {width}x{height}"
     );
-    let border = u16s(rom.slice(req_ptr(rom, off + 8, "border")?, 2 * 4)?);
-    let blocks_off = req_ptr(rom, off + 0x0C, "block data")?;
-    let blocks = u16s(rom.slice(blocks_off, 2 * (width * height) as usize)?);
+    let border = rom.u16s(rom.req_ptr(off + 8, "border")?, 4)?;
+    let blocks_off = rom.req_ptr(off + 0x0C, "block data")?;
+    let blocks = rom.u16s(blocks_off, (width * height) as usize)?;
     Ok(MapLayout {
         offset: off,
         width: width as u16,
         height: height as u16,
         border,
         blocks,
-        primary_tileset: req_ptr(rom, off + 0x10, "primary tileset")?,
-        secondary_tileset: req_ptr(rom, off + 0x14, "secondary tileset")?,
+        primary_tileset: rom.req_ptr(off + 0x10, "primary tileset")?,
+        secondary_tileset: rom.req_ptr(off + 0x14, "secondary tileset")?,
     })
 }
 
@@ -371,7 +355,7 @@ fn records<T>(
     if count == 0 {
         return Ok(Vec::new());
     }
-    let base = req_ptr(rom, ptr_off, what)?;
+    let base = rom.req_ptr(ptr_off, what)?;
     (0..count as u32).map(|i| read(base + i * size)).collect()
 }
 
@@ -476,9 +460,9 @@ impl MapTable {
         }
         let mut bounds = Vec::new();
         for &header in self.groups.iter().flatten() {
-            let layout = req_ptr(rom, header, "layout")?;
+            let layout = rom.req_ptr(header, "layout")?;
             for slot in [0x10, 0x14] {
-                let other = read_tileset_struct(rom, req_ptr(rom, layout + slot, "tileset")?)?;
+                let other = read_tileset_struct(rom, rom.req_ptr(layout + slot, "tileset")?)?;
                 bounds.push(other.metatiles);
                 bounds.push(other.metatile_attributes);
             }
@@ -512,7 +496,7 @@ pub fn read_tileset(rom: &Rom, off: u32, all: &MapTable) -> Result<TilesetRef> {
                 ts.metatiles
             )
         })?;
-    let count = ((next - ts.metatiles) / METATILE_SIZE).min(MAX_METATILES);
+    let count = ((next - ts.metatiles) / METATILE_SIZE).min(METATILES_PER_TILESET as u32);
     ensure!(count > 0, "tileset at {off:#x} has no metatiles");
     rom.slice(ts.metatiles, (count * METATILE_SIZE) as usize)?;
     rom.slice(ts.metatile_attributes, (count * 2) as usize)?;
@@ -534,12 +518,55 @@ fn read_tileset_struct(rom: &Rom, off: u32) -> Result<TilesetRef> {
         offset: off,
         compressed: flag(off)?,
         secondary: flag(off + 1)?,
-        tiles: req_ptr(rom, off + 4, "tileset tiles")?,
-        palettes: req_ptr(rom, off + 8, "tileset palettes")?,
-        metatiles: req_ptr(rom, off + 0x0C, "tileset metatiles")?,
-        metatile_attributes: req_ptr(rom, off + 0x10, "tileset metatile attributes")?,
+        tiles: rom.req_ptr(off + 4, "tileset tiles")?,
+        palettes: rom.req_ptr(off + 8, "tileset palettes")?,
+        metatiles: rom.req_ptr(off + 0x0C, "tileset metatiles")?,
+        metatile_attributes: rom.req_ptr(off + 0x10, "tileset metatile attributes")?,
         metatile_count: 0,
     })
+}
+
+/// The `Tileset` header structs, which sit in the ROM in `src/data/tilesets/headers.h` order
+/// ([`names::TILESETS`]) starting with `gTileset_General`, at the byte offsets
+/// [`names::TILESET_HEADER_OFFSETS`] (0x18-byte structs, plus two 4-byte `Tileset` pointers
+/// defined among them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TilesetHeaders {
+    /// File offset of `gTileset_General`.
+    pub offset: u32,
+}
+
+impl TilesetHeaders {
+    /// Littleroot's primary tileset is `gTileset_General`, the first header. Every header must
+    /// read as a `Tileset`.
+    pub fn locate(rom: &Rom, table: &MapTable) -> Result<TilesetHeaders> {
+        let general = table.header(rom, LITTLEROOT)?.layout.primary_tileset;
+        for ((i, name), rel) in names::TILESETS.iter().zip(names::TILESET_HEADER_OFFSETS) {
+            let off = general + rel;
+            read_tileset_struct(rom, off)
+                .with_context(|| format!("tileset header {i} (gTileset_{name}) at {off:#x}"))?;
+        }
+        Ok(TilesetHeaders { offset: general })
+    }
+
+    /// The decomp name (`General`, `Petalburg`) of the `Tileset` struct at file offset `off`.
+    pub fn name(&self, off: u32) -> Result<&'static str> {
+        off.checked_sub(self.offset)
+            .and_then(|rel| names::TILESET_HEADER_OFFSETS.iter().position(|&r| r == rel))
+            .and_then(|i| names::TILESETS.name(i as u32))
+            .with_context(|| {
+                format!(
+                    "tileset at {off:#x} is not a header of the array at {:#x}",
+                    self.offset
+                )
+            })
+    }
+
+    /// File offset of the `Tileset` struct named `name`.
+    pub fn offset_of(&self, name: &str) -> Option<u32> {
+        let i = names::TILESETS.value(name)? as usize;
+        Some(self.offset + names::TILESET_HEADER_OFFSETS.get(i)?)
+    }
 }
 
 #[cfg(test)]
@@ -557,11 +584,6 @@ mod tests {
 
     fn put(buf: &mut [u8], at: usize, v: &[u8]) {
         buf[at..at + v.len()].copy_from_slice(v);
-    }
-
-    #[test]
-    fn group_sizes_sum_to_518() {
-        assert_eq!(GROUP_SIZES.iter().map(|&s| s as u32).sum::<u32>(), 518);
     }
 
     #[test]

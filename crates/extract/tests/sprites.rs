@@ -206,7 +206,7 @@ fn berry_tree_sprites_export_with_mixed_frame_sizes() {
             let g = table.get(&rom, id(gfx)).unwrap();
             let (img, file) =
                 extract::export::sprite(&g).unwrap_or_else(|e| panic!("{name}: {gfx}: {e:#}"));
-            assert_eq!(file.frames, g.frames.len(), "{name}: {gfx}");
+            assert_eq!(file.frame_sizes.len(), g.frames.len(), "{name}: {gfx}");
             assert!(file.frame_sizes.contains(&(16, 32)), "{name}: {gfx}");
             assert_eq!(
                 (img.width, img.height),

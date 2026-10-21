@@ -1,12 +1,18 @@
 //! Gen 3 Western text codec. The text form is the decomp's `.string` syntax: `\n`, `\l`, `\p`
 //! escapes and `{NAME args}` constants from `charmap.txt`, parsed the way `tools/preproc` does.
 //! The 0xFF terminator is implicit: `decode` stops after it and `encode` appends it.
+//!
+//! The codec is language-aware ([`Lang`]): the decomp charmap is the English one, and a language
+//! overlay remaps the bytes whose glyphs a localized ROM redraws as other characters. BPEF draws
+//! 0xB1/0xB2 (`“`/`”` in English) as `«`/`»`. Its other redrawn glyphs (0x34 `{LV}` drawn `N.`,
+//! the unused 0x57-0x59, 0x64, 0x105, 0x108: abbreviation ligatures, not characters) keep
+//! their English spelling.
 
 /// The generated charmap tables; public only so the drift test can compare them to the decomp.
 #[doc(hidden)]
 pub mod charmap;
 
-use crate::Rom;
+use crate::{GameCode, Rom};
 use anyhow::{Context, Result, bail};
 use charmap::{CHARS, COLORS, CONSTANTS, DECODE_CHARS, ESCAPES, SOUNDS, SYMBOLS};
 use std::fmt::Write;
@@ -17,6 +23,43 @@ const PLACEHOLDER: u8 = 0xFD;
 const DYNAMIC: u8 = 0xF7;
 const KEYPAD_ICON: u8 = 0xF8;
 const EXTRA_SYMBOL: u8 = 0xF9;
+
+/// Which charmap a ROM's text uses.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Lang {
+    /// English (BPEE): the decomp's `charmap.txt`.
+    En,
+    /// French (BPEF): the English charmap with [`FR_OVERLAY`].
+    Fr,
+}
+
+impl Lang {
+    pub fn of(code: GameCode) -> Lang {
+        match code {
+            GameCode::Bpee => Lang::En,
+            GameCode::Bpef => Lang::Fr,
+        }
+    }
+
+    /// `"en"` or `"fr"`: `manifest.language` and the `text/<lang>.ron` file name.
+    pub fn code(self) -> &'static str {
+        match self {
+            Lang::En => "en",
+            Lang::Fr => "fr",
+        }
+    }
+
+    /// Bytes this language draws as a different character than English.
+    pub fn overlay(self) -> &'static [(u8, char)] {
+        match self {
+            Lang::En => &[],
+            Lang::Fr => FR_OVERLAY,
+        }
+    }
+}
+
+/// BPEF redraws the English curly double quotes as guillemets.
+pub const FR_OVERLAY: &[(u8, char)] = &[(0xB1, '«'), (0xB2, '»')];
 
 /// How an `EXT_CTRL_CODE` (0xFC xx) argument byte group is shown.
 #[derive(Clone, Copy)]
@@ -58,6 +101,16 @@ const EXT_CODES: [(&str, &[Arg]); 0x19] = {
     ]
 };
 
+/// [`decode_lang`] with the English charmap.
+pub fn decode(bytes: &[u8]) -> Result<(String, usize)> {
+    decode_lang(bytes, Lang::En)
+}
+
+/// [`encode_lang`] with the English charmap.
+pub fn encode(s: &str) -> Result<Vec<u8>> {
+    encode_lang(s, Lang::En)
+}
+
 /// Decodes one string up to and including its 0xFF terminator. Returns the text and the number
 /// of bytes consumed (terminator included).
 ///
@@ -68,7 +121,8 @@ const EXT_CODES: [(&str, &[Arg]); 0x19] = {
 /// Battle placeholders share 0xFD codes with field placeholders (`B_BUFF2` and `PLAYER` are both
 /// FD 01, for instance). Decoding always uses the field names (FD 01 → `{PLAYER}`), so extracting
 /// battle strings must remap FD 00–0D to their `B_*` names. FD 0E and above only have battle names.
-pub fn decode(bytes: &[u8]) -> Result<(String, usize)> {
+pub fn decode_lang(bytes: &[u8], lang: Lang) -> Result<(String, usize)> {
+    let overlay = lang.overlay();
     let mut out = String::new();
     let mut i = 0;
     let byte = |j: usize| {
@@ -84,6 +138,11 @@ pub fn decode(bytes: &[u8]) -> Result<(String, usize)> {
         }
         if let Some(&(c, _)) = ESCAPES.iter().find(|&&(_, e)| e == b) {
             out.push('\\');
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        if let Some(&(_, c)) = overlay.iter().find(|&&(o, _)| o == b) {
             out.push(c);
             i += 1;
             continue;
@@ -152,9 +211,11 @@ pub fn decode(bytes: &[u8]) -> Result<(String, usize)> {
     }
 }
 
-/// Encodes `.string` text (without the `$` terminator) and appends 0xFF.
-pub fn encode(s: &str) -> Result<Vec<u8>> {
+/// Encodes `.string` text (without the `$` terminator) and appends 0xFF. Characters whose byte
+/// `lang` redraws (English `“`/`”` in French) are rejected.
+pub fn encode_lang(s: &str, lang: Lang) -> Result<Vec<u8>> {
     let mut p = Parser {
+        overlay: lang.overlay(),
         chars: s.chars().collect(),
         pos: 0,
         out: Vec::new(),
@@ -165,6 +226,7 @@ pub fn encode(s: &str) -> Result<Vec<u8>> {
 }
 
 struct Parser {
+    overlay: &'static [(u8, char)],
     chars: Vec<char>,
     pos: usize,
     out: Vec<u8>,
@@ -198,8 +260,12 @@ impl Parser {
                     bail!("unexpected character U+{:X} at char {}", c as u32, self.pos)
                 }
                 c => {
-                    let Some(&(_, b)) = CHARS.iter().find(|&&(m, _)| m == c) else {
-                        bail!("unknown character {c:?} at char {}", self.pos)
+                    let b = match self.overlay.iter().find(|&&(_, o)| o == c) {
+                        Some(&(b, _)) => b,
+                        None => match CHARS.iter().find(|&&(m, _)| m == c) {
+                            Some(&(_, b)) if self.overlay.iter().all(|&(o, _)| o != b) => b,
+                            _ => bail!("unknown character {c:?} at char {}", self.pos),
+                        },
                     };
                     self.out.push(b);
                     self.pos += 1;
@@ -295,15 +361,34 @@ impl Parser {
 }
 
 impl Rom {
-    /// Decodes the 0xFF-terminated string at file offset `off`.
+    pub fn lang(&self) -> Lang {
+        Lang::of(self.code())
+    }
+
+    /// Decodes the 0xFF-terminated string at file offset `off` with the ROM's charmap.
     pub fn string_at(&self, off: u32) -> Result<String> {
+        Ok(self.string_and_len_at(off)?.0)
+    }
+
+    fn string_and_len_at(&self, off: u32) -> Result<(String, usize)> {
         let bytes = self
             .bytes()
             .get(off as usize..)
             .with_context(|| format!("string offset 0x{off:x} is outside the ROM"))?;
-        let (s, _) = decode(bytes).with_context(|| format!("string at 0x{off:x}"))?;
-        Ok(s)
+        decode_lang(bytes, self.lang()).with_context(|| format!("string at 0x{off:x}"))
     }
+}
+
+/// Decodes the string at `off` with the ROM's charmap and checks that re-encoding the text gives
+/// exactly the ROM bytes (terminator included). Returns the text.
+pub fn round_trip_at(rom: &Rom, off: u32) -> Result<String> {
+    let (s, len) = rom.string_and_len_at(off)?;
+    let bytes = encode_lang(&s, rom.lang()).with_context(|| format!("string at 0x{off:x}"))?;
+    let want = rom.slice(off, len)?;
+    if bytes != want {
+        bail!("string at 0x{off:x} ({s:?}) re-encodes to {bytes:02x?}, ROM has {want:02x?}");
+    }
+    Ok(s)
 }
 
 #[cfg(test)]
@@ -433,6 +518,37 @@ mod tests {
         ] {
             assert!(encode(bad).is_err(), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn french_overlay_maps_guillemets() {
+        let bytes = [0xB1, 0x00, 0xBB, 0x00, 0xB2, 0xFF];
+        assert_eq!(decode_lang(&bytes, Lang::Fr).unwrap().0, "« A »");
+        assert_eq!(decode_lang(&bytes, Lang::En).unwrap().0, "“ A ”");
+        assert_eq!(encode_lang("« A »", Lang::Fr).unwrap(), bytes);
+        assert_eq!(encode_lang("“ A ”", Lang::En).unwrap(), bytes);
+        assert!(encode_lang("“", Lang::Fr).is_err());
+        assert!(encode_lang("«", Lang::En).is_err());
+        // Everything else is shared.
+        assert_eq!(
+            encode_lang("Héhé {PLAYER}\\n{LV}", Lang::Fr).unwrap(),
+            encode("Héhé {PLAYER}\\n{LV}").unwrap()
+        );
+        assert_eq!(Lang::of(GameCode::Bpef).code(), "fr");
+        assert_eq!(Lang::of(GameCode::Bpee), Lang::En);
+    }
+
+    #[test]
+    fn round_trip_at_checks_rom_bytes() {
+        let mut b = vec![0u8; 0xC0];
+        b[0xAC..0xB0].copy_from_slice(b"BPEF");
+        // "«A»", then "'" whose terminator is the last ROM byte.
+        b.extend([0xB1, 0xBB, 0xB2, 0xFF, 0xB4, 0xFF, 0xB4]);
+        let rom = Rom::from_bytes(b).unwrap();
+        assert_eq!(round_trip_at(&rom, 0xC0).unwrap(), "«A»");
+        assert_eq!(rom.string_at(0xC4).unwrap(), "'");
+        assert_eq!(round_trip_at(&rom, 0xC4).unwrap(), "'");
+        assert!(round_trip_at(&rom, 0xC6).is_err(), "unterminated");
     }
 
     #[test]

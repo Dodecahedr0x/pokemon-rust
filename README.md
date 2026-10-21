@@ -35,19 +35,30 @@ the extractor's unit tests, which need none of these.
 1. Place the ROM at `rom/emeraude-fr.gba` (or pass `--rom <path>`; BPEE also works).
 2. Run `cargo xtask extract`. It exports into `content/.extracted.tmp/` and, only if that succeeds,
    replaces `content/extracted/` with it (a failed run keeps the previous output). It prints a
-   summary (maps, tilesets, sprite ids, text count, any undecoded script instructions).
-3. See the output in `content/extracted/`:
-   - `manifest.ron`: game code, ROM sha1, every ROM offset used, sha1 of every other file
-   - `maps/<Map>/map.ron`: header, layout blocks (one map row per line), events, connections,
-     script and text refs (Littleroot, Oldale, Route 101)
-   - `tilesets/<offset>/`: `tiles.png` plus palettes, metatiles and attributes as RON
-   - `sprites/<id>.png` + `.ron`: overworld sprites used by those maps, plus Brendan and May
+   summary (maps, tilesets, sprites, skipped graphics, any undecoded script instructions).
+3. See the output in `content/extracted/` (format v2, described in `crates/extract/src/schema.rs`).
+   Everything is named with decomp identifiers (`LittlerootTown`, `General`, `FLAG_HIDE_…`,
+   `OBJ_EVENT_GFX_…`); ROM offsets only appear in the manifest:
+   - `manifest.ron`: format, game code, language, ROM sha1, the exported maps, tilesets and
+     sprites, the ROM offset of everything read (`provenance`), sha1 of every other file
+   - `maps/<Map>.ron`: header, layout (tileset names, blocks one map row per line), objects,
+     warps, coord and bg events, connections and map scripts. Script references use the root
+     names of `schema.rs` (`LittlerootTown_Obj1`, `Route101_Coord0`, `OldaleTown_OnTransition`).
+     The 15 maps: Littleroot Town, Routes 101–103, Oldale Town, and the Littleroot and Oldale
+     interiors
+   - `tilesets/<Name>.png` + `.ron`: tiles (with the tileset's first palette), palettes,
+     metatiles and attributes
+   - `sprites/<Gfx>.png` + `.ron`: overworld sprites the maps use (also through
+     `VAR_OBJ_GFX_ID_*`), plus Brendan and May
    - `font/latin_normal.png` + `.ron`: the Latin font and its glyph widths
-   - `text/fr.ron` (`text/en.ron` for a BPEE ROM): every text the maps' scripts show, keyed
-     `<Map>.<hex offset>`, as raw strings in the decomp `.string` syntax (`\p`, `\n`, `{PLAYER}`)
+   - `window/message_box.png` + `.ron`: the dialogue window frame, its palette and text colors
    - `previews/<Map>.png`: map renders
 
-The output is deterministic: two runs on the same ROM give identical files.
+   Texts (`text/<lang>.ron`) and generated scripts (`scripts/`) are not written yet.
+
+The output is deterministic: two runs on the same ROM give identical files. The decomp
+identifier tables live in `crates/extract/src/names/generated.rs`, checked against the decomp by
+`tests/names.rs` (`PKR_BLESS=1 cargo test -p extract --test names` regenerates them).
 
 ## Layout
 - `crates/engine`: game-agnostic `no_std` core

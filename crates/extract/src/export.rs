@@ -1,44 +1,54 @@
-//! Writes everything the other modules read from the ROM as editable files (see
-//! docs/plans/2026-10-21-milestone-2-extract.md, Task H):
+//! Writes `content/extracted/` in the v2 format of [`crate::schema`]: maps, tilesets, sprites,
+//! font, window graphics and previews, all named by decomp identifiers. Texts and scripts are
+//! written by [`export_scripts`] (Milestone 3 Task B).
 //!
-//! ```text
-//! manifest.ron                 game code, sha1, every ROM offset used, sha1 of every other file
-//! maps/<Map>/map.ron           MapFile: header, layout, events, connections, script refs
-//! tilesets/<hex>/tiles.png     indexed, 16 tiles per row, palette 0
-//! tilesets/<hex>/{palettes,metatiles,attributes}.ron
-//! sprites/<id>.png + .ron      frames side by side with their own palette; size, frame sizes, tag
-//! font/latin_normal.png + .ron 2bpp glyph sheet (gbagfx layout and palette); widths
-//! text/<fr,en>.ron            "<Map>.<hex offset>" -> string, for every text the maps' scripts show
-//! previews/<Map>.png           map render
-//! ```
-//!
-//! Output is deterministic: maps are sorted (`BTreeMap`/`BTreeSet`) and the RON style is fixed.
+//! Output is deterministic: everything is ordered (`BTreeMap`/`BTreeSet`, fixed map order) and
+//! the RON style is fixed.
 
-use crate::gfx::{self, IndexedImage, Palette};
-use crate::maps::{
-    self, Connection, LITTLEROOT, MapEvents, MapHeader, MapId, MapLayout, OLDALE, ROUTE101,
-    TilesetRef,
+use crate::gfx::{self, IndexedImage, Palette, TILE_BYTES};
+use crate::maps::{self, BgEventKind, Direction, MapHeader, MapId, TilesetHeaders};
+use crate::render::{self, NUM_PALS_IN_PRIMARY, TilesetData};
+use crate::roots::{self, MapScriptTable};
+use crate::schema::{
+    self, Bg, BgKind, Connection, ConnectionDir, Coord, FontFile, Header, Hex, Layout, Manifest,
+    MapFile, MapScripts, Object, SpriteFile, TilesetFile, VarScript, Warp, WindowFile,
 };
-use crate::render::{self, TilesetData};
-use crate::sprites::{self, ObjectGraphics, ObjectGraphicsTable};
-use crate::{GameCode, Rom, font, scripts};
+use crate::sprites::{self, ObjectGraphics};
+use crate::{GameCode, Rom, font, names, scripts, window};
 use anyhow::{Context, Result, ensure};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-/// The exported maps and their directory names (decomp `MAP_*` names in CamelCase).
-pub const MAPS: [(MapId, &str); 3] = [
-    (LITTLEROOT, "LittlerootTown"),
-    (OLDALE, "OldaleTown"),
-    (ROUTE101, "Route101"),
+/// The exported maps (decomp directory names), in export order. This order decides canonical
+/// script names (see `schema.rs`).
+pub const MAPS: [&str; 15] = [
+    "LittlerootTown",
+    "Route101",
+    "OldaleTown",
+    "Route102",
+    "Route103",
+    "LittlerootTown_BrendansHouse_1F",
+    "LittlerootTown_BrendansHouse_2F",
+    "LittlerootTown_MaysHouse_1F",
+    "LittlerootTown_MaysHouse_2F",
+    "LittlerootTown_ProfessorBirchsLab",
+    "OldaleTown_House1",
+    "OldaleTown_House2",
+    "OldaleTown_PokemonCenter_1F",
+    "OldaleTown_PokemonCenter_2F",
+    "OldaleTown_Mart",
 ];
 
-/// `OBJ_EVENT_GFX_BRENDAN_NORMAL`.
-pub const BRENDAN_NORMAL: u8 = 0;
-/// `OBJ_EVENT_GFX_MAY_NORMAL`.
-pub const MAY_NORMAL: u8 = 89;
+/// Sprites exported even if no exported map places them: the player characters. Emerald has no
+/// separate running sprite: Brendan's and May's run frames are frames 9-17 of `*_NORMAL`.
+pub const PLAYER_SPRITES: [&str; 2] = ["OBJ_EVENT_GFX_BRENDAN_NORMAL", "OBJ_EVENT_GFX_MAY_NORMAL"];
 
+const GFX_PREFIX: &str = "OBJ_EVENT_GFX_";
+/// First `VAR_OBJ_GFX_ID_*` var; the 16 of them select the `OBJ_EVENT_GFX_VAR_*` graphics.
+const VAR_OBJ_GFX_ID_0: u16 = 0x4010;
+/// `setvar` (`data/script_cmd_table.inc`).
+const OP_SETVAR: u8 = 0x16;
 /// gbagfx's font palette (`gFontPalette` in `tools/gbagfx/font.c`).
 const FONT_PALETTE: [[u8; 3]; 4] = [
     [0x90, 0xC8, 0xFF],
@@ -49,279 +59,6 @@ const FONT_PALETTE: [[u8; 3]; 4] = [
 /// Glyphs per row of `latin_normal.png` (256 px wide like the decomp's).
 const FONT_GLYPHS_PER_ROW: usize = 16;
 const TILESET_TILES_PER_ROW: u32 = 16;
-
-/// `maps/<Map>/map.ron`: a `MapHeader` with the layout blocks written one map row per line.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct MapFile {
-    pub name: String,
-    pub id: MapId,
-    pub header: HeaderFile,
-    pub layout: LayoutFile,
-    pub events: MapEvents,
-    pub connections: Vec<Connection>,
-    pub scripts: MapScripts,
-}
-
-/// The scalar fields of a `MapHeader` (offsets are ROM file offsets).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct HeaderFile {
-    pub offset: u32,
-    pub map_scripts: Option<u32>,
-    pub music: u16,
-    pub layout_id: u16,
-    pub region_map_section: u8,
-    pub cave: u8,
-    pub weather: u8,
-    pub map_type: u8,
-    pub allow_cycling: bool,
-    pub allow_escaping: bool,
-    pub allow_running: bool,
-    pub show_map_name: bool,
-    pub battle_type: u8,
-}
-
-/// A `MapLayout` with `border` (2 rows) and `blocks` (`height` rows) as rows of raw blocks.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct LayoutFile {
-    pub offset: u32,
-    pub width: u16,
-    pub height: u16,
-    pub border: Vec<Row>,
-    pub blocks: Vec<Row>,
-    pub primary_tileset: u32,
-    pub secondary_tileset: u32,
-}
-
-/// One row of blocks, written on a single line as a RON tuple.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Row(pub Vec<u16>);
-
-impl Serialize for Row {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        use serde::ser::SerializeTuple;
-        let mut t = s.serialize_tuple(self.0.len())?;
-        for v in &self.0 {
-            t.serialize_element(v)?;
-        }
-        t.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Row {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Row, D::Error> {
-        struct V;
-        impl<'de> serde::de::Visitor<'de> for V {
-            type Value = Row;
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a tuple of u16 blocks")
-            }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> std::result::Result<Row, A::Error> {
-                let mut row = Vec::new();
-                while let Some(v) = seq.next_element()? {
-                    row.push(v);
-                }
-                Ok(Row(row))
-            }
-        }
-        d.deserialize_tuple(usize::MAX, V)
-    }
-}
-
-fn to_rows(blocks: &[u16], width: usize) -> Vec<Row> {
-    blocks
-        .chunks(width.max(1))
-        .map(|r| Row(r.to_vec()))
-        .collect()
-}
-
-impl MapFile {
-    pub fn new(name: &str, id: MapId, h: MapHeader, scripts: MapScripts) -> MapFile {
-        let l = h.layout;
-        MapFile {
-            name: name.to_string(),
-            id,
-            header: HeaderFile {
-                offset: h.offset,
-                map_scripts: h.map_scripts,
-                music: h.music,
-                layout_id: h.layout_id,
-                region_map_section: h.region_map_section,
-                cave: h.cave,
-                weather: h.weather,
-                map_type: h.map_type,
-                allow_cycling: h.allow_cycling,
-                allow_escaping: h.allow_escaping,
-                allow_running: h.allow_running,
-                show_map_name: h.show_map_name,
-                battle_type: h.battle_type,
-            },
-            layout: LayoutFile {
-                offset: l.offset,
-                width: l.width,
-                height: l.height,
-                border: to_rows(&l.border, 2),
-                blocks: to_rows(&l.blocks, l.width.into()),
-                primary_tileset: l.primary_tileset,
-                secondary_tileset: l.secondary_tileset,
-            },
-            events: h.events,
-            connections: h.connections,
-            scripts,
-        }
-    }
-
-    /// The `MapHeader` this file describes. Errors if the rows do not match `width`/`height`.
-    pub fn to_header(&self) -> Result<MapHeader> {
-        let l = &self.layout;
-        let (w, h) = (usize::from(l.width), usize::from(l.height));
-        ensure!(
-            l.blocks.len() == h && l.blocks.iter().all(|r| r.0.len() == w),
-            "map {}: blocks are not {h} rows of {w}",
-            self.name
-        );
-        ensure!(
-            l.border.len() == 2 && l.border.iter().all(|r| r.0.len() == 2),
-            "map {}: border is not 2 rows of 2",
-            self.name
-        );
-        let flat = |rows: &[Row]| rows.iter().flat_map(|r| r.0.iter().copied()).collect();
-        let hd = &self.header;
-        Ok(MapHeader {
-            offset: hd.offset,
-            layout: MapLayout {
-                offset: l.offset,
-                width: l.width,
-                height: l.height,
-                border: flat(&l.border),
-                blocks: flat(&l.blocks),
-                primary_tileset: l.primary_tileset,
-                secondary_tileset: l.secondary_tileset,
-            },
-            events: self.events.clone(),
-            map_scripts: hd.map_scripts,
-            connections: self.connections.clone(),
-            music: hd.music,
-            layout_id: hd.layout_id,
-            region_map_section: hd.region_map_section,
-            cave: hd.cave,
-            weather: hd.weather,
-            map_type: hd.map_type,
-            allow_cycling: hd.allow_cycling,
-            allow_escaping: hd.allow_escaping,
-            allow_running: hd.allow_running,
-            show_map_name: hd.show_map_name,
-            battle_type: hd.battle_type,
-        })
-    }
-}
-
-/// Writes `key -> string` as RON with every string raw (`r"…"`, or `r#"…"#` if it holds a `"`),
-/// so the decomp `.string` syntax (`\p`, `\n`, `{PLAYER}`, apostrophes) reads as is.
-pub fn text_to_ron(texts: &BTreeMap<String, String>) -> String {
-    let mut out = String::from("{\n");
-    for (k, v) in texts {
-        let hashes = (0..)
-            .map(|n| "#".repeat(n))
-            .find(|h| !v.contains(&format!("\"{h}")))
-            .unwrap_or_default();
-        out.push_str(&format!("    {k:?}: r{hashes}\"{v}\"{hashes},\n"));
-    }
-    out.push_str("}\n");
-    out
-}
-
-/// `text/<lang>.ron` for the ROM's language.
-pub fn text_file(code: GameCode) -> &'static str {
-    match code {
-        GameCode::Bpee => "text/en.ron",
-        GameCode::Bpef => "text/fr.ron",
-    }
-}
-
-/// What the map's scripts reach (offsets are ROM file offsets).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct MapScripts {
-    /// Entry points: object, coord and bg event scripts, then map scripts.
-    pub roots: Vec<u32>,
-    /// Keys into `text/<lang>.ron`, `"<Map>.<hex offset>"`.
-    pub texts: Vec<String>,
-    pub movements: Vec<u32>,
-    pub braille: Vec<u32>,
-    /// Instructions the walker could not decode: offset -> opcode.
-    pub unknown: BTreeMap<u32, u8>,
-}
-
-/// `sprites/<id>.ron`, also listed in the manifest.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct SpriteFile {
-    /// File offset of the `ObjectEventGraphicsInfo`.
-    pub offset: u32,
-    pub width: u16,
-    pub height: u16,
-    pub frames: usize,
-    /// Each frame's (width, height). Usually all `(width, height)`; berry trees mix 16x16 and
-    /// 16x32 frames. Frames are drawn at the top-left of equal cells as wide as `width` and as
-    /// tall as the tallest frame.
-    pub frame_sizes: Vec<(u16, u16)>,
-    pub palette_tag: u16,
-    /// BGR555, also the PNG's palette.
-    pub palette: [u16; 16],
-}
-
-/// `font/latin_normal.ron`.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct FontFile {
-    pub glyph_width_max: u8,
-    pub glyph_height: u8,
-    pub glyphs_per_row: usize,
-    /// Advance width per character code.
-    pub widths: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct MapEntry {
-    pub id: MapId,
-    pub header: u32,
-    pub layout: u32,
-    pub events_objects: usize,
-    pub map_scripts: Option<u32>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct FontEntry {
-    pub glyphs: u32,
-    pub widths: u32,
-}
-
-/// `manifest.ron`.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct Manifest {
-    /// "BPEF" or "BPEE".
-    pub game_code: String,
-    /// sha1 of the whole ROM.
-    pub sha1: String,
-    /// `gMapGroups`.
-    pub map_table: u32,
-    pub maps: BTreeMap<String, MapEntry>,
-    /// Keyed by the struct offset in lower hex (the directory name under `tilesets/`).
-    pub tilesets: BTreeMap<String, TilesetRef>,
-    pub object_graphics: ObjectGraphicsTable,
-    pub sprites: BTreeMap<u8, SpriteFile>,
-    /// Object event graphics ids used by the maps that are not table entries (e.g. the
-    /// `OBJ_EVENT_GFX_VAR_*` ids resolved at run time), not exported.
-    pub skipped_graphics_ids: BTreeSet<u8>,
-    pub font: FontEntry,
-    /// `text/fr.ron` (BPEF) or `text/en.ron` (BPEE).
-    pub text_file: String,
-    pub texts: usize,
-    /// Per map, instructions the script walker could not decode (offset -> opcode).
-    pub unknown_script_ops: BTreeMap<String, BTreeMap<u32, u8>>,
-    /// Every other written file (relative, `/`-separated) -> sha1.
-    pub files: BTreeMap<String, String>,
-}
 
 /// The fixed RON style of every exported file, with a trailing newline.
 pub fn to_ron<T: Serialize>(value: &T) -> Result<String> {
@@ -335,7 +72,7 @@ pub fn to_ron<T: Serialize>(value: &T) -> Result<String> {
 }
 
 /// Creates files under `root` and records their sha1.
-struct Out {
+pub struct Out {
     root: PathBuf,
     files: BTreeMap<String, String>,
 }
@@ -359,13 +96,15 @@ impl Out {
         Ok(())
     }
 
-    fn bytes(&mut self, rel: &str, data: &[u8]) -> Result<()> {
+    /// Writes `data` to `rel` (relative, `/`-separated) and records its sha1 in the manifest.
+    pub fn bytes(&mut self, rel: &str, data: &[u8]) -> Result<()> {
         let p = self.path(rel)?;
         std::fs::write(&p, data).with_context(|| format!("writing {}", p.display()))?;
         self.record(rel)
     }
 
-    fn ron<T: Serialize>(&mut self, rel: &str, value: &T) -> Result<()> {
+    /// Writes `value` in the fixed RON style.
+    pub fn ron<T: Serialize>(&mut self, rel: &str, value: &T) -> Result<()> {
         self.bytes(rel, to_ron(value)?.as_bytes())
     }
 
@@ -380,107 +119,173 @@ impl Out {
     }
 }
 
-/// Exports the three maps, their tilesets, sprites, font and text from `rom` into `out`, which is
-/// created if needed (existing files are overwritten, others left alone).
+/// One exported map as read from the ROM.
+pub struct ExportedMap {
+    /// Decomp directory name.
+    pub name: &'static str,
+    pub id: MapId,
+    pub header: MapHeader,
+    /// [`roots::named_roots`] of the map.
+    pub roots: Vec<(String, u32)>,
+}
+
+/// Everything the script export needs.
+pub struct ScriptInput<'a> {
+    /// The exported maps in export order.
+    pub maps: &'a [ExportedMap],
+    /// Root offset -> canonical name ([`roots::canonical`] over all maps in export order).
+    pub canonical: &'a BTreeMap<u32, String>,
+}
+
+/// **Hook for Milestone 3 Task B**: decode the scripts reachable from `input`'s roots and write
+/// `text/<lang>.ron` (keys `<Script>_T<n>`, [`crate::text::encode_lang`] with `rom.lang()`),
+/// `scripts/<Map>.rs` and `scripts/index.ron` through `o`. Until then nothing is written.
+fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()> {
+    let _ = (rom, input, o);
+    Ok(())
+}
+
+/// Exports [`MAPS`], their tilesets, the sprites they use, the font and the window graphics from
+/// `rom` into `out`, which is created if needed (existing files are overwritten, others left alone).
 pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     let mut o = Out {
         root: out.to_path_buf(),
         files: BTreeMap::new(),
     };
+    let mut provenance = BTreeMap::new();
     let table = maps::locate_map_table(rom)?;
+    provenance.insert("map_table".to_string(), Hex(table.offset));
+    let ts_headers = TilesetHeaders::locate(rom, &table)?;
+    provenance.insert("tileset_headers".to_string(), Hex(ts_headers.offset));
 
-    let mut map_entries = BTreeMap::new();
-    let mut tileset_refs: BTreeMap<u32, TilesetRef> = BTreeMap::new();
-    let mut tileset_data: BTreeMap<u32, TilesetData> = BTreeMap::new();
-    let mut texts = BTreeMap::new();
-    let mut unknown_ops = BTreeMap::new();
-    let mut graphics_ids = BTreeSet::from([BRENDAN_NORMAL, MAY_NORMAL]);
-
-    for (id, name) in MAPS {
-        let header = table.header(rom, id)?;
-        let layout = &header.layout;
-        for ts in [layout.primary_tileset, layout.secondary_tileset] {
-            if let std::collections::btree_map::Entry::Vacant(e) = tileset_refs.entry(ts) {
-                let r = maps::read_tileset(rom, ts, &table)
-                    .with_context(|| format!("{name}: tileset at {ts:#x}"))?;
-                tileset_data.insert(ts, render::load_tileset(rom, &r)?);
-                e.insert(r);
-            }
-        }
-        let rgba = render::render_map(
-            layout,
-            &tileset_data[&layout.primary_tileset],
-            &tileset_data[&layout.secondary_tileset],
-        )?;
-        o.png_rgba(
-            &format!("previews/{name}.png"),
-            u32::from(layout.width) * 16,
-            u32::from(layout.height) * 16,
-            &rgba,
-        )?;
-
-        let roots = scripts::map_script_roots(rom, &header)
-            .with_context(|| format!("{name}: script roots"))?;
-        let scan = scripts::walk(rom, &roots).with_context(|| format!("{name}: script walk"))?;
-        let mut keys = Vec::new();
-        for &t in &scan.texts {
-            let key = format!("{name}.{t:x}");
-            texts.insert(key.clone(), rom.string_at(t).context(name)?);
-            keys.push(key);
-        }
-        if !scan.unknown.is_empty() {
-            unknown_ops.insert(name.to_string(), scan.unknown.clone());
-        }
-        graphics_ids.extend(header.events.objects.iter().map(|ob| ob.graphics_id));
-
-        map_entries.insert(
-            name.to_string(),
-            MapEntry {
-                id,
-                header: header.offset,
-                layout: layout.offset,
-                events_objects: header.events.objects.len(),
-                map_scripts: header.map_scripts,
-            },
-        );
-        let scripts = MapScripts {
-            roots,
-            texts: keys,
-            movements: scan.movements.into_iter().collect(),
-            braille: scan.braille.into_iter().collect(),
-            unknown: scan.unknown,
+    let mut exported = Vec::new();
+    for name in MAPS {
+        let m = names::map_by_dir(name).with_context(|| format!("map {name} is not in names"))?;
+        let id = MapId {
+            group: m.group,
+            num: m.num,
         };
-        let file = MapFile::new(name, id, header, scripts);
-        o.ron(&format!("maps/{name}/map.ron"), &file)?;
+        let header = table.header(rom, id).with_context(|| name.to_string())?;
+        let roots = roots::named_roots(rom, &header, name)?;
+        exported.push(ExportedMap {
+            name,
+            id,
+            header,
+            roots,
+        });
+    }
+    let canonical = roots::canonical(exported.iter().flat_map(|m| &m.roots));
+    for (off, script) in &canonical {
+        provenance.insert(format!("script/{script}"), Hex(*off));
     }
 
-    for (off, data) in &tileset_data {
-        let dir = format!("tilesets/{off:x}");
-        let img = gfx::tiles_4bpp_to_image(&data.tiles, TILESET_TILES_PER_ROW)
-            .with_context(|| format!("tileset at {off:#x}"))?;
-        let pal0 = data
-            .palettes
-            .first()
-            .with_context(|| format!("tileset at {off:#x} has no palettes"))?;
-        o.png_indexed(&format!("{dir}/tiles.png"), &img, &Palette(*pal0))?;
-        o.ron(&format!("{dir}/palettes.ron"), &data.palettes)?;
-        o.ron(&format!("{dir}/metatiles.ron"), &data.metatiles)?;
-        o.ron(&format!("{dir}/attributes.ron"), &data.attributes)?;
+    // Tilesets, keyed by header index (headers.h order).
+    let mut tilesets: BTreeMap<u32, (&'static str, maps::TilesetRef, TilesetData)> =
+        BTreeMap::new();
+    for m in &exported {
+        let l = &m.header.layout;
+        for off in [l.primary_tileset, l.secondary_tileset] {
+            let name = ts_headers.name(off)?;
+            let index = names::TILESETS.value(name).expect("named tileset");
+            if let std::collections::btree_map::Entry::Vacant(e) = tilesets.entry(index) {
+                let r = maps::read_tileset(rom, off, &table)
+                    .with_context(|| format!("{}: tileset {name}", m.name))?;
+                let data = render::load_tileset(rom, &r)?;
+                e.insert((name, r, data));
+            }
+        }
+    }
+    let tileset_by_offset: BTreeMap<u32, (&str, &TilesetData)> = tilesets
+        .values()
+        .map(|(n, r, d)| (r.offset, (*n, d)))
+        .collect();
+
+    let exported_names: BTreeMap<MapId, &str> = exported.iter().map(|m| (m.id, m.name)).collect();
+    for m in &exported {
+        let l = &m.header.layout;
+        let (primary, p_data) = tileset_by_offset[&l.primary_tileset];
+        let (secondary, s_data) = tileset_by_offset[&l.secondary_tileset];
+        let rgba = render::render_map(l, p_data, s_data)?;
+        o.png_rgba(
+            &format!("previews/{}.png", m.name),
+            u32::from(l.width) * 16,
+            u32::from(l.height) * 16,
+            &rgba,
+        )?;
+        let map_scripts = match m.header.map_scripts {
+            Some(t) => {
+                provenance.insert(format!("map/{}/map_scripts", m.name), Hex(t));
+                roots::read_map_scripts(rom, t)?
+            }
+            None => MapScriptTable::default(),
+        };
+        let file = map_file(
+            m,
+            primary,
+            secondary,
+            &map_scripts,
+            &canonical,
+            &exported_names,
+        )?;
+        o.ron(&format!("maps/{}.ron", m.name), &file)?;
+        provenance.insert(format!("map/{}/header", m.name), Hex(m.header.offset));
+        provenance.insert(format!("map/{}/layout", m.name), Hex(l.offset));
+    }
+
+    for (name, r, data) in tilesets.values() {
+        write_tileset(&mut o, name, r.secondary, data)?;
+        for (part, off) in [
+            ("", r.offset),
+            ("/tiles", r.tiles),
+            ("/palettes", r.palettes),
+            ("/metatiles", r.metatiles),
+            ("/attributes", r.metatile_attributes),
+        ] {
+            provenance.insert(format!("tileset/{name}{part}"), Hex(off));
+        }
+    }
+
+    // Script walk: unknown opcodes per root, and `setvar VAR_OBJ_GFX_ID_*` graphics.
+    let mut unknown_script_ops = BTreeMap::new();
+    let mut gfx_ids: BTreeSet<u8> = BTreeSet::new();
+    for (&off, script) in &canonical {
+        let scan = scripts::walk(rom, &[off]).with_context(|| format!("script {script}"))?;
+        if !scan.unknown.is_empty() {
+            let ops = scan.unknown.iter().map(|(&k, &v)| (Hex(k), v)).collect();
+            unknown_script_ops.insert(script.clone(), ops);
+        }
+        gfx_ids.extend(var_gfx_ids(rom, &scan).with_context(|| format!("script {script}"))?);
+    }
+    for p in PLAYER_SPRITES {
+        gfx_ids.insert(names::OBJ_EVENT_GFX.value(p).expect("player gfx") as u8);
+    }
+    for m in &exported {
+        gfx_ids.extend(m.header.events.objects.iter().map(|ob| ob.graphics_id));
     }
 
     let gfx_table = sprites::locate_object_graphics(rom)?;
-    let mut sprites_out = BTreeMap::new();
-    let mut skipped = BTreeSet::new();
-    for id in graphics_ids {
+    provenance.insert("object_graphics_table".to_string(), Hex(gfx_table.offset));
+    provenance.insert(
+        "object_graphics_palettes".to_string(),
+        Hex(gfx_table.palettes_offset),
+    );
+    let mut sprite_names = Vec::new();
+    let mut skipped_graphics = BTreeSet::new();
+    for id in gfx_ids {
         if u16::from(id) >= gfx_table.count {
-            skipped.insert(id);
+            skipped_graphics.insert(names::gfx_name(id));
             continue;
         }
         let g = gfx_table.get(rom, id)?;
         let (img, file) = sprite(&g)?;
-        o.png_indexed(&format!("sprites/{id}.png"), &img, &Palette(g.palette))?;
-        o.ron(&format!("sprites/{id}.ron"), &file)?;
-        sprites_out.insert(id, file);
+        o.png_indexed(
+            &format!("sprites/{}.png", file.name),
+            &img,
+            &Palette(g.palette),
+        )?;
+        o.ron(&format!("sprites/{}.ron", file.name), &file)?;
+        provenance.insert(format!("sprite/{}", file.name), Hex(g.offset));
+        sprite_names.push(file.name);
     }
 
     let (glyphs_off, widths_off) = font::locate_latin_normal(rom)?;
@@ -489,44 +294,287 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     o.ron(
         "font/latin_normal.ron",
         &FontFile {
-            glyph_width_max: f.glyph_width_max,
-            glyph_height: f.glyph_height,
-            glyphs_per_row: FONT_GLYPHS_PER_ROW,
+            glyphs: f.glyphs.len() as u16,
+            glyphs_per_row: FONT_GLYPHS_PER_ROW as u16,
             widths: f.widths.clone(),
         },
     )?;
+    provenance.insert("font/glyphs".to_string(), Hex(glyphs_off));
+    provenance.insert("font/widths".to_string(), Hex(widths_off));
 
-    o.bytes(text_file(rom.code()), text_to_ron(&texts).as_bytes())?;
+    let mb = window::locate_message_box(rom)?;
+    let img = gfx::tiles_4bpp_to_image(&mb.tiles, window::TILE_COUNT as u32)?;
+    o.png_indexed("window/message_box.png", &img, &Palette(mb.palette))?;
+    o.ron(
+        "window/message_box.ron",
+        &WindowFile {
+            tile_count: window::TILE_COUNT as u16,
+            palette: mb.palette,
+            text_fg: window::TEXT_FG,
+            text_shadow: window::TEXT_SHADOW,
+            text_bg: window::TEXT_BG,
+        },
+    )?;
+    provenance.insert("window/tiles".to_string(), Hex(mb.tiles_offset));
+    provenance.insert("window/palette".to_string(), Hex(mb.palette_offset));
+
+    export_scripts(
+        rom,
+        &ScriptInput {
+            maps: &exported,
+            canonical: &canonical,
+        },
+        &mut o,
+    )?;
 
     let manifest = Manifest {
+        format: schema::FORMAT_VERSION,
         game_code: match rom.code() {
             GameCode::Bpee => "BPEE",
             GameCode::Bpef => "BPEF",
         }
         .to_string(),
         sha1: rom.sha1_hex(),
-        map_table: table.offset,
-        maps: map_entries,
-        tilesets: tileset_refs
-            .into_iter()
-            .map(|(off, r)| (format!("{off:x}"), r))
-            .collect(),
-        object_graphics: gfx_table,
-        sprites: sprites_out,
-        skipped_graphics_ids: skipped,
-        font: FontEntry {
-            glyphs: glyphs_off,
-            widths: widths_off,
-        },
-        text_file: text_file(rom.code()).to_string(),
-        texts: texts.len(),
-        unknown_script_ops: unknown_ops,
+        language: rom.lang().code().to_string(),
+        maps: MAPS.iter().map(|m| m.to_string()).collect(),
+        tilesets: tilesets.values().map(|(n, _, _)| n.to_string()).collect(),
+        sprites: sprite_names,
+        provenance,
+        skipped_graphics,
+        unknown_script_ops,
         files: o.files.clone(),
     };
     let path = o.path("manifest.ron")?;
     std::fs::write(&path, to_ron(&manifest)?)
         .with_context(|| format!("writing {}", path.display()))?;
     Ok(manifest)
+}
+
+/// The canonical root name of the script at `off`, `None` for a null script.
+/// Graphics ids a walk sets through `setvar VAR_OBJ_GFX_ID_<n>, <gfx>` (the values that
+/// `OBJ_EVENT_GFX_VAR_<n>` objects resolve to).
+pub fn var_gfx_ids(rom: &Rom, scan: &scripts::ScriptScan) -> Result<BTreeSet<u8>> {
+    let mut ids = BTreeSet::new();
+    for &pc in &scan.visited {
+        if rom.u8(pc)? == OP_SETVAR
+            && (VAR_OBJ_GFX_ID_0..VAR_OBJ_GFX_ID_0 + 16).contains(&rom.u16(pc + 1)?)
+        {
+            let value = rom.u16(pc + 3)?;
+            ids.insert(
+                u8::try_from(value)
+                    .with_context(|| format!("setvar of graphics id {value} at {pc:#x}"))?,
+            );
+        }
+    }
+    Ok(ids)
+}
+
+fn script_name(canonical: &BTreeMap<u32, String>, off: Option<u32>) -> Result<Option<String>> {
+    off.map(|o| {
+        canonical
+            .get(&o)
+            .cloned()
+            .with_context(|| format!("script {o:#x} is not a named root"))
+    })
+    .transpose()
+}
+
+/// `"<group>.<num>"`.
+fn map_id_string(id: MapId) -> String {
+    format!("{}.{}", id.group, id.num)
+}
+
+/// The schema `MapFile` of an exported map. `exported` names the maps that are exported, the
+/// only ones warps and connections refer to by name.
+pub fn map_file(
+    m: &ExportedMap,
+    primary: &str,
+    secondary: &str,
+    map_scripts: &MapScriptTable,
+    canonical: &BTreeMap<u32, String>,
+    exported: &BTreeMap<MapId, &str>,
+) -> Result<MapFile> {
+    let h = &m.header;
+    let l = &h.layout;
+    let ev = &h.events;
+    let target = |id: MapId| exported.get(&id).map(|n| n.to_string());
+    let hidden_items_start = names::FLAGS
+        .value("FLAG_HIDDEN_ITEMS_START")
+        .expect("FLAG_HIDDEN_ITEMS_START") as u16;
+    let bgs = ev
+        .bgs
+        .iter()
+        .map(|b| {
+            let kind = match b.kind {
+                BgEventKind::Script(s) => BgKind::Script {
+                    facing: b.kind_raw,
+                    script: script_name(canonical, s)?,
+                },
+                BgEventKind::HiddenItem {
+                    item,
+                    hidden_item_id,
+                } => BgKind::HiddenItem {
+                    item: names::item_name(item),
+                    flag: names::flag_name(
+                        hidden_items_start
+                            .checked_add(hidden_item_id)
+                            .with_context(|| {
+                                format!(
+                                    "{}: hidden item id {hidden_item_id} at ({}, {}) overflows the \
+                                     flag range",
+                                    m.name, b.x, b.y
+                                )
+                            })?,
+                    ),
+                },
+                BgEventKind::SecretBase(id) => BgKind::SecretBase { id },
+            };
+            Ok(Bg {
+                x: b.x as i16,
+                y: b.y as i16,
+                elevation: b.elevation,
+                kind,
+            })
+        })
+        .collect::<Result<_>>()?;
+    let var_scripts = |list: &[roots::VarScript]| -> Result<Vec<VarScript>> {
+        list.iter()
+            .map(|v| {
+                Ok(VarScript {
+                    var: names::var_name(v.var),
+                    value: v.value,
+                    script: script_name(canonical, Some(v.script))?.expect("non-null"),
+                })
+            })
+            .collect()
+    };
+    ensure!(
+        l.border.len() == 4 && l.blocks.len() == usize::from(l.width) * usize::from(l.height),
+        "{}: bad layout size",
+        m.name
+    );
+    Ok(MapFile {
+        name: m.name.to_string(),
+        group: m.id.group,
+        num: m.id.num,
+        layout: Layout {
+            width: l.width,
+            height: l.height,
+            primary: primary.to_string(),
+            secondary: secondary.to_string(),
+            border: schema::to_rows(&l.border, 2),
+            blocks: schema::to_rows(&l.blocks, l.width.into()),
+        },
+        header: Header {
+            music: h.music,
+            region_map_section: h.region_map_section,
+            cave: h.cave,
+            weather: h.weather,
+            map_type: h.map_type,
+            allow_cycling: h.allow_cycling,
+            allow_escaping: h.allow_escaping,
+            allow_running: h.allow_running,
+            show_map_name: h.show_map_name,
+            battle_type: h.battle_type,
+        },
+        objects: ev
+            .objects
+            .iter()
+            .map(|ob| {
+                Ok(Object {
+                    local_id: ob.local_id,
+                    gfx: names::gfx_name(ob.graphics_id),
+                    x: ob.x,
+                    y: ob.y,
+                    elevation: ob.elevation,
+                    movement: names::movement_type_name(ob.movement_type),
+                    range_x: ob.movement_range_x,
+                    range_y: ob.movement_range_y,
+                    trainer_type: names::trainer_type_name(ob.trainer_type),
+                    trainer_sight_or_berry_tree: ob.trainer_range_berry_tree_id,
+                    script: script_name(canonical, ob.script)?,
+                    flag: (ob.flag_id != 0).then(|| names::flag_name(ob.flag_id)),
+                })
+            })
+            .collect::<Result<_>>()?,
+        warps: ev
+            .warps
+            .iter()
+            .map(|w| Warp {
+                x: w.x,
+                y: w.y,
+                elevation: w.elevation,
+                dest_map: target(w.dest),
+                dest_map_id: map_id_string(w.dest),
+                dest_warp: w.warp_id,
+            })
+            .collect(),
+        coords: ev
+            .coords
+            .iter()
+            .map(|c| {
+                Ok(Coord {
+                    x: c.x,
+                    y: c.y,
+                    elevation: c.elevation,
+                    var: (c.trigger_var != 0).then(|| names::var_name(c.trigger_var)),
+                    value: c.index,
+                    script: script_name(canonical, c.script)?,
+                })
+            })
+            .collect::<Result<_>>()?,
+        bgs,
+        connections: h
+            .connections
+            .iter()
+            .map(|c| Connection {
+                dir: match c.direction {
+                    Direction::South => ConnectionDir::South,
+                    Direction::North => ConnectionDir::North,
+                    Direction::West => ConnectionDir::West,
+                    Direction::East => ConnectionDir::East,
+                    Direction::Dive => ConnectionDir::Dive,
+                    Direction::Emerge => ConnectionDir::Emerge,
+                },
+                offset: c.offset,
+                map: target(c.map),
+                map_id: map_id_string(c.map),
+            })
+            .collect(),
+        scripts: MapScripts {
+            on_load: script_name(canonical, map_scripts.on_load)?,
+            on_transition: script_name(canonical, map_scripts.on_transition)?,
+            on_resume: script_name(canonical, map_scripts.on_resume)?,
+            on_return_to_field: script_name(canonical, map_scripts.on_return_to_field)?,
+            on_dive_warp: script_name(canonical, map_scripts.on_dive_warp)?,
+            on_frame: var_scripts(&map_scripts.on_frame)?,
+            on_warp_into: var_scripts(&map_scripts.on_warp_into)?,
+        },
+    })
+}
+
+/// `tilesets/<name>.{png,ron}`. The PNG holds the tileset's tiles with its first used palette:
+/// 0 for a primary tileset, [`NUM_PALS_IN_PRIMARY`] (6) for a secondary one.
+fn write_tileset(o: &mut Out, name: &str, secondary: bool, data: &TilesetData) -> Result<()> {
+    let img = gfx::tiles_4bpp_to_image(&data.tiles, TILESET_TILES_PER_ROW)
+        .with_context(|| format!("tileset {name}"))?;
+    let first = if secondary { NUM_PALS_IN_PRIMARY } else { 0 };
+    let pal = data
+        .palettes
+        .get(first)
+        .with_context(|| format!("tileset {name} has no palette {first}"))?;
+    o.png_indexed(&format!("tilesets/{name}.png"), &img, &Palette(*pal))?;
+    o.ron(
+        &format!("tilesets/{name}.ron"),
+        &TilesetFile {
+            name: name.to_string(),
+            secondary,
+            tile_count: (data.tiles.len() / TILE_BYTES) as u16,
+            palettes: data.palettes.clone(),
+            metatiles: data.metatiles.clone(),
+            attributes: data.attributes.clone(),
+        },
+    )
 }
 
 /// The sprite sheet and its `.ron` for one graphics id.
@@ -576,11 +624,17 @@ pub fn sprite(g: &ObjectGraphics) -> Result<(IndexedImage, SpriteFile)> {
         height: cell_h,
         pixels,
     };
+    let gfx_name = names::gfx_name(g.id);
     let file = SpriteFile {
-        offset: g.offset,
+        name: gfx_name
+            .strip_prefix(GFX_PREFIX)
+            .unwrap_or(&gfx_name)
+            .to_string(),
+        gfx_id: g.id.into(),
         width: g.width,
         height: g.height,
-        frames: g.frames.len(),
+        cell_width: g.width,
+        cell_height: cell_h as u16,
         frame_sizes,
         palette_tag: g.palette_tag,
         palette: g.palette,
@@ -615,13 +669,30 @@ fn font_png(f: &font::Font) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// Reads back an exported map: `maps/<name>.ron` under `root`.
+pub fn read_map(root: &Path, name: &str) -> Result<MapFile> {
+    read_ron(&root.join(format!("maps/{name}.ron")))
+}
+
+/// Reads back an exported tileset: `tilesets/<name>.ron` under `root`.
+pub fn read_tileset(root: &Path, name: &str) -> Result<TilesetFile> {
+    read_ron(&root.join(format!("tilesets/{name}.ron")))
+}
+
+/// Parses any exported `.ron` file into its schema type.
+pub fn read_ron<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    ron::from_str(&text).with_context(|| format!("parsing {}", path.display()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn graphics(w: u16, h: u16, frames: Vec<Vec<u8>>) -> ObjectGraphics {
         ObjectGraphics {
-            id: 1,
+            id: 89,
             offset: 0x100,
             width: w,
             height: h,
@@ -638,7 +709,10 @@ mod tests {
         let mut f1 = vec![0; 64];
         f1[32..].fill(0x22);
         let (img, file) = sprite(&graphics(8, 16, vec![f0, f1])).unwrap();
+        assert_eq!(file.name, "MAY_NORMAL");
+        assert_eq!(file.gfx_id, 89);
         assert_eq!((img.width, img.height), (16, 16));
+        assert_eq!((file.cell_width, file.cell_height), (8, 16));
         assert_eq!(file.frame_sizes, vec![(8, 16), (8, 16)]);
         assert_eq!(img.pixels[0], 1);
         assert_eq!(img.pixels[8], 0);
@@ -652,8 +726,8 @@ mod tests {
         // like the berry trees' 16x16 sprouts and 16x32 trees.
         let (img, file) = sprite(&graphics(8, 8, vec![vec![0x11; 32], vec![0x22; 64]])).unwrap();
         assert_eq!((img.width, img.height), (16, 16));
-        assert_eq!(file.frames, 2);
         assert_eq!(file.frame_sizes, vec![(8, 8), (8, 16)]);
+        assert_eq!(file.cell_height, 16);
         assert_eq!(img.pixels[0], 1);
         assert_eq!(img.pixels[7 * 16 + 7], 1);
         assert_eq!(img.pixels[8 * 16], 0, "below the short frame is blank");
@@ -666,6 +740,25 @@ mod tests {
         // 32 bytes at width 16 would be 4 rows: not whole tiles.
         let err = sprite(&graphics(16, 16, vec![vec![0; 32]])).unwrap_err();
         assert!(format!("{err}").contains("0x100"), "{err}");
+    }
+
+    #[test]
+    fn setvar_of_a_gfx_var_adds_the_graphics_id() {
+        // setvar VAR_OBJ_GFX_ID_0, 105 ; setvar VAR_TEMP_0, 7 ; setvar VAR_OBJ_GFX_ID_F, 3 ; end
+        let mut b = vec![0u8; 0x100];
+        b[0xAC..0xB0].copy_from_slice(b"BPEE");
+        b.extend([0x16, 0x10, 0x40, 105, 0, 0x16, 0x00, 0x40, 7, 0]);
+        b.extend([0x16, 0x1F, 0x40, 3, 0, 0x02]);
+        b.resize(0x200, 0);
+        let rom = Rom::from_bytes(b).unwrap();
+        let scan = scripts::walk(&rom, &[0x100]).unwrap();
+        assert_eq!(var_gfx_ids(&rom, &scan).unwrap(), BTreeSet::from([3, 105]));
+        // A graphics id that does not fit a byte is an error.
+        let mut b = rom.bytes().to_vec();
+        b[0x104] = 1;
+        let rom = Rom::from_bytes(b).unwrap();
+        let scan = scripts::walk(&rom, &[0x100]).unwrap();
+        assert!(var_gfx_ids(&rom, &scan).is_err());
     }
 
     #[test]
@@ -701,89 +794,21 @@ mod tests {
     }
 
     #[test]
-    fn text_to_ron_is_readable_and_round_trips() {
-        let texts: BTreeMap<String, String> = [
-            ("A.1", r"MAMAN: C'est {PLAYER}!\pÇa va?\nOui."),
-            ("A.2", r#"“Hé” et "guillemets" {0x1F}\l"#),
-            ("A.3", r##"Déjà "# vu\"##),
-            ("A.4", ""),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
-        let s = text_to_ron(&texts);
-        assert!(
-            s.contains(r#""A.1": r"MAMAN: C'est {PLAYER}!\pÇa va?\nOui.","#),
-            "{s}"
-        );
-        assert!(s.contains(r###"r##"Déjà "# vu\"##"###), "{s}");
-        let back: BTreeMap<String, String> = ron::from_str(&s).unwrap();
-        assert_eq!(back, texts);
-    }
-
-    #[test]
-    fn rows_are_one_line_each_and_round_trip() {
-        let layout = LayoutFile {
-            offset: 1,
+    fn layout_rows_are_one_line_each_and_round_trip() {
+        let layout = Layout {
             width: 3,
             height: 2,
-            border: to_rows(&[1, 2, 3, 4], 2),
-            blocks: to_rows(&[10, 11, 12, 20, 21, 22], 3),
-            primary_tileset: 2,
-            secondary_tileset: 3,
+            primary: "General".into(),
+            secondary: "Petalburg".into(),
+            border: schema::to_rows(&[1, 2, 3, 4], 2),
+            blocks: schema::to_rows(&[10, 11, 12, 20, 21, 22], 3),
         };
         let s = to_ron(&layout).unwrap();
         assert!(
             s.contains("        (10, 11, 12),\n        (20, 21, 22),\n"),
             "{s}"
         );
-        let back: LayoutFile = ron::from_str(&s).unwrap();
+        let back: Layout = ron::from_str(&s).unwrap();
         assert_eq!(back, layout);
-    }
-
-    #[test]
-    fn map_file_rebuilds_the_header() {
-        let header = MapHeader {
-            offset: 0x100,
-            layout: MapLayout {
-                offset: 0x200,
-                width: 3,
-                height: 2,
-                border: vec![1, 2, 3, 4],
-                blocks: vec![10, 11, 12, 20, 21, 22],
-                primary_tileset: 0x300,
-                secondary_tileset: 0x318,
-            },
-            events: MapEvents {
-                objects: vec![],
-                warps: vec![],
-                coords: vec![],
-                bgs: vec![],
-            },
-            map_scripts: Some(0x400),
-            connections: vec![],
-            music: 405,
-            layout_id: 10,
-            region_map_section: 1,
-            cave: 0,
-            weather: 2,
-            map_type: 1,
-            allow_cycling: true,
-            allow_escaping: false,
-            allow_running: true,
-            show_map_name: true,
-            battle_type: 0,
-        };
-        let scripts = MapScripts {
-            roots: vec![],
-            texts: vec![],
-            movements: vec![],
-            braille: vec![],
-            unknown: BTreeMap::new(),
-        };
-        let mut file = MapFile::new("M", LITTLEROOT, header.clone(), scripts);
-        assert_eq!(file.to_header().unwrap(), header);
-        file.layout.blocks[1].0.pop();
-        assert!(file.to_header().is_err());
     }
 }

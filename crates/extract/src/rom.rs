@@ -93,6 +93,21 @@ impl Rom {
         }
     }
 
+    /// Like [`Rom::ptr`], but a null pointer is an error naming `what` and the offset.
+    pub fn req_ptr(&self, off: u32, what: &str) -> Result<u32> {
+        self.ptr(off)?
+            .with_context(|| format!("null {what} pointer at {off:#x}"))
+    }
+
+    /// `n` little-endian u16 starting at `off`.
+    pub fn u16s(&self, off: u32, n: usize) -> Result<Vec<u16>> {
+        Ok(self
+            .slice(off, 2 * n)?
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect())
+    }
+
     pub fn find_all(&self, needle: &[u8]) -> Vec<u32> {
         if needle.is_empty() {
             return Vec::new();
@@ -162,6 +177,19 @@ mod tests {
             "one past the end is not a valid pointer"
         );
         assert_eq!(r.pointers_to(0xC0), vec![0xC4]);
+        assert_eq!(r.req_ptr(0xC4, "x").unwrap(), 0xC0);
+        let err = r.req_ptr(0xC0, "thing").unwrap_err();
+        assert!(
+            format!("{err}").contains("null thing pointer at 0xc0"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn u16s_reads_little_endian_runs() {
+        let r = rom_with(b"BPEF", &[1, 0, 0x34, 0x12]);
+        assert_eq!(r.u16s(0xC0, 2).unwrap(), vec![1, 0x1234]);
+        assert!(r.u16s(0xC2, 2).is_err());
     }
 
     #[test]
