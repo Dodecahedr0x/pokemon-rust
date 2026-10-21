@@ -84,6 +84,8 @@
 //! environment slide, no status or level-up animations, no "Come back X!" text, no ball throw
 //! for catches. Everything else follows the components' own documented approximations.
 
+mod hash;
+mod menu;
 #[cfg(test)]
 mod test_game;
 #[cfg(test)]
@@ -93,12 +95,12 @@ use super::gfx::{
     self, Background, ExpBar, Healthbox, HpBar, MonSprite, TINT_STAT_DOWN, TINT_STAT_UP,
     TrainerSprite,
 };
-use super::ui::{Action, BattleWindows, MoveChoice};
+use super::ui::BattleWindows;
 use super::{
-    Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleSetup, Buff,
-    Choice, EMPTY_GFX, Environment, Msg, MsgWait, Names, Need, Side, Str, text,
+    Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleSetup, Choice,
+    EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, text,
 };
-use crate::data::{GameData, MoveId, SpeciesId};
+use crate::data::{GameData, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{BattleTables, Party, Pokemon, exp_for_level};
@@ -107,6 +109,8 @@ use crate::script::Fade;
 use crate::video::{BgControl, Cmd, Frame, layout::battle::ANIM};
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
+use hash::{hash_event, hash_menu, hash_play};
+use menu::Menu;
 
 /// `Task_StartSendOutAnim`: the player's ball flies 31 frames after its trainer starts sliding.
 const PLAYER_BALL_DELAY: u8 = 31;
@@ -152,40 +156,6 @@ enum Play {
     Defeated(bool),
     /// Fading out after `End`.
     Ending,
-}
-
-/// The open menu.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Menu {
-    None,
-    Action,
-    Move,
-    /// "Learn `mov`?" yes/no (`Cmd_yesnoboxlearnmove`).
-    LearnAsk {
-        party: u8,
-        mov: MoveId,
-    },
-    /// The move menu with `mov` as a fifth entry.
-    LearnPick {
-        party: u8,
-        mov: MoveId,
-    },
-    /// `StopLearningMove` prints.
-    StopMsg {
-        party: u8,
-        mov: MoveId,
-    },
-    /// "Stop learning?" yes/no (`Cmd_yesnoboxstoplearningmove`).
-    StopAsk {
-        party: u8,
-        mov: MoveId,
-    },
-    /// `TryToLearnMove1..3` again (`n` = the one printing).
-    Retry {
-        party: u8,
-        mov: MoveId,
-        n: u8,
-    },
 }
 
 /// The visual components of one battle.
@@ -286,7 +256,7 @@ impl BattleScene {
             kind: setup.kind,
             parts: Parts::new(&EMPTY_GFX, setup.environment),
             loading: Some(0),
-            parties: [Party::default(), setup.opponents.clone()],
+            parties: [Party::default(), Party::default()],
             out: [0; 2],
             pics: [None; 2],
             pic_load: [None; 2],
@@ -374,12 +344,13 @@ impl BattleScene {
                     self.set_exp(t, f);
                 }
                 self.box_slot[s] = Some(self.out[s]);
-                step + 1
+                if side == Side::Opponent {
+                    self.loading = None;
+                    return true;
+                }
+                6
             }
-            _ => {
-                self.loading = None;
-                return true;
-            }
+            _ => unreachable!("load step {step}"),
         };
         self.loading = Some(next);
         false
@@ -761,8 +732,20 @@ impl BattleScene {
                     return;
                 };
                 let (level, growth) = (m.level, t.species_info(m.species).growth);
-                // The core gave the EVs of the knock-out before its exp (`MonGainEVs`); at
-                // most one knock-out per `choose`, so the battle's EVs are the ones to use.
+                // The core gave the EVs of the knock-out before its exp (`MonGainEVs`), and the
+                // battle may be one `choose` ahead of the playback. Invariant: at most one
+                // opponent knock-out per `choose` (singles: a knock-out ends the turn, the next
+                // one needs a new `Choice`), so no later knock-out is queued and the battle's
+                // EVs are the ones of this exp.
+                debug_assert!(
+                    !self.queue.iter().any(|e| matches!(
+                        e,
+                        BattleEvent::Faint {
+                            side: Side::Opponent
+                        }
+                    )),
+                    "two opponent knock-outs in one choose"
+                );
                 if let Some(b) = battle.party(Side::Player).get(party as usize) {
                     m.evs = b.evs;
                 }
@@ -838,141 +821,6 @@ impl BattleScene {
         };
         self.parts.windows.print(game, text, wait, f);
     }
-
-    /// A learn-move message about party slot `party` (`BattleScript_AskToLearnMove`'s buffers).
-    fn learn_msg(&self, id: Str, party: u8, mov: MoveId) -> Msg {
-        let side = Side::Player;
-        Msg {
-            id,
-            attacker: side,
-            target: side,
-            active: side,
-            mov: None,
-            buffs: [Buff::Mon { side, party }, Buff::Move(mov), Buff::None],
-            wait: MsgWait::Frames(0),
-            slots: self.out,
-        }
-    }
-
-    // ---- menus ----
-
-    /// Idle: opens the menu the core's `Need` asks for, or reads the open one.
-    fn input(&mut self, game: &impl GameData, battle: &Battle, f: &mut Frame) -> Option<Choice> {
-        let w = &mut self.parts.windows;
-        match self.menu {
-            Menu::None => match battle.need() {
-                Need::Action => {
-                    w.action_menu(game, &names(game, battle), f);
-                    self.menu = Menu::Action;
-                }
-                // No party screen: the first mon that can fight.
-                Need::Switch => {
-                    return battle
-                        .party(Side::Player)
-                        .first_usable()
-                        .map(Choice::Switch);
-                }
-                Need::LearnMove { party, mov } => {
-                    w.yes_no(game, f);
-                    self.menu = Menu::LearnAsk { party, mov };
-                }
-                Need::Busy | Need::Ended(_) => {}
-            },
-            Menu::Action => match w.action_result() {
-                Some(Action::Fight) => {
-                    w.move_menu(game, battle.mon(Side::Player), f);
-                    self.menu = Menu::Move;
-                }
-                Some(Action::Run) => {
-                    self.menu = Menu::None;
-                    return Some(Choice::Run);
-                }
-                // No bag nor party screen in the slice: back to the menu.
-                Some(Action::Bag | Action::Pokemon) => {
-                    w.action_menu(game, &names(game, battle), f);
-                }
-                None => {}
-            },
-            Menu::Move => match w.move_result() {
-                Some(MoveChoice::Move(slot)) => {
-                    self.menu = Menu::None;
-                    return Some(Choice::Move(slot));
-                }
-                Some(MoveChoice::Back) => {
-                    w.action_menu(game, &names(game, battle), f);
-                    self.menu = Menu::Action;
-                }
-                None => {}
-            },
-            Menu::LearnAsk { party, mov } => match w.yes_no_result() {
-                Some(true) => {
-                    let Some(p) = battle.party(Side::Player).get(party as usize) else {
-                        return Some(Choice::LearnMove { forget: None });
-                    };
-                    let mon = view(game.battle(), p, party);
-                    w.learn_move_menu(game, &mon, mov, f);
-                    self.menu = Menu::LearnPick { party, mov };
-                }
-                Some(false) => self.stop_learning(game, battle, party, mov, f),
-                None => {}
-            },
-            Menu::LearnPick { party, mov } => match w.move_result() {
-                Some(MoveChoice::Move(slot)) => {
-                    self.menu = Menu::None;
-                    return Some(Choice::LearnMove { forget: Some(slot) });
-                }
-                Some(MoveChoice::Back) => self.stop_learning(game, battle, party, mov, f),
-                None => {}
-            },
-            Menu::StopMsg { party, mov } => {
-                w.yes_no(game, f);
-                self.menu = Menu::StopAsk { party, mov };
-            }
-            Menu::StopAsk { party, mov } => match w.yes_no_result() {
-                Some(true) => {
-                    self.menu = Menu::None;
-                    return Some(Choice::LearnMove { forget: None });
-                }
-                // BattleScript_AskToLearnMove again.
-                Some(false) => {
-                    let m = self.learn_msg(Str::TryToLearnMove1, party, mov);
-                    self.print(game, battle, &m, f);
-                    self.menu = Menu::Retry { party, mov, n: 0 };
-                }
-                None => {}
-            },
-            Menu::Retry { party, mov, n } => {
-                if n < 2 {
-                    let id = [Str::TryToLearnMove2, Str::TryToLearnMove3][n as usize];
-                    let m = self.learn_msg(id, party, mov);
-                    self.print(game, battle, &m, f);
-                    self.menu = Menu::Retry {
-                        party,
-                        mov,
-                        n: n + 1,
-                    };
-                } else {
-                    self.parts.windows.yes_no(game, f);
-                    self.menu = Menu::LearnAsk { party, mov };
-                }
-            }
-        }
-        None
-    }
-
-    /// "Stop learning `mov`?" (`STRINGID_STOPLEARNINGMOVE`), then its yes/no.
-    fn stop_learning(
-        &mut self,
-        game: &impl GameData,
-        battle: &Battle,
-        party: u8,
-        mov: MoveId,
-        f: &mut Frame,
-    ) {
-        let m = self.learn_msg(Str::StopLearningMove, party, mov);
-        self.print(game, battle, &m, f);
-        self.menu = Menu::StopMsg { party, mov };
-    }
 }
 
 /// The names `text::expand` reads, from the battle and the game.
@@ -990,216 +838,5 @@ fn names<'a>(game: &impl GameData, battle: &'a Battle) -> Names<'a> {
         wild: matches!(battle.setup().kind, BattleKind::Wild { .. }),
         mons: [battle.mon(Side::Player), battle.mon(Side::Opponent)],
         parties: [battle.party(Side::Player), battle.party(Side::Opponent)],
-    }
-}
-
-fn hash_play(p: Play, h: &mut Fnv64) {
-    let opt = |o: Option<u8>| o.unwrap_or(0xFF);
-    let bytes: [u8; 4] = match p {
-        Play::Idle => [0, 0, 0, 0],
-        Play::Msg => [1, 0, 0, 0],
-        Play::Anims => [2, 0, 0, 0],
-        Play::WildAppear(b) => [3, b as u8, 0, 0],
-        Play::SendOut(side, s) => {
-            let (k, n) = match s {
-                Send::Wait(n) => (0, n),
-                Send::Ball => (1, 0),
-                Send::Box => (2, 0),
-                Send::Delay(n) => (3, n),
-            };
-            [4, side as u8, k, n]
-        }
-        Play::Faint(side, n) => [5, side as u8, opt(n), 0],
-        Play::Hp(side) => [6, side as u8, 0, 0],
-        Play::Exp => [7, 0, 0, 0],
-        Play::Bars => [8, 0, 0, 0],
-        Play::Defeated(b) => [9, b as u8, 0, 0],
-        Play::Ending => [10, 0, 0, 0],
-    };
-    h.write(&bytes);
-}
-
-fn hash_menu(m: Menu, h: &mut Fnv64) {
-    let (tag, party, mov, n) = match m {
-        Menu::None => (0, 0, MoveId(0), 0),
-        Menu::Action => (1, 0, MoveId(0), 0),
-        Menu::Move => (2, 0, MoveId(0), 0),
-        Menu::LearnAsk { party, mov } => (3, party, mov, 0),
-        Menu::LearnPick { party, mov } => (4, party, mov, 0),
-        Menu::StopMsg { party, mov } => (5, party, mov, 0),
-        Menu::StopAsk { party, mov } => (6, party, mov, 0),
-        Menu::Retry { party, mov, n } => (7, party, mov, n),
-    };
-    h.write(&[tag, party, n]);
-    h.write_u16(mov.0);
-}
-
-/// A stable code for `s` (its declaration order; indexed strings carry their index).
-fn str_code(s: Str, h: &mut Fnv64) {
-    use Str::*;
-    let code: u8 = match s {
-        Intro1 => 0,
-        IntroTrainer => 1,
-        IntroMsg => 2,
-        Intro2 => 3,
-        GoPkmn => 4,
-        PkmnSentOut => 5,
-        WhatWillPkmnDo => 6,
-        BattleMenu => 7,
-        MoveInterfacePP => 8,
-        MoveInterfaceType => 9,
-        UsedMove => 10,
-        AttackMissed => 11,
-        CriticalHit => 12,
-        SuperEffective => 13,
-        NotVeryEffective => 14,
-        ItDoesntAffect => 15,
-        PkmnFainted => 16,
-        GotAwaySafely => 17,
-        CantEscape => 18,
-        DontLeaveBirch => 19,
-        WildPkmnFled => 20,
-        PlayerDefeatedTrainer => 21,
-        PlayerWhiteout => 22,
-        PlayerWhiteout2 => 23,
-        PkmnGainedExp => 24,
-        PkmnGrewToLv => 25,
-        PkmnLearnedMove => 26,
-        TryToLearnMove1 => 27,
-        TryToLearnMove2 => 28,
-        TryToLearnMove3 => 29,
-        PkmnForgotMove => 30,
-        StopLearningMove => 31,
-        DidNotLearnMove => 32,
-        AttackerStatChanged => 33,
-        DefenderStatChanged => 34,
-        StatRose => 35,
-        StatSharplyRose => 36,
-        StatFell => 37,
-        StatHarshlyFell => 38,
-        StatWontIncrease => 39,
-        StatWontDecrease => 40,
-        ButItFailed => 41,
-        PkmnWasPoisoned => 42,
-        PkmnWasBurned => 43,
-        PkmnWasParalyzed => 44,
-        PkmnFellAsleep => 45,
-        PkmnBecameConfused => 46,
-        PkmnFlinched => 47,
-        PkmnIsConfused => 48,
-        PkmnHurtItself => 49,
-        PkmnIsParalyzed => 50,
-        PkmnFastAsleep => 51,
-        PkmnWokeUp => 52,
-        PkmnHurtByPoison => 53,
-        PkmnHurtByBurn => 54,
-        PkmnSeeded => 55,
-        LeechSeedDrain => 56,
-        PkmnStoringEnergy => 57,
-        PkmnUnleashedEnergy => 58,
-        GettingPumped => 59,
-        AbsorbDrain => 60,
-        PkmnHitWithRecoil => 61,
-        NoPPLeft => 62,
-        Struggle => 63,
-        NoRunningFromTrainers => 64,
-        Gotcha => 65,
-        WildPrefix => 66,
-        FoePrefix => 67,
-        BattleYesNoChoice => 68,
-        ConfirmStarterChoice => 69,
-        TypeName(t) => {
-            h.write(&[70]);
-            t as u8
-        }
-        StatName(s) => {
-            h.write(&[71]);
-            s as u8
-        }
-        // Strings added after this list (Tasks E2/I) hash alike: the core state still tells
-        // runs apart.
-        #[allow(unreachable_patterns)]
-        _ => 0xFE,
-    };
-    h.write(&[code]);
-}
-
-fn hash_buff(b: &Buff, h: &mut Fnv64) {
-    match *b {
-        Buff::None => h.write(&[0]),
-        Buff::Stat(s) => h.write(&[1, s as u8]),
-        Buff::Move(m) => {
-            h.write(&[2]);
-            h.write_u16(m.0);
-        }
-        Buff::Number(n) => {
-            h.write(&[3]);
-            h.write_u32(n);
-        }
-        Buff::Species(s) => {
-            h.write(&[4]);
-            h.write_u16(s.0);
-        }
-        Buff::Type(t) => h.write(&[5, t as u8]),
-        Buff::Mon { side, party } => h.write(&[6, side as u8, party]),
-        Buff::MonNick { side, party } => h.write(&[7, side as u8, party]),
-        Buff::Text(s) => {
-            h.write(&[8]);
-            str_code(s, h);
-        }
-    }
-}
-
-fn hash_event(e: &BattleEvent, h: &mut Fnv64) {
-    match *e {
-        BattleEvent::Msg(m) => {
-            h.write(&[0]);
-            str_code(m.id, h);
-            h.write(&[
-                m.attacker as u8,
-                m.target as u8,
-                m.active as u8,
-                m.slots[0],
-                m.slots[1],
-            ]);
-            h.write_u16(m.mov.map_or(0xFFFF, |m| m.0));
-            for b in &m.buffs {
-                hash_buff(b, h);
-            }
-            h.write(&match m.wait {
-                MsgWait::Frames(n) => [0, n],
-                MsgWait::Button => [1, 0],
-            });
-        }
-        BattleEvent::WildAppear => h.write(&[1]),
-        BattleEvent::TrainerAppear => h.write(&[2]),
-        BattleEvent::TrainerSlideOut => h.write(&[3]),
-        BattleEvent::TrainerDefeated => h.write(&[4]),
-        BattleEvent::SendOut { side, party } => h.write(&[5, side as u8, party]),
-        BattleEvent::Recall { side } => h.write(&[6, side as u8]),
-        BattleEvent::MoveAnim { attacker, mov } => {
-            h.write(&[7, attacker as u8]);
-            h.write_u16(mov.0);
-        }
-        BattleEvent::Hit { target, eff } => h.write(&[8, target as u8, eff as u8]),
-        BattleEvent::Hp { side, from, to } => {
-            h.write(&[9, side as u8]);
-            h.write_u16(from);
-            h.write_u16(to);
-        }
-        BattleEvent::StatusIcon { side, status } => {
-            let (a, b) = status.code();
-            h.write(&[10, side as u8, a, b]);
-        }
-        BattleEvent::StatAnim { side, up } => h.write(&[11, side as u8, up as u8]),
-        BattleEvent::Faint { side } => h.write(&[12, side as u8]),
-        BattleEvent::Exp { party, from, to } => {
-            h.write(&[13, party]);
-            h.write_u32(from);
-            h.write_u32(to);
-        }
-        BattleEvent::LevelUp { party, level } => h.write(&[14, party, level]),
-        BattleEvent::Ball { shakes, caught } => h.write(&[15, shakes, caught as u8]),
-        BattleEvent::End(o) => h.write(&[16, o as u8]),
     }
 }

@@ -75,7 +75,7 @@ mod tests {
     static PIC: TrainerPic = TrainerPic {
         tiles: &[],
         palette: &[0; 16],
-        y: 0,
+        y: 8,
     };
 
     /// Trainer "AB" (0xBB + 0xBC = 375): a Mudkip L5 (IV 255) and a Zigzagoon L3 (IV 128, Bide).

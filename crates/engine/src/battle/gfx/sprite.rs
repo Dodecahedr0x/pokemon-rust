@@ -770,6 +770,7 @@ impl TrainerSprite {
             bank: self.palette_bank(),
             colors: *pic.palette,
         });
+        debug_assert!(pic.y <= 8, "trainer pic size {} > 8", pic.y);
         self.loaded = true;
         self.size = pic.y;
         self.home = Self::centre(self.side, pic.y);

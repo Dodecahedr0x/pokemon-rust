@@ -345,6 +345,9 @@ pub struct TypeMatchup {
 pub struct TrainerPic {
     pub tiles: &'static [Tile],
     pub palette: &'static [u16; 16],
+    /// Gen3 `MonCoords.size` of `gTrainerFrontPicCoords` / `gTrainerBackPicCoords` (1..=8): the
+    /// pic's centre y is derived from it (`(8 - size) * 4 + 40` front, `+ 80` back; see
+    /// `battle::gfx::TrainerSprite`). 8 for every Emerald pic and for empty pics.
     pub y: u8,
 }
 

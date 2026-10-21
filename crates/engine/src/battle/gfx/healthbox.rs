@@ -507,6 +507,11 @@ impl Healthbox {
         self.visible
     }
 
+    /// The HP the numbers show (`set_hp` / `set_mon`).
+    pub fn hp(&self) -> u16 {
+        self.hp
+    }
+
     /// Tile uploads still pending.
     pub fn pending(&self) -> u32 {
         self.dirty.count_ones() + 2 * self.label_dirty as u32
