@@ -155,7 +155,16 @@ pub enum Buff {
     Number(u32),
     Species(SpeciesId),
     Type(Type),
-    Mon { side: Side, party: u8 },
+    /// `B_BUFF_MON_NICK_WITH_PREFIX`: party slot `party` of `side`, with the wild/foe tag.
+    Mon {
+        side: Side,
+        party: u8,
+    },
+    /// `B_BUFF_MON_NICK`: the nickname alone (`sText_Trainer1SentOutPkmn2`, send-outs).
+    MonNick {
+        side: Side,
+        party: u8,
+    },
     Text(Str),
 }
 
@@ -302,8 +311,11 @@ pub struct Names<'a> {
     pub trainer_class: &'a [u8],
     pub trainer_name: &'a [u8],
     pub wild: bool,
-    /// Index = `Side as usize`.
+    /// The battlers. Index = `Side as usize`.
     pub mons: [&'a BattleMon; 2],
+    /// Both parties (index = `Side as usize`): `Buff::Mon` / `Buff::MonNick` name a party slot,
+    /// so a queued message names the same Pokémon whichever battler is out when it plays.
+    pub parties: [&'a Party; 2],
 }
 
 /// A tile graphic with its palettes and optional tilemap (raw GBA screen entries, 32 per row).

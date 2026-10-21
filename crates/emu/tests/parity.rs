@@ -14,7 +14,14 @@
 //! `f` compares the ROM hash with native after `f` steps and the ROM picture with native after
 //! `f - 1` steps.
 
-use emu::{RomRun, run_rom};
+extern crate alloc;
+
+#[path = "../../game-gba/src/probe_scene.rs"]
+mod probe_scene;
+
+use emu::{Emu, RomRun, run_rom};
+use engine::Buttons;
+use game_native::Ppu;
 use game_native::Session;
 use game_native::scenario::{Recording, record_route};
 use std::path::Path;
@@ -144,4 +151,88 @@ fn the_route_matches_the_content_build() {
     }
     let rec = recording();
     assert!(!rec.moments.is_empty());
+}
+
+/// The probe sequence plays natively: every frame is valid, the starter screen confirms the
+/// middle ball through its scripted input (one decline first), and the transition over it ends
+/// black.
+#[test]
+fn video_probe_sequence_plays() {
+    let (frames, chosen) = probe_scene::all_frames();
+    assert_eq!(chosen, Some(1));
+    for (i, f) in frames.iter().enumerate() {
+        assert_eq!(f.validate(), Ok(()), "probe frame {i}");
+    }
+    assert!(frames.last().unwrap().is_black());
+    let lighten: std::collections::BTreeSet<u8> = frames
+        .iter()
+        .filter(|f| f.lighten)
+        .map(|f| f.brightness)
+        .collect();
+    assert_eq!(lighten.len(), 17);
+    let high_obj_tiles = frames[0]
+        .cmds
+        .iter()
+        .filter(|c| matches!(c, engine::video::Cmd::ObjTile { index, .. } if *index >= 512))
+        .count();
+    assert_eq!(high_obj_tiles, 5);
+}
+
+/// The video probe ROM (`crates/game-gba/src/bin/video_probe.rs`) against the native PPU: every
+/// `Frame::lighten` level, `Cmd::ObjTile` and both battle transitions, frame by frame. The probe
+/// publishes the index of the frame it applied at the last vblank, which is the picture the
+/// emulator has just drawn.
+#[test]
+#[ignore = "needs target/video-probe.gba; run `cargo xtask parity`"]
+fn video_probe_matches_native() {
+    let rom = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/video-probe.gba");
+    let (frames, _) = probe_scene::all_frames();
+    let last = frames.len() as u32 - 1;
+    let mut emu = Emu::open(&rom).unwrap_or_else(|e| panic!("open probe: {e:#}"));
+    let mut snap = emu
+        .boot(120)
+        .unwrap_or_else(|e| panic!("boot probe: {e:#}"));
+    let mut ppu = Ppu::new();
+    let mut applied = 0usize;
+    ppu.apply(&frames[0]);
+    let mut fb = vec![0u16; game_native::SCREEN_W * game_native::SCREEN_H];
+    let (mut compared, mut lighten_levels) = (0, std::collections::BTreeSet::new());
+    for _ in 0..3 * frames.len() {
+        let i = snap.frame as usize;
+        while applied < i.min(last as usize) {
+            applied += 1;
+            ppu.apply(&frames[applied]);
+        }
+        // Frame 0 is applied during forced blank, part-way through an emulator frame.
+        if i > 0 && i <= last as usize {
+            ppu.render(&frames[i], &mut fb);
+            let rom_fb = emu.framebuffer_rgb555();
+            let diff = rom_fb.iter().zip(&fb).filter(|(a, b)| a != b).count();
+            if diff != 0 {
+                dump_mismatch(i as u32, &rom_fb, &fb);
+            }
+            assert_eq!(diff, 0, "{diff} pixels differ at probe frame {i}");
+            compared += 1;
+            if frames[i].lighten {
+                lighten_levels.insert(frames[i].brightness);
+            }
+        }
+        assert_eq!(snap.late, 0, "probe applied a frame late by frame {i}");
+        if snap.frame >= last {
+            break;
+        }
+        emu.run_frame(Buttons::NONE).unwrap();
+        snap = emu.debug().expect("debug region");
+    }
+    assert!(snap.frame >= last, "probe stopped at frame {}", snap.frame);
+    assert!(
+        compared + 2 >= last as usize,
+        "only {compared} of {last} probe frames sampled"
+    );
+    assert_eq!(
+        lighten_levels.len(),
+        17,
+        "lighten levels 0..=16 all compared"
+    );
+    println!("video probe: {compared} frames identical");
 }
