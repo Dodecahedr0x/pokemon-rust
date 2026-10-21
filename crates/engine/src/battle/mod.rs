@@ -424,6 +424,7 @@ impl Str {
             FoePrefix => 67,
             BattleYesNoChoice => 68,
             ConfirmStarterChoice => 69,
+            BirchInTrouble => 72,
             TypeName(t) => 70 << 8 | t as u16,
             StatName(s) => 71 << 8 | s as u16,
             // Task E2.
