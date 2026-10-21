@@ -21,9 +21,19 @@
 //!
 //! **Generated file contract** (`content::prelude` implements it, see the M3 plan): no `use`
 //! lines and no inner attributes, only `pub async fn <Name>(ctx: Ctx)` and `pub static`
-//! movement tables. Content wraps each file as
-//! `#[allow(…)] pub mod <Map> { use crate::prelude::*; include!(…); }` inside `crate::scripts`,
-//! so calls into another map's file are `super::<Map>::<Name>`.
+//! movement tables. Content wraps each file, inside `crate::scripts`, exactly as
+//!
+//! ```text
+//! #[allow(non_snake_case, non_upper_case_globals, unused_mut, unused_variables,
+//!     unused_assignments, unreachable_code, clippy::all)]
+//! pub mod <Map> {
+//!     use crate::prelude::*;
+//!     include!(concat!(env!("PKR_EXTRACTED"), "/scripts/<Map>.rs"));
+//! }
+//! ```
+//!
+//! so calls into another map's file are `super::<Map>::<Name>`. Besides the `Ctx` methods, the
+//! prelude provides `msgbox`, `callstd`, `special`, `unsupported` and `check_player_gender`.
 //!
 //! **Gen3 semantics kept:** the comparison register is a local `cond: Ordering` (`checkflag`
 //! sets `Equal` when the flag is set, `Less` otherwise, as `comparisonResult` 1/0); `yesnobox`
@@ -35,7 +45,7 @@
 use crate::schema::{ScriptEntry, ScriptIndex, TextFile};
 use crate::scripts::{self, Insn, Operand};
 use crate::{Rom, movement, names, roots, text};
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Write as _;
 
@@ -70,6 +80,34 @@ pub struct Stats {
     pub foreign_cond: usize,
     /// `waitmovement 0` with no `applymovement` earlier in the same block.
     pub unresolved_waitmovement: usize,
+}
+
+impl Stats {
+    /// One line for the extract output: counts, then unsupported commands by frequency (ties
+    /// by name), unknown movement actions, `end` in callees and unresolved `waitmovement 0`.
+    pub fn summary(&self) -> String {
+        let mut unsupported: Vec<(&String, &usize)> = self.unsupported.iter().collect();
+        unsupported.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        let list = |it: &mut dyn Iterator<Item = (&String, &usize)>| {
+            let v: Vec<String> = it.map(|(k, n)| format!("{k} {n}")).collect();
+            if v.is_empty() {
+                "none".to_string()
+            } else {
+                v.join(", ")
+            }
+        };
+        format!(
+            "script codegen: {} fns, {} texts, {} movements; unsupported: {}; unknown movement \
+             actions: {}; end in callee: {}; unresolved waitmovement: {}",
+            self.fns,
+            self.texts,
+            self.movements,
+            list(&mut unsupported.into_iter()),
+            list(&mut self.unknown_movement_actions.iter()),
+            self.end_in_callee,
+            self.unresolved_waitmovement
+        )
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -154,6 +192,8 @@ const VAR_RESULT: u16 = 0x800D;
 const VAR_OBJ_GFX_ID_0: u16 = 0x4010;
 /// `VAR_0x8000`: the item operand of `giveitem`/`finditem`.
 const GIVEITEM_VAR: u16 = 0x8000;
+/// `VAR_0x8001`: the amount operand of `giveitem`/`finditem`.
+const GIVEITEM_AMOUNT_VAR: u16 = 0x8001;
 const LOCALID_PLAYER: u16 = 0xFF;
 const WARP_ID_NONE: u8 = 0xFF;
 
@@ -232,7 +272,7 @@ pub fn generate(rom: &Rom, maps: &[MapRoots], header: &str) -> Result<Generated>
         let (name, map) = p.movements[&off].clone();
         let actions = movement::decode(rom, off).with_context(|| format!("movement {name}"))?;
         let mut unknown = Vec::new();
-        let lit = movement::array_literal(&actions, "", &mut unknown);
+        let (lit, len) = movement::array_literal(&actions, "", &mut unknown);
         for u in unknown {
             *p.stats.unknown_movement_actions.entry(u).or_default() += 1;
         }
@@ -240,11 +280,7 @@ pub fn generate(rom: &Rom, maps: &[MapRoots], header: &str) -> Result<Generated>
             .files
             .get_mut(&map)
             .context("movement of an unknown map")?;
-        writeln!(
-            file,
-            "\npub static {name}: [Step; {}] = {lit};",
-            actions.len()
-        )?;
+        writeln!(file, "\npub static {name}: [Step; {}] = {lit};", len)?;
         out.index.movements.insert(name, map);
     }
     p.stats.fns = p.fns.len();
@@ -447,9 +483,7 @@ impl Prog<'_> {
                             self.movement_order.push(m);
                             nm += 1;
                         }
-                        Operand::Braille(Some(_)) => {
-                            bail!("{}: braille text is not supported", l.name)
-                        }
+                        // Braille (`braillemessage`) is left to `unsupported`.
                         _ => {}
                     }
                 }
@@ -652,6 +686,9 @@ impl Prog<'_> {
             if insn.name == "setorcopyvar"
                 && let [Operand::Half(GIVEITEM_VAR), Operand::Half(item)] = insn.args[..]
                 && item < VARS_START
+                && let Some(amount) = insns.get(i + 1)
+                && amount.name == "setorcopyvar"
+                && matches!(amount.args[..], [Operand::Half(GIVEITEM_AMOUNT_VAR), _])
                 && let Some(std) = insns.get(i + 2)
                 && std.name == "callstd"
                 && matches!(std.args[..], [Operand::Byte(0 | 1)])
@@ -661,7 +698,10 @@ impl Prog<'_> {
                 i += 1;
                 continue;
             }
-            self.emit_insn(insn, fx, &mut last_moved, &mut out)?;
+            let next_ends = insns
+                .get(i + 1)
+                .is_some_and(|n| matches!(n.name, "end" | "return"));
+            self.emit_insn(insn, fx, next_ends, &mut last_moved, &mut out)?;
             i += 1;
         }
         match end {
@@ -692,12 +732,13 @@ impl Prog<'_> {
         }
     }
 
-    fn call(&mut self, t: u32, fx: &FnCx) -> Vec<String> {
+    /// A call; `next_ends` when the caller ends right after it anyway (no note needed).
+    fn call(&mut self, t: u32, fx: &FnCx, next_ends: bool) -> Vec<String> {
         let mut out = vec![format!(
             "Box::pin({}(ctx.clone())).await;",
             self.fn_path(fx.map, t)
         )];
-        if self.can_end.contains(&t) {
+        if self.can_end.contains(&t) && !next_ends {
             self.stats.end_in_callee += 1;
             out.push(format!(
                 "// note: in Gen3, an `end` inside {} also ends this script",
@@ -723,6 +764,9 @@ impl Prog<'_> {
             "unsupported(&ctx, \"{}\").await;{comment}",
             insn.name
         ));
+        if insn.name == "trainerbattle" {
+            out.push("// what follows is the already-beaten path".to_string());
+        }
         if insn.is_terminator() {
             out.push("return;".to_string());
         }
@@ -738,7 +782,8 @@ impl Prog<'_> {
             Operand::Script(s) => self.name_of(s).to_string(),
             Operand::Text(Some(t)) => self.texts[&t].clone(),
             Operand::Movement(Some(m)) => self.movements[&m].0.clone(),
-            Operand::Text(None) | Operand::Movement(None) | Operand::Braille(_) => {
+            Operand::Braille(Some(_)) => "braille".to_string(),
+            Operand::Text(None) | Operand::Movement(None) | Operand::Braille(None) => {
                 "RAM".to_string()
             }
         }
@@ -757,6 +802,7 @@ impl Prog<'_> {
         &mut self,
         insn: &Insn,
         fx: &FnCx,
+        next_ends: bool,
         last_moved: &mut Option<String>,
         out: &mut Vec<String>,
     ) -> Result<()> {
@@ -766,7 +812,7 @@ impl Prog<'_> {
         match (name, args) {
             ("nop" | "nop1", _) => out.push(format!("// {name}")),
             ("end" | "return" | "returnram" | "endram", _) => out.push("return;".to_string()),
-            ("call", &[Script(t)]) => out.extend(self.call(t, fx)),
+            ("call", &[Script(t)]) => out.extend(self.call(t, fx, next_ends)),
             ("goto", &[Script(t)]) => out.extend(self.jump(t, fx)),
             ("goto_if" | "call_if", &[Byte(c), Script(t)]) => {
                 let Some(c) = condition(c) else {
@@ -776,7 +822,7 @@ impl Prog<'_> {
                 let body = if name == "goto_if" {
                     self.jump(t, fx)
                 } else {
-                    self.call(t, fx)
+                    self.call(t, fx, next_ends)
                 };
                 out.push(format!("if {c} {{"));
                 out.extend(body.into_iter().map(|l| format!("    {l}")));
@@ -894,7 +940,7 @@ impl Prog<'_> {
                 *last_moved = Some(id);
             }
             ("applymovementat", &[Half(id), Movement(Some(m)), Half(at)])
-                if self.is_current_map(at, fx) =>
+                if self.at_here(id, at, fx) =>
             {
                 let id = local_id(id);
                 out.push(format!(
@@ -904,25 +950,44 @@ impl Prog<'_> {
                 *last_moved = Some(id);
             }
             ("waitmovement", &[Half(id)]) => out.push(self.wait_move(id, last_moved)),
-            ("waitmovementat", &[Half(id), Half(at)]) if self.is_current_map(at, fx) => out.push(
+            ("waitmovementat", &[Half(id), Half(at)]) if self.at_here(id, at, fx) => out.push(
                 format!("{} // waitmovementat", self.wait_move(id, last_moved)),
             ),
             ("addobject" | "removeobject", &[Half(id)]) => out.push(format!(
-                "ctx.{}_object({}).await; // {name}",
-                if name == "addobject" { "show" } else { "hide" },
+                "ctx.{}_object({}).await;",
+                if name == "addobject" { "add" } else { "remove" },
                 local_id(id)
             )),
             (
                 "addobjectat" | "removeobjectat" | "showobjectat" | "hideobjectat",
                 &[Half(id), Half(at)],
-            ) if self.is_current_map(at, fx) => out.push(format!(
+            ) if self.at_here(id, at, fx) => out.push(format!(
                 "ctx.{}_object({}).await; // {name}",
-                if matches!(name, "addobjectat" | "showobjectat") {
-                    "show"
-                } else {
-                    "hide"
+                match name {
+                    "addobjectat" => "add",
+                    "removeobjectat" => "remove",
+                    "showobjectat" => "show",
+                    _ => "hide",
                 },
                 local_id(id)
+            )),
+            ("setobjectxyperm", &[Half(id), Half(x), Half(y)]) => out.push(format!(
+                "ctx.set_object_template_pos({}, {}, {}).await;",
+                local_id(id),
+                coord(x),
+                coord(y)
+            )),
+            ("opendoor" | "closedoor", &[Half(x), Half(y)]) => out.push(format!(
+                "ctx.door({}, {}, {}).await;",
+                coord(x),
+                coord(y),
+                name == "opendoor"
+            )),
+            ("waitdooranim", _) => out.push("ctx.wait_door().await;".to_string()),
+            ("waitstate", _) => out.push("ctx.wait_state().await;".to_string()),
+            ("checkplayergender", _) => out.push(format!(
+                "ctx.set_var({}, check_player_gender(&ctx).await).await;",
+                var(VAR_RESULT)
             )),
             ("setobjectxy", &[Half(id), Half(x), Half(y)]) => out.push(format!(
                 "ctx.set_object_pos({}, {}, {}).await;",
@@ -1016,17 +1081,26 @@ impl Prog<'_> {
         }
     }
 
-    fn wait_move(&mut self, id: u16, last_moved: &Option<String>) -> String {
+    fn wait_move(&mut self, id: u16, last_moved: &mut Option<String>) -> String {
+        // Gen3 `waitmovement N` (N != 0) also makes N the "last mover".
         if id != 0 {
-            return format!("ctx.wait_move({}).await;", local_id(id));
+            let id = local_id(id);
+            *last_moved = Some(id.clone());
+            return format!("ctx.wait_move({id}).await;");
         }
         match last_moved {
             Some(id) => format!("ctx.wait_move({id}).await;"),
             None => {
                 self.stats.unresolved_waitmovement += 1;
-                "ctx.wait_move(0).await; // 0: the object of the last applymovement".to_string()
+                "ctx.wait_move(0).await; // the last mover".to_string()
             }
         }
+    }
+
+    /// Whether an `*at` command applies to the current map: always for the player (Gen3 finds
+    /// the player whatever the map), else when its map operand is the file's map.
+    fn at_here(&self, id: u16, at: u16, fx: &FnCx) -> bool {
+        id == LOCALID_PLAYER || self.is_current_map(at, fx)
     }
 
     /// Whether an `*at` command's map operand (group byte, num byte) is the file's map.

@@ -158,6 +158,7 @@ fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()> {
         o.bytes(&format!("scripts/{map}.rs"), src.as_bytes())?;
     }
     o.ron("scripts/index.ron", &g.index)?;
+    println!("{}", g.stats.summary());
     Ok(())
 }
 

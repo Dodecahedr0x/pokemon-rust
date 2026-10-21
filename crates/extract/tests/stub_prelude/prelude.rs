@@ -33,6 +33,12 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     0
 }
 
+/// Gen3 `checkplayergender`: 0 male, 1 female.
+pub async fn check_player_gender(ctx: &Ctx) -> u16 {
+    ctx.log("check_player_gender").await;
+    0
+}
+
 pub async fn unsupported(ctx: &Ctx, what: &'static str) {
     ctx.log(what).await;
 }

@@ -96,6 +96,13 @@ fn synthetic() -> (Rom, Vec<MapRoots>) {
         .p("mv") // applymovement LOCALID_PLAYER, mv
         .b(&[0x51])
         .h(0) // waitmovement 0
+        .b(&[0x59])
+        .h(0xff)
+        .b(&[0, 16]) // hideobjectat LOCALID_PLAYER, MAP_ROUTE101 (another map)
+        .b(&[0xac])
+        .h(0x4051)
+        .h(3) // opendoor VAR_0x4051, 3
+        .b(&[0xae, 0xa0]) // waitdooranim ; checkplayergender
         .b(&[0x05])
         .p("seen") // goto seen
         .l("b0")
@@ -117,7 +124,8 @@ fn synthetic() -> (Rom, Vec<MapRoots>) {
         .l("b1")
         .b(&[0xf0])
         .l("mv")
-        .b(&[0x09, 0x51, 0xfe]) // walk_up ; disable_jump_landing_ground_effect ; step_end
+        .b(&[0x09, 0x51, 0x4f, 0xfe]) // walk_up ; disable_jump_landing_ground_effect ;
+        // nurse_joy_bow_down ; step_end
         .text("t_hello", "Hello!")
         .text("t_again", "Again?");
     let maps = vec![
@@ -192,12 +200,17 @@ pub async fn A_Obj1_L1(ctx: Ctx) {
 pub async fn A_Obj2(ctx: Ctx) {
     ctx.move_obj(PLAYER, &A_Obj2_M0).await;
     ctx.wait_move(PLAYER).await;
+    ctx.hide_object(PLAYER).await; // hideobjectat
+    ctx.door(ctx.var(VAR_OLDALE_TOWN_STATE).await as i16, 3, true).await;
+    ctx.wait_door().await;
+    ctx.set_var(VAR_RESULT, check_player_gender(&ctx).await).await;
     Box::pin(A_Obj1_L0(ctx.clone())).await;
 }
 
 pub static A_Obj2_M0: [Step; 2] = [
     Step::Walk(Dir::Up, Speed::Normal), // WALK_NORMAL_UP
-    Step::Delay(0), // DISABLE_JUMP_LANDING_GROUND_EFFECT (unsupported)
+    // DISABLE_JUMP_LANDING_GROUND_EFFECT (no effect here)
+    Step::Delay(0), // NURSE_JOY_BOW_DOWN (unsupported)
 ];
 "#;
 
@@ -211,7 +224,7 @@ pub async fn B_Bg0(ctx: Ctx) {
 }
 
 pub async fn B_Bg1(ctx: Ctx) {
-    unsupported(&ctx, "unknown opcode 0xf0").await; // at 0x161
+    unsupported(&ctx, "unknown opcode 0xf0").await; // at 0x16d
 }
 "#;
 
@@ -249,14 +262,17 @@ fn synthetic_golden() {
     );
     let s = &g.stats;
     assert_eq!((s.fns, s.labels, s.texts, s.movements), (6, 7, 2, 1));
-    assert_eq!(s.unknown_ops, BTreeMap::from([(0x161, 0xf0)]));
+    assert_eq!(s.unknown_ops, BTreeMap::from([(0x16d, 0xf0)]));
     assert_eq!(s.end_in_callee, 1);
     assert_eq!(
         s.unknown_movement_actions,
-        BTreeMap::from([(
-            "MOVEMENT_ACTION_DISABLE_JUMP_LANDING_GROUND_EFFECT".into(),
-            1
-        )])
+        BTreeMap::from([("MOVEMENT_ACTION_NURSE_JOY_BOW_DOWN".into(), 1)])
+    );
+    assert_eq!(
+        s.summary(),
+        "script codegen: 6 fns, 2 texts, 1 movements; unsupported: unknown opcode 1; unknown \
+         movement actions: MOVEMENT_ACTION_NURSE_JOY_BOW_DOWN 1; end in callee: 1; unresolved \
+         waitmovement: 0"
     );
 }
 

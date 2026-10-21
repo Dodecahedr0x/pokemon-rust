@@ -58,14 +58,26 @@ pub fn step(action: u8) -> Option<String> {
     })
 }
 
-/// The `[Step; N]` array literal of `actions`, one step per line at `indent`, each commented
-/// with its `MOVEMENT_ACTION_*` name. Unsupported actions become `Step::Delay(0)`; their names
-/// are pushed to `unknown`.
-pub fn array_literal(actions: &[u8], indent: &str, unknown: &mut Vec<String>) -> String {
+/// Actions that only toggle visual effects the engine does not draw: written as comments.
+const NO_EFFECT: [u8; 2] = [
+    0x50, // ENABLE_JUMP_LANDING_GROUND_EFFECT
+    0x51, // DISABLE_JUMP_LANDING_GROUND_EFFECT
+];
+
+/// The `[Step; N]` array literal of `actions` and its `N`, one step per line at `indent`, each
+/// commented with its `MOVEMENT_ACTION_*` name. [`NO_EFFECT`] actions are only comments; other
+/// actions with no `Step` become `Step::Delay(0)` and their names are pushed to `unknown`.
+pub fn array_literal(actions: &[u8], indent: &str, unknown: &mut Vec<String>) -> (String, usize) {
     let mut s = String::from("[\n");
+    let mut n = 0;
     for &a in actions {
         let name = names::movement_action_name(a);
         let short = name.strip_prefix("MOVEMENT_ACTION_").unwrap_or(&name);
+        if NO_EFFECT.contains(&a) {
+            s.push_str(&format!("{indent}    // {short} (no effect here)\n"));
+            continue;
+        }
+        n += 1;
         match step(a) {
             Some(e) => s.push_str(&format!("{indent}    {e}, // {short}\n")),
             None => {
@@ -78,7 +90,7 @@ pub fn array_literal(actions: &[u8], indent: &str, unknown: &mut Vec<String>) ->
     }
     s.push_str(indent);
     s.push(']');
-    s
+    (s, n)
 }
 
 #[cfg(test)]
@@ -107,16 +119,15 @@ mod tests {
     #[test]
     fn array_literal_comments_and_reports_unknown_actions() {
         let mut unknown = Vec::new();
-        let s = array_literal(&[0x08, 0x51], "", &mut unknown);
+        let (s, n) = array_literal(&[0x08, 0x51, 0x4f], "", &mut unknown);
         assert_eq!(
             s,
             "[\n    Step::Walk(Dir::Down, Speed::Normal), // WALK_NORMAL_DOWN\n    \
-             Step::Delay(0), // DISABLE_JUMP_LANDING_GROUND_EFFECT (unsupported)\n]"
+             // DISABLE_JUMP_LANDING_GROUND_EFFECT (no effect here)\n    \
+             Step::Delay(0), // NURSE_JOY_BOW_DOWN (unsupported)\n]"
         );
-        assert_eq!(
-            unknown,
-            ["MOVEMENT_ACTION_DISABLE_JUMP_LANDING_GROUND_EFFECT"]
-        );
+        assert_eq!(n, 2);
+        assert_eq!(unknown, ["MOVEMENT_ACTION_NURSE_JOY_BOW_DOWN"]);
     }
 
     #[test]
