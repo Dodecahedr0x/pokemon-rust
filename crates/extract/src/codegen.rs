@@ -1103,7 +1103,10 @@ impl Prog<'_> {
     /// (the trainer flag was clear):
     /// - `TRAINER_BATTLE_SINGLE` / `_REMATCH`: the battle ends the script (Gen3 `gotobeatenscript`
     ///   without a beaten script: `releaseall ; end`); what follows is the already-beaten path
-    ///   (`gotopostbattlescript`).
+    ///   (`gotopostbattlescript`). `_REMATCH` (type 5) is emitted as type 0, which differs from
+    ///   Gen3's `EventScript_TryDoRematchBattle` (no lock, no flag check: `IsTrainerReadyForRematch`,
+    ///   then `BattleSetup_StartRematchBattle`). The rematch scripts are reached only when
+    ///   `ShouldTryRematchBattle` returns true, and the prelude's `special` returns 0 for it.
     /// - `_CONTINUE_SCRIPT(_NO_MUSIC)`: after the battle the continue script runs; what follows
     ///   is the already-beaten path.
     /// - `_SINGLE_NO_INTRO_TEXT`: no flag check; the script goes on after the battle.
