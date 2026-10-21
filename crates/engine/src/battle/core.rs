@@ -1,42 +1,382 @@
-//! The turn engine and damage pipeline. **Task D.**
+//! The turn engine. **Task D.**
 //!
 //! Gen3 references: `battle_main.c` (`GetWhoStrikesFirst`, `SetActionsAndBattlersTurnOrder`,
-//! `HandleEndTurn_*`), `battle_script_commands.c`, `battle_util.c`,
+//! `TryDoEventsBeforeFirstTurn`, `BattleTurnPassed`, `HandleEndTurn_*`), `battle_util.c`
+//! (`HandleFaintedMonActions`, `TryRunFromBattle`), `battle_script_commands.c` and
 //! `data/battle_scripts_1.s`. Pure and video-free: takes `Choice`s, pushes `BattleEvent`s, and
-//! draws every random roll from the `Rng` it is handed.
+//! draws every random roll from the `Rng` it is handed, one `rng.random()` per Gen3 `Random()`
+//! at the same point of the sequence (the per-VBlank `Random()` excepted).
+//!
+//! # Flow
+//! The battle is a queue of [`Step`]s run until one needs the player ([`Need`]):
+//! - `new` draws Gen3's `BattleStartClearSetData` roll (`gRandomTurnNumber`).
+//! - `start` pushes the intro, then [`Step::FirstTurn`] (switch-in effects in speed order,
+//!   `TryDoEventsBeforeFirstTurn`) and [`Step::NewTurn`] (`gRandomTurnNumber`, the opponent's
+//!   choice from [`super::ai::choose`], then `Need::Action`).
+//! - A chosen action orders the turn (`SetActionsAndBattlersTurnOrder`) into
+//!   `Act(first), Fainted, Act(second), Fainted, EndTurn`. `Fainted` is Gen3
+//!   `HandleAction_TryFinish` → `HandleFaintedMonActions`: exp for a fainted opponent, then the
+//!   win/loss check (`checkteamslost`) and replacements, which cancel the turn's remaining
+//!   actions (`cancelallactions`).
+//! - `EndTurn` runs end-of-turn effects ([`super::effects::end_turn`]), faints, then a new turn.
+//!
+//! # Seams for Task E2
+//! Move effects other than `Hit`/`QuickAttack`/`StatUp`/`StatDown`/`Recoil` go through
+//! [`super::effects::apply`]; `effects` also gets `before_move` (attackcanceler statuses),
+//! `end_turn`, `switch_in`, `blocks_stat_drop` and `ball`. They work on the `pub(crate)` state
+//! below with the building blocks of `core/moves.rs` (accuracy, damage, HP changes, stat
+//! changes, faints, messages).
+//!
+//! # Messages
+//! `MsgWait` follows the script's `waitmessage`: `Frames(64)` after `waitmessage
+//! B_WAIT_TIME_LONG`, `Frames(0)` for a `printstring` without one (a `\p` in the text still
+//! waits), `Button` for the texts that end the battle. Fields: `attacker`/`target` are Gen3's
+//! `gBattlerAttacker`/`gBattlerTarget` of the script, `active` the battler the message is about.
 
-use super::{BattleEvent, BattleMon, BattleSetup, Choice, Need, Side};
-use crate::data::GameData;
+mod moves;
+#[cfg(test)]
+mod tests;
+
+use super::calc::{self, Fighter};
+use super::{
+    BattleEvent, BattleKind, BattleMon, BattleOutcome, BattleSetup, Buff, Choice, Msg, MsgWait,
+    Need, Side, Str,
+};
+use crate::data::{GameData, MoveId, SpeciesId};
 use crate::hash::Fnv64;
-use crate::mon::Party;
+use crate::mon::{Ability, BattleTables, Learn, PARTY_SIZE, Party, Pokemon, Type};
 use crate::rng::Rng;
+use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
-/// A running battle. Core-private per-battler state (stat stages, the STATUS2/3 subset, Bide,
-/// Leech Seed, Focus Energy, confusion, flinch, last move) lives here next to the public
-/// [`BattleMon`]s. Task D.
-pub struct Battle {
-    // Task D.
+// The building blocks of Task E2's effects.
+#[allow(unused_imports)]
+pub(crate) use moves::{HitResult, MoveUse, Secondary};
+
+/// What the core hands its building blocks: the tables, the RNG and the event sink.
+pub(crate) struct Env<'a> {
+    pub t: &'a BattleTables,
+    pub rng: &'a mut Rng,
+    pub out: &'a mut Vec<BattleEvent>,
 }
 
-#[allow(unused_variables, clippy::ptr_arg)] // stub: drop once implemented
+/// Core-private per-battler state (Gen3 `struct BattlePokemon` beyond [`BattleMon`], the
+/// STATUS2/STATUS3 subset, `gDisableStructs` bits) next to the public view.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct Battler {
+    pub mon: BattleMon,
+    /// `Stat` order, copied from the party mon (`stats[0]` = max HP).
+    pub stats: [u16; 6],
+    pub types: [Type; 2],
+    pub ability: Ability,
+    /// Stage per `Stat`, -6..=6 (`stages[0]` unused).
+    pub stages: [i8; 8],
+    /// `STATUS2_CONFUSION` turns left.
+    pub confusion: u8,
+    /// `STATUS2_FLINCHED`, cleared at the end of the turn.
+    pub flinched: bool,
+    /// `STATUS2_FOCUS_ENERGY`.
+    pub focus_energy: bool,
+    /// `STATUS3_LEECHSEED`.
+    pub seeded: bool,
+    /// `STATUS2_FORESIGHT`.
+    pub foresight: bool,
+    /// `STATUS2_BIDE` turns left and the damage stored (`gTakenDmg`).
+    pub bide_turns: u8,
+    pub bide_damage: u16,
+    /// `gLastMoves`: the last move this battler used.
+    pub last_move: Option<MoveId>,
+    /// `HITMARKER_FAINTED`: the faint was played.
+    pub fainted: bool,
+}
+
+impl Battler {
+    /// Gen3 `CopyMonToBattleMon` + `SwitchInClearSetData` for party slot `party`.
+    pub fn new(t: &BattleTables, p: &Pokemon, party: u8) -> Battler {
+        let max_pp = core::array::from_fn(|slot| p.max_pp(t, slot as u8));
+        Battler {
+            mon: BattleMon {
+                party,
+                species: p.species,
+                nickname: p.nickname,
+                level: p.level,
+                hp: p.hp,
+                max_hp: p.stats[0],
+                status: p.status,
+                gender: p.gender(t),
+                moves: p.moves,
+                pp: p.pp,
+                max_pp,
+            },
+            stats: p.stats,
+            types: t.species_info(p.species).types,
+            ability: p.ability(t),
+            stages: [0; 8],
+            confusion: 0,
+            flinched: false,
+            focus_energy: false,
+            seeded: false,
+            foresight: false,
+            bide_turns: 0,
+            bide_damage: 0,
+            last_move: None,
+            fainted: false,
+        }
+    }
+
+    /// What the formulas read.
+    pub fn fighter(&self) -> Fighter {
+        Fighter {
+            level: self.mon.level,
+            hp: self.mon.hp,
+            max_hp: self.mon.max_hp,
+            stats: self.stats,
+            stages: self.stages,
+            types: self.types,
+            ability: self.ability,
+            status: self.mon.status,
+        }
+    }
+
+    /// Gen3 `AreAllMovesUnusable` (no Disable/Taunt yet): every known move is out of PP.
+    pub fn all_moves_unusable(&self) -> bool {
+        (0..4).all(|i| self.mon.moves[i].is_none() || self.mon.pp[i] == 0)
+    }
+
+    fn hash(&self, h: &mut Fnv64) {
+        let m = &self.mon;
+        h.write(&[m.party, m.level, m.gender as u8]);
+        h.write_u16(m.species.0);
+        h.write(&m.nickname);
+        h.write_u16(m.hp);
+        h.write_u16(m.max_hp);
+        let (tag, n) = m.status.code();
+        h.write(&[tag, n]);
+        for mv in m.moves {
+            h.write_u16(mv.map_or(0xFFFF, |m| m.0));
+        }
+        h.write(&m.pp);
+        h.write(&m.max_pp);
+        for s in self.stats {
+            h.write_u16(s);
+        }
+        h.write(&[self.types[0] as u8, self.types[1] as u8, self.ability as u8]);
+        for s in self.stages {
+            h.write(&[s as u8]);
+        }
+        h.write(&[
+            self.confusion,
+            self.flinched as u8,
+            self.focus_energy as u8,
+            self.seeded as u8,
+            self.foresight as u8,
+            self.bide_turns,
+            self.fainted as u8,
+        ]);
+        h.write_u16(self.bide_damage);
+        h.write_u16(self.last_move.map_or(0xFFFF, |m| m.0));
+    }
+}
+
+/// A battler's action for the turn (Gen3 `B_ACTION_*`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Action {
+    /// `B_ACTION_USE_MOVE` with a move slot.
+    Move(u8),
+    /// `B_ACTION_USE_MOVE` with no usable move (`noValidMoves`).
+    Struggle,
+    /// `B_ACTION_SWITCH` to a party slot.
+    Switch(u8),
+    /// `B_ACTION_RUN` (for the opponent: a wild mon fleeing).
+    Run,
+    /// `B_ACTION_USE_ITEM` with a Poké Ball (Task E2).
+    Ball,
+}
+
+impl Action {
+    fn code(self) -> [u8; 2] {
+        match self {
+            Action::Move(s) => [0, s],
+            Action::Struggle => [1, 0],
+            Action::Switch(s) => [2, s],
+            Action::Run => [3, 0],
+            Action::Ball => [4, 0],
+        }
+    }
+}
+
+/// One unit of the battle flow (see the module docs).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Step {
+    /// `TryDoEventsBeforeFirstTurn`.
+    FirstTurn,
+    /// `gRandomTurnNumber`, the opponent's choice, then `Need::Action`.
+    NewTurn,
+    /// The chosen action of a side.
+    Act(Side),
+    /// `HandleFaintedMonActions`.
+    Fainted,
+    /// `BattleScript_HandleFaintedMon` for one side (`checkteamslost`, replacement).
+    Replace(Side),
+    /// `Cmd_getexp` for player party slot `party` and the following slots.
+    GainExp {
+        party: u8,
+        exp: u32,
+        sent: u8,
+        defeated: SpeciesId,
+    },
+    /// One `add_exp_step` of party slot `party` with `rest` exp left.
+    AddExp { party: u8, rest: u32 },
+    /// `handlelearnnewmove`: the learnset moves of `level`, from index `next`.
+    Learn { party: u8, level: u8, next: u8 },
+    /// `BattleTurnPassed`.
+    EndTurn,
+}
+
+impl Step {
+    fn hash(&self, h: &mut Fnv64) {
+        match *self {
+            Step::FirstTurn => h.write(&[0]),
+            Step::NewTurn => h.write(&[1]),
+            Step::Act(s) => h.write(&[2, s as u8]),
+            Step::Fainted => h.write(&[3]),
+            Step::Replace(s) => h.write(&[4, s as u8]),
+            Step::GainExp {
+                party,
+                exp,
+                sent,
+                defeated,
+            } => {
+                h.write(&[5, party, sent]);
+                h.write_u32(exp);
+                h.write_u16(defeated.0);
+            }
+            Step::AddExp { party, rest } => {
+                h.write(&[6, party]);
+                h.write_u32(rest);
+            }
+            Step::Learn { party, level, next } => h.write(&[7, party, level, next]),
+            Step::EndTurn => h.write(&[8]),
+        }
+    }
+}
+
+/// A running battle (singles). See the module docs for the flow.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Battle {
+    pub(crate) setup: BattleSetup,
+    /// `[Player, Opponent]`, kept in sync with the battlers.
+    pub(crate) parties: [Party; 2],
+    /// `[Player, Opponent]`.
+    pub(crate) battlers: [Battler; 2],
+    pub(crate) need: Need,
+    pub(crate) steps: VecDeque<Step>,
+    /// This turn's actions, `None` once done or cancelled.
+    pub(crate) actions: [Option<Action>; 2],
+    /// `gBattleStruct->runTries`.
+    pub(crate) run_tries: u8,
+    /// `gBattleResults.battleTurnCounter`.
+    pub(crate) turn: u8,
+    /// `gSentPokesToOpponent`: player party slots that faced the current opponent.
+    pub(crate) sent_in: u8,
+    /// `gBattleStruct->givenExpMons`: opponent party slots whose exp was given.
+    pub(crate) exp_given: u8,
+    /// `gRandomTurnNumber` (Quick Claw; drawn as Gen3, unused without items).
+    pub(crate) random_turn: u16,
+    /// The trainer's Gen3 `AI_SCRIPT_*` bits (0 in wild battles), for `ai`.
+    pub(crate) trainer_ai: u32,
+}
+
+/// A message about `active` with the move context of `attacker` → `target`, no buffers, no
+/// wait.
+pub(crate) fn msg(id: Str, attacker: Side, target: Side, active: Side) -> Msg {
+    Msg {
+        id,
+        attacker,
+        target,
+        active,
+        mov: None,
+        buffs: [Buff::None; 3],
+        wait: MsgWait::Frames(0),
+    }
+}
+
+/// `waitmessage B_WAIT_TIME_LONG`.
+pub(crate) const LONG: MsgWait = MsgWait::Frames(calc::WAIT_LONG);
+
+/// A message about one side (attacker = target = active).
+fn about(id: Str, side: Side) -> Msg {
+    msg(id, side, side, side)
+}
+
 impl Battle {
-    /// Task D.
+    /// A battle between `player` (cloned; the first mon with HP leads) and the setup's
+    /// opponents. Draws Gen3 `BattleStartClearSetData`'s `gRandomTurnNumber`. Both parties must
+    /// have a mon.
     pub fn new(game: &impl GameData, setup: BattleSetup, player: &Party, rng: &mut Rng) -> Self {
-        todo!("Task D: Battle::new")
+        let t = game.battle();
+        let parties = [player.clone(), setup.opponents.clone()];
+        let lead = |p: &Party| p.first_usable().unwrap_or(0);
+        let battler = |p: &Party| {
+            let i = lead(p);
+            Battler::new(t, p.get(i as usize).expect("a battle needs a mon"), i)
+        };
+        let battlers = [battler(&parties[0]), battler(&parties[1])];
+        let trainer_ai = match setup.kind {
+            BattleKind::Trainer { trainer, .. } => game.trainer(trainer).map_or(0, |t| t.ai),
+            BattleKind::Wild { .. } => 0,
+        };
+        let random_turn = rng.random();
+        Battle {
+            sent_in: 1 << battlers[0].mon.party,
+            setup,
+            parties,
+            battlers,
+            need: Need::Busy,
+            steps: VecDeque::new(),
+            actions: [None; 2],
+            run_tries: 0,
+            turn: 0,
+            exp_given: 0,
+            random_turn,
+            trainer_ai,
+        }
     }
 
-    /// Pushes the intro events (wild or trainer). Task D.
+    /// Pushes the intro events (wild or trainer) and runs to the first `Need::Action`.
     pub fn start(&mut self, game: &impl GameData, rng: &mut Rng, out: &mut Vec<BattleEvent>) {
-        todo!("Task D: Battle::start")
+        if self.need != Need::Busy || !self.steps.is_empty() {
+            return;
+        }
+        let mut env = Env {
+            t: game.battle(),
+            rng,
+            out,
+        };
+        let (p, o) = (Side::Player, Side::Opponent);
+        // BattleIntroPrintWildMonAttacked / PrintTrainerWantsToBattle (STRINGID_INTROMSG), then
+        // STRINGID_INTROSENDOUT for the opponent (trainer) and the player.
+        if self.is_trainer() {
+            env.out.push(BattleEvent::TrainerAppear);
+            env.out
+                .push(BattleEvent::Msg(msg(Str::IntroTrainer, p, o, o)));
+            self.send_out_events(&mut env, o, true);
+        } else {
+            env.out.push(BattleEvent::WildAppear);
+            env.out.push(BattleEvent::Msg(msg(Str::Intro1, p, o, o)));
+        }
+        self.send_out_events(&mut env, p, true);
+        self.steps.push_back(Step::FirstTurn);
+        self.run(&mut env);
     }
 
-    /// Task D.
+    /// What the core waits for.
     pub fn need(&self) -> Need {
-        todo!("Task D: Battle::need")
+        self.need
     }
 
-    /// Answers the current `Need` and runs until the next one. Task D.
+    /// Answers the current `Need` and runs until the next one. A choice that does not answer
+    /// the need (or names an empty move slot, a fainted or active mon) is ignored.
     pub fn choose(
         &mut self,
         game: &impl GameData,
@@ -44,27 +384,656 @@ impl Battle {
         c: Choice,
         out: &mut Vec<BattleEvent>,
     ) {
-        todo!("Task D: Battle::choose")
+        let mut env = Env {
+            t: game.battle(),
+            rng,
+            out,
+        };
+        match (self.need, c) {
+            (Need::Action, c) => {
+                let Some(a) = self.player_action(&mut env, c) else {
+                    return;
+                };
+                self.actions[Side::Player as usize] = Some(a);
+                self.need = Need::Busy;
+                let [first, second] = self.turn_order(&mut env);
+                self.steps.extend([
+                    Step::Act(first),
+                    Step::Fainted,
+                    Step::Act(second),
+                    Step::Fainted,
+                    Step::EndTurn,
+                ]);
+            }
+            (Need::Switch, Choice::Switch(i)) if self.can_switch_to(Side::Player, i) => {
+                self.need = Need::Busy;
+                self.switch_in(&mut env, Side::Player, i);
+                // BattleScript_FaintedMonSendOutNew ends with `cancelallactions`.
+                self.actions = [None; 2];
+            }
+            (Need::LearnMove { party, mov }, Choice::LearnMove { forget }) => {
+                self.need = Need::Busy;
+                self.answer_learn(&mut env, party, mov, forget);
+            }
+            _ => return,
+        }
+        self.run(&mut env);
     }
 
-    /// Task D.
+    /// The battler on `side`.
     pub fn mon(&self, side: Side) -> &BattleMon {
-        todo!("Task D: Battle::mon")
+        &self.battlers[side as usize].mon
     }
 
-    /// Player: written back to the World at the end. Task D.
+    /// The party of `side`. Player: written back to the World at the end.
     pub fn party(&self, side: Side) -> &Party {
-        todo!("Task D: Battle::party")
+        &self.parties[side as usize]
     }
 
-    /// Task D.
     pub fn setup(&self) -> &BattleSetup {
-        todo!("Task D: Battle::setup")
+        &self.setup
     }
 
-    /// Task D.
+    /// Feeds every piece of state into `h`.
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
-        todo!("Task D: Battle::hash")
+        match self.setup.kind {
+            BattleKind::Wild { first_battle } => h.write(&[0, first_battle as u8]),
+            BattleKind::Trainer { trainer, defeat } => {
+                h.write(&[1]);
+                h.write_u16(trainer.0);
+                h.write_u16(defeat.0);
+            }
+        }
+        h.write(&[self.setup.environment as u8]);
+        for p in &self.parties {
+            p.hash(h);
+        }
+        for b in &self.battlers {
+            b.hash(h);
+        }
+        match self.need {
+            Need::Busy => h.write(&[0]),
+            Need::Action => h.write(&[1]),
+            Need::Switch => h.write(&[2]),
+            Need::LearnMove { party, mov } => {
+                h.write(&[3, party]);
+                h.write_u16(mov.0);
+            }
+            Need::Ended(o) => h.write(&[4, o as u8]),
+        }
+        h.write_u16(self.steps.len() as u16);
+        for s in &self.steps {
+            s.hash(h);
+        }
+        for a in self.actions {
+            h.write(&a.map_or([0xFF, 0], Action::code));
+        }
+        h.write(&[self.run_tries, self.turn, self.sent_in, self.exp_given]);
+        h.write_u16(self.random_turn);
+        h.write_u32(self.trainer_ai);
+    }
+
+    // ---- helpers shared with `moves`, `effects` and `ai` ----
+
+    pub(crate) fn battler(&self, side: Side) -> &Battler {
+        &self.battlers[side as usize]
+    }
+
+    pub(crate) fn battler_mut(&mut self, side: Side) -> &mut Battler {
+        &mut self.battlers[side as usize]
+    }
+
+    pub(crate) fn is_trainer(&self) -> bool {
+        matches!(self.setup.kind, BattleKind::Trainer { .. })
+    }
+
+    /// `BATTLE_TYPE_FIRST_BATTLE`.
+    pub(crate) fn is_first_battle(&self) -> bool {
+        matches!(self.setup.kind, BattleKind::Wild { first_battle: true })
+    }
+
+    /// Copies the battler's HP, status and PP into its party mon (Gen3 `SetMonData` after
+    /// `datahpupdate`, `ppreduce`, status changes).
+    pub(crate) fn write_back(&mut self, side: Side) {
+        let b = self.battlers[side as usize];
+        if let Some(p) = self.parties[side as usize].get_mut(b.mon.party as usize) {
+            p.hp = b.mon.hp;
+            p.status = b.mon.status;
+            p.pp = b.mon.pp;
+        }
+    }
+
+    /// Runs steps until one needs the player.
+    fn run(&mut self, env: &mut Env) {
+        while self.need == Need::Busy {
+            let Some(step) = self.steps.pop_front() else {
+                debug_assert!(false, "battle flow ran dry");
+                return;
+            };
+            self.step(env, step);
+            self.write_back(Side::Player);
+            self.write_back(Side::Opponent);
+        }
+    }
+
+    fn step(&mut self, env: &mut Env, step: Step) {
+        match step {
+            Step::FirstTurn => {
+                // TryDoEventsBeforeFirstTurn: switch-in effects from the fastest battler.
+                for side in self.strike_order(env, true) {
+                    super::effects::switch_in(self, env, side);
+                }
+                self.steps.push_front(Step::NewTurn);
+            }
+            Step::NewTurn => self.new_turn(env),
+            Step::Act(side) => self.act(env, side),
+            Step::Fainted => self.fainted(env),
+            Step::Replace(side) => self.replace(env, side),
+            Step::GainExp {
+                party,
+                exp,
+                sent,
+                defeated,
+            } => self.gain_exp(env, party, exp, sent, defeated),
+            Step::AddExp { party, rest } => self.exp_step(env, party, rest),
+            Step::Learn { party, level, next } => self.learn(env, party, level, next),
+            Step::EndTurn => {
+                // HandleEndTurn_ContinueBattle + BattleTurnPassed.
+                for b in &mut self.battlers {
+                    b.flinched = false;
+                }
+                super::effects::end_turn(self, env);
+                self.turn = self.turn.saturating_add(1);
+                self.steps.push_front(Step::NewTurn);
+                self.steps.push_front(Step::Fainted);
+            }
+        }
+    }
+
+    /// `gRandomTurnNumber = Random()`, then `HandleTurnActionSelectionState`: the opponent
+    /// chooses at once (its `Random()`s come before the player's turn runs).
+    fn new_turn(&mut self, env: &mut Env) {
+        self.random_turn = env.rng.random();
+        let o = self.battler(Side::Opponent);
+        let action = if o.all_moves_unusable() {
+            Action::Struggle
+        } else {
+            match super::ai::choose(self, env.t, env.rng) {
+                Choice::Move(s) if (s as usize) < 4 && o.mon.pp[s as usize] > 0 => Action::Move(s),
+                Choice::Switch(i) if self.can_switch_to(Side::Opponent, i) => Action::Switch(i),
+                Choice::Run => Action::Run,
+                _ => Action::Struggle,
+            }
+        };
+        self.actions = [None, Some(action)];
+        self.need = Need::Action;
+    }
+
+    /// The player's choice at `Need::Action`, or `None` when it does not start the turn
+    /// (selection-time messages as Gen3's selection scripts).
+    fn player_action(&mut self, env: &mut Env, c: Choice) -> Option<Action> {
+        let p = Side::Player;
+        let b = self.battler(p);
+        match c {
+            Choice::Move(slot) => {
+                let slot = slot as usize;
+                if slot >= 4 || b.mon.moves[slot].is_none() {
+                    return None;
+                }
+                if b.all_moves_unusable() {
+                    // BattleScript_NoMovesLeft (STRINGID_PKMNHASNOMOVESLEFT), then Struggle.
+                    env.out.push(BattleEvent::Msg(about(Str::Struggle, p)));
+                    return Some(Action::Struggle);
+                }
+                if b.mon.pp[slot] == 0 {
+                    // BattleScript_SelectingMoveWithNoPP.
+                    env.out.push(BattleEvent::Msg(about(Str::NoPPLeft, p)));
+                    return None;
+                }
+                Some(Action::Move(slot as u8))
+            }
+            Choice::Switch(i) if self.can_switch_to(p, i) => Some(Action::Switch(i)),
+            Choice::Run => {
+                // Selection-time refusals: BattleScript_PrintCantRunFromTrainer and
+                // IsRunningFromBattleImpossible (B_MSG_DONT_LEAVE_BIRCH).
+                let refusal = if self.is_trainer() {
+                    Some(Str::CantEscape)
+                } else if self.is_first_battle() {
+                    Some(Str::DontLeaveBirch)
+                } else {
+                    None
+                };
+                if let Some(id) = refusal {
+                    env.out.push(BattleEvent::Msg(about(id, p)));
+                    return None;
+                }
+                Some(Action::Run)
+            }
+            Choice::Ball => Some(Action::Ball),
+            Choice::Switch(_) | Choice::LearnMove { .. } => None,
+        }
+    }
+
+    /// Gen3 `SetActionsAndBattlersTurnOrder` (singles, not a link battle).
+    fn turn_order(&mut self, env: &mut Env) -> [Side; 2] {
+        let (p, o) = (Side::Player, Side::Opponent);
+        let first_class = |a: Option<Action>| matches!(a, Some(Action::Switch(_) | Action::Ball));
+        let [pa, oa] = self.actions;
+        if pa == Some(Action::Run) {
+            return [p, o];
+        }
+        match (first_class(pa), first_class(oa)) {
+            (true, _) => [p, o],
+            (false, true) => [o, p],
+            _ => self.strike_order(env, false),
+        }
+    }
+
+    /// Gen3 `GetWhoStrikesFirst(player, opponent, ignoreChosenMoves)`: priority, then speed
+    /// with stages and paralysis; a speed tie draws `Random() & 1` (only on a tie).
+    pub(crate) fn strike_order(&mut self, env: &mut Env, ignore_moves: bool) -> [Side; 2] {
+        let speed = |s: Side| calc::effective_speed(&self.battler(s).fighter());
+        let (s1, s2) = (speed(Side::Player), speed(Side::Opponent));
+        let priority = |s: Side| -> i8 {
+            let b = self.battler(s);
+            let mov = match self.actions[s as usize] {
+                _ if ignore_moves => None,
+                Some(Action::Move(slot)) => b.mon.moves[slot as usize],
+                Some(Action::Struggle) => Some(env.t.struggle),
+                _ => None,
+            };
+            mov.map_or(0, |m| env.t.move_info(m).priority)
+        };
+        let (p1, p2) = (priority(Side::Player), priority(Side::Opponent));
+        let opponent_first = if (p1 != 0 || p2 != 0) && p1 != p2 {
+            p1 < p2
+        } else {
+            (s1 == s2 && env.rng.random() & 1 != 0) || s1 < s2
+        };
+        if opponent_first {
+            [Side::Opponent, Side::Player]
+        } else {
+            [Side::Player, Side::Opponent]
+        }
+    }
+
+    fn act(&mut self, env: &mut Env, side: Side) {
+        let Some(action) = self.actions[side as usize].take() else {
+            return;
+        };
+        if self.battler(side).mon.hp == 0 {
+            return;
+        }
+        match action {
+            Action::Move(_) | Action::Struggle => self.use_move(env, side, action),
+            Action::Switch(i) => {
+                // BattleScript_ActionSwitch (no STRINGID_RETURNMON string in `Str`).
+                env.out.push(BattleEvent::Recall { side });
+                self.switch_in(env, side, i);
+            }
+            Action::Run => self.run_action(env, side),
+            Action::Ball => super::effects::ball(self, env),
+        }
+    }
+
+    /// Gen3 `HandleAction_Run` / `TryRunFromBattle` (singles, wild).
+    fn run_action(&mut self, env: &mut Env, side: Side) {
+        if side == Side::Opponent {
+            // A wild mon fleeing (B_OUTCOME_MON_FLED).
+            self.finish(env, BattleOutcome::MonFled);
+            return;
+        }
+        let (me, foe) = (self.battler(side), self.battler(side.other()));
+        let fled = if me.ability == Ability::RunAway {
+            // FLEE_ABILITY: Gen3 prints STRINGID_PKMNFLEDUSING; `GotAwaySafely` here.
+            true
+        } else {
+            let (speed, foe_speed) = (me.stats[3], foe.stats[3]);
+            let ok = match calc::run_threshold(speed, foe_speed, self.run_tries) {
+                None => true,
+                Some(var) => var > (env.rng.random() & 0xFF) as u8,
+            };
+            self.run_tries = self.run_tries.saturating_add(1);
+            ok
+        };
+        if fled {
+            self.finish(env, BattleOutcome::Ran);
+        } else {
+            // BattleScript_PrintFailedToRunString.
+            env.out.push(BattleEvent::Msg(Msg {
+                wait: LONG,
+                ..about(Str::CantEscape, side)
+            }));
+        }
+    }
+
+    /// Whether `side` can send out party slot `i` (it can fight and is not out).
+    pub(crate) fn can_switch_to(&self, side: Side, i: u8) -> bool {
+        self.battler(side).mon.party != i
+            && self.parties[side as usize]
+                .get(i as usize)
+                .is_some_and(|p| p.hp > 0)
+    }
+
+    /// The send-out message and event of the battler now on `side` (STRINGID_INTROSENDOUT /
+    /// STRINGID_SWITCHINMON); at the intro a trainer slides out as it throws the ball.
+    fn send_out_events(&mut self, env: &mut Env, side: Side, intro: bool) {
+        let party = self.battler(side).mon.party;
+        // B_BUFF1 = PREPARE_MON_NICK_BUFFER (sText_GoPkmn2, sText_Trainer1SentOutPkmn2): the
+        // party slot, so the text names it even when expanded after later events.
+        let buffs = [Buff::MonNick { side, party }, Buff::None, Buff::None];
+        let id = match side {
+            Side::Player => Str::GoPkmn,
+            Side::Opponent => Str::PkmnSentOut,
+        };
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs,
+            ..about(id, side)
+        }));
+        if intro && side == Side::Opponent && self.is_trainer() {
+            env.out.push(BattleEvent::TrainerSlideOut);
+        }
+        env.out.push(BattleEvent::SendOut { side, party });
+    }
+
+    /// Sends out party slot `i` on `side` (`switchindataupdate`, STRINGID_SWITCHINMON,
+    /// `switchinanim`, `switchineffects`).
+    pub(crate) fn switch_in(&mut self, env: &mut Env, side: Side, i: u8) {
+        self.write_back(side);
+        let p = *self.parties[side as usize]
+            .get(i as usize)
+            .expect("switch to a party slot");
+        self.battlers[side as usize] = Battler::new(env.t, &p, i);
+        let player_party = self.battler(Side::Player).mon.party;
+        match side {
+            // UpdateSentPokesToOpponentValue.
+            Side::Player => self.sent_in |= 1 << i,
+            // OpponentSwitchInResetSentPokesToOpponentValue.
+            Side::Opponent => self.sent_in = 1 << player_party,
+        }
+        self.send_out_events(env, side, false);
+        super::effects::switch_in(self, env, side);
+    }
+
+    /// Gen3 `HandleFaintedMonActions`: exp for a fainted opponent (once per party slot), then
+    /// `BattleScript_HandleFaintedMon` for each fainted battler, player first.
+    fn fainted(&mut self, env: &mut Env) {
+        let mut next: Vec<Step> = Vec::new();
+        let o = *self.battler(Side::Opponent);
+        if o.mon.hp == 0 && self.exp_given & (1 << o.mon.party) == 0 {
+            self.exp_given |= 1 << o.mon.party;
+            // Cmd_getexp state 1: the exp of each participant still standing.
+            let sent = self.sent_in;
+            let participants = self.parties[Side::Player as usize]
+                .iter()
+                .enumerate()
+                .filter(|(i, p)| p.hp > 0 && sent & (1 << i) != 0)
+                .count() as u8;
+            let base = env.t.species_info(o.mon.species).exp_yield;
+            let exp = calc::exp_yield(base, o.mon.level, self.is_trainer(), participants);
+            next.push(Step::GainExp {
+                party: 0,
+                exp,
+                sent,
+                defeated: o.mon.species,
+            });
+            // HandleFaintedMonActions case 2.
+            self.sent_in = 1 << self.battler(Side::Player).mon.party;
+        }
+        for side in [Side::Player, Side::Opponent] {
+            if self.battler(side).mon.hp == 0 {
+                next.push(Step::Replace(side));
+            }
+        }
+        for s in next.into_iter().rev() {
+            self.steps.push_front(s);
+        }
+    }
+
+    /// `checkteamslost`, then the replacement of a fainted battler.
+    fn replace(&mut self, env: &mut Env, side: Side) {
+        let lost = self.parties[Side::Player as usize].all_fainted();
+        let won = self.parties[Side::Opponent as usize].all_fainted();
+        let outcome = match (lost, won) {
+            (true, true) => Some(BattleOutcome::Drew),
+            (true, false) => Some(BattleOutcome::Lost),
+            (false, true) => Some(BattleOutcome::Won),
+            (false, false) => None,
+        };
+        if let Some(o) = outcome {
+            self.finish(env, o);
+            return;
+        }
+        if self.battler(side).mon.hp != 0 {
+            return;
+        }
+        match side {
+            // Simplified: no "Use next Pokémon?" box nor party screen; the UI picks.
+            Side::Player => self.need = Need::Switch,
+            Side::Opponent => {
+                // Simplified GetMostSuitableMonToSwitchInto: the next usable mon in party order.
+                if let Some(i) = self.parties[side as usize].first_usable() {
+                    self.switch_in(env, side, i);
+                    self.actions = [None; 2];
+                }
+            }
+        }
+    }
+
+    /// `Cmd_getexp` state 2 for party slot `party`: the message and EVs, then the steps that
+    /// give its exp, then the next slot.
+    fn gain_exp(&mut self, env: &mut Env, party: u8, exp: u32, sent: u8, defeated: SpeciesId) {
+        let player = &self.parties[Side::Player as usize];
+        if party as usize >= PARTY_SIZE || party as usize >= player.len() {
+            return;
+        }
+        self.steps.push_front(Step::GainExp {
+            party: party + 1,
+            exp,
+            sent,
+            defeated,
+        });
+        let p = player.get(party as usize).copied().expect("party slot");
+        if sent & (1 << party) == 0 || p.level >= 100 || p.hp == 0 {
+            return;
+        }
+        let side = Side::Player;
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [Buff::Mon { side, party }, Buff::None, Buff::Number(exp)],
+            ..msg(Str::PkmnGainedExp, side, Side::Opponent, side)
+        }));
+        if let Some(p) = self.parties[side as usize].get_mut(party as usize) {
+            p.gain_evs(env.t, defeated);
+        }
+        self.steps.push_front(Step::AddExp { party, rest: exp });
+    }
+
+    /// `Cmd_getexp` states 3–5: one level's worth of exp, the level-up and its moves.
+    fn exp_step(&mut self, env: &mut Env, party: u8, rest: u32) {
+        let side = Side::Player;
+        let Some(p) = self.parties[side as usize].get_mut(party as usize) else {
+            return;
+        };
+        let (from, mut rest) = (p.exp, rest);
+        let leveled = p.add_exp_step(env.t, &mut rest);
+        let p = *p;
+        env.out.push(BattleEvent::Exp {
+            party,
+            from,
+            to: p.exp,
+        });
+        if !leveled {
+            return;
+        }
+        // Update the battle mon after the level-up (when it is out and standing).
+        let b = &mut self.battlers[side as usize];
+        if b.mon.party == party && b.mon.hp > 0 {
+            b.mon.level = p.level;
+            b.mon.hp = p.hp;
+            b.mon.max_hp = p.stats[0];
+            b.stats = p.stats;
+        }
+        env.out.push(BattleEvent::LevelUp {
+            party,
+            level: p.level,
+        });
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::Mon { side, party },
+                Buff::Number(p.level as u32),
+                Buff::None,
+            ],
+            ..about(Str::PkmnGrewToLv, side)
+        }));
+        if rest > 0 {
+            self.steps.push_front(Step::AddExp { party, rest });
+        }
+        self.steps.push_front(Step::Learn {
+            party,
+            level: p.level,
+            next: 0,
+        });
+    }
+
+    /// `handlelearnnewmove` over the learnset moves of `level`; a full moveset asks the player.
+    fn learn(&mut self, env: &mut Env, party: u8, level: u8, next: u8) {
+        let side = Side::Player;
+        let Some(p) = self.parties[side as usize].get(party as usize) else {
+            return;
+        };
+        let moves: Vec<MoveId> = p.moves_at_level(env.t, level).collect();
+        for (i, &m) in moves.iter().enumerate().skip(next as usize) {
+            let p = self.parties[side as usize]
+                .get_mut(party as usize)
+                .expect("party slot");
+            match p.try_learn(env.t, m) {
+                Learn::Learned(slot) => {
+                    self.sync_move(env.t, party, slot);
+                    self.learned_msg(env, party, m);
+                }
+                Learn::AlreadyKnown => {}
+                Learn::Full => {
+                    // BattleScript_AskToLearnMove.
+                    for id in [
+                        Str::TryToLearnMove1,
+                        Str::TryToLearnMove2,
+                        Str::TryToLearnMove3,
+                    ] {
+                        env.out.push(BattleEvent::Msg(self.learn_msg(id, party, m)));
+                    }
+                    self.steps.push_front(Step::Learn {
+                        party,
+                        level,
+                        next: i as u8 + 1,
+                    });
+                    self.need = Need::LearnMove { party, mov: m };
+                    return;
+                }
+            }
+        }
+    }
+
+    /// The player's answer to `Need::LearnMove`.
+    fn answer_learn(&mut self, env: &mut Env, party: u8, mov: MoveId, forget: Option<u8>) {
+        let side = Side::Player;
+        let p = self.parties[side as usize]
+            .get_mut(party as usize)
+            .expect("party slot");
+        match forget.filter(|&s| s < 4) {
+            Some(slot) => {
+                // BattleScript_ForgotAndLearnedNewMove (123POOF / ANDELLIPSIS have no `Str`).
+                let old = p.moves[slot as usize];
+                p.replace_move(env.t, slot, mov);
+                if let Some(old) = old {
+                    env.out.push(BattleEvent::Msg(self.learn_msg(
+                        Str::PkmnForgotMove,
+                        party,
+                        old,
+                    )));
+                }
+                self.sync_move(env.t, party, slot);
+                self.learned_msg(env, party, mov);
+            }
+            None => {
+                env.out.push(BattleEvent::Msg(self.learn_msg(
+                    Str::DidNotLearnMove,
+                    party,
+                    mov,
+                )));
+            }
+        }
+    }
+
+    fn learn_msg(&self, id: Str, party: u8, m: MoveId) -> Msg {
+        let side = Side::Player;
+        Msg {
+            buffs: [Buff::Mon { side, party }, Buff::Move(m), Buff::None],
+            ..about(id, side)
+        }
+    }
+
+    /// BattleScript_LearnedNewMove.
+    fn learned_msg(&mut self, env: &mut Env, party: u8, m: MoveId) {
+        env.out.push(BattleEvent::Msg(Msg {
+            wait: LONG,
+            ..self.learn_msg(Str::PkmnLearnedMove, party, m)
+        }));
+    }
+
+    /// Copies a learned move into the battle mon when that party mon is out
+    /// (`GiveMoveToBattleMon`, `SetBattleMonMoveSlot`).
+    fn sync_move(&mut self, t: &BattleTables, party: u8, slot: u8) {
+        let p = *self.parties[0].get(party as usize).expect("party slot");
+        let b = &mut self.battlers[0];
+        if b.mon.party == party {
+            let s = slot as usize;
+            b.mon.moves[s] = p.moves[s];
+            b.mon.pp[s] = p.pp[s];
+            b.mon.max_pp[s] = p.max_pp(t, slot);
+        }
+    }
+
+    /// Ends the battle: the closing messages of `HandleEndTurn_*`, then `End`.
+    pub(crate) fn finish(&mut self, env: &mut Env, outcome: BattleOutcome) {
+        self.steps.clear();
+        self.actions = [None; 2];
+        let (p, o) = (Side::Player, Side::Opponent);
+        let button = |m: Msg| {
+            BattleEvent::Msg(Msg {
+                wait: MsgWait::Button,
+                ..m
+            })
+        };
+        match outcome {
+            BattleOutcome::Won if self.is_trainer() => {
+                // BattleScript_LocalTrainerBattleWon: STRINGID_PLAYERDEFEATEDTRAINER1, then
+                // `trainerslidein` and STRINGID_TRAINER1LOSETEXT: `TrainerDefeated` is the
+                // slide-in, after which presentation prints the `BattleKind` defeat text and
+                // waits for a button (no `Str` carries a `TextId`).
+                env.out
+                    .push(BattleEvent::Msg(msg(Str::PlayerDefeatedTrainer, p, o, o)));
+                env.out.push(BattleEvent::TrainerDefeated);
+            }
+            BattleOutcome::Lost => {
+                // BattleScript_LocalBattleLostPrintWhiteOut.
+                env.out.push(BattleEvent::Msg(Msg {
+                    wait: LONG,
+                    ..about(Str::PlayerWhiteout, p)
+                }));
+                env.out.push(button(about(Str::PlayerWhiteout2, p)));
+            }
+            BattleOutcome::Ran => env.out.push(button(about(Str::GotAwaySafely, p))),
+            BattleOutcome::MonFled => {
+                let party = self.battler(o).mon.party;
+                env.out.push(button(Msg {
+                    buffs: [Buff::Mon { side: o, party }, Buff::None, Buff::None],
+                    ..about(Str::WildPkmnFled, o)
+                }));
+            }
+            BattleOutcome::Won | BattleOutcome::Drew | BattleOutcome::Caught => {}
+        }
+        env.out.push(BattleEvent::End(outcome));
+        self.need = Need::Ended(outcome);
     }
 }
