@@ -353,6 +353,12 @@ pub fn move_effect(name: &str) -> Option<String> {
             "NATURE_POWER" => "MoveEffect::NaturePower",
             "QUICK_ATTACK" => "MoveEffect::QuickAttack",
             "RECOIL" => "MoveEffect::Recoil",
+            "MULTI_HIT" => "MoveEffect::MultiHit",
+            "SPLASH" => "MoveEffect::Splash",
+            "DEFENSE_CURL" => "MoveEffect::DefenseCurl",
+            "SONICBOOM" => "MoveEffect::SonicBoom",
+            "VITAL_THROW" => "MoveEffect::VitalThrow",
+            "CHARGE" => "MoveEffect::Charge",
             _ => return None,
         }
         .to_string(),
@@ -386,6 +392,9 @@ pub enum StrSrc {
     TypeNames,
     /// `gStatNamesTable` (`extract::battle_data::STAT_NAME_KEYS`), by `Stat`.
     StatNames,
+    /// `gAbilityNames`, by `Ability`. Not exported by `extract` yet: every ability name is
+    /// the empty string until it is (follow-up), so `{B_*_ABILITY}` expands to nothing.
+    AbilityNames,
 }
 
 /// Every `battle::Str` variant (as a `match` pattern) and its source. The build writes one
@@ -445,10 +454,11 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("StopLearningMove", Key("STRINGID_STOPLEARNINGMOVE")),
         ("DidNotLearnMove", Key("STRINGID_DIDNOTLEARNMOVE")),
         // `gStatUpStringIds` / `gStatDownStringIds` pick ...ROSE or ...FELL, which BPEF words
-        // differently. The engine has one `Str` per battler: the attacker's takes the rise
-        // (every self-targeting stat move of the slice raises), the target's the fall.
-        ("AttackerStatChanged", Key("STRINGID_ATTACKERSSTATROSE")),
-        ("DefenderStatChanged", Key("STRINGID_DEFENDERSSTATFELL")),
+        // differently: one `Str` per battler and direction.
+        ("AttackerStatRose", Key("STRINGID_ATTACKERSSTATROSE")),
+        ("AttackerStatFell", Key("STRINGID_ATTACKERSSTATFELL")),
+        ("DefenderStatRose", Key("STRINGID_DEFENDERSSTATROSE")),
+        ("DefenderStatFell", Key("STRINGID_DEFENDERSSTATFELL")),
         ("StatRose", Key("STRINGID_STATROSE")),
         (
             "StatSharplyRose",
@@ -498,5 +508,42 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("BirchInTrouble", Key("gText_BirchInTrouble")),
         ("TypeName(t)", TypeNames),
         ("StatName(s)", StatNames),
+        // Task E2: statuses, abilities, catching, the cheap move effects.
+        ("PkmnBadlyPoisoned", Key("STRINGID_PKMNBADLYPOISONED")),
+        ("PkmnWasFrozen", Key("STRINGID_PKMNWASFROZEN")),
+        ("PkmnIsFrozen", Key("STRINGID_PKMNISFROZEN")),
+        ("PkmnWasDefrosted2", Key("STRINGID_PKMNWASDEFROSTED2")),
+        ("PkmnWasDefrosted", Key("STRINGID_PKMNWASDEFROSTED")),
+        ("PkmnHealedConfusion", Key("STRINGID_PKMNHEALEDCONFUSION")),
+        ("PkmnPoisonedBy", Key("STRINGID_PKMNPOISONEDBY")),
+        ("PkmnBurnedBy", Key("STRINGID_PKMNBURNEDBY")),
+        ("PkmnFrozenBy", Key("STRINGID_PKMNFROZENBY")),
+        ("PkmnWasParalyzedBy", Key("STRINGID_PKMNWASPARALYZEDBY")),
+        ("PkmnMadeSleep", Key("STRINGID_PKMNMADESLEEP")),
+        ("PkmnAlreadyAsleep", Key("STRINGID_PKMNALREADYASLEEP")),
+        ("PkmnAlreadyPoisoned", Key("STRINGID_PKMNALREADYPOISONED")),
+        (
+            "PkmnIsAlreadyParalyzed",
+            Key("STRINGID_PKMNISALREADYPARALYZED"),
+        ),
+        ("PkmnAlreadyHasBurn", Key("STRINGID_PKMNALREADYHASBURN")),
+        ("PkmnAlreadyConfused", Key("STRINGID_PKMNALREADYCONFUSED")),
+        ("PkmnEvadedAttack", Key("STRINGID_PKMNEVADEDATTACK")),
+        (
+            "NaturePowerTurnedInto",
+            Key("STRINGID_NATUREPOWERTURNEDINTO"),
+        ),
+        ("PkmnCutsAttackWith", Key("STRINGID_PKMNCUTSATTACKWITH")),
+        ("PkmnTraced", Key("STRINGID_PKMNTRACED")),
+        ("PkmnSXPreventsYLoss", Key("STRINGID_PKMNSXPREVENTSYLOSS")),
+        ("PkmnSXHadNoEffectOnY", Key("STRINGID_PKMNSXHADNOEFFECTONY")),
+        ("PkmnBrokeFree", Key("STRINGID_PKMNBROKEFREE")),
+        ("ItAppearedCaught", Key("STRINGID_ITAPPEAREDCAUGHT")),
+        ("AarghAlmostHadIt", Key("STRINGID_AARGHALMOSTHADIT")),
+        ("ShootSoClose", Key("STRINGID_SHOOTSOCLOSE")),
+        ("HitXTimes", Key("STRINGID_HITXTIMES")),
+        ("ButNothingHappened", Key("STRINGID_BUTNOTHINGHAPPENED")),
+        ("PkmnChargingPower", Key("STRINGID_PKMNCHARGINGPOWER")),
+        ("AbilityName(_)", AbilityNames),
     ]
 };

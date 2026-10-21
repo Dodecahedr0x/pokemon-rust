@@ -189,7 +189,11 @@ fn move_effects_by_name() {
         Some("MoveEffect::Status(StatusKind::Toxic)")
     );
     assert_eq!(e("EFFECT_RECOIL").as_deref(), Some("MoveEffect::Recoil"));
-    assert_eq!(e("EFFECT_MULTI_HIT"), None);
+    assert_eq!(
+        e("EFFECT_MULTI_HIT").as_deref(),
+        Some("MoveEffect::MultiHit")
+    );
+    assert_eq!(e("EFFECT_ATTRACT"), None);
     assert_eq!(e("HIT"), None);
     // The mapped names are real `EFFECT_*`s.
     let mapped = extract::names::MOVE_EFFECTS
@@ -230,7 +234,7 @@ fn every_str_source_names_an_exported_string() {
                 assert!(ids(key), "{pat}: {key}");
                 assert!(code.starts_with("{B_"), "{pat}");
             }
-            StrSrc::UsedMove | StrSrc::TypeNames | StrSrc::StatNames => {}
+            StrSrc::UsedMove | StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => {}
         }
     }
 }

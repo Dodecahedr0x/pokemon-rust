@@ -310,7 +310,7 @@ fn str_text(b: &BattleIn, src: StrSrc) -> Result<String> {
             ensure!(t.contains(code), "{key} has no {code}");
             t.replace(code, "{B_BUFF1}")
         }
-        StrSrc::TypeNames | StrSrc::StatNames => bail!("indexed source"),
+        StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => bail!("indexed source"),
     })
 }
 
@@ -646,6 +646,8 @@ impl Gen<'_> {
                 StrSrc::StatNames => {
                     writeln!(arms, "        Str::{pat} => STAT_NAMES[s as usize],")?
                 }
+                // `gAbilityNames` is not extracted yet: the empty string.
+                StrSrc::AbilityNames => writeln!(arms, "        Str::{pat} => b\"\\xFF\",")?,
                 _ => {
                     let t = str_text(b, *src).with_context(|| format!("Str::{pat}"))?;
                     writeln!(
@@ -697,6 +699,8 @@ impl Gen<'_> {
                 StrSrc::StatNames => {
                     all.extend((0..8).map(|i| format!("Str::StatName(Stat::ALL[{i}])")))
                 }
+                // Empty until `gAbilityNames` is extracted (`every_str_has_text`).
+                StrSrc::AbilityNames => {}
                 _ => all.push(format!("Str::{pat}")),
             }
         }

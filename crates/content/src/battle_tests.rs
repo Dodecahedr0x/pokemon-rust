@@ -321,17 +321,7 @@ mod extracted {
     /// Slice moves whose effect the engine does not implement yet (for Task E2). They come
     /// from the parties of the Route 102 and Route 103 trainers. Drop a move from the list
     /// once its effect is supported.
-    const KNOWN_UNSUPPORTED: &[MoveId] = &[
-        consts::MOVE_ARM_THRUST,
-        consts::MOVE_ATTRACT,
-        consts::MOVE_CHARGE,
-        consts::MOVE_DEFENSE_CURL,
-        consts::MOVE_DOUBLE_SLAP,
-        consts::MOVE_ROLLOUT,
-        consts::MOVE_SONIC_BOOM,
-        consts::MOVE_SPLASH,
-        consts::MOVE_VITAL_THROW,
-    ];
+    const KNOWN_UNSUPPORTED: &[MoveId] = &[consts::MOVE_ATTRACT, consts::MOVE_ROLLOUT];
 
     #[test]
     fn slice_moves_have_supported_effects() {

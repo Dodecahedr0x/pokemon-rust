@@ -355,7 +355,7 @@ pub fn battle() -> BattleIn {
                 put(verb, "TEXTE!".into());
             }
             StrSrc::Buff1 { key, code } => put(key, format!("{code} TEXTE!")),
-            StrSrc::TypeNames | StrSrc::StatNames => {}
+            StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => {}
         }
     }
     for (i, k) in STAT_NAME_KEYS.iter().enumerate() {
