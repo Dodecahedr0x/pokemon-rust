@@ -1,0 +1,7 @@
+/rom/
+*.zip
+*.gba
+*.sav
+/target/
+explore.db
+.DS_Store
