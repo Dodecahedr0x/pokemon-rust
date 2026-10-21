@@ -7,6 +7,7 @@ pub mod font;
 pub mod gfx;
 pub mod lz77;
 pub mod maps;
+pub mod names;
 pub mod render;
 pub mod rom;
 pub mod schema;
