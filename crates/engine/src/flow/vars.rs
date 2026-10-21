@@ -93,13 +93,18 @@ impl Vars {
         }
     }
 
-    /// Gen3 `ClearTempFieldEventData` (flags and vars part): run on every map change.
+    /// Gen3 `ClearTempFieldEventData` (temp flags and vars part): run on every map change (warp
+    /// load and connection crossing). Gen3 also clears `FLAG_SYS_ENC_UP_ITEM`,
+    /// `FLAG_SYS_ENC_DOWN_ITEM`, `FLAG_SYS_USE_STRENGTH`, `FLAG_SYS_CTRL_OBJ_DELETE` and
+    /// `FLAG_NURSE_UNION_ROOM_REMINDER` there; those are game constants, so content or the
+    /// integration must clear them.
     pub fn clear_temp(&mut self) {
         self.flags[..TEMP_FLAGS_END as usize / 8].fill(0);
         self.vars[..(TEMP_VARS_END - VARS_START) as usize].fill(0);
     }
 
-    pub fn hash_into(&self, h: &mut Fnv64) {
+    #[allow(clippy::should_implement_trait)]
+    pub fn hash(&self, h: &mut Fnv64) {
         h.write(&self.flags);
         for &v in self.vars.iter() {
             h.write_u16(v);
@@ -194,7 +199,7 @@ mod tests {
     fn hash_covers_flags_and_both_var_ranges() {
         let h = |v: &Vars| {
             let mut h = Fnv64::new();
-            v.hash_into(&mut h);
+            v.hash(&mut h);
             h.finish()
         };
         let base = h(&Vars::new());

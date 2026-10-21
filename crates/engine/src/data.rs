@@ -47,7 +47,8 @@ macro_rules! id {
 id! {
     /// Content-assigned map number.
     MapId,
-    /// Gen3 flag number (`FLAG_*`), e.g. 0x4000.. are temporary flags.
+    /// Gen3 flag number (`FLAG_*`): 0x1..0x20 are temporary flags (cleared on map change);
+    /// 0x4000.. are special (system) flags.
     FlagId,
     /// Gen3 var number (`VAR_*`): 0x4000..=0x40FF saved vars, 0x8000..=0x80FF special vars.
     VarId,

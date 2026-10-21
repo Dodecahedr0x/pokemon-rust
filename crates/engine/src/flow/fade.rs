@@ -55,7 +55,8 @@ impl Fader {
         self.level == self.target
     }
 
-    pub fn hash_into(&self, h: &mut Fnv64) {
+    #[allow(clippy::should_implement_trait)]
+    pub fn hash(&self, h: &mut Fnv64) {
         h.write(&[self.level, self.target]);
     }
 }
@@ -110,7 +111,7 @@ mod tests {
     fn hash_covers_level_and_target() {
         let h = |f: &Fader| {
             let mut h = Fnv64::new();
-            f.hash_into(&mut h);
+            f.hash(&mut h);
             h.finish()
         };
         let a = Fader::new();

@@ -2,8 +2,12 @@
 //! `field_control_avatar.c`, `script.c`).
 //!
 //! Positions are map cells. `behavior` arguments are the classified behavior of the cell named by
-//! the same call (the caller reads it from the live field, which scripts may have edited);
-//! [`behavior_at`] gives it from static data.
+//! the same call: the caller reads the block from the live field (`Field::block`, which includes
+//! `setmetatile` edits) and classifies it with [`block_behavior`].
+//!
+//! Note: `Behavior::Warp` lumps Gen3 stairs (`MB_NON_ANIMATED_DOOR`) with ladders, holes and
+//! escalators. Gen3 treats ladders differently on arrival (keep facing, no exit walk); telling
+//! them apart needs a future `Behavior` split.
 
 use super::Vars;
 use crate::data::{
@@ -24,10 +28,12 @@ pub enum Target {
 /// Raw behavior byte of an unknown metatile (Gen3 `MB_INVALID`, `GetMetatileAttributesById`).
 const MB_INVALID: u8 = 0xFF;
 
-/// Behavior of the cell from static data: its block (across connections and the border, see
-/// [`block_at`]) looked up in `map`'s tilesets, as Gen3 `MapGridGetMetatileBehaviorAt`.
-pub fn behavior_at(game: &impl GameData, map: &MapData, x: i16, y: i16) -> Behavior {
-    let mt = block_metatile(block_at(game, map, x, y));
+/// Classified behavior of `block` (raw, possibly a live `setmetatile` override), looked up in
+/// `map`'s primary or secondary tileset attributes (Gen3 `MapGridGetMetatileBehaviorAt`, which
+/// uses the current map's tilesets even for connection cells). Unknown metatiles give the
+/// classification of raw 0xFF (`MB_INVALID`).
+pub fn block_behavior(game: &impl GameData, map: &MapData, block: u16) -> Behavior {
+    let mt = block_metatile(block);
     let attr = if mt < METATILES_IN_PRIMARY {
         map.primary.attributes.get(mt as usize)
     } else {
@@ -38,17 +44,17 @@ pub fn behavior_at(game: &impl GameData, map: &MapData, x: i16, y: i16) -> Behav
     game.behavior(attr.map_or(MB_INVALID, |&a| attr_behavior(a)))
 }
 
+/// [`block_behavior`] of the static block at (x, y) ([`block_at`]: own blocks, connections,
+/// border). Callers with a live field should pass its block to [`block_behavior`] instead.
+pub fn behavior_at(game: &impl GameData, map: &MapData, x: i16, y: i16) -> Behavior {
+    block_behavior(game, map, block_at(game, map, x, y))
+}
+
 /// Elevation used for events on the cell in front of the player (Gen3
-/// `GetInFrontOfPlayerPosition`): the player's elevation, or 0 if the player's own cell has
-/// elevation 0 in the map grid.
-pub fn facing_elevation(
-    game: &impl GameData,
-    map: &MapData,
-    px: i16,
-    py: i16,
-    player_elevation: u8,
-) -> u8 {
-    if block_elevation(block_at(game, map, px, py)) != 0 {
+/// `GetInFrontOfPlayerPosition`): the player's elevation, or 0 if the block under the player
+/// (`player_block`, from the live field) has elevation 0.
+pub const fn facing_elevation(player_block: u16, player_elevation: u8) -> u8 {
+    if block_elevation(player_block) != 0 {
         player_elevation
     } else {
         0
@@ -146,7 +152,7 @@ pub fn door_warp(
 /// [`facing_elevation`].
 ///
 /// `object_at(x, y, elevation)` returns the local id of a live object on that cell whose elevation
-/// [`elevation_matches`]; the player (`data::PLAYER`) is never a target. Across a `Counter` the
+/// [`elevation_matches`]. It should skip the player; a returned `data::PLAYER` is ignored anyway. Across a `Counter` the
 /// object one cell further is reached. Bg events are only looked up on the front cell; a
 /// facing-restricted sign seen from the wrong side, and hidden items, give `None`.
 pub fn interact_target(
@@ -237,11 +243,25 @@ mod tests {
     }
 
     #[test]
+    fn block_behavior_classifies_live_blocks() {
+        let m = town();
+        assert_eq!(block_behavior(&Game, m, DOOR | E3), Behavior::Door);
+        assert_eq!(block_behavior(&Game, m, 512), Behavior::Door);
+        assert_eq!(block_behavior(&Game, m, COUNTER), Behavior::Counter);
+        assert_eq!(
+            block_behavior(&Game, m, 0x3FF),
+            Behavior::Normal,
+            "unknown is MB_INVALID"
+        );
+    }
+
+    #[test]
     fn facing_elevation_is_zero_when_standing_on_elevation_zero() {
         let m = town();
-        assert_eq!(facing_elevation(&Game, m, 0, 0, 3), 0);
-        assert_eq!(facing_elevation(&Game, m, 3, 2, 3), 3);
-        assert_eq!(facing_elevation(&Game, m, 4, 4, 4), 4);
+        let b = |x, y| block_at(&Game, m, x, y);
+        assert_eq!(facing_elevation(b(0, 0), 3), 0);
+        assert_eq!(facing_elevation(b(3, 2), 3), 3);
+        assert_eq!(facing_elevation(b(4, 4), 4), 4);
     }
 
     #[test]

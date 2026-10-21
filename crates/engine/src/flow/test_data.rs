@@ -24,7 +24,7 @@ static SECONDARY: Tileset = Tileset {
     attributes: &[1],
 };
 
-const E3: u16 = 3 << BLOCK_ELEVATION_SHIFT;
+pub const E3: u16 = 3 << BLOCK_ELEVATION_SHIFT;
 
 // "town", 6x6.
 #[rustfmt::skip]

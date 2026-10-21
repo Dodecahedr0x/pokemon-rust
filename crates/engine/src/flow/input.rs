@@ -48,7 +48,8 @@ impl Input {
         }
     }
 
-    pub fn hash_into(&self, h: &mut Fnv64) {
+    #[allow(clippy::should_implement_trait)]
+    pub fn hash(&self, h: &mut Fnv64) {
         h.write_u16(self.held.0);
         h.write_u16(self.pressed.0);
     }
@@ -96,7 +97,7 @@ mod tests {
     fn hash_covers_both_fields() {
         let h = |i: Input| {
             let mut h = Fnv64::new();
-            i.hash_into(&mut h);
+            i.hash(&mut h);
             h.finish()
         };
         let a = Input::new(Buttons::NONE, Buttons::A);

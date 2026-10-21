@@ -6,12 +6,23 @@
 //! - `Walk(dir)`: start the player walking one cell `dir` this frame.
 //! - `Walking`: the player is still walking; keep updating.
 //! - `FadingOut` / `FadingIn`: nothing; the shared [`Fader`] was advanced.
-//! - `Load(map, x, y, facing)`: load `map` (field, objects, temp vars, map scripts) with the
-//!   player on (x, y) facing `facing`. Returned once, on a black screen.
+//! - `Load(map, x, y)`: load `map` (field, objects, temp vars, `on_transition` / `on_load` map
+//!   scripts) with the player on (x, y), then call [`Transition::arrive`] with the live behavior
+//!   of that cell and face the player the way it returns. Returned once, on a black screen.
 //! - `Done`: the player has control again.
+//!
+//! Integration notes:
+//! - `Walk` steps are forced moves (Gen3 held movements): they ignore collision and input.
+//! - While a transition is active it drives the shared [`Fader`]; the World must not update the
+//!   fader itself on those frames.
+//! - No player control and no triggers (coord, warp, on_frame) until `Done`, including during
+//!   the exit walk; NPCs stay frozen until `Done` (Gen3 `FreezeObjectEvents` in the exit tasks).
+//! - Gen3 `ClearTempFieldEventData` also clears five system flags (`FLAG_SYS_ENC_UP_ITEM`,
+//!   `FLAG_SYS_ENC_DOWN_ITEM`, `FLAG_SYS_USE_STRENGTH`, `FLAG_SYS_CTRL_OBJ_DELETE`,
+//!   `FLAG_NURSE_UNION_ROOM_REMINDER`); `Vars::clear_temp` is game-agnostic and does not, so
+//!   content or the integration must clear them on `Load` and on connection crossing.
 
 use super::fade::Fader;
-use super::trigger::behavior_at;
 use crate::data::{Behavior, Dir, GameData, MapId};
 use crate::hash::Fnv64;
 use crate::script::Fade;
@@ -21,7 +32,7 @@ pub enum TransitionStep {
     Walk(Dir),
     Walking,
     FadingOut,
-    Load(MapId, i16, i16, Dir),
+    Load(MapId, i16, i16),
     FadingIn,
     Done,
 }
@@ -72,11 +83,7 @@ impl Transition {
     /// Starts a warp to `map`: to its warp `warp` if that exists, else to (x, y) if both are
     /// non-negative, else to the map center (Gen3 `SetPlayerCoordsFromWarp`).
     ///
-    /// The arrival facing and exit walk come from the destination cell's static behavior (Gen3
-    /// `GetAdjustedInitialDirection`, `SetUpWarpExitTask`): on a `Door` or `Warp` (Gen3 animated
-    /// and non-animated doors, i.e. house doors and stairs) the player faces down, starts hidden
-    /// and walks one cell down after the fade-in; on an `ArrowWarp(d)` they face away from `d`;
-    /// elsewhere they face down.
+    /// The arrival facing and exit walk are decided after the load by [`arrive`](Self::arrive).
     pub fn start(&mut self, game: &impl GameData, map: MapId, warp: Option<u8>, x: i16, y: i16) {
         let m = game.map(map);
         let (x, y) = match warp.and_then(|w| m.warps.get(w as usize)) {
@@ -84,21 +91,33 @@ impl Transition {
             None if x >= 0 && y >= 0 => (x, y),
             None => ((m.width / 2) as i16, (m.height / 2) as i16),
         };
-        let behavior = behavior_at(game, m, x, y);
-        let exit_walk = matches!(behavior, Behavior::Door | Behavior::Warp);
-        let facing = match behavior {
-            Behavior::ArrowWarp(d) => d.opposite(),
-            _ => Dir::Down,
-        };
         *self = Self {
             stage: Stage::FadeOut(false),
             map,
             x,
             y,
-            facing,
-            exit_walk,
-            player_hidden: false,
+            ..Self::new()
         };
+    }
+
+    /// Reports the behavior of the arrival cell, read from the live field after the load and its
+    /// `on_load` script (Gen3 reads it then too), and returns the facing to give the player
+    /// (Gen3 `GetAdjustedInitialDirection`, `SetUpWarpExitTask`):
+    /// - `Door` or `Warp` (Gen3 animated and non-animated doors: house doors, stairs): face down,
+    ///   hidden during the fade-in, then walk one cell down. `Warp` also covers ladders, which
+    ///   Gen3 does not walk out of; that needs a future `Behavior` split.
+    /// - `ArrowWarp(d)`: face away from `d`.
+    /// - anything else: face down.
+    ///
+    /// Without this call the arrival is a plain one (face down, no exit walk).
+    pub fn arrive(&mut self, behavior: Behavior) -> Dir {
+        self.exit_walk = matches!(behavior, Behavior::Door | Behavior::Warp);
+        self.player_hidden = self.exit_walk;
+        self.facing = match behavior {
+            Behavior::ArrowWarp(d) => d.opposite(),
+            _ => Dir::Down,
+        };
+        self.facing
     }
 
     /// [`start`](Self::start) after first walking the player one cell up into the door in front
@@ -153,9 +172,11 @@ impl Transition {
                     return TransitionStep::FadingOut;
                 }
                 Stage::Load => {
-                    self.player_hidden = self.exit_walk;
+                    self.exit_walk = false;
+                    self.player_hidden = false;
+                    self.facing = Dir::Down;
                     self.stage = Stage::FadeIn(false);
-                    return TransitionStep::Load(self.map, self.x, self.y, self.facing);
+                    return TransitionStep::Load(self.map, self.x, self.y);
                 }
                 Stage::FadeIn(false) => {
                     fader.start(Fade::FromBlack);
@@ -186,7 +207,8 @@ impl Transition {
         }
     }
 
-    pub fn hash_into(&self, h: &mut Fnv64) {
+    #[allow(clippy::should_implement_trait)]
+    pub fn hash(&self, h: &mut Fnv64) {
         let stage = match self.stage {
             Stage::Idle => 0,
             Stage::WalkIn(s) => 1 + s as u8,
@@ -211,7 +233,7 @@ impl Transition {
 mod tests {
     use super::super::test_data::*;
     use super::*;
-    use crate::flow::FADE_MAX;
+    use crate::flow::{FADE_MAX, behavior_at};
     use alloc::vec::Vec;
 
     /// Runs to `Done`, simulating a player whose walks take `walk` frames. Returns every step and
@@ -224,6 +246,10 @@ mod tests {
             walking = walking.saturating_sub(1);
             if let TransitionStep::Walk(_) = s {
                 walking = walk;
+            }
+            if let TransitionStep::Load(m, x, y) = s {
+                // Arrival facing, checked through `t.facing` by the tests.
+                t.arrive(behavior_at(&Game, Game.map(m), x, y));
             }
             out.push((s, fader.level(), t.player_hidden()));
             if s == TransitionStep::Done {
@@ -254,13 +280,14 @@ mod tests {
         let steps = run(&mut t, &mut f, 0);
         assert_eq!(count(&steps, TransitionStep::FadingOut), 16);
         assert_eq!(steps[15].1, FADE_MAX, "black before the load");
-        assert_eq!(steps[16].0, TransitionStep::Load(HOUSE, 2, 0, Dir::Down));
+        assert_eq!(steps[16].0, TransitionStep::Load(HOUSE, 2, 0));
         assert_eq!(steps[16].1, FADE_MAX, "load happens on a black screen");
         assert_eq!(count(&steps, TransitionStep::FadingIn), 15);
         assert_eq!(steps.last().unwrap().0, TransitionStep::Done);
         assert_eq!(steps.last().unwrap().1, 0);
         assert_eq!(steps.len(), 16 + 1 + 16);
         assert!(steps.iter().all(|s| !s.2), "player never hidden");
+        assert_eq!(t.facing, Dir::Down);
         assert!(!t.is_active());
     }
 
@@ -275,7 +302,7 @@ mod tests {
             .iter()
             .position(|s| matches!(s.0, TransitionStep::Load(..)));
         let load = load.unwrap();
-        assert_eq!(steps[load].0, TransitionStep::Load(HOUSE, 1, 3, Dir::Down));
+        assert_eq!(steps[load].0, TransitionStep::Load(HOUSE, 1, 3));
         let walk = steps
             .iter()
             .position(|s| s.0 == TransitionStep::Walk(Dir::Down))
@@ -297,7 +324,7 @@ mod tests {
         // Town (4, 4) is a `Warp` cell (Gen3 stairs are MB_NON_ANIMATED_DOOR).
         t.start(&Game, TOWN, Some(1), -1, -1);
         let steps = run(&mut t, &mut Fader::new(), 1);
-        assert!(steps.contains(&(TransitionStep::Load(TOWN, 4, 4, Dir::Down), FADE_MAX, true)));
+        assert!(steps.contains(&(TransitionStep::Load(TOWN, 4, 4), FADE_MAX, true)));
         assert_eq!(count(&steps, TransitionStep::Walk(Dir::Down)), 1);
     }
 
@@ -310,8 +337,9 @@ mod tests {
         assert!(
             steps
                 .iter()
-                .any(|s| s.0 == TransitionStep::Load(HOUSE, 3, 3, Dir::Up))
+                .any(|s| s.0 == TransitionStep::Load(HOUSE, 3, 3))
         );
+        assert_eq!(t.facing, Dir::Up);
         assert!(!steps.iter().any(|s| matches!(s.0, TransitionStep::Walk(_))));
     }
 
@@ -323,7 +351,7 @@ mod tests {
             run(&mut t, &mut Fader::new(), 1)
                 .into_iter()
                 .find_map(|s| match s.0 {
-                    TransitionStep::Load(m, x, y, _) => Some((m, x, y)),
+                    TransitionStep::Load(m, x, y) => Some((m, x, y)),
                     _ => None,
                 })
                 .unwrap()
@@ -358,12 +386,49 @@ mod tests {
         assert!(
             steps
                 .iter()
-                .any(|s| s.0 == TransitionStep::Load(HOUSE, 2, 0, Dir::Down))
+                .any(|s| s.0 == TransitionStep::Load(HOUSE, 2, 0))
         );
         assert!(
             !steps.last().unwrap().2,
             "visible again on a normal destination"
         );
+    }
+
+    #[test]
+    fn arrive_uses_the_live_behavior_and_defaults_to_plain() {
+        let mut t = Transition::new();
+        let mut f = Fader::new();
+        t.start(&Game, HOUSE, Some(1), -1, -1);
+        let mut step = t.update(&mut f, false);
+        while step == TransitionStep::FadingOut {
+            step = t.update(&mut f, false);
+        }
+        assert_eq!(step, TransitionStep::Load(HOUSE, 2, 0));
+        // The static cell is plain, but a live override made it a door.
+        assert_eq!(t.arrive(Behavior::Door), Dir::Down);
+        assert!(t.player_hidden());
+        assert_eq!(t.arrive(Behavior::ArrowWarp(Dir::Left)), Dir::Right);
+        assert!(!t.player_hidden());
+        assert_eq!(t.arrive(Behavior::Door), Dir::Down);
+        let mut last = step;
+        while last != TransitionStep::Done && !matches!(last, TransitionStep::Walk(_)) {
+            last = t.update(&mut f, false);
+        }
+        assert_eq!(last, TransitionStep::Walk(Dir::Down));
+
+        // No `arrive` call: plain arrival even onto a static door.
+        let mut t = Transition::new();
+        t.start(&Game, HOUSE, Some(0), -1, -1);
+        let mut n = 0;
+        loop {
+            let s = t.update(&mut f, false);
+            assert!(!matches!(s, TransitionStep::Walk(_)));
+            n += 1;
+            if s == TransitionStep::Done {
+                break;
+            }
+        }
+        assert_eq!(n, 33);
     }
 
     #[test]
@@ -381,7 +446,7 @@ mod tests {
     fn hash_changes_with_progress_and_is_deterministic() {
         let h = |t: &Transition| {
             let mut h = Fnv64::new();
-            t.hash_into(&mut h);
+            t.hash(&mut h);
             h.finish()
         };
         let mut a = Transition::new();
