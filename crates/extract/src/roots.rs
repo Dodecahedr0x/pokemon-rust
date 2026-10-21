@@ -1,0 +1,308 @@
+//! Script roots of a map named by the rules in [`crate::schema`]: `<Map>_Obj<local_id>`,
+//! `<Map>_Coord<i>`, `<Map>_Bg<i>`, `<Map>_OnLoad`, `<Map>_OnTransition`, `<Map>_OnResume`,
+//! `<Map>_OnReturnToField`, `<Map>_OnDiveWarp`, `<Map>_OnFrame<i>`, `<Map>_OnWarpInto<i>`.
+//!
+//! Map script tables follow `asm/macros/map.inc` (`map_script` type byte + pointer, ended by a 0
+//! byte; types 2 and 4 point to `map_script_2` lists of `var, value, script` ended by a 0 var).
+
+use crate::Rom;
+use crate::maps::{BgEventKind, MapHeader};
+use anyhow::{Context, Result, bail};
+use std::collections::BTreeMap;
+
+/// `MAP_SCRIPT_*` (`include/constants/map_scripts.h`).
+const ON_LOAD: u8 = 1;
+const ON_FRAME_TABLE: u8 = 2;
+const ON_TRANSITION: u8 = 3;
+const ON_WARP_INTO_MAP_TABLE: u8 = 4;
+const ON_RESUME: u8 = 5;
+const ON_DIVE_WARP: u8 = 6;
+const ON_RETURN_TO_FIELD: u8 = 7;
+/// Guard against runaway tables in corrupt data.
+const MAX_TABLE: u32 = 256;
+
+/// A `map_script_2` entry: run `script` when `var == value`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VarScript {
+    pub var: u16,
+    pub value: u16,
+    pub script: u32,
+}
+
+/// A map's `map_script` table (offsets are ROM file offsets). When a type appears twice, the
+/// game only ever runs the first (`MapHeaderGetScriptTable`), so later ones are ignored.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MapScriptTable {
+    pub on_load: Option<u32>,
+    pub on_transition: Option<u32>,
+    pub on_resume: Option<u32>,
+    pub on_return_to_field: Option<u32>,
+    pub on_dive_warp: Option<u32>,
+    pub on_frame: Vec<VarScript>,
+    pub on_warp_into: Vec<VarScript>,
+}
+
+/// Reads the `map_script` table at `table` (a header's `map_scripts`).
+pub fn read_map_scripts(rom: &Rom, table: u32) -> Result<MapScriptTable> {
+    let mut t = MapScriptTable::default();
+    let mut seen = Vec::new();
+    for i in 0.. {
+        if i == MAX_TABLE {
+            bail!("map script table at {table:#x} has no terminator within {MAX_TABLE} entries");
+        }
+        let at = table + i * 5;
+        let kind = rom.u8(at)?;
+        if kind == 0 {
+            break;
+        }
+        let ptr = rom.req_ptr(at + 1, "map script")?;
+        if seen.contains(&kind) {
+            continue;
+        }
+        seen.push(kind);
+        match kind {
+            ON_LOAD => t.on_load = Some(ptr),
+            ON_TRANSITION => t.on_transition = Some(ptr),
+            ON_RESUME => t.on_resume = Some(ptr),
+            ON_DIVE_WARP => t.on_dive_warp = Some(ptr),
+            ON_RETURN_TO_FIELD => t.on_return_to_field = Some(ptr),
+            ON_FRAME_TABLE => t.on_frame = var_scripts(rom, ptr)?,
+            ON_WARP_INTO_MAP_TABLE => t.on_warp_into = var_scripts(rom, ptr)?,
+            _ => bail!("map script table at {table:#x}: unknown type {kind} at {at:#x}"),
+        }
+    }
+    Ok(t)
+}
+
+fn var_scripts(rom: &Rom, list: u32) -> Result<Vec<VarScript>> {
+    let mut out = Vec::new();
+    for j in 0.. {
+        if j == MAX_TABLE {
+            bail!("map script list at {list:#x} has no terminator within {MAX_TABLE} entries");
+        }
+        let e = list + j * 8;
+        let var = rom.u16(e)?;
+        if var == 0 {
+            break;
+        }
+        out.push(VarScript {
+            var,
+            value: rom.u16(e + 2)?,
+            script: rom.req_ptr(e + 4, "map script")?,
+        });
+    }
+    Ok(out)
+}
+
+/// Every script root of the map `map` (its decomp directory name), named and in naming-rule
+/// order, with its ROM file offset. Several roots can share an offset; see [`canonical`].
+pub fn named_roots(rom: &Rom, header: &MapHeader, map: &str) -> Result<Vec<(String, u32)>> {
+    let ev = &header.events;
+    let mut out = Vec::new();
+    for o in &ev.objects {
+        if let Some(s) = o.script {
+            out.push((format!("{map}_Obj{}", o.local_id), s));
+        }
+    }
+    for (i, c) in ev.coords.iter().enumerate() {
+        if let Some(s) = c.script {
+            out.push((format!("{map}_Coord{i}"), s));
+        }
+    }
+    for (i, b) in ev.bgs.iter().enumerate() {
+        if let BgEventKind::Script(Some(s)) = b.kind {
+            out.push((format!("{map}_Bg{i}"), s));
+        }
+    }
+    if let Some(table) = header.map_scripts {
+        let t = read_map_scripts(rom, table).with_context(|| format!("{map}: map scripts"))?;
+        for (kind, s) in [
+            ("OnLoad", t.on_load),
+            ("OnTransition", t.on_transition),
+            ("OnResume", t.on_resume),
+            ("OnReturnToField", t.on_return_to_field),
+            ("OnDiveWarp", t.on_dive_warp),
+        ] {
+            if let Some(s) = s {
+                out.push((format!("{map}_{kind}"), s));
+            }
+        }
+        for (kind, list) in [("OnFrame", &t.on_frame), ("OnWarpInto", &t.on_warp_into)] {
+            for (i, v) in list.iter().enumerate() {
+                out.push((format!("{map}_{kind}{i}"), v.script));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Offset -> canonical name: the first name for each offset in `roots`, which must list the
+/// maps' [`named_roots`] concatenated in export (`manifest.maps`) order.
+pub fn canonical<'a>(roots: impl IntoIterator<Item = &'a (String, u32)>) -> BTreeMap<u32, String> {
+    let mut out = BTreeMap::new();
+    for (name, off) in roots {
+        out.entry(*off).or_insert_with(|| name.clone());
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ROM_BASE;
+    use crate::maps::{BgEvent, CoordEvent, MapEvents, MapLayout, ObjectEvent};
+
+    const BASE: u32 = 0x100;
+
+    fn rom(data: &[u8], len: usize) -> Rom {
+        let mut b = vec![0u8; len];
+        b[0xAC..0xB0].copy_from_slice(b"BPEE");
+        b[BASE as usize..BASE as usize + data.len()].copy_from_slice(data);
+        Rom::from_bytes(b).unwrap()
+    }
+
+    fn p(off: u32) -> [u8; 4] {
+        (ROM_BASE + off).to_le_bytes()
+    }
+
+    /// 0x100: ON_TRANSITION -> 0x140 ; ON_FRAME_TABLE -> 0x120 ; ON_LOAD -> 0x150 ;
+    /// ON_TRANSITION again -> 0x160 (ignored) ; end. 0x120: two var scripts.
+    fn table() -> Vec<u8> {
+        let mut s = vec![3];
+        s.extend(p(0x140));
+        s.push(2);
+        s.extend(p(0x120));
+        s.push(1);
+        s.extend(p(0x150));
+        s.push(3);
+        s.extend(p(0x160));
+        s.resize(0x20, 0);
+        s.extend([0x50, 0x40, 1, 0]);
+        s.extend(p(0x170));
+        s.extend([0x51, 0x40, 2, 0]);
+        s.extend(p(0x140));
+        s.extend([0, 0]);
+        s
+    }
+
+    #[test]
+    fn reads_typed_map_script_table() {
+        let t = read_map_scripts(&rom(&table(), 0x400), BASE).unwrap();
+        assert_eq!(t.on_transition, Some(0x140));
+        assert_eq!(t.on_load, Some(0x150));
+        assert_eq!(
+            t.on_frame,
+            vec![
+                VarScript {
+                    var: 0x4050,
+                    value: 1,
+                    script: 0x170
+                },
+                VarScript {
+                    var: 0x4051,
+                    value: 2,
+                    script: 0x140
+                }
+            ]
+        );
+        assert!(t.on_warp_into.is_empty());
+
+        let mut bad = table();
+        bad[0] = 9;
+        let err = read_map_scripts(&rom(&bad, 0x400), BASE).unwrap_err();
+        assert!(format!("{err:#}").contains("unknown type 9"), "{err:#}");
+
+        let entry: Vec<u8> = std::iter::once(3).chain(p(0x140)).collect();
+        let err = read_map_scripts(&rom(&entry.repeat(300), 0x1000), BASE).unwrap_err();
+        assert!(format!("{err:#}").contains("table at 0x100"), "{err:#}");
+    }
+
+    #[test]
+    fn names_follow_the_schema_order() {
+        let r = rom(&table(), 0x400);
+        let obj = |local_id, script| ObjectEvent {
+            local_id,
+            graphics_id: 0,
+            x: 0,
+            y: 0,
+            elevation: 0,
+            movement_type: 0,
+            movement_range_x: 0,
+            movement_range_y: 0,
+            trainer_type: 0,
+            trainer_range_berry_tree_id: 0,
+            script,
+            flag_id: 0,
+        };
+        let coord = |script| CoordEvent {
+            x: 0,
+            y: 0,
+            elevation: 0,
+            trigger_var: 0,
+            index: 0,
+            script,
+        };
+        let bg = |kind| BgEvent {
+            x: 0,
+            y: 0,
+            elevation: 0,
+            kind_raw: 0,
+            kind,
+        };
+        let header = MapHeader {
+            offset: 0,
+            layout: MapLayout {
+                offset: 0,
+                width: 1,
+                height: 1,
+                border: vec![0; 4],
+                blocks: vec![0],
+                primary_tileset: 0,
+                secondary_tileset: 0,
+            },
+            events: MapEvents {
+                objects: vec![obj(2, Some(0x200)), obj(3, None), obj(4, Some(0x140))],
+                warps: vec![],
+                coords: vec![coord(None), coord(Some(0x210))],
+                bgs: vec![
+                    bg(BgEventKind::SecretBase(1)),
+                    bg(BgEventKind::Script(Some(0x220))),
+                ],
+            },
+            map_scripts: Some(BASE),
+            connections: vec![],
+            music: 0,
+            layout_id: 0,
+            region_map_section: 0,
+            cave: 0,
+            weather: 0,
+            map_type: 0,
+            allow_cycling: false,
+            allow_escaping: false,
+            allow_running: false,
+            show_map_name: false,
+            battle_type: 0,
+        };
+        let roots = named_roots(&r, &header, "M").unwrap();
+        let names: Vec<(&str, u32)> = roots.iter().map(|(n, o)| (n.as_str(), *o)).collect();
+        assert_eq!(
+            names,
+            [
+                ("M_Obj2", 0x200),
+                ("M_Obj4", 0x140),
+                ("M_Coord1", 0x210),
+                ("M_Bg1", 0x220),
+                ("M_OnLoad", 0x150),
+                ("M_OnTransition", 0x140),
+                ("M_OnFrame0", 0x170),
+                ("M_OnFrame1", 0x140),
+            ]
+        );
+        let other = [("A_Obj1".to_string(), 0x140), ("A_Obj2".to_string(), 0x300)];
+        let canon = canonical(other.iter().chain(&roots));
+        assert_eq!(canon[&0x140], "A_Obj1");
+        assert_eq!(canon[&0x300], "A_Obj2");
+        assert_eq!(canon[&0x150], "M_OnLoad");
+        assert_eq!(canon.len(), 7);
+    }
+}

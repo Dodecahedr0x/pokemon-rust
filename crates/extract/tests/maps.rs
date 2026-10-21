@@ -331,3 +331,79 @@ fn table_header_rejects_out_of_range_ids() {
     assert!(table.header(&rom, MapId { group: 34, num: 0 }).is_err());
     assert!(table.header(&rom, MapId { group: 0, num: 57 }).is_err());
 }
+
+/// `gTileset_<name>` -> (isSecondary, metatiles.bin path), from `headers.h` and `metatiles.h`.
+fn decomp_tileset_headers(d: &Path) -> Vec<(String, bool, String)> {
+    let headers = std::fs::read_to_string(d.join("src/data/tilesets/headers.h")).unwrap();
+    let metatiles = std::fs::read_to_string(d.join("src/data/tilesets/metatiles.h")).unwrap();
+    let mut out = Vec::new();
+    for block in headers.split("const struct Tileset gTileset_").skip(1) {
+        let name = block.split_whitespace().next().unwrap().to_string();
+        let field = |f: &str| {
+            let at = block.find(&format!(".{f} = ")).unwrap() + f.len() + 4;
+            block[at..].split(',').next().unwrap().trim().to_string()
+        };
+        let secondary = field("isSecondary") == "TRUE";
+        let sym = field("metatiles");
+        let line = metatiles
+            .lines()
+            .find(|l| l.contains(&format!(" {sym}[]")))
+            .unwrap_or_else(|| panic!("{sym}"));
+        let path = line.split('"').nth(1).unwrap().to_string();
+        out.push((name, secondary, path));
+    }
+    out
+}
+
+#[test]
+fn tileset_headers_are_named_in_decomp_order() {
+    let d = fixtures::decomp();
+    let decomp = decomp_tileset_headers(&d);
+    assert_eq!(decomp.len(), extract::names::TILESETS.entries.len());
+    // US: every header's metatiles are the decomp's bytes for that name.
+    let us = fixtures::us();
+    let table = maps::locate_map_table(&us).unwrap();
+    let headers = maps::TilesetHeaders::locate(&us, &table).unwrap();
+    for (name, secondary, path) in &decomp {
+        let off = headers.offset_of(name).unwrap();
+        assert_eq!(headers.name(off).unwrap(), name);
+        let ts = maps::read_tileset(&us, off, &table).unwrap();
+        assert_eq!(ts.secondary, *secondary, "{name}");
+        let bytes = std::fs::read(d.join(path)).unwrap();
+        assert_eq!(
+            us.slice(ts.metatiles, bytes.len()).unwrap(),
+            bytes,
+            "{name}"
+        );
+    }
+    assert!(headers.name(headers.offset + 1).is_err());
+    assert!(headers.name(headers.offset + 0x6f8 + 0x18).is_err());
+    assert!(
+        headers.name(headers.offset + 0x570).is_err(),
+        "a gTilesetPointer"
+    );
+    // FR: every tileset used by a map is named, with the same name as in US for that map/slot.
+    let fr = fixtures::fr();
+    let fr_table = maps::locate_map_table(&fr).unwrap();
+    let fr_headers = maps::TilesetHeaders::locate(&fr, &fr_table).unwrap();
+    for (g, group) in table.groups.iter().enumerate() {
+        for n in 0..group.len() {
+            let id = MapId {
+                group: g as u8,
+                num: n as u8,
+            };
+            let (u, f) = (
+                table.header(&us, id).unwrap().layout,
+                fr_table.header(&fr, id).unwrap().layout,
+            );
+            for (a, b) in [
+                (u.primary_tileset, f.primary_tileset),
+                (u.secondary_tileset, f.secondary_tileset),
+            ] {
+                let name = headers.name(a).unwrap();
+                assert_eq!(name, fr_headers.name(b).unwrap(), "{id:?}");
+            }
+        }
+    }
+    assert_eq!(fr_headers.name(fr_headers.offset).unwrap(), "General");
+}

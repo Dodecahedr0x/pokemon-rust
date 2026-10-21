@@ -18,11 +18,11 @@
 //!   drawn transparent.
 
 use crate::Rom;
+use crate::gfx::{TILE_BYTES, rgb555_to_rgba};
+pub use crate::maps::TILES_PER_TILESET;
 use crate::maps::{MapLayout, TilesetRef};
 use anyhow::{Context, Result, ensure};
 
-/// Tiles per tileset in VRAM; also the base index of secondary tiles and metatiles.
-pub const TILES_PER_TILESET: usize = 512;
 /// Palettes in a tileset's `palettes` array.
 pub const PALETTES_PER_TILESET: usize = 16;
 /// Palette slots loaded from the primary tileset (`NUM_PALS_IN_PRIMARY`).
@@ -30,7 +30,6 @@ pub const NUM_PALS_IN_PRIMARY: usize = 6;
 /// Palette slots loaded from both tilesets (`NUM_PALS_TOTAL`).
 pub const NUM_PALS_TOTAL: usize = 13;
 
-const TILE_BYTES: usize = 32;
 const METATILE_ID_MASK: u16 = 0x3FF;
 /// `METATILE_LAYER_TYPE_NORMAL`: bottom layer on BG2, top on BG1, BG3 filled with [`NORMAL_UNDERLAY`].
 const LAYER_TYPE_NORMAL: u16 = 0;
@@ -202,7 +201,7 @@ fn draw_tile(
 }
 
 fn rgba(c: u16) -> [u8; 4] {
-    crate::gfx::Palette([c; 16]).rgba(0)
+    rgb555_to_rgba(c)
 }
 
 #[cfg(test)]

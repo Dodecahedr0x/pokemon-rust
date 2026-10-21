@@ -5,9 +5,9 @@
 //! `struct SpriteFrameImage { const void *data; u16 size; }` (include/sprite.h, 8 bytes) and
 //! `struct SpritePalette { const u16 *data; u16 tag; }` (8 bytes).
 
+use crate::gfx::TILE_BYTES;
 use crate::{ROM_BASE, Rom};
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashSet};
 
 /// Start of `gObjectEventGraphicsInfo_BrendanNormal` (id 0): tileTag TAG_NONE, paletteTag BRENDAN,
@@ -22,11 +22,10 @@ const PAL_TAG_NONE: u16 = 0x11FF;
 const INFO_IMAGES: u32 = 0x1C;
 const MAX_IDS: u32 = 256;
 const MAX_FRAMES: u32 = 256;
-const TILE_BYTES: usize = 32;
 /// A 64×64 4bpp frame.
 const MAX_FRAME_BYTES: usize = 64 * 64 / 2;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ObjectGraphics {
     pub id: u8,
     /// File offset of the `ObjectEventGraphicsInfo`.
@@ -42,7 +41,7 @@ pub struct ObjectGraphics {
     pub palette: [u16; 16],
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ObjectGraphicsTable {
     /// File offset of `gObjectEventGraphicsInfoPointers`.
     pub offset: u32,

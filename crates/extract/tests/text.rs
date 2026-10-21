@@ -1,5 +1,52 @@
 //! ROM-backed checks of the text codec against the decomp (US) and the French ROM.
-use extract::{fixtures, text};
+use extract::{Rom, export, fixtures, maps, names, roots, scripts, text};
+use std::collections::BTreeSet;
+
+/// Every text offset the scripts of the exported maps reach.
+fn exported_texts(rom: &Rom) -> BTreeSet<u32> {
+    let table = maps::locate_map_table(rom).unwrap();
+    let mut texts = BTreeSet::new();
+    for name in export::MAPS {
+        let m = names::map_by_dir(name).unwrap();
+        let id = maps::MapId {
+            group: m.group,
+            num: m.num,
+        };
+        let header = table.header(rom, id).unwrap();
+        let offs: Vec<u32> = roots::named_roots(rom, &header, name)
+            .unwrap()
+            .into_iter()
+            .map(|(_, o)| o)
+            .collect();
+        texts.extend(scripts::walk(rom, &offs).unwrap().texts);
+    }
+    texts
+}
+
+/// Every FR text the 15 exported maps show decodes with the French charmap and re-encodes to its
+/// exact ROM bytes. (Task B moves this to the texts it writes, through `text::round_trip_at`.)
+#[test]
+fn exported_fr_texts_round_trip_with_the_french_charmap() {
+    let rom = fixtures::fr();
+    let texts = exported_texts(&rom);
+    assert!(texts.len() > 150, "only {} texts", texts.len());
+    let mut all = String::new();
+    for off in texts {
+        all.push_str(&text::round_trip_at(&rom, off).unwrap());
+    }
+    for needle in ["«", "»", "é", "{PLAYER}", r"\p"] {
+        assert!(all.contains(needle), "no {needle}");
+    }
+    assert!(!all.contains('“') && !all.contains('”'));
+}
+
+#[test]
+fn exported_us_texts_round_trip() {
+    let rom = fixtures::us();
+    for off in exported_texts(&rom) {
+        text::round_trip_at(&rom, off).unwrap();
+    }
+}
 
 /// Every `.string` of a decomp `.inc` file, with consecutive lines joined up to the `$`
 /// terminator as the assembler does (each `.string` line emits its bytes with no terminator).

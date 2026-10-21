@@ -10,6 +10,15 @@ use std::path::Path;
 
 pub type Rgb555 = u16;
 
+/// Bytes per 8x8 4bpp tile.
+pub const TILE_BYTES: usize = 32;
+
+/// A BGR555 colour as opaque 8-bit RGBA (`x * 255 / 31` per channel, as gbagfx).
+pub fn rgb555_to_rgba(c: Rgb555) -> [u8; 4] {
+    let up = |x: u16| ((x & 0x1F) as u32 * 255 / 31) as u8;
+    [up(c), up(c >> 5), up(c >> 10), 255]
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Palette(pub [Rgb555; 16]);
 
@@ -26,9 +35,7 @@ impl Palette {
 
     /// Colour `i` (only the low 4 bits are used) as opaque 8-bit RGBA.
     pub fn rgba(&self, i: u8) -> [u8; 4] {
-        let c = self.0[(i & 0xF) as usize];
-        let up = |x: u16| ((x & 0x1F) as u32 * 255 / 31) as u8;
-        [up(c), up(c >> 5), up(c >> 10), 255]
+        rgb555_to_rgba(self.0[(i & 0xF) as usize])
     }
 }
 
@@ -77,16 +84,16 @@ pub struct IndexedImage {
 pub fn tiles_4bpp_to_image(data: &[u8], tiles_per_row: u32) -> Result<IndexedImage> {
     ensure!(tiles_per_row > 0, "tiles_per_row must be > 0");
     ensure!(
-        data.len().is_multiple_of(32),
+        data.len().is_multiple_of(TILE_BYTES),
         "4bpp data length {} is not a multiple of 32",
         data.len()
     );
-    let tiles = data.len() / 32;
+    let tiles = data.len() / TILE_BYTES;
     let tpr = tiles_per_row as usize;
     let rows = tiles.div_ceil(tpr);
     let width = tpr * 8;
     let mut pixels = vec![0u8; width * rows * 8];
-    for (t, tile) in data.chunks_exact(32).enumerate() {
+    for (t, tile) in data.chunks_exact(TILE_BYTES).enumerate() {
         let (tx, ty) = (t % tpr * 8, t / tpr * 8);
         for (k, &b) in tile.iter().enumerate() {
             let (x, y) = (tx + k % 4 * 2, ty + k / 4);
