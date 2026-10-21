@@ -13,6 +13,7 @@ pub mod input;
 pub mod rng;
 pub mod scene;
 pub mod script;
+pub mod text;
 pub mod video;
 pub mod world;
 
