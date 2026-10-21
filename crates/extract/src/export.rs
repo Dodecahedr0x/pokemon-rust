@@ -1,4 +1,4 @@
-//! Writes `content/extracted/` in the v2 format of [`crate::schema`]: maps, tilesets, sprites,
+//! Writes `content/extracted/` in the v3 format of [`crate::schema`]: maps, tilesets, sprites,
 //! font, window graphics and previews, all named by decomp identifiers. Texts and scripts are
 //! written by [`export_scripts`] (Milestone 3 Task B).
 //!

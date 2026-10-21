@@ -17,6 +17,18 @@ impl Rng {
         x
     }
 
+    /// Gen3 `Random()`: the high half of the next state (what `Request::Random` already uses,
+    /// so M3 hashes do not move).
+    pub fn random(&mut self) -> u16 {
+        (self.next_u32() >> 16) as u16
+    }
+
+    /// Gen3 `Random32()`: `random() | random() << 16`, low half drawn first.
+    pub fn random32(&mut self) -> u32 {
+        let lo = self.random() as u32;
+        lo | (self.random() as u32) << 16
+    }
+
     pub const fn state(self) -> u32 {
         self.0
     }
@@ -30,6 +42,16 @@ mod tests {
     fn xorshift32_reference_value() {
         let mut r = Rng::new(1);
         assert_eq!(r.next_u32(), 270369);
+    }
+
+    #[test]
+    fn random_is_the_high_half_and_random32_draws_low_first() {
+        let mut a = Rng::new(7);
+        let mut b = Rng::new(7);
+        assert_eq!(a.random(), (b.next_u32() >> 16) as u16);
+        let (lo, hi) = (b.next_u32() >> 16, b.next_u32() >> 16);
+        assert_eq!(a.random32(), lo | hi << 16);
+        assert_eq!(a, b);
     }
 
     #[test]

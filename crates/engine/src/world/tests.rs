@@ -323,6 +323,7 @@ impl GameData for Game {
             var_last_talked: Some(VAR_LAST_TALKED),
             flag_running: None,
             flags_cleared_on_map_change: &[FLAG_CLEARED],
+            respawn_default: 0,
         }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -860,4 +861,28 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
     }
     assert_eq!(w.s.last_mover, 1);
     assert_eq!(w.objects().iter().filter(|o| o.local_id == 1).count(), 1);
+}
+
+#[test]
+fn battle_requests_are_logged_placeholders_until_task_j() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            let i = ctx
+                .choose_starter([SpeciesId(1), SpeciesId(2), SpeciesId(3)])
+                .await;
+            let o = ctx.battle_wild(SpeciesId(4), 2, true).await;
+            let t = ctx.battle_trainer(TrainerId(1), TextId(0)).await;
+            let given = ctx.give_mon(SpeciesId(1), 5).await;
+            let size = ctx.party_size().await;
+            ctx.heal_party().await;
+            ctx.set_respawn(1).await;
+            let won = crate::battle::BattleOutcome::Won;
+            let ok = i == 0 && o == won && t == won && given == 2 && size == 0;
+            ctx.set_flag(FLAG_DONE, ok).await;
+        })
+    });
+    assert_eq!(until_done(&mut w, 5), 1, "all answered in one frame");
+    assert!(w.flag(FLAG_DONE));
+    assert!(w.log().lines().any(|l| l.contains("M4 Task J")));
 }

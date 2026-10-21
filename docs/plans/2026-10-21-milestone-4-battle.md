@@ -19,9 +19,11 @@
 **Wave 0, already committed (contracts: read them, do not redesign them):** see the next section for the exact Rust.
 - `crates/engine/src/mon.rs` (types), `crates/engine/src/battle/mod.rs` (types, events, the core/presentation boundary)
 - `crates/engine/src/data.rs` (ids, `GameData` additions), `crates/engine/src/script.rs` (requests, `Ctx` methods, `Runner::abort`)
-- `crates/engine/src/video.rs` (`Cmd::ObjTile`, `Frame::lighten`, `layout::battle`), `crates/engine/src/rng.rs` (`random`, `random32`)
-- `crates/extract/src/schema.rs` (v3 additions) and `crates/extract/src/names/battle.rs` (`SPECIES`, `TRAINER_PICS`, `TRAINER_BACK_PICS`)
-- empty module files with `todo!()` bodies for every signature below, so each Wave 1 task fills only its own files.
+- `crates/engine/src/video.rs` (`Cmd::ObjTile`, `Frame::lighten`, `Frame::is_black`, `layout::battle`), `crates/engine/src/rng.rs` (`random`, `random32`)
+- `crates/extract/src/schema.rs` (v3 additions) and `crates/extract/src/names/battle.rs` (`SPECIES`, `TRAINER_PICS`, `TRAINER_BACK_PICS`; generated and drift-checked by `tests/names.rs` `generate_battle`, where Task A adds its tables)
+- empty module files with `todo!()` bodies for every signature below, so each Wave 1 task fills only its own files. `lib.rs` already declares `battle`, `mon`, `wild`, `trainer` and `starter`, and `battle/mod.rs` declares every submodule plus `#[cfg(test)] test_data`, so no Wave 1 task edits `lib.rs` or `battle/mod.rs` just to register a file. Stubs carry `#[allow(unused_variables, clippy::ptr_arg)]`: drop it when implementing.
+- already implemented (not stubs): `Rng::random`/`random32`, `Type::ALL`/`from_u8`/`is_physical`, `Stat::ALL`, `Nature::effect`, `Status::code`, `MoveFlags`, `BattleTables::species_info`/`move_info`, `Pokemon::moves_at_level`, `Pokemon::hash`, every `Party` method (`Party::heal` calls Task C's `Pokemon::heal`), `BattleOutcome::from_u16`, `Side::other`, the `Request`s/`Ctx` methods/`Runner::abort`, World placeholders for the new requests, `Cmd::ObjTile` and `Frame::lighten` in both shells (native `ppu::brighten` mirrors mGBA's `_brighten`).
+- **As built (deviations, Wave 0):** see "Wave 0 as built" at the end of this section.
 
 A task may add to a contract if it needs to. It may not change the meaning of what is already there, and every addition must be listed in its final report.
 
@@ -55,7 +57,7 @@ pub trait GameData {
     /// Gen3 heal location `id` (`setrespawn`, whiteout): map and player cell.
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> { None }
 }
-// SpecialIds gains: `respawn_default: u8` (heal location of a new game).
+// SpecialIds gains: `respawn_default: u8` (heal location of a new game; content sets 0 until Task I).
 ```
 
 ### `engine::mon` (Gen3 Pokémon model; numbers are data, formulas are Gen3)
@@ -65,13 +67,17 @@ pub const NAME_LEN: usize = 11;        // POKEMON_NAME_LENGTH + EOS
 
 #[repr(u8)] pub enum Type { Normal, Fighting, Flying, Poison, Ground, Rock, Bug, Ghost, Steel,
     Mystery, Fire, Water, Grass, Electric, Psychic, Ice, Dragon, Dark }       // Gen3 TYPE_* order
-impl Type { pub const fn is_physical(self) -> bool { (self as u8) < Type::Mystery as u8 } }
+impl Type { pub const ALL: [Type; 18]; pub const fn is_physical(self) -> bool;
+            pub const fn from_u8(v: u8) -> Option<Type>; }
 #[repr(u8)] pub enum Stat { Hp, Atk, Def, Speed, SpAtk, SpDef, Accuracy, Evasion } // STAT_* order
+impl Stat { pub const ALL: [Stat; 8]; }
 pub struct Nature(pub u8);                          // 0..25; boosts n/5, lowers n%5 (gNatureStatTable)
+impl Nature { pub const fn effect(self, stat: Stat) -> i8; } // +1 / -1 / 0, for ModifyStatByNature
 #[repr(u8)] pub enum GrowthRate { MediumFast, Erratic, Fluctuating, MediumSlow, Fast, Slow }
 pub enum Gender { Male, Female, Genderless }
 pub enum StatusKind { Sleep, Poison, Burn, Freeze, Paralysis, Toxic }
-pub enum Status { None, Sleep(u8), Poison, Burn, Freeze, Paralysis, Toxic(u8) } // STATUS1_*
+pub enum Status { None, Sleep(u8), Poison, Burn, Freeze, Paralysis, Toxic(u8) } // STATUS1_*, Default = None
+impl Status { pub const fn code(self) -> (u8, u8); } // (tag, counter) for hashes
 
 /// Abilities the engine implements; content maps `ABILITY_*` names, the rest are `Other`.
 pub enum Ability { None, Overgrow, Blaze, Torrent, Swarm, RunAway, ShieldDust, KeenEye, Guts,
@@ -92,6 +98,7 @@ pub enum MoveEffect {
 }
 pub enum MoveTarget { Selected, Depends, UserOrSelected, Random, BothFoes, User, FoesAndAlly, OpponentsField }
 pub struct MoveFlags(pub u8);              // Gen3 FLAG_MAKES_CONTACT = 1, … (bit values as Gen3)
+impl MoveFlags { pub const MAKES_CONTACT: u8 = 1; /* … KINGS_ROCK_AFFECTED = 1 << 5 */ pub const fn has(self, flag: u8) -> bool; }
 
 pub struct LevelUpMove { pub level: u8, pub mov: MoveId }
 pub struct MonGfx {
@@ -135,6 +142,10 @@ pub struct BattleTables {
     pub struggle: MoveId,
     pub nature_power: [MoveId; 10],        // sNaturePowerMoves, by Environment
 }
+impl BattleTables {                        // panic on ids outside the tables
+    pub fn species_info(&self, id: SpeciesId) -> &'static SpeciesInfo;
+    pub fn move_info(&self, id: MoveId) -> &'static MoveInfo;
+}
 pub static EMPTY_TABLES: BattleTables;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -158,19 +169,20 @@ impl Pokemon {                             // bodies: Task C
     /// Adds exp up to the next level boundary; returns true if a level was gained (stats are
     /// recalculated). Callers loop, so each level-up gets its own events.
     pub fn add_exp_step(&mut self, t: &BattleTables, exp: &mut u32) -> bool;
-    pub fn moves_at_level(&self, t: &BattleTables, level: u8) -> impl Iterator<Item = MoveId>;
+    pub fn moves_at_level(&self, t: &BattleTables, level: u8) -> impl Iterator<Item = MoveId>; // done in Wave 0
     pub fn try_learn(&mut self, t: &BattleTables, m: MoveId) -> Learn;
     pub fn replace_move(&mut self, t: &BattleTables, slot: u8, m: MoveId);
-    pub fn hash(&self, h: &mut Fnv64);
+    pub fn hash(&self, h: &mut Fnv64);                        // done in Wave 0 (every field)
 }
-pub fn exp_for_level(g: GrowthRate, level: u8) -> u32;      // gExperienceTables formulas
+pub fn exp_for_level(g: GrowthRate, level: u8) -> u32;      // gExperienceTables formulas (Task C)
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct Party { mons: [Option<Pokemon>; PARTY_SIZE] }    // compact: no holes
-impl Party {
-    pub fn len(&self) -> usize; pub fn get(&self, i: usize) -> Option<&Pokemon>;
+impl Party {                                                // done in Wave 0
+    pub fn len(&self) -> usize; pub fn is_empty(&self) -> bool; pub fn iter(&self) -> impl Iterator<Item = &Pokemon>;
+    pub fn get(&self, i: usize) -> Option<&Pokemon>;
     pub fn get_mut(&mut self, i: usize) -> Option<&mut Pokemon>;
     pub fn push(&mut self, p: Pokemon) -> Result<u8, Pokemon>;
-    pub fn first_usable(&self) -> Option<u8>; pub fn all_fainted(&self) -> bool;
+    pub fn first_usable(&self) -> Option<u8>; pub fn all_fainted(&self) -> bool; // HP > 0; empty = all fainted
     pub fn heal(&mut self, t: &BattleTables); pub fn hash(&self, h: &mut Fnv64);
 }
 ```
@@ -179,14 +191,19 @@ impl Party {
 ```rust
 pub mod core; pub mod calc; pub mod effects; pub mod ai;          // logic (pure)
 pub mod scene; pub mod ui; pub mod gfx; pub mod text; pub mod transition; // presentation
+#[cfg(test)] pub(crate) mod test_data;                            // Task D fills it
+pub use self::core::Battle; pub use self::scene::BattleScene;
+// (inside battle/mod.rs, `core` is the submodule: write `::core::` for the core crate)
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Side { Player, Opponent }
+impl Side { pub const fn other(self) -> Side; }
 #[repr(u8)] pub enum Environment { Grass, LongGrass, Sand, Underwater, Water, Pond, Mountain,
     Cave, Building, Plain }                                       // BATTLE_ENVIRONMENT_* order
 pub enum BattleKind { Wild { first_battle: bool }, Trainer { trainer: TrainerId, defeat: TextId } }
 pub struct BattleSetup { pub kind: BattleKind, pub opponents: Party, pub environment: Environment }
 /// Gen3 B_OUTCOME_* values, so scripts can store them in VAR_RESULT.
 #[repr(u8)] pub enum BattleOutcome { Won = 1, Lost = 2, Drew = 3, Ran = 4, MonFled = 6, Caught = 7 }
+impl BattleOutcome { pub const fn from_u16(v: u16) -> Option<BattleOutcome>; }
 
 pub enum Choice { Move(u8), Switch(u8), Run, Ball, LearnMove { forget: Option<u8> } }
 pub enum Need { Busy, Action, Switch, LearnMove { party: u8, mov: MoveId }, Ended(BattleOutcome) }
@@ -211,6 +228,7 @@ pub enum Str { Intro1 /* wild appeared */, IntroTrainer /* … wants to battle *
     PkmnFastAsleep, PkmnWokeUp, PkmnHurtByPoison, PkmnHurtByBurn, PkmnSeeded, LeechSeedDrain,
     PkmnStoringEnergy, PkmnUnleashedEnergy, GettingPumped, AbsorbDrain, PkmnHitWithRecoil,
     NoPPLeft, Struggle, Gotcha, WildPrefix, FoePrefix,
+    BattleYesNoChoice /* gText_BattleYesNoChoice, F */, ConfirmStarterChoice /* gText_ConfirmStarterChoice, G */,
     TypeName(Type), StatName(Stat) }
 pub enum BattleEvent {
     Msg(Msg),
@@ -224,14 +242,24 @@ pub enum BattleEvent {
     Ball { shakes: u8, caught: bool },
     End(BattleOutcome),
 }
-/// What presentation reads of a battler (Gen3 struct BattlePokemon subset).
+/// What presentation reads of a battler (Gen3 struct BattlePokemon subset). Only public fields:
+/// the core keeps its private per-battler state (stages, STATUS2/3, …) in `core.rs` next to it.
 pub struct BattleMon { pub party: u8, pub species: SpeciesId, pub nickname: [u8; NAME_LEN],
     pub level: u8, pub hp: u16, pub max_hp: u16, pub status: Status, pub gender: Gender,
-    pub moves: [Option<MoveId>; 4], pub pp: [u8; 4], pub max_pp: [u8; 4] /* + core-private fields */ }
+    pub moves: [Option<MoveId>; 4], pub pp: [u8; 4], pub max_pp: [u8; 4] }
 pub struct Names<'a> { pub player: &'a [u8], pub trainer_class: &'a [u8], pub trainer_name: &'a [u8],
     pub wild: bool, pub mons: [&'a BattleMon; 2] }               // index = Side
-pub struct BattleGfx { /* textbox, environments, healthboxes, bars, status, ball, small font,
-    player back pic frames, starter screen — field list fixed by Task B with E/F/G */ }
+/// Tiles + palettes + optional tilemap (raw GBA screen entries, 32 per row).
+pub struct GfxImage { pub tiles: &'static [Tile], pub palettes: &'static [[u16; 16]], pub tilemap: &'static [u16] }
+impl GfxImage { pub const EMPTY: GfxImage; }
+/// Wave 0 proposal; Task B confirms it with E/F/G (changes in their reports), Task I fills it.
+pub struct BattleGfx {
+    pub textbox: GfxImage, pub environments: [GfxImage; 10] /* by Environment */,
+    pub healthbox_player: GfxImage, pub healthbox_opponent: GfxImage, pub hpbar: GfxImage,
+    pub expbar: GfxImage, pub status: GfxImage, pub misc: GfxImage, pub numbers: GfxImage,
+    pub ball: GfxImage, pub small_font: &'static Font, pub player_back: TrainerPic /* 64-tile frames */,
+    pub starter_bag: GfxImage, pub starter_ball: GfxImage, pub starter_circle: GfxImage,
+}
 pub static EMPTY_GFX: BattleGfx;
 
 // core.rs (Task D)
@@ -255,6 +283,19 @@ impl scene::BattleScene {
     pub fn finished(&self) -> bool;          // End played and its last message dismissed
     pub fn hash(&self, h: &mut Fnv64);
 }
+// text.rs (Task F)
+pub fn expand(game: &impl GameData, msg: &Msg, names: &Names) -> Vec<u8>;
+// transition.rs (Task G)
+impl transition::BattleTransition {
+    pub fn new(kind: &BattleKind) -> Self;   // wild: grid squares, trainer: bars
+    pub fn update(&mut self, f: &mut Frame) -> bool; pub fn hash(&self, h: &mut Fnv64);
+}
+// Task C / G stubs outside `battle` (signatures from their task sections):
+// wild::try_land_encounter(table, prev: Behavior, cur: Behavior, lead: Option<&Pokemon>, t: &BattleTables, rng) -> Option<(SpeciesId, u8)>
+// wild::create_wild(t, species, level, lead: Option<&Pokemon>, ot_id: u32, rng) -> Pokemon
+// trainer::create_trainer_party(t, trainer: &TrainerData, rng) -> Party
+// starter::StarterChoice { new([SpeciesId; 3]), load_step(game, f) -> bool,
+//     update(game, input: &Input, f) -> Option<u8>, hash }
 ```
 
 ### `engine::script` additions
@@ -277,14 +318,20 @@ pub async fn choose_starter(&self, choices: [SpeciesId; 3]) -> u8;
 pub async fn set_respawn(&self, heal_location: u8);
 // Runner:
 /// Drops the running script and any pending request (Gen3 whiteout resets the script context).
+/// `issued` is kept, as when a script ends.
 pub fn abort(&mut self);
 ```
 A battle that whites out never answers its request; the World aborts the runner.
+Until Task J, the `World` host answers the new requests at once with a log line: `GiveMon` →
+2 (`MON_CANT_GIVE`), `PartySize` → 0, `BattleWild`/`BattleTrainer` → `Won`, `ChooseStarter` → 0,
+`HealParty`/`SetRespawn` → unit. `Request::Random` now calls `rng.random()` (same values).
 
 ### `engine::video` additions
 ```rust
-Cmd::ObjTile { index: u16, tile: Tile }   // dynamic OBJ tile (healthboxes, bars)
+Cmd::ObjTile { index: u16, tile: Tile }   // dynamic OBJ tile (healthboxes, bars); validate: index < 1024
 Frame::lighten: bool                      // BLDY brightens instead of darkening (BLDCNT effect 2)
+Frame::is_black(&self) -> bool            // brightness >= 16 && !lighten: the GBA shell's late_black
+                                          // test uses it (a lighten frame at 16 is white)
 pub mod layout { pub mod battle {
     // BG: (layer, char block, screen block, priority). 32x32 maps only: Gen3's 64-row BG0 trick
     // (scrolling between message / action / move views) becomes redrawing rows 15..20.
@@ -304,6 +351,11 @@ pub mod layout { pub mod battle {
 ```
 
 ### `extract::schema` v3 additions (`FORMAT_VERSION = 3`)
+`FORMAT_VERSION` is already 3 (the export test checks 3): every checkout must re-run `cargo xtask extract`.
+Rust types in `schema.rs`: `SpeciesFile`/`Species`, `MovesFile`/`Move`, `TypesFile`, `TrainersFile`/`Trainer`/`TrainerMon`,
+`EncountersFile`/`LandEncounters`/`WildMon`, `HealLocationsFile` and `BattleStringsFile` (aliases), `MonCoordsFile`/`MonCoords`
+(`front_y`, `back_y`, `elevation`), `TrainerPicsFile { front: BTreeMap<TRAINER_PIC_*, TrainerPicInfo { y }>, back: BTreeMap<TRAINER_BACK_PIC_*, frames: u8> }`,
+and one generic `GfxFile { tile_count, width, palettes, palette_bank, tilemap: Vec<Row> }` for `battle/gfx`, `battle/env` and `starter` (Task B may extend).
 ```text
 battle/species.ron     SpeciesFile { species: Vec<Species> }   Gen3 index order, key SPECIES_*
 battle/moves.ron       MovesFile { moves: Vec<Move>, nature_power: Vec<String> }
@@ -322,6 +374,16 @@ starter/{bag,ball,circle}.{png,ron}
 `Species { id, name, base: [u8; 6], types: [String; 2], catch_rate, exp_yield, ev_yield: [u8; 6], gender_ratio, friendship, growth, abilities: [String; 2], learnset: Vec<(u8, String)> }`.
 `Move { id, name, effect /* EFFECT_* */, power, ty, accuracy, pp, chance, target /* MOVE_TARGET_* */, priority: i8, flags: Vec<String> }`.
 `Trainer { id, class /* TRAINER_CLASS_* */, class_name, name, pic, female, ai: Vec<String>, double, party: Vec<TrainerMon { iv: u16, level, species, item: Option<String>, moves: Option<Vec<String>> }> }`.
+
+### Wave 0 as built (deviations from the first draft of this section)
+1. `BattleMon` has no core-private fields: nobody owns `battle/mod.rs` in Wave 1, so Task D keeps that state in `core.rs` (e.g. a `Battler { mon: BattleMon, … }`).
+2. `BattleGfx` has a concrete proposed field list built on a new `GfxImage`; it is not `Debug` (`Font` is not).
+3. `Str` gains `BattleYesNoChoice` and `ConfirmStarterChoice` (needed by F and G; avoids edits to `battle/mod.rs`).
+4. Additions: `Type::ALL`/`from_u8`, `Stat::ALL`, `Nature::effect`, `Status::code`, `MoveFlags` consts/`has`, `BattleTables::species_info`/`move_info`, `Party::is_empty`/`iter`, `Side::other`, `BattleOutcome::from_u16`, `Frame::is_black`, `GfxImage`.
+5. `Pokemon::moves_at_level`, `Pokemon::hash` and the `Party` methods are implemented in Wave 0 (`todo!` with an `impl Iterator` return does not type-check; the rest are mechanical). Task C keeps every other `Pokemon` body and `exp_for_level`.
+6. `wild.rs`, `trainer.rs`, `starter.rs`, `battle/transition.rs` (`BattleTransition::new(&BattleKind)`) and `battle/text.rs` (`expand`) are stubbed from their task sections, and every new module is registered, so Wave 1 never edits `lib.rs`/`battle/mod.rs` to add a file. `calc.rs`, `effects.rs`, `ai.rs`, `gfx.rs`, `ui.rs` and `test_data.rs` are doc-only: their signatures are the owning task's to define.
+7. `GameData` defaults write `let _ = arg;` (unused parameters); behaviour as specified.
+8. The GBA shell's black-screen test now uses `Frame::is_black` (a `lighten` frame at BLDY 16 is white, not black); `BLDCNT_LIGHTEN_ALL = 0x3F | 2 << 6` is asserted next to the darken constant.
 
 ---
 
@@ -527,9 +589,9 @@ Components, each with `hash` and a per-frame `update(&mut self, f: &mut Frame)`,
 
 **Owns:** `crates/engine/src/{battle/transition.rs, starter.rs (new)}`, `crates/game-native/src/ppu.rs`, `crates/game-gba/src/video.rs`.
 
-1. **Shells:**
+1. **Shells** (done in Wave 0, with PPU unit tests; G checks them on the ROM through parity once the transition uses them):
    - `Cmd::ObjTile` in both shells.
-   - `Frame::lighten`: BLDCNT effect 2 brightness increase, `c + (((31 - c) * evy) >> 4)`, in the native PPU and on GBA. Unit test the PPU rule.
+   - `Frame::lighten`: BLDCNT effect 2 brightness increase, `c + (((31 - c) * evy) >> 4)`, in the native PPU and on GBA. Native mirrors mGBA's `_brighten` rounding (`ppu::brighten`).
 2. **`BattleTransition`:**
    - Intro flashes: Gen3 `TransitionIntro_FadeToGray`/`FadeFromGray`, twice, done with `lighten` + BLDY.
    - Then a tile-based pattern on BG0 (screen block and tiles in char block 3's free area, or reusing TEXT):

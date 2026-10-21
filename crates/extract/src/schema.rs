@@ -1,4 +1,4 @@
-//! On-disk format (v2) of `content/extracted/`: written by `export`, read by `content/build.rs`
+//! On-disk format (v3) of `content/extracted/`: written by `export`, read by `content/build.rs`
 //! and later the studio. Everything is referenced by stable decomp-style **names**; ROM offsets
 //! only appear in `manifest.ron` as provenance.
 //!
@@ -17,6 +17,23 @@
 //!   scripts/<Map>.rs             generated async Rust (M3 Task B)
 //!   scripts/index.ron            ScriptIndex
 //!   previews/<Map>.png
+//!   ---- v3 (Milestone 4, battle) ----
+//!   battle/species.ron           SpeciesFile    (Gen3 index order, key SPECIES_*)
+//!   battle/moves.ron             MovesFile
+//!   battle/types.ron             TypesFile
+//!   battle/trainers.ron          TrainersFile   (all trainers, key TRAINER_*)
+//!   battle/encounters.ron        EncountersFile (exported maps only)
+//!   battle/heal_locations.ron    HealLocationsFile
+//!   battle/strings.ron           BattleStringsFile (STRINGID_* | gText_* -> decomp `.string`, FR)
+//!   battle/gfx/<name>.{png,ron}  GfxFile: textbox (+tilemap), healthbox_*, hpbar, expbar,
+//!                                status, ball, misc
+//!   battle/env/<Env>.{png,ron}   GfxFile: tiles, 32x? tilemap, palettes (Grass, Plain at least)
+//!   pokemon/<SPECIES>/front.png, back.png (own palette), shiny.pal
+//!   pokemon/coords.ron           MonCoordsFile
+//!   trainers/front/<TRAINER_PIC>.png, trainers/back/<TRAINER_BACK_PIC>.png (frames side by
+//!                                side), trainers/pics.ron TrainerPicsFile
+//!   font/latin_small.{png,ron}   FontFile
+//!   starter/{bag,ball,circle}.{png,ron}  GfxFile
 //! ```
 //!
 //! **Naming rules** (shared by every writer and reader):
@@ -39,7 +56,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const FORMAT_VERSION: u32 = 2;
+pub const FORMAT_VERSION: u32 = 3;
 
 /// A ROM file offset, written `"0x3e45f0"`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -344,6 +361,197 @@ pub struct ScriptEntry {
     pub root: bool,
 }
 
+// ---- v3: battle data (Milestone 4 Task A) ----
+
+/// `battle/species.ron`: every species in Gen3 index order (`SPECIES_NONE` first).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct SpeciesFile {
+    pub species: Vec<Species>,
+}
+
+/// One `gSpeciesInfo` entry plus its FR name and level-up learnset.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Species {
+    /// `SPECIES_*`.
+    pub id: String,
+    /// Decomp `.string` syntax, FR.
+    pub name: String,
+    /// HP, Atk, Def, Speed, SpAtk, SpDef.
+    pub base: [u8; 6],
+    /// `TYPE_*` names.
+    pub types: [String; 2],
+    pub catch_rate: u8,
+    pub exp_yield: u8,
+    /// Same order as `base`.
+    pub ev_yield: [u8; 6],
+    /// 0 male only, 254 female only, 255 genderless.
+    pub gender_ratio: u8,
+    pub friendship: u8,
+    /// `GROWTH_*`.
+    pub growth: String,
+    /// `ABILITY_*` names; the second is `ABILITY_NONE` when there is one ability.
+    pub abilities: [String; 2],
+    /// `(level, MOVE_*)` in `gLevelUpLearnsets` order.
+    pub learnset: Vec<(u8, String)>,
+}
+
+/// `battle/moves.ron`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct MovesFile {
+    /// Every move in Gen3 index order (`MOVE_NONE` first).
+    pub moves: Vec<Move>,
+    /// `sNaturePowerMoves` (`MOVE_*`), by `BATTLE_ENVIRONMENT_*`.
+    pub nature_power: Vec<String>,
+}
+
+/// One `gBattleMoves` entry plus its FR name.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Move {
+    /// `MOVE_*`.
+    pub id: String,
+    pub name: String,
+    /// `EFFECT_*`.
+    pub effect: String,
+    pub power: u8,
+    /// `TYPE_*`.
+    pub ty: String,
+    pub accuracy: u8,
+    pub pp: u8,
+    /// Secondary effect chance (`secondaryEffectChance`).
+    pub chance: u8,
+    /// `MOVE_TARGET_*`.
+    pub target: String,
+    pub priority: i8,
+    /// `FLAG_*` names (`FLAG_MAKES_CONTACT`, …).
+    pub flags: Vec<String>,
+}
+
+/// `battle/types.ron`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct TypesFile {
+    /// FR type names (`gTypeNames`), in `TYPE_*` order, decomp `.string` syntax.
+    pub names: Vec<String>,
+    /// `gTypeEffectiveness` as `(attacker TYPE_*, defender TYPE_*, multiplier)` in table order,
+    /// multiplier 0, 5 or 20 (x10). The 0xFE separator is not an entry.
+    pub chart: Vec<(String, String, u8)>,
+    /// Index into `chart` where the Foresight separator (`TYPE_FORESIGHT`) was.
+    pub foresight_split: usize,
+}
+
+/// `battle/trainers.ron`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct TrainersFile {
+    pub trainers: Vec<Trainer>,
+}
+
+/// One `gTrainers` entry.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Trainer {
+    /// `TRAINER_*`.
+    pub id: String,
+    /// `TRAINER_CLASS_*`.
+    pub class: String,
+    /// FR class name (`gTrainerClassNames`), decomp `.string` syntax.
+    pub class_name: String,
+    pub name: String,
+    /// `TRAINER_PIC_*`.
+    pub pic: String,
+    /// `encounterMusic_gender & F_TRAINER_FEMALE`.
+    pub female: bool,
+    /// `AI_SCRIPT_*` names.
+    pub ai: Vec<String>,
+    pub double: bool,
+    pub party: Vec<TrainerMon>,
+}
+
+/// A trainer party member, whichever of the four Gen3 layouts it came from.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct TrainerMon {
+    /// 0..=255, scaled as `iv * 31 / 255` (`CreateNPCTrainerParty`).
+    pub iv: u16,
+    pub level: u8,
+    /// `SPECIES_*`.
+    pub species: String,
+    /// `ITEM_*` for the held-item layouts.
+    pub item: Option<String>,
+    /// `MOVE_*` x4 for the custom-moves layouts.
+    pub moves: Option<Vec<String>>,
+}
+
+/// `battle/encounters.ron`: land tables of the exported maps that have one.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct EncountersFile {
+    /// By map name (decomp directory name).
+    pub maps: BTreeMap<String, LandEncounters>,
+}
+
+/// `gWildMonHeaders[].landMonsInfo`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LandEncounters {
+    pub rate: u8,
+    /// 12 slots.
+    pub mons: Vec<WildMon>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct WildMon {
+    /// `SPECIES_*`.
+    pub species: String,
+    pub min_level: u8,
+    pub max_level: u8,
+}
+
+/// `battle/heal_locations.ron`: `HEAL_LOCATION_*` -> (map name, x, y) of `sHealLocations`.
+pub type HealLocationsFile = BTreeMap<String, (String, i16, i16)>;
+
+/// `battle/strings.ron`: `STRINGID_*` or `gText_*` name -> decomp `.string` syntax.
+pub type BattleStringsFile = BTreeMap<String, String>;
+
+// ---- v3: battle graphics (Milestone 4 Task B; Task B may extend these) ----
+
+/// `pokemon/coords.ron`: `SPECIES_*` -> pic placement.
+pub type MonCoordsFile = BTreeMap<String, MonCoords>;
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MonCoords {
+    /// `gMonFrontPicCoords[].y_offset`.
+    pub front_y: u8,
+    /// `gMonBackPicCoords[].y_offset`.
+    pub back_y: u8,
+    /// `gEnemyMonElevation`.
+    pub elevation: u8,
+}
+
+/// `trainers/pics.ron`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct TrainerPicsFile {
+    /// `TRAINER_PIC_*` -> front pic placement.
+    pub front: BTreeMap<String, TrainerPicInfo>,
+    /// `TRAINER_BACK_PIC_*` -> number of frames side by side in its png.
+    pub back: BTreeMap<String, u8>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrainerPicInfo {
+    /// `gTrainerFrontPicCoords[].y_offset`.
+    pub y: u8,
+}
+
+/// A battle, environment or starter-screen graphic: tiles in the matching `.png` (4bpp, 16 tiles
+/// per row unless `width` says otherwise), palettes, and an optional tilemap.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct GfxFile {
+    pub tile_count: u16,
+    /// Tiles per row in the png.
+    pub width: u16,
+    /// Every palette the graphic uses, in load order.
+    pub palettes: Vec<[u16; 16]>,
+    /// First BG/OBJ palette bank `palettes[0]` is loaded to in Gen3 (tilemap entries refer to it).
+    pub palette_bank: u8,
+    /// Raw GBA screen entries, 32 per row; empty when the graphic has no tilemap.
+    pub tilemap: Vec<Row>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,6 +562,48 @@ mod tests {
         assert_eq!(s, "\"0x3e45f0\"");
         assert_eq!(ron::from_str::<Hex>(&s).unwrap(), Hex(0x3e45f0));
         assert!(ron::from_str::<Hex>("\"3e45f0\"").is_err());
+    }
+
+    #[test]
+    fn v3_battle_files_round_trip() {
+        let species = SpeciesFile {
+            species: vec![Species {
+                id: "SPECIES_MUDKIP".into(),
+                name: "GOBOU".into(),
+                base: [50, 70, 50, 40, 50, 50],
+                types: ["TYPE_WATER".into(), "TYPE_WATER".into()],
+                catch_rate: 45,
+                exp_yield: 65,
+                ev_yield: [0, 1, 0, 0, 0, 0],
+                gender_ratio: 31,
+                friendship: 70,
+                growth: "GROWTH_MEDIUM_SLOW".into(),
+                abilities: ["ABILITY_TORRENT".into(), "ABILITY_NONE".into()],
+                learnset: vec![(1, "MOVE_TACKLE".into()), (1, "MOVE_GROWL".into())],
+            }],
+        };
+        let s = ron::to_string(&species).unwrap();
+        assert_eq!(ron::from_str::<SpeciesFile>(&s).unwrap(), species);
+        let types = TypesFile {
+            names: vec!["NORMAL".into()],
+            chart: vec![("TYPE_FIRE".into(), "TYPE_GRASS".into(), 20)],
+            foresight_split: 1,
+        };
+        let s = ron::to_string(&types).unwrap();
+        assert_eq!(ron::from_str::<TypesFile>(&s).unwrap(), types);
+        let heal: HealLocationsFile =
+            BTreeMap::from([("HEAL_LOCATION_X".into(), ("LittlerootTown".into(), 5, 8))]);
+        let s = ron::to_string(&heal).unwrap();
+        assert_eq!(ron::from_str::<HealLocationsFile>(&s).unwrap(), heal);
+        let gfx = GfxFile {
+            tile_count: 2,
+            width: 16,
+            palettes: vec![[0; 16]],
+            palette_bank: 2,
+            tilemap: to_rows(&[1, 2], 32),
+        };
+        let s = ron::to_string(&gfx).unwrap();
+        assert_eq!(ron::from_str::<GfxFile>(&s).unwrap(), gfx);
     }
 
     #[test]

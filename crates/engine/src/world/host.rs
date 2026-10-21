@@ -3,12 +3,15 @@
 
 use super::{DOOR_FRAMES, State};
 use crate::Buttons;
+use crate::battle::BattleOutcome;
 use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER};
 use crate::script::{Request, Response, ScriptHost};
 use crate::video::Frame;
 
 /// Block bits `setmetatile` keeps (Gen3 `MapGridSetMetatileIdAt` keeps the elevation).
 const ELEVATION_MASK: u16 = 0xF000;
+/// Gen3 `MON_CANT_GIVE` (`givemon` result).
+const MON_CANT_GIVE: u16 = 2;
 /// Gen3 `MAPGRID_COLLISION_MASK`.
 const COLLISION_MASK: u16 = 3 << BLOCK_COLLISION_SHIFT;
 
@@ -74,7 +77,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Random(n) => {
-                let r = (s.rng.next_u32() >> 16) as u16;
+                let r = s.rng.random();
                 Some(Response::Value(if n == 0 { 0 } else { r % n }))
             }
             Request::PlayerPos => {
@@ -225,6 +228,28 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                     s.last_mover = obj;
                 }
                 self.wait(r)
+            }
+            // ---- Milestone 4 placeholders, replaced by Task J: logged, answered at once ----
+            Request::GiveMon { .. } => {
+                s.log("givemon: no party yet (M4 Task J)");
+                Some(Response::Value(MON_CANT_GIVE))
+            }
+            Request::PartySize => Some(Response::Value(0)),
+            Request::HealParty => {
+                s.log("heal party: no party yet (M4 Task J)");
+                UNIT
+            }
+            Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
+                s.log("battle skipped, answered Won (M4 Task J)");
+                Some(Response::Value(BattleOutcome::Won as u16))
+            }
+            Request::ChooseStarter(_) => {
+                s.log("starter choice skipped, answered 0 (M4 Task J)");
+                Some(Response::Value(0))
+            }
+            Request::SetRespawn(_) => {
+                s.log("setrespawn ignored (M4 Task J)");
+                UNIT
             }
             Request::Message(_)
             | Request::WaitMessage
