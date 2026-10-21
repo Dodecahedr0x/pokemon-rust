@@ -6,3 +6,9 @@ publish.workspace = true
 
 [dependencies]
 engine.workspace = true
+anyhow.workspace = true
+mgba.workspace = true
+
+[dev-dependencies]
+content.workspace = true
+game-native.workspace = true
