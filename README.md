@@ -43,13 +43,13 @@ read both ROMs and the decomp. They fail if these are missing:
 
 Parity (`cargo xtask parity`, `crates/emu/tests/parity.rs`) replays the route of
 `crates/game-native/src/scenario.rs`: with extracted data it walks out of the start, into
-Brendan's house and back, across Route 101 to Oldale, talks to an NPC and enters the Pokémon
-Center (about 1800 frames); in stub mode it walks around the stub map. The ROM must not apply
+Brendan's house and back, across Route 101 to Oldale, follows the mart employee's guided tour,
+talks to an NPC and enters the Pokémon Center (about 2900 frames); in stub mode it walks around the stub map. The ROM must not apply
 any frame late while something is visible (`DebugRegion::late`); late applies on a black screen
-(map loads) are only counted (`late_black`).
+(map loads) are counted in `late_black`, which may not exceed the route's warp count.
 
 `crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
-`0x27378ceb8a110230` after `World::new` and `0x4b5bc94f9ed570e4` after 25 frames each of Right,
+`0x8883c74671372a45` after `World::new` and `0x9849b3c472dfbec7` after 25 frames each of Right,
 A, nothing and Down. They change whenever the hashed state, its order or the frame logic
 changes; update them only for an intended change.
 

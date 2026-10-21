@@ -27,8 +27,8 @@ pub enum Action {
     Cross(Dir),
     /// Turn to face a direction without moving (the cell ahead must be blocked).
     Face(Dir),
-    /// Press A on what is ahead, let the first message print (naming that moment if given),
-    /// then press A now and then until the script ends.
+    /// Press A on what is ahead; with a name, let the first message print at its own speed and
+    /// name that moment; then hold A, releasing it one frame in eight, until the script ends.
     Talk(Option<&'static str>),
     /// Hold nothing for this many frames.
     Wait(u32),
@@ -43,6 +43,8 @@ pub struct Recording {
     pub keys: Vec<Buttons>,
     /// Each [`Action::Shot`]; the picture is the output of step `frame`.
     pub moments: Vec<Moment>,
+    /// Warp transitions started (each loads a map while the screen is black).
+    pub warps: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,8 +124,12 @@ impl<G: GameData> Recorder<G> {
     }
 
     fn press(&mut self, keys: Buttons) {
+        let before = self.world().transition_active();
         self.rec.keys.push(keys);
         self.s.step(keys);
+        if !before && self.world().transition_active() {
+            self.rec.warps += 1;
+        }
     }
 
     /// Nothing in progress: no transition, no script, player settled.
@@ -223,7 +229,8 @@ impl<G: GameData> Recorder<G> {
                 }
                 // Let the first message print at its own speed and name that moment.
                 let printing = start + PRINT_WAIT;
-                while self.world().script_running()
+                while shot.is_some()
+                    && self.world().script_running()
                     && (!self.world().text().is_open() || self.world().text().is_printing())
                     && self.frame() < printing
                 {
@@ -237,11 +244,12 @@ impl<G: GameData> Recorder<G> {
                     if self.frame() - start > 4 * STUCK {
                         return Err("script never ended".into());
                     }
-                    // A for one frame in eight: advances waiting text, never held.
-                    self.press(if i.is_multiple_of(8) {
-                        Buttons::A
-                    } else {
+                    // A held for 7 frames in 8: each new press advances waiting text, and
+                    // holding it prints one glyph per frame (Gen3 speed-up).
+                    self.press(if i % 8 == 7 {
                         Buttons::NONE
+                    } else {
+                        Buttons::A
                     });
                     i += 1;
                 }
@@ -324,8 +332,9 @@ impl<G: GameData> Recorder<G> {
     }
 }
 
-/// The parity route on the extracted maps (Littleroot → Brendan's house → Route 101 → Oldale →
-/// an NPC → the Pokémon Center). See `docs` for the map coordinates.
+/// The parity route on the extracted maps: Littleroot → Brendan's house and back → Route 101 →
+/// Oldale → the mart employee's guided tour → the man by the east exit → the Pokémon Center.
+/// Coordinates are the maps' own (`content/extracted/maps/*.ron`).
 pub const EMERALD_ROUTE: &[Action] = &[
     Action::Wait(24),
     Action::Shot("littleroot_start"),
@@ -343,17 +352,23 @@ pub const EMERALD_ROUTE: &[Action] = &[
     Action::GoTo(10, 0),
     Action::Cross(Dir::Up),
     Action::Shot("oldale"),
+    // The mart employee (`OldaleTown_Obj2`, moved to (13, 14) by `OldaleTown_OnTransition`):
+    // lock/faceplayer, FLAG_TEMP_1, `switch VAR_FACING` (2 = north), applymovement for him and
+    // the player, waitmovement, multi-page text, the Potion (`STD_OBTAIN_ITEM`).
+    Action::GoTo(13, 15),
+    Action::Face(Dir::Up),
+    Action::Talk(Some("oldale_guide")),
+    Action::Shot("oldale_after_guide"),
     // The man by the east exit (`OldaleTown_Obj1`, a plain `msgbox MSGBOX_NPC`).
     Action::GoTo(15, 11),
     Action::Face(Dir::Right),
-    Action::Talk(Some("oldale_talk")),
+    Action::Talk(None),
     Action::Shot("oldale_after_talk"),
     // The Pokémon Center.
     Action::GoTo(6, 17),
     Action::Enter(Dir::Up),
     Action::Wait(8),
     Action::Shot("pokemon_center"),
-    Action::Wait(60),
 ];
 
 /// The route on the built-in stub world (one 16x16 map without events).
@@ -403,9 +418,16 @@ mod tests {
                 MAP_OLDALE_TOWN,
                 MAP_OLDALE_TOWN,
                 MAP_OLDALE_TOWN,
+                MAP_OLDALE_TOWN,
                 MAP_OLDALE_TOWN_POKEMON_CENTER_1F,
             ];
             assert_eq!(maps, want.map(|m| m.0));
+            // The guide's tour ran to its end.
+            let mut s = Session::new(content::Emerald);
+            for f in 0..rec.frames() {
+                s.step(rec.keys_at(f));
+            }
+            assert!(s.world().flag(FLAG_RECEIVED_POTION_OLDALE));
             assert!((1500..=3000).contains(&rec.frames()));
         }
     }

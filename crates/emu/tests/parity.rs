@@ -4,7 +4,8 @@
 //! Needs target/game.gba: run via `cargo xtask parity`.
 //!
 //! The route depends on the content build: with extracted data it walks Littleroot → Brendan's
-//! house and back → Route 101 → Oldale → talks to an NPC → the Pokémon Center (~1550 frames);
+//! house and back → Route 101 → Oldale → the mart employee's guided tour → an NPC → the Pokémon
+//! Center (about 2900 frames);
 //! in stub mode it walks around the built-in map. The ROM must be built from the same content
 //! as this test (xtask builds both from the same tree).
 //!
@@ -117,6 +118,13 @@ fn rom_and_native_agree() {
         );
     }
     assert_eq!(run.captures.len(), checkpoints.len());
+    // Black-screen late applies are only excused for map loads: at most one per warp.
+    assert!(
+        run.late_black <= rec.warps,
+        "{} late applies on a black screen for {} warps",
+        run.late_black,
+        rec.warps
+    );
     compare_native(&run, Session::new(content::Emerald));
     println!(
         "{} hashes and {} pictures identical, no late frames",
