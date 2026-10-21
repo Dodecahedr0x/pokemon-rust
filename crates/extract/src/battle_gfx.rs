@@ -13,20 +13,19 @@
 //!
 //! | field | file | contents |
 //! |---|---|---|
-//! | `textbox` | `battle/gfx/textbox` | `gBattleTextbox{Tiles,Palette,Tilemap}`: 256 tiles, 2 palettes (BG 0-1), 32x64 map (Gen3's 64-row BG0) |
-//! | `environments[e]` | `battle/env/<Environment>` | `sBattleEnvironmentTable[e]`: tiles, 32x64 map, 3 palettes (BG 2-4) |
-//! | `healthbox_player` | `battle/gfx/healthbox_player` | `gHealthboxSinglesPlayerGfx`: 128 tiles (gbagfx `-mwidth 8 -mheight 8`: the png's left 64x64 half, then its right half; the export png is 8 tiles wide). `CreateBattlerHealthboxSprites`: the two 64x32 OBJs start at tiles 0 and 64; Gen3 writes the level, HP numbers and exp bar into the other tiles |
+//! | `textbox` | `battle/gfx/textbox` | `gBattleTextbox{Tiles,Palette,Tilemap}`: 256 tiles, 32x64 map (Gen3's 64-row BG0), 4 palettes: `[textbox_0, textbox_1]` (BG 0-1), then `gBattleWindowTextPalette` (`text.pal`, BG 5) and `gPPTextPalette` (`text_pp.pal`: 4 PP colour levels x 2 colours, for BG 5 entries 12 and 11) |
+//! | `environments[e]` | `battle/env/<Environment>` | `sBattleEnvironmentTable[e]`: tiles, 3 palettes (BG 2-4), a 64x32 map stored as two 32x32 screen blocks side by side, the left one first (2048 entries) |
+//! | `healthbox_player` | `battle/gfx/healthbox_player` | `gHealthboxSinglesPlayerGfx`: 128 tiles (gbagfx `-mwidth 8 -mheight 8`: the png's left 64x64 half, then its right half; the export png is 8 tiles wide). `CreateBattlerHealthboxSprites`: two square 64x64 OBJs start at tiles 0 and 64; Gen3 writes the level, HP numbers and exp bar into the other tiles |
 //! | `healthbox_opponent` | `battle/gfx/healthbox_opponent` | `gHealthboxSinglesOpponentGfx`: 64 tiles (`-mwidth 8 -mheight 4`); OBJs at tiles 0 and 32 |
-//! | `hpbar` | `battle/gfx/hpbar` | 30 tiles: `HEALTHBOX_GFX_0..=11` (0 black end, 1-2 the "HP" label, "PV" in BPEF, 3-11 green 0..8 px) then `HEALTHBOX_GFX_47..=64` (yellow 0..8 px, red 0..8 px); palette = the HP bar OBJ palette (`TAG_HEALTHBAR_PAL`) |
+//! | `hpbar` | `battle/gfx/hpbar` | 30 tiles: `HEALTHBOX_GFX_0..=11` (0 black end, drawn with the HP bar palette, 1-2 the "HP" label, "PV" in BPEF, 3-11 green 0..8 px) then `HEALTHBOX_GFX_47..=64` (yellow 0..8 px, red 0..8 px); palette = the HP bar OBJ palette (`TAG_HEALTHBAR_PAL`) |
 //! | `expbar` | `battle/gfx/expbar` | 9 tiles: `HEALTHBOX_GFX_12..=20` (0..8 px); healthbox palette |
 //! | `status` | `battle/gfx/status` | 30 tiles: 15 for the player (battler 0, `status.png`), then 15 for the opponent (battler 1, `status2.png`); 3 tiles per icon in `HEALTHBOX_GFX_STATUS_*` order PSN, PAR, SLP, FRZ, BRN. The two sets differ only in the palette index of the fill. Localized in BPEF. Healthbox palette |
-//! | `misc` | `battle/gfx/misc` | 12 tiles: `HEALTHBOX_GFX_36..=46` (11 `misc.png` tiles; 39 is the blank "no status" tile) then `HEALTHBOX_GFX_65` (HP bar frame end); healthbox palette |
+//! | `misc` | `battle/gfx/misc` | 12 tiles: `HEALTHBOX_GFX_36..=46` (11 `misc.png` tiles; 39 is the blank "no status" tile) then `HEALTHBOX_GFX_65` (HP bar frame end, tile 11, drawn with the HP bar palette); `palettes` = the healthbox palette, which serves tiles 0-10 |
 //! | `numbers` | none | stays `EMPTY`: `numbers1/2.png` only feed the unused `gBattleInterfaceGfx_BattleBar`. Gen3 prints the level ("Lv" is font glyph `0x100 + CHAR_LV_2`), the HP numbers and the gender symbol with `FONT_SMALL` (`AddTextPrinterAndCreateWindowOnHealthbox`) |
 //! | `ball` | `battle/gfx/ball` | `gBallGfx_Poke` (12 tiles: three 16x16 frames) + `gBallPal_Poke` |
 //! | `small_font` | `font/latin_small` | `gFontSmallLatinGlyphs` / widths (same layout as `latin_normal`) |
-//! | `player_back` | `trainers/back/TRAINER_BACK_PIC_BRENDAN` | 4 frames of 64 tiles, side by side in the png; `y` = `gTrainerBackPicCoords[].size` (see [`TrainerPicInfo`]) |
-//! | `starter_bag` | `starter/bag` | `gBirchBagGrass_Gfx` + `gBirchBagGrass_Pal` (2 palettes, BG 0-1) + `gBirchBagTilemap` (32x20, BG3) |
-//! | `starter_grass` (**new**) | `starter/grass` | `gBirchGrassTilemap` only (32x32, BG2), drawn with the bag's tiles and palettes |
+//! | `player_back` | `trainers/back/TRAINER_BACK_PIC_BRENDAN` | 4 frames of 64 tiles, side by side in the png |
+//! | `starter_bag` | `starter/bag` | `gBirchBagGrass_Gfx` + `gBirchBagGrass_Pal` (2 palettes, BG 0-1). `tilemap` = `gBirchBagTilemap` (`starter/bag`, 32x20, BG3) padded with 0 to 1024 entries, then `gBirchGrassTilemap` (`starter/grass.ron`, a tilemap-only file: 32x32, BG2, the bag's tiles and palettes) |
 //! | `starter_ball` | `starter/ball` | `gPokeballSelection_Gfx` (64 tiles: 32x32 frames, ball and hand) + its palette |
 //! | `starter_circle` | `starter/circle` | `sStarterCircle_Gfx` (64 tiles, 64x64) + its palette |
 //!
@@ -37,6 +36,10 @@
 //! Pokémon pics (`MonGfx`): `pokemon/<SPECIES>/front.png` is frame 0 of `anim_front` (64x64),
 //! `back.png` 64x64, both with the normal palette; `shiny.pal`; `pokemon/coords.ron`.
 //! Trainer front pics (`TrainerPic`): `trainers/front/<TRAINER_PIC>.png`, frame 0 (64x64).
+//! `TrainerPic.y` is the Gen3 `struct MonCoords` `.size` of the pic (`TrainerPicInfo::size`,
+//! front in `pics.ron` `front`, back in `back_coords`), not `y_offset`: Gen3 places the
+//! opponent's front pic at (176, 40 + 4 * (8 - size)) and the player's back pic at
+//! (80, 80 + 4 * (8 - size)).
 
 use crate::export::{self, Out};
 use crate::gfx::{self, IndexedImage, Palette, TILE_BYTES};
@@ -105,6 +108,8 @@ pub struct Located {
     pub environments: u32,
     /// `gBattleTextboxTiles`, `gBattleTextboxPalette`, `gBattleTextboxTilemap`.
     pub textbox: [u32; 3],
+    /// `gBattleWindowTextPalette` (LZ77) and `gPPTextPalette` (raw, right after it).
+    pub text_palettes: [u32; 2],
     /// `sSpriteSheet_SinglesPlayerHealthbox` (battle_gfx_sfx_util.c), first of the healthbox
     /// sheets, healthbar sheets and `sSpritePalettes_HealthBoxHealthBar`.
     pub healthbox_sheets: u32,
@@ -590,6 +595,46 @@ fn locate_textbox(rom: &Rom) -> Result<[u32; 3]> {
     Ok(t)
 }
 
+/// `gBattleWindowTextPalette` (`text.gbapal.lz`) and `gPPTextPalette` (`text_pp.gbapal`), back to
+/// back in graphics.c: a one-palette LZ77 stream ending (4-aligned) where a raw palette starts,
+/// both referenced by ROM pointer words. That shape alone matches hundreds of places (a
+/// compressed palette followed by raw tiles), so the text palette must also be referenced from
+/// battle_bg.c: `LoadBattleMenuWindowGfx` loads it, a few functions before
+/// `LoadBattleTextboxAndBackground`, whose literal pool references `textbox_palette`.
+fn locate_text_palettes(rom: &Rom, textbox_palette: u32) -> Result<[u32; 2]> {
+    /// How far before the textbox pool battle_bg.c's earlier literal pools may sit.
+    const NEAR: u32 = 0x1000;
+    let len = rom.bytes().len() as u32;
+    let words: Vec<(u32, u32)> = (0..len.saturating_sub(4))
+        .step_by(4)
+        .filter_map(|o| Some((o, rom.ptr(o).ok()??)))
+        .collect();
+    let targets: BTreeSet<u32> = words.iter().map(|&(_, t)| t).collect();
+    let tb_refs: Vec<u32> = words
+        .iter()
+        .filter(|&&(_, t)| t == textbox_palette)
+        .map(|&(o, _)| o)
+        .collect();
+    let near_textbox = |t: u32| {
+        words
+            .iter()
+            .any(|&(o, w)| w == t && tb_refs.iter().any(|&r| r > o && r - o <= NEAR))
+    };
+    let hits: Vec<[u32; 2]> = targets
+        .iter()
+        .filter(|&&t| lz_size(rom, t) == Some(32))
+        .filter_map(|&t| {
+            let pp = lz_end(rom, t).ok()?;
+            (targets.contains(&pp) && lz_size(rom, pp).is_none()).then_some([t, pp])
+        })
+        .filter(|&[t, _]| near_textbox(t))
+        .collect();
+    let [hit] = hits[..] else {
+        bail!("battle text palettes (lz77 text, raw PP): expected 1, found {hits:x?}");
+    };
+    Ok(hit)
+}
+
 /// The healthbox sheets, healthbar sheets and their two palettes (battle_gfx_sfx_util.c), as
 /// laid out from `sSpriteSheet_SinglesPlayerHealthbox`.
 fn locate_healthbox(rom: &Rom) -> Result<(u32, u32, u32)> {
@@ -683,11 +728,13 @@ pub fn locate(rom: &Rom) -> Result<Located> {
     let mons = locate_mons(rom, elevation)?;
     let (healthbox_sheets, healthbox_palette, healthbar_palette) = locate_healthbox(rom)?;
     let (ball_sheets, ball_palettes) = locate_ball(rom)?;
+    let textbox = locate_textbox(rom)?;
     Ok(Located {
         mons,
         trainers,
         environments: locate_environments(rom)?,
-        textbox: locate_textbox(rom)?,
+        textbox,
+        text_palettes: locate_text_palettes(rom, textbox[1])?,
         healthbox_sheets,
         healthbox_palette,
         healthbar_palette,
@@ -718,7 +765,14 @@ pub fn graphics(rom: &Rom, l: &Located) -> Result<Vec<(String, Gfx)>> {
         Gfx {
             tiles: rom.lz77_at(tb_tiles)?,
             width: 16,
-            palettes: palettes_from(&lz_exact(rom, tb_pal, 0x40, "textbox palette")?, "textbox")?,
+            palettes: {
+                let mut p =
+                    palettes_from(&lz_exact(rom, tb_pal, 0x40, "textbox palette")?, "textbox")?;
+                let [text, pp] = l.text_palettes;
+                p.push(lz_palette(rom, text, "gBattleWindowTextPalette")?);
+                p.push(palette_at(rom, pp)?);
+                p
+            },
             palette_bank: 0,
             tilemap: u16s(&lz_exact(rom, tb_map, 0x1000, "textbox tilemap")?),
         },
@@ -939,6 +993,8 @@ pub fn export(rom: &Rom, o: &mut Out, provenance: &mut BTreeMap<String, Hex>) ->
         ("textbox/tiles", l.textbox[0]),
         ("textbox/palette", l.textbox[1]),
         ("textbox/tilemap", l.textbox[2]),
+        ("text_palette", l.text_palettes[0]),
+        ("pp_text_palette", l.text_palettes[1]),
         ("healthbox_sheets", l.healthbox_sheets),
         ("healthbox_elements", l.healthbox_elements),
         ("ball_sheets", l.ball_sheets),

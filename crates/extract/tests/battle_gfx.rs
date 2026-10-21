@@ -141,6 +141,7 @@ fn us_tables_are_where_the_decomp_puts_them() {
     assert_eq!(t.back_palettes, 0x305d8c);
     assert_eq!(l.environments, 0x31aba8);
     assert_eq!(l.textbox, [0xc00000, 0xc004e0, 0xc00524]);
+    assert_eq!(l.text_palettes, [0xd85600, 0xd85620]);
     assert_eq!(l.healthbox_sheets, 0x32c0d0);
     assert_eq!(
         (l.healthbox_palette, l.healthbar_palette),
@@ -204,6 +205,8 @@ fn us_trainer_pics_match_decomp() {
         "p",
     );
     assert_eq!(p.frames, 1);
+    // front_pic_tables.h: May {.size = 8, .y_offset = 1}.
+    assert_eq!((p.size, p.y_offset), (8, 1));
     assert_eq!(
         p.palette.to_vec(),
         jasc("graphics/trainers/palettes/may.pal")
@@ -231,6 +234,9 @@ fn us_interface_matches_decomp() {
     same(&tb.tiles, &png_4bpp(&format!("{bi}/textbox.png")), "tb");
     let mut pal = jasc(&format!("{bi}/textbox_0.pal"));
     pal.extend(jasc(&format!("{bi}/textbox_1.pal")));
+    // gBattleWindowTextPalette and gPPTextPalette, appended as palettes 2 and 3.
+    pal.extend(jasc(&format!("{bi}/text.pal")));
+    pal.extend(jasc(&format!("{bi}/text_pp.pal")));
     assert_eq!(flat(&tb.palettes), pal);
     assert_eq!(tb.tilemap, bin_u16(&format!("{bi}/textbox_map.bin")));
     assert_eq!(tb.palette_bank, 0);
@@ -244,6 +250,10 @@ fn us_interface_matches_decomp() {
     let ho = by_name(&all, "battle/gfx/healthbox_opponent");
     let ho_png = png_4bpp_meta(&format!("{bi}/healthbox_singles_opponent.png"), 8, 4);
     same(&ho.tiles, &ho_png, "healthbox_opponent");
+    for name in ["healthbox_opponent", "expbar", "status", "misc"] {
+        let g = by_name(&all, &format!("battle/gfx/{name}"));
+        assert_eq!(flat(&g.palettes), box_pal[..16], "{name}");
+    }
 
     let cat = |files: &[&str]| -> Vec<u8> {
         files
@@ -440,6 +450,62 @@ fn fr_tables_are_found_with_the_same_counts() {
     let (g, w) = font::locate_latin_small(fr()).unwrap();
     let f = font::read_latin_at(fr(), g, w).unwrap();
     assert_eq!(f.glyphs.len(), 512);
+    let (ug, uw) = font::locate_latin_small(us()).unwrap();
+    let u = font::read_latin_at(us(), ug, uw).unwrap();
+    let redrawn: Vec<usize> = (0..512).filter(|&i| f.glyphs[i] != u.glyphs[i]).collect();
+    let widths: Vec<usize> = (0..512).filter(|&i| f.widths[i] != u.widths[i]).collect();
+    // BPEF redraws `LV` (0x34), the unused 0x58/0x59/0x64, the guillemets 0xB1/0xB2 and three
+    // symbols (0x105, 0x107, 0x108); only 0x59 and 0x64 change width.
+    assert_eq!(
+        redrawn,
+        [0x34, 0x58, 0x59, 0x64, 0xB1, 0xB2, 0x105, 0x107, 0x108]
+    );
+    assert_eq!(widths, [0x59, 0x64]);
+    assert!(widths.iter().all(|i| redrawn.contains(i)));
+    assert!(
+        f.glyphs[0x105].iter().any(|&p| p != 0),
+        "glyph 0x105 is drawn"
+    );
+
+    // Data tables that are not localized: the located FR tables hold the US bytes.
+    let (fl, ul) = (fr_located(), us_located());
+    let table = |rom: &Rom, off: u32, len: usize| rom.slice(off, len).unwrap().to_vec();
+    let mons = ul.mons.count * 4;
+    let (tf, tb) = (ul.trainers.front_count * 4, ul.trainers.back_count * 4);
+    for (what, f_off, u_off, len) in [
+        (
+            "elevation",
+            fl.mons.elevation,
+            ul.mons.elevation,
+            ul.mons.elevation_count,
+        ),
+        (
+            "mon front coords",
+            fl.mons.front_coords,
+            ul.mons.front_coords,
+            mons,
+        ),
+        (
+            "mon back coords",
+            fl.mons.back_coords,
+            ul.mons.back_coords,
+            mons,
+        ),
+        (
+            "trainer front coords",
+            fl.trainers.front_coords,
+            ul.trainers.front_coords,
+            tf,
+        ),
+        (
+            "trainer back coords",
+            fl.trainers.back_coords,
+            ul.trainers.back_coords,
+            tb,
+        ),
+    ] {
+        assert_eq!(table(fr(), f_off, len), table(us(), u_off, len), "{what}");
+    }
 }
 
 /// Exports the battle graphics of `rom` into a fresh directory.
