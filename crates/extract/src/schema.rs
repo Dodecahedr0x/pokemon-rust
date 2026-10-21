@@ -32,7 +32,9 @@
 //!   texts within that script in order first reached.
 //! - Movements: `<Script>_M<n>`, same scheme.
 //! - Flags, vars, gfx, movement types, items, specials: decomp constant names (`FLAG_HIDE_…`,
-//!   `VAR_…`) from `names`; a number with no name is written `FLAG_0x123` / `VAR_0x4123`.
+//!   `VAR_…`) from `names`. In `.ron` files a number with no name is written `FLAG_0x123` /
+//!   `VAR_0x4123`; generated scripts write it `FlagId(0x123)` / `VarId(0x4123)` (other kinds as
+//!   plain number literals), since the prelude only defines the named constants.
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};

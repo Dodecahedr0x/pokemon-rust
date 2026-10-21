@@ -14,7 +14,7 @@ use crate::schema::{
     MapFile, MapScripts, Object, SpriteFile, TilesetFile, VarScript, Warp, WindowFile,
 };
 use crate::sprites::{self, ObjectGraphics};
-use crate::{GameCode, Rom, font, names, scripts, window};
+use crate::{GameCode, Rom, codegen, font, names, scripts, window};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -137,11 +137,28 @@ pub struct ScriptInput<'a> {
     pub canonical: &'a BTreeMap<u32, String>,
 }
 
-/// **Hook for Milestone 3 Task B**: decode the scripts reachable from `input`'s roots and write
-/// `text/<lang>.ron` (keys `<Script>_T<n>`, [`crate::text::encode_lang`] with `rom.lang()`),
-/// `scripts/<Map>.rs` and `scripts/index.ron` through `o`. Until then nothing is written.
+/// Decodes the scripts reachable from `input`'s roots ([`codegen`]) and writes
+/// `text/<lang>.ron` (keys `<Script>_T<n>`), `scripts/<Map>.rs` and `scripts/index.ron`.
 fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()> {
-    let _ = (rom, input, o);
+    let maps: Vec<codegen::MapRoots> = input
+        .maps
+        .iter()
+        .map(|m| codegen::MapRoots {
+            map: m.name.to_string(),
+            roots: m.roots.clone(),
+        })
+        .collect();
+    let code = match rom.code() {
+        GameCode::Bpee => "BPEE",
+        GameCode::Bpef => "BPEF",
+    };
+    let g = codegen::generate(rom, &maps, &codegen::header(code, &rom.sha1_hex()))?;
+    o.ron(&format!("text/{}.ron", rom.lang().code()), &g.texts)?;
+    for (map, src) in &g.files {
+        o.bytes(&format!("scripts/{map}.rs"), src.as_bytes())?;
+    }
+    o.ron("scripts/index.ron", &g.index)?;
+    println!("{}", g.stats.summary());
     Ok(())
 }
 
