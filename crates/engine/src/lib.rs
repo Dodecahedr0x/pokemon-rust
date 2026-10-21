@@ -8,6 +8,7 @@ pub mod debug;
 pub mod grid;
 pub mod hash;
 pub mod input;
+pub mod objects;
 pub mod rng;
 pub mod scene;
 pub mod script;
