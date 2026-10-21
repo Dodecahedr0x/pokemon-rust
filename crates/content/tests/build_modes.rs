@@ -6,6 +6,15 @@
 //!   `include!` of `scripts/<Map>.rs`, the prelude contract and script dispatch.
 
 #[allow(dead_code)]
+#[path = "../build/battle.rs"]
+mod battle;
+#[allow(dead_code)]
+#[path = "../build/classify.rs"]
+mod classify;
+#[allow(dead_code)]
+#[path = "../build/codegen.rs"]
+mod codegen;
+#[allow(dead_code)]
 #[path = "../build/input.rs"]
 mod input;
 #[allow(dead_code)]

@@ -21,13 +21,32 @@ struct Host {
     log: Vec<Request>,
     yes: bool,
     vars: std::collections::BTreeMap<u16, u16>,
+    flags: std::collections::BTreeSet<u16>,
+    /// The answer to `ChooseStarter`.
+    starter: u16,
+    /// The answer to `BattleWild` / `BattleTrainer`.
+    outcome: Option<engine::battle::BattleOutcome>,
 }
 
 impl ScriptHost for Host {
     fn begin(&mut self, r: &Request) -> Option<Response> {
         self.log.push(r.clone());
         Some(match *r {
-            Request::GetFlag(_) => Response::Bool(false),
+            Request::GetFlag(f) => Response::Bool(self.flags.contains(&f.0)),
+            Request::SetFlag(f, on) => {
+                if on {
+                    self.flags.insert(f.0);
+                } else {
+                    self.flags.remove(&f.0);
+                }
+                Response::Unit
+            }
+            Request::GiveMon { .. } => Response::Value(0),
+            Request::PartySize => Response::Value(1),
+            Request::ChooseStarter(_) => Response::Value(self.starter),
+            Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
+                Response::Value(self.outcome.unwrap_or(engine::battle::BattleOutcome::Won) as u16)
+            }
             Request::GetVar(v) => Response::Value(self.vars.get(&v.0).copied().unwrap_or(0)),
             Request::SetVar(v, x) => {
                 self.vars.insert(v.0, x);
@@ -361,6 +380,7 @@ fn fixture_script_runs_through_the_prelude() {
     )));
     assert!(log.contains(&Request::Message(text("Other_Main_T0"))));
     assert!(log.contains(&Request::Log("SPECIAL_HealPlayerParty")));
+    assert!(log.contains(&Request::HealParty));
     assert!(log.contains(&Request::Log("STD_OBTAIN_ITEM")));
     // checkplayergender: male; STD_FIND_ITEM removes the object talked to (VAR_LAST_TALKED,
     // 0 for this host).
@@ -583,3 +603,6 @@ mod stub {
         assert!(data::TEXTS.is_empty());
     }
 }
+
+#[path = "battle_tests.rs"]
+mod battle_tests;

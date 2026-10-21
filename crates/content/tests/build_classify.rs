@@ -155,3 +155,77 @@ fn hex_fallback_names_are_found() {
     let found: Vec<_> = hex_names(src).into_iter().collect();
     assert_eq!(found, ["FLAG_0x1AB", "VAR_0x4001"]);
 }
+
+#[test]
+fn idents_with_a_prefix() {
+    let src = "trainer_battle(TRAINER_MAY_ROUTE_103_MUDKIP, x); XTRAINER_NO TRAINER_RICK)";
+    let found: Vec<_> = idents_with_prefix(src, "TRAINER_").into_iter().collect();
+    assert_eq!(found, ["TRAINER_MAY_ROUTE_103_MUDKIP", "TRAINER_RICK"]);
+}
+
+#[test]
+fn move_effects_by_name() {
+    let e = |n| move_effect(n);
+    assert_eq!(e("EFFECT_HIT").as_deref(), Some("MoveEffect::Hit"));
+    assert_eq!(
+        e("EFFECT_ATTACK_DOWN").as_deref(),
+        Some("MoveEffect::StatDown { stat: Stat::Atk, stages: 1 }")
+    );
+    assert_eq!(
+        e("EFFECT_SPECIAL_DEFENSE_UP_2").as_deref(),
+        Some("MoveEffect::StatUp { stat: Stat::SpDef, stages: 2 }")
+    );
+    assert_eq!(
+        e("EFFECT_ACCURACY_DOWN_HIT").as_deref(),
+        Some("MoveEffect::StatDownHit(Stat::Accuracy)")
+    );
+    assert_eq!(
+        e("EFFECT_TOXIC").as_deref(),
+        Some("MoveEffect::Status(StatusKind::Toxic)")
+    );
+    assert_eq!(e("EFFECT_RECOIL").as_deref(), Some("MoveEffect::Recoil"));
+    assert_eq!(e("EFFECT_MULTI_HIT"), None);
+    assert_eq!(e("HIT"), None);
+    // The mapped names are real `EFFECT_*`s.
+    let mapped = extract::names::MOVE_EFFECTS
+        .iter()
+        .filter(|(_, n)| move_effect(n).is_some())
+        .count();
+    assert!(mapped >= 30, "{mapped}");
+}
+
+#[test]
+fn battle_enums_by_name() {
+    assert_eq!(type_variant("TYPE_DARK"), Some("Type::Dark"));
+    assert_eq!(type_variant("TYPE_FAIRY"), None);
+    for (_, n) in extract::names::GROWTH_RATES.iter() {
+        assert!(growth(n).is_some(), "{n}");
+    }
+    for (_, n) in extract::names::MOVE_TARGETS.iter() {
+        assert!(move_target(n).is_some(), "{n}");
+    }
+    for (v, n) in extract::names::MOVE_FLAGS.iter() {
+        assert_eq!(move_flag(n).map(u32::from), Some(v), "{n}");
+    }
+    assert_eq!(ability("ABILITY_TORRENT"), "Ability::Torrent");
+    assert_eq!(ability("ABILITY_PICKUP"), "Ability::Other");
+}
+
+#[test]
+fn every_str_source_names_an_exported_string() {
+    let ids =
+        |k: &str| !k.starts_with("STRINGID_") || extract::names::STRING_IDS.value(k).is_some();
+    let mut patterns = std::collections::BTreeSet::new();
+    for (pat, src) in STRS {
+        assert!(patterns.insert(*pat), "{pat} listed twice");
+        match *src {
+            StrSrc::Key(k) => assert!(ids(k), "{pat}: {k}"),
+            StrSrc::Sharply { adverb, verb } => assert!(ids(adverb) && ids(verb), "{pat}"),
+            StrSrc::Buff1 { key, code } => {
+                assert!(ids(key), "{pat}: {key}");
+                assert!(code.starts_with("{B_"), "{pat}");
+            }
+            StrSrc::UsedMove | StrSrc::TypeNames | StrSrc::StatNames => {}
+        }
+    }
+}
