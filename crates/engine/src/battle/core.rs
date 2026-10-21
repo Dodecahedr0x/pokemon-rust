@@ -32,6 +32,18 @@
 //! B_WAIT_TIME_LONG`, `Frames(0)` for a `printstring` without one (a `\p` in the text still
 //! waits), `Button` for the texts that end the battle. Fields: `attacker`/`target` are Gen3's
 //! `gBattlerAttacker`/`gBattlerTarget` of the script, `active` the battler the message is about.
+//! `slots` is stamped with each side's battler party slot when the message is emitted
+//! ([`Battle::stamp`]), so the text names the mons out at that point.
+//!
+//! # Outcomes
+//! `Drew` (both last battlers fainted together) plays the whiteout texts like `Lost`: Gen3
+//! `IsPlayerDefeated(B_OUTCOME_DREW)`, so Task J whites out on it too.
+//!
+//! # Not modelled
+//! - Friendship changes (fainting, level ups, `AdjustFriendship` at the battle's end).
+//! - The `STRINGID_ENEMYABOUTTOSWITCHPKMN` "Will you change Pokémon?" prompt when a trainer
+//!   sends its next mon (skipped, per the milestone's decision 4).
+//! - Held items (`SetWildMonHeldItem` keeps only its `Random()`), badge boosts, Quick Claw.
 
 mod moves;
 #[cfg(test)]
@@ -58,6 +70,20 @@ pub(crate) struct Env<'a> {
     pub t: &'a BattleTables,
     pub rng: &'a mut Rng,
     pub out: &'a mut Vec<BattleEvent>,
+    /// `out[..stamped]` has its messages' `Msg::slots` set (see [`Battle::stamp`]).
+    stamped: usize,
+}
+
+impl<'a> Env<'a> {
+    fn new(t: &'a BattleTables, rng: &'a mut Rng, out: &'a mut Vec<BattleEvent>) -> Self {
+        let stamped = out.len();
+        Env {
+            t,
+            rng,
+            out,
+            stamped,
+        }
+    }
 }
 
 /// Core-private per-battler state (Gen3 `struct BattlePokemon` beyond [`BattleMon`], the
@@ -81,9 +107,12 @@ pub(crate) struct Battler {
     pub seeded: bool,
     /// `STATUS2_FORESIGHT`.
     pub foresight: bool,
-    /// `STATUS2_BIDE` turns left and the damage stored (`gTakenDmg`).
+    /// `STATUS2_BIDE` turns left.
     pub bide_turns: u8,
-    pub bide_damage: u16,
+    /// `gBideDmg`: every move damage this battler took (`gBattleMoveDamage`, before the HP
+    /// clamp), recorded by [`Battle::change_hp`] (not by `change_hp_passive`). `gBideTarget` is
+    /// always the other battler in singles. Bide itself (E2) clears it when it starts.
+    pub bide_damage: u32,
     /// `gLastMoves`: the last move this battler used.
     pub last_move: Option<MoveId>,
     /// `HITMARKER_FAINTED`: the faint was played.
@@ -173,7 +202,7 @@ impl Battler {
             self.bide_turns,
             self.fainted as u8,
         ]);
-        h.write_u16(self.bide_damage);
+        h.write_u32(self.bide_damage);
         h.write_u16(self.last_move.map_or(0xFFFF, |m| m.0));
     }
 }
@@ -288,7 +317,7 @@ pub struct Battle {
 }
 
 /// A message about `active` with the move context of `attacker` → `target`, no buffers, no
-/// wait.
+/// wait. `slots` is filled when the message is stamped ([`Battle::stamp`]).
 pub(crate) fn msg(id: Str, attacker: Side, target: Side, active: Side) -> Msg {
     Msg {
         id,
@@ -298,6 +327,7 @@ pub(crate) fn msg(id: Str, attacker: Side, target: Side, active: Side) -> Msg {
         mov: None,
         buffs: [Buff::None; 3],
         wait: MsgWait::Frames(0),
+        slots: [0; 2],
     }
 }
 
@@ -326,6 +356,11 @@ impl Battle {
             BattleKind::Trainer { trainer, .. } => game.trainer(trainer).map_or(0, |t| t.ai),
             BattleKind::Wild { .. } => 0,
         };
+        if !matches!(setup.kind, BattleKind::Trainer { .. }) {
+            // SetWildMonHeldItem: `Random() % 100` for every wild battle (no held items in the
+            // engine yet, so only the draw is kept).
+            rng.random();
+        }
         let random_turn = rng.random();
         Battle {
             sent_in: 1 << battlers[0].mon.party,
@@ -348,11 +383,7 @@ impl Battle {
         if self.need != Need::Busy || !self.steps.is_empty() {
             return;
         }
-        let mut env = Env {
-            t: game.battle(),
-            rng,
-            out,
-        };
+        let mut env = Env::new(game.battle(), rng, out);
         let (p, o) = (Side::Player, Side::Opponent);
         // BattleIntroPrintWildMonAttacked / PrintTrainerWantsToBattle (STRINGID_INTROMSG), then
         // STRINGID_INTROSENDOUT for the opponent (trainer) and the player.
@@ -368,6 +399,7 @@ impl Battle {
         self.send_out_events(&mut env, p, true);
         self.steps.push_back(Step::FirstTurn);
         self.run(&mut env);
+        self.stamp(&mut env);
     }
 
     /// What the core waits for.
@@ -384,19 +416,20 @@ impl Battle {
         c: Choice,
         out: &mut Vec<BattleEvent>,
     ) {
-        let mut env = Env {
-            t: game.battle(),
-            rng,
-            out,
-        };
+        let mut env = Env::new(game.battle(), rng, out);
+        self.answer(&mut env, c);
+        self.stamp(&mut env);
+    }
+
+    fn answer(&mut self, env: &mut Env, c: Choice) {
         match (self.need, c) {
             (Need::Action, c) => {
-                let Some(a) = self.player_action(&mut env, c) else {
+                let Some(a) = self.player_action(env, c) else {
                     return;
                 };
                 self.actions[Side::Player as usize] = Some(a);
                 self.need = Need::Busy;
-                let [first, second] = self.turn_order(&mut env);
+                let [first, second] = self.turn_order(env);
                 self.steps.extend([
                     Step::Act(first),
                     Step::Fainted,
@@ -407,17 +440,34 @@ impl Battle {
             }
             (Need::Switch, Choice::Switch(i)) if self.can_switch_to(Side::Player, i) => {
                 self.need = Need::Busy;
-                self.switch_in(&mut env, Side::Player, i);
+                self.switch_in(env, Side::Player, i);
                 // BattleScript_FaintedMonSendOutNew ends with `cancelallactions`.
                 self.actions = [None; 2];
             }
             (Need::LearnMove { party, mov }, Choice::LearnMove { forget }) => {
                 self.need = Need::Busy;
-                self.answer_learn(&mut env, party, mov, forget);
+                self.answer_learn(env, party, mov, forget);
             }
             _ => return,
         }
-        self.run(&mut env);
+        self.run(env);
+    }
+
+    /// Sets `Msg::slots` (each side's battler party slot) on the messages pushed since the last
+    /// stamp. Called before a battler changes ([`Battle::switch_in`]) and when `start` /
+    /// `choose` return, so every message names the battlers out when it was emitted. E2 code
+    /// that replaces a battler must go through `switch_in`.
+    pub(crate) fn stamp(&self, env: &mut Env) {
+        let slots = [
+            self.battler(Side::Player).mon.party,
+            self.battler(Side::Opponent).mon.party,
+        ];
+        for e in &mut env.out[env.stamped..] {
+            if let BattleEvent::Msg(m) = e {
+                m.slots = slots;
+            }
+        }
+        env.stamped = env.out.len();
     }
 
     /// The battler on `side`.
@@ -598,7 +648,7 @@ impl Battle {
                 // Selection-time refusals: BattleScript_PrintCantRunFromTrainer and
                 // IsRunningFromBattleImpossible (B_MSG_DONT_LEAVE_BIRCH).
                 let refusal = if self.is_trainer() {
-                    Some(Str::CantEscape)
+                    Some(Str::NoRunningFromTrainers)
                 } else if self.is_first_battle() {
                     Some(Str::DontLeaveBirch)
                 } else {
@@ -610,6 +660,9 @@ impl Battle {
                 }
                 Some(Action::Run)
             }
+            // Refused in trainer battles for now. E2: Gen3 throws the ball anyway and plays
+            // BattleScript_TrainerBallBlock ("The TRAINER blocked the BALL!"), using the turn.
+            Choice::Ball if self.is_trainer() => None,
             Choice::Ball => Some(Action::Ball),
             Choice::Switch(_) | Choice::LearnMove { .. } => None,
         }
@@ -740,6 +793,7 @@ impl Battle {
     /// Sends out party slot `i` on `side` (`switchindataupdate`, STRINGID_SWITCHINMON,
     /// `switchinanim`, `switchineffects`).
     pub(crate) fn switch_in(&mut self, env: &mut Env, side: Side, i: u8) {
+        self.stamp(env);
         self.write_back(side);
         let p = *self.parties[side as usize]
             .get(i as usize)
@@ -1015,7 +1069,8 @@ impl Battle {
                     .push(BattleEvent::Msg(msg(Str::PlayerDefeatedTrainer, p, o, o)));
                 env.out.push(BattleEvent::TrainerDefeated);
             }
-            BattleOutcome::Lost => {
+            BattleOutcome::Lost | BattleOutcome::Drew => {
+                // HandleEndTurn_BattleLost (also for B_OUTCOME_DREW: `IsPlayerDefeated`) →
                 // BattleScript_LocalBattleLostPrintWhiteOut.
                 env.out.push(BattleEvent::Msg(Msg {
                     wait: LONG,
@@ -1031,7 +1086,7 @@ impl Battle {
                     ..about(Str::WildPkmnFled, o)
                 }));
             }
-            BattleOutcome::Won | BattleOutcome::Drew | BattleOutcome::Caught => {}
+            BattleOutcome::Won | BattleOutcome::Caught => {}
         }
         env.out.push(BattleEvent::End(outcome));
         self.need = Need::Ended(outcome);

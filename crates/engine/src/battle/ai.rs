@@ -4,6 +4,11 @@
 //! until a non-empty slot with PP); **Task E2** (Wave 2) adds the trainer score model and
 //! `AI_FirstBattle` (`battle_ai_script_commands.c`, `data/battle_ai_scripts.s`), reading
 //! `Battle::trainer_ai` and the battlers.
+//!
+//! Gen3's first battle (`BATTLE_TYPE_FIRST_BATTLE`, Birch's rescue) is wild, but its opponent
+//! goes through the trainer AI branch of `OpponentHandleChooseMove`, with `aiFlags =
+//! AI_SCRIPT_FIRST_BATTLE` (`BattleAI_SetupAIData`), not the wild random choice: E2 must branch on
+//! `BattleKind::Wild { first_battle: true }` too. The stub below draws as a wild battle.
 
 use super::core::Battle;
 use super::{Choice, Side};

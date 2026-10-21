@@ -414,7 +414,8 @@ mod tests {
 
     #[test]
     fn ember_stab_super_effective_golden() {
-        // Torchic L5 SpA 13 (base 70, IV 31, Hardy) Ember (Fire, 40) vs Wurmple L3 SpD 7.
+        // Torchic L5 SpA 13 (base 70, IV 31, Hardy) Ember (Fire, 40) vs Wurmple L3 SpD 7 (base 30,
+        // IV 7: 67 * 3 / 100 + 5; IV 0 would give 6).
         let torchic = fighter(5, [20, 12, 9, 10, 13, 10], [Type::Fire; 2]);
         let wurmple = fighter(3, [15, 7, 7, 6, 5, 7], [Type::Bug; 2]);
         // 13 * 40 * 4 / 7 / 50 + 2 = 2080 / 7 = 297 / 50 = 5 + 2 = 7.

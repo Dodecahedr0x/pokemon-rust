@@ -8,6 +8,7 @@
 // Some entries wait for the tests of later tasks (E2's effects and abilities).
 #![allow(dead_code)]
 
+use crate::battle::Str;
 use crate::data::Dir;
 use crate::data::{
     Behavior, Font, GameData, GfxId, MapData, MapId, MoveId, NewGame, ScriptId, SpeciesId,
@@ -377,6 +378,14 @@ impl GameData for Game {
     }
     fn battle(&self) -> &'static BattleTables {
         &TABLES
+    }
+    /// `STRINGID_PKMNFAINTED` reduced to its name code (`{B_DEF_NAME_WITH_PREFIX}`); every
+    /// other string (the wild/foe tags too) is empty.
+    fn battle_text(&self, s: Str) -> &'static [u8] {
+        match s {
+            Str::PkmnFainted => &[0xFD, 0x10, 0xFF],
+            _ => &[0xFF],
+        }
     }
 }
 

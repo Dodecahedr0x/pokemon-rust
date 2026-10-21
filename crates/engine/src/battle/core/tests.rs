@@ -1,7 +1,7 @@
 use super::*;
-use crate::battle::Environment;
 use crate::battle::calc;
 use crate::battle::test_data::*;
+use crate::battle::{Environment, Names, text};
 use crate::data::{TextId, TrainerId};
 use crate::hash::Fnv64;
 use crate::mon::{Stat, Status};
@@ -137,7 +137,7 @@ fn hash(b: &Battle) -> u64 {
 }
 
 #[test]
-fn wild_battle_won_in_two_turns() {
+fn wild_battle_won_in_three_turns() {
     let mut r = Run::wild(&[water(5)], normal(2), 1);
     assert_eq!(
         r.intro(),
@@ -150,11 +150,11 @@ fn wild_battle_won_in_two_turns() {
             "UsedMove@P move:1",
             "Anim P move:1",
             "Hit O Normal",
-            "Hp O 13->7",
-            "UsedMove@O move:1",
-            "Anim O move:1",
-            "Hit P Normal",
-            "Hp P 20->16",
+            "Hp O 13->6",
+            "UsedMove@O move:2",
+            "Anim O move:2",
+            "StatAnim P false",
+            "DefenderStatChanged@P Atk StatFell ~64",
         ]
     );
     assert_eq!(r.b.need(), Need::Action);
@@ -164,7 +164,21 @@ fn wild_battle_won_in_two_turns() {
             "UsedMove@P move:1",
             "Anim P move:1",
             "Hit O Normal",
-            "Hp O 7->0",
+            // After Growl (-1): Atk 13 * 2 / 3 = 8, base damage 5 instead of 8.
+            "Hp O 6->2",
+            "UsedMove@O move:1",
+            "Anim O move:1",
+            "Hit P Normal",
+            "Hp P 20->17",
+        ]
+    );
+    assert_eq!(
+        r.choose(Choice::Move(0)),
+        [
+            "UsedMove@P move:1",
+            "Anim P move:1",
+            "Hit O Normal",
+            "Hp O 2->0",
             "Faint O",
             "PkmnFainted@O mon:O0",
             "PkmnGainedExp@P mon:P0 17",
@@ -175,14 +189,14 @@ fn wild_battle_won_in_two_turns() {
     assert_eq!(r.b.need(), Need::Ended(BattleOutcome::Won));
     // HP, PP and exp are written back to the party.
     let p = r.b.party(Side::Player).get(0).unwrap();
-    assert_eq!((p.hp, p.exp, p.pp[0]), (16, 142, 33));
+    assert_eq!((p.hp, p.exp, p.pp[0]), (17, 142, 32));
     // Ended: further choices do nothing.
     assert!(r.choose(Choice::Move(0)).is_empty());
 }
 
 #[test]
 fn run_fails_until_odds_win() {
-    // Slower than the foe: odds 10 * 128 / 30 = 42, +30 per failed try.
+    // Slower than the foe: odds 9 * 128 / 30 = 38, +30 per failed try.
     let fast = mon(NORMAL, 2, [13, 6, 6, 30, 5, 5], &[TACKLE]);
     let mut r = Run::wild(&[water(5)], fast, 1);
     let fail = |hp: &str| -> Vec<String> {
@@ -197,6 +211,7 @@ fn run_fails_until_odds_win() {
     assert_eq!(r.choose(Choice::Run), fail("20->17"));
     assert_eq!(r.choose(Choice::Run), fail("17->14"));
     assert_eq!(r.choose(Choice::Run), fail("14->11"));
+    assert_eq!(r.choose(Choice::Run), fail("11->8"));
     assert_eq!(r.choose(Choice::Run), ["GotAwaySafely@P !", "End(Ran)"]);
     assert_eq!(r.b.need(), Need::Ended(BattleOutcome::Ran));
 }
@@ -368,7 +383,7 @@ fn trainer_battle_sends_the_next_mon_and_pays_trainer_exp() {
     );
     assert_eq!(r.b.mon(Side::Opponent).species, DARK);
     // No running from a trainer: refused at selection, no turn passes.
-    assert_eq!(r.choose(Choice::Run), ["CantEscape@P"]);
+    assert_eq!(r.choose(Choice::Run), ["NoRunningFromTrainers@P"]);
     assert_eq!(r.b.need(), Need::Action);
     assert_eq!(
         r.choose(Choice::Move(0)),
@@ -568,18 +583,19 @@ fn first_battle_cannot_be_left_and_has_no_crits() {
     let mut r = Run::new(first, &[water(5)], &[normal(2)], 1);
     assert_eq!(r.choose(Choice::Run), ["DontLeaveBirch@P"]);
     assert_eq!(r.b.need(), Need::Action);
-    // Same seed as the plain wild battle, but without crit rolls the damage rolls shift.
+    // Same seed as the plain wild battle (13->6), but without a crit roll the damage roll
+    // differs.
     assert_eq!(
         r.choose(Choice::Move(0)),
         [
             "UsedMove@P move:1",
             "Anim P move:1",
             "Hit O Normal",
-            "Hp O 13->6",
-            "UsedMove@O move:1",
-            "Anim O move:1",
-            "Hit P Normal",
-            "Hp P 20->17",
+            "Hp O 13->7",
+            "UsedMove@O move:2",
+            "Anim O move:2",
+            "StatAnim P false",
+            "DefenderStatChanged@P Atk StatFell ~64",
         ]
     );
 }
@@ -632,25 +648,70 @@ fn paralysis_quarters_speed() {
 #[test]
 fn turn_draws_rolls_in_gen3_order() {
     let foe = mon(NORMAL, 2, [13, 6, 6, 8, 5, 5], &[TACKLE; 4]);
-    let mut r = Run::wild(&[water(5)], foe, 1);
-    let mut rng = r.rng;
-    // Player (faster, no tie roll): accuracy, crit, damage roll, seteffectwithchance.
-    assert!(calc::accuracy_hits(95, 0, 0, rng.random()));
-    let crit = calc::is_crit(0, rng.random());
-    let dealt = calc::random_damage(if crit { 16 } else { 8 }, rng.random());
-    rng.random();
-    // Opponent: the same four (physical minimum 1, + 2, STAB).
-    assert!(calc::accuracy_hits(95, 0, 0, rng.random()));
-    let crit = calc::is_crit(0, rng.random());
-    let taken = calc::random_damage(calc::stab(if crit { 6 } else { 3 }), rng.random());
-    rng.random();
-    // Next turn: gRandomTurnNumber, then the AI's slot roll (every slot usable).
-    rng.random();
-    rng.random();
-    let events = r.choose(Choice::Move(0));
-    assert!(events.contains(&format!("Hp O 13->{}", 13 - dealt)));
-    assert!(events.contains(&format!("Hp P 20->{}", 20 - taken)));
-    assert_eq!(r.rng, rng);
+    let mut checked = 0;
+    for seed in 1..20 {
+        let mut r = Run::wild(&[water(5)], foe, seed);
+        let mut rng = r.rng;
+        // Player (faster, no tie roll): accuracy, crit, damage roll, seteffectwithchance.
+        let hit = calc::accuracy_hits(95, 0, 0, rng.random());
+        let crit = calc::is_crit(0, rng.random());
+        let dealt = calc::random_damage(if crit { 16 } else { 8 }, rng.random());
+        rng.random();
+        // Opponent: the same four (physical minimum 1, + 2, STAB).
+        let foe_hit = calc::accuracy_hits(95, 0, 0, rng.random());
+        let crit = calc::is_crit(0, rng.random());
+        let taken = calc::random_damage(calc::stab(if crit { 6 } else { 3 }), rng.random());
+        rng.random();
+        if !hit || !foe_hit || dealt >= 13 {
+            // A miss or a KO draws fewer rolls: only replay seeds where both hit.
+            continue;
+        }
+        // Next turn: gRandomTurnNumber, then the AI's slot roll (every slot usable).
+        rng.random();
+        rng.random();
+        let events = r.choose(Choice::Move(0));
+        assert!(events.contains(&format!("Hp O 13->{}", 13 - dealt)));
+        assert!(events.contains(&format!("Hp P 20->{}", 20 - taken)));
+        assert_eq!(r.rng, rng, "seed {seed}");
+        checked += 1;
+    }
+    assert!(checked > 10);
+}
+
+#[test]
+fn wild_battles_draw_the_held_item_roll() {
+    // SetWildMonHeldItem's Random() comes before gRandomTurnNumber in wild battles only.
+    let setup = |kind| BattleSetup {
+        kind,
+        opponents: party(&[normal(2)]),
+        environment: Environment::Grass,
+    };
+    let draws = |kind| {
+        let mut rng = Rng::new(3);
+        let b = Battle::new(&Game, setup(kind), &party(&[water(5)]), &mut rng);
+        let mut reference = Rng::new(3);
+        (0..3)
+            .position(|_| {
+                reference.random();
+                reference == rng
+            })
+            .map(|n| (n + 1, b.random_turn))
+    };
+    let mut r = Rng::new(3);
+    r.random();
+    let second = r.random();
+    assert_eq!(
+        draws(BattleKind::Wild {
+            first_battle: false
+        }),
+        Some((2, second))
+    );
+    assert_eq!(
+        draws(BattleKind::Wild { first_battle: true }),
+        Some((2, second))
+    );
+    let first = Rng::new(3).random();
+    assert_eq!(draws(trainer()), Some((1, first)));
 }
 
 #[test]
@@ -684,4 +745,80 @@ fn need_is_busy_before_start() {
     assert_eq!(b.need(), Need::Busy);
     assert_eq!(b.mon(Side::Player).species, WATER);
     assert_eq!(b.party(Side::Opponent).len(), 1);
+}
+
+#[test]
+fn a_double_faint_whites_out() {
+    // Take Down KOs the 1-HP foe and the recoil KOs the 1-HP user.
+    let mut me = mon(WATER, 5, [20, 13, 10, 9, 9, 10], &[TAKE_DOWN]);
+    me.hp = 1;
+    let mut foe = normal(2);
+    foe.hp = 1;
+    let mut r = Run::wild(&[me], foe, 1);
+    let events = r.choose(Choice::Move(0));
+    assert_eq!(
+        events[events.len() - 3..],
+        ["PlayerWhiteout@P ~64", "PlayerWhiteout2@P !", "End(Drew)"]
+    );
+    assert!(events.contains(&"Faint P".into()) && events.contains(&"Faint O".into()));
+    assert_eq!(r.b.need(), Need::Ended(BattleOutcome::Drew));
+}
+
+#[test]
+fn a_faint_message_names_the_fainted_mon_after_its_replacement() {
+    let ace = mon(FIRE, 10, [30, 40, 20, 20, 20, 20], &[MEGA_HIT]);
+    let second = mon(DARK, 3, [15, 6, 6, 8, 5, 5], &[TACKLE]);
+    let mut r = Run::new(trainer(), &[ace], &[normal(2), second], 1);
+    let mut out = Vec::new();
+    r.b.choose(&Game, &mut r.rng, Choice::Move(0), &mut out);
+    // The replacement is out by the time the batch is expanded.
+    assert_eq!(r.b.mon(Side::Opponent).species, DARK);
+    let fainted = out
+        .iter()
+        .find_map(|e| match e {
+            BattleEvent::Msg(m) if m.id == Str::PkmnFainted => Some(*m),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(fainted.slots, [0, 0]);
+    let sent = out
+        .iter()
+        .find_map(|e| match e {
+            BattleEvent::Msg(m) if m.id == Str::PkmnSentOut => Some(*m),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(sent.slots, [0, 1]);
+    let names = Names {
+        player: &[0xFF],
+        trainer_class: &[0xFF],
+        trainer_name: &[0xFF],
+        wild: false,
+        mons: [r.b.mon(Side::Player), r.b.mon(Side::Opponent)],
+        parties: [r.b.party(Side::Player), r.b.party(Side::Opponent)],
+    };
+    // NORMAL's nickname (0xBB + 2), not DARK's (0xBB + 5).
+    assert_eq!(text::expand(&Game, &fainted, &names), [0xBD, 0xFF]);
+}
+
+#[test]
+fn balls_are_refused_in_trainer_battles() {
+    let mut r = Run::new(trainer(), &[water(5)], &[normal(2)], 1);
+    assert!(r.choose(Choice::Ball).is_empty());
+    assert_eq!(r.b.need(), Need::Action);
+    // Wild: the ball action takes the turn (its effect is E2's stub).
+    let mut r = Run::wild(&[water(5)], normal(2), 1);
+    assert!(!r.choose(Choice::Ball).is_empty());
+}
+
+#[test]
+fn move_damage_is_stored_for_bide() {
+    let mut m = water(5);
+    m.pp = [0; 4];
+    let mut r = Run::wild(&[m], mon(NORMAL, 2, [13, 6, 6, 8, 5, 5], &[SPLASH]), 7);
+    let events = r.choose(Choice::Move(1));
+    // Struggle: 8 to the foe, a quarter of it back as recoil.
+    assert!(events.contains(&"Hp O 13->5".into()) && events.contains(&"Hp P 20->18".into()));
+    assert_eq!(r.b.battler(Side::Opponent).bide_damage, 8);
+    assert_eq!(r.b.battler(Side::Player).bide_damage, 2);
 }

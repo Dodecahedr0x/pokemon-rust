@@ -342,6 +342,7 @@ impl BattleWindows {
             mov: None,
             buffs: [Buff::None; 3],
             wait: MsgWait::Frames(0),
+            slots: [names.mons[0].party, names.mons[1].party],
         };
         let prompt = super::text::expand(game, &msg, names);
         let font = game.font();

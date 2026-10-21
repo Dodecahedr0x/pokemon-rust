@@ -9,14 +9,19 @@
 //! `unsupported`.
 
 use super::Side;
-use super::core::{Battle, Env, MoveUse};
+use super::core::{Battle, Env, HitResult, MoveUse};
 use crate::mon::Stat;
 
-/// Runs an effect the core does not handle itself. Stub: the `Unsupported` handling (a plain
-/// hit when the move has power, else "But it failed!").
-pub(crate) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
-    b.unsupported(env, u);
+/// Runs an effect the core does not handle itself; the hit's result when it dealt one. Stub:
+/// the `Unsupported` handling (a plain hit when the move has power, else "But it failed!").
+pub(crate) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
+    b.unsupported(env, u)
 }
+
+/// After the move's script (`moveend`): contact abilities (Static, Flame Body, Poison Point,
+/// Effect Spore, Rough Skin…) on a `hit`, and Synchronize for a status the move inflicted.
+/// `hit` is `None` for a miss or a status move. Stub: nothing.
+pub(crate) fn after_move(_b: &mut Battle, _env: &mut Env, _u: &MoveUse, _hit: Option<HitResult>) {}
 
 /// `attackcanceler`'s status checks (sleep, freeze, flinch, confusion, paralysis, Bide's
 /// turns), before the move's script. False when the move is not used. Stub: always used.
@@ -44,5 +49,7 @@ pub(crate) fn blocks_stat_drop(
     false
 }
 
-/// The player's Poké Ball action (`Cmd_handleballthrow`, `calc::catch_shakes`). Stub: nothing.
+/// The player's Poké Ball action (`Cmd_handleballthrow`, `calc::catch_shakes`), wild battles
+/// only: the core refuses `Choice::Ball` in a trainer battle (E2 may instead play
+/// `BattleScript_TrainerBallBlock`). Stub: nothing.
 pub(crate) fn ball(_b: &mut Battle, _env: &mut Env) {}

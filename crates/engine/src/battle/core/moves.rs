@@ -79,8 +79,9 @@ impl Battle {
         };
         let u = self.move_use(env, side, mov, slot);
         if effects::before_move(self, env, &u) {
-            self.execute(env, &u);
+            let hit = self.execute(env, &u);
             self.battler_mut(side).last_move = Some(mov);
+            effects::after_move(self, env, &u, hit);
         }
     }
 
@@ -109,33 +110,39 @@ impl Battle {
         }
     }
 
-    /// Runs the move's battle script by effect.
-    pub(crate) fn execute(&mut self, env: &mut Env, u: &MoveUse) {
+    /// Runs the move's battle script by effect. The hit's result when the move dealt one (for
+    /// [`effects::after_move`]); `None` for a miss or a status move.
+    pub(crate) fn execute(&mut self, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
         match u.info.effect {
-            MoveEffect::Hit | MoveEffect::QuickAttack => {
-                self.hit(env, u, None, false);
-            }
+            MoveEffect::Hit | MoveEffect::QuickAttack => self.hit(env, u, None, false),
             MoveEffect::Recoil => {
                 let recoil = Secondary {
                     certain: true,
                     apply: recoil,
                 };
-                self.hit(env, u, Some(recoil), false);
+                self.hit(env, u, Some(recoil), false)
             }
-            MoveEffect::StatUp { stat, stages } => self.stat_up_move(env, u, stat, stages),
-            MoveEffect::StatDown { stat, stages } => self.stat_down_move(env, u, stat, stages),
+            MoveEffect::StatUp { stat, stages } => {
+                self.stat_up_move(env, u, stat, stages);
+                None
+            }
+            MoveEffect::StatDown { stat, stages } => {
+                self.stat_down_move(env, u, stat, stages);
+                None
+            }
             _ => effects::apply(self, env, u),
         }
     }
 
     /// The fallback for effects the engine does not implement: a plain hit when the move has
     /// power (accuracy 0 = Gen3's always-hit moves), else "But it failed!".
-    pub(crate) fn unsupported(&mut self, env: &mut Env, u: &MoveUse) {
+    pub(crate) fn unsupported(&mut self, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
         if u.power > 0 {
-            self.hit(env, u, None, u.info.accuracy == 0);
+            self.hit(env, u, None, u.info.accuracy == 0)
         } else {
             self.attack_string(env, u);
             self.fail(env, u);
+            None
         }
     }
 
@@ -312,8 +319,19 @@ impl Battle {
     }
 
     /// `healthbarupdate` + `datahpupdate`: positive `damage` lowers HP (to 0), negative heals
-    /// (to max). Returns the HP lost (`gHpDealt`).
+    /// (to max). Returns the HP lost (`gHpDealt`). Damage is added to the battler's `gBideDmg`
+    /// (`bide_damage`); residual end-of-turn damage uses [`Battle::change_hp_passive`].
     pub(crate) fn change_hp(&mut self, env: &mut Env, side: Side, damage: i32) -> u16 {
+        if damage > 0 {
+            let b = self.battler_mut(side);
+            b.bide_damage = b.bide_damage.saturating_add(damage as u32);
+        }
+        self.change_hp_passive(env, side, damage)
+    }
+
+    /// [`Battle::change_hp`] under `HITMARKER_IGNORE_BIDE` (poison, burn, Leech Seed … at the
+    /// end of the turn): Bide does not store the damage.
+    pub(crate) fn change_hp_passive(&mut self, env: &mut Env, side: Side, damage: i32) -> u16 {
         let b = self.battler_mut(side);
         let from = b.mon.hp;
         let to = if damage >= 0 {
@@ -375,7 +393,24 @@ impl Battle {
         stages: u8,
         up: bool,
     ) -> Msg {
-        let id = if u.target == side {
+        Msg {
+            mov: Some(u.mov),
+            ..self.stat_msg_sides(u.attacker, u.target, side, stat, stages, up)
+        }
+    }
+
+    /// [`Battle::stat_msg`] without a move (Intimidate: `attacker` = the Intimidate user,
+    /// `target` = the foe whose stat falls).
+    pub(crate) fn stat_msg_sides(
+        &self,
+        attacker: Side,
+        target: Side,
+        side: Side,
+        stat: Stat,
+        stages: u8,
+        up: bool,
+    ) -> Msg {
+        let id = if target == side {
             Str::DefenderStatChanged
         } else {
             Str::AttackerStatChanged
@@ -388,7 +423,8 @@ impl Battle {
         };
         Msg {
             buffs: [Buff::Stat(stat), Buff::Text(text), Buff::None],
-            ..u.msg_long(id, side)
+            wait: LONG,
+            ..msg(id, attacker, target, side)
         }
     }
 
