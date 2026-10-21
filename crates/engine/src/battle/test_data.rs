@@ -16,7 +16,7 @@ use crate::data::{
 };
 use crate::mon::{
     Ability, BattleTables, GrowthRate, LevelUpMove, MoveEffect, MoveFlags, MoveInfo, MoveTarget,
-    NAME_LEN, Party, Pokemon, SpeciesInfo, Stat, Status, Type, TypeMatchup,
+    NAME_LEN, Party, Pokemon, SpeciesInfo, Stat, Status, StatusKind, Type, TypeMatchup,
 };
 use crate::script::{Ctx, Script};
 
@@ -40,6 +40,43 @@ pub const SCREECH: MoveId = MoveId(12);
 pub const SLOW_HIT: MoveId = MoveId(13);
 /// An unsupported damaging effect with accuracy 0 (an always-hit move, as Gen3 Swift).
 pub const SWIFT: MoveId = MoveId(14);
+// Task E2 (Gen3 data of the namesakes).
+pub const ABSORB: MoveId = MoveId(15);
+/// Accuracy -1 on hit, chance 100.
+pub const MUD_SLAP: MoveId = MoveId(16);
+pub const SAND_ATTACK: MoveId = MoveId(17);
+/// Poison 30%.
+pub const POISON_STING: MoveId = MoveId(18);
+pub const STUN_SPORE: MoveId = MoveId(19);
+pub const SUPERSONIC: MoveId = MoveId(20);
+/// Confusion 10%.
+pub const CONFUSION: MoveId = MoveId(21);
+/// Flinch 30%, contact.
+pub const BITE: MoveId = MoveId(22);
+pub const FOCUS_ENERGY: MoveId = MoveId(23);
+pub const LEECH_SEED: MoveId = MoveId(24);
+pub const BIDE: MoveId = MoveId(25);
+/// Calls `TABLES.nature_power` (Swift everywhere).
+pub const NATURE_POWER: MoveId = MoveId(26);
+pub const SLEEP_POWDER: MoveId = MoveId(27);
+pub const POISON_POWDER: MoveId = MoveId(28);
+pub const DOUBLE_SLAP: MoveId = MoveId(29);
+pub const SONIC_BOOM: MoveId = MoveId(30);
+pub const CHARGE: MoveId = MoveId(31);
+pub const THUNDER_SHOCK: MoveId = MoveId(32);
+pub const DEFENSE_CURL: MoveId = MoveId(33);
+pub const VITAL_THROW: MoveId = MoveId(34);
+pub const TOXIC: MoveId = MoveId(35);
+/// Freeze 100% (chance roll still drawn), Ice.
+pub const FREEZE_HIT: MoveId = MoveId(36);
+/// A Splash that the engine implements (`MoveEffect::Splash`).
+pub const REAL_SPLASH: MoveId = MoveId(37);
+/// Flinch 100%, contact (Bite with a sure flinch).
+pub const FLINCH_ALL: MoveId = MoveId(38);
+/// Confusion 100%.
+pub const CONFUSE_ALL: MoveId = MoveId(39);
+/// Poison 100%.
+pub const POISON_ALL: MoveId = MoveId(40);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -54,6 +91,25 @@ pub const BUG: SpeciesId = SpeciesId(4);
 pub const DARK: SpeciesId = SpeciesId(5);
 /// Ghost (immune to Normal).
 pub const GHOST: SpeciesId = SpeciesId(6);
+// Task E2 (one ability each).
+/// Grass, Effect Spore.
+pub const SPORE: SpeciesId = SpeciesId(7);
+/// Psychic, Synchronize.
+pub const SYNC: SpeciesId = SpeciesId(8);
+/// Dark, Intimidate.
+pub const INTIM: SpeciesId = SpeciesId(9);
+/// Psychic, Trace.
+pub const TRACER: SpeciesId = SpeciesId(10);
+/// Poison, Poison Point.
+pub const POISON: SpeciesId = SpeciesId(11);
+/// Flying, Keen Eye.
+pub const BIRD: SpeciesId = SpeciesId(12);
+/// Electric, Static.
+pub const ELECTRIC: SpeciesId = SpeciesId(13);
+/// Steel, no ability.
+pub const STEEL: SpeciesId = SpeciesId(14);
+/// Normal, Guts.
+pub const GUTS: SpeciesId = SpeciesId(15);
 
 const fn mv(
     effect: MoveEffect,
@@ -80,7 +136,24 @@ const fn mv(
 
 use MoveTarget::{Selected, User};
 
-pub static MOVES: [MoveInfo; 15] = [
+/// A Task E2 move: `Selected`, priority 0, with its secondary chance and contact flag.
+const fn e2(
+    effect: MoveEffect,
+    power: u8,
+    ty: Type,
+    accuracy: u8,
+    pp: u8,
+    effect_chance: u8,
+    contact: bool,
+) -> MoveInfo {
+    MoveInfo {
+        effect_chance,
+        flags: MoveFlags(if contact { MoveFlags::MAKES_CONTACT } else { 0 }),
+        ..mv(effect, power, ty, accuracy, pp, Selected, 0)
+    }
+}
+
+pub static MOVES: [MoveInfo; 41] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -170,6 +243,142 @@ pub static MOVES: [MoveInfo; 15] = [
         Selected,
         0,
     ),
+    // ---- Task E2 ----
+    e2(MoveEffect::Absorb, 20, Type::Grass, 100, 20, 0, false),
+    e2(
+        MoveEffect::StatDownHit(Stat::Accuracy),
+        20,
+        Type::Ground,
+        100,
+        10,
+        100,
+        false,
+    ),
+    e2(
+        MoveEffect::StatDown {
+            stat: Stat::Accuracy,
+            stages: 1,
+        },
+        0,
+        Type::Ground,
+        100,
+        15,
+        0,
+        false,
+    ),
+    e2(
+        MoveEffect::StatusHit(StatusKind::Poison),
+        15,
+        Type::Poison,
+        100,
+        35,
+        30,
+        false,
+    ),
+    e2(
+        MoveEffect::Status(StatusKind::Paralysis),
+        0,
+        Type::Grass,
+        75,
+        30,
+        0,
+        false,
+    ),
+    e2(MoveEffect::Confuse, 0, Type::Normal, 55, 20, 0, false),
+    e2(
+        MoveEffect::ConfuseHit,
+        50,
+        Type::Psychic,
+        100,
+        25,
+        10,
+        false,
+    ),
+    e2(MoveEffect::FlinchHit, 60, Type::Dark, 100, 25, 30, true),
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::FocusEnergy, 0, Type::Normal, 0, 30, 0, false)
+    },
+    e2(MoveEffect::LeechSeed, 0, Type::Grass, 90, 10, 0, false),
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::Bide, 1, Type::Normal, 100, 10, 0, true)
+    },
+    e2(MoveEffect::NaturePower, 0, Type::Normal, 95, 20, 0, false),
+    e2(
+        MoveEffect::Status(StatusKind::Sleep),
+        0,
+        Type::Grass,
+        75,
+        15,
+        0,
+        false,
+    ),
+    e2(
+        MoveEffect::Status(StatusKind::Poison),
+        0,
+        Type::Poison,
+        75,
+        35,
+        0,
+        false,
+    ),
+    e2(MoveEffect::MultiHit, 15, Type::Normal, 85, 10, 0, true),
+    e2(MoveEffect::SonicBoom, 1, Type::Normal, 90, 20, 0, false),
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::Charge, 0, Type::Electric, 0, 20, 0, false)
+    },
+    e2(MoveEffect::Hit, 40, Type::Electric, 100, 30, 0, false),
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::DefenseCurl, 0, Type::Normal, 0, 40, 0, false)
+    },
+    MoveInfo {
+        priority: -1,
+        ..e2(MoveEffect::VitalThrow, 70, Type::Fighting, 0, 10, 0, true)
+    },
+    e2(
+        MoveEffect::Status(StatusKind::Toxic),
+        0,
+        Type::Poison,
+        85,
+        10,
+        0,
+        false,
+    ),
+    e2(
+        MoveEffect::StatusHit(StatusKind::Freeze),
+        40,
+        Type::Ice,
+        100,
+        10,
+        100,
+        false,
+    ),
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::Splash, 0, Type::Normal, 0, 40, 0, false)
+    },
+    e2(MoveEffect::FlinchHit, 60, Type::Dark, 100, 25, 100, true),
+    e2(
+        MoveEffect::ConfuseHit,
+        50,
+        Type::Psychic,
+        100,
+        25,
+        100,
+        false,
+    ),
+    e2(
+        MoveEffect::StatusHit(StatusKind::Poison),
+        15,
+        Type::Poison,
+        100,
+        35,
+        100,
+        true,
+    ),
 ];
 
 const fn lv(level: u8, mov: MoveId) -> LevelUpMove {
@@ -214,7 +423,7 @@ const fn species(
     }
 }
 
-pub static SPECIES: [SpeciesInfo; 7] = [
+pub static SPECIES: [SpeciesInfo; 16] = [
     species([0; 6], Type::Normal, 0, Ability::None, &[]),
     species(
         [50, 70, 50, 40, 50, 50],
@@ -258,7 +467,20 @@ pub static SPECIES: [SpeciesInfo; 7] = [
         Ability::None,
         &[],
     ),
+    // ---- Task E2 ----
+    species(STATS, Type::Grass, 50, Ability::EffectSpore, &[]),
+    species(STATS, Type::Psychic, 50, Ability::Synchronize, &[]),
+    species(STATS, Type::Dark, 50, Ability::Intimidate, &[]),
+    species(STATS, Type::Psychic, 50, Ability::Trace, &[]),
+    species(STATS, Type::Poison, 50, Ability::PoisonPoint, &[]),
+    species(STATS, Type::Flying, 50, Ability::KeenEye, &[]),
+    species(STATS, Type::Electric, 50, Ability::Static, &[]),
+    species(STATS, Type::Steel, 50, Ability::None, &[]),
+    species(STATS, Type::Normal, 50, Ability::Guts, &[]),
 ];
+
+/// Base stats of the E2 species (tests set explicit stats anyway).
+const STATS: [u8; 6] = [50; 6];
 
 const fn tm(attack: Type, defend: Type, multiplier: u8) -> TypeMatchup {
     TypeMatchup {
@@ -292,7 +514,7 @@ pub static TABLES: BattleTables = BattleTables {
     type_chart: &TYPE_CHART,
     foresight_split: 11,
     struggle: STRUGGLE,
-    nature_power: [SPLASH; 10],
+    nature_power: [SWIFT; 10],
 };
 
 /// A test mon with explicit stats (HP, Atk, Def, Speed, SpAtk, SpDef), full HP and PP, exp at

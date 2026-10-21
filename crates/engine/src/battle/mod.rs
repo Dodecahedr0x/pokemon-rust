@@ -23,7 +23,7 @@ pub mod ui;
 pub(crate) mod test_data;
 
 use crate::data::{Font, MoveId, SpeciesId, TextId, TrainerId};
-use crate::mon::{Gender, NAME_LEN, Party, Stat, Status, TrainerPic, Type};
+use crate::mon::{Ability, Gender, NAME_LEN, Party, Stat, Status, TrainerPic, Type};
 use crate::video::Tile;
 
 pub use self::core::Battle;
@@ -225,8 +225,14 @@ pub enum Str {
     PkmnForgotMove,
     StopLearningMove,
     DidNotLearnMove,
-    AttackerStatChanged,
-    DefenderStatChanged,
+    /// `STRINGID_ATTACKERSSTATROSE`.
+    AttackerStatRose,
+    /// `STRINGID_ATTACKERSSTATFELL`.
+    AttackerStatFell,
+    /// `STRINGID_DEFENDERSSTATROSE`.
+    DefenderStatRose,
+    /// `STRINGID_DEFENDERSSTATFELL`.
+    DefenderStatFell,
     StatRose,
     StatSharplyRose,
     StatFell,
@@ -272,6 +278,70 @@ pub enum Str {
     TypeName(Type),
     /// `gStatNamesTable[s]`.
     StatName(Stat),
+    // ---- Task E2: statuses, abilities, catching ----
+    /// `STRINGID_PKMNBADLYPOISONED`.
+    PkmnBadlyPoisoned,
+    /// `STRINGID_PKMNWASFROZEN`.
+    PkmnWasFrozen,
+    /// `STRINGID_PKMNISFROZEN`.
+    PkmnIsFrozen,
+    /// `STRINGID_PKMNWASDEFROSTED2` (thawed when trying to move).
+    PkmnWasDefrosted2,
+    /// `STRINGID_PKMNWASDEFROSTED` (thawed by a Fire move).
+    PkmnWasDefrosted,
+    /// `STRINGID_PKMNHEALEDCONFUSION`.
+    PkmnHealedConfusion,
+    /// `STRINGID_PKMNPOISONEDBY` (an ability poisoned the battler).
+    PkmnPoisonedBy,
+    /// `STRINGID_PKMNBURNEDBY`.
+    PkmnBurnedBy,
+    /// `STRINGID_PKMNFROZENBY`.
+    PkmnFrozenBy,
+    /// `STRINGID_PKMNWASPARALYZEDBY`.
+    PkmnWasParalyzedBy,
+    /// `STRINGID_PKMNMADESLEEP`.
+    PkmnMadeSleep,
+    /// `STRINGID_PKMNALREADYASLEEP`.
+    PkmnAlreadyAsleep,
+    /// `STRINGID_PKMNALREADYPOISONED`.
+    PkmnAlreadyPoisoned,
+    /// `STRINGID_PKMNISALREADYPARALYZED`.
+    PkmnIsAlreadyParalyzed,
+    /// `STRINGID_PKMNALREADYHASBURN`.
+    PkmnAlreadyHasBurn,
+    /// `STRINGID_PKMNALREADYCONFUSED`.
+    PkmnAlreadyConfused,
+    /// `STRINGID_PKMNEVADEDATTACK` (Leech Seed missed or the target is already seeded).
+    PkmnEvadedAttack,
+    /// `STRINGID_NATUREPOWERTURNEDINTO`.
+    NaturePowerTurnedInto,
+    /// `STRINGID_PKMNCUTSATTACKWITH` (Intimidate).
+    PkmnCutsAttackWith,
+    /// `STRINGID_PKMNTRACED`.
+    PkmnTraced,
+    /// `STRINGID_PKMNSXPREVENTSYLOSS` (Keen Eye).
+    PkmnSXPreventsYLoss,
+    /// `STRINGID_PKMNSXHADNOEFFECTONY` (Synchronize on an immune type).
+    PkmnSXHadNoEffectOnY,
+    /// `STRINGID_PKMNBROKEFREE` (ball, no shake).
+    PkmnBrokeFree,
+    /// `STRINGID_ITAPPEAREDCAUGHT` (ball, 1 shake).
+    ItAppearedCaught,
+    /// `STRINGID_AARGHALMOSTHADIT` (ball, 2 shakes).
+    AarghAlmostHadIt,
+    /// `STRINGID_SHOOTSOCLOSE` (ball, 3 shakes).
+    ShootSoClose,
+    /// `STRINGID_HITXTIMES` (`B_BUFF1` = the hit count).
+    HitXTimes,
+    /// `STRINGID_BUTNOTHINGHAPPENED` (Splash).
+    ButNothingHappened,
+    /// `STRINGID_PKMNCHARGINGPOWER` (Charge).
+    PkmnChargingPower,
+    /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
+    /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
+    /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
+    /// `Ability::Other` and `Ability::None` have no name (empty).
+    AbilityName(Ability),
 }
 
 impl Str {
@@ -313,8 +383,10 @@ impl Str {
             PkmnForgotMove => 30,
             StopLearningMove => 31,
             DidNotLearnMove => 32,
-            AttackerStatChanged => 33,
-            DefenderStatChanged => 34,
+            // Renamed from AttackerStatChanged / DefenderStatChanged (E2): the Rose forms keep
+            // the old codes, the Fell forms are new.
+            AttackerStatRose => 33,
+            DefenderStatRose => 34,
             StatRose => 35,
             StatSharplyRose => 36,
             StatFell => 37,
@@ -352,6 +424,39 @@ impl Str {
             ConfirmStarterChoice => 69,
             TypeName(t) => 70 << 8 | t as u16,
             StatName(s) => 71 << 8 | s as u16,
+            // Task E2.
+            AttackerStatFell => 72,
+            DefenderStatFell => 73,
+            PkmnBadlyPoisoned => 74,
+            PkmnWasFrozen => 75,
+            PkmnIsFrozen => 76,
+            PkmnWasDefrosted2 => 77,
+            PkmnWasDefrosted => 78,
+            PkmnHealedConfusion => 79,
+            PkmnPoisonedBy => 80,
+            PkmnBurnedBy => 81,
+            PkmnFrozenBy => 82,
+            PkmnWasParalyzedBy => 83,
+            PkmnMadeSleep => 84,
+            PkmnAlreadyAsleep => 85,
+            PkmnAlreadyPoisoned => 86,
+            PkmnIsAlreadyParalyzed => 87,
+            PkmnAlreadyHasBurn => 88,
+            PkmnAlreadyConfused => 89,
+            PkmnEvadedAttack => 90,
+            NaturePowerTurnedInto => 91,
+            PkmnCutsAttackWith => 92,
+            PkmnTraced => 93,
+            PkmnSXPreventsYLoss => 94,
+            PkmnSXHadNoEffectOnY => 95,
+            PkmnBrokeFree => 96,
+            ItAppearedCaught => 97,
+            AarghAlmostHadIt => 98,
+            ShootSoClose => 99,
+            HitXTimes => 100,
+            ButNothingHappened => 101,
+            PkmnChargingPower => 102,
+            AbilityName(a) => 103 << 8 | a as u16,
         }
     }
 }
