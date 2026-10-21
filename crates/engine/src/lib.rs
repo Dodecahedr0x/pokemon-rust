@@ -4,6 +4,8 @@
 pub mod hash;
 pub mod input;
 pub mod rng;
+pub mod world;
 
 pub use input::Buttons;
 pub use rng::Rng;
+pub use world::{FrameOut, World};
