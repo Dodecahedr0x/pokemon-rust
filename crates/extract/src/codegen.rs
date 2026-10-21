@@ -33,7 +33,10 @@
 //! ```
 //!
 //! so calls into another map's file are `super::<Map>::<Name>`. Besides the `Ctx` methods, the
-//! prelude provides `msgbox`, `callstd`, `special`, `unsupported` and `check_player_gender`.
+//! prelude provides `msgbox`, `callstd`, `special`, `unsupported` and `check_player_gender`;
+//! since Milestone 4 also `trainer_battle` with `TrainerBattle::{single, continue_script,
+//! no_intro}`, `SpeciesId`, and the `SPECIES_*`, `TRAINER_*` (`TrainerId`) and
+//! `HEAL_LOCATION_*` (`u8`) constants. `givemon` and `getpartysize` write `VAR_RESULT`.
 //!
 //! **Gen3 semantics kept:** the comparison register is a local `cond: Ordering` (`checkflag`
 //! sets `Equal` when the flag is set, `Less` otherwise, as `comparisonResult` 1/0); `yesnobox`
@@ -1052,9 +1055,103 @@ impl Prog<'_> {
                     vol(m)
                 ))
             }
+            ("trainerbattle", &[Byte(kind), Half(trainer), Half(local), ..]) => {
+                self.trainerbattle(insn, kind, trainer, local, fx, out)
+            }
+            ("givemon", &[Half(species), Byte(level), Half(item), ..]) => {
+                let species = if species >= VARS_START {
+                    Some(format!("SpeciesId({})", vol(species)))
+                } else {
+                    named(&names::SPECIES, species.into()).map(str::to_string)
+                };
+                let Some(species) = species else {
+                    self.unsupported(insn, out);
+                    return Ok(());
+                };
+                let item = if item == 0 {
+                    String::new()
+                } else {
+                    format!(" // held item {} not given", vol(item))
+                };
+                out.push(format!(
+                    "ctx.set_var({}, ctx.give_mon({species}, {level}).await).await;{item}",
+                    var(VAR_RESULT)
+                ));
+            }
+            ("getpartysize", _) => out.push(format!(
+                "ctx.set_var({}, ctx.party_size().await).await;",
+                var(VAR_RESULT)
+            )),
+            ("setrespawn", &[Half(h)]) => {
+                let h = if h >= VARS_START {
+                    Some(format!("{} as u8", vol(h)))
+                } else {
+                    named(&names::HEAL_LOCATIONS, h.into()).map(str::to_string)
+                };
+                match h {
+                    Some(h) => out.push(format!("ctx.set_respawn({h}).await;")),
+                    None => self.unsupported(insn, out),
+                }
+            }
             _ => self.unsupported(insn, out),
         }
         Ok(())
+    }
+
+    /// `trainerbattle` (`data/scripts/trainer_battle.inc`, `BattleSetup_ConfigureTrainerBattle`)
+    /// as a call to the prelude's `trainer_battle`, which returns true when a battle was fought
+    /// (the trainer flag was clear):
+    /// - `TRAINER_BATTLE_SINGLE` / `_REMATCH`: the battle ends the script (Gen3 `gotobeatenscript`
+    ///   without a beaten script: `releaseall ; end`); what follows is the already-beaten path
+    ///   (`gotopostbattlescript`).
+    /// - `_CONTINUE_SCRIPT(_NO_MUSIC)`: after the battle the continue script runs; what follows
+    ///   is the already-beaten path.
+    /// - `_SINGLE_NO_INTRO_TEXT`: no flag check; the script goes on after the battle.
+    /// - doubles and the other types: `unsupported`, then the already-beaten path.
+    fn trainerbattle(
+        &mut self,
+        insn: &Insn,
+        kind: u8,
+        trainer: u16,
+        local: u16,
+        fx: &FnCx,
+        out: &mut Vec<String>,
+    ) {
+        let text = |o: &Operand| match *o {
+            Operand::Text(Some(t)) => self.texts.get(&t).cloned(),
+            _ => None,
+        };
+        let Some(tr) = named(&names::TRAINERS, trainer.into()) else {
+            self.unsupported(insn, out);
+            return;
+        };
+        let rest = &insn.args[3..];
+        match (kind, rest) {
+            (0 | 5, [i, d]) if text(i).is_some() && text(d).is_some() => {
+                out.push(format!(
+                    "if trainer_battle(&ctx, TrainerBattle::single({tr}, {local}, {}, {})).await {{",
+                    text(i).unwrap(),
+                    text(d).unwrap()
+                ));
+                out.push("    return;".to_string());
+                out.push("}".to_string());
+            }
+            (1 | 2, [i, d, Operand::Script(s)]) if text(i).is_some() && text(d).is_some() => {
+                out.push(format!(
+                    "if trainer_battle(&ctx, TrainerBattle::continue_script({tr}, {local}, {}, {})).await {{",
+                    text(i).unwrap(),
+                    text(d).unwrap()
+                ));
+                let jump = self.jump(*s, fx);
+                out.extend(jump.into_iter().map(|l| format!("    {l}")));
+                out.push("}".to_string());
+            }
+            (3, [d]) if text(d).is_some() => out.push(format!(
+                "trainer_battle(&ctx, TrainerBattle::no_intro({tr}, {})).await;",
+                text(d).unwrap()
+            )),
+            _ => self.unsupported(insn, out),
+        }
     }
 
     fn callstd(&mut self, n: u8) -> String {

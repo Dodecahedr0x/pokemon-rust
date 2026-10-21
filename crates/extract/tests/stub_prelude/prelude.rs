@@ -42,3 +42,37 @@ pub async fn check_player_gender(ctx: &Ctx) -> u16 {
 pub async fn unsupported(ctx: &Ctx, what: &'static str) {
     ctx.log(what).await;
 }
+
+pub use engine::data::{SpeciesId, TrainerId};
+
+/// `trainerbattle` operands (Milestone 4).
+pub struct TrainerBattle;
+
+impl TrainerBattle {
+    pub const fn single(trainer: TrainerId, local: u16, intro: TextId, defeat: TextId) -> Self {
+        let _ = (trainer, local, intro, defeat);
+        TrainerBattle
+    }
+
+    pub const fn continue_script(
+        trainer: TrainerId,
+        local: u16,
+        intro: TextId,
+        defeat: TextId,
+    ) -> Self {
+        let _ = (trainer, local, intro, defeat);
+        TrainerBattle
+    }
+
+    pub const fn no_intro(trainer: TrainerId, defeat: TextId) -> Self {
+        let _ = (trainer, defeat);
+        TrainerBattle
+    }
+}
+
+/// True when a battle was fought.
+pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
+    let _ = b;
+    ctx.log("trainer_battle").await;
+    false
+}
