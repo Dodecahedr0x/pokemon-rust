@@ -2,7 +2,9 @@
 //! escapes and `{NAME args}` constants from `charmap.txt`, parsed the way `tools/preproc` does.
 //! The 0xFF terminator is implicit: `decode` stops after it and `encode` appends it.
 
-mod charmap;
+/// The generated charmap tables; public only so the drift test can compare them to the decomp.
+#[doc(hidden)]
+pub mod charmap;
 
 use crate::Rom;
 use anyhow::{Context, Result, bail};
@@ -58,6 +60,14 @@ const EXT_CODES: [(&str, &[Arg]); 0x19] = {
 
 /// Decodes one string up to and including its 0xFF terminator. Returns the text and the number
 /// of bytes consumed (terminator included).
+///
+/// The one-byte-argument prefixes 0xFD (placeholder), 0xF7 (`DYNAMIC`), 0xF8 (keypad icon) and
+/// 0xF9 (extra symbol), and the arguments of 0xFC control codes, always consume their argument
+/// bytes even when one is 0xFF, as the game's text printer does; such a 0xFF does not end the string.
+///
+/// Battle placeholders share 0xFD codes with field placeholders (`B_BUFF2` and `PLAYER` are both
+/// FD 01, for instance). Decoding always uses the field names (FD 01 → `{PLAYER}`), so extracting
+/// battle strings must remap FD 00–0D to their `B_*` names. FD 0E and above only have battle names.
 pub fn decode(bytes: &[u8]) -> Result<(String, usize)> {
     let mut out = String::new();
     let mut i = 0;
