@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result, bail, ensure};
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 pub type Rgb555 = u16;
@@ -179,12 +179,11 @@ pub fn write_png_indexed(path: &Path, img: &IndexedImage, palette: &Palette) -> 
             data[y * stride + x / 2] |= img.pixels[y * w + x] << shift;
         }
     }
-    let mut enc = encoder(path, img.width, img.height)?;
-    enc.set_color(png::ColorType::Indexed);
-    enc.set_depth(png::BitDepth::Four);
-    enc.set_palette(plte);
-    enc.write_header()?.write_image_data(&data)?;
-    Ok(())
+    write_png(path, img.width, img.height, &data, |enc| {
+        enc.set_color(png::ColorType::Indexed);
+        enc.set_depth(png::BitDepth::Four);
+        enc.set_palette(plte);
+    })
 }
 
 /// Writes an 8-bit RGBA PNG.
@@ -194,16 +193,30 @@ pub fn write_png_rgba(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Resu
         "rgba buffer is {} bytes, expected {width}x{height}x4",
         rgba.len()
     );
-    let mut enc = encoder(path, width, height)?;
-    enc.set_color(png::ColorType::Rgba);
-    enc.set_depth(png::BitDepth::Eight);
-    enc.write_header()?.write_image_data(rgba)?;
-    Ok(())
+    write_png(path, width, height, rgba, |enc| {
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+    })
 }
 
-fn encoder(path: &Path, width: u32, height: u32) -> Result<png::Encoder<'static, BufWriter<File>>> {
+/// Encodes one image to `path`, finishing the PNG stream and flushing the file so that every
+/// write error is returned rather than lost on drop.
+fn write_png(
+    path: &Path,
+    width: u32,
+    height: u32,
+    data: &[u8],
+    setup: impl FnOnce(&mut png::Encoder<&mut BufWriter<File>>),
+) -> Result<()> {
+    let ctx = || format!("writing {}", path.display());
     let file = File::create(path).with_context(|| format!("creating {}", path.display()))?;
-    Ok(png::Encoder::new(BufWriter::new(file), width, height))
+    let mut out = BufWriter::new(file);
+    let mut enc = png::Encoder::new(&mut out, width, height);
+    setup(&mut enc);
+    let mut writer = enc.write_header().with_context(ctx)?;
+    writer.write_image_data(data).with_context(ctx)?;
+    writer.finish().with_context(ctx)?;
+    out.flush().with_context(ctx)
 }
 
 #[cfg(test)]

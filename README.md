@@ -19,16 +19,18 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 `cargo xtask extract` reads your French ROM into editable, git-ignored files.
 
 1. Place the ROM at `rom/emeraude-fr.gba` (or pass `--rom <path>`; BPEE also works).
-2. Run `cargo xtask extract`. It clears `content/extracted/`, re-exports everything and prints a
+2. Run `cargo xtask extract`. It exports into `content/.extracted.tmp/` and, only if that succeeds,
+   replaces `content/extracted/` with it (a failed run keeps the previous output). It prints a
    summary (maps, tilesets, sprite ids, text count, any undecoded script instructions).
 3. See the output in `content/extracted/`:
    - `manifest.ron`: game code, ROM sha1, every ROM offset used, sha1 of every other file
-   - `maps/<Map>/map.ron`: header, layout blocks, events, connections, script and text refs
-     (Littleroot, Oldale, Route 101)
+   - `maps/<Map>/map.ron`: header, layout blocks (one map row per line), events, connections,
+     script and text refs (Littleroot, Oldale, Route 101)
    - `tilesets/<offset>/`: `tiles.png` plus palettes, metatiles and attributes as RON
    - `sprites/<id>.png` + `.ron`: overworld sprites used by those maps, plus Brendan and May
    - `font/latin_normal.png` + `.ron`: the Latin font and its glyph widths
-   - `text/fr.ron`: every text the maps' scripts show, keyed `<Map>.<hex offset>`
+   - `text/fr.ron` (`text/en.ron` for a BPEE ROM): every text the maps' scripts show, keyed
+     `<Map>.<hex offset>`, as raw strings in the decomp `.string` syntax (`\p`, `\n`, `{PLAYER}`)
    - `previews/<Map>.png`: map renders
 
 The output is deterministic: two runs on the same ROM give identical files.

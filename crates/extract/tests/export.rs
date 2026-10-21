@@ -4,9 +4,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-/// A fresh, empty directory under the system temp dir, unique to this process and `tag`.
+/// A fresh, empty `export-<tag>` directory under cargo's integration-test tmp dir (in target/).
 fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("pkr-export-{}-{tag}", std::process::id()));
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("export-{tag}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
@@ -100,15 +100,22 @@ fn writes_expected_tree() {
 #[test]
 fn map_ron_round_trips() {
     let (dir, _) = fr_export();
+    let rom = fixtures::fr();
+    let table = extract::maps::locate_map_table(&rom).unwrap();
     for name in ["LittlerootTown", "OldaleTown", "Route101"] {
         let text = std::fs::read_to_string(dir.join(format!("maps/{name}/map.ron"))).unwrap();
         let map: MapFile = ron::from_str(&text).unwrap();
         assert_eq!(map.name, name);
         assert_eq!(export::to_ron(&map).unwrap(), text);
-        let w = map.header.layout.width as usize;
-        assert_eq!(
-            map.header.layout.blocks.len(),
-            w * map.header.layout.height as usize
+        // Rows of blocks, one per line, rebuild exactly the header read from the ROM.
+        let rom_header = table.header(&rom, map.id).unwrap();
+        assert_eq!(map.to_header().unwrap(), rom_header);
+        let first_row = format!("{:?}", map.layout.blocks[0].0)
+            .replace('[', "(")
+            .replace(']', ")");
+        assert!(
+            text.contains(&format!("\n            {first_row},\n")),
+            "{name}"
         );
     }
 }
@@ -119,18 +126,47 @@ fn littleroot_header_matches_known_offsets() {
     let text = std::fs::read_to_string(dir.join("maps/LittlerootTown/map.ron")).unwrap();
     let map: MapFile = ron::from_str(&text).unwrap();
     assert_eq!(map.header.offset, 0x4874a0);
-    assert_eq!(map.header.layout.offset, 0x3ef170);
+    assert_eq!(map.layout.offset, 0x3ef170);
     assert!(manifest.tilesets.contains_key("3e45f0"));
     assert!(manifest.tilesets.contains_key("3e4608"));
 }
 
 #[test]
+fn us_export_smoke() {
+    let dir = temp_dir("us");
+    let manifest = export::export(&fixtures::us(), &dir).unwrap();
+    assert_eq!(manifest.game_code, "BPEE");
+    assert_eq!(manifest.text_file, "text/en.ron");
+    assert_eq!(manifest.maps["LittlerootTown"].header, 0x4825b4);
+    assert_eq!(manifest.maps["LittlerootTown"].layout, 0x3ea284);
+    let text = std::fs::read_to_string(dir.join("text/en.ron")).unwrap();
+    let strings: BTreeMap<String, String> = ron::from_str(&text).unwrap();
+    assert!(!strings.is_empty());
+    assert!(!dir.join("text/fr.ron").exists());
+}
+
+#[test]
 fn french_text_is_exported_and_referenced() {
-    let (dir, _) = fr_export();
+    let (dir, manifest) = fr_export();
+    assert_eq!(manifest.text_file, "text/fr.ron");
     let text = std::fs::read_to_string(dir.join("text/fr.ron")).unwrap();
+    assert!(
+        !text.contains(r"\'") && !text.contains(r"\\"),
+        "escaped text"
+    );
     let strings: BTreeMap<String, String> = ron::from_str(&text).unwrap();
     assert!(strings.len() > 20, "only {} texts", strings.len());
     assert!(strings.values().any(|s| s.contains("BOURG-EN-VOL")));
+    // Exactly the decoded ROM strings, `\p`, `\n`, quotes and `{…}` codes included.
+    let rom = fixtures::fr();
+    for (key, s) in &strings {
+        let off = u32::from_str_radix(key.rsplit('.').next().unwrap(), 16).unwrap();
+        assert_eq!(s, &rom.string_at(off).unwrap(), "{key}");
+    }
+    let all: String = strings.values().cloned().collect();
+    for needle in [r"\p", r"\n", "'", "{PLAYER}"] {
+        assert!(all.contains(needle), "no {needle} in fr.ron");
+    }
     // Every key referenced by a map exists, and every key belongs to a map.
     let mut referenced = Vec::new();
     for name in ["LittlerootTown", "OldaleTown", "Route101"] {

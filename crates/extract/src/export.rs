@@ -8,14 +8,17 @@
 //! tilesets/<hex>/{palettes,metatiles,attributes}.ron
 //! sprites/<id>.png + .ron      frames side by side with their own palette; size, frames, tag
 //! font/latin_normal.png + .ron 2bpp glyph sheet (gbagfx layout and palette); widths
-//! text/fr.ron                  "<Map>.<hex offset>" -> string, for every text the maps' scripts show
+//! text/<fr,en>.ron            "<Map>.<hex offset>" -> string, for every text the maps' scripts show
 //! previews/<Map>.png           map render
 //! ```
 //!
 //! Output is deterministic: maps are sorted (`BTreeMap`/`BTreeSet`) and the RON style is fixed.
 
 use crate::gfx::{self, IndexedImage, Palette};
-use crate::maps::{self, LITTLEROOT, MapHeader, MapId, OLDALE, ROUTE101, TilesetRef};
+use crate::maps::{
+    self, Connection, LITTLEROOT, MapEvents, MapHeader, MapId, MapLayout, OLDALE, ROUTE101,
+    TilesetRef,
+};
 use crate::render::{self, TilesetData};
 use crate::sprites::{self, ObjectGraphics, ObjectGraphicsTable};
 use crate::{GameCode, Rom, font, scripts};
@@ -47,13 +50,195 @@ const FONT_PALETTE: [[u8; 3]; 4] = [
 const FONT_GLYPHS_PER_ROW: usize = 16;
 const TILESET_TILES_PER_ROW: u32 = 16;
 
-/// `maps/<Map>/map.ron`.
+/// `maps/<Map>/map.ron`: a `MapHeader` with the layout blocks written one map row per line.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MapFile {
     pub name: String,
     pub id: MapId,
-    pub header: MapHeader,
+    pub header: HeaderFile,
+    pub layout: LayoutFile,
+    pub events: MapEvents,
+    pub connections: Vec<Connection>,
     pub scripts: MapScripts,
+}
+
+/// The scalar fields of a `MapHeader` (offsets are ROM file offsets).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct HeaderFile {
+    pub offset: u32,
+    pub map_scripts: Option<u32>,
+    pub music: u16,
+    pub layout_id: u16,
+    pub region_map_section: u8,
+    pub cave: u8,
+    pub weather: u8,
+    pub map_type: u8,
+    pub allow_cycling: bool,
+    pub allow_escaping: bool,
+    pub allow_running: bool,
+    pub show_map_name: bool,
+    pub battle_type: u8,
+}
+
+/// A `MapLayout` with `border` (2 rows) and `blocks` (`height` rows) as rows of raw blocks.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LayoutFile {
+    pub offset: u32,
+    pub width: u16,
+    pub height: u16,
+    pub border: Vec<Row>,
+    pub blocks: Vec<Row>,
+    pub primary_tileset: u32,
+    pub secondary_tileset: u32,
+}
+
+/// One row of blocks, written on a single line as a RON tuple.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Row(pub Vec<u16>);
+
+impl Serialize for Row {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeTuple;
+        let mut t = s.serialize_tuple(self.0.len())?;
+        for v in &self.0 {
+            t.serialize_element(v)?;
+        }
+        t.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Row {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Row, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Row;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a tuple of u16 blocks")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> std::result::Result<Row, A::Error> {
+                let mut row = Vec::new();
+                while let Some(v) = seq.next_element()? {
+                    row.push(v);
+                }
+                Ok(Row(row))
+            }
+        }
+        d.deserialize_tuple(usize::MAX, V)
+    }
+}
+
+fn to_rows(blocks: &[u16], width: usize) -> Vec<Row> {
+    blocks
+        .chunks(width.max(1))
+        .map(|r| Row(r.to_vec()))
+        .collect()
+}
+
+impl MapFile {
+    pub fn new(name: &str, id: MapId, h: MapHeader, scripts: MapScripts) -> MapFile {
+        let l = h.layout;
+        MapFile {
+            name: name.to_string(),
+            id,
+            header: HeaderFile {
+                offset: h.offset,
+                map_scripts: h.map_scripts,
+                music: h.music,
+                layout_id: h.layout_id,
+                region_map_section: h.region_map_section,
+                cave: h.cave,
+                weather: h.weather,
+                map_type: h.map_type,
+                allow_cycling: h.allow_cycling,
+                allow_escaping: h.allow_escaping,
+                allow_running: h.allow_running,
+                show_map_name: h.show_map_name,
+                battle_type: h.battle_type,
+            },
+            layout: LayoutFile {
+                offset: l.offset,
+                width: l.width,
+                height: l.height,
+                border: to_rows(&l.border, 2),
+                blocks: to_rows(&l.blocks, l.width.into()),
+                primary_tileset: l.primary_tileset,
+                secondary_tileset: l.secondary_tileset,
+            },
+            events: h.events,
+            connections: h.connections,
+            scripts,
+        }
+    }
+
+    /// The `MapHeader` this file describes. Errors if the rows do not match `width`/`height`.
+    pub fn to_header(&self) -> Result<MapHeader> {
+        let l = &self.layout;
+        let (w, h) = (usize::from(l.width), usize::from(l.height));
+        ensure!(
+            l.blocks.len() == h && l.blocks.iter().all(|r| r.0.len() == w),
+            "map {}: blocks are not {h} rows of {w}",
+            self.name
+        );
+        ensure!(
+            l.border.len() == 2 && l.border.iter().all(|r| r.0.len() == 2),
+            "map {}: border is not 2 rows of 2",
+            self.name
+        );
+        let flat = |rows: &[Row]| rows.iter().flat_map(|r| r.0.iter().copied()).collect();
+        let hd = &self.header;
+        Ok(MapHeader {
+            offset: hd.offset,
+            layout: MapLayout {
+                offset: l.offset,
+                width: l.width,
+                height: l.height,
+                border: flat(&l.border),
+                blocks: flat(&l.blocks),
+                primary_tileset: l.primary_tileset,
+                secondary_tileset: l.secondary_tileset,
+            },
+            events: self.events.clone(),
+            map_scripts: hd.map_scripts,
+            connections: self.connections.clone(),
+            music: hd.music,
+            layout_id: hd.layout_id,
+            region_map_section: hd.region_map_section,
+            cave: hd.cave,
+            weather: hd.weather,
+            map_type: hd.map_type,
+            allow_cycling: hd.allow_cycling,
+            allow_escaping: hd.allow_escaping,
+            allow_running: hd.allow_running,
+            show_map_name: hd.show_map_name,
+            battle_type: hd.battle_type,
+        })
+    }
+}
+
+/// Writes `key -> string` as RON with every string raw (`r"…"`, or `r#"…"#` if it holds a `"`),
+/// so the decomp `.string` syntax (`\p`, `\n`, `{PLAYER}`, apostrophes) reads as is.
+pub fn text_to_ron(texts: &BTreeMap<String, String>) -> String {
+    let mut out = String::from("{\n");
+    for (k, v) in texts {
+        let hashes = (0..)
+            .map(|n| "#".repeat(n))
+            .find(|h| !v.contains(&format!("\"{h}")))
+            .unwrap_or_default();
+        out.push_str(&format!("    {k:?}: r{hashes}\"{v}\"{hashes},\n"));
+    }
+    out.push_str("}\n");
+    out
+}
+
+/// `text/<lang>.ron` for the ROM's language.
+pub fn text_file(code: GameCode) -> &'static str {
+    match code {
+        GameCode::Bpee => "text/en.ron",
+        GameCode::Bpef => "text/fr.ron",
+    }
 }
 
 /// What the map's scripts reach (offsets are ROM file offsets).
@@ -61,7 +246,7 @@ pub struct MapFile {
 pub struct MapScripts {
     /// Entry points: object, coord and bg event scripts, then map scripts.
     pub roots: Vec<u32>,
-    /// Keys into `text/fr.ron`, `"<Map>.<hex offset>"`.
+    /// Keys into `text/<lang>.ron`, `"<Map>.<hex offset>"`.
     pub texts: Vec<String>,
     pub movements: Vec<u32>,
     pub braille: Vec<u32>,
@@ -125,6 +310,8 @@ pub struct Manifest {
     /// `OBJ_EVENT_GFX_VAR_*` ids resolved at run time), not exported.
     pub skipped_graphics_ids: BTreeSet<u8>,
     pub font: FontEntry,
+    /// `text/fr.ron` (BPEF) or `text/en.ron` (BPEE).
+    pub text_file: String,
     pub texts: usize,
     /// Per map, instructions the script walker could not decode (offset -> opcode).
     pub unknown_script_ops: BTreeMap<String, BTreeMap<u32, u8>>,
@@ -252,18 +439,14 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
                 map_scripts: header.map_scripts,
             },
         );
-        let file = MapFile {
-            name: name.to_string(),
-            id,
-            scripts: MapScripts {
-                roots,
-                texts: keys,
-                movements: scan.movements.into_iter().collect(),
-                braille: scan.braille.into_iter().collect(),
-                unknown: scan.unknown,
-            },
-            header,
+        let scripts = MapScripts {
+            roots,
+            texts: keys,
+            movements: scan.movements.into_iter().collect(),
+            braille: scan.braille.into_iter().collect(),
+            unknown: scan.unknown,
         };
+        let file = MapFile::new(name, id, header, scripts);
         o.ron(&format!("maps/{name}/map.ron"), &file)?;
     }
 
@@ -317,7 +500,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
         },
     )?;
 
-    o.ron("text/fr.ron", &texts)?;
+    o.bytes(text_file(rom.code()), text_to_ron(&texts).as_bytes())?;
 
     let manifest = Manifest {
         game_code: match rom.code() {
@@ -339,6 +522,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
             glyphs: glyphs_off,
             widths: widths_off,
         },
+        text_file: text_file(rom.code()).to_string(),
         texts: texts.len(),
         unknown_script_ops: unknown_ops,
         files: o.files.clone(),
@@ -405,7 +589,9 @@ fn font_png(f: &font::Font) -> Result<Vec<u8>> {
     enc.set_color(png::ColorType::Indexed);
     enc.set_depth(png::BitDepth::Two);
     enc.set_palette(FONT_PALETTE.concat());
-    enc.write_header()?.write_image_data(&data)?;
+    let mut writer = enc.write_header()?;
+    writer.write_image_data(&data)?;
+    writer.finish()?;
     Ok(buf)
 }
 
@@ -475,5 +661,92 @@ mod tests {
         assert!(s.find("\"a\"") < s.find("\"b\""));
         let back: BTreeMap<String, Vec<u16>> = ron::from_str(&s).unwrap();
         assert_eq!(back, v);
+    }
+
+    #[test]
+    fn text_to_ron_is_readable_and_round_trips() {
+        let texts: BTreeMap<String, String> = [
+            ("A.1", r"MAMAN: C'est {PLAYER}!\pÇa va?\nOui."),
+            ("A.2", r#"“Hé” et "guillemets" {0x1F}\l"#),
+            ("A.3", r##"Déjà "# vu\"##),
+            ("A.4", ""),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let s = text_to_ron(&texts);
+        assert!(
+            s.contains(r#""A.1": r"MAMAN: C'est {PLAYER}!\pÇa va?\nOui.","#),
+            "{s}"
+        );
+        assert!(s.contains(r###"r##"Déjà "# vu\"##"###), "{s}");
+        let back: BTreeMap<String, String> = ron::from_str(&s).unwrap();
+        assert_eq!(back, texts);
+    }
+
+    #[test]
+    fn rows_are_one_line_each_and_round_trip() {
+        let layout = LayoutFile {
+            offset: 1,
+            width: 3,
+            height: 2,
+            border: to_rows(&[1, 2, 3, 4], 2),
+            blocks: to_rows(&[10, 11, 12, 20, 21, 22], 3),
+            primary_tileset: 2,
+            secondary_tileset: 3,
+        };
+        let s = to_ron(&layout).unwrap();
+        assert!(
+            s.contains("        (10, 11, 12),\n        (20, 21, 22),\n"),
+            "{s}"
+        );
+        let back: LayoutFile = ron::from_str(&s).unwrap();
+        assert_eq!(back, layout);
+    }
+
+    #[test]
+    fn map_file_rebuilds_the_header() {
+        let header = MapHeader {
+            offset: 0x100,
+            layout: MapLayout {
+                offset: 0x200,
+                width: 3,
+                height: 2,
+                border: vec![1, 2, 3, 4],
+                blocks: vec![10, 11, 12, 20, 21, 22],
+                primary_tileset: 0x300,
+                secondary_tileset: 0x318,
+            },
+            events: MapEvents {
+                objects: vec![],
+                warps: vec![],
+                coords: vec![],
+                bgs: vec![],
+            },
+            map_scripts: Some(0x400),
+            connections: vec![],
+            music: 405,
+            layout_id: 10,
+            region_map_section: 1,
+            cave: 0,
+            weather: 2,
+            map_type: 1,
+            allow_cycling: true,
+            allow_escaping: false,
+            allow_running: true,
+            show_map_name: true,
+            battle_type: 0,
+        };
+        let scripts = MapScripts {
+            roots: vec![],
+            texts: vec![],
+            movements: vec![],
+            braille: vec![],
+            unknown: BTreeMap::new(),
+        };
+        let mut file = MapFile::new("M", LITTLEROOT, header.clone(), scripts);
+        assert_eq!(file.to_header().unwrap(), header);
+        file.layout.blocks[1].0.pop();
+        assert!(file.to_header().is_err());
     }
 }

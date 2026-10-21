@@ -105,11 +105,21 @@ fn extract(args: &[String]) -> Result<()> {
         _ => bail!("usage: cargo xtask extract [--rom <path>]"),
     };
     let rom = extract::Rom::open(&rom_path)?;
+    // Export next to the output and swap it in only on success, keeping the last good export.
     let out = root().join("content/extracted");
-    if out.exists() {
-        std::fs::remove_dir_all(&out).with_context(|| format!("clearing {}", out.display()))?;
-    }
-    let m = extract::export::export(&rom, &out)?;
+    let tmp = root().join("content/.extracted.tmp");
+    let clear = |dir: &Path| -> Result<()> {
+        if dir.exists() {
+            std::fs::remove_dir_all(dir).with_context(|| format!("clearing {}", dir.display()))?;
+        }
+        Ok(())
+    };
+    clear(&tmp)?;
+    let m = extract::export::export(&rom, &tmp)
+        .with_context(|| format!("exporting to {}", tmp.display()))?;
+    clear(&out)?;
+    std::fs::rename(&tmp, &out)
+        .with_context(|| format!("renaming {} to {}", tmp.display(), out.display()))?;
     println!(
         "ROM: {} ({}, sha1 {})",
         rom_path.display(),
@@ -126,7 +136,7 @@ fn extract(args: &[String]) -> Result<()> {
     if !m.skipped_graphics_ids.is_empty() {
         println!("skipped graphics ids: {:?}", m.skipped_graphics_ids);
     }
-    println!("texts: {}", m.texts);
+    println!("texts: {} ({})", m.texts, m.text_file);
     for (map, ops) in &m.unknown_script_ops {
         println!(
             "warning: {map}: {} undecoded script instructions",
