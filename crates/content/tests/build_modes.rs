@@ -9,6 +9,9 @@
 #[path = "../build/battle.rs"]
 mod battle;
 #[allow(dead_code)]
+#[path = "../build/battle_load.rs"]
+mod battle_load;
+#[allow(dead_code)]
 #[path = "../build/classify.rs"]
 mod classify;
 #[allow(dead_code)]

@@ -161,6 +161,11 @@ fn idents_with_a_prefix() {
     let src = "trainer_battle(TRAINER_MAY_ROUTE_103_MUDKIP, x); XTRAINER_NO TRAINER_RICK)";
     let found: Vec<_> = idents_with_prefix(src, "TRAINER_").into_iter().collect();
     assert_eq!(found, ["TRAINER_MAY_ROUTE_103_MUDKIP", "TRAINER_RICK"]);
+    let src = "f(TRAINER_A); // TRAINER_B\n// TRAINER_C\ng(TRAINER_D)";
+    let found: Vec<_> = idents_with_prefix(&without_line_comments(src), "TRAINER_")
+        .into_iter()
+        .collect();
+    assert_eq!(found, ["TRAINER_A", "TRAINER_D"]);
 }
 
 #[test]

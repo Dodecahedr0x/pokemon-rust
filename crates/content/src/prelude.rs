@@ -92,20 +92,24 @@ pub async fn callstd(ctx: &Ctx, std: u8) {
 ///   battle (`battle_controllers.c`: Zigzagoon, level 2).
 /// - `HealPlayerParty`: heals the party.
 /// - `PlayerFaceTrainerAfterBattle`: cosmetic (the player turns to the trainer), only logged.
-#[allow(non_upper_case_globals)]
 pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     ctx.log(name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?"))
         .await;
+    // Guards, not patterns: a mistyped constant would silently become a catch-all binding.
     match id {
-        SPECIAL_ChooseStarter => {
+        id if id == SPECIAL_ChooseStarter => {
             let starters = crate::battle::STARTERS;
             let i = ctx.choose_starter(starters).await;
+            debug_assert!(i < 3, "starter index {i}");
+            // `CB2_GiveStarter` stores the raw choice; `GetStarterPokemon` maps an out-of-range
+            // one to the first starter.
             ctx.set_var(VAR_STARTER_MON, i.into()).await;
-            ctx.give_mon(starters[usize::from(i) % 3], 5).await;
+            let species = starters.get(usize::from(i)).unwrap_or(&starters[0]);
+            ctx.give_mon(*species, 5).await;
             let (foe, level) = crate::battle::FIRST_BATTLE_FOE;
             ctx.battle_wild(foe, level, true).await;
         }
-        SPECIAL_HealPlayerParty => ctx.heal_party().await,
+        id if id == SPECIAL_HealPlayerParty => ctx.heal_party().await,
         _ => {}
     }
     0
@@ -178,8 +182,9 @@ impl TrainerBattle {
 /// message (left open: the battle transition starts over it, as in Gen3), the battle, and true
 /// (`gotobeatenscript`: `releaseall` for a single battle; a continue script jumps to its label).
 /// Without (`EventScript_DoNoIntroTrainerBattle`): the battle, then true. The trainer flag is
-/// set unless the battle was lost (Gen3 `SetBattledTrainersFlags`); the reveal movement and the
-/// trainer music are not modelled.
+/// set unless the player was defeated (`CB2_EndTrainerBattle`: `IsPlayerDefeated` is true for
+/// `B_OUTCOME_LOST` and `B_OUTCOME_DREW`, which white out; otherwise
+/// `SetBattledTrainersFlags`); the reveal movement and the trainer music are not modelled.
 pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
     let flag = trainer_flag(b.trainer);
     if let Some(intro) = b.intro {
@@ -193,7 +198,7 @@ pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
         ctx.wait_button().await;
     }
     let outcome = ctx.battle_trainer(b.trainer, b.defeat).await;
-    if outcome != BattleOutcome::Lost {
+    if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
         ctx.set_flag(flag, true).await;
     }
     if b.release {

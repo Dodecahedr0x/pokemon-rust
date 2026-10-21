@@ -6,6 +6,7 @@
 //! missing dir to force the stub).
 
 mod battle;
+mod battle_load;
 mod classify;
 mod codegen;
 #[allow(dead_code)]

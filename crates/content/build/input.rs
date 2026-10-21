@@ -235,7 +235,7 @@ pub fn load(dir: &Path) -> Result<World> {
                 sources.push(std::fs::read_to_string(&p).with_context(|| p.display().to_string())?);
             }
         }
-        crate::battle::load(dir, &sources).context("battle data")?
+        crate::battle_load::load(dir, &sources).context("battle data")?
     } else {
         crate::stub::battle()
     };

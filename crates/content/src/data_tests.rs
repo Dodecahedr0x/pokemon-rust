@@ -471,7 +471,7 @@ mod extracted {
     use super::*;
 
     /// The French ROM, when `PKR_ROM_FR` is set and the data was extracted from it.
-    fn source_rom() -> Option<extract::Rom> {
+    pub(super) fn source_rom() -> Option<extract::Rom> {
         std::env::var_os("PKR_ROM_FR")?;
         let rom = extract::fixtures::fr();
         if rom.sha1_hex() != data::SOURCE_SHA1 {

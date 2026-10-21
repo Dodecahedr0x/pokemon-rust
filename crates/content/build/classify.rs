@@ -198,6 +198,15 @@ pub fn idents_with_prefix(src: &str, prefix: &str) -> BTreeSet<String> {
     out
 }
 
+/// `src` without its `//` line comments (generated scripts have no string literal holding
+/// `//`), so names quoted in comments are not taken for references.
+pub fn without_line_comments(src: &str) -> String {
+    src.lines()
+        .map(|l| l.split_once("//").map_or(l, |(code, _)| code))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 // ---- battle (Milestone 4) ----
 
 /// `TYPE_*` name -> `engine::mon::Type` expression.
@@ -415,6 +424,10 @@ pub const STRS: &[(&str, StrSrc)] = {
             Key("STRINGID_NORUNNINGFROMTRAINERS"),
         ),
         ("DontLeaveBirch", Key("STRINGID_DONTLEAVEBIRCH")),
+        // `sText_WildPkmnFled` carries the wild tag after `{B_BUFF1}` itself: Gen3
+        // `HandleEndTurn_MonFled` fills buffer 1 with `PREPARE_MON_NICK_BUFFER` (the nickname
+        // alone, `B_BUFF_MON_NICK`), not the `_WITH_PREFIX` form. The engine must likewise send
+        // `Buff::MonNick`; `Buff::Mon` would print the tag twice.
         ("WildPkmnFled", Key("STRINGID_WILDPKMNFLED")),
         (
             "PlayerDefeatedTrainer",

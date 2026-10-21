@@ -51,13 +51,15 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
     assert_eq!(h.log.len(), 4);
     assert_eq!(h.vars[&consts::VAR_RESULT.0], 0);
 
-    // Lost: the flag stays clear.
-    let mut h = Host {
-        outcome: Some(BattleOutcome::Lost),
-        ..Host::default()
-    };
-    fought(b, &mut h);
-    assert!(h.flags.is_empty());
+    // Defeated (`IsPlayerDefeated`: lost or drew): the flag stays clear.
+    for outcome in [BattleOutcome::Lost, BattleOutcome::Drew] {
+        let mut h = Host {
+            outcome: Some(outcome),
+            ..Host::default()
+        };
+        fought(b, &mut h);
+        assert!(h.flags.is_empty(), "{outcome:?}");
+    }
 }
 
 #[test]
@@ -174,6 +176,7 @@ fn the_two_starts() {
         FLAG_RESCUED_BIRCH,
         FLAG_HIDE_ROUTE_101_BIRCH_ZIGZAGOON_BATTLE,
         FLAG_HIDE_ROUTE_101_BIRCH_STARTERS_BAG,
+        FLAG_HIDE_ROUTE_101_ZIGZAGOON,
         FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_RIVAL_BEDROOM,
     ] {
         assert!(!h.flags.contains(&f.0), "{f:?}");
@@ -189,6 +192,7 @@ fn the_two_starts() {
         })
     );
     assert!(h.flags.contains(&FLAG_SYS_POKEMON_GET.0));
+    assert!(h.flags.contains(&FLAG_HIDE_ROUTE_101_ZIGZAGOON.0));
     assert!(
         !h.flags
             .contains(&FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH.0)
@@ -451,6 +455,26 @@ mod extracted {
         assert_eq!(g.small_font.glyphs.len(), g.small_font.widths.len());
         assert!(g.small_font.glyphs[0x105].iter().any(|&b| b != 0));
         assert_eq!(g.player_back.tiles.len(), 4 * 64);
+    }
+
+    /// The textbox's text palettes are the ROM's `gBattleWindowTextPalette` (LZ77) and
+    /// `gPPTextPalette` (raw), as located by `extract::battle_gfx`.
+    #[test]
+    fn textbox_text_palettes_round_trip_to_the_rom() {
+        let Some(rom) = super::super::extracted::source_rom() else {
+            return;
+        };
+        let l = extract::battle_gfx::locate(&rom).unwrap();
+        let [text, pp] = l.text_palettes;
+        let pal = |b: &[u8]| -> [u16; 16] {
+            core::array::from_fn(|i| u16::from_le_bytes([b[2 * i], b[2 * i + 1]]))
+        };
+        let g = Emerald.battle_gfx();
+        assert_eq!(
+            g.textbox.palettes[2],
+            pal(&rom.lz77_at(text).unwrap()[..32])
+        );
+        assert_eq!(g.textbox.palettes[3], pal(rom.slice(pp, 32).unwrap()));
     }
 
     /// The pics come from the ROM: Mudkip's front pic is the decompressed ROM pic.
