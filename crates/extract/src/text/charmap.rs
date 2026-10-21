@@ -1,8 +1,11 @@
 //! Generated once from pokeemerald `charmap.txt` by a throwaway script; do not edit by hand.
 //! Where several names share bytes, decoding prefers the one used most in `data/maps/*/scripts.inc`.
+//! `CHARS`, `ESCAPES` and `CONSTANTS` are checked entry by entry against `$PKR_DECOMP/charmap.txt`
+//! by `generated_charmap_matches_decomp_charmap_txt` in `tests/text.rs`; the apostrophe appears as
+//! both `’` and `'` (both 0xB4), because the charmap defines `'\''` too.
 
 /// Every character literal of the charmap (Western and Japanese), for encoding.
-pub(super) const CHARS: &[(char, u8)] = &[
+pub const CHARS: &[(char, u8)] = &[
     (' ', 0x00),
     ('À', 0x01),
     ('Á', 0x02),
@@ -315,10 +318,10 @@ pub(super) const CHARS: &[(char, u8)] = &[
 ];
 
 /// Backslash escapes (`\n`, `\l`, `\p`).
-pub(super) const ESCAPES: &[(char, u8)] = &[('l', 0xFA), ('p', 0xFB), ('n', 0xFE)];
+pub const ESCAPES: &[(char, u8)] = &[('l', 0xFA), ('p', 0xFB), ('n', 0xFE)];
 
 /// Every named constant usable inside `{...}`, for encoding.
-pub(super) const CONSTANTS: &[(&str, &[u8])] = &[
+pub const CONSTANTS: &[(&str, &[u8])] = &[
     ("SUPER_ER", &[0x2C]),
     ("LV", &[0x34]),
     ("PK", &[0x53]),
@@ -1063,7 +1066,7 @@ pub(super) const CONSTANTS: &[(&str, &[u8])] = &[
 ];
 
 /// Preferred Western character for each byte, for decoding.
-pub(super) const DECODE_CHARS: [Option<char>; 256] = [
+pub const DECODE_CHARS: [Option<char>; 256] = [
     Some(' '),  // 0x00
     Some('À'),  // 0x01
     Some('Á'),  // 0x02
@@ -1323,7 +1326,7 @@ pub(super) const DECODE_CHARS: [Option<char>; 256] = [
 ];
 
 /// Argument-free symbols (placeholders, icons, composite codes), longest first, for decoding.
-pub(super) const SYMBOLS: &[(&[u8], &str)] = &[
+pub const SYMBOLS: &[(&[u8], &str)] = &[
     (&[0x55, 0x56, 0x57, 0x58, 0x59], "POKEBLOCK"),
     (&[0xFC, 0x0C, 0xFB], "TALL_PLUS"),
     (&[0xFC, 0x06, 0x00], "FONT_SMALL"),
@@ -1491,7 +1494,7 @@ pub(super) const SYMBOLS: &[(&[u8], &str)] = &[
 ];
 
 /// Text color names by index, for `COLOR`-style arguments.
-pub(super) const COLORS: [&str; 16] = [
+pub const COLORS: [&str; 16] = [
     "TRANSPARENT",
     "WHITE",
     "DARK_GRAY",
@@ -1511,7 +1514,7 @@ pub(super) const COLORS: [&str; 16] = [
 ];
 
 /// Song and sound-effect names by id (sorted), for `PLAY_BGM` / `PLAY_SE` arguments.
-pub(super) const SOUNDS: &[(u16, &str)] = &[
+pub const SOUNDS: &[(u16, &str)] = &[
     (0x0000, "MUS_DUMMY"),
     (0x0001, "SE_USE_ITEM"),
     (0x0002, "SE_PC_LOGIN"),
