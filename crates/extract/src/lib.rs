@@ -9,6 +9,7 @@ pub mod lz77;
 pub mod maps;
 pub mod render;
 pub mod rom;
+pub mod schema;
 pub mod scripts;
 pub mod sprites;
 pub mod text;
