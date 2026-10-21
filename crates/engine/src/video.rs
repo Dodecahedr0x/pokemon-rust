@@ -54,10 +54,11 @@ pub mod layout {
         // BG palettes: 0..2 textbox (gBattleTextboxPalette), 2..5 environment, 5 menu text
         // (text_pp.pal colors swapped in for PP), 15 windows on BG1.
         // OBJ tiles (1D, 1024): enemy pic 0, player pic 64, opponent trainer 128, player trainer
-        // back 192, player healthbox 256 (2x 64x32 = 64), enemy healthbox 320, HP bars 384
-        // (2x 32x8), ball 400 (16x16), anim 448..512; 512.. free (transition, starter screen).
-        // OBJ palettes: 0 enemy mon, 1 player mon, 2 trainer, 3 player back, 4 healthbox,
-        // 5 HP bar, 6 ball, 7..9 anim tints.
+        // back 192, player healthbox 256..384 (2x 64x64 = 128: its exp bar row is below 32 px),
+        // enemy healthbox 384..448 (2x 64x32), HP bars 448 / 456 (8 tiles each), ball 464
+        // (16x16), anim 468..512; 512.. free (transition, starter screen). See `battle::gfx::obj`.
+        // OBJ palettes: 0 enemy mon, 1 player mon, 2 trainer, 3 player back, 4 player healthbox,
+        // 5 HP bar, 6 ball, 7 enemy healthbox, 8..10 anim tints.
         pub const OBJ_PRIORITY_MON: u8 = 2;
         pub const OBJ_PRIORITY_BOX: u8 = 1;
     }
