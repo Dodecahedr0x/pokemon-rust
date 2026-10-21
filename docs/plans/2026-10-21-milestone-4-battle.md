@@ -525,7 +525,7 @@ Gen3 references: `battle_main.c` (`GetWhoStrikesFirst`, `SetActionsAndBattlersTu
 4. **`MsgWait`:** follow the `waitmessage` argument of the matching battle script (`B_WAIT_TIME_LONG` = 64 by default); prompts and the end-of-battle texts use `Button`.
 5. **Tests**, golden and hand-computed:
    - **Damage:** Mudkip L5 Atk 13 Tackle vs Zigzagoon L2 Def 6 → base 8. Rolls r=0 → 8, r=15 → 6. Crit → 16 / 13.
-   - **STAB + super effective:** Torchic L5 (SpA 13: base 70, IV 31, Hardy) Ember vs Wurmple L3 (SpD 7: IV 0) → base 7, STAB → 10, ×2 → 20, rolls → 20 / 17.
+   - **STAB + super effective:** Torchic L5 (SpA 13: base 70, IV 31, Hardy) Ember vs Wurmple L3 (SpD 7: base 30, IV 7) → base 7, STAB → 10, ×2 → 20, rolls → 20 / 17.
    - **Stages:** Growl −1 on the attacker (Atk 13 → 13×10/15 = 8) changes base damage as computed by hand. Crit with a −1 attacker uses the raw stat.
    - **Effectiveness rounding:** a dual-type defender where entry order changes the result (pick a pair from the chart and compute both orders).
    - **Exp:** wild Zigzagoon L2 → 17; trainer Poochyena L5 → 39 → 58.
