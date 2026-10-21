@@ -1,0 +1,294 @@
+//! Everything the generator needs, in memory: read from `content/extracted/` ([`load`]) or
+//! built in ([`crate::stub`]). [`write`] does the reverse of [`load`] (for test fixtures).
+
+use anyhow::{Context, Result, ensure};
+use extract::export::{read_map, read_ron, read_tileset, to_ron};
+use extract::gfx::{self, IndexedImage, Palette};
+use extract::schema::{
+    FORMAT_VERSION, FontFile, Manifest, MapFile, ScriptIndex, SpriteFile, TextFile, TilesetFile,
+    WindowFile,
+};
+use extract::text::{Lang, encode_lang};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+pub type Tile = [u32; 8];
+/// `.latfont` glyph: 4 tiles (TL, TR, BL, BR) of 8 little-endian u16 rows, leftmost pixel in
+/// bits 15-14.
+pub type Glyph = [u8; 64];
+
+pub struct TilesetIn {
+    pub file: TilesetFile,
+    pub tiles: Vec<Tile>,
+}
+
+pub struct SpriteIn {
+    pub file: SpriteFile,
+    /// Each frame's tiles in GBA 1D OBJ order.
+    pub frames: Vec<Vec<Tile>>,
+}
+
+pub struct World {
+    pub lang: Lang,
+    /// In export order (`manifest.maps`).
+    pub maps: Vec<MapFile>,
+    pub tilesets: Vec<TilesetIn>,
+    pub sprites: Vec<SpriteIn>,
+    pub glyphs: Vec<Glyph>,
+    pub widths: Vec<u8>,
+    pub window: WindowFile,
+    pub window_tiles: Vec<Tile>,
+    /// Text name -> Gen3 bytes, 0xFF-terminated.
+    pub texts: BTreeMap<String, Vec<u8>>,
+    /// `scripts/index.ron`, when scripts were generated.
+    pub index: Option<ScriptIndex>,
+    /// Absolute extracted dir (`None` for the built-in stub).
+    pub dir: Option<PathBuf>,
+}
+
+pub fn lang(code: &str) -> Result<Lang> {
+    Ok(match code {
+        "fr" => Lang::Fr,
+        "en" => Lang::En,
+        _ => anyhow::bail!("unknown language {code:?}"),
+    })
+}
+
+pub fn tiles_of(img: &IndexedImage) -> Result<Vec<Tile>> {
+    let bytes = gfx::image_to_tiles_4bpp(img)?;
+    Ok(bytes
+        .chunks_exact(32)
+        .map(|t| {
+            core::array::from_fn(|r| u32::from_le_bytes(t[r * 4..r * 4 + 4].try_into().unwrap()))
+        })
+        .collect())
+}
+
+fn image_of(tiles: &[Tile], tiles_per_row: u32) -> Result<IndexedImage> {
+    let bytes: Vec<u8> = tiles
+        .iter()
+        .flatten()
+        .flat_map(|r| r.to_le_bytes())
+        .collect();
+    gfx::tiles_4bpp_to_image(&bytes, tiles_per_row)
+}
+
+fn crop(img: &IndexedImage, x: u32, y: u32, w: u32, h: u32) -> Result<IndexedImage> {
+    ensure!(
+        x + w <= img.width && y + h <= img.height,
+        "crop out of bounds"
+    );
+    let mut pixels = Vec::with_capacity((w * h) as usize);
+    for row in y..y + h {
+        let s = (row * img.width + x) as usize;
+        pixels.extend_from_slice(&img.pixels[s..s + w as usize]);
+    }
+    Ok(IndexedImage {
+        width: w,
+        height: h,
+        pixels,
+    })
+}
+
+const GLYPH: u32 = 16;
+
+fn glyph_of(img: &IndexedImage, i: u32, per_row: u32) -> Glyph {
+    let (ox, oy) = (i % per_row * GLYPH, i / per_row * GLYPH);
+    let mut g = [0u8; 64];
+    for tile in 0..4u32 {
+        for y in 0..8u32 {
+            let mut v = 0u16;
+            for x in 0..8u32 {
+                let (px, py) = (ox + (tile & 1) * 8 + x, oy + (tile >> 1) * 8 + y);
+                let p = img.pixels[(py * img.width + px) as usize] & 3;
+                v |= u16::from(p) << (14 - 2 * x);
+            }
+            let at = ((tile * 8 + y) * 2) as usize;
+            g[at..at + 2].copy_from_slice(&v.to_le_bytes());
+        }
+    }
+    g
+}
+
+fn glyph_pixels(g: &Glyph, img: &mut IndexedImage, i: u32, per_row: u32) {
+    let (ox, oy) = (i % per_row * GLYPH, i / per_row * GLYPH);
+    for tile in 0..4u32 {
+        for y in 0..8u32 {
+            let at = ((tile * 8 + y) * 2) as usize;
+            let v = u16::from_le_bytes([g[at], g[at + 1]]);
+            for x in 0..8u32 {
+                let (px, py) = (ox + (tile & 1) * 8 + x, oy + (tile >> 1) * 8 + y);
+                img.pixels[(py * img.width + px) as usize] = ((v >> (14 - 2 * x)) & 3) as u8;
+            }
+        }
+    }
+}
+
+/// Reads an extracted dir written by `cargo xtask extract` (plus Task B's scripts and texts
+/// when present).
+pub fn load(dir: &Path) -> Result<World> {
+    let manifest: Manifest = read_ron(&dir.join("manifest.ron"))?;
+    ensure!(
+        manifest.format == FORMAT_VERSION,
+        "{}: format v{}, expected v{FORMAT_VERSION}; run `cargo xtask extract` again",
+        dir.display(),
+        manifest.format
+    );
+    let lang = lang(&manifest.language)?;
+    let maps = manifest
+        .maps
+        .iter()
+        .map(|m| read_map(dir, m))
+        .collect::<Result<Vec<_>>>()?;
+    let mut tilesets = Vec::new();
+    for name in &manifest.tilesets {
+        let file = read_tileset(dir, name)?;
+        let img = gfx::read_png_indexed(&dir.join(format!("tilesets/{name}.png")))?;
+        let mut tiles = tiles_of(&img).with_context(|| format!("tileset {name}"))?;
+        ensure!(
+            tiles.len() >= file.tile_count as usize,
+            "tileset {name}: {} tiles in png, {} in ron",
+            tiles.len(),
+            file.tile_count
+        );
+        tiles.truncate(file.tile_count as usize);
+        tilesets.push(TilesetIn { file, tiles });
+    }
+    let mut sprites = Vec::new();
+    for name in &manifest.sprites {
+        let file: SpriteFile = read_ron(&dir.join(format!("sprites/{name}.ron")))?;
+        let img = gfx::read_png_indexed(&dir.join(format!("sprites/{name}.png")))?;
+        let frames = file
+            .frame_sizes
+            .iter()
+            .enumerate()
+            .map(|(k, &(w, h))| {
+                let x = k as u32 * u32::from(file.cell_width);
+                tiles_of(&crop(&img, x, 0, w.into(), h.into())?)
+            })
+            .collect::<Result<Vec<_>>>()
+            .with_context(|| format!("sprite {name}"))?;
+        sprites.push(SpriteIn { file, frames });
+    }
+    let font: FontFile = read_ron(&dir.join("font/latin_normal.ron"))?;
+    let img = gfx::read_png_indexed(&dir.join("font/latin_normal.png"))?;
+    let glyphs = (0..u32::from(font.glyphs))
+        .map(|i| glyph_of(&img, i, font.glyphs_per_row.into()))
+        .collect();
+    let window: WindowFile = read_ron(&dir.join("window/message_box.ron"))?;
+    let img = gfx::read_png_indexed(&dir.join("window/message_box.png"))?;
+    let mut window_tiles = tiles_of(&img)?;
+    window_tiles.truncate(window.tile_count as usize);
+
+    let text_path = dir.join(format!("text/{}.ron", lang.code()));
+    let mut texts = BTreeMap::new();
+    if text_path.exists() {
+        let file: TextFile = read_ron(&text_path)?;
+        for (k, v) in file {
+            let bytes = encode_lang(&v, lang).with_context(|| format!("text {k}"))?;
+            texts.insert(k, bytes);
+        }
+    }
+    let index_path = dir.join("scripts/index.ron");
+    let index = if index_path.exists() {
+        Some(read_ron(&index_path)?)
+    } else {
+        None
+    };
+    Ok(World {
+        lang,
+        maps,
+        tilesets,
+        sprites,
+        glyphs,
+        widths: font.widths,
+        window,
+        window_tiles,
+        texts,
+        index,
+        dir: Some(dir.to_path_buf()),
+    })
+}
+
+/// Writes `w` as an extracted dir that [`load`] reads back (maps, tilesets, sprites, font,
+/// window, manifest; not texts or scripts). Used to build test fixtures.
+pub fn write(w: &World, dir: &Path) -> Result<()> {
+    let put = |rel: &str, s: String| -> Result<()> {
+        let p = dir.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap())?;
+        std::fs::write(&p, s).with_context(|| format!("writing {}", p.display()))
+    };
+    let pal = Palette([0; 16]);
+    let png = |rel: &str, img: &IndexedImage| -> Result<()> {
+        let p = dir.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap())?;
+        gfx::write_png_indexed(&p, img, &pal)
+    };
+    for m in &w.maps {
+        put(&format!("maps/{}.ron", m.name), to_ron(m)?)?;
+    }
+    for t in &w.tilesets {
+        put(&format!("tilesets/{}.ron", t.file.name), to_ron(&t.file)?)?;
+        png(
+            &format!("tilesets/{}.png", t.file.name),
+            &image_of(&t.tiles, 16)?,
+        )?;
+    }
+    for s in &w.sprites {
+        put(&format!("sprites/{}.ron", s.file.name), to_ron(&s.file)?)?;
+        let (cw, ch) = (u32::from(s.file.cell_width), u32::from(s.file.cell_height));
+        let mut sheet = IndexedImage {
+            width: cw * s.frames.len() as u32,
+            height: ch,
+            pixels: vec![0; (cw * ch) as usize * s.frames.len()],
+        };
+        for (k, (f, &(fw, fh))) in s.frames.iter().zip(&s.file.frame_sizes).enumerate() {
+            let img = image_of(f, u32::from(fw) / 8)?;
+            for y in 0..u32::from(fh) {
+                let src = (y * img.width) as usize;
+                let dst = (y * sheet.width + k as u32 * cw) as usize;
+                sheet.pixels[dst..dst + fw as usize]
+                    .copy_from_slice(&img.pixels[src..src + fw as usize]);
+            }
+        }
+        png(&format!("sprites/{}.png", s.file.name), &sheet)?;
+    }
+    let per_row = 16u32;
+    let rows = (w.glyphs.len() as u32).div_ceil(per_row);
+    let mut font = IndexedImage {
+        width: per_row * GLYPH,
+        height: rows * GLYPH,
+        pixels: vec![0; (per_row * GLYPH * rows * GLYPH) as usize],
+    };
+    for (i, g) in w.glyphs.iter().enumerate() {
+        glyph_pixels(g, &mut font, i as u32, per_row);
+    }
+    png("font/latin_normal.png", &font)?;
+    put(
+        "font/latin_normal.ron",
+        to_ron(&FontFile {
+            glyphs: w.glyphs.len() as u16,
+            glyphs_per_row: per_row as u16,
+            widths: w.widths.clone(),
+        })?,
+    )?;
+    png(
+        "window/message_box.png",
+        &image_of(&w.window_tiles, w.window_tiles.len() as u32)?,
+    )?;
+    put("window/message_box.ron", to_ron(&w.window)?)?;
+    let manifest = Manifest {
+        format: FORMAT_VERSION,
+        game_code: "BPEF".into(),
+        sha1: "fixture".into(),
+        language: w.lang.code().into(),
+        maps: w.maps.iter().map(|m| m.name.clone()).collect(),
+        tilesets: w.tilesets.iter().map(|t| t.file.name.clone()).collect(),
+        sprites: w.sprites.iter().map(|s| s.file.name.clone()).collect(),
+        provenance: BTreeMap::new(),
+        skipped_graphics: Default::default(),
+        unknown_script_ops: BTreeMap::new(),
+        files: BTreeMap::new(),
+    };
+    put("manifest.ron", to_ron(&manifest)?)
+}
