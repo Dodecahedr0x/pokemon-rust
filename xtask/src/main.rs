@@ -97,11 +97,67 @@ fn parity() -> Result<()> {
     ]))
 }
 
+/// Reads the user's ROM into content/extracted/ (cleared first so no stale files remain).
+fn extract(args: &[String]) -> Result<()> {
+    let rom_path = match args {
+        [] => root().join("rom/emeraude-fr.gba"),
+        [flag, path] if flag == "--rom" => PathBuf::from(path),
+        _ => bail!("usage: cargo xtask extract [--rom <path>]"),
+    };
+    let rom = extract::Rom::open(&rom_path)?;
+    // Export next to the output and swap it in only on success, keeping the last good export.
+    let out = root().join("content/extracted");
+    let tmp = root().join("content/.extracted.tmp");
+    let clear = |dir: &Path| -> Result<()> {
+        if dir.exists() {
+            std::fs::remove_dir_all(dir).with_context(|| format!("clearing {}", dir.display()))?;
+        }
+        Ok(())
+    };
+    clear(&tmp)?;
+    let m = extract::export::export(&rom, &tmp)
+        .with_context(|| format!("exporting to {}", tmp.display()))?;
+    clear(&out)?;
+    std::fs::rename(&tmp, &out)
+        .with_context(|| format!("renaming {} to {}", tmp.display(), out.display()))?;
+    println!(
+        "ROM: {} ({}, sha1 {})",
+        rom_path.display(),
+        m.game_code,
+        m.sha1
+    );
+    println!(
+        "maps: {}",
+        m.maps.keys().cloned().collect::<Vec<_>>().join(", ")
+    );
+    println!("tilesets: {}", m.tilesets.len());
+    let ids: Vec<String> = m.sprites.keys().map(u8::to_string).collect();
+    println!("sprites: {} (ids {})", ids.len(), ids.join(", "));
+    if !m.skipped_graphics_ids.is_empty() {
+        println!("skipped graphics ids: {:?}", m.skipped_graphics_ids);
+    }
+    println!("texts: {} ({})", m.texts, m.text_file);
+    for (map, ops) in &m.unknown_script_ops {
+        println!(
+            "warning: {map}: {} undecoded script instructions",
+            ops.len()
+        );
+    }
+    println!(
+        "wrote {} files + manifest.ron to {}",
+        m.files.len(),
+        out.display()
+    );
+    Ok(())
+}
+
 fn main() -> Result<()> {
-    match std::env::args().nth(1).as_deref() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
         Some("rom") => rom().map(|_| ()),
         Some("parity") => parity(),
         Some("shot") => shot(),
-        _ => bail!("usage: cargo xtask <rom|parity|shot>"),
+        Some("extract") => extract(&args[1..]),
+        _ => bail!("usage: cargo xtask <rom|parity|shot|extract>"),
     }
 }
