@@ -1,6 +1,10 @@
-//! Dialogue text box on BG0: a Gen3 text printer (variable-width font, `\n`, `\l`, `\p`,
-//! placeholders, `{…}` control codes), the dialogue frame (Gen3 `DrawDialogueFrame`) and the
-//! yes/no menu.
+//! Dialogue text box on BG0: a text printer for Gen3-encoded text (variable-width font, `\n`,
+//! `\l`, `\p`, placeholders, `{…}` control codes), the dialogue frame (laid out as Gen3
+//! `DrawDialogueFrame`) and the yes/no menu.
+//!
+//! Rendering follows Gen3 (glyph shape, colors, positions, line scroll); timing is simplified:
+//! each drawn glyph costs `FRAMES_PER_CHAR` frames and control codes cost nothing, whereas Gen3
+//! "medium" spends about 5 frames per glyph and also charges for control codes.
 //!
 //! VRAM use (char block `layout::TEXT_CHAR_BLOCK`, screen block `SCREEN_BLOCKS[TEXT_BG]`):
 //! - tile 0: blank (cleared map entries show nothing),
@@ -21,13 +25,15 @@ use alloc::vec::Vec;
 
 /// A text window: its tilemap rectangle (in tiles) and its first canvas tile.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Only the `MSG_WINDOW` / `YES_NO_WINDOW` constants exist (fields are private, so `top >= 1`
+/// and the window fits the 32-column map).
 pub struct Window {
-    pub left: u8,
-    pub top: u8,
-    pub width: u8,
-    pub height: u8,
+    left: u8,
+    top: u8,
+    width: u8,
+    height: u8,
     /// First canvas tile in `TEXT_CHAR_BLOCK`.
-    pub base: u16,
+    base: u16,
 }
 
 /// Gen3 `sStandardTextBox_WindowTemplates[0]`: frame at tile rows 14..=19, two text lines.
@@ -51,7 +57,7 @@ pub const YES_NO_WINDOW: Window = Window {
 /// First tile of `WindowGfx::tiles` in `TEXT_CHAR_BLOCK` (at most `MAX_FRAME_TILES` are loaded).
 pub const FRAME_BASE: u16 = 1;
 pub const MAX_FRAME_TILES: usize = 31;
-/// Gen3 "medium" text speed.
+/// Frames per drawn glyph (our fixed speed; close to, not equal to, Gen3 "medium").
 pub const FRAMES_PER_CHAR: u8 = 4;
 /// Gen3 `sWindowVerticalScrollSpeeds[OPTIONS_TEXT_SPEED_MID]`, pixels per frame.
 pub const SCROLL_SPEED: u8 = 2;
@@ -147,6 +153,36 @@ impl Colors {
     }
 }
 
+/// Text colors plus a byte -> half-row lookup like Gen3 `sFontHalfRowLookupTable`: one font
+/// byte (4 pixels of 2bpp, leftmost in bits 7-6) -> 4 canvas nibbles (leftmost in the low one).
+struct Pen {
+    colors: Colors,
+    half: [u16; 256],
+}
+
+impl Pen {
+    fn new(colors: Colors) -> Self {
+        let map = [colors.bg, colors.fg, colors.shadow, colors.bg].map(|c| c as u16 & 0xF);
+        let mut half = [0u16; 256];
+        for (b, h) in half.iter_mut().enumerate() {
+            for i in 0..4 {
+                *h |= map[(b >> (6 - 2 * i)) & 3] << (4 * i);
+            }
+        }
+        Self { colors, half }
+    }
+
+    /// 8 pixels of a glyph tile row (`.latfont` u16 as little-endian bytes) as a 4bpp row.
+    fn row(&self, lo: u8, hi: u8) -> u32 {
+        self.half[hi as usize] as u32 | (self.half[lo as usize] as u32) << 16
+    }
+}
+
+/// Mask of the first `n` (<= 8) pixels of a 4bpp row.
+const fn px_mask(n: usize) -> u32 {
+    if n >= 8 { u32::MAX } else { (1 << (4 * n)) - 1 }
+}
+
 const fn fill_word(c: u8) -> u32 {
     (c as u32 & 0xF) * 0x1111_1111
 }
@@ -220,26 +256,52 @@ impl Canvas {
 
     /// Draws glyph `id` with its top-left at (x, y) as Gen3 `CopyGlyphToWindow` does: `width`
     /// columns and 15 rows, 2bpp values 0/3 -> bg, 1 -> fg, 2 -> shadow. Returns the advance.
-    fn draw_glyph(&mut self, font: &Font, id: u16, x: i16, y: i16, colors: Colors) -> i16 {
+    /// Works on whole tile rows: each 8-pixel glyph half is shifted into two canvas words.
+    fn draw_glyph(&mut self, font: &Font, id: u16, x: i16, y: i16, pen: &Pen) -> i16 {
         let (Some(glyph), Some(&width)) =
             (font.glyphs.get(id as usize), font.widths.get(id as usize))
         else {
             return 0;
         };
-        let map = [colors.bg, colors.fg, colors.shadow, colors.bg];
-        for row in 0..GLYPH_HEIGHT as usize {
-            for col in 0..(width as usize).min(16) {
-                let off = ((row / 8) * 2 + col / 8) * 16 + (row % 8) * 2;
-                let bits = u16::from_le_bytes([glyph[off], glyph[off + 1]]);
-                let v = (bits >> (14 - 2 * (col % 8))) & 3;
-                self.set(x + col as i16, y + row as i16, map[v as usize]);
+        if x < 0 {
+            return width as i16;
+        }
+        let (x, w_tiles) = (x as usize, self.win.width as usize);
+        let width_px = (width as usize).min(16);
+        for row in 0..GLYPH_HEIGHT as i32 {
+            let cy = y as i32 + row;
+            if cy < 0 || cy >= self.h_px() as i32 {
+                continue;
+            }
+            let (cy, row) = (cy as usize, row as usize);
+            for half in 0..2 {
+                if width_px <= half * 8 {
+                    break;
+                }
+                let off = ((row / 8) * 2 + half) * 16 + (row % 8) * 2;
+                let word = pen.row(glyph[off], glyph[off + 1]) as u64;
+                let mask = px_mask(width_px - half * 8) as u64;
+                let px = x + half * 8;
+                let shift = (px % 8) * 4;
+                let (word, mask) = (word << shift, mask << shift);
+                for k in 0..2 {
+                    let tx = px / 8 + k;
+                    let m = (mask >> (32 * k)) as u32;
+                    if tx >= w_tiles || m == 0 {
+                        continue;
+                    }
+                    let t = (cy / 8) * w_tiles + tx;
+                    let r = &mut self.tiles[t][cy % 8];
+                    *r = (*r & !m) | ((word >> (32 * k)) as u32 & m);
+                    self.dirty[t] = true;
+                }
             }
         }
         width as i16
     }
 
     /// Draws one line of `text` (stops at 0xFF or `\n`), skipping control codes.
-    fn draw_line(&mut self, font: &Font, text: &[u8], mut x: i16, y: i16, colors: Colors) {
+    fn draw_line(&mut self, font: &Font, text: &[u8], mut x: i16, y: i16, pen: &Pen) {
         let mut i = 0;
         while let Some(&b) = text.get(i) {
             match b {
@@ -247,11 +309,11 @@ impl Canvas {
                 PROMPT_CLEAR | PROMPT_SCROLL => {}
                 EXTRA_SYMBOL => {
                     if let Some(&a) = text.get(i + 1) {
-                        x += self.draw_glyph(font, 0x100 | a as u16, x, y, colors);
+                        x = x.saturating_add(self.draw_glyph(font, 0x100 | a as u16, x, y, pen));
                     }
                 }
                 EXT_CTRL | PLACEHOLDER | DYNAMIC | KEYPAD_ICON => {}
-                c => x += self.draw_glyph(font, c as u16, x, y, colors),
+                c => x = x.saturating_add(self.draw_glyph(font, c as u16, x, y, pen)),
             }
             i += unit_len(text, i);
         }
@@ -268,14 +330,6 @@ impl Canvas {
             }
         }
     }
-
-    fn hash(&self, h: &mut Fnv64) {
-        for t in &self.tiles {
-            for &row in t {
-                h.write_u32(row);
-            }
-        }
-    }
 }
 
 const fn frame_entry(tile: u16, vflip: bool) -> u16 {
@@ -285,7 +339,12 @@ const fn frame_entry(tile: u16, vflip: bool) -> u16 {
 impl Window {
     /// Screen-block entry index of the first row returned by [`Window::frame_entries`].
     pub const fn frame_start(&self) -> u16 {
-        (self.top as u16 - 1) * MAP_SIZE as u16
+        self.top.saturating_sub(1) as u16 * MAP_SIZE as u16
+    }
+
+    /// First canvas tile in `TEXT_CHAR_BLOCK`.
+    pub const fn base(&self) -> u16 {
+        self.base
     }
 
     /// Map entries for tile rows `top - 1 ..= top + height` (32 per row): the dialogue frame as
@@ -323,7 +382,10 @@ impl Window {
         for y in 0..self.height as usize {
             for x in 0..self.width as usize {
                 let tile = self.base + (y * self.width as usize + x) as u16;
-                e[(y + 1) * MAP_SIZE + self.left as usize + x] = tile | pal;
+                let col = self.left as usize + x;
+                if col < MAP_SIZE {
+                    e[(y + 1) * MAP_SIZE + col] = tile | pal;
+                }
             }
         }
         e
@@ -377,7 +439,7 @@ pub struct TextBox {
     x: i16,
     y: i16,
     delay: u8,
-    colors: Colors,
+    pen: Pen,
     msg: Canvas,
     yes_no: Canvas,
     /// Cursor position (0 = yes) while the yes/no menu is shown.
@@ -402,7 +464,7 @@ impl TextBox {
             x: TEXT_X,
             y: TEXT_Y,
             delay: 0,
-            colors: Colors::default(),
+            pen: Pen::new(Colors::default()),
             msg: Canvas::new(MSG_WINDOW),
             yes_no: Canvas::new(YES_NO_WINDOW),
             yes_no_cursor: None,
@@ -460,10 +522,10 @@ impl TextBox {
     /// Enables BG0 and draws an empty dialogue window.
     pub fn open(&mut self, game: &impl GameData, f: &mut Frame) {
         let w = game.window();
-        self.colors = Colors::of(w);
+        self.pen = Pen::new(Colors::of(w));
         self.enable_bg(w, f);
         Self::put_frame(&MSG_WINDOW, f);
-        self.msg.fill(self.colors.bg);
+        self.msg.fill(self.pen.colors.bg);
         self.msg.flush(f);
         self.open = true;
         self.state = State::Idle;
@@ -480,8 +542,8 @@ impl TextBox {
         self.x = TEXT_X;
         self.y = TEXT_Y;
         self.delay = 0;
-        self.colors = Colors::of(game.window());
-        self.msg.fill(self.colors.bg);
+        self.pen = Pen::new(Colors::of(game.window()));
+        self.msg.fill(self.pen.colors.bg);
         self.msg.flush(f);
         self.state = State::Printing;
     }
@@ -535,11 +597,11 @@ impl TextBox {
             State::Scrolling(0) => self.state = State::Printing,
             State::Scrolling(n) => {
                 let s = n.min(SCROLL_SPEED);
-                self.msg.scroll_up(s as i16, self.colors.bg);
+                self.msg.scroll_up(s as i16, self.pen.colors.bg);
                 self.state = State::Scrolling(n - s);
             }
             State::WaitClear if press => {
-                self.msg.fill(self.colors.bg);
+                self.msg.fill(self.pen.colors.bg);
                 self.x = TEXT_X;
                 self.y = TEXT_Y;
                 self.state = State::Printing;
@@ -554,7 +616,8 @@ impl TextBox {
         b
     }
 
-    /// Consumes codes until a glyph is drawn or the state changes (Gen3 `RenderText`).
+    /// Consumes codes until a glyph is drawn or the state changes (modelled on Gen3 `RenderText`;
+    /// control codes take no frames here).
     fn step(&mut self, font: &Font) {
         while self.state == State::Printing {
             let b = self.next();
@@ -565,7 +628,7 @@ impl TextBox {
                 }
                 NEWLINE => {
                     self.x = TEXT_X;
-                    self.y += LINE_HEIGHT;
+                    self.y = self.y.saturating_add(LINE_HEIGHT);
                     continue;
                 }
                 PROMPT_SCROLL => {
@@ -587,9 +650,8 @@ impl TextBox {
                 },
                 c => c as u16,
             };
-            self.x += self
-                .msg
-                .draw_glyph(font, glyph, self.x, self.y, self.colors);
+            let w = self.msg.draw_glyph(font, glyph, self.x, self.y, &self.pen);
+            self.x = self.x.saturating_add(w);
             self.delay = FRAMES_PER_CHAR - 1;
             // The message is complete as soon as its last character is on screen.
             if self.text.get(self.pos).is_none_or(|&b| b == EOS) {
@@ -607,16 +669,17 @@ impl TextBox {
         let arg = |i: usize| self.text.get(at + i).copied().unwrap_or(0);
         let (a0, a1, a2) = (arg(0), arg(1), arg(2));
         self.pos += len as usize;
+        let c = self.pen.colors;
         match code {
-            EXT_COLOR => self.colors.fg = a0,
-            EXT_HIGHLIGHT => self.colors.bg = a0,
-            EXT_SHADOW => self.colors.shadow = a0,
+            EXT_COLOR => self.pen = Pen::new(Colors { fg: a0, ..c }),
+            EXT_HIGHLIGHT => self.pen = Pen::new(Colors { bg: a0, ..c }),
+            EXT_SHADOW => self.pen = Pen::new(Colors { shadow: a0, ..c }),
             EXT_COLOR_HIGHLIGHT_SHADOW => {
-                self.colors = Colors {
+                self.pen = Pen::new(Colors {
                     fg: a0,
                     bg: a1,
                     shadow: a2,
-                }
+                })
             }
             EXT_PAUSE => self.state = State::Pause(a0),
             EXT_PAUSE_UNTIL_PRESS => self.state = State::WaitPress,
@@ -634,34 +697,29 @@ impl TextBox {
     /// Shows the yes/no menu (Gen3 `DisplayYesNoMenuDefaultYes`), cursor on yes.
     pub fn start_yes_no(&mut self, game: &impl GameData, f: &mut Frame) {
         let w = game.window();
-        let colors = Colors::of(w);
+        let pen = Pen::new(Colors::of(w));
         self.enable_bg(w, f);
         Self::put_frame(&YES_NO_WINDOW, f);
         let font = game.font();
-        self.yes_no.fill(colors.bg);
-        self.yes_no.draw_line(
-            font,
-            game.ui_text(UiText::Yes),
-            YES_NO_TEXT_X,
-            TEXT_Y,
-            colors,
-        );
+        self.yes_no.fill(pen.colors.bg);
+        self.yes_no
+            .draw_line(font, game.ui_text(UiText::Yes), YES_NO_TEXT_X, TEXT_Y, &pen);
         self.yes_no.draw_line(
             font,
             game.ui_text(UiText::No),
             YES_NO_TEXT_X,
             TEXT_Y + LINE_HEIGHT,
-            colors,
+            &pen,
         );
         self.yes_no_cursor = Some(0);
         self.yes_no_result = None;
-        self.draw_cursor(font, colors, 0);
+        self.draw_cursor(font, &pen, 0);
         self.yes_no.flush(f);
     }
 
-    fn draw_cursor(&mut self, font: &Font, colors: Colors, pos: u8) {
+    fn draw_cursor(&mut self, font: &Font, pen: &Pen, pos: u8) {
         let y = TEXT_Y + pos as i16 * LINE_HEIGHT;
-        self.yes_no.draw_glyph(font, CHAR_CURSOR, 0, y, colors);
+        self.yes_no.draw_glyph(font, CHAR_CURSOR, 0, y, pen);
     }
 
     fn update_yes_no(&mut self, game: &impl GameData, pressed: Buttons, f: &mut Frame) {
@@ -681,10 +739,11 @@ impl TextBox {
                 cur
             };
             if to != cur {
-                let colors = Colors::of(game.window());
+                let pen = Pen::new(Colors::of(game.window()));
                 let y = TEXT_Y + cur as i16 * LINE_HEIGHT;
-                self.yes_no.fill_rect(0, y, CURSOR_W, CURSOR_H, colors.bg);
-                self.draw_cursor(game.font(), colors, to);
+                self.yes_no
+                    .fill_rect(0, y, CURSOR_W, CURSOR_H, pen.colors.bg);
+                self.draw_cursor(game.font(), &pen, to);
                 self.yes_no_cursor = Some(to);
             }
             None
@@ -742,9 +801,9 @@ impl TextBox {
             self.bg_on as u8,
             self.open as u8,
             self.delay,
-            self.colors.fg,
-            self.colors.shadow,
-            self.colors.bg,
+            self.pen.colors.fg,
+            self.pen.colors.shadow,
+            self.pen.colors.bg,
         ]);
         h.write(&self.state.tag());
         h.write_u32(self.pos as u32);
@@ -756,8 +815,7 @@ impl TextBox {
             self.yes_no_cursor.map_or(0xFF, |c| c),
             self.yes_no_result.map_or(0xFF, |r| r as u8),
         ]);
-        self.msg.hash(h);
-        self.yes_no.hash(h);
+        // The canvases are not hashed: they follow from the state above.
     }
 }
 

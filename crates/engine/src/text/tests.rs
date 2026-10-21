@@ -569,3 +569,87 @@ fn hash_tracks_state() {
     assert_eq!(h(&a), h(&b));
     assert_ne!(h(&TextBox::new()), h(&a));
 }
+
+/// `A` from `latin_normal.png` in ROM `.latfont` layout (the anchor in `extract/src/font.rs`).
+const ROM_A: [u8; 64] = [
+    0xf0, 0xff, 0xf0, 0xff, 0xf0, 0xff, 0xb0, 0xd5, 0x60, 0x6a, 0x60, 0x6f, 0x60, 0x6f, 0x60, 0x6f,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x60, 0x55, 0x60, 0x6a, 0x60, 0x6f, 0x60, 0x6f, 0xa0, 0xaf, 0xf0, 0xff, 0xf0, 0xff, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+#[test]
+fn rom_layout_glyph_pixels() {
+    let mut g = game();
+    let mut font = Font {
+        glyphs: g.font.glyphs,
+        widths: g.font.widths,
+    };
+    let mut glyphs = g.font.glyphs.to_vec();
+    glyphs[0xBB] = ROM_A;
+    let mut widths = g.font.widths.to_vec();
+    widths[0xBB] = 6;
+    font.glyphs = Box::leak(glyphs.into_boxed_slice());
+    font.widths = Box::leak(widths.into_boxed_slice());
+    g.font = Box::leak(Box::new(font));
+    // Drawn at x = 3 (after a 3 px glyph): not tile-aligned, so it straddles two tiles.
+    let mut tb = printing(&g, &[1, 0xBB, 0xFF]);
+    run_page(&mut tb, &g);
+    // Glyph row 3 = 0xD5B0: 2bpp 3,1,1,1,2,3,0,0 -> bg fg fg fg shadow bg (6 columns).
+    // Canvas row y = 1 + 3, pixels x = 3..9; glyph 1 left x = 0..3 untouched on this row.
+    let row: Vec<u8> = (3..11).map(|x| px(&tb.msg, x, 4)).collect();
+    assert_eq!(row, [BG, FG, FG, FG, SHADOW, BG, BG, BG]);
+    // Glyph row 4 = 0x6A60: 1,2,2,2,1,2.
+    let row: Vec<u8> = (3..9).map(|x| px(&tb.msg, x, 5)).collect();
+    assert_eq!(row, [FG, SHADOW, SHADOW, SHADOW, FG, SHADOW]);
+    // Glyph row 8 (bottom-left tile, row 0) = 0x5560: 1,1,1,1,1,2.
+    let row: Vec<u8> = (3..9).map(|x| px(&tb.msg, x, 9)).collect();
+    assert_eq!(row, [FG, FG, FG, FG, FG, SHADOW]);
+    // Whole canvas word for y = 4 in tile 0 (pixels 0..8): bg x3, then the glyph's first 5
+    // columns (bg fg fg fg shadow), leftmost pixel in the low nibble.
+    assert_eq!(tb.msg.tiles[0][4], 0x3222_1111);
+}
+
+#[test]
+fn full_two_line_page_skips_in_one_update() {
+    let g = game();
+    let mut text = vec![1u8; 72];
+    text.push(0xFE);
+    text.extend([1u8; 72]);
+    text.push(0xFF);
+    let mut tb = printing(&g, &text);
+    tick(&mut tb, &g, A);
+    assert!(!tb.is_printing());
+    assert_eq!(px(&tb.msg, 213, 17), FG);
+    assert_eq!(px(&tb.msg, 214, 17), SHADOW);
+}
+
+#[test]
+fn frame_entries_clip_and_guard() {
+    let w = Window {
+        left: 30,
+        top: 0,
+        width: 5,
+        height: 1,
+        base: 0,
+    };
+    assert_eq!(w.frame_start(), 0);
+    let e = w.frame_entries();
+    assert_eq!(e.len(), 3 * 32);
+    assert_eq!(e[32 + 31], 0xF000 | 1);
+    assert_eq!(e[32 + 29], 0xF000 | (FRAME_BASE + 9));
+}
+
+#[test]
+fn advances_saturate() {
+    let g = game();
+    let mut tb = printing(&g, &[3, 0xFF]);
+    tb.x = i16::MAX - 1;
+    tb.y = i16::MAX - 1;
+    run_page(&mut tb, &g);
+    assert_eq!(tb.x, i16::MAX);
+    let mut tb = printing(&g, &[0xFE, 0xFF]);
+    tb.y = i16::MAX - 1;
+    run_page(&mut tb, &g);
+    assert_eq!(tb.y, i16::MAX);
+}
