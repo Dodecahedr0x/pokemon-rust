@@ -6,6 +6,9 @@
 //!
 //! Layer routing, tileset/palette loading and the NORMAL underlay mirror Gen3 `DrawMetatile` and
 //! `LoadTilesetPalette` (`field_camera.c`, `fieldmap.c`).
+//!
+//! Tilesets must be `static`s shared by the maps that use them: on a connection switch, tileset
+//! identity (`core::ptr::eq`) decides whether tiles and palettes are re-uploaded.
 
 use crate::data::{
     GameData, LayerType, METATILES_IN_PRIMARY, MapData, MapId, PALS_IN_PRIMARY, PALS_TOTAL,
@@ -86,10 +89,18 @@ impl Field {
         self.camera_px
     }
 
-    /// Enters `map` from scratch (warps, new game): clears overrides, uploads both tilesets'
-    /// tiles (at `FIELD_CHAR_BLOCK`: primary 0.., secondary 512..) and palettes (primary 0..6,
-    /// secondary 6..13), sets BG1–BG3 controls, then draws the whole view.
-    pub fn load(&mut self, game: &impl GameData, map: MapId, camera_px: (i32, i32), f: &mut Frame) {
+    /// Enters `map` from scratch (warps, new game) without drawing: clears overrides, uploads
+    /// both tilesets' tiles (at `FIELD_CHAR_BLOCK`: primary 0.., secondary 512..) and palettes
+    /// (primary 0..6, secondary 6..13) and sets BG1–BG3 controls. Nothing is drawn until
+    /// [`Field::redraw`], so on-load `set_block`s land before the first draw (Gen3 runs on-load
+    /// scripts in `InitMap` before `DrawWholeMapView`).
+    pub fn enter(
+        &mut self,
+        game: &impl GameData,
+        map: MapId,
+        camera_px: (i32, i32),
+        f: &mut Frame,
+    ) {
         self.map = map;
         self.overrides.clear();
         for bg in FIELD_BGS {
@@ -108,6 +119,11 @@ impl Field {
         upload_secondary(m.secondary, f);
         self.camera_px = camera_px;
         self.drawn = None;
+    }
+
+    /// [`Field::enter`] then [`Field::redraw`].
+    pub fn load(&mut self, game: &impl GameData, map: MapId, camera_px: (i32, i32), f: &mut Frame) {
+        self.enter(game, map, camera_px, f);
         self.redraw(game, f);
     }
 
@@ -139,7 +155,8 @@ impl Field {
     }
 
     /// Replaces the block of a cell of the current map (Gen3 `setmetatile`) and redraws it if it
-    /// is in view. Cells outside the map are ignored. Overrides last until the next `load` or
+    /// is in view (before the first draw after `enter`, it is only recorded). Cells outside the
+    /// map are ignored. Overrides last until the next `load` or
     /// `switch_map`.
     pub fn set_block(&mut self, game: &impl GameData, x: i16, y: i16, block: u16, f: &mut Frame) {
         if !grid::in_bounds(game.map(self.map), x, y) {
@@ -158,12 +175,15 @@ impl Field {
         Some((n.map, (n.x - x, n.y - y)))
     }
 
-    /// Seamless switch to a connected map: the caller has moved the player across the edge. A
-    /// cell at old coordinates (x, y) has new coordinates (x + shift.0, y + shift.1); the camera
-    /// moves with it. Re-uploads a tileset (tiles and palettes) only if it differs, clears
-    /// overrides and redraws the view (blocks are now seen through the new map's connections and
-    /// tilesets).
-    pub fn switch_map(
+    /// Seamless switch to a connected map, without drawing: the caller has moved the player
+    /// across the edge. A cell at old coordinates (x, y) has new coordinates
+    /// (x + shift.0, y + shift.1); the camera moves with it. Re-uploads a tileset (tiles and
+    /// palettes) only if it differs and clears overrides. Follow with on-load `set_block`s, then
+    /// [`Field::redraw`] (blocks are now seen through the new map's connections and tilesets).
+    ///
+    /// Tileset identity is pointer identity (`ptr::eq`), so tilesets must be `static`s shared by
+    /// the maps that use them.
+    pub fn switch_map_enter(
         &mut self,
         game: &impl GameData,
         to: MapId,
@@ -181,6 +201,18 @@ impl Field {
         self.overrides.clear();
         self.camera_px.0 += shift.0 as i32 * 16;
         self.camera_px.1 += shift.1 as i32 * 16;
+        self.drawn = None;
+    }
+
+    /// [`Field::switch_map_enter`] then [`Field::redraw`].
+    pub fn switch_map(
+        &mut self,
+        game: &impl GameData,
+        to: MapId,
+        shift: (i16, i16),
+        f: &mut Frame,
+    ) {
+        self.switch_map_enter(game, to, shift, f);
         self.redraw(game, f);
     }
 
@@ -469,7 +501,25 @@ mod tests {
         }
     }
 
-    static MAPS: [MapData; 3] = [
+    // D: 4x4, a short tileset (4 metatiles, 2 attributes, 3 palettes, no tiles) in both slots.
+    const D: MapId = MapId(3);
+    static SHORT_PAL: [[u16; 16]; 3] = {
+        let p = palettes(0x1000);
+        [p[0], p[1], p[2]]
+    };
+    static SHORT_MT: [[u16; 8]; 4] = {
+        let m = metatiles(0);
+        [m[0], m[1], m[2], m[3]]
+    };
+    static SHORT: Tileset = Tileset {
+        tiles: &[],
+        palettes: &SHORT_PAL,
+        metatiles: &SHORT_MT,
+        attributes: &[0, 1 << 12],
+    };
+    static BLOCKS_D: [u16; 16] = [0, 1, 2, 3, 10, 600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+    static MAPS: [MapData; 4] = [
         map(
             40,
             30,
@@ -510,6 +560,11 @@ mod tests {
                 map: A,
             }],
         ),
+        {
+            let mut d = map(4, 4, &BLOCKS_D, &SHORT, &[]);
+            d.primary = &SHORT;
+            d
+        },
     ];
 
     struct Game;
@@ -910,5 +965,128 @@ mod tests {
         assert_ne!(h0, h1);
         field.set_block(&Game, 0, 0, 5, &mut f);
         assert_ne!(digest(&field), h1);
+    }
+
+    #[test]
+    fn enter_then_set_block_is_drawn_by_the_first_redraw() {
+        let mut field = Field::new(A);
+        let mut f = Frame::default();
+        field.enter(&Game, A, (0, 0), &mut f);
+        assert!(map_entries(&f).is_empty(), "enter draws nothing");
+        field.set_block(&Game, 3, 2, 7, &mut f);
+        assert!(
+            map_entries(&f).is_empty(),
+            "only recorded before the first draw"
+        );
+        field.redraw(&Game, &mut f);
+        let mut vram = Vram::new();
+        vram.apply(&f);
+        vram.check_view(&field, &f);
+        assert_eq!(field.block(&Game, 3, 2), 7);
+        assert_eq!(vram.0[1][4 * 32 + 6], 8 * 7 + 4, "metatile 7 is COVERED");
+        // Each entry of the 15x10-metatile view is written exactly once per BG.
+        let total: usize = map_entries(&f).iter().map(|e| e.2.len()).sum();
+        assert_eq!(total, 3 * 15 * 10 * 4);
+
+        // Same for a connection switch (A -> C share tilesets: enter emits nothing).
+        let (mut field, _, _) = loaded((39 * 16 - 112, 10 * 16 - 64));
+        let (to, shift) = field.crossing(&Game, 40, 10).unwrap();
+        let mut f = Frame::default();
+        field.switch_map_enter(&Game, to, shift, &mut f);
+        field.set_block(&Game, 0, 10, 8, &mut f);
+        assert!(f.cmds.is_empty());
+        field.redraw(&Game, &mut f);
+        let mut vram = Vram::new();
+        vram.apply(&f);
+        vram.check_view(&field, &f);
+        assert_eq!(field.block(&Game, 0, 10), 8);
+    }
+
+    #[test]
+    fn switch_map_clears_overrides() {
+        let (mut field, _, _) = loaded((39 * 16 - 112, 10 * 16 - 64));
+        let mut f = Frame::default();
+        field.set_block(&Game, 39, 10, 9, &mut f);
+        field.set_block(&Game, 0, 0, 9, &mut f);
+        let (to, shift) = field.crossing(&Game, 40, 10).unwrap();
+        field.switch_map(&Game, to, shift, &mut f);
+        // A's (39, 10) is C's (-1, 10), seen through C's west connection: the original block.
+        assert_eq!(
+            field.block(&Game, 39 + shift.0, 10 + shift.1),
+            BLOCKS_A[10 * 40 + 39]
+        );
+        let digest = |field: &Field| {
+            let mut h = Fnv64::new();
+            field.hash(&mut h);
+            h.finish()
+        };
+        let mut fresh = Field::new(C);
+        fresh.load(&Game, C, field.camera(), &mut Frame::default());
+        assert_eq!(digest(&field), digest(&fresh), "no overrides left");
+    }
+
+    #[test]
+    fn missing_metatiles_attributes_and_palettes() {
+        let d = Game.map(D);
+        let bottom = |k: u16| [8 * k, 8 * k + 1, 8 * k + 2, 8 * k + 3];
+        let top = |k: u16| [8 * k + 4, 8 * k + 5, 8 * k + 6, 8 * k + 7];
+        // Metatile 1 has its attribute (COVERED); 3 has none (NORMAL); 10 and 600 do not exist.
+        assert_eq!(metatile_layers(d, 1), [[0; 4], top(1), bottom(1)]);
+        assert_eq!(
+            metatile_layers(d, 3),
+            [top(3), bottom(3), [NORMAL_UNDERLAY; 4]]
+        );
+        for missing in [10, 600] {
+            assert_eq!(
+                metatile_layers(d, missing),
+                [[0; 4], [0; 4], [NORMAL_UNDERLAY; 4]]
+            );
+        }
+
+        let mut field = Field::new(D);
+        let mut f = Frame::default();
+        field.load(&Game, D, (-112, -64), &mut f);
+        assert!(!f.cmds.iter().any(|c| matches!(c, Cmd::BgTiles { .. })));
+        let banks: Vec<u8> = f
+            .cmds
+            .iter()
+            .filter_map(|c| match c {
+                Cmd::BgPalette { bank, .. } => Some(*bank),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(banks, [0, 1, 2], "only the palettes the tileset has");
+        let mut vram = Vram::new();
+        vram.apply(&f);
+        vram.check_view(&field, &f);
+    }
+
+    #[test]
+    fn switch_map_round_trip_with_offsets() {
+        // A -> B (north, offset 3) -> A (south, offset -3): shifts cancel, view stays right.
+        let cam = (10 * 16 - 112, -64);
+        let (mut field, mut vram, _) = loaded(cam);
+        let (to, shift) = field.crossing(&Game, 10, -1).unwrap();
+        let mut f = Frame::default();
+        field.switch_map(&Game, to, shift, &mut f);
+        vram.apply(&f);
+        vram.check_view(&field, &f);
+        // The player is now at B's (7, 19) and steps back down to (7, 20).
+        let (back, shift_back) = field.crossing(&Game, 7, 20).unwrap();
+        assert_eq!((back, shift_back), (A, (3, -20)));
+        let mut f = Frame::default();
+        field.switch_map(&Game, back, shift_back, &mut f);
+        assert_eq!((field.map(), field.camera()), (A, cam));
+        vram.apply(&f);
+        vram.check_view(&field, &f);
+
+        // C -> A (west): shift +40.
+        let mut field = Field::new(C);
+        let mut f = Frame::default();
+        field.load(&Game, C, (-112, 10 * 16 - 64), &mut f);
+        let (to, shift) = field.crossing(&Game, -1, 10).unwrap();
+        assert_eq!((to, shift), (A, (40, 0)));
+        field.switch_map(&Game, to, shift, &mut f);
+        assert_eq!(field.camera(), (40 * 16 - 112, 10 * 16 - 64));
     }
 }
