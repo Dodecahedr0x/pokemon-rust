@@ -446,3 +446,138 @@ The milestone review covers the whole workspace: fix review findings, update the
 - In the shots and the parity run, the player walks between Littleroot, Route 101 and Oldale, enters buildings, and talks to French-speaking NPCs.
 - NPCs wander.
 - Scripts are generated Rust run by the engine.
+
+---
+
+## As built
+
+All nine tasks are merged into master (`git log 8c3af1d..f95001e`). Each entry lists what was built and every deviation from the plan.
+
+### Task A — extract v2
+- **Schema v2** with stable names: maps by decomp dir name, tilesets by `gTileset_<Name>`, sprites by `OBJ_EVENT_GFX_*`, script roots by the `schema.rs` rules (`roots::named_roots`). ROM offsets appear only in `manifest.ron` (`provenance`).
+- **Tileset names:** deviation. The `Tileset` headers are not one array of equal structs, because two 4-byte `Tileset` pointers sit among them. `TilesetHeaders::locate` starts from `gTileset_General` (Littleroot's primary) and uses a generated offset table, `names::TILESET_HEADER_OFFSETS`, in `headers.h` order. Every entry must read as a `Tileset`.
+- **`names` tables** are generated from the decomp into `crates/extract/src/names/generated.rs`. The drift test `tests/names.rs` checks them against the decomp, and `PKR_BLESS=1` regenerates them. The plan said "committed tables", and generated plus committed satisfies that.
+- **Review fixes to the tables:**
+  - `METATILE_BEHAVIORS` was off by one from `MB_DEEP_WATER` onwards, because a comment in the enum was not stripped.
+  - `FLAGS` now evaluates `%` and enum members, and fails on any define it cannot evaluate.
+  - `ITEMS` is limited to `ITEM_NONE..ITEMS_COUNT`.
+  - `SPECIALS` names have comments stripped, and every name is tested to be an identifier.
+- **French charmap:** `text::Lang` with `decode_lang`/`encode_lang`. BPEF 0xB1/0xB2 are `«`/`»`. `text::round_trip_at` checks that a text re-encodes to its ROM bytes.
+- **VAR graphics:** the sprites reachable through `setvar VAR_OBJ_GFX_ID_*` are found by a scan of the maps' scripts, factored out as `var_gfx_ids` and tested. The fallback of exporting every id below 100 was not needed.
+- **Cleanups:** all the planned cleanups were done (`Rom::u16s`/`req_ptr`, shared constants, `gfx::rgb555_to_rgba`, no `read_latin_normal`, no serde on ROM structs, `tiles.png` with the first used palette).
+
+### Task B — script decoder and codegen
+- **Output:** the 15 maps generate 359 functions, 313 texts and 166 movement tables. `extract` prints the counts as a codegen summary (`codegen::Stats::summary`).
+- **Control flow:** as planned, a function with more than one block (or a jump back to its entry) is a `loop { match pc { … } }` dispatch. `goto`/fallthrough into another function is a tail call. A block reached from several functions becomes its own function.
+- **`cond`:** a local `Ordering` register, as Gen3 `comparisonResult`. `checkflag` sets `Equal` or `Less`.
+- **Unsupported commands:** what remains becomes `unsupported(&ctx, "<macro>")`. Counts, most frequent first: trainerbattle 23, multichoice 13, hidemonpic 7, and a tail of rarer commands (see the summary).
+- **Unknown movement actions:** `FACE_ORIGINAL_DIRECTION`, `NURSE_JOY_BOW_DOWN` and `CUT_TREE` become `Step::Delay(0)` with a comment.
+- **Known gaps:** a local `cond` and plain functions cannot express two Gen3 behaviours: a callee's `end` stopping its caller, and `cond` flowing across a call. Both are commented in the output and counted. There are 5 `end`-in-callee sites.
+- **Additions:** the decoder gained `addobject`/`removeobject`, `setobjectxyperm`, the door commands, `waitstate` and `checkplayergender`. These need the contract additions listed below.
+- **Texts:** `text/<lang>.ron` is written, and every text is tested to re-encode to its ROM bytes.
+- **Compile check:** `content` itself compiles the output, with no scratch crate. `crates/content/tests/build_modes.rs` builds a fixture extracted dir with hand-written scripts.
+
+### Task C — video
+- **Native PPU:** `game_native::Ppu`, a mode-0 software PPU implementing the plan's rules, with a unit test per rule.
+- **GBA applier:** `game-gba/src/video.rs` writes the registers first and then the frame's commands at vblank. Bulk copies use DMA3, and register fields are masked in release.
+- **Shared validation:** `Frame::validate` is used by both shells. Native panics on an invalid frame, and GBA debug builds check too.
+- **`late` detection:** an addition to the plan. The shell detects an apply that overran vblank, either because it woke late or because `VCOUNT` was back in the picture. It counts these in the debug region's `late`, and parity requires `late == 0`.
+- **Parity:** compares hashes at every frame and pictures at checkpoints. Native rendering is lazy, so frames are only drawn when a picture is compared.
+- **M1 bridge:** the M1 scene went through `Frame` until Task I removed it. `world::FrameOut` is gone.
+
+### Task D — field
+- **Drawing:** a ring buffer of 16×16 metatiles per BG, Gen3 layer routing, and border/connection drawing with the current map's tilesets.
+- **Split `load`:** `enter`/`switch_map_enter` were split from drawing. This lets `on_load` overrides (`setmetatile`) land before the first draw.
+- **Crossings:** a deviation, added during Task I. A connection crossing keeps the drawn view. The ring has an origin that moves with the coordinates, so only cells coming into view are drawn, as in Gen3 `LoadMapFromCameraTransition`. A full redraw only happens when a tileset changes. The planned whole-view redraw on crossing overran the GBA frame.
+
+### Task E — objects
+- **Built as planned:** player control with turn-then-walk, Gen3 collision, elevation and ledges. NPC idle movement driven by the World `Rng`. Every `Step`. Sprites with the 9-frame walker layout and OBJ VRAM/palette slot management.
+- **Review changes:**
+  - Player update is explicit, and the World drives it.
+  - Objects of connected maps are kept on a crossing.
+  - The render cache (VRAM slots) is left out of the hash.
+- **Not done yet:** `Emote` and elevation-based priority are still TODOs.
+
+### Task F — text box
+- **Built as planned:** the Gen3 printer with the control codes and placeholders, the dialogue frame, and the yes/no menu.
+- **Deviation:** pressing A while a page prints does not finish the page at once. It follows Gen3 `RenderText` `hasPrintBeenSpedUp`: a new A/B press skips the current delay, and while A/B stays held one glyph is drawn per frame. This also bounds the per-frame text cost on the GBA.
+- **Review changes:**
+  - Glyphs are blitted row by row.
+  - The hash covers a per-message digest instead of the text.
+  - Advances saturate, and frame entries are clipped.
+
+### Task G — flow
+- **Built as planned:** `Vars`, `Fader`, the triggers, `Transition` and `Input`.
+- **Additions:**
+  - Behaviors are looked up on the live field, so `setmetatile` overrides count.
+  - The arrival after a load (the door step-out) is part of the transition.
+  - `Vars` keeps an O(1) digest, so the per-frame hash stays cheap.
+
+### Task H — content build
+- **Layout:** `build.rs` lives in `crates/content/build/` (`main.rs`, `input.rs`, `classify.rs`, `codegen.rs`, `stub.rs`). It generates:
+  - `consts.rs`: the `FLAG_`/`VAR_`/`MAP_`/`SPECIAL_`/`STD_`/`ITEM_`/`OBJ_EVENT_GFX_` constants and the text ids.
+  - `data.rs`: the static tables, the behavior table and the script dispatch, plus `LANG` and `SOURCE_SHA1`.
+  - `scripts.rs`: one module per map, `include!`ing `scripts/<Map>.rs` under the prelude.
+- **Prelude:** `content::prelude` implements the Task B contract: `msgbox` per `std_msgbox.inc`, `callstd`, `special`, `unsupported`, and `check_player_gender` (male). `STD_FIND_ITEM` removes the talked-to object.
+- **Stub mode:** with no extracted dir, the build creates a one-map stub world and sets `cfg(pkr_stub)`.
+  - `PKR_EXTRACTED_DIR` overrides the extracted dir. A relative path resolves against the workspace root.
+  - `content/.gitkeep` is tracked, so a stub build watches `content/` instead of rebuilding every time.
+  - A missing explicit `PKR_EXTRACTED_DIR` warns, and the build stays always dirty.
+- **Behavior mapping** (`classify.rs`):
+  - `Blocked`: water that needs Surf, `MB_WATER_DOOR` and the directional `MB_IMPASSABLE_*` (there is no directional blocking yet).
+  - `Door`: only `MB_ANIMATED_DOOR`, as Gen3 `IsWarpDoor`.
+  - `Warp`: stairs (`MB_NON_ANIMATED_DOOR`), `MB_DEEP_SOUTH_WARP`, ladders, escalators and the other `IsWarpMetatileBehavior` warps.
+  - Also `Ledge`, `ArrowWarp`, `Counter` and `TallGrass`.
+  - Everything else is `Normal`.
+- **Movement types:** a movement type with no exact engine equivalent maps to the closest one, and the build lists it as a `// movement fallback`. Examples: walk sequences become `Wander`, rotations `LookAround`, and the remaining types `Face(Down)`.
+- **Sprites:** a sprite with frames of mixed sizes (BERRY_TREE) is padded to the cell size, with a warning.
+- **Specials:** the decomp lists some specials twice (for example `ShowGlassWorkshopMenu` at 0x115 and 0x15C). A name keeps its first number, and the duplicates are reported. A constant defined twice with different values is an error.
+
+### Task I — integration
+- **World:** `World<…>` composes every module. The frame order is documented at the top of `world.rs`, following Gen3 `CB1_Overworld`:
+  1. input
+  2. the transition, or else the script, or else player control (`on_frame`, arrow warps, A interactions, door warps, then the step and its step-end triggers, then the crossing)
+  3. objects
+  4. the fader
+  5. the camera
+  6. sprites
+  7. the text box
+
+  Map loads follow `LoadMapFromWarp`: clear the temp flags and vars, then `on_transition` before the field switches maps, then `on_load` before the first draw, `on_resume`, object spawning and `on_warp_into`. Map scripts run to completion at once.
+- **New game:** a content script (`crates/content/src/new_game.rs`). The player is a male SACHA, the rival is May, Birch has been rescued (`VAR_ROUTE101_STATE` 3), the starter has been received (`VAR_BIRCH_LAB_STATE` 3), and the player has been told to meet May on Route 103 (`VAR_LITTLEROOT_INTRO_STATE` 7, `VAR_LITTLEROOT_TOWN_STATE` 2, `VAR_LITTLEROOT_RIVAL_STATE` 3, `VAR_LITTLEROOT_HOUSES_STATE_BRENDAN` 2). The vars mirror the decomp. `FLAG_SYS_B_DASH` and `FLAG_ADVENTURE_STARTED` stay clear. The player starts outside Brendan's house.
+- **`GameData` additions:** `has_map`, and `special_ids` (`SpecialIds`). `special_ids` gives `VAR_FACING`, `VAR_LAST_TALKED`, the running flag and the flags cleared on a map change, so the engine stays game-agnostic.
+- **Warps end the script:** a warp load resets the runner, `selected` and the last mover, and closes the text box, as Gen3 `CB2_LoadMap`. A script `Warp` is never answered.
+- **Gen3 interaction order:** an object without a script falls through to the bg event ahead.
+- **Hash:** `World::hash` covers the runner (the active request and the number issued, O(1)). The FNV-1a multiply avoids a 64-bit multiply: Thumb has no long multiply, and the prime is 2^40 + 0x1b3, so the product splits into a shift and 32-bit multiplies. The per-frame hash on the GBA went from about 46 to about 9 scanlines, bit-identical. New golden hashes are documented in the README.
+- **`late_black`:** a deviation from strict no-late. A whole-tileset upload on a warp load can overrun vblank. The GBA shell counts such an apply in `late_black` when the screen is fully black both before and after it, and in `late` otherwise.
+  - A const assertion ties this rule to the blend setup: BLDCNT darkens BG0–3, OBJ and the backdrop, and no window is enabled.
+  - Parity requires `late == 0` and `late_black <= warps`.
+- **Parity route:** `game_native::scenario` records a high-level route. It leaves the start, goes into Brendan's house and back, crosses Route 101 to Oldale, follows the Oldale Mart guide's tour (lock, faceplayer, `VAR_FACING` switch, `waitmovement 0`, multi-page text), talks to an NPC, and enters the Pokémon Center.
+  - The route is 2899 frames. All 2896 hashes and all 39 compared pictures are identical.
+  - `late_black` is 3, for 3 warps.
+  - Stub mode walks around the stub map.
+- **Shots:** `cargo xtask shot` writes `target/shots/<moment>-{rom,native}.png` and fails if any pair differs.
+- **ROM:** `cargo xtask rom` checks the 32 MiB limit. The ROM is 1410 KiB.
+- **Play:** `cargo run -p game-native --features window --bin play` runs a minifb window.
+- **Removed:** the M1 scene path (`scene.rs`, `Content`). `Tile` moved to `video`.
+
+### Contract additions during the milestone
+- `script::Request::AddObject` / `RemoveObject` (Gen3 `addobject`/`removeobject`). `AddObject` is a no-op for an object that exists.
+- `Request::SetObjectTemplatePos` (`setobjectxyperm`).
+- `Request::Door` / `WaitDoor` (timing only, `DOOR_FRAMES` = 20) and `Request::WaitState`.
+- `WaitMove(0)` waits for the last mover (Gen3 `waitmovement 0`). `WaitMove(n != 0)` names the last mover.
+- `check_player_gender` in the prelude.
+- `GameData::has_map` and `GameData::special_ids`.
+
+---
+
+## Findings for Milestone 4
+
+- **Strict no-late:** spread warp-load uploads over several black frames, as Gen3 `LoadMapInStepsLocal` does, so that `late_black` can return to 0. A connection crossing between maps with different tilesets still does a full redraw on a visible frame. The slice's maps never hit it, but other maps will.
+- **Doors:** `Door`/`WaitDoor` only take the Gen3 time. There are no door animation graphics yet.
+- **Next script commands**, by need: `setrespawn`, `multichoice`, `trainerbattle`, `givemon`, `pokemart`, and the specials the next maps use.
+- **Scenario pathing ignores elevation.** Routes through multi-level maps will need it.
+- **Old-map NPCs after a crossing:** they can be talked to (Gen3 `GetObjectEventIdByPosition` does not filter by map), but `selected` is empty for them. Check what their scripts see.
+- **Step timing:** step triggers (coord events, warp cells) fire one frame earlier than in Gen3.
+- **Hashing cost on the GBA:** the per-frame World hash is about 9 scanlines. Keep new state's hash contribution O(1) per frame (digests, counters).
+- **The next milestone** is planned in `docs/plans/2026-10-21-milestone-4-battle.md`.

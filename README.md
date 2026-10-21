@@ -33,7 +33,10 @@ Without an extracted dir everything builds against a small built-in map (stub mo
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
-read both ROMs and the decomp. They fail if these are missing:
+read both ROMs and the decomp. The `content` data tests check the real tables when
+`content/extracted/` exists and the stub world otherwise; `crates/content/tests/build_modes.rs`
+also builds `content` in stub mode and against a fixture extracted dir. The ROM-backed tests fail
+if these are missing:
 
 | Variable      | Default                 | What                                           |
 |---------------|-------------------------|------------------------------------------------|
@@ -63,7 +66,8 @@ the extractor's unit tests, which need none of these.
 1. Place the ROM at `rom/emeraude-fr.gba` (or pass `--rom <path>`; BPEE also works).
 2. Run `cargo xtask extract`. It exports into `content/.extracted.tmp/` and, only if that succeeds,
    replaces `content/extracted/` with it (a failed run keeps the previous output). It prints a
-   summary (maps, tilesets, sprites, skipped graphics, any undecoded script instructions).
+   summary (maps, tilesets, sprites, skipped graphics, script and text files, the codegen
+   statistics, any undecoded script instructions).
 3. See the output in `content/extracted/` (format v2, described in `crates/extract/src/schema.rs`).
    Everything is named with decomp identifiers (`LittlerootTown`, `General`, `FLAG_HIDE_…`,
    `OBJ_EVENT_GFX_…`); ROM offsets only appear in the manifest:
@@ -81,8 +85,10 @@ the extractor's unit tests, which need none of these.
    - `font/latin_normal.png` + `.ron`: the Latin font and its glyph widths
    - `window/message_box.png` + `.ron`: the dialogue window frame, its palette and text colors
    - `previews/<Map>.png`: map renders
-
-   Texts (`text/<lang>.ron`) and generated scripts (`scripts/`) are not written yet.
+   - `text/<lang>.ron`: every text the scripts use, keyed `<Script>_T<n>`, re-encoding to its
+     exact ROM bytes
+   - `scripts/<Map>.rs` + `scripts/index.ron`: the map's event scripts as generated async Rust
+     (compiled into `content` by its build script), and the root name to function index
 
 The output is deterministic: two runs on the same ROM give identical files. The decomp
 identifier tables live in `crates/extract/src/names/generated.rs`, checked against the decomp by
