@@ -2,6 +2,12 @@
 //! Write order on the GBA: inputs slot, then hash, then frame (frame last = commit).
 //! The GBA writer must use `write_volatile` for every field, and readers must sample between
 //! frames (`hash` is a u64 written as two 32-bit stores).
+//!
+//! Display lag: the GBA writes scroll registers at vblank from the *previous* step's
+//! `FrameOut`, so the picture visible when the emulator samples after `run_frame` shows engine
+//! frame `frame - 1`, not `frame`. Pixel comparisons must use a stable (idle) tail or compare
+//! against the native render of `frame - 1`. Harnesses must key on `frame` and the input ring,
+//! never on emulator frame counts (boot adds an offset).
 
 pub const MAGIC: [u8; 8] = *b"PKRDBG01";
 pub const INPUT_RING: usize = 64;

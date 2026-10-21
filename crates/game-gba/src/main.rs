@@ -68,6 +68,8 @@ fn main(_gba: agb::Gba) -> ! {
     let mut out = world.frame_out();
     loop {
         vblank.wait_for_vblank();
+        // Shows the previous step's FrameOut (one-frame display lag, see engine::debug); the step
+        // must finish within one frame or agb's vblank catch-up lands these writes mid-frame.
         unsafe {
             BG0HOFS.write_volatile(out.bg0_scroll.0 & 0x1FF);
             BG0VOFS.write_volatile(out.bg0_scroll.1 & 0x1FF);

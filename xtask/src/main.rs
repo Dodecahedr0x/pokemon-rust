@@ -17,14 +17,32 @@ fn run(cmd: &mut Command) -> Result<()> {
     Ok(())
 }
 
+/// Inherited env that would override crates/game-gba's own toolchain and
+/// .cargo/config.toml (e.g. RUSTFLAGS replaces its rustflags, dropping -Tgba.ld).
+const NESTED_BUILD_ENV_REMOVE: &[&str] = &[
+    "RUSTUP_TOOLCHAIN",
+    "CARGO",
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "CARGO_BUILD_RUSTFLAGS",
+    "CARGO_BUILD_TARGET",
+    "CARGO_TARGET_DIR",
+    "CARGO_BUILD_TARGET_DIR",
+    "RUSTC",
+];
+
 /// Build game-gba (its own workspace/toolchain) and fix it into target/game.gba.
 fn rom() -> Result<PathBuf> {
     let gba_dir = root().join("crates/game-gba");
-    run(Command::new("cargo")
-        .current_dir(&gba_dir)
-        .env_remove("RUSTUP_TOOLCHAIN")
-        .env_remove("CARGO")
-        .args(["build", "--release"]))?;
+    let mut build = Command::new("cargo");
+    build.current_dir(&gba_dir);
+    for var in NESTED_BUILD_ENV_REMOVE {
+        build.env_remove(var);
+    }
+    build
+        .args(["build", "--release", "--target-dir"])
+        .arg(gba_dir.join("target"));
+    run(&mut build)?;
     let elf = gba_dir.join("target/thumbv4t-none-eabi/release/game-gba");
     let out = root().join("target/game.gba");
     std::fs::create_dir_all(out.parent().unwrap())?;
