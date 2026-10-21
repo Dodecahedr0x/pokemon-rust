@@ -132,7 +132,7 @@ fn tick(tb: &mut TextBox, g: &Game, pressed: Buttons) -> Frame {
 /// Updates until the printer leaves `Printing` (at most 1000 frames); returns the frame count.
 fn run_page(tb: &mut TextBox, g: &Game) -> usize {
     let mut n = 0;
-    while tb.state == State::Printing {
+    while tb.printer.state == State::Printing {
         tick(tb, g, NONE);
         n += 1;
         assert!(n < 1000);
@@ -178,11 +178,11 @@ fn wide_glyph_uses_all_four_tiles() {
     let g = game();
     let mut tb = printing(&g, &[2, 3, 0xFF]);
     run_page(&mut tb, &g);
-    assert_eq!(px(&tb.msg, 0, 1), FG);
-    assert_eq!(px(&tb.msg, 9, 10), FG);
+    assert_eq!(px(&tb.printer.canvas, 0, 1), FG);
+    assert_eq!(px(&tb.printer.canvas, 9, 10), FG);
     // Glyph 3 at x = 10: row 14 is drawn, row 15 is not (15 rows per glyph).
-    assert_eq!(px(&tb.msg, 25, 15), FG);
-    assert_eq!(px(&tb.msg, 25, 16), BG);
+    assert_eq!(px(&tb.printer.canvas, 25, 15), FG);
+    assert_eq!(px(&tb.printer.canvas, 25, 16), BG);
 }
 
 #[test]
@@ -191,10 +191,10 @@ fn variable_width_layout() {
     let mut tb = printing(&g, &[1, 1, 2, 1, 0xFF]);
     run_page(&mut tb, &g);
     for x in [0, 3, 6, 16] {
-        assert_eq!(px(&tb.msg, x, 1), FG, "glyph at x = {x}");
+        assert_eq!(px(&tb.printer.canvas, x, 1), FG, "glyph at x = {x}");
     }
-    assert_eq!(px(&tb.msg, 17, 1), SHADOW);
-    assert_eq!(tb.x, 19);
+    assert_eq!(px(&tb.printer.canvas, 17, 1), SHADOW);
+    assert_eq!(tb.printer.x, 19);
 }
 
 #[test]
@@ -204,8 +204,8 @@ fn glyphs_clip_at_the_window_edge() {
     text.push(0xFF);
     let mut tb = printing(&g, &text);
     run_page(&mut tb, &g);
-    assert_eq!(px(&tb.msg, 13 * 16 - 1, 15), FG);
-    assert_eq!(tb.state, State::Idle);
+    assert_eq!(px(&tb.printer.canvas, 13 * 16 - 1, 15), FG);
+    assert_eq!(tb.printer.state, State::Idle);
 }
 
 #[test]
@@ -213,8 +213,8 @@ fn newline_moves_to_second_line() {
     let g = game();
     let mut tb = printing(&g, &[1, 1, 0xFE, 1, 0xFF]);
     run_page(&mut tb, &g);
-    assert_eq!(px(&tb.msg, 0, 17), FG);
-    assert_eq!(px(&tb.msg, 3, 17), BG);
+    assert_eq!(px(&tb.printer.canvas, 0, 17), FG);
+    assert_eq!(px(&tb.printer.canvas, 3, 17), BG);
 }
 
 #[test]
@@ -222,20 +222,20 @@ fn prompt_clear_waits_then_clears() {
     let g = game();
     let mut tb = printing(&g, &[1, 0xFB, 2, 0xFF]);
     run_page(&mut tb, &g);
-    assert_eq!(tb.state, State::WaitClear);
+    assert_eq!(tb.printer.state, State::WaitClear);
     assert!(tb.is_printing());
     for _ in 0..10 {
         tick(&mut tb, &g, Buttons::UP);
     }
-    assert_eq!(tb.state, State::WaitClear);
-    assert_eq!(px(&tb.msg, 1, 1), SHADOW);
+    assert_eq!(tb.printer.state, State::WaitClear);
+    assert_eq!(px(&tb.printer.canvas, 1, 1), SHADOW);
     tick(&mut tb, &g, Buttons::B);
-    assert_eq!(px(&tb.msg, 1, 1), BG);
-    assert_eq!(tb.state, State::Printing);
+    assert_eq!(px(&tb.printer.canvas, 1, 1), BG);
+    assert_eq!(tb.printer.state, State::Printing);
     tick(&mut tb, &g, NONE);
     // Glyph 2 at the origin: fg at (0, 1), nothing where glyph 1's shadow was.
-    assert_eq!(px(&tb.msg, 0, 1), FG);
-    assert_eq!(px(&tb.msg, 1, 1), BG);
+    assert_eq!(px(&tb.printer.canvas, 0, 1), FG);
+    assert_eq!(px(&tb.printer.canvas, 1, 1), BG);
     assert!(!tb.is_printing());
 }
 
@@ -244,27 +244,27 @@ fn prompt_scroll_waits_then_scrolls_one_line() {
     let g = game();
     let mut tb = printing(&g, &[2, 0xFE, 1, 0xFA, 2, 0xFF]);
     run_page(&mut tb, &g);
-    assert_eq!(tb.state, State::WaitScroll);
-    assert_eq!(px(&tb.msg, 0, 17), FG);
+    assert_eq!(tb.printer.state, State::WaitScroll);
+    assert_eq!(px(&tb.printer.canvas, 0, 17), FG);
     tick(&mut tb, &g, NONE);
-    assert_eq!(tb.state, State::WaitScroll);
+    assert_eq!(tb.printer.state, State::WaitScroll);
     tick(&mut tb, &g, A);
     // 16 px at 2 px per frame.
     for i in 0..8 {
-        assert_eq!(tb.state, State::Scrolling(16 - 2 * i));
+        assert_eq!(tb.printer.state, State::Scrolling(16 - 2 * i));
         tick(&mut tb, &g, NONE);
     }
-    assert_eq!(tb.state, State::Scrolling(0));
+    assert_eq!(tb.printer.state, State::Scrolling(0));
     // The second line moved to the first; the old first line is gone.
-    assert_eq!(px(&tb.msg, 0, 1), FG);
-    assert_eq!(px(&tb.msg, 1, 1), SHADOW);
-    assert_eq!(px(&tb.msg, 9, 10), BG);
-    assert_eq!(px(&tb.msg, 0, 17), BG);
+    assert_eq!(px(&tb.printer.canvas, 0, 1), FG);
+    assert_eq!(px(&tb.printer.canvas, 1, 1), SHADOW);
+    assert_eq!(px(&tb.printer.canvas, 9, 10), BG);
+    assert_eq!(px(&tb.printer.canvas, 0, 17), BG);
     tick(&mut tb, &g, NONE);
     tick(&mut tb, &g, NONE);
     // The next glyph prints at the start of the second line.
-    assert_eq!(px(&tb.msg, 0, 17), FG);
-    assert_eq!(px(&tb.msg, 9, 26), FG);
+    assert_eq!(px(&tb.printer.canvas, 0, 17), FG);
+    assert_eq!(px(&tb.printer.canvas, 9, 26), FG);
     assert!(!tb.is_printing());
 }
 
@@ -288,9 +288,9 @@ fn code_arguments_are_never_text() {
     assert_eq!(expand(&g, &text), text);
     let mut tb = printing(&g, &[0xFC, 0x0B, 0xFF, 0xFE, 0xF8, 0xFF, 1, 0xFF]);
     run_page(&mut tb, &g);
-    assert_eq!(px(&tb.msg, 0, 1), FG);
-    assert_eq!(tb.y, 1);
-    assert_eq!(tb.x, 3);
+    assert_eq!(px(&tb.printer.canvas, 0, 1), FG);
+    assert_eq!(tb.printer.y, 1);
+    assert_eq!(tb.printer.x, 3);
 }
 
 #[test]
@@ -305,15 +305,19 @@ fn ext_codes() {
         ],
     );
     run_page(&mut tb, &g);
-    assert_eq!(px(&tb.msg, 0, 1), 5);
-    assert_eq!(px(&tb.msg, 1, 1), SHADOW);
-    assert_eq!(px(&tb.msg, 3, 1), 6);
-    assert_eq!(px(&tb.msg, 4, 1), 8);
-    assert_eq!(px(&tb.msg, 5, 1), 7);
-    assert_eq!(px(&tb.msg, 3, 2), 7, "highlight is the new background");
+    assert_eq!(px(&tb.printer.canvas, 0, 1), 5);
+    assert_eq!(px(&tb.printer.canvas, 1, 1), SHADOW);
+    assert_eq!(px(&tb.printer.canvas, 3, 1), 6);
+    assert_eq!(px(&tb.printer.canvas, 4, 1), 8);
+    assert_eq!(px(&tb.printer.canvas, 5, 1), 7);
+    assert_eq!(
+        px(&tb.printer.canvas, 3, 2),
+        7,
+        "highlight is the new background"
+    );
     // Escaped glyph 0x105 (4 px wide) at x = 6.
-    assert_eq!(px(&tb.msg, 6, 1), 6);
-    assert_eq!(tb.x, 10);
+    assert_eq!(px(&tb.printer.canvas, 6, 1), 6);
+    assert_eq!(tb.printer.x, 10);
     assert!(!tb.is_printing());
 }
 
@@ -322,19 +326,19 @@ fn pause_codes() {
     let g = game();
     let mut tb = printing(&g, &[0xFC, 0x08, 3, 1, 0xFC, 0x09, 1, 0xFF]);
     tick(&mut tb, &g, NONE);
-    assert_eq!(tb.state, State::Pause(3));
+    assert_eq!(tb.printer.state, State::Pause(3));
     let mut n = 0;
-    while px(&tb.msg, 0, 1) != FG {
+    while px(&tb.printer.canvas, 0, 1) != FG {
         tick(&mut tb, &g, NONE);
         n += 1;
     }
     // 3 frames counting down, 1 to resume, 1 to print.
     assert_eq!(n, 5);
     run_page(&mut tb, &g);
-    assert_eq!(tb.state, State::WaitPress);
+    assert_eq!(tb.printer.state, State::WaitPress);
     tick(&mut tb, &g, A);
     tick(&mut tb, &g, NONE);
-    assert_eq!(px(&tb.msg, 3, 1), FG);
+    assert_eq!(px(&tb.printer.canvas, 3, 1), FG);
     assert!(!tb.is_printing());
 }
 
@@ -345,7 +349,7 @@ fn four_frames_per_character() {
     let mut drawn = Vec::new();
     for frame in 0..20 {
         tick(&mut tb, &g, NONE);
-        let x = tb.x;
+        let x = tb.printer.x;
         if drawn.last() != Some(&x) {
             drawn.push(x);
             assert_eq!(frame % 4, 0, "glyph on frame {frame}");
@@ -372,13 +376,13 @@ fn a_skips_the_delay_then_held_prints_one_glyph_per_frame() {
     let g = game();
     let mut tb = printing(&g, &[1, 1, 1, 1, 1, 0xFF]);
     tick(&mut tb, &g, NONE);
-    assert_eq!(tb.x, 3);
+    assert_eq!(tb.printer.x, 3);
     // The press only clears the delay (Gen3 draws nothing that frame).
     tick(&mut tb, &g, A);
-    assert_eq!(tb.x, 3);
+    assert_eq!(tb.printer.x, 3);
     for x in [6, 9, 12, 15] {
         tick_held(&mut tb, &g, NONE, A);
-        assert_eq!(tb.x, x, "one glyph per frame while A is held");
+        assert_eq!(tb.printer.x, x, "one glyph per frame while A is held");
     }
     assert!(!tb.is_printing());
 }
@@ -390,14 +394,14 @@ fn releasing_a_returns_to_normal_speed() {
     tick(&mut tb, &g, NONE);
     tick(&mut tb, &g, A);
     tick_held(&mut tb, &g, NONE, A);
-    assert_eq!(tb.x, 6);
+    assert_eq!(tb.printer.x, 6);
     // Released: the delay runs again.
     for _ in 0..FRAMES_PER_CHAR - 1 {
         tick(&mut tb, &g, NONE);
-        assert_eq!(tb.x, 6);
+        assert_eq!(tb.printer.x, 6);
     }
     tick(&mut tb, &g, NONE);
-    assert_eq!(tb.x, 9);
+    assert_eq!(tb.printer.x, 9);
 }
 
 #[test]
@@ -405,11 +409,11 @@ fn a_does_not_dismiss_a_page_wait_it_did_not_reach() {
     let g = game();
     let mut tb = printing(&g, &[1, 0xFB, 1, 0xFF]);
     run_page(&mut tb, &g);
-    assert_eq!(tb.state, State::WaitClear);
+    assert_eq!(tb.printer.state, State::WaitClear);
     tick(&mut tb, &g, NONE);
-    assert_eq!(tb.state, State::WaitClear);
+    assert_eq!(tb.printer.state, State::WaitClear);
     tick(&mut tb, &g, A);
-    assert_eq!(tb.state, State::Printing);
+    assert_eq!(tb.printer.state, State::Printing);
     run_page(&mut tb, &g);
     assert!(!tb.is_printing());
 }
@@ -559,7 +563,7 @@ fn yes_no_keeps_the_message() {
     tb.start_yes_no(&g, &mut Frame::default());
     tick(&mut tb, &g, A);
     assert!(tb.is_open());
-    assert_eq!(px(&tb.msg, 0, 1), FG);
+    assert_eq!(px(&tb.printer.canvas, 0, 1), FG);
 }
 
 #[test]
@@ -633,17 +637,17 @@ fn rom_layout_glyph_pixels() {
     run_page(&mut tb, &g);
     // Glyph row 3 = 0xD5B0: 2bpp 3,1,1,1,2,3,0,0 -> bg fg fg fg shadow bg (6 columns).
     // Canvas row y = 1 + 3, pixels x = 3..9; glyph 1 left x = 0..3 untouched on this row.
-    let row: Vec<u8> = (3..11).map(|x| px(&tb.msg, x, 4)).collect();
+    let row: Vec<u8> = (3..11).map(|x| px(&tb.printer.canvas, x, 4)).collect();
     assert_eq!(row, [BG, FG, FG, FG, SHADOW, BG, BG, BG]);
     // Glyph row 4 = 0x6A60: 1,2,2,2,1,2.
-    let row: Vec<u8> = (3..9).map(|x| px(&tb.msg, x, 5)).collect();
+    let row: Vec<u8> = (3..9).map(|x| px(&tb.printer.canvas, x, 5)).collect();
     assert_eq!(row, [FG, SHADOW, SHADOW, SHADOW, FG, SHADOW]);
     // Glyph row 8 (bottom-left tile, row 0) = 0x5560: 1,1,1,1,1,2.
-    let row: Vec<u8> = (3..9).map(|x| px(&tb.msg, x, 9)).collect();
+    let row: Vec<u8> = (3..9).map(|x| px(&tb.printer.canvas, x, 9)).collect();
     assert_eq!(row, [FG, FG, FG, FG, FG, SHADOW]);
     // Whole canvas word for y = 4 in tile 0 (pixels 0..8): bg x3, then the glyph's first 5
     // columns (bg fg fg fg shadow), leftmost pixel in the low nibble.
-    assert_eq!(tb.msg.tiles[0][4], 0x3222_1111);
+    assert_eq!(tb.printer.canvas.tiles[0][4], 0x3222_1111);
 }
 
 #[test]
@@ -662,8 +666,8 @@ fn a_full_two_line_page_held_takes_one_frame_per_glyph() {
         frames += 1;
     }
     assert_eq!(frames, 143);
-    assert_eq!(px(&tb.msg, 213, 17), FG);
-    assert_eq!(px(&tb.msg, 214, 17), SHADOW);
+    assert_eq!(px(&tb.printer.canvas, 213, 17), FG);
+    assert_eq!(px(&tb.printer.canvas, 214, 17), SHADOW);
 }
 
 #[test]
@@ -686,12 +690,12 @@ fn frame_entries_clip_and_guard() {
 fn advances_saturate() {
     let g = game();
     let mut tb = printing(&g, &[3, 0xFF]);
-    tb.x = i16::MAX - 1;
-    tb.y = i16::MAX - 1;
+    tb.printer.x = i16::MAX - 1;
+    tb.printer.y = i16::MAX - 1;
     run_page(&mut tb, &g);
-    assert_eq!(tb.x, i16::MAX);
+    assert_eq!(tb.printer.x, i16::MAX);
     let mut tb = printing(&g, &[0xFE, 0xFF]);
-    tb.y = i16::MAX - 1;
+    tb.printer.y = i16::MAX - 1;
     run_page(&mut tb, &g);
-    assert_eq!(tb.y, i16::MAX);
+    assert_eq!(tb.printer.y, i16::MAX);
 }
