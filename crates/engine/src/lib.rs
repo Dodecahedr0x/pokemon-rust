@@ -18,4 +18,4 @@ pub use data::GameData;
 pub use input::Buttons;
 pub use rng::Rng;
 pub use scene::{Content, Scene, Tile};
-pub use world::{FrameOut, World};
+pub use world::World;
