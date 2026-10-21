@@ -10,6 +10,10 @@
 //!   `Cmd::ObjTile` diffs. It also places the HP bar sprite.
 //! - [`HpBar`] (48 px) and [`ExpBar`] (64 px): `MoveBattleBar` / `CalcNewBarValue`.
 //!
+//! Upload budget: `load` methods are bulk uploads for black frames. On visible frames all
+//! components share [`OBJ_TILES_PER_FRAME`]: update the sprites and bars first (fixed amounts),
+//! then [`Healthbox::update`] and [`MonSprite::load_step`], which take what is left.
+//!
 //! Gfx data (`BattleGfx`) layout this module expects, matching Gen3 `gHealthboxElementsGfxTable`:
 //! - `healthbox_player`: 128 tiles, two 64x64 halves in OBJ 1D order (`-mwidth 8 -mheight 8`);
 //!   `healthbox_opponent`: 64 tiles, two 64x32 halves. Palette in `palettes[0]` of each.
@@ -42,13 +46,13 @@ pub use sprite::{MonSprite, TINT_STAT_DOWN, TINT_STAT_UP, TrainerSprite};
 
 use super::Side;
 use crate::hash::Fnv64;
+use crate::video::{Cmd, Frame};
 
 /// The battle's OBJ VRAM (tile numbers) and OBJ palette banks.
 ///
-/// Deviation from the Wave 0 comment in `video::layout::battle`: the player healthbox takes
-/// 128 tiles (two 64x64 halves, as Gen3: its exp bar row is below 32 px), so the opponent box,
-/// HP bars and ball move up, and the opponent box gets its own palette bank (its status color
-/// lives in the box palette, as Gen3 colors 12/13).
+/// The player healthbox takes 128 tiles (two 64x64 halves, as Gen3: its exp bar row is below
+/// 32 px), and the opponent box has its own palette bank (its status color lives in the box
+/// palette, as Gen3 colors 12/13); the `video::layout::battle` comment matches.
 pub mod obj {
     pub const ENEMY_PIC: u16 = 0;
     pub const PLAYER_PIC: u16 = 64;
@@ -74,6 +78,29 @@ pub mod obj {
     pub const PAL_HP_BAR: u8 = 5;
     pub const PAL_BALL: u8 = 6;
     pub const PAL_ENEMY_BOX: u8 = 7;
+}
+
+/// OBJ tiles a visible battle frame may upload in all (`Cmd::ObjTile`s, plus the tiles of
+/// `Cmd::ObjTiles` from [`MonSprite::load_step`]). Bars (6 or 8) and the faint erase (8) send
+/// fixed amounts; [`Healthbox`] and [`MonSprite::load_step`] take only what is left, so the
+/// scene updates them last.
+pub const OBJ_TILES_PER_FRAME: usize = 16;
+
+/// OBJ tiles already queued in `f`.
+pub fn obj_tiles_sent(f: &Frame) -> usize {
+    f.cmds
+        .iter()
+        .map(|c| match c {
+            Cmd::ObjTile { .. } => 1,
+            Cmd::ObjTiles { tiles, .. } => tiles.len(),
+            _ => 0,
+        })
+        .sum()
+}
+
+/// What is left of [`OBJ_TILES_PER_FRAME`] in `f`.
+pub fn obj_tiles_left(f: &Frame) -> usize {
+    OBJ_TILES_PER_FRAME.saturating_sub(obj_tiles_sent(f))
 }
 
 const fn side_tag(side: Side) -> u8 {
@@ -151,28 +178,43 @@ mod tests {
         assert_eq!(last, 103);
     }
 
-    /// A drain with its numbers, a hit blink, a box shake and a tint in the same frames: every
-    /// frame is valid and sends at most 16 `ObjTile`s.
-    #[test]
-    fn busiest_frames_stay_within_the_obj_tile_budget() {
-        use super::super::BattleMon;
+    fn battle_mon(
+        nick: u8,
+        level: u8,
+        hp: u16,
+        status: crate::mon::Status,
+    ) -> super::super::BattleMon {
         use crate::data::SpeciesId;
-        use crate::mon::{Gender, NAME_LEN, Status};
-        use crate::video::{Cmd, Frame};
-        let game = test_gfx::game(Some(test_gfx::mon_gfx(8, 0, 0)));
-        let mon = BattleMon {
+        use crate::mon::{Gender, NAME_LEN};
+        super::super::BattleMon {
             party: 0,
             species: SpeciesId(1),
-            nickname: [0xBB; NAME_LEN],
-            level: 9,
-            hp: 999,
+            nickname: [nick; NAME_LEN],
+            level,
+            hp,
             max_hp: 999,
-            status: Status::None,
+            status,
             gender: Gender::Female,
             moves: [None; 4],
             pp: [0; 4],
             max_pp: [0; 4],
-        };
+        }
+    }
+
+    fn check_budget(f: &Frame) {
+        let tiles = obj_tiles_sent(f);
+        assert!(tiles <= OBJ_TILES_PER_FRAME, "{tiles} OBJ tiles");
+        assert!(f.validate().is_ok());
+    }
+
+    /// A drain with its numbers, a hit blink, a box shake and a tint in the same frames: every
+    /// frame is valid and sends at most 16 OBJ tiles.
+    #[test]
+    fn busiest_frames_stay_within_the_obj_tile_budget() {
+        use crate::data::SpeciesId;
+        use crate::mon::Status;
+        let game = test_gfx::game(Some(test_gfx::mon_gfx(8, 0, 0)));
+        let mon = battle_mon(0xBB, 9, 999, Status::None);
         let mut sprite = MonSprite::new(Side::Player, game.gfx);
         let mut boxes = Healthbox::new(Side::Player, game.gfx);
         let mut bar = HpBar::new(Side::Player, game.gfx);
@@ -189,18 +231,86 @@ mod tests {
         while !bar.done() {
             let mut f = Frame::default();
             bar.update(&mut f);
+            sprite.update(&mut f);
             boxes.set_hp(bar.value());
             boxes.update(&mut f);
-            sprite.update(&mut f);
-            let tiles = f
-                .cmds
-                .iter()
-                .filter(|c| matches!(c, Cmd::ObjTile { .. }))
-                .count();
-            assert!(tiles <= 16, "{tiles} ObjTiles");
-            assert!(f.validate().is_ok());
+            check_budget(&f);
         }
         assert_eq!(boxes.pending(), 0);
+    }
+
+    /// The exp bar wrapping to empty at a level-up (up to 16 tiles in its last frame) with a
+    /// whole healthbox redraw queued: the box waits for the frames the bar leaves.
+    #[test]
+    fn exp_wrap_and_healthbox_flush_share_the_budget() {
+        use crate::mon::Status;
+        let game = test_gfx::game(Some(test_gfx::mon_gfx(8, 0, 0)));
+        let exp_at = |l: u8| l as u32 * 100;
+        let mut boxes = Healthbox::new(Side::Player, game.gfx);
+        let mut exp = ExpBar::new(game.gfx);
+        let mut f = Frame::default();
+        boxes.load(&battle_mon(0xBB, 5, 999, Status::None), &mut f);
+        exp.set(5, 500, 600, 501, &mut f);
+        boxes.show();
+        exp.start(5, 501, 650, exp_at);
+        // A switch-in style redraw already pending when the bar wraps.
+        boxes.set_mon(&battle_mon(0xBC, 5, 123, Status::Poison));
+        let mut frames = 0;
+        let mut wrapped = false;
+        while !exp.done() || boxes.pending() > 0 {
+            let mut f = Frame::default();
+            exp.update(&mut f);
+            if exp.done() && exp.leveled_up() && !wrapped {
+                wrapped = true;
+                boxes.set_mon(&battle_mon(0xBD, exp.level(), 999, Status::Burn));
+                // The wrap frame: the last fill step and the empty bar.
+                assert!(obj_tiles_sent(&f) >= 8);
+            }
+            boxes.update(&mut f);
+            check_budget(&f);
+            frames += 1;
+            assert!(frames < 1000);
+        }
+        assert!(wrapped);
+        assert_eq!(exp.remaining(), Some((600, 650)));
+    }
+
+    /// The opponent's HP drain, its healthbox redrawn for a new mon, its faint erasing rows and
+    /// the player's pic reloading in steps, all in the same frames.
+    #[test]
+    fn drain_redraw_faint_and_load_step_share_the_budget() {
+        use crate::data::SpeciesId;
+        use crate::mon::Status;
+        let game = test_gfx::game(Some(test_gfx::mon_gfx(16, 0, 0)));
+        let mut enemy = MonSprite::new(Side::Opponent, game.gfx);
+        let mut player = MonSprite::new(Side::Player, game.gfx);
+        let mut boxes = Healthbox::new(Side::Opponent, game.gfx);
+        let mut bar = HpBar::new(Side::Opponent, game.gfx);
+        let mut f = Frame::default();
+        enemy.load(&game, SpeciesId(1), false, &mut f);
+        boxes.load(&battle_mon(0xBB, 9, 999, Status::None), &mut f);
+        bar.set(999, 999, &mut f);
+        enemy.show();
+        boxes.show();
+        bar.start(999, 999, 0);
+        enemy.faint();
+        boxes.set_mon(&battle_mon(0xBC, 42, 0, Status::Sleep(3)));
+        let mut loaded = false;
+        let mut frames = 0;
+        while !bar.done() || enemy.busy() || boxes.pending() > 0 || !loaded {
+            let mut f = Frame::default();
+            bar.update(&mut f);
+            enemy.update(&mut f);
+            boxes.set_hp(bar.value());
+            boxes.update(&mut f);
+            if !loaded {
+                loaded = player.load_step(&game, SpeciesId(1), false, &mut f);
+            }
+            check_budget(&f);
+            frames += 1;
+            // 999 HP drain at 1 HP per frame (max above 48 px).
+            assert!(frames <= 1000);
+        }
     }
 
     #[test]

@@ -2,6 +2,10 @@
 //! tiles to the ENV char block, the first 32x32 screen block of the tilemap (Gen3's BG3 is
 //! 64x32; its left half is what shows once the intro slide is over), and the three palettes to
 //! BG banks 2..5.
+//!
+//! Tilemap order assumption: Task B exports `battle/env` maps as the raw Gen3 BG3 data, 64x32
+//! entries stored as screen block 26 then screen block 27 (not row-major over 64 columns), so
+//! the first 1024 entries are the left 32x32 block and are uploaded as they are.
 
 use super::super::{BattleGfx, Environment};
 use crate::data::GameData;

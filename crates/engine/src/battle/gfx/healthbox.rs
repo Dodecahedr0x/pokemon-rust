@@ -6,7 +6,12 @@
 //! filled with color 2, text colors 1 / shadow 3) and copied into the box tiles as Gen3's
 //! `TextIntoHealthboxObject` (bottom row whole, top row only its last 3 pixel rows) and
 //! `HpTextIntoHealthboxObject` (bottom row tiles). The box keeps a RAM copy of its tiles and
-//! uploads only the tiles that changed, at most [`HEALTHBOX_TILES_PER_FRAME`] per frame.
+//! uploads only the tiles that changed, at most [`HEALTHBOX_TILES_PER_FRAME`] per frame and
+//! never past the frame's shared `ObjTile` budget ([`super::OBJ_TILES_PER_FRAME`], counting
+//! what other components already sent): update the healthboxes after sprites and bars.
+//!
+//! Omitted: the opponent HP bar's third subsprite (an 8x8 at -32, which only shows the
+//! caught-ball icon, not implemented).
 
 use super::super::{BattleGfx, BattleMon, Side};
 use super::{hash_i16, obj, side_tag};
@@ -188,8 +193,34 @@ impl Window {
     }
 }
 
+/// A short glyph string on the stack (no per-frame allocation).
+struct Text {
+    buf: [u8; 8],
+    len: usize,
+}
+
+impl Text {
+    const fn new() -> Self {
+        Text {
+            buf: [EOS; 8],
+            len: 0,
+        }
+    }
+
+    fn push(&mut self, b: u8) {
+        if self.len < self.buf.len() {
+            self.buf[self.len] = b;
+            self.len += 1;
+        }
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        &self.buf[..self.len]
+    }
+}
+
 /// `ConvertIntToDecimalStringN` for up to 3 digits: right-aligned pads with `CHAR_SPACER`.
-fn decimal(v: u16, right_align: bool, out: &mut Vec<u8>) {
+fn decimal(v: u16, right_align: bool, out: &mut Text) {
     let v = v.min(999);
     let mut started = false;
     for p in [100, 10, 1] {
@@ -255,7 +286,8 @@ impl Healthbox {
     }
 
     /// Uploads the box (`ObjTiles` of the base graphic, palettes) and draws every element for
-    /// `mon`, all in `f`: a bulk upload for a black frame or a hidden box. Hidden afterwards.
+    /// `mon`, all in `f`: a bulk upload, for black frames only. Hidden afterwards. Mid-battle
+    /// (a new mon on a loaded box) use [`Healthbox::set_mon`], which uploads within budget.
     /// The exp bar tiles are reset to the base graphic: redraw them (`ExpBar::invalidate`).
     pub fn load(&mut self, mon: &BattleMon, f: &mut Frame) {
         let l = layout(self.side);
@@ -326,11 +358,18 @@ impl Healthbox {
 
     pub fn set_level(&mut self, level: u8) {
         self.level = level;
-        let mut text = vec![CHAR_EXTRA_SYMBOL, CHAR_LV_2];
+        let mut text = Text::new();
+        text.push(CHAR_EXTRA_SYMBOL);
+        text.push(CHAR_LV_2);
         decimal(level as u16, false, &mut text);
-        let digits = text.len() - 2;
+        let digits = text.len - 2;
         let mut w = Window::new();
-        w.print(self.gfx.small_font, &text, 5 * (3 - digits.min(3)), 3);
+        w.print(
+            self.gfx.small_font,
+            text.as_slice(),
+            5 * (3 - digits.min(3)),
+            3,
+        );
         self.text_into(&w, layout(self.side).level, 0, 3);
     }
 
@@ -362,21 +401,21 @@ impl Healthbox {
     }
 
     fn draw_hp(&mut self) {
-        let mut text = Vec::new();
+        let mut text = Text::new();
         decimal(self.hp, true, &mut text);
         text.push(CHAR_SLASH);
         let mut w = Window::new();
-        w.print(self.gfx.small_font, &text, 4, 5);
+        w.print(self.gfx.small_font, text.as_slice(), 4, 5);
         for (dst, src) in HP_CUR_TILES {
             self.put(dst, w.0[src]);
         }
     }
 
     fn draw_hp_max(&mut self) {
-        let mut text = Vec::new();
+        let mut text = Text::new();
         decimal(self.max_hp, true, &mut text);
         let mut w = Window::new();
-        w.print(self.gfx.small_font, &text, 0, 5);
+        w.print(self.gfx.small_font, text.as_slice(), 0, 5);
         for (dst, src) in HP_MAX_TILES {
             self.put(dst, w.0[src]);
         }
@@ -495,7 +534,8 @@ impl Healthbox {
                 self.shake += 1;
             }
         }
-        self.flush(f, HEALTHBOX_TILES_PER_FRAME);
+        let budget = HEALTHBOX_TILES_PER_FRAME.min(super::obj_tiles_left(f));
+        self.flush(f, budget);
         if self.visible {
             self.push_objs(f);
         }
@@ -575,6 +615,14 @@ impl Healthbox {
         hash_i16(h, self.off.0);
         hash_i16(h, self.off.1);
         hash_i16(h, self.slide);
+        for t in &self.label {
+            for w in t {
+                h.write_u32(*w);
+            }
+        }
+        for c in self.palette {
+            h.write_u16(c);
+        }
         h.write(&self.dirty.to_le_bytes());
     }
 }
@@ -687,18 +735,16 @@ mod tests {
         let gfx = gfx();
         let mut hb = Healthbox::new(Side::Player, gfx);
         hb.load(&mon(20, 20), &mut Frame::default());
-        // "␣20/" -> "␣19/": x = 4 + 5 * k; digits at x 9 and 14: window tiles 9 (8..16) only
-        // ("2" -> "1" at 9..14, "0" -> "9" at 14..19 crosses into tile 10).
+        // "␣20/" -> "␣19/" at x 4: spacer 4..9, digits at 9 and 14, "/" at 19. The synthetic
+        // digit glyphs differ at (d % 4, 6) and (4, 4 + d % 8): "2" -> "1" changes x 10..12 and
+        // 13 (window tile 9), "0" -> "9" changes x 14..15 (tile 9) and the shadow at x 18
+        // (tile 10). Window tiles 9 and 10 go to box tiles 88 and 89; tile 31 (x 0..8) stays.
         hb.set_hp(19);
         let mut f = Frame::default();
         hb.update(&mut f);
         let mut tiles = obj_tiles(&f);
         tiles.sort();
-        assert!(!tiles.is_empty());
-        assert!(tiles.len() <= 3);
-        for t in &tiles {
-            assert!([31, 88, 89].map(|t| obj::PLAYER_BOX + t).contains(t));
-        }
+        assert_eq!(tiles, [obj::PLAYER_BOX + 88, obj::PLAYER_BOX + 89]);
         // Same value again: nothing.
         hb.set_hp(19);
         let mut f = Frame::default();
@@ -867,12 +913,12 @@ mod tests {
         b.set_level(50);
         // Level 5: glyphs at 10 (Lv) and 15; level 50 at 5, 10, 15: tile 32 differs.
         assert_ne!(a.tiles[32], b.tiles[32]);
-        let mut d = Vec::new();
+        let mut d = Text::new();
         decimal(7, true, &mut d);
-        assert_eq!(d, [CHAR_SPACER, CHAR_SPACER, CHAR_0 + 7]);
-        d.clear();
+        assert_eq!(d.as_slice(), [CHAR_SPACER, CHAR_SPACER, CHAR_0 + 7]);
+        let mut d = Text::new();
         decimal(120, false, &mut d);
-        assert_eq!(d, [CHAR_0 + 1, CHAR_0 + 2, CHAR_0]);
+        assert_eq!(d.as_slice(), [CHAR_0 + 1, CHAR_0 + 2, CHAR_0]);
     }
 
     #[test]

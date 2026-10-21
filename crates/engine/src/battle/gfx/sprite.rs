@@ -7,7 +7,8 @@
 //! `Task_DoPokeballSendOutAnim` (player ball arc from (24, 68) in 25 frames, opponent ball 16
 //! frames at its spot), faint `SpriteCB_AnimFaintOpponent` (8 px down every 2 frames, erasing a
 //! tile row) and `SpriteCB_FaintSlideAnim` (5 px/frame until below the screen), hit blink
-//! `DoHitAnimBlinkSpriteEffect` (visibility toggled every 4 frames for 32 frames).
+//! `DoHitAnimBlinkSpriteEffect` (visibility toggled every 4 frames for 32 frames; a hidden
+//! sprite stays hidden). Tint palettes are uploaded only when the coefficient changes.
 //! Approximations: the ball arc is a parabola, the ball pops after 4 frames and the mon appears
 //! at full size (no affine "emerge"), recall shows the ball for 8 frames, the lunge is 8 px out
 //! and back in 8 frames, and the tint blends the pic palette toward a color (coefficient up to
@@ -19,7 +20,7 @@ use crate::data::{GameData, SpeciesId};
 use crate::hash::Fnv64;
 use crate::mon::{MonGfx, TrainerPic};
 use crate::video::{
-    Cmd, Frame, Obj, ObjShape, SCREEN_H, SCREEN_W, layout::battle::OBJ_PRIORITY_MON,
+    Cmd, Frame, Obj, ObjShape, SCREEN_H, SCREEN_W, Tile, layout::battle::OBJ_PRIORITY_MON,
 };
 
 /// Stat raised / lowered tints (RGB555).
@@ -50,6 +51,8 @@ const LUNGE_FRAMES: u8 = 8;
 const TINT_FRAMES: u8 = 32;
 /// `SpriteCB_FaintSlideAnim` speed for the player's mon.
 const FAINT_SPEED: i16 = 5;
+/// Tiles per [`MonSprite::load_step`].
+const LOAD_STEP_TILES: usize = 16;
 
 /// Gen3 `BlendPalette`: each channel moves `coeff`/16 of the way to `color`.
 fn blend(pal: &[u16; 16], coeff: u8, color: u16) -> [u16; 16] {
@@ -128,8 +131,14 @@ pub struct MonSprite {
     visible: bool,
     anim: MonAnim,
     tint: Option<Tint>,
+    /// Tint coefficient last uploaded (palettes are sent only when it changes).
+    tint_coeff: Option<u8>,
+    /// Hidden by the hit blink (`visible` is kept).
+    blink_off: bool,
     /// Ball OBJ centre while it shows.
     ball: Option<(i16, i16)>,
+    /// A `load_step` in progress: (species, shiny, tiles uploaded).
+    loading: Option<(SpeciesId, bool, u8)>,
 }
 
 impl MonSprite {
@@ -148,7 +157,10 @@ impl MonSprite {
             visible: false,
             anim: MonAnim::Idle,
             tint: None,
+            tint_coeff: None,
+            blink_off: false,
             ball: None,
+            loading: None,
         }
     }
 
@@ -166,15 +178,19 @@ impl MonSprite {
         }
     }
 
-    /// Loads `species`' pic (front for the opponent, back for the player), its palette and the
-    /// ball frame; hidden and at rest afterwards. A species without pics draws nothing.
-    pub fn load(&mut self, game: &impl GameData, species: SpeciesId, shiny: bool, f: &mut Frame) {
-        let gfx = game
-            .battle()
+    fn mon_gfx(game: &impl GameData, species: SpeciesId) -> Option<&'static MonGfx> {
+        game.battle()
             .species
             .get(species.0 as usize)
-            .and_then(|s| s.gfx);
-        self.load_gfx(species, gfx, shiny, f);
+            .and_then(|s| s.gfx)
+    }
+
+    /// Loads `species`' pic (front for the opponent, back for the player), its palette and the
+    /// ball frame in one go: a bulk upload, for black frames only. Hidden and at rest
+    /// afterwards. A species without pics draws nothing. Mid-battle, use
+    /// [`MonSprite::load_step`].
+    pub fn load(&mut self, game: &impl GameData, species: SpeciesId, shiny: bool, f: &mut Frame) {
+        self.load_gfx(species, Self::mon_gfx(game, species), shiny, f);
     }
 
     /// [`MonSprite::load`] from the pic data directly.
@@ -185,40 +201,16 @@ impl MonSprite {
         shiny: bool,
         f: &mut Frame,
     ) {
-        self.species = Some(species);
-        self.off = (0, 0);
-        self.visible = false;
-        self.anim = MonAnim::Idle;
-        self.tint = None;
-        self.ball = None;
-        let (cx, cy) = match self.side {
-            Side::Player => PLAYER_XY,
-            Side::Opponent => OPPONENT_XY,
-        };
-        let Some(g) = gfx else {
-            self.home = (cx, cy);
-            self.palette = [0; 16];
+        let tiles = self.prepare(species, gfx, shiny);
+        if gfx.is_none() {
             return;
-        };
-        // `GetBattlerSpriteFinal_Y` (default, no pic-offset clamp): the player adds the back
-        // pic offset, the opponent the front offset minus its elevation.
-        self.home = match self.side {
-            Side::Player => (cx, cy + g.back_y as i16),
-            Side::Opponent => (cx, cy + g.front_y as i16 - g.elevation as i16),
-        };
-        self.front_y = g.front_y;
-        let tiles = match self.side {
-            Side::Player => g.back,
-            Side::Opponent => g.front,
-        };
-        let n = tiles.len().min(PIC_TILES);
-        if n > 0 {
+        }
+        if !tiles.is_empty() {
             f.cmds.push(Cmd::ObjTiles {
                 first: self.tile_base(),
-                tiles: &tiles[..n],
+                tiles,
             });
         }
-        self.palette = if shiny { *g.shiny } else { *g.palette };
         f.cmds.push(Cmd::ObjPalette {
             bank: self.palette_bank(),
             colors: self.palette,
@@ -236,6 +228,104 @@ impl MonSprite {
                 colors: *p,
             });
         }
+    }
+
+    /// Mid-battle load (a send-out, a pic erased by a faint): as [`MonSprite::load`] but at
+    /// most 16 tiles per frame and only what is left of the frame's
+    /// [`super::OBJ_TILES_PER_FRAME`] (4 frames for a pic), the palette with the last chunk.
+    /// The sprite is hidden meanwhile; call it every frame with the same arguments until it
+    /// returns true. The ball frame is not re-sent ([`MonSprite::load`] uploaded it at battle
+    /// start).
+    pub fn load_step(
+        &mut self,
+        game: &impl GameData,
+        species: SpeciesId,
+        shiny: bool,
+        f: &mut Frame,
+    ) -> bool {
+        let gfx = Self::mon_gfx(game, species);
+        let done = match self.loading {
+            Some((s, sh, done)) if s == species && sh == shiny => done as usize,
+            _ => {
+                self.prepare(species, gfx, shiny);
+                0
+            }
+        };
+        let tiles = self.pic_tiles(gfx);
+        let n = (tiles.len() - done)
+            .min(LOAD_STEP_TILES)
+            .min(super::obj_tiles_left(f));
+        if n > 0 {
+            f.cmds.push(Cmd::ObjTiles {
+                first: self.tile_base() + done as u16,
+                tiles: &tiles[done..done + n],
+            });
+        }
+        if done + n < tiles.len() {
+            self.loading = Some((species, shiny, (done + n) as u8));
+            return false;
+        }
+        if gfx.is_some() {
+            f.cmds.push(Cmd::ObjPalette {
+                bank: self.palette_bank(),
+                colors: self.palette,
+            });
+        }
+        self.loading = None;
+        true
+    }
+
+    /// Whether a [`MonSprite::load_step`] is in progress.
+    pub fn loading(&self) -> bool {
+        self.loading.is_some()
+    }
+
+    fn pic_tiles(&self, gfx: Option<&'static MonGfx>) -> &'static [Tile] {
+        let Some(g) = gfx else {
+            return &[];
+        };
+        let tiles = match self.side {
+            Side::Player => g.back,
+            Side::Opponent => g.front,
+        };
+        &tiles[..tiles.len().min(PIC_TILES)]
+    }
+
+    /// Resets the sprite for `species` (hidden, at rest, Gen3 position) and returns its tiles.
+    fn prepare(
+        &mut self,
+        species: SpeciesId,
+        gfx: Option<&'static MonGfx>,
+        shiny: bool,
+    ) -> &'static [Tile] {
+        self.species = Some(species);
+        self.off = (0, 0);
+        self.visible = false;
+        self.blink_off = false;
+        self.anim = MonAnim::Idle;
+        self.tint = None;
+        self.tint_coeff = None;
+        self.ball = None;
+        self.loading = None;
+        let (cx, cy) = match self.side {
+            Side::Player => PLAYER_XY,
+            Side::Opponent => OPPONENT_XY,
+        };
+        let Some(g) = gfx else {
+            self.home = (cx, cy);
+            self.palette = [0; 16];
+            self.front_y = 0;
+            return &[];
+        };
+        // `GetBattlerSpriteFinal_Y` (default, no pic-offset clamp): the player adds the back
+        // pic offset, the opponent the front offset minus its elevation.
+        self.home = match self.side {
+            Side::Player => (cx, cy + g.back_y as i16),
+            Side::Opponent => (cx, cy + g.front_y as i16 - g.elevation as i16),
+        };
+        self.front_y = g.front_y;
+        self.palette = if shiny { *g.shiny } else { *g.palette };
+        self.pic_tiles(gfx)
     }
 
     /// Visible at rest.
@@ -257,6 +347,7 @@ impl MonSprite {
         self.visible = true;
         self.off = (-(SCREEN_W as i16), 0);
         self.anim = MonAnim::SlideIn;
+        self.tint_coeff = None;
         self.tint = Some(Tint {
             color: WILD_GRAY,
             t: 0,
@@ -292,8 +383,10 @@ impl MonSprite {
         };
     }
 
-    /// Hit: visibility toggles every 4 frames for 32 frames.
+    /// Hit: the pic blinks (hidden / shown every 4 frames) for 32 frames. A hidden sprite
+    /// stays hidden.
     pub fn hit(&mut self) {
+        self.blink_off = false;
         self.anim = MonAnim::Blink { t: 0 };
     }
 
@@ -309,6 +402,7 @@ impl MonSprite {
             t: TINT_FRAMES,
             kind: TintKind::Pulse,
         });
+        self.tint_coeff = None;
     }
 
     pub fn busy(&self) -> bool {
@@ -366,7 +460,7 @@ impl MonSprite {
                 ..Obj::default()
             });
         }
-        if self.visible {
+        if self.visible && !self.blink_off {
             let (x, y) = self.pos();
             f.objs.push(Obj {
                 x,
@@ -475,11 +569,11 @@ impl MonSprite {
             }
             MonAnim::Blink { t } => {
                 if t == BLINK_FRAMES {
-                    self.visible = true;
+                    self.blink_off = false;
                     MonAnim::Idle
                 } else {
                     if t % 4 == 0 {
-                        self.visible = !self.visible;
+                        self.blink_off = !self.blink_off;
                     }
                     MonAnim::Blink { t: t + 1 }
                 }
@@ -523,22 +617,44 @@ impl MonSprite {
                 }
             }
         };
-        f.cmds.push(Cmd::ObjPalette {
-            bank: self.palette_bank(),
-            colors: blend(&self.palette, coeff, tint.color),
-        });
+        if self.tint_coeff != Some(coeff) {
+            f.cmds.push(Cmd::ObjPalette {
+                bank: self.palette_bank(),
+                colors: blend(&self.palette, coeff, tint.color),
+            });
+            self.tint_coeff = Some(coeff);
+        }
         let finished = match tint.kind {
             TintKind::Hold(_) => false,
             TintKind::Fade(_) => coeff == 0,
             TintKind::Pulse => tint.t == 0,
         };
         self.tint = (!finished).then_some(tint);
+        if finished {
+            self.tint_coeff = None;
+        }
     }
 
     #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
-        h.write(&[side_tag(self.side), self.visible as u8, self.front_y]);
+        h.write(&[
+            side_tag(self.side),
+            self.visible as u8,
+            self.front_y,
+            self.blink_off as u8,
+            self.tint_coeff.unwrap_or(0xFF),
+        ]);
         h.write_u16(self.species.map_or(0xFFFF, |s| s.0));
+        for c in self.palette {
+            h.write_u16(c);
+        }
+        match self.loading {
+            None => h.write(&[0xFF]),
+            Some((s, shiny, n)) => {
+                h.write_u16(s.0);
+                h.write(&[shiny as u8, n]);
+            }
+        }
         for v in [self.home.0, self.home.1, self.off.0, self.off.1] {
             hash_i16(h, v);
         }
@@ -611,7 +727,9 @@ impl TrainerSprite {
         }
     }
 
-    /// `(8 - size) * 4 + 40` / `+ 80` with Emerald's pic size 8: (176, 40) and (80, 80).
+    /// Gen3 centres: `OpponentHandleDrawTrainerPic` y = `(8 - gTrainerFrontPicCoords[pic].size)
+    /// * 4 + 40` and `PlayerHandleDrawTrainerPic` y = `(8 - gTrainerBackPicCoords[pic].size) * 4
+    /// + 80`; every Emerald pic has size 8, hence (176, 40) and (80, 80).
     const fn centre(side: Side) -> (i16, i16) {
         match side {
             Side::Opponent => (176, 40),
@@ -633,7 +751,8 @@ impl TrainerSprite {
         }
     }
 
-    /// Uploads `pic` (frame 0: its first 64 tiles) and its palette; hidden at rest.
+    /// Uploads `pic` (frame 0: its first 64 tiles) and its palette; hidden at rest. A bulk
+    /// upload, for black frames only.
     pub fn load(&mut self, pic: &'static TrainerPic, f: &mut Frame) {
         let n = pic.tiles.len().min(PIC_TILES);
         if n > 0 {
@@ -867,18 +986,19 @@ mod tests {
                 Cmd::ObjPalette { bank: 0, colors } => Some(colors[0]),
                 _ => None,
             });
-            coeffs.push(pal.unwrap());
+            coeffs.push(pal);
         }
         // 240 / 2 = 120 sliding frames; the gray fades 10, 8, 6, 4, 2, 0 from the arrival
-        // frame (the last one restores the palette).
+        // frame (the last one restores the palette). Palettes go out only on a change.
         assert_eq!(xs[0], 144 - 238);
         assert_eq!(xs[119], 144);
         assert_eq!(xs.len(), 125);
         let base = 0x100u16; // palette color 0 of the synthetic pic
-        assert_eq!(coeffs[0], blend(&[base; 16], 10, WILD_GRAY)[0]);
-        assert_eq!(coeffs[118], coeffs[0]);
-        assert_eq!(coeffs[123], blend(&[base; 16], 2, WILD_GRAY)[0]);
-        assert_eq!(coeffs[124], base);
+        assert_eq!(coeffs[0], Some(blend(&[base; 16], 10, WILD_GRAY)[0]));
+        assert!(coeffs[1..120].iter().all(Option::is_none));
+        assert_eq!(coeffs[120], Some(blend(&[base; 16], 8, WILD_GRAY)[0]));
+        assert_eq!(coeffs[123], Some(blend(&[base; 16], 2, WILD_GRAY)[0]));
+        assert_eq!(coeffs[124], Some(base));
         let mut f = Frame::default();
         s.update(&mut f);
         assert!(f.cmds.is_empty());
@@ -989,6 +1109,18 @@ mod tests {
             [false, false, false, false, true, true, true, true]
         );
         assert!(shown[28..].iter().all(|&v| v));
+        assert!(s.visible());
+
+        // A hidden sprite stays hidden through a blink.
+        s.hide();
+        s.hit();
+        while s.busy() {
+            let mut f = Frame::default();
+            s.update(&mut f);
+            assert!(f.objs.is_empty());
+        }
+        assert!(!s.visible());
+        s.show();
 
         s.lunge();
         let mut xs = Vec::new();
@@ -1001,18 +1133,90 @@ mod tests {
 
         s.tint(TINT_STAT_UP);
         let mut coeffs = Vec::new();
+        let mut frames = 0;
         while s.busy() {
             let mut f = Frame::default();
             s.update(&mut f);
-            let Some(Cmd::ObjPalette { colors, .. }) = f.cmds.first() else {
-                panic!("palette expected")
-            };
-            coeffs.push(colors[0]);
+            frames += 1;
+            if let Some(Cmd::ObjPalette { colors, .. }) = f.cmds.first() {
+                coeffs.push(colors[0]);
+            }
         }
-        assert_eq!(coeffs.len(), 32);
+        // 32 frames; coefficients 0, 1, 1, 2, .., 8 then 7, 7, .., 0, 0: one upload per
+        // change (0..=8 then 7..=0).
+        assert_eq!(frames, 32);
+        assert_eq!(coeffs.len(), 17);
         let base = [0x100u16; 16];
-        assert_eq!(coeffs[15], blend(&base, 8, TINT_STAT_UP)[0]);
-        assert_eq!(coeffs[31], base[0]);
+        assert_eq!(coeffs[8], blend(&base, 8, TINT_STAT_UP)[0]);
+        assert_eq!(coeffs[16], base[0]);
+    }
+
+    #[test]
+    fn load_step_uploads_16_tiles_per_frame_palette_last() {
+        let game = game(Some(mon_gfx(8, 0, 0)));
+        let g = game.tables.species[1].gfx.unwrap();
+        let mut s = MonSprite::new(Side::Opponent, game.gfx);
+        s.load(&game, SpeciesId(1), false, &mut Frame::default());
+        s.show();
+        let mut frames = Vec::new();
+        loop {
+            let mut f = Frame::default();
+            let done = s.load_step(&game, SpeciesId(1), true, &mut f);
+            s.update(&mut f);
+            assert!(f.objs.is_empty(), "hidden while loading");
+            frames.push(f);
+            if done {
+                break;
+            }
+        }
+        assert_eq!(frames.len(), 4);
+        for (i, f) in frames.iter().enumerate() {
+            assert_eq!(
+                f.cmds[0],
+                Cmd::ObjTiles {
+                    first: obj::ENEMY_PIC + 16 * i as u16,
+                    tiles: &g.front[16 * i..16 * (i + 1)],
+                }
+            );
+            assert_eq!(f.cmds.len(), if i == 3 { 2 } else { 1 });
+        }
+        assert_eq!(
+            frames[3].cmds[1],
+            Cmd::ObjPalette {
+                bank: obj::PAL_ENEMY_MON,
+                colors: *g.shiny,
+            }
+        );
+        assert!(!s.loading());
+        // Only what the frame's budget leaves: 10 tiles already queued leaves 6, none at 16.
+        let mut f = Frame::default();
+        for i in 0..10 {
+            f.cmds.push(Cmd::ObjTile {
+                index: obj::FREE + i,
+                tile: [0; 8],
+            });
+        }
+        assert!(!s.load_step(&game, SpeciesId(1), false, &mut f));
+        assert_eq!(super::super::obj_tiles_sent(&f), 16);
+        for i in 0..6 {
+            f.cmds.push(Cmd::ObjTile {
+                index: obj::FREE + i,
+                tile: [0; 8],
+            });
+        }
+        let n = f.cmds.len();
+        assert!(!s.load_step(&game, SpeciesId(1), false, &mut f));
+        assert_eq!(f.cmds.len(), n);
+        let mut steps = 0;
+        while !s.load_step(&game, SpeciesId(1), false, &mut Frame::default()) {
+            steps += 1;
+        }
+        // 58 tiles left: 3 more frames of 16, the 4th with 10 and the palette.
+        assert_eq!(steps, 3);
+        s.show();
+        let mut f = Frame::default();
+        s.update(&mut f);
+        assert_eq!(f.objs.len(), 1);
     }
 
     #[test]

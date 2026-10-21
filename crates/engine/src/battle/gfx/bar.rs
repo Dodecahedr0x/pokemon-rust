@@ -9,7 +9,6 @@ use super::{obj, side_tag};
 use crate::Tile;
 use crate::hash::Fnv64;
 use crate::video::{Cmd, Frame};
-use alloc::vec::Vec;
 
 /// `B_HEALTHBAR_PIXELS / 8`.
 const HP_TILES: usize = 6;
@@ -274,25 +273,32 @@ impl HpBar {
     }
 }
 
-/// One level's worth of an exp gain.
+/// The level of a gain the bar is filling.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Segment {
-    level: u8,
-    /// Exp at `level` and at `level + 1`.
+    /// Exp at the bar's level and at the next one.
     min: u32,
     next: u32,
+    /// The gain: `to` is its overall end, possibly past `next`.
     from: u32,
     to: u32,
 }
 
 /// The player's 64 px exp bar, drawn into the player healthbox tiles.
+///
+/// One `start` fills one level, as Gen3 `Task_PrepareToGiveExpWithExpBar` /
+/// `Task_GiveExpWithExpBar`: 13 waiting frames, then one `MoveBattleBar(EXP_BAR)` per frame.
+/// At a level-up the bar wraps to empty and stops ([`ExpBar::leveled_up`]); the scene shows
+/// the level-up, then calls `start` again with [`ExpBar::remaining`].
 #[derive(Clone)]
 pub struct ExpBar {
     gfx: &'static BattleGfx,
     bar: BarState,
     level: u8,
-    /// Remaining segments of the gain, the running one first.
-    segments: Vec<Segment>,
+    running: Option<Segment>,
+    leveled_up: bool,
+    /// What is left of the gain after a level-up: (from, to).
+    remaining: Option<(u32, u32)>,
     delay: u8,
     drawn: Option<[u8; EXP_TILES]>,
 }
@@ -303,7 +309,9 @@ impl ExpBar {
             gfx,
             bar: BarState::new(0, 0, 0),
             level: 0,
-            segments: Vec::new(),
+            running: None,
+            leveled_up: false,
+            remaining: None,
             delay: 0,
             drawn: None,
         }
@@ -313,7 +321,9 @@ impl ExpBar {
     /// and `next` are the exp of `level` and `level + 1`. Empty at `MAX_LEVEL`.
     pub fn set(&mut self, level: u8, min: u32, next: u32, exp: u32, f: &mut Frame) {
         self.level = level;
-        self.segments.clear();
+        self.running = None;
+        self.leveled_up = false;
+        self.remaining = None;
         if level >= MAX_LEVEL || next <= min {
             self.bar = BarState::new(0, 0, 0);
         } else {
@@ -323,46 +333,37 @@ impl ExpBar {
         self.draw(f);
     }
 
-    /// Starts a gain from `from` to `to` total exp at `level`; `exp_at(l)` is the exp of level
-    /// `l` (`mon::exp_for_level` for the species' growth rate). The bar fills one level at a
-    /// time and wraps to empty at each level-up ([`ExpBar::level`] follows).
+    /// Starts filling the bar of `level` from `from` toward `to` total exp: the whole
+    /// remaining gain, as Gen3 passes it all as `receivedValue` and `CalcNewBarValue` stops at
+    /// the level's end (a gain crossing a level fills faster). `exp_at(l)` is the exp of level
+    /// `l` (`mon::exp_for_level` for the species' growth rate). Nothing to do at `MAX_LEVEL`.
     pub fn start(&mut self, level: u8, from: u32, to: u32, exp_at: impl Fn(u8) -> u32) {
-        self.segments.clear();
         self.level = level;
-        let (mut lv, mut e) = (level, from);
-        while lv < MAX_LEVEL && e < to {
-            let (min, next) = (exp_at(lv), exp_at(lv + 1));
-            let seg_to = to.min(next);
-            self.segments.push(Segment {
-                level: lv,
-                min,
-                next,
-                from: e,
-                to: seg_to,
-            });
-            if seg_to < next {
-                break;
-            }
-            lv += 1;
-            e = next;
+        self.leveled_up = false;
+        self.remaining = None;
+        self.running = None;
+        if level >= MAX_LEVEL || from >= to {
+            return;
         }
-        self.begin_segment();
-    }
-
-    fn begin_segment(&mut self) {
-        if let Some(s) = self.segments.first() {
-            self.bar = BarState::new(
-                s.next.saturating_sub(s.min) as i32,
-                s.from.saturating_sub(s.min) as i32,
-                -(s.to.saturating_sub(s.from) as i32),
-            );
-            self.delay = 0;
-        }
+        let seg = Segment {
+            min: exp_at(level),
+            next: exp_at(level + 1),
+            from,
+            to,
+        };
+        // `SetBattleBarStruct(battler, healthbox, expToNextLvl, exp, -gainedExp)`.
+        self.bar = BarState::new(
+            seg.next.saturating_sub(seg.min) as i32,
+            seg.from.saturating_sub(seg.min) as i32,
+            -(seg.to.saturating_sub(seg.from).min(i32::MAX as u32) as i32),
+        );
+        self.delay = 0;
+        self.running = Some(seg);
     }
 
     /// One frame of `Task_GiveExpWithExpBar`.
     pub fn update(&mut self, f: &mut Frame) {
-        let Some(&seg) = self.segments.first() else {
+        let Some(seg) = self.running else {
             return;
         };
         if self.delay < EXP_DELAY {
@@ -377,21 +378,33 @@ impl ExpBar {
         if ret != -1 {
             return;
         }
-        self.segments.remove(0);
-        if seg.to == seg.next {
+        self.running = None;
+        if seg.to >= seg.next {
             // Level-up: the healthbox redraw shows the new level's empty bar.
-            self.level = seg.level + 1;
+            self.level += 1;
+            self.leveled_up = true;
+            self.remaining = (seg.to > seg.next).then_some((seg.next, seg.to));
             self.bar = BarState::new(0, 0, 0);
             self.draw(f);
         }
-        self.begin_segment();
     }
 
+    /// The fill of the current `start` is over (the bar is stopped).
     pub fn done(&self) -> bool {
-        self.segments.is_empty()
+        self.running.is_none()
     }
 
-    /// The level the bar currently shows (it wraps at each level-up of a gain).
+    /// The last fill ended with a level-up: the bar shows the new level, empty.
+    pub fn leveled_up(&self) -> bool {
+        self.leveled_up
+    }
+
+    /// After a level-up, the rest of the gain for the next `start`: (from, to).
+    pub fn remaining(&self) -> Option<(u32, u32)> {
+        self.remaining
+    }
+
+    /// The level the bar shows.
     pub fn level(&self) -> u8 {
         self.level
     }
@@ -426,11 +439,20 @@ impl ExpBar {
     #[allow(clippy::should_implement_trait)] // the engine-wide `hash(&self, &mut Fnv64)` shape
     pub fn hash(&self, h: &mut Fnv64) {
         self.bar.hash(h);
-        h.write(&[self.level, self.delay, self.segments.len() as u8]);
-        for s in &self.segments {
-            h.write(&[s.level]);
-            for v in [s.min, s.next, s.from, s.to] {
-                h.write_u32(v);
+        h.write(&[self.level, self.delay, self.leveled_up as u8]);
+        match self.running {
+            None => h.write(&[0xFF]),
+            Some(s) => {
+                for v in [s.min, s.next, s.from, s.to] {
+                    h.write_u32(v);
+                }
+            }
+        }
+        match self.remaining {
+            None => h.write(&[0xFF]),
+            Some((a, b)) => {
+                h.write_u32(a);
+                h.write_u32(b);
             }
         }
         match self.drawn {
@@ -456,6 +478,7 @@ fn scaled_exp_fraction(old: i32, received: i32, max: i32) -> i32 {
 mod tests {
     use super::super::test_gfx::*;
     use super::*;
+    use alloc::vec::Vec;
 
     fn obj_tiles(f: &Frame) -> Vec<(u16, Tile)> {
         f.cmds
@@ -561,8 +584,7 @@ mod tests {
         assert_eq!(bar.drawn(), Some((BarColor::Red, 0)));
     }
 
-    /// Golden from the same transcription: span 100, 20 -> 100 (+80). `GetScaledExpFraction`
-    /// = |12 - 64| = 52 px, so the step is 80 / 52 = 1 exp per frame.
+    /// Goldens from the same transcription of `MoveBattleBar(EXP_BAR)`.
     #[test]
     fn exp_bar_fills_one_level_then_wraps() {
         let gfx = gfx();
@@ -584,10 +606,12 @@ mod tests {
                 (obj::PLAYER_BOX + 0x63, tile(TAG_EXPBAR, 0)),
             ]
         );
+        // The whole gain (+130) is `receivedValue`: `GetScaledExpFraction` = |12 - 64| = 52 px
+        // (the new value clamps to the 100 max), step 130 / 52 = 2 exp per frame.
         bar.start(5, 520, 650, at);
         let mut pixels = Vec::new();
         let mut frames = 0;
-        while bar.level() == 5 {
+        while !bar.done() {
             let mut f = Frame::default();
             bar.update(&mut f);
             assert!(obj_tiles(&f).len() <= 16);
@@ -596,14 +620,22 @@ mod tests {
                 pixels.push(bar.drawn_pixels().unwrap());
             }
         }
-        // 13 waiting frames, 80 moves, then the -1 frame wraps.
-        assert_eq!(frames, 13 + 81);
-        assert_eq!(pixels.len(), 80);
-        assert_eq!(pixels[..6], [13, 14, 14, 15, 16, 16]);
-        assert_eq!(pixels[79], 64);
+        // 13 waiting frames, 40 moves, then the -1 frame wraps and stops.
+        assert_eq!(frames, 13 + 41);
+        assert_eq!(pixels.len(), 40);
+        assert_eq!(pixels[..6], [14, 15, 16, 17, 19, 20]);
+        assert_eq!(pixels[38..], [62, 64]);
         assert_eq!(bar.drawn_pixels(), Some(0));
-        assert!(!bar.done());
-        // Level 6: 600 -> 650 of a 100 span, after another 13-frame wait.
+        assert!(bar.leveled_up());
+        assert_eq!(bar.level(), 6);
+        assert_eq!(bar.remaining(), Some((600, 650)));
+        // Stopped until the scene resumes it.
+        let mut f = Frame::default();
+        bar.update(&mut f);
+        assert!(f.cmds.is_empty());
+        // Level 6: 600 -> 650 of a 100 span: |0 - 32| px, 50 / 32 = 1 per frame, after its own
+        // 13-frame wait.
+        bar.start(6, 600, 650, at);
         let mut frames = 0;
         while !bar.done() {
             bar.update(&mut Frame::default());
@@ -611,6 +643,8 @@ mod tests {
         }
         assert_eq!(frames, 13 + 50 + 1);
         assert_eq!(bar.level(), 6);
+        assert!(!bar.leveled_up());
+        assert_eq!(bar.remaining(), None);
         assert_eq!(bar.drawn_pixels(), Some(32));
     }
 
@@ -631,7 +665,8 @@ mod tests {
         let expected: Vec<u8> = (17..=64).collect();
         assert_eq!(pixels, expected);
         // Exactly the next level's exp: the bar wraps to empty and the gain is over.
-        assert!(bar.done());
+        assert!(bar.done() && bar.leveled_up());
+        assert_eq!(bar.remaining(), None);
         assert_eq!(bar.level(), 6);
         assert_eq!(bar.drawn_pixels(), Some(0));
     }

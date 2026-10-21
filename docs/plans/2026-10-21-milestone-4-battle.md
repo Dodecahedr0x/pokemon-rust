@@ -384,6 +384,7 @@ starter/{bag,ball,circle}.{png,ron}
 6. `wild.rs`, `trainer.rs`, `starter.rs`, `battle/transition.rs` (`BattleTransition::new(&BattleKind)`) and `battle/text.rs` (`expand`) are stubbed from their task sections, and every new module is registered, so Wave 1 never edits `lib.rs`/`battle/mod.rs` to add a file. `calc.rs`, `effects.rs`, `ai.rs`, `gfx.rs`, `ui.rs` and `test_data.rs` are doc-only: their signatures are the owning task's to define.
 7. `GameData` defaults write `let _ = arg;` (unused parameters); behaviour as specified.
 8. The GBA shell's black-screen test now uses `Frame::is_black` (a `lighten` frame at BLDY 16 is white, not black); `BLDCNT_LIGHTEN_ALL = 0x3F | 2 << 6` is asserted next to the darken constant.
+9. Battle OBJ layout (Task E, `battle::gfx::obj`, mirrored in the `video::layout::battle` comment): the player healthbox takes two 64x64 halves as Gen3 (its exp bar row is below 32 px), so player box 256..384, enemy box 384..448, HP bars 448 / 456 (8 tiles each), ball 464, anim tiles 468..512. OBJ palettes: 4 player box, 7 opponent box (its status color lives in the box palette), anim tints 8..10. A visible frame uploads at most 16 OBJ tiles in all (`battle::gfx::OBJ_TILES_PER_FRAME`).
 
 ---
 
@@ -542,9 +543,9 @@ Gen3 references: `battle_main.c` (`GetWhoStrikesFirst`, `SetActionsAndBattlersTu
 Components, each with `hash` and a per-frame `update(&mut self, f: &mut Frame)`, drawn with `layout::battle`:
 1. **`Background`:** loads an `Environment`'s tiles, map and palettes onto ENV (Gen3 `DrawMainBattleBackground`). It loads in chunks: `load_step(&mut self, game, f) -> bool`, with each chunk inside the black-frame budget.
 2. **`MonSprite` / `TrainerSprite`:** 64×64 OBJs from `MonGfx` / `TrainerPic`, placed as Gen3 does:
-   - enemy at (176, 40 + front_y + elevation), player back at (72, 80 + back_y): see `GetBattlerSpriteCoord`, `sBattlerCoords`
+   - enemy at (176, 40 + front_y − elevation), player back at (72, 80 + back_y): see `GetBattlerSpriteCoord`, `sBattlerCoords`
    - uploads with `Cmd::ObjTiles` + `ObjPalette`
-   - animations: slide in, Gen3 intro direction and speed approximated (`battle_intro.c`, `BattleIntroSlide*`); appear from the ball after a 16×16 ball OBJ pops (no affine scaling: documented); faint (slide down and vanish, as `AnimFaintOpponent`/`Player`); hit blink (Gen3 `DoHitAnimation`: 3 visibility toggles); lunge (attacker moves 8 px toward the target and back); status/stat tint (an OBJ palette swap toward red/blue over 16 frames and back)
+   - animations: slide in, Gen3 intro direction and speed approximated (`battle_intro.c`, `BattleIntroSlide*`); appear from the ball after a 16×16 ball OBJ pops (no affine scaling: documented); faint (slide down and vanish, as `AnimFaintOpponent`/`Player`); hit blink (Gen3 `DoHitAnimBlinkSpriteEffect`: visibility toggled every 4 frames for 32 frames); lunge (attacker moves 8 px toward the target and back); status/stat tint (an OBJ palette swap toward red/blue over 16 frames and back)
    - player trainer back: frame 0 slides out left after `GoPkmn`
 3. **`Healthbox`:** two 64×32 OBJs per side (`battle_interface.c` `CreateBattlerHealthboxSprites`, singles), built from the extracted healthbox tiles:
    - nickname in the small font, gender symbol, level, HP numbers for the player, status icon
