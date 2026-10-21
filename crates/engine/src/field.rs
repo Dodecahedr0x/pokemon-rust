@@ -1,8 +1,11 @@
 //! The field: the current map, the camera, and metatile drawing into BG1–BG3.
 //!
 //! Each field BG is a 32x32-entry tilemap holding a 16x16-metatile ring: metatile (mx, my) lives
-//! at entries (2·(mx & 15), 2·(my & 15)) and the BG scroll is the camera pixel mod 256. Only the
-//! metatiles that come into view are drawn when the camera moves.
+//! at entries (2·((mx + ox) & 15), 2·((my + oy) & 15)) for the ring origin (ox, oy), and the BG
+//! scroll is (camera pixel + 16·origin) mod 256. Only the metatiles that come into view are drawn
+//! when the camera moves. A connection crossing moves the origin with the coordinates, so what
+//! is drawn stays valid and nothing is redrawn (Gen3 `LoadMapFromCameraTransition` does not
+//! redraw either).
 //!
 //! Layer routing, tileset/palette loading and the NORMAL underlay mirror Gen3 `DrawMetatile` and
 //! `LoadTilesetPalette` (`field_camera.c`, `fieldmap.c`).
@@ -68,6 +71,8 @@ pub struct Field {
     drawn: Option<Rect>,
     /// `setmetatile` overrides of the current map's own cells.
     overrides: BTreeMap<(i16, i16), u16>,
+    /// Ring origin (see the module doc), each in `0..RING`.
+    ring: (i16, i16),
 }
 
 impl Field {
@@ -77,6 +82,7 @@ impl Field {
             camera_px: (0, 0),
             drawn: None,
             overrides: BTreeMap::new(),
+            ring: (0, 0),
         }
     }
 
@@ -119,6 +125,7 @@ impl Field {
         upload_secondary(m.secondary, f);
         self.camera_px = camera_px;
         self.drawn = None;
+        self.ring = (0, 0);
     }
 
     /// [`Field::enter`] then [`Field::redraw`].
@@ -175,11 +182,13 @@ impl Field {
         Some((n.map, (n.x - x, n.y - y)))
     }
 
-    /// Seamless switch to a connected map, without drawing: the caller has moved the player
-    /// across the edge. A cell at old coordinates (x, y) has new coordinates
-    /// (x + shift.0, y + shift.1); the camera moves with it. Re-uploads a tileset (tiles and
-    /// palettes) only if it differs and clears overrides. Follow with on-load `set_block`s, then
-    /// [`Field::redraw`] (blocks are now seen through the new map's connections and tilesets).
+    /// Seamless switch to a connected map: the caller has moved the player across the edge. A
+    /// cell at old coordinates (x, y) has new coordinates (x + shift.0, y + shift.1); the camera
+    /// and the ring origin move with it, so the cells already drawn stay drawn. Clears overrides
+    /// (cells drawn with one keep it until redrawn, as Gen3). Re-uploads a tileset (tiles and
+    /// palettes) only if it differs; then the view is invalidated and the next
+    /// [`Field::set_camera`] redraws it whole (Gen3 keeps the stale entries). Follow with on-load
+    /// `set_block`s, then [`Field::set_camera`].
     ///
     /// Tileset identity is pointer identity (`ptr::eq`), so tilesets must be `static`s shared by
     /// the maps that use them.
@@ -191,17 +200,32 @@ impl Field {
         f: &mut Frame,
     ) {
         let (old, new) = (game.map(self.map), game.map(to));
+        let mut same = true;
         if !core::ptr::eq(old.primary, new.primary) {
             upload_primary(new.primary, f);
+            same = false;
         }
         if !core::ptr::eq(old.secondary, new.secondary) {
             upload_secondary(new.secondary, f);
+            same = false;
         }
         self.map = to;
         self.overrides.clear();
         self.camera_px.0 += shift.0 as i32 * 16;
         self.camera_px.1 += shift.1 as i32 * 16;
-        self.drawn = None;
+        self.ring = (
+            (self.ring.0 - shift.0).rem_euclid(RING),
+            (self.ring.1 - shift.1).rem_euclid(RING),
+        );
+        self.drawn = match self.drawn {
+            Some(r) if same => Some(Rect {
+                x0: r.x0 + shift.0,
+                y0: r.y0 + shift.1,
+                x1: r.x1 + shift.0,
+                y1: r.y1 + shift.1,
+            }),
+            _ => None,
+        };
     }
 
     /// [`Field::switch_map_enter`] then [`Field::redraw`].
@@ -236,6 +260,8 @@ impl Field {
                 }
             }
         }
+        h.write_u16(self.ring.0 as u16);
+        h.write_u16(self.ring.1 as u16);
         h.write_u32(self.overrides.len() as u32);
         for (&(x, y), &b) in &self.overrides {
             h.write_u16(x as u16);
@@ -246,8 +272,8 @@ impl Field {
 
     fn set_scroll(&self, f: &mut Frame) {
         let s = (
-            self.camera_px.0.rem_euclid(256) as u16,
-            self.camera_px.1.rem_euclid(256) as u16,
+            (self.camera_px.0 + self.ring.0 as i32 * 16).rem_euclid(256) as u16,
+            (self.camera_px.1 + self.ring.1 as i32 * 16).rem_euclid(256) as u16,
         );
         for bg in FIELD_BGS {
             f.scroll[bg as usize] = s;
@@ -265,7 +291,10 @@ impl Field {
         let mut entries: Vec<(u8, u8, [u16; 3])> = Vec::with_capacity(cells.len() * 4);
         for &(x, y) in cells {
             let [top, middle, bottom] = metatile_layers(map, self.block(game, x, y));
-            let (col, row) = (2 * (x & (RING - 1)) as u8, 2 * (y & (RING - 1)) as u8);
+            let (col, row) = (
+                2 * ((x + self.ring.0) & (RING - 1)) as u8,
+                2 * ((y + self.ring.1) & (RING - 1)) as u8,
+            );
             for (k, ((t, m), b)) in top.into_iter().zip(middle).zip(bottom).enumerate() {
                 entries.push((row + k as u8 / 2, col + k as u8 % 2, [t, m, b]));
             }
@@ -640,10 +669,14 @@ mod tests {
         /// slot, and that the scroll matches the camera.
         fn check_view(&self, field: &Field, f: &Frame) {
             let (cx, cy) = field.camera();
+            let (ox, oy) = field.ring;
             for bg in FIELD_BGS {
                 assert_eq!(
                     f.scroll[bg as usize],
-                    (cx.rem_euclid(256) as u16, cy.rem_euclid(256) as u16)
+                    (
+                        (cx + 16 * ox as i32).rem_euclid(256) as u16,
+                        (cy + 16 * oy as i32).rem_euclid(256) as u16
+                    )
                 );
             }
             let map = Game.map(field.map());
@@ -651,7 +684,10 @@ mod tests {
             for y in v.y0..=v.y1 {
                 for x in v.x0..=v.x1 {
                     let want = metatile_layers(map, field.block(&Game, x, y));
-                    let (col, row) = (2 * x.rem_euclid(16) as usize, 2 * y.rem_euclid(16) as usize);
+                    let (col, row) = (
+                        2 * (x + ox).rem_euclid(16) as usize,
+                        2 * (y + oy).rem_euclid(16) as usize,
+                    );
                     for (l, layer) in want.iter().enumerate() {
                         for (k, &e) in layer.iter().enumerate() {
                             let at = (row + k / 2) * 32 + col + k % 2;
@@ -988,15 +1024,18 @@ mod tests {
         let total: usize = map_entries(&f).iter().map(|e| e.2.len()).sum();
         assert_eq!(total, 3 * 15 * 10 * 4);
 
-        // Same for a connection switch (A -> C share tilesets: enter emits nothing).
-        let (mut field, _, _) = loaded((39 * 16 - 112, 10 * 16 - 64));
+        // A connection switch keeps the view drawn (A -> C share tilesets: nothing is emitted),
+        // so an on-load `set_block` in view is drawn at once.
+        let (mut field, mut vram, _) = loaded((39 * 16 - 112, 10 * 16 - 64));
         let (to, shift) = field.crossing(&Game, 40, 10).unwrap();
         let mut f = Frame::default();
         field.switch_map_enter(&Game, to, shift, &mut f);
-        field.set_block(&Game, 0, 10, 8, &mut f);
         assert!(f.cmds.is_empty());
-        field.redraw(&Game, &mut f);
-        let mut vram = Vram::new();
+        field.set_block(&Game, 0, 10, 8, &mut f);
+        assert_eq!(map_entries(&f).len(), 6);
+        let cam = field.camera();
+        field.set_camera(&Game, cam, &mut f);
+        assert_eq!(map_entries(&f).len(), 6, "nothing else is drawn");
         vram.apply(&f);
         vram.check_view(&field, &f);
         assert_eq!(field.block(&Game, 0, 10), 8);
@@ -1015,14 +1054,27 @@ mod tests {
             field.block(&Game, 39 + shift.0, 10 + shift.1),
             BLOCKS_A[10 * 40 + 39]
         );
-        let digest = |field: &Field| {
-            let mut h = Fnv64::new();
-            field.hash(&mut h);
-            h.finish()
-        };
-        let mut fresh = Field::new(C);
-        fresh.load(&Game, C, field.camera(), &mut Frame::default());
-        assert_eq!(digest(&field), digest(&fresh), "no overrides left");
+        assert!(field.overrides.is_empty(), "no overrides left");
+    }
+
+    #[test]
+    fn crossing_keeps_the_view_drawn() {
+        // A -> C (shared tilesets): walking on draws only the new column, at the shifted ring.
+        let (mut field, mut vram, _) = loaded((39 * 16 - 112, 10 * 16 - 64));
+        let (to, shift) = field.crossing(&Game, 40, 10).unwrap();
+        let mut f = Frame::default();
+        field.switch_map_enter(&Game, to, shift, &mut f);
+        let cam = field.camera();
+        field.set_camera(&Game, cam, &mut f);
+        assert!(map_entries(&f).is_empty(), "no redraw");
+        vram.apply(&f);
+        vram.check_view(&field, &f);
+        let mut f = Frame::default();
+        field.set_camera(&Game, (cam.0 + 16, cam.1), &mut f);
+        let total: usize = map_entries(&f).iter().map(|e| e.2.len()).sum();
+        assert_eq!(total, 3 * 4 * 10, "one new column of 10 metatiles");
+        vram.apply(&f);
+        vram.check_view(&field, &f);
     }
 
     #[test]

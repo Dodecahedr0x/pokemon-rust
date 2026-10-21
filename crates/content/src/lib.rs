@@ -8,12 +8,12 @@
 extern crate alloc;
 
 use engine::data::{
-    Behavior, Dir, Font, GameData, GfxId, MapData, MapId, NewGame, ScriptId, SpriteData, TextId,
-    UiText, WindowGfx,
+    Behavior, Dir, FlagId, Font, GameData, GfxId, MapData, MapId, NewGame, ScriptId, SpecialIds,
+    SpriteData, TextId, UiText, WindowGfx,
 };
 use engine::script::{Ctx, Script};
-use engine::{Content, Scene, Tile};
 
+mod new_game;
 pub mod prelude;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
@@ -37,85 +37,23 @@ pub mod scripts {
 
 pub use data::script_ids;
 
-pub const T_GRASS: u16 = 0;
-pub const T_CHECKER: u16 = 1;
-pub const T_BORDER: u16 = 2;
-pub const T_DOT: u16 = 3;
+/// Whether the content was built without an extracted dir (the small built-in world).
+pub const STUB: bool = cfg!(pkr_stub);
 
-const fn rgb(r: u16, g: u16, b: u16) -> u16 {
-    r | (g << 5) | (b << 10)
-}
+/// Script id of the new-game script ([`new_game::new_game`]); never a generated id.
+pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 
-const PALETTE: [u16; 16] = {
-    let mut p = [0u16; 16];
-    p[0] = rgb(0, 0, 0);
-    p[1] = rgb(8, 24, 8);
-    p[2] = rgb(14, 28, 10);
-    p[3] = rgb(4, 8, 16);
-    p[4] = rgb(31, 28, 4);
-    p
-};
-
-static TILES: [Tile; 4] = [
-    [0x1111_1111; 8],
-    [
-        0x2121_2121,
-        0x1212_1212,
-        0x2121_2121,
-        0x1212_1212,
-        0x2121_2121,
-        0x1212_1212,
-        0x2121_2121,
-        0x1212_1212,
-    ],
-    [0x3333_3333; 8],
-    [
-        0x1111_1111,
-        0x1111_1111,
-        0x1111_1111,
-        0x1114_4111,
-        0x1114_4111,
-        0x1111_1111,
-        0x1111_1111,
-        0x1111_1111,
-    ],
+/// Flags Gen3 `ClearTempFieldEventData` clears on every map change.
+static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
+    consts::FLAG_SYS_ENC_UP_ITEM,
+    consts::FLAG_SYS_ENC_DOWN_ITEM,
+    consts::FLAG_SYS_USE_STRENGTH,
+    consts::FLAG_SYS_CTRL_OBJ_DELETE,
+    consts::FLAG_NURSE_UNION_ROOM_REMINDER,
 ];
-
-const fn build_map() -> [u16; 1024] {
-    let mut m = [0u16; 1024];
-    let mut i = 0;
-    while i < 1024 {
-        let (x, y) = (i % 32, i / 32);
-        m[i] = if x == 0 || y == 0 || x == 31 || y == 31 {
-            T_BORDER
-        } else if x % 8 == 3 && y % 8 == 3 {
-            T_DOT
-        } else if (x / 4 + y / 4) % 2 == 0 {
-            T_GRASS
-        } else {
-            T_CHECKER
-        };
-        i += 1;
-    }
-    m
-}
-
-static MAP: [u16; 1024] = build_map();
-
-static SCENE: Scene = Scene {
-    palette: PALETTE,
-    tiles: &TILES,
-    map: &MAP,
-};
 
 /// The game's content root.
 pub struct Emerald;
-
-impl Content for Emerald {
-    fn scene(&self) -> &Scene {
-        &SCENE
-    }
-}
 
 /// Whether `id` is an exported map. `GameData::map` gives [`data::MISSING_MAP`] (0x0 cells,
 /// no events) for the others, e.g. warp destinations outside the slice.
@@ -126,6 +64,19 @@ pub fn has_map(id: MapId) -> bool {
 impl GameData for Emerald {
     fn map(&self, id: MapId) -> &'static MapData {
         data::map(id.0).unwrap_or(&data::MISSING_MAP)
+    }
+
+    fn has_map(&self, id: MapId) -> bool {
+        has_map(id)
+    }
+
+    fn special_ids(&self) -> SpecialIds {
+        SpecialIds {
+            var_facing: Some(consts::VAR_FACING),
+            var_last_talked: Some(consts::VAR_LAST_TALKED),
+            flag_running: Some(consts::FLAG_SYS_B_DASH),
+            flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
+        }
     }
 
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -161,10 +112,13 @@ impl GameData for Emerald {
     }
 
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        if id == NEW_GAME_SCRIPT {
+            return alloc::boxed::Box::pin(new_game::new_game(ctx));
+        }
         data::script(id.0, ctx)
     }
 
-    /// Placeholder (Task I decides): Littleroot, outside the player's house, facing down.
+    /// Littleroot, outside Brendan's house, facing down, after the starter (see [`new_game`]).
     fn new_game(&self) -> NewGame {
         let (map, x, y) = data::NEW_GAME;
         NewGame {
@@ -172,7 +126,7 @@ impl GameData for Emerald {
             x,
             y,
             facing: Dir::Down,
-            script: None,
+            script: Some(NEW_GAME_SCRIPT),
             player_name: data::PLAYER_NAME,
         }
     }
@@ -180,39 +134,3 @@ impl GameData for Emerald {
 
 #[cfg(test)]
 mod data_tests;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use engine::Content;
-
-    #[test]
-    fn every_map_entry_points_at_a_tile() {
-        let s = Emerald.scene();
-        assert!(
-            s.map
-                .iter()
-                .all(|&e| engine::scene::map_tile_index(e) < s.tiles.len())
-        );
-    }
-
-    /// `World::initial_frame` uploads the scene palette to bank 0 only.
-    #[test]
-    fn map_uses_palette_bank_zero() {
-        assert!(Emerald.scene().map.iter().all(|&e| e & 0xF000 == 0));
-    }
-
-    #[test]
-    fn palette_is_rgb555() {
-        assert!(Emerald.scene().palette.iter().all(|&c| c <= 0x7FFF));
-    }
-
-    #[test]
-    fn map_has_border_and_checker() {
-        let m = Emerald.scene().map;
-        assert_eq!(m[0], T_BORDER);
-        assert_eq!(m[32 + 1], T_GRASS);
-        assert_eq!(m[32 + 4], T_CHECKER);
-        assert_eq!(m[3 * 32 + 3 + 8], T_DOT);
-    }
-}

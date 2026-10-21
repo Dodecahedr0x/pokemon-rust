@@ -4,6 +4,15 @@ edition.workspace = true
 version.workspace = true
 publish.workspace = true
 
+[features]
+# A desktop window to play in (`cargo run -p game-native --features window --bin play`).
+window = ["dep:minifb"]
+
 [dependencies]
 engine.workspace = true
 content.workspace = true
+minifb = { version = "=0.28.0", optional = true }
+
+[[bin]]
+name = "play"
+required-features = ["window"]

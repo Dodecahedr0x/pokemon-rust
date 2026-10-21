@@ -1,8 +1,8 @@
 //! Static game data the engine consumes. Content builds these as `'static` tables (via build.rs);
 //! the engine never owns or parses files.
 
-use crate::Tile;
 use crate::script::{Ctx, Script};
+use crate::video::Tile;
 
 /// Facing / movement direction. Order matches Gen3 `DIR_SOUTH..DIR_EAST` minus one.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -169,6 +169,9 @@ pub enum MovementType {
     Invisible,
 }
 
+/// An object template. `Copy` so the world can keep a per-visit copy that scripts edit
+/// (`setobjectxyperm`, `setobjectmovementtype`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ObjectEvent {
     pub local_id: u8,
     pub gfx: Gfx,
@@ -313,9 +316,34 @@ pub struct NewGame {
     pub player_name: &'static [u8],
 }
 
+/// Game constants the engine needs by role, never by name (content fills them in).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct SpecialIds {
+    /// Set to the player's facing (Gen3 `DIR_*` numbering: `Dir as u16 + 1`) when the player
+    /// talks to an object (Gen3 `gSpecialVar_Facing`).
+    pub var_facing: Option<VarId>,
+    /// Set to the local id of the object talked to, 0 for other scripts (Gen3
+    /// `gSpecialVar_LastTalked`).
+    pub var_last_talked: Option<VarId>,
+    /// Running is only allowed while this flag is set (Gen3 `FLAG_SYS_B_DASH`).
+    pub flag_running: Option<FlagId>,
+    /// Flags cleared with the temporary flags and vars on every map change (Gen3
+    /// `ClearTempFieldEventData`).
+    pub flags_cleared_on_map_change: &'static [FlagId],
+}
+
 /// Everything game-specific the engine reads. Implemented by the `content` crate.
 pub trait GameData {
+    /// A map. Ids the game does not have may return any 0x0 map (see [`GameData::has_map`]).
     fn map(&self, id: MapId) -> &'static MapData;
+    /// Whether `id` is a real map; warps to other maps are logged and ignored.
+    fn has_map(&self, id: MapId) -> bool {
+        self.map(id).width > 0
+    }
+    /// Special vars and flags the engine reads or writes.
+    fn special_ids(&self) -> SpecialIds {
+        SpecialIds::default()
+    }
     /// Sprite for a Gen3 graphics id, `None` if the game has no such sprite.
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData>;
     fn player_sprite(&self) -> &'static SpriteData;

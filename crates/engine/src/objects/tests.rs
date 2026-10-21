@@ -592,7 +592,7 @@ fn object_commands() {
     let mut rng = Rng::new(1);
     o.update(&Grid::open(), &mut rng, false);
     assert_eq!(o.get(1).unwrap().facing, Dir::Left);
-    assert_eq!(o.at(9, 9, 0), Some(1));
+    assert_eq!(o.at(9, 9, 0).map(|t| t.0), Some(1));
     o.shift(-2, 1);
     assert_eq!(o.get(1).unwrap().pos(), (7, 10));
     assert_eq!(o.player().pos(), (3, 6));
@@ -1011,7 +1011,11 @@ fn entering_a_connected_map_keeps_old_objects_in_view() {
     );
     // Local ids address the current map; the old NPC 2 still blocks.
     assert_eq!(o.get(2).unwrap().pos(), (4, 5));
-    assert_eq!(o.at(5, 12, 0), None);
+    assert_eq!(
+        o.at(5, 12, 0),
+        Some((2, old)),
+        "talking reaches an old-map NPC (Gen3)"
+    );
     o.set_pos(PLAYER, 5, 11);
     assert_eq!(o.collision(&g, PLAYER, Dir::Down), Collision::Object);
     o.remove(2);
@@ -1035,9 +1039,9 @@ fn at_honours_elevation() {
     let mut ev = npc(1, 5, 6, MovementType::Face(Dir::Down), (0, 0));
     ev.elevation = 3;
     o.add(&ev, |_| 0);
-    assert_eq!(o.at(5, 6, 3), Some(1));
-    assert_eq!(o.at(5, 6, 0), Some(1));
-    assert_eq!(o.at(5, 6, 4), None);
+    assert_eq!(o.at(5, 6, 3).map(|t| t.0), Some(1));
+    assert_eq!(o.at(5, 6, 0).map(|t| t.0), Some(1));
+    assert_eq!(o.at(5, 6, 4).map(|t| t.0), None);
 }
 
 #[test]

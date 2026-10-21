@@ -15,6 +15,7 @@ pub const OFF_FRAME: u32 = 8;
 pub const OFF_HASH: u32 = 16;
 pub const OFF_INPUTS: u32 = 24;
 pub const OFF_LATE: u32 = 152;
+pub const OFF_LATE_BLACK: u32 = 156;
 
 #[repr(C)]
 pub struct DebugRegion {
@@ -27,10 +28,13 @@ pub struct DebugRegion {
     /// Input consumed by step `f` lives at `input_slot(f)`.
     pub inputs: [u16; INPUT_RING],
     /// Number of frames the GBA shell applied late: the previous step overran into the next
-    /// frame (vblank catch-up), or applying a `Frame` ran past vblank. Pixels shown while late
-    /// may differ from native; the parity harness requires 0.
+    /// frame (vblank catch-up), or applying a `Frame` ran past vblank, while the screen was not
+    /// fully black (see `late_black`). Pixels shown while late may differ from native; the
+    /// parity harness requires 0.
     pub late: u32,
-    pub _pad2: u32,
+    /// Late applies that changed nothing visible: the screen was fully black before and after
+    /// (map loads upload whole tilesets while faded out). Informational, not a parity error.
+    pub late_black: u32,
 }
 
 const _: () = {
@@ -38,6 +42,7 @@ const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, hash) == OFF_HASH as usize);
     assert!(core::mem::offset_of!(DebugRegion, inputs) == OFF_INPUTS as usize);
     assert!(core::mem::offset_of!(DebugRegion, late) == OFF_LATE as usize);
+    assert!(core::mem::offset_of!(DebugRegion, late_black) == OFF_LATE_BLACK as usize);
     assert!(core::mem::size_of::<DebugRegion>() == 160);
     // emu scans EWRAM in 8-byte steps.
     assert!(core::mem::align_of::<DebugRegion>() == 8);
@@ -53,7 +58,7 @@ impl DebugRegion {
             hash: 0,
             inputs: [0; INPUT_RING],
             late: 0,
-            _pad2: 0,
+            late_black: 0,
         }
     }
 }

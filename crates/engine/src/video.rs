@@ -3,8 +3,10 @@
 //! brightness). Shells apply a `Frame` at vblank (GBA) or into a software PPU (native) that
 //! follows GBA mode-0 rules, so both show identical pixels.
 
-use crate::Tile;
 use alloc::vec::Vec;
+
+/// 8x8 4bpp tile: one u32 per row, pixel x stored in nibble x (low nibble first), GBA layout.
+pub type Tile = [u32; 8];
 
 pub const SCREEN_W: usize = 240;
 pub const SCREEN_H: usize = 160;

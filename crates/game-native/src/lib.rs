@@ -1,13 +1,15 @@
 //! Host shell: runs engine + content natively and draws each [`Frame`] with a software PPU.
 
 pub mod ppu;
+pub mod scenario;
 
+use engine::data::GameData;
 use engine::video::Frame;
 pub use engine::video::{SCREEN_H, SCREEN_W};
-use engine::{Buttons, Content, World};
+use engine::{Buttons, World};
 pub use ppu::Ppu;
 
-/// A native game instance: World + content + PPU + last frame.
+/// A native game instance: World + game data + PPU + last frame.
 ///
 /// Every step applies its frame's commands to the PPU; the picture is only drawn when
 /// [`Session::framebuffer`] asks for it, so headless runs (explorers, long replays) skip
@@ -16,8 +18,8 @@ pub use ppu::Ppu;
 /// Unlike the GBA shell there is no display lag: after step `n` the framebuffer shows the
 /// `Frame` returned by step `n` (the ROM shows it one emulator frame later, see
 /// `engine::debug`).
-pub struct Session<C: Content> {
-    content: C,
+pub struct Session<G: GameData> {
+    game: G,
     world: World,
     ppu: Ppu,
     frame: Frame,
@@ -26,14 +28,15 @@ pub struct Session<C: Content> {
     drawn: bool,
 }
 
-impl<C: Content> Session<C> {
-    pub fn new(content: C) -> Self {
-        let world = World::new();
-        let frame = world.initial_frame(&content);
+impl<G: GameData> Session<G> {
+    /// A new game (`World::new`), its first frame applied.
+    pub fn new(game: G) -> Self {
+        let mut world = World::new(&game);
+        let frame = world.initial_frame();
         let mut ppu = Ppu::new();
         ppu.apply(&frame);
         Self {
-            content,
+            game,
             world,
             ppu,
             frame,
@@ -43,13 +46,13 @@ impl<C: Content> Session<C> {
     }
 
     pub fn step(&mut self, keys: Buttons) {
-        self.frame = self.world.step(keys);
+        self.frame = self.world.step(&self.game, keys);
         self.ppu.apply(&self.frame);
         self.drawn = false;
     }
 
-    pub fn content(&self) -> &C {
-        &self.content
+    pub fn game(&self) -> &G {
+        &self.game
     }
 
     pub fn world(&self) -> &World {
@@ -78,36 +81,23 @@ impl<C: Content> Session<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use engine::Buttons;
-    use engine::scene::{MAP_TILES, map_tile_index, tile_pixel};
 
-    /// The M1 picture as the pre-Frame renderer drew it: BG0 only, palette bank 0, no flips.
-    fn reference(scene: &engine::Scene, scroll: (u16, u16)) -> Vec<u16> {
-        let mut fb = vec![0; SCREEN_W * SCREEN_H];
-        for y in 0..SCREEN_H {
-            let py = (y + scroll.1 as usize) % (MAP_TILES * 8);
-            for x in 0..SCREEN_W {
-                let px = (x + scroll.0 as usize) % (MAP_TILES * 8);
-                let entry = scene.map[(py / 8) * MAP_TILES + px / 8];
-                let idx = tile_pixel(&scene.tiles[map_tile_index(entry)], px % 8, py % 8);
-                fb[y * SCREEN_W + x] = scene.palette[idx as usize] & 0x7FFF;
-            }
-        }
-        fb
+    fn distinct_colors(fb: &[u16]) -> usize {
+        let mut c = fb.to_vec();
+        c.sort_unstable();
+        c.dedup();
+        c.len()
     }
 
     #[test]
-    fn session_matches_the_m1_reference_renderer() {
+    fn boots_black_then_fades_into_the_start_map() {
         let mut s = Session::new(content::Emerald);
-        let scene = content::Emerald.scene();
-        assert_eq!(s.framebuffer(), reference(scene, (0, 0)));
-        for keys in [Buttons::RIGHT, Buttons::DOWN, Buttons::LEFT, Buttons::LEFT] {
-            s.step(keys);
-            assert!(s.frame().cmds.is_empty());
-            let want = reference(scene, s.world().scroll());
-            assert_eq!(s.framebuffer(), want);
+        assert_eq!(s.world().map(), content::Emerald.new_game().map);
+        assert!(s.framebuffer().iter().all(|&c| c == 0), "frame 0 is black");
+        for _ in 0..40 {
+            s.step(Buttons::NONE);
         }
-        assert_eq!(s.world().scroll(), (u16::MAX, 1));
+        assert!(distinct_colors(s.framebuffer()) > 3, "the map is visible");
     }
 
     #[test]
@@ -117,24 +107,26 @@ mod tests {
             s.step(Buttons::DOWN);
         }
         assert!(!s.drawn);
-        let want = reference(content::Emerald.scene(), (0, 5));
-        assert_eq!(s.framebuffer(), want);
+        let fb = s.framebuffer().to_vec();
         assert!(s.drawn);
+        let mut ppu_fb = vec![0; SCREEN_W * SCREEN_H];
+        s.ppu().render(s.frame(), &mut ppu_fb);
+        assert_eq!(fb, ppu_fb);
     }
 
     #[test]
-    fn session_steps_and_renders() {
-        let mut s = Session::new(content::Emerald);
-        let before = s.framebuffer().to_vec();
-        s.step(Buttons::RIGHT);
-        assert_eq!(s.world().frame(), 1);
-        let after = s.framebuffer();
-        assert_eq!(after.len(), SCREEN_W * SCREEN_H);
-        // A one-pixel right scroll shifts the image left by one.
-        for y in [0, 37, 80, SCREEN_H - 1] {
-            for x in 0..SCREEN_W - 1 {
-                assert_eq!(after[y * SCREEN_W + x], before[y * SCREEN_W + x + 1]);
-            }
+    fn sessions_are_deterministic() {
+        let (mut a, mut b) = (
+            Session::new(content::Emerald),
+            Session::new(content::Emerald),
+        );
+        for i in 0..200u32 {
+            let keys =
+                [Buttons::UP, Buttons::LEFT, Buttons::A, Buttons::NONE][(i / 23 % 4) as usize];
+            a.step(keys);
+            b.step(keys);
+            assert_eq!(a.world().hash(), b.world().hash(), "frame {i}");
         }
+        assert_eq!(a.framebuffer(), b.framebuffer());
     }
 }

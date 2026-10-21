@@ -22,11 +22,38 @@ const SAVED_VARS: usize = (VARS_END - VARS_START) as usize;
 const SPECIAL_VARS: usize = (SPECIAL_VARS_END - SPECIAL_VARS_START) as usize;
 
 /// Event flags and vars. Heap-backed (3 KiB) so `World` stays small on the GBA stack.
+///
+/// The GBA hashes the world every frame, so `hash` must not walk 3 KiB: a digest of the
+/// contents (a wrapping sum of one mixed word per set flag and per non-zero var) is kept up to
+/// date on every write instead.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Vars {
     flags: Box<[u8]>,
     /// Saved vars, then special vars.
     vars: Box<[u16]>,
+    digest: u64,
+}
+
+/// splitmix64 finalizer: spreads one (kind, id, value) word over 64 bits.
+const fn mix(x: u64) -> u64 {
+    let mut z = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Digest contribution of flag `f` when set.
+const fn flag_term(f: u16) -> u64 {
+    mix(1 << 32 | f as u64)
+}
+
+/// Digest contribution of var slot `i` holding `value` (0 contributes nothing).
+const fn var_term(i: usize, value: u16) -> u64 {
+    if value == 0 {
+        0
+    } else {
+        mix(2 << 32 | (i as u64) << 16 | value as u64)
+    }
 }
 
 impl Default for Vars {
@@ -40,6 +67,7 @@ impl Vars {
         Self {
             flags: vec![0u8; FLAG_COUNT as usize / 8].into_boxed_slice(),
             vars: vec![0u16; SAVED_VARS + SPECIAL_VARS].into_boxed_slice(),
+            digest: 0,
         }
     }
 
@@ -64,10 +92,16 @@ impl Vars {
 
     pub fn set_flag(&mut self, f: FlagId, on: bool) {
         if let Some((i, m)) = Self::flag_slot(f) {
+            let was = self.flags[i] & m != 0;
+            if on == was {
+                return;
+            }
             if on {
                 self.flags[i] |= m;
+                self.digest = self.digest.wrapping_add(flag_term(f.0));
             } else {
                 self.flags[i] &= !m;
+                self.digest = self.digest.wrapping_sub(flag_term(f.0));
             }
         }
     }
@@ -79,7 +113,9 @@ impl Vars {
 
     pub fn set_var(&mut self, v: VarId, value: u16) {
         if let Some(i) = Self::var_slot(v) {
-            self.vars[i] = value;
+            let old = core::mem::replace(&mut self.vars[i], value);
+            self.digest =
+                (self.digest.wrapping_sub(var_term(i, old))).wrapping_add(var_term(i, value));
         }
     }
 
@@ -99,16 +135,27 @@ impl Vars {
     /// `FLAG_NURSE_UNION_ROOM_REMINDER` there; those are game constants, so content or the
     /// integration must clear them.
     pub fn clear_temp(&mut self) {
-        self.flags[..TEMP_FLAGS_END as usize / 8].fill(0);
-        self.vars[..(TEMP_VARS_END - VARS_START) as usize].fill(0);
+        for f in 1..TEMP_FLAGS_END {
+            self.set_flag(FlagId(f), false);
+        }
+        for v in VARS_START..TEMP_VARS_END {
+            self.set_var(VarId(v), 0);
+        }
     }
 
+    /// The digest of every flag and var, recomputed from scratch (what `digest` tracks).
+    fn full_digest(&self) -> u64 {
+        let flags = (1..FLAG_COUNT)
+            .filter(|&f| self.flag(FlagId(f)))
+            .fold(0u64, |d, f| d.wrapping_add(flag_term(f)));
+        (self.vars.iter().enumerate()).fold(flags, |d, (i, &v)| d.wrapping_add(var_term(i, v)))
+    }
+
+    /// Feeds the contents digest (O(1)); equal contents give equal hashes.
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
-        h.write(&self.flags);
-        for &v in self.vars.iter() {
-            h.write_u16(v);
-        }
+        debug_assert!(cfg!(not(test)) || self.digest == self.full_digest());
+        h.write(&self.digest.to_le_bytes());
     }
 }
 
@@ -193,6 +240,32 @@ mod tests {
         assert_eq!(v.var(VarId(0x4010)), 5);
         assert_eq!(v.var(VarId(0x4011)), 5);
         assert_eq!(v.var(VarId(0x8000)), 5, "special vars survive");
+    }
+
+    #[test]
+    fn digest_tracks_every_write() {
+        let mut v = Vars::new();
+        let mut rng = crate::Rng::new(7);
+        for _ in 0..2000 {
+            let r = rng.next_u32();
+            match r % 3 {
+                0 => v.set_flag(FlagId((r >> 8) as u16 % 0x60), r & 0x80 != 0),
+                1 => v.set_var(VarId(0x4000 + (r >> 8) as u16 % 0x20), (r >> 20) as u16 % 3),
+                _ => v.set_var(VarId(0x8000 + (r >> 8) as u16 % 0x10), (r >> 20) as u16),
+            }
+            if r.is_multiple_of(97) {
+                v.clear_temp();
+            }
+            assert_eq!(v.digest, v.full_digest());
+        }
+        // Same contents through different histories: same hash.
+        let (mut a, mut b) = (Vars::new(), Vars::new());
+        a.set_var(VarId(0x4050), 3);
+        a.set_flag(FlagId(0x100), true);
+        b.set_flag(FlagId(0x100), true);
+        b.set_var(VarId(0x4050), 9);
+        b.set_var(VarId(0x4050), 3);
+        assert_eq!(a, b);
     }
 
     #[test]
