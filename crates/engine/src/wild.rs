@@ -7,6 +7,15 @@
 //! Keen Eye / Intimidate (weak encounters skipped), Synchronize (nature). The rate modifiers
 //! (Stench, Illuminate, White Smoke, Arena Trap, Sand Veil) and the level ones (Hustle, Vital
 //! Spirit, Pressure) map to `Ability::Other` and have no effect.
+//!
+//! Caller contract (the World, Task J):
+//! - Keep Gen3's 4-step encounter immunity: after a battle and after a map load
+//!   (`RestartWildEncounterImmunitySteps`), the first 4 completed steps do not call
+//!   `try_land_encounter` (`CheckStandardWildEncounter`).
+//! - Update `prev` to the cell's behavior on every completed step, encounter checked or not
+//!   (Gen3 `sPrevMetatileBehavior`).
+//! - After a `Some` from `try_land_encounter`, call `create_wild` immediately, with no other
+//!   RNG draw in between (Gen3 `TryGenerateWildMon` → `CreateWildMon`).
 
 use crate::data::{Behavior, SpeciesId};
 use crate::mon::{Ability, BattleTables, Ivs, LandEncounters, Pokemon, Type, WildMon};
@@ -49,6 +58,9 @@ pub fn try_land_encounter(
     if cur != Behavior::TallGrass {
         return None;
     }
+    // Gen3 compares raw `MB_*` values; we compare the coarse `Behavior`. This is the same test
+    // because only `MB_TALL_GRASS` maps to `TallGrass` (content's classification): any other
+    // land-encounter behavior (long grass, cave, sand) would need its own variant first.
     if prev != cur && rng.random() % 100 >= 60 {
         return None;
     }
@@ -105,6 +117,8 @@ fn wild_level(mon: &WildMon, rng: &mut Rng) -> u8 {
     } else {
         (mon.max_level, mon.min_level)
     };
+    // u8 as Gen3: 0..=255 wraps the range to 0, where Gen3's `% 0` is undefined behavior.
+    // `max(1)` turns that case into "always min" instead of a division-by-zero panic.
     let range = (max - min).wrapping_add(1);
     min + (rng.random() % range.max(1) as u16) as u8
 }
@@ -245,7 +259,13 @@ mod tests {
                     if r.random() % 2880 >= 320 {
                         return None;
                     }
-                    let slot = land_slot(r.random());
+                    // ENCOUNTER_CHANCE_LAND_MONS_SLOT_0..11, cumulative, written out here so
+                    // the oracle does not reuse `land_slot`.
+                    let roll = r.random() % 100;
+                    let slot = [20, 40, 50, 60, 70, 80, 85, 90, 94, 98, 99, 100]
+                        .iter()
+                        .position(|&t| roll < t)
+                        .unwrap();
                     let m = tb.mons[slot];
                     let (lo, hi) = (m.min_level.min(m.max_level), m.min_level.max(m.max_level));
                     Some((m.species, lo + (r.random() % (hi - lo + 1) as u16) as u8))
@@ -332,6 +352,35 @@ mod tests {
         assert_eq!(strong, 1999);
         assert!((900..1100).contains(&weak), "{weak}");
         assert!((1400..1600).contains(&low), "{low}");
+    }
+
+    #[test]
+    fn intimidate_filters_like_keen_eye() {
+        let tb = table(180, [ZIGZAGOON; 12]); // levels 2..=3
+        let lead = lead(GROWLER, 20);
+        assert_eq!(lead.ability(&TABLES), Ability::Intimidate);
+        let mut seen = 0;
+        for seed in 1..2000 {
+            let mut rng = Rng::new(seed);
+            let got = try_land_encounter(
+                &tb,
+                Behavior::TallGrass,
+                Behavior::TallGrass,
+                Some(&lead),
+                &TABLES,
+                &mut rng,
+            );
+            // Rolls: odds, slot, level, then the IsAbilityAllowingEncounter coin.
+            let mut r = Rng::new(seed);
+            r.random();
+            let slot = land_slot(r.random());
+            let level = 2 + (r.random() % 2) as u8;
+            let want = (!r.random().is_multiple_of(2)).then_some((tb.mons[slot].species, level));
+            assert_eq!(got, want, "seed {seed}");
+            assert_eq!(rng, r);
+            seen += got.is_some() as u32;
+        }
+        assert!((900..1100).contains(&seen), "{seen}");
     }
 
     #[test]

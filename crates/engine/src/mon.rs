@@ -493,6 +493,11 @@ impl Pokemon {
     /// `random()`s: HP/Atk/Def, then Spe/SpA/SpD, 5 bits each. The nickname is the species
     /// name, exp the level's minimum, friendship the species', `ability_slot` the personality's
     /// low bit when the species has a second ability. The current HP is the max HP.
+    ///
+    /// Callers draw the personality where Gen3 does: `GiveMon` (`ScriptGiveMon`) and the
+    /// starter (`CreateMon` with a random personality) draw `random32()` for it first, then call
+    /// `Pokemon::new(…, Ivs::Random, personality, player_id, rng)`; wild mons go through
+    /// `wild::create_wild`, trainer mons through `trainer::create_trainer_party`.
     pub fn new(
         t: &BattleTables,
         species: SpeciesId,
@@ -502,6 +507,7 @@ impl Pokemon {
         ot_id: u32,
         rng: &mut Rng,
     ) -> Pokemon {
+        debug_assert!((1..=MAX_LEVEL).contains(&level), "level {level}");
         let info = t.species_info(species);
         let ivs = match ivs {
             Ivs::Fixed(v) if v < USE_RANDOM_IVS => [v; 6],
@@ -622,13 +628,14 @@ impl Pokemon {
     /// Gen3 `CalculateMonStats`: the level from exp (`GetLevelFromMonExp`), `CALC_STAT` with
     /// `ModifyStatByNature` (x110/100, x90/100, in a u16 as Gen3). The current HP moves with
     /// the max HP; 0 stays 0 except for a new mon (both 0), which starts at full HP.
-    /// Differences: no Shedinja rule (no species numbers in the engine); the Pomeg underflow
-    /// is clamped to 1 HP (Gen3 `BUGFIX`).
+    /// Differences: the Pomeg underflow is clamped to 1 HP (Gen3 `BUGFIX`). Shedinja's rule
+    /// (max HP 1) is deferred: the engine holds no species numbers, so if it is ever needed it
+    /// becomes a data flag (e.g. `SpeciesInfo::max_hp_one`) that content sets.
     pub fn recalc_stats(&mut self, t: &BattleTables) {
         let info = t.species_info(self.species);
         let old_max = self.stats[0] as i32;
         let cur = self.hp as i32;
-        self.level = level_for_exp(info.growth, self.exp);
+        self.level = level_for_exp_from(info.growth, self.exp, self.level);
         let level = self.level as i32;
         let raw = |i: usize| {
             (2 * info.base[i] as i32 + self.ivs[i] as i32 + self.evs[i] as i32 / 4) * level / 100
@@ -750,10 +757,11 @@ impl Pokemon {
 }
 
 /// Total exp needed to reach `level` (Gen3 `gExperienceTables`, the `experience_tables.h`
-/// macros in C integer arithmetic). Levels 0 and 1 are 0 and 1 in every table (the MediumSlow
-/// formula would be negative at 1).
+/// macros in C `int` arithmetic, which fits every level up to `MAX_LEVEL`). Levels 0 and 1 are
+/// 0 and 1 in every table (the MediumSlow formula would be negative at 1).
 pub fn exp_for_level(g: GrowthRate, level: u8) -> u32 {
-    let n = level as i64;
+    debug_assert!(level <= MAX_LEVEL, "level {level}");
+    let n = level as i32;
     if n <= 1 {
         return n as u32;
     }
@@ -780,7 +788,16 @@ pub fn exp_for_level(g: GrowthRate, level: u8) -> u32 {
 
 /// Gen3 `GetLevelFromMonExp`: the highest level up to `MAX_LEVEL` whose exp is reached.
 pub fn level_for_exp(g: GrowthRate, exp: u32) -> u8 {
-    let mut level = 1;
+    level_for_exp_from(g, exp, 1)
+}
+
+/// `level_for_exp`, scanning up from `start` when `start` is already reached (the tables
+/// increase from level 1, so the result is the same); otherwise from level 1.
+fn level_for_exp_from(g: GrowthRate, exp: u32, start: u8) -> u8 {
+    let mut level = start.clamp(1, MAX_LEVEL);
+    if exp_for_level(g, level) > exp {
+        level = 1;
+    }
     while level <= MAX_LEVEL && exp_for_level(g, level) <= exp {
         level += 1;
     }
@@ -1032,6 +1049,12 @@ pub(crate) mod test_tables {
     pub const BLOB: SpeciesId = SpeciesId(4);
     /// Female only, Keen Eye.
     pub const HAWK: SpeciesId = SpeciesId(5);
+    /// Intimidate only; its name (`LONG_NAME`) is 12 characters, over `POKEMON_NAME_LENGTH`.
+    pub const GROWLER: SpeciesId = SpeciesId(6);
+    /// Gen3-encoded "ABCDEFGHIJKL".
+    pub const LONG_NAME: &[u8] = &[
+        0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xFF,
+    ];
 
     pub const TACKLE: MoveId = MoveId(1);
     pub const GROWL: MoveId = MoveId(2);
@@ -1090,7 +1113,7 @@ pub(crate) mod test_tables {
     pub const MUDKIP_NAME: &[u8] = &[0xC7, 0xCF, 0xBE, 0xC5, 0xC3, 0xCA, 0xFF];
     pub const ZIGZAGOON_NAME: &[u8] = &[0xD4, 0xC3, 0xC1, 0xD4, 0xBB, 0xC1, 0xC9, 0xC9, 0xC8, 0xFF];
 
-    static SPECIES: [SpeciesInfo; 6] = [
+    static SPECIES: [SpeciesInfo; 7] = [
         species(
             &[0xFF],
             [0; 6],
@@ -1164,6 +1187,16 @@ pub(crate) mod test_tables {
             254,
             GrowthRate::Fluctuating,
             [Ability::KeenEye, Ability::None],
+            &[lm(1, TACKLE)],
+        ),
+        species(
+            LONG_NAME,
+            [40; 6],
+            Type::Normal,
+            [0; 6],
+            127,
+            GrowthRate::MediumFast,
+            [Ability::Intimidate, Ability::None],
             &[lm(1, TACKLE)],
         ),
     ];
@@ -1253,6 +1286,34 @@ mod model_tests {
         let mut r = Rng::new(99);
         Pokemon::new(&TABLES, MUDKIP, 5, Ivs::Fixed(31), 0, 0, &mut r);
         assert_eq!(r, Rng::new(99));
+        // `fixedIV >= USE_RANDOM_IVS` (32) draws random IVs: the same two rolls.
+        let mut r = Rng::new(99);
+        let f32 = Pokemon::new(&TABLES, MUDKIP, 5, Ivs::Fixed(32), 0, 0, &mut r);
+        assert_eq!(f32.ivs, m.ivs);
+        let mut two = Rng::new(99);
+        two.random();
+        two.random();
+        assert_eq!(r, two);
+    }
+
+    #[test]
+    fn nickname_is_the_species_name_truncated_to_10() {
+        // GetSpeciesName copies at most POKEMON_NAME_LENGTH (10) characters, then EOS.
+        let m = new(GROWLER, 5, Ivs::Fixed(0), 0);
+        assert_eq!(m.nickname[..10], LONG_NAME[..10]);
+        assert_eq!(m.nickname[10], 0xFF);
+    }
+
+    #[test]
+    fn recalc_after_exp_changes_finds_the_level_either_way() {
+        // Scanning starts at the current level when reached; a lower exp rescans from 1.
+        let mut m = new(MUDKIP, 10, Ivs::Fixed(0), 0);
+        m.exp = exp_for_level(GrowthRate::MediumSlow, 30);
+        m.recalc_stats(&TABLES);
+        assert_eq!(m.level, 30);
+        m.exp = exp_for_level(GrowthRate::MediumSlow, 7) + 1;
+        m.recalc_stats(&TABLES);
+        assert_eq!(m.level, 7);
     }
 
     #[test]
