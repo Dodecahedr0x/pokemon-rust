@@ -1,5 +1,6 @@
-//! World integration tests on a small synthetic game: a town with an NPC, a sign, a coord
-//! trigger and a house door, a house with a doormat, and a route connected north of the town.
+//! World integration tests on a small synthetic game: a town with an NPC, a sign (behind a
+//! scriptless object), a coord trigger and a house door, a house with a doormat and map scripts
+//! (`on_frame`, `on_resume`, `on_warp_into`), and a route connected north of the town.
 
 use super::*;
 use crate::data::*;
@@ -61,6 +62,11 @@ const FLAG_NEW_GAME: FlagId = FlagId(0x200);
 const FLAG_COORD: FlagId = FlagId(0x300);
 const FLAG_HIDE_2: FlagId = FlagId(0x101);
 const FLAG_CLEARED: FlagId = FlagId(0x4001);
+const FLAG_HIDE_HOUSE_NPC: FlagId = FlagId(0x102);
+const FLAG_WARP_INTO: FlagId = FlagId(0x301);
+const FLAG_DONE: FlagId = FlagId(0x302);
+const VAR_HOUSE: VarId = VarId(0x4030);
+const VAR_RESULT: VarId = VarId(0x800D);
 
 const fn obj(local_id: u8, x: i16, y: i16, script: u16, hide: Option<FlagId>) -> ObjectEvent {
     ObjectEvent {
@@ -76,6 +82,13 @@ const fn obj(local_id: u8, x: i16, y: i16, script: u16, hide: Option<FlagId>) ->
         script: Some(ScriptId(script)),
         hide_flag: hide,
     }
+}
+
+/// An object without a script (talking to it falls through to the bg event behind).
+const fn scriptless(local_id: u8, x: i16, y: i16) -> ObjectEvent {
+    let mut o = obj(local_id, x, y, 0, None);
+    o.script = None;
+    o
 }
 
 const NO_SCRIPTS: MapScripts = MapScripts {
@@ -96,7 +109,11 @@ static MAPS: [MapData; 3] = [
         border: [WALL; 4],
         primary: &TS,
         secondary: &TS2,
-        objects: &[obj(1, 6, 5, 1, None), obj(2, 8, 1, 5, Some(FLAG_HIDE_2))],
+        objects: &[
+            obj(1, 6, 5, 1, None),
+            obj(2, 8, 1, 5, Some(FLAG_HIDE_2)),
+            scriptless(3, 2, 5),
+        ],
         warps: &[WarpEvent {
             x: 3,
             y: 2,
@@ -140,7 +157,8 @@ static MAPS: [MapData; 3] = [
         border: [WALL; 4],
         primary: &TS,
         secondary: &TS2,
-        objects: &[],
+        // Hidden by the flag `on_resume` sets: it must run before spawning.
+        objects: &[obj(1, 4, 2, 1, Some(FLAG_HIDE_HOUSE_NPC))],
         warps: &[WarpEvent {
             x: 2,
             y: 5,
@@ -151,7 +169,20 @@ static MAPS: [MapData; 3] = [
         coords: &[],
         bgs: &[],
         connections: &[],
-        scripts: NO_SCRIPTS,
+        scripts: MapScripts {
+            on_resume: Some(ScriptId(12)),
+            on_frame: &[VarScript {
+                var: VAR_HOUSE,
+                value: 0,
+                script: ScriptId(10),
+            }],
+            on_warp_into: &[VarScript {
+                var: VAR_HOUSE,
+                value: 0,
+                script: ScriptId(11),
+            }],
+            ..NO_SCRIPTS
+        },
         allow_running: false,
     },
     MapData {
@@ -248,6 +279,19 @@ async fn route_transition(ctx: Ctx) {
     ctx.wait_move(1).await;
 }
 
+/// House `on_frame` while `VAR_HOUSE == 0`: runs once, as a normal script.
+async fn house_frame(ctx: Ctx) {
+    ctx.set_var(VAR_HOUSE, 1).await;
+}
+
+async fn house_warp_into(ctx: Ctx) {
+    ctx.set_flag(FLAG_WARP_INTO, true).await;
+}
+
+async fn house_resume(ctx: Ctx) {
+    ctx.set_flag(FLAG_HIDE_HOUSE_NPC, true).await;
+}
+
 async fn new_game(ctx: Ctx) {
     ctx.set_flag(FLAG_NEW_GAME, true).await;
     ctx.set_flag(FLAG_CLEARED, true).await;
@@ -316,6 +360,9 @@ impl GameData for Game {
             5 => Box::pin(remove_me(ctx)),
             6 => Box::pin(route_transition(ctx)),
             9 => Box::pin(new_game(ctx)),
+            10 => Box::pin(house_frame(ctx)),
+            11 => Box::pin(house_warp_into(ctx)),
+            12 => Box::pin(house_resume(ctx)),
             _ => Box::pin(async {}),
         }
     }
@@ -389,7 +436,7 @@ fn new_game_runs_its_script_loads_the_map_and_fades_in() {
     assert_eq!(f0.brightness, 16);
     assert!(f0.cmds.iter().any(|c| matches!(c, Cmd::BgTiles { .. })));
     assert!(f0.cmds.iter().any(|c| matches!(c, Cmd::MapEntries { .. })));
-    assert_eq!(f0.objs.len(), 3, "player and both NPCs");
+    assert_eq!(f0.objs.len(), 4, "player and the three NPCs");
     assert!(w.initial_frame().cmds.is_empty(), "taken once");
     let levels: Vec<u8> = (0..16)
         .map(|_| w.step(&Game, Buttons::NONE).brightness)
@@ -432,7 +479,8 @@ fn talking_to_an_npc_runs_its_script() {
     tap(&mut w, Buttons::A, 4);
     assert!(w.script_running());
     assert_eq!(w.var(VAR_LAST_TALKED), 1);
-    assert_eq!(w.var(VAR_FACING), Dir::Right as u16 + 1);
+    // Gen3 DIR_EAST = 4 (DIR_SOUTH 1, DIR_NORTH 2, DIR_WEST 3).
+    assert_eq!(w.var(VAR_FACING), 4);
     assert_eq!(
         w.objects().get(1).unwrap().facing,
         Dir::Left,
@@ -458,7 +506,8 @@ fn talking_to_an_npc_runs_its_script() {
 #[test]
 fn signs_and_coord_events() {
     let mut w = started();
-    // Sign at (2, 5): walk left to (3, 5) and read it.
+    // Sign at (2, 5) behind scriptless object 3: walk left to (3, 5) and read it (Gen3
+    // `GetInteractionScript` falls through to the bg event).
     walk(&mut w, Dir::Left, 2);
     tap(&mut w, Buttons::A, 4);
     assert!(w.script_running() && w.text().is_open());
@@ -511,6 +560,16 @@ fn door_warp_and_doormat_exit() {
     assert!(seen_load && !w.transition_active());
     assert_eq!(w.map(), HOUSE);
     assert_eq!(pos(&w), (2, 5), "on the doormat, no exit walk");
+    assert!(w.flag(FLAG_WARP_INTO), "on_warp_into ran");
+    assert!(w.flag(FLAG_HIDE_HOUSE_NPC), "on_resume ran");
+    assert!(
+        w.objects().get(1).is_none(),
+        "on_resume ran before spawning"
+    );
+    assert_eq!(w.var(VAR_HOUSE), 0);
+    run(&mut w, Buttons::NONE, 2);
+    assert_eq!(w.var(VAR_HOUSE), 1, "on_frame ran once control returned");
+    assert!(!w.script_running());
     assert_eq!(w.objects().player().facing, Dir::Up);
     // Push down on the doormat: back to the town door, then walk out one cell.
     run(&mut w, Buttons::DOWN, 10);
@@ -594,8 +653,8 @@ fn same_inputs_same_hash_and_different_inputs_differ() {
 }
 
 /// Golden values pin the GBA/native parity contract on this synthetic game: any change to the
-/// hashed state, its order or the frame logic shows up here. Update them (and the note in
-/// `docs/`) only for an intended change.
+/// hashed state, its order or the frame logic shows up here. Update them (and the README's
+/// Tests section) only for an intended change.
 #[test]
 fn golden_hashes() {
     let mut w = World::new(&Game);
@@ -606,7 +665,7 @@ fn golden_hashes() {
     let h1 = w.hash();
     assert_eq!(
         (h0, h1),
-        (0x2737_8ceb_8a11_0230, 0x4b5b_c94f_9ed5_70e4),
+        (0x8883_c746_7137_2a45, 0x9849_b3c4_72df_bec7),
         "{h0:#018x} {h1:#018x}"
     );
 }
@@ -617,4 +676,188 @@ fn the_log_is_not_state() {
     let before = a.hash();
     a.s.log("x");
     assert_eq!(a.hash(), before);
+}
+
+/// Starts `script` in the world's runner, as an interaction would.
+fn start(w: &mut World, script: impl FnOnce(Ctx) -> Script) {
+    let ctx = w.runner.ctx();
+    w.runner.start(script(ctx));
+}
+
+/// Runs frames with nothing held until the script ends (at most `max`); returns the count.
+fn until_done(w: &mut World, max: u32) -> u32 {
+    for n in 0..max {
+        if !w.script_running() {
+            return n;
+        }
+        run(w, Buttons::NONE, 1);
+    }
+    panic!("script still running after {max} frames");
+}
+
+#[test]
+fn yes_no_answers_yes_no_and_b() {
+    for (keys, want) in [
+        (&[Buttons::A][..], 1),
+        (&[Buttons::DOWN, Buttons::A][..], 0),
+        (&[Buttons::B][..], 0),
+    ] {
+        let mut w = started();
+        start(&mut w, |ctx| {
+            Box::pin(async move {
+                ctx.message(TextId(0)).await;
+                let yes = ctx.yes_no().await;
+                ctx.set_var(VAR_RESULT, yes as u16 + 10).await;
+            })
+        });
+        run(&mut w, Buttons::NONE, 5);
+        assert!(w.text().is_yes_no_active());
+        for &k in keys {
+            tap(&mut w, k, 2);
+        }
+        until_done(&mut w, 10);
+        assert_eq!(w.var(VAR_RESULT), want + 10, "{keys:?}");
+    }
+}
+
+#[test]
+fn wait_button_waits_for_a_or_b() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.wait_button().await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    run(&mut w, Buttons::DOWN, 30);
+    assert!(!w.flag(FLAG_DONE) && w.script_running());
+    tap(&mut w, Buttons::B, 2);
+    assert!(w.flag(FLAG_DONE) && !w.script_running());
+}
+
+#[test]
+fn delay_takes_its_frames() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.delay(10).await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    // Frame 1 starts the delay; it counts down on frames 2..=11.
+    run(&mut w, Buttons::NONE, 10);
+    assert!(!w.flag(FLAG_DONE));
+    run(&mut w, Buttons::NONE, 1);
+    assert!(w.flag(FLAG_DONE));
+}
+
+#[test]
+fn fade_waits_until_done() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.fade(Fade::ToBlack).await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    let mut levels = Vec::new();
+    while !w.flag(FLAG_DONE) {
+        levels.push(run(&mut w, Buttons::NONE, 1).brightness);
+        assert!(levels.len() < 40);
+    }
+    assert_eq!(levels.last(), Some(&16));
+    assert!(levels.windows(2).all(|p| p[0] <= p[1]), "{levels:?}");
+}
+
+#[test]
+fn a_warp_ends_the_script() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.message(TextId(0)).await;
+            ctx.warp(HOUSE, Some(0), 0, 0).await;
+            ctx.wait_state().await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 2);
+    assert!(w.transition_active());
+    for _ in 0..120 {
+        run(&mut w, Buttons::NONE, 1);
+        assert!(
+            !w.flag(FLAG_DONE),
+            "the script never resumes after the warp"
+        );
+    }
+    assert_eq!(w.map(), HOUSE);
+    assert!(!w.transition_active());
+    assert!(
+        !w.text().is_open(),
+        "the dialogue window closed with the load"
+    );
+    assert_eq!(
+        w.var(VAR_HOUSE),
+        1,
+        "the house on_frame script ran after the reset"
+    );
+}
+
+#[test]
+fn wait_state_waits_for_a_fade() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.request(crate::script::Request::Fade(Fade::ToBlack))
+                .await;
+            ctx.wait_state().await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 2);
+    assert!(!w.flag(FLAG_DONE));
+    until_done(&mut w, 40);
+    assert!(w.flag(FLAG_DONE));
+}
+
+#[test]
+fn wait_move_zero_waits_for_the_player() {
+    static DOWN: [Step; 1] = [Step::Walk(Dir::Down, Speed::Normal)];
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.move_obj(PLAYER, &DOWN).await;
+            ctx.wait_move(0).await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 8);
+    assert!(!w.flag(FLAG_DONE), "mid-step");
+    until_done(&mut w, 30);
+    assert!(w.flag(FLAG_DONE));
+    assert_eq!(pos(&w), (5, 6));
+}
+
+#[test]
+fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
+    let mut w = started();
+    let mut f = Frame::default();
+    let mut runner = Runner::new();
+    let ctx = runner.ctx();
+    runner.start(Box::pin(async move {
+        ctx.wait_move(1).await;
+        ctx.add_object(1).await;
+    }));
+    let mut host = Host {
+        game: &Game,
+        s: &mut w.s,
+        f: &mut f,
+        immediate: false,
+    };
+    let mut steps = 0;
+    while runner.step(&mut host) {
+        steps += 1;
+        assert!(steps < 5);
+    }
+    assert_eq!(w.s.last_mover, 1);
+    assert_eq!(w.objects().iter().filter(|o| o.local_id == 1).count(), 1);
 }
