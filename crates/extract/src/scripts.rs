@@ -12,7 +12,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// What a walk reached.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ScriptScan {
-    /// File offset of every decoded instruction.
+    /// File offset of every decoded instruction. Keyed on the offset only: an instruction is
+    /// decoded once, with the `setvaddress` state of the first path that reaches it. So a `v*`
+    /// command reached both with and without a prior `setvaddress` gives an order-dependent
+    /// result. `setvaddress` only appears in RAM (Mystery Event) scripts, never in map scripts.
     pub visited: BTreeSet<u32>,
     /// Strings shown by `message`/`msgbox` (`loadword 0`), `pokenavcall`, `bufferstring`, trainer texts, ...
     pub texts: BTreeSet<u32>,
@@ -42,33 +45,47 @@ pub fn map_script_roots(rom: &Rom, header: &MapHeader) -> Result<Vec<u32>> {
         _ => None,
     }));
     if let Some(table) = header.map_scripts {
-        for i in 0..MAX_TABLE {
-            let at = table + i * 5;
-            let kind = rom.u8(at)?;
-            if kind == 0 {
-                break;
-            }
-            let ptr = rom
-                .ptr(at + 1)?
-                .with_context(|| format!("null map script at {:#x}", at + 1))?;
-            if !TABLE_TYPES.contains(&kind) {
-                roots.push(ptr);
-                continue;
-            }
-            for j in 0..MAX_TABLE {
-                let entry = ptr + j * 8;
-                if rom.u16(entry)? == 0 {
-                    break;
-                }
-                roots.push(
-                    rom.ptr(entry + 4)?
-                        .with_context(|| format!("null map script at {:#x}", entry + 4))?,
-                );
-            }
-        }
+        roots.extend(map_scripts(rom, table)?);
     }
     let mut seen = BTreeSet::new();
     roots.retain(|r| seen.insert(*r));
+    Ok(roots)
+}
+
+/// Scripts of a `map_script` table at `table` (types 2 and 4 expanded). A table that reaches
+/// `MAX_TABLE` entries without its terminator is an error.
+fn map_scripts(rom: &Rom, table: u32) -> Result<Vec<u32>> {
+    let mut roots = Vec::new();
+    for i in 0.. {
+        if i == MAX_TABLE {
+            bail!("map script table at {table:#x} has no terminator within {MAX_TABLE} entries");
+        }
+        let at = table + i * 5;
+        let kind = rom.u8(at)?;
+        if kind == 0 {
+            break;
+        }
+        let ptr = rom
+            .ptr(at + 1)?
+            .with_context(|| format!("null map script at {:#x}", at + 1))?;
+        if !TABLE_TYPES.contains(&kind) {
+            roots.push(ptr);
+            continue;
+        }
+        for j in 0.. {
+            if j == MAX_TABLE {
+                bail!("map script list at {ptr:#x} has no terminator within {MAX_TABLE} entries");
+            }
+            let entry = ptr + j * 8;
+            if rom.u16(entry)? == 0 {
+                break;
+            }
+            roots.push(
+                rom.ptr(entry + 4)?
+                    .with_context(|| format!("null map script at {:#x}", entry + 4))?,
+            );
+        }
+    }
     Ok(roots)
 }
 
@@ -145,6 +162,13 @@ fn trainerbattle_args(kind: u8) -> Option<&'static [Arg]> {
 }
 
 /// `gScriptCmdTable` order: (macro name, operands).
+///
+/// Opcodes aliased to `ScrCmd_nop1` (0xc7..=0xcc, 0xd0) use the operand layout of their
+/// assembler macro, although the runtime handler reads no operands: this table describes the
+/// bytes as assembled.
+///
+/// `callstd`/`gotostd` (and their `_if` forms) only carry a `gStdScripts` index. Those shared
+/// std scripts are intentionally not walked: they are not part of any map.
 const OPS: [(&str, &[Arg]); 0xe3] = [
     /* 0x00 */ ("nop", &[]),
     /* 0x01 */ ("nop1", &[]),
@@ -398,19 +422,19 @@ pub fn walk(rom: &Rom, roots: &[u32]) -> Result<ScriptScan> {
                 break;
             };
             let mut at = pc + 1;
-            let mut operands = args.to_vec();
-            if op == OP_TRAINERBATTLE {
-                let kind = rom.u8(at)?;
-                match trainerbattle_args(kind) {
-                    Some(extra) => operands.extend_from_slice(extra),
+            let extra: &[Arg] = if op == OP_TRAINERBATTLE {
+                match trainerbattle_args(rom.u8(at)?) {
+                    Some(extra) => extra,
                     None => {
                         scan.unknown.insert(pc, op);
                         break;
                     }
                 }
-            }
+            } else {
+                &[]
+            };
             let mut stop = TERMINATORS.contains(&op);
-            for (i, &arg) in operands.iter().enumerate() {
+            for (i, &arg) in args.iter().chain(extra).enumerate() {
                 let ctx = || format!("{name} at {pc:#x}");
                 match arg {
                     B | H => {}
@@ -534,6 +558,45 @@ mod tests {
         assert!(scan.visited.contains(&0x12c)); // `return`
         assert!(scan.visited.contains(&0x13e)); // `goto`
         assert!(!scan.visited.contains(&0x143)); // nothing after `goto`
+    }
+
+    /// A ROM of `len` bytes with `data` at `BASE`, zero-filled elsewhere.
+    fn big_rom(data: &[u8], len: usize) -> Rom {
+        let mut b = vec![0u8; len];
+        b[0xAC..0xB0].copy_from_slice(b"BPEE");
+        b[BASE as usize..BASE as usize + data.len()].copy_from_slice(data);
+        Rom::from_bytes(b).unwrap()
+    }
+
+    #[test]
+    fn map_script_tables_expand_and_must_terminate() {
+        // 0x100: ON_TRANSITION -> 0x140 ; ON_FRAME_TABLE -> list at 0x120 ; end
+        let mut s = vec![3];
+        s.extend(p(0x140));
+        s.push(2);
+        s.extend(p(0x120));
+        s.resize(0x20, 0);
+        // 0x120: var 0x4050, value 1, script 0x150 ; end
+        s.extend([0x50, 0x40, 1, 0]);
+        s.extend(p(0x150));
+        assert_eq!(
+            map_scripts(&big_rom(&s, 0x400), BASE).unwrap(),
+            [0x140, 0x150]
+        );
+
+        // An outer table with no terminator.
+        let entry: Vec<u8> = std::iter::once(3).chain(p(0x140)).collect();
+        let err = map_scripts(&big_rom(&entry.repeat(300), 0x1000), BASE).unwrap_err();
+        assert!(format!("{err:#}").contains("table at 0x100"), "{err:#}");
+
+        // A `map_script_2` list with no terminator.
+        let mut s = vec![4];
+        s.extend(p(0x108));
+        s.resize(8, 0);
+        let item: Vec<u8> = [0x50, 0x40, 1, 0].into_iter().chain(p(0x140)).collect();
+        s.extend(item.repeat(300));
+        let err = map_scripts(&big_rom(&s, 0x1000), BASE).unwrap_err();
+        assert!(format!("{err:#}").contains("list at 0x108"), "{err:#}");
     }
 
     #[test]

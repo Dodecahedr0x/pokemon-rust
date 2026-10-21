@@ -105,6 +105,7 @@ fn fr_littleroot_matches_us_text_count_and_decodes() {
     let fr = scan(&rom, LITTLEROOT);
     assert_eq!(fr.texts.len(), us.texts.len());
     assert_eq!(fr.movements.len(), us.movements.len());
+    assert_eq!(fr.visited.len(), us.visited.len());
     let mut accented = 0;
     for &off in &fr.texts {
         let s = rom.string_at(off).unwrap();
