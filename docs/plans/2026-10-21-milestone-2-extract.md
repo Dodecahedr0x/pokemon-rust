@@ -285,7 +285,7 @@ pub fn render_map(layout: &MapLayout, primary: &TilesetData, secondary: &Tileset
 
 Acceptance:
 - **Unit:** flip and palette-bank handling on a synthetic 1-metatile map.
-- **ROM:** for each of the 3 maps, the FR render is byte-identical to the US render (the maps are the same in both versions).
+- **ROM:** for each of the 3 maps, the FR render equals the US render, except for pixels drawn from the FR-localized tiles. The `general` tileset has 10 translated sign tiles in FR: indices 222, 223, 238, 239, 327–330, 343 and 358 (the ARN gym and POKé SHOP signs). Pin the exact set of differing 8×8 tile *cells* per map: Littleroot and Route 101 must be identical; Oldale (which has a mart) may differ only in cells that use those tile indices. French graphics always come from the ROM, never from the decomp PNGs.
 - **Write previews:** write the FR previews to `target/previews/<Map>.png` so the controller can inspect them.
 - **Sanity check:** the Littleroot preview is 320×320.
 
