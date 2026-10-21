@@ -8,7 +8,7 @@ use crate::data::{
 };
 use crate::mon::{
     Ability, BattleTables, Gender, GrowthRate, MoveEffect, MoveFlags, MoveInfo, MoveTarget,
-    NAME_LEN, SpeciesInfo, Stat, Status, Type,
+    NAME_LEN, Party, Pokemon, SpeciesInfo, Stat, Status, Type,
 };
 use crate::script::{Ctx, Script};
 use crate::video::Tile;
@@ -197,6 +197,36 @@ pub fn mon(name: &str, species: SpeciesId, moves: [Option<MoveId>; 4], pp: [u8; 
         pp,
         max_pp: [35, 40, 25, 10],
     }
+}
+
+/// A leaked party whose slots carry `nicknames`.
+pub fn party(nicknames: &[&str]) -> &'static Party {
+    let mut p = Party::default();
+    for name in nicknames {
+        let mut nickname = [0xFF; NAME_LEN];
+        for (i, b) in t(name).into_iter().take(NAME_LEN - 1).enumerate() {
+            nickname[i] = b;
+        }
+        let _ = p.push(Pokemon {
+            species: POOCHY,
+            personality: 0,
+            ot_id: 0,
+            nickname,
+            level: 5,
+            exp: 0,
+            ivs: [0; 6],
+            evs: [0; 6],
+            moves: [None; 4],
+            pp: [0; 4],
+            pp_bonuses: 0,
+            friendship: 0,
+            ability_slot: 0,
+            status: Status::None,
+            hp: 20,
+            stats: [20; 6],
+        });
+    }
+    Box::leak(Box::new(p))
 }
 
 impl GameData for Game {

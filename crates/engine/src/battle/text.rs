@@ -10,6 +10,13 @@
 //! - `B_ACTIVE_NAME_WITH_PREFIX`, `B_SCR_ACTIVE_NAME_WITH_PREFIX` and `B_TXT_26`: `msg.active`;
 //! - `B_CURRENT_MOVE` / `B_LAST_MOVE`: `msg.mov`.
 //!
+//! The `*_NAME_WITH_PREFIX` codes name the battler out when the message is expanded. A message
+//! that must name a party slot whatever happens before it plays (send-outs, faints, exp, level
+//! ups) uses a buffer instead: `Buff::Mon { side, party }` (`B_BUFF_MON_NICK_WITH_PREFIX`) or
+//! `Buff::MonNick { side, party }` (`B_BUFF_MON_NICK`, no wild/foe tag, as
+//! `sText_Trainer1SentOutPkmn2`). Tasks D/E2: send-out messages use `Buff::MonNick`, never the
+//! prefixed battler codes.
+//!
 //! The wild/foe tag: Gen3 copies `sText_WildPkmnPrefix` / `sText_FoePkmnPrefix` before the
 //! nickname. The French ROM has " sauvage" / " ennemi" there, written after the name, so a tag
 //! that starts with a space is a suffix and any other tag a prefix ("Wild " in English).
@@ -104,9 +111,20 @@ fn placeholder(game: &impl GameData, code: u8, msg: &Msg, names: &Names, out: &m
     }
 }
 
-/// `HANDLE_NICKNAME_STRING_CASE`: an opponent's nickname gets the wild or foe tag.
+/// `HANDLE_NICKNAME_STRING_CASE` for the battler on `side`.
 fn name_with_prefix(game: &impl GameData, side: Side, names: &Names, out: &mut Vec<u8>) {
-    let nick = &names.mons[side as usize].nickname[..];
+    tagged(game, side, &names.mons[side as usize].nickname, names, out);
+}
+
+/// The nickname of party slot `party` of `side` (the battler's if there is no such slot).
+fn party_nick<'a>(side: Side, party: u8, names: &'a Names) -> &'a [u8] {
+    names.parties[side as usize]
+        .get(party as usize)
+        .map_or(&names.mons[side as usize].nickname[..], |p| &p.nickname[..])
+}
+
+/// `nick`, with the wild or foe tag for an opponent.
+fn tagged(game: &impl GameData, side: Side, nick: &[u8], names: &Names, out: &mut Vec<u8>) {
     if side == Side::Player {
         push(out, nick);
         return;
@@ -144,9 +162,9 @@ fn buff(game: &impl GameData, b: &Buff, names: &Names, out: &mut Vec<u8>) {
                 push(out, info.name);
             }
         }
-        // `B_BUFF_MON_NICK_WITH_PREFIX`: `Names` only holds the battlers, so the nickname is
-        // the battler's on that side (the only party member a slice message names).
-        Buff::Mon { side, .. } => name_with_prefix(game, side, names, out),
+        // `B_BUFF_MON_NICK_WITH_PREFIX` / `B_BUFF_MON_NICK`.
+        Buff::Mon { side, party } => tagged(game, side, party_nick(side, party, names), names, out),
+        Buff::MonNick { side, party } => push(out, party_nick(side, party, names)),
         Buff::Text(s) => push(out, game.battle_text(s)),
     }
 }
@@ -193,7 +211,60 @@ mod tests {
             trainer_name: b"\xC7\xD5\xED\xFF",
             wild,
             mons,
+            parties: [party(&["TORCHY", "ZAP"]), party(&["POOCHY", "SLUG"])],
         }
+    }
+
+    #[test]
+    fn party_buffers_name_the_slot_not_the_battler() {
+        let g = game();
+        let (p, o) = mons();
+        // STRINGID_TARGETFAINTED-style message queued for opponent slot 0 ...
+        let src = msg_text(&[&[FD, 0x00], &t(" fainted "), &[FD, 0x01]]);
+        let m = msg([
+            Buff::Mon {
+                side: Side::Opponent,
+                party: 0,
+            },
+            Buff::MonNick {
+                side: Side::Opponent,
+                party: 0,
+            },
+            Buff::None,
+        ]);
+        // ... played after `Names` already shows slot 1 (SLUG) as the opponent battler.
+        let slug = mon("SLUG", POOCHY, [None; 4], [0; 4]);
+        let out = expand_src(&g, src, &m, &names([&p, &slug], true));
+        assert_eq!(out, enc("POOCHY wild fainted POOCHY"));
+        // A send-out (`B_BUFF_MON_NICK`): no tag; player slots likewise.
+        let src = msg_text(&[&t("Go "), &[FD, 0x00], &t(" "), &[FD, 0x01]]);
+        let m = msg([
+            Buff::MonNick {
+                side: Side::Opponent,
+                party: 1,
+            },
+            Buff::MonNick {
+                side: Side::Player,
+                party: 1,
+            },
+            Buff::None,
+        ]);
+        let out = expand_src(&g, src, &m, &names([&p, &o], false));
+        assert_eq!(out, enc("Go SLUG ZAP"));
+        // A slot past the party falls back to the battler.
+        let m = msg([
+            Buff::MonNick {
+                side: Side::Player,
+                party: 5,
+            },
+            Buff::None,
+            Buff::None,
+        ]);
+        let src = msg_text(&[&[FD, 0x00]]);
+        assert_eq!(
+            expand_src(&g, src, &m, &names([&p, &o], true)),
+            enc("TORCHY")
+        );
     }
 
     fn mons() -> (BattleMon, BattleMon) {

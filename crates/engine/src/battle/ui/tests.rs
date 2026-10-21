@@ -39,6 +39,7 @@ fn names_of<'a>(p: &'a BattleMon, o: &'a BattleMon) -> Names<'a> {
         trainer_name: &[0xFF],
         wild: true,
         mons: [p, o],
+        parties: [party(&[]), party(&[])],
     }
 }
 
@@ -127,11 +128,11 @@ fn load_uploads_gfx_and_draws_the_message_view() {
             "bank {bank}"
         );
     }
-    for (layer, char_block, screen_block) in [(0, 0, 24), (1, 1, 28)] {
+    for (layer, char_block, screen_block, n) in [(0, 0, 24, 0x90), (1, 1, 28, 0x2C)] {
         assert!(f.cmds.contains(&Cmd::BgTiles {
             char_block,
             first: 0,
-            tiles: &tb.tiles[..0x90]
+            tiles: &tb.tiles[..n]
         }));
         assert!(f.cmds.contains(&Cmd::MapFill {
             screen_block,
@@ -679,4 +680,54 @@ fn hash_tracks_state() {
     a.print(&g, enc("AB"), MsgWait::Frames(2), &mut Frame::default());
     b.print(&g, enc("AB"), MsgWait::Frames(3), &mut Frame::default());
     assert_ne!(h(&a), h(&b));
+}
+
+#[test]
+fn leaving_an_unanswered_yes_no_erases_the_box() {
+    let g = game();
+    let (p, o) = (player(), player());
+    let mut w = loaded(&g);
+    // Each way out of the yes/no menu without an answer clears BG1 rows 8..14.
+    for way in 0..3 {
+        w.yes_no(&g, &mut Frame::default());
+        let mut f = Frame::default();
+        match way {
+            0 => w.print(&g, enc("A"), MsgWait::Frames(0), &mut f),
+            1 => w.action_menu(&g, &names_of(&p, &o), &mut f),
+            _ => w.move_menu(&g, &p, &mut f),
+        }
+        assert_eq!(bg1_rows(&f), Some(vec![0; 6 * 32]), "way {way}");
+        assert_eq!(w.yes_no_result(), None);
+        if way == 0 {
+            tick(&mut w, &g, NONE);
+        }
+    }
+    // Leaving another menu does not touch BG1.
+    let mut f = Frame::default();
+    w.action_menu(&g, &names_of(&p, &o), &mut f);
+    assert_eq!(bg1_rows(&f), None);
+}
+
+#[test]
+fn opening_a_menu_drops_a_pending_wait() {
+    let g = game();
+    let p = player();
+    let mut w = loaded(&g);
+    w.print(&g, enc("A"), MsgWait::Frames(50), &mut Frame::default());
+    tick(&mut w, &g, NONE);
+    assert!(w.is_printing());
+    w.move_menu(&g, &p, &mut Frame::default());
+    assert!(!w.is_printing());
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "still printing")]
+fn opening_a_menu_mid_message_is_a_bug() {
+    let g = game();
+    let p = player();
+    let mut w = loaded(&g);
+    w.print(&g, enc("ABC"), MsgWait::Frames(0), &mut Frame::default());
+    tick(&mut w, &g, NONE);
+    w.move_menu(&g, &p, &mut Frame::default());
 }

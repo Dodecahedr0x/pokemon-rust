@@ -51,6 +51,8 @@ use alloc::vec::Vec;
 
 /// `gBattleTextboxTiles` loaded per BG (Gen3 window canvases start at 0x90).
 pub const TEXTBOX_TILES: usize = 0x90;
+/// Textbox tiles BG1 uses: blank 0, cursor 1..3, erased cursor 0x16, yes/no frame 0x22..0x2B.
+pub const BG1_TILES: usize = 0x2C;
 /// Rows of the TEXT BG a view redraw rewrites (the textbox frame, rows 14..20).
 pub const FRAME_ROWS: core::ops::Range<usize> = 14..20;
 /// Menu text palette bank (`paletteNum = 5`).
@@ -233,6 +235,11 @@ impl BattleWindows {
 
     /// Bulk upload, while the screen is black: palettes, the textbox tiles on BG0 and BG1, both
     /// BGs enabled with cleared maps, and the empty message view.
+    ///
+    /// Exact cost, for one dedicated black frame: 3 `BgPalette` (96 B), `TEXTBOX_TILES` (0x90)
+    /// tiles to char block 0 (4608 B), `BG1_TILES` (0x2C) tiles to char block 1 (1408 B), 2
+    /// `MapFill` (2 x 2 KiB), 2 `Bg`, one 192-entry `MapEntries` (384 B) and the 104 message
+    /// canvas tiles as `BgTile` (3328 B): about 13.9 KiB.
     pub fn load(&mut self, game: &impl GameData, f: &mut Frame) {
         let tb = &game.battle_gfx().textbox;
         for (bank, colors) in tb.palettes.iter().take(2).enumerate() {
@@ -247,12 +254,13 @@ impl BattleWindows {
                 colors,
             });
         }
-        let tiles = &tb.tiles[..tb.tiles.len().min(TEXTBOX_TILES)];
-        for (layer, char_block, screen_block, priority) in [battle::TEXT, battle::WINDOW] {
+        for ((layer, char_block, screen_block, priority), n) in
+            [(battle::TEXT, TEXTBOX_TILES), (battle::WINDOW, BG1_TILES)]
+        {
             f.cmds.push(Cmd::BgTiles {
                 char_block,
                 first: 0,
-                tiles,
+                tiles: &tb.tiles[..tb.tiles.len().min(n)],
             });
             f.cmds.push(Cmd::MapFill {
                 screen_block,
@@ -279,7 +287,7 @@ impl BattleWindows {
     /// last character is drawn (`Cmd_waitmessage`), `Button` = until A or B is pressed.
     /// Switches to the message view.
     pub fn print(&mut self, game: &impl GameData, text: Vec<u8>, wait: MsgWait, f: &mut Frame) {
-        self.menu = Menu::None;
+        self.leave_menu(f);
         self.msg.start(text, MSG_COLORS, true);
         self.wait = match wait {
             MsgWait::Frames(0) => None,
@@ -291,9 +299,31 @@ impl BattleWindows {
         self.msg.flush(f);
     }
 
-    /// True while a message prints or its wait runs.
+    /// True while a message prints or its wait runs. The printer and the wait are frozen while
+    /// a menu is open (`update` only runs the menu), and opening a menu drops a pending wait: a
+    /// menu must not be opened while a message is still printing (debug-asserted).
     pub fn is_printing(&self) -> bool {
         self.msg.is_printing() || self.wait.is_some()
+    }
+
+    /// Closes the open menu without an answer: the yes/no box is erased from BG1 (the other
+    /// menus are replaced by the next view).
+    fn leave_menu(&mut self, f: &mut Frame) {
+        if self.menu == Menu::YesNo {
+            self.put_yes_no(f, true);
+        }
+        self.menu = Menu::None;
+    }
+
+    /// Opens a menu: leaves the current one and drops a pending message wait.
+    fn enter_menu(&mut self, menu: Menu, f: &mut Frame) {
+        debug_assert!(
+            !self.msg.is_printing(),
+            "a battle menu opened while a message is still printing"
+        );
+        self.leave_menu(f);
+        self.wait = None;
+        self.menu = menu;
     }
 
     /// True while a menu (action, move or yes/no) waits for input.
@@ -320,7 +350,7 @@ impl BattleWindows {
         self.action.fill(MENU_COLORS.bg);
         let menu = game.battle_text(Str::BattleMenu);
         self.action.draw_text(font, menu, 0, 1, MENU_COLORS);
-        self.menu = Menu::Action;
+        self.enter_menu(Menu::Action, f);
         self.action_result = None;
         self.show(View::Action, game, f);
     }
@@ -375,7 +405,7 @@ impl BattleWindows {
             let label = game.battle_text(Str::MoveInterfacePP);
             self.pp_label.draw_text(font, label, 0, 1, PP_COLORS);
         }
-        self.menu = Menu::Move;
+        self.enter_menu(Menu::Move, f);
         self.move_result = None;
         self.draw_move_info(game, f);
         self.show(View::Move, game, f);
@@ -390,7 +420,8 @@ impl BattleWindows {
         }
     }
 
-    /// Number of moves (`gNumberOfMovesToChoose`).
+    /// Number of moves (`gNumberOfMovesToChoose`). Assumes packed move slots (Gen3 keeps them
+    /// packed: no `None` before a `Some`), as the cursor limits `(c ^ 1) < n` / `(c ^ 2) < n` do.
     fn move_count(&self) -> u8 {
         self.moves.iter().filter(|m| m.is_some()).count() as u8
     }
@@ -440,7 +471,7 @@ impl BattleWindows {
         self.yes_no.draw_text(game.font(), text, 0, 1, MENU_COLORS);
         self.yes_no_cursor = 0;
         self.yes_no_result = None;
-        self.menu = Menu::YesNo;
+        self.enter_menu(Menu::YesNo, f);
         self.put_yes_no(f, false);
         self.yes_no.flush(f);
     }
