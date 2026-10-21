@@ -107,6 +107,26 @@ fn writes_v3_tree() {
     // Every written file but the manifest is checksummed, and nothing else is written.
     let mut files: BTreeSet<String> = tree(dir).into_keys().collect();
     assert!(files.remove("manifest.ron"));
+    // Battle graphics (M4 Task B), whose contents tests/battle_gfx.rs checks.
+    const BATTLE_GFX: [&str; 6] = [
+        "battle/gfx/",
+        "battle/env/",
+        "pokemon/",
+        "trainers/",
+        "starter/",
+        "font/latin_small.",
+    ];
+    let battle_gfx: Vec<String> = files
+        .iter()
+        .filter(|f| BATTLE_GFX.iter().any(|p| f.starts_with(p)))
+        .cloned()
+        .collect();
+    assert!(
+        battle_gfx.len() > 2 * 440,
+        "{} battle gfx files",
+        battle_gfx.len()
+    );
+    want.extend(battle_gfx);
     assert_eq!(files, want);
     assert_eq!(m.files.keys().cloned().collect::<BTreeSet<_>>(), want);
     assert_eq!(

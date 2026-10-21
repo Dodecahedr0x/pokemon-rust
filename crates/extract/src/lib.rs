@@ -1,6 +1,7 @@
 //! Reads a Pokémon Emerald ROM (BPEF, or BPEE for decomp-backed tests) into editable content files.
 //! Tables are located through anchors and pointer back-tracing, never hard-coded per version.
 
+pub mod battle_gfx;
 pub mod codegen;
 pub mod export;
 pub mod fixtures;
