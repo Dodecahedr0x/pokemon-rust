@@ -46,6 +46,8 @@ pub struct World {
     pub sha1: String,
     /// Absolute extracted dir (`None` for the built-in stub).
     pub dir: Option<PathBuf>,
+    /// Battle data; the stub's when the extracted dir has no `battle/` (test fixtures).
+    pub battle: crate::battle::BattleIn,
 }
 
 /// A build warning (shown by cargo).
@@ -80,7 +82,7 @@ fn image_of(tiles: &[Tile], tiles_per_row: u32) -> Result<IndexedImage> {
     gfx::tiles_4bpp_to_image(&bytes, tiles_per_row)
 }
 
-fn crop(img: &IndexedImage, x: u32, y: u32, w: u32, h: u32) -> Result<IndexedImage> {
+pub fn crop(img: &IndexedImage, x: u32, y: u32, w: u32, h: u32) -> Result<IndexedImage> {
     ensure!(
         x + w <= img.width && y + h <= img.height,
         "crop out of bounds"
@@ -99,7 +101,7 @@ fn crop(img: &IndexedImage, x: u32, y: u32, w: u32, h: u32) -> Result<IndexedIma
 
 const GLYPH: u32 = 16;
 
-fn glyph_of(img: &IndexedImage, i: u32, per_row: u32) -> Glyph {
+pub fn glyph_of(img: &IndexedImage, i: u32, per_row: u32) -> Glyph {
     let (ox, oy) = (i % per_row * GLYPH, i / per_row * GLYPH);
     let mut g = [0u8; 64];
     for tile in 0..4u32 {
@@ -192,29 +194,7 @@ pub fn load(dir: &Path) -> Result<World> {
             .with_context(|| format!("sprite {name}"))?;
         sprites.push(SpriteIn { file, frames });
     }
-    let font: FontFile = read_ron(&dir.join("font/latin_normal.ron"))?;
-    let img = gfx::read_png_indexed(&dir.join("font/latin_normal.png"))?;
-    let per_row = u32::from(font.glyphs_per_row);
-    ensure!(per_row > 0, "font: glyphs_per_row is 0");
-    let rows = u32::from(font.glyphs).div_ceil(per_row);
-    ensure!(
-        img.width >= per_row * GLYPH && img.height >= rows * GLYPH,
-        "font: png is {}x{}, {} glyphs need {}x{}",
-        img.width,
-        img.height,
-        font.glyphs,
-        per_row * GLYPH,
-        rows * GLYPH
-    );
-    ensure!(
-        font.widths.len() == usize::from(font.glyphs),
-        "font: {} widths for {} glyphs",
-        font.widths.len(),
-        font.glyphs
-    );
-    let glyphs = (0..u32::from(font.glyphs))
-        .map(|i| glyph_of(&img, i, per_row))
-        .collect();
+    let (glyphs, widths) = read_font(dir, "latin_normal")?;
     let window: WindowFile = read_ron(&dir.join("window/message_box.ron"))?;
     let img = gfx::read_png_indexed(&dir.join("window/message_box.png"))?;
     let mut window_tiles = tiles_of(&img)?;
@@ -237,9 +217,27 @@ pub fn load(dir: &Path) -> Result<World> {
     }
     let index_path = dir.join("scripts/index.ron");
     let index = if index_path.exists() {
-        Some(read_ron(&index_path)?)
+        Some(read_ron::<ScriptIndex>(&index_path)?)
     } else {
         None
+    };
+    let battle = if dir.join("battle/species.ron").exists() {
+        let mut sources = Vec::new();
+        if let Some(index) = &index {
+            // `file` names the module (`LittlerootTown` or `LittlerootTown.rs`).
+            let stems: std::collections::BTreeSet<&str> = index
+                .scripts
+                .values()
+                .map(|e| e.file.strip_suffix(".rs").unwrap_or(&e.file))
+                .collect();
+            for f in stems {
+                let p = dir.join(format!("scripts/{f}.rs"));
+                sources.push(std::fs::read_to_string(&p).with_context(|| p.display().to_string())?);
+            }
+        }
+        crate::battle_load::load(dir, &sources).context("battle data")?
+    } else {
+        crate::stub::battle()
     };
     Ok(World {
         lang,
@@ -247,14 +245,43 @@ pub fn load(dir: &Path) -> Result<World> {
         tilesets,
         sprites,
         glyphs,
-        widths: font.widths,
+        widths,
         window,
         window_tiles,
         texts,
         index,
         sha1: manifest.sha1.clone(),
         dir: Some(dir.to_path_buf()),
+        battle,
     })
+}
+
+/// Reads `font/<name>.{ron,png}`: glyphs in ROM layout and widths.
+pub fn read_font(dir: &Path, name: &str) -> Result<(Vec<Glyph>, Vec<u8>)> {
+    let font: FontFile = read_ron(&dir.join(format!("font/{name}.ron")))?;
+    let img = gfx::read_png_indexed(&dir.join(format!("font/{name}.png")))?;
+    let per_row = u32::from(font.glyphs_per_row);
+    ensure!(per_row > 0, "font {name}: glyphs_per_row is 0");
+    let rows = u32::from(font.glyphs).div_ceil(per_row);
+    ensure!(
+        img.width >= per_row * GLYPH && img.height >= rows * GLYPH,
+        "font {name}: png is {}x{}, {} glyphs need {}x{}",
+        img.width,
+        img.height,
+        font.glyphs,
+        per_row * GLYPH,
+        rows * GLYPH
+    );
+    ensure!(
+        font.widths.len() == usize::from(font.glyphs),
+        "font {name}: {} widths for {} glyphs",
+        font.widths.len(),
+        font.glyphs
+    );
+    let glyphs = (0..u32::from(font.glyphs))
+        .map(|i| glyph_of(&img, i, per_row))
+        .collect();
+    Ok((glyphs, font.widths))
 }
 
 /// Writes `w` as an extracted dir that [`load`] reads back (maps, tilesets, sprites, font,

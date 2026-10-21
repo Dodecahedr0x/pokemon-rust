@@ -274,6 +274,8 @@ pub enum Str {
     BattleYesNoChoice,
     /// `gText_ConfirmStarterChoice` (Task G's starter screen).
     ConfirmStarterChoice,
+    /// `gText_BirchInTrouble` (the starter screen while choosing).
+    BirchInTrouble,
     /// `gTypeNames[t]`.
     TypeName(Type),
     /// `gStatNamesTable[s]`.

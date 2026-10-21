@@ -29,9 +29,8 @@
 //!   is filled with the window palette's text color (`WindowGfx::text_fg`, dark gray) as a
 //!   cheap stand-in, and the category line (FONT_NARROW) is left out;
 //! - the message box is the field dialogue box (`text::TextBox`, its frame and yes/no
-//!   positions), and it prints at the field text speed (Gen3 prints these instantly). Gen3
-//!   prints `gText_BirchInTrouble` while choosing; there is no `battle::Str` for it yet, so
-//!   the box stays empty until the question;
+//!   positions), and it prints at the field text speed (Gen3 prints these instantly):
+//!   `gText_BirchInTrouble` (`Str::BirchInTrouble`) while choosing, then the question;
 //! - no cry, no sound.
 //!
 //! VRAM (the screen is owned while this runs; the field restores everything afterwards):
@@ -343,9 +342,19 @@ impl StarterChoice {
         f.scroll = [(0, 0); 4];
         f.lighten = false;
         let pressed = input.pressed;
+        if matches!(
+            self.stage,
+            Stage::Choose | Stage::MoveCursor | Stage::CreateLabel
+        ) {
+            // `gText_BirchInTrouble` prints on its own (no button speeds it up).
+            self.text.update(game, Buttons::NONE, Buttons::NONE, f);
+        }
         match self.stage {
             Stage::Load(_) => unreachable!(),
             Stage::Enter => {
+                // `Task_StarterChoose`.
+                let t = game.battle_text(crate::battle::Str::BirchInTrouble);
+                self.text.print(game, t, f);
                 self.draw_label(game, f);
                 self.stage = Stage::Choose;
             }
@@ -402,8 +411,8 @@ impl StarterChoice {
                 }
             }
             Stage::Decline => {
-                // Back to `Task_StarterChoose`: the box is cleared (it would reprint
-                // `gText_BirchInTrouble`).
+                // Back to `Task_StarterChoose`: the box is cleared, then `Stage::Enter`
+                // reprints `gText_BirchInTrouble`.
                 self.text.open(game, f);
                 self.stage = Stage::Enter;
             }
