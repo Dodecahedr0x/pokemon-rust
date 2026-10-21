@@ -6,6 +6,7 @@
 use crate::Rom;
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct MapId {
@@ -31,6 +32,9 @@ const LITTLEROOT_ANCHOR: [u8; 64] = [
     0xe4, 0x05, 0xe5, 0x05, 0xe4, 0x05, 0xe5, 0x05, 0xe4, 0x05, 0xe7, 0x05, 0x01, 0x30, 0x01, 0x30,
 ];
 const LITTLEROOT_LAYOUT_ID: u16 = 10;
+/// Littleroot's layout is 20x20 blocks (`data/layouts/layouts.json`).
+const LITTLEROOT_WIDTH: u32 = 20;
+const LITTLEROOT_HEIGHT: u32 = 20;
 
 const MAX_METATILES: u32 = 512;
 const METATILE_SIZE: u32 = 16;
@@ -42,6 +46,29 @@ const MAX_DIM: u32 = 0x400;
 pub struct MapTable {
     pub offset: u32,
     pub groups: Vec<Vec<u32>>,
+    /// Sorted metatiles/attributes pointers of every tileset the table uses, filled by the first
+    /// `read_tileset`. Not serialized and ignored by `PartialEq`.
+    #[serde(skip)]
+    tileset_bounds: BoundsCache,
+}
+
+#[derive(Clone, Default)]
+struct BoundsCache(OnceLock<Vec<u32>>);
+
+impl PartialEq for BoundsCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for BoundsCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.get().is_some() {
+            "cached"
+        } else {
+            "empty"
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -206,7 +233,10 @@ pub fn locate_map_table(rom: &Rom) -> Result<MapTable> {
         .pointers_to(map_bin)
         .into_iter()
         .filter_map(|p| p.checked_sub(0x0C))
-        .filter(|&l| rom.u32(l).ok() == Some(20) && rom.u32(l + 4).ok() == Some(20))
+        .filter(|&l| {
+            rom.u32(l).ok() == Some(LITTLEROOT_WIDTH)
+                && rom.u32(l + 4).ok() == Some(LITTLEROOT_HEIGHT)
+        })
         .collect();
     let [layout] = layouts[..] else {
         bail!("Littleroot layout candidates for map.bin {map_bin:#x}: {layouts:x?}");
@@ -234,6 +264,7 @@ pub fn locate_map_table(rom: &Rom) -> Result<MapTable> {
                 found.push(MapTable {
                     offset: table,
                     groups,
+                    tileset_bounds: BoundsCache::default(),
                 });
             }
         }
@@ -437,25 +468,51 @@ pub fn read_connections(rom: &Rom, off: u32) -> Result<Vec<Connection>> {
     })
 }
 
-/// Reads the `Tileset` at `off`. The metatile count is the gap between its `metatiles` pointer and
-/// the next metatiles/attributes pointer of any tileset used by the map table, capped at 512: the
-/// decomp (`src/data/tilesets/metatiles.h`) emits each tileset's metatiles immediately followed by
-/// its attributes, so the gap is exactly the metatile data.
+impl MapTable {
+    /// Sorted, deduplicated metatiles and attributes pointers of every tileset the table uses.
+    fn tileset_bounds(&self, rom: &Rom) -> Result<&[u32]> {
+        if let Some(b) = self.tileset_bounds.0.get() {
+            return Ok(b);
+        }
+        let mut bounds = Vec::new();
+        for &header in self.groups.iter().flatten() {
+            let layout = req_ptr(rom, header, "layout")?;
+            for slot in [0x10, 0x14] {
+                let other = read_tileset_struct(rom, req_ptr(rom, layout + slot, "tileset")?)?;
+                bounds.push(other.metatiles);
+                bounds.push(other.metatile_attributes);
+            }
+        }
+        bounds.sort_unstable();
+        bounds.dedup();
+        Ok(self.tileset_bounds.0.get_or_init(|| bounds))
+    }
+}
+
+/// Reads the `Tileset` at `off`.
+///
+/// `metatile_count` is the gap between its `metatiles` pointer and the next metatiles/attributes
+/// pointer of any tileset used by `all`, capped at 512: the decomp (`src/data/tilesets/metatiles.h`)
+/// emits each tileset's metatiles immediately followed by its attributes, so the gap is exactly the
+/// metatile data. Primary tilesets can hold fewer than 512 (`building` has 8, `secret_base` 2).
+///
+/// Indexing: a block's metatile id below 512 selects primary metatile `id`; ids from 512 select
+/// secondary metatile `id - 512`. Likewise, tile numbers inside metatile entries from 512 index the
+/// secondary tileset's tiles. The secondary always starts at 512, whatever the primary's
+/// `metatile_count` (or tile count) is.
 pub fn read_tileset(rom: &Rom, off: u32, all: &MapTable) -> Result<TilesetRef> {
     let ts = read_tileset_struct(rom, off)?;
-    let mut bounds = Vec::new();
-    for &header in all.groups.iter().flatten() {
-        let layout = req_ptr(rom, header, "layout")?;
-        for slot in [0x10, 0x14] {
-            let other = read_tileset_struct(rom, req_ptr(rom, layout + slot, "tileset")?)?;
-            bounds.push(other.metatiles);
-            bounds.push(other.metatile_attributes);
-        }
-    }
-    let next = bounds.into_iter().filter(|&b| b > ts.metatiles).min();
-    let rom_end = rom.bytes().len() as u32;
-    let gap = next.unwrap_or(rom_end) - ts.metatiles;
-    let count = (gap / METATILE_SIZE).min(MAX_METATILES);
+    let bounds = all.tileset_bounds(rom)?;
+    let next = bounds[bounds.partition_point(|&b| b <= ts.metatiles)..]
+        .first()
+        .copied()
+        .with_context(|| {
+            format!(
+                "tileset at {off:#x}: no metatiles/attributes pointer follows metatiles {:#x}",
+                ts.metatiles
+            )
+        })?;
+    let count = ((next - ts.metatiles) / METATILE_SIZE).min(MAX_METATILES);
     ensure!(count > 0, "tileset at {off:#x} has no metatiles");
     rom.slice(ts.metatiles, (count * METATILE_SIZE) as usize)?;
     rom.slice(ts.metatile_attributes, (count * 2) as usize)?;

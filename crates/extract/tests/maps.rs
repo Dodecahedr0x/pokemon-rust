@@ -41,6 +41,31 @@ fn map_ids(d: &Path) -> HashMap<String, MapId> {
     ids
 }
 
+/// `#define NAME <integer>` lines from `include/constants/<file>`.
+fn constants(d: &Path, files: &[&str]) -> HashMap<String, i64> {
+    let mut out = HashMap::new();
+    for file in files {
+        let path = d.join("include/constants").join(file);
+        for line in std::fs::read_to_string(&path).unwrap().lines() {
+            let mut words = line.split_whitespace();
+            if words.next() != Some("#define") {
+                continue;
+            }
+            let (Some(name), Some(value)) = (words.next(), words.next()) else {
+                continue;
+            };
+            let parsed = match value.strip_prefix("0x") {
+                Some(hex) => i64::from_str_radix(hex, 16).ok(),
+                None => value.parse().ok(),
+            };
+            if let Some(v) = parsed {
+                out.insert(name.to_string(), v);
+            }
+        }
+    }
+    out
+}
+
 fn both() -> [(&'static str, Rom); 2] {
     [("US", fixtures::us()), ("FR", fixtures::fr())]
 }
@@ -66,6 +91,8 @@ fn three_maps_match_decomp() {
     let d = fixtures::decomp();
     let ids = map_ids(&d);
     let layouts = json(&d.join("data/layouts/layouts.json"));
+    let consts = constants(&d, &["songs.h", "weather.h", "map_types.h"]);
+    let xy = |j: &Value| (j["x"].as_i64().unwrap(), j["y"].as_i64().unwrap());
     for (rom_name, rom) in both() {
         let table = maps::locate_map_table(&rom).unwrap();
         for (folder, id) in [
@@ -110,12 +137,38 @@ fn three_maps_match_decomp() {
             for (w, j) in h.events.warps.iter().zip(warps) {
                 assert_eq!(w.dest, ids[j["dest_map"].as_str().unwrap()], "{ctx}");
                 assert_eq!(w.x as i64, j["x"].as_i64().unwrap(), "{ctx}");
+                assert_eq!(w.y as i64, j["y"].as_i64().unwrap(), "{ctx}");
+                assert_eq!(
+                    w.elevation as i64,
+                    j["elevation"].as_i64().unwrap(),
+                    "{ctx}"
+                );
+                let dest_warp: u8 = j["dest_warp_id"].as_str().unwrap().parse().unwrap();
+                assert_eq!(w.warp_id, dest_warp, "{ctx}");
             }
-            let n = |k: &str| map[k].as_array().map_or(0, |a| a.len());
-            assert_eq!(h.events.coords.len(), n("coord_events"), "{ctx}");
-            assert_eq!(h.events.bgs.len(), n("bg_events"), "{ctx}");
+            let list = |k: &str| map[k].as_array().cloned().unwrap_or_default();
+            let coords = list("coord_events");
+            assert_eq!(h.events.coords.len(), coords.len(), "{ctx}");
+            for (c, j) in h.events.coords.iter().zip(&coords) {
+                assert_eq!((c.x as i64, c.y as i64), xy(j), "{ctx} coord");
+            }
+            let bgs = list("bg_events");
+            assert_eq!(h.events.bgs.len(), bgs.len(), "{ctx}");
+            for (b, j) in h.events.bgs.iter().zip(&bgs) {
+                assert_eq!((b.x as i64, b.y as i64), xy(j), "{ctx} bg");
+            }
 
-            let conns: Vec<(Direction, MapId)> = map["connections"]
+            let flag = |k: &str| map[k].as_bool().unwrap();
+            assert_eq!(h.allow_cycling, flag("allow_cycling"), "{ctx}");
+            assert_eq!(h.allow_escaping, flag("allow_escaping"), "{ctx}");
+            assert_eq!(h.allow_running, flag("allow_running"), "{ctx}");
+            assert_eq!(h.show_map_name, flag("show_map_name"), "{ctx}");
+            let constant = |k: &str| consts[map[k].as_str().unwrap()];
+            assert_eq!(h.music as i64, constant("music"), "{ctx} music");
+            assert_eq!(h.weather as i64, constant("weather"), "{ctx} weather");
+            assert_eq!(h.map_type as i64, constant("map_type"), "{ctx} map_type");
+
+            let conns: Vec<(Direction, i32, MapId)> = map["connections"]
                 .as_array()
                 .map(|a| a.as_slice())
                 .unwrap_or_default()
@@ -130,11 +183,15 @@ fn three_maps_match_decomp() {
                         "emerge" => Direction::Emerge,
                         other => panic!("{other}"),
                     };
-                    (dir, ids[c["map"].as_str().unwrap()])
+                    let offset = c["offset"].as_i64().unwrap() as i32;
+                    (dir, offset, ids[c["map"].as_str().unwrap()])
                 })
                 .collect();
-            let got: Vec<(Direction, MapId)> =
-                h.connections.iter().map(|c| (c.direction, c.map)).collect();
+            let got: Vec<(Direction, i32, MapId)> = h
+                .connections
+                .iter()
+                .map(|c| (c.direction, c.offset, c.map))
+                .collect();
             assert_eq!(got, conns, "{ctx} connections");
         }
     }
@@ -201,29 +258,45 @@ fn tileset_metatile_counts_match_decomp() {
         folder_of.insert(*key, *hit);
     }
 
-    // FR localizes a few metatiles (e.g. 5 shop signs), so its tilesets are paired with the US
-    // ones through the same (map, slot); the bytes must still mostly agree with that folder.
+    // FR tilesets are paired with the US ones through the same (map, slot). Metatiles and
+    // attributes are byte-identical, except 5 localized metatiles in `shop`.
     let fr = fixtures::fr();
     let fr_sets = reachable_tilesets(&fr, &maps::locate_map_table(&fr).unwrap());
     assert_eq!(
         fr_sets.keys().collect::<Vec<_>>(),
         us_sets.keys().collect::<Vec<_>>()
     );
+    let mut shop_seen = false;
     for (key, ts) in &fr_sets {
         let (_, dir, bytes) = folder_of[key];
-        let ctx = format!("FR tileset {:#x} ({})", ts.offset, dir.display());
+        let folder = dir.file_name().unwrap().to_str().unwrap();
+        let ctx = format!("FR tileset {:#x} ({folder})", ts.offset);
+        let us_ts = &us_sets[key];
+        assert_eq!(ts.metatile_count, us_ts.metatile_count, "{ctx}");
         assert_eq!(ts.metatile_count as usize * 16, bytes.len(), "{ctx}");
-        let rom_bytes = fr.slice(ts.metatiles, bytes.len()).unwrap();
-        let differing = rom_bytes
+        let attrs = |rom: &Rom, t: &TilesetRef| {
+            rom.slice(t.metatile_attributes, t.metatile_count as usize * 2)
+                .unwrap()
+                .to_vec()
+        };
+        assert_eq!(attrs(&fr, ts), attrs(&us, us_ts), "{ctx} attributes");
+        let fr_meta = fr.slice(ts.metatiles, bytes.len()).unwrap();
+        let us_meta = us.slice(us_ts.metatiles, bytes.len()).unwrap();
+        let differing: Vec<usize> = fr_meta
             .chunks(16)
-            .zip(bytes.chunks(16))
-            .filter(|(a, b)| a != b)
-            .count();
-        assert!(
-            differing * 20 <= ts.metatile_count as usize,
-            "{ctx}: {differing} metatiles differ"
-        );
+            .zip(us_meta.chunks(16))
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect();
+        if folder == "shop" {
+            shop_seen = true;
+            assert_eq!(differing, [159, 167, 175, 183, 191], "{ctx}");
+        } else {
+            assert_eq!(differing, Vec::<usize>::new(), "{ctx}");
+        }
     }
+    assert!(shop_seen);
 }
 
 /// Every tileset reachable from the map table, keyed by the first (map, slot) that uses it.
