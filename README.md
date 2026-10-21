@@ -10,10 +10,26 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 
 ## Commands
 - `cargo test --workspace`: unit tests plus ROM-backed tests that need both ROMs and the decomp (see Tests)
-- `cargo xtask rom`: build `target/game.gba`
-- `cargo xtask parity`: check that the ROM (in mGBA) and the native build agree
-- `cargo xtask shot`: dump ROM and native screenshots to `target/`
+- `cargo xtask rom`: build `target/game.gba` (fails if it exceeds the 32 MiB GBA limit)
+- `cargo xtask parity`: play the scripted route on the ROM (in mGBA) and natively; the World hash
+  must match on every frame and the picture at every checkpoint
+- `cargo xtask shot`: play the same route and write ROM and native PNGs of each named moment to
+  `target/shots/<moment>-{rom,native}.png`
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
+
+## Play
+1. Extract your ROM (see Extract), then `cargo xtask rom`.
+2. Open `target/game.gba` in any GBA emulator (mGBA, …) or on a flash cart. Or play natively:
+   `cargo run -p game-native --features window --bin play` (arrows, X = A, Z = B,
+   Enter = Start, Backspace = Select, Escape quits).
+
+The slice starts in Littleroot Town outside Brendan's house, after receiving the starter and
+before meeting May on Route 103 (`crates/content/src/new_game.rs` lists the story vars and flags).
+Littleroot, Route 101, Oldale and their interiors are walkable; doors, doormats, connections,
+NPCs, signs and French dialogue work. Battles, menus, running shoes and sound are not there yet.
+
+Without an extracted dir everything builds against a small built-in map (stub mode,
+`cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`).
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
@@ -24,6 +40,18 @@ read both ROMs and the decomp. They fail if these are missing:
 | `PKR_ROM_FR`  | `rom/emeraude-fr.gba`   | Pokémon Émeraude (BPEF) ROM                    |
 | `PKR_ROM_US`  | `../emerald.gba`        | Pokémon Emerald (BPEE) ROM                     |
 | `PKR_DECOMP`  | `../pokeemerald`        | a checkout of the pret/pokeemerald decomp      |
+
+Parity (`cargo xtask parity`, `crates/emu/tests/parity.rs`) replays the route of
+`crates/game-native/src/scenario.rs`: with extracted data it walks out of the start, into
+Brendan's house and back, across Route 101 to Oldale, talks to an NPC and enters the Pokémon
+Center (about 1800 frames); in stub mode it walks around the stub map. The ROM must not apply
+any frame late while something is visible (`DebugRegion::late`); late applies on a black screen
+(map loads) are only counted (`late_black`).
+
+`crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
+`0x27378ceb8a110230` after `World::new` and `0x4b5bc94f9ed570e4` after 25 frames each of Right,
+A, nothing and Down. They change whenever the hashed state, its order or the frame logic
+changes; update them only for an intended change.
 
 Defaults are relative to this checkout's root (so `../emerald.gba` sits next to it). Set the variables to point elsewhere, e.g.
 `PKR_ROM_US=~/roms/emerald.gba cargo test --workspace`. `cargo test -p extract --lib` runs only
