@@ -15,11 +15,11 @@ fn open(path: PathBuf, help: &str) -> Rom {
     Rom::open(&path).unwrap_or_else(|e| panic!("{help} ({}): {e:#}", path.display()))
 }
 
-/// The user's French ROM (BPEF): `<repo>/rom/emeraude-fr.gba`.
+/// The user's French ROM (BPEF): `$PKR_ROM_FR` or `<repo>/rom/emeraude-fr.gba`.
 pub fn fr() -> Rom {
     open(
-        root().join("rom/emeraude-fr.gba"),
-        "unzip the French ROM to rom/emeraude-fr.gba",
+        path_from("PKR_ROM_FR", root().join("rom/emeraude-fr.gba")),
+        "unzip the French ROM to rom/emeraude-fr.gba or set PKR_ROM_FR",
     )
 }
 
