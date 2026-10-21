@@ -1,0 +1,8 @@
+[package]
+name = "game-native"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine.workspace = true

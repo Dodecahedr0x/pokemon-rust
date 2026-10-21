@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "xtask"]
+exclude = ["crates/game-gba"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+publish = false
+
+[workspace.dependencies]
+engine = { path = "crates/engine" }
+content = { path = "crates/content" }
+game-native = { path = "crates/game-native" }
+emu = { path = "crates/emu" }
+anyhow = "1"
+mgba = "0.1.0"

@@ -2,6 +2,7 @@
 *.zip
 *.gba
 *.sav
-/target/
+*.ppm
+target/
 explore.db
 .DS_Store
