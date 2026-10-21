@@ -81,6 +81,8 @@ pub struct BattleSetup {
 pub enum BattleOutcome {
     Won = 1,
     Lost = 2,
+    /// Both last battlers fainted together. Gen3 `IsPlayerDefeated(B_OUTCOME_DREW)`: the
+    /// player is defeated, so the overworld (Task J) treats it as a whiteout like `Lost`.
     Drew = 3,
     Ran = 4,
     MonFled = 6,
@@ -178,6 +180,10 @@ pub struct Msg {
     pub mov: Option<MoveId>,
     pub buffs: [Buff; 3],
     pub wait: MsgWait,
+    /// The party slot of each side's battler when the message was emitted (index = `Side as
+    /// usize`). The battler name codes read these, so a message queued before a `SendOut`
+    /// still names the mon that was out (Gen3 expands it before the switch).
+    pub slots: [u8; 2],
 }
 
 /// Battle strings by decomp name (`STRINGID_X` -> `Str::X`, `gText_X` -> `Str::X`), plus the
@@ -249,7 +255,10 @@ pub enum Str {
     AbsorbDrain,
     PkmnHitWithRecoil,
     NoPPLeft,
+    /// `STRINGID_PKMNHASNOMOVESLEFT` ("X has no moves left!"), before Struggle.
     Struggle,
+    /// `STRINGID_NORUNNINGFROMTRAINERS`: RUN chosen in a trainer battle.
+    NoRunningFromTrainers,
     Gotcha,
     /// `sText_WildPkmnPrefix`.
     WildPrefix,
@@ -272,18 +281,54 @@ pub enum BattleEvent {
     WildAppear,
     TrainerAppear,
     TrainerSlideOut,
+    /// The trainer slides back in after "Player defeated X!". The caller (Task K) then prints
+    /// the defeat text, `BattleKind::Trainer::defeat` of `Battle::setup()`, waiting for a
+    /// button (`MsgWait::Button`), before the battle ends.
     TrainerDefeated,
-    SendOut { side: Side, party: u8 },
-    Recall { side: Side },
-    MoveAnim { attacker: Side, mov: MoveId },
-    Hit { target: Side, eff: Effectiveness },
-    Hp { side: Side, from: u16, to: u16 },
-    StatusIcon { side: Side, status: Status },
-    StatAnim { side: Side, up: bool },
-    Faint { side: Side },
-    Exp { party: u8, from: u32, to: u32 },
-    LevelUp { party: u8, level: u8 },
-    Ball { shakes: u8, caught: bool },
+    SendOut {
+        side: Side,
+        party: u8,
+    },
+    Recall {
+        side: Side,
+    },
+    MoveAnim {
+        attacker: Side,
+        mov: MoveId,
+    },
+    Hit {
+        target: Side,
+        eff: Effectiveness,
+    },
+    Hp {
+        side: Side,
+        from: u16,
+        to: u16,
+    },
+    StatusIcon {
+        side: Side,
+        status: Status,
+    },
+    StatAnim {
+        side: Side,
+        up: bool,
+    },
+    Faint {
+        side: Side,
+    },
+    Exp {
+        party: u8,
+        from: u32,
+        to: u32,
+    },
+    LevelUp {
+        party: u8,
+        level: u8,
+    },
+    Ball {
+        shakes: u8,
+        caught: bool,
+    },
     End(BattleOutcome),
 }
 
