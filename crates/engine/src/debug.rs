@@ -1,5 +1,7 @@
 //! Debug mirror the GBA build keeps in EWRAM so the studio/emulator can follow the engine.
 //! Write order on the GBA: inputs slot, then hash, then frame (frame last = commit).
+//! The GBA writer must use `write_volatile` for every field, and readers must sample between
+//! frames (`hash` is a u64 written as two 32-bit stores).
 
 pub const MAGIC: [u8; 8] = *b"PKRDBG01";
 pub const INPUT_RING: usize = 64;
@@ -19,6 +21,14 @@ pub struct DebugRegion {
     pub inputs: [u16; INPUT_RING],
 }
 
+const _: () = {
+    assert!(core::mem::offset_of!(DebugRegion, frame) == OFF_FRAME as usize);
+    assert!(core::mem::offset_of!(DebugRegion, hash) == OFF_HASH as usize);
+    assert!(core::mem::offset_of!(DebugRegion, inputs) == OFF_INPUTS as usize);
+    assert!(core::mem::size_of::<DebugRegion>() == 152);
+};
+
+#[allow(clippy::new_without_default)]
 impl DebugRegion {
     pub const fn new() -> Self {
         Self {

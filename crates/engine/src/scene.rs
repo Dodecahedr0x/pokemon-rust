@@ -18,6 +18,7 @@ pub trait Content {
     fn scene(&self) -> &Scene;
 }
 
+/// Palette index of pixel (`x`, `y`); both must be < 8.
 pub const fn tile_pixel(tile: &Tile, x: usize, y: usize) -> u8 {
     ((tile[y] >> (x * 4)) & 0xF) as u8
 }
