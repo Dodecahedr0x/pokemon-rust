@@ -1,219 +1,576 @@
-use crate::scene::MAP_TILES;
-use crate::video::{BgControl, Cmd, Frame};
-use crate::{Buttons, Content, Rng, hash::Fnv64};
-use alloc::vec;
+//! The overworld: composes the field, objects, text box, flow state and the script runner, and
+//! implements [`ScriptHost`].
+//!
+//! Frame order of [`World::step`] (Gen3 `CB1_Overworld` / `CB2_Overworld` order where it
+//! matters):
+//! 1. input edges;
+//! 2. a warp transition, if one is active (it drives the fader);
+//! 3. else the running script, if any;
+//! 4. else player control: `on_frame` map scripts, arrow warps, A interactions, door warps,
+//!    then the player step and its step-end triggers (coord events, then warp cells) and
+//!    connection crossing at step start;
+//! 5. objects (NPC idle movement, movement scripts, the player's step when 4 did not run);
+//! 6. the fader (when no transition drives it);
+//! 7. the camera follows the player (field metatiles drawn as they come into view);
+//! 8. object sprites;
+//! 9. the text box.
+//!
+//! Map loads follow Gen3 `LoadMapFromWarp` + `LoadMapInStepsLocal`: temp flags and vars are
+//! cleared, then `on_transition`, `on_load` (before the first draw, so `setmetatile` lands
+//! first), `on_resume`, object spawning, then `on_warp_into`. A connection crossing runs
+//! `on_transition`, `on_load` and `on_resume` (`LoadMapFromCameraTransition`). Map scripts run
+//! to completion at once (Gen3 `RunScriptImmediately`); a waiting request there is logged and
+//! answered at once.
 
-/// M1 scene placement: BG0, char block 0, screen block 31, palette bank 0.
-const SCENE_BG: u8 = 0;
-const SCENE_CHAR_BLOCK: u8 = 0;
-const SCENE_SCREEN_BLOCK: u8 = 31;
+mod host;
+#[cfg(test)]
+mod tests;
 
-/// All mutable game state. Must stay deterministic: same state + same input => same next state.
-#[derive(Clone, PartialEq, Eq, Debug)]
+use crate::data::{
+    BgKind, Dir, FlagId, GameData, MapData, MapId, ObjectEvent, PLAYER, ScriptId, SpecialIds, VarId,
+};
+use crate::field::Field;
+use crate::flow::{
+    Fader, Input, Target, Transition, TransitionStep, Vars, block_behavior, coord_trigger,
+    door_warp, facing_elevation, interact_target, map_script_on_frame, on_warp_into, warp_on_enter,
+    warp_on_push,
+};
+use crate::hash::Fnv64;
+use crate::objects::{Objects, PlayerEvent, PlayerInput, Terrain};
+use crate::script::{Fade, Runner, Speed, Step};
+use crate::text::TextBox;
+use crate::video::Frame;
+use crate::{Buttons, Rng};
+use alloc::vec::Vec;
+use host::Host;
+
+/// Screen pixel of the player's cell top-left when the camera is centered on the player.
+pub const CAMERA_OFFSET: (i32, i32) = (112, 64);
+/// Gen3 door animation length: 4 frames shown 5 ticks each (`sDoorOpenAnimFrames`,
+/// `AnimateDoorFrame`). Doors are not drawn yet; `Door` only takes this long.
+pub const DOOR_FRAMES: u8 = 20;
+/// Entries kept in the script log ring.
+pub const LOG_LEN: usize = 16;
+/// Immediate map scripts get this many runner steps (each up to `INSTANT_LIMIT` requests).
+const IMMEDIATE_STEPS: u32 = 64;
+
+/// The last script log lines (`Request::Log`), for tests and debugging.
+#[derive(Clone, Copy, Debug)]
+pub struct Log {
+    lines: [&'static str; LOG_LEN],
+    count: u32,
+}
+
+impl Log {
+    const fn new() -> Self {
+        Self {
+            lines: [""; LOG_LEN],
+            count: 0,
+        }
+    }
+
+    fn push(&mut self, line: &'static str) {
+        self.lines[self.count as usize % LOG_LEN] = line;
+        self.count = self.count.wrapping_add(1);
+    }
+
+    /// Lines logged since the start.
+    pub const fn count(&self) -> u32 {
+        self.count
+    }
+
+    /// The kept lines, oldest first.
+    pub fn lines(&self) -> impl Iterator<Item = &'static str> + '_ {
+        let n = (self.count as usize).min(LOG_LEN);
+        let start = self.count as usize - n;
+        (start..self.count as usize).map(|i| self.lines[i % LOG_LEN])
+    }
+}
+
+/// Everything the script host touches (all of the world but the runner).
+pub(crate) struct State {
+    rng: Rng,
+    input: Input,
+    field: Field,
+    objects: Objects,
+    text: TextBox,
+    vars: Vars,
+    fader: Fader,
+    transition: Transition,
+    /// The current map's object templates for this visit (scripts move them and change their
+    /// movement type).
+    templates: Vec<ObjectEvent>,
+    /// The object whose interaction started the running script (Gen3 `gSelectedObjectEvent`).
+    selected: Option<u8>,
+    /// Object of the last `Move` (Gen3 `sMovingNpcId`), for `WaitMove(0)`.
+    last_mover: u8,
+    /// Frames left of a script `Delay`.
+    delay: u16,
+    /// Frames left of a door animation.
+    door: u8,
+    log: Log,
+}
+
+/// All mutable game state. Deterministic: the same state and input give the same next state.
 pub struct World {
     frame: u32,
-    scroll_x: u16,
-    scroll_y: u16,
-    rng: Rng,
+    runner: Runner,
+    s: State,
+    /// The first frame's uploads, built by `new` and taken by `initial_frame` (not state).
+    boot: Option<Frame>,
+}
+
+/// The field blocks (with `setmetatile` edits and connections) and their behaviors.
+struct Ground<'a, G: GameData> {
+    game: &'a G,
+    field: &'a Field,
+}
+
+impl<G: GameData> Terrain for Ground<'_, G> {
+    fn block(&self, x: i16, y: i16) -> u16 {
+        self.field.block(self.game, x, y)
+    }
+
+    fn behavior(&self, x: i16, y: i16) -> crate::data::Behavior {
+        let b = self.field.block(self.game, x, y);
+        block_behavior(self.game, self.game.map(self.field.map()), b)
+    }
+}
+
+/// One forced step per direction (warp walk-in/out).
+static WALK: [[Step; 1]; 4] = [
+    [Step::Walk(Dir::Down, Speed::Normal)],
+    [Step::Walk(Dir::Up, Speed::Normal)],
+    [Step::Walk(Dir::Left, Speed::Normal)],
+    [Step::Walk(Dir::Right, Speed::Normal)],
+];
+
+const fn camera_for(pixel: (i32, i32)) -> (i32, i32) {
+    (pixel.0 - CAMERA_OFFSET.0, pixel.1 - CAMERA_OFFSET.1)
+}
+
+impl State {
+    fn ground<'a, G: GameData>(&'a self, game: &'a G) -> Ground<'a, G> {
+        Ground {
+            game,
+            field: &self.field,
+        }
+    }
+
+    fn template(&self, local: u8) -> Option<&ObjectEvent> {
+        self.templates.iter().find(|t| t.local_id == local)
+    }
+
+    fn template_mut(&mut self, local: u8) -> Option<&mut ObjectEvent> {
+        self.templates.iter_mut().find(|t| t.local_id == local)
+    }
+
+    /// Gen3 `ClearTempFieldEventData`.
+    fn clear_temp(&mut self, ids: &SpecialIds) {
+        self.vars.clear_temp();
+        for &f in ids.flags_cleared_on_map_change {
+            self.vars.set_flag(f, false);
+        }
+    }
+
+    /// Spawns the templates whose hide flag is clear (Gen3 `TrySpawnObjectEvents`).
+    fn spawn_templates(&mut self) {
+        let vars = &self.vars;
+        for ev in &self.templates {
+            if !ev.hide_flag.is_some_and(|f| vars.flag(f)) {
+                self.objects.add(ev, |v| vars.var(v));
+            }
+        }
+    }
+
+    fn set_var_opt(&mut self, v: Option<VarId>, value: u16) {
+        if let Some(v) = v {
+            self.vars.set_var(v, value);
+        }
+    }
+
+    fn log(&mut self, line: &'static str) {
+        self.log.push(line);
+    }
 }
 
 impl World {
+    /// The seed of the world RNG.
     pub const SEED: u32 = 0x5EED_0001;
 
-    pub const fn new() -> Self {
-        Self {
+    /// A new game: runs `NewGame::script` at once, loads the start map with the screen black,
+    /// and fades in over the first frames. The uploads go to [`World::initial_frame`].
+    pub fn new(game: &impl GameData) -> Self {
+        let ng = game.new_game();
+        let mut w = World {
             frame: 0,
-            scroll_x: 0,
-            scroll_y: 0,
-            rng: Rng::new(Self::SEED),
-        }
-    }
-
-    /// Frame 0: uploads the scene (palette, tiles, map, BG0 control) and sets the registers.
-    /// Shells apply it before the first step.
-    pub fn initial_frame(&self, content: &dyn Content) -> Frame {
-        let scene = content.scene();
-        let mut f = self.registers();
-        f.cmds = vec![
-            Cmd::BgPalette {
-                bank: 0,
-                colors: scene.palette,
+            runner: Runner::new(),
+            s: State {
+                rng: Rng::new(Self::SEED),
+                input: Input::default(),
+                field: Field::new(ng.map),
+                objects: Objects::new(),
+                text: TextBox::new(),
+                vars: Vars::new(),
+                fader: Fader::new(),
+                transition: Transition::new(),
+                templates: Vec::new(),
+                selected: None,
+                last_mover: 0,
+                delay: 0,
+                door: 0,
+                log: Log::new(),
             },
-            Cmd::BgTiles {
-                char_block: SCENE_CHAR_BLOCK,
-                first: 0,
-                tiles: scene.tiles,
-            },
-            Cmd::MapEntries {
-                screen_block: SCENE_SCREEN_BLOCK,
-                start: 0,
-                entries: scene.map[..MAP_TILES * MAP_TILES].to_vec(),
-            },
-            Cmd::Bg {
-                layer: SCENE_BG,
-                control: BgControl {
-                    enabled: true,
-                    priority: 0,
-                    char_block: SCENE_CHAR_BLOCK,
-                    screen_block: SCENE_SCREEN_BLOCK,
-                },
-            },
-        ];
-        f
-    }
-
-    /// Steps the world; the returned frame only moves BG0 (the scene is uploaded once).
-    pub fn step(&mut self, keys: Buttons) -> Frame {
-        if keys.contains(Buttons::RIGHT) {
-            self.scroll_x = self.scroll_x.wrapping_add(1);
-        }
-        if keys.contains(Buttons::LEFT) {
-            self.scroll_x = self.scroll_x.wrapping_sub(1);
-        }
-        if keys.contains(Buttons::DOWN) {
-            self.scroll_y = self.scroll_y.wrapping_add(1);
-        }
-        if keys.contains(Buttons::UP) {
-            self.scroll_y = self.scroll_y.wrapping_sub(1);
-        }
-        self.rng.next_u32();
-        self.frame = self.frame.wrapping_add(1);
-        self.registers()
-    }
-
-    fn registers(&self) -> Frame {
+            boot: None,
+        };
         let mut f = Frame::default();
-        f.scroll[SCENE_BG as usize] = (self.scroll_x, self.scroll_y);
+        if let Some(id) = ng.script {
+            run_immediate(game, &mut w.s, &mut f, id);
+        }
+        load_map(game, &mut w.s, &mut f, ng.map, ng.x, ng.y);
+        w.s.objects.face(PLAYER, ng.facing);
+        w.s.fader.start(Fade::FromBlack);
+        w.finish_frame(game, &mut f);
+        w.boot = Some(f);
+        w
+    }
+
+    /// Frame 0: every upload of the start map, objects and registers. Shells apply it before
+    /// the first step. Later calls return an empty frame.
+    pub fn initial_frame(&mut self) -> Frame {
+        self.boot.take().unwrap_or_default()
+    }
+
+    /// Runs one frame with `keys` held and returns its video output.
+    pub fn step(&mut self, game: &impl GameData, keys: Buttons) -> Frame {
+        let mut f = Frame::default();
+        self.frame = self.frame.wrapping_add(1);
+        self.s.input.update(keys);
+        let mut player_updated = false;
+        if self.s.transition.is_active() {
+            self.run_transition(game, &mut f);
+        } else if self.runner.is_running() {
+            self.step_script(game, &mut f);
+        } else {
+            player_updated = self.control(game, &mut f);
+        }
+        let s = &mut self.s;
+        let ground = Ground {
+            game,
+            field: &s.field,
+        };
+        s.objects.update(&ground, &mut s.rng, player_updated);
+        if !s.transition.is_active() {
+            s.fader.update();
+        }
+        if s.door > 0 {
+            s.door -= 1;
+        }
+        self.finish_frame(game, &mut f);
         f
+    }
+
+    /// Camera, sprites, text box and brightness.
+    fn finish_frame(&mut self, game: &impl GameData, f: &mut Frame) {
+        let s = &mut self.s;
+        let camera = camera_for(s.objects.player().pixel_pos());
+        s.field.set_camera(game, camera, f);
+        s.objects.draw(game, camera, f);
+        s.text.update(game, s.input.pressed, s.input.held, f);
+        f.brightness = s.fader.level();
+    }
+
+    fn step_script(&mut self, game: &impl GameData, f: &mut Frame) {
+        let mut host = Host {
+            game,
+            s: &mut self.s,
+            f,
+            immediate: false,
+        };
+        if !self.runner.step(&mut host) {
+            self.s.selected = None;
+        }
+    }
+
+    fn start_script(&mut self, game: &impl GameData, id: ScriptId, talked: Option<(u8, Dir)>) {
+        let ids = game.special_ids();
+        self.s.selected = talked.map(|t| t.0);
+        self.s
+            .set_var_opt(ids.var_last_talked, talked.map_or(0, |t| t.0 as u16));
+        if let Some((_, dir)) = talked {
+            self.s.set_var_opt(ids.var_facing, dir as u16 + 1);
+        }
+        let ctx = self.runner.ctx();
+        self.runner.start(game.script(id, ctx));
+    }
+
+    /// Starts a warp through `map.warps[i]`; a warp to a map the game lacks is logged and ignored.
+    fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
+        let w = &map.warps[i];
+        if !game.has_map(w.dest_map) {
+            self.s.log("warp to a missing map ignored");
+            return;
+        }
+        let s = &mut self.s;
+        if door {
+            s.transition
+                .start_door(game, w.dest_map, Some(w.dest_warp), -1, -1);
+        } else {
+            s.transition
+                .start(game, w.dest_map, Some(w.dest_warp), -1, -1);
+        }
+        s.objects.freeze_all();
+    }
+
+    /// Player control and field triggers (Gen3 `ProcessPlayerFieldInput`, then `PlayerStep`).
+    /// Returns whether `update_player` ran.
+    fn control(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
+        let map = game.map(self.s.field.map());
+        if let Some(id) = map_script_on_frame(map, &self.s.vars) {
+            self.start_script(game, id, None);
+            return false;
+        }
+        let s = &self.s;
+        let p = s.objects.player();
+        if p.is_settled() && !p.frozen {
+            let ((x, y), facing, elevation) = (p.pos(), p.facing, p.elevation);
+            let pushing = s.input.dpad() == Some(facing);
+            let here = s.field.block(game, x, y);
+            if pushing
+                && let Some(w) = warp_on_push(
+                    map,
+                    x,
+                    y,
+                    elevation,
+                    block_behavior(game, map, here),
+                    facing,
+                )
+            {
+                self.start_warp(game, map, w, false);
+                return false;
+            }
+            let (dx, dy) = facing.delta();
+            let (fx, fy) = (x + dx, y + dy);
+            let front = block_behavior(game, map, s.field.block(game, fx, fy));
+            let fe = facing_elevation(here, elevation);
+            if s.input.is_pressed(Buttons::A) {
+                let target = interact_target(map, fx, fy, fe, facing, front, |x, y, e| {
+                    s.objects.at(x, y, e)
+                });
+                let script = match target {
+                    Some(Target::Object(id)) => s
+                        .template(id)
+                        .and_then(|t| t.script)
+                        .map(|sc| (sc, Some((id, facing)))),
+                    Some(Target::Bg(i)) => match map.bgs[i].kind {
+                        BgKind::Script { script, .. } => Some((script, None)),
+                        BgKind::HiddenItem { .. } => None,
+                    },
+                    None => None,
+                };
+                if let Some((id, talked)) = script {
+                    self.start_script(game, id, talked);
+                    return false;
+                }
+            }
+            if pushing && let Some(w) = door_warp(map, fx, fy, fe, front, facing) {
+                self.start_warp(game, map, w, true);
+                return false;
+            }
+        }
+        let ids = game.special_ids();
+        let s = &mut self.s;
+        let can_run = map.allow_running && ids.flag_running.is_some_and(|fl| s.vars.flag(fl));
+        let input = PlayerInput::from_buttons(s.input.held, can_run);
+        let ground = Ground {
+            game,
+            field: &s.field,
+        };
+        match s.objects.update_player(&ground, input) {
+            PlayerEvent::StepStarted { .. } => {
+                let (x, y) = s.objects.player().pos();
+                if !crate::grid::in_bounds(map, x, y)
+                    && let Some((to, shift)) = s.field.crossing(game, x, y)
+                {
+                    cross_connection(game, s, f, to, shift);
+                }
+            }
+            PlayerEvent::StepFinished { at: (x, y) } => {
+                let elevation = s.objects.player().elevation;
+                if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
+                    self.start_script(game, id, None);
+                } else {
+                    let b = block_behavior(game, map, s.field.block(game, x, y));
+                    if let Some(w) = warp_on_enter(map, x, y, elevation, b) {
+                        self.start_warp(game, map, w, false);
+                    }
+                }
+            }
+            _ => {}
+        }
+        true
+    }
+
+    fn run_transition(&mut self, game: &impl GameData, f: &mut Frame) {
+        let s = &mut self.s;
+        let moving = !s.objects.moves_done(PLAYER) || !s.objects.player().is_settled();
+        match s.transition.update(&mut s.fader, moving) {
+            TransitionStep::Walk(d) => s.objects.start_moves(PLAYER, &WALK[d as usize]),
+            TransitionStep::Load(map, x, y) => {
+                load_map(game, s, f, map, x, y);
+                let b = s.ground(game).behavior(x, y);
+                let facing = s.transition.arrive(b);
+                s.objects.face(PLAYER, facing);
+                s.objects.freeze_all();
+            }
+            TransitionStep::Done => s.objects.unfreeze_all(),
+            TransitionStep::Walking | TransitionStep::FadingOut | TransitionStep::FadingIn => {}
+        }
+        if s.transition.player_hidden() {
+            s.objects.hide(PLAYER);
+        } else {
+            s.objects.show(PLAYER);
+        }
     }
 
     pub const fn frame(&self) -> u32 {
         self.frame
     }
 
-    pub const fn scroll(&self) -> (u16, u16) {
-        (self.scroll_x, self.scroll_y)
+    pub fn map(&self) -> MapId {
+        self.s.field.map()
     }
 
-    /// Field order is part of the parity contract; append new fields at the end.
+    pub fn objects(&self) -> &Objects {
+        &self.s.objects
+    }
+
+    pub fn text(&self) -> &TextBox {
+        &self.s.text
+    }
+
+    pub fn flag(&self, f: FlagId) -> bool {
+        self.s.vars.flag(f)
+    }
+
+    pub fn var(&self, v: VarId) -> u16 {
+        self.s.vars.var(v)
+    }
+
+    pub fn log(&self) -> &Log {
+        &self.s.log
+    }
+
+    pub fn script_running(&self) -> bool {
+        self.runner.is_running()
+    }
+
+    pub fn transition_active(&self) -> bool {
+        self.s.transition.is_active()
+    }
+
+    /// Hash of every piece of state that affects future frames (the parity contract). Render
+    /// caches (OBJ VRAM slots, text canvases), the log and the boot frame are left out. Cheap
+    /// enough to run every frame on the GBA. Field order is part of the contract; append new
+    /// fields at the end.
     pub fn hash(&self) -> u64 {
+        let s = &self.s;
         let mut h = Fnv64::new();
         h.write_u32(self.frame);
-        h.write_u16(self.scroll_x);
-        h.write_u16(self.scroll_y);
-        h.write_u32(self.rng.state());
+        h.write_u32(s.rng.state());
+        s.input.hash(&mut h);
+        s.field.hash(&mut h);
+        s.objects.hash(&mut h);
+        s.text.hash(&mut h);
+        s.vars.hash(&mut h);
+        s.fader.hash(&mut h);
+        s.transition.hash(&mut h);
+        h.write(&[
+            self.runner.is_running() as u8,
+            s.selected.map_or(0xFF, |x| x),
+            s.last_mover,
+            s.door,
+        ]);
+        h.write_u16(s.delay);
+        h.write_u32(s.templates.len() as u32);
+        for t in &s.templates {
+            h.write(&[t.local_id]);
+            h.write_u16(t.x as u16);
+            h.write_u16(t.y as u16);
+            h.write(&crate::objects::movement_code(t.movement));
+        }
         h.finish()
     }
 }
 
-impl Default for World {
-    fn default() -> Self {
-        Self::new()
+/// Loads `id` with the player on (x, y) (Gen3 warp load). Drawing happens at the frame's
+/// camera update.
+fn load_map(game: &impl GameData, s: &mut State, f: &mut Frame, id: MapId, x: i16, y: i16) {
+    let map = game.map(id);
+    s.clear_temp(&game.special_ids());
+    s.templates = map.objects.to_vec();
+    s.objects.spawn_events(id, &[], |_| true, |_| 0);
+    s.objects.set_pos(PLAYER, x, y);
+    s.field
+        .enter(game, id, camera_for((x as i32 * 16, y as i32 * 16)), f);
+    for script in [
+        map.scripts.on_transition,
+        map.scripts.on_load,
+        map.scripts.on_resume,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        run_immediate(game, s, f, script);
+    }
+    s.spawn_templates();
+    if let Some(script) = on_warp_into(map, &s.vars) {
+        run_immediate(game, s, f, script);
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Buttons;
-
-    #[test]
-    fn new_world_starts_at_frame_zero() {
-        let w = World::new();
-        assert_eq!(w.frame(), 0);
-        assert_eq!(w.scroll(), (0, 0));
+/// Switches to connected map `to` as the player steps across the edge (Gen3
+/// `LoadMapFromCameraTransition`).
+fn cross_connection(
+    game: &impl GameData,
+    s: &mut State,
+    f: &mut Frame,
+    to: MapId,
+    shift: (i16, i16),
+) {
+    let map = game.map(to);
+    s.clear_temp(&game.special_ids());
+    s.field.switch_map_enter(game, to, shift, f);
+    s.templates = map.objects.to_vec();
+    s.objects
+        .enter_connected_events(to, &[], shift, |_| true, |_| 0);
+    for script in [
+        map.scripts.on_transition,
+        map.scripts.on_load,
+        map.scripts.on_resume,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        run_immediate(game, s, f, script);
     }
+    s.spawn_templates();
+}
 
-    #[test]
-    fn dpad_scrolls_and_wraps() {
-        let mut w = World::new();
-        let out = w.step(Buttons::RIGHT | Buttons::DOWN);
-        assert_eq!(out.scroll[0], (1, 1));
-        let out = w.step(Buttons::LEFT);
-        assert_eq!(out.scroll[0], (0, 1));
-        let out = w.step(Buttons::LEFT | Buttons::UP);
-        assert_eq!(out.scroll[0], (u16::MAX, 0));
-        assert_eq!(w.frame(), 3);
-    }
-
-    #[test]
-    fn initial_frame_uploads_scene_and_steps_only_scroll() {
-        struct One;
-        static TILES: [crate::Tile; 1] = [[0x1111_1111; 8]];
-        static MAP: [u16; 1024] = [0; 1024];
-        static SCENE: crate::Scene = crate::Scene {
-            palette: [7; 16],
-            tiles: &TILES,
-            map: &MAP,
-        };
-        impl Content for One {
-            fn scene(&self) -> &crate::Scene {
-                &SCENE
-            }
+/// Runs a map script to completion now (Gen3 `RunScriptImmediately`).
+fn run_immediate(game: &impl GameData, s: &mut State, f: &mut Frame, id: ScriptId) {
+    let mut runner = Runner::new();
+    runner.start(game.script(id, runner.ctx()));
+    let mut host = Host {
+        game,
+        s,
+        f,
+        immediate: true,
+    };
+    for _ in 0..IMMEDIATE_STEPS {
+        if !runner.step(&mut host) {
+            return;
         }
-        let mut w = World::new();
-        let f0 = w.initial_frame(&One);
-        assert_eq!(f0.scroll[0], (0, 0));
-        assert!(matches!(f0.cmds[0], Cmd::BgPalette { bank: 0, colors } if colors == [7; 16]));
-        assert!(
-            matches!(f0.cmds[1], Cmd::BgTiles { char_block: 0, first: 0, tiles } if tiles.len() == 1)
-        );
-        assert!(
-            matches!(&f0.cmds[2], Cmd::MapEntries { screen_block: 31, start: 0, entries } if entries.len() == 1024)
-        );
-        assert!(matches!(f0.cmds[3], Cmd::Bg { layer: 0, control } if control.enabled));
-        let f1 = w.step(Buttons::RIGHT);
-        assert!(f1.cmds.is_empty());
-        assert_eq!(f1.scroll, [(1, 0), (0, 0), (0, 0), (0, 0)]);
-        assert!(f1.objs.is_empty());
-        assert_eq!(f1.brightness, 0);
     }
-
-    #[test]
-    fn same_inputs_same_hash() {
-        let inputs = [Buttons::RIGHT, Buttons::NONE, Buttons::A, Buttons::DOWN];
-        let (mut a, mut b) = (World::new(), World::new());
-        for i in inputs {
-            a.step(i);
-            b.step(i);
-        }
-        assert_eq!(a.hash(), b.hash());
-    }
-
-    #[test]
-    fn different_inputs_different_hash() {
-        let (mut a, mut b) = (World::new(), World::new());
-        a.step(Buttons::RIGHT);
-        b.step(Buttons::LEFT);
-        assert_ne!(a.hash(), b.hash());
-    }
-
-    // Golden values pin the GBA/native parity contract; computed independently
-    // (FNV-1a 64 over LE frame u32, scroll_x u16, scroll_y u16, rng state u32).
-    #[test]
-    fn seed_is_pinned() {
-        assert_eq!(World::SEED, 0x5EED_0001);
-    }
-
-    #[test]
-    fn golden_hash_initial() {
-        assert_eq!(World::new().hash(), 0xb4ea_8cd1_c745_212f);
-    }
-
-    #[test]
-    fn golden_hash_after_inputs() {
-        let mut w = World::new();
-        for i in [Buttons::RIGHT, Buttons::NONE, Buttons::A, Buttons::DOWN] {
-            w.step(i);
-        }
-        assert_eq!(w.hash(), 0x701c_8d8b_3e66_1200);
-    }
-
-    #[test]
-    fn rng_advances_every_frame() {
-        let mut a = World::new();
-        let h0 = a.hash();
-        a.step(Buttons::NONE);
-        assert_ne!(a.hash(), h0);
-    }
+    host.s.log("immediate map script did not finish");
 }

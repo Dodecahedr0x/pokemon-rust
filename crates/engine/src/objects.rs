@@ -400,16 +400,7 @@ impl Object {
         h.write_u16(self.prev.0 as u16);
         h.write_u16(self.prev.1 as u16);
         h.write(&[self.elevation, self.facing as u8]);
-        let (m, md) = match self.movement {
-            MovementType::Face(d) => (0, d as u8),
-            MovementType::LookAround => (1, 0),
-            MovementType::Wander => (2, 0),
-            MovementType::WanderVertical => (3, 0),
-            MovementType::WanderHorizontal => (4, 0),
-            MovementType::WalkInPlace(d) => (5, d as u8),
-            MovementType::Invisible => (6, 0),
-        };
-        h.write(&[m, md]);
+        h.write(&movement_code(self.movement));
         h.write_u16(self.home.0 as u16);
         h.write_u16(self.home.1 as u16);
         h.write(&[
@@ -453,6 +444,19 @@ impl Object {
             Idle::Done => h.write(&[2]),
         }
         self.anim.hash(h);
+    }
+}
+
+/// Two bytes identifying a movement type, for hashes.
+pub const fn movement_code(m: MovementType) -> [u8; 2] {
+    match m {
+        MovementType::Face(d) => [0, d as u8],
+        MovementType::LookAround => [1, 0],
+        MovementType::Wander => [2, 0],
+        MovementType::WanderVertical => [3, 0],
+        MovementType::WanderHorizontal => [4, 0],
+        MovementType::WalkInPlace(d) => [5, d as u8],
+        MovementType::Invisible => [6, 0],
     }
 }
 
@@ -535,11 +539,11 @@ impl Objects {
     fn spawn(
         &mut self,
         id: MapId,
-        map: &MapData,
+        events: &[ObjectEvent],
         flags: impl Fn(FlagId) -> bool,
         vars: impl Fn(VarId) -> u16,
     ) {
-        for ev in map.objects {
+        for ev in events {
             if !ev.hide_flag.is_some_and(&flags) {
                 self.objs.push(Object::from_event(id, ev, &vars));
             }
@@ -555,9 +559,21 @@ impl Objects {
         flags: impl Fn(FlagId) -> bool,
         vars: impl Fn(VarId) -> u16,
     ) {
+        self.spawn_events(id, map.objects, flags, vars);
+    }
+
+    /// [`Objects::spawn_map`] from a copy of the map's templates (edited by scripts for this
+    /// visit, Gen3 `setobjectxyperm` / `setobjectmovementtype`).
+    pub fn spawn_events(
+        &mut self,
+        id: MapId,
+        events: &[ObjectEvent],
+        flags: impl Fn(FlagId) -> bool,
+        vars: impl Fn(VarId) -> u16,
+    ) {
         self.objs.truncate(1);
         self.set_map(id);
-        self.spawn(id, map, flags, vars);
+        self.spawn(id, events, flags, vars);
     }
 
     /// Crossing into connected map `id`: shifts every object by `shift` cells (old map
@@ -573,10 +589,22 @@ impl Objects {
         flags: impl Fn(FlagId) -> bool,
         vars: impl Fn(VarId) -> u16,
     ) {
+        self.enter_connected_events(id, map.objects, shift, flags, vars);
+    }
+
+    /// [`Objects::enter_connected`] from a copy of the map's templates.
+    pub fn enter_connected_events(
+        &mut self,
+        id: MapId,
+        events: &[ObjectEvent],
+        shift: (i16, i16),
+        flags: impl Fn(FlagId) -> bool,
+        vars: impl Fn(VarId) -> u16,
+    ) {
         self.shift(shift.0, shift.1);
         self.objs.retain(|o| o.local_id == PLAYER || o.map != id);
         self.set_map(id);
-        self.spawn(id, map, flags, vars);
+        self.spawn(id, events, flags, vars);
         self.despawn_outside_view();
     }
 
