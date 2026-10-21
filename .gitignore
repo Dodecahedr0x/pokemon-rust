@@ -6,3 +6,4 @@
 target/
 explore.db
 .DS_Store
+.claude/worktrees/
