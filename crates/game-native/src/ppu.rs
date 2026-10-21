@@ -62,9 +62,12 @@ impl Ppu {
         &self.vram
     }
 
-    /// Applies the frame's commands in order.
+    /// Applies the frame's commands in order. Panics on a command `Cmd::validate` rejects.
     pub fn apply(&mut self, frame: &Frame) {
         for cmd in &frame.cmds {
+            if let Err(e) = cmd.validate() {
+                panic!("{e}: {cmd:?}");
+            }
             self.apply_cmd(cmd);
         }
     }
@@ -77,21 +80,17 @@ impl Ppu {
                 char_block,
                 first,
                 tiles,
-            } => {
-                let at = *char_block as usize * CHAR_BLOCK_BYTES + *first as usize * TILE_BYTES;
-                self.write_tiles(at, tiles, BG_VRAM);
-            }
+            } => self.write_tiles(bg_tile_addr(*char_block, *first), tiles),
             Cmd::BgTile {
                 char_block,
                 index,
                 tile,
-            } => {
-                let at = *char_block as usize * CHAR_BLOCK_BYTES + *index as usize * TILE_BYTES;
-                self.write_tiles(at, core::slice::from_ref(tile), BG_VRAM);
-            }
+            } => self.write_tiles(
+                bg_tile_addr(*char_block, *index),
+                core::slice::from_ref(tile),
+            ),
             Cmd::ObjTiles { first, tiles } => {
-                let at = BG_VRAM + *first as usize * TILE_BYTES;
-                self.write_tiles(at, tiles, BG_VRAM + OBJ_VRAM);
+                self.write_tiles(BG_VRAM + *first as usize * TILE_BYTES, tiles)
             }
             Cmd::MapEntries {
                 screen_block,
@@ -99,9 +98,9 @@ impl Ppu {
                 entries,
             } => {
                 let at = screen_base(*screen_block) + *start as usize * 2;
-                assert!(at + entries.len() * 2 <= BG_VRAM, "MapEntries past BG VRAM");
-                for (i, e) in entries.iter().enumerate() {
-                    self.vram[at + i * 2..at + i * 2 + 2].copy_from_slice(&e.to_le_bytes());
+                let dst = &mut self.vram[at..at + entries.len() * 2];
+                for (e, out) in entries.iter().zip(dst.chunks_exact_mut(2)) {
+                    out.copy_from_slice(&e.to_le_bytes());
                 }
             }
             Cmd::MapFill {
@@ -113,22 +112,11 @@ impl Ppu {
                     c.copy_from_slice(&entry.to_le_bytes());
                 }
             }
-            Cmd::Bg { layer, control } => {
-                assert!(
-                    (*layer as usize) < BG_LAYERS,
-                    "BG layer {layer} out of range"
-                );
-                self.bg[*layer as usize] = *control;
-            }
+            Cmd::Bg { layer, control } => self.bg[*layer as usize] = *control,
         }
     }
 
-    fn write_tiles(&mut self, at: usize, tiles: &[Tile], limit: usize) {
-        assert!(
-            at + tiles.len() * TILE_BYTES <= limit,
-            "tile write {at:#x}+{} tiles past {limit:#x}",
-            tiles.len()
-        );
+    fn write_tiles(&mut self, at: usize, tiles: &[Tile]) {
         let dst = &mut self.vram[at..at + tiles.len() * TILE_BYTES];
         for (row, out) in tiles.iter().flatten().zip(dst.chunks_exact_mut(4)) {
             out.copy_from_slice(&row.to_le_bytes());
@@ -136,10 +124,13 @@ impl Ppu {
     }
 
     /// Draws one 240x160 RGB555 picture from the current VRAM/palettes and the frame's
-    /// registers (scroll, objs, brightness).
+    /// registers (scroll, objs, brightness). Panics on objs `Frame::validate` rejects.
     pub fn render(&self, frame: &Frame, fb: &mut [u16]) {
         assert_eq!(fb.len(), SCREEN_W * SCREEN_H);
         assert!(frame.objs.len() <= MAX_OBJS, "more than {MAX_OBJS} objs");
+        if let Some(e) = frame.objs.iter().find_map(|o| o.validate().err()) {
+            panic!("{e}");
+        }
         let sprites: Vec<Sprite> = frame
             .objs
             .iter()
@@ -149,53 +140,70 @@ impl Ppu {
         let evy = frame.brightness.min(BRIGHTNESS_BLACK);
         let backdrop = self.bg_palette[0];
         let mut obj_line = [None; SCREEN_W];
+        let mut bg_lines = [[None; SCREEN_W]; BG_LAYERS];
+        // Front to back: (priority, layer) order among the enabled BGs.
+        let mut order: Vec<usize> = (0..BG_LAYERS).filter(|&l| self.bg[l].enabled).collect();
+        order.sort_by_key(|&l| (self.bg[l].priority & 3, l));
         for y in 0..SCREEN_H {
             self.sprite_line(&sprites, y as i32, &mut obj_line);
+            for &l in &order {
+                self.bg_line(l, frame.scroll[l], y, &mut bg_lines[l]);
+            }
             let row = &mut fb[y * SCREEN_W..(y + 1) * SCREEN_W];
             for (x, out) in row.iter_mut().enumerate() {
-                // Lower key is in front: (priority, BG after OBJ, layer).
-                let mut best = (u8::MAX, backdrop);
-                if let Some((prio, color)) = obj_line[x] {
-                    best = (prio * 8, color);
-                }
-                for layer in 0..BG_LAYERS {
-                    let key = (self.bg[layer].priority & 3) * 8 + 1 + layer as u8;
-                    if key < best.0
-                        && let Some(color) = self.bg_pixel(layer, frame.scroll[layer], x, y)
-                    {
-                        best = (key, color);
-                    }
-                }
-                *out = darken(best.1 & 0x7FFF, evy);
+                let obj = obj_line[x];
+                // The first opaque BG in front-to-back order, unless the sprite (which wins
+                // priority ties) is in front of it.
+                let bg = order
+                    .iter()
+                    .find_map(|&l| bg_lines[l][x].map(|c| (self.bg[l].priority & 3, c)));
+                let color = match (obj, bg) {
+                    (Some((op, oc)), Some((bp, _))) if op <= bp => oc,
+                    (_, Some((_, bc))) => bc,
+                    (Some((_, oc)), None) => oc,
+                    (None, None) => backdrop,
+                };
+                *out = darken(color & 0x7FFF, evy);
             }
         }
     }
 
-    /// Color of BG `layer` at screen (`x`, `y`), or `None` if disabled or transparent.
-    fn bg_pixel(&self, layer: usize, scroll: (u16, u16), x: usize, y: usize) -> Option<u16> {
+    /// Colors of BG `layer` on screen line `y` (`None` = transparent). The map entry is
+    /// decoded once per 8-pixel tile column.
+    fn bg_line(&self, layer: usize, scroll: (u16, u16), y: usize, out: &mut [Option<u16>]) {
+        const WRAP: usize = MAP_SIZE * 8 - 1;
         let bg = self.bg[layer];
-        if !bg.enabled {
-            return None;
+        let my = (y + scroll.1 as usize) & WRAP;
+        let row = screen_base(bg.screen_block & 31) + (my / 8) * MAP_SIZE * 2;
+        let char_base = (bg.char_block & 3) as usize * CHAR_BLOCK_BYTES;
+        let mut x = 0;
+        while x < SCREEN_W {
+            let mx = (x + scroll.0 as usize) & WRAP;
+            let ea = row + (mx / 8) * 2;
+            let entry = u16::from_le_bytes([self.vram[ea], self.vram[ea + 1]]);
+            let ty = if entry & (1 << 11) != 0 {
+                7 - my % 8
+            } else {
+                my % 8
+            };
+            let addr = char_base + (entry & 0x3FF) as usize * TILE_BYTES + ty * 4;
+            let pal = &self.bg_palette[(entry >> 12) as usize * 16..][..16];
+            let hflip = entry & (1 << 10) != 0;
+            // Pixels of this tile on screen: from mx % 8 to the tile's (or the screen's) end.
+            let run = (8 - mx % 8).min(SCREEN_W - x);
+            for i in 0..run {
+                let tx = mx % 8 + i;
+                let tx = if hflip { 7 - tx } else { tx };
+                // Text BGs cannot reach OBJ VRAM: such tiles are transparent.
+                out[x + i] = if addr >= BG_VRAM {
+                    None
+                } else {
+                    let idx = nibble(self.vram[addr + tx / 2], tx);
+                    (idx != 0).then(|| pal[idx as usize])
+                };
+            }
+            x += run;
         }
-        let mx = (x + scroll.0 as usize) & (MAP_SIZE * 8 - 1);
-        let my = (y + scroll.1 as usize) & (MAP_SIZE * 8 - 1);
-        let ea = screen_base(bg.screen_block & 31) + ((my / 8) * MAP_SIZE + mx / 8) * 2;
-        let entry = u16::from_le_bytes([self.vram[ea], self.vram[ea + 1]]);
-        let (mut tx, mut ty) = (mx % 8, my % 8);
-        if entry & (1 << 10) != 0 {
-            tx = 7 - tx;
-        }
-        if entry & (1 << 11) != 0 {
-            ty = 7 - ty;
-        }
-        let tile = (entry & 0x3FF) as usize;
-        let addr = (bg.char_block & 3) as usize * CHAR_BLOCK_BYTES + tile * TILE_BYTES + ty * 4;
-        // Text BGs cannot reach OBJ VRAM: such tiles are transparent.
-        if addr >= BG_VRAM {
-            return None;
-        }
-        let idx = nibble(self.vram[addr + tx / 2], tx);
-        (idx != 0).then(|| self.bg_palette[(entry >> 12) as usize * 16 + idx as usize])
     }
 
     /// Builds the OBJ layer of line `y`: per pixel, (priority, color) of the winning sprite.
@@ -297,17 +305,16 @@ impl Sprite {
 }
 
 fn set_bank(palette: &mut [u16; 256], bank: u8, colors: &[u16; 16]) {
-    assert!(bank < 16, "palette bank {bank} out of range");
     let at = bank as usize * 16;
     palette[at..at + 16].copy_from_slice(colors);
 }
 
 fn screen_base(screen_block: u8) -> usize {
-    assert!(
-        screen_block < 32,
-        "screen block {screen_block} out of range"
-    );
     screen_block as usize * SCREEN_BLOCK_BYTES
+}
+
+fn bg_tile_addr(char_block: u8, tile: u16) -> usize {
+    char_block as usize * CHAR_BLOCK_BYTES + tile as usize * TILE_BYTES
 }
 
 /// 4bpp pixel `x` (low nibble first) of a byte holding pixels `x & !1` and `x | 1`.
@@ -974,6 +981,100 @@ mod tests {
         assert_eq!(p.bg_control(0).screen_block, 31);
         assert_eq!(p.bg_palette()[1], RED);
         assert_eq!(p.obj_palette()[3], BLUE);
+    }
+
+    /// Per-pixel BG lookup, written independently of the row renderer.
+    fn naive_bg(p: &Ppu, layer: usize, scroll: (u16, u16), x: usize, y: usize) -> Option<u16> {
+        let bg = p.bg_control(layer);
+        let mx = (x + scroll.0 as usize) % 256;
+        let my = (y + scroll.1 as usize) % 256;
+        let ea = bg.screen_block as usize * 0x800 + ((my / 8) * 32 + mx / 8) * 2;
+        let entry = u16::from_le_bytes([p.vram()[ea], p.vram()[ea + 1]]);
+        let tx = if entry & 0x400 != 0 {
+            7 - mx % 8
+        } else {
+            mx % 8
+        };
+        let ty = if entry & 0x800 != 0 {
+            7 - my % 8
+        } else {
+            my % 8
+        };
+        let addr = bg.char_block as usize * 0x4000 + (entry & 0x3FF) as usize * 32 + ty * 4;
+        if addr >= BG_VRAM {
+            return None;
+        }
+        let idx = (p.vram()[addr + tx / 2] >> (4 * (tx % 2))) & 15;
+        (idx != 0).then(|| p.bg_palette()[(entry >> 12) as usize * 16 + idx as usize])
+    }
+
+    #[test]
+    fn row_renderer_matches_per_pixel_lookup_at_any_scroll() {
+        let mut p = Ppu::new();
+        // Deterministic pseudo-random tiles, map entries (all flips, banks) and palettes.
+        let mut seed = 0x1234_5678u32;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            seed
+        };
+        let tiles: Vec<Tile> = (0..1024)
+            .map(|_| core::array::from_fn(|_| next()))
+            .collect();
+        let entries: Vec<u16> = (0..1024).map(|_| next() as u16).collect();
+        let mut cmds = vec![
+            Cmd::BgTiles {
+                char_block: 2,
+                first: 0,
+                tiles: leak(tiles),
+            },
+            Cmd::MapEntries {
+                screen_block: 4,
+                start: 0,
+                entries,
+            },
+            Cmd::Bg {
+                layer: 2,
+                control: BgControl {
+                    enabled: true,
+                    priority: 0,
+                    char_block: 2,
+                    screen_block: 4,
+                },
+            },
+        ];
+        for bank in 0..16 {
+            cmds.push(Cmd::BgPalette {
+                bank,
+                colors: core::array::from_fn(|_| next() as u16 & 0x7FFF),
+            });
+        }
+        p.apply(&with(cmds));
+        for scroll in [(0, 0), (3, 5), (7, 1), (250, 254), (129, 77), (511, 300)] {
+            let mut f = Frame::default();
+            f.scroll[2] = scroll;
+            let fb = render(&p, &f);
+            for y in 0..SCREEN_H {
+                for x in 0..SCREEN_W {
+                    let want = naive_bg(&p, 2, scroll, x, y).unwrap_or(p.bg_palette()[0]);
+                    assert_eq!(px(&fb, x, y), want, "scroll {scroll:?} at ({x}, {y})");
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "out of range")]
+    fn invalid_obj_panics() {
+        let f = Frame {
+            objs: vec![Obj {
+                palette: 16,
+                ..Obj::default()
+            }],
+            ..Frame::default()
+        };
+        render(&Ppu::new(), &f);
     }
 
     #[test]

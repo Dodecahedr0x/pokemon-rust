@@ -7,7 +7,11 @@ pub use engine::video::{SCREEN_H, SCREEN_W};
 use engine::{Buttons, Content, World};
 pub use ppu::Ppu;
 
-/// A native game instance: World + content + PPU + last rendered frame.
+/// A native game instance: World + content + PPU + last frame.
+///
+/// Every step applies its frame's commands to the PPU; the picture is only drawn when
+/// [`Session::framebuffer`] asks for it, so headless runs (explorers, long replays) skip
+/// rendering.
 ///
 /// Unlike the GBA shell there is no display lag: after step `n` the framebuffer shows the
 /// `Frame` returned by step `n` (the ROM shows it one emulator frame later, see
@@ -18,31 +22,30 @@ pub struct Session<C: Content> {
     ppu: Ppu,
     frame: Frame,
     fb: Vec<u16>,
+    /// `fb` shows `frame`.
+    drawn: bool,
 }
 
 impl<C: Content> Session<C> {
     pub fn new(content: C) -> Self {
         let world = World::new();
         let frame = world.initial_frame(&content);
-        let mut s = Self {
+        let mut ppu = Ppu::new();
+        ppu.apply(&frame);
+        Self {
             content,
             world,
-            ppu: Ppu::new(),
+            ppu,
             frame,
             fb: vec![0; SCREEN_W * SCREEN_H],
-        };
-        s.show();
-        s
+            drawn: false,
+        }
     }
 
     pub fn step(&mut self, keys: Buttons) {
         self.frame = self.world.step(keys);
-        self.show();
-    }
-
-    fn show(&mut self) {
         self.ppu.apply(&self.frame);
-        self.ppu.render(&self.frame, &mut self.fb);
+        self.drawn = false;
     }
 
     pub fn content(&self) -> &C {
@@ -57,12 +60,17 @@ impl<C: Content> Session<C> {
         &self.ppu
     }
 
-    /// The last frame (already applied and rendered).
+    /// The last frame (its commands already applied).
     pub fn frame(&self) -> &Frame {
         &self.frame
     }
 
-    pub fn framebuffer(&self) -> &[u16] {
+    /// The picture of the last frame, rendered on first request.
+    pub fn framebuffer(&mut self) -> &[u16] {
+        if !self.drawn {
+            self.ppu.render(&self.frame, &mut self.fb);
+            self.drawn = true;
+        }
         &self.fb
     }
 }
@@ -96,9 +104,22 @@ mod tests {
         for keys in [Buttons::RIGHT, Buttons::DOWN, Buttons::LEFT, Buttons::LEFT] {
             s.step(keys);
             assert!(s.frame().cmds.is_empty());
-            assert_eq!(s.framebuffer(), reference(scene, s.world().scroll()));
+            let want = reference(scene, s.world().scroll());
+            assert_eq!(s.framebuffer(), want);
         }
         assert_eq!(s.world().scroll(), (u16::MAX, 1));
+    }
+
+    #[test]
+    fn headless_steps_render_only_on_request() {
+        let mut s = Session::new(content::Emerald);
+        for _ in 0..5 {
+            s.step(Buttons::DOWN);
+        }
+        assert!(!s.drawn);
+        let want = reference(content::Emerald.scene(), (0, 5));
+        assert_eq!(s.framebuffer(), want);
+        assert!(s.drawn);
     }
 
     #[test]

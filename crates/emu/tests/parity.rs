@@ -43,20 +43,23 @@ fn keys_for(script: &Script, frame: u32) -> Buttons {
 /// What the ROM showed when the emulator sampled engine frame `frame`.
 struct Capture {
     frame: u32,
-    hash: u64,
     fb: Vec<u16>,
 }
 
 struct RomRun {
     /// Input consumed by step `i + 1`.
     consumed: Vec<Buttons>,
+    /// (engine frame, World hash) at every sample, including checkpoints.
+    hashes: Vec<(u32, u64)>,
     captures: Vec<Capture>,
 }
 
-/// Runs the ROM through `script`, capturing hash and picture at each checkpoint.
+/// Runs the ROM through `script`, recording the hash at every sample and the picture at each
+/// checkpoint.
 ///
 /// Panics if the ROM steps past a checkpoint between two samples (it ran two engine steps in
-/// one emulator frame), since that picture cannot be captured.
+/// one emulator frame), since that picture cannot be captured, or if the ROM reports a late
+/// frame apply (`DebugRegion::late`), since its pictures may then differ from native.
 fn run_rom(rom: &Path, script: &Script, checkpoints: &[u32]) -> RomRun {
     let mut emu = Emu::open(rom).expect("open rom");
     let mut snap = emu.boot(120).expect("boot");
@@ -68,6 +71,7 @@ fn run_rom(rom: &Path, script: &Script, checkpoints: &[u32]) -> RomRun {
     assert!(checkpoints.iter().all(|&c| (1..=total).contains(&c)));
 
     let mut consumed: Vec<Buttons> = Vec::new();
+    let mut hashes = Vec::new();
     let mut captures = Vec::new();
     let mut next = checkpoints.iter().peekable();
     let mut guard = 0;
@@ -82,6 +86,14 @@ fn run_rom(rom: &Path, script: &Script, checkpoints: &[u32]) -> RomRun {
         for f in have + 1..=snap.frame {
             consumed.push(Buttons(snap.inputs[input_slot(f)]));
         }
+        assert_eq!(
+            snap.late, 0,
+            "ROM applied a frame late by engine frame {}",
+            snap.frame
+        );
+        if snap.frame > have {
+            hashes.push((snap.frame, snap.hash));
+        }
         if let Some(&&c) = next.peek() {
             assert!(
                 snap.frame <= c,
@@ -91,7 +103,6 @@ fn run_rom(rom: &Path, script: &Script, checkpoints: &[u32]) -> RomRun {
             if snap.frame == c {
                 captures.push(Capture {
                     frame: c,
-                    hash: snap.hash,
                     fb: emu.framebuffer_rgb555(),
                 });
                 next.next();
@@ -110,26 +121,25 @@ fn run_rom(rom: &Path, script: &Script, checkpoints: &[u32]) -> RomRun {
         consumed.len(),
         snap.hash
     );
-    RomRun { consumed, captures }
+    RomRun {
+        consumed,
+        hashes,
+        captures,
+    }
 }
 
-/// Replays `run.consumed` natively and compares every capture.
+/// Replays `run.consumed` natively, comparing the hash at every ROM sample and the picture at
+/// every capture. Native renders only the frames a capture needs (`frame - 1`).
 fn compare_native(run: &RomRun, mut native: Session<content::Emerald>) {
-    let mut prev_fb = native.framebuffer().to_vec();
+    let mut hashes = run.hashes.iter().peekable();
     let mut caps = run.captures.iter().peekable();
     for (i, &k) in run.consumed.iter().enumerate() {
-        native.step(k);
         let frame = i as u32 + 1;
-        assert_eq!(native.world().frame(), frame);
         if let Some(cap) = caps.next_if(|c| c.frame == frame) {
-            assert_eq!(
-                native.world().hash(),
-                cap.hash,
-                "World hash diverged at frame {frame}"
-            );
-            let diff = cap.fb.iter().zip(&prev_fb).filter(|(a, b)| a != b).count();
+            let fb = native.framebuffer();
+            let diff = cap.fb.iter().zip(fb).filter(|(a, b)| a != b).count();
             if diff != 0 {
-                dump_mismatch(frame, &cap.fb, &prev_fb);
+                dump_mismatch(frame, &cap.fb, fb);
             }
             assert_eq!(
                 diff,
@@ -138,9 +148,21 @@ fn compare_native(run: &RomRun, mut native: Session<content::Emerald>) {
                 frame - 1
             );
         }
-        prev_fb.copy_from_slice(native.framebuffer());
+        native.step(k);
+        assert_eq!(native.world().frame(), frame);
+        if let Some(&(_, hash)) = hashes.next_if(|h| h.0 == frame) {
+            assert_eq!(
+                native.world().hash(),
+                hash,
+                "World hash diverged at frame {frame}"
+            );
+        }
     }
     assert!(caps.next().is_none(), "checkpoint past the consumed inputs");
+    assert!(
+        hashes.next().is_none(),
+        "hash sample past the consumed inputs"
+    );
 }
 
 /// Writes target/parity-<frame>-{rom,native}.ppm for a failed checkpoint.
@@ -182,5 +204,9 @@ fn rom_and_native_agree() {
     }
     assert_eq!(run.captures.len(), CHECKPOINTS.len());
     compare_native(&run, Session::new(content::Emerald));
-    println!("{} checkpoints identical", run.captures.len());
+    println!(
+        "{} hashes and {} pictures identical, no late frames",
+        run.hashes.len(),
+        run.captures.len()
+    );
 }
