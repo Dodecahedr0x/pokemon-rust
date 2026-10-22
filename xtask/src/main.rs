@@ -195,6 +195,11 @@ fn fresh_extract() -> Result<()> {
 
 fn parity() -> Result<()> {
     fresh_extract()?;
+    // The committed tree must replay to its nodes before the ROM is compared against native.
+    checkpoints::verify(
+        &game_native::store::Store::default_root(content::STUB),
+        false,
+    )?;
     rom()?;
     run(Command::new("cargo").current_dir(root()).args([
         "test",
