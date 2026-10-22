@@ -490,7 +490,6 @@ pub fn set_layout_ids(rom: &Rom, scan: &crate::scripts::ScriptScan) -> Result<BT
     Ok(ids)
 }
 
-/// The canonical root name of the script at `off`, `None` for a null script.
 /// Graphics ids a walk sets through `setvar VAR_OBJ_GFX_ID_<n>, <gfx>` (the values that
 /// `OBJ_EVENT_GFX_VAR_<n>` objects resolve to).
 pub fn var_gfx_ids(rom: &Rom, scan: &crate::scripts::ScriptScan) -> Result<BTreeSet<u8>> {

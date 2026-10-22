@@ -29,7 +29,7 @@
     "SPECIAL_BufferQuizPrizeName": Unsupported,
     "SPECIAL_BufferTMHMMoveName": Unsupported,
     "SPECIAL_BufferTrendyPhraseString": Unsupported,
-    "SPECIAL_BufferUnionRoomPlayerName": Unsupported,
+    "SPECIAL_BufferUnionRoomPlayerName": Default(0),  // no link: no Union Room partner (nurse)
     "SPECIAL_BufferVarsForIVRater": Unsupported,
     "SPECIAL_CableCar": Unsupported,
     "SPECIAL_CableCarWarp": Unsupported,
@@ -95,7 +95,7 @@
     "SPECIAL_CountPartyAliveNonEggMons_IgnoreVar0x8004Slot": Unsupported,
     "SPECIAL_CountPartyNonEggMons": Unsupported,
     "SPECIAL_CountPlayerMuseumPaintings": Unsupported,
-    "SPECIAL_CountPlayerTrainerStars": Unsupported,
+    "SPECIAL_CountPlayerTrainerStars": Default(0),  // no stars before the Hall of Fame (nurse)
     "SPECIAL_CreateAbnormalWeatherEvent": Unsupported,
     "SPECIAL_CreateEnemyEventMon": Unsupported,
     "SPECIAL_CreateInGameTradePokemon": Unsupported,
@@ -267,7 +267,7 @@
     "SPECIAL_IsMirageIslandPresent": Unsupported,
     "SPECIAL_IsMonOTIDNotPlayers": Unsupported,
     "SPECIAL_IsPokemonJumpSpeciesInParty": Unsupported,
-    "SPECIAL_IsPokerusInParty": Unsupported,
+    "SPECIAL_IsPokerusInParty": Default(0),  // no Pokérus modelled (nurse)
     "SPECIAL_IsQuizAnswerCorrect": Unsupported,
     "SPECIAL_IsQuizLadyWaitingForChallenger": Unsupported,
     "SPECIAL_IsSelectedMonEgg": Unsupported,
@@ -320,7 +320,7 @@
     "SPECIAL_PlayerEnteredTradeSeat": Unsupported,
     "SPECIAL_PlayerFaceTrainerAfterBattle": Ignore,
     "SPECIAL_PlayerHasBerries": Unsupported,
-    "SPECIAL_PlayerNotAtTrainerHillEntrance": Unsupported,
+    "SPECIAL_PlayerNotAtTrainerHillEntrance": Default(1),  // Trainer Hill is postgame (nurse)
     "SPECIAL_PlayerPC": Unsupported,
     "SPECIAL_PrepSecretBaseBattleFlags": Unsupported,
     "SPECIAL_PrintPlayerBerryPowderAmount": Unsupported,

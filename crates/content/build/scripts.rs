@@ -256,18 +256,7 @@ pub fn scripts(w: &World) -> Scripts {
 }
 
 /// The scripts of `w`: writes `out/scripts/<Module>.rs` and returns the other files.
-/// `support` is checked against the tables the lowering used (they are the same files).
-pub fn generate(
-    dir: Option<&Path>,
-    out: &Path,
-    w: &World,
-    support: &Support,
-) -> Result<ScriptsOut> {
-    let _ = dir;
-    ensure!(
-        !support.commands.is_empty() && !support.specials.is_empty(),
-        "empty support tables"
-    );
+pub fn generate(out: &Path, w: &World) -> Result<ScriptsOut> {
     let s = scripted(w)?;
     let mods = out.join("scripts");
     std::fs::create_dir_all(&mods)?;
@@ -276,7 +265,7 @@ pub fn generate(
         write_if_changed(&mods.join(format!("{m}.rs")), body)?;
     }
     let report = report(&s);
-    warn(&format!("{}", s.lowered.stats.summary()));
+    warn(&s.lowered.stats.summary());
     for o in &s.skipped_overrides {
         warn(&format!("override not applied: {o}"));
     }

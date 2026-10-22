@@ -111,9 +111,8 @@ fn main() {
     for t in &tables {
         println!("cargo::rerun-if-changed={}", t.display());
     }
-    let support = scripts::support(&build_dir).unwrap_or_else(|e| panic!("{e:#}"));
-    let sc = scripts::generate(real.then_some(dir.as_path()), &out, &world, &support)
-        .unwrap_or_else(|e| panic!("generating scripts: {e:#}"));
+    let sc =
+        scripts::generate(&out, &world).unwrap_or_else(|e| panic!("generating scripts: {e:#}"));
     for (name, src) in [
         ("consts.rs", &g.consts),
         ("data.rs", &g.data),
