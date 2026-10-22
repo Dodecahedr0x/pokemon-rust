@@ -28,6 +28,7 @@ mod probe_scene;
 use emu::{DebugSnapshot, Emu, RomRun, run_rom, run_rom_from};
 use engine::Buttons;
 use engine::checkpoint::{Checkpoint, build_hash};
+use engine::data::MapId;
 use engine::debug::{boot, save};
 use game_native::scenario::{DISPLAY_LAG, Recording, record_route};
 use game_native::{Ppu, Session, flash};
@@ -213,6 +214,8 @@ struct Native {
     capturable: Vec<bool>,
     /// `respawn[n]`: `World::respawn` after `n` steps.
     respawn: Vec<u8>,
+    /// `maps[n]`: `World::map` after `n` steps.
+    maps: Vec<MapId>,
     /// Steps whose frame is `Frame::bulk`.
     bulk: Vec<u32>,
     /// What the ROM shows at engine frame `c` (display lag: native after `c - 1` steps), for
@@ -228,6 +231,7 @@ fn native_run(keys: impl Fn(u32) -> Buttons, end: u32, pictures: &[u32], cps: &[
         hashes: Vec::new(),
         capturable: Vec::new(),
         respawn: Vec::new(),
+        maps: Vec::new(),
         bulk: Vec::new(),
         pictures: BTreeMap::new(),
         checkpoints: BTreeMap::new(),
@@ -236,6 +240,7 @@ fn native_run(keys: impl Fn(u32) -> Buttons, end: u32, pictures: &[u32], cps: &[
         out.hashes.push(s.world().hash());
         out.capturable.push(s.world().capturable().is_ok());
         out.respawn.push(s.world().respawn());
+        out.maps.push(s.world().map());
         if pictures.contains(&(n + 1)) {
             out.pictures.insert(n + 1, s.framebuffer().to_vec());
         }
@@ -256,7 +261,8 @@ fn native_run(keys: impl Fn(u32) -> Buttons, end: u32, pictures: &[u32], cps: &[
 }
 
 /// A ROM run against the uninterrupted native run: the consumed inputs, every hash, every
-/// picture, and each black-screen late apply after a bulk step.
+/// picture, and each black-screen late apply after a bulk step (a restored boot frame, applied
+/// blanked, counts as one at the start frame).
 fn compare_run(what: &str, run: &RomRun, native: &Native, keys: impl Fn(u32) -> Buttons) {
     for (i, &k) in run.consumed.iter().enumerate() {
         let f = run.start + i as u32;
@@ -285,12 +291,15 @@ fn compare_run(what: &str, run: &RomRun, native: &Native, keys: impl Fn(u32) -> 
             cap.frame
         );
     }
+    let restored = (run.boot.boot == boot::RESTORED).then_some(run.start);
     for &late in &run.late_black_frames {
         assert!(
             native
                 .bulk
                 .iter()
-                .any(|&b| b < late && late - b <= DISPLAY_LAG),
+                .copied()
+                .chain(restored)
+                .any(|b| b < late && late - b <= DISPLAY_LAG),
             "{what}: late apply on a black screen at engine frame {late} follows no bulk step"
         );
     }
@@ -304,6 +313,11 @@ fn compare_run(what: &str, run: &RomRun, native: &Native, keys: impl Fn(u32) -> 
         run.late_black,
     );
 }
+
+/// Gen3 `MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB` and `MAP_OLDALE_TOWN_POKEMON_CENTER_1F`
+/// (`content::consts` has them only with extracted data).
+const MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB: MapId = MapId(0x104);
+const MAP_OLDALE_TOWN_POKEMON_CENTER_1F: MapId = MapId(0x202);
 
 /// The checkpoints the ROM resumes from, as (name, frame) on the route: with extracted data,
 /// the lab after Birch gives Mudkip, Oldale's Pokémon Center once the nurse has healed (the
@@ -335,13 +349,26 @@ fn resume_nodes(rec: &Recording, native: &Native) -> Vec<(&'static str, u32)> {
     let healed = (level_up..=rec.frames())
         .find(|&n| capturable(n) && native.respawn[n as usize] != respawn)
         .expect("the respawn never moves after the level-up (Oldale's nurse)");
+    assert_eq!(
+        native.maps[healed as usize], MAP_OLDALE_TOWN_POKEMON_CENTER_1F,
+        "the respawn moved at frame {healed} outside Oldale's Pokémon Center"
+    );
     let may = moment("may_intro");
     let before_may = (0..may)
         .rev()
         .find(|&n| capturable(n))
         .expect("nothing capturable before May's battle");
+    let lab = first_from(moment("lab"));
+    assert_eq!(
+        native.maps[lab as usize],
+        MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB
+    );
+    assert_eq!(
+        rec.moments.iter().find(|m| m.name == "lab").unwrap().map,
+        MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB
+    );
     vec![
-        ("lab", first_from(moment("lab"))),
+        ("lab", lab),
         ("oldale_center", healed),
         ("before_may", before_may),
     ]
@@ -440,18 +467,14 @@ fn rom_save_restores_natively() {
     let run = run_rom(&rom, keys, saved + SETTLE, &[])
         .unwrap_or_else(|e| panic!("ROM run to the save failed: {e:#}"));
     compare_run("save run", &run, &native, keys);
+    check_costs("save run", &run.end);
     assert_eq!(run.end.saves, 1, "flash writes");
     assert_eq!(run.end.save_status, save::OK, "save status");
-    let rom_hash = run
-        .hashes
-        .iter()
-        .find(|h| h.0 == saved)
-        .unwrap_or_else(|| panic!("no ROM sample at frame {saved}"))
-        .1;
     let (meta, cp) = flash::decode_sav(&run.save).unwrap_or_else(|e| panic!("ROM flash: {e}"));
     assert_eq!(cp.header.frame, saved);
     assert_eq!(meta.frame, saved);
-    assert_eq!(cp.header.world_hash, rom_hash);
+    // `compare_run` matched every ROM sample to native; a catch-up may drop the one at `saved`.
+    assert_eq!(cp.header.world_hash, native.hashes[saved as usize]);
     assert_eq!(cp.header.build, build_hash(&content::Emerald::for_shells()));
     assert!(
         cp == native.checkpoints[&saved],

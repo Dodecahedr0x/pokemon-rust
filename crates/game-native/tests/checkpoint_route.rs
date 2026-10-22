@@ -3,8 +3,9 @@
 //! each named moment, the live World is captured, encoded (postcard, within the flash budget),
 //! decoded and restored into a fresh [`Session`]. The restored session must have the live hash
 //! and picture, then stay equal to the live session for [`FOLLOW`] frames of the route's inputs
-//! (hash every frame, pictures at [`PICTURES`]). Three points (the first, the middle and the
-//! last) run to the end of the route. Each checkpoint also round-trips through RON.
+//! (hash every frame, pictures at [`PICTURES`]). Three points (the first, the middle and
+//! the last at least [`FOLLOW`] frames before the end) run to the end of the route. Each
+//! checkpoint also round-trips through RON.
 
 use content::Emerald;
 use engine::checkpoint::{self, Checkpoint, MAX_ENCODED};
@@ -87,11 +88,13 @@ fn checkpoints_restore_bit_identical_along_the_route() {
     let capturable = capturable_frames(&rec);
     let points = points(&rec, &capturable);
     assert!(points.len() >= 2, "too few capturable frames: {points:?}");
-    let long = [
-        points[0],
-        points[points.len() / 2],
-        points[points.len() - 1],
-    ];
+    // The last long run starts at least `FOLLOW` frames before the end of the route.
+    let last = points
+        .iter()
+        .copied()
+        .rfind(|&p| p + FOLLOW <= rec.frames())
+        .expect("no capturable frame FOLLOW frames before the end");
+    let long = [points[0], points[points.len() / 2], last];
 
     let mut live = Session::new(game());
     let mut resumed: Vec<Resumed> = Vec::new();
@@ -114,8 +117,9 @@ fn checkpoints_restore_bit_identical_along_the_route() {
                 "restored hash at frame {n}"
             );
             same_picture(&mut live, &mut session, &format!("on restore at frame {n}"));
+            // Past the end of the route `keys_at` is nothing.
             let until = if long.contains(&n) {
-                rec.frames()
+                rec.frames().max(n + FOLLOW)
             } else {
                 n + FOLLOW
             };
@@ -125,7 +129,15 @@ fn checkpoints_restore_bit_identical_along_the_route() {
                 session,
             });
         }
-        resumed.retain(|r| r.until > n);
+        resumed.retain(|r| {
+            let stepped = r.session.world().frame() - r.from;
+            assert!(
+                r.until > n || stepped >= FOLLOW,
+                "restored at {} only ran {stepped}",
+                r.from
+            );
+            r.until > n
+        });
         if resumed.is_empty() && next.peek().is_none() {
             break;
         }

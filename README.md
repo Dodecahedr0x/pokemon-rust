@@ -84,23 +84,29 @@ the same hash, picture and future as the World that was never interrupted.
 100 capturable frames of the route plus each named moment: the postcard checkpoint fits the
 8 KiB flash budget (`MAX_ENCODED`; the route's largest is about 800 bytes) and round-trips, as
 does its RON form; the restored session matches the live one on restore, then hash every frame
-and picture at +1, +2, +60 and +120 frames; three points (first, middle, last) run to the end.
+and picture at +1, +2, +60 and +120 frames; three points (the first, the middle, and the last
+at least 120 frames before the end) follow the route to its end.
 Parity adds both save directions through mGBA: native checkpoints (the lab, Oldale's Pokémon
 Center after the nurse and the last capturable frame before May's battle; two points on the
 stub) are written as `.sav` images, and the ROM must boot them (`boot == RESTORED`, the native
 `build_hash`) and play up to 2000 route frames with every hash and a picture every 100 frames
 equal to native; and a ROM save by the L+R+SELECT combo must decode to the ROM's hash, restore
 natively to native's, equal `game_native::flash::encode_sav` byte for byte, and boot a second
-ROM that matches native for 300 frames. The ROM's costs are gated on the route: `World::hash` at
+ROM that matches native for 300 frames (each restore point's map is checked: the lab, then
+Oldale's Pokémon Center). The ROM's costs are gated on the route: `World::hash` at
 most 80 scanlines (`hash_lines_max`, 73 measured) and the whole loop body at most 226 of the 228
-lines (`loop_lines_max`, 223 measured). The committed checkpoint trees (`checkpoints/*/nodes`)
-hold inputs and hashes only, never snapshots or other ROM-derived data, and verify `Valid` in
-`cargo test` like the golden hashes: an intended behaviour change needs
-`cargo xtask checkpoints verify --accept`.
+lines (`loop_lines_max`, 223 measured). Seeding (`cargo xtask checkpoints seed`, run by hand
+after an intended route or behaviour change, never by the tests) records the parity route and
+writes its named points as `route:<name>` nodes of the current flavor's tree, replacing earlier
+`route:` nodes. The committed checkpoint trees (`checkpoints/*/nodes`) hold inputs and hashes
+only, never snapshots or other ROM-derived data, and verify `Valid` in `cargo test` like the
+golden hashes: an intended behaviour change needs `cargo xtask checkpoints verify --accept`.
 
 `cargo xtask rom` prints the ROM size and the ELF's IWRAM and EWRAM statics
-(`xtask/src/budget.rs`) and fails above the Milestone 5 baseline (ROM 1995024 bytes, IWRAM 596,
-EWRAM 460) plus 64 KiB of ROM, 2 KiB of IWRAM or 16 KiB of EWRAM.
+(`xtask/src/budget.rs`) and fails above the Milestone 5 baseline (ROM 1992712 bytes with
+extracted data, IWRAM 596, EWRAM 460) plus 64 KiB of ROM, 2 KiB of IWRAM or 16 KiB of EWRAM; a
+stub-content ROM skips the ROM gate. The build remaps the checkout, `CARGO_HOME` and sysroot
+paths (`--remap-path-prefix`), so the ROM does not depend on where the repository lives.
 
 `crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
 `0x54c3f87e89e27c7e` after `World::new` and `0xb94e51c5d0228cf7` after 25 frames each of Right,
