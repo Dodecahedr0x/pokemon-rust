@@ -802,7 +802,10 @@ mod tests {
             // The first battle, the win, the run, the level-up battle and May at least.
             assert!(rec.battles >= 5, "{} battles", rec.battles);
             let mon = w.party().get(0).unwrap();
-            assert_eq!((w.party().len(), mon.species), (1, SPECIES_MUDKIP));
+            assert_eq!(
+                (w.party().len(), mon.species),
+                (1, content::battle::STARTERS[2])
+            );
             assert!(mon.level >= 6);
             assert!(w.flag(FLAG_DEFEATED_RIVAL_ROUTE103));
             // The Oldale Pokémon Center moved the respawn.
