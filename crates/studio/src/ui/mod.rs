@@ -215,6 +215,9 @@ fn App() -> Element {
             })
         });
     });
+    // The Map tab's pictures and sprites (`/maps/…`), from the cache it shares (Task H).
+    let maps = use_context_provider(map::MapCache::default);
+    use_asset_handler("maps", map::serve(maps));
     // The context never changes, so these hooks run on every render or on none.
     if let Some(smoke) = try_use_context::<Smoke>() {
         let stats = smoke.stats.clone();

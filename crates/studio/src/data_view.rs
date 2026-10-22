@@ -280,3 +280,203 @@ pub fn filter<'a, T>(rows: &'a [T], q: &str, key: impl Fn(&T) -> String) -> Vec<
         .filter(|r| q.is_empty() || key(r).to_lowercase().contains(&q))
         .collect()
 }
+
+// ---- The Data tab's model (M6 Task H): rows, lists, links and text layout, free of the UI. ----
+
+/// Every row of every Data sub-tab.
+pub struct DataRows {
+    pub species: Vec<SpeciesRow>,
+    pub moves: Vec<MoveRow>,
+    pub trainers: Vec<TrainerRow>,
+    pub encounters: Vec<EncounterRow>,
+    pub texts: Vec<TextRow>,
+}
+
+static ROWS: std::sync::OnceLock<DataRows> = std::sync::OnceLock::new();
+
+/// The rows, built on first use (on the calling thread) and kept for the process.
+pub fn rows() -> &'static DataRows {
+    ROWS.get_or_init(DataRows::build)
+}
+
+/// The rows if they are built, without building them.
+pub fn rows_if_ready() -> Option<&'static DataRows> {
+    ROWS.get()
+}
+
+impl DataRows {
+    pub fn build() -> DataRows {
+        DataRows {
+            species: species(),
+            moves: moves(),
+            trainers: trainers(),
+            encounters: encounters(),
+            texts: texts(),
+        }
+    }
+
+    /// Species and move ids index their rows.
+    pub fn species(&self, id: SpeciesId) -> Option<&SpeciesRow> {
+        self.species.get(id.0 as usize)
+    }
+
+    pub fn mov(&self, id: MoveId) -> Option<&MoveRow> {
+        self.moves.get(id.0 as usize)
+    }
+
+    pub fn trainer(&self, id: TrainerId) -> Option<&TrainerRow> {
+        self.trainers.iter().find(|t| t.id == id)
+    }
+
+    pub fn encounter(&self, map: MapId) -> Option<&EncounterRow> {
+        self.encounters.iter().find(|e| e.map == map)
+    }
+
+    pub fn text(&self, id: TextId) -> Option<&TextRow> {
+        self.texts.get(id.0 as usize)
+    }
+
+    /// Whether the row `p` names exists.
+    pub fn has(&self, p: Pick) -> bool {
+        match p {
+            Pick::Species(id) => self.species(id).is_some(),
+            Pick::Move(id) => self.mov(id).is_some(),
+            Pick::Trainer(id) => self.trainer(id).is_some(),
+            Pick::Map(id) => self.encounter(id).is_some(),
+            Pick::Text(id) => self.text(id).is_some(),
+        }
+    }
+
+    /// The list of sub-tab `sub` filtered by `q` ([`filter`] on what the list shows plus, for
+    /// texts, the text): what to pick and its label.
+    pub fn list(&self, sub: Sub, q: &str) -> Vec<(Pick, String)> {
+        match sub {
+            Sub::Species => filter(&self.species, q, |r| r.name.clone())
+                .into_iter()
+                .map(|r| (Pick::Species(r.id), format!("#{:03} {}", r.id.0, r.name)))
+                .collect(),
+            Sub::Moves => filter(&self.moves, q, |r| r.name.clone())
+                .into_iter()
+                .map(|r| (Pick::Move(r.id), format!("#{:03} {}", r.id.0, r.name)))
+                .collect(),
+            Sub::Trainers => filter(&self.trainers, q, trainer_label)
+                .into_iter()
+                .map(|r| (Pick::Trainer(r.id), trainer_label(r)))
+                .collect(),
+            Sub::Encounters => filter(&self.encounters, q, |r| r.map_name.into())
+                .into_iter()
+                .map(|r| (Pick::Map(r.map), r.map_name.to_string()))
+                .collect(),
+            Sub::Texts => filter(&self.texts, q, |r| format!("{} {}", r.key, r.text))
+                .into_iter()
+                .map(|r| (Pick::Text(r.id), r.key.to_string()))
+                .collect(),
+        }
+    }
+}
+
+/// "Class Name".
+pub fn trainer_label(t: &TrainerRow) -> String {
+    format!("{} {}", t.class, t.name)
+}
+
+/// The Data sub-tabs.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Sub {
+    #[default]
+    Species,
+    Moves,
+    Trainers,
+    Encounters,
+    Texts,
+}
+
+/// A row to show in the Data tab's detail panel (and the target of its links).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Pick {
+    Species(SpeciesId),
+    Move(MoveId),
+    Trainer(TrainerId),
+    /// An encounter table, by map.
+    Map(MapId),
+    Text(TextId),
+}
+
+impl Pick {
+    /// The sub-tab that shows it.
+    pub fn sub(self) -> Sub {
+        match self {
+            Pick::Species(_) => Sub::Species,
+            Pick::Move(_) => Sub::Moves,
+            Pick::Trainer(_) => Sub::Trainers,
+            Pick::Map(_) => Sub::Encounters,
+            Pick::Text(_) => Sub::Texts,
+        }
+    }
+}
+
+/// A piece of decoded text: escapes become breaks, placeholders tags.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Part {
+    Text(String),
+    /// `\n` (new line), `\l` (scroll a line) or `\p` (new box).
+    Break(char),
+    /// `{PLAYER}`, `{STRING 3}`, … without the braces.
+    Tag(String),
+}
+
+/// Splits a [`decode`] string into [`Part`]s. Other backslashes and an unclosed `{` stay text.
+pub fn text_parts(s: &str) -> Vec<Part> {
+    fn flush(text: &mut String, parts: &mut Vec<Part>) {
+        if !text.is_empty() {
+            parts.push(Part::Text(std::mem::take(text)));
+        }
+    }
+    let (mut parts, mut text) = (Vec::new(), String::new());
+    let mut rest = s;
+    while let Some(c) = rest.chars().next() {
+        let next = rest[c.len_utf8()..].chars().next();
+        match (c, next) {
+            ('\\', Some(e @ ('n' | 'l' | 'p'))) => {
+                flush(&mut text, &mut parts);
+                parts.push(Part::Break(e));
+                rest = &rest[2..];
+            }
+            ('{', _) if rest.contains('}') => {
+                flush(&mut text, &mut parts);
+                let end = rest.find('}').unwrap_or(0);
+                parts.push(Part::Tag(rest[1..end].to_string()));
+                rest = &rest[end + 1..];
+            }
+            _ => {
+                text.push(c);
+                rest = &rest[c.len_utf8()..];
+            }
+        }
+    }
+    flush(&mut text, &mut parts);
+    parts
+}
+
+/// The gender split of a Gen3 gender ratio (female when `personality & 0xFF < ratio`).
+pub fn gender(ratio: u8) -> String {
+    match ratio {
+        255 => "genderless".into(),
+        254 => "always female".into(),
+        0 => "always male".into(),
+        r => {
+            let tenths = r as u32 * 1000 / 256;
+            format!("{}.{}% female", tenths / 10, tenths % 10)
+        }
+    }
+}
+
+/// An ability's name, "(other)" when it has none.
+pub fn ability_or_other(name: &str) -> &str {
+    if name.is_empty() { "(other)" } else { name }
+}
+
+/// `0` as a dash (power and accuracy of status moves).
+pub fn or_dash(v: u8) -> String {
+    if v == 0 { "—".into() } else { v.to_string() }
+}
