@@ -2,7 +2,12 @@
 
 use anyhow::{Context, Result, anyhow};
 use engine::Buttons;
-use engine::debug::{INPUT_RING, MAGIC, OFF_FRAME, OFF_HASH, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK};
+use engine::checkpoint::{BuildHash, FLASH_SIZE};
+use engine::debug::{
+    INPUT_RING, MAGIC, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE, OFF_FRAME, OFF_HASH,
+    OFF_HASH_LINES_MAX, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK, OFF_SAVE_STATUS, OFF_SAVES,
+    OFF_STEP_LINES_MAX, SIZE,
+};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -30,7 +35,50 @@ pub struct DebugSnapshot {
     pub late: u32,
     /// Late applies while the screen stayed black (`DebugRegion::late_black`).
     pub late_black: u32,
+    /// The ROM's `checkpoint::build_hash` (zero until the ROM publishes it at boot).
+    pub build: BuildHash,
+    /// How the ROM's World started: an `engine::debug::boot` code.
+    pub boot: u32,
+    /// Successful flash writes.
+    pub saves: u32,
+    /// The last flash write: an `engine::debug::save` code.
+    pub save_status: u32,
+    /// Worst scanlines of `World::hash()` on a visible frame.
+    pub hash_lines_max: u32,
+    /// Worst scanlines from the apply to the end of publish on a visible frame.
+    pub step_lines_max: u32,
 }
+
+// `Emu::debug` reads the v2 fields at engine's offsets: inside the region, and the u64s on
+// 8-byte boundaries (read as two 32-bit halves).
+const _: () = {
+    assert!(SIZE == 200 && MAGIC[7] == b'2');
+    assert!(OFF_BUILD_ENGINE == 160 && OFF_BUILD_CONTENT == 168);
+    assert!(OFF_BOOT == 176 && OFF_SAVES == 180 && OFF_SAVE_STATUS == 184);
+    assert!(OFF_HASH_LINES_MAX == 188 && OFF_STEP_LINES_MAX == 192);
+    assert!(OFF_STEP_LINES_MAX as usize + 4 <= SIZE);
+    assert!(OFF_HASH.is_multiple_of(8) && OFF_BUILD_ENGINE.is_multiple_of(8));
+    assert!(OFF_BUILD_CONTENT.is_multiple_of(8));
+};
+
+unsafe extern "C" {
+    /// libc's: frees the buffer `mCore::savedataClone` `malloc`ed.
+    fn free(ptr: *mut core::ffi::c_void);
+}
+
+/// `struct GBACartridgeOverride` (`mgba/gba/interface.h`), not in `mgba-sys`'s bindings.
+#[repr(C)]
+struct GbaCartridgeOverride {
+    id: [core::ffi::c_char; 4],
+    savetype: mgba_sys::GBASavedataType,
+    hardware: core::ffi::c_int,
+    idle_loop: u32,
+    vba_bug_compat: bool,
+}
+/// `HW_NO_OVERRIDE`: keep the cartridge's detected hardware.
+const HW_NO_OVERRIDE: core::ffi::c_int = 0x8000;
+/// `GBA_IDLE_LOOP_NONE`.
+const IDLE_LOOP_NONE: u32 = 0xFFFF_FFFF;
 
 /// Private scratch directory removed on drop (errors ignored).
 struct ScratchDir(PathBuf);
@@ -60,20 +108,81 @@ pub struct Emu {
 
 impl Emu {
     /// Loads a private copy of `rom`, so mGBA's `.sav` autoload never touches
-    /// (or reads state from) the directory the ROM lives in.
+    /// (or reads state from) the directory the ROM lives in. The flash starts erased.
     pub fn open(rom: &Path) -> Result<Self> {
+        Self::open_with_save(rom, None)
+    }
+
+    /// [`Emu::open`] with `sav` (a `FLASH_SIZE` image, see `game_native::flash`) as the
+    /// cartridge's flash: it is written to `game.sav` next to the private ROM copy, where
+    /// `mCoreAutoloadSave` picks it up.
+    ///
+    /// The save type is forced to 128 KiB flash (FLASH1M, Sanyo id), the cartridge the ROM
+    /// declares with `init_flash_128k`. libmgba 0.11 ignores agb's `FLASH1M_V` marker and the
+    /// `.sav` size: without the override it autodetects FLASH512 on the first flash command
+    /// and answers a 64 KiB Panasonic id, so agb would run a 64 KiB chip.
+    pub fn open_with_save(rom: &Path, sav: Option<&[u8]>) -> Result<Self> {
+        if let Some(sav) = sav
+            && sav.len() != FLASH_SIZE
+        {
+            return Err(anyhow!(
+                "save image is {} bytes, expected {FLASH_SIZE}",
+                sav.len()
+            ));
+        }
         let scratch = ScratchDir::new()?;
         let copy = scratch.0.join("game.gba");
         std::fs::copy(rom, &copy).with_context(|| format!("copy {}", rom.display()))?;
+        if let Some(sav) = sav {
+            let path = scratch.0.join("game.sav");
+            std::fs::write(&path, sav).with_context(|| format!("write {}", path.display()))?;
+        }
         let mut core = mgba::Core::new().map_err(|e| anyhow!("mgba core: {e:?}"))?;
         core.load_rom(&copy)
             .map_err(|e| anyhow!("load {}: {e:?}", rom.display()))?;
+        let flash1m = GbaCartridgeOverride {
+            id: [0; 4],
+            savetype: mgba_sys::GBA_SAVEDATA_FLASH1M,
+            hardware: HW_NO_OVERRIDE,
+            idle_loop: IDLE_LOOP_NONE,
+            // libmgba's value when no override applies (`GBACreate`).
+            vba_bug_compat: false,
+        };
+        // SAFETY: the core is initialised and loaded; setOverride copies the struct, and the
+        // reset below applies it (`_GBACoreReset` -> `GBAOverrideApply`).
+        unsafe {
+            let raw = core.raw_ptr();
+            let set = (*raw)
+                .setOverride
+                .ok_or_else(|| anyhow!("no setOverride"))?;
+            set(raw, (&raw const flash1m).cast());
+        }
         core.reset().map_err(|e| anyhow!("reset: {e:?}"))?;
         Ok(Self {
             core,
             debug_base: None,
             _scratch: scratch,
         })
+    }
+
+    /// A copy of the cartridge's save memory (`FLASH_SIZE` bytes of flash).
+    pub fn save_data(&mut self) -> Vec<u8> {
+        // SAFETY: savedataClone mallocs `len` bytes (or sets NULL and returns 0); they are
+        // copied out, then freed with the same allocator.
+        unsafe {
+            let raw = self.core.raw_ptr();
+            let Some(clone) = (*raw).savedataClone else {
+                return Vec::new();
+            };
+            let mut buf: *mut core::ffi::c_void = core::ptr::null_mut();
+            let len = clone(raw, &mut buf);
+            if buf.is_null() {
+                return Vec::new();
+            }
+            let out = core::slice::from_raw_parts(buf as *const u8, len).to_vec();
+            free(buf);
+            out
+        }
     }
 
     pub fn run_frame(&mut self, keys: Buttons) -> Result<()> {
@@ -110,6 +219,11 @@ impl Emu {
         }
     }
 
+    /// A little-endian u64 stored as two 32-bit words.
+    fn read64(&mut self, addr: u32) -> u64 {
+        self.read32(addr) as u64 | (self.read32(addr + 4) as u64) << 32
+    }
+
     fn find_debug_base(&mut self) -> Option<u32> {
         let m0 = u32::from_le_bytes(MAGIC[0..4].try_into().unwrap());
         let m1 = u32::from_le_bytes(MAGIC[4..8].try_into().unwrap());
@@ -125,8 +239,7 @@ impl Emu {
         }
         let base = self.debug_base?;
         let frame = self.read32(base + OFF_FRAME);
-        let hash =
-            self.read32(base + OFF_HASH) as u64 | (self.read32(base + OFF_HASH + 4) as u64) << 32;
+        let hash = self.read64(base + OFF_HASH);
         let late = self.read32(base + OFF_LATE);
         let late_black = self.read32(base + OFF_LATE_BLACK);
         let mut inputs = [0u16; INPUT_RING];
@@ -139,6 +252,15 @@ impl Emu {
             inputs,
             late,
             late_black,
+            build: BuildHash {
+                engine: self.read64(base + OFF_BUILD_ENGINE),
+                content: self.read64(base + OFF_BUILD_CONTENT),
+            },
+            boot: self.read32(base + OFF_BOOT),
+            saves: self.read32(base + OFF_SAVES),
+            save_status: self.read32(base + OFF_SAVE_STATUS),
+            hash_lines_max: self.read32(base + OFF_HASH_LINES_MAX),
+            step_lines_max: self.read32(base + OFF_STEP_LINES_MAX),
         })
     }
 
@@ -280,21 +402,66 @@ mod tests {
         assert!(Emu::open(Path::new("/nonexistent/definitely-not-a-rom.gba")).is_err());
     }
 
-    #[test]
-    fn open_does_not_create_sav_next_to_rom() {
-        let dir = ScratchDir::new().unwrap();
+    /// A ROM with just enough header for mGBA's GBAIsROM (0xEA at 3, 0x96 at 0xB2), so the
+    /// load succeeds and reaches mCoreAutoloadSave. With an all-zero file the load fails
+    /// first and the tests below would pass vacuously.
+    fn dummy_rom(dir: &ScratchDir) -> PathBuf {
         let rom = dir.0.join("x.gba");
-        // Just enough header for mGBA's GBAIsROM (0xEA at 3, 0x96 at 0xB2), so the
-        // load succeeds and reaches mCoreAutoloadSave. With an all-zero file the
-        // load fails first and this test would pass vacuously.
         let mut bytes = [0u8; 512];
         bytes[3] = 0xEA;
         bytes[0xB2] = 0x96;
         std::fs::write(&rom, bytes).unwrap();
+        rom
+    }
+
+    fn listing(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn open_does_not_create_sav_next_to_rom() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dummy_rom(&dir);
         let emu = Emu::open(&rom).expect("dummy header should load");
-        assert!(!dir.0.join("x.sav").exists());
+        assert_eq!(listing(&dir.0), ["x.gba"]);
         let scratch = emu._scratch.0.clone();
         drop(emu);
         assert!(!scratch.exists(), "scratch dir not removed on drop");
+    }
+
+    #[test]
+    fn open_with_save_injects_game_sav_into_scratch_only() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dummy_rom(&dir);
+        let sav: Vec<u8> = (0..FLASH_SIZE).map(|i| (i * 7 + i / 4096) as u8).collect();
+        let mut emu = Emu::open_with_save(&rom, Some(&sav)).expect("dummy header should load");
+        assert_eq!(listing(&dir.0), ["x.gba"]);
+        assert_eq!(listing(&emu._scratch.0), ["game.gba", "game.sav"]);
+        // FLASH1M: all 128 KiB are loaded and read back (FLASH512 would keep 64 KiB).
+        assert!(
+            emu.save_data() == sav,
+            "save data differs from the injected image"
+        );
+    }
+
+    #[test]
+    fn fresh_save_is_erased_128k_flash() {
+        let dir = ScratchDir::new().unwrap();
+        let mut emu = Emu::open(&dummy_rom(&dir)).unwrap();
+        let data = emu.save_data();
+        assert_eq!(data.len(), FLASH_SIZE);
+        assert!(data.iter().all(|&b| b == 0xFF));
+    }
+
+    #[test]
+    fn open_with_wrong_size_save_errors() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dummy_rom(&dir);
+        assert!(Emu::open_with_save(&rom, Some(&[0xFF; 64 * 1024])).is_err());
     }
 }
