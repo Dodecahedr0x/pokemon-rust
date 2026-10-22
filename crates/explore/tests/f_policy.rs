@@ -237,7 +237,7 @@ fn mon(moves: [Option<MoveId>; 4], pp: [u8; 4]) -> BattleMon {
 fn first_damaging_slot_skips_status_and_empty_moves() {
     let t = &content::battle::TABLES;
     let power = |m: MoveId| t.move_info(m).power;
-    let slice = &content::battle::SLICE_MOVES;
+    let slice = content::samples::MOVE_IDS;
     // A 0-power move by scanning the slice (then the whole table), never by name.
     let status = slice
         .iter()
@@ -348,7 +348,7 @@ fn a_full_moveset_keeps_its_moves_on_level_up() {
         .checkpoint()
         .expect("the node is capturable");
     let lead = &mut cp.world.party[0];
-    let mut fill = content::battle::SLICE_MOVES
+    let mut fill = content::samples::MOVE_IDS
         .iter()
         .copied()
         .filter(|&m| t.move_info(m).power > 0 && t.move_info(m).pp > 0);

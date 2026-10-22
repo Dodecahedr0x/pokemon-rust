@@ -54,8 +54,8 @@ fn row_counts_equal_the_tables_and_ids_are_indexes() {
 fn slice_names_decode_cleanly() {
     let species = data_view::species();
     let moves = data_view::moves();
-    assert!(!battle::SLICE_SPECIES.is_empty() && !battle::SLICE_MOVES.is_empty());
-    for s in &battle::SLICE_SPECIES {
+    assert!(!content::samples::SPECIES_IDS.is_empty() && !content::samples::MOVE_IDS.is_empty());
+    for s in content::samples::SPECIES_IDS {
         let r = &species[s.0 as usize];
         assert!(clean(&r.name), "species {}: {:?}", s.0, r.name);
         assert!(r.has_gfx, "slice species {} has pics", s.0);
@@ -63,7 +63,7 @@ fn slice_names_decode_cleanly() {
             assert!(clean(n), "species {} ability {n:?}", s.0);
         }
     }
-    for m in &battle::SLICE_MOVES {
+    for m in content::samples::MOVE_IDS {
         let r = &moves[m.0 as usize];
         assert!(clean(&r.name), "move {}: {:?}", m.0, r.name);
     }
@@ -188,7 +188,7 @@ fn mixed(s: &str) -> String {
 fn filter_is_case_insensitive_on_the_decoded_name() {
     let species = data_view::species();
     let name = |r: &data_view::SpeciesRow| r.name.clone();
-    let s = &species[battle::SLICE_SPECIES[0].0 as usize];
+    let s = &species[content::samples::SPECIES_IDS[0].0 as usize];
     for q in [s.name.to_uppercase(), s.name.to_lowercase(), mixed(&s.name)] {
         let hits = filter(&species, &q, name);
         assert!(hits.iter().any(|r| r.id == s.id), "query {q:?}");
@@ -214,7 +214,7 @@ fn filter_is_case_insensitive_on_the_decoded_name() {
 
 #[test]
 fn decode_matches_the_tables() {
-    for s in &battle::SLICE_SPECIES {
+    for s in content::samples::SPECIES_IDS {
         assert_eq!(
             decode(battle::TABLES.species[s.0 as usize].name),
             data_view::species()[s.0 as usize].name
