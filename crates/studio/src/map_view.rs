@@ -291,3 +291,424 @@ pub fn map_list() -> Vec<(MapId, &'static str)> {
         .map(|&id| (id, content::data::map(id.0).map_or("MISSING", |m| m.name)))
         .collect()
 }
+
+// ---- The Map tab's model (M6 Task H): placement, hit-testing and routes, free of the UI. ----
+
+/// Cells the Map tab draws around a map on each side (border and connections).
+pub const VIEW_MARGIN: u16 = 8;
+
+const CELL: i32 = 16;
+
+/// The native pane's position, for the Map tab's "Show live map": its map and its camera (the
+/// map pixel at the screen's top-left, as [`MapImage::crop`] takes it).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Live {
+    pub map: MapId,
+    pub camera: (i32, i32),
+}
+
+impl Live {
+    /// From the inspector's fields: `None` while the pane has no field camera.
+    pub fn from_inspector(map: MapId, camera: Option<(i32, i32)>) -> Option<Live> {
+        camera.map(|camera| Live { map, camera })
+    }
+}
+
+/// The map on screen: the live map while following it, else the selected one.
+pub fn shown_map(selected: MapId, follow: bool, live: Option<Live>) -> MapId {
+    match live {
+        Some(l) if follow => l.map,
+        _ => selected,
+    }
+}
+
+/// A rectangle in image pixels.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Rect {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+impl Rect {
+    /// The image rectangle of map cell `(x, y)` with `margin` cells around the map.
+    pub fn cell(x: i16, y: i16, margin: u16) -> Rect {
+        Rect {
+            x: (x as i32 + margin as i32) * CELL,
+            y: (y as i32 + margin as i32) * CELL,
+            w: CELL,
+            h: CELL,
+        }
+    }
+
+    /// The part inside a `w x h` image (an empty rectangle if none).
+    pub fn clip(self, w: i32, h: i32) -> Rect {
+        let (x0, y0) = (self.x.clamp(0, w), self.y.clamp(0, h));
+        let (x1, y1) = ((self.x + self.w).clamp(0, w), (self.y + self.h).clamp(0, h));
+        Rect {
+            x: x0,
+            y: y0,
+            w: x1 - x0,
+            h: y1 - y0,
+        }
+    }
+
+    pub fn center(self) -> (i32, i32) {
+        (self.x + self.w / 2, self.y + self.h / 2)
+    }
+}
+
+/// The live camera's 240x160 window in image pixels.
+pub fn camera_rect(camera: (i32, i32), margin: u16) -> Rect {
+    let m = margin as i32 * CELL;
+    Rect {
+        x: camera.0 + m,
+        y: camera.1 + m,
+        w: SCREEN_W as i32,
+        h: SCREEN_H as i32,
+    }
+}
+
+/// The cell the camera's top-left is in: the view re-centres on the camera only when this
+/// changes.
+pub fn camera_cell(camera: (i32, i32)) -> (i32, i32) {
+    (camera.0.div_euclid(CELL), camera.1.div_euclid(CELL))
+}
+
+/// Where a connection is drawn: the neighbor's extent along the edge (shifted by `offset`
+/// cells), across the margin on that side, clipped to the image. `map` and `dest` are sizes in
+/// cells; a neighbor without cells (not exported) spans the whole edge.
+pub fn connection_rect(
+    dir: Dir,
+    offset: i16,
+    map: (u16, u16),
+    dest: (u16, u16),
+    margin: u16,
+) -> Rect {
+    let m = margin as i32 * CELL;
+    let (w, h) = (map.0 as i32 * CELL, map.1 as i32 * CELL);
+    let (iw, ih) = (w + 2 * m, h + 2 * m);
+    let missing = dest.0 == 0 || dest.1 == 0;
+    // (start, length) along the edge.
+    let along = |len: i32, edge: i32| {
+        if missing {
+            (0, edge)
+        } else {
+            (m + offset as i32 * CELL, len)
+        }
+    };
+    let r = match dir {
+        Dir::Up | Dir::Down => {
+            let (x, len) = along(dest.0 as i32 * CELL, iw);
+            let y = if dir == Dir::Up { 0 } else { m + h };
+            Rect { x, y, w: len, h: m }
+        }
+        Dir::Left | Dir::Right => {
+            let (y, len) = along(dest.1 as i32 * CELL, ih);
+            let x = if dir == Dir::Left { 0 } else { m + w };
+            Rect { x, y, w: m, h: len }
+        }
+    };
+    r.clip(iw, ih)
+}
+
+/// The map an overlay opens when clicked: a warp's or connection's destination, unless the
+/// game does not have it (`"MISSING"`).
+pub fn click_target(o: &Overlay) -> Option<MapId> {
+    match *o {
+        Overlay::Warp {
+            dest, dest_name, ..
+        } if dest_name != "MISSING" => Some(dest),
+        Overlay::Connection { map, name, .. } if name != "MISSING" => Some(map),
+        _ => None,
+    }
+}
+
+/// One line about an overlay, for the hover panel.
+pub fn describe(o: &Overlay) -> String {
+    match o {
+        Overlay::Object {
+            local_id,
+            gfx,
+            movement,
+            range,
+            script,
+            hide_flag,
+            ..
+        } => {
+            let mut s = format!("object {local_id}: {gfx:?}, {movement:?}");
+            if *range != (0, 0) {
+                s += &format!(", range {}x{}", range.0, range.1);
+            }
+            if let Some(sc) = script {
+                s += &format!(", script {sc}");
+            }
+            if let Some(f) = hide_flag {
+                s += &format!(", hidden by flag {:#x}", f.0);
+            }
+            s
+        }
+        Overlay::Warp {
+            index,
+            dest_name,
+            dest_warp,
+            ..
+        } => format!("warp {index} -> {dest_name} #{dest_warp}"),
+        Overlay::Coord {
+            var, value, script, ..
+        } => format!("coord: var {:#x} == {value} -> {script}", var.0),
+        Overlay::Bg { kind, script, .. } => match kind {
+            BgKind::Script { facing, .. } => format!(
+                "bg: {} (facing {})",
+                script.unwrap_or("?"),
+                facing.map_or("any".to_string(), |d| format!("{d:?}"))
+            ),
+            BgKind::HiddenItem { item, flag } => {
+                format!("bg: hidden item {item} (flag {:#x})", flag.0)
+            }
+        },
+        Overlay::Connection {
+            dir, offset, name, ..
+        } => format!("connection {dir:?} (offset {offset}) -> {name}"),
+    }
+}
+
+/// The overlay's cell, or `None` for a connection (an edge, not a cell).
+pub fn overlay_cell(o: &Overlay) -> Option<(i16, i16)> {
+    match *o {
+        Overlay::Object { x, y, .. }
+        | Overlay::Warp { x, y, .. }
+        | Overlay::Coord { x, y, .. }
+        | Overlay::Bg { x, y, .. } => Some((x, y)),
+        Overlay::Connection { .. } => None,
+    }
+}
+
+/// The map cell under image pixel `(px, py)`, if it is one of the map's `cols x rows` cells.
+pub fn cell_at(px: f64, py: f64, margin: u16, cols: usize, rows: usize) -> Option<(i16, i16)> {
+    if px < 0.0 || py < 0.0 {
+        return None;
+    }
+    let x = (px as i64) / CELL as i64 - margin as i64;
+    let y = (py as i64) / CELL as i64 - margin as i64;
+    ((0..cols as i64).contains(&x) && (0..rows as i64).contains(&y)).then_some((x as i16, y as i16))
+}
+
+/// An SVG path covering the cells `keep` selects (one 16x16 square each).
+pub fn cells_path(cells: &[CellInfo], margin: u16, keep: impl Fn(&CellInfo) -> bool) -> String {
+    let mut d = String::new();
+    for c in cells.iter().filter(|c| keep(c)) {
+        let r = Rect::cell(c.x, c.y, margin);
+        d += &format!("M{} {}h16v16h-16z", r.x, r.y);
+    }
+    d
+}
+
+/// A short name for a behavior, `None` for `Normal` (not drawn).
+pub fn behavior_label(b: Behavior) -> Option<String> {
+    match b {
+        Behavior::Normal => None,
+        Behavior::Ledge(d) => Some(format!("ledge {d:?}")),
+        Behavior::ArrowWarp(d) => Some(format!("arrow warp {d:?}")),
+        other => Some(format!("{other:?}")),
+    }
+}
+
+/// A distinct color for the `i`-th of `n` groups.
+fn hue(i: usize, n: usize) -> String {
+    format!("hsl({}, 85%, 55%)", i * 360 / n.max(1))
+}
+
+/// Which cell layers to draw.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct CellLayers {
+    pub collision: bool,
+    pub elevation: bool,
+    pub behavior: bool,
+}
+
+/// The cell layers as SVG paths `(fill, d)`: the collision cells; one path per elevation; one
+/// per behavior other than `Normal`. Empty groups are left out.
+pub fn layer_paths(cells: &[CellInfo], margin: u16, on: CellLayers) -> Vec<(String, String)> {
+    let mut paths = Vec::new();
+    if on.collision {
+        paths.push((
+            "rgba(255,40,40,0.45)".to_string(),
+            cells_path(cells, margin, |c| c.collision != 0),
+        ));
+    }
+    if on.elevation {
+        for lvl in 0..16u8 {
+            paths.push((
+                hue(lvl as usize, 16),
+                cells_path(cells, margin, |c| c.elevation == lvl),
+            ));
+        }
+    }
+    if on.behavior {
+        let labels: std::collections::BTreeSet<String> = cells
+            .iter()
+            .filter_map(|c| behavior_label(c.behavior))
+            .collect();
+        for (i, label) in labels.iter().enumerate() {
+            let d = cells_path(cells, margin, |c| {
+                behavior_label(c.behavior).as_ref() == Some(label)
+            });
+            paths.push((hue(i, labels.len()), d));
+        }
+    }
+    paths.retain(|(_, d)| !d.is_empty());
+    paths
+}
+
+/// `width x height` RGBA8 (`rgba` holds at least `width * height * 4` bytes) as a PNG with
+/// fast compression.
+pub fn encode_png(width: usize, height: usize, rgba: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut enc = png::Encoder::new(&mut out, width as u32, height as u32);
+    enc.set_color(png::ColorType::Rgba);
+    enc.set_depth(png::BitDepth::Eight);
+    enc.set_compression(png::Compression::Fast);
+    // Writing to a Vec fails only on a size mismatch, which the slice below rules out.
+    let mut w = enc.write_header().expect("PNG header");
+    w.write_image_data(&rgba[..width * height * 4])
+        .expect("PNG data");
+    w.finish().expect("PNG end");
+    out
+}
+
+/// An overlay with where it is drawn and, for an object, its sprite.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Placed {
+    pub overlay: Overlay,
+    pub rect: Rect,
+    /// An object's sprite as PNG (the UI serves it at `/maps/<map>/<index>.png`).
+    pub sprite: Option<std::sync::Arc<Vec<u8>>>,
+}
+
+/// Everything the Map tab shows for one map.
+#[derive(Debug)]
+pub struct MapEntry {
+    pub map: MapId,
+    pub name: &'static str,
+    /// Map size in cells.
+    pub cols: usize,
+    pub rows: usize,
+    /// Image size in pixels (map plus [`VIEW_MARGIN`]).
+    pub width: usize,
+    pub height: usize,
+    pub png: std::sync::Arc<Vec<u8>>,
+    pub cells: Vec<CellInfo>,
+    pub placed: Vec<Placed>,
+}
+
+impl MapEntry {
+    /// Renders `map` with a [`VIEW_MARGIN`] margin (about 33 ms in a debug build) and places
+    /// its overlays.
+    pub fn build(game: &impl GameData, map: MapId) -> MapEntry {
+        use crate::frames::rgba_from_rgb555;
+        use crate::sprite::{initial_facing, object_sprite};
+        use std::sync::Arc;
+        let img = render_map(game, map, VIEW_MARGIN, &[]);
+        let mut rgba = vec![0; img.width * img.height * 4];
+        rgba_from_rgb555(&img.rgb555, &mut rgba);
+        let m = game.map(map);
+        let mg = VIEW_MARGIN as i32 * CELL;
+        let placed = overlays(game, map)
+            .into_iter()
+            .map(|o| {
+                let (rect, sprite) = match o {
+                    Overlay::Object {
+                        x,
+                        y,
+                        gfx,
+                        movement,
+                        ..
+                    } => {
+                        let s = object_sprite(game, gfx, initial_facing(movement));
+                        let (tx, ty) = s.top_left(x, y);
+                        let colors: Vec<u16> = s.pixels.iter().map(|p| p.unwrap_or(0)).collect();
+                        let mut px = vec![0; colors.len() * 4];
+                        rgba_from_rgb555(&colors, &mut px);
+                        for (p, o) in s.pixels.iter().zip(px.chunks_exact_mut(4)) {
+                            if p.is_none() {
+                                o[3] = 0;
+                            }
+                        }
+                        let rect = Rect {
+                            x: tx + mg,
+                            y: ty + mg,
+                            w: s.width as i32,
+                            h: s.height as i32,
+                        };
+                        (rect, Some(Arc::new(encode_png(s.width, s.height, &px))))
+                    }
+                    Overlay::Connection {
+                        dir, offset, map, ..
+                    } => {
+                        let d = game.map(map);
+                        let size = (m.width, m.height);
+                        let rect =
+                            connection_rect(dir, offset, size, (d.width, d.height), VIEW_MARGIN);
+                        (rect, None)
+                    }
+                    ref o => {
+                        let (x, y) = overlay_cell(o).unwrap_or_default();
+                        (Rect::cell(x, y, VIEW_MARGIN), None)
+                    }
+                };
+                Placed {
+                    overlay: o,
+                    rect,
+                    sprite,
+                }
+            })
+            .collect();
+        MapEntry {
+            map,
+            name: map_name(game, map),
+            cols: m.width as usize,
+            rows: m.height as usize,
+            width: img.width,
+            height: img.height,
+            png: Arc::new(encode_png(img.width, img.height, &rgba)),
+            cells: cells(game, map),
+            placed,
+        }
+    }
+
+    /// The cell at `(x, y)`, `None` outside the map.
+    pub fn cell(&self, (x, y): (i16, i16)) -> Option<&CellInfo> {
+        if x < 0 || y < 0 || x as usize >= self.cols || y as usize >= self.rows {
+            return None;
+        }
+        self.cells.get(y as usize * self.cols + x as usize)
+    }
+
+    /// The overlays on cell `at`.
+    pub fn events_at(&self, at: (i16, i16)) -> impl Iterator<Item = &Overlay> {
+        self.placed
+            .iter()
+            .map(|p| &p.overlay)
+            .filter(move |o| overlay_cell(o) == Some(at))
+    }
+}
+
+/// A `/maps` request of the Map tab.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MapRoute {
+    /// `/maps/<id>.png`: the map picture.
+    Image(MapId),
+    /// `/maps/<id>/<n>.png`: the sprite of overlay `n`.
+    Sprite(MapId, usize),
+}
+
+pub fn parse_map_request(path: &str) -> Option<MapRoute> {
+    let path = path.split('?').next()?;
+    let rest = path.strip_prefix("/maps/")?.strip_suffix(".png")?;
+    match rest.split_once('/') {
+        None => Some(MapRoute::Image(MapId(rest.parse().ok()?))),
+        Some((m, n)) => Some(MapRoute::Sprite(MapId(m.parse().ok()?), n.parse().ok()?)),
+    }
+}
