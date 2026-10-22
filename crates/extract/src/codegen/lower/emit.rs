@@ -456,6 +456,12 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("ctx.set_var({r}, {call} as u16).await;"));
             }
+            ("checkitemtype", [i]) => {
+                let Some(i) = u16_expr(i, true) else {
+                    return Ok(false);
+                };
+                out.push(format!("check_item_type(&ctx, {i}).await;"));
+            }
             ("applymovement", [id, Movement(m)]) => {
                 let (Some(id), Some(m)) = (local_id(id), self.movement_path(fx.module, m)) else {
                     return Ok(false);

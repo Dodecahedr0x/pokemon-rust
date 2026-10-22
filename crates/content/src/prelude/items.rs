@@ -6,28 +6,30 @@
 //!
 //! The std scripts print `gText_*` texts looked up by their decomp label ([`text_named`]); a
 //! build without them (the stub, an extract before the script IR) skips the message and raises
-//! `Report::Degraded`. Not modelled (no sound, no bag menu yet): the fanfares (`waitfanfare`
-//! becomes `waitmessage`, so the first message stays readable), Gen3's plural item names
+//! `Report::Degraded`. Not modelled (no sound, no bag menu yet): Gen3's plural item names
 //! (`bufferitemnameplural` prints the singular; reported for the Poké Balls and berries that
 //! have a plural), and `BufferTMHMMoveName` (a found TM reads as an item; reported).
+//!
+//! Visible difference: `waitfanfare` becomes `waitmessage`. Gen3 holds the "Obtained the …" /
+//! "… found one …" message until the fanfare ends (`sFanfares`: 160 frames for an item, 220 for
+//! a TM/HM, counted from `playfanfare`, before the message prints); here the next message
+//! follows as soon as the first is printed, so these scenes run shorter than Gen3's. Padding with
+//! `delay` would need the message's print time, which the script does not see; it waits for a
+//! sound model.
+//!
+//! Scratch vars: the std scripts' working copies (`VAR_0x8007` = the add or space result,
+//! `Std_FindItem`'s `VAR_0x8004`/`VAR_0x8005` = item and amount, `VAR_0x8008` = is a TM/HM) and
+//! `checkitemtype`'s intermediate `VAR_RESULT` (the pocket) are not written; only the final
+//! `VAR_RESULT` is. `POCKET_NONE` (`ITEM_NONE` or an item the table lacks): Gen3's
+//! `EventScript_BufferPocketNameAndTryFanfare` `switch` falls through to `end` and ends the
+//! whole script; here the pocket name is left as it was and the script goes on (the add has
+//! already failed; the host reported an unknown item).
+
+//! This module reads the build's tables only through `text_named` and `item_pocket` (in
+//! `prelude/mod.rs`), so the lowering's compile check can build it against stubs of those two.
 
 use super::*;
-use engine::data::{GameData, Pocket};
-
-/// The text with decomp label `name`, if this build has it. `data::TEXT_NAMES` is sorted (the
-/// build writes texts in key order).
-pub fn text_named(name: &str) -> Option<TextId> {
-    let i = crate::data::TEXT_NAMES.binary_search(&name).ok()?;
-    Some(TextId(i as u16))
-}
-
-/// The pocket of `item` in this build's item table (Gen3 `GetPocketByItemId`), `None` for
-/// `ITEM_NONE` and unknown items.
-pub fn item_pocket(item: u16) -> Option<Pocket> {
-    crate::Emerald::default()
-        .item(ItemId(item))
-        .map(|i| i.pocket)
-}
+use engine::data::Pocket;
 
 /// Gen3 `POCKET_*` (`include/constants/item.h`): 0 for none.
 pub const fn pocket_number(p: Option<Pocket>) -> u16 {

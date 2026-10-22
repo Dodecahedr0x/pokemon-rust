@@ -142,6 +142,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "removeitem",
     "checkitemspace",
     "checkitem",
+    "checkitemtype",
     "applymovement",
     "applymovementat",
     "waitmovement",

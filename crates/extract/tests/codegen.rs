@@ -1601,6 +1601,7 @@ mod lowering {
             i("removeitem", vec![v("VAR_0x8004"), Half(1)]),
             i("checkitemspace", vec![c("ITEM_POTION"), Half(2)]),
             i("checkitem", vec![c("ITEM_POTION"), v("VAR_0x8005")]),
+            i("checkitemtype", vec![v("VAR_0x8004")]),
             i(
                 "applymovement",
                 vec![c("LOCALID_PLAYER"), mv("N_Movement_Walk")],
@@ -1788,6 +1789,7 @@ mod lowering {
             "set_warp(&ctx, WarpSlot::Escape, MAP_DYNAMIC.0, Some(1), 3, 4).await;",
             "ctx.set_var(VAR_RESULT, ctx.item_add(ItemId(ITEM_POTION), 1).await as u16).await;",
             "ctx.set_var(VAR_RESULT, check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await as u16).await;",
+            "check_item_type(&ctx, ctx.var(VAR_0x8004).await).await;",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
             "ctx.move_obj(2, &N_Movement_Walk).await; // applymovementat",
             "ctx.remove_object(ctx.var(VAR_LAST_TALKED).await as u8).await;",
@@ -2059,6 +2061,10 @@ pub use items::*;
 pub use menu::*;
 pub use text::*;
 pub use trainer::*;
+
+// `content::prelude`'s lookups in the build's tables (Task H), which `items` uses.
+pub fn text_named(_: &str) -> Option<engine::data::TextId> { None }
+pub fn item_pocket(_: u16) -> Option<engine::data::Pocket> { None }
 
 
 "#;
