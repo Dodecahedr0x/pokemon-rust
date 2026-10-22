@@ -8,9 +8,9 @@
 
 use crate::native::{Inspector, NativeCmd};
 use crate::pane::RunMode;
+use crate::play_view::{reload_parent, rom_step};
 use crate::rom::RomCmd;
 use engine::Buttons;
-use game_native::trace::Parent;
 
 /// The speed of a held Tab.
 pub const HOLD_FAST: u8 = 8;
@@ -209,10 +209,7 @@ pub fn native_cmds(o: Outcome, status: &Inspector) -> Vec<NativeCmd> {
     out.extend(o.action.map(|a| match a {
         Action::Save => NativeCmd::Save,
         Action::Rewind => NativeCmd::Rewind,
-        Action::ReloadParent => match status.parent {
-            Parent::Checkpoint(id) => NativeCmd::Load(id),
-            Parent::NewGame => NativeCmd::NewGame,
-        },
+        Action::ReloadParent => reload_parent(status.parent),
         Action::Mode(m) => NativeCmd::Mode(m),
         Action::Step(n) => NativeCmd::Step(n),
     }));
@@ -230,9 +227,8 @@ pub fn rom_cmds(o: Outcome) -> Vec<RomCmd> {
         None | Some(Action::Save | Action::Rewind) => {}
         Some(Action::ReloadParent) => out.push(RomCmd::Reload),
         Some(Action::Mode(m)) => out.push(RomCmd::Mode(m)),
-        // As the Step button: pause, then run the pending frames (the native pane's `Step`
-        // pauses by itself).
-        Some(Action::Step(n)) => out.extend([RomCmd::Mode(RunMode::Pause), RomCmd::Step(n)]),
+        // As the Step button.
+        Some(Action::Step(n)) => out.extend(rom_step(n)),
     }
     out
 }
@@ -240,7 +236,7 @@ pub fn rom_cmds(o: Outcome) -> Vec<RomCmd> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game_native::trace::CheckpointId;
+    use game_native::trace::{CheckpointId, Parent};
 
     const NO: Mods = Mods {
         meta: false,

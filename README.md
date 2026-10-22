@@ -70,19 +70,22 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
 - `local/` (ignored): `play`'s personal saves (or `$PKR_CHECKPOINTS` when set), a store of its
   own layered over the committed tree. `play --load`, `--list` and F9 see both trees, and a
   save may start from a committed node; local ids start at `c10001`, and nothing `play` does
-  writes the committed tree. `cargo xtask checkpoints`, `cargo test` and parity only see the
-  committed tree.
+  writes the committed tree. `cargo test` and parity only see the committed tree, and so does
+  `cargo xtask checkpoints` except `list --local` and `verify --local`.
 
 `cargo xtask checkpoints [--root <dir>] <command>`:
-- `list`: the tree (id, frame, map, parent, label, last status)
-- `verify [--accept]`: replays every trace on the current build. A node is Valid when it reaches
+- `list [--local]`: the tree (id, frame, map, parent, label, last status). `--local` lists your
+  local store layered over the committed tree (or `--root`), as `play` and the studio see it.
+- `verify [--local | --accept]`: replays every trace on the current build. A node is Valid when it reaches
   the same state, Stale after a snapshot schema change, Diverged when this build reaches another
   state (with the first frame whose hash differs), Broken on a replay error or on a different
   state or hashes on the node's own build (nondeterminism). Fails unless every node is Valid;
   `--accept` re-baselines Diverged and Stale nodes, like the golden hashes, and still fails on
   Broken ones. A Valid node recorded on another build shows "valid (rehash)": `--accept` also
   refreshes its build, world hash and trace hashes, so the nondeterminism check covers the
-  current build.
+  current build. `--local` verifies the local store layered over the committed tree (a local
+  node may start from a committed one) and records the verdicts in the local `status.ron`; it
+  cannot be combined with `--accept`, since the committed tree is read-only there.
 - `seed`: records the parity route and writes its `route:<name>` nodes (replacing the earlier
   `route:` nodes, never others): `lab`, `after_wild`, `oldale_center`, `route103_after_may`
   (stub: `stub_start`, `stub_after_battle`, `stub_end`)
@@ -175,10 +178,12 @@ natively to native's, equal `game_native::flash::encode_sav` byte for byte, and 
 ROM that matches native for 300 frames (each restore point's map is checked: the lab, then
 Oldale's Pokémon Center). The ROM's costs are gated on the route: `World::hash` at
 most 65 scanlines (`hash_lines_max`, 63 measured) and the whole loop body at most 217 of the 228
-lines (`loop_lines_max`, 215 measured). The hash is buffered 256 bytes at a time and folded by
+lines (`loop_lines_max`, 214–215 measured). The hash is buffered 256 bytes at a time and folded by
 ARM code in IWRAM (`engine`'s `iwram` feature, enabled by `game-gba`), with the same bytes as the
 plain bytewise FNV-1a. If the line gates trip, re-measure and justify the cost; don't just bump
-the gates. Seeding (`cargo xtask checkpoints seed`, run by hand
+the gates. Parity then runs the studio ROM pane's `#[ignore]`d tests on the ROM it built
+(`cargo test -p studio --release --lib rom::tests:: -- --ignored`). Seeding
+(`cargo xtask checkpoints seed`, run by hand
 after an intended route or behaviour change, never by the tests) records the parity route and
 writes its named points as `route:<name>` nodes of the current flavor's tree, replacing earlier
 `route:` nodes. The committed checkpoint trees (`checkpoints/*/nodes`) hold inputs and hashes
@@ -210,7 +215,10 @@ two transport test-pattern panes, for `secs` seconds and fails if a test pattern
 50 fps, a play pane's thread died or it drew nothing, or the run outlives `secs` + 60 s (then it
 prints the output so far and a `sample` of the studio's threads). The play panes' rates are printed
 as `INFO` lines, since they publish only changed pictures. It needs a logged-in GUI session (not SSH or CI without a display); the
-window stays on top and takes focus while it runs.
+window stays on top and takes focus while it runs. The delivered rate depends on the machine's
+load (a load average of about 20 gave 35 fps), so a run that fails only the fps gate is retried
+once. One `ERROR dioxus_desktop::edits` line when the window closes is harmless (an edit batch
+the closing webview never acknowledged).
 
 ## Extract
 `cargo xtask extract` reads your French ROM into editable, git-ignored files.

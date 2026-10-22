@@ -8,11 +8,9 @@
 
 use content::Emerald;
 use engine::data::{GameData, MapId};
-use game_native::checkpoints::replayer;
 use game_native::store::{Index, Status, Store, StoreError};
 use game_native::trace::{CheckpointId, Parent};
 use std::collections::BTreeMap;
-use std::thread::JoinHandle;
 
 /// Where a node lives.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
@@ -49,6 +47,18 @@ pub struct TreeRow {
     /// The last verdict (`status.ron`), if any.
     pub status: Option<Status>,
     pub children: u32,
+}
+
+impl TreeRow {
+    /// The studio relabels local nodes only (the committed tree is read-only).
+    pub fn can_label(&self) -> bool {
+        self.origin == Origin::Local
+    }
+
+    /// The studio removes local nodes without children only.
+    pub fn can_remove(&self) -> bool {
+        self.can_label() && self.children == 0
+    }
 }
 
 /// The rows in display order: depth first from the new-game roots, siblings shared before
@@ -131,35 +141,10 @@ impl TreeModel {
     }
 }
 
-/// `Store::verify(replayer, accept = false)` on a thread: every node is replayed and the
-/// verdicts are merged into the store's own `status.ron`. Nothing else is written but the
-/// snapshot cache (never a node, never the base).
-pub fn verify_in_background(
-    store: Store,
-    game: Emerald,
-) -> JoinHandle<Result<Vec<(CheckpointId, Status)>, StoreError>> {
-    std::thread::Builder::new()
-        .name("verify".into())
-        .spawn(move || store.verify(replayer(&game), false))
-        .expect("spawn the verify thread")
-}
-
-/// Relabels a local node. A shared node is [`StoreError::ReadOnly`], a label in use
-/// [`StoreError::Label`].
-pub fn relabel(store: &Store, id: CheckpointId, label: &str) -> Result<(), StoreError> {
-    store.relabel(id, label)
-}
-
-/// Removes a local node without children. A shared node is [`StoreError::ReadOnly`], a node
-/// with children [`StoreError::HasChildren`].
-pub fn remove(store: &Store, id: CheckpointId) -> Result<(), StoreError> {
-    store.remove(id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game_native::checkpoints::seed;
+    use game_native::checkpoints::{replayer, seed};
     use game_native::scenario::cached_route;
     use game_native::trace::TraceRecorder;
     use std::path::PathBuf;
@@ -255,9 +240,9 @@ mod tests {
             model.row(r2).unwrap().status,
             Some(Status::Stale { schema: 1 })
         );
-        let verdicts = verify_in_background(store.clone(), Emerald::for_shells())
-            .join()
-            .unwrap()
+        // The studio's Verify (on a worker thread there).
+        let verdicts = store
+            .verify(replayer(&Emerald::for_shells()), false)
             .unwrap();
         assert_eq!(verdicts.len(), 4);
         assert!(
@@ -284,17 +269,27 @@ mod tests {
         let Some((base_root, local_root, store, [r1, r2, x, y])) = layered() else {
             return;
         };
-        assert_eq!(kind(relabel(&store, x, "y").unwrap_err()), "Label");
+        // What the view offers: label local nodes, remove local leaves.
+        let model = TreeModel::load(&store).unwrap();
+        let can = |id| {
+            let r = model.row(id).unwrap();
+            (r.can_label(), r.can_remove())
+        };
+        assert_eq!(
+            [r1, r2, x, y].map(can),
+            [(false, false), (false, false), (true, false), (true, true)]
+        );
+        assert_eq!(kind(store.relabel(x, "y").unwrap_err()), "Label");
         let r2_label = store.find(&r2.to_string()).unwrap().meta.label;
-        assert_eq!(kind(relabel(&store, x, &r2_label).unwrap_err()), "Label");
-        assert_eq!(kind(relabel(&store, r1, "mine").unwrap_err()), "ReadOnly");
-        relabel(&store, x, "x2").unwrap();
+        assert_eq!(kind(store.relabel(x, &r2_label).unwrap_err()), "Label");
+        assert_eq!(kind(store.relabel(r1, "mine").unwrap_err()), "ReadOnly");
+        store.relabel(x, "x2").unwrap();
         assert_eq!(TreeModel::load(&store).unwrap().row(x).unwrap().label, "x2");
-        assert_eq!(kind(remove(&store, x).unwrap_err()), "HasChildren");
-        assert_eq!(kind(remove(&store, r2).unwrap_err()), "ReadOnly");
-        remove(&store, y).unwrap();
-        remove(&store, x).unwrap();
-        assert_eq!(kind(remove(&store, x).unwrap_err()), "NotFound");
+        assert_eq!(kind(store.remove(x).unwrap_err()), "HasChildren");
+        assert_eq!(kind(store.remove(r2).unwrap_err()), "ReadOnly");
+        store.remove(y).unwrap();
+        store.remove(x).unwrap();
+        assert_eq!(kind(store.remove(x).unwrap_err()), "NotFound");
         assert_eq!(TreeModel::load(&store).unwrap().rows().len(), 2);
         std::fs::remove_dir_all(base_root).unwrap();
         std::fs::remove_dir_all(local_root).unwrap();
@@ -315,9 +310,9 @@ mod tests {
             println!("skipped: no committed nodes in {}", committed.display());
             return;
         }
-        let verdicts = verify_in_background(store.clone(), Emerald::for_shells())
-            .join()
-            .unwrap()
+        // The studio's Verify (on a worker thread there).
+        let verdicts = store
+            .verify(replayer(&Emerald::for_shells()), false)
             .unwrap();
         assert_eq!(verdicts.len(), ids.len());
         println!("{}: {} nodes valid", committed.display(), verdicts.len());
