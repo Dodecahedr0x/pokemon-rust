@@ -17,6 +17,7 @@ use game_native::checkpoints::Materializer;
 use game_native::store::Store;
 use game_native::trace::CheckpointId;
 use game_native::{SCREEN_H, SCREEN_W, Session};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -28,6 +29,8 @@ pub const TIMELINE_LEN: usize = 600;
 pub const BOOT_FRAMES: u32 = 600;
 /// Most frames one tick runs for pending `Step`s (the rest run on later ticks).
 pub const MAX_STEPS_PER_TICK: u32 = 16;
+/// Ticks between two probes of the ROM file on disk (about once a second).
+pub const PROBE_TICKS: u32 = 60;
 
 /// What the ROM boots on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,8 +147,8 @@ pub struct RomStatus {
     pub rom_build: Option<BuildHash>,
     pub native_build: BuildHash,
     pub run: RunMode,
-    /// The last `TIMELINE_LEN` emulator frames, newest last.
-    pub timeline: Vec<TimelineEntry>,
+    /// The last `TIMELINE_LEN` emulator frames, newest last (shared until it changes).
+    pub timeline: Arc<[TimelineEntry]>,
     pub shadow: Shadow,
     /// The node's replay diverged from its recorded digest (`Materialized::diverged`).
     pub diverged: bool,
@@ -164,7 +167,7 @@ impl Default for RomStatus {
             rom_build: None,
             native_build: BuildHash::default(),
             run: RunMode::Play,
-            timeline: Vec::new(),
+            timeline: Arc::default(),
             shadow: Shadow::Off,
             diverged: false,
             error: None,
@@ -234,8 +237,10 @@ pub struct RomPane {
     game: Emerald,
     native_build: BuildHash,
     emu: Option<Emu>,
-    /// The ROM file on disk, probed once per tick and on each reset (not per `status`).
+    /// The ROM file on disk, probed every [`PROBE_TICKS`] ticks and on each reset.
     rom_file: RomFile,
+    /// Ticks since the last probe.
+    since_probe: u32,
     /// The ROM file's mtime when `emu` was loaded.
     loaded: Option<SystemTime>,
     source: Option<RomSource>,
@@ -245,6 +250,8 @@ pub struct RomPane {
     pending: u32,
     emu_frame: u32,
     timeline: VecDeque<TimelineEntry>,
+    /// The timeline as `status` last returned it; `None` once it changed.
+    shared_timeline: RefCell<Option<Arc<[TimelineEntry]>>>,
     boot: Option<u32>,
     rom_build: Option<BuildHash>,
     diverged: bool,
@@ -267,6 +274,7 @@ impl RomPane {
         let game = Emerald::for_shells();
         RomPane {
             rom_file: RomFile::probe(&rom_path),
+            since_probe: 0,
             rom_path,
             scratch: scratch_dir,
             store,
@@ -282,6 +290,7 @@ impl RomPane {
             pending: 0,
             emu_frame: 0,
             timeline: VecDeque::with_capacity(TIMELINE_LEN),
+            shared_timeline: RefCell::new(None),
             boot: None,
             rom_build: None,
             diverged: false,
@@ -298,6 +307,7 @@ impl RomPane {
         self.shadow = None;
         self.shadow_state = Shadow::Off;
         self.timeline.clear();
+        self.shared_timeline.take();
         self.emu_frame = 0;
         self.boot = None;
         self.rom_build = None;
@@ -374,6 +384,7 @@ impl RomPane {
             self.timeline.pop_front();
         }
         self.timeline.push_back(e);
+        self.shared_timeline.take();
     }
 
     /// Steps the shadow over the frames the ROM ran since the last sample, on the keys the
@@ -473,7 +484,11 @@ impl Pane for RomPane {
             }
         };
         self.run_frames(n);
-        self.rom_file = RomFile::probe(&self.rom_path);
+        self.since_probe += 1;
+        if self.since_probe >= PROBE_TICKS {
+            self.since_probe = 0;
+            self.rom_file = RomFile::probe(&self.rom_path);
+        }
     }
 
     fn framebuffer(&mut self) -> &[u16] {
@@ -494,7 +509,9 @@ impl Pane for RomPane {
             rom_build: self.rom_build,
             native_build: self.native_build,
             run: self.run,
-            timeline: self.timeline.iter().copied().collect(),
+            timeline: (self.shared_timeline.borrow_mut())
+                .get_or_insert_with(|| self.timeline.iter().copied().collect())
+                .clone(),
             shadow: self.shadow_state,
             diverged: self.diverged,
             error: self.error.clone(),
@@ -620,6 +637,33 @@ mod tests {
         assert_eq!(t.len(), TIMELINE_LEN);
         assert_eq!(t[0].frame, 50);
         assert_eq!(t.last().unwrap().frame, TIMELINE_LEN as u32 + 49);
+        // Statuses share one copy until the timeline changes.
+        assert!(Arc::ptr_eq(&t, &p.status().timeline));
+        p.push(TimelineEntry::new(
+            0,
+            &snap(0, 1, BuildHash::default(), 0),
+            None,
+        ));
+        let t2 = p.status().timeline;
+        assert!(!Arc::ptr_eq(&t, &t2));
+        assert_eq!(t2.last().unwrap().frame, 0);
+    }
+
+    #[test]
+    fn the_rom_file_is_probed_about_once_a_second() {
+        let dir = temp("probe");
+        let rom = dir.join("game.gba");
+        let mut p = pane(rom.clone(), dir.join("studio"));
+        p.handle(RomCmd::Mode(RunMode::Pause));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(&rom, b"x").unwrap();
+        for _ in 1..PROBE_TICKS {
+            p.tick();
+        }
+        assert_eq!(p.status().rom, RomFile::Missing, "not probed yet");
+        p.tick();
+        assert!(matches!(p.status().rom, RomFile::Present { .. }));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
@@ -826,11 +870,24 @@ mod tests {
 
     #[test]
     #[ignore = "needs target/game.gba (cargo xtask rom)"]
-    /// Runs on the committed tree layered under a temp local root: the materializer caches
-    /// snapshots in the local root, which must not be the repo's.
+    /// Runs on the committed tree layered under a temp local root: the committed tree is never
+    /// written (a warm checkout reads its git-ignored snapshot cache and writes nothing).
     fn node_boots_restored_at_the_node_frame() {
         let (mut p, scratch) = rom_pane("rom-node");
-        let store_root = scratch.join("local");
+        // The committed tree's git-ignored files: names and modification times.
+        let base = Store::default_root(content::STUB);
+        let written = || {
+            let mut files: Vec<_> = std::fs::read_dir(base.join("snapshots"))
+                .into_iter()
+                .flatten()
+                .map(|e| e.unwrap().path())
+                .chain([base.join("status.ron")])
+                .filter_map(|f| Some((std::fs::metadata(&f).ok()?.modified().ok()?, f)))
+                .collect();
+            files.sort();
+            files
+        };
+        let before = written();
         let node = p.store.nodes().unwrap().into_iter().next().expect("a node");
         p.handle(RomCmd::Reset(RomSource::Node(node.meta.id)));
         let s = p.status();
@@ -849,10 +906,8 @@ mod tests {
         let s = p.status();
         assert_eq!(s.boot, Some(boot::RESTORED));
         assert_eq!(s.timeline.len(), 1);
-        assert!(
-            store_root.join("snapshots").is_dir(),
-            "the cache went to the copy"
-        );
-        std::fs::remove_dir_all(&scratch).unwrap();
+        assert_eq!(written(), before, "the committed tree was written");
+        // A warm checkout wrote nothing there either.
+        let _ = std::fs::remove_dir_all(&scratch);
     }
 }

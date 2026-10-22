@@ -8,7 +8,8 @@ pub struct StudioPaths {
     pub workspace: PathBuf,
     /// `target/game.gba`.
     pub rom: PathBuf,
-    /// `target/studio/` (settings.ron, exported .sav, logs).
+    /// `target/studio/`: the ROM pane's exported saves (`rom-<unix ms>.sav`) and a smoke run's
+    /// `smoke-sample.txt`.
     pub scratch: PathBuf,
     /// The committed tree: `Store::default_root(content::STUB)`.
     pub shared: PathBuf,
@@ -39,24 +40,22 @@ impl StudioPaths {
 /// What may be committed from a write location.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Committable {
-    /// Store `nodes/`: inputs, hashes, digests, `MapId`s and labels only (never ROM data).
-    /// The shared one is committed; the local one is git-ignored with the rest of its store.
+    /// The committed tree's `nodes/` (inputs, hashes, digests, `MapId`s and labels): written by
+    /// `cargo xtask checkpoints` only, never by the studio.
     NodesOnly,
     /// Git-ignored: may hold ROM-derived data (snapshots, statuses, renders, `.sav`).
     Never,
 }
 
-/// Every directory (or file) the studio may write to. Only `local`/`shared` `nodes/` hold
-/// committable files (inputs only); everything else is git-ignored.
+/// Every directory (or file) the studio may write to: the local store and the scratch dir, all
+/// git-ignored. The committed tree is the layered store's read-only base.
 pub fn write_locations(p: &StudioPaths) -> Vec<(PathBuf, Committable)> {
-    let mut v = Vec::new();
-    for store in [&p.shared, &p.local] {
-        v.push((store.join("nodes"), Committable::NodesOnly));
-        v.push((store.join("snapshots"), Committable::Never));
-        v.push((store.join("status.ron"), Committable::Never));
-    }
-    v.push((p.scratch.clone(), Committable::Never));
-    v
+    ["nodes", "snapshots", "status.ron"]
+        .map(|f| p.local.join(f))
+        .into_iter()
+        .chain([p.scratch.clone()])
+        .map(|d| (d, Committable::Never))
+        .collect()
 }
 
 #[cfg(test)]
@@ -91,24 +90,28 @@ mod tests {
         assert!(p.workspace.join("crates/studio").is_dir());
         assert_eq!(p.rom, p.workspace.join("target/game.gba"));
         assert!(p.scratch.starts_with(p.workspace.join("target")));
-        assert!(p.local.starts_with(&p.shared));
         if std::env::var_os("PKR_CHECKPOINTS").is_none() {
+            assert!(p.local.starts_with(&p.shared));
             let flavor = if content::STUB { "stub" } else { "emerald" };
             assert_eq!(p.shared, p.workspace.join("checkpoints").join(flavor));
         }
     }
 
     #[test]
-    fn only_nodes_dirs_are_committable() {
+    fn the_studio_writes_only_the_local_store_and_scratch() {
         let p = StudioPaths::detect();
         let w = write_locations(&p);
-        let nodes: Vec<_> = w
-            .iter()
-            .filter(|(_, c)| *c == Committable::NodesOnly)
-            .map(|(d, _)| d.clone())
-            .collect();
-        assert_eq!(nodes, [p.shared.join("nodes"), p.local.join("nodes")]);
-        assert!(w.iter().any(|(d, _)| *d == p.scratch));
+        assert!(w.iter().all(|(_, c)| *c == Committable::Never));
+        let dirs: Vec<_> = w.into_iter().map(|(d, _)| d).collect();
+        assert_eq!(
+            dirs,
+            [
+                p.local.join("nodes"),
+                p.local.join("snapshots"),
+                p.local.join("status.ron"),
+                p.scratch.clone(),
+            ]
+        );
     }
 
     #[test]
