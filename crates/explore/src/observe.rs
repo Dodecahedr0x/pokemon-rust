@@ -1,7 +1,6 @@
 //! Per-frame observer hooks: detectors plug into the expander through [`StepObserver`].
 
 use crate::model::FindingKind;
-use crate::probe::Probe;
 use engine::Buttons;
 use engine::data::GameData;
 use game_native::Session;
@@ -18,14 +17,14 @@ pub struct Flag {
 /// never changes the inputs, the steps or the tree.
 pub trait StepObserver<G: GameData> {
     /// After every stepped frame; `step_ns` is the host time of the step (report-only).
-    fn after_step(&mut self, s: &Session<Probe<G>>, keys: Buttons, step_ns: u64) -> Option<Flag>;
+    fn after_step(&mut self, s: &Session<G>, keys: Buttons, step_ns: u64) -> Option<Flag>;
 }
 
 /// Observes nothing.
 pub struct NoObserver;
 
 impl<G: GameData> StepObserver<G> for NoObserver {
-    fn after_step(&mut self, _: &Session<Probe<G>>, _: Buttons, _: u64) -> Option<Flag> {
+    fn after_step(&mut self, _: &Session<G>, _: Buttons, _: u64) -> Option<Flag> {
         None
     }
 }
@@ -39,7 +38,7 @@ mod tests {
     struct At(u32);
 
     impl<G: GameData> StepObserver<G> for At {
-        fn after_step(&mut self, s: &Session<Probe<G>>, _: Buttons, _: u64) -> Option<Flag> {
+        fn after_step(&mut self, s: &Session<G>, _: Buttons, _: u64) -> Option<Flag> {
             (s.world().frame() >= self.0).then(|| Flag {
                 kind: FindingKind::SlowFrame,
                 message: format!("frame {}", s.world().frame()),
@@ -49,7 +48,7 @@ mod tests {
 
     #[test]
     fn observers_are_object_safe_and_see_the_session() {
-        let mut s = Session::new(Probe::new(Emerald::for_shells()));
+        let mut s = Session::new(Emerald::for_shells());
         let start = s.world().frame();
         let mut obs: Vec<Box<dyn StepObserver<Emerald>>> =
             vec![Box::new(NoObserver), Box::new(At(start + 3))];

@@ -7,7 +7,6 @@ use explore::config::DetectConfig;
 use explore::detect::Detectors;
 use explore::findings::{kind_name, repro_trace, reproduce, signature, signature_of};
 use explore::observe::{Flag, StepObserver};
-use explore::probe::Probe;
 use explore::testing::{Drifting, FadeTrap};
 use explore::{FindingDraft, FindingKind};
 use game_native::Session;
@@ -24,7 +23,7 @@ fn quiet() -> DetectConfig {
     }
 }
 
-fn draft(kind: FindingKind, message: String, s: &Session<Probe<impl GameData>>) -> FindingDraft {
+fn draft(kind: FindingKind, message: String, s: &Session<impl GameData>) -> FindingDraft {
     FindingDraft {
         kind,
         message,
@@ -41,10 +40,10 @@ fn draft(kind: FindingKind, message: String, s: &Session<Probe<impl GameData>>) 
 /// Steps `s` with `drive`'s keys for at most `frames` frames, feeding `det`; the first flag,
 /// with every key stepped up to it (inclusive).
 fn run<G: GameData + Clone>(
-    s: &mut Session<Probe<G>>,
+    s: &mut Session<G>,
     det: &mut Detectors<G>,
     frames: u32,
-    mut drive: impl FnMut(&Session<Probe<G>>) -> Buttons,
+    mut drive: impl FnMut(&Session<G>) -> Buttons,
     keys: &mut Vec<Buttons>,
 ) -> Option<Flag> {
     for _ in 0..frames {
@@ -74,7 +73,7 @@ fn dir_keys(from: (i16, i16), to: (i16, i16)) -> Buttons {
 
 /// Walks to the stub's tall-grass column, then paces between the grass cell (12, 3) and
 /// (12, 4). In a battle it presses nothing.
-fn pace_grass<G: GameData>() -> impl FnMut(&Session<Probe<G>>) -> Buttons {
+fn pace_grass<G: GameData>() -> impl FnMut(&Session<G>) -> Buttons {
     let mut target = (12, 4);
     move |s| {
         let w = s.world();
@@ -100,7 +99,7 @@ fn drifting_game_breaks_the_round_trip_follow() {
         ..quiet()
     };
     let game = Drifting::new(Emerald::for_shells());
-    let mut s = Session::new(Probe::new(game.clone()));
+    let mut s = Session::new(game.clone());
     let mut det = Detectors::new(&cfg);
     let mut keys = Vec::new();
     let flag = run(&mut s, &mut det, 4000, pace_grass(), &mut keys).expect("a round-trip flag");
@@ -120,7 +119,7 @@ fn drifting_game_breaks_the_round_trip_follow() {
 
     // The same drive on the plain game: round trips, no flag.
     let game = Emerald::for_shells();
-    let mut s = Session::new(Probe::new(game));
+    let mut s = Session::new(game);
     let mut det = Detectors::new(&cfg);
     let n = keys.len() as u32;
     let flag = run(&mut s, &mut det, n, pace_grass(), &mut Vec::new());
@@ -136,7 +135,7 @@ fn route_raises_nothing_with_the_default_config() {
         slow_step_us: 0,
         ..DetectConfig::default()
     };
-    let mut s = Session::new(Probe::new(Emerald::for_shells()));
+    let mut s = Session::new(Emerald::for_shells());
     let mut det = Detectors::<Emerald>::new(&cfg);
     for (i, &k) in rec.keys[..n].iter().enumerate() {
         s.step(k);
@@ -184,7 +183,7 @@ fn fade_trap_is_capturable_stuck() {
         capturable_stuck: 120,
         ..quiet()
     };
-    let mut s = Session::new(Probe::new(game));
+    let mut s = Session::new(game);
     let mut det = Detectors::new(&cfg);
     let mut keys = Vec::new();
     // Settle the new game, then step onto the trap cell and let go.
@@ -262,7 +261,7 @@ fn slow_steps_are_flagged_and_never_reproduced() {
         slow_step_us: 5,
         ..quiet()
     };
-    let mut s = Session::new(Probe::new(Emerald::for_shells()));
+    let mut s = Session::new(Emerald::for_shells());
     let mut det = Detectors::<Emerald>::new(&cfg);
     s.step(Buttons::NONE);
     assert_eq!(det.after_step(&s, Buttons::NONE, 5_000), None);
@@ -279,7 +278,7 @@ fn slow_steps_are_flagged_and_never_reproduced() {
 
 #[test]
 fn signatures_ignore_digits_and_follow_location() {
-    let s = Session::new(Probe::new(Emerald::for_shells()));
+    let s = Session::new(Emerald::for_shells());
     let a = draft(
         FindingKind::CapturableStuck,
         "stuck for 601 frames: Moving(3)".into(),
@@ -310,7 +309,7 @@ fn signatures_ignore_digits_and_follow_location() {
     assert_ne!(signature(&p), signature(&q));
     assert_eq!(
         signature(&p),
-        signature_of(p.kind, &p.message, p.location.as_deref(), p.map)
+        signature_of(p.kind, &p.message, p.location.as_deref(), p.map, p.script)
     );
     assert_eq!(kind_name(FindingKind::RoundTrip), "round_trip");
 }
@@ -323,7 +322,7 @@ fn a_load_mid_run_is_a_discontinuity_not_a_round_trip_break() {
         capturable_stuck: 600,
         ..quiet()
     };
-    let mut s = Session::new(Probe::new(Emerald::for_shells()));
+    let mut s = Session::new(Emerald::for_shells());
     let early = (0..600)
         .find_map(|_| {
             s.step(Buttons::NONE);

@@ -16,7 +16,6 @@ use crate::config::DetectConfig;
 use crate::guard::{self, Panicked};
 use crate::model::FindingKind;
 use crate::observe::{Flag, StepObserver};
-use crate::probe::Probe;
 use engine::Buttons;
 use engine::checkpoint::{NotCapturable, decode, encode};
 use engine::data::GameData;
@@ -54,7 +53,7 @@ impl<G: GameData + Clone> Detectors<G> {
     }
 
     /// Steps the shadow with `keys` and compares it with the live world.
-    fn follow(&mut self, s: &Session<Probe<G>>, keys: Buttons) -> Option<Flag> {
+    fn follow(&mut self, s: &Session<G>, keys: Buttons) -> Option<Flag> {
         let (shadow, left) = self.shadow.as_mut()?;
         let since = self.cfg.follow - *left + 1;
         let flag = match guard::catch(|| shadow.step(keys)) {
@@ -84,7 +83,7 @@ impl<G: GameData + Clone> Detectors<G> {
 
     /// The round trip of a capturable frame, all of it under the guard; keeps a shadow when
     /// `follow > 0`.
-    fn round_trip(&mut self, s: &Session<Probe<G>>) -> Option<Flag> {
+    fn round_trip(&mut self, s: &Session<G>) -> Option<Flag> {
         self.round_trips += 1;
         let r = guard::catch(|| -> Result<Session<G>, String> {
             let cp = s
@@ -95,7 +94,7 @@ impl<G: GameData + Clone> Detectors<G> {
             if back != cp {
                 return Err("checkpoint changed by encode/decode".into());
             }
-            let restored = Session::restore(s.game().inner().clone(), &back)
+            let restored = Session::restore(s.game().clone(), &back)
                 .map_err(|e| format!("restore failed: {e:?}"))?;
             let (want, got) = (s.world().hash(), restored.world().hash());
             if want != got {
@@ -124,12 +123,7 @@ impl<G: GameData + Clone> Detectors<G> {
     /// A frame that does not follow the last one observed (a `Session::load`, or another
     /// session) is a discontinuity: the shadow is dropped and the schedule restarts as for a new
     /// instance.
-    pub fn after_step_all(
-        &mut self,
-        s: &Session<Probe<G>>,
-        keys: Buttons,
-        step_ns: u64,
-    ) -> Vec<Flag> {
+    pub fn after_step_all(&mut self, s: &Session<G>, keys: Buttons, step_ns: u64) -> Vec<Flag> {
         let frame = s.world().frame();
         if self
             .last_frame
@@ -169,7 +163,7 @@ impl<G: GameData + Clone> Detectors<G> {
     /// Counts idle-but-not-capturable frames.
     fn stuck(
         &mut self,
-        s: &Session<Probe<G>>,
+        s: &Session<G>,
         keys: Buttons,
         capturable: Result<(), NotCapturable>,
     ) -> Option<Flag> {
@@ -203,7 +197,7 @@ impl<G: GameData + Clone> Detectors<G> {
 
 impl<G: GameData + Clone> StepObserver<G> for Detectors<G> {
     /// The first of [`Detectors::after_step_all`].
-    fn after_step(&mut self, s: &Session<Probe<G>>, keys: Buttons, step_ns: u64) -> Option<Flag> {
+    fn after_step(&mut self, s: &Session<G>, keys: Buttons, step_ns: u64) -> Option<Flag> {
         self.after_step_all(s, keys, step_ns).into_iter().next()
     }
 }

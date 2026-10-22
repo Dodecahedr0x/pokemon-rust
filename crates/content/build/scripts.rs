@@ -7,7 +7,7 @@
 use crate::codegen::ident_ok;
 use crate::input::{World, warn};
 use anyhow::{Context, Result, bail, ensure};
-use extract::codegen::{Class, Support};
+use extract::codegen::Support;
 use extract::schema::{BgKind, MapFile};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -23,16 +23,17 @@ pub struct ScriptsOut {
     pub report: String,
 }
 
-/// The committed support tables (`build/support/{commands,specials}.ron`).
+/// The committed support tables (`build/support/{commands,specials,movements}.ron`).
 pub fn support(build_dir: &Path) -> Result<Support> {
-    let read = |name: &str| -> Result<BTreeMap<String, Class>> {
+    let read = |name: &str| -> Result<String> {
         let path = build_dir.join("support").join(name);
-        extract::export::read_ron(&path).with_context(|| format!("reading {}", path.display()))
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))
     };
-    Ok(Support {
-        commands: read("commands.ron")?,
-        specials: read("specials.ron")?,
-    })
+    Support::parse(
+        &read("commands.ron")?,
+        Some(&read("specials.ron")?),
+        Some(&read("movements.ron")?),
+    )
 }
 
 /// The scripts of `w` (`dir`: the extracted dir, `None` for the stub; `out`: `$OUT_DIR`, where

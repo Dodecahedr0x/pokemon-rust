@@ -253,3 +253,31 @@ fn may_normal_uses_may_palette() {
         assert_eq!(g.palette.to_vec(), pal, "{name}");
     }
 }
+
+#[test]
+fn emote_pics_match_decomp() {
+    let d = fixtures::decomp();
+    let npc1 = jasc_to_bgr555(&d.join("graphics/object_events/palettes/npc_1.pal"));
+    let files = ["emotion_exclamation", "emotion_question", "emotion_heart"];
+    let mut us_tiles = Vec::new();
+    for (name, rom) in roms() {
+        let e = extract::sprites::locate_emotes(&rom).unwrap();
+        let names: Vec<&str> = e.pics.iter().map(|p| p.name).collect();
+        assert_eq!(names, extract::sprites::EMOTES, "{name}");
+        for (p, file) in e.pics.iter().zip(files) {
+            assert_eq!((p.width, p.height), (16, 16), "{name} {file}");
+            if name == "US" {
+                let png = d.join(format!("graphics/field_effects/pics/{file}.png"));
+                assert_eq!(p.tiles, png_to_4bpp(&png, 16, 16), "{file}");
+            }
+        }
+        let table = locate_object_graphics(&rom).unwrap();
+        assert_eq!(e.palette(&rom, &table).unwrap().to_vec(), npc1, "{name}");
+        let tiles: Vec<Vec<u8>> = e.pics.iter().map(|p| p.tiles.clone()).collect();
+        if us_tiles.is_empty() {
+            us_tiles = tiles;
+        } else {
+            assert_eq!(tiles, us_tiles, "{name}: same pics as US");
+        }
+    }
+}

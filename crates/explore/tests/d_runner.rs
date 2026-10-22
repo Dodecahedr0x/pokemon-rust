@@ -78,7 +78,6 @@ impl Evaluate for FakeEval {
         let first = self.seen.insert(i64::from(x));
         Evaluation {
             key: AbstractKey(x as u64),
-            region: x as u64 / 4,
             progress: parent.map_or(0, |p| p.progress),
             fitness: Fitness {
                 novelty: i64::from(first) * 50,
@@ -138,6 +137,7 @@ fn fake_sim(job: &Job) -> JobResult {
         probe_frames: 0,
         slow_frames: 0,
         notes: Vec::new(),
+        reports: Vec::new(),
     }
 }
 
@@ -331,12 +331,16 @@ fn the_default_batch_gives_identical_deltas_on_one_and_eight_threads() {
 #[test]
 fn from_rows_of_the_merge_output_equals_the_graph() {
     let (r, deltas, _) = run(3, 10, None);
-    // The applied rows alone rebuild the graph, key hits included.
-    let g = Graph::from_rows(applied(&deltas));
+    // The applied rows and key hits (the `key_hit` table) rebuild the graph.
+    let hits: Vec<(AbstractKey, u32)> = deltas.iter().flat_map(|d| d.key_hits.clone()).collect();
+    assert!(!hits.is_empty(), "duplicates count key hits without rows");
+    let mut g = Graph::from_rows(applied(&deltas));
+    g.add_key_hits(&hits);
     assert_eq!(g, r.graph);
     assert!(r.graph.nodes().any(|n| r.graph.key_hits(n.key) > 0));
-    // A runner resumed from the rows alone plans and merges what a straight one does.
+    // A runner resumed from them plans and merges what a straight one does.
     let mut resumed = Runner::new(cfg(3), applied(&deltas), r.generation);
+    resumed.graph.add_key_hits(&hits);
     let mut straight = r;
     let (mut ea, mut eb) = (FakeEval::default(), FakeEval::default());
     for d in &deltas {
@@ -388,6 +392,7 @@ fn rooted() -> (Runner, FakeEval) {
         probe_frames: 0,
         slow_frames: 0,
         notes: Vec::new(),
+        reports: Vec::new(),
     };
     r.merge(vec![root], &mut eval);
     (r, eval)
@@ -402,6 +407,7 @@ fn job(index: u32, parent: NodeId, steps: Vec<StepResult>, stop: Option<Stop>) -
         probe_frames: 0,
         slow_frames: 0,
         notes: Vec::new(),
+        reports: Vec::new(),
     }
 }
 
@@ -414,11 +420,13 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.best(AbstractKey(5)), Some(2));
     assert_eq!(d.expanded, [(1, 1)]);
 
-    // More frames: a duplicate, no row, so no key hit (hits count rows).
+    // More frames: a duplicate, no row, but a key hit (Milestone 8 Task K: the `key_hit`
+    // table counts every duplicate, not only the merged rows).
     let d = r.merge(vec![job(0, 1, vec![step(11, 5, 80)], None)], &mut eval);
     assert!(d.nodes.is_empty());
     assert_eq!(d.stats.duplicates, 1);
-    assert_eq!(r.graph.key_hits(AbstractKey(5)), 0);
+    assert_eq!(d.key_hits, [(AbstractKey(5), 1)]);
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
     assert_eq!(r.graph.best(AbstractKey(5)), Some(2));
     // Its cells are attributed to the live node.
     assert_eq!(d.cells, [(MapId(1), 5, 0, 2)]);
@@ -426,6 +434,7 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     // Equal frames: still a duplicate.
     let d = r.merge(vec![job(0, 1, vec![step(12, 5, 50)], None)], &mut eval);
     assert!(d.nodes.is_empty());
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 2);
 
     // Fewer frames: a new live node, the old one merged into it.
     let d = r.merge(vec![job(0, 1, vec![step(13, 5, 20)], None)], &mut eval);
@@ -436,7 +445,8 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.best(AbstractKey(5)), Some(3));
     let old = r.graph.node(2).unwrap();
     assert_eq!((old.status, old.merged_into), (NodeStatus::Merged, Some(3)));
-    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
+    // Two duplicates and the superseded row.
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 3);
     assert_eq!(r.graph.frontier().map(|n| n.id).collect::<Vec<_>>(), [1, 3]);
     assert_eq!(r.graph.node(1).unwrap().expanded, 4);
 }
@@ -523,6 +533,95 @@ fn steps_after_a_duplicate_replay_from_its_real_end_state() {
     assert_eq!(d.nodes[0].key, AbstractKey(7));
 }
 
+/// The root (node 1), node 2 on key 5 and node 3 on key 6, both 10 frames below the root.
+fn two_keys() -> (Runner, FakeEval) {
+    let (mut r, mut eval) = rooted();
+    r.merge(
+        vec![
+            job(0, 1, vec![step(30, 5, 10)], None),
+            job(1, 1, vec![step(40, 6, 10)], None),
+        ],
+        &mut eval,
+    );
+    assert_eq!(r.graph.best(AbstractKey(6)), Some(3));
+    (r, eval)
+}
+
+#[test]
+fn held_duplicates_with_nothing_inserted_below_leave_only_key_hits() {
+    let (mut r, mut eval) = two_keys();
+    // Key 5 again (another state, a step follows: held), then key 6 again as the last step.
+    let d = r.merge(
+        vec![job(0, 1, vec![step(31, 5, 40), step(41, 6, 40)], None)],
+        &mut eval,
+    );
+    assert!(d.nodes.is_empty());
+    assert_eq!(d.stats.duplicates, 2);
+    assert_eq!(d.key_hits, [(AbstractKey(5), 1), (AbstractKey(6), 1)]);
+    assert_eq!(
+        (
+            r.graph.key_hits(AbstractKey(5)),
+            r.graph.key_hits(AbstractKey(6))
+        ),
+        (1, 1)
+    );
+    // Their cells are credited to the live nodes.
+    assert_eq!(d.cells, [(MapId(1), 5, 0, 2), (MapId(1), 6, 0, 3)]);
+}
+
+#[test]
+fn chained_held_duplicates_are_written_parents_first_below_an_inserted_step() {
+    let (mut r, mut eval) = two_keys();
+    let d = r.merge(
+        vec![job(
+            0,
+            1,
+            vec![step(32, 5, 40), step(42, 6, 40), step(50, 8, 10)],
+            None,
+        )],
+        &mut eval,
+    );
+    let rows: Vec<_> = d
+        .nodes
+        .iter()
+        .map(|n| (n.id, n.parent, n.key.0, n.status, n.merged_into))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (4, Some(1), 5, NodeStatus::Merged, Some(2)),
+            (5, Some(4), 6, NodeStatus::Merged, Some(3)),
+            (6, Some(5), 8, NodeStatus::Valid, None),
+        ]
+    );
+    assert_eq!(d.nodes[2].total_frames, 100 + 40 + 40 + 10);
+    // Written rows count as rows, not as `key_hit`s.
+    assert!(d.key_hits.is_empty());
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
+}
+
+#[test]
+fn a_held_duplicate_bypassed_by_an_equal_state_counts_a_key_hit() {
+    let (mut r, mut eval) = two_keys();
+    // Held on key 5, then node 3's own state (tag 40, key 6: equal digest) chains from node 3,
+    // so the held step is never needed as a parent.
+    let d = r.merge(
+        vec![job(
+            0,
+            1,
+            vec![step(33, 5, 40), step(40, 6, 10), step(51, 9, 10)],
+            None,
+        )],
+        &mut eval,
+    );
+    assert_eq!(d.nodes.len(), 1);
+    assert_eq!(
+        (d.nodes[0].parent, d.nodes[0].key),
+        (Some(3), AbstractKey(9))
+    );
+    assert_eq!(d.key_hits, [(AbstractKey(5), 1), (AbstractKey(6), 1)]);
+}
+
 #[test]
 fn findings_attach_to_the_node_their_tail_starts_from() {
     let (mut r, mut eval) = rooted();
@@ -563,6 +662,7 @@ fn findings_attach_to_the_node_their_tail_starts_from() {
             probe_frames: 0,
             slow_frames: 0,
             notes: Vec::new(),
+            reports: Vec::new(),
         }],
         &mut eval,
     );
@@ -659,7 +759,6 @@ fn row(id: NodeId, parent: Option<NodeId>, total: i64, generation: u32) -> NodeR
         total_frames: 0,
         end_frame: 0,
         key: AbstractKey(id as u64),
-        region: 0,
         digest: id as u64,
         world_hash: 0,
         map: MapId(1),

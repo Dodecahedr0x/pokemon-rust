@@ -729,6 +729,26 @@ impl Store {
         self.write_node(&node)
     }
 
+    /// Moves node `id` under `parent` (`cargo xtask checkpoints promote`: a local child of a
+    /// promoted node). The trace is kept, so the new parent must hold the old parent's state
+    /// (the caller checks it); the new parent must exist at the trace's start frame. Refuses a
+    /// base node ([`StoreError::ReadOnly`]). The node file is rewritten atomically.
+    pub fn reparent(&self, id: CheckpointId, parent: CheckpointId) -> Result<(), StoreError> {
+        if self.is_base(id) {
+            return Err(StoreError::ReadOnly(id));
+        }
+        let mut node = self.read_node(id)?;
+        let p = self.read_node(parent)?;
+        if p.meta.frame != node.trace.start_frame {
+            return Err(StoreError::Invalid(format!(
+                "{id} starts at frame {}, {parent} is at frame {}",
+                node.trace.start_frame, p.meta.frame
+            )));
+        }
+        node.trace.parent = Parent::Checkpoint(parent);
+        self.write_node(&node)
+    }
+
     /// Refuses a node with children, and a base node. Also drops its cached snapshot and its
     /// `status.ron` entry. Parents are not checked, so a broken tree can be repaired.
     pub fn remove(&self, id: CheckpointId) -> Result<(), StoreError> {
