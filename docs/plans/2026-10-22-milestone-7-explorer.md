@@ -1535,3 +1535,60 @@ The bin exits with `cli::exit_code`; xtask is unchanged (`cargo xtask explore` a
 - `Db::open_read_only` works while `explore run` writes (WAL). Read `DbStats`, `findings()` (`status` `open`/`stale`/`gone`, sort by hits) and `coverage(Some(map))`. The CLI's coverage grid shows the bucket rule (1, 2–9, 10–99, 100+).
 - The explorer process: `cargo run -p explore --release -- run --secs N --db P`. Its stdout prints a line every 10 generations, and `--threads` and `--seed` are flags. A db keeps its own seed after creation.
 - Goal names: `goals::name(progress - 1)`; `DbStats::max_progress` counts broken nodes out.
+
+## Task S1 as built
+**Deviations from the S1 text (adopted from the M6 close-out review):**
+- **`OpenTrace` reuses M6's seek path.** There is no second replay loop. `game_native::checkpoints::SeekStart::from_trace(trace, frames)` is a new constructor: base `None`, `from` 0, parent `NewGame`, `recorded = trace.hashes`, `frames` clamped to the trace, and `id = CheckpointId(0)` (used only in error messages). `SeekStart::run` then gives the prefix recorder with real hashes and recorded-hash divergence for free. `TraceRecorder::from_prefix` is not called directly; with `from` 0, `run` records every frame itself.
+- **Coverage is not an `Overlay` variant.** `Overlay` holds per-event marks baked into the cached `MapEntry`, so coverage is a per-cell layer next to `CellLayers`/`layer_paths` instead: `map_view::coverage_paths(&CoverageGrid, margin) -> Vec<(class, d)>`. It is fetched live, outside `MapCache`.
+- **`finding_trace` returns the full trace.** It calls `wire::finding_trace(.., before = 0)` and returns `frames = trace.frames() - before`, clamped. The pane stops at that frame itself, so the trace is replayed once there and once in the pane, instead of a third prefix replay.
+
+**API (`crates/studio`):**
+- **`paths.rs`:** `StudioPaths::explore_db` is a field equal to `explore::db::Db::default_path(content::STUB)`. `write_locations` is unchanged, because the studio never writes the db.
+- **`explorer.rs`:**
+  - `OPEN_BEFORE = 120`.
+  - `ExplorerModel { stats: DbStats, findings: Vec<FindingRow> }`. `ExplorerModel::load(path)` opens the db read-only. A missing file is an error ("no explorer db at …") and is never created. `goals()` returns the names reached (`goals::name` over `0..max_progress`).
+  - `sort_findings` orders findings open first, then by hits descending, then by id.
+  - `open(path) -> Db` opens read-only.
+  - `CoverageGrid { w, h, hits }`:
+    - `from_rows` drops cells outside the map and adds duplicates with saturation;
+    - `load(path, game, map)` sizes the grid to `game.map(map)`;
+    - `get`, `rows()` (non-zero cells, row-major), `visited()`.
+  - `finding_trace(db, id, before) -> (Trace, u32)` uses `content::Emerald::for_shells()`.
+  - `RunArgs { budget: Budget, threads, seed, db }::to_args()` produces `run --secs N [--threads N] [--seed S] --db P`, with the matching flag for each budget kind.
+  - `ExplorerProc`:
+    - `start(args, log)` runs `$CARGO` (falling back to `cargo`) as `run -p explore --release -- <args>` in the workspace;
+    - `spawn(Command, log)` sets stdin to null and sends stdout and stderr to `log`, which is truncated and has its directory created;
+    - `log()`, `running()`, `exit_status()`, and `stop()`, which kills and reaps;
+    - `Drop` calls `stop`.
+    - `cargo run` execs the program on Unix, so once the build finishes the child is the explorer itself. A kill loses at most the generation in flight and the `run` row.
+- **`native.rs`:**
+  - `NativeCmd::OpenTrace { trace, frames }` and `EventKind::OpenedTrace(frames)`.
+  - `pub fn open_trace(game, &trace, frames) -> Result<Seeked<G>, String>` refuses a parent other than `NewGame`, then runs `SeekStart::from_trace(..).run(game)` inside `explore::guard::catch`. A panicking finding is therefore an error note, not a dead pane thread.
+  - The pane runs the replay on its own thread, never under the `Materializer` lock, then calls `Controls::from_seek`. A divergence shows in `last` ("diverged on this build"). Saving from there gives a local node with a `NewGame` parent.
+- **`map_view.rs`:** `heat_bucket(hits)` maps 0 to 0, and 1, 2–9, 10–99 and 100+ to 1–4, the CLI's rule. `HEAT_CLASSES = ["heat-1".."heat-4"]`. `coverage_paths(grid, margin)` returns one path per non-empty bucket, coolest first.
+
+**Shared-file edits:**
+- `crates/game-native/src/checkpoints.rs`: `SeekStart::from_trace`, additive.
+- `crates/game-native/tests/seek.rs`: `a_trace_seeks_from_a_new_game` checks the frame and hash against a straight replay, the clamp, and divergence on a bent hash.
+- `crates/studio/src/play_view.rs`: one `event_text` arm for `OpenedTrace`.
+- `crates/studio/Cargo.toml`: `explore.workspace = true`, plus a dev-dependency `explore` with the `testing` feature.
+- `Cargo.lock`: one line (`"explore"` in studio's dependencies). Dioxus is not re-resolved.
+- No change to `explore`.
+
+**Tests:**
+- Unit tests in `explorer.rs`: the findings order, the grid round trip and its bounds, `RunArgs`, a missing db, and `ExplorerProc` on `sleep` (stop, kill on drop with the pid reaped, the log captures both streams).
+- `crates/studio/tests/explorer.rs`, which uses temp dirs only:
+  - **The model while the writer is open:** stats equal `Explore::stats`, findings are sorted, and coverage grids match the db rows for every map. The visited cells add up to `DbStats::cells`. The stub run uses `WallAround` (one `Softlock`); the real run is plain, 4 generations.
+  - **A stub finding** (`FadeTrap` 6+ steps from the start, 20 generations, a `CapturableStuck`): `finding_trace` at `OPEN_BEFORE` gives `total_frame - 120`; the clamp and a missing id are checked. `OpenTrace` at that frame and at mid-trace lands on the frame with the straight replay's hash, a `NewGame` parent and the `OpenedTrace` event. A save is a valid node whose trace starts with the opened prefix.
+  - **A node's lineage**, in both flavors: open at `frames - 120` and save; a request past the end is clamped; another parent is refused and the session kept; a bent hash is reported as diverged.
+  - A `PanicOnScript(NEW_GAME_SCRIPT)` replay is an `Err` (stub).
+  - The coverage buckets and paths.
+
+**Gates:** fmt; both clippy runs (`-D warnings`); `cargo test --workspace` real and stub (61 suites, all ok); `cargo test -p studio --features ui`; `cargo xtask studio --check`.
+
+**Notes for S2 (UI):**
+- Poll `ExplorerModel::load(&paths.explore_db)` off the UI thread every 2 s. Show the error text when there is no db yet.
+- Use `RunArgs::to_args()` for `ExplorerProc::start`. Put the log under `paths.scratch` (for example `target/studio/explore.log`), and show its tail when `exit_status()` is an error, such as a build failure. Keep the `ExplorerProc` in the app state; dropping it kills the run.
+- For "Open at frame before", call `explorer::finding_trace(&explorer::open(path)?, id, before)` off the UI thread, then send `NativeCmd::OpenTrace { trace, frames }` and focus the native pane. A failure appears in `Inspector::last` ("open trace failed: …").
+- For the coverage toggle, call `CoverageGrid::load(path, &game, shown_map)`, then `coverage_paths(&grid, VIEW_MARGIN)`. Add CSS for `.heat-1`–`.heat-4` and grow `ui/map.rs`'s `LAYERS` from 8 to 9. Never cache it in `MapCache`.
+- For "Export repro", run `cargo run -p explore --release -- export <id> --db P`, or call `wire::finding_trace` and write the RON yourself under `target/explore/…/repro/`.

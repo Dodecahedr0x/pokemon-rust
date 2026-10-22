@@ -558,6 +558,23 @@ pub struct Seeked<G: GameData> {
 }
 
 impl SeekStart {
+    /// A NewGame `trace`'s state after `frames` frames (clamped to it), from a new game: base
+    /// `None`, `from` 0, the trace's own hashes as the recorded ones (divergence detection). It
+    /// belongs to no node: `id` is `CheckpointId(0)`, which only names it in errors. Used for
+    /// traces that are not store nodes (explorer findings, `studio` `NativeCmd::OpenTrace`).
+    pub fn from_trace(trace: Trace, frames: u32) -> SeekStart {
+        SeekStart {
+            id: CheckpointId(0),
+            parent: Parent::NewGame,
+            recorded: trace.hashes.clone(),
+            frames: frames.min(trace.frames()),
+            trace,
+            from: 0,
+            base: None,
+            parent_diverged: false,
+        }
+    }
+
     /// Restores `base` (or starts a new game) and steps a `Session` up to `frames`.
     pub fn run<G: GameData>(self, game: G) -> Result<Seeked<G>, String> {
         let id = self.id;

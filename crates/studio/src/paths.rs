@@ -14,6 +14,10 @@ pub struct StudioPaths {
     pub shared: PathBuf,
     /// The personal, git-ignored store: `<shared>/local`.
     pub local: PathBuf,
+    /// The explorer's db (M7 Wave 2b): `explore::db::Db::default_path(content::STUB)`, i.e.
+    /// `target/explore/{stub|emerald}/explore.db`. The studio only reads it; the `explore`
+    /// process it starts writes it.
+    pub explore_db: PathBuf,
 }
 
 impl StudioPaths {
@@ -32,6 +36,7 @@ impl StudioPaths {
             workspace,
             shared,
             local,
+            explore_db: explore::db::Db::default_path(content::STUB),
         }
     }
 }
@@ -96,6 +101,14 @@ mod tests {
             let flavor = if content::STUB { "stub" } else { "emerald" };
             assert_eq!(p.shared, p.workspace.join("checkpoints").join(flavor));
         }
+    }
+
+    #[test]
+    fn the_explore_db_is_under_target_explore() {
+        let p = StudioPaths::detect();
+        let flavor = if content::STUB { "stub" } else { "emerald" };
+        let want = p.workspace.join("target/explore").join(flavor);
+        assert_eq!(p.explore_db, want.join("explore.db"));
     }
 
     #[test]

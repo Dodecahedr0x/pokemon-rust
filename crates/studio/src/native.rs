@@ -10,10 +10,10 @@ use crate::pane::{Pane, RunMode};
 use engine::checkpoint::NotCapturable;
 use engine::data::{GameData, MapId};
 use engine::{Buttons, World};
-use game_native::checkpoints::{Materializer, SeekPrep, add_save};
+use game_native::checkpoints::{Materializer, SeekPrep, SeekStart, Seeked, add_save};
 use game_native::controls::{Controls, SaveRequest};
 use game_native::store::Store;
-use game_native::trace::{CheckpointId, Parent};
+use game_native::trace::{CheckpointId, Parent, Trace};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -39,6 +39,13 @@ pub enum NativeCmd {
         frames: u32,
     },
     NewGame,
+    /// A NewGame trace's state after `frames` frames (clamped to it), e.g. an explorer
+    /// finding (`explorer::finding_trace`). Recording goes on from there with a NewGame
+    /// parent, so a save makes a local node whose parent is the new game (M6 decision 7).
+    OpenTrace {
+        trace: Trace,
+        frames: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,6 +69,8 @@ pub enum EventKind {
     /// Frames rewound.
     Rewound(u32),
     NewGame,
+    /// A NewGame trace opened `frames` frames in (`NativeCmd::OpenTrace`).
+    OpenedTrace(u32),
 }
 
 /// The pane's status.
@@ -156,6 +165,24 @@ fn changes(was: Seen, now: Seen, log: impl Iterator<Item = &'static str>) -> Vec
         out.extend(fresh.into_iter().map(EventKind::Log));
     }
     out
+}
+
+/// A NewGame `trace` replayed on `game` up to `frames` frames (clamped to it), ready for
+/// `Controls::from_seek`: M6's seek path from a new game (`SeekStart::from_trace`), so the
+/// recorder holds the prefix with its real hashes and a recorded hash the replay misses sets
+/// `diverged`. Another parent is refused. The replay runs on the caller's thread (never under
+/// the `Materializer` lock) inside the explorer's panic guard: a finding's panic is an `Err`,
+/// not a dead pane thread.
+pub fn open_trace<G: GameData>(game: G, trace: &Trace, frames: u32) -> Result<Seeked<G>, String> {
+    if trace.parent != Parent::NewGame {
+        return Err(format!(
+            "the trace starts at {}, not a new game",
+            trace.parent
+        ));
+    }
+    let start = SeekStart::from_trace(trace.clone(), frames);
+    explore::guard::catch(|| start.run(game))
+        .map_err(|p| format!("the replay panics: {}", p.message))?
 }
 
 /// Locks the materializer the panes share. A lock poisoned by a panic on another pane thread is
@@ -285,6 +312,14 @@ impl NativePane {
         self.jumped(EventKind::Seeked(id, frames));
         Ok(())
     }
+
+    fn open_trace(&mut self, trace: &Trace, frames: u32) -> Result<(), String> {
+        let seeked = open_trace(content::Emerald::for_shells(), trace, frames)?;
+        let frames = seeked.recorder.frames();
+        self.controls = Controls::from_seek(seeked);
+        self.jumped(EventKind::OpenedTrace(frames));
+        Ok(())
+    }
 }
 
 impl Pane for NativePane {
@@ -330,6 +365,11 @@ impl Pane for NativePane {
             NativeCmd::NewGame => {
                 self.controls = Controls::new(content::Emerald::for_shells());
                 self.jumped(EventKind::NewGame);
+            }
+            NativeCmd::OpenTrace { trace, frames } => {
+                if let Err(e) = self.open_trace(&trace, frames) {
+                    self.controls.note(format!("open trace failed: {e}"));
+                }
             }
         }
     }
