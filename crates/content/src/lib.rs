@@ -19,7 +19,9 @@ use engine::script::{Ctx, Script};
 
 pub mod blob;
 mod new_game;
+pub mod overrides;
 pub mod prelude;
+pub mod samples;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
 /// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`) and one `TextId` per
@@ -41,6 +43,7 @@ pub mod battle {
 #[allow(non_upper_case_globals, non_snake_case, dead_code, clippy::all)]
 pub mod data {
     include!(concat!(env!("OUT_DIR"), "/data.rs"));
+    include!(concat!(env!("OUT_DIR"), "/dispatch.rs"));
 }
 
 /// Generated scripts, one module per map file (`include!`d from the extracted dir).
@@ -49,6 +52,9 @@ pub mod scripts {
 }
 
 pub use data::script_ids;
+
+/// The build's script classification report (`build/scripts.rs`; Milestone 8 Task D2 fills it).
+pub const REPORT: &str = include_str!(concat!(env!("OUT_DIR"), "/report.txt"));
 
 /// Whether the content was built without an extracted dir (the small built-in world).
 pub const STUB: bool = cfg!(pkr_stub);

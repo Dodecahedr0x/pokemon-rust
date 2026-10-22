@@ -4,6 +4,8 @@
 //!   `crates/extract/src` (relative paths `src/…`, `build/…`, `extract/…`; `*_tests.rs`,
 //!   `tests.rs`, `test_*.rs` and `tests/` left out). `extract` is a build dependency that parses
 //!   and transforms the extracted data;
+//! - the support tables `build/support/*.ron` (`support/…`, Milestone 8), which classify script
+//!   commands and specials;
 //! - with an extracted dir, every file in it (`extracted/…`) except the `previews/` renders, which
 //!   the build never reads. That covers `manifest.ron` (format, ROM sha1, the sha1 of every other
 //!   exported file) and also hand edits to the editable files, which leave the manifest as is;
@@ -30,6 +32,15 @@ pub fn build_id(content_dir: &Path, extracted: Option<&Path>) -> std::io::Result
         &is_build_source,
         Content::Text,
     )?;
+    let support = content_dir.join("build/support");
+    if support.is_dir() {
+        h.tree(
+            "support/",
+            &support,
+            &|rel: &str| rel.ends_with(".ron"),
+            Content::Text,
+        )?;
+    }
     let extract = content_dir.join("../extract/src");
     h.tree("extract/", &extract, &is_build_source, Content::Text)?;
     match extracted {

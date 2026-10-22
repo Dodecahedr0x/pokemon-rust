@@ -8,6 +8,7 @@
 
 mod battle;
 mod battle_load;
+mod blob_data;
 mod build_id;
 #[allow(dead_code)]
 #[path = "../../engine/build_support.rs"]
@@ -16,6 +17,7 @@ mod classify;
 mod codegen;
 #[allow(dead_code)]
 mod input;
+mod scripts;
 mod stub;
 
 use build_support::write_if_changed;
@@ -90,10 +92,20 @@ fn main() {
     }
     let g = codegen::generate(&world).unwrap_or_else(|e| panic!("generating content: {e:#}"));
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let build_dir = manifest_dir.join("build");
+    for name in ["commands.ron", "specials.ron"] {
+        println!("cargo::rerun-if-changed=build/support/{name}");
+    }
+    let support = scripts::support(&build_dir).unwrap_or_else(|e| panic!("{e:#}"));
+    let sc = scripts::generate(real.then_some(dir.as_path()), &out, &world, &support)
+        .unwrap_or_else(|e| panic!("generating scripts: {e:#}"));
+    blob_data::generate(&world, &out).unwrap_or_else(|e| panic!("generating blobs: {e:#}"));
     for (name, src) in [
         ("consts.rs", &g.consts),
         ("data.rs", &g.data),
-        ("scripts.rs", &g.scripts),
+        ("dispatch.rs", &sc.dispatch),
+        ("scripts.rs", &sc.rs),
+        ("report.txt", &sc.report),
         ("battle.rs", &g.battle),
     ] {
         write_if_changed(&out.join(name), src.as_bytes()).unwrap();
