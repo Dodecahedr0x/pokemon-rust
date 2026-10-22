@@ -6,10 +6,10 @@
 
 use crate::config::{Budget, Config};
 use crate::db::{Db, DbStats, FindingRow};
-use crate::goals;
 use crate::model::NodeId;
 use crate::path::Grid;
 use crate::wire::{self, Explore};
+use crate::{findings, goals};
 use anyhow::{Context, anyhow, bail};
 use content::Emerald;
 use engine::data::{GameData, MapId, block_collision};
@@ -378,7 +378,7 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
         line(&ex.stats()?, &sum);
     }
     println!(
-        "{} generations, {} nodes, {} frames in {:.1} s; {} slow frames, {} notes{}",
+        "{} generations, {} nodes inserted, {} frames in {:.1} s; {} slow frames, {} notes{}",
         sum.generations,
         sum.nodes,
         sum.frames,
@@ -409,7 +409,12 @@ fn status(db_path: &Path) -> anyhow::Result<()> {
         "nodes     {} ({} valid, {} stale, {} merged, {} broken)",
         s.nodes, s.valid, s.stale, s.merged, s.broken
     );
-    println!("generation {}", s.generation);
+    // `meta.generation` is the last applied one (0-based); count them like `run` does.
+    let generations = match db.meta("generation")? {
+        Some(_) => s.generation + 1,
+        None => 0,
+    };
+    println!("generations {generations}");
     println!("goals     {}", goal_text(s.max_progress));
     let names = content::data::SCRIPT_NAMES.len();
     // The stub has no named scripts: no share to give.
@@ -561,13 +566,10 @@ fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
                 if hits[i] > 0 {
                     seen += 1;
                 }
-                match hits[i] {
+                match findings::heat_bucket(hits[i]) {
                     0 if blocked => '#',
                     0 => '.',
-                    1 => '1',
-                    2..=9 => '2',
-                    10..=99 => '3',
-                    _ => '4',
+                    b => char::from(b'0' + b),
                 }
             })
             .collect();

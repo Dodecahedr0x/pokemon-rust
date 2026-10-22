@@ -308,12 +308,18 @@ and the build: neither the thread count nor stopping and resuming changes the db
   cells, findings). `cargo xtask explore run --secs 600` is a ten-minute run; a db resumes where
   it stopped, with its own seed. On a new build every node is first replayed (and re-expanded
   or marked broken where the game changed).
+  - `--cache N` sets how many snapshots stay in memory (default 65536; 16384 uses less memory
+    and runs about 10% slower).
+  - Each goal this run reaches first prints a line `goal i/n (name) first reached in generation
+    G at T s` (G counts the db's generations from 1, T is this run's wall time).
 - `status`, `findings [--all]`, `show <id>`: the db's totals and the findings (kind, map, cell,
   hits, message; `show` adds the Rust location, macro, script and log).
 - `repro <id>`: replays the finding from a new game; exits 0 iff it reproduces.
 - `export <id> [--before N] [--out <path>]`: the finding as a NewGame trace (RON), ending N
   frames before it, in `target/explore/<flavor>/repro/` by default.
 - `coverage <map>`: an ASCII grid of the cells stood on (map id or name, e.g. `LittlerootTown`).
+  Its last line ends with `N of the M cells reachable from them (P%)`: M counts the walkable
+  cells (terrain only, no objects) that a walk from a cell stood on can reach, N those stood on.
 - `revalidate`, `digest`, `reset --yes`.
 
 Every command takes `--db <path>` (default `target/explore/emerald/explore.db`, or

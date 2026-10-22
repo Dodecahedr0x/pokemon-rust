@@ -563,17 +563,8 @@ pub fn layer_paths(cells: &[CellInfo], margin: u16, on: CellLayers) -> Vec<(Stri
     paths
 }
 
-/// The coverage heat bucket of a cell visited `hits` times: 0 when never, then 1, 2-9, 10-99
-/// and 100+ hits as 1 to 4 (the `explore coverage` grid's rule).
-pub fn heat_bucket(hits: u32) -> u8 {
-    match hits {
-        0 => 0,
-        1 => 1,
-        2..=9 => 2,
-        10..=99 => 3,
-        _ => 4,
-    }
-}
+/// The coverage heat bucket rule, shared with the `explore coverage` grid.
+pub use explore::findings::heat_bucket;
 
 /// The CSS class of heat buckets 1 to 4, cool to hot (the UI styles them).
 pub const HEAT_CLASSES: [&str; 4] = ["heat-1", "heat-2", "heat-3", "heat-4"];
