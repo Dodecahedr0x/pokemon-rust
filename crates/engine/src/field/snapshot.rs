@@ -1,7 +1,7 @@
 //! [`Field`] to and from its checkpoint DTO, and the restore upload (Milestone 5 Task B).
 
 use super::{FIELD_BGS, Field, RING, Rect, upload_primary, upload_secondary};
-use crate::checkpoint::FieldSnap;
+use crate::checkpoint::{FieldSnap, StaleSnap};
 use crate::data::GameData;
 use crate::grid;
 use crate::video::{BgControl, Cmd, Frame, layout};
@@ -15,6 +15,12 @@ impl Field {
             drawn: self.drawn.map(|r| [r.x0, r.y0, r.x1, r.y1]),
             ring: self.ring,
             overrides: self.overrides.iter().map(|(&c, &b)| (c, b)).collect(),
+            stale: self.stale.map(|r| StaleSnap {
+                x0: r.x0,
+                y0: r.y0,
+                x1: r.x1,
+                y1: r.y1,
+            }),
         }
     }
 
@@ -25,7 +31,12 @@ impl Field {
             drawn: s.drawn.map(|[x0, y0, x1, y1]| Rect { x0, y0, x1, y1 }),
             overrides: s.overrides.iter().copied().collect(),
             ring: s.ring,
-            stale: None,
+            stale: s.stale.map(|r| Rect {
+                x0: r.x0,
+                y0: r.y0,
+                x1: r.x1,
+                y1: r.y1,
+            }),
         }
     }
 

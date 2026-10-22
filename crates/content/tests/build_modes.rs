@@ -19,7 +19,7 @@ mod build_id;
 #[path = "../../engine/build_support.rs"]
 mod build_support;
 #[allow(dead_code)]
-#[path = "../build/classify.rs"]
+#[path = "../build/classify/mod.rs"]
 mod classify;
 #[allow(dead_code)]
 #[path = "../build/codegen.rs"]
@@ -27,6 +27,9 @@ mod codegen;
 #[allow(dead_code)]
 #[path = "../build/input.rs"]
 mod input;
+#[allow(dead_code)]
+#[path = "../build/scripts.rs"]
+mod scripts;
 #[allow(dead_code)]
 #[path = "../build/stub.rs"]
 mod stub;
@@ -235,6 +238,8 @@ fn build_id_tracks_the_sources() {
         ("content/src/lib.rs", "// lib 2\n"),
         ("content/build/main.rs", "// main 2\n"),
         ("extract/src/lib.rs", "// extract 2\n"),
+        ("content/build/support/commands.ron", "{}\n"),
+        ("content/build/support/commands.ron", "{\"end\": Native}\n"),
     ] {
         let before = id();
         put(rel, edit);

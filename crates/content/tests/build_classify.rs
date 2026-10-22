@@ -1,7 +1,7 @@
 //! Unit tests of the build script's name classification (`build/classify.rs`).
 
 #[allow(dead_code)]
-#[path = "../build/classify.rs"]
+#[path = "../build/classify/mod.rs"]
 mod classify;
 
 use classify::*;

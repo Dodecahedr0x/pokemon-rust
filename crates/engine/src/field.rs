@@ -70,6 +70,15 @@ impl Rect {
     }
 }
 
+/// Cells left drawn from the map before a connection crossing ([`Field::stale`]), inclusive.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct StaleRect {
+    pub x0: i16,
+    pub y0: i16,
+    pub x1: i16,
+    pub y1: i16,
+}
+
 pub struct Field {
     map: MapId,
     camera_px: (i32, i32),
@@ -106,6 +115,17 @@ impl Field {
     /// (redrawing it from the current map could differ until they scroll out).
     pub fn view_stale(&self) -> bool {
         self.stale.is_some()
+    }
+
+    /// The cells the view still shows from the map before a connection crossing, if any
+    /// (Milestone 8: hashed by `World::hash`; Task F makes them capturable).
+    pub fn stale(&self) -> Option<StaleRect> {
+        self.stale.map(|r| StaleRect {
+            x0: r.x0,
+            y0: r.y0,
+            x1: r.x1,
+            y1: r.y1,
+        })
     }
 
     /// Map pixel of the screen's top-left corner.

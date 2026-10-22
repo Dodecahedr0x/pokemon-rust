@@ -212,6 +212,9 @@ fn export_writes_the_ir_beside_the_legacy_scripts() {
     assert!(dir.join("text/fr.ron").exists());
     assert!(dir.join("scripts/LittlerootTown.rs").exists());
     assert_eq!(m.format_minor, extract::schema::FORMAT_MINOR);
+    // The files a stale extract is told it lacks are ones every extract writes.
+    assert!(!extract::schema::MINOR_FILES.is_empty());
+    assert!(extract::schema::missing_since(0, |p| m.files.contains_key(p)).is_empty());
     assert_eq!(
         m.provenance[extract::export::scripts::DECOMP_NAMES_KEY],
         extract::schema::Hex(1)

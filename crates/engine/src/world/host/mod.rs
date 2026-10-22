@@ -1,8 +1,18 @@
 //! [`ScriptHost`] for the world: every [`Request`], as the Gen3 script command it stands for
 //! (`scrcmd.c`).
+//!
+//! Milestone 8 requests are routed to one file per owner: items and money ([`items`], Task H),
+//! multichoice ([`menu`], H), string buffers ([`buffers`], H), the trainer approach
+//! ([`trainer`], I) and warp slots ([`warps`], F). Their Wave 0 bodies answer safe defaults.
+
+mod buffers;
+mod items;
+mod menu;
+mod trainer;
+mod warps;
 
 use super::battle::{Mode, Origin, StarterRun};
-use super::{DOOR_FRAMES, State};
+use super::{DOOR_FRAMES, Event, State};
 use crate::Buttons;
 use crate::battle::{BattleKind, BattleOutcome};
 use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER};
@@ -62,6 +72,8 @@ impl<G: GameData> Host<'_, G> {
             // Never answered: the warp's map load ends the script (Gen3 `warp` returns TRUE
             // and `CB2_LoadMap` resets the script context).
             Request::Warp { .. } => false,
+            Request::Multichoice { .. } => menu::done(self, r),
+            Request::TrainerApproach { .. } => trainer::done(self, r),
             _ => true,
         }
     }
@@ -309,6 +321,26 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::WaitButton
             | Request::WaitDoor
             | Request::WaitState => self.wait(r),
+            // ---- Milestone 8 ----
+            Request::ItemAdd { .. }
+            | Request::ItemRemove { .. }
+            | Request::ItemCheck { .. }
+            | Request::ItemSpace { .. }
+            | Request::MoneyAdd(_)
+            | Request::MoneyRemove(_)
+            | Request::MoneyCheck(_) => items::begin(self, r),
+            Request::Buffer { .. } => buffers::begin(self, r),
+            Request::Multichoice { .. } => menu::begin(self, r),
+            Request::SetWarp { .. } => warps::begin(self, r),
+            Request::TrainerApproach { .. } => trainer::begin(self, r),
+            Request::Report(rep) => {
+                s.log(match rep {
+                    crate::script::Report::Unsupported(what)
+                    | crate::script::Report::Degraded(what) => what,
+                });
+                s.event(Event::Report(rep));
+                UNIT
+            }
         }
     }
 
@@ -319,6 +351,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         {
             // Set once the starter screen or the battle has handed the screen back.
             return self.s.answer.take().map(Response::Value);
+        }
+        if let Request::Multichoice { .. } = r {
+            return menu::resume(self, r);
         }
         if let Request::YesNo = r {
             let t = &self.s.text;

@@ -1,7 +1,7 @@
 //! Event flags and vars (Gen3 `event_data.c`).
 
 use crate::data::{FlagId, VarId};
-use crate::hash::Fnv64;
+use crate::hash::{Fnv64, splitmix64 as mix};
 use alloc::boxed::Box;
 use alloc::vec;
 
@@ -32,14 +32,6 @@ pub struct Vars {
     /// Saved vars, then special vars.
     vars: Box<[u16]>,
     digest: u64,
-}
-
-/// splitmix64 finalizer: spreads one (kind, id, value) word over 64 bits.
-const fn mix(x: u64) -> u64 {
-    let mut z = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
 }
 
 /// Digest contribution of flag `f` when set.
