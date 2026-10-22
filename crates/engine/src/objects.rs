@@ -8,6 +8,7 @@
 
 mod anim;
 mod draw;
+mod snapshot;
 #[cfg(test)]
 mod tests;
 

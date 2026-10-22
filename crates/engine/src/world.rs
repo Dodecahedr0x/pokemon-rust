@@ -25,6 +25,7 @@
 //! script (Gen3 `CB2_LoadMap` resets the script context).
 
 mod battle;
+mod checkpoint;
 mod host;
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,7 @@ mod tests;
 pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
 
 use crate::battle::scene::BattleScene;
+use crate::checkpoint::{PLAYER_NAME_SIZE, PlayerName};
 use crate::data::{
     Behavior, BgKind, Dir, FlagId, GameData, MapData, MapId, ObjectEvent, PLAYER, ScriptId,
     SpecialIds, VarId,
@@ -135,6 +137,9 @@ pub(crate) struct State {
     mode: Mode,
     /// The answer to the script's pending `ChooseStarter` / `BattleWild` / `BattleTrainer`.
     answer: Option<u16>,
+    /// Gen3-encoded player name, 0xFF-terminated and 0xFF-padded (Gen3 `playerName`). Not
+    /// hashed yet (Milestone 5 Task A appends it to `World::hash`).
+    player_name: PlayerName,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -257,6 +262,7 @@ impl World {
                 encounter_immunity: 0,
                 mode: Mode::Field,
                 answer: None,
+                player_name: player_name(ng.player_name),
             },
             boot: None,
         };
@@ -559,6 +565,17 @@ impl World {
         self.s.player_id
     }
 
+    /// The player's name: Gen3-encoded, 0xFF-terminated and 0xFF-padded.
+    pub fn player_name(&self) -> &PlayerName {
+        &self.s.player_name
+    }
+
+    /// Sets the player's name from Gen3-encoded bytes: stops at the first 0xFF, keeps at most 7
+    /// characters and pads with 0xFF.
+    pub fn set_player_name(&mut self, name: &[u8]) {
+        self.s.player_name = player_name(name);
+    }
+
     /// Whether the overworld owns the frame (no starter screen, no battle).
     pub fn field_active(&self) -> bool {
         matches!(self.s.mode, Mode::Field)
@@ -626,6 +643,19 @@ impl World {
         s.mode.hash(&mut h);
         h.finish()
     }
+}
+
+/// A [`PlayerName`] from Gen3-encoded bytes: up to the first 0xFF, at most 7 characters, then
+/// 0xFF padding (so the name is always terminated).
+fn player_name(name: &[u8]) -> PlayerName {
+    let mut out = [0xFF; PLAYER_NAME_SIZE];
+    for (o, &c) in out[..PLAYER_NAME_SIZE - 1]
+        .iter_mut()
+        .zip(name.iter().take_while(|&&c| c != 0xFF))
+    {
+        *o = c;
+    }
+    out
 }
 
 /// Camera, sprites, text box and brightness: the end of a field frame.
@@ -710,4 +740,19 @@ fn run_immediate(game: &impl GameData, s: &mut State, f: &mut Frame, id: ScriptI
         }
     }
     host.s.log("immediate map script did not finish");
+}
+
+#[cfg(test)]
+mod player_name_tests {
+    use super::player_name;
+
+    #[test]
+    fn truncates_to_seven_and_pads_with_eos() {
+        assert_eq!(
+            player_name(&[1, 2, 3, 0xFF, 9]),
+            [1, 2, 3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
+        assert_eq!(player_name(&[1; 10]), [1, 1, 1, 1, 1, 1, 1, 0xFF]);
+        assert_eq!(player_name(&[]), [0xFF; 8]);
+    }
 }

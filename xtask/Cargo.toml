@@ -12,3 +12,6 @@ content.workspace = true
 game-native.workspace = true
 extract.workspace = true
 png = "0.17"
+object = "0.37"
+ron = "0.8"
+serde = { version = "1", features = ["derive"] }

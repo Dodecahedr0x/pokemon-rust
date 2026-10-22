@@ -1,8 +1,13 @@
 //! Host shell: runs engine + content natively and draws each [`Frame`] with a software PPU.
 
+pub mod checkpoints;
+pub mod flash;
 pub mod ppu;
 pub mod scenario;
+pub mod store;
+pub mod trace;
 
+use engine::checkpoint::{Checkpoint, NotCapturable, RestoreError};
 use engine::data::GameData;
 use engine::video::Frame;
 pub use engine::video::{SCREEN_H, SCREEN_W};
@@ -31,7 +36,24 @@ pub struct Session<G: GameData> {
 impl<G: GameData> Session<G> {
     /// A new game (`World::new`), its first frame applied.
     pub fn new(game: G) -> Self {
-        let mut world = World::new(&game);
+        let world = World::new(&game);
+        Self::boot(game, world)
+    }
+
+    /// A session resumed from `cp` (`World::restore`): a fresh PPU gets the restored boot
+    /// frame, as for a new game.
+    pub fn restore(game: G, cp: &Checkpoint) -> Result<Self, RestoreError> {
+        let world = World::restore(&game, cp)?;
+        Ok(Self::boot(game, world))
+    }
+
+    /// Captures the world (`World::checkpoint`).
+    pub fn checkpoint(&self) -> Result<Checkpoint, NotCapturable> {
+        self.world.checkpoint(&self.game)
+    }
+
+    /// Applies `world`'s boot frame to a fresh PPU.
+    fn boot(game: G, mut world: World) -> Self {
         let frame = world.initial_frame();
         let mut ppu = Ppu::new();
         ppu.apply(&frame);

@@ -229,6 +229,20 @@ impl Transition {
     }
 }
 
+// Milestone 5 Task B.
+impl Transition {
+    /// The leftover fields of an idle transition (they stay hashed).
+    pub fn snapshot(&self) -> crate::checkpoint::TransitionSnap {
+        todo!("Milestone 5 Task B")
+    }
+
+    /// An idle transition with these leftover fields.
+    pub fn from_snapshot(s: &crate::checkpoint::TransitionSnap) -> Transition {
+        let _ = s;
+        todo!("Milestone 5 Task B")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::test_data::*;

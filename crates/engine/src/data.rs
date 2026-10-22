@@ -7,7 +7,9 @@ use crate::script::{Ctx, Script};
 use crate::video::Tile;
 
 /// Facing / movement direction. Order matches Gen3 `DIR_SOUTH..DIR_EAST` minus one.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, serde::Serialize, serde::Deserialize,
+)]
 pub enum Dir {
     Down,
     Up,
@@ -41,7 +43,10 @@ impl Dir {
 macro_rules! id {
     ($($(#[$m:meta])* $name:ident),* $(,)?) => {$(
         $(#[$m])*
-        #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+        #[derive(
+            Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug,
+            serde::Serialize, serde::Deserialize,
+        )]
         pub struct $name(pub u16);
     )*};
 }
@@ -135,7 +140,7 @@ pub struct Tileset {
 
 /// What the engine needs to know about a metatile behavior. Content classifies Gen3's raw
 /// `MB_*` values (`GameData::behavior`), so the engine never sees game constants.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Behavior {
     Normal,
     /// Never walkable, whatever the collision bits say (water without Surf, …).
@@ -154,7 +159,7 @@ pub enum Behavior {
 }
 
 /// Object graphics: fixed, or read from a var when the object spawns (`OBJ_EVENT_GFX_VAR_*`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Gfx {
     Fixed(GfxId),
     Var(VarId),
@@ -162,7 +167,7 @@ pub enum Gfx {
 
 /// Idle behavior of an object (subset of Gen3 `MOVEMENT_TYPE_*`; content maps the rest to
 /// the closest variant).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum MovementType {
     /// Stays put facing `Dir`.
     Face(Dir),
@@ -365,6 +370,10 @@ pub trait GameData {
     fn behavior(&self, raw: u8) -> Behavior;
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script;
     fn new_game(&self) -> NewGame;
+    /// Identity of the content build (inputs of the content build script); 0 for test games.
+    fn build_id(&self) -> u64 {
+        0
+    }
 
     // ---- battle (Milestone 4); every method has a default so test games keep compiling ----
 

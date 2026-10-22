@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub mod battle;
+pub mod checkpoint;
 pub mod data;
 pub mod debug;
 pub mod field;

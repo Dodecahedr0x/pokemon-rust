@@ -23,6 +23,8 @@ use crate::video::{BgControl, Cmd, Frame, SCREEN_H, SCREEN_W, layout};
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
+mod snapshot;
+
 /// Metatiles per side of the ring buffer each field BG holds.
 pub const RING: i16 = 16;
 /// What Gen3 `DrawMetatile` writes to the bottom BG under NORMAL metatiles.
