@@ -1,4 +1,4 @@
-//! What generated scripts (`content/extracted/scripts/<Map>.rs`) may use: the engine's script
+//! What generated scripts (`$OUT_DIR/scripts/<Module>.rs`, Task D2) may use: the engine's script
 //! types, every Gen3 constant (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
 //! `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`), every text id,
 //! and the Gen3 std-script helpers, one file per owner (Milestone 8): [`msgbox`], `std`
@@ -17,7 +17,6 @@ pub use engine::data::{
 pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Report, Speed, Step, WarpSlot};
 
 mod items;
-mod legacy;
 mod menu;
 mod msgbox;
 mod special;
@@ -27,7 +26,6 @@ mod trainer;
 
 pub use self::std::*;
 pub use items::*;
-pub use legacy::*;
 pub use menu::*;
 pub use msgbox::*;
 pub use special::*;

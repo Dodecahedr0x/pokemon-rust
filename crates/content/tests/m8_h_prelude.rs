@@ -281,13 +281,13 @@ fn real_builds_resolve_items_pockets_lists_and_std_strings() {
     let yes_no = named(&extract::names::MULTICHOICE, "MULTI_YESNO") as u8;
     assert_eq!(game.multichoice(yes_no).map(|l| l.len()), Some(2));
 
-    // `give_item` and `find_item` resolve the item and its pocket: no report but the
-    // std-script texts', which the build labels once the script IR is lowered (D2).
+    // `give_item` and `find_item` resolve the item, its pocket and the std scripts' `gText_*`
+    // texts: two messages, no report.
     let texts_only = |h: &Host| {
-        h.log.iter().all(|r| match r {
-            Request::Report(rep) => *rep == Report::Degraded("obtain_item.inc text"),
-            _ => true,
-        })
+        let messages = (h.log.iter())
+            .filter(|r| matches!(r, Request::Message(_)))
+            .count();
+        messages == 2 && !h.log.iter().any(|r| matches!(r, Request::Report(_)))
     };
     let mut h = Host::new(true);
     run(&mut h, |ctx| {

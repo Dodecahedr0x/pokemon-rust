@@ -2,21 +2,22 @@
 
 use super::*;
 
-/// `callstd <std>` other than the msgbox pattern. Item stds act as if the bag had room
-/// (`VAR_RESULT` = TRUE) without giving anything; `STD_FIND_ITEM` also removes the item ball
-/// that was talked to. Everything else is logged.
+/// `callstd <std>` other than the msgbox pattern. The item stds run Task H's helpers on
+/// `VAR_0x8000` (item) and `VAR_0x8001` (amount), as Gen3's `giveitem`/`finditem` set them
+/// (the lowering calls the helpers directly; this covers a computed std). Everything else is
+/// logged.
 pub async fn callstd(ctx: &Ctx, std: u8) {
     ctx.log(name_of(&crate::data::STD_NAMES, std.into()).unwrap_or("STD_?"))
         .await;
+    let item = || async { (ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await) };
     match std {
-        STD_OBTAIN_ITEM => ctx.set_var(VAR_RESULT, 1).await,
+        STD_OBTAIN_ITEM => {
+            let (i, q) = item().await;
+            give_item(ctx, i, q).await;
+        }
         STD_FIND_ITEM => {
-            ctx.lock().await;
-            ctx.face_player().await;
-            ctx.set_var(VAR_RESULT, 1).await;
-            let obj = ctx.var(VAR_LAST_TALKED).await;
-            ctx.remove_object(obj as u8).await;
-            ctx.release().await;
+            let (i, q) = item().await;
+            find_item(ctx, i, q).await;
         }
         _ => {}
     }

@@ -20,16 +20,29 @@ use engine::script::{Ctx, Script};
 
 pub mod blob;
 mod new_game;
-pub mod overrides;
+/// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
+/// does, replaced by hand. The build digests each override's source into the script's
+/// `SCRIPT_DIGESTS` entry, and fails on an override naming no script of the IR.
+///
+/// Convention: one file per script, `src/overrides/<Name>.rs`, holding
+/// `pub async fn <Name>(ctx: Ctx)` (the decomp script name), using `crate::prelude::*`; texts and
+/// movements are referred to by their generated ids, never by ROM text or data
+/// (`tests/m8_e_overrides.rs`). The build declares each applied one (`$OUT_DIR/overrides.rs`,
+/// `build/scripts.rs`) and lists it in `OVERRIDES`.
+pub mod overrides {
+    include!(concat!(env!("OUT_DIR"), "/overrides.rs"));
+}
 pub mod prelude;
 pub mod samples;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
-/// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`) and one `TextId` per
-/// text, named after its key.
+/// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`,
+/// `MOVEMENT_TYPE_*`) and one `TextId` per text, named after its key.
 #[allow(non_upper_case_globals, dead_code, unused_imports)]
 pub mod consts {
-    use engine::data::{FlagId, MapId, MoveId, SpeciesId, TextId, TrainerId, VarId};
+    // A glob: the `MOVEMENT_TYPE_*` values (`classify::movement`) name whatever engine types
+    // they need (`Dir`, and `Dirs` once Task I lands); the generated names shadow it.
+    use engine::data::*;
     include!(concat!(env!("OUT_DIR"), "/consts.rs"));
 }
 
@@ -270,6 +283,15 @@ impl GameData for Emerald {
 
     fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
         battle::evolutions(species.0)
+    }
+
+    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+        let (trainer, _) = scripts::trainer_script(script.0)?;
+        Some(prelude::trainer_flag(TrainerId(trainer)))
+    }
+
+    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
+        scripts::trainer_script(script.0).map(|(_, kind)| kind)
     }
 }
 
