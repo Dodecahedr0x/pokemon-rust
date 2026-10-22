@@ -190,8 +190,8 @@ fn unsupported(log: &[Request]) -> Vec<&'static str> {
 
 // ---- specials ----
 
-/// A special with no arm is only logged (the legacy generator's fallback); every `Native` one
-/// does more.
+/// A special with no arm is only logged (`special`'s fallback, for an id the lowering never
+/// passes); every `Native` one does more.
 #[test]
 fn every_native_special_has_an_arm() {
     for (name, class) in classes() {
@@ -508,12 +508,10 @@ fn callstd_routes_every_std() {
         h.vars.insert(VAR_0x8001.0, 2);
         run_std(&mut h, n);
         match name {
-            // TODO(M8 merge, after Task H): also assert `SetVar(VAR_RESULT, _)` and, for
-            // `STD_FIND_ITEM`, `RemoveObject` (H's `give_item`/`find_item`; the Wave 0 helpers
-            // on this branch do neither).
             "STD_OBTAIN_ITEM" | "STD_FIND_ITEM" => {
                 // Task H's helpers on the `giveitem`/`finditem` operands (`VAR_0x8000`,
-                // `VAR_0x8001`); they write `VAR_RESULT`.
+                // `VAR_0x8001`); they write `VAR_RESULT`, and `finditem` removes the ball
+                // (`removeobject VAR_LAST_TALKED`).
                 assert_eq!(
                     h.log[..2],
                     [Request::GetVar(VAR_0x8000), Request::GetVar(VAR_0x8001)],
@@ -527,6 +525,15 @@ fn callstd_routes_every_std() {
                     "{name}: {:?}",
                     h.log
                 );
+                assert!(
+                    h.log
+                        .iter()
+                        .any(|r| matches!(r, Request::SetVar(v, _) if *v == VAR_RESULT)),
+                    "{name}: VAR_RESULT not written: {:?}",
+                    h.log
+                );
+                let removes = h.log.iter().any(|r| matches!(r, Request::RemoveObject(_)));
+                assert_eq!(removes, name == "STD_FIND_ITEM", "{name}: {:?}", h.log);
                 assert!(unsupported(&h.log).is_empty(), "{name}");
             }
             "STD_REGISTER_MATCH_CALL" => assert!(h.log.is_empty(), "{name}: {:?}", h.log),
@@ -599,13 +606,9 @@ fn msgbox_kinds_follow_std_msgbox() {
 
 // ---- generated scripts ----
 
-/// Whether `r` is the `BedroomPC` special: its `Unsupported` report (the lowering) or its log
-/// line (the legacy generator, through `special`'s fallback).
+/// Whether `r` is the `BedroomPC` special: its `Unsupported` report (the lowering).
 fn is_bedroom_pc(r: &Request) -> bool {
-    match r {
-        Request::Report(Report::Unsupported(n)) | Request::Log(n) => n.contains("BedroomPC"),
-        _ => false,
-    }
+    *r == Request::Report(Report::Unsupported("SPECIAL_BedroomPC"))
 }
 
 /// The bedroom PC (`special BedroomPC`, `Unsupported` until Milestone 9): the script still
@@ -646,54 +649,12 @@ fn bedroom_pc_does_not_softlock() {
 
 // ---- Act 1 ----
 
-/// The Act 1 maps (new game to badge 1), decomp folder names.
-const ACT1_MAPS: &[&str] = &[
-    "LittlerootTown",
-    "LittlerootTown_BrendansHouse_1F",
-    "LittlerootTown_BrendansHouse_2F",
-    "LittlerootTown_MaysHouse_1F",
-    "LittlerootTown_MaysHouse_2F",
-    "LittlerootTown_ProfessorBirchsLab",
-    "Route101",
-    "OldaleTown",
-    "OldaleTown_House1",
-    "OldaleTown_House2",
-    "OldaleTown_Mart",
-    "OldaleTown_PokemonCenter_1F",
-    "OldaleTown_PokemonCenter_2F",
-    "Route103",
-    "Route102",
-    "PetalburgCity",
-    "PetalburgCity_Gym",
-    "PetalburgCity_House1",
-    "PetalburgCity_House2",
-    "PetalburgCity_Mart",
-    "PetalburgCity_PokemonCenter_1F",
-    "PetalburgCity_PokemonCenter_2F",
-    "PetalburgCity_WallysHouse",
-    "Route104",
-    "Route104_MrBrineysHouse",
-    "Route104_PrettyPetalFlowerShop",
-    "PetalburgWoods",
-    "RustboroCity",
-    "RustboroCity_CuttersHouse",
-    "RustboroCity_DevonCorp_1F",
-    "RustboroCity_DevonCorp_2F",
-    "RustboroCity_DevonCorp_3F",
-    "RustboroCity_Flat1_1F",
-    "RustboroCity_Flat1_2F",
-    "RustboroCity_Flat2_1F",
-    "RustboroCity_Flat2_2F",
-    "RustboroCity_Flat2_3F",
-    "RustboroCity_Gym",
-    "RustboroCity_House1",
-    "RustboroCity_House2",
-    "RustboroCity_House3",
-    "RustboroCity_Mart",
-    "RustboroCity_PokemonCenter_1F",
-    "RustboroCity_PokemonCenter_2F",
-    "RustboroCity_PokemonSchool",
-];
+/// The Act 1 maps (new game to badge 1), decomp folder names (`build/support/act1_maps.ron`,
+/// which the content build also reads).
+fn act1_maps() -> Vec<String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("build/support/act1_maps.ron");
+    extract::export::read_ron(&path).unwrap()
+}
 
 /// Scripts the C code starts by metatile behaviour (`field_control_avatar.c`
 /// `GetInteractedMetatileScript`), on whiteout or on field poison (`field_poison.c`), found on the
@@ -804,6 +765,8 @@ fn map_json_scripts(decomp: &Path, map: &str) -> Vec<String> {
 struct Site {
     special: String,
     label: String,
+    /// A `specialvar`: the script reads the result.
+    dest: bool,
     before: Vec<String>,
     after: Vec<String>,
 }
@@ -820,7 +783,8 @@ fn special_of(line: &str) -> Option<&str> {
 fn act1_sites(decomp: &Path) -> Vec<Site> {
     let all = labels(decomp);
     let mut stack: Vec<String> = C_ROOTS.iter().map(|s| s.to_string()).collect();
-    for map in ACT1_MAPS {
+    for map in act1_maps() {
+        let map = map.as_str();
         let dir = decomp.join("data/maps").join(map);
         assert!(dir.is_dir(), "{map}: not a decomp map");
         stack.extend(
@@ -859,6 +823,7 @@ fn act1_sites(decomp: &Path) -> Vec<Site> {
                 sites.push(Site {
                     special: format!("SPECIAL_{s}"),
                     label: l.clone(),
+                    dest: line.starts_with("specialvar "),
                     before: lines[i.saturating_sub(2)..i].to_vec(),
                     after: lines[i + 1..(i + 4).min(lines.len())].to_vec(),
                 });
@@ -914,6 +879,17 @@ fn act1_specials_are_classified_with_a_reason() {
     assert!(
         no_reason.is_empty(),
         "reachable in Act 1 with no reason: {no_reason:?}"
+    );
+    // No stale `specialvar` (D2's `Stats::stale_specialvars`): a script that reads a special's
+    // result never gets an `Unsupported` one, whose destination would keep its old value.
+    let stale: BTreeSet<(&str, &str)> = sites
+        .iter()
+        .filter(|s| s.dest && c[&s.special] == Class::Unsupported)
+        .map(|s| (s.special.as_str(), s.label.as_str()))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "stale specialvar sites in Act 1: {stale:?}"
     );
     let mut black: BTreeSet<(&str, &str)> = BTreeSet::new();
     let mut fade_back: BTreeSet<&str> = BTreeSet::new();

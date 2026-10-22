@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 25 Native, 19 Ignore, 33 Default, 447 Unsupported.
+// Counts: 25 Native, 19 Ignore, 35 Default, 445 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -229,7 +229,7 @@
     "SPECIAL_GetSelectedMonNicknameAndSpecies": Unsupported,
     "SPECIAL_GetSelectedTVShow": Default(0), // TV shows are not modelled: no show
     "SPECIAL_GetSlotMachineId": Unsupported,
-    "SPECIAL_GetTradeSpecies": Unsupported, // in-game trades (M9): unreachable, ChoosePartyMon answers "nothing chosen"
+    "SPECIAL_GetTradeSpecies": Default(65535), // in-game trades (M9); unreachable: ChoosePartyMon answers "nothing chosen". If reached, no species, never the requested one: no trade
     "SPECIAL_GetTraderTradedFlag": Unsupported,
     "SPECIAL_GetTrainerBattleMode": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_GetTrainerFlag": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
@@ -510,7 +510,7 @@
     "SPECIAL_TryContestGModeLinkup": Unsupported,
     "SPECIAL_TryEnterContestMon": Unsupported,
     "SPECIAL_TryFieldPoisonWhiteOut": Default(0), // field poison not modelled: FLDPSN_NONE (EventScript_FieldPoison is never started)
-    "SPECIAL_TryGetWallpaperWithWaldaPhrase": Unsupported, // unreachable: DoWaldaNamingScreen gives no phrase
+    "SPECIAL_TryGetWallpaperWithWaldaPhrase": Default(0), // FALSE, no wallpaper; unreachable: DoWaldaNamingScreen gives no phrase
     "SPECIAL_TryHideBattleTowerReporter": Unsupported,
     "SPECIAL_TryInitBattleTowerAwardManObjectEvent": Unsupported,
     "SPECIAL_TryJoinLinkGroup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)

@@ -32,8 +32,8 @@ async fn degraded(ctx: &Ctx, id: u16) {
 
 /// `special <id>` / `specialvar <var>, <id>` for the `Native` specials: logs the special's name,
 /// then runs it; the result (written by `specialvar`) is the Gen3 return value, 0 for a void
-/// special. A special with no arm here is only logged and returns 0, as in Wave 0 (only the
-/// legacy generator, which calls this for every special, gets there).
+/// special. A special with no arm here is only logged and returns 0: the lowering calls this for
+/// `Native` specials only, so only a hand-written call (an override, a test) gets there.
 ///
 /// - `ChooseStarter`: Gen3 `ChooseStarter` + `CB2_GiveStarter` + `CB2_StartFirstBattle`: the
 ///   starter screen, `VAR_STARTER_MON` = the choice, the starter at level 5, then the first
@@ -170,8 +170,8 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             degraded(ctx, id).await;
             ctx.set_var(VAR_RESULT, START_MENU_POKENAV).await;
         }
-        // Only the legacy generator gets here: the lowering calls `special` for `Native`
-        // specials only, and reports the `Unsupported` ones itself.
+        // Not a `Native` special: the lowering never passes one (it reports the `Unsupported`
+        // ones itself); a hand-written call is only logged.
         _ => {}
     }
     0
