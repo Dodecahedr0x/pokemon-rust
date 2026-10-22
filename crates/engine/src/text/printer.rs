@@ -736,6 +736,43 @@ mod tests {
         assert_eq!(c.pixel(11, 0), 14);
     }
 
+    /// A redraw: the frame's tile uploads and whether pixel (0, 0) is glyph 1's foreground.
+    fn redraw(c: &mut Canvas, text: &[u8], colors: Colors) -> (usize, u8) {
+        c.redraw(font(), text, 0, 0, colors);
+        let mut f = Frame::default();
+        c.flush(&mut f);
+        (f.cmds.len(), c.pixel(0, 0))
+    }
+
+    #[test]
+    fn redraw_skips_the_same_text() {
+        let mut c = Canvas::new(Window::new(0, 1, 2, 2, 0), 0);
+        assert_eq!(redraw(&mut c, &[1, 0xFF], C), (4, 2));
+        assert_eq!(redraw(&mut c, &[1, 0xFF], C), (0, 2), "nothing new to upload");
+        assert_eq!(redraw(&mut c, &[0xFF], C), (4, 1), "other text");
+        assert_eq!(redraw(&mut c, &[0xFF], C), (0, 1));
+    }
+
+    #[test]
+    fn redraw_after_other_drawing() {
+        let mut c = Canvas::new(Window::new(0, 1, 2, 2, 0), 0);
+        redraw(&mut c, &[1, 0xFF], C);
+        c.fill(7);
+        assert_eq!(redraw(&mut c, &[1, 0xFF], C), (4, 2), "after fill");
+        c.draw_glyph(font(), 1, 8, 8, &Pen::new(C));
+        assert_eq!(redraw(&mut c, &[1, 0xFF], C), (4, 2), "after draw_glyph");
+        assert_eq!(c.pixel(8, 8), 1, "the extra glyph is gone");
+    }
+
+    #[test]
+    fn redraw_when_only_the_colors_change() {
+        let mut c = Canvas::new(Window::new(0, 1, 2, 2, 0), 0);
+        redraw(&mut c, &[1, 0xFF], C);
+        let other = Colors::new(5, 3, 1);
+        assert_eq!(redraw(&mut c, &[1, 0xFF], other), (4, 5));
+        assert_eq!(redraw(&mut c, &[1, 0xFF], other), (0, 5));
+    }
+
     #[test]
     fn printer_origin_and_speed() {
         let mut p = Printer::new(Window::new(0, 1, 4, 4, 0), 0, (1, 1), 2);
