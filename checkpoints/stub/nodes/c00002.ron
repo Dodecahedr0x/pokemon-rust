@@ -4,7 +4,7 @@
         label: "route:stub_after_battle",
         schema: 1,
         build: (
-            engine: 13333995551575107208,
+            engine: 18443809362056734937,
             content: 13155841563500386348,
         ),
         frame: 1207,
@@ -16,7 +16,7 @@
         schema: 2,
         parent: Checkpoint(1),
         build: (
-            engine: 13333995551575107208,
+            engine: 18443809362056734937,
             content: 13155841563500386348,
         ),
         start_frame: 24,
