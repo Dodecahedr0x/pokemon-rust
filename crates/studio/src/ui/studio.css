@@ -54,3 +54,143 @@ canvas[data-pane] {
   image-rendering: pixelated;
   background: #000;
 }
+.pane:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+button {
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid #343944;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.6;
+}
+button.active {
+  border-color: var(--accent);
+}
+button.danger {
+  border-color: #c25050;
+}
+h3 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.play {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 480px;
+}
+.controls,
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.toolbar {
+  margin-bottom: 8px;
+}
+.inspector {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+.inspector dt {
+  color: var(--muted);
+}
+.inspector dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.banner,
+.error {
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.banner {
+  background: #4a3a12;
+}
+.error {
+  background: #4a1d1d;
+  white-space: pre-wrap;
+}
+.build pre {
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+}
+table {
+  border-collapse: collapse;
+}
+th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: normal;
+}
+td,
+th {
+  padding: 2px 8px 2px 0;
+}
+.timeline {
+  font-size: 11px;
+  display: block;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.nodes tr.node:hover {
+  background: var(--panel);
+}
+.nodes .origin {
+  color: var(--muted);
+  font-size: 11px;
+}
+.nodes .actions {
+  white-space: nowrap;
+}
+.badge {
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.badge.valid {
+  background: #1d4a2a;
+}
+.badge.stale {
+  background: #4a3a12;
+}
+.badge.diverged {
+  background: #4a2a12;
+}
+.badge.broken {
+  background: #4a1d1d;
+}
+.badge.unverified {
+  background: #2c3038;
+}

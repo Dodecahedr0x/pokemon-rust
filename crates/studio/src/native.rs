@@ -65,7 +65,7 @@ pub enum EventKind {
 }
 
 /// The pane's status.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Inspector {
     pub frame: u32,
     pub map: MapId,
@@ -156,6 +156,17 @@ fn changes(was: Seen, now: Seen, log: impl Iterator<Item = &'static str>) -> Vec
         out.extend(fresh.into_iter().map(EventKind::Log));
     }
     out
+}
+
+/// Locks the materializer the panes share. A lock poisoned by a panic on another pane thread is
+/// recovered: its caches are only changed by whole operations, but they are dropped to be safe.
+pub fn lock_materializer(m: &Mutex<Materializer<Game>>) -> MutexGuard<'_, Materializer<Game>> {
+    m.lock().unwrap_or_else(|poisoned| {
+        m.clear_poison();
+        let mut g = poisoned.into_inner();
+        g.clear();
+        g
+    })
 }
 
 pub struct NativePane {
@@ -252,15 +263,8 @@ impl NativePane {
         Ok(())
     }
 
-    /// The shared materializer. A lock poisoned by a panic on another pane thread is recovered:
-    /// its caches are only changed by whole operations, but they are dropped to be safe.
     fn materializer(&self) -> MutexGuard<'_, Materializer<Game>> {
-        self.materializer.lock().unwrap_or_else(|poisoned| {
-            self.materializer.clear_poison();
-            let mut m = poisoned.into_inner();
-            m.clear();
-            m
-        })
+        lock_materializer(&self.materializer)
     }
 
     fn seek(&mut self, id: CheckpointId, frames: u32) -> Result<(), String> {

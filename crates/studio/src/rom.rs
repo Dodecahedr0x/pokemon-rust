@@ -5,6 +5,7 @@
 //!
 //! No rewind and no mid-trace seek (decision 10).
 
+use crate::native::lock_materializer;
 use crate::pane::{Pane, RunMode};
 use anyhow::{Context, Result, anyhow};
 use content::Emerald;
@@ -12,11 +13,13 @@ use emu::{DebugSnapshot, Emu};
 use engine::Buttons;
 use engine::checkpoint::{BuildHash, Checkpoint, build_hash};
 use engine::debug::{INPUT_RING, boot, input_slot};
+use game_native::checkpoints::Materializer;
 use game_native::store::Store;
 use game_native::trace::CheckpointId;
 use game_native::{SCREEN_H, SCREEN_W, Session};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Timeline entries kept (newest last).
@@ -31,12 +34,10 @@ pub const MAX_STEPS_PER_TICK: u32 = 16;
 pub enum RomSource {
     /// Erased flash.
     NewGame,
-    /// A checkpoint node, materialised natively and written as slot 0 of a fresh flash.
-    // Wave 2: `{ origin: Origin, id }` through `Stores` + `Materializer`.
-    Node {
-        store_root: PathBuf,
-        id: CheckpointId,
-    },
+    /// A checkpoint node of the pane's layered store, materialised natively through the
+    /// shared [`Materializer`] (as the native pane loads it) and written as slot 0 of a fresh
+    /// flash.
+    Node(CheckpointId),
     /// A `FLASH_SIZE` flash image.
     Sav(Vec<u8>),
 }
@@ -153,11 +154,74 @@ pub struct RomStatus {
     pub exported: Option<PathBuf>,
 }
 
+/// Before the pane thread's first status: no ROM loaded (`pane::spawn` needs it).
+impl Default for RomStatus {
+    fn default() -> Self {
+        RomStatus {
+            rom: RomFile::Missing,
+            rom_changed: false,
+            boot: None,
+            rom_build: None,
+            native_build: BuildHash::default(),
+            run: RunMode::Play,
+            timeline: Vec::new(),
+            shadow: Shadow::Off,
+            diverged: false,
+            error: None,
+            exported: None,
+        }
+    }
+}
+
 impl RomStatus {
     /// The banner: the running ROM was built from other engine or content sources than this
     /// studio (`cargo xtask rom`).
     pub fn build_mismatch(&self) -> bool {
         self.rom_build.is_some_and(|b| b != self.native_build)
+    }
+
+    /// The worst values over the timeline.
+    pub fn worst(&self) -> Worst {
+        Worst::of(&self.timeline)
+    }
+}
+
+/// The worst debug-region values over some timeline entries (the late counters are cumulative
+/// on the ROM, so their maximum is the last value).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Worst {
+    pub late: u32,
+    pub late_black: u32,
+    pub hash_lines_max: u32,
+    pub step_lines_max: u32,
+    pub loop_lines_max: u32,
+    /// Entries whose native shadow hash differs.
+    pub mismatches: u32,
+}
+
+impl Worst {
+    pub fn of(entries: &[TimelineEntry]) -> Worst {
+        entries.iter().fold(Worst::default(), |w, e| Worst {
+            late: w.late.max(e.late),
+            late_black: w.late_black.max(e.late_black),
+            hash_lines_max: w.hash_lines_max.max(e.hash_lines_max),
+            step_lines_max: w.step_lines_max.max(e.step_lines_max),
+            loop_lines_max: w.loop_lines_max.max(e.loop_lines_max),
+            mismatches: w.mismatches + u32::from(e.mismatch()),
+        })
+    }
+}
+
+/// The name of an `engine::debug::boot` code.
+pub fn boot_name(code: u32) -> &'static str {
+    match code {
+        boot::NEW_GAME => "new game",
+        boot::RESTORED => "restored",
+        boot::SKIPPED => "save skipped (B held)",
+        boot::REJECTED => "save rejected",
+        boot::CORRUPT => "save corrupt",
+        boot::NO_MEDIA => "no flash",
+        _ => "unknown",
     }
 }
 
@@ -165,6 +229,8 @@ impl RomStatus {
 pub struct RomPane {
     rom_path: PathBuf,
     scratch: PathBuf,
+    store: Store,
+    materializer: Arc<Mutex<Materializer<Emerald>>>,
     game: Emerald,
     native_build: BuildHash,
     emu: Option<Emu>,
@@ -190,13 +256,21 @@ pub struct RomPane {
 
 impl RomPane {
     /// An idle pane on `rom_path` (normally `target/game.gba`); `ExportSave` writes only under
-    /// `scratch_dir` (`target/studio/`). Nothing runs until a `Reset`.
-    pub fn new(rom_path: PathBuf, scratch_dir: PathBuf) -> RomPane {
+    /// `scratch_dir` (`target/studio/`). Nodes come from `store` (the layered store) through
+    /// the materializer the native pane shares. Nothing runs until a `Reset`.
+    pub fn new(
+        rom_path: PathBuf,
+        scratch_dir: PathBuf,
+        store: Store,
+        materializer: Arc<Mutex<Materializer<Emerald>>>,
+    ) -> RomPane {
         let game = Emerald::for_shells();
         RomPane {
             rom_file: RomFile::probe(&rom_path),
             rom_path,
             scratch: scratch_dir,
+            store,
+            materializer,
             game,
             native_build: build_hash(&game),
             emu: None,
@@ -250,10 +324,10 @@ impl RomPane {
         // The checkpoint the ROM should restore (for the shadow), and the flash image.
         let (cp, sav): (Option<Checkpoint>, Option<Vec<u8>>) = match src {
             RomSource::NewGame => (None, None),
-            RomSource::Node { store_root, id } => {
-                let store = Store::open(store_root.clone())
-                    .with_context(|| format!("open store {}", store_root.display()))?;
-                let m = game_native::checkpoints::materialize(&store, &self.game, *id)
+            RomSource::Node(id) => {
+                // One `get` under the lock (it replays only what no cache holds).
+                let m = lock_materializer(&self.materializer)
+                    .get(&self.store, *id)
                     .map_err(|e| anyhow!("materialize {id}: {e}"))?;
                 self.diverged = m.diverged;
                 let sav = game_native::flash::encode_sav(&m.checkpoint)
@@ -457,10 +531,46 @@ mod tests {
         }
     }
 
+    /// A pane over an empty store (nothing is created until a node is added).
+    fn pane(rom: PathBuf, scratch: PathBuf) -> RomPane {
+        let store = Store::open(scratch.join("store")).unwrap();
+        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
+        RomPane::new(rom, scratch, store, m)
+    }
+
+    /// A node reset materialises through the materializer it shares with the native pane, in
+    /// the layered store (the local root only holds the snapshot cache).
+    #[test]
+    fn node_reset_goes_through_the_shared_materializer() {
+        if content::STALE_EXTRACT {
+            println!("skipped: {}", content::STALE_EXTRACT_MSG);
+            return;
+        }
+        let dir = temp("node");
+        std::fs::create_dir_all(&dir).unwrap();
+        let rom = dir.join("game.gba");
+        std::fs::write(&rom, b"not a rom").unwrap();
+        let store = Store::layered(Store::default_root(content::STUB), dir.join("local")).unwrap();
+        let Some(node) = store.nodes().unwrap().into_iter().next() else {
+            println!("skipped: no committed nodes");
+            return;
+        };
+        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
+        let mut p = RomPane::new(rom, dir.join("studio"), store, Arc::clone(&m));
+        p.handle(RomCmd::Reset(RomSource::Node(node.meta.id)));
+        // Materialised (cached in the shared LRU), then refused by mGBA.
+        assert!(p.status().error.is_some());
+        assert!(!lock_materializer(&m).is_empty());
+        // An unknown node is an error status too.
+        p.handle(RomCmd::Reset(RomSource::Node(CheckpointId(9999))));
+        assert!(p.status().error.unwrap().contains("materialize"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     #[test]
     fn missing_rom_is_a_status_not_a_panic() {
         let dir = temp("missing");
-        let mut p = RomPane::new(dir.join("game.gba"), dir.join("studio"));
+        let mut p = pane(dir.join("game.gba"), dir.join("studio"));
         let s = p.status();
         assert_eq!(s.rom, RomFile::Missing);
         assert!(s.error.is_none() && !s.rom_changed && s.timeline.is_empty());
@@ -490,7 +600,7 @@ mod tests {
             "a directory is no ROM"
         );
         // A file mGBA rejects is an error status.
-        let mut p = RomPane::new(rom, dir.join("studio"));
+        let mut p = pane(rom, dir.join("studio"));
         p.handle(RomCmd::Reset(RomSource::NewGame));
         assert!(p.status().error.is_some());
         std::fs::remove_dir_all(&dir).unwrap();
@@ -498,7 +608,7 @@ mod tests {
 
     #[test]
     fn timeline_ring_keeps_the_newest_entries() {
-        let mut p = RomPane::new(temp("ring").join("game.gba"), temp("ring"));
+        let mut p = pane(temp("ring").join("game.gba"), temp("ring"));
         for f in 0..TIMELINE_LEN as u32 + 50 {
             p.push(TimelineEntry::new(
                 f,
@@ -514,7 +624,7 @@ mod tests {
 
     #[test]
     fn build_mismatch_from_the_boot_snapshot() {
-        let mut p = RomPane::new(temp("build").join("game.gba"), temp("build"));
+        let mut p = pane(temp("build").join("game.gba"), temp("build"));
         assert!(!p.status().build_mismatch(), "no ROM, no banner");
         let native = build_hash(&Emerald::for_shells());
         // A new-game boot of this build: no banner, and the shadow matches its boot state.
@@ -543,7 +653,7 @@ mod tests {
     #[test]
     fn shadow_follows_the_consumed_keys_and_flags_a_mismatch() {
         let game = Emerald::for_shells();
-        let mut p = RomPane::new(temp("shadow").join("game.gba"), temp("shadow"));
+        let mut p = pane(temp("shadow").join("game.gba"), temp("shadow"));
         let world = engine::World::new(&game);
         let start = world.frame();
         p.on_boot(
@@ -575,8 +685,31 @@ mod tests {
     }
 
     #[test]
+    fn worst_values_and_boot_names() {
+        let build = BuildHash::default();
+        let mut a = snap(1, 5, build, 0);
+        a.late = 2;
+        a.loop_lines_max = 200;
+        let mut b = snap(2, 6, build, 0);
+        b.hash_lines_max = 60;
+        b.loop_lines_max = 190;
+        let entries = [
+            TimelineEntry::new(1, &a, Some(5)),
+            TimelineEntry::new(2, &b, Some(7)),
+        ];
+        let w = Worst::of(&entries);
+        assert_eq!(
+            (w.late, w.hash_lines_max, w.loop_lines_max, w.mismatches),
+            (2, 60, 200, 1)
+        );
+        assert_eq!(Worst::of(&[]), Worst::default());
+        assert_eq!(boot_name(boot::RESTORED), "restored");
+        assert_eq!(boot_name(99), "unknown");
+    }
+
+    #[test]
     fn pause_runs_pending_steps_only() {
-        let mut p = RomPane::new(temp("pause").join("game.gba"), temp("pause"));
+        let mut p = pane(temp("pause").join("game.gba"), temp("pause"));
         p.handle(RomCmd::Mode(RunMode::Pause));
         p.handle(RomCmd::Step(MAX_STEPS_PER_TICK + 3));
         p.tick();
@@ -594,8 +727,16 @@ mod tests {
 
     fn rom_pane(tag: &str) -> (RomPane, PathBuf) {
         let scratch = temp(tag);
+        let store =
+            Store::layered(Store::default_root(content::STUB), scratch.join("local")).unwrap();
+        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
         (
-            RomPane::new(workspace().join("target/game.gba"), scratch.clone()),
+            RomPane::new(
+                workspace().join("target/game.gba"),
+                scratch.clone(),
+                store,
+                m,
+            ),
             scratch,
         )
     }
@@ -648,23 +789,13 @@ mod tests {
 
     #[test]
     #[ignore = "needs target/game.gba (cargo xtask rom)"]
-    /// Runs on a temp copy of the committed tree's `nodes/`: `materialize` caches snapshots
-    /// in its store, which must not be the repo's (even though `snapshots/` is git-ignored).
+    /// Runs on the committed tree layered under a temp local root: the materializer caches
+    /// snapshots in the local root, which must not be the repo's.
     fn node_boots_restored_at_the_node_frame() {
         let (mut p, scratch) = rom_pane("rom-node");
-        let store_root = scratch.join("store");
-        let nodes = Store::default_root(content::STUB).join("nodes");
-        std::fs::create_dir_all(store_root.join("nodes")).unwrap();
-        for f in std::fs::read_dir(&nodes).unwrap() {
-            let f = f.unwrap().path();
-            std::fs::copy(&f, store_root.join("nodes").join(f.file_name().unwrap())).unwrap();
-        }
-        let store = Store::open(store_root.clone()).unwrap();
-        let node = store.nodes().unwrap().into_iter().next().expect("a node");
-        p.handle(RomCmd::Reset(RomSource::Node {
-            store_root: store_root.clone(),
-            id: node.meta.id,
-        }));
+        let store_root = scratch.join("local");
+        let node = p.store.nodes().unwrap().into_iter().next().expect("a node");
+        p.handle(RomCmd::Reset(RomSource::Node(node.meta.id)));
         let s = p.status();
         assert_eq!(s.error, None);
         assert_eq!(s.boot, Some(boot::RESTORED));

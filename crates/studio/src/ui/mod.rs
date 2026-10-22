@@ -7,17 +7,32 @@
 //! request is a long poll: it is answered as soon as the slot holds a frame whose seq differs
 //! from `after` (or with 204 after [`LONG_POLL`]), by the slot's waiter thread
 //! ([`FrameSlot::wait_then`]), never blocking the UI thread.
+//!
+//! The [`Studio`] context holds the paths, the layered store, the materializer both panes share
+//! and the two pane threads (the native pane and the ROM pane), spawned once at launch. The
+//! [`Shell`] polls their statuses at about 15 Hz into signals ([`Live`]) and keeps the
+//! checkpoint tree ([`tree::TreeState`]) fresh. Store work, verifies and ROM builds run on
+//! worker threads ([`off_thread`]); the UI thread only sends commands and renders.
 
 pub mod data;
+pub mod keys;
 pub mod map;
 pub mod play;
 pub mod tree;
 
+use crate::build::BuildState;
 use crate::frames::{FrameSlot, parse_frame_request};
-use crate::pane::{self, TestPattern};
+use crate::native::{Inspector, NativeCmd, NativePane};
+use crate::pane::{self, PaneHandle, RunMode, TestPattern};
+use crate::paths::StudioPaths;
+use crate::rom::{RomCmd, RomPane, RomSource, RomStatus};
+use crate::tree::TreeModel;
+use content::Emerald;
 use dioxus::desktop::wry::http::{Response, StatusCode};
 use dioxus::desktop::{Config, LogicalSize, WindowBuilder, use_asset_handler};
 use dioxus::prelude::*;
+use game_native::checkpoints::Materializer;
+use game_native::store::Store;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -25,10 +40,131 @@ use std::time::{Duration, Instant};
 const CSS: &str = include_str!("studio.css");
 const JS: &str = include_str!("studio.js");
 
+/// Node states the shared materializer keeps in memory.
+pub const MATERIALIZER_CAPACITY: usize = 32;
+/// How often the UI copies the panes' statuses into its signals (about 15 Hz).
+pub const STATUS_POLL: Duration = Duration::from_millis(66);
+
 /// The frame slots served by the `frames` asset handler, by pane name (the canvas's
 /// `data-pane`). Held in context.
 #[derive(Clone, Default)]
 pub struct Frames(pub Arc<HashMap<&'static str, FrameSlot>>);
+
+/// The materializer the panes share (it holds only checkpoints).
+pub type SharedMaterializer = Arc<Mutex<Materializer<Emerald>>>;
+
+/// The two play panes, spawned once.
+pub struct Panes {
+    pub native: PaneHandle<NativeCmd, Inspector>,
+    pub rom: PaneHandle<RomCmd, RomStatus>,
+}
+
+/// The app's state, in context. `panes` is `None` in the display-free tests (commands are
+/// dropped and the statuses stay at their defaults).
+#[derive(Clone)]
+pub struct Studio {
+    pub paths: StudioPaths,
+    /// The layered store: the committed tree as a read-only base, personal saves in `local`.
+    pub store: Store,
+    pub materializer: SharedMaterializer,
+    panes: Option<Arc<Panes>>,
+    /// The tree read at start-up, or why it could not be read.
+    tree: Result<TreeModel, String>,
+}
+
+impl Studio {
+    /// The state without panes, with the tree read from `store` (a quick read of `nodes/`,
+    /// done before the window opens).
+    pub fn new(paths: StudioPaths, store: Store, materializer: SharedMaterializer) -> Studio {
+        let tree = TreeModel::load(&store).map_err(|e| e.to_string());
+        Studio {
+            paths,
+            store,
+            materializer,
+            panes: None,
+            tree,
+        }
+    }
+
+    /// The studio of this checkout: `StudioPaths::detect` and its layered store.
+    pub fn detect() -> Result<Studio, String> {
+        let paths = StudioPaths::detect();
+        let store = Store::layered(&paths.shared, &paths.local).map_err(|e| e.to_string())?;
+        let m = Arc::new(Mutex::new(Materializer::new(
+            Emerald::for_shells(),
+            MATERIALIZER_CAPACITY,
+        )));
+        Ok(Studio::new(paths, store, m))
+    }
+
+    /// Spawns the native pane (playing a new game) and the ROM pane (booting `target/game.gba`
+    /// as a new game; a missing ROM is a status).
+    pub fn spawn_panes(mut self) -> Studio {
+        let (store, m) = (self.store.clone(), Arc::clone(&self.materializer));
+        let native = pane::spawn("native", move || NativePane::new(store, m));
+        native.send(NativeCmd::Mode(RunMode::Play));
+        let (rom_path, scratch) = (self.paths.rom.clone(), self.paths.scratch.clone());
+        let (store, m) = (self.store.clone(), Arc::clone(&self.materializer));
+        let rom = pane::spawn("rom", move || RomPane::new(rom_path, scratch, store, m));
+        rom.send(RomCmd::Reset(RomSource::NewGame));
+        self.panes = Some(Arc::new(Panes { native, rom }));
+        self
+    }
+
+    pub fn native(&self, cmd: NativeCmd) {
+        if let Some(p) = &self.panes {
+            p.native.send(cmd);
+        }
+    }
+
+    pub fn rom(&self, cmd: RomCmd) {
+        if let Some(p) = &self.panes {
+            p.rom.send(cmd);
+        }
+    }
+
+    /// The panes' frame slots, by canvas name.
+    pub fn frames(&self) -> Vec<(&'static str, FrameSlot)> {
+        self.panes.as_ref().map_or_else(Vec::new, |p| {
+            vec![
+                ("native", p.native.frames.clone()),
+                ("rom", p.rom.frames.clone()),
+            ]
+        })
+    }
+
+    fn statuses(&self) -> Option<(Inspector, RomStatus)> {
+        let p = self.panes.as_ref()?;
+        Some((p.native.status.get(), p.rom.status.get()))
+    }
+}
+
+/// The panes' latest statuses (and the ROM build's), polled by the [`Shell`]; in context.
+#[derive(Clone, Copy)]
+pub struct Live {
+    pub native: Signal<Inspector>,
+    pub rom: Signal<RomStatus>,
+    /// The running or last `cargo xtask rom` (Play tab).
+    pub build: Signal<Option<BuildState>>,
+}
+
+/// Runs `f` on a new thread and resolves to its result (`None` if it panicked), so the UI
+/// thread never waits on the disk, a replay or a child process.
+pub async fn off_thread<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (tx, rx) = futures_channel::oneshot::channel();
+    std::thread::Builder::new()
+        .name("studio-worker".into())
+        .spawn(move || {
+            let _ = tx.send(f());
+        })
+        .ok()?;
+    rx.await.ok()
+}
+
+/// Resolves after `d`, without assuming an async runtime (a sleeping thread completes it).
+pub async fn sleep(d: Duration) {
+    off_thread(move || std::thread::sleep(d)).await;
+}
 
 /// What `studio.js` reports through `/stats/<pane>`. Smoke runs only: it is in context, the
 /// `stats` handler registered and the JS reporter on only with `STUDIO_SMOKE_SECS`.
@@ -40,6 +176,9 @@ pub struct Stats(Arc<Mutex<BTreeMap<String, Reports>>>);
 struct Smoke {
     secs: f64,
     stats: Stats,
+    /// The panes the smoke gate measures (`SMOKE` lines): the transport test patterns. The
+    /// play panes only publish changed pictures, so their rate is reported as `INFO` lines.
+    gated: Vec<&'static str>,
 }
 
 /// A pane's reports, with when each arrived.
@@ -89,8 +228,12 @@ pub fn head(smoke: bool) -> String {
     format!("<style>{CSS}</style>{flag}<script>{JS}</script>")
 }
 
-/// Opens the studio window. With `STUDIO_SMOKE_SECS=<n>` it closes itself after `n` seconds
-/// and prints the delivered fps per pane (`SMOKE pane=<name> fps=<f> …` lines).
+/// The transport test panes of a smoke run.
+const SMOKE_PANES: [&str; 2] = ["smoke-a", "smoke-b"];
+
+/// Opens the studio window. With `STUDIO_SMOKE_SECS=<n>` it also runs two test-pattern panes,
+/// closes itself after `n` seconds and prints the delivered fps per pane (`SMOKE pane=<name>
+/// fps=<f> …` lines for the test patterns, `INFO …` for the play panes).
 pub fn launch() {
     let smoke = std::env::var("STUDIO_SMOKE_SECS")
         .ok()
@@ -98,17 +241,26 @@ pub fn launch() {
         .map(|secs| Smoke {
             secs,
             stats: Stats::default(),
+            gated: SMOKE_PANES.to_vec(),
         });
-    // The spike panes. The desktop event loop never returns (it exits the process), so these
-    // handles live as long as the app.
-    let panes = [
-        pane::spawn("a", TestPattern::new),
-        pane::spawn("b", TestPattern::new),
-    ];
-    let frames = Frames(Arc::new(HashMap::from([
-        ("a", panes[0].frames.clone()),
-        ("b", panes[1].frames.clone()),
-    ])));
+    let studio = match Studio::detect() {
+        Ok(s) => s.spawn_panes(),
+        Err(e) => {
+            eprintln!("studio: {e}");
+            std::process::exit(1);
+        }
+    };
+    let mut slots: HashMap<&'static str, FrameSlot> = studio.frames().into_iter().collect();
+    if smoke.is_some() {
+        for name in SMOKE_PANES {
+            // The desktop event loop never returns (it exits the process), so the handles may
+            // be leaked: the threads live as long as the app.
+            let handle = pane::spawn(name, TestPattern::new);
+            slots.insert(name, handle.frames.clone());
+            std::mem::forget(handle);
+        }
+    }
+    let frames = Frames(Arc::new(slots));
     let window = WindowBuilder::new()
         .with_title("Studio")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
@@ -122,30 +274,26 @@ pub fn launch() {
         .with_disable_context_menu(true);
     let mut app = dioxus::LaunchBuilder::desktop()
         .with_cfg(cfg)
-        .with_context(frames);
+        .with_context(frames)
+        .with_context(studio);
     if let Some(smoke) = smoke {
         app = app.with_context(smoke);
     }
     app.launch(App);
 }
 
-/// Resolves after `d`, without assuming an async runtime (a sleeping thread completes it).
-async fn sleep(d: Duration) {
-    let (tx, rx) = futures_channel::oneshot::channel();
-    std::thread::spawn(move || {
-        std::thread::sleep(d);
-        let _ = tx.send(());
-    });
-    let _ = rx.await;
-}
-
 /// Steady-state numbers from the reports received after a 2 s warm-up.
-fn print_smoke(stats: &Stats, names: &[&str], start: Instant, secs: f64) {
+fn print_smoke(stats: &Stats, names: &[&str], gated: &[&str], start: Instant, secs: f64) {
     let warm = start + Duration::from_secs_f64((secs / 4.0).min(2.0));
     let all = stats.0.lock().unwrap();
     let mut names = names.to_vec();
     names.sort();
     for name in names {
+        let tag = if gated.contains(&name) {
+            "SMOKE"
+        } else {
+            "INFO"
+        };
         let reports: Vec<Report> = all
             .get(name)
             .map(|v| {
@@ -156,7 +304,7 @@ fn print_smoke(stats: &Stats, names: &[&str], start: Instant, secs: f64) {
             })
             .unwrap_or_default();
         let (Some(first), Some(last)) = (reports.first(), reports.last()) else {
-            println!("SMOKE pane={name} fps=0.0 latency_ms=nan max_ms=nan (no reports)");
+            println!("{tag} pane={name} fps=0.0 latency_ms=nan max_ms=nan (no reports)");
             continue;
         };
         let frames = last.drawn - first.drawn;
@@ -165,7 +313,7 @@ fn print_smoke(stats: &Stats, names: &[&str], start: Instant, secs: f64) {
         let age = (last.age - first.age) / frames.max(1.0);
         let max = reports[1..].iter().map(|r| r.max).fold(0.0, f64::max);
         println!(
-            "SMOKE pane={name} fps={fps:.1} latency_ms={:.2} age_ms={age:.2} fetch_ms={fetch:.2} \
+            "{tag} pane={name} fps={fps:.1} latency_ms={:.2} age_ms={age:.2} fetch_ms={fetch:.2} \
              max_ms={max:.2} frames={frames} secs={:.1}",
             age + fetch,
             (last.t - first.t) / 1000.0
@@ -231,7 +379,7 @@ fn App() -> Element {
             async move {
                 let start = Instant::now();
                 sleep(Duration::from_secs_f64(smoke.secs)).await;
-                print_smoke(&smoke.stats, &names, start, smoke.secs);
+                print_smoke(&smoke.stats, &names, &smoke.gated, start, smoke.secs);
                 let _ = std::io::Write::flush(&mut std::io::stdout());
                 // The last window closing ends the event loop and the process (status 0).
                 dioxus::desktop::window().close();
@@ -241,8 +389,9 @@ fn App() -> Element {
     rsx! { Shell {} }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Tab {
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Tab {
+    #[default]
     Play,
     Checkpoints,
     Map,
@@ -256,14 +405,65 @@ const TABS: [(Tab, &str); 4] = [
     (Tab::Data, "Data"),
 ];
 
+/// Focuses a play pane (its `data-focus` wrapper) once the Play tab is drawn.
+pub fn focus_pane(name: &str) {
+    document::eval(&format!(
+        "setTimeout(() => document.querySelector('[data-focus=\"{name}\"]')?.focus(), 50)"
+    ));
+}
+
 /// The tabs and their views; everything but the desktop-only asset handlers (so it renders
-/// under `dioxus-ssr`).
+/// under `dioxus-ssr`). Needs the [`Studio`] and [`Frames`] contexts; `start` is the first tab.
 #[component]
-pub fn Shell() -> Element {
-    let mut tab = use_signal(|| Tab::Play);
+pub fn Shell(#[props(default)] start: Tab) -> Element {
+    let studio = use_context::<Studio>();
+    let tab = use_context_provider(|| Signal::new(start));
+    let live = use_context_provider(|| Live {
+        native: Signal::new(Inspector::default()),
+        rom: Signal::new(RomStatus::default()),
+        build: Signal::new(None),
+    });
+    let trees = tree::use_tree_state(&studio);
+    // The panes' statuses at about 15 Hz; a new save refreshes the tree.
+    use_future({
+        let studio = studio.clone();
+        move || {
+            let studio = studio.clone();
+            let Live {
+                mut native,
+                mut rom,
+                ..
+            } = live;
+            async move {
+                loop {
+                    sleep(STATUS_POLL).await;
+                    let Some((n, r)) = studio.statuses() else {
+                        continue;
+                    };
+                    if *native.peek() != n {
+                        let saved = native.peek().saved != n.saved;
+                        native.set(n);
+                        if saved {
+                            trees.refresh(&studio);
+                        }
+                    }
+                    if *rom.peek() != r {
+                        rom.set(r);
+                    }
+                }
+            }
+        }
+    });
+    let mut tab = tab;
     let frames = use_context::<Frames>();
-    let mut names: Vec<&'static str> = frames.0.keys().copied().collect();
-    names.sort();
+    // Panes other than the play panes: a smoke run's transport test patterns.
+    let mut extra: Vec<&'static str> = frames
+        .0
+        .keys()
+        .copied()
+        .filter(|n| !["native", "rom"].contains(n))
+        .collect();
+    extra.sort();
     rsx! {
         nav { class: "tabs",
             for (t, label) in TABS {
@@ -277,14 +477,17 @@ pub fn Shell() -> Element {
         div { class: "content",
             match tab() {
                 Tab::Play => rsx! {
-                    div { class: "panes",
-                        for name in names {
-                            PaneView { name }
+                    play::Play {}
+                    if !extra.is_empty() {
+                        div { class: "panes",
+                            for name in extra {
+                                PaneView { name, title: name }
+                            }
                         }
                     }
-                    play::Play {}
                 },
                 Tab::Checkpoints => rsx! { tree::Tree {} },
+                // TODO(M6 Task H merge): `map::Map { live: map::Live::from_inspector(live.native.read().map, live.native.read().camera) }`
                 Tab::Map => rsx! { map::Map {} },
                 Tab::Data => rsx! { data::Data {} },
             }
@@ -292,13 +495,26 @@ pub fn Shell() -> Element {
     }
 }
 
-/// A pane's canvas (filled by `studio.js`) and its fps counter.
+/// A pane's canvas (filled by `studio.js`) and its fps counter. With `keys`, the canvas is
+/// focusable and its key events go to the handlers (the play panes).
 #[component]
-pub fn PaneView(name: &'static str) -> Element {
+pub fn PaneView(
+    name: &'static str,
+    title: String,
+    #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
+    #[props(default)] onkeyup: EventHandler<KeyboardEvent>,
+    #[props(default)] onblur: EventHandler<FocusEvent>,
+) -> Element {
     rsx! {
-        div { class: "pane",
+        div {
+            class: "pane",
+            tabindex: "0",
+            "data-focus": name,
+            onkeydown: move |e: KeyboardEvent| onkeydown.call(e),
+            onkeyup: move |e: KeyboardEvent| onkeyup.call(e),
+            onfocusout: move |e: FocusEvent| onblur.call(e),
             header {
-                span { "{name}" }
+                span { "{title}" }
                 span { "data-fps": name, "– fps" }
             }
             canvas { "data-pane": name, width: "240", height: "160" }
@@ -309,16 +525,46 @@ pub fn PaneView(name: &'static str) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
-    #[test]
-    fn the_shell_renders_without_a_display() {
+    /// A fresh directory (`std::env::temp_dir()` + pid + counter).
+    pub(crate) fn temp_root(tag: &str) -> PathBuf {
+        static N: AtomicU32 = AtomicU32::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "pkr-studio-ui-{tag}-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    /// A studio without panes over the committed tree, with a temp local root.
+    pub(crate) fn test_studio(local: &std::path::Path) -> Studio {
+        let mut paths = StudioPaths::detect();
+        paths.local = local.to_path_buf();
+        let store = Store::layered(&paths.shared, &paths.local).unwrap();
+        let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
+        Studio::new(paths, store, m)
+    }
+
+    pub(crate) fn render(studio: Studio, start: Tab) -> String {
         let frames = Frames(Arc::new(HashMap::from([
             ("native", FrameSlot::default()),
             ("rom", FrameSlot::default()),
         ])));
-        let mut dom = VirtualDom::new(Shell).with_root_context(frames);
+        let mut dom = VirtualDom::new_with_props(Shell, ShellProps { start })
+            .with_root_context(frames)
+            .with_root_context(studio);
         dom.rebuild_in_place();
-        let html = dioxus_ssr::render(&dom);
+        dioxus_ssr::render(&dom)
+    }
+
+    #[test]
+    fn the_shell_renders_without_a_display() {
+        let local = temp_root("shell");
+        let html = render(test_studio(&local), Tab::Play);
         for label in ["Play", "Checkpoints", "Map", "Data"] {
             assert!(
                 html.contains(&format!(">{label}<")),
@@ -334,7 +580,12 @@ mod tests {
                 html.contains(&format!("data-fps=\"{pane}\"")),
                 "{pane} fps in {html}"
             );
+            assert!(
+                html.contains(&format!("data-focus=\"{pane}\"")),
+                "{pane} is focusable in {html}"
+            );
         }
+        assert!(!local.exists(), "rendering writes nothing");
     }
 
     #[test]
@@ -357,5 +608,44 @@ mod tests {
             (1.5, 10.0, 2.0, 3.0, 4.0)
         );
         assert!(Report::parse("t=x").is_none());
+    }
+
+    #[test]
+    fn a_studio_without_panes_drops_commands() {
+        let local = temp_root("nopanes");
+        let s = test_studio(&local);
+        s.native(NativeCmd::Save);
+        s.rom(RomCmd::ExportSave);
+        assert!(s.frames().is_empty());
+        assert!(s.statuses().is_none());
+        assert!(!local.exists());
+    }
+
+    #[test]
+    fn off_thread_resolves_with_the_result_or_none() {
+        let v = futures_executor_block_on(off_thread(|| 6 * 7));
+        assert_eq!(v, Some(42));
+        let p = futures_executor_block_on(off_thread(|| -> u8 { panic!("worker") }));
+        assert_eq!(p, None);
+    }
+
+    /// A minimal `block_on` (no executor crate): parks the thread until woken.
+    pub(crate) fn futures_executor_block_on<F: std::future::Future>(f: F) -> F::Output {
+        use std::task::{Context, Poll, Wake, Waker};
+        struct Unpark(std::thread::Thread);
+        impl Wake for Unpark {
+            fn wake(self: Arc<Self>) {
+                self.0.unpark();
+            }
+        }
+        let waker = Waker::from(Arc::new(Unpark(std::thread::current())));
+        let mut cx = Context::from_waker(&waker);
+        let mut f = std::pin::pin!(f);
+        loop {
+            if let Poll::Ready(v) = f.as_mut().poll(&mut cx) {
+                return v;
+            }
+            std::thread::park();
+        }
     }
 }

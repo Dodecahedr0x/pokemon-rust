@@ -1,8 +1,11 @@
 //! `cargo xtask studio [--smoke [secs] | --check]`: runs the studio (release).
 //! - `--smoke` closes it after `secs` (default 10) through `STUDIO_SMOKE_SECS` and fails if a
-//!   pane delivered under [`MIN_FPS`], the studio exited non-zero, or it was still running
-//!   `secs` + [`SMOKE_GRACE_SECS`] after start (then it is killed). Needs a logged-in GUI
-//!   session; the window stays on top and takes focus.
+//!   gated pane delivered under [`MIN_FPS`], the studio exited non-zero, or it was still
+//!   running `secs` + [`SMOKE_GRACE_SECS`] after start (then it is killed). The gated panes
+//!   (`SMOKE` lines) are two transport test patterns the studio adds in a smoke run, next to
+//!   the real native and ROM panes (running a new game); those publish only changed pictures,
+//!   so their rate is printed as `INFO` lines and not gated. Needs a logged-in GUI session; the
+//!   window stays on top and takes focus.
 //! - `--check` runs the display-free `ui` gates the workspace gates skip: `cargo test -p studio
 //!   --features ui` and its clippy.
 
@@ -142,6 +145,7 @@ mod tests {
     #[test]
     fn smoke_lines_parse() {
         let out = "noise\nSMOKE pane=a fps=60.0 latency_ms=1.02 max_ms=26.36\n\
+                   INFO pane=native fps=0.0 latency_ms=nan (no reports)\n\
                    SMOKE pane=b fps=nan latency_ms=nan (no reports)\nSMOKE fps=3\n";
         assert_eq!(
             parse_smoke(out),
