@@ -49,7 +49,8 @@ pub fn choose_with(rng: &mut Rng64, force_probe: bool) -> MutationOp {
     }
 }
 
-/// The job's start node (`None` = a new game) and plan for the selected node `sel`.
+/// The job's start node (`None` = the db's root start: a new game, or the `--from` node) and
+/// plan for the selected node `sel`.
 pub fn mutate(g: &Graph, rng: &mut Rng64, sel: NodeId, cfg: &Config) -> (Option<NodeId>, Plan) {
     mutate_with(g, rng, sel, cfg, barren(g, sel))
 }

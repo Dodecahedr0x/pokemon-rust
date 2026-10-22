@@ -21,6 +21,8 @@ pub struct SnapCache {
     order: BTreeMap<u64, NodeId>,
     hits: u64,
     misses: u64,
+    /// Where the db's root node starts (`None`: a new game; a `--from` db's checkpoint).
+    root: Option<Arc<Checkpoint>>,
 }
 
 impl SnapCache {
@@ -34,7 +36,17 @@ impl SnapCache {
             order: BTreeMap::new(),
             hits: 0,
             misses: 0,
+            root: None,
         }
+    }
+
+    /// The root node's start state for [`reach`] (`None`: a new game).
+    pub fn set_root(&mut self, root: Option<Arc<Checkpoint>>) {
+        self.root = root;
+    }
+
+    pub fn root(&self) -> Option<&Arc<Checkpoint>> {
+        self.root.as_ref()
     }
 
     fn touch(&mut self, id: NodeId) -> Option<Arc<Checkpoint>> {
@@ -200,7 +212,9 @@ fn db_snapshot(db: &Db, n: &NodeRow, build: BuildHash) -> Result<Option<Checkpoi
 }
 
 /// Node `id`'s end state: the nearest ancestor in the cache, then in the db (same build), else
-/// a new game; replays the inputs down the lineage, checks each digest, caches the result
+/// the root's start (the cache's [`SnapCache::set_root`], a new game by default); replays the
+/// inputs (loaded from the db: they are not resident) down the lineage, checks each digest,
+/// caches the result
 /// (and every state replayed on the way). Counts one cache hit or one miss per call. The
 /// cache is cleared first if it holds states of another build.
 pub fn reach<G: GameData + Clone>(
@@ -236,7 +250,7 @@ pub fn reach<G: GameData + Clone>(
     let (from, start_cp) = match start {
         Some((i, cp)) if i + 1 == lineage.len() => return Ok(cp),
         Some((i, cp)) => (i + 1, Some(cp)),
-        None => (0, None),
+        None => (0, cache.root.clone()),
     };
     let mut s = session_at(game, start_cp.as_deref())?;
     let mut last = None;

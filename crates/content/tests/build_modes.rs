@@ -2,8 +2,8 @@
 //! with `PKR_EXTRACTED_DIR` set:
 //! - stub mode: a missing extracted dir;
 //! - generated scripts: a fixture extracted dir (the stub world written to disk, plus a
-//!   hand-written `scripts/legacy_index.ron`, two script files and a text file), which exercises the
-//!   `include!` of `scripts/<Map>.rs`, the prelude contract and script dispatch;
+//!   hand-written script IR of two modules, its `scripts/index.ron` and a text file), which
+//!   exercises the lowering (`build/scripts.rs`), the prelude contract and script dispatch;
 //! - a stale extract: that fixture with an older manifest `format`, which builds the stub and
 //!   sets `content::STALE_EXTRACT`.
 
@@ -13,6 +13,9 @@ mod battle;
 #[allow(dead_code)]
 #[path = "../build/battle_load.rs"]
 mod battle_load;
+#[allow(dead_code)]
+#[path = "../build/blob_data.rs"]
+mod blob_data;
 #[path = "../build/build_id.rs"]
 mod build_id;
 #[allow(dead_code)]
@@ -43,7 +46,10 @@ fn printed_build_id(out: &str) -> u64 {
     u64::from_str_radix(line.get(..16).unwrap(), 16).unwrap()
 }
 
-use extract::schema::{LegacyScriptEntry, LegacyScriptIndex, Object};
+use extract::schema::{
+    Hex, IrArg, IrInsn, IrLabel, IrMovement, NameOrigin, Object, RootKind, ScriptEntry, ScriptFile,
+    ScriptIndex,
+};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -75,47 +81,124 @@ fn content_tests(extracted: &Path, target: &Path, extra: &[&str]) -> String {
     stdout
 }
 
-const STUB_TOWN_RS: &str = r#"// @generated fixture (hand-written)
-pub async fn StubTown_Obj1(ctx: Ctx) {
-    let mut cond = Ordering::Equal;
-    msgbox(&ctx, StubTown_Obj1_T0, MsgBox::Npc).await;
-    ctx.move_obj(PLAYER, &StubTown_Obj1_M0).await;
-    ctx.wait_move(PLAYER).await;
-    if ctx.flag(FLAG_0x1AB).await {
-        cond = Ordering::Less;
+fn insn(op: &str, args: Vec<IrArg>) -> IrInsn {
+    IrInsn {
+        op: op.into(),
+        args,
     }
-    if cond == Ordering::Equal {
-        Box::pin(StubTown_Obj1_L0(ctx.clone())).await;
+}
+
+fn konst(table: &str, name: &str) -> IrArg {
+    IrArg::Const {
+        table: table.into(),
+        name: name.into(),
     }
-    Box::pin(super::Other::Other_Main(ctx.clone())).await;
-    let v = special(&ctx, SPECIAL_HealPlayerParty).await;
-    ctx.set_var(VAR_0x4001, v).await;
-    ctx.set_var(VAR_RESULT, check_player_gender(&ctx).await).await;
-    callstd(&ctx, STD_FIND_ITEM).await;
-    callstd(&ctx, STD_OBTAIN_ITEM).await;
-    unsupported(&ctx, "playse").await;
-    ctx.set_movement_type(1, MovementType::Face(Dir::Left)).await;
-    ctx.fade(Fade::ToBlack).await;
-    ctx.warp(MAP_PETALBURG_CITY, Some(0), 0, 0).await;
-    ctx.log("FIXTURE SCRIPT DONE").await;
 }
 
-pub async fn StubTown_Obj1_L0(ctx: Ctx) {
-    ctx.set_flag(FLAG_HIDE_LITTLEROOT_TOWN_RIVAL, true).await;
+fn label(name: &str, root: Option<RootKind>, insns: Vec<IrInsn>) -> IrLabel {
+    IrLabel {
+        name: name.into(),
+        origin: NameOrigin::Decomp,
+        offset: Hex(0),
+        root,
+        insns,
+        next: None,
+    }
 }
 
-pub static StubTown_Obj1_M0: [Step; 3] = [
-    Step::Walk(Dir::Up, Speed::Normal),
-    Step::Emote(Emote::Exclamation),
-    Step::Face(Dir::Down),
-];
-"#;
-
-const OTHER_RS: &str = r#"// @generated fixture (hand-written)
-pub async fn Other_Main(ctx: Ctx) {
-    msgbox(&ctx, Other_Main_T0, MsgBox::Default).await;
+/// The fixture IR: `StubTown_EventScript_Obj1` runs a msgbox, a movement, a flag test, a label
+/// call, a cross-module call, a special, `checkplayergender`, `STD_OBTAIN_ITEM`, a movement
+/// type, a fade, a warp and an unsupported command (`data_tests.rs`).
+fn fixture_ir() -> Vec<ScriptFile> {
+    use IrArg::*;
+    let stub_town = ScriptFile {
+        module: "StubTown".into(),
+        source: None,
+        labels: vec![
+            label(
+                "StubTown_EventScript_Obj1",
+                Some(RootKind::Object(1)),
+                vec![
+                    insn(
+                        "loadword",
+                        vec![Byte(0), Text("StubTown_Text_Hello".into())],
+                    ),
+                    insn("callstd", vec![konst("MSGBOX", "MSGBOX_NPC")]),
+                    insn(
+                        "applymovement",
+                        vec![Half(0xFF), Movement("StubTown_Movement_Walk".into())],
+                    ),
+                    insn("waitmovement", vec![Half(0)]),
+                    insn("checkflag", vec![Flag("FLAG_0x1AB".into())]),
+                    insn(
+                        "call_if",
+                        vec![Byte(0), Script("StubTown_EventScript_Sub".into())],
+                    ),
+                    insn("call", vec![Script("Other_EventScript_Main".into())]),
+                    insn("special", vec![konst("SPECIAL", "SPECIAL_HealPlayerParty")]),
+                    insn("checkplayergender", vec![]),
+                    insn(
+                        "setorcopyvar",
+                        vec![Var("VAR_0x8000".into()), konst("ITEM", "ITEM_POTION")],
+                    ),
+                    insn("setorcopyvar", vec![Var("VAR_0x8001".into()), Half(1)]),
+                    insn("callstd", vec![konst("STD", "STD_OBTAIN_ITEM")]),
+                    insn(
+                        "setobjectmovementtype",
+                        vec![Half(1), konst("MOVEMENT_TYPE", "MOVEMENT_TYPE_FACE_LEFT")],
+                    ),
+                    insn("fadescreen", vec![Byte(1)]),
+                    insn(
+                        "warp",
+                        vec![
+                            konst("MAP", "MAP_PETALBURG_CITY"),
+                            Byte(0),
+                            Half(0),
+                            Half(0),
+                        ],
+                    ),
+                    insn("pokemart", vec![Raw(0)]),
+                    insn("end", vec![]),
+                ],
+            ),
+            label(
+                "StubTown_EventScript_Sub",
+                None,
+                vec![
+                    insn(
+                        "setflag",
+                        vec![Flag("FLAG_HIDE_LITTLEROOT_TOWN_RIVAL".into())],
+                    ),
+                    insn("return", vec![]),
+                ],
+            ),
+        ],
+        movements: vec![IrMovement {
+            name: "StubTown_Movement_Walk".into(),
+            origin: NameOrigin::Decomp,
+            actions: vec![
+                "MOVEMENT_ACTION_WALK_NORMAL_UP".into(),
+                "MOVEMENT_ACTION_EMOTE_EXCLAMATION_MARK".into(),
+                "MOVEMENT_ACTION_FACE_DOWN".into(),
+            ],
+        }],
+    };
+    let other = ScriptFile {
+        module: "Other".into(),
+        source: None,
+        labels: vec![label(
+            "Other_EventScript_Main",
+            None,
+            vec![
+                insn("loadword", vec![Byte(0), Text("Other_Text_Bye".into())]),
+                insn("callstd", vec![konst("MSGBOX", "MSGBOX_DEFAULT")]),
+                insn("return", vec![]),
+            ],
+        )],
+        movements: vec![],
+    };
+    vec![stub_town, other]
 }
-"#;
 
 fn write_fixture(dir: &Path) {
     let _ = std::fs::remove_dir_all(dir);
@@ -131,40 +214,54 @@ fn write_fixture(dir: &Path) {
         range_y: 1,
         trainer_type: "TRAINER_TYPE_NONE".into(),
         trainer_sight_or_berry_tree: 0,
-        script: Some("StubTown_Obj1".into()),
+        script: Some("StubTown_EventScript_Obj1".into()),
         flag: Some("FLAG_0x1AC".into()),
     });
     input::write(&w, dir).unwrap();
 
-    let entry = |file: &str, root| LegacyScriptEntry {
-        file: file.into(),
-        root,
-    };
-    let index = LegacyScriptIndex {
-        scripts: BTreeMap::from([
-            ("StubTown_Obj1".into(), entry("StubTown.rs", true)),
-            ("StubTown_Obj1_L0".into(), entry("StubTown.rs", false)),
-            ("Other_Main".into(), entry("Other.rs", true)),
-        ]),
-        movements: BTreeMap::from([("StubTown_Obj1_M0".into(), "StubTown.rs".into())]),
-    };
+    let files = fixture_ir();
+    let mut index = ScriptIndex::default();
+    for f in &files {
+        for l in &f.labels {
+            index.scripts.insert(
+                l.name.clone(),
+                ScriptEntry {
+                    module: f.module.clone(),
+                    root: l.root.is_some(),
+                    origin: NameOrigin::Decomp,
+                    offset: Hex(0),
+                },
+            );
+        }
+        for m in &f.movements {
+            index.movements.insert(m.name.clone(), f.module.clone());
+        }
+    }
+    index
+        .texts
+        .insert("StubTown_Text_Hello".into(), "StubTown".into());
+    index.texts.insert("Other_Text_Bye".into(), "Other".into());
     let put = |rel: &str, s: &str| {
         let p = dir.join(rel);
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(p, s).unwrap();
     };
     put(
-        "scripts/legacy_index.ron",
+        "scripts/index.ron",
         &extract::export::to_ron(&index).unwrap(),
     );
-    put("scripts/StubTown.rs", STUB_TOWN_RS);
-    put("scripts/Other.rs", OTHER_RS);
+    for f in &files {
+        put(
+            &format!("scripts/{}.ron", f.module),
+            &extract::export::to_ron(f).unwrap(),
+        );
+    }
     let texts: BTreeMap<String, String> = BTreeMap::from([
         (
-            "StubTown_Obj1_T0".into(),
-            "BONJOUR {PLAYER}!\\nÇa va?".into(),
+            "StubTown_Text_Hello".into(),
+            "HELLO {PLAYER}!\\nOK É?".into(),
         ),
-        ("Other_Main_T0".into(), "AU REVOIR.".into()),
+        ("Other_Text_Bye".into(), "BYE.".into()),
     ]);
     put("text/fr.ron", &extract::export::to_ron(&texts).unwrap());
 }
@@ -283,10 +380,8 @@ fn build_id_tracks_the_extracted_files() {
         assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
     }
     // A hand edit that leaves the manifest as is still counts.
-    std::fs::write(
-        two.join("scripts/Other.rs"),
-        format!("{OTHER_RS}// edited\n"),
-    )
-    .unwrap();
+    let other = two.join("scripts/Other.ron");
+    let text = std::fs::read_to_string(&other).unwrap();
+    std::fs::write(&other, format!("{text}// edited\n")).unwrap();
     assert_ne!(build_id::build_id(content, Some(&two)).unwrap(), id);
 }

@@ -13,9 +13,8 @@
 //!   sprites/<Gfx>.png            frames side by side, own palette
 //!   font/latin_normal.{png,ron}  FontFile
 //!   window/message_box.{png,ron} WindowFile
-//!   text/<lang>.ron              TextFile (raw RON strings in decomp `.string` syntax)
-//!   scripts/<Map>.rs             generated async Rust (M3 Task B; deleted by M8 Task D2)
-//!   scripts/legacy_index.ron     LegacyScriptIndex (index of the `.rs` scripts; deleted by D2)
+//!   text/<lang>.ron              TextFile (raw RON strings in decomp `.string` syntax), keyed
+//!                                by the script IR's final names since v5.4
 //!   previews/<Map>.png           (only with `cargo xtask extract --previews` from M8 Task A on)
 //!   ---- v3 (Milestone 4, battle) ----
 //!   battle/species.ron           SpeciesFile    (Gen3 index order, key SPECIES_*)
@@ -39,8 +38,6 @@
 //!   scripts/<Module>.ron         ScriptFile   (IR; <Module> = decomp source: a map dir name, or
 //!                                             Common_<stem> for data/scripts/<stem>.inc)
 //!   scripts/index.ron            ScriptIndex v5 (name -> module, root, origin, offset)
-//!   text/ir_<lang>.ron           TextFile keyed by the IR's final names (until D2 deletes the
-//!                                legacy text/<lang>.ron and takes its place)
 //!   layouts/<Layout>.ron         LayoutFile   (every layout, incl. ones only setmaplayoutindex uses)
 //!   tables/items.ron             ItemsFile    (all ITEM_*: name, pocket, price, importance)
 //!   tables/multichoice.ron       MultichoiceFile (MULTI_* -> list of strings)
@@ -81,15 +78,22 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// v5 (Milestone 8): the script IR, layouts, tables, every wild header per map, and the `.rs`
-/// scripts' index renamed `scripts/legacy_index.ron`.
+/// v5 (Milestone 8): the script IR, layouts, tables and every wild header per map (the legacy
+/// `.rs` scripts are gone since minor 4).
 pub const FORMAT_VERSION: u32 = 5;
 /// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
-/// extract; 1: Task B adds the script IR (`scripts/<Module>.ron`, `scripts/index.ron`,
-/// `text/ir_<lang>.ron`); 2: Task A adds `layouts/`, `sprites/field_effects/` (emotes), every
-/// wild table of every header (encounters v5), `battle/evolutions.ron`,
-/// `battle/trainer_money.ron` and `Species.weight`, and makes previews optional.
-pub const FORMAT_MINOR: u32 = 2;
+/// extract.
+/// - 1: Task B adds the script IR (`scripts/<Module>.ron`, `scripts/index.ron`,
+///   `text/ir_<lang>.ron`).
+/// - 2: Task A adds `layouts/`, `sprites/field_effects/` (emotes), every wild table of every
+///   header (encounters v5), `battle/evolutions.ron`, `battle/trainer_money.ron` and
+///   `Species.weight`, and makes previews optional.
+/// - 3: Task C adds the `tables/` files (items, multichoice, std strings, map sections).
+/// - 4: Task D2 deletes the legacy output (`scripts/<Map>.rs`, `scripts/legacy_index.ron`):
+///   `text/<lang>.ron` takes the IR's final names (`text/ir_<lang>.ron` is gone), the map files
+///   name their scripts by them, and the IR also holds the std scripts (`gStdScripts`) and
+///   their texts. No file is added, so [`MINOR_FILES`] has no minor-4 entry.
+pub const FORMAT_MINOR: u32 = 4;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -106,6 +110,10 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (2, "sprites/field_effects/QuestionMark.png"),
     (2, "sprites/field_effects/HeartIcon.ron"),
     (2, "sprites/field_effects/HeartIcon.png"),
+    (3, "tables/items.ron"),
+    (3, "tables/multichoice.ron"),
+    (3, "tables/std_strings.ron"),
+    (3, "tables/map_sections.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -404,24 +412,6 @@ pub struct WindowFile {
 
 /// `text/<lang>.ron`: text name -> string in decomp `.string` syntax.
 pub type TextFile = BTreeMap<String, String>;
-
-/// `scripts/legacy_index.ron`: the index of the generated `.rs` scripts (`codegen::generate`),
-/// until Milestone 8 Task D2 lowers the IR in the content build instead.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
-pub struct LegacyScriptIndex {
-    /// Every generated script or label fn, by name.
-    pub scripts: BTreeMap<String, LegacyScriptEntry>,
-    /// Every movement table, by name.
-    pub movements: BTreeMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct LegacyScriptEntry {
-    /// `scripts/<file>.rs` defining it.
-    pub file: String,
-    /// Whether a map event or map script refers to it directly.
-    pub root: bool,
-}
 
 // ---- v3: battle data (Milestone 4 Task A) ----
 
@@ -790,7 +780,8 @@ pub struct Item {
     pub id: String,
     /// The ROM's name, decomp `.string` syntax.
     pub name: String,
-    /// `None` for `POCKET_NONE` (`ITEM_NONE`, unused slots).
+    /// `None` for `POCKET_NONE`, which no Emerald item uses: `ITEM_NONE` and the unused slots
+    /// (`ITEM_034` …, itemId 0) are `POCKET_ITEMS`, named "????????" with price 0.
     pub pocket: Option<ItemPocket>,
     pub price: u16,
     /// `importance`: key items cannot be tossed or sold.

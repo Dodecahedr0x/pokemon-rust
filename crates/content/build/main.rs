@@ -1,5 +1,5 @@
 //! Compiles `content/extracted/` (written by `cargo xtask extract`) into `'static` tables in
-//! `$OUT_DIR/{consts,data,scripts,battle}.rs` (+ `battle.bin`), and `content::BUILD_ID` into
+//! `$OUT_DIR/{consts,data,scripts,battle}.rs` (+ the `data.bin` and `battle.bin` blobs), and `content::BUILD_ID` into
 //! `$OUT_DIR/build_id.rs` (`build_id.rs`). Without an extracted dir it builds a small built-in
 //! world instead and sets `cfg(pkr_stub)`.
 //!
@@ -13,6 +13,8 @@ mod build_id;
 #[allow(dead_code)]
 #[path = "../../engine/build_support.rs"]
 mod build_support;
+// `idents_with_prefix` and `without_line_comments` are for the script lowering (Task D2).
+#[allow(dead_code)]
 mod classify;
 mod codegen;
 #[allow(dead_code)]
@@ -90,7 +92,11 @@ fn main() {
         // No `battle/` (the stub, or a test fixture): the stub battle data.
         println!("cargo::rustc-cfg=pkr_stub_battle");
     }
-    let g = codegen::generate(&world).unwrap_or_else(|e| panic!("generating content: {e:#}"));
+    // The non-generated sources, for `content::data::GLOBAL_DIGEST`.
+    let sources = codegen::sources_digest(&manifest_dir)
+        .unwrap_or_else(|e| panic!("hashing the content sources: {e}"));
+    let g =
+        codegen::generate(&world, sources).unwrap_or_else(|e| panic!("generating content: {e:#}"));
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let build_dir = manifest_dir.join("build");
     // Every support table, including ones Wave 1 adds (`movements.ron`).
@@ -105,20 +111,20 @@ fn main() {
     for t in &tables {
         println!("cargo::rerun-if-changed={}", t.display());
     }
-    let support = scripts::support(&build_dir).unwrap_or_else(|e| panic!("{e:#}"));
-    let sc = scripts::generate(real.then_some(dir.as_path()), &out, &world, &support)
-        .unwrap_or_else(|e| panic!("generating scripts: {e:#}"));
-    blob_data::generate(&world, &out).unwrap_or_else(|e| panic!("generating blobs: {e:#}"));
+    let sc =
+        scripts::generate(&out, &world).unwrap_or_else(|e| panic!("generating scripts: {e:#}"));
     for (name, src) in [
         ("consts.rs", &g.consts),
         ("data.rs", &g.data),
         ("dispatch.rs", &sc.dispatch),
         ("scripts.rs", &sc.rs),
-        ("report.txt", &sc.report),
+        ("overrides.rs", &sc.overrides),
+        ("report.txt", &format!("{}{}", sc.report, g.report)),
         ("battle.rs", &g.battle),
     ] {
         write_if_changed(&out.join(name), src.as_bytes()).unwrap();
     }
     write_if_changed(&out.join("battle.bin"), &g.battle_bin).unwrap();
+    write_if_changed(&out.join("data.bin"), &g.data_bin).unwrap();
     write_if_changed(&out.join("build_id.rs"), format!("{id:#018x}\n").as_bytes()).unwrap();
 }

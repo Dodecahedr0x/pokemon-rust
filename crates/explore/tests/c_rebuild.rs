@@ -138,13 +138,13 @@ impl Fixture {
     }
 
     /// True end states -> their row's key, with `over` (row index -> key) applied.
-    fn keys(&self, over: &[(usize, u64)]) -> impl Fn(&WorldSnapshot) -> (AbstractKey, u64) {
+    fn keys(&self, over: &[(usize, u64)]) -> impl Fn(&WorldSnapshot) -> AbstractKey {
         let mut m: BTreeMap<u64, AbstractKey> =
             self.rows.iter().map(|n| (n.digest, n.key)).collect();
         for &(i, k) in over {
             m.insert(self.rows[i].digest, AbstractKey(k));
         }
-        move |w| (m[&state_digest(w)], 7)
+        move |w| m[&state_digest(w)]
     }
 }
 
@@ -247,6 +247,7 @@ fn a_repair_recomputes_total_frames_down_the_tree() {
         &mut db,
         &f.game,
         &cfg(),
+        None,
         &f.repair(&calls, &[]),
         &f.keys(&[]),
     )
@@ -287,6 +288,7 @@ fn a_diverged_root_re_expands_from_a_new_game() {
         &mut db,
         &f.game,
         &cfg(),
+        None,
         &f.repair(&calls, &[]),
         &f.keys(&[]),
     )
@@ -312,6 +314,7 @@ fn a_repaired_key_waits_for_the_deeper_holder_then_merges() {
         &mut db,
         &f.game,
         &cfg(),
+        None,
         &f.repair(&calls, &[]),
         &f.keys(&[(3, 1003)]),
     )
@@ -351,6 +354,7 @@ fn more_goals_keep_the_key_against_fewer_frames() {
         &mut db,
         &f.game,
         &cfg(),
+        None,
         &f.repair(&calls, &[]),
         &f.keys(&[(3, 1003)]),
     )
@@ -382,6 +386,7 @@ fn a_waiting_node_takes_the_key_when_the_holder_breaks() {
         &mut db,
         &f.game,
         &cfg(),
+        None,
         &f.repair(&calls, &[walk(0, 2)]),
         &f.keys(&[(3, 1003)]),
     )
@@ -406,6 +411,7 @@ fn repaired_siblings_swap_keys() {
         &mut db,
         &f.game,
         &cfg(),
+        None,
         &f.repair(&calls, &[]),
         &f.keys(&[(1, 4004), (3, 1002)]),
     )
@@ -437,6 +443,7 @@ fn the_result_does_not_depend_on_the_pool_size() {
                     &mut db,
                     &f.game,
                     &cfg(),
+                    None,
                     &f.repair(&calls, &[]),
                     &f.keys(&[(1, 4004), (3, 1002)]),
                 )

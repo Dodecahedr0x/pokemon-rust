@@ -142,6 +142,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "removeitem",
     "checkitemspace",
     "checkitem",
+    "checkitemtype",
     "applymovement",
     "applymovementat",
     "waitmovement",
@@ -246,7 +247,8 @@ const ITEM_VAR: u16 = 0x8000;
 const ITEM_AMOUNT_VAR: u16 = 0x8001;
 const LOCALID_PLAYER: u16 = 0xFF;
 const WARP_ID_NONE: u8 = 0xFF;
-const TRAINER_BATTLE_KINDS: [&str; 13] = [
+/// `include/constants/battle_setup.h` `TRAINER_BATTLE_*`, in value order (the `trainerbattle` type).
+pub const TRAINER_BATTLE_KINDS: [&str; 13] = [
     "TRAINER_BATTLE_SINGLE",
     "TRAINER_BATTLE_CONTINUE_SCRIPT_NO_MUSIC",
     "TRAINER_BATTLE_CONTINUE_SCRIPT",
@@ -304,7 +306,6 @@ struct Low<'a> {
     /// Member -> its group's leader.
     group_of: BTreeMap<usize, usize>,
     stats: Stats,
-    trainer_scripts: BTreeSet<(String, String)>,
 }
 
 /// Where the content crate puts the dispatch (`Flow`, `script_ids`, `SCRIPTS`).
@@ -410,7 +411,28 @@ pub fn lower(
         ),
         ("texts".to_string(), pct(decomp_texts, texts.len())),
     ]);
-    out.trainer_scripts = low.trainer_scripts.iter().cloned().collect();
+    // Gen3 `GetTrainerFlagFromScriptPointer` reads the trainer of a script that starts with
+    // `trainerbattle`: one row per function (so it has a `ScriptId`), taken from the IR rather
+    // than the emitted code, so an overridden script keeps its row and a second `trainerbattle`
+    // in the same block adds none.
+    out.trainer_scripts = low
+        .fns
+        .iter()
+        .filter_map(|&f| {
+            let i = low.labs[f]
+                .insns
+                .first()
+                .filter(|i| i.op == "trainerbattle")?;
+            let name = match i.args.get(1)? {
+                IrArg::Const { name, .. } => name.clone(),
+                IrArg::Half(t) => names::TRAINERS.name((*t).into())?.to_string(),
+                _ => return None,
+            };
+            Some((low.labs[f].name.to_string(), name))
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     out.stats = low.stats;
     Ok(out)
 }
@@ -532,7 +554,6 @@ impl<'a> Low<'a> {
             groups: BTreeMap::new(),
             group_of: BTreeMap::new(),
             stats: Stats::default(),
-            trainer_scripts: BTreeSet::new(),
         })
     }
 
@@ -542,7 +563,8 @@ impl<'a> Low<'a> {
         let mut specials = BTreeSet::new();
         for l in &self.labs {
             for i in l.insns {
-                if !self.support.commands.contains_key(&i.op) {
+                // `unknown` (an invalid opcode, Task B) is no command: it lowers to a report.
+                if i.op != "unknown" && !self.support.commands.contains_key(&i.op) {
                     ops.insert(i.op.clone());
                 }
                 if let Some(s) = special_of(i)

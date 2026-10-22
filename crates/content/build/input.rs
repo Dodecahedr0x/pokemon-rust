@@ -5,8 +5,8 @@ use anyhow::{Context, Result, bail, ensure};
 use extract::export::{read_map, read_ron, read_tileset, to_ron};
 use extract::gfx::{self, IndexedImage, Palette};
 use extract::schema::{
-    FORMAT_VERSION, FontFile, LegacyScriptIndex, Manifest, MapFile, SpriteFile, TextFile,
-    TilesetFile, WindowFile,
+    FORMAT_VERSION, FieldEffectSpriteFile, FontFile, ItemsFile, Manifest, MapFile, MapSectionsFile,
+    MultichoiceFile, SpriteFile, StdStringsFile, TextFile, TilesetFile, WindowFile,
 };
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
@@ -28,6 +28,25 @@ pub struct SpriteIn {
     pub frames: Vec<Vec<Tile>>,
 }
 
+/// A field-effect pic (`sprites/field_effects/`): the emotes.
+pub struct EmoteIn {
+    /// `ExclamationMark`, `QuestionMark`, `HeartIcon`.
+    pub name: String,
+    pub width: u16,
+    pub height: u16,
+    pub frames: Vec<Vec<Tile>>,
+    pub palette: [u16; 16],
+}
+
+/// Task C's `tables/` (absent from older extracts: the tables are then empty).
+#[derive(Default)]
+pub struct Tables {
+    pub items: ItemsFile,
+    pub multichoice: MultichoiceFile,
+    pub std_strings: StdStringsFile,
+    pub map_sections: MapSectionsFile,
+}
+
 pub struct World {
     pub lang: Lang,
     /// In export order (`manifest.maps`).
@@ -40,15 +59,32 @@ pub struct World {
     pub window_tiles: Vec<Tile>,
     /// Text name -> Gen3 bytes, 0xFF-terminated.
     pub texts: BTreeMap<String, Vec<u8>>,
-    /// `scripts/legacy_index.ron`, when scripts were generated (Milestone 8 Task D2 moves the
-    /// build to the IR's `scripts/index.ron`).
-    pub index: Option<LegacyScriptIndex>,
+    /// The script IR (`scripts/*.ron`), when the extract has one (Milestone 8 Task D2 lowers it).
+    pub ir: Option<crate::scripts::Ir>,
     /// sha1 of the source ROM (`manifest.sha1`).
     pub sha1: String,
     /// Absolute extracted dir (`None` for the built-in stub).
     pub dir: Option<PathBuf>,
     /// Battle data; the stub's when the extracted dir has no `battle/` (test fixtures).
     pub battle: crate::battle::BattleIn,
+    /// Items, multichoice lists, std strings, map sections (`tables/`, Task C).
+    pub tables: Tables,
+    /// The emote pics (`sprites/field_effects/`, Task A).
+    pub emotes: Vec<EmoteIn>,
+}
+
+/// `read_ron` of a file added within the format (`FORMAT_MINOR`), or the default when an older
+/// extract lacks it.
+#[macro_export]
+macro_rules! read_opt {
+    ($path:expr) => {{
+        let p = $path;
+        if p.exists() {
+            extract::export::read_ron(&p)?
+        } else {
+            Default::default()
+        }
+    }};
 }
 
 /// A build warning (shown by cargo).
@@ -234,27 +270,11 @@ pub fn load(dir: &Path) -> Result<World> {
             texts.insert(k, bytes);
         }
     }
-    let index_path = dir.join("scripts/legacy_index.ron");
-    let index = if index_path.exists() {
-        Some(read_ron::<LegacyScriptIndex>(&index_path)?)
-    } else {
-        None
-    };
+    let ir = crate::scripts::read_ir(dir, &manifest)?;
+    let tables = read_tables(dir)?;
+    let emotes = read_emotes(dir)?;
     let battle = if dir.join("battle/species.ron").exists() {
-        let mut sources = Vec::new();
-        if let Some(index) = &index {
-            // `file` names the module (`LittlerootTown` or `LittlerootTown.rs`).
-            let stems: std::collections::BTreeSet<&str> = index
-                .scripts
-                .values()
-                .map(|e| e.file.strip_suffix(".rs").unwrap_or(&e.file))
-                .collect();
-            for f in stems {
-                let p = dir.join(format!("scripts/{f}.rs"));
-                sources.push(std::fs::read_to_string(&p).with_context(|| p.display().to_string())?);
-            }
-        }
-        crate::battle_load::load(dir, &sources).context("battle data")?
+        crate::battle_load::load(dir).context("battle data")?
     } else {
         crate::stub::battle()
     };
@@ -268,11 +288,59 @@ pub fn load(dir: &Path) -> Result<World> {
         window,
         window_tiles,
         texts,
-        index,
+        ir,
         sha1: manifest.sha1.clone(),
         dir: Some(dir.to_path_buf()),
         battle,
+        tables,
+        emotes,
     })
+}
+
+/// Reads `tables/*.ron` (Task C), each optional: an extract without one has an empty table.
+/// The generator encodes the strings (`codegen::tables`).
+fn read_tables(dir: &Path) -> Result<Tables> {
+    let t = dir.join("tables");
+    let tables = Tables {
+        items: read_opt!(t.join("items.ron")),
+        multichoice: read_opt!(t.join("multichoice.ron")),
+        std_strings: read_opt!(t.join("std_strings.ron")),
+        map_sections: read_opt!(t.join("map_sections.ron")),
+    };
+    Ok(tables)
+}
+
+/// Reads `sprites/field_effects/*.{ron,png}` (absent from older extracts).
+fn read_emotes(dir: &Path) -> Result<Vec<EmoteIn>> {
+    let d = dir.join("sprites/field_effects");
+    let mut out = Vec::new();
+    if !d.is_dir() {
+        return Ok(out);
+    }
+    let mut names: Vec<String> = std::fs::read_dir(&d)?
+        .filter_map(|e| {
+            let p = e.ok()?.path();
+            (p.extension()? == "ron").then(|| p.file_stem()?.to_str().map(String::from))?
+        })
+        .collect();
+    names.sort();
+    for name in names {
+        let f: FieldEffectSpriteFile = read_ron(&d.join(format!("{name}.ron")))?;
+        let img = gfx::read_png_indexed(&d.join(format!("{name}.png")))?;
+        let (w, h) = (u32::from(f.width), u32::from(f.height));
+        let frames = (0..u32::from(f.frames))
+            .map(|k| tiles_of(&crop(&img, k * w, 0, w, h)?))
+            .collect::<Result<Vec<_>>>()
+            .with_context(|| format!("field effect {name}"))?;
+        out.push(EmoteIn {
+            name: f.name,
+            width: f.width,
+            height: f.height,
+            frames,
+            palette: f.palette,
+        });
+    }
+    Ok(out)
 }
 
 /// Reads `font/<name>.{ron,png}`: glyphs in ROM layout and widths.

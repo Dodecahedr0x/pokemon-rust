@@ -1,67 +1,187 @@
 //! Fault-injection `GameData` wrappers for tests (Task E). Each delegates every method
-//! (provided ones too) to `inner`, like `Probe`, except the one it breaks.
+//! (provided ones too) to `inner` ([`forward_game_data!`](crate::forward_game_data)), except
+//! the one it breaks.
 //!
 //! - [`PanicOnScript`]: a game panic (`Panic` findings, the guard).
 //! - [`WallAround`]: a trapped player (`Softlock` findings).
 //! - [`Drifting`]: state the checkpoint does not carry (`RoundTrip` findings).
 //! - [`FadeTrap`]: a script that leaves the screen black (`CapturableStuck` findings).
 //! - [`Rebuilt`]: another build id with the same behaviour (revalidation).
+//! - [`Reporting`]: every script reports first (`Unsupported` findings).
+//!
+//! [`same_answers`] checks that a wrapper answers every provided method like its inner game,
+//! with [`Answers`] (a game answering each one on its own) as the inner game.
 
 use engine::battle::{self, BattleGfx};
 use engine::data::{
-    BLOCK_COLLISION_SHIFT, Behavior, CoordEvent, Font, GameData, GfxId, MapData, MapId, MapScripts,
-    NewGame, ScriptId, SpecialIds, SpriteData, TextId, TrainerId, UiText, VarId, WarpEvent,
-    WindowGfx,
+    BLOCK_COLLISION_SHIFT, CoordEvent, Emote, Evolution, FlagId, GameData, ItemId, ItemInfo,
+    MapData, MapId, MapScripts, ScriptId, SpecialIds, SpeciesId, SpriteData, TrainerId, VarId,
+    WarpEvent,
 };
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
-use engine::script::{Ctx, Fade, Script};
+use engine::script::{Ctx, Fade, Report, Script};
 use std::cell::Cell;
 use std::sync::RwLock;
 
-/// One delegating `GameData` method per name: `forward!(map has_map …)`.
-macro_rules! forward {
-    ($($m:ident)*) => { $( forward!(@ $m); )* };
-    (@ map) => { fn map(&self, id: MapId) -> &'static MapData { self.inner.map(id) } };
-    (@ has_map) => { fn has_map(&self, id: MapId) -> bool { self.inner.has_map(id) } };
-    (@ special_ids) => { fn special_ids(&self) -> SpecialIds { self.inner.special_ids() } };
-    (@ sprite) => {
-        fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> { self.inner.sprite(gfx) }
-    };
-    (@ player_sprite) => {
-        fn player_sprite(&self) -> &'static SpriteData { self.inner.player_sprite() }
-    };
-    (@ font) => { fn font(&self) -> &'static Font { self.inner.font() } };
-    (@ window) => { fn window(&self) -> &'static WindowGfx { self.inner.window() } };
-    (@ text) => { fn text(&self, id: TextId) -> &'static [u8] { self.inner.text(id) } };
-    (@ ui_text) => { fn ui_text(&self, t: UiText) -> &'static [u8] { self.inner.ui_text(t) } };
-    (@ behavior) => { fn behavior(&self, raw: u8) -> Behavior { self.inner.behavior(raw) } };
-    (@ script) => {
-        fn script(&self, id: ScriptId, ctx: Ctx) -> Script { self.inner.script(id, ctx) }
-    };
-    (@ new_game) => { fn new_game(&self) -> NewGame { self.inner.new_game() } };
-    (@ build_id) => { fn build_id(&self) -> u64 { self.inner.build_id() } };
-    (@ battle) => { fn battle(&self) -> &'static BattleTables { self.inner.battle() } };
-    (@ encounters) => {
-        fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-            self.inner.encounters(map)
+/// `GameData` methods delegating to the field `$f` of `self`, one per name, for wrappers in
+/// tests and tools: `forward_game_data!(inner; map has_map … m8)`. `m8` stands for the
+/// Milestone 8 methods but `wild_encounters` (name it, or override it, separately: the engine
+/// reads it, and a wrapper that breaks `encounters` must break it too). Paths are absolute, so
+/// the caller needs only the `engine` crate.
+#[macro_export]
+macro_rules! forward_game_data {
+    ($f:tt; $($m:ident)*) => { $( $crate::forward_game_data!(@ $f $m); )* };
+    (@ $f:tt map) => {
+        fn map(&self, id: ::engine::data::MapId) -> &'static ::engine::data::MapData {
+            self.$f.map(id)
         }
     };
-    (@ trainer) => {
-        fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
-            self.inner.trainer(id)
+    (@ $f:tt has_map) => {
+        fn has_map(&self, id: ::engine::data::MapId) -> bool { self.$f.has_map(id) }
+    };
+    (@ $f:tt special_ids) => {
+        fn special_ids(&self) -> ::engine::data::SpecialIds { self.$f.special_ids() }
+    };
+    (@ $f:tt sprite) => {
+        fn sprite(
+            &self,
+            gfx: ::engine::data::GfxId,
+        ) -> ::core::option::Option<&'static ::engine::data::SpriteData> {
+            self.$f.sprite(gfx)
         }
     };
-    (@ battle_text) => {
-        fn battle_text(&self, s: battle::Str) -> &'static [u8] { self.inner.battle_text(s) }
-    };
-    (@ battle_gfx) => { fn battle_gfx(&self) -> &'static BattleGfx { self.inner.battle_gfx() } };
-    (@ heal_location) => {
-        fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
-            self.inner.heal_location(id)
+    (@ $f:tt player_sprite) => {
+        fn player_sprite(&self) -> &'static ::engine::data::SpriteData {
+            self.$f.player_sprite()
         }
+    };
+    (@ $f:tt font) => { fn font(&self) -> &'static ::engine::data::Font { self.$f.font() } };
+    (@ $f:tt window) => {
+        fn window(&self) -> &'static ::engine::data::WindowGfx { self.$f.window() }
+    };
+    (@ $f:tt text) => {
+        fn text(&self, id: ::engine::data::TextId) -> &'static [u8] { self.$f.text(id) }
+    };
+    (@ $f:tt ui_text) => {
+        fn ui_text(&self, t: ::engine::data::UiText) -> &'static [u8] { self.$f.ui_text(t) }
+    };
+    (@ $f:tt behavior) => {
+        fn behavior(&self, raw: u8) -> ::engine::data::Behavior { self.$f.behavior(raw) }
+    };
+    (@ $f:tt script) => {
+        fn script(
+            &self,
+            id: ::engine::data::ScriptId,
+            ctx: ::engine::script::Ctx,
+        ) -> ::engine::script::Script {
+            self.$f.script(id, ctx)
+        }
+    };
+    (@ $f:tt new_game) => {
+        fn new_game(&self) -> ::engine::data::NewGame { self.$f.new_game() }
+    };
+    (@ $f:tt build_id) => { fn build_id(&self) -> u64 { self.$f.build_id() } };
+    (@ $f:tt battle) => {
+        fn battle(&self) -> &'static ::engine::mon::BattleTables { self.$f.battle() }
+    };
+    (@ $f:tt encounters) => {
+        fn encounters(
+            &self,
+            map: ::engine::data::MapId,
+        ) -> ::core::option::Option<&'static ::engine::mon::LandEncounters> {
+            self.$f.encounters(map)
+        }
+    };
+    (@ $f:tt trainer) => {
+        fn trainer(
+            &self,
+            id: ::engine::data::TrainerId,
+        ) -> ::core::option::Option<&'static ::engine::mon::TrainerData> {
+            self.$f.trainer(id)
+        }
+    };
+    (@ $f:tt battle_text) => {
+        fn battle_text(&self, s: ::engine::battle::Str) -> &'static [u8] {
+            self.$f.battle_text(s)
+        }
+    };
+    (@ $f:tt battle_gfx) => {
+        fn battle_gfx(&self) -> &'static ::engine::battle::BattleGfx { self.$f.battle_gfx() }
+    };
+    (@ $f:tt heal_location) => {
+        fn heal_location(
+            &self,
+            id: u8,
+        ) -> ::core::option::Option<(::engine::data::MapId, i16, i16)> {
+            self.$f.heal_location(id)
+        }
+    };
+    (@ $f:tt wild_encounters) => {
+        fn wild_encounters(
+            &self,
+            map: ::engine::data::MapId,
+            wild_set: u16,
+        ) -> ::core::option::Option<&'static ::engine::mon::LandEncounters> {
+            self.$f.wild_encounters(map, wild_set)
+        }
+    };
+    (@ $f:tt item) => {
+        fn item(
+            &self,
+            id: ::engine::data::ItemId,
+        ) -> ::core::option::Option<&'static ::engine::data::ItemInfo> {
+            self.$f.item(id)
+        }
+    };
+    (@ $f:tt multichoice) => {
+        fn multichoice(&self, list: u8) -> ::core::option::Option<&'static [&'static [u8]]> {
+            self.$f.multichoice(list)
+        }
+    };
+    (@ $f:tt std_string) => {
+        fn std_string(&self, id: u8) -> ::core::option::Option<&'static [u8]> {
+            self.$f.std_string(id)
+        }
+    };
+    (@ $f:tt trainer_flag_of) => {
+        fn trainer_flag_of(
+            &self,
+            script: ::engine::data::ScriptId,
+        ) -> ::core::option::Option<::engine::data::FlagId> {
+            self.$f.trainer_flag_of(script)
+        }
+    };
+    (@ $f:tt emote) => {
+        fn emote(
+            &self,
+            e: ::engine::data::Emote,
+        ) -> ::core::option::Option<&'static ::engine::data::SpriteData> {
+            self.$f.emote(e)
+        }
+    };
+    (@ $f:tt trainer_money) => {
+        fn trainer_money(&self, id: ::engine::data::TrainerId) -> ::core::option::Option<u8> {
+            self.$f.trainer_money(id)
+        }
+    };
+    (@ $f:tt evolutions) => {
+        fn evolutions(
+            &self,
+            species: ::engine::data::SpeciesId,
+        ) -> &'static [::engine::data::Evolution] {
+            self.$f.evolutions(species)
+        }
+    };
+    (@ $f:tt m8) => {
+        $crate::forward_game_data!($f; item multichoice std_string trainer_flag_of emote
+                                   trainer_money evolutions);
     };
 }
 
+/// [`forward_game_data!`] on the field `inner`.
+macro_rules! forward {
+    ($($m:ident)*) => { $crate::forward_game_data!(inner; $($m)*); };
+}
 /// `script()` returns a panicking script for `script`.
 ///
 /// The panic is raised from this file (its `Location` names `testing.rs`) when the script is
@@ -79,7 +199,8 @@ pub const INJECTED_PANIC: &str = "injected panic in script";
 
 impl<G: GameData> GameData for PanicOnScript<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location);
+             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
 
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         if id != self.script {
@@ -107,7 +228,8 @@ pub const NOWHERE: MapId = MapId(u16::MAX);
 
 impl<G: GameData> GameData for WallAround<G> {
     forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location);
+             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
 
     fn map(&self, id: MapId) -> &'static MapData {
         let base = self.inner.map(id);
@@ -131,7 +253,8 @@ pub struct GrassPocket<G> {
 
 impl<G: GameData> GameData for GrassPocket<G> {
     forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location);
+             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
 
     fn map(&self, id: MapId) -> &'static MapData {
         let base = self.inner.map(id);
@@ -162,6 +285,13 @@ impl<G> Drifting<G> {
             calls: Cell::new(0),
         }
     }
+
+    /// Counts a call; `false` for the first [`DRIFT_CALLS`] (answered `None`).
+    fn drift(&self) -> bool {
+        let n = self.calls.get();
+        self.calls.set(n.saturating_add(1));
+        n >= DRIFT_CALLS
+    }
 }
 
 impl<G: Clone> Clone for Drifting<G> {
@@ -173,16 +303,17 @@ impl<G: Clone> Clone for Drifting<G> {
 
 impl<G: GameData> GameData for Drifting<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
-             script new_game build_id battle trainer battle_text battle_gfx heal_location);
+             script new_game build_id battle trainer battle_text battle_gfx heal_location m8);
 
     fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-        let n = self.calls.get();
-        self.calls.set(n.saturating_add(1));
-        if n < DRIFT_CALLS {
-            None
-        } else {
-            self.inner.encounters(map)
-        }
+        self.drift().then(|| self.inner.encounters(map)).flatten()
+    }
+
+    /// What the engine reads: drifts like [`Drifting::encounters`].
+    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+        self.drift()
+            .then(|| self.inner.wild_encounters(map, wild_set))
+            .flatten()
     }
 }
 
@@ -201,7 +332,8 @@ pub const FADE_TRAP_SCRIPT: ScriptId = ScriptId(u16::MAX - 1);
 
 impl<G: GameData> GameData for FadeTrap<G> {
     forward!(has_map special_ids sprite player_sprite font window text ui_text behavior
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location);
+             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
 
     fn map(&self, id: MapId) -> &'static MapData {
         let base = self.inner.map(id);
@@ -228,10 +360,240 @@ pub struct Rebuilt<G> {
 
 impl<G: GameData> GameData for Rebuilt<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
-             script new_game battle encounters trainer battle_text battle_gfx heal_location);
+             script new_game battle encounters trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
 
     fn build_id(&self) -> u64 {
         self.build_id
+    }
+}
+
+/// Every script reports `Report::Unsupported(`[`INJECTED_REPORT`]`)` before running as the
+/// inner game's: one `Unsupported` finding per map where a script runs.
+#[derive(Clone, Copy, Debug)]
+pub struct Reporting<G> {
+    pub inner: G,
+}
+
+/// The name a [`Reporting`] script reports.
+pub const INJECTED_REPORT: &str = "special InjectedReport";
+
+impl<G: GameData> GameData for Reporting<G> {
+    forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
+             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             wild_encounters m8);
+
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        let inner = self.inner.script(id, ctx.clone());
+        Box::pin(async move {
+            ctx.report(Report::Unsupported(INJECTED_REPORT)).await;
+            inner.await;
+        })
+    }
+}
+
+/// `Err` naming the first provided `GameData` method (one with a default) where `a` and `b`
+/// answer differently, over its id ranges: `has_map`, `encounters` and `wild_encounters`
+/// (wild sets 0 and 1) on every map id, `special_ids`, `build_id`, `battle`, `battle_gfx`,
+/// `trainer` and the Milestone 8 id methods over every id, `battle_text` on a sample of strings,
+/// `heal_location`, `multichoice` and `std_string` over every `u8`, `emote` on every emote.
+/// `&'static` answers compare by address: a forwarding wrapper returns the inner game's own
+/// tables.
+pub fn same_answers(a: &impl GameData, b: &impl GameData) -> Result<(), String> {
+    fn addr<T: ?Sized>(x: Option<&'static T>) -> Option<*const u8> {
+        x.map(|r| std::ptr::from_ref(r).cast::<u8>())
+    }
+    let differ = |what: String| Err(format!("{what} differs"));
+    if a.special_ids() != b.special_ids() {
+        return differ("special_ids()".into());
+    }
+    if a.build_id() != b.build_id() {
+        return differ("build_id()".into());
+    }
+    if addr(Some(a.battle())) != addr(Some(b.battle())) {
+        return differ("battle()".into());
+    }
+    if addr(Some(a.battle_gfx())) != addr(Some(b.battle_gfx())) {
+        return differ("battle_gfx()".into());
+    }
+    for s in BATTLE_TEXT_SAMPLE {
+        if a.battle_text(s) != b.battle_text(s) {
+            return differ(format!("battle_text({s:?})"));
+        }
+    }
+    for m in 0..=u16::MAX {
+        let map = MapId(m);
+        if a.has_map(map) != b.has_map(map) {
+            return differ(format!("has_map({map:?})"));
+        }
+        if !b.has_map(map) {
+            continue;
+        }
+        if addr(a.encounters(map)) != addr(b.encounters(map)) {
+            return differ(format!("encounters({map:?})"));
+        }
+        for set in [0, 1] {
+            if addr(a.wild_encounters(map, set)) != addr(b.wild_encounters(map, set)) {
+                return differ(format!("wild_encounters({map:?}, {set})"));
+            }
+        }
+    }
+    for i in 0..=u16::MAX {
+        if addr(a.trainer(TrainerId(i))) != addr(b.trainer(TrainerId(i))) {
+            return differ(format!("trainer({i})"));
+        }
+        if a.item(ItemId(i)) != b.item(ItemId(i)) {
+            return differ(format!("item({i})"));
+        }
+        if a.trainer_flag_of(ScriptId(i)) != b.trainer_flag_of(ScriptId(i)) {
+            return differ(format!("trainer_flag_of({i})"));
+        }
+        if a.trainer_money(TrainerId(i)) != b.trainer_money(TrainerId(i)) {
+            return differ(format!("trainer_money({i})"));
+        }
+        if a.evolutions(SpeciesId(i)) != b.evolutions(SpeciesId(i)) {
+            return differ(format!("evolutions({i})"));
+        }
+    }
+    for i in 0..=u8::MAX {
+        if a.heal_location(i) != b.heal_location(i) {
+            return differ(format!("heal_location({i})"));
+        }
+        if a.multichoice(i) != b.multichoice(i) {
+            return differ(format!("multichoice({i})"));
+        }
+        if a.std_string(i) != b.std_string(i) {
+            return differ(format!("std_string({i})"));
+        }
+    }
+    for e in [Emote::Exclamation, Emote::Question, Emote::Heart] {
+        if addr(a.emote(e)) != addr(b.emote(e)) {
+            return differ(format!("emote({e:?})"));
+        }
+    }
+    Ok(())
+}
+
+/// The battle strings [`same_answers`] compares (`battle::Str` has no list of its variants).
+const BATTLE_TEXT_SAMPLE: [battle::Str; 4] = [
+    battle::Str::Intro1,
+    battle::Str::IntroTrainer,
+    battle::Str::GoPkmn,
+    battle::Str::PkmnFainted,
+];
+
+/// A game with an answer of its own for every provided `GameData` method (the required ones
+/// are `inner`'s): the fixture for [`same_answers`], against which a wrapper that forgets to
+/// forward a method answers the default instead.
+#[derive(Clone, Copy, Debug)]
+pub struct Answers<G> {
+    pub inner: G,
+}
+
+static LAND: LandEncounters = LandEncounters {
+    rate: 7,
+    mons: [engine::mon::WildMon {
+        species: SpeciesId(1),
+        min_level: 2,
+        max_level: 3,
+    }; 12],
+};
+static ITEM: ItemInfo = ItemInfo {
+    name: &[0xBB, 0xFF],
+    pocket: engine::data::Pocket::KeyItems,
+    price: 5,
+    key: true,
+};
+static CHOICES: [&[u8]; 2] = [&[0xBB, 0xFF], &[0xBC, 0xFF]];
+static EVOS: [Evolution; 1] = [Evolution {
+    method: engine::data::EvoMethod::Level,
+    param: 16,
+    target: SpeciesId(2),
+}];
+static TABLES: std::sync::OnceLock<BattleTables> = std::sync::OnceLock::new();
+static GFX: std::sync::OnceLock<BattleGfx> = std::sync::OnceLock::new();
+static TRAINER: std::sync::OnceLock<Option<TrainerData>> = std::sync::OnceLock::new();
+
+impl<G: GameData> GameData for Answers<G> {
+    forward!(map sprite player_sprite font window text ui_text behavior script new_game has_map);
+
+    fn special_ids(&self) -> SpecialIds {
+        SpecialIds {
+            respawn_default: self.inner.special_ids().respawn_default.wrapping_add(1),
+            ..self.inner.special_ids()
+        }
+    }
+    fn build_id(&self) -> u64 {
+        self.inner.build_id() ^ 0xA115
+    }
+    /// A copy of the inner game's tables (another address).
+    fn battle(&self) -> &'static BattleTables {
+        TABLES.get_or_init(|| *self.inner.battle())
+    }
+    fn battle_gfx(&self) -> &'static BattleGfx {
+        GFX.get_or_init(|| *self.inner.battle_gfx())
+    }
+    fn battle_text(&self, s: battle::Str) -> &'static [u8] {
+        if s == battle::Str::GoPkmn {
+            &[0xBE, 0xFF]
+        } else {
+            self.inner.battle_text(s)
+        }
+    }
+    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
+        (map == self.inner.new_game().map).then_some(&LAND)
+    }
+    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+        if wild_set == 1 {
+            Some(&LAND)
+        } else {
+            self.inner.wild_encounters(map, wild_set)
+        }
+    }
+    /// Trainer 1 is a copy of the inner game's first trainer (`None` when it has none, as on
+    /// the stub). The copies (`battle`, `battle_gfx`, `trainer`) are made once per process,
+    /// from the first inner game asked.
+    fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
+        let copy = TRAINER
+            .get_or_init(|| {
+                (1..=u16::MAX)
+                    .find_map(|i| self.inner.trainer(TrainerId(i)))
+                    .copied()
+            })
+            .as_ref();
+        if id == TrainerId(1) {
+            copy
+        } else {
+            self.inner.trainer(id)
+        }
+    }
+    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
+        if id == 200 {
+            Some((MapId(1), 2, 3))
+        } else {
+            self.inner.heal_location(id)
+        }
+    }
+    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
+        (id == ItemId(0x105)).then_some(&ITEM)
+    }
+    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+        (list == 3).then_some(&CHOICES[..])
+    }
+    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+        (id == 4).then_some(&[0xBD, 0xFF][..])
+    }
+    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+        (script == ScriptId(6)).then_some(FlagId(0x500))
+    }
+    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
+        (e == Emote::Heart).then(|| self.inner.player_sprite())
+    }
+    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
+        (id == TrainerId(7)).then_some(9)
+    }
+    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
+        if species == SpeciesId(8) { &EVOS } else { &[] }
     }
 }
 

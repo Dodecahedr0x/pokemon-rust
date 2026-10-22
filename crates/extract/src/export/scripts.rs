@@ -1,17 +1,13 @@
-//! The script export (Milestone 3 Task B; Milestone 8 Task B): decodes the scripts reachable
-//! from the exported maps' roots and writes
-//! - the **script IR**: `scripts/<Module>.ron` ([`ScriptFile`]), `scripts/index.ron`
-//!   ([`ScriptIndex`]) and the texts keyed by their final names, `text/ir_<lang>.ron`;
-//! - the legacy output, until Task D2 lowers the IR in the content build: `text/<lang>.ron`
-//!   (keys `<Script>_T<n>`), the generated `scripts/<Map>.rs` and `scripts/legacy_index.ron`.
-//!
-//! The IR's texts live in `text/ir_<lang>.ron` rather than `text/<lang>.ron` because the legacy
-//! scripts number texts by the keys of `text/<lang>.ron`; Task D2 renames it when it deletes the
-//! legacy output.
+//! The script export (Milestone 3 Task B; Milestone 8 Tasks B and D2): decodes the scripts
+//! reachable from the exported maps' roots and writes the **script IR**: `scripts/<Module>.ron`
+//! ([`ScriptFile`]), `scripts/index.ron` ([`ScriptIndex`]) and the texts keyed by their final
+//! names, `text/<lang>.ron`. The content build lowers the IR to Rust
+//! ([`crate::codegen::lower`], Task D2); the export writes no Rust.
 //!
 //! **Names** come from the decomp label transfer ([`labels::transfer`]); without the decomp
 //! (`PKR_DECOMP` unset and no `../pokeemerald` next to the repo) every name is positional and
-//! the export warns once. **Modules** follow the decomp source of each label (`<Map>`,
+//! the export warns once. The map files name their scripts by the same final names
+//! ([`export_scripts`] returns them by offset). **Modules** follow the decomp source of each label (`<Map>`,
 //! `Common_<stem>`, `Text_<stem>`, `Common_event_scripts`); positional labels stay in the module
 //! of the map of the first root reaching them.
 //!
@@ -27,7 +23,7 @@ use crate::schema::{
     Hex, IrArg, IrInsn, IrLabel, IrMovement, ScriptEntry, ScriptFile, ScriptIndex, TextFile,
 };
 use crate::scripts::{self, Operand};
-use crate::{GameCode, Rom, codegen, movement, text};
+use crate::{Rom, movement, text};
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -37,9 +33,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 pub struct ScriptInput<'a> {
     /// The exported maps in export order.
     pub maps: &'a [ExportedMap],
-    /// Root offset -> canonical name ([`crate::roots::canonical`] over all maps in export
-    /// order).
-    pub canonical: &'a BTreeMap<u32, String>,
 }
 
 /// The decomp checkout names come from: `$PKR_DECOMP`, else `../pokeemerald` next to the repo,
@@ -416,15 +409,15 @@ fn map_arg(h: u16) -> IrArg {
     }
 }
 
-/// Decodes the scripts reachable from `input`'s roots and writes the IR, then the legacy
-/// output ([`codegen`]): `text/<lang>.ron` (keys `<Script>_T<n>`), `scripts/<Map>.rs` and
-/// `scripts/legacy_index.ron`.
+/// Decodes the scripts reachable from `input`'s roots and writes the IR: `scripts/<Module>.ron`,
+/// `scripts/index.ron` and `text/<lang>.ron`. Returns the final name of every script by ROM
+/// offset, for the map files.
 pub fn export_scripts(
     rom: &Rom,
     input: &ScriptInput,
     o: &mut Out,
     provenance: &mut BTreeMap<String, Hex>,
-) -> Result<()> {
+) -> Result<BTreeMap<u32, String>> {
     let decomp = match decomp_dir() {
         Some(dir) => match load_decomp(&dir) {
             Ok(d) => Some(d),
@@ -458,29 +451,14 @@ pub fn export_scripts(
         o.ron(&format!("scripts/{module}.ron"), file)?;
     }
     o.ron("scripts/index.ron", &ir.index)?;
-    o.ron(&format!("text/ir_{}.ron", rom.lang().code()), &ir.texts)?;
+    o.ron(&format!("text/{}.ron", rom.lang().code()), &ir.texts)?;
     println!("{}", ir_summary(&ir));
-
-    let maps: Vec<codegen::MapRoots> = input
-        .maps
+    let t = &ir.transfer;
+    Ok(t.names
         .iter()
-        .map(|m| codegen::MapRoots {
-            map: m.name.to_string(),
-            roots: m.roots.clone(),
-        })
-        .collect();
-    let code = match rom.code() {
-        GameCode::Bpee => "BPEE",
-        GameCode::Bpef => "BPEF",
-    };
-    let g = codegen::generate(rom, &maps, &codegen::header(code, &rom.sha1_hex()))?;
-    o.ron(&format!("text/{}.ron", rom.lang().code()), &g.texts)?;
-    for (map, src) in &g.files {
-        o.bytes(&format!("scripts/{map}.rs"), src.as_bytes())?;
-    }
-    o.ron("scripts/legacy_index.ron", &g.index)?;
-    println!("{}", g.stats.summary());
-    Ok(())
+        .filter(|&(off, _)| t.kinds.get(off) == Some(&Kind::Script))
+        .map(|(&off, (name, _))| (off, name.clone()))
+        .collect())
 }
 
 /// One line: modules, labels, texts, movements, and the decomp-named share of each kind.

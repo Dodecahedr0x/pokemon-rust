@@ -11,35 +11,52 @@ extern crate alloc;
 
 use engine::battle::{BattleGfx, Str};
 use engine::data::{
-    Behavior, Dir, FlagId, Font, GameData, GfxId, MapData, MapId, NewGame, ScriptId, SpecialIds,
-    SpriteData, TextId, TrainerId, UiText, WindowGfx,
+    Behavior, Dir, Emote, Evolution, FlagId, Font, GameData, GfxId, ItemId, ItemInfo, MapData,
+    MapId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText,
+    WindowGfx,
 };
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
 use engine::script::{Ctx, Script};
 
 pub mod blob;
 mod new_game;
-pub mod overrides;
+/// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
+/// does, replaced by hand. The build digests each override's source into the script's
+/// `SCRIPT_DIGESTS` entry, and fails on an override naming no script of the IR.
+///
+/// Convention: one file per script, `src/overrides/<Name>.rs`, holding
+/// `pub async fn <Name>(ctx: Ctx)` (the decomp script name), using `crate::prelude::*`; texts and
+/// movements are referred to by their generated ids, never by ROM text or data
+/// (`tests/m8_e_overrides.rs`). The build declares each applied one (`$OUT_DIR/overrides.rs`,
+/// `build/scripts.rs`) and lists it in `OVERRIDES`.
+pub mod overrides {
+    include!(concat!(env!("OUT_DIR"), "/overrides.rs"));
+}
 pub mod prelude;
 pub mod samples;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
-/// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`) and one `TextId` per
-/// text, named after its key.
+/// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`,
+/// `MOVEMENT_TYPE_*`) and one `TextId` per text, named after its key.
 #[allow(non_upper_case_globals, dead_code, unused_imports)]
 pub mod consts {
-    use engine::data::{FlagId, MapId, MoveId, SpeciesId, TextId, TrainerId, VarId};
+    // A glob: the `MOVEMENT_TYPE_*` values (`classify::movement`) name whatever engine types
+    // they need (`Dir`, and `Dirs` once Task I lands); the generated names shadow it.
+    use engine::data::*;
     include!(concat!(env!("OUT_DIR"), "/consts.rs"));
 }
 
-/// Battle tables (`TABLES`), trainers, encounters, heal locations, battle strings and
-/// graphics (`GFX`), and the slice (`STARTERS`, `SLICE_SPECIES`, `SLICE_MOVES`).
+/// Battle tables (`TABLES`), trainers, encounters (every wild header), evolutions, trainer
+/// money, heal locations, battle strings and graphics (`GFX`, with every species and trainer
+/// pic the extract has), the starters and `SUMMARY`.
 #[allow(non_upper_case_globals, dead_code, clippy::all)]
 pub mod battle {
     include!(concat!(env!("OUT_DIR"), "/battle.rs"));
 }
 
-/// Static tables: tilesets (`TS_*`), maps (`M_*`), sprites (`S_*`), font, window, texts.
+/// Static tables: tilesets (`TS_*`), maps (`M_*`), sprites (`S_*`), font, window, texts, items,
+/// multichoice lists, std strings, map sections and emotes; their bulk data is in the `DATA`
+/// blob.
 #[allow(non_upper_case_globals, non_snake_case, dead_code, clippy::all)]
 pub mod data {
     include!(concat!(env!("OUT_DIR"), "/data.rs"));
@@ -154,8 +171,8 @@ impl GameData for Emerald {
             // `InsideOfTruck_EventScript_SetIntroFlagsMale`.
             respawn_default: consts::HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
-            // `EventScript_WhiteOut` (Milestone 8 Task G).
-            script_whiteout: None,
+            // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
+            script_whiteout: data::SCRIPT_WHITEOUT,
         }
     }
 
@@ -219,6 +236,10 @@ impl GameData for Emerald {
         battle::encounters(map.0)
     }
 
+    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+        battle::wild_encounters(map.0, wild_set)
+    }
+
     fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
         battle::trainer(id.0)
     }
@@ -237,6 +258,40 @@ impl GameData for Emerald {
 
     fn build_id(&self) -> u64 {
         BUILD_ID
+    }
+
+    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
+        data::ITEMS.get(id.0 as usize)?.as_ref()
+    }
+
+    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+        data::multichoice(list)
+    }
+
+    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+        data::std_string(id)
+    }
+
+    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
+        data::emote(e)
+    }
+
+    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
+        battle::trainer(id.0)?;
+        battle::TRAINER_MONEY.get(id.0 as usize).copied()
+    }
+
+    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
+        battle::evolutions(species.0)
+    }
+
+    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+        let (trainer, _) = scripts::trainer_script(script.0)?;
+        Some(prelude::trainer_flag(TrainerId(trainer)))
+    }
+
+    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
+        scripts::trainer_script(script.0).map(|(_, kind)| kind)
     }
 }
 

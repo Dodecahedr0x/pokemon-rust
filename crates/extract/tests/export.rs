@@ -114,12 +114,9 @@ fn writes_current_format_tree() {
     for map in MAPS {
         want.insert(format!("maps/{map}.ron"));
         want.insert(format!("previews/{map}.png"));
-        want.insert(format!("scripts/{map}.rs"));
     }
-    want.insert("scripts/legacy_index.ron".to_string());
+    // The script IR (M8 Tasks B and D2), whose contents tests/script_ir.rs checks.
     want.insert("text/fr.ron".to_string());
-    // The script IR (M8 Task B), whose contents tests/script_ir.rs checks.
-    want.insert("text/ir_fr.ron".to_string());
     let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
     want.insert("scripts/index.ron".to_string());
     let modules = ix
@@ -136,6 +133,8 @@ fn writes_current_format_tree() {
         want.insert(format!("sprites/field_effects/{emote}.ron"));
         want.insert(format!("sprites/field_effects/{emote}.png"));
     }
+    // C-side tables (M8 Task C), whose contents tests/tables.rs checks.
+    want.extend(extract::export::tables::FILES.map(String::from));
     // Battle data (M4 Task A).
     for f in [
         "species",
@@ -211,6 +210,7 @@ fn maps_and_tilesets_round_trip() {
     let (dir, m) = fr_export();
     let rom = fixtures::fr();
     let table = maps::locate_map_table(&rom).unwrap();
+    let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
     let mut scripts = BTreeSet::new();
     for name in MAPS {
         let map = export::read_map(dir, name).unwrap();
@@ -288,10 +288,8 @@ fn maps_and_tilesets_round_trip() {
                 m.provenance.contains_key(&format!("script/{r}")),
                 "{name}: {r}"
             );
-            assert!(
-                MAPS.iter().any(|mm| r.starts_with(&format!("{mm}_"))),
-                "{r}"
-            );
+            // Named by the script IR (decomp labels, Task D2).
+            assert!(ix.scripts.contains_key(r), "{r}");
             scripts.insert(r.clone());
         }
     }
@@ -336,7 +334,7 @@ fn littleroot_matches_known_offsets_and_content() {
     );
     assert_eq!(
         map.objects[0].script.as_deref(),
-        Some("LittlerootTown_Obj1")
+        Some("LittlerootTown_EventScript_Twin")
     );
     assert_eq!(map.objects[0].gfx, "OBJ_EVENT_GFX_TWIN");
     assert_eq!(
@@ -369,7 +367,7 @@ fn littleroot_matches_known_offsets_and_content() {
             .iter()
             .any(|c| c.map.is_none() && c.map_id == "0.25")
     );
-    // Brendan's and May's 2F share their scripts: May's refer to Brendan's (exported first).
+    // Brendan's and May's 2F share scripts, named as the decomp names them (`PlayersHouse_2F_`).
     let may = export::read_map(dir, "LittlerootTown_MaysHouse_2F").unwrap();
     let shared = may
         .bgs
@@ -378,7 +376,7 @@ fn littleroot_matches_known_offsets_and_content() {
             BgKind::Script { script, .. } => script.clone(),
             _ => None,
         })
-        .filter(|s| s.starts_with("LittlerootTown_BrendansHouse_2F_"))
+        .filter(|s| s.starts_with("PlayersHouse_2F_EventScript_"))
         .count();
     assert!(shared > 0);
 }

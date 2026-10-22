@@ -7,8 +7,9 @@ use crate::classify::{STRS, StrSrc};
 use crate::input::{Glyph, SpriteIn, Tile, TilesetIn, World};
 use extract::battle_data::STAT_NAME_KEYS;
 use extract::schema::{
-    Header, LandEncounters, Layout, MapFile, MapScripts, MonCoords, Move, MovesFile, Row, Species,
-    SpriteFile, TilesetFile, Trainer, TypesFile, WildMon, WindowFile, to_rows,
+    EncounterHeader, Header, LandEncounters, Layout, MapFile, MapScripts, MonCoords, Move,
+    MovesFile, Row, Species, SpriteFile, TilesetFile, Trainer, TypesFile, WildMon, WindowFile,
+    to_rows,
 };
 use extract::text::Lang;
 use std::collections::BTreeMap;
@@ -223,10 +224,12 @@ pub fn world() -> World {
             })
             .collect(),
         texts: BTreeMap::new(),
-        index: None,
+        ir: None,
         sha1: String::new(),
         dir: None,
         battle: battle(),
+        tables: Default::default(),
+        emotes: Vec::new(),
     }
 }
 
@@ -369,18 +372,21 @@ pub fn battle() -> BattleIn {
     };
     let encounters = BTreeMap::from([(
         MAP_NAME.to_string(),
-        LandEncounters {
-            rate: 20,
-            mons: (0..12)
-                .map(|i| {
-                    if i % 2 == 0 {
-                        slot("SPECIES_STUB_A", 2)
-                    } else {
-                        slot("SPECIES_STUB_B", 3)
-                    }
-                })
-                .collect(),
-        },
+        vec![EncounterHeader {
+            land: Some(LandEncounters {
+                rate: 20,
+                mons: (0..12)
+                    .map(|i| {
+                        if i % 2 == 0 {
+                            slot("SPECIES_STUB_A", 2)
+                        } else {
+                            slot("SPECIES_STUB_B", 3)
+                        }
+                    })
+                    .collect(),
+            }),
+            ..EncounterHeader::default()
+        }],
     )]);
     let mut back_pal = [0u16; 16];
     back_pal[1] = rgb(31, 8, 8);
@@ -419,7 +425,6 @@ pub fn battle() -> BattleIn {
             double: false,
             party: vec![],
         }],
-        referenced: Default::default(),
         encounters,
         heal: BTreeMap::from([(
             "HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F".to_string(),
@@ -431,6 +436,8 @@ pub fn battle() -> BattleIn {
             ("SPECIES_STUB_B".to_string(), mon_gfx(2)),
         ]),
         trainer_pics: BTreeMap::new(),
+        evolutions: Default::default(),
+        trainer_money: Default::default(),
         player_back: PicIn {
             tiles: (0..4).flat_map(|_| pic(1)).collect(),
             palette: back_pal,

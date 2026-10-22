@@ -1,7 +1,7 @@
 //! Named fixed samples (Milestone 8): species and moves tests and tools pick from, by decomp
 //! name (resolved through [`crate::consts`]), instead of the slice tables the full import
-//! removes. On the extracted world they are the Milestone 7 slice's (`SLICE_SPECIES`,
-//! `SLICE_MOVES`); on the stub battle data, the stub's.
+//! removed. On the extracted world they are the Milestone 7 slice's species and moves (once
+//! `SLICE_SPECIES` and `SLICE_MOVES`); on the stub battle data, the stub's.
 
 use engine::data::{MoveId, SpeciesId};
 
