@@ -778,7 +778,6 @@ impl<'a> Low<'a> {
     /// `callstd`/`gotostd` of `n` (without the `goto`'s return); `None` when `n` is no index.
     pub(super) fn callstd(&mut self, n: &IrArg, st: &BlockState) -> Option<Vec<String>> {
         let n = std_index(n)?;
-        let r = var(VAR_RESULT);
         let std_name = names::std_name(n as u8);
         self.stats.stds.insert(std_name.clone());
         if is_msgbox(n)
