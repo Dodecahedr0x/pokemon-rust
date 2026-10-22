@@ -11,10 +11,9 @@
 //! game logic: elevation is ignored and the run stops with an error when stuck.
 
 use crate::Session;
-use crate::trace::{CheckpointId, Parent, Trace, TraceRecorder};
+use crate::trace::TraceRecorder;
 use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleOutcome, Str};
-use engine::checkpoint::BuildHash;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::{block_at, in_bounds};
@@ -159,24 +158,19 @@ impl Recording {
         self.keys.len() as u32
     }
 
-    /// The trace of each [`Recording::nodes`] entry, chained from a new game: the first starts
-    /// at `NewGame`, each later one at the node before it, given as
-    /// `Parent::Checkpoint(CheckpointId(k))` with `k` the 1-based position of that node in
-    /// this list (the ids a fresh store allocates; a caller adding to another store remaps
-    /// them).
-    pub fn traces(&self, build: BuildHash) -> Vec<(&'static str, Trace)> {
+    /// The recorded input of each [`Recording::nodes`] entry, chained from a new game: entry
+    /// `k` starts where entry `k - 1` ends (the first at a new game), so its parent is the node
+    /// of entry `k - 1`. A store gives that node its id, so the caller makes each trace
+    /// ([`TraceRecorder::trace`]) once it knows the parent.
+    pub fn node_inputs(&self) -> Vec<(&'static str, TraceRecorder)> {
         let mut out = Vec::with_capacity(self.nodes.len());
         let mut start = 0u32;
-        for (k, &(name, frame)) in self.nodes.iter().enumerate() {
-            let parent = match k {
-                0 => Parent::NewGame,
-                k => Parent::Checkpoint(CheckpointId(k as u32)),
-            };
+        for &(name, frame) in &self.nodes {
             let mut r = TraceRecorder::new(start);
             for i in start..frame {
                 r.push(self.keys_at(i), self.hashes[i as usize]);
             }
-            out.push((name, r.trace(parent, build)));
+            out.push((name, r));
             start = frame;
         }
         out
