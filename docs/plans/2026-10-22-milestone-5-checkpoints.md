@@ -824,3 +824,66 @@ The text box needs nothing (pristine means BG0 off).
 16. **OBJ allocation after restore.** Fresh first-fit slots and palette banks give the same pictures unless more than 1024 OBJ tiles or 16 palettes are needed. The slice is far below both, and Task B asserts that no object fails to draw in its tests.
 17. **Hand-authored checkpoints (studio state editor):** not in M5. Every node needs a trace. M6 can add `Parent::Edited` nodes, which `verify` would mark as unverifiable.
 
+
+---
+
+## As built
+
+**Waves.** Wave 0 (contracts) → Wave 1 (A–F, six parallel agents) → Wave 2 (G, H) → Wave 3 (milestone review, `picture_frames` rename, review fixes). Each task was reviewed and fixed before its `--no-ff` merge.
+
+**Contracts that changed from the plan**
+- Flash is 64 KiB (decision 10), because mGBA autodetects FLASH512.
+- `NotCapturable::StaleView` and `RestoreError::Invalid(&'static str)`. The boot frame closes the text box (BG0 fill + disable). `World::snapshot` takes `game`.
+- Codec: `encode_checked`, `encoded_len`, bounded `decode`, streaming `state_digest`. The GBA checks `encoded_len` only.
+- Trace inputs are written as RON strings of 16 `keys*frames` runs per line (`TRACE_SCHEMA` 2). The emerald seed tree is 93 KB, down from 360 KB in pretty RON.
+- `materialize` trusts a cached snapshot only when schema, build **and** `state_digest == node.digest` match. It returns `Materialized { checkpoint, diverged }` and caches only replays that match.
+- `verify --accept` still fails on Broken nodes. The store writes per-writer temp files and publishes new ids with `hard_link`.
+- Play-bin save labels are `map 0x0104 f{frame}`; content has no map-name table, and names are ROM text.
+- Route points: emerald `lab` 4856, `after_wild` 7064, `oldale_center` 11571, `route103_after_may` 19082; stub 24, 1207, 1543. `Action::Checkpoint` added no frames to the route.
+- Budget sections: agb's `gba.ld` puts `.data`/`.bss` in EWRAM. The ROM build remaps the repo, cargo and sysroot paths, so its size does not depend on the checkout.
+
+**Measured (extracted route)**
+- Largest checkpoint: 802 bytes (frame 13903); stub 272 bytes. The ROM save at frame 4858 is 336 bytes.
+- ROM 1992712 bytes (1946 KiB, path-remapped baseline), IWRAM 596 bytes, EWRAM 460 bytes.
+  - M4 was 1875 KiB; `.text` grew by about 72 KB.
+  - Causes: serde/postcard about 31 KB (`Checkpoint::serialize` alone 12 KB); the GBA main loop +20 KB (inlined boot, restore and save paths); agb_save and the flash driver about 8 KB; `core` stable sort for the override map about 8 KB; engine conversions and checks about 4 KB.
+- Cost lines, worst on the route:
+
+  | Measure | Lines |
+  |---|---|
+  | `hash_lines_max` | 73 (32 on the field) |
+  | `step_lines_max` | 219 |
+  | `loop_lines_max` | 223 of 226 gated (margin 3) |
+
+  Before May's battle the loop is 222.
+- **Fast-memory hash tried and reverted (decision).** Task H tried `Fnv64::write` in IWRAM as ARM code, and separately a 64-byte batch folded by ARM in IWRAM. Both made the hash **slower**: lab went from 48 to 62–69 lines, and the route got a late frame.
+  - The cause is the Thumb→ARM interworking call on each of the many tiny `write(&[..])` calls.
+  - The planned IWRAM step is therefore not taken in M5. See Findings 1.
+- Parity on the extracted route: 19070 hashes and 204 pictures identical, `late == 0`.
+  - The ROM resumes from native checkpoints at lab, oldale_center and before_may (2000 frames each).
+  - A ROM save at frame 4858 restores natively, and a second boot from that flash matches native. The ROM's flash image is byte-identical to `flash::encode_sav`.
+
+## Findings for Milestone 6
+
+1. **Frame headroom comes first.** A margin of 3 lines blocks any new per-frame work.
+   - The hash is byte-at-a-time FNV, run from ROM: roughly 40–60 cycles per byte, and 1.5–2 KB per battle frame.
+   - **(a) Restructure the hash input before moving code to IWRAM.** Serialize each struct into one stack buffer and make a single `write`, so an ARM/IWRAM loop pays one interworking call per frame, not hundreds. Bytes stay identical, so goldens and parity hold.
+   - **(b) Cache sub-digests of rarely-changing battle state**, as `Vars::digest` does: parties, battlers, palettes and healthbox label tiles, each with a dirty flag. This changes the hash bytes, so it needs one golden and tree `--accept`.
+   - Keep per-frame hashing.
+2. **Studio tree view.**
+   - Add `Store::children` and an index cache; `nodes()` re-reads every file.
+   - Add a typed `StoreError` (NotFound, Label, Parent, Parse, Io) in place of `io::Error`/`String`.
+   - `status.ron` is last-writer-wins.
+3. **`materialize` in the studio.**
+   - Return a per-node divergence verdict along the chain.
+   - Parse each snapshot once.
+   - Keep an in-memory LRU keyed by `(id, build)`.
+4. **Mid-trace seek.**
+   - `seek(store, game, id, frames)` = `materialize` the parent, then replay a prefix of `Trace::keys()` (`replay_with_hashes` already has `each`).
+   - For scrubbing, keep restorable checkpoints every K capturable frames, as the play-bin ring does.
+   - Battles are not capturable: seeking inside one replays from the last capturable frame.
+5. **State editor over `WorldSnapshot`.**
+   - `World::restore` already validates forged snapshots.
+   - Edited states need a node kind with a patched parent (snapshot + edit), which `verify` reports as unverifiable (decision 17). Decide this before the UI.
+   - Nicknames are Gen3-encoded: the editor needs the content charmap, never engine code.
+6. **Explorer (later).** Node files are input-only and cheap to replay, so the explorer can share the store format. Keep `explore.db` separate (decision 7).
