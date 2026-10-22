@@ -10,12 +10,12 @@ use crate::pane::{Pane, RunMode};
 use engine::checkpoint::NotCapturable;
 use engine::data::{GameData, MapId};
 use engine::{Buttons, World};
-use game_native::checkpoints::{Materializer, add_save};
+use game_native::checkpoints::{Materializer, SeekPrep, add_save};
 use game_native::controls::{Controls, SaveRequest};
 use game_native::store::Store;
 use game_native::trace::{CheckpointId, Parent};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 type Game = content::Emerald;
 
@@ -132,6 +132,32 @@ impl Seen {
     }
 }
 
+/// The events between two frames' states, in order: map, script, battle, then the new log
+/// lines (`log` holds the kept lines after the frame, oldest first).
+fn changes(was: Seen, now: Seen, log: impl Iterator<Item = &'static str>) -> Vec<EventKind> {
+    let mut out = Vec::new();
+    if now.map != was.map {
+        out.push(EventKind::MapEntered(now.map));
+    }
+    match (was.script, now.script) {
+        (false, true) => out.push(EventKind::ScriptStarted),
+        (true, false) => out.push(EventKind::ScriptEnded),
+        _ => {}
+    }
+    match (was.battle, now.battle) {
+        (false, true) => out.push(EventKind::BattleStarted),
+        (true, false) => out.push(EventKind::BattleEnded),
+        _ => {}
+    }
+    let new = now.logs.wrapping_sub(was.logs) as usize;
+    if new > 0 {
+        let mut lines: Vec<&'static str> = log.collect();
+        let fresh = lines.split_off(lines.len().saturating_sub(new));
+        out.extend(fresh.into_iter().map(EventKind::Log));
+    }
+    out
+}
+
 pub struct NativePane {
     controls: Controls<Game>,
     run: RunMode,
@@ -181,28 +207,10 @@ impl NativePane {
     /// The events of the frame just stepped.
     fn diff(&mut self) {
         let now = Seen::of(self.world());
-        let was = self.seen;
+        let kinds = changes(self.seen, now, self.world().log().lines());
         self.seen = now;
-        if now.map != was.map {
-            self.event(EventKind::MapEntered(now.map));
-        }
-        match (was.script, now.script) {
-            (false, true) => self.event(EventKind::ScriptStarted),
-            (true, false) => self.event(EventKind::ScriptEnded),
-            _ => {}
-        }
-        match (was.battle, now.battle) {
-            (false, true) => self.event(EventKind::BattleStarted),
-            (true, false) => self.event(EventKind::BattleEnded),
-            _ => {}
-        }
-        let new = now.logs.wrapping_sub(was.logs) as usize;
-        if new > 0 {
-            let mut lines: Vec<&'static str> = self.world().log().lines().collect();
-            let fresh = lines.split_off(lines.len().saturating_sub(new));
-            for line in fresh {
-                self.event(EventKind::Log(line));
-            }
+        for kind in kinds {
+            self.event(kind);
         }
     }
 
@@ -233,10 +241,7 @@ impl NativePane {
     }
 
     fn load(&mut self, id: CheckpointId) -> Result<(), String> {
-        let m = {
-            let mut lock = self.materializer.lock().map_err(|e| e.to_string())?;
-            lock.get(&self.store, id)?
-        };
+        let m = self.materializer().get(&self.store, id)?;
         self.controls
             .load(id, &m.checkpoint)
             .map_err(|e| format!("restore: {e:?}"))?;
@@ -247,10 +252,28 @@ impl NativePane {
         Ok(())
     }
 
+    /// The shared materializer. A lock poisoned by a panic on another pane thread is recovered:
+    /// its caches are only changed by whole operations, but they are dropped to be safe.
+    fn materializer(&self) -> MutexGuard<'_, Materializer<Game>> {
+        self.materializer.lock().unwrap_or_else(|poisoned| {
+            self.materializer.clear_poison();
+            let mut m = poisoned.into_inner();
+            m.clear();
+            m
+        })
+    }
+
     fn seek(&mut self, id: CheckpointId, frames: u32) -> Result<(), String> {
-        let start = {
-            let mut lock = self.materializer.lock().map_err(|e| e.to_string())?;
-            lock.seek_start(&self.store, id, frames)?
+        // At most one `get` under the lock; a keyframe replay runs here, off the lock.
+        let prep = self.materializer().prepare_seek(&self.store, id, frames)?;
+        let start = match prep {
+            SeekPrep::Ready(start) => start,
+            SeekPrep::Keyframes(plan) => {
+                let built = plan.build(&content::Emerald::for_shells())?;
+                let start = built.start();
+                self.materializer().insert_keyframes(built);
+                start
+            }
         };
         let frames = start.frames;
         let seeked = start.run(content::Emerald::for_shells())?;
@@ -267,8 +290,14 @@ impl Pane for NativePane {
     fn handle(&mut self, cmd: NativeCmd) {
         match cmd {
             NativeCmd::Keys(b) => self.held = b,
-            NativeCmd::Mode(RunMode::Fast(n)) => self.run = RunMode::Fast(n.clamp(2, 16)),
-            NativeCmd::Mode(m) => self.run = m,
+            NativeCmd::Mode(m) => {
+                // A leftover `Step` never fires on a later pause.
+                self.steps = 0;
+                self.run = match m {
+                    RunMode::Fast(n) => RunMode::Fast(n.clamp(2, 16)),
+                    m => m,
+                };
+            }
             NativeCmd::Step(n) => {
                 self.run = RunMode::Pause;
                 self.steps = self.steps.saturating_add(n);
@@ -340,6 +369,65 @@ impl Pane for NativePane {
             ring_frames: self.controls.ring_frames(),
             events: self.events.iter().cloned().collect(),
             saved: self.saved,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const IDLE: Seen = Seen {
+        map: MapId(1),
+        script: false,
+        battle: false,
+        logs: 0,
+    };
+
+    #[test]
+    fn no_change_no_event() {
+        assert_eq!(changes(IDLE, IDLE, ["a"].into_iter()), []);
+    }
+
+    #[test]
+    fn every_edge_is_an_event_in_order() {
+        let now = Seen {
+            map: MapId(7),
+            script: true,
+            battle: true,
+            logs: 2,
+        };
+        assert_eq!(
+            changes(IDLE, now, ["old", "x", "y"].into_iter()),
+            [
+                EventKind::MapEntered(MapId(7)),
+                EventKind::ScriptStarted,
+                EventKind::BattleStarted,
+                EventKind::Log("x"),
+                EventKind::Log("y"),
+            ]
+        );
+        assert_eq!(
+            changes(now, IDLE.with_logs(2), [].into_iter()),
+            [
+                EventKind::MapEntered(MapId(1)),
+                EventKind::ScriptEnded,
+                EventKind::BattleEnded,
+            ]
+        );
+    }
+
+    #[test]
+    fn more_new_lines_than_kept_gives_the_kept_ones() {
+        let now = IDLE.with_logs(40);
+        let kept = ["a", "b", "c"];
+        let got = changes(IDLE, now, kept.into_iter());
+        assert_eq!(got, kept.map(EventKind::Log));
+    }
+
+    impl Seen {
+        const fn with_logs(self, logs: u32) -> Self {
+            Self { logs, ..self }
         }
     }
 }

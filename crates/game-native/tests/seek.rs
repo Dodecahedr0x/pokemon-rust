@@ -6,7 +6,7 @@ use engine::Buttons;
 use engine::checkpoint::state_digest;
 use game_native::Session;
 use game_native::checkpoints::{
-    KEYFRAME_EVERY, Link, Materializer, add_save, replayer, seed, seek,
+    KEYFRAME_EVERY, Link, Materializer, SeekPrep, add_save, replayer, seed, seek,
 };
 use game_native::controls::Controls;
 use game_native::scenario::cached_route;
@@ -253,7 +253,7 @@ fn seek_into_a_battle_replays_from_the_last_capturable_keyframe() {
             for (i, &keys) in (1..).zip(&keys) {
                 live.step(keys);
                 if i > k && live.world().in_battle() {
-                    found = Some((n, i + 30, live, after_keyframe));
+                    found = Some((n, i, live, after_keyframe));
                     break 'nodes;
                 }
             }
@@ -262,16 +262,18 @@ fn seek_into_a_battle_replays_from_the_last_capturable_keyframe() {
             break;
         }
     }
-    let (n, target, mut live, after_keyframe) = found.expect("a battle");
+    let (n, battle, mut live, after_keyframe) = found.expect("a battle");
     assert!(
         after_keyframe || content::STUB,
         "the extracted route battles late"
     );
+    // 30 frames into the battle (a trace ends capturable, so never inside one).
+    let target = (battle + 30).min(n.trace.frames());
     let keys: Vec<Buttons> = n.trace.keys().collect();
-    for i in target - 30..target {
+    for i in battle..target {
         live.step(keys[i as usize]);
     }
-    assert!(live.world().in_battle());
+    assert!(live.world().in_battle(), "frame {target}");
     let start = m.seek_start(&store, n.meta.id, target).unwrap();
     assert!(start.from < target);
     assert_eq!(start.from > 0, after_keyframe, "from a keyframe");
@@ -324,9 +326,63 @@ fn from_seek_then_30_frames_then_save_replays_valid_in_a_layered_store() {
     let _ = std::fs::remove_dir_all(local);
 }
 
-/// Seek timings (cold: keyframes built; warm: cached). Printed, not asserted: `cargo test
-/// --release -p game-native --test seek -- --nocapture seek_timings`.
 #[test]
+fn prepare_seek_plans_the_keyframe_replay_then_serves_it_from_the_cache() {
+    let (root, store, ids) = store("seek-prepare");
+    let mut m = Materializer::new(game(), 8);
+    let n = longest(&store, &ids);
+    // The end: at or past the first keyframe (the stub's only one may be the last frame).
+    let target = n.trace.frames();
+    let SeekPrep::Keyframes(plan) = m.prepare_seek(&store, n.meta.id, target).unwrap() else {
+        panic!("cold: a keyframe replay to run");
+    };
+    assert_eq!(plan.frames, target);
+    let built = plan.build(&game()).unwrap();
+    let start = built.start();
+    assert!(start.from > 0, "from a keyframe");
+    m.insert_keyframes(built);
+    let SeekPrep::Ready(again) = m.prepare_seek(&store, n.meta.id, target).unwrap() else {
+        panic!("warm: ready");
+    };
+    assert_eq!(again, start);
+    // Below the first keyframe: from the parent, without keyframes.
+    let SeekPrep::Ready(early) = m.prepare_seek(&store, n.meta.id, 10).unwrap() else {
+        panic!("ready");
+    };
+    assert_eq!(early.from, 0);
+    let mut a = start.run(game()).unwrap();
+    let mut b = seek(&mut m, &store, n.meta.id, target).unwrap();
+    assert_eq!(a.session.world().hash(), b.session.world().hash());
+    assert_eq!(a.session.framebuffer(), b.session.framebuffer());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn a_late_hash_mismatch_flags_only_seeks_past_it() {
+    let (root, store, ids) = store("seek-mismatch");
+    let n = longest(&store, &ids);
+    let len = n.trace.frames();
+    // The recorded end hash is forged; the state (digest) is still the node's.
+    let mut forged = n.clone();
+    forged.trace.hashes.last_mut().unwrap().1 ^= 1;
+    assert_eq!(forged.trace.hashes.last().unwrap().0, len);
+    std::fs::write(
+        root.join(format!("nodes/{}.ron", n.meta.id)),
+        ron::to_string(&forged).unwrap(),
+    )
+    .unwrap();
+    let mut m = Materializer::new(game(), 8);
+    for (target, diverged) in [(len - 1, false), (KEYFRAME_EVERY + 1, false), (len, true)] {
+        let s = seek(&mut m, &store, n.meta.id, target).unwrap();
+        assert_eq!(s.diverged, diverged, "seek {target}");
+    }
+    let _ = std::fs::remove_dir_all(root);
+}
+
+/// Seek timings (cold: keyframes built; warm: cached). Printed, not asserted: `cargo test
+/// --release -p game-native --test seek -- --ignored --nocapture seek_timings`.
+#[test]
+#[ignore = "timings: cargo test --release -p game-native --test seek -- --ignored --nocapture"]
 fn seek_timings() {
     let (root, store, ids) = store("seek-time");
     let mut m = Materializer::new(game(), 8);

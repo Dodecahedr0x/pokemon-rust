@@ -97,8 +97,125 @@ struct Keyframes {
     frames: Arc<Vec<(u32, Checkpoint)>>,
     /// The replay's hashes at the recorder's cadence (this build's, not the recorded ones).
     hashes: Arc<Vec<(u32, u64)>>,
-    /// The parent was diverged, or the replay missed a recorded hash.
-    diverged: bool,
+    /// The parent's state differs on this build (the trace's own hashes are compared by
+    /// [`SeekStart::run`], up to the seek target only).
+    parent_diverged: bool,
+}
+
+/// A keyframe replay to run away from the [`Materializer`] (it is `Send`: a node and a
+/// checkpoint), from [`Materializer::prepare_seek`]. [`KeyframePlan::build`] replays the node's
+/// trace; [`Materializer::insert_keyframes`] caches the result.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct KeyframePlan {
+    pub node: Node,
+    /// The parent's state (`None`: a new game).
+    pub parent: Option<Checkpoint>,
+    pub parent_diverged: bool,
+    /// The seek target, clamped to the trace.
+    pub frames: u32,
+}
+
+/// The outcome of [`KeyframePlan::build`].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct BuiltKeyframes {
+    plan: KeyframePlan,
+    build: BuildHash,
+    frames: Arc<Vec<(u32, Checkpoint)>>,
+    hashes: Arc<Vec<(u32, u64)>>,
+    /// The node's end state, when it is the node's (digest).
+    end: Option<Checkpoint>,
+}
+
+/// What [`Materializer::prepare_seek`] gives: a seek start, or the keyframe replay to run first.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum SeekPrep {
+    Ready(SeekStart),
+    Keyframes(KeyframePlan),
+}
+
+impl KeyframePlan {
+    /// Replays the node's trace from its parent on `game`, capturing a keyframe at the first
+    /// capturable frame at or after every [`KEYFRAME_EVERY`] frames.
+    pub fn build<G: GameData>(self, game: &G) -> Result<BuiltKeyframes, String> {
+        let node = &self.node;
+        let id = node.meta.id;
+        let mut world = match &self.parent {
+            None => World::new(game),
+            Some(cp) => World::restore(game, cp).map_err(|e| format!("{id}: restore: {e:?}"))?,
+        };
+        if world.frame() != node.trace.start_frame {
+            return Err(format!(
+                "{id}: the parent is at frame {}, the trace starts at {}",
+                world.frame(),
+                node.trace.start_frame
+            ));
+        }
+        let mut frames = Vec::new();
+        let (mut i, mut due) = (0u32, KEYFRAME_EVERY);
+        let (_, hashes) = replay_with_hashes(game, &mut world, &node.trace, |w, _| {
+            i += 1;
+            if i >= due
+                && let Ok(cp) = w.checkpoint(game)
+            {
+                frames.push((i, cp));
+                due = (i / KEYFRAME_EVERY + 1) * KEYFRAME_EVERY;
+            }
+        });
+        let end =
+            (world.checkpoint(game).ok()).filter(|cp| state_digest(&cp.world) == node.meta.digest);
+        Ok(BuiltKeyframes {
+            build: build_hash(game),
+            frames: Arc::new(frames),
+            hashes: Arc::new(hashes),
+            end,
+            plan: self,
+        })
+    }
+}
+
+impl BuiltKeyframes {
+    /// The seek start these keyframes give for the plan's target.
+    pub fn start(&self) -> SeekStart {
+        let p = &self.plan;
+        start_from(
+            &p.node,
+            p.frames,
+            p.parent.as_ref(),
+            p.parent_diverged,
+            &self.frames,
+            &self.hashes,
+        )
+    }
+}
+
+/// A seek start into `node` at `frames`: from the last keyframe at or before them, else from
+/// `parent`.
+fn start_from(
+    node: &Node,
+    frames: u32,
+    parent: Option<&Checkpoint>,
+    parent_diverged: bool,
+    keyframes: &[(u32, Checkpoint)],
+    hashes: &[(u32, u64)],
+) -> SeekStart {
+    let mut start = SeekStart {
+        id: node.meta.id,
+        parent: node.trace.parent,
+        recorded: node.trace.hashes.clone(),
+        trace: node.trace.clone(),
+        from: 0,
+        base: parent.cloned(),
+        frames,
+        parent_diverged,
+    };
+    if let Some((at, cp)) = keyframes.iter().rev().find(|(at, _)| *at <= frames) {
+        start.from = *at;
+        start.base = Some(cp.clone());
+        // This build's hashes up to the keyframe (a diverged node's recorded ones are another
+        // build's).
+        start.trace.hashes = hashes.to_vec();
+    }
+    start
 }
 
 /// [`materialize`] with an in-memory LRU of node states in front of the disk cache, and the
@@ -136,6 +253,12 @@ impl<G: GameData> Materializer<G> {
 
     pub fn is_empty(&self) -> bool {
         self.states.is_empty()
+    }
+
+    /// Drops every cached state and keyframe.
+    pub fn clear(&mut self) {
+        self.states.clear();
+        self.keyframes.clear();
     }
 
     /// The cached state of `node`, made most recently used.
@@ -270,14 +393,31 @@ impl<G: GameData> Materializer<G> {
     }
 
     fn keyframes_of(&mut self, store: &Store, node: &Node) -> Result<&Keyframes, String> {
-        let (id, build, digest) = (node.meta.id, self.build, node.meta.digest);
-        if let Some(i) = (self.keyframes.iter())
-            .position(|k| k.id == id && k.build == build && k.digest == digest)
-        {
-            let k = self.keyframes.remove(i).expect("in range");
-            self.keyframes.push_back(k);
-            return Ok(self.keyframes.back().expect("pushed"));
+        if self.cached_keyframes(node).is_none() {
+            let plan = self.keyframe_plan(store, node, 0)?;
+            let built = plan.build(&self.game)?;
+            self.insert_keyframes(built);
         }
+        Ok(self.cached_keyframes(node).expect("inserted"))
+    }
+
+    /// `node`'s cached keyframes, made most recently used.
+    fn cached_keyframes(&mut self, node: &Node) -> Option<&Keyframes> {
+        let (id, build, digest) = (node.meta.id, self.build, node.meta.digest);
+        let i = (self.keyframes.iter())
+            .position(|k| k.id == id && k.build == build && k.digest == digest)?;
+        let k = self.keyframes.remove(i).expect("in range");
+        self.keyframes.push_back(k);
+        self.keyframes.back()
+    }
+
+    /// The keyframe replay of `node` (one [`Materializer::get`] of its parent).
+    fn keyframe_plan(
+        &mut self,
+        store: &Store,
+        node: &Node,
+        frames: u32,
+    ) -> Result<KeyframePlan, String> {
         let (parent, parent_diverged) = match node.trace.parent {
             Parent::NewGame => (None, false),
             Parent::Checkpoint(p) => {
@@ -285,36 +425,30 @@ impl<G: GameData> Materializer<G> {
                 (Some(m.checkpoint), m.diverged)
             }
         };
-        let game = &self.game;
-        let mut world = match &parent {
-            None => World::new(game),
-            Some(cp) => World::restore(game, cp).map_err(|e| format!("{id}: restore: {e:?}"))?,
-        };
-        if world.frame() != node.trace.start_frame {
-            return Err(format!(
-                "{id}: the parent is at frame {}, the trace starts at {}",
-                world.frame(),
-                node.trace.start_frame
-            ));
+        Ok(KeyframePlan {
+            node: node.clone(),
+            parent,
+            parent_diverged,
+            frames,
+        })
+    }
+
+    /// Caches keyframes built by [`KeyframePlan::build`] (and the node's end state). Keyframes
+    /// of another build are ignored.
+    pub fn insert_keyframes(&mut self, b: BuiltKeyframes) {
+        if b.build != self.build {
+            return;
         }
-        let mut frames = Vec::new();
-        let (mut i, mut due) = (0u32, KEYFRAME_EVERY);
-        let (report, hashes) = replay_with_hashes(game, &mut world, &node.trace, |w, _| {
-            i += 1;
-            if i >= due
-                && let Ok(cp) = w.checkpoint(game)
-            {
-                frames.push((i, cp));
-                due = (i / KEYFRAME_EVERY + 1) * KEYFRAME_EVERY;
-            }
-        });
-        // The end state is the node's: keep it when it matches.
-        if let Ok(cp) = world.checkpoint(game)
-            && state_digest(&cp.world) == digest
+        let node = &b.plan.node;
+        let (id, digest) = (node.meta.id, node.meta.digest);
+        if let Some(end) = b.end
             && !self.states.iter().any(|s| s.id == id && s.digest == digest)
         {
-            self.insert(node, cp, false);
+            self.insert(node, end, false);
         }
+        let build = self.build;
+        self.keyframes
+            .retain(|k| !(k.id == id && k.build == build && k.digest == digest));
         if self.keyframes.len() == KEYFRAME_NODES {
             self.keyframes.pop_front();
         }
@@ -322,53 +456,73 @@ impl<G: GameData> Materializer<G> {
             id,
             build,
             digest,
-            frames: Arc::new(frames),
-            hashes: Arc::new(hashes),
-            diverged: parent_diverged || report.first_mismatch.is_some(),
+            frames: b.frames,
+            hashes: b.hashes,
+            parent_diverged: b.plan.parent_diverged,
         });
-        Ok(self.keyframes.back().expect("pushed"))
+    }
+
+    /// The start of a [`seek`] to `frames` frames after node `id`'s parent, or, when the
+    /// node's keyframes are not cached yet, the keyframe replay to run first: run it without
+    /// holding a shared `Materializer`'s lock ([`KeyframePlan::build`]), take its
+    /// [`BuiltKeyframes::start`] and hand it back with [`Materializer::insert_keyframes`].
+    /// At most one [`Materializer::get`] (the parent's).
+    pub fn prepare_seek(
+        &mut self,
+        store: &Store,
+        id: CheckpointId,
+        frames: u32,
+    ) -> Result<SeekPrep, String> {
+        let node = store.find(&id.to_string()).map_err(|e| e.to_string())?;
+        let frames = frames.min(node.trace.frames());
+        if frames >= KEYFRAME_EVERY {
+            let Some(k) = self.cached_keyframes(&node) else {
+                return Ok(SeekPrep::Keyframes(
+                    self.keyframe_plan(store, &node, frames)?,
+                ));
+            };
+            let (kfs, hashes, parent_diverged) =
+                (k.frames.clone(), k.hashes.clone(), k.parent_diverged);
+            if kfs.iter().any(|(at, _)| *at <= frames) {
+                return Ok(SeekPrep::Ready(start_from(
+                    &node,
+                    frames,
+                    None,
+                    parent_diverged,
+                    &kfs,
+                    &hashes,
+                )));
+            }
+        }
+        let plan = self.keyframe_plan(store, &node, frames)?;
+        Ok(SeekPrep::Ready(start_from(
+            &node,
+            frames,
+            plan.parent.as_ref(),
+            plan.parent_diverged,
+            &[],
+            &[],
+        )))
     }
 
     /// The start of a [`seek`] to `frames` frames after node `id`'s parent: the nearest
-    /// keyframe at or before them, else the parent. Cheap once the keyframes are cached; the
-    /// stepping is left to [`SeekStart::run`], so a shared `Materializer`'s lock is not held
-    /// over it.
+    /// keyframe at or before them, else the parent ([`Materializer::prepare_seek`] with the
+    /// keyframe replay run here). The stepping is left to [`SeekStart::run`].
     pub fn seek_start(
         &mut self,
         store: &Store,
         id: CheckpointId,
         frames: u32,
     ) -> Result<SeekStart, String> {
-        let node = store.find(&id.to_string()).map_err(|e| e.to_string())?;
-        let frames = frames.min(node.trace.frames());
-        let mut start = SeekStart {
-            id,
-            parent: node.trace.parent,
-            recorded: node.trace.hashes.clone(),
-            trace: node.trace.clone(),
-            from: 0,
-            base: None,
-            frames,
-            parent_diverged: false,
-        };
-        if frames >= KEYFRAME_EVERY {
-            let k = self.keyframes_of(store, &node)?;
-            start.parent_diverged = k.diverged;
-            if let Some((at, cp)) = k.frames.iter().rev().find(|(at, _)| *at <= frames) {
-                start.from = *at;
-                start.base = Some(cp.clone());
-                // This build's hashes up to the keyframe (a diverged node's recorded ones are
-                // another build's).
-                start.trace.hashes = k.hashes.to_vec();
-                return Ok(start);
+        match self.prepare_seek(store, id, frames)? {
+            SeekPrep::Ready(start) => Ok(start),
+            SeekPrep::Keyframes(plan) => {
+                let built = plan.build(&self.game)?;
+                let start = built.start();
+                self.insert_keyframes(built);
+                Ok(start)
             }
         }
-        if let Parent::Checkpoint(p) = start.parent {
-            let m = self.get(store, p)?;
-            start.parent_diverged = m.diverged;
-            start.base = Some(m.checkpoint);
-        }
-        Ok(start)
     }
 }
 
