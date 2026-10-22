@@ -243,7 +243,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
             unknown_script_ops.insert(script.clone(), ops);
         }
         gfx_ids.extend(var_gfx_ids(rom, &scan).with_context(|| format!("script {script}"))?);
-        layout_ids.extend(set_layout_ids(rom, &scan)?);
+        layout_ids.extend(set_layout_ids(rom, &scan).with_context(|| format!("script {script}"))?);
     }
 
     // Layouts by id, and the tilesets they use, keyed by header index (headers.h order).

@@ -535,8 +535,9 @@ pub struct EncounterHeader {
     pub water: Option<WaterEncounters>,
     /// `rockSmashMonsInfo` (5 slots).
     pub rock_smash: Option<RockSmashEncounters>,
-    /// `fishingMonsInfo` (10 slots: old rod 0-1, good rod 2-4, super rod 5-9;
-    /// `gWildFishingSlots`).
+    /// `fishingMonsInfo` (10 slots: old rod 0-1, good rod 2-4, super rod 5-9, as
+    /// `battle_data::FISHING_ROD_SLOTS`; the `wild_encounters.json` groups,
+    /// `ChooseWildMonIndex_Fishing`).
     pub fishing: Option<FishingEncounters>,
 }
 
@@ -808,8 +809,8 @@ pub struct EvolutionsFile {
 }
 
 /// `battle/trainer_money.ron`: `TRAINER_CLASS_*` -> its `gTrainerMoneyTable` value. The
-/// table's `0xFF` terminator is kept as `TRAINER_CLASS_0xFF`: its value is the default of every
-/// class not listed (`GetTrainerMoneyToGive`).
+/// table's `0xFF` terminator is kept as `battle_data::TRAINER_MONEY_DEFAULT_CLASS`: its value is
+/// the default of every class not listed (`GetTrainerMoneyToGive`).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct TrainerMoneyFile {
     pub classes: BTreeMap<String, u8>,

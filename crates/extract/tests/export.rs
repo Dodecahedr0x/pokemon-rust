@@ -729,7 +729,9 @@ fn check_full_export(rom: &Rom, dir: &Path, m: &Manifest) {
     assert!(dynamic > 0, "MAP_DYNAMIC warps are exported as such");
     let enc: EncountersFile = export::read_ron(&dir.join("battle/encounters.ron")).unwrap();
     assert_eq!(enc.maps["AlteringCave"].len(), 9);
-    // Every exported string re-encodes to bytes that decode back to it.
+    // Every exported string re-encodes to bytes that decode back to it. A weaker check than
+    // matching the ROM bytes: the manifest has no per-string offset, and the string extractors'
+    // own tests (Tasks B and C) compare against the ROM.
     let lang = rom.lang();
     let texts: TextFile = export::read_ron(&dir.join(format!("text/{}.ron", lang.code()))).unwrap();
     assert!(texts.len() > 5000, "{}", texts.len());

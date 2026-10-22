@@ -1,6 +1,9 @@
 //! Battle data and strings (`battle_data.rs`) against the decomp: the US ROM must give exactly
 //! the decomp's values, the French ROM the same numbers with French names and strings.
-use extract::battle_data::{self, BattleData, CODE_STRINGS, MENU_STRINGS, STAT_NAME_KEYS};
+use extract::battle_data::{
+    self, BattleData, CODE_STRINGS, FISHING_ROD_SLOTS, MENU_STRINGS, STAT_NAME_KEYS,
+    TRAINER_MONEY_DEFAULT_CLASS,
+};
 use extract::export::{self, ExportOptions, SLICE_MAPS};
 use extract::schema::{
     BattleStringsFile, EncounterHeader, EncountersFile, EvolutionsFile, HealLocationsFile,
@@ -542,7 +545,7 @@ fn us_encounters_match_decomp() {
         assert_eq!(land(map).mons.len(), 12, "{map}");
     }
     assert_eq!(land("Route101").rate, 20);
-    // Slot counts: land 12, water 5, rock smash 5, fishing 10 (`gWildFishingSlots`).
+    // Slot counts: land 12, water 5, rock smash 5, fishing 10 (`wild_encounters.json` fields).
     for (map, headers) in &d.encounters.maps {
         for h in headers {
             let n = |t: &Option<LandEncounters>| t.as_ref().map(|t| t.mons.len());
@@ -551,6 +554,31 @@ fn us_encounters_match_decomp() {
             assert!(n(&h.rock_smash).is_none_or(|n| n == 5), "{map}");
             assert!(n(&h.fishing).is_none_or(|n| n == 10), "{map}");
         }
+    }
+}
+
+/// The rod groups of the `fishing_mons` field of `wild_encounters.json`.
+#[test]
+fn fishing_rod_slots_match_decomp() {
+    let json: serde_json::Value =
+        serde_json::from_str(&src("src/data/wild_encounters.json")).unwrap();
+    let fields = json["wild_encounter_groups"][0]["fields"]
+        .as_array()
+        .unwrap();
+    let fishing = fields.iter().find(|f| f["type"] == "fishing_mons").unwrap();
+    let groups = &fishing["groups"];
+    for (rod, slots) in ["old_rod", "good_rod", "super_rod"]
+        .into_iter()
+        .zip(FISHING_ROD_SLOTS)
+    {
+        let want: Vec<u64> = groups[rod]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap())
+            .collect();
+        let got: Vec<u64> = slots.map(|i| i as u64).collect();
+        assert_eq!(got, want, "{rod}");
     }
 }
 
@@ -663,7 +691,7 @@ fn us_trainer_money_matches_decomp() {
     }
     assert!(want.classes.len() > 40, "{}", want.classes.len());
     assert_eq!(d.trainer_money, want);
-    assert_eq!(d.trainer_money.classes["TRAINER_CLASS_0xFF"], 5);
+    assert_eq!(d.trainer_money.classes[TRAINER_MONEY_DEFAULT_CLASS], 5);
 }
 
 #[test]

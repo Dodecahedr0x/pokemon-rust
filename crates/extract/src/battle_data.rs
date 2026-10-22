@@ -14,13 +14,17 @@
 //!   `gSpeciesNames[0]` (`??????????`).
 //! - layout: `src/data.c` emits `gTrainerClassNames`, `gTrainers`, `gSpeciesNames` and
 //!   `gMoveNames` back to back, and `battle_main.c` puts `gTypeNames` right after
-//!   `gTypeEffectiveness`, then `gTrainerMoneyTable` (`{class, value}` pairs up to the `0xFF`
-//!   class). `gWildMonHeaders` is the run of valid headers holding `MAP_ROUTE101`.
+//!   `gTypeEffectiveness`, then `gTrainerMoneyTable`: found by adjacency (the first 4-byte
+//!   boundary after `gTypeNames`), then validated as referenced `{class, value}` pairs up to the
+//!   `0xFF` class. `gWildMonHeaders` is the run of valid headers holding `MAP_ROUTE101`;
+//!   `gBattlePyramidWildMonHeaders` and `gBattlePikeWildMonHeaders` are not exported (separate
+//!   Battle Frontier tables, not keyed by map, out of Milestone 8 scope).
 //! - `sSpeciesToNationalPokedexNum` is the referenced run of national numbers 1 to 251 (Gen1-2
 //!   species are in national order), and `gPokedexEntries` the referenced table of 0x20-byte
 //!   entries whose entries 0 to 3 weigh 0, 69, 130 and 1000 hectograms (none, Bulbasaur, Ivysaur,
 //!   Venusaur, with heights 0, 7, 10 and 20): only the numbers, as the category names are
-//!   localized.
+//!   localized. Both are optional: if either is not found, [`locate`] warns and every weight is
+//!   0.
 //! - `gEvolutionTable` (`NUM_SPECIES` × `EVOS_PER_MON` × 8 bytes): `SPECIES_NONE`'s empty row
 //!   then Bulbasaur's (`{EVO_LEVEL, 16, SPECIES_IVYSAUR}`) and Ivysaur's first entry.
 //! - `gBattleStringsTable` is the only run of exactly `BATTLESTRINGS_COUNT -
@@ -83,8 +87,14 @@ const ABILITY_SEARCH_SPAN: u32 = 0x2000;
 /// `trainerName` spans 0x04..0x10 of `struct Trainer`.
 const TRAINER_NAME_SIZE: usize = 12;
 /// Slots of the `landMonsInfo`, `waterMonsInfo`, `rockSmashMonsInfo` and `fishingMonsInfo`
-/// tables (`wild_encounters.json` `fields`; fishing: old rod 0-1, good rod 2-4, super rod 5-9).
+/// tables (`wild_encounters.json` `fields`).
 const WILD_SLOTS: [u32; 4] = [12, 5, 5, 10];
+/// The `fishingMonsInfo` slots of the old, good and super rods (the `fishing_mons` groups of
+/// `wild_encounters.json`; `ChooseWildMonIndex_Fishing`).
+pub const FISHING_ROD_SLOTS: [std::ops::Range<usize>; 3] = [0..2, 2..5, 5..10];
+/// The `battle/trainer_money.ron` key of the `0xFF` end of `gTrainerMoneyTable`, whose value is
+/// the default of every class not listed (`GetTrainerMoneyToGive`).
+pub const TRAINER_MONEY_DEFAULT_CLASS: &str = "TRAINER_CLASS_0xFF";
 /// `EVOS_PER_MON`, and `sizeof(struct Evolution)` (three u16 padded to 8 by agbcc).
 const EVOS_PER_MON: u32 = 5;
 const EVOLUTION_SIZE: u32 = 8;
@@ -272,8 +282,8 @@ pub struct Locations {
     pub wild_headers: u32,
     pub evolutions: u32,
     pub trainer_money: u32,
-    pub species_to_national: u32,
-    pub pokedex_entries: u32,
+    /// `sSpeciesToNationalPokedexNum` and `gPokedexEntries`, if both were found (weights only).
+    pub pokedex: Option<Pokedex>,
     pub nature_power: u32,
     pub heal_locations: u32,
     pub battle_strings: u32,
@@ -457,12 +467,9 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
     let wild_headers = locate_wild_headers(rom)?;
     let evolutions = locate_evolutions(rom, &n)?;
     let trainer_money = locate_trainer_money(rom, type_names, &n)?;
-    let species_to_national = unique_referenced(
-        rom,
-        &u16s_le(&(1..=JOHTO_DEX_COUNT).collect::<Vec<_>>()),
-        "sSpeciesToNationalPokedexNum",
-    )?;
-    let pokedex_entries = locate_pokedex_entries(rom)?;
+    let pokedex = locate_pokedex(rom)
+        .inspect_err(|e| eprintln!("warning: species weights are 0: {e:#}"))
+        .ok();
 
     let nature_power =
         unique_referenced(rom, &u16s_le(&NATURE_POWER.map(mv)), "sNaturePowerMoves")?;
@@ -498,8 +505,7 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         wild_headers,
         evolutions,
         trainer_money,
-        species_to_national,
-        pokedex_entries,
+        pokedex,
         nature_power,
         heal_locations,
         battle_strings,
@@ -563,6 +569,24 @@ fn locate_evolutions(rom: &Rom, n: &Counts) -> Result<u32> {
     Ok(table)
 }
 
+/// The tables of [`species_weight`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pokedex {
+    pub species_to_national: u32,
+    pub entries: u32,
+}
+
+fn locate_pokedex(rom: &Rom) -> Result<Pokedex> {
+    Ok(Pokedex {
+        species_to_national: unique_referenced(
+            rom,
+            &u16s_le(&(1..=JOHTO_DEX_COUNT).collect::<Vec<_>>()),
+            "sSpeciesToNationalPokedexNum",
+        )?,
+        entries: locate_pokedex_entries(rom)?,
+    })
+}
+
 /// `gPokedexEntries`: the referenced table whose first entries have the heights and weights of
 /// [`DEX_ANCHOR`].
 fn locate_pokedex_entries(rom: &Rom) -> Result<u32> {
@@ -586,7 +610,8 @@ fn locate_pokedex_entries(rom: &Rom) -> Result<u32> {
     }
 }
 
-/// `gTrainerMoneyTable`, at the first 4-byte boundary after `gTypeNames` (`battle_main.c`):
+/// `gTrainerMoneyTable`, found by adjacency at the first 4-byte boundary after `gTypeNames`
+/// (`battle_main.c`), then validated:
 /// a referenced run of `{class, value}` entries of distinct known classes, ended by the `0xFF`
 /// class.
 fn locate_trainer_money(rom: &Rom, type_names: u32, n: &Counts) -> Result<u32> {
@@ -950,8 +975,6 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         ("wild_headers", loc.wild_headers),
         ("evolutions", loc.evolutions),
         ("trainer_money", loc.trainer_money),
-        ("species_to_national", loc.species_to_national),
-        ("pokedex_entries", loc.pokedex_entries),
         ("nature_power", loc.nature_power),
         ("heal_locations", loc.heal_locations),
         ("strings", loc.battle_strings),
@@ -960,6 +983,13 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         ("confirm_starter_choice", loc.confirm_starter_choice),
     ] {
         provenance.insert(format!("battle/{k}"), Hex(v));
+    }
+    if let Some(p) = loc.pokedex {
+        provenance.insert(
+            "battle/species_to_national".into(),
+            Hex(p.species_to_national),
+        );
+        provenance.insert("battle/pokedex_entries".into(), Hex(p.entries));
     }
     Ok(BattleData {
         species: read_species(rom, &loc, &n)?,
@@ -971,7 +1001,13 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         trainer_money: TrainerMoneyFile {
             classes: read_money_pairs(rom, loc.trainer_money, &n)?
                 .into_iter()
-                .map(|(c, v)| (names::TRAINER_CLASSES.name_or_hex(c.into()), v))
+                .map(|(c, v)| {
+                    let class = match c {
+                        TRAINER_MONEY_END => TRAINER_MONEY_DEFAULT_CLASS.into(),
+                        c => names::TRAINER_CLASSES.name_or_hex(c.into()),
+                    };
+                    (class, v)
+                })
                 .collect(),
         },
         heal_locations: read_heal_locations(rom, &loc, &n)?,
@@ -1056,16 +1092,17 @@ fn read_species(rom: &Rom, loc: &Locations, n: &Counts) -> Result<SpeciesFile> {
 }
 
 /// `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight`, 0 without an entry
-/// (`SPECIES_NONE`, and the old Unown placeholders, numbered past `NATIONAL_DEX_COUNT`).
+/// (`SPECIES_NONE`, and the old Unown placeholders, numbered past `NATIONAL_DEX_COUNT`) or
+/// without the tables.
 fn species_weight(rom: &Rom, loc: &Locations, species: u32) -> Result<u16> {
-    let Some(i) = species.checked_sub(1) else {
+    let (Some(dex), Some(i)) = (loc.pokedex, species.checked_sub(1)) else {
         return Ok(0);
     };
-    let national = u32::from(rom.u16(loc.species_to_national + 2 * i)?);
+    let national = u32::from(rom.u16(dex.species_to_national + 2 * i)?);
     if national == 0 || national > NATIONAL_DEX_COUNT {
         return Ok(0);
     }
-    rom.u16(loc.pokedex_entries + DEX_ENTRY_SIZE * national + DEX_ENTRY_HEIGHT + 2)
+    rom.u16(dex.entries + DEX_ENTRY_SIZE * national + DEX_ENTRY_HEIGHT + 2)
 }
 
 fn read_moves(rom: &Rom, loc: &Locations, n: &Counts) -> Result<MovesFile> {

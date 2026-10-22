@@ -255,6 +255,9 @@ fn parse_maps(arg: &str) -> Result<Vec<&'static str>> {
 /// flips it to `all`) and `--previews` also writes `previews/<Map>.png` (off by default: they
 /// are most of the extracted size and nothing in the build reads them).
 ///
+/// Any other map set prints a warning: content cannot build a full extract until Task L; to
+/// recover run `PKR_EXTRACTED_DIR=/nonexistent cargo xtask extract --maps slice`.
+///
 /// Exports into content/.extracted.tmp/, then moves the previous output aside to
 /// content/.extracted.old/, renames the new export into place and only then deletes the old
 /// one. If any step fails, the previous output is left (or put back) in content/extracted/.
@@ -271,6 +274,12 @@ fn extract(args: &[String]) -> Result<()> {
             "--previews" => opts.previews = true,
             _ => bail!(USAGE),
         }
+    }
+    if opts.maps != extract::export::SLICE_MAPS {
+        println!(
+            "warning: content cannot build a full extract until Task L; to recover run \
+             `PKR_EXTRACTED_DIR=/nonexistent cargo xtask extract --maps slice`"
+        );
     }
     let rom = extract::Rom::open(&rom_path)?;
     let out = root().join("content/extracted");
