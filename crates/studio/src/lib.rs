@@ -1,0 +1,14 @@
+//! The Milestone 6 studio (`docs/plans/2026-10-22-milestone-6-studio.md`): a headless core of
+//! pure controllers, plus the Dioxus desktop UI behind the `ui` feature.
+
+pub mod build; // Task D
+pub mod data_view; // Task F
+pub mod frames; // Wave 0 spike
+pub mod map_view; // Task E
+pub mod native; // Task C
+pub mod pane; // Wave 0 spike (the trait below is the contract)
+pub mod paths; // Wave 0 spike
+pub mod rom; // Task D
+pub mod sprite; // Task E
+pub mod text; // Task F
+pub mod tree; // Task B

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "xtask"]
+members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "xtask"]
 exclude = ["crates/game-gba"]
 
 [workspace.package]
@@ -14,5 +14,6 @@ content = { path = "crates/content" }
 game-native = { path = "crates/game-native" }
 emu = { path = "crates/emu" }
 extract = { path = "crates/extract" }
+studio = { path = "crates/studio" }
 anyhow = "1"
 mgba = "0.1.0"
