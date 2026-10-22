@@ -125,7 +125,7 @@ pub struct Transfer {
 }
 
 impl Transfer {
-    /// The decomp-named offsets of `kind` among `offsets`, and their count.
+    /// How many of `offsets` have a decomp name, and how many there are.
     pub fn coverage(&self, offsets: &BTreeSet<u32>) -> (usize, usize) {
         let named = offsets
             .iter()
