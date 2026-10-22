@@ -234,14 +234,14 @@ fn encoding_starts_with_the_schema() {
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
     cp.header.schema = 2;
-    assert_eq!(decode(&encode(&cp)), Err(DecodeError::Schema { found: 2 }));
+    assert_eq!(decode(&encode(&cp)), Err(CodecError::Schema { found: 2 }));
     // Only the schema is read: a newer layout behind it does not matter.
     let mut bytes = postcard::to_allocvec(&2u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(DecodeError::Schema { found: 2 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 2 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
-    assert_eq!(decode(&bytes), Err(DecodeError::Schema { found: 300 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
 }
 
 #[test]
@@ -250,13 +250,13 @@ fn bad_bytes_are_postcard_errors() {
     for len in [0, 1, bytes.len() / 2, bytes.len() - 1] {
         assert_eq!(
             decode(&bytes[..len]),
-            Err(DecodeError::Postcard),
+            Err(CodecError::Postcard),
             "truncated to {len}"
         );
     }
     let mut long = bytes.clone();
     long.push(0);
-    assert_eq!(decode(&long), Err(DecodeError::Postcard), "trailing byte");
+    assert_eq!(decode(&long), Err(CodecError::Postcard), "trailing byte");
 }
 
 #[test]
@@ -268,7 +268,7 @@ fn encode_checked_rejects_past_the_flash_budget() {
     let len = encode(&big).len();
     assert_eq!(encoded_len(&big), len);
     assert!(len > MAX_ENCODED);
-    assert_eq!(encode_checked(&big), Err(DecodeError::TooLarge(len)));
+    assert_eq!(encode_checked(&big), Err(CodecError::TooLarge(len)));
 }
 
 #[test]
@@ -296,12 +296,12 @@ fn state_digest_is_stable_and_semantic() {
 #[test]
 fn decode_refuses_more_than_the_flash_budget() {
     let bytes = vec![0; MAX_ENCODED + 1];
-    assert_eq!(decode(&bytes), Err(DecodeError::TooLarge(MAX_ENCODED + 1)));
+    assert_eq!(decode(&bytes), Err(CodecError::TooLarge(MAX_ENCODED + 1)));
     // Even a valid checkpoint (5000 flags) is refused unread.
     let mut big = sample();
     big.world.vars.flags = (0..5000).map(FlagId).collect();
     let bytes = encode(&big);
-    assert_eq!(decode(&bytes), Err(DecodeError::TooLarge(bytes.len())));
+    assert_eq!(decode(&bytes), Err(CodecError::TooLarge(bytes.len())));
 }
 
 /// Peak heap use of the current thread, for the forged-length test.
@@ -379,7 +379,7 @@ fn a_forged_length_cannot_preallocate() {
     forged.extend_from_slice(&[0xFF; 4000]);
     assert!(forged.len() <= MAX_ENCODED);
     let (res, peak) = counting::peak(|| decode(&forged));
-    assert_eq!(res, Err(DecodeError::Postcard));
+    assert_eq!(res, Err(CodecError::Postcard));
     // 4000 `Pokemon`s would be ~270 KB; the decode holds about one snapshot.
     std::println!("forged party decode: peak {peak} bytes");
     assert!(peak < 4096, "peak {peak}");
