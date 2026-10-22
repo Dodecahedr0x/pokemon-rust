@@ -4,27 +4,27 @@
         label: "route:stub_start",
         schema: 2,
         build: (
-            engine: 11555317754122413069,
-            content: 17510915257023169149,
+            engine: 13951988252863836395,
+            content: 13868865533183540952,
         ),
         frame: 24,
         map: (9),
         digest: 10793751549451037106,
-        world_hash: 5642500907276693431,
+        world_hash: 2544550810136451302,
     ),
     trace: (
         schema: 2,
         parent: NewGame,
         build: (
-            engine: 11555317754122413069,
-            content: 17510915257023169149,
+            engine: 13951988252863836395,
+            content: 13868865533183540952,
         ),
         start_frame: 0,
         inputs: [
             "0*24",
         ],
         hashes: [
-            (24, 5642500907276693431),
+            (24, 2544550810136451302),
         ],
     ),
 )
