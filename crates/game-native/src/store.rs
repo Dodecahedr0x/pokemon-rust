@@ -207,6 +207,15 @@ impl StoreError {
     fn is_not_found(&self) -> bool {
         matches!(self, StoreError::Io(e) if e.kind() == io::ErrorKind::NotFound)
     }
+
+    /// A file that is there but unreadable as what it should hold (not RON, or not UTF-8).
+    pub fn is_corrupt(&self) -> bool {
+        match self {
+            StoreError::Parse { .. } => true,
+            StoreError::Io(e) => e.kind() == io::ErrorKind::InvalidData,
+            _ => false,
+        }
+    }
 }
 
 /// Every node of a store, read once: by id, with their children and a topological order. Built
@@ -584,15 +593,37 @@ impl Store {
         Index::build(self.load()?)
     }
 
-    /// By `c00012`, `12` (that one file) or label (through the index).
+    /// By `c00012`, `12` (that one file) or label (every node once; parents are not checked,
+    /// so a broken tree's nodes can still be found).
     pub fn find(&self, id_or_label: &str) -> Result<Node, StoreError> {
         if let Some(id) = parse_id(id_or_label) {
             return self.read_node(id);
         }
-        self.index()?
-            .labelled(id_or_label)
-            .cloned()
+        self.nodes()?
+            .into_iter()
+            .find(|n| n.meta.label == id_or_label)
             .ok_or_else(|| StoreError::NotFound(id_or_label.into()))
+    }
+
+    /// The ids of every node file (with the base's), without reading them.
+    fn ids(&self) -> Result<BTreeSet<CheckpointId>, StoreError> {
+        let mut ids: BTreeSet<CheckpointId> = node_ids(&self.root)?.into_iter().collect();
+        if let Some(base) = &self.base {
+            ids.extend(node_ids(base)?);
+        }
+        Ok(ids)
+    }
+
+    /// Drops `id`'s entry from this store's own `status.ron` (a missing or unreadable status
+    /// is left alone).
+    fn forget_status(&self, id: CheckpointId) -> Result<(), StoreError> {
+        let path = status_file(&self.root);
+        if let Ok(mut status) = read_statuses(&path)
+            && status.remove(&id).is_some()
+        {
+            write_atomic(&path, &to_ron(&status)?)?;
+        }
+        Ok(())
     }
 
     /// A label is non-empty, cannot be read as an id, and no other node has it.
@@ -641,7 +672,9 @@ impl Store {
             Parent::NewGame => 0,
             Parent::Checkpoint(p) => match nodes.iter().find(|n| n.meta.id == p) {
                 Some(n) => n.meta.frame,
-                None => return Err(StoreError::NotFound(p.to_string())),
+                None => {
+                    return Err(StoreError::Invalid(format!("parent {p} does not exist")));
+                }
             },
         };
         let end = trace.start_frame.checked_add(trace.frames());
@@ -673,6 +706,8 @@ impl Store {
             match write_new(&self.node_path(id), &to_ron(&node)?) {
                 Ok(()) => {
                     self.put_snapshot(id, cp)?;
+                    // A verdict of an earlier node with this id is not this node's.
+                    self.forget_status(id)?;
                     return Ok(id);
                 }
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists => next = id.0.checked_add(1),
@@ -715,14 +750,8 @@ impl Store {
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),
             _ => {}
         }
-        // The id may be reused: forget its verdict (a missing or unreadable status is fine).
-        let path = status_file(&self.root);
-        if let Ok(mut status) = read_statuses(&path)
-            && status.remove(&id).is_some()
-        {
-            write_atomic(&path, &to_ron(&status)?)?;
-        }
-        Ok(())
+        // The id may be reused: forget its verdict.
+        self.forget_status(id)
     }
 
     /// The cached snapshot; `None` if absent, of another schema, or undecodable (it is a
@@ -757,26 +786,39 @@ impl Store {
         Ok(write_atomic(&self.snapshot_path(id), &to_ron(cp)?)?)
     }
 
-    /// The last verdicts (`status.ron`; none if absent). A layered store's are the base's
-    /// `status.ron` overlaid with its own.
+    /// The last verdicts (`status.ron`; none if absent). A layered store has two: the base's
+    /// (from `cargo xtask checkpoints verify`) and its own. Both may hold a base node's verdict;
+    /// the newer file (by modification time) wins, the local one on a tie or an unknown time.
     pub fn statuses(&self) -> Result<BTreeMap<CheckpointId, Status>, StoreError> {
-        let mut all = match &self.base {
-            Some(base) => read_statuses(&status_file(base))?,
-            None => BTreeMap::new(),
+        let local = status_file(&self.root);
+        let Some(base) = self.base.as_deref().map(status_file) else {
+            return read_statuses(&local);
         };
-        all.extend(read_statuses(&status_file(&self.root))?);
+        let modified = |p: &Path| fs::metadata(p).and_then(|m| m.modified()).ok();
+        let (older, newer) = match (modified(&base), modified(&local)) {
+            (Some(b), Some(l)) if b > l => (local, base),
+            _ => (base, local),
+        };
+        let mut all = read_statuses(&older)?;
+        all.extend(read_statuses(&newer)?);
         Ok(all)
     }
 
     /// Merges `verdicts` into this store's own `status.ron` (read, modify, atomic rename):
-    /// other entries stay. An unreadable `status.ron` is replaced.
+    /// other entries stay, and only nodes that exist (here or in the base) are kept, so a
+    /// verdict of a node removed meanwhile is dropped. An unreadable `status.ron` is replaced.
+    ///
+    /// Two concurrent merges are last-writer-wins (one's verdicts may be lost): acceptable,
+    /// since the file is a cache that the next verify rewrites.
     pub fn merge_statuses(&self, verdicts: &[(CheckpointId, Status)]) -> Result<(), StoreError> {
         let path = status_file(&self.root);
         let mut all = match read_statuses(&path) {
-            Err(StoreError::Parse { .. }) => BTreeMap::new(),
+            Err(e) if e.is_corrupt() => BTreeMap::new(),
             r => r?,
         };
         all.extend(verdicts.iter().cloned());
+        let ids = self.ids()?;
+        all.retain(|id, _| ids.contains(id));
         Ok(write_atomic(&path, &to_ron(&all)?)?)
     }
 

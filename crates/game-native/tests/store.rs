@@ -373,7 +373,7 @@ fn add_checks_labels_parents_and_frames() {
         assert_eq!(e, "Label", "label {label:?}");
     }
     let e = err(store.add("x", t(Parent::Checkpoint(CheckpointId(42)), 10), &cp));
-    assert_eq!(e, "NotFound", "missing parent");
+    assert_eq!(e, "Invalid", "missing parent");
     let e = err(store.add("x", t(Parent::Checkpoint(a), 9), &cp));
     assert_eq!(e, "Invalid", "start frame != parent frame");
     let e = err(store.add("x", t(Parent::Checkpoint(a), 10), &checkpoint(13, 3, BUILD)));
@@ -1011,6 +1011,15 @@ fn a_missing_parent_and_a_cycle_are_typed_errors() {
         }
         e => panic!("{e}"),
     }
+    // A broken tree's nodes are still found by label.
+    assert_eq!(store.find("hand7").unwrap().meta.id, CheckpointId(7));
+    let parent = Parent::Checkpoint(CheckpointId(99));
+    let e = store.add(
+        "x",
+        trace(parent, 10, &[(Buttons::NONE, 2)]),
+        &checkpoint(12, 3, BUILD),
+    );
+    assert_eq!(e.unwrap_err().to_string(), "parent c00099 does not exist");
     // 7 -> 8 -> 7, and 9 below the cycle.
     write_node(&root, 7, Parent::Checkpoint(CheckpointId(8)));
     write_node(&root, 8, Parent::Checkpoint(CheckpointId(7)));
@@ -1067,18 +1076,42 @@ fn merge_statuses_keeps_other_entries() {
         store.statuses().unwrap(),
         BTreeMap::from([(a, Status::Valid), (b, stale.clone())])
     );
-    // verify merges too: an entry of a node it did not replay stays.
-    let gone = CheckpointId(77);
-    store.merge_statuses(&[(gone, stale.clone())]).unwrap();
+    // A verdict for an absent node (removed during a background verify) records nothing.
+    store
+        .merge_statuses(&[(CheckpointId(77), stale.clone())])
+        .unwrap();
+    assert!(!read_status(&root).contains_key(&CheckpointId(77)));
     store.verify(replayer(BUILD, None, None), false).unwrap();
-    let mut want: BTreeMap<_, _> = [a, b, c, d].map(|id| (id, Status::Valid)).into();
-    want.insert(gone, stale);
+    let want: BTreeMap<_, _> = [a, b, c, d].map(|id| (id, Status::Valid)).into();
     assert_eq!(store.statuses().unwrap(), want);
-    // An unreadable status.ron is an error to read and replaced by a merge.
-    fs::write(root.join("status.ron"), "garbage").unwrap();
-    assert_eq!(kind(store.statuses().unwrap_err()), "Parse");
-    store.merge_statuses(&[(a, Status::Valid)]).unwrap();
-    assert_eq!(store.statuses().unwrap(), [(a, Status::Valid)].into());
+    // An unreadable status.ron (not RON, or not UTF-8) is an error to read and replaced by a
+    // merge.
+    for bytes in [&b"garbage"[..], &[0xff, 0xfe, 0x00][..]] {
+        fs::write(root.join("status.ron"), bytes).unwrap();
+        assert!(store.statuses().unwrap_err().is_corrupt());
+        store.merge_statuses(&[(a, Status::Valid)]).unwrap();
+        assert_eq!(store.statuses().unwrap(), [(a, Status::Valid)].into());
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_reused_id_never_inherits_a_verdict() {
+    let (root, store, [a, .., d]) = tree("reuse");
+    store.verify(replayer(BUILD, None, None), false).unwrap();
+    // A stale entry for the next id (a merge that raced a remove, an older build's file).
+    let mut status = read_status(&root);
+    status.insert(CheckpointId(5), Status::Broken("old".into()));
+    fs::write(root.join("status.ron"), ron::to_string(&status).unwrap()).unwrap();
+    let e = add(&store, "e", Parent::Checkpoint(a), &[(Buttons::B, 1)]);
+    assert_eq!(e, CheckpointId(5));
+    assert!(!store.statuses().unwrap().contains_key(&e));
+    // Removed, then reused: the new node starts unverified.
+    store.remove(e).unwrap();
+    store.remove(d).unwrap();
+    let again = add(&store, "again", Parent::Checkpoint(a), &[(Buttons::B, 1)]);
+    assert_eq!(again, d);
+    assert!(!store.statuses().unwrap().contains_key(&again));
     fs::remove_dir_all(root).unwrap();
 }
 

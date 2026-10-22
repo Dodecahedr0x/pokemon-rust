@@ -51,9 +51,9 @@ pub struct TreeRow {
     pub children: u32,
 }
 
-/// The rows in display order: depth first from the new-game roots, siblings by id. Base ids are
-/// below `LOCAL_IDS` and local ones above, so the shared nodes come first, and a local node
-/// starting from a shared one follows that node's shared children.
+/// The rows in display order: depth first from the new-game roots, siblings shared before
+/// local, then by id. So the shared nodes come first, and a local node starting from a shared
+/// one follows that node's shared children.
 #[derive(Clone, Debug, Default)]
 pub struct TreeModel {
     rows: Vec<TreeRow>,
@@ -64,24 +64,37 @@ impl TreeModel {
     /// The store's index and statuses.
     pub fn load(store: &Store) -> Result<TreeModel, StoreError> {
         let index = store.index()?;
-        let statuses = store.statuses()?;
+        // A corrupt status.ron is a cache to rebuild (the next verify replaces it), not an
+        // error here; the CLI stays strict.
+        let statuses = match store.statuses() {
+            Err(e) if e.is_corrupt() => BTreeMap::new(),
+            r => r?,
+        };
         Ok(Self::build(&index, &statuses))
     }
 
     fn build(index: &Index, statuses: &BTreeMap<CheckpointId, Status>) -> TreeModel {
         let game = Emerald::for_shells();
         let mut model = TreeModel::default();
+        // The children of `p`, last row first: shared before local, then by id.
+        let pending = |p: Parent| {
+            let mut ids = index.children(p).to_vec();
+            ids.sort_by_key(|&id| std::cmp::Reverse((Origin::of(index, id), id)));
+            ids
+        };
         // (id, depth), the next row on top.
-        let mut stack: Vec<(CheckpointId, u16)> = index
-            .children(Parent::NewGame)
-            .iter()
-            .rev()
-            .map(|&id| (id, 0))
+        let mut stack: Vec<(CheckpointId, u16)> = pending(Parent::NewGame)
+            .into_iter()
+            .map(|id| (id, 0))
             .collect();
         while let Some((id, depth)) = stack.pop() {
             let node = index.node(id).expect("indexed");
             let children = index.children(Parent::Checkpoint(id));
-            stack.extend(children.iter().rev().map(|&c| (c, depth + 1)));
+            stack.extend(
+                pending(Parent::Checkpoint(id))
+                    .into_iter()
+                    .map(|c| (c, depth + 1)),
+            );
             model.at.insert(id, model.rows.len());
             model.rows.push(TreeRow {
                 origin: Origin::of(index, id),
@@ -257,6 +270,11 @@ mod tests {
             !base_root.join("status.ron").exists(),
             "the base is not written"
         );
+        // A corrupt status.ron reads as no verdicts here (the CLI refuses it).
+        std::fs::write(local_root.join("status.ron"), "garbage").unwrap();
+        assert!(store.statuses().is_err());
+        let model = TreeModel::load(&store).unwrap();
+        assert!(model.rows().iter().all(|r| r.status.is_none()));
         std::fs::remove_dir_all(base_root).unwrap();
         std::fs::remove_dir_all(local_root).unwrap();
     }
