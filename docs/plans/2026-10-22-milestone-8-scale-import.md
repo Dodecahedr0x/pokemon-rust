@@ -630,6 +630,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
      14. `FLAG_DEFEATED_RUSTBORO_GYM`;
      15. `FLAG_BADGE01_GET`.
    - Every constant is checked to exist in `content::consts`.
+   - **As built (town goals):** `oldale` (slice goal 5), `petalburg` (9) and `rustboro` (13) are the visited flags `FLAG_VISITED_OLDALE_TOWN` / `_PETALBURG_CITY` / `_RUSTBORO_CITY` (set by each town's `OnTransition`), not "on the map". Reason: a goal is read only at capturable node ends, and the parity route crosses Oldale into its Pokémon Center without a capturable frame in the town, so "on `MAP_OLDALE_TOWN`" was never seen; the flag stays set. The routes (103, 104) keep "on the map": they have no visited flag.
    - `--act` selects the list (default `act1` on real data, `slice` keeps M7's).
    - The `(progress, -frames)` merge rule stays; it is now also consistent with the key for flag and var goals.
 4. **Goal-directed segments:**
@@ -968,6 +969,14 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
 
 ## Wave 0 as built
 *(filled by Wave 0: the spike re-run numbers, the opt-level decision, baselines, contract deltas.)*
+
+## Task K as built (Phase 1: items 1–4, 6)
+- Schema v3 (`c4252e1`): blob inputs with a repeat-pair opcode, `Macro::code` integer macros, no `region` column, no `node(key)`/`node(map)` index, `key_hit` table, `meta.key_version` / `act` / `root`. A superseded row stays even when childless (it was live and written); only duplicates leave no row.
+- Key version 2: `respawn` and a template-delta digest in the key; `VAR_OBJ_GFX_ID_0..F` excluded. The key-items pocket digest waits for Wave 0's bag (Phase 2, key version 3).
+- `TRAINER_GRUNT_PETALBURG_WOODS` is missing from the stub's `content::consts`: the goal reads it from `extract::names::TRAINERS` (the table the real constant is generated from). All 14 Act 1 constants are checked against the decomp headers by `tests/m8_k_goals.rs`.
+- 120 s real run: 133,155 rows, 35.2 MB (0.26 MB per 1,000 rows; M7: 167,643 rows, 175.3 MB, 1.05 MB), peak RSS 184 MB (M7: 455 MB).
+- 50-generation digests, identical on 1, 4, 8 threads and 25+25: real `0x02157751a7452ae3`, stub `0xf68ea453a6b24e45`.
+- **Task S item:** `crates/studio/src/native.rs:180` refuses traces whose parent is not a new game, so findings of a `--from` db (traces from `Parent::Checkpoint`) do not open in the studio pane.
 
 ## Findings for Milestone 9
 *(filled at close-out.)*
