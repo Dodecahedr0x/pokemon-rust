@@ -1,14 +1,15 @@
-//! A synthetic `GameData` for the battle text and window tests: two species, three moves, a
-//! tiny font and placeholder battle strings (Gen3 encoding, ASCII letters via [`enc`]).
+//! A synthetic `GameData` for the battle text and window tests: the first species and moves of
+//! the shared `battle::test_data` tables with ASCII names, a tiny font and placeholder battle
+//! strings (Gen3 encoding, ASCII letters via [`enc`]).
 
+use crate::battle::test_data::{MOVES, SPECIES, TABLES};
 use crate::battle::{BattleGfx, BattleMon, EMPTY_GFX, GfxImage, Str};
 use crate::data::{
     Behavior, Dir, Font, GameData, GfxId, MapData, MapId, MoveId, NewGame, ScriptId, SpeciesId,
     SpriteData, TextId, UiText, WindowGfx,
 };
 use crate::mon::{
-    Ability, BattleTables, Gender, GrowthRate, MoveEffect, MoveFlags, MoveInfo, MoveTarget,
-    NAME_LEN, Party, Pokemon, SpeciesInfo, Stat, Status, Type,
+    BattleTables, Gender, MoveInfo, NAME_LEN, Party, Pokemon, SpeciesInfo, Stat, Status, Type,
 };
 use crate::script::{Ctx, Script};
 use crate::video::Tile;
@@ -57,43 +58,9 @@ pub fn t(s: &str) -> Vec<u8> {
 
 pub const FD: u8 = 0xFD;
 
-pub const TACKLE: MoveId = MoveId(1);
-pub const GROWL: MoveId = MoveId(2);
-pub const EMBER: MoveId = MoveId(3);
+pub use crate::battle::test_data::{EMBER, GROWL, TACKLE};
 pub const POOCHY: SpeciesId = SpeciesId(1);
 pub const TORCH: SpeciesId = SpeciesId(2);
-
-fn mv(name: &str, ty: Type, pp: u8) -> MoveInfo {
-    MoveInfo {
-        name: leak(enc(name)),
-        effect: MoveEffect::Hit,
-        power: 40,
-        ty,
-        accuracy: 100,
-        pp,
-        effect_chance: 0,
-        target: MoveTarget::Selected,
-        priority: 0,
-        flags: MoveFlags(0),
-    }
-}
-
-fn sp(name: &str) -> SpeciesInfo {
-    SpeciesInfo {
-        name: leak(enc(name)),
-        base: [50; 6],
-        types: [Type::Normal; 2],
-        catch_rate: 255,
-        exp_yield: 50,
-        ev_yield: [0; 6],
-        gender_ratio: 127,
-        friendship: 70,
-        growth: GrowthRate::MediumFast,
-        abilities: [Ability::None; 2],
-        learnset: &[],
-        gfx: None,
-    }
-}
 
 /// Glyph `c` is `c % 7 + 2` px wide with its fg pixel at (0, 0), so lines are easy to spot.
 fn font() -> &'static Font {
@@ -150,22 +117,24 @@ pub struct Game {
 }
 
 pub fn game() -> Game {
-    let moves = vec![
-        mv("NONE", Type::Normal, 0),
-        mv("TACKLE", Type::Normal, 35),
-        mv("GROWL", Type::Normal, 40),
-        mv("EMBER", Type::Fire, 25),
-    ];
-    let species = vec![sp("NONE"), sp("POOCHY"), sp("TORCH")];
+    let named =
+        |names: &[&str]| -> Vec<&'static [u8]> { names.iter().map(|n| leak(enc(n))).collect() };
+    let moves: Vec<MoveInfo> = MOVES
+        .iter()
+        .zip(named(&["NONE", "TACKLE", "GROWL", "EMBER"]))
+        .map(|(m, name)| MoveInfo { name, ..*m })
+        .collect();
+    let species: Vec<SpeciesInfo> = SPECIES
+        .iter()
+        .zip(named(&["NONE", "POOCHY", "TORCH"]))
+        .map(|(s, name)| SpeciesInfo { name, ..*s })
+        .collect();
     Game {
         font: font(),
         tables: Box::leak(Box::new(BattleTables {
             species: Box::leak(species.into_boxed_slice()),
             moves: Box::leak(moves.into_boxed_slice()),
-            type_chart: &[],
-            foresight_split: 0,
-            struggle: TACKLE,
-            nature_power: [TACKLE; 10],
+            ..TABLES
         })),
         gfx: gfx(),
         window: Box::leak(Box::new(WindowGfx {

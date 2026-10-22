@@ -69,7 +69,7 @@ fn byte_sum(s: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mon::test_tables::*;
+    use crate::battle::test_data::*;
     use crate::mon::{Gender, TrainerMon, TrainerPic};
 
     static PIC: TrainerPic = TrainerPic {

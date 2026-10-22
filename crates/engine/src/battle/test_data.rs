@@ -2,11 +2,10 @@
 //! a type chart subset in Gen3 order, and a `GameData` that serves them. Other tasks may extend
 //! it (append: ids are indices, existing tests pin them).
 //!
-//! Test mons are built with explicit stats ([`mon`]) so tests do not depend on the stat
-//! formulas. Species use the MediumFast growth rate (`exp = level³`) to keep exp goldens easy.
-
-// Some entries wait for the tests of later tasks (E2's effects and abilities).
-#![allow(dead_code)]
+//! Battle test mons are built with explicit stats ([`mon`]) so tests do not depend on the stat
+//! formulas. The battle species use the MediumFast growth rate (`exp = level³`) to keep exp
+//! goldens easy; the Pokémon model species ([`MUDKIP`] on) mirror a few Gen3 species for the
+//! stat, growth, gender and ability goldens of `mon`, `wild` and `trainer`.
 
 use crate::battle::Str;
 use crate::data::Dir;
@@ -77,6 +76,9 @@ pub const FLINCH_ALL: MoveId = MoveId(38);
 pub const CONFUSE_ALL: MoveId = MoveId(39);
 /// Poison 100%.
 pub const POISON_ALL: MoveId = MoveId(40);
+// The Pokémon model, wild and trainer tests (formerly `mon::test_tables`).
+/// Defense -1, PP 30.
+pub const TAIL_WHIP: MoveId = MoveId(41);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -110,6 +112,26 @@ pub const ELECTRIC: SpeciesId = SpeciesId(13);
 pub const STEEL: SpeciesId = SpeciesId(14);
 /// Normal, Guts.
 pub const GUTS: SpeciesId = SpeciesId(15);
+// The Pokémon model, wild and trainer tests (formerly `mon::test_tables`): named, with Gen3
+// numbers of a few species so the goldens can be checked against the decomp by hand.
+/// Mudkip-like: base 50/70/50/40/50/50, MediumSlow, genderRatio 31, Torrent only.
+pub const MUDKIP: SpeciesId = SpeciesId(16);
+/// Zigzagoon-like: base 38/30/41/60/30/41, MediumFast, genderRatio 127.
+pub const ZIGZAGOON: SpeciesId = SpeciesId(17);
+/// Electric, male only, Static/Synchronize, a long early learnset.
+pub const SPARK: SpeciesId = SpeciesId(18);
+/// Genderless, Synchronize only, EV yield 3 HP / 2 Atk.
+pub const BLOB: SpeciesId = SpeciesId(19);
+/// Female only, Keen Eye.
+pub const HAWK: SpeciesId = SpeciesId(20);
+/// Intimidate only; its name (`LONG_NAME`) is 12 characters, over `POKEMON_NAME_LENGTH`.
+pub const GROWLER: SpeciesId = SpeciesId(21);
+/// Gen3-encoded "MUDKIP", "ZIGZAGOON", "ABCDEFGHIJKL".
+pub const MUDKIP_NAME: &[u8] = &[0xC7, 0xCF, 0xBE, 0xC5, 0xC3, 0xCA, 0xFF];
+pub const ZIGZAGOON_NAME: &[u8] = &[0xD4, 0xC3, 0xC1, 0xD4, 0xBB, 0xC1, 0xC9, 0xC9, 0xC8, 0xFF];
+pub const LONG_NAME: &[u8] = &[
+    0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xFF,
+];
 
 const fn mv(
     effect: MoveEffect,
@@ -153,7 +175,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 41] = [
+pub static MOVES: [MoveInfo; 42] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -379,6 +401,19 @@ pub static MOVES: [MoveInfo; 41] = [
         100,
         true,
     ),
+    // ---- the Pokémon model tests ----
+    mv(
+        MoveEffect::StatDown {
+            stat: Stat::Def,
+            stages: 1,
+        },
+        0,
+        Type::Normal,
+        100,
+        30,
+        Selected,
+        0,
+    ),
 ];
 
 const fn lv(level: u8, mov: MoveId) -> LevelUpMove {
@@ -423,7 +458,7 @@ const fn species(
     }
 }
 
-pub static SPECIES: [SpeciesInfo; 16] = [
+pub static SPECIES: [SpeciesInfo; 22] = [
     species([0; 6], Type::Normal, 0, Ability::None, &[]),
     species(
         [50, 70, 50, 40, 50, 50],
@@ -477,7 +512,106 @@ pub static SPECIES: [SpeciesInfo; 16] = [
     species(STATS, Type::Electric, 50, Ability::Static, &[]),
     species(STATS, Type::Steel, 50, Ability::None, &[]),
     species(STATS, Type::Normal, 50, Ability::Guts, &[]),
+    // ---- the Pokémon model tests ----
+    named(
+        MUDKIP_NAME,
+        [50, 70, 50, 40, 50, 50],
+        Type::Water,
+        [0, 1, 0, 0, 0, 0],
+        31,
+        GrowthRate::MediumSlow,
+        [Ability::Torrent, Ability::None],
+        &[
+            lv(1, TACKLE),
+            lv(1, GROWL),
+            lv(6, MUD_SLAP),
+            lv(10, WATER_GUN),
+            lv(15, BIDE),
+        ],
+    ),
+    named(
+        ZIGZAGOON_NAME,
+        [38, 30, 41, 60, 30, 41],
+        Type::Normal,
+        [0, 0, 0, 1, 0, 0],
+        127,
+        GrowthRate::MediumFast,
+        [Ability::Other, Ability::Other],
+        &[lv(1, TACKLE), lv(3, GROWL), lv(5, TAIL_WHIP)],
+    ),
+    named(
+        &[0xCD, 0xFF],
+        [40; 6],
+        Type::Electric,
+        [0; 6],
+        0,
+        GrowthRate::Fast,
+        [Ability::Static, Ability::Synchronize],
+        &[
+            lv(1, TACKLE),
+            lv(1, GROWL),
+            lv(2, MUD_SLAP),
+            lv(3, WATER_GUN),
+            lv(4, BIDE),
+            lv(5, TAIL_WHIP),
+            lv(5, WATER_GUN),
+            lv(9, GROWL),
+        ],
+    ),
+    named(
+        &[0xBC, 0xFF],
+        [40; 6],
+        Type::Normal,
+        [3, 2, 0, 0, 0, 0],
+        255,
+        GrowthRate::Erratic,
+        [Ability::Synchronize, Ability::None],
+        &[lv(1, TACKLE)],
+    ),
+    named(
+        &[0xC2, 0xFF],
+        [40; 6],
+        Type::Flying,
+        [0; 6],
+        254,
+        GrowthRate::Fluctuating,
+        [Ability::KeenEye, Ability::None],
+        &[lv(1, TACKLE)],
+    ),
+    named(
+        LONG_NAME,
+        [40; 6],
+        Type::Normal,
+        [0; 6],
+        127,
+        GrowthRate::MediumFast,
+        [Ability::Intimidate, Ability::None],
+        &[lv(1, TACKLE)],
+    ),
 ];
+
+/// A Pokémon-model species: named, exp yield 50, its own EV yield, gender ratio, growth rate
+/// and abilities.
+#[allow(clippy::too_many_arguments)]
+const fn named(
+    name: &'static [u8],
+    base: [u8; 6],
+    ty: Type,
+    ev_yield: [u8; 6],
+    gender_ratio: u8,
+    growth: GrowthRate,
+    abilities: [Ability; 2],
+    learnset: &'static [LevelUpMove],
+) -> SpeciesInfo {
+    SpeciesInfo {
+        name,
+        ev_yield,
+        gender_ratio,
+        growth,
+        abilities,
+        ..species(base, ty, 50, Ability::None, learnset)
+    }
+}
 
 /// Base stats of the E2 species (tests set explicit stats anyway).
 const STATS: [u8; 6] = [50; 6];
@@ -628,5 +762,26 @@ mod tests {
         let m = mon(WATER, 5, [20, 13, 10, 9, 9, 10], &[TACKLE, GROWL]);
         assert_eq!(m.pp, [35, 40, 0, 0]);
         assert_eq!(m.exp, 125);
+    }
+
+    /// The entries no test uses yet sit at their ids (the tables are indexed by id).
+    #[test]
+    fn spare_entries_are_at_their_ids() {
+        let effect = |m| TABLES.move_info(m).effect;
+        assert_eq!(
+            effect(POISON_STING),
+            MoveEffect::StatusHit(StatusKind::Poison)
+        );
+        assert_eq!(effect(CONFUSION), MoveEffect::ConfuseHit);
+        assert_eq!(effect(BITE), MoveEffect::FlinchHit);
+        assert_eq!(effect(CHARGE), MoveEffect::Charge);
+        assert_eq!(
+            effect(FREEZE_HIT),
+            MoveEffect::StatusHit(StatusKind::Freeze)
+        );
+        assert_eq!(effect(CONFUSE_ALL), MoveEffect::ConfuseHit);
+        assert_eq!(TABLES.move_info(CONFUSE_ALL).effect_chance, 100);
+        assert_eq!(TABLES.species_info(GUTS).abilities[0], Ability::Guts);
+        assert_eq!(TABLES.species_info(GROWLER).name, LONG_NAME);
     }
 }

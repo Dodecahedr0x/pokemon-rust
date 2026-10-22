@@ -152,7 +152,7 @@ pub fn create_wild(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mon::test_tables::*;
+    use crate::battle::test_data::*;
     use crate::mon::{Nature, Pokemon};
 
     fn table(rate: u8, species: [SpeciesId; 12]) -> LandEncounters {
