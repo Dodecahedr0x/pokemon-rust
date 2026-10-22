@@ -1,9 +1,17 @@
 //! Item, multichoice, std-string and map-section tables (`tables.rs`) against the decomp: the US
 //! ROM must give exactly the decomp's values and strings, the French ROM the same counts and
-//! numbers with strings that re-encode to their ROM bytes.
+//! numbers with strings that re-encode to their ROM bytes. `export_tables` writes them as
+//! `tables/*.ron`.
+use extract::export::Out;
+use extract::export::tables::{FILES, export_tables};
+use extract::schema::{
+    FORMAT_MINOR, Hex, ItemPocket, ItemsFile, MINOR_FILES, MapSectionsFile, MultichoiceFile,
+    StdStringsFile,
+};
 use extract::tables::{self, ITEM_SIZE, Tables};
 use extract::{Rom, fixtures, names, text};
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 fn us() -> &'static (Rom, Tables) {
@@ -214,16 +222,27 @@ fn decomp_strings() -> BTreeMap<String, String> {
     ])
 }
 
+fn pocket(v: u8) -> Option<ItemPocket> {
+    use ItemPocket::*;
+    [
+        None,
+        Some(Items),
+        Some(PokeBalls),
+        Some(TmHm),
+        Some(Berries),
+        Some(KeyItems),
+    ][v as usize]
+}
+
 #[test]
 fn us_items_match_decomp() {
     let (_, t) = us();
+    let items = &t.items.items;
     let want = decomp_items();
-    assert_eq!(t.items.len(), want.len());
-    assert_eq!(
-        want.len() as u32,
-        names::ITEMS.entries.last().unwrap().0 + 1
-    );
-    for (i, (got, w)) in t.items.iter().zip(&want).enumerate() {
+    assert_eq!(items.len(), want.len());
+    assert_eq!(items.len() as u32, tables::item_count());
+    for (i, (got, w)) in items.iter().zip(&want).enumerate() {
+        assert_eq!(names::ITEMS.value(&got.id), Some(i as u32));
         // `ITEM_TM_<MOVE>` aliases are macro-made and not in `names`.
         assert!(
             names::ITEMS.value(&w.id).is_none_or(|v| v == i as u32),
@@ -233,7 +252,7 @@ fn us_items_match_decomp() {
         assert_eq!(got.name, en(&w.name), "{}", w.id);
         assert_eq!(
             (got.price, got.pocket, got.importance),
-            (w.price, w.pocket, w.importance),
+            (w.price, pocket(w.pocket), w.importance),
             "{}",
             w.id
         );
@@ -243,33 +262,39 @@ fn us_items_match_decomp() {
 #[test]
 fn us_multichoice_matches_decomp() {
     let (_, t) = us();
+    let lists = &t.multichoice.lists;
     let strings = decomp_strings();
     let want = decomp_multichoice();
-    assert_eq!(t.multichoice.len(), want.len());
-    for (got, (id, names)) in t.multichoice.iter().zip(&want) {
+    assert_eq!(lists.len(), want.len());
+    assert_eq!(lists.len() as u32, tables::multichoice_count());
+    for (id, names) in &want {
         let w: Vec<String> = names.iter().map(|n| en(&strings[n])).collect();
-        assert_eq!(got, &w, "{id}");
+        assert_eq!(lists[id], w, "{id}");
     }
 }
 
 #[test]
 fn us_std_strings_match_decomp() {
     let (_, t) = us();
+    let got = &t.std_strings.strings;
     let strings = decomp_strings();
     let want = decomp_std_strings();
-    assert_eq!(t.std_strings.len(), want.len());
-    for (got, (id, name)) in t.std_strings.iter().zip(&want) {
-        assert_eq!(got, &en(&strings[name]), "{id}");
+    assert_eq!(got.len(), want.len());
+    assert_eq!(got.len() as u32, tables::std_string_count());
+    for (id, name) in &want {
+        assert_eq!(got[id], en(&strings[name]), "{id}");
     }
 }
 
 #[test]
 fn us_map_sections_match_decomp() {
     let (_, t) = us();
+    let got = &t.map_sections.sections;
     let want = decomp_map_sections();
-    assert_eq!(t.map_sections.len(), want.len());
-    for (got, (id, name)) in t.map_sections.iter().zip(&want) {
-        assert_eq!(got, &en(name), "{id}");
+    assert_eq!(got.len(), want.len());
+    assert_eq!(got.len() as u32, tables::map_section_count());
+    for (id, name) in &want {
+        assert_eq!(got[id], en(name), "{id}");
     }
 }
 
@@ -277,22 +302,36 @@ fn us_map_sections_match_decomp() {
 fn fr_counts_and_numbers_match_us() {
     let (_, us) = us();
     let (_, fr) = fr();
-    assert_eq!(fr.items.len(), us.items.len());
-    for (i, (f, u)) in fr.items.iter().zip(&us.items).enumerate() {
+    assert_eq!(fr.items.items.len(), us.items.items.len());
+    for (f, u) in fr.items.items.iter().zip(&us.items.items) {
         assert_eq!(
-            (f.price, f.pocket, f.importance),
-            (u.price, u.pocket, u.importance),
-            "{}",
-            names::ITEMS.name_or_hex(i as u32)
+            (&f.id, f.price, f.pocket, f.importance),
+            (&u.id, u.price, u.pocket, u.importance)
         );
-        assert!(!f.name.is_empty());
+        assert!(!f.name.is_empty(), "{}", f.id);
     }
-    let lens = |t: &Tables| t.multichoice.iter().map(Vec::len).collect::<Vec<_>>();
-    assert_eq!(lens(fr), lens(us));
-    assert_eq!(fr.std_strings.len(), us.std_strings.len());
-    assert_eq!(fr.map_sections.len(), us.map_sections.len());
+    let shape = |t: &Tables| {
+        t.multichoice
+            .lists
+            .iter()
+            .map(|(k, v)| (k.clone(), v.len()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shape(fr), shape(us));
+    let keys = |m: &BTreeMap<String, String>| m.keys().cloned().collect::<Vec<_>>();
+    assert_eq!(keys(&fr.std_strings.strings), keys(&us.std_strings.strings));
+    assert_eq!(
+        keys(&fr.map_sections.sections),
+        keys(&us.map_sections.sections)
+    );
     // French text differs from English in every table (no FR literals: only inequality).
-    let item_names = |t: &Tables| t.items.iter().map(|i| i.name.clone()).collect::<Vec<_>>();
+    let item_names = |t: &Tables| {
+        t.items
+            .items
+            .iter()
+            .map(|i| i.name.clone())
+            .collect::<Vec<_>>()
+    };
     assert_ne!(item_names(fr), item_names(us));
     assert_ne!(fr.multichoice, us.multichoice);
     assert_ne!(fr.std_strings, us.std_strings);
@@ -303,31 +342,86 @@ fn fr_counts_and_numbers_match_us() {
 fn strings_round_trip_on_both_roms() {
     for (rom, t) in [fr(), us()] {
         let loc = tables::locate(rom).unwrap();
-        for i in 0..t.items.len() as u32 {
-            let s = text::round_trip_at(rom, loc.items + ITEM_SIZE * i).unwrap();
-            assert_eq!(s, t.items[i as usize].name);
+        for (i, item) in t.items.items.iter().enumerate() {
+            let s = text::round_trip_at(rom, loc.items + ITEM_SIZE * i as u32).unwrap();
+            assert_eq!(s, item.name);
         }
-        for (i, list) in tables::multichoice_strings(rom, &loc)
-            .unwrap()
-            .iter()
-            .enumerate()
-        {
+        let all = tables::multichoice_strings(rom, &loc).unwrap();
+        assert_eq!(all.len(), t.multichoice.lists.len());
+        for (i, list) in all.iter().enumerate() {
+            let id = names::MULTICHOICE.name(i as u32).unwrap();
             for (k, &off) in list.iter().enumerate() {
-                assert_eq!(text::round_trip_at(rom, off).unwrap(), t.multichoice[i][k]);
+                assert_eq!(
+                    text::round_trip_at(rom, off).unwrap(),
+                    t.multichoice.lists[id][k]
+                );
             }
         }
-        for (i, s) in t.std_strings.iter().enumerate() {
-            let off = rom.req_ptr(loc.std_strings + 4 * i as u32, "std").unwrap();
-            assert_eq!(&text::round_trip_at(rom, off).unwrap(), s);
+        for (v, id) in names::STD_STRINGS.iter() {
+            let off = rom.req_ptr(loc.std_strings + 4 * v, "std").unwrap();
+            assert_eq!(
+                text::round_trip_at(rom, off).unwrap(),
+                t.std_strings.strings[id]
+            );
         }
-        for (i, s) in t.map_sections.iter().enumerate() {
-            let off = rom
-                .req_ptr(
-                    loc.map_sections + tables::MAPSEC_SIZE * i as u32 + 4,
-                    "mapsec",
-                )
-                .unwrap();
-            assert_eq!(&text::round_trip_at(rom, off).unwrap(), s);
+        for i in 0..tables::map_section_count() {
+            let id = names::MAP_SECTIONS.name(i).unwrap();
+            let at = loc.map_sections + tables::MAPSEC_SIZE * i + 4;
+            let off = rom.req_ptr(at, "mapsec").unwrap();
+            assert_eq!(
+                text::round_trip_at(rom, off).unwrap(),
+                t.map_sections.sections[id]
+            );
         }
     }
+}
+
+fn temp_dir(tag: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("pkr-tables-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    d
+}
+
+fn read<T: serde::de::DeserializeOwned>(dir: &Path, rel: &str) -> T {
+    let s = std::fs::read_to_string(dir.join(rel)).unwrap();
+    ron::from_str(&s).unwrap_or_else(|e| panic!("{rel}: {e}"))
+}
+
+#[test]
+fn export_writes_the_four_tables() {
+    let (rom, t) = fr();
+    let dir = temp_dir("fr");
+    let mut out = Out::new(&dir);
+    let mut provenance = BTreeMap::new();
+    export_tables(rom, &mut out, &mut provenance).unwrap();
+
+    let written: Vec<&str> = out.files().keys().map(String::as_str).collect();
+    assert_eq!(written, {
+        let mut f = FILES.to_vec();
+        f.sort();
+        f
+    });
+    let minor3: Vec<&str> = MINOR_FILES
+        .iter()
+        .filter(|&&(m, _)| m == 3)
+        .map(|&(_, p)| p)
+        .collect();
+    assert_eq!(minor3, FILES);
+    const { assert!(FORMAT_MINOR >= 3) };
+
+    let items: ItemsFile = read(&dir, FILES[0]);
+    let multichoice: MultichoiceFile = read(&dir, FILES[1]);
+    let std_strings: StdStringsFile = read(&dir, FILES[2]);
+    let map_sections: MapSectionsFile = read(&dir, FILES[3]);
+    assert_eq!(items, t.items);
+    assert_eq!(multichoice, t.multichoice);
+    assert_eq!(std_strings, t.std_strings);
+    assert_eq!(map_sections, t.map_sections);
+
+    let loc = tables::locate(rom).unwrap();
+    assert_eq!(provenance["tables/items"], Hex(loc.items));
+    assert_eq!(provenance["tables/multichoice"], Hex(loc.multichoice));
+    assert_eq!(provenance["tables/std_strings"], Hex(loc.std_strings));
+    assert_eq!(provenance["tables/map_sections"], Hex(loc.map_sections));
+    let _ = std::fs::remove_dir_all(&dir);
 }

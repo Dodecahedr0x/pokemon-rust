@@ -16,6 +16,9 @@
 //!
 //! Every string is decoded with [`text::round_trip_at`], so it re-encodes to its ROM bytes.
 
+use crate::schema::{
+    Item, ItemPocket, ItemsFile, MapSectionsFile, MultichoiceFile, StdStringsFile,
+};
 use crate::text;
 use crate::{ROM_BASE, Rom, names};
 use anyhow::{Context, Result, bail, ensure};
@@ -34,12 +37,8 @@ const MIN_MULTICHOICE_LISTS: u32 = 64;
 /// `POCKET_ITEMS` .. `POCKET_KEY_ITEMS`.
 const MAX_POCKET: u8 = 5;
 
-/// `STDSTRING_BATTLE_PYRAMID + 1`.
-// TODO(M8 Wave 0): from `names::STDSTRINGS`.
-const STD_STRINGS_COUNT: u32 = 30;
-/// `MAPSEC_NONE`: `gRegionMapEntries` has one entry per section before it.
-// TODO(M8 Wave 0): from `names::MAPSECS`.
-const MAP_SECTIONS_COUNT: u32 = 213;
+/// `sMultichoiceLists` holds every `MULTI_*` but this one (the menu's cancel result).
+const MULTI_B_PRESSED: &str = "MULTI_B_PRESSED";
 
 /// File offsets of the tables.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,24 +51,13 @@ pub struct Locations {
     pub map_sections: u32,
 }
 
-/// One `gItems` entry.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Item {
-    pub name: String,
-    pub price: u16,
-    /// `POCKET_*` (1-based).
-    pub pocket: u8,
-    pub importance: u8,
-}
-
-/// The decoded tables, indexed by their decomp ids (`ITEM_*`, `MULTI_*`, `STDSTRING_*`,
-/// `MAPSEC_*`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// The four decoded tables, as written to `tables/`.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Tables {
-    pub items: Vec<Item>,
-    pub multichoice: Vec<Vec<String>>,
-    pub std_strings: Vec<String>,
-    pub map_sections: Vec<String>,
+    pub items: ItemsFile,
+    pub multichoice: MultichoiceFile,
+    pub std_strings: StdStringsFile,
+    pub map_sections: MapSectionsFile,
 }
 
 fn is_rom_ptr(rom: &Rom, v: u32) -> bool {
@@ -84,9 +72,35 @@ fn ensure_referenced(rom: &Rom, off: u32, what: &str) -> Result<()> {
     Ok(())
 }
 
+fn dense_count(t: &names::Table) -> u32 {
+    t.entries.last().map_or(0, |&(v, _)| v + 1)
+}
+
 /// `ITEMS_COUNT`.
 pub fn item_count() -> u32 {
-    names::ITEMS.entries.last().map_or(0, |&(v, _)| v + 1)
+    dense_count(&names::ITEMS)
+}
+
+/// Number of `sMultichoiceLists` entries: every `MULTI_*` but `MULTI_B_PRESSED`.
+pub fn multichoice_count() -> u32 {
+    names::MULTICHOICE
+        .iter()
+        .filter(|&(_, n)| n != MULTI_B_PRESSED)
+        .map(|(v, _)| v + 1)
+        .max()
+        .unwrap_or(0)
+}
+
+/// `STDSTRING_*` count.
+pub fn std_string_count() -> u32 {
+    dense_count(&names::STD_STRINGS)
+}
+
+/// `MAPSEC_NONE`: `gRegionMapEntries` has one entry per section before it.
+pub fn map_section_count() -> u32 {
+    names::MAP_SECTIONS
+        .value("MAPSEC_NONE")
+        .expect("MAPSEC_NONE in names")
 }
 
 fn item_id(name: &str) -> u32 {
@@ -98,9 +112,14 @@ fn item_id(name: &str) -> u32 {
 pub fn locate(rom: &Rom) -> Result<Locations> {
     let items = locate_items(rom)?;
     let (multichoice, multichoice_count) = locate_multichoice(rom)?;
+    ensure!(
+        multichoice_count == self::multichoice_count(),
+        "sMultichoiceLists at {multichoice:#x}: {multichoice_count} lists, the decomp has {}",
+        self::multichoice_count()
+    );
     let std_strings = multichoice + MULTICHOICE_SIZE * multichoice_count;
     ensure_referenced(rom, std_strings, "gStdStrings")?;
-    for i in 0..STD_STRINGS_COUNT {
+    for i in 0..std_string_count() {
         rom.req_ptr(std_strings + 4 * i, "gStdStrings")?;
     }
     let map_sections = locate_map_sections(rom)?;
@@ -238,42 +257,81 @@ pub fn multichoice_strings(rom: &Rom, loc: &Locations) -> Result<Vec<Vec<u32>>> 
         .collect()
 }
 
+/// `POCKET_*` (1-based, 0 = `POCKET_NONE`).
+fn pocket(v: u8) -> Result<Option<ItemPocket>> {
+    Ok(Some(match v {
+        0 => return Ok(None),
+        1 => ItemPocket::Items,
+        2 => ItemPocket::PokeBalls,
+        3 => ItemPocket::TmHm,
+        4 => ItemPocket::Berries,
+        5 => ItemPocket::KeyItems,
+        _ => bail!("pocket {v} is not a POCKET_*"),
+    }))
+}
+
+fn decomp_name(t: &names::Table, v: u32) -> Result<String> {
+    t.name(v)
+        .map(str::to_string)
+        .with_context(|| format!("{}{v:#x} has no decomp name", t.prefix))
+}
+
 pub fn extract(rom: &Rom) -> Result<Tables> {
-    let loc = locate(rom)?;
+    extract_at(rom, &locate(rom)?)
+}
+
+/// [`extract`] from tables already located.
+pub fn extract_at(rom: &Rom, loc: &Locations) -> Result<Tables> {
     let items = (0..item_count())
         .map(|i| {
             let at = loc.items + ITEM_SIZE * i;
-            let name = text::round_trip_at(rom, at).with_context(|| format!("item {i}"))?;
+            let id = decomp_name(&names::ITEMS, i)?;
+            let name = text::round_trip_at(rom, at).with_context(|| id.clone())?;
             let len = text::encode_lang(&name, rom.lang())?.len() as u32;
             ensure!(
                 len <= ITEM_NAME_LENGTH,
-                "item {i} at {at:#x}: name of {len} bytes overflows its {ITEM_NAME_LENGTH}"
+                "{id} at {at:#x}: name of {len} bytes overflows its {ITEM_NAME_LENGTH}"
             );
             Ok(Item {
                 name,
+                pocket: pocket(rom.u8(at + 26)?).with_context(|| id.clone())?,
                 price: rom.u16(at + ITEM_NAME_LENGTH + 2)?,
                 importance: rom.u8(at + 24)?,
-                pocket: rom.u8(at + 26)?,
+                id,
             })
         })
         .collect::<Result<_>>()?;
-    let multichoice = multichoice_strings(rom, &loc)?
+    let lists = multichoice_strings(rom, loc)?
         .iter()
-        .map(|list| list.iter().map(|&o| text::round_trip_at(rom, o)).collect())
+        .enumerate()
+        .map(|(i, list)| {
+            let id = decomp_name(&names::MULTICHOICE, i as u32)?;
+            let strings = list.iter().map(|&o| text::round_trip_at(rom, o));
+            Ok((id, strings.collect::<Result<_>>()?))
+        })
         .collect::<Result<_>>()?;
-    let std_strings = (0..STD_STRINGS_COUNT)
-        .map(|i| text::round_trip_at(rom, rom.req_ptr(loc.std_strings + 4 * i, "gStdStrings")?))
+    let strings = (0..std_string_count())
+        .map(|i| {
+            let p = rom.req_ptr(loc.std_strings + 4 * i, "gStdStrings")?;
+            Ok((
+                decomp_name(&names::STD_STRINGS, i)?,
+                text::round_trip_at(rom, p)?,
+            ))
+        })
         .collect::<Result<_>>()?;
-    let map_sections = (0..MAP_SECTIONS_COUNT)
+    let sections = (0..map_section_count())
         .map(|i| {
             let p = rom.req_ptr(loc.map_sections + MAPSEC_SIZE * i + 4, "gRegionMapEntries")?;
-            text::round_trip_at(rom, p)
+            Ok((
+                decomp_name(&names::MAP_SECTIONS, i)?,
+                text::round_trip_at(rom, p)?,
+            ))
         })
         .collect::<Result<_>>()?;
     Ok(Tables {
-        items,
-        multichoice,
-        std_strings,
-        map_sections,
+        items: ItemsFile { items },
+        multichoice: MultichoiceFile { lists },
+        std_strings: StdStringsFile { strings },
+        map_sections: MapSectionsFile { sections },
     })
 }
