@@ -81,8 +81,11 @@ impl World {
         })
     }
 
-    /// [`World::snapshot`] with its header (schema, build, frame, hash).
+    /// [`World::snapshot`] with its header (schema, build, frame, hash). The capture predicate
+    /// runs first, so a refused capture costs no [`World::hash`] (the GBA retries a pending save
+    /// after every step, and the play bin's rewind ring polls every due frame).
     pub fn checkpoint(&self, game: &impl GameData) -> Result<Checkpoint, NotCapturable> {
+        let world = self.snapshot(game)?;
         Ok(Checkpoint {
             header: Header {
                 schema: SCHEMA,
@@ -90,7 +93,7 @@ impl World {
                 frame: self.frame,
                 world_hash: self.hash(),
             },
-            world: self.snapshot(game)?,
+            world,
         })
     }
 

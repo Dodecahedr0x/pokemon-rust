@@ -12,3 +12,5 @@ pub mod rom; // Task D
 pub mod sprite; // Task E
 pub mod text; // Task F
 pub mod tree; // Task B
+#[cfg(feature = "ui")]
+pub mod ui; // Wave 0 skeleton; play/tree (Task G), map/data (Task H)

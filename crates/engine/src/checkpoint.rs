@@ -88,6 +88,18 @@ pub struct SaveMeta {
     pub map: MapId,
 }
 
+impl SaveMeta {
+    /// The metadata a flash slot holding `cp` carries (`game-gba` and `game-native::flash`).
+    pub fn of(cp: &Checkpoint) -> Self {
+        Self {
+            schema: cp.header.schema,
+            build: cp.header.build,
+            frame: cp.header.frame,
+            map: cp.world.field.map,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct WorldSnapshot {
     pub frame: u32,
@@ -280,10 +292,14 @@ pub enum RestoreError {
     Invalid(&'static str),
 }
 
+/// Why [`encode_checked`] or [`decode`] refused a checkpoint.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum DecodeError {
+pub enum CodecError {
+    /// Not one well-formed checkpoint (decode only).
     Postcard,
+    /// Another [`SCHEMA`] (decode only).
     Schema { found: u16 },
+    /// More than [`MAX_ENCODED`] bytes.
     TooLarge(usize),
 }
 
@@ -296,10 +312,10 @@ pub fn encode(cp: &Checkpoint) -> Vec<u8> {
 
 /// [`encode`], `TooLarge` past [`MAX_ENCODED`] (the GBA flash slot).
 /// Checks the size before encoding, so an oversized checkpoint is never materialised.
-pub fn encode_checked(cp: &Checkpoint) -> Result<Vec<u8>, DecodeError> {
+pub fn encode_checked(cp: &Checkpoint) -> Result<Vec<u8>, CodecError> {
     let len = encoded_len(cp);
     if len > MAX_ENCODED {
-        return Err(DecodeError::TooLarge(len));
+        return Err(CodecError::TooLarge(len));
     }
     Ok(encode(cp))
 }
@@ -342,17 +358,17 @@ impl postcard::ser_flavors::Flavor for LenFlavor {
 /// The input must be exactly one checkpoint: trailing bytes are a `Postcard` error, and more
 /// than [`MAX_ENCODED`] bytes are `TooLarge` (nothing is decoded). With the snapshot `Vec`s
 /// decoded by [`seq`], the memory a decode allocates is bounded by the input size.
-pub fn decode(bytes: &[u8]) -> Result<Checkpoint, DecodeError> {
+pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
     if bytes.len() > MAX_ENCODED {
-        return Err(DecodeError::TooLarge(bytes.len()));
+        return Err(CodecError::TooLarge(bytes.len()));
     }
-    let (schema, _) = postcard::take_from_bytes::<u16>(bytes).map_err(|_| DecodeError::Postcard)?;
+    let (schema, _) = postcard::take_from_bytes::<u16>(bytes).map_err(|_| CodecError::Postcard)?;
     if schema != SCHEMA {
-        return Err(DecodeError::Schema { found: schema });
+        return Err(CodecError::Schema { found: schema });
     }
     match postcard::take_from_bytes::<Checkpoint>(bytes) {
         Ok((cp, [])) => Ok(cp),
-        _ => Err(DecodeError::Postcard),
+        _ => Err(CodecError::Postcard),
     }
 }
 
@@ -415,20 +431,4 @@ where
 mod tests;
 
 #[cfg(test)]
-mod wave0_tests {
-    use crate::script::Runner;
-    use crate::text::TextBox;
-
-    #[test]
-    fn restored_runner_is_idle_and_keeps_issued() {
-        let r = Runner::restore_idle(7);
-        assert!(!r.is_running());
-        assert!(r.active().is_none());
-        assert_eq!(r.issued(), 7);
-    }
-
-    #[test]
-    fn new_text_box_is_pristine() {
-        assert!(TextBox::new().is_pristine());
-    }
-}
+mod wave0_tests;

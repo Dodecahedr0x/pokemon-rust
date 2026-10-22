@@ -6,6 +6,11 @@
 //! status.ron             BTreeMap<CheckpointId, Status>  git-ignored, written by verify
 //! ```
 //!
+//! A layered store ([`Store::layered`], the `play` bin's) writes its own nodes in a local root
+//! (`checkpoints/{flavor}/local/`, git-ignored, or `$PKR_CHECKPOINTS`) and reads the committed
+//! tree as a read-only base: base nodes are listed, found and may be parents, but never
+//! written. Local ids start above [`LOCAL_IDS`], away from the committed ones.
+//!
 //! Every file is pretty RON with a fixed format (declaration field order, `\n` lines, 4-space
 //! indent), written to a per-writer `*.tmp` file and renamed into place (a new node is
 //! hard-linked, so two writers never publish the same id). Nothing in a file depends on the host,
@@ -58,6 +63,29 @@ pub struct Node {
     pub trace: Trace,
 }
 
+impl Node {
+    /// The column titles of [`Node::row`].
+    pub fn row_header() -> String {
+        format!(
+            "{:<7} {:>6} {:>7}  {:<8} {:<28}",
+            "id", "frame", "map", "parent", "label"
+        )
+    }
+
+    /// The node as a line of a tree table (`play --list`, `cargo xtask checkpoints`): id,
+    /// frame, map, parent, label.
+    pub fn row(&self) -> String {
+        format!(
+            "{:<7} {:>6} {:#07x}  {:<8} {:<28}",
+            self.meta.id.to_string(),
+            self.meta.frame,
+            self.meta.map.0,
+            self.trace.parent,
+            self.meta.label
+        )
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Status {
     Valid,
@@ -69,6 +97,25 @@ pub enum Status {
         parent_diverged: bool,
     },
     Broken(String),
+}
+
+impl Status {
+    /// The tree's health: every node must be Valid. This is what `cargo xtask checkpoints
+    /// verify` (and so `xtask parity`) and the committed-tree test accept. A Stale node fails
+    /// too: a schema bump needs `verify --accept`, like a behaviour change.
+    pub fn healthy<'a>(statuses: impl IntoIterator<Item = &'a Status>) -> bool {
+        statuses.into_iter().all(|s| *s == Status::Valid)
+    }
+}
+
+/// One node's outcome of [`Store::verify_nodes`].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Verdict {
+    pub id: CheckpointId,
+    pub status: Status,
+    /// Valid, but recorded on another build whose build, world hash or trace hashes differ
+    /// from this replay's: `verify --accept` refreshes them (and did, if it ran with it).
+    pub rehash: bool,
 }
 
 /// A node's state rebuilt by replaying its trace.
@@ -85,6 +132,38 @@ pub struct Replayed {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Store {
     root: PathBuf,
+    /// The read-only tree under this one ([`Store::layered`]).
+    base: Option<PathBuf>,
+}
+
+/// A layered store's own nodes get ids above this one (`c10001`, ...), so they never collide
+/// with the committed tree's.
+pub const LOCAL_IDS: u32 = 10_000;
+
+fn node_file(root: &Path, id: CheckpointId) -> PathBuf {
+    root.join("nodes").join(format!("{id}.ron"))
+}
+
+/// The ids of `root/nodes/*.ron` (a missing directory has none).
+fn node_ids(root: &Path) -> io::Result<Vec<CheckpointId>> {
+    let entries = match fs::read_dir(root.join("nodes")) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e),
+    };
+    let mut ids = Vec::new();
+    for entry in entries {
+        let name = entry?.file_name();
+        let name = name.to_string_lossy();
+        let Some(stem) = name.strip_suffix(".ron") else {
+            continue; // `*.tmp` leftovers, editor files
+        };
+        let id = parse_id(stem)
+            .filter(|id| stem == id.to_string())
+            .ok_or_else(|| invalid(format!("nodes/{name}: not a node file name")))?;
+        ids.push(id);
+    }
+    Ok(ids)
 }
 
 /// The semantic identity of a snapshot (`engine::checkpoint::state_digest`).
@@ -179,11 +258,8 @@ struct HeaderProbe {
 }
 
 impl Store {
-    /// `$PKR_CHECKPOINTS`, else `<workspace>/checkpoints/{stub|emerald}`.
+    /// The committed tree: `<workspace>/checkpoints/{stub|emerald}`.
     pub fn default_root(stub: bool) -> PathBuf {
-        if let Some(dir) = std::env::var_os("PKR_CHECKPOINTS").filter(|d| !d.is_empty()) {
-            return dir.into();
-        }
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
@@ -193,6 +269,15 @@ impl Store {
             .join(if stub { "stub" } else { "emerald" })
     }
 
+    /// Where personal saves go (the `play` bin): `$PKR_CHECKPOINTS`, else
+    /// `<default_root>/local` (git-ignored).
+    pub fn local_root(stub: bool) -> PathBuf {
+        match std::env::var_os("PKR_CHECKPOINTS").filter(|d| !d.is_empty()) {
+            Some(dir) => dir.into(),
+            None => Self::default_root(stub).join("local"),
+        }
+    }
+
     /// A store at `root`. Nothing is created until a node is added: a missing root is an
     /// empty store.
     pub fn open(root: impl Into<PathBuf>) -> io::Result<Store> {
@@ -200,7 +285,19 @@ impl Store {
         if root.exists() && !root.is_dir() {
             return Err(invalid(format!("{} is not a directory", root.display())));
         }
-        Ok(Store { root })
+        Ok(Store { root, base: None })
+    }
+
+    /// A store writing at `local` over the read-only tree at `base`: `nodes`, `find`,
+    /// `topo_order` and `materialize` see both, a local node may have a base parent, and
+    /// `add`, `relabel`, `remove` and the snapshot cache only touch `local`. A base node is
+    /// never rewritten (`relabel`, `remove`, or a `verify --accept` that would change it fail).
+    pub fn layered(base: impl Into<PathBuf>, local: impl Into<PathBuf>) -> io::Result<Store> {
+        let base = Store::open(base)?.root;
+        Ok(Store {
+            base: Some(base),
+            ..Store::open(local)?
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -208,7 +305,21 @@ impl Store {
     }
 
     fn node_path(&self, id: CheckpointId) -> PathBuf {
-        self.root.join("nodes").join(format!("{id}.ron"))
+        node_file(&self.root, id)
+    }
+
+    /// Node `id` lives in the read-only base (not in this store's own root).
+    fn in_base(&self, id: CheckpointId) -> bool {
+        self.base
+            .as_deref()
+            .is_some_and(|base| !self.node_path(id).exists() && node_file(base, id).exists())
+    }
+
+    fn read_only(id: CheckpointId) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("{id} is in the read-only base tree"),
+        )
     }
 
     fn snapshot_path(&self, id: CheckpointId) -> PathBuf {
@@ -216,7 +327,11 @@ impl Store {
     }
 
     fn read_node(&self, id: CheckpointId) -> io::Result<Node> {
-        let node: Node = read_ron(&self.node_path(id)).map_err(|e| match e.kind() {
+        let path = match &self.base {
+            Some(base) if self.in_base(id) => node_file(base, id),
+            _ => self.node_path(id),
+        };
+        let node: Node = read_ron(&path).map_err(|e| match e.kind() {
             io::ErrorKind::NotFound => io::Error::new(e.kind(), format!("no node {id}")),
             _ => e,
         })?;
@@ -227,27 +342,26 @@ impl Store {
     }
 
     fn write_node(&self, node: &Node) -> io::Result<()> {
+        if self.in_base(node.meta.id) {
+            return Err(Self::read_only(node.meta.id));
+        }
         write_atomic(&self.node_path(node.meta.id), &to_ron(node)?)
     }
 
-    /// Every node, by id.
+    /// Every node (with the base's, if layered), by id.
     pub fn nodes(&self) -> io::Result<Vec<Node>> {
-        let entries = match fs::read_dir(self.root.join("nodes")) {
-            Ok(entries) => entries,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(e) => return Err(e),
-        };
-        let mut ids = Vec::new();
-        for entry in entries {
-            let name = entry?.file_name();
-            let name = name.to_string_lossy();
-            let Some(stem) = name.strip_suffix(".ron") else {
-                continue; // `*.tmp` leftovers, editor files
-            };
-            let id = parse_id(stem)
-                .filter(|id| stem == id.to_string())
-                .ok_or_else(|| invalid(format!("nodes/{name}: not a node file name")))?;
-            ids.push(id);
+        let mut ids = node_ids(&self.root)?;
+        if let Some(base) = &self.base {
+            let local: BTreeSet<CheckpointId> = ids.iter().copied().collect();
+            for id in node_ids(base)? {
+                if local.contains(&id) {
+                    return Err(invalid(format!(
+                        "{id} is both a local node and one of {}",
+                        base.display()
+                    )));
+                }
+                ids.push(id);
+            }
         }
         ids.sort_unstable();
         ids.into_iter().map(|id| self.read_node(id)).collect()
@@ -289,8 +403,9 @@ impl Store {
         Ok(())
     }
 
-    /// Adds a node (id: max + 1, so removing the highest node frees its id for reuse) whose
-    /// `trace` leads from its parent to `cp`, and caches `cp`.
+    /// Adds a node (id: max + 1, above [`LOCAL_IDS`] in a layered store; removing the highest
+    /// node frees its id for reuse) whose `trace` leads from its parent to `cp`, and caches
+    /// `cp`.
     /// The parent must exist, the trace must start at the parent's frame (0 for a new game)
     /// and end at `cp`'s.
     pub fn add(&self, label: &str, trace: Trace, cp: &Checkpoint) -> io::Result<CheckpointId> {
@@ -330,7 +445,12 @@ impl Store {
                 ),
             ));
         }
-        let mut next = nodes.last().map_or(Some(1), |n| n.meta.id.0.checked_add(1));
+        // Above every node (and above `LOCAL_IDS` in a layered store).
+        let floor = if self.base.is_some() { LOCAL_IDS } else { 0 };
+        let mut next = nodes
+            .last()
+            .map_or(floor, |n| n.meta.id.0.max(floor))
+            .checked_add(1);
         let mut node = Node {
             meta: NodeMeta::of(CheckpointId(0), label.into(), cp),
             trace,
@@ -358,8 +478,11 @@ impl Store {
         self.write_node(&node)
     }
 
-    /// Refuses a node with children. Also drops its cached snapshot.
+    /// Refuses a node with children, and a base node. Also drops its cached snapshot.
     pub fn remove(&self, id: CheckpointId) -> io::Result<()> {
+        if self.in_base(id) {
+            return Err(Self::read_only(id));
+        }
         let nodes = self.nodes()?;
         if !nodes.iter().any(|n| n.meta.id == id) {
             return Err(io::Error::new(
@@ -394,10 +517,19 @@ impl Store {
     }
 
     /// The cached snapshot; `None` if absent, of another schema, or undecodable (it is a
-    /// cache: replay rebuilds it).
+    /// cache: replay rebuilds it). A layered store falls back on the base's cache for a base
+    /// node.
     pub fn snapshot(&self, id: CheckpointId) -> io::Result<Option<Checkpoint>> {
-        let path = self.snapshot_path(id);
-        let probe: SchemaProbe = match read_ron(&path) {
+        match (Self::cached(&self.snapshot_path(id))?, &self.base) {
+            (None, Some(base)) if self.in_base(id) => {
+                Self::cached(&base.join("snapshots").join(format!("{id}.ron")))
+            }
+            (cp, _) => Ok(cp),
+        }
+    }
+
+    fn cached(path: &Path) -> io::Result<Option<Checkpoint>> {
+        let probe: SchemaProbe = match read_ron(path) {
             Ok(p) => p,
             Err(e)
                 if matches!(
@@ -412,7 +544,7 @@ impl Store {
         if probe.header.schema != SCHEMA {
             return Ok(None);
         }
-        match read_ron(&path) {
+        match read_ron(path) {
             Ok(cp) => Ok(Some(cp)),
             Err(e) if e.kind() == io::ErrorKind::InvalidData => Ok(None),
             Err(e) => Err(e),
@@ -454,27 +586,45 @@ impl Store {
         Ok(order)
     }
 
+    /// [`Store::verify_nodes`], as (id, status) pairs.
+    pub fn verify(
+        &self,
+        replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
+        accept: bool,
+    ) -> io::Result<Vec<(CheckpointId, Status)>> {
+        Ok(self
+            .verify_nodes(replay, accept)?
+            .into_iter()
+            .map(|v| (v.id, v.status))
+            .collect())
+    }
+
     /// Replays every node in topological order and classifies it; also writes `status.ron`.
     ///
     /// Each trace replays from its parent's state *of this run* (`None` for a new game):
     /// - a Broken parent (or a replayer error) makes the node Broken, without replaying it;
     /// - `meta.schema != SCHEMA` is Stale;
-    /// - an equal `state_digest` is Valid (its snapshot is cached);
     /// - a trace of another `TRACE_SCHEMA` is Broken, without replaying it;
+    /// - an equal `state_digest` is Valid (its snapshot is cached), unless the node was recorded
+    ///   on this build and the replay's world hash or periodic hashes differ from the recorded
+    ///   ones (Broken: nondeterminism). A Valid node recorded on another build whose build,
+    ///   world hash or trace hashes differ from this replay's is flagged [`Verdict::rehash`];
     /// - a different digest on the node's own build is Broken (nondeterminism), unless its
     ///   parent diverged (then the child is Diverged too, so `--accept` re-baselines the subtree);
     /// - otherwise it is Diverged, with the replay's first hash mismatch, and whether its
     ///   parent diverged too.
     ///
-    /// With `accept`, Diverged and Stale nodes are re-baselined on the replaying build: meta,
-    /// `trace.build`, re-recorded `trace.hashes` and snapshot (Broken nodes never are). The
-    /// returned list is the verdict of the run; `status.ron` records the tree after it, so
-    /// accepted nodes are Valid there.
-    pub fn verify(
+    /// With `accept`, Diverged and Stale nodes are re-baselined on the replaying build (meta,
+    /// `trace.build`, re-recorded `trace.hashes` and snapshot), and so are the build, world hash
+    /// and trace hashes of Valid nodes flagged `rehash`, so that "same build, different state
+    /// is Broken" applies to the current build. Broken nodes never are. The returned list is
+    /// the verdict of the run; `status.ron` records the tree after it, so accepted nodes are
+    /// Valid there.
+    pub fn verify_nodes(
         &self,
         mut replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
         accept: bool,
-    ) -> io::Result<Vec<(CheckpointId, Status)>> {
+    ) -> io::Result<Vec<Verdict>> {
         // Each verified node's state in this run (`None`: Broken).
         let mut states: BTreeMap<CheckpointId, Option<Checkpoint>> = BTreeMap::new();
         let mut verdicts: BTreeMap<CheckpointId, Status> = BTreeMap::new();
@@ -496,16 +646,34 @@ impl Store {
                 None => Err("parent broken".to_string()),
                 Some(parent) => replay(parent, &node.trace),
             };
+            let mut rehash = false;
             let (status, state) = match replayed {
                 Err(e) => (Status::Broken(e), None),
                 Ok(r) => {
+                    let build = r.checkpoint.header.build;
+                    let same_build = node.meta.build == build && !parent_diverged;
+                    let rebaselined = Node {
+                        meta: NodeMeta::of(id, node.meta.label.clone(), &r.checkpoint),
+                        trace: Trace {
+                            build,
+                            hashes: r.hashes,
+                            ..node.trace.clone()
+                        },
+                    };
                     let status = if node.meta.schema != SCHEMA {
                         Status::Stale {
                             schema: node.meta.schema,
                         }
                     } else if digest(&r.checkpoint.world) == node.meta.digest {
-                        Status::Valid
-                    } else if node.meta.build == r.checkpoint.header.build && !parent_diverged {
+                        let hashes_differ = rebaselined.meta.world_hash != node.meta.world_hash
+                            || rebaselined.trace.hashes != node.trace.hashes;
+                        if same_build && hashes_differ {
+                            Status::Broken("nondeterministic: same build, different hashes".into())
+                        } else {
+                            rehash = rebaselined != node;
+                            Status::Valid
+                        }
+                    } else if same_build {
                         Status::Broken("nondeterministic: same build, different state".into())
                     } else {
                         Status::Diverged {
@@ -514,10 +682,8 @@ impl Store {
                         }
                     };
                     let rebaseline = accept && !matches!(status, Status::Broken(_));
-                    if rebaseline && status != Status::Valid {
-                        node.meta = NodeMeta::of(id, node.meta.label, &r.checkpoint);
-                        node.trace.build = r.checkpoint.header.build;
-                        node.trace.hashes = r.hashes;
+                    if rebaseline && (status != Status::Valid || rehash) {
+                        node = rebaselined;
                         self.write_node(&node)?;
                     }
                     if status == Status::Valid || rebaseline {
@@ -537,7 +703,7 @@ impl Store {
             after.insert(id, settled);
             states.insert(id, state);
             verdicts.insert(id, status.clone());
-            out.push((id, status));
+            out.push(Verdict { id, status, rehash });
         }
         write_atomic(&self.root.join("status.ron"), &to_ron(&after)?)?;
         Ok(out)
@@ -550,8 +716,8 @@ mod tests {
 
     #[test]
     fn write_new_never_replaces_and_leaves_no_temp_file() {
-        let dir = std::env::temp_dir().join(format!("pkr-store-new-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("nodes");
         let path = dir.join("c00001.ron");
         write_new(&path, "a").unwrap();
         let e = write_new(&path, "b").unwrap_err();
@@ -564,7 +730,6 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(names, ["c00001.ron"]);
-        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

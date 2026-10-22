@@ -412,7 +412,7 @@ pub fn decode(bytes: &[u8]) -> String;
 - **Hash:**
   - Only Task A touches `Fnv64`, and the bytes must be identical: the goldens in `world/tests.rs`, the committed trees and parity must not move.
   - Task A2 (conditional) is the only task allowed to change hash bytes. It must update the goldens, the README and the trees (`verify --accept`).
-- **GBA budget:** `late == 0`, `loop_lines_max ≤ 226` (Task A tightens it), and the ROM/IWRAM/EWRAM budgets in `xtask rom`.
+- **GBA budget:** `late == 0`, `loop_lines_max ≤ 216` and `hash_lines_max ≤ 65` (tightened by Task A), and the ROM/IWRAM/EWRAM budgets in `xtask rom`.
 - **Determinism:** no floats, clocks or `HashMap` iteration in `engine`/`content`. Studio pacing uses `Instant` only in `pane.rs`.
 - **Before committing:**
   - `cargo fmt`
@@ -690,6 +690,43 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 
 ## Wave 0 as built
 *(filled by Wave 0: spike fps and latency per build, final local-store names, contract deltas.)*
+
+**Step 0 outcome (taken).**
+- The M5 close-out built a layered store.
+  - `Store::layered(base, local)` writes personal saves to `checkpoints/<flavor>/local/` (git-ignored), or to `$PKR_CHECKPOINTS` when set.
+  - The committed tree is a read-only base.
+  - Local ids start above `LOCAL_IDS` (10000).
+  - A local node may have a committed parent.
+- Cross-store parents exist, so `trace::flatten` and `tree::plan_save` are dropped (decision 7 is superseded).
+- `Stores` becomes one layered `Store`. `Origin` is only a per-node display and permission flag (base nodes are read-only), and commands are keyed by `CheckpointId`.
+
+**Spike (merged).**
+- **Transport:** asset handler plus `putImageData`, served as a **long poll**. Each canvas keeps one request in flight; the handler hands the responder to a short-lived thread that blocks in `FrameSlot::wait(after, 250 ms)`. The first design, a rAF-gated pull answered 204 at once, beat against vsync and reached about 55 fps.
+- **Measured (macOS, two test-pattern panes):**
+
+  | Build | fps per pane | Latency, mean / max | CPU |
+  |---|---|---|---|
+  | Release | 60 / 60 | 1.0 ms / about 25 ms | about 26% of one core in total |
+  | Debug | 60 / 60 | about 0.9 ms | about 37% of one core |
+
+  `cargo xtask studio --smoke 8` gave 58.8 and 59.1 fps.
+- **WebKit throttles an occluded webview,** so smoke runs keep the window always on top.
+- **Decision 13 (taken):** `[profile.dev.package.{engine,game-native}] opt-level = 2`. A native step plus render takes 5.0 ms in plain debug, 0.23 ms with it and 0.18 ms in release.
+- **Contract additions:**
+  - `FrameSlot::{wait, latest_with_age, seq}`
+  - `pane::spawn` requires `Status: Default`
+  - frames are published only when the pixels change
+  - `TestPattern`
+  - `ui::{Shell, App, PaneView, Frames}`
+  - a `stats` asset handler
+
+**Task A (frame headroom).**
+- Buffered `Fnv64` (N = 256), with its fold in IWRAM as ARM code: two 32-bit halves, UMULL plus MUL, unrolled by 4.
+- Route worst case, in scanlines: hash 73→63, step 219→210, loop 223→**214**.
+- IWRAM grew by 192 bytes.
+- Gates tightened to `HASH_LINES_MAX` 65 and `LOOP_LINES_MAX` 216. A2 is not needed.
+
+**Scheduling.** The studio skeleton (`crates/studio`, the `Pane` trait and `RunMode`) was committed first. The spike, A, D, E and F then started in parallel. B and C started after the M5 close-out merged, against the layered store. `StoreError` is B's job, and C writes its new APIs with `String` errors until Wave 2 aligns them.
 
 ---
 

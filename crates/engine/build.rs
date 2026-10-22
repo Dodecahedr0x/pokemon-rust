@@ -1,7 +1,11 @@
 //! Writes `$OUT_DIR/engine_src_hash.rs`, the engine half of `checkpoint::BuildHash`: the
 //! FNV-1a-64 of every non-test `src/**/*.rs`, in relative-path order (see `build_support.rs`).
-//! Test sources (`tests.rs`, `test_*.rs`, `*_tests.rs`, `tests/`) are left out, so editing a test
-//! does not change the build identity.
+//! Test sources (`tests.rs`, `test_*.rs`, `*_tests.rs`, `tests/`) are left out, and every test
+//! module of the engine lives in such a file (`no_hashed_engine_source_holds_an_inline_test_module`
+//! enforces it), so editing a test does not change the build identity. Everything else in a
+//! hashed file is hashed byte for byte: comments and doc comments, and the few `#[cfg(test)]`
+//! items that are not modules (the `mod tests;` lines, test-only helpers such as
+//! `TextBox::printed`), so editing those does change it.
 
 #[allow(dead_code)] // the content build script uses the rest
 #[path = "build_support.rs"]

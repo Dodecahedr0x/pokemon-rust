@@ -229,6 +229,16 @@ fn a_new_game_fading_in_is_not_capturable_then_is() {
 }
 
 #[test]
+fn a_refused_checkpoint_never_hashes() {
+    let mut w = World::new(&Game);
+    assert_eq!(hash_calls(|| assert!(w.checkpoint(&Game).is_err())), 0);
+    run(&mut w, Buttons::NONE, 16);
+    let mut cp = None;
+    assert_eq!(hash_calls(|| cp = Some(w.checkpoint(&Game).unwrap())), 1);
+    assert_eq!(cp.unwrap().header.world_hash, w.hash());
+}
+
+#[test]
 fn a_running_script_is_not_capturable() {
     let mut w = started();
     start(&mut w, |ctx| Box::pin(async move { ctx.delay(10).await }));

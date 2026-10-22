@@ -1007,3 +1007,15 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
 
 mod battles;
 mod checkpoint;
+
+std::thread_local! {
+    /// `World::hash` calls made on this thread (each test runs on its own thread).
+    pub(super) static HASH_CALLS: core::cell::Cell<u64> = const { core::cell::Cell::new(0) };
+}
+
+/// The `World::hash` calls `f` makes.
+fn hash_calls(f: impl FnOnce()) -> u64 {
+    let before = HASH_CALLS.with(|n| n.get());
+    f();
+    HASH_CALLS.with(|n| n.get()) - before
+}

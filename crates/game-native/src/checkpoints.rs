@@ -145,31 +145,39 @@ pub fn seed<G: GameData>(
         }
     }
     // Replay everything first: a failure leaves the tree as it was.
+    let build = build_hash(game);
     let mut replay = replayer(game);
     let mut planned = Vec::new();
     let mut parent_cp: Option<Checkpoint> = None;
-    for (name, trace) in rec.traces(build_hash(game)) {
-        let r = replay(parent_cp.as_ref(), &trace).map_err(|e| format!("{name}: {e}"))?;
+    for (name, input) in rec.node_inputs() {
+        // A replay reads only the inputs and hashes; the parent is the state given.
+        let r = replay(parent_cp.as_ref(), &input.trace(Parent::NewGame, build))
+            .map_err(|e| format!("{name}: {e}"))?;
         if let Some(m) = r.report.first_mismatch {
             return Err(format!(
                 "{name}: the replay differs from the recording: {m:?}"
             ));
         }
         parent_cp = Some(r.checkpoint.clone());
-        planned.push((name, trace, r.checkpoint));
+        planned.push((name, input, r.checkpoint));
     }
     for n in order.iter().rev() {
         if n.meta.label.starts_with(ROUTE_PREFIX) {
             store.remove(n.meta.id).map_err(err)?;
         }
     }
+    // Each node's parent is the one added before it.
     let mut ids: Vec<CheckpointId> = Vec::new();
-    for (name, mut trace, cp) in planned {
-        if let Parent::Checkpoint(CheckpointId(k)) = trace.parent {
-            trace.parent = Parent::Checkpoint(ids[k as usize - 1]);
-        }
+    for (name, input, cp) in planned {
+        let parent = ids
+            .last()
+            .map_or(Parent::NewGame, |&id| Parent::Checkpoint(id));
         let id = store
-            .add(&format!("{ROUTE_PREFIX}{name}"), trace, &cp)
+            .add(
+                &format!("{ROUTE_PREFIX}{name}"),
+                input.trace(parent, build),
+                &cp,
+            )
             .map_err(|e| format!("{name}: {e}"))?;
         ids.push(id);
     }

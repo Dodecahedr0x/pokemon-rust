@@ -11,10 +11,9 @@
 //! game logic: elevation is ignored and the run stops with an error when stuck.
 
 use crate::Session;
-use crate::trace::{CheckpointId, Parent, Trace, TraceRecorder};
+use crate::trace::TraceRecorder;
 use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleOutcome, Str};
-use engine::checkpoint::BuildHash;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::{block_at, in_bounds};
@@ -159,24 +158,19 @@ impl Recording {
         self.keys.len() as u32
     }
 
-    /// The trace of each [`Recording::nodes`] entry, chained from a new game: the first starts
-    /// at `NewGame`, each later one at the node before it, given as
-    /// `Parent::Checkpoint(CheckpointId(k))` with `k` the 1-based position of that node in
-    /// this list (the ids a fresh store allocates; a caller adding to another store remaps
-    /// them).
-    pub fn traces(&self, build: BuildHash) -> Vec<(&'static str, Trace)> {
+    /// The recorded input of each [`Recording::nodes`] entry, chained from a new game: entry
+    /// `k` starts where entry `k - 1` ends (the first at a new game), so its parent is the node
+    /// of entry `k - 1`. A store gives that node its id, so the caller makes each trace
+    /// ([`TraceRecorder::trace`]) once it knows the parent.
+    pub fn node_inputs(&self) -> Vec<(&'static str, TraceRecorder)> {
         let mut out = Vec::with_capacity(self.nodes.len());
         let mut start = 0u32;
-        for (k, &(name, frame)) in self.nodes.iter().enumerate() {
-            let parent = match k {
-                0 => Parent::NewGame,
-                k => Parent::Checkpoint(CheckpointId(k as u32)),
-            };
+        for &(name, frame) in &self.nodes {
             let mut r = TraceRecorder::new(start);
             for i in start..frame {
                 r.push(self.keys_at(i), self.hashes[i as usize]);
             }
-            out.push((name, r.trace(parent, build)));
+            out.push((name, r));
             start = frame;
         }
         out
@@ -883,13 +877,22 @@ pub fn record_route() -> Result<Recording, String> {
     record(content::Emerald::for_shells(), route())
 }
 
+/// [`record_route`], recorded once per process and shared (tests use it; recording the route
+/// takes most of a test's time). Panics if the route does not play.
+pub fn cached_route() -> &'static Recording {
+    static ROUTE: std::sync::OnceLock<Recording> = std::sync::OnceLock::new();
+    ROUTE.get_or_init(|| {
+        record_route().unwrap_or_else(|e| panic!("the route does not play natively: {e}"))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn the_route_records() {
-        let rec = record_route().unwrap_or_else(|e| panic!("{e}"));
+        let rec = cached_route();
         assert!(rec.frames() > 100);
         println!("{} frames; moments {:?}", rec.frames(), rec.moments);
         println!("battles {:?}", rec.battle_log);
@@ -1016,7 +1019,7 @@ mod tests {
 
     #[test]
     fn a_replay_matches_the_recording() {
-        let rec = record_route().unwrap();
+        let rec = cached_route();
         let (mut a, mut b) = (
             Session::new(content::Emerald::for_shells()),
             Session::new(content::Emerald::for_shells()),
@@ -1030,7 +1033,7 @@ mod tests {
 
     #[test]
     fn picture_frames_ascend_within_the_run() {
-        let rec = record_route().unwrap();
+        let rec = cached_route();
         let c = rec.picture_frames(150);
         assert!(c.windows(2).all(|w| w[0] < w[1]));
         assert!(c.iter().all(|&f| (1..=rec.frames()).contains(&f)));

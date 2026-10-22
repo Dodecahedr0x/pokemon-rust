@@ -4,14 +4,15 @@
 //! F5 saves a checkpoint, F9 reloads the current one, F8 rewinds, Escape quits.
 //! The window is 4x the GBA screen; the game runs at the window's 60 fps target.
 //!
-//! `play --load <id|label>` starts at a checkpoint node, `play --list` prints the tree. The
-//! store is `checkpoints/{stub|emerald}` (or `$PKR_CHECKPOINTS`), as for `cargo xtask
-//! checkpoints`.
+//! `play --load <id|label>` starts at a checkpoint node, `play --list` prints the tree. Saves
+//! go to a personal, git-ignored store (`checkpoints/{stub|emerald}/local`, or
+//! `$PKR_CHECKPOINTS`) layered over the committed tree (`checkpoints/{stub|emerald}`, read only):
+//! `--load`, `--list` and F9 see both, and a save may start from a committed node.
 
 use engine::Buttons;
 use game_native::checkpoints::materialize;
 use game_native::controls::{Controls, SaveRequest};
-use game_native::store::Store;
+use game_native::store::{Node, Store};
 use game_native::trace::{CheckpointId, Parent};
 use game_native::{SCREEN_H, SCREEN_W};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
@@ -73,22 +74,19 @@ fn load(store: &Store, c: &mut Controls<content::Emerald>, id: CheckpointId) -> 
 }
 
 fn list(store: &Store) -> std::io::Result<()> {
+    println!("{}", Node::row_header().trim_end());
     for n in store.topo_order()? {
-        let parent = match n.trace.parent {
-            Parent::NewGame => "new game".to_string(),
-            Parent::Checkpoint(p) => p.to_string(),
-        };
-        println!(
-            "{}  {:>6}  map {:#06x}  from {:<8}  {}",
-            n.meta.id, n.meta.frame, n.meta.map.0, parent, n.meta.label
-        );
+        println!("{}", n.row().trim_end());
     }
     Ok(())
 }
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let store = match Store::open(Store::default_root(content::STUB)) {
+    let store = match Store::layered(
+        Store::default_root(content::STUB),
+        Store::local_root(content::STUB),
+    ) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("checkpoint store: {e}");
