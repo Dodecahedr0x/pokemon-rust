@@ -386,7 +386,7 @@ Wave 0 makes no feature work. It does five things:
 - **Hash and checkpoint discipline:**
   - Wave 0 changes the hashed state once.
   - **Route-neutral tasks** (A, B, C, D1, E, K) merge first. Each must verify as `valid` or `valid (rehash)` on both trees **without `--accept`**. Their `BUILD_ID` refreshes are batched into one `chore(checkpoints): refresh build ids after A–E, K` commit on master.
-  - **Route-changing tasks** merge one at a time, in this order: **D2 → H → J → I → G → F** (D2: lowering semantics such as `cond` and end-in-callee; H: `STR_VAR` expansion in the lab's texts; J: specials such as the clock fade; I: sight; G: battles; F: warp-load and crossing timing).
+  - **Route-changing tasks** merge one at a time, in this order: **D2 → H → J → F → I → G** (revised after the Wave 1 reviews: F cuts the route loop from 215 to 181, which I (216/217 alone) and G need; F depends on none of I, G, H, J) (D2: lowering semantics such as `cond` and end-in-callee; H: `STR_VAR` expansion in the lab's texts; J: specials such as the clock fade; I: sight; G: battles; F: warp-load and crossing timing).
   - Route-changing branches **never commit tree or golden refreshes**. Each report includes a **route delta** note: which slice-route frames, goldens and nodes it expects to move, and why.
   - After each such merge, on master: re-accept both trees, update the golden constants it moved, run `cargo xtask parity`, and commit `chore(checkpoints): <task> <cause>`. The reviewer checks that the diff touches only build ids, hashes, digests and frame counts, and that the moved goldens match the route delta.
   - If the slice route's keys change, `cargo xtask checkpoints seed` re-records in the same chore commit.
@@ -711,7 +711,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
 
 ## Wave 2a — integration (after the route-neutral Wave 1 tasks merge)
 
-Order: D2 (after B and D1), then the route-changing merges H → J → I → G1 → F (each followed by its `chore(checkpoints)` on master), then L.
+Order: D2 (after B and D1), then the route-changing merges H → J → F → I → G1 (each followed by its `chore(checkpoints)` on master; F and later need `checkpoints seed`, since `--accept` never re-baselines a Broken node), then L.
 
 ### Task D2 — content: the build swap (Wave 2a, after B and D1 merge)
 
