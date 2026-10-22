@@ -1592,3 +1592,21 @@ The bin exits with `cli::exit_code`; xtask is unchanged (`cargo xtask explore` a
 - For "Open at frame before", call `explorer::finding_trace(&explorer::open(path)?, id, before)` off the UI thread, then send `NativeCmd::OpenTrace { trace, frames }` and focus the native pane. A failure appears in `Inspector::last` ("open trace failed: …").
 - For the coverage toggle, call `CoverageGrid::load(path, &game, shown_map)`, then `coverage_paths(&grid, VIEW_MARGIN)`. Add CSS for `.heat-1`–`.heat-4` and grow `ui/map.rs`'s `LAYERS` from 8 to 9. Never cache it in `MapCache`.
 - For "Export repro", run `cargo run -p explore --release -- export <id> --db P`, or call `wire::finding_trace` and write the RON yourself under `target/explore/…/repro/`.
+
+**S1 review fixes (after merging the M6 close-out):**
+- **Process groups:** a new module, `studio::proc`, provides `new_group(&mut Command)`, `kill_group(&mut Child)` and `alive(pid)`. It holds the one `extern "C" kill`.
+  - `build.rs`'s `RomBuild` and `ExplorerProc` both use it.
+  - `ExplorerProc::spawn` starts its own process group, and `stop` kills the whole group before reaping. Stopping during the build therefore also kills cargo's rustc processes.
+  - The test now also checks that an `sh -c 'sleep 30 & echo $!; wait'` grandchild dies.
+- **`ExplorerProc` state:** if `try_wait` returns an error, the process is recorded as ended (`done`, with no status), so `running()` can no longer stay true forever. The doc comment explains that the SIGKILL is safe: the db uses WAL with one transaction per generation.
+- **`finding_trace`** now returns `FindingTrace { row, trace, frames, stale }`, where `stale = row.build != build_hash(game)`. S2 shows "found on another build" when it is set.
+- **`open_trace`:** both the free function and the pane method take `Trace` by value.
+- **Paths:**
+  - New field `StudioPaths::explore_log = scratch/explore.log`.
+  - `write_locations` adds `target/explore` as `Never`, so the git-ignore test covers it. That test is renamed `the_studio_writes_only_the_local_store_scratch_and_explore`.
+- **`content/build/main.rs`:** when `PKR_EXTRACTED_DIR` is set and has no manifest, the build script no longer watches the missing `manifest.ron`. Cargo treats a missing watched path as always dirty, so every stub build re-ran the script and rebuilt `content`, `game-native` and `explore`.
+  - The script now reruns on the env var. It also watches the dir, only when the dir exists.
+  - A second `PKR_EXTRACTED_DIR=/nonexistent cargo build -v -p explore --release` reports `Fresh content`.
+  - Gap: if `/nonexistent` is created later, the build does not notice it until the env var changes.
+  - The content `BUILD_ID` changed (it hashes `build/`), so both trees were refreshed with `cargo xtask checkpoints verify --accept`. All nodes were `valid (rehash)`, and only build ids and hashes changed (`chore(checkpoints)`).
+  - `cargo xtask parity` passes: 19070 hashes and 204 pictures identical, no late frames.
