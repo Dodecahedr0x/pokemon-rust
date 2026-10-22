@@ -158,6 +158,9 @@ pub fn expand_vars(
     out
 }
 
+/// Appends the expansion of `text` to `out`; whether `out` is full (a code unit did not fit in
+/// [`EXPANDED_MAX`]), after which nothing more is written at any depth: the text is cut at
+/// one point, never with later shorter units squeezed in.
 fn expand_into(
     game: &impl GameData,
     text: &[u8],
@@ -165,7 +168,7 @@ fn expand_into(
     vars: Option<&StrVars>,
     depth: u8,
     out: &mut Vec<u8>,
-) {
+) -> bool {
     let mut i = 0;
     while i < text.len() && text[i] != EOS {
         let n = unit_len(text, i);
@@ -178,18 +181,19 @@ fn expand_into(
                 }
                 _ => &[],
             };
-            if depth < EXPAND_DEPTH {
-                expand_into(game, sub, player, vars, depth + 1, out);
+            if depth < EXPAND_DEPTH && expand_into(game, sub, player, vars, depth + 1, out) {
+                return true;
             }
         } else {
             let unit = &text[i..(i + n).min(text.len())];
             if out.len() + unit.len() >= EXPANDED_MAX {
-                return;
+                return true;
             }
             out.extend_from_slice(unit);
         }
         i += n;
     }
+    false
 }
 
 const fn frame_entry(tile: u16, vflip: bool) -> u16 {

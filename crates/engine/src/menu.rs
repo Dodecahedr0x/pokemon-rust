@@ -126,8 +126,11 @@ impl Multichoice {
     ) -> Self {
         let px = (items.iter()).fold(0, |w, t| w.max(text_width(font, t)));
         let width = tile_width(px);
-        let left = adjust_left(left, width);
-        let top = top.min(SCREEN_ROWS - 3);
+        // Gen3 `CreateWindowFromRect(left, top, ..)`: the window one tile right of and below
+        // `(left, top)`, where its frame's top-left corner goes.
+        let left = adjust_left(left, width) + 1;
+        let top = top.min(SCREEN_ROWS - 4) + 1;
+        // The bottom frame row (`top + 2 count`) stays on screen.
         let fit_screen = (SCREEN_ROWS - 1 - top) / 2;
         let fit_canvas = (CANVAS_TILES / (2 * width as usize)) as u8;
         let count = (items.len().min(u8::MAX as usize) as u8)
@@ -242,13 +245,11 @@ impl Multichoice {
     }
 
     /// Writes entry row `row` (0 = the frame's top row, one above the window) of the window's
-    /// columns, or blanks it. A window on screen row 0 has no top frame row (Gen3 draws it
-    /// off screen).
+    /// columns, or blanks it. The window starts on screen row 1 or below, so its frame is on
+    /// screen.
     fn put_row(&self, row: usize, blank: bool, f: &mut Frame) {
         let win = self.window();
-        let Some(screen_row) = (win.top() as usize + row).checked_sub(1) else {
-            return;
-        };
+        let screen_row = win.top() as usize + row - 1;
         let c0 = win.left().saturating_sub(2) as usize;
         let c1 = (win.left() as usize + win.width() as usize + 1).min(MAP_SIZE);
         let at = row * MAP_SIZE;

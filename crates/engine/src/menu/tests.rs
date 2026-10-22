@@ -25,13 +25,50 @@ fn widths_follow_gen3() {
 fn layout_cuts_lists_to_the_screen_and_the_canvas() {
     static MANY: [&[u8]; 20] = [&[1, 0xFF]; 20];
     let m = Multichoice::new(&FONT, 0, &MANY, (0, 0), 0, true);
-    // Rows 0..19 hold nine choices (18 rows) and the bottom frame row.
+    // The top frame row on row 0, nine choices (rows 1..=18), the bottom frame row on row 19.
+    assert_eq!(m.window().top(), 1);
     assert_eq!(m.window().height(), 18);
     let m = Multichoice::new(&FONT, 0, &MANY, (0, 15), 0, true);
-    assert_eq!(m.window().height(), 4);
+    assert_eq!(m.window().height(), 2);
+    // A top past the screen still shows one choice and its frame.
+    let m = Multichoice::new(&FONT, 0, &MANY, (0, 200), 0, true);
+    assert_eq!((m.window().top(), m.window().height()), (17, 2));
     static WIDE: [&[u8]; 9] = [&[3; 200]; 9];
     let m = Multichoice::new(&FONT, 0, &WIDE, (0, 0), 0, true);
     assert_eq!(m.window().height(), 10);
     assert_eq!(m.window().width(), MAX_WIDTH);
     assert!(m.window().width() as usize * m.window().height() as usize <= CANVAS_TILES);
+}
+
+#[test]
+fn window_sits_inside_its_frame_rect_as_in_gen3() {
+    // Gen3 `CreateWindowFromRect(left, top, ..)` puts the window at `(left + 1, top + 1)`:
+    // `multichoicedefault 20, 8, MULTI_YESNO, ..` (Battle Arena, Battle Factory) opens at 21, 9.
+    static YES_NO: [&[u8]; 2] = [&[1, 2, 0xFF], &[1, 0xFF]];
+    let m = Multichoice::new(&FONT, 0, &YES_NO, (20, 8), 1, false);
+    let w = m.window();
+    assert_eq!((w.left(), w.top(), w.width(), w.height()), (21, 9, 3, 4));
+    assert_eq!(m.cursor(), 1);
+    // `ScriptMenu_AdjustLeftCoordFromWidth` first, then the + 1.
+    static WIDE: [&[u8]; 1] = [&[3; 200]];
+    let m = Multichoice::new(&FONT, 0, &WIDE, (5, 0), 0, true);
+    assert_eq!((m.window().left(), m.window().top()), (1, 1));
+}
+
+#[test]
+fn the_top_frame_row_is_drawn_on_screen_row_0() {
+    use crate::video::Cmd;
+    static ONE: [&[u8]; 1] = [&[1, 0xFF]];
+    let mut m = Multichoice::new(&FONT, 0, &ONE, (0, 0), 0, true);
+    let mut f = Frame::default();
+    let pen = Pen::new(Colors::new(2, 3, 1));
+    m.draw_next(&FONT, &pen, &mut f);
+    let starts: Vec<u16> = (f.cmds.iter())
+        .filter_map(|c| match c {
+            Cmd::MapEntries { start, .. } => Some(*start),
+            _ => None,
+        })
+        .collect();
+    let rows: Vec<u16> = starts.iter().map(|s| s / MAP_SIZE as u16).collect();
+    assert_eq!(rows, [0, 1, 2, 3]);
 }

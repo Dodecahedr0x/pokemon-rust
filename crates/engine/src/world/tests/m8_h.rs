@@ -368,6 +368,20 @@ fn expansion_keeps_at_most_gen3s_buffer() {
     assert_eq!(out.last(), Some(&EOS));
 }
 
+#[test]
+fn a_full_expansion_stops_at_one_point() {
+    // A var ending in a two-byte unit that no longer fits: nothing after it is written, not
+    // even the one-byte glyph that would.
+    let mut w = started_h();
+    w.s.str_vars.set(0, &[0xF9, 0x05, EOS]);
+    let max = crate::text::EXPANDED_MAX;
+    let mut text = vec![A; max - 2];
+    text.extend_from_slice(&[SV1[0], SV1[1], B, EOS]);
+    let out = crate::text::expand_vars(&HGame, &text, &[A, EOS], Some(&w.s.str_vars));
+    assert_eq!(out.len(), max - 1);
+    assert_eq!(out[max - 3..], [A, EOS]);
+}
+
 // ---- multichoice ----
 
 /// Starts a multichoice script that stores the answer + 1000 in `VAR_RESULT`.
@@ -509,7 +523,8 @@ fn multichoice_windows_stay_within_gen3s_width() {
     });
     run_h(&mut w, Buttons::NONE, 1);
     let win = w.s.text.multichoice().unwrap().window();
-    assert_eq!((win.left(), win.width()), (0, MAX_WIDTH));
+    // Moved left to 0, then one tile in (Gen3 `CreateWindowFromRect`).
+    assert_eq!((win.left(), win.width()), (1, MAX_WIDTH));
 }
 
 #[test]

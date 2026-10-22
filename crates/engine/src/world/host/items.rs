@@ -8,10 +8,8 @@
 use super::{Host, UNIT};
 use crate::data::{GameData, ItemId, Pocket};
 use crate::script::{Report, Request, Response};
+use crate::world::checkpoint::MAX_MONEY;
 use crate::world::{Event, State};
-
-/// Gen3 `MAX_MONEY`.
-pub(crate) const MAX_MONEY: u32 = 999_999;
 
 /// Logs `r` and raises it as an event, as `Request::Report` does (shared by Task H's handlers).
 pub(super) fn report(s: &mut State, r: Report) {
@@ -44,8 +42,7 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         }
         Request::ItemSpace { item, qty } => pocket(h, item, "checkitemspace: unknown item")
             .is_some_and(|p| h.s.bag.has_space(p, item, qty)),
-        // Gen3 `AddMoney` caps at `MAX_MONEY` (it overflows past it only for amounts over
-        // `MAX_MONEY`, which no script gives; capped here too).
+        // Gen3 `AddMoney` caps at `MAX_MONEY` (a sum that wraps `u32` is capped too).
         Request::MoneyAdd(n) => {
             h.s.money = h.s.money.saturating_add(n).min(MAX_MONEY);
             return UNIT;
