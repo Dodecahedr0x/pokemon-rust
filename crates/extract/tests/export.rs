@@ -1,6 +1,7 @@
 use extract::export::{self, ExportOptions, SLICE_MAPS as MAPS};
 use extract::schema::{
-    BgKind, FontFile, Hex, Manifest, MapFile, SpriteFile, TilesetFile, WindowFile, from_rows,
+    BgKind, FontFile, Hex, Manifest, MapFile, ScriptIndex, SpriteFile, TilesetFile, WindowFile,
+    from_rows,
 };
 use extract::{fixtures, gfx, maps, names};
 use std::collections::{BTreeMap, BTreeSet};
@@ -96,6 +97,16 @@ fn writes_current_format_tree() {
     }
     want.insert("scripts/legacy_index.ron".to_string());
     want.insert("text/fr.ron".to_string());
+    // The script IR (M8 Task B), whose contents tests/script_ir.rs checks.
+    want.insert("text/ir_fr.ron".to_string());
+    let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
+    want.insert("scripts/index.ron".to_string());
+    let modules = ix
+        .scripts
+        .values()
+        .map(|e| &e.module)
+        .chain(ix.movements.values());
+    want.extend(modules.map(|m| format!("scripts/{m}.ron")));
     // Battle data (M4 Task A).
     for f in [
         "species",

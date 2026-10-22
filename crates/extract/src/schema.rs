@@ -39,6 +39,8 @@
 //!   scripts/<Module>.ron         ScriptFile   (IR; <Module> = decomp source: a map dir name, or
 //!                                             Common_<stem> for data/scripts/<stem>.inc)
 //!   scripts/index.ron            ScriptIndex v5 (name -> module, root, origin, offset)
+//!   text/ir_<lang>.ron           TextFile keyed by the IR's final names (until D2 deletes the
+//!                                legacy text/<lang>.ron and takes its place)
 //!   layouts/<Layout>.ron         LayoutFile   (every layout, incl. ones only setmaplayoutindex uses)
 //!   tables/items.ron             ItemsFile    (all ITEM_*: name, pocket, price, importance)
 //!   tables/multichoice.ron       MultichoiceFile (MULTI_* -> list of strings)
@@ -83,12 +85,16 @@ use std::collections::{BTreeMap, BTreeSet};
 /// scripts' index renamed `scripts/legacy_index.ron`.
 pub const FORMAT_VERSION: u32 = 5;
 /// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
-/// extract.
-pub const FORMAT_MINOR: u32 = 0;
+/// extract; 1 adds the script IR (`scripts/<Module>.ron`, `scripts/index.ron`,
+/// `text/ir_<lang>.ron`; Task B).
+pub const FORMAT_MINOR: u32 = 1;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
-/// ones when an extract is older ([`missing_since`]).
-pub const MINOR_FILES: &[(u32, &str)] = &[];
+/// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
+/// minor 1's per-language texts and most modules depend on the ROM and the map set, so the
+/// index and the module of a slice map stand for them.
+pub const MINOR_FILES: &[(u32, &str)] =
+    &[(1, "scripts/index.ron"), (1, "scripts/LittlerootTown.ron")];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
 pub fn missing_since(minor: u32, exists: impl Fn(&str) -> bool) -> Vec<&'static str> {
@@ -725,6 +731,9 @@ pub struct ScriptIndex {
     pub scripts: BTreeMap<String, ScriptEntry>,
     /// Every text, by final name -> its module.
     pub texts: BTreeMap<String, String>,
+    /// Every movement, by final name -> its module (Task B addition).
+    #[serde(default)]
+    pub movements: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
