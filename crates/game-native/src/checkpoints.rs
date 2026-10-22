@@ -3,7 +3,7 @@
 
 use crate::Session;
 use crate::controls::SaveRequest;
-use crate::store::{Node, Replayed, Store};
+use crate::store::{Node, Replayed, Store, StoreError};
 use crate::trace::{CheckpointId, Parent, Trace, TraceRecorder, replay_with_hashes};
 use engine::checkpoint::{BuildHash, Checkpoint, build_hash, state_digest};
 use engine::data::GameData;
@@ -467,19 +467,20 @@ pub fn materialize<G: GameData + Clone>(
     Materializer::new(game.clone(), 1).get(store, id)
 }
 
-/// Adds a save to `store`, retrying with a ` #2`, ` #3`, … label suffix when its label is
-/// taken.
-pub fn add_save(store: &Store, req: &SaveRequest) -> std::io::Result<CheckpointId> {
+/// Label suffixes [`add_save`] tries before giving up.
+const SUFFIXES: u32 = 1000;
+
+/// Adds a save to `store`, retrying with a ` #2`, ` #3`, … label suffix while its label is
+/// refused (`StoreError::Label`: taken; a save's own label is never empty nor an id).
+pub fn add_save(store: &Store, req: &SaveRequest) -> Result<CheckpointId, StoreError> {
     let mut label = req.label.clone();
-    for n in 2.. {
+    for n in 2..=SUFFIXES {
         match store.add(&label, req.trace.clone(), &req.checkpoint) {
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                label = format!("{} #{n}", req.label)
-            }
+            Err(StoreError::Label(_)) => label = format!("{} #{n}", req.label),
             r => return r,
         }
     }
-    unreachable!()
+    store.add(&label, req.trace.clone(), &req.checkpoint)
 }
 
 /// The label prefix of the nodes [`seed`] writes.
@@ -494,7 +495,7 @@ pub fn seed<G: GameData>(
     game: &G,
     rec: &crate::scenario::Recording,
 ) -> Result<Vec<CheckpointId>, String> {
-    let err = |e: std::io::Error| e.to_string();
+    let err = |e: crate::store::StoreError| e.to_string();
     let order = store.topo_order().map_err(err)?;
     let is_route = |id: CheckpointId| {
         order

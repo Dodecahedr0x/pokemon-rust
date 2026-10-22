@@ -12,7 +12,7 @@
 use engine::Buttons;
 use game_native::checkpoints::{Materializer, add_save};
 use game_native::controls::{Controls, SaveRequest};
-use game_native::store::{Node, Store};
+use game_native::store::{Node, Store, StoreError};
 use game_native::trace::{CheckpointId, Parent};
 use game_native::{SCREEN_H, SCREEN_W};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
@@ -68,7 +68,7 @@ fn load(
     Ok(())
 }
 
-fn list(store: &Store) -> std::io::Result<()> {
+fn list(store: &Store) -> Result<(), StoreError> {
     println!("{}", Node::row_header().trim_end());
     for n in store.topo_order()? {
         println!("{}", n.row().trim_end());

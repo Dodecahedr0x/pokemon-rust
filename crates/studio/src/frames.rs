@@ -31,6 +31,20 @@ struct Published {
     seq: u64,
     rgba: Arc<Vec<u8>>,
     at: Option<Instant>,
+    /// Pending [`FrameSlot::wait_then`] requests, answered by the slot's waiter thread.
+    waiters: Vec<Waiter>,
+    /// Whether the waiter thread is running.
+    serving: bool,
+}
+
+/// What a [`FrameSlot::wait_then`] callback receives: the frame, `None` on timeout, or the
+/// error that kept the waiter thread from starting.
+pub type Answer = std::io::Result<Option<Latest>>;
+
+struct Waiter {
+    after: u64,
+    deadline: Instant,
+    answer: Box<dyn FnOnce(Answer) + Send>,
 }
 
 #[derive(Default)]
@@ -46,9 +60,12 @@ pub struct FrameSlot(Arc<Shared>);
 /// A frame read from a [`FrameSlot`]: its seq, its RGBA bytes and how long ago it was published.
 pub type Latest = (u64, Arc<Vec<u8>>, Duration);
 
+/// How long an idle waiter thread lingers for the next request before it ends.
+const WAITER_IDLE: Duration = Duration::from_secs(1);
+
 impl FrameSlot {
     /// Converts `fb` (RGB555, `SCREEN_W * SCREEN_H`) and makes it the latest frame; seq += 1.
-    /// Wakes [`wait`](Self::wait)ers.
+    /// Wakes [`wait`](Self::wait)ers and the waiter thread.
     pub fn publish(&self, fb: &[u16]) {
         let mut rgba = vec![0; FRAME_BYTES];
         rgba_from_rgb555(fb, &mut rgba);
@@ -61,7 +78,8 @@ impl FrameSlot {
         self.0.changed.notify_all();
     }
 
-    /// The latest frame if its seq is > `after`.
+    /// The latest frame if its seq differs from `after` (a reader that is ahead of the slot,
+    /// e.g. one that outlived a fresh slot, gets the current frame).
     pub fn latest(&self, after: u64) -> Option<(u64, Arc<Vec<u8>>)> {
         self.latest_with_age(after)
             .map(|(seq, rgba, _)| (seq, rgba))
@@ -72,27 +90,105 @@ impl FrameSlot {
         Self::pick(&self.0.published.lock().unwrap(), after)
     }
 
-    /// Like [`latest_with_age`](Self::latest_with_age), but when nothing newer than `after`
-    /// exists yet, blocks up to `timeout` for the next publish (the long poll behind
-    /// `/frames`: a frame is answered as soon as it is published).
+    /// Like [`latest_with_age`](Self::latest_with_age), but when no frame other than `after`
+    /// exists yet, blocks up to `timeout` for the next publish.
     pub fn wait(&self, after: u64, timeout: Duration) -> Option<Latest> {
         let p = self.0.published.lock().unwrap();
         let (p, _) = self
             .0
             .changed
-            .wait_timeout_while(p, timeout, |p| p.at.is_none() || p.seq <= after)
+            .wait_timeout_while(p, timeout, |p| Self::pick(p, after).is_none())
             .unwrap();
         Self::pick(&p, after)
     }
 
+    /// The non-blocking [`wait`](Self::wait) behind the `/frames` long poll: `answer` gets the
+    /// first frame whose seq differs from `after`, or `Ok(None)` after `timeout`. It runs on the
+    /// slot's waiter thread (one per slot, started on demand, ending after [`WAITER_IDLE`]
+    /// without requests), or at once on the caller's thread with `Err` if that thread cannot
+    /// be started.
+    pub fn wait_then(
+        &self,
+        after: u64,
+        timeout: Duration,
+        answer: impl FnOnce(Answer) + Send + 'static,
+    ) {
+        let mut p = self.0.published.lock().unwrap();
+        if !p.serving {
+            let shared = self.0.clone();
+            let started = std::thread::Builder::new()
+                .name("frames:waiter".into())
+                .spawn(move || serve(&shared));
+            if let Err(e) = started {
+                drop(p);
+                return answer(Err(e));
+            }
+            p.serving = true;
+        }
+        p.waiters.push(Waiter {
+            after,
+            deadline: Instant::now() + timeout,
+            answer: Box::new(answer),
+        });
+        drop(p);
+        self.0.changed.notify_all();
+    }
+
     fn pick(p: &Published, after: u64) -> Option<Latest> {
         let at = p.at?;
-        (p.seq > after).then(|| (p.seq, p.rgba.clone(), at.elapsed()))
+        (p.seq != after).then(|| (p.seq, p.rgba.clone(), at.elapsed()))
     }
 
     /// The seq of the latest frame (0 before the first publish).
     pub fn seq(&self) -> u64 {
         self.0.published.lock().unwrap().seq
+    }
+
+    #[cfg(test)]
+    fn serving(&self) -> bool {
+        self.0.published.lock().unwrap().serving
+    }
+}
+
+/// The waiter thread: answers each request once its frame exists or its deadline passed
+/// (outside the lock), then sleeps until the next publish, request or deadline.
+fn serve(shared: &Shared) {
+    let mut p = shared.published.lock().unwrap();
+    loop {
+        let now = Instant::now();
+        let mut ready = Vec::new();
+        let mut i = 0;
+        while i < p.waiters.len() {
+            let w = &p.waiters[i];
+            let frame = FrameSlot::pick(&p, w.after);
+            if frame.is_some() || now >= w.deadline {
+                ready.push((p.waiters.swap_remove(i).answer, frame));
+            } else {
+                i += 1;
+            }
+        }
+        if !ready.is_empty() {
+            drop(p);
+            for (answer, frame) in ready {
+                answer(Ok(frame));
+            }
+            p = shared.published.lock().unwrap();
+            continue;
+        }
+        let Some(deadline) = p.waiters.iter().map(|w| w.deadline).min() else {
+            let (q, timeout) = shared.changed.wait_timeout(p, WAITER_IDLE).unwrap();
+            p = q;
+            if timeout.timed_out() && p.waiters.is_empty() {
+                p.serving = false;
+                return;
+            }
+            continue;
+        };
+        p = shared
+            .changed
+            .wait_timeout(p, deadline.saturating_duration_since(now))
+            .unwrap()
+            .0;
     }
 }
 
@@ -161,8 +257,8 @@ mod tests {
         // A reader that missed frames gets only the newest one.
         assert_eq!(slot.latest(1).unwrap().0, 3);
         assert!(slot.latest(3).is_none());
-        // A reader ahead of the slot (e.g. a restarted pane) also gets nothing.
-        assert!(slot.latest(7).is_none());
+        // A reader ahead of the slot (it outlived a fresh slot) gets the current frame.
+        assert_eq!(slot.latest(7).unwrap().0, 3);
         // Clones share the slot.
         let other = slot.clone();
         other.publish(&fb);
@@ -194,6 +290,83 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         slot.publish(&fb);
         assert_eq!(t.join().unwrap(), Some(2));
+        // Ahead of the slot: answered at once, not after the timeout.
+        let t0 = Instant::now();
+        assert_eq!(slot.wait(9, Duration::from_secs(10)).unwrap().0, 2);
+        assert!(t0.elapsed() < Duration::from_secs(5));
+    }
+
+    /// Calls `wait_then` and returns a receiver for (answer seq, answering thread).
+    fn ask(
+        slot: &FrameSlot,
+        after: u64,
+        timeout: Duration,
+    ) -> std::sync::mpsc::Receiver<(Option<u64>, std::thread::ThreadId)> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        slot.wait_then(after, timeout, move |a| {
+            let seq = a.unwrap().map(|l| l.0);
+            tx.send((seq, std::thread::current().id())).unwrap();
+        });
+        rx
+    }
+
+    const LONG: Duration = Duration::from_secs(10);
+
+    #[test]
+    fn wait_then_answers_from_one_waiter_thread() {
+        let slot = FrameSlot::default();
+        let fb = vec![0; SCREEN_W * SCREEN_H];
+        assert!(!slot.serving());
+        // Timeout: None.
+        let t0 = Instant::now();
+        let (seq, waiter) = ask(&slot, 0, Duration::from_millis(30)).recv().unwrap();
+        assert_eq!(seq, None);
+        assert!(t0.elapsed() >= Duration::from_millis(30));
+        assert_ne!(waiter, std::thread::current().id());
+        assert!(slot.serving());
+        // Pending requests are answered on the next publish, in any order of `after`.
+        let a = ask(&slot, 0, LONG);
+        let b = ask(&slot, 0, LONG);
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(a.try_recv().is_err(), "nothing published yet");
+        slot.publish(&fb);
+        assert_eq!(a.recv().unwrap(), (Some(1), waiter));
+        assert_eq!(b.recv().unwrap(), (Some(1), waiter));
+        // Already available: answered at once; a stale or ahead `after` too.
+        assert_eq!(ask(&slot, 0, LONG).recv().unwrap(), (Some(1), waiter));
+        assert_eq!(ask(&slot, 5, LONG).recv().unwrap(), (Some(1), waiter));
+        // A later request does not delay an earlier, shorter deadline.
+        let long = ask(&slot, 1, LONG);
+        let short = ask(&slot, 1, Duration::from_millis(30));
+        assert_eq!(short.recv().unwrap(), (None, waiter));
+        slot.publish(&fb);
+        assert_eq!(long.recv().unwrap(), (Some(2), waiter));
+        // Idle, the waiter thread ends; the next request starts a new one.
+        let end = Instant::now() + LONG;
+        while slot.serving() {
+            assert!(Instant::now() < end, "the waiter thread never ended");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let (seq, again) = ask(&slot, 0, LONG).recv().unwrap();
+        assert_eq!(seq, Some(2));
+        assert_ne!(again, std::thread::current().id());
+    }
+
+    #[test]
+    fn wait_then_survives_many_requests() {
+        // Long-poll traffic at 60 fps for two panes would spawn ~120 threads a second with a
+        // thread per request; here hundreds of requests share one thread.
+        let slot = FrameSlot::default();
+        let fb = vec![0; SCREEN_W * SCREEN_H];
+        let mut threads = std::collections::HashSet::new();
+        for i in 0..300u64 {
+            let rx = ask(&slot, i, LONG);
+            slot.publish(&fb);
+            let (seq, t) = rx.recv().unwrap();
+            assert_eq!(seq, Some(i + 1));
+            threads.insert(t);
+        }
+        assert_eq!(threads.len(), 1);
     }
 
     #[test]

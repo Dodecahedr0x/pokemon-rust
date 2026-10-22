@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "xtask"]
+members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "xtask"]
 exclude = ["crates/game-gba"]
 
 [workspace.package]
@@ -15,8 +15,11 @@ game-native = { path = "crates/game-native" }
 emu = { path = "crates/emu" }
 extract = { path = "crates/extract" }
 studio = { path = "crates/studio" }
+explore = { path = "crates/explore" }
 anyhow = "1"
 mgba = "0.1.0"
+rayon = "1.12"
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"] }
 
 # Studio decision 13: the native game in debug builds runs at about 5 ms per frame (too slow
 # for fast-forward and seeks); optimize the game crates even in dev builds.

@@ -142,14 +142,29 @@ pub enum Committable { NodesOnly, Never }
 pub const FRAME_BYTES: usize = SCREEN_W * SCREEN_H * 4;
 /// RGB555 -> RGBA8 with the play bin's expansion ((v << 3) | (v >> 2)), alpha 255.
 pub fn rgba_from_rgb555(fb: &[u16], out: &mut [u8]);
+/// Shared by the pane thread (writer) and the UI (readers): Arc<{ Mutex<Published>, Condvar }>,
+/// Published { seq (0 until the first publish), rgba: Arc<Vec<u8>>, at: Option<Instant>,
+/// pending waiters }.
 #[derive(Clone, Default)]
-pub struct FrameSlot(Arc<Mutex<Published>>);           // Published { seq: u64, rgba: Arc<Vec<u8>> }
+pub struct FrameSlot(/* Arc<Shared> */);
+pub type Latest = (u64, Arc<Vec<u8>>, Duration);           // seq, RGBA, age since publish
+pub type Answer = io::Result<Option<Latest>>;              // frame, None on timeout, Err: no thread
 impl FrameSlot {
-    pub fn publish(&self, fb: &[u16]);                    // seq += 1
-    /// The latest frame if its seq is > `after`.
+    pub fn publish(&self, fb: &[u16]);                      // seq += 1, wakes waiters
+    /// The latest frame if its seq differs from `after` (a reader ahead of the slot gets it too).
     pub fn latest(&self, after: u64) -> Option<(u64, Arc<Vec<u8>>)>;
+    pub fn latest_with_age(&self, after: u64) -> Option<Latest>;
+    /// Blocks up to `timeout` until `latest_with_age(after)` is Some.
+    pub fn wait(&self, after: u64, timeout: Duration) -> Option<Latest>;
+    /// Non-blocking `wait`: `answer` runs on the slot's waiter thread (one per slot, started on
+    /// demand, ends after 1 s idle) with the first frame whose seq != `after`, or Ok(None) after
+    /// `timeout`; at once with Err if that thread cannot start.
+    pub fn wait_then(&self, after: u64, timeout: Duration, answer: impl FnOnce(Answer) + Send + 'static);
+    pub fn seq(&self) -> u64;
 }
-/// `GET /frames/<pane>?after=<seq>`: 200 + body (RGBA) + `x-seq`, or 204. `Cache-Control: no-store`.
+/// `GET /frames/<pane>?after=<seq>`, a long poll: 200 + body (RGBA) + `x-seq`, `x-age-us`,
+/// `x-wait-us` as soon as the slot holds a frame whose seq != `after`; 204 after 250 ms without
+/// one; 503 if the waiter thread cannot start. `Cache-Control: no-store`.
 pub fn parse_frame_request(path_and_query: &str) -> Option<(&str, u64)>;
 ```
 
@@ -168,8 +183,11 @@ pub trait Pane {                                   // lives on its thread; need 
 pub struct PaneHandle<C, S> { pub frames: FrameSlot, pub status: StatusSlot<S>, tx: Sender<C>, /* join */ }
 impl<C, S> PaneHandle<C, S> { pub fn send(&self, c: C); pub fn stop(self); }
 /// Spawns a thread that builds the pane with `make` (so !Send state is born there), then loops:
-/// drain commands, tick, publish frame + status, sleep to the next 1/60 s (`Pacer`).
+/// drain commands, tick, publish frame (only when its pixels changed) + status, sleep to the
+/// next 1/60 s (`Pacer`). A fresh FrameSlot; requires `P::Status: Default`.
 pub fn spawn<P: Pane, F: FnOnce() -> P + Send + 'static>(name: &str, make: F) -> PaneHandle<P::Cmd, P::Status>;
+/// `spawn` into an existing slot (a reloaded pane): its seq keeps counting for the UI's readers.
+pub fn spawn_into<P: Pane, F: FnOnce() -> P + Send + 'static>(frames: FrameSlot, name: &str, make: F) -> PaneHandle<P::Cmd, P::Status>;
 pub struct Pacer { /* period, next */ }
 impl Pacer { pub fn new(hz: u32) -> Self; /// Returns how long to sleep; never accumulates more than one period of debt.
     pub fn next(&mut self, now: Instant) -> Duration; }
@@ -178,13 +196,13 @@ pub enum RunMode { Play, Pause, Fast(u8) }        // Fast(n): n frames per tick,
 ```
 
 ### `ui/mod.rs` (implemented skeleton: the spike)
-- `pub fn launch()`: `dioxus::LaunchBuilder::desktop().with_cfg(Config::new().with_custom_head(CSS+JS).with_window(..1280x800..))`.
+- `pub fn launch()`: `dioxus::LaunchBuilder::desktop().with_cfg(Config::new().with_custom_head(head(smoke)).with_window(..1280x800..))`; `head(smoke)` is CSS + JS, plus `window.STUDIO_SMOKE = true` in a smoke run.
 - The `App` component has tabs Play, Checkpoints, Map, Data. `ui::{play, tree, map, data}` are empty `#[component]` stubs.
-- `use_asset_handler("frames", ..)` answers from a `HashMap<&'static str, FrameSlot>` held in context.
-- `<canvas data-pane="native">` and a JS loop (`requestAnimationFrame` → `fetch` → `putImageData`) per pane.
+- `use_asset_handler("frames", ..)` answers from `Frames(Arc<HashMap<&'static str, FrameSlot>>)` held in context, through `FrameSlot::wait_then` (never blocking the UI thread). A pane that is reloaded keeps its slot (`pane::spawn_into`), so the map never changes.
+- `<canvas data-pane="native">` and a JS loop per pane: one long-poll `fetch("/frames/<pane>?after=<seq>")` in flight → `putImageData` → the next request with the returned `x-seq`.
 - **Spike pane:** a `TestPattern` `Pane` that scrolls a gradient at 60 fps, with an fps counter in JS.
 - `src/main.rs`: `fn main() { studio::ui::launch() }`.
-- `STUDIO_SMOKE_SECS=<n>`: the app closes itself after `n` seconds and prints the delivered fps per pane. `cargo xtask studio --smoke` reads it.
+- `STUDIO_SMOKE_SECS=<n>`: the JS reports to `/stats/<pane>` (that handler exists only then), and a `use_future` in `App` prints the delivered fps per pane after `n` seconds and closes the window, which exits the app. `cargo xtask studio --smoke` reads it; `--check` runs the `ui` feature's test and clippy gates.
 
 **Spike acceptance** (recorded in "Wave 0 as built"):
 - Two test-pattern panes at the same time, release build, macOS: at least 58 delivered fps each, under one frame of transport latency, and a studio CPU share noted.

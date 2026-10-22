@@ -97,8 +97,9 @@ fn print_table(
     status: &BTreeMap<CheckpointId, Status>,
     rehash: &BTreeSet<CheckpointId>,
 ) -> Result<()> {
+    let index = store.index()?;
     println!("{} status", Node::row_header());
-    for n in store.topo_order()? {
+    for n in index.topo().iter().filter_map(|&id| index.node(id)) {
         let id = n.meta.id;
         let status = status_text(status.get(&id), rehash.contains(&id));
         println!("{} {status}", n.row());
@@ -109,12 +110,7 @@ fn print_table(
 /// The tree with the statuses of the last `verify` (`status.ron`).
 fn list(root: &Path) -> Result<()> {
     let store = Store::open(root)?;
-    let path = root.join("status.ron");
-    let status: BTreeMap<CheckpointId, Status> = match std::fs::read_to_string(&path) {
-        Ok(text) => ron::from_str(&text).with_context(|| format!("{}", path.display()))?,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => BTreeMap::new(),
-        Err(e) => return Err(e.into()),
-    };
+    let status = store.statuses()?;
     println!("{}", root.display());
     print_table(&store, &status, &BTreeSet::new())
 }

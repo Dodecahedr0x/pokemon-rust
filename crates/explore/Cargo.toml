@@ -1,0 +1,22 @@
+[package]
+name = "explore"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine.workspace = true
+content.workspace = true
+game-native.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+rusqlite.workspace = true
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+
+[dev-dependencies]
+tempfile = "3.27"
+
+[[bin]]
+name = "explore"
+path = "src/bin/explore.rs"
