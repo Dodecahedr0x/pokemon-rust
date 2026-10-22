@@ -113,12 +113,15 @@ impl Runner {
     }
 
     /// Merges in job order: evaluates every step, inserts new keys, supersedes a same-key node
-    /// with more total frames (old -> Merged), drops duplicates, collects findings.
+    /// that reached fewer goals, or as many goals in more total frames (old -> Merged), drops
+    /// duplicates, collects findings. A node can thus be superseded by its own descendant (a
+    /// later step of its lineage back on its key with more goals).
     ///
     /// A finding's tail starts at the job parent's end state (it includes the job's steps), so
     /// it attaches to the job parent (`None` for the root job: a new game).
     ///
-    /// A duplicate step (its key is live with at most as many total frames) is not a live node.
+    /// A duplicate step (its key is live with at least as many goals and, on equal goals, at
+    /// most as many total frames) is not a live node.
     /// When nothing of its job follows, it is dropped. When later steps or a finding follow,
     /// they must replay from its actual end state: with the live node's digest they chain from
     /// the live node, otherwise the step is kept as a `Merged` history row (`merged_into` = the
@@ -138,6 +141,9 @@ impl Runner {
         d.stats.jobs = results.len() as u32;
         let mut expanded: BTreeMap<NodeId, u32> = BTreeMap::new();
         for r in results {
+            d.stats.probe_frames += r.probe_frames;
+            d.stats.slow_frames += r.slow_frames;
+            d.stats.notes += r.notes.len() as u32;
             if let Some(p) = r.parent {
                 *expanded.entry(p).or_default() += 1;
             }

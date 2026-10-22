@@ -25,6 +25,7 @@ fn ten_generations_reach_the_first_goal() {
     assert!(stats.maps >= 2, "{stats:?}");
     for f in ex.db.findings().unwrap() {
         wire::reproduce(&ex.game, &ex.db, f.id, &ex.cfg)
-            .unwrap_or_else(|e| panic!("finding {} ({:?}): {e:#}", f.id, f.kind));
+            .unwrap()
+            .unwrap_or_else(|e| panic!("finding {} ({:?}): {e}", f.id, f.kind));
     }
 }

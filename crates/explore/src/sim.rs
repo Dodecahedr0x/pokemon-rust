@@ -2,6 +2,7 @@
 
 use crate::config::Config;
 use crate::expand::{self, ExpandError, Expanded, Intents};
+use crate::findings;
 use crate::graph::Rng64;
 use crate::guard::{self, Panicked};
 use crate::key;
@@ -53,9 +54,16 @@ pub fn simulate_with<G: GameData + Clone>(
             parent: job.parent,
             steps: Vec::new(),
             stop: None,
+            probe_frames: 0,
+            slow_frames: 0,
+            notes: Vec::new(),
         },
     };
     if let Err(stop) = sim.run(job) {
+        // The bug weight goes to the step the finding follows (`StepResult::bug`).
+        if let (Stop::Finding(_), Some(last)) = (&stop, sim.res.steps.last_mut()) {
+            last.bug = true;
+        }
         sim.res.stop = Some(stop);
     }
     sim.res
@@ -110,9 +118,11 @@ impl<G: GameData + Clone> Sim<'_, G> {
             let Some(start) = job.start.as_deref() else {
                 return Err(Stop::Pruned("softlock probe without a start state".into()));
             };
-            return Err(match trap(self.game, start, k, breadth, self.cfg) {
-                (Trap::Trapped { reached }, region) => {
-                    Stop::Finding(softlock_finding(start, region, k, reached))
+            let probed = trap(self.game, start, k, breadth, self.cfg);
+            self.res.probe_frames = probed.frames;
+            return Err(match probed.trap {
+                Trap::Trapped { reached } => {
+                    Stop::Finding(softlock_finding(start, probed.region, k, reached))
                 }
                 _ => Stop::NotTrapped,
             });
@@ -196,11 +206,14 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 let end = s
                     .checkpoint()
                     .map_err(|e| Err(Stop::Pruned(format!("{m:?}: ended {e:?}"))))?;
+                self.res.slow_frames += ex.slow.len() as u32;
+                self.res.notes.extend(ex.notes);
                 self.res.steps.push(StepResult {
                     macro_: *m,
                     inputs: rle(ex.keys),
                     end: Arc::new(end),
                     summary: ex.summary,
+                    bug: false,
                 });
                 Ok(())
             }
@@ -235,31 +248,51 @@ pub fn softlock_k(cfg: &Config, map: MapId) -> u32 {
         .unwrap_or(cfg.detect.softlock_k)
 }
 
+/// Frames of the probe's [`MacroKind::Wait`]: long enough for a wandering NPC to step off a
+/// cell it blocks (the movement types pause one to four seconds between steps).
+pub const PROBE_WAIT_FRAMES: u16 = 300;
+
+/// A softlock probe's verdict, the start's region and the frames it stepped.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Probed {
+    pub trap: Trap,
+    pub region: u64,
+    pub frames: u64,
+}
+
 /// The softlock probe of `start` (`softlock::probe` with the start's region and its map's
-/// exits): every candidate macro of a state is expanded from a fresh session restored there
-/// (the policy, no detectors), at most `remaining` successful ones per state. Also returns the
-/// start's region.
+/// exits): from each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
+/// wander may free a way out), then every candidate macro, each expanded from a fresh session
+/// restored there (the policy, no detectors), at most `remaining` successful ones per state.
 pub fn trap<G: GameData + Clone>(
     game: &G,
     start: &Checkpoint,
     k: u32,
     breadth: u32,
     cfg: &Config,
-) -> (Trap, u64) {
+) -> Probed {
     let region = key::region(&key::key_parts(&start.world, &cfg.key));
     let exits = softlock::map_exits(game, start.world.field.map);
-    let mut expand_all = |cp: &Checkpoint, remaining: u32| expand_all(game, cp, remaining, cfg);
-    let t = softlock::probe(start, region, exits, k, breadth, &mut expand_all);
-    (t, region)
+    let mut frames = 0u64;
+    let mut expand_all =
+        |cp: &Checkpoint, remaining: u32| expand_all(game, cp, remaining, cfg, &mut frames);
+    let trap = softlock::probe(start, region, exits, k, breadth, &mut expand_all);
+    Probed {
+        trap,
+        region,
+        frames,
+    }
 }
 
-/// The states one successful macro away from `cp`: (region, map, end state), candidates in
-/// order, at most `remaining`. A panic or a failed expansion skips the candidate.
+/// The states one successful macro away from `cp`: (region, map, end state), the wait then
+/// the candidates in order, at most `remaining`. A panic or a failed expansion skips the macro.
+/// Every stepped frame counts in `frames`.
 fn expand_all<G: GameData + Clone>(
     game: &G,
     cp: &Checkpoint,
     remaining: u32,
     cfg: &Config,
+    frames: &mut u64,
 ) -> Vec<(u64, MapId, Checkpoint)> {
     let restore = || {
         guard::catch(|| Session::restore(Probe::new(game.clone()), cp))
@@ -273,7 +306,18 @@ fn expand_all<G: GameData + Clone>(
         return Vec::new();
     };
     let reach = path::reach(game, &snap);
-    let cands = macros::candidates_with(game, &snap, &reach, cfg.key.cell_shift);
+    let wait = Macro {
+        kind: MacroKind::Wait {
+            frames: PROBE_WAIT_FRAMES,
+        },
+        opts: Opts::default(),
+    };
+    let cands = std::iter::once(wait).chain(macros::candidates_with(
+        game,
+        &snap,
+        &reach,
+        cfg.key.cell_shift,
+    ));
     let mut first = Some(s);
     let mut out = Vec::new();
     for m in cands {
@@ -283,9 +327,13 @@ fn expand_all<G: GameData + Clone>(
         let Some(mut s) = first.take().or_else(restore) else {
             break;
         };
+        let start_frame = s.world().frame();
         let ok = guard::catch(|| {
             expand::expand(&mut s, &m, &mut Policy::new(), &mut NoObserver, &cfg.limits).is_ok()
         });
+        // A panicked session's frame counter is still readable (the step that panicked did
+        // not count).
+        *frames += u64::from(s.world().frame().wrapping_sub(start_frame));
         if ok == Ok(true)
             && let Ok(end) = s.checkpoint()
         {
@@ -296,20 +344,12 @@ fn expand_all<G: GameData + Clone>(
     out
 }
 
-/// A `Softlock` finding's message: the region and the map (its signature strips the digits).
-pub fn softlock_message(region: u64, k: u32, reached: u32, map: MapId) -> String {
-    format!(
-        "trapped: the {reached} states within {k} macros keep region {region:#018x} on map {:#06x}",
-        map.0
-    )
-}
-
 /// The `Softlock` finding of a trapped start state: an empty tail (the node itself).
 fn softlock_finding(start: &Checkpoint, region: u64, k: u32, reached: u32) -> FindingDraft {
     let map = start.world.field.map;
     FindingDraft {
         kind: FindingKind::Softlock,
-        message: softlock_message(region, k, reached, map),
+        message: findings::softlock_message(region, k, reached),
         location: None,
         macro_: None,
         tail: Vec::new(),

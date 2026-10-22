@@ -18,8 +18,40 @@ use game_native::trace::{HASH_EVERY, Parent, Run, Trace, TraceRecorder, rle};
 /// file (without line and column) if any, then the message with its ASCII digits stripped,
 /// then the map. A panic keeps its signature across unrelated edits that move its line; the
 /// full location stays in the finding row for display.
+///
+/// A `Softlock` is signed on its map and region instead ([`softlock_signature`], the region
+/// read back from [`softlock_message`]).
 pub fn signature(f: &FindingDraft) -> u64 {
+    if f.kind == FindingKind::Softlock
+        && let Some(region) = softlock_region(&f.message)
+    {
+        return softlock_signature(f.map, region);
+    }
     signature_of(f.kind, &f.message, f.location.as_deref(), f.map)
+}
+
+/// A `Softlock` finding's message (the region in decimal, so no hex letters).
+pub fn softlock_message(region: u64, k: u32, reached: u32) -> String {
+    format!("trapped: the {reached} states within {k} macros stay in region {region}")
+}
+
+/// The region of a [`softlock_message`].
+pub fn softlock_region(message: &str) -> Option<u64> {
+    message.rsplit_once(" region ")?.1.parse().ok()
+}
+
+/// A softlock's dedupe signature: FNV-1a 64 of its kind name, the map and the region.
+pub fn softlock_signature(map: MapId, region: u64) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let bytes = kind_name(FindingKind::Softlock)
+        .bytes()
+        .chain([0xFF])
+        .chain(map.0.to_le_bytes())
+        .chain(region.to_le_bytes());
+    for b in bytes {
+        h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
 }
 
 /// The stable name of a kind in signatures (never renamed: dedupe depends on it).

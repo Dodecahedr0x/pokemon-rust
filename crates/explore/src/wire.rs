@@ -18,8 +18,8 @@ use crate::findings;
 use crate::fitness::{Archive, Evaluator};
 use crate::guard;
 use crate::model::{
-    AbstractKey, Evaluate, Evaluation, FindingDraft, FindingKind, GenStats, JobResult, Macro,
-    NodeRow, StepResult, Stop,
+    AbstractKey, Evaluate, Evaluation, FindingDraft, FindingKind, GenStats, Macro, NodeRow,
+    StepResult,
 };
 use crate::observe::{NoObserver, StepObserver};
 use crate::policy::Policy;
@@ -35,7 +35,6 @@ use game_native::Session;
 use game_native::trace::{Parent, Run, Trace, TraceRecorder, rle};
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// The explorer on one db: the store, the snapshot cache, the runner, the evaluator (its
@@ -50,8 +49,10 @@ pub struct Explore<G> {
     pool: rayon::ThreadPool,
     /// How the db was opened.
     pub opened: OpenState,
-    /// The revalidation `open` ran because the build changed.
+    /// The revalidation `open` ran (a build change, or stale nodes left by an interrupted one).
     pub revalidated: Option<RevalidateReport>,
+    /// The config differs from the last `run` row's.
+    pub config_changed: bool,
 }
 
 /// One generation's outcome.
@@ -89,8 +90,13 @@ pub struct RunSummary {
     pub generations: u32,
     /// Live nodes inserted.
     pub nodes: u64,
+    /// Frames run, the softlock probes' included.
     pub frames: u64,
     pub findings: u64,
+    /// `SlowFrame`s seen (report-only, `Expanded::slow`).
+    pub slow_frames: u64,
+    /// Expansion notes (`Expanded::notes`, e.g. the `Cross` fallback talks).
+    pub notes: u64,
     pub wall: Duration,
     pub phases: Phases,
     /// Stopped because the runner stalled, before the budget.
@@ -112,7 +118,9 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
     /// - A fresh db records `cfg.seed` as `meta.seed`; an existing one keeps its own seed
     ///   (`cfg.seed` is replaced by it), so a resumed run plans what a straight run would.
     /// - On a build change every valid node becomes stale and is revalidated before exploring
-    ///   (repair = re-expanding the node's macro from its parent's new end state).
+    ///   (repair = re-expanding the node's macro from its parent's new end state). Stale nodes
+    ///   left by an interrupted revalidation are revalidated too.
+    /// - `config_changed` tells whether `cfg` differs from the last run's config.
     /// - The runner and the archive are rebuilt from the rows (`Graph::from_rows`,
     ///   `Archive::from_db`); the next generation follows the db's last one.
     pub fn open(game: G, path: &Path, mut cfg: Config) -> anyhow::Result<Explore<G>> {
@@ -132,8 +140,13 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         let mut revalidated = None;
         if opened.build_changed {
             db.mark_all_stale()?;
+        }
+        if opened.build_changed || db.stats()?.stale > 0 {
             revalidated = Some(pool.install(|| revalidate_db(&mut db, &game, &cfg))?);
         }
+        let config_changed = db
+            .last_run_config()?
+            .is_some_and(|last| last != cfg.to_ron());
         let (runner, eval) = load(&db, &cfg)?;
         Ok(Explore {
             game,
@@ -145,6 +158,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             pool,
             opened,
             revalidated,
+            config_changed,
         })
     }
 
@@ -201,7 +215,10 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         });
         phases.jobs = t.elapsed();
         let t = Instant::now();
-        let mut eval = BugWeighted::new(&mut self.eval, &results, cfg.weights.bug);
+        let mut eval = BugWeighted {
+            inner: &mut self.eval,
+            weight: cfg.weights.bug,
+        };
         let delta = self.runner.merge(results, &mut eval);
         phases.merge = t.elapsed();
         let t = Instant::now();
@@ -234,8 +251,10 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             };
             sum.generations += 1;
             sum.nodes += u64::from(g.stats.inserted);
-            sum.frames += g.stats.frames;
+            sum.frames += g.stats.frames + g.stats.probe_frames;
             sum.findings += u64::from(g.findings);
+            sum.slow_frames += u64::from(g.stats.slow_frames);
+            sum.notes += u64::from(g.stats.notes);
             sum.phases += g.phases;
             sum.wall = start.elapsed();
             progress(&Progress {
@@ -278,12 +297,10 @@ fn load(db: &Db, cfg: &Config) -> anyhow::Result<(Runner, Evaluator)> {
         .map(|k| (k, 1))
         .collect();
     let archive = Archive::from_db(&db.seen()?, &keys, &db.coverage(None)?);
-    // `meta.generation` is the last applied one; a fresh db (no row, no finding) starts at 0.
-    let applied = !rows.is_empty() || !db.findings()?.is_empty();
-    let next = if applied {
-        db.stats()?.generation + 1
-    } else {
-        0
+    // `meta.generation` is the last applied one; a db without it starts at 0.
+    let next = match db.meta("generation")? {
+        Some(_) => db.stats()?.generation + 1,
+        None => 0,
     };
     Ok((
         Runner::new(cfg.clone(), rows, next),
@@ -336,36 +353,19 @@ fn unix_secs() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// The evaluator with the bug weight: the last step of a job that stopped on a finding scores
-/// `weights.bug` more (`fitness.bug`, `fitness.total`), so selection returns to the area of a
-/// bug. `Evaluator` itself passes `bugs = 0` (Task B). Steps are recognized by their end state
-/// (`Arc` identity, which survives the merge's moves); membership only, so it is deterministic.
+/// The evaluator with the bug weight: a step the job's finding follows (`StepResult::bug`, the
+/// last step of a job that stopped on a finding) scores `weight` (`weights.bug`) more in
+/// `fitness.bug` and `fitness.total`, so selection returns to the area of a bug. `Evaluator`
+/// itself passes `bugs = 0` (Task B).
 pub struct BugWeighted<'a> {
-    inner: &'a mut Evaluator,
-    bugged: BTreeSet<usize>,
-    weight: i64,
-}
-
-impl<'a> BugWeighted<'a> {
-    pub fn new(inner: &'a mut Evaluator, results: &[JobResult], weight: i64) -> Self {
-        let bugged = results
-            .iter()
-            .filter(|r| matches!(r.stop, Some(Stop::Finding(_))))
-            .filter_map(|r| r.steps.last())
-            .map(|s| Arc::as_ptr(&s.end) as usize)
-            .collect();
-        BugWeighted {
-            inner,
-            bugged,
-            weight,
-        }
-    }
+    pub inner: &'a mut Evaluator,
+    pub weight: i64,
 }
 
 impl Evaluate for BugWeighted<'_> {
     fn evaluate(&mut self, parent: Option<&NodeRow>, step: &StepResult) -> Evaluation {
         let mut ev = self.inner.evaluate(parent, step);
-        if self.bugged.contains(&(Arc::as_ptr(&step.end) as usize)) {
+        if step.bug {
             ev.fitness.bug = ev.fitness.bug.saturating_add(self.weight);
             ev.fitness.total = ev.fitness.total.saturating_add(self.weight);
         }
@@ -425,40 +425,42 @@ fn prefix<G: GameData + Clone>(game: &G, trace: &Trace, frames: u32) -> anyhow::
     Ok(rec.trace(Parent::NewGame, trace.build))
 }
 
-/// Whether finding `id` reproduces on `game` from a new game: `findings::reproduce` on its
-/// trace, or for a softlock the probe again from the trace's end state
-/// (`findings::end_state`), which must be trapped in the same region.
+/// Whether finding `id` reproduces on `game` from a new game: `Ok(Ok(()))` when it does,
+/// `Ok(Err(why))` when it does not, `Err` when it cannot be tried (no such finding, a db
+/// error). `findings::reproduce` on its trace, or for a softlock the probe again from the
+/// trace's end state (`findings::end_state`), which must be trapped on the same map and region.
 pub fn reproduce<G: GameData + Clone>(
     game: &G,
     db: &Db,
     id: i64,
     cfg: &Config,
-) -> anyhow::Result<()> {
-    let (f, trace) = finding_trace(game, db, id, 0)?;
+) -> anyhow::Result<Result<(), String>> {
+    if db.finding(id)?.is_none() {
+        bail!("no finding {id}");
+    }
+    let (f, trace) = match finding_trace(game, db, id, 0) {
+        Ok(ft) => ft,
+        Err(e) => return Ok(Err(format!("{e:#}"))),
+    };
     let want = draft_of(&f);
     if f.kind != FindingKind::Softlock {
-        return findings::reproduce(game, &trace, &want, &cfg.detect).map_err(|e| anyhow!(e));
+        return Ok(findings::reproduce(game, &trace, &want, &cfg.detect));
     }
-    let end = findings::end_state(game, &trace).map_err(|e| anyhow!(e))?;
+    let end = match findings::end_state(game, &trace) {
+        Ok(end) => end,
+        Err(e) => return Ok(Err(e)),
+    };
     let map = end.world.field.map;
     let k = sim::softlock_k(cfg, map);
-    match sim::trap(game, &end, k, cfg.detect.softlock_breadth, cfg) {
-        (Trap::Trapped { reached }, region) => {
-            let got = findings::signature_of(
-                FindingKind::Softlock,
-                &sim::softlock_message(region, k, reached, map),
-                None,
-                map,
-            );
-            if got == f.signature {
-                Ok(())
-            } else {
-                bail!(
-                    "trapped again, but elsewhere (region {region:#018x}, map {:#06x})",
-                    map.0
-                )
-            }
+    let probed = sim::trap(game, &end, k, cfg.detect.softlock_breadth, cfg);
+    Ok(match probed.trap {
+        Trap::Trapped { .. } if findings::softlock_signature(map, probed.region) == f.signature => {
+            Ok(())
         }
-        (t, _) => bail!("not trapped any more: {t:?}"),
-    }
+        Trap::Trapped { .. } => Err(format!(
+            "trapped again, but elsewhere (region {}, map {:#06x})",
+            probed.region, map.0
+        )),
+        t => Err(format!("not trapped any more: {t:?}")),
+    })
 }

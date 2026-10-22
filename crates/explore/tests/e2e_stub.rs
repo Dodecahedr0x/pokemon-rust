@@ -146,7 +146,9 @@ fn a_new_game_panic_is_one_finding_that_reproduces() {
     assert!(f.location.as_deref().unwrap().contains("testing.rs"));
     let (_, trace) = wire::finding_trace(&game, &ex.db, f.id, 0).unwrap();
     assert_eq!(trace.frames(), 0);
-    wire::reproduce(&game, &ex.db, f.id, &ex.cfg).unwrap();
+    wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
+        .unwrap()
+        .unwrap();
     // Reopened: still stalled, nothing new.
     drop(ex);
     let mut ex = Explore::open(game, &dir.path().join("explore.db"), config(0)).unwrap();
@@ -177,14 +179,24 @@ fn a_walled_in_start_is_one_softlock_that_reproduces() {
     assert_eq!((f.map, f.pos), (ng.map, (ng.x, ng.y)));
     let (_, trace) = wire::finding_trace(&game, &ex.db, f.id, 0).unwrap();
     assert_eq!(u64::from(trace.frames()), f.total_frame);
-    wire::reproduce(&game, &ex.db, f.id, &ex.cfg).unwrap();
+    wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
+        .unwrap()
+        .unwrap();
     // Without the wall the same finding does not reproduce.
     let free = WallAround {
         inner,
         map: ng.map,
         at: (0, 0),
     };
-    assert!(wire::reproduce(&free, &ex.db, f.id, &ex.cfg).is_err());
+    assert!(
+        wire::reproduce(&free, &ex.db, f.id, &ex.cfg)
+            .unwrap()
+            .is_err()
+    );
+    assert!(
+        wire::reproduce(&game, &ex.db, 99, &ex.cfg).is_err(),
+        "no finding 99"
+    );
 }
 
 #[test]
@@ -246,8 +258,92 @@ fn the_cli_runs_and_reports() {
     );
     assert!(cli(&["bogus"]).is_err());
     assert!(cli(&["reset"]).is_err(), "needs --yes");
+    assert!(
+        cli(&["status", "--config", "/nonexistent/explore.ron"]).is_err(),
+        "a missing config file"
+    );
     cli(&["reset", "--yes"]).unwrap();
     assert!(!db.exists());
+
+    // A finding (the new-game panic) to export and replay; the CLI plays the plain game, on
+    // which it does not reproduce.
+    let game = PanicOnScript {
+        inner: Emerald::for_shells(),
+        script: NEW_GAME_SCRIPT,
+    };
+    explore(game, &db, 0, 1);
+    let out = dir.path().join("out/finding.ron");
+    cli(&["export", "1", "--out", out.to_str().unwrap()]).unwrap();
+    let trace: game_native::trace::Trace =
+        ron::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    assert_eq!(trace.frames(), 0);
+    let args = |v: &[&str]| -> Vec<String> {
+        let mut v: Vec<String> = v.iter().map(|a| a.to_string()).collect();
+        v.extend(["--db".to_string(), db_s.clone()]);
+        v
+    };
+    let code = |v: &[&str]| explore::cli::exit_code(&args(v), &explore::cli::main(args(v)));
+    assert_eq!(code(&["repro", "1"]), 1, "does not reproduce");
+    assert_eq!(code(&["repro", "7"]), 2, "no finding 7");
+    assert_eq!(code(&["digest"]), 0);
+}
+
+#[test]
+fn reset_refuses_a_file_that_is_not_a_db_and_a_busy_db() {
+    if !content::STUB {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let reset = |p: &Path| {
+        explore::cli::main(vec![
+            "reset".into(),
+            "--yes".into(),
+            "--db".into(),
+            p.to_str().unwrap().into(),
+        ])
+    };
+    let junk = dir.path().join("notes.txt");
+    std::fs::write(&junk, "not a database").unwrap();
+    assert!(reset(&junk).is_err());
+    assert!(junk.exists());
+
+    let db = dir.path().join("explore.db");
+    drop(explore(Emerald::for_shells(), &db, 0, 1));
+    let writer = rusqlite::Connection::open(&db).unwrap();
+    writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+    assert!(reset(&db).is_err(), "a writer holds the db");
+    assert!(db.exists());
+    writer.execute_batch("ROLLBACK").unwrap();
+    drop(writer);
+    reset(&db).unwrap();
+    assert!(!db.exists());
+}
+
+#[test]
+fn an_interrupted_revalidation_resumes_on_open() {
+    if !content::STUB {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    let before = explore(Emerald::for_shells(), &path, 0, 4);
+    let digest_before = digest(&before);
+    drop(before);
+    // Stale rows on the same build: what a revalidation stopped midway leaves.
+    let (mut db, _) = explore::db::Db::open(
+        &path,
+        engine::checkpoint::build_hash(&Emerald::for_shells()),
+        true,
+    )
+    .unwrap();
+    assert!(db.mark_all_stale().unwrap() > 0);
+    drop(db);
+    let ex = Explore::open(Emerald::for_shells(), &path, config(0)).unwrap();
+    assert!(!ex.opened.build_changed);
+    let r = ex.revalidated.expect("resumed");
+    assert_eq!((r.repaired, r.broken), (0, 0));
+    assert_eq!(ex.stats().unwrap().stale, 0);
+    assert_eq!(digest(&ex), digest_before);
 }
 
 #[test]

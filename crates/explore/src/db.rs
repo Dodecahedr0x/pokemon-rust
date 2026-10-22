@@ -11,6 +11,7 @@ use engine::data::{MapId, ScriptId};
 use game_native::trace::Run;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, params};
+use std::collections::BTreeSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -248,8 +249,8 @@ impl Db {
     }
 
     /// Opens (creating the parent dirs and the schema) the db for `build` and the `stub` or
-    /// emerald flavor. A fresh db gets `meta` schema, flavor, build and generation 0 (the
-    /// caller records `seed` with `set_meta`). `build_changed` is reported, never acted on.
+    /// emerald flavor. A fresh db gets `meta` schema, flavor and build; `generation`
+    /// appears with the first `apply` (the caller records `seed` with `set_meta`). `build_changed` is reported, never acted on.
     pub fn open(path: &Path, build: BuildHash, stub: bool) -> Result<(Db, OpenState), DbError> {
         if let Some(dir) = path.parent()
             && !dir.as_os_str().is_empty()
@@ -295,7 +296,6 @@ impl Db {
                     ("flavor", flavor.to_string()),
                     ("build_engine", build.engine.to_string()),
                     ("build_content", build.content.to_string()),
-                    ("generation", "0".to_string()),
                 ] {
                     tx.execute(
                         "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
@@ -369,10 +369,12 @@ impl Db {
     pub fn apply(&mut self, d: &GenerationDelta) -> Result<(), DbError> {
         let build = self.build;
         let tx = self.conn.transaction()?;
-        // Foreign keys stay immediate: deferred ones make every node insert scan the tables
-        // that reference `node` (`seen`, `coverage`, `battle`, `node.merged_into` have no
-        // index on their node column), which grows with the db. So a `merged_into` naming a
-        // node of this delta is written after the inserts (Task G).
+        // Foreign keys stay immediate (Task G). With deferred keys, a `merged_into` naming a
+        // later row of the delta left the deferred-violation counter non-zero, and while it is,
+        // SQLite scans the child tables of every row inserted into `node` (`seen`,
+        // `coverage`, `battle` and `node.merged_into` have no index on their node column):
+        // a cost that grew with the db. So the `merged_into`s naming a row of this delta are
+        // written after the inserts, and no violation is ever pending.
         let mut late_merged_into: Vec<(NodeId, NodeId)> = Vec::new();
         {
             // The old live nodes leave the live key index before the inserts take their keys.
@@ -394,10 +396,10 @@ impl Db {
                  ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, \
                  ?25, ?26, ?27)"
             ))?;
-            let first_new = d.nodes.first().map_or(NodeId::MAX, |n| n.id);
+            let in_delta: BTreeSet<NodeId> = d.nodes.iter().map(|n| n.id).collect();
             for n in &d.nodes {
                 let merged_into = match n.merged_into {
-                    Some(m) if m >= first_new => {
+                    Some(m) if in_delta.contains(&m) => {
                         late_merged_into.push((n.id, m));
                         None
                     }
@@ -755,6 +757,16 @@ impl Db {
         tx.commit()?;
         self.build = build;
         Ok(n as u64)
+    }
+
+    /// The config (RON) of the last `run` row, if any.
+    pub fn last_run_config(&self) -> Result<Option<String>, DbError> {
+        Ok(self
+            .conn
+            .query_row("SELECT config FROM run ORDER BY id DESC LIMIT 1", [], |r| {
+                r.get(0)
+            })
+            .optional()?)
     }
 
     pub fn record_run(&mut self, r: &RunRow) -> Result<(), DbError> {

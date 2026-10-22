@@ -41,6 +41,7 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|| Db::default_path(content::STUB));
     let mut cfg = match a.take("--config") {
+        Some(p) if !Path::new(&p).exists() => bail!("no config file {p}"),
         Some(p) => Config::load_or_default(Path::new(&p))?,
         None => Config::default(),
     };
@@ -82,19 +83,25 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             let id = a.id()?;
             a.done()?;
             let db = Db::open_read_only(&db_path)?;
-            wire::reproduce(&Emerald::for_shells(), &db, id, &cfg)
-                .with_context(|| format!("finding {id} does not reproduce"))?;
-            println!("finding {id} reproduces");
-            Ok(())
+            match wire::reproduce(&Emerald::for_shells(), &db, id, &cfg)? {
+                Ok(()) => {
+                    println!("finding {id} reproduces");
+                    Ok(())
+                }
+                Err(why) => Err(NotReproduced(format!(
+                    "finding {id} does not reproduce: {why}"
+                )))?,
+            }
         }
         "revalidate" => {
             a.done()?;
-            let mut ex = Explore::open(Emerald::for_shells(), &db_path, cfg)?;
-            if let Some(r) = ex.revalidated {
-                println!("build changed: {r:?}");
-            }
             let t = std::time::Instant::now();
-            let r = ex.revalidate()?;
+            let mut ex = Explore::open(Emerald::for_shells(), &db_path, cfg)?;
+            // A build change (or an interrupted revalidation) is revalidated by `open` already.
+            let r = match ex.revalidated {
+                Some(r) => r,
+                None => ex.revalidate()?,
+            };
             println!(
                 "revalidated in {:.1} s: {} valid, {} repaired, {} broken",
                 t.elapsed().as_secs_f64(),
@@ -126,6 +133,11 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             if !yes {
                 bail!("reset deletes {}: confirm with --yes", db_path.display());
             }
+            if !db_path.exists() {
+                println!("no db at {}", db_path.display());
+                return Ok(());
+            }
+            lock_for_reset(&db_path)?;
             for suffix in ["", "-wal", "-shm"] {
                 let mut p = db_path.clone().into_os_string();
                 p.push(suffix);
@@ -144,6 +156,50 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
         }
         other => bail!("unknown command {other:?}\n{USAGE}"),
     }
+}
+
+/// `repro`'s verdict when the finding does not reproduce (the bin exits 1; other errors exit 2).
+#[derive(Debug)]
+pub struct NotReproduced(pub String);
+
+impl std::fmt::Display for NotReproduced {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for NotReproduced {}
+
+/// The bin's exit code for `main`'s result: 0 on success; for `repro`, 1 when the finding
+/// does not reproduce and 2 on any other error; 1 for errors of the other commands.
+pub fn exit_code(args: &[String], r: &anyhow::Result<()>) -> i32 {
+    match r {
+        Ok(()) => 0,
+        Err(e) if e.is::<NotReproduced>() => 1,
+        Err(_) if args.first().is_some_and(|c| c == "repro") => 2,
+        Err(_) => 1,
+    }
+}
+
+/// Proves `path` is an explore db no one is writing: it opens read-only (schema checked), then
+/// takes the write lock (`BEGIN IMMEDIATE`, no busy wait) and releases it.
+fn lock_for_reset(path: &Path) -> anyhow::Result<()> {
+    drop(
+        Db::open_read_only(path)
+            .with_context(|| format!("{} is not an explore db", path.display()))?,
+    );
+    let conn =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    conn.busy_timeout(std::time::Duration::ZERO)?;
+    conn.execute_batch("BEGIN IMMEDIATE").map_err(|e| {
+        anyhow!(
+            "{} is busy (an explorer is writing it?): {e}",
+            path.display()
+        )
+    })?;
+    conn.execute_batch("ROLLBACK")?;
+    drop(conn);
+    Ok(())
 }
 
 /// `--flag value` options, `--flag` switches and positionals.
@@ -260,9 +316,12 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
             ex.cfg.seed
         );
     }
+    if ex.config_changed {
+        println!("note: the config differs from the last run's (see the db's run table)");
+    }
     if let Some(r) = ex.revalidated {
         println!(
-            "build changed: {} valid, {} repaired, {} broken",
+            "revalidated: {} valid, {} repaired, {} broken",
             r.valid, r.repaired, r.broken
         );
     }
@@ -272,12 +331,14 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
         ex.threads(),
         ex.cfg.seed
     );
+    // `gens` counts the db's generations (1-based); inserted/s and frames/s are this run's
+    // (frames include the softlock probes').
     let line = |s: &DbStats, sum: &wire::RunSummary| {
         let secs = sum.wall.as_secs_f64().max(1e-9);
         println!(
-            "gen {:>5}  nodes {:>7} ({:>7.1}/s)  frames/s {:>9.0}  goals {}  maps {}  cells {}  \
-             findings {}",
-            s.generation,
+            "gens {:>5}  valid nodes {:>7}  inserted/s {:>7.1}  frames/s {:>9.0}  goals {}  maps {}  \
+             cells {}  findings {}",
+            s.generation + 1,
             s.valid,
             sum.nodes as f64 / secs,
             sum.frames as f64 / secs,
@@ -298,11 +359,13 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
         line(&ex.stats()?, &sum);
     }
     println!(
-        "{} generations, {} nodes, {} frames in {:.1} s{}",
+        "{} generations, {} nodes, {} frames in {:.1} s; {} slow frames, {} notes{}",
         sum.generations,
         sum.nodes,
         sum.frames,
         sum.wall.as_secs_f64(),
+        sum.slow_frames,
+        sum.notes,
         if sum.stalled { " (stalled)" } else { "" }
     );
     let ph = sum.phases;
@@ -406,7 +469,9 @@ fn export(db_path: &Path, id: i64, before: u32, out: Option<PathBuf>) -> anyhow:
     let db = Db::open_read_only(db_path)?;
     let (_, trace) = wire::finding_trace(&Emerald::for_shells(), &db, id, before)?;
     let out = out.unwrap_or_else(|| {
-        let dir = db_path.parent().unwrap_or(Path::new("."));
+        // Always under `target/` (never next to a `--db` elsewhere).
+        let default = Db::default_path(content::STUB);
+        let dir = default.parent().unwrap_or(Path::new("."));
         let name = if before == 0 {
             format!("finding-{id}.ron")
         } else {

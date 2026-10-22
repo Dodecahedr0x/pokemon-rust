@@ -38,6 +38,7 @@ fn root_step() -> StepResult {
         inputs: Vec::new(),
         end: Arc::new(s.checkpoint().unwrap()),
         summary,
+        bug: false,
     }
 }
 

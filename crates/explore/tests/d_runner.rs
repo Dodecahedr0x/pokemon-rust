@@ -61,6 +61,7 @@ fn step(tag: u64, key: u64, frames: u32) -> StepResult {
         }],
         end: state(tag, key),
         summary,
+        bug: false,
     }
 }
 
@@ -134,6 +135,9 @@ fn fake_sim(job: &Job) -> JobResult {
         parent: job.parent,
         steps,
         stop,
+        probe_frames: 0,
+        slow_frames: 0,
+        notes: Vec::new(),
     }
 }
 
@@ -366,6 +370,9 @@ fn rooted() -> (Runner, FakeEval) {
         parent: None,
         steps: vec![step(1, 0, 100)],
         stop: None,
+        probe_frames: 0,
+        slow_frames: 0,
+        notes: Vec::new(),
     };
     r.merge(vec![root], &mut eval);
     (r, eval)
@@ -377,6 +384,9 @@ fn job(index: u32, parent: NodeId, steps: Vec<StepResult>, stop: Option<Stop>) -
         parent: Some(parent),
         steps,
         stop,
+        probe_frames: 0,
+        slow_frames: 0,
+        notes: Vec::new(),
     }
 }
 
@@ -535,6 +545,9 @@ fn findings_attach_to_the_node_their_tail_starts_from() {
             parent: None,
             steps: vec![],
             stop: Some(Stop::Finding(finding(3, &[]))),
+            probe_frames: 0,
+            slow_frames: 0,
+            notes: Vec::new(),
         }],
         &mut eval,
     );
