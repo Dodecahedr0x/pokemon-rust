@@ -77,9 +77,9 @@ fn export_is_deterministic() {
 }
 
 #[test]
-fn writes_v3_tree() {
+fn writes_current_format_tree() {
     let (dir, m) = fr_export();
-    assert_eq!(m.format, 3);
+    assert_eq!(m.format, extract::schema::FORMAT_VERSION);
     assert_eq!((m.game_code.as_str(), m.language.as_str()), ("BPEF", "fr"));
     assert_eq!(m.sha1, fixtures::fr().sha1_hex());
     assert_eq!(m.maps, MAPS.map(String::from));

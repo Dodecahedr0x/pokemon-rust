@@ -58,7 +58,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const FORMAT_VERSION: u32 = 3;
+/// v4: `types.ron` gains `ability_names` (M4-E2).
+pub const FORMAT_VERSION: u32 = 4;
 
 /// A ROM file offset, written `"0x3e45f0"`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
