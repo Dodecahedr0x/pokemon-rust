@@ -35,6 +35,16 @@ pub enum Parent {
     Checkpoint(CheckpointId),
 }
 
+impl core::fmt::Display for Parent {
+    /// `new game` or the node's id (`c00042`).
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Parent::NewGame => f.pad("new game"),
+            Parent::Checkpoint(id) => f.pad(&id.to_string()),
+        }
+    }
+}
+
 /// `frames` consecutive frames with `keys` held. Serialized as a `(keys, frames)` tuple, so a
 /// pretty RON trace holds one run per line.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]

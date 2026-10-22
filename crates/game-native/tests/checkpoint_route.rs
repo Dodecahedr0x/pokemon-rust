@@ -10,7 +10,7 @@
 use content::Emerald;
 use engine::checkpoint::{self, Checkpoint, MAX_ENCODED};
 use game_native::Session;
-use game_native::scenario::{Recording, record_route};
+use game_native::scenario::{Recording, cached_route};
 
 /// About this many points, evenly spread over the capturable frames.
 const POINTS: u32 = 100;
@@ -84,9 +84,9 @@ fn round_trip(cp: &Checkpoint, n: u32) -> (Checkpoint, usize) {
 
 #[test]
 fn checkpoints_restore_bit_identical_along_the_route() {
-    let rec = record_route().unwrap_or_else(|e| panic!("the route does not play: {e}"));
-    let capturable = capturable_frames(&rec);
-    let points = points(&rec, &capturable);
+    let rec = cached_route();
+    let capturable = capturable_frames(rec);
+    let points = points(rec, &capturable);
     assert!(points.len() >= 2, "too few capturable frames: {points:?}");
     // The last long run starts at least `FOLLOW` frames before the end of the route.
     let last = points

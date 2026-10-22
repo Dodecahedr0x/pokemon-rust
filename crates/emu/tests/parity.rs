@@ -24,13 +24,16 @@ extern crate alloc;
 
 #[path = "../../game-gba/src/probe_scene.rs"]
 mod probe_scene;
+#[allow(dead_code)] // only `SAVE_WAIT_FRAMES` is used here
+#[path = "../../game-gba/src/save_logic.rs"]
+mod save_logic;
 
 use emu::{DebugSnapshot, Emu, RomRun, run_rom, run_rom_from};
 use engine::Buttons;
 use engine::checkpoint::{Checkpoint, build_hash};
 use engine::data::MapId;
 use engine::debug::{boot, save};
-use game_native::scenario::{DISPLAY_LAG, Recording, record_route};
+use game_native::scenario::{DISPLAY_LAG, Recording, cached_route};
 use game_native::{Ppu, Session, flash};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -133,8 +136,8 @@ fn rom_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/game.gba")
 }
 
-fn recording() -> Recording {
-    record_route().unwrap_or_else(|e| panic!("the route does not play natively: {e}"))
+fn recording() -> &'static Recording {
+    cached_route()
 }
 
 #[test]
@@ -219,6 +222,8 @@ struct Native {
     respawn: Vec<u8>,
     /// `maps[n]`: `World::map` after `n` steps.
     maps: Vec<MapId>,
+    /// `battle[n]`: a battle runs after `n` steps.
+    battle: Vec<bool>,
     /// Steps whose frame is `Frame::bulk`.
     bulk: Vec<u32>,
     /// What the ROM shows at engine frame `c` (display lag: native after `c - 1` steps), for
@@ -235,6 +240,7 @@ fn native_run(keys: impl Fn(u32) -> Buttons, end: u32, pictures: &[u32], cps: &[
         capturable: Vec::new(),
         respawn: Vec::new(),
         maps: Vec::new(),
+        battle: Vec::new(),
         bulk: Vec::new(),
         pictures: BTreeMap::new(),
         checkpoints: BTreeMap::new(),
@@ -244,6 +250,7 @@ fn native_run(keys: impl Fn(u32) -> Buttons, end: u32, pictures: &[u32], cps: &[
         out.capturable.push(s.world().capturable().is_ok());
         out.respawn.push(s.world().respawn());
         out.maps.push(s.world().map());
+        out.battle.push(s.world().in_battle());
         if pictures.contains(&(n + 1)) {
             out.pictures.insert(n + 1, s.framebuffer().to_vec());
         }
@@ -401,7 +408,7 @@ fn rom_resumes_from_native_checkpoints() {
     let rec = recording();
     let keys = |f| rec.keys_at(f);
     let scan = native_run(keys, rec.frames(), &[], &[]);
-    let nodes = resume_nodes(&rec, &scan);
+    let nodes = resume_nodes(rec, &scan);
     let runs: Vec<(u32, u32)> = nodes
         .iter()
         .map(|&(_, f)| (f, (f + RESUME_FRAMES).min(rec.frames())))
@@ -452,7 +459,7 @@ fn rom_save_restores_natively() {
     let rom = rom_path();
     let rec = recording();
     let scan = native_run(|f| rec.keys_at(f), rec.frames(), &[], &[]);
-    let f = resume_nodes(&rec, &scan)[0].1;
+    let f = resume_nodes(rec, &scan)[0].1;
     let lr = Buttons(Buttons::L.0 | Buttons::R.0);
     // The route up to `f`, L+R, then SELECT too (the combo, consumed by step `f + 2`), then
     // nothing.
@@ -501,6 +508,85 @@ fn rom_save_restores_natively() {
         "ROM saved at frame {saved} ({} checkpoint bytes); native restore and a second boot \
          agree",
         engine::checkpoint::encoded_len(&cp)
+    );
+}
+
+/// The combo pressed mid-battle (the route's wild battle: `wild_intro`, or `stub_wild_intro`)
+/// is pending: the ROM keeps playing on time (`late == 0`, which `run_rom_from` enforces) and
+/// saves once, on the first capturable frame after the battle. The press frame is picked so
+/// that frame comes within the pending wait (`save_logic::SAVE_WAIT_FRAMES`): about 300 frames
+/// before the battle ends, or the battle's first frame if it is shorter.
+#[test]
+#[ignore = "needs target/game.gba; run `cargo xtask parity`"]
+fn rom_save_mid_battle_lands_on_the_first_capturable_frame() {
+    const SETTLE: u32 = 30;
+    /// Frames the pending save waits, at most, in this test (well within the shell's limit).
+    const WAIT: u32 = 300;
+    const _: () = assert!(WAIT < save_logic::SAVE_WAIT_FRAMES as u32);
+    let rom = rom_path();
+    let rec = recording();
+    let name = if content::STUB {
+        "stub_wild_intro"
+    } else {
+        "wild_intro"
+    };
+    let start = rec.moments.iter().find(|m| m.name == name).unwrap().frame;
+    let scan = native_run(|f| rec.keys_at(f), rec.frames(), &[], &[]);
+    assert!(
+        scan.battle[start as usize],
+        "{name}: no battle at frame {start}"
+    );
+    let end = (start..=rec.frames())
+        .find(|&n| scan.capturable[n as usize])
+        .expect("nothing capturable after the battle");
+    let f = start.max(end.saturating_sub(WAIT));
+    let lr = Buttons(Buttons::L.0 | Buttons::R.0);
+    // The route's keys, with L+R at `f` and L+R+SELECT at `f + 1` (the combo, consumed by step
+    // `f + 2`) held on top.
+    let keys = |x: u32| {
+        let k = rec.keys_at(x);
+        match x {
+            _ if x == f => Buttons(k.0 | lr.0),
+            _ if x == f + 1 => Buttons(k.0 | lr.0 | Buttons::SELECT.0),
+            _ => k,
+        }
+    };
+    let pressed = f + 2;
+    let probe = native_run(keys, rec.frames(), &[], &[]);
+    assert!(
+        probe.battle[pressed as usize] && !probe.capturable[pressed as usize],
+        "the combo lands outside the battle"
+    );
+    let saved = (pressed..=rec.frames())
+        .find(|&n| probe.capturable[n as usize])
+        .expect("nothing capturable after the combo");
+    assert!(
+        saved - pressed < save_logic::SAVE_WAIT_FRAMES as u32,
+        "the save would time out"
+    );
+    let native = native_run(keys, saved + SETTLE, &[], &[saved]);
+
+    let run = run_rom(&rom, keys, saved + SETTLE, &[])
+        .unwrap_or_else(|e| panic!("ROM run through the battle failed: {e:#}"));
+    compare_run("mid-battle save", &run, &native, keys);
+    check_costs("mid-battle save", &run.end);
+    assert_eq!(run.end.late, 0);
+    assert_eq!(run.end.saves, 1, "flash writes");
+    assert_eq!(run.end.save_status, save::OK, "save status");
+    let (meta, cp) = flash::decode_sav(&run.save).unwrap_or_else(|e| panic!("ROM flash: {e}"));
+    assert_eq!(
+        (meta.frame, cp.header.frame),
+        (saved, saved),
+        "the save lands on the first capturable frame"
+    );
+    assert!(
+        cp == native.checkpoints[&saved],
+        "the ROM saved another checkpoint than native captures at frame {saved}"
+    );
+    println!(
+        "combo at frame {pressed} in battle ({name}, frame {start}); saved at frame {saved}, \
+         {} frames later",
+        saved - pressed
     );
 }
 

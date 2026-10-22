@@ -76,16 +76,6 @@ fn open(sav: &[u8]) -> Result<(SaveSlotManager<Flash, SaveMeta>, Flash), String>
     Ok((slots, flash))
 }
 
-/// The slot metadata `game-gba` writes with `cp`.
-pub fn save_meta(cp: &Checkpoint) -> SaveMeta {
-    SaveMeta {
-        schema: cp.header.schema,
-        build: cp.header.build,
-        frame: cp.header.frame,
-        map: cp.world.field.map,
-    }
-}
-
 /// A `FLASH_SIZE`-byte `.sav` image holding `cp` in slot 0: what the ROM leaves on erased flash
 /// after booting (agb formats it) and saving `cp` once.
 pub fn encode_sav(cp: &Checkpoint) -> Result<Vec<u8>, String> {
@@ -99,7 +89,7 @@ pub fn encode_sav(cp: &Checkpoint) -> Result<Vec<u8>, String> {
 pub fn write_sav(sav: &[u8], cp: &Checkpoint) -> Result<Vec<u8>, String> {
     let (mut slots, flash) = open(sav)?;
     slots
-        .write(0, cp, &save_meta(cp))
+        .write(0, cp, &SaveMeta::of(cp))
         .map_err(|e| format!("flash write: {e:?}"))?;
     drop(slots);
     Ok(flash.0.take())

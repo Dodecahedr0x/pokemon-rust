@@ -230,7 +230,7 @@ impl<G: GameData> Controls<G> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scenario::record_route;
+    use crate::scenario::cached_route;
 
     fn game() -> content::Emerald {
         content::Emerald::for_shells()
@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn rewind_restores_an_entry_at_least_120_frames_back_and_truncates_the_trace() {
-        let rec = record_route().unwrap();
+        let rec = cached_route();
         let mut c = Controls::new(game());
         settle(&mut c);
         let req = c.save().unwrap();

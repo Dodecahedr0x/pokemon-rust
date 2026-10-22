@@ -8,29 +8,32 @@ use engine::checkpoint::{
 };
 use engine::data::{Behavior, Dir, FlagId, MapId, MovementType};
 use engine::{Buttons, World};
-use game_native::store::{Node, Replayed, Status, Store};
+use game_native::store::{LOCAL_IDS, Node, Replayed, Status, Store, Verdict};
 use game_native::trace::{
-    CheckpointId, HashMismatch, Parent, ReplayReport, Run, TRACE_SCHEMA, Trace, TraceRecorder,
-    replay, replay_with_hashes,
+    CheckpointId, HASH_EVERY, HashMismatch, Parent, ReplayReport, Run, TRACE_SCHEMA, Trace,
+    TraceRecorder, replay, replay_with_hashes,
 };
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+
+mod common;
+use common::temp_root;
 
 // ---------------------------------------------------------------------------------------------
 // Traces on real content
 
-/// 300 frames of the route's keys, recorded on a live session with their hashes.
+/// 300 frames of a short walk (a new game fades in, then walks and presses A), recorded on a
+/// live session with their hashes.
 fn recorded_trace() -> (Trace, Vec<u64>) {
-    let rec = game_native::scenario::record_route().expect("route records");
+    const WALK: [Buttons; 4] = [Buttons::LEFT, Buttons::DOWN, Buttons::A, Buttons::RIGHT];
     let game = content::Emerald::for_shells();
     let mut world = World::new(&game);
     let mut r = TraceRecorder::new(world.frame());
     let mut hashes = Vec::new();
     for i in 0..300 {
-        let keys = rec.keys_at(i);
+        let keys = WALK[i / 30 % WALK.len()];
         world.step(&game, keys);
         r.push(keys, world.hash());
         hashes.push(world.hash());
@@ -91,17 +94,6 @@ fn a_tampered_hash_is_reported_at_its_frame_and_replay_goes_on() {
 
 // ---------------------------------------------------------------------------------------------
 // Store fixtures
-
-static DIRS: AtomicU32 = AtomicU32::new(0);
-
-/// A fresh empty directory under the target dir (removed first if a previous run left it).
-fn temp_root(name: &str) -> PathBuf {
-    let n = DIRS.fetch_add(1, Ordering::Relaxed);
-    let dir =
-        std::env::temp_dir().join(format!("pkr-store-test-{}-{name}-{n}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    dir
-}
 
 const BUILD: BuildHash = BuildHash {
     engine: 0x1111,
@@ -230,6 +222,20 @@ fn add(store: &Store, label: &str, parent: Parent, keys: &[(Buttons, u32)]) -> C
     store.add(label, t, &cp).unwrap()
 }
 
+/// The periodic hashes the fake game observes on `build`: on `BUILD`, what [`trace`] records
+/// (the keys of the frame), changed by another build or a salt.
+fn fake_hashes(trace: &Trace, build: BuildHash, salt: u32) -> Vec<(u32, u64)> {
+    let keys: Vec<Buttons> = trace.keys().collect();
+    let n = trace.frames();
+    (1..=n)
+        .filter(|&i| i.is_multiple_of(HASH_EVERY) || i == n)
+        .map(|i| {
+            let h = keys[i as usize - 1].0 as u64 ^ (build.engine ^ BUILD.engine) << 16;
+            (i, h ^ u64::from(salt))
+        })
+        .collect()
+}
+
 /// A fake replayer for `build`, adding 1 to the state of the trace ending at frame `salt_at`.
 fn replayer(
     build: BuildHash,
@@ -254,7 +260,7 @@ fn replayer(
                 end_hash: cp.header.world_hash,
                 first_mismatch: if salt == 1 { hint } else { None },
             },
-            hashes: vec![(trace.frames(), cp.header.world_hash)],
+            hashes: fake_hashes(trace, build, salt),
             checkpoint: cp,
         })
     }
@@ -677,8 +683,10 @@ fn verify_accept_rebaselines_diverged_nodes() {
         assert_eq!(n.trace.hashes, replayed.hashes);
         assert_eq!(store.snapshot(id).unwrap(), Some(cp));
     }
-    // Untouched: the valid nodes' files.
-    assert_eq!(a_file, fs::read(root.join("nodes/c00001.ron")).unwrap());
+    // The valid nodes keep their state and label; their build and hashes are refreshed.
+    assert_ne!(a_file, fs::read(root.join("nodes/c00001.ron")).unwrap());
+    let na = store.find("a").unwrap();
+    assert_eq!((na.meta.build, na.trace.build), (OTHER_BUILD, OTHER_BUILD));
     // Re-verifying on the new build is now valid everywhere.
     let out = store
         .verify(replayer(OTHER_BUILD, Some(30), None), false)
@@ -688,10 +696,173 @@ fn verify_accept_rebaselines_diverged_nodes() {
 }
 
 #[test]
-fn default_root_is_per_flavor() {
+fn valid_nodes_of_another_build_are_flagged_and_accept_refreshes_them() {
+    let (root, store, [a, b, c, d]) = tree("rehash");
+    let files = |root: &Path| -> Vec<Vec<u8>> {
+        [a, b, c, d]
+            .iter()
+            .map(|id| fs::read(root.join(format!("nodes/{id}.ron"))).unwrap())
+            .collect()
+    };
+    let before = files(&root);
+    let rehash = |out: &[Verdict]| -> Vec<(CheckpointId, Status, bool)> {
+        out.iter()
+            .map(|v| (v.id, v.status.clone(), v.rehash))
+            .collect()
+    };
+    // On the recording build nothing is stale.
+    let out = store
+        .verify_nodes(replayer(BUILD, None, None), false)
+        .unwrap();
+    assert!(out.iter().all(|v| v.status == Status::Valid && !v.rehash));
+    // Another build reaches the same states: Valid, flagged, and left as is without --accept.
+    let out = store
+        .verify_nodes(replayer(OTHER_BUILD, None, None), false)
+        .unwrap();
+    assert_eq!(
+        rehash(&out),
+        [a, b, c, d].map(|id| (id, Status::Valid, true))
+    );
+    assert_eq!(files(&root), before);
+    // --accept refreshes build, world hash and trace hashes; the state and label stay.
+    let out = store
+        .verify_nodes(replayer(OTHER_BUILD, None, None), true)
+        .unwrap();
+    assert_eq!(
+        rehash(&out),
+        [a, b, c, d].map(|id| (id, Status::Valid, true))
+    );
+    for (old, id) in before.iter().zip([a, b, c, d]) {
+        let old: Node = ron::from_str(std::str::from_utf8(old).unwrap()).unwrap();
+        let n = store.find(&id.to_string()).unwrap();
+        assert_eq!((n.meta.build, n.trace.build), (OTHER_BUILD, OTHER_BUILD));
+        assert_eq!(n.trace.hashes, fake_hashes(&n.trace, OTHER_BUILD, 0));
+        let cp = store.snapshot(id).unwrap().unwrap();
+        assert_eq!(n.meta.world_hash, cp.header.world_hash);
+        assert_ne!(n.meta.world_hash, old.meta.world_hash);
+        assert_eq!(
+            (&n.meta.label, n.meta.digest, &n.trace.inputs),
+            (&old.meta.label, old.meta.digest, &old.trace.inputs)
+        );
+    }
+    let out = store
+        .verify_nodes(replayer(OTHER_BUILD, None, None), false)
+        .unwrap();
+    assert!(out.iter().all(|v| v.status == Status::Valid && !v.rehash));
+    // Refreshed, the nodes are this build's: another state is nondeterminism, not divergence.
+    let nondet = Status::Broken("nondeterministic: same build, different state".into());
+    let out = store
+        .verify(replayer(OTHER_BUILD, Some(30), None), false)
+        .unwrap();
+    assert_eq!(out[1], (b, nondet));
+    // So are other hashes reaching the same state on the node's own build.
+    let mut n = store.find("a").unwrap();
+    n.trace.hashes[0].1 ^= 1;
+    fs::write(root.join("nodes/c00001.ron"), ron::to_string(&n).unwrap()).unwrap();
+    let out = store
+        .verify(replayer(OTHER_BUILD, None, None), true)
+        .unwrap();
+    let parent = Status::Broken("parent broken".into());
+    assert_eq!(
+        out,
+        [
+            (
+                a,
+                Status::Broken("nondeterministic: same build, different hashes".into())
+            ),
+            (b, parent.clone()),
+            (c, parent.clone()),
+            (d, parent),
+        ]
+    );
+    assert_eq!(
+        store.find("a").unwrap(),
+        n,
+        "a Broken node is never refreshed"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_layered_store_reads_the_base_and_writes_only_locally() {
+    let (base_root, base, [a, b, c, d]) = tree("base");
+    let base_files = |root: &Path| -> Vec<(String, Vec<u8>)> {
+        let mut v: Vec<_> = ["nodes", "snapshots"]
+            .iter()
+            .flat_map(|d| fs::read_dir(root.join(d)).unwrap())
+            .map(|e| {
+                let e = e.unwrap();
+                (
+                    e.file_name().into_string().unwrap(),
+                    fs::read(e.path()).unwrap(),
+                )
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    let before = base_files(&base_root);
+    let local_root = temp_root("local");
+    let store = Store::layered(&base_root, &local_root).unwrap();
+    // The base's nodes are listed and found.
+    assert_eq!(store.nodes().unwrap(), base.nodes().unwrap());
+    assert_eq!(store.find("b").unwrap().meta.id, b);
+    // A local save from a base node gets a local id, in the local root only.
+    let mine = add(&store, "mine", Parent::Checkpoint(c), &[(Buttons::UP, 3)]);
+    assert_eq!(mine, CheckpointId(LOCAL_IDS + 1));
+    let next = add(&store, "next", Parent::Checkpoint(mine), &[(Buttons::A, 1)]);
+    assert_eq!(next, CheckpointId(LOCAL_IDS + 2));
+    assert!(local_root.join(format!("nodes/{mine}.ron")).is_file());
+    let order: Vec<_> = store
+        .topo_order()
+        .unwrap()
+        .iter()
+        .map(|n| n.meta.id)
+        .collect();
+    assert_eq!(order, [a, b, c, d, mine, next]);
+    // The base alone never sees the local nodes.
+    assert_eq!(base.nodes().unwrap().len(), 4);
+    // Base nodes are read-only; local ones are not.
+    let denied = io::ErrorKind::PermissionDenied;
+    assert_eq!(store.relabel(a, "aa").unwrap_err().kind(), denied);
+    assert_eq!(store.remove(d).unwrap_err().kind(), denied);
+    assert!(store.remove(c).is_err(), "c has a local child");
+    store.relabel(mine, "mine2").unwrap();
+    store.remove(next).unwrap();
+    // A verify that would rewrite a base node fails; a plain one is fine.
+    store.verify(replayer(BUILD, None, None), false).unwrap();
+    assert!(
+        store
+            .verify(replayer(OTHER_BUILD, None, None), true)
+            .is_err()
+    );
+    assert_eq!(base_files(&base_root), before, "the base is never written");
+    // A local id equal to a base one is an error.
+    fs::copy(
+        base_root.join("nodes/c00001.ron"),
+        local_root.join("nodes/c00001.ron"),
+    )
+    .unwrap();
+    assert!(store.nodes().is_err());
+    fs::remove_dir_all(base_root).unwrap();
+    fs::remove_dir_all(local_root).unwrap();
+}
+
+#[test]
+fn local_root_is_below_the_committed_tree_unless_overridden() {
     if std::env::var_os("PKR_CHECKPOINTS").is_some() {
         return;
     }
+    for stub in [true, false] {
+        assert_eq!(
+            Store::local_root(stub),
+            Store::default_root(stub).join("local")
+        );
+    }
+}
+
+#[test]
+fn default_root_is_per_flavor() {
     for (stub, dir) in [(true, "stub"), (false, "emerald")] {
         let r = Store::default_root(stub);
         assert!(r.ends_with(Path::new("checkpoints").join(dir)), "{r:?}");

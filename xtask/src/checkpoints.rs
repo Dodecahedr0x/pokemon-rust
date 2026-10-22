@@ -1,13 +1,14 @@
 //! `cargo xtask checkpoints <list|verify|seed|label|rm|sav>` (Milestone 5 Task G).
 //!
-//! The store is `checkpoints/{stub|emerald}` after the content flavor (`content::STUB`), or
-//! `$PKR_CHECKPOINTS`; `--root <dir>` overrides both.
+//! The store is the committed tree, `checkpoints/{stub|emerald}` after the content flavor
+//! (`content::STUB`); `--root <dir>` overrides it. `play`'s personal saves (`local/`,
+//! `$PKR_CHECKPOINTS`) are not part of it.
 
 use anyhow::{Context, Result, anyhow, bail};
 use game_native::checkpoints::{materialize, replayer, seed};
-use game_native::store::{Status, Store};
-use game_native::trace::{CheckpointId, Parent};
-use std::collections::BTreeMap;
+use game_native::store::{Node, Status, Store};
+use game_native::trace::CheckpointId;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 const USAGE: &str = "usage: cargo xtask checkpoints [--root <dir>] \
@@ -17,14 +18,14 @@ const USAGE: &str = "usage: cargo xtask checkpoints [--root <dir>] \
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct VerifySummary {
     pub nodes: Vec<(CheckpointId, Status)>,
+    /// The Valid nodes whose build and hashes `--accept` refreshes (or refreshed).
+    pub rehash: BTreeSet<CheckpointId>,
 }
 
 impl VerifySummary {
-    /// No node is `Diverged` or `Broken` (`Stale` nodes are only regenerated).
+    /// Every node is Valid ([`Status::healthy`], as the committed-tree test requires).
     pub fn ok(&self) -> bool {
-        self.nodes
-            .iter()
-            .all(|(_, s)| !matches!(s, Status::Diverged { .. } | Status::Broken(_)))
+        Status::healthy(self.nodes.iter().map(|(_, s)| s))
     }
 }
 
@@ -39,7 +40,10 @@ pub fn main(args: &[String]) -> Result<()> {
         Some(_) => bail!(USAGE),
         None => Store::default_root(content::STUB),
     };
-    crate::fresh_extract()?;
+    // Replaying needs the real content: a stale extract would replay the stub world.
+    if matches!(args.first(), Some(&("verify" | "seed" | "sav"))) {
+        crate::fresh_extract()?;
+    }
     match args[..] {
         ["list"] => list(&root),
         ["verify"] => verify(&root, false).map(drop),
@@ -65,9 +69,10 @@ pub fn main(args: &[String]) -> Result<()> {
     }
 }
 
-fn status_text(s: Option<&Status>) -> String {
+fn status_text(s: Option<&Status>, rehash: bool) -> String {
     match s {
         None => "unverified".into(),
+        Some(Status::Valid) if rehash => "valid (rehash)".into(),
         Some(Status::Valid) => "valid".into(),
         Some(Status::Stale { schema }) => format!("stale (schema {schema})"),
         Some(Status::Diverged {
@@ -87,25 +92,16 @@ fn status_text(s: Option<&Status>) -> String {
     }
 }
 
-fn print_table(store: &Store, status: &BTreeMap<CheckpointId, Status>) -> Result<()> {
-    println!(
-        "{:<7} {:>6} {:>7}  {:<8} {:<28} status",
-        "id", "frame", "map", "parent", "label"
-    );
+fn print_table(
+    store: &Store,
+    status: &BTreeMap<CheckpointId, Status>,
+    rehash: &BTreeSet<CheckpointId>,
+) -> Result<()> {
+    println!("{} status", Node::row_header());
     for n in store.topo_order()? {
-        let parent = match n.trace.parent {
-            Parent::NewGame => "new game".to_string(),
-            Parent::Checkpoint(p) => p.to_string(),
-        };
-        println!(
-            "{:<7} {:>6} {:#07x}  {:<8} {:<28} {}",
-            n.meta.id.to_string(),
-            n.meta.frame,
-            n.meta.map.0,
-            parent,
-            n.meta.label,
-            status_text(status.get(&n.meta.id))
-        );
+        let id = n.meta.id;
+        let status = status_text(status.get(&id), rehash.contains(&id));
+        println!("{} {status}", n.row());
     }
     Ok(())
 }
@@ -120,12 +116,12 @@ fn list(root: &Path) -> Result<()> {
         Err(e) => return Err(e.into()),
     };
     println!("{}", root.display());
-    print_table(&store, &status)
+    print_table(&store, &status, &BTreeSet::new())
 }
 
 /// Replays every node of the store at `root` on the current build (`accept` re-baselines
-/// Diverged and Stale nodes) and prints the table. A Broken node is always an error; without
-/// `accept`, so is a Diverged one.
+/// Diverged and Stale nodes, and refreshes Valid ones flagged "rehash") and prints the table.
+/// A Broken node is always an error; without `accept`, so is any node that is not Valid.
 pub fn verify(root: &Path, accept: bool) -> Result<VerifySummary> {
     let summary = replay_all(root, accept)?;
     let broken = (summary.nodes.iter())
@@ -139,7 +135,7 @@ pub fn verify(root: &Path, accept: bool) -> Result<VerifySummary> {
     }
     if !accept && !summary.ok() {
         bail!(
-            "checkpoint tree {} has diverged or broken nodes: replay the change with \
+            "checkpoint tree {} has stale, diverged or broken nodes: replay the change with \
              `cargo xtask checkpoints verify --accept` if it is intended",
             root.display()
         );
@@ -151,15 +147,26 @@ pub fn verify(root: &Path, accept: bool) -> Result<VerifySummary> {
 fn replay_all(root: &Path, accept: bool) -> Result<VerifySummary> {
     let store = Store::open(root)?;
     let game = content::Emerald::for_shells();
-    let nodes = store.verify(replayer(&game), accept)?;
-    let summary = VerifySummary { nodes };
+    let verdicts = store.verify_nodes(replayer(&game), accept)?;
+    let summary = VerifySummary {
+        rehash: verdicts.iter().filter(|v| v.rehash).map(|v| v.id).collect(),
+        nodes: verdicts.into_iter().map(|v| (v.id, v.status)).collect(),
+    };
     println!(
         "{}: {} nodes{}",
         root.display(),
         summary.nodes.len(),
         if accept { " (--accept)" } else { "" }
     );
-    print_table(&store, &summary.nodes.iter().cloned().collect())?;
+    let status = summary.nodes.iter().cloned().collect();
+    print_table(&store, &status, &summary.rehash)?;
+    if !accept && !summary.rehash.is_empty() {
+        println!(
+            "{} valid nodes were recorded on another build: `verify --accept` refreshes their \
+             build and hashes",
+            summary.rehash.len()
+        );
+    }
     Ok(summary)
 }
 
@@ -169,7 +176,7 @@ fn seed_route(root: &Path) -> Result<()> {
     let rec = game_native::scenario::record_route().map_err(anyhow::Error::msg)?;
     let ids = seed(&store, &content::Emerald::for_shells(), &rec).map_err(anyhow::Error::msg)?;
     println!("seeded {} route nodes in {}", ids.len(), root.display());
-    print_table(&store, &BTreeMap::new())
+    print_table(&store, &BTreeMap::new(), &BTreeSet::new())
 }
 
 /// Writes node `id`'s flash image (mGBA autoloads `target/game.sav` next to `target/game.gba`).
@@ -194,26 +201,22 @@ fn sav(root: &Path, id: &str, out: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use engine::Buttons;
-    use game_native::store::Node;
     use game_native::trace::Run;
-    use std::sync::atomic::{AtomicU32, Ordering};
 
+    /// A fresh empty directory of its own; a passing test removes it.
     fn temp_root(tag: &str) -> PathBuf {
-        static N: AtomicU32 = AtomicU32::new(0);
-        let dir = std::env::temp_dir().join(format!(
-            "pkr-xtask-cp-{}-{tag}-{}",
-            std::process::id(),
-            N.fetch_add(1, Ordering::Relaxed)
-        ));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
+        tempfile::Builder::new()
+            .prefix(&format!("pkr-xtask-{tag}-"))
+            .tempdir()
+            .unwrap()
+            .keep()
     }
 
     /// A store holding the route's first node (from a new game).
     fn one_node_store(tag: &str) -> (PathBuf, Store) {
         let root = temp_root(tag);
         let store = Store::open(&root).unwrap();
-        let mut rec = game_native::scenario::record_route().unwrap();
+        let mut rec = game_native::scenario::cached_route().clone();
         rec.nodes.truncate(1);
         seed(&store, &content::Emerald::for_shells(), &rec).unwrap();
         (root, store)
@@ -307,6 +310,29 @@ mod tests {
         );
         let s = verify(&root, false).unwrap();
         assert_eq!(s.nodes, [(CheckpointId(1), Status::Valid)]);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_valid_node_of_another_build_shows_rehash_and_accept_refreshes_it() {
+        let (root, _store) = one_node_store("rehash");
+        let fresh = read(&root);
+        let mut old = fresh.clone();
+        old.meta.build.engine ^= 1; // recorded on another build, with other hashes
+        old.trace.build = old.meta.build;
+        old.meta.world_hash ^= 1;
+        old.trace.hashes[0].1 ^= 1;
+        write(&root, &old);
+        let s = verify(&root, false).unwrap();
+        assert_eq!(s.nodes, [(CheckpointId(1), Status::Valid)]);
+        assert_eq!(s.rehash, BTreeSet::from([CheckpointId(1)]));
+        assert!(s.ok());
+        assert_eq!(status_text(Some(&Status::Valid), true), "valid (rehash)");
+        assert_eq!(read(&root), old, "left as is without --accept");
+        verify(&root, true).unwrap();
+        assert_eq!(read(&root), fresh, "refreshed to this build");
+        let s = verify(&root, false).unwrap();
+        assert!(s.rehash.is_empty() && s.ok(), "{s:?}");
         let _ = std::fs::remove_dir_all(root);
     }
 

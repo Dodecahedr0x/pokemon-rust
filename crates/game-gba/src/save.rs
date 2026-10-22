@@ -59,13 +59,7 @@ pub fn write(slots: &mut Slots, cp: &Checkpoint) -> u32 {
     if encoded_len(cp) > MAX_ENCODED {
         return save::TOO_LARGE;
     }
-    let meta = SaveMeta {
-        schema: cp.header.schema,
-        build: cp.header.build,
-        frame: cp.header.frame,
-        map: cp.world.field.map,
-    };
-    match slots.write(0, cp, &meta) {
+    match slots.write(0, cp, &SaveMeta::of(cp)) {
         Ok(()) => save::OK,
         Err(_) => save::STORAGE,
     }
