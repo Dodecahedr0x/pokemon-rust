@@ -39,8 +39,7 @@ impl Rng {
     /// The generator in state `state` (what [`Rng::state`] returned); `None` for 0, which
     /// xorshift32 never reaches.
     pub const fn from_state(state: u32) -> Option<Rng> {
-        let _ = state;
-        todo!() // Milestone 5 Task B (const: no message)
+        if state == 0 { None } else { Some(Self(state)) }
     }
 }
 
@@ -68,6 +67,15 @@ mod tests {
     fn zero_seed_is_replaced() {
         let mut r = Rng::new(0);
         assert_ne!(r.next_u32(), 0);
+    }
+
+    #[test]
+    fn from_state_resumes_the_stream_and_rejects_zero() {
+        let mut a = Rng::new(9);
+        a.next_u32();
+        let mut b = Rng::from_state(a.state()).unwrap();
+        assert_eq!(a.next_u32(), b.next_u32());
+        assert_eq!(Rng::from_state(0), None);
     }
 
     #[test]

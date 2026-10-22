@@ -231,15 +231,31 @@ impl Transition {
 
 // Milestone 5 Task B.
 impl Transition {
-    /// The leftover fields of an idle transition (they stay hashed).
+    /// The leftover fields of an idle transition (they stay hashed). The stage is not kept:
+    /// only idle transitions are captured.
     pub fn snapshot(&self) -> crate::checkpoint::TransitionSnap {
-        todo!("Milestone 5 Task B")
+        debug_assert!(!self.is_active(), "only an idle transition is captured");
+        crate::checkpoint::TransitionSnap {
+            map: self.map,
+            x: self.x,
+            y: self.y,
+            facing: self.facing,
+            exit_walk: self.exit_walk,
+            player_hidden: self.player_hidden,
+        }
     }
 
     /// An idle transition with these leftover fields.
     pub fn from_snapshot(s: &crate::checkpoint::TransitionSnap) -> Transition {
-        let _ = s;
-        todo!("Milestone 5 Task B")
+        Transition {
+            stage: Stage::Idle,
+            map: s.map,
+            x: s.x,
+            y: s.y,
+            facing: s.facing,
+            exit_walk: s.exit_walk,
+            player_hidden: s.player_hidden,
+        }
     }
 }
 
@@ -249,6 +265,18 @@ mod tests {
     use super::*;
     use crate::flow::{FADE_MAX, behavior_at};
     use alloc::vec::Vec;
+
+    #[test]
+    fn idle_snapshot_round_trips_with_the_leftover_fields() {
+        let mut t = Transition::new();
+        let mut fader = Fader::new();
+        t.start(&Game, MapId(1), None, 3, 4);
+        run(&mut t, &mut fader, 4);
+        assert!(!t.is_active());
+        assert_eq!((t.map, t.x, t.y), (MapId(1), 3, 4));
+        let r = Transition::from_snapshot(&t.snapshot());
+        assert_eq!(r, t);
+    }
 
     /// Runs to `Done`, simulating a player whose walks take `walk` frames. Returns every step and
     /// the fader level after it.
