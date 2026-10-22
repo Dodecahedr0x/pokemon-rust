@@ -5,6 +5,7 @@
 use super::{Event, State, WALK, World, camera_for, run_immediate};
 use crate::data::{Dir, GameData, MapData, MapId, PLAYER, SpecialIds};
 use crate::flow::{TransitionStep, on_warp_into};
+use crate::grid::MAP_DYNAMIC;
 use crate::objects::Terrain;
 use crate::script::Runner;
 use crate::video::Frame;
@@ -22,15 +23,18 @@ pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u
 }
 
 impl World {
-    /// Starts a warp through `map.warps[i]`. A destination map the game lacks is Gen3's
-    /// `MAP_DYNAMIC` (the only warp target that is not a map): the warp goes to the dynamic
-    /// slot (`SetWarpDestinationToDynamicWarp`), and is logged and ignored while that is unset
-    /// or itself missing.
+    /// Starts a warp through `map.warps[i]`. A warp to [`MAP_DYNAMIC`] goes to the dynamic slot
+    /// (`SetWarpDestinationToDynamicWarp`), and is logged and ignored while that is unset or
+    /// names a map the game lacks; a warp to any other map the game lacks is logged and
+    /// ignored. Deferred (Milestone 8 Task F): Gen3 `SetupWarp`'s implicit `SetDynamicWarp`
+    /// (taking a warp whose destination warp is itself dynamic stores the warp taken) and
+    /// `UpdateEscapeWarp` (needs the map type).
     pub(super) fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
         let w = &map.warps[i];
+        let dynamic = w.dest_map == MAP_DYNAMIC;
         let (dest, warp, x, y) = match self.s.warp_slots.dynamic {
-            _ if game.has_map(w.dest_map) => (w.dest_map, Some(w.dest_warp), -1, -1),
-            Some(d) if game.has_map(d.map) => (d.map, d.warp, d.x, d.y),
+            Some(d) if dynamic && game.has_map(d.map) => (d.map, d.warp, d.x, d.y),
+            _ if !dynamic && game.has_map(w.dest_map) => (w.dest_map, Some(w.dest_warp), -1, -1),
             _ => {
                 self.s.log("warp to a missing map ignored");
                 return;

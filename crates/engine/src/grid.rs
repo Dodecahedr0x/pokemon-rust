@@ -2,6 +2,10 @@
 
 use crate::data::{BLOCK_COLLISION_SHIFT, Connection, Dir, GameData, MapData, MapId};
 
+/// Gen3 `MAP_DYNAMIC` (group and number 0x7F): the warp target that is not a map but the
+/// destination `setdynamicwarp` stored (the content schema exports it as this id).
+pub const MAP_DYNAMIC: MapId = MapId(0x7F7F);
+
 /// Where a cell outside `map` lands in a connected neighbor.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Neighbor {

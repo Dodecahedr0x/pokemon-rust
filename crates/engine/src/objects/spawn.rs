@@ -2,6 +2,12 @@
 //! keep of the objects, which templates spawn (Gen3 `TrySpawnObjectEvents`: those in the view
 //! window, while object slots are free), `addobject`, and the view window
 //! ([`Objects::view_moved`], [`Objects::despawn_outside_view`]).
+//!
+//! Deviation from Gen3 (RNG order): the objects are a compacted `Vec` (a despawn removes its
+//! entry, a spawn appends), where Gen3 reuses the first free `gObjectEvents` slot. Objects
+//! update (and wanderers draw from the RNG) in list order, so after a despawn and a spawn the
+//! order can differ from Gen3's slot order, and so can which wanderer gets which random
+//! number.
 
 use super::{Object, Objects};
 use crate::data::{FlagId, MapData, MapId, ObjectEvent, PLAYER, VarId};
@@ -58,10 +64,10 @@ impl Objects {
         self.remove_outside_view();
     }
 
-    /// The view moved: called by `World::control` once per completed player step (before its
-    /// step-end triggers) and once per connection crossing (after the new map's objects
-    /// spawned). Spawns and despawns by the view window, as [`Objects::spawn_templates`] (Gen3
-    /// `UpdateObjectEventsForCameraUpdate`).
+    /// The view moved: called by the World on each frame the player enters a cell (a step
+    /// starts, by input or a script's movement; a crossing; a warp), after the frame's object
+    /// updates. Spawns and despawns by the view window, as [`Objects::spawn_templates`] (Gen3
+    /// `UpdateObjectEventsForCameraUpdate`, from `CameraMove` at step start).
     pub(crate) fn view_moved(&mut self, templates: &[ObjectEvent], vars: &Vars) {
         self.spawn_templates(templates, vars);
     }

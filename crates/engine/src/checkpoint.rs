@@ -319,8 +319,10 @@ pub enum NotCapturable {
     Fade,
     /// The local id of an object with a live movement script.
     Moving(u8),
-    /// The view still shows cells drawn from the map before a connection crossing, which a
-    /// restore would redraw from the current map (`Field::view_stale`).
+    /// A field upload spread over frames is in progress (`Field::uploading`: a crossing into
+    /// other tilesets, or a spread load): the view is not all drawn with the current map's
+    /// tilesets yet, which a restore would upload whole. (The name predates Milestone 8 Task
+    /// F, when a crossing left stale cells in view; it no longer does.)
     StaleView,
 }
 
