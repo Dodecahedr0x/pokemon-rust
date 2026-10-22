@@ -567,7 +567,8 @@ fn std_find_item_removes_the_last_talked_object() {
     );
     assert!(h.log.contains(&Request::RemoveObject(4)));
     assert!(!h.log.iter().any(|r| matches!(r, Request::HideObject(_))));
-    assert_eq!(h.vars[&consts::VAR_RESULT.0], 1);
+    // Gen3 `Std_FindItem` leaves `PYRAMID_LOCATION_NONE` (0) after a pick-up.
+    assert_eq!(h.vars[&consts::VAR_RESULT.0], 0);
 }
 
 #[cfg(not(pkr_stub))]

@@ -77,23 +77,17 @@ fn content_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// The committed support tables (`build/support/{commands,specials,movements}.ron`), and
-/// whether the prelude has Task H's item helpers ([`Support::item_helpers`]).
+/// The committed support tables (`build/support/{commands,specials,movements}.ron`).
 pub fn support(build_dir: &Path) -> Result<Support> {
     let read = |name: &str| -> Result<String> {
         let path = build_dir.join("support").join(name);
         std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))
     };
-    let mut s = Support::parse(
+    Support::parse(
         &read("commands.ron")?,
         Some(&read("specials.ron")?),
         Some(&read("movements.ron")?),
-    )?;
-    let items = build_dir.join("../src/prelude/items.rs");
-    s.item_helpers = std::fs::read_to_string(&items)
-        .with_context(|| format!("reading {}", items.display()))?
-        .contains("pub async fn add_item(");
-    Ok(s)
+    )
 }
 
 /// The override sources: `src/overrides/<Name>.rs` (every `.rs` but `mod.rs`), by name.

@@ -86,7 +86,7 @@
     "removeitem": Native,
     "checkitemspace": Native,
     "checkitem": Native,
-    "checkitemtype": Native,                        // VAR_RESULT = the item's POCKET_* (Task H; 0 before it)
+    "checkitemtype": Native,                        // VAR_RESULT = the item's POCKET_* (Task H)
     "addpcitem": Default(0),                        // VAR_RESULT: the PC has no room (no PC storage until M9)
     "checkpcitem": Default(0),                      // VAR_RESULT: not in the PC
     "adddecoration": Default(0),                    // VAR_RESULT: not added (no decorations)

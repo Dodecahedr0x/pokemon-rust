@@ -130,15 +130,6 @@ pub struct Support {
     /// `MOVEMENT_ACTION_*` with no `Step` -> what to emit instead (Task D1 addition).
     #[serde(default)]
     pub movements: BTreeMap<String, MoveFallback>,
-    /// Whether the prelude has Task H's item helpers (`add_item`, `remove_item`,
-    /// `check_item_space`, `check_item_type`, and `give_item`/`find_item`/`check_item` that write
-    /// `VAR_RESULT` themselves). With them the item commands and item std scripts lower to bare
-    /// helper calls; without them (the Wave 0 prelude) to `ctx.set_var(VAR_RESULT, …)` around
-    /// the Wave 0 helpers and requests. Not a table: the content build sets it from the prelude
-    /// source (Task D2 addition). `multichoice` and `checkmoney` follow it too. Task H deletes
-    /// the flag and the Wave 0 branches once its prelude is the only one.
-    #[serde(skip)]
-    pub item_helpers: bool,
 }
 
 impl Support {
@@ -158,7 +149,6 @@ impl Support {
                 Some(s) => ron::from_str(s).context("movements.ron")?,
                 None => BTreeMap::new(),
             },
-            item_helpers: false,
         })
     }
 }

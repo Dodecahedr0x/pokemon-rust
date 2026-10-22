@@ -108,7 +108,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Message(t) if !self.immediate => {
-                s.text.print(game, game.text(t), &s.player_name, self.f);
+                let vars = Some(&s.str_vars);
+                (s.text).print_vars(game, game.text(t), &s.player_name, vars, self.f);
                 UNIT
             }
             Request::CloseMessage => {

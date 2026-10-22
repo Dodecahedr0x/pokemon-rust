@@ -1135,7 +1135,7 @@ mod lowering {
         for needle in [
             "msgbox(&ctx, N_Text_Hello, MsgBox::Sign).await;",
             "    msgbox(&ctx, N_Text_Hello, MsgBox::YesNo).await;",
-            "ctx.set_var(VAR_RESULT, give_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await as u16).await;",
+            "    give_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await;",
             // `Std_FindItem` leaves VAR_RESULT to its helper (Task D2).
             "    find_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await;",
             "callstd(&ctx, STD_REGISTER_MATCH_CALL).await;",
@@ -1148,9 +1148,9 @@ mod lowering {
             "ctx.warp(MAP_LITTLEROOT_TOWN, None, 5, ctx.var(VAR_0x8004).await as i16).await; // warpsilent",
             "set_warp(&ctx, WarpSlot::Dynamic, MAP_LITTLEROOT_TOWN.0, None, 3, 4).await;",
             "set_warp(&ctx, WarpSlot::Escape, MAP_DYNAMIC.0, Some(1), 3, 4).await;",
-            "ctx.set_var(VAR_RESULT, ctx.item_add(ItemId(ITEM_POTION), 1).await as u16).await;",
-            "ctx.set_var(VAR_RESULT, check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await as u16).await;",
-            "ctx.set_var(VAR_RESULT, 0).await; // checkitemtype ITEM_POTION: no pockets before Task H",
+            "    add_item(&ctx, ITEM_POTION, 1).await;",
+            "    check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await;",
+            "check_item_type(&ctx, ITEM_POTION).await;",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
             "ctx.move_obj(2, &N_Movement_Walk).await; // applymovementat",
             "ctx.remove_object(ctx.var(VAR_LAST_TALKED).await as u8).await;",
@@ -1171,7 +1171,7 @@ mod lowering {
             "buffer(&ctx, 0, BufferSrc::Std(0)).await;",
             "buffer(&ctx, 0, BufferSrc::Text(N_Text_Hello)).await;",
             "money_add(&ctx, 300).await;",
-            "ctx.set_var(VAR_RESULT, money_check(&ctx, 300).await as u16).await;",
+            "    money_check(&ctx, 300).await;",
             "ctx.report(Report::Degraded(\"fadescreenswapbuffers\")).await;",
             "ctx.set_respawn(HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F).await;",
             "ctx.set_metatile(3, 4, 513, true).await;",
@@ -1184,15 +1184,12 @@ mod lowering {
         }
     }
 
-    /// With Task H's item helpers (`Support::item_helpers`, which the content build reads from
-    /// the prelude), the item commands, `STD_OBTAIN_ITEM`, `multichoice` and `checkmoney` call
-    /// helpers that write VAR_RESULT themselves: no `set_var` around them.
+    /// The item commands, `STD_OBTAIN_ITEM`, `multichoice` and `checkmoney` call Task H's
+    /// helpers, which write VAR_RESULT themselves: no `set_var` around them.
     #[test]
     fn lower_item_commands_to_the_item_helpers() {
         let files = every_native();
-        let mut sup = support();
-        sup.item_helpers = true;
-        let out = codegen::lower(&files, &index(&files), &sup, &BTreeMap::new()).unwrap();
+        let out = codegen::lower(&files, &index(&files), &support(), &BTreeMap::new()).unwrap();
         let src = &out.modules["LittlerootTown"];
         for needle in [
             "    give_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await;",
@@ -1480,6 +1477,10 @@ pub use items::*;
 pub use menu::*;
 pub use text::*;
 pub use trainer::*;
+
+// `content::prelude`'s lookups in the build's tables (Task H), which `items` uses.
+pub fn text_named(_: &str) -> Option<engine::data::TextId> { None }
+pub fn item_pocket(_: u16) -> Option<engine::data::Pocket> { None }
 
 
 "#;

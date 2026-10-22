@@ -255,6 +255,12 @@ Wave 0 makes no feature work. It does five things:
   pub async fn give_item(ctx: &Ctx, item: u16, qty: u16) -> bool;   // Std_ObtainItem
   pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool;   // Std_FindItem
   pub async fn check_item(ctx: &Ctx, item: u16, qty: u16) -> bool;
+  // added by Task H (D2 lowers the item commands to these; each sets VAR_RESULT as Gen3 does
+  // and applies Gen3's `(u8)` quantity cast):
+  pub async fn add_item(ctx: &Ctx, item: u16, qty: u16) -> bool;         // additem
+  pub async fn remove_item(ctx: &Ctx, item: u16, qty: u16) -> bool;      // removeitem
+  pub async fn check_item_space(ctx: &Ctx, item: u16, qty: u16) -> bool; // checkitemspace
+  pub async fn check_item_type(ctx: &Ctx, item: u16) -> u16;             // checkitemtype (POCKET_*)
   pub async fn money_add(ctx: &Ctx, n: u32); pub async fn money_remove(ctx: &Ctx, n: u32);
   pub async fn money_check(ctx: &Ctx, n: u32) -> bool;
   // text.rs (H)
@@ -1241,3 +1247,16 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
 - **Contract additions:** `scripts::{op_name, opcode, is_terminator_op}`; `export::scripts::{build_ir, Ir, ir_summary, decomp_dir}`; `labels::{transfer, Transfer, Kind, MapInput, …}` (`NameOrigin` re-exported from `schema`; `Transfer.root_kinds`); `ScriptIndex.movements` (movement name to module, `#[serde(default)]`).
 - **Without the decomp:** a missing or unreadable `PKR_DECOMP` warns and exports positional names; the manifest provenance key `scripts/decomp_names` is 1 when decomp names were used, else 0. A label inside a decoded command warns and is skipped. `serde_json` is a regular dependency of `extract` (decomp `map.json`).
 - **Outside B's files:** `extract/tests/export.rs` (Task A's) lists the IR files in its expected tree; `schema.rs` bumps `FORMAT_MINOR`, documents `text/ir_<lang>.ron` and adds `ScriptIndex.movements`; `export.rs` passes the provenance map to `export_scripts`. The decomp is loaded once per process (cache keyed by dir); `tests/export.rs` takes about 53 s in debug (46 s without `PKR_DECOMP`), the rest is `Decomp::load` and the transfer in an unoptimised build.
+
+## Task H as built
+- **Commits:** `dbace9a`, `e808cad`, `38292c1` (bag, money, buffers, expansion, multichoice, prelude); after review: `1cc85e6`, `417bd54`, `fbffcaf`.
+- **Contract additions:** engine `Bag::has`, `bag::slot_capacity`, `TextBox::{print_vars, start_multichoice, multichoice, multichoice_result, take_multichoice_result, is_multichoice_active}`, `text::{expand_vars, EXPANDED_MAX}`, `menu::{Multichoice, GLYPHS_PER_FRAME}`; prelude `add_item`, `remove_item`, `check_item_space`, `check_item_type` (listed under the content contracts), `text_named`, `item_pocket` (in `prelude/mod.rs`, so `items.rs` names nothing at the crate root and the lowering's compile check builds it against two stubs), `pocket_number`, `pocket_std_string`, `STDSTRING_*` (no generated consts exist for them). `commands.ron`: `checkitemtype` is `Native` (lowered to `check_item_type`).
+- **Multichoice window:** at Gen3's `CreateWindowFromRect(left, top, ..)` offset, `(left + 1, top + 1)` after `ScriptMenu_AdjustLeftCoordFromWidth` (`multichoicedefault 20, 8, MULTI_YESNO` opens at 21, 9, as `YES_NO_WINDOW`); the list is cut so the bottom frame row stays on screen (`top` capped at 16). The frame is the dialogue frame the yes/no box uses, not Gen3's standard window frame.
+- **Per-frame cost (GBA, scratch build not committed: per-frame lines in the debug slots, `bufferleadmonspeciesname` and a five-choice multichoice at the lab's `OnFrame0`):**
+  - one whole 20-glyph choice a frame (first version): opening frame 195 lines (191 step), then 151–153 a choice; route max 214, `loop_lines_max` 214;
+  - whole 34-glyph and 60-glyph choices (a full 28-tile row holds about 50 glyphs): late frames. So `draw_next` now draws at most `GLYPHS_PER_FRAME` = 12 glyphs a frame (6 on the opening frame, which also lays out and measures every choice): opening 187 lines, then 97–134 a frame; no late frame; route max 214;
+  - `{STR_VAR_n}` expansion runs once when a message starts (at most 1,000 bytes); the parity route's `before_may` step went from 210 to 211 lines, route loop unchanged at 215.
+- **Route delta (when D2 lowers `buffer*`):** the lab's `OnFrame0` (`bufferleadmonspeciesname`) makes `OnFrame0_T0`/`_T1` print the starter's name (about 4 frames a glyph), shifting emerald c00001 (frame 4856) through c00004 and the route tree; refresh them deliberately at integration. Stub tree and `GOLDEN_*` unchanged. On master's legacy lowering H is route-neutral (parity identical, checkpoints "valid (rehash)").
+- **Visible differences:** `waitfanfare` becomes `waitmessage` (Gen3 holds the message for the fanfare: 160 frames, 220 for a TM/HM); plural item names print singular (reported for Poké Balls and berries); `BufferTMHMMoveName` reported; the std scripts' scratch vars (`VAR_0x8004`/`5`/`7`/`8`) are not written; `POCKET_NONE` goes on where Gen3's `switch` ends the script; lists too long for the screen or canvas are cut; expansion nests 3 deep.
+- **Outside H's files:** one line in `world/host/mod.rs` (`print_vars`), one assertion in `world/tests.rs` (the two new reports), `world/checkpoint.rs` `MAX_MONEY` is `pub(super)` (shared with `host/items.rs`), the `checkitemtype` arm in `extract/src/codegen/lower{,/emit}.rs` and `extract/tests/codegen.rs` (with the stub `text_named`/`item_pocket`).
+- **Needed from others:** the content build wiring `tables/{items,multichoice,std_strings}.ron` into `GameData::{item, multichoice, std_string}` (until then `give_item` and friends report); D2 the decomp-labelled `gText_*` texts and the lowering to the helpers above; J `callstd STD_OBTAIN_ITEM`/`STD_FIND_ITEM` to `give_item`/`find_item`.

@@ -54,6 +54,23 @@ pub async fn set_warp(ctx: &Ctx, slot: WarpSlot, map: u16, warp: Option<u8>, x: 
     ctx.set_warp(slot, MapId(map), warp, x, y).await;
 }
 
+/// The text with decomp label `name`, if this build has it. `data::TEXT_NAMES` is sorted (the
+/// build writes texts in key order). (Task H; here rather than in `items.rs` so that module
+/// names nothing at the crate root.)
+pub fn text_named(name: &str) -> Option<TextId> {
+    let i = crate::data::TEXT_NAMES.binary_search(&name).ok()?;
+    Some(TextId(i as u16))
+}
+
+/// The pocket of `item` in this build's item table (Gen3 `GetPocketByItemId`), `None` for
+/// `ITEM_NONE` and unknown items. (Task H, as [`text_named`].)
+pub fn item_pocket(item: u16) -> Option<engine::data::Pocket> {
+    use engine::data::GameData;
+    crate::Emerald::default()
+        .item(ItemId(item))
+        .map(|i| i.pocket)
+}
+
 /// The name of `id` in a `(value, name)` table of `crate::data` (for logs).
 pub(crate) fn name_of(table: &'static [(u16, &'static str)], id: u16) -> Option<&'static str> {
     table.iter().find(|&&(v, _)| v == id).map(|&(_, n)| n)

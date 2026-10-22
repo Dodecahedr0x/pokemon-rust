@@ -205,14 +205,10 @@ impl<'a> Low<'a> {
     }
 
     /// `ctx.report(Report::Unsupported(what))`, and `return Flow::End` after a terminator.
-    /// A prelude helper that answers in `VAR_RESULT` (`multichoice`): Task H's version writes it
-    /// itself, so the call is bare; the Wave 0 one returns it.
-    fn result_call(&self, r: &str, call: String) -> String {
-        if self.support.item_helpers {
-            format!("{call};")
-        } else {
-            format!("ctx.set_var({r}, {call}).await;")
-        }
+    /// A prelude helper that answers in `VAR_RESULT` (`multichoice`, `money_check`): it writes
+    /// it itself, so the call is bare.
+    fn result_call(call: String) -> String {
+        format!("{call};")
     }
 
     pub(super) fn report(&mut self, insn: &IrInsn, what: &str, out: &mut Vec<String>) {
@@ -456,38 +452,20 @@ impl<'a> Low<'a> {
                 let (Some(i), Some(q)) = (u16_expr(i, true), u16_expr(q, true)) else {
                     return Ok(false);
                 };
-                if self.support.item_helpers {
-                    // Task H's helpers set VAR_RESULT and cast the quantity to u8 themselves.
-                    let f = match op {
-                        "additem" => "add_item",
-                        "removeitem" => "remove_item",
-                        "checkitemspace" => "check_item_space",
-                        _ => "check_item",
-                    };
-                    out.push(format!("{f}(&ctx, {i}, {q}).await;"));
-                } else {
-                    let call = match op {
-                        "additem" => format!("ctx.item_add(ItemId({i}), {q}).await"),
-                        "removeitem" => format!("ctx.item_remove(ItemId({i}), {q}).await"),
-                        "checkitemspace" => format!("ctx.item_space(ItemId({i}), {q}).await"),
-                        _ => format!("check_item(&ctx, {i}, {q}).await"),
-                    };
-                    out.push(format!("ctx.set_var({r}, {call} as u16).await;"));
-                }
+                // The helpers set VAR_RESULT and cast the quantity to u8 themselves.
+                let f = match op {
+                    "additem" => "add_item",
+                    "removeitem" => "remove_item",
+                    "checkitemspace" => "check_item_space",
+                    _ => "check_item",
+                };
+                out.push(format!("{f}(&ctx, {i}, {q}).await;"));
             }
             ("checkitemtype", [i]) => {
                 let Some(i) = u16_expr(i, true) else {
                     return Ok(false);
                 };
-                if self.support.item_helpers {
-                    out.push(format!("check_item_type(&ctx, {i}).await;"));
-                } else {
-                    // The Wave 0 prelude has no item pockets: `POCKET_NONE`, as the old
-                    // `Default(0)` class.
-                    out.push(format!(
-                        "ctx.set_var({r}, 0).await; // checkitemtype {i}: no pockets before Task H"
-                    ));
-                }
+                out.push(format!("check_item_type(&ctx, {i}).await;"));
             }
             ("applymovement", [id, Movement(m)]) => {
                 let (Some(id), Some(m)) = (local_id(id), self.movement_path(fx.module, m)) else {
@@ -611,7 +589,7 @@ impl<'a> Low<'a> {
                     "multichoice(&ctx, {list}, {x}, {y}, 0, {}).await",
                     ignore_b == 0
                 );
-                out.push(self.result_call(&r, call));
+                out.push(Self::result_call(call));
             }
             ("multichoicedefault", [x, y, list, default, ignore_b]) => {
                 let (Some(x), Some(y), Some(list), Some(default), Some(ignore_b)) = (
@@ -627,7 +605,7 @@ impl<'a> Low<'a> {
                     "multichoice(&ctx, {list}, {x}, {y}, {default}, {}).await",
                     ignore_b == 0
                 );
-                out.push(self.result_call(&r, call));
+                out.push(Self::result_call(call));
             }
             ("givemon", [s, level, item, ..]) => {
                 let (Some(s), Some(level)) = (species_arg(s, true), u8_lit(level)) else {
@@ -715,8 +693,7 @@ impl<'a> Low<'a> {
                 out.push(match op {
                     "addmoney" => format!("money_add(&ctx, {n}).await;"),
                     "removemoney" => format!("money_remove(&ctx, {n}).await;"),
-                    _ if self.support.item_helpers => format!("money_check(&ctx, {n}).await;"),
-                    _ => format!("ctx.set_var({r}, money_check(&ctx, {n}).await as u16).await;"),
+                    _ => Self::result_call(format!("money_check(&ctx, {n}).await")),
                 });
             }
             ("fadescreen" | "fadescreenspeed" | "fadescreenswapbuffers", [mode, ..]) => {
@@ -801,7 +778,6 @@ impl<'a> Low<'a> {
     /// `callstd`/`gotostd` of `n` (without the `goto`'s return); `None` when `n` is no index.
     pub(super) fn callstd(&mut self, n: &IrArg, st: &BlockState) -> Option<Vec<String>> {
         let n = std_index(n)?;
-        let r = var(VAR_RESULT);
         let std_name = names::std_name(n as u8);
         self.stats.stds.insert(std_name.clone());
         if is_msgbox(n)
@@ -816,13 +792,8 @@ impl<'a> Low<'a> {
             var(ITEM_AMOUNT_VAR)
         );
         Some(vec![match n {
-            // Task H's `give_item` writes VAR_RESULT itself; the Wave 0 one does not.
-            STD_OBTAIN_ITEM if self.support.item_helpers => {
-                format!("give_item(&ctx, {item}).await;")
-            }
-            STD_OBTAIN_ITEM => {
-                format!("ctx.set_var({r}, give_item(&ctx, {item}).await as u16).await;")
-            }
+            // `give_item` writes VAR_RESULT itself.
+            STD_OBTAIN_ITEM => format!("give_item(&ctx, {item}).await;"),
             // Gen3 `Std_FindItem` leaves VAR_RESULT as its own commands do (0 after a pick-up,
             // `pyramid_getlocation`): the helper writes it, never the call site.
             STD_FIND_ITEM => format!("find_item(&ctx, {item}).await;"),
