@@ -8,6 +8,7 @@
 
 use crate::paths::StudioPaths;
 use anyhow::{Context, bail};
+use engine::checkpoint::build_hash;
 use engine::data::{GameData, MapId};
 use explore::config::Budget;
 use explore::db::{Db, DbStats, FindingRow};
@@ -119,14 +120,34 @@ impl CoverageGrid {
     }
 }
 
-/// Finding `id` as a NewGame trace (its node's lineage inputs, then its tail; hashes by replay
-/// with `content::Emerald::for_shells()`) and the frame to open it at: its last frame minus
-/// `before`, clamped to 0. `wire::finding_trace` with nothing cut: `NativeCmd::OpenTrace` stops
-/// at the frame itself, so the trace is replayed once here and once in the pane.
-pub fn finding_trace(db: &Db, id: i64, before: u32) -> anyhow::Result<(Trace, u32)> {
-    let (_, trace) = wire::finding_trace(&content::Emerald::for_shells(), db, id, 0)?;
+/// A finding ready to open in the native pane ([`finding_trace`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FindingTrace {
+    pub row: FindingRow,
+    /// The whole NewGame trace: the node's lineage inputs, then the tail.
+    pub trace: Trace,
+    /// The frame to open it at (`NativeCmd::OpenTrace`).
+    pub frames: u32,
+    /// Found on another build than this one (`row.build != build_hash(game)`): the replay may
+    /// not reach the same state (the UI warns "found on another build").
+    pub stale: bool,
+}
+
+/// Finding `id` as a NewGame trace (hashes by replay with `content::Emerald::for_shells()`)
+/// and the frame to open it at: its last frame minus `before`, clamped to 0.
+/// `wire::finding_trace` with nothing cut: `NativeCmd::OpenTrace` stops at the frame itself, so
+/// the trace is replayed once here and once in the pane.
+pub fn finding_trace(db: &Db, id: i64, before: u32) -> anyhow::Result<FindingTrace> {
+    let game = content::Emerald::for_shells();
+    let (row, trace) = wire::finding_trace(&game, db, id, 0)?;
     let frames = trace.frames().saturating_sub(before);
-    Ok((trace, frames))
+    let stale = row.build != build_hash(&game);
+    Ok(FindingTrace {
+        row,
+        trace,
+        frames,
+        stale,
+    })
 }
 
 /// The arguments of `explore run` for the Explorer tab's start button.
@@ -163,12 +184,16 @@ impl RunArgs {
 
 /// An `explore` child process, its stdout and stderr in a log file. Killed on drop.
 ///
-/// `cargo run` replaces itself with the program on Unix (exec), so once the build is done the
-/// child is the explorer itself and `stop` ends it. The db commits one transaction per
-/// generation, so a kill loses at most the generation in flight (and the run's `run` row).
+/// It runs in its own process group ([`crate::proc`]): `stop` kills the whole group, so
+/// stopping during the build also ends cargo's rustc processes. Once built, `cargo run`
+/// replaces itself with the explorer (exec on unix). The kill is a SIGKILL, not a graceful
+/// stop: the db commits one WAL transaction per generation, so a kill loses at most the
+/// generation in flight (and the run's `run` row), never the db.
 pub struct ExplorerProc {
     child: Child,
     log: PathBuf,
+    /// Ended: reaped (`status` holds how), or no longer waitable (`status` is `None`).
+    done: bool,
     status: Option<ExitStatus>,
 }
 
@@ -184,7 +209,7 @@ impl ExplorerProc {
         Self::spawn(cmd, log)
     }
 
-    /// Spawns `cmd` with no stdin and its output in `log`.
+    /// Spawns `cmd` in a new process group, with no stdin and its output in `log`.
     pub fn spawn(mut cmd: Command, log: &Path) -> io::Result<ExplorerProc> {
         if let Some(dir) = log.parent()
             && !dir.as_os_str().is_empty()
@@ -192,12 +217,14 @@ impl ExplorerProc {
             std::fs::create_dir_all(dir)?;
         }
         let out = File::create(log)?;
+        crate::proc::new_group(&mut cmd);
         cmd.stdin(Stdio::null())
             .stdout(out.try_clone()?)
             .stderr(out);
         Ok(ExplorerProc {
             child: cmd.spawn()?,
             log: log.to_path_buf(),
+            done: false,
             status: None,
         })
     }
@@ -207,26 +234,30 @@ impl ExplorerProc {
         &self.log
     }
 
-    /// Whether the process still runs.
+    /// Whether the process still runs (false once it ended or can no longer be waited on).
     pub fn running(&mut self) -> bool {
-        self.exit_status().is_none()
+        if !self.done {
+            match self.child.try_wait() {
+                Ok(None) => {}
+                Ok(Some(st)) => (self.done, self.status) = (true, Some(st)),
+                Err(_) => self.done = true,
+            }
+        }
+        !self.done
     }
 
-    /// How it ended, `None` while it runs.
+    /// How it ended; `None` while it runs, or when it could not be waited on.
     pub fn exit_status(&mut self) -> Option<ExitStatus> {
-        if self.status.is_none() {
-            self.status = self.child.try_wait().ok().flatten();
-        }
+        self.running();
         self.status
     }
 
-    /// Kills the process (if it still runs) and reaps it.
+    /// Kills the process group (if the process still runs) and reaps the process.
     pub fn stop(&mut self) {
         if self.running() {
-            let _ = self.child.kill();
-        }
-        if self.status.is_none() {
+            crate::proc::kill_group(&mut self.child);
             self.status = self.child.wait().ok();
+            self.done = true;
         }
     }
 }
@@ -367,16 +398,31 @@ mod tests {
         let mut sleep = Command::new("sleep");
         sleep.arg("30");
         let p = ExplorerProc::spawn(sleep, &log).unwrap();
-        let pid = p.child.id();
+        let pid = p.child.id() as i32;
         drop(p);
-        // The pid is reaped: `kill -0` finds no such process.
-        let alive = Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .stderr(Stdio::null())
-            .status()
-            .unwrap()
-            .success();
-        assert!(!alive, "pid {pid} still runs");
+        assert!(!crate::proc::alive(pid), "pid {pid} still runs");
+
+        // A grandchild (rustc under cargo) dies with the group.
+        let mut sh = Command::new("sh");
+        sh.args(["-c", "sleep 30 & echo $!; wait"]);
+        let mut p = ExplorerProc::spawn(sh, &log).unwrap();
+        let grandchild: i32 = loop {
+            let text = std::fs::read_to_string(&log).unwrap();
+            if let Some(line) = text.lines().next() {
+                break line.trim().parse().unwrap();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        };
+        assert!(crate::proc::alive(grandchild));
+        p.stop();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while crate::proc::alive(grandchild) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the grandchild survived"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
 
         let mut echo = Command::new("sh");
         echo.args(["-c", "echo out; echo err >&2"]);

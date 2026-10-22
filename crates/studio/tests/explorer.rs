@@ -204,12 +204,18 @@ fn a_stub_finding_opens_before_its_end_at_a_straight_replay_hash() {
         .expect("the fade trap is found");
     drop(ex);
     let db = explorer::open(&path).unwrap();
-    let (trace, frames) = explorer::finding_trace(&db, f.id, OPEN_BEFORE).unwrap();
+    let ft = explorer::finding_trace(&db, f.id, OPEN_BEFORE).unwrap();
+    assert_eq!(ft.row, f);
+    assert!(!ft.stale, "found on this build");
+    let (trace, frames) = (ft.trace, ft.frames);
     assert_eq!(trace.parent, Parent::NewGame);
     assert_eq!(u64::from(trace.frames()), f.total_frame);
     assert_eq!(u64::from(frames), f.total_frame.saturating_sub(120));
     // Clamped at the new game.
-    assert_eq!(explorer::finding_trace(&db, f.id, u32::MAX).unwrap().1, 0);
+    assert_eq!(
+        explorer::finding_trace(&db, f.id, u32::MAX).unwrap().frames,
+        0
+    );
     assert!(
         explorer::finding_trace(&db, 99, 0).is_err(),
         "no finding 99"
@@ -281,7 +287,7 @@ fn a_panicking_replay_is_an_error_not_a_dead_pane() {
         hashes: Vec::new(),
         ..findings::repro_trace(&Emerald::for_shells(), &[], &[]).unwrap()
     };
-    let e = open_trace(game, &empty, 0).err().expect("panics");
+    let e = open_trace(game, empty, 0).err().expect("panics");
     assert!(e.contains(INJECTED_PANIC), "{e}");
 }
 

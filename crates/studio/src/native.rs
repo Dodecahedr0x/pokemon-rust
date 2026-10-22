@@ -173,14 +173,14 @@ fn changes(was: Seen, now: Seen, log: impl Iterator<Item = &'static str>) -> Vec
 /// `diverged`. Another parent is refused. The replay runs on the caller's thread (never under
 /// the `Materializer` lock) inside the explorer's panic guard: a finding's panic is an `Err`,
 /// not a dead pane thread.
-pub fn open_trace<G: GameData>(game: G, trace: &Trace, frames: u32) -> Result<Seeked<G>, String> {
+pub fn open_trace<G: GameData>(game: G, trace: Trace, frames: u32) -> Result<Seeked<G>, String> {
     if trace.parent != Parent::NewGame {
         return Err(format!(
             "the trace starts at {}, not a new game",
             trace.parent
         ));
     }
-    let start = SeekStart::from_trace(trace.clone(), frames);
+    let start = SeekStart::from_trace(trace, frames);
     explore::guard::catch(|| start.run(game))
         .map_err(|p| format!("the replay panics: {}", p.message))?
 }
@@ -313,7 +313,7 @@ impl NativePane {
         Ok(())
     }
 
-    fn open_trace(&mut self, trace: &Trace, frames: u32) -> Result<(), String> {
+    fn open_trace(&mut self, trace: Trace, frames: u32) -> Result<(), String> {
         let seeked = open_trace(content::Emerald::for_shells(), trace, frames)?;
         let frames = seeked.recorder.frames();
         self.controls = Controls::from_seek(seeked);
@@ -367,7 +367,7 @@ impl Pane for NativePane {
                 self.jumped(EventKind::NewGame);
             }
             NativeCmd::OpenTrace { trace, frames } => {
-                if let Err(e) = self.open_trace(&trace, frames) {
+                if let Err(e) = self.open_trace(trace, frames) {
                     self.controls.note(format!("open trace failed: {e}"));
                 }
             }
