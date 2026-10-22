@@ -13,7 +13,6 @@
 use crate::trace::{CheckpointId, HashMismatch, Parent, ReplayReport, TRACE_SCHEMA, Trace};
 use engine::checkpoint::{BuildHash, Checkpoint, SCHEMA, WorldSnapshot};
 use engine::data::MapId;
-use engine::hash::Fnv64;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -86,14 +85,9 @@ pub struct Store {
     root: PathBuf,
 }
 
-/// The semantic identity of a snapshot: FNV-1a-64 over its postcard bytes, as
-/// `engine::checkpoint::state_digest` defines it (Task C; a test pins the two together).
-/// Replace with `engine::checkpoint::state_digest` once Task C merges.
+/// The semantic identity of a snapshot (`engine::checkpoint::state_digest`).
 fn digest(w: &WorldSnapshot) -> u64 {
-    let bytes = postcard::to_allocvec(w).expect("snapshots always encode");
-    let mut h = Fnv64::new();
-    h.write(&bytes);
-    h.finish()
+    engine::checkpoint::state_digest(w)
 }
 
 /// `c00012` or `12`.
@@ -533,35 +527,4 @@ mod tests {
         }
         assert_eq!(CheckpointId(42).to_string(), "c00042");
     }
-
-    /// Once Task C's `state_digest` is in, the store's digest must be the same function.
-    #[test]
-    fn digest_is_state_digest() {
-        let w: WorldSnapshot = ron::from_str(SNAPSHOT).unwrap();
-        let ours = digest(&w);
-        let theirs = std::panic::catch_unwind(|| engine::checkpoint::state_digest(&w));
-        match theirs {
-            Ok(d) => assert_eq!(ours, d),
-            Err(p) => {
-                let msg = p
-                    .downcast_ref::<String>()
-                    .map(String::as_str)
-                    .or_else(|| p.downcast_ref::<&str>().copied())
-                    .unwrap_or("");
-                if !msg.contains("not yet implemented") {
-                    std::panic::resume_unwind(p);
-                }
-                eprintln!("state_digest is still a stub; skipped");
-            }
-        }
-    }
-
-    const SNAPSHOT: &str = "(frame: 5, rng: 1, input: (held: (0), pressed: (0)), runner_issued: 0,
-        player_name: (255, 255, 255, 255, 255, 255, 255, 255), player_id: 0,
-        field: (map: (1), camera: (0, 0), drawn: None, ring: (0, 0), overrides: []),
-        objects: (map: (1), run_state: NotMoving, objs: []), templates: [],
-        vars: (flags: [(3)], vars: [((4), 5)]), fader: (level: 0, target: 0),
-        transition: (map: (1), x: 0, y: 0, facing: Down, exit_walk: false, player_hidden: false),
-        selected: None, last_mover: 0, delay: 0, door: 0, party: [], respawn: 0,
-        prev_behavior: Normal, encounter_immunity: 0)";
 }

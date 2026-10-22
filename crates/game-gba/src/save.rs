@@ -5,7 +5,7 @@
 
 use agb::save::{SaveSlotManager, Slot};
 use engine::checkpoint::{
-    Checkpoint, DecodeError, FLASH_MAGIC, FLASH_SLOTS, SaveMeta, encode_checked,
+    Checkpoint, FLASH_MAGIC, FLASH_SLOTS, MAX_ENCODED, SaveMeta, encoded_len,
 };
 use engine::debug::{boot, save};
 use engine::{Buttons, GameData, World};
@@ -55,12 +55,9 @@ pub fn boot_world(
 
 /// Writes `cp` to slot 0 (crash-safe through agb's ghost slot). Returns a `debug::save` code.
 pub fn write(slots: &mut Slots, cp: &Checkpoint) -> u32 {
-    // agb postcard-encodes `cp` itself; this pass only enforces the flash budget.
-    // TODO: use `engine::checkpoint::encoded_len` (Task C) instead of encoding twice.
-    match encode_checked(cp) {
-        Ok(_) => {}
-        Err(DecodeError::TooLarge(_)) => return save::TOO_LARGE,
-        Err(_) => return save::STORAGE,
+    // agb postcard-encodes `cp` itself; only the flash budget is checked here, without encoding.
+    if encoded_len(cp) > MAX_ENCODED {
+        return save::TOO_LARGE;
     }
     let meta = SaveMeta {
         schema: cp.header.schema,
