@@ -37,12 +37,16 @@ fn build_shells(map: MapId) -> MapEntry {
     MapEntry::build(&Emerald::for_shells(), map)
 }
 
+/// Called once a map's build ends: its entry, or `None` if the build panicked.
+type Waiter = Box<dyn FnOnce(Option<Arc<MapEntry>>) + Send>;
+
 #[derive(Default)]
 struct CacheInner {
     /// Least recently used first.
     done: Vec<(MapId, Arc<MapEntry>)>,
-    /// Maps being built, with the UI tasks waiting for them.
-    building: HashMap<MapId, Vec<futures_channel::oneshot::Sender<()>>>,
+    /// Maps being built (one thread each), with what waits for them: UI tasks and pending
+    /// `maps` requests.
+    building: HashMap<MapId, Vec<Waiter>>,
     /// Maps whose build panicked, with the message.
     failed: HashMap<MapId, String>,
 }
@@ -94,8 +98,8 @@ impl MapCache {
     }
 
     /// Builds `map` on this thread and records the outcome: the entry (evicting the least
-    /// recently used beyond [`CACHE_MAPS`]) or the panic. Waiters get `Ok` on success; on a
-    /// panic they are dropped, so their receivers resolve `Err`.
+    /// recently used beyond [`CACHE_MAPS`]) or the panic. Then calls the waiters (outside the
+    /// lock) with the entry, or `None` on a panic.
     fn run_build(&self, map: MapId) -> Option<Arc<MapEntry>> {
         let build = self.0.build;
         let out = catch_unwind(AssertUnwindSafe(|| build(map))).map(Arc::new);
@@ -106,9 +110,6 @@ impl MapCache {
                 inner.done.push((map, e.clone()));
                 if inner.done.len() > CACHE_MAPS {
                     inner.done.remove(0);
-                }
-                for w in waiters {
-                    let _ = w.send(());
                 }
                 Some(e)
             }
@@ -124,33 +125,55 @@ impl MapCache {
         };
         drop(inner);
         self.0.ended.notify_all();
+        for w in waiters {
+            w(entry.clone());
+        }
         entry
+    }
+
+    /// Calls `answer` with `map`'s entry: at once when cached (or `None` when its build
+    /// failed), else when its build ends. One build thread per missing map, however many wait.
+    pub fn load_then(
+        &self,
+        map: MapId,
+        answer: impl FnOnce(Option<Arc<MapEntry>>) + Send + 'static,
+    ) {
+        let mut inner = self.lock();
+        if let Some(e) = Self::hit(&mut inner, map) {
+            drop(inner);
+            return answer(Some(e));
+        }
+        if inner.failed.contains_key(&map) {
+            drop(inner);
+            return answer(None);
+        }
+        let start = !inner.building.contains_key(&map);
+        inner
+            .building
+            .entry(map)
+            .or_default()
+            .push(Box::new(answer));
+        drop(inner);
+        if start {
+            let cache = self.clone();
+            std::thread::spawn(move || cache.run_build(map));
+        }
     }
 
     /// Resolves `Ok` once `map` is in the cache (building it on a thread unless a build is
     /// running), `Err` if its build failed.
     pub fn load(&self, map: MapId) -> futures_channel::oneshot::Receiver<()> {
         let (tx, rx) = futures_channel::oneshot::channel();
-        let mut inner = self.lock();
-        if Self::hit(&mut inner, map).is_some() {
-            let _ = tx.send(());
-            return rx;
-        }
-        if inner.failed.contains_key(&map) {
-            return rx; // `tx` dropped: Err
-        }
-        let start = !inner.building.contains_key(&map);
-        inner.building.entry(map).or_default().push(tx);
-        drop(inner);
-        if start {
-            let cache = self.clone();
-            std::thread::spawn(move || cache.run_build(map));
-        }
+        self.load_then(map, move |e| {
+            if e.is_some() {
+                let _ = tx.send(());
+            } // else `tx` is dropped: Err
+        });
         rx
     }
 
     /// The entry, waiting for a running build or building it on this thread; `None` if the
-    /// build failed. For the asset handler's thread and tests.
+    /// build failed. For tests.
     pub fn get_blocking(&self, map: MapId) -> Option<Arc<MapEntry>> {
         let mut inner = self.lock();
         loop {
@@ -178,8 +201,8 @@ fn route_body(entry: &MapEntry, route: MapRoute) -> Option<Arc<Vec<u8>>> {
     }
 }
 
-/// The `maps` asset handler: answers a cached map at once, and builds a missing one on a
-/// short-lived thread (never on the UI thread).
+/// The `maps` asset handler: answers a cached map at once, and a missing one when its build
+/// thread ends (never blocking the UI thread; requests for a map being built share its thread).
 pub fn serve(
     cache: MapCache,
 ) -> impl FnMut(dioxus::desktop::AssetRequest, dioxus::desktop::RequestAsyncResponder) + 'static {
@@ -205,13 +228,8 @@ pub fn serve(
         if !content::has_map(map) {
             return responder.respond(respond(None));
         }
-        if let Some(e) = cache.get(map) {
-            return responder.respond(respond(route_body(&e, route)));
-        }
-        let cache = cache.clone();
-        std::thread::spawn(move || {
-            let body = cache.get_blocking(map).and_then(|e| route_body(&e, route));
-            responder.respond(respond(body));
+        cache.load_then(map, move |e| {
+            responder.respond(respond(e.and_then(|e| route_body(&e, route))));
         });
     }
 }
@@ -745,6 +763,9 @@ mod tests {
         assert!(rx.try_recv().is_err(), "the waiter was dropped");
         assert_eq!(cache.error(map).as_deref(), Some("no picture"));
         assert!(cache.get_blocking(map).is_none());
+        let (tx, failed) = std::sync::mpsc::channel();
+        cache.load_then(map, move |e| tx.send(e.is_none()).unwrap());
+        assert!(failed.recv().unwrap(), "a failed map answers None");
         let mut dom = VirtualDom::new_with_props(Map, MapProps { live: None })
             .with_root_context(cache.clone());
         let html = render(&mut dom);
@@ -765,6 +786,12 @@ mod tests {
         let cache = MapCache::with_builder(slow_build);
         let map = map_list()[0].0;
         let _rx = cache.load(map);
+        // Pending `maps` requests wait on the same build.
+        let (tx, answers) = std::sync::mpsc::channel();
+        for _ in 0..4 {
+            let tx = tx.clone();
+            cache.load_then(map, move |e| tx.send(e.is_some()).unwrap());
+        }
         let threads: Vec<_> = (0..4)
             .map(|_| {
                 let c = cache.clone();
@@ -773,6 +800,9 @@ mod tests {
             .collect();
         for t in threads {
             assert!(t.join().unwrap());
+        }
+        for _ in 0..4 {
+            assert!(answers.recv_timeout(Duration::from_secs(10)).unwrap());
         }
         assert_eq!(BUILDS.load(std::sync::atomic::Ordering::SeqCst), 1);
         // LRU: insert more than CACHE_MAPS small entries by hand.

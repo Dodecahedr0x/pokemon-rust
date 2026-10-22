@@ -214,6 +214,17 @@ fn parity() -> Result<()> {
         "--",
         "--ignored",
         "--nocapture",
+    ]))?;
+    // The studio's ROM pane on the ROM just built (its `#[ignore]`d tests need `target/game.gba`).
+    run(Command::new("cargo").current_dir(root()).args([
+        "test",
+        "-p",
+        "studio",
+        "--release",
+        "--lib",
+        "rom::tests::",
+        "--",
+        "--ignored",
     ]))
 }
 
