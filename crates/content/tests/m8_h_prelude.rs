@@ -249,3 +249,73 @@ fn multichoice_stores_the_answer_in_var_result() {
     );
     assert_eq!(h.var_result(), 127);
 }
+
+/// The value of `name` in a decomp name table.
+fn named(t: &extract::names::Table, name: &str) -> u16 {
+    t.entries.iter().find(|(_, n)| *n == name).unwrap().0 as u16
+}
+
+#[test]
+fn real_builds_resolve_items_pockets_lists_and_std_strings() {
+    use engine::data::GameData;
+    let game = content::Emerald::default();
+    if game.item(ItemId(ITEM_POTION)).is_none() {
+        return; // the stub world has no item table
+    }
+    assert!(game.item(ItemId(0)).is_none(), "ITEM_NONE");
+    for (item, pocket) in [
+        (ITEM_POTION, Pocket::Items),
+        (ITEM_POKE_BALL, Pocket::PokeBalls),
+        (ITEM_CHERI_BERRY, Pocket::Berries),
+        (ITEM_TM01, Pocket::TmHm),
+        (ITEM_MACH_BIKE, Pocket::KeyItems),
+    ] {
+        assert_eq!(prelude::item_pocket(item), Some(pocket), "{item:#x}");
+        assert!(
+            !game.item(ItemId(item)).unwrap().name.is_empty(),
+            "{item:#x}"
+        );
+        let std = prelude::pocket_std_string(pocket);
+        assert!(game.std_string(std).is_some_and(|s| !s.is_empty()));
+    }
+    let yes_no = named(&extract::names::MULTICHOICE, "MULTI_YESNO") as u8;
+    assert_eq!(game.multichoice(yes_no).map(|l| l.len()), Some(2));
+
+    // `give_item` and `find_item` resolve the item and its pocket: no report but the
+    // std-script texts', which the build labels once the script IR is lowered (D2).
+    let texts_only = |h: &Host| {
+        h.log.iter().all(|r| match r {
+            Request::Report(rep) => *rep == Report::Degraded("obtain_item.inc text"),
+            _ => true,
+        })
+    };
+    let mut h = Host::new(true);
+    run(&mut h, |ctx| {
+        Box::pin(async move {
+            assert!(prelude::give_item(&ctx, ITEM_POTION, 1).await);
+        })
+    });
+    assert!(texts_only(&h), "{:?}", h.log);
+    assert!(h.has(&Request::Buffer {
+        slot: 2,
+        src: BufferSrc::Std(prelude::STDSTRING_ITEMS)
+    }));
+    let mut h = Host::new(true);
+    run(&mut h, |ctx| {
+        Box::pin(async move {
+            assert!(prelude::find_item(&ctx, ITEM_MACH_BIKE, 1).await);
+        })
+    });
+    assert!(texts_only(&h), "{:?}", h.log);
+    assert!(h.has(&Request::Buffer {
+        slot: 2,
+        src: BufferSrc::Std(prelude::STDSTRING_KEYITEMS)
+    }));
+    let mut h = Host::new(true);
+    run(&mut h, |ctx| {
+        Box::pin(async move {
+            assert_eq!(prelude::check_item_type(&ctx, ITEM_TM01).await, 3);
+        })
+    });
+    assert_eq!(h.var_result(), 3, "POCKET_TM_HM");
+}
