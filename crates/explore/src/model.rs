@@ -255,8 +255,9 @@ pub struct GenerationDelta {
     pub seen: Vec<(SeenKind, i64, NodeId)>,
     pub cells: Vec<(MapId, i16, i16, NodeId)>,
     pub battles: Vec<(NodeId, BattleSummary)>,
-    /// (finding, the node whose end state the tail starts at, total frame).
-    pub findings: Vec<(FindingDraft, NodeId, u64)>,
+    /// (finding, the node whose end state the tail starts at (`None` = a new game: the root
+    /// job failed), total frame).
+    pub findings: Vec<(FindingDraft, Option<NodeId>, u64)>,
     pub stats: GenStats,
 }
 

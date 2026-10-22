@@ -8,40 +8,36 @@
 use crate::config::Config;
 use crate::graph::{Graph, Rng64, mix};
 use crate::model::{
-    Evaluate, FindingDraft, GenerationDelta, Job, JobResult, Macro, MacroKind, NodeId, NodeRow,
-    NodeStatus, Opts, Plan, StepResult, Stop,
+    Evaluate, GenerationDelta, Job, JobResult, Macro, MacroKind, NodeId, NodeRow, NodeStatus, Opts,
+    Plan, StepResult, Stop,
 };
-use crate::mutate::mutate;
+use crate::mutate::{barren, mutate_with};
 use crate::runs;
-use crate::select::tournament;
+use crate::select::tournament_in;
 use engine::checkpoint::{Checkpoint, state_digest};
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 pub struct Runner {
     pub graph: Graph,
     /// The generation the next `plan`/`merge` pair makes (0 = the root's). `merge` advances it.
     pub generation: u32,
-    rng: Rng64,
     cfg: Config,
     /// End states of the nodes the last merges inserted, for the snapshot cache.
     fresh: Vec<(NodeId, Arc<Checkpoint>)>,
-    /// Findings of jobs with no node to attach them to (the root job failed before its first
-    /// step). The delta cannot hold them: a finding row needs a node.
-    pub unattached: Vec<FindingDraft>,
 }
 
-/// Jobs per generation: `cfg.batch`, or 4 x the threads (`cfg.threads`, else the current rayon
-/// pool's) when it is 0. Only an explicit `batch` keeps the results independent of the thread
-/// count.
+/// The batch when `Config::batch` is 0.
+pub const DEFAULT_BATCH: usize = 32;
+
+/// Jobs per generation: `cfg.batch`, or [`DEFAULT_BATCH`] when it is 0. Never derived from the
+/// thread count, so the results do not depend on it.
 pub fn batch_size(cfg: &Config) -> usize {
     if cfg.batch > 0 {
         cfg.batch
-    } else if cfg.threads > 0 {
-        4 * cfg.threads
     } else {
-        4 * rayon::current_num_threads()
+        DEFAULT_BATCH
     }
 }
 
@@ -67,10 +63,8 @@ impl Runner {
         Runner {
             graph: Graph::from_rows(rows),
             generation,
-            rng: generation_rng(cfg.seed, generation),
             cfg,
             fresh: Vec::new(),
-            unattached: Vec::new(),
         }
     }
 
@@ -78,20 +72,42 @@ impl Runner {
         &self.cfg
     }
 
-    /// The next generation's jobs (an empty graph plans the root job). `start` is filled by the
-    /// caller (cache::reach).
+    /// Whether exploration cannot go on: the root job already ran and left no node (it failed
+    /// before its first step), or no node is left on the frontier. `plan` then plans nothing;
+    /// the caller stops.
+    pub fn stalled(&self) -> bool {
+        if self.graph.is_empty() {
+            self.generation > 0
+        } else {
+            self.graph.frontier().next().is_none()
+        }
+    }
+
+    /// The next generation's jobs (an empty graph plans the root job; a stalled runner plans
+    /// none). `start` is filled by the caller (cache::reach).
+    ///
+    /// A barren node (see `mutate::barren`) gets its forced probe once per plan, however often
+    /// it is selected. Its `expanded` grows with every job planned from it, so the forced probe
+    /// never repeats at one `expanded` count (and this needs no state outside the rows).
     pub fn plan(&mut self) -> Vec<(Option<NodeId>, Plan)> {
+        if self.stalled() {
+            return Vec::new();
+        }
         if self.graph.is_empty() {
             return vec![(None, Plan::Given(vec![ROOT_MACRO]))];
         }
-        self.rng = generation_rng(self.cfg.seed, self.generation);
+        let mut rng = generation_rng(self.cfg.seed, self.generation);
+        let frontier: Vec<&NodeRow> = self.graph.frontier().collect();
+        let mut probed = BTreeSet::new();
         let mut jobs = Vec::new();
         for _ in 0..batch_size(&self.cfg) {
-            let Some(sel) = tournament(&self.graph, &mut self.rng, self.generation, &self.cfg)
+            let Some(sel) =
+                tournament_in(&self.graph, &frontier, &mut rng, self.generation, &self.cfg)
             else {
                 break;
             };
-            jobs.push(mutate(&self.graph, &mut self.rng, sel, &self.cfg));
+            let force = barren(&self.graph, sel) && probed.insert(sel);
+            jobs.push(mutate_with(&self.graph, &mut rng, sel, &self.cfg, force));
         }
         jobs
     }
@@ -99,11 +115,15 @@ impl Runner {
     /// Merges in job order: evaluates every step, inserts new keys, supersedes a same-key node
     /// with more total frames (old -> Merged), drops duplicates, collects findings.
     ///
+    /// A finding's tail starts at the job parent's end state (it includes the job's steps), so
+    /// it attaches to the job parent (`None` for the root job: a new game).
+    ///
     /// A duplicate step (its key is live with at most as many total frames) is not a live node.
     /// When nothing of its job follows, it is dropped. When later steps or a finding follow,
     /// they must replay from its actual end state: with the live node's digest they chain from
     /// the live node, otherwise the step is kept as a `Merged` history row (`merged_into` = the
-    /// live node) and they chain from it.
+    /// live node) and they chain from it. A dropped duplicate's sightings (`seen`, cells) are
+    /// credited to the live node; it adds no key hit (`key_hits` counts rows).
     pub fn merge(
         &mut self,
         mut results: Vec<JobResult>,
@@ -121,24 +141,26 @@ impl Runner {
             if let Some(p) = r.parent {
                 *expanded.entry(p).or_default() += 1;
             }
-            let finding_follows = matches!(r.stop, Some(Stop::Finding(_)));
+            let step_frames: u64 = r
+                .steps
+                .iter()
+                .map(|s| u64::from(runs::frames(&s.inputs)))
+                .sum();
             let n = r.steps.len();
             let mut at = r.parent;
             for (i, step) in r.steps.into_iter().enumerate() {
-                let more = i + 1 < n || finding_follows;
-                at = Some(self.merge_step(&mut d, eval, at, step, more, first_new));
+                at = Some(self.merge_step(&mut d, eval, at, step, i + 1 < n, first_new));
             }
             match r.stop {
                 Some(Stop::Finding(f)) => {
                     let tail = u64::from(runs::frames(&f.tail));
-                    d.stats.frames += tail;
-                    match at.and_then(|id| self.graph.node(id)) {
-                        Some(node) => {
-                            let total = node.total_frames + tail;
-                            d.findings.push((f, node.id, total));
-                        }
-                        None => self.unattached.push(f),
-                    }
+                    // The steps' frames are counted already.
+                    d.stats.frames += tail.saturating_sub(step_frames);
+                    let start = r
+                        .parent
+                        .and_then(|id| self.graph.node(id))
+                        .map_or(0, |p| p.total_frames);
+                    d.findings.push((f, r.parent, start + tail));
                 }
                 Some(Stop::Pruned(_)) => d.stats.pruned += 1,
                 Some(Stop::NotTrapped) | None => {}
@@ -184,7 +206,6 @@ impl Runner {
             } else {
                 d.stats.duplicates += 1;
                 if !more || o.digest == digest {
-                    self.graph.hit(ev.key);
                     record_sightings(d, &ev.seen, &step, old);
                     return old;
                 }

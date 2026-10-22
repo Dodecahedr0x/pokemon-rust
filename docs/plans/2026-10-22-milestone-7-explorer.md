@@ -1323,3 +1323,32 @@ That is about 50× the 50k frames/s that the "Done when" nodes/s thresholds assu
 
 
 **Scheduling (taken).** M7 started early, in parallel with M6 Wave 1 (requested by the user). Wave 0 and Wave 1 are headless and independent of M6 files. Wave 2b waits for M6. Once M6 is complete, M7 gets a second pass against M6's final APIs.
+
+## Task D as built
+**Duplicates (deviation from "later steps chain from the existing best node").** An equal key does not mean an equal state, and a node's inputs must replay from its parent's end state. So a duplicate step (its key is live with at most as many total frames) is handled like this:
+- If it is the job's last step, it is dropped. Its sightings (`seen`, cells) are credited to the live node.
+- If later steps follow and its digest equals the live node's, the job chains from the live node, with no row.
+- Otherwise it is inserted as a `Merged` history row (`merged_into` = the live node, its key kept), and the job chains from it.
+
+Consequence: the `node` table grows by one non-live row per such duplicate. Those rows never enter the frontier, but they count in `key_hits`.
+
+**Key hits.** `key_hits(k)` = rows with key `k` (any status) − 1. `Graph::from_rows` rebuilds it exactly, so the graph is a pure function of the rows. A duplicate that leaves no row adds no hit. Nothing about key hits is persisted beyond the rows.
+
+**Batch.** `Config::batch == 0` means `runner::DEFAULT_BATCH` (32), independent of the thread count. Results do not depend on `threads` with the default config. A test compares 1 and 8 threads.
+
+**Findings.** A `FindingDraft.tail` starts at the job parent's end state and includes the job's steps. The delta attaches it to the job parent, with `total = parent.total_frames + frames(tail)`. The model's `GenerationDelta::findings` node is `Option<NodeId>`: `None` means the root job failed and the tail starts at a new game (Task C: `finding.node` is nullable).
+
+**Stall.** `Runner::stalled()` is true when the root job already ran and left no node (the graph is empty at generation > 0), or when the frontier is empty. `plan()` then returns no jobs, and the caller stops.
+
+**Other contract additions:**
+- `graph`: `mix`, `is_live`, `Graph::{nodes, key_hits, children, next_id, ancestor}`.
+- `select`: `tournament_in` (a frontier collected once per plan) and the placeholder `selection_score` (Wave 2 switches to `fitness::selection_score`).
+- `mutate`: `barren`, `choose`, `choose_with`, `apply`, `mutate_with` and `PROBE_EXPANDED` (3).
+- `runner`: `DEFAULT_BATCH`, `batch_size`, `generation_rng`, `ROOT_MACRO`, `Runner::{config, stalled, take_fresh}` and `jobs(planned, start)`.
+
+**Behaviour:**
+- **Planning RNG:** a local seeded by `(seed, generation)` only, so resumed runs plan identically.
+- **Forced probe:** a barren node (`expanded ≥ 3`, no child) gets it at most once per plan. Its `expanded` grows with every job planned from it, so the forced probe never repeats at the same `expanded` count, without state outside the rows.
+- **Snapshots:** `delta.snapshots` holds the nodes with `depth % snapshot_every_depth == 0` (0 = never). Every inserted node's end state is in `take_fresh()` for the cache.
+- **In-delta supersession:** a supersession inside one delta writes the old row already `Merged` instead of listing it in `merged`.
+- **`stats.frames`:** counts steps' input frames plus each finding's tail beyond its job's steps.

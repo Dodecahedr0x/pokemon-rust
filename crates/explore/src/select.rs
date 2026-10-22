@@ -8,6 +8,18 @@ use crate::model::{NodeId, NodeRow};
 /// wins, lower id on ties. `None` when the frontier is empty.
 pub fn tournament(g: &Graph, rng: &mut Rng64, generation: u32, cfg: &Config) -> Option<NodeId> {
     let frontier: Vec<&NodeRow> = g.frontier().collect();
+    tournament_in(g, &frontier, rng, generation, cfg)
+}
+
+/// [`tournament`] over a frontier collected once (`g.frontier()`, id ascending), for a whole
+/// batch.
+pub fn tournament_in(
+    g: &Graph,
+    frontier: &[&NodeRow],
+    rng: &mut Rng64,
+    generation: u32,
+    cfg: &Config,
+) -> Option<NodeId> {
     if frontier.is_empty() {
         return None;
     }

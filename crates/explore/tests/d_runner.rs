@@ -9,7 +9,7 @@ use engine::data::MapId;
 use explore::config::Config;
 use explore::graph::{Graph, Rng64, mix};
 use explore::mutate::{MutationOp, apply, choose, mutate};
-use explore::runner::{ROOT_MACRO, Runner, jobs, run_jobs};
+use explore::runner::{DEFAULT_BATCH, ROOT_MACRO, Runner, batch_size, jobs, run_jobs};
 use explore::select::{selection_score, tournament};
 use explore::*;
 use game_native::Session;
@@ -107,7 +107,7 @@ fn fake_sim(job: &Job) -> JobResult {
             }
             match seed % 11 {
                 0 => stop = Some(Stop::Pruned("no path".into())),
-                1 => stop = Some(Stop::Finding(finding(*seed))),
+                1 => stop = Some(Stop::Finding(finding(*seed, &steps))),
                 _ => {}
             }
         }
@@ -137,16 +137,20 @@ fn fake_sim(job: &Job) -> JobResult {
     }
 }
 
-fn finding(seed: u64) -> FindingDraft {
+/// A finding after `steps`: its tail starts at the job parent's end state, so it holds the
+/// steps' inputs, then 7 frames of the failing macro.
+fn finding(seed: u64, steps: &[StepResult]) -> FindingDraft {
+    let mut tail: Vec<Run> = steps.iter().flat_map(|s| s.inputs.clone()).collect();
+    tail.push(Run {
+        keys: Buttons::A,
+        frames: 7,
+    });
     FindingDraft {
         kind: FindingKind::Panic,
         message: format!("fake {seed}"),
         location: None,
         macro_: None,
-        tail: vec![Run {
-            keys: Buttons::A,
-            frames: 7,
-        }],
+        tail,
         map: MapId(1),
         pos: (0, 0),
         script: None,
@@ -169,7 +173,15 @@ fn run(
     n: u32,
     pool: Option<&rayon::ThreadPool>,
 ) -> (Runner, Vec<GenerationDelta>, FakeEval) {
-    let mut r = Runner::new(cfg(seed), vec![], 0);
+    run_with(cfg(seed), n, pool)
+}
+
+fn run_with(
+    cfg: Config,
+    n: u32,
+    pool: Option<&rayon::ThreadPool>,
+) -> (Runner, Vec<GenerationDelta>, FakeEval) {
+    let mut r = Runner::new(cfg, vec![], 0);
     let mut eval = FakeEval::default();
     let mut deltas = Vec::new();
     for _ in 0..n {
@@ -178,6 +190,12 @@ fn run(
             Some(p) => p.install(|| run_jobs(&js, fake_sim)),
             None => run_jobs(&js, fake_sim),
         };
+        let indices: Vec<u32> = results.iter().map(|r| r.index).collect();
+        assert_eq!(
+            indices,
+            (0..js.len() as u32).collect::<Vec<_>>(),
+            "job order"
+        );
         deltas.push(r.merge(results, &mut eval));
     }
     (r, deltas, eval)
@@ -280,28 +298,43 @@ fn one_and_four_threads_give_identical_deltas() {
 }
 
 #[test]
+fn the_default_config_gives_identical_deltas_on_one_and_eight_threads() {
+    let cfg = Config::default();
+    assert_eq!(cfg.batch, 0);
+    assert_eq!(batch_size(&cfg), DEFAULT_BATCH);
+    let (a, da, _) = run_with(cfg.clone(), 8, Some(&pool(1)));
+    let (b, db, _) = run_with(cfg, 8, Some(&pool(8)));
+    assert_eq!(format!("{da:?}"), format!("{db:?}"));
+    assert_eq!(a.graph, b.graph);
+    assert_eq!(da[1].stats.jobs as usize, DEFAULT_BATCH);
+}
+
+#[test]
 fn from_rows_of_the_merge_output_equals_the_graph() {
     let (r, deltas, _) = run(3, 10, None);
-    let mut g = Graph::from_rows(applied(&deltas));
-    // Rows alone give every node, live key and id; duplicates without a row are restored.
-    assert_eq!(g.next_id(), r.graph.next_id());
-    assert!(g.nodes().eq(r.graph.nodes()));
-    assert!(g.frontier().eq(r.graph.frontier()));
-    for n in r.graph.nodes() {
-        assert_eq!(g.best(n.key), r.graph.best(n.key));
-        assert!(g.key_hits(n.key) <= r.graph.key_hits(n.key));
-    }
-    for (&k, &h) in r.graph.all_key_hits() {
-        g.set_key_hits(k, h);
-    }
+    // The applied rows alone rebuild the graph, key hits included.
+    let g = Graph::from_rows(applied(&deltas));
     assert_eq!(g, r.graph);
-    // Resuming from the rows plans the same next generation.
+    assert!(r.graph.nodes().any(|n| r.graph.key_hits(n.key) > 0));
+    // A runner resumed from the rows alone plans and merges what a straight one does.
     let mut resumed = Runner::new(cfg(3), applied(&deltas), r.generation);
-    for (&k, &h) in r.graph.all_key_hits() {
-        resumed.graph.set_key_hits(k, h);
-    }
     let mut straight = r;
-    assert_eq!(resumed.plan(), straight.plan());
+    let (mut ea, mut eb) = (FakeEval::default(), FakeEval::default());
+    for d in &deltas {
+        // The fake evaluator's archive is the keys seen, rebuilt from the delta's sightings.
+        for &(_, x, _) in &d.seen {
+            ea.seen.insert(x);
+            eb.seen.insert(x);
+        }
+    }
+    for _ in 0..3 {
+        let (pa, pb) = (resumed.plan(), straight.plan());
+        assert_eq!(pa, pb);
+        let da = resumed.merge(run_jobs(&jobs(pa, |_| None), fake_sim), &mut ea);
+        let db = straight.merge(run_jobs(&jobs(pb, |_| None), fake_sim), &mut eb);
+        assert_eq!(format!("{da:?}"), format!("{db:?}"));
+    }
+    assert_eq!(resumed.graph, straight.graph);
 }
 
 #[test]
@@ -356,11 +389,11 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.best(AbstractKey(5)), Some(2));
     assert_eq!(d.expanded, [(1, 1)]);
 
-    // More frames: a duplicate, no row, a key hit.
+    // More frames: a duplicate, no row, so no key hit (hits count rows).
     let d = r.merge(vec![job(0, 1, vec![step(11, 5, 80)], None)], &mut eval);
     assert!(d.nodes.is_empty());
     assert_eq!(d.stats.duplicates, 1);
-    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 0);
     assert_eq!(r.graph.best(AbstractKey(5)), Some(2));
     // Its cells are attributed to the live node.
     assert_eq!(d.cells, [(MapId(1), 5, 0, 2)]);
@@ -378,7 +411,7 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.best(AbstractKey(5)), Some(3));
     let old = r.graph.node(2).unwrap();
     assert_eq!((old.status, old.merged_into), (NodeStatus::Merged, Some(3)));
-    assert_eq!(r.graph.key_hits(AbstractKey(5)), 3);
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
     assert_eq!(r.graph.frontier().map(|n| n.id).collect::<Vec<_>>(), [1, 3]);
     assert_eq!(r.graph.node(1).unwrap().expanded, 4);
 }
@@ -443,16 +476,25 @@ fn findings_attach_to_the_node_their_tail_starts_from() {
     let (mut r, mut eval) = rooted();
     let d = r.merge(
         vec![
-            job(0, 1, vec![step(40, 3, 25)], Some(Stop::Finding(finding(1)))),
-            job(1, 1, vec![], Some(Stop::Finding(finding(2)))),
+            {
+                let steps = vec![step(40, 3, 25)];
+                let f = finding(1, &steps);
+                job(0, 1, steps, Some(Stop::Finding(f)))
+            },
+            job(1, 1, vec![], Some(Stop::Finding(finding(2, &[])))),
             job(2, 1, vec![], Some(Stop::Pruned("no candidate".into()))),
             job(3, 1, vec![], Some(Stop::NotTrapped)),
         ],
         &mut eval,
     );
-    let at: Vec<(NodeId, u64)> = d.findings.iter().map(|f| (f.1, f.2)).collect();
-    // Node 2 ends at 125 frames, + a 7-frame tail; the stepless job's tail starts at its parent.
-    assert_eq!(at, [(2, 132), (1, 107)]);
+    let at: Vec<(Option<NodeId>, u64)> = d.findings.iter().map(|f| (f.1, f.2)).collect();
+    // Tails start at the job parent (the root ends at 100 frames): 25 step frames + 7, or 7.
+    assert_eq!(at, [(Some(1), 100 + 25 + 7), (Some(1), 100 + 7)]);
+    assert_eq!(
+        d.nodes.len(),
+        1,
+        "the step before the finding is still a node"
+    );
     assert_eq!(d.stats.pruned, 1);
     assert_eq!(d.stats.jobs, 4);
     assert_eq!(d.stats.frames, 25 + 7 + 7);
@@ -465,12 +507,48 @@ fn findings_attach_to_the_node_their_tail_starts_from() {
             index: 0,
             parent: None,
             steps: vec![],
-            stop: Some(Stop::Finding(finding(3))),
+            stop: Some(Stop::Finding(finding(3, &[]))),
         }],
         &mut eval,
     );
-    assert!(d.findings.is_empty());
-    assert_eq!(r.unattached.len(), 1);
+    let at: Vec<(Option<NodeId>, u64)> = d.findings.iter().map(|f| (f.1, f.2)).collect();
+    assert_eq!(at, [(None, 7)], "from a new game");
+    assert!(r.graph.is_empty());
+    assert!(r.stalled());
+    assert!(r.plan().is_empty());
+    // Resumed from that db (no rows, next generation 1), it is still stalled.
+    assert!(Runner::new(cfg(1), vec![], 1).stalled());
+    assert!(!Runner::new(cfg(1), vec![], 0).stalled());
+}
+
+#[test]
+fn an_empty_frontier_stalls() {
+    let mut root = row(1, None, 0, 0);
+    root.status = NodeStatus::Broken;
+    let mut r = Runner::new(cfg(1), vec![root], 4);
+    assert!(r.stalled());
+    assert!(r.plan().is_empty());
+    let mut r = Runner::new(cfg(1), vec![row(1, None, 0, 0)], 4);
+    assert!(!r.stalled());
+    assert_eq!(r.plan().len(), 16);
+}
+
+#[test]
+fn a_barren_node_is_force_probed_once_per_plan() {
+    let mut root = row(1, None, 0, 0);
+    root.expanded = 3;
+    let mut r = Runner::new(cfg(1), vec![root], 4);
+    let planned = r.plan();
+    assert_eq!(planned.len(), 16, "the only node is selected every time");
+    assert!(
+        matches!(planned[0].1, Plan::Softlock { .. }),
+        "forced first"
+    );
+    let probes = planned
+        .iter()
+        .filter(|(_, p)| matches!(p, Plan::Softlock { .. }))
+        .count();
+    assert!(probes < 5, "then only the 5% draw ({probes})");
 }
 
 #[test]

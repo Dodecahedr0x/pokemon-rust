@@ -21,13 +21,22 @@ pub enum MutationOp {
 /// A node expanded this often without a single child gets the softlock probe.
 pub const PROBE_EXPANDED: u32 = 3;
 
-/// Draws the operator for `sel` (one `below(100)`, plus `up` for `ReplaceSuffix`).
+/// Whether `sel` was expanded at least [`PROBE_EXPANDED`] times without a single child.
+pub fn barren(g: &Graph, sel: NodeId) -> bool {
+    g.node(sel)
+        .is_some_and(|n| n.expanded >= PROBE_EXPANDED && g.children(sel) == 0)
+}
+
+/// Draws the operator for `sel` (one `below(100)`, plus `up` for `ReplaceSuffix`); a barren
+/// node gets the probe.
 pub fn choose(g: &Graph, rng: &mut Rng64, sel: NodeId) -> MutationOp {
+    choose_with(rng, barren(g, sel))
+}
+
+/// [`choose`] with the forced probe decided by the caller.
+pub fn choose_with(rng: &mut Rng64, force_probe: bool) -> MutationOp {
     let r = rng.below(100);
-    let barren = g
-        .node(sel)
-        .is_some_and(|n| n.expanded >= PROBE_EXPANDED && g.children(sel) == 0);
-    if barren {
+    if force_probe {
         return MutationOp::Probe;
     }
     match r {
@@ -42,7 +51,19 @@ pub fn choose(g: &Graph, rng: &mut Rng64, sel: NodeId) -> MutationOp {
 
 /// The job's start node (`None` = a new game) and plan for the selected node `sel`.
 pub fn mutate(g: &Graph, rng: &mut Rng64, sel: NodeId, cfg: &Config) -> (Option<NodeId>, Plan) {
-    let op = choose(g, rng, sel);
+    mutate_with(g, rng, sel, cfg, barren(g, sel))
+}
+
+/// [`mutate`] with the forced probe decided by the caller (`Runner::plan` forces it once per
+/// barren node and plan).
+pub fn mutate_with(
+    g: &Graph,
+    rng: &mut Rng64,
+    sel: NodeId,
+    cfg: &Config,
+    force_probe: bool,
+) -> (Option<NodeId>, Plan) {
+    let op = choose_with(rng, force_probe);
     apply(g, rng, sel, op, cfg)
 }
 
