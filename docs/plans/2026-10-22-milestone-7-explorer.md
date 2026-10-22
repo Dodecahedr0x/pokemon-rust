@@ -1391,5 +1391,35 @@ Consequence: the `node` table grows by one non-live row per such duplicate. Thos
 - A frame that does not follow the last observed one (a `Session::load`) is a discontinuity: the shadow is dropped and the schedule restarts.
 - The whole round trip (checkpoint, encode, decode, restore, compare) runs under the guard; a panic is a `RoundTrip` flag "round trip panicked: {msg} at {loc}". Shadow panics carry the location too.
 
+## Task A as built
+**Deviation: `Cross` and the stale view.**
+- After a connection crossing, the engine's `StaleView` keeps the state uncapturable until the camera has entirely left the view at the crossing (`STALE_CLEAR` = 17x12 cells). The spec's "walk one cell in" never settles a capturable frame.
+- Fallback in `Driver::resolve`: walk toward the nearest reachable cell a full view away. After `STALE_PUSHES` (2) script push-backs, talk to the nearest scripted object not yet tried; each object is tried once, whether the talk succeeds or not.
+- Each fallback talk is visible in `Expanded::notes`, as "stale view after a crossing: talked to object N".
+- **Changed test expectation:** on Route 101 during Birch's rescue, the triggers push the player back near the crossing. `Cross Up` from Littleroot therefore ends in Birch's lab, after the bag talk, the starter and the first battle. It does not end on Route 101. `real_route_moments` asserts the lab, a one-mon party and one battle of kind 1. `real_stale_view_tries_each_object_once` covers a text-only nearest object.
+- The engine fix is an M8 follow-up (see Findings).
+
+**Contract additions:**
+- `macros::{candidates_with(game, snap, reach, cell_shift), enter_approach}`; `path::Reach::{map, width, height}`.
+- `expand::{Intents, expand_with}` (`Intents` is the policy seam, implemented for `policy::Policy`); `sim::simulate_with`.
+- `Expanded::{last_script, slow, notes}`; `expand::{MAX_SLOW, STALL_FRAMES, BLOCKED_FRAMES}`; `sim::RANDOM_TRIES`.
+
+**Conventions:**
+- **Only `SlowFrame` is report-only:** it is recorded in `Expanded::slow` (at most `MAX_SLOW`) and never ends a macro. Every other flag ends it (`observe.rs`).
+- **Finding tail:** runs from the job's start (its checkpoint, or a new game) through every earlier step to the failing frame.
+- **Finding map:** `World::map()` after the failing frame. For a panic inside `World::new`, or in a restore, it is `new_game().map` with an empty tail, or the checkpoint's map with the tail of the steps so far.
+- **Settle step:** a job without a start gets an implicit `Settle` step first.
+- **`summary.maps`:** excludes the start map.
+- **WalkTo candidates:** active coord-event cells (var condition met) come first; inactive ones are not candidates. Then there is one cell per coarse block, nearest its centre, excluding the player's block.
+- **ArrowWarp(d):** walkable, never left toward d.
+- **Overrides:** the start's `setmetatile` overrides apply until the map changes, then none.
+- **Host time:** `Instant` is used in expand only for `max_step_ns` and `SlowFrame`; it is report-only.
+- **Stalls:** more than `STALL_FRAMES` frames holding one direction toward a planner-walkable cell gives `PlannerDivergence`; more than `BLOCKED_FRAMES` blocked frames gives `NoPath`.
+
+**Notes for Task H:**
+- **(M4) Elevation:** the planner ignores elevation (decision 16), so a `PlannerDivergence` on a map with elevation changes (bridges, stairs) can be a false positive. Triage those before treating them as collision bugs. `a_planner_divergence_is_flagged_after_a_stall` builds one on purpose.
+- **(M5) Seeds:** `Plan::Random` draws from `Rng64(seed ^ i)` per step `i`. Jobs whose seeds differ only in the low bits can share streams across steps (`seed ^ 1` at step 0 equals `seed' ^ 0` for `seed' = seed ^ 1`). This is harmless for determinism, but it is worth knowing when reading diversity numbers.
+
 ## Findings
 - **House map 0x101, `Inspect` at (5,1) and (3,1) facing Up (Task A's probe):** the script ends but the fade never returns to 0, so the state is never capturable again. Likely a real engine or content bug; `CapturableStuck` should report it once Task G runs.
+- **M8 follow-up (engine): the stale view after a connection crossing should be capturable.** Today it is capturable only once the camera has left the crossing's view, so `Cross` needs the walk-away and talk fallback (Task A as built). Capturing it, by snapshotting the stale rect or redrawing the view on restore, would let `Cross` end one cell into the new map as specified.

@@ -13,6 +13,9 @@ pub struct Flag {
     pub message: String,
 }
 
+/// The driver (`expand`) ends the macro on any flag but one: **`FindingKind::SlowFrame` is
+/// report-only**. It is recorded (`Expanded::slow`) and the expansion goes on, so host timing
+/// never changes the inputs, the steps or the tree.
 pub trait StepObserver<G: GameData> {
     /// After every stepped frame; `step_ns` is the host time of the step (report-only).
     fn after_step(&mut self, s: &Session<Probe<G>>, keys: Buttons, step_ns: u64) -> Option<Flag>;

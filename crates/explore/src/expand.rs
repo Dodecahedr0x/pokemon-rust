@@ -1,15 +1,26 @@
 //! The driver: expands a macro to inputs on a live session (Task A).
-#![allow(unused_variables)] // Wave 0 stub: remove when implemented.
+//!
+//! Adapted from the scenario recorder (`game_native::scenario`, decision 1): BFS walking
+//! re-planned every frame, the tap rule, the battle cursor walk. A macro always ends on the
+//! first frame where `World::capturable()` is `Ok` and the player is settled; a script,
+//! battle or starter screen that starts during a walk ends the walk and is resolved with the
+//! policy and the macro's `Opts`.
 
+use crate::balance::BattleTracker;
 use crate::config::Limits;
-use crate::guard::Panicked;
-use crate::model::{Macro, SimSummary};
-use crate::observe::{Flag, StepObserver};
+use crate::guard::{self, Panicked};
+use crate::macros;
+use crate::model::{FindingKind, Macro, MacroKind, Opts, SimSummary};
+use crate::observe::{Flag, NoObserver, StepObserver};
+use crate::path::{self, live_grid};
 use crate::policy::Policy;
 use crate::probe::Probe;
-use engine::Buttons;
-use engine::data::GameData;
+use engine::checkpoint::NotCapturable;
+use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, ScriptId};
+use engine::mon::BattleTables;
+use engine::{Buttons, World};
 use game_native::Session;
+use std::time::Instant;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExpandError {
@@ -23,6 +34,46 @@ pub enum ExpandError {
 pub struct Expanded {
     pub keys: Vec<Buttons>,
     pub summary: SimSummary,
+    /// The last script started during the expansion (`Probe`), for findings.
+    pub last_script: Option<ScriptId>,
+    /// Report-only flags (`FindingKind::SlowFrame`) raised during the expansion, at most
+    /// [`MAX_SLOW`]; they never end it.
+    pub slow: Vec<Flag>,
+    /// What the driver did beyond the macro itself, e.g. `"stale view after a crossing:
+    /// talked to object 2"` (the Cross fallback, see `Driver::resolve`).
+    pub notes: Vec<String>,
+}
+
+/// Report-only flags kept per expansion.
+pub const MAX_SLOW: usize = 16;
+
+/// Frames the player may hold one planned direction toward a cell the planner calls walkable
+/// without moving before the driver flags a planner/engine divergence.
+pub const STALL_FRAMES: u32 = 64;
+/// Frames the player may wait on one cell for its way to clear (no path, or an object in the
+/// planned cell) before the walk gives up with `NoPath`.
+pub const BLOCKED_FRAMES: u32 = 240;
+/// How far (cells, x and y) the player walks from a crossing cell for the view to leave the
+/// one drawn at the crossing (a 15x10-cell screen, plus a cell for the scroll in progress).
+const STALE_CLEAR: (i16, i16) = (17, 12);
+/// Scripts stopping the walk out of a stale view before the driver talks to objects instead.
+const STALE_PUSHES: u32 = 2;
+/// Frames after pressing A for the interaction's script to start.
+const INTERACT_FRAMES: u32 = 4;
+
+/// What drives battles and scripts: the policy's intents (the driver applies the tap rule).
+pub trait Intents {
+    fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons;
+    fn script(&mut self, w: &World, opts: Opts) -> Buttons;
+}
+
+impl Intents for Policy {
+    fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons {
+        Policy::battle(self, w, t, opts)
+    }
+    fn script(&mut self, w: &World, opts: Opts) -> Buttons {
+        Policy::script(self, w, opts)
+    }
 }
 
 /// Plays `m` on `s` to the next capturable frame. On error, `keys`/`summary` so far are
@@ -35,10 +86,635 @@ pub fn expand<G: GameData>(
     obs: &mut dyn StepObserver<G>,
     limits: &Limits,
 ) -> Result<Expanded, (ExpandError, Expanded)> {
-    todo!("Task A")
+    expand_with(s, m, policy, obs, limits)
+}
+
+/// [`expand`] with any [`Intents`] (a test seam: fake policies).
+#[allow(clippy::result_large_err)] // the partial expansion is the repro
+pub fn expand_with<G: GameData>(
+    s: &mut Session<Probe<G>>,
+    m: &Macro,
+    intents: &mut dyn Intents,
+    obs: &mut dyn StepObserver<G>,
+    limits: &Limits,
+) -> Result<Expanded, (ExpandError, Expanded)> {
+    let mut d = Driver::new(s, intents, obs, limits, m.opts);
+    let r = d.plan(m).and_then(|()| d.run(m.kind));
+    let ex = d.finish();
+    match r {
+        Ok(()) => Ok(ex),
+        Err(e) => Err((e, ex)),
+    }
 }
 
 /// Root: a new game settled to its first capturable frame (`MacroKind::Settle`).
+///
+/// Panics if the new game never settles (default limits): that is a broken build, not an
+/// exploration result.
 pub fn new_game<G: GameData>(game: G) -> Session<Probe<G>> {
-    todo!("Task A")
+    let mut s = Session::new(Probe::new(game));
+    let settle = Macro {
+        kind: MacroKind::Settle,
+        opts: Opts::default(),
+    };
+    if let Err((e, _)) = expand_with(
+        &mut s,
+        &settle,
+        &mut Policy::new(),
+        &mut NoObserver,
+        &Limits::default(),
+    ) {
+        panic!("a new game does not settle: {e:?}");
+    }
+    s
+}
+
+pub(crate) fn dir_key(d: Dir) -> Buttons {
+    match d {
+        Dir::Down => Buttons::DOWN,
+        Dir::Up => Buttons::UP,
+        Dir::Left => Buttons::LEFT,
+        Dir::Right => Buttons::RIGHT,
+    }
+}
+
+/// Watches a walk for frames without moving.
+#[derive(Default)]
+struct Stall {
+    pos: Option<(i16, i16)>,
+    dir: Option<Dir>,
+    /// Frames holding the same direction toward a cell the planner calls walkable.
+    open: u32,
+    /// Frames without a way (no path, or the planned cell occupied).
+    blocked: u32,
+}
+
+impl Stall {
+    /// `Some(NoPath)` after [`BLOCKED_FRAMES`] blocked frames on one cell; `Some(Flagged)`
+    /// (the caller builds the flag) after [`STALL_FRAMES`] frames holding one direction toward
+    /// a walkable cell without moving.
+    fn tick(&mut self, pos: (i16, i16), dir: Option<Dir>, open: bool) -> Option<ExpandError> {
+        if self.pos != Some(pos) {
+            *self = Stall {
+                pos: Some(pos),
+                ..Stall::default()
+            };
+        }
+        if self.dir != dir || !open {
+            self.open = 0;
+        }
+        self.dir = dir;
+        if open {
+            self.open += 1;
+        } else {
+            self.blocked += 1;
+        }
+        if self.blocked > BLOCKED_FRAMES {
+            Some(ExpandError::NoPath)
+        } else if self.open > STALL_FRAMES {
+            Some(ExpandError::NoEffect("stalled"))
+        } else {
+            None
+        }
+    }
+}
+
+/// How a walk ended.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Walk {
+    Arrived,
+    /// A script, battle, starter screen or warp took over.
+    Interrupted,
+}
+
+struct Driver<'a, G: GameData> {
+    s: &'a mut Session<Probe<G>>,
+    intents: &'a mut dyn Intents,
+    obs: &'a mut dyn StepObserver<G>,
+    limits: &'a Limits,
+    opts: Opts,
+    keys: Vec<Buttons>,
+    summary: SimSummary,
+    last_script: Option<ScriptId>,
+    /// The buttons of the last step.
+    last: Buttons,
+    /// The start snapshot's `setmetatile` overrides, valid until the map first changes.
+    overrides: Vec<((i16, i16), u16)>,
+    slow: Vec<Flag>,
+    notes: Vec<String>,
+    map: MapId,
+    log_start: u32,
+    battle: Option<BattleTracker>,
+    /// Frames stepped outside battles (`Limits::macro_frames`).
+    nonbattle: u32,
+    /// Frames of the current battle (`Limits::battle_frames`).
+    battle_frames: u32,
+    /// The player's cell on the first frame on a map entered by a connection crossing.
+    crossed_at: Option<(i16, i16)>,
+    /// Where the player walks while the view is stale.
+    stale_target: Option<(i16, i16)>,
+    /// Scripts that stopped a walk out of a stale view.
+    stale_pushed: u32,
+    /// Objects talked to (or tried) to get out of a stale view.
+    stale_tried: Vec<u8>,
+}
+
+impl<'a, G: GameData> Driver<'a, G> {
+    fn new(
+        s: &'a mut Session<Probe<G>>,
+        intents: &'a mut dyn Intents,
+        obs: &'a mut dyn StepObserver<G>,
+        limits: &'a Limits,
+        opts: Opts,
+    ) -> Self {
+        let w = s.world();
+        let (map, log_start) = (w.map(), w.log().count());
+        let overrides = w
+            .snapshot(s.game())
+            .map(|snap| snap.field.overrides)
+            .unwrap_or_default();
+        Driver {
+            s,
+            intents,
+            obs,
+            limits,
+            opts,
+            keys: Vec::new(),
+            summary: SimSummary::default(),
+            last_script: None,
+            last: Buttons::NONE,
+            overrides,
+            slow: Vec::new(),
+            notes: Vec::new(),
+            map,
+            log_start,
+            battle: None,
+            nonbattle: 0,
+            battle_frames: 0,
+            crossed_at: None,
+            stale_target: None,
+            stale_pushed: 0,
+            stale_tried: Vec::new(),
+        }
+    }
+
+    fn w(&self) -> &World {
+        self.s.world()
+    }
+
+    fn finish(self) -> Expanded {
+        let mut summary = self.summary;
+        summary.frames = self.keys.len() as u32;
+        summary.log_lines = self.s.world().log().count().wrapping_sub(self.log_start);
+        Expanded {
+            keys: self.keys,
+            summary,
+            last_script: self.last_script,
+            slow: self.slow,
+            notes: self.notes,
+        }
+    }
+
+    /// The overrides that apply to the live map: the start snapshot's, cleared (latched off)
+    /// on the first map change, since a new map starts without overrides.
+    fn overrides(&self) -> &[((i16, i16), u16)] {
+        &self.overrides
+    }
+
+    /// Up-front planning: `NoPath` when `m` is not applicable to a capturable start.
+    fn plan(&mut self, m: &Macro) -> Result<(), ExpandError> {
+        if m.kind == MacroKind::Settle {
+            return Ok(());
+        }
+        let Ok(snap) = self.w().snapshot(self.s.game()) else {
+            return Ok(());
+        };
+        let reach = path::reach(self.s.game(), &snap);
+        if macros::applicable(self.s.game(), &snap, &reach, m) {
+            Ok(())
+        } else {
+            Err(ExpandError::NoPath)
+        }
+    }
+
+    /// One frame: guarded step, observers, summary.
+    fn press(&mut self, keys: Buttons) -> Result<(), ExpandError> {
+        if self.w().in_battle() {
+            self.battle_frames += 1;
+            if self.battle_frames > self.limits.battle_frames {
+                return Err(ExpandError::Timeout("battle"));
+            }
+        } else {
+            self.nonbattle += 1;
+            if self.nonbattle > self.limits.macro_frames {
+                return Err(ExpandError::Timeout("macro"));
+            }
+        }
+        let t = Instant::now();
+        let stepped = guard::step_guarded(self.s, keys);
+        let ns = t.elapsed().as_nanos().min(u64::MAX as u128) as u64;
+        self.keys.push(keys);
+        self.last = keys;
+        stepped.map_err(ExpandError::Panicked)?;
+        let flag = self.obs.after_step(self.s, keys, ns);
+        self.observe(ns);
+        match flag {
+            // Report-only (`observe` module docs): recorded, never fatal.
+            Some(f) if f.kind == FindingKind::SlowFrame => {
+                if self.slow.len() < MAX_SLOW {
+                    self.slow.push(f);
+                }
+                Ok(())
+            }
+            Some(f) => Err(ExpandError::Flagged(f)),
+            None => Ok(()),
+        }
+    }
+
+    fn observe(&mut self, ns: u64) {
+        let sum = &mut self.summary;
+        sum.max_step_ns = sum.max_step_ns.max(ns);
+        let w = self.s.world();
+        let (map, pos) = (w.map(), w.objects().player().pos());
+        if map != self.map {
+            self.map = map;
+            self.overrides.clear();
+            if !w.transition_active() {
+                self.crossed_at = Some(pos);
+                self.stale_target = None;
+            }
+            if sum.maps.last() != Some(&map) {
+                sum.maps.push(map);
+            }
+        }
+        sum.cells.insert((map, pos.0, pos.1));
+        for id in self.s.game().take_started() {
+            sum.scripts.insert(id);
+            self.last_script = Some(id);
+        }
+        match (&mut self.battle, w.in_battle()) {
+            (None, true) => {
+                self.battle = BattleTracker::start(w);
+                self.battle_frames = 0;
+            }
+            (Some(t), true) => t.observe(w),
+            (Some(_), false) => {
+                let t = self.battle.take().expect("tracked");
+                sum.battles.push(t.finish(w, None));
+            }
+            (None, false) => {}
+        }
+    }
+
+    /// Presses `keys` as a new press: a frame of nothing first if something is held, and
+    /// nothing while a battle or warp has the screen black (`scenario.rs` tap rule).
+    fn tap(&mut self, keys: Buttons) -> Result<(), ExpandError> {
+        let w = self.w();
+        let black = (w.in_battle() || w.transition_active()) && self.s.frame().is_black();
+        if self.last != Buttons::NONE || black {
+            self.press(Buttons::NONE)
+        } else {
+            self.press(keys)
+        }
+    }
+
+    /// A script, battle, starter screen or warp owns the frame.
+    fn interrupted(&self) -> bool {
+        let w = self.w();
+        w.script_running() || w.in_battle() || w.starter().is_some() || w.transition_active()
+    }
+
+    /// Resolves whatever runs (battles with the policy, scripts and the starter screen with
+    /// the policy, a stale view by walking on) until the first capturable frame with the
+    /// player settled.
+    fn resolve(&mut self) -> Result<(), ExpandError> {
+        let mut idle = 0u32;
+        let mut was_stale = false;
+        loop {
+            let w = self.s.world();
+            let why = match w.capturable() {
+                Ok(()) if w.objects().player().is_settled() => return Ok(()),
+                Ok(()) => None,
+                Err(why) => Some(why),
+            };
+            if w.in_battle() {
+                idle = 0;
+                let k = self.intents.battle(w, self.s.game().battle(), self.opts);
+                self.tap(k)?;
+            } else if w.script_running() || w.starter().is_some() {
+                idle = 0;
+                if std::mem::take(&mut was_stale) {
+                    // A script stopped the walk out of a stale view (a trigger keeping the
+                    // player in).
+                    self.stale_pushed += 1;
+                }
+                let k = self.intents.script(w, self.opts);
+                self.tap(k)?;
+            } else {
+                idle += 1;
+                if idle > self.limits.settle_frames {
+                    return Err(ExpandError::Timeout("settle"));
+                }
+                if why != Some(NotCapturable::StaleView) {
+                    self.press(Buttons::NONE)?;
+                    continue;
+                }
+                if self.stale_pushed < STALE_PUSHES
+                    && let Some(d) = self.stale_dir()
+                {
+                    was_stale = true;
+                    self.press(dir_key(d))?;
+                    continue;
+                }
+                // Walking cannot clear the view: talk to the nearest scripted object.
+                let Some(id) = self.stale_interaction() else {
+                    self.press(Buttons::NONE)?;
+                    continue;
+                };
+                idle = 0;
+                // Each object once: one that only shows text leaves the view stale, and the
+                // next one is tried.
+                self.stale_tried.push(id);
+                match self.talk(id) {
+                    Ok(()) => self.notes.push(format!(
+                        "stale view after a crossing: talked to object {id}"
+                    )),
+                    Err(ExpandError::NoPath | ExpandError::NoEffect(_)) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+    }
+
+    /// The nearest object with a template script the player can walk next to, not tried yet.
+    fn stale_interaction(&self) -> Option<u8> {
+        let w = self.s.world();
+        let pos = w.objects().player().pos();
+        let grid = live_grid(self.s.game(), w, self.overrides());
+        let dist = grid.distances(pos, false);
+        let at = |(x, y): (i16, i16)| {
+            (grid.in_bounds((x, y)))
+                .then(|| dist[y as usize * grid.map.width as usize + x as usize])
+        };
+        w.objects()
+            .iter()
+            .filter(|o| {
+                o.local_id != PLAYER
+                    && o.visible
+                    && o.map == w.map()
+                    && !self.stale_tried.contains(&o.local_id)
+                    && grid
+                        .map
+                        .objects
+                        .iter()
+                        .any(|t| t.local_id == o.local_id && t.script.is_some())
+            })
+            .filter_map(|o| {
+                let d = macros::talk_approaches(&grid, o.pos())
+                    .iter()
+                    .filter_map(|&(c, _)| at(c))
+                    .min()?;
+                (d != u16::MAX).then_some((d, o.local_id))
+            })
+            .min()
+            .map(|(_, id)| id)
+    }
+
+    /// Walking on after a crossing until the view no longer shows the old map (the stale
+    /// rectangle is the view at the crossing, so the camera must leave it entirely): toward the
+    /// nearest reachable cell a full view away from the crossing cell, else the farthest.
+    fn stale_dir(&mut self) -> Option<Dir> {
+        let w = self.s.world();
+        let pos = w.objects().player().pos();
+        if self.stale_target.is_none_or(|t| t == pos) {
+            let p0 = self.crossed_at.unwrap_or(pos);
+            let grid = live_grid(self.s.game(), w, self.overrides());
+            let dist = grid.distances(pos, false);
+            let width = grid.map.width as usize;
+            let away = |(x, y): (i16, i16)| {
+                let (dx, dy) = ((x - p0.0).abs(), (y - p0.1).abs());
+                (dx - STALE_CLEAR.0).max(dy - STALE_CLEAR.1)
+            };
+            let cells = dist
+                .iter()
+                .enumerate()
+                .filter(|(_, d)| **d != u16::MAX)
+                .map(|(i, &d)| (d, ((i % width) as i16, (i / width) as i16)));
+            self.stale_target = cells
+                .clone()
+                .filter(|&(_, c)| away(c) >= 0)
+                .min_by_key(|&(d, (x, y))| (d, y, x))
+                .or_else(|| {
+                    cells.max_by_key(|&(d, (x, y))| (away((x, y)), std::cmp::Reverse((d, y, x))))
+                })
+                .map(|(_, c)| c)
+                .filter(|&c| c != pos);
+        }
+        let to = self.stale_target?;
+        path::next_dir(self.s.game(), self.s.world(), self.overrides(), to)
+    }
+
+    /// Walks to `to` (re-planned every frame), finishing the last step.
+    fn walk_to(&mut self, to: (i16, i16)) -> Result<Walk, ExpandError> {
+        let mut stall = Stall::default();
+        loop {
+            if self.interrupted() {
+                return Ok(Walk::Interrupted);
+            }
+            let p = self.w().objects().player();
+            let (pos, settled) = (p.pos(), p.is_settled());
+            if pos == to {
+                if settled {
+                    return Ok(Walk::Arrived);
+                }
+                self.press(Buttons::NONE)?;
+                continue;
+            }
+            let dir = path::next_dir(self.s.game(), self.w(), self.overrides(), to);
+            self.step_toward(&mut stall, dir, to)?;
+        }
+    }
+
+    /// Holds `dir` (nothing if `None`) for a frame, watching for a stalled walk.
+    fn step_toward(
+        &mut self,
+        stall: &mut Stall,
+        dir: Option<Dir>,
+        to: (i16, i16),
+    ) -> Result<(), ExpandError> {
+        let pos = self.w().objects().player().pos();
+        let ahead = dir.and_then(|d| self.ahead_walkable(d));
+        if let Some(e) = stall.tick(pos, dir, ahead.is_some()) {
+            return Err(match e {
+                ExpandError::NoPath => ExpandError::NoPath,
+                _ => ExpandError::Flagged(Flag {
+                    kind: FindingKind::PlannerDivergence,
+                    message: format!(
+                        "map {:#x}: held {:?} at {pos:?} toward walkable {:?} (going to {to:?}) \
+                         for {STALL_FRAMES} frames without moving",
+                        self.w().map().0,
+                        dir.expect("a direction"),
+                        ahead.expect("walkable"),
+                    ),
+                }),
+            });
+        }
+        self.press(dir.map_or(Buttons::NONE, dir_key))
+    }
+
+    /// The cell a step toward `d` lands on (over a ledge), if the planner calls it walkable
+    /// right now.
+    fn ahead_walkable(&self, d: Dir) -> Option<(i16, i16)> {
+        let w = self.w();
+        let grid = live_grid(self.s.game(), w, self.overrides());
+        let (dx, dy) = d.delta();
+        let p = w.objects().player().pos();
+        let mut ahead = (p.0 + dx, p.1 + dy);
+        if grid.behavior(ahead) == Behavior::Ledge(d) {
+            ahead = (ahead.0 + dx, ahead.1 + dy);
+        }
+        grid.walkable(ahead, false).then_some(ahead)
+    }
+
+    /// Settled on the right cell: turn to `d`, then press A until a script starts.
+    fn face_and_press(&mut self, d: Dir, what: &'static str) -> Result<(), ExpandError> {
+        let p = self.w().objects().player();
+        if p.facing != d {
+            return self.press(dir_key(d));
+        }
+        if !p.is_settled() || self.last != Buttons::NONE {
+            return self.press(Buttons::NONE);
+        }
+        self.press(Buttons::A)?;
+        for _ in 0..INTERACT_FRAMES {
+            if self.interrupted() {
+                return Ok(());
+            }
+            self.press(Buttons::NONE)?;
+        }
+        if self.interrupted() {
+            Ok(())
+        } else {
+            Err(ExpandError::NoEffect(what))
+        }
+    }
+
+    fn run(&mut self, kind: MacroKind) -> Result<(), ExpandError> {
+        match kind {
+            MacroKind::Settle => {}
+            MacroKind::WalkTo { x, y } => {
+                self.walk_to((x, y))?;
+            }
+            MacroKind::Enter { x, y, dir } => self.enter((x, y), dir)?,
+            MacroKind::Cross { x, y, dir } => self.cross((x, y), dir)?,
+            MacroKind::Talk { local_id } => self.talk(local_id)?,
+            MacroKind::Inspect { x, y, dir } => {
+                let (dx, dy) = dir.delta();
+                if self.walk_to((x - dx, y - dy))? == Walk::Arrived {
+                    while !self.interrupted() {
+                        self.face_and_press(dir, "inspect")?;
+                    }
+                }
+            }
+            MacroKind::Grass { x, y } => self.grass((x, y))?,
+        }
+        self.resolve()
+    }
+
+    fn enter(&mut self, at: (i16, i16), dir: Dir) -> Result<(), ExpandError> {
+        let grid = live_grid(self.s.game(), self.w(), self.overrides());
+        let approach = macros::enter_approach(grid.behavior(at), at, dir);
+        if self.walk_to(approach)? == Walk::Interrupted {
+            return Ok(());
+        }
+        let mut n = 0;
+        while !self.interrupted() {
+            n += 1;
+            if n > self.limits.enter_frames {
+                return Err(ExpandError::NoEffect("enter: no warp"));
+            }
+            self.press(dir_key(dir))?;
+        }
+        Ok(())
+    }
+
+    fn cross(&mut self, at: (i16, i16), dir: Dir) -> Result<(), ExpandError> {
+        if self.walk_to(at)? == Walk::Interrupted {
+            return Ok(());
+        }
+        let map = self.w().map();
+        let mut n = 0;
+        while self.w().map() == map {
+            if self.interrupted() {
+                return Ok(());
+            }
+            n += 1;
+            if n > self.limits.enter_frames {
+                return Err(ExpandError::NoEffect("cross: no map change"));
+            }
+            self.press(dir_key(dir))?;
+        }
+        Ok(())
+    }
+
+    fn talk(&mut self, local_id: u8) -> Result<(), ExpandError> {
+        let mut stall = Stall::default();
+        while !self.interrupted() {
+            let w = self.w();
+            let Some(o) = w.objects().get(local_id) else {
+                return Err(ExpandError::NoEffect("talk: object gone"));
+            };
+            let grid = live_grid(self.s.game(), w, self.overrides());
+            let p = w.objects().player();
+            let approaches = macros::talk_approaches(&grid, o.pos());
+            if let Some(&(_, d)) = approaches.iter().find(|(c, _)| *c == p.pos()) {
+                if p.is_settled() {
+                    self.face_and_press(d, "talk")?;
+                } else {
+                    self.press(Buttons::NONE)?;
+                }
+                continue;
+            }
+            // The first approach the player can walk to (the object may wander).
+            let (from, at) = (p.pos(), o.pos());
+            let dir = approaches.iter().find_map(|&(c, _)| {
+                grid.first_dir(from, c, true)
+                    .or_else(|| grid.first_dir(from, c, false))
+            });
+            self.step_toward(&mut stall, dir, at)?;
+        }
+        Ok(())
+    }
+
+    fn grass(&mut self, at: (i16, i16)) -> Result<(), ExpandError> {
+        let start = self.keys.len() as u32;
+        if self.walk_to(at)? == Walk::Interrupted {
+            return Ok(());
+        }
+        let other = {
+            let grid = live_grid(self.s.game(), self.w(), self.overrides());
+            Dir::ALL.into_iter().find_map(|d| {
+                let (dx, dy) = d.delta();
+                let c = (at.0 + dx, at.1 + dy);
+                let ledge = matches!(grid.behavior(c), Behavior::Ledge(_));
+                (grid.walkable(c, false) && !ledge).then_some(c)
+            })
+        };
+        let Some(other) = other else {
+            return Err(ExpandError::NoEffect("grass: no walkable neighbour"));
+        };
+        let mut to = other;
+        while !self.interrupted() {
+            if self.keys.len() as u32 - start > self.limits.grass_frames {
+                return Err(ExpandError::NoEffect("grass: no encounter"));
+            }
+            let p = self.w().objects().player();
+            if p.pos() == to && p.is_settled() {
+                to = if to == at { other } else { at };
+            }
+            let dir = path::next_dir(self.s.game(), self.w(), self.overrides(), to);
+            self.press(dir.map_or(Buttons::NONE, dir_key))?;
+        }
+        Ok(())
+    }
 }
