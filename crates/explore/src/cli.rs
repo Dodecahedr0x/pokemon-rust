@@ -8,6 +8,7 @@ use crate::config::{Budget, Config};
 use crate::db::{Db, DbStats, FindingRow};
 use crate::goals;
 use crate::model::NodeId;
+use crate::path::Grid;
 use crate::wire::{self, Explore};
 use anyhow::{Context, anyhow, bail};
 use content::Emerald;
@@ -348,7 +349,18 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
             s.findings
         );
     };
+    // Goals first reached in this run, with the generation and the run's wall time.
+    let mut best = ex.stats()?.max_progress;
     let sum = ex.run(budget, |p| {
+        if p.last.max_progress > best {
+            best = p.last.max_progress;
+            println!(
+                "goal {} first reached in generation {} at {:.1} s",
+                goal_text(best),
+                p.last.generation + 1,
+                p.summary.wall.as_secs_f64()
+            );
+        }
         if p.summary.generations.is_multiple_of(10)
             && let Ok(s) = p.db.stats()
         {
@@ -392,9 +404,14 @@ fn status(db_path: &Path) -> anyhow::Result<()> {
     );
     println!("generation {}", s.generation);
     println!("goals     {}", goal_text(s.max_progress));
+    let names = content::data::SCRIPT_NAMES.len();
     println!(
-        "maps {}  cells {}  scripts {}  findings {}",
-        s.maps, s.cells, s.scripts, s.findings
+        "maps {}  cells {}  scripts {} of {names} ({:.1}%)  findings {}",
+        s.maps,
+        s.cells,
+        s.scripts,
+        100.0 * f64::from(s.scripts) / names.max(1) as f64,
+        s.findings
     );
     println!(
         "seed {}  build {:?}",
@@ -543,6 +560,25 @@ fn coverage(db_path: &Path, map: &str) -> anyhow::Result<()> {
             .collect();
         println!("{row}");
     }
-    println!("{seen} cells stood on, {open} without collision");
+    // Reachable: the planner's walkable cells (terrain only: no objects, no overrides) a walk
+    // from a cell stood on can reach.
+    let grid = Grid::new(&game, id, &[], Vec::new());
+    let mut reachable = vec![false; w * h];
+    for i in 0..w * h {
+        if hits[i] == 0 || reachable[i] {
+            continue;
+        }
+        let from = ((i % w) as i16, (i / w) as i16);
+        for (r, d) in reachable.iter_mut().zip(grid.distances(from, false)) {
+            *r |= d != u16::MAX;
+        }
+    }
+    let reach = reachable.iter().filter(|r| **r).count();
+    let on = (0..w * h).filter(|&i| reachable[i] && hits[i] > 0).count();
+    println!(
+        "{seen} cells stood on, {open} without collision; {on} of the {reach} cells reachable \
+         from them ({:.1}%)",
+        100.0 * on as f64 / reach.max(1) as f64
+    );
     Ok(())
 }
