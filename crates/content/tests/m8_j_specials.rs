@@ -57,10 +57,10 @@ fn every_decomp_special_is_classified_once() {
 }
 
 #[test]
-fn ignore_and_default_classes_give_a_reason() {
+fn native_ignore_and_default_classes_give_a_reason() {
     let r = reasons();
     for (name, class) in classes() {
-        if matches!(class, Class::Ignore | Class::Default(_)) {
+        if matches!(class, Class::Native | Class::Ignore | Class::Default(_)) {
             assert!(
                 r.get(&name).is_some_and(|s| !s.is_empty()),
                 "{name}: no reason"
@@ -79,6 +79,8 @@ struct Rec {
     vars: BTreeMap<u16, u16>,
     flags: BTreeSet<u16>,
     party: u16,
+    /// The answer to `Random`.
+    rand: u16,
 }
 
 impl Rec {
@@ -105,9 +107,8 @@ impl Rec {
                 self.vars.insert(v.0, x);
                 Response::Unit
             }
-            Request::Random(_) | Request::PlayerFacing | Request::ChooseStarter(_) => {
-                Response::Value(0)
-            }
+            Request::Random(_) => Response::Value(self.rand),
+            Request::PlayerFacing | Request::ChooseStarter(_) => Response::Value(0),
             Request::GiveMon { .. } => Response::Value(0),
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
@@ -231,7 +232,18 @@ fn native_specials_issue_their_requests_in_order() {
         ("SPECIAL_ChangePokemonNickname", 1, fade_in.clone(), 0),
         ("SPECIAL_ChangeBoxPokemonNickname", 1, fade_in.clone(), 0),
         // M7 H: the clock's fade never cleared (two `CapturableStuck` findings).
-        ("SPECIAL_StartWallClock", 1, fade_in.clone(), 0),
+        // Gen3 `InitTimeBasedEvents` (`clock.c`): the clock is set, `VAR_DAYS` = the RTC's
+        // days (0: no RTC until Milestone 10).
+        (
+            "SPECIAL_StartWallClock",
+            1,
+            vec![
+                Request::SetFlag(FLAG_SYS_CLOCK_SET, true),
+                set(VAR_DAYS, 0),
+                Request::Fade(Fade::FromBlack),
+            ],
+            0,
+        ),
         ("SPECIAL_Special_ViewWallClock", 1, fade_in.clone(), 0),
         ("SPECIAL_DrawWholeMapView", 1, vec![Request::RedrawMap], 0),
         (
@@ -295,10 +307,16 @@ fn native_specials_issue_their_requests_in_order() {
             vec![degraded("SPECIAL_GetRivalSonDaughterString")],
             0,
         ),
+        // `tv.c`: `VAR_TEMP_3` unset, so Mom or Dad at random (the host answers 0: Dad).
         (
             "SPECIAL_GetMomOrDadStringForTVMessage",
             1,
-            vec![degraded("SPECIAL_GetMomOrDadStringForTVMessage")],
+            vec![
+                degraded("SPECIAL_GetMomOrDadStringForTVMessage"),
+                Request::GetVar(VAR_TEMP_3),
+                Request::Random(2),
+                set(VAR_TEMP_3, 2),
+            ],
             0,
         ),
         // No battle: the script goes on as after Wally's catch.
@@ -397,6 +415,28 @@ fn native_specials_issue_their_requests_in_order() {
     ));
     assert_eq!(h.log.len(), 4);
     covered.insert("SPECIAL_ChooseStarter");
+    // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
+    // no random draw, as in Gen3.
+    for t3 in [1, 2, 5] {
+        let mut h = Rec::default();
+        h.vars.insert(VAR_TEMP_3.0, t3);
+        run_special(&mut h, "SPECIAL_GetMomOrDadStringForTVMessage");
+        assert_eq!(
+            h.log,
+            [
+                degraded("SPECIAL_GetMomOrDadStringForTVMessage"),
+                Request::GetVar(VAR_TEMP_3)
+            ],
+            "VAR_TEMP_3 = {t3}"
+        );
+    }
+    // An odd draw: Mom (`VAR_TEMP_3` = 1).
+    let mut h = Rec {
+        rand: 1,
+        ..Rec::default()
+    };
+    run_special(&mut h, "SPECIAL_GetMomOrDadStringForTVMessage");
+    assert_eq!(h.log.last(), Some(&set(VAR_TEMP_3, 1)));
     // Every Native special has a case above.
     for (name, class) in classes() {
         if class == Class::Native {
@@ -468,6 +508,9 @@ fn callstd_routes_every_std() {
         h.vars.insert(VAR_0x8001.0, 2);
         run_std(&mut h, n);
         match name {
+            // TODO(M8 merge, after Task H): also assert `SetVar(VAR_RESULT, _)` and, for
+            // `STD_FIND_ITEM`, `RemoveObject` (H's `give_item`/`find_item`; the Wave 0 helpers
+            // on this branch do neither).
             "STD_OBTAIN_ITEM" | "STD_FIND_ITEM" => {
                 // Task H's helpers on the `giveitem`/`finditem` operands (`VAR_0x8000`,
                 // `VAR_0x8001`); they write `VAR_RESULT`.
@@ -567,6 +610,10 @@ fn is_bedroom_pc(r: &Request) -> bool {
 
 /// The bedroom PC (`special BedroomPC`, `Unsupported` until Milestone 9): the script still
 /// ends and releases the player (it does not softlock).
+///
+/// `Rec` completes `waitstate` at once; the `World` host completes it once the fader, the
+/// transition and the doors are idle (`world/host/mod.rs`). Nothing on this path starts any of
+/// them (no fade, warp or door before `waitstate`), so the real host completes it at once too.
 #[test]
 fn bedroom_pc_does_not_softlock() {
     if content::STUB {
@@ -649,7 +696,8 @@ const ACT1_MAPS: &[&str] = &[
 ];
 
 /// Scripts the C code starts by metatile behaviour (`field_control_avatar.c`
-/// `GetInteractedMetatileScript`) or on whiteout, found on the Act 1 maps. The trainer-battle
+/// `GetInteractedMetatileScript`), on whiteout or on field poison (`field_poison.c`), found on the
+/// Act 1 maps. The trainer-battle
 /// scripts are run natively by `trainer_battle` (Task I) and the item std scripts by Task H's
 /// helpers, so they are not roots.
 const C_ROOTS: &[&str] = &[
@@ -669,6 +717,7 @@ const C_ROOTS: &[&str] = &[
     "EventScript_WirelessBoxResults",
     "EventScript_Questionnaire",
     "EventScript_WhiteOut",
+    "EventScript_FieldPoison",
 ];
 
 struct Label {
@@ -823,10 +872,29 @@ fn decomp() -> Option<PathBuf> {
     std::env::var_os("PKR_DECOMP").map(PathBuf::from)
 }
 
-/// Every special reachable on the Act 1 maps is `Native`, `Ignore` or `Default` with a reason,
-/// or `Unsupported` with a reason (no softlock: the script goes on, tested where it matters).
-/// A special after `fadescreen FADE_TO_BLACK` whose script does not fade back itself is
-/// `Native` (it fades the field back in), unless its reason says it is unreachable.
+/// Whether `line` is a `fadescreen*` command (`fadescreen`, `fadescreenswapbuffers`,
+/// `fadescreenspeed`) whose mode starts with `mode`.
+fn fades(line: &str, mode: &str) -> bool {
+    let mut t = idents(line);
+    t.next().is_some_and(|c| c.starts_with("fadescreen")) && t.any(|m| m.starts_with(mode))
+}
+
+/// The non-`Native` specials reached after a fade to black, each with the `Default` special
+/// whose answer keeps the script away from it.
+const FADE_GUARDS: &[(&str, &str)] = &[
+    // `EventScript_WirelessBoxResults`: FALSE goes to `CableClub_EventScript_AdapterNotConnected`.
+    (
+        "SPECIAL_ShowWirelessCommunicationScreen",
+        "SPECIAL_IsWirelessAdapterConnected",
+    ),
+    // `EventScript_FieldPoison`: `FLDPSN_NONE` releases the player, no whiteout.
+    ("SPECIAL_SetCB2WhiteOut", "SPECIAL_TryFieldPoisonWhiteOut"),
+];
+
+/// Every special reachable on the Act 1 maps is classified with a reason (no softlock: the
+/// script goes on, tested where it matters). A special after a fade to black whose script does
+/// not fade back itself is `Native` and fades the field back in (run against `Rec`), or is
+/// listed in [`FADE_GUARDS`] with the `Default` special that keeps it unreachable.
 #[test]
 fn act1_specials_are_classified_with_a_reason() {
     let Some(decomp) = decomp() else {
@@ -838,32 +906,65 @@ fn act1_specials_are_classified_with_a_reason() {
     let sites = act1_sites(&decomp);
     let act1: BTreeSet<&str> = sites.iter().map(|s| s.special.as_str()).collect();
     assert!(act1.len() > 50, "only {} Act 1 specials", act1.len());
-    for s in &act1 {
-        let class = c
-            .get(*s)
-            .unwrap_or_else(|| panic!("{s}: not in specials.ron"));
-        if *class != Class::Native {
-            assert!(
-                r.contains_key(*s),
-                "{s} ({class:?}) is reachable in Act 1 with no reason"
-            );
-        }
-    }
+    let no_reason: Vec<String> = act1
+        .iter()
+        .filter(|s| !r.contains_key(**s))
+        .map(|s| format!("{s} ({:?})", c.get(*s).expect("not in specials.ron")))
+        .collect();
+    assert!(
+        no_reason.is_empty(),
+        "reachable in Act 1 with no reason: {no_reason:?}"
+    );
+    let mut black: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut fade_back: BTreeSet<&str> = BTreeSet::new();
     for site in &sites {
-        let faded = site.before.iter().any(|l| l == "fadescreen FADE_TO_BLACK");
-        let fades_back = site
-            .after
-            .iter()
-            .any(|l| l.starts_with("fadescreen FADE_FROM"));
-        if !faded || fades_back || c[&site.special] == Class::Native {
+        let faded = site.before.iter().any(|l| fades(l, "FADE_TO_BLACK"));
+        let fades_back = site.after.iter().any(|l| fades(l, "FADE_FROM"));
+        if !faded || fades_back {
             continue;
         }
+        if c[&site.special] == Class::Native {
+            // Behaviour, not the reason text: the special fades the field back in itself.
+            let mut h = Rec::with_party(1);
+            run_special(&mut h, &site.special);
+            assert!(
+                h.log.contains(&Request::Fade(Fade::FromBlack)),
+                "{} in {} leaves the screen black: {:?}",
+                site.special,
+                site.label,
+                h.log
+            );
+            fade_back.insert(site.special.as_str());
+            continue;
+        }
+        black.insert((site.special.as_str(), site.label.as_str()));
+    }
+    // The others are behind a `Default` special whose answer never takes their branch.
+    let unguarded: Vec<_> = black
+        .iter()
+        .filter(|(s, _)| !FADE_GUARDS.iter().any(|(g, _)| g == s))
+        .collect();
+    assert!(
+        unguarded.is_empty(),
+        "these leave the screen black: {unguarded:?}"
+    );
+    for (special, _) in &black {
+        let guard = FADE_GUARDS.iter().find(|(s, _)| s == special).unwrap().1;
         assert!(
-            r.get(&site.special)
-                .is_some_and(|x| x.contains("unreachable")),
-            "{} in {} leaves the screen black",
-            site.special,
-            site.label
+            matches!(c[guard], Class::Default(_)),
+            "{special}: its guard {guard} is {:?}",
+            c[guard]
+        );
+    }
+    // Not vacuous: the clock and the nickname screens are reached after a fade.
+    for s in ["SPECIAL_StartWallClock", "SPECIAL_ChangePokemonNickname"] {
+        assert!(fade_back.contains(s), "{s}: not checked after a fade");
+    }
+    let listed: BTreeSet<&str> = black.iter().map(|&(s, _)| s).collect();
+    for (s, _) in FADE_GUARDS {
+        assert!(
+            listed.contains(s),
+            "{s}: in FADE_GUARDS but never after a fade"
         );
     }
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();

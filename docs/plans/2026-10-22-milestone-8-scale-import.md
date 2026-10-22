@@ -624,7 +624,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
    - `SetUnlockedPokedexFlags`, `ShowMapNamePopup`, `DoPCTurnOnEffect`/`Off`, `TurnOnTVScreen`/`Off`: `Ignore`.
    - `ShouldTryRematchBattle`, `IsTrainerRegistered`: `Default(0)`.
    - `StartWallyTutorialBattle`: `Degraded`, no battle; the script continues (Petalburg).
-   - `SaveGame`: `Ignore` (saving is a shell action until M9).
+   - `SaveGame`: `Default(0)` (saving is a shell action until M9; every caller of `Common_EventScript_SaveGame` reads `VAR_RESULT` and backs out on 0, "not saved").
    - `PlayerPC`/`BedroomPC`: `Unsupported` (M9); the script must not softlock (tested).
 3. **`callstd`:** every `STD_*` is routed (msgbox kinds, `STD_OBTAIN_ITEM`/`STD_FIND_ITEM` to Task H's helpers, `STD_REGISTER_MATCH_CALL` `Ignore`, …).
 4. **Tests:** each `Native` special against a synthetic `Ctx` run (requests issued, in order); the Act 1 set is fully classified; no `Unsupported` special is reachable on the Act 1 maps without a reason.

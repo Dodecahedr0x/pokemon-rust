@@ -43,20 +43,27 @@ async fn degraded(ctx: &Ctx, id: u16) {
 ///   the field fades back in from the script's `fadescreen FADE_TO_BLACK` as
 ///   `CB2_ReturnToFieldContinueScriptPlayMapMusic` does.
 /// - `StartWallClock`, `Special_ViewWallClock`: no clock screen (the time stays the default;
-///   the RTC is Milestone 10); the field fades back in.
+///   the RTC is Milestone 10); the field fades back in. `StartWallClock` first runs
+///   `InitTimeBasedEvents` (`clock.c`): `FLAG_SYS_CLOCK_SET`, `VAR_DAYS` = 0 (no RTC).
 /// - `DrawWholeMapView`: redraws the map.
 /// - `InitBirchState`: `VAR_BIRCH_STATE` = 0.
-/// - `GetPCBoxToSendMon`: `VAR_PC_BOX_TO_SEND_MON`.
+/// - `GetPCBoxToSendMon`: `VAR_PC_BOX_TO_SEND_MON`. Degraded: Gen3 gives `sPCBoxToSendMon`, the
+///   box that was full before `IsDestinationBoxFull` moved the var on; this gives the new box.
+///   Unreachable while `ShouldShowBoxWasFullMessage` is `Default(0)`.
 /// - `SetHiddenItemFlag`: sets flag `VAR_0x8004` (the hidden item's).
 /// - `CalculatePlayerPartyCount`, `CountPartyNonEggMons`: the party size (no eggs yet).
 /// - `HasEnoughMonsForDoubleBattle`: `VAR_RESULT` from the party size (degraded with 2 or more:
 ///   fainted mons count as usable).
 /// - Degraded (reported), as if cancelled:
 ///   - `GetPlayerBigGuyGirlString`, `GetRivalSonDaughterString`,
-///     `GetMomOrDadStringForTVMessage`: `STR_VAR_1` is left as is (no table of the C strings);
+///     `GetMomOrDadStringForTVMessage`: `STR_VAR_1` is left as is (no table of the C strings).
+///     `GetMomOrDadStringForTVMessage` still keeps Mom or Dad in `VAR_TEMP_3`, drawn at random
+///     when unset, so the RNG advances as in Gen3; in the player's house Gen3 picks Mom with no
+///     draw (a map check this host cannot make yet), so there one draw too many is made;
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
-///   - `DoWaldaNamingScreen`: `VAR_0x8004` = no phrase given;
+///   - `DoWaldaNamingScreen`: `VAR_0x8004` = cancelled with no phrase before, so no phrase is
+///     saved (and `TryGetWallpaperWithWaldaPhrase` is never reached);
 ///   - `ShowEasyChatScreen`: `VAR_RESULT` = 0;
 ///   - `Bag_ChooseBerry`: `VAR_ITEM_ID` = 0, then the field fades back in;
 ///   - `FieldShowRegionMap`: the field fades back in;
@@ -81,9 +88,14 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.battle_wild(foe, level, true).await;
         }
         id if id == SPECIAL_HealPlayerParty => ctx.heal_party().await,
+        id if id == SPECIAL_StartWallClock => {
+            // `InitTimeBasedEvents` (`clock.c`); `VAR_DAYS` = the RTC's days, 0 until M10.
+            ctx.set_flag(FLAG_SYS_CLOCK_SET, true).await;
+            ctx.set_var(VAR_DAYS, 0).await;
+            ctx.fade(Fade::FromBlack).await
+        }
         id if id == SPECIAL_ChangePokemonNickname
             || id == SPECIAL_ChangeBoxPokemonNickname
-            || id == SPECIAL_StartWallClock
             || id == SPECIAL_Special_ViewWallClock =>
         {
             ctx.fade(Fade::FromBlack).await
@@ -109,10 +121,18 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         }
         id if id == SPECIAL_GetPlayerBigGuyGirlString
             || id == SPECIAL_GetRivalSonDaughterString
-            || id == SPECIAL_GetMomOrDadStringForTVMessage
             || id == SPECIAL_StartWallyTutorialBattle =>
         {
             degraded(ctx, id).await
+        }
+        id if id == SPECIAL_GetMomOrDadStringForTVMessage => {
+            degraded(ctx, id).await;
+            // `tv.c`: with `VAR_TEMP_3` unset, Mom or Dad at random, kept in `VAR_TEMP_3`
+            // (1 Mom, 2 Dad), so the RNG advances as in Gen3.
+            if ctx.var(VAR_TEMP_3).await == 0 {
+                let mom = ctx.random(2).await != 0;
+                ctx.set_var(VAR_TEMP_3, if mom { 1 } else { 2 }).await;
+            }
         }
         id if id == SPECIAL_ChoosePartyMon => {
             degraded(ctx, id).await;

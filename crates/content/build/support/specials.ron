@@ -8,10 +8,12 @@
 // - Default(v): `v` is written where the special writes its result (`specialvar`'s var, else
 //   VAR_RESULT), with no report.
 // - Unsupported: `Report::Unsupported("SPECIAL_*")`, logged; the script continues.
-// Every Ignore and Default, and every special reachable on the Act 1 maps, gives a reason.
-// The 489 specials the decomp's scripts use are classified; the unused ones are Unsupported.
+// Every Native, Ignore and Default, and every special reachable on the Act 1 maps (checked by
+// `tests/m8_j_specials.rs` against the decomp), gives a reason.
+// The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
+// `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 25 Native, 18 Ignore, 31 Default, 450 Unsupported.
+// Counts: 25 Native, 19 Ignore, 33 Default, 447 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -86,7 +88,7 @@
     "SPECIAL_ChoosePartyForBattleFrontier": Unsupported,
     "SPECIAL_ChoosePartyMon": Native, // degraded: no party menu, nothing chosen
     "SPECIAL_ChooseSendDaycareMon": Unsupported,
-    "SPECIAL_ChooseStarter": Native,
+    "SPECIAL_ChooseStarter": Native, // the starter screen, the starter, the first battle
     "SPECIAL_CleanupLinkRoomState": Unsupported,
     "SPECIAL_ClearAndLeaveSecretBase": Unsupported,
     "SPECIAL_ClearLinkContestFlags": Unsupported,
@@ -97,7 +99,7 @@
     "SPECIAL_CloseBattlePointsWindow": Unsupported,
     "SPECIAL_CloseDeptStoreElevatorWindow": Unsupported,
     "SPECIAL_CloseFrontierExchangeCornerItemIconWindow": Unsupported,
-    "SPECIAL_CloseLink": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_CloseLink": Ignore, // no link is ever open: CloseLink only clears link state
     "SPECIAL_ColosseumPlayerSpotTriggered": Unsupported,
     "SPECIAL_CompareLotadSize": Unsupported,
     "SPECIAL_CompareSeedotSize": Unsupported,
@@ -138,7 +140,7 @@
     "SPECIAL_DoTVShow": Default(1), // TV shows are not modelled: ends the show loop (unreachable: no active show)
     "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
     "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
-    "SPECIAL_DoWaldaNamingScreen": Native, // degraded: no naming screen, no phrase given
+    "SPECIAL_DoWaldaNamingScreen": Native, // degraded: no naming screen; VAR_0x8004 = 2 (cancelled, no phrase before), so no phrase is saved and Walda's wallpaper is never given
     "SPECIAL_DoWateringBerryTreeAnim": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
     "SPECIAL_DoesContestCategoryHaveMuseumPainting": Unsupported,
     "SPECIAL_DoesPartyHaveEnigmaBerry": Default(0), // no e-Reader Enigma Berry
@@ -199,8 +201,8 @@
     "SPECIAL_GetLilycoveSSTidalSelection": Unsupported,
     "SPECIAL_GetLinkPartnerNames": Unsupported,
     "SPECIAL_GetLotadSizeRecordInfo": Unsupported,
-    "SPECIAL_GetMartEmployeeObjectEventId": Unsupported, // unreachable: ShowEasyChatScreen cancels the questionnaire
-    "SPECIAL_GetMomOrDadStringForTVMessage": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet)
+    "SPECIAL_GetMartEmployeeObjectEventId": Default(0), // called unconditionally after the questionnaire (questionnaire.inc); its result is only used for the Mystery Event/Gift phrases, which ShowEasyChatScreen never gives
+    "SPECIAL_GetMomOrDadStringForTVMessage": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet); VAR_TEMP_3 and the random draw as in Gen3
     "SPECIAL_GetMysteryGiftCardStat": Unsupported,
     "SPECIAL_GetNextActiveShowIfMassOutbreak": Default(255), // TV shows are not modelled: no active show
     "SPECIAL_GetNpcContestantLocalId": Unsupported,
@@ -208,7 +210,7 @@
     "SPECIAL_GetNumLevelsGainedFromDaycare": Unsupported,
     "SPECIAL_GetNumMovesSelectedMonHas": Unsupported,
     "SPECIAL_GetObjectEventLocalIdByFlag": Unsupported,
-    "SPECIAL_GetPCBoxToSendMon": Native,
+    "SPECIAL_GetPCBoxToSendMon": Native, // degraded: the new box, where Gen3 gives the old, full one (unreachable: ShouldShowBoxWasFullMessage is Default(0))
     "SPECIAL_GetPlayerAvatarBike": Unsupported,
     "SPECIAL_GetPlayerBigGuyGirlString": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet)
     "SPECIAL_GetPlayerFacingDirection": Unsupported,
@@ -249,12 +251,12 @@
     "SPECIAL_HasMonWonThisContestBefore": Unsupported,
     "SPECIAL_HasPlayerGivenContestLadyPokeblock": Unsupported,
     "SPECIAL_HasStorytellerAlreadyRecorded": Unsupported,
-    "SPECIAL_HealPlayerParty": Native,
+    "SPECIAL_HealPlayerParty": Native, // heals the party
     "SPECIAL_HideContestEntryMonPic": Unsupported,
     "SPECIAL_HipsterTryTeachWord": Unsupported,
     "SPECIAL_IncrementDailyPickedBerries": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
     "SPECIAL_IncrementDailyPlantedBerries": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_InitBirchState": Native,
+    "SPECIAL_InitBirchState": Native, // VAR_BIRCH_STATE = 0
     "SPECIAL_InitRoamer": Unsupported, // post-game (the roaming Lati)
     "SPECIAL_InitSecretBaseDecorationSprites": Ignore, // cosmetic: the bedroom decoration sprites (decorations are M9)
     "SPECIAL_InitSecretBaseVars": Unsupported,
@@ -379,7 +381,7 @@
     "SPECIAL_Script_DoRayquazaScene": Unsupported,
     "SPECIAL_Script_DoesFavorLadyLikeItem": Unsupported,
     "SPECIAL_Script_FacePlayer": Unsupported,
-    "SPECIAL_Script_FadeOutMapMusic": Unsupported,
+    "SPECIAL_Script_FadeOutMapMusic": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
     "SPECIAL_Script_FavorLadyOpenBagMenu": Unsupported,
     "SPECIAL_Script_GetCurrentMauvilleMan": Unsupported,
     "SPECIAL_Script_GetLilycoveLadyId": Unsupported,
@@ -396,7 +398,7 @@
     "SPECIAL_ScrollableMultichoice_TryReturnToList": Unsupported,
     "SPECIAL_SetBattleTowerLinkPlayerGfx": Unsupported,
     "SPECIAL_SetBattledOwnerFromResult": Unsupported,
-    "SPECIAL_SetCB2WhiteOut": Unsupported,
+    "SPECIAL_SetCB2WhiteOut": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
     "SPECIAL_SetCableClubWarp": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SetChampionSaveWarp": Unsupported,
     "SPECIAL_SetContestCategoryStringVarForInterview": Unsupported,
@@ -408,7 +410,7 @@
     "SPECIAL_SetDeptStoreFloor": Unsupported,
     "SPECIAL_SetEReaderTrainerGfxId": Unsupported,
     "SPECIAL_SetFavorLadyState_Complete": Unsupported,
-    "SPECIAL_SetHiddenItemFlag": Native,
+    "SPECIAL_SetHiddenItemFlag": Native, // sets the hidden item's flag (VAR_0x8004)
     "SPECIAL_SetHipsterTaughtWord": Unsupported,
     "SPECIAL_SetLilycoveLadyGfx": Unsupported,
     "SPECIAL_SetLinkContestPlayerGfx": Unsupported,
@@ -482,7 +484,7 @@
     "SPECIAL_StartMirageTowerShake": Unsupported,
     "SPECIAL_StartPlayerDescendMirageTower": Unsupported,
     "SPECIAL_StartRegiBattle": Unsupported,
-    "SPECIAL_StartWallClock": Native, // no clock screen (RTC is M10): fades back in
+    "SPECIAL_StartWallClock": Native, // no clock screen (RTC is M10): InitTimeBasedEvents (FLAG_SYS_CLOCK_SET, VAR_DAYS = 0), then fades back in
     "SPECIAL_StartWallyTutorialBattle": Native, // degraded: no battle; the script goes on as after the catch
     "SPECIAL_StopMapMusic": Unsupported,
     "SPECIAL_StorePlayerCoordsInVars": Unsupported,
@@ -507,7 +509,7 @@
     "SPECIAL_TryContestEModeLinkup": Unsupported,
     "SPECIAL_TryContestGModeLinkup": Unsupported,
     "SPECIAL_TryEnterContestMon": Unsupported,
-    "SPECIAL_TryFieldPoisonWhiteOut": Unsupported,
+    "SPECIAL_TryFieldPoisonWhiteOut": Default(0), // field poison not modelled: FLDPSN_NONE (EventScript_FieldPoison is never started)
     "SPECIAL_TryGetWallpaperWithWaldaPhrase": Unsupported, // unreachable: DoWaldaNamingScreen gives no phrase
     "SPECIAL_TryHideBattleTowerReporter": Unsupported,
     "SPECIAL_TryInitBattleTowerAwardManObjectEvent": Unsupported,
