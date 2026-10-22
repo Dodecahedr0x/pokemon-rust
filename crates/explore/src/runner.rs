@@ -201,7 +201,11 @@ impl Runner {
         let mut merged_into = None;
         if let Some(old) = self.graph.best(ev.key) {
             let o = self.graph.node(old).expect("best is a node");
-            if o.total_frames > total {
+            // More goals reached wins (the key does not hold progress: a goal seen only in the
+            // summary, like a won battle, must not be dropped), then fewer frames.
+            if (ev.progress, std::cmp::Reverse(total))
+                > (o.progress, std::cmp::Reverse(o.total_frames))
+            {
                 superseded = Some(old);
             } else {
                 d.stats.duplicates += 1;

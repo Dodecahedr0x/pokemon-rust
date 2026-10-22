@@ -311,7 +311,8 @@ fn errors_prune() {
     assert!(r.steps.is_empty());
     assert!(matches!(r.stop, Some(Stop::Pruned(_))), "{:?}", r.stop);
     let r = run(&game, &job(None, Plan::Softlock { k: 3, breadth: 8 }));
-    assert!(matches!(&r.stop, Some(Stop::Pruned(s)) if s == "unwired"));
+    // A probe needs a start state (Task G wired it).
+    assert!(matches!(&r.stop, Some(Stop::Pruned(_))), "{:?}", r.stop);
 }
 
 #[test]

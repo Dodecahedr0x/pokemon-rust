@@ -416,6 +416,33 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.node(1).unwrap().expanded, 4);
 }
 
+/// [`FakeEval`] with progress 1 for the step of tag 99 (Task G: progress before frames).
+struct ProgressEval(FakeEval);
+
+impl Evaluate for ProgressEval {
+    fn evaluate(&mut self, parent: Option<&NodeRow>, step: &StepResult) -> Evaluation {
+        let mut e = self.0.evaluate(parent, step);
+        if step.end.world.player_id == 99 {
+            e.progress = 1;
+        }
+        e
+    }
+}
+
+#[test]
+fn more_goals_supersede_even_with_more_frames() {
+    let (mut r, eval) = rooted();
+    let mut eval = ProgressEval(eval);
+    r.merge(vec![job(0, 1, vec![step(10, 5, 50)], None)], &mut eval);
+    let d = r.merge(vec![job(0, 1, vec![step(99, 5, 80)], None)], &mut eval);
+    assert_eq!(d.merged, [(2, 3)]);
+    assert_eq!(r.graph.best(AbstractKey(5)), Some(3));
+    // Fewer frames but fewer goals: a duplicate.
+    let d = r.merge(vec![job(0, 1, vec![step(11, 5, 20)], None)], &mut eval);
+    assert!(d.nodes.is_empty());
+    assert_eq!(d.stats.duplicates, 1);
+}
+
 #[test]
 fn a_supersession_inside_one_delta_writes_the_old_row_merged() {
     let (mut r, mut eval) = rooted();

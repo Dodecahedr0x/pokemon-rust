@@ -269,9 +269,14 @@ impl State {
         !self.todo.contains(&id) || self.processed.contains(&id)
     }
 
-    /// The usual winner: fewer total frames, then the lower id.
+    /// The usual winner, as `Runner::merge`: more goals reached, then fewer total frames, then
+    /// the lower id.
     fn better(&self, a: NodeId, b: NodeId) -> bool {
-        (self.rows[&a].total_frames, a) < (self.rows[&b].total_frames, b)
+        let rank = |id: NodeId| {
+            let n = &self.rows[&id];
+            (std::cmp::Reverse(n.progress), n.total_frames, id)
+        };
+        rank(a) < rank(b)
     }
 
     fn merge_into(&mut self, loser: NodeId, winner: NodeId) {

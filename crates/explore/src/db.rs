@@ -2,8 +2,8 @@
 //! connection setup are Wave 0).
 
 use crate::model::{
-    AbstractKey, FindingDraft, FindingKind, Fitness, GenerationDelta, Macro, NodeId, NodeRow,
-    NodeStatus, SeenKind, Touch,
+    AbstractKey, FindingKind, Fitness, GenerationDelta, Macro, NodeId, NodeRow, NodeStatus,
+    SeenKind, Touch,
 };
 use crate::runs;
 use engine::checkpoint::{self, BuildHash, Checkpoint};
@@ -233,25 +233,6 @@ fn finding_from_row(r: &Row) -> Result<FindingRow, DbError> {
     })
 }
 
-/// The finding dedupe signature: FNV-1a of the kind, the location (else the message with its
-/// digits stripped) and the map. Mirrors the contract of `findings::signature` (Task E), which
-/// Task G substitutes here when wiring.
-fn draft_signature(f: &FindingDraft) -> u64 {
-    let mut h = engine::hash::Fnv64::new();
-    h.write(kind_str(f.kind).as_bytes());
-    h.write(&[0]);
-    match &f.location {
-        Some(l) => h.write(l.as_bytes()),
-        None => {
-            let m: String = f.message.chars().filter(|c| !c.is_ascii_digit()).collect();
-            h.write(m.as_bytes());
-        }
-    }
-    h.write(&[0]);
-    h.write_u16(f.map.0);
-    h.finish()
-}
-
 impl Db {
     /// `<workspace>/target/explore/{stub|emerald}/explore.db`.
     pub fn default_path(stub: bool) -> PathBuf {
@@ -388,15 +369,19 @@ impl Db {
     pub fn apply(&mut self, d: &GenerationDelta) -> Result<(), DbError> {
         let build = self.build;
         let tx = self.conn.transaction()?;
-        // `merged_into` may name a node inserted below: foreign keys are checked at commit.
-        tx.pragma_update(None, "defer_foreign_keys", "ON")?;
+        // Foreign keys stay immediate: deferred ones make every node insert scan the tables
+        // that reference `node` (`seen`, `coverage`, `battle`, `node.merged_into` have no
+        // index on their node column), which grows with the db. So a `merged_into` naming a
+        // node of this delta is written after the inserts (Task G).
+        let mut late_merged_into: Vec<(NodeId, NodeId)> = Vec::new();
         {
-            let mut st =
-                tx.prepare("UPDATE node SET status = 'merged', merged_into = ?2 WHERE id = ?1")?;
+            // The old live nodes leave the live key index before the inserts take their keys.
+            let mut st = tx.prepare("UPDATE node SET status = 'merged' WHERE id = ?1")?;
             for (old, new) in &d.merged {
-                if st.execute(params![old, new])? != 1 {
+                if st.execute(params![old])? != 1 {
                     return Err(DbError::Codec(format!("merged: no node {old}")));
                 }
+                late_merged_into.push((*old, *new));
             }
             let mut st = tx.prepare("UPDATE node SET expanded = expanded + ?2 WHERE id = ?1")?;
             for (id, n) in &d.expanded {
@@ -409,7 +394,15 @@ impl Db {
                  ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, \
                  ?25, ?26, ?27)"
             ))?;
+            let first_new = d.nodes.first().map_or(NodeId::MAX, |n| n.id);
             for n in &d.nodes {
+                let merged_into = match n.merged_into {
+                    Some(m) if m >= first_new => {
+                        late_merged_into.push((n.id, m));
+                        None
+                    }
+                    m => m,
+                };
                 st.execute(params![
                     n.id,
                     n.parent,
@@ -435,10 +428,14 @@ impl Db {
                     n.generation,
                     n.expanded,
                     status_str(n.status),
-                    n.merged_into,
+                    merged_into,
                     n.build.engine as i64,
                     n.build.content as i64,
                 ])?;
+            }
+            let mut st = tx.prepare("UPDATE node SET merged_into = ?2 WHERE id = ?1")?;
+            for (id, into) in &late_merged_into {
+                st.execute(params![id, into])?;
             }
             for (id, cp) in &d.snapshots {
                 put_snapshot(&tx, *id, cp)?;
@@ -511,7 +508,7 @@ impl Db {
             ))?;
             for (f, node, total) in &d.findings {
                 st.execute(params![
-                    draft_signature(f) as i64,
+                    crate::findings::signature(f) as i64,
                     kind_str(f.kind),
                     node,
                     f.macro_.as_ref().map(macro_text).transpose()?,

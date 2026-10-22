@@ -17,6 +17,7 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
   `target/shots/<moment>-{rom,native}.png`
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
 - `cargo xtask studio`: run the studio desktop app (release; see Tests for its gates)
+- `cargo xtask explore <command>`: the headless explorer (see Explorer)
 
 ## Play
 1. Extract your ROM (see Extract), then `cargo xtask rom`.
@@ -227,12 +228,43 @@ The output is deterministic: two runs on the same ROM give identical files. The 
 identifier tables live in `crates/extract/src/names/generated.rs`, checked against the decomp by
 `tests/names.rs` (`PKR_BLESS=1 cargo test -p extract --test names` regenerates them).
 
+## Explorer
+`cargo xtask explore <command>` runs the headless explorer (`crates/explore`, release; put
+`--debug` first for a debug build). It plays the native game from a new game, grows a tree of
+input-only nodes (macro-actions such as walk to a cell, enter a warp, cross a connection, talk,
+inspect, fight in tall grass) in a SQLite db, scores them by novelty and progress along the
+slice's goals, and records bugs with a trace that reproduces them from a new game: game panics,
+softlocks (trapped on a map with exits), checkpoint round-trip breaks, a field that is idle but
+never capturable, and planner/engine disagreements. Results depend only on the seed, the config
+and the build: neither the thread count nor stopping and resuming changes the db
+(`explore digest`).
+
+- `run [--generations N | --secs N | --nodes N | --frames N] [--threads N] [--seed S]`: explores
+  (default 10 generations), one line per 10 generations (nodes, nodes/s, frames/s, goals, maps,
+  cells, findings). `cargo xtask explore run --secs 600` is a ten-minute run; a db resumes where
+  it stopped, with its own seed. On a new build every node is first replayed (and re-expanded
+  or marked broken where the game changed).
+- `status`, `findings [--all]`, `show <id>`: the db's totals and the findings (kind, map, cell,
+  hits, message; `show` adds the Rust location, macro, script and log).
+- `repro <id>`: replays the finding from a new game; exits 0 iff it reproduces.
+- `export <id> [--before N] [--out <path>]`: the finding as a NewGame trace (RON), ending N
+  frames before it, in `target/explore/<flavor>/repro/` by default.
+- `coverage <map>`: an ASCII grid of the cells stood on (map id or name, e.g. `LittlerootTown`).
+- `revalidate`, `digest`, `reset --yes`.
+
+Every command takes `--db <path>` (default `target/explore/emerald/explore.db`, or
+`target/explore/stub/explore.db` in stub mode, both git-ignored) and `--config <path>`, a RON
+file with the fields of `explore::config::Config` to change (e.g. `(key: (cell_shift: 1))`).
+`PKR_EXTRACTED_DIR=/nonexistent cargo xtask explore run --generations 50` explores the stub world.
+The db holds ROM-derived states: never commit it or the exported traces.
+
 ## Layout
 - `crates/engine`: game-agnostic `no_std` core
 - `crates/content`: the game (data and scripts)
 - `crates/game-gba`: GBA shell (separate workspace, thumbv4t target)
 - `crates/game-native`: host shell (software renderer)
 - `crates/emu`: embedded mGBA
+- `crates/explore`: the headless explorer
 - `crates/extract`: reads the ROM into `content/extracted/`
 - `xtask`: build and verification tasks
 
