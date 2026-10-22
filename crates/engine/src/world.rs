@@ -137,8 +137,9 @@ pub(crate) struct State {
     mode: Mode,
     /// The answer to the script's pending `ChooseStarter` / `BattleWild` / `BattleTrainer`.
     answer: Option<u16>,
-    /// Gen3-encoded player name, 0xFF-terminated and 0xFF-padded (Gen3 `playerName`). Not
-    /// hashed yet (Milestone 5 Task A appends it to `World::hash`).
+    /// Gen3-encoded player name, 0xFF-terminated and 0xFF-padded (Gen3 `playerName`). Copied
+    /// from `NewGame` at a new game; hashed last in `World::hash`. Texts, the starter screen and
+    /// battles print this copy.
     player_name: PlayerName,
 }
 
