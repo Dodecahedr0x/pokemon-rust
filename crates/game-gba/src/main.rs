@@ -52,7 +52,7 @@ fn publish_debug(world: &World, keys: Buttons, late: u32, late_black: u32) {
 
 #[agb::entry]
 fn main(_gba: agb::Gba) -> ! {
-    let game = Emerald::default();
+    let game = Emerald::for_shells();
     let mut video = Video::new();
     let world = &mut World::new(&game);
     let mut frame = world.initial_frame();

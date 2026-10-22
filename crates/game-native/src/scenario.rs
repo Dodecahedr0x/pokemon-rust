@@ -70,6 +70,12 @@ pub enum When {
     Message(Str),
 }
 
+/// Most steps between a bulk step and the engine frame `run_rom` reads its overrun at: the
+/// overrunning step `b`'s Frame is applied late, counted, and published after step `b + 1`;
+/// the emulator frame boundary may fall mid-step, and the next step may be slow too (a
+/// following chunk).
+pub const DISPLAY_LAG: u32 = 3;
+
 /// What [`record`] produced.
 #[derive(Clone, Debug, Default)]
 pub struct Recording {
@@ -77,11 +83,15 @@ pub struct Recording {
     pub keys: Vec<Buttons>,
     /// Each [`Action::Shot`]; the picture is the output of step `frame`.
     pub moments: Vec<Moment>,
-    /// Warp transitions started and script teleports (each loads a map or redraws the field
-    /// while the screen is black).
+    /// Warp transitions started.
     pub warps: u32,
-    /// Battles started (each uploads in bulk on a black frame on the way in and out).
+    /// Battles started.
     pub battles: u32,
+    /// Starter screens opened.
+    pub starters: u32,
+    /// The steps whose [`Frame::bulk`](engine::video::Frame::bulk) is set (ascending): the
+    /// only steps the GBA may overrun, on a black screen (see [`Recording::bulk_events`]).
+    pub bulk: Vec<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +102,25 @@ pub struct Moment {
 }
 
 impl Recording {
+    /// Runs of consecutive bulk steps: one per map load, whole-view redraw, battle load or
+    /// restore, starter load. Each may overrun the GBA's frame once (`late_black`), however
+    /// many chunks it takes, since every chunk fits a frame but the first may follow a full one.
+    pub fn bulk_events(&self) -> u32 {
+        let starts = self.bulk.windows(2).filter(|w| w[1] != w[0] + 1).count();
+        if self.bulk.is_empty() { 0 } else { starts as u32 + 1 }
+    }
+
+    /// The bulk step that explains a `late_black` the ROM reported at engine frame `late`
+    /// (`run_rom` reads the counter after the step following the overrun, so the overrunning
+    /// step is one to [`DISPLAY_LAG`] steps earlier).
+    pub fn bulk_before(&self, late: u32) -> Option<u32> {
+        self.bulk
+            .iter()
+            .copied()
+            .rev()
+            .find(|&b| b < late && late - b <= DISPLAY_LAG)
+    }
+
     /// The buttons held during step `frame + 1` (nothing past the end).
     pub fn keys_at(&self, frame: u32) -> Buttons {
         self.keys
@@ -181,23 +210,26 @@ impl<G: GameData> Recorder<G> {
     }
 
     fn press(&mut self, keys: Buttons) {
-        let before = (self.world().transition_active(), self.world().in_battle());
-        let (map, pos) = (self.world().map(), self.world().objects().player().pos());
+        let before = (
+            self.world().transition_active(),
+            self.world().in_battle(),
+            self.world().starter().is_some(),
+        );
         self.rec.keys.push(keys);
         self.s.step(keys);
         self.last = keys;
         if !before.0 && self.world().transition_active() {
             self.rec.warps += 1;
         }
-        // A script teleport (`setobjectxyperm` on the player while faded out) redraws the whole
-        // field on a black frame, as a warp does.
-        let now = self.world().objects().player().pos();
-        let jump = (now.0 - pos.0).abs() + (now.1 - pos.1).abs() > 2;
-        if self.world().map() == map && jump && self.s.frame().is_black() {
-            self.rec.warps += 1;
-        }
         if !before.1 && self.world().in_battle() {
             self.rec.battles += 1;
+        }
+        if !before.2 && self.world().starter().is_some() {
+            self.rec.starters += 1;
+        }
+        if self.s.frame().bulk {
+            let f = self.frame();
+            self.rec.bulk.push(f);
         }
     }
 
@@ -730,9 +762,9 @@ pub fn route() -> &'static [Action] {
     }
 }
 
-/// Records [`route`] on `content::Emerald::default()` (a new game before the rescue).
+/// Records [`route`] on `content::Emerald::for_shells()` (a new game before the rescue).
 pub fn record_route() -> Result<Recording, String> {
-    record(content::Emerald::default(), route())
+    record(content::Emerald::for_shells(), route())
 }
 
 #[cfg(test)]
@@ -746,7 +778,7 @@ mod tests {
         println!("{} frames; moments {:?}", rec.frames(), rec.moments);
         let names: Vec<&str> = rec.moments.iter().map(|m| m.name).collect();
         let maps: Vec<u16> = rec.moments.iter().map(|m| m.map.0).collect();
-        let mut s = Session::new(content::Emerald::default());
+        let mut s = Session::new(content::Emerald::for_shells());
         for f in 0..rec.frames() {
             s.step(rec.keys_at(f));
         }
@@ -818,8 +850,8 @@ mod tests {
     fn a_replay_matches_the_recording() {
         let rec = record_route().unwrap();
         let (mut a, mut b) = (
-            Session::new(content::Emerald::default()),
-            Session::new(content::Emerald::default()),
+            Session::new(content::Emerald::for_shells()),
+            Session::new(content::Emerald::for_shells()),
         );
         for f in 0..rec.frames() {
             a.step(rec.keys_at(f));

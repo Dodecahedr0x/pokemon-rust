@@ -3,13 +3,14 @@
 
 use super::*;
 
-/// These tests were written for the Milestone 3 start (the starter received).
-#[allow(non_upper_case_globals)]
-const Emerald: Emerald = Emerald::after_starter();
 use crate::prelude::{TrainerBattle, trainer_battle, trainer_flag};
 use engine::battle::BattleOutcome;
 use engine::data::{FlagId, TrainerId};
 use engine::mon::MoveEffect;
+
+/// These tests were written for the Milestone 3 start (the starter received).
+#[allow(non_upper_case_globals)]
+const Emerald: Emerald = Emerald::after_starter();
 
 fn fought(b: TrainerBattle, h: &mut Host) {
     run(
@@ -155,12 +156,13 @@ fn new_game_log(game: Emerald) -> Host {
 #[test]
 fn the_two_starts() {
     use consts::*;
-    let want = if crate::STUB {
+    assert_eq!(Emerald::default().start, Start::BeforeRescue);
+    let shells = if crate::STUB {
         Start::AfterStarter
     } else {
         Start::BeforeRescue
     };
-    assert_eq!(Emerald::default().start, want);
+    assert_eq!(Emerald::for_shells().start, shells);
     assert_eq!(Emerald.start, Start::AfterStarter);
 
     let h = new_game_log(Emerald::before_rescue());

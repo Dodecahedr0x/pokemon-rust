@@ -65,31 +65,20 @@ static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
     consts::FLAG_NURSE_UNION_ROOM_REMINDER,
 ];
 
-/// Where a new game starts. The default is [`Start::BeforeRescue`], except on the stub world
-/// (no story, no Route 101), where it is [`Start::AfterStarter`] so that the stub parity route
-/// has a Pokémon to battle with in its tall grass.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Where a new game starts (the default: [`Start::BeforeRescue`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Start {
     /// Littleroot after meeting the rival, sent to find Birch on Route 101: no Pokémon yet.
+    #[default]
     BeforeRescue,
     /// After the rescue and the lab, with Mudkip (level 5), sent to meet the rival on Route
     /// 103 (the Milestone 3 start).
     AfterStarter,
 }
 
-impl Default for Start {
-    fn default() -> Start {
-        if STUB {
-            Start::AfterStarter
-        } else {
-            Start::BeforeRescue
-        }
-    }
-}
-
-/// The game's content root. The shells and the parity route run `Emerald::default()`
-/// ([`Start::BeforeRescue`], [`Start::AfterStarter`] on the stub world);
-/// [`Emerald::after_starter`] is the Milestone 3 start, kept for fast tests.
+/// The game's content root. `Emerald::default()` starts [`Start::BeforeRescue`]; the shells and
+/// the parity route run [`Emerald::for_shells`]. [`Emerald::after_starter`] is the Milestone 3
+/// start, kept for fast tests.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Emerald {
     pub start: Start,
@@ -105,6 +94,17 @@ impl Emerald {
     pub const fn after_starter() -> Emerald {
         Emerald {
             start: Start::AfterStarter,
+        }
+    }
+
+    /// What the shells and the parity route play: [`Start::BeforeRescue`] on the extracted
+    /// world, [`Start::AfterStarter`] on the stub world (no story, no Route 101), so that the
+    /// stub route has a Pokémon to battle with in its tall grass.
+    pub const fn for_shells() -> Emerald {
+        if STUB {
+            Emerald::after_starter()
+        } else {
+            Emerald::before_rescue()
         }
     }
 }
