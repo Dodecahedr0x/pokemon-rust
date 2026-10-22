@@ -4,8 +4,8 @@
         label: "route:lab",
         schema: 2,
         build: (
-            engine: 16716871629009115399,
-            content: 4282833062729421721,
+            engine: 11555317754122413069,
+            content: 4305106447100814510,
         ),
         frame: 4856,
         map: (260),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: NewGame,
         build: (
-            engine: 16716871629009115399,
-            content: 4282833062729421721,
+            engine: 11555317754122413069,
+            content: 4305106447100814510,
         ),
         start_frame: 0,
         inputs: [
