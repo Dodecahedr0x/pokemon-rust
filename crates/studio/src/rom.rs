@@ -168,6 +168,8 @@ pub struct RomPane {
     game: Emerald,
     native_build: BuildHash,
     emu: Option<Emu>,
+    /// The ROM file on disk, probed once per tick and on each reset (not per `status`).
+    rom_file: RomFile,
     /// The ROM file's mtime when `emu` was loaded.
     loaded: Option<SystemTime>,
     source: Option<RomSource>,
@@ -192,6 +194,7 @@ impl RomPane {
     pub fn new(rom_path: PathBuf, scratch_dir: PathBuf) -> RomPane {
         let game = Emerald::for_shells();
         RomPane {
+            rom_file: RomFile::probe(&rom_path),
             rom_path,
             scratch: scratch_dir,
             game,
@@ -237,7 +240,8 @@ impl RomPane {
     }
 
     fn open(&mut self, src: &RomSource) -> Result<()> {
-        let RomFile::Present { modified } = RomFile::probe(&self.rom_path) else {
+        self.rom_file = RomFile::probe(&self.rom_path);
+        let RomFile::Present { modified } = self.rom_file else {
             return Err(anyhow!(
                 "no ROM at {} (build it: cargo xtask rom)",
                 self.rom_path.display()
@@ -395,6 +399,7 @@ impl Pane for RomPane {
             }
         };
         self.run_frames(n);
+        self.rom_file = RomFile::probe(&self.rom_path);
     }
 
     fn framebuffer(&mut self) -> &[u16] {
@@ -402,7 +407,7 @@ impl Pane for RomPane {
     }
 
     fn status(&self) -> RomStatus {
-        let rom = RomFile::probe(&self.rom_path);
+        let rom = self.rom_file;
         let rom_changed = self.emu.is_some()
             && match rom {
                 RomFile::Present { modified } => modified != self.loaded,
@@ -643,13 +648,21 @@ mod tests {
 
     #[test]
     #[ignore = "needs target/game.gba (cargo xtask rom)"]
+    /// Runs on a temp copy of the committed tree's `nodes/`: `materialize` caches snapshots
+    /// in its store, which must not be the repo's (even though `snapshots/` is git-ignored).
     fn node_boots_restored_at_the_node_frame() {
-        let store_root = Store::default_root(content::STUB);
+        let (mut p, scratch) = rom_pane("rom-node");
+        let store_root = scratch.join("store");
+        let nodes = Store::default_root(content::STUB).join("nodes");
+        std::fs::create_dir_all(store_root.join("nodes")).unwrap();
+        for f in std::fs::read_dir(&nodes).unwrap() {
+            let f = f.unwrap().path();
+            std::fs::copy(&f, store_root.join("nodes").join(f.file_name().unwrap())).unwrap();
+        }
         let store = Store::open(store_root.clone()).unwrap();
         let node = store.nodes().unwrap().into_iter().next().expect("a node");
-        let (mut p, _) = rom_pane("rom-node");
         p.handle(RomCmd::Reset(RomSource::Node {
-            store_root,
+            store_root: store_root.clone(),
             id: node.meta.id,
         }));
         let s = p.status();
@@ -668,5 +681,10 @@ mod tests {
         let s = p.status();
         assert_eq!(s.boot, Some(boot::RESTORED));
         assert_eq!(s.timeline.len(), 1);
+        assert!(
+            store_root.join("snapshots").is_dir(),
+            "the cache went to the copy"
+        );
+        std::fs::remove_dir_all(&scratch).unwrap();
     }
 }
