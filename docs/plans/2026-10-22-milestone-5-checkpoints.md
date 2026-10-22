@@ -776,7 +776,16 @@ The text box needs nothing (pristine means BG0 off).
    - The menu milestone will call the same `save::write`.
    - Hold B at boot to ignore a save.
    - The save happens outside the simulation, with the picture frozen during the write and a vblank resync. Traces stay pure input.
-10. **Flash: 128 KiB, one slot (taken).**
+10. **Flash: 64 KiB, one slot (revised in Wave 1 by Task E's finding; the original 128 KiB text follows for the record).**
+    - **Why 64 KiB:**
+      - mGBA 0.11 never reads agb's `FLASH1M_V` marker. It autodetects FLASH512 (Panasonic 0x1B32) on the first flash write (`savedata.c:267-270`) and maps only 64 KiB of a 128 KiB `.sav`.
+      - agb_save puts data in the top sectors, so a 128 KiB host image comes back Corrupted unless mGBA is overridden by hand.
+    - **Implementation:** `FLASH_SIZE = 64 * 1024`. The GBA calls `init_flash_64k`. The emu forces a FLASH512 override.
+    - **Layout:** 16 sectors: global, slot header, ghost, and 13 data sectors.
+    - **Capacity:** about 24 KiB per slot with a ghost copy. A future full save (PC boxes, bag) has to fit in that, or move to 128 KiB with an explicit mGBA override.
+    - **Store parse errors (Task D, accepted):** an unparseable node file is an error that names the file, not `Stale`. Merge-conflict markers fail loudly, and `--accept` needs a parseable trace.
+
+    *Original decision:*
     - agb ghost slots give crash safety.
     - The checkpoint budget is 8 KiB; the route is expected under 4 KiB, with flags and vars stored sparse.
     - 128 KiB leaves room for later full saves (PC boxes, bag), where 64 KiB would be tight with ghost copies.
