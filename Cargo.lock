@@ -4600,6 +4600,7 @@ dependencies = [
  "futures-channel",
  "game-native",
  "png 0.18.1",
+ "tokio",
 ]
 
 [[package]]

@@ -96,6 +96,38 @@ extracted from the FR ROM (`rom/emeraude-fr.gba`); another extract diverges. Loa
 of a node this build no longer reaches warns "cNNNNN diverged on this build". On the GBA,
 L+R+SELECT saves to flash.
 
+## Studio
+`cargo xtask studio` (or `cargo run -p studio --features ui --release`) opens a desktop app
+(Dioxus) that plays, inspects and manages the game. It reads the committed tree and writes only
+your local store (`checkpoints/<flavor>/local/`, or `$PKR_CHECKPOINTS`) and `target/studio/`.
+
+- **Play**: the native game and the ROM (`target/game.gba` in mGBA) side by side, each on its
+  own thread. Click a pane to give it the keyboard (the layout of `play`: arrows, X = A,
+  Z = B, A = L, S = R, Enter = Start, Backspace = Select); leaving it releases every key. Space
+  pauses or resumes, `.` steps a frame, Tab held fast-forwards ×8, F9 reloads the node the
+  trace starts from (the ROM pane: boots its last source again). On the native pane, F5 saves a
+  local node (at the first idle frame) and F8 rewinds; the buttons do the same, plus ×2/×4/×8
+  and New game. The inspector shows frame, map, camera, hash, mode, whether the state is
+  capturable (or why not), the run mode, the parent node and the trace length, and an event
+  list (map changes, scripts, battles, log lines, saves, loads, rewinds).
+- The ROM pane boots a new game at start-up, or a node from the Checkpoints tab (materialised
+  natively, then written as its flash). It shows the boot result, a timeline of the debug
+  region (the last 60 frames: engine frame, hash, the native shadow's hash, late counters,
+  saves, hash/step/loop scanlines) with the worst values, and a banner when the ROM was built
+  from other sources than the studio. Build ROM runs `cargo xtask rom` and reloads the pane;
+  Export save writes the flash to `target/studio/rom-<ms>.sav`.
+- **Checkpoints**: committed nodes, then local ones, as a tree with their last verdict
+  (valid, stale, diverged at frame N, broken, unverified). Verify replays every node in the
+  background and keeps the verdicts in the local `status.ron`. Per node: load it into the
+  native pane or boot it in the ROM pane, Branch (load and play; F5 saves a local child),
+  "Open at…" (a slider over the node's trace: the native pane seeks to that frame, paused,
+  and a save from there branches inside the trace), and, for local nodes only, Label and
+  Remove (with a confirmation; refused for a node with children). Committed nodes change only
+  through `cargo xtask checkpoints`. The tree refreshes after a save or an edit, and when a
+  `nodes/` directory changes on disk.
+- **Map** and **Data**: the read-only map view with its overlays, and the species, moves,
+  trainers, encounters and texts tables.
+
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
 read both ROMs and the decomp. The `content` data tests check the real tables when
@@ -170,9 +202,13 @@ the extractor's unit tests, which need none of these.
 The studio's desktop UI is behind the `studio` crate's `ui` feature, so `cargo test --workspace`
 and the workspace clippy skip it. Its gates are `cargo test -p studio --features ui` (display-free)
 and `cargo clippy -p studio --all-targets --features ui -- -D warnings`; `cargo xtask studio
---check` runs both. `cargo xtask studio --smoke [secs]` (default 10) opens the real window with
-two test-pattern panes for `secs` seconds and fails if a pane delivers under 50 fps or the run
-outlives `secs` + 60 s. It needs a logged-in GUI session (not SSH or CI without a display); the
+--check` runs both; they include display-free renders of the Play and Checkpoints tabs
+(`dioxus-ssr`, on the committed tree with a temp local store) and the key-map tests.
+`cargo xtask studio --smoke [secs]` (default 10) opens the real window, with the play panes and
+two transport test-pattern panes, for `secs` seconds and fails if a test pattern delivers under
+50 fps, a play pane's thread died or it drew nothing, or the run outlives `secs` + 60 s (then it
+prints the output so far and a `sample` of the studio's threads). The play panes' rates are printed
+as `INFO` lines, since they publish only changed pictures. It needs a logged-in GUI session (not SSH or CI without a display); the
 window stays on top and takes focus while it runs.
 
 ## Extract
