@@ -926,3 +926,4 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
 }
 
 mod battles;
+mod checkpoint;
