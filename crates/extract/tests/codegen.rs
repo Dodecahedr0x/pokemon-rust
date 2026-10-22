@@ -1,7 +1,7 @@
 //! Script codegen: golden output for a synthetic ROM, and a compile check of generated code
 //! against the stub prelude in `tests/stub_prelude/` wrapped exactly as `content` wraps it.
 use extract::codegen::{self, Generated, MapRoots};
-use extract::schema::{ScriptEntry, TextFile};
+use extract::schema::{LegacyScriptEntry, TextFile};
 use extract::{ROM_BASE, Rom, export, maps, names, roots, text};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -241,7 +241,7 @@ fn synthetic_golden() {
             ("A_Obj1_L0_T0".into(), "Again?".into())
         ])
     );
-    let entry = |file: &str, root| ScriptEntry {
+    let entry = |file: &str, root| LegacyScriptEntry {
         file: file.into(),
         root,
     };
@@ -353,7 +353,7 @@ fn synthetic_battle() -> (Rom, Vec<MapRoots>) {
 const GOLDEN_C: &str = r#"// @generated test
 
 pub async fn C_Single(ctx: Ctx) {
-    if trainer_battle(&ctx, TrainerBattle::single(TRAINER_SAWYER_1, 3, C_Single_T0, C_Single_T1)).await {
+    if legacy_trainer_battle(&ctx, LegacyTrainerBattle::single(TRAINER_SAWYER_1, 3, C_Single_T0, C_Single_T1)).await {
         return;
     }
     ctx.message(C_Single_T2).await;
@@ -363,7 +363,7 @@ pub async fn C_Single(ctx: Ctx) {
 }
 
 pub async fn C_Continue(ctx: Ctx) {
-    if trainer_battle(&ctx, TrainerBattle::continue_script(TRAINER_GRUNT_AQUA_HIDEOUT_1, 4, C_Single_T0, C_Single_T1)).await {
+    if legacy_trainer_battle(&ctx, LegacyTrainerBattle::continue_script(TRAINER_GRUNT_AQUA_HIDEOUT_1, 4, C_Single_T0, C_Single_T1)).await {
         Box::pin(C_Continue_L0(ctx.clone())).await;
         return;
     }
@@ -376,7 +376,7 @@ pub async fn C_Continue_L0(ctx: Ctx) {
 }
 
 pub async fn C_NoIntro(ctx: Ctx) {
-    trainer_battle(&ctx, TrainerBattle::no_intro(TRAINER_SAWYER_1, C_Single_T1)).await;
+    legacy_trainer_battle(&ctx, LegacyTrainerBattle::no_intro(TRAINER_SAWYER_1, C_Single_T1)).await;
     ctx.set_var(VAR_RESULT, ctx.give_mon(SPECIES_TREECKO, 5).await).await;
     ctx.set_var(VAR_RESULT, ctx.give_mon(SpeciesId(ctx.var(VAR_OLDALE_TOWN_STATE).await), 7).await).await; // held item 13 not given
     ctx.set_var(VAR_RESULT, ctx.party_size().await).await;
@@ -529,7 +529,7 @@ fn compile_check(tag: &str, root: &Path) {
 /// The roots of every exported map of `rom`, in export order.
 fn rom_roots(rom: &Rom) -> Vec<MapRoots> {
     let table = maps::locate_map_table(rom).unwrap();
-    export::MAPS
+    export::SLICE_MAPS
         .iter()
         .map(|&name| {
             let m = names::map_by_dir(name).unwrap();

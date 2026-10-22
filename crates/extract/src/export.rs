@@ -1,6 +1,8 @@
-//! Writes `content/extracted/` in the v3 format of [`crate::schema`]: maps, tilesets, sprites,
+//! Writes `content/extracted/` in the format of [`crate::schema`]: maps, tilesets, sprites,
 //! font, window graphics and previews, all named by decomp identifiers. Texts and scripts are
-//! written by [`export_scripts`] (Milestone 3 Task B).
+//! written by [`scripts::export_scripts`] (Milestone 3 Task B; M8 Task B owns
+//! `export/scripts.rs`), the item, multichoice, std-string and map-section tables by
+//! [`tables::export_tables`] (M8 Task C owns `export/tables.rs`).
 //!
 //! Output is deterministic: everything is ordered (`BTreeMap`/`BTreeSet`, fixed map order) and
 //! the RON style is fixed.
@@ -14,15 +16,21 @@ use crate::schema::{
     MapFile, MapScripts, Object, SpriteFile, TilesetFile, VarScript, Warp, WindowFile,
 };
 use crate::sprites::{self, ObjectGraphics};
-use crate::{GameCode, Rom, battle_data, battle_gfx, codegen, font, names, scripts, window};
+use crate::{GameCode, Rom, battle_data, battle_gfx, font, names, window};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-/// The exported maps (decomp directory names), in export order. This order decides canonical
-/// script names (see `schema.rs`).
-pub const MAPS: [&str; 15] = [
+pub mod scripts;
+pub mod tables;
+
+pub use scripts::ScriptInput;
+
+/// The slice's 15 maps (decomp directory names), in the Milestone 3-7 export order: the named
+/// fixed sample of tests and tools (`cargo xtask extract --maps slice`). This order decides
+/// canonical script names (see `schema.rs`).
+pub const SLICE_MAPS: [&str; 15] = [
     "LittlerootTown",
     "Route101",
     "OldaleTown",
@@ -39,6 +47,44 @@ pub const MAPS: [&str; 15] = [
     "OldaleTown_PokemonCenter_2F",
     "OldaleTown_Mart",
 ];
+
+/// The exported maps until Milestone 8 Task A exports every map: [`SLICE_MAPS`]. Deleted by
+/// Task A; nothing but [`ExportOptions::default`] reads it.
+pub const MAPS: [&str; 15] = SLICE_MAPS;
+
+/// What [`export`] writes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExportOptions {
+    /// Maps to export (decomp directory names), in export order.
+    pub maps: Vec<&'static str>,
+    /// Whether to write `previews/<Map>.png`.
+    pub previews: bool,
+}
+
+impl ExportOptions {
+    /// [`SLICE_MAPS`], with or without previews.
+    pub fn slice(previews: bool) -> ExportOptions {
+        ExportOptions {
+            maps: SLICE_MAPS.to_vec(),
+            previews,
+        }
+    }
+
+    /// Every `names::MAPS` entry, in `gMapGroups` order (Task A makes this the default).
+    pub fn all(previews: bool) -> ExportOptions {
+        ExportOptions {
+            maps: names::MAPS.iter().map(|m| m.dir).collect(),
+            previews,
+        }
+    }
+}
+
+impl Default for ExportOptions {
+    /// Wave 0: the slice, with previews.
+    fn default() -> ExportOptions {
+        ExportOptions::slice(true)
+    }
+}
 
 /// Sprites exported even if no exported map places them: the player characters. Emerald has no
 /// separate running sprite: Brendan's and May's run frames are frames 9-17 of `*_NORMAL`.
@@ -143,42 +189,10 @@ pub struct ExportedMap {
     pub roots: Vec<(String, u32)>,
 }
 
-/// Everything the script export needs.
-pub struct ScriptInput<'a> {
-    /// The exported maps in export order.
-    pub maps: &'a [ExportedMap],
-    /// Root offset -> canonical name ([`roots::canonical`] over all maps in export order).
-    pub canonical: &'a BTreeMap<u32, String>,
-}
-
-/// Decodes the scripts reachable from `input`'s roots ([`codegen`]) and writes
-/// `text/<lang>.ron` (keys `<Script>_T<n>`), `scripts/<Map>.rs` and `scripts/index.ron`.
-fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()> {
-    let maps: Vec<codegen::MapRoots> = input
-        .maps
-        .iter()
-        .map(|m| codegen::MapRoots {
-            map: m.name.to_string(),
-            roots: m.roots.clone(),
-        })
-        .collect();
-    let code = match rom.code() {
-        GameCode::Bpee => "BPEE",
-        GameCode::Bpef => "BPEF",
-    };
-    let g = codegen::generate(rom, &maps, &codegen::header(code, &rom.sha1_hex()))?;
-    o.ron(&format!("text/{}.ron", rom.lang().code()), &g.texts)?;
-    for (map, src) in &g.files {
-        o.bytes(&format!("scripts/{map}.rs"), src.as_bytes())?;
-    }
-    o.ron("scripts/index.ron", &g.index)?;
-    println!("{}", g.stats.summary());
-    Ok(())
-}
-
-/// Exports [`MAPS`], their tilesets, the sprites they use, the font and the window graphics from
-/// `rom` into `out`, which is created if needed (existing files are overwritten, others left alone).
-pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
+/// Exports `opts.maps`, their tilesets, the sprites they use, the font, the window graphics,
+/// the battle data, the scripts and the tables from `rom` into `out`, which is created if needed
+/// (existing files are overwritten, others left alone).
+pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     let mut o = Out {
         root: out.to_path_buf(),
         files: BTreeMap::new(),
@@ -190,7 +204,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     provenance.insert("tileset_headers".to_string(), Hex(ts_headers.offset));
 
     let mut exported = Vec::new();
-    for name in MAPS {
+    for &name in &opts.maps {
         let m = names::map_by_dir(name).with_context(|| format!("map {name} is not in names"))?;
         let id = MapId {
             group: m.group,
@@ -236,13 +250,15 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
         let l = &m.header.layout;
         let (primary, p_data) = tileset_by_offset[&l.primary_tileset];
         let (secondary, s_data) = tileset_by_offset[&l.secondary_tileset];
-        let rgba = render::render_map(l, p_data, s_data)?;
-        o.png_rgba(
-            &format!("previews/{}.png", m.name),
-            u32::from(l.width) * 16,
-            u32::from(l.height) * 16,
-            &rgba,
-        )?;
+        if opts.previews {
+            let rgba = render::render_map(l, p_data, s_data)?;
+            o.png_rgba(
+                &format!("previews/{}.png", m.name),
+                u32::from(l.width) * 16,
+                u32::from(l.height) * 16,
+                &rgba,
+            )?;
+        }
         let map_scripts = match m.header.map_scripts {
             Some(t) => {
                 provenance.insert(format!("map/{}/map_scripts", m.name), Hex(t));
@@ -280,7 +296,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     let mut unknown_script_ops = BTreeMap::new();
     let mut gfx_ids: BTreeSet<u8> = BTreeSet::new();
     for (&off, script) in &canonical {
-        let scan = scripts::walk(rom, &[off]).with_context(|| format!("script {script}"))?;
+        let scan = crate::scripts::walk(rom, &[off]).with_context(|| format!("script {script}"))?;
         if !scan.unknown.is_empty() {
             let ops = scan.unknown.iter().map(|(&k, &v)| (Hex(k), v)).collect();
             unknown_script_ops.insert(script.clone(), ops);
@@ -349,12 +365,12 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
     provenance.insert("window/tiles".to_string(), Hex(mb.tiles_offset));
     provenance.insert("window/palette".to_string(), Hex(mb.palette_offset));
 
-    let battle = battle_data::extract(rom, &MAPS).context("battle data")?;
+    let battle = battle_data::extract(rom, &opts.maps).context("battle data")?;
     battle.write(&mut o)?;
     provenance.extend(battle.provenance);
     battle_gfx::export(rom, &mut o, &mut provenance)?;
 
-    export_scripts(
+    scripts::export_scripts(
         rom,
         &ScriptInput {
             maps: &exported,
@@ -362,9 +378,11 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
         },
         &mut o,
     )?;
+    tables::export_tables(rom, &mut o, &mut provenance)?;
 
     let manifest = Manifest {
         format: schema::FORMAT_VERSION,
+        format_minor: schema::FORMAT_MINOR,
         game_code: match rom.code() {
             GameCode::Bpee => "BPEE",
             GameCode::Bpef => "BPEF",
@@ -372,7 +390,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
         .to_string(),
         sha1: rom.sha1_hex(),
         language: rom.lang().code().to_string(),
-        maps: MAPS.iter().map(|m| m.to_string()).collect(),
+        maps: opts.maps.iter().map(|m| m.to_string()).collect(),
         tilesets: tilesets.values().map(|(n, _, _)| n.to_string()).collect(),
         sprites: sprite_names,
         provenance,
@@ -389,7 +407,7 @@ pub fn export(rom: &Rom, out: &Path) -> Result<Manifest> {
 /// The canonical root name of the script at `off`, `None` for a null script.
 /// Graphics ids a walk sets through `setvar VAR_OBJ_GFX_ID_<n>, <gfx>` (the values that
 /// `OBJ_EVENT_GFX_VAR_<n>` objects resolve to).
-pub fn var_gfx_ids(rom: &Rom, scan: &scripts::ScriptScan) -> Result<BTreeSet<u8>> {
+pub fn var_gfx_ids(rom: &Rom, scan: &crate::scripts::ScriptScan) -> Result<BTreeSet<u8>> {
     let mut ids = BTreeSet::new();
     for &pc in &scan.visited {
         if rom.u8(pc)? == OP_SETVAR
@@ -787,13 +805,13 @@ mod tests {
         b.extend([0x16, 0x1F, 0x40, 3, 0, 0x02]);
         b.resize(0x200, 0);
         let rom = Rom::from_bytes(b).unwrap();
-        let scan = scripts::walk(&rom, &[0x100]).unwrap();
+        let scan = crate::scripts::walk(&rom, &[0x100]).unwrap();
         assert_eq!(var_gfx_ids(&rom, &scan).unwrap(), BTreeSet::from([3, 105]));
         // A graphics id that does not fit a byte is an error.
         let mut b = rom.bytes().to_vec();
         b[0x104] = 1;
         let rom = Rom::from_bytes(b).unwrap();
-        let scan = scripts::walk(&rom, &[0x100]).unwrap();
+        let scan = crate::scripts::walk(&rom, &[0x100]).unwrap();
         assert!(var_gfx_ids(&rom, &scan).is_err());
     }
 
