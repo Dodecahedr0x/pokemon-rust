@@ -231,8 +231,9 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
     let dir = temp_dir("lineage");
     let game = Emerald::for_shells();
     let ex = explore(game, &dir.join("explore.db"), 4);
+    // Its own last step spans the opened frames, so the save holds no key over a text box.
     let deepest = (ex.db.nodes().unwrap().into_iter())
-        .filter(|n| n.status == NodeStatus::Valid)
+        .filter(|n| n.status == NodeStatus::Valid && n.frames >= OPEN_BEFORE)
         .max_by_key(|n| (n.total_frames, n.id))
         .unwrap();
     let lineage = ex.db.lineage(deepest.id).unwrap();
