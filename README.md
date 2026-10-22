@@ -23,13 +23,28 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
    `cargo run -p game-native --features window --bin play` (arrows, X = A, Z = B,
    Enter = Start, Backspace = Select, Escape quits).
 
-The slice starts in Littleroot Town outside Brendan's house, after receiving the starter and
-before meeting May on Route 103 (`crates/content/src/new_game.rs` lists the story vars and flags).
-Littleroot, Route 101, Oldale and their interiors are walkable; doors, doormats, connections,
-NPCs, signs and French dialogue work. Battles, menus, running shoes and sound are not there yet.
+A new game starts in Littleroot Town outside Brendan's house, after meeting May and before
+Birch's rescue (`crates/content/src/new_game.rs` lists the story vars and flags). Go north to
+Route 101: Birch is chased by a Zigzagoon, his bag gives the starter screen (Left/Right to pick
+a ball, A to choose, then yes/no) and the first battle follows. Then his lab, wild battles in the
+tall grass of Routes 101 and 103, healing at Oldale's Pokémon Center, and May's battle on Route 103.
+Littleroot, Route 101, Oldale, Route 103 and their interiors are walkable; doors, doormats,
+connections, NPCs, signs and French dialogue work.
+
+Battles: the D-pad moves the cursor and A confirms in the action menu (ATTAQUE, SAC, POKéMON,
+FUITE) and the move menu (B goes back); A or B advances messages; when a move is to be learned,
+the yes/no box and the move list work as in Gen3 (B in the list gives up learning). Losing
+whites out to the last Pokémon Center (or home), with the party healed.
+
+Known simplifications: singles only; no bag, party screen or Poké Balls (SAC and POKéMON return
+to the menu, and the next usable Pokémon is sent out by itself); one battle background (grass or
+plain); move animations are a lunge, the hit blink and the healthbox shake; no trainer sight
+(trainers battle when spoken to); no sound, running shoes or start menu; parties and encounter
+rolls are drawn when the battle is requested, before its transition (Gen3 draws some after it).
 
 Without an extracted dir everything builds against a small built-in map (stub mode,
-`cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`).
+`cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`). There a new game starts with a
+Pokémon, and the one tall-grass cell at (12, 3) has wild battles.
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
@@ -45,14 +60,19 @@ if these are missing:
 | `PKR_DECOMP`  | `../pokeemerald`        | a checkout of the pret/pokeemerald decomp      |
 
 Parity (`cargo xtask parity`, `crates/emu/tests/parity.rs`) replays the route of
-`crates/game-native/src/scenario.rs`: with extracted data it walks out of the start, into
-Brendan's house and back, across Route 101 to Oldale, follows the mart employee's guided tour,
-talks to an NPC and enters the Pokémon Center (about 2900 frames); in stub mode it walks around the stub map. The ROM must not apply
-any frame late while something is visible (`DebugRegion::late`); late applies on a black screen
-(map loads) are counted in `late_black`, which may not exceed the route's warp count.
+`crates/game-native/src/scenario.rs`: with extracted data it plays a new game: north to Birch's
+rescue on Route 101, the starter screen (Mudkip) and the first battle, the lab, Route 101's tall
+grass (a wild battle won with exp, one run from, one with a level-up), Oldale's Pokémon Center,
+then Route 103 and May's battle (about 19000 frames, 8 battles); in stub mode it walks around the
+stub map and fights in its tall-grass cell. Its named moments (`cargo xtask shot`) include the
+starter screen, a wild battle's intro, the action and move menus, an HP bar draining, a level-up
+message and May's intro. The ROM must not apply any frame late while something is visible
+(`DebugRegion::late`); late applies on a black screen (bulk loads) are counted in `late_black`,
+which may not exceed the route's warps and script teleports plus two per battle (its load on
+the way in, the field's restore on the way out).
 
 `crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
-`0x8883c74671372a45` after `World::new` and `0x9849b3c472dfbec7` after 25 frames each of Right,
+`0x3f86f67e851de7b8` after `World::new` and `0xe51e3e6ef153f261` after 25 frames each of Right,
 A, nothing and Down. They change whenever the hashed state, its order or the frame logic
 changes; update them only for an intended change.
 
