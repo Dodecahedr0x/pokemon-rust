@@ -183,6 +183,35 @@ impl TraceRecorder {
         self.keys.len() as u32
     }
 
+    /// The first `frames` keys of `trace` (clamped to its length) and its recorded hashes up
+    /// to there, starting at the trace's `start_frame`: recording goes on from frame `frames`
+    /// of the trace (seek, `Controls::from_seek`).
+    ///
+    /// The trace only holds the hashes at the recorder's cadence: the other frames get 0. They
+    /// are never written out unless the recorder ends (or is truncated) on one of them, so the
+    /// caller pushes the last frame itself when it knows its hash (`checkpoints::seek` does).
+    pub fn from_prefix(trace: &Trace, frames: u32) -> TraceRecorder {
+        let keys: Vec<Buttons> = trace.keys().take(frames as usize).collect();
+        let mut hashes = vec![0; keys.len()];
+        for &(at, h) in &trace.hashes {
+            if (1..=keys.len() as u32).contains(&at) {
+                hashes[at as usize - 1] = h;
+            }
+        }
+        TraceRecorder {
+            start_frame: trace.start_frame,
+            keys,
+            hashes,
+        }
+    }
+
+    /// `World::hash` after frame `i` (1-based) of the recording, if recorded.
+    pub fn hash_after(&self, i: u32) -> Option<u64> {
+        i.checked_sub(1)
+            .and_then(|i| self.hashes.get(i as usize))
+            .copied()
+    }
+
     /// Rewind: drops the frames (and hashes) past `frames`.
     pub fn truncate(&mut self, frames: u32) {
         self.keys.truncate(frames as usize);
@@ -360,6 +389,31 @@ mod tests {
             let text = text.replacen(&format!("\"{first}\""), bad, 1);
             assert!(ron::from_str::<Trace>(&text).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn from_prefix_keeps_the_keys_and_the_recorded_hashes_up_to_there() {
+        let mut keys = vec![A; 50];
+        keys.extend([B; 100]);
+        let t = recorder(&keys).trace(Parent::Checkpoint(CheckpointId(3)), BuildHash::default());
+        let mut r = TraceRecorder::from_prefix(&t, 125);
+        assert_eq!(r.frames(), 125);
+        assert_eq!(r.hash_after(60), Some(1060));
+        assert_eq!(r.hash_after(120), Some(1120));
+        assert_eq!(r.hash_after(121), Some(0), "not recorded");
+        assert_eq!(r.hash_after(0), None);
+        assert_eq!(r.hash_after(126), None);
+        // Going on from the prefix gives the original trace back.
+        for (i, &k) in keys.iter().enumerate().skip(125) {
+            r.push(k, 1000 + i as u64 + 1);
+        }
+        assert_eq!(r.trace(t.parent, t.build), t);
+        // Clamped to the trace.
+        let whole = TraceRecorder::from_prefix(&t, 1000);
+        assert_eq!(whole.trace(t.parent, t.build), t);
+        let empty = TraceRecorder::from_prefix(&t, 0);
+        assert_eq!(empty.frames(), 0);
+        assert_eq!(empty.trace(t.parent, t.build).start_frame, 7);
     }
 
     #[test]

@@ -10,6 +10,7 @@
 //!   back (else the oldest) and cuts the recorded trace there.
 
 use crate::Session;
+use crate::checkpoints::Seeked;
 use crate::trace::{CheckpointId, Parent, Trace, TraceRecorder};
 use engine::Buttons;
 use engine::checkpoint::{BuildHash, Checkpoint, RestoreError, build_hash};
@@ -74,6 +75,33 @@ impl<G: GameData> Controls<G> {
         Ok(c)
     }
 
+    /// Continues a [`seek`](crate::checkpoints::seek): its session, its parent and the recorded
+    /// prefix of the node's trace (a save records the prefix plus what is played next). The
+    /// rewind ring restarts here.
+    pub fn from_seek(s: Seeked<G>) -> Self {
+        let build = build_hash(s.session.game());
+        let frames = s.recorder.frames();
+        let mut c = Self {
+            session: s.session,
+            build,
+            parent: s.parent,
+            recorder: s.recorder,
+            pending: false,
+            ring: VecDeque::new(),
+            last: format!("seeked {} +{frames}", s.parent),
+        };
+        if s.diverged {
+            c.last.push_str(" (diverged on this build)");
+        }
+        c.ring_tick();
+        c
+    }
+
+    /// The last action ("saved c00004", "rewound 120 frames", …).
+    pub fn last(&self) -> &str {
+        &self.last
+    }
+
     pub fn session(&self) -> &Session<G> {
         &self.session
     }
@@ -90,6 +118,11 @@ impl<G: GameData> Controls<G> {
     /// The trace recorded since the parent.
     pub fn trace(&self) -> Trace {
         self.recorder.trace(self.parent, self.build)
+    }
+
+    /// Frames recorded since the parent (`trace().frames()` without building the trace).
+    pub fn trace_frames(&self) -> u32 {
+        self.recorder.frames()
     }
 
     /// A save is waiting for a capturable frame.
