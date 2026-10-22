@@ -12,7 +12,7 @@
 
 use crate::Session;
 use engine::battle::scene::OpenMenu;
-use engine::battle::{BattleOutcome, Str};
+use engine::battle::{BattleKind, BattleOutcome, Str};
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::{block_at, in_bounds};
@@ -90,11 +90,21 @@ pub struct Recording {
     pub warps: u32,
     /// Battles started.
     pub battles: u32,
+    /// Each battle started, in order, with how it ended.
+    pub battle_log: Vec<BattleRecord>,
     /// Starter screens opened.
     pub starters: u32,
     /// The steps whose [`Frame::bulk`](engine::video::Frame::bulk) is set (ascending): the
     /// only steps the GBA may overrun, on a black screen (see [`Recording::bulk_events`]).
     pub bulk: Vec<u32>,
+}
+
+/// A battle of a [`Recording`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BattleRecord {
+    pub kind: BattleKind,
+    /// The scene's outcome once it has one (`None`: still running when the recording ended).
+    pub outcome: Option<BattleOutcome>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -228,8 +238,14 @@ impl<G: GameData> Recorder<G> {
         if !before.0 && self.world().transition_active() {
             self.rec.warps += 1;
         }
-        if !before.1 && self.world().in_battle() {
-            self.rec.battles += 1;
+        if let Some((_, battle, scene)) = self.world().battle() {
+            let (kind, outcome) = (battle.setup().kind, scene.finished());
+            if !before.1 {
+                self.rec.battles += 1;
+                self.rec.battle_log.push(BattleRecord { kind, outcome });
+            } else if let Some(last) = self.rec.battle_log.last_mut() {
+                last.outcome = outcome.or(last.outcome);
+            }
         }
         if !before.2 && self.world().starter().is_some() {
             self.rec.starters += 1;
@@ -821,6 +837,8 @@ mod tests {
         let rec = record_route().unwrap_or_else(|e| panic!("{e}"));
         assert!(rec.frames() > 100);
         println!("{} frames; moments {:?}", rec.frames(), rec.moments);
+        println!("battles {:?}", rec.battle_log);
+        assert_eq!(rec.battle_log.len(), rec.battles as usize);
         let names: Vec<&str> = rec.moments.iter().map(|m| m.name).collect();
         let maps: Vec<u16> = rec.moments.iter().map(|m| m.map.0).collect();
         let mut s = Session::new(content::Emerald::for_shells());
@@ -842,6 +860,15 @@ mod tests {
                 ]
             );
             assert_eq!(rec.battles, 1);
+            assert_eq!(
+                rec.battle_log[0],
+                BattleRecord {
+                    kind: BattleKind::Wild {
+                        first_battle: false
+                    },
+                    outcome: Some(BattleOutcome::Won),
+                }
+            );
             assert!(w.party().get(0).unwrap().exp > 135);
         } else {
             use content::consts::*;
@@ -878,6 +905,47 @@ mod tests {
             assert_eq!(maps[8..], [r101, r101, r103, r103]);
             // The first battle, the win, the run, the level-up battle and May at least.
             assert!(rec.battles >= 5, "{} battles", rec.battles);
+            let log = &rec.battle_log;
+            let outcome = |i: usize| log[i].outcome;
+            // Birch's rescue: Gen3 `BATTLE_TYPE_FIRST_BATTLE`, which also accepts the
+            // Zigzagoon fleeing.
+            assert_eq!(log[0].kind, BattleKind::Wild { first_battle: true });
+            assert!(
+                matches!(
+                    outcome(0),
+                    Some(BattleOutcome::Won | BattleOutcome::MonFled)
+                ),
+                "{log:?}"
+            );
+            // The `wild_intro` battle is won, the next one (`Action::Run`) is run from.
+            assert_eq!(
+                log[1].kind,
+                BattleKind::Wild {
+                    first_battle: false
+                }
+            );
+            assert_eq!(outcome(1), Some(BattleOutcome::Won));
+            assert_eq!(
+                log[2].kind,
+                BattleKind::Wild {
+                    first_battle: false
+                }
+            );
+            assert_eq!(outcome(2), Some(BattleOutcome::Ran));
+            // The level-up battles (and any wild battle on the way) are won.
+            let (may, wild) = log[3..].split_last().unwrap();
+            for b in wild {
+                assert_eq!(
+                    b.kind,
+                    BattleKind::Wild {
+                        first_battle: false
+                    }
+                );
+                assert_eq!(b.outcome, Some(BattleOutcome::Won), "{log:?}");
+            }
+            // May is the one trainer battle, and it is won.
+            assert!(matches!(may.kind, BattleKind::Trainer { .. }), "{log:?}");
+            assert_eq!(may.outcome, Some(BattleOutcome::Won));
             let mon = w.party().get(0).unwrap();
             assert_eq!(
                 (w.party().len(), mon.species),
