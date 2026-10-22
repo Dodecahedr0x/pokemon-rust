@@ -727,6 +727,58 @@ Route-changing (it is the first of the ordered merges): the slice's scripts now 
    - `build_modes.rs`-style fixture dirs: an unclassified op fails, an override replaces, an unknown override fails;
    - the slice's parity route replays with identical ROM/native hashes on the new names; the route delta (D1 semantics) is stated in the report and refreshed on master per the rules.
 
+**Task D2 as built.**
+- **Build (`build/scripts.rs`):**
+  - `read_ir` (from `input::load`; `World.ir` replaces the legacy index) reads `scripts/index.ron`, the modules it names and the `scripts/decomp_names` provenance.
+  - `support` reads `build/support/*.ron` and sets `Support::item_helpers` when `src/prelude/items.rs` defines `pub async fn add_item(` (Task H's helpers; see below).
+  - `lower_ir` lowers once per extracted dir and process (cached: the data generator's `ScriptId`s and `generate` share it).
+  - It writes `$OUT_DIR/scripts/<Module>.rs` and `scripts.rs` (`DECOMP_NAMES`, one `pub mod` per module, plus `TRAINER_SCRIPTS: [(ScriptId, trainer, kind)]` sorted by id, and `trainer_script(id)`). It also writes `dispatch.rs` (the lowering's dispatch plus `SCRIPT_DIGESTS`), `overrides.rs` and `report.txt` (sites per class, unsupported sites per op or special, stale `specialvar` sites per special, decomp-name %, movement actions with no step, end in callee, overrides, trainer scripts), with one `cargo::warning` summary line.
+  - **Stale `specialvar` check:** a `specialvar` whose special is Unsupported leaves its destination (`VAR_RESULT`) holding an old value that the script then branches on. The build counts these sites (`Stats::stale_specialvars`) and lists them in `report.txt` and the warning line. It does not fail the build, because Task J's table classifies most of them. Slice: 17 sites over 11 specials. Full import: 234 sites over 92 specials, counted from the IR.
+  - `cargo xtask parity` refuses a real build whose IR has positional names only (`content::scripts::DECOMP_NAMES` false), because then no override applies. Sweep (Task L) should do the same.
+  - The stub lowers an empty IR.
+- **Overrides:**
+  - `src/overrides/mod.rs` is gone. `content::overrides` is inline in `lib.rs` and `include!`s `$OUT_DIR/overrides.rs`: one `#[path = "<abs>"] mod <Name>; pub use <Name>::<Name>;` per applied override, plus `OVERRIDES`. The reason: `tests/m8_e_overrides.rs` allows no non-identifier string literal under `src/overrides/`.
+  - Overrides apply only to an IR named from the decomp, since override names are decomp labels. Positional names (no `PKR_DECOMP`) apply none and warn, and no IR applies none. An override naming no script of a decomp-named IR fails the build.
+  - The worked example is `OldaleTown_PokemonCenter_1F_EventScript_Nurse`: the call to `Common_EventScript_PkmnCenterNurse` is spelled out as a `match` on its `Flow` (end in callee). The callee returns on its goodbye, healed, Pokérus and Gold Card decline paths. Only its fall-through `end`s stop the script.
+- **Trainer table:** `GameData::trainer_flag_of` (`0x500 + trainer`) and the new defaulted `GameData::trainer_battle_kind(script) -> Option<u8>` (decomp `TRAINER_BATTLE_*` numbering, from arg 0 of the script's first `trainerbattle`). The rows come from the IR, not from the emitted code: one row per function that starts with `trainerbattle`, even when its block holds a second battle, and even when the function is reported or overridden. Slice: 13 trainer scripts.
+- **Extract (format 5.4):**
+  - The legacy generator, the `.rs` export, `legacy_index.ron`, `LegacyScriptIndex` and `prelude/legacy.rs` are deleted.
+  - `text/<lang>.ron` is keyed by the IR's final names, and map files name scripts by them (`LittlerootTown_EventScript_Twin`, not `LittlerootTown_Obj1`).
+  - The std scripts (`gStdScripts`, located by `roots::std_scripts`) are extra roots, so their texts (`gText_ObtainedTheItem`, `gText_PutItemInPocket`, `gText_PlayerFoundOneItem`, `gText_TooBadBagIsFull`, …) are built for `text_named`. With decomp names they take their source module (`Common_obtain_item`, `Common_std_msgbox`, …); with positional names they fall into `Common_std_scripts`.
+- **Lowering fix-ups:**
+  - With `item_helpers`, `additem`/`removeitem`/`checkitemspace`/`checkitem`/`checkitemtype`, `STD_OBTAIN_ITEM`, `multichoice`/`multichoicedefault` and `checkmoney` call the helpers bare, since H's helpers write `VAR_RESULT` themselves. Without the flag, the Wave 0 forms are wrapped in `ctx.set_var(VAR_RESULT, …)`. `STD_FIND_ITEM` is always bare. `checkitemtype` is Native (`VAR_RESULT = 0` before H). **Task H deletes the flag and the Wave 0 branches.**
+  - `setobjectmovementtype` emits the `MOVEMENT_TYPE_*` constant. Content defines every one from `classify::movement`, the single mapping shared with object templates (Task I's exact mapping plugs in there).
+  - The IR's `unknown` pseudo-op is no unclassified command.
+  - A literal `buffernumberstring` operand is typed (`Number(10)`).
+  - `TRAINER_BATTLE_KINDS` is public.
+- **Specials:**
+  - The nurse's specials default as Gen3 does before the postgame: `CountPlayerTrainerStars` 0, `IsPokerusInParty` 0, `PlayerNotAtTrainerHillEntrance` 1, `BufferUnionRoomPlayerName` 0. As Unsupported they left `VAR_RESULT` stale, and after "yes" (1) the nurse explained Pokérus.
+  - `ScriptGetPokedexInfo` defaults to 0 (no Pokédex rating yet). As Unsupported it left `VAR_RESULT` stale, and Birch fell into the National Dex rating.
+- **Movements:** `NURSE_JOY_BOW_DOWN` is `Delay(48)`, the length of Gen3 `sAnim_NurseBow` (8 + 32 + 8 frames).
+- **Numbers:**
+  - Slice: 383 functions, 321 texts, 166 movements; sites Native 4088, Ignore 118, Default 14, Unsupported 136; end in callee 10; unresolved `waitmovement` 2; stale `specialvar` 17 sites over 11 specials.
+  - ROM 3,581,304 B (E: 3,481,496); IWRAM 788, EWRAM 460 unchanged.
+  - Parity identical: route 19,128 frames; hash 63 / step 210 / loop 214; `loop_lines_max` 215 (before_may), within 217.
+  - Full import (518 maps): 4,584 functions, 5,509 texts, 978 movements; Native 47,664, Ignore 1,180, Default 137, Unsupported 2,510 (the earlier build's 135 and 2,512, with `ScriptGetPokedexInfo`'s two sites moved; not rebuilt); end in callee 93; stale `specialvar` 234 sites over 92 specials.
+  - **Native debug build of `content` on the full import (loaded machine): 33–36 s, 4.5–4.7 GB peak RSS with `profile.dev.package.content.debug = "line-tables-only"` (added to the workspace `Cargo.toml`); 36 s and 5.2–5.4 GB without. Over the 30 s / 4 GB gate.**
+  - `-Z time-passes` (clean): type check 15.7 s / +2.0 GB (13.8 s of it in `coherence_checking`, where the async bodies' opaque types are revealed), borrowck 3.7 s, codegen 4.9 s, peak about 4.6 GB.
+  - Ruled out: the closure thunk table (empty table: same type check), incremental (`CARGO_INCREMENTAL=0`: same), `codegen-units = 16` (worse: 4.8 GB).
+  - **Left to L.** The D2 reviewer measured these fixes on the full import:
+
+    | Change | Peak RSS | Total |
+    |---|---|---|
+    | (a) Body sharing: one shared `async fn` per normalized body shape, each script a plain `fn` returning `impl Future` (3,069 of 4,590 scripts share a shape) | 3.53 GB | 20.1 s |
+    | (b) (a), plus the `Ctx` methods as named `Req` futures and a non-generic boxed `run` thunk | 3.38 GB | 16.8 s |
+    | (c) An op-list interpreter for straight-line fire-and-forget runs | | about 0.4 ms saved per await |
+
+    (a) alone closes the 4 GB / 30 s gate. It changes the lowering's output contract: shape normalization, parameterized bodies, and the digests and goldens that follow from them. That is more than a review fix, so D2 leaves it to L.
+- **Route delta (trees not refreshed; master re-seeds per the rules):**
+  - c00001 `lab` DIVERGED from frame +780, with the same inputs and the same end state (lab still at 4856; c00002 replays valid). The script request stream changed: the legacy `special()` issued a `Log` per special and `unsupported()` two, while Ignore now emits nothing and Unsupported one `Report`. The runner hash covers `issued`.
+  - c00002 `after_wild`: valid (rehash).
+  - c00003 `oldale_center` BROKEN: the nurse takes 46 frames longer. `NURSE_JOY_BOW_DOWN` was `Step::Delay(0)` (unsupported) and is now `Step::Delay(48)`. The node moves 11,571 → 11,617.
+  - c00004 `route103_after_may`: broken parent; 19,082 → 19,128.
+  - `explore/tests/h_tuning.rs` passes. The `route101_grass` fixture had stopped leaving the lab, and the cause was not `bufferleadmonspeciesname`: the Buffer host is still a no-op before H. The cause was `specialvar VAR_RESULT, ScriptGetPokedexInfo`, which as Unsupported left `VAR_RESULT` stale, so Birch took the National Dex rating at frame 5194. With `Default(0)` the fixture replays as recorded.
+
 ### Task L — full import, end to end, and `cargo xtask sweep`
 
 **Owns:** `xtask/src/sweep.rs`, cross-task fix-ups in the files of Wave 1 tasks A–J (each listed in the report), the README (Content, Scripts and Tests sections), the fixed test samples of `crates/studio/tests/{map_pixels, map_view, data_views}.rs`, and `checkpoints/*` refreshes.

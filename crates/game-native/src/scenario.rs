@@ -776,13 +776,13 @@ impl<G: GameData> Recorder<G> {
 pub const EMERALD_ROUTE: &[Action] = &[
     Action::Wait(24),
     Action::Shot("littleroot_start"),
-    // North: the girl stops the player (`LittlerootTown_Coord2`: Birch is in trouble).
+    // North: the girl stops the player (`LittlerootTown_EventScript_GoSaveBirchTrigger`: Birch is in trouble).
     Action::GoTo(11, 2),
     Action::Step(Dir::Up),
     Action::Mash,
     Action::GoTo(10, 0),
     Action::Cross(Dir::Up),
-    // `Route101_Coord0`: Birch chased by the Zigzagoon.
+    // `Route101_EventScript_StartBirchRescue`: Birch chased by the Zigzagoon.
     Action::Mash,
     Action::Shot("route101_rescue"),
     // Birch's bag (`Route101_Obj3`): `special ChooseStarter`, then the first battle.
