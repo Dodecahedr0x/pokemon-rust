@@ -787,6 +787,43 @@ mod tests {
         std::fs::remove_dir_all(&scratch).unwrap();
     }
 
+    /// On its pane thread (as the studio runs it), a new game keeps publishing frames.
+    #[test]
+    #[ignore = "needs target/game.gba (cargo xtask rom)"]
+    fn a_spawned_rom_pane_publishes_frames() {
+        let scratch = temp("rom-spawn");
+        let s = scratch.clone();
+        let h = crate::pane::spawn("rom", move || {
+            let store = Store::open(s.join("store")).unwrap();
+            let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 4)));
+            RomPane::new(workspace().join("target/game.gba"), s, store, m)
+        });
+        h.send(RomCmd::Reset(RomSource::NewGame));
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        let s = h.status.get();
+        let seq = h.frames.seq();
+        // Walking changes the picture (an idle field may not).
+        h.send(RomCmd::Keys(Buttons::LEFT));
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let more = h.frames.seq() - seq;
+        let s2 = h.status.get();
+        h.stop();
+        println!(
+            "error {:?} boot {:?} timeline {} -> {} frames published in 1 s: {more}",
+            s.error,
+            s.boot,
+            s.timeline.last().map(|e| e.frame).unwrap_or(0),
+            s2.timeline.last().map(|e| e.frame).unwrap_or(0),
+        );
+        assert_eq!(s.error, None);
+        assert!(
+            s2.timeline.last().unwrap().frame > s.timeline.last().unwrap().frame + 30,
+            "the ROM runs"
+        );
+        assert!(more > 30, "walking publishes frames: {more}");
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
     #[test]
     #[ignore = "needs target/game.gba (cargo xtask rom)"]
     /// Runs on the committed tree layered under a temp local root: the materializer caches
