@@ -653,9 +653,14 @@ fn tables(w: &World, blob: &mut BlobOut, o: &mut String) -> Result<()> {
                 it.id
             );
         }
-        let Some(pocket) = it.pocket else {
-            items.push_str("None,");
-            continue;
+        // `ITEM_NONE` (0) is no item, though the ROM gives it `POCKET_ITEMS`; the unused slots
+        // (`ITEM_034` …) stay the "????????" items the ROM has.
+        let pocket = match it.pocket {
+            Some(p) if i != 0 => p,
+            _ => {
+                items.push_str("None,");
+                continue;
+            }
         };
         let pocket = match pocket {
             ItemPocket::Items => "Pocket::Items",
@@ -674,7 +679,7 @@ fn tables(w: &World, blob: &mut BlobOut, o: &mut String) -> Result<()> {
     }
     writeln!(
         o,
-        "/// `gItems` by `ITEM_*` (`None`: `POCKET_NONE`).\npub static ITEMS: [Option<ItemInfo>; {}] = [{items}];",
+        "/// `gItems` by `ITEM_*` (`None`: `ITEM_NONE`, `POCKET_NONE`).\npub static ITEMS: [Option<ItemInfo>; {}] = [{items}];",
         t.items.items.len()
     )?;
 

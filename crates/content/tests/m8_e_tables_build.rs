@@ -64,13 +64,13 @@ fn write_fixture(dir: &Path) {
                 "MASTER BALL",
                 Some(ItemPocket::PokeBalls),
             ),
-            item("ITEM_ULTRA_BALL", "HYPER BALL", Some(ItemPocket::PokeBalls)),
+            item("ITEM_ULTRA_BALL", "BALL B", Some(ItemPocket::PokeBalls)),
         ],
     };
     put(dir, "tables/items.ron", &to_ron(&items).unwrap());
     let multichoice = MultichoiceFile {
         lists: BTreeMap::from([
-            ("MULTI_YESNO".into(), vec!["OUI".into(), "NON".into()]),
+            ("MULTI_YESNO".into(), vec!["YES A".into(), "NO B".into()]),
             (
                 "MULTI_ENTERINFO".into(),
                 vec!["A".into(), "B".into(), "C".into()],
@@ -91,7 +91,7 @@ fn write_fixture(dir: &Path) {
         &to_ron(&std_strings).unwrap(),
     );
     let sections = MapSectionsFile {
-        sections: BTreeMap::from([("MAPSEC_LITTLEROOT_TOWN".into(), "BOURG".into())]),
+        sections: BTreeMap::from([("MAPSEC_LITTLEROOT_TOWN".into(), "TOWN A".into())]),
     };
     put(dir, "tables/map_sections.ron", &to_ron(&sections).unwrap());
     let emote = FieldEffectSpriteFile {

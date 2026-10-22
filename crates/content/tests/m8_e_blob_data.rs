@@ -169,7 +169,7 @@ fn tables_are_generated() {
         Item {
             id: "ITEM_NONE".into(),
             name: "????????".into(),
-            pocket: None,
+            pocket: Some(ItemPocket::Items), // as the ROM has it
             price: 0,
             importance: 0,
         },
@@ -184,7 +184,7 @@ fn tables_are_generated() {
     w.tables
         .multichoice
         .lists
-        .insert("MULTI_YESNO".into(), vec!["OUI".into(), "NON".into()]);
+        .insert("MULTI_YESNO".into(), vec!["YES A".into(), "NO B".into()]);
     w.tables
         .std_strings
         .strings
@@ -192,7 +192,7 @@ fn tables_are_generated() {
     w.tables
         .map_sections
         .sections
-        .insert("MAPSEC_LITTLEROOT_TOWN".into(), "BOURG-EN-VOL".into());
+        .insert("MAPSEC_LITTLEROOT_TOWN".into(), "TOWN A".into());
     let (rs, _, _) = codegen::data(&w, 0).unwrap();
     assert!(rs.contains("pub static ITEMS: [Option<ItemInfo>; 2] = [None,Some(ItemInfo {"));
     assert!(rs.contains("pocket: Pocket::PokeBalls"));
