@@ -88,7 +88,6 @@ pub fn gfx() -> &'static BattleGfx {
         expbar: image(TAG_EXPBAR, 9, 0),
         status: image(TAG_STATUS, 30, 0),
         misc: image(TAG_MISC, 12, 0),
-        numbers: GfxImage::EMPTY,
         ball: image(TAG_BALL, 12, 1),
         small_font: small_font(),
         player_back: TrainerPic {

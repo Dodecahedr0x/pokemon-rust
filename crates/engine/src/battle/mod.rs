@@ -194,8 +194,6 @@ pub enum Str {
     Intro1,
     /// … wants to battle.
     IntroTrainer,
-    IntroMsg,
-    Intro2,
     GoPkmn,
     PkmnSentOut,
     WhatWillPkmnDo,
@@ -347,15 +345,15 @@ pub enum Str {
 }
 
 impl Str {
-    /// A stable hash code: the declaration order, with the index of `TypeName` / `StatName`
-    /// in the low byte. Exhaustive on purpose: a new variant gets its code here.
+    /// A stable hash code: the declaration order (retired variants leave gaps: 2, 3), with
+    /// the index of `TypeName` / `StatName` in the low byte. Exhaustive on purpose: a new
+    /// variant gets its code here, and a removed one's code is never reused.
     pub const fn code(self) -> u16 {
         use Str::*;
         match self {
             Intro1 => 0,
             IntroTrainer => 1,
-            IntroMsg => 2,
-            Intro2 => 3,
+            // 2 and 3 were `IntroMsg` and `Intro2` (retired, never shown): codes are not reused.
             GoPkmn => 4,
             PkmnSentOut => 5,
             WhatWillPkmnDo => 6,
@@ -590,8 +588,6 @@ pub struct BattleGfx {
     /// `misc`: the healthbox's black sections and blank "no status" tile, then the HP bar frame
     /// end. The level, HP numbers and gender symbol are printed with `small_font`.
     pub misc: GfxImage,
-    /// Unused by Gen3 (only the unused battle bar has digit tiles): stays `EMPTY`.
-    pub numbers: GfxImage,
     /// `gBallGfx_Poke` + palette (send-out ball).
     pub ball: GfxImage,
     /// `FONT_SMALL` (`gFontSmallLatinGlyphs`), healthbox nicknames.
@@ -620,7 +616,6 @@ pub static EMPTY_GFX: BattleGfx = BattleGfx {
     expbar: GfxImage::EMPTY,
     status: GfxImage::EMPTY,
     misc: GfxImage::EMPTY,
-    numbers: GfxImage::EMPTY,
     ball: GfxImage::EMPTY,
     small_font: &EMPTY_FONT,
     player_back: TrainerPic {

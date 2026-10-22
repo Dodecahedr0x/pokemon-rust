@@ -405,8 +405,6 @@ pub const STRS: &[(&str, StrSrc)] = {
     &[
         ("Intro1", Key("sText_WildPkmnAppeared")),
         ("IntroTrainer", Key("sText_Trainer1WantsToBattle")),
-        ("IntroMsg", Key("sText_WildPkmnAppeared")),
-        ("Intro2", Key("sText_GoPkmn")),
         ("GoPkmn", Key("sText_GoPkmn")),
         ("PkmnSentOut", Key("sText_Trainer1SentOutPkmn")),
         ("WhatWillPkmnDo", Key("gText_WhatWillPkmnDo")),

@@ -21,7 +21,7 @@
 //! | `expbar` | `battle/gfx/expbar` | 9 tiles: `HEALTHBOX_GFX_12..=20` (0..8 px); healthbox palette |
 //! | `status` | `battle/gfx/status` | 30 tiles: 15 for the player (battler 0, `status.png`), then 15 for the opponent (battler 1, `status2.png`); 3 tiles per icon in `HEALTHBOX_GFX_STATUS_*` order PSN, PAR, SLP, FRZ, BRN. The two sets differ only in the palette index of the fill. Localized in BPEF. Healthbox palette |
 //! | `misc` | `battle/gfx/misc` | 12 tiles: `HEALTHBOX_GFX_36..=46` (11 `misc.png` tiles; 39 is the blank "no status" tile) then `HEALTHBOX_GFX_65` (HP bar frame end, tile 11, drawn with the HP bar palette); `palettes` = the healthbox palette, which serves tiles 0-10 |
-//! | `numbers` | none | stays `EMPTY`: `numbers1/2.png` only feed the unused `gBattleInterfaceGfx_BattleBar`. Gen3 prints the level ("Lv" is font glyph `0x100 + CHAR_LV_2`), the HP numbers and the gender symbol with `FONT_SMALL` (`AddTextPrinterAndCreateWindowOnHealthbox`) |
+//! | (no `numbers`) | none | `numbers1/2.png` only feed the unused `gBattleInterfaceGfx_BattleBar`, so there is no digit image. Gen3 prints the level ("Lv" is font glyph `0x100 + CHAR_LV_2`), the HP numbers and the gender symbol with `FONT_SMALL` (`AddTextPrinterAndCreateWindowOnHealthbox`) |
 //! | `ball` | `battle/gfx/ball` | `gBallGfx_Poke` (12 tiles: three 16x16 frames) + `gBallPal_Poke` |
 //! | `small_font` | `font/latin_small` | `gFontSmallLatinGlyphs` / widths (same layout as `latin_normal`) |
 //! | `player_back` | `trainers/back/TRAINER_BACK_PIC_BRENDAN` | 4 frames of 64 tiles, side by side in the png |
