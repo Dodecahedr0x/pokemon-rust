@@ -36,13 +36,13 @@ pub mod prelude;
 pub mod samples;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
-/// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`) and one `TextId` per
-/// text, named after its key.
+/// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`,
+/// `MOVEMENT_TYPE_*`) and one `TextId` per text, named after its key.
 #[allow(non_upper_case_globals, dead_code, unused_imports)]
 pub mod consts {
-    use engine::data::{
-        Dir, FlagId, MapId, MoveId, MovementType, SpeciesId, TextId, TrainerId, VarId,
-    };
+    // A glob: the `MOVEMENT_TYPE_*` values (`classify::movement`) name whatever engine types
+    // they need (`Dir`, and `Dirs` once Task I lands); the generated names shadow it.
+    use engine::data::*;
     include!(concat!(env!("OUT_DIR"), "/consts.rs"));
 }
 

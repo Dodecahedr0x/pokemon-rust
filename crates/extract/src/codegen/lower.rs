@@ -306,7 +306,6 @@ struct Low<'a> {
     /// Member -> its group's leader.
     group_of: BTreeMap<usize, usize>,
     stats: Stats,
-    trainer_scripts: BTreeSet<(String, String)>,
 }
 
 /// Where the content crate puts the dispatch (`Flow`, `script_ids`, `SCRIPTS`).
@@ -412,7 +411,28 @@ pub fn lower(
         ),
         ("texts".to_string(), pct(decomp_texts, texts.len())),
     ]);
-    out.trainer_scripts = low.trainer_scripts.iter().cloned().collect();
+    // Gen3 `GetTrainerFlagFromScriptPointer` reads the trainer of a script that starts with
+    // `trainerbattle`: one row per function (so it has a `ScriptId`), taken from the IR rather
+    // than the emitted code, so an overridden script keeps its row and a second `trainerbattle`
+    // in the same block adds none.
+    out.trainer_scripts = low
+        .fns
+        .iter()
+        .filter_map(|&f| {
+            let i = low.labs[f]
+                .insns
+                .first()
+                .filter(|i| i.op == "trainerbattle")?;
+            let name = match i.args.get(1)? {
+                IrArg::Const { name, .. } => name.clone(),
+                IrArg::Half(t) => names::TRAINERS.name((*t).into())?.to_string(),
+                _ => return None,
+            };
+            Some((low.labs[f].name.to_string(), name))
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     out.stats = low.stats;
     Ok(out)
 }
@@ -534,7 +554,6 @@ impl<'a> Low<'a> {
             groups: BTreeMap::new(),
             group_of: BTreeMap::new(),
             stats: Stats::default(),
-            trainer_scripts: BTreeSet::new(),
         })
     }
 

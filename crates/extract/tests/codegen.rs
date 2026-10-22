@@ -588,6 +588,10 @@ mod lowering {
                         vec![v("VAR_RESULT"), c("SPECIAL_ShouldTryRematchBattle")],
                     ),
                     i("special", vec![c("SPECIAL_DoPCTurnOnEffect")]),
+                    i(
+                        "specialvar",
+                        vec![v("VAR_RESULT"), c("SPECIAL_DoPCTurnOnEffect")],
+                    ),
                     i("gotobeatenscript", vec![]),
                 ],
                 None,
@@ -606,13 +610,19 @@ mod lowering {
              // special SPECIAL_ShowMapNamePopup\n    \
              ctx.set_var(VAR_RESULT, 0).await; // SPECIAL_ShouldTryRematchBattle (default)\n    \
              ctx.report(Report::Unsupported(\"SPECIAL_DoPCTurnOnEffect\")).await;\n    \
+             ctx.report(Report::Unsupported(\"SPECIAL_DoPCTurnOnEffect\")).await;\n    \
              ctx.report(Report::Unsupported(\"gotobeatenscript\")).await;\n    \
              return Flow::End;\n}\n"
         );
         let st = &out.stats;
         assert_eq!(st.by_class["Ignore"], 2, "{:?}", st.by_class);
         assert_eq!(st.by_class["Default"], 3, "{:?}", st.by_class);
-        assert_eq!(st.by_class["Unsupported"], 3, "{:?}", st.by_class);
+        assert_eq!(st.by_class["Unsupported"], 4, "{:?}", st.by_class);
+        // The `specialvar` whose special is `Unsupported` leaves VAR_RESULT stale: counted.
+        assert_eq!(
+            st.stale_specialvars,
+            BTreeMap::from([("SPECIAL_DoPCTurnOnEffect".to_string(), 1)])
+        );
         // Only `Unsupported` reports; `Default` is the documented behaviour.
         assert_eq!(
             st.reports.keys().collect::<Vec<_>>(),
@@ -818,6 +828,17 @@ mod lowering {
                     vec![tb(12, vec![Raw(0), Raw(0)])],
                     Some("M_After"),
                 ),
+                // Two battles in one block: one row (the first, as Gen3 reads it).
+                label(
+                    "M_Twice",
+                    Some(RootKind::Object(7)),
+                    vec![
+                        tb(0, vec![t("M_Text_Intro"), t("M_Text_Lose")]),
+                        tb(0, vec![t("M_Text_Intro"), t("M_Text_Lose")]),
+                        i("end", vec![]),
+                    ],
+                    None,
+                ),
             ],
             vec![],
         )];
@@ -851,19 +872,33 @@ mod lowering {
         }
         // A battle with no lose text cannot be described: reported.
         assert!(fn_src(m, "M_Hill").contains("Report::Unsupported(\"trainerbattle\")"));
-        assert_eq!(
-            out.trainer_scripts,
-            [
-                "M_Continue",
-                "M_Double",
-                "M_NoIntro",
-                "M_Rematch",
-                "M_Single"
-            ]
-            .iter()
-            .map(|s| (s.to_string(), "TRAINER_CALVIN_1".to_string()))
-            .collect::<Vec<_>>()
+        // The rows come from the IR: every function that starts with `trainerbattle`, once,
+        // whether it lowers, is reported or is overridden.
+        let rows = |out: &Lowered| {
+            out.trainer_scripts
+                .iter()
+                .map(|(s, t)| format!("{s} {t}"))
+                .collect::<Vec<_>>()
+        };
+        let expected: Vec<String> = [
+            "M_Continue",
+            "M_Double",
+            "M_Hill",
+            "M_NoIntro",
+            "M_Rematch",
+            "M_Single",
+            "M_Twice",
+        ]
+        .iter()
+        .map(|s| format!("{s} TRAINER_CALVIN_1"))
+        .collect();
+        assert_eq!(rows(&out), expected);
+        let overridden = lower_with(
+            &files,
+            &BTreeMap::from([("M_Single".to_string(), String::new())]),
         );
+        assert!(!fn_src(&overridden.modules["M"], "M_Single").contains("trainer_battle("));
+        assert_eq!(rows(&overridden), expected);
     }
 
     /// One site of every command `commands.ron` marks `Native`, in Task B's operand forms.
@@ -1150,8 +1185,8 @@ mod lowering {
     }
 
     /// With Task H's item helpers (`Support::item_helpers`, which the content build reads from
-    /// the prelude), the item commands and `STD_OBTAIN_ITEM` call helpers that write VAR_RESULT
-    /// themselves: no `set_var` around them.
+    /// the prelude), the item commands, `STD_OBTAIN_ITEM`, `multichoice` and `checkmoney` call
+    /// helpers that write VAR_RESULT themselves: no `set_var` around them.
     #[test]
     fn lower_item_commands_to_the_item_helpers() {
         let files = every_native();
@@ -1167,6 +1202,9 @@ mod lowering {
             "    check_item_space(&ctx, ITEM_POTION, 2).await;",
             "    check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await;",
             "    check_item_type(&ctx, ITEM_POTION).await;",
+            "    multichoice(&ctx, 17, 0, 0, 0, true).await;",
+            "    multichoice(&ctx, 1, 20, 6, 1, false).await;",
+            "    money_check(&ctx, 300).await;",
         ] {
             assert!(src.contains(needle), "missing {needle:?} in:\n{src}");
         }
@@ -1175,6 +1213,8 @@ mod lowering {
             "ctx.item_remove(",
             "ctx.item_space(",
             "// checkitemtype",
+            "set_var(VAR_RESULT, multichoice(",
+            "set_var(VAR_RESULT, money_check(",
         ] {
             assert!(!src.contains(gone), "{gone:?} in:\n{src}");
         }

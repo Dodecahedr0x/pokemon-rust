@@ -10,9 +10,10 @@
 //! end
 //! ```
 //!
-//! `Common_EventScript_PkmnCenterNurse` returns only on its "goodbye" and "healed" paths, whose
-//! last message the caller waits on; every other path (`end`) stops the whole script, the
-//! caller's three trailing commands included. The lowering expresses that with a `Flow` check
+//! `Common_EventScript_PkmnCenterNurse` returns, leaving a message open for the caller to wait
+//! on, on its "goodbye", "healed" and Pokérus-explanation paths and on the Gold Card decline
+//! paths (`gText_WeHopeToSeeYouAgain2`). Only its fall-through `end`s (a `VAR_RESULT` none of
+//! its branches expects) stop the whole script, the caller's three trailing commands included. The lowering expresses that with a `Flow` check
 //! after the call; here it is spelled out.
 
 use crate::data::Flow;

@@ -43,6 +43,10 @@ pub struct Stats {
     pub by_class: BTreeMap<String, usize>,
     /// `Report::Unsupported` sites by command or special name.
     pub reports: BTreeMap<String, usize>,
+    /// `specialvar` sites whose special is `Unsupported`, by special: the destination (usually
+    /// `VAR_RESULT`) keeps a stale value the script then branches on (Task D2 counts them; Task J
+    /// classifies them).
+    pub stale_specialvars: BTreeMap<String, usize>,
     /// Percentage of decomp names (`NameOrigin::Decomp`) per kind (`functions`, `texts`,
     /// `movements`), rounded down.
     pub named_decomp_pct: BTreeMap<String, u32>,
@@ -50,8 +54,8 @@ pub struct Stats {
 
 impl Stats {
     /// One line for the build output: counts, sites by class, the decomp-named share, the
-    /// reported sites by frequency (ties by name, at most 8), `end` in callees and unresolved
-    /// `waitmovement 0`.
+    /// reported sites by frequency (ties by name, at most 8), `end` in callees, unresolved
+    /// `waitmovement 0` and the stale `specialvar` sites.
     pub fn summary(&self) -> String {
         let mut reports: Vec<(&String, &usize)> = self.reports.iter().collect();
         reports.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
@@ -71,7 +75,8 @@ impl Stats {
         };
         format!(
             "scripts: {} fns, {} texts, {} movements; sites {}; decomp names {}; {} unsupported \
-             sites ({}); end in callee {}; unresolved waitmovement {}",
+             sites ({}); end in callee {}; unresolved waitmovement {}; stale specialvar {} sites \
+             over {} specials",
             self.fns,
             self.texts,
             self.movements,
@@ -88,7 +93,9 @@ impl Stats {
             total,
             pairs(&|| top.clone()),
             self.end_in_callee,
-            self.unresolved_waitmovement
+            self.unresolved_waitmovement,
+            self.stale_specialvars.values().sum::<usize>(),
+            self.stale_specialvars.len()
         )
     }
 }
@@ -128,7 +135,8 @@ pub struct Support {
     /// `VAR_RESULT` themselves). With them the item commands and item std scripts lower to bare
     /// helper calls; without them (the Wave 0 prelude) to `ctx.set_var(VAR_RESULT, …)` around
     /// the Wave 0 helpers and requests. Not a table: the content build sets it from the prelude
-    /// source (Task D2 addition, removed once H has merged).
+    /// source (Task D2 addition). `multichoice` and `checkmoney` follow it too. Task H deletes
+    /// the flag and the Wave 0 branches once its prelude is the only one.
     #[serde(skip)]
     pub item_helpers: bool,
 }

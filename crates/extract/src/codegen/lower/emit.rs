@@ -155,7 +155,7 @@ impl<'a> Low<'a> {
                 }
                 continue;
             }
-            self.emit_insn(insn, b, fx, &mut st, &mut out)?;
+            self.emit_insn(insn, fx, &mut st, &mut out)?;
         }
         match end {
             End::Terminated => {
@@ -205,6 +205,16 @@ impl<'a> Low<'a> {
     }
 
     /// `ctx.report(Report::Unsupported(what))`, and `return Flow::End` after a terminator.
+    /// A prelude helper that answers in `VAR_RESULT` (`multichoice`): Task H's version writes it
+    /// itself, so the call is bare; the Wave 0 one returns it.
+    fn result_call(&self, r: &str, call: String) -> String {
+        if self.support.item_helpers {
+            format!("{call};")
+        } else {
+            format!("ctx.set_var({r}, {call}).await;")
+        }
+    }
+
     pub(super) fn report(&mut self, insn: &IrInsn, what: &str, out: &mut Vec<String>) {
         self.count_report(what);
         out.push(format!(
@@ -219,7 +229,6 @@ impl<'a> Low<'a> {
     pub(super) fn emit_insn(
         &mut self,
         insn: &IrInsn,
-        b: usize,
         fx: &Fx,
         st: &mut BlockState,
         out: &mut Vec<String>,
@@ -231,7 +240,7 @@ impl<'a> Low<'a> {
         match class {
             Class::Native => {
                 let before = out.len();
-                if self.native(insn, b, fx, st, out)? {
+                if self.native(insn, fx, st, out)? {
                     self.count_class(Class::Native);
                 } else {
                     // Operands that do not fit the arm: reported like an unsupported command.
@@ -272,7 +281,6 @@ impl<'a> Low<'a> {
     pub(super) fn native(
         &mut self,
         insn: &IrInsn,
-        b: usize,
         fx: &Fx,
         st: &mut BlockState,
         out: &mut Vec<String>,
@@ -557,7 +565,7 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.set_movement_type({id}, {t}).await;"));
             }
             ("trainerbattle", [k, tr, local, rest @ ..]) => {
-                return self.trainerbattle(k, tr, local, rest, b, out);
+                return self.trainerbattle(k, tr, local, rest, out);
             }
             ("checktrainerflag" | "settrainerflag" | "cleartrainerflag", [t]) => {
                 let Some(t) = trainer_arg(t, true) else {
@@ -599,10 +607,11 @@ impl<'a> Low<'a> {
                 else {
                     return Ok(false);
                 };
-                out.push(format!(
-                    "ctx.set_var({r}, multichoice(&ctx, {list}, {x}, {y}, 0, {}).await).await;",
+                let call = format!(
+                    "multichoice(&ctx, {list}, {x}, {y}, 0, {}).await",
                     ignore_b == 0
-                ));
+                );
+                out.push(self.result_call(&r, call));
             }
             ("multichoicedefault", [x, y, list, default, ignore_b]) => {
                 let (Some(x), Some(y), Some(list), Some(default), Some(ignore_b)) = (
@@ -614,10 +623,11 @@ impl<'a> Low<'a> {
                 ) else {
                     return Ok(false);
                 };
-                out.push(format!(
-                    "ctx.set_var({r}, multichoice(&ctx, {list}, {x}, {y}, {default}, {}).await).await;",
+                let call = format!(
+                    "multichoice(&ctx, {list}, {x}, {y}, {default}, {}).await",
                     ignore_b == 0
-                ));
+                );
+                out.push(self.result_call(&r, call));
             }
             ("givemon", [s, level, item, ..]) => {
                 let (Some(s), Some(level)) = (species_arg(s, true), u8_lit(level)) else {
@@ -705,6 +715,7 @@ impl<'a> Low<'a> {
                 out.push(match op {
                     "addmoney" => format!("money_add(&ctx, {n}).await;"),
                     "removemoney" => format!("money_remove(&ctx, {n}).await;"),
+                    _ if self.support.item_helpers => format!("money_check(&ctx, {n}).await;"),
                     _ => format!("ctx.set_var({r}, money_check(&ctx, {n}).await as u16).await;"),
                 });
             }
@@ -855,6 +866,13 @@ impl<'a> Low<'a> {
             }
             Class::Unsupported => {
                 self.count_report(&name);
+                if dest.is_some() {
+                    *self
+                        .stats
+                        .stale_specialvars
+                        .entry(name.clone())
+                        .or_default() += 1;
+                }
                 out.push(format!(
                     "ctx.report(Report::Unsupported(\"{name}\")).await;"
                 ));
@@ -881,7 +899,6 @@ impl<'a> Low<'a> {
         tr: &IrArg,
         local: &IrArg,
         rest: &[IrArg],
-        b: usize,
         out: &mut Vec<String>,
     ) -> Result<bool> {
         let kind = match k {
@@ -922,22 +939,6 @@ impl<'a> Low<'a> {
             Some(Some(s)) => Some(s),
             Some(None) => return Ok(false),
         };
-        // Gen3 `GetTrainerFlagFromScriptPointer` reads the trainer of a script that starts with
-        // `trainerbattle`: record those scripts (functions, so they have a `ScriptId`).
-        let starts = self.fns.contains(&b)
-            && self.labs[b]
-                .insns
-                .first()
-                .is_some_and(|i| i.op == "trainerbattle");
-        let trainer_name = match tr {
-            IrArg::Const { name, .. } => Some(name.as_str()),
-            IrArg::Half(t) => names::TRAINERS.name((*t).into()),
-            _ => None,
-        };
-        if starts && let Some(n) = trainer_name {
-            self.trainer_scripts
-                .insert((self.labs[b].name.to_string(), n.to_string()));
-        }
         let opt = |o: &Option<String>| {
             o.as_ref()
                 .map_or("None".to_string(), |t| format!("Some({t})"))

@@ -185,6 +185,7 @@ pub fn std_scripts(rom: &Rom) -> Result<Option<Vec<u32>>> {
             }
         }
     }
+    found.sort();
     found.dedup();
     match found.len() {
         0 => Ok(None),

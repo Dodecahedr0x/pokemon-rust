@@ -357,7 +357,7 @@
     "SPECIAL_SavePlayerParty": Unsupported,
     "SPECIAL_ScriptCheckFreePokemonStorageSpace": Unsupported,
     "SPECIAL_ScriptGetPartyMonSpecies": Unsupported,
-    "SPECIAL_ScriptGetPokedexInfo": Unsupported,
+    "SPECIAL_ScriptGetPokedexInfo": Default(0),  // no Pokédex rating yet: Birch skips the National Dex check
     "SPECIAL_ScriptHatchMon": Unsupported,
     "SPECIAL_ScriptMenu_CreateLilycoveSSTidalMultichoice": Unsupported,
     "SPECIAL_ScriptMenu_CreatePCMultichoice": Unsupported,
