@@ -103,7 +103,8 @@ L+R+SELECT saves to flash.
 ## Studio
 `cargo xtask studio` (or `cargo run -p studio --features ui --release`) opens a desktop app
 (Dioxus) that plays, inspects and manages the game. It reads the committed tree and writes only
-your local store (`checkpoints/<flavor>/local/`, or `$PKR_CHECKPOINTS`) and `target/studio/`.
+your local store (`checkpoints/<flavor>/local/`, or `$PKR_CHECKPOINTS`) and `target/studio/`;
+the explorer it starts writes `target/explore/`.
 
 - **Play**: the native game and the ROM (`target/game.gba` in mGBA) side by side, each on its
   own thread. Click a pane to give it the keyboard (the layout of `play`: arrows, X = A,
@@ -130,7 +131,23 @@ your local store (`checkpoints/<flavor>/local/`, or `$PKR_CHECKPOINTS`) and `tar
   through `cargo xtask checkpoints`. The tree refreshes after a save or an edit, and when a
   `nodes/` directory changes on disk.
 - **Map** and **Data**: the read-only map view with its overlays, and the species, moves,
-  trainers, encounters and texts tables.
+  trainers, encounters and texts tables. The map's "coverage" layer shades each cell the
+  explorer stood on by its hits (1, 2-9, 10-99, 100+, as `explore coverage` prints them),
+  read from the explorer db for the shown map, and again every couple of seconds while a run
+  is going.
+- **Explorer**: starts and stops `explore run` (`cargo run -p explore --release`, logging to
+  `target/studio/explore.log`) with a budget in generations, seconds or nodes, an optional
+  seed and thread count; the run keeps going when you leave the tab and stops when the studio
+  closes. A failed run (a build error, a panic) shows the log's tail. Every 2 s the tab reads
+  `target/explore/<flavor>/explore.db` read-only (also a db written by `cargo xtask explore
+  run`): nodes, nodes/s, the goals reached by name, maps, cells and findings. The findings
+  table (open first, then by hits) gives kind, map, cell, message, hits, status, and "found
+  on another build" when the finding's build is not this one. Per finding: "Open at frame
+  before" (120 by default) replays it into the native pane, paused that many frames before
+  its last frame, and shows the Play tab (F5 from there saves a local node with a NewGame
+  parent); "Export repro" runs `explore export <id>` (a NewGame trace under
+  `target/explore/<flavor>/repro/`); "Copy repro command" copies `cargo xtask explore repro
+  <id>`.
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which

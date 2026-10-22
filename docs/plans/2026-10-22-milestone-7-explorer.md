@@ -1610,3 +1610,38 @@ The bin exits with `cli::exit_code`; xtask is unchanged (`cargo xtask explore` a
   - Gap: if `/nonexistent` is created later, the build does not notice it until the env var changes.
   - The content `BUILD_ID` changed (it hashes `build/`), so both trees were refreshed with `cargo xtask checkpoints verify --accept`. All nodes were `valid (rehash)`, and only build ids and hashes changed (`chore(checkpoints)`).
   - `cargo xtask parity` passes: 19070 hashes and 204 pictures identical, no late frames.
+
+## Task S2 as built
+
+**Deviations from the S2 text:**
+- **The run lives in `Studio`.** `Studio::explorer: RunSlot` (an `Arc<Mutex<…>>` around the `ExplorerProc`) is app state: leaving the tab keeps the run, and dropping the last clone (closing the window drops the VirtualDom and its contexts) kills it. A Cmd+Q that exits the process without unwinding does not run the drop, so the run's process group then outlives the studio (see Notes).
+- **The shell polls, not the tab.** `ui::explorer::use_explorer_state` (called by `Shell`) polls every 2 s while the Explorer tab is shown or a run is going, and the tab polls once when it opens. Each poll that changes the db's `DbStats` bumps `ExplorerState::tick`, which is what refreshes the Map tab's coverage. So coverage follows a run every 2 s while it goes, even on the Map tab.
+- **The coverage layer is a `Map` prop, not a context.** `Map { live, coverage_db: Option<PathBuf>, coverage: bool }`: `LiveMap` passes `studio.paths.explore_db`; `coverage` starts with the layer on (tests). `None` draws nothing.
+- **Export runs the CLI** (`cargo run -p explore --release -- export <id> --db P`, blocking on a worker thread). The note shows its last stdout line (`<path> (<n> frames)`) or the last 4 stderr lines. The first export (or run) builds `explore` in release.
+- **"Copy repro command"** goes through `document::eval` (`navigator.clipboard.writeText`, with an `execCommand('copy')` fallback). The command is also the button's title.
+
+**Core API (`crates/studio/src/explorer.rs`, unit-tested):**
+- Run form: `BudgetKind::{Generations, Secs, Nodes}` (`ALL`, `key`, `label`, `from_key`); `parse_budget(kind, text) -> Result<Budget, String>` (positive, decimal or `0x`; generations fit a `u32`); `parse_seed` (empty = the config's); `parse_threads` (empty = default, else `1..=MAX_THREADS` = 256); `parse_before`; `RunForm { kind, budget, threads, seed }` (default `--generations 10`) with `args(db) -> Result<RunArgs, String>`.
+- Run: `RunSlot::{start(&RunArgs, log), start_with(spawn), stop, state}` (one run at a time; methods may block, so the UI calls them off-thread); `RunState::{Idle, Running, Finished, Stopped, Failed { status, tail }, StartFailed(e)}` and `running()`; `run_state_text`; `LOG_TAIL = 30`, `log_tail(text, n)`.
+- Poll: `Poll { model: Result<ExplorerModel, String>, run: RunState, build: BuildHash }`, `poll(db, &RunSlot)` (blocking).
+- Text: `stats_rows(&ExplorerModel, rate) -> Vec<(label, value)>` (nodes with valid/stale/merged/broken, nodes/s, generation, goals by `goals::name`, maps, cells, scripts, findings with the open count); `nodes_per_sec(prev, now, elapsed)` (`None` across a reset db); `finding_cells(&FindingRow, this_build) -> FindingCells { id, kind, map, cell, message (first line), hits, status, build, other_build }`; `OTHER_BUILD = "found on another build"`; `map_name(MapId)`.
+- Actions: `open_finding_cmds(FindingTrace) -> [OpenTrace { trace, frames }, Mode(Pause)]`; `opened_text(&FindingTrace)` (warns with `OTHER_BUILD` when `stale`); `repro_command(id)`; `export_args(id, db)`, `export_outcome(success, stdout, stderr)`, `export_repro(id, db)`; `explore_command(args) -> Command` (now also used by `ExplorerProc::start`).
+
+**UI (`crates/studio/src/ui/`):**
+- `explorer.rs` (new): `POLL = 2 s`; `Polled { poll, rate, at }`; `ExplorerState { polled, tick }` (context; `apply(poll, at)`, `refresh(&Studio)`); `use_explorer_state(&Studio, Signal<Tab>)`; `Explorer` (toolbar with budget + kind, threads, seed, Start, Stop and the run state; the form error; a failed run's log tail; the stats, or the db's load error, or "Reading …" before the first poll; the findings table) and `Finding` (one row plus a note row: "Open at frame before" with its editable frames-before field, "Export repro", "Copy repro command"). "Open at frame before" runs `finding_trace(&open(db)?, id, before)` off-thread, sends `open_finding_cmds`, sets the Play tab and focuses the native pane; a replay failure shows in the inspector's `last` (S1), a db error in the row's note.
+- `mod.rs`: `Tab::Explorer` and a fifth `TABS` entry; `Studio::explorer`; `Shell` calls `use_explorer_state`; `LiveMap` passes `coverage_db`.
+- `map.rs`: `Layer::Coverage`; `LAYERS` is 9 entries (`N_LAYERS`), coverage off by default; `.heat-1`–`.heat-4` CSS; `CoverageView { map, layer: Result<(Paths, visited), String> }` and `load_coverage(db, map)` (worker thread; `CoverageGrid::load` then `coverage_paths(.., MARGIN)`), never in `MapCache`; refetched when `(shown map, tick)` changes; a memoized `HeatPaths` group (`data-layer="coverage"`) over the cell layers; a toolbar line "coverage: N cells visited" or the db error.
+
+**Tests:**
+- `explorer.rs` units: the form's parsing and validation and `RunForm::args`; `stats_rows` and `nodes_per_sec`; `finding_cells` (this build / another build, unknown map); the open, export and copy helpers; `RunSlot` on `sh` (running, one at a time, stopped, finished, failed with the log tail, a start error, killed when the last clone drops).
+- `ui/explorer.rs` (ssr, temp dirs): a db filled through the explore API (4 generations of `WallAround` at the new-game cell: a `Softlock` in both flavors) renders every stats row and one `data-finding` row per finding with its cells, actions, the repro command and `value="120"`; a missing db shows the load error and creates nothing; a failed run shows its status and log tail; `ExplorerState::apply` ticks only when the totals change and computes the rate; the copy script.
+- `ui/map.rs`: the coverage layer on a filled db draws exactly `coverage_paths` and "N cells visited" after the worker thread (the test pumps the VirtualDom: `process_events` + `render_immediate`); off by default draws and reads nothing; a missing db says "no explorer db" and is not created.
+- `ui/mod.rs`: the shell lists the Explorer tab; the Map tab has the coverage toggle; the Explorer tab renders inside the shell.
+
+**Gates:** `cargo fmt --all --check`; both clippy runs (`-D warnings`); `cargo test --workspace` real (61 suites, 1057 passed, 11 ignored) and stub (61 suites, 1047 passed, 11 ignored); `cargo test -p studio --features ui` (94 lib tests, real); `cargo xtask studio --check`; `cargo xtask studio --smoke 8`: smoke-a 60.0 fps (0.57 ms mean latency, 3.1 ms max), smoke-b 60.0 fps (0.59 / 4.8 ms).
+
+**Notes for the close-out:**
+- No change to `explore`, `engine`, `game-native` or `Cargo.toml`/`Cargo.lock`.
+- A run started from the studio survives a quit that skips destructors (Cmd+Q may `exit` without dropping the VirtualDom). If that matters, kill the slot's group from a quit hook (tao `RunEvent::ExitRequested`, or an `atexit` in `proc.rs`).
+- nodes/s is per poll and the db commits once per generation, so the rate jumps between 0 and a burst; a moving average over the last few polls would read better.
+- The explore release build on a first Start or Export takes minutes; the tab shows "running" during it and a failed build's tail afterwards. Export waits on cargo's build lock while a run builds.
