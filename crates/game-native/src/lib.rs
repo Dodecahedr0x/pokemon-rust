@@ -51,13 +51,8 @@ impl<G: GameData> Session<G> {
     /// Replaces the world by `cp`'s (`World::restore`) on a fresh PPU, as [`Session::restore`]
     /// does; on error the session is unchanged.
     pub fn load(&mut self, cp: &Checkpoint) -> Result<(), RestoreError> {
-        let mut world = World::restore(&self.game, cp)?;
-        let frame = world.initial_frame();
-        self.ppu = Ppu::new();
-        self.ppu.apply(&frame);
-        self.world = world;
-        self.frame = frame;
-        self.drawn = false;
+        self.world = World::restore(&self.game, cp)?;
+        self.reset();
         Ok(())
     }
 
@@ -66,19 +61,27 @@ impl<G: GameData> Session<G> {
         self.world.checkpoint(&self.game)
     }
 
-    /// Applies `world`'s boot frame to a fresh PPU.
-    fn boot(game: G, mut world: World) -> Self {
-        let frame = world.initial_frame();
-        let mut ppu = Ppu::new();
-        ppu.apply(&frame);
-        Self {
+    /// A session on `world`, its boot frame applied to a fresh PPU.
+    fn boot(game: G, world: World) -> Self {
+        let mut s = Self {
             game,
             world,
-            ppu,
-            frame,
+            ppu: Ppu::new(),
+            frame: Frame::default(),
             fb: vec![0; SCREEN_W * SCREEN_H],
             drawn: false,
-        }
+        };
+        s.reset();
+        s
+    }
+
+    /// Applies the world's boot frame to a fresh PPU (shared by [`Session::boot`] and
+    /// [`Session::load`]).
+    fn reset(&mut self) {
+        self.frame = self.world.initial_frame();
+        self.ppu = Ppu::new();
+        self.ppu.apply(&self.frame);
+        self.drawn = false;
     }
 
     pub fn step(&mut self, keys: Buttons) {

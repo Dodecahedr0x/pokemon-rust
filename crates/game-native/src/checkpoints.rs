@@ -1,6 +1,6 @@
 //! The real replayer and materialisation over a [`Store`] (Milestone 5 Task G).
 
-use crate::store::{Replayed, Store};
+use crate::store::{Node, Replayed, Store};
 use crate::trace::{CheckpointId, Parent, Trace, replay_with_hashes};
 use engine::World;
 use engine::checkpoint::{Checkpoint, build_hash, state_digest};
@@ -45,59 +45,73 @@ fn replay_from<G: GameData>(
     })
 }
 
-/// Node `id`'s checkpoint: the cached snapshot when its schema and build match, else replayed
-/// from the root (caching every snapshot on the way).
+/// What [`materialize`] gives.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Materialized {
+    pub checkpoint: Checkpoint,
+    /// This build's replay reaches another state than the node's recorded digest (the node is
+    /// Diverged until `verify --accept`).
+    pub diverged: bool,
+}
+
+/// Node `id`'s checkpoint: the cached snapshot when its schema and build match and its state is
+/// the node's (`state_digest == meta.digest`: snapshots are an ignored cache, which a
+/// reseeded tree reusing ids would otherwise serve stale), else replayed from the nearest such
+/// ancestor or the root, caching every snapshot on the way.
 ///
-/// A replay whose state differs from the node's recorded digest (a diverged node on this
-/// build) is returned but not cached: `verify --accept` re-baselines it.
+/// A replay whose state differs from a node's recorded digest (a diverged node on this build)
+/// is used but not cached, and flagged for the requested node.
 pub fn materialize<G: GameData>(
     store: &Store,
     game: &G,
     id: CheckpointId,
-) -> Result<Checkpoint, String> {
+) -> Result<Materialized, String> {
     let build = build_hash(game);
-    let cached = |id| -> Result<Option<Checkpoint>, String> {
+    let cached = |node: &Node| -> Result<Option<Checkpoint>, String> {
+        let id = node.meta.id;
         Ok(store
             .snapshot(id)
             .map_err(|e| format!("{id}: {e}"))?
-            .filter(|cp| cp.header.build == build))
+            .filter(|cp| cp.header.build == build && state_digest(&cp.world) == node.meta.digest))
     };
-    if let Some(cp) = cached(id)? {
-        return Ok(cp);
+    let find = |id: CheckpointId| store.find(&id.to_string()).map_err(|e| e.to_string());
+    let target = find(id)?;
+    if let Some(checkpoint) = cached(&target)? {
+        return Ok(Materialized {
+            checkpoint,
+            diverged: false,
+        });
     }
     // The chain up to the nearest cached ancestor (or the root), then down again.
-    let mut chain = Vec::new();
-    let mut at = id;
+    let mut chain = vec![target];
     let mut base = None;
-    loop {
-        let node = store.find(&at.to_string()).map_err(|e| e.to_string())?;
-        if chain.iter().any(|n: &crate::store::Node| n.meta.id == at) {
-            return Err(format!("parent cycle through {at}"));
+    while let Parent::Checkpoint(p) = chain.last().expect("non-empty").trace.parent {
+        if chain.iter().any(|n| n.meta.id == p) {
+            return Err(format!("parent cycle through {p}"));
         }
-        let parent = node.trace.parent;
+        let node = find(p)?;
+        if let Some(cp) = cached(&node)? {
+            base = Some(cp);
+            break;
+        }
         chain.push(node);
-        match parent {
-            Parent::NewGame => break,
-            Parent::Checkpoint(p) => {
-                if let Some(cp) = cached(p)? {
-                    base = Some(cp);
-                    break;
-                }
-                at = p;
-            }
-        }
     }
     let mut replay = replayer(game);
+    let mut diverged = false;
     for node in chain.into_iter().rev() {
         let r = replay(base.as_ref(), &node.trace).map_err(|e| format!("{}: {e}", node.meta.id))?;
-        if state_digest(&r.checkpoint.world) == node.meta.digest {
+        diverged = state_digest(&r.checkpoint.world) != node.meta.digest;
+        if !diverged {
             store
                 .put_snapshot(node.meta.id, &r.checkpoint)
                 .map_err(|e| format!("{}: {e}", node.meta.id))?;
         }
         base = Some(r.checkpoint);
     }
-    base.ok_or_else(|| format!("{id}: nothing replayed"))
+    Ok(Materialized {
+        checkpoint: base.expect("the chain holds the node"),
+        diverged,
+    })
 }
 
 /// The label prefix of the nodes [`seed`] writes.
@@ -130,29 +144,34 @@ pub fn seed<G: GameData>(
             ));
         }
     }
-    for n in order.iter().rev() {
-        if n.meta.label.starts_with(ROUTE_PREFIX) {
-            store.remove(n.meta.id).map_err(err)?;
-        }
-    }
+    // Replay everything first: a failure leaves the tree as it was.
     let mut replay = replayer(game);
-    let mut ids: Vec<CheckpointId> = Vec::new();
+    let mut planned = Vec::new();
     let mut parent_cp: Option<Checkpoint> = None;
-    for (name, mut trace) in rec.traces(build_hash(game)) {
-        if let Parent::Checkpoint(CheckpointId(k)) = trace.parent {
-            trace.parent = Parent::Checkpoint(ids[k as usize - 1]);
-        }
+    for (name, trace) in rec.traces(build_hash(game)) {
         let r = replay(parent_cp.as_ref(), &trace).map_err(|e| format!("{name}: {e}"))?;
         if let Some(m) = r.report.first_mismatch {
             return Err(format!(
                 "{name}: the replay differs from the recording: {m:?}"
             ));
         }
+        parent_cp = Some(r.checkpoint.clone());
+        planned.push((name, trace, r.checkpoint));
+    }
+    for n in order.iter().rev() {
+        if n.meta.label.starts_with(ROUTE_PREFIX) {
+            store.remove(n.meta.id).map_err(err)?;
+        }
+    }
+    let mut ids: Vec<CheckpointId> = Vec::new();
+    for (name, mut trace, cp) in planned {
+        if let Parent::Checkpoint(CheckpointId(k)) = trace.parent {
+            trace.parent = Parent::Checkpoint(ids[k as usize - 1]);
+        }
         let id = store
-            .add(&format!("{ROUTE_PREFIX}{name}"), trace, &r.checkpoint)
+            .add(&format!("{ROUTE_PREFIX}{name}"), trace, &cp)
             .map_err(|e| format!("{name}: {e}"))?;
         ids.push(id);
-        parent_cp = Some(r.checkpoint);
     }
     Ok(ids)
 }

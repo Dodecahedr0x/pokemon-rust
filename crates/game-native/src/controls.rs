@@ -113,8 +113,14 @@ impl<G: GameData> Controls<G> {
         None
     }
 
-    /// F5: the save request now if the world is capturable, else it is pending.
+    /// F5: the save request now if the world is capturable, else it is pending. Nothing when
+    /// no frame was played since the parent node ("already saved").
     pub fn save(&mut self) -> Option<SaveRequest> {
+        if self.recorder.frames() == 0 && self.parent != Parent::NewGame {
+            self.pending = false;
+            self.last = "already saved".into();
+            return None;
+        }
         match self.session.checkpoint() {
             Ok(checkpoint) => {
                 self.pending = false;
@@ -168,7 +174,6 @@ impl<G: GameData> Controls<G> {
             self.last = "nothing to rewind to".into();
             return false;
         };
-        self.ring.truncate(i + 1);
         let e = &self.ring[i];
         if let Err(err) = self.session.load(&e.cp) {
             // A ring entry was captured on this build: it always restores.
@@ -176,6 +181,8 @@ impl<G: GameData> Controls<G> {
             return false;
         }
         self.recorder.truncate(e.frames);
+        self.ring.truncate(i + 1);
+        let e = &self.ring[i];
         self.pending = false;
         self.last = format!("rewound {} frames", now - e.frames);
         true
@@ -285,10 +292,15 @@ mod tests {
         assert_eq!(c.trace().frames(), 0);
         assert_eq!(c.trace().start_frame, req.checkpoint.header.frame);
         assert_eq!(c.ring_frames(), [0]);
-        // Capturable now: a second save is immediate.
+        // Nothing played since: refused, not pending.
+        assert_eq!(c.save(), None);
+        assert!(!c.pending());
+        assert!(c.title().contains("already saved"), "{}", c.title());
+        // One idle frame later a save is immediate.
+        assert_eq!(c.step(Buttons::NONE), None);
         let again = c.save().expect("immediate");
         assert_eq!(again.trace.parent, Parent::Checkpoint(CheckpointId(4)));
-        assert_eq!(again.trace.frames(), 0);
+        assert_eq!(again.trace.frames(), 1);
     }
 
     #[test]

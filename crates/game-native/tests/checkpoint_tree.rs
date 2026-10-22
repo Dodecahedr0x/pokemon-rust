@@ -85,9 +85,14 @@ fn every_route_checkpoint_is_capturable_and_its_trace_replays_valid() {
         "a node below the route"
     );
     store.remove(mine).unwrap();
-    let other = store
-        .add("other", trace_to_first_node(), &first_node_checkpoint())
-        .unwrap();
+    let (trace, cp) = first_node(&rec);
+    let other = store.add("other", trace, &cp).unwrap();
+    // A route that fails to replay (its first node is not capturable) changes nothing.
+    let before = store.nodes().unwrap();
+    let mut bad = rec.clone();
+    bad.nodes[0].1 = 1;
+    assert!(seed(&store, &game(), &bad).is_err());
+    assert_eq!(store.nodes().unwrap(), before);
     let again = seed(&store, &game(), &rec).unwrap();
     assert_eq!(again.len(), rec.nodes.len());
     let labels: Vec<String> = store
@@ -109,25 +114,19 @@ fn empty_trace_after(parent: &game_native::store::Node) -> game_native::trace::T
     )
 }
 
-fn trace_to_first_node() -> game_native::trace::Trace {
-    let rec = recording();
-    let frame = rec.nodes[0].1;
+/// The trace from a new game to the route's first node, and that node's checkpoint.
+fn first_node(rec: &Recording) -> (game_native::trace::Trace, engine::checkpoint::Checkpoint) {
     let mut r = game_native::trace::TraceRecorder::new(0);
-    let mut w = engine::World::new(&game());
-    for f in 0..frame {
-        w.step(&game(), rec.keys_at(f));
-        r.push(rec.keys_at(f), w.hash());
-    }
-    r.trace(Parent::NewGame, engine::checkpoint::build_hash(&game()))
-}
-
-fn first_node_checkpoint() -> engine::checkpoint::Checkpoint {
-    let rec = recording();
     let mut w = engine::World::new(&game());
     for f in 0..rec.nodes[0].1 {
         w.step(&game(), rec.keys_at(f));
+        r.push(rec.keys_at(f), w.hash());
     }
-    w.checkpoint(&game()).unwrap()
+    let build = engine::checkpoint::build_hash(&game());
+    (
+        r.trace(Parent::NewGame, build),
+        w.checkpoint(&game()).unwrap(),
+    )
 }
 
 #[test]
@@ -138,7 +137,9 @@ fn materialize_replays_the_chain_and_caches_each_snapshot() {
     let ids = seed(&store, &game(), &rec).unwrap();
     std::fs::remove_dir_all(root.join("snapshots")).unwrap();
     let last = *ids.last().unwrap();
-    let cp = materialize(&store, &game(), last).unwrap();
+    let m = materialize(&store, &game(), last).unwrap();
+    assert!(!m.diverged);
+    let cp = m.checkpoint;
     let node = store.find(&last.to_string()).unwrap();
     assert_eq!(state_digest(&cp.world), node.meta.digest);
     assert_eq!(cp.header.world_hash, node.meta.world_hash);
@@ -146,7 +147,26 @@ fn materialize_replays_the_chain_and_caches_each_snapshot() {
         assert!(store.snapshot(id).unwrap().is_some(), "{id} cached");
     }
     // From the cache now: the same checkpoint.
-    assert_eq!(materialize(&store, &game(), last).unwrap(), cp);
+    assert_eq!(materialize(&store, &game(), last).unwrap().checkpoint, cp);
+    // A cached snapshot of another state (a reseeded tree reusing the id) is not served.
+    let (first, second) = (ids[0], ids[1]);
+    let wrong = store.snapshot(first).unwrap().unwrap();
+    store.put_snapshot(second, &wrong).unwrap();
+    let m = materialize(&store, &game(), second).unwrap();
+    let want = store.find(&second.to_string()).unwrap().meta.digest;
+    assert_eq!(state_digest(&m.checkpoint.world), want);
+    assert!(!m.diverged);
+    // A node this build no longer reaches is replayed and flagged, not cached.
+    let mut n = store.find(&second.to_string()).unwrap();
+    n.meta.digest ^= 1;
+    std::fs::write(
+        root.join(format!("nodes/{second}.ron")),
+        ron::to_string(&n).unwrap(),
+    )
+    .unwrap();
+    let m = materialize(&store, &game(), second).unwrap();
+    assert!(m.diverged);
+    assert_eq!(state_digest(&m.checkpoint.world), want);
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -219,7 +239,10 @@ fn the_committed_tree_verifies_valid() {
         println!("skipped: {}", content::STALE_EXTRACT_MSG);
         return;
     }
-    let committed = Store::default_root(content::STUB);
+    // This checkout's tree, whatever `$PKR_CHECKPOINTS` says.
+    let committed = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../checkpoints")
+        .join(if content::STUB { "stub" } else { "emerald" });
     let root = temp_root("committed");
     if copy_nodes(&committed, &root) == 0 {
         println!("skipped: no committed nodes in {}", committed.display());

@@ -24,7 +24,8 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
    S = R, Enter = Start, Backspace = Select, Escape quits). Native play also saves and loads
    checkpoints (see Checkpoints): F5 saves one (at once when the field is idle, else at the
    first idle frame; the title says "saving…"), F9 reloads the last one saved or loaded, F8
-   rewinds at least two seconds (a ring of 64 states, one a second, since that checkpoint).
+   rewinds at least two seconds (a ring of 64 states, one a second; it cannot go back past
+   the last save or load).
    `play --load <id|label>` starts at a node and `play --list` prints the tree. The title shows
    the frame, the node the session started from and the last action.
 
@@ -71,7 +72,7 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
   the same state, Stale after a snapshot schema change, Diverged when this build reaches another
   state (with the first frame whose hash differs), Broken on a replay error or a different state
   on the node's own build (nondeterminism). Fails on Diverged or Broken; `--accept`
-  re-baselines Diverged and Stale nodes, like the golden hashes.
+  re-baselines Diverged and Stale nodes, like the golden hashes, and still fails on Broken ones.
 - `seed`: records the parity route and writes its `route:<name>` nodes (replacing the earlier
   `route:` nodes, never others): `lab`, `after_wild`, `oldale_center`, `route103_after_may`
   (stub: `stub_start`, `stub_after_battle`, `stub_end`)
@@ -81,7 +82,10 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
 
 Ids are `c00012`, `12` or a label. `cargo test` verifies the committed tree of the current
 flavor (`crates/game-native/tests/checkpoint_tree.rs`), so an intended behaviour change needs
-`verify --accept` and the updated nodes committed. On the GBA, L+R+SELECT saves to flash.
+`verify --accept` and the updated nodes committed. The emerald tree's digests assume data
+extracted from the FR ROM (`rom/emeraude-fr.gba`); another extract diverges. Loading or `sav`
+of a node this build no longer reaches warns "cNNNNN diverged on this build". On the GBA,
+L+R+SELECT saves to flash.
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which

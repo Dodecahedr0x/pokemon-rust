@@ -124,9 +124,31 @@ fn list(root: &Path) -> Result<()> {
 }
 
 /// Replays every node of the store at `root` on the current build (`accept` re-baselines
-/// Diverged and Stale nodes) and prints the table. Without `accept`, a Diverged or Broken node
-/// is an error (`cargo xtask parity` runs this before the ROM tests).
+/// Diverged and Stale nodes) and prints the table. A Broken node is always an error; without
+/// `accept`, so is a Diverged one.
 pub fn verify(root: &Path, accept: bool) -> Result<VerifySummary> {
+    let summary = replay_all(root, accept)?;
+    let broken = (summary.nodes.iter())
+        .filter(|(_, s)| matches!(s, Status::Broken(_)))
+        .count();
+    if accept && broken > 0 {
+        bail!(
+            "{broken} broken nodes were not accepted in {}",
+            root.display()
+        );
+    }
+    if !accept && !summary.ok() {
+        bail!(
+            "checkpoint tree {} has diverged or broken nodes: replay the change with \
+             `cargo xtask checkpoints verify --accept` if it is intended",
+            root.display()
+        );
+    }
+    Ok(summary)
+}
+
+/// [`verify`] without the verdict: every node's status.
+fn replay_all(root: &Path, accept: bool) -> Result<VerifySummary> {
     let store = Store::open(root)?;
     let game = content::Emerald::for_shells();
     let nodes = store.verify(replayer(&game), accept)?;
@@ -138,13 +160,6 @@ pub fn verify(root: &Path, accept: bool) -> Result<VerifySummary> {
         if accept { " (--accept)" } else { "" }
     );
     print_table(&store, &summary.nodes.iter().cloned().collect())?;
-    if !summary.ok() && !accept {
-        bail!(
-            "checkpoint tree {} has diverged or broken nodes: replay the change with \
-             `cargo xtask checkpoints verify --accept` if it is intended",
-            root.display()
-        );
-    }
     Ok(summary)
 }
 
@@ -161,7 +176,11 @@ fn seed_route(root: &Path) -> Result<()> {
 fn sav(root: &Path, id: &str, out: &Path) -> Result<()> {
     let store = Store::open(root)?;
     let id = store.find(id)?.meta.id;
-    let cp = materialize(&store, &content::Emerald::for_shells(), id).map_err(|e| anyhow!(e))?;
+    let m = materialize(&store, &content::Emerald::for_shells(), id).map_err(|e| anyhow!(e))?;
+    if m.diverged {
+        eprintln!("warning: {id} diverged on this build");
+    }
+    let cp = m.checkpoint;
     let image = game_native::flash::encode_sav(&cp).map_err(|e| anyhow!(e))?;
     if let Some(dir) = out.parent() {
         std::fs::create_dir_all(dir)?;
@@ -259,23 +278,33 @@ mod tests {
         let mut old = flipped.clone();
         old.meta.build.engine ^= 1; // recorded on another build
         write(&root, &old);
-        let err = verify(&root, false).unwrap_err();
-        assert!(err.to_string().contains("diverged"), "{err}");
-        let s = verify(&root, true).unwrap();
-        assert!(
+        let diverged = |s: &VerifySummary| {
             matches!(
                 s.nodes[..],
                 [(
                     CheckpointId(1),
                     Status::Diverged {
+                        hash: Some(_),
                         parent_diverged: false,
-                        ..
                     }
                 )]
-            ),
-            "{s:?}"
+            )
+        };
+        let s = replay_all(&root, false).unwrap();
+        assert!(diverged(&s), "{s:?}");
+        assert!(!s.ok());
+        verify(&root, false).unwrap_err();
+        let s = verify(&root, true).unwrap();
+        assert!(diverged(&s), "the run's verdict: {s:?}");
+        // Accepted: re-baselined on this build, so a replay reproduces every recorded hash.
+        let accepted = read(&root);
+        assert_eq!(accepted.trace.inputs, flipped.trace.inputs);
+        let r = replay(None, &accepted.trace).unwrap();
+        assert_eq!(r.report.first_mismatch, None);
+        assert_eq!(
+            engine::checkpoint::state_digest(&r.checkpoint.world),
+            accepted.meta.digest
         );
-        // Accepted: valid on this build from now on.
         let s = verify(&root, false).unwrap();
         assert_eq!(s.nodes, [(CheckpointId(1), Status::Valid)]);
         let _ = std::fs::remove_dir_all(root);
@@ -287,14 +316,20 @@ mod tests {
         let mut node = read(&root);
         node.meta.digest ^= 1;
         write(&root, &node);
-        let err = verify(&root, false).unwrap_err();
-        assert!(err.to_string().contains("broken"), "{err}");
-        let s = verify(&root, true).unwrap();
+        let broken = |s: &VerifySummary| {
+            matches!(&s.nodes[..], [(CheckpointId(1), Status::Broken(why))]
+                if why.contains("nondeterministic"))
+        };
+        let s = replay_all(&root, false).unwrap();
+        assert!(broken(&s), "{s:?}");
+        verify(&root, false).unwrap_err();
+        // `--accept` never accepts a Broken node, and fails.
+        let err = verify(&root, true).unwrap_err();
         assert!(
-            matches!(&s.nodes[..], [(CheckpointId(1), Status::Broken(why))] if why.contains("nondeterministic")),
-            "{s:?}"
+            err.to_string().contains("1 broken nodes were not accepted"),
+            "{err}"
         );
-        assert!(!s.ok());
+        assert_eq!(read(&root), node, "the node is left as it was");
         let _ = std::fs::remove_dir_all(root);
     }
 

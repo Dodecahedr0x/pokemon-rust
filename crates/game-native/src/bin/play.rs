@@ -61,8 +61,15 @@ fn save(store: &Store, c: &mut Controls<content::Emerald>, req: Option<SaveReque
 }
 
 fn load(store: &Store, c: &mut Controls<content::Emerald>, id: CheckpointId) -> Result<(), String> {
-    let cp = materialize(store, &content::Emerald::for_shells(), id)?;
-    c.load(id, &cp).map_err(|e| format!("restore: {e:?}"))
+    let m = materialize(store, &content::Emerald::for_shells(), id)?;
+    c.load(id, &m.checkpoint)
+        .map_err(|e| format!("restore: {e:?}"))?;
+    if m.diverged {
+        let warning = format!("{id} diverged on this build");
+        eprintln!("warning: {warning}");
+        c.note(warning);
+    }
+    Ok(())
 }
 
 fn list(store: &Store) -> std::io::Result<()> {
