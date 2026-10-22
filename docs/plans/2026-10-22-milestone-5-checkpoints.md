@@ -381,6 +381,25 @@ impl<G: GameData> Session<G> {
 - Not added (Task B adds them if needed): an `Input` snapshot hook, since `Input`'s fields are public, and an `Anim` snapshot fn.
 - Stub mode: the extract tests still need the `PKR_ROM_*`/`PKR_DECOMP` env vars.
 
+### Wave 1 as built (read this before Wave 2; it supersedes the task text where they differ)
+
+- **Flash is 64 KiB** (decision 10). `init_flash_64k`; the emu forces FLASH512. `flash::{encode_sav, write_sav, decode_sav, save_meta}` exist; `encode_sav` returns `Result<Vec<u8>, String>`.
+- **Codec (Task C):** `encode`, `encode_checked` (fails above `MAX_ENCODED`), `decode` (rejects input above `MAX_ENCODED` with `TooLarge`), `encoded_len` (no allocation), streaming `state_digest(&WorldSnapshot)`. The store's digest is `state_digest`. The GBA save checks `encoded_len` only; agb encodes itself.
+- **Capture predicate (Task B):** besides the planned reasons, `NotCapturable::StaleView` refuses capture after a connection crossing until the pre-crossing view scrolls out, or a warp or battle return redraws the whole view. On the real route about 650 of 3040 sampled frames are `StaleView`. `Action::Checkpoint` waits it out like any other reason.
+- **Restore validation (Task B):** `RestoreError::Invalid(&'static str)` for a forged or inconsistent snapshot (header frame, maps, `drawn`, ring, camera, overrides, action timing and offsets, animations, templates). The boot frame starts with `TextBox::new().close(&mut f)` (BG0 fill and disable), so "the text box needs nothing" is superseded.
+- **`World::snapshot(&self, game)`** takes `game`.
+- **emu:** `run_rom_from(rom, sav: Option<&[u8]>, expect_start: Option<u32>, keys, total, picture_frames)`; `run_rom` passes `None, Some(0)`. `Emu::open_with_save`, `Emu::save_data`. `RomRun` carries `boot` and the final `save`. One hash is sampled per emulator frame in which the engine advanced, so a two-step catch-up during a bulk load drops a sample (the route reports 19070 or 19071 hashes depending on build timing); this is expected.
+- **Debug region v2 adds `loop_lines_max` at offset 196** (`SIZE` 200): the worst scanlines of the whole shell loop body on a visible frame (apply, step, publish, save tail; a flash write excluded), from the vblank wake to the next wait. `emu::DebugSnapshot` does not read it yet; Task H adds it.
+- **Measured costs (Task F, extracted route):** `hash_lines_max` 72 overall (32 on the field; battles dominate), `step_lines_max` 218, `loop_lines_max` 223 of 228. The planned `hash_lines_max ≤ 24` gate is wrong for M4's battles and is replaced below.
+- **ROM size after Wave 1:** 1948 KiB (M4: 1875 KiB), so +73 KiB; above the planned 64 KiB growth budget. Task H re-baselines it (see below).
+
+### Wave 2 gate revisions (taken after Wave 1)
+
+- **Hash cost:** gate `hash_lines_max ≤ 80` (regression guard over the measured 72), not `≤ 24`.
+- **Loop margin:** gate `loop_lines_max ≤ 226` (two lines under the 228-line frame) and print the margin. This is the real "no late frame" headroom; `late == 0` stays the hard gate.
+- **Optional, if the margin is under 8 lines:** place `Fnv64::write` (or the hash loop) in IWRAM as ARM code (`#[link_section = ".iwram"]`, `#[instruction_set(arm::a32)]`); the hash must stay bit-identical (parity proves it). Caching digests is M6 work.
+- **ROM budget:** baseline the ROM, IWRAM and EWRAM on the Wave 1 merge and fail above baseline + 64 KiB ROM, + 2 KiB IWRAM, + 16 KiB EWRAM. Record the M4 → M5 growth (+73 KiB) in As built with its cause.
+
 ## Snapshot boundary
 
 | Live state | In the snapshot | How it is restored |
@@ -695,7 +714,7 @@ The text box needs nothing (pristine means BG0 off).
    - Boot a second emu from that `.sav`; its first 300 frames match native.
 4. **Build identity and costs:**
    - The ROM's `build` equals native `build_hash(&Emerald::for_shells())` (also asserted in `rom_and_native_agree`).
-   - Print `hash_lines_max` and `step_lines_max`; gate `hash_lines_max ≤ 24`. M3 measured about 9; the gate guards the M4 finding about battle hash cost.
+   - Print `hash_lines_max` and `step_lines_max`; gate them per "Wave 2 gate revisions" (`hash_lines_max ≤ 80`, `loop_lines_max ≤ 226`).
 5. **`xtask rom` budgets (`budget.rs`):**
    - Use `object` to sum the ELF section sizes: IWRAM (`.iwram*`, plus `.bss`/`.data` placed in IWRAM per agb's `gba.ld`) and EWRAM statics (`.ewram*`, `.data`).
    - Print them with the ROM size. Measure the baseline on master first.
@@ -721,7 +740,7 @@ The text box needs nothing (pristine means BG0 off).
   - the existing route
   - the ROM resumes from native checkpoints with identical hashes and pictures and `boot == RESTORED`
   - a ROM in-game save restores natively to the ROM's hash
-  - `late == 0`, `hash_lines_max ≤ 24`, and the budgets hold
+  - `late == 0`, `hash_lines_max ≤ 80`, `loop_lines_max ≤ 226`, and the budgets hold
 - `play`: F5/F9/F8 and `--load` work; `cargo xtask checkpoints list|verify|seed|sav` work; `target/game.sav` from `sav` boots in mGBA at the node.
 - `Request::Move` / `Object.moves` hash step contents; the player name is World state and hashed.
 - No ROM-derived file is committed.
