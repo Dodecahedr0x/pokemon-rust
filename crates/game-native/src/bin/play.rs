@@ -12,11 +12,10 @@
 use engine::Buttons;
 use game_native::checkpoints::materialize;
 use game_native::controls::{Controls, SaveRequest};
-use game_native::store::{Node, Store};
+use game_native::store::{Node, Store, StoreError};
 use game_native::trace::{CheckpointId, Parent};
 use game_native::{SCREEN_H, SCREEN_W};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
-use std::io::ErrorKind;
 use std::process::ExitCode;
 
 const KEYS: [(Key, Buttons); 10] = [
@@ -41,11 +40,11 @@ fn rgb555_to_0rgb(c: u16) -> u32 {
 }
 
 /// Adds the save, retrying with a suffix when its label is taken.
-fn add(store: &Store, req: &SaveRequest) -> std::io::Result<CheckpointId> {
+fn add(store: &Store, req: &SaveRequest) -> Result<CheckpointId, StoreError> {
     let mut label = req.label.clone();
     for n in 2.. {
         match store.add(&label, req.trace.clone(), &req.checkpoint) {
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => label = format!("{} #{n}", req.label),
+            Err(StoreError::Label(_)) => label = format!("{} #{n}", req.label),
             r => return r,
         }
     }
@@ -73,7 +72,7 @@ fn load(store: &Store, c: &mut Controls<content::Emerald>, id: CheckpointId) -> 
     Ok(())
 }
 
-fn list(store: &Store) -> std::io::Result<()> {
+fn list(store: &Store) -> Result<(), StoreError> {
     println!("{}", Node::row_header().trim_end());
     for n in store.topo_order()? {
         println!("{}", n.row().trim_end());
