@@ -32,6 +32,9 @@ fn behavior_exactness() {
         ("MB_SOUTH_ARROW_WARP", true),
         ("MB_COUNTER", true),
         ("MB_0xF5", true),
+        // Never used by Gen3, even when mapped to `Blocked`.
+        ("MB_UNUSED_04", true),
+        ("MB_UNUSED_6F", true),
         // Needs Surf.
         ("MB_POND_WATER", false),
         // Directional blocking, not modelled.

@@ -353,14 +353,34 @@ fn tables_resolve_when_extracted() {
             );
         }
     }
+    let (mut lists, mut strings, mut sections) = (0, 0, 0);
     for id in 0..=255u8 {
         if let Some(c) = Emerald.multichoice(id) {
             assert!(c.iter().all(|t| t.last() == Some(&0xFF)));
+            lists += 1;
         }
         if let Some(t) = Emerald.std_string(id) {
             assert_eq!(t.last(), Some(&0xFF));
+            strings += 1;
+        }
+        if let Some(t) = data::map_section(id) {
+            assert_eq!(t.last(), Some(&0xFF));
+            sections += 1;
         }
     }
+    let items = data::ITEMS.iter().flatten().count();
+    let emotes = [
+        engine::data::Emote::Exclamation,
+        engine::data::Emote::Question,
+        engine::data::Emote::Heart,
+    ]
+    .iter()
+    .filter(|&&e| Emerald.emote(e).is_some())
+    .count();
+    // `tests/m8_e_tables_build.rs` reads this line.
+    std::println!(
+        "TABLES items={items} multichoice={lists} std_strings={strings} map_sections={sections} emotes={emotes}"
+    );
 }
 
 fn all_script_refs(m: &MapData) -> Vec<ScriptId> {
@@ -776,7 +796,7 @@ mod extracted {
     /// The bulk data the slice reads is the Wave 0 build's, byte for byte, whatever form the
     /// build gives it (Rust literals then, the `data.bin` blob since Milestone 8 Task E): the
     /// parity route hashes depend on it. The digests are of the French ROM's slice extract
-    /// (format 5.0, `cargo xtask extract --maps slice`); other extracts only print theirs.
+    /// (format 5.2, `cargo xtask extract --maps slice`); other extracts only print theirs.
     #[test]
     fn slice_bulk_data_is_the_wave0_builds() {
         let (field, battle) = slice_bulk_digests();

@@ -616,7 +616,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     )?;
 
     // ---- digests (the explorer's incremental revalidation) ----
-    o.push_str("/// Per map (decomp name), in map order: its compiled data, its tilesets and its connected\n/// maps' layouts and tilesets (`build/codegen.rs`, `map_digests`).\npub static MAP_DIGESTS: &[(&str, u64)] = &[");
+    o.push_str("/// Per map (decomp name), in map order: the inputs of its compiled data (the map file, its\n/// tilesets, its connected maps' layouts and tilesets; `build/codegen.rs`, `map_digests`). The\n/// generator that compiles them is in [`GLOBAL_DIGEST`].\npub static MAP_DIGESTS: &[(&str, u64)] = &[");
     for (n, d) in map_digests(w)? {
         write!(o, "(\"{n}\", {d:#018x}),")?;
     }
@@ -686,10 +686,12 @@ fn tables(w: &World, blob: &mut BlobOut, o: &mut String) -> Result<()> {
             .map(|c| Ok(blob.bytes(&table_text(w, c, name)?)))
             .collect::<Result<_>>()?;
         writeln!(
-            arms,
-            "        {v} => Some(&[{}]), // {name}",
+            o,
+            "static MULTI_{v}: [&[u8]; {}] = [{}]; // {name}",
+            choices.len(),
             choices.join(", ")
         )?;
+        writeln!(arms, "        {v} => Some(&MULTI_{v}),")?;
     }
     writeln!(
         o,
@@ -804,12 +806,66 @@ pub fn map_digests(w: &World) -> Result<Vec<(String, u64)>> {
     Ok(out)
 }
 
-/// `GLOBAL_DIGEST`: `sources` (the hash of every non-generated content source: the prelude,
-/// overrides, `lib.rs`, …), the generated battle module and blob, the texts, Task C's tables,
-/// the emotes and the behavior table.
+/// The hash of every non-generated, non-test source the content depends on, beyond the extracted
+/// data: `src/` (the prelude, overrides, `lib.rs`, …), the generator itself (`build/`, its
+/// support tables) and `extract/src` (the text codec, schema and lowering the generator calls).
+/// A change there can change any map's compiled data, so it counts as global. Test sources
+/// (`*_tests.rs`, `tests/`, …; `build_support::is_test_source`) are left out.
+pub fn sources_digest(content_dir: &std::path::Path) -> std::io::Result<u64> {
+    use crate::build_support::{Content, is_build_source};
+    let mut h = TreeHash::new();
+    h.tree(
+        "src/",
+        &content_dir.join("src"),
+        &is_build_source,
+        Content::Text,
+    )?;
+    h.tree(
+        "build/",
+        &content_dir.join("build"),
+        &is_build_source,
+        Content::Text,
+    )?;
+    let support = content_dir.join("build/support");
+    if support.is_dir() {
+        h.tree(
+            "support/",
+            &support,
+            &|rel: &str| rel.ends_with(".ron"),
+            Content::Text,
+        )?;
+    }
+    let extract = content_dir.join("../extract/src");
+    if extract.is_dir() {
+        h.tree("extract/", &extract, &is_build_source, Content::Text)?;
+    }
+    Ok(h.finish())
+}
+
+/// `GLOBAL_DIGEST`: `sources` ([`sources_digest`]), the generated battle module and blob, the
+/// texts, Task C's tables, the emotes, the object sprites, the font, the window, the UI texts,
+/// the new-game start and the behavior table: everything compiled that is not one map's.
 pub fn global_digest(w: &World, sources: u64, battle_rs: &str, battle_bin: &[u8]) -> Result<u64> {
+    let tiles = |t: &[crate::input::Tile]| -> Vec<u8> {
+        t.iter().flatten().flat_map(|r| r.to_le_bytes()).collect()
+    };
     let mut h = TreeHash::new();
     h.write(&sources.to_le_bytes());
+    for sp in &w.sprites {
+        h.file(&sp.file.name, extract::export::to_ron(&sp.file)?.as_bytes());
+        for f in &sp.frames {
+            h.write(&tiles(f));
+        }
+    }
+    h.file("font.glyphs", w.glyphs.as_flattened());
+    h.file("font.widths", &w.widths);
+    h.file("window", extract::export::to_ron(&w.window)?.as_bytes());
+    h.file("window.tiles", &tiles(&w.window_tiles));
+    for (name, b) in ui_texts(w.lang)? {
+        h.file(name, &b);
+    }
+    let (map, x, y) = new_game(w)?;
+    h.file("new_game", format!("{map} {x} {y}").as_bytes());
     h.file("battle.rs", battle_rs.as_bytes());
     h.file("battle.bin", battle_bin);
     for (k, v) in &w.texts {

@@ -123,6 +123,43 @@ fn the_global_digest_follows_the_sources_and_tables() {
         .strings
         .insert("STDSTRING_COOL".into(), "COOL".into());
     assert_ne!(d(&w, 1), d(&t, 1));
+    // Everything compiled that is not one map's: sprites, font, window.
+    let mut f = stub::world();
+    f.widths[0] ^= 1;
+    assert_ne!(d(&w, 1), d(&f, 1));
+    let mut s = stub::world();
+    s.sprites[0].frames[0][0][0] ^= 1;
+    assert_ne!(d(&w, 1), d(&s, 1));
+    let mut n = stub::world();
+    n.window.text_fg ^= 1;
+    assert_ne!(d(&w, 1), d(&n, 1));
+}
+
+/// The sources digest covers the generator and the content sources, never their tests.
+#[test]
+fn the_sources_digest_skips_tests() {
+    let tmp = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("m8e-sources");
+    let _ = std::fs::remove_dir_all(&tmp);
+    let put = |rel: &str, s: &str| {
+        let p = tmp.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, s).unwrap();
+    };
+    put("src/lib.rs", "a");
+    put("build/main.rs", "b");
+    put("build/support/commands.ron", "c");
+    let base = codegen::sources_digest(&tmp).unwrap();
+    put("src/data_tests.rs", "t");
+    put("src/tests/x.rs", "t");
+    assert_eq!(codegen::sources_digest(&tmp).unwrap(), base);
+    put("build/codegen.rs", "g");
+    let generator = codegen::sources_digest(&tmp).unwrap();
+    assert_ne!(generator, base);
+    put("build/support/commands.ron", "c2");
+    let support = codegen::sources_digest(&tmp).unwrap();
+    assert_ne!(support, generator);
+    put("src/prelude.rs", "p");
+    assert_ne!(codegen::sources_digest(&tmp).unwrap(), support);
 }
 
 #[test]
@@ -160,7 +197,9 @@ fn tables_are_generated() {
     assert!(rs.contains("pub static ITEMS: [Option<ItemInfo>; 2] = [None,Some(ItemInfo {"));
     assert!(rs.contains("pocket: Pocket::PokeBalls"));
     let multi = extract::names::MULTICHOICE.value("MULTI_YESNO").unwrap();
-    assert!(rs.contains(&format!("        {multi} => Some(&[DATA.bytes(")));
+    // A static per list: `Some(&[..])` of non-const items would borrow a temporary.
+    assert!(rs.contains(&format!("static MULTI_{multi}: [&[u8]; 2] = [DATA.bytes(")));
+    assert!(rs.contains(&format!("        {multi} => Some(&MULTI_{multi}),")));
     let cool = extract::names::STD_STRINGS.value("STDSTRING_COOL").unwrap();
     assert!(rs.contains(&format!("        {cool} => Some(DATA.bytes(")));
     assert!(rs.contains("pub fn map_section(id: u8)"));

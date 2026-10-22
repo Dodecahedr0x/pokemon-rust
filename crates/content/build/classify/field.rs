@@ -104,11 +104,13 @@ pub fn behavior(name: &str) -> String {
 /// approximations in `content::REPORT`.
 pub fn behavior_class(name: &str) -> (String, bool) {
     let v = behavior(name);
-    let exact = match v.as_str() {
-        "Blocked" => false,
-        "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
-        _ => true,
-    };
+    // Gen3 never uses the `MB_UNUSED_*` bytes: whatever we map them to is as good as exact.
+    let exact = name.starts_with("MB_UNUSED")
+        || match v.as_str() {
+            "Blocked" => false,
+            "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
+            _ => true,
+        };
     (v, exact)
 }
 

@@ -14,7 +14,7 @@ use crate::classify::{self, StrSrc};
 use crate::codegen::{bytes_lit, ident_ok};
 use crate::input::{Glyph, Tile, World, warn};
 use anyhow::{Context, Result, bail, ensure};
-use extract::battle_data::{STAT_NAME_KEYS, stat_sharply_is_complete};
+use extract::battle_data::{STAT_NAME_KEYS, TRAINER_MONEY_DEFAULT_CLASS, stat_sharply_is_complete};
 use extract::names::{self, Table};
 use extract::schema::{
     BattleStringsFile, EncounterHeader, EvolutionsFile, HealLocationsFile, MonCoords, Move,
@@ -956,10 +956,6 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
     })
 }
 
-/// The `battle/trainer_money.ron` key of `gTrainerMoneyTable`'s `0xFF` terminator, the default
-/// of every class not listed (`extract::battle_data::TRAINER_MONEY_DEFAULT_CLASS`, Task A).
-const TRAINER_MONEY_DEFAULT_CLASS: &str = "TRAINER_CLASS_0xFF";
-
 /// `EVO_*` -> `EvoMethod` expression (Gen3 `EVO_*` folded; the exact kind waits for Milestone 9).
 fn evo_method(name: &str) -> &'static str {
     match name {
@@ -968,7 +964,8 @@ fn evo_method(name: &str) -> &'static str {
         | "EVO_LEVEL_ATK_EQ_DEF"
         | "EVO_LEVEL_ATK_LT_DEF"
         | "EVO_LEVEL_SILCOON"
-        | "EVO_LEVEL_CASCOON" => "EvoMethod::Level",
+        | "EVO_LEVEL_CASCOON"
+        | "EVO_LEVEL_NINJASK" => "EvoMethod::Level",
         "EVO_FRIENDSHIP" | "EVO_FRIENDSHIP_DAY" | "EVO_FRIENDSHIP_NIGHT" => "EvoMethod::Friendship",
         "EVO_ITEM" => "EvoMethod::Item",
         "EVO_TRADE" | "EVO_TRADE_ITEM" => "EvoMethod::Trade",

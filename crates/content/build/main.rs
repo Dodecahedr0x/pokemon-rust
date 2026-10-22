@@ -92,18 +92,11 @@ fn main() {
         // No `battle/` (the stub, or a test fixture): the stub battle data.
         println!("cargo::rustc-cfg=pkr_stub_battle");
     }
-    // The non-generated content sources, for `content::data::GLOBAL_DIGEST`.
-    let mut sources = build_support::TreeHash::new();
-    sources
-        .tree(
-            "src/",
-            &manifest_dir.join("src"),
-            &build_support::is_build_source,
-            build_support::Content::Text,
-        )
+    // The non-generated sources, for `content::data::GLOBAL_DIGEST`.
+    let sources = codegen::sources_digest(&manifest_dir)
         .unwrap_or_else(|e| panic!("hashing the content sources: {e}"));
-    let g = codegen::generate(&world, sources.finish())
-        .unwrap_or_else(|e| panic!("generating content: {e:#}"));
+    let g =
+        codegen::generate(&world, sources).unwrap_or_else(|e| panic!("generating content: {e:#}"));
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let build_dir = manifest_dir.join("build");
     // Every support table, including ones Wave 1 adds (`movements.ron`).

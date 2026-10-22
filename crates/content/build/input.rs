@@ -278,7 +278,7 @@ pub fn load(dir: &Path) -> Result<World> {
     } else {
         None
     };
-    let tables = read_tables(dir, lang)?;
+    let tables = read_tables(dir)?;
     let emotes = read_emotes(dir)?;
     let battle = if dir.join("battle/species.ron").exists() {
         crate::battle_load::load(dir).context("battle data")?
@@ -304,8 +304,9 @@ pub fn load(dir: &Path) -> Result<World> {
     })
 }
 
-/// Reads `tables/*.ron` (each optional), checking that every string encodes in `lang`.
-fn read_tables(dir: &Path, lang: Lang) -> Result<Tables> {
+/// Reads `tables/*.ron` (Task C), each optional: an extract without one has an empty table.
+/// The generator encodes the strings (`codegen::tables`).
+fn read_tables(dir: &Path) -> Result<Tables> {
     let t = dir.join("tables");
     let tables = Tables {
         items: read_opt!(t.join("items.ron")),
@@ -313,7 +314,6 @@ fn read_tables(dir: &Path, lang: Lang) -> Result<Tables> {
         std_strings: read_opt!(t.join("std_strings.ron")),
         map_sections: read_opt!(t.join("map_sections.ron")),
     };
-    let _ = lang;
     Ok(tables)
 }
 
