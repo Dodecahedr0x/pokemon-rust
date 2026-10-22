@@ -349,6 +349,38 @@ impl<G: GameData> Session<G> {
 
 ---
 
+### Wave 0 as built (read this before coding against the contracts)
+
+- Commit `6343acf`, merged. The World hash did not change. ROM size −600 B. No new GBA packages: postcard and serde were already present through `agb_save`.
+- Stub bodies:
+  - `const fn` stubs (`Fader::from_snapshot`, `Rng::from_state`) use a bare `todo!()`.
+  - `Trace::keys` is `todo!(); core::iter::empty()`.
+  - `replayer` returns a closure whose body is `todo!()`.
+  - Stub parameters are silenced with `let _ = (...)`.
+- Added derives:
+  - `HashMismatch`: Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize.
+  - `ReplayReport`: Clone, Copy, PartialEq, Eq, Debug.
+  - `Replayed`, `Store`, `TraceRecorder`: Clone, PartialEq, Eq, Debug.
+  - `TraceRecorder` private fields: `start_frame`, `keys: Vec<Buttons>`, `hashes: Vec<(u32, u64)>`.
+  - `Store` private field: `root: PathBuf`.
+  - DTOs are `Copy` except the types holding a `Vec`: `WorldSnapshot`, `FieldSnap`, `ObjectsSnap`, `VarsSnap`, `Checkpoint`.
+- `#[allow(dead_code)]` on the field and object snapshot `impl` blocks, `xtask::budget::report`, `xtask::checkpoints::verify` and `VerifySummary::ok`. **Remove these when you wire them.**
+- Debug region v2:
+  - Offsets: `OFF_BUILD_ENGINE=160`, `OFF_BUILD_CONTENT=168`, `OFF_BOOT=176`, `OFF_SAVES=180`, `OFF_SAVE_STATUS=184`, `OFF_HASH_LINES_MAX=188`, `OFF_STEP_LINES_MAX=192`, `SIZE=200`.
+  - New modules `debug::boot` and `debug::save` hold the u32 codes.
+  - The emu reader still finds the region by magic. Reading the new fields into `DebugSnapshot` is Task E's job.
+- xtask:
+  - `checkpoints::VerifySummary { nodes: Vec<(CheckpointId, Status)> }` with `ok()`. Task G may reshape it.
+  - `budget::Budget { rom, iwram, ewram }`. Task H may reshape it.
+- Player name:
+  - Private `world.rs` helper `player_name(&[u8]) -> PlayerName`: copies up to the first 0xFF (at most 7 bytes), then pads with 0xFF.
+  - `World::player_name` and `set_player_name` are implemented.
+  - `State::player_name` is set but **not hashed yet**. Task A appends it.
+- `Session::boot(game, world)` is shared by `new` and `restore`. `Session::restore` and `Session::checkpoint` are implemented as glue.
+- `TextBox::is_pristine` is implemented: its hash equals `TextBox::new()`'s. `Runner::restore_idle` is implemented. Their tests are in `checkpoint.rs` `mod wave0_tests`.
+- Not added (Task B adds them if needed): an `Input` snapshot hook, since `Input`'s fields are public, and an `Anim` snapshot fn.
+- Stub mode: the extract tests still need the `PKR_ROM_*`/`PKR_DECOMP` env vars.
+
 ## Snapshot boundary
 
 | Live state | In the snapshot | How it is restored |
