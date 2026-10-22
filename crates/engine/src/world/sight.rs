@@ -1,6 +1,7 @@
-//! Trainer sight (owned by Milestone 8 Task I): after the player's step-end triggers, a trainer
-//! whose line of sight holds the player walks up and starts its script (Gen3
-//! `CheckForTrainersWantingBattle`, `trainer_see.c`).
+//! Trainer sight (owned by Milestone 8 Task I): checked first on every field-input frame and
+//! first when a player step finishes (before map `on_frame` scripts and step triggers, as Gen3
+//! `ProcessPlayerFieldInput`, field_control_avatar.c:147), a trainer whose line of sight holds
+//! the player walks up and starts its script (`CheckForTrainersWantingBattle`, `trainer_see.c`).
 
 use super::{State, World};
 use crate::data::{GameData, ScriptId};

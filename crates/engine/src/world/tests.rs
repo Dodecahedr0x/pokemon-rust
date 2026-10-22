@@ -992,6 +992,11 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
 mod battles;
 mod checkpoint;
 mod goldens;
+// Milestone 8 Wave 1: one file per task, so no task edits another's tests.
+mod m8_f;
+mod m8_g;
+mod m8_h;
+mod m8_i;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).
@@ -1006,6 +1011,32 @@ fn hash_calls(f: impl FnOnce()) -> u64 {
 }
 
 // ---- Milestone 8 Wave 0 contracts ----
+
+#[test]
+fn boot_events_stay_visible_through_the_first_step() {
+    let mut w = World::new(&Game);
+    let h = w.hash();
+    assert!(
+        w.events().contains(&Event::MapEntered(TOWN)),
+        "{:?}",
+        w.events()
+    );
+    run(&mut w, Buttons::NONE, 1);
+    assert!(
+        w.events().contains(&Event::MapEntered(TOWN)),
+        "{:?}",
+        w.events()
+    );
+    run(&mut w, Buttons::NONE, 1);
+    assert!(
+        !w.events().contains(&Event::MapEntered(TOWN)),
+        "cleared from step 2"
+    );
+    // Events are not hashed.
+    let mut other = World::new(&Game);
+    other.s.events.clear();
+    assert_eq!(other.hash(), h);
+}
 
 #[test]
 fn events_report_map_entries_scripts_and_reports_for_one_step() {

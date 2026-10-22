@@ -202,7 +202,8 @@ pub(crate) struct State {
     str_vars: StrVars,
     warp_slots: WarpSlots,
     // Tool-facing, neither hashed nor snapshotted:
-    /// This step's events (cleared at the start of `step`), at most [`EVENTS_MAX`].
+    /// This step's events (cleared at the start of `step`, except the first step of a new
+    /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
     events: Vec<Event>,
     /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
     events_dropped: u32,
@@ -369,7 +370,11 @@ impl World {
     /// Runs one frame with `keys` held and returns its video output.
     pub fn step(&mut self, game: &impl GameData, keys: Buttons) -> Frame {
         let mut f = Frame::default();
-        self.s.events.clear();
+        // A new world's boot events (`MapEntered`, its map scripts' `ScriptStarted`) stay
+        // visible through the first step.
+        if self.frame != 0 {
+            self.s.events.clear();
+        }
         self.frame = self.frame.wrapping_add(1);
         self.s.input.update(keys);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
@@ -434,6 +439,12 @@ impl World {
     /// Player control and field triggers (Gen3 `ProcessPlayerFieldInput`, then `PlayerStep`).
     /// Returns whether `update_player` ran.
     fn control(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
+        // Gen3 `ProcessPlayerFieldInput` checks trainer sight first, on every field-input frame
+        // (`CheckForTrainersWantingBattle`, field_control_avatar.c:147; Milestone 8 Task I).
+        if let Some(sighting) = sight::check(game, &self.s) {
+            self.start_sighting(game, sighting);
+            return false;
+        }
         let map = game.map(self.s.field.map());
         if let Some(id) = map_script_on_frame(map, &self.s.vars) {
             self.start_script(game, id, None);
@@ -518,21 +529,23 @@ impl World {
                     && let Some((to, shift)) = s.field.crossing(game, x, y)
                 {
                     cross_connection(game, s, f, to, shift);
+                    s.objects.view_moved(&s.templates, &s.vars);
                 }
             }
             // Step triggers fire in the frame the step finishes; Gen3 checks them on the next
             // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
+                s.objects.view_moved(&s.templates, &s.vars);
                 let elevation = s.objects.player().elevation;
-                if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
+                if let Some(sighting) = sight::check(game, s) {
+                    // Trainer sight first, as on every field-input frame (above).
+                    self.start_sighting(game, sighting);
+                } else if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
                     self.start_script(game, id, None);
                 } else {
                     let b = block_behavior(game, map, s.field.block(game, x, y));
                     if let Some(w) = warp_on_enter(map, x, y, elevation, b) {
                         self.start_warp(game, map, w, false);
-                    } else if let Some(sighting) = sight::check(game, s) {
-                        // Gen3 `CheckForTrainersWantingBattle` (Milestone 8 Task I).
-                        self.start_sighting(game, sighting);
                     } else {
                         // Gen3 `CheckStandardWildEncounter`, after the step-based scripts.
                         let id = s.field.map();
@@ -590,7 +603,8 @@ impl World {
         &self.s.warp_slots
     }
 
-    /// This step's [`Event`]s, in order (at most [`EVENTS_MAX`]).
+    /// This step's [`Event`]s, in order (at most [`EVENTS_MAX`]). After `World::new` and after
+    /// the first step, they include the boot's (the start map entered, its map scripts).
     pub fn events(&self) -> &[Event] {
         &self.s.events
     }

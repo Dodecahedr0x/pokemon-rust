@@ -13,6 +13,7 @@ pub mod flow;
 pub mod grid;
 pub mod hash;
 pub mod input;
+pub mod menu;
 pub mod mon;
 pub mod objects;
 pub mod rng;
