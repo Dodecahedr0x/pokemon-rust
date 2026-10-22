@@ -662,15 +662,18 @@ pub struct Detectors<G> { /* cfg, shadow: Option<(Session<G>, u32)>, idle-not-ca
 impl<G: GameData + Clone> Detectors<G> { pub fn new(cfg: &DetectConfig) -> Self; }
 impl<G: GameData + Clone> StepObserver<G> for Detectors<G> { /* round trip, follow, capturable stuck, slow step */ }
 pub enum Trap { Trapped { reached: u32 }, Free, NoExits }
-/// From `start`, BFS over macros to depth k (at most `breadth` expansions, deterministic
-/// order): Trapped iff the map has exits and every reached state has start's region and map.
-pub fn probe(start: &Checkpoint, map_exits: usize, k: u32, breadth: u32,
-             expand_all: &mut dyn FnMut(&Checkpoint) -> Vec<(u64 /* region */, MapId, Checkpoint)>) -> Trap;
+/// From `start` (whose region is `region`, the node's), BFS over macros to depth k (at most
+/// `breadth` expansions, deterministic order): Trapped iff the map has exits and every reached
+/// state has start's region and map. NoExits if map_exits == 0; Free if k == 0 || breadth == 0.
+pub fn probe(start: &Checkpoint, region: u64, map_exits: usize, k: u32, breadth: u32,
+             expand_all: &mut dyn FnMut(&Checkpoint, u32 /* remaining */) -> Vec<(u64 /* region */, MapId, Checkpoint)>) -> Trap;
 pub fn map_exits<G: GameData>(game: &G, map: MapId) -> usize;   // warps + connections
-/// Dedupe signature: kind, location (or message with digits stripped), map.
+/// Dedupe signature: FNV of the kind's stable name, the location's file (no line:col), the
+/// message with digits stripped, and the map. The row keeps the full location.
 pub fn signature(f: &FindingDraft) -> u64;
 /// The finding as one NewGame trace: the lineage's inputs then the tail, hashes by replay.
-pub fn repro_trace<G: GameData + Clone>(game: &G, lineage: &[&[Run]], tail: &[Run]) -> Trace;
+/// Err((trace to the panic, frame)) if a frame before the last one panics.
+pub fn repro_trace<G: GameData + Clone>(game: &G, lineage: &[&[Run]], tail: &[Run]) -> Result<Trace, (Trace, u32)>;
 /// Replays `trace` with the guard and the detectors; Ok iff a finding with `want`'s signature
 /// is raised at its last frame.
 pub fn reproduce<G: GameData + Clone>(game: &G, trace: &Trace, want: &FindingDraft, cfg: &DetectConfig) -> Result<(), String>;
@@ -1043,7 +1046,7 @@ STRICT tables need SQLite 3.37 or later; the bundled version is 3.53.2. `apply` 
    - **Slow step:** `step_ns > slow_step_us` is a `SlowFrame` flag (report-only; `reproduce` skips it).
 2. **`softlock::probe`:** BFS as specified. `map_exits` counts warps plus connections. `NoExits` is never a finding.
 3. **`findings`:**
-   - `signature` (FNV of kind, location or a digit-stripped message, map).
+   - `signature` (FNV of the kind's stable name, the location's file without line:col, the digit-stripped message, map).
    - `repro_trace` replays from `World::new` through `TraceRecorder` (`Parent::NewGame`, the build from `build_hash(game)`, hashes every 60 frames).
    - `reproduce`.
 4. **`testing` wrappers**, each with a test proving the detector fires (use `Session` + `observe` directly; no Task A code):
@@ -1372,3 +1375,21 @@ Consequence: the `node` table grows by one non-live row per such duplicate. Thos
 - `revalidate`: merged nodes of another build are replayed too (they can be ancestors); a key collision resolves only against holders already checked in the run, pending otherwise (the holder that keeps the key competes by fewer total frames, then lower id; a holder that breaks or changes key hands it to the best waiting or merged-into node). Total frames are recomputed down the tree; repaired nodes keep `progress` and fitness. A db error while reaching a parent is returned; `Diverged`/`Missing`/`Restore` break the child.
 
 **For Task G:** `db.rs` signs findings with a private `draft_signature` that follows `findings::signature`'s spec (Task E was a stub); swap in `crate::findings::signature` when wiring. `progress` of repaired nodes is not re-scored (`goals::progress` needs the summary).
+
+## Task E as built
+**Contract changes (review decisions):**
+- `softlock::probe(start, region, map_exits, k, breadth, expand_all)` takes the start's region (the node's `region`); there is no region-inferring variant. `k == 0 || breadth == 0` gives `Free`. `ExpandAll` is `FnMut(&Checkpoint, u32 remaining)`, with `remaining = breadth - reached` (at least 1).
+- `findings::signature`: FNV-1a 64 of `kind_name(kind)` (a stable per-kind string), the location's file without `:line:col`, the message with ASCII digits stripped, and the map. A panic keeps its signature when an unrelated edit moves its line; the finding row keeps the full location. `signature_of(kind, message, location, map)` and `kind_name` are public (Task G replaces Task C's private `draft_signature` with it).
+- `findings::repro_trace` returns `Result<Trace, (Trace, u32)>`: `Err` with the trace up to the panicking frame and that frame (0 = `World::new`) when a frame before the last one panics.
+- `findings::reproduce` replays to the last frame: same-signature raises before it are not terminal, and every flag of the last frame (`Detectors::after_step_all`) is matched. A panic is terminal and reproduces only on the last frame.
+- `explore::testing` is behind the `testing` cargo feature, enabled for the crate's own tests through a self dev-dependency.
+
+**Additions:** `Detectors::{after_step_all, round_trips}`; `findings::{signature_of, kind_name, end_state}`; `testing::{FadeTrap, FADE_TRAP_SCRIPT, INJECTED_PANIC, NOWHERE, DRIFT_CALLS, Drifting::new}`.
+
+**Detectors:**
+- Round trips run at the first capturable frame of each absolute `World::frame / roundtrip_every` bucket, so a replay from a new game checks on the same frames as the job.
+- A frame that does not follow the last observed one (a `Session::load`) is a discontinuity: the shadow is dropped and the schedule restarts.
+- The whole round trip (checkpoint, encode, decode, restore, compare) runs under the guard; a panic is a `RoundTrip` flag "round trip panicked: {msg} at {loc}". Shadow panics carry the location too.
+
+## Findings
+- **House map 0x101, `Inspect` at (5,1) and (3,1) facing Up (Task A's probe):** the script ends but the fade never returns to 0, so the state is never capturable again. Likely a real engine or content bug; `CapturableStuck` should report it once Task G runs.
