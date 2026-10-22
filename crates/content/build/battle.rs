@@ -4,10 +4,12 @@
 //! `$OUT_DIR/battle.rs` plus one aligned blob, `$OUT_DIR/battle.bin`, that holds every tile,
 //! palette, tilemap and glyph (`include_bytes!`, sliced by `content::blob::Blob`).
 //!
-//! The tables are complete (every species and move, so ids are Gen3 numbers); pics are only
-//! built for the **slice set**: the starters, the land mons of the exported maps, the parties of
-//! the trainers the exported scripts name, and the first battle's Zigzagoon.
+//! The tables are complete (every species, move and trainer, so ids are Gen3 numbers). Pics are
+//! built for every species and trainer pic the extract has; a species without pics battles
+//! without them (`gfx: None`), and a trainer whose pic is missing is left out (`trainer()` is
+//! `None`). Nothing here depends on which maps were exported (Milestone 8 Task E).
 
+use crate::blob_data::BlobOut;
 use crate::classify::{self, StrSrc};
 use crate::codegen::{bytes_lit, ident_ok};
 use crate::input::{Glyph, Tile, World, warn};
@@ -15,20 +17,17 @@ use anyhow::{Context, Result, bail, ensure};
 use extract::battle_data::{STAT_NAME_KEYS, stat_sharply_is_complete};
 use extract::names::{self, Table};
 use extract::schema::{
-    BattleStringsFile, HealLocationsFile, LandEncounters, MonCoords, Move, MovesFile, Species,
-    Trainer, TypesFile,
+    BattleStringsFile, EncounterHeader, EvolutionsFile, HealLocationsFile, MonCoords, Move,
+    MovesFile, Species, Trainer, TrainerMoneyFile, TypesFile,
 };
 use extract::text::{Lang, encode_lang};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fmt::Write;
 
 /// `sStarterMon` (`starter_choose.c`).
 pub const STARTERS: [&str; 3] = ["SPECIES_TREECKO", "SPECIES_TORCHIC", "SPECIES_MUDKIP"];
 /// `CB2_StartFirstBattle` (`battle_setup.c`): Zigzagoon, level 2.
 pub const FIRST_FOE: (&str, u8) = ("SPECIES_ZIGZAGOON", 2);
-/// The highest level the player's starter is expected to reach in the slice: its level-up
-/// moves up to here are slice moves.
-pub const PLAYER_LEVEL_CAP: u8 = 15;
 /// The player's back pic (`TRAINER_BACK_PIC_BRENDAN`: the player is male).
 pub const PLAYER_BACK: &str = "TRAINER_BACK_PIC_BRENDAN";
 
@@ -84,16 +83,18 @@ pub struct BattleIn {
     pub types: TypesFile,
     /// Every trainer, index = `TRAINER_*` number.
     pub trainers: Vec<Trainer>,
-    /// The trainers the exported scripts name: only these get a `TrainerData`.
-    pub referenced: BTreeSet<String>,
-    /// Land tables by map name.
-    pub encounters: BTreeMap<String, LandEncounters>,
+    /// Every wild header of each map, by map name, in `gWildMonHeaders` order.
+    pub encounters: BTreeMap<String, Vec<EncounterHeader>>,
     pub heal: HealLocationsFile,
     pub strings: BattleStringsFile,
-    /// Pics of the slice species, by `SPECIES_*`.
+    /// The species pics the extract has, by `SPECIES_*`.
     pub mon_gfx: BTreeMap<String, MonGfxIn>,
-    /// Front pics of the referenced trainers, by `TRAINER_PIC_*`.
+    /// The trainer front pics the extract has, by `TRAINER_PIC_*`.
     pub trainer_pics: BTreeMap<String, PicIn>,
+    /// `gEvolutionTable` (empty before format 5.1).
+    pub evolutions: EvolutionsFile,
+    /// `gTrainerMoneyTable` by class (empty before format 5.1).
+    pub trainer_money: TrainerMoneyFile,
     pub player_back: PicIn,
     pub ui: UiGfx,
     pub small_glyphs: Vec<Glyph>,
@@ -106,117 +107,26 @@ pub struct BattleIn {
     pub struggle: String,
 }
 
-// ---- slice ----
-
-/// (species, highest level) of every Pokémon the slice can field.
-fn slice_uses(b: &BattleIn) -> Vec<(String, u8)> {
-    let mut v: Vec<(String, u8)> = b
-        .starters
-        .iter()
-        .map(|s| (s.clone(), PLAYER_LEVEL_CAP))
-        .collect();
-    v.push(b.first_foe.clone());
-    for e in b.encounters.values() {
-        v.extend(e.mons.iter().map(|m| (m.species.clone(), m.max_level)));
-    }
-    for t in b.trainers.iter().filter(|t| b.referenced.contains(&t.id)) {
-        v.extend(t.party.iter().map(|m| (m.species.clone(), m.level)));
-    }
-    v
-}
-
-pub fn slice_species(b: &BattleIn) -> BTreeSet<String> {
-    slice_uses(b).into_iter().map(|(s, _)| s).collect()
-}
-
-/// Level-up moves the slice mons know or learn, the custom moves of referenced trainers and
-/// Struggle.
-pub fn slice_moves(b: &BattleIn) -> BTreeSet<String> {
-    let mut out = BTreeSet::from([b.struggle.clone()]);
-    for (s, level) in slice_uses(b) {
-        if let Some(sp) = b.species.iter().find(|x| x.id == s) {
-            out.extend(
-                sp.learnset
-                    .iter()
-                    .filter(|(l, _)| *l <= level)
-                    .map(|(_, m)| m.clone()),
-            );
-        }
-    }
-    for t in b.trainers.iter().filter(|t| b.referenced.contains(&t.id)) {
-        for m in &t.party {
-            out.extend(m.moves.iter().flatten().cloned());
-        }
-    }
-    out.remove("MOVE_NONE");
-    out
-}
-
 // ---- generation ----
 
-/// The blob: 4-aligned chunks, addressed by byte offset.
-#[derive(Default)]
-struct Blob(Vec<u8>);
+/// A `GfxImage` expression, its data in the blob.
+fn image(blob: &mut BlobOut, g: &GfxIn) -> String {
+    format!(
+        "GfxImage {{ tiles: {}, palettes: {}, tilemap: {} }}",
+        blob.tiles(&g.tiles),
+        blob.pals(&g.palettes),
+        blob.u16s(&g.tilemap)
+    )
+}
 
-impl Blob {
-    fn align(&mut self) -> usize {
-        while !self.0.len().is_multiple_of(4) {
-            self.0.push(0);
-        }
-        self.0.len()
-    }
-
-    fn tiles(&mut self, t: &[Tile]) -> String {
-        let at = self.align();
-        for r in t.iter().flatten() {
-            self.0.extend(r.to_le_bytes());
-        }
-        format!("BLOB.tiles({at}, {})", t.len())
-    }
-
-    fn u16s(&mut self, v: &[u16]) -> usize {
-        let at = self.align();
-        for x in v {
-            self.0.extend(x.to_le_bytes());
-        }
-        at
-    }
-
-    fn pal(&mut self, p: &[u16; 16]) -> String {
-        format!("BLOB.pal({})", self.u16s(p))
-    }
-
-    fn pals(&mut self, p: &[[u16; 16]]) -> String {
-        format!("BLOB.pals({}, {})", self.u16s(p.as_flattened()), p.len())
-    }
-
-    fn tilemap(&mut self, v: &[u16]) -> String {
-        format!("BLOB.u16s({}, {})", self.u16s(v), v.len())
-    }
-
-    fn glyphs(&mut self, g: &[Glyph]) -> String {
-        let at = self.align();
-        self.0.extend(g.iter().flatten());
-        format!("BLOB.glyphs({at}, {})", g.len())
-    }
-
-    fn image(&mut self, g: &GfxIn) -> String {
-        format!(
-            "GfxImage {{ tiles: {}, palettes: {}, tilemap: {} }}",
-            self.tiles(&g.tiles),
-            self.pals(&g.palettes),
-            self.tilemap(&g.tilemap)
-        )
-    }
-
-    fn pic(&mut self, p: &PicIn) -> String {
-        format!(
-            "TrainerPic {{ tiles: {}, palette: {}, y: {} }}",
-            self.tiles(&p.tiles),
-            self.pal(&p.palette),
-            p.y
-        )
-    }
+/// A `TrainerPic` expression, its data in the blob.
+fn pic(blob: &mut BlobOut, p: &PicIn) -> String {
+    format!(
+        "TrainerPic {{ tiles: {}, palette: {}, y: {} }}",
+        blob.tiles(&p.tiles),
+        blob.pal(&p.palette),
+        p.y
+    )
 }
 
 pub struct Out {
@@ -226,6 +136,8 @@ pub struct Out {
     pub bin: Vec<u8>,
     /// `SPECIES_*` / `MOVE_*` / `TRAINER_*` / `HEAL_LOCATION_*` constants: (name, type, value).
     pub consts: Vec<(String, &'static str, String)>,
+    /// What the build degraded (for `content::REPORT`), one item per line.
+    pub report: String,
 }
 
 /// The number of an id: its position in the exported table, which must agree with the names
@@ -314,22 +226,27 @@ fn str_text(b: &BattleIn, src: StrSrc) -> Result<String> {
     })
 }
 
-/// The generator's state: the input, id numbers, the slice, and the output so far.
+/// The generator's state: the input, id numbers, and the output so far.
 struct Gen<'a> {
     b: &'a BattleIn,
     w: &'a World,
     species_no: BTreeMap<&'a str, u16>,
     move_no: BTreeMap<&'a str, u16>,
     trainer_no: BTreeMap<&'a str, u16>,
-    slice_sp: BTreeSet<String>,
-    slice_mv: BTreeSet<String>,
-    blob: Blob,
+    blob: BlobOut,
     /// `battle.rs`. The blob static is written last (its size is known then); statics may
     /// refer to it before.
     o: String,
-    unsupported_effects: BTreeMap<String, String>,
-    unsupported_abilities: BTreeSet<String>,
+    /// `EFFECT_*` the engine does not implement -> the moves that have it.
+    unsupported_effects: BTreeMap<String, Vec<String>>,
+    /// Moves left `Unsupported` because their stat message has no words yet
+    /// (`classify::UNWORDED_STAT_EFFECTS`).
+    unworded: Vec<String>,
+    /// `ABILITY_*` folded into `Ability::Other` -> how many species have it.
+    unsupported_abilities: BTreeMap<String, usize>,
     trainer_ids: Vec<u16>,
+    /// Trainers left out: no front pic, or an empty party.
+    skipped_trainers: Vec<String>,
 }
 
 impl Gen<'_> {
@@ -345,7 +262,7 @@ impl Gen<'_> {
         Ok(format!("MoveId({})", get(&self.move_no, n)?))
     }
 
-    /// `SPECIES`: every species, with learnsets and the slice's pics.
+    /// `SPECIES`: every species, with learnsets and the pics the extract has.
     fn gen_species(&mut self) -> Result<()> {
         let b = self.b;
         let mut species = String::new();
@@ -391,8 +308,8 @@ impl Gen<'_> {
             };
             let abilities = s.abilities.each_ref().map(|a| {
                 let v = classify::ability(a);
-                if v == "Ability::Other" && self.slice_sp.contains(&s.id) {
-                    self.unsupported_abilities.insert(a.clone());
+                if v == "Ability::Other" && a != "ABILITY_NONE" {
+                    *self.unsupported_abilities.entry(a.clone()).or_default() += 1;
                 }
                 v
             });
@@ -415,12 +332,11 @@ impl Gen<'_> {
                 s.id
             )?;
         }
-        for s in &self.slice_sp {
+        for s in b.starters.iter().chain([&b.first_foe.0]) {
             ensure!(
                 self.species_no.contains_key(s.as_str()),
-                "slice species {s} is not in species.ron"
+                "species {s} is not in species.ron"
             );
-            ensure!(b.mon_gfx.contains_key(s), "slice species {s} has no pics");
         }
         writeln!(
             self.o,
@@ -440,22 +356,22 @@ impl Gen<'_> {
         let b = self.b;
         let mut moves = String::new();
         for m in &b.moves.moves {
-            let slice = self.slice_mv.contains(&m.id);
-            ensure!(
-                !(slice && classify::UNWORDED_STAT_EFFECTS.contains(&m.effect.as_str())),
-                "slice move {} has {}: its stat message needs Rose/Fell-split `Str`s",
-                m.id,
-                m.effect
-            );
-            let effect = match classify::move_effect(&m.effect) {
+            // An effect whose stat message the engine cannot word yet degrades to `Unsupported`
+            // (the engine reports it when used), whatever `move_effect` says.
+            let unworded = classify::UNWORDED_STAT_EFFECTS.contains(&m.effect.as_str());
+            let effect = match classify::move_effect(&m.effect).filter(|_| !unworded) {
                 Some(e) => e,
                 None => {
                     let n = names::MOVE_EFFECTS
                         .value(&m.effect)
                         .with_context(|| format!("{}: unknown effect {}", m.id, m.effect))?;
-                    if slice {
+                    if unworded {
+                        self.unworded.push(format!("{} ({})", m.id, m.effect));
+                    } else if m.id != "MOVE_NONE" {
                         self.unsupported_effects
-                            .insert(m.id.clone(), m.effect.clone());
+                            .entry(m.effect.clone())
+                            .or_default()
+                            .push(m.id.clone());
                     }
                     format!("MoveEffect::Unsupported({n})")
                 }
@@ -467,12 +383,6 @@ impl Gen<'_> {
             "pub static MOVES: [MoveInfo; {}] = [\n{moves}];",
             b.moves.moves.len()
         )?;
-        for m in &self.slice_mv {
-            ensure!(
-                self.move_no.contains_key(m.as_str()),
-                "slice move {m} is not in moves.ron"
-            );
-        }
 
         let mut chart = String::new();
         for (a, d, x) in &b.types.chart {
@@ -515,13 +425,19 @@ impl Gen<'_> {
         let b = self.b;
         let mut pic_names = BTreeMap::new();
         for (k, (name, p)) in b.trainer_pics.iter().enumerate() {
-            let pic = self.blob.pic(p);
+            let pic = pic(&mut self.blob, p);
             writeln!(self.o, "static TP_{k}: TrainerPic = {pic};")?;
             pic_names.insert(name.as_str(), k);
         }
         let mut trainer_arms = String::new();
-        for t in b.trainers.iter().filter(|t| b.referenced.contains(&t.id)) {
+        for t in &b.trainers {
             let id = get(&self.trainer_no, &t.id)?;
+            if t.party.is_empty() || !pic_names.contains_key(t.pic.as_str()) {
+                if id != 0 {
+                    self.skipped_trainers.push(t.id.clone());
+                }
+                continue;
+            }
             let mut party = String::new();
             for m in &t.party {
                 ensure!(m.iv <= 255, "{}: iv {}", t.id, m.iv);
@@ -572,7 +488,7 @@ impl Gen<'_> {
         }
         writeln!(
             self.o,
-            "/// The trainers the exported scripts name (`TRAINER_*`).\npub fn trainer(id: u16) -> Option<&'static TrainerData> {{\n    match id {{\n{trainer_arms}        _ => None,\n    }}\n}}"
+            "/// Every trainer with a party and a pic (`TRAINER_*`).\npub fn trainer(id: u16) -> Option<&'static TrainerData> {{\n    match id {{\n{trainer_arms}        _ => None,\n    }}\n}}"
         )?;
         writeln!(
             self.o,
@@ -585,38 +501,8 @@ impl Gen<'_> {
                 .join(", ")
         )?;
 
-        let mut enc_arms = String::new();
-        for (map, e) in &b.encounters {
-            let Some(id) = map_number(self.w, map) else {
-                warn(&format!("encounters: unknown map {map}, skipped"));
-                continue;
-            };
-            ensure!(
-                e.mons.len() == 12,
-                "encounters {map}: {} slots",
-                e.mons.len()
-            );
-            let mut mons = String::new();
-            for m in &e.mons {
-                write!(
-                    mons,
-                    "WildMon {{ species: {}, min_level: {}, max_level: {} }},",
-                    self.species_id(&m.species)?,
-                    m.min_level,
-                    m.max_level
-                )?;
-            }
-            writeln!(
-                self.o,
-                "static ENC_{id:X}: LandEncounters = LandEncounters {{ rate: {}, mons: [{mons}] }}; // {map}",
-                e.rate
-            )?;
-            writeln!(enc_arms, "        {id:#X} => Some(&ENC_{id:X}),")?;
-        }
-        writeln!(
-            self.o,
-            "/// The land table of map `id` (`MAP_*`).\npub fn encounters(id: u16) -> Option<&'static LandEncounters> {{\n    match id {{\n{enc_arms}        _ => None,\n    }}\n}}"
-        )?;
+        self.gen_encounters()?;
+        self.gen_evolutions_and_money()?;
         let mut heal_arms = String::new();
         for (name, (map, x, y)) in &b.heal {
             let id = names::HEAL_LOCATIONS
@@ -635,6 +521,146 @@ impl Gen<'_> {
             self.o,
             "/// Gen3 heal location `id` (`HEAL_LOCATION_*`): map and player cell.\npub fn heal_location(id: u8) -> Option<(MapId, i16, i16)> {{\n    match id {{\n{heal_arms}        _ => None,\n    }}\n}}"
         )?;
+        Ok(())
+    }
+
+    /// `evolutions()` (`gEvolutionTable`) and `TRAINER_MONEY` (each built trainer's
+    /// `gTrainerMoneyTable` value; empty when the extract predates format 5.1).
+    fn gen_evolutions_and_money(&mut self) -> Result<()> {
+        let b = self.b;
+        let mut arms = String::new();
+        for (species, evos) in &b.evolutions.species {
+            let from = get(&self.species_no, species)?;
+            let mut v = String::new();
+            for (method, param, target) in evos {
+                write!(
+                    v,
+                    "Evolution {{ method: {}, param: {param}, target: {} }},",
+                    evo_method(method),
+                    self.species_id(target)?
+                )?;
+            }
+            writeln!(arms, "        {from} => &[{v}], // {species}")?;
+        }
+        writeln!(
+            self.o,
+            "/// `gEvolutionTable[species]`.\npub fn evolutions(species: u16) -> &'static [Evolution] {{\n    match species {{\n{arms}        _ => &[],\n    }}\n}}"
+        )?;
+        let money = &b.trainer_money.classes;
+        let mut table = Vec::new();
+        if !money.is_empty() {
+            // `GetTrainerMoneyToGive`: the class's entry, else the `0xFF` terminator's value.
+            let default = money.get(TRAINER_MONEY_DEFAULT_CLASS).copied();
+            for t in &b.trainers {
+                let m = money.get(&t.class).copied().or(default).with_context(|| {
+                    format!("{}: no money for {} and no default", t.id, t.class)
+                })?;
+                table.push(m.to_string());
+            }
+        }
+        writeln!(
+            self.o,
+            "/// `gTrainerMoneyTable` value of each trainer's class, by `TRAINER_*` (empty: not extracted).\npub static TRAINER_MONEY: [u8; {}] = [{}];",
+            table.len(),
+            table.join(",")
+        )?;
+        Ok(())
+    }
+
+    /// `encounters()` and `wild_encounters()` (land), and `water()`, `rock_smash()`, `fishing()`
+    /// (compiled for Milestone 10), from every wild header of every map.
+    fn gen_encounters(&mut self) -> Result<()> {
+        let b = self.b;
+        let mut land_arms = String::new();
+        let mut first_arms = String::new();
+        let mut out = Vec::new();
+        let mut other: [(&str, String); 3] = [
+            ("water", String::new()),
+            ("rock_smash", String::new()),
+            ("fishing", String::new()),
+        ];
+        for (map, headers) in &b.encounters {
+            let Some(id) = map_number(self.w, map) else {
+                warn(&format!("encounters: unknown map {map}, skipped"));
+                continue;
+            };
+            for (set, h) in headers.iter().enumerate() {
+                let mons = |v: &[extract::schema::WildMon]| -> Result<String> {
+                    let mut s = String::new();
+                    for m in v {
+                        write!(
+                            s,
+                            "WildMon {{ species: {}, min_level: {}, max_level: {} }},",
+                            self.species_id(&m.species)?,
+                            m.min_level,
+                            m.max_level
+                        )?;
+                    }
+                    Ok(s)
+                };
+                if let Some(e) = &h.land {
+                    ensure!(
+                        e.mons.len() == 12,
+                        "encounters {map} #{set}: {} land slots",
+                        e.mons.len()
+                    );
+                    let line = format!(
+                        "static ENC_{id:X}_{set}: LandEncounters = LandEncounters {{ rate: {}, mons: [{}] }}; // {map}",
+                        e.rate,
+                        mons(&e.mons)?
+                    );
+                    out.push(line);
+                    writeln!(
+                        land_arms,
+                        "        ({id:#X}, {set}) => Some(&ENC_{id:X}_{set}),"
+                    )?;
+                    if set == 0 {
+                        writeln!(first_arms, "        {id:#X} => Some(&ENC_{id:X}_0),")?;
+                    }
+                }
+                for ((_, arms), table) in
+                    other.iter_mut().zip([&h.water, &h.rock_smash, &h.fishing])
+                {
+                    if let Some(e) = table {
+                        writeln!(
+                            arms,
+                            "        ({id:#X}, {set}) => Some(({}, &[{}])), // {map}",
+                            e.rate,
+                            mons(&e.mons)?
+                        )?;
+                    }
+                }
+            }
+        }
+        for line in out {
+            writeln!(self.o, "{line}")?;
+        }
+        writeln!(
+            self.o,
+            "/// The land table of map `id`'s first wild header (`MAP_*`).\npub fn encounters(id: u16) -> Option<&'static LandEncounters> {{\n    match id {{\n{first_arms}        _ => None,\n    }}\n}}"
+        )?;
+        writeln!(
+            self.o,
+            "/// The land table of wild header `set` of map `id` (Gen3 `GetCurrentMapWildMonHeaderId`: `set` is\n/// `VAR_ALTERING_CAVE_WILD_SET`, and a set the map does not have reads header 0).\npub fn wild_encounters(id: u16, set: u16) -> Option<&'static LandEncounters> {{\n    let set = if set < wild_sets(id) {{ set }} else {{ 0 }};\n    match (id, set) {{\n{land_arms}        _ => None,\n    }}\n}}"
+        )?;
+        let mut sets = String::new();
+        for (map, headers) in &b.encounters {
+            if let Some(id) = map_number(self.w, map)
+                && headers.len() > 1
+            {
+                writeln!(sets, "        {id:#X} => {},", headers.len())?;
+            }
+        }
+        writeln!(
+            self.o,
+            "/// How many wild headers map `id` has.\npub fn wild_sets(id: u16) -> u16 {{\n    match id {{\n{sets}        _ => 1,\n    }}\n}}"
+        )?;
+        for (name, arms) in other {
+            writeln!(
+                self.o,
+                "/// The {name} table (rate, slots) of wild header `set` of map `id` (Milestone 10).\npub fn {name}(id: u16, set: u16) -> Option<(u8, &'static [WildMon])> {{\n    let set = if set < wild_sets(id) {{ set }} else {{ 0 }};\n    match (id, set) {{\n{arms}        _ => None,\n    }}\n}}"
+            )?;
+        }
         Ok(())
     }
 
@@ -762,7 +788,10 @@ impl Gen<'_> {
                 "{} environments",
                 u.environments.len()
             );
-            u.environments.iter().map(|e| self.blob.image(e)).collect()
+            u.environments
+                .iter()
+                .map(|e| image(&mut self.blob, e))
+                .collect()
         };
         ensure!(
             b.small_glyphs.len() == b.small_widths.len(),
@@ -778,27 +807,26 @@ impl Gen<'_> {
         let blob = &mut self.blob;
         let line = format!(
             "pub static GFX: BattleGfx = BattleGfx {{ textbox: {}, environments: [{}], healthbox_player: {}, healthbox_opponent: {}, hpbar: {}, expbar: {}, status: {}, misc: {}, ball: {}, small_font: &SMALL_FONT, player_back: {}, starter_bag: {}, starter_ball: {}, starter_circle: {} }};",
-            blob.image(&u.textbox),
+            image(blob, &u.textbox),
             envs.join(", "),
-            blob.image(&u.healthbox_player),
-            blob.image(&u.healthbox_opponent),
-            blob.image(&u.hpbar),
-            blob.image(&u.expbar),
-            blob.image(&u.status),
-            blob.image(&u.misc),
-            blob.image(&u.ball),
-            blob.pic(&b.player_back),
-            blob.image(&u.starter_bag),
-            blob.image(&u.starter_ball),
-            blob.image(&u.starter_circle)
+            image(blob, &u.healthbox_player),
+            image(blob, &u.healthbox_opponent),
+            image(blob, &u.hpbar),
+            image(blob, &u.expbar),
+            image(blob, &u.status),
+            image(blob, &u.misc),
+            image(blob, &u.ball),
+            pic(blob, &b.player_back),
+            image(blob, &u.starter_bag),
+            image(blob, &u.starter_ball),
+            image(blob, &u.starter_circle)
         );
         writeln!(self.o, "{line}")?;
         Ok(())
     }
 
-    /// The slice (`STARTERS`, `FIRST_BATTLE_FOE`, `SLICE_SPECIES`, `SLICE_MOVES`) and
-    /// `SUMMARY`.
-    fn gen_slice(&mut self) -> Result<()> {
+    /// `STARTERS`, `FIRST_BATTLE_FOE`, `SUMMARY` and the report.
+    fn gen_summary(&mut self) -> Result<String> {
         let b = self.b;
         writeln!(
             self.o,
@@ -809,51 +837,56 @@ impl Gen<'_> {
             self.species_id(&b.first_foe.0)?,
             b.first_foe.1
         )?;
-        let ss: Vec<String> = self
-            .slice_sp
+        let no_pics: Vec<&str> = b
+            .species
             .iter()
-            .map(|s| self.species_id(s))
-            .collect::<Result<_>>()?;
-        writeln!(
-            self.o,
-            "pub static SLICE_SPECIES: [SpeciesId; {}] = [{}];",
-            ss.len(),
-            ss.join(", ")
-        )?;
-        let sm: Vec<String> = self
-            .slice_mv
-            .iter()
-            .map(|m| self.move_id(m))
-            .collect::<Result<_>>()?;
-        writeln!(
-            self.o,
-            "pub static SLICE_MOVES: [MoveId; {}] = [{}];",
-            sm.len(),
-            sm.join(", ")
-        )?;
-
+            .filter(|s| s.id != "SPECIES_NONE" && !b.mon_gfx.contains_key(&s.id))
+            .map(|s| s.id.as_str())
+            .collect();
+        let unsupported_moves: usize = self.unsupported_effects.values().map(Vec::len).sum();
         let summary = format!(
-            "battle: {} species ({} with pics), {} moves ({} in the slice), {} trainers; slice moves with unsupported effects: {}; slice abilities left as Ability::Other: {}",
+            "battle: {} species ({} with pics), {} moves ({} with unsupported effects, {} unworded), {} trainers ({} left out), {} abilities left as Ability::Other",
             b.species.len(),
             b.mon_gfx.len(),
             b.moves.moves.len(),
-            self.slice_mv.len(),
+            unsupported_moves,
+            self.unworded.len(),
             self.trainer_ids.len(),
-            list(
-                self.unsupported_effects
-                    .iter()
-                    .map(|(m, e)| format!("{m} ({e})"))
-            ),
-            list(self.unsupported_abilities.iter().cloned()),
+            self.skipped_trainers.len(),
+            self.unsupported_abilities.len(),
         );
-        if !self.unsupported_effects.is_empty() || !self.unsupported_abilities.is_empty() {
-            warn(&summary);
-        }
         writeln!(
             self.o,
-            "/// What the build left unsupported.\npub const SUMMARY: &str = {summary:?};"
+            "/// What the build left unsupported (counts; `content::REPORT` lists them).\npub const SUMMARY: &str = {summary:?};"
         )?;
-        Ok(())
+        let mut r = format!("{summary}\n");
+        for (e, moves) in &self.unsupported_effects {
+            writeln!(
+                r,
+                "unsupported effect {e} (MoveEffect::Unsupported): {}",
+                moves.join(", ")
+            )?;
+        }
+        for m in &self.unworded {
+            writeln!(
+                r,
+                "unworded stat effect, degraded to MoveEffect::Unsupported: {m}"
+            )?;
+        }
+        for (a, n) in &self.unsupported_abilities {
+            writeln!(r, "ability {a} -> Ability::Other ({n} species)")?;
+        }
+        writeln!(
+            r,
+            "species without pics (gfx: None): {}",
+            list(no_pics.iter().map(|s| s.to_string()))
+        )?;
+        writeln!(
+            r,
+            "trainers left out (no pic or no party; trainer() is None): {}",
+            list(self.skipped_trainers.iter().cloned())
+        )?;
+        Ok(r)
     }
 
     /// `SPECIES_*` / `MOVE_*` / `TRAINER_*` / `HEAL_LOCATION_*`.
@@ -894,34 +927,51 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
             &names::TRAINERS,
             b.stub,
         )?,
-        slice_sp: slice_species(b),
-        slice_mv: slice_moves(b),
-        blob: Blob::default(),
+        blob: BlobOut::new("BLOB"),
         o: String::from(
-            "// @generated by content/build.rs\nuse engine::battle::{BattleGfx, GfxImage, Str};\nuse engine::data::*;\nuse engine::mon::*;\nuse crate::blob::Blob;\n\n",
+            "// @generated by content/build.rs\nuse engine::battle::{BattleGfx, GfxImage, Str};\nuse engine::data::*;\nuse engine::mon::*;\n\n",
         ),
         unsupported_effects: BTreeMap::new(),
-        unsupported_abilities: BTreeSet::new(),
+        unworded: Vec::new(),
+        unsupported_abilities: BTreeMap::new(),
         trainer_ids: Vec::new(),
+        skipped_trainers: Vec::new(),
     };
     g.gen_species()?;
     g.gen_moves()?;
     g.gen_trainers()?;
     g.gen_strings()?;
     g.gen_gfx()?;
-    g.gen_slice()?;
-    g.blob.align();
-    writeln!(
-        g.o,
-        "pub static BLOB: Blob<{}> = Blob(*include_bytes!(concat!(env!(\"OUT_DIR\"), \"/battle.bin\")));",
-        g.blob.0.len()
-    )?;
+    let report = g.gen_summary()?;
+    let decl = g.blob.static_decl("battle.bin");
+    g.o.push_str(&decl);
     let consts = g.consts();
     Ok(Out {
         rs: g.o,
-        bin: g.blob.0,
+        bin: g.blob.bytes,
         consts,
+        report,
     })
+}
+
+/// The `battle/trainer_money.ron` key of `gTrainerMoneyTable`'s `0xFF` terminator, the default
+/// of every class not listed (`extract::battle_data::TRAINER_MONEY_DEFAULT_CLASS`, Task A).
+const TRAINER_MONEY_DEFAULT_CLASS: &str = "TRAINER_CLASS_0xFF";
+
+/// `EVO_*` -> `EvoMethod` expression (Gen3 `EVO_*` folded; the exact kind waits for Milestone 9).
+fn evo_method(name: &str) -> &'static str {
+    match name {
+        "EVO_LEVEL"
+        | "EVO_LEVEL_ATK_GT_DEF"
+        | "EVO_LEVEL_ATK_EQ_DEF"
+        | "EVO_LEVEL_ATK_LT_DEF"
+        | "EVO_LEVEL_SILCOON"
+        | "EVO_LEVEL_CASCOON" => "EvoMethod::Level",
+        "EVO_FRIENDSHIP" | "EVO_FRIENDSHIP_DAY" | "EVO_FRIENDSHIP_NIGHT" => "EvoMethod::Friendship",
+        "EVO_ITEM" => "EvoMethod::Item",
+        "EVO_TRADE" | "EVO_TRADE_ITEM" => "EvoMethod::Trade",
+        _ => "EvoMethod::Other",
+    }
 }
 
 fn list(it: impl Iterator<Item = String>) -> String {

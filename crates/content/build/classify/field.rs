@@ -96,6 +96,22 @@ pub fn behavior(name: &str) -> String {
     .into()
 }
 
+/// [`behavior`], and whether it is exact. Exact: plain ground (`MB_NORMAL`, unnamed bytes),
+/// tall grass, ledges, doors, warps, arrow warps and counters, which the engine implements as
+/// Gen3 does. Every other named behavior is an approximation: its Gen3 effect (Surf, currents,
+/// directional blocking, ice, sand, bikes, puddles, hot springs, secret bases, …) is missing,
+/// so it is `Normal` or, for water and the directional walls, `Blocked`. The build lists the
+/// approximations in `content::REPORT`.
+pub fn behavior_class(name: &str) -> (String, bool) {
+    let v = behavior(name);
+    let exact = match v.as_str() {
+        "Blocked" => false,
+        "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
+        _ => true,
+    };
+    (v, exact)
+}
+
 /// `Behavior` variant of every raw behavior byte, through `names::behavior_name`.
 pub fn behavior_table() -> Vec<String> {
     (0..=255u8)
