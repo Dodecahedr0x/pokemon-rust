@@ -17,3 +17,11 @@ extract = { path = "crates/extract" }
 studio = { path = "crates/studio" }
 anyhow = "1"
 mgba = "0.1.0"
+
+# Studio decision 13: the native game in debug builds runs at about 5 ms per frame (too slow
+# for fast-forward and seeks); optimize the game crates even in dev builds.
+[profile.dev.package.engine]
+opt-level = 2
+
+[profile.dev.package.game-native]
+opt-level = 2

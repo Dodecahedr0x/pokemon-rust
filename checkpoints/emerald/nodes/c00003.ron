@@ -4,8 +4,8 @@
         label: "route:oldale_center",
         schema: 1,
         build: (
-            engine: 13333995551575107208,
-            content: 18017285295161566422,
+            engine: 18443809362056734937,
+            content: 2069457445461590561,
         ),
         frame: 11571,
         map: (514),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(2),
         build: (
-            engine: 13333995551575107208,
-            content: 18017285295161566422,
+            engine: 18443809362056734937,
+            content: 2069457445461590561,
         ),
         start_frame: 7064,
         inputs: [
