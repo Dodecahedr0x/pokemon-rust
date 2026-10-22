@@ -748,7 +748,11 @@ mod tests {
     fn redraw_skips_the_same_text() {
         let mut c = Canvas::new(Window::new(0, 1, 2, 2, 0), 0);
         assert_eq!(redraw(&mut c, &[1, 0xFF], C), (4, 2));
-        assert_eq!(redraw(&mut c, &[1, 0xFF], C), (0, 2), "nothing new to upload");
+        assert_eq!(
+            redraw(&mut c, &[1, 0xFF], C),
+            (0, 2),
+            "nothing new to upload"
+        );
         assert_eq!(redraw(&mut c, &[0xFF], C), (4, 1), "other text");
         assert_eq!(redraw(&mut c, &[0xFF], C), (0, 1));
     }

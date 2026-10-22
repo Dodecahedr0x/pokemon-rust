@@ -92,7 +92,10 @@ mod tests {
     #[test]
     fn boots_black_then_fades_into_the_start_map() {
         let mut s = Session::new(content::Emerald::for_shells());
-        assert_eq!(s.world().map(), content::Emerald::for_shells().new_game().map);
+        assert_eq!(
+            s.world().map(),
+            content::Emerald::for_shells().new_game().map
+        );
         assert!(s.framebuffer().iter().all(|&c| c == 0), "frame 0 is black");
         for _ in 0..40 {
             s.step(Buttons::NONE);

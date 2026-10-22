@@ -11,8 +11,8 @@
 //! game logic: elevation is ignored and the run stops with an error when stuck.
 
 use crate::Session;
-use engine::battle::{BattleOutcome, Str};
 use engine::battle::scene::OpenMenu;
+use engine::battle::{BattleOutcome, Str};
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::{block_at, in_bounds};
@@ -110,7 +110,11 @@ impl Recording {
     /// many chunks it takes, since every chunk fits a frame but the first may follow a full one.
     pub fn bulk_events(&self) -> u32 {
         let starts = self.bulk.windows(2).filter(|w| w[1] != w[0] + 1).count();
-        if self.bulk.is_empty() { 0 } else { starts as u32 + 1 }
+        if self.bulk.is_empty() {
+            0
+        } else {
+            starts as u32 + 1
+        }
     }
 
     /// The bulk step that explains a `late_black` the ROM reported at engine frame `late`
