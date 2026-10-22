@@ -11,6 +11,8 @@
 //! game logic: elevation is ignored and the run stops with an error when stuck.
 
 use crate::Session;
+use engine::battle::Str;
+use engine::battle::scene::OpenMenu;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::{block_at, in_bounds};
@@ -21,6 +23,8 @@ use std::collections::VecDeque;
 pub enum Action {
     /// Walk to a cell of the current map.
     GoTo(i16, i16),
+    /// Take one step that way and let what it triggers (a coord script) run on.
+    Step(Dir),
     /// Hold a direction until a warp transition has run (doors, doormats, stairs).
     Enter(Dir),
     /// Hold a direction until the player crosses into the connected map, then settle.
@@ -34,6 +38,36 @@ pub enum Action {
     Wait(u32),
     /// Name the current frame (a screenshot and a parity checkpoint).
     Shot(&'static str),
+    /// Press A once on what is ahead and let the script run on (no waiting for its end).
+    Interact,
+    /// Alternate A and nothing until the field is idle again: scripts run on, battles fight
+    /// with the first move.
+    Mash,
+    /// Walk back and forth between two cells (tall grass) until a battle starts.
+    Grass((i16, i16), (i16, i16)),
+    /// Wait for the starter screen to be up (a second in), then name that moment.
+    StarterShot(&'static str),
+    /// Wait for the starter screen, pick ball `i` (0..3) and confirm it.
+    Starter(u8),
+    /// Battle with move `slot` every turn, mashing through messages, until the field is back.
+    Fight(u8),
+    /// Battle: RUN every turn until the field is back.
+    Run,
+    /// Battle with move `slot` until `When`, then name that moment.
+    BattleShot(u8, When, &'static str),
+}
+
+/// A battle moment for [`Action::BattleShot`].
+#[derive(Clone, Copy, Debug)]
+pub enum When {
+    /// The action menu is open.
+    ActionMenu,
+    /// The move menu is open.
+    MoveMenu,
+    /// An HP bar is draining (a few frames in).
+    HpDrain,
+    /// This message is printed (up to a second in, while it is still shown).
+    Message(Str),
 }
 
 /// What [`record`] produced.
@@ -43,8 +77,11 @@ pub struct Recording {
     pub keys: Vec<Buttons>,
     /// Each [`Action::Shot`]; the picture is the output of step `frame`.
     pub moments: Vec<Moment>,
-    /// Warp transitions started (each loads a map while the screen is black).
+    /// Warp transitions started and script teleports (each loads a map or redraws the field
+    /// while the screen is black).
     pub warps: u32,
+    /// Battles started (each uploads in bulk on a black frame on the way in and out).
+    pub battles: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,10 +138,22 @@ pub fn record<G: GameData>(game: G, actions: &[Action]) -> Result<Recording, Str
     let mut r = Recorder {
         s: Session::new(game),
         rec: Recording::default(),
+        last: Buttons::NONE,
     };
     for (i, &a) in actions.iter().enumerate() {
         r.run(a)
-            .map_err(|e| format!("action {i} {a:?} at frame {}: {e}", r.frame()))?;
+            .map_err(|e| {
+                let w = r.world();
+                let log: Vec<&str> = w.log().lines().collect();
+                format!(
+                    "action {i} {a:?} at frame {}: {e} (map {:#x} at {:?}, script {}, battle {:?}; log {log:?})",
+                    r.frame(),
+                    w.map().0,
+                    w.objects().player().pos(),
+                    w.script_running(),
+                    w.battle().map(|b| b.0),
+                )
+            })?;
     }
     Ok(r.rec)
 }
@@ -112,7 +161,15 @@ pub fn record<G: GameData>(game: G, actions: &[Action]) -> Result<Recording, Str
 struct Recorder<G: GameData> {
     s: Session<G>,
     rec: Recording,
+    /// The buttons of the last step.
+    last: Buttons,
 }
+
+/// Frames a battle may take before the run is declared stuck.
+const BATTLE_STUCK: u32 = 12_000;
+
+/// Idle frames in a row that end an [`Action::Mash`].
+const MASH_CALM: u32 = 16;
 
 impl<G: GameData> Recorder<G> {
     fn frame(&self) -> u32 {
@@ -124,23 +181,115 @@ impl<G: GameData> Recorder<G> {
     }
 
     fn press(&mut self, keys: Buttons) {
-        let before = self.world().transition_active();
+        let before = (self.world().transition_active(), self.world().in_battle());
+        let (map, pos) = (self.world().map(), self.world().objects().player().pos());
         self.rec.keys.push(keys);
         self.s.step(keys);
-        if !before && self.world().transition_active() {
+        self.last = keys;
+        if !before.0 && self.world().transition_active() {
             self.rec.warps += 1;
+        }
+        // A script teleport (`setobjectxyperm` on the player while faded out) redraws the whole
+        // field on a black frame, as a warp does.
+        let now = self.world().objects().player().pos();
+        let jump = (now.0 - pos.0).abs() + (now.1 - pos.1).abs() > 2;
+        if self.world().map() == map && jump && self.s.frame().is_black() {
+            self.rec.warps += 1;
+        }
+        if !before.1 && self.world().in_battle() {
+            self.rec.battles += 1;
         }
     }
 
-    /// Nothing in progress: no transition, no script, player settled.
+    /// Presses `keys` as a new press: a frame of nothing first if something is held. Nothing
+    /// is pressed while a battle or a warp has the screen black: their bulk loads may overrun
+    /// a frame there, and the ROM then reads one input for two steps (`late_black`), which
+    /// must not change.
+    fn tap(&mut self, keys: Buttons) {
+        let w = self.world();
+        let black = (w.in_battle() || w.transition_active()) && self.s.frame().is_black();
+        if self.last != Buttons::NONE || black {
+            self.press(Buttons::NONE);
+        } else {
+            self.press(keys);
+        }
+    }
+
+    /// Nothing in progress: the field owns the frame, no transition, no script, player settled.
     fn idle(&self) -> bool {
         let w = self.world();
-        !w.transition_active() && !w.script_running() && w.objects().player().is_settled()
+        w.field_active()
+            && !w.transition_active()
+            && !w.script_running()
+            && w.objects().player().is_settled()
+    }
+
+    /// The next button for a battle: move `slot` (or RUN when `run`) in the menus, no to
+    /// learning a move, A through messages.
+    fn battle_key(&self, slot: u8, run: bool) -> Buttons {
+        let toward = |c: u8, want: u8| {
+            if c & 1 != want & 1 {
+                if want & 1 == 0 {
+                    Buttons::LEFT
+                } else {
+                    Buttons::RIGHT
+                }
+            } else if c & 2 != want & 2 {
+                if want & 2 == 0 {
+                    Buttons::UP
+                } else {
+                    Buttons::DOWN
+                }
+            } else {
+                Buttons::A
+            }
+        };
+        match self.world().battle().and_then(|b| b.2.open_menu()) {
+            Some(OpenMenu::Action(c)) => toward(c, if run { 3 } else { 0 }),
+            Some(OpenMenu::Move(_)) if run => Buttons::B,
+            Some(OpenMenu::Move(c)) => toward(c, slot),
+            // Keep the known moves (Gen3: "Stop learning X?" yes).
+            Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_)) => Buttons::B,
+            Some(OpenMenu::StopAsk(0)) => Buttons::A,
+            Some(OpenMenu::StopAsk(_)) => Buttons::UP,
+            None => Buttons::A,
+        }
+    }
+
+    /// Battles until the field is back.
+    fn battle(&mut self, slot: u8, run: bool) -> Result<(), String> {
+        let start = self.frame();
+        while self.world().in_battle() {
+            if self.frame() - start > BATTLE_STUCK {
+                return Err("battle never ended".into());
+            }
+            let k = self.battle_key(slot, run);
+            self.tap(k);
+        }
+        Ok(())
+    }
+
+    /// Whether a battle moment has come.
+    fn battle_moment(&self, when: When) -> bool {
+        let Some((_, _, scene)) = self.world().battle() else {
+            return false;
+        };
+        match when {
+            When::ActionMenu => matches!(scene.open_menu(), Some(OpenMenu::Action(_))),
+            When::MoveMenu => matches!(scene.open_menu(), Some(OpenMenu::Move(_))),
+            When::HpDrain => scene.draining_hp(),
+            When::Message(m) => scene.message() == Some(m),
+        }
     }
 
     fn settle(&mut self) -> Result<(), String> {
         let start = self.frame();
         while !self.idle() {
+            if self.world().in_battle() {
+                // A wild encounter on the way: fight it with the first move.
+                self.battle(0, false)?;
+                return self.settle();
+            }
             if self.frame() - start > STUCK {
                 return Err("never settled".into());
             }
@@ -156,6 +305,11 @@ impl<G: GameData> Recorder<G> {
             Action::GoTo(x, y) => {
                 self.settle()?;
                 loop {
+                    if self.world().in_battle() {
+                        // An encounter in the grass on the way: fight it, then walk on.
+                        self.settle()?;
+                        return self.run(a);
+                    }
                     if stuck(self) {
                         let p = self.world().objects().player().pos();
                         return Err(format!("stuck at {p:?}"));
@@ -200,7 +354,14 @@ impl<G: GameData> Recorder<G> {
                     self.press(dir_key(d));
                 }
                 self.press(Buttons::NONE);
-                self.settle()
+                // A step-end script (a coord event) runs on: [`Action::Mash`] it.
+                while !self.world().script_running() && !self.idle() {
+                    if stuck(self) {
+                        return Err("never settled after the crossing".into());
+                    }
+                    self.press(Buttons::NONE);
+                }
+                Ok(())
             }
             Action::Face(d) => {
                 self.settle()?;
@@ -266,11 +427,154 @@ impl<G: GameData> Recorder<G> {
                 self.rec.moments.push(Moment { name, frame, map });
                 Ok(())
             }
+            Action::Step(d) => {
+                self.settle()?;
+                let at = self.world().objects().player().pos();
+                while self.world().objects().player().pos() == at {
+                    if stuck(self) {
+                        return Err("never stepped".into());
+                    }
+                    self.press(dir_key(d));
+                }
+                self.press(Buttons::NONE);
+                while !self.world().script_running() && !self.idle() {
+                    if stuck(self) {
+                        return Err("never settled after the step".into());
+                    }
+                    self.press(Buttons::NONE);
+                }
+                Ok(())
+            }
+            Action::Interact => {
+                self.settle()?;
+                self.press(Buttons::A);
+                self.press(Buttons::NONE);
+                if !self.world().script_running() {
+                    return Err("nothing to interact with".into());
+                }
+                Ok(())
+            }
+            Action::Mash => {
+                // Idle for a few frames in a row: a map's on-frame script starts a little
+                // after its warp ends.
+                let mut calm = 0;
+                while calm < MASH_CALM {
+                    if self.frame() - start > BATTLE_STUCK {
+                        return Err("never idle".into());
+                    }
+                    if self.idle() {
+                        calm += 1;
+                        self.press(Buttons::NONE);
+                    } else if self.world().in_battle() {
+                        calm = 0;
+                        self.battle(0, false)?;
+                    } else {
+                        calm = 0;
+                        self.tap(Buttons::A);
+                    }
+                }
+                Ok(())
+            }
+            Action::Grass(a, b) => {
+                self.settle()?;
+                let mut to = a;
+                while !self.world().in_battle() {
+                    if self.frame() - start > 4 * STUCK {
+                        return Err("no encounter".into());
+                    }
+                    let p = self.world().objects().player();
+                    if p.pos() == to && p.is_settled() {
+                        to = if to == a { b } else { a };
+                    }
+                    let keys = self.next_dir(to).map_or(Buttons::NONE, dir_key);
+                    self.press(keys);
+                }
+                Ok(())
+            }
+            Action::StarterShot(name) => {
+                while self.world().starter().is_none() {
+                    if stuck(self) {
+                        return Err("no starter screen".into());
+                    }
+                    self.press(Buttons::NONE);
+                }
+                for _ in 0..60 {
+                    self.press(Buttons::NONE);
+                }
+                self.run(Action::Shot(name))
+            }
+            Action::Starter(i) => {
+                while self.world().starter().is_none() {
+                    if stuck(self) {
+                        return Err("no starter screen".into());
+                    }
+                    self.press(Buttons::NONE);
+                }
+                while let Some(sel) = self.world().starter().map(|s| s.selection()) {
+                    if self.frame() - start > 4 * STUCK {
+                        return Err("starter never chosen".into());
+                    }
+                    let k = match sel.cmp(&i) {
+                        std::cmp::Ordering::Less => Buttons::RIGHT,
+                        std::cmp::Ordering::Greater => Buttons::LEFT,
+                        std::cmp::Ordering::Equal => Buttons::A,
+                    };
+                    self.tap(k);
+                }
+                Ok(())
+            }
+            Action::Fight(slot) => {
+                if !self.world().in_battle() {
+                    return Err("not in a battle".into());
+                }
+                self.battle(slot, false)
+            }
+            Action::Run => {
+                if !self.world().in_battle() {
+                    return Err("not in a battle".into());
+                }
+                self.battle(0, true)
+            }
+            Action::BattleShot(slot, when, name) => {
+                while !self.battle_moment(when) {
+                    let w = self.world();
+                    let lead_in = !w.in_battle() && w.script_running();
+                    if !(w.in_battle() || lead_in) || self.frame() - start > BATTLE_STUCK {
+                        return Err(format!("no {when:?} in the battle"));
+                    }
+                    // A script leading into a battle: A through its messages.
+                    let k = if lead_in {
+                        Buttons::A
+                    } else {
+                        self.battle_key(slot, false)
+                    };
+                    self.tap(k);
+                }
+                // Let the moment show: a message prints, a bar drains a little.
+                let wait = match when {
+                    When::Message(_) => 60,
+                    When::HpDrain => 4,
+                    // The menu's window and cursor are drawn.
+                    When::ActionMenu | When::MoveMenu => 8,
+                };
+                for _ in 0..wait {
+                    if !self.battle_moment(when) {
+                        break;
+                    }
+                    self.press(Buttons::NONE);
+                }
+                self.run(Action::Shot(name))
+            }
         }
     }
 
     /// First direction of a shortest path from the player's cell to `to`.
+    /// The first step toward `to`, through tall grass only when there is no other way.
     fn next_dir(&self, to: (i16, i16)) -> Option<Dir> {
+        self.path_dir(to, true).or_else(|| self.path_dir(to, false))
+    }
+
+    fn path_dir(&self, to: (i16, i16), avoid_grass: bool) -> Option<Dir> {
         let game = self.s.game();
         let w = self.world();
         let map = game.map(w.map());
@@ -288,11 +592,13 @@ impl<G: GameData> Recorder<G> {
                 return false;
             }
             let b = block_at(game, map, c.0, c.1);
+            let behavior = block_behavior(game, map, b);
             block_collision(b) == 0
                 && !matches!(
-                    block_behavior(game, map, b),
+                    behavior,
                     Behavior::Blocked | Behavior::Door | Behavior::Warp
                 )
+                && !(avoid_grass && behavior == Behavior::TallGrass)
         };
         let mut queue = VecDeque::new();
         if !in_bounds(map, from.0, from.1) || !in_bounds(map, to.0, to.1) {
@@ -332,51 +638,84 @@ impl<G: GameData> Recorder<G> {
     }
 }
 
-/// The parity route on the extracted maps: Littleroot → Brendan's house and back → Route 101 →
-/// Oldale → the mart employee's guided tour → the man by the east exit → the Pokémon Center.
+/// The parity route on the extracted maps, from a new game before Birch's rescue.
 /// Coordinates are the maps' own (`content/extracted/maps/*.ron`).
 pub const EMERALD_ROUTE: &[Action] = &[
     Action::Wait(24),
     Action::Shot("littleroot_start"),
-    // Brendan's house: the door is right above the start cell.
-    Action::Enter(Dir::Up),
-    Action::Shot("brendans_house"),
-    // Back out over the doormat.
-    Action::GoTo(8, 8),
-    Action::Enter(Dir::Down),
-    Action::Shot("littleroot_exit"),
-    // North exit to Route 101.
+    // North: the girl stops the player (`LittlerootTown_Coord2`: Birch is in trouble).
+    Action::GoTo(11, 2),
+    Action::Step(Dir::Up),
+    Action::Mash,
     Action::GoTo(10, 0),
     Action::Cross(Dir::Up),
-    Action::Shot("route101"),
-    Action::GoTo(10, 0),
-    Action::Cross(Dir::Up),
-    Action::Shot("oldale"),
-    // The mart employee (`OldaleTown_Obj2`, moved to (13, 14) by `OldaleTown_OnTransition`):
-    // lock/faceplayer, FLAG_TEMP_1, `switch VAR_FACING` (2 = north), applymovement for him and
-    // the player, waitmovement, multi-page text, the Potion (`STD_OBTAIN_ITEM`).
-    Action::GoTo(13, 15),
+    // `Route101_Coord0`: Birch chased by the Zigzagoon.
+    Action::Mash,
+    Action::Shot("route101_rescue"),
+    // Birch's bag (`Route101_Obj3`): `special ChooseStarter`, then the first battle.
+    Action::GoTo(7, 15),
     Action::Face(Dir::Up),
-    Action::Talk(Some("oldale_guide")),
-    Action::Shot("oldale_after_guide"),
-    // The man by the east exit (`OldaleTown_Obj1`, a plain `msgbox MSGBOX_NPC`).
-    Action::GoTo(15, 11),
-    Action::Face(Dir::Right),
-    Action::Talk(None),
-    Action::Shot("oldale_after_talk"),
-    // The Pokémon Center.
+    Action::Interact,
+    Action::StarterShot("starter_screen"),
+    Action::Starter(2),
+    Action::Fight(0),
+    // Birch's thanks, the heal and the warp to his lab, where he gives Mudkip.
+    Action::Mash,
+    Action::Shot("lab"),
+    Action::GoTo(6, 11),
+    Action::Enter(Dir::Down),
+    // Back north to Route 101's tall grass.
+    Action::GoTo(10, 0),
+    Action::Cross(Dir::Up),
+    Action::Grass((12, 11), (13, 11)),
+    Action::BattleShot(0, When::Message(Str::Intro1), "wild_intro"),
+    Action::BattleShot(0, When::ActionMenu, "action_menu"),
+    Action::BattleShot(0, When::MoveMenu, "move_menu"),
+    Action::BattleShot(0, When::HpDrain, "hp_drain"),
+    Action::Fight(0),
+    Action::Shot("after_wild"),
+    Action::Grass((12, 11), (13, 11)),
+    Action::Run,
+    Action::Grass((12, 11), (13, 11)),
+    Action::BattleShot(0, When::Message(Str::PkmnGrewToLv), "level_up"),
+    Action::Fight(0),
+    // Oldale: the Pokémon Center nurse (`Common_EventScript_PkmnCenterNurse`, across the
+    // counter) heals the party and the respawn moves here.
+    Action::GoTo(10, 0),
+    Action::Cross(Dir::Up),
     Action::GoTo(6, 17),
     Action::Enter(Dir::Up),
-    Action::Wait(8),
-    Action::Shot("pokemon_center"),
+    Action::GoTo(7, 4),
+    Action::Face(Dir::Up),
+    Action::Interact,
+    Action::Mash,
+    Action::GoTo(7, 7),
+    Action::Enter(Dir::Down),
+    // Route 103, where May waits at (10, 3) facing right.
+    Action::GoTo(10, 0),
+    Action::Cross(Dir::Up),
+    Action::GoTo(11, 3),
+    Action::Face(Dir::Left),
+    Action::Interact,
+    Action::BattleShot(0, When::Message(Str::IntroTrainer), "may_intro"),
+    Action::Fight(0),
+    Action::Mash,
+    Action::Shot("route103_after_may"),
 ];
 
-/// The route on the built-in stub world (one 16x16 map without events).
+/// The route on the built-in stub world (one 16x16 map without events; the new game starts
+/// with a Pokémon there, see `content::Start`).
 pub const STUB_ROUTE: &[Action] = &[
     Action::Wait(24),
     Action::Shot("stub_start"),
     Action::GoTo(10, 9),
     Action::Shot("stub_east"),
+    // The one tall-grass cell, (12, 3): back and forth until a wild battle starts.
+    Action::Grass((12, 3), (11, 3)),
+    Action::BattleShot(0, When::Message(Str::Intro1), "stub_wild_intro"),
+    Action::BattleShot(0, When::ActionMenu, "stub_action_menu"),
+    Action::Fight(0),
+    Action::Shot("stub_after_battle"),
     Action::GoTo(3, 3),
     Action::GoTo(5, 12),
     Action::Shot("stub_end"),
@@ -391,9 +730,9 @@ pub fn route() -> &'static [Action] {
     }
 }
 
-/// Records [`route`] on [`content::Emerald`].
+/// Records [`route`] on `content::Emerald::default()` (a new game before the rescue).
 pub fn record_route() -> Result<Recording, String> {
-    record(content::Emerald, route())
+    record(content::Emerald::default(), route())
 }
 
 #[cfg(test)]
@@ -405,30 +744,70 @@ mod tests {
         let rec = record_route().unwrap_or_else(|e| panic!("{e}"));
         assert!(rec.frames() > 100);
         println!("{} frames; moments {:?}", rec.frames(), rec.moments);
+        let names: Vec<&str> = rec.moments.iter().map(|m| m.name).collect();
         let maps: Vec<u16> = rec.moments.iter().map(|m| m.map.0).collect();
+        let mut s = Session::new(content::Emerald::default());
+        for f in 0..rec.frames() {
+            s.step(rec.keys_at(f));
+        }
+        let w = s.world();
+        assert!(!w.in_battle());
         if content::STUB {
-            assert_eq!(rec.moments.len(), 3);
+            assert_eq!(
+                names,
+                [
+                    "stub_start",
+                    "stub_east",
+                    "stub_wild_intro",
+                    "stub_action_menu",
+                    "stub_after_battle",
+                    "stub_end"
+                ]
+            );
+            assert_eq!(rec.battles, 1);
+            assert!(w.party().get(0).unwrap().exp > 135);
         } else {
             use content::consts::*;
+            assert_eq!(
+                names,
+                [
+                    "littleroot_start",
+                    "route101_rescue",
+                    "starter_screen",
+                    "lab",
+                    "wild_intro",
+                    "action_menu",
+                    "move_menu",
+                    "hp_drain",
+                    "after_wild",
+                    "level_up",
+                    "may_intro",
+                    "route103_after_may",
+                ]
+            );
+            let (r101, r103) = (MAP_ROUTE101.0, MAP_ROUTE103.0);
+            let lab = MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB.0;
             let want = [
-                MAP_LITTLEROOT_TOWN,
-                MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F,
-                MAP_LITTLEROOT_TOWN,
-                MAP_ROUTE101,
-                MAP_OLDALE_TOWN,
-                MAP_OLDALE_TOWN,
-                MAP_OLDALE_TOWN,
-                MAP_OLDALE_TOWN,
-                MAP_OLDALE_TOWN_POKEMON_CENTER_1F,
+                MAP_LITTLEROOT_TOWN.0,
+                r101,
+                r101,
+                lab,
+                r101,
+                r101,
+                r101,
+                r101,
             ];
-            assert_eq!(maps, want.map(|m| m.0));
-            // The guide's tour ran to its end.
-            let mut s = Session::new(content::Emerald);
-            for f in 0..rec.frames() {
-                s.step(rec.keys_at(f));
-            }
-            assert!(s.world().flag(FLAG_RECEIVED_POTION_OLDALE));
-            assert!((1500..=3000).contains(&rec.frames()));
+            assert_eq!(maps[..8], want);
+            assert_eq!(maps[8..], [r101, r101, r103, r103]);
+            // The first battle, the win, the run, the level-up battle and May at least.
+            assert!(rec.battles >= 5, "{} battles", rec.battles);
+            let mon = w.party().get(0).unwrap();
+            assert_eq!((w.party().len(), mon.species), (1, SPECIES_MUDKIP));
+            assert!(mon.level >= 6);
+            assert!(w.flag(FLAG_DEFEATED_RIVAL_ROUTE103));
+            // The Oldale Pokémon Center moved the respawn.
+            assert_eq!(w.respawn(), HEAL_LOCATION_OLDALE_TOWN);
+            assert!((10_000..=20_000).contains(&rec.frames()));
         }
     }
 
@@ -436,8 +815,8 @@ mod tests {
     fn a_replay_matches_the_recording() {
         let rec = record_route().unwrap();
         let (mut a, mut b) = (
-            Session::new(content::Emerald),
-            Session::new(content::Emerald),
+            Session::new(content::Emerald::default()),
+            Session::new(content::Emerald::default()),
         );
         for f in 0..rec.frames() {
             a.step(rec.keys_at(f));

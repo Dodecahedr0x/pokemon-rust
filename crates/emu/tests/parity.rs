@@ -3,10 +3,11 @@
 //! hash at every sample and the same picture at every checkpoint.
 //! Needs target/game.gba: run via `cargo xtask parity`.
 //!
-//! The route depends on the content build: with extracted data it walks Littleroot → Brendan's
-//! house and back → Route 101 → Oldale → the mart employee's guided tour → an NPC → the Pokémon
-//! Center (about 2900 frames);
-//! in stub mode it walks around the built-in map. The ROM must be built from the same content
+//! The route depends on the content build: with extracted data it plays a new game from
+//! Littleroot → Birch's rescue on Route 101 → the starter screen and the first battle → the
+//! lab → wild battles in Route 101's grass (a win, a run, a level-up) → Oldale's Pokémon
+//! Center → May's battle on Route 103 (about 19000 frames);
+//! in stub mode it walks around the built-in map and fights in its tall-grass cell. The ROM must be built from the same content
 //! as this test (xtask builds both from the same tree).
 //!
 //! Display lag (see `engine::debug`): when the emulator samples engine frame `f`, the hash is
@@ -107,11 +108,13 @@ fn rom_and_native_agree() {
     let run = run_rom(&rom, |f| rec.keys_at(f), rec.frames(), &checkpoints)
         .unwrap_or_else(|e| panic!("ROM run failed: {e:#}"));
     println!(
-        "ROM reached engine frame {} after {} emulator frames; {} inputs consumed; {} late applies while black",
+        "ROM reached engine frame {} after {} emulator frames; {} inputs consumed; {} late applies while black; {} warps, {} battles",
         run.hashes.last().map_or(0, |h| h.0),
         run.emu_frames,
         run.consumed.len(),
         run.late_black,
+        rec.warps,
+        rec.battles,
     );
 
     // Pin the button mapping: native replays what the ROM recorded, so also require that the
@@ -125,14 +128,16 @@ fn rom_and_native_agree() {
         );
     }
     assert_eq!(run.captures.len(), checkpoints.len());
-    // Black-screen late applies are only excused for map loads: at most one per warp.
+    // Black-screen late applies are only excused for bulk loads: at most one per warp and two
+    // per battle (the scene's load on the way in, the field's restore on the way out).
     assert!(
-        run.late_black <= rec.warps,
-        "{} late applies on a black screen for {} warps",
+        run.late_black <= rec.warps + 2 * rec.battles,
+        "{} late applies on a black screen for {} warps and {} battles",
         run.late_black,
-        rec.warps
+        rec.warps,
+        rec.battles
     );
-    compare_native(&run, Session::new(content::Emerald));
+    compare_native(&run, Session::new(content::Emerald::default()));
     println!(
         "{} hashes and {} pictures identical, no late frames",
         run.hashes.len(),
