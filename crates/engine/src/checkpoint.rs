@@ -9,6 +9,7 @@
 //! writes the same types as RON.
 
 use crate::data::{Behavior, Dir, FlagId, GameData, GfxId, MapId, MovementType, VarId};
+use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::mon::Pokemon;
 use crate::script::Speed;
@@ -32,7 +33,7 @@ pub type PlayerName = [u8; PLAYER_NAME_SIZE];
 const _: () =
     assert!(FLASH_SIZE / FLASH_SECTOR * FLASH_SECTOR == FLASH_SIZE && MAX_ENCODED < FLASH_SIZE / 2);
 
-/// Engine sources hash (build.rs, Task C; Wave 0: 0) and content build id (`GameData::build_id`).
+/// Engine sources hash (`build.rs`) and content build id (`GameData::build_id`).
 #[derive(
     Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, Serialize, Deserialize,
 )]
@@ -260,29 +261,54 @@ pub enum DecodeError {
     TooLarge(usize),
 }
 
-/// Postcard bytes of `cp` (Task C).
+/// Postcard bytes of `cp`. The header comes first and the schema first of all, so any build can
+/// read the schema of any checkpoint.
 pub fn encode(cp: &Checkpoint) -> Vec<u8> {
-    let _ = cp;
-    todo!("Milestone 5 Task C")
+    // Plain data into a growable buffer: postcard cannot fail here.
+    postcard::to_allocvec(cp).expect("postcard encoding of a checkpoint")
 }
 
-/// [`encode`], `TooLarge` past [`MAX_ENCODED`].
+/// [`encode`], `TooLarge` past [`MAX_ENCODED`] (the GBA flash slot).
 pub fn encode_checked(cp: &Checkpoint) -> Result<Vec<u8>, DecodeError> {
-    let _ = cp;
-    todo!("Milestone 5 Task C")
+    let bytes = encode(cp);
+    if bytes.len() > MAX_ENCODED {
+        return Err(DecodeError::TooLarge(bytes.len()));
+    }
+    Ok(bytes)
 }
 
 /// Reads the leading u16 schema first, then the whole checkpoint.
+///
+/// **Schema policy: migrate or fail.** A checkpoint of another [`SCHEMA`] is refused with
+/// `Schema { found }` before anything else is decoded. Schema 1 has no migrations. When a DTO
+/// changes (the golden-bytes test fails), bump `SCHEMA`, then decide per bump: either keep the
+/// old DTOs in `checkpoint/v<N>.rs` with a `migrate` to the current ones, called from here, or
+/// accept `Schema` errors. Native snapshots are a cache that regenerates from their traces, and
+/// the GBA starts a new game.
+///
+/// The input must be exactly one checkpoint: trailing bytes are a `Postcard` error.
 pub fn decode(bytes: &[u8]) -> Result<Checkpoint, DecodeError> {
-    let _ = bytes;
-    todo!("Milestone 5 Task C")
+    let (schema, _) = postcard::take_from_bytes::<u16>(bytes).map_err(|_| DecodeError::Postcard)?;
+    if schema != SCHEMA {
+        return Err(DecodeError::Schema { found: schema });
+    }
+    match postcard::take_from_bytes::<Checkpoint>(bytes) {
+        Ok((cp, [])) => Ok(cp),
+        _ => Err(DecodeError::Postcard),
+    }
 }
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
+/// The header (build, frame, world hash) is not part of it.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
-    let _ = w;
-    todo!("Milestone 5 Task C")
+    let bytes = postcard::to_allocvec(w).expect("postcard encoding of a snapshot");
+    let mut h = Fnv64::new();
+    h.write(&bytes);
+    h.finish()
 }
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod wave0_tests {
