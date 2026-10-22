@@ -1,14 +1,28 @@
 // How the script lowering runs each special (`SPECIAL_*`) (`extract::codegen::Support`, Milestone 8).
-// Generated once in Wave 0 from the decomp names; edited by hand since. Decomp names only.
+// Generated once in Wave 0 from the decomp names; classified by Task J. Decomp names only.
+//
+// - Native: `prelude::special` runs it (every Native has an arm there, checked by
+//   `tests/m8_j_specials.rs`). Specials whose Gen3 screen does not exist yet answer as
+//   cancelled, report `Degraded` and fade the field back in when the script faded it out.
+// - Ignore: no effect on the engine's state; nothing is emitted.
+// - Default(v): `v` is written where the special writes its result (`specialvar`'s var, else
+//   VAR_RESULT), with no report.
+// - Unsupported: `Report::Unsupported("SPECIAL_*")`, logged; the script continues.
+// Every Native, Ignore and Default, and every special reachable on the Act 1 maps (checked by
+// `tests/m8_j_specials.rs` against the decomp), gives a reason.
+// The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
+// `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
+//
+// Counts: 25 Native, 19 Ignore, 35 Default, 445 Unsupported.
 {
-    "SPECIAL_AccessHallOfFamePC": Unsupported,
-    "SPECIAL_Bag_ChooseBerry": Unsupported,
+    "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
+    "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
     "SPECIAL_BattlePyramidChooseMonHeldItems": Unsupported,
     "SPECIAL_BattleSetup_StartLatiBattle": Unsupported,
     "SPECIAL_BattleSetup_StartLegendaryBattle": Unsupported,
-    "SPECIAL_BattleSetup_StartRematchBattle": Unsupported,
+    "SPECIAL_BattleSetup_StartRematchBattle": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_BattleTowerReconnectLink": Unsupported,
-    "SPECIAL_BedroomPC": Unsupported,
+    "SPECIAL_BedroomPC": Unsupported, // the PC menus are M9; the script goes on (tested)
     "SPECIAL_BufferBattleFrontierTutorMoveName": Unsupported,
     "SPECIAL_BufferBattleTowerElevatorFloors": Unsupported,
     "SPECIAL_BufferContestTrainerAndMonNames": Unsupported,
@@ -27,14 +41,14 @@
     "SPECIAL_BufferQuizCorrectAnswer": Unsupported,
     "SPECIAL_BufferQuizPrizeItem": Unsupported,
     "SPECIAL_BufferQuizPrizeName": Unsupported,
-    "SPECIAL_BufferTMHMMoveName": Unsupported,
+    "SPECIAL_BufferTMHMMoveName": Default(0), // no TM move table yet: a TM is announced as a plain item
     "SPECIAL_BufferTrendyPhraseString": Unsupported,
-    "SPECIAL_BufferUnionRoomPlayerName": Default(0),  // no link: no Union Room partner (nurse)
+    "SPECIAL_BufferUnionRoomPlayerName": Default(0), // no Union Room partner (no link)
     "SPECIAL_BufferVarsForIVRater": Unsupported,
     "SPECIAL_CableCar": Unsupported,
     "SPECIAL_CableCarWarp": Unsupported,
     "SPECIAL_CableClubSaveGame": Unsupported,
-    "SPECIAL_CalculatePlayerPartyCount": Unsupported,
+    "SPECIAL_CalculatePlayerPartyCount": Native, // the party size (no eggs yet)
     "SPECIAL_CallApprenticeFunction": Unsupported,
     "SPECIAL_CallBattleArenaFunction": Unsupported,
     "SPECIAL_CallBattleDomeFunction": Unsupported,
@@ -48,10 +62,10 @@
     "SPECIAL_CallSlateportTentFunction": Unsupported,
     "SPECIAL_CallTrainerHillFunction": Unsupported,
     "SPECIAL_CallVerdanturfTentFunction": Unsupported,
-    "SPECIAL_ChangeBoxPokemonNickname": Unsupported,
-    "SPECIAL_ChangePokemonNickname": Native,
+    "SPECIAL_ChangeBoxPokemonNickname": Native, // no naming screen: the name is kept; fades back in
+    "SPECIAL_ChangePokemonNickname": Native, // no naming screen: the name is kept; fades back in
     "SPECIAL_CheckDaycareMonReceivedMail": Unsupported,
-    "SPECIAL_CheckForPlayersHouseNews": Unsupported,
+    "SPECIAL_CheckForPlayersHouseNews": Default(0), // PLAYERS_HOUSE_TV_NONE (the Lati news is post-game)
     "SPECIAL_CheckInteractedWithFriendsCushionDecor": Unsupported,
     "SPECIAL_CheckInteractedWithFriendsDollDecor": Unsupported,
     "SPECIAL_CheckInteractedWithFriendsFurnitureBottom": Unsupported,
@@ -72,9 +86,9 @@
     "SPECIAL_ChooseMonForMoveTutor": Unsupported,
     "SPECIAL_ChooseMonForWirelessMinigame": Unsupported,
     "SPECIAL_ChoosePartyForBattleFrontier": Unsupported,
-    "SPECIAL_ChoosePartyMon": Unsupported,
+    "SPECIAL_ChoosePartyMon": Native, // degraded: no party menu, nothing chosen
     "SPECIAL_ChooseSendDaycareMon": Unsupported,
-    "SPECIAL_ChooseStarter": Native,
+    "SPECIAL_ChooseStarter": Native, // the starter screen, the starter, the first battle
     "SPECIAL_CleanupLinkRoomState": Unsupported,
     "SPECIAL_ClearAndLeaveSecretBase": Unsupported,
     "SPECIAL_ClearLinkContestFlags": Unsupported,
@@ -85,7 +99,7 @@
     "SPECIAL_CloseBattlePointsWindow": Unsupported,
     "SPECIAL_CloseDeptStoreElevatorWindow": Unsupported,
     "SPECIAL_CloseFrontierExchangeCornerItemIconWindow": Unsupported,
-    "SPECIAL_CloseLink": Unsupported,
+    "SPECIAL_CloseLink": Ignore, // no link is ever open: CloseLink only clears link state
     "SPECIAL_ColosseumPlayerSpotTriggered": Unsupported,
     "SPECIAL_CompareLotadSize": Unsupported,
     "SPECIAL_CompareSeedotSize": Unsupported,
@@ -93,48 +107,48 @@
     "SPECIAL_CopyEReaderTrainerGreeting": Unsupported,
     "SPECIAL_CountPartyAliveNonEggMons": Unsupported,
     "SPECIAL_CountPartyAliveNonEggMons_IgnoreVar0x8004Slot": Unsupported,
-    "SPECIAL_CountPartyNonEggMons": Unsupported,
+    "SPECIAL_CountPartyNonEggMons": Native, // the party size (no eggs yet)
     "SPECIAL_CountPlayerMuseumPaintings": Unsupported,
-    "SPECIAL_CountPlayerTrainerStars": Default(0),  // no stars before the Hall of Fame (nurse)
+    "SPECIAL_CountPlayerTrainerStars": Default(0), // no Trainer Card stars before the Hall of Fame
     "SPECIAL_CreateAbnormalWeatherEvent": Unsupported,
     "SPECIAL_CreateEnemyEventMon": Unsupported,
-    "SPECIAL_CreateInGameTradePokemon": Unsupported,
+    "SPECIAL_CreateInGameTradePokemon": Unsupported, // in-game trades (M9): unreachable, ChoosePartyMon answers "nothing chosen"
     "SPECIAL_DeclinedSecretBaseBattle": Unsupported,
     "SPECIAL_DestroyMewEmergingGrassSprite": Unsupported,
     "SPECIAL_DidFavorLadyLikeItem": Unsupported,
     "SPECIAL_DisplayBerryPowderVendorMenu": Unsupported,
     "SPECIAL_DoBattlePyramidMonsHaveHeldItem": Unsupported,
     "SPECIAL_DoBerryBlending": Unsupported,
-    "SPECIAL_DoCableClubWarp": Unsupported,
+    "SPECIAL_DoCableClubWarp": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_DoContestHallWarp": Unsupported,
     "SPECIAL_DoDeoxysRockInteraction": Unsupported,
     "SPECIAL_DoDiveWarp": Unsupported,
     "SPECIAL_DoDomeConfetti": Unsupported,
     "SPECIAL_DoFallWarp": Unsupported,
-    "SPECIAL_DoInGameTradeScene": Unsupported,
+    "SPECIAL_DoInGameTradeScene": Unsupported, // in-game trades (M9): unreachable, ChoosePartyMon answers "nothing chosen"
     "SPECIAL_DoLotteryCornerComputerEffect": Unsupported,
     "SPECIAL_DoMirageTowerCeilingCrumble": Unsupported,
     "SPECIAL_DoOrbEffect": Unsupported,
-    "SPECIAL_DoPCTurnOffEffect": Unsupported,
-    "SPECIAL_DoPCTurnOnEffect": Unsupported,
-    "SPECIAL_DoPokeNews": Unsupported,
+    "SPECIAL_DoPCTurnOffEffect": Ignore, // cosmetic: the PC screen metatile
+    "SPECIAL_DoPCTurnOnEffect": Ignore, // cosmetic: the PC screen metatile animation
+    "SPECIAL_DoPokeNews": Default(0), // TV shows are not modelled: no news
     "SPECIAL_DoSealedChamberShakingEffect_Long": Unsupported,
     "SPECIAL_DoSealedChamberShakingEffect_Short": Unsupported,
     "SPECIAL_DoSecretBasePCTurnOffEffect": Unsupported,
     "SPECIAL_DoSoftReset": Unsupported,
     "SPECIAL_DoSpecialTrainerBattle": Unsupported,
-    "SPECIAL_DoTVShow": Unsupported,
-    "SPECIAL_DoTVShowInSearchOfTrainers": Unsupported,
-    "SPECIAL_DoTrainerApproach": Unsupported,
-    "SPECIAL_DoWaldaNamingScreen": Unsupported,
-    "SPECIAL_DoWateringBerryTreeAnim": Unsupported,
+    "SPECIAL_DoTVShow": Default(1), // TV shows are not modelled: ends the show loop (unreachable: no active show)
+    "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
+    "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
+    "SPECIAL_DoWaldaNamingScreen": Native, // degraded: no naming screen; VAR_0x8004 = 2 (cancelled, no phrase before), so no phrase is saved and Walda's wallpaper is never given
+    "SPECIAL_DoWateringBerryTreeAnim": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
     "SPECIAL_DoesContestCategoryHaveMuseumPainting": Unsupported,
-    "SPECIAL_DoesPartyHaveEnigmaBerry": Unsupported,
+    "SPECIAL_DoesPartyHaveEnigmaBerry": Default(0), // no e-Reader Enigma Berry
     "SPECIAL_DoesPlayerHaveNoDecorations": Unsupported,
-    "SPECIAL_DrawWholeMapView": Unsupported,
+    "SPECIAL_DrawWholeMapView": Native, // redraws the map
     "SPECIAL_DrewSecretBaseBattle": Unsupported,
     "SPECIAL_EggHatch": Unsupported,
-    "SPECIAL_EnableNationalPokedex": Unsupported,
+    "SPECIAL_EnableNationalPokedex": Unsupported, // post-game (after the Hall of Fame)
     "SPECIAL_EndLotteryCornerComputerEffect": Unsupported,
     "SPECIAL_EnterNewlyCreatedSecretBase": Unsupported,
     "SPECIAL_EnterSafariMode": Unsupported,
@@ -143,7 +157,7 @@
     "SPECIAL_ExitSafariMode": Unsupported,
     "SPECIAL_FadeOutOrbEffect": Unsupported,
     "SPECIAL_FavorLadyGetPrize": Unsupported,
-    "SPECIAL_FieldShowRegionMap": Unsupported,
+    "SPECIAL_FieldShowRegionMap": Native, // degraded: no region map screen; fades back in
     "SPECIAL_FinishCyclingRoadChallenge": Unsupported,
     "SPECIAL_FoundAbandonedShipRoom1Key": Unsupported,
     "SPECIAL_FoundAbandonedShipRoom2Key": Unsupported,
@@ -182,43 +196,43 @@
     "SPECIAL_GetFirstFreePokeblockSlot": Unsupported,
     "SPECIAL_GetFrontierBattlePoints": Unsupported,
     "SPECIAL_GetGabbyAndTyLocalIds": Unsupported,
-    "SPECIAL_GetInGameTradeSpeciesInfo": Unsupported,
+    "SPECIAL_GetInGameTradeSpeciesInfo": Default(0), // no in-game trade table yet; ChoosePartyMon then declines
     "SPECIAL_GetLeadMonFriendshipScore": Unsupported,
     "SPECIAL_GetLilycoveSSTidalSelection": Unsupported,
     "SPECIAL_GetLinkPartnerNames": Unsupported,
     "SPECIAL_GetLotadSizeRecordInfo": Unsupported,
-    "SPECIAL_GetMartEmployeeObjectEventId": Unsupported,
-    "SPECIAL_GetMomOrDadStringForTVMessage": Unsupported,
+    "SPECIAL_GetMartEmployeeObjectEventId": Default(0), // called unconditionally after the questionnaire (questionnaire.inc); its result is only used for the Mystery Event/Gift phrases, which ShowEasyChatScreen never gives
+    "SPECIAL_GetMomOrDadStringForTVMessage": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet); VAR_TEMP_3 and the random draw as in Gen3
     "SPECIAL_GetMysteryGiftCardStat": Unsupported,
-    "SPECIAL_GetNextActiveShowIfMassOutbreak": Unsupported,
+    "SPECIAL_GetNextActiveShowIfMassOutbreak": Default(255), // TV shows are not modelled: no active show
     "SPECIAL_GetNpcContestantLocalId": Unsupported,
     "SPECIAL_GetNumFansOfPlayerInTrainerFanClub": Unsupported,
     "SPECIAL_GetNumLevelsGainedFromDaycare": Unsupported,
     "SPECIAL_GetNumMovesSelectedMonHas": Unsupported,
     "SPECIAL_GetObjectEventLocalIdByFlag": Unsupported,
-    "SPECIAL_GetPCBoxToSendMon": Unsupported,
+    "SPECIAL_GetPCBoxToSendMon": Native, // degraded: the new box, where Gen3 gives the old, full one (unreachable: ShouldShowBoxWasFullMessage is Default(0))
     "SPECIAL_GetPlayerAvatarBike": Unsupported,
-    "SPECIAL_GetPlayerBigGuyGirlString": Unsupported,
+    "SPECIAL_GetPlayerBigGuyGirlString": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet)
     "SPECIAL_GetPlayerFacingDirection": Unsupported,
     "SPECIAL_GetPlayerTrainerIdOnesDigit": Unsupported,
     "SPECIAL_GetPokeblockFeederInFront": Unsupported,
     "SPECIAL_GetPokeblockNameByMonNature": Unsupported,
     "SPECIAL_GetQuizAuthor": Unsupported,
     "SPECIAL_GetQuizLadyState": Unsupported,
-    "SPECIAL_GetRandomActiveShowIdx": Unsupported,
+    "SPECIAL_GetRandomActiveShowIdx": Default(255), // TV shows are not modelled: no active show
     "SPECIAL_GetRecordedCyclingRoadResults": Unsupported,
-    "SPECIAL_GetRivalSonDaughterString": Unsupported,
+    "SPECIAL_GetRivalSonDaughterString": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet)
     "SPECIAL_GetSecretBaseNearbyMapName": Unsupported,
     "SPECIAL_GetSecretBaseOwnerAndState": Unsupported,
     "SPECIAL_GetSecretBaseTypeInFrontOfPlayer": Unsupported,
     "SPECIAL_GetSeedotSizeRecordInfo": Unsupported,
     "SPECIAL_GetSelectedMonNicknameAndSpecies": Unsupported,
-    "SPECIAL_GetSelectedTVShow": Unsupported,
+    "SPECIAL_GetSelectedTVShow": Default(0), // TV shows are not modelled: no show
     "SPECIAL_GetSlotMachineId": Unsupported,
-    "SPECIAL_GetTradeSpecies": Unsupported,
+    "SPECIAL_GetTradeSpecies": Default(65535), // in-game trades (M9); unreachable: ChoosePartyMon answers "nothing chosen". If reached, no species, never the requested one: no trade
     "SPECIAL_GetTraderTradedFlag": Unsupported,
-    "SPECIAL_GetTrainerBattleMode": Unsupported,
-    "SPECIAL_GetTrainerFlag": Unsupported,
+    "SPECIAL_GetTrainerBattleMode": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
+    "SPECIAL_GetTrainerFlag": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_GetWeekCount": Unsupported,
     "SPECIAL_GetWirelessCommType": Unsupported,
     "SPECIAL_GiddyShouldTellAnotherTale": Unsupported,
@@ -227,56 +241,56 @@
     "SPECIAL_GiveLeadMonEffortRibbon": Unsupported,
     "SPECIAL_GiveMonArtistRibbon": Unsupported,
     "SPECIAL_GiveMonContestRibbon": Unsupported,
-    "SPECIAL_HasAllHoennMons": Default(0),
+    "SPECIAL_HasAllHoennMons": Default(0), // the Hoenn dex is not complete before the post-game
     "SPECIAL_HasAnotherPlayerGivenFavorLadyItem": Unsupported,
-    "SPECIAL_HasAtLeastOneBerry": Unsupported,
+    "SPECIAL_HasAtLeastOneBerry": Default(0), // Berry Crush is link only
     "SPECIAL_HasBardSongBeenChanged": Unsupported,
     "SPECIAL_HasEnoughBerryPowder": Unsupported,
-    "SPECIAL_HasEnoughMonsForDoubleBattle": Unsupported,
+    "SPECIAL_HasEnoughMonsForDoubleBattle": Native, // degraded with 2+ mons: fainted ones count as usable
     "SPECIAL_HasHipsterTaughtWord": Unsupported,
     "SPECIAL_HasMonWonThisContestBefore": Unsupported,
     "SPECIAL_HasPlayerGivenContestLadyPokeblock": Unsupported,
     "SPECIAL_HasStorytellerAlreadyRecorded": Unsupported,
-    "SPECIAL_HealPlayerParty": Native,
+    "SPECIAL_HealPlayerParty": Native, // heals the party
     "SPECIAL_HideContestEntryMonPic": Unsupported,
     "SPECIAL_HipsterTryTeachWord": Unsupported,
-    "SPECIAL_IncrementDailyPickedBerries": Unsupported,
-    "SPECIAL_IncrementDailyPlantedBerries": Unsupported,
-    "SPECIAL_InitBirchState": Unsupported,
-    "SPECIAL_InitRoamer": Unsupported,
-    "SPECIAL_InitSecretBaseDecorationSprites": Unsupported,
+    "SPECIAL_IncrementDailyPickedBerries": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_IncrementDailyPlantedBerries": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_InitBirchState": Native, // VAR_BIRCH_STATE = 0
+    "SPECIAL_InitRoamer": Unsupported, // post-game (the roaming Lati)
+    "SPECIAL_InitSecretBaseDecorationSprites": Ignore, // cosmetic: the bedroom decoration sprites (decorations are M9)
     "SPECIAL_InitSecretBaseVars": Unsupported,
-    "SPECIAL_InitUnionRoom": Unsupported,
+    "SPECIAL_InitUnionRoom": Ignore, // Union Room background state: no link
     "SPECIAL_InteractWithShieldOrTVDecoration": Unsupported,
     "SPECIAL_InterviewAfter": Unsupported,
     "SPECIAL_InterviewBefore": Unsupported,
-    "SPECIAL_IsBadEggInParty": Unsupported,
+    "SPECIAL_IsBadEggInParty": Default(0), // no eggs
     "SPECIAL_IsContestDebugActive": Unsupported,
     "SPECIAL_IsContestWithRSPlayer": Unsupported,
     "SPECIAL_IsCurSecretBaseOwnedByAnotherPlayer": Unsupported,
     "SPECIAL_IsDecorationCategoryFull": Unsupported,
     "SPECIAL_IsDodrioInParty": Unsupported,
-    "SPECIAL_IsEnigmaBerryValid": Unsupported,
+    "SPECIAL_IsEnigmaBerryValid": Default(0), // no e-Reader Enigma Berry
     "SPECIAL_IsEnoughForCostInVar0x8005": Unsupported,
     "SPECIAL_IsFanClubMemberFanOfPlayer": Unsupported,
     "SPECIAL_IsFavorLadyThresholdMet": Unsupported,
-    "SPECIAL_IsGabbyAndTyShowOnTheAir": Unsupported,
+    "SPECIAL_IsGabbyAndTyShowOnTheAir": Default(0), // TV shows are not modelled
     "SPECIAL_IsGrassTypeInParty": Unsupported,
     "SPECIAL_IsLastMonThatKnowsSurf": Unsupported,
     "SPECIAL_IsLeadMonNicknamedOrNotEnglish": Unsupported,
     "SPECIAL_IsMirageIslandPresent": Unsupported,
     "SPECIAL_IsMonOTIDNotPlayers": Unsupported,
     "SPECIAL_IsPokemonJumpSpeciesInParty": Unsupported,
-    "SPECIAL_IsPokerusInParty": Default(0),  // no Pokérus modelled (nurse)
+    "SPECIAL_IsPokerusInParty": Default(0), // no Pokerus
     "SPECIAL_IsQuizAnswerCorrect": Unsupported,
     "SPECIAL_IsQuizLadyWaitingForChallenger": Unsupported,
     "SPECIAL_IsSelectedMonEgg": Unsupported,
-    "SPECIAL_IsStarterInParty": Unsupported,
+    "SPECIAL_IsStarterInParty": Default(0), // no party species query yet: the "no starter" line
     "SPECIAL_IsTVShowAlreadyInQueue": Unsupported,
-    "SPECIAL_IsTrainerReadyForRematch": Unsupported,
-    "SPECIAL_IsTrainerRegistered": Default(0),
+    "SPECIAL_IsTrainerReadyForRematch": Default(0), // no rematches (Match Call is M9)
+    "SPECIAL_IsTrainerRegistered": Default(0), // Match Call is M9
     "SPECIAL_IsTrendyPhraseBoring": Unsupported,
-    "SPECIAL_IsWirelessAdapterConnected": Unsupported,
+    "SPECIAL_IsWirelessAdapterConnected": Default(0), // no wireless adapter
     "SPECIAL_IsWirelessContest": Unsupported,
     "SPECIAL_LeadMonHasEffortRibbon": Unsupported,
     "SPECIAL_LinkContestTryHideWirelessIndicator": Unsupported,
@@ -284,9 +298,9 @@
     "SPECIAL_LinkContestWaitForConnection": Unsupported,
     "SPECIAL_LinkRetireStatusWithBattleTowerPartner": Unsupported,
     "SPECIAL_LoadLinkContestPlayerPalettes": Unsupported,
-    "SPECIAL_LoadPlayerBag": Unsupported,
-    "SPECIAL_LoadPlayerParty": Unsupported,
-    "SPECIAL_LoadWallyZigzagoon": Unsupported,
+    "SPECIAL_LoadPlayerBag": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_LoadPlayerParty": Ignore, // pairs with SavePlayerParty: the party is unchanged
+    "SPECIAL_LoadWallyZigzagoon": Ignore, // only feeds Wally's tutorial battle, which is not run
     "SPECIAL_LookThroughPorthole": Unsupported,
     "SPECIAL_LoopWingFlapSE": Unsupported,
     "SPECIAL_LostSecretBaseBattle": Unsupported,
@@ -299,29 +313,29 @@
     "SPECIAL_MoveElevator": Unsupported,
     "SPECIAL_MoveOutOfSecretBase": Unsupported,
     "SPECIAL_MoveOutOfSecretBaseFromOutside": Unsupported,
-    "SPECIAL_ObjectEventInteractionGetBerryCountString": Unsupported,
-    "SPECIAL_ObjectEventInteractionGetBerryName": Unsupported,
-    "SPECIAL_ObjectEventInteractionGetBerryTreeData": Unsupported,
-    "SPECIAL_ObjectEventInteractionPickBerryTree": Unsupported,
-    "SPECIAL_ObjectEventInteractionPlantBerryTree": Unsupported,
-    "SPECIAL_ObjectEventInteractionRemoveBerryTree": Unsupported,
-    "SPECIAL_ObjectEventInteractionWaterBerryTree": Unsupported,
+    "SPECIAL_ObjectEventInteractionGetBerryCountString": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_ObjectEventInteractionGetBerryName": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_ObjectEventInteractionGetBerryTreeData": Native, // degraded: every berry tree is empty soil (berry trees are M10+)
+    "SPECIAL_ObjectEventInteractionPickBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_ObjectEventInteractionPlantBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_ObjectEventInteractionRemoveBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_ObjectEventInteractionWaterBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
     "SPECIAL_OffsetCameraForBattle": Unsupported,
     "SPECIAL_OpenPokeblockCaseForContestLady": Unsupported,
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,
-    "SPECIAL_OpenPokenavForTutorial": Unsupported,
+    "SPECIAL_OpenPokenavForTutorial": Ignore, // no PokeNav screen (M9): the script goes on as after closing it
     "SPECIAL_Overworld_PlaySpecialMapMusic": Unsupported,
-    "SPECIAL_PetalburgGymSlideOpenRoomDoors": Unsupported,
-    "SPECIAL_PetalburgGymUnlockRoomDoors": Unsupported,
+    "SPECIAL_PetalburgGymSlideOpenRoomDoors": Unsupported, // Norman's gym rooms open after badge 4
+    "SPECIAL_PetalburgGymUnlockRoomDoors": Unsupported, // Norman's gym rooms open after badge 4
     "SPECIAL_PickLotteryCornerTicket": Unsupported,
     "SPECIAL_PlayBardSong": Unsupported,
     "SPECIAL_PlayRoulette": Unsupported,
-    "SPECIAL_PlayTrainerEncounterMusic": Unsupported,
+    "SPECIAL_PlayTrainerEncounterMusic": Ignore, // audio
     "SPECIAL_PlayerEnteredTradeSeat": Unsupported,
-    "SPECIAL_PlayerFaceTrainerAfterBattle": Ignore,
-    "SPECIAL_PlayerHasBerries": Unsupported,
-    "SPECIAL_PlayerNotAtTrainerHillEntrance": Default(1),  // Trainer Hill is postgame (nurse)
-    "SPECIAL_PlayerPC": Unsupported,
+    "SPECIAL_PlayerFaceTrainerAfterBattle": Ignore, // cosmetic: the player turns to the trainer
+    "SPECIAL_PlayerHasBerries": Default(0), // no berries (berry trees are empty soil)
+    "SPECIAL_PlayerNotAtTrainerHillEntrance": Default(1), // Act 1 is never at the Trainer Hill entrance
+    "SPECIAL_PlayerPC": Unsupported, // the PC menus are M9; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_PrepSecretBaseBattleFlags": Unsupported,
     "SPECIAL_PrintPlayerBerryPowderAmount": Unsupported,
     "SPECIAL_PutAwayDecorationIteration": Unsupported,
@@ -339,40 +353,40 @@
     "SPECIAL_RejectEggFromDayCare": Unsupported,
     "SPECIAL_RemoveBerryPowderVendorMenu": Unsupported,
     "SPECIAL_RemoveCameraObject": Unsupported,
-    "SPECIAL_RemoveRecordsWindow": Unsupported,
-    "SPECIAL_ResetHealLocationFromDewford": Unsupported,
+    "SPECIAL_RemoveRecordsWindow": Unsupported, // the link battle records window (no link); the script goes on
+    "SPECIAL_ResetHealLocationFromDewford": Ignore, // acts only when the last heal location is Dewford (after Act 1)
     "SPECIAL_ResetSSTidalFlag": Unsupported,
-    "SPECIAL_ResetTVShowState": Unsupported,
+    "SPECIAL_ResetTVShowState": Ignore, // TV shows are not modelled
     "SPECIAL_ResetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_RetrieveLotteryNumber": Unsupported,
     "SPECIAL_ReturnFromLinkRoom": Unsupported,
     "SPECIAL_RockSmashWildEncounter": Unsupported,
     "SPECIAL_RotatingGate_InitPuzzle": Unsupported,
     "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Unsupported,
-    "SPECIAL_RunUnionRoom": Unsupported,
+    "SPECIAL_RunUnionRoom": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SaveBardSongLyrics": Unsupported,
     "SPECIAL_SaveForBattleTowerLink": Unsupported,
-    "SPECIAL_SaveGame": Unsupported,
+    "SPECIAL_SaveGame": Default(0), // saving is a shell action until M9: "not saved", which every caller treats as a cancel
     "SPECIAL_SaveMuseumContestPainting": Unsupported,
-    "SPECIAL_SavePlayerParty": Unsupported,
+    "SPECIAL_SavePlayerParty": Ignore, // pairs with LoadPlayerParty around a battle that is not run (Wally, link, facilities): the party is unchanged
     "SPECIAL_ScriptCheckFreePokemonStorageSpace": Unsupported,
     "SPECIAL_ScriptGetPartyMonSpecies": Unsupported,
-    "SPECIAL_ScriptGetPokedexInfo": Default(0),  // no Pokédex rating yet: Birch skips the National Dex check
+    "SPECIAL_ScriptGetPokedexInfo": Default(0), // National Dex not enabled; the seen/caught counts are not written (no Pokedex counts yet)
     "SPECIAL_ScriptHatchMon": Unsupported,
     "SPECIAL_ScriptMenu_CreateLilycoveSSTidalMultichoice": Unsupported,
-    "SPECIAL_ScriptMenu_CreatePCMultichoice": Unsupported,
-    "SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial": Unsupported,
+    "SPECIAL_ScriptMenu_CreatePCMultichoice": Native, // degraded: no PC menu, B pressed (the PC turns off)
+    "SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial": Native, // degraded: no start menu, the PokeNav entry
     "SPECIAL_Script_BufferContestLadyCategoryAndMonName": Unsupported,
     "SPECIAL_Script_ClearHeldMovement": Unsupported,
     "SPECIAL_Script_DoRayquazaScene": Unsupported,
     "SPECIAL_Script_DoesFavorLadyLikeItem": Unsupported,
     "SPECIAL_Script_FacePlayer": Unsupported,
-    "SPECIAL_Script_FadeOutMapMusic": Unsupported,
+    "SPECIAL_Script_FadeOutMapMusic": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
     "SPECIAL_Script_FavorLadyOpenBagMenu": Unsupported,
     "SPECIAL_Script_GetCurrentMauvilleMan": Unsupported,
     "SPECIAL_Script_GetLilycoveLadyId": Unsupported,
     "SPECIAL_Script_QuizLadyOpenBagMenu": Unsupported,
-    "SPECIAL_Script_ResetUnionRoomTrade": Unsupported,
+    "SPECIAL_Script_ResetUnionRoomTrade": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_Script_ShowLinkTrainerCard": Unsupported,
     "SPECIAL_Script_StartWiredTrade": Unsupported,
     "SPECIAL_Script_StorytellerDisplayStory": Unsupported,
@@ -384,8 +398,8 @@
     "SPECIAL_ScrollableMultichoice_TryReturnToList": Unsupported,
     "SPECIAL_SetBattleTowerLinkPlayerGfx": Unsupported,
     "SPECIAL_SetBattledOwnerFromResult": Unsupported,
-    "SPECIAL_SetCB2WhiteOut": Unsupported,
-    "SPECIAL_SetCableClubWarp": Unsupported,
+    "SPECIAL_SetCB2WhiteOut": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
+    "SPECIAL_SetCableClubWarp": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SetChampionSaveWarp": Unsupported,
     "SPECIAL_SetContestCategoryStringVarForInterview": Unsupported,
     "SPECIAL_SetContestLadyGivenPokeblock": Unsupported,
@@ -396,11 +410,11 @@
     "SPECIAL_SetDeptStoreFloor": Unsupported,
     "SPECIAL_SetEReaderTrainerGfxId": Unsupported,
     "SPECIAL_SetFavorLadyState_Complete": Unsupported,
-    "SPECIAL_SetHiddenItemFlag": Unsupported,
+    "SPECIAL_SetHiddenItemFlag": Native, // sets the hidden item's flag (VAR_0x8004)
     "SPECIAL_SetHipsterTaughtWord": Unsupported,
     "SPECIAL_SetLilycoveLadyGfx": Unsupported,
     "SPECIAL_SetLinkContestPlayerGfx": Unsupported,
-    "SPECIAL_SetMatchCallRegisteredFlag": Unsupported,
+    "SPECIAL_SetMatchCallRegisteredFlag": Ignore, // Match Call is M9: IsTrainerRegistered answers 0
     "SPECIAL_SetMauvilleOldManObjEventGfx": Unsupported,
     "SPECIAL_SetMewAboveGrass": Unsupported,
     "SPECIAL_SetMirageTowerVisibility": Unsupported,
@@ -414,19 +428,19 @@
     "SPECIAL_SetSSTidalFlag": Unsupported,
     "SPECIAL_SetSecretBaseOwnerGfxId": Unsupported,
     "SPECIAL_SetSootopolisGymCrackedIceMetatiles": Unsupported,
-    "SPECIAL_SetTrainerFacingDirection": Unsupported,
+    "SPECIAL_SetTrainerFacingDirection": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_SetTrickHouseNuggetFlag": Unsupported,
-    "SPECIAL_SetUnlockedPokedexFlags": Unsupported,
+    "SPECIAL_SetUnlockedPokedexFlags": Ignore, // GameCube link flags only
     "SPECIAL_ShakeCamera": Unsupported,
     "SPECIAL_ShouldContestLadyShowGoOnAir": Unsupported,
-    "SPECIAL_ShouldDistributeEonTicket": Unsupported,
+    "SPECIAL_ShouldDistributeEonTicket": Default(0), // no Mystery Gift
     "SPECIAL_ShouldDoBrailleRegicePuzzle": Unsupported,
     "SPECIAL_ShouldDoBrailleRegirockEffectOld": Unsupported,
     "SPECIAL_ShouldHideFanClubInterviewer": Unsupported,
     "SPECIAL_ShouldReadyContestArtist": Unsupported,
-    "SPECIAL_ShouldShowBoxWasFullMessage": Unsupported,
+    "SPECIAL_ShouldShowBoxWasFullMessage": Default(0), // the PC box does not fill in Act 1
     "SPECIAL_ShouldTryGetTrainerScript": Unsupported,
-    "SPECIAL_ShouldTryRematchBattle": Default(0),
+    "SPECIAL_ShouldTryRematchBattle": Default(0), // no rematches (Match Call is M9)
     "SPECIAL_ShowBattlePointsWindow": Unsupported,
     "SPECIAL_ShowBerryBlenderRecordWindow": Unsupported,
     "SPECIAL_ShowBerryCrushRankings": Unsupported,
@@ -435,34 +449,34 @@
     "SPECIAL_ShowDaycareLevelMenu": Unsupported,
     "SPECIAL_ShowDeptStoreElevatorFloorSelect": Unsupported,
     "SPECIAL_ShowDodrioBerryPickingRecords": Unsupported,
-    "SPECIAL_ShowEasyChatProfile": Unsupported,
-    "SPECIAL_ShowEasyChatScreen": Unsupported,
+    "SPECIAL_ShowEasyChatProfile": Unsupported, // unreachable: ShowEasyChatScreen cancels
+    "SPECIAL_ShowEasyChatScreen": Native, // degraded: no Easy Chat screen, cancelled
     "SPECIAL_ShowFieldMessageStringVar4": Unsupported,
     "SPECIAL_ShowFrontierExchangeCornerItemIconWindow": Unsupported,
     "SPECIAL_ShowFrontierGamblerGoMessage": Unsupported,
     "SPECIAL_ShowFrontierGamblerLookingMessage": Unsupported,
     "SPECIAL_ShowFrontierManiacMessage": Unsupported,
     "SPECIAL_ShowGlassWorkshopMenu": Unsupported,
-    "SPECIAL_ShowLinkBattleRecords": Unsupported,
-    "SPECIAL_ShowMapNamePopup": Unsupported,
+    "SPECIAL_ShowLinkBattleRecords": Unsupported, // the link battle records window (no link); the script goes on
+    "SPECIAL_ShowMapNamePopup": Ignore, // cosmetic: the map name popup
     "SPECIAL_ShowNatureGirlMessage": Unsupported,
-    "SPECIAL_ShowPokedexRatingMessage": Unsupported,
+    "SPECIAL_ShowPokedexRatingMessage": Unsupported, // the rating text is picked in C from the Pokedex counts, not kept yet
     "SPECIAL_ShowPokemonJumpRecords": Unsupported,
-    "SPECIAL_ShowPokemonStorageSystemPC": Unsupported,
+    "SPECIAL_ShowPokemonStorageSystemPC": Unsupported, // the PC menus are M9; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_ShowRankingHallRecordsWindow": Unsupported,
     "SPECIAL_ShowScrollableMultichoice": Unsupported,
     "SPECIAL_ShowSecretBaseDecorationMenu": Unsupported,
     "SPECIAL_ShowSecretBaseRegistryMenu": Unsupported,
-    "SPECIAL_ShowTrainerCantBattleSpeech": Unsupported,
+    "SPECIAL_ShowTrainerCantBattleSpeech": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_ShowTrainerHillRecords": Unsupported,
-    "SPECIAL_ShowTrainerIntroSpeech": Unsupported,
-    "SPECIAL_ShowWirelessCommunicationScreen": Unsupported,
+    "SPECIAL_ShowTrainerIntroSpeech": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
+    "SPECIAL_ShowWirelessCommunicationScreen": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_SpawnCameraObject": Unsupported,
     "SPECIAL_SpawnLinkPartnerObjectEvent": Unsupported,
     "SPECIAL_Special_AreLeadMonEVsMaxedOut": Unsupported,
     "SPECIAL_Special_BeginCyclingRoadChallenge": Unsupported,
     "SPECIAL_Special_ShowDiploma": Unsupported,
-    "SPECIAL_Special_ViewWallClock": Unsupported,
+    "SPECIAL_Special_ViewWallClock": Native, // no clock screen: fades back in
     "SPECIAL_StartDroughtWeatherBlend": Unsupported,
     "SPECIAL_StartGroudonKyogreBattle": Unsupported,
     "SPECIAL_StartMirageTowerDisintegration": Unsupported,
@@ -470,8 +484,8 @@
     "SPECIAL_StartMirageTowerShake": Unsupported,
     "SPECIAL_StartPlayerDescendMirageTower": Unsupported,
     "SPECIAL_StartRegiBattle": Unsupported,
-    "SPECIAL_StartWallClock": Unsupported,
-    "SPECIAL_StartWallyTutorialBattle": Unsupported,
+    "SPECIAL_StartWallClock": Native, // no clock screen (RTC is M10): InitTimeBasedEvents (FLAG_SYS_CLOCK_SET, VAR_DAYS = 0), then fades back in
+    "SPECIAL_StartWallyTutorialBattle": Native, // degraded: no battle; the script goes on as after the catch
     "SPECIAL_StopMapMusic": Unsupported,
     "SPECIAL_StorePlayerCoordsInVars": Unsupported,
     "SPECIAL_StoreSelectedPokemonInDaycare": Unsupported,
@@ -488,40 +502,40 @@
     "SPECIAL_TraderDoDecorationTrade": Unsupported,
     "SPECIAL_TraderMenuGetDecoration": Unsupported,
     "SPECIAL_TraderShowDecorationMenu": Unsupported,
-    "SPECIAL_TryBattleLinkup": Unsupported,
-    "SPECIAL_TryBecomeLinkLeader": Unsupported,
+    "SPECIAL_TryBattleLinkup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_TryBecomeLinkLeader": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_TryBerryBlenderLinkup": Unsupported,
-    "SPECIAL_TryBufferWaldaPhrase": Unsupported,
+    "SPECIAL_TryBufferWaldaPhrase": Default(0), // Walda has no phrase
     "SPECIAL_TryContestEModeLinkup": Unsupported,
     "SPECIAL_TryContestGModeLinkup": Unsupported,
     "SPECIAL_TryEnterContestMon": Unsupported,
-    "SPECIAL_TryFieldPoisonWhiteOut": Unsupported,
-    "SPECIAL_TryGetWallpaperWithWaldaPhrase": Unsupported,
+    "SPECIAL_TryFieldPoisonWhiteOut": Default(0), // field poison not modelled: FLDPSN_NONE (EventScript_FieldPoison is never started)
+    "SPECIAL_TryGetWallpaperWithWaldaPhrase": Default(0), // FALSE, no wallpaper; unreachable: DoWaldaNamingScreen gives no phrase
     "SPECIAL_TryHideBattleTowerReporter": Unsupported,
     "SPECIAL_TryInitBattleTowerAwardManObjectEvent": Unsupported,
-    "SPECIAL_TryJoinLinkGroup": Unsupported,
+    "SPECIAL_TryJoinLinkGroup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_TryLoseFansFromPlayTime": Unsupported,
     "SPECIAL_TryLoseFansFromPlayTimeAfterLinkBattle": Unsupported,
-    "SPECIAL_TryPrepareSecondApproachingTrainer": Unsupported,
+    "SPECIAL_TryPrepareSecondApproachingTrainer": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_TryPutLotteryWinnerReportOnAir": Unsupported,
     "SPECIAL_TryPutNameRaterShowOnTheAir": Unsupported,
     "SPECIAL_TryPutTrainerFanClubOnAir": Unsupported,
-    "SPECIAL_TryPutTreasureInvestigatorsOnAir": Unsupported,
-    "SPECIAL_TryRecordMixLinkup": Unsupported,
+    "SPECIAL_TryPutTreasureInvestigatorsOnAir": Ignore, // TV shows are not modelled
+    "SPECIAL_TryRecordMixLinkup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_TrySetBattleTowerLinkType": Unsupported,
     "SPECIAL_TryStoreHeldItemsInPyramidBag": Unsupported,
-    "SPECIAL_TryTradeLinkup": Unsupported,
+    "SPECIAL_TryTradeLinkup": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
     "SPECIAL_TryUpdateRusturfTunnelState": Unsupported,
-    "SPECIAL_TurnOffTVScreen": Unsupported,
-    "SPECIAL_TurnOnTVScreen": Unsupported,
+    "SPECIAL_TurnOffTVScreen": Ignore, // cosmetic: the TV screen metatiles
+    "SPECIAL_TurnOnTVScreen": Ignore, // cosmetic: the TV screen metatiles
     "SPECIAL_Unused_SetWeatherSunny": Unsupported,
     "SPECIAL_UpdateBattlePointsWindow": Unsupported,
     "SPECIAL_UpdateCyclingRoadState": Unsupported,
     "SPECIAL_UpdateShoalTideFlag": Unsupported,
     "SPECIAL_UpdateTrainerFanClubGameClear": Unsupported,
     "SPECIAL_ValidateEReaderTrainer": Unsupported,
-    "SPECIAL_ValidateMixingGameLanguage": Unsupported,
-    "SPECIAL_ValidateSavedWonderCard": Unsupported,
+    "SPECIAL_ValidateMixingGameLanguage": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
+    "SPECIAL_ValidateSavedWonderCard": Default(0), // no Mystery Gift
     "SPECIAL_WaitWeather": Unsupported,
     "SPECIAL_WonSecretBaseBattle": Unsupported,
     "SPECIAL_WonderNews_GetRewardInfo": Unsupported,

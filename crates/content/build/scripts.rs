@@ -263,6 +263,8 @@ pub fn generate(out: &Path, w: &World) -> Result<ScriptsOut> {
     }
     let report = report(&s);
     warn(&s.lowered.stats.summary());
+    let act1: BTreeSet<String> = read_ron(&content_dir().join("build/support/act1_maps.ron"))?;
+    stale_specialvars_check(w, &act1, &s.lowered.stats.stale_specialvars)?;
     for o in &s.skipped_overrides {
         warn(&format!("override not applied: {o}"));
     }
@@ -272,6 +274,24 @@ pub fn generate(out: &Path, w: &World) -> Result<ScriptsOut> {
         overrides: overrides_rs(&s)?,
         report,
     })
+}
+
+/// Task J: when every exported map is an Act 1 map (`build/support/act1_maps.ron`), every IR
+/// site is reachable in Act 1 (the IR holds only what the exported maps reach), so a stale
+/// `specialvar` site (an `Unsupported` special whose destination a script reads) fails the
+/// build. A larger extract only reports them (the summary line and `report.txt`).
+fn stale_specialvars_check(
+    w: &World,
+    act1: &BTreeSet<String>,
+    stale: &BTreeMap<String, usize>,
+) -> Result<()> {
+    let only_act1 = !w.maps.is_empty() && w.maps.iter().all(|m| act1.contains(&m.name));
+    ensure!(
+        !only_act1 || stale.is_empty(),
+        "stale specialvar sites reachable in Act 1 (classify these specials in \
+         build/support/specials.ron): {stale:?}"
+    );
+    Ok(())
 }
 
 fn write_if_changed(path: &Path, s: &str) -> Result<()> {
