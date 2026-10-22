@@ -210,15 +210,16 @@ writes its named points as `route:<name>` nodes of the current flavor's tree, re
 only, never snapshots or other ROM-derived data, and verify `Valid` in `cargo test` like the
 golden hashes: an intended behaviour change needs `cargo xtask checkpoints verify --accept`.
 
-`cargo xtask rom` prints the ROM size and the ELF's IWRAM and EWRAM statics
-(`xtask/src/budget.rs`) and fails above the Milestone 5 baseline (ROM 1992712 bytes with
-extracted data, IWRAM 596, EWRAM 460) plus 64 KiB of ROM, 2 KiB of IWRAM or 16 KiB of EWRAM; a
-stub-content ROM skips the ROM gate. The build remaps the checkout, `CARGO_HOME` and sysroot
+`cargo xtask rom` prints the ROM size, the ELF's IWRAM and EWRAM statics and the code and data
+by symbol prefix (`xtask/src/budget.rs`). Until Milestone 8 Task M re-baselines them, it fails
+when IWRAM or EWRAM grows past the slice baseline (IWRAM 788, EWRAM 460) by 2 KiB or 16 KiB,
+when engine `.text` on the slice extract grows past its baseline (205448 bytes) by 128 KiB, or
+when a full import's ROM exceeds 16 MiB; the slice and stub ROM sizes are reported only. The build remaps the checkout, `CARGO_HOME` and sysroot
 paths (`--remap-path-prefix`), so the ROM does not depend on where the repository lives.
 
 `crates/engine/src/world/tests/goldens.rs` pins World hashes on a synthetic game, one constant
-per scenario (`golden_hashes`): `GOLDEN_WALK` (`0x0192d9180c0ec15a` after `World::new` and
-`0xbb221ad00c37fd51` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
+per scenario (`golden_hashes`): `GOLDEN_WALK` (`0x66f39427d1ed0a8f` after `World::new` and
+`0x0818a37264360e30` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
 `GOLDEN_CROSSING`, `GOLDEN_SCRIPT`, `GOLDEN_WILD_BATTLE` and `GOLDEN_TRAINER`. They change
 whenever the hashed state, its order or the frame logic changes; update them only for an
 intended change (a change that moves one scenario updates only its constant).

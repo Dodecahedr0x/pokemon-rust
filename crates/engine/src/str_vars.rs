@@ -2,13 +2,15 @@
 //! and `{STR_VAR_1}`… placeholders print. Gen3-encoded, 0xFF-terminated and 0xFF-padded.
 //!
 //! As [`crate::flow::Vars`], a digest of the contents is kept up to date on every write, so
-//! [`StrVars::hash`] is O(1).
+//! [`StrVars::hash`] is O(1). The digest covers each var up to and including its terminator,
+//! never the padding, so the hash does not depend on [`STR_VAR_LEN`].
 
 use crate::hash::{Fnv64, splitmix64};
 use alloc::vec::Vec;
 
-/// Bytes per string var (terminator included when shorter).
-pub const STR_VAR_LEN: usize = 32;
+/// Bytes per string var, terminator included: Gen3 `gStringVar1[0x100]`. A var holds at most
+/// `STR_VAR_LEN - 1` characters, so it is always terminated.
+pub const STR_VAR_LEN: usize = 0x100;
 /// Number of string vars.
 pub const STR_VARS: usize = 3;
 
@@ -24,9 +26,14 @@ impl Default for StrVars {
     }
 }
 
-/// Digest contribution of string var `slot` holding `buf`.
+/// Digest contribution of string var `slot` holding `buf`: its bytes up to and including the
+/// first 0xFF (the padding after it is not hashed).
 fn buf_term(slot: usize, buf: &[u8; STR_VAR_LEN]) -> u64 {
-    (buf.iter().enumerate()).fold(0u64, |d, (i, &b)| {
+    let len = buf
+        .iter()
+        .position(|&b| b == 0xFF)
+        .map_or(buf.len(), |n| n + 1);
+    (buf[..len].iter().enumerate()).fold(0u64, |d, (i, &b)| {
         d.wrapping_add(splitmix64(
             4 << 48 | (slot as u64) << 40 | (i as u64) << 32 | b as u64,
         ))
@@ -46,11 +53,15 @@ impl StrVars {
         &self.bufs[slot]
     }
 
-    /// Sets string var `slot` to `text` up to its first 0xFF, cut at [`STR_VAR_LEN`] bytes and
-    /// 0xFF-padded.
+    /// Sets string var `slot` to `text` up to its first 0xFF, cut at `STR_VAR_LEN - 1` bytes
+    /// and 0xFF-terminated and padded.
     pub fn set(&mut self, slot: usize, text: &[u8]) {
         let mut buf = [0xFF; STR_VAR_LEN];
-        for (o, &c) in buf.iter_mut().zip(text.iter().take_while(|&&c| c != 0xFF)) {
+        let chars = text
+            .iter()
+            .take_while(|&&c| c != 0xFF)
+            .take(STR_VAR_LEN - 1);
+        for (o, &c) in buf.iter_mut().zip(chars) {
             *o = c;
         }
         self.digest = (self.digest.wrapping_sub(buf_term(slot, &self.bufs[slot])))
@@ -70,11 +81,11 @@ impl StrVars {
             .map(|b| b.iter().copied().take_while(|&c| c != 0xFF).collect())
     }
 
-    /// Refuses a var longer than [`STR_VAR_LEN`] or holding 0xFF.
+    /// Refuses a var of [`STR_VAR_LEN`] bytes or more, or holding 0xFF.
     pub fn from_snapshot(s: &[Vec<u8>; STR_VARS]) -> Result<StrVars, &'static str> {
         let mut v = StrVars::new();
         for (slot, text) in s.iter().enumerate() {
-            if text.len() > STR_VAR_LEN || text.contains(&0xFF) {
+            if text.len() >= STR_VAR_LEN || text.contains(&0xFF) {
                 return Err("bad string var");
             }
             v.set(slot, text);

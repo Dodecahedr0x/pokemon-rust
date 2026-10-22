@@ -11,17 +11,17 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 /// The new game's first frame, then walking, talking and turning (the pre-Milestone 8 golden).
-const GOLDEN_WALK: (u64, u64) = (0x0192_d918_0c0e_c15a, 0xbb22_1ad0_0c37_fd51);
+const GOLDEN_WALK: (u64, u64) = (0x66f3_9427_d1ed_0a8f, 0x0818_a372_6436_0e30);
 /// Into the house through its door and back out over the doormat.
-const GOLDEN_WARP: u64 = 0x9477_8870_ae9b_d711;
+const GOLDEN_WARP: u64 = 0x779c_8acf_63d1_6570;
 /// North across the connection to the route and back.
-const GOLDEN_CROSSING: u64 = 0xe938_f459_555b_f2e5;
+const GOLDEN_CROSSING: u64 = 0xc2b0_b5dc_632d_bb70;
 /// Talking to the NPC through its whole script.
-const GOLDEN_SCRIPT: u64 = 0xde38_ebff_af7b_75b6;
+const GOLDEN_SCRIPT: u64 = 0x0fab_8f3d_8206_46d3;
 /// A grass encounter on the route, fought to the end.
-const GOLDEN_WILD_BATTLE: u64 = 0x196a_c6df_09fe_e695;
+const GOLDEN_WILD_BATTLE: u64 = 0xf5f2_70e6_418e_c1ac;
 /// A scripted trainer battle, fought to the end.
-const GOLDEN_TRAINER: u64 = 0xc576_4235_ff24_205e;
+const GOLDEN_TRAINER: u64 = 0x53fa_55c0_cec2_d61b;
 
 fn walk_scenario() -> (u64, u64) {
     let mut w = World::new(&Game);
