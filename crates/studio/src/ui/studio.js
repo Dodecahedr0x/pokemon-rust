@@ -1,8 +1,9 @@
 // Frame pump (plan: "Frame transport"). Each `<canvas data-pane=NAME>` runs one request loop on
 // `/frames/NAME?after=SEQ`, a long poll: 200 carries the next raw RGBA frame (240x160x4) and its
-// `x-seq` as soon as the pane publishes it, 204 means nothing new for a while. One request in
-// flight per canvas, so stale frames never queue. `<span data-fps=NAME>` shows the delivered
-// fps; `/stats/NAME?...` reports to Rust every 500 ms (used by STUDIO_SMOKE_SECS).
+// `x-seq` as soon as the pane holds a frame other than SEQ, 204 means nothing new for a while.
+// One request in flight per canvas, so stale frames never queue. `<span data-fps=NAME>` shows
+// the delivered fps; with `window.STUDIO_SMOKE` (set by `head()` under STUDIO_SMOKE_SECS),
+// `/stats/NAME?...` reports to Rust every 500 ms.
 (() => {
   const W = 240, H = 160;
   const panes = new Map();
@@ -31,8 +32,9 @@
           continue;
         }
         const buf = await r.arrayBuffer();
+        // Taken before the length check, so a bad body is not refetched in a tight loop.
+        seq = Number(r.headers.get("x-seq")) || seq;
         if (buf.byteLength !== W * H * 4) continue;
-        seq = Number(r.headers.get("x-seq"));
         ctx.putImageData(new ImageData(new Uint8ClampedArray(buf), W, H), 0, 0);
         // Latency: publish -> served (`x-age-us`), then served -> drawn, bounded by the fetch
         // time minus the long-poll wait (`x-wait-us`).
@@ -69,10 +71,12 @@
       document.querySelectorAll(`[data-fps="${name}"]`).forEach((e) => {
         e.textContent = `${fps.toFixed(1)} fps`;
       });
-      const q = `t=${now.toFixed(1)}&drawn=${s.drawn}&rtt=${s.rtt.toFixed(3)}` +
-        `&age=${s.age.toFixed(3)}&max=${s.max.toFixed(3)}`;
+      if (window.STUDIO_SMOKE) {
+        const q = `t=${now.toFixed(1)}&drawn=${s.drawn}&rtt=${s.rtt.toFixed(3)}` +
+          `&age=${s.age.toFixed(3)}&max=${s.max.toFixed(3)}`;
+        fetch(`/stats/${name}?${q}`, { cache: "no-store" }).catch(() => {});
+      }
       s.max = 0;
-      fetch(`/stats/${name}?${q}`, { cache: "no-store" }).catch(() => {});
     }
   }, 500);
 })();

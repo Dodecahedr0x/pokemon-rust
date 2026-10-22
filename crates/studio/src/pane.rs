@@ -1,6 +1,6 @@
 //! A pane: a game (native session or mGBA) owned by its own thread, driven by commands and
 //! publishing a framebuffer and a status (plan: "pane.rs"). The trait and `RunMode` are the
-//! Wave 0 contract; the Wave 0 spike adds `spawn`, `PaneHandle`, `StatusSlot` and `Pacer`.
+//! Wave 0 contract; the Wave 0 spike adds `spawn`, `spawn_into`, `PaneHandle`, `StatusSlot` and `Pacer`.
 
 use crate::frames::FrameSlot;
 use engine::video::{SCREEN_H, SCREEN_W};
@@ -85,7 +85,7 @@ impl<C, S> PaneHandle<C, S> {
 /// The frame is published only when its pixels changed (a paused pane sends nothing, so its
 /// seq stays put); the status is published every tick. The first frame and status are
 /// published before the first tick. Commands arriving while the thread sleeps are handled
-/// at once; the tick still waits for its deadline.
+/// at once; the tick still waits for its deadline. A fresh [`FrameSlot`]; see [`spawn_into`].
 pub fn spawn<P: Pane, F: FnOnce() -> P + Send + 'static>(
     name: &str,
     make: F,
@@ -93,7 +93,19 @@ pub fn spawn<P: Pane, F: FnOnce() -> P + Send + 'static>(
 where
     P::Status: Default,
 {
-    let frames = FrameSlot::default();
+    spawn_into(FrameSlot::default(), name, make)
+}
+
+/// [`spawn`] publishing into an existing `frames` slot, e.g. the slot of a stopped pane that
+/// is reloaded: its seq keeps counting, so readers registered on it see the new frames.
+pub fn spawn_into<P: Pane, F: FnOnce() -> P + Send + 'static>(
+    frames: FrameSlot,
+    name: &str,
+    make: F,
+) -> PaneHandle<P::Cmd, P::Status>
+where
+    P::Status: Default,
+{
     let status = StatusSlot::new(P::Status::default());
     let (tx, rx) = mpsc::channel::<P::Cmd>();
     let (f, s) = (frames.clone(), status.clone());
@@ -349,6 +361,30 @@ mod tests {
             ["made 1", "cmd 31", &format!("cmd {}", 31 << 5)]
         );
         assert!(ticks >= 3);
+    }
+
+    #[test]
+    fn a_reloaded_pane_keeps_its_slot_and_seq() {
+        let make = |fill: u16| {
+            move || Fake {
+                log: Arc::default(),
+                fb: vec![fill; SCREEN_W * SCREEN_H],
+                ticks: 0,
+            }
+        };
+        let h = spawn("first", make(31));
+        wait_until("the first frame", || h.frames.seq() == 1);
+        let slot = h.frames.clone();
+        h.stop();
+        // A reader parked on seq 1 (the UI) is answered by the reloaded pane's first frame.
+        let reader = slot.clone();
+        let t = std::thread::spawn(move || reader.wait(1, Duration::from_secs(10)));
+        let h = spawn_into(slot.clone(), "reloaded", make(31 << 5));
+        let (seq, rgba, _) = t.join().unwrap().expect("a frame after the reload");
+        assert_eq!(seq, 2, "the seq kept counting");
+        assert_eq!(&rgba[..4], &[0, 255, 0, 255]);
+        assert_eq!(h.frames.seq(), slot.seq(), "the same slot");
+        h.stop();
     }
 
     #[test]

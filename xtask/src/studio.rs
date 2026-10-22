@@ -1,48 +1,99 @@
-//! `cargo xtask studio [--smoke [secs]]`: runs the studio (release). `--smoke` closes it after
-//! `secs` (default 10) through `STUDIO_SMOKE_SECS` and fails if a pane delivered under
-//! [`MIN_FPS`] or the studio exited non-zero.
+//! `cargo xtask studio [--smoke [secs] | --check]`: runs the studio (release).
+//! - `--smoke` closes it after `secs` (default 10) through `STUDIO_SMOKE_SECS` and fails if a
+//!   pane delivered under [`MIN_FPS`], the studio exited non-zero, or it was still running
+//!   `secs` + [`SMOKE_GRACE_SECS`] after start (then it is killed). Needs a logged-in GUI
+//!   session; the window stays on top and takes focus.
+//! - `--check` runs the display-free `ui` gates the workspace gates skip: `cargo test -p studio
+//!   --features ui` and its clippy.
 
 use crate::{root, run};
 use anyhow::{Context, Result, bail};
+use std::io::Read;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// The smoke gate (the spike acceptance is 58 fps in release on macOS).
 const MIN_FPS: f64 = 50.0;
 const DEFAULT_SMOKE_SECS: u32 = 10;
+/// How long past `secs` a smoke run may take (window start-up and shutdown) before it is killed.
+const SMOKE_GRACE_SECS: u64 = 60;
+const USAGE: &str = "usage: cargo xtask studio [--smoke [secs] | --check]";
 
-fn studio() -> Command {
+fn cargo(args: &[&str]) -> Command {
     let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    cmd.current_dir(root())
-        .args(["run", "-p", "studio", "--features", "ui", "--release"]);
+    cmd.current_dir(root()).args(args);
     cmd
 }
 
+const UI: [&str; 4] = ["-p", "studio", "--features", "ui"];
+
 pub fn main(args: &[String]) -> Result<()> {
     match args {
-        [] => run(&mut studio()),
+        [] => run(cargo(&["run", "--release"]).args(UI)),
+        [flag] if flag == "--check" => {
+            run(cargo(&["test"]).args(UI))?;
+            run(cargo(&["clippy", "--all-targets"])
+                .args(UI)
+                .args(["--", "-D", "warnings"]))
+        }
         [flag, rest @ ..] if flag == "--smoke" => {
             let secs = match rest {
                 [] => DEFAULT_SMOKE_SECS,
                 [s] => s
                     .parse()
                     .with_context(|| format!("--smoke {s}: not a number"))?,
-                _ => bail!("usage: cargo xtask studio [--smoke [secs]]"),
+                _ => bail!(USAGE),
             };
             smoke(secs)
         }
-        _ => bail!("usage: cargo xtask studio [--smoke [secs]]"),
+        _ => bail!(USAGE),
     }
 }
 
+/// The release binary `cargo build` wrote (honours `CARGO_TARGET_DIR`).
+fn release_bin() -> PathBuf {
+    let target =
+        std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| root().join("target"), PathBuf::from);
+    target
+        .join("release")
+        .join(format!("studio{}", std::env::consts::EXE_SUFFIX))
+}
+
 fn smoke(secs: u32) -> Result<()> {
-    let mut cmd = studio();
-    cmd.env("STUDIO_SMOKE_SECS", secs.to_string())
+    // Build first, so the timeout covers the run only.
+    run(cargo(&["build", "--release"]).args(UI))?;
+    let mut cmd = Command::new(release_bin());
+    cmd.current_dir(root())
+        .env("STUDIO_SMOKE_SECS", secs.to_string())
         .stdout(Stdio::piped());
-    let out = cmd.output().with_context(|| format!("spawning {cmd:?}"))?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let mut child = cmd.spawn().with_context(|| format!("spawning {cmd:?}"))?;
+    let mut pipe = child.stdout.take().context("the studio's stdout")?;
+    let reader = std::thread::spawn(move || {
+        let mut out = Vec::new();
+        let _ = pipe.read_to_end(&mut out);
+        out
+    });
+    let deadline = Instant::now() + Duration::from_secs(u64::from(secs) + SMOKE_GRACE_SECS);
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!(
+                "the studio was still running {} s after start: killed",
+                u64::from(secs) + SMOKE_GRACE_SECS
+            );
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    let out = reader.join().unwrap_or_default();
+    let stdout = String::from_utf8_lossy(&out);
     print!("{stdout}");
-    if !out.status.success() {
-        bail!("the studio exited with {}", out.status);
+    if !status.success() {
+        bail!("the studio exited with {status}");
     }
     let panes = parse_smoke(&stdout);
     if panes.is_empty() {

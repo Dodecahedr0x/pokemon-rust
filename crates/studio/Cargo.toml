@@ -6,7 +6,7 @@ publish.workspace = true
 
 [features]
 # The desktop app (`cargo run -p studio --features ui`); the core builds without a webview.
-ui = ["dep:dioxus", "dep:dioxus-ssr"]
+ui = ["dep:dioxus", "dep:dioxus-ssr", "dep:futures-channel"]
 
 [dependencies]
 engine.workspace = true
@@ -16,6 +16,8 @@ emu.workspace = true
 extract.workspace = true
 anyhow.workspace = true
 dioxus = { version = "0.7.10", features = ["desktop"], optional = true }
+# The smoke timer's oneshot (already in Dioxus's tree).
+futures-channel = { version = "0.3.34", optional = true }
 # The display-free smoke test only (cfg(test) + ui).
 dioxus-ssr = { version = "0.7.10", optional = true }
 
