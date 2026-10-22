@@ -1,6 +1,6 @@
 //! Drives the real ROM in mGBA through the scripted route (`game_native::scenario`), records
 //! the inputs the ROM actually consumed, replays them natively, and requires the same World
-//! hash at every sample and the same picture at every checkpoint.
+//! hash at every sample and the same picture at every picture frame.
 //! Needs target/game.gba: run via `cargo xtask parity`.
 //!
 //! The route depends on the content build: with extracted data it plays a new game from
@@ -16,8 +16,8 @@
 //! loads, whole-view redraws, starter loads, battle loads and restores).
 //!
 //! Display lag (see `engine::debug`): when the emulator samples engine frame `f`, the hash is
-//! the state after step `f` but the picture is the `Frame` of step `f - 1`. So a checkpoint at
-//! `f` compares the ROM hash with native after `f` steps and the ROM picture with native after
+//! the state after step `f` but the picture is the `Frame` of step `f - 1`. So picture frame `f`
+//! compares the ROM hash with native after `f` steps and the ROM picture with native after
 //! `f - 1` steps.
 
 extern crate alloc;
@@ -36,7 +36,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// A picture is compared at least this often (and at every named moment).
-const CHECKPOINT_EVERY: u32 = 100;
+const PICTURE_EVERY: u32 = 100;
 
 /// Replays `run.consumed` natively, comparing the hash at every ROM sample and the picture at
 /// every capture. Native renders only the frames a capture needs (`frame - 1`).
@@ -68,14 +68,17 @@ fn compare_native(run: &RomRun, mut native: Session<content::Emerald>) {
             );
         }
     }
-    assert!(caps.next().is_none(), "checkpoint past the consumed inputs");
+    assert!(
+        caps.next().is_none(),
+        "picture frame past the consumed inputs"
+    );
     assert!(
         hashes.next().is_none(),
         "hash sample past the consumed inputs"
     );
 }
 
-/// Writes target/parity-<frame>-{rom,native}.ppm for a failed checkpoint.
+/// Writes target/parity-<frame>-{rom,native}.ppm for a failed picture frame.
 fn dump_mismatch(frame: u32, rom: &[u16], native: &[u16]) {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
     for (name, fb) in [("rom", rom), ("native", native)] {
@@ -139,15 +142,15 @@ fn recording() -> Recording {
 fn rom_and_native_agree() {
     let rom = rom_path();
     let rec = recording();
-    let checkpoints = rec.checkpoints(CHECKPOINT_EVERY);
+    let picture_frames = rec.picture_frames(PICTURE_EVERY);
     println!(
-        "{} route: {} frames, {} checkpoints, moments {:?}",
+        "{} route: {} frames, {} picture frames, moments {:?}",
         if content::STUB { "stub" } else { "extracted" },
         rec.frames(),
-        checkpoints.len(),
+        picture_frames.len(),
         rec.moments
     );
-    let run = run_rom(&rom, |f| rec.keys_at(f), rec.frames(), &checkpoints)
+    let run = run_rom(&rom, |f| rec.keys_at(f), rec.frames(), &picture_frames)
         .unwrap_or_else(|e| panic!("ROM run failed: {e:#}"));
     println!(
         "ROM reached engine frame {} after {} emulator frames; {} inputs consumed",
@@ -175,7 +178,7 @@ fn rom_and_native_agree() {
             i + 1
         );
     }
-    assert_eq!(run.captures.len(), checkpoints.len());
+    assert_eq!(run.captures.len(), picture_frames.len());
     // Black-screen late applies are only excused for bulk work (`Frame::bulk`: map loads,
     // whole-view redraws, battle loads and restores, starter loads): each must follow a bulk
     // step within the display lag, and each bulk event (a run of bulk steps) may overrun once.
@@ -378,9 +381,9 @@ fn resume_nodes(rec: &Recording, native: &Native) -> Vec<(&'static str, u32)> {
 const RESUME_FRAMES: u32 = 2000;
 
 /// Picture frames of a run from `start` to `end`: the first two, then every
-/// [`CHECKPOINT_EVERY`] frames.
+/// [`PICTURE_EVERY`] frames.
 fn resume_pictures(start: u32, end: u32) -> Vec<u32> {
-    let every = (start / CHECKPOINT_EVERY + 1..).map(|i| i * CHECKPOINT_EVERY);
+    let every = (start / PICTURE_EVERY + 1..).map(|i| i * PICTURE_EVERY);
     let p: BTreeSet<u32> = [start + 1, start + 2]
         .into_iter()
         .chain(every.take_while(|&c| c <= end))

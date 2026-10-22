@@ -38,7 +38,7 @@ pub enum Action {
     Talk(Option<&'static str>),
     /// Hold nothing for this many frames.
     Wait(u32),
-    /// Name the current frame (a screenshot and a parity checkpoint).
+    /// Name the current frame (a screenshot and a parity picture frame).
     Shot(&'static str),
     /// Press A once on what is ahead and let the script run on (no waiting for its end).
     Interact,
@@ -184,7 +184,7 @@ impl Recording {
 
     /// Ascending frames to compare pictures at: every moment, the first frames and one every
     /// `every` frames.
-    pub fn checkpoints(&self, every: u32) -> Vec<u32> {
+    pub fn picture_frames(&self, every: u32) -> Vec<u32> {
         let mut c: Vec<u32> = self.moments.iter().map(|m| m.frame).collect();
         c.extend([1, 2]);
         c.extend((1..=self.frames() / every).map(|i| i * every));
@@ -1029,9 +1029,9 @@ mod tests {
     }
 
     #[test]
-    fn checkpoints_ascend_within_the_run() {
+    fn picture_frames_ascend_within_the_run() {
         let rec = record_route().unwrap();
-        let c = rec.checkpoints(150);
+        let c = rec.picture_frames(150);
         assert!(c.windows(2).all(|w| w[0] < w[1]));
         assert!(c.iter().all(|&f| (1..=rec.frames()).contains(&f)));
     }

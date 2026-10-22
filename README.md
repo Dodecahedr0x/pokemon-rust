@@ -12,7 +12,7 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 - `cargo test --workspace`: unit tests plus ROM-backed tests that need both ROMs and the decomp (see Tests)
 - `cargo xtask rom`: build `target/game.gba` (fails if it exceeds the 32 MiB GBA limit)
 - `cargo xtask parity`: play the scripted route on the ROM (in mGBA) and natively; the World hash
-  must match on every frame and the picture at every checkpoint
+  must match on every frame and the picture at every picture frame
 - `cargo xtask shot`: play the same route and write ROM and native PNGs of each named moment to
   `target/shots/<moment>-{rom,native}.png`
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
