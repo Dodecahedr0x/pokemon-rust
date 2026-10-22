@@ -222,6 +222,7 @@ Wave 0 makes no feature work. It does five things:
   - New `export/tables.rs` with `pub fn export_tables(rom, out, provenance) -> Result<()>`, an empty body that `export` calls (Task C).
   - New stub modules `inc.rs`, `labels.rs` (B) and `tables.rs` (C), with their `pub mod` lines in `lib.rs`, so no Wave 1 task edits `lib.rs`.
   - `names/generated.rs` regenerated (`PKR_BLESS=1`) with `MULTI_*`, `STDSTRING_*`, `MAPSEC_*` and `LAYOUT_*` tables, drift-tested like the others.
+- **`Species.weight`** (`schema.rs`, owned by A, carried into content by E): `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight` in hectograms (Low Kick, G), `#[serde(default)]`; 0 when a species has no Pokédex entry or the tables cannot be located.
 - **Named fixed samples:** `export::SLICE_MAPS` (today's 15 maps, in today's order) replaces every test and tool use of `export::MAPS`, and `ExportOptions` takes it for `--maps slice`. Consumers are migrated in Wave 0 (`extract/tests/{codegen,text}.rs`).
 - **`codegen.rs`, new entry point** (Task D1; stub). `generate` keeps working until Task D2 swaps the build over:
   ```rust
@@ -241,7 +242,7 @@ Wave 0 makes no feature work. It does five things:
   pub fn lower(files: &[ScriptFile], index: &ScriptIndex, support: &Support,
                overrides: &BTreeMap<String, String>) -> anyhow::Result<Lowered>;
   ```
-- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `all` from Task A on; `slice` = `export::SLICE_MAPS`) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
+- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `slice` = `export::SLICE_MAPS` until Task L, which flips `ExportOptions::default()` and the xtask `extract` doc to `all` once the content build consumes every map; Task A makes `all` work) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
 
 ### Content contracts (`crates/content`)
 - **Splits** (mechanical):
@@ -703,7 +704,7 @@ Route-changing (it is the first of the ordered merges): the slice's scripts now 
 
 **Owns:** `xtask/src/sweep.rs`, cross-task fix-ups in the files of Wave 1 tasks A–J (each listed in the report), the README (Content, Scripts and Tests sections), the fixed test samples of `crates/studio/tests/{map_pixels, map_view, data_views}.rs`, and `checkpoints/*` refreshes.
 
-1. `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
+1. Flip the extract default to `all`: `ExportOptions::default()` and the xtask `extract` doc and warning (Task A keeps `slice`, since the content build cannot consume every map before E). Then `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
    - **Remove `GameData::encounters(map)`** (kept by Wave 0 as `wild_encounters`' default so explore needed no change), once E implements `wild_encounters` and K forwards it.
 2. **The slice still holds:**
    - the parity route replays with identical ROM/native hashes;
@@ -1120,5 +1121,22 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
 - events and `last_script` (engine panic context, `FrameOut`);
 - the stale rect, now hashed and in `FieldSnap`.
 
+### Task A as built
+- `cargo xtask extract --maps all` (BPEF): 518 maps, 418 layouts (every map's plus every `setmaplayoutindex` target; `gMapLayouts` has 441), 73 tilesets, 156 OBJ sprites plus 3 emotes (`sprites/field_effects/`), 124 wild headers (Altering Cave 9; land, water, rock smash, fishing), evolutions for 172 species, trainer money (54 classes plus the `0xFF` default), `Species.weight`. Every count equals the decomp's referenced set.
+- Time: one full export about 5–6 s in release (the ignored sweep test's three exports: 17.6 s), 23.8 s with the debug `cargo xtask`; 39.8 s with `--previews`. Size: 26 MB without previews, 147 MB with them (previews 121 MB).
+- Default kept at `slice` (L flips it, step 1): the content build panics on a full extract (slice-move wording, E), and since xtask depends on content, so does `cargo xtask`; `extract` warns with the recovery command.
+- Location: layouts, emotes, evolutions and `gPokedexEntries`/`sSpeciesToNationalPokedexNum` by structural anchors; `gTrainerMoneyTable` by adjacency (the 4-byte boundary after `gTypeNames`), then validated. All checked on BPEE against the decomp. (The commit message of `bbcc190` says "all located by structure"; trainer money is by adjacency.)
+- `FORMAT_MINOR` = 2 (after B's 1): layouts, emotes, encounters v5, evolutions, trainer money, weight; `MINOR_FILES` lists `battle/evolutions.ron`, `battle/trainer_money.ron` and the six emote files.
+
 ## Findings for Milestone 9
 *(filled at close-out.)*
+
+## Task B as built
+- **Label transfer** (`extract::inc`, `extract::labels`): on all 518 maps, 100% of functions (7,233), texts (5,503) and movements (978) get decomp names on both BPEF and BPEE; 0 transfer errors, 0 collisions, 0 mismatched blocks. Precision on BPEE by content: 7,234 scripts (op names and Flag/Var/Const operands; the battle-facility helper macros of `data/scripts/*.inc` are expanded too), 5,503 texts and 978 movements match their source; only the 22 braille strings are unchecked.
+- **Fallthrough rules:** a label falls through only to a following label of the same kind (`TrainerHill_1F_EventScript_DummyOnWarp` runs into a table whose first byte is `end`); a chain with no terminator ("forced stop" after `warp`, Slateport Battle Tent) is aligned against the first N commands the ROM decodes, N being the expanded command count of the chain.
+- **Modules beyond the contract (accepted):** `data/text/<stem>.inc` is `Text_<stem>` (`cable_club` exists in both `data/scripts` and `data/text`); the inline labels of `data/event_scripts.s` are `Common_event_scripts`.
+- **Test budget (accepted):** `extract/tests/labels.rs` runs all 518 maps unignored (about 5 s in debug); `tests/script_ir.rs` likewise for the IR.
+- **IR:** `scripts/<Module>.ron` (433 modules on the full import), `scripts/index.ron`, and the texts keyed by final names in **`text/ir_<lang>.ron`**: the legacy `text/<lang>.ron` keeps its `<Script>_T<n>` keys because the legacy scripts number texts by them. D2 renames `text/ir_<lang>.ron` to `text/<lang>.ron` when it deletes the legacy output. Invalid opcodes appear as the pseudo-command `unknown` (one `Byte` operand). The IR's instruction count equals today's walk (49,225 on the full import). `FORMAT_MINOR` = 1.
+- **Contract additions:** `scripts::{op_name, opcode, is_terminator_op}`; `export::scripts::{build_ir, Ir, ir_summary, decomp_dir}`; `labels::{transfer, Transfer, Kind, MapInput, …}` (`NameOrigin` re-exported from `schema`; `Transfer.root_kinds`); `ScriptIndex.movements` (movement name to module, `#[serde(default)]`).
+- **Without the decomp:** a missing or unreadable `PKR_DECOMP` warns and exports positional names; the manifest provenance key `scripts/decomp_names` is 1 when decomp names were used, else 0. A label inside a decoded command warns and is skipped. `serde_json` is a regular dependency of `extract` (decomp `map.json`).
+- **Outside B's files:** `extract/tests/export.rs` (Task A's) lists the IR files in its expected tree; `schema.rs` bumps `FORMAT_MINOR`, documents `text/ir_<lang>.ron` and adds `ScriptIndex.movements`; `export.rs` passes the provenance map to `export_scripts`. The decomp is loaded once per process (cache keyed by dir); `tests/export.rs` takes about 53 s in debug (46 s without `PKR_DECOMP`), the rest is `Decomp::load` and the transfer in an unoptimised build.

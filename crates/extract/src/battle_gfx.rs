@@ -34,7 +34,11 @@
 //! (`TAG_HEALTHBAR_PAL`, `gBattleInterface_BallDisplayPal`) serves `hpbar`.
 //!
 //! Pokémon pics (`MonGfx`): `pokemon/<SPECIES>/front.png` is frame 0 of `anim_front` (64x64),
-//! `back.png` 64x64, both with the normal palette; `shiny.pal`; `pokemon/coords.ron`.
+//! `back.png` 64x64, both with the normal palette; `shiny.pal`; `pokemon/coords.ron`. Written for
+//! every `SPECIES_*` with ROM graphics, whatever maps are exported. `SPECIES_UNOWN` keeps form A
+//! (Gen3 picks the letter from the personality at run time; forms B to `?` are the separate
+//! `SPECIES_UNOWN_*` entries, each written too). Every trainer front and back pic is written,
+//! a superset of the ones `gTrainers` references.
 //! Trainer front pics (`TrainerPic`): `trainers/front/<TRAINER_PIC>.png`, frame 0 (64x64).
 //! `TrainerPic.y` is the Gen3 `struct MonCoords` `.size` of the pic (`TrainerPicInfo::size`,
 //! front in `pics.ron` `front`, back in `back_coords`), not `y_offset`: Gen3 places the
