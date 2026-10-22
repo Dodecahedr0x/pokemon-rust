@@ -2,7 +2,7 @@
 //! with `PKR_EXTRACTED_DIR` set:
 //! - stub mode: a missing extracted dir;
 //! - generated scripts: a fixture extracted dir (the stub world written to disk, plus a
-//!   hand-written `scripts/index.ron`, two script files and a text file), which exercises the
+//!   hand-written `scripts/legacy_index.ron`, two script files and a text file), which exercises the
 //!   `include!` of `scripts/<Map>.rs`, the prelude contract and script dispatch;
 //! - a stale extract: that fixture with an older manifest `format`, which builds the stub and
 //!   sets `content::STALE_EXTRACT`.
@@ -19,7 +19,7 @@ mod build_id;
 #[path = "../../engine/build_support.rs"]
 mod build_support;
 #[allow(dead_code)]
-#[path = "../build/classify.rs"]
+#[path = "../build/classify/mod.rs"]
 mod classify;
 #[allow(dead_code)]
 #[path = "../build/codegen.rs"]
@@ -27,6 +27,9 @@ mod codegen;
 #[allow(dead_code)]
 #[path = "../build/input.rs"]
 mod input;
+#[allow(dead_code)]
+#[path = "../build/scripts.rs"]
+mod scripts;
 #[allow(dead_code)]
 #[path = "../build/stub.rs"]
 mod stub;
@@ -40,7 +43,7 @@ fn printed_build_id(out: &str) -> u64 {
     u64::from_str_radix(line.get(..16).unwrap(), 16).unwrap()
 }
 
-use extract::schema::{Object, ScriptEntry, ScriptIndex};
+use extract::schema::{LegacyScriptEntry, LegacyScriptIndex, Object};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -133,11 +136,11 @@ fn write_fixture(dir: &Path) {
     });
     input::write(&w, dir).unwrap();
 
-    let entry = |file: &str, root| ScriptEntry {
+    let entry = |file: &str, root| LegacyScriptEntry {
         file: file.into(),
         root,
     };
-    let index = ScriptIndex {
+    let index = LegacyScriptIndex {
         scripts: BTreeMap::from([
             ("StubTown_Obj1".into(), entry("StubTown.rs", true)),
             ("StubTown_Obj1_L0".into(), entry("StubTown.rs", false)),
@@ -151,7 +154,7 @@ fn write_fixture(dir: &Path) {
         std::fs::write(p, s).unwrap();
     };
     put(
-        "scripts/index.ron",
+        "scripts/legacy_index.ron",
         &extract::export::to_ron(&index).unwrap(),
     );
     put("scripts/StubTown.rs", STUB_TOWN_RS);
@@ -235,6 +238,8 @@ fn build_id_tracks_the_sources() {
         ("content/src/lib.rs", "// lib 2\n"),
         ("content/build/main.rs", "// main 2\n"),
         ("extract/src/lib.rs", "// extract 2\n"),
+        ("content/build/support/commands.ron", "{}\n"),
+        ("content/build/support/commands.ron", "{\"end\": Native}\n"),
     ] {
         let before = id();
         put(rel, edit);

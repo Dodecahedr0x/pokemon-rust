@@ -163,6 +163,7 @@ mod tests {
                     drawn: Some([-1, -1, 16, 11]),
                     ring: (0, 0),
                     overrides: vec![((2, 3), 0x21)],
+                    stale: None,
                 },
                 objects: ObjectsSnap {
                     map: MapId(3),
@@ -194,6 +195,10 @@ mod tests {
                 respawn: 0,
                 prev_behavior: Behavior::Normal,
                 encounter_immunity: 0,
+                bag: Default::default(),
+                money: 0,
+                str_vars: Default::default(),
+                warp_slots: Default::default(),
             },
         }
     }
