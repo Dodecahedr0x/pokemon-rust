@@ -22,8 +22,19 @@
 //!   template order) battles and the second is reported `Degraded("double sight")`: it sees the
 //!   player again after the battle.
 //!
-//! Cost: one pass over the map's object templates comparing a byte, then geometry for the
-//! trainers only; the flag lookup comes last.
+//! Differences from Gen3:
+//! - the path test is the collision bits, elevation and objects only: directionally impassable
+//!   metatiles (`IsMetatileDirectionallyImpassable`, part of Gen3's `GetCollisionFlagsAtCoords`)
+//!   and cells outside the map are not tested, so a trainer sees across a one-way ledge edge or
+//!   past the map's edge where Gen3 would not (sight ranges rarely reach either);
+//! - the scan walks the current map's templates (in template order) and looks each one up among
+//!   the spawned objects, where Gen3 walks the active object slots (`gObjectEvents`, slot
+//!   order): a trainer spawned but not in the templates (none in Emerald's maps) is not checked,
+//!   and with two trainers seeing at once the first in template order is the one that battles.
+//!
+//! Cost: nothing on a map without a looking trainer ([`super::templates::Templates`] counts them
+//! once per load); else one pass over the templates comparing a byte, then geometry for the
+//! trainers only (object slots looked up once per trainer); the flag lookup comes last.
 
 use super::{Event, State, World};
 use crate::data::{Dir, GameData, ObjectEvent, ScriptId};
@@ -75,9 +86,12 @@ pub(super) fn scan(
     s: &State,
     double: impl Fn(ScriptId) -> bool,
 ) -> Option<Sighting> {
+    if !s.templates.has_trainers() {
+        return None;
+    }
     let mut first: Option<Sighting> = None;
     let mut two_mons: Option<bool> = None;
-    for t in &s.templates {
+    for t in s.templates.iter() {
         if t.trainer_type != TRAINER_TYPE_NORMAL && t.trainer_type != TRAINER_TYPE_BURIED {
             continue;
         }
@@ -116,7 +130,8 @@ fn trainer_sees(game: &impl GameData, s: &State, t: &ObjectEvent) -> Option<(Scr
     if t.trainer_sight == 0 {
         return None;
     }
-    let o = s.objects.get(t.local_id)?;
+    let i = s.objects.slot(t.local_id)?;
+    let o = s.objects.in_slot(i);
     let player = s.objects.player().pos();
     let (ox, oy) = o.pos();
     let ways: &[Dir] = if t.trainer_type == TRAINER_TYPE_NORMAL {
@@ -137,7 +152,7 @@ fn trainer_sees(game: &impl GameData, s: &State, t: &ObjectEvent) -> Option<(Scr
         if !(1..=range).contains(&n) {
             return None;
         }
-        path_clear(s, &ground, t.local_id, (ox, oy), d, n).then_some(n as u8)
+        path_clear(s, &ground, i, (ox, oy), d, n).then_some(n as u8)
     })?;
     let script = t.script?;
     let flag = game.trainer_flag_of(script)?;
@@ -149,15 +164,15 @@ fn trainer_sees(game: &impl GameData, s: &State, t: &ObjectEvent) -> Option<(Scr
 fn path_clear(
     s: &State,
     ground: &impl Terrain,
-    local: u8,
+    slot: usize,
     from: (i16, i16),
     d: Dir,
     n: i16,
 ) -> bool {
     let (dx, dy) = d.delta();
     let at = |k: i16| (from.0 + dx * k, from.1 + dy * k);
-    (1..n).all(|k| s.objects.sight_collision(ground, local, at(k)) == Collision::None)
-        && s.objects.sight_collision(ground, local, at(n)) == Collision::Object
+    (1..n).all(|k| s.objects.sight_collision(ground, slot, at(k)) == Collision::None)
+        && s.objects.sight_collision(ground, slot, at(n)) == Collision::Object
 }
 
 impl World {

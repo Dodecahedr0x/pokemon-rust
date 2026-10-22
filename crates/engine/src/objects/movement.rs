@@ -15,7 +15,8 @@ use crate::script::Speed;
 pub(super) const DELAYS_MEDIUM: [u16; 4] = [32, 64, 96, 128];
 /// `sMovementDelaysShort`, for the three-direction types.
 pub(super) const DELAYS_SHORT: [u16; 4] = [32, 48, 64, 80];
-/// `MovementType_Rotate*_Step1`: `SetMovementDelay(sprite, 48)`.
+/// `MovementType_Rotate*_Step1`: `SetMovementDelay(sprite, 48)`. `_Step2` returns FALSE when
+/// the delay ends, so the turn is a frame later: the wait is `ROTATE_DELAY + 1`.
 pub(super) const ROTATE_DELAY: u16 = 48;
 
 /// Gen3 `gDownUpAndLeftDirections` … `gDownLeftAndRightDirections` (picked with `Random() & 3`),
@@ -126,7 +127,7 @@ impl Objects {
         let f = o.facing;
         o.face(f);
         o.idle = Idle::Wait(match pick {
-            Pick::Rotate(_) => ROTATE_DELAY,
+            Pick::Rotate(_) => ROTATE_DELAY + 1,
             _ => delays[random(rng) as usize % 4],
         });
     }

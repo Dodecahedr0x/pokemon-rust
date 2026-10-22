@@ -33,10 +33,10 @@ pub(super) fn done<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> bool {
         ApproachStep::Stopped { obj, dir, pos } => {
             // Gen3 `TryOverrideTemplateCoordsForObjectEvent` + `OverrideTemplateCoordsForObjectEvent`:
             // the trainer stays where it stopped for the rest of the visit.
-            if let Some(t) = s.template_mut(obj) {
+            s.edit_template(obj, |t| {
                 t.movement = MovementType::Face(dir);
                 (t.x, t.y) = pos;
-            }
+            });
             false
         }
         ApproachStep::Done => true,

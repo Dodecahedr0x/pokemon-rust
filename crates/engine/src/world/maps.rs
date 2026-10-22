@@ -86,7 +86,7 @@ pub(super) fn load_map(
     s.event(Event::MapEntered(id));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
-    s.templates = map.objects.to_vec();
+    s.templates = super::templates::Templates::new(map.objects.to_vec());
     s.objects.enter_map(id, None);
     s.objects.set_pos(PLAYER, x, y);
     // Gen3 `LoadMapFromWarp`: `RunOnTransitionMapScript` runs before `InitMap`.
@@ -120,7 +120,7 @@ pub(super) fn cross_connection(
     s.event(Event::MapEntered(to));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
-    s.templates = map.objects.to_vec();
+    s.templates = super::templates::Templates::new(map.objects.to_vec());
     s.objects.enter_map(to, Some(shift));
     // As a warp load: `on_transition` before the map switch (`InitMap`).
     if let Some(script) = map.scripts.on_transition {

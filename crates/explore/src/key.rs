@@ -147,6 +147,11 @@ fn movement_code(m: MovementType) -> u64 {
         MovementType::WanderHorizontal => 4,
         MovementType::WalkInPlace(d) => 0x20 | dir(d),
         MovementType::Invisible => 5,
+        // Milestone 8 Task I: the engine's two hash bytes (tag 7..), above the numbers above.
+        m => {
+            let [tag, arg] = engine::objects::movement_code(m);
+            0x1000 | u64::from(tag) << 8 | u64::from(arg)
+        }
     }
 }
 

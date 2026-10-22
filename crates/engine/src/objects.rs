@@ -187,8 +187,9 @@ pub struct Object {
     pub prev: (i16, i16),
     pub elevation: u8,
     pub facing: Dir,
-    /// Changed only through [`Objects::set_movement_type`] (`code` caches its hash bytes).
-    pub movement: MovementType,
+    /// Read with [`Object::movement`]; changed only through [`Objects::set_movement_type`]
+    /// (`code` caches its hash bytes).
+    movement: MovementType,
     /// `movement_code(movement)`, kept so the per-frame hash does not match on the type.
     code: [u8; 2],
     /// Spawn cell; wander range is measured from it.
@@ -228,6 +229,11 @@ pub const fn initial_facing(m: MovementType) -> Dir {
 }
 
 impl Object {
+    /// The idle movement type.
+    pub const fn movement(&self) -> MovementType {
+        self.movement
+    }
+
     fn new(
         local_id: u8,
         map: MapId,
@@ -586,6 +592,17 @@ impl Objects {
             .position(|o| o.local_id == local && o.map == self.map)
     }
 
+    /// The slot of the current map's object `local`, for [`Objects::in_slot`] and
+    /// [`Objects::sight_collision`] (valid until objects spawn or despawn).
+    pub fn slot(&self, local: u8) -> Option<usize> {
+        self.index(local)
+    }
+
+    /// The object in slot `i` (from [`Objects::slot`]).
+    pub fn in_slot(&self, i: usize) -> &Object {
+        &self.objs[i]
+    }
+
     fn with(&mut self, local: u8, f: impl FnOnce(&mut Object)) {
         if let Some(i) = self.index(local) {
             f(&mut self.objs[i]);
@@ -736,18 +753,15 @@ impl Objects {
         }
     }
 
-    /// Gen3 `GetCollisionAtCoords` for object `local` at (x, y) with its wander range ignored and
-    /// without the `Behavior::Blocked` test (Gen3's collision has no water): what trainer sight
-    /// checks along its line.
+    /// Gen3 `GetCollisionAtCoords` for the object in slot `i` ([`Objects::slot`]) at (x, y) with
+    /// its wander range ignored and without the `Behavior::Blocked` test (Gen3's collision has no
+    /// water): what trainer sight checks along its line.
     pub fn sight_collision(
         &self,
         terrain: &impl Terrain,
-        local: u8,
+        i: usize,
         (x, y): (i16, i16),
     ) -> Collision {
-        let Some(i) = self.index(local) else {
-            return Collision::None;
-        };
         let o = &self.objs[i];
         let block = terrain.block(x, y);
         if block_collision(block) != 0 {

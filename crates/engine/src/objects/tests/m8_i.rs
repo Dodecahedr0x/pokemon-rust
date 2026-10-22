@@ -124,8 +124,10 @@ fn face_all_but_never_faces_the_missing_way_and_waits_short() {
     }
 }
 
+/// Gen3 `MovementType_Rotate*_Step2` returns FALSE when the 48-frame delay ends, so the turn
+/// comes a frame later: one quarter turn every 49 frames.
 #[test]
-fn rotations_turn_every_48_frames_without_randoms() {
+fn rotations_turn_every_49_frames_without_randoms() {
     let g = Grid::open();
     for (clockwise, order) in [
         (true, [Dir::Left, Dir::Up, Dir::Right, Dir::Down]),
@@ -135,9 +137,9 @@ fn rotations_turn_every_48_frames_without_randoms() {
         assert_eq!(o.get(1).unwrap().facing, Dir::Down);
         let mut rng = Rng::new(4);
         o.update(&g, &mut rng, false);
-        assert_eq!(o.get(1).unwrap().idle, Idle::Wait(ROTATE_DELAY));
+        assert_eq!(o.get(1).unwrap().idle, Idle::Wait(ROTATE_DELAY + 1));
         for d in order {
-            for _ in 1..ROTATE_DELAY {
+            for _ in 1..ROTATE_DELAY + 1 {
                 o.update(&g, &mut rng, false);
             }
             assert_ne!(o.get(1).unwrap().facing, d);

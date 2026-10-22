@@ -181,15 +181,51 @@ fn sight_needs_range_facing_a_clear_path_and_an_unset_flag() {
 #[test]
 fn buried_trainers_look_all_four_ways_and_other_types_do_not_look() {
     let mut w = arena(1);
-    let t = w.s.templates.iter_mut().find(|t| t.local_id == 1).unwrap();
-    t.trainer_type = sight::TRAINER_TYPE_BURIED;
+    w.s.templates
+        .edit(1, |t| t.trainer_type = sight::TRAINER_TYPE_BURIED);
     assert_eq!(sees(&mut w, (8, 5), false).map(|s| s.distance), Some(2));
     // `TRAINER_TYPE_SEE_ALL_DIRECTIONS` (2) and plain objects are skipped.
     for ty in [0, 2] {
-        let t = w.s.templates.iter_mut().find(|t| t.local_id == 1).unwrap();
-        t.trainer_type = ty;
+        w.s.templates.edit(1, |t| t.trainer_type = ty);
         assert_eq!(sees(&mut w, (5, 3), false), None, "type {ty}");
     }
+}
+
+#[test]
+fn maps_without_a_looking_trainer_skip_sight() {
+    let mut w = arena(1);
+    assert!(w.s.templates.has_trainers());
+    w.s.templates.edit(1, |t| t.trainer_type = 0);
+    assert!(w.s.templates.has_trainers(), "trainer 2 still looks");
+    w.s.templates.edit(2, |t| t.trainer_type = 2);
+    assert!(
+        !w.s.templates.has_trainers(),
+        "SEE_ALL_DIRECTIONS does not count"
+    );
+    // The plain town has none.
+    let town = World::new(&Game);
+    assert!(!town.s.templates.has_trainers());
+}
+
+#[test]
+fn the_template_digest_follows_edits() {
+    let mut w = arena(1);
+    let before = w.hash();
+    w.s.templates.edit(1, |t| t.x = 7);
+    let moved = w.hash();
+    assert_ne!(moved, before);
+    w.s.templates
+        .edit(1, |t| t.movement = MovementType::Rotate { clockwise: true });
+    assert_ne!(w.hash(), moved);
+    w.s.templates.edit(1, |t| {
+        t.x = 8;
+        t.movement = MovementType::Face(Dir::Left);
+    });
+    assert_eq!(w.hash(), before, "same templates, same hash");
+    // Swapping two templates' positions is a different state.
+    w.s.templates.edit(1, |t| (t.x, t.y) = (2, 8));
+    w.s.templates.edit(2, |t| (t.x, t.y) = (8, 3));
+    assert_ne!(w.hash(), before);
 }
 
 #[test]
