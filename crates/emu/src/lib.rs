@@ -5,8 +5,8 @@ use engine::Buttons;
 use engine::checkpoint::{BuildHash, FLASH_SIZE};
 use engine::debug::{
     INPUT_RING, MAGIC, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE, OFF_FRAME, OFF_HASH,
-    OFF_HASH_LINES_MAX, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK, OFF_SAVE_STATUS, OFF_SAVES,
-    OFF_STEP_LINES_MAX, SIZE,
+    OFF_HASH_LINES_MAX, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK, OFF_LOOP_LINES_MAX, OFF_SAVE_STATUS,
+    OFF_SAVES, OFF_STEP_LINES_MAX, SIZE,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -47,6 +47,9 @@ pub struct DebugSnapshot {
     pub hash_lines_max: u32,
     /// Worst scanlines from the apply to the end of publish on a visible frame.
     pub step_lines_max: u32,
+    /// Worst scanlines of the whole shell loop body on a visible frame (apply, step, publish,
+    /// save tail; a flash write excluded), out of the 228-line frame.
+    pub loop_lines_max: u32,
 }
 
 // `Emu::debug` reads the v2 fields at engine's offsets: inside the region, and the u64s on
@@ -56,7 +59,7 @@ const _: () = {
     assert!(OFF_BUILD_ENGINE == 160 && OFF_BUILD_CONTENT == 168);
     assert!(OFF_BOOT == 176 && OFF_SAVES == 180 && OFF_SAVE_STATUS == 184);
     assert!(OFF_HASH_LINES_MAX == 188 && OFF_STEP_LINES_MAX == 192);
-    assert!(OFF_STEP_LINES_MAX as usize + 4 <= SIZE);
+    assert!(OFF_LOOP_LINES_MAX == 196 && OFF_LOOP_LINES_MAX as usize + 4 <= SIZE);
     assert!(OFF_HASH.is_multiple_of(8) && OFF_BUILD_ENGINE.is_multiple_of(8));
     assert!(OFF_BUILD_CONTENT.is_multiple_of(8));
 };
@@ -270,6 +273,7 @@ impl Emu {
             save_status: self.read32(base + OFF_SAVE_STATUS),
             hash_lines_max: self.read32(base + OFF_HASH_LINES_MAX),
             step_lines_max: self.read32(base + OFF_STEP_LINES_MAX),
+            loop_lines_max: self.read32(base + OFF_LOOP_LINES_MAX),
         })
     }
 

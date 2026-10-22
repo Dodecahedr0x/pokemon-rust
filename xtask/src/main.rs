@@ -56,6 +56,7 @@ fn rom() -> Result<PathBuf> {
         .args(["-t", "PKRUST"]))?;
     println!("ROM: {}", out.display());
     check_rom_size(&out)?;
+    budget::check(&budget::report(&elf, &out)?)?;
     // The video probe (crates/game-gba/src/bin/video_probe.rs), compared by the parity test.
     let probe = root().join("target/video-probe.gba");
     run(Command::new("agb-gbafix")
