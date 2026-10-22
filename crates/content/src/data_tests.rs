@@ -60,6 +60,13 @@ impl ScriptHost for Host {
             Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::YesNo => Response::Bool(self.yes),
+            // The bag and money always succeed.
+            Request::ItemAdd { .. }
+            | Request::ItemCheck { .. }
+            | Request::ItemSpace { .. }
+            | Request::ItemRemove { .. }
+            | Request::MoneyCheck(_) => Response::Bool(true),
+            Request::Multichoice { .. } => Response::Value(0),
             _ => Response::Unit,
         })
     }
@@ -608,7 +615,7 @@ mod extracted {
         ] {
             assert!(has_map(m), "{m:?}");
         }
-        assert!(data::MAP_COUNT >= 15);
+        assert!(data::MAP_IDS.len() >= 15);
     }
 
     #[test]

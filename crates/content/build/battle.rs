@@ -313,6 +313,8 @@ impl Gen<'_> {
                 }
                 v
             });
+            // TODO(M8 E, after A and G merge): `weight: {s.weight}` (Task A's `Species.weight`,
+            // hectograms) into G's `SpeciesInfo.weight` (Low Kick); neither is on master yet.
             writeln!(
                 species,
                 "    SpeciesInfo {{ name: {}, base: {:?}, types: [{}, {}], catch_rate: {}, exp_yield: {}, ev_yield: {:?}, gender_ratio: {}, friendship: {}, growth: {}, abilities: [{}, {}], learnset: &LS_{i}, gfx: {gfx} }}, // {}",
@@ -988,6 +990,8 @@ fn move_info(m: &Move, effect: &str, lang: Lang) -> Result<String> {
     for f in &m.flags {
         flags |= classify::move_flag(f).with_context(|| format!("{}: unknown flag {f}", m.id))?;
     }
+    // TODO(M8 E, after G merges): `flags |= classify::extra_move_flags(&m.id);` (the sound
+    // flag, `MoveFlags::SOUND`, from G's `classify/battle.rs`).
     Ok(format!(
         "MoveInfo {{ name: {}, effect: {effect}, power: {}, ty: {}, accuracy: {}, pp: {}, effect_chance: {}, target: {}, priority: {}, flags: MoveFlags({flags:#X}) }}",
         bytes_lit(&encode_lang(&m.name, lang).with_context(|| m.id.clone())?),
