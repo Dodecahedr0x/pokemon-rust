@@ -359,7 +359,16 @@ impl Gen<'_> {
     fn gen_species(&mut self) -> Result<()> {
         let b = self.b;
         let mut species = String::new();
+        let mut ability_ids = String::new();
         for (i, s) in b.species.iter().enumerate() {
+            let ids = s.abilities.each_ref().map(|a| {
+                names::ABILITIES
+                    .value(a)
+                    .filter(|&v| v < b.types.ability_names.len() as u32)
+                    .with_context(|| format!("{}: unknown ability {a}", s.id))
+            });
+            let [a0, a1] = ids;
+            write!(ability_ids, "[{}, {}],", a0?, a1?)?;
             let mut ls = String::new();
             for (level, m) in &s.learnset {
                 write!(
@@ -426,6 +435,11 @@ impl Gen<'_> {
         writeln!(
             self.o,
             "pub static SPECIES: [SpeciesInfo; {}] = [\n{species}];",
+            b.species.len()
+        )?;
+        writeln!(
+            self.o,
+            "/// Each species' raw `ABILITY_*` ids (`gSpeciesInfo[].abilities`), indexed by\n/// `SpeciesId`; [`ABILITY_NAMES`] names them. `SpeciesInfo::abilities` folds the ones the\n/// engine does not implement into `Ability::Other`.\npub static SPECIES_ABILITY_IDS: [[u8; 2]; {}] = [{ability_ids}];",
             b.species.len()
         )?;
         Ok(())
@@ -691,6 +705,18 @@ impl Gen<'_> {
             "{} ability names, expected one per ABILITY_*",
             b.types.ability_names.len()
         );
+        let an: Vec<String> = b
+            .types
+            .ability_names
+            .iter()
+            .map(|n| Ok(bytes_lit(&self.enc(n, "ability name")?)))
+            .collect::<Result<_>>()?;
+        writeln!(
+            self.o,
+            "/// `gAbilityNames`, indexed by raw `ABILITY_*` id (Gen3-encoded, 0xFF-terminated).\npub static ABILITY_NAMES: [&[u8]; {}] = [{}];",
+            an.len(),
+            an.join(", ")
+        )?;
         let mut ability_arms = String::new();
         for (expr, id) in &named {
             let n = &b.types.ability_names[*id as usize];
