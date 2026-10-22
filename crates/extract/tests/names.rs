@@ -504,6 +504,30 @@ fn generate(d: &Path) -> String {
             asm_symbols(&read(d, "asm/macros/event.inc"), "MSGBOX_"),
         ),
         (
+            "MULTICHOICE",
+            "`MULTI_*` multichoice list ids (and `MULTI_B_PRESSED`) from `include/constants/script_menu.h`.",
+            "MULTI_",
+            prefixed(d, &env, "include/constants/script_menu.h", "MULTI_"),
+        ),
+        (
+            "STD_STRINGS",
+            "`STDSTRING_*` (`bufferstdstring`) from `include/constants/script_menu.h`.",
+            "STDSTRING_",
+            prefixed(d, &env, "include/constants/script_menu.h", "STDSTRING_"),
+        ),
+        (
+            "MAP_SECTIONS",
+            "`MAPSEC_*`: `src/data/region_map/region_map_sections.json` order, then `MAPSEC_NONE`.",
+            "MAPSEC_",
+            map_sections(&read(d, "src/data/region_map/region_map_sections.json")),
+        ),
+        (
+            "LAYOUTS",
+            "`LAYOUT_*` -> `gMapLayouts` index + 1 (`data/layouts/layouts.json`; 0 is no layout).",
+            "LAYOUT_",
+            layouts(&read(d, "data/layouts/layouts.json")),
+        ),
+        (
             "TILESETS",
             "`Tileset` header index -> name (`gTileset_<name>`), in `src/data/tilesets/headers.h` order.",
             "",
@@ -528,6 +552,33 @@ fn generate(d: &Path) -> String {
 }
 
 type Entries = Vec<(i64, String)>;
+
+/// `MAPSEC_*`: the generated enum of `region_map_sections.constants.json.txt` is every
+/// `map_sections` id in order, then `MAPSEC_NONE` (`MAPSEC_COUNT` is left out).
+fn map_sections(src: &str) -> Entries {
+    let json: serde_json::Value = serde_json::from_str(src).unwrap();
+    let list = json["map_sections"].as_array().unwrap();
+    let mut out: Entries = list
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (i as i64, s["id"].as_str().unwrap().to_string()))
+        .collect();
+    out.push((list.len() as i64, "MAPSEC_NONE".to_string()));
+    out
+}
+
+/// `LAYOUT_*`: mapjson numbers `layouts.json` entries from 1 in array order (a map header's
+/// `mapLayoutId` indexes `gMapLayouts[id - 1]`); empty placeholder entries keep their number.
+fn layouts(src: &str) -> Entries {
+    let json: serde_json::Value = serde_json::from_str(src).unwrap();
+    json["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .filter_map(|(i, l)| Some((i as i64 + 1, l["id"].as_str()?.to_string())))
+        .collect()
+}
 
 const GENERATED: &str = "src/names/generated.rs";
 const GENERATED_BATTLE: &str = "src/names/battle.rs";

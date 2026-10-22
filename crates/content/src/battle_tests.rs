@@ -3,7 +3,7 @@
 
 use super::*;
 
-use crate::prelude::{TrainerBattle, trainer_battle, trainer_flag};
+use crate::prelude::{LegacyTrainerBattle, legacy_trainer_battle, trainer_flag};
 use engine::battle::BattleOutcome;
 use engine::data::{FlagId, TrainerId};
 use engine::mon::MoveEffect;
@@ -12,11 +12,11 @@ use engine::mon::MoveEffect;
 #[allow(non_upper_case_globals)]
 const Emerald: Emerald = Emerald::after_starter();
 
-fn fought(b: TrainerBattle, h: &mut Host) {
+fn fought(b: LegacyTrainerBattle, h: &mut Host) {
     run(
         |ctx| {
             Box::pin(async move {
-                let fought = trainer_battle(&ctx, b).await;
+                let fought = legacy_trainer_battle(&ctx, b).await;
                 ctx.set_var(consts::VAR_RESULT, fought as u16).await;
             })
         },
@@ -27,7 +27,7 @@ fn fought(b: TrainerBattle, h: &mut Host) {
 #[test]
 fn trainer_battle_single_follows_trainer_battle_inc() {
     let tr = TrainerId(3);
-    let b = TrainerBattle::single(tr, 2, TextId(1), TextId(2));
+    let b = LegacyTrainerBattle::single(tr, 2, TextId(1), TextId(2));
     let mut h = Host::default();
     fought(b, &mut h);
     assert_eq!(
@@ -71,7 +71,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
 fn trainer_battle_variants() {
     let tr = TrainerId(7);
     let mut h = Host::default();
-    fought(TrainerBattle::no_intro(tr, TextId(4)), &mut h);
+    fought(LegacyTrainerBattle::no_intro(tr, TextId(4)), &mut h);
     assert_eq!(
         h.log,
         [
@@ -85,7 +85,7 @@ fn trainer_battle_variants() {
     );
     let mut h = Host::default();
     fought(
-        TrainerBattle::continue_script(tr, 1, TextId(1), TextId(2)),
+        LegacyTrainerBattle::continue_script(tr, 1, TextId(1), TextId(2)),
         &mut h,
     );
     assert!(h.log.contains(&Request::Message(TextId(1))));
@@ -289,7 +289,7 @@ fn the_tables_are_indexed_by_id() {
 #[test]
 fn every_slice_species_has_pics() {
     let t = Emerald.battle();
-    for s in battle::SLICE_SPECIES
+    for s in crate::samples::SPECIES_IDS
         .iter()
         .chain(&battle::STARTERS)
         .chain([&battle::FIRST_BATTLE_FOE.0])
@@ -367,7 +367,7 @@ mod extracted {
     #[test]
     fn slice_moves_have_supported_effects() {
         let t = Emerald.battle();
-        let unsupported: Vec<MoveId> = battle::SLICE_MOVES
+        let unsupported: Vec<MoveId> = crate::samples::MOVE_IDS
             .iter()
             .copied()
             .filter(|&m| matches!(t.move_info(m).effect, MoveEffect::Unsupported(_)))
@@ -548,7 +548,7 @@ mod stub {
         }
         assert!(battle::TRAINER_IDS.is_empty());
         assert!(
-            battle::SLICE_MOVES
+            crate::samples::MOVE_IDS
                 .iter()
                 .all(|&m| !matches!(t.move_info(m).effect, MoveEffect::Unsupported(_)))
         );

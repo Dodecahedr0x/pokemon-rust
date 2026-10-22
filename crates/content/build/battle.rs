@@ -314,16 +314,6 @@ fn str_text(b: &BattleIn, src: StrSrc) -> Result<String> {
     })
 }
 
-/// Effects whose stat message the engine's one-`Str`-per-battler wording cannot say: the user's
-/// own stats fall (`EFFECT_SUPERPOWER`, `EFFECT_OVERHEAT`) or the target's rise
-/// (`EFFECT_SWAGGER`, `EFFECT_FLATTER`). See `classify::STRS` (`AttackerStatChanged`).
-const UNWORDED_STAT_EFFECTS: [&str; 4] = [
-    "EFFECT_SUPERPOWER",
-    "EFFECT_OVERHEAT",
-    "EFFECT_SWAGGER",
-    "EFFECT_FLATTER",
-];
-
 /// The generator's state: the input, id numbers, the slice, and the output so far.
 struct Gen<'a> {
     b: &'a BattleIn,
@@ -452,7 +442,7 @@ impl Gen<'_> {
         for m in &b.moves.moves {
             let slice = self.slice_mv.contains(&m.id);
             ensure!(
-                !(slice && UNWORDED_STAT_EFFECTS.contains(&m.effect.as_str())),
+                !(slice && classify::UNWORDED_STAT_EFFECTS.contains(&m.effect.as_str())),
                 "slice move {} has {}: its stat message needs Rose/Fell-split `Str`s",
                 m.id,
                 m.effect
