@@ -259,6 +259,8 @@ static WINDOW: WindowGfx = WindowGfx {
 };
 /// Two glyphs, a `\p` page break, one glyph.
 static TEXT: [u8; 5] = [1, 2, 0xFB, 3, 0xFF];
+/// "{PLAYER}"; every other text id is `TEXT`.
+const PLAYER_TEXT: TextId = TextId(1);
 
 pub struct Game;
 
@@ -387,8 +389,11 @@ impl GameData for Game {
     fn window(&self) -> &'static WindowGfx {
         &WINDOW
     }
-    fn text(&self, _: TextId) -> &'static [u8] {
-        &TEXT
+    fn text(&self, id: TextId) -> &'static [u8] {
+        match id {
+            PLAYER_TEXT => &[0xFD, 0x01, 0xFF], // "{PLAYER}"
+            _ => &TEXT,
+        }
     }
     fn ui_text(&self, _: UiText) -> &'static [u8] {
         &[1, 0xFF]
@@ -728,9 +733,75 @@ fn golden_hashes() {
     let h1 = w.hash();
     assert_eq!(
         (h0, h1),
-        (0x3f86_f67e_851d_e7b8, 0xe51e_3e6e_f153_f261),
+        (0x54c3_f87e_89e2_7c7e, 0xb94e_51c5_d022_8cf7),
         "{h0:#018x} {h1:#018x}"
     );
+}
+
+/// Regression: `Object.moves` hashed only the table length, so two different movement scripts
+/// of the same length collided.
+#[test]
+fn movement_scripts_hash_their_steps() {
+    static A: [Step; 2] = [Step::Walk(Dir::Up, Speed::Normal), Step::Face(Dir::Left)];
+    static B: [Step; 2] = [Step::Walk(Dir::Down, Speed::Normal), Step::Face(Dir::Left)];
+    static A2: [Step; 2] = [Step::Walk(Dir::Up, Speed::Normal), Step::Face(Dir::Left)];
+    let with = |steps: &'static [Step]| {
+        let mut w = started();
+        w.s.objects.start_moves(PLAYER, steps);
+        w.hash()
+    };
+    assert_ne!(with(&A), with(&B));
+    assert_eq!(with(&A), with(&A2));
+}
+
+#[test]
+fn the_player_name_is_hashed_state() {
+    let mut a = started();
+    let before = a.hash();
+    a.set_player_name(&[1, 0xFF]);
+    assert_eq!(a.hash(), before, "same name as NewGame");
+    a.set_player_name(&[0xBB, 0xCD, 0xC2, 0xFF]); // "ASH"
+    assert_ne!(a.hash(), before);
+}
+
+/// Messages, the starter screen and battles read the World's name, not `NewGame`'s.
+#[test]
+fn the_worlds_player_name_reaches_messages_the_starter_screen_and_battles() {
+    const ASH: [u8; 4] = [0xBB, 0xCD, 0xC2, 0xFF];
+    const PADDED: PlayerName = [0xBB, 0xCD, 0xC2, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+    let named = || {
+        let mut w = started();
+        w.set_player_name(&ASH);
+        w
+    };
+
+    let mut w = named();
+    start(&mut w, |ctx| {
+        Box::pin(async move { ctx.message(PLAYER_TEXT).await })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(w.s.text.printed(), ASH);
+
+    let mut w = named();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.choose_starter([SpeciesId(1), SpeciesId(2), SpeciesId(3)])
+                .await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(w.starter().map(|s| *s.player()), Some(PADDED));
+
+    let mut w = named();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(crate::battle::test_data::WATER, 5).await;
+            ctx.battle_wild(crate::battle::test_data::NORMAL, 3, false)
+                .await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(w.battle().map(|b| *b.2.player()), Some(PADDED));
 }
 
 #[test]

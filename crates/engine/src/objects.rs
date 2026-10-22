@@ -142,6 +142,8 @@ struct Action {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Moves {
     steps: &'static [Step],
+    /// [`crate::script::steps_digest`] of `steps` (their hashed identity).
+    digest: u32,
     next: u16,
 }
 
@@ -429,10 +431,9 @@ impl Object {
         match self.moves {
             None => h.write(&[0]),
             Some(m) => {
-                // The steps themselves are static data; their length and the cursor identify
-                // the progress.
+                // The steps are static data: their digest and the cursor identify the progress.
                 h.write(&[1]);
-                h.write_u32(m.steps.len() as u32);
+                h.write_u32(m.digest);
                 h.write_u16(m.next);
             }
         }
@@ -751,7 +752,13 @@ impl Objects {
 
     /// Gives `local` a movement script. It starts once the current action has finished.
     pub fn start_moves(&mut self, local: u8, steps: &'static [Step]) {
-        self.with(local, |o| o.moves = Some(Moves { steps, next: 0 }));
+        self.with(local, |o| {
+            o.moves = Some(Moves {
+                steps,
+                digest: crate::script::steps_digest(steps),
+                next: 0,
+            })
+        });
     }
 
     /// The movement script has finished (true for unknown ids, as Gen3 `waitmovement`).

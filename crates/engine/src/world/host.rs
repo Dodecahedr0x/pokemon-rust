@@ -96,7 +96,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Message(t) if !self.immediate => {
-                s.text.print(game, game.text(t), self.f);
+                s.text.print(game, game.text(t), &s.player_name, self.f);
                 UNIT
             }
             Request::CloseMessage => {
@@ -265,7 +265,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 // field afterwards.
                 s.text = crate::text::TextBox::new();
                 s.mode = Mode::Starter(Box::new(StarterRun {
-                    choice: StarterChoice::new(choices),
+                    choice: StarterChoice::new(choices, s.player_name),
                     leaving: None,
                 }));
                 None

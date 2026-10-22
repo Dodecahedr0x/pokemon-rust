@@ -190,8 +190,8 @@ pub enum Request {
 }
 
 impl Request {
-    /// Feeds the request's kind and arguments into `h` (O(1): a movement script counts by its
-    /// length, a log line not at all).
+    /// Feeds the request's kind and arguments into `h` (a movement script by its length and
+    /// [`steps_digest`], a log line not at all).
     pub fn hash_into(&self, h: &mut Fnv64) {
         let i = |v: i16| v as u16;
         let (tag, a, b, c, d): (u8, u16, u16, u16, u16) = match *self {
@@ -213,7 +213,16 @@ impl Request {
             Request::Release => (15, 0, 0, 0, 0),
             Request::ReleaseAll => (16, 0, 0, 0, 0),
             Request::FacePlayer => (17, 0, 0, 0, 0),
-            Request::Move { obj, steps } => (18, obj as u16, steps.len() as u16, 0, 0),
+            Request::Move { obj, steps } => {
+                let d = steps_digest(steps);
+                (
+                    18,
+                    obj as u16,
+                    steps.len() as u16,
+                    d as u16,
+                    (d >> 16) as u16,
+                )
+            }
             Request::WaitMove(obj) => (19, obj as u16, 0, 0, 0),
             Request::SetObjectPos { obj, x, y } => (20, obj as u16, i(x), i(y), 0),
             Request::ShowObject(obj) => (21, obj as u16, 0, 0, 0),
@@ -679,9 +688,41 @@ impl Runner {
 
 /// FNV-1a-32 over a stable encoding of each step (tag byte + args); the identity of a step
 /// table (Milestone 5 Task A).
-pub fn steps_digest(steps: &[Step]) -> u32 {
-    let _ = steps;
-    todo!("Milestone 5 Task A")
+///
+/// Encoding (stable: snapshots and hashes depend on it): one tag byte per variant in
+/// declaration order (`Face` 0 … `Emote` 11), then its arguments as bytes: `Dir as u8`,
+/// [`Speed`] as `Slow` 0 … `Faster` 3, the jump `cells`, the `Delay` frames, [`Emote`] as
+/// `Exclamation` 0 … `Heart` 2.
+pub const fn steps_digest(steps: &[Step]) -> u32 {
+    const fn mix(h: u32, b: u8) -> u32 {
+        (h ^ b as u32).wrapping_mul(0x0100_0193)
+    }
+    let mut h: u32 = 0x811c_9dc5;
+    let mut i = 0;
+    while i < steps.len() {
+        let (tag, args, n): (u8, [u8; 2], usize) = match steps[i] {
+            Step::Face(d) => (0, [d as u8, 0], 1),
+            Step::Walk(d, s) => (1, [d as u8, s as u8], 2),
+            Step::WalkInPlace(d, s) => (2, [d as u8, s as u8], 2),
+            Step::Jump(d, cells) => (3, [d as u8, cells], 2),
+            Step::Delay(n) => (4, [n, 0], 1),
+            Step::FacePlayer => (5, [0; 2], 0),
+            Step::FaceAwayFromPlayer => (6, [0; 2], 0),
+            Step::LockFacing => (7, [0; 2], 0),
+            Step::UnlockFacing => (8, [0; 2], 0),
+            Step::Hide => (9, [0; 2], 0),
+            Step::Show => (10, [0; 2], 0),
+            Step::Emote(e) => (11, [e as u8, 0], 1),
+        };
+        h = mix(h, tag);
+        let mut j = 0;
+        while j < n {
+            h = mix(h, args[j]);
+            j += 1;
+        }
+        i += 1;
+    }
+    h
 }
 
 #[cfg(test)]
@@ -725,6 +766,69 @@ mod tests {
             self.frames_left -= 1;
             (self.frames_left == 0).then_some(Response::Unit)
         }
+    }
+
+    fn request_hash(r: &Request) -> u64 {
+        let mut h = Fnv64::new();
+        r.hash_into(&mut h);
+        h.finish()
+    }
+
+    #[test]
+    fn steps_digest_is_pinned() {
+        // Bytes: Walk(Left, Fast) = [1, 2, 2], Jump(Up, 2) = [3, 1, 2], Emote(Heart) = [11, 2].
+        // FNV-1a-32 (basis 0x811c9dc5, prime 0x01000193) over [1, 2, 2, 3, 1, 2, 11, 2]:
+        // 0xb82730cf.
+        static T: [Step; 3] = [
+            Step::Walk(Dir::Left, Speed::Fast),
+            Step::Jump(Dir::Up, 2),
+            Step::Emote(Emote::Heart),
+        ];
+        assert_eq!(steps_digest(&T), 0xb827_30cf);
+        assert_eq!(steps_digest(&[]), 0x811c_9dc5);
+        const C: u32 = steps_digest(&T);
+        assert_eq!(C, 0xb827_30cf);
+    }
+
+    #[test]
+    fn steps_digest_tells_every_argument_apart() {
+        let all = [
+            Step::Face(Dir::Down),
+            Step::Face(Dir::Up),
+            Step::Walk(Dir::Down, Speed::Slow),
+            Step::Walk(Dir::Down, Speed::Faster),
+            Step::WalkInPlace(Dir::Down, Speed::Slow),
+            Step::Jump(Dir::Down, 0),
+            Step::Jump(Dir::Down, 1),
+            Step::Delay(0),
+            Step::Delay(1),
+            Step::FacePlayer,
+            Step::FaceAwayFromPlayer,
+            Step::LockFacing,
+            Step::UnlockFacing,
+            Step::Hide,
+            Step::Show,
+            Step::Emote(Emote::Exclamation),
+            Step::Emote(Emote::Question),
+        ];
+        let digests: Vec<u32> = all.iter().map(|s| steps_digest(&[*s])).collect();
+        for (i, a) in digests.iter().enumerate() {
+            for b in &digests[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
+
+    /// Regression: `Request::Move` hashed only the table length, so two different movement
+    /// scripts of the same length collided.
+    #[test]
+    fn move_requests_hash_the_step_contents() {
+        static A: [Step; 2] = [Step::Walk(Dir::Up, Speed::Normal), Step::Face(Dir::Left)];
+        static B: [Step; 2] = [Step::Walk(Dir::Down, Speed::Normal), Step::Face(Dir::Left)];
+        static A2: [Step; 2] = [Step::Walk(Dir::Up, Speed::Normal), Step::Face(Dir::Left)];
+        let mv = |steps: &'static [Step]| request_hash(&Request::Move { obj: 1, steps });
+        assert_ne!(mv(&A), mv(&B));
+        assert_eq!(mv(&A), mv(&A2));
     }
 
     async fn sample(ctx: Ctx) {

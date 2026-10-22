@@ -131,6 +131,8 @@ impl GameData for Game {
                 v.push(0xFF);
                 leak(v)
             }
+            // "{B_PLAYER_NAME}" (only the player-name test prints it).
+            Str::BirchInTrouble => leak(alloc::vec![0xFD, 0x23, 0xFF]),
             Str::UsedMove => leak(enc("USED")),
             Str::Intro1 => leak(enc("A WILD MON")),
             Str::GoPkmn => leak(enc("GO")),

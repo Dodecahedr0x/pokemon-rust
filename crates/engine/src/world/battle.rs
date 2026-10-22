@@ -231,7 +231,7 @@ impl State {
         let mut battle = Battle::new(game, setup, &self.party, &mut self.rng);
         let mut events = Vec::new();
         battle.start(game, &mut self.rng, &mut events);
-        let mut scene = BattleScene::new(battle.setup());
+        let mut scene = BattleScene::new(battle.setup(), self.player_name);
         scene.push(&mut events);
         if self.text.is_open() {
             self.text.close(f);
