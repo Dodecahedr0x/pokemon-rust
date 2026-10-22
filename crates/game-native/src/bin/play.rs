@@ -11,7 +11,7 @@
 use engine::Buttons;
 use game_native::checkpoints::materialize;
 use game_native::controls::{Controls, SaveRequest};
-use game_native::store::Store;
+use game_native::store::{Node, Store};
 use game_native::trace::{CheckpointId, Parent};
 use game_native::{SCREEN_H, SCREEN_W};
 use minifb::{Key, KeyRepeat, Scale, Window, WindowOptions};
@@ -73,15 +73,9 @@ fn load(store: &Store, c: &mut Controls<content::Emerald>, id: CheckpointId) -> 
 }
 
 fn list(store: &Store) -> std::io::Result<()> {
+    println!("{}", Node::row_header().trim_end());
     for n in store.topo_order()? {
-        let parent = match n.trace.parent {
-            Parent::NewGame => "new game".to_string(),
-            Parent::Checkpoint(p) => p.to_string(),
-        };
-        println!(
-            "{}  {:>6}  map {:#06x}  from {:<8}  {}",
-            n.meta.id, n.meta.frame, n.meta.map.0, parent, n.meta.label
-        );
+        println!("{}", n.row().trim_end());
     }
     Ok(())
 }

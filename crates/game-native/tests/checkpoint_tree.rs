@@ -250,12 +250,13 @@ fn the_committed_tree_verifies_valid() {
     }
     let store = Store::open(&root).unwrap();
     let verdicts = store.verify(replayer(&game()), false).unwrap();
+    // The health `cargo xtask checkpoints verify` (and parity) requires.
     let bad: Vec<_> = verdicts
         .iter()
-        .filter(|(_, s)| *s != Status::Valid)
+        .filter(|(_, s)| !Status::healthy([s]))
         .collect();
     assert!(
-        bad.is_empty(),
+        Status::healthy(verdicts.iter().map(|(_, s)| s)),
         "{} does not verify: {bad:?}; if the behaviour change is intended, run \
          `cargo xtask checkpoints verify --accept` and commit the nodes",
         committed.display()

@@ -8,10 +8,10 @@ use engine::checkpoint::{
 };
 use engine::data::{Behavior, Dir, FlagId, MapId, MovementType};
 use engine::{Buttons, World};
-use game_native::store::{Node, Replayed, Status, Store};
+use game_native::store::{Node, Replayed, Status, Store, Verdict};
 use game_native::trace::{
-    CheckpointId, HashMismatch, Parent, ReplayReport, Run, TRACE_SCHEMA, Trace, TraceRecorder,
-    replay, replay_with_hashes,
+    CheckpointId, HASH_EVERY, HashMismatch, Parent, ReplayReport, Run, TRACE_SCHEMA, Trace,
+    TraceRecorder, replay, replay_with_hashes,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -230,6 +230,20 @@ fn add(store: &Store, label: &str, parent: Parent, keys: &[(Buttons, u32)]) -> C
     store.add(label, t, &cp).unwrap()
 }
 
+/// The periodic hashes the fake game observes on `build`: on `BUILD`, what [`trace`] records
+/// (the keys of the frame), changed by another build or a salt.
+fn fake_hashes(trace: &Trace, build: BuildHash, salt: u32) -> Vec<(u32, u64)> {
+    let keys: Vec<Buttons> = trace.keys().collect();
+    let n = trace.frames();
+    (1..=n)
+        .filter(|&i| i.is_multiple_of(HASH_EVERY) || i == n)
+        .map(|i| {
+            let h = keys[i as usize - 1].0 as u64 ^ (build.engine ^ BUILD.engine) << 16;
+            (i, h ^ u64::from(salt))
+        })
+        .collect()
+}
+
 /// A fake replayer for `build`, adding 1 to the state of the trace ending at frame `salt_at`.
 fn replayer(
     build: BuildHash,
@@ -254,7 +268,7 @@ fn replayer(
                 end_hash: cp.header.world_hash,
                 first_mismatch: if salt == 1 { hint } else { None },
             },
-            hashes: vec![(trace.frames(), cp.header.world_hash)],
+            hashes: fake_hashes(trace, build, salt),
             checkpoint: cp,
         })
     }
@@ -677,13 +691,103 @@ fn verify_accept_rebaselines_diverged_nodes() {
         assert_eq!(n.trace.hashes, replayed.hashes);
         assert_eq!(store.snapshot(id).unwrap(), Some(cp));
     }
-    // Untouched: the valid nodes' files.
-    assert_eq!(a_file, fs::read(root.join("nodes/c00001.ron")).unwrap());
+    // The valid nodes keep their state and label; their build and hashes are refreshed.
+    assert_ne!(a_file, fs::read(root.join("nodes/c00001.ron")).unwrap());
+    let na = store.find("a").unwrap();
+    assert_eq!((na.meta.build, na.trace.build), (OTHER_BUILD, OTHER_BUILD));
     // Re-verifying on the new build is now valid everywhere.
     let out = store
         .verify(replayer(OTHER_BUILD, Some(30), None), false)
         .unwrap();
     assert!(out.iter().all(|(_, s)| *s == Status::Valid), "{out:?}");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn valid_nodes_of_another_build_are_flagged_and_accept_refreshes_them() {
+    let (root, store, [a, b, c, d]) = tree("rehash");
+    let files = |root: &Path| -> Vec<Vec<u8>> {
+        [a, b, c, d]
+            .iter()
+            .map(|id| fs::read(root.join(format!("nodes/{id}.ron"))).unwrap())
+            .collect()
+    };
+    let before = files(&root);
+    let rehash = |out: &[Verdict]| -> Vec<(CheckpointId, Status, bool)> {
+        out.iter()
+            .map(|v| (v.id, v.status.clone(), v.rehash))
+            .collect()
+    };
+    // On the recording build nothing is stale.
+    let out = store
+        .verify_nodes(replayer(BUILD, None, None), false)
+        .unwrap();
+    assert!(out.iter().all(|v| v.status == Status::Valid && !v.rehash));
+    // Another build reaches the same states: Valid, flagged, and left as is without --accept.
+    let out = store
+        .verify_nodes(replayer(OTHER_BUILD, None, None), false)
+        .unwrap();
+    assert_eq!(
+        rehash(&out),
+        [a, b, c, d].map(|id| (id, Status::Valid, true))
+    );
+    assert_eq!(files(&root), before);
+    // --accept refreshes build, world hash and trace hashes; the state and label stay.
+    let out = store
+        .verify_nodes(replayer(OTHER_BUILD, None, None), true)
+        .unwrap();
+    assert_eq!(
+        rehash(&out),
+        [a, b, c, d].map(|id| (id, Status::Valid, true))
+    );
+    for (old, id) in before.iter().zip([a, b, c, d]) {
+        let old: Node = ron::from_str(std::str::from_utf8(old).unwrap()).unwrap();
+        let n = store.find(&id.to_string()).unwrap();
+        assert_eq!((n.meta.build, n.trace.build), (OTHER_BUILD, OTHER_BUILD));
+        assert_eq!(n.trace.hashes, fake_hashes(&n.trace, OTHER_BUILD, 0));
+        let cp = store.snapshot(id).unwrap().unwrap();
+        assert_eq!(n.meta.world_hash, cp.header.world_hash);
+        assert_ne!(n.meta.world_hash, old.meta.world_hash);
+        assert_eq!(
+            (&n.meta.label, n.meta.digest, &n.trace.inputs),
+            (&old.meta.label, old.meta.digest, &old.trace.inputs)
+        );
+    }
+    let out = store
+        .verify_nodes(replayer(OTHER_BUILD, None, None), false)
+        .unwrap();
+    assert!(out.iter().all(|v| v.status == Status::Valid && !v.rehash));
+    // Refreshed, the nodes are this build's: another state is nondeterminism, not divergence.
+    let nondet = Status::Broken("nondeterministic: same build, different state".into());
+    let out = store
+        .verify(replayer(OTHER_BUILD, Some(30), None), false)
+        .unwrap();
+    assert_eq!(out[1], (b, nondet));
+    // So are other hashes reaching the same state on the node's own build.
+    let mut n = store.find("a").unwrap();
+    n.trace.hashes[0].1 ^= 1;
+    fs::write(root.join("nodes/c00001.ron"), ron::to_string(&n).unwrap()).unwrap();
+    let out = store
+        .verify(replayer(OTHER_BUILD, None, None), true)
+        .unwrap();
+    let parent = Status::Broken("parent broken".into());
+    assert_eq!(
+        out,
+        [
+            (
+                a,
+                Status::Broken("nondeterministic: same build, different hashes".into())
+            ),
+            (b, parent.clone()),
+            (c, parent.clone()),
+            (d, parent),
+        ]
+    );
+    assert_eq!(
+        store.find("a").unwrap(),
+        n,
+        "a Broken node is never refreshed"
+    );
     fs::remove_dir_all(root).unwrap();
 }
 

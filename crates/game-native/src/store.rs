@@ -58,6 +58,29 @@ pub struct Node {
     pub trace: Trace,
 }
 
+impl Node {
+    /// The column titles of [`Node::row`].
+    pub fn row_header() -> String {
+        format!(
+            "{:<7} {:>6} {:>7}  {:<8} {:<28}",
+            "id", "frame", "map", "parent", "label"
+        )
+    }
+
+    /// The node as a line of a tree table (`play --list`, `cargo xtask checkpoints`): id,
+    /// frame, map, parent, label.
+    pub fn row(&self) -> String {
+        format!(
+            "{:<7} {:>6} {:#07x}  {:<8} {:<28}",
+            self.meta.id.to_string(),
+            self.meta.frame,
+            self.meta.map.0,
+            self.trace.parent,
+            self.meta.label
+        )
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Status {
     Valid,
@@ -69,6 +92,25 @@ pub enum Status {
         parent_diverged: bool,
     },
     Broken(String),
+}
+
+impl Status {
+    /// The tree's health: every node must be Valid. This is what `cargo xtask checkpoints
+    /// verify` (and so `xtask parity`) and the committed-tree test accept. A Stale node fails
+    /// too: a schema bump needs `verify --accept`, like a behaviour change.
+    pub fn healthy<'a>(statuses: impl IntoIterator<Item = &'a Status>) -> bool {
+        statuses.into_iter().all(|s| *s == Status::Valid)
+    }
+}
+
+/// One node's outcome of [`Store::verify_nodes`].
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Verdict {
+    pub id: CheckpointId,
+    pub status: Status,
+    /// Valid, but recorded on another build whose build, world hash or trace hashes differ
+    /// from this replay's: `verify --accept` refreshes them (and did, if it ran with it).
+    pub rehash: bool,
 }
 
 /// A node's state rebuilt by replaying its trace.
@@ -454,27 +496,45 @@ impl Store {
         Ok(order)
     }
 
+    /// [`Store::verify_nodes`], as (id, status) pairs.
+    pub fn verify(
+        &self,
+        replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
+        accept: bool,
+    ) -> io::Result<Vec<(CheckpointId, Status)>> {
+        Ok(self
+            .verify_nodes(replay, accept)?
+            .into_iter()
+            .map(|v| (v.id, v.status))
+            .collect())
+    }
+
     /// Replays every node in topological order and classifies it; also writes `status.ron`.
     ///
     /// Each trace replays from its parent's state *of this run* (`None` for a new game):
     /// - a Broken parent (or a replayer error) makes the node Broken, without replaying it;
     /// - `meta.schema != SCHEMA` is Stale;
-    /// - an equal `state_digest` is Valid (its snapshot is cached);
     /// - a trace of another `TRACE_SCHEMA` is Broken, without replaying it;
+    /// - an equal `state_digest` is Valid (its snapshot is cached), unless the node was recorded
+    ///   on this build and the replay's world hash or periodic hashes differ from the recorded
+    ///   ones (Broken: nondeterminism). A Valid node recorded on another build whose build,
+    ///   world hash or trace hashes differ from this replay's is flagged [`Verdict::rehash`];
     /// - a different digest on the node's own build is Broken (nondeterminism), unless its
     ///   parent diverged (then the child is Diverged too, so `--accept` re-baselines the subtree);
     /// - otherwise it is Diverged, with the replay's first hash mismatch, and whether its
     ///   parent diverged too.
     ///
-    /// With `accept`, Diverged and Stale nodes are re-baselined on the replaying build: meta,
-    /// `trace.build`, re-recorded `trace.hashes` and snapshot (Broken nodes never are). The
-    /// returned list is the verdict of the run; `status.ron` records the tree after it, so
-    /// accepted nodes are Valid there.
-    pub fn verify(
+    /// With `accept`, Diverged and Stale nodes are re-baselined on the replaying build (meta,
+    /// `trace.build`, re-recorded `trace.hashes` and snapshot), and so are the build, world hash
+    /// and trace hashes of Valid nodes flagged `rehash`, so that "same build, different state
+    /// is Broken" applies to the current build. Broken nodes never are. The returned list is
+    /// the verdict of the run; `status.ron` records the tree after it, so accepted nodes are
+    /// Valid there.
+    pub fn verify_nodes(
         &self,
         mut replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
         accept: bool,
-    ) -> io::Result<Vec<(CheckpointId, Status)>> {
+    ) -> io::Result<Vec<Verdict>> {
         // Each verified node's state in this run (`None`: Broken).
         let mut states: BTreeMap<CheckpointId, Option<Checkpoint>> = BTreeMap::new();
         let mut verdicts: BTreeMap<CheckpointId, Status> = BTreeMap::new();
@@ -496,16 +556,34 @@ impl Store {
                 None => Err("parent broken".to_string()),
                 Some(parent) => replay(parent, &node.trace),
             };
+            let mut rehash = false;
             let (status, state) = match replayed {
                 Err(e) => (Status::Broken(e), None),
                 Ok(r) => {
+                    let build = r.checkpoint.header.build;
+                    let same_build = node.meta.build == build && !parent_diverged;
+                    let rebaselined = Node {
+                        meta: NodeMeta::of(id, node.meta.label.clone(), &r.checkpoint),
+                        trace: Trace {
+                            build,
+                            hashes: r.hashes,
+                            ..node.trace.clone()
+                        },
+                    };
                     let status = if node.meta.schema != SCHEMA {
                         Status::Stale {
                             schema: node.meta.schema,
                         }
                     } else if digest(&r.checkpoint.world) == node.meta.digest {
-                        Status::Valid
-                    } else if node.meta.build == r.checkpoint.header.build && !parent_diverged {
+                        let hashes_differ = rebaselined.meta.world_hash != node.meta.world_hash
+                            || rebaselined.trace.hashes != node.trace.hashes;
+                        if same_build && hashes_differ {
+                            Status::Broken("nondeterministic: same build, different hashes".into())
+                        } else {
+                            rehash = rebaselined != node;
+                            Status::Valid
+                        }
+                    } else if same_build {
                         Status::Broken("nondeterministic: same build, different state".into())
                     } else {
                         Status::Diverged {
@@ -514,10 +592,8 @@ impl Store {
                         }
                     };
                     let rebaseline = accept && !matches!(status, Status::Broken(_));
-                    if rebaseline && status != Status::Valid {
-                        node.meta = NodeMeta::of(id, node.meta.label, &r.checkpoint);
-                        node.trace.build = r.checkpoint.header.build;
-                        node.trace.hashes = r.hashes;
+                    if rebaseline && (status != Status::Valid || rehash) {
+                        node = rebaselined;
                         self.write_node(&node)?;
                     }
                     if status == Status::Valid || rebaseline {
@@ -537,7 +613,7 @@ impl Store {
             after.insert(id, settled);
             states.insert(id, state);
             verdicts.insert(id, status.clone());
-            out.push((id, status));
+            out.push(Verdict { id, status, rehash });
         }
         write_atomic(&self.root.join("status.ron"), &to_ron(&after)?)?;
         Ok(out)
