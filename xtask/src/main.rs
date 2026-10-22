@@ -228,17 +228,52 @@ fn parity() -> Result<()> {
     ]))
 }
 
+/// `--maps` operand: `all` (every `names::MAPS` entry), `slice` (`export::SLICE_MAPS`) or a
+/// comma-separated list of decomp map directory names.
+fn parse_maps(arg: &str) -> Result<Vec<&'static str>> {
+    use extract::export::ExportOptions;
+    Ok(match arg {
+        "all" => ExportOptions::all(false).maps,
+        "slice" => ExportOptions::slice(false).maps,
+        list => list
+            .split(',')
+            .map(|name| {
+                extract::names::MAPS
+                    .iter()
+                    .find(|m| m.dir == name)
+                    .map(|m| m.dir)
+                    .with_context(|| format!("--maps: unknown map {name:?}"))
+            })
+            .collect::<Result<_>>()?,
+    })
+}
+
 /// Reads the user's ROM into content/extracted/, replacing it whole (no stale files remain).
+///
+/// `--maps all|slice|<Dir,Dir,...>` picks the exported maps (Wave 0 default: `slice`,
+/// `extract::export::SLICE_MAPS`; Milestone 8 Task A makes `all` the default) and `--previews`
+/// asks for `previews/<Map>.png` (Wave 0 always writes them; Task A turns them off by default).
 ///
 /// Exports into content/.extracted.tmp/, then moves the previous output aside to
 /// content/.extracted.old/, renames the new export into place and only then deletes the old
 /// one. If any step fails, the previous output is left (or put back) in content/extracted/.
 fn extract(args: &[String]) -> Result<()> {
-    let rom_path = match args {
-        [] => root().join("rom/emeraude-fr.gba"),
-        [flag, path] if flag == "--rom" => PathBuf::from(path),
-        _ => bail!("usage: cargo xtask extract [--rom <path>]"),
-    };
+    const USAGE: &str =
+        "usage: cargo xtask extract [--rom <path>] [--maps all|slice|<Dir,Dir,...>] [--previews]";
+    let mut rom_path = root().join("rom/emeraude-fr.gba");
+    let mut opts = extract::export::ExportOptions::default();
+    let mut previews = false;
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        match flag.as_str() {
+            "--rom" => rom_path = PathBuf::from(it.next().context(USAGE)?),
+            "--maps" => opts.maps = parse_maps(it.next().context(USAGE)?)?,
+            "--previews" => previews = true,
+            _ => bail!(USAGE),
+        }
+    }
+    // Wave 0 keeps today's output (previews on); Task A: `opts.previews = previews`.
+    opts.previews |= previews;
     let rom = extract::Rom::open(&rom_path)?;
     let out = root().join("content/extracted");
     let tmp = root().join("content/.extracted.tmp");
@@ -259,7 +294,7 @@ fn extract(args: &[String]) -> Result<()> {
     }
     clear(&old)?;
     clear(&tmp)?;
-    let m = extract::export::export(&rom, &tmp)
+    let m = extract::export::export(&rom, &tmp, &opts)
         .with_context(|| format!("exporting to {}", tmp.display()))?;
     let had_out = out.exists();
     if had_out {

@@ -49,7 +49,7 @@ fn map_script_refs(m: &MapFile) -> Vec<&str> {
     v
 }
 
-/// `ScriptId` numbering: the keys of `scripts/index.ron` in order, then any script a map
+/// `ScriptId` numbering: the keys of `scripts/legacy_index.ron` in order, then any script a map
 /// refers to that the index lacks (sorted). Without an index: the map references, sorted.
 pub fn scripts(w: &World) -> Scripts {
     let refs: BTreeSet<String> = w
@@ -75,7 +75,7 @@ pub fn scripts(w: &World) -> Scripts {
         if !module.contains_key(&r) {
             if w.index.is_some() {
                 warn(&format!(
-                    "script {r} is referenced by a map but not in index.ron"
+                    "script {r} is referenced by a map but not in legacy_index.ron"
                 ));
             }
             names.push(r);

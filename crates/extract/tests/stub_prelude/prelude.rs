@@ -46,12 +46,12 @@ pub async fn unsupported(ctx: &Ctx, what: &'static str) {
 pub use engine::data::{SpeciesId, TrainerId};
 
 /// `trainerbattle` operands (Milestone 4).
-pub struct TrainerBattle;
+pub struct LegacyTrainerBattle;
 
-impl TrainerBattle {
+impl LegacyTrainerBattle {
     pub const fn single(trainer: TrainerId, local: u16, intro: TextId, defeat: TextId) -> Self {
         let _ = (trainer, local, intro, defeat);
-        TrainerBattle
+        LegacyTrainerBattle
     }
 
     pub const fn continue_script(
@@ -61,18 +61,18 @@ impl TrainerBattle {
         defeat: TextId,
     ) -> Self {
         let _ = (trainer, local, intro, defeat);
-        TrainerBattle
+        LegacyTrainerBattle
     }
 
     pub const fn no_intro(trainer: TrainerId, defeat: TextId) -> Self {
         let _ = (trainer, defeat);
-        TrainerBattle
+        LegacyTrainerBattle
     }
 }
 
 /// True when a battle was fought.
-pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
+pub async fn legacy_trainer_battle(ctx: &Ctx, b: LegacyTrainerBattle) -> bool {
     let _ = b;
-    ctx.log("trainer_battle").await;
+    ctx.log("legacy_trainer_battle").await;
     false
 }
