@@ -971,3 +971,12 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
 
 ## Findings for Milestone 9
 *(filled at close-out.)*
+
+## Task B as built
+- **Label transfer** (`extract::inc`, `extract::labels`): on all 518 maps, 100% of functions (7,233), texts (5,503) and movements (978) get decomp names on both BPEF and BPEE; 0 transfer errors, 0 collisions, 0 mismatched blocks. Precision on BPEE by content: 7,234 scripts (370 checked up to their first battle-facility helper macro), 5,503 texts and 978 movements match their source; 22 braille strings unchecked.
+- **Fallthrough rules:** a label falls through only to a following label of the same kind (`TrainerHill_1F_EventScript_DummyOnWarp` runs into a table whose first byte is `end`); a chain with no terminator ("forced stop" after `warp`, Slateport Battle Tent) is aligned as a prefix of what the ROM decodes.
+- **Modules beyond the contract (accepted):** `data/text/<stem>.inc` is `Text_<stem>` (`cable_club` exists in both `data/scripts` and `data/text`); the inline labels of `data/event_scripts.s` are `Common_event_scripts`.
+- **Test budget (accepted):** `extract/tests/labels.rs` runs all 518 maps unignored (about 5 s in debug); `tests/script_ir.rs` likewise for the IR.
+- **IR:** `scripts/<Module>.ron` (433 modules on the full import), `scripts/index.ron`, and the texts keyed by final names in **`text/ir_<lang>.ron`**: the legacy `text/<lang>.ron` keeps its `<Script>_T<n>` keys because the legacy scripts number texts by them. D2 renames `text/ir_<lang>.ron` to `text/<lang>.ron` when it deletes the legacy output. Invalid opcodes appear as the pseudo-command `unknown` (one `Byte` operand). The IR's instruction count equals today's walk (49,225 on the full import). `FORMAT_MINOR` = 1.
+- **Contract additions:** `scripts::{op_name, opcode, is_terminator_op}`; `export::scripts::{build_ir, Ir, ir_summary, decomp_dir}`; `labels::{transfer, Transfer, Kind, MapInput, …}` (`NameOrigin` re-exported from `schema`).
+- **Outside B's files:** `extract/tests/export.rs` (Task A's) lists the IR files in its expected tree; `schema.rs` bumps `FORMAT_MINOR` and documents `text/ir_<lang>.ron`.

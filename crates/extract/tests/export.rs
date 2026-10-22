@@ -96,6 +96,13 @@ fn writes_current_format_tree() {
     }
     want.insert("scripts/legacy_index.ron".to_string());
     want.insert("text/fr.ron".to_string());
+    // The script IR (M8 Task B), whose contents tests/script_ir.rs checks.
+    want.insert("text/ir_fr.ron".to_string());
+    want.extend(
+        tree(dir)
+            .into_keys()
+            .filter(|f| f.starts_with("scripts/") && f.ends_with(".ron")),
+    );
     // Battle data (M4 Task A).
     for f in [
         "species",
