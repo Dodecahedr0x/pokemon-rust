@@ -8,7 +8,9 @@ use engine::Buttons;
 use engine::checkpoint::{BuildHash, SCHEMA, SaveMeta};
 use engine::data::MapId;
 use engine::debug::boot;
-use save_logic::{BootChoice, PendingSave, SAVE_WAIT_FRAMES, boot_choice, combo_pressed, scanlines};
+use save_logic::{
+    BootChoice, PendingSave, SAVE_WAIT_FRAMES, boot_choice, combo_pressed, scanlines,
+};
 
 const LR: Buttons = Buttons(Buttons::L.0 | Buttons::R.0);
 const LRS: Buttons = Buttons(Buttons::L.0 | Buttons::R.0 | Buttons::SELECT.0);
