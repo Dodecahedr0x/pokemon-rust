@@ -27,6 +27,7 @@ impl Field {
             drawn: s.drawn.map(|[x0, y0, x1, y1]| Rect { x0, y0, x1, y1 }),
             overrides: s.overrides.iter().copied().collect(),
             ring: s.ring,
+            spread: None,
         }
     }
 

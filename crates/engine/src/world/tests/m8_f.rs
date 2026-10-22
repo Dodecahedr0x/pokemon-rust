@@ -121,3 +121,35 @@ fn old_map_objects_despawn_once_out_of_view_and_respawn_on_return() {
     let npc = w.objects().get(1).expect("respawned from its template");
     assert_eq!(npc.pos(), (6, 5));
 }
+
+#[test]
+fn a_warp_load_uploads_over_black_frames_then_draws_then_fades_in() {
+    let mut w = started();
+    w.s.warp_slots.dynamic = Some(WarpDest {
+        map: ROUTE,
+        warp: None,
+        x: 4,
+        y: 6,
+    });
+    w.start_warp(&Game, &DYNAMIC_EXIT, 0, false);
+    // Per frame: the map, tiles sent, field cells drawn, brightness.
+    let mut frames = Vec::new();
+    while w.transition_active() {
+        assert!(frames.len() < 200, "the warp never ended");
+        let f = run(&mut w, Buttons::NONE, 1);
+        let tiles = f.cmds.iter().any(|c| matches!(c, Cmd::BgTiles { .. }));
+        let drawn = (f.cmds.iter()).any(|c| {
+            matches!(c, Cmd::MapEntries { screen_block, .. }
+                if *screen_block != crate::video::layout::SCREEN_BLOCKS[0])
+        });
+        frames.push((w.map(), tiles, drawn, f.brightness));
+    }
+    let load = frames.iter().position(|f| f.0 == ROUTE).unwrap();
+    let black = crate::flow::FADE_MAX;
+    // The load frame sends the route's primary tiles (its secondary has none), the next four
+    // its palettes and the view's ten rows, still black; the fade-in follows.
+    assert_eq!(frames[load], (ROUTE, true, false, black));
+    assert_eq!(frames[load + 1..load + 5], [(ROUTE, false, true, black); 4]);
+    assert!(frames[load + 5].3 < black, "then the fade-in");
+    assert!(frames[load + 1..].iter().all(|f| !f.1));
+}

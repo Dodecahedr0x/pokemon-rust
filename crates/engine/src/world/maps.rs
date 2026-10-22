@@ -48,7 +48,8 @@ impl World {
     pub(super) fn run_transition(&mut self, game: &impl GameData, f: &mut Frame) {
         let s = &mut self.s;
         let moving = !s.objects.moves_done(PLAYER) || !s.objects.player().is_settled();
-        match s.transition.update(&mut s.fader, moving) {
+        let loading = s.field.uploading();
+        match s.transition.update_loading(&mut s.fader, moving, loading) {
             TransitionStep::Walk(d) => s.objects.start_moves(PLAYER, &WALK[d as usize]),
             TransitionStep::Load(map, x, y) => {
                 // Gen3 `CB2_LoadMap` restarts the script context: a script that warped ends
@@ -59,14 +60,17 @@ impl World {
                 if s.text.is_open() {
                     s.text.close(f);
                 }
-                load_map(game, s, f, map, x, y);
+                load_map_spread(game, s, f, map, x, y, true);
                 let b = s.ground(game).behavior(x, y);
                 let facing = s.transition.arrive(b);
                 s.objects.face(PLAYER, facing);
                 s.objects.freeze_all();
             }
             TransitionStep::Done => s.objects.unfreeze_all(),
-            TransitionStep::Walking | TransitionStep::FadingOut | TransitionStep::FadingIn => {}
+            TransitionStep::Walking
+            | TransitionStep::FadingOut
+            | TransitionStep::Loading
+            | TransitionStep::FadingIn => {}
         }
         if s.transition.player_hidden() {
             s.objects.hide(PLAYER);
@@ -86,6 +90,21 @@ pub(super) fn load_map(
     x: i16,
     y: i16,
 ) {
+    load_map_spread(game, s, f, id, x, y, false);
+}
+
+/// [`load_map`]; with `spread`, the field's tilesets and view are uploaded over the next
+/// frames ([`crate::field::Field::enter_spread`]) while the screen stays black, instead of
+/// all in this frame (Milestone 8 Task F).
+fn load_map_spread(
+    game: &impl GameData,
+    s: &mut State,
+    f: &mut Frame,
+    id: MapId,
+    x: i16,
+    y: i16,
+    spread: bool,
+) {
     f.bulk = true;
     let map = game.map(id);
     s.event(Event::MapEntered(id));
@@ -98,8 +117,12 @@ pub(super) fn load_map(
     if let Some(script) = map.scripts.on_transition {
         run_immediate(game, s, f, script);
     }
-    s.field
-        .enter(game, id, camera_for((x as i32 * 16, y as i32 * 16)), f);
+    let camera = camera_for((x as i32 * 16, y as i32 * 16));
+    if spread {
+        s.field.enter_spread(id, camera);
+    } else {
+        s.field.enter(game, id, camera, f);
+    }
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()
         .flatten()

@@ -46,7 +46,8 @@ const fn palettes(tag: u16) -> [[u16; 16]; 16] {
 
 static TILES_P: [Tile; 3] = [[1; 8]; 3];
 static TILES_S1: [Tile; 2] = [[2; 8]; 2];
-static TILES_S2: [Tile; 2] = [[3; 8]; 2];
+// More than a frame of tiles while the screen shows (`SPREAD_TILES_VISIBLE`).
+static TILES_S2: [Tile; 300] = [[3; 8]; 300];
 static MT_P: [[u16; 8]; N_MT] = metatiles(0);
 static MT_S1: [[u16; 8]; N_MT] = metatiles(0x4000);
 static MT_S2: [[u16; 8]; N_MT] = metatiles(0x8000);
@@ -308,6 +309,40 @@ fn map_entries(f: &Frame) -> Vec<(u8, u16, Vec<u16>)> {
         .collect()
 }
 
+/// Applies `first`, then runs camera updates (the camera unchanged) until the spread upload is
+/// done, applying each; returns every frame.
+fn settle(field: &mut Field, vram: &mut Vram, first: Frame) -> Vec<Frame> {
+    vram.apply(&first);
+    let mut frames = vec![first];
+    while field.uploading() {
+        assert!(frames.len() < 64, "the upload never ends");
+        let mut f = Frame::default();
+        field.set_camera(&Game, field.camera(), &mut f);
+        vram.apply(&f);
+        frames.push(f);
+    }
+    frames
+}
+
+/// Per frame: the tiles sent, the palettes sent and the cells drawn.
+fn parts(frames: &[Frame]) -> Vec<(usize, usize, usize)> {
+    (frames.iter())
+        .map(|f| {
+            let (mut tiles, mut palettes, mut entries) = (0, 0, 0);
+            for c in &f.cmds {
+                match c {
+                    Cmd::BgTiles { tiles: t, .. } => tiles += t.len(),
+                    Cmd::BgPalette { .. } => palettes += 1,
+                    Cmd::MapEntries { entries: e, .. } => entries += e.len(),
+                    _ => {}
+                }
+            }
+            // Four entries a cell on each of the three field BGs.
+            (tiles, palettes, entries / 12)
+        })
+        .collect()
+}
+
 fn loaded(camera: (i32, i32)) -> (Field, Vram, Frame) {
     let mut field = Field::new(A);
     let mut f = Frame::default();
@@ -513,24 +548,38 @@ fn switch_map_shifts_coordinates_and_reuploads_only_what_differs() {
         .map(|(x, y)| field.block(&Game, x + shift.0, y + shift.1))
         .collect();
     assert_eq!(before, after);
-    // Only the secondary tileset differs.
-    assert!(f.cmds.contains(&Cmd::BgTiles {
-        char_block: 0,
-        first: 512,
-        tiles: &TILES_S2
-    }));
-    let banks: Vec<u8> = f
-        .cmds
-        .iter()
+    // Only the secondary tileset differs: its tiles over frames, a visible frame's budget
+    // each, then its palettes with the view's top rows, then its other rows. (The first frame
+    // draws the whole view: `switch_map` redraws.)
+    let frames = settle(&mut field, &mut vram, f);
+    let tiles: Vec<(u16, usize)> = (frames.iter().flat_map(|f| &f.cmds))
+        .filter_map(|c| match c {
+            Cmd::BgTiles { first: 0, .. } | Cmd::Bg { .. } => panic!("primary re-uploaded"),
+            Cmd::BgTiles { first, tiles, .. } => Some((*first, tiles.len())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tiles, [(512, 128), (640, 128), (768, 44)]);
+    assert_eq!(
+        parts(&frames),
+        [
+            (128, 0, 150),
+            (128, 0, 0),
+            (44, 0, 0),
+            (0, 7, 45),
+            (0, 0, 45),
+            (0, 0, 45),
+            (0, 0, 15)
+        ]
+    );
+    let banks: Vec<u8> = (frames[3].cmds.iter())
         .filter_map(|c| match c {
             Cmd::BgPalette { bank, .. } => Some(*bank),
-            Cmd::BgTiles { first: 0, .. } | Cmd::Bg { .. } => panic!("primary re-uploaded"),
             _ => None,
         })
         .collect();
     assert_eq!(banks, (6..13).collect::<Vec<u8>>());
-    vram.apply(&f);
-    vram.check_view(&field, &f);
+    vram.check_view(&field, frames.last().unwrap());
 
     // A -> C shares both tilesets: no uploads.
     let (mut field, _, _) = loaded((39 * 16 - 112, 10 * 16 - 64));
@@ -716,16 +765,16 @@ fn switch_map_round_trip_with_offsets() {
     let (to, shift) = field.crossing(&Game, 10, -1).unwrap();
     let mut f = Frame::default();
     field.switch_map(&Game, to, shift, &mut f);
-    vram.apply(&f);
-    vram.check_view(&field, &f);
+    let frames = settle(&mut field, &mut vram, f);
+    vram.check_view(&field, frames.last().unwrap());
     // The player is now at B's (7, 19) and steps back down to (7, 20).
     let (back, shift_back) = field.crossing(&Game, 7, 20).unwrap();
     assert_eq!((back, shift_back), (A, (3, -20)));
     let mut f = Frame::default();
     field.switch_map(&Game, back, shift_back, &mut f);
     assert_eq!((field.map(), field.camera()), (A, cam));
-    vram.apply(&f);
-    vram.check_view(&field, &f);
+    let frames = settle(&mut field, &mut vram, f);
+    vram.check_view(&field, frames.last().unwrap());
 
     // C -> A (west): shift +40.
     let mut field = Field::new(C);
@@ -735,4 +784,155 @@ fn switch_map_round_trip_with_offsets() {
     assert_eq!((to, shift), (A, (40, 0)));
     field.switch_map(&Game, to, shift, &mut f);
     assert_eq!(field.camera(), (40 * 16 - 112, 10 * 16 - 64));
+}
+
+/// What a field's frames leave in VRAM: map entries, BG tiles and palettes, BG controls.
+#[derive(PartialEq, Debug)]
+struct Screen {
+    entries: Vram,
+    tiles: Vec<Option<Tile>>,
+    palettes: [Option<[u16; 16]>; 16],
+    controls: usize,
+}
+
+impl Screen {
+    fn new() -> Self {
+        Screen {
+            entries: Vram::new(),
+            tiles: vec![None; 1024],
+            palettes: [None; 16],
+            controls: 0,
+        }
+    }
+
+    fn apply(&mut self, f: &Frame) {
+        self.entries.apply(f);
+        for c in &f.cmds {
+            match c {
+                Cmd::BgTiles { first, tiles, .. } => {
+                    for (i, t) in tiles.iter().enumerate() {
+                        self.tiles[*first as usize + i] = Some(*t);
+                    }
+                }
+                Cmd::BgPalette { bank, colors } => self.palettes[*bank as usize] = Some(*colors),
+                Cmd::Bg { .. } => self.controls += 1,
+                _ => {}
+            }
+        }
+    }
+
+    /// Runs camera updates (the camera unchanged) until the spread upload is done, applying
+    /// each; returns every frame.
+    fn settle(&mut self, field: &mut Field) -> Vec<Frame> {
+        let mut frames = Vec::new();
+        while field.uploading() {
+            assert!(frames.len() < 64, "the upload never ends");
+            let mut f = Frame::default();
+            field.set_camera(&Game, field.camera(), &mut f);
+            self.apply(&f);
+            frames.push(f);
+        }
+        frames
+    }
+}
+
+impl PartialEq for Vram {
+    fn eq(&self, o: &Vram) -> bool {
+        self.0 == o.0
+    }
+}
+
+impl core::fmt::Debug for Vram {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Vram")
+    }
+}
+
+#[test]
+fn a_spread_warp_load_sends_a_tileset_a_frame_and_draws_last() {
+    let cam = (10 * 16 - 112, 5 * 16 - 64);
+    let mut direct = Screen::new();
+    let mut f = Frame::default();
+    Field::new(B).load(&Game, B, cam, &mut f);
+    direct.apply(&f);
+
+    let mut field = Field::new(A);
+    field.enter_spread(B, cam);
+    assert!(field.uploading());
+    let mut screen = Screen::new();
+    let frames = screen.settle(&mut field);
+    // Both tilesets (303 tiles, under a black frame's budget), then the palettes with the
+    // view's top rows, then its other rows: nothing is drawn before the tiles are in.
+    assert_eq!(
+        parts(&frames),
+        [(303, 0, 0), (0, 13, 45), (0, 0, 45), (0, 0, 45), (0, 0, 15)]
+    );
+    assert!(frames.iter().all(|f| f.bulk));
+    screen.entries.check_view(&field, frames.last().unwrap());
+    assert_eq!(screen, direct);
+}
+
+#[test]
+fn a_crossing_during_a_spread_upload_restarts_it_and_ends_on_the_new_map() {
+    let cam = (10 * 16 - 112, -64);
+    let (mut field, _, f) = loaded(cam);
+    let mut screen = Screen::new();
+    screen.apply(&f);
+    // A -> B, one frame of B's secondary, then back to A before it is done.
+    let (to, shift) = field.crossing(&Game, 10, -1).unwrap();
+    let mut f = Frame::default();
+    field.switch_map_enter(&Game, to, shift, &mut f);
+    field.set_camera(&Game, field.camera(), &mut f);
+    screen.apply(&f);
+    assert!(field.uploading());
+    let (back, shift_back) = field.crossing(&Game, 7, 20).unwrap();
+    let mut f = Frame::default();
+    field.switch_map_enter(&Game, back, shift_back, &mut f);
+    screen.apply(&f);
+    let frames = screen.settle(&mut field);
+    screen.entries.check_view(&field, frames.last().unwrap());
+    let mut direct = Screen::new();
+    let mut f = Frame::default();
+    Field::new(A).load(&Game, A, cam, &mut f);
+    direct.apply(&f);
+    // The ring origin differs from a direct load's, so the view is checked above. B's longer
+    // secondary leaves tiles past A's, which no metatile of A uses.
+    for (i, t) in direct.tiles.iter().enumerate() {
+        if t.is_some() {
+            assert_eq!(screen.tiles[i], *t, "tile {i}");
+        }
+    }
+    assert_eq!(screen.palettes, direct.palettes);
+}
+
+#[test]
+fn a_spread_restore_ends_on_the_same_screen_as_a_restore() {
+    // Mid-step (the view one row taller), with an override and a moved ring origin.
+    let walked = || {
+        let (mut field, _, _) = loaded((7 * 16, 9 * 16 + 8));
+        let mut f = Frame::default();
+        field.set_block(&Game, 10, 12, 7, &mut f);
+        field.set_camera(&Game, (8 * 16, 9 * 16 + 8), &mut f);
+        field
+    };
+    let (mut field, mut spread) = (walked(), walked());
+
+    let mut direct = Screen::new();
+    let mut f = Frame::default();
+    field.restore(&Game, &mut f);
+    field.redraw(&Game, &mut f);
+    direct.apply(&f);
+
+    spread.restore_spread();
+    assert!(spread.uploading());
+    let mut screen = Screen::new();
+    let frames = screen.settle(&mut spread);
+    assert!(frames.len() > 2 && frames.iter().all(|f| f.bulk));
+    assert!(map_entries(&frames[0]).is_empty());
+    assert_eq!(screen, direct);
+    let mut a = Fnv64::new();
+    let mut b = Fnv64::new();
+    field.hash(&mut a);
+    spread.hash(&mut b);
+    assert_eq!(a.finish(), b.finish(), "the same field once done");
 }
