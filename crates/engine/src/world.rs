@@ -559,6 +559,11 @@ impl World {
         self.s.player_id
     }
 
+    /// Whether the overworld owns the frame (no starter screen, no battle).
+    pub fn field_active(&self) -> bool {
+        matches!(self.s.mode, Mode::Field)
+    }
+
     /// Whether a battle owns the frame (from its transition until the field has faded back in).
     pub fn in_battle(&self) -> bool {
         matches!(self.s.mode, Mode::Battle(_))

@@ -91,8 +91,8 @@ mod tests {
 
     #[test]
     fn boots_black_then_fades_into_the_start_map() {
-        let mut s = Session::new(content::Emerald);
-        assert_eq!(s.world().map(), content::Emerald.new_game().map);
+        let mut s = Session::new(content::Emerald::default());
+        assert_eq!(s.world().map(), content::Emerald::default().new_game().map);
         assert!(s.framebuffer().iter().all(|&c| c == 0), "frame 0 is black");
         for _ in 0..40 {
             s.step(Buttons::NONE);
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn headless_steps_render_only_on_request() {
-        let mut s = Session::new(content::Emerald);
+        let mut s = Session::new(content::Emerald::default());
         for _ in 0..5 {
             s.step(Buttons::DOWN);
         }
@@ -117,8 +117,8 @@ mod tests {
     #[test]
     fn sessions_are_deterministic() {
         let (mut a, mut b) = (
-            Session::new(content::Emerald),
-            Session::new(content::Emerald),
+            Session::new(content::Emerald::default()),
+            Session::new(content::Emerald::default()),
         );
         for i in 0..200u32 {
             let keys =

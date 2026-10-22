@@ -65,18 +65,31 @@ static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
     consts::FLAG_NURSE_UNION_ROOM_REMINDER,
 ];
 
-/// Where a new game starts.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+/// Where a new game starts. The default is [`Start::BeforeRescue`], except on the stub world
+/// (no story, no Route 101), where it is [`Start::AfterStarter`] so that the stub parity route
+/// has a Pokémon to battle with in its tall grass.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Start {
     /// Littleroot after meeting the rival, sent to find Birch on Route 101: no Pokémon yet.
-    #[default]
     BeforeRescue,
     /// After the rescue and the lab, with Mudkip (level 5), sent to meet the rival on Route
     /// 103 (the Milestone 3 start).
     AfterStarter,
 }
 
-/// The game's content root.
+impl Default for Start {
+    fn default() -> Start {
+        if STUB {
+            Start::AfterStarter
+        } else {
+            Start::BeforeRescue
+        }
+    }
+}
+
+/// The game's content root. The shells and the parity route run `Emerald::default()`
+/// ([`Start::BeforeRescue`], [`Start::AfterStarter`] on the stub world);
+/// [`Emerald::after_starter`] is the Milestone 3 start, kept for fast tests.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Emerald {
     pub start: Start,
@@ -95,11 +108,6 @@ impl Emerald {
         }
     }
 }
-
-/// The game as the shells and the parity route run it: [`Start::AfterStarter`] until the
-/// integration (Milestone 4 Task J) moves them to `Emerald::default()`.
-#[allow(non_upper_case_globals)]
-pub const Emerald: Emerald = Emerald::after_starter();
 
 /// Whether `id` is an exported map. `GameData::map` gives [`data::MISSING_MAP`] (0x0 cells,
 /// no events) for the others, e.g. warp destinations outside the slice.

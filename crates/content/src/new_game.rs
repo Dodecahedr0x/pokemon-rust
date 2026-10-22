@@ -8,7 +8,7 @@
 //! - `LittlerootTown_ProfessorBirchsLab_EventScript_*` (`VAR_BIRCH_LAB_STATE` 3, starter),
 //! - `data/scripts/new_game.inc` `EventScript_ResetAllMapFlags` (objects hidden from the start).
 //!
-//! [`Start::BeforeRescue`] (`Emerald::default()`): May has been met in her bedroom and the
+//! [`Start::BeforeRescue`] (`Emerald::default()` on the extracted world): May has been met in her bedroom and the
 //! player has left the houses (`VAR_LITTLEROOT_TOWN_STATE` 1: go and find Birch;
 //! `VAR_LITTLEROOT_INTRO_STATE` 7, `VAR_LITTLEROOT_RIVAL_STATE` 3). Nothing of Route 101 has
 //! happened (`VAR_ROUTE101_STATE` 0, `VAR_BIRCH_LAB_STATE` 0): Birch, the Zigzagoon and the bag
@@ -20,7 +20,7 @@
 //! in her bedroom (`FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_RIVAL_BEDROOM` clear) until the rescue.
 //! No party, no `FLAG_SYS_POKEMON_GET`.
 //!
-//! [`Start::AfterStarter`] (the Milestone 3 start, `content::Emerald`): Birch saved, the
+//! [`Start::AfterStarter`] (the Milestone 3 start, `Emerald::after_starter()`): Birch saved, the
 //! starter received in the lab (Mudkip, level 5, `VAR_STARTER_MON` 2), told to meet May on
 //! Route 103.
 //!
