@@ -3,7 +3,7 @@
 //! one trainer and a field text for its defeat. No game text: placeholders are ASCII.
 
 use crate::battle::gfx::test_gfx;
-use crate::battle::test_data::{MOVES, SPECIES, TYPE_CHART};
+use crate::battle::test_data::{SPECIES, TABLES};
 use crate::battle::ui::test_game::{self as ui_game, enc, leak, t};
 use crate::battle::{BattleGfx, Str};
 use crate::data::{
@@ -40,11 +40,7 @@ pub fn game() -> Game {
         .collect();
     let tables = Box::leak(Box::new(BattleTables {
         species: Box::leak(species.into_boxed_slice()),
-        moves: &MOVES,
-        type_chart: &TYPE_CHART,
-        foresight_split: crate::battle::test_data::TABLES.foresight_split,
-        struggle: crate::battle::test_data::TABLES.struggle,
-        nature_power: crate::battle::test_data::TABLES.nature_power,
+        ..TABLES
     }));
     let gfx = Box::leak(Box::new(BattleGfx {
         textbox: ui.gfx.textbox,

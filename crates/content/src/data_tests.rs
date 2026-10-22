@@ -607,6 +607,14 @@ mod stub {
         assert_eq!(data::SCRIPT_COUNT, 0);
         assert!(data::TEXTS.is_empty());
     }
+
+    /// `build_modes` checks the marker: a stale extract builds the stub and says so.
+    #[test]
+    fn a_stale_extract_is_flagged() {
+        if crate::STALE_EXTRACT {
+            println!("STALE EXTRACT FLAGGED");
+        }
+    }
 }
 
 #[path = "battle_tests.rs"]

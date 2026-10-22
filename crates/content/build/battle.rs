@@ -761,7 +761,7 @@ impl Gen<'_> {
         )?;
         let blob = &mut self.blob;
         let line = format!(
-            "pub static GFX: BattleGfx = BattleGfx {{ textbox: {}, environments: [{}], healthbox_player: {}, healthbox_opponent: {}, hpbar: {}, expbar: {}, status: {}, misc: {}, numbers: GfxImage::EMPTY, ball: {}, small_font: &SMALL_FONT, player_back: {}, starter_bag: {}, starter_ball: {}, starter_circle: {} }};",
+            "pub static GFX: BattleGfx = BattleGfx {{ textbox: {}, environments: [{}], healthbox_player: {}, healthbox_opponent: {}, hpbar: {}, expbar: {}, status: {}, misc: {}, ball: {}, small_font: &SMALL_FONT, player_back: {}, starter_bag: {}, starter_ball: {}, starter_circle: {} }};",
             blob.image(&u.textbox),
             envs.join(", "),
             blob.image(&u.healthbox_player),

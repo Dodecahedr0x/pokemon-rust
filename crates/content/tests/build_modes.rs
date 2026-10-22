@@ -3,7 +3,9 @@
 //! - stub mode: a missing extracted dir;
 //! - generated scripts: a fixture extracted dir (the stub world written to disk, plus a
 //!   hand-written `scripts/index.ron`, two script files and a text file), which exercises the
-//!   `include!` of `scripts/<Map>.rs`, the prelude contract and script dispatch.
+//!   `include!` of `scripts/<Map>.rs`, the prelude contract and script dispatch;
+//! - a stale extract: that fixture with an older manifest `format`, which builds the stub and
+//!   sets `content::STALE_EXTRACT`.
 
 #[allow(dead_code)]
 #[path = "../build/battle.rs"]
@@ -160,10 +162,27 @@ fn stub_and_generated_script_modes_build_and_pass() {
         out.contains("the_stub_world_is_one_small_map ... ok"),
         "{out}"
     );
+    assert!(!out.contains("STALE EXTRACT FLAGGED"), "{out}");
 
     let fixture = tmp.join("extracted");
     write_fixture(&fixture);
     let out = content_tests(&fixture, &target, &["--skip", "extracted::"]);
     assert!(out.contains("FIXTURE SCRIPT OK"), "{out}");
     assert!(out.contains("every_script_id_dispatches ... ok"), "{out}");
+    assert!(!out.contains("STALE EXTRACT FLAGGED"), "{out}");
+
+    let stale = tmp.join("stale");
+    write_fixture(&stale);
+    let manifest = stale.join("manifest.ron");
+    let text = std::fs::read_to_string(&manifest).unwrap();
+    let current = format!("format: {},", extract::schema::FORMAT_VERSION);
+    assert!(text.contains(&current), "{text}");
+    let old = format!("format: {},", extract::schema::FORMAT_VERSION - 1);
+    std::fs::write(&manifest, text.replace(&current, &old)).unwrap();
+    let out = content_tests(&stale, &target, &[]);
+    assert!(out.contains("STALE EXTRACT FLAGGED"), "{out}");
+    assert!(
+        out.contains("the_stub_world_is_one_small_map ... ok"),
+        "{out}"
+    );
 }

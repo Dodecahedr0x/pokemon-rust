@@ -190,7 +190,6 @@ static GFX: BattleGfx = BattleGfx {
     expbar: GfxImage::EMPTY,
     status: GfxImage::EMPTY,
     misc: GfxImage::EMPTY,
-    numbers: GfxImage::EMPTY,
     ball: GfxImage::EMPTY,
     small_font: &FONT,
     player_back: TrainerPic {

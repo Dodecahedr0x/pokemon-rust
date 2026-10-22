@@ -42,23 +42,29 @@ pub mod layout {
     /// The battle's own VRAM layout, used while a battle owns the screen.
     pub mod battle {
         // BG: (layer, char block, screen block, priority). 32x32 maps only: Gen3's 64-row BG0
-        // trick (scrolling between message / action / move views) becomes redrawing rows 15..20.
+        // trick (scrolling between message / action / move views) becomes redrawing rows 14..20
+        // (`battle::ui::FRAME_ROWS`).
         /// Message box, action and move menus.
         pub const TEXT: (u8, u8, u8, u8) = (0, 0, 24, 0);
-        /// Yes/no, learn-move, level-up box.
+        /// The yes/no box (`battle::ui`; Gen3 has it on BG0).
         pub const WINDOW: (u8, u8, u8, u8) = (1, 1, 28, 0);
-        /// Flashes, transition overlay (tiles 256..).
+        /// Reserved for move animations (char block 1 from tile 256): M4 has none, so the
+        /// scene keeps this BG disabled. The field-to-battle transition runs on the field
+        /// layout (`battle::transition`), not here.
         pub const ANIM: (u8, u8, u8, u8) = (2, 1, 30, 1);
         /// Environment background.
         pub const ENV: (u8, u8, u8, u8) = (3, 2, 26, 3);
-        // BG palettes: 0..2 textbox (gBattleTextboxPalette), 2..5 environment, 5 menu text
-        // (text_pp.pal colors swapped in for PP), 15 windows on BG1.
-        // OBJ tiles (1D, 1024): enemy pic 0, player pic 64, opponent trainer 128, player trainer
-        // back 192, player healthbox 256..384 (2x 64x64 = 128: its exp bar row is below 32 px),
-        // enemy healthbox 384..448 (2x 64x32), HP bars 448 / 456 (8 tiles each), ball 464
-        // (16x16), anim 468..512; 512.. free (transition, starter screen). See `battle::gfx::obj`.
-        // OBJ palettes: 0 enemy mon, 1 player mon, 2 trainer, 3 player back, 4 player healthbox,
-        // 5 HP bar, 6 ball, 7 enemy healthbox, 8..10 anim tints.
+        // BG palettes: 0..2 textbox (`gBattleTextboxPalette`), 2..5 environment, 5 menu text
+        // (`gBattleWindowTextPalette`, PP colors swapped into colors 11/12; `battle::ui`);
+        // 6..16 unused, bank 15 included (the yes/no box on BG1 uses banks 1 and 5).
+        // OBJ tiles (1D, 1024), `battle::gfx::obj`: enemy pic 0, player pic 64, opponent
+        // trainer 128, player trainer back 192 (64 each), player healthbox 256..384 (two 64x64
+        // halves: its exp bar row is below 32 px), enemy healthbox 384..448 (two 64x32 halves),
+        // HP bars 448 / 456 (8 tiles each), ball 464 (one 16x16 frame), 468..512 free; 512..
+        // the starter screen (`starter`), not used during a battle.
+        // OBJ palettes: 0 enemy mon, 1 player mon, 2 opponent trainer, 3 player back, 4 player
+        // healthbox, 5 HP bars, 6 ball, 7 enemy healthbox; 8..16 unused. Stat tints blend the
+        // mon's own bank (0 or 1) in place.
         pub const OBJ_PRIORITY_MON: u8 = 2;
         pub const OBJ_PRIORITY_BOX: u8 = 1;
     }

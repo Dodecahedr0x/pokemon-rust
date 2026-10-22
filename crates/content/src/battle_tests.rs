@@ -478,7 +478,6 @@ mod extracted {
             assert_eq!(img.tiles.len(), tiles);
             assert!(!img.palettes.is_empty());
         }
-        assert!(g.numbers.tiles.is_empty());
         assert_eq!(g.starter_bag.tilemap.len(), 2048);
         assert_eq!(g.starter_bag.palettes.len(), 2);
         // "Lv" is small-font glyph 0x105.

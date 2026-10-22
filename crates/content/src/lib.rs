@@ -53,6 +53,17 @@ pub use data::script_ids;
 /// Whether the content was built without an extracted dir (the small built-in world).
 pub const STUB: bool = cfg!(pkr_stub);
 
+/// Whether an extracted dir exists but in an older format, so the content fell back to the
+/// stub world ([`STUB`] is set too). It still builds so that `cargo xtask extract` (which links
+/// this crate) can run and replace it; everything else that needs the real data should refuse
+/// it with [`STALE_EXTRACT_MSG`].
+pub const STALE_EXTRACT: bool = cfg!(pkr_stale_extract);
+const _: () = assert!(!STALE_EXTRACT || STUB);
+
+/// The error for a [`STALE_EXTRACT`] build.
+pub const STALE_EXTRACT_MSG: &str = "content/extracted/ is in an older format, so the content \
+    built the stub world: run `cargo xtask extract` to refresh it";
+
 /// Script id of the new-game script ([`new_game::new_game`]); never a generated id.
 pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 

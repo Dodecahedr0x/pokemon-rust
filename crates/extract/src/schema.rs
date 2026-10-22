@@ -1,4 +1,4 @@
-//! On-disk format (v3) of `content/extracted/`: written by `export`, read by `content/build.rs`
+//! On-disk format (v4, see [`FORMAT_VERSION`]) of `content/extracted/`: written by `export`, read by `content/build.rs`
 //! and later the studio. Everything is referenced by stable decomp-style **names**; ROM offsets
 //! only appear in `manifest.ron` as provenance.
 //!
