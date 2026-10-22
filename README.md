@@ -140,8 +140,11 @@ equal to native; and a ROM save by the L+R+SELECT combo must decode to the ROM's
 natively to native's, equal `game_native::flash::encode_sav` byte for byte, and boot a second
 ROM that matches native for 300 frames (each restore point's map is checked: the lab, then
 Oldale's Pokémon Center). The ROM's costs are gated on the route: `World::hash` at
-most 80 scanlines (`hash_lines_max`, 73 measured) and the whole loop body at most 226 of the 228
-lines (`loop_lines_max`, 223 measured). Seeding (`cargo xtask checkpoints seed`, run by hand
+most 65 scanlines (`hash_lines_max`, 63 measured) and the whole loop body at most 217 of the 228
+lines (`loop_lines_max`, 215 measured). The hash is buffered 256 bytes at a time and folded by
+ARM code in IWRAM (`engine`'s `iwram` feature, enabled by `game-gba`), with the same bytes as the
+plain bytewise FNV-1a. If the line gates trip, re-measure and justify the cost; don't just bump
+the gates. Seeding (`cargo xtask checkpoints seed`, run by hand
 after an intended route or behaviour change, never by the tests) records the parity route and
 writes its named points as `route:<name>` nodes of the current flavor's tree, replacing earlier
 `route:` nodes. The committed checkpoint trees (`checkpoints/*/nodes`) hold inputs and hashes
