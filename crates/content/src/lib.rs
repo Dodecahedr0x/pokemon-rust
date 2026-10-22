@@ -147,6 +147,9 @@ impl GameData for Emerald {
             flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
             // `InsideOfTruck_EventScript_SetIntroFlagsMale`.
             respawn_default: consts::HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
+            var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
+            // `EventScript_WhiteOut` (Milestone 8 Task G).
+            script_whiteout: None,
         }
     }
 

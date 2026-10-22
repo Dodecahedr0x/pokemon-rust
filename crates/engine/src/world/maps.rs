@@ -2,7 +2,7 @@
 //! ([`cross_connection`]), warp starts and the warp transition, and the talk target a script
 //! starts with.
 
-use super::{State, WALK, World, camera_for, run_immediate};
+use super::{Event, State, WALK, World, camera_for, run_immediate};
 use crate::data::{Dir, GameData, MapData, MapId, PLAYER, SpecialIds};
 use crate::flow::{TransitionStep, on_warp_into};
 use crate::objects::Terrain;
@@ -83,6 +83,7 @@ pub(super) fn load_map(
 ) {
     f.bulk = true;
     let map = game.map(id);
+    s.event(Event::MapEntered(id));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
     s.templates = map.objects.to_vec();
@@ -116,6 +117,7 @@ pub(super) fn cross_connection(
     shift: (i16, i16),
 ) {
     let map = game.map(to);
+    s.event(Event::MapEntered(to));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
     s.templates = map.objects.to_vec();

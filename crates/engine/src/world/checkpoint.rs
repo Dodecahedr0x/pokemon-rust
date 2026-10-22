@@ -165,6 +165,9 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: w.player_name,
+                events: Vec::with_capacity(super::EVENTS_MAX),
+                events_dropped: 0,
+                last_script: None,
             },
             boot: None,
         };

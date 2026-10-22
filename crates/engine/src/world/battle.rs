@@ -233,6 +233,7 @@ impl State {
         battle.start(game, &mut self.rng, &mut events);
         let mut scene = BattleScene::new(battle.setup(), self.player_name);
         scene.push(&mut events);
+        self.event(super::Event::BattleStarted);
         if self.text.is_open() {
             self.text.close(f);
         }
@@ -270,7 +271,11 @@ impl State {
             return false;
         }
         let t = game.battle();
-        let found = match game.encounters(map) {
+        let wild_set = game
+            .special_ids()
+            .var_wild_set
+            .map_or(0, |v| self.vars.var(v));
+        let found = match game.wild_encounters(map, wild_set) {
             Some(table) if self.can_battle() => {
                 // `gPlayerParty[0]`, fainted or not.
                 let lead = self.party.get(0).copied();
@@ -401,6 +406,7 @@ impl World {
                     .step(game, &mut run.battle, &mut s.rng, &s.input, f);
                 if let Some(outcome) = run.scene.finished() {
                     run.outcome = Some(outcome);
+                    s.event(super::Event::BattleEnded(outcome));
                     s.party = run.battle.party(Side::Player).clone();
                     if run.battle.caught_without_room().is_some() {
                         s.log("caught a mon with a full party (no PC): released");

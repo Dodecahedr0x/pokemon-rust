@@ -34,6 +34,7 @@ mod tests;
 
 pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
 
+use crate::battle::BattleOutcome;
 use crate::battle::scene::BattleScene;
 use crate::checkpoint::{PLAYER_NAME_SIZE, PlayerName};
 use crate::data::{
@@ -48,7 +49,7 @@ use crate::flow::{
 use crate::hash::Fnv64;
 use crate::mon::Party;
 use crate::objects::{Objects, PlayerEvent, PlayerInput, Terrain};
-use crate::script::{Fade, Runner, Speed, Step};
+use crate::script::{Fade, Report, Runner, Speed, Step};
 use crate::starter::StarterChoice;
 use crate::text::TextBox;
 use crate::video::Frame;
@@ -67,6 +68,22 @@ pub const DOOR_FRAMES: u8 = 20;
 pub const LOG_LEN: usize = 16;
 /// Immediate map scripts get this many runner steps (each up to `INSTANT_LIMIT` requests).
 const IMMEDIATE_STEPS: u32 = 64;
+/// [`Event`]s kept per frame; further ones are dropped and counted ([`World::events_dropped`]).
+pub const EVENTS_MAX: usize = 32;
+
+/// Something that happened this frame, for tools (the explorer, the sweep, parity lanes). Not
+/// hashed, not snapshotted.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Event {
+    /// A warp load or connection crossing entered this map.
+    MapEntered(MapId),
+    /// A script started (object, coord, bg, map and immediate scripts alike).
+    ScriptStarted(ScriptId),
+    BattleStarted,
+    BattleEnded(BattleOutcome),
+    /// A script's `Request::Report`.
+    Report(Report),
+}
 
 /// The last script log lines (`Request::Log`), for tests and debugging.
 #[derive(Clone, Copy, Debug)]
@@ -143,6 +160,13 @@ pub(crate) struct State {
     /// from `NewGame` at a new game; hashed last in `World::hash`. Texts, the starter screen and
     /// battles print this copy.
     player_name: PlayerName,
+    // ---- Milestone 8: tool-facing, neither hashed nor snapshotted ----
+    /// This step's events (cleared at the start of `step`), at most [`EVENTS_MAX`].
+    events: Vec<Event>,
+    /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
+    events_dropped: u32,
+    /// The last script started.
+    last_script: Option<ScriptId>,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -221,6 +245,18 @@ impl State {
     fn log(&mut self, line: &'static str) {
         self.log.push(line);
     }
+
+    /// Records an [`Event`] for this frame (dropped and counted past [`EVENTS_MAX`]).
+    fn event(&mut self, e: Event) {
+        if let Event::ScriptStarted(id) = e {
+            self.last_script = Some(id);
+        }
+        if self.events.len() < EVENTS_MAX {
+            self.events.push(e);
+        } else {
+            self.events_dropped = self.events_dropped.wrapping_add(1);
+        }
+    }
 }
 
 impl World {
@@ -261,6 +297,9 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: player_name(ng.player_name),
+                events: Vec::with_capacity(EVENTS_MAX),
+                events_dropped: 0,
+                last_script: None,
             },
             boot: None,
         };
@@ -285,6 +324,7 @@ impl World {
     /// Runs one frame with `keys` held and returns its video output.
     pub fn step(&mut self, game: &impl GameData, keys: Buttons) -> Frame {
         let mut f = Frame::default();
+        self.s.events.clear();
         self.frame = self.frame.wrapping_add(1);
         self.s.input.update(keys);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
@@ -341,6 +381,7 @@ impl World {
         talked: Option<(u8, Dir, bool)>,
     ) {
         maps::set_talk_target(&mut self.s, &game.special_ids(), talked);
+        self.s.event(Event::ScriptStarted(id));
         let ctx = self.runner.ctx();
         self.runner.start(game.script(id, ctx));
     }
@@ -487,6 +528,21 @@ impl World {
         &self.s.log
     }
 
+    /// This step's [`Event`]s, in order (at most [`EVENTS_MAX`]).
+    pub fn events(&self) -> &[Event] {
+        &self.s.events
+    }
+
+    /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
+    pub fn events_dropped(&self) -> u32 {
+        self.s.events_dropped
+    }
+
+    /// The last script started, if any since the world was created or restored.
+    pub fn last_script(&self) -> Option<ScriptId> {
+        self.s.last_script
+    }
+
     pub fn script_running(&self) -> bool {
         self.runner.is_running()
     }
@@ -625,6 +681,7 @@ fn draw_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
 /// Runs a map script to completion now (Gen3 `RunScriptImmediately`).
 fn run_immediate(game: &impl GameData, s: &mut State, f: &mut Frame, id: ScriptId) {
     let mut runner = Runner::new();
+    s.event(Event::ScriptStarted(id));
     runner.start(game.script(id, runner.ctx()));
     let mut host = Host {
         game,

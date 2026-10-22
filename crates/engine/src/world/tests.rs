@@ -384,6 +384,8 @@ impl GameData for Game {
             flag_running: None,
             flags_cleared_on_map_change: &[FLAG_CLEARED],
             respawn_default: RESPAWN,
+            var_wild_set: None,
+            script_whiteout: None,
         }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -1018,4 +1020,50 @@ fn hash_calls(f: impl FnOnce()) -> u64 {
     let before = HASH_CALLS.with(|n| n.get());
     f();
     HASH_CALLS.with(|n| n.get()) - before
+}
+
+// ---- Milestone 8 Wave 0 contracts ----
+
+#[test]
+fn events_report_map_entries_scripts_and_reports_for_one_step() {
+    let mut w = started();
+    assert!(w.events().is_empty());
+    walk(&mut w, Dir::Up, 5);
+    run(&mut w, Buttons::UP, 1);
+    assert_eq!(w.map(), ROUTE);
+    assert!(
+        w.events().contains(&Event::MapEntered(ROUTE)),
+        "{:?}",
+        w.events()
+    );
+    run(&mut w, Buttons::NONE, 1);
+    assert!(
+        !w.events().contains(&Event::MapEntered(ROUTE)),
+        "cleared each step"
+    );
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.report(Report::Unsupported("special Foo")).await;
+            let picked = ctx.multichoice(0, 0, 0, 0, true).await;
+            let fit = ctx.item_add(ItemId(1), 1).await;
+            ctx.set_var(VAR_RESULT, picked + fit as u16).await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(
+        w.events(),
+        &[Event::Report(Report::Unsupported("special Foo"))]
+    );
+    until_done(&mut w, 4);
+    assert_eq!(w.var(VAR_RESULT), crate::script::MULTI_B_PRESSED);
+    assert_eq!(w.events_dropped(), 0);
+}
+
+#[test]
+fn the_comparison_register_is_shared_by_ctx_clones_and_starts_less() {
+    let runner = Runner::new();
+    let (a, b) = (runner.ctx(), runner.ctx());
+    assert_eq!(a.cond(), core::cmp::Ordering::Less);
+    a.set_cond(core::cmp::Ordering::Greater);
+    assert_eq!(b.cond(), core::cmp::Ordering::Greater);
 }
