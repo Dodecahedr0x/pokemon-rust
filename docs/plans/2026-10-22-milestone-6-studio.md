@@ -691,6 +691,17 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 ## Wave 0 as built
 *(filled by Wave 0: spike fps and latency per build, final local-store names, contract deltas.)*
 
+**Step 0 outcome (taken).**
+- The M5 close-out built a layered store.
+  - `Store::layered(base, local)` writes personal saves to `checkpoints/<flavor>/local/` (git-ignored), or to `$PKR_CHECKPOINTS` when set.
+  - The committed tree is a read-only base.
+  - Local ids start above `LOCAL_IDS` (10000).
+  - A local node may have a committed parent.
+- Cross-store parents exist, so `trace::flatten` and `tree::plan_save` are dropped (decision 7 is superseded).
+- `Stores` becomes one layered `Store`. `Origin` is only a per-node display and permission flag (base nodes are read-only), and commands are keyed by `CheckpointId`.
+
+**Scheduling.** The studio skeleton (`crates/studio`, the `Pane` trait and `RunMode`) was committed first. The spike, A, D, E and F then started in parallel. B and C started after the M5 close-out merged, against the layered store. `StoreError` is B's job, and C writes its new APIs with `String` errors until Wave 2 aligns them.
+
 ---
 
 ### Dioxus research note
