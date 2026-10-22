@@ -206,8 +206,9 @@ and `cargo clippy -p studio --all-targets --features ui -- -D warnings`; `cargo 
 (`dioxus-ssr`, on the committed tree with a temp local store) and the key-map tests.
 `cargo xtask studio --smoke [secs]` (default 10) opens the real window, with the play panes and
 two transport test-pattern panes, for `secs` seconds and fails if a test pattern delivers under
-50 fps or the run outlives `secs` + 60 s (the play panes' rates are printed as `INFO` lines: they
-publish only changed pictures). It needs a logged-in GUI session (not SSH or CI without a display); the
+50 fps, a play pane's thread died or it drew nothing, or the run outlives `secs` + 60 s (then it
+prints the output so far and a `sample` of the studio's threads). The play panes' rates are printed
+as `INFO` lines, since they publish only changed pictures. It needs a logged-in GUI session (not SSH or CI without a display); the
 window stays on top and takes focus while it runs.
 
 ## Extract

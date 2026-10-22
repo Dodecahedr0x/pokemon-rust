@@ -80,3 +80,10 @@
     }
   }, 500);
 })();
+
+// The window lost the focus (another app, Cmd-Tab): blur the focused play pane, so its
+// `focusout` releases every held key (a key released elsewhere sends no key-up here).
+window.addEventListener("blur", () => {
+  const a = document.activeElement;
+  if (a && a.dataset && a.dataset.focus) a.blur();
+});

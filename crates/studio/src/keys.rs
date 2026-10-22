@@ -56,12 +56,22 @@ pub fn button(code: &str) -> Option<Buttons> {
     })
 }
 
-/// A focused pane's keyboard: the buttons held, and the run mode a held Tab interrupted.
+/// The modifier keys held with a key event.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Mods {
+    pub meta: bool,
+    pub ctrl: bool,
+}
+
+/// A focused pane's keyboard: the buttons held, the run mode a held Tab interrupted, and the
+/// last mode it sent (the pane's status lags behind by up to one poll).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Keyboard {
     held: Buttons,
     /// While Tab is held: the mode to go back to.
     fast_from: Option<RunMode>,
+    /// The last mode sent through this keyboard, until the pane's status shows it.
+    sent: Option<RunMode>,
 }
 
 impl Keyboard {
@@ -69,8 +79,38 @@ impl Keyboard {
         self.held
     }
 
-    /// A key went down; `repeat` is the OS auto-repeat; `run` is the pane's mode now.
-    pub fn down(&mut self, code: &str, repeat: bool, run: RunMode) -> Outcome {
+    /// The pane's mode: `run` (its last status), unless a mode sent since is not shown yet.
+    fn current(&mut self, run: RunMode) -> RunMode {
+        if self.sent == Some(run) {
+            self.sent = None;
+        }
+        self.sent.unwrap_or(run)
+    }
+
+    /// A mode asked for by the UI (a button, or Space): while Tab is held it becomes the mode
+    /// to go back to and nothing is sent (`None`); else it is sent.
+    pub fn mode(&mut self, m: RunMode) -> Option<RunMode> {
+        if self.fast_from.is_some() {
+            self.fast_from = Some(m);
+            return None;
+        }
+        self.sent = Some(m);
+        Some(m)
+    }
+
+    /// A mode this keyboard sends.
+    fn send(&mut self, m: RunMode) -> Option<Action> {
+        self.sent = Some(m);
+        Some(Action::Mode(m))
+    }
+
+    /// A key went down; `repeat` is the OS auto-repeat; `run` is the pane's mode in its last
+    /// status. With Cmd or Ctrl held the key is the webview's (a shortcut): macOS sends no
+    /// key-up for keys released while Cmd is held, so they are never pressed here.
+    pub fn down(&mut self, code: &str, repeat: bool, run: RunMode, mods: Mods) -> Outcome {
+        if mods.meta || mods.ctrl {
+            return Outcome::default();
+        }
         if let Some(b) = button(code) {
             let now = self.held | b;
             let changed = now != self.held;
@@ -86,20 +126,29 @@ impl Keyboard {
         }
         let action = match code {
             // A held `.` keeps stepping; the other keys act once per press.
-            "Period" | "NumpadDecimal" => Some(Action::Step(1)),
+            "Period" | "NumpadDecimal" => {
+                // A step pauses the pane (both panes' `Step` paths do).
+                self.sent = Some(RunMode::Pause);
+                Some(Action::Step(1))
+            }
             _ if repeat => None,
             "F5" => Some(Action::Save),
             "F8" => Some(Action::Rewind),
             "F9" => Some(Action::ReloadParent),
-            "Space" => Some(Action::Mode(match run {
-                RunMode::Pause => RunMode::Play,
-                _ => RunMode::Pause,
-            })),
+            "Space" => {
+                // While Tab is held, the toggle applies to the mode Tab goes back to.
+                let now = self.fast_from.unwrap_or_else(|| self.current(run));
+                let m = match now {
+                    RunMode::Pause => RunMode::Play,
+                    _ => RunMode::Pause,
+                };
+                self.mode(m).map(Action::Mode)
+            }
             "Tab" => match self.fast_from {
                 Some(_) => None,
                 None => {
-                    self.fast_from = Some(run);
-                    Some(Action::Mode(RunMode::Fast(HOLD_FAST)))
+                    self.fast_from = Some(self.current(run));
+                    self.send(RunMode::Fast(HOLD_FAST))
                 }
             },
             _ => None,
@@ -122,24 +171,31 @@ impl Keyboard {
                 action: None,
             };
         }
+        if matches!(code, "MetaLeft" | "MetaRight") {
+            // Keys released while Cmd was held sent no key-up: release them all.
+            return self.blur();
+        }
+        let action = match code {
+            "Tab" => self.fast_from.take().and_then(|m| self.send(m)),
+            _ => None,
+        };
         Outcome {
             handled: ACTION_KEYS.contains(&code),
             buttons: None,
-            action: match code {
-                "Tab" => self.fast_from.take().map(Action::Mode),
-                _ => None,
-            },
+            action,
         }
     }
 
-    /// The pane lost the focus: every button is released and a held Tab ends.
+    /// The pane lost the focus (or the window did): every button is released and a held Tab
+    /// ends.
     pub fn blur(&mut self) -> Outcome {
         let buttons = (self.held != Buttons::NONE).then_some(Buttons::NONE);
         self.held = Buttons::NONE;
+        let action = self.fast_from.take().and_then(|m| self.send(m));
         Outcome {
             handled: false,
             buttons,
-            action: self.fast_from.take().map(Action::Mode),
+            action,
         }
     }
 }
@@ -170,13 +226,14 @@ pub fn rom_cmds(o: Outcome) -> Vec<RomCmd> {
     if let Some(b) = o.buttons {
         out.push(RomCmd::Keys(b));
     }
-    out.extend(o.action.and_then(|a| match a {
-        Action::Save | Action::Rewind => None,
-        Action::ReloadParent => Some(RomCmd::Reload),
-        Action::Mode(m) => Some(RomCmd::Mode(m)),
-        // A paused ROM pane runs pending steps; a running one would just run one more.
-        Action::Step(n) => Some(RomCmd::Step(n)),
-    }));
+    match o.action {
+        None | Some(Action::Save | Action::Rewind) => {}
+        Some(Action::ReloadParent) => out.push(RomCmd::Reload),
+        Some(Action::Mode(m)) => out.push(RomCmd::Mode(m)),
+        // As the Step button: pause, then run the pending frames (the native pane's `Step`
+        // pauses by itself).
+        Some(Action::Step(n)) => out.extend([RomCmd::Mode(RunMode::Pause), RomCmd::Step(n)]),
+    }
     out
 }
 
@@ -184,6 +241,112 @@ pub fn rom_cmds(o: Outcome) -> Vec<RomCmd> {
 mod tests {
     use super::*;
     use game_native::trace::CheckpointId;
+
+    const NO: Mods = Mods {
+        meta: false,
+        ctrl: false,
+    };
+    const CMD: Mods = Mods {
+        meta: true,
+        ctrl: false,
+    };
+    const CTRL: Mods = Mods {
+        meta: false,
+        ctrl: true,
+    };
+
+    #[test]
+    fn cmd_or_ctrl_chords_are_the_webviews() {
+        let mut k = Keyboard::default();
+        for mods in [CMD, CTRL] {
+            for code in ["KeyX", "KeyA", "Tab", "F5", "Space", "Period"] {
+                assert_eq!(
+                    k.down(code, false, RunMode::Play, mods),
+                    Outcome::default(),
+                    "{code} with {mods:?}"
+                );
+            }
+        }
+        assert_eq!(k.held(), Buttons::NONE, "nothing was pressed");
+        assert_eq!(k.blur(), Outcome::default(), "and Tab was not held");
+    }
+
+    #[test]
+    fn a_cmd_key_up_releases_everything() {
+        // macOS: X down, Cmd down, X up (no key-up sent), Cmd up.
+        let mut k = Keyboard::default();
+        k.down("KeyX", false, RunMode::Play, NO);
+        k.down("Tab", false, RunMode::Play, NO);
+        assert_eq!(
+            k.down("MetaLeft", false, RunMode::Play, NO),
+            Outcome::default()
+        );
+        let o = k.up("MetaLeft");
+        assert!(!o.handled);
+        assert_eq!(o.buttons, Some(Buttons::NONE));
+        assert_eq!(o.action, Some(Action::Mode(RunMode::Play)));
+        assert_eq!(k.held(), Buttons::NONE);
+        assert_eq!(
+            k.up("MetaRight"),
+            Outcome::default(),
+            "nothing left to release"
+        );
+    }
+
+    #[test]
+    fn modes_while_tab_is_held_become_the_mode_to_restore() {
+        let mut k = Keyboard::default();
+        k.down("Tab", false, RunMode::Play, NO);
+        // A button (or Space) while fast-forwarding: nothing is sent now...
+        assert_eq!(k.mode(RunMode::Pause), None);
+        assert_eq!(
+            k.down("Space", false, RunMode::Fast(HOLD_FAST), NO).action,
+            None
+        );
+        assert_eq!(k.mode(RunMode::Fast(2)), None);
+        // ...and releasing Tab goes to the last one asked for.
+        assert_eq!(k.up("Tab").action, Some(Action::Mode(RunMode::Fast(2))));
+        assert_eq!(k.mode(RunMode::Pause), Some(RunMode::Pause));
+    }
+
+    #[test]
+    fn the_last_sent_mode_wins_over_a_stale_status() {
+        let mut k = Keyboard::default();
+        // Two Space presses before the status catches up: pause, then play again.
+        let a = k.down("Space", false, RunMode::Play, NO).action;
+        let b = k.down("Space", false, RunMode::Play, NO).action;
+        assert_eq!(
+            (a, b),
+            (
+                Some(Action::Mode(RunMode::Pause)),
+                Some(Action::Mode(RunMode::Play))
+            )
+        );
+        // Tab held right after: it restores the mode just sent, not the stale status.
+        k.down("Space", false, RunMode::Play, NO); // Pause sent, status still Play
+        k.down("Tab", false, RunMode::Play, NO);
+        assert_eq!(k.up("Tab").action, Some(Action::Mode(RunMode::Pause)));
+        // Once the status shows the sent mode, the status is the reference again.
+        assert_eq!(
+            k.down("Space", false, RunMode::Pause, NO).action,
+            Some(Action::Mode(RunMode::Play))
+        );
+        assert_eq!(
+            k.down("Space", false, RunMode::Play, NO).action,
+            Some(Action::Mode(RunMode::Pause))
+        );
+        k.mode(RunMode::Play);
+        assert_eq!(
+            k.down("Space", false, RunMode::Play, NO).action,
+            Some(Action::Mode(RunMode::Pause)),
+            "Play shown"
+        );
+        assert_eq!(
+            k.down("Space", false, RunMode::Pause, NO).action,
+            Some(Action::Mode(RunMode::Play)),
+            "Pause shown, as sent"
+        );
+    }
 
     #[test]
     fn the_play_bin_layout() {
@@ -209,26 +372,26 @@ mod tests {
     #[test]
     fn buttons_are_held_until_released() {
         let mut k = Keyboard::default();
-        let o = k.down("KeyX", false, RunMode::Play);
+        let o = k.down("KeyX", false, RunMode::Play, NO);
         assert!(o.handled);
         assert_eq!(o.buttons, Some(Buttons::A));
-        let o = k.down("ArrowUp", false, RunMode::Play);
+        let o = k.down("ArrowUp", false, RunMode::Play, NO);
         assert_eq!(o.buttons, Some(Buttons::A | Buttons::UP));
         // An auto-repeat changes nothing but is still handled (no scrolling).
-        let o = k.down("ArrowUp", true, RunMode::Play);
+        let o = k.down("ArrowUp", true, RunMode::Play, NO);
         assert_eq!((o.handled, o.buttons), (true, None));
         assert_eq!(k.up("KeyX").buttons, Some(Buttons::UP));
         assert_eq!(k.up("KeyX").buttons, None);
         assert_eq!(k.held(), Buttons::UP);
         // Unknown keys are left to the webview.
-        assert_eq!(k.down("KeyQ", false, RunMode::Play), Outcome::default());
+        assert_eq!(k.down("KeyQ", false, RunMode::Play, NO), Outcome::default());
         assert_eq!(k.up("KeyQ"), Outcome::default());
     }
 
     #[test]
     fn function_keys_space_and_period() {
         let mut k = Keyboard::default();
-        let act = |k: &mut Keyboard, code, run| k.down(code, false, run).action;
+        let act = |k: &mut Keyboard, code, run| k.down(code, false, run, NO).action;
         assert_eq!(act(&mut k, "F5", RunMode::Play), Some(Action::Save));
         assert_eq!(act(&mut k, "F8", RunMode::Play), Some(Action::Rewind));
         assert_eq!(act(&mut k, "F9", RunMode::Play), Some(Action::ReloadParent));
@@ -246,10 +409,10 @@ mod tests {
         );
         assert_eq!(act(&mut k, "Period", RunMode::Pause), Some(Action::Step(1)));
         // A held F5 saves once; a held `.` keeps stepping.
-        assert_eq!(k.down("F5", true, RunMode::Play).action, None);
-        assert!(k.down("F5", true, RunMode::Play).handled);
+        assert_eq!(k.down("F5", true, RunMode::Play, NO).action, None);
+        assert!(k.down("F5", true, RunMode::Play, NO).handled);
         assert_eq!(
-            k.down("Period", true, RunMode::Pause).action,
+            k.down("Period", true, RunMode::Pause, NO).action,
             Some(Action::Step(1))
         );
         let up = k.up("F5");
@@ -259,12 +422,18 @@ mod tests {
     #[test]
     fn tab_fast_forwards_while_held_then_restores_the_mode() {
         let mut k = Keyboard::default();
-        let o = k.down("Tab", false, RunMode::Pause);
+        let o = k.down("Tab", false, RunMode::Pause, NO);
         assert!(o.handled);
         assert_eq!(o.action, Some(Action::Mode(RunMode::Fast(HOLD_FAST))));
         // A second down (repeat or not) while held keeps the first mode to restore.
-        assert_eq!(k.down("Tab", false, RunMode::Fast(HOLD_FAST)).action, None);
-        assert_eq!(k.down("Tab", true, RunMode::Fast(HOLD_FAST)).action, None);
+        assert_eq!(
+            k.down("Tab", false, RunMode::Fast(HOLD_FAST), NO).action,
+            None
+        );
+        assert_eq!(
+            k.down("Tab", true, RunMode::Fast(HOLD_FAST), NO).action,
+            None
+        );
         assert_eq!(k.up("Tab").action, Some(Action::Mode(RunMode::Pause)));
         assert_eq!(k.up("Tab").action, None);
     }
@@ -272,8 +441,8 @@ mod tests {
     #[test]
     fn blur_releases_everything() {
         let mut k = Keyboard::default();
-        k.down("KeyZ", false, RunMode::Play);
-        k.down("Tab", false, RunMode::Play);
+        k.down("KeyZ", false, RunMode::Play, NO);
+        k.down("Tab", false, RunMode::Play, NO);
         let o = k.blur();
         assert!(!o.handled);
         assert_eq!(o.buttons, Some(Buttons::NONE));
@@ -316,6 +485,9 @@ mod tests {
             native_cmds(step, &status)[..],
             [NativeCmd::Step(1)]
         ));
-        assert_eq!(rom_cmds(step), [RomCmd::Step(1)]);
+        assert_eq!(
+            rom_cmds(step),
+            [RomCmd::Mode(RunMode::Pause), RomCmd::Step(1)]
+        );
     }
 }

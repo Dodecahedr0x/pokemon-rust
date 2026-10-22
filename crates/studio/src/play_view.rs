@@ -98,16 +98,15 @@ pub fn badge(status: Option<&Status>) -> (&'static str, String) {
     }
 }
 
-/// The modification times of the store's `nodes/` directories (local, then the base): a node
-/// added, rewritten or removed changes one of them.
+/// The modification times of the store's `nodes/` directories (local, then the base), then of
+/// its `status.ron`: a node added, rewritten or removed, or a verify (here or from the CLI),
+/// changes one of them.
 pub fn nodes_stamp(store: &Store) -> Vec<Option<SystemTime>> {
+    let mtime = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     let dirs = std::iter::once(store.root()).chain(store.base());
-    dirs.map(|d: &Path| {
-        std::fs::metadata(d.join("nodes"))
-            .and_then(|m| m.modified())
-            .ok()
-    })
-    .collect()
+    dirs.map(|d: &Path| mtime(&d.join("nodes")))
+        .chain([mtime(&store.root().join("status.ron"))])
+        .collect()
 }
 
 /// The world frame of "Open at frame": a node's trace starts at its parent's frame.
@@ -213,10 +212,15 @@ mod tests {
         std::fs::create_dir_all(base.join("nodes")).unwrap();
         let store = Store::layered(&base, &local).unwrap();
         let before = nodes_stamp(&store);
-        assert_eq!(before.len(), 2);
-        assert!(before[0].is_none() && before[1].is_some());
+        assert_eq!(before.len(), 3);
+        assert!(before[0].is_none() && before[1].is_some() && before[2].is_none());
         std::fs::create_dir_all(local.join("nodes")).unwrap();
         assert!(nodes_stamp(&store)[0].is_some());
+        std::fs::write(local.join("status.ron"), "{}").unwrap();
+        assert!(
+            nodes_stamp(&store)[2].is_some(),
+            "a verify changes the stamp"
+        );
         std::fs::remove_dir_all(local).unwrap();
         std::fs::remove_dir_all(base).unwrap();
     }

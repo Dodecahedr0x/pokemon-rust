@@ -33,6 +33,7 @@ use dioxus::prelude::*;
 use game_native::checkpoints::Materializer;
 use game_native::store::Store;
 use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -132,6 +133,16 @@ impl Studio {
         })
     }
 
+    /// The play panes and whether their threads still run (empty without panes).
+    pub fn alive(&self) -> Vec<(&'static str, bool)> {
+        self.panes.as_ref().map_or_else(Vec::new, |p| {
+            vec![
+                ("native", !p.native.is_finished()),
+                ("rom", !p.rom.is_finished()),
+            ]
+        })
+    }
+
     fn statuses(&self) -> Option<(Inspector, RomStatus)> {
         let p = self.panes.as_ref()?;
         Some((p.native.status.get(), p.rom.status.get()))
@@ -160,9 +171,10 @@ pub async fn off_thread<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'stati
     rx.await.ok()
 }
 
-/// Resolves after `d`, without assuming an async runtime (a sleeping thread completes it).
+/// Resolves after `d`, on the tokio timer of the runtime dioxus-desktop runs in (no thread per
+/// call). Only awaited inside the desktop app.
 pub async fn sleep(d: Duration) {
-    off_thread(move || std::thread::sleep(d)).await;
+    tokio::time::sleep(d).await;
 }
 
 /// What `studio.js` reports through `/stats/<pane>`. Smoke runs only: it is in context, the
@@ -231,8 +243,9 @@ pub fn head(smoke: bool) -> String {
 const SMOKE_PANES: [&str; 2] = ["smoke-a", "smoke-b"];
 
 /// Opens the studio window. With `STUDIO_SMOKE_SECS=<n>` it also runs two test-pattern panes,
-/// closes itself after `n` seconds and prints the delivered fps per pane (`SMOKE pane=<name>
-/// fps=<f> …` lines for the test patterns, `INFO …` for the play panes).
+/// and after `n` seconds a thread outside the VirtualDom prints the delivered fps per pane
+/// (`SMOKE pane=<name> fps=<f> …` lines for the test patterns, `INFO …` for the play panes)
+/// and exits ([`start_smoke_deadline`]).
 pub fn launch() {
     let smoke = std::env::var("STUDIO_SMOKE_SECS")
         .ok()
@@ -271,6 +284,9 @@ pub fn launch() {
         .with_custom_head(head(smoke.is_some()))
         .with_window(window)
         .with_disable_context_menu(true);
+    if let Some(smoke) = &smoke {
+        start_smoke_deadline(smoke.clone(), frames.clone(), studio.clone());
+    }
     let mut app = dioxus::LaunchBuilder::desktop()
         .with_cfg(cfg)
         .with_context(frames)
@@ -281,8 +297,63 @@ pub fn launch() {
     app.launch(App);
 }
 
-/// Steady-state numbers from the reports received after a 2 s warm-up.
-fn print_smoke(stats: &Stats, names: &[&str], gated: &[&str], start: Instant, secs: f64) {
+/// Iterations of the [`Shell`]'s status loop: a smoke run reports it, to tell a stalled
+/// VirtualDom (dioxus-desktop stops polling its tasks while an edit batch is unacknowledged)
+/// from a slow webview.
+static VDOM_POLLS: AtomicU64 = AtomicU64::new(0);
+/// Set by the smoke deadline thread once it has printed: the VirtualDom then closes the window
+/// (a nicety; the thread exits the process anyway).
+static SMOKE_DONE: AtomicBool = AtomicBool::new(false);
+/// How long after the deadline the watchdog gives the process to exit.
+const SMOKE_WATCHDOG: Duration = Duration::from_secs(10);
+/// How long the deadline thread lets the window close before it exits the process.
+const SMOKE_CLOSE: Duration = Duration::from_millis(300);
+
+/// The smoke deadline, outside the VirtualDom so a stalled webview cannot hold it: after
+/// `secs` a thread prints the `SMOKE`/`INFO` lines and exits the process (status 0). A
+/// watchdog prints `STALL vdom-not-polled` and exits with status 3 if the process is still
+/// alive [`SMOKE_WATCHDOG`] later.
+fn start_smoke_deadline(smoke: Smoke, frames: Frames, studio: Studio) {
+    let start = Instant::now();
+    let secs = Duration::from_secs_f64(smoke.secs);
+    std::thread::spawn(move || {
+        std::thread::sleep(secs);
+        let names: Vec<&str> = frames.0.keys().copied().collect();
+        print_smoke(
+            &smoke.stats,
+            &names,
+            &smoke.gated,
+            &studio.alive(),
+            start,
+            smoke.secs,
+        );
+        println!("INFO vdom_polls={}", VDOM_POLLS.load(Ordering::Relaxed));
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+        SMOKE_DONE.store(true, Ordering::Relaxed);
+        std::thread::sleep(SMOKE_CLOSE);
+        std::process::exit(0);
+    });
+    std::thread::spawn(move || {
+        std::thread::sleep(secs + SMOKE_WATCHDOG);
+        println!(
+            "STALL vdom-not-polled vdom_polls={}",
+            VDOM_POLLS.load(Ordering::Relaxed)
+        );
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+        std::process::exit(3);
+    });
+}
+
+/// Steady-state numbers from the reports received after a 2 s warm-up. `alive`: the play
+/// panes and whether their threads still run.
+fn print_smoke(
+    stats: &Stats,
+    names: &[&str],
+    gated: &[&str],
+    alive: &[(&str, bool)],
+    start: Instant,
+    secs: f64,
+) {
     let warm = start + Duration::from_secs_f64((secs / 4.0).min(2.0));
     let all = stats.0.lock().unwrap();
     let mut names = names.to_vec();
@@ -293,6 +364,16 @@ fn print_smoke(stats: &Stats, names: &[&str], gated: &[&str], start: Instant, se
         } else {
             "INFO"
         };
+        // Frames drawn since the start (warm-up included), and whether the pane thread lives
+        // (the play panes; the test patterns' handles are not kept).
+        let total = all
+            .get(name)
+            .and_then(|v| v.last())
+            .map_or(0.0, |(_, r)| r.drawn);
+        let alive = alive
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map_or(String::new(), |(_, a)| format!(" alive={a}"));
         let reports: Vec<Report> = all
             .get(name)
             .map(|v| {
@@ -303,7 +384,10 @@ fn print_smoke(stats: &Stats, names: &[&str], gated: &[&str], start: Instant, se
             })
             .unwrap_or_default();
         let (Some(first), Some(last)) = (reports.first(), reports.last()) else {
-            println!("{tag} pane={name} fps=0.0 latency_ms=nan max_ms=nan (no reports)");
+            println!(
+                "{tag} pane={name} fps=0.0 latency_ms=nan max_ms=nan total={total}{alive} \
+                 (no reports)"
+            );
             continue;
         };
         let frames = last.drawn - first.drawn;
@@ -313,7 +397,7 @@ fn print_smoke(stats: &Stats, names: &[&str], gated: &[&str], start: Instant, se
         let max = reports[1..].iter().map(|r| r.max).fold(0.0, f64::max);
         println!(
             "{tag} pane={name} fps={fps:.1} latency_ms={:.2} age_ms={age:.2} fetch_ms={fetch:.2} \
-             max_ms={max:.2} frames={frames} secs={:.1}",
+             max_ms={max:.2} frames={frames} total={total} secs={:.1}{alive}",
             age + fetch,
             (last.t - first.t) / 1000.0
         );
@@ -331,12 +415,11 @@ fn respond(status: StatusCode) -> Response<Vec<u8>> {
         .unwrap()
 }
 
-/// The desktop root: the asset handlers (and in a smoke run, the timer that closes the
-/// window), then the [`Shell`].
+/// The desktop root: the asset handlers (and in a smoke run, a task that closes the window
+/// once the deadline thread has printed), then the [`Shell`].
 #[component]
 fn App() -> Element {
     let frames = use_context::<Frames>();
-    let names: Vec<&'static str> = frames.0.keys().copied().collect();
     use_asset_handler("frames", move |req, responder| {
         let path = req.uri().path_and_query().map_or("", |p| p.as_str());
         let (pane, after) = match parse_frame_request(path) {
@@ -376,16 +459,13 @@ fn App() -> Element {
             }
             responder.respond(respond(StatusCode::NO_CONTENT));
         });
-        use_future(move || {
-            let (smoke, names) = (smoke.clone(), names.clone());
-            async move {
-                let start = Instant::now();
-                sleep(Duration::from_secs_f64(smoke.secs)).await;
-                print_smoke(&smoke.stats, &names, &smoke.gated, start, smoke.secs);
-                let _ = std::io::Write::flush(&mut std::io::stdout());
-                // The last window closing ends the event loop and the process (status 0).
-                dioxus::desktop::window().close();
+        // A nicety: close the window once the deadline thread has printed (it exits the
+        // process itself, whether or not this task is polled).
+        use_future(move || async move {
+            while !SMOKE_DONE.load(Ordering::Relaxed) {
+                sleep(Duration::from_millis(50)).await;
             }
+            dioxus::desktop::window().close();
         });
     }
     rsx! { Shell {} }
@@ -439,6 +519,7 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
             async move {
                 loop {
                     sleep(STATUS_POLL).await;
+                    VDOM_POLLS.fetch_add(1, Ordering::Relaxed);
                     let Some((n, r)) = studio.statuses() else {
                         continue;
                     };

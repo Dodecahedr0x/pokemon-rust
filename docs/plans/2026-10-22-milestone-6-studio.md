@@ -746,6 +746,14 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 
 **Scheduling.** The studio skeleton (`crates/studio`, the `Pane` trait and `RunMode`) was committed first. The spike, A, D, E and F then started in parallel. B and C started after the M5 close-out merged, against the layered store. `StoreError` is B's job, and C writes its new APIs with `String` errors until Wave 2 aligns them.
 
+**Task G (as built): deviations from the plan.**
+- **Label and Remove are disabled on committed nodes**, instead of asking for a confirmation: with the layered store the committed tree is a read-only base (`StoreError::ReadOnly`), and it changes only through `cargo xtask checkpoints` (decision 14 settled as "shared read-only").
+- **One Verify button** for the layered store, not one per store: `Store::verify` replays every node (committed and local) and merges the verdicts into the local `status.ron`.
+- **The ssr tests render `Shell`, not `App`:** `App` holds only the desktop asset handlers (`use_asset_handler` needs a desktop context). They render `Shell` with a `start` tab and a `Studio` without panes over the committed tree and a temp local root.
+- **The smoke run exits from a thread.** dioxus-desktop 0.7.10 stops polling every VirtualDom task while an edit batch is unacknowledged (`webview.rs:561-564`), so a deadline inside a `use_future` can freeze with a stalled webview (the likely cause of two runs that hung at the 68 s timeout; not reproduced since). A std thread now sleeps `secs`, prints the `SMOKE`/`INFO` lines (plus `INFO vdom_polls=N`, the status loop's iterations), and exits 0; a watchdog prints `STALL vdom-not-polled` and exits 3 ten seconds later. `window().close()` remains as a nicety. On a timeout, `xtask studio --smoke` prints the output so far and a `sample` of the studio's threads.
+- **Smoke panes:** the Wave 0 test patterns run only in smoke runs, as the gated transport panes (`SMOKE`). The play panes publish only changed pictures, so they are `INFO` lines, gated loosely (thread alive, at least one frame drawn).
+- **Keys and view helpers live in the core** (`studio::keys`, `studio::play_view`), tested without the `ui` feature. Cmd/Ctrl chords go to the webview, a Cmd key-up and the window losing focus release every key (macOS sends no key-up for keys released while Cmd is held).
+
 ---
 
 ### Dioxus research note

@@ -7,8 +7,8 @@
 use super::tree::TreeState;
 use super::{Live, PaneView, Studio, off_thread, sleep};
 use crate::build::{BuildState, RomBuild};
-use crate::keys::{Keyboard, native_cmds, rom_cmds};
-use crate::native::{Inspector, NativeCmd};
+use crate::keys::{Keyboard, Mods, native_cmds, rom_cmds};
+use crate::native::NativeCmd;
 use crate::pane::RunMode;
 use crate::play_view::{event_text, run_text, shadow_text, timeline_cells};
 use crate::rom::{RomCmd, RomFile, RomSource, RomStatus, boot_name};
@@ -103,13 +103,23 @@ fn RunButtons(run: RunMode, on_mode: EventHandler<RunMode>, on_step: EventHandle
     }
 }
 
+/// The modifiers of a key event.
+fn mods(e: &KeyboardEvent) -> Mods {
+    let m = e.modifiers();
+    Mods {
+        meta: m.contains(Modifiers::META),
+        ctrl: m.contains(Modifiers::CONTROL),
+    }
+}
+
+/// The native pane, its controls, inspector and events. The column itself re-renders only
+/// when the run mode changes; the inspector and the event list are their own components.
 #[component]
 fn NativeColumn() -> Element {
     let studio = use_context::<Studio>();
     let live = use_context::<Live>();
-    let trees = use_context::<TreeState>();
     let mut kb = use_signal(Keyboard::default);
-    let s: Inspector = live.native.read().clone();
+    let run = use_memo(move || live.native.read().run);
     let send = {
         let studio = studio.clone();
         move |cmds: Vec<NativeCmd>| {
@@ -119,24 +129,6 @@ fn NativeColumn() -> Element {
         }
     };
     let (down, up, blur) = (send.clone(), send.clone(), send.clone());
-    let parent = match s.parent {
-        Parent::NewGame => "new game".to_string(),
-        Parent::Checkpoint(id) => match trees.model.read().row(id) {
-            Some(r) => format!("{id} {}", r.label),
-            None => id.to_string(),
-        },
-    };
-    let capturable = match s.capturable {
-        Ok(()) => "yes".to_string(),
-        Err(why) => format!("no: {why:?}"),
-    };
-    let camera = s
-        .camera
-        .map_or("-".to_string(), |(x, y)| format!("{x}, {y}"));
-    let saved = s.saved.map_or("-".to_string(), |id| id.to_string());
-    let ring = s.ring_frames.len();
-    let run = run_text(s.run);
-    let pending = if s.pending_save { " (saving…)" } else { "" };
     let (st1, st2, st3, st4, st5, st6) = (
         studio.clone(),
         studio.clone(),
@@ -151,7 +143,7 @@ fn NativeColumn() -> Element {
                 name: "native",
                 title: "Native",
                 onkeydown: move |e: KeyboardEvent| {
-                    let o = kb.write().down(&e.code().to_string(), e.is_auto_repeating(), live.native.peek().run);
+                    let o = kb.write().down(&e.code().to_string(), e.is_auto_repeating(), live.native.peek().run, mods(&e));
                     if o.handled {
                         e.prevent_default();
                     }
@@ -171,8 +163,12 @@ fn NativeColumn() -> Element {
             }
             div { class: "controls",
                 RunButtons {
-                    run: s.run,
-                    on_mode: move |m| st1.native(NativeCmd::Mode(m)),
+                    run: run(),
+                    on_mode: move |m| {
+                        if let Some(m) = kb.write().mode(m) {
+                            st1.native(NativeCmd::Mode(m));
+                        }
+                    },
                     on_step: move |n| st2.native(NativeCmd::Step(n)),
                 }
                 button { title: "F8: back at least two seconds", onclick: move |_| st3.native(NativeCmd::Rewind), "Rewind" }
@@ -187,39 +183,89 @@ fn NativeColumn() -> Element {
                 }
                 button { onclick: move |_| st6.native(NativeCmd::NewGame), "New game" }
             }
-            dl { class: "inspector",
-                dt { "frame" } dd { "{s.frame}" }
-                dt { "map" } dd { "{s.map_name} ({s.map.0})" }
-                dt { "camera" } dd { "{camera}" }
-                dt { "hash" } dd { class: "mono", "{s.hash:016x}" }
-                dt { "mode" } dd { "{s.mode}" }
-                dt { "capturable" } dd { "{capturable}" }
-                dt { "run" } dd { "{run}{pending}" }
-                dt { "parent" } dd { "{parent}" }
-                dt { "trace" } dd { "{s.trace_frames} frames" }
-                dt { "rewind ring" } dd { "{ring} states" }
-                dt { "last save" } dd { "{saved}" }
-                dt { "last" } dd { "{s.last}" }
-            }
+            NativeInspector {}
             h3 { "Events" }
-            ol { class: "events",
-                for e in s.events.iter().rev().take(EVENT_ROWS) {
-                    li { span { class: "mono", "{e.frame}" } " {event_text(&e.kind)}" }
-                }
-            }
+            NativeEvents {}
         }
     }
 }
 
 #[component]
+fn NativeInspector() -> Element {
+    let live = use_context::<Live>();
+    let trees = use_context::<TreeState>();
+    let s = live.native.read();
+    let parent = match s.parent {
+        Parent::NewGame => "new game".to_string(),
+        Parent::Checkpoint(id) => match trees.model.read().row(id) {
+            Some(r) => format!("{id} {}", r.label),
+            None => id.to_string(),
+        },
+    };
+    let capturable = match s.capturable {
+        Ok(()) => "yes".to_string(),
+        Err(why) => format!("no: {why:?}"),
+    };
+    let camera = s
+        .camera
+        .map_or("-".to_string(), |(x, y)| format!("{x}, {y}"));
+    let saved = s.saved.map_or("-".to_string(), |id| id.to_string());
+    let ring = s.ring_frames.len();
+    let run = run_text(s.run);
+    let pending = if s.pending_save { " (saving…)" } else { "" };
+    rsx! {
+        dl { class: "inspector",
+            dt { "frame" } dd { "{s.frame}" }
+            dt { "map" } dd { "{s.map_name} ({s.map.0})" }
+            dt { "camera" } dd { "{camera}" }
+            dt { "hash" } dd { class: "mono", "{s.hash:016x}" }
+            dt { "mode" } dd { "{s.mode}" }
+            dt { "capturable" } dd { "{capturable}" }
+            dt { "run" } dd { "{run}{pending}" }
+            dt { "parent" } dd { "{parent}" }
+            dt { "trace" } dd { "{s.trace_frames} frames" }
+            dt { "rewind ring" } dd { "{ring} states" }
+            dt { "last save" } dd { "{saved}" }
+            dt { "last" } dd { "{s.last}" }
+        }
+    }
+}
+
+/// The native events, newest first; re-rendered only when an event is added.
+#[component]
+fn NativeEvents() -> Element {
+    let live = use_context::<Live>();
+    let events = use_memo(move || live.native.read().events.clone());
+    rsx! {
+        ol { class: "events",
+            for e in events.read().iter().rev().take(EVENT_ROWS) {
+                li { span { class: "mono", "{e.frame}" } " {event_text(&e.kind)}" }
+            }
+        }
+    }
+}
+
+/// The ROM pane, its controls and status. The column re-renders when the status other than
+/// the timeline changes; the timeline is its own component.
+#[component]
 fn RomColumn() -> Element {
     let studio = use_context::<Studio>();
     let live = use_context::<Live>();
     let mut kb = use_signal(Keyboard::default);
-    let s: RomStatus = live.rom.read().clone();
+    let head = use_memo(move || {
+        let s = live.rom.read();
+        let worst = s.worst();
+        (
+            RomStatus {
+                timeline: Vec::new(),
+                ..s.clone()
+            },
+            worst,
+        )
+    });
+    let (s, worst) = head();
     let build = (live.build)();
     let building = matches!(build, Some(BuildState::Running(_)));
-    let worst = s.worst();
     let send = {
         let studio = studio.clone();
         move |cmds: Vec<RomCmd>| {
@@ -239,13 +285,6 @@ fn RomColumn() -> Element {
         .map_or("-".to_string(), |b| format!("{} ({b})", boot_name(b)));
     let shadow = shadow_text(s.shadow);
     let run = run_text(s.run);
-    let rows: Vec<[String; 9]> = s
-        .timeline
-        .iter()
-        .rev()
-        .take(TIMELINE_ROWS)
-        .map(timeline_cells)
-        .collect();
     let (st1, st2, st3, st4, st5, st6) = (
         studio.clone(),
         studio.clone(),
@@ -282,7 +321,7 @@ fn RomColumn() -> Element {
                 name: "rom",
                 title: "ROM (mGBA)",
                 onkeydown: move |e: KeyboardEvent| {
-                    let o = kb.write().down(&e.code().to_string(), e.is_auto_repeating(), live.rom.peek().run);
+                    let o = kb.write().down(&e.code().to_string(), e.is_auto_repeating(), live.rom.peek().run, mods(&e));
                     if o.handled {
                         e.prevent_default();
                     }
@@ -303,7 +342,11 @@ fn RomColumn() -> Element {
             div { class: "controls",
                 RunButtons {
                     run: s.run,
-                    on_mode: move |m| st2.rom(RomCmd::Mode(m)),
+                    on_mode: move |m| {
+                        if let Some(m) = kb.write().mode(m) {
+                            st2.rom(RomCmd::Mode(m));
+                        }
+                    },
                     on_step: move |n| {
                         st3.rom(RomCmd::Mode(RunMode::Pause));
                         st3.rom(RomCmd::Step(n));
@@ -348,26 +391,46 @@ fn RomColumn() -> Element {
                 }
             }
             h3 { "Timeline" }
-            table { class: "timeline mono",
-                thead {
-                    tr {
-                        th { "emu" }
-                        th { "frame" }
-                        th { "hash" }
-                        th { "native" }
-                        th { "late" }
-                        th { "saves" }
-                        th { "hash ln" }
-                        th { "step ln" }
-                        th { "loop ln" }
-                    }
+            RomTimeline {}
+        }
+    }
+}
+
+/// The last [`TIMELINE_ROWS`] timeline entries, newest first; re-rendered only when a new
+/// entry arrives (not on every status poll of a paused pane).
+#[component]
+fn RomTimeline() -> Element {
+    let live = use_context::<Live>();
+    let rows = use_memo(move || {
+        live.rom
+            .read()
+            .timeline
+            .iter()
+            .rev()
+            .take(TIMELINE_ROWS)
+            .map(timeline_cells)
+            .collect::<Vec<[String; 9]>>()
+    });
+    rsx! {
+        table { class: "timeline mono",
+            thead {
+                tr {
+                    th { "emu" }
+                    th { "frame" }
+                    th { "hash" }
+                    th { "native" }
+                    th { "late" }
+                    th { "saves" }
+                    th { "hash ln" }
+                    th { "step ln" }
+                    th { "loop ln" }
                 }
-                tbody {
-                    for r in rows {
-                        tr {
-                            for c in r {
-                                td { "{c}" }
-                            }
+            }
+            tbody {
+                for r in rows.read().iter() {
+                    tr { key: "{r[0]}",
+                        for c in r.iter() {
+                            td { "{c}" }
                         }
                     }
                 }
