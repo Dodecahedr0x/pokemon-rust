@@ -234,9 +234,23 @@ impl State {
         // frame (Milestone 8 Wave 0).
         let mut run = Box::<BattleRun>::new_uninit();
         let p = run.as_mut_ptr();
+        // Fails to compile when `BattleRun` gains or loses a field: the writes below must list
+        // exactly these fields.
+        const _: fn(BattleRun) = |BattleRun {
+                                      stage: _,
+                                      origin: _,
+                                      battle: _,
+                                      scene: _,
+                                      transition: _,
+                                      backdrop: _,
+                                      outcome: _,
+                                      whiteout: _,
+                                  }| {};
         // SAFETY: `p` points to the allocation of an uninitialised `BattleRun`. Each field is
         // written exactly once through a raw field pointer before `assume_init`, and only the
-        // `battle` field is borrowed before then, after it is written.
+        // `battle` field is borrowed before then, after it is written. The writes must cover
+        // the field list of the destructuring guard above, which the compiler keeps in sync
+        // with the struct.
         let battle = unsafe {
             let b = &raw mut (*p).battle;
             b.write(Battle::new(game, setup, &self.party, &mut self.rng));
