@@ -34,6 +34,44 @@ const NESTED_BUILD_ENV_REMOVE: &[&str] = &[
     "RUSTC",
 ];
 
+/// `--config` for the GBA build that strips the checkout, `CARGO_HOME` and rustc sysroot
+/// prefixes from the paths compiled into the ROM (panic locations, `file!()`), so its size and
+/// bytes do not depend on where the repository is checked out. Cargo appends these flags to
+/// crates/game-gba/.cargo/config.toml's (`-Tgba.ld` and friends).
+fn remap_rustflags(gba_dir: &Path) -> Result<String> {
+    let mut sysroot = Command::new("rustc");
+    sysroot.current_dir(gba_dir).args(["--print", "sysroot"]);
+    for var in NESTED_BUILD_ENV_REMOVE {
+        sysroot.env_remove(var);
+    }
+    let out = sysroot.output().context("rustc --print sysroot")?;
+    if !out.status.success() {
+        bail!("rustc --print sysroot failed: {}", out.status);
+    }
+    let sysroot = PathBuf::from(String::from_utf8(out.stdout)?.trim());
+    let cargo_home = match std::env::var_os("CARGO_HOME") {
+        Some(h) => PathBuf::from(h),
+        None => PathBuf::from(std::env::var_os("HOME").context("HOME is not set")?).join(".cargo"),
+    };
+    let flags: Vec<String> = [
+        (root(), "/pkr"),
+        (cargo_home, "/cargo"),
+        (sysroot, "/rustc"),
+    ]
+    .iter()
+    .map(|(from, to)| {
+        format!(
+            "{:?}",
+            format!("--remap-path-prefix={}={to}", from.display())
+        )
+    })
+    .collect();
+    Ok(format!(
+        "target.thumbv4t-none-eabi.rustflags=[{}]",
+        flags.join(", ")
+    ))
+}
+
 /// Build game-gba (its own workspace/toolchain) and fix it into target/game.gba.
 fn rom() -> Result<PathBuf> {
     let gba_dir = root().join("crates/game-gba");
@@ -44,7 +82,9 @@ fn rom() -> Result<PathBuf> {
     }
     build
         .args(["build", "--release", "--target-dir"])
-        .arg(gba_dir.join("target"));
+        .arg(gba_dir.join("target"))
+        .arg("--config")
+        .arg(remap_rustflags(&gba_dir)?);
     run(&mut build)?;
     let elf = gba_dir.join("target/thumbv4t-none-eabi/release/game-gba");
     let out = root().join("target/game.gba");
@@ -56,6 +96,7 @@ fn rom() -> Result<PathBuf> {
         .args(["-t", "PKRUST"]))?;
     println!("ROM: {}", out.display());
     check_rom_size(&out)?;
+    budget::check(&budget::report(&elf, &out)?, content::STUB)?;
     // The video probe (crates/game-gba/src/bin/video_probe.rs), compared by the parity test.
     let probe = root().join("target/video-probe.gba");
     run(Command::new("agb-gbafix")
