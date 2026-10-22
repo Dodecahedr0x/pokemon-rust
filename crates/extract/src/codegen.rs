@@ -4,9 +4,10 @@
 //! written as `scripts/<Map>.rs`, plus `text/<lang>.ron` and `scripts/legacy_index.ron`
 //! ([`generate`], the path the content build compiles until Milestone 8 Task D2).
 //!
-//! Milestone 8 adds [`lower`]: the script IR ([`ScriptFile`]) to async Rust, run by the content
-//! build with the committed support tables ([`Support`]) and overrides. Task D1 implements it;
-//! Task D2 swaps the build over and deletes [`generate`].
+//! Milestone 8 adds [`lower`] ([`mod@lower`]): the script IR ([`ScriptFile`]) to async Rust,
+//! run by the content build with the committed support tables ([`Support`]) and overrides.
+//! [`generate`] is left as it is (the legacy path the content build compiles); Task D2 swaps the
+//! build over to [`lower`] and deletes it. Everything below describes [`generate`].
 //!
 //! **Names** follow [`crate::schema`]. Roots (canonical names only) are labelled first, in map
 //! export order. Then each root's code is scanned in that order, linearly with a FIFO of jump
@@ -58,6 +59,9 @@ use crate::{Rom, movement, names, roots, text};
 use anyhow::{Context, Result, ensure};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Write as _;
+
+pub mod lower;
+pub use lower::NATIVE_COMMANDS;
 
 /// One map's roots, as [`roots::named_roots`] gives them.
 #[derive(Clone, Debug)]
@@ -153,11 +157,44 @@ pub enum Class {
 }
 
 /// The committed support tables: every command (`scripts::OPS` macro name) and special
-/// (`SPECIAL_*`) with its [`Class`]. A name missing from them fails the build.
+/// (`SPECIAL_*`) with its [`Class`], and the movement actions with no engine `Step`. A command or
+/// special missing from them fails [`lower`].
+///
+/// `content/build/support/commands.ron` holds `commands` and `movements`,
+/// `content/build/support/specials.ron` holds `specials`; [`Support::parse`] merges them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Support {
+    #[serde(default)]
     pub commands: BTreeMap<String, Class>,
+    #[serde(default)]
     pub specials: BTreeMap<String, Class>,
+    /// `MOVEMENT_ACTION_*` with no `Step` -> what to emit instead (Task D1 addition).
+    #[serde(default)]
+    pub movements: BTreeMap<String, MoveFallback>,
+}
+
+impl Support {
+    /// Merges the sources of `commands.ron` and, if any, `specials.ron` (each a RON [`Support`]
+    /// with only its own fields).
+    pub fn parse(commands: &str, specials: Option<&str>) -> Result<Support> {
+        let mut s: Support = ron::from_str(commands).context("commands.ron")?;
+        if let Some(src) = specials {
+            let sp: Support = ron::from_str(src).context("specials.ron")?;
+            s.specials.extend(sp.specials);
+        }
+        Ok(s)
+    }
+}
+
+/// A movement action the engine has no `Step` for (`commands.ron`'s `movements`).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum MoveFallback {
+    /// The nearest actions that have a `Step`, in order (a diagonal walk is two straight ones).
+    As(Vec<String>),
+    /// `Step::Delay(n)`: about the Gen3 action's frame count.
+    Delay(u8),
+    /// Nothing: an effect the engine does not draw.
+    Skip,
 }
 
 /// What [`lower`] produces for the content build's `$OUT_DIR`.
@@ -172,20 +209,20 @@ pub struct Lowered {
     /// digest covers the fn's lowered source, the texts and movements it references, its static
     /// call-graph closure (callees and std scripts) and its override source.
     pub script_digests: BTreeMap<String, u64>,
-    /// (script, `TRAINER_*`) of every `trainerbattle` site, for `GameData::trainer_flag_of`.
+    /// (script, `TRAINER_*`) of every function that starts with `trainerbattle` (Gen3
+    /// `GetTrainerFlagFromScriptPointer`), sorted, for `GameData::trainer_flag_of`.
     pub trainer_scripts: Vec<(String, String)>,
 }
 
 /// IR -> Rust (Milestone 8 Task D1). No ROM access. `overrides`: script name -> override source
-/// text (digested). Wave 0: an error (nothing calls it until Task D2).
+/// text (digested). The output contract is in [`mod@lower`].
 pub fn lower(
     files: &[ScriptFile],
     index: &ScriptIndex,
     support: &Support,
     overrides: &BTreeMap<String, String>,
 ) -> Result<Lowered> {
-    let _ = (files, index, support, overrides);
-    anyhow::bail!("codegen::lower is not implemented yet (Milestone 8 Task D1)")
+    lower::lower(files, index, support, overrides)
 }
 
 /// `// @generated …` first line of every generated file.
