@@ -210,6 +210,36 @@ fn the_respawn_default_is_a_heal_location() {
 }
 
 #[test]
+fn ability_names_come_from_the_rom() {
+    // gAbilityNames (battle/types.ron): every ability the engine names decodes to a non-empty
+    // name; `Ability::Other` stands for many abilities and is empty.
+    use engine::battle::Str;
+    use engine::mon::Ability;
+    let lang = lang();
+    for a in [
+        Ability::Overgrow,
+        Ability::Blaze,
+        Ability::Torrent,
+        Ability::KeenEye,
+        Ability::ShieldDust,
+        Ability::EffectSpore,
+        Ability::Intimidate,
+        Ability::Static,
+        Ability::Synchronize,
+        Ability::Trace,
+    ] {
+        let t = Emerald.battle_text(Str::AbilityName(a));
+        assert!(t.len() > 1, "{a:?}");
+        let (_, n) = extract::text::decode_lang(t, lang).unwrap();
+        assert_eq!(n, t.len(), "{a:?}");
+    }
+    assert_eq!(
+        Emerald.battle_text(Str::AbilityName(Ability::Other)),
+        b"\xFF"
+    );
+}
+
+#[test]
 fn every_str_has_text() {
     let lang = lang();
     for s in battle::ALL_STRS {
@@ -321,17 +351,7 @@ mod extracted {
     /// Slice moves whose effect the engine does not implement yet (for Task E2). They come
     /// from the parties of the Route 102 and Route 103 trainers. Drop a move from the list
     /// once its effect is supported.
-    const KNOWN_UNSUPPORTED: &[MoveId] = &[
-        consts::MOVE_ARM_THRUST,
-        consts::MOVE_ATTRACT,
-        consts::MOVE_CHARGE,
-        consts::MOVE_DEFENSE_CURL,
-        consts::MOVE_DOUBLE_SLAP,
-        consts::MOVE_ROLLOUT,
-        consts::MOVE_SONIC_BOOM,
-        consts::MOVE_SPLASH,
-        consts::MOVE_VITAL_THROW,
-    ];
+    const KNOWN_UNSUPPORTED: &[MoveId] = &[consts::MOVE_ATTRACT, consts::MOVE_ROLLOUT];
 
     #[test]
     fn slice_moves_have_supported_effects() {

@@ -66,6 +66,10 @@ const SPECIES_NAME_SIZE: u32 = 11;
 const MOVE_NAME_SIZE: u32 = 13;
 const TYPE_NAME_SIZE: u32 = 7;
 const CLASS_NAME_SIZE: u32 = 13;
+/// `ABILITY_NAME_LENGTH + 1`.
+const ABILITY_NAME_SIZE: u32 = 13;
+/// How far after `gTypeNames` [`locate_ability_names`] looks for the description pointers.
+const ABILITY_SEARCH_SPAN: u32 = 0x2000;
 /// `trainerName` spans 0x04..0x10 of `struct Trainer`.
 const TRAINER_NAME_SIZE: usize = 12;
 const LAND_SLOTS: u32 = 12;
@@ -212,6 +216,7 @@ pub struct Locations {
     pub move_names: u32,
     pub type_chart: u32,
     pub type_names: u32,
+    pub ability_names: u32,
     pub trainers: u32,
     pub trainer_class_names: u32,
     pub experience_tables: u32,
@@ -235,6 +240,8 @@ pub struct Counts {
     pub moves: u32,
     /// `NUMBER_OF_MON_TYPES`.
     pub types: u32,
+    /// `ABILITIES_COUNT`.
+    pub abilities: u32,
     /// `TRAINERS_COUNT`.
     pub trainers: u32,
     pub trainer_classes: u32,
@@ -255,6 +262,7 @@ pub fn counts() -> Counts {
         species: names::SPECIES.value("SPECIES_EGG").expect("SPECIES_EGG"),
         moves: count(&names::MOVES),
         types: count(&names::TYPES),
+        abilities: count(&names::ABILITIES),
         trainers: count(&names::TRAINERS),
         trainer_classes: count(&names::TRAINER_CLASSES),
         heal_locations: count(&names::HEAL_LOCATIONS) - 1,
@@ -352,6 +360,7 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
     let chart_end = type_chart_end(rom, type_chart)?;
     let type_names = (chart_end + 3).next_multiple_of(4);
     ensure_referenced(rom, type_names, "gTypeNames")?;
+    let ability_names = locate_ability_names(rom, type_names, &n)?;
 
     let mv = |name| value(&names::MOVES, name) as u16;
     let bulbasaur_moves = u16s_le(&[
@@ -421,6 +430,7 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         move_names,
         type_chart,
         type_names,
+        ability_names,
         trainers,
         trainer_class_names,
         experience_tables,
@@ -433,6 +443,42 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         menu_strings,
         confirm_starter_choice,
     })
+}
+
+/// `gAbilityNames`. `battle_main.c` includes `data/text/abilities.h` after `gTypeNames` and
+/// `gTrainerMoneyTable`: the descriptions (`sNoneDescription` …), then `gAbilityNames`
+/// (`ABILITIES_COUNT` × 13 bytes, only 2-byte aligned in BPEF), then
+/// `gAbilityDescriptionPointers` at the next 4-byte boundary. The pointer table is the
+/// referenced run of `ABILITIES_COUNT` increasing pointers into the descriptions, all after
+/// `gTypeNames` and before the names; the names are the referenced table ending in the 3
+/// padding bytes before it.
+fn locate_ability_names(rom: &Rom, type_names: u32, n: &Counts) -> Result<u32> {
+    let names_size = ABILITY_NAME_SIZE * n.abilities;
+    let mut hits = Vec::new();
+    for table in (type_names..type_names + ABILITY_SEARCH_SPAN).step_by(4) {
+        let Some(latest) = table.checked_sub(names_size) else {
+            continue;
+        };
+        if latest <= type_names + 3 {
+            continue;
+        }
+        let mut prev = type_names;
+        let ok = (0..n.abilities).all(|i| match rom.ptr(table + 4 * i) {
+            Ok(Some(p)) if p > prev && p < latest - 3 => {
+                prev = p;
+                true
+            }
+            _ => false,
+        });
+        if !ok || rom.pointers_to(table).is_empty() {
+            continue;
+        }
+        hits.extend((latest - 3..=latest).filter(|&o| !rom.pointers_to(o).is_empty()));
+    }
+    match hits[..] {
+        [names] => Ok(names),
+        _ => bail!("gAbilityNames: expected 1 referenced table after gTypeNames, found {hits:#x?}"),
+    }
 }
 
 /// Offset of the `TYPE_ENDTABLE` triple.
@@ -754,6 +800,7 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         ("move_names", loc.move_names),
         ("type_chart", loc.type_chart),
         ("type_names", loc.type_names),
+        ("ability_names", loc.ability_names),
         ("trainers", loc.trainers),
         ("trainer_class_names", loc.trainer_class_names),
         ("experience_tables", loc.experience_tables),
@@ -903,8 +950,18 @@ fn read_types(rom: &Rom, loc: &Locations, n: &Counts) -> Result<TypesFile> {
             m,
         ));
     }
+    let ability_names = (0..n.abilities)
+        .map(|i| {
+            fixed_name(
+                rom,
+                loc.ability_names + ABILITY_NAME_SIZE * i,
+                ABILITY_NAME_SIZE,
+            )
+        })
+        .collect::<Result<_>>()?;
     Ok(TypesFile {
         names,
+        ability_names,
         foresight_split: foresight_split.context("gTypeEffectiveness has no TYPE_FORESIGHT")?,
         chart,
     })

@@ -285,6 +285,16 @@ fn us_names_match_decomp() {
     for ((id, name), ours) in types.iter().zip(&d.types.names) {
         same_text(ours, c_text(name), id);
     }
+    let abilities = designated(&src("src/data/text/abilities.h"), "gAbilityNames[");
+    assert_eq!(abilities.len(), 78);
+    assert_eq!(abilities.len(), d.types.ability_names.len());
+    for ((id, name), ours) in abilities.iter().zip(&d.types.ability_names) {
+        assert_eq!(
+            names::ABILITIES.value(id),
+            Some(abilities.iter().position(|(i, _)| i == id).unwrap() as u32)
+        );
+        same_text(ours, c_text(name), id);
+    }
 }
 
 #[test]
@@ -753,6 +763,18 @@ fn fr_names_decode_and_reencode() {
     assert_ne!(trainer(d, may).name, trainer(u, may).name);
     let calvin = "TRAINER_CALVIN_1";
     assert_ne!(trainer(d, calvin).class_name, trainer(u, calvin).class_name);
+    // gAbilityNames: one name per ABILITY_*, the translated ones differ from English.
+    assert_eq!(d.types.ability_names.len(), u.types.ability_names.len());
+    for id in [
+        "ABILITY_INTIMIDATE",
+        "ABILITY_STATIC",
+        "ABILITY_SYNCHRONIZE",
+        "ABILITY_TRACE",
+    ] {
+        let i = names::ABILITIES.value(id).unwrap() as usize;
+        assert!(!d.types.ability_names[i].is_empty(), "{id}");
+        assert_ne!(d.types.ability_names[i], u.types.ability_names[i], "{id}");
+    }
 }
 
 #[test]

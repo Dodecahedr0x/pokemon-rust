@@ -240,6 +240,18 @@ pub enum MoveEffect {
     QuickAttack,
     /// `EFFECT_RECOIL` (Struggle, Take Down).
     Recoil,
+    /// `EFFECT_MULTI_HIT` (Double Slap, Arm Thrust): 2–5 hits.
+    MultiHit,
+    /// `EFFECT_SPLASH`.
+    Splash,
+    /// `EFFECT_DEFENSE_CURL`: Defense +1 (the Rollout bit is not modelled).
+    DefenseCurl,
+    /// `EFFECT_SONICBOOM`: 20 HP.
+    SonicBoom,
+    /// `EFFECT_VITAL_THROW`: a hit that never misses (its -1 priority is the move's).
+    VitalThrow,
+    /// `EFFECT_CHARGE`: doubles the user's Electric damage until the end of the next turn.
+    Charge,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
 }

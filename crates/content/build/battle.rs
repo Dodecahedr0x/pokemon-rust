@@ -310,7 +310,7 @@ fn str_text(b: &BattleIn, src: StrSrc) -> Result<String> {
             ensure!(t.contains(code), "{key} has no {code}");
             t.replace(code, "{B_BUFF1}")
         }
-        StrSrc::TypeNames | StrSrc::StatNames => bail!("indexed source"),
+        StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => bail!("indexed source"),
     })
 }
 
@@ -646,6 +646,7 @@ impl Gen<'_> {
                 StrSrc::StatNames => {
                     writeln!(arms, "        Str::{pat} => STAT_NAMES[s as usize],")?
                 }
+                StrSrc::AbilityNames => writeln!(arms, "        Str::{pat} => ability_name(a),")?,
                 _ => {
                     let t = str_text(b, *src).with_context(|| format!("Str::{pat}"))?;
                     writeln!(
@@ -684,6 +685,25 @@ impl Gen<'_> {
             "static STAT_NAMES: [&[u8]; 8] = [{}];",
             sn.join(", ")
         )?;
+        let named = named_abilities();
+        ensure!(
+            b.types.ability_names.len() == names::ABILITIES.iter().count(),
+            "{} ability names, expected one per ABILITY_*",
+            b.types.ability_names.len()
+        );
+        let mut ability_arms = String::new();
+        for (expr, id) in &named {
+            let n = &b.types.ability_names[*id as usize];
+            writeln!(
+                ability_arms,
+                "        {expr} => {},",
+                bytes_lit(&self.enc(n, "ability name")?)
+            )?;
+        }
+        writeln!(
+            self.o,
+            "/// `gAbilityNames` by `Ability` (`Ability::Other` has no name).\nfn ability_name(a: Ability) -> &'static [u8] {{\n    match a {{\n{ability_arms}        Ability::Other => b\"\\xFF\",\n    }}\n}}"
+        )?;
         writeln!(
             self.o,
             "/// `GameData::battle_text`.\npub fn text(s: Str) -> &'static [u8] {{\n    match s {{\n{arms}    }}\n}}"
@@ -697,6 +717,11 @@ impl Gen<'_> {
                 StrSrc::StatNames => {
                     all.extend((0..8).map(|i| format!("Str::StatName(Stat::ALL[{i}])")))
                 }
+                StrSrc::AbilityNames => all.extend(
+                    named_abilities()
+                        .iter()
+                        .map(|(expr, _)| format!("Str::AbilityName({expr})")),
+                ),
                 _ => all.push(format!("Str::{pat}")),
             }
         }
@@ -909,4 +934,14 @@ fn move_info(m: &Move, effect: &str, lang: Lang) -> Result<String> {
             .with_context(|| format!("{}: unknown target {}", m.id, m.target))?,
         m.priority
     ))
+}
+
+/// Every `Ability` with a name (all but `Ability::Other`) and its `ABILITY_*` value, in
+/// `ABILITY_*` order.
+fn named_abilities() -> Vec<(&'static str, u32)> {
+    names::ABILITIES
+        .iter()
+        .map(|(v, n)| (classify::ability(n), v))
+        .filter(|(expr, _)| *expr != "Ability::Other")
+        .collect()
 }

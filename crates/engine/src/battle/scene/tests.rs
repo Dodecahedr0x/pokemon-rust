@@ -70,7 +70,8 @@ struct Run {
 impl Run {
     fn new(kind: BattleKind, player: &[Pokemon], opponents: &[Pokemon], seed: u32) -> Run {
         let game = game();
-        let mut rng = Rng::new(seed);
+        // `seed` is the RNG state after `Battle::new`'s four setup draws.
+        let mut rng = Rng::new(crate::battle::core::tests::before_setup_draws(seed));
         let setup = BattleSetup {
             kind,
             opponents: party(opponents),
@@ -353,7 +354,9 @@ fn full_wild_battle_golden() {
     assert_eq!(shown.level, 6);
     assert_eq!(r.scene.parts.exp.level(), 6);
     // Golden: a regression pin of the whole playback (scene + core state at the end).
-    assert_eq!((r.frames, r.hash()), (806, 1084831296493760658));
+    // E2: `Battle::hash` now also covers `charge`, `order`, `sync`, `caught_without_room`
+    // and `last_landed`.
+    assert_eq!((r.frames, r.hash()), (806, 3725309953919062588));
     // J's path, `BattleScene::step`, plays the same battle frame for frame.
     let mut j = Run::wild(&[starter()], &[foe(11)], 7);
     j.use_step = true;
@@ -384,7 +387,8 @@ fn trainer_battle_second_mon_and_defeat_text() {
     // The second mon's pic was uploaded in budgeted steps while visible: 64 tiles at most 16
     // per frame, one step shortened by the healthbox redraw sharing the frame.
     assert_eq!(r.pic_steps, 5);
-    assert_eq!((r.frames, r.hash()), (1020, 3684864309472854552));
+    // E2: `Battle::hash` gained fields; the trainer AI draws its score rolls (same frames).
+    assert_eq!((r.frames, r.hash()), (1020, 10362024337050865457));
 }
 
 #[test]

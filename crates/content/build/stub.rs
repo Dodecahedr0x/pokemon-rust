@@ -355,7 +355,7 @@ pub fn battle() -> BattleIn {
                 put(verb, "TEXTE!".into());
             }
             StrSrc::Buff1 { key, code } => put(key, format!("{code} TEXTE!")),
-            StrSrc::TypeNames | StrSrc::StatNames => {}
+            StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => {}
         }
     }
     for (i, k) in STAT_NAME_KEYS.iter().enumerate() {
@@ -405,6 +405,7 @@ pub fn battle() -> BattleIn {
                 ("TYPE_NORMAL".into(), "TYPE_GHOST".into(), 0),
             ],
             foresight_split: 2,
+            ability_names: (0..78).map(|i| format!("ABILITY{i}")).collect(),
         },
         trainers: vec![Trainer {
             id: "TRAINER_NONE".into(),

@@ -47,7 +47,7 @@
 
 mod moves;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use super::calc::{self, Fighter};
 use super::{
@@ -56,7 +56,7 @@ use super::{
 };
 use crate::data::{GameData, MoveId, SpeciesId};
 use crate::hash::Fnv64;
-use crate::mon::{Ability, BattleTables, Learn, PARTY_SIZE, Party, Pokemon, Type};
+use crate::mon::{Ability, BattleTables, Learn, PARTY_SIZE, Party, Pokemon, StatusKind, Type};
 use crate::rng::Rng;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
@@ -75,7 +75,11 @@ pub(crate) struct Env<'a> {
 }
 
 impl<'a> Env<'a> {
-    fn new(t: &'a BattleTables, rng: &'a mut Rng, out: &'a mut Vec<BattleEvent>) -> Self {
+    pub(crate) fn new(
+        t: &'a BattleTables,
+        rng: &'a mut Rng,
+        out: &'a mut Vec<BattleEvent>,
+    ) -> Self {
         let stamped = out.len();
         Env {
             t,
@@ -109,12 +113,20 @@ pub(crate) struct Battler {
     pub foresight: bool,
     /// `STATUS2_BIDE` turns left.
     pub bide_turns: u8,
+    /// `gDisableStructs.chargeTimer` (`STATUS3_CHARGED_UP` while non-zero): Electric damage ×2.
+    pub charge: u8,
     /// `gBideDmg`: every move damage this battler took (`gBattleMoveDamage`, before the HP
     /// clamp), recorded by [`Battle::change_hp`] (not by `change_hp_passive`). `gBideTarget` is
     /// always the other battler in singles. Bide itself (E2) clears it when it starts.
     pub bide_damage: u32,
     /// `gLastMoves`: the last move this battler used.
     pub last_move: Option<MoveId>,
+    /// `gLastLandedMoves`, as the switch AI reads it: the last move with power that hit this
+    /// battler (`MOVEEND_UPDATE_LAST_MOVES` with no `MOVE_RESULT_NO_EFFECT`). `None` stands
+    /// for `MOVE_NONE`, `MOVE_UNAVAILABLE` (a cancelled, missed or failed move) and moves
+    /// without power alike: `AI_TrySwitchOrUseItem` treats them the same.
+    /// `gLastHitBy` is the other battler in singles.
+    pub last_landed: Option<MoveId>,
     /// `HITMARKER_FAINTED`: the faint was played.
     pub fainted: bool,
 }
@@ -147,8 +159,10 @@ impl Battler {
             seeded: false,
             foresight: false,
             bide_turns: 0,
+            charge: 0,
             bide_damage: 0,
             last_move: None,
+            last_landed: None,
             fainted: false,
         }
     }
@@ -200,10 +214,12 @@ impl Battler {
             self.seeded as u8,
             self.foresight as u8,
             self.bide_turns,
+            self.charge,
             self.fainted as u8,
         ]);
         h.write_u32(self.bide_damage);
         h.write_u16(self.last_move.map_or(0xFFFF, |m| m.0));
+        h.write_u16(self.last_landed.map_or(0xFFFF, |m| m.0));
     }
 }
 
@@ -314,6 +330,16 @@ pub struct Battle {
     pub(crate) random_turn: u16,
     /// The trainer's Gen3 `AI_SCRIPT_*` bits (0 in wild battles), for `ai`.
     pub(crate) trainer_ai: u32,
+    /// `gBattlerByTurnOrder` of this turn (end-of-turn effects run in this order).
+    pub(crate) order: [Side; 2],
+    /// `HITMARKER_SYNCHRONIZE_EFFECT` + `synchronizeMoveEffect`: the status the current action
+    /// inflicted, for Synchronize (cleared when the action ends, `HandleAction_ActionFinished`).
+    pub(crate) sync: Option<StatusKind>,
+    /// A mon caught with a full party (no PC yet): dropped, kept here for the caller to log.
+    pub(crate) caught_without_room: Option<Pokemon>,
+    /// `gMoveResultFlags & MOVE_RESULT_NO_EFFECT` of the move being used: set by
+    /// [`Battle::missed`] (miss or type immunity) and [`Battle::fail`].
+    pub(crate) no_effect: bool,
 }
 
 /// A message about `active` with the move context of `attacker` → `target`, no buffers, no
@@ -339,6 +365,15 @@ fn about(id: Str, side: Side) -> Msg {
     msg(id, side, side, side)
 }
 
+/// Gen3 `SetUpBattleVarsAndBirchZigzagoon`'s `BattleAI_HandleItemUseBeforeAISetup(0xF)`: the
+/// four `simulatedRNG` rolls of `BattleAI_SetupAIData` (the AI data is set up again before
+/// each choice, so only the draws matter). [`Battle::new`] draws them first.
+pub(crate) fn setup_ai_draws(rng: &mut Rng) {
+    for _ in 0..4 {
+        rng.random();
+    }
+}
+
 impl Battle {
     /// A battle between `player` (cloned; the first mon with HP leads) and the setup's
     /// opponents. Draws Gen3 `BattleStartClearSetData`'s `gRandomTurnNumber`. Both parties must
@@ -356,6 +391,12 @@ impl Battle {
             BattleKind::Trainer { trainer, .. } => game.trainer(trainer).map_or(0, |t| t.ai),
             BattleKind::Wild { .. } => 0,
         };
+        // SetUpBattleVarsAndBirchZigzagoon → BattleAI_HandleItemUseBeforeAISetup(0xF) →
+        // BattleAI_SetupAIData: four `simulatedRNG` rolls, in every battle (battle_controllers.c,
+        // battle_ai_script_commands.c). CB2_InitBattleInternal runs it before
+        // CreateNPCTrainerParty / SetWildMonHeldItem, and BattleStartClearSetData's
+        // gRandomTurnNumber comes later (CB2_HandleStartBattle).
+        setup_ai_draws(rng);
         if !matches!(setup.kind, BattleKind::Trainer { .. }) {
             // SetWildMonHeldItem: `Random() % 100` for every wild battle (no held items in the
             // engine yet, so only the draw is kept).
@@ -375,6 +416,10 @@ impl Battle {
             exp_given: 0,
             random_turn,
             trainer_ai,
+            order: [Side::Player, Side::Opponent],
+            sync: None,
+            caught_without_room: None,
+            no_effect: false,
         }
     }
 
@@ -429,14 +474,7 @@ impl Battle {
                 };
                 self.actions[Side::Player as usize] = Some(a);
                 self.need = Need::Busy;
-                let [first, second] = self.turn_order(env);
-                self.steps.extend([
-                    Step::Act(first),
-                    Step::Fainted,
-                    Step::Act(second),
-                    Step::Fainted,
-                    Step::EndTurn,
-                ]);
+                self.queue_turn(env);
             }
             (Need::Switch, Choice::Switch(i)) if self.can_switch_to(Side::Player, i) => {
                 self.need = Need::Busy;
@@ -522,6 +560,20 @@ impl Battle {
         h.write(&[self.run_tries, self.turn, self.sent_in, self.exp_given]);
         h.write_u16(self.random_turn);
         h.write_u32(self.trainer_ai);
+        h.write(&[
+            self.order[0] as u8,
+            self.sync.map_or(0xFF, |k| k as u8),
+            self.caught_without_room.is_some() as u8,
+        ]);
+        if let Some(p) = &self.caught_without_room {
+            p.hash(h);
+        }
+    }
+
+    /// The mon caught while the party was full (Gen3 sends it to the PC, which the engine does
+    /// not have yet): it is dropped; the caller may log it.
+    pub fn caught_without_room(&self) -> Option<&Pokemon> {
+        self.caught_without_room.as_ref()
     }
 
     // ---- helpers shared with `moves`, `effects` and `ai` ----
@@ -570,10 +622,10 @@ impl Battle {
     fn step(&mut self, env: &mut Env, step: Step) {
         match step {
             Step::FirstTurn => {
-                // TryDoEventsBeforeFirstTurn: switch-in effects from the fastest battler.
-                for side in self.strike_order(env, true) {
-                    super::effects::switch_in(self, env, side);
-                }
+                // TryDoEventsBeforeFirstTurn: the battlers sorted by speed (a tie draws a roll),
+                // then the switch-in abilities.
+                self.strike_order(env, true);
+                super::effects::first_turn(self, env);
                 self.steps.push_front(Step::NewTurn);
             }
             Step::NewTurn => self.new_turn(env),
@@ -603,10 +655,20 @@ impl Battle {
 
     /// `gRandomTurnNumber = Random()`, then `HandleTurnActionSelectionState`: the opponent
     /// chooses at once (its `Random()`s come before the player's turn runs).
+    /// A battler locked into a move (`STATUS2_MULTIPLETURNS`, Bide) is not asked: neither the
+    /// AI nor the player chooses, and the turn starts at once when the player is locked.
     fn new_turn(&mut self, env: &mut Env) {
         self.random_turn = env.rng.random();
         let o = self.battler(Side::Opponent);
-        let action = if o.all_moves_unusable() {
+        let action = if let Some(a) = super::effects::locked_action(self, env.t, Side::Opponent) {
+            a
+        } else if let Some(i) = super::ai::switch(self, env.t, env.rng)
+            .filter(|&i| self.can_switch_to(Side::Opponent, i))
+        {
+            // OpponentHandleChooseAction → AI_TrySwitchOrUseItem, before the move choice
+            // (and before the all-moves-unusable check of B_ACTION_USE_MOVE).
+            Action::Switch(i)
+        } else if o.all_moves_unusable() {
             Action::Struggle
         } else {
             match super::ai::choose(self, env.t, env.rng) {
@@ -617,7 +679,26 @@ impl Battle {
             }
         };
         self.actions = [None, Some(action)];
-        self.need = Need::Action;
+        match super::effects::locked_action(self, env.t, Side::Player) {
+            Some(a) => {
+                self.actions[Side::Player as usize] = Some(a);
+                self.queue_turn(env);
+            }
+            None => self.need = Need::Action,
+        }
+    }
+
+    /// Both actions are chosen: orders the turn (`SetActionsAndBattlersTurnOrder`).
+    fn queue_turn(&mut self, env: &mut Env) {
+        let [first, second] = self.turn_order(env);
+        self.order = [first, second];
+        self.steps.extend([
+            Step::Act(first),
+            Step::Fainted,
+            Step::Act(second),
+            Step::Fainted,
+            Step::EndTurn,
+        ]);
     }
 
     /// The player's choice at `Need::Action`, or `None` when it does not start the turn
@@ -673,6 +754,8 @@ impl Battle {
         let (p, o) = (Side::Player, Side::Opponent);
         let first_class = |a: Option<Action>| matches!(a, Some(Action::Switch(_) | Action::Ball));
         let [pa, oa] = self.actions;
+        // Only the player's side (battlers 0 / 2) runs first. The opponent's B_ACTION_RUN (a
+        // fleeing wild mon) is ordered by `GetWhoStrikesFirst` like a move of priority 0.
         if pa == Some(Action::Run) {
             return [p, o];
         }
@@ -1081,8 +1164,12 @@ impl Battle {
             BattleOutcome::Ran => env.out.push(button(about(Str::GotAwaySafely, p))),
             BattleOutcome::MonFled => {
                 let party = self.battler(o).mon.party;
+                // HandleEndTurn_MonFled (battle_main.c): PREPARE_MON_NICK_BUFFER is
+                // `B_BUFF_MON_NICK`, the nickname without the wild tag
+                // (`ExpandBattleTextBuffPlaceholders`); STRINGID_WILDPKMNFLED carries the tag
+                // itself after {B_BUFF1}.
                 env.out.push(button(Msg {
-                    buffs: [Buff::Mon { side: o, party }, Buff::None, Buff::None],
+                    buffs: [Buff::MonNick { side: o, party }, Buff::None, Buff::None],
                     ..about(Str::WildPkmnFled, o)
                 }));
             }

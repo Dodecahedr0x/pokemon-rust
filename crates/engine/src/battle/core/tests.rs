@@ -8,7 +8,7 @@ use crate::mon::{Stat, Status};
 use alloc::format;
 use alloc::string::String;
 
-fn side(s: Side) -> char {
+pub(crate) fn side(s: Side) -> char {
     match s {
         Side::Player => 'P',
         Side::Opponent => 'O',
@@ -16,7 +16,7 @@ fn side(s: Side) -> char {
 }
 
 /// One line per event, compact enough to pin whole battles.
-fn fmt(e: &BattleEvent) -> String {
+pub(crate) fn fmt(e: &BattleEvent) -> String {
     match e {
         BattleEvent::Msg(m) => {
             let mut s = format!("{:?}@{}", m.id, side(m.active));
@@ -59,20 +59,46 @@ fn fmt(e: &BattleEvent) -> String {
     }
 }
 
-fn lines(events: &[BattleEvent]) -> Vec<String> {
+pub(crate) fn lines(events: &[BattleEvent]) -> Vec<String> {
     events.iter().map(fmt).collect()
 }
 
+/// The seed whose `Rng`, after `Battle::new`'s four `BattleAI_HandleItemUseBeforeAISetup`
+/// draws, is `Rng::new(seed)` (xorshift32 run backwards): the hand-traced goldens below start
+/// from the RNG state after those draws, which [`setup_draws_come_first`] checks.
+pub(crate) fn before_setup_draws(seed: u32) -> u32 {
+    fn unshl(y: u32, s: u32) -> u32 {
+        let mut x = y;
+        for _ in 0..32 / s {
+            x = y ^ (x << s);
+        }
+        x
+    }
+    fn unshr(y: u32, s: u32) -> u32 {
+        let mut x = y;
+        for _ in 0..32 / s {
+            x = y ^ (x >> s);
+        }
+        x
+    }
+    let mut x = Rng::new(seed).state();
+    for _ in 0..4 {
+        x = unshl(unshr(unshl(x, 5), 17), 13);
+    }
+    x
+}
+
 /// A started battle and its RNG.
-struct Run {
-    b: Battle,
-    rng: Rng,
-    out: Vec<BattleEvent>,
+pub(crate) struct Run {
+    pub b: Battle,
+    pub rng: Rng,
+    pub out: Vec<BattleEvent>,
 }
 
 impl Run {
-    fn new(kind: BattleKind, player: &[Pokemon], opponents: &[Pokemon], seed: u32) -> Run {
-        let mut rng = Rng::new(seed);
+    /// `seed` is the RNG state after the setup draws ([`before_setup_draws`]).
+    pub fn new(kind: BattleKind, player: &[Pokemon], opponents: &[Pokemon], seed: u32) -> Run {
+        let mut rng = Rng::new(before_setup_draws(seed));
         let setup = BattleSetup {
             kind,
             opponents: party(opponents),
@@ -84,7 +110,7 @@ impl Run {
         Run { b, rng, out }
     }
 
-    fn wild(player: &[Pokemon], wild: Pokemon, seed: u32) -> Run {
+    pub fn wild(player: &[Pokemon], wild: Pokemon, seed: u32) -> Run {
         Run::new(
             BattleKind::Wild {
                 first_battle: false,
@@ -96,41 +122,41 @@ impl Run {
     }
 
     /// Answers with `c`; returns this answer's events.
-    fn choose(&mut self, c: Choice) -> Vec<String> {
+    pub fn choose(&mut self, c: Choice) -> Vec<String> {
         let mut out = Vec::new();
         self.b.choose(&Game, &mut self.rng, c, &mut out);
         self.out.extend_from_slice(&out);
         lines(&out)
     }
 
-    fn intro(&self) -> Vec<String> {
+    pub fn intro(&self) -> Vec<String> {
         lines(&self.out)
     }
 }
 
-fn water(level: u8) -> Pokemon {
+pub(crate) fn water(level: u8) -> Pokemon {
     // Mudkip L5: IVs 10, Adamant → [20, 13, 10, 9, 9, 10].
     mon(WATER, level, [20, 13, 10, 9, 9, 10], &[TACKLE, GROWL])
 }
 
-fn normal(level: u8) -> Pokemon {
+pub(crate) fn normal(level: u8) -> Pokemon {
     // Zigzagoon L2: IVs 0, Hardy → HP 13, Def 6.
     mon(NORMAL, level, [13, 6, 6, 8, 5, 5], &[TACKLE, GROWL])
 }
 
-fn trainer() -> BattleKind {
+pub(crate) fn trainer() -> BattleKind {
     BattleKind::Trainer {
         trainer: TrainerId(1),
         defeat: TextId(7),
     }
 }
 
-fn first_mover(events: &[String]) -> char {
+pub(crate) fn first_mover(events: &[String]) -> char {
     let used = events.iter().find(|l| l.starts_with("UsedMove@")).unwrap();
     used.chars().nth("UsedMove@".len()).unwrap()
 }
 
-fn hash(b: &Battle) -> u64 {
+pub(crate) fn hash(b: &Battle) -> u64 {
     let mut h = Fnv64::new();
     b.hash(&mut h);
     h.finish()
@@ -154,7 +180,7 @@ fn wild_battle_won_in_three_turns() {
             "UsedMove@O move:2",
             "Anim O move:2",
             "StatAnim P false",
-            "DefenderStatChanged@P Atk StatFell ~64",
+            "DefenderStatFell@P Atk StatFell ~64",
         ]
     );
     assert_eq!(r.b.need(), Need::Action);
@@ -521,7 +547,7 @@ fn stat_moves() {
         "UsedMove@P move:2",
         "Anim P move:2",
         "StatAnim O false",
-        "DefenderStatChanged@O Atk StatFell ~64",
+        "DefenderStatFell@O Atk StatFell ~64",
     ];
     assert_eq!(r.choose(Choice::Move(0)), [&growl[..], &foe_fails].concat());
     // A self-targeting move names its user as the "defender" (gBattlerTarget == attacker).
@@ -529,7 +555,7 @@ fn stat_moves() {
         "UsedMove@P move:8",
         "Anim P move:8",
         "StatAnim P true",
-        "DefenderStatChanged@P Atk StatSharplyRose ~64",
+        "DefenderStatRose@P Atk StatSharplyRose ~64",
     ];
     assert_eq!(r.choose(Choice::Move(1)), [&sd[..], &foe_fails].concat());
     for _ in 0..5 {
@@ -580,22 +606,23 @@ fn ghosts_are_immune_to_normal_moves() {
 #[test]
 fn first_battle_cannot_be_left_and_has_no_crits() {
     let first = BattleKind::Wild { first_battle: true };
-    let mut r = Run::new(first, &[water(5)], &[normal(2)], 1);
+    let mut r = Run::new(first, &[water(5)], &[normal(2)], 2);
     assert_eq!(r.choose(Choice::Run), ["DontLeaveBirch@P"]);
     assert_eq!(r.b.need(), Need::Action);
-    // Same seed as the plain wild battle (13->6), but without a crit roll the damage roll
-    // differs.
+    // E2: the opponent now goes through `AI_FirstBattle` (4 `simulatedRNG` rolls + the
+    // pick), so the seed moved (seed 1 now misses). Tackle: (13×35×4/6/50 + 2) = 8 → 7 after
+    // the damage roll; a crit (×2) would deal 13..=16, and no crit roll is drawn.
     assert_eq!(
         r.choose(Choice::Move(0)),
         [
             "UsedMove@P move:1",
             "Anim P move:1",
             "Hit O Normal",
-            "Hp O 13->7",
+            "Hp O 13->6",
             "UsedMove@O move:2",
             "Anim O move:2",
             "StatAnim P false",
-            "DefenderStatChanged@P Atk StatFell ~64",
+            "DefenderStatFell@P Atk StatFell ~64",
         ]
     );
 }
@@ -679,8 +706,11 @@ fn turn_draws_rolls_in_gen3_order() {
 }
 
 #[test]
-fn wild_battles_draw_the_held_item_roll() {
-    // SetWildMonHeldItem's Random() comes before gRandomTurnNumber in wild battles only.
+fn setup_draws_come_first() {
+    // CB2_InitBattleInternal: SetUpBattleVarsAndBirchZigzagoon's
+    // BattleAI_HandleItemUseBeforeAISetup(0xF) (4 simulatedRNG rolls, every battle), then
+    // SetWildMonHeldItem's Random() (wild battles only, the first battle included), then
+    // BattleStartClearSetData's gRandomTurnNumber.
     let setup = |kind| BattleSetup {
         kind,
         opponents: party(&[normal(2)]),
@@ -690,28 +720,37 @@ fn wild_battles_draw_the_held_item_roll() {
         let mut rng = Rng::new(3);
         let b = Battle::new(&Game, setup(kind), &party(&[water(5)]), &mut rng);
         let mut reference = Rng::new(3);
-        (0..3)
+        (0..8)
             .position(|_| {
                 reference.random();
                 reference == rng
             })
             .map(|n| (n + 1, b.random_turn))
     };
-    let mut r = Rng::new(3);
-    r.random();
-    let second = r.random();
+    let nth = |n: usize| {
+        let mut r = Rng::new(3);
+        (0..n - 1).for_each(|_| {
+            r.random();
+        });
+        r.random()
+    };
     assert_eq!(
         draws(BattleKind::Wild {
             first_battle: false
         }),
-        Some((2, second))
+        Some((6, nth(6)))
     );
     assert_eq!(
         draws(BattleKind::Wild { first_battle: true }),
-        Some((2, second))
+        Some((6, nth(6)))
     );
-    let first = Rng::new(3).random();
-    assert_eq!(draws(trainer()), Some((1, first)));
+    assert_eq!(draws(trainer()), Some((5, nth(5))));
+    // The test seeds name the state after the four setup draws.
+    let mut r = Rng::new(before_setup_draws(77));
+    for _ in 0..4 {
+        r.random();
+    }
+    assert_eq!(r, Rng::new(77));
 }
 
 #[test]
