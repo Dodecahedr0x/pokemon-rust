@@ -33,7 +33,7 @@ use engine::Buttons;
 use engine::checkpoint::{Checkpoint, build_hash};
 use engine::data::MapId;
 use engine::debug::{boot, save};
-use game_native::scenario::{DISPLAY_LAG, Recording, record_route};
+use game_native::scenario::{DISPLAY_LAG, Recording, cached_route};
 use game_native::{Ppu, Session, flash};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -136,8 +136,8 @@ fn rom_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/game.gba")
 }
 
-fn recording() -> Recording {
-    record_route().unwrap_or_else(|e| panic!("the route does not play natively: {e}"))
+fn recording() -> &'static Recording {
+    cached_route()
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn rom_resumes_from_native_checkpoints() {
     let rec = recording();
     let keys = |f| rec.keys_at(f);
     let scan = native_run(keys, rec.frames(), &[], &[]);
-    let nodes = resume_nodes(&rec, &scan);
+    let nodes = resume_nodes(rec, &scan);
     let runs: Vec<(u32, u32)> = nodes
         .iter()
         .map(|&(_, f)| (f, (f + RESUME_FRAMES).min(rec.frames())))
@@ -459,7 +459,7 @@ fn rom_save_restores_natively() {
     let rom = rom_path();
     let rec = recording();
     let scan = native_run(|f| rec.keys_at(f), rec.frames(), &[], &[]);
-    let f = resume_nodes(&rec, &scan)[0].1;
+    let f = resume_nodes(rec, &scan)[0].1;
     let lr = Buttons(Buttons::L.0 | Buttons::R.0);
     // The route up to `f`, L+R, then SELECT too (the combo, consumed by step `f + 2`), then
     // nothing.

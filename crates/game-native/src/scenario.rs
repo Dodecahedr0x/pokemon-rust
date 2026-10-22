@@ -877,13 +877,22 @@ pub fn record_route() -> Result<Recording, String> {
     record(content::Emerald::for_shells(), route())
 }
 
+/// [`record_route`], recorded once per process and shared (tests use it; recording the route
+/// takes most of a test's time). Panics if the route does not play.
+pub fn cached_route() -> &'static Recording {
+    static ROUTE: std::sync::OnceLock<Recording> = std::sync::OnceLock::new();
+    ROUTE.get_or_init(|| {
+        record_route().unwrap_or_else(|e| panic!("the route does not play natively: {e}"))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn the_route_records() {
-        let rec = record_route().unwrap_or_else(|e| panic!("{e}"));
+        let rec = cached_route();
         assert!(rec.frames() > 100);
         println!("{} frames; moments {:?}", rec.frames(), rec.moments);
         println!("battles {:?}", rec.battle_log);
@@ -1010,7 +1019,7 @@ mod tests {
 
     #[test]
     fn a_replay_matches_the_recording() {
-        let rec = record_route().unwrap();
+        let rec = cached_route();
         let (mut a, mut b) = (
             Session::new(content::Emerald::for_shells()),
             Session::new(content::Emerald::for_shells()),
@@ -1024,7 +1033,7 @@ mod tests {
 
     #[test]
     fn picture_frames_ascend_within_the_run() {
-        let rec = record_route().unwrap();
+        let rec = cached_route();
         let c = rec.picture_frames(150);
         assert!(c.windows(2).all(|w| w[0] < w[1]));
         assert!(c.iter().all(|&f| (1..=rec.frames()).contains(&f)));

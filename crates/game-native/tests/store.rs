@@ -17,20 +17,23 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+
+mod common;
+use common::temp_root;
 
 // ---------------------------------------------------------------------------------------------
 // Traces on real content
 
-/// 300 frames of the route's keys, recorded on a live session with their hashes.
+/// 300 frames of a short walk (a new game fades in, then walks and presses A), recorded on a
+/// live session with their hashes.
 fn recorded_trace() -> (Trace, Vec<u64>) {
-    let rec = game_native::scenario::record_route().expect("route records");
+    const WALK: [Buttons; 4] = [Buttons::LEFT, Buttons::DOWN, Buttons::A, Buttons::RIGHT];
     let game = content::Emerald::for_shells();
     let mut world = World::new(&game);
     let mut r = TraceRecorder::new(world.frame());
     let mut hashes = Vec::new();
     for i in 0..300 {
-        let keys = rec.keys_at(i);
+        let keys = WALK[i / 30 % WALK.len()];
         world.step(&game, keys);
         r.push(keys, world.hash());
         hashes.push(world.hash());
@@ -91,17 +94,6 @@ fn a_tampered_hash_is_reported_at_its_frame_and_replay_goes_on() {
 
 // ---------------------------------------------------------------------------------------------
 // Store fixtures
-
-static DIRS: AtomicU32 = AtomicU32::new(0);
-
-/// A fresh empty directory under the target dir (removed first if a previous run left it).
-fn temp_root(name: &str) -> PathBuf {
-    let n = DIRS.fetch_add(1, Ordering::Relaxed);
-    let dir =
-        std::env::temp_dir().join(format!("pkr-store-test-{}-{name}-{n}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    dir
-}
 
 const BUILD: BuildHash = BuildHash {
     engine: 0x1111,

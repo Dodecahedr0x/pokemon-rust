@@ -382,6 +382,7 @@ dependencies = [
  "postcard",
  "ron",
  "serde",
+ "tempfile",
 ]
 
 [[package]]
@@ -1196,6 +1197,7 @@ dependencies = [
  "png",
  "ron",
  "serde",
+ "tempfile",
 ]
 
 [[package]]

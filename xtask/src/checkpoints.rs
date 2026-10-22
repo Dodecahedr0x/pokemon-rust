@@ -202,24 +202,21 @@ mod tests {
     use super::*;
     use engine::Buttons;
     use game_native::trace::Run;
-    use std::sync::atomic::{AtomicU32, Ordering};
 
+    /// A fresh empty directory of its own; a passing test removes it.
     fn temp_root(tag: &str) -> PathBuf {
-        static N: AtomicU32 = AtomicU32::new(0);
-        let dir = std::env::temp_dir().join(format!(
-            "pkr-xtask-cp-{}-{tag}-{}",
-            std::process::id(),
-            N.fetch_add(1, Ordering::Relaxed)
-        ));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
+        tempfile::Builder::new()
+            .prefix(&format!("pkr-xtask-{tag}-"))
+            .tempdir()
+            .unwrap()
+            .keep()
     }
 
     /// A store holding the route's first node (from a new game).
     fn one_node_store(tag: &str) -> (PathBuf, Store) {
         let root = temp_root(tag);
         let store = Store::open(&root).unwrap();
-        let mut rec = game_native::scenario::record_route().unwrap();
+        let mut rec = game_native::scenario::cached_route().clone();
         rec.nodes.truncate(1);
         seed(&store, &content::Emerald::for_shells(), &rec).unwrap();
         (root, store)

@@ -716,8 +716,8 @@ mod tests {
 
     #[test]
     fn write_new_never_replaces_and_leaves_no_temp_file() {
-        let dir = std::env::temp_dir().join(format!("pkr-store-new-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("nodes");
         let path = dir.join("c00001.ron");
         write_new(&path, "a").unwrap();
         let e = write_new(&path, "b").unwrap_err();
@@ -730,7 +730,6 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(names, ["c00001.ron"]);
-        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

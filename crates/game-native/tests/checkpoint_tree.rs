@@ -6,29 +6,20 @@
 use engine::checkpoint::{decode, encode, state_digest};
 use game_native::Session;
 use game_native::checkpoints::{ROUTE_PREFIX, materialize, replayer, seed};
-use game_native::scenario::{Recording, record_route};
+use game_native::scenario::{Recording, cached_route};
 use game_native::store::{Status, Store};
 use game_native::trace::Parent;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::path::Path;
+
+mod common;
+use common::temp_root;
 
 fn game() -> content::Emerald {
     content::Emerald::for_shells()
 }
 
-fn temp_root(tag: &str) -> PathBuf {
-    static N: AtomicU32 = AtomicU32::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "pkr-cp-tree-{}-{tag}-{}",
-        std::process::id(),
-        N.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
-}
-
-fn recording() -> Recording {
-    record_route().unwrap_or_else(|e| panic!("the route does not play natively: {e}"))
+fn recording() -> &'static Recording {
+    cached_route()
 }
 
 fn expected_names() -> &'static [&'static str] {
@@ -55,7 +46,7 @@ fn every_route_checkpoint_is_capturable_and_its_trace_replays_valid() {
     }
     let root = temp_root("seed");
     let store = Store::open(&root).unwrap();
-    let ids = seed(&store, &game(), &rec).unwrap();
+    let ids = seed(&store, &game(), rec).unwrap();
     assert_eq!(ids.len(), rec.nodes.len());
     let nodes = store.topo_order().unwrap();
     for (n, &(name, frame)) in nodes.iter().zip(&rec.nodes) {
@@ -81,11 +72,11 @@ fn every_route_checkpoint_is_capturable_and_its_trace_replays_valid() {
         )
         .unwrap();
     assert!(
-        seed(&store, &game(), &rec).is_err(),
+        seed(&store, &game(), rec).is_err(),
         "a node below the route"
     );
     store.remove(mine).unwrap();
-    let (trace, cp) = first_node(&rec);
+    let (trace, cp) = first_node(rec);
     let other = store.add("other", trace, &cp).unwrap();
     // A route that fails to replay (its first node is not capturable) changes nothing.
     let before = store.nodes().unwrap();
@@ -93,7 +84,7 @@ fn every_route_checkpoint_is_capturable_and_its_trace_replays_valid() {
     bad.nodes[0].1 = 1;
     assert!(seed(&store, &game(), &bad).is_err());
     assert_eq!(store.nodes().unwrap(), before);
-    let again = seed(&store, &game(), &rec).unwrap();
+    let again = seed(&store, &game(), rec).unwrap();
     assert_eq!(again.len(), rec.nodes.len());
     let labels: Vec<String> = store
         .nodes()
@@ -134,7 +125,7 @@ fn materialize_replays_the_chain_and_caches_each_snapshot() {
     let rec = recording();
     let root = temp_root("materialize");
     let store = Store::open(&root).unwrap();
-    let ids = seed(&store, &game(), &rec).unwrap();
+    let ids = seed(&store, &game(), rec).unwrap();
     std::fs::remove_dir_all(root.join("snapshots")).unwrap();
     let last = *ids.last().unwrap();
     let m = materialize(&store, &game(), last).unwrap();
@@ -172,47 +163,37 @@ fn materialize_replays_the_chain_and_caches_each_snapshot() {
 
 #[test]
 fn session_restore_round_trips_at_every_route_node() {
+    const AFTER: u32 = 120;
     let rec = recording();
+    // One live session plays the route; each node's restored session follows it for
+    // `AFTER` frames on the same keys.
     let mut live = Session::new(game());
-    for &(name, frame) in &rec.nodes {
-        while live.world().frame() < frame {
-            let f = live.world().frame();
-            live.step(rec.keys_at(f));
+    let mut restored: Vec<(&str, u32, Session<content::Emerald>)> = Vec::new();
+    let end = rec.nodes.last().unwrap().1 + AFTER;
+    for f in 0..=end {
+        assert_eq!(live.world().frame(), f);
+        for &(name, frame) in rec.nodes.iter().filter(|n| n.1 == f) {
+            let cp = decode(&encode(&live.checkpoint().unwrap())).unwrap();
+            let mut s = Session::restore(game(), &cp).unwrap();
+            assert_eq!(s.world().hash(), live.world().hash(), "{name}");
+            assert_eq!(s.framebuffer(), live.framebuffer(), "{name}: boot frame");
+            restored.push((name, frame, s));
         }
-        let cp = decode(&encode(&live.checkpoint().unwrap())).unwrap();
-        let mut restored = Session::restore(game(), &cp).unwrap();
-        assert_eq!(restored.world().hash(), live.world().hash(), "{name}");
-        assert_eq!(
-            restored.framebuffer(),
-            live.framebuffer(),
-            "{name}: boot frame"
-        );
-        // Both go on with the route's keys (a copy of the live session: replay it).
-        let mut ahead = Session::restore(game(), &cp).unwrap();
-        let mut reference = Session::new(game());
-        for f in 0..frame {
-            reference.step(rec.keys_at(f));
+        if f == end {
+            break;
         }
-        for i in 0..120 {
-            let f = frame + i;
-            ahead.step(rec.keys_at(f));
-            reference.step(rec.keys_at(f));
-            assert_eq!(
-                ahead.world().hash(),
-                reference.world().hash(),
-                "{name} +{}",
-                i + 1
-            );
-            if matches!(i + 1, 1 | 2 | 60 | 120) {
-                assert_eq!(
-                    ahead.framebuffer(),
-                    reference.framebuffer(),
-                    "{name} +{}",
-                    i + 1
-                );
+        live.step(rec.keys_at(f));
+        for (name, frame, s) in &mut restored {
+            s.step(rec.keys_at(f));
+            let after = f + 1 - *frame;
+            assert_eq!(s.world().hash(), live.world().hash(), "{name} +{after}");
+            if matches!(after, 1 | 2 | 60 | AFTER) {
+                assert_eq!(s.framebuffer(), live.framebuffer(), "{name} +{after}");
             }
         }
+        restored.retain(|r| f + 1 - r.1 < AFTER);
     }
+    assert!(restored.is_empty());
 }
 
 /// Copies `nodes/*.ron` of `from` into a fresh store (verify writes snapshots and status; the
@@ -239,10 +220,8 @@ fn the_committed_tree_verifies_valid() {
         println!("skipped: {}", content::STALE_EXTRACT_MSG);
         return;
     }
-    // This checkout's tree, whatever `$PKR_CHECKPOINTS` says.
-    let committed = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../checkpoints")
-        .join(if content::STUB { "stub" } else { "emerald" });
+    // This checkout's committed tree: `nodes/` only, never `play`'s saves under `local/`.
+    let committed = Store::default_root(content::STUB);
     let root = temp_root("committed");
     if copy_nodes(&committed, &root) == 0 {
         println!("skipped: no committed nodes in {}", committed.display());
