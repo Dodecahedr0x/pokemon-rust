@@ -25,8 +25,7 @@ impl StudioPaths {
             .to_path_buf();
         let target = workspace.join("target");
         let shared = Store::default_root(content::STUB);
-        // TODO(merge): `Store::local_root(content::STUB)` once the M5 close-out lands.
-        let local = shared.join("local");
+        let local = Store::local_root(content::STUB);
         StudioPaths {
             rom: target.join("game.gba"),
             scratch: target.join("studio"),
@@ -128,10 +127,8 @@ mod tests {
         }
     }
 
-    /// The whole local store is git-ignored (`checkpoints/*/local/`, added by the M5
-    /// close-out). Enable when it is merged.
+    /// The whole local store is git-ignored (`checkpoints/*/local/`).
     #[test]
-    #[ignore = "needs the close-out's .gitignore rule for the local store"]
     fn the_local_store_is_git_ignored() {
         let p = StudioPaths::detect();
         for (dir, _) in write_locations(&p) {
