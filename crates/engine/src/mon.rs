@@ -738,10 +738,11 @@ impl Pokemon {
 
     /// Gen3 `GetEvolutionTargetSpecies(mon, EVO_MODE_NORMAL, ..)` over `evos` (the species'
     /// `gEvolutionTable` row), level methods only: the last entry whose level is reached wins,
-    /// as Gen3's loop. Friendship, item and trade methods never match here (M9). `Level`
-    /// folds `EVO_LEVEL` with its stat and personality variants (Wurmple, Tyrogue, Nincada),
-    /// so the second value is true when more than one level entry matched (the content
-    /// contract cannot tell Gen3's choice: the caller reports it).
+    /// as Gen3's loop. Friendship, item and trade methods never match here (M9). The content
+    /// contract's `Level` may fold several Gen3 level methods (the stat and personality
+    /// variants, such as Wurmple's and Tyrogue's): the second value is true when more than one
+    /// level entry matched, a choice the contract cannot make as Gen3 does (the caller reports
+    /// it). Whatever a `Level` entry stands for, it is taken at its level, as `EVO_LEVEL`.
     pub fn evolution_target(&self, evos: &[Evolution]) -> Option<(SpeciesId, bool)> {
         let mut found = None;
         let mut matches = 0;

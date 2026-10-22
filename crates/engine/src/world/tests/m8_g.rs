@@ -40,6 +40,23 @@ static NORMAL_EVOS: [Evolution; 3] = [
     },
 ];
 
+/// A double-battle trainer (as Gina & Mia on Route 104), with the test trainer's party.
+const DOUBLE_TRAINER: TrainerId = TrainerId(2);
+static DOUBLE_DATA: crate::mon::TrainerData = crate::mon::TrainerData {
+    class_name: &[1, 0xFF],
+    name: &[2, 0xFF],
+    pic: &TRAINER_PIC,
+    female: false,
+    ai: 0,
+    double: true,
+    party: &[crate::mon::TrainerMon {
+        species: NORMAL,
+        level: 2,
+        iv: 0,
+        moves: None,
+    }],
+};
+
 /// [`Game`] with Task G's data.
 struct GGame;
 
@@ -91,6 +108,9 @@ impl GameData for GGame {
         Game.encounters(map)
     }
     fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
+        if id == DOUBLE_TRAINER {
+            return Some(&DOUBLE_DATA);
+        }
         Game.trainer(id)
     }
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
@@ -100,7 +120,7 @@ impl GameData for GGame {
         Game.new_game()
     }
     fn trainer_money(&self, id: TrainerId) -> Option<u8> {
-        (id == TRAINER).then_some(MONEY_TABLE)
+        self.trainer(id).map(|_| MONEY_TABLE)
     }
     fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
         match species {
@@ -324,6 +344,7 @@ fn the_last_reached_level_evolution_wins_and_a_branch_is_reported() {
     assert_eq!(
         g.reports(),
         [
+            Report::Degraded("friendship evolution"),
             Report::Degraded("evolution branch"),
             Report::Degraded("evolution scene")
         ]
@@ -352,7 +373,7 @@ fn battle_reports_become_world_events() {
     assert_eq!(
         w.events(),
         [
-            Event::Report(Report::Unsupported("battle move effect")),
+            Event::Report(Report::Unsupported("move effect 085")),
             Event::Report(Report::Degraded("x"))
         ]
     );
@@ -378,4 +399,33 @@ fn the_battle_starts_on_the_transitions_first_frame() {
     let (_, battle, _) = w.battle().unwrap();
     assert_eq!(battle.need(), crate::battle::Need::Action, "started");
     assert_ne!(w.s.rng.state(), rng, "the first turn's draws");
+}
+
+#[test]
+fn a_double_battle_runs_as_singles_and_is_reported() {
+    // Decision Q3: a double trainer with two usable mons fights singles against the same
+    // party; Gen3 would pay the doubled prize (BATTLE_TYPE_DOUBLE): 4 × 2 × 4 × 2 = 64.
+    let mut g = G::new();
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 30).await;
+            ctx.give_mon(WATER, 30).await;
+            let o = ctx.battle_trainer(DOUBLE_TRAINER, TextId(0)).await;
+            ctx.set_flag(FLAG_DONE, o == BattleOutcome::Won).await;
+        })
+    });
+    g.mash(20_000, |w| !w.script_running());
+    assert!(g.w.flag(FLAG_DONE));
+    assert_eq!(g.reports(), [Report::Degraded("double battle")]);
+    assert_eq!(g.w.money(), 64);
+    // A single trainer reports nothing.
+    let mut g = G::new();
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 30).await;
+            ctx.battle_trainer(TRAINER, TextId(0)).await;
+        })
+    });
+    g.mash(20_000, |w| !w.script_running());
+    assert!(g.reports().is_empty());
 }

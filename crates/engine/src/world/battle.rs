@@ -10,8 +10,9 @@
 //!    being drawn under [`BattleTransition`], which ends black. The battle's start
 //!    ([`Battle::start`]: the intro events, the first turn and the trainer AI's choice) runs on
 //!    the transition's first frame, not on the frame that started the battle (Gen3 sets the
-//!    battle up in `CB2_InitBattle`, after the transition): no draw happens in between, so the
-//!    draws are the same, and the start frame stays under the line budget.
+//!    battle up in `CB2_InitBattle`, after the transition): only video is drawn in between, so
+//!    the start frame stays under the line budget. The RNG order stays the same unless an
+//!    unfrozen object draws on the start frame (see the deviations).
 //! 2. **Loading**: [`BattleScene::load`] chunks, one per black frame (`CB2_InitBattle`).
 //! 3. **Running**: [`BattleScene::step`] each frame until [`BattleScene::finished`] (the scene
 //!    fades to black after `End`). The player's party is written back; on a win the prize
@@ -37,6 +38,11 @@
 //! - The opponent party and `Battle::new`'s draws happen when the battle starts, before the
 //!   transition (Gen3 creates trainer parties and the scripted wild mon in `CB2_InitBattle`,
 //!   after it). The order of draws within them is Gen3's.
+//! - The start frame runs `Battle::new`, then the objects' update, and `Battle::start` (the
+//!   first turn's and the AI's draws) one frame later. An idle object left unfrozen on the
+//!   start frame (a scripted battle whose script did not `lock` it) that draws then takes its
+//!   value between the two; in Gen3 every battle setup draw comes after the transition, after
+//!   any such object draws.
 //! - The field text box is closed when a battle starts: `trainerbattle`'s intro message stays
 //!   open into the battle in Gen3 and disappears under the transition, which overwrites BG0.
 //! - The environment is `Grass` on a tall-grass cell and `Plain` elsewhere
@@ -54,7 +60,7 @@ use crate::battle::BattleReport;
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
-use crate::data::{Behavior, Dir, GameData, MapId, PLAYER, SpeciesId};
+use crate::data::{Behavior, Dir, EvoMethod, GameData, MapId, PLAYER, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{Ivs, Party, Pokemon};
@@ -271,6 +277,13 @@ impl State {
             b.write(Battle::new(game, setup, &self.party, &mut self.rng));
             &*b
         };
+        if let BattleKind::Trainer { trainer, .. } = battle.setup().kind
+            && game.trainer(trainer).is_some_and(|t| t.double)
+        {
+            // A double battle runs as singles against the same party (decision Q3). The one
+            // place this is reported, for every trainer battle (scripted or by sight).
+            report(self, Report::Degraded("double battle"));
+        }
         let scene = BattleScene::new(battle.setup(), self.player_name);
         // SAFETY: as above; this writes every remaining field.
         let run = unsafe {
@@ -362,17 +375,51 @@ impl State {
     }
 }
 
+/// "move effect NNN" for each raw `EFFECT_*` number, built at compile time: the
+/// [`Report::Unsupported`] text of an unsupported battle effect (logs hold `&'static str`).
+const EFFECT_LINE: usize = 15;
+static EFFECT_LINES: [u8; 256 * EFFECT_LINE] = {
+    let prefix = b"move effect ";
+    let mut out = [0u8; 256 * EFFECT_LINE];
+    let mut n = 0;
+    while n < 256 {
+        let at = n * EFFECT_LINE;
+        let mut i = 0;
+        while i < prefix.len() {
+            out[at + i] = prefix[i];
+            i += 1;
+        }
+        out[at + 12] = b'0' + (n / 100) as u8;
+        out[at + 13] = b'0' + (n / 10 % 10) as u8;
+        out[at + 14] = b'0' + (n % 10) as u8;
+        n += 1;
+    }
+    out
+};
+
+/// [`EFFECT_LINES`]' line for effect `n`.
+fn effect_line(n: u8) -> &'static str {
+    let at = n as usize * EFFECT_LINE;
+    core::str::from_utf8(&EFFECT_LINES[at..at + EFFECT_LINE]).unwrap_or("move effect")
+}
+
 /// The scene's battle reports as world [`Report`]s: an event and a log line each.
 fn drain_reports(s: &mut State, scene: &mut BattleScene) {
     for r in scene.take_reports() {
         let r = match r {
-            BattleReport::UnsupportedEffect(_) => Report::Unsupported("battle move effect"),
+            BattleReport::UnsupportedEffect(n) => Report::Unsupported(effect_line(n)),
             BattleReport::Degraded(what) => Report::Degraded(what),
         };
-        let (Report::Unsupported(what) | Report::Degraded(what)) = r;
-        s.log(what);
-        s.event(super::Event::Report(r));
+        report(s, r);
     }
+}
+
+/// A world report: its log line and its event.
+fn report(s: &mut State, r: Report) {
+    s.log(match r {
+        Report::Unsupported(what) | Report::Degraded(what) => what,
+    });
+    s.event(super::Event::Report(r));
 }
 
 /// After a win (Gen3 `getmoneyreward` and `TryEvolvePokemon`): the prize money
@@ -393,16 +440,23 @@ fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
         let Some(mon) = s.party.get_mut(i) else {
             continue;
         };
-        let Some((target, ambiguous)) = mon.evolution_target(game.evolutions(mon.species)) else {
+        let evos = game.evolutions(mon.species);
+        let target = mon.evolution_target(evos);
+        if evos.iter().any(|e| e.method == EvoMethod::Friendship) {
+            // EVO_FRIENDSHIP* (`friendship >= 220`) is not evaluated (M9).
+            report(s, Report::Degraded("friendship evolution"));
+        }
+        let Some((target, ambiguous)) = target else {
+            continue;
+        };
+        let Some(mon) = s.party.get_mut(i) else {
             continue;
         };
         mon.evolve(t, target);
         if ambiguous {
-            s.log("evolution branch");
-            s.event(super::Event::Report(Report::Degraded("evolution branch")));
+            report(s, Report::Degraded("evolution branch"));
         }
-        s.log("evolution scene");
-        s.event(super::Event::Report(Report::Degraded("evolution scene")));
+        report(s, Report::Degraded("evolution scene"));
     }
 }
 
