@@ -64,3 +64,28 @@
 - F: menu strings BattleYesNoChoice/BattleSwitchWhich/MoveInterfacePpType begin with {PALETTE 5}{COLOR_HIGHLIGHT_SHADOW DYNAMIC_COLOR4..6} (FC 05/FC 04); draw_text must honour or skip — check in K/I.
 - I: B writes pokemon/<SPECIES> incl Unown forms; species.ron has 412 entries — not 1:1.
 - Some FR strings untranslated in ROM (e.g. gText_WhichMoveToForget4) — expected.
+
+## Wave 2 contracts for Task J
+
+### From K (battle scene, `battle/scene.rs`)
+- `BattleScene::new(&BattleSetup)`; after `Battle::start` + `scene.push(&mut events)`, call `load(game, &Battle, f) -> bool` once per black frame until true (10 frames with test data; sets black itself).
+- Each frame: `step(game, &mut Battle, &mut Rng, &Input, f)` (runs `update`, feeds any `Choice` to `battle.choose`, pushes the events). `finished() -> Option<BattleOutcome>` is `Some` only after `End` played and the screen faded to black. `hash(&mut Fnv64)` every frame.
+- Restore after `finished`: the scene owns BG0–3 controls (BG2 disabled), BG char blocks 0–2, screen blocks 24/26/28, BG palettes 0–5, OBJ tiles 0–468, OBJ palettes 0–7, and writes brightness, `lighten = false`, all scrolls = 0 and the whole OAM every frame. J re-uploads field tilesets/maps/palettes/BG controls, rebuilds the field `TextBox` and object sprites, then fades in.
+- Player name comes from `game.new_game().player_name`; switch to the World's name.
+- Simplifications: no intro window reveal, environment slide, "Come back X!", ball-throw animation, "Use next Pokémon?"; BAG/POKéMON do nothing.
+
+### From E2 (effects / AI / catching)
+- `Battle::new` itself draws the 4 `BattleAI_HandleItemUseBeforeAISetup` rolls, then (wild only) the held-item roll, then `gRandomTurnNumber`. Parties are created by the caller before `Battle::new` (deviation: Gen3 creates them after the 4 draws).
+- Outcomes: `Drew` = whiteout like `Lost`; `MonFled` ends the first battle when Zigzagoon flees; `Caught` + `Battle::caught_without_room()`.
+- Trainer AI can switch (Recall → PkmnSentOut → SendOut).
+- Ability names are real text (`types.ron` `ability_names`, extract format v4).
+- `KNOWN_UNSUPPORTED`: ATTRACT, ROLLOUT only.
+
+### From I (content)
+- `Emerald { start: Start::BeforeRescue | AfterStarter }`; `pub const Emerald = Emerald::after_starter()` keeps the M3 shells/parity. J moves shells and parity to `Emerald::default()` (BeforeRescue) and removes the const.
+- `ChooseStarter` special → choose_starter, `VAR_STARTER_MON`, give_mon L5, `battle_wild(FIRST_BATTLE_FOE, first_battle: true)`.
+- `trainer_battle` leaves the intro message open into the battle (Gen3): J must close the field text box when the battle starts. Trainer flag `0x500 + id` set unless `Lost | Drew`.
+- Requests the World must answer: `GiveMon`, `PartySize`, `HealParty`, `SetRespawn`, `ChooseStarter`, `BattleWild`, `BattleTrainer`. `respawn_default` = heal location 1 (`..._BRENDANS_HOUSE_2F`); `heal_location(1)` resolves in both modes.
+- Stub: one `MB_TALL_GRASS` cell at StubTown (12,3) with a 12-slot table, off the current stub route; J extends the stub route through it so stub CI parity covers a battle. Stub pics for 2 species + player back; interface gfx `EMPTY`.
+- Battle data is not linked into the ROM until J calls the battle `GameData` methods (~+300 KB).
+- Route 103 twins (double battle) and the lab Johto `givemon` are unsupported.
