@@ -228,11 +228,35 @@ impl State {
             opponents,
             environment: self.environment(game),
         };
-        let mut battle = Battle::new(game, setup, &self.party, &mut self.rng);
+        let transition = BattleTransition::new(&kind);
+        // The run (about 4 KiB) is built in its heap allocation: `Box::new` of a literal copies
+        // it from the stack, 6 scanlines on the GBA's trainer-battle start, the route's worst
+        // frame (Milestone 8 Wave 0).
+        let mut run = Box::<BattleRun>::new_uninit();
+        let p = run.as_mut_ptr();
+        // SAFETY: `p` points to the allocation of an uninitialised `BattleRun`. Each field is
+        // written exactly once through a raw field pointer before `assume_init`, and only the
+        // `battle` field is borrowed before then, after it is written.
+        let battle = unsafe {
+            let b = &raw mut (*p).battle;
+            b.write(Battle::new(game, setup, &self.party, &mut self.rng));
+            &mut *b
+        };
         let mut events = Vec::new();
         battle.start(game, &mut self.rng, &mut events);
-        let mut scene = BattleScene::new(battle.setup(), self.player_name);
-        scene.push(&mut events);
+        let scene = BattleScene::new(battle.setup(), self.player_name);
+        // SAFETY: as above; this writes every remaining field.
+        let mut run = unsafe {
+            (&raw mut (*p).scene).write(scene);
+            (&raw mut (*p).stage).write(Stage::Transition);
+            (&raw mut (*p).origin).write(origin);
+            (&raw mut (*p).transition).write(transition);
+            (&raw mut (*p).backdrop).write(None);
+            (&raw mut (*p).outcome).write(None);
+            (&raw mut (*p).whiteout).write(false);
+            run.assume_init()
+        };
+        run.scene.push(&mut events);
         self.event(super::Event::BattleStarted);
         if self.text.is_open() {
             self.text.close(f);
@@ -242,16 +266,7 @@ impl State {
         if origin == Origin::Field {
             self.objects.freeze_all();
         }
-        self.mode = Mode::Battle(Box::new(BattleRun {
-            stage: Stage::Transition,
-            origin,
-            battle,
-            scene,
-            transition: BattleTransition::new(&kind),
-            backdrop: None,
-            outcome: None,
-            whiteout: false,
-        }));
+        self.mode = Mode::Battle(run);
     }
 
     /// Gen3 `CheckStandardWildEncounter` for a completed player step onto a `cur` cell of
