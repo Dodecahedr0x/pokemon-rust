@@ -64,6 +64,10 @@ impl Rect {
     fn contains(self, x: i16, y: i16) -> bool {
         (self.x0..=self.x1).contains(&x) && (self.y0..=self.y1).contains(&y)
     }
+
+    fn overlaps(self, o: Rect) -> bool {
+        self.x0 <= o.x1 && o.x0 <= self.x1 && self.y0 <= o.y1 && o.y0 <= self.y1
+    }
 }
 
 pub struct Field {
@@ -75,6 +79,11 @@ pub struct Field {
     overrides: BTreeMap<(i16, i16), u16>,
     /// Ring origin (see the module doc), each in `0..RING`.
     ring: (i16, i16),
+    /// The cells drawn before a connection crossing kept them (new coordinates): drawn from the
+    /// old map, they may differ from what the new map would draw there (its border, a third
+    /// map). Set until the view leaves them. Not hashed: it only gates checkpoint capture
+    /// (`World::capturable`), never the simulation.
+    stale: Option<Rect>,
 }
 
 impl Field {
@@ -85,11 +94,18 @@ impl Field {
             drawn: None,
             overrides: BTreeMap::new(),
             ring: (0, 0),
+            stale: None,
         }
     }
 
     pub fn map(&self) -> MapId {
         self.map
+    }
+
+    /// Whether the view still shows cells drawn from the map before a connection crossing
+    /// (redrawing it from the current map could differ until they scroll out).
+    pub fn view_stale(&self) -> bool {
+        self.stale.is_some()
     }
 
     /// Map pixel of the screen's top-left corner.
@@ -128,6 +144,7 @@ impl Field {
         self.camera_px = camera_px;
         self.drawn = None;
         self.ring = (0, 0);
+        self.stale = None;
     }
 
     /// Re-uploads the current map's tilesets and palettes and BG1–BG3 controls, and invalidates
@@ -158,6 +175,9 @@ impl Field {
         self.camera_px = camera_px;
         let view = Rect::view(camera_px);
         let old = self.drawn;
+        if old.is_none() || self.stale.is_some_and(|r| !r.overlaps(view)) {
+            self.stale = None;
+        }
         let mut cells = Vec::new();
         for y in view.y0..=view.y1 {
             for x in view.x0..=view.x1 {
@@ -249,6 +269,7 @@ impl Field {
             }),
             _ => None,
         };
+        self.stale = self.drawn;
     }
 
     /// [`Field::switch_map_enter`] then [`Field::redraw`].

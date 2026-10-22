@@ -3,6 +3,7 @@
 //! one step to the next (`SetStepAnimHandleAlternation`, `animPos = {1, 3, 0, 2}`).
 
 use super::ActionKind;
+use crate::checkpoint::{AnimSnap, AnimTableSnap};
 use crate::data::Dir;
 use crate::hash::Fnv64;
 use crate::script::Speed;
@@ -127,5 +128,42 @@ impl Anim {
             Table::Run => (2, 0),
         };
         h.write(&[t, arg, self.cmd, self.timer]);
+    }
+}
+
+// Milestone 5 Task B.
+impl Anim {
+    pub(super) const fn snapshot(&self) -> AnimSnap {
+        AnimSnap {
+            table: match self.table {
+                Table::Face => AnimTableSnap::Face,
+                Table::Go(d) => AnimTableSnap::Go(d),
+                Table::Run => AnimTableSnap::Run,
+            },
+            cmd: self.cmd,
+            timer: self.timer,
+        }
+    }
+
+    /// `cmd` indexes 4-entry tables.
+    pub(super) const fn check_snapshot(s: AnimSnap) -> Result<(), &'static str> {
+        if s.cmd < 4 {
+            Ok(())
+        } else {
+            Err("animation command out of range")
+        }
+    }
+
+    /// Check it first ([`Anim::check_snapshot`]).
+    pub(super) const fn from_snapshot(s: AnimSnap) -> Anim {
+        Anim {
+            table: match s.table {
+                AnimTableSnap::Face => Table::Face,
+                AnimTableSnap::Go(d) => Table::Go(d),
+                AnimTableSnap::Run => Table::Run,
+            },
+            cmd: s.cmd,
+            timer: s.timer,
+        }
     }
 }

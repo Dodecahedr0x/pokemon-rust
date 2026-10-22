@@ -55,9 +55,32 @@ impl Input {
     }
 }
 
+// Milestone 5 Task B.
+impl Input {
+    pub const fn snapshot(&self) -> crate::checkpoint::InputSnap {
+        crate::checkpoint::InputSnap {
+            held: self.held,
+            pressed: self.pressed,
+        }
+    }
+
+    pub const fn from_snapshot(s: crate::checkpoint::InputSnap) -> Input {
+        Input {
+            held: s.held,
+            pressed: s.pressed,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_round_trips() {
+        let i = Input::new(Buttons::A, Buttons::A | Buttons::UP);
+        assert_eq!(Input::from_snapshot(i.snapshot()), i);
+    }
 
     #[test]
     fn pressed_is_the_rising_edge() {

@@ -163,19 +163,50 @@ impl Vars {
 impl Vars {
     /// Set flags and non-zero vars, ascending.
     pub fn snapshot(&self) -> crate::checkpoint::VarsSnap {
-        todo!("Milestone 5 Task B")
+        let flags = (1..FLAG_COUNT)
+            .map(FlagId)
+            .filter(|&f| self.flag(f))
+            .collect();
+        let ids = (VARS_START..VARS_END).chain(SPECIAL_VARS_START..SPECIAL_VARS_END);
+        let vars = ids
+            .map(|v| (VarId(v), self.var(VarId(v))))
+            .filter(|&(_, x)| x != 0)
+            .collect();
+        crate::checkpoint::VarsSnap { flags, vars }
     }
 
     /// Rebuilt through the setters, so the digest matches the contents.
     pub fn from_snapshot(s: &crate::checkpoint::VarsSnap) -> Vars {
-        let _ = s;
-        todo!("Milestone 5 Task B")
+        let mut v = Vars::new();
+        for &f in &s.flags {
+            v.set_flag(f, true);
+        }
+        for &(id, x) in &s.vars {
+            v.set_var(id, x);
+        }
+        v
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_is_sparse_ascending_and_round_trips() {
+        let mut v = Vars::new();
+        v.set_flag(FlagId(0x3FFF), true);
+        v.set_flag(FlagId(0x20), true);
+        v.set_var(VarId(0x8001), 7);
+        v.set_var(VarId(0x4005), 3);
+        v.set_var(VarId(0x4006), 0);
+        let s = v.snapshot();
+        assert_eq!(s.flags, [FlagId(0x20), FlagId(0x3FFF)]);
+        assert_eq!(s.vars, [(VarId(0x4005), 3), (VarId(0x8001), 7)]);
+        let r = Vars::from_snapshot(&s);
+        assert_eq!(r, v);
+        assert_eq!(r.digest, r.full_digest());
+    }
 
     #[test]
     fn flags_set_clear_and_independent() {

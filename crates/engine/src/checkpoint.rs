@@ -256,17 +256,28 @@ pub enum NotCapturable {
     Fade,
     /// The local id of an object with a live movement script.
     Moving(u8),
+    /// The view still shows cells drawn from the map before a connection crossing, which a
+    /// restore would redraw from the current map (`Field::view_stale`).
+    StaleView,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RestoreError {
     Schema(u16),
     UnknownMap(MapId),
-    UnknownTemplate { map: MapId, local_id: u8 },
+    UnknownTemplate {
+        map: MapId,
+        local_id: u8,
+    },
     NoPlayer,
     BadRng,
     PartyTooLarge,
-    HashMismatch { want: u64, got: u64 },
+    HashMismatch {
+        want: u64,
+        got: u64,
+    },
+    /// State the live world can never be in (forged data, or another engine build).
+    Invalid(&'static str),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

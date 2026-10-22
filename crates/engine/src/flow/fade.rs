@@ -64,12 +64,17 @@ impl Fader {
 // Milestone 5 Task B.
 impl Fader {
     pub fn snapshot(&self) -> crate::checkpoint::FaderSnap {
-        todo!("Milestone 5 Task B")
+        crate::checkpoint::FaderSnap {
+            level: self.level,
+            target: self.target,
+        }
     }
 
     pub const fn from_snapshot(s: crate::checkpoint::FaderSnap) -> Fader {
-        let _ = s;
-        todo!() // Milestone 5 Task B (const: no message)
+        Fader {
+            level: s.level,
+            target: s.target,
+        }
     }
 }
 
@@ -117,6 +122,14 @@ mod tests {
         }
         f.start(Fade::ToBlack);
         assert_eq!(f.update(), 11);
+    }
+
+    #[test]
+    fn snapshot_round_trips() {
+        let mut f = Fader::new();
+        f.start(Fade::ToBlack);
+        f.update();
+        assert_eq!(Fader::from_snapshot(f.snapshot()), f);
     }
 
     #[test]
