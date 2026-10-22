@@ -83,8 +83,6 @@ pub struct Label {
     pub file: usize,
     /// 1-based source line of the label.
     pub line: usize,
-    /// `Name::` (global) rather than `Name:`.
-    pub global: bool,
     pub kind: LabelKind,
     pub body: Vec<Stmt>,
     /// The label this one falls through to (index into [`Decomp::labels`]), for scripts and
@@ -146,6 +144,8 @@ pub struct Decomp {
     by_name: BTreeMap<String, usize>,
     /// `asm/macros/movement.inc`: macro name -> `MOVEMENT_ACTION_*` value.
     movement_macros: BTreeMap<String, u8>,
+    /// The battle facility helper macros ([`FACILITY_MACROS`]).
+    facility_macros: BTreeMap<String, MacroDef>,
 }
 
 impl Decomp {
@@ -159,6 +159,7 @@ impl Decomp {
             maps: BTreeMap::new(),
             by_name: BTreeMap::new(),
             movement_macros,
+            facility_macros: read_facility_macros(root)?,
         };
         let mut seen = BTreeSet::new();
         d.read_source(ROOT_SOURCE, &mut seen)?;
@@ -211,11 +212,6 @@ impl Decomp {
         &self.files[l.file].module
     }
 
-    /// The source file of a label.
-    pub fn file_of(&self, l: &Label) -> &str {
-        &self.files[l.file].path
-    }
-
     /// The label operands of `l`'s body in textual order, up to its first terminator.
     pub fn refs(&self, l: &Label) -> Vec<Ref> {
         let mut out = Vec::new();
@@ -245,7 +241,7 @@ impl Decomp {
     /// The script commands (`script_cmd_table.inc` names) `l`'s body assembles to, up to its
     /// first terminator. `compare` stands for either `compare_var_to_value` or
     /// `compare_var_to_var` (the macro picks by the operand's value). `None` if the body uses a
-    /// macro this reader does not expand (the battle facility helpers).
+    /// macro this reader does not expand.
     pub fn ops(&self, l: &Label) -> Option<Vec<&'static str>> {
         match self.ops_prefix(l) {
             (ops, true) => Some(ops),
@@ -258,7 +254,7 @@ impl Decomp {
     pub fn ops_prefix(&self, l: &Label) -> (Vec<&'static str>, bool) {
         let mut out = Vec::new();
         for s in &l.body {
-            let Some(ops) = expand(s) else {
+            let Some(ops) = self.expand_stmt(s) else {
                 return (out, false);
             };
             out.extend(ops);
@@ -267,6 +263,12 @@ impl Decomp {
             }
         }
         (out, true)
+    }
+
+    /// The script commands one statement assembles to: [`expand`] for the `event.inc` macros,
+    /// then the battle facility helpers. `None` for an unknown macro.
+    pub fn expand_stmt(&self, s: &Stmt) -> Option<Vec<&'static str>> {
+        expand(s).or_else(|| self.facility_macros.get(&s.mac)?.expand(&s.args))
     }
 
     /// The `MOVEMENT_ACTION_*` bytes of a movement body, without `step_end`; `None` if a line is
@@ -375,7 +377,10 @@ impl Decomp {
             if let Some(directive) = line.strip_prefix('#') {
                 let mut words = directive.split_whitespace();
                 match words.next() {
-                    Some("ifdef") | Some("if") => cond.push(false),
+                    Some("ifdef") => cond.push(false),
+                    Some(d @ ("if" | "elif")) => {
+                        bail!("{rel}:{line_no}: #{d} is not supported (only #ifdef/#ifndef)")
+                    }
                     Some("ifndef") => cond.push(true),
                     Some("else") => {
                         let c = cond.last_mut().context("#else without #if")?;
@@ -392,7 +397,6 @@ impl Decomp {
                 continue;
             }
             if let Some(name) = label_def(line) {
-                let global = line.ends_with("::");
                 let idx = self.labels.len();
                 if let Some(prev) = cur {
                     // Provisional: kept only if the previous body does not end (resolve_kinds).
@@ -402,7 +406,6 @@ impl Decomp {
                     name: name.to_string(),
                     file,
                     line: line_no,
-                    global,
                     kind: LabelKind::Script,
                     body: Vec::new(),
                     next: None,
@@ -429,7 +432,7 @@ impl Decomp {
             } else if rest.is_empty() {
                 Vec::new()
             } else {
-                rest.split(',').map(|a| a.trim().to_string()).collect()
+                split_args(rest)
             };
             self.labels[l].body.push(Stmt {
                 line: line_no,
@@ -572,11 +575,31 @@ fn strip_comments(line: &str, in_comment: &mut bool) -> String {
                 out.push(c);
             }
             '@' => break,
+            '/' if chars.peek() == Some(&'/') => break,
             '/' if chars.peek() == Some(&'*') => {
                 chars.next();
                 *in_comment = true;
             }
             _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Macro operands, as `as` splits them: at commas, and at spaces between plain words (the
+/// sources have one `frontier_set A B` with no comma); expressions like `(X + 1)` stay whole.
+fn split_args(rest: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for piece in rest.split(',').map(str::trim) {
+        let words: Vec<&str> = piece.split_whitespace().collect();
+        if words.len() > 1
+            && words
+                .iter()
+                .all(|w| is_ident(w) || w.parse::<i64>().is_ok())
+        {
+            out.extend(words.iter().map(|w| w.to_string()));
+        } else {
+            out.push(piece.to_string());
         }
     }
     out
@@ -762,224 +785,180 @@ fn read_movement_macros(root: &Path) -> Result<BTreeMap<String, u8>> {
 
 /// The fields of a `map.json` the transfer needs.
 fn read_map_json(path: &Path) -> Result<MapJson> {
-    let src = std::fs::read_to_string(path)?;
-    let v = json::parse(&src)?;
-    let s = |k: &str| v.get(k).and_then(json::Value::as_str).map(str::to_string);
-    let scripts = |k: &str| -> Vec<Option<String>> {
-        v.get(k)
-            .and_then(json::Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .map(|e| {
-                        e.get("script")
-                            .and_then(json::Value::as_str)
-                            .filter(|s| is_symbol(s))
-                            .map(str::to_string)
-                    })
-                    .collect()
-            })
+    #[derive(serde::Deserialize)]
+    struct Raw {
+        name: String,
+        shared_scripts_map: Option<String>,
+        shared_events_map: Option<String>,
+        object_events: Option<Vec<Event>>,
+        coord_events: Option<Vec<Event>>,
+        bg_events: Option<Vec<Event>>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Event {
+        script: Option<String>,
+    }
+    let raw: Raw = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+    let scripts = |events: Option<Vec<Event>>| -> Vec<Option<String>> {
+        events
             .unwrap_or_default()
+            .into_iter()
+            .map(|e| e.script.filter(|s| is_symbol(s)))
+            .collect()
     };
     Ok(MapJson {
-        name: s("name").context("no name")?,
-        shared_scripts_map: s("shared_scripts_map"),
-        shared_events_map: s("shared_events_map"),
-        objects: scripts("object_events"),
-        coords: scripts("coord_events"),
-        bgs: scripts("bg_events"),
+        name: raw.name,
+        shared_scripts_map: raw.shared_scripts_map,
+        shared_events_map: raw.shared_events_map,
+        objects: scripts(raw.object_events),
+        coords: scripts(raw.coord_events),
+        bgs: scripts(raw.bg_events),
     })
 }
 
-/// A minimal JSON reader for `map.json` (no dependency in the library).
-mod json {
-    use anyhow::{Result, bail};
+/// The battle facility helper macro sources: fixed `setvar`/`copyvar`/`special` sequences.
+pub const FACILITY_MACROS: [&str; 3] = [
+    "asm/macros/battle_frontier",
+    "asm/macros/trainer_hill.inc",
+    "asm/macros/battle_tent.inc",
+];
 
-    #[derive(Clone, Debug, PartialEq)]
-    pub enum Value {
-        Null,
-        Bool(bool),
-        Number(String),
-        String(String),
-        Array(Vec<Value>),
-        Object(Vec<(String, Value)>),
-    }
+/// A helper macro: its parameters (with defaults) and body lines. Expanded by substituting the
+/// arguments and evaluating its `.if`/`.elseif`/`.else` conditions, which only compare a
+/// parameter with a number or a name (`==`, `!=`) or test `>= VARS_START`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MacroDef {
+    params: Vec<(String, Option<String>)>,
+    body: Vec<String>,
+}
 
-    impl Value {
-        pub fn get(&self, key: &str) -> Option<&Value> {
-            match self {
-                Value::Object(kv) => kv.iter().find(|(k, _)| k == key).map(|(_, v)| v),
-                _ => None,
-            }
+impl MacroDef {
+    fn expand(&self, args: &[String]) -> Option<Vec<&'static str>> {
+        let mut vals = BTreeMap::new();
+        for (i, (p, default)) in self.params.iter().enumerate() {
+            let v = args
+                .get(i)
+                .cloned()
+                .or_else(|| default.clone())
+                .unwrap_or_default();
+            vals.insert(p.as_str(), v);
         }
-        pub fn as_str(&self) -> Option<&str> {
-            match self {
-                Value::String(s) => Some(s),
-                _ => None,
+        let subst = |t: &str| -> String {
+            match t.strip_prefix('\\') {
+                Some(p) => vals.get(p).cloned().unwrap_or_default(),
+                None => t.to_string(),
             }
-        }
-        pub fn as_array(&self) -> Option<&[Value]> {
-            match self {
-                Value::Array(a) => Some(a),
-                _ => None,
-            }
-        }
-    }
-
-    pub fn parse(src: &str) -> Result<Value> {
-        let mut p = Parser {
-            s: src.as_bytes(),
-            i: 0,
         };
-        let v = p.value()?;
-        p.ws();
-        if p.i != p.s.len() {
-            bail!("trailing data at byte {}", p.i);
+        // Per open `.if`: (this branch is live, some branch was taken).
+        let mut stack: Vec<(bool, bool)> = Vec::new();
+        let mut out = Vec::new();
+        for line in &self.body {
+            let mut words = line.split_whitespace();
+            let first = words.next()?;
+            let rest: Vec<&str> = words.collect();
+            let live = stack.iter().all(|(l, _)| *l);
+            match first {
+                ".if" => {
+                    let c = live && eval(&rest, &subst)?;
+                    stack.push((c, c));
+                }
+                ".elseif" => {
+                    let (_, taken) = stack.pop()?;
+                    let outer = stack.iter().all(|(l, _)| *l);
+                    let c = outer && !taken && eval(&rest, &subst)?;
+                    stack.push((c, taken || c));
+                }
+                ".else" => {
+                    let (_, taken) = stack.pop()?;
+                    let outer = stack.iter().all(|(l, _)| *l);
+                    stack.push((outer && !taken, true));
+                }
+                ".endif" => {
+                    stack.pop()?;
+                }
+                _ if !live => {}
+                op => out.push(scripts::op_name(scripts::opcode(op)?)?),
+            }
         }
-        Ok(v)
+        stack.is_empty().then_some(out)
     }
+}
 
-    struct Parser<'a> {
-        s: &'a [u8],
-        i: usize,
+/// A `.if` condition `\a OP b`, OP one of `==`, `!=`, or `>= VARS_START`.
+fn eval(words: &[&str], subst: &dyn Fn(&str) -> String) -> Option<bool> {
+    let [a, op, b] = words else { return None };
+    let (a, b) = (subst(a), subst(b));
+    let num = |s: &str| match s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        Some(h) => u32::from_str_radix(h, 16).ok(),
+        None => s.parse().ok(),
+    };
+    match *op {
+        ">=" if b == "VARS_START" => Some(match num(&a) {
+            Some(n) => n >= 0x4000,
+            None => a.starts_with("VAR_"),
+        }),
+        "==" | "!=" => {
+            let eq = match (num(&a), num(&b)) {
+                (Some(x), Some(y)) => x == y,
+                _ => a == b,
+            };
+            Some(eq == (*op == "=="))
+        }
+        _ => None,
     }
+}
 
-    impl Parser<'_> {
-        fn ws(&mut self) {
-            while self.s.get(self.i).is_some_and(u8::is_ascii_whitespace) {
-                self.i += 1;
+/// Every `.macro` of [`FACILITY_MACROS`].
+fn read_facility_macros(root: &Path) -> Result<BTreeMap<String, MacroDef>> {
+    let mut files = Vec::new();
+    for rel in FACILITY_MACROS {
+        let p = root.join(rel);
+        if p.is_dir() {
+            for e in read_dir_sorted(&p)? {
+                files.push(p.join(e));
             }
+        } else {
+            files.push(p);
         }
-        fn eat(&mut self, c: u8) -> Result<()> {
-            self.ws();
-            if self.s.get(self.i) != Some(&c) {
-                bail!("expected {:?} at byte {}", c as char, self.i);
-            }
-            self.i += 1;
-            Ok(())
-        }
-        fn lit(&mut self, word: &str, v: Value) -> Result<Value> {
-            if !self.s[self.i..].starts_with(word.as_bytes()) {
-                bail!("bad literal at byte {}", self.i);
-            }
-            self.i += word.len();
-            Ok(v)
-        }
-        fn value(&mut self) -> Result<Value> {
-            self.ws();
-            match self.s.get(self.i) {
-                Some(b'{') => {
-                    self.i += 1;
-                    let mut kv = Vec::new();
-                    self.ws();
-                    if self.s.get(self.i) == Some(&b'}') {
-                        self.i += 1;
-                        return Ok(Value::Object(kv));
-                    }
-                    loop {
-                        self.ws();
-                        let k = self.string()?;
-                        self.eat(b':')?;
-                        kv.push((k, self.value()?));
-                        self.ws();
-                        match self.s.get(self.i) {
-                            Some(b',') => self.i += 1,
-                            Some(b'}') => {
-                                self.i += 1;
-                                return Ok(Value::Object(kv));
-                            }
-                            _ => bail!("bad object at byte {}", self.i),
-                        }
-                    }
-                }
-                Some(b'[') => {
-                    self.i += 1;
-                    let mut a = Vec::new();
-                    self.ws();
-                    if self.s.get(self.i) == Some(&b']') {
-                        self.i += 1;
-                        return Ok(Value::Array(a));
-                    }
-                    loop {
-                        a.push(self.value()?);
-                        self.ws();
-                        match self.s.get(self.i) {
-                            Some(b',') => self.i += 1,
-                            Some(b']') => {
-                                self.i += 1;
-                                return Ok(Value::Array(a));
-                            }
-                            _ => bail!("bad array at byte {}", self.i),
-                        }
-                    }
-                }
-                Some(b'"') => Ok(Value::String(self.string()?)),
-                Some(b'n') => self.lit("null", Value::Null),
-                Some(b't') => self.lit("true", Value::Bool(true)),
-                Some(b'f') => self.lit("false", Value::Bool(false)),
-                Some(c) if c.is_ascii_digit() || *c == b'-' => {
-                    let start = self.i;
-                    while self
-                        .s
-                        .get(self.i)
-                        .is_some_and(|c| c.is_ascii_alphanumeric() || b"+-.".contains(c))
-                    {
-                        self.i += 1;
-                    }
-                    Ok(Value::Number(
-                        String::from_utf8_lossy(&self.s[start..self.i]).into_owned(),
-                    ))
-                }
-                _ => bail!("unexpected input at byte {}", self.i),
-            }
-        }
-        fn string(&mut self) -> Result<String> {
-            self.eat(b'"')?;
-            let mut out = Vec::new();
-            loop {
-                let Some(&c) = self.s.get(self.i) else {
-                    bail!("unterminated string");
+    }
+    let mut out = BTreeMap::new();
+    for path in files {
+        let src = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let mut cur: Option<(String, MacroDef)> = None;
+        let mut in_comment = false;
+        for raw in src.lines() {
+            let line = strip_comments(raw, &mut in_comment);
+            let line = line.trim();
+            if let Some(rest) = line.strip_prefix(".macro ") {
+                let rest = rest.trim();
+                let (name, params) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+                let params = params
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|p| !p.is_empty())
+                    .map(|p| match p.split_once('=') {
+                        Some((n, d)) => (n.trim().to_string(), Some(d.trim().to_string())),
+                        None => (p.trim_end_matches(":req").to_string(), None),
+                    })
+                    .collect();
+                let def = MacroDef {
+                    params,
+                    body: Vec::new(),
                 };
-                self.i += 1;
-                match c {
-                    b'"' => break,
-                    b'\\' => {
-                        let Some(&e) = self.s.get(self.i) else {
-                            bail!("unterminated escape");
-                        };
-                        self.i += 1;
-                        match e {
-                            b'n' => out.push(b'\n'),
-                            b't' => out.push(b'\t'),
-                            b'u' => {
-                                let hex = std::str::from_utf8(&self.s[self.i..self.i + 4])?;
-                                let ch = char::from_u32(u32::from_str_radix(hex, 16)?)
-                                    .unwrap_or('\u{fffd}');
-                                let mut buf = [0; 4];
-                                out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
-                                self.i += 4;
-                            }
-                            other => out.push(other),
-                        }
-                    }
-                    _ => out.push(c),
-                }
+                cur = Some((name.to_string(), def));
+            } else if line == ".endm" {
+                let (name, def) = cur.take().context(".endm without .macro")?;
+                out.insert(name, def);
+            } else if let Some((_, def)) = cur.as_mut()
+                && !line.is_empty()
+            {
+                def.body.push(line.replace(',', " "));
             }
-            Ok(String::from_utf8(out)?)
         }
     }
-
-    #[cfg(test)]
-    mod tests {
-        #[test]
-        fn parses_objects_arrays_and_literals() {
-            let v = super::parse(r#"{"a": [1, "x\"y", null, true], "b": {}, "c": -2}"#).unwrap();
-            let a = v.get("a").unwrap().as_array().unwrap();
-            assert_eq!(a[1].as_str(), Some("x\"y"));
-            assert_eq!(a[2], super::Value::Null);
-            assert_eq!(v.get("c"), Some(&super::Value::Number("-2".into())));
-            assert!(super::parse("{").is_err());
-        }
-    }
+    ensure!(!out.is_empty(), "no battle facility macros found");
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -1078,5 +1057,46 @@ mod tests {
         assert_eq!(label_def("Foo_Bar::"), Some("Foo_Bar"));
         assert_eq!(label_def("Foo:"), Some("Foo"));
         assert_eq!(label_def(".string \"a:\""), None);
+        assert_eq!(strip_comments("end // x", &mut c), "end ");
+        assert_eq!(
+            strip_comments(".string \"a//b\"", &mut c),
+            ".string \"a//b\""
+        );
+    }
+
+    #[test]
+    fn facility_macros_expand_their_conditions() {
+        let def = MacroDef {
+            params: vec![
+                ("data".to_string(), None),
+                ("val".to_string(), Some("0xFFFF".to_string())),
+            ],
+            body: [
+                "setvar VAR_0x8004 FRONTIER_UTIL_FUNC_SET_DATA",
+                "setvar VAR_0x8005 \\data",
+                ".if \\val == 0xFFFF",
+                ".elseif \\val >= VARS_START",
+                "copyvar VAR_0x8006 \\val",
+                ".else",
+                "setvar VAR_0x8006 \\val",
+                ".endif",
+                "special CallFrontierUtilFunc",
+            ]
+            .map(String::from)
+            .to_vec(),
+        };
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            def.expand(&args(&["D"])).unwrap(),
+            ["setvar", "setvar", "special"]
+        );
+        assert_eq!(
+            def.expand(&args(&["D", "VAR_RESULT"])).unwrap(),
+            ["setvar", "setvar", "copyvar", "special"]
+        );
+        assert_eq!(
+            def.expand(&args(&["D", "3"])).unwrap(),
+            ["setvar", "setvar", "setvar", "special"]
+        );
     }
 }

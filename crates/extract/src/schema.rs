@@ -715,6 +715,9 @@ pub struct ScriptIndex {
     pub scripts: BTreeMap<String, ScriptEntry>,
     /// Every text, by final name -> its module.
     pub texts: BTreeMap<String, String>,
+    /// Every movement, by final name -> its module (Task B addition).
+    #[serde(default)]
+    pub movements: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

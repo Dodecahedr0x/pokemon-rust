@@ -24,14 +24,14 @@ use crate::inc::Decomp;
 use crate::labels::{self, Kind, MapInput, Transfer};
 use crate::names::{self, Table};
 use crate::schema::{
-    Hex, IrArg, IrInsn, IrLabel, IrMovement, RootKind, ScriptEntry, ScriptFile, ScriptIndex,
-    TextFile,
+    Hex, IrArg, IrInsn, IrLabel, IrMovement, ScriptEntry, ScriptFile, ScriptIndex, TextFile,
 };
 use crate::scripts::{self, Operand};
 use crate::{GameCode, Rom, codegen, movement, text};
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Everything the script export needs.
 pub struct ScriptInput<'a> {
@@ -50,6 +50,22 @@ pub fn decomp_dir() -> Option<PathBuf> {
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../pokeemerald"));
     p.join("charmap.txt").exists().then_some(p)
 }
+
+/// The decomp at `dir`, read once per process (the export runs several times in tests).
+pub fn load_decomp(dir: &Path) -> Result<Arc<Decomp>> {
+    static CACHE: OnceLock<Mutex<BTreeMap<PathBuf, Arc<Decomp>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(d) = cache.lock().unwrap().get(dir) {
+        return Ok(d.clone());
+    }
+    let d = Arc::new(Decomp::load(dir)?);
+    cache.lock().unwrap().insert(dir.to_path_buf(), d.clone());
+    Ok(d)
+}
+
+/// Provenance key recording whether script names come from the decomp (`0x1`) or are all
+/// positional (`0x0`).
+pub const DECOMP_NAMES_KEY: &str = "scripts/decomp_names";
 
 /// The script IR of some maps.
 #[derive(Clone, Debug, Default)]
@@ -84,7 +100,7 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
             .collect()
     };
     let scripts_at = of_kind(Kind::Script);
-    let roots = root_kinds(rom, maps)?;
+    let roots = t.root_kinds.clone();
     let module = |off: u32| -> Result<String> {
         t.modules
             .get(&off)
@@ -120,7 +136,12 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
             }
             let end = pc + insn.len;
             if let Some(n) = next_label.filter(|&n| n > pc && n < end) {
-                anyhow::bail!("label {} at {n:#x} is inside an instruction", name(n));
+                // Two decodings overlap: keep both, each label in its own block.
+                println!(
+                    "warning: label {} at {n:#x} is inside {} at {pc:#x}",
+                    name(n),
+                    insn.name
+                );
             }
             pc = end;
         }
@@ -155,6 +176,7 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
             .into_iter()
             .map(names::movement_action_name)
             .collect();
+        ir.index.movements.insert(n.clone(), module(off)?);
         movements_by_module.entry(module(off)?).or_default().push((
             rank(decomp, &n, off),
             IrMovement {
@@ -209,28 +231,6 @@ fn rank(decomp: Option<&Decomp>, name: &str, off: u32) -> Rank {
         Some(l) => (l.file, l.line, off),
         None => (usize::MAX, usize::MAX, off),
     }
-}
-
-/// Root offset -> the first root (in map order) starting there.
-fn root_kinds(rom: &Rom, maps: &[MapInput]) -> Result<BTreeMap<u32, RootKind>> {
-    let mut out = BTreeMap::new();
-    for m in maps {
-        let prefix = format!("{}_", m.map);
-        for (pos, off) in crate::roots::named_roots(rom, &m.header, &m.map)? {
-            let rest = pos.strip_prefix(&prefix).context("root name")?;
-            let kind = if let Some(n) = rest.strip_prefix("Obj") {
-                RootKind::Object(n.parse()?)
-            } else if let Some(n) = rest.strip_prefix("Coord") {
-                RootKind::Coord(n.parse()?)
-            } else if let Some(n) = rest.strip_prefix("Bg") {
-                RootKind::Bg(n.parse()?)
-            } else {
-                RootKind::MapScript(rest.to_string())
-            };
-            out.entry(off).or_insert(kind);
-        }
-    }
-    Ok(out)
 }
 
 /// Operand naming.
@@ -419,9 +419,23 @@ fn map_arg(h: u16) -> IrArg {
 /// Decodes the scripts reachable from `input`'s roots and writes the IR, then the legacy
 /// output ([`codegen`]): `text/<lang>.ron` (keys `<Script>_T<n>`), `scripts/<Map>.rs` and
 /// `scripts/legacy_index.ron`.
-pub fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()> {
+pub fn export_scripts(
+    rom: &Rom,
+    input: &ScriptInput,
+    o: &mut Out,
+    provenance: &mut BTreeMap<String, Hex>,
+) -> Result<()> {
     let decomp = match decomp_dir() {
-        Some(dir) => Some(Decomp::load(&dir).context("reading the decomp script sources")?),
+        Some(dir) => match load_decomp(&dir) {
+            Ok(d) => Some(d),
+            Err(e) => {
+                println!(
+                    "warning: cannot read the decomp at {}: {e:#}; script names are positional",
+                    dir.display()
+                );
+                None
+            }
+        },
         None => {
             println!(
                 "warning: PKR_DECOMP is not set and no ../pokeemerald was found: script names \
@@ -430,6 +444,7 @@ pub fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()>
             None
         }
     };
+    provenance.insert(DECOMP_NAMES_KEY.to_string(), Hex(decomp.is_some().into()));
     let inputs: Vec<MapInput> = input
         .maps
         .iter()
@@ -438,7 +453,7 @@ pub fn export_scripts(rom: &Rom, input: &ScriptInput, o: &mut Out) -> Result<()>
             header: m.header.clone(),
         })
         .collect();
-    let ir = build_ir(rom, decomp.as_ref(), &inputs)?;
+    let ir = build_ir(rom, decomp.as_deref(), &inputs)?;
     for (module, file) in &ir.files {
         o.ron(&format!("scripts/{module}.ron"), file)?;
     }

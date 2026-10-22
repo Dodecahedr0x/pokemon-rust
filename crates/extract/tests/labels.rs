@@ -1,7 +1,7 @@
 //! Decomp label transfer (M8 Task B) on both ROMs and every map: coverage on BPEF, precision on
 //! BPEE (checked by content, since there is no built decomp symbol map), `map.json` roots and
 //! independence from the order of the maps fed in.
-use extract::inc::{Decomp, LabelKind};
+use extract::inc::{Decomp, Label, LabelKind};
 use extract::labels::{self, Kind, MapInput, NameOrigin, Transfer};
 use extract::{Rom, export, fixtures, maps, movement, names, scripts, text};
 use std::collections::{BTreeMap, BTreeSet};
@@ -136,26 +136,103 @@ fn bpef_coverage_is_at_least_95_percent_per_kind() {
     assert_eq!(unique.len(), t.names.len());
 }
 
-/// The commands at `off` in the ROM match the source body's macros (`compare` either form).
-fn ops_match(rom: &Rom, off: u32, want: &[&str]) -> Result<(), String> {
-    let mut pc = off;
-    for (i, w) in want.iter().enumerate() {
-        let insn = scripts::decode(rom, pc)
-            .map_err(|e| e.to_string())?
-            .ok_or(format!("invalid opcode at {pc:#x}"))?;
-        let ok = match *w {
-            "compare" => insn.name.starts_with("compare_var_to_"),
-            w => insn.name == w,
-        };
-        if !ok {
-            return Err(format!(
-                "command {i}: {} in the ROM, {w} in the source",
-                insn.name
-            ));
-        }
-        pc += insn.len;
+/// Values of a decomp constant: a number, or every entry of `table` named `<prefix><s>` (a
+/// special can be listed twice); empty when the source spells it some other way.
+fn value(table: &names::Table, prefix: &str, s: &str) -> Vec<u32> {
+    let num = match s.strip_prefix("0x") {
+        Some(h) => u32::from_str_radix(h, 16).ok(),
+        None => s.parse().ok(),
+    };
+    if let Some(n) = num {
+        return vec![n];
     }
-    Ok(())
+    let name = format!("{prefix}{s}");
+    let mut out: Vec<u32> = table
+        .iter()
+        .filter(|(_, n)| *n == name)
+        .map(|(v, _)| v)
+        .collect();
+    out.extend(table.value(&name));
+    out
+}
+
+/// The `Flag`/`Var`/`Const` operands a statement's first command must carry: (operand index,
+/// expected value) for the ones the source names.
+fn named_operands(mac: &str, args: &[String]) -> Vec<(usize, Vec<u32>)> {
+    let flag = |i: usize| value(&names::FLAGS, "", &args[i]);
+    let var = |i: usize| value(&names::VARS, "", &args[i]);
+    let cc = |p: &str| {
+        ["lt", "eq", "gt", "le", "ge", "ne"]
+            .iter()
+            .any(|c| mac.strip_prefix(p) == Some(c))
+    };
+    match mac {
+        "setflag" | "clearflag" | "checkflag" | "goto_if_set" | "goto_if_unset" | "call_if_set"
+        | "call_if_unset" => vec![(0, flag(0))],
+        "setvar" => vec![(0, var(0)), (1, value(&names::VARS, "", &args[1]))],
+        "addvar" | "subvar" | "copyvar" => vec![(0, var(0))],
+        "special" => vec![(0, value(&names::SPECIALS, "SPECIAL_", &args[0]))],
+        "case" => vec![
+            (0, value(&names::VARS, "", "VAR_0x8000")),
+            (1, value(&names::VARS, "", &args[0])),
+        ],
+        _ if (cc("goto_if_") || cc("call_if_")) && args.len() == 3 => {
+            vec![(0, var(0)), (1, value(&names::VARS, "", &args[1]))]
+        }
+        _ => vec![],
+    }
+}
+
+/// Checks the commands at `off` against `l`'s body (`compare` either form, and the named
+/// flag, var and special operands). Returns how many commands were checked and whether the
+/// whole body was (bodies are checked up to a macro the reader cannot expand).
+fn script_matches(d: &Decomp, rom: &Rom, l: &Label, off: u32) -> Result<(usize, bool), String> {
+    let mut pc = off;
+    let mut n = 0;
+    for s in &l.body {
+        let Some(ops) = d.expand_stmt(s) else {
+            return Ok((n, false));
+        };
+        let want_args = named_operands(&s.mac, &s.args);
+        for (k, w) in ops.iter().enumerate() {
+            let insn = scripts::decode(rom, pc)
+                .map_err(|e| e.to_string())?
+                .ok_or(format!("invalid opcode at {pc:#x}"))?;
+            let ok = match *w {
+                "compare" => insn.name.starts_with("compare_var_to_"),
+                w => insn.name == w,
+            };
+            if !ok {
+                return Err(format!(
+                    "line {}: {} in the ROM, {w} in the source",
+                    s.line, insn.name
+                ));
+            }
+            if k == 0 {
+                for (i, want) in &want_args {
+                    let got = match insn.args.get(*i) {
+                        Some(scripts::Operand::Half(h)) => Some(u32::from(*h)),
+                        _ => None,
+                    };
+                    if let Some(got) = got
+                        && !want.is_empty()
+                        && !want.contains(&got)
+                    {
+                        return Err(format!(
+                            "line {}: {} operand {i} is {got:#x}, source {:?}",
+                            s.line, insn.name, s.args
+                        ));
+                    }
+                }
+            }
+            n += 1;
+            pc += insn.len;
+        }
+        if scripts::opcode(&s.mac).is_some_and(scripts::is_terminator_op) {
+            break;
+        }
+    }
+    Ok((n, true))
 }
 
 #[test]
@@ -167,6 +244,7 @@ fn bpee_decomp_names_match_their_source_by_content() {
     let mut unchecked = BTreeMap::<Kind, usize>::new();
     let mut wrong = Vec::new();
     let mut partial = 0;
+    let mut unexpanded = Vec::new();
     for (&off, (name, origin)) in &t.names {
         if *origin != NameOrigin::Decomp {
             continue;
@@ -177,14 +255,20 @@ fn bpee_decomp_names_match_their_source_by_content() {
             continue;
         };
         let res = match (kind, l.kind) {
-            (Kind::Script, LabelKind::Script) => {
-                // Bodies with battle facility helper macros are checked up to the first one.
-                let (ops, complete) = d.ops_prefix(l);
-                if !complete {
-                    partial += 1;
+            (Kind::Script, LabelKind::Script) => match script_matches(d, rom, l, off) {
+                Ok((0, false)) => {
+                    *unchecked.entry(kind).or_default() += 1;
+                    unexpanded.push(name.clone());
+                    continue;
                 }
-                ops_match(rom, off, &ops)
-            }
+                Ok((_, complete)) => {
+                    if !complete {
+                        partial += 1;
+                    }
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            },
             (Kind::Text, LabelKind::Text) => {
                 let src = d.text(l).unwrap();
                 let want = text::encode(&src).unwrap();
@@ -219,8 +303,16 @@ fn bpee_decomp_names_match_their_source_by_content() {
         }
     }
     eprintln!(
-        "BPEE checked {checked:?} ({partial} scripts up to a facility macro), unchecked \
-         {unchecked:?} (C symbols and braille)"
+        "BPEE checked {checked:?} ({partial} scripts up to an unexpanded macro), unchecked \
+         {unchecked:?} (scripts: {unexpanded:?})"
+    );
+    // Only braille goes unchecked (and scripts opening with a macro the reader cannot expand,
+    // none today).
+    assert!(unexpanded.is_empty(), "{unexpanded:?}");
+    assert!(partial == 0, "{partial} scripts checked partially");
+    assert!(
+        unchecked.keys().all(|k| *k == Kind::Braille),
+        "{unchecked:?}"
     );
     for (kind, set) in [
         ("functions", &t.reached.scripts),
@@ -282,9 +374,9 @@ fn every_map_json_event_label_is_a_root() {
 #[test]
 fn slice_roots_get_their_map_json_labels() {
     let rom = fixtures::fr();
-    let t = labels::transfer(&rom, Some(decomp()), &inputs(&rom, &export::MAPS)).unwrap();
+    let t = labels::transfer(&rom, Some(decomp()), &inputs(&rom, &export::SLICE_MAPS)).unwrap();
     let mut n = 0;
-    for map in export::MAPS {
+    for map in export::SLICE_MAPS {
         for l in json_labels(map) {
             let pos = t
                 .root_labels
@@ -312,7 +404,7 @@ fn slice_roots_get_their_map_json_labels() {
 #[test]
 fn decomp_names_do_not_depend_on_map_order() {
     let rom = fixtures::fr();
-    let fwd: Vec<&str> = export::MAPS.to_vec();
+    let fwd: Vec<&str> = export::SLICE_MAPS.to_vec();
     let mut rev = fwd.clone();
     rev.reverse();
     let a = labels::transfer(&rom, Some(decomp()), &inputs(&rom, &fwd)).unwrap();
@@ -336,7 +428,7 @@ fn decomp_names_do_not_depend_on_map_order() {
 #[test]
 fn without_the_decomp_every_name_is_positional() {
     let rom = fixtures::fr();
-    let t = labels::transfer(&rom, None, &inputs(&rom, &export::MAPS[..2])).unwrap();
+    let t = labels::transfer(&rom, None, &inputs(&rom, &["LittlerootTown", "Route101"])).unwrap();
     assert!(!t.names.is_empty());
     assert!(t.names.values().all(|(_, o)| *o == NameOrigin::Positional));
     assert!(t.names.values().any(|(n, _)| n == "LittlerootTown_Obj1"));

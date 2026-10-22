@@ -31,6 +31,7 @@ use anyhow::{Context, Result};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub use crate::schema::NameOrigin;
+use crate::schema::RootKind;
 
 /// What lives at a named offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,6 +113,8 @@ pub struct Transfer {
     pub roots: BTreeMap<String, u32>,
     /// Positional root name -> its `map.json` (or `map_script`) label.
     pub root_labels: BTreeMap<String, String>,
+    /// Root offset -> the first root (in map order) starting there.
+    pub root_kinds: BTreeMap<u32, RootKind>,
     /// Per module of the walked label.
     pub stats: BTreeMap<String, ModuleStats>,
     pub mismatches: Vec<Mismatch>,
@@ -150,6 +153,19 @@ pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
         let named = roots::named_roots(rom, &m.header, &m.map)?;
         for (name, off) in &named {
             t.roots.insert(name.clone(), *off);
+            let rest = name
+                .strip_prefix(&format!("{}_", m.map))
+                .context("root name")?;
+            let kind = if let Some(n) = rest.strip_prefix("Obj") {
+                RootKind::Object(n.parse()?)
+            } else if let Some(n) = rest.strip_prefix("Coord") {
+                RootKind::Coord(n.parse()?)
+            } else if let Some(n) = rest.strip_prefix("Bg") {
+                RootKind::Bg(n.parse()?)
+            } else {
+                RootKind::MapScript(rest.to_string())
+            };
+            t.root_kinds.entry(*off).or_insert(kind);
             root_list.push((name.clone(), *off, m.map.clone()));
         }
         if let Some(d) = decomp {
@@ -366,16 +382,29 @@ impl Walk<'_> {
             chain.push(n);
         }
         let refs: Vec<inc::Ref> = chain.iter().flat_map(|&c| d.refs(&d.labels[c])).collect();
-        let (insns, invalid) = block(self.rom, off)?;
-        let mut ops: Vec<(Kind, Option<u32>)> = insns.iter().flat_map(operands).collect();
+        let (mut insns, invalid) = block(self.rom, off)?;
         // A chain with no terminator runs into data ("forced stop" after a warp): the source
-        // only describes a prefix of what the ROM decodes from there.
-        let runs_off = !d.terminates(&d.labels[*chain.last().unwrap()]);
-        if runs_off && ops.len() >= refs.len() {
-            ops.truncate(refs.len());
+        // only describes the first commands of what the ROM decodes from there, as many as
+        // its bodies expand to.
+        if !d.terminates(&d.labels[*chain.last().unwrap()]) {
+            let mut count = 0;
+            for &c in &chain {
+                let Some(ops) = d.ops(&d.labels[c]) else {
+                    return Ok(Err("forced stop after an unexpanded macro".to_string()));
+                };
+                count += ops.len();
+            }
+            if insns.len() < count {
+                return Ok(Err(format!(
+                    "{} commands in the ROM before an invalid opcode, {count} in the source",
+                    insns.len()
+                )));
+            }
+            insns.truncate(count);
         } else if let Some(pc) = invalid {
             return Ok(Err(format!("invalid opcode at {pc:#x}")));
         }
+        let ops: Vec<(Kind, Option<u32>)> = insns.iter().flat_map(operands).collect();
         if ops.len() != refs.len() {
             return Ok(Err(format!(
                 "{} label operands in the ROM, {} in the source",

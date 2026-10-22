@@ -377,6 +377,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
             canonical: &canonical,
         },
         &mut o,
+        &mut provenance,
     )?;
     tables::export_tables(rom, &mut o, &mut provenance)?;
 
