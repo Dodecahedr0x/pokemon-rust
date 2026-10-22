@@ -572,6 +572,15 @@ fn verify_diverged_with_and_without_a_hash_hint() {
 #[test]
 fn verify_broken_nondeterminism_replayer_error_and_parent_broken() {
     let (root, store, [a, b, c, d]) = tree("broken");
+    let files = |ids: [CheckpointId; 2]| {
+        ids.map(|id| {
+            (
+                fs::read(root.join(format!("nodes/{id}.ron"))).unwrap(),
+                store.snapshot(id).unwrap(),
+            )
+        })
+    };
+    let before = files([b, c]);
     // Same build, different state: nondeterminism.
     let out = store.verify(replayer(BUILD, Some(30), None), true).unwrap();
     let nondet = Status::Broken("nondeterministic: same build, different state".into());
@@ -606,9 +615,8 @@ fn verify_broken_nondeterminism_replayer_error_and_parent_broken() {
             (d, parent)
         ]
     );
-    // accept never touches Broken nodes.
-    assert_eq!(store.find("b").unwrap().meta.build, BUILD);
-    assert_eq!(store.snapshot(b).unwrap().unwrap().header.build, BUILD);
+    // accept never touches Broken nodes (b, c were Broken in both runs).
+    assert_eq!(files([b, c]), before);
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -696,4 +704,135 @@ fn default_root_is_per_flavor() {
                 .is_file()
         );
     }
+}
+
+#[test]
+fn a_child_of_a_diverged_parent_on_its_own_build_is_diverged_not_broken() {
+    let (root, store, [a, b, c, d]) = tree("parent-diverged");
+    // b was recorded on another build; c (its child) on this one.
+    let mut n = store.find("b").unwrap();
+    n.meta.build = OTHER_BUILD;
+    fs::write(root.join("nodes/c00002.ron"), ron::to_string(&n).unwrap()).unwrap();
+    let out = store
+        .verify(replayer(BUILD, Some(30), None), false)
+        .unwrap();
+    assert_eq!(
+        out,
+        [
+            (a, Status::Valid),
+            (
+                b,
+                Status::Diverged {
+                    hash: None,
+                    parent_diverged: false
+                }
+            ),
+            (
+                c,
+                Status::Diverged {
+                    hash: None,
+                    parent_diverged: true
+                }
+            ),
+            (d, Status::Valid),
+        ]
+    );
+    store.verify(replayer(BUILD, Some(30), None), true).unwrap();
+    let out = store
+        .verify(replayer(BUILD, Some(30), None), false)
+        .unwrap();
+    assert!(out.iter().all(|(_, s)| *s == Status::Valid), "{out:?}");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_trace_of_another_schema_is_broken_and_add_rejects_other_schemas() {
+    let (root, store, [a, b, c, d]) = tree("trace-schema");
+    let mut n = store.find("b").unwrap();
+    n.trace.schema = TRACE_SCHEMA + 1;
+    fs::write(root.join("nodes/c00002.ron"), ron::to_string(&n).unwrap()).unwrap();
+    let out = store.verify(replayer(BUILD, None, None), true).unwrap();
+    let parent = Status::Broken("parent broken".into());
+    assert_eq!(
+        out,
+        [
+            (a, Status::Valid),
+            (
+                b,
+                Status::Broken(format!("trace schema {}", TRACE_SCHEMA + 1))
+            ),
+            (c, parent),
+            (d, Status::Valid),
+        ]
+    );
+    let t = trace(Parent::Checkpoint(a), 10, &[(Buttons::NONE, 2)]);
+    let mut wrong = t.clone();
+    wrong.schema = TRACE_SCHEMA + 1;
+    let e = store
+        .add("x", wrong, &checkpoint(12, 3, BUILD))
+        .unwrap_err();
+    assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    let mut cp = checkpoint(12, 3, BUILD);
+    cp.header.schema = SCHEMA + 1;
+    let e = store.add("x", t, &cp).unwrap_err();
+    assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn badly_named_node_files_are_errors() {
+    let (root, store, _) = tree("names");
+    fs::copy(root.join("nodes/c00001.ron"), root.join("nodes/c1.ron")).unwrap();
+    let e = store.nodes().unwrap_err();
+    assert!(e.to_string().contains("not a node file name"), "{e}");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn corrupt_snapshots_read_as_none() {
+    let (root, store, [a, ..]) = tree("corrupt");
+    fs::write(
+        root.join("snapshots/c00001.ron"),
+        "(header: (schema: 1, buil",
+    )
+    .unwrap();
+    assert_eq!(store.snapshot(a).unwrap(), None);
+    fs::write(root.join("snapshots/c00001.ron"), "garbage").unwrap();
+    assert_eq!(store.snapshot(a).unwrap(), None);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn remove_forgets_the_status_of_the_id() {
+    let (root, store, [_, _, c, d]) = tree("rm-status");
+    store.verify(replayer(BUILD, None, None), false).unwrap();
+    store.remove(d).unwrap();
+    let status = read_status(&root);
+    assert!(!status.contains_key(&d) && status.contains_key(&c));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn replay_reports_a_recorded_hash_past_the_end() {
+    let (mut trace, hashes) = recorded_trace();
+    trace.hashes.push((400, 7));
+    let game = content::Emerald::for_shells();
+    let report = replay(&game, &mut World::new(&game), &trace, |_, _| {});
+    assert_eq!(
+        report.first_mismatch,
+        Some(HashMismatch {
+            frame: 400,
+            want: 7,
+            got: hashes[299]
+        })
+    );
+}
+
+#[test]
+#[should_panic(expected = "start frame")]
+fn replay_requires_the_world_at_the_start_frame() {
+    let game = content::Emerald::for_shells();
+    let mut t = trace(Parent::NewGame, 0, &[(Buttons::NONE, 1)]);
+    t.start_frame = 5;
+    replay(&game, &mut World::new(&game), &t, |_, _| {});
 }

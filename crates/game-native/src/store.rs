@@ -10,7 +10,7 @@
 //! indent), written to `*.tmp` and renamed into place. Nothing in a file depends on the host,
 //! the clock or the store's location, so writing the same node twice gives the same bytes.
 
-use crate::trace::{CheckpointId, HashMismatch, Parent, ReplayReport, Trace};
+use crate::trace::{CheckpointId, HashMismatch, Parent, ReplayReport, TRACE_SCHEMA, Trace};
 use engine::checkpoint::{BuildHash, Checkpoint, SCHEMA, WorldSnapshot};
 use engine::data::MapId;
 use engine::hash::Fnv64;
@@ -18,7 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -88,6 +88,7 @@ pub struct Store {
 
 /// The semantic identity of a snapshot: FNV-1a-64 over its postcard bytes, as
 /// `engine::checkpoint::state_digest` defines it (Task C; a test pins the two together).
+/// Replace with `engine::checkpoint::state_digest` once Task C merges.
 fn digest(w: &WorldSnapshot) -> u64 {
     let bytes = postcard::to_allocvec(w).expect("snapshots always encode");
     let mut h = Fnv64::new();
@@ -134,14 +135,19 @@ fn read_ron<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
     })
 }
 
-/// Writes `path` through `path.tmp` and a rename, so readers never see half a file.
+/// Writes `path` through `path.tmp` (synced) and a rename, so readers never see half a file.
+/// The store assumes one writer at a time: two concurrent writers share the `.tmp` name and
+/// may both allocate the same id.
 fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
-    fs::write(&tmp, text)?;
+    let mut f = fs::File::create(&tmp)?;
+    f.write_all(text.as_bytes())?;
+    f.sync_all()?;
+    drop(f);
     fs::rename(&tmp, path)
 }
 
@@ -223,7 +229,7 @@ impl Store {
                 continue; // `*.tmp` leftovers, editor files
             };
             let id = parse_id(stem)
-                .filter(|_| stem.starts_with('c'))
+                .filter(|id| stem == id.to_string())
                 .ok_or_else(|| invalid(format!("nodes/{name}: not a node file name")))?;
             ids.push(id);
         }
@@ -267,12 +273,22 @@ impl Store {
         Ok(())
     }
 
-    /// Adds a node (id: max + 1) whose `trace` leads from its parent to `cp`, and caches `cp`.
+    /// Adds a node (id: max + 1, so removing the highest node frees its id for reuse) whose
+    /// `trace` leads from its parent to `cp`, and caches `cp`.
     /// The parent must exist, the trace must start at the parent's frame (0 for a new game)
     /// and end at `cp`'s.
     pub fn add(&self, label: &str, trace: Trace, cp: &Checkpoint) -> io::Result<CheckpointId> {
         let nodes = self.nodes()?;
         Self::check_label(&nodes, label, None)?;
+        if trace.schema != TRACE_SCHEMA || cp.header.schema != SCHEMA {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "trace schema {} / checkpoint schema {} (this build: {TRACE_SCHEMA} / {SCHEMA})",
+                    trace.schema, cp.header.schema
+                ),
+            ));
+        }
         let parent_frame = match trace.parent {
             Parent::NewGame => 0,
             Parent::Checkpoint(p) => match nodes.iter().find(|n| n.meta.id == p) {
@@ -298,7 +314,8 @@ impl Store {
                 ),
             ));
         }
-        let id = CheckpointId(nodes.last().map_or(1, |n| n.meta.id.0 + 1));
+        let next = nodes.last().map_or(Some(1), |n| n.meta.id.0.checked_add(1));
+        let id = CheckpointId(next.ok_or_else(|| invalid("no checkpoint id left"))?);
         let node = Node {
             meta: NodeMeta::of(id, label.into(), cp),
             trace,
@@ -338,23 +355,43 @@ impl Store {
         }
         fs::remove_file(self.node_path(id))?;
         match fs::remove_file(self.snapshot_path(id)) {
-            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
-            _ => Ok(()),
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+            _ => {}
         }
+        // The id may be reused: forget its verdict (a missing or unreadable status is fine).
+        let status_path = self.root.join("status.ron");
+        if let Ok(mut status) = read_ron::<BTreeMap<CheckpointId, Status>>(&status_path)
+            && status.remove(&id).is_some()
+        {
+            write_atomic(&status_path, &to_ron(&status)?)?;
+        }
+        Ok(())
     }
 
-    /// The cached snapshot; `None` if absent or of another schema.
+    /// The cached snapshot; `None` if absent, of another schema, or undecodable (it is a
+    /// cache: replay rebuilds it).
     pub fn snapshot(&self, id: CheckpointId) -> io::Result<Option<Checkpoint>> {
         let path = self.snapshot_path(id);
         let probe: SchemaProbe = match read_ron(&path) {
             Ok(p) => p,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::InvalidData
+                ) =>
+            {
+                return Ok(None);
+            }
             Err(e) => return Err(e),
         };
         if probe.header.schema != SCHEMA {
             return Ok(None);
         }
-        read_ron(&path).map(Some)
+        match read_ron(&path) {
+            Ok(cp) => Ok(Some(cp)),
+            Err(e) if e.kind() == io::ErrorKind::InvalidData => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn put_snapshot(&self, id: CheckpointId, cp: &Checkpoint) -> io::Result<()> {
@@ -398,7 +435,9 @@ impl Store {
     /// - a Broken parent (or a replayer error) makes the node Broken, without replaying it;
     /// - `meta.schema != SCHEMA` is Stale;
     /// - an equal `state_digest` is Valid (its snapshot is cached);
-    /// - a different digest on the node's own build is Broken (nondeterminism);
+    /// - a trace of another `TRACE_SCHEMA` is Broken, without replaying it;
+    /// - a different digest on the node's own build is Broken (nondeterminism), unless its
+    ///   parent diverged (then the child is Diverged too, so `--accept` re-baselines the subtree);
     /// - otherwise it is Diverged, with the replay's first hash mismatch, and whether its
     ///   parent diverged too.
     ///
@@ -426,6 +465,9 @@ impl Store {
                 ),
             };
             let replayed = match parent {
+                _ if node.trace.schema != TRACE_SCHEMA => {
+                    Err(format!("trace schema {}", node.trace.schema))
+                }
                 None => Err("parent broken".to_string()),
                 Some(parent) => replay(parent, &node.trace),
             };
@@ -438,7 +480,7 @@ impl Store {
                         }
                     } else if digest(&r.checkpoint.world) == node.meta.digest {
                         Status::Valid
-                    } else if node.meta.build == r.checkpoint.header.build {
+                    } else if node.meta.build == r.checkpoint.header.build && !parent_diverged {
                         Status::Broken("nondeterministic: same build, different state".into())
                     } else {
                         Status::Diverged {
@@ -500,7 +542,17 @@ mod tests {
         let theirs = std::panic::catch_unwind(|| engine::checkpoint::state_digest(&w));
         match theirs {
             Ok(d) => assert_eq!(ours, d),
-            Err(_) => eprintln!("state_digest is still a stub; skipped"),
+            Err(p) => {
+                let msg = p
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| p.downcast_ref::<&str>().copied())
+                    .unwrap_or("");
+                if !msg.contains("not yet implemented") {
+                    std::panic::resume_unwind(p);
+                }
+                eprintln!("state_digest is still a stub; skipped");
+            }
         }
     }
 

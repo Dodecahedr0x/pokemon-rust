@@ -83,7 +83,9 @@ pub struct Trace {
 impl Trace {
     /// Frames the trace steps.
     pub fn frames(&self) -> u32 {
-        self.inputs.iter().map(|r| r.frames).sum()
+        self.inputs
+            .iter()
+            .fold(0u32, |n, r| n.saturating_add(r.frames))
     }
 
     /// The keys of every frame, in order.
@@ -180,13 +182,19 @@ pub fn replay(
 /// build, for `verify --accept`.
 ///
 /// Every frame is stepped (a mismatch never stops the replay) and `each` sees the world and
-/// frame after every step. Recorded hashes past the trace's end, or out of order, are ignored.
+/// frame after every step. A recorded hash past the trace's end is a mismatch (`got` is the
+/// end hash); out-of-order hashes are skipped. Panics if `world` is not at `start_frame`.
 pub fn replay_with_hashes(
     game: &impl GameData,
     world: &mut World,
     trace: &Trace,
     mut each: impl FnMut(&World, &Frame),
 ) -> (ReplayReport, Vec<(u32, u64)>) {
+    assert_eq!(
+        world.frame(),
+        trace.start_frame,
+        "replay: the world must be at the trace's start frame"
+    );
     let n = trace.frames();
     let mut want = trace.hashes.iter().copied().peekable();
     let mut observed = Vec::new();
@@ -215,6 +223,16 @@ pub fn replay_with_hashes(
             });
         }
         end_hash = got;
+    }
+    // A recorded hash past the end was never reproduced: the trace was cut short.
+    if first_mismatch.is_none()
+        && let Some(&(at, want)) = trace.hashes.iter().find(|&&(at, _)| at > n)
+    {
+        first_mismatch = Some(HashMismatch {
+            frame: at,
+            want,
+            got: end_hash,
+        });
     }
     let report = ReplayReport {
         frames: n,
