@@ -46,6 +46,9 @@ pub enum NativeCmd {
         trace: Trace,
         frames: u32,
     },
+    /// A line for the inspector's `last`, after what is there (e.g. "found on another build"
+    /// after an `OpenTrace`'s own note).
+    Note(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -370,6 +373,15 @@ impl Pane for NativePane {
                 if let Err(e) = self.open_trace(trace, frames) {
                     self.controls.note(format!("open trace failed: {e}"));
                 }
+            }
+            NativeCmd::Note(n) => {
+                let last = self.controls.last();
+                let n = if last.is_empty() {
+                    n
+                } else {
+                    format!("{last}; {n}")
+                };
+                self.controls.note(n);
             }
         }
     }

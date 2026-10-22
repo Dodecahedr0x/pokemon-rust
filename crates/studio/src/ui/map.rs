@@ -12,10 +12,19 @@
 //!   follows the live map and keeps the camera centred.
 //! - Re-renders stay cheap: the cell layers and the overlay marks are memoized child
 //!   components, so a camera move (60 Hz) or a hover re-renders neither.
+//! - The "coverage" layer (M7 S2) is the explorer db's per-cell heat for the shown map
+//!   ([`CoverageGrid::load`], then `coverage_paths`), read on a worker thread and never cached
+//!   in the [`MapCache`]. It is read again when the shown map changes and on each
+//!   [`ExplorerState::tick`] (a poll that saw the db change: every couple of seconds while a
+//!   run is going).
 
+use super::explorer::ExplorerState;
+use super::off_thread;
+use crate::explorer::CoverageGrid;
 use crate::map_view::{
     CellLayers, MapEntry, MapRoute, Overlay, Placed, camera_cell, camera_rect, cell_at,
-    click_target, describe, layer_paths, map_list, overlay_cell, parse_map_request, shown_map,
+    click_target, coverage_paths, describe, layer_paths, map_list, overlay_cell, parse_map_request,
+    shown_map,
 };
 pub use crate::map_view::{Live, VIEW_MARGIN as MARGIN};
 use content::Emerald;
@@ -24,6 +33,7 @@ use engine::data::MapId;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -245,9 +255,13 @@ enum Layer {
     Coords,
     Bgs,
     Connections,
+    Coverage,
 }
 
-const LAYERS: [(Layer, &str, bool); 8] = [
+/// How many toggles there are.
+const N_LAYERS: usize = 9;
+
+const LAYERS: [(Layer, &str, bool); N_LAYERS] = [
     (Layer::Collision, "collision", false),
     (Layer::Behavior, "behavior", false),
     (Layer::Elevation, "elevation", false),
@@ -256,13 +270,19 @@ const LAYERS: [(Layer, &str, bool); 8] = [
     (Layer::Coords, "coords", true),
     (Layer::Bgs, "bgs", true),
     (Layer::Connections, "connections", true),
+    (Layer::Coverage, "coverage", false),
 ];
 
-fn layer_on(layers: [bool; 8], l: Layer) -> bool {
+/// `l`'s position in [`LAYERS`] (every layer is listed).
+fn layer_index(l: Layer) -> usize {
     LAYERS
         .iter()
         .position(|x| x.0 == l)
-        .is_some_and(|i| layers[i])
+        .expect("every layer is in LAYERS")
+}
+
+fn layer_on(layers: [bool; N_LAYERS], l: Layer) -> bool {
+    layers[layer_index(l)]
 }
 
 fn layer_of(o: &Overlay) -> Layer {
@@ -295,7 +315,31 @@ const CSS: &str = r#"
 .map-info { width: 260px; color: var(--muted); }
 .map-info b { color: var(--fg); }
 .map-error { color: #ff6a6a; }
+.map-coverage { color: var(--muted); }
+.heat-1 { fill: rgba(80, 140, 255, 0.40); }
+.heat-2 { fill: rgba(80, 220, 140, 0.45); }
+.heat-3 { fill: rgba(255, 210, 60, 0.50); }
+.heat-4 { fill: rgba(255, 80, 60, 0.55); }
 "#;
+
+/// SVG paths `(class, d)`, shared with the memoized layer.
+pub type Paths = Arc<Vec<(String, String)>>;
+
+/// A map's coverage layer as read: its paths (`coverage_paths`) and visited cells, or why the
+/// db could not be read.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CoverageView {
+    pub map: MapId,
+    pub layer: Result<(Paths, usize), String>,
+}
+
+/// Reads `map`'s coverage from the db at `db` and draws it (blocking: off the UI thread).
+pub fn load_coverage(db: &std::path::Path, map: MapId) -> CoverageView {
+    let layer = CoverageGrid::load(db, &Emerald::for_shells(), map)
+        .map(|g| (Arc::new(coverage_paths(&g, MARGIN)), g.visited()))
+        .map_err(|e| format!("{e:#}"));
+    CoverageView { map, layer }
+}
 
 /// An `Arc` compared by pointer (a prop).
 pub struct Shared<T>(pub Arc<T>);
@@ -313,9 +357,14 @@ impl<T> PartialEq for Shared<T> {
 }
 
 /// The Map tab. `live` is the native pane's map and camera (see [`Live::from_inspector`]);
-/// `None` hides "Show live map".
+/// `None` hides "Show live map". `coverage_db` is the explorer db the coverage layer reads
+/// (`None`: the layer draws nothing); `coverage` starts with that layer on.
 #[component]
-pub fn Map(#[props(default)] live: Option<Live>) -> Element {
+pub fn Map(
+    #[props(default)] live: Option<Live>,
+    #[props(default)] coverage_db: Option<PathBuf>,
+    #[props(default)] coverage: bool,
+) -> Element {
     let cache = use_hook(|| {
         try_consume_context::<MapCache>().unwrap_or_else(|| {
             eprintln!(
@@ -332,9 +381,32 @@ pub fn Map(#[props(default)] live: Option<Live>) -> Element {
     });
     let mut follow = use_signal(|| false);
     let mut zoom = use_signal(|| 2i32);
-    let mut layers = use_signal(|| LAYERS.map(|l| l.2));
+    let mut layers = use_signal(|| {
+        let mut on = LAYERS.map(|l| l.2);
+        on[layer_index(Layer::Coverage)] = coverage;
+        on
+    });
     let mut loaded = use_signal(|| 0u64);
     let requested = use_hook(|| Rc::new(Cell::new(None::<MapId>)));
+    let mut heat = use_signal(|| None::<CoverageView>);
+    let heat_requested = use_hook(|| Rc::new(Cell::new(None::<(MapId, u64)>)));
+    let explorer = try_use_context::<ExplorerState>();
+    let tick = explorer.map(|s| s.tick);
+    // Tell the shell's explorer poll whether the coverage layer is shown (it then polls, so a
+    // run started from the CLI refreshes the layer too).
+    use_effect(move || {
+        let on = layer_on(layers(), Layer::Coverage);
+        if let Some(mut s) = explorer
+            && *s.coverage.peek() != on
+        {
+            s.coverage.set(on);
+        }
+    });
+    use_drop(move || {
+        if let Some(mut s) = explorer {
+            s.coverage.set(false);
+        }
+    });
 
     let shown = shown_map(selected(), follow(), live);
     let _ = loaded();
@@ -352,6 +424,36 @@ pub fn Map(#[props(default)] live: Option<Live>) -> Element {
         follow.set(false);
         selected.set(m);
     };
+    // The coverage layer: read again when the map changes or the explorer db did. Only the
+    // latest request's answer is kept, so an older read that ends last (another map, or an
+    // earlier tick) never replaces a newer one.
+    let coverage_on = layer_on(layers(), Layer::Coverage);
+    if let (true, Some(db)) = (coverage_on, coverage_db) {
+        let key = (shown, tick.map_or(0, |t| t()));
+        if heat_requested.get() != Some(key) {
+            heat_requested.set(Some(key));
+            let latest = heat_requested.clone();
+            spawn(async move {
+                if let Some(v) = off_thread(move || load_coverage(&db, shown)).await
+                    && latest.get() == Some(key)
+                {
+                    heat.set(Some(v));
+                }
+            });
+        }
+    }
+    let heat_now = heat
+        .read()
+        .clone()
+        .filter(|v| coverage_on && v.map == shown);
+    let heat_paths = heat_now
+        .as_ref()
+        .and_then(|v| v.layer.as_ref().ok())
+        .map(|(p, _)| Shared(p.clone()));
+    let heat_text = heat_now.map(|v| match v.layer {
+        Ok((_, n)) => format!("coverage: {n} cells visited"),
+        Err(e) => format!("coverage: {e}"),
+    });
 
     rsx! {
         style { {CSS} }
@@ -379,6 +481,9 @@ pub fn Map(#[props(default)] live: Option<Live>) -> Element {
                             "{name}"
                         }
                     }
+                    if let Some(t) = heat_text {
+                        span { class: "map-coverage", "data-coverage": "1", "{t}" }
+                    }
                     if live.is_some() {
                         label {
                             input {
@@ -400,6 +505,7 @@ pub fn Map(#[props(default)] live: Option<Live>) -> Element {
                             layers: layers(),
                             camera: live.filter(|l| l.map == shown).map(|l| l.camera),
                             follow: follow(),
+                            heat: heat_paths,
                             on_open: open,
                         }
                     },
@@ -463,9 +569,10 @@ fn center_js(center: (i32, i32), zoom: i32) -> String {
 fn MapBody(
     entry: Shared<MapEntry>,
     zoom: i32,
-    layers: [bool; 8],
+    layers: [bool; N_LAYERS],
     camera: Option<(i32, i32)>,
     follow: bool,
+    heat: Option<Shared<Vec<(String, String)>>>,
     on_open: EventHandler<MapId>,
 ) -> Element {
     let e = entry.0.clone();
@@ -517,6 +624,9 @@ fn MapBody(
                         },
                         onmouseleave: move |_| set_hover(None),
                         CellPaths { entry: entry.clone(), on: cell_layers }
+                        if let Some(paths) = heat {
+                            HeatPaths { paths }
+                        }
                         Marks { entry: entry.clone(), layers, on_hover: set_hover, on_open }
                         if let Some(cam) = camera {
                             CameraRect { camera: cam }
@@ -548,6 +658,19 @@ fn CellPaths(entry: Shared<MapEntry>, on: CellLayers) -> Element {
     }
 }
 
+/// The coverage layer: one path per heat bucket, styled by its class (memoized like
+/// [`CellPaths`]).
+#[component]
+fn HeatPaths(paths: Shared<Vec<(String, String)>>) -> Element {
+    rsx! {
+        g { "data-layer": "coverage", pointer_events: "none",
+            for (class, d) in paths.0.iter() {
+                path { class: "{class}", d: "{d}" }
+            }
+        }
+    }
+}
+
 /// The live camera's window.
 #[component]
 fn CameraRect(camera: (i32, i32)) -> Element {
@@ -572,7 +695,7 @@ fn CameraRect(camera: (i32, i32)) -> Element {
 #[component]
 fn Marks(
     entry: Shared<MapEntry>,
-    layers: [bool; 8],
+    layers: [bool; N_LAYERS],
     on_hover: EventHandler<Option<(i16, i16)>>,
     on_open: EventHandler<MapId>,
 ) -> Element {
@@ -715,8 +838,15 @@ mod tests {
         assert!(n > 0 || content::STUB, "the slice has events");
         let camera = (16, -32);
         let live = Live::from_inspector(map, Some(camera));
-        let mut dom =
-            VirtualDom::new_with_props(Map, MapProps { live }).with_root_context(cache.clone());
+        let mut dom = VirtualDom::new_with_props(
+            Map,
+            MapProps {
+                live,
+                coverage_db: None,
+                coverage: false,
+            },
+        )
+        .with_root_context(cache.clone());
         let html = render(&mut dom);
         assert_eq!(count(&html, "data-map-item="), map_list().len(), "{html}");
         assert_eq!(count(&html, "data-overlay="), n, "{html}");
@@ -740,8 +870,15 @@ mod tests {
     #[test]
     fn an_unbuilt_map_renders_off_the_ui_thread() {
         let cache = MapCache::default();
-        let mut dom = VirtualDom::new_with_props(Map, MapProps { live: None })
-            .with_root_context(cache.clone());
+        let mut dom = VirtualDom::new_with_props(
+            Map,
+            MapProps {
+                live: None,
+                coverage_db: None,
+                coverage: false,
+            },
+        )
+        .with_root_context(cache.clone());
         let html = render(&mut dom);
         assert!(html.contains("data-map-loading"), "{html}");
         assert!(!html.contains("Show live map"));
@@ -766,8 +903,15 @@ mod tests {
         let (tx, failed) = std::sync::mpsc::channel();
         cache.load_then(map, move |e| tx.send(e.is_none()).unwrap());
         assert!(failed.recv().unwrap(), "a failed map answers None");
-        let mut dom = VirtualDom::new_with_props(Map, MapProps { live: None })
-            .with_root_context(cache.clone());
+        let mut dom = VirtualDom::new_with_props(
+            Map,
+            MapProps {
+                live: None,
+                coverage_db: None,
+                coverage: false,
+            },
+        )
+        .with_root_context(cache.clone());
         let html = render(&mut dom);
         assert!(html.contains("data-map-error"), "{html}");
         assert!(!html.contains("data-map-loading"));
@@ -831,6 +975,73 @@ mod tests {
             assert_eq!(route_body(&e, MapRoute::Sprite(map, i)).is_some(), is_obj);
         }
         assert_eq!(route_body(&e, MapRoute::Sprite(map, e.placed.len())), None);
+    }
+
+    /// The coverage layer on: the db's heat for the shown map is read off the UI thread, then
+    /// drawn as `coverage_paths`; a missing db says why.
+    #[test]
+    fn the_coverage_layer_draws_the_explorer_heat() {
+        use crate::ui::explorer::tests::filled_db;
+        use crate::ui::tests::temp_root;
+        let dir = temp_root("map-coverage");
+        let db = filled_db(&dir);
+        let map = engine::data::GameData::new_game(&Emerald::for_shells()).map;
+        let grid = CoverageGrid::load(&db, &Emerald::for_shells(), map).unwrap();
+        assert!(grid.visited() > 0, "the new-game cell is covered");
+        let want = coverage_paths(&grid, MARGIN);
+        let cache = MapCache::default();
+        cache.get_blocking(map).unwrap();
+        let props = |coverage_db: Option<std::path::PathBuf>, coverage| MapProps {
+            live: Live::from_inspector(map, None),
+            coverage_db,
+            coverage,
+        };
+        let mut dom = VirtualDom::new_with_props(Map, props(Some(db.clone()), true))
+            .with_root_context(cache.clone());
+        let html = render(&mut dom);
+        assert!(html.contains("coverage"), "the toggle: {html}");
+        let html = pump(&mut dom, |h| h.contains("data-coverage"));
+        assert!(html.contains("data-layer=\"coverage\""), "{html}");
+        for (class, d) in &want {
+            assert!(
+                html.contains(&format!("<path class=\"{class}\" d=\"{d}\"")),
+                "{class} in {html}"
+            );
+        }
+        assert!(
+            html.contains(&format!("coverage: {} cells visited", grid.visited())),
+            "{html}"
+        );
+        // Off by default: nothing is read or drawn.
+        let mut dom = VirtualDom::new_with_props(Map, props(Some(db.clone()), false))
+            .with_root_context(cache.clone());
+        let html = render(&mut dom);
+        assert!(!html.contains("data-layer=\"coverage\"") && !html.contains("data-coverage"));
+        // Without a db, the toolbar says why.
+        let missing = dir.join("none.db");
+        let mut dom = VirtualDom::new_with_props(Map, props(Some(missing.clone()), true))
+            .with_root_context(cache.clone());
+        render(&mut dom);
+        let html = pump(&mut dom, |h| h.contains("data-coverage"));
+        assert!(html.contains("no explorer db"), "{html}");
+        assert!(!html.contains("data-layer=\"coverage\""));
+        assert!(!missing.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Runs `dom`'s tasks and re-renders until its html passes `done` (60 s at most).
+    fn pump(dom: &mut VirtualDom, done: impl Fn(&str) -> bool) -> String {
+        let t0 = Instant::now();
+        loop {
+            dom.process_events();
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+            let html = dioxus_ssr::render(dom);
+            if done(&html) {
+                return html;
+            }
+            assert!(t0.elapsed() < Duration::from_secs(60), "timed out: {html}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 
     #[test]

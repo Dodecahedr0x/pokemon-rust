@@ -226,3 +226,22 @@ fn load_seek_and_save_into_the_local_store() {
     assert!(status(&p).last.contains("failed"), "{}", status(&p).last);
     let _ = std::fs::remove_dir_all(local);
 }
+
+/// `Note` adds a line after what the inspector's `last` holds (M7 S2: the stale-build warning
+/// after an `OpenTrace`).
+#[test]
+fn a_note_goes_after_the_last_line() {
+    let (mut p, local, _) = pane("note");
+    p.handle(NativeCmd::NewGame);
+    let before = status(&p).last;
+    p.handle(NativeCmd::Note("first".into()));
+    let want = if before.is_empty() {
+        "first".to_string()
+    } else {
+        format!("{before}; first")
+    };
+    assert_eq!(status(&p).last, want);
+    p.handle(NativeCmd::Note("second".into()));
+    assert_eq!(status(&p).last, format!("{want}; second"));
+    assert!(!local.exists(), "a note writes nothing");
+}
