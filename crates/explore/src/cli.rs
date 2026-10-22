@@ -36,7 +36,7 @@ usage: explore <command> [--db <path>] [--config <path>]
                               the node as a local checkpoint node (its inputs from the db's
                               root start; default label explore:<MAP_*>:n<node>); promote it
                               with `cargo xtask checkpoints promote <id> --label L`
-  repro <id>                  replays the finding from a new game; exit 0 iff it reproduces
+  repro <id>                  replays the finding from the db's root start; exit 0 iff it reproduces
   revalidate                  replays every node on this build (repairs or breaks them)
   coverage <map>              ASCII heat grid of the cells stood on (map id or name)
   digest                      content digest of the db (determinism checks)
@@ -102,11 +102,13 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             a.done()?;
             let game = Emerald::for_shells();
             let db = Db::open_read_only(&db_path)?;
-            let store = match wire::db_root(&game, &db)? {
+            let root = wire::db_root(&game, &db)?;
+            let store = match &root {
                 Some(root) => root.store()?,
                 None => default_store()?,
             };
-            let id = wire::export_to_store(&game, &db, node, &store, label.as_deref())?;
+            let id =
+                wire::export_to_store(&game, &db, root.as_ref(), node, &store, label.as_deref())?;
             let n = store.find(&id.to_string())?;
             println!(
                 "node {node} -> {id} {:?} in {}",
@@ -561,7 +563,8 @@ fn show(db_path: &Path, id: i64) -> anyhow::Result<()> {
     println!("{}", finding_line(&f));
     println!(
         "node      {}",
-        f.node.map_or("new game".into(), |n: NodeId| n.to_string())
+        f.node
+            .map_or("the root start".into(), |n: NodeId| n.to_string())
     );
     println!("macro     {:?}", f.macro_);
     println!("location  {}", f.location.as_deref().unwrap_or("-"));

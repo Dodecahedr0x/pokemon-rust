@@ -127,20 +127,28 @@ pub fn db_root<G: GameData + Clone>(game: &G, db: &Db) -> anyhow::Result<Option<
     Ok(Some(root))
 }
 
-/// Records `root` as a fresh db's root.
-fn set_root(db: &mut Db, root: &Root) -> anyhow::Result<()> {
-    db.set_meta("root", &root.id.to_string())?;
-    db.set_meta(
-        "root_digest",
-        &state_digest(&root.checkpoint.world).to_string(),
-    )?;
-    db.set_meta("root_local", &root.local.display().to_string())?;
-    let base = root
-        .base
-        .as_ref()
-        .map_or(String::new(), |b| b.display().to_string());
-    db.set_meta("root_base", &base)?;
-    Ok(())
+/// A fresh db's meta: its seed, act and root (`None`: a new game), in one transaction.
+fn set_fresh_meta(db: &mut Db, cfg: &Config, root: Option<&Root>) -> anyhow::Result<()> {
+    let mut kv = vec![
+        ("seed", cfg.seed.to_string()),
+        ("act", cfg.act.name().to_string()),
+    ];
+    if let Some(root) = root {
+        let base = root
+            .base
+            .as_ref()
+            .map_or(String::new(), |b| b.display().to_string());
+        kv.extend([
+            ("root", root.id.to_string()),
+            (
+                "root_digest",
+                state_digest(&root.checkpoint.world).to_string(),
+            ),
+            ("root_local", root.local.display().to_string()),
+            ("root_base", base),
+        ]);
+    }
+    Ok(db.set_metas(&kv)?)
 }
 
 /// The explorer on one db: the store, the snapshot cache, the runner, the evaluator (its
@@ -263,11 +271,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         let (mut db, opened) = Db::open(path, build_hash(&game), content::STUB)
             .with_context(|| format!("opening {}", path.display()))?;
         let root = if opened.fresh {
-            db.set_meta("seed", &cfg.seed.to_string())?;
-            db.set_meta("act", cfg.act.name())?;
-            if let Some(r) = &from {
-                set_root(&mut db, r)?;
-            }
+            set_fresh_meta(&mut db, &cfg, from.as_ref())?;
             from
         } else {
             if let Some(seed) = db.meta("seed")? {
@@ -569,14 +573,25 @@ pub fn finding_trace<G: GameData + Clone>(
     id: i64,
     before: u32,
 ) -> anyhow::Result<(FindingRow, Trace)> {
-    let f = db.finding(id)?.ok_or_else(|| anyhow!("no finding {id}"))?;
     let root = db_root(game, db)?;
+    finding_trace_at(game, db, root.as_ref(), id, before)
+}
+
+/// [`finding_trace`] from `root`, the db's root ([`db_root`]) loaded once by the caller.
+fn finding_trace_at<G: GameData + Clone>(
+    game: &G,
+    db: &Db,
+    root: Option<&Root>,
+    id: i64,
+    before: u32,
+) -> anyhow::Result<(FindingRow, Trace)> {
+    let f = db.finding(id)?.ok_or_else(|| anyhow!("no finding {id}"))?;
     let lineage = match f.node {
         Some(n) => db.lineage(n)?,
         None => Vec::new(),
     };
     let runs: Vec<&[Run]> = lineage.iter().map(|n| n.inputs.as_slice()).collect();
-    let trace = match findings::repro_trace_from(game, start_of(root.as_ref()), &runs, &f.tail) {
+    let trace = match findings::repro_trace_from(game, start_of(root), &runs, &f.tail) {
         Ok(t) => t,
         Err((_, frame)) => bail!("finding {id}: the replay panics early, at frame {frame}"),
     };
@@ -584,7 +599,7 @@ pub fn finding_trace<G: GameData + Clone>(
         return Ok((f, trace));
     }
     let frames = trace.frames().saturating_sub(before);
-    Ok((f, prefix(game, root.as_ref(), &trace, frames)?))
+    Ok((f, prefix(game, root, &trace, frames)?))
 }
 
 /// A session at `root`'s start (a new game for `None`), under the guard.
@@ -632,20 +647,34 @@ pub fn export_label(n: &NodeRow) -> String {
 /// [`export_label`]; a taken label gets a ` #2`, ` #3`, … suffix. The replay is the node's
 /// verification: its verdict (Valid) is recorded in the store's `status.ron`, so that
 /// `cargo xtask checkpoints promote` accepts it.
+///
+/// `root` is the db's ([`db_root`], loaded once by the caller). `store` must be a layered
+/// store (local saves over the committed tree): the committed tree is written only by
+/// `promote`.
 pub fn export_to_store<G: GameData + Clone>(
     game: &G,
     db: &Db,
+    root: Option<&Root>,
     id: NodeId,
     store: &Store,
     label: Option<&str>,
 ) -> anyhow::Result<CheckpointId> {
-    let root = db_root(game, db)?;
+    if store.base().is_none() {
+        bail!(
+            "{} is not a local store over the committed tree: exports go to the local store \
+             (`cargo xtask checkpoints promote` moves them into the committed tree)",
+            store.root().display()
+        );
+    }
+    if db.meta("root")? != root.map(|r| r.id.to_string()) {
+        bail!("the given root is not the db's (`wire::db_root`)");
+    }
     let lineage = db.lineage(id)?;
     let n = lineage.last().ok_or_else(|| anyhow!("no node {id}"))?;
     if n.status == NodeStatus::Broken {
         bail!("node {id} is broken on this build");
     }
-    let mut s = session_from(game, root.as_ref())?;
+    let mut s = session_from(game, root)?;
     let mut rec = TraceRecorder::new(s.world().frame());
     for k in lineage.iter().flat_map(|n| runs::keys(&n.inputs)) {
         guard::step_guarded(&mut s, k).map_err(|p| anyhow!("node {id}: panic: {}", p.message))?;
@@ -657,7 +686,7 @@ pub fn export_to_store<G: GameData + Clone>(
     if state_digest(&cp.world) != n.digest {
         bail!("node {id} replays to another state on this build: run `explore revalidate`");
     }
-    let parent = root.as_ref().map_or(Parent::NewGame, Root::parent);
+    let parent = root.map_or(Parent::NewGame, Root::parent);
     let trace = rec.trace(parent, build_hash(game));
     let want = label.map_or_else(|| export_label(n), str::to_string);
     let mut label = want.clone();
@@ -691,8 +720,8 @@ pub fn reproduce<G: GameData + Clone>(
         bail!("no finding {id}");
     }
     let root = db_root(game, db)?;
-    let start = root.as_ref().map(|r| r.checkpoint.as_ref());
-    let (f, trace) = match finding_trace(game, db, id, 0) {
+    let start = start_of(root.as_ref());
+    let (f, trace) = match finding_trace_at(game, db, root.as_ref(), id, 0) {
         Ok(ft) => ft,
         Err(e) => return Ok(Err(format!("{e:#}"))),
     };

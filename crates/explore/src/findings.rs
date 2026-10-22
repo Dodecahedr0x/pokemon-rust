@@ -189,11 +189,11 @@ fn start_session<H: GameData>(
 }
 
 /// Whether `trace` starts where `start` is (a new game for `None`).
-fn check_parent(trace: &Trace, start: Option<&Checkpoint>) -> Result<(), String> {
+fn check_parent(trace: &Trace, start: Option<(CheckpointId, &Checkpoint)>) -> Result<(), String> {
     let ok = match start {
         None => trace.parent == Parent::NewGame,
-        Some(cp) => {
-            matches!(trace.parent, Parent::Checkpoint(_)) && trace.start_frame == cp.header.frame
+        Some((id, cp)) => {
+            trace.parent == Parent::Checkpoint(id) && trace.start_frame == cp.header.frame
         }
     };
     if ok {
@@ -203,8 +203,8 @@ fn check_parent(trace: &Trace, start: Option<&Checkpoint>) -> Result<(), String>
             "the trace starts at {} (frame {}), not at {}",
             trace.parent,
             trace.start_frame,
-            start.map_or("a new game".into(), |cp| format!(
-                "the root (frame {})",
+            start.map_or("a new game".into(), |(id, cp)| format!(
+                "the root {id} (frame {})",
                 cp.header.frame
             ))
         ))
@@ -227,10 +227,11 @@ pub fn reproduce<G: GameData + Clone>(
     reproduce_from(game, None, trace, want, cfg)
 }
 
-/// [`reproduce`] for a trace from `start` (a `--from` db's root state; `None`: a new game).
+/// [`reproduce`] for a trace from `start` (a `--from` db's root node and state; `None`: a new
+/// game). The trace's parent must be that node.
 pub fn reproduce_from<G: GameData + Clone>(
     game: &G,
-    start: Option<&Checkpoint>,
+    start: Option<(CheckpointId, &Checkpoint)>,
     trace: &Trace,
     want: &FindingDraft,
     cfg: &DetectConfig,
@@ -260,11 +261,11 @@ pub fn reproduce_from<G: GameData + Clone>(
             ))
         }
     };
-    let mut s = match start_session(Probe::new(game.clone()), start) {
+    let mut s = match start_session(Probe::new(game.clone()), start.map(|(_, cp)| cp)) {
         Ok(Ok(s)) => s,
         Ok(Err(e)) => return Err(e),
         Err(p) => {
-            let map = start.map_or(game.new_game().map, |cp| cp.world.field.map);
+            let map = start.map_or(game.new_game().map, |(_, cp)| cp.world.field.map);
             return panicked(0, p, map);
         }
     };
@@ -309,15 +310,16 @@ pub fn end_state<G: GameData + Clone>(game: &G, trace: &Trace) -> Result<Checkpo
     end_state_from(game, None, trace)
 }
 
-/// [`end_state`] for a trace from `start` (a `--from` db's root state; `None`: a new game).
+/// [`end_state`] for a trace from `start` (a `--from` db's root node and state; `None`: a new
+/// game). The trace's parent must be that node.
 pub fn end_state_from<G: GameData + Clone>(
     game: &G,
-    start: Option<&Checkpoint>,
+    start: Option<(CheckpointId, &Checkpoint)>,
     trace: &Trace,
 ) -> Result<Checkpoint, String> {
     check_parent(trace, start)?;
     let check_hashes = trace.build == build_hash(game);
-    let mut s = start_session(game.clone(), start).map_err(|p| p.message)??;
+    let mut s = start_session(game.clone(), start.map(|(_, cp)| cp)).map_err(|p| p.message)??;
     let mut hashes = trace.hashes.iter().copied().peekable();
     for (i, keys) in (1..).zip(trace.keys()) {
         guard::step_guarded(&mut s, keys)

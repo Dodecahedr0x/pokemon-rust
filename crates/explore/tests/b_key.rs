@@ -5,7 +5,7 @@ use engine::checkpoint::WorldSnapshot;
 use engine::data::{FlagId, GameData};
 use engine::input::Buttons;
 use engine::world::World;
-use explore::key::{default_key_config, key, key_parts, region};
+use explore::key::{default_key_config, key, key_parts, place_region};
 use game_native::Session;
 
 /// A new game of `game` settled to its first capturable frame.
@@ -25,9 +25,10 @@ fn snap() -> WorldSnapshot {
     s.world().snapshot(s.game()).unwrap()
 }
 
+/// The key and the place (`key::place_region`: map, story flags and vars).
 fn key_and_region(snap: &WorldSnapshot) -> (u64, u64) {
     let p = key_parts(snap, &default_key_config());
-    (key(&p).0, region(&p))
+    (key(&p).0, place_region(&p))
 }
 
 #[test]
@@ -167,7 +168,7 @@ fn the_fold_is_stable() {
     // KEY_VERSION 2 (Milestone 8 Task K: respawn and templates in the fold).
     assert_eq!(explore::key::KEY_VERSION, 2);
     assert_eq!(key(&parts).0, 0x37f7_8af8_2115_f8ee);
-    assert_eq!(region(&parts), 0x19d2_c0ac_092b_a424);
+    assert_eq!(place_region(&parts), 0xfe1d_f57c_ca2a_8de8);
 }
 
 #[test]

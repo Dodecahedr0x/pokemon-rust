@@ -65,7 +65,12 @@ fn explore_from_a_committed_node_and_export_a_verified_node() {
         .max_by_key(|n| (n.depth, std::cmp::Reverse(n.id)))
         .unwrap();
     assert!(node.depth >= 1, "{node:?}");
-    let id = wire::export_to_store(&game, &db, node.id, &store, None).unwrap();
+    let root = wire::db_root(&game, &db).unwrap();
+    assert_eq!(root.as_ref().map(|r| r.id), Some(CheckpointId(2)));
+    // Another root than the db's is refused.
+    let e = wire::export_to_store(&game, &db, None, node.id, &store, None).unwrap_err();
+    assert!(e.to_string().contains("not the db's"), "{e}");
+    let id = wire::export_to_store(&game, &db, root.as_ref(), node.id, &store, None).unwrap();
     assert!(!store.is_base(id), "exported into the local store");
     let n = store.find(&id.to_string()).unwrap();
     assert_eq!(n.trace.parent, Parent::Checkpoint(CheckpointId(2)));
@@ -86,7 +91,7 @@ fn explore_from_a_committed_node_and_export_a_verified_node() {
         "{verdicts:?}"
     );
     // A second export of the same node takes the next free label.
-    let again = wire::export_to_store(&game, &db, node.id, &store, None).unwrap();
+    let again = wire::export_to_store(&game, &db, root.as_ref(), node.id, &store, None).unwrap();
     let label = store.find(&again.to_string()).unwrap().meta.label;
     assert_eq!(label, format!("{} #2", n.meta.label));
 }
@@ -94,7 +99,8 @@ fn explore_from_a_committed_node_and_export_a_verified_node() {
 #[test]
 fn a_new_game_db_exports_new_game_traces() {
     let dir = tempfile::tempdir().unwrap();
-    let store = Store::open(dir.path().join("store")).unwrap();
+    let committed = Store::open(dir.path().join("committed")).unwrap();
+    let store = Store::layered(committed.root(), dir.path().join("local")).unwrap();
     let game = Emerald::for_shells();
     let path = dir.path().join("explore.db");
     let mut ex = Explore::open(game, &path, config()).unwrap();
@@ -102,7 +108,10 @@ fn a_new_game_db_exports_new_game_traces() {
     drop(ex);
     let db = Db::open_read_only(&path).unwrap();
     assert_eq!(db.meta("root").unwrap(), None);
-    let id = wire::export_to_store(&game, &db, 2, &store, Some("mine")).unwrap();
+    // Never straight into a committed tree.
+    let e = wire::export_to_store(&game, &db, None, 2, &committed, Some("mine")).unwrap_err();
+    assert!(e.to_string().contains("not a local store"), "{e}");
+    let id = wire::export_to_store(&game, &db, None, 2, &store, Some("mine")).unwrap();
     let n = store.find("mine").unwrap();
     assert_eq!((n.meta.id, n.trace.parent), (id, Parent::NewGame));
     let verdicts = store.verify_nodes(replayer(&game), false).unwrap();

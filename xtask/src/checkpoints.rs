@@ -204,9 +204,11 @@ fn replay_all(store: &Store, accept: bool) -> Result<VerifySummary> {
 /// Moves the local node `id` (of the local store at `local` over the committed tree at
 /// `committed`) into the committed tree as `label`, and returns its committed id. Refused
 /// unless the node is local, its parent is committed (a new game, or a committed node: promote
-/// a chain parents first), and its last verdict is Valid (`checkpoints verify --local`; an
-/// `explore export --to-store` node is verified by the export). Its local children are
-/// re-parented onto the committed node, so their traces and verdicts stay true.
+/// a chain parents first), its last verdict is Valid (`checkpoints verify --local`; an
+/// `explore export --to-store` node is verified by the export), and a replay of its trace on
+/// this build from its parent's state reaches its recorded digest (`status.ron` has no build).
+/// Its local children are re-parented onto the committed node, so their traces and verdicts
+/// stay true.
 fn promote(committed: &Path, local: &Path, id: &str, label: &str) -> Result<CheckpointId> {
     let layered = Store::layered(committed, local)?;
     let node = layered.find(id)?;
@@ -226,33 +228,66 @@ fn promote(committed: &Path, local: &Path, id: &str, label: &str) -> Result<Chec
             status_text(s, false)
         ),
     }
-    let game = content::Emerald::for_shells();
-    let cp = match layered.snapshot(id)? {
-        Some(cp) => cp,
-        None => {
-            materialize(&layered, &game, id)
-                .map_err(|e| anyhow!(e))?
-                .checkpoint
-        }
-    };
-    if engine::checkpoint::state_digest(&cp.world) != node.meta.digest {
-        bail!("{id}'s cached state is not its recorded one: verify it again");
-    }
+    let cp = replay_on_this_build(&layered, &node)?;
     let store = Store::open(committed)?;
     let new = store.add(label, node.trace.clone(), &cp)?;
     store.merge_statuses(&[(new, Status::Valid)])?;
     // Re-parent its local children (the same trace from the same state), then drop it.
-    let own = Store::open(local)?;
-    for mut child in own.nodes()? {
-        if child.trace.parent == Parent::Checkpoint(id) {
-            child.trace.parent = Parent::Checkpoint(new);
-            let path = local.join("nodes").join(format!("{}.ron", child.meta.id));
-            let text = ron::ser::to_string_pretty(&child, ron::ser::PrettyConfig::default())?;
-            std::fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+    let children: Vec<CheckpointId> = (Store::open(local)?.nodes()?.into_iter())
+        .filter(|c| c.trace.parent == Parent::Checkpoint(id))
+        .map(|c| c.meta.id)
+        .collect();
+    let layered = Store::layered(committed, local)?;
+    for (i, &c) in children.iter().enumerate() {
+        if let Err(e) = layered.reparent(c, new) {
+            let left: Vec<String> = children[i..].iter().map(ToString::to_string).collect();
+            bail!(
+                "{id} was added to the committed tree as {new}, but re-parenting {c} failed: \
+                 {e}. To recover, set `trace.parent` to `Checkpoint({new})` in the local node \
+                 files of {}, then delete {}; or remove {new} from {} and promote again",
+                left.join(", "),
+                local.join("nodes").join(format!("{id}.ron")).display(),
+                committed.display()
+            );
         }
     }
-    Store::layered(committed, local)?.remove(id)?;
+    if let Err(e) = layered.remove(id) {
+        bail!(
+            "{id} was added to the committed tree as {new} and its children moved, but removing \
+             the local copy failed: {e}. Delete {} by hand",
+            local.join("nodes").join(format!("{id}.ron")).display()
+        );
+    }
     Ok(new)
+}
+
+/// Node `node`'s state, replayed on this build from its parent's (never its cached snapshot):
+/// an error unless it is of this checkpoint schema and reaches its recorded digest.
+fn replay_on_this_build(store: &Store, node: &Node) -> Result<engine::checkpoint::Checkpoint> {
+    let id = node.meta.id;
+    if node.meta.schema != engine::checkpoint::SCHEMA {
+        bail!(
+            "{id} is stale (checkpoint schema {}): `cargo xtask checkpoints verify --local` it \
+             first",
+            node.meta.schema
+        );
+    }
+    let game = content::Emerald::for_shells();
+    let parent = match node.trace.parent {
+        Parent::NewGame => None,
+        Parent::Checkpoint(p) => {
+            let m = materialize(store, &game, p).map_err(|e| anyhow!(e))?;
+            if m.diverged {
+                bail!("{id}'s parent {p} diverges on this build");
+            }
+            Some(m.checkpoint)
+        }
+    };
+    let r = replayer(&game)(parent.as_ref(), &node.trace).map_err(|e| anyhow!("{id}: {e}"))?;
+    if engine::checkpoint::state_digest(&r.checkpoint.world) != node.meta.digest {
+        bail!("{id} diverges on this build: `cargo xtask checkpoints verify --local` it first");
+    }
+    Ok(r.checkpoint)
 }
 
 /// Records the route and writes its `route:` nodes.
@@ -430,6 +465,32 @@ mod tests {
         assert!(e.contains("BROKEN"), "{e}");
         assert_eq!(Store::open(&base).unwrap().nodes().unwrap().len(), 1);
         assert_eq!(Store::open(&local).unwrap().nodes().unwrap().len(), 2);
+        for dir in [base, local] {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn promote_replays_and_refuses_a_stale_or_diverged_node_marked_valid() {
+        let (base, local) = committed_and_local_chain("promote-replay");
+        verify_store(&Store::layered(&base, &local).unwrap(), false).unwrap();
+        let path = local.join("nodes/c10001.ron");
+        let good = std::fs::read_to_string(&path).unwrap();
+        let edit = |f: &dyn Fn(&mut Node)| {
+            let mut n: Node = ron::from_str(&good).unwrap();
+            f(&mut n);
+            std::fs::write(&path, ron::to_string(&n).unwrap()).unwrap();
+        };
+        // `status.ron` still says Valid (it has no build): the replay decides.
+        let valid = |s: &Store| s.statuses().unwrap()[&CheckpointId(10_001)] == Status::Valid;
+        edit(&|n| n.meta.schema -= 1);
+        assert!(valid(&Store::layered(&base, &local).unwrap()));
+        let e = promote(&base, &local, "c10001", "x").unwrap_err();
+        assert!(e.to_string().contains("stale"), "{e}");
+        edit(&|n| n.meta.digest ^= 1);
+        let e = promote(&base, &local, "c10001", "x").unwrap_err();
+        assert!(e.to_string().contains("diverges on this build"), "{e}");
+        assert_eq!(Store::open(&base).unwrap().nodes().unwrap().len(), 1);
         for dir in [base, local] {
             let _ = std::fs::remove_dir_all(dir);
         }

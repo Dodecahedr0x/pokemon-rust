@@ -82,6 +82,10 @@ pub fn to_blob(runs: &[Run]) -> Vec<u8> {
     out
 }
 
+/// The most runs [`from_blob`] decodes (a node holds a few thousand): a corrupt repeat count
+/// is an error, not a huge allocation.
+pub const MAX_BLOB_RUNS: usize = 1 << 22;
+
 /// Parses [`to_blob`].
 pub fn from_blob(b: &[u8]) -> Result<Vec<Run>, String> {
     let mut runs: Vec<Run> = Vec::new();
@@ -93,7 +97,8 @@ pub fn from_blob(b: &[u8]) -> Result<Vec<Run>, String> {
             let [.., x, y] = runs[..] else {
                 return Err("repeat pair before two runs in input blob".into());
             };
-            if n == 0 || n > u64::from(u32::MAX) {
+            let room = (MAX_BLOB_RUNS - runs.len()) as u64 / 2;
+            if n == 0 || n > room {
                 return Err(format!("bad repeat count {n} in input blob"));
             }
             for _ in 0..n {
@@ -103,6 +108,9 @@ pub fn from_blob(b: &[u8]) -> Result<Vec<Run>, String> {
             let keys = u16::try_from(h >> 1).map_err(|_| "keys out of range in input blob")?;
             let frames = u32::try_from(get_varint(b, &mut at)?)
                 .map_err(|_| "frames out of range in input blob")?;
+            if runs.len() == MAX_BLOB_RUNS {
+                return Err(format!("more than {MAX_BLOB_RUNS} runs in input blob"));
+            }
             runs.push(Run {
                 keys: Buttons(keys),
                 frames,
@@ -204,15 +212,22 @@ mod tests {
     #[test]
     fn blob_rejects_bad_input() {
         for bad in [
-            &[0x80][..],                        // truncated varint
-            &[2],                               // a run without frames
-            &[3],                               // a repeat before two runs
-            &[2, 1, 4, 1, 1],                   // a repeat of 0
-            &[0x80, 0x80, 0x08, 1],             // keys above u16
-            &[2, 0x80, 0x80, 0x80, 0x80, 0x10], // frames above u32
+            &[0x80][..],                                 // truncated varint
+            &[2],                                        // a run without frames
+            &[3],                                        // a repeat before two runs
+            &[2, 1, 4, 1, 1],                            // a repeat of 0
+            &[0x80, 0x80, 0x08, 1],                      // keys above u16
+            &[2, 0x80, 0x80, 0x80, 0x80, 0x10],          // frames above u32
+            &[2, 1, 4, 1, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F], // a repeat of 2^31 - 1
         ] {
             assert!(from_blob(bad).is_err(), "{bad:?}");
         }
+        // Up to the cap.
+        let mut ok = vec![2, 1, 4, 1];
+        put_varint(&mut ok, ((MAX_BLOB_RUNS as u64 - 2) / 2) << 1 | 1);
+        assert_eq!(from_blob(&ok).unwrap().len(), MAX_BLOB_RUNS);
+        ok.extend([2, 1]);
+        assert!(from_blob(&ok).is_err(), "one run past the cap");
     }
 
     #[test]

@@ -530,6 +530,95 @@ fn steps_after_a_duplicate_replay_from_its_real_end_state() {
     assert_eq!(d.nodes[0].key, AbstractKey(7));
 }
 
+/// The root (node 1), node 2 on key 5 and node 3 on key 6, both 10 frames below the root.
+fn two_keys() -> (Runner, FakeEval) {
+    let (mut r, mut eval) = rooted();
+    r.merge(
+        vec![
+            job(0, 1, vec![step(30, 5, 10)], None),
+            job(1, 1, vec![step(40, 6, 10)], None),
+        ],
+        &mut eval,
+    );
+    assert_eq!(r.graph.best(AbstractKey(6)), Some(3));
+    (r, eval)
+}
+
+#[test]
+fn held_duplicates_with_nothing_inserted_below_leave_only_key_hits() {
+    let (mut r, mut eval) = two_keys();
+    // Key 5 again (another state, a step follows: held), then key 6 again as the last step.
+    let d = r.merge(
+        vec![job(0, 1, vec![step(31, 5, 40), step(41, 6, 40)], None)],
+        &mut eval,
+    );
+    assert!(d.nodes.is_empty());
+    assert_eq!(d.stats.duplicates, 2);
+    assert_eq!(d.key_hits, [(AbstractKey(5), 1), (AbstractKey(6), 1)]);
+    assert_eq!(
+        (
+            r.graph.key_hits(AbstractKey(5)),
+            r.graph.key_hits(AbstractKey(6))
+        ),
+        (1, 1)
+    );
+    // Their cells are credited to the live nodes.
+    assert_eq!(d.cells, [(MapId(1), 5, 0, 2), (MapId(1), 6, 0, 3)]);
+}
+
+#[test]
+fn chained_held_duplicates_are_written_parents_first_below_an_inserted_step() {
+    let (mut r, mut eval) = two_keys();
+    let d = r.merge(
+        vec![job(
+            0,
+            1,
+            vec![step(32, 5, 40), step(42, 6, 40), step(50, 8, 10)],
+            None,
+        )],
+        &mut eval,
+    );
+    let rows: Vec<_> = d
+        .nodes
+        .iter()
+        .map(|n| (n.id, n.parent, n.key.0, n.status, n.merged_into))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (4, Some(1), 5, NodeStatus::Merged, Some(2)),
+            (5, Some(4), 6, NodeStatus::Merged, Some(3)),
+            (6, Some(5), 8, NodeStatus::Valid, None),
+        ]
+    );
+    assert_eq!(d.nodes[2].total_frames, 100 + 40 + 40 + 10);
+    // Written rows count as rows, not as `key_hit`s.
+    assert!(d.key_hits.is_empty());
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
+}
+
+#[test]
+fn a_held_duplicate_bypassed_by_an_equal_state_counts_a_key_hit() {
+    let (mut r, mut eval) = two_keys();
+    // Held on key 5, then node 3's own state (tag 40, key 6: equal digest) chains from node 3,
+    // so the held step is never needed as a parent.
+    let d = r.merge(
+        vec![job(
+            0,
+            1,
+            vec![step(33, 5, 40), step(40, 6, 10), step(51, 9, 10)],
+            None,
+        )],
+        &mut eval,
+    );
+    assert_eq!(d.nodes.len(), 1);
+    assert_eq!(
+        (d.nodes[0].parent, d.nodes[0].key),
+        (Some(3), AbstractKey(9))
+    );
+    assert_eq!(d.key_hits, [(AbstractKey(5), 1), (AbstractKey(6), 1)]);
+}
+
 #[test]
 fn findings_attach_to_the_node_their_tail_starts_from() {
     let (mut r, mut eval) = rooted();

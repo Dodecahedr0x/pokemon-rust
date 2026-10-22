@@ -161,38 +161,33 @@ fn used_bytes(conn: &Connection) -> i64 {
     (q("page_count") - q("freelist_count")) * q("page_size")
 }
 
-/// A run of the default config: 2000 inserted nodes on the extracted build; 30 generations
-/// on the stub, whose 196 cells hold about 32 keys.
-fn explore_some(path: &Path) {
+/// `budget` of the default config on a fresh db at `path`; its rows (with inputs).
+fn explore_rows(path: &Path, budget: Budget) -> Vec<explore::NodeRow> {
     let mut ex = Explore::open(content::Emerald::for_shells(), path, Config::default()).unwrap();
-    let budget = if content::STUB {
-        Budget::Generations(30)
-    } else {
-        Budget::Nodes(2000)
-    };
     ex.run(budget, |_| {}).unwrap();
+    drop(ex);
+    Db::open_read_only(path).unwrap().nodes().unwrap()
 }
 
 #[test]
-fn a_run_keeps_no_childless_merged_rows_and_small_rows() {
+fn a_run_keeps_no_childless_duplicate_rows() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("explore.db");
-    explore_some(&path);
-    let db = Db::open_read_only(&path).unwrap();
-    let nodes = db.nodes().unwrap();
+    // The stub's 196 cells hold about 32 keys: 30 generations saturate them.
+    let nodes = explore_rows(
+        &path,
+        Budget::Generations(if content::STUB { 30 } else { 3 }),
+    );
     // A duplicate's row (merged into an older live node) is kept only as a parent; a
     // superseded row (merged into a newer one) stays, as it was live and written.
-    let childless: Vec<_> = nodes
+    let duplicates = nodes
         .iter()
         .filter(|m| m.status == NodeStatus::Merged)
-        .filter(|m| !nodes.iter().any(|n| n.parent == Some(m.id)))
-        .collect();
-    let duplicates = childless
-        .iter()
         .filter(|m| m.merged_into.is_some_and(|into| into < m.id))
+        .filter(|m| !nodes.iter().any(|n| n.parent == Some(m.id)))
         .count();
     assert_eq!(duplicates, 0, "a duplicate's row is kept only as a parent");
-    eprintln!("{} childless superseded rows", childless.len());
+    let db = Db::open_read_only(&path).unwrap();
     let hits: u32 = db.key_hits().unwrap().iter().map(|&(_, h)| h).sum();
     assert!(
         hits as usize > nodes.len(),
@@ -202,13 +197,23 @@ fn a_run_keeps_no_childless_merged_rows_and_small_rows() {
     let blob: usize = nodes.iter().map(|n| runs::to_blob(&n.inputs).len()).sum();
     let text: usize = nodes.iter().map(|n| runs::to_text(&n.inputs).len()).sum();
     assert!(blob * 10 <= text * 4, "blob {blob} B, text {text} B");
-    drop(db);
+}
+
+/// The size target (0.3 MB per 1,000 rows; M7: 1.05 MB) on 2,000 inserted nodes of the
+/// extracted build. About 85 s of CPU in debug: run it in release,
+/// `cargo test --release -p explore --test m8_k_db -- --ignored`.
+#[test]
+#[ignore = "slow in debug: run in release with --ignored"]
+fn the_real_build_keeps_rows_under_300_bytes() {
+    if content::STUB {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    let nodes = explore_rows(&path, Budget::Nodes(2000));
     let conn = Connection::open(&path).unwrap();
     let per_row = used_bytes(&conn) / nodes.len() as i64;
     eprintln!("{} rows, {per_row} B per row", nodes.len());
-    if !content::STUB {
-        // The target: 0.3 MB per 1000 rows (M7: 1.05 MB).
-        assert!(nodes.len() >= 1000, "{} rows", nodes.len());
-        assert!(per_row <= 300, "{per_row} B per row");
-    }
+    assert!(nodes.len() >= 1000, "{} rows", nodes.len());
+    assert!(per_row <= 300, "{per_row} B per row");
 }

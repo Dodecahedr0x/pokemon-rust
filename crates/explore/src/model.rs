@@ -128,7 +128,7 @@ impl Macro {
 )]
 pub struct AbstractKey(pub u64);
 
-/// The parts of an abstract key. `region` = the key without the cell (softlock, stall).
+/// The parts of an abstract key (`key::place_region`: the place, for the softlock probe).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct KeyParts {
     pub map: MapId,
@@ -289,9 +289,10 @@ pub enum Plan {
 #[derive(Clone, Debug)]
 pub struct Job {
     pub index: u32,
-    /// `None` = from a new game (the root).
+    /// `None` = from the db's root start (a new game, or the `--from` node): the root job.
     pub parent: Option<NodeId>,
-    /// `None` = `World::new`.
+    /// The start state: the parent's end, the `--from` checkpoint for a root job, or `None`:
+    /// a new game (`World::new`).
     pub start: Option<Arc<Checkpoint>>,
     pub plan: Plan,
 }
@@ -349,7 +350,7 @@ pub struct GenerationDelta {
     pub seen: Vec<(SeenKind, i64, NodeId)>,
     pub cells: Vec<(MapId, i16, i16, NodeId)>,
     pub battles: Vec<(NodeId, BattleSummary)>,
-    /// (finding, the node whose end state the tail starts at (`None` = a new game: the root
+    /// (finding, the node whose end state the tail starts at (`None` = the root start: the root
     /// job failed), total frame).
     pub findings: Vec<(FindingDraft, Option<NodeId>, u64)>,
     pub stats: GenStats,

@@ -19,11 +19,11 @@ use engine::checkpoint::{TemplateDelta, WorldSnapshot};
 use engine::data::{Dir, FlagId, GameData, MovementType, VarId};
 use engine::flow::{FLAG_COUNT, TEMP_FLAGS_END, TEMP_VARS_END, VARS_END};
 
-/// Domain tags, so that a key, a region and the digests never collide by construction.
+/// Domain tags, so that a key, a place and the digests never collide by construction.
 const TAG_FLAGS: u64 = 0x4b45_5946_4c41_4753; // "KEYFLAGS"
 const TAG_VARS: u64 = 0x4b45_5956_4152_5321; // "KEYVARS!"
 const TAG_KEY: u64 = 0x4b45_594b_4559_2121; // "KEYKEY!!"
-const TAG_REGION: u64 = 0x4b45_5952_4547_494f; // "KEYREGIO"
+
 const TAG_PLACE: u64 = 0x4b45_5950_4c41_4345; // "KEYPLACE"
 const TAG_TEMPLATES: u64 = 0x4b45_5954_454d_504c; // "KEYTEMPL"
 
@@ -188,7 +188,7 @@ pub fn key_parts(snap: &WorldSnapshot, cfg: &KeyConfig) -> KeyParts {
 }
 
 /// Everything but the cell, folded from `tag`.
-fn fold_region(tag: u64, parts: &KeyParts) -> u64 {
+fn fold_parts(tag: u64, parts: &KeyParts) -> u64 {
     let p = &parts.party;
     let mut h = fold(tag, u64::from(parts.map.0));
     h = fold(h, parts.flags);
@@ -205,15 +205,10 @@ fn fold_region(tag: u64, parts: &KeyParts) -> u64 {
 
 /// Stable splitmix fold, platform-independent.
 pub fn key(parts: &KeyParts) -> AbstractKey {
-    let h = fold_region(TAG_KEY, parts);
+    let h = fold_parts(TAG_KEY, parts);
     // Cell coordinates as their u16 bit patterns (negative coordinates stay distinct).
     let h = fold(h, u64::from(parts.cell.0 as u16));
     AbstractKey(fold(h, u64::from(parts.cell.1 as u16)))
-}
-
-/// The key without the cell.
-pub fn region(parts: &KeyParts) -> u64 {
-    fold_region(TAG_REGION, parts)
 }
 
 /// The place: map, story flags and story vars, folded (no cell, no party). The softlock probe
@@ -284,7 +279,7 @@ mod tests {
         b.cell = (3, 3);
         b.party.level_bucket = 4;
         b.party.fainted = 1;
-        assert_ne!(region(&a), region(&b));
+        assert_ne!(key(&a), key(&b));
         assert_eq!(place_region(&a), place_region(&b));
         for c in [
             KeyParts {
@@ -302,6 +297,6 @@ mod tests {
         ] {
             assert_ne!(place_region(&a), place_region(&c));
         }
-        assert_ne!(place_region(&a), region(&a), "its own tag");
+        assert_ne!(place_region(&a), key(&a).0, "its own tag");
     }
 }

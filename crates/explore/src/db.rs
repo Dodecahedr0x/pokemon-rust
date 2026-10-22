@@ -739,6 +739,19 @@ impl Db {
         Ok(())
     }
 
+    /// Several meta values in one transaction (all or none).
+    pub fn set_metas(&mut self, kv: &[(&str, String)]) -> Result<(), DbError> {
+        let tx = self.conn.transaction()?;
+        {
+            let mut st = tx.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)")?;
+            for (k, v) in kv {
+                st.execute(params![k, v])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn meta(&self, key: &str) -> Result<Option<String>, DbError> {
         Ok(self
             .conn
@@ -760,7 +773,19 @@ impl Db {
     /// frame, key, digest, world hash, map, pos, progress, status, `merged_into` and build
     /// (parent, depth, macro, fitness, generation and `expanded` are kept). The rows leave the
     /// live set first, so keys can move between them in any order.
+    ///
+    /// Rows must carry their inputs: a row whose inputs do not add up to its `frames` (a light
+    /// row of [`Db::nodes_light`]) is refused before any write, so its stored inputs are never
+    /// wiped. Light rows go through [`Db::set_status_and_snapshots`].
     pub fn set_status(&mut self, rows: &[NodeRow]) -> Result<(), DbError> {
+        if let Some(n) = rows.iter().find(|n| runs::frames(&n.inputs) != n.frames) {
+            return Err(DbError::Codec(format!(
+                "set_status: node {} has {} input frames for {} frames (a light row?)",
+                n.id,
+                runs::frames(&n.inputs),
+                n.frames
+            )));
+        }
         let inputs: Vec<(NodeId, &[Run])> =
             rows.iter().map(|n| (n.id, n.inputs.as_slice())).collect();
         self.set_status_and_snapshots(rows, &inputs, &[])
