@@ -40,6 +40,31 @@ impl Dir {
     }
 }
 
+/// Up to four directions packed in a byte (2 bits each, the first in the low bits), the
+/// payload of [`MovementType::FaceTwo`] and [`MovementType::WalkSequence`]: one byte keeps
+/// `MovementType` two bytes, so the per-frame object and template hashes stay cheap.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Dirs(pub u8);
+
+impl Dirs {
+    pub const fn new(d: [Dir; 4]) -> Dirs {
+        Dirs(d[0] as u8 | (d[1] as u8) << 2 | (d[2] as u8) << 4 | (d[3] as u8) << 6)
+    }
+    /// `[a, b, a, b]`: a two-direction set.
+    pub const fn two(a: Dir, b: Dir) -> Dirs {
+        Dirs::new([a, b, a, b])
+    }
+    /// Direction `i` (taken modulo 4).
+    pub const fn get(self, i: usize) -> Dir {
+        match (self.0 >> ((i & 3) * 2)) & 3 {
+            0 => Dir::Down,
+            1 => Dir::Up,
+            2 => Dir::Left,
+            _ => Dir::Right,
+        }
+    }
+}
+
 macro_rules! id {
     ($($(#[$m:meta])* $name:ident),* $(,)?) => {$(
         $(#[$m])*
@@ -251,8 +276,8 @@ pub enum MovementType {
     // ---- Milestone 8 ----
     /// Gen3 `FACE_DOWN_AND_UP`, `FACE_LEFT_AND_RIGHT`, `FACE_UP_AND_LEFT`, `FACE_UP_AND_RIGHT`,
     /// `FACE_DOWN_AND_LEFT`, `FACE_DOWN_AND_RIGHT`: turns to one of the two (Gen3's array order;
-    /// the first is the initial facing) after medium delays.
-    FaceTwo(Dir, Dir),
+    /// the first is the initial facing) after medium delays. [`Dirs::two`].
+    FaceTwo(Dirs),
     /// Gen3 `FACE_DOWN_UP_AND_LEFT` (`Right` missing), `FACE_DOWN_UP_AND_RIGHT` (`Left`),
     /// `FACE_UP_LEFT_AND_RIGHT` (`Down`), `FACE_DOWN_LEFT_AND_RIGHT` (`Up`): turns among the other
     /// three after short delays.
@@ -266,7 +291,7 @@ pub enum MovementType {
     /// `Dir`.
     WalkBackAndForth(Dir),
     /// Gen3 `WALK_SEQUENCE_*`: walks the four directions in this order around its range.
-    WalkSequence([Dir; 4]),
+    WalkSequence(Dirs),
     /// Gen3 `JOG_IN_PLACE_*` (`walk_in_place_fast`).
     JogInPlace(Dir),
     /// Gen3 `RUN_IN_PLACE_*` (`walk_in_place_faster`).

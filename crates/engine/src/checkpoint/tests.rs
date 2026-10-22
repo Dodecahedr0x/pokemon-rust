@@ -1,7 +1,7 @@
 //! Codec, schema policy and build identity. Every value here is synthetic.
 
 use super::*;
-use crate::data::PLAYER;
+use crate::data::{Dirs, PLAYER};
 use crate::mon::{NAME_LEN, Status};
 use crate::{data::MoveId, data::SpeciesId};
 use alloc::format;
@@ -537,11 +537,11 @@ fn enum_variant_indices_are_pinned() {
             MovementType::WanderHorizontal,
             MovementType::WalkInPlace(Dir::Down),
             MovementType::Invisible,
-            MovementType::FaceTwo(Dir::Down, Dir::Up),
+            MovementType::FaceTwo(Dirs::two(Dir::Down, Dir::Up)),
             MovementType::FaceAllBut(Dir::Down),
             MovementType::Rotate { clockwise: true },
             MovementType::WalkBackAndForth(Dir::Down),
-            MovementType::WalkSequence([Dir::Down; 4]),
+            MovementType::WalkSequence(Dirs::new([Dir::Down; 4])),
             MovementType::JogInPlace(Dir::Down),
             MovementType::RunInPlace(Dir::Down),
             MovementType::WalkSlowlyInPlace(Dir::Down),

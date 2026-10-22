@@ -187,7 +187,10 @@ pub struct Object {
     pub prev: (i16, i16),
     pub elevation: u8,
     pub facing: Dir,
+    /// Changed only through [`Objects::set_movement_type`] (`code` caches its hash bytes).
     pub movement: MovementType,
+    /// `movement_code(movement)`, kept so the per-frame hash does not match on the type.
+    code: [u8; 2],
     /// Spawn cell; wander range is measured from it.
     pub home: (i16, i16),
     /// Wander range; 0 on an axis means unbounded on that axis, as Gen3.
@@ -214,9 +217,8 @@ pub const fn initial_facing(m: MovementType) -> Dir {
         | MovementType::JogInPlace(d)
         | MovementType::RunInPlace(d)
         | MovementType::WalkSlowlyInPlace(d)
-        | MovementType::WalkBackAndForth(d)
-        | MovementType::FaceTwo(d, _) => d,
-        MovementType::WalkSequence(route) => route[0],
+        | MovementType::WalkBackAndForth(d) => d,
+        MovementType::FaceTwo(p) | MovementType::WalkSequence(p) => p.get(0),
         // `FACE_UP_LEFT_AND_RIGHT` starts north, the other three-direction ones south.
         MovementType::FaceAllBut(Dir::Down) => Dir::Up,
         MovementType::WanderVertical => Dir::Up,
@@ -244,6 +246,7 @@ impl Object {
             elevation: 0,
             facing: initial_facing(movement),
             movement,
+            code: movement_code(movement),
             home: (x, y),
             range: (0, 0),
             visible: movement != MovementType::Invisible,
@@ -421,7 +424,7 @@ impl Object {
         h.write_u16(self.prev.0 as u16);
         h.write_u16(self.prev.1 as u16);
         h.write(&[self.elevation, self.facing as u8]);
-        h.write(&movement_code(self.movement));
+        h.write(&self.code);
         h.write_u16(self.home.0 as u16);
         h.write_u16(self.home.1 as u16);
         h.write(&[
@@ -478,14 +481,11 @@ pub const fn movement_code(m: MovementType) -> [u8; 2] {
         MovementType::WanderHorizontal => [4, 0],
         MovementType::WalkInPlace(d) => [5, d as u8],
         MovementType::Invisible => [6, 0],
-        MovementType::FaceTwo(a, b) => [7, a as u8 | (b as u8) << 2],
+        MovementType::FaceTwo(p) => [7, p.0],
         MovementType::FaceAllBut(d) => [8, d as u8],
         MovementType::Rotate { clockwise } => [9, clockwise as u8],
         MovementType::WalkBackAndForth(d) => [10, d as u8],
-        MovementType::WalkSequence([a, b, c, d]) => [
-            11,
-            a as u8 | (b as u8) << 2 | (c as u8) << 4 | (d as u8) << 6,
-        ],
+        MovementType::WalkSequence(r) => [11, r.0],
         MovementType::JogInPlace(d) => [12, d as u8],
         MovementType::RunInPlace(d) => [13, d as u8],
         MovementType::WalkSlowlyInPlace(d) => [14, d as u8],
@@ -665,6 +665,7 @@ impl Objects {
     pub fn set_movement_type(&mut self, local: u8, movement: MovementType) {
         self.with(local, |o| {
             o.movement = movement;
+            o.code = movement_code(movement);
             o.idle = Idle::Start;
         });
     }

@@ -2,6 +2,7 @@
 //! approach.
 
 use super::*;
+use crate::data::Dirs;
 
 fn npc_at(m: MovementType, range: (u8, u8)) -> Objects {
     let mut o = player_at(0, 0, Dir::Down);
@@ -67,7 +68,7 @@ fn in_place_types_use_their_speed() {
 #[test]
 fn face_two_turns_between_its_pair_after_medium_delays() {
     let g = Grid::open();
-    let m = MovementType::FaceTwo(Dir::Up, Dir::Left);
+    let m = MovementType::FaceTwo(Dirs::two(Dir::Up, Dir::Left));
     let mut o = npc_at(m, (0, 0));
     assert_eq!(
         o.get(1).unwrap().facing,
@@ -172,7 +173,7 @@ fn walk_back_and_forth_walks_in_place_when_blocked() {
 fn walk_sequence_loops_its_square() {
     // Gen3 `MOVEMENT_TYPE_WALK_SEQUENCE_UP_LEFT_DOWN_RIGHT` with a 1-cell range: up, left (up
     // is out of range), down (left is), then right back home, where the index restarts.
-    let m = MovementType::WalkSequence([Dir::Up, Dir::Left, Dir::Down, Dir::Right]);
+    let m = MovementType::WalkSequence(Dirs::new([Dir::Up, Dir::Left, Dir::Down, Dir::Right]));
     let cells = walked(m, (1, 1), 600, None);
     assert_eq!(
         &cells[..8],
@@ -194,7 +195,7 @@ fn walk_sequence_loops_its_square() {
 fn walk_sequence_skips_the_leg_back_when_on_the_home_column() {
     // `UP_RIGHT_LEFT_DOWN`, 1-cell range: up, right, left back onto the home column, where the
     // left leg (index 2) is cut short (index 3, down) instead of going on to x - 1.
-    let m = MovementType::WalkSequence([Dir::Up, Dir::Right, Dir::Left, Dir::Down]);
+    let m = MovementType::WalkSequence(Dirs::new([Dir::Up, Dir::Right, Dir::Left, Dir::Down]));
     let cells = walked(m, (1, 1), 600, None);
     assert_eq!(
         &cells[..8],
@@ -213,7 +214,7 @@ fn walk_sequence_skips_the_leg_back_when_on_the_home_column() {
 
 #[test]
 fn walk_sequence_walks_in_place_while_blocked() {
-    let m = MovementType::WalkSequence([Dir::Up, Dir::Right, Dir::Left, Dir::Down]);
+    let m = MovementType::WalkSequence(Dirs::new([Dir::Up, Dir::Right, Dir::Left, Dir::Down]));
     let cells = walked(m, (1, 1), 600, Some((9, 7)));
     assert_eq!(
         cells,
@@ -225,7 +226,7 @@ fn walk_sequence_walks_in_place_while_blocked() {
 #[test]
 fn sequence_index_round_trips_through_snapshots() {
     let g = Grid::open();
-    let m = MovementType::WalkSequence([Dir::Up, Dir::Left, Dir::Down, Dir::Right]);
+    let m = MovementType::WalkSequence(Dirs::new([Dir::Up, Dir::Left, Dir::Down, Dir::Right]));
     let mut o = npc_at(m, (1, 1));
     let mut rng = Rng::new(1);
     for _ in 0..40 {
@@ -260,8 +261,10 @@ fn new_movement_codes_are_distinct() {
             codes.push(movement_code(m));
         }
         for e in Dir::ALL {
-            codes.push(movement_code(MovementType::FaceTwo(d, e)));
-            codes.push(movement_code(MovementType::WalkSequence([d, e, d, e])));
+            codes.push(movement_code(MovementType::FaceTwo(Dirs::two(d, e))));
+            codes.push(movement_code(MovementType::WalkSequence(Dirs::new([
+                d, e, e, d,
+            ]))));
         }
     }
     codes.push(movement_code(MovementType::Rotate { clockwise: true }));

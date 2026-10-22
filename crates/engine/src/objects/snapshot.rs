@@ -155,6 +155,7 @@ impl Object {
             elevation: s.elevation,
             facing: s.facing,
             movement: s.movement,
+            code: super::movement_code(s.movement),
             home: s.home,
             range: s.range,
             visible: s.visible,

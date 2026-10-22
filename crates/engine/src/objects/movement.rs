@@ -6,7 +6,7 @@
 //! variant (copy-player, disguises, buried, berry trees).
 
 use super::{ActionKind, Collision, Idle, Objects, Terrain, in_place_frames};
-use crate::data::{Dir, MovementType};
+use crate::data::{Dir, Dirs, MovementType};
 use crate::rng::Rng;
 use crate::script::Speed;
 
@@ -65,6 +65,13 @@ impl Objects {
     /// Idle movement per `MovementType` (Gen3 `MovementType_*` callbacks).
     pub(super) fn idle(&mut self, terrain: &impl Terrain, rng: &mut Rng, i: usize) {
         let o = &mut self.objs[i];
+        // The common frame: a turning type waiting out its delay (only those wait).
+        if let Idle::Wait(n) = o.idle
+            && n > 1
+        {
+            o.idle = Idle::Wait(n - 1);
+            return;
+        }
         let (pick, delays): (Pick, &[u16; 4]) = match o.movement {
             MovementType::Face(d) => {
                 if o.idle == Idle::Start {
@@ -93,16 +100,12 @@ impl Objects {
             MovementType::WanderHorizontal => {
                 (Pick::Wander(&[Dir::Left, Dir::Right]), &DELAYS_MEDIUM)
             }
-            MovementType::FaceTwo(a, b) => (Pick::Look(pair(a, b)), &DELAYS_MEDIUM),
+            MovementType::FaceTwo(p) => (Pick::Look(pair(p)), &DELAYS_MEDIUM),
             MovementType::FaceAllBut(m) => (Pick::LookAllBut(m), &DELAYS_SHORT),
             MovementType::Rotate { clockwise } => (Pick::Rotate(clockwise), &DELAYS_MEDIUM),
         };
         let random = |rng: &mut Rng| (rng.next_u32() >> 16) as u16;
-        if let Idle::Wait(n) = o.idle {
-            if n > 1 {
-                o.idle = Idle::Wait(n - 1);
-                return;
-            }
+        if let Idle::Wait(_) = o.idle {
             // Delay over: pick a direction, and walk if the type wanders and the way is free.
             let (d, walks) = match pick {
                 Pick::Wander(dirs) => (dirs[random(rng) as usize & (dirs.len() - 1)], true),
@@ -154,18 +157,18 @@ impl Objects {
     }
 
     /// Gen3 `MovementType_WalkSequence*` and `MoveNextDirectionInSequence`.
-    fn walk_sequence(&mut self, terrain: &impl Terrain, i: usize, route: [Dir; 4]) {
+    fn walk_sequence(&mut self, terrain: &impl Terrain, i: usize, route: Dirs) {
         let o = &mut self.objs[i];
         let mut seq = seq(o.idle);
         // Each `_Step1` skips the leg that would undo the one before it when the object is
         // already back on its spawn column (row): the first leg whose direction is the opposite
         // of an earlier one, index 1 or 2.
-        let k: u8 = if route[1] == route[0].opposite() {
+        let k: u8 = if route.get(1) == route.get(0).opposite() {
             1
         } else {
             2
         };
-        let back = if horizontal(route[k as usize]) {
+        let back = if horizontal(route.get(k as usize)) {
             o.x == o.home.0
         } else {
             o.y == o.home.1
@@ -177,13 +180,13 @@ impl Objects {
             seq = 0;
         }
         let local = o.local_id;
-        let mut d = route[seq as usize & 3];
+        let mut d = route.get(seq as usize);
         o.set_dir(d);
         let mut c = self.collision(terrain, local, d);
         if c == Collision::OutsideRange {
             // Gen3 reads `route[4]` past the array after the last leg; wrap instead.
             seq = (seq + 1) & 3;
-            d = route[seq as usize];
+            d = route.get(seq as usize);
             self.objs[i].set_dir(d);
             c = self.collision(terrain, local, d);
         }
@@ -218,7 +221,7 @@ const fn seq(idle: Idle) -> u8 {
 }
 
 /// The two directions of a `FaceTwo` as a static slice (Gen3 `g*Directions` pairs).
-fn pair(a: Dir, b: Dir) -> &'static [Dir] {
+fn pair(p: Dirs) -> &'static [Dir] {
     use Dir::*;
     static PAIRS: [[[Dir; 2]; 4]; 4] = {
         let all = [Down, Up, Left, Right];
@@ -234,5 +237,5 @@ fn pair(a: Dir, b: Dir) -> &'static [Dir] {
         }
         t
     };
-    &PAIRS[a as usize][b as usize]
+    &PAIRS[p.get(0) as usize][p.get(1) as usize]
 }

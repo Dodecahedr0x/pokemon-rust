@@ -2,7 +2,7 @@
 //! sprites. Structure only: no ROM text is asserted.
 
 use content::Emerald;
-use engine::data::{BgKind, Dir, GameData, Gfx, VarId, block_metatile};
+use engine::data::{BgKind, Dir, Dirs, GameData, Gfx, VarId, block_metatile};
 use std::time::Instant;
 use studio::map_view::{Overlay, cells, map_list, overlays, render_map};
 use studio::sprite::{decode_sprite, initial_facing, object_sprite};
@@ -28,13 +28,13 @@ fn initial_facing_matches_the_engine() {
         all.push(MovementType::WalkSlowlyInPlace(d));
         all.push(MovementType::WalkBackAndForth(d));
         all.push(MovementType::FaceAllBut(d));
-        all.push(MovementType::FaceTwo(d, d.opposite()));
-        all.push(MovementType::WalkSequence([
+        all.push(MovementType::FaceTwo(Dirs::two(d, d.opposite())));
+        all.push(MovementType::WalkSequence(Dirs::new([
             d,
             d.opposite(),
             d,
             d.opposite(),
-        ]));
+        ])));
     }
     for m in &all {
         // Exhaustive: a new engine variant stops this compiling until it is listed above.
