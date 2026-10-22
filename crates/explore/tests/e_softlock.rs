@@ -4,7 +4,7 @@ use content::Emerald;
 use engine::Buttons;
 use engine::checkpoint::Checkpoint;
 use engine::data::{GameData, MapId, block_collision};
-use explore::softlock::{Trap, map_exits, probe, probe_region};
+use explore::softlock::{Trap, map_exits, probe};
 use explore::testing::{NOWHERE, WallAround};
 use game_native::Session;
 use std::collections::VecDeque;
@@ -79,7 +79,7 @@ fn walled_in_start_is_trapped() {
     let cp = start(walled);
     assert_eq!(cp.world.objects.objs[0].pos, (ng.x, ng.y));
     let exits = map_exits(&walled, ng.map);
-    let trap = probe(&cp, exits, 3, 64, &mut |c| walk_reach(&walled, c));
+    let trap = probe(&cp, 0, exits, 3, 64, &mut |c, _| walk_reach(&walled, c));
     assert_eq!(trap, Trap::Trapped { reached: 1 });
 
     // Without the wall around the player (the wall moved to the map's corner): free.
@@ -89,7 +89,7 @@ fn walled_in_start_is_trapped() {
         at: (0, 0),
     };
     let cp = start(open);
-    let trap = probe(&cp, map_exits(&open, ng.map), 3, 64, &mut |c| {
+    let trap = probe(&cp, 0, map_exits(&open, ng.map), 3, 64, &mut |c, _| {
         walk_reach(&open, c)
     });
     assert_eq!(trap, Trap::Free);
@@ -98,7 +98,7 @@ fn walled_in_start_is_trapped() {
         // The plain stub map has no exit: never a finding.
         assert_eq!(map_exits(&inner, ng.map), 0);
         let cp = start(inner);
-        let trap = probe(&cp, 0, 3, 64, &mut |c| walk_reach(&inner, c));
+        let trap = probe(&cp, 0, 0, 3, 64, &mut |c, _| walk_reach(&inner, c));
         assert_eq!(trap, Trap::NoExits);
     }
 }
@@ -116,13 +116,13 @@ fn probe_bfs_depth_breadth_and_regions() {
     let root = start(Emerald::for_shells());
     let map = root.world.field.map;
     // A ternary tree of states numbered by frame (children of n: 3n+1..=3n+3); region 7,
-    // except state `odd` (region 8).
+    // except state `odd` (region 8). `calls` records (state, remaining).
     let tree = |odd: u32| {
         // State n > 0 sits at frame BASE + n; the root is state 0.
         const BASE: u32 = 1_000_000;
-        let f = move |c: &Checkpoint, calls: &mut Vec<u32>| {
+        let f = move |c: &Checkpoint, remaining: u32, calls: &mut Vec<(u32, u32)>| {
             let n = c.world.frame.saturating_sub(BASE);
-            calls.push(n);
+            calls.push((n, remaining));
             (1..=3)
                 .map(|i| {
                     let child = 3 * n + i;
@@ -137,50 +137,54 @@ fn probe_bfs_depth_breadth_and_regions() {
         (f, Vec::new())
     };
 
-    let (f, mut calls) = tree(0);
-    let mut ex = |c: &Checkpoint| f(c, &mut calls);
+    let (f, calls) = tree(0);
+    let calls = std::cell::RefCell::new(calls);
+    let mut ex = |c: &Checkpoint, r: u32| f(c, r, &mut calls.borrow_mut());
     assert_eq!(
-        probe(&root, 1, 2, 64, &mut ex),
+        probe(&root, 7, 1, 2, 64, &mut ex),
         Trap::Trapped { reached: 12 }
     );
+    // BFS order: the root, then depth 1 in order; `remaining` = breadth - reached.
+    assert_eq!(&calls.borrow()[..4], &[(0, 64), (1, 61), (2, 58), (3, 55)]);
     assert_eq!(
-        probe(&root, 1, 1, 64, &mut ex),
+        probe(&root, 7, 1, 1, 64, &mut ex),
         Trap::Trapped { reached: 3 }
     );
-    assert_eq!(probe(&root, 1, 3, 5, &mut ex), Trap::Trapped { reached: 5 });
     assert_eq!(
-        probe(&root, 1, 0, 64, &mut ex),
-        Trap::Trapped { reached: 0 }
+        probe(&root, 7, 1, 3, 5, &mut ex),
+        Trap::Trapped { reached: 5 }
     );
-    assert_eq!(probe(&root, 0, 3, 64, &mut ex), Trap::NoExits);
-    assert_eq!(
-        probe_region(&root, 7, 1, 2, 64, &mut ex),
-        Trap::Trapped { reached: 12 }
-    );
-    assert_eq!(probe_region(&root, 9, 1, 2, 64, &mut ex), Trap::Free);
-    // BFS order: the root, then depth 1 in order.
-    assert_eq!(&calls[..4], &[0, 1, 2, 3]);
+    // Nothing probed: nothing claimed.
+    assert_eq!(probe(&root, 7, 1, 0, 64, &mut ex), Trap::Free);
+    assert_eq!(probe(&root, 7, 1, 3, 0, &mut ex), Trap::Free);
+    assert_eq!(probe(&root, 7, 0, 3, 64, &mut ex), Trap::NoExits);
+    // Another start region: the first child already differs.
+    assert_eq!(probe(&root, 9, 1, 2, 64, &mut ex), Trap::Free);
 
     // A region change at depth 2 (state 5 = the second child of 1).
-    let (f, mut calls) = tree(5);
-    let mut ex = |c: &Checkpoint| f(c, &mut calls);
+    let (f, calls) = tree(5);
+    let calls = std::cell::RefCell::new(calls);
+    let mut ex = |c: &Checkpoint, r: u32| f(c, r, &mut calls.borrow_mut());
     assert_eq!(
-        probe(&root, 1, 1, 64, &mut ex),
+        probe(&root, 7, 1, 1, 64, &mut ex),
         Trap::Trapped { reached: 3 }
     );
-    assert_eq!(probe(&root, 1, 2, 64, &mut ex), Trap::Free);
-    assert_eq!(probe(&root, 1, 2, 4, &mut ex), Trap::Trapped { reached: 4 });
+    assert_eq!(probe(&root, 7, 1, 2, 64, &mut ex), Trap::Free);
+    assert_eq!(
+        probe(&root, 7, 1, 2, 4, &mut ex),
+        Trap::Trapped { reached: 4 }
+    );
 
     // Another map is free; identical states are expanded once.
-    let mut other = |c: &Checkpoint| vec![(7, MapId(map.0 ^ 1), c.clone())];
-    assert_eq!(probe(&root, 1, 3, 64, &mut other), Trap::Free);
+    let mut other = |c: &Checkpoint, _| vec![(7, MapId(map.0 ^ 1), c.clone())];
+    assert_eq!(probe(&root, 7, 1, 3, 64, &mut other), Trap::Free);
     let mut n = 0;
-    let mut same = |c: &Checkpoint| {
+    let mut same = |c: &Checkpoint, _| {
         n += 1;
         vec![(7, map, c.clone()), (7, map, c.clone())]
     };
     assert_eq!(
-        probe(&root, 1, 5, 64, &mut same),
+        probe(&root, 7, 1, 5, 64, &mut same),
         Trap::Trapped { reached: 2 }
     );
     assert_eq!(n, 1);
@@ -195,7 +199,7 @@ fn end_state_replays_a_trace_to_its_checkpoint() {
         keys: Buttons::NONE,
         frames: 150,
     }];
-    let trace = repro_trace(&game, &[&runs[..]], &[]);
+    let trace = repro_trace(&game, &[&runs[..]], &[]).unwrap();
     let mut s = Session::new(game);
     for _ in 0..150 {
         s.step(Buttons::NONE);

@@ -5,7 +5,7 @@ use engine::Buttons;
 use engine::data::GameData;
 use explore::config::DetectConfig;
 use explore::detect::Detectors;
-use explore::findings::{repro_trace, reproduce, signature};
+use explore::findings::{kind_name, repro_trace, reproduce, signature, signature_of};
 use explore::observe::{Flag, StepObserver};
 use explore::probe::Probe;
 use explore::testing::{Drifting, FadeTrap};
@@ -110,7 +110,7 @@ fn drifting_game_breaks_the_round_trip_follow() {
 
     // The repro (a fresh Drifting from a new game, as above) raises it on its last frame.
     let want = draft(flag.kind, flag.message, &s);
-    let trace = repro_trace(&game, &[], &rle(keys.iter().copied()));
+    let trace = repro_trace(&game, &[], &rle(keys.iter().copied())).unwrap();
     assert_eq!(trace.frames() as usize, keys.len());
     reproduce(&game, &trace, &want, &cfg).unwrap();
     let mut shorter = trace.clone();
@@ -213,7 +213,7 @@ fn fade_trap_is_capturable_stuck() {
     let (a, b) = keys.split_at(keys.len() / 2);
     let (la, lb) = (rle(a.iter().copied()), rle(b.iter().copied()));
     let (lb, tail) = lb.split_at(lb.len() - 1);
-    let trace = repro_trace(&game, &[&la, lb], tail);
+    let trace = repro_trace(&game, &[&la, lb], tail).unwrap();
     assert_eq!(trace.frames() as usize, keys.len());
     reproduce(&game, &trace, &want, &cfg).unwrap();
     // A longer threshold does not raise it at the last frame.
@@ -222,8 +222,37 @@ fn fade_trap_is_capturable_stuck() {
         ..cfg.clone()
     };
     assert!(reproduce(&game, &trace, &want, &later).is_err());
+    // Overlap: the same finding raised again later (the count restarts after a flag). The
+    // earlier raise is not terminal; only the last frame decides.
+    let mut again = keys.clone();
+    again.extend([Buttons::NONE; 121]);
+    let trace2 = repro_trace(&game, &[], &rle(again.iter().copied())).unwrap();
+    reproduce(&game, &trace2, &want, &cfg).unwrap();
+    let mut between = keys.clone();
+    between.extend([Buttons::NONE; 60]);
+    let trace3 = repro_trace(&game, &[], &rle(between.iter().copied())).unwrap();
+    assert!(reproduce(&game, &trace3, &want, &cfg).is_err());
+    // Every flag of a frame: stuck and slow together.
+    let mut det = Detectors::new(&DetectConfig {
+        capturable_stuck: 1,
+        slow_step_us: 1,
+        ..quiet()
+    });
+    s.step(Buttons::NONE);
+    assert_eq!(det.after_step_all(&s, Buttons::NONE, 0), []);
+    s.step(Buttons::NONE);
+    let kinds: Vec<_> = det
+        .after_step_all(&s, Buttons::NONE, 10_000)
+        .into_iter()
+        .map(|f| f.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [FindingKind::CapturableStuck, FindingKind::SlowFrame]
+    );
+
     // The plain game is not stuck there.
-    let plain = repro_trace(&inner, &[], &rle(keys.iter().copied()));
+    let plain = repro_trace(&inner, &[], &rle(keys.iter().copied())).unwrap();
     assert!(reproduce(&inner, &plain, &want, &cfg).is_err());
 }
 
@@ -241,7 +270,7 @@ fn slow_steps_are_flagged_and_never_reproduced() {
     let f = det.after_step(&s, Buttons::NONE, 5_001).expect("slow");
     assert_eq!(f.kind, FindingKind::SlowFrame);
     let want = draft(f.kind, f.message, &s);
-    let trace = repro_trace(&Emerald::for_shells(), &[], &rle([Buttons::NONE; 2]));
+    let trace = repro_trace(&Emerald::for_shells(), &[], &rle([Buttons::NONE; 2])).unwrap();
     assert!(reproduce(&Emerald::for_shells(), &trace, &want, &cfg).is_err());
     // Off by default in the quiet config.
     let mut det = Detectors::<Emerald>::new(&quiet());
@@ -265,12 +294,54 @@ fn signatures_ignore_digits_and_follow_location() {
     let mut c = a.clone();
     c.map.0 ^= 1;
     assert_ne!(signature(&a), signature(&c));
+    // Panics: the location's file and the digit-stripped message, not line:col.
     let mut p = a.clone();
     p.kind = FindingKind::Panic;
-    p.location = Some("x.rs:1:2".into());
+    p.message = "index 3 out of range".into();
+    p.location = Some("crates/engine/src/x.rs:10:2".into());
     let mut q = p.clone();
-    q.message = "another message".into();
+    q.message = "index 7 out of range".into();
+    q.location = Some("crates/engine/src/x.rs:42:9".into());
     assert_eq!(signature(&p), signature(&q));
-    q.location = Some("x.rs:1:3".into());
+    q.location = Some("crates/engine/src/y.rs:10:2".into());
     assert_ne!(signature(&p), signature(&q));
+    q.location = p.location.clone();
+    q.message = "another message".into();
+    assert_ne!(signature(&p), signature(&q));
+    assert_eq!(
+        signature(&p),
+        signature_of(p.kind, &p.message, p.location.as_deref(), p.map)
+    );
+    assert_eq!(kind_name(FindingKind::RoundTrip), "round_trip");
+}
+
+#[test]
+fn a_load_mid_run_is_a_discontinuity_not_a_round_trip_break() {
+    let cfg = DetectConfig {
+        roundtrip_every: 16,
+        follow: 60,
+        capturable_stuck: 600,
+        ..quiet()
+    };
+    let mut s = Session::new(Probe::new(Emerald::for_shells()));
+    let early = (0..600)
+        .find_map(|_| {
+            s.step(Buttons::NONE);
+            s.checkpoint().ok()
+        })
+        .expect("capturable");
+    let mut det = Detectors::<Emerald>::new(&cfg);
+    for _ in 0..100 {
+        s.step(Buttons::NONE);
+        assert_eq!(det.after_step(&s, Buttons::NONE, 0), None);
+    }
+    let before = det.round_trips();
+    assert!(before > 0);
+    // Back to an earlier frame with a shadow following: no RoundTrip, the schedule restarts.
+    s.load(&early).unwrap();
+    for _ in 0..200 {
+        s.step(Buttons::NONE);
+        assert_eq!(det.after_step(&s, Buttons::NONE, 0), None);
+    }
+    assert!(det.round_trips() > before);
 }

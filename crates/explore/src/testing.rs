@@ -16,7 +16,7 @@ use engine::data::{
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
 use engine::script::{Ctx, Fade, Script};
 use std::cell::Cell;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 /// One delegating `GameData` method per name: `forward!(map has_map …)`.
 macro_rules! forward {
@@ -220,15 +220,21 @@ enum Patch {
 type Leaked = (Patch, usize, (i16, i16), &'static MapData);
 
 /// Patched map copies, leaked once per (patch, base map, cell): `GameData::map` runs every frame.
-static LEAKED: Mutex<Vec<Leaked>> = Mutex::new(Vec::new());
+/// Read-mostly: workers only take the read lock once a copy exists.
+static LEAKED: RwLock<Vec<Leaked>> = RwLock::new(Vec::new());
 
 fn leaked(patch: Patch, base: &'static MapData, at: (i16, i16)) -> &'static MapData {
     let addr = std::ptr::from_ref(base) as usize;
-    let mut all = LEAKED.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(&(.., m)) = all
-        .iter()
-        .find(|&&(p, a, c, _)| p == patch && a == addr && c == at)
-    {
+    let find = |all: &[Leaked]| {
+        all.iter()
+            .find(|&&(p, a, c, _)| p == patch && a == addr && c == at)
+            .map(|&(.., m)| m)
+    };
+    if let Some(m) = find(&LEAKED.read().unwrap_or_else(|e| e.into_inner())) {
+        return m;
+    }
+    let mut all = LEAKED.write().unwrap_or_else(|e| e.into_inner());
+    if let Some(m) = find(&all) {
         return m;
     }
     let m: &'static MapData = Box::leak(Box::new(match patch {

@@ -71,8 +71,12 @@ fn panic_on_script_is_caught_and_reproduced() {
         };
         let p = guard::catch(|| Session::new(game)).err().expect("a panic");
         assert_injected(&p, NEW_GAME_SCRIPT);
-        let trace = repro_trace(&game, &[], &[]);
+        let trace = repro_trace(&game, &[], &[]).unwrap();
         assert_eq!((trace.frames(), trace.hashes.len()), (0, 0));
+        // Inputs after the panic: the panic frame (0) is reported with the trace.
+        let more = rle([Buttons::NONE; 3]);
+        let (t, at) = repro_trace(&game, &[&more], &[]).unwrap_err();
+        assert_eq!((t.frames(), at), (0, 0));
         assert_eq!(panic_frame(&game, &trace), Some(0));
         reproduce(&game, &trace, &draft(&p, inner.new_game().map), &cfg).unwrap();
         // The plain game does not reproduce it.
@@ -107,8 +111,21 @@ fn panic_on_script_is_caught_and_reproduced() {
     let mid = runs.len() / 2;
     let (a, rest) = runs.split_at(mid);
     let (b, tail): (&[Run], &[Run]) = rest.split_at(rest.len() - 1);
-    let trace = repro_trace(&game, &[a, b], tail);
+    let trace = repro_trace(&game, &[a, b], tail).unwrap();
     assert_eq!(trace.frames() as usize, at);
+    // The lineage itself panics (inputs follow the panic): the frame comes back with the trace.
+    let after = rle([Buttons::NONE; 5]);
+    let (t, f) = repro_trace(&game, &[&runs, &after], &[]).unwrap_err();
+    assert_eq!((t.frames() as usize, f as usize), (at, at));
+    assert_eq!(t.inputs, trace.inputs);
+    // The signature ignores the panic's line and column (the row keeps them).
+    let mut moved = want.clone();
+    moved.location = want.location.as_ref().map(|l| {
+        let file = l.rsplitn(3, ':').nth(2).unwrap();
+        format!("{file}:1:1")
+    });
+    assert_ne!(moved.location, want.location);
+    reproduce(&game, &trace, &moved, &cfg).unwrap();
     assert!(trace.hashes.iter().all(|&(f, _)| (f as usize) < at));
     assert_eq!(panic_frame(&game, &trace), Some(at as u32));
     reproduce(&game, &trace, &want, &cfg).unwrap();

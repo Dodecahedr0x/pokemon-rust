@@ -18,27 +18,17 @@ pub enum Trap {
     NoExits,
 }
 
-/// The states one macro away from a state: (region, map, end state) per expansion.
-pub type ExpandAll<'a> = dyn FnMut(&Checkpoint) -> Vec<(u64, MapId, Checkpoint)> + 'a;
+/// The states one macro away from a state, given the expansions still allowed (`remaining`,
+/// at least 1; the closure may stop there): (region, map, end state) per expansion.
+pub type ExpandAll<'a> = dyn FnMut(&Checkpoint, u32) -> Vec<(u64, MapId, Checkpoint)> + 'a;
 
-/// From `start`, BFS over macros to depth k (at most `breadth` expansions, deterministic
-/// order): Trapped iff the map has exits and every reached state has start's region and map.
+/// From `start` (whose region is `region`, the node's), BFS over macros to depth k (at most
+/// `breadth` expansions, deterministic order, identical states expanded once): Trapped iff the
+/// map has exits and every reached state has start's region and map.
 ///
-/// The start's region is not known here (it needs the key config), so it is taken to be the
-/// region of the first reached state: every reached state must share one region. Callers that
-/// know it (the node's `region`) use [`probe_region`].
+/// `NoExits` when `map_exits == 0` (never a finding); `Free` when `k == 0 || breadth == 0`
+/// (nothing was probed, so nothing is claimed).
 pub fn probe(
-    start: &Checkpoint,
-    map_exits: usize,
-    k: u32,
-    breadth: u32,
-    expand_all: &mut ExpandAll<'_>,
-) -> Trap {
-    bfs(start, None, map_exits, k, breadth, expand_all)
-}
-
-/// [`probe`] against a known start region.
-pub fn probe_region(
     start: &Checkpoint,
     region: u64,
     map_exits: usize,
@@ -46,19 +36,11 @@ pub fn probe_region(
     breadth: u32,
     expand_all: &mut ExpandAll<'_>,
 ) -> Trap {
-    bfs(start, Some(region), map_exits, k, breadth, expand_all)
-}
-
-fn bfs(
-    start: &Checkpoint,
-    mut region: Option<u64>,
-    map_exits: usize,
-    k: u32,
-    breadth: u32,
-    expand_all: &mut ExpandAll<'_>,
-) -> Trap {
     if map_exits == 0 {
         return Trap::NoExits;
+    }
+    if k == 0 || breadth == 0 {
+        return Trap::Free;
     }
     let map = start.world.field.map;
     let mut seen = BTreeSet::from([state_digest(&start.world)]);
@@ -68,12 +50,12 @@ fn bfs(
         if depth >= k || reached >= breadth {
             continue;
         }
-        for (r, m, end) in expand_all(&cp) {
+        for (r, m, end) in expand_all(&cp, breadth - reached) {
             if reached >= breadth {
                 break;
             }
             reached += 1;
-            if m != map || *region.get_or_insert(r) != r {
+            if m != map || r != region {
                 return Trap::Free;
             }
             if seen.insert(state_digest(&end.world)) {

@@ -13,7 +13,7 @@
 //! on the same frames as the job that found the bug, from the job's start state on.
 
 use crate::config::DetectConfig;
-use crate::guard;
+use crate::guard::{self, Panicked};
 use crate::model::FindingKind;
 use crate::observe::{Flag, StepObserver};
 use crate::probe::Probe;
@@ -32,6 +32,8 @@ pub struct Detectors<G: GameData> {
     checked: Option<u32>,
     /// Round trips done.
     round_trips: u32,
+    /// The world frame of the last observed step (discontinuity check).
+    last_frame: Option<u32>,
 }
 
 impl<G: GameData + Clone> Detectors<G> {
@@ -42,6 +44,7 @@ impl<G: GameData + Clone> Detectors<G> {
             idle_not_capturable: 0,
             checked: None,
             round_trips: 0,
+            last_frame: None,
         }
     }
 
@@ -57,7 +60,7 @@ impl<G: GameData + Clone> Detectors<G> {
         let flag = match guard::catch(|| shadow.step(keys)) {
             Err(p) => Some(format!(
                 "shadow panicked {since} frames after the round trip: {}",
-                p.message
+                panic_text(&p)
             )),
             Ok(()) => {
                 let (want, got) = (s.world().hash(), shadow.world().hash());
@@ -79,38 +82,88 @@ impl<G: GameData + Clone> Detectors<G> {
         })
     }
 
-    /// The round trip of a capturable frame; keeps a shadow when `follow > 0`.
+    /// The round trip of a capturable frame, all of it under the guard; keeps a shadow when
+    /// `follow > 0`.
     fn round_trip(&mut self, s: &Session<Probe<G>>) -> Option<Flag> {
         self.round_trips += 1;
-        let flag = |message: String| {
-            Some(Flag {
-                kind: FindingKind::RoundTrip,
-                message,
-            })
+        let r = guard::catch(|| -> Result<Session<G>, String> {
+            let cp = s
+                .checkpoint()
+                .map_err(|e| format!("capturable frame refused a checkpoint: {e:?}"))?;
+            let back =
+                decode(&encode(&cp)).map_err(|e| format!("checkpoint does not decode: {e:?}"))?;
+            if back != cp {
+                return Err("checkpoint changed by encode/decode".into());
+            }
+            let restored = Session::restore(s.game().inner().clone(), &back)
+                .map_err(|e| format!("restore failed: {e:?}"))?;
+            let (want, got) = (s.world().hash(), restored.world().hash());
+            if want != got {
+                return Err(format!("restored hash {got}, live {want}"));
+            }
+            Ok(restored)
+        });
+        let message = match r {
+            Ok(Ok(restored)) => {
+                self.shadow = (self.cfg.follow > 0).then_some((restored, self.cfg.follow));
+                return None;
+            }
+            Ok(Err(m)) => m,
+            Err(p) => format!("round trip panicked: {}", panic_text(&p)),
         };
-        let cp = match s.checkpoint() {
-            Ok(cp) => cp,
-            Err(e) => return flag(format!("capturable frame refused a checkpoint: {e:?}")),
-        };
-        let back = match decode(&encode(&cp)) {
-            Ok(back) => back,
-            Err(e) => return flag(format!("checkpoint does not decode: {e:?}")),
-        };
-        if back != cp {
-            return flag("checkpoint changed by encode/decode".into());
+        self.shadow = None;
+        Some(Flag {
+            kind: FindingKind::RoundTrip,
+            message,
+        })
+    }
+
+    /// Every flag of this frame, in priority order: follow, round trip, stuck, slow.
+    /// [`StepObserver::after_step`] returns the first.
+    ///
+    /// A frame that does not follow the last one observed (a `Session::load`, or another
+    /// session) is a discontinuity: the shadow is dropped and the schedule restarts as for a new
+    /// instance.
+    pub fn after_step_all(
+        &mut self,
+        s: &Session<Probe<G>>,
+        keys: Buttons,
+        step_ns: u64,
+    ) -> Vec<Flag> {
+        let frame = s.world().frame();
+        if self
+            .last_frame
+            .is_some_and(|last| frame != last.wrapping_add(1))
+        {
+            self.shadow = None;
+            self.checked = None;
+            self.idle_not_capturable = 0;
         }
-        let game = s.game().inner().clone();
-        let restored = match guard::catch(|| Session::restore(game, &back)) {
-            Ok(Ok(r)) => r,
-            Ok(Err(e)) => return flag(format!("restore failed: {e:?}")),
-            Err(p) => return flag(format!("restore panicked: {}", p.message)),
-        };
-        let (want, got) = (s.world().hash(), restored.world().hash());
-        if want != got {
-            return flag(format!("restored hash {got}, live {want}"));
+        self.last_frame = Some(frame);
+        let mut flags = Vec::new();
+        flags.extend(self.follow(s, keys));
+        let capturable = s.world().capturable();
+        if let Some(bucket) = frame.checked_div(self.cfg.roundtrip_every) {
+            let every = self.cfg.roundtrip_every;
+            let checked = *self.checked.get_or_insert(frame.saturating_sub(1) / every);
+            if bucket > checked && capturable.is_ok() {
+                self.checked = Some(bucket);
+                flags.extend(self.round_trip(s));
+            }
         }
-        self.shadow = (self.cfg.follow > 0).then_some((restored, self.cfg.follow));
-        None
+        flags.extend(self.stuck(s, keys, capturable));
+        let limit = u64::from(self.cfg.slow_step_us) * 1000;
+        if limit > 0 && step_ns > limit {
+            flags.push(Flag {
+                kind: FindingKind::SlowFrame,
+                message: format!(
+                    "step took {} us (limit {} us)",
+                    step_ns / 1000,
+                    self.cfg.slow_step_us
+                ),
+            });
+        }
+        flags
     }
 
     /// Counts idle-but-not-capturable frames.
@@ -149,33 +202,13 @@ impl<G: GameData + Clone> Detectors<G> {
 }
 
 impl<G: GameData + Clone> StepObserver<G> for Detectors<G> {
-    /// Round trip, follow, capturable stuck, slow step (one flag per frame, in that priority:
-    /// follow, round trip, stuck, slow).
+    /// The first of [`Detectors::after_step_all`].
     fn after_step(&mut self, s: &Session<Probe<G>>, keys: Buttons, step_ns: u64) -> Option<Flag> {
-        let mut flags = Vec::new();
-        flags.extend(self.follow(s, keys));
-        let capturable = s.world().capturable();
-        let frame = s.world().frame();
-        if let Some(bucket) = frame.checked_div(self.cfg.roundtrip_every) {
-            let every = self.cfg.roundtrip_every;
-            let checked = *self.checked.get_or_insert(frame.saturating_sub(1) / every);
-            if bucket > checked && capturable.is_ok() {
-                self.checked = Some(bucket);
-                flags.extend(self.round_trip(s));
-            }
-        }
-        flags.extend(self.stuck(s, keys, capturable));
-        let limit = u64::from(self.cfg.slow_step_us) * 1000;
-        if limit > 0 && step_ns > limit {
-            flags.push(Flag {
-                kind: FindingKind::SlowFrame,
-                message: format!(
-                    "step took {} us (limit {} us)",
-                    step_ns / 1000,
-                    self.cfg.slow_step_us
-                ),
-            });
-        }
-        flags.into_iter().next()
+        self.after_step_all(s, keys, step_ns).into_iter().next()
     }
+}
+
+/// "message at file:line:col".
+fn panic_text(p: &Panicked) -> String {
+    format!("{} at {}", p.message, p.location.as_deref().unwrap_or("?"))
 }
