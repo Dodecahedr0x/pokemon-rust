@@ -1423,3 +1423,109 @@ Consequence: the `node` table grows by one non-live row per such duplicate. Thos
 ## Findings
 - **House map 0x101, `Inspect` at (5,1) and (3,1) facing Up (Task A's probe):** the script ends but the fade never returns to 0, so the state is never capturable again. Likely a real engine or content bug; `CapturableStuck` should report it once Task G runs.
 - **M8 follow-up (engine): the stale view after a connection crossing should be capturable.** Today it is capturable only once the camera has left the crossing's view, so `Cross` needs the walk-away and talk fallback (Task A as built). Capturing it, by snapshotting the stale rect or redrawing the view on restore, would let `Cross` end one cell into the new map as specified.
+
+## Task G as built
+**`wire.rs`.** `Explore<G: GameData + Clone + Send + Sync + 'static>` holds the game, `Db`, `SnapCache`, `Runner`, `Evaluator`, `Config` and its own rayon pool (`cfg.threads`, 0 = rayon's default), plus `opened: OpenState` and `revalidated: Option<RevalidateReport>`.
+- `Explore::open(game, path, cfg)`:
+  - `Db::open` with `build_hash(&game)` and `content::STUB`;
+  - a fresh db records `meta.seed`; an existing db's seed replaces `cfg.seed`, so a resumed run plans as a straight one;
+  - on `build_changed`: `mark_all_stale`, then `revalidate` on the pool;
+  - the runner is `Runner::new(cfg, db.nodes(), next)`, where `next` is `meta.generation + 1` once any generation was applied (rows or findings exist) and 0 otherwise;
+  - the archive is `Archive::from_db(seen, distinct row keys, coverage)`.
+- `generation() -> Option<GenOutcome>` (`None` = stalled, nothing planned) runs `plan` → `runner::jobs` with `cache::reach` (a reach error fails the generation) → `pool.install(run_jobs(sim::simulate))` with a fresh `Detectors` from the observer factory → `merge` through `BugWeighted` → `db.apply` → `take_fresh()` into the cache.
+- `run(budget, progress)` loops until the budget (`Budget`, counted from the call) is spent or the runner stalls, calls `progress(&Progress { summary, last, db })` after every generation, and records a `run` row. `RunSummary` holds generations, inserted nodes, frames, findings, wall time, `phases` and `stalled`.
+- `revalidate()` (CLI `revalidate`): `mark_all_stale`, `rebuild::revalidate`, then reloads the runner and archive and clears the cache.
+- `repair(game, start, macro, cfg)`: the revalidation repair. It re-expands the macro with `expand::expand` (policy, `NoObserver`) from the start checkpoint, or from `Session::new` for `None`. **Repaired nodes keep their `progress` and fitness** (not recomputed: `goals::progress` needs the summary of every expansion along the lineage).
+- `finding_trace(game, db, id, before)` is the lineage inputs plus the tail through `findings::repro_trace`. `before > 0` replays a prefix that ends `before` frames early, with its hashes.
+- `reproduce(game, db, id, cfg)`: `findings::reproduce`, or for a `Softlock`, `findings::end_state` and then `sim::trap` again, which must give the same signature.
+- `draft_of(&FindingRow)`.
+- **Bug weight:** `BugWeighted` wraps the `Evaluator`. The last step of a job that stopped on a finding gets `weights.bug` added to `fitness.bug` and `fitness.total`. Steps are matched by `Arc::as_ptr(&step.end)` (membership only, deterministic). A finding raised before the job's first step credits no node. The bonus is stored in the row, so a resumed run sees it.
+- `GenOutcome.phases` / `RunSummary.phases` (`Phases { plan, jobs, merge, apply }`): host time, report-only, never in the db.
+
+**`sim.rs` (wiring edit).**
+- `Plan::Softlock { k, breadth }` calls `sim::trap(game, start, k, breadth, cfg)`, which is `softlock::probe` with the start's region (`key::region(key_parts(start))`, equal to the node's) and `map_exits`.
+- `expand_all` restores a fresh `Session<Probe<G>>` per candidate, takes `candidates_with` in order and `expand`s each under `guard::catch` with the policy and no detectors. It keeps at most `remaining` successful ends `(region, map, cp)`; panics and failed expansions are skipped.
+- `Trapped` gives a `Softlock` finding with an empty tail, no macro, the start's map and cell, and the message `sim::softlock_message(region, k, reached, map)` (region and map in hex). `Free`/`NoExits` give `Stop::NotTrapped`. A probe without a start state is `Pruned`.
+- `sim::softlock_k(cfg, map)` (per-map K, else `softlock_k`) is used by `repro`. The root's `World::new` panic was already a finding (`Session::new` under `guard::catch`, empty tail, `new_game().map`), so `PanicOnScript` at `NEW_GAME_SCRIPT` gives one finding with `node = NULL`, and the runner stalls.
+
+**Other wiring edits (Wave 1 files):**
+- `db.rs`: the private `draft_signature` is gone; `apply` signs with `findings::signature`.
+- **`db.rs`, `apply` performance:** foreign keys are no longer deferred in `apply`. With `defer_foreign_keys`, SQLite scans every table referencing `node` on each node insert. `seen`, `coverage`, `battle` and `node.merged_into` have no index on that column, so the cost grew with the db: `apply` was 46% of a 30 s real run (13.7 s). Now:
+  - a superseded node first becomes `merged` (freeing its live key);
+  - rows insert with `merged_into` only when it names an existing node;
+  - the in-delta `merged_into`s are written after the inserts.
+
+  The db share fell to 2.8 s of 30 s. Same rows and same digests. `set_status_and_snapshots` (revalidation) still defers. No schema change.
+- `select.rs`: `selection_score` is a re-export of `fitness::selection_score` (same formula).
+- **Merge rule (deviation): more goals reached wins a key, then fewer frames.** In `runner.rs`, a step whose key is live supersedes the live node when `(progress, -total_frames)` is greater; before, frames alone decided. `progress` is not part of the key, so a lineage that reached a summary-only goal (the stub's `wild_won`, or the real `rescue_started`) was dropped as a duplicate whenever an earlier node held the same key with fewer frames. Seen on the stub with `cell_shift` 0: stuck at 2/3 goals. `rebuild.rs`'s collision winner follows the same order (`Reverse(progress)`, total frames, id), otherwise revalidation flipped such keys back. Test: `d_runner::more_goals_supersede_even_with_more_frames`.
+- `tests/a_expand.rs`: `Plan::Softlock` without a start is `Pruned` (was `"unwired"`).
+- Slow frames (`Expanded::slow`) and the Cross notes (`Expanded::notes`) are still dropped by `sim`. Carrying them would change `JobResult` (a Wave 0 type built by many tests); the `phases` timings cover what the run line needs.
+
+**`cli.rs`.** `explore <command> [--db P] [--config P]` (defaults `Db::default_path(content::STUB)` and `Config::default()`):
+- `run [--nodes N|--frames N|--generations N|--secs N] [--threads N] [--seed S]`: default 10 generations, one budget only. It prints a line every 10 generations (generation, valid nodes, inserted nodes/s, frames/s, goals `i/n (name)` via `goals::name(progress - 1)`, maps, cells, findings), a summary, and the host time per phase with the cache hits.
+- `status`, `findings [--all]` (open only by default, by hits), `show <id>`.
+- `export <id> [--before N] [--out P]`. **Deviation:** the default output is `<db dir>/repro/finding-<id>[-before-N].ron`, i.e. `target/explore/{stub|emerald}/repro/`, per flavor.
+- `repro <id>`: an error, so exit 1, unless it reproduces.
+- `revalidate` prints the time and report.
+- `coverage <map>`: the map is an id (decimal or `0x`) or a `MapData::name`, case-insensitive. Cells print as `#` blocked, `.` open, `1`–`4` for 1, 2–9, 10–99 and 100+ hits.
+- `digest`; `reset --yes` deletes the db and its `-wal`/`-shm`.
+
+The bin and xtask are unchanged; `cargo xtask explore` already forwarded.
+
+**E2E tests.** `tests/e2e_stub.rs` runs on the stub and returns at once on the real flavor. `tests/e2e_real.rs` is the reverse.
+- 30 generations with `cell_shift` 0 stand on all 196 reachable stub cells (`path::reach` from the first capturable state) and reach 3/3 goals. **Deviation:** with the default 4x4 blocks, the BFS walks between block centres follow the same lines and cover only 105 of the 196 cells, even at 200 generations; `cell_shift` 1 covers 181. That is the "Done when" 100% item for Task H.
+- `--threads` 1, 4 and 8 give an equal `content_digest` (10 generations).
+- Resume: 15 + 15 generations with a reopen equal 30 straight (rows and digest).
+- `PanicOnScript(NEW_GAME_SCRIPT)`: one `Panic` finding (node `NULL`, location in `testing.rs`, an empty trace). `reproduce` passes, the run stalls after one generation, and the db stays stalled once reopened.
+- `WallAround` at the start: one `Softlock` finding on node 1 with an empty tail. The trace length equals `total_frame`, `reproduce` passes, and it does not reproduce without the wall.
+- A `Rebuilt` game on an 8-generation db revalidates every row `Valid` (0 repaired, 0 broken), with the same digests and statuses on the new build, then explores on.
+- The CLI end to end on a temp db: run, status, findings, digest, coverage by id and by name, error cases, `reset --yes`.
+- `git status --porcelain` is unchanged by a run.
+- Real flavor, debug, `e2e_real`: **10 generations** (the plan's 5 end just before the first goal) reach progress ≥ 1 and ≥ 2 maps, and every finding raised reproduces.
+
+**Numbers** (Apple M4 Max, 16 rayon threads by default, release unless noted):
+- **Debug test times:** `e2e_stub` 9.5 s (8 tests); `e2e_real` 3.8 s.
+- **Stub, `cargo xtask explore run --generations 50`:**
+  - 0.5 s, 130 nodes inserted (32 valid), 3/3 goals, 105 cells, about 1.3M frames/s;
+  - `--threads 1`: 2.2 s, about 313k frames/s;
+  - `explore digest` is `0x51be88a0fa670e1b` on both.
+- **Real, determinism (60 generations, 1,204 nodes, 1.03M frames):**
+
+  | Run | Wall | Frames/s | `content_digest` |
+  |---|---|---|---|
+  | 1 thread | 5.6 s | ≈ 183k | `0x084f2da3e59fb613` |
+  | 8 threads | 2.0 s | | `0x084f2da3e59fb613` |
+  | 16 threads | 1.9 s | | `0x084f2da3e59fb613` |
+  | 30 + 30 resumed | | | `0x084f2da3e59fb613` |
+
+- **Real, `run --generations 100` from an empty db:**
+  - goals by generation: 3/7 at generation 9, 4/7 at 19, 5/7 (oldale) at 29, **7/7 `may_defeated` by generation 49** (under 2 s);
+  - 3.8 s in total;
+  - 13 maps by generation 49.
+- **Real, `run --secs 60` from an empty db:**
+  - 1,062 generations; 20,567 nodes inserted, 9,645 valid (35,580 rows);
+  - 342.7 nodes/s and 348.8k frames/s;
+  - 14 maps, 1,614 cells, 3 findings;
+  - the db is 34 MB (about 1 MB per 1,000 rows);
+  - host time: plan + reach 7.3 s, jobs 46.0 s, merge 0.4 s, db 4.3 s; cache 27,195 hits, 6,757 misses.
+- **Real, `explore revalidate` of that db** (same build, forced): 3.4 s, 9,645 valid, 0 repaired, 0 broken.
+- **Real, `run --secs 30`:** 427.8 nodes/s and 427.8k frames/s after the `apply` fix (it was 212k frames/s before).
+
+**Findings raised by the real runs** (all three reproduce with `explore repro`):
+1. `CapturableStuck` on map `0x0103` (3,2), "idle but not capturable … Fade", after `Inspect (3,1) Up`, script id 148, log `SPECIAL_StartWallClock`. This is the house fade already listed in Findings: the wall-clock special is not implemented and leaves the screen black.
+2. `CapturableStuck` on map `0x0101` (5,2), the same Fade.
+3. `Softlock` on map `0x0104` (12,8): the probe reached 51 states within 3 macros and none left the region. The map has exits, so this is likely a false positive (the `Enter` of its stairs or door fails from those states, or the breadth runs out). Task H triages it.
+
+**Notes for Task H (tuning):**
+- **Probe cost:** softlock probes (5% of jobs, up to `softlock_breadth` 64 expansions each) run in the parallel phase, but their frames are not counted in `stats.frames`. They and the restores make frames/s look low next to the 2.6M frames/s per core baseline. Per thread it is about 27k counted frames/s; jobs take 77% of the wall time.
+- **Stragglers:** a batch of 32 waits for its slowest job (probes, battles). 8 → 16 threads barely helps (2.0 → 1.9 s). Larger batches or cheaper probes (lower breadth, or `softlock_sample` as specified rather than D's 5% op weight) are the levers.
+- **Cache misses:** they grow with the tree (6,757 in 60 s, each a replay of up to `snapshot_every_depth` − 1 nodes on the main thread; plan + reach 7.3 s of 60 s). Raise `cache_capacity` or lower `snapshot_every_depth`.
+- **Stub coverage** needs `cell_shift ≤ 1`, or a WalkTo target choice that varies, for the 100% "Done when".
+- **Supersession:** more than 70% of rows are `merged` history (more goals or fewer frames supersede); each keeps a row for `key_hits`.
+- **Findings to triage:** the `0x0104` softlock (above), and the two Fade `CapturableStuck`s (real engine gaps, for Milestone 8).
+
+**Notes for Wave 2b (studio):**
+- `wire::finding_trace(game, &db, id, before)` already gives the NewGame `Trace` cut `before` frames early with its hashes. S1's `finding_trace` can call it, or `findings::repro_trace` on `db.lineage(node)` plus the tail when node is `None` (an empty lineage).
+- `Db::open_read_only` works while `explore run` writes (WAL). Read `DbStats`, `findings()` (`status` `open`/`stale`/`gone`, sort by hits) and `coverage(Some(map))`. The CLI's coverage grid shows the bucket rule (1, 2–9, 10–99, 100+).
+- The explorer process: `cargo run -p explore --release -- run --secs N --db P`. Its stdout prints a line every 10 generations, and `--threads` and `--seed` are flags. A db keeps its own seed after creation.
+- Goal names: `goals::name(progress - 1)`; `DbStats::max_progress` counts broken nodes out.
