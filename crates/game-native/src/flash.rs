@@ -1,6 +1,7 @@
-//! GBA flash images on the host (Milestone 5 Task E): `agb_save` over a 128 KiB buffer, with the
-//! layout `game-gba` writes (`engine::checkpoint::{FLASH_MAGIC, FLASH_SLOTS, FLASH_SIZE}`), so
-//! images are byte-identical to the ROM's.
+//! GBA flash images on the host (Milestone 5 Task E): `agb_save` over a `FLASH_SIZE` buffer,
+//! with the layout `game-gba` writes (`engine::checkpoint::{FLASH_MAGIC, FLASH_SLOTS,
+//! FLASH_SIZE}`), so images are byte-identical to the ROM's: mGBA's `savedataClone` after the
+//! ROM saved `cp` on erased flash equals `encode_sav(cp)`, and the ROM boots from it.
 
 use agb_save::{SaveSlotManager, StorageInfo, StorageMedium};
 use core::num::NonZeroUsize;
@@ -11,7 +12,7 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 
-/// 128 KiB flash (Sanyo `0x1362` / Macronix `0x09C2`) as agb's `SaveData` reports it: 4 KiB
+/// 64 KiB flash (Panasonic `0x1B32`, what mGBA answers) as agb's `SaveData` reports it: 4 KiB
 /// erase sectors, byte writes. Erase fills with 0xFF; a write can only clear bits, as on the
 /// chip (agb_save erases every sector before writing it, so this never changes the bytes).
 ///

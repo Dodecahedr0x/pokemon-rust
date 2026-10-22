@@ -117,10 +117,11 @@ impl Emu {
     /// cartridge's flash: it is written to `game.sav` next to the private ROM copy, where
     /// `mCoreAutoloadSave` picks it up.
     ///
-    /// The save type is forced to 128 KiB flash (FLASH1M, Sanyo id), the cartridge the ROM
-    /// declares with `init_flash_128k`. libmgba 0.11 ignores agb's `FLASH1M_V` marker and the
-    /// `.sav` size: without the override it autodetects FLASH512 on the first flash command
-    /// and answers a 64 KiB Panasonic id, so agb would run a 64 KiB chip.
+    /// The save type is set to 64 KiB flash (FLASH512, Panasonic id), the `FLASH_SIZE` chip.
+    /// That is what libmgba picks by itself for a homebrew ROM on its first flash command (it
+    /// reads neither agb's `FLASH*_V` markers nor the `.sav` size), so the harness runs what a
+    /// stock mGBA runs; setting it up front only makes [`Emu::save_data`] `FLASH_SIZE` bytes
+    /// before the ROM touches the flash.
     pub fn open_with_save(rom: &Path, sav: Option<&[u8]>) -> Result<Self> {
         if let Some(sav) = sav
             && sav.len() != FLASH_SIZE
@@ -140,9 +141,9 @@ impl Emu {
         let mut core = mgba::Core::new().map_err(|e| anyhow!("mgba core: {e:?}"))?;
         core.load_rom(&copy)
             .map_err(|e| anyhow!("load {}: {e:?}", rom.display()))?;
-        let flash1m = GbaCartridgeOverride {
+        let flash = GbaCartridgeOverride {
             id: [0; 4],
-            savetype: mgba_sys::GBA_SAVEDATA_FLASH1M,
+            savetype: mgba_sys::GBA_SAVEDATA_FLASH512,
             hardware: HW_NO_OVERRIDE,
             idle_loop: IDLE_LOOP_NONE,
             // libmgba's value when no override applies (`GBACreate`).
@@ -155,7 +156,7 @@ impl Emu {
             let set = (*raw)
                 .setOverride
                 .ok_or_else(|| anyhow!("no setOverride"))?;
-            set(raw, (&raw const flash1m).cast());
+            set(raw, (&raw const flash).cast());
         }
         core.reset().map_err(|e| anyhow!("reset: {e:?}"))?;
         Ok(Self {
@@ -501,7 +502,7 @@ mod tests {
         let mut emu = Emu::open_with_save(&rom, Some(&sav)).expect("dummy header should load");
         assert_eq!(listing(&dir.0), ["x.gba"]);
         assert_eq!(listing(&emu._scratch.0), ["game.gba", "game.sav"]);
-        // FLASH1M: all 128 KiB are loaded and read back (FLASH512 would keep 64 KiB).
+        // The whole image is loaded and read back.
         assert!(
             emu.save_data() == sav,
             "save data differs from the injected image"
@@ -509,7 +510,7 @@ mod tests {
     }
 
     #[test]
-    fn fresh_save_is_erased_128k_flash() {
+    fn fresh_save_is_erased_flash() {
         let dir = ScratchDir::new().unwrap();
         let mut emu = Emu::open(&dummy_rom(&dir)).unwrap();
         let data = emu.save_data();
@@ -521,6 +522,6 @@ mod tests {
     fn open_with_wrong_size_save_errors() {
         let dir = ScratchDir::new().unwrap();
         let rom = dummy_rom(&dir);
-        assert!(Emu::open_with_save(&rom, Some(&[0xFF; 64 * 1024])).is_err());
+        assert!(Emu::open_with_save(&rom, Some(&vec![0xFF; FLASH_SIZE + 1])).is_err());
     }
 }
