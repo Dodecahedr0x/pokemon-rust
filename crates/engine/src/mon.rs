@@ -3,7 +3,7 @@
 //!
 //! Formulas: `CreateMon`, `CalculateMonStats`, `MonGainEVs`, `gExperienceTables`, …
 
-use crate::data::{MoveId, SpeciesId};
+use crate::data::{EvoMethod, Evolution, MoveId, SpeciesId};
 use crate::hash::Fnv64;
 use crate::rng::Rng;
 use crate::video::Tile;
@@ -537,6 +537,20 @@ pub enum Learn {
     Full,
 }
 
+/// `GetSpeciesName` into a nickname: up to `POKEMON_NAME_LENGTH` characters, then EOS.
+fn species_nickname(info: &SpeciesInfo) -> [u8; NAME_LEN] {
+    let mut nickname = [0xFF; NAME_LEN];
+    let name = info
+        .name
+        .iter()
+        .take(NAME_LEN - 1)
+        .take_while(|&&c| c != 0xFF);
+    for (d, &c) in nickname.iter_mut().zip(name) {
+        *d = c;
+    }
+    nickname
+}
+
 /// Gen3 `MAX_LEVEL`.
 pub const MAX_LEVEL: u8 = 100;
 /// Gen3 `USE_RANDOM_IVS`: `Ivs::Fixed` values from here on draw random IVs, as `CreateBoxMon`.
@@ -590,16 +604,7 @@ impl Pokemon {
                 [f(a, 0), f(a, 1), f(a, 2), f(b, 0), f(b, 1), f(b, 2)]
             }
         };
-        // GetSpeciesName: up to POKEMON_NAME_LENGTH characters, then EOS.
-        let mut nickname = [0xFF; NAME_LEN];
-        let name = info
-            .name
-            .iter()
-            .take(NAME_LEN - 1)
-            .take_while(|&&c| c != 0xFF);
-        for (d, &c) in nickname.iter_mut().zip(name) {
-            *d = c;
-        }
+        let nickname = species_nickname(info);
         let ability_slot = if info.abilities[1] != Ability::None {
             (personality & 1) as u8
         } else {
@@ -729,6 +734,36 @@ impl Pokemon {
         } else if cur != 0 {
             self.hp = (cur + new_max - old_max).max(1) as u16;
         }
+    }
+
+    /// Gen3 `GetEvolutionTargetSpecies(mon, EVO_MODE_NORMAL, ..)` over `evos` (the species'
+    /// `gEvolutionTable` row), level methods only: the last entry whose level is reached wins,
+    /// as Gen3's loop. Friendship, item and trade methods never match here (M9). `Level`
+    /// folds `EVO_LEVEL` with its stat and personality variants (Wurmple, Tyrogue, Nincada),
+    /// so the second value is true when more than one level entry matched (the content
+    /// contract cannot tell Gen3's choice: the caller reports it).
+    pub fn evolution_target(&self, evos: &[Evolution]) -> Option<(SpeciesId, bool)> {
+        let mut found = None;
+        let mut matches = 0;
+        for e in evos {
+            if e.method == EvoMethod::Level && e.param <= self.level as u16 {
+                found = Some(e.target);
+                matches += 1;
+            }
+        }
+        found.map(|t| (t, matches > 1))
+    }
+
+    /// The species change of Gen3 `EvolutionScene`, without the scene: `EvolutionRenameMon`
+    /// (a nickname equal to the old species name becomes the new one), then
+    /// `CalculateMonStats` (the current HP moves with the max HP). The new species' moves at
+    /// this level are not learned (the scene's `MonTryLearningNewMove`, M9).
+    pub fn evolve(&mut self, t: &BattleTables, target: SpeciesId) {
+        if self.nickname == species_nickname(t.species_info(self.species)) {
+            self.nickname = species_nickname(t.species_info(target));
+        }
+        self.species = target;
+        self.recalc_stats(t);
     }
 
     /// Restores HP, PP (with `pp_bonuses`) and status (Gen3 `HealPlayerParty`, one mon).

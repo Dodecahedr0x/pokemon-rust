@@ -441,12 +441,6 @@ impl Gen<'_> {
         let mut moves = String::new();
         for m in &b.moves.moves {
             let slice = self.slice_mv.contains(&m.id);
-            ensure!(
-                !(slice && classify::UNWORDED_STAT_EFFECTS.contains(&m.effect.as_str())),
-                "slice move {} has {}: its stat message needs Rose/Fell-split `Str`s",
-                m.id,
-                m.effect
-            );
             let effect = match classify::move_effect(&m.effect) {
                 Some(e) => e,
                 None => {

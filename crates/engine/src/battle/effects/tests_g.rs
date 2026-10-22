@@ -867,3 +867,30 @@ fn trainer_ai_scoring_pursuit_is_reported() {
     let l = r.choose(Choice::Move(0));
     assert!(!l.iter().any(|x| x.starts_with("Report")), "{l:?}");
 }
+
+#[test]
+fn trainer_money_follows_get_trainer_money_to_give() {
+    use crate::battle::core::trainer_money;
+    // 4 × last level × gTrainerMoneyTable value; ×2 for a double battle. Roxanne
+    // (TRAINER_CLASS_LEADER, 25; Nosepass L15) and a Youngster (4; L5).
+    assert_eq!(trainer_money(15, 25, false), 1500);
+    assert_eq!(trainer_money(5, 4, false), 80);
+    assert_eq!(trainer_money(5, 4, true), 160);
+}
+
+#[test]
+fn a_trainer_win_prints_the_prize() {
+    // BattleScript_LocalBattleWonReward: STRINGID_PLAYERGOTMONEY with the money in buffer 1,
+    // after the defeat text, `waitmessage B_WAIT_TIME_LONG`.
+    let foes = [mon(NORMAL, 5, [1, 10, 10, 5, 10, 10], &[TACKLE])];
+    let mut r = Run::new(trainer(), &[me(WATER, &[MEGA_HIT])], &foes, 1);
+    r.b.battler_mut(O).mon.hp = 1;
+    r.b.prize = Some(80);
+    let l = r.choose(Choice::Move(0));
+    let n = l.len();
+    assert_eq!(
+        l[n - 3..],
+        ["TrainerDefeated", "PlayerGotMoney@P 80 ~64", "End(Won)"],
+        "{l:?}"
+    );
+}

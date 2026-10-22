@@ -398,6 +398,17 @@ pub struct Battle {
     /// `gMoveResultFlags & MOVE_RESULT_NO_EFFECT` of the move being used: set by
     /// [`Battle::missed`] (miss or type immunity) and [`Battle::fail`].
     pub(crate) no_effect: bool,
+    /// `GetTrainerMoneyToGive` for a trainer battle (`None` in a wild battle or when the game
+    /// gives no money table entry): paid by the caller on a win.
+    pub(crate) prize: Option<u32>,
+    /// `gLeveledUpInBattle`: player party slots that gained a level (evolution candidates).
+    pub(crate) leveled_up: u8,
+}
+
+/// Gen3 `GetTrainerMoneyToGive` (`moneyMultiplier` 1: no Amulet Coin without held items):
+/// `4 × the last party mon's level × gTrainerMoneyTable[class]`, doubled for a double battle.
+pub fn trainer_money(last_level: u8, table: u8, double: bool) -> u32 {
+    4 * last_level as u32 * table as u32 * if double { 2 } else { 1 }
 }
 
 /// A message about `active` with the move context of `attacker` → `target`, no buffers, no
@@ -449,6 +460,15 @@ impl Battle {
             BattleKind::Trainer { trainer, .. } => game.trainer(trainer).map_or(0, |t| t.ai),
             BattleKind::Wild { .. } => 0,
         };
+        let prize = match setup.kind {
+            BattleKind::Trainer { trainer, .. } => {
+                let last = setup.opponents.iter().last().map_or(0, |m| m.level);
+                let double = game.trainer(trainer).is_some_and(|t| t.double);
+                game.trainer_money(trainer)
+                    .map(|m| trainer_money(last, m, double))
+            }
+            BattleKind::Wild { .. } => None,
+        };
         // SetUpBattleVarsAndBirchZigzagoon → BattleAI_HandleItemUseBeforeAISetup(0xF) →
         // BattleAI_SetupAIData: four `simulatedRNG` rolls, in every battle (battle_controllers.c,
         // battle_ai_script_commands.c). CB2_InitBattleInternal runs it before
@@ -478,6 +498,8 @@ impl Battle {
             sync: None,
             caught_without_room: None,
             no_effect: false,
+            prize,
+            leveled_up: 0,
         }
     }
 
@@ -626,6 +648,18 @@ impl Battle {
         if let Some(p) = &self.caught_without_room {
             p.hash(h);
         }
+        h.write(&[self.leveled_up]);
+    }
+
+    /// The prize money of a trainer battle (Gen3 `getmoneyreward`), paid on a win; `None` in a
+    /// wild battle or without a money table entry.
+    pub fn prize(&self) -> Option<u32> {
+        self.prize
+    }
+
+    /// Gen3 `gLeveledUpInBattle`: a bit per player party slot that gained a level.
+    pub fn leveled_up(&self) -> u8 {
+        self.leveled_up
     }
 
     /// The mon caught while the party was full (Gen3 sends it to the PC, which the engine does
@@ -1153,6 +1187,7 @@ impl Battle {
         if !leveled {
             return;
         }
+        self.leveled_up |= 1 << party;
         // Update the battle mon after the level-up (when it is out and standing).
         let b = &mut self.battlers[side as usize];
         if b.mon.party == party && b.mon.hp > 0 {
@@ -1301,6 +1336,18 @@ impl Battle {
                 env.out
                     .push(BattleEvent::Msg(msg(Str::PlayerDefeatedTrainer, p, o, o)));
                 env.out.push(BattleEvent::TrainerDefeated);
+                // BattleScript_LocalBattleWonReward: `getmoneyreward` (the caller adds the
+                // money), STRINGID_PLAYERGOTMONEY, `waitmessage B_WAIT_TIME_LONG`.
+                match self.prize {
+                    Some(money) => env.out.push(BattleEvent::Msg(Msg {
+                        buffs: [Buff::Number(money), Buff::None, Buff::None],
+                        wait: LONG,
+                        ..about(Str::PlayerGotMoney, p)
+                    })),
+                    None => env
+                        .out
+                        .push(BattleEvent::Report(BattleReport::Degraded("trainer money"))),
+                }
             }
             BattleOutcome::Lost | BattleOutcome::Drew => {
                 // HandleEndTurn_BattleLost (also for B_OUTCOME_DREW: `IsPlayerDefeated`) →

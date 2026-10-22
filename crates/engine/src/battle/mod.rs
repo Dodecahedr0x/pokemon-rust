@@ -401,6 +401,8 @@ pub enum Str {
     PreventedFromWorking,
     /// `STRINGID_ITSUCKEDLIQUIDOOZE`: Liquid Ooze (Absorb, Leech Seed).
     ItSuckedLiquidOoze,
+    /// STRINGID_PLAYERGOTMONEY (buffer 1: the money).
+    PlayerGotMoney,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -551,6 +553,7 @@ impl Str {
             PkmnPreventsStatLossWith => 130,
             PreventedFromWorking => 131,
             ItSuckedLiquidOoze => 132,
+            PlayerGotMoney => 133,
         }
     }
 }

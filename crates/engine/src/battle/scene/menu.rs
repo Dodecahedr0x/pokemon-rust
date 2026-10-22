@@ -66,7 +66,7 @@ impl BattleScene {
         battle: &Battle,
         f: &mut Frame,
     ) -> Option<Choice> {
-        let w = &mut self.parts.windows;
+        let w = &mut self.parts.as_mut().expect(super::LOADED).windows;
         match self.menu {
             Menu::None => match battle.need() {
                 Need::Action => {
@@ -164,7 +164,11 @@ impl BattleScene {
                         n: n + 1,
                     };
                 } else {
-                    self.parts.windows.yes_no(game, f);
+                    self.parts
+                        .as_mut()
+                        .expect(super::LOADED)
+                        .windows
+                        .yes_no(game, f);
                     self.menu = Menu::LearnAsk { party, mov };
                 }
             }

@@ -352,11 +352,12 @@ fn full_wild_battle_golden() {
         (real.level, real.exp, real.hp, real.stats, real.evs)
     );
     assert_eq!(shown.level, 6);
-    assert_eq!(r.scene.parts.exp.level(), 6);
+    assert_eq!(r.scene.parts.as_ref().unwrap().exp.level(), 6);
     // Golden: a regression pin of the whole playback (scene + core state at the end).
     // E2: `Battle::hash` now also covers `charge`, `order`, `sync`, `caught_without_room`
-    // and `last_landed`.
-    assert_eq!((r.frames, r.hash()), (806, 3725309953919062588));
+    // and `last_landed`. G: and `leveled_up` (`gLeveledUpInBattle`); the scene hashes whether
+    // its parts exist (built by the first load step).
+    assert_eq!((r.frames, r.hash()), (806, 7109523322231117344));
     // J's path, `BattleScene::step`, plays the same battle frame for frame.
     let mut j = Run::wild(&[starter()], &[foe(11)], 7);
     j.use_step = true;
@@ -388,7 +389,8 @@ fn trainer_battle_second_mon_and_defeat_text() {
     // per frame, one step shortened by the healthbox redraw sharing the frame.
     assert_eq!(r.pic_steps, 5);
     // E2: `Battle::hash` gained fields; the trainer AI draws its score rolls (same frames).
-    assert_eq!((r.frames, r.hash()), (1020, 10362024337050865457));
+    // G: `leveled_up` and the parts tag are hashed.
+    assert_eq!((r.frames, r.hash()), (1020, 17288747672827412966));
 }
 
 #[test]
@@ -620,7 +622,10 @@ fn hp_drain_moves_the_numbers_with_the_bar() {
     let mut seen = Vec::new();
     while r.scene.queue.len() == 1 || r.scene.play == Play::Hp(Side::Player) {
         r.frame(NONE);
-        let (bar, shown) = (r.scene.parts.bars[0].value(), r.scene.parts.boxes[0].hp());
+        let (bar, shown) = (
+            r.scene.parts.as_ref().unwrap().bars[0].value(),
+            r.scene.parts.as_ref().unwrap().boxes[0].hp(),
+        );
         // The healthbox numbers follow the bar frame by frame.
         if r.scene.play == Play::Hp(Side::Player) {
             assert_eq!(shown, bar);

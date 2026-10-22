@@ -423,15 +423,6 @@ pub const STRS: &[(&str, StrSrc)] = {
         ),
         ("PreventedFromWorking", Key("STRINGID_PREVENTEDFROMWORKING")),
         ("ItSuckedLiquidOoze", Key("STRINGID_ITSUCKEDLIQUIDOOZE")),
+        ("PlayerGotMoney", Key("STRINGID_PLAYERGOTMONEY")),
     ]
 };
-
-/// Effects whose stat message the engine's one-`Str`-per-battler wording cannot say: the user's
-/// own stats fall (`EFFECT_SUPERPOWER`, `EFFECT_OVERHEAT`) or the target's rise
-/// (`EFFECT_SWAGGER`, `EFFECT_FLATTER`). See [`STRS`] (`AttackerStatChanged`).
-pub const UNWORDED_STAT_EFFECTS: [&str; 4] = [
-    "EFFECT_SUPERPOWER",
-    "EFFECT_OVERHEAT",
-    "EFFECT_SWAGGER",
-    "EFFECT_FLATTER",
-];

@@ -424,6 +424,8 @@ fn trainer_battle_sends_the_next_mon_and_pays_trainer_exp() {
             "Exp 0 1025->1059",
             "PlayerDefeatedTrainer@O",
             "TrainerDefeated",
+            // The test game has no money table (`GameData::trainer_money`).
+            "Report(Degraded(\"trainer money\"))",
             "End(Won)",
         ]
     );
