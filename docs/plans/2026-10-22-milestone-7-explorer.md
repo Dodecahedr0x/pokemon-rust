@@ -662,15 +662,18 @@ pub struct Detectors<G> { /* cfg, shadow: Option<(Session<G>, u32)>, idle-not-ca
 impl<G: GameData + Clone> Detectors<G> { pub fn new(cfg: &DetectConfig) -> Self; }
 impl<G: GameData + Clone> StepObserver<G> for Detectors<G> { /* round trip, follow, capturable stuck, slow step */ }
 pub enum Trap { Trapped { reached: u32 }, Free, NoExits }
-/// From `start`, BFS over macros to depth k (at most `breadth` expansions, deterministic
-/// order): Trapped iff the map has exits and every reached state has start's region and map.
-pub fn probe(start: &Checkpoint, map_exits: usize, k: u32, breadth: u32,
-             expand_all: &mut dyn FnMut(&Checkpoint) -> Vec<(u64 /* region */, MapId, Checkpoint)>) -> Trap;
+/// From `start` (whose region is `region`, the node's), BFS over macros to depth k (at most
+/// `breadth` expansions, deterministic order): Trapped iff the map has exits and every reached
+/// state has start's region and map. NoExits if map_exits == 0; Free if k == 0 || breadth == 0.
+pub fn probe(start: &Checkpoint, region: u64, map_exits: usize, k: u32, breadth: u32,
+             expand_all: &mut dyn FnMut(&Checkpoint, u32 /* remaining */) -> Vec<(u64 /* region */, MapId, Checkpoint)>) -> Trap;
 pub fn map_exits<G: GameData>(game: &G, map: MapId) -> usize;   // warps + connections
-/// Dedupe signature: kind, location (or message with digits stripped), map.
+/// Dedupe signature: FNV of the kind's stable name, the location's file (no line:col), the
+/// message with digits stripped, and the map. The row keeps the full location.
 pub fn signature(f: &FindingDraft) -> u64;
 /// The finding as one NewGame trace: the lineage's inputs then the tail, hashes by replay.
-pub fn repro_trace<G: GameData + Clone>(game: &G, lineage: &[&[Run]], tail: &[Run]) -> Trace;
+/// Err((trace to the panic, frame)) if a frame before the last one panics.
+pub fn repro_trace<G: GameData + Clone>(game: &G, lineage: &[&[Run]], tail: &[Run]) -> Result<Trace, (Trace, u32)>;
 /// Replays `trace` with the guard and the detectors; Ok iff a finding with `want`'s signature
 /// is raised at its last frame.
 pub fn reproduce<G: GameData + Clone>(game: &G, trace: &Trace, want: &FindingDraft, cfg: &DetectConfig) -> Result<(), String>;
@@ -685,8 +688,9 @@ pub struct Policy { last: Buttons }
 impl Policy {
     pub fn new() -> Policy;
     /// Next intent while a battle owns the frame: first damaging usable move (power > 0, pp > 0;
-    /// slot 0 if none), RUN from wild battles when `opts.run_wild` (never the first battle or a
-    /// trainer), keep known moves (B on learn prompts), A through messages.
+    /// else the first move with pp > 0; slot 0 if none), RUN from wild battles when
+    /// `opts.run_wild` (never the first battle or a trainer), keep known moves (B on learn
+    /// prompts), A through messages.
     pub fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons;
     /// Next intent while a script or the starter screen runs: A through text; yes/no -> A for
     /// choice 0, B otherwise; starter -> move to ball `opts.choice % 3`, then A.
@@ -1042,7 +1046,7 @@ STRICT tables need SQLite 3.37 or later; the bundled version is 3.53.2. `apply` 
    - **Slow step:** `step_ns > slow_step_us` is a `SlowFrame` flag (report-only; `reproduce` skips it).
 2. **`softlock::probe`:** BFS as specified. `map_exits` counts warps plus connections. `NoExits` is never a finding.
 3. **`findings`:**
-   - `signature` (FNV of kind, location or a digit-stripped message, map).
+   - `signature` (FNV of the kind's stable name, the location's file without line:col, the digit-stripped message, map).
    - `repro_trace` replays from `World::new` through `TraceRecorder` (`Parent::NewGame`, the build from `build_hash(game)`, hashes every 60 frames).
    - `reproduce`.
 4. **`testing` wrappers**, each with a test proving the detector fires (use `Session` + `observe` directly; no Task A code):
@@ -1057,7 +1061,7 @@ STRICT tables need SQLite 3.37 or later; the bundled version is 3.53.2. `apply` 
 
 1. **`Policy::battle`:**
    - `OpenMenu::Action(c)`: navigate to FIGHT, or RUN when `opts.run_wild` and the battle is `Wild { first_battle: false }`. Use the 2x2 cursor walk of `scenario.rs:311-340`.
-   - `Move(c)`: navigate to `first_damaging_slot(battle.mon(Side::Player))`, where power > 0 and pp > 0 (from `BattleTables::move_info`); slot 0 if none.
+   - `Move(c)`: navigate to `first_damaging_slot(battle.mon(Side::Player))`, where power > 0 and pp > 0 (from `BattleTables::move_info`); else the first slot with a move and pp > 0; slot 0 only when no move has PP (the engine then uses Struggle, `core.rs` `player_action`). Falling back to a 0-PP slot 0 while another move has PP would loop on "no PP left" until `battle_frames`.
    - `LearnAsk`/`LearnPick`: B. `StopAsk(0)`: A, else UP.
    - Otherwise A.
 2. **`Policy::script`:** A through text. On `is_yes_no_active`, A for choice 0 and B otherwise. On the starter screen, LEFT/RIGHT to ball `choice % 3`, then A.
@@ -1198,6 +1202,7 @@ It depends on M6's `Materializer`, `TraceRecorder::from_prefix`, `Seeked`/`Contr
     - engine-side panic context (script id and map in the panic message, design §3);
     - elevation-aware pathfinding;
     - party switching, items and the bag in the policy and the key;
+    - abstract-key gaps (Task B): the key ignores `WorldSnapshot.respawn` (the whiteout heal location) and the object `templates` deltas (moved or re-scripted NPCs that no flag or var reflects), and the `VAR_OBJ_GFX_ID_*` vars are story vars in the key, which is harmless in the slice but varies outside it;
     - balance fitness;
     - goal-directed completability per checkpoint;
     - whether explorer exports should become local-store nodes.
@@ -1323,3 +1328,68 @@ That is about 50× the 50k frames/s that the "Done when" nodes/s thresholds assu
 
 
 **Scheduling (taken).** M7 started early, in parallel with M6 Wave 1 (requested by the user). Wave 0 and Wave 1 are headless and independent of M6 files. Wave 2b waits for M6. Once M6 is complete, M7 gets a second pass against M6's final APIs.
+
+## Task D as built
+**Duplicates (deviation from "later steps chain from the existing best node").** An equal key does not mean an equal state, and a node's inputs must replay from its parent's end state. So a duplicate step (its key is live with at most as many total frames) is handled like this:
+- If it is the job's last step, it is dropped. Its sightings (`seen`, cells) are credited to the live node.
+- If later steps follow and its digest equals the live node's, the job chains from the live node, with no row.
+- Otherwise it is inserted as a `Merged` history row (`merged_into` = the live node, its key kept), and the job chains from it.
+
+Consequence: the `node` table grows by one non-live row per such duplicate. Those rows never enter the frontier, but they count in `key_hits`.
+
+**Key hits.** `key_hits(k)` = rows with key `k` (any status) − 1. `Graph::from_rows` rebuilds it exactly, so the graph is a pure function of the rows. A duplicate that leaves no row adds no hit. Nothing about key hits is persisted beyond the rows.
+
+**Batch.** `Config::batch == 0` means `runner::DEFAULT_BATCH` (32), independent of the thread count. Results do not depend on `threads` with the default config. A test compares 1 and 8 threads.
+
+**Findings.** A `FindingDraft.tail` starts at the job parent's end state and includes the job's steps. The delta attaches it to the job parent, with `total = parent.total_frames + frames(tail)`. The model's `GenerationDelta::findings` node is `Option<NodeId>`: `None` means the root job failed and the tail starts at a new game (Task C: `finding.node` is nullable).
+
+**Stall.** `Runner::stalled()` is true when the root job already ran and left no node (the graph is empty at generation > 0), or when the frontier is empty. `plan()` then returns no jobs, and the caller stops.
+
+**Other contract additions:**
+- `graph`: `mix`, `is_live`, `Graph::{nodes, key_hits, children, next_id, ancestor}`.
+- `select`: `tournament_in` (a frontier collected once per plan) and the placeholder `selection_score` (Wave 2 switches to `fitness::selection_score`).
+- `mutate`: `barren`, `choose`, `choose_with`, `apply`, `mutate_with` and `PROBE_EXPANDED` (3).
+- `runner`: `DEFAULT_BATCH`, `batch_size`, `generation_rng`, `ROOT_MACRO`, `Runner::{config, stalled, take_fresh}` and `jobs(planned, start)`.
+
+**Behaviour:**
+- **Planning RNG:** a local seeded by `(seed, generation)` only, so resumed runs plan identically.
+- **Forced probe:** a barren node (`expanded ≥ 3`, no child) gets it at most once per plan. Its `expanded` grows with every job planned from it, so the forced probe never repeats at the same `expanded` count, without state outside the rows.
+- **Snapshots:** `delta.snapshots` holds the nodes with `depth % snapshot_every_depth == 0` (0 = never). Every inserted node's end state is in `take_fresh()` for the cache.
+- **In-delta supersession:** a supersession inside one delta writes the old row already `Merged` instead of listing it in `merged`.
+- **`stats.frames`:** counts steps' input frames plus each finding's tail beyond its job's steps.
+
+## Task C as built
+**Schema v2** (`SCHEMA_VERSION = 2`): `finding.node` is nullable (`NULL` = the tail starts from a new game, the root job's findings); `GenerationDelta.findings` and `FindingRow.node` carry `Option<NodeId>`. No `key_hit` table: `Graph` key hits are rows per key − 1, rebuilt from the node rows.
+
+**Contract deltas:**
+- `rebuild::Repair<'a> = dyn Fn(Option<&Checkpoint>, &Macro) -> Option<(Vec<Run>, Checkpoint)> + Sync + 'a`: `None` is a new game, so a diverged root re-expands from boot; the lifetime lets the closure borrow. `revalidate` takes `&Repair<'_>`.
+- `rebuild::revalidate_with_key` (`#[doc(hidden)]`): `revalidate` with the repaired nodes' key and region from a closure (`KeyFn`); `revalidate` passes `key::key_parts` + `key::key`/`region` with `cfg.key`. Tests use fakes.
+- `ReachError::Diverged.got` is `Option<u64>` (`None` = the end frame was not capturable). `ReachError` implements `Display`, `Error` and `From<DbError>`.
+- `Db`: `open_in_memory`, `build`, `meta_build`, `set_build` (meta build + open findings of other builds → `stale`), `drop_snapshots_except`, `set_status_and_snapshots` (one transaction per revalidated level). `apply` errors (`Codec`) on unknown ids in `merged`/`expanded`; foreign keys are deferred to commit, so `merged_into` may name a later row of the same delta.
+- `SnapCache`: `contains`, `len`, `is_empty`, `hit_stats` (one hit or one miss per `reach`), `clear`, `set_build` (`reach` ties the cache to the game's build and clears it on a mismatch).
+- `FindingRow`/`RunRow`/`DbStats`/`RevalidateReport` derive `Clone, PartialEq, Debug` (+ `Eq`, `Default` where possible).
+
+**Behaviour:**
+- `Db::open` checks schema and flavor before the DDL and the WAL switch; both connections set `busy_timeout(5 s)`. Directory creation errors map to `DbError::Codec`. The seed is the caller's `set_meta("seed", …)`.
+- `apply` writes every `delta.snapshots` entry to the db: the delta carries only the `snapshot_every_depth` ones. A stale or gone finding seen again reopens with the new repro and build.
+- `revalidate`: merged nodes of another build are replayed too (they can be ancestors); a key collision resolves only against holders already checked in the run, pending otherwise (the holder that keeps the key competes by fewer total frames, then lower id; a holder that breaks or changes key hands it to the best waiting or merged-into node). Total frames are recomputed down the tree; repaired nodes keep `progress` and fitness. A db error while reaching a parent is returned; `Diverged`/`Missing`/`Restore` break the child.
+
+**For Task G:** `db.rs` signs findings with a private `draft_signature` that follows `findings::signature`'s spec (Task E was a stub); swap in `crate::findings::signature` when wiring. `progress` of repaired nodes is not re-scored (`goals::progress` needs the summary).
+
+## Task E as built
+**Contract changes (review decisions):**
+- `softlock::probe(start, region, map_exits, k, breadth, expand_all)` takes the start's region (the node's `region`); there is no region-inferring variant. `k == 0 || breadth == 0` gives `Free`. `ExpandAll` is `FnMut(&Checkpoint, u32 remaining)`, with `remaining = breadth - reached` (at least 1).
+- `findings::signature`: FNV-1a 64 of `kind_name(kind)` (a stable per-kind string), the location's file without `:line:col`, the message with ASCII digits stripped, and the map. A panic keeps its signature when an unrelated edit moves its line; the finding row keeps the full location. `signature_of(kind, message, location, map)` and `kind_name` are public (Task G replaces Task C's private `draft_signature` with it).
+- `findings::repro_trace` returns `Result<Trace, (Trace, u32)>`: `Err` with the trace up to the panicking frame and that frame (0 = `World::new`) when a frame before the last one panics.
+- `findings::reproduce` replays to the last frame: same-signature raises before it are not terminal, and every flag of the last frame (`Detectors::after_step_all`) is matched. A panic is terminal and reproduces only on the last frame.
+- `explore::testing` is behind the `testing` cargo feature, enabled for the crate's own tests through a self dev-dependency.
+
+**Additions:** `Detectors::{after_step_all, round_trips}`; `findings::{signature_of, kind_name, end_state}`; `testing::{FadeTrap, FADE_TRAP_SCRIPT, INJECTED_PANIC, NOWHERE, DRIFT_CALLS, Drifting::new}`.
+
+**Detectors:**
+- Round trips run at the first capturable frame of each absolute `World::frame / roundtrip_every` bucket, so a replay from a new game checks on the same frames as the job.
+- A frame that does not follow the last observed one (a `Session::load`) is a discontinuity: the shadow is dropped and the schedule restarts.
+- The whole round trip (checkpoint, encode, decode, restore, compare) runs under the guard; a panic is a `RoundTrip` flag "round trip panicked: {msg} at {loc}". Shadow panics carry the location too.
+
+## Findings
+- **House map 0x101, `Inspect` at (5,1) and (3,1) facing Up (Task A's probe):** the script ends but the fade never returns to 0, so the state is never capturable again. Likely a real engine or content bug; `CapturableStuck` should report it once Task G runs.

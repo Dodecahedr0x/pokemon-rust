@@ -35,6 +35,7 @@ pub mod runs; // implemented (W0): run text codec
 pub mod select; // Task D
 pub mod sim; // Task A
 pub mod softlock; // Task E
+#[cfg(feature = "testing")]
 #[doc(hidden)]
 pub mod testing; // Task E: fault-injection GameData wrappers
 pub mod wire; // Task G (Wave 2): Evaluate/sim/db glue

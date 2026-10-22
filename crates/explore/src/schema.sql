@@ -1,4 +1,4 @@
--- Explorer database, schema version 1 (`db::SCHEMA_VERSION`).
+-- Explorer database, schema version 2 (`db::SCHEMA_VERSION`).
 -- u64 values (keys, digests, hashes, build ids) are stored bit-cast to i64.
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,           -- schema, flavor ('stub'|'emerald'), build_engine, build_content, seed, generation
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS finding (
   id               INTEGER PRIMARY KEY,
   signature        INTEGER NOT NULL UNIQUE,
   kind             TEXT    NOT NULL,
-  node             INTEGER NOT NULL REFERENCES node(id),  -- the tail starts at this node's end state
+  node             INTEGER REFERENCES node(id),  -- the tail starts at this node's end state; NULL = a new game (v2)
   macro            TEXT,
   tail             TEXT    NOT NULL,              -- runs text to the finding frame (inclusive)
   total_frame      INTEGER NOT NULL,              -- frames from a new game to the finding

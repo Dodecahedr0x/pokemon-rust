@@ -582,6 +582,12 @@ impl World {
         matches!(self.s.mode, Mode::Field)
     }
 
+    /// The field camera's top-left map pixel while the overworld owns the frame
+    /// ([`World::field_active`]), else `None`. Read-only (not part of [`World::hash`]).
+    pub fn camera(&self) -> Option<(i32, i32)> {
+        self.field_active().then(|| self.s.field.camera())
+    }
+
     /// Whether a battle owns the frame (from its transition until the field has faded back in).
     pub fn in_battle(&self) -> bool {
         matches!(self.s.mode, Mode::Battle(_))
