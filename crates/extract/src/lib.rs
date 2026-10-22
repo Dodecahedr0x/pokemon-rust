@@ -20,6 +20,7 @@ pub mod roots;
 pub mod schema;
 pub mod scripts;
 pub mod sprites;
+pub mod tables;
 pub mod text;
 pub mod window;
 

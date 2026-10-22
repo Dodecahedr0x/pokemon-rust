@@ -30,12 +30,7 @@ use crate::{Rom, movement, roots};
 use anyhow::{Context, Result};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-/// Where a name comes from. Moves to `schema.rs` with the Wave 0 IR types.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum NameOrigin {
-    Decomp,
-    Positional,
-}
+pub use crate::schema::NameOrigin;
 
 /// What lives at a named offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

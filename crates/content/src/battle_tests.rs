@@ -3,7 +3,7 @@
 
 use super::*;
 
-use crate::prelude::{TrainerBattle, trainer_battle, trainer_flag};
+use crate::prelude::{LegacyTrainerBattle, legacy_trainer_battle, trainer_flag};
 use engine::battle::BattleOutcome;
 use engine::data::{FlagId, TrainerId};
 use engine::mon::MoveEffect;
@@ -12,11 +12,11 @@ use engine::mon::MoveEffect;
 #[allow(non_upper_case_globals)]
 const Emerald: Emerald = Emerald::after_starter();
 
-fn fought(b: TrainerBattle, h: &mut Host) {
+fn fought(b: LegacyTrainerBattle, h: &mut Host) {
     run(
         |ctx| {
             Box::pin(async move {
-                let fought = trainer_battle(&ctx, b).await;
+                let fought = legacy_trainer_battle(&ctx, b).await;
                 ctx.set_var(consts::VAR_RESULT, fought as u16).await;
             })
         },
@@ -27,7 +27,7 @@ fn fought(b: TrainerBattle, h: &mut Host) {
 #[test]
 fn trainer_battle_single_follows_trainer_battle_inc() {
     let tr = TrainerId(3);
-    let b = TrainerBattle::single(tr, 2, TextId(1), TextId(2));
+    let b = LegacyTrainerBattle::single(tr, 2, TextId(1), TextId(2));
     let mut h = Host::default();
     fought(b, &mut h);
     assert_eq!(
@@ -71,7 +71,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
 fn trainer_battle_variants() {
     let tr = TrainerId(7);
     let mut h = Host::default();
-    fought(TrainerBattle::no_intro(tr, TextId(4)), &mut h);
+    fought(LegacyTrainerBattle::no_intro(tr, TextId(4)), &mut h);
     assert_eq!(
         h.log,
         [
@@ -85,7 +85,7 @@ fn trainer_battle_variants() {
     );
     let mut h = Host::default();
     fought(
-        TrainerBattle::continue_script(tr, 1, TextId(1), TextId(2)),
+        LegacyTrainerBattle::continue_script(tr, 1, TextId(1), TextId(2)),
         &mut h,
     );
     assert!(h.log.contains(&Request::Message(TextId(1))));
