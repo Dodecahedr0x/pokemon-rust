@@ -5,7 +5,7 @@
 
 use crate::model::SimSummary;
 use engine::checkpoint::WorldSnapshot;
-use engine::data::{FlagId, MapId};
+use engine::data::{FlagId, MapId, VarId};
 
 pub struct Goal {
     pub name: &'static str,
@@ -26,6 +26,15 @@ impl GoalCtx<'_> {
     /// Whether flag `f` is set at the end.
     pub fn flag(&self, f: FlagId) -> bool {
         self.snap.vars.flags.binary_search(&f).is_ok()
+    }
+
+    /// Var `v` at the end (0 when unset).
+    pub fn var(&self, v: VarId) -> u16 {
+        self.snap
+            .vars
+            .vars
+            .binary_search_by_key(&v, |&(v, _)| v)
+            .map_or(0, |i| self.snap.vars.vars[i].1)
     }
 
     /// The player's cell at the end, then every cell stood on during the expansion.
@@ -60,7 +69,9 @@ mod emerald {
         Goal {
             name: "lab",
             reached: |c| {
-                c.entered(MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB) && c.flag(FLAG_SYS_POKEMON_GET)
+                // Birch has given the starter in his lab (`VAR_BIRCH_LAB_STATE` 3+).
+                c.entered(MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB)
+                    && c.var(VAR_BIRCH_LAB_STATE) >= 3
             },
         },
         Goal {

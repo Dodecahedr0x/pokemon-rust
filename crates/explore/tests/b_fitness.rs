@@ -105,7 +105,7 @@ fn a_fresh_archive_scores_the_root_and_a_repeat_scores_less() {
         second.seen, first.seen,
         "every sighting is reported, not only new ones"
     );
-    assert_eq!(ev.archive.key_hits(first.key), 2);
+    assert!(ev.archive.has_key(first.key));
     assert_eq!(
         ev.archive
             .seen_hits(SeenKind::Map, i64::from(snap.field.map.0)),
@@ -171,6 +171,24 @@ fn score_is_a_weighted_integer_sum() {
     assert_eq!(f.total, novelty + 2 * w.goal + w.bug);
     let none = score(&Novelty::default(), 0, 0, &w);
     assert_eq!(none, Fitness::default());
+
+    // Extreme weights saturate instead of overflowing.
+    let huge = Weights {
+        flag: i64::MAX,
+        goal: i64::MAX,
+        bug: i64::MAX,
+        ..Weights::default()
+    };
+    let f = score(&n, 2, 1, &huge);
+    assert_eq!(
+        (f.novelty, f.progress, f.bug, f.total),
+        (i64::MAX, i64::MAX, i64::MAX, i64::MAX)
+    );
+    let low = Weights {
+        flag: i64::MIN,
+        ..Weights::default()
+    };
+    assert!(score(&n, 0, 0, &low).novelty < i64::MIN / 2);
 }
 
 #[test]
@@ -239,7 +257,7 @@ fn archive_from_db_round_trips() {
     ev.evaluate(None, &step);
     let a = &ev.archive;
     let seen = a.seen_rows();
-    let keys = a.key_rows();
+    let keys: Vec<(AbstractKey, u32)> = a.keys().into_iter().map(|k| (k, 1)).collect();
     let cells = a.cell_rows();
     assert!(!seen.is_empty() && !keys.is_empty() && !cells.is_empty());
     let b = Archive::from_db(&seen, &keys, &cells);
@@ -261,7 +279,22 @@ fn archive_from_db_round_trips() {
     for (kind, id, hits) in rows {
         assert_eq!(c.seen_hits(kind, id), hits);
     }
-    assert_eq!(c.key_hits(AbstractKey(u64::MAX)), 9);
+    assert!(c.has_key(AbstractKey(u64::MAX)));
+    assert!(!c.has_key(AbstractKey(0)));
+
+    // Ids out of range for their kind are skipped.
+    let bad = [
+        (SeenKind::Flag, 0x1_0000, 1),
+        (SeenKind::Map, -1, 1),
+        (SeenKind::Script, i64::MAX, 1),
+        (SeenKind::VarValue, -5, 1),
+        (SeenKind::VarValue, 1i64 << 40, 1),
+    ];
+    let d = Archive::from_db(&bad, &[], &[]);
+    assert!(d.seen_rows().is_empty());
+    for (kind, id, _) in bad {
+        assert_eq!(d.seen_hits(kind, id), 0);
+    }
     assert_eq!(c.cell_hits(MapId(1), -1, 2), 5);
     assert_eq!(c.cell_hits(MapId(1), 0, 0), 0);
 }
@@ -274,7 +307,12 @@ fn a_loaded_archive_scores_like_the_live_one() {
     let mut loaded = evaluator();
     loaded.archive = Archive::from_db(
         &live.archive.seen_rows(),
-        &live.archive.key_rows(),
+        &live
+            .archive
+            .keys()
+            .into_iter()
+            .map(|k| (k, 1))
+            .collect::<Vec<_>>(),
         &live.archive.cell_rows(),
     );
     let a = live.evaluate(None, &step);

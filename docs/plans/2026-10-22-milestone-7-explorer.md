@@ -1198,6 +1198,7 @@ It depends on M6's `Materializer`, `TraceRecorder::from_prefix`, `Seeked`/`Contr
     - engine-side panic context (script id and map in the panic message, design §3);
     - elevation-aware pathfinding;
     - party switching, items and the bag in the policy and the key;
+    - abstract-key gaps (Task B): the key ignores `WorldSnapshot.respawn` (the whiteout heal location) and the object `templates` deltas (moved or re-scripted NPCs that no flag or var reflects), and the `VAR_OBJ_GFX_ID_*` vars are story vars in the key, which is harmless in the slice but varies outside it;
     - balance fitness;
     - goal-directed completability per checkpoint;
     - whether explorer exports should become local-store nodes.

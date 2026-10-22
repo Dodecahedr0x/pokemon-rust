@@ -18,12 +18,19 @@ pub struct Archive {
     maps: BTreeMap<MapId, u32>,
     scripts: BTreeMap<ScriptId, u32>,
     cells: BTreeMap<(MapId, i16, i16), u32>,
-    keys: BTreeMap<AbstractKey, u32>,
+    /// Keys seen (their hit counts live in `Graph::key_hits`).
+    keys: BTreeSet<AbstractKey>,
 }
 
 /// The `seen.id` of a `(var, value)` sighting: `var << 16 | value`.
 pub fn var_value_id(var: VarId, value: u16) -> i64 {
     i64::from(var.0) << 16 | i64::from(value)
+}
+
+/// `(var, value)` of a `seen.id` (`var << 16 | value`), if it is one.
+fn split_var_value(id: i64) -> Option<(u16, u16)> {
+    let var = u16::try_from(id >> 16).ok()?;
+    Some((var, (id & 0xFFFF) as u16))
 }
 
 /// Adds one hit; true on a first sighting.
@@ -34,6 +41,9 @@ fn hit<K: Ord>(m: &mut BTreeMap<K, u32>, k: K) -> bool {
 }
 
 impl Archive {
+    /// The archive from the db's `seen` and `coverage` rows and the graph's keys (`keys`' hit
+    /// counts are ignored: only whether a key exists matters here). Rows whose id does not fit
+    /// their kind (a corrupt or foreign db) are skipped.
     pub fn from_db(
         seen: &[(SeenKind, i64, u32)],
         keys: &[(AbstractKey, u32)],
@@ -42,38 +52,41 @@ impl Archive {
         let mut a = Archive::default();
         for &(kind, id, hits) in seen {
             match kind {
-                SeenKind::Flag => {
-                    a.flags.insert(id as u16, hits);
-                }
                 SeenKind::VarValue => {
-                    a.var_values.insert(((id >> 16) as u16, id as u16), hits);
+                    if let Some(vv) = split_var_value(id) {
+                        a.var_values.insert(vv, hits);
+                    }
                 }
-                SeenKind::Map => {
-                    a.maps.insert(MapId(id as u16), hits);
-                }
-                SeenKind::Script => {
-                    a.scripts.insert(ScriptId(id as u16), hits);
+                _ => {
+                    let Ok(id) = u16::try_from(id) else { continue };
+                    match kind {
+                        SeenKind::Flag => a.flags.insert(id, hits),
+                        SeenKind::Map => a.maps.insert(MapId(id), hits),
+                        SeenKind::Script => a.scripts.insert(ScriptId(id), hits),
+                        SeenKind::VarValue => unreachable!(),
+                    };
                 }
             }
         }
-        a.keys.extend(keys.iter().copied());
+        a.keys.extend(keys.iter().map(|&(k, _)| k));
         a.cells
             .extend(cells.iter().map(|&(m, x, y, hits)| ((m, x, y), hits)));
         a
     }
 
-    /// Hits of abstract key `k` (0 = never seen).
-    pub fn key_hits(&self, k: AbstractKey) -> u32 {
-        self.keys.get(&k).copied().unwrap_or(0)
+    /// Whether abstract key `k` was seen.
+    pub fn has_key(&self, k: AbstractKey) -> bool {
+        self.keys.contains(&k)
     }
 
     /// Hits of a `seen` entry (0 = never seen).
     pub fn seen_hits(&self, kind: SeenKind, id: i64) -> u32 {
-        let h = match kind {
-            SeenKind::Flag => self.flags.get(&(id as u16)),
-            SeenKind::VarValue => self.var_values.get(&((id >> 16) as u16, id as u16)),
-            SeenKind::Map => self.maps.get(&MapId(id as u16)),
-            SeenKind::Script => self.scripts.get(&ScriptId(id as u16)),
+        let h = match (kind, u16::try_from(id)) {
+            (SeenKind::VarValue, _) => split_var_value(id).and_then(|vv| self.var_values.get(&vv)),
+            (_, Err(_)) => None,
+            (SeenKind::Flag, Ok(id)) => self.flags.get(&id),
+            (SeenKind::Map, Ok(id)) => self.maps.get(&MapId(id)),
+            (SeenKind::Script, Ok(id)) => self.scripts.get(&ScriptId(id)),
         };
         h.copied().unwrap_or(0)
     }
@@ -109,9 +122,9 @@ impl Archive {
         v
     }
 
-    /// `(key, hits)`, key ascending.
-    pub fn key_rows(&self) -> Vec<(AbstractKey, u32)> {
-        self.keys.iter().map(|(&k, &h)| (k, h)).collect()
+    /// The keys seen, ascending.
+    pub fn keys(&self) -> Vec<AbstractKey> {
+        self.keys.iter().copied().collect()
     }
 
     /// `(map, x, y, hits)`, ascending.
@@ -141,6 +154,13 @@ impl Evaluate for Evaluator {
     /// the end, maps entered or ended on, scripts started), first sightings or not: the db
     /// upsert adds a hit to existing rows, as the archive does here. `touches` are the maps and
     /// scripts of the step.
+    ///
+    /// Attribution: the runner (Task D) emits `seen` and the summary's cells for every evaluated
+    /// step against the node that step resolved to; for a duplicate that is the live node of its
+    /// key. So the db's hit counts match this archive's.
+    ///
+    /// `fitness.bug` is always 0 here (a step carries no findings): the bug weight is applied
+    /// by the runner and the wiring (Tasks D and G) through [`score`]'s `bugs`.
     fn evaluate(&mut self, parent: Option<&NodeRow>, step: &StepResult) -> Evaluation {
         let snap = &step.end.world;
         let kcfg = &self.cfg.key;
@@ -193,7 +213,7 @@ impl Evaluate for Evaluator {
         for &c in &step.summary.cells {
             nov.cells += u32::from(hit(&mut a.cells, c));
         }
-        nov.new_key = hit(&mut a.keys, k);
+        nov.new_key = a.keys.insert(k);
 
         let before = parent.map_or(0, |p| p.progress);
         let progress = goals::progress(
@@ -232,28 +252,41 @@ pub struct Novelty {
     pub new_key: bool,
 }
 
+/// The integer fitness of a step: `Σ weight × count` (saturating, so extreme weights from a
+/// config file clamp instead of overflowing).
 pub fn score(novelty: &Novelty, progress_gain: u32, bugs: u32, w: &Weights) -> Fitness {
     let n = novelty;
-    let novelty = w.flag * i64::from(n.flags)
-        + w.var_value * i64::from(n.var_values)
-        + w.map * i64::from(n.maps)
-        + w.script * i64::from(n.scripts)
-        + w.cell * i64::from(n.cells)
-        + if n.new_key { w.new_key } else { 0 };
-    let progress = w.goal * i64::from(progress_gain);
-    let bug = w.bug * i64::from(bugs);
+    let term = |weight: i64, count: u32| weight.saturating_mul(i64::from(count));
+    let novelty = [
+        term(w.flag, n.flags),
+        term(w.var_value, n.var_values),
+        term(w.map, n.maps),
+        term(w.script, n.scripts),
+        term(w.cell, n.cells),
+        if n.new_key { w.new_key } else { 0 },
+    ]
+    .into_iter()
+    .fold(0i64, i64::saturating_add);
+    let progress = term(w.goal, progress_gain);
+    let bug = term(w.bug, bugs);
     let balance = 0;
     Fitness {
         novelty,
         progress,
         bug,
         balance,
-        total: novelty + progress + bug + balance,
+        total: novelty
+            .saturating_add(progress)
+            .saturating_add(bug)
+            .saturating_add(balance),
     }
 }
 
 /// Selection weight: fitness.total - age*age_penalty - expanded*expanded_penalty, with a
 /// 1/(1+hits) novelty decay on the node's key (integer arithmetic only).
+///
+/// `key_hits` comes from `Graph::key_hits`: the step results that resolved to the node's key
+/// beyond the first (rows per key − 1), not from the [`Archive`].
 pub fn selection_score(n: &NodeRow, generation: u32, key_hits: u32, cfg: &Config) -> i64 {
     let age = i64::from(generation.saturating_sub(n.generation));
     let decayed = n.fitness.total / (1 + i64::from(key_hits));

@@ -122,3 +122,34 @@ fn progress_needs_the_earlier_goals_first() {
     let all = goals::goals().len() as u32;
     assert_eq!(goals::progress(all, &ctx), all, "past the end stays put");
 }
+
+#[test]
+fn a_later_goal_alone_does_not_advance() {
+    // A state satisfying goal 2 but not goal 1: progress stays at 0 from 0, and goes to 2 from 1.
+    let settle = |game: Emerald| {
+        let mut s = Session::new(game);
+        while s.world().capturable().is_err() {
+            s.step(engine::input::Buttons::NONE);
+        }
+        s.world().snapshot(s.game()).unwrap()
+    };
+    let mut snap = settle(Emerald::for_shells());
+    if content::STUB {
+        // Goal 2 (`east`) without goal 1 (`wild_won`, no battle) or goal 3 (`far_corner`).
+        snap.objects.objs[0].pos = (12, 5);
+    } else {
+        // Goal 2 (`starter`) without goal 1 (`rescue_started`, still in Littleroot) or goal 3.
+        assert!(snap.party.is_empty());
+        snap.party = settle(Emerald::after_starter()).party;
+        assert!(!snap.party.is_empty());
+    }
+    let sum = SimSummary::default();
+    let ctx = GoalCtx {
+        snap: &snap,
+        summary: &sum,
+    };
+    assert!(!(goals::goals()[0].reached)(&ctx));
+    assert!((goals::goals()[1].reached)(&ctx));
+    assert_eq!(goals::progress(0, &ctx), 0);
+    assert_eq!(goals::progress(1, &ctx), 2);
+}

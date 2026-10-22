@@ -165,3 +165,52 @@ fn the_fold_is_stable() {
     assert_eq!(key(&parts).0, 0xbb5c_364e_29cb_f3b6);
     assert_eq!(region(&parts), 0x3042_127e_1a95_ce1c);
 }
+
+#[test]
+fn default_config_keys_ignore_step_counters() {
+    if content::STUB {
+        eprintln!("skipped: the stub world has no content counters");
+        return;
+    }
+    let cfg = explore::config::Config::default().key;
+    let a = snap();
+    let p = key_parts(&a, &cfg);
+    for counter in [
+        content::consts::VAR_DAYS,
+        content::consts::VAR_FRIENDSHIP_STEP_COUNTER,
+        content::consts::VAR_POKELOT_RND1,
+    ] {
+        let mut b = a.clone();
+        match b.vars.vars.binary_search_by_key(&counter, |&(v, _)| v) {
+            Ok(i) => b.vars.vars[i].1 = b.vars.vars[i].1.wrapping_add(17),
+            Err(i) => b.vars.vars.insert(i, (counter, 17)),
+        }
+        assert_eq!(key_parts(&b, &cfg), p, "{counter:?} is ignored");
+    }
+}
+
+#[test]
+fn flag_and_var_digests_are_pinned() {
+    // Pinned: the digests are part of the key fold, so of the db schema. Only ids excluded in
+    // both flavors (temp, special) are mixed in with the story ones.
+    let mut a = snap();
+    a.vars = engine::checkpoint::VarsSnap {
+        flags: [0x05, 0x52, 0x82, 0x860].map(FlagId).to_vec(),
+        vars: vec![
+            (engine::data::VarId(0x4001), 9),
+            (engine::data::VarId(0x4050), 1),
+            (engine::data::VarId(0x4084), 3),
+            (engine::data::VarId(0x8004), 2),
+        ],
+    };
+    let p = key_parts(&a, &explore::config::KeyConfig::default());
+    assert_eq!(
+        (p.flags, p.vars),
+        (0x52a2_984d_6f48_a47e, 0x6333_66c7_f427_0ce4)
+    );
+    // The excluded ids really are out: the story ids alone give the same digests.
+    a.vars.flags.retain(|f| f.0 != 0x05);
+    a.vars.vars.retain(|(v, _)| v.0 == 0x4050 || v.0 == 0x4084);
+    let q = key_parts(&a, &explore::config::KeyConfig::default());
+    assert_eq!((q.flags, q.vars), (p.flags, p.vars));
+}

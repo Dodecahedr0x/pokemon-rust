@@ -3,13 +3,16 @@
 //! A key is a pure function of a capturable [`WorldSnapshot`]: the map, the coarse cell of the
 //! player, a digest of the story flags, a digest of the story vars and a party bucket
 //! (decision 3). Temporary and special flags and vars, the flags cleared on every map change
-//! and the counters [`default_key_config`] lists are left out, so that walking around does not
-//! make new keys.
+//! and the content's counters and random vars ([`EXCLUDED_VARS`]) are always left out, so that
+//! walking around does not make new keys. `KeyConfig::ignore_*` only adds user exclusions.
+//!
+//! The content lookups (cleared flags, [`EXCLUDED_VARS`]) read `content` directly, not the
+//! `GameData` being simulated: a wrapper (`Probe`, the `testing` faults) never changes them.
 
 use crate::config::KeyConfig;
 use crate::model::{AbstractKey, KeyParts, PartyBucket};
 use engine::checkpoint::WorldSnapshot;
-use engine::data::{FlagId, GameData};
+use engine::data::{FlagId, GameData, VarId};
 use engine::flow::{FLAG_COUNT, TEMP_FLAGS_END, TEMP_VARS_END, VARS_END};
 
 /// Domain tags, so that a key, a region and the digests never collide by construction.
@@ -47,10 +50,43 @@ pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
         && !cleared_on_map_change().contains(&f)
 }
 
+/// Saved vars that never take part in a key: the Emerald step and day counters and the random
+/// vars (from `content::consts`). Empty on the stub world.
+pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
+    &[]
+} else {
+    use content::consts::*;
+    &[
+        VAR_REPEL_STEP_COUNT,
+        VAR_ICE_STEP_COUNT,
+        VAR_MIRAGE_RND_H,
+        VAR_MIRAGE_RND_L,
+        VAR_FRIENDSHIP_STEP_COUNTER,
+        VAR_POISON_STEP_COUNTER,
+        VAR_WONDER_NEWS_STEP_COUNTER,
+        VAR_DEOXYS_ROCK_STEP_COUNT,
+        VAR_ABNORMAL_WEATHER_STEP_COUNTER,
+        VAR_FARAWAY_ISLAND_STEP_COUNTER,
+        VAR_DAYS,
+        VAR_FANCLUB_LOSE_FAN_TIMER,
+        VAR_CRUISE_STEP_COUNT,
+        VAR_POKELOT_RND1,
+        VAR_POKELOT_RND2,
+        VAR_SECRET_BASE_STEP_COUNTER,
+        VAR_WALLY_CALL_STEP_COUNTER,
+        VAR_SCOTT_FORTREE_CALL_STEP_COUNTER,
+        VAR_ROXANNE_CALL_STEP_COUNTER,
+        VAR_SCOTT_BF_CALL_STEP_COUNTER,
+        VAR_RIVAL_RAYQUAZA_CALL_STEP_COUNTER,
+    ]
+};
+
 /// Whether var `v` takes part in the key: a saved, non-temporary var (`TEMP_VARS_END..VARS_END`;
-/// the special vars `0x8000..` are out) that `cfg` does not ignore.
+/// the special vars `0x8000..` are out), not in [`EXCLUDED_VARS`], that `cfg` does not ignore.
 pub fn story_var(v: u16, cfg: &KeyConfig) -> bool {
-    (TEMP_VARS_END..VARS_END).contains(&v) && !cfg.ignore_vars.contains(&v)
+    (TEMP_VARS_END..VARS_END).contains(&v)
+        && !EXCLUDED_VARS.contains(&VarId(v))
+        && !cfg.ignore_vars.contains(&v)
 }
 
 /// The party part of a key.
@@ -122,37 +158,10 @@ pub fn region(parts: &KeyParts) -> u64 {
     fold_region(TAG_REGION, parts)
 }
 
-/// Content-aware exclusions (temp, special, step-counter vars). Temporary and special flags and
-/// vars, and the flags cleared on map changes, are always out ([`story_flag`], [`story_var`]);
-/// this adds the Emerald step and day counters. The stub world has none.
+/// The key config. The content's exclusions are built in ([`story_flag`], [`story_var`]), so
+/// this equals `KeyConfig::default()`; kept for callers of the Wave 0 contract.
 pub fn default_key_config() -> KeyConfig {
-    let mut cfg = KeyConfig::default();
-    if !content::STUB {
-        use content::consts::*;
-        cfg.ignore_vars = [
-            VAR_REPEL_STEP_COUNT,
-            VAR_ICE_STEP_COUNT,
-            VAR_FRIENDSHIP_STEP_COUNTER,
-            VAR_POISON_STEP_COUNTER,
-            VAR_WONDER_NEWS_STEP_COUNTER,
-            VAR_DEOXYS_ROCK_STEP_COUNT,
-            VAR_ABNORMAL_WEATHER_STEP_COUNTER,
-            VAR_FARAWAY_ISLAND_STEP_COUNTER,
-            VAR_DAYS,
-            VAR_FANCLUB_LOSE_FAN_TIMER,
-            VAR_CRUISE_STEP_COUNT,
-            VAR_SECRET_BASE_STEP_COUNTER,
-            VAR_WALLY_CALL_STEP_COUNTER,
-            VAR_SCOTT_FORTREE_CALL_STEP_COUNTER,
-            VAR_ROXANNE_CALL_STEP_COUNTER,
-            VAR_SCOTT_BF_CALL_STEP_COUNTER,
-            VAR_RIVAL_RAYQUAZA_CALL_STEP_COUNTER,
-        ]
-        .iter()
-        .map(|v| v.0)
-        .collect();
-    }
-    cfg
+    KeyConfig::default()
 }
 
 #[cfg(test)]
@@ -180,13 +189,13 @@ mod tests {
     }
 
     #[test]
-    fn default_config_lists_counters_only_with_real_content() {
-        let cfg = default_key_config();
-        assert_eq!(cfg.ignore_vars.is_empty(), content::STUB);
-        assert!(
-            cfg.ignore_vars
-                .iter()
-                .all(|&v| story_var(v, &KeyConfig::default()))
-        );
+    fn content_counters_are_always_excluded() {
+        assert_eq!(default_key_config(), KeyConfig::default());
+        assert_eq!(EXCLUDED_VARS.is_empty(), content::STUB);
+        let cfg = KeyConfig::default();
+        for v in EXCLUDED_VARS {
+            assert!((TEMP_VARS_END..VARS_END).contains(&v.0));
+            assert!(!story_var(v.0, &cfg));
+        }
     }
 }
