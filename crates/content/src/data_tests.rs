@@ -60,6 +60,13 @@ impl ScriptHost for Host {
             Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::YesNo => Response::Bool(self.yes),
+            // The bag and money always succeed.
+            Request::ItemAdd { .. }
+            | Request::ItemCheck { .. }
+            | Request::ItemSpace { .. }
+            | Request::ItemRemove { .. }
+            | Request::MoneyCheck(_) => Response::Bool(true),
+            Request::Multichoice { .. } => Response::Value(0),
             _ => Response::Unit,
         })
     }
@@ -282,11 +289,98 @@ fn special_ids_are_the_gen3_ones() {
 
 #[test]
 fn unknown_maps_are_missing() {
-    assert!(!has_map(consts::MAP_PETALBURG_CITY));
-    assert!(core::ptr::eq(
-        Emerald.map(consts::MAP_PETALBURG_CITY),
-        &data::MISSING_MAP
-    ));
+    // `MAP_DYNAMIC` is never a map; Petalburg is outside the slice and the stub.
+    let mut missing = vec![consts::MAP_DYNAMIC];
+    if data::MAP_COUNT <= 15 {
+        missing.push(consts::MAP_PETALBURG_CITY);
+    }
+    for m in missing {
+        assert!(!has_map(m));
+        assert!(core::ptr::eq(Emerald.map(m), &data::MISSING_MAP));
+    }
+}
+
+#[test]
+fn every_map_has_a_digest() {
+    assert_eq!(data::MAP_DIGESTS.len(), data::MAP_COUNT);
+    for (&(name, d), &id) in data::MAP_DIGESTS.iter().zip(&data::MAP_IDS) {
+        assert_eq!(name, Emerald.map(id).name);
+        assert_ne!(d, 0);
+    }
+    assert_ne!(data::GLOBAL_DIGEST, 0);
+}
+
+#[test]
+fn the_report_lists_the_degradations() {
+    assert!(REPORT.contains("data.bin: "));
+    assert!(REPORT.contains("battle: "));
+    assert!(REPORT.contains("species without pics"));
+}
+
+/// Maps with one wild header read it whatever the wild set; Gen3 reads header 0 for a set the
+/// map does not have (Altering Cave has 9).
+#[test]
+fn wild_sets_fall_back_to_the_first_header() {
+    for &id in &data::MAP_IDS {
+        let first = Emerald.encounters(id);
+        let sets = battle::wild_sets(id.0);
+        for set in [0, 1, 8, 9, u16::MAX] {
+            if set == 0 || set >= sets {
+                assert_eq!(Emerald.wild_encounters(id, set), first, "{id:?} set {set}");
+            }
+        }
+    }
+}
+
+#[test]
+fn tables_resolve_when_extracted() {
+    assert!(Emerald.item(engine::data::ItemId(0)).is_none());
+    for i in 1..data::ITEMS.len() as u16 {
+        if let Some(it) = Emerald.item(engine::data::ItemId(i)) {
+            assert_eq!(it.name.last(), Some(&0xFF));
+        }
+    }
+    for e in [
+        engine::data::Emote::Exclamation,
+        engine::data::Emote::Question,
+        engine::data::Emote::Heart,
+    ] {
+        if let Some(s) = Emerald.emote(e) {
+            assert!(!s.frames.is_empty());
+            assert_eq!(
+                s.frames[0].len(),
+                usize::from(s.width / 8) * usize::from(s.height / 8)
+            );
+        }
+    }
+    let (mut lists, mut strings, mut sections) = (0, 0, 0);
+    for id in 0..=255u8 {
+        if let Some(c) = Emerald.multichoice(id) {
+            assert!(c.iter().all(|t| t.last() == Some(&0xFF)));
+            lists += 1;
+        }
+        if let Some(t) = Emerald.std_string(id) {
+            assert_eq!(t.last(), Some(&0xFF));
+            strings += 1;
+        }
+        if let Some(t) = data::map_section(id) {
+            assert_eq!(t.last(), Some(&0xFF));
+            sections += 1;
+        }
+    }
+    let items = data::ITEMS.iter().flatten().count();
+    let emotes = [
+        engine::data::Emote::Exclamation,
+        engine::data::Emote::Question,
+        engine::data::Emote::Heart,
+    ]
+    .iter()
+    .filter(|&&e| Emerald.emote(e).is_some())
+    .count();
+    // `tests/m8_e_tables_build.rs` reads this line.
+    std::println!(
+        "TABLES items={items} multichoice={lists} std_strings={strings} map_sections={sections} emotes={emotes}"
+    );
 }
 
 fn all_script_refs(m: &MapData) -> Vec<ScriptId> {
@@ -541,7 +635,7 @@ mod extracted {
         ] {
             assert!(has_map(m), "{m:?}");
         }
-        assert_eq!(data::MAP_COUNT, 15);
+        assert!(data::MAP_IDS.len() >= 15);
     }
 
     #[test]
@@ -581,6 +675,139 @@ mod extracted {
                 .iter()
                 .any(|w| w.dest_map == consts::MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F)
         );
+    }
+
+    #[cfg(not(pkr_stub_battle))]
+    /// FNV-1a-64 over formatted values (`write!` into it).
+    struct Fnv(u64);
+
+    #[cfg(not(pkr_stub_battle))]
+    impl core::fmt::Write for Fnv {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            for &b in s.as_bytes() {
+                self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x100_0000_01b3);
+            }
+            Ok(())
+        }
+    }
+
+    #[cfg(not(pkr_stub_battle))]
+    /// Digests of the bulk data (field, battle) the slice's route reads through `GameData`.
+    pub(super) fn slice_bulk_digests() -> (u64, u64) {
+        use core::fmt::Write;
+        let mut f = Fnv(0xcbf2_9ce4_8422_2325);
+        for &id in &data::MAP_IDS {
+            let m = Emerald.map(id);
+            write!(
+                f,
+                "{} {} {} {:?} {:?}",
+                m.name, m.width, m.height, m.blocks, m.border
+            )
+            .unwrap();
+            for ts in [m.primary, m.secondary] {
+                write!(
+                    f,
+                    "{:?}{:?}{:?}{:?}",
+                    ts.tiles, ts.palettes, ts.metatiles, ts.attributes
+                )
+                .unwrap();
+            }
+        }
+        for g in 0..=0x3FFu16 {
+            if let Some(s) = Emerald.sprite(GfxId(g)) {
+                write!(
+                    f,
+                    "{g} {} {} {:?} {:?}",
+                    s.width, s.height, s.frames, s.palette
+                )
+                .unwrap();
+            }
+        }
+        let p = Emerald.player_sprite();
+        write!(f, "{:?}{:?}", p.frames, p.palette).unwrap();
+        let font = Emerald.font();
+        write!(f, "{:?}{:?}", font.glyphs, font.widths).unwrap();
+        let w = Emerald.window();
+        write!(
+            f,
+            "{:?}{:?}{}{}{}",
+            w.tiles, w.palette, w.text_fg, w.text_shadow, w.text_bg
+        )
+        .unwrap();
+        write!(f, "{:?}{:?}", data::TEXTS, data::TEXT_NAMES).unwrap();
+        write!(f, "{:?}", data::BEHAVIORS).unwrap();
+
+        let mut b = Fnv(0xcbf2_9ce4_8422_2325);
+        let t = Emerald.battle();
+        for s in crate::samples::SPECIES_IDS.iter().chain(&battle::STARTERS) {
+            write!(b, "{:?}", t.species_info(*s)).unwrap();
+        }
+        for tr in SLICE_TRAINERS {
+            write!(b, "{:?}", Emerald.trainer(*tr)).unwrap();
+        }
+        let g = Emerald.battle_gfx();
+        write!(
+            b,
+            "{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{:?}{}",
+            g.textbox,
+            g.environments,
+            g.healthbox_player,
+            g.healthbox_opponent,
+            g.hpbar,
+            g.expbar,
+            g.status,
+            g.misc,
+            g.ball,
+            g.small_font.glyphs,
+            g.small_font.widths,
+            g.starter_bag,
+            g.starter_ball,
+            g.starter_circle,
+            g.player_back.tiles,
+            g.player_back.y
+        )
+        .unwrap();
+        (f.0, b.0)
+    }
+
+    #[cfg(not(pkr_stub_battle))]
+    /// The trainers the slice's scripts name (the Wave 0 build's `TRAINER_IDS`).
+    const SLICE_TRAINERS: &[TrainerId] = &[
+        consts::TRAINER_ALLEN,
+        consts::TRAINER_ANDREW,
+        consts::TRAINER_BRENDAN_ROUTE_103_MUDKIP,
+        consts::TRAINER_BRENDAN_ROUTE_103_TORCHIC,
+        consts::TRAINER_BRENDAN_ROUTE_103_TREECKO,
+        consts::TRAINER_CALVIN_1,
+        consts::TRAINER_DAISY,
+        consts::TRAINER_ISABELLE,
+        consts::TRAINER_MARCOS,
+        consts::TRAINER_MAY_ROUTE_103_MUDKIP,
+        consts::TRAINER_MAY_ROUTE_103_TORCHIC,
+        consts::TRAINER_MAY_ROUTE_103_TREECKO,
+        consts::TRAINER_MIGUEL_1,
+        consts::TRAINER_PETE,
+        consts::TRAINER_RHETT,
+        consts::TRAINER_RICK,
+        consts::TRAINER_TIANA,
+    ];
+
+    #[cfg(not(pkr_stub_battle))]
+    /// The bulk data the slice reads is the Wave 0 build's, byte for byte, whatever form the
+    /// build gives it (Rust literals then, the `data.bin` blob since Milestone 8 Task E): the
+    /// parity route hashes depend on it. The digests are of the French ROM's slice extract
+    /// (format 5.3, `cargo xtask extract --maps slice`); other extracts only print theirs.
+    #[test]
+    fn slice_bulk_data_is_the_wave0_builds() {
+        let (field, battle) = slice_bulk_digests();
+        std::println!("slice bulk digests: field {field:#018x}, battle {battle:#018x}");
+        if source_rom().is_none() || data::MAP_COUNT != 15 {
+            return;
+        }
+        assert_eq!(field, 0x35d7_3d4c_82aa_efe1);
+        // Task G1 changed the battle data on purpose: the abilities it implements (no longer
+        // `Ability::Other`) and `SpeciesInfo::weight` (Low Kick). Was 0x0f9d_09db_0c67_77b7.
+        assert_eq!(battle, 0x36df_8eb5_5517_e48f);
     }
 
     #[test]

@@ -59,9 +59,7 @@ pub const SOUND_MOVES: [&str; 10] = [
 pub const SOUND_FLAG: u8 = 1 << 6;
 
 /// The `MoveFlags` bits of move `id` (`MOVE_*`) that are not Gen3 move flags (OR them into the
-/// `move_flag` bits): [`SOUND_FLAG`] for the moves of [`SOUND_MOVES`]. Not called by
-/// `move_info` yet (its owner wires it in).
-#[allow(dead_code)]
+/// `move_flag` bits): [`SOUND_FLAG`] for the moves of [`SOUND_MOVES`].
 pub fn extra_move_flags(id: &str) -> u8 {
     if SOUND_MOVES.contains(&id) {
         SOUND_FLAG

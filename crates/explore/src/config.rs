@@ -29,6 +29,8 @@ pub struct Config {
     pub cache_capacity: usize,
     /// Also store a snapshot in the db every N depths.
     pub snapshot_every_depth: u32,
+    /// The goal list (Milestone 8). A db keeps the act it was created with (`meta.act`).
+    pub act: crate::goals::Act,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +116,7 @@ impl Default for Config {
             detect: DetectConfig::default(),
             cache_capacity: 65536,
             snapshot_every_depth: 8,
+            act: crate::goals::Act::default(),
         }
     }
 }

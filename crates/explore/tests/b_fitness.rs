@@ -8,13 +8,12 @@ use explore::config::{Config, Weights};
 use explore::fitness::{Archive, Evaluator, Novelty, score, selection_score};
 use explore::key;
 use explore::model::*;
-use explore::probe::Probe;
 use game_native::Session;
 use std::sync::Arc;
 
 /// The root's step: a new game settled to its first capturable frame, summarised by hand.
 fn root_step() -> StepResult {
-    let mut s = Session::new(Probe::new(Emerald::for_shells()));
+    let mut s = Session::new(Emerald::for_shells());
     let mut summary = SimSummary::default();
     let mut frames = 0;
     while s.world().capturable().is_err() {
@@ -27,7 +26,12 @@ fn root_step() -> StepResult {
         }
         let p = w.objects().player();
         summary.cells.insert((w.map(), p.x, p.y));
-        summary.scripts.extend(s.game().take_started());
+        summary
+            .scripts
+            .extend(w.events().iter().filter_map(|e| match e {
+                &engine::world::Event::ScriptStarted(id) => Some(id),
+                _ => None,
+            }));
     }
     summary.frames = frames;
     StepResult {
@@ -84,7 +88,6 @@ fn a_fresh_archive_scores_the_root_and_a_repeat_scores_less() {
     assert_eq!(first.progress, 0);
     let parts = key::key_parts(snap, &ev.cfg.key);
     assert_eq!(first.key, key::key(&parts));
-    assert_eq!(first.region, key::region(&parts));
     assert!(
         first
             .seen
@@ -129,7 +132,6 @@ fn progress_chains_from_the_parent_row() {
         total_frames: 0,
         end_frame: 0,
         key: AbstractKey(0),
-        region: 0,
         digest: 0,
         world_hash: 0,
         map: MapId(0),
@@ -212,7 +214,6 @@ fn selection_decays_with_hits_age_and_children() {
         total_frames: 0,
         end_frame: 0,
         key: e.key,
-        region: e.region,
         digest: 0,
         world_hash: 0,
         map: MapId(0),

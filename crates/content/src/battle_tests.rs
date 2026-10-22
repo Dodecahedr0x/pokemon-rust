@@ -321,6 +321,24 @@ fn every_trainer_resolves() {
     assert!(Emerald.trainer(TrainerId(0)).is_none());
 }
 
+/// Format 5.1 extracts (Task A) carry trainer money and evolutions; older ones neither.
+#[test]
+fn trainer_money_and_evolutions_when_extracted() {
+    for &id in &battle::TRAINER_IDS {
+        assert_eq!(
+            Emerald.trainer_money(id).is_some(),
+            !battle::TRAINER_MONEY.is_empty(),
+            "{id:?}"
+        );
+    }
+    let t = Emerald.battle();
+    for s in 0..t.species.len() as u16 {
+        for e in Emerald.evolutions(engine::data::SpeciesId(s)) {
+            assert!((e.target.0 as usize) < t.species.len());
+        }
+    }
+}
+
 #[test]
 fn the_player_back_pic_has_whole_frames() {
     let p = &Emerald.battle_gfx().player_back;
@@ -357,6 +375,18 @@ mod extracted {
         assert_eq!(Emerald.battle().species.len(), 412);
         assert_eq!(Emerald.battle().moves.len(), 355);
         assert_eq!(Emerald.battle().struggle, MOVE_STRUGGLE);
+    }
+
+    #[test]
+    fn sound_moves_are_flagged_and_species_have_weights() {
+        use consts::*;
+        use engine::mon::MoveFlags;
+        let t = Emerald.battle();
+        assert!(t.move_info(MOVE_GROWL).flags.has(MoveFlags::SOUND));
+        assert!(!t.move_info(MOVE_TACKLE).flags.has(MoveFlags::SOUND));
+        // Low Kick's input (hectograms): every real species weighs something.
+        assert!(t.species_info(SPECIES_ZIGZAGOON).weight > 0);
+        assert!(t.species_info(SPECIES_TREECKO).weight > 0);
     }
 
     /// Slice moves whose effect the engine does not implement yet (for Task E2). They come

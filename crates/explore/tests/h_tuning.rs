@@ -10,7 +10,6 @@ use engine::data::GameData;
 use explore::config::{Config, KeyConfig};
 use explore::observe::NoObserver;
 use explore::policy::Policy;
-use explore::probe::Probe;
 use explore::softlock::{self, Trap};
 use explore::testing::GrassPocket;
 use explore::{Macro, MacroKind, Opts, expand, key, macros, path, sim};
@@ -163,7 +162,7 @@ fn a_grass_pocket_stays_trapped_whatever_the_party_does() {
     assert!(matches!(probed.trap, Trap::Trapped { .. }), "{probed:?}");
 
     // The pocket does change the party: a few grass macros from the start level it up.
-    let mut s = Session::restore(Probe::new(pocket), &cp).unwrap();
+    let mut s = Session::restore(pocket, &cp).unwrap();
     let grass_walk = Macro {
         kind: MacroKind::Grass { x: 12, y: 3 },
         opts: Opts::default(),

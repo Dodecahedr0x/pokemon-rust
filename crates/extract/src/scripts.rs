@@ -399,6 +399,21 @@ const OPS: [(&str, &[Arg]); 0xe3] = [
     /* 0xe2 */ ("bufferitemnameplural", &[B, H, H]),
 ];
 
+/// The `script_cmd_table.inc` name of opcode `op`.
+pub fn op_name(op: u8) -> Option<&'static str> {
+    OPS.get(op as usize).map(|&(name, _)| name)
+}
+
+/// The opcode of the `script_cmd_table.inc` command `name`.
+pub fn opcode(name: &str) -> Option<u8> {
+    OPS.iter().position(|&(n, _)| n == name).map(|i| i as u8)
+}
+
+/// Whether execution never reaches the instruction after opcode `op`.
+pub fn is_terminator_op(op: u8) -> bool {
+    TERMINATORS.contains(&op)
+}
+
 /// A pointer operand: `None` for null and for RAM (runtime buffers such as `gStringVar4`).
 fn target(rom: &Rom, at: u32) -> Result<Option<u32>> {
     let raw = rom.u32(at)?;

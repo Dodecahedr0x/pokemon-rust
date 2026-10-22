@@ -13,6 +13,9 @@ mod battle;
 #[allow(dead_code)]
 #[path = "../build/battle_load.rs"]
 mod battle_load;
+#[allow(dead_code)]
+#[path = "../build/blob_data.rs"]
+mod blob_data;
 #[path = "../build/build_id.rs"]
 mod build_id;
 #[allow(dead_code)]

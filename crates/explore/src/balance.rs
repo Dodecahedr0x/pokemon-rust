@@ -6,7 +6,7 @@ use engine::battle::{BattleKind, Side};
 
 /// Tracks one battle from its first frame to the field's return.
 ///
-/// The driver calls [`BattleTracker::start`] on the frame `World::in_battle` turns true,
+/// The driver calls [`BattleTracker::start`] on the frame of `Event::BattleStarted`,
 /// [`BattleTracker::observe`] after every battle frame, and [`BattleTracker::finish`] once the
 /// field is back (or when it gives up on the battle).
 #[derive(Clone, Debug)]

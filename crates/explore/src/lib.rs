@@ -4,7 +4,7 @@
 //! scores them by novelty and story progress, and reports bugs with a reproducing trace. See
 //! `docs/plans/2026-10-22-milestone-7-explorer.md`.
 //!
-//! Implemented in Wave 0: `model`, `config`, `runs`, `probe`, `guard`, `observe` and the
+//! Implemented in Wave 0: `model`, `config`, `runs`, `guard`, `observe` and the
 //! `db` DDL. Wave 1: A `macros`/`path`/`expand`/`sim`, B `key`/`fitness`/`goals`,
 //! C `db`/`cache`/`rebuild`, D `graph`/`select`/`mutate`/`runner`,
 //! E `detect`/`softlock`/`findings`/`testing`, F `policy`/`balance`. Wave 2: G `wire`/`cli`.
@@ -28,10 +28,9 @@ pub mod mutate; // Task D
 pub mod observe; // implemented (W0): StepObserver + NoObserver
 pub mod path; // Task A
 pub mod policy; // Task F
-pub mod probe; // implemented (W0): Probe<G> GameData wrapper
 pub mod rebuild; // Task C
 pub mod runner; // Task D
-pub mod runs; // implemented (W0): run text codec
+pub mod runs; // implemented (W0): run text codec; M8 K: the blob codec
 pub mod select; // Task D
 pub mod sim; // Task A
 pub mod softlock; // Task E
