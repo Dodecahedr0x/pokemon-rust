@@ -303,6 +303,7 @@ dependencies = [
  "png",
  "ron",
  "serde",
+ "serde_json",
  "sha1_smol",
 ]
 
