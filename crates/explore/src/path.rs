@@ -141,6 +141,10 @@ impl<'a, G: GameData> Grid<'a, G> {
         avoid_grass: bool,
         target: Option<(i16, i16)>,
     ) -> Option<(i16, i16)> {
+        // Holding `d` on an `ArrowWarp(d)` cell warps: never leave it that way.
+        if self.behavior(c) == Behavior::ArrowWarp(d) {
+            return None;
+        }
         let (dx, dy) = d.delta();
         let mut n = (c.0 + dx, c.1 + dy);
         if !self.in_bounds(n) {
@@ -246,3 +250,6 @@ pub(crate) fn live_grid<'a, G: GameData>(
         .collect();
     Grid::new(game, w.map(), overrides, occupied)
 }
+
+#[cfg(test)]
+mod tests;

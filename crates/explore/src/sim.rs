@@ -1,7 +1,8 @@
 //! One job on a fresh session (Task A).
 
 use crate::config::Config;
-use crate::expand::{self, ExpandError, Expanded, Intents, LocalPolicy};
+use crate::expand::{self, ExpandError, Expanded, Intents};
+use crate::graph::Rng64;
 use crate::guard::{self, Panicked};
 use crate::macros;
 use crate::model::{
@@ -9,6 +10,7 @@ use crate::model::{
 };
 use crate::observe::StepObserver;
 use crate::path;
+use crate::policy::Policy;
 use crate::probe::Probe;
 use crate::runs;
 use engine::data::{GameData, MapId};
@@ -26,10 +28,10 @@ pub fn simulate<G: GameData + Clone>(
     cfg: &Config,
     obs: &mut dyn FnMut() -> Box<dyn StepObserver<G>>,
 ) -> JobResult {
-    simulate_with(game, job, cfg, obs, &mut LocalPolicy)
+    simulate_with(game, job, cfg, obs, &mut Policy::new())
 }
 
-/// [`simulate`] with any [`Intents`] (Task F's `Policy` once merged).
+/// [`simulate`] with any [`Intents`] (a test seam: fake policies).
 pub fn simulate_with<G: GameData + Clone>(
     game: &G,
     job: &Job,
@@ -55,24 +57,6 @@ pub fn simulate_with<G: GameData + Clone>(
     sim.res
 }
 
-/// splitmix64 (the job's own stream; `Rng64` is Task D's equivalent).
-struct SplitMix(u64);
-
-impl SplitMix {
-    fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    /// In `0..n` (`n > 0`).
-    fn below(&mut self, n: usize) -> usize {
-        (self.next_u64() % n as u64) as usize
-    }
-}
-
 struct Sim<'a, G: GameData + Clone> {
     game: &'a G,
     cfg: &'a Config,
@@ -86,15 +70,16 @@ type Live<G> = (Session<Probe<G>>, Box<dyn StepObserver<G>>);
 impl<G: GameData + Clone> Sim<'_, G> {
     fn session(&mut self, start: Option<&engine::checkpoint::Checkpoint>) -> Result<Live<G>, Stop> {
         let probe = Probe::new(self.game.clone());
-        // A panic while building the world is a finding with an empty tail, on the start
-        // map (the new game's for `World::new`, as `findings::reproduce` expects).
+        // A panic while building the world is a finding on the start map (the new game's for `World::new`, as `findings::reproduce` expects).
+        // The tail is the job's steps so far (empty for the job's own start), as `finding`.
+        let tail = rle(self.res.steps.iter().flat_map(|st| runs::keys(&st.inputs)));
         let panicked = |p: Panicked, map: MapId, pos: (i16, i16)| {
             Stop::Finding(FindingDraft {
                 kind: FindingKind::Panic,
                 message: p.message,
                 location: p.location,
                 macro_: None,
-                tail: Vec::new(),
+                tail,
                 map,
                 pos,
                 script: None,
@@ -150,7 +135,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
         }
     }
 
-    /// Picks among the candidates with `SplitMix(seed)`; a `NoPath`/`NoEffect` candidate is
+    /// Picks among the candidates with `Rng64(seed)`; a `NoPath`/`NoEffect` candidate is
     /// skipped (the session restored) up to [`RANDOM_TRIES`] tries.
     fn random_step(&mut self, mut live: Live<G>, seed: u64) -> Result<Live<G>, Stop> {
         let s = &live.0;
@@ -163,13 +148,13 @@ impl<G: GameData + Clone> Sim<'_, G> {
             .map_err(|e| Stop::Pruned(format!("not capturable: {e:?}")))?;
         let reach = path::reach(self.game, &snap);
         let mut cands = macros::candidates_with(self.game, &snap, &reach, self.cfg.key.cell_shift);
-        let mut rng = SplitMix(seed);
+        let mut rng = Rng64(seed);
         let mut last = String::from("no candidate");
         for _ in 0..RANDOM_TRIES {
             if cands.is_empty() {
                 break;
             }
-            let m = cands.remove(rng.below(cands.len()));
+            let m = cands.remove(rng.below(cands.len() as u64) as usize);
             match self.try_step(&mut live, &m) {
                 Ok(()) => return Ok(live),
                 Err(Ok(e)) => {

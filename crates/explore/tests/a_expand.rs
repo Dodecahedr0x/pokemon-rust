@@ -5,18 +5,20 @@ use content::Emerald;
 use engine::battle::{self, BattleGfx};
 use engine::checkpoint::{Checkpoint, state_digest};
 use engine::data::{
-    Behavior, Dir, Font, GameData, GfxId, MapData, MapId, NewGame, ScriptId, SpecialIds,
-    SpriteData, TextId, TrainerId, UiText, WindowGfx,
+    BLOCK_ELEVATION_SHIFT, Behavior, Dir, Font, GameData, GfxId, MapData, MapId, MapScripts,
+    NewGame, ObjectEvent, ScriptId, SpecialIds, SpriteData, TextId, TrainerId, UiText, WindowGfx,
 };
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
 use engine::script::{Ctx, Script};
 use engine::{Buttons, World};
-use explore::config::{Config, Limits};
-use explore::expand::{self, ExpandError, LocalPolicy};
+use explore::config::{Config, DetectConfig, Limits};
+use explore::detect::Detectors;
+use explore::expand::{self, ExpandError};
 use explore::macros::{applicable, candidates};
 use explore::model::*;
 use explore::observe::{NoObserver, StepObserver};
 use explore::path::{self, reach};
+use explore::policy::Policy;
 use explore::probe::Probe;
 use explore::runs;
 use explore::sim::simulate;
@@ -68,15 +70,20 @@ fn script_id(name: &str) -> ScriptId {
     ScriptId(i as u16)
 }
 
-/// Every step's end restores, and replaying its inputs from the previous end state (or a new
-/// game) reaches the end state's digest, capturable.
+/// Every step's end restores, and replaying its inputs from a restore of the previous step's
+/// end (or the job's start, or a new game) reaches the end state's digest, capturable.
 fn check_steps<G: GameData + Clone>(game: &G, start: Option<&Checkpoint>, r: &JobResult) {
-    let mut s = match start {
-        Some(cp) => Session::restore(game.clone(), cp).unwrap(),
-        None => Session::new(game.clone()),
-    };
     for (i, st) in r.steps.iter().enumerate() {
         World::restore(game, &st.end).unwrap_or_else(|e| panic!("step {i} restore: {e:?}"));
+        let from = if i == 0 {
+            start
+        } else {
+            Some(&*r.steps[i - 1].end)
+        };
+        let mut s = match from {
+            Some(cp) => Session::restore(game.clone(), cp).unwrap(),
+            None => Session::new(game.clone()),
+        };
         assert_eq!(runs::frames(&st.inputs), st.summary.frames, "step {i}");
         for k in runs::keys(&st.inputs) {
             s.step(k);
@@ -265,6 +272,7 @@ fn random_plans_are_deterministic_and_replay() {
         let j = job(Some(start.clone()), Plan::Random { len: 2, seed });
         let a = run(&game, &j);
         let b = run(&game, &j);
+        assert!(!a.steps.is_empty(), "seed {seed}: {:?}", a.stop);
         assert_eq!(a.steps.len(), b.steps.len(), "seed {seed}");
         for (x, y) in a.steps.iter().zip(&b.steps) {
             assert_eq!(x.macro_, y.macro_);
@@ -285,7 +293,7 @@ fn errors_prune() {
     let e = expand::expand_with(
         &mut s,
         &m(MacroKind::WalkTo { x: -3, y: 2 }),
-        &mut LocalPolicy,
+        &mut Policy::new(),
         &mut NoObserver,
         &Limits::default(),
     )
@@ -333,69 +341,122 @@ fn next_dir_heads_for_the_target() {
     );
 }
 
-/// The stub's grass panics: a wild encounter roll reads the encounter table. With `true`, the
-/// first script started panics too (the new game's, inside `World::new`).
+/// The content build's game with faults: a panicking encounter table read (the stub's first
+/// step), a panicking script start (the new game's, inside `World::new`), or a patched map.
 #[derive(Clone, Copy)]
-struct PanicOnEncounter(Emerald, bool);
+struct Fake {
+    inner: Emerald,
+    panic_encounters: bool,
+    panic_scripts: bool,
+    patch: Option<(MapId, &'static MapData)>,
+}
 
-impl GameData for PanicOnEncounter {
+impl Fake {
+    fn new() -> Fake {
+        Fake {
+            inner: Emerald::for_shells(),
+            panic_encounters: false,
+            panic_scripts: false,
+            patch: None,
+        }
+    }
+
+    /// `map` with its blocks and objects replaced (leaked: tests only).
+    fn patched(map: MapId, blocks: Vec<u16>, objects: Vec<ObjectEvent>) -> Fake {
+        let g = Emerald::for_shells();
+        let m = g.map(map);
+        let data: &'static MapData = Box::leak(Box::new(MapData {
+            name: m.name,
+            width: m.width,
+            height: m.height,
+            blocks: Box::leak(blocks.into_boxed_slice()),
+            border: m.border,
+            primary: m.primary,
+            secondary: m.secondary,
+            objects: Box::leak(objects.into_boxed_slice()),
+            warps: m.warps,
+            coords: m.coords,
+            bgs: m.bgs,
+            connections: m.connections,
+            scripts: MapScripts {
+                on_load: m.scripts.on_load,
+                on_transition: m.scripts.on_transition,
+                on_resume: m.scripts.on_resume,
+                on_return_to_field: m.scripts.on_return_to_field,
+                on_frame: m.scripts.on_frame,
+                on_warp_into: m.scripts.on_warp_into,
+            },
+            allow_running: m.allow_running,
+        }));
+        Fake {
+            patch: Some((map, data)),
+            ..Fake::new()
+        }
+    }
+}
+
+impl GameData for Fake {
     fn map(&self, id: MapId) -> &'static MapData {
-        self.0.map(id)
+        match self.patch {
+            Some((p, data)) if p == id => data,
+            _ => self.inner.map(id),
+        }
     }
     fn has_map(&self, id: MapId) -> bool {
-        self.0.has_map(id)
+        self.inner.has_map(id)
     }
     fn special_ids(&self) -> SpecialIds {
-        self.0.special_ids()
+        self.inner.special_ids()
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
-        self.0.sprite(gfx)
+        self.inner.sprite(gfx)
     }
     fn player_sprite(&self) -> &'static SpriteData {
-        self.0.player_sprite()
+        self.inner.player_sprite()
     }
     fn font(&self) -> &'static Font {
-        self.0.font()
+        self.inner.font()
     }
     fn window(&self) -> &'static WindowGfx {
-        self.0.window()
+        self.inner.window()
     }
     fn text(&self, id: TextId) -> &'static [u8] {
-        self.0.text(id)
+        self.inner.text(id)
     }
     fn ui_text(&self, t: UiText) -> &'static [u8] {
-        self.0.ui_text(t)
+        self.inner.ui_text(t)
     }
     fn behavior(&self, raw: u8) -> Behavior {
-        self.0.behavior(raw)
+        self.inner.behavior(raw)
     }
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
-        assert!(!self.1, "script started");
-        self.0.script(id, ctx)
+        assert!(!self.panic_scripts, "script started");
+        self.inner.script(id, ctx)
     }
     fn new_game(&self) -> NewGame {
-        self.0.new_game()
+        self.inner.new_game()
     }
     fn build_id(&self) -> u64 {
-        self.0.build_id()
+        self.inner.build_id()
     }
     fn battle(&self) -> &'static BattleTables {
-        self.0.battle()
+        self.inner.battle()
     }
-    fn encounters(&self, _: MapId) -> Option<&'static LandEncounters> {
-        panic!("encounter table read")
+    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
+        assert!(!self.panic_encounters, "encounter table read");
+        self.inner.encounters(map)
     }
     fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
-        self.0.trainer(id)
+        self.inner.trainer(id)
     }
     fn battle_text(&self, s: battle::Str) -> &'static [u8] {
-        self.0.battle_text(s)
+        self.inner.battle_text(s)
     }
     fn battle_gfx(&self) -> &'static BattleGfx {
-        self.0.battle_gfx()
+        self.inner.battle_gfx()
     }
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
-        self.0.heal_location(id)
+        self.inner.heal_location(id)
     }
 }
 
@@ -404,7 +465,10 @@ fn a_panic_is_a_finding_with_a_replayable_tail() {
     if !content::STUB {
         return;
     }
-    let game = PanicOnEncounter(Emerald::for_shells(), false);
+    let game = Fake {
+        panic_encounters: true,
+        ..Fake::new()
+    };
     // The encounter table is read on the first step taken.
     let grass = m(MacroKind::Grass { x: 12, y: 3 });
     let r = run(&game, &job(None, Plan::Given(vec![grass])));
@@ -514,7 +578,10 @@ fn real_route_moments() {
 
 #[test]
 fn a_panic_building_the_new_game_is_a_finding_on_its_map() {
-    let game = PanicOnEncounter(Emerald::for_shells(), true);
+    let game = Fake {
+        panic_scripts: true,
+        ..Fake::new()
+    };
     let r = run(&game, &job(None, Plan::Given(vec![m(MacroKind::Settle)])));
     assert!(r.steps.is_empty());
     let Some(Stop::Finding(f)) = &r.stop else {
@@ -524,4 +591,179 @@ fn a_panic_building_the_new_game_is_a_finding_on_its_map() {
     assert_eq!(f.message, "script started");
     assert!(f.tail.is_empty());
     assert_eq!(f.map, game.new_game().map);
+}
+
+#[test]
+fn slow_frames_never_end_a_job() {
+    let game = Emerald::for_shells();
+    let start = root(&game);
+    let cfg = Config::default();
+    let slow = DetectConfig {
+        slow_step_us: 1,
+        ..DetectConfig::default()
+    };
+    for seed in [1u64, 2] {
+        let j = job(Some(start.clone()), Plan::Random { len: 2, seed });
+        let plain = run(&game, &j);
+        let mut detectors =
+            || -> Box<dyn StepObserver<Emerald>> { Box::new(Detectors::<Emerald>::new(&slow)) };
+        let watched = simulate(&game, &j, &cfg, &mut detectors);
+        assert!(!plain.steps.is_empty(), "seed {seed}: {:?}", plain.stop);
+        assert_eq!(plain.steps.len(), watched.steps.len(), "seed {seed}");
+        for (a, b) in plain.steps.iter().zip(&watched.steps) {
+            assert_eq!(a.macro_, b.macro_);
+            assert_eq!(a.inputs, b.inputs);
+            assert_eq!(a.end, b.end);
+        }
+        assert_eq!(format!("{:?}", plain.stop), format!("{:?}", watched.stop));
+    }
+    // The flags are recorded, not dropped.
+    let target = reach(&game, &start.world)
+        .cells()
+        .find(|&c| c != player(&start))
+        .unwrap();
+    let mut s = Session::restore(Probe::new(game), &start).unwrap();
+    let ex = expand::expand_with(
+        &mut s,
+        &m(MacroKind::WalkTo {
+            x: target.0,
+            y: target.1,
+        }),
+        &mut Policy::new(),
+        &mut Detectors::<Emerald>::new(&slow),
+        &Limits::default(),
+    )
+    .unwrap_or_else(|e| panic!("{:?}", e.0));
+    assert!(!ex.slow.is_empty() && ex.slow.len() <= expand::MAX_SLOW);
+    assert!(ex.slow.iter().all(|f| f.kind == FindingKind::SlowFrame));
+}
+
+#[test]
+fn a_planner_divergence_is_flagged_after_a_stall() {
+    if !content::STUB {
+        return;
+    }
+    // Every cell at elevation 3 but one at 4 on the player's way: the planner (elevation
+    // ignored) holds the direction toward it, the engine refuses the step.
+    let game = Emerald::for_shells();
+    let start = root(&game);
+    let p = player(&start);
+    let map = start.world.field.map;
+    let base = game.map(map);
+    let wall = (p.0 + 1, p.1);
+    let to = (p.0 + 3, p.1);
+    let mask = 0xF << BLOCK_ELEVATION_SHIFT;
+    let blocks = base
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(i, &b)| {
+            let c = (
+                (i % base.width as usize) as i16,
+                (i / base.width as usize) as i16,
+            );
+            let e: u16 = if c == wall { 4 } else { 3 };
+            (b & !mask) | (e << BLOCK_ELEVATION_SHIFT)
+        })
+        .collect();
+    let fake = Fake::patched(map, blocks, base.objects.to_vec());
+    let r = run(
+        &fake,
+        &job(
+            None,
+            Plan::Given(vec![m(MacroKind::WalkTo { x: to.0, y: to.1 })]),
+        ),
+    );
+    assert_eq!(r.steps.len(), 1, "the settle: {:?}", r.stop);
+    let Some(Stop::Finding(f)) = &r.stop else {
+        panic!("{:?}", r.stop)
+    };
+    assert_eq!(f.kind, FindingKind::PlannerDivergence, "{}", f.message);
+    assert_eq!(f.map, map);
+    let stalled = runs::frames(&f.tail) - r.steps[0].summary.frames;
+    assert!(stalled >= expand::STALL_FRAMES, "{stalled}");
+}
+
+#[test]
+fn real_enter_a_house() {
+    if content::STUB {
+        return;
+    }
+    use content::consts::*;
+    let game = Emerald::for_shells();
+    let start = root(&game);
+    let c = candidates(&game, &start.world, &reach(&game, &start.world));
+    let enter = *c
+        .iter()
+        .find(|m| matches!(m.kind, MacroKind::Enter { .. }))
+        .expect("a door");
+    let r = run(&game, &job(Some(start.clone()), Plan::Given(vec![enter])));
+    assert!(r.stop.is_none(), "{:?}", r.stop);
+    assert_eq!(r.steps.len(), 1);
+    let end = &r.steps[0].end;
+    assert_ne!(end.world.field.map, MAP_LITTLEROOT_TOWN);
+    assert_eq!(r.steps[0].summary.maps.last(), Some(&end.world.field.map));
+    check_steps(&game, Some(&start), &r);
+}
+
+#[test]
+fn real_stale_view_tries_each_object_once() {
+    if content::STUB {
+        return;
+    }
+    use content::consts::*;
+    // The first always-present scripted object of Route 101 (one that only shows text) is
+    // moved next to where the rescue's triggers push the player back, so it is the nearest:
+    // talking to it leaves the view stale, and the driver moves on to Birch's bag.
+    let base = Emerald::for_shells().map(MAP_ROUTE101);
+    let mut objects = base.objects.to_vec();
+    let text = objects
+        .iter_mut()
+        .filter(|o| o.script.is_some() && o.hide_flag.is_none())
+        .min_by_key(|o| o.local_id)
+        .expect("a text-only object");
+    (text.x, text.y) = (8, 15);
+    let text_id = text.local_id;
+    let game = Fake::patched(MAP_ROUTE101, base.blocks.to_vec(), objects);
+    let mut s = Session::new(Probe::new(game));
+    let mut policy = Policy::new();
+    for kind in [
+        MacroKind::Settle,
+        MacroKind::WalkTo { x: 11, y: 2 },
+        MacroKind::WalkTo { x: 11, y: 1 },
+    ] {
+        expand::expand_with(
+            &mut s,
+            &m(kind),
+            &mut policy,
+            &mut NoObserver,
+            &Limits::default(),
+        )
+        .unwrap_or_else(|e| panic!("{kind:?}: {:?}", e.0));
+    }
+    let cross = m(MacroKind::Cross {
+        x: 10,
+        y: 0,
+        dir: Dir::Up,
+    });
+    let ex = expand::expand_with(
+        &mut s,
+        &cross,
+        &mut policy,
+        &mut NoObserver,
+        &Limits::default(),
+    )
+    .unwrap_or_else(|e| panic!("{:?}", e.0));
+    assert_eq!(
+        s.world().map(),
+        MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB,
+        "{:?}",
+        ex.notes
+    );
+    assert_eq!(ex.notes.len(), 2, "{:?}", ex.notes);
+    assert!(
+        ex.notes[0].ends_with(&format!("object {text_id}")),
+        "{:?}",
+        ex.notes
+    );
 }

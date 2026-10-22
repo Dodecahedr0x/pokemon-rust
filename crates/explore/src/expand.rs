@@ -6,16 +6,15 @@
 //! battle or starter screen that starts during a walk ends the walk and is resolved with the
 //! policy and the macro's `Opts`.
 
+use crate::balance::BattleTracker;
 use crate::config::Limits;
 use crate::guard::{self, Panicked};
 use crate::macros;
-use crate::model::{BattleSummary, FindingKind, Macro, MacroKind, Opts, SimSummary};
+use crate::model::{FindingKind, Macro, MacroKind, Opts, SimSummary};
 use crate::observe::{Flag, NoObserver, StepObserver};
 use crate::path::{self, live_grid};
 use crate::policy::Policy;
 use crate::probe::Probe;
-use engine::battle::scene::OpenMenu;
-use engine::battle::{BattleKind, Side};
 use engine::checkpoint::NotCapturable;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, ScriptId};
 use engine::mon::BattleTables;
@@ -37,7 +36,16 @@ pub struct Expanded {
     pub summary: SimSummary,
     /// The last script started during the expansion (`Probe`), for findings.
     pub last_script: Option<ScriptId>,
+    /// Report-only flags (`FindingKind::SlowFrame`) raised during the expansion, at most
+    /// [`MAX_SLOW`]; they never end it.
+    pub slow: Vec<Flag>,
+    /// What the driver did beyond the macro itself, e.g. `"stale view after a crossing:
+    /// talked to object 2"` (the Cross fallback, see `Driver::resolve`).
+    pub notes: Vec<String>,
 }
+
+/// Report-only flags kept per expansion.
+pub const MAX_SLOW: usize = 16;
 
 /// Frames the player may hold one planned direction toward a cell the planner calls walkable
 /// without moving before the driver flags a planner/engine divergence.
@@ -68,73 +76,6 @@ impl Intents for Policy {
     }
 }
 
-/// Placeholder for Task F's `Policy` until it merges (Wave 2 switches [`crate::sim`] and
-/// [`new_game`] to `Policy`): the scenario recorder's battle cursor walk and script mashing,
-/// with the same rules as the `Policy` contract.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct LocalPolicy;
-
-impl Intents for LocalPolicy {
-    fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons {
-        let Some((_, battle, scene)) = w.battle() else {
-            return Buttons::A;
-        };
-        let run = opts.run_wild
-            && battle.setup().kind
-                == BattleKind::Wild {
-                    first_battle: false,
-                };
-        let mon = battle.mon(Side::Player);
-        let slot = (0..4)
-            .find(|&i| {
-                mon.moves[i].is_some_and(|id| {
-                    t.moves.get(id.0 as usize).is_some_and(|m| m.power > 0) && mon.pp[i] > 0
-                })
-            })
-            .unwrap_or(0) as u8;
-        let toward = |c: u8, want: u8| {
-            if c & 1 != want & 1 {
-                if want & 1 == 0 {
-                    Buttons::LEFT
-                } else {
-                    Buttons::RIGHT
-                }
-            } else if c & 2 != want & 2 {
-                if want & 2 == 0 {
-                    Buttons::UP
-                } else {
-                    Buttons::DOWN
-                }
-            } else {
-                Buttons::A
-            }
-        };
-        match scene.open_menu() {
-            Some(OpenMenu::Action(c)) => toward(c, if run { 3 } else { 0 }),
-            Some(OpenMenu::Move(_)) if run => Buttons::B,
-            Some(OpenMenu::Move(c)) => toward(c, slot),
-            Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_)) => Buttons::B,
-            Some(OpenMenu::StopAsk(0)) => Buttons::A,
-            Some(OpenMenu::StopAsk(_)) => Buttons::UP,
-            None => Buttons::A,
-        }
-    }
-
-    fn script(&mut self, w: &World, opts: Opts) -> Buttons {
-        if let Some(st) = w.starter() {
-            return match st.selection().cmp(&(opts.choice % 3)) {
-                std::cmp::Ordering::Less => Buttons::RIGHT,
-                std::cmp::Ordering::Greater => Buttons::LEFT,
-                std::cmp::Ordering::Equal => Buttons::A,
-            };
-        }
-        if w.text().is_yes_no_active() && opts.choice != 0 {
-            return Buttons::B;
-        }
-        Buttons::A
-    }
-}
-
 /// Plays `m` on `s` to the next capturable frame. On error, `keys`/`summary` so far are
 /// returned for the repro.
 #[allow(clippy::result_large_err)] // the partial expansion is the repro
@@ -148,7 +89,7 @@ pub fn expand<G: GameData>(
     expand_with(s, m, policy, obs, limits)
 }
 
-/// [`expand`] with any [`Intents`] (the [`LocalPolicy`] placeholder until Task F merges).
+/// [`expand`] with any [`Intents`] (a test seam: fake policies).
 #[allow(clippy::result_large_err)] // the partial expansion is the repro
 pub fn expand_with<G: GameData>(
     s: &mut Session<Probe<G>>,
@@ -179,7 +120,7 @@ pub fn new_game<G: GameData>(game: G) -> Session<Probe<G>> {
     if let Err((e, _)) = expand_with(
         &mut s,
         &settle,
-        &mut LocalPolicy,
+        &mut Policy::new(),
         &mut NoObserver,
         &Limits::default(),
     ) {
@@ -246,63 +187,6 @@ enum Walk {
     Interrupted,
 }
 
-/// One battle from its first frame to the field's return (placeholder for Task F's
-/// `balance::BattleTracker` until Wave 2).
-struct Tracker {
-    start: u32,
-    kind: u8,
-    trainer: Option<u16>,
-    player_level: u8,
-    opponent_level: u8,
-    hp_start: u16,
-    hp: u16,
-    max_hp: u16,
-    outcome: Option<u8>,
-}
-
-impl Tracker {
-    fn start(w: &World) -> Option<Tracker> {
-        let (_, b, scene) = w.battle()?;
-        let (kind, trainer) = match b.setup().kind {
-            BattleKind::Wild { first_battle } => (u8::from(first_battle), None),
-            BattleKind::Trainer { trainer, .. } => (2, Some(trainer.0)),
-        };
-        let (p, o) = (b.mon(Side::Player), b.mon(Side::Opponent));
-        Some(Tracker {
-            start: w.frame(),
-            kind,
-            trainer,
-            player_level: p.level,
-            opponent_level: o.level,
-            hp_start: p.hp,
-            hp: p.hp,
-            max_hp: p.max_hp,
-            outcome: scene.finished().map(|o| o as u8),
-        })
-    }
-
-    fn update(&mut self, w: &World) {
-        if let Some((_, b, scene)) = w.battle() {
-            let p = b.mon(Side::Player);
-            (self.hp, self.max_hp) = (p.hp, p.max_hp);
-            self.outcome = scene.finished().map(|o| o as u8).or(self.outcome);
-        }
-    }
-
-    fn finish(self, w: &World) -> BattleSummary {
-        let lost = u32::from(self.hp_start.saturating_sub(self.hp));
-        BattleSummary {
-            kind: self.kind,
-            trainer: self.trainer,
-            outcome: self.outcome,
-            frames: w.frame().wrapping_sub(self.start),
-            player_level: self.player_level,
-            opponent_level: self.opponent_level,
-            hp_lost_permille: (lost * 1000 / u32::from(self.max_hp.max(1))).min(1000) as u16,
-        }
-    }
-}
-
 struct Driver<'a, G: GameData> {
     s: &'a mut Session<Probe<G>>,
     intents: &'a mut dyn Intents,
@@ -314,12 +198,13 @@ struct Driver<'a, G: GameData> {
     last_script: Option<ScriptId>,
     /// The buttons of the last step.
     last: Buttons,
-    /// The start snapshot's `setmetatile` overrides, valid while on `start_map`.
+    /// The start snapshot's `setmetatile` overrides, valid until the map first changes.
     overrides: Vec<((i16, i16), u16)>,
-    start_map: MapId,
+    slow: Vec<Flag>,
+    notes: Vec<String>,
     map: MapId,
     log_start: u32,
-    battle: Option<Tracker>,
+    battle: Option<BattleTracker>,
     /// Frames stepped outside battles (`Limits::macro_frames`).
     nonbattle: u32,
     /// Frames of the current battle (`Limits::battle_frames`).
@@ -359,7 +244,8 @@ impl<'a, G: GameData> Driver<'a, G> {
             last_script: None,
             last: Buttons::NONE,
             overrides,
-            start_map: map,
+            slow: Vec::new(),
+            notes: Vec::new(),
             map,
             log_start,
             battle: None,
@@ -384,16 +270,15 @@ impl<'a, G: GameData> Driver<'a, G> {
             keys: self.keys,
             summary,
             last_script: self.last_script,
+            slow: self.slow,
+            notes: self.notes,
         }
     }
 
-    /// The overrides that apply to the live map.
+    /// The overrides that apply to the live map: the start snapshot's, cleared (latched off)
+    /// on the first map change, since a new map starts without overrides.
     fn overrides(&self) -> &[((i16, i16), u16)] {
-        if self.w().map() == self.start_map {
-            &self.overrides
-        } else {
-            &[]
-        }
+        &self.overrides
     }
 
     /// Up-front planning: `NoPath` when `m` is not applicable to a capturable start.
@@ -434,6 +319,13 @@ impl<'a, G: GameData> Driver<'a, G> {
         let flag = self.obs.after_step(self.s, keys, ns);
         self.observe(ns);
         match flag {
+            // Report-only (`observe` module docs): recorded, never fatal.
+            Some(f) if f.kind == FindingKind::SlowFrame => {
+                if self.slow.len() < MAX_SLOW {
+                    self.slow.push(f);
+                }
+                Ok(())
+            }
             Some(f) => Err(ExpandError::Flagged(f)),
             None => Ok(()),
         }
@@ -446,6 +338,7 @@ impl<'a, G: GameData> Driver<'a, G> {
         let (map, pos) = (w.map(), w.objects().player().pos());
         if map != self.map {
             self.map = map;
+            self.overrides.clear();
             if !w.transition_active() {
                 self.crossed_at = Some(pos);
                 self.stale_target = None;
@@ -461,13 +354,13 @@ impl<'a, G: GameData> Driver<'a, G> {
         }
         match (&mut self.battle, w.in_battle()) {
             (None, true) => {
-                self.battle = Tracker::start(w);
+                self.battle = BattleTracker::start(w);
                 self.battle_frames = 0;
             }
-            (Some(t), true) => t.update(w),
+            (Some(t), true) => t.observe(w),
             (Some(_), false) => {
                 let t = self.battle.take().expect("tracked");
-                sum.battles.push(t.finish(w));
+                sum.battles.push(t.finish(w, None));
             }
             (None, false) => {}
         }
@@ -539,11 +432,14 @@ impl<'a, G: GameData> Driver<'a, G> {
                     continue;
                 };
                 idle = 0;
+                // Each object once: one that only shows text leaves the view stale, and the
+                // next one is tried.
+                self.stale_tried.push(id);
                 match self.talk(id) {
-                    Ok(()) => {}
-                    Err(ExpandError::NoPath | ExpandError::NoEffect(_)) => {
-                        self.stale_tried.push(id)
-                    }
+                    Ok(()) => self.notes.push(format!(
+                        "stale view after a crossing: talked to object {id}"
+                    )),
+                    Err(ExpandError::NoPath | ExpandError::NoEffect(_)) => {}
                     Err(e) => return Err(e),
                 }
             }
@@ -800,7 +696,8 @@ impl<'a, G: GameData> Driver<'a, G> {
             Dir::ALL.into_iter().find_map(|d| {
                 let (dx, dy) = d.delta();
                 let c = (at.0 + dx, at.1 + dy);
-                grid.walkable(c, false).then_some(c)
+                let ledge = matches!(grid.behavior(c), Behavior::Ledge(_));
+                (grid.walkable(c, false) && !ledge).then_some(c)
             })
         };
         let Some(other) = other else {
