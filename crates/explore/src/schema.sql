@@ -1,4 +1,4 @@
--- Explorer database, schema version 1 (`db::SCHEMA_VERSION`).
+-- Explorer database, schema version 2 (`db::SCHEMA_VERSION`).
 -- u64 values (keys, digests, hashes, build ids) are stored bit-cast to i64.
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,           -- schema, flavor ('stub'|'emerald'), build_engine, build_content, seed, generation
@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS coverage (             -- studio heatmap
   hits       INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (map, x, y)
 ) STRICT, WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS key_hit (              -- selection decay: Graph::all_key_hits (v2)
+  key  INTEGER PRIMARY KEY,                       -- AbstractKey
+  hits INTEGER NOT NULL
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS battle (               -- balance tables (v0: recorded, weight 0)
   id               INTEGER PRIMARY KEY,
