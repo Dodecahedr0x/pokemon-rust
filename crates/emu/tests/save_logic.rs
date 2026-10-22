@@ -8,7 +8,7 @@ use engine::Buttons;
 use engine::checkpoint::{BuildHash, SCHEMA, SaveMeta};
 use engine::data::MapId;
 use engine::debug::boot;
-use save_logic::{BootChoice, PendingSave, SAVE_WAIT_FRAMES, boot_choice, combo_pressed};
+use save_logic::{BootChoice, PendingSave, SAVE_WAIT_FRAMES, boot_choice, combo_pressed, scanlines};
 
 const LR: Buttons = Buttons(Buttons::L.0 | Buttons::R.0);
 const LRS: Buttons = Buttons(Buttons::L.0 | Buttons::R.0 | Buttons::SELECT.0);
@@ -87,4 +87,13 @@ fn pending_save_times_out_after_the_wait() {
     assert_eq!(p.frames_left, 0);
     // Stays expired.
     assert!(p.tick());
+}
+
+#[test]
+fn scanlines_wrap_mod_one_frame() {
+    assert_eq!(scanlines(160, 169), 9);
+    assert_eq!(scanlines(220, 3), 11);
+    assert_eq!(scanlines(5, 5), 0);
+    assert_eq!(scanlines(0, 227), 227);
+    assert!(PendingSave::default() == PendingSave::new());
 }
