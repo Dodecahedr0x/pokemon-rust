@@ -244,6 +244,7 @@ fn the_cli_runs_and_reports() {
     cli(&["run", "--generations", "3", "--threads", "2"]).unwrap();
     cli(&["status"]).unwrap();
     cli(&["findings", "--all"]).unwrap();
+    cli(&["findings", "--bugs"]).unwrap();
     cli(&["digest"]).unwrap();
     let map = Emerald::for_shells().new_game().map;
     cli(&["coverage", &map.0.to_string()]).unwrap();

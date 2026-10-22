@@ -7,7 +7,6 @@ use engine::data::{GameData, ScriptId};
 use explore::config::DetectConfig;
 use explore::findings::{repro_trace, reproduce};
 use explore::guard::{self, Panicked, step_guarded};
-use explore::probe::Probe;
 use explore::testing::{INJECTED_PANIC, PanicOnScript};
 use explore::{FindingDraft, FindingKind};
 use game_native::Session;
@@ -17,11 +16,15 @@ use game_native::trace::{Run, Trace, rle};
 /// The first script started by a step of the route (the real flavor), and its frame.
 fn first_stepped_script() -> (ScriptId, usize) {
     let rec = cached_route();
-    let mut s = Session::new(Probe::new(Emerald::for_shells()));
-    s.game().take_started();
+    let mut s = Session::new(Emerald::for_shells());
     for (i, &k) in rec.keys.iter().enumerate() {
         s.step(k);
-        if let Some(&id) = s.game().take_started().first() {
+        // The first step also shows the boot's events (`World::new`): skip them.
+        let first = s.world().events().iter().find_map(|e| match e {
+            &engine::world::Event::ScriptStarted(id) if i > 0 => Some(id),
+            _ => None,
+        });
+        if let Some(id) = first {
             return (id, i + 1);
         }
     }

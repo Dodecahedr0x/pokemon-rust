@@ -14,10 +14,11 @@ use crate::model::{FindingKind, Macro, MacroKind, Opts, SimSummary};
 use crate::observe::{Flag, NoObserver, StepObserver};
 use crate::path::{self, live_grid};
 use crate::policy::Policy;
-use crate::probe::Probe;
 use engine::checkpoint::NotCapturable;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, ScriptId};
 use engine::mon::BattleTables;
+use engine::script::Report;
+use engine::world::Event;
 use engine::{Buttons, World};
 use game_native::Session;
 use std::time::Instant;
@@ -34,8 +35,12 @@ pub enum ExpandError {
 pub struct Expanded {
     pub keys: Vec<Buttons>,
     pub summary: SimSummary,
-    /// The last script started during the expansion (`Probe`), for findings.
+    /// The last script started during the expansion (`Event::ScriptStarted`, the frame that
+    /// panicked included), for findings.
     pub last_script: Option<ScriptId>,
+    /// Scripts' `Request::Report`s, the first of each (report, map), at most [`MAX_REPORTS`]
+    /// (report-only: `FindingKind::Unsupported`).
+    pub reports: Vec<Reported>,
     /// Report-only flags (`FindingKind::SlowFrame`) raised during the expansion, at most
     /// [`MAX_SLOW`]; they never end it.
     pub slow: Vec<Flag>,
@@ -46,6 +51,23 @@ pub struct Expanded {
 
 /// Report-only flags kept per expansion.
 pub const MAX_SLOW: usize = 16;
+/// Reports kept per expansion.
+pub const MAX_REPORTS: usize = 16;
+
+/// A script's `Request::Report` during an expansion.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Reported {
+    pub report: Report,
+    /// The expansion's frames up to and including the reporting one.
+    pub frames: u32,
+    /// `World::map()` after the reporting frame: a report raised on a warp frame (a map
+    /// script of the destination, or the warping script itself) is attributed to the map the
+    /// player is on after the warp.
+    pub map: MapId,
+    pub pos: (i16, i16),
+    /// The last script started by then (in this expansion).
+    pub script: Option<ScriptId>,
+}
 
 /// Frames the player may hold one planned direction toward a cell the planner calls walkable
 /// without moving before the driver flags a planner/engine divergence.
@@ -80,7 +102,7 @@ impl Intents for Policy {
 /// returned for the repro.
 #[allow(clippy::result_large_err)] // the partial expansion is the repro
 pub fn expand<G: GameData>(
-    s: &mut Session<Probe<G>>,
+    s: &mut Session<G>,
     m: &Macro,
     policy: &mut Policy,
     obs: &mut dyn StepObserver<G>,
@@ -92,7 +114,7 @@ pub fn expand<G: GameData>(
 /// [`expand`] with any [`Intents`] (a test seam: fake policies).
 #[allow(clippy::result_large_err)] // the partial expansion is the repro
 pub fn expand_with<G: GameData>(
-    s: &mut Session<Probe<G>>,
+    s: &mut Session<G>,
     m: &Macro,
     intents: &mut dyn Intents,
     obs: &mut dyn StepObserver<G>,
@@ -111,8 +133,8 @@ pub fn expand_with<G: GameData>(
 ///
 /// Panics if the new game never settles (default limits): that is a broken build, not an
 /// exploration result.
-pub fn new_game<G: GameData>(game: G) -> Session<Probe<G>> {
-    let mut s = Session::new(Probe::new(game));
+pub fn new_game<G: GameData>(game: G) -> Session<G> {
+    let mut s = Session::new(game);
     let settle = Macro {
         kind: MacroKind::Settle,
         opts: Opts::default(),
@@ -188,7 +210,7 @@ enum Walk {
 }
 
 struct Driver<'a, G: GameData> {
-    s: &'a mut Session<Probe<G>>,
+    s: &'a mut Session<G>,
     intents: &'a mut dyn Intents,
     obs: &'a mut dyn StepObserver<G>,
     limits: &'a Limits,
@@ -196,6 +218,13 @@ struct Driver<'a, G: GameData> {
     keys: Vec<Buttons>,
     summary: SimSummary,
     last_script: Option<ScriptId>,
+    reports: Vec<Reported>,
+    /// New (report, map) pairs past [`MAX_REPORTS`], not kept.
+    reports_dropped: u32,
+    /// `World::events_dropped` at the start.
+    dropped_start: u32,
+    /// The battle's outcome from `Event::BattleEnded`, until the tracker finishes.
+    ended: Option<u8>,
     /// The buttons of the last step.
     last: Buttons,
     /// The start snapshot's `setmetatile` overrides, valid until the map first changes.
@@ -221,14 +250,14 @@ struct Driver<'a, G: GameData> {
 
 impl<'a, G: GameData> Driver<'a, G> {
     fn new(
-        s: &'a mut Session<Probe<G>>,
+        s: &'a mut Session<G>,
         intents: &'a mut dyn Intents,
         obs: &'a mut dyn StepObserver<G>,
         limits: &'a Limits,
         opts: Opts,
     ) -> Self {
         let w = s.world();
-        let (map, log_start) = (w.map(), w.log().count());
+        let (map, log_start, dropped_start) = (w.map(), w.log().count(), w.events_dropped());
         let overrides = w
             .snapshot(s.game())
             .map(|snap| snap.field.overrides)
@@ -242,6 +271,10 @@ impl<'a, G: GameData> Driver<'a, G> {
             keys: Vec::new(),
             summary: SimSummary::default(),
             last_script: None,
+            reports: Vec::new(),
+            reports_dropped: 0,
+            dropped_start,
+            ended: None,
             last: Buttons::NONE,
             overrides,
             slow: Vec::new(),
@@ -266,12 +299,28 @@ impl<'a, G: GameData> Driver<'a, G> {
         let mut summary = self.summary;
         summary.frames = self.keys.len() as u32;
         summary.log_lines = self.s.world().log().count().wrapping_sub(self.log_start);
+        let mut notes = self.notes;
+        let dropped = self
+            .s
+            .world()
+            .events_dropped()
+            .wrapping_sub(self.dropped_start);
+        if dropped > 0 {
+            notes.push(format!("{dropped} engine events dropped (EVENTS_MAX)"));
+        }
+        if self.reports_dropped > 0 {
+            notes.push(format!(
+                "{} script reports dropped (MAX_REPORTS)",
+                self.reports_dropped
+            ));
+        }
         Expanded {
             keys: self.keys,
             summary,
             last_script: self.last_script,
+            reports: self.reports,
             slow: self.slow,
-            notes: self.notes,
+            notes,
         }
     }
 
@@ -315,6 +364,14 @@ impl<'a, G: GameData> Driver<'a, G> {
         let ns = t.elapsed().as_nanos().min(u64::MAX as u128) as u64;
         self.keys.push(keys);
         self.last = keys;
+        if stepped.is_err() {
+            // The panicking frame's scripts (read-only: the session is dropped after this).
+            for e in self.s.world().events() {
+                if let &Event::ScriptStarted(id) = e {
+                    self.last_script = Some(id);
+                }
+            }
+        }
         stepped.map_err(ExpandError::Panicked)?;
         let flag = self.obs.after_step(self.s, keys, ns);
         self.observe(ns);
@@ -331,6 +388,9 @@ impl<'a, G: GameData> Driver<'a, G> {
         }
     }
 
+    /// The summary from this frame's `World::events()`: maps entered, scripts started,
+    /// battles (tracked from `BattleStarted` to the frame the field is back, with the
+    /// `BattleEnded` outcome) and reports.
     fn observe(&mut self, ns: u64) {
         let sum = &mut self.summary;
         sum.max_step_ns = sum.max_step_ns.max(ns);
@@ -343,26 +403,53 @@ impl<'a, G: GameData> Driver<'a, G> {
                 self.crossed_at = Some(pos);
                 self.stale_target = None;
             }
-            if sum.maps.last() != Some(&map) {
-                sum.maps.push(map);
-            }
         }
         sum.cells.insert((map, pos.0, pos.1));
-        for id in self.s.game().take_started() {
-            sum.scripts.insert(id);
-            self.last_script = Some(id);
+        let mut started = false;
+        for &e in w.events() {
+            match e {
+                Event::MapEntered(m) => {
+                    if sum.maps.last() != Some(&m) {
+                        sum.maps.push(m);
+                    }
+                }
+                Event::ScriptStarted(id) => {
+                    sum.scripts.insert(id);
+                    self.last_script = Some(id);
+                }
+                Event::BattleStarted => started = true,
+                Event::BattleEnded(o) => self.ended = Some(o as u8),
+                Event::Report(report) => {
+                    let new = !self
+                        .reports
+                        .iter()
+                        .any(|r| r.report == report && r.map == map);
+                    if new && self.reports.len() >= MAX_REPORTS {
+                        self.reports_dropped += 1;
+                    } else if new {
+                        self.reports.push(Reported {
+                            report,
+                            frames: self.keys.len() as u32,
+                            map,
+                            pos,
+                            script: self.last_script,
+                        });
+                    }
+                }
+            }
         }
-        match (&mut self.battle, w.in_battle()) {
-            (None, true) => {
+        if started {
+            self.battle_frames = 0;
+            self.ended = None;
+            if self.battle.is_none() {
                 self.battle = BattleTracker::start(w);
-                self.battle_frames = 0;
             }
-            (Some(t), true) => t.observe(w),
-            (Some(_), false) => {
-                let t = self.battle.take().expect("tracked");
-                sum.battles.push(t.finish(w, None));
+        } else if w.in_battle() {
+            if let Some(t) = &mut self.battle {
+                t.observe(w);
             }
-            (None, false) => {}
+        } else if let Some(t) = self.battle.take() {
+            sum.battles.push(t.finish(w, self.ended.take()));
         }
     }
 

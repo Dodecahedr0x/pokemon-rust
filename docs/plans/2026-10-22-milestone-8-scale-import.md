@@ -656,6 +656,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
      14. `FLAG_DEFEATED_RUSTBORO_GYM`;
      15. `FLAG_BADGE01_GET`.
    - Every constant is checked to exist in `content::consts`.
+   - **As built (town goals):** `oldale` (slice goal 5), `petalburg` (9) and `rustboro` (13) are the visited flags `FLAG_VISITED_OLDALE_TOWN` / `_PETALBURG_CITY` / `_RUSTBORO_CITY` (set by each town's `OnTransition`), not "on the map". Reason: a goal is read only at capturable node ends, and the parity route crosses Oldale into its Pokémon Center without a capturable frame in the town, so "on `MAP_OLDALE_TOWN`" was never seen; the flag stays set. The routes (103, 104) keep "on the map": they have no visited flag.
    - `--act` selects the list (default `act1` on real data, `slice` keeps M7's).
    - The `(progress, -frames)` merge rule stays; it is now also consistent with the key for flag and var goals.
 4. **Goal-directed segments:**
@@ -1120,6 +1121,28 @@ Apple M4 Max, with other Wave 1 builds running at the same time: treat the times
 M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings folded in" with an owner, so nothing was added or dropped. Wave 0 handled its share of two rows:
 - events and `last_script` (engine panic context, `FrameOut`);
 - the stale rect, now hashed and in `FieldSnap`.
+
+## Task K as built (Phase 1: items 1–4, 6)
+- Schema v3 (`c4252e1`): blob inputs with a repeat-pair opcode, `Macro::code` integer macros, no `region` column, no `node(key)`/`node(map)` index, `key_hit` table, `meta.key_version` / `act` / `root`. A superseded row stays even when childless (it was live and written); only duplicates leave no row.
+- Key version 2: `respawn` and a template-delta digest in the key; `VAR_OBJ_GFX_ID_0..F` excluded. The key-items pocket digest waits for Wave 0's bag (Phase 2, key version 3).
+- `TRAINER_GRUNT_PETALBURG_WOODS` is missing from the stub's `content::consts`: the goal reads it from `extract::names::TRAINERS` (the table the real constant is generated from). All 14 Act 1 constants are checked against the decomp headers by `tests/m8_k_goals.rs`.
+- 120 s real run: 133,155 rows, 35.2 MB (0.26 MB per 1,000 rows; M7: 167,643 rows, 175.3 MB, 1.05 MB), peak RSS 184 MB (M7: 455 MB).
+- **Deviation (RSS):** the target is stated at 600 s (≤ half of M7's 1.06 GB); only 120 s runs were measured, M7 and v3 on the same machine and load. v3 is at 40% of M7 at 120 s; the 600 s figure is an extrapolation, not a measurement.
+- **Deviation (size test):** the spec's "a 2,000-node stub db is ≤ 40% of v2's" is not tested: the stub's 196 cells hold about 32 keys (no 2,000-node stub db), and no v2 writer remains to compare with. Instead `tests/m8_k_db.rs` checks, on both flavors, that blob inputs are ≤ 40% of M7's text codec for the same rows, that no duplicate leaves a childless row, and that hits exceed rows; the real-build size gate (≤ 300 B per row on 2,000 inserted nodes; 281 B measured) is `#[ignore]`d in debug (85 s of CPU) and runs in release with `--ignored`.
+- `promote` replays the node on the current build from its parent's state (never its cached snapshot) and refuses a stale or diverged node even when `status.ron` says Valid (it carries no build). Local children move with `Store::reparent` (atomic, the store's format); on a partial failure the error says how to recover. `export --to-store` writes only into a layered (local) store.
+- 50-generation digests, identical on 1, 4, 8 threads and 25+25: real `0x02157751a7452ae3`, stub `0xf68ea453a6b24e45`.
+- **Task S item:** `crates/studio/src/native.rs:180` refuses traces whose parent is not a new game, so findings of a `--from` db (traces from `Parent::Checkpoint`) do not open in the studio pane.
+
+## Task K as built (Phase 2: item 5, key version 3)
+- `Probe` is deleted: sessions are `Session<G>`. `SimSummary.maps` / `scripts` come from `MapEntered` / `ScriptStarted`; a battle is tracked from `BattleStarted` to the frame the field is back, with the `BattleEnded` outcome. Dropped events (past `EVENTS_MAX`) become an expansion note.
+- `FindingKind::Unsupported` (report-only, `kind_name` "unsupported"): one per (report, map) per job, message `unsupported: NAME` / `degraded: NAME`, tail ending on the reporting frame; the db merges the rest by signature (`hits`). It reproduces when the replay's last frame has the report. Fixture: `testing::Reporting` (every script reports first), `tests/m8_k_events.rs`.
+- **Deviation (last script):** the finding's `script` is the last `ScriptStarted` over its tail (the job's steps, then the failed expansion, the panicking frame included), not `World::last_script()`: that resets on restore, and the explorer restores mid-job (a failed random try), while a replay from the root would count the lineage too. `reproduce` folds the same events over the tail's frames. `CapturableStuck` and `RoundTrip` signatures include it; other kinds do not.
+- Key version 3: the key items held (`KeyItems` pocket ids, sorted, so the order obtained does not count) join the key, not the place. Pin: key `0xc72f_46f9_8e19_820c` (place unchanged).
+- Every `GameData` method is forwarded by the test games through `explore::forward_game_data!` (exported, absolute paths): the `testing` wrappers (`Drifting` drifts `wild_encounters`, which the engine reads, as well as `encounters`), the guard's `Armed<G>` and `a_expand`'s `Fake<G>` (which panics in `wild_encounters` like `encounters`). `testing::same_answers` compares every provided method against `testing::Answers`, a game answering each one on its own.
+- A report on a warp frame is attributed to the map after the warp (`Reported::map`). New (report, map) pairs past `MAX_REPORTS` per expansion are counted in a note.
+- Report-only findings are counted apart: `FindingKind::report_only`, `Db::report_count`, `GenOutcome`/`RunSummary.reports`, the `run`/`status` lines (`findings` are the bugs, `reports` apart), `explore findings --bugs`. `DbStats.findings` keeps counting every row (the studio reads it).
+- Tests (`tests/m8_k_events.rs`): a stub `FadeTrap` run raises a `CapturableStuck` row signed with `FADE_TRAP_SCRIPT` that reproduces, and not without its script; `Unsupported` rows are the same on 1 and 2 threads; reports past `MAX_REPORTS` make a note. `key_items_digest` is pinned on an unsorted mixed-pocket bag (`0x89d1_c97b_d01a_7c7c`).
+- 50-generation digests, identical on 1, 4, 8 threads and 25+25 (after merging master `74668c1`): real `0x6cf00f30af70d35d`, stub `0x5ca6da52ed2d7739` (the real run: 4,884 rows, 8/15 goals, 2 `CapturableStuck` findings, no `Unsupported`: the slice's scripts report nothing yet). Before the merge: real `0xeeeeab9ae5eef60f`, stub `0xbb1aa650526b2525`, same rows.
 
 ### Task A as built
 - `cargo xtask extract --maps all` (BPEF): 518 maps, 418 layouts (every map's plus every `setmaplayoutindex` target; `gMapLayouts` has 441), 73 tilesets, 156 OBJ sprites plus 3 emotes (`sprites/field_effects/`), 124 wild headers (Altering Cave 9; land, water, rock smash, fishing), evolutions for 172 species, trainer money (54 classes plus the `0xFF` default), `Species.weight`. Every count equals the decomp's referenced set.
