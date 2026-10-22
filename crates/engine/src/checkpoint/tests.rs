@@ -103,6 +103,12 @@ fn sample() -> Checkpoint {
             drawn: Some([-1, -2, 15, 11]),
             ring: (3, 4),
             overrides: vec![((4, 5), 0x0201)],
+            stale: Some(StaleSnap {
+                x0: -1,
+                y0: -2,
+                x1: 15,
+                y1: -1,
+            }),
         },
         objects: ObjectsSnap {
             map: TOWN,
@@ -138,6 +144,33 @@ fn sample() -> Checkpoint {
         respawn: 2,
         prev_behavior: Behavior::Ledge(Dir::Down),
         encounter_immunity: 0,
+        bag: BagSnap {
+            slots: vec![
+                BagSlotSnap {
+                    pocket: Pocket::Items,
+                    index: 0,
+                    item: ItemId(13),
+                    qty: 3,
+                },
+                BagSlotSnap {
+                    pocket: Pocket::KeyItems,
+                    index: 2,
+                    item: ItemId(259),
+                    qty: 1,
+                },
+            ],
+        },
+        money: 3000,
+        str_vars: [vec![0xBB, 0xBC], vec![], vec![0xA1; 32]],
+        warp_slots: WarpSlotsSnap {
+            dynamic: Some(WarpDestSnap {
+                map: TOWN,
+                warp: None,
+                x: 4,
+                y: -1,
+            }),
+            escape: None,
+        },
     };
     Checkpoint {
         header: Header {
@@ -162,40 +195,41 @@ fn hex(bytes: &[u8]) -> String {
 /// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
 /// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
-    "01ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
-    "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a8104030202ff",
-    "03000a0c0a0e030000000a0c0102010000010001010400070002010101030203",
-    "0107100610060300021006010201000000011100000001020110060003208004",
-    "81800102d0800103848002ffff030000030a0e0100000101000000018202f8ac",
-    "d191018de0b75dd4d4cec9caffffffffffff0587010102030405060000000000",
-    "000121012d000023280000004600010213140c0b0a090802020000",
+    "02ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
+    "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a81040101031e",
+    "01030202ff03000a0c0a0e030000000a0c010201000001000101040007000201",
+    "0101030203010710061006030002100601020100000001110000000102011006",
+    "000320800481800102d0800103848002ffff030000030a0e0100000101000000",
+    "018202f8acd191018de0b75dd4d4cec9caffffffffffff058701010203040506",
+    "0000000000000121012d000023280000004600010213140c0b0a090802020000",
+    "0200000d030102830201b81702bbbc0020a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1010300080100",
 );
 const GOLDEN_RON: &str = concat!(
-    "(header:(schema:1,build:(engine:81985529216486895,content:42),frame:1234,",
-    "world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,",
-    "input:(held:(64),pressed:(0)),runner_issued:9,",
-    "player_name:(187,188,189,255,255,255,255,255),player_id:195948557,",
-    "field:(map:(3),camera:(-16,32),drawn:Some((-1,-2,15,11)),ring:(3,4),",
-    "overrides:[((4,5),513)]),",
-    "objects:(map:(3),run_state:Moving,objs:[",
-    "(local_id:255,map:(3),gfx:None,pos:(5,6),prev:(5,7),elevation:3,facing:Down,",
-    "movement:Face(Down),home:(5,6),range:(1,2),visible:true,frozen:false,",
+    "(header:(schema:2,build:(engine:81985529216486895,content:42),frame:1234,",
+    "world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,input:(held:(64),",
+    "pressed:(0)),runner_issued:9,player_name:(187,188,189,255,255,255,255,255),",
+    "player_id:195948557,field:(map:(3),camera:(-16,32),drawn:Some((-1,-2,15,11)),ring:(3,4),",
+    "overrides:[((4,5),513)],stale:Some((x0:-1,y0:-2,x1:15,y1:-1))),objects:(map:(3),",
+    "run_state:Moving,objs:[(local_id:255,map:(3),gfx:None,pos:(5,6),prev:(5,7),elevation:3,",
+    "facing:Down,movement:Face(Down),home:(5,6),range:(1,2),visible:true,frozen:false,",
     "facing_locked:false,action:Some((kind:Walk(Normal),dir:Up,t:4,off:(0,-4),jump_y:0)),",
-    "idle:Done,anim:(table:Go(1),cmd:1,timer:3)),",
-    "(local_id:2,map:(3),gfx:Some((7)),pos:(8,3),prev:(8,3),elevation:3,facing:Down,",
-    "movement:Wander,home:(8,3),range:(1,2),visible:true,frozen:false,",
-    "facing_locked:false,action:None,idle:Wait(17),anim:(table:Face,cmd:0,timer:0))]),",
-    "templates:[(local_id:2,pos:Some((8,3)),movement:None)],",
-    "vars:(flags:[(32),(512),(16385)],vars:[((16464),3),((32772),65535)]),",
-    "fader:(level:0,target:0),",
+    "idle:Done,anim:(table:Go(1),cmd:1,timer:3)),(local_id:2,map:(3),gfx:Some((7)),pos:(8,3),",
+    "prev:(8,3),elevation:3,facing:Down,movement:Wander,home:(8,3),range:(1,2),visible:true,",
+    "frozen:false,facing_locked:false,action:None,idle:Wait(17),anim:(table:Face,cmd:0,",
+    "timer:0))]),templates:[(local_id:2,pos:Some((8,3)),movement:None)],vars:(flags:[(32),",
+    "(512),(16385)],vars:[((16464),3),((32772),65535)]),fader:(level:0,target:0),",
     "transition:(map:(3),x:5,y:7,facing:Up,exit_walk:false,player_hidden:false),",
-    "selected:Some(1),last_mover:0,delay:0,door:0,",
-    "party:[(species:(258),personality:305419896,ot_id:195948557,",
-    "nickname:(212,212,206,201,202,255,255,255,255,255,255),level:5,exp:135,",
-    "ivs:(1,2,3,4,5,6),evs:(0,0,0,0,0,0),moves:(Some((33)),Some((45)),None,None),",
-    "pp:(35,40,0,0),pp_bonuses:0,friendship:70,ability_slot:0,status:Sleep(2),hp:19,",
-    "stats:(20,12,11,10,9,8))],",
-    "respawn:2,prev_behavior:Ledge(Down),encounter_immunity:0))",
+    "selected:Some(1),last_mover:0,delay:0,door:0,party:[(species:(258),",
+    "personality:305419896,ot_id:195948557,nickname:(212,212,206,201,202,255,255,255,255,255,",
+    "255),level:5,exp:135,ivs:(1,2,3,4,5,6),evs:(0,0,0,0,0,0),moves:(Some((33)),Some((45)),",
+    "None,None),pp:(35,40,0,0),pp_bonuses:0,friendship:70,ability_slot:0,status:Sleep(2),",
+    "hp:19,stats:(20,12,11,10,9,8))],respawn:2,prev_behavior:Ledge(Down),",
+    "encounter_immunity:0,bag:(slots:[(pocket:Items,index:0,item:(13),qty:3),",
+    "(pocket:KeyItems,index:2,item:(259),qty:1)]),money:3000,str_vars:([187,188],[],[161,161,",
+    "161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,",
+    "161,161,161,161,161,161,161,161]),warp_slots:(dynamic:Some((map:(3),warp:None,x:4,",
+    "y:-1)),escape:None)))",
 );
 
 #[test]
@@ -204,7 +238,7 @@ fn golden_postcard_bytes() {
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
     assert_eq!(encoded_len(&sample()), bytes.len());
-    assert_eq!(SCHEMA, 1);
+    assert_eq!(SCHEMA, 2);
 }
 
 #[test]
@@ -233,12 +267,17 @@ fn encoding_starts_with_the_schema() {
 #[test]
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
-    cp.header.schema = 2;
-    assert_eq!(decode(&encode(&cp)), Err(CodecError::Schema { found: 2 }));
+    for old_or_new in [1, 3] {
+        cp.header.schema = old_or_new;
+        assert_eq!(
+            decode(&encode(&cp)),
+            Err(CodecError::Schema { found: old_or_new })
+        );
+    }
     // Only the schema is read: a newer layout behind it does not matter.
-    let mut bytes = postcard::to_allocvec(&2u16).unwrap();
+    let mut bytes = postcard::to_allocvec(&3u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 2 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 3 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
     assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
@@ -367,14 +406,25 @@ fn a_forged_length_cannot_preallocate() {
     let mut cp = sample();
     cp.world.party.clear();
     let bytes = encode(&cp);
-    // The world ends with the party length, respawn, prev_behavior (Ledge, Down) and
-    // encounter_immunity.
-    let tail = [0x00, 0x02, 0x02, 0x00, 0x00];
-    assert_eq!(bytes[bytes.len() - 5..], tail);
+    // The party length (0), then the fields after the party.
+    let w = &cp.world;
+    let after = postcard::to_allocvec(&(
+        w.respawn,
+        w.prev_behavior,
+        w.encounter_immunity,
+        &w.bag,
+        w.money,
+        &w.str_vars,
+        w.warp_slots,
+    ))
+    .unwrap();
+    let party_at = bytes.len() - after.len() - 1;
+    assert_eq!(bytes[party_at], 0x00);
+    assert_eq!(bytes[party_at + 1..], after[..]);
     // A party of 4000 (varint a0 1f), then 4000 bytes that are no `Pokemon` (an overlong
     // varint). Postcard hints the length whenever that many bytes remain, and serde's `Vec`
     // would preallocate 4000 `Pokemon`s from the hint.
-    let mut forged = bytes[..bytes.len() - 5].to_vec();
+    let mut forged = bytes[..party_at].to_vec();
     forged.extend_from_slice(&[0xA0, 0x1F]);
     forged.extend_from_slice(&[0xFF; 4000]);
     assert!(forged.len() <= MAX_ENCODED);
@@ -451,6 +501,13 @@ fn enum_variant_indices_are_pinned() {
             ActionKindSnap::Delay(_) => 4,
         },
     );
+    check(&Pocket::ALL, |v| match v {
+        Pocket::Items => 0,
+        Pocket::KeyItems => 1,
+        Pocket::PokeBalls => 2,
+        Pocket::TmHm => 3,
+        Pocket::Berries => 4,
+    });
     check(
         &[IdleSnap::Start, IdleSnap::Wait(0), IdleSnap::Done],
         |v| match v {

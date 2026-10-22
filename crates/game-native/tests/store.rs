@@ -146,6 +146,7 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
             drawn: Some([0, 0, 15, 10]),
             ring: (0, 0),
             overrides: vec![((3, 4), 0x201)],
+            stale: None,
         },
         objects: ObjectsSnap {
             map: MapId(9),
@@ -177,6 +178,10 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
         respawn: 0,
         prev_behavior: Behavior::Normal,
         encounter_immunity: 0,
+        bag: Default::default(),
+        money: 0,
+        str_vars: Default::default(),
+        warp_slots: Default::default(),
     };
     Checkpoint {
         header: Header {

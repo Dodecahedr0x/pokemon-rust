@@ -1,6 +1,6 @@
-//! On-disk format (v4, see [`FORMAT_VERSION`]) of `content/extracted/`: written by `export`, read by `content/build.rs`
-//! and later the studio. Everything is referenced by stable decomp-style **names**; ROM offsets
-//! only appear in `manifest.ron` as provenance.
+//! On-disk format (v5, see [`FORMAT_VERSION`] and [`FORMAT_MINOR`]) of `content/extracted/`:
+//! written by `export`, read by `content/build.rs` and later the studio. Everything is referenced
+//! by stable decomp-style **names**; ROM offsets only appear in `manifest.ron` as provenance.
 //!
 //! ```text
 //! content/extracted/
@@ -14,15 +14,14 @@
 //!   font/latin_normal.{png,ron}  FontFile
 //!   window/message_box.{png,ron} WindowFile
 //!   text/<lang>.ron              TextFile (raw RON strings in decomp `.string` syntax)
-//!   scripts/<Map>.rs             generated async Rust (M3 Task B)
-//!   scripts/index.ron            ScriptIndex
-//!   previews/<Map>.png
+//!   scripts/<Map>.rs             generated async Rust (M3 Task B; deleted by M8 Task D2)
+//!   scripts/legacy_index.ron     LegacyScriptIndex (index of the `.rs` scripts; deleted by D2)
+//!   previews/<Map>.png           (only with `cargo xtask extract --previews` from M8 Task A on)
 //!   ---- v3 (Milestone 4, battle) ----
 //!   battle/species.ron           SpeciesFile    (Gen3 index order, key SPECIES_*)
 //!   battle/moves.ron             MovesFile
 //!   battle/types.ron             TypesFile
 //!   battle/trainers.ron          TrainersFile   (all trainers, key TRAINER_*)
-//!   battle/encounters.ron        EncountersFile (exported maps only)
 //!   battle/heal_locations.ron    HealLocationsFile
 //!   battle/strings.ron           BattleStringsFile (STRINGID_* | gText_* -> decomp `.string`, FR)
 //!   battle/gfx/<name>.{png,ron}  GfxFile: textbox (+tilemap), healthbox_player,
@@ -36,7 +35,28 @@
 //!                                frames side by side), trainers/pics.ron TrainerPicsFile
 //!   font/latin_small.{png,ron}   FontFile
 //!   starter/{bag,ball,circle}.{png,ron}, starter/grass.ron (tilemap only, bag's tiles)  GfxFile
+//!   ---- v5 (Milestone 8; every type declared in Wave 0, written by the Wave 1 tasks) ----
+//!   scripts/<Module>.ron         ScriptFile   (IR; <Module> = decomp source: a map dir name, or
+//!                                             Common_<stem> for data/scripts/<stem>.inc)
+//!   scripts/index.ron            ScriptIndex v5 (name -> module, root, origin, offset)
+//!   layouts/<Layout>.ron         LayoutFile   (every layout, incl. ones only setmaplayoutindex uses)
+//!   tables/items.ron             ItemsFile    (all ITEM_*: name, pocket, price, importance)
+//!   tables/multichoice.ron       MultichoiceFile (MULTI_* -> list of strings)
+//!   tables/std_strings.ron       StdStringsFile  (STDSTRING_* -> string)
+//!   tables/map_sections.ron      MapSectionsFile (MAPSEC_* -> name)
+//!   sprites/field_effects/<Name>.{png,ron}  FieldEffectSpriteFile: emote pics (exclamation,
+//!                                question, heart)
+//!   battle/encounters.ron        EncountersFile v5: per map a Vec of headers, each with
+//!                                land / water / rock_smash / fishing (Option each)
+//!   battle/evolutions.ron        EvolutionsFile (gEvolutionTable: SPECIES_* -> [(EVO_*, param,
+//!                                SPECIES_*)])
+//!   battle/trainer_money.ron     TrainerMoneyFile (gTrainerMoneyTable: TRAINER_CLASS_* -> value)
 //! ```
+//!
+//! **Versions.** [`FORMAT_VERSION`] is the major version: an extract of another major builds the
+//! stub world with a warning. [`FORMAT_MINOR`] counts additions within the major: every merge
+//! that changes what `extract` writes bumps it, and the content build fails with "re-run `cargo
+//! xtask extract`" and the names of the missing files when the manifest's minor is older.
 //!
 //! **Naming rules** (shared by every writer and reader):
 //! - Map: decomp map directory name from `names::MAPS` (`LittlerootTown`, `Route101`).
@@ -45,7 +65,8 @@
 //!   `<Map>_OnLoad`, `<Map>_OnTransition`, `<Map>_OnResume`, `<Map>_OnReturnToField`,
 //!   `<Map>_OnDiveWarp`, `<Map>_OnFrame<i>`, `<Map>_OnWarpInto<i>` (`i` = index in that list).
 //!   When several roots share one ROM script, every reference uses the **canonical** name: the
-//!   first in that order, maps taken in `manifest.maps` order.
+//!   first in that order, maps taken in `manifest.maps` order. From M8 Task B on, decomp labels
+//!   replace these names and the positional scheme is the fallback ([`NameOrigin`]).
 //! - Labels reached by `goto`/`call` inside a script: `<Root>_L<n>`, `n` in order first reached.
 //! - Texts: `<Script>_T<n>` where `<Script>` is the root or label first reaching it and `n` counts
 //!   texts within that script in order first reached.
@@ -58,8 +79,25 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// v4: `types.ron` gains `ability_names` (M4-E2).
-pub const FORMAT_VERSION: u32 = 4;
+/// v5 (Milestone 8): the script IR, layouts, tables, every wild header per map, and the `.rs`
+/// scripts' index renamed `scripts/legacy_index.ron`.
+pub const FORMAT_VERSION: u32 = 5;
+/// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
+/// extract.
+pub const FORMAT_MINOR: u32 = 0;
+/// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
+/// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
+/// ones when an extract is older ([`missing_since`]).
+pub const MINOR_FILES: &[(u32, &str)] = &[];
+
+/// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
+pub fn missing_since(minor: u32, exists: impl Fn(&str) -> bool) -> Vec<&'static str> {
+    MINOR_FILES
+        .iter()
+        .filter(|&&(m, path)| m > minor && !exists(path))
+        .map(|&(_, path)| path)
+        .collect()
+}
 
 /// A ROM file offset, written `"0x3e45f0"`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -130,6 +168,8 @@ pub fn from_rows(rows: &[Row]) -> Vec<u16> {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Manifest {
     pub format: u32,
+    /// [`FORMAT_MINOR`] of the writer.
+    pub format_minor: u32,
     /// "BPEF" or "BPEE".
     pub game_code: String,
     pub sha1: String,
@@ -347,17 +387,18 @@ pub struct WindowFile {
 /// `text/<lang>.ron`: text name -> string in decomp `.string` syntax.
 pub type TextFile = BTreeMap<String, String>;
 
-/// `scripts/index.ron`.
+/// `scripts/legacy_index.ron`: the index of the generated `.rs` scripts (`codegen::generate`),
+/// until Milestone 8 Task D2 lowers the IR in the content build instead.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
-pub struct ScriptIndex {
+pub struct LegacyScriptIndex {
     /// Every generated script or label fn, by name.
-    pub scripts: BTreeMap<String, ScriptEntry>,
+    pub scripts: BTreeMap<String, LegacyScriptEntry>,
     /// Every movement table, by name.
     pub movements: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct ScriptEntry {
+pub struct LegacyScriptEntry {
     /// `scripts/<file>.rs` defining it.
     pub file: String,
     /// Whether a map event or map script refers to it directly.
@@ -484,14 +525,36 @@ pub struct TrainerMon {
     pub moves: Option<Vec<String>>,
 }
 
-/// `battle/encounters.ron`: land tables of the exported maps that have one.
+/// `battle/encounters.ron` (v5): every wild header of the exported maps.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct EncountersFile {
-    /// By map name (decomp directory name).
-    pub maps: BTreeMap<String, LandEncounters>,
+    /// By map name (decomp directory name): the map's `gWildMonHeaders` entries in table order.
+    /// Most maps have one; Altering Cave has 9, selected by `VAR_ALTERING_CAVE_WILD_SET`.
+    pub maps: BTreeMap<String, Vec<EncounterHeader>>,
 }
 
-/// `gWildMonHeaders[].landMonsInfo`.
+/// One `gWildMonHeaders` entry; each table is optional.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct EncounterHeader {
+    /// `landMonsInfo` (12 slots).
+    pub land: Option<LandEncounters>,
+    /// `waterMonsInfo` (5 slots).
+    pub water: Option<WaterEncounters>,
+    /// `rockSmashMonsInfo` (5 slots).
+    pub rock_smash: Option<RockSmashEncounters>,
+    /// `fishingMonsInfo` (10 slots: old rod 0-1, good rod 2-4, super rod 5-9;
+    /// `gWildFishingSlots`).
+    pub fishing: Option<FishingEncounters>,
+}
+
+/// A water table (a rate and its slots, as a land table).
+pub type WaterEncounters = LandEncounters;
+/// A rock smash table.
+pub type RockSmashEncounters = LandEncounters;
+/// A fishing table; the rod split is fixed by Gen3.
+pub type FishingEncounters = LandEncounters;
+
+/// `gWildMonHeaders[].landMonsInfo` (and the other tables): a rate and its slots.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct LandEncounters {
     pub rate: u8,
@@ -568,6 +631,195 @@ pub struct GfxFile {
     pub tilemap: Vec<Row>,
 }
 
+// ---- v5: Milestone 8 (types only; written by the Wave 1 tasks) ----
+
+/// How a script, text or movement got its name.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NameOrigin {
+    /// A decomp `.inc` label, transferred onto the bytecode (M8 Task B).
+    Decomp,
+    /// The positional scheme of the naming rules (the fallback).
+    Positional,
+}
+
+/// What references a root label.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RootKind {
+    /// An object event, by local id.
+    Object(u8),
+    /// A coord event, by index.
+    Coord(u16),
+    /// A bg event, by index.
+    Bg(u16),
+    /// A map script: `OnLoad`, `OnTransition`, `OnResume`, `OnReturnToField`, `OnDiveWarp`,
+    /// `OnFrame<i>` or `OnWarpInto<i>`.
+    MapScript(String),
+}
+
+/// `scripts/<Module>.ron`: one decomp source file's scripts, in source order.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ScriptFile {
+    pub module: String,
+    /// The decomp source (`data/maps/<Map>/scripts.inc`, `data/scripts/<stem>.inc`), if known.
+    pub source: Option<String>,
+    pub labels: Vec<IrLabel>,
+    pub movements: Vec<IrMovement>,
+}
+
+/// A label and its straight-line block, up to the next label or a terminator.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IrLabel {
+    pub name: String,
+    pub origin: NameOrigin,
+    pub offset: Hex,
+    pub root: Option<RootKind>,
+    pub insns: Vec<IrInsn>,
+    /// The fallthrough label, when the block runs into the next one.
+    pub next: Option<String>,
+}
+
+/// One decoded command: its `script_cmd_table.inc` macro name and named operands.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IrInsn {
+    pub op: String,
+    pub args: Vec<IrArg>,
+}
+
+/// A command operand, named where the decomp has a name.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum IrArg {
+    Byte(u8),
+    Half(u16),
+    Word(u32),
+    /// A `FLAG_*` name, or `FLAG_0x123`.
+    Flag(String),
+    /// A `VAR_*` name, or `VAR_0x4123`.
+    Var(String),
+    /// A constant of a decomp table (`SPECIAL_*`, `STD_*`, `ITEM_*`, `SPECIES_*`, `MOVE_*`,
+    /// `TRAINER_*`, `MAP_*`, `OBJ_EVENT_GFX_*`, `MULTI_*`, `STDSTRING_*`, …); `table` is the
+    /// prefix without its trailing `_` (`SPECIAL`, `OBJ_EVENT_GFX`).
+    Const {
+        table: String,
+        name: String,
+    },
+    Script(String),
+    Text(String),
+    Movement(String),
+    Braille(String),
+    /// `VAddress`/`VScript`/`VText` and other unnamed words.
+    Raw(u32),
+}
+
+/// A movement script: its `MOVEMENT_ACTION_*` names, without the end marker.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IrMovement {
+    pub name: String,
+    pub origin: NameOrigin,
+    pub actions: Vec<String>,
+}
+
+/// `scripts/index.ron` (v5).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ScriptIndex {
+    /// Every label, by final name.
+    pub scripts: BTreeMap<String, ScriptEntry>,
+    /// Every text, by final name -> its module.
+    pub texts: BTreeMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ScriptEntry {
+    /// The `scripts/<module>.ron` defining it.
+    pub module: String,
+    /// Whether a map event or map script refers to it directly.
+    pub root: bool,
+    pub origin: NameOrigin,
+    pub offset: Hex,
+}
+
+/// `layouts/<Layout>.ron`: one `gMapLayouts` entry (`<Layout>` = the decomp layout name without
+/// its `_Layout` suffix, e.g. `LittlerootTown`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LayoutFile {
+    /// `LAYOUT_*`.
+    pub id: String,
+    pub layout: Layout,
+}
+
+/// Gen3 bag pockets (`POCKET_*`, `include/constants/item.h`), in `POCKET_*` order.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ItemPocket {
+    Items,
+    PokeBalls,
+    TmHm,
+    Berries,
+    KeyItems,
+}
+
+/// One `gItems` entry.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Item {
+    /// `ITEM_*`.
+    pub id: String,
+    /// The ROM's name, decomp `.string` syntax.
+    pub name: String,
+    /// `None` for `POCKET_NONE` (`ITEM_NONE`, unused slots).
+    pub pocket: Option<ItemPocket>,
+    pub price: u16,
+    /// `importance`: key items cannot be tossed or sold.
+    pub importance: u8,
+}
+
+/// `tables/items.ron`: every `ITEM_*`, in item-number order.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct ItemsFile {
+    pub items: Vec<Item>,
+}
+
+/// `tables/multichoice.ron`: `MULTI_*` -> its strings in order (decomp `.string` syntax).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct MultichoiceFile {
+    pub lists: BTreeMap<String, Vec<String>>,
+}
+
+/// `tables/std_strings.ron`: `STDSTRING_*` -> string (`gStdStrings`, `bufferstdstring`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct StdStringsFile {
+    pub strings: BTreeMap<String, String>,
+}
+
+/// `tables/map_sections.ron`: `MAPSEC_*` -> name (`gRegionMapEntries`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct MapSectionsFile {
+    pub sections: BTreeMap<String, String>,
+}
+
+/// `sprites/field_effects/<Name>.ron`: a field-effect pic (the emotes `ExclamationMark`,
+/// `QuestionMark`, `HeartIcon`), frames side by side in the `.png`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FieldEffectSpriteFile {
+    pub name: String,
+    pub width: u16,
+    pub height: u16,
+    pub frames: u16,
+    pub palette: [u16; 16],
+}
+
+/// One `gEvolutionTable` entry: (`EVO_*`, param, target `SPECIES_*`).
+pub type EvolutionEntry = (String, u16, String);
+
+/// `battle/evolutions.ron`: `SPECIES_*` -> its evolutions (species with none are absent).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct EvolutionsFile {
+    pub species: BTreeMap<String, Vec<EvolutionEntry>>,
+}
+
+/// `battle/trainer_money.ron`: `TRAINER_CLASS_*` -> its `gTrainerMoneyTable` value.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct TrainerMoneyFile {
+    pub classes: BTreeMap<String, u8>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,6 +873,59 @@ mod tests {
         };
         let s = ron::to_string(&gfx).unwrap();
         assert_eq!(ron::from_str::<GfxFile>(&s).unwrap(), gfx);
+    }
+
+    #[test]
+    fn v5_ir_round_trips() {
+        let file = ScriptFile {
+            module: "LittlerootTown".into(),
+            source: Some("data/maps/LittlerootTown/scripts.inc".into()),
+            labels: vec![IrLabel {
+                name: "LittlerootTown_EventScript_Twin".into(),
+                origin: NameOrigin::Decomp,
+                offset: Hex(0x1e8a30),
+                root: Some(RootKind::Object(1)),
+                insns: vec![
+                    IrInsn {
+                        op: "checkflag".into(),
+                        args: vec![IrArg::Flag("FLAG_ADVENTURE_STARTED".into())],
+                    },
+                    IrInsn {
+                        op: "special".into(),
+                        args: vec![IrArg::Const {
+                            table: "SPECIAL".into(),
+                            name: "SPECIAL_HealPlayerParty".into(),
+                        }],
+                    },
+                    IrInsn {
+                        op: "msgbox".into(),
+                        args: vec![IrArg::Text("T".into()), IrArg::Byte(2), IrArg::Raw(7)],
+                    },
+                ],
+                next: None,
+            }],
+            movements: vec![IrMovement {
+                name: "M".into(),
+                origin: NameOrigin::Positional,
+                actions: vec!["MOVEMENT_ACTION_WALK_NORMAL_UP".into()],
+            }],
+        };
+        let s = ron::to_string(&file).unwrap();
+        assert_eq!(ron::from_str::<ScriptFile>(&s).unwrap(), file);
+        let enc = EncountersFile {
+            maps: BTreeMap::from([(
+                "Route101".into(),
+                vec![EncounterHeader {
+                    land: Some(LandEncounters {
+                        rate: 20,
+                        mons: vec![],
+                    }),
+                    ..EncounterHeader::default()
+                }],
+            )]),
+        };
+        let s = ron::to_string(&enc).unwrap();
+        assert_eq!(ron::from_str::<EncountersFile>(&s).unwrap(), enc);
     }
 
     #[test]

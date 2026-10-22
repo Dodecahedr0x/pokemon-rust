@@ -27,34 +27,39 @@
 mod battle;
 mod checkpoint;
 mod host;
+mod maps;
+mod sight;
 #[cfg(test)]
 mod tests;
 
 pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
 
+use crate::bag::Bag;
+use crate::battle::BattleOutcome;
 use crate::battle::scene::BattleScene;
 use crate::checkpoint::{PLAYER_NAME_SIZE, PlayerName};
 use crate::data::{
-    Behavior, BgKind, Dir, FlagId, GameData, MapData, MapId, ObjectEvent, PLAYER, ScriptId,
-    SpecialIds, VarId,
+    Behavior, BgKind, Dir, FlagId, GameData, MapId, ObjectEvent, PLAYER, ScriptId, SpecialIds,
+    VarId,
 };
 use crate::field::Field;
 use crate::flow::{
-    Fader, Input, Target, Transition, TransitionStep, Vars, block_behavior, coord_trigger,
-    door_warp, facing_elevation, interact_target, map_script_on_frame, on_warp_into, warp_on_enter,
-    warp_on_push,
+    Fader, Input, Target, Transition, Vars, block_behavior, coord_trigger, door_warp,
+    facing_elevation, interact_target, map_script_on_frame, warp_on_enter, warp_on_push,
 };
 use crate::hash::Fnv64;
 use crate::mon::Party;
 use crate::objects::{Objects, PlayerEvent, PlayerInput, Terrain};
-use crate::script::{Fade, Runner, Speed, Step};
+use crate::script::{Fade, Report, Runner, Speed, Step};
 use crate::starter::StarterChoice;
+use crate::str_vars::{STR_VAR_LEN, StrVars};
 use crate::text::TextBox;
 use crate::video::Frame;
 use crate::{Buttons, Rng};
 use alloc::vec::Vec;
 use battle::Mode;
 use host::Host;
+use maps::{cross_connection, load_map};
 
 /// Screen pixel of the player's cell top-left when the camera is centered on the player.
 pub const CAMERA_OFFSET: (i32, i32) = (112, 64);
@@ -65,6 +70,22 @@ pub const DOOR_FRAMES: u8 = 20;
 pub const LOG_LEN: usize = 16;
 /// Immediate map scripts get this many runner steps (each up to `INSTANT_LIMIT` requests).
 const IMMEDIATE_STEPS: u32 = 64;
+/// [`Event`]s kept per frame; further ones are dropped and counted ([`World::events_dropped`]).
+pub const EVENTS_MAX: usize = 32;
+
+/// Something that happened this frame, for tools (the explorer, the sweep, parity lanes). Not
+/// hashed, not snapshotted.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Event {
+    /// A warp load or connection crossing entered this map.
+    MapEntered(MapId),
+    /// A script started (object, coord, bg, map and immediate scripts alike).
+    ScriptStarted(ScriptId),
+    BattleStarted,
+    BattleEnded(BattleOutcome),
+    /// A script's `Request::Report`.
+    Report(Report),
+}
 
 /// The last script log lines (`Request::Log`), for tests and debugging.
 #[derive(Clone, Copy, Debug)]
@@ -96,6 +117,37 @@ impl Log {
         let n = (self.count as usize).min(LOG_LEN);
         let start = self.count as usize - n;
         (start..self.count as usize).map(|i| self.lines[i % LOG_LEN])
+    }
+}
+
+/// A warp destination a script stored (Gen3 `struct WarpData`): warp `warp` of `map`, else
+/// cell (x, y).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct WarpDest {
+    pub map: MapId,
+    pub warp: Option<u8>,
+    pub x: i16,
+    pub y: i16,
+}
+
+/// The warps scripts set for later (Gen3 `gSaveBlock1Ptr->dynamicWarp` and `escapeWarp`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct WarpSlots {
+    pub dynamic: Option<WarpDest>,
+    pub escape: Option<WarpDest>,
+}
+
+impl WarpDest {
+    fn hash(d: Option<WarpDest>, h: &mut Fnv64) {
+        match d {
+            None => h.write(&[0]),
+            Some(d) => {
+                h.write(&[1, d.warp.unwrap_or(0xFF), d.warp.is_some() as u8]);
+                h.write_u16(d.map.0);
+                h.write_u16(d.x as u16);
+                h.write_u16(d.y as u16);
+            }
+        }
     }
 }
 
@@ -141,6 +193,22 @@ pub(crate) struct State {
     /// from `NewGame` at a new game; hashed last in `World::hash`. Texts, the starter screen and
     /// battles print this copy.
     player_name: PlayerName,
+    // ---- Milestone 8 ----
+    /// The player's bag (Gen3 `gSaveBlock1Ptr->bagPocket_*`).
+    bag: Bag,
+    /// Gen3 `gSaveBlock1Ptr->money`.
+    money: u32,
+    /// Gen3 `gStringVar1..3`.
+    str_vars: StrVars,
+    warp_slots: WarpSlots,
+    // Tool-facing, neither hashed nor snapshotted:
+    /// This step's events (cleared at the start of `step`, except the first step of a new
+    /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
+    events: Vec<Event>,
+    /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
+    events_dropped: u32,
+    /// The last script started.
+    last_script: Option<ScriptId>,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -207,12 +275,7 @@ impl State {
 
     /// Spawns the templates whose hide flag is clear (Gen3 `TrySpawnObjectEvents`).
     fn spawn_templates(&mut self) {
-        let vars = &self.vars;
-        for ev in &self.templates {
-            if !ev.hide_flag.is_some_and(|f| vars.flag(f)) {
-                self.objects.add(ev, |v| vars.var(v));
-            }
-        }
+        self.objects.spawn_templates(&self.templates, &self.vars);
     }
 
     fn set_var_opt(&mut self, v: Option<VarId>, value: u16) {
@@ -223,6 +286,18 @@ impl State {
 
     fn log(&mut self, line: &'static str) {
         self.log.push(line);
+    }
+
+    /// Records an [`Event`] for this frame (dropped and counted past [`EVENTS_MAX`]).
+    fn event(&mut self, e: Event) {
+        if let Event::ScriptStarted(id) = e {
+            self.last_script = Some(id);
+        }
+        if self.events.len() < EVENTS_MAX {
+            self.events.push(e);
+        } else {
+            self.events_dropped = self.events_dropped.wrapping_add(1);
+        }
     }
 }
 
@@ -264,6 +339,13 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: player_name(ng.player_name),
+                bag: Bag::new(),
+                money: 0,
+                str_vars: StrVars::new(),
+                warp_slots: WarpSlots::default(),
+                events: Vec::with_capacity(EVENTS_MAX),
+                events_dropped: 0,
+                last_script: None,
             },
             boot: None,
         };
@@ -288,6 +370,11 @@ impl World {
     /// Runs one frame with `keys` held and returns its video output.
     pub fn step(&mut self, game: &impl GameData, keys: Buttons) -> Frame {
         let mut f = Frame::default();
+        // A new world's boot events (`MapEntered`, its map scripts' `ScriptStarted`) stay
+        // visible through the first step.
+        if self.frame != 0 {
+            self.s.events.clear();
+        }
         self.frame = self.frame.wrapping_add(1);
         self.s.input.update(keys);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
@@ -343,40 +430,21 @@ impl World {
         id: ScriptId,
         talked: Option<(u8, Dir, bool)>,
     ) {
-        let ids = game.special_ids();
-        // An NPC left over from the previous map is talked to, but not addressable by local id
-        // (`selected` names a current-map object), so `faceplayer` / `lock` skip it.
-        self.s.selected = talked.filter(|t| t.2).map(|t| t.0);
-        self.s
-            .set_var_opt(ids.var_last_talked, talked.map_or(0, |t| t.0 as u16));
-        if let Some((_, dir, _)) = talked {
-            self.s.set_var_opt(ids.var_facing, dir as u16 + 1);
-        }
+        maps::set_talk_target(&mut self.s, &game.special_ids(), talked);
+        self.s.event(Event::ScriptStarted(id));
         let ctx = self.runner.ctx();
         self.runner.start(game.script(id, ctx));
-    }
-
-    /// Starts a warp through `map.warps[i]`; a warp to a map the game lacks is logged and ignored.
-    fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
-        let w = &map.warps[i];
-        if !game.has_map(w.dest_map) {
-            self.s.log("warp to a missing map ignored");
-            return;
-        }
-        let s = &mut self.s;
-        if door {
-            s.transition
-                .start_door(game, w.dest_map, Some(w.dest_warp), -1, -1);
-        } else {
-            s.transition
-                .start(game, w.dest_map, Some(w.dest_warp), -1, -1);
-        }
-        s.objects.freeze_all();
     }
 
     /// Player control and field triggers (Gen3 `ProcessPlayerFieldInput`, then `PlayerStep`).
     /// Returns whether `update_player` ran.
     fn control(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
+        // Gen3 `ProcessPlayerFieldInput` checks trainer sight first, on every field-input frame
+        // (`CheckForTrainersWantingBattle`, field_control_avatar.c:147; Milestone 8 Task I).
+        if let Some(sighting) = sight::check(game, &self.s) {
+            self.start_sighting(game, sighting);
+            return false;
+        }
         let map = game.map(self.s.field.map());
         if let Some(id) = map_script_on_frame(map, &self.s.vars) {
             self.start_script(game, id, None);
@@ -461,13 +529,18 @@ impl World {
                     && let Some((to, shift)) = s.field.crossing(game, x, y)
                 {
                     cross_connection(game, s, f, to, shift);
+                    s.objects.view_moved(&s.templates, &s.vars);
                 }
             }
             // Step triggers fire in the frame the step finishes; Gen3 checks them on the next
             // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
+                s.objects.view_moved(&s.templates, &s.vars);
                 let elevation = s.objects.player().elevation;
-                if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
+                if let Some(sighting) = sight::check(game, s) {
+                    // Trainer sight first, as on every field-input frame (above).
+                    self.start_sighting(game, sighting);
+                } else if let Some(id) = coord_trigger(map, x, y, elevation, &s.vars) {
                     self.start_script(game, id, None);
                 } else {
                     let b = block_behavior(game, map, s.field.block(game, x, y));
@@ -483,36 +556,6 @@ impl World {
             _ => {}
         }
         true
-    }
-
-    fn run_transition(&mut self, game: &impl GameData, f: &mut Frame) {
-        let s = &mut self.s;
-        let moving = !s.objects.moves_done(PLAYER) || !s.objects.player().is_settled();
-        match s.transition.update(&mut s.fader, moving) {
-            TransitionStep::Walk(d) => s.objects.start_moves(PLAYER, &WALK[d as usize]),
-            TransitionStep::Load(map, x, y) => {
-                // Gen3 `CB2_LoadMap` restarts the script context: a script that warped ends
-                // here, and the dialogue window goes with the old map.
-                self.runner = Runner::new();
-                s.selected = None;
-                s.last_mover = 0;
-                if s.text.is_open() {
-                    s.text.close(f);
-                }
-                load_map(game, s, f, map, x, y);
-                let b = s.ground(game).behavior(x, y);
-                let facing = s.transition.arrive(b);
-                s.objects.face(PLAYER, facing);
-                s.objects.freeze_all();
-            }
-            TransitionStep::Done => s.objects.unfreeze_all(),
-            TransitionStep::Walking | TransitionStep::FadingOut | TransitionStep::FadingIn => {}
-        }
-        if s.transition.player_hidden() {
-            s.objects.hide(PLAYER);
-        } else {
-            s.objects.show(PLAYER);
-        }
     }
 
     pub const fn frame(&self) -> u32 {
@@ -541,6 +584,39 @@ impl World {
 
     pub fn log(&self) -> &Log {
         &self.s.log
+    }
+
+    pub fn bag(&self) -> &Bag {
+        &self.s.bag
+    }
+
+    pub fn money(&self) -> u32 {
+        self.s.money
+    }
+
+    /// String var `i` (0..3), 0xFF-terminated and padded.
+    pub fn str_var(&self, i: usize) -> &[u8; STR_VAR_LEN] {
+        self.s.str_vars.get(i)
+    }
+
+    pub fn warp_slots(&self) -> &WarpSlots {
+        &self.s.warp_slots
+    }
+
+    /// This step's [`Event`]s, in order (at most [`EVENTS_MAX`]). After `World::new` and after
+    /// the first step, they include the boot's (the start map entered, its map scripts).
+    pub fn events(&self) -> &[Event] {
+        &self.s.events
+    }
+
+    /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
+    pub fn events_dropped(&self) -> u32 {
+        self.s.events_dropped
+    }
+
+    /// The last script started, if any since the world was created or restored.
+    pub fn last_script(&self) -> Option<ScriptId> {
+        self.s.last_script
     }
 
     pub fn script_running(&self) -> bool {
@@ -652,6 +728,21 @@ impl World {
         s.mode.hash(&mut h);
         // Milestone 5.
         h.write(&s.player_name);
+        // Milestone 8: the bag and string vars as digests maintained on write (O(1)).
+        s.bag.hash(&mut h);
+        h.write_u32(s.money);
+        s.str_vars.hash(&mut h);
+        WarpDest::hash(s.warp_slots.dynamic, &mut h);
+        WarpDest::hash(s.warp_slots.escape, &mut h);
+        match s.field.stale() {
+            None => h.write(&[0]),
+            Some(r) => {
+                h.write(&[1]);
+                for v in [r.x0, r.y0, r.x1, r.y1] {
+                    h.write_u16(v as u16);
+                }
+            }
+        }
         h.finish()
     }
 }
@@ -678,66 +769,10 @@ fn draw_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
     f.brightness = s.fader.level();
 }
 
-/// Loads `id` with the player on (x, y) (Gen3 warp load). Drawing happens at the frame's
-/// camera update.
-fn load_map(game: &impl GameData, s: &mut State, f: &mut Frame, id: MapId, x: i16, y: i16) {
-    f.bulk = true;
-    let map = game.map(id);
-    s.clear_temp(&game.special_ids());
-    s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
-    s.templates = map.objects.to_vec();
-    s.objects.spawn_events(id, &[], |_| true, |_| 0);
-    s.objects.set_pos(PLAYER, x, y);
-    // Gen3 `LoadMapFromWarp`: `RunOnTransitionMapScript` runs before `InitMap`.
-    if let Some(script) = map.scripts.on_transition {
-        run_immediate(game, s, f, script);
-    }
-    s.field
-        .enter(game, id, camera_for((x as i32 * 16, y as i32 * 16)), f);
-    for script in [map.scripts.on_load, map.scripts.on_resume]
-        .into_iter()
-        .flatten()
-    {
-        run_immediate(game, s, f, script);
-    }
-    s.spawn_templates();
-    if let Some(script) = on_warp_into(map, &s.vars) {
-        run_immediate(game, s, f, script);
-    }
-}
-
-/// Switches to connected map `to` as the player steps across the edge (Gen3
-/// `LoadMapFromCameraTransition`).
-fn cross_connection(
-    game: &impl GameData,
-    s: &mut State,
-    f: &mut Frame,
-    to: MapId,
-    shift: (i16, i16),
-) {
-    let map = game.map(to);
-    s.clear_temp(&game.special_ids());
-    s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
-    s.templates = map.objects.to_vec();
-    s.objects
-        .enter_connected_events(to, &[], shift, |_| true, |_| 0);
-    // As a warp load: `on_transition` before the map switch (`InitMap`).
-    if let Some(script) = map.scripts.on_transition {
-        run_immediate(game, s, f, script);
-    }
-    s.field.switch_map_enter(game, to, shift, f);
-    for script in [map.scripts.on_load, map.scripts.on_resume]
-        .into_iter()
-        .flatten()
-    {
-        run_immediate(game, s, f, script);
-    }
-    s.spawn_templates();
-}
-
 /// Runs a map script to completion now (Gen3 `RunScriptImmediately`).
 fn run_immediate(game: &impl GameData, s: &mut State, f: &mut Frame, id: ScriptId) {
     let mut runner = Runner::new();
+    s.event(Event::ScriptStarted(id));
     runner.start(game.script(id, runner.ctx()));
     let mut host = Host {
         game,
