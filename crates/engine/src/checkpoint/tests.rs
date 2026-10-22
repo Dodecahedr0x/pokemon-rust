@@ -676,3 +676,22 @@ fn engine_src_hash_is_this_build() {
     );
     assert_ne!(ENGINE_SRC_HASH, 0);
 }
+
+/// Test modules live in their own files (`tests.rs`, `*_tests.rs`), which the build hash
+/// skips: an inline `#[cfg(test)] mod x { .. }` in a hashed source would make a test-only edit
+/// change `ENGINE_SRC_HASH` (and so every checkpoint's build).
+#[test]
+fn no_hashed_engine_source_holds_an_inline_test_module() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut inline = Vec::new();
+    for (rel, path) in build_support::files(&src, &build_support::is_build_source).unwrap() {
+        let text = std::fs::read_to_string(path).unwrap();
+        let lines: Vec<&str> = text.lines().map(str::trim).collect();
+        for (i, w) in lines.windows(2).enumerate() {
+            if w[0] == "#[cfg(test)]" && w[1].contains("mod ") && w[1].ends_with('{') {
+                inline.push(format!("{rel}:{}", i + 2));
+            }
+        }
+    }
+    assert!(inline.is_empty(), "move these into test files: {inline:?}");
+}
