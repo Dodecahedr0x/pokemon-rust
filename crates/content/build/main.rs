@@ -18,6 +18,7 @@ mod codegen;
 mod input;
 mod stub;
 
+use build_support::write_if_changed;
 use std::path::PathBuf;
 
 fn main() {
@@ -39,9 +40,10 @@ fn main() {
     // `cargo xtask extract`, which links this crate, can run to replace it.
     let stale =
         manifest.exists() && input::format_of(&manifest) != Some(extract::schema::FORMAT_VERSION);
-    // `BUILD_ID` hashes the content sources: any edit under them reruns this script.
+    // `BUILD_ID` hashes the content and extract sources: any edit under them reruns this script.
     println!("cargo::rerun-if-changed=src");
     println!("cargo::rerun-if-changed=build");
+    println!("cargo::rerun-if-changed=../extract/src");
     let real = manifest.exists() && !stale;
     let id = build_id::build_id(&manifest_dir, real.then_some(dir.as_path()))
         .unwrap_or_else(|e| panic!("hashing the content build inputs: {e}"));
@@ -90,15 +92,8 @@ fn main() {
         ("scripts.rs", &g.scripts),
         ("battle.rs", &g.battle),
     ] {
-        write_if_changed(&out.join(name), src.as_bytes());
+        write_if_changed(&out.join(name), src.as_bytes()).unwrap();
     }
-    write_if_changed(&out.join("battle.bin"), &g.battle_bin);
-    write_if_changed(&out.join("build_id.rs"), format!("{id:#018x}\n").as_bytes());
-}
-
-/// Keeps the mtime when nothing changed.
-fn write_if_changed(path: &std::path::Path, data: &[u8]) {
-    if std::fs::read(path).ok().as_deref() != Some(data) {
-        std::fs::write(path, data).unwrap();
-    }
+    write_if_changed(&out.join("battle.bin"), &g.battle_bin).unwrap();
+    write_if_changed(&out.join("build_id.rs"), format!("{id:#018x}\n").as_bytes()).unwrap();
 }

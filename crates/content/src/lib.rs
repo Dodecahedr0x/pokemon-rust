@@ -65,7 +65,7 @@ pub const STALE_EXTRACT_MSG: &str = "content/extracted/ is in an older format, s
     built the stub world: run `cargo xtask extract` to refresh it";
 
 /// Identity of this content build (`build/build_id.rs`): the content sources plus the extracted
-/// dir, or `stub`. Never 0. [`GameData::build_id`] returns it.
+/// dir, or `stub`. Never 0 (`TreeHash::finish`). [`GameData::build_id`] returns it.
 pub const BUILD_ID: u64 = include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
 
 /// Script id of the new-game script ([`new_game::new_game`]); never a generated id.

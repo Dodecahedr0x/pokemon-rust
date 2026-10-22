@@ -157,8 +157,10 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// The schema of record. A failure here means a DTO changed: bump `SCHEMA` (and decide on a
-/// migration, see `decode`), then re-pin both strings.
+/// The schema of record. A postcard failure means a DTO changed: bump `SCHEMA` (and decide on a
+/// migration, see `decode`), then re-pin both strings. A RON-only failure (a serde rename, a
+/// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
+/// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
     "01ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
     "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a8104030202ff",
@@ -201,13 +203,17 @@ fn golden_postcard_bytes() {
     let bytes = encode(&sample());
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
+    assert_eq!(encoded_len(&sample()), bytes.len());
     assert_eq!(SCHEMA, 1);
 }
 
 #[test]
 fn golden_ron() {
     let ron = ron::to_string(&sample()).unwrap();
-    assert_eq!(ron, GOLDEN_RON, "DTO change: bump SCHEMA");
+    assert_eq!(
+        ron, GOLDEN_RON,
+        "DTO, serde-name or ron-format change (no SCHEMA bump if the postcard golden holds)"
+    );
 }
 
 #[test]
@@ -260,6 +266,7 @@ fn encode_checked_rejects_past_the_flash_budget() {
     let mut big = cp;
     big.world.vars.flags = (0..5000).map(FlagId).collect();
     let len = encode(&big).len();
+    assert_eq!(encoded_len(&big), len);
     assert!(len > MAX_ENCODED);
     assert_eq!(encode_checked(&big), Err(DecodeError::TooLarge(len)));
 }
@@ -278,6 +285,254 @@ fn state_digest_is_stable_and_semantic() {
     let mut cp = sample();
     cp.header.build = BuildHash::default();
     assert_eq!(state_digest(&cp.world), state_digest(&a));
+    // The streaming digest hashes exactly the encoded world: the checkpoint bytes minus the
+    // header's.
+    let header = postcard::to_allocvec(&cp.header).unwrap();
+    let mut fnv = Fnv64::new();
+    fnv.write(&encode(&cp)[header.len()..]);
+    assert_eq!(state_digest(&cp.world), fnv.finish());
+}
+
+#[test]
+fn decode_refuses_more_than_the_flash_budget() {
+    let bytes = vec![0; MAX_ENCODED + 1];
+    assert_eq!(decode(&bytes), Err(DecodeError::TooLarge(MAX_ENCODED + 1)));
+    // Even a valid checkpoint (5000 flags) is refused unread.
+    let mut big = sample();
+    big.world.vars.flags = (0..5000).map(FlagId).collect();
+    let bytes = encode(&big);
+    assert_eq!(decode(&bytes), Err(DecodeError::TooLarge(bytes.len())));
+}
+
+/// Peak heap use of the current thread, for the forged-length test.
+mod counting {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
+
+    std::thread_local! {
+        static LIVE: Cell<usize> = const { Cell::new(0) };
+        static PEAK: Cell<usize> = const { Cell::new(0) };
+    }
+
+    fn add(n: usize) {
+        let _ = LIVE.try_with(|live| {
+            let v = live.get() + n;
+            live.set(v);
+            let _ = PEAK.try_with(|p| p.set(p.get().max(v)));
+        });
+    }
+
+    fn sub(n: usize) {
+        let _ = LIVE.try_with(|live| live.set(live.get().saturating_sub(n)));
+    }
+
+    pub struct Counting;
+
+    // SAFETY: forwards every call to `System` unchanged; the counters are const thread-locals,
+    // which never allocate.
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            add(l.size());
+            unsafe { System.alloc(l) }
+        }
+        unsafe fn alloc_zeroed(&self, l: Layout) -> *mut u8 {
+            add(l.size());
+            unsafe { System.alloc_zeroed(l) }
+        }
+        unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            sub(l.size());
+            unsafe { System.dealloc(p, l) }
+        }
+        unsafe fn realloc(&self, p: *mut u8, l: Layout, new: usize) -> *mut u8 {
+            sub(l.size());
+            add(new);
+            unsafe { System.realloc(p, l, new) }
+        }
+    }
+
+    /// `f`'s result and the most heap it held at once above what was live before.
+    pub fn peak<R>(f: impl FnOnce() -> R) -> (R, usize) {
+        let base = LIVE.with(Cell::get);
+        PEAK.with(|p| p.set(base));
+        let r = f();
+        (r, PEAK.with(Cell::get) - base)
+    }
+}
+
+#[global_allocator]
+static ALLOC: counting::Counting = counting::Counting;
+
+#[test]
+fn a_forged_length_cannot_preallocate() {
+    let mut cp = sample();
+    cp.world.party.clear();
+    let bytes = encode(&cp);
+    // The world ends with the party length, respawn, prev_behavior (Ledge, Down) and
+    // encounter_immunity.
+    let tail = [0x00, 0x02, 0x02, 0x00, 0x00];
+    assert_eq!(bytes[bytes.len() - 5..], tail);
+    // A party of 4000 (varint a0 1f), then 4000 bytes that are no `Pokemon` (an overlong
+    // varint). Postcard hints the length whenever that many bytes remain, and serde's `Vec`
+    // would preallocate 4000 `Pokemon`s from the hint.
+    let mut forged = bytes[..bytes.len() - 5].to_vec();
+    forged.extend_from_slice(&[0xA0, 0x1F]);
+    forged.extend_from_slice(&[0xFF; 4000]);
+    assert!(forged.len() <= MAX_ENCODED);
+    let (res, peak) = counting::peak(|| decode(&forged));
+    assert_eq!(res, Err(DecodeError::Postcard));
+    // 4000 `Pokemon`s would be ~270 KB; the decode holds about one snapshot.
+    std::println!("forged party decode: peak {peak} bytes");
+    assert!(peak < 4096, "peak {peak}");
+    // Every forged length of every snapshot `Vec` fails the same way.
+    let (_, peak) = counting::peak(|| {
+        for cut in 0..bytes.len() {
+            let mut f = bytes[..cut].to_vec();
+            f.extend_from_slice(&[0xFF, 0xFF, 0x03]);
+            f.extend_from_slice(&[0xFF; 4000]);
+            let _ = decode(&f);
+        }
+    });
+    assert!(peak < 16384, "peak {peak}");
+}
+
+/// The postcard variant index of every variant of every enum in the snapshot. A reorder fails
+/// here, an addition fails to compile (the matches are exhaustive): both change the schema.
+#[test]
+fn enum_variant_indices_are_pinned() {
+    fn tag<T: Serialize>(v: &T) -> u8 {
+        postcard::to_allocvec(v).unwrap()[0]
+    }
+    fn check<T: Serialize + core::fmt::Debug>(all: &[T], idx: fn(&T) -> u8) {
+        for (i, v) in all.iter().enumerate() {
+            assert_eq!(idx(v) as usize, i, "{v:?}: list out of order");
+            assert_eq!(tag(v), idx(v), "{v:?}: variant index changed: bump SCHEMA");
+        }
+    }
+    check(&[Dir::Down, Dir::Up, Dir::Left, Dir::Right], |v| match v {
+        Dir::Down => 0,
+        Dir::Up => 1,
+        Dir::Left => 2,
+        Dir::Right => 3,
+    });
+    check(
+        &[Speed::Slow, Speed::Normal, Speed::Fast, Speed::Faster],
+        |v| match v {
+            Speed::Slow => 0,
+            Speed::Normal => 1,
+            Speed::Fast => 2,
+            Speed::Faster => 3,
+        },
+    );
+    check(
+        &[
+            RunStateSnap::NotMoving,
+            RunStateSnap::TurnDirection,
+            RunStateSnap::Moving,
+        ],
+        |v| match v {
+            RunStateSnap::NotMoving => 0,
+            RunStateSnap::TurnDirection => 1,
+            RunStateSnap::Moving => 2,
+        },
+    );
+    check(
+        &[
+            ActionKindSnap::Walk(Speed::Slow),
+            ActionKindSnap::Run,
+            ActionKindSnap::InPlace(0),
+            ActionKindSnap::Jump(0),
+            ActionKindSnap::Delay(0),
+        ],
+        |v| match v {
+            ActionKindSnap::Walk(_) => 0,
+            ActionKindSnap::Run => 1,
+            ActionKindSnap::InPlace(_) => 2,
+            ActionKindSnap::Jump(_) => 3,
+            ActionKindSnap::Delay(_) => 4,
+        },
+    );
+    check(
+        &[IdleSnap::Start, IdleSnap::Wait(0), IdleSnap::Done],
+        |v| match v {
+            IdleSnap::Start => 0,
+            IdleSnap::Wait(_) => 1,
+            IdleSnap::Done => 2,
+        },
+    );
+    check(
+        &[
+            AnimTableSnap::Face,
+            AnimTableSnap::Go(0),
+            AnimTableSnap::Run,
+        ],
+        |v| match v {
+            AnimTableSnap::Face => 0,
+            AnimTableSnap::Go(_) => 1,
+            AnimTableSnap::Run => 2,
+        },
+    );
+    check(
+        &[
+            MovementType::Face(Dir::Down),
+            MovementType::LookAround,
+            MovementType::Wander,
+            MovementType::WanderVertical,
+            MovementType::WanderHorizontal,
+            MovementType::WalkInPlace(Dir::Down),
+            MovementType::Invisible,
+        ],
+        |v| match v {
+            MovementType::Face(_) => 0,
+            MovementType::LookAround => 1,
+            MovementType::Wander => 2,
+            MovementType::WanderVertical => 3,
+            MovementType::WanderHorizontal => 4,
+            MovementType::WalkInPlace(_) => 5,
+            MovementType::Invisible => 6,
+        },
+    );
+    check(
+        &[
+            Behavior::Normal,
+            Behavior::Blocked,
+            Behavior::Ledge(Dir::Down),
+            Behavior::Door,
+            Behavior::Warp,
+            Behavior::ArrowWarp(Dir::Down),
+            Behavior::Counter,
+            Behavior::TallGrass,
+        ],
+        |v| match v {
+            Behavior::Normal => 0,
+            Behavior::Blocked => 1,
+            Behavior::Ledge(_) => 2,
+            Behavior::Door => 3,
+            Behavior::Warp => 4,
+            Behavior::ArrowWarp(_) => 5,
+            Behavior::Counter => 6,
+            Behavior::TallGrass => 7,
+        },
+    );
+    check(
+        &[
+            Status::None,
+            Status::Sleep(0),
+            Status::Poison,
+            Status::Burn,
+            Status::Freeze,
+            Status::Paralysis,
+            Status::Toxic(0),
+        ],
+        |v| match v {
+            Status::None => 0,
+            Status::Sleep(_) => 1,
+            Status::Poison => 2,
+            Status::Burn => 3,
+            Status::Freeze => 4,
+            Status::Paralysis => 5,
+            Status::Toxic(_) => 6,
+        },
+    );
 }
 
 // --- build identity ---
@@ -367,6 +622,49 @@ fn file_order_is_by_relative_path_bytes() {
     let rels: Vec<&str> = files.iter().map(|(r, _)| r.as_str()).collect();
     assert_eq!(rels, ["a.rs", "a/b.rs", "lib.rs", "z.rs"]);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn hidden_files_and_backups_are_not_inputs() {
+    let dir = temp_dir("hidden");
+    for (rel, s) in TREE {
+        put(&dir, rel, s);
+    }
+    let all = |_: &str| true;
+    let before = build_support::files(&dir, &all).unwrap();
+    let h = build_support::engine_src_hash(&dir).unwrap();
+    put(&dir, ".DS_Store", "finder");
+    put(&dir, "a/.DS_Store", "finder");
+    put(&dir, ".git/HEAD", "ref");
+    put(&dir, ".hidden/c.rs", "pub fn c() {}\n");
+    put(&dir, "a.rs~", "backup");
+    put(&dir, "a/.b.rs.swp", "swap");
+    assert_eq!(build_support::files(&dir, &all).unwrap(), before);
+    assert_eq!(build_support::engine_src_hash(&dir).unwrap(), h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinks_are_followed() {
+    let dir = temp_dir("links");
+    let real = temp_dir("links-real");
+    for (rel, s) in TREE {
+        put(&dir, rel, s);
+    }
+    let h = build_support::engine_src_hash(&dir).unwrap();
+    // `a/` moved out and linked back: same files, same hash, no `IsADirectory`.
+    std::fs::rename(dir.join("a"), real.join("a")).unwrap();
+    std::os::unix::fs::symlink(real.join("a"), dir.join("a")).unwrap();
+    // A linked file counts as its target.
+    std::fs::rename(dir.join("z.rs"), real.join("z.rs")).unwrap();
+    std::os::unix::fs::symlink(real.join("z.rs"), dir.join("z.rs")).unwrap();
+    assert_eq!(build_support::engine_src_hash(&dir).unwrap(), h);
+    // A cycle is an error, not a hang.
+    std::os::unix::fs::symlink(&dir, real.join("a/up")).unwrap();
+    assert!(build_support::engine_src_hash(&dir).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&real);
 }
 
 #[test]

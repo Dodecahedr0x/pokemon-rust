@@ -3,6 +3,7 @@
 //! Test sources (`tests.rs`, `test_*.rs`, `*_tests.rs`, `tests/`) are left out, so editing a test
 //! does not change the build identity.
 
+#[allow(dead_code)] // the content build script uses the rest
 #[path = "build_support.rs"]
 mod build_support;
 

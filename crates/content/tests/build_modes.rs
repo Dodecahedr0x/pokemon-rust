@@ -212,6 +212,36 @@ fn stub_and_generated_script_modes_build_and_pass() {
     assert_eq!(printed_build_id(&out), stub_id);
 }
 
+/// The content, build and extract sources are inputs; their tests are not.
+#[test]
+fn build_id_tracks_the_sources() {
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("content-build-id-src");
+    let _ = std::fs::remove_dir_all(&root);
+    let put = |rel: &str, s: &str| {
+        let p = root.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, s).unwrap();
+    };
+    put("content/src/lib.rs", "// lib\n");
+    put("content/build/main.rs", "// main\n");
+    put("extract/src/lib.rs", "// extract\n");
+    let content = root.join("content");
+    let id = || build_id::build_id(&content, None).unwrap();
+    let base = id();
+    put("content/src/data_tests.rs", "// tests\n");
+    put("extract/src/tests.rs", "// tests\n");
+    assert_eq!(id(), base);
+    for (rel, edit) in [
+        ("content/src/lib.rs", "// lib 2\n"),
+        ("content/build/main.rs", "// main 2\n"),
+        ("extract/src/lib.rs", "// extract 2\n"),
+    ] {
+        let before = id();
+        put(rel, edit);
+        assert_ne!(id(), before, "{rel}");
+    }
+}
+
 /// The content build id: deterministic, stub vs extracted, and every extracted file but the
 /// previews counts.
 #[test]
@@ -229,10 +259,24 @@ fn build_id_tracks_the_extracted_files() {
     assert_ne!(id, 0);
     // Another absolute path, same files.
     assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
-    // Map renders are not build inputs.
+    // Map renders, hidden files and backups are not build inputs.
     std::fs::create_dir_all(two.join("previews")).unwrap();
     std::fs::write(two.join("previews/StubTown.png"), b"png").unwrap();
+    std::fs::write(two.join(".DS_Store"), b"finder").unwrap();
+    std::fs::write(two.join("maps/.DS_Store"), b"finder").unwrap();
+    std::fs::write(two.join("maps/StubTown.ron~"), b"backup").unwrap();
+    std::fs::create_dir_all(two.join(".cache")).unwrap();
+    std::fs::write(two.join(".cache/x"), b"x").unwrap();
     assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
+    // A symlinked dir is followed (same files, same id).
+    #[cfg(unix)]
+    {
+        let moved = tmp.join("moved-maps");
+        let _ = std::fs::remove_dir_all(&moved);
+        std::fs::rename(two.join("maps"), &moved).unwrap();
+        std::os::unix::fs::symlink(&moved, two.join("maps")).unwrap();
+        assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
+    }
     // A hand edit that leaves the manifest as is still counts.
     std::fs::write(
         two.join("scripts/Other.rs"),
