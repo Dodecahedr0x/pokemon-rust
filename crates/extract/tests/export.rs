@@ -114,12 +114,9 @@ fn writes_current_format_tree() {
     for map in MAPS {
         want.insert(format!("maps/{map}.ron"));
         want.insert(format!("previews/{map}.png"));
-        want.insert(format!("scripts/{map}.rs"));
     }
-    want.insert("scripts/legacy_index.ron".to_string());
+    // The script IR (M8 Tasks B and D2), whose contents tests/script_ir.rs checks.
     want.insert("text/fr.ron".to_string());
-    // The script IR (M8 Task B), whose contents tests/script_ir.rs checks.
-    want.insert("text/ir_fr.ron".to_string());
     let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
     want.insert("scripts/index.ron".to_string());
     let modules = ix
@@ -213,6 +210,7 @@ fn maps_and_tilesets_round_trip() {
     let (dir, m) = fr_export();
     let rom = fixtures::fr();
     let table = maps::locate_map_table(&rom).unwrap();
+    let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
     let mut scripts = BTreeSet::new();
     for name in MAPS {
         let map = export::read_map(dir, name).unwrap();
@@ -290,10 +288,8 @@ fn maps_and_tilesets_round_trip() {
                 m.provenance.contains_key(&format!("script/{r}")),
                 "{name}: {r}"
             );
-            assert!(
-                MAPS.iter().any(|mm| r.starts_with(&format!("{mm}_"))),
-                "{r}"
-            );
+            // Named by the script IR (decomp labels, Task D2).
+            assert!(ix.scripts.contains_key(r), "{r}");
             scripts.insert(r.clone());
         }
     }
@@ -338,7 +334,7 @@ fn littleroot_matches_known_offsets_and_content() {
     );
     assert_eq!(
         map.objects[0].script.as_deref(),
-        Some("LittlerootTown_Obj1")
+        Some("LittlerootTown_EventScript_Twin")
     );
     assert_eq!(map.objects[0].gfx, "OBJ_EVENT_GFX_TWIN");
     assert_eq!(

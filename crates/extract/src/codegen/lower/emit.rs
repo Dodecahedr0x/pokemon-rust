@@ -448,13 +448,38 @@ impl<'a> Low<'a> {
                 let (Some(i), Some(q)) = (u16_expr(i, true), u16_expr(q, true)) else {
                     return Ok(false);
                 };
-                let call = match op {
-                    "additem" => format!("ctx.item_add(ItemId({i}), {q}).await"),
-                    "removeitem" => format!("ctx.item_remove(ItemId({i}), {q}).await"),
-                    "checkitemspace" => format!("ctx.item_space(ItemId({i}), {q}).await"),
-                    _ => format!("check_item(&ctx, {i}, {q}).await"),
+                if self.support.item_helpers {
+                    // Task H's helpers set VAR_RESULT and cast the quantity to u8 themselves.
+                    let f = match op {
+                        "additem" => "add_item",
+                        "removeitem" => "remove_item",
+                        "checkitemspace" => "check_item_space",
+                        _ => "check_item",
+                    };
+                    out.push(format!("{f}(&ctx, {i}, {q}).await;"));
+                } else {
+                    let call = match op {
+                        "additem" => format!("ctx.item_add(ItemId({i}), {q}).await"),
+                        "removeitem" => format!("ctx.item_remove(ItemId({i}), {q}).await"),
+                        "checkitemspace" => format!("ctx.item_space(ItemId({i}), {q}).await"),
+                        _ => format!("check_item(&ctx, {i}, {q}).await"),
+                    };
+                    out.push(format!("ctx.set_var({r}, {call} as u16).await;"));
+                }
+            }
+            ("checkitemtype", [i]) => {
+                let Some(i) = u16_expr(i, true) else {
+                    return Ok(false);
                 };
-                out.push(format!("ctx.set_var({r}, {call} as u16).await;"));
+                if self.support.item_helpers {
+                    out.push(format!("check_item_type(&ctx, {i}).await;"));
+                } else {
+                    // The Wave 0 prelude has no item pockets: `POCKET_NONE`, as the old
+                    // `Default(0)` class.
+                    out.push(format!(
+                        "ctx.set_var({r}, 0).await; // checkitemtype {i}: no pockets before Task H"
+                    ));
+                }
             }
             ("applymovement", [id, Movement(m)]) => {
                 let (Some(id), Some(m)) = (local_id(id), self.movement_path(fx.module, m)) else {
@@ -776,12 +801,16 @@ impl<'a> Low<'a> {
             var(ITEM_AMOUNT_VAR)
         );
         Some(vec![match n {
+            // Task H's `give_item` writes VAR_RESULT itself; the Wave 0 one does not.
+            STD_OBTAIN_ITEM if self.support.item_helpers => {
+                format!("give_item(&ctx, {item}).await;")
+            }
             STD_OBTAIN_ITEM => {
                 format!("ctx.set_var({r}, give_item(&ctx, {item}).await as u16).await;")
             }
-            STD_FIND_ITEM => {
-                format!("ctx.set_var({r}, find_item(&ctx, {item}).await as u16).await;")
-            }
+            // Gen3 `Std_FindItem` leaves VAR_RESULT as its own commands do (0 after a pick-up,
+            // `pyramid_getlocation`): the helper writes it, never the call site.
+            STD_FIND_ITEM => format!("find_item(&ctx, {item}).await;"),
             _ => {
                 let c = std_const(n);
                 format!("callstd(&ctx, {c}).await;")

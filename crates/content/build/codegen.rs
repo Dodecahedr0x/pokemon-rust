@@ -147,17 +147,11 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
     for (v, n) in entries(&names::ITEMS) {
         c(&mut o, n, "u16", format!("{v:#X}"))?;
     }
-    // Unnamed numbers (`FLAG_0x123`) the maps or scripts use.
+    // Unnamed numbers (`FLAG_0x123`) the maps use (the lowered scripts write them
+    // `FlagId(0x123)`, so they need no constant).
     let mut sources: Vec<String> = Vec::new();
     for m in &w.maps {
         sources.push(extract::export::to_ron(m)?);
-    }
-    if let (Some(dir), Some(_)) = (&w.dir, &w.index) {
-        let s = scripts(w);
-        for stem in s.module.values().collect::<BTreeSet<_>>() {
-            let p = dir.join(format!("scripts/{stem}.rs"));
-            sources.push(std::fs::read_to_string(&p).with_context(|| p.display().to_string())?);
-        }
     }
     let hex: BTreeSet<String> = sources
         .iter()

@@ -227,7 +227,24 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
         });
     }
     let canonical = roots::canonical(exported.iter().flat_map(|m| &m.roots));
-    for (off, script) in &canonical {
+    // The IR first: the map files name their scripts by its final (decomp) names.
+    let script_names = scripts::export_scripts(
+        rom,
+        &ScriptInput { maps: &exported },
+        &mut o,
+        &mut provenance,
+    )?;
+    // Root offset -> final name.
+    let root_names: BTreeMap<u32, String> = canonical
+        .keys()
+        .map(|&off| {
+            let name = script_names
+                .get(&off)
+                .with_context(|| format!("root {off:#x} has no script name"))?;
+            Ok((off, name.clone()))
+        })
+        .collect::<Result<_>>()?;
+    for (off, script) in &root_names {
         provenance.insert(format!("script/{script}"), Hex(*off));
     }
 
@@ -310,7 +327,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
             primary,
             secondary,
             &map_scripts,
-            &canonical,
+            &root_names,
             &exported_names,
         )?;
         o.ron(&format!("maps/{}.ron", m.name), &file)?;
@@ -399,15 +416,6 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     provenance.extend(battle.provenance);
     battle_gfx::export(rom, &mut o, &mut provenance)?;
 
-    scripts::export_scripts(
-        rom,
-        &ScriptInput {
-            maps: &exported,
-            canonical: &canonical,
-        },
-        &mut o,
-        &mut provenance,
-    )?;
     tables::export_tables(rom, &mut o, &mut provenance)?;
 
     let manifest = Manifest {

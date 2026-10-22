@@ -142,6 +142,9 @@ struct Claim {
     kind: Kind,
 }
 
+/// The module of the std scripts' positional names (without the decomp).
+pub const STD_MODULE: &str = "Common_std_scripts";
+
 /// Maximum fallthrough chain length (guards against a label cycle).
 const MAX_CHAIN: usize = 64;
 
@@ -172,6 +175,21 @@ pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
             for (pos, label) in root_labels(rom, d, m)? {
                 t.root_labels.insert(pos, label);
             }
+        }
+    }
+    // The std scripts (`gStdScripts`) after every map, so map roots keep their positional
+    // names: lowered as functions nobody calls, they name and export the texts the native std
+    // helpers print (`gText_ObtainedTheItem`, …; Milestone 8 Task D2).
+    if !maps.is_empty()
+        && let Some(stds) = roots::std_scripts(rom)?
+    {
+        for (i, off) in stds.into_iter().enumerate() {
+            let pos = roots::std_root_name(i);
+            if decomp.is_some() {
+                t.root_labels
+                    .insert(pos.clone(), roots::STD_SCRIPTS[i].to_string());
+            }
+            root_list.push((pos, off, STD_MODULE.to_string()));
         }
     }
     let plain = plain_walk(rom, &root_list)?;
