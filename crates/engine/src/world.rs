@@ -388,6 +388,7 @@ impl World {
     /// One overworld frame (see the module docs for the order).
     fn step_field(&mut self, game: &impl GameData, f: &mut Frame) {
         let mut player_updated = false;
+        let cell = (self.s.field.map(), self.s.objects.player().pos());
         if self.s.transition.is_active() {
             self.run_transition(game, f);
         } else if self.runner.is_running() {
@@ -401,6 +402,12 @@ impl World {
             field: &s.field,
         };
         s.objects.update(&ground, &mut s.rng, player_updated);
+        // The player entered a cell this frame (a step starts, by input or by a script's
+        // movement, or a crossing or warp moved it): the view window follows (Gen3 spawns and
+        // despawns on each camera tile move, `CameraMove` at step start, cutscenes included).
+        if (s.field.map(), s.objects.player().pos()) != cell {
+            s.objects.view_moved(&s.templates, &s.vars);
+        }
         if !s.transition.is_active() {
             s.fader.update();
         }
@@ -529,13 +536,11 @@ impl World {
                     && let Some((to, shift)) = s.field.crossing(game, x, y)
                 {
                     cross_connection(game, s, f, to, shift);
-                    s.objects.view_moved(&s.templates, &s.vars);
                 }
             }
             // Step triggers fire in the frame the step finishes; Gen3 checks them on the next
             // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
-                s.objects.view_moved(&s.templates, &s.vars);
                 let elevation = s.objects.player().elevation;
                 if let Some(sighting) = sight::check(game, s) {
                     // Trainer sight first, as on every field-input frame (above).

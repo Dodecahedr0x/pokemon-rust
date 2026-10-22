@@ -25,8 +25,8 @@ use alloc::vec::Vec;
 
 impl World {
     /// `Ok` when the world can be captured: field mode, no transition, no script or pending
-    /// answer, a pristine text box, no fade, no object running a movement script, and no cell
-    /// in view left from the map before a connection crossing (checked in that order).
+    /// answer, a pristine text box, no fade, no object running a movement script, and no field
+    /// upload spread over frames in progress (checked in that order).
     pub fn capturable(&self) -> Result<(), NotCapturable> {
         let s = &self.s;
         match s.mode {
@@ -49,7 +49,10 @@ impl World {
         if let Some(id) = s.objects.any_moves() {
             return Err(NotCapturable::Moving(id));
         }
-        if s.field.view_stale() {
+        // Milestone 8 Task F: a crossing redraws the cells it keeps that the new map draws
+        // differently, so the view is the current map's, except for the few frames a crossing
+        // into other tilesets spreads its upload over (a restore would upload it whole).
+        if s.field.uploading() {
             return Err(NotCapturable::StaleView);
         }
         Ok(())

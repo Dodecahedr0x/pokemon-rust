@@ -64,10 +64,6 @@ impl Rect {
     fn contains(self, x: i16, y: i16) -> bool {
         (self.x0..=self.x1).contains(&x) && (self.y0..=self.y1).contains(&y)
     }
-
-    fn overlaps(self, o: Rect) -> bool {
-        self.x0 <= o.x1 && o.x0 <= self.x1 && self.y0 <= o.y1 && o.y0 <= self.y1
-    }
 }
 
 /// Cells left drawn from the map before a connection crossing ([`Field::stale`]), inclusive.
@@ -88,11 +84,61 @@ pub struct Field {
     overrides: BTreeMap<(i16, i16), u16>,
     /// Ring origin (see the module doc), each in `0..RING`.
     ring: (i16, i16),
-    /// The cells drawn before a connection crossing kept them (new coordinates): drawn from the
-    /// old map, they may differ from what the new map would draw there (its border, a third
-    /// map). Set until the view leaves them. Not hashed: it only gates checkpoint capture
-    /// (`World::capturable`), never the simulation.
-    stale: Option<Rect>,
+    /// An upload spread over frames, in progress ([`Field::enter_spread`], a crossing into
+    /// other tilesets).
+    spread: Option<Spread>,
+}
+
+/// Tiles a spread upload sends per frame while the screen is black (a warp load: one whole
+/// tileset, 16 KiB) and while it shows (a crossing into other tilesets: 4 KiB, a few lines of
+/// vblank).
+pub const SPREAD_TILES_BLACK: u16 = TILES_IN_PRIMARY;
+pub const SPREAD_TILES_VISIBLE: u16 = 128;
+/// Metatile rows of the view a spread upload redraws per frame (a whole view is over a
+/// vblank's budget).
+pub const SPREAD_ROWS: i16 = 3;
+
+/// A field upload spread over frames (Milestone 8 Task F; Gen3 `LoadMapInStepsLocal` for warp
+/// loads). Each [`Field::set_camera`] sends the next part: the BG controls and at most
+/// `budget` tiles, primary first; once a call has no tiles left to send, the palettes and the
+/// view's top [`SPREAD_ROWS`] rows; then the next rows each frame, until the whole view is
+/// drawn with them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Spread {
+    /// The next view row (map y) to redraw, once the tiles and palettes are in.
+    rows: Option<i16>,
+    /// BG1–BG3 controls still to send (a warp load).
+    controls: bool,
+    /// The next tile to send of the primary and the secondary tileset; `None` when sent (or
+    /// unchanged).
+    primary: Option<u16>,
+    secondary: Option<u16>,
+    /// Palettes to send at the end: the primary banks, the secondary banks.
+    palettes: (bool, bool),
+    /// Tiles per frame.
+    budget: u16,
+}
+
+impl Spread {
+    /// A warp load's, on a black screen (as opposed to a crossing's, while the screen shows).
+    fn black(&self) -> bool {
+        self.budget == SPREAD_TILES_BLACK
+    }
+
+    fn hash(&self, h: &mut Fnv64) {
+        let next = |n: Option<u16>| n.map_or(0xFFFF, |n| n);
+        h.write(&[
+            0x5D,
+            self.controls as u8,
+            self.palettes.0 as u8,
+            self.palettes.1 as u8,
+            self.rows.is_some() as u8,
+        ]);
+        h.write_u16(next(self.primary));
+        h.write_u16(next(self.secondary));
+        h.write_u16(self.budget);
+        h.write_u16(self.rows.unwrap_or(0) as u16);
+    }
 }
 
 impl Field {
@@ -103,29 +149,31 @@ impl Field {
             drawn: None,
             overrides: BTreeMap::new(),
             ring: (0, 0),
-            stale: None,
+            spread: None,
         }
+    }
+
+    /// Whether an upload spread over frames is still in progress: the view is not all drawn
+    /// with the current map's tilesets yet.
+    pub fn uploading(&self) -> bool {
+        self.spread.is_some()
     }
 
     pub fn map(&self) -> MapId {
         self.map
     }
 
-    /// Whether the view still shows cells drawn from the map before a connection crossing
-    /// (redrawing it from the current map could differ until they scroll out).
+    /// Whether the view still shows cells drawn from the map before a connection crossing.
+    /// Never since Milestone 8 Task F: a crossing redraws the kept cells the new map draws
+    /// differently ([`Field::switch_map_enter`]), so the view is always the current map's.
     pub fn view_stale(&self) -> bool {
-        self.stale.is_some()
+        false
     }
 
-    /// The cells the view still shows from the map before a connection crossing, if any
-    /// (Milestone 8: hashed by `World::hash`; Task F makes them capturable).
+    /// The cells the view still shows from the map before a connection crossing: always `None`
+    /// (see [`Field::view_stale`]). Kept for `World::hash` and the snapshot's `stale`.
     pub fn stale(&self) -> Option<StaleRect> {
-        self.stale.map(|r| StaleRect {
-            x0: r.x0,
-            y0: r.y0,
-            x1: r.x1,
-            y1: r.y1,
-        })
+        None
     }
 
     /// Map pixel of the screen's top-left corner.
@@ -145,26 +193,79 @@ impl Field {
         camera_px: (i32, i32),
         f: &mut Frame,
     ) {
-        self.map = map;
-        self.overrides.clear();
-        for bg in FIELD_BGS {
-            f.cmds.push(Cmd::Bg {
-                layer: bg,
-                control: BgControl {
-                    enabled: true,
-                    priority: layout::BG_PRIORITY[bg as usize],
-                    char_block: layout::FIELD_CHAR_BLOCK,
-                    screen_block: layout::SCREEN_BLOCKS[bg as usize],
-                },
-            });
-        }
+        self.enter_spread(map, camera_px);
+        self.spread = None;
+        field_controls(f);
         let m = game.map(map);
         upload_primary(m.primary, f);
         upload_secondary(m.secondary, f);
+    }
+
+    /// [`Field::enter`] with the uploads spread over the next [`Field::set_camera`]s, for a
+    /// warp load while the screen is black (Gen3 `LoadMapInStepsLocal`): the controls and the
+    /// primary tiles, then the secondary tiles, then the palettes and the view, [`SPREAD_ROWS`]
+    /// rows a frame. Nothing is drawn before. [`Field::uploading`] until done.
+    pub fn enter_spread(&mut self, map: MapId, camera_px: (i32, i32)) {
+        self.map = map;
+        self.overrides.clear();
         self.camera_px = camera_px;
         self.drawn = None;
         self.ring = (0, 0);
-        self.stale = None;
+        self.spread = Some(Spread {
+            controls: true,
+            primary: Some(0),
+            secondary: Some(0),
+            palettes: (true, true),
+            budget: SPREAD_TILES_BLACK,
+            rows: None,
+        });
+    }
+
+    /// Sends the next uploads of the spread `s` (see [`Spread`]): the controls and tiles, or once
+    /// they are all in, the palettes, starting the redraw at the top row of `view`.
+    fn send_part(&self, game: &impl GameData, mut s: Spread, view: Rect, f: &mut Frame) -> Spread {
+        if s.rows.is_some() {
+            return s;
+        }
+        let m = game.map(self.map);
+        if s.controls {
+            field_controls(f);
+            s.controls = false;
+        }
+        let mut left = s.budget;
+        let mut sent = false;
+        for (next, ts, first) in [
+            (&mut s.primary, m.primary, 0),
+            (&mut s.secondary, m.secondary, TILES_IN_PRIMARY),
+        ] {
+            let Some(at) = *next else { continue };
+            if left == 0 {
+                break;
+            }
+            let end = tile_count(ts).min(at.saturating_add(left));
+            if end > at {
+                f.cmds.push(Cmd::BgTiles {
+                    char_block: layout::FIELD_CHAR_BLOCK,
+                    first: first + at,
+                    tiles: &ts.tiles[at as usize..end as usize],
+                });
+                left -= end - at;
+                sent = true;
+            }
+            *next = (end < tile_count(ts)).then_some(end);
+        }
+        if sent || s.primary.is_some() || s.secondary.is_some() {
+            return s;
+        }
+        if s.palettes.0 {
+            primary_palettes(m.primary, f);
+        }
+        if s.palettes.1 {
+            secondary_palettes(m.secondary, f);
+        }
+        s.palettes = (false, false);
+        s.rows = Some(view.y0);
+        s
     }
 
     /// Re-uploads the current map's tilesets and palettes and BG1–BG3 controls, and invalidates
@@ -183,6 +284,20 @@ impl Field {
         self.overrides = overrides;
     }
 
+    /// [`Field::restore`] with the uploads spread over the next [`Field::set_camera`]s, as
+    /// [`Field::enter_spread`]: for a caller that keeps the screen black while
+    /// [`Field::uploading`] (a battle's return to the field; Milestone 8 Task F).
+    pub fn restore_spread(&mut self) {
+        let (camera, ring, overrides) = (
+            self.camera_px,
+            self.ring,
+            core::mem::take(&mut self.overrides),
+        );
+        self.enter_spread(self.map, camera);
+        self.ring = ring;
+        self.overrides = overrides;
+    }
+
     /// [`Field::enter`] then [`Field::redraw`].
     pub fn load(&mut self, game: &impl GameData, map: MapId, camera_px: (i32, i32), f: &mut Frame) {
         self.enter(game, map, camera_px, f);
@@ -194,10 +309,21 @@ impl Field {
     pub fn set_camera(&mut self, game: &impl GameData, camera_px: (i32, i32), f: &mut Frame) {
         self.camera_px = camera_px;
         let view = Rect::view(camera_px);
-        let old = self.drawn;
-        if old.is_none() || self.stale.is_some_and(|r| !r.overlaps(view)) {
-            self.stale = None;
+        if let Some(s) = self.spread {
+            let s = self.send_part(game, s, view, f);
+            self.spread = Some(s);
+            if self.drawn.is_none() && s.black() {
+                if s.rows.is_none() {
+                    // A warp load: nothing is drawn before its tiles are in.
+                    f.bulk = true;
+                    self.set_scroll(f);
+                    return;
+                }
+                // Its rows are drawn below, a few per frame.
+                self.drawn = Some(view);
+            }
         }
+        let old = self.drawn;
         let mut cells = Vec::new();
         for y in view.y0..=view.y1 {
             for x in view.x0..=view.x1 {
@@ -213,6 +339,21 @@ impl Field {
         }
         self.draw_cells(game, &cells, f);
         self.drawn = Some(view);
+        if let Some(s) = self.spread
+            && let Some(y) = s.rows
+        {
+            // The view's next rows, drawn with the new tiles and palettes.
+            let end = y.saturating_add(SPREAD_ROWS).min(view.y1 + 1);
+            let cells: Vec<(i16, i16)> = (y.max(view.y0)..end)
+                .flat_map(|y| (view.x0..=view.x1).map(move |x| (x, y)))
+                .collect();
+            self.draw_cells(game, &cells, f);
+            f.bulk |= s.black();
+            self.spread = (end <= view.y1).then_some(Spread {
+                rows: Some(end),
+                ..s
+            });
+        }
         self.set_scroll(f);
     }
 
@@ -247,11 +388,21 @@ impl Field {
 
     /// Seamless switch to a connected map: the caller has moved the player across the edge. A
     /// cell at old coordinates (x, y) has new coordinates (x + shift.0, y + shift.1); the camera
-    /// and the ring origin move with it, so the cells already drawn stay drawn. Clears overrides
-    /// (cells drawn with one keep it until redrawn, as Gen3). Re-uploads a tileset (tiles and
-    /// palettes) only if it differs; then the view is invalidated and the next
-    /// [`Field::set_camera`] redraws it whole (Gen3 keeps the stale entries). Follow with on-load
-    /// `set_block`s, then [`Field::set_camera`].
+    /// and the ring origin move with it, so the cells already drawn stay drawn. Clears overrides.
+    /// Follow with on-load `set_block`s, then [`Field::set_camera`].
+    ///
+    /// Gen3 keeps every drawn entry, so the old map's border and `setmetatile` overrides stay on
+    /// screen until they scroll out. Here the kept cells whose metatile differs from what the
+    /// new map draws there are redrawn at once (Milestone 8 Task F): the view is then always the
+    /// current map's, so a crossing frame is capturable and a restore redraws the same picture.
+    ///
+    /// Into other tilesets, the tilesets that differ are uploaded over the next frames,
+    /// [`SPREAD_TILES_VISIBLE`] tiles per frame, then their palettes, and the view is redrawn
+    /// with them, [`SPREAD_ROWS`] rows per frame ([`Field::uploading`] until then; cells coming
+    /// into view meanwhile are drawn as usual, and the rows not redrawn yet show the old map's
+    /// entries over the new tiles for those few frames). Gen3 uploads the secondary tileset at
+    /// once (`CopySecondaryTilesetToVramUsingHeap`), over a vblank's budget here, and keeps
+    /// the old entries until they scroll out.
     ///
     /// Tileset identity is pointer identity (`ptr::eq`), so tilesets must be `static`s shared by
     /// the maps that use them.
@@ -263,14 +414,32 @@ impl Field {
         f: &mut Frame,
     ) {
         let (old, new) = (game.map(self.map), game.map(to));
-        let mut same = true;
-        if !core::ptr::eq(old.primary, new.primary) {
-            upload_primary(new.primary, f);
-            same = false;
-        }
-        if !core::ptr::eq(old.secondary, new.secondary) {
-            upload_secondary(new.secondary, f);
-            same = false;
+        let primary = !core::ptr::eq(old.primary, new.primary);
+        let secondary = !core::ptr::eq(old.secondary, new.secondary);
+        // Without a spread (which redraws the whole view), the kept cells that differ.
+        let differ = match self.drawn {
+            Some(r) if !primary && !secondary && self.spread.is_none() => {
+                self.kept_cells_to_redraw(game, to, shift, r)
+            }
+            _ => Vec::new(),
+        };
+        // A tileset still uploading restarts from its first tile.
+        let pending = self.spread.map_or((false, false), |s| {
+            (
+                s.primary.is_some() || s.palettes.0,
+                s.secondary.is_some() || s.palettes.1,
+            )
+        });
+        let (primary, secondary) = (primary || pending.0, secondary || pending.1);
+        if primary || secondary || self.spread.is_some() {
+            self.spread = Some(Spread {
+                controls: self.spread.is_some_and(|s| s.controls),
+                primary: primary.then_some(0),
+                secondary: secondary.then_some(0),
+                palettes: (primary, secondary),
+                budget: SPREAD_TILES_VISIBLE,
+                rows: None,
+            });
         }
         self.map = to;
         self.overrides.clear();
@@ -280,16 +449,13 @@ impl Field {
             (self.ring.0 - shift.0).rem_euclid(RING),
             (self.ring.1 - shift.1).rem_euclid(RING),
         );
-        self.drawn = match self.drawn {
-            Some(r) if same => Some(Rect {
-                x0: r.x0 + shift.0,
-                y0: r.y0 + shift.1,
-                x1: r.x1 + shift.0,
-                y1: r.y1 + shift.1,
-            }),
-            _ => None,
-        };
-        self.stale = self.drawn;
+        self.drawn = self.drawn.map(|r| Rect {
+            x0: r.x0 + shift.0,
+            y0: r.y0 + shift.1,
+            x1: r.x1 + shift.0,
+            y1: r.y1 + shift.1,
+        });
+        self.draw_cells(game, &differ, f);
     }
 
     /// [`Field::switch_map_enter`] then [`Field::redraw`].
@@ -332,6 +498,10 @@ impl Field {
             h.write_u16(y as u16);
             h.write_u16(b);
         }
+        // Only while an upload is spread, so the hash is unchanged otherwise.
+        if let Some(s) = &self.spread {
+            s.hash(h);
+        }
     }
 
     fn set_scroll(&self, f: &mut Frame) {
@@ -344,6 +514,58 @@ impl Field {
         }
     }
 
+    /// The cells of `kept` (drawn from the current map, old coordinates) that map `to` draws
+    /// with another metatile, in new coordinates. Before the switch: the current map is still
+    /// the old one, its overrides included. Only cells off the [`grid::Seam`] are compared, plus
+    /// the overrides on it, so a usual crossing compares a handful of cells.
+    fn kept_cells_to_redraw(
+        &self,
+        game: &impl GameData,
+        to: MapId,
+        shift: (i16, i16),
+        kept: Rect,
+    ) -> Vec<(i16, i16)> {
+        let new = game.map(to);
+        let mut differ = Vec::new();
+        let mut check = |x: i16, y: i16| {
+            let (nx, ny) = (x + shift.0, y + shift.1);
+            let drawn = block_metatile(self.block(game, x, y));
+            if drawn != block_metatile(grid::block_at(game, new, nx, ny)) {
+                differ.push((nx, ny));
+            }
+        };
+        let Some(seam) = grid::seam(game, self.map, to, shift) else {
+            for y in kept.y0..=kept.y1 {
+                for x in kept.x0..=kept.x1 {
+                    check(x, y);
+                }
+            }
+            return differ;
+        };
+        let on_seam = |x: i16, y: i16| {
+            let (a, b) = if seam.vertical { (x, y) } else { (y, x) };
+            (seam.along.0..seam.along.1).contains(&a) && (seam.across.0..seam.across.1).contains(&b)
+        };
+        for y in kept.y0..=kept.y1 {
+            // This row's cells on the seam (half-open, maybe empty), skipped.
+            let (s0, s1) = match seam.vertical {
+                true if (seam.across.0..seam.across.1).contains(&y) => seam.along,
+                false if (seam.along.0..seam.along.1).contains(&y) => seam.across,
+                _ => (0, 0),
+            };
+            let (s0, s1) = if s0 < s1 { (s0, s1) } else { (0, 0) };
+            for x in (kept.x0..s0.min(kept.x1 + 1)).chain(s1.max(kept.x0)..=kept.x1) {
+                check(x, y);
+            }
+        }
+        for &(x, y) in self.overrides.keys() {
+            if kept.contains(x, y) && on_seam(x, y) {
+                check(x, y);
+            }
+        }
+        differ
+    }
+
     /// Draws `cells` (at most one per ring slot) into the ring: per BG (top, middle, bottom), one
     /// `MapEntries` per contiguous run of entries, in tilemap order.
     fn draw_cells(&self, game: &impl GameData, cells: &[(i16, i16)], f: &mut Frame) {
@@ -351,46 +573,43 @@ impl Field {
             return;
         }
         let map = game.map(self.map);
-        // (tilemap row, tilemap column, entry per BG)
-        let mut entries: Vec<(u8, u8, [u16; 3])> = Vec::with_capacity(cells.len() * 4);
-        for &(x, y) in cells {
-            let [top, middle, bottom] = metatile_layers(map, self.block(game, x, y));
-            let (col, row) = (
-                2 * ((x + self.ring.0) & (RING - 1)) as u8,
-                2 * ((y + self.ring.1) & (RING - 1)) as u8,
-            );
-            for (k, ((t, m), b)) in top.into_iter().zip(middle).zip(bottom).enumerate() {
-                entries.push((row + k as u8 / 2, col + k as u8 % 2, [t, m, b]));
+        // (tilemap position, entry per BG), in tilemap order within each run of cells on one
+        // row (the callers give rows left to right): the cells' top tilemap row, then their
+        // bottom one. No sort: on the GBA, sorting and growing vectors cost most of a draw.
+        let mut entries: Vec<(u16, [u16; 3])> = alloc::vec![(0, [0; 3]); cells.len() * 4];
+        let mut base = 0;
+        for group in cells.chunk_by(|a, b| a.1 == b.1) {
+            let n = group.len();
+            for (i, &(x, y)) in group.iter().enumerate() {
+                let [top, middle, bottom] = metatile_layers(map, self.block(game, x, y));
+                let col = 2 * ((x + self.ring.0) & (RING - 1)) as u16;
+                let row = 2 * ((y + self.ring.1) & (RING - 1)) as u16;
+                for k in 0..4 {
+                    let at = base + (k / 2) * 2 * n + 2 * i + k % 2;
+                    let pos = (row + k as u16 / 2) * 32 + col + k as u16 % 2;
+                    entries[at] = (pos, [top[k], middle[k], bottom[k]]);
+                }
+            }
+            base += 4 * n;
+        }
+        // Runs contiguous in the tilemap, the same on each BG; each run's entries are allocated
+        // once, at their final size.
+        let mut runs: Vec<(usize, usize)> = Vec::with_capacity(entries.len());
+        let mut start = 0;
+        for k in 1..=entries.len() {
+            if k == entries.len() || entries[k].0 != entries[k - 1].0 + 1 {
+                runs.push((start, k));
+                start = k;
             }
         }
-        entries.sort_unstable_by_key(|&(r, c, _)| (r, c));
+        f.cmds.reserve(3 * runs.len());
         for (i, bg) in FIELD_BGS.into_iter().enumerate() {
             let screen_block = layout::SCREEN_BLOCKS[bg as usize];
-            let mut run: Option<(u16, Vec<u16>)> = None;
-            let mut next = u16::MAX;
-            for &(r, c, e) in &entries {
-                let pos = r as u16 * 32 + c as u16;
-                match &mut run {
-                    // Contiguous in the tilemap (may run on into the next row).
-                    Some((_, v)) if pos == next => v.push(e[i]),
-                    _ => {
-                        if let Some((start, v)) = run.take() {
-                            f.cmds.push(Cmd::MapEntries {
-                                screen_block,
-                                start,
-                                entries: v,
-                            });
-                        }
-                        run = Some((pos, alloc::vec![e[i]]));
-                    }
-                }
-                next = pos + 1;
-            }
-            if let Some((start, v)) = run {
+            for &(a, b) in &runs {
                 f.cmds.push(Cmd::MapEntries {
                     screen_block,
-                    start,
-                    entries: v,
+                    start: entries[a].0,
+                    entries: entries[a..b].iter().map(|e| e.1[i]).collect(),
                 });
             }
         }
@@ -427,6 +646,10 @@ pub fn metatile_layers(map: &MapData, block: u16) -> Layers {
 
 fn upload_primary(ts: &'static Tileset, f: &mut Frame) {
     upload_tiles(ts, 0, f);
+    primary_palettes(ts, f);
+}
+
+fn primary_palettes(ts: &'static Tileset, f: &mut Frame) {
     for bank in 0..PALS_IN_PRIMARY {
         if let Some(&p) = ts.palettes.get(bank) {
             let mut colors = p;
@@ -444,6 +667,10 @@ fn upload_primary(ts: &'static Tileset, f: &mut Frame) {
 
 fn upload_secondary(ts: &'static Tileset, f: &mut Frame) {
     upload_tiles(ts, TILES_IN_PRIMARY, f);
+    secondary_palettes(ts, f);
+}
+
+fn secondary_palettes(ts: &'static Tileset, f: &mut Frame) {
     for bank in PALS_IN_PRIMARY..PALS_TOTAL {
         if let Some(&colors) = ts.palettes.get(bank) {
             f.cmds.push(Cmd::BgPalette {
@@ -452,6 +679,26 @@ fn upload_secondary(ts: &'static Tileset, f: &mut Frame) {
             });
         }
     }
+}
+
+/// The BG1–BG3 controls of the field.
+fn field_controls(f: &mut Frame) {
+    for bg in FIELD_BGS {
+        f.cmds.push(Cmd::Bg {
+            layer: bg,
+            control: BgControl {
+                enabled: true,
+                priority: layout::BG_PRIORITY[bg as usize],
+                char_block: layout::FIELD_CHAR_BLOCK,
+                screen_block: layout::SCREEN_BLOCKS[bg as usize],
+            },
+        });
+    }
+}
+
+/// Tiles of `ts` that are uploaded (at most a tileset slot).
+fn tile_count(ts: &'static Tileset) -> u16 {
+    ts.tiles.len().min(TILES_IN_PRIMARY as usize) as u16
 }
 
 fn upload_tiles(ts: &'static Tileset, first: u16, f: &mut Frame) {

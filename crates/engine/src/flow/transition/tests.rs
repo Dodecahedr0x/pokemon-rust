@@ -71,6 +71,40 @@ fn plain_warp_fades_out_loads_once_and_fades_in() {
 }
 
 #[test]
+fn the_fade_in_waits_on_black_while_the_map_uploads() {
+    let mut t = Transition::new();
+    let mut f = Fader::new();
+    t.start(&Game, HOUSE, Some(1), -1, -1);
+    let mut steps = Vec::new();
+    // The upload takes three frames after the load frame.
+    let mut uploading: u32 = 0;
+    for _ in 0..200 {
+        let s = t.update_loading(&mut f, false, uploading > 0);
+        uploading = match s {
+            TransitionStep::Load(m, x, y) => {
+                t.arrive(behavior_at(&Game, Game.map(m), x, y));
+                3
+            }
+            _ => uploading.saturating_sub(1),
+        };
+        steps.push((s, f.level()));
+        if s == TransitionStep::Done {
+            break;
+        }
+    }
+    let load = (steps.iter())
+        .position(|s| matches!(s.0, TransitionStep::Load(..)))
+        .unwrap();
+    assert_eq!(
+        steps[load + 1..load + 4],
+        [(TransitionStep::Loading, FADE_MAX); 3]
+    );
+    assert_eq!(steps[load + 4].0, TransitionStep::FadingIn);
+    assert_eq!(steps.len(), 16 + 1 + 3 + 16);
+    assert_eq!(steps.last().unwrap(), &(TransitionStep::Done, 0));
+}
+
+#[test]
 fn door_destination_walks_out_south_hidden_during_fade_in() {
     let mut t = Transition::new();
     let mut f = Fader::new();
