@@ -34,11 +34,25 @@ pub enum Parent {
     Checkpoint(CheckpointId),
 }
 
-/// `frames` consecutive frames with `keys` held.
+/// `frames` consecutive frames with `keys` held. Serialized as a `(keys, frames)` tuple, so a
+/// pretty RON trace holds one run per line.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(from = "(Buttons, u32)", into = "(Buttons, u32)")]
 pub struct Run {
     pub keys: Buttons,
     pub frames: u32,
+}
+
+impl From<(Buttons, u32)> for Run {
+    fn from((keys, frames): (Buttons, u32)) -> Self {
+        Self { keys, frames }
+    }
+}
+
+impl From<Run> for (Buttons, u32) {
+    fn from(r: Run) -> Self {
+        (r.keys, r.frames)
+    }
 }
 
 /// Run-length encodes per-frame keys: no zero-length run, adjacent runs differ.
