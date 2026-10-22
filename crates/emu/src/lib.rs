@@ -80,6 +80,14 @@ const HW_NO_OVERRIDE: core::ffi::c_int = 0x8000;
 /// `GBA_IDLE_LOOP_NONE`.
 const IDLE_LOOP_NONE: u32 = 0xFFFF_FFFF;
 
+// The C layout: char[4], enum (int), int, uint32_t, bool + padding. The override below is
+// FLASH512, the 64 KiB chip `FLASH_SIZE` describes.
+const _: () = {
+    assert!(core::mem::size_of::<mgba_sys::GBASavedataType>() == 4);
+    assert!(core::mem::size_of::<GbaCartridgeOverride>() == 20);
+    assert!(FLASH_SIZE == 64 * 1024);
+};
+
 /// Private scratch directory removed on drop (errors ignored).
 struct ScratchDir(PathBuf);
 
@@ -167,22 +175,22 @@ impl Emu {
     }
 
     /// A copy of the cartridge's save memory (`FLASH_SIZE` bytes of flash).
-    pub fn save_data(&mut self) -> Vec<u8> {
+    pub fn save_data(&mut self) -> Result<Vec<u8>> {
         // SAFETY: savedataClone mallocs `len` bytes (or sets NULL and returns 0); they are
         // copied out, then freed with the same allocator.
         unsafe {
             let raw = self.core.raw_ptr();
-            let Some(clone) = (*raw).savedataClone else {
-                return Vec::new();
-            };
+            let clone = (*raw)
+                .savedataClone
+                .ok_or_else(|| anyhow!("no savedataClone"))?;
             let mut buf: *mut core::ffi::c_void = core::ptr::null_mut();
             let len = clone(raw, &mut buf);
             if buf.is_null() {
-                return Vec::new();
+                return Err(anyhow!("savedataClone returned no save data"));
             }
             let out = core::slice::from_raw_parts(buf as *const u8, len).to_vec();
             free(buf);
-            out
+            Ok(out)
         }
     }
 
@@ -310,14 +318,14 @@ pub struct RomRun {
     pub save: Vec<u8>,
 }
 
-/// [`run_rom_from`] on erased flash: a new game, `start == 0`.
+/// [`run_rom_from`] on erased flash: a new game, which must boot at frame 0.
 pub fn run_rom(
     rom: &Path,
     keys: impl Fn(u32) -> Buttons,
     total: u32,
     picture_frames: &[u32],
 ) -> Result<RomRun> {
-    run_rom_from(rom, None, keys, total, picture_frames)
+    run_rom_from(rom, None, Some(0), keys, total, picture_frames)
 }
 
 /// Emulator frames [`run_rom_from`] waits for the ROM to publish its boot state.
@@ -330,12 +338,14 @@ const BOOT_FRAMES: u32 = 120;
 /// `picture_frames` (the picture of step `frame - 1`, see `engine::debug`), which must lie in
 /// `start + 1..=total`.
 ///
-/// Fails if the ROM steps past a picture frame between two samples (two engine steps in one
+/// Fails if `expect_start` is given and the ROM booted at another frame (a restore run passes
+/// the checkpoint's frame), if the ROM steps past a picture frame between two samples (two engine steps in one
 /// emulator frame), reports a late frame apply (`DebugRegion::late`), runs more steps than the
 /// input ring holds between reads, or stops advancing.
 pub fn run_rom_from(
     rom: &Path,
     sav: Option<&[u8]>,
+    expect_start: Option<u32>,
     keys: impl Fn(u32) -> Buttons,
     total: u32,
     picture_frames: &[u32],
@@ -361,6 +371,14 @@ pub fn run_rom_from(
     }
     let boot = snap.clone();
     let start = snap.frame;
+    if let Some(want) = expect_start
+        && start != want
+    {
+        return Err(anyhow!(
+            "ROM booted at frame {start} (boot code {}), expected {want}",
+            snap.boot
+        ));
+    }
     if total < start {
         return Err(anyhow!("ROM booted at frame {start}, past {total}"));
     }
@@ -434,7 +452,7 @@ pub fn run_rom_from(
         late_black: snap.late_black,
         late_black_frames,
         boot,
-        save: emu.save_data(),
+        save: emu.save_data()?,
         end: snap,
     })
 }
@@ -504,7 +522,7 @@ mod tests {
         assert_eq!(listing(&emu._scratch.0), ["game.gba", "game.sav"]);
         // The whole image is loaded and read back.
         assert!(
-            emu.save_data() == sav,
+            emu.save_data().unwrap() == sav,
             "save data differs from the injected image"
         );
     }
@@ -513,7 +531,7 @@ mod tests {
     fn fresh_save_is_erased_flash() {
         let dir = ScratchDir::new().unwrap();
         let mut emu = Emu::open(&dummy_rom(&dir)).unwrap();
-        let data = emu.save_data();
+        let data = emu.save_data().unwrap();
         assert_eq!(data.len(), FLASH_SIZE);
         assert!(data.iter().all(|&b| b == 0xFF));
     }

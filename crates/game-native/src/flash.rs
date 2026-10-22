@@ -93,6 +93,9 @@ pub fn encode_sav(cp: &Checkpoint) -> Result<Vec<u8>, String> {
 }
 
 /// `sav` after the ROM booted on it and saved `cp` (`encode_sav` is this on erased flash).
+///
+/// Byte-identical to a ROM that booted on `sav` and saved once; several saves in one session
+/// may place sectors differently, so compare `decode_sav` content, not bytes.
 pub fn write_sav(sav: &[u8], cp: &Checkpoint) -> Result<Vec<u8>, String> {
     let (mut slots, flash) = open(sav)?;
     slots
@@ -237,6 +240,27 @@ mod tests {
         assert_eq!(sav.len(), FLASH_SIZE);
         let (meta, cp) = decode_sav(&sav).unwrap();
         assert_eq!((meta.frame, cp), (20, sample(20)));
+    }
+
+    #[test]
+    fn three_max_size_writes_fit() {
+        let big = |frame: u32| {
+            let mut cp = sample(frame);
+            let mut id = 0u16;
+            while postcard::to_allocvec(&cp).unwrap().len() < MAX_ENCODED - 16 {
+                cp.world.vars.flags.push(FlagId(id));
+                id += 1;
+            }
+            cp
+        };
+        let size = postcard::to_allocvec(&big(1)).unwrap().len();
+        assert!((MAX_ENCODED - 16..=MAX_ENCODED).contains(&size), "{size}");
+        let mut sav = encode_sav(&big(1)).unwrap();
+        for frame in [2, 3] {
+            sav = write_sav(&sav, &big(frame)).expect("no OutOfSpace");
+        }
+        let (meta, cp) = decode_sav(&sav).unwrap();
+        assert_eq!((meta.frame, cp), (3, big(3)));
     }
 
     #[test]
