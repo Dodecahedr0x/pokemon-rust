@@ -141,8 +141,6 @@ pub fn format_of(manifest: &Path) -> Option<u32> {
 
 /// Reads an extracted dir written by `cargo xtask extract` (plus Task B's scripts and texts
 /// when present).
-// `FORMAT_MINOR` is 0 until Milestone 8 Wave 1 bumps it.
-#[allow(clippy::absurd_extreme_comparisons)]
 pub fn load(dir: &Path) -> Result<World> {
     let manifest: Manifest = read_ron(&dir.join("manifest.ron"))?;
     ensure!(

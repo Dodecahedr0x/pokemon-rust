@@ -1,11 +1,33 @@
 use extract::export::{self, ExportOptions, SLICE_MAPS as MAPS};
 use extract::schema::{
-    BgKind, FontFile, Hex, Manifest, MapFile, SpriteFile, TilesetFile, WindowFile, from_rows,
+    BgKind, EncountersFile, FieldEffectSpriteFile, FontFile, Hex, LayoutFile, Manifest, MapFile,
+    ScriptIndex, SpriteFile, TextFile, TilesetFile, WindowFile, from_rows,
 };
-use extract::{fixtures, gfx, maps, names};
+use extract::{Rom, fixtures, gfx, maps, names, text};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+
+/// The layouts of the slice export: the 15 maps' and `LittlerootTown_ProfessorBirchsLabWithTable`
+/// (`setmaplayoutindex` in the lab's scripts).
+const SLICE_LAYOUTS: [&str; 16] = [
+    "LittlerootTown",
+    "Route101",
+    "OldaleTown",
+    "Route102",
+    "Route103",
+    "LittlerootTown_BrendansHouse_1F",
+    "LittlerootTown_BrendansHouse_2F",
+    "LittlerootTown_MaysHouse_1F",
+    "LittlerootTown_MaysHouse_2F",
+    "LittlerootTown_ProfessorBirchsLab",
+    "House1",
+    "House2",
+    "PokemonCenter_1F",
+    "PokemonCenter_2F",
+    "Mart",
+    "LittlerootTown_ProfessorBirchsLabWithTable",
+];
 
 /// A fresh, empty `export-<tag>` directory under cargo's integration-test tmp dir (in target/).
 fn temp_dir(tag: &str) -> PathBuf {
@@ -96,6 +118,24 @@ fn writes_current_format_tree() {
     }
     want.insert("scripts/legacy_index.ron".to_string());
     want.insert("text/fr.ron".to_string());
+    // The script IR (M8 Task B), whose contents tests/script_ir.rs checks.
+    want.insert("text/ir_fr.ron".to_string());
+    let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
+    want.insert("scripts/index.ron".to_string());
+    let modules = ix
+        .scripts
+        .values()
+        .map(|e| &e.module)
+        .chain(ix.movements.values());
+    want.extend(modules.map(|m| format!("scripts/{m}.ron")));
+    // Layouts: the slice maps' and the one Birch's lab switches to (`setmaplayoutindex`).
+    for layout in SLICE_LAYOUTS {
+        want.insert(format!("layouts/{layout}.ron"));
+    }
+    for emote in extract::sprites::EMOTES {
+        want.insert(format!("sprites/field_effects/{emote}.ron"));
+        want.insert(format!("sprites/field_effects/{emote}.png"));
+    }
     // C-side tables (M8 Task C), whose contents tests/tables.rs checks.
     want.extend(extract::export::tables::FILES.map(String::from));
     // Battle data (M4 Task A).
@@ -105,6 +145,8 @@ fn writes_current_format_tree() {
         "types",
         "trainers",
         "encounters",
+        "evolutions",
+        "trainer_money",
         "heal_locations",
         "strings",
     ] {
@@ -405,4 +447,332 @@ fn us_export_smoke() {
     let t: TilesetFile = export::read_tileset(&dir, "General").unwrap();
     assert!(!t.secondary);
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn default_export_is_the_slice_without_previews() {
+    let opts = ExportOptions::default();
+    assert_eq!(opts.maps, MAPS);
+    assert!(!opts.previews);
+    let all = ExportOptions::all(false).maps;
+    assert_eq!(all.len(), 518);
+    assert_eq!(all[0], names::MAPS[0].dir);
+}
+
+// ---- decomp oracles ----
+
+fn decomp_json(rel: &str) -> serde_json::Value {
+    let p = fixtures::decomp().join(rel);
+    let text = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+    serde_json::from_str(&text).unwrap()
+}
+
+/// Every `.inc` file under the decomp's `data/`.
+fn decomp_incs() -> Vec<String> {
+    let mut out = Vec::new();
+    let mut stack = vec![fixtures::decomp().join("data")];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "inc") {
+                out.push(std::fs::read_to_string(&path).unwrap());
+            }
+        }
+    }
+    out
+}
+
+/// The first operand of every `<macro> <operand>` line of the decomp's `.inc` files.
+fn inc_operands(incs: &[String], macro_name: &str) -> Vec<String> {
+    incs.iter()
+        .flat_map(|t| t.lines())
+        .filter_map(|l| {
+            let rest = l.trim().strip_prefix(macro_name)?.strip_prefix(' ')?;
+            Some(rest.split([',', ' ']).find(|w| !w.is_empty())?.to_string())
+        })
+        .collect()
+}
+
+/// `map.json` of a map directory.
+fn decomp_map(dir: &str) -> serde_json::Value {
+    decomp_json(&format!("data/maps/{dir}/map.json"))
+}
+
+/// `LAYOUT_*` -> (name, primary, secondary) from `layouts.json` (tilesets without `gTileset_`).
+fn decomp_layouts() -> BTreeMap<String, (String, String, String)> {
+    let ts = |v: &serde_json::Value| {
+        v.as_str()
+            .unwrap()
+            .trim_start_matches("gTileset_")
+            .to_string()
+    };
+    decomp_json("data/layouts/layouts.json")["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            let name = l["name"].as_str().unwrap().trim_end_matches("_Layout");
+            (
+                l["id"].as_str().unwrap().to_string(),
+                (
+                    name.to_string(),
+                    ts(&l["primary_tileset"]),
+                    ts(&l["secondary_tileset"]),
+                ),
+            )
+        })
+        .collect()
+}
+
+/// The sprite name (`OBJ_EVENT_GFX_*` without the prefix) of every non-VAR graphics id the decomp
+/// places on `maps`, plus the two players.
+fn decomp_placed_sprites(maps: &[&str]) -> BTreeSet<String> {
+    let mut out: BTreeSet<String> = export::PLAYER_SPRITES
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    for m in maps {
+        let map = decomp_map(m);
+        for o in map["object_events"].as_array().into_iter().flatten() {
+            out.insert(o["graphics_id"].as_str().unwrap().to_string());
+        }
+    }
+    out.into_iter()
+        .filter(|g| !g.starts_with("OBJ_EVENT_GFX_VAR_"))
+        .map(|g| g.strip_prefix("OBJ_EVENT_GFX_").unwrap().to_string())
+        .collect()
+}
+
+/// The sprite names `setvar VAR_OBJ_GFX_ID_<n>, OBJ_EVENT_GFX_<NAME>` lines of `inc` set.
+fn setvar_gfx(inc: &str) -> BTreeSet<String> {
+    inc.lines()
+        .filter_map(|l| {
+            let rest = l.trim().strip_prefix("setvar VAR_OBJ_GFX_ID_")?;
+            let gfx = rest.split(',').nth(1)?.trim();
+            Some(gfx.strip_prefix("OBJ_EVENT_GFX_")?.to_string())
+        })
+        .collect()
+}
+
+/// Files under `prefix` in the manifest, without `prefix` and `suffix`.
+fn manifest_names(m: &Manifest, prefix: &str, suffix: &str) -> BTreeSet<String> {
+    m.files
+        .keys()
+        .filter_map(|f| f.strip_prefix(prefix)?.strip_suffix(suffix))
+        .filter(|f| !f.contains('/'))
+        .map(String::from)
+        .collect()
+}
+
+#[test]
+fn map_subset_exports_exactly_what_its_maps_reference() {
+    let maps = ["LittlerootTown", "Route101"];
+    let dir = temp_dir("subset");
+    let opts = ExportOptions {
+        maps: maps.to_vec(),
+        previews: false,
+    };
+    let m = export::export(&fixtures::us(), &dir, &opts).unwrap();
+    assert_eq!(m.maps, maps);
+    assert_eq!(
+        manifest_names(&m, "maps/", ".ron"),
+        BTreeSet::from(maps.map(String::from))
+    );
+    let layouts = decomp_layouts();
+    let used: Vec<&(String, String, String)> = maps
+        .iter()
+        .map(|d| &layouts[decomp_map(d)["layout"].as_str().unwrap()])
+        .collect();
+    assert_eq!(
+        manifest_names(&m, "layouts/", ".ron"),
+        used.iter().map(|l| l.0.clone()).collect()
+    );
+    let tilesets: BTreeSet<String> = used
+        .iter()
+        .flat_map(|l| [l.1.clone(), l.2.clone()])
+        .collect();
+    assert_eq!(
+        m.tilesets.iter().cloned().collect::<BTreeSet<_>>(),
+        tilesets
+    );
+    assert_eq!(manifest_names(&m, "tilesets/", ".ron"), tilesets);
+    // Placed graphics, the players, and what Littleroot's `OBJ_EVENT_GFX_VAR_0` resolves to: the
+    // `setvar VAR_OBJ_GFX_ID_*` values of `Common_EventScript_SetupRivalGfxId` and its two
+    // branches (the start of `rival_graphics.inc`), which Littleroot's scripts call.
+    let inc = |rel: &str| std::fs::read_to_string(fixtures::decomp().join(rel)).unwrap();
+    assert!(
+        inc("data/maps/LittlerootTown/scripts.inc")
+            .contains("call Common_EventScript_SetupRivalGfxId")
+    );
+    let rival = inc("data/scripts/rival_graphics.inc");
+    let rival = rival
+        .split("Common_EventScript_SetupRivalOnBikeGfxId::")
+        .next()
+        .unwrap();
+    let mut sprites = decomp_placed_sprites(&maps);
+    sprites.extend(setvar_gfx(rival));
+    assert_eq!(sprites.len(), 13);
+    assert_eq!(m.sprites.iter().cloned().collect::<BTreeSet<_>>(), sprites);
+    assert_eq!(manifest_names(&m, "sprites/", ".ron"), sprites);
+    assert!(manifest_names(&m, "previews/", ".png").is_empty());
+    let enc: EncountersFile = export::read_ron(&dir.join("battle/encounters.ron")).unwrap();
+    assert_eq!(enc.maps.keys().collect::<Vec<_>>(), ["Route101"]);
+    // Warps and connections name only exported maps.
+    for name in maps {
+        let f = export::read_map(&dir, name).unwrap();
+        for w in &f.warps {
+            assert!(
+                w.dest_map.as_deref().is_none_or(|d| maps.contains(&d)),
+                "{name}"
+            );
+        }
+        for c in &f.connections {
+            assert!(c.map.as_deref().is_none_or(|d| maps.contains(&d)), "{name}");
+        }
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn field_effect_emotes_are_written() {
+    let (dir, m) = fr_export();
+    for emote in extract::sprites::EMOTES {
+        let f: FieldEffectSpriteFile =
+            export::read_ron(&dir.join(format!("sprites/field_effects/{emote}.ron"))).unwrap();
+        assert_eq!(
+            (f.name.as_str(), f.width, f.height, f.frames),
+            (emote, 16, 16, 1)
+        );
+        let (w, h, pal) = png_info(&dir.join(format!("sprites/field_effects/{emote}.png")));
+        assert_eq!((w, h), (16, 16));
+        assert_eq!(pal, f.palette.map(via_png));
+        assert!(
+            m.provenance
+                .contains_key(&format!("sprite/field_effects/{emote}"))
+        );
+    }
+}
+
+#[test]
+fn slice_layouts_match_their_maps() {
+    let (dir, _) = fr_export();
+    for (map, layout) in MAPS.iter().zip(SLICE_LAYOUTS) {
+        let f: LayoutFile = export::read_ron(&dir.join(format!("layouts/{layout}.ron"))).unwrap();
+        assert_eq!(
+            f.layout,
+            export::read_map(dir, map).unwrap().layout,
+            "{map}"
+        );
+    }
+    let lab: LayoutFile =
+        export::read_ron(&dir.join(format!("layouts/{}.ron", SLICE_LAYOUTS[15]))).unwrap();
+    assert_eq!(
+        lab.id,
+        "LAYOUT_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB_WITH_TABLE"
+    );
+}
+
+/// Checks a `--maps all` export of `rom` in `dir` against the decomp.
+fn check_full_export(rom: &Rom, dir: &Path, m: &Manifest) {
+    let all: Vec<String> = names::MAPS.iter().map(|n| n.dir.to_string()).collect();
+    assert_eq!(m.maps, all);
+    assert_eq!(manifest_names(m, "maps/", ".ron").len(), 518);
+    // Layouts: every map's, and every `setmaplayoutindex` target.
+    let layouts = decomp_layouts();
+    let mut want: BTreeSet<String> = all
+        .iter()
+        .map(|d| layouts[decomp_map(d)["layout"].as_str().unwrap()].0.clone())
+        .collect();
+    let incs = decomp_incs();
+    for id in inc_operands(&incs, "setmaplayoutindex") {
+        want.insert(layouts[&id].0.clone());
+    }
+    assert_eq!(manifest_names(m, "layouts/", ".ron"), want);
+    assert_eq!(want.len(), 418);
+    let mut tilesets = BTreeSet::new();
+    for name in &want {
+        let f: LayoutFile = export::read_ron(&dir.join(format!("layouts/{name}.ron"))).unwrap();
+        let (_, p, s) = &layouts[&f.id];
+        assert_eq!((&f.layout.primary, &f.layout.secondary), (p, s), "{name}");
+        tilesets.extend([p.clone(), s.clone()]);
+    }
+    // The tilesets of those layouts: 73 of the 75 headers.
+    assert_eq!(
+        m.tilesets.iter().cloned().collect::<BTreeSet<_>>(),
+        tilesets
+    );
+    assert_eq!(manifest_names(m, "tilesets/", ".ron"), tilesets);
+    assert_eq!(tilesets.len(), 73);
+    // Sprites: every placed graphics id, every `setvar VAR_OBJ_GFX_ID_*` value and the players.
+    let mut sprites = decomp_placed_sprites(&names::MAPS.iter().map(|n| n.dir).collect::<Vec<_>>());
+    for inc in &incs {
+        sprites.extend(setvar_gfx(inc));
+    }
+    assert_eq!(sprites.len(), 156);
+    assert_eq!(m.sprites.iter().cloned().collect::<BTreeSet<_>>(), sprites);
+    assert_eq!(manifest_names(m, "sprites/", ".ron"), sprites);
+    assert_eq!(
+        manifest_names(m, "sprites/field_effects/", ".ron").len(),
+        extract::sprites::EMOTES.len()
+    );
+    assert!(manifest_names(m, "previews/", ".png").is_empty());
+    // Connections always name an exported map; warps too, except `MAP_DYNAMIC` ones.
+    let mut dynamic = 0;
+    for name in &all {
+        let f = export::read_map(dir, name).unwrap();
+        for c in &f.connections {
+            assert!(
+                c.map.as_ref().is_some_and(|d| all.contains(d)),
+                "{name}: {c:?}"
+            );
+        }
+        for w in &f.warps {
+            match &w.dest_map {
+                Some(d) => assert!(all.contains(d), "{name}: {w:?}"),
+                None => {
+                    assert_eq!(w.dest_map_id, "127.127", "{name}: {w:?}");
+                    dynamic += 1;
+                }
+            }
+        }
+    }
+    assert!(dynamic > 0, "MAP_DYNAMIC warps are exported as such");
+    let enc: EncountersFile = export::read_ron(&dir.join("battle/encounters.ron")).unwrap();
+    assert_eq!(enc.maps["AlteringCave"].len(), 9);
+    // Every exported string re-encodes to bytes that decode back to it. A weaker check than
+    // matching the ROM bytes: the manifest has no per-string offset, and the string extractors'
+    // own tests (Tasks B and C) compare against the ROM.
+    let lang = rom.lang();
+    let texts: TextFile = export::read_ron(&dir.join(format!("text/{}.ron", lang.code()))).unwrap();
+    assert!(texts.len() > 5000, "{}", texts.len());
+    for (name, s) in &texts {
+        let bytes = text::encode_lang(s, lang).unwrap_or_else(|e| panic!("{name}: {e:#}"));
+        assert_eq!(&text::decode_lang(&bytes, lang).unwrap().0, s, "{name}");
+    }
+}
+
+/// Every map on both ROMs, twice on BPEF (byte-identical manifests). About a minute in debug:
+/// run by `cargo xtask sweep` (Milestone 8 Task L), or with `--ignored`.
+#[test]
+#[ignore = "exports all 518 maps three times; run by `cargo xtask sweep`"]
+fn full_export_matches_decomp_and_is_deterministic() {
+    let mut fr_files = None;
+    for (tag, rom) in [
+        ("full-fr", fixtures::fr()),
+        ("full-us", fixtures::us()),
+        ("full-fr2", fixtures::fr()),
+    ] {
+        let dir = temp_dir(tag);
+        let m = export::export(&rom, &dir, &ExportOptions::all(false)).unwrap();
+        check_full_export(&rom, &dir, &m);
+        if rom.lang().code() == "fr" {
+            match &fr_files {
+                None => fr_files = Some(m.files.clone()),
+                Some(files) => assert_eq!(&m.files, files, "two exports differ"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
