@@ -1120,8 +1120,9 @@ mod lowering {
             "ctx.move_obj(2, &N_Movement_Walk).await; // applymovementat",
             "ctx.remove_object(ctx.var(VAR_LAST_TALKED).await as u8).await;",
             "ctx.show_object(PLAYER).await; // showobjectat",
-            "ctx.set_movement_type(2, MovementType::Face(Dir::Left)).await;",
-            "ctx.set_movement_type(2, MovementType::Wander).await;",
+            // The constant name: content maps it once (`classify::movement`).
+            "ctx.set_movement_type(2, MOVEMENT_TYPE_FACE_LEFT).await;",
+            "ctx.set_movement_type(2, MOVEMENT_TYPE_WALK_SEQUENCE_UP_RIGHT_LEFT_DOWN).await;",
             "ctx.set_cond(if ctx.flag(trainer_flag(TRAINER_CALVIN_1)).await { Ordering::Equal } else { Ordering::Less });",
             "ctx.set_flag(trainer_flag(TrainerId(ctx.var(VAR_0x8004).await)), true).await;",
             "ctx.message(N_Text_Hello).await; // messageinstant",
@@ -1408,6 +1409,12 @@ mod lowering {
             s += &format!("pub const {}: MapId = MapId({id:#x});\n", m.constant);
         }
         s += "pub const MAP_DYNAMIC: MapId = MapId(0x7f7f);\n";
+        // Content defines each from `classify::movement`; any value type-checks here.
+        for (_, n) in names::MOVEMENT_TYPES.iter() {
+            if codegen::is_ident(n) && seen.insert(n.to_string()) {
+                s += &format!("pub const {n}: MovementType = MovementType::Wander;\n");
+            }
+        }
         for (i, k) in texts.enumerate() {
             s += &format!("pub const {k}: TextId = TextId({i});\n");
         }

@@ -40,7 +40,9 @@ pub mod samples;
 /// text, named after its key.
 #[allow(non_upper_case_globals, dead_code, unused_imports)]
 pub mod consts {
-    use engine::data::{FlagId, MapId, MoveId, SpeciesId, TextId, TrainerId, VarId};
+    use engine::data::{
+        Dir, FlagId, MapId, MoveId, MovementType, SpeciesId, TextId, TrainerId, VarId,
+    };
     include!(concat!(env!("OUT_DIR"), "/consts.rs"));
 }
 

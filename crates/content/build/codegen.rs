@@ -138,6 +138,11 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
     for (v, n) in entries(&names::OBJ_EVENT_GFX) {
         c(&mut o, n, "u16", format!("{v:#X}"))?;
     }
+    // `MOVEMENT_TYPE_*` as the engine's `MovementType`: the one mapping (`classify::movement`)
+    // of both object templates and the lowered `setobjectmovementtype` (Task D2).
+    for (_, n) in entries(&names::MOVEMENT_TYPES) {
+        c(&mut o, n, "MovementType", classify::movement(n).0)?;
+    }
     for (v, n) in entries(&names::ITEMS) {
         c(&mut o, n, "u16", format!("{v:#X}"))?;
     }

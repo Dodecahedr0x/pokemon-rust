@@ -544,7 +544,8 @@ impl<'a> Low<'a> {
         let mut specials = BTreeSet::new();
         for l in &self.labs {
             for i in l.insns {
-                if !self.support.commands.contains_key(&i.op) {
+                // `unknown` (an invalid opcode, Task B) is no command: it lowers to a report.
+                if i.op != "unknown" && !self.support.commands.contains_key(&i.op) {
                     ops.insert(i.op.clone());
                 }
                 if let Some(s) = special_of(i)

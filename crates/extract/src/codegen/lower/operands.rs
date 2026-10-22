@@ -307,54 +307,16 @@ pub(super) fn dir(d: u8) -> Option<&'static str> {
     })
 }
 
-/// `MOVEMENT_TYPE_*` as an `engine::data::MovementType` expression: exact where the engine has
-/// the type, else the nearest (as `content/build/classify.rs` does for templates).
+/// `MOVEMENT_TYPE_*` as its constant name: the content crate defines each one as an
+/// `engine::data::MovementType` (`content/build/classify/field.rs` `movement`, the single
+/// mapping shared with the object templates).
 pub(super) fn movement_type(a: &IrArg) -> Option<String> {
     let name = match a {
-        IrArg::Const { name, .. } => name.clone(),
-        a => names::MOVEMENT_TYPES.name(u8_lit(a)?.into())?.to_string(),
+        IrArg::Const { name, .. } => name.as_str(),
+        a => names::MOVEMENT_TYPES.name(u8_lit(a)?.into())?,
     };
-    let t = name.strip_prefix("MOVEMENT_TYPE_")?;
-    let compass = |s: &str| {
-        Some(match s {
-            "DOWN" => "Dir::Down",
-            "UP" => "Dir::Up",
-            "LEFT" => "Dir::Left",
-            "RIGHT" => "Dir::Right",
-            _ => return None,
-        })
-    };
-    if let Some(d) = t.strip_prefix("FACE_").and_then(compass) {
-        return Some(format!("MovementType::Face({d})"));
-    }
-    for p in [
-        "WALK_IN_PLACE_",
-        "JOG_IN_PLACE_",
-        "RUN_IN_PLACE_",
-        "WALK_SLOWLY_IN_PLACE_",
-    ] {
-        if let Some(d) = t.strip_prefix(p).and_then(compass) {
-            return Some(format!("MovementType::WalkInPlace({d})"));
-        }
-    }
-    Some(
-        match t {
-            "LOOK_AROUND" => "LookAround",
-            "WANDER_AROUND" => "Wander",
-            "WANDER_UP_AND_DOWN" | "WANDER_DOWN_AND_UP" | "WALK_UP_AND_DOWN"
-            | "WALK_DOWN_AND_UP" => "WanderVertical",
-            "WANDER_LEFT_AND_RIGHT"
-            | "WANDER_RIGHT_AND_LEFT"
-            | "WALK_LEFT_AND_RIGHT"
-            | "WALK_RIGHT_AND_LEFT" => "WanderHorizontal",
-            "INVISIBLE" => "Invisible",
-            _ if t.starts_with("WALK_SEQUENCE_") => "Wander",
-            _ if t.starts_with("FACE_") || t.starts_with("ROTATE_") => "LookAround",
-            _ => "Face(Dir::Down)",
-        }
-        .to_string(),
-    )
-    .map(|v| format!("MovementType::{v}"))
+    names::MOVEMENT_TYPES.value(name)?;
+    Some(name.to_string())
 }
 
 /// The `Step` of a `MOVEMENT_ACTION_*` name, if the engine has one.

@@ -656,7 +656,11 @@ impl<'a> Low<'a> {
                     }
                     "buffermovename" => move_arg(v).map(|m| format!("Move({m})")),
                     "buffernumberstring" => {
-                        u16_expr(v, true).map(|n| format!("Number(u32::from({n}))"))
+                        // A literal is untyped (`u32::from(10)` would infer `i32`).
+                        u16_expr(v, true).map(|n| match n.parse::<u32>() {
+                            Ok(n) => format!("Number({n})"),
+                            Err(_) => format!("Number(u32::from({n}))"),
+                        })
                     }
                     "bufferstdstring" => u16_expr(v, true).map(|n| format!("Std({})", as_u8(&n))),
                     _ => match v {
