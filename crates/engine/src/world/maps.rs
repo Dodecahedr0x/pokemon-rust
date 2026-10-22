@@ -22,20 +22,25 @@ pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u
 }
 
 impl World {
-    /// Starts a warp through `map.warps[i]`; a warp to a map the game lacks is logged and ignored.
+    /// Starts a warp through `map.warps[i]`. A destination map the game lacks is Gen3's
+    /// `MAP_DYNAMIC` (the only warp target that is not a map): the warp goes to the dynamic
+    /// slot (`SetWarpDestinationToDynamicWarp`), and is logged and ignored while that is unset
+    /// or itself missing.
     pub(super) fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
         let w = &map.warps[i];
-        if !game.has_map(w.dest_map) {
-            self.s.log("warp to a missing map ignored");
-            return;
-        }
+        let (dest, warp, x, y) = match self.s.warp_slots.dynamic {
+            _ if game.has_map(w.dest_map) => (w.dest_map, Some(w.dest_warp), -1, -1),
+            Some(d) if game.has_map(d.map) => (d.map, d.warp, d.x, d.y),
+            _ => {
+                self.s.log("warp to a missing map ignored");
+                return;
+            }
+        };
         let s = &mut self.s;
         if door {
-            s.transition
-                .start_door(game, w.dest_map, Some(w.dest_warp), -1, -1);
+            s.transition.start_door(game, dest, warp, x, y);
         } else {
-            s.transition
-                .start(game, w.dest_map, Some(w.dest_warp), -1, -1);
+            s.transition.start(game, dest, warp, x, y);
         }
         s.objects.freeze_all();
     }
