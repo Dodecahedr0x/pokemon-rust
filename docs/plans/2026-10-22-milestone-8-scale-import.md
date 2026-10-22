@@ -534,6 +534,32 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
    - a fixture dir with 2 maps sharing a tileset dedupes it in the blob;
    - stub mode unchanged.
 
+**Task E as built.**
+- **Full extract (Task A's 518 maps), native debug build of `content`.** Apple M4 Max, loaded machine, so the times are upper bounds.
+  - Data only (the full extract without `scripts/`): 3.6 s and 0.65 GB peak RSS. `data.rs` is 1.58 MB (it was 11.7 MB), `data.bin` 2.67 MB, `battle.rs` 1.1 MB, `battle.bin` 1.97 MB. The data acceptance (≤ 2 MB, ≤ 20 s, ≤ 2.5 GB) is met.
+  - Data plus the legacy scripts: 33.6–38.0 s and **4.50–4.56 GB, still over the 4 GB gate** (the spike measured 4.89 GB). The remaining ~3.9 GB is the 5.7 MB of legacy generated scripts. **Open: D2's lowering and L close it.**
+  - For L: the same build with `profile.dev.package.content.debug = "line-tables-only"` (workspace `Cargo.toml`, not E's) peaks at 4.00 GB.
+- **GBA release on the full extract:** 3 min 37 s wall (116 s user, on a loaded machine), 3.74 GB peak RSS, ROM 10,961,640 B.
+- **Slice ROM:** 3,481,496 B (from 1,761,240), because every species and trainer pic is now compiled (`content::battle` `.rodata` 2.05 MB). The ROM is not gated on the slice; IWRAM and EWRAM are unchanged (788 / 460). Parity: identical, route hash 63 / loop 215.
+- **Degradations, all in `content::REPORT`:**
+  - 5 moves with unworded stat effects are `MoveEffect::Unsupported`;
+  - 194 moves have unsupported effects, and 62 abilities are `Ability::Other`;
+  - a species without pics has `gfx: None`, and a trainer without a pic or party has no `TrainerData`;
+  - 217 behaviours are approximated (`classify::behavior_class`); `MB_UNUSED_*` count as exact;
+  - the approximated movement types are listed.
+- **Digests:**
+  - `MAP_DIGESTS` hash a map's inputs: its map file, its tilesets, and its connected maps' layouts and tilesets.
+  - `GLOBAL_DIGEST` hashes:
+    - the generator and every content source (`codegen::sources_digest`: non-test `src/`, `build/`, `build/support/*.ron`, `extract/src`);
+    - the battle module and blob, and the texts;
+    - C's tables and the emotes;
+    - the object sprites, font, window, UI texts and new-game start;
+    - the behaviour table.
+- **Follow-ups:**
+  - `SpeciesInfo.weight` waits for G (TODO in `build/battle.rs`);
+  - `classify::extra_move_flags` waits for G;
+  - J/H: in the find-item test, `VAR_RESULT` becomes 0.
+
 ### Task F — engine: field at scale
 
 **Owns:** `crates/engine/src/{field.rs, field/*, flow/transition.rs, flow/trigger.rs, grid.rs, world/maps.rs, world/checkpoint.rs, world/host/warps.rs}`, `crates/engine/src/objects/spawn.rs` (every template-spawning function and the `view_moved` hook, see the engine contracts; I owns the rest of `objects`), `crates/engine/src/world/tests/m8_f.rs`, and their tests. Route-changing; merges last of the ordered merges.

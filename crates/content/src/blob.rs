@@ -1,6 +1,8 @@
-//! The generated battle blob (`$OUT_DIR/battle.bin`, `include_bytes!`d): tiles, palettes,
-//! tilemaps and glyphs, each 4-aligned, sliced into `'static` tables at compile time. Large
-//! data as bytes keeps the generated Rust small (and compiles much faster than literals).
+//! The generated blobs (`include_bytes!`d): `$OUT_DIR/battle.bin` (battle tiles, palettes,
+//! tilemaps, glyphs, pics) and `$OUT_DIR/data.bin` (map blocks, tilesets, sprite frames, the
+//! font, the window and text bytes), each item 4-aligned, sliced into `'static` tables at
+//! compile time (`build/blob_data.rs` writes them). Large data as bytes keeps the generated Rust
+//! small: it compiles much faster, in much less memory, than literals.
 
 use engine::Tile;
 
@@ -39,6 +41,14 @@ impl<const N: usize> Blob<N> {
     }
 
     pub const fn glyphs(&'static self, at: usize, n: usize) -> &'static [[u8; 64]] {
+        self.at(at, n)
+    }
+
+    pub const fn metatiles(&'static self, at: usize, n: usize) -> &'static [[u16; 8]] {
+        self.at(at, n)
+    }
+
+    pub const fn bytes(&'static self, at: usize, n: usize) -> &'static [u8] {
         self.at(at, n)
     }
 }
