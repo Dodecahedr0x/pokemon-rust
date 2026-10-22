@@ -84,7 +84,7 @@ type Live<G> = (Session<G>, Box<dyn StepObserver<G>>);
 
 impl<G: GameData + Clone> Sim<'_, G> {
     fn session(&mut self, start: Option<&Checkpoint>) -> Result<Live<G>, Stop> {
-        let probe = self.game.clone();
+        let game = self.game.clone();
         // A panic while building the world is a finding on the start map (the new game's for `World::new`, as `findings::reproduce` expects).
         // The tail is the job's steps so far (empty for the job's own start), as `finding`.
         let tail = rle(self.res.steps.iter().flat_map(|st| runs::keys(&st.inputs)));
@@ -104,11 +104,11 @@ impl<G: GameData + Clone> Sim<'_, G> {
         let s = match start {
             Some(cp) => {
                 let at = (cp.world.field.map, cp.world.objects.objs[0].pos);
-                guard::catch(|| Session::restore(probe, cp))
+                guard::catch(|| Session::restore(game, cp))
                     .map_err(|p| panicked(p, at.0, at.1))?
                     .map_err(|e| Stop::Pruned(format!("restore failed: {e:?}")))?
             }
-            None => guard::catch(|| Session::new(probe)).map_err(|p| {
+            None => guard::catch(|| Session::new(game)).map_err(|p| {
                 let ng = self.game.new_game();
                 panicked(p, ng.map, (ng.x, ng.y))
             })?,

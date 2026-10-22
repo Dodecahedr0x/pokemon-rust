@@ -175,7 +175,10 @@ pub struct Explore<G> {
 pub struct GenOutcome {
     pub generation: u32,
     pub stats: GenStats,
+    /// Finding rows raised, the report-only ones included.
     pub findings: u32,
+    /// Of `findings`, the report-only ones (`FindingKind::report_only`).
+    pub reports: u32,
     /// The most goals reached by a node this generation inserted (0 if none).
     pub max_progress: u32,
     /// Host time per phase (report-only, never in the db).
@@ -209,7 +212,10 @@ pub struct RunSummary {
     pub nodes: u64,
     /// Frames run, the softlock probes' included.
     pub frames: u64,
+    /// Findings raised, the report-only ones included.
     pub findings: u64,
+    /// Of `findings`, the report-only ones (`FindingKind::report_only`).
+    pub reports: u64,
     /// `SlowFrame`s seen (report-only, `Expanded::slow`).
     pub slow_frames: u64,
     /// Expansion notes (`Expanded::notes`, e.g. the `Cross` fallback talks).
@@ -400,6 +406,11 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             generation: delta.generation,
             stats: delta.stats,
             findings: delta.findings.len() as u32,
+            reports: delta
+                .findings
+                .iter()
+                .filter(|f| f.0.kind.report_only())
+                .count() as u32,
             max_progress: delta.nodes.iter().map(|n| n.progress).max().unwrap_or(0),
             phases,
         }))
@@ -423,6 +434,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             sum.nodes += u64::from(g.stats.inserted);
             sum.frames += g.stats.frames + g.stats.probe_frames;
             sum.findings += u64::from(g.findings);
+            sum.reports += u64::from(g.reports);
             sum.slow_frames += u64::from(g.stats.slow_frames);
             sum.notes += u64::from(g.stats.notes);
             sum.phases += g.phases;

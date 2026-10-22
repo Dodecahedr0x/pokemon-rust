@@ -2,13 +2,12 @@
 //! flavor (stub or extracted).
 
 use content::Emerald;
-use engine::battle::{self, BattleGfx};
 use engine::checkpoint::{Checkpoint, state_digest};
 use engine::data::{
-    BLOCK_ELEVATION_SHIFT, Behavior, Dir, Font, GameData, GfxId, MapData, MapId, MapScripts,
-    NewGame, ObjectEvent, ScriptId, SpecialIds, SpriteData, TextId, TrainerId, UiText, WindowGfx,
+    BLOCK_ELEVATION_SHIFT, Behavior, Dir, GameData, MapData, MapId, MapScripts, ObjectEvent,
+    ScriptId,
 };
-use engine::mon::{BattleTables, LandEncounters, TrainerData};
+use engine::mon::LandEncounters;
 use engine::script::{Ctx, Script};
 use engine::{Buttons, World};
 use explore::config::{Config, DetectConfig, Limits};
@@ -344,15 +343,15 @@ fn next_dir_heads_for_the_target() {
 /// The content build's game with faults: a panicking encounter table read (the stub's first
 /// step), a panicking script start (the new game's, inside `World::new`), or a patched map.
 #[derive(Clone, Copy)]
-struct Fake {
-    inner: Emerald,
+struct Fake<G = Emerald> {
+    inner: G,
     panic_encounters: bool,
     panic_scripts: bool,
     patch: Option<(MapId, &'static MapData)>,
 }
 
 impl Fake {
-    fn new() -> Fake {
+    fn new() -> Self {
         Fake {
             inner: Emerald::for_shells(),
             panic_encounters: false,
@@ -395,69 +394,44 @@ impl Fake {
     }
 }
 
-impl GameData for Fake {
+impl<G: GameData> GameData for Fake<G> {
+    explore::forward_game_data!(inner; has_map special_ids sprite player_sprite font window
+        text ui_text behavior new_game build_id battle trainer battle_text battle_gfx
+        heal_location m8);
+
     fn map(&self, id: MapId) -> &'static MapData {
         match self.patch {
             Some((p, data)) if p == id => data,
             _ => self.inner.map(id),
         }
     }
-    fn has_map(&self, id: MapId) -> bool {
-        self.inner.has_map(id)
-    }
-    fn special_ids(&self) -> SpecialIds {
-        self.inner.special_ids()
-    }
-    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
-        self.inner.sprite(gfx)
-    }
-    fn player_sprite(&self) -> &'static SpriteData {
-        self.inner.player_sprite()
-    }
-    fn font(&self) -> &'static Font {
-        self.inner.font()
-    }
-    fn window(&self) -> &'static WindowGfx {
-        self.inner.window()
-    }
-    fn text(&self, id: TextId) -> &'static [u8] {
-        self.inner.text(id)
-    }
-    fn ui_text(&self, t: UiText) -> &'static [u8] {
-        self.inner.ui_text(t)
-    }
-    fn behavior(&self, raw: u8) -> Behavior {
-        self.inner.behavior(raw)
-    }
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         assert!(!self.panic_scripts, "script started");
         self.inner.script(id, ctx)
-    }
-    fn new_game(&self) -> NewGame {
-        self.inner.new_game()
-    }
-    fn build_id(&self) -> u64 {
-        self.inner.build_id()
-    }
-    fn battle(&self) -> &'static BattleTables {
-        self.inner.battle()
     }
     fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
         assert!(!self.panic_encounters, "encounter table read");
         self.inner.encounters(map)
     }
-    fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
-        self.inner.trainer(id)
+    /// What the engine reads: panics like [`Fake::encounters`].
+    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+        assert!(!self.panic_encounters, "encounter table read");
+        self.inner.wild_encounters(map, wild_set)
     }
-    fn battle_text(&self, s: battle::Str) -> &'static [u8] {
-        self.inner.battle_text(s)
-    }
-    fn battle_gfx(&self) -> &'static BattleGfx {
-        self.inner.battle_gfx()
-    }
-    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
-        self.inner.heal_location(id)
-    }
+}
+
+#[test]
+fn the_fake_answers_every_provided_method_like_its_inner_game() {
+    let inner = explore::testing::Answers {
+        inner: Emerald::for_shells(),
+    };
+    let fake = Fake {
+        inner,
+        panic_encounters: false,
+        panic_scripts: false,
+        patch: None,
+    };
+    assert_eq!(explore::testing::same_answers(&fake, &inner), Ok(()));
 }
 
 #[test]

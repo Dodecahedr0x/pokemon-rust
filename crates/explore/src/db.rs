@@ -692,6 +692,20 @@ impl Db {
     }
 
     /// Id ascending.
+    /// Report-only finding rows (`FindingKind::report_only`), counted apart from the bugs.
+    pub fn report_count(&self) -> Result<u64, DbError> {
+        let kinds = FINDING_KINDS.into_iter().filter(|k| k.report_only());
+        let mut n = 0;
+        for k in kinds {
+            n += self.conn.query_row(
+                "SELECT COUNT(*) FROM finding WHERE kind = ?1",
+                [kind_str(k)],
+                |r| r.get::<_, i64>(0),
+            )? as u64;
+        }
+        Ok(n)
+    }
+
     pub fn findings(&self) -> Result<Vec<FindingRow>, DbError> {
         self.query_findings("", [])
     }
@@ -1065,6 +1079,7 @@ pub struct DbStats {
     pub stale: u64,
     pub merged: u64,
     pub broken: u64,
+    /// Every finding row, the report-only ones included ([`Db::report_count`]).
     pub findings: u64,
     pub maps: u32,
     pub cells: u64,

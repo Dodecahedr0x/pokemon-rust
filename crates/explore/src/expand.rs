@@ -60,6 +60,9 @@ pub struct Reported {
     pub report: Report,
     /// The expansion's frames up to and including the reporting one.
     pub frames: u32,
+    /// `World::map()` after the reporting frame: a report raised on a warp frame (a map
+    /// script of the destination, or the warping script itself) is attributed to the map the
+    /// player is on after the warp.
     pub map: MapId,
     pub pos: (i16, i16),
     /// The last script started by then (in this expansion).
@@ -216,6 +219,8 @@ struct Driver<'a, G: GameData> {
     summary: SimSummary,
     last_script: Option<ScriptId>,
     reports: Vec<Reported>,
+    /// New (report, map) pairs past [`MAX_REPORTS`], not kept.
+    reports_dropped: u32,
     /// `World::events_dropped` at the start.
     dropped_start: u32,
     /// The battle's outcome from `Event::BattleEnded`, until the tracker finishes.
@@ -267,6 +272,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             summary: SimSummary::default(),
             last_script: None,
             reports: Vec::new(),
+            reports_dropped: 0,
             dropped_start,
             ended: None,
             last: Buttons::NONE,
@@ -301,6 +307,12 @@ impl<'a, G: GameData> Driver<'a, G> {
             .wrapping_sub(self.dropped_start);
         if dropped > 0 {
             notes.push(format!("{dropped} engine events dropped (EVENTS_MAX)"));
+        }
+        if self.reports_dropped > 0 {
+            notes.push(format!(
+                "{} script reports dropped (MAX_REPORTS)",
+                self.reports_dropped
+            ));
         }
         Expanded {
             keys: self.keys,
@@ -412,7 +424,9 @@ impl<'a, G: GameData> Driver<'a, G> {
                         .reports
                         .iter()
                         .any(|r| r.report == report && r.map == map);
-                    if new && self.reports.len() < MAX_REPORTS {
+                    if new && self.reports.len() >= MAX_REPORTS {
+                        self.reports_dropped += 1;
+                    } else if new {
                         self.reports.push(Reported {
                             report,
                             frames: self.keys.len() as u32,

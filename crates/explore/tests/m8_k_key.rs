@@ -34,6 +34,36 @@ fn the_key_version_is_3() {
 }
 
 #[test]
+fn the_key_items_digest_is_stable() {
+    // Pinned: part of the key fold (key version 3). An unsorted bag with other pockets, an
+    // empty slot and a duplicate: only the key items' sorted, distinct ids count.
+    let slot = |pocket, index, item, qty| BagSlotSnap {
+        pocket,
+        index,
+        item: ItemId(item),
+        qty,
+    };
+    let bag = engine::checkpoint::BagSnap {
+        slots: vec![
+            slot(Pocket::Items, 0, 0x000D, 3),
+            slot(Pocket::KeyItems, 0, 0x0110, 1),
+            slot(Pocket::KeyItems, 1, 0x0105, 1),
+            slot(Pocket::KeyItems, 2, 0x0107, 0),
+            slot(Pocket::KeyItems, 3, 0x0105, 1),
+            slot(Pocket::PokeBalls, 0, 0x0004, 5),
+        ],
+    };
+    assert_eq!(key_items_digest(&bag), 0x89d1_c97b_d01a_7c7c);
+    let clean = engine::checkpoint::BagSnap {
+        slots: vec![
+            slot(Pocket::KeyItems, 0, 0x0105, 1),
+            slot(Pocket::KeyItems, 1, 0x0110, 1),
+        ],
+    };
+    assert_eq!(key_items_digest(&clean), key_items_digest(&bag));
+}
+
+#[test]
 fn key_items_are_in_the_key_in_any_order_other_pockets_are_not() {
     let a = snap();
     let slot = |pocket, index, item| BagSlotSnap {

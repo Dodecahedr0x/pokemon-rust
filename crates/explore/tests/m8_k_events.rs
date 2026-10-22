@@ -1,123 +1,32 @@
 //! Milestone 8 Task K phase 2: the explorer reads the engine's events (`World::events`), not a
 //! `GameData` wrapper. `Unsupported` findings come from script reports, the stuck and
-//! round-trip signatures carry the last script, and every test wrapper forwards the Milestone
-//! 8 `GameData` methods.
+//! round-trip signatures carry the last script, and every test wrapper forwards every provided
+//! `GameData` method.
 
 use content::Emerald;
-use engine::battle;
-use engine::data::{
-    Behavior, Emote, EvoMethod, Evolution, FlagId, Font, GameData, GfxId, ItemId, ItemInfo,
-    MapData, MapId, NewGame, Pocket, ScriptId, SpeciesId, SpriteData, TextId, TrainerId, UiText,
-    WindowGfx,
-};
-use engine::mon::{LandEncounters, WildMon};
-use engine::script::{Ctx, Script};
+use engine::data::{GameData, MapId, ScriptId};
+use engine::script::{Ctx, Report, Script};
 use explore::FindingKind;
-use explore::config::{Budget, Config};
-use explore::findings::{signature, signature_of};
-use explore::model::FindingDraft;
+use explore::config::{Budget, Config, Limits};
+use explore::expand;
+use explore::findings::{self, signature, signature_of};
+use explore::model::{FindingDraft, Macro, MacroKind, Opts};
+use explore::observe::NoObserver;
+use explore::policy::Policy;
 use explore::testing::{
-    DRIFT_CALLS, Drifting, FadeTrap, GrassPocket, INJECTED_REPORT, PanicOnScript, Rebuilt,
-    Reporting, WallAround, same_answers,
+    Answers, DRIFT_CALLS, Drifting, FADE_TRAP_SCRIPT, FadeTrap, GrassPocket, INJECTED_REPORT,
+    PanicOnScript, Rebuilt, Reporting, WallAround, same_answers,
 };
 use explore::wire::{self, Explore};
+use game_native::Session;
 use std::collections::BTreeSet;
-
-static LAND: LandEncounters = LandEncounters {
-    rate: 7,
-    mons: [WildMon {
-        species: SpeciesId(1),
-        min_level: 2,
-        max_level: 3,
-    }; 12],
-};
-static ITEM: ItemInfo = ItemInfo {
-    name: &[0xBB, 0xFF],
-    pocket: Pocket::KeyItems,
-    price: 5,
-    key: true,
-};
-static CHOICES: [&[u8]; 2] = [&[0xBB, 0xFF], &[0xBC, 0xFF]];
-static EVOS: [Evolution; 1] = [Evolution {
-    method: EvoMethod::Level,
-    param: 16,
-    target: SpeciesId(2),
-}];
-
-/// Emerald with an answer of its own for every Milestone 8 method.
-#[derive(Clone, Copy)]
-struct Answers(Emerald);
-
-impl GameData for Answers {
-    fn map(&self, id: MapId) -> &'static MapData {
-        self.0.map(id)
-    }
-    fn has_map(&self, id: MapId) -> bool {
-        self.0.has_map(id)
-    }
-    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
-        self.0.sprite(gfx)
-    }
-    fn player_sprite(&self) -> &'static SpriteData {
-        self.0.player_sprite()
-    }
-    fn font(&self) -> &'static Font {
-        self.0.font()
-    }
-    fn window(&self) -> &'static WindowGfx {
-        self.0.window()
-    }
-    fn text(&self, id: TextId) -> &'static [u8] {
-        self.0.text(id)
-    }
-    fn ui_text(&self, t: UiText) -> &'static [u8] {
-        self.0.ui_text(t)
-    }
-    fn behavior(&self, raw: u8) -> Behavior {
-        self.0.behavior(raw)
-    }
-    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
-        self.0.script(id, ctx)
-    }
-    fn new_game(&self) -> NewGame {
-        self.0.new_game()
-    }
-    fn battle_text(&self, s: battle::Str) -> &'static [u8] {
-        self.0.battle_text(s)
-    }
-    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
-        if wild_set == 1 {
-            Some(&LAND)
-        } else {
-            self.0.wild_encounters(map, wild_set)
-        }
-    }
-    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
-        (id == ItemId(0x105)).then_some(&ITEM)
-    }
-    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
-        (list == 3).then_some(&CHOICES[..])
-    }
-    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
-        (id == 4).then_some(&[0xBD, 0xFF][..])
-    }
-    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
-        (script == ScriptId(6)).then_some(FlagId(0x500))
-    }
-    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
-        (e == Emote::Heart).then(|| self.0.player_sprite())
-    }
-    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
-        (id == TrainerId(7)).then_some(9)
-    }
-    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
-        if species == SpeciesId(8) { &EVOS } else { &[] }
-    }
-}
+use std::path::Path;
 
 #[test]
-fn every_wrapper_answers_the_milestone_8_methods_like_its_inner_game() {
-    let inner = Answers(Emerald::for_shells());
+fn every_wrapper_answers_every_provided_method_like_its_inner_game() {
+    let inner = Answers {
+        inner: Emerald::for_shells(),
+    };
     assert!(
         same_answers(&Emerald::for_shells(), &inner).is_err(),
         "the fixture answers on its own"
@@ -175,7 +84,13 @@ fn every_wrapper_answers_the_milestone_8_methods_like_its_inner_game() {
         ),
         (
             "Rebuilt",
-            same_answers(&Rebuilt { inner, build_id: 5 }, &inner),
+            same_answers(
+                &Rebuilt {
+                    inner,
+                    build_id: inner.build_id(),
+                },
+                &inner,
+            ),
         ),
         ("Reporting", same_answers(&Reporting { inner }, &inner)),
         ("itself", same_answers(&inner, &inner)),
@@ -224,19 +139,33 @@ fn stuck_and_round_trip_signatures_carry_the_last_script() {
     );
 }
 
+fn config(threads: usize) -> Config {
+    Config {
+        threads,
+        batch: 0,
+        ..Config::default()
+    }
+}
+
+/// `generations` generations of `game` on a fresh db at `path`.
+fn explore<G: GameData + Clone + Send + Sync + 'static>(
+    game: G,
+    path: &Path,
+    threads: usize,
+    generations: u32,
+) -> Explore<G> {
+    let mut ex = Explore::open(game, path, config(threads)).unwrap();
+    ex.run(Budget::Generations(generations), |_| {}).unwrap();
+    ex
+}
+
 #[test]
 fn unsupported_findings_come_from_script_reports_and_reproduce() {
     let dir = tempfile::tempdir().unwrap();
     let game = Reporting {
         inner: Emerald::for_shells(),
     };
-    let cfg = Config {
-        threads: 2,
-        batch: 0,
-        ..Config::default()
-    };
-    let mut ex = Explore::open(game, &dir.path().join("explore.db"), cfg).unwrap();
-    ex.run(Budget::Generations(2), |_| {}).unwrap();
+    let ex = explore(game, &dir.path().join("t2.db"), 2, 2);
     let fs: Vec<_> = ex
         .db
         .findings()
@@ -245,6 +174,7 @@ fn unsupported_findings_come_from_script_reports_and_reproduce() {
         .filter(|f| f.kind == FindingKind::Unsupported)
         .collect();
     assert!(!fs.is_empty(), "the new game's script reports");
+    assert_eq!(ex.db.report_count().unwrap(), fs.len() as u64);
     let mut maps = BTreeSet::new();
     for f in &fs {
         assert_eq!(f.message, format!("unsupported: {INJECTED_REPORT}"));
@@ -261,4 +191,138 @@ fn unsupported_findings_come_from_script_reports_and_reproduce() {
     }
     // The run goes on: report-only findings never stop a job.
     assert!(ex.stats().unwrap().nodes > 1);
+    // And they are deterministic like the rest of the db.
+    let one = explore(game, &dir.path().join("t1.db"), 1, 2);
+    assert_eq!(
+        one.db.content_digest().unwrap(),
+        ex.db.content_digest().unwrap()
+    );
+}
+
+/// The new game's script reports [`NAMES`] (more than `expand::MAX_REPORTS`) on its first
+/// frame.
+#[derive(Clone, Copy)]
+struct ManyReports<G> {
+    inner: G,
+}
+
+const NAMES: [&str; 20] = [
+    "special A",
+    "special B",
+    "special C",
+    "special D",
+    "special E",
+    "special F",
+    "special G",
+    "special H",
+    "special I",
+    "special J",
+    "special K",
+    "special L",
+    "special M",
+    "special N",
+    "special O",
+    "special P",
+    "special Q",
+    "special R",
+    "special S",
+    "special T",
+];
+
+impl<G: GameData> GameData for ManyReports<G> {
+    explore::forward_game_data!(inner; map has_map special_ids sprite player_sprite font window
+        text ui_text behavior new_game build_id battle encounters trainer battle_text battle_gfx
+        heal_location wild_encounters m8);
+
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        let inner = self.inner.script(id, ctx.clone());
+        if id != content::NEW_GAME_SCRIPT {
+            return inner;
+        }
+        Box::pin(async move {
+            for name in NAMES {
+                ctx.report(Report::Unsupported(name)).await;
+            }
+            inner.await;
+        })
+    }
+}
+
+#[test]
+fn reports_past_max_reports_are_counted_in_a_note() {
+    let game = ManyReports {
+        inner: Emerald::for_shells(),
+    };
+    let mut s = Session::new(game);
+    let settle = Macro {
+        kind: MacroKind::Settle,
+        opts: Opts::default(),
+    };
+    let ex = match expand::expand(
+        &mut s,
+        &settle,
+        &mut Policy::new(),
+        &mut NoObserver,
+        &Limits::default(),
+    ) {
+        Ok(ex) => ex,
+        Err((e, _)) => panic!("{e:?}"),
+    };
+    assert_eq!(ex.reports.len(), expand::MAX_REPORTS);
+    let dropped = NAMES.len() - expand::MAX_REPORTS;
+    assert!(
+        ex.notes
+            .contains(&format!("{dropped} script reports dropped (MAX_REPORTS)")),
+        "{:?}",
+        ex.notes
+    );
+}
+
+/// A walkable neighbour of the new game's cell.
+fn trap_cell(game: &impl GameData) -> (i16, i16) {
+    let ng = game.new_game();
+    let m = game.map(ng.map);
+    [(0, 1), (-1, 0), (1, 0), (0, -1)]
+        .into_iter()
+        .map(|(dx, dy)| (ng.x + dx, ng.y + dy))
+        .find(|&(x, y)| {
+            x >= 0
+                && y >= 0
+                && x < m.width as i16
+                && y < m.height as i16
+                && engine::data::block_collision(
+                    m.blocks[y as usize * m.width as usize + x as usize],
+                ) == 0
+        })
+        .expect("a walkable neighbour")
+}
+
+#[test]
+fn a_fade_trap_is_a_capturable_stuck_finding_signed_with_its_script() {
+    if !content::STUB {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let inner = Emerald::for_shells();
+    let game = FadeTrap {
+        inner,
+        map: inner.new_game().map,
+        at: trap_cell(&inner),
+    };
+    let ex = explore(game, &dir.path().join("explore.db"), 2, 3);
+    let fs = ex.db.findings().unwrap();
+    let f = fs
+        .iter()
+        .find(|f| f.kind == FindingKind::CapturableStuck)
+        .unwrap_or_else(|| panic!("a CapturableStuck row: {fs:?}"));
+    assert_eq!(f.script, Some(FADE_TRAP_SCRIPT));
+    wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
+        .unwrap()
+        .unwrap();
+    // The same row without its script is another signature: it does not reproduce.
+    let (row, trace) = wire::finding_trace(&game, &ex.db, f.id, 0).unwrap();
+    let mut want = wire::draft_of(&row);
+    findings::reproduce(&game, &trace, &want, &ex.cfg.detect).unwrap();
+    want.script = None;
+    assert!(findings::reproduce(&game, &trace, &want, &ex.cfg.detect).is_err());
 }

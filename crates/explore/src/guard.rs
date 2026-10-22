@@ -78,13 +78,7 @@ pub fn step_guarded<G: GameData>(s: &mut Session<G>, keys: Buttons) -> Result<()
 mod tests {
     use super::*;
     use content::Emerald;
-    use engine::battle::{self, BattleGfx};
-    use engine::data::{
-        Behavior, Emote, Evolution, FlagId, Font, GfxId, ItemId, ItemInfo, MapData, MapId, NewGame,
-        ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText, WindowGfx,
-    };
-    use engine::mon::{BattleTables, LandEncounters, TrainerData};
-    use engine::script::{Ctx, Script};
+    use engine::data::{MapData, MapId};
 
     #[test]
     fn catches_message_and_location() {
@@ -115,98 +109,27 @@ mod tests {
     }
 
     /// Panics in `map` once armed (the engine reads the map every frame).
-    struct Armed(Emerald, Cell<bool>);
+    struct Armed<G>(G, Cell<bool>);
 
-    impl GameData for Armed {
+    impl<G: GameData> GameData for Armed<G> {
+        crate::forward_game_data!(0; has_map special_ids sprite player_sprite font window text
+            ui_text behavior script new_game build_id battle encounters trainer battle_text
+            battle_gfx heal_location wild_encounters m8);
+
         fn map(&self, id: MapId) -> &'static MapData {
             assert!(!self.1.get(), "armed map read");
             self.0.map(id)
         }
-        fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
-            self.0.sprite(gfx)
-        }
-        fn player_sprite(&self) -> &'static SpriteData {
-            self.0.player_sprite()
-        }
-        fn font(&self) -> &'static Font {
-            self.0.font()
-        }
-        fn window(&self) -> &'static WindowGfx {
-            self.0.window()
-        }
-        fn text(&self, id: TextId) -> &'static [u8] {
-            self.0.text(id)
-        }
-        fn ui_text(&self, t: UiText) -> &'static [u8] {
-            self.0.ui_text(t)
-        }
-        fn behavior(&self, raw: u8) -> Behavior {
-            self.0.behavior(raw)
-        }
-        fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
-            self.0.script(id, ctx)
-        }
-        fn new_game(&self) -> NewGame {
-            self.0.new_game()
-        }
-        fn has_map(&self, id: MapId) -> bool {
-            self.0.has_map(id)
-        }
-        fn special_ids(&self) -> SpecialIds {
-            self.0.special_ids()
-        }
-        fn build_id(&self) -> u64 {
-            self.0.build_id()
-        }
-        fn battle(&self) -> &'static BattleTables {
-            self.0.battle()
-        }
-        fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-            self.0.encounters(map)
-        }
-        fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
-            self.0.trainer(id)
-        }
-        fn battle_text(&self, s: battle::Str) -> &'static [u8] {
-            self.0.battle_text(s)
-        }
-        fn battle_gfx(&self) -> &'static BattleGfx {
-            self.0.battle_gfx()
-        }
-        fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
-            self.0.heal_location(id)
-        }
-        fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
-            self.0.wild_encounters(map, wild_set)
-        }
-        fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
-            self.0.item(id)
-        }
-        fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
-            self.0.multichoice(list)
-        }
-        fn std_string(&self, id: u8) -> Option<&'static [u8]> {
-            self.0.std_string(id)
-        }
-        fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
-            self.0.trainer_flag_of(script)
-        }
-        fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
-            self.0.emote(e)
-        }
-        fn trainer_money(&self, id: TrainerId) -> Option<u8> {
-            self.0.trainer_money(id)
-        }
-        fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
-            self.0.evolutions(species)
-        }
     }
 
     #[test]
-    fn armed_answers_the_milestone_8_methods_like_emerald() {
-        let g = Emerald::for_shells();
+    fn armed_answers_every_provided_method_like_its_inner_game() {
+        let inner = crate::testing::Answers {
+            inner: Emerald::for_shells(),
+        };
+        assert!(crate::testing::same_answers(&Emerald::for_shells(), &inner).is_err());
         assert_eq!(
-            crate::testing::same_answers(&Armed(g, Cell::new(false)), &g),
+            crate::testing::same_answers(&Armed(inner, Cell::new(false)), &inner),
             Ok(())
         );
     }

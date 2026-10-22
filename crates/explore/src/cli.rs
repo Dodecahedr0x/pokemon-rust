@@ -27,7 +27,8 @@ usage: explore <command> [--db <path>] [--config <path>]
       local saves over it); an existing db keeps its own root and refuses another;
       --act: the goal list (default act1, which begins with the slice's; a db keeps its own)
   status                      db totals, goals, seed and build
-  findings [--all]            open findings (--all: stale and gone ones too)
+  findings [--all] [--bugs]   open findings (--all: stale and gone ones too; --bugs: without
+                              the report-only ones, `Unsupported`)
   show <id>                   one finding in full
   export <id> [--before N] [--out <path>]
                               the finding as a trace (RON) from the db's root start, N frames
@@ -88,8 +89,9 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
         }
         "findings" => {
             let all = a.flag("--all");
+            let bugs = a.flag("--bugs");
             a.done()?;
-            list_findings(&db_path, all)
+            list_findings(&db_path, all, bugs)
         }
         "show" => {
             let id = a.id()?;
@@ -255,7 +257,7 @@ struct Args {
 
 impl Args {
     fn parse(args: Vec<String>) -> anyhow::Result<Args> {
-        const SWITCHES: [&str; 2] = ["--all", "--yes"];
+        const SWITCHES: [&str; 3] = ["--all", "--bugs", "--yes"];
         let mut a = Args {
             positional: Vec::new(),
             options: Vec::new(),
@@ -419,11 +421,12 @@ fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Res
     );
     // `gens` counts the db's generations (1-based); inserted/s and frames/s are this run's
     // (frames include the softlock probes').
-    let line = |s: &DbStats, sum: &wire::RunSummary| {
+    // Findings are the bugs; the report-only ones (`Unsupported`) are counted apart.
+    let line = |s: &DbStats, reports: u64, sum: &wire::RunSummary| {
         let secs = sum.wall.as_secs_f64().max(1e-9);
         println!(
             "gens {:>5}  valid nodes {:>7}  inserted/s {:>7.1}  frames/s {:>9.0}  goals {}  maps {}  \
-             cells {}  findings {}",
+             cells {}  findings {}  reports {reports}",
             s.generation + 1,
             s.valid,
             sum.nodes as f64 / secs,
@@ -431,7 +434,7 @@ fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Res
             goal_text(act, s.max_progress),
             s.maps,
             s.cells,
-            s.findings
+            s.findings - reports
         );
     };
     // Goals first reached in this run, with the generation and the run's wall time.
@@ -449,19 +452,23 @@ fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Res
         }
         if p.summary.generations.is_multiple_of(10)
             && let Ok(s) = p.db.stats()
+            && let Ok(reports) = p.db.report_count()
         {
-            line(&s, p.summary);
+            line(&s, reports, p.summary);
         }
     })?;
     if !sum.generations.is_multiple_of(10) {
-        line(&ex.stats()?, &sum);
+        line(&ex.stats()?, ex.db.report_count()?, &sum);
     }
     println!(
-        "{} generations, {} nodes inserted, {} frames in {:.1} s; {} slow frames, {} notes{}",
+        "{} generations, {} nodes inserted, {} frames in {:.1} s; {} findings raised ({} \
+         report-only), {} slow frames, {} notes{}",
         sum.generations,
         sum.nodes,
         sum.frames,
         sum.wall.as_secs_f64(),
+        sum.findings,
+        sum.reports,
         sum.slow_frames,
         sum.notes,
         if sum.stalled { " (stalled)" } else { "" }
@@ -514,9 +521,12 @@ fn status(db_path: &Path) -> anyhow::Result<()> {
             100.0 * f64::from(s.scripts) / names as f64
         )
     };
+    let reports = db.report_count()?;
     println!(
-        "maps {}  cells {}  scripts {scripts}  findings {}",
-        s.maps, s.cells, s.findings
+        "maps {}  cells {}  scripts {scripts}  findings {}  reports {reports}",
+        s.maps,
+        s.cells,
+        s.findings - reports
     );
     println!(
         "seed {}  build {:?}",
@@ -540,12 +550,13 @@ fn finding_line(f: &FindingRow) -> String {
     )
 }
 
-fn list_findings(db_path: &Path, all: bool) -> anyhow::Result<()> {
+fn list_findings(db_path: &Path, all: bool, bugs: bool) -> anyhow::Result<()> {
     let db = Db::open_read_only(db_path)?;
     let mut fs: Vec<FindingRow> = db
         .findings()?
         .into_iter()
         .filter(|f| all || f.status == "open")
+        .filter(|f| !bugs || !f.kind.report_only())
         .collect();
     fs.sort_by(|a, b| b.hits.cmp(&a.hits).then(a.id.cmp(&b.id)));
     if fs.is_empty() {

@@ -249,6 +249,14 @@ pub enum FindingKind {
     Unsupported,
 }
 
+impl FindingKind {
+    /// Whether rows of this kind are reports, not bugs: they never stop a job, and progress
+    /// and `explore findings --bugs` count them apart. (`SlowFrame`s never become rows.)
+    pub fn report_only(self) -> bool {
+        matches!(self, FindingKind::Unsupported)
+    }
+}
+
 /// A bug seen during a job, with everything needed to reproduce it.
 #[derive(Clone, PartialEq, Debug)]
 pub struct FindingDraft {

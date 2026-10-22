@@ -24,7 +24,7 @@ fn baseline_frames_per_sec() {
     let n = rec.keys.len();
     let reps = 5;
     let mut best_plain: f64 = 0.0;
-    let mut best_probe: f64 = 0.0;
+    let mut best_events: f64 = 0.0;
     for _ in 0..3 {
         let mut plain = None;
         best_plain = best_plain.max(frames_per_sec(
@@ -37,13 +37,13 @@ fn baseline_frames_per_sec() {
             n,
             reps,
         ));
-        let mut probe = None;
-        best_probe = best_probe.max(frames_per_sec(
+        let mut events = None;
+        best_events = best_events.max(frames_per_sec(
             |i| {
                 if i == 0 {
-                    probe = Some(Session::new(Emerald::for_shells()));
+                    events = Some(Session::new(Emerald::for_shells()));
                 }
-                let s = probe.as_mut().unwrap();
+                let s = events.as_mut().unwrap();
                 s.step(rec.keys[i]);
                 std::hint::black_box(s.world().events().len());
             },
@@ -53,7 +53,7 @@ fn baseline_frames_per_sec() {
     }
     println!(
         "route {n} frames (stub: {}), {reps} reps, best of 3: Session {best_plain:.0} frames/s, \
-         Session reading events {best_probe:.0} frames/s",
+         Session reading events {best_events:.0} frames/s",
         content::STUB
     );
 }
