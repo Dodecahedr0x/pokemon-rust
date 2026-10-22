@@ -1,25 +1,192 @@
 //! The abstract key (Task B). The fold is part of the db schema: changing it is a schema change.
-#![allow(unused_variables)] // Wave 0 stub: remove when implemented.
+//!
+//! A key is a pure function of a capturable [`WorldSnapshot`]: the map, the coarse cell of the
+//! player, a digest of the story flags, a digest of the story vars and a party bucket
+//! (decision 3). Temporary and special flags and vars, the flags cleared on every map change
+//! and the counters [`default_key_config`] lists are left out, so that walking around does not
+//! make new keys.
 
 use crate::config::KeyConfig;
-use crate::model::{AbstractKey, KeyParts};
+use crate::model::{AbstractKey, KeyParts, PartyBucket};
 use engine::checkpoint::WorldSnapshot;
+use engine::data::{FlagId, GameData};
+use engine::flow::{FLAG_COUNT, TEMP_FLAGS_END, TEMP_VARS_END, VARS_END};
+
+/// Domain tags, so that a key, a region and the digests never collide by construction.
+const TAG_FLAGS: u64 = 0x4b45_5946_4c41_4753; // "KEYFLAGS"
+const TAG_VARS: u64 = 0x4b45_5956_4152_5321; // "KEYVARS!"
+const TAG_KEY: u64 = 0x4b45_594b_4559_2121; // "KEYKEY!!"
+const TAG_REGION: u64 = 0x4b45_5952_4547_494f; // "KEYREGIO"
+
+/// The splitmix64 finalizer (Steele, Lea and Flood): a bijective, platform-independent mix.
+pub const fn splitmix64(x: u64) -> u64 {
+    let mut z = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Folds `v` into the running digest `h` (order-sensitive).
+const fn fold(h: u64, v: u64) -> u64 {
+    splitmix64(h ^ splitmix64(v))
+}
+
+/// The flags cleared on every map change (Gen3 `ClearTempFieldEventData`), from the content.
+fn cleared_on_map_change() -> &'static [FlagId] {
+    content::Emerald::default()
+        .special_ids()
+        .flags_cleared_on_map_change
+}
+
+/// Whether set flag `f` takes part in the key: a saved, non-temporary flag that the content
+/// does not clear on map changes and `cfg` does not ignore.
+pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
+    f.0 >= TEMP_FLAGS_END
+        && f.0 < FLAG_COUNT
+        && !cfg.ignore_flags.contains(&f.0)
+        && !cleared_on_map_change().contains(&f)
+}
+
+/// Whether var `v` takes part in the key: a saved, non-temporary var (`TEMP_VARS_END..VARS_END`;
+/// the special vars `0x8000..` are out) that `cfg` does not ignore.
+pub fn story_var(v: u16, cfg: &KeyConfig) -> bool {
+    (TEMP_VARS_END..VARS_END).contains(&v) && !cfg.ignore_vars.contains(&v)
+}
+
+/// The party part of a key.
+pub fn party_bucket(snap: &WorldSnapshot, cfg: &KeyConfig) -> PartyBucket {
+    let mut b = PartyBucket::default();
+    let mut levels: u16 = 0;
+    for (i, mon) in snap.party.iter().take(6).enumerate() {
+        b.count += 1;
+        b.species[i] = mon.species.0;
+        levels += u16::from(mon.level);
+        if mon.hp == 0 {
+            b.fainted += 1;
+        }
+    }
+    b.level_bucket = levels / cfg.level_step.max(1);
+    b
+}
 
 pub fn key_parts(snap: &WorldSnapshot, cfg: &KeyConfig) -> KeyParts {
-    todo!("Task B")
+    let pos = snap.objects.objs.first().map_or((0, 0), |p| p.pos);
+    let shift = u32::from(cfg.cell_shift.min(15));
+    let flags = snap
+        .vars
+        .flags
+        .iter()
+        .filter(|&&f| story_flag(f, cfg))
+        .fold(TAG_FLAGS, |h, f| fold(h, u64::from(f.0)));
+    let vars = snap
+        .vars
+        .vars
+        .iter()
+        .filter(|(v, value)| *value != 0 && story_var(v.0, cfg))
+        .fold(TAG_VARS, |h, (v, value)| {
+            fold(h, u64::from(v.0) << 16 | u64::from(*value))
+        });
+    KeyParts {
+        map: snap.field.map,
+        cell: (pos.0 >> shift, pos.1 >> shift),
+        flags,
+        vars,
+        party: party_bucket(snap, cfg),
+    }
+}
+
+/// Everything but the cell, folded from `tag`.
+fn fold_region(tag: u64, parts: &KeyParts) -> u64 {
+    let p = &parts.party;
+    let mut h = fold(tag, u64::from(parts.map.0));
+    h = fold(h, parts.flags);
+    h = fold(h, parts.vars);
+    h = fold(h, u64::from(p.count));
+    for s in p.species {
+        h = fold(h, u64::from(s));
+    }
+    h = fold(h, u64::from(p.level_bucket));
+    fold(h, u64::from(p.fainted))
 }
 
 /// Stable splitmix fold, platform-independent.
 pub fn key(parts: &KeyParts) -> AbstractKey {
-    todo!("Task B")
+    let h = fold_region(TAG_KEY, parts);
+    // Cell coordinates as their u16 bit patterns (negative coordinates stay distinct).
+    let h = fold(h, u64::from(parts.cell.0 as u16));
+    AbstractKey(fold(h, u64::from(parts.cell.1 as u16)))
 }
 
 /// The key without the cell.
 pub fn region(parts: &KeyParts) -> u64 {
-    todo!("Task B")
+    fold_region(TAG_REGION, parts)
 }
 
-/// Content-aware exclusions (temp, special, step-counter vars).
+/// Content-aware exclusions (temp, special, step-counter vars). Temporary and special flags and
+/// vars, and the flags cleared on map changes, are always out ([`story_flag`], [`story_var`]);
+/// this adds the Emerald step and day counters. The stub world has none.
 pub fn default_key_config() -> KeyConfig {
-    todo!("Task B")
+    let mut cfg = KeyConfig::default();
+    if !content::STUB {
+        use content::consts::*;
+        cfg.ignore_vars = [
+            VAR_REPEL_STEP_COUNT,
+            VAR_ICE_STEP_COUNT,
+            VAR_FRIENDSHIP_STEP_COUNTER,
+            VAR_POISON_STEP_COUNTER,
+            VAR_WONDER_NEWS_STEP_COUNTER,
+            VAR_DEOXYS_ROCK_STEP_COUNT,
+            VAR_ABNORMAL_WEATHER_STEP_COUNTER,
+            VAR_FARAWAY_ISLAND_STEP_COUNTER,
+            VAR_DAYS,
+            VAR_FANCLUB_LOSE_FAN_TIMER,
+            VAR_CRUISE_STEP_COUNT,
+            VAR_SECRET_BASE_STEP_COUNTER,
+            VAR_WALLY_CALL_STEP_COUNTER,
+            VAR_SCOTT_FORTREE_CALL_STEP_COUNTER,
+            VAR_ROXANNE_CALL_STEP_COUNTER,
+            VAR_SCOTT_BF_CALL_STEP_COUNTER,
+            VAR_RIVAL_RAYQUAZA_CALL_STEP_COUNTER,
+        ]
+        .iter()
+        .map(|v| v.0)
+        .collect();
+    }
+    cfg
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn splitmix_is_the_reference() {
+        // splitmix64 with state 0: the first output of the reference generator.
+        assert_eq!(splitmix64(0), 0xE220_A839_7B1D_CDAF);
+    }
+
+    #[test]
+    fn exclusions_cover_temp_and_special_ranges() {
+        let cfg = KeyConfig::default();
+        assert!(!story_flag(FlagId(TEMP_FLAGS_END - 1), &cfg));
+        assert!(story_flag(FlagId(TEMP_FLAGS_END), &cfg));
+        assert!(!story_flag(FlagId(FLAG_COUNT), &cfg));
+        assert!(!story_var(TEMP_VARS_END - 1, &cfg));
+        assert!(story_var(TEMP_VARS_END, &cfg));
+        assert!(!story_var(engine::flow::SPECIAL_VARS_START, &cfg));
+        for &f in cleared_on_map_change() {
+            assert!(!story_flag(f, &cfg));
+        }
+    }
+
+    #[test]
+    fn default_config_lists_counters_only_with_real_content() {
+        let cfg = default_key_config();
+        assert_eq!(cfg.ignore_vars.is_empty(), content::STUB);
+        assert!(
+            cfg.ignore_vars
+                .iter()
+                .all(|&v| story_var(v, &KeyConfig::default()))
+        );
+    }
 }
