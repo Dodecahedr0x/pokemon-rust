@@ -173,11 +173,14 @@ fn unsupported_findings_come_from_script_reports_and_reproduce() {
         .into_iter()
         .filter(|f| f.kind == FindingKind::Unsupported)
         .collect();
+    assert!(ex.db.report_count().unwrap() >= fs.len() as u64);
+    // The lowered scripts report their own unsupported commands too (Task D2); the injected
+    // report is the one this test follows.
+    let injected = format!("unsupported: {INJECTED_REPORT}");
+    let fs: Vec<_> = fs.into_iter().filter(|f| f.message == injected).collect();
     assert!(!fs.is_empty(), "the new game's script reports");
-    assert_eq!(ex.db.report_count().unwrap(), fs.len() as u64);
     let mut maps = BTreeSet::new();
     for f in &fs {
-        assert_eq!(f.message, format!("unsupported: {INJECTED_REPORT}"));
         assert!(maps.insert(f.map), "one finding per map: {fs:?}");
         wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
             .unwrap()

@@ -152,6 +152,8 @@ const MAX_CHAIN: usize = 64;
 pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result<Transfer> {
     let mut t = Transfer::default();
     let mut root_list: Vec<(String, u32, String)> = Vec::new();
+    // The std scripts' labels (not map roots, so not in `root_labels`).
+    let mut std_labels: BTreeMap<String, String> = BTreeMap::new();
     for m in maps {
         let named = roots::named_roots(rom, &m.header, &m.map)?;
         for (name, off) in &named {
@@ -186,8 +188,7 @@ pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
         for (i, off) in stds.into_iter().enumerate() {
             let pos = roots::std_root_name(i);
             if decomp.is_some() {
-                t.root_labels
-                    .insert(pos.clone(), roots::STD_SCRIPTS[i].to_string());
+                std_labels.insert(pos.clone(), roots::STD_SCRIPTS[i].to_string());
             }
             root_list.push((pos, off, STD_MODULE.to_string()));
         }
@@ -206,7 +207,7 @@ pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
         };
         let mut work = Vec::new();
         for (pos, off, _) in &root_list {
-            let Some(label) = t.root_labels.get(pos) else {
+            let Some(label) = t.root_labels.get(pos).or_else(|| std_labels.get(pos)) else {
                 continue;
             };
             match d.label_index(label) {

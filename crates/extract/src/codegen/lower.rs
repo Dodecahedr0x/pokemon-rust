@@ -247,7 +247,8 @@ const ITEM_VAR: u16 = 0x8000;
 const ITEM_AMOUNT_VAR: u16 = 0x8001;
 const LOCALID_PLAYER: u16 = 0xFF;
 const WARP_ID_NONE: u8 = 0xFF;
-const TRAINER_BATTLE_KINDS: [&str; 13] = [
+/// `include/constants/battle_setup.h` `TRAINER_BATTLE_*`, in value order (the `trainerbattle` type).
+pub const TRAINER_BATTLE_KINDS: [&str; 13] = [
     "TRAINER_BATTLE_SINGLE",
     "TRAINER_BATTLE_CONTINUE_SCRIPT_NO_MUSIC",
     "TRAINER_BATTLE_CONTINUE_SCRIPT",

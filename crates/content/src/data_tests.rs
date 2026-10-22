@@ -801,7 +801,9 @@ mod extracted {
     /// The bulk data the slice reads is the Wave 0 build's, byte for byte, whatever form the
     /// build gives it (Rust literals then, the `data.bin` blob since Milestone 8 Task E): the
     /// parity route hashes depend on it. The digests are of the French ROM's slice extract
-    /// (format 5.3, `cargo xtask extract --maps slice`); other extracts only print theirs.
+    /// (format 5.4, `cargo xtask extract --maps slice`); other extracts only print theirs. The
+    /// field digest covers the texts and their names: Task D2 (5.4) names them as the IR does
+    /// and adds the std scripts' texts, which moved it from `0x35d7_3d4c_82aa_efe1`.
     #[test]
     fn slice_bulk_data_is_the_wave0_builds() {
         let (field, battle) = slice_bulk_digests();
@@ -809,7 +811,7 @@ mod extracted {
         if source_rom().is_none() || data::MAP_COUNT != 15 {
             return;
         }
-        assert_eq!(field, 0x35d7_3d4c_82aa_efe1);
+        assert_eq!(field, 0x2dad_729f_bec3_4fe9);
         assert_eq!(battle, 0x0f9d_09db_0c67_77b7);
     }
 

@@ -367,7 +367,7 @@ fn littleroot_matches_known_offsets_and_content() {
             .iter()
             .any(|c| c.map.is_none() && c.map_id == "0.25")
     );
-    // Brendan's and May's 2F share their scripts: May's refer to Brendan's (exported first).
+    // Brendan's and May's 2F share scripts, named as the decomp names them (`PlayersHouse_2F_`).
     let may = export::read_map(dir, "LittlerootTown_MaysHouse_2F").unwrap();
     let shared = may
         .bgs
@@ -376,7 +376,7 @@ fn littleroot_matches_known_offsets_and_content() {
             BgKind::Script { script, .. } => script.clone(),
             _ => None,
         })
-        .filter(|s| s.starts_with("LittlerootTown_BrendansHouse_2F_"))
+        .filter(|s| s.starts_with("PlayersHouse_2F_EventScript_"))
         .count();
     assert!(shared > 0);
 }

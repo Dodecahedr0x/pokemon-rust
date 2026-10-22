@@ -926,6 +926,7 @@ mod lowering {
             i("removeitem", vec![v("VAR_0x8004"), Half(1)]),
             i("checkitemspace", vec![c("ITEM_POTION"), Half(2)]),
             i("checkitem", vec![c("ITEM_POTION"), v("VAR_0x8005")]),
+            i("checkitemtype", vec![c("ITEM_POTION")]),
             i(
                 "applymovement",
                 vec![c("LOCALID_PLAYER"), mv("N_Movement_Walk")],
@@ -1100,7 +1101,8 @@ mod lowering {
             "msgbox(&ctx, N_Text_Hello, MsgBox::Sign).await;",
             "    msgbox(&ctx, N_Text_Hello, MsgBox::YesNo).await;",
             "ctx.set_var(VAR_RESULT, give_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await as u16).await;",
-            "ctx.set_var(VAR_RESULT, find_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await as u16).await;",
+            // `Std_FindItem` leaves VAR_RESULT to its helper (Task D2).
+            "    find_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await;",
             "callstd(&ctx, STD_REGISTER_MATCH_CALL).await;",
             "callstd(&ctx, STD_MSGBOX_NPC).await;",
             "ctx.set_var(VAR_OBJ_GFX_ID_0, OBJ_EVENT_GFX_RIVAL_MAY_NORMAL).await;",
@@ -1113,6 +1115,7 @@ mod lowering {
             "set_warp(&ctx, WarpSlot::Escape, MAP_DYNAMIC.0, Some(1), 3, 4).await;",
             "ctx.set_var(VAR_RESULT, ctx.item_add(ItemId(ITEM_POTION), 1).await as u16).await;",
             "ctx.set_var(VAR_RESULT, check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await as u16).await;",
+            "ctx.set_var(VAR_RESULT, 0).await; // checkitemtype ITEM_POTION: no pockets before Task H",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
             "ctx.move_obj(2, &N_Movement_Walk).await; // applymovementat",
             "ctx.remove_object(ctx.var(VAR_LAST_TALKED).await as u8).await;",
@@ -1142,6 +1145,52 @@ mod lowering {
             "return Flow::Continue;",
         ] {
             assert!(src.contains(needle), "missing {needle:?} in:\n{src}");
+        }
+    }
+
+    /// With Task H's item helpers (`Support::item_helpers`, which the content build reads from
+    /// the prelude), the item commands and `STD_OBTAIN_ITEM` call helpers that write VAR_RESULT
+    /// themselves: no `set_var` around them.
+    #[test]
+    fn lower_item_commands_to_the_item_helpers() {
+        let files = every_native();
+        let mut sup = support();
+        sup.item_helpers = true;
+        let out = codegen::lower(&files, &index(&files), &sup, &BTreeMap::new()).unwrap();
+        let src = &out.modules["LittlerootTown"];
+        for needle in [
+            "    give_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await;",
+            "    find_item(&ctx, ctx.var(VAR_0x8000).await, ctx.var(VAR_0x8001).await).await;",
+            "    add_item(&ctx, ITEM_POTION, 1).await;",
+            "    remove_item(&ctx, ctx.var(VAR_0x8004).await, 1).await;",
+            "    check_item_space(&ctx, ITEM_POTION, 2).await;",
+            "    check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await;",
+            "    check_item_type(&ctx, ITEM_POTION).await;",
+        ] {
+            assert!(src.contains(needle), "missing {needle:?} in:\n{src}");
+        }
+        for gone in [
+            "ctx.item_add(",
+            "ctx.item_remove(",
+            "ctx.item_space(",
+            "// checkitemtype",
+        ] {
+            assert!(!src.contains(gone), "{gone:?} in:\n{src}");
+        }
+    }
+
+    /// `trainerbattle` types keep the decomp numbering (`include/constants/battle_setup.h`):
+    /// 1 `CONTINUE_SCRIPT_NO_MUSIC`, 2 `CONTINUE_SCRIPT`, 7 `REMATCH_DOUBLE`,
+    /// 8 `CONTINUE_SCRIPT_DOUBLE_NO_MUSIC`.
+    #[test]
+    fn trainer_battle_kinds_use_the_decomp_numbering() {
+        for (k, name) in [
+            (1, "TRAINER_BATTLE_CONTINUE_SCRIPT_NO_MUSIC"),
+            (2, "TRAINER_BATTLE_CONTINUE_SCRIPT"),
+            (7, "TRAINER_BATTLE_REMATCH_DOUBLE"),
+            (8, "TRAINER_BATTLE_CONTINUE_SCRIPT_DOUBLE_NO_MUSIC"),
+        ] {
+            assert_eq!(codegen::lower::TRAINER_BATTLE_KINDS[k], name);
         }
     }
 

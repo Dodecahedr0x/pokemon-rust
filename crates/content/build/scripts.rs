@@ -200,29 +200,12 @@ pub fn lower_ir(
     })
 }
 
-/// `include/constants/battle_setup.h` `TRAINER_BATTLE_*`, in value order.
-const TRAINER_BATTLE_KINDS: [&str; 13] = [
-    "TRAINER_BATTLE_SINGLE",
-    "TRAINER_BATTLE_CONTINUE_SCRIPT_NO_MUSIC",
-    "TRAINER_BATTLE_CONTINUE_SCRIPT",
-    "TRAINER_BATTLE_SINGLE_NO_INTRO_TEXT",
-    "TRAINER_BATTLE_DOUBLE",
-    "TRAINER_BATTLE_REMATCH",
-    "TRAINER_BATTLE_CONTINUE_SCRIPT_DOUBLE",
-    "TRAINER_BATTLE_REMATCH_DOUBLE",
-    "TRAINER_BATTLE_CONTINUE_SCRIPT_DOUBLE_NO_MUSIC",
-    "TRAINER_BATTLE_PYRAMID",
-    "TRAINER_BATTLE_SET_TRAINER_A",
-    "TRAINER_BATTLE_SET_TRAINER_B",
-    "TRAINER_BATTLE_HILL",
-];
-
 /// The `trainerbattle` type operand as its decomp number.
 fn battle_kind(a: &IrArg) -> Option<u8> {
     match a {
         IrArg::Byte(b) => Some(*b),
         IrArg::Half(h) => u8::try_from(*h).ok(),
-        IrArg::Const { name, .. } => TRAINER_BATTLE_KINDS
+        IrArg::Const { name, .. } => extract::codegen::lower::TRAINER_BATTLE_KINDS
             .iter()
             .position(|k| k == name)
             .map(|p| p as u8),
