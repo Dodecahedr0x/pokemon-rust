@@ -122,7 +122,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
             self.res.probe_frames = probed.frames;
             return Err(match probed.trap {
                 Trap::Trapped { reached } => {
-                    Stop::Finding(softlock_finding(start, probed.region, k, reached))
+                    Stop::Finding(softlock_finding(start, probed.place, k, reached))
                 }
                 _ => Stop::NotTrapped,
             });
@@ -284,14 +284,14 @@ fn resumable(m: &Macro, pos: (i16, i16)) -> bool {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Probed {
     pub trap: Trap,
-    pub region: u64,
+    pub place: u64,
     pub frames: u64,
 }
 
 /// The softlock probe of `start` (`softlock::probe` with the start's place and its map's
 /// exits). The probe compares places (`key::place_region`: map, story flags and vars), not
 /// regions: a level-up or a faint inside a sealed pocket changes the party bucket, not the
-/// way out. From each state: from each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
+/// way out. From each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
 /// wander may free a way out), then every candidate macro, each expanded from a fresh session
 /// restored there (the policy, no detectors), at most `remaining` successful ones per state.
 ///
@@ -309,17 +309,17 @@ pub fn trap<G: GameData + Clone>(
     breadth: u32,
     cfg: &Config,
 ) -> Probed {
-    let region = key::place_region(&key::key_parts(&start.world, &cfg.key));
+    let place = key::place_region(&key::key_parts(&start.world, &cfg.key));
     let map = start.world.field.map;
     let exits = softlock::map_exits(game, map);
     let mut frames = 0u64;
     let mut expand_all = |cp: &Checkpoint, remaining: u32| {
-        expand_all(game, cp, remaining, (region, map), cfg, &mut frames)
+        expand_all(game, cp, remaining, (place, map), cfg, &mut frames)
     };
-    let trap = softlock::probe(start, region, exits, k, breadth, &mut expand_all);
+    let trap = softlock::probe(start, place, exits, k, breadth, &mut expand_all);
     Probed {
         trap,
-        region,
+        place,
         frames,
     }
 }
@@ -402,9 +402,9 @@ fn expand_all<G: GameData + Clone>(
         // A panicked session's frame counter is still readable (the step that panicked did
         // not count).
         *frames += u64::from(s.world().frame().wrapping_sub(start_frame));
-        if let Some(((region, map), end)) = end {
-            out.push((region, map, end));
-            if (region, map) != start {
+        if let Some(((place, map), end)) = end {
+            out.push((place, map, end));
+            if (place, map) != start {
                 break;
             }
         }
@@ -413,11 +413,11 @@ fn expand_all<G: GameData + Clone>(
 }
 
 /// The `Softlock` finding of a trapped start state: an empty tail (the node itself).
-fn softlock_finding(start: &Checkpoint, region: u64, k: u32, reached: u32) -> FindingDraft {
+fn softlock_finding(start: &Checkpoint, place: u64, k: u32, reached: u32) -> FindingDraft {
     let map = start.world.field.map;
     FindingDraft {
         kind: FindingKind::Softlock,
-        message: findings::softlock_message(region, k, reached),
+        message: findings::softlock_message(place, k, reached),
         location: None,
         macro_: None,
         tail: Vec::new(),

@@ -1,7 +1,8 @@
 //! Softlock probe: is the player trapped? (Task E)
 //!
 //! Decision 11: trapped = the map has exits, and every state reachable within K macro-steps
-//! (bounded breadth) has the start's map and region. A map without exits is never a finding.
+//! (bounded breadth) has the start's map and place (`key::place_region`: map, story flags and
+//! vars). A map without exits is never a finding.
 
 use engine::checkpoint::{Checkpoint, state_digest};
 use engine::data::{GameData, MapId};
@@ -10,7 +11,7 @@ use std::collections::{BTreeSet, VecDeque};
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Trap {
     /// Every one of the `reached` states (0 = no macro applied at all) kept the start's map and
-    /// region.
+    /// place.
     Trapped {
         reached: u32,
     },
@@ -19,18 +20,18 @@ pub enum Trap {
 }
 
 /// The states one macro away from a state, given the expansions still allowed (`remaining`,
-/// at least 1; the closure may stop there): (region, map, end state) per expansion.
+/// at least 1; the closure may stop there): (place, map, end state) per expansion.
 pub type ExpandAll<'a> = dyn FnMut(&Checkpoint, u32) -> Vec<(u64, MapId, Checkpoint)> + 'a;
 
-/// From `start` (whose region is `region`, the node's), BFS over macros to depth k (at most
-/// `breadth` expansions, deterministic order, identical states expanded once): Trapped iff the
-/// map has exits and every reached state has start's region and map.
+/// From `start` (whose place, `key::place_region`, is `place`), BFS over macros to depth k
+/// (at most `breadth` expansions, deterministic order, identical states expanded once):
+/// Trapped iff the map has exits and every reached state has start's place and map.
 ///
 /// `NoExits` when `map_exits == 0` (never a finding); `Free` when `k == 0 || breadth == 0`
 /// (nothing was probed, so nothing is claimed).
 pub fn probe(
     start: &Checkpoint,
-    region: u64,
+    place: u64,
     map_exits: usize,
     k: u32,
     breadth: u32,
@@ -55,7 +56,7 @@ pub fn probe(
                 break;
             }
             reached += 1;
-            if m != map || r != region {
+            if m != map || r != place {
                 return Trap::Free;
             }
             if seen.insert(state_digest(&end.world)) {

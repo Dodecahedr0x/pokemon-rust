@@ -80,13 +80,12 @@ pub struct DetectConfig {
     pub softlock_k_per_map: BTreeMap<u16, u32>,
     /// Expansions per probe.
     pub softlock_breadth: u32,
-    /// Probe 1 in N new nodes, plus every node whose candidates all failed.
-    pub softlock_sample: u32,
     /// How often the probe resumes a walk that a battle interrupted before its target (Task H;
     /// 0 = never). Each resume can cost another full macro, so a probe's worst case is
     /// `(1 + probe_resumes) x softlock_breadth` expansions.
     pub probe_resumes: u32,
-    /// Report-only; 0 = off (the default in debug builds, 4000 in release).
+    /// Report-only; 0 = off (the default in debug builds, 4000 in release). Left out of the
+    /// config-change note ([`Config::differs_from_ron`]).
     pub slow_step_us: u32,
 }
 
@@ -168,7 +167,6 @@ impl Default for DetectConfig {
             softlock_k: 3,
             softlock_k_per_map: BTreeMap::new(),
             softlock_breadth: 64,
-            softlock_sample: 32,
             probe_resumes: 4,
             slow_step_us: if cfg!(debug_assertions) { 0 } else { 4000 },
         }
@@ -185,6 +183,18 @@ impl Config {
         let text =
             std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         ron::from_str(&text).with_context(|| format!("parsing {}", path.display()))
+    }
+
+    /// Whether this config differs from `last` (a `run` row's RON) in anything but the
+    /// report-only `detect.slow_step_us`, whose default differs between debug and release.
+    /// Fields that `last` has and this config no longer knows (`softlock_sample`, removed at
+    /// the M7 close-out) are ignored; RON that does not parse counts as a change.
+    pub fn differs_from_ron(&self, last: &str) -> bool {
+        let Ok(mut last) = ron::from_str::<Config>(last) else {
+            return true;
+        };
+        last.detect.slow_step_us = self.detect.slow_step_us;
+        last != *self
     }
 
     /// Pretty RON of the config (the `run` table, `explore status`).
@@ -224,10 +234,7 @@ mod tests {
             (d.roundtrip_every, d.follow, d.capturable_stuck),
             (600, 60, 600)
         );
-        assert_eq!(
-            (d.softlock_k, d.softlock_breadth, d.softlock_sample),
-            (3, 64, 32)
-        );
+        assert_eq!((d.softlock_k, d.softlock_breadth), (3, 64));
         assert_eq!(d.probe_resumes, 4);
     }
 
@@ -262,5 +269,47 @@ mod tests {
 
         std::fs::write(&path, "(seed: \"x\")").unwrap();
         assert!(Config::load_or_default(&path).is_err());
+    }
+
+    #[test]
+    fn old_files_with_softlock_sample_still_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("explore.ron");
+        std::fs::write(
+            &path,
+            "(seed: 7, detect: (softlock_k: 2, softlock_sample: 32, softlock_breadth: 16))",
+        )
+        .unwrap();
+        let c = Config::load_or_default(&path).unwrap();
+        assert_eq!(c.seed, 7);
+        assert_eq!((c.detect.softlock_k, c.detect.softlock_breadth), (2, 16));
+        assert_eq!(
+            c.detect.probe_resumes,
+            DetectConfig::default().probe_resumes
+        );
+    }
+
+    #[test]
+    fn config_change_ignores_slow_step_us_and_removed_fields() {
+        let c = Config::default();
+        assert!(!c.differs_from_ron(&c.to_ron()));
+
+        let mut slow = c.clone();
+        slow.detect.slow_step_us = 4000 - slow.detect.slow_step_us + 1;
+        assert!(!c.differs_from_ron(&slow.to_ron()));
+
+        let old = c
+            .to_ron()
+            .replace("softlock_k:", "softlock_sample: 32, softlock_k:");
+        assert_ne!(old, c.to_ron());
+        assert!(!c.differs_from_ron(&old));
+
+        let mut seed = c.clone();
+        seed.seed += 1;
+        assert!(c.differs_from_ron(&seed.to_ron()));
+        let mut breadth = c.clone();
+        breadth.detect.softlock_breadth += 1;
+        assert!(c.differs_from_ron(&breadth.to_ron()));
+        assert!(c.differs_from_ron("not ron"));
     }
 }
