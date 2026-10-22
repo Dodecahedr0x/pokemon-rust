@@ -102,6 +102,7 @@ fn write_png(path: &Path, fb: &[u16]) -> Result<()> {
 /// for each named moment. The ROM shows step `f`'s picture when it is at engine frame `f + 1`
 /// (display lag), so it is captured there.
 fn shot() -> Result<()> {
+    fresh_extract()?;
     let rom = rom()?;
     let rec = game_native::scenario::record_route().map_err(anyhow::Error::msg)?;
     let checkpoints: Vec<u32> = rec.moments.iter().map(|m| m.frame + 1).collect();
@@ -140,7 +141,16 @@ fn shot() -> Result<()> {
     Ok(())
 }
 
+/// Refuses a stale extract: the ROM and native would both run the stub world and agree.
+fn fresh_extract() -> Result<()> {
+    if content::STALE_EXTRACT {
+        bail!(content::STALE_EXTRACT_MSG);
+    }
+    Ok(())
+}
+
 fn parity() -> Result<()> {
+    fresh_extract()?;
     rom()?;
     run(Command::new("cargo").current_dir(root()).args([
         "test",

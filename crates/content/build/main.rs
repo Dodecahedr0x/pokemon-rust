@@ -18,6 +18,7 @@ use std::path::PathBuf;
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(pkr_stub)");
     println!("cargo::rustc-check-cfg=cfg(pkr_stub_battle)");
+    println!("cargo::rustc-check-cfg=cfg(pkr_stale_extract)");
     println!("cargo::rerun-if-env-changed=PKR_EXTRACTED_DIR");
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let workspace = manifest_dir.join("../..");
@@ -45,6 +46,8 @@ fn main() {
                 dir.display()
             );
             println!("cargo::rerun-if-changed={}", manifest.display());
+            // `content::STALE_EXTRACT`: the parity and screenshot tools refuse this build.
+            println!("cargo::rustc-cfg=pkr_stale_extract");
         } else if overridden.is_some() {
             // An explicit dir that is missing: say so, and stay always dirty (cargo reruns a
             // script whose watched path is missing) so it is picked up once it appears.

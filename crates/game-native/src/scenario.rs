@@ -824,7 +824,11 @@ pub fn route() -> &'static [Action] {
 }
 
 /// Records [`route`] on `content::Emerald::for_shells()` (a new game before the rescue).
+/// Fails on a stale extract ([`content::STALE_EXTRACT`]): its stub would pass for real data.
 pub fn record_route() -> Result<Recording, String> {
+    if content::STALE_EXTRACT {
+        return Err(content::STALE_EXTRACT_MSG.into());
+    }
     record(content::Emerald::for_shells(), route())
 }
 
