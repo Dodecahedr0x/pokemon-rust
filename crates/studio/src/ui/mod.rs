@@ -12,14 +12,18 @@
 //! and the two pane threads (the native pane and the ROM pane), spawned once at launch. The
 //! [`Shell`] polls their statuses at about 15 Hz into signals ([`Live`]) and keeps the
 //! checkpoint tree ([`tree::TreeState`]) fresh. Store work, verifies and ROM builds run on
-//! worker threads ([`off_thread`]); the UI thread only sends commands and renders.
+//! worker threads ([`off_thread`]); the UI thread only sends commands and renders. The Explorer
+//! tab's `explore run` lives in the [`Studio`] too ([`Studio::explorer`]), and the shell polls
+//! the explorer db ([`explorer::use_explorer_state`]).
 
 pub mod data;
+pub mod explorer;
 pub mod map;
 pub mod play;
 pub mod tree;
 
 use crate::build::BuildState;
+use crate::explorer::RunSlot;
 use crate::frames::{FrameSlot, parse_frame_request};
 use crate::native::{Inspector, NativeCmd, NativePane};
 use crate::pane::{self, PaneHandle, RunMode, TestPattern};
@@ -70,6 +74,9 @@ pub struct Studio {
     panes: Option<Arc<Panes>>,
     /// The tree read at start-up, or why it could not be read.
     tree: Result<TreeModel, String>,
+    /// The Explorer tab's `explore run` (M7 S2). Kept here, in the app state, so that leaving
+    /// the tab keeps the run; dropping the studio (closing the window) kills it.
+    pub explorer: RunSlot,
 }
 
 impl Studio {
@@ -83,6 +90,7 @@ impl Studio {
             materializer,
             panes: None,
             tree,
+            explorer: RunSlot::default(),
         }
     }
 
@@ -478,13 +486,15 @@ pub enum Tab {
     Checkpoints,
     Map,
     Data,
+    Explorer,
 }
 
-const TABS: [(Tab, &str); 4] = [
+const TABS: [(Tab, &str); 5] = [
     (Tab::Play, "Play"),
     (Tab::Checkpoints, "Checkpoints"),
     (Tab::Map, "Map"),
     (Tab::Data, "Data"),
+    (Tab::Explorer, "Explorer"),
 ];
 
 /// Focuses a play pane (its `data-focus` wrapper) once the Play tab is drawn.
@@ -506,6 +516,7 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
         build: Signal::new(None),
     });
     let trees = tree::use_tree_state(&studio);
+    explorer::use_explorer_state(&studio, tab);
     // The panes' statuses at about 15 Hz; a new save refreshes the tree.
     use_future({
         let studio = studio.clone();
@@ -572,6 +583,7 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
                 Tab::Checkpoints => rsx! { tree::Tree {} },
                 Tab::Map => rsx! { LiveMap {} },
                 Tab::Data => rsx! { data::Data {} },
+                Tab::Explorer => rsx! { explorer::Explorer {} },
             }
         }
     }
@@ -581,10 +593,12 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
 /// component, so the 15 Hz inspector updates re-render only the map view, not the shell.
 #[component]
 fn LiveMap() -> Element {
+    let studio = use_context::<Studio>();
     let live = use_context::<Live>();
     let s = live.native.read();
     let live = map::Live::from_inspector(s.map, s.camera);
-    rsx! { map::Map { live } }
+    let coverage_db = Some(studio.paths.explore_db.clone());
+    rsx! { map::Map { live, coverage_db } }
 }
 
 /// A pane's canvas (filled by `studio.js`) and its fps counter. With `keys`, the canvas is
@@ -657,7 +671,7 @@ mod tests {
     fn the_shell_renders_without_a_display() {
         let local = temp_root("shell");
         let html = render(test_studio(&local), Tab::Play);
-        for label in ["Play", "Checkpoints", "Map", "Data"] {
+        for label in ["Play", "Checkpoints", "Map", "Data", "Explorer"] {
             assert!(
                 html.contains(&format!(">{label}<")),
                 "{label} tab in {html}"
@@ -680,13 +694,19 @@ mod tests {
         assert!(!local.exists(), "rendering writes nothing");
     }
 
-    /// The Map and Data tabs render inside the shell (the Map tab through the live-map wrapper).
+    /// The Map, Data and Explorer tabs render inside the shell (the Map tab through the
+    /// live-map wrapper, with the coverage toggle; the Explorer tab before its first poll).
     #[test]
-    fn the_map_and_data_tabs_render_in_the_shell() {
+    fn the_map_data_and_explorer_tabs_render_in_the_shell() {
         let local = temp_root("tabs");
-        for tab in [Tab::Map, Tab::Data] {
+        for tab in [Tab::Map, Tab::Data, Tab::Explorer] {
             let html = render(test_studio(&local), tab);
             assert!(html.contains("class=\"active\">"), "{tab:?}: {html}");
+            match tab {
+                Tab::Map => assert!(html.contains(">coverage<"), "{html}"),
+                Tab::Explorer => assert!(html.contains(">Start<"), "{html}"),
+                _ => {}
+            }
         }
         assert!(!local.exists());
     }

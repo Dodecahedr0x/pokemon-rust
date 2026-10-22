@@ -3,12 +3,19 @@
 //! ([`ExplorerProc`]) and a finding as a NewGame trace to open in the native pane
 //! ([`finding_trace`], then `NativeCmd::OpenTrace`).
 //!
+//! Task S2 adds the tab's view logic, tested here so the UI stays thin: the run form
+//! ([`RunForm`], [`parse_budget`] …), the run slot the UI keeps ([`RunSlot`], [`RunState`]), a
+//! poll ([`poll`]), the stats and findings text ([`stats_rows`], [`finding_cells`]) and the
+//! per-finding actions ([`open_finding_cmds`], [`export_repro`], [`repro_command`]).
+//!
 //! The studio never writes the db: `explore run` does, in its own process (a panic there never
 //! takes the UI down), and the studio reads it through `Db::open_read_only` while it runs (WAL).
 
+use crate::native::NativeCmd;
+use crate::pane::RunMode;
 use crate::paths::StudioPaths;
 use anyhow::{Context, bail};
-use engine::checkpoint::build_hash;
+use engine::checkpoint::{BuildHash, build_hash};
 use engine::data::{GameData, MapId};
 use explore::config::Budget;
 use explore::db::{Db, DbStats, FindingRow};
@@ -19,6 +26,8 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 /// The frames "Open at frame before" goes back from a finding's last frame by default.
 pub const OPEN_BEFORE: u32 = 120;
@@ -198,15 +207,10 @@ pub struct ExplorerProc {
 }
 
 impl ExplorerProc {
-    /// `cargo run -p explore --release -- <args>` in the workspace (`$CARGO`, else `cargo`),
+    /// `cargo run -p explore --release -- <args>` in the workspace ([`explore_command`]),
     /// logging to `log` (truncated; its directory is created).
     pub fn start(args: &[String], log: &Path) -> io::Result<ExplorerProc> {
-        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-        let mut cmd = Command::new(cargo);
-        cmd.current_dir(StudioPaths::detect().workspace)
-            .args(["run", "-p", "explore", "--release", "--"])
-            .args(args);
-        Self::spawn(cmd, log)
+        Self::spawn(explore_command(args), log)
     }
 
     /// Spawns `cmd` in a new process group, with no stdin and its output in `log`.
@@ -268,10 +272,470 @@ impl Drop for ExplorerProc {
     }
 }
 
+/// `cargo run -p explore --release -- <args>` in the workspace (`$CARGO`, else `cargo`).
+pub fn explore_command(args: &[String]) -> Command {
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let mut cmd = Command::new(cargo);
+    cmd.current_dir(StudioPaths::detect().workspace)
+        .args(["run", "-p", "explore", "--release", "--"])
+        .args(args);
+    cmd
+}
+
+// ---- The Explorer tab's view logic (M7 Task S2): pure helpers the UI calls. ----
+
+/// The budget kinds the Explorer tab offers (`explore run --generations | --secs | --nodes`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum BudgetKind {
+    #[default]
+    Generations,
+    Secs,
+    Nodes,
+}
+
+impl BudgetKind {
+    pub const ALL: [BudgetKind; 3] = [BudgetKind::Generations, BudgetKind::Secs, BudgetKind::Nodes];
+
+    /// The `<option>` value.
+    pub fn key(self) -> &'static str {
+        match self {
+            BudgetKind::Generations => "generations",
+            BudgetKind::Secs => "secs",
+            BudgetKind::Nodes => "nodes",
+        }
+    }
+
+    /// The `<option>` text.
+    pub fn label(self) -> &'static str {
+        match self {
+            BudgetKind::Generations => "generations",
+            BudgetKind::Secs => "seconds",
+            BudgetKind::Nodes => "nodes",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<BudgetKind> {
+        Self::ALL.into_iter().find(|k| k.key() == key)
+    }
+}
+
+/// The most threads the form accepts.
+pub const MAX_THREADS: usize = 256;
+
+/// A positive integer (decimal, or hex with `0x`), surrounding spaces ignored.
+fn parse_u64(text: &str) -> Option<u64> {
+    let t = text.trim();
+    match t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+        Some(hex) => u64::from_str_radix(hex, 16).ok(),
+        None => t.parse().ok(),
+    }
+}
+
+/// The budget field: a positive count of `kind` (generations fit a `u32`).
+pub fn parse_budget(kind: BudgetKind, text: &str) -> Result<Budget, String> {
+    let n = parse_u64(text)
+        .filter(|&n| n > 0)
+        .ok_or_else(|| format!("the budget must be a positive number of {}", kind.label()))?;
+    Ok(match kind {
+        BudgetKind::Generations => {
+            Budget::Generations(u32::try_from(n).map_err(|_| "too many generations".to_string())?)
+        }
+        BudgetKind::Secs => Budget::Secs(n),
+        BudgetKind::Nodes => Budget::Nodes(n),
+    })
+}
+
+/// The seed field: empty for the config's seed, else a `u64` (decimal or `0x` hex).
+pub fn parse_seed(text: &str) -> Result<Option<u64>, String> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    parse_u64(text)
+        .map(Some)
+        .ok_or_else(|| "the seed must be a number (decimal or 0x hex)".into())
+}
+
+/// The threads field: empty for the explorer's default, else `1..=MAX_THREADS`.
+pub fn parse_threads(text: &str) -> Result<Option<usize>, String> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    match text.trim().parse::<usize>() {
+        Ok(n) if (1..=MAX_THREADS).contains(&n) => Ok(Some(n)),
+        _ => Err(format!("threads must be 1 to {MAX_THREADS}, or empty")),
+    }
+}
+
+/// "Open at frame before": frames before the finding's last frame (0 = the last frame).
+pub fn parse_before(text: &str) -> Result<u32, String> {
+    text.trim()
+        .parse()
+        .map_err(|_| "frames before must be a whole number".into())
+}
+
+/// The Explorer tab's run form, as typed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RunForm {
+    pub kind: BudgetKind,
+    pub budget: String,
+    pub threads: String,
+    pub seed: String,
+}
+
+impl Default for RunForm {
+    /// `--generations 10` (the CLI's default budget), default threads and seed.
+    fn default() -> Self {
+        RunForm {
+            kind: BudgetKind::Generations,
+            budget: "10".into(),
+            threads: String::new(),
+            seed: String::new(),
+        }
+    }
+}
+
+impl RunForm {
+    /// The run's arguments on the db at `db`, or the first field error.
+    pub fn args(&self, db: &Path) -> Result<RunArgs, String> {
+        Ok(RunArgs {
+            budget: parse_budget(self.kind, &self.budget)?,
+            threads: parse_threads(&self.threads)?,
+            seed: parse_seed(&self.seed)?,
+            db: db.to_path_buf(),
+        })
+    }
+}
+
+/// Where the studio's `explore run` is ([`RunSlot::state`]).
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum RunState {
+    /// Never started in this studio.
+    #[default]
+    Idle,
+    Running,
+    /// Ended with status 0 (its budget is spent).
+    Finished,
+    /// Ended by Stop.
+    Stopped,
+    /// Ended otherwise (a build error, a panic, a bad argument): the status and the log's
+    /// last [`LOG_TAIL`] lines.
+    Failed {
+        status: String,
+        tail: Vec<String>,
+    },
+    /// `cargo` could not be started.
+    StartFailed(String),
+}
+
+impl RunState {
+    pub fn running(&self) -> bool {
+        *self == RunState::Running
+    }
+}
+
+/// The run state's line next to the Start/Stop buttons.
+pub fn run_state_text(s: &RunState) -> String {
+    match s {
+        RunState::Idle => "not running".into(),
+        RunState::Running => "running (cargo run -p explore --release)".into(),
+        RunState::Finished => "finished".into(),
+        RunState::Stopped => "stopped".into(),
+        RunState::Failed { status, .. } => format!("failed: {status}"),
+        RunState::StartFailed(e) => format!("could not start: {e}"),
+    }
+}
+
+/// Log lines shown under a failed run.
+pub const LOG_TAIL: usize = 30;
+
+/// The last `n` lines of `text`.
+pub fn log_tail(text: &str, n: usize) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    lines[lines.len().saturating_sub(n)..]
+        .iter()
+        .map(|l| l.to_string())
+        .collect()
+}
+
+/// An exit status as text: `exit code N` or `killed by a signal`.
+fn status_text(st: Option<ExitStatus>) -> String {
+    match st.and_then(|s| s.code()) {
+        Some(c) => format!("exit code {c}"),
+        None if st.is_some() => "killed by a signal".into(),
+        None => "lost (could not wait on it)".into(),
+    }
+}
+
+#[derive(Default)]
+struct Slot {
+    proc: Option<ExplorerProc>,
+    stopped: bool,
+    start_error: Option<String>,
+}
+
+/// The studio's `explore run`, shared by the UI and its poll thread. Hold it in the app state:
+/// dropping the last clone drops the [`ExplorerProc`], which kills the run. Every method may
+/// wait on the process (spawn, kill and reap), so the UI calls them off its thread.
+#[derive(Clone, Default)]
+pub struct RunSlot(Arc<Mutex<Slot>>);
+
+impl RunSlot {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Slot> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Starts `explore run <args>` logging to `log`, unless a run is going. A failed start is
+    /// kept as the state ([`RunState::StartFailed`]).
+    pub fn start(&self, args: &RunArgs, log: &Path) -> Result<(), String> {
+        self.start_with(|| ExplorerProc::start(&args.to_args(), log))
+    }
+
+    /// [`start`](Self::start) with another process (tests).
+    pub fn start_with(
+        &self,
+        spawn: impl FnOnce() -> io::Result<ExplorerProc>,
+    ) -> Result<(), String> {
+        let mut s = self.lock();
+        if s.proc.as_mut().is_some_and(|p| p.running()) {
+            return Err("a run is already going".into());
+        }
+        // The previous process (ended) is reaped by its drop.
+        match spawn() {
+            Ok(p) => {
+                *s = Slot {
+                    proc: Some(p),
+                    ..Slot::default()
+                };
+                Ok(())
+            }
+            Err(e) => {
+                let e = e.to_string();
+                *s = Slot {
+                    start_error: Some(e.clone()),
+                    ..Slot::default()
+                };
+                Err(e)
+            }
+        }
+    }
+
+    /// Stops the run (kills its process group and reaps it), if one is going.
+    pub fn stop(&self) {
+        let mut s = self.lock();
+        if let Some(p) = s.proc.as_mut()
+            && p.running()
+        {
+            p.stop();
+            s.stopped = true;
+        }
+    }
+
+    /// The run's state; reads the log's tail when it failed.
+    pub fn state(&self) -> RunState {
+        let (status, log) = {
+            let mut s = self.lock();
+            if let Some(e) = &s.start_error {
+                return RunState::StartFailed(e.clone());
+            }
+            let stopped = s.stopped;
+            let Some(p) = s.proc.as_mut() else {
+                return RunState::Idle;
+            };
+            if p.running() {
+                return RunState::Running;
+            }
+            if stopped {
+                return RunState::Stopped;
+            }
+            let st = p.exit_status();
+            if st.is_some_and(|st| st.success()) {
+                return RunState::Finished;
+            }
+            (status_text(st), p.log().to_path_buf())
+        };
+        let text = std::fs::read_to_string(&log)
+            .unwrap_or_else(|e| format!("(reading {}: {e})", log.display()));
+        RunState::Failed {
+            status,
+            tail: log_tail(&text, LOG_TAIL),
+        }
+    }
+}
+
+/// One poll of the Explorer tab: the db (or why it cannot be read), the run, and this build.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Poll {
+    pub model: Result<ExplorerModel, String>,
+    pub run: RunState,
+    pub build: BuildHash,
+}
+
+/// Reads the db at `db` and the run's state (blocking: the UI calls it off its thread).
+pub fn poll(db: &Path, run: &RunSlot) -> Poll {
+    Poll {
+        model: ExplorerModel::load(db).map_err(|e| format!("{e:#}")),
+        run: run.state(),
+        build: build_hash(&content::Emerald::for_shells()),
+    }
+}
+
+/// Nodes per second between two polls; `None` without time between them or when the count
+/// went down (a reset db).
+pub fn nodes_per_sec(prev: u64, now: u64, elapsed: Duration) -> Option<f64> {
+    let secs = elapsed.as_secs_f64();
+    (secs > 0.0 && now >= prev).then(|| (now - prev) as f64 / secs)
+}
+
+/// The stats list: `(label, value)` rows.
+pub fn stats_rows(m: &ExplorerModel, rate: Option<f64>) -> Vec<(&'static str, String)> {
+    let s = &m.stats;
+    let goals = m.goals();
+    let open = m.findings.iter().filter(|f| f.status == "open").count();
+    vec![
+        (
+            "nodes",
+            format!(
+                "{} ({} valid, {} stale, {} merged, {} broken)",
+                s.nodes, s.valid, s.stale, s.merged, s.broken
+            ),
+        ),
+        ("nodes/s", rate.map_or("-".into(), |r| format!("{r:.1}"))),
+        ("generation", s.generation.to_string()),
+        (
+            "goals",
+            if goals.is_empty() {
+                "none yet".into()
+            } else {
+                format!("{}: {}", goals.len(), goals.join(", "))
+            },
+        ),
+        ("maps", s.maps.to_string()),
+        ("cells", s.cells.to_string()),
+        ("scripts", s.scripts.to_string()),
+        ("findings", format!("{} ({open} open)", s.findings)),
+    ]
+}
+
+/// What the findings table shows when a finding was recorded on another build.
+pub const OTHER_BUILD: &str = "found on another build";
+
+/// A finding's cells in the findings table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FindingCells {
+    pub id: String,
+    pub kind: String,
+    pub map: String,
+    pub cell: String,
+    /// The message's first line.
+    pub message: String,
+    pub hits: String,
+    /// `open`, `stale` or `gone`.
+    pub status: String,
+    /// "this build" or [`OTHER_BUILD`].
+    pub build: String,
+    pub other_build: bool,
+}
+
+/// A map's name and id, `? (id)` for a map this build does not have.
+pub fn map_name(m: MapId) -> String {
+    let name = if content::has_map(m) {
+        content::Emerald::for_shells().map(m).name
+    } else {
+        "?"
+    };
+    format!("{name} ({})", m.0)
+}
+
+/// Finding `f`'s cells; `build` is this build ([`Poll::build`]).
+pub fn finding_cells(f: &FindingRow, build: BuildHash) -> FindingCells {
+    let other_build = f.build != build;
+    FindingCells {
+        id: f.id.to_string(),
+        kind: format!("{:?}", f.kind),
+        map: map_name(f.map),
+        cell: format!("({}, {})", f.pos.0, f.pos.1),
+        message: f.message.lines().next().unwrap_or("").to_string(),
+        hits: f.hits.to_string(),
+        status: f.status.clone(),
+        build: if other_build {
+            OTHER_BUILD
+        } else {
+            "this build"
+        }
+        .into(),
+        other_build,
+    }
+}
+
+/// "Open at frame before": open the finding's trace at its frame in the native pane, paused
+/// there. The UI then shows the Play tab and focuses the native pane.
+pub fn open_finding_cmds(ft: FindingTrace) -> [NativeCmd; 2] {
+    [
+        NativeCmd::OpenTrace {
+            trace: ft.trace,
+            frames: ft.frames,
+        },
+        NativeCmd::Mode(RunMode::Pause),
+    ]
+}
+
+/// The note shown after opening a finding: where it opened, and a warning when it was found
+/// on another build.
+pub fn opened_text(ft: &FindingTrace) -> String {
+    let mut s = format!("opened at frame {} of {}", ft.frames, ft.trace.frames());
+    if ft.stale {
+        s.push_str(&format!(" ({OTHER_BUILD}: the replay may not reach it)"));
+    }
+    s
+}
+
+/// The command "Copy" puts on the clipboard.
+pub fn repro_command(id: i64) -> String {
+    format!("cargo xtask explore repro {id}")
+}
+
+/// `explore export <id> --db P`: the finding as a NewGame trace under `target/explore/…/repro/`.
+pub fn export_args(id: i64, db: &Path) -> Vec<String> {
+    vec![
+        "export".into(),
+        id.to_string(),
+        "--db".into(),
+        db.display().to_string(),
+    ]
+}
+
+/// An export's result: the CLI's last stdout line (`<path> (<n> frames)`), or its error (the
+/// last stderr lines).
+pub fn export_outcome(success: bool, stdout: &str, stderr: &str) -> Result<String, String> {
+    if success {
+        Ok(stdout.lines().last().unwrap_or("exported").to_string())
+    } else {
+        let tail = log_tail(stderr, 4).join("\n");
+        Err(if tail.is_empty() {
+            "export failed".into()
+        } else {
+            tail
+        })
+    }
+}
+
+/// Runs `explore export <id> --db P` through cargo and waits for it (blocking: off the UI
+/// thread).
+pub fn export_repro(id: i64, db: &Path) -> Result<String, String> {
+    let out = explore_command(&export_args(id, db))
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("starting cargo: {e}"))?;
+    export_outcome(
+        out.status.success(),
+        &String::from_utf8_lossy(&out.stdout),
+        &String::from_utf8_lossy(&out.stderr),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use engine::checkpoint::BuildHash;
     use explore::FindingKind;
 
     fn row(id: i64, status: &str, hits: u32) -> FindingRow {
@@ -433,6 +897,232 @@ mod tests {
         assert!(p.exit_status().unwrap().success());
         let text = std::fs::read_to_string(p.log()).unwrap();
         assert!(text.contains("out") && text.contains("err"), "{text}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_run_form_parses_and_validates() {
+        use BudgetKind::*;
+        assert_eq!(
+            parse_budget(Generations, " 30 "),
+            Ok(Budget::Generations(30))
+        );
+        assert_eq!(parse_budget(Secs, "600"), Ok(Budget::Secs(600)));
+        assert_eq!(parse_budget(Nodes, "0x10"), Ok(Budget::Nodes(16)));
+        for bad in ["", "0", "-3", "x", "1.5"] {
+            assert!(parse_budget(Secs, bad).is_err(), "{bad:?}");
+        }
+        assert!(parse_budget(Generations, &(u64::from(u32::MAX) + 1).to_string()).is_err());
+        assert_eq!(parse_seed(""), Ok(None));
+        assert_eq!(parse_seed("7"), Ok(Some(7)));
+        assert_eq!(parse_seed("0xff"), Ok(Some(255)));
+        assert!(parse_seed("seven").is_err());
+        assert_eq!(parse_threads(" "), Ok(None));
+        assert_eq!(parse_threads("4"), Ok(Some(4)));
+        for bad in ["0", "-1", "x", &(MAX_THREADS + 1).to_string()] {
+            assert!(parse_threads(bad).is_err(), "{bad:?}");
+        }
+        assert_eq!(parse_before("120"), Ok(120));
+        assert_eq!(parse_before("0"), Ok(0));
+        assert!(parse_before("-1").is_err());
+        for k in BudgetKind::ALL {
+            assert_eq!(BudgetKind::from_key(k.key()), Some(k));
+        }
+        assert_eq!(BudgetKind::from_key("frames"), None);
+
+        let db = Path::new("t/explore.db");
+        let form = RunForm::default();
+        let a = form.args(db).unwrap();
+        assert_eq!(
+            a.to_args(),
+            ["run", "--generations", "10", "--db", "t/explore.db"]
+        );
+        let form = RunForm {
+            kind: Secs,
+            budget: "60".into(),
+            threads: "2".into(),
+            seed: "9".into(),
+        };
+        assert_eq!(
+            form.args(db).unwrap().to_args(),
+            [
+                "run",
+                "--secs",
+                "60",
+                "--threads",
+                "2",
+                "--seed",
+                "9",
+                "--db",
+                "t/explore.db"
+            ]
+        );
+        let bad = RunForm {
+            threads: "0".into(),
+            ..form.clone()
+        };
+        assert!(bad.args(db).unwrap_err().contains("threads"));
+    }
+
+    #[test]
+    fn stats_rows_name_the_goals_and_the_rate() {
+        let mut m = ExplorerModel {
+            stats: DbStats {
+                nodes: 40,
+                valid: 30,
+                stale: 5,
+                merged: 4,
+                broken: 1,
+                findings: 2,
+                maps: 3,
+                cells: 77,
+                scripts: 6,
+                max_progress: 0,
+                generation: 9,
+            },
+            findings: vec![row(1, "open", 2), row(2, "gone", 1)],
+        };
+        let get =
+            |rows: &[(&str, String)], k: &str| rows.iter().find(|r| r.0 == k).unwrap().1.clone();
+        let rows = stats_rows(&m, None);
+        assert_eq!(
+            get(&rows, "nodes"),
+            "40 (30 valid, 5 stale, 4 merged, 1 broken)"
+        );
+        assert_eq!(get(&rows, "nodes/s"), "-");
+        assert_eq!(get(&rows, "goals"), "none yet");
+        assert_eq!(get(&rows, "cells"), "77");
+        assert_eq!(get(&rows, "findings"), "2 (1 open)");
+        m.stats.max_progress = 2;
+        let rows = stats_rows(&m, Some(12.345));
+        assert_eq!(get(&rows, "nodes/s"), "12.3");
+        let names: Vec<_> = (0..2).map(|i| goals::name(i).unwrap()).collect();
+        assert_eq!(get(&rows, "goals"), format!("2: {}", names.join(", ")));
+
+        let s = Duration::from_secs(2);
+        assert_eq!(nodes_per_sec(10, 30, s), Some(10.0));
+        assert_eq!(nodes_per_sec(30, 10, s), None, "a reset db");
+        assert_eq!(nodes_per_sec(10, 30, Duration::ZERO), None);
+    }
+
+    #[test]
+    fn finding_cells_mark_another_build() {
+        let game = content::Emerald::for_shells();
+        let this = build_hash(&game);
+        let mut f = row(7, "open", 3);
+        f.map = content::data::MAP_IDS[0];
+        f.pos = (4, -1);
+        f.message = "first line\nsecond".into();
+        f.build = this;
+        let c = finding_cells(&f, this);
+        assert_eq!(c.id, "7");
+        assert_eq!(c.kind, "Panic");
+        assert_eq!(c.map, format!("{} ({})", game.map(f.map).name, f.map.0));
+        assert_eq!(c.cell, "(4, -1)");
+        assert_eq!(c.message, "first line");
+        assert_eq!((c.hits.as_str(), c.status.as_str()), ("3", "open"));
+        assert_eq!((c.build.as_str(), c.other_build), ("this build", false));
+        f.build = BuildHash::default();
+        let c = finding_cells(&f, this);
+        assert_eq!((c.build.as_str(), c.other_build), (OTHER_BUILD, true));
+        assert!(map_name(MapId(u16::MAX)).starts_with("? "));
+    }
+
+    #[test]
+    fn open_export_and_copy_commands() {
+        let trace = Trace {
+            schema: 0,
+            parent: game_native::trace::Parent::NewGame,
+            build: BuildHash::default(),
+            start_frame: 0,
+            inputs: Vec::new(),
+            hashes: Vec::new(),
+        };
+        let ft = FindingTrace {
+            row: row(3, "open", 1),
+            trace,
+            frames: 0,
+            stale: true,
+        };
+        assert!(opened_text(&ft).contains(OTHER_BUILD));
+        assert!(matches!(
+            open_finding_cmds(ft),
+            [
+                NativeCmd::OpenTrace { frames: 0, .. },
+                NativeCmd::Mode(RunMode::Pause)
+            ]
+        ));
+        assert_eq!(repro_command(42), "cargo xtask explore repro 42");
+        assert_eq!(
+            export_args(42, Path::new("d/explore.db")),
+            ["export", "42", "--db", "d/explore.db"]
+        );
+        assert_eq!(
+            export_outcome(true, "x\nrepro/finding-42.ron (90 frames)\n", "Compiling"),
+            Ok("repro/finding-42.ron (90 frames)".into())
+        );
+        assert_eq!(
+            export_outcome(false, "", "a\nb\nc\nd\nError: no finding 42\n"),
+            Err("b\nc\nd\nError: no finding 42".into())
+        );
+        assert_eq!(export_outcome(false, "", ""), Err("export failed".into()));
+        assert_eq!(log_tail("a\nb\nc", 2), ["b", "c"]);
+        assert_eq!(log_tail("a", 5), ["a"]);
+        assert!(log_tail("", 5).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_run_slot_reports_running_finished_failed_and_stopped() {
+        let dir = std::env::temp_dir().join(format!("pkr-studio-slot-{}", std::process::id()));
+        let log = dir.join("explore.log");
+        let sh = |script: &str| {
+            let mut c = Command::new("sh");
+            c.args(["-c", script]);
+            ExplorerProc::spawn(c, &log)
+        };
+        let wait_end = |slot: &RunSlot| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            while slot.state().running() {
+                assert!(std::time::Instant::now() < deadline, "still running");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        let slot = RunSlot::default();
+        assert_eq!(slot.state(), RunState::Idle);
+        slot.start_with(|| sh("sleep 30")).unwrap();
+        assert_eq!(slot.state(), RunState::Running);
+        assert!(slot.start_with(|| sh("true")).is_err(), "one run at a time");
+        let other = slot.clone();
+        other.stop();
+        assert_eq!(slot.state(), RunState::Stopped);
+
+        slot.start_with(|| sh("true")).unwrap();
+        wait_end(&slot);
+        assert_eq!(slot.state(), RunState::Finished);
+
+        slot.start_with(|| sh("echo one; echo two >&2; exit 3"))
+            .unwrap();
+        wait_end(&slot);
+        match slot.state() {
+            RunState::Failed { status, tail } => {
+                assert_eq!(status, "exit code 3");
+                assert_eq!(tail, ["one", "two"]);
+            }
+            s => panic!("{s:?}"),
+        }
+        assert!(run_state_text(&slot.state()).starts_with("failed: exit code 3"));
+
+        let e = slot
+            .start_with(|| Err(io::Error::other("no cargo")))
+            .unwrap_err();
+        assert_eq!(slot.state(), RunState::StartFailed(e));
+
+        // Dropping the last clone kills the run.
+        slot.start_with(|| sh("sleep 30")).unwrap();
+        let pid = slot.lock().proc.as_ref().unwrap().child.id() as i32;
+        drop((slot, other));
+        assert!(!crate::proc::alive(pid), "pid {pid} still runs");
         let _ = std::fs::remove_dir_all(dir);
     }
 }
