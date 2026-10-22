@@ -1,8 +1,10 @@
 //! `cargo xtask checkpoints <list|verify|seed|label|rm|sav>` (Milestone 5 Task G).
 //!
 //! The store is the committed tree, `checkpoints/{stub|emerald}` after the content flavor
-//! (`content::STUB`); `--root <dir>` overrides it. `play`'s personal saves (`local/`,
-//! `$PKR_CHECKPOINTS`) are not part of it.
+//! (`content::STUB`); `--root <dir>` overrides it. The personal saves of `play` and the studio
+//! (`local/`, `$PKR_CHECKPOINTS`) are not part of it, except for `list --local` and
+//! `verify --local`, which open the local store layered over it (a local node may have a
+//! committed parent).
 
 use anyhow::{Context, Result, anyhow, bail};
 use game_native::checkpoints::{materialize, replayer, seed};
@@ -12,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 const USAGE: &str = "usage: cargo xtask checkpoints [--root <dir>] \
-<list | verify [--accept] | seed | label <id> <text> | rm <id> | sav <id> [-o <path>]>";
+<list [--local] | verify [--local | --accept] | seed | label <id> <text> | rm <id> | sav <id> [-o <path>]>";
 
 /// The outcome of [`verify`]: every node's status, in topological order.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
@@ -44,10 +46,17 @@ pub fn main(args: &[String]) -> Result<()> {
     if matches!(args.first(), Some(&("verify" | "seed" | "sav"))) {
         crate::fresh_extract()?;
     }
+    // `--local`: the local store over the committed tree (or `--root`), which stays read-only.
+    let local = || Store::layered(&root, Store::local_root(content::STUB));
     match args[..] {
-        ["list"] => list(&root),
+        ["list"] => list(&Store::open(&root)?),
+        ["list", "--local"] => list(&local()?),
         ["verify"] => verify(&root, false).map(drop),
         ["verify", "--accept"] => verify(&root, true).map(drop),
+        ["verify", "--local"] => verify_store(&local()?, false).map(drop),
+        ["verify", "--local", "--accept"] | ["verify", "--accept", "--local"] => {
+            verify_store(&local()?, true).map(drop)
+        }
         ["seed"] => seed_route(&root),
         ["label", id, text] => {
             let store = Store::open(&root)?;
@@ -107,41 +116,56 @@ fn print_table(
     Ok(())
 }
 
+/// Where `store` is, for messages: its root, and the base it is layered over.
+fn place(store: &Store) -> String {
+    match store.base() {
+        Some(base) => format!("{} over {}", store.root().display(), base.display()),
+        None => store.root().display().to_string(),
+    }
+}
+
 /// The tree with the statuses of the last `verify` (`status.ron`).
-fn list(root: &Path) -> Result<()> {
-    let store = Store::open(root)?;
+fn list(store: &Store) -> Result<()> {
     let status = store.statuses()?;
-    println!("{}", root.display());
-    print_table(&store, &status, &BTreeSet::new())
+    println!("{}", place(store));
+    print_table(store, &status, &BTreeSet::new())
 }
 
 /// Replays every node of the store at `root` on the current build (`accept` re-baselines
 /// Diverged and Stale nodes, and refreshes Valid ones flagged "rehash") and prints the table.
 /// A Broken node is always an error; without `accept`, so is any node that is not Valid.
 pub fn verify(root: &Path, accept: bool) -> Result<VerifySummary> {
-    let summary = replay_all(root, accept)?;
+    verify_store(&Store::open(root)?, accept)
+}
+
+/// [`verify`] on any store. A layered store (`--local`) is never accepted: re-baselining its
+/// read-only base would fail half-way, and the committed tree is accepted on its own.
+fn verify_store(store: &Store, accept: bool) -> Result<VerifySummary> {
+    if accept && store.base().is_some() {
+        bail!(
+            "`verify --local --accept` is refused: the committed tree is read-only under the local \
+             store (accept it alone with `verify --accept`)"
+        );
+    }
+    let place = place(store);
+    let summary = replay_all(store, accept)?;
     let broken = (summary.nodes.iter())
         .filter(|(_, s)| matches!(s, Status::Broken(_)))
         .count();
     if accept && broken > 0 {
-        bail!(
-            "{broken} broken nodes were not accepted in {}",
-            root.display()
-        );
+        bail!("{broken} broken nodes were not accepted in {place}");
     }
     if !accept && !summary.ok() {
         bail!(
-            "checkpoint tree {} has stale, diverged or broken nodes: replay the change with \
-             `cargo xtask checkpoints verify --accept` if it is intended",
-            root.display()
+            "checkpoint tree {place} has stale, diverged or broken nodes: replay the change with \
+             `cargo xtask checkpoints verify --accept` if it is intended"
         );
     }
     Ok(summary)
 }
 
 /// [`verify`] without the verdict: every node's status.
-fn replay_all(root: &Path, accept: bool) -> Result<VerifySummary> {
-    let store = Store::open(root)?;
+fn replay_all(store: &Store, accept: bool) -> Result<VerifySummary> {
     let game = content::Emerald::for_shells();
     let verdicts = store.verify_nodes(replayer(&game), accept)?;
     let summary = VerifySummary {
@@ -150,12 +174,12 @@ fn replay_all(root: &Path, accept: bool) -> Result<VerifySummary> {
     };
     println!(
         "{}: {} nodes{}",
-        root.display(),
+        place(store),
         summary.nodes.len(),
         if accept { " (--accept)" } else { "" }
     );
     let status = summary.nodes.iter().cloned().collect();
-    print_table(&store, &status, &summary.rehash)?;
+    print_table(store, &status, &summary.rehash)?;
     if !accept && !summary.rehash.is_empty() {
         println!(
             "{} valid nodes were recorded on another build: `verify --accept` refreshes their \
@@ -247,13 +271,54 @@ mod tests {
     }
 
     #[test]
+    fn local_verifies_a_local_child_of_a_committed_node_and_never_accepts() {
+        // The route's first two nodes, split: the first in the committed tree, its child local.
+        let full = temp_root("split");
+        let mut rec = game_native::scenario::cached_route().clone();
+        rec.nodes.truncate(2);
+        seed(
+            &Store::open(&full).unwrap(),
+            &content::Emerald::for_shells(),
+            &rec,
+        )
+        .unwrap();
+        let (base, local) = (temp_root("base"), temp_root("local"));
+        for (dir, file) in [(&base, "c00001.ron"), (&local, "c00002.ron")] {
+            std::fs::create_dir_all(dir.join("nodes")).unwrap();
+            std::fs::copy(full.join("nodes").join(file), dir.join("nodes").join(file)).unwrap();
+        }
+        // Alone, the local store misses the parent.
+        let alone = Store::open(&local).unwrap();
+        list(&alone).unwrap_err();
+        verify_store(&alone, false).unwrap_err();
+        let layered = Store::layered(&base, &local).unwrap();
+        let s = verify_store(&layered, false).unwrap();
+        assert_eq!(
+            s.nodes,
+            [
+                (CheckpointId(1), Status::Valid),
+                (CheckpointId(2), Status::Valid)
+            ]
+        );
+        list(&layered).unwrap();
+        assert!(local.join("status.ron").exists());
+        assert!(!base.join("status.ron").exists(), "the base is not written");
+        assert!(!base.join("snapshots").exists(), "the base is not written");
+        let err = verify_store(&layered, true).unwrap_err();
+        assert!(err.to_string().contains("refused"), "{err}");
+        for dir in [full, base, local] {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
     fn verify_a_seeded_store_is_valid() {
         let (root, store) = one_node_store("valid");
         let s = verify(&root, false).unwrap();
         assert_eq!(s.nodes, [(CheckpointId(1), Status::Valid)]);
         assert!(s.ok());
         // `list` reads the verdicts back.
-        list(&root).unwrap();
+        list(&store).unwrap();
         assert_eq!(store.nodes().unwrap().len(), 1);
         let _ = std::fs::remove_dir_all(root);
     }
@@ -289,7 +354,7 @@ mod tests {
                 )]
             )
         };
-        let s = replay_all(&root, false).unwrap();
+        let s = replay_all(&Store::open(&root).unwrap(), false).unwrap();
         assert!(diverged(&s), "{s:?}");
         assert!(!s.ok());
         verify(&root, false).unwrap_err();
@@ -342,7 +407,7 @@ mod tests {
             matches!(&s.nodes[..], [(CheckpointId(1), Status::Broken(why))]
                 if why.contains("nondeterministic"))
         };
-        let s = replay_all(&root, false).unwrap();
+        let s = replay_all(&Store::open(&root).unwrap(), false).unwrap();
         assert!(broken(&s), "{s:?}");
         verify(&root, false).unwrap_err();
         // `--accept` never accepts a Broken node, and fails.
