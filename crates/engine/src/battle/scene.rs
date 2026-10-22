@@ -100,6 +100,7 @@ use super::{
     Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleSetup, Choice,
     EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, Str, text,
 };
+use crate::checkpoint::PlayerName;
 use crate::data::{GameData, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
@@ -240,6 +241,8 @@ pub struct BattleScene {
     fader: Fader,
     outcome: Option<BattleOutcome>,
     finished: bool,
+    /// The World's player name (`{B_PLAYER_NAME}`, `{PLAYER}`). Not hashed: the World hashes it.
+    player: PlayerName,
 }
 
 /// What presentation shows of party mon `p` (slot `party`), as `CopyMonToBattleMon`.
@@ -266,8 +269,9 @@ fn ends_with_prompt(text: &[u8]) -> bool {
 }
 
 impl BattleScene {
-    /// A scene for `setup`. Nothing is drawn until [`BattleScene::load`].
-    pub fn new(setup: &BattleSetup) -> Self {
+    /// A scene for `setup`, the player named `player`. Nothing is drawn until
+    /// [`BattleScene::load`].
+    pub fn new(setup: &BattleSetup, player: PlayerName) -> Self {
         let mut fader = Fader::new();
         fader.start(Fade::FromBlack);
         BattleScene {
@@ -288,6 +292,7 @@ impl BattleScene {
             fader,
             outcome: None,
             finished: false,
+            player,
         }
     }
 
@@ -333,8 +338,11 @@ impl BattleScene {
             }
             3 => {
                 // Text only (slow on the GBA): a black frame of its own.
-                p.windows
-                    .prepare(game, &names(game, battle), battle.mon(Side::Player));
+                p.windows.prepare(
+                    game,
+                    &names(game, battle, &self.player),
+                    battle.mon(Side::Player),
+                );
                 4
             }
             4 => {
@@ -458,6 +466,11 @@ impl BattleScene {
             battle.choose(game, rng, c, &mut events);
             self.push(&mut events);
         }
+    }
+
+    /// The player's name the scene prints.
+    pub const fn player(&self) -> &PlayerName {
+        &self.player
     }
 
     /// The outcome once `End` played, its last message was dismissed and the screen faded to
@@ -697,7 +710,7 @@ impl BattleScene {
                     return false;
                 }
                 if let BattleKind::Trainer { defeat, .. } = self.kind {
-                    let text = crate::text::expand(game, game.text(defeat));
+                    let text = crate::text::expand(game, game.text(defeat), &self.player);
                     let wait = if ends_with_prompt(&text) {
                         MsgWait::Frames(0)
                     } else {
@@ -869,7 +882,7 @@ impl BattleScene {
     /// Prints `m` (expanded with the battle's names).
     fn print(&mut self, game: &impl GameData, battle: &Battle, m: &Msg, f: &mut Frame) {
         self.last_msg = Some(m.id);
-        let text = text::expand(game, m, &names(game, battle));
+        let text = text::expand(game, m, &names(game, battle, &self.player));
         let wait = match m.wait {
             MsgWait::Button if ends_with_prompt(&text) => MsgWait::Frames(0),
             w => w,
@@ -878,8 +891,8 @@ impl BattleScene {
     }
 }
 
-/// The names `text::expand` reads, from the battle and the game.
-fn names<'a>(game: &impl GameData, battle: &'a Battle) -> Names<'a> {
+/// The names `text::expand` reads, from the battle, the game and the player's name.
+fn names<'a>(game: &impl GameData, battle: &'a Battle, player: &'a [u8]) -> Names<'a> {
     let (trainer_class, trainer_name): (&[u8], &[u8]) = match battle.setup().kind {
         BattleKind::Trainer { trainer, .. } => game
             .trainer(trainer)
@@ -887,7 +900,7 @@ fn names<'a>(game: &impl GameData, battle: &'a Battle) -> Names<'a> {
         BattleKind::Wild { .. } => (&[EOS], &[EOS]),
     };
     Names {
-        player: game.new_game().player_name,
+        player,
         trainer_class,
         trainer_name,
         wild: matches!(battle.setup().kind, BattleKind::Wild { .. }),

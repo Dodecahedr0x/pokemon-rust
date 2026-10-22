@@ -123,16 +123,16 @@ pub(crate) fn unit_len(text: &[u8], i: usize) -> usize {
     }
 }
 
-/// Copies `text` up to its 0xFF, expanding `{PLAYER}` and `{RIVAL}`; other placeholders expand
-/// to nothing. The result always ends with 0xFF.
-pub fn expand(game: &impl GameData, text: &[u8]) -> Vec<u8> {
+/// Copies `text` up to its 0xFF, expanding `{PLAYER}` to `player` (the World's name, up to its
+/// 0xFF) and `{RIVAL}`; other placeholders expand to nothing. The result always ends with 0xFF.
+pub fn expand(game: &impl GameData, text: &[u8], player: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(text.len() + 8);
     let mut i = 0;
     while i < text.len() && text[i] != EOS {
         let n = unit_len(text, i);
         if text[i] == PLACEHOLDER {
             let name: &[u8] = match text.get(i + 1).copied() {
-                Some(PLACEHOLDER_PLAYER) => game.new_game().player_name,
+                Some(PLACEHOLDER_PLAYER) => player,
                 Some(PLACEHOLDER_RIVAL) => game.ui_text(UiText::RivalName),
                 _ => &[],
             };
@@ -334,15 +334,23 @@ impl TextBox {
     }
 
     /// Clears the window and starts printing `text` (Gen3-encoded, 0xFF-terminated). Opens the
-    /// window first if needed. The first character appears on the next `update`.
-    pub fn print(&mut self, game: &impl GameData, text: &'static [u8], f: &mut Frame) {
+    /// window first if needed. `{PLAYER}` prints `player`. The first character appears on the next
+    /// `update`.
+    pub fn print(
+        &mut self,
+        game: &impl GameData,
+        text: &'static [u8],
+        player: &[u8],
+        f: &mut Frame,
+    ) {
         // Opening clears the canvas with the default colours already; it is flushed once below.
         let cleared = !self.open;
         if cleared {
             self.open_unflushed(game, f);
         }
         let colors = Colors::of(game.window());
-        self.printer.start(expand(game, text), colors, !cleared);
+        self.printer
+            .start(expand(game, text, player), colors, !cleared);
         self.printer.flush(f);
     }
 
@@ -360,6 +368,12 @@ impl TextBox {
     /// True while a message is being printed, including its `\p`/`\l`/pause waits.
     pub fn is_printing(&self) -> bool {
         self.printer.is_printing()
+    }
+
+    /// The expanded text of the last message (tests only).
+    #[cfg(test)]
+    pub(crate) fn printed(&self) -> &[u8] {
+        &self.printer.text
     }
 
     /// Shows the yes/no menu (Gen3 `DisplayYesNoMenuDefaultYes`), cursor on yes.
