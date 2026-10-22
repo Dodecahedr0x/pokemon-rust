@@ -136,6 +136,8 @@ fn writes_current_format_tree() {
         want.insert(format!("sprites/field_effects/{emote}.ron"));
         want.insert(format!("sprites/field_effects/{emote}.png"));
     }
+    // C-side tables (M8 Task C), whose contents tests/tables.rs checks.
+    want.extend(extract::export::tables::FILES.map(String::from));
     // Battle data (M4 Task A).
     for f in [
         "species",

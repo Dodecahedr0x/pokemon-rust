@@ -85,11 +85,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// scripts' index renamed `scripts/legacy_index.ron`.
 pub const FORMAT_VERSION: u32 = 5;
 /// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
-/// extract; 1: Task B adds the script IR (`scripts/<Module>.ron`, `scripts/index.ron`,
-/// `text/ir_<lang>.ron`); 2: Task A adds `layouts/`, `sprites/field_effects/` (emotes), every
-/// wild table of every header (encounters v5), `battle/evolutions.ron`,
-/// `battle/trainer_money.ron` and `Species.weight`, and makes previews optional.
-pub const FORMAT_MINOR: u32 = 2;
+/// extract.
+/// - 1: Task B adds the script IR (`scripts/<Module>.ron`, `scripts/index.ron`,
+///   `text/ir_<lang>.ron`).
+/// - 2: Task A adds `layouts/`, `sprites/field_effects/` (emotes), every wild table of every
+///   header (encounters v5), `battle/evolutions.ron`, `battle/trainer_money.ron` and
+///   `Species.weight`, and makes previews optional.
+/// - 3: Task C adds the `tables/` files (items, multichoice, std strings, map sections).
+pub const FORMAT_MINOR: u32 = 3;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -106,6 +109,10 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (2, "sprites/field_effects/QuestionMark.png"),
     (2, "sprites/field_effects/HeartIcon.ron"),
     (2, "sprites/field_effects/HeartIcon.png"),
+    (3, "tables/items.ron"),
+    (3, "tables/multichoice.ron"),
+    (3, "tables/std_strings.ron"),
+    (3, "tables/map_sections.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -790,7 +797,8 @@ pub struct Item {
     pub id: String,
     /// The ROM's name, decomp `.string` syntax.
     pub name: String,
-    /// `None` for `POCKET_NONE` (`ITEM_NONE`, unused slots).
+    /// `None` for `POCKET_NONE`, which no Emerald item uses: `ITEM_NONE` and the unused slots
+    /// (`ITEM_034` …, itemId 0) are `POCKET_ITEMS`, named "????????" with price 0.
     pub pocket: Option<ItemPocket>,
     pub price: u16,
     /// `importance`: key items cannot be tossed or sold.
