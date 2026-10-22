@@ -2,6 +2,7 @@ mod budget;
 mod checkpoints;
 mod explore;
 mod studio;
+mod sweep;
 
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
@@ -98,7 +99,18 @@ fn rom() -> Result<PathBuf> {
         .args(["-t", "PKRUST"]))?;
     println!("ROM: {}", out.display());
     check_rom_size(&out)?;
-    budget::check(&budget::report(&elf, &out)?, content::STUB)?;
+    let content = if content::STUB {
+        budget::Content::Stub
+    } else if content::data::MAP_COUNT > extract::export::SLICE_MAPS.len() {
+        budget::Content::Full
+    } else {
+        budget::Content::Slice
+    };
+    budget::check(
+        &budget::report(&elf, &out)?,
+        &budget::sections(&elf)?,
+        content,
+    )?;
     // The video probe (crates/game-gba/src/bin/video_probe.rs), compared by the parity test.
     let probe = root().join("target/video-probe.gba");
     run(Command::new("agb-gbafix")
@@ -352,6 +364,7 @@ fn main() -> Result<()> {
         Some("checkpoints") => checkpoints::main(&args[1..]),
         Some("studio") => studio::main(&args[1..]),
         Some("explore") => explore::main(&args[1..]),
-        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore>"),
+        Some("sweep") => sweep::main(&args[1..]),
+        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep>"),
     }
 }
