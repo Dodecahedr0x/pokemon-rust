@@ -45,6 +45,7 @@
 //! `starter_bag.tilemap` holds `birch_bag.bin` padded to 32x32 entries (1024), followed by
 //! `birch_grass.bin` (1024); a shorter tilemap draws what it has.
 
+use crate::checkpoint::PlayerName;
 use crate::data::{Font, GameData, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
@@ -187,10 +188,12 @@ pub struct StarterChoice {
     pic: Option<(i16, i16)>,
     fader: Fader,
     text: TextBox,
+    /// The World's player name, for `{PLAYER}` in the texts (not hashed: the World hashes it).
+    player: PlayerName,
 }
 
 impl StarterChoice {
-    pub fn new(choices: [SpeciesId; 3]) -> Self {
+    pub fn new(choices: [SpeciesId; 3], player: PlayerName) -> Self {
         let mut fader = Fader::new();
         fader.start(Fade::FromBlack);
         Self {
@@ -203,7 +206,13 @@ impl StarterChoice {
             pic: None,
             fader,
             text: TextBox::new(),
+            player,
         }
+    }
+
+    /// The player's name the screen prints.
+    pub const fn player(&self) -> &PlayerName {
+        &self.player
     }
 
     /// The highlighted ball (0..3).
@@ -355,7 +364,7 @@ impl StarterChoice {
             Stage::Enter => {
                 // `Task_StarterChoose`.
                 let t = game.battle_text(crate::battle::Str::BirchInTrouble);
-                self.text.print(game, t, f);
+                self.text.print(game, t, &self.player, f);
                 self.draw_label(game, f);
                 self.stage = Stage::Choose;
             }
@@ -384,7 +393,7 @@ impl StarterChoice {
                 if n >= GROW_FRAMES && self.pic == Some(PIC_POS) {
                     // `Task_AskConfirmStarter`.
                     let q = game.battle_text(crate::battle::Str::ConfirmStarterChoice);
-                    self.text.print(game, q, f);
+                    self.text.print(game, q, &self.player, f);
                     self.stage = Stage::Ask;
                 } else {
                     self.stage = Stage::Zoom(n.saturating_add(1));

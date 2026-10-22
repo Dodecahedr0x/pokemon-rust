@@ -259,6 +259,8 @@ static WINDOW: WindowGfx = WindowGfx {
 };
 /// Two glyphs, a `\p` page break, one glyph.
 static TEXT: [u8; 5] = [1, 2, 0xFB, 3, 0xFF];
+/// "{PLAYER}"; every other text id is `TEXT`.
+const PLAYER_TEXT: TextId = TextId(1);
 
 pub struct Game;
 
@@ -387,8 +389,11 @@ impl GameData for Game {
     fn window(&self) -> &'static WindowGfx {
         &WINDOW
     }
-    fn text(&self, _: TextId) -> &'static [u8] {
-        &TEXT
+    fn text(&self, id: TextId) -> &'static [u8] {
+        match id {
+            PLAYER_TEXT => &[0xFD, 0x01, 0xFF], // "{PLAYER}"
+            _ => &TEXT,
+        }
     }
     fn ui_text(&self, _: UiText) -> &'static [u8] {
         &[1, 0xFF]
@@ -757,6 +762,46 @@ fn the_player_name_is_hashed_state() {
     assert_eq!(a.hash(), before, "same name as NewGame");
     a.set_player_name(&[0xBB, 0xCD, 0xC2, 0xFF]); // "ASH"
     assert_ne!(a.hash(), before);
+}
+
+/// Messages, the starter screen and battles read the World's name, not `NewGame`'s.
+#[test]
+fn the_worlds_player_name_reaches_messages_the_starter_screen_and_battles() {
+    const ASH: [u8; 4] = [0xBB, 0xCD, 0xC2, 0xFF];
+    const PADDED: PlayerName = [0xBB, 0xCD, 0xC2, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+    let named = || {
+        let mut w = started();
+        w.set_player_name(&ASH);
+        w
+    };
+
+    let mut w = named();
+    start(&mut w, |ctx| {
+        Box::pin(async move { ctx.message(PLAYER_TEXT).await })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(w.s.text.printed(), ASH);
+
+    let mut w = named();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.choose_starter([SpeciesId(1), SpeciesId(2), SpeciesId(3)])
+                .await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(w.starter().map(|s| *s.player()), Some(PADDED));
+
+    let mut w = named();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(crate::battle::test_data::WATER, 5).await;
+            ctx.battle_wild(crate::battle::test_data::NORMAL, 3, false)
+                .await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert_eq!(w.battle().map(|b| *b.2.player()), Some(PADDED));
 }
 
 #[test]
