@@ -95,9 +95,9 @@ the extractor's unit tests, which need none of these.
    replaces `content/extracted/` with it (a failed run keeps the previous output). It prints a
    summary (maps, tilesets, sprites, skipped graphics, script and text files, the codegen
    statistics, any undecoded script instructions).
-3. See the output in `content/extracted/` (format v2, described in `crates/extract/src/schema.rs`).
+3. See the output in `content/extracted/` (format v4, described in `crates/extract/src/schema.rs`).
    Everything is named with decomp identifiers (`LittlerootTown`, `General`, `FLAG_HIDE_…`,
-   `OBJ_EVENT_GFX_…`); ROM offsets only appear in the manifest:
+   `OBJ_EVENT_GFX_…`, `SPECIES_…`, `TRAINER_PIC_…`); ROM offsets only appear in the manifest:
    - `manifest.ron`: format, game code, language, ROM sha1, the exported maps, tilesets and
      sprites, the ROM offset of everything read (`provenance`), sha1 of every other file
    - `maps/<Map>.ron`: header, layout (tileset names, blocks one map row per line), objects,
@@ -109,13 +109,31 @@ the extractor's unit tests, which need none of these.
      metatiles and attributes
    - `sprites/<Gfx>.png` + `.ron`: overworld sprites the maps use (also through
      `VAR_OBJ_GFX_ID_*`), plus Brendan and May
-   - `font/latin_normal.png` + `.ron`: the Latin font and its glyph widths
+   - `font/latin_normal.png` + `.ron`, `font/latin_small.png` + `.ron`: the Latin fonts and
+     their glyph widths
    - `window/message_box.png` + `.ron`: the dialogue window frame, its palette and text colors
    - `previews/<Map>.png`: map renders
    - `text/<lang>.ron`: every text the scripts use, keyed `<Script>_T<n>`, re-encoding to its
      exact ROM bytes
    - `scripts/<Map>.rs` + `scripts/index.ron`: the map's event scripts as generated async Rust
      (compiled into `content` by its build script), and the root name to function index
+   - `battle/*.ron`: battle data. `species.ron` (stats, types, abilities, learnsets, FR names),
+     `moves.ron`, `types.ron` (type chart, type and ability names), `trainers.ron` (every
+     trainer and party), `encounters.ron` (the exported maps' land encounters),
+     `heal_locations.ron`, `strings.ron` (the French battle strings in decomp `.string` syntax)
+   - `battle/gfx/<name>.png` + `.ron`: the battle interface (text box and its tilemap, the two
+     healthboxes, HP and EXP bars, status icons, misc, the ball)
+   - `battle/env/<Env>.png` + `.ron`: the 10 battle backgrounds (tiles, tilemap, palettes)
+   - `pokemon/<SPECIES>/front.png`, `back.png` (64x64, own palette), `shiny.pal`, and
+     `pokemon/coords.ron` (pic placement)
+   - `trainers/front/<TRAINER_PIC>.png`, `trainers/back/<TRAINER_BACK_PIC>.png` (frames side by
+     side), `trainers/pics.ron` (placement, back pic frame counts)
+   - `starter/`: the starter screen's bag, ball and circle graphics (`.png` + `.ron`) and the
+     grass tilemap (`grass.ron`)
+
+   An extract in an older format still builds, as the stub world with a build warning
+   (`content::STALE_EXTRACT`), so that `cargo xtask extract` can run to replace it; `cargo
+   xtask parity`, `cargo xtask shot` and the route tests refuse it until you extract again.
 
 The output is deterministic: two runs on the same ROM give identical files. The decomp
 identifier tables live in `crates/extract/src/names/generated.rs`, checked against the decomp by
