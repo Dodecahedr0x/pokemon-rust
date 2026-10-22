@@ -8,6 +8,8 @@ publish.workspace = true
 engine.workspace = true
 anyhow.workspace = true
 mgba.workspace = true
+# Raw libmgba types (`GBASavedataType`), the same build `mgba` links.
+mgba-sys = "=0.1.0"
 
 [dev-dependencies]
 content.workspace = true

@@ -2,7 +2,12 @@
 
 use anyhow::{Context, Result, anyhow};
 use engine::Buttons;
-use engine::debug::{INPUT_RING, MAGIC, OFF_FRAME, OFF_HASH, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK};
+use engine::checkpoint::{BuildHash, FLASH_SIZE};
+use engine::debug::{
+    INPUT_RING, MAGIC, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE, OFF_FRAME, OFF_HASH,
+    OFF_HASH_LINES_MAX, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK, OFF_SAVE_STATUS, OFF_SAVES,
+    OFF_STEP_LINES_MAX, SIZE,
+};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -30,7 +35,58 @@ pub struct DebugSnapshot {
     pub late: u32,
     /// Late applies while the screen stayed black (`DebugRegion::late_black`).
     pub late_black: u32,
+    /// The ROM's `checkpoint::build_hash` (zero until the ROM publishes it at boot).
+    pub build: BuildHash,
+    /// How the ROM's World started: an `engine::debug::boot` code.
+    pub boot: u32,
+    /// Successful flash writes.
+    pub saves: u32,
+    /// The last flash write: an `engine::debug::save` code.
+    pub save_status: u32,
+    /// Worst scanlines of `World::hash()` on a visible frame.
+    pub hash_lines_max: u32,
+    /// Worst scanlines from the apply to the end of publish on a visible frame.
+    pub step_lines_max: u32,
 }
+
+// `Emu::debug` reads the v2 fields at engine's offsets: inside the region, and the u64s on
+// 8-byte boundaries (read as two 32-bit halves).
+const _: () = {
+    assert!(SIZE == 200 && MAGIC[7] == b'2');
+    assert!(OFF_BUILD_ENGINE == 160 && OFF_BUILD_CONTENT == 168);
+    assert!(OFF_BOOT == 176 && OFF_SAVES == 180 && OFF_SAVE_STATUS == 184);
+    assert!(OFF_HASH_LINES_MAX == 188 && OFF_STEP_LINES_MAX == 192);
+    assert!(OFF_STEP_LINES_MAX as usize + 4 <= SIZE);
+    assert!(OFF_HASH.is_multiple_of(8) && OFF_BUILD_ENGINE.is_multiple_of(8));
+    assert!(OFF_BUILD_CONTENT.is_multiple_of(8));
+};
+
+unsafe extern "C" {
+    /// libc's: frees the buffer `mCore::savedataClone` `malloc`ed.
+    fn free(ptr: *mut core::ffi::c_void);
+}
+
+/// `struct GBACartridgeOverride` (`mgba/gba/interface.h`), not in `mgba-sys`'s bindings.
+#[repr(C)]
+struct GbaCartridgeOverride {
+    id: [core::ffi::c_char; 4],
+    savetype: mgba_sys::GBASavedataType,
+    hardware: core::ffi::c_int,
+    idle_loop: u32,
+    vba_bug_compat: bool,
+}
+/// `HW_NO_OVERRIDE`: keep the cartridge's detected hardware.
+const HW_NO_OVERRIDE: core::ffi::c_int = 0x8000;
+/// `GBA_IDLE_LOOP_NONE`.
+const IDLE_LOOP_NONE: u32 = 0xFFFF_FFFF;
+
+// The C layout: char[4], enum (int), int, uint32_t, bool + padding. The override below is
+// FLASH512, the 64 KiB chip `FLASH_SIZE` describes.
+const _: () = {
+    assert!(core::mem::size_of::<mgba_sys::GBASavedataType>() == 4);
+    assert!(core::mem::size_of::<GbaCartridgeOverride>() == 20);
+    assert!(FLASH_SIZE == 64 * 1024);
+};
 
 /// Private scratch directory removed on drop (errors ignored).
 struct ScratchDir(PathBuf);
@@ -60,20 +116,82 @@ pub struct Emu {
 
 impl Emu {
     /// Loads a private copy of `rom`, so mGBA's `.sav` autoload never touches
-    /// (or reads state from) the directory the ROM lives in.
+    /// (or reads state from) the directory the ROM lives in. The flash starts erased.
     pub fn open(rom: &Path) -> Result<Self> {
+        Self::open_with_save(rom, None)
+    }
+
+    /// [`Emu::open`] with `sav` (a `FLASH_SIZE` image, see `game_native::flash`) as the
+    /// cartridge's flash: it is written to `game.sav` next to the private ROM copy, where
+    /// `mCoreAutoloadSave` picks it up.
+    ///
+    /// The save type is set to 64 KiB flash (FLASH512, Panasonic id), the `FLASH_SIZE` chip.
+    /// That is what libmgba picks by itself for a homebrew ROM on its first flash command (it
+    /// reads neither agb's `FLASH*_V` markers nor the `.sav` size), so the harness runs what a
+    /// stock mGBA runs; setting it up front only makes [`Emu::save_data`] `FLASH_SIZE` bytes
+    /// before the ROM touches the flash.
+    pub fn open_with_save(rom: &Path, sav: Option<&[u8]>) -> Result<Self> {
+        if let Some(sav) = sav
+            && sav.len() != FLASH_SIZE
+        {
+            return Err(anyhow!(
+                "save image is {} bytes, expected {FLASH_SIZE}",
+                sav.len()
+            ));
+        }
         let scratch = ScratchDir::new()?;
         let copy = scratch.0.join("game.gba");
         std::fs::copy(rom, &copy).with_context(|| format!("copy {}", rom.display()))?;
+        if let Some(sav) = sav {
+            let path = scratch.0.join("game.sav");
+            std::fs::write(&path, sav).with_context(|| format!("write {}", path.display()))?;
+        }
         let mut core = mgba::Core::new().map_err(|e| anyhow!("mgba core: {e:?}"))?;
         core.load_rom(&copy)
             .map_err(|e| anyhow!("load {}: {e:?}", rom.display()))?;
+        let flash = GbaCartridgeOverride {
+            id: [0; 4],
+            savetype: mgba_sys::GBA_SAVEDATA_FLASH512,
+            hardware: HW_NO_OVERRIDE,
+            idle_loop: IDLE_LOOP_NONE,
+            // libmgba's value when no override applies (`GBACreate`).
+            vba_bug_compat: false,
+        };
+        // SAFETY: the core is initialised and loaded; setOverride copies the struct, and the
+        // reset below applies it (`_GBACoreReset` -> `GBAOverrideApply`).
+        unsafe {
+            let raw = core.raw_ptr();
+            let set = (*raw)
+                .setOverride
+                .ok_or_else(|| anyhow!("no setOverride"))?;
+            set(raw, (&raw const flash).cast());
+        }
         core.reset().map_err(|e| anyhow!("reset: {e:?}"))?;
         Ok(Self {
             core,
             debug_base: None,
             _scratch: scratch,
         })
+    }
+
+    /// A copy of the cartridge's save memory (`FLASH_SIZE` bytes of flash).
+    pub fn save_data(&mut self) -> Result<Vec<u8>> {
+        // SAFETY: savedataClone mallocs `len` bytes (or sets NULL and returns 0); they are
+        // copied out, then freed with the same allocator.
+        unsafe {
+            let raw = self.core.raw_ptr();
+            let clone = (*raw)
+                .savedataClone
+                .ok_or_else(|| anyhow!("no savedataClone"))?;
+            let mut buf: *mut core::ffi::c_void = core::ptr::null_mut();
+            let len = clone(raw, &mut buf);
+            if buf.is_null() {
+                return Err(anyhow!("savedataClone returned no save data"));
+            }
+            let out = core::slice::from_raw_parts(buf as *const u8, len).to_vec();
+            free(buf);
+            Ok(out)
+        }
     }
 
     pub fn run_frame(&mut self, keys: Buttons) -> Result<()> {
@@ -110,6 +228,11 @@ impl Emu {
         }
     }
 
+    /// A little-endian u64 stored as two 32-bit words.
+    fn read64(&mut self, addr: u32) -> u64 {
+        self.read32(addr) as u64 | (self.read32(addr + 4) as u64) << 32
+    }
+
     fn find_debug_base(&mut self) -> Option<u32> {
         let m0 = u32::from_le_bytes(MAGIC[0..4].try_into().unwrap());
         let m1 = u32::from_le_bytes(MAGIC[4..8].try_into().unwrap());
@@ -125,8 +248,7 @@ impl Emu {
         }
         let base = self.debug_base?;
         let frame = self.read32(base + OFF_FRAME);
-        let hash =
-            self.read32(base + OFF_HASH) as u64 | (self.read32(base + OFF_HASH + 4) as u64) << 32;
+        let hash = self.read64(base + OFF_HASH);
         let late = self.read32(base + OFF_LATE);
         let late_black = self.read32(base + OFF_LATE_BLACK);
         let mut inputs = [0u16; INPUT_RING];
@@ -139,6 +261,15 @@ impl Emu {
             inputs,
             late,
             late_black,
+            build: BuildHash {
+                engine: self.read64(base + OFF_BUILD_ENGINE),
+                content: self.read64(base + OFF_BUILD_CONTENT),
+            },
+            boot: self.read32(base + OFF_BOOT),
+            saves: self.read32(base + OFF_SAVES),
+            save_status: self.read32(base + OFF_SAVE_STATUS),
+            hash_lines_max: self.read32(base + OFF_HASH_LINES_MAX),
+            step_lines_max: self.read32(base + OFF_STEP_LINES_MAX),
         })
     }
 
@@ -162,11 +293,14 @@ pub struct Capture {
     pub fb: Vec<u16>,
 }
 
-/// A scripted ROM run (see [`run_rom`]).
+/// A scripted ROM run (see [`run_rom_from`]).
 pub struct RomRun {
-    /// Input consumed by step `i + 1`.
+    /// The engine frame the ROM booted at: 0 for a new game, the checkpoint's frame for a
+    /// restored save.
+    pub start: u32,
+    /// Input consumed by step `start + i + 1`.
     pub consumed: Vec<Buttons>,
-    /// (engine frame, World hash) at every sample, including checkpoints.
+    /// (engine frame, World hash) at every sample after `start`, including picture frames.
     pub hashes: Vec<(u32, u64)>,
     pub captures: Vec<Capture>,
     /// Emulator frames the run took after boot.
@@ -175,33 +309,92 @@ pub struct RomRun {
     pub late_black: u32,
     /// The engine frame read after each `late_black` increment (one entry per increment).
     pub late_black_frames: Vec<u32>,
+    /// The debug region once the ROM published its boot state (frame `start`, its hash, and
+    /// the `build` and `boot` fields).
+    pub boot: DebugSnapshot,
+    /// The debug region at the end (`saves`, `save_status`, the scanline maxima).
+    pub end: DebugSnapshot,
+    /// The cartridge flash at the end ([`Emu::save_data`]).
+    pub save: Vec<u8>,
 }
 
-/// Runs the ROM until engine frame `total`, feeding `keys(f)` while the ROM is at engine frame
-/// `f` (so step `f + 1` consumes it). Records the hash at every sample and the picture when the
-/// ROM is at each checkpoint (the picture of step `checkpoint - 1`, see `engine::debug`).
-///
-/// Fails if the ROM steps past a checkpoint between two samples (two engine steps in one
-/// emulator frame), reports a late frame apply (`DebugRegion::late`), runs more steps than the
-/// input ring holds between reads, or stops advancing.
+/// [`run_rom_from`] on erased flash: a new game, which must boot at frame 0.
 pub fn run_rom(
     rom: &Path,
     keys: impl Fn(u32) -> Buttons,
     total: u32,
-    checkpoints: &[u32],
+    picture_frames: &[u32],
 ) -> Result<RomRun> {
-    if !checkpoints.windows(2).all(|w| w[0] < w[1]) {
-        return Err(anyhow!("checkpoints must ascend"));
+    run_rom_from(rom, None, Some(0), keys, total, picture_frames)
+}
+
+/// Emulator frames [`run_rom_from`] waits for the ROM to publish its boot state.
+const BOOT_FRAMES: u32 = 120;
+
+/// Boots the ROM on `sav` (erased flash if `None`, see [`Emu::open_with_save`]) and runs it
+/// until engine frame `total`, feeding `keys(f)` while the ROM is at engine frame `f` (so step
+/// `f + 1` consumes it). The run starts at the ROM's first published frame (`RomRun::start`).
+/// Records the hash at every sample and the picture when the ROM is at each of
+/// `picture_frames` (the picture of step `frame - 1`, see `engine::debug`), which must lie in
+/// `start + 1..=total`.
+///
+/// Fails if `expect_start` is given and the ROM booted at another frame (a restore run passes
+/// the checkpoint's frame), if the ROM steps past a picture frame between two samples (two engine steps in one
+/// emulator frame), reports a late frame apply (`DebugRegion::late`), runs more steps than the
+/// input ring holds between reads, or stops advancing.
+pub fn run_rom_from(
+    rom: &Path,
+    sav: Option<&[u8]>,
+    expect_start: Option<u32>,
+    keys: impl Fn(u32) -> Buttons,
+    total: u32,
+    picture_frames: &[u32],
+) -> Result<RomRun> {
+    if !picture_frames.windows(2).all(|w| w[0] < w[1]) {
+        return Err(anyhow!("picture frames must ascend"));
     }
-    if !checkpoints.iter().all(|&c| (1..=total).contains(&c)) {
-        return Err(anyhow!("checkpoints must lie in 1..={total}"));
+    let mut emu = Emu::open_with_save(rom, sav)?;
+    let mut snap = emu.boot(BOOT_FRAMES)?;
+    // The region is visible from the ROM's first instructions (its static initialiser), with a
+    // placeholder hash of 0 until the shell publishes the World it booted (new or restored).
+    // The shell publishes before its first step, so no input is consumed while waiting.
+    let mut waited = 0;
+    while snap.hash == 0 {
+        waited += 1;
+        if waited > BOOT_FRAMES {
+            return Err(anyhow!("ROM never published its boot state"));
+        }
+        emu.run_frame(Buttons::NONE)?;
+        snap = emu
+            .debug()
+            .ok_or_else(|| anyhow!("debug region vanished"))?;
     }
-    let mut emu = Emu::open(rom)?;
-    let mut snap = emu.boot(120)?;
+    let boot = snap.clone();
+    let start = snap.frame;
+    if let Some(want) = expect_start
+        && start != want
+    {
+        return Err(anyhow!(
+            "ROM booted at frame {start} (boot code {}), expected {want}",
+            snap.boot
+        ));
+    }
+    if total < start {
+        return Err(anyhow!("ROM booted at frame {start}, past {total}"));
+    }
+    if !picture_frames
+        .iter()
+        .all(|&c| (start + 1..=total).contains(&c))
+    {
+        return Err(anyhow!(
+            "picture frames must lie in {}..={total}",
+            start + 1
+        ));
+    }
     let mut consumed: Vec<Buttons> = Vec::new();
     let mut hashes = Vec::new();
     let mut captures = Vec::new();
-    let mut next = checkpoints.iter().peekable();
+    let mut next = picture_frames.iter().peekable();
     let mut emu_frames = 0;
     let mut late_black_frames = Vec::new();
     while snap.frame < total {
@@ -209,7 +402,10 @@ pub fn run_rom(
         snap = emu
             .debug()
             .ok_or_else(|| anyhow!("debug region vanished"))?;
-        let have = consumed.len() as u32;
+        let have = start + consumed.len() as u32;
+        if snap.frame < have {
+            return Err(anyhow!("ROM went back from frame {have} to {}", snap.frame));
+        }
         if snap.frame - have > INPUT_RING as u32 {
             return Err(anyhow!("ROM ran >{INPUT_RING} steps between reads"));
         }
@@ -230,7 +426,7 @@ pub fn run_rom(
         if let Some(&&c) = next.peek() {
             if snap.frame > c {
                 return Err(anyhow!(
-                    "ROM jumped from frame {have} to {} past checkpoint {c}",
+                    "ROM jumped from frame {have} to {} past picture frame {c}",
                     snap.frame
                 ));
             }
@@ -243,17 +439,21 @@ pub fn run_rom(
             }
         }
         emu_frames += 1;
-        if emu_frames > total * 3 {
+        if emu_frames > (total - start) * 3 {
             return Err(anyhow!("ROM stopped advancing at frame {}", snap.frame));
         }
     }
     Ok(RomRun {
+        start,
         consumed,
         hashes,
         captures,
         emu_frames,
         late_black: snap.late_black,
         late_black_frames,
+        boot,
+        save: emu.save_data()?,
+        end: snap,
     })
 }
 
@@ -280,21 +480,66 @@ mod tests {
         assert!(Emu::open(Path::new("/nonexistent/definitely-not-a-rom.gba")).is_err());
     }
 
-    #[test]
-    fn open_does_not_create_sav_next_to_rom() {
-        let dir = ScratchDir::new().unwrap();
+    /// A ROM with just enough header for mGBA's GBAIsROM (0xEA at 3, 0x96 at 0xB2), so the
+    /// load succeeds and reaches mCoreAutoloadSave. With an all-zero file the load fails
+    /// first and the tests below would pass vacuously.
+    fn dummy_rom(dir: &ScratchDir) -> PathBuf {
         let rom = dir.0.join("x.gba");
-        // Just enough header for mGBA's GBAIsROM (0xEA at 3, 0x96 at 0xB2), so the
-        // load succeeds and reaches mCoreAutoloadSave. With an all-zero file the
-        // load fails first and this test would pass vacuously.
         let mut bytes = [0u8; 512];
         bytes[3] = 0xEA;
         bytes[0xB2] = 0x96;
         std::fs::write(&rom, bytes).unwrap();
+        rom
+    }
+
+    fn listing(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn open_does_not_create_sav_next_to_rom() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dummy_rom(&dir);
         let emu = Emu::open(&rom).expect("dummy header should load");
-        assert!(!dir.0.join("x.sav").exists());
+        assert_eq!(listing(&dir.0), ["x.gba"]);
         let scratch = emu._scratch.0.clone();
         drop(emu);
         assert!(!scratch.exists(), "scratch dir not removed on drop");
+    }
+
+    #[test]
+    fn open_with_save_injects_game_sav_into_scratch_only() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dummy_rom(&dir);
+        let sav: Vec<u8> = (0..FLASH_SIZE).map(|i| (i * 7 + i / 4096) as u8).collect();
+        let mut emu = Emu::open_with_save(&rom, Some(&sav)).expect("dummy header should load");
+        assert_eq!(listing(&dir.0), ["x.gba"]);
+        assert_eq!(listing(&emu._scratch.0), ["game.gba", "game.sav"]);
+        // The whole image is loaded and read back.
+        assert!(
+            emu.save_data().unwrap() == sav,
+            "save data differs from the injected image"
+        );
+    }
+
+    #[test]
+    fn fresh_save_is_erased_flash() {
+        let dir = ScratchDir::new().unwrap();
+        let mut emu = Emu::open(&dummy_rom(&dir)).unwrap();
+        let data = emu.save_data().unwrap();
+        assert_eq!(data.len(), FLASH_SIZE);
+        assert!(data.iter().all(|&b| b == 0xFF));
+    }
+
+    #[test]
+    fn open_with_wrong_size_save_errors() {
+        let dir = ScratchDir::new().unwrap();
+        let rom = dummy_rom(&dir);
+        assert!(Emu::open_with_save(&rom, Some(&vec![0xFF; FLASH_SIZE + 1])).is_err());
     }
 }

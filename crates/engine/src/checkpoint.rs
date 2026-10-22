@@ -22,7 +22,11 @@ pub const MAX_ENCODED: usize = 8 * 1024;
 /// agb_save layout, shared by game-gba and game-native::flash (byte-identical images).
 pub const FLASH_MAGIC: [u8; 32] = *b"pokemon-rust checkpoint flash v1";
 pub const FLASH_SLOTS: usize = 1;
-pub const FLASH_SIZE: usize = 128 * 1024;
+/// 64 KiB flash (`init_flash_64k`): what mGBA presents to a homebrew ROM (FLASH512, Panasonic
+/// id; it ignores agb's `FLASH1M_V` marker and the `.sav` size), so a host-built `.sav` boots
+/// in a stock mGBA. agb lays the slot out by the chip it detects, so images are byte-identical
+/// only on a chip of this size.
+pub const FLASH_SIZE: usize = 64 * 1024;
 pub const FLASH_SECTOR: usize = 4096;
 /// Gen3 `PLAYER_NAME_LENGTH` (7) + EOS; 0xFF-terminated and 0xFF-padded.
 pub const PLAYER_NAME_SIZE: usize = 8;
