@@ -4,9 +4,10 @@
 //! `BattleTrainer`, or the first battle after the starter screen) or from a field step in tall
 //! grass. Its [`BattleRun`] goes through these stages:
 //! 1. **Transition** (`BattleSetup_StartWildBattle` / `_StartTrainerBattle` →
-//!    `BattleTransition_StartOnField`): objects frozen, the field (or, for the first battle,
-//!    the starter screen: `CB2_GiveStarter` → `CB2_StartFirstBattle`) keeps being drawn under
-//!    [`BattleTransition`], which ends black.
+//!    `BattleTransition_StartOnField`): objects frozen for a grass encounter only (Gen3
+//!    `DoStandardWildBattle`; scripted battles leave that to the script), the field (or, for
+//!    the first battle, the starter screen: `CB2_GiveStarter` → `CB2_StartFirstBattle`) keeps
+//!    being drawn under [`BattleTransition`], which ends black.
 //! 2. **Loading**: [`BattleScene::load`] chunks, one per black frame (`CB2_InitBattle`).
 //! 3. **Running**: [`BattleScene::step`] each frame until [`BattleScene::finished`] (the scene
 //!    fades to black after `End`). The player's party is written back.
@@ -14,7 +15,8 @@
 //!    palettes and BG controls re-uploaded, the view redrawn, object sprite caches dropped, the
 //!    field text box rebuilt), then **Returning**: the field fades in
 //!    (`FieldCB_ContinueScript*`: `FadeInFromBlack`, then `Task_WaitForFadeAndEnableScriptCtx`)
-//!    and only then is the script answered.
+//!    with the objects updating, and only then is the script answered (and a grass
+//!    encounter's objects unfrozen).
 //! 5. **Whiteout** instead of Leaving when the player lost (`Lost` or `Drew`, Gen3
 //!    `IsPlayerDefeated`), except in the first battle (`CB2_EndFirstBattle` always returns to its
 //!    script): Gen3 `CB2_WhiteOut`, simplified: 120 black frames, then the script is aborted, the
@@ -32,7 +34,7 @@
 //! - Field wild encounters also require a party with a mon that can fight (Gen3 relies on the
 //!   story never letting the player into grass without one).
 
-use super::{State, World, draw_field, load_map};
+use super::{Ground, State, World, draw_field, load_map};
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
@@ -229,7 +231,11 @@ impl State {
         if self.text.is_open() {
             self.text.close(f);
         }
-        self.objects.freeze_all();
+        // Gen3: only `DoStandardWildBattle` calls `FreezeObjectEvents`; scripted battles
+        // (`dowildbattle`, `trainerbattle`, the starter's) leave the frozen flags to the script.
+        if origin == Origin::Field {
+            self.objects.freeze_all();
+        }
         self.mode = Mode::Battle(Box::new(BattleRun {
             stage: Stage::Transition,
             origin,
@@ -308,6 +314,7 @@ impl State {
 /// tilesets, palettes and BG controls (the view is redrawn at the frame's camera update), the
 /// object sprite caches dropped, and a new field text box (BG0 off and cleared).
 fn restore_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
+    f.bulk = true;
     s.field.restore(game, f);
     s.objects.invalidate_vram();
     s.text.close(f);
@@ -416,6 +423,13 @@ impl World {
                 run.stage = Stage::Returning;
             }
             Stage::Returning => {
+                // The overworld runs during `FadeInFromBlack` (objects frozen by a grass
+                // encounter stay put until the fade is over).
+                let ground = Ground {
+                    game,
+                    field: &s.field,
+                };
+                s.objects.update(&ground, &mut s.rng, false);
                 s.fader.update();
                 draw_field(game, s, f);
                 if s.fader.is_done() {

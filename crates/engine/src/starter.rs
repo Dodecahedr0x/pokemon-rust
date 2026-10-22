@@ -217,6 +217,7 @@ impl StarterChoice {
         let Stage::Load(n) = self.stage else {
             return true;
         };
+        f.bulk = true;
         f.brightness = FADE_MAX;
         f.lighten = false;
         f.objs.clear();

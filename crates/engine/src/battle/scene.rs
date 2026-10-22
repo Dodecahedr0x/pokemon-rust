@@ -298,6 +298,7 @@ impl BattleScene {
         let Some(step) = self.loading else {
             return true;
         };
+        f.bulk = true;
         f.brightness = FADE_MAX;
         f.lighten = false;
         f.scroll = Default::default();

@@ -164,6 +164,11 @@ impl Field {
                 }
             }
         }
+        // More than a new row and a new column (a scrolling step): a whole-view redraw.
+        let edge = (view.x1 - view.x0 + 1) + (view.y1 - view.y0 + 1);
+        if cells.len() > edge as usize {
+            f.bulk = true;
+        }
         self.draw_cells(game, &cells, f);
         self.drawn = Some(view);
         self.set_scroll(f);

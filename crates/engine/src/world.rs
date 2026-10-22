@@ -640,6 +640,7 @@ fn draw_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
 /// Loads `id` with the player on (x, y) (Gen3 warp load). Drawing happens at the frame's
 /// camera update.
 fn load_map(game: &impl GameData, s: &mut State, f: &mut Frame, id: MapId, x: i16, y: i16) {
+    f.bulk = true;
     let map = game.map(id);
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`

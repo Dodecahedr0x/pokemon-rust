@@ -90,6 +90,7 @@ fn a_full_party_cannot_be_given_more() {
 #[test]
 fn a_scripted_wild_battle_runs_and_answers_after_the_field_is_back() {
     let mut w = started();
+    let frozen: Vec<bool> = w.objects().iter().map(|o| o.frozen).collect();
     give_and_battle(&mut w, WATER, 30, NORMAL, 2, BattleOutcome::Won);
     run(&mut w, Buttons::NONE, 1);
     assert!(w.in_battle());
@@ -125,9 +126,10 @@ fn a_scripted_wild_battle_runs_and_answers_after_the_field_is_back() {
         "exp written back"
     );
     assert!(!w.text().is_open());
-    assert!(
-        w.objects().iter().all(|o| o.frozen),
-        "a script's battle leaves unfreezing to the script"
+    assert_eq!(
+        w.objects().iter().map(|o| o.frozen).collect::<Vec<_>>(),
+        frozen,
+        "a script's battle leaves the frozen flags to the script"
     );
 }
 
