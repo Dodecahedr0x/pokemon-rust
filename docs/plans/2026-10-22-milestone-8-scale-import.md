@@ -15,7 +15,8 @@ Later parity milestones (menus and bag UI, field moves, double battles, contests
 - **Script pipeline split.** `extract` decodes the ROM's bytecode into a **script IR** (`scripts/<Module>.ron`, git-ignored like every extracted file). `content/build.rs` lowers the IR to async Rust in `$OUT_DIR`. The generator (`extract::codegen::lower`), the committed support tables (`commands.ron`, `specials.ron`) and hand-written **overrides** are the only committed parts. Adding an engine command is then a build change, never a re-extract.
 - **Names from the decomp.** Script, text and movement names come from the decomp's `.inc` labels, transferred onto the FR bytecode by a parallel walk from `map.json` roots. Names no longer depend on which maps are exported, or in what order. The positional `<Map>_Obj<n>` scheme stays as the fallback.
 - **Bulk data in blobs.** Map blocks, tilesets, sprites, pics and text bytes go into aligned binary blobs (`include_bytes!`, sliced by `content::blob::Blob`), as battle graphics already do. Rust source keeps only small typed tables. The spike's 11.7 MB `data.rs` (rustc at 4.96 GB) is the reason.
-- **One state change, once.** Wave 0 adds all new `World` state (bag, money, string vars, warp slots, the stale-view rect) with its hash and snapshot DTOs. Snapshot `SCHEMA` 2, one golden update and one tree re-accept. Wave 1 tasks implement behaviour behind those fields.
+- **One state change, once.** Wave 0 adds all new `World` state (bag, money, string vars, warp slots, the stale-view rect) with its hash and snapshot DTOs. Snapshot `SCHEMA` 2, one golden update and one tree re-accept. Wave 1 tasks implement behaviour behind those fields. Behaviour changes that move the slice route are merged one at a time, each followed by a checkpoint refresh on master ("Hash and checkpoint discipline").
+- **One owner per file.** Wave 0 splits every file two Wave 1 tasks would edit (`world.rs`, `world/host.rs`, `data.rs`, the prelude, `classify.rs`, `codegen.rs`) and declares every cross-task signature with a default body, so Wave 1 tasks only fill bodies in files they own.
 - **Observability in the engine.** `World::events()` (not hashed, not snapshotted) lists, per frame, map entries, script starts with their `ScriptId`, battle starts and ends, and `Report`s (unsupported or degraded features). It replaces the explorer's `Probe` and gives panics their script and map context.
 - **Explorer at scale.** It is goal-directed from checkpoints (`--from`). Goals are state predicates per act. The db is smaller (binary inputs, a per-key hit counter) and incremental after content edits (per-script and per-map digests). It finds the Act 1 route, which is exported into the committed checkpoint tree and replayed by `xtask parity` in segments.
 
@@ -60,16 +61,23 @@ Measured on master `7e9bd93` (M7 S1 merged), Apple M4 Max. The "full import" col
 
 Projected full ROM with every species' pics (about +1.2 MB): about 13.6 MB at opt-level 3, about 11.4 MB with content at "s". It fits under Emerald's own 16 MiB, so no banking or compression is needed (decision 7).
 
+**M7 close-out numbers** (the baseline Step 0 starts from): final explore digests stub `0x30ec96cf029cb82f`, real `0xa8a8b7baa262e20c`; ROM 1,991,320 B (+8 B over the table's figure, from the `BUILD_ID` constant).
+
 ---
 
-## Open questions for the user (defaults taken; nothing blocks on them)
+## Decisions (resolved)
 
-1. **M8's story target.** *Default: Act 1, from the M4 new game to Roxanne's badge (`FLAG_BADGE01_GET`).* Alternatives: (a) no story target, only "everything imports and runs without crashing", which is smaller but has no end-to-end proof; (b) through badge 2 (Dewford), which needs the Mr. Briney boat cutscenes, Granite Cave's Flash darkness and more battle work.
-2. **Rename scripts and texts to decomp labels** (decision 3). *Default: yes.* Every `SCRIPT_NAMES`/`TEXT_NAMES` identifier changes (`Route101_Coord0` becomes something like `Route101_EventScript_StartBirchRescue`), and the tests that name slice scripts migrate once. Alternative: keep positional names, which are stable only if the export order is frozen forever.
-3. **Double battles before M11.** *Default: a double trainer battle runs as a single battle against the same party, with a `Degraded("double battle")` report, and sets the trainer flag.* Alternative: skip the battle and leave the trainer unbeaten. That is more faithful in effect (nothing that did not happen) but blocks progress where a double is mandatory (none in Act 1; Tate & Liza later).
-4. **ROM size gate.** *Default: 16 MiB* (Emerald's own size; the projection is 11–14 MB). The hard limit is 32 MiB.
-5. **Commit the Act 1 route to the shared checkpoint tree** (input-only node files, roughly 150k–300k frames, a few hundred KB of RON at the M5 run syntax). *Default: yes, as `act1:*` nodes,* so parity and `verify` cover Act 1.
-6. **New-game start.** *Default: keep the M4 start (outside Brendan's house, before the rescue).* The real intro (truck, Birch's speech, naming screen, clock) needs M9's menus.
+The user's defaults, taken autonomously; nothing blocks on them.
+
+- **Q1, story target:** Act 1 runs to badge 1: from the M4 new game to Roxanne's badge (`FLAG_BADGE01_GET`). Rejected: no story target (no end-to-end proof); through badge 2 (needs the Briney boat, Granite Cave's Flash and more battle work).
+- **Q2, names:** rename to decomp labels (decision 3). Every `SCRIPT_NAMES`/`TEXT_NAMES` identifier changes once (`Route101_Coord0` becomes something like `Route101_EventScript_StartBirchRescue`), and the tests that name slice scripts migrate once.
+- **Q3, doubles before M11:** follow Gen3 when the player has fewer than 2 usable mons: the exact not-enough path (`GetMonsStateToDoubles_2`; `trainer_see.c` skips a double trainer's sight, and the talk path shows its `not_enough_pkmn_text` through `EventScript_NotEnoughMonsForDoubleBattle`). With 2 or more, the double battle degrades to singles against the same party, sets the trainer flag, and emits `Report::Degraded("double battle")`.
+- **Q4, ROM gate:** 16 MiB (Emerald's own size; the projection is 11–14 MB; the hard limit is 32 MiB). M12's audio (songs and samples) may bring LZ77 back.
+- **Q5, Act 1 nodes:** commit them to the shared tree as `act1:*` nodes (input-only; the Act 1 trace is about 1–1.5 MB of RON at the M5 run syntax), so parity and `verify` cover Act 1.
+- **Q6, new-game start:** keep the M4 start (outside Brendan's house, before the rescue). The real intro needs M9's menus.
+- **Route churn:** when a later behaviour change breaks `act1:*` nodes, re-find them with the explorer (`--from` the last valid node) where possible; otherwise re-accept them in a `chore(checkpoints)` commit with the cause.
+- **RAM:** dev machines with 16 GB are supported; every build-memory gate below is set from that.
+- **M8 split:** M8a/M8b (Size estimate) is a fallback only, used if L slips.
 
 ---
 
@@ -83,13 +91,13 @@ Projected full ROM with every species' pics (about +1.2 MB): about 13.6 MB at op
 | 4 | Degradation | Committed `commands.ron` and `specials.ron` classify every command and special as `Native`, `Ignore`, `Default(v)` or `Unsupported`. An unclassified one fails the build. `Unsupported` raises `Report::Unsupported(name)`, logs, and continues; never a panic. |
 | 5 | Slice assumptions | `export::MAPS` → every map (`--maps` for fixtures); the slice sets in `battle.rs` → every species and trainer; `SLICE_SPECIES`/`SLICE_MOVES`/`PLAYER_LEVEL_CAP` removed; multiple wild headers per map; tests sample fixed ids instead of slice tables. |
 | 6 | Bulk data | Binary blobs for maps, layouts, tilesets, sprites, pics and text bytes; Rust literals only for small typed tables. |
-| 7 | GBA budgets | No banking (the GBA maps 32 MiB linearly). ROM gate 16 MiB; `content` built at opt-level "s" if Wave 0 confirms the spike; LZ77 only if the gate is threatened. IWRAM and EWRAM statics keep their growth gates over a new baseline. New: heap high-water in the debug region, gated. Futures need no boxing policy beyond today's (200 B max). |
-| 8 | Hash, schema, trees | Wave 0 is the only planned hash change (new state). Snapshot `SCHEMA` 2. Tasks that change the slice route's behaviour (F, G, I) refresh trees in a separate `chore(checkpoints)` commit with the cause. Act 1 nodes join the committed tree. |
-| 9 | Parity at scale | The slice route as today, plus ROM-resumes-from-native at every `act1:*` node (2,000 frames each), plus a full straight Act 1 replay under `cargo xtask parity --long`. A ROM **map tour** build checks `late == 0` on every map load and crossing. |
+| 7 | GBA budgets | No banking (the GBA maps 32 MiB linearly). ROM gate 16 MiB; `content` built at opt-level "s" if Wave 0 confirms the spike; LZ77 only if the gate is threatened. Explicit interim gates for Waves 1 and 2a (per section on the slice, 16 MiB absolute on the full import); IWRAM and EWRAM over the slice baseline until M re-baselines. New: heap high-water and IWRAM stack high-water in the debug region, gated. Futures need no boxing policy beyond today's (200 B max). Build memory sized for 16 GB machines. |
+| 8 | Hash, schema, trees | Wave 0 is the only planned state change. Snapshot `SCHEMA` 2. Route-changing tasks (D2, H, J, I, G, F) merge one at a time, in that order, and never commit tree refreshes; master re-accepts after each in a `chore(checkpoints)` commit. Act 1 nodes join the committed tree. |
+| 9 | Parity at scale | The slice route as today, plus ROM-resumes-from-native at every `act1:*` node (2,000 frames each), plus a full straight Act 1 replay under `cargo xtask parity --long`. A ROM **map tour** build checks `late == 0` on map loads and crossings: gated on the Act 1 maps plus one map per tileset family, all 518 as a stretch. |
 | 10 | Explorer at scale | `--from <checkpoint>` roots; per-act goal lists of state predicates; key gaps closed; db schema v3 (binary inputs, `key_hit` counter, no childless merged rows, inputs not resident); `World::events()` replaces `Probe`; incremental revalidation from per-script and per-map digests; `export --to-store` plus `cargo xtask checkpoints promote`. |
 | 11 | French text and offsets | Everything stays located by anchors and pointer tracing (no BPEF offset constants). New C-side tables (items, multichoice lists, std strings, map sections) are located the same way, checked on BPEE against the decomp, and every exported string must re-encode to its ROM bytes. |
 | 12 | Overrides | `crates/content/src/overrides/<Name>.rs` replaces a generated script by name (committed Rust, text by id only). Data patches and studio write-back are M9+. |
-| 13 | Tests at scale | Debug tests use fixed samples of maps and ids; full sweeps (every map, every script root) are release-only: `cargo xtask sweep` and `explore sweep`. |
+| 13 | Tests at scale | Debug tests use named fixed samples of maps and ids (`export::SLICE_MAPS`, `content::samples`); full sweeps (every map) are release-only: `cargo xtask sweep`. `explore sweep` moves to M9. |
 | 14 | pokeemerald-expansion | Not used as a source (it targets later-generation mechanics). It is at most a readable reference when a vanilla C routine is unclear; vanilla `pokeemerald` is the behaviour spec. |
 
 ---
@@ -103,33 +111,40 @@ Projected full ROM with every species' pics (about +1.2 MB): about 13.6 MB at op
   - `battle_data.rs`: wild headers, one per map (`ensure!` "two wild headers", `:1073`).
   - `text.rs`: `decode_lang :124`, `encode_lang :216`, `round_trip_at :384`. `names/generated.rs`: decomp tables (`MAPS`, `FLAGS`, `VARS`, `SPECIALS`, …), drift-tested against `PKR_DECOMP`.
 - **Content build** (`crates/content/build/`):
-  - `main.rs`: the build entry; stub fallback; `BUILD_ID`.
-  - `codegen.rs` (774 lines): `consts.rs`, `data.rs` (maps, tilesets, sprites, texts as Rust literals) and `scripts.rs` (one `include!` per map), plus `SCRIPT_NAMES :721`.
-  - `battle.rs`: the slice set `slice_uses :112`, `slice_species :128`, `slice_moves :134`, `gen_slice :811`, the unworded stat check `:454`, `PLAYER_LEVEL_CAP :31`.
-  - `classify.rs`: `behavior :71`, `movement :109`, `gfx :142`, `ability :280`, `move_effect :317`.
-  - `input.rs`, `stub.rs`, `build_id.rs`.
+  - `main.rs`: the build entry; stub fallback; `BUILD_ID`; `rerun-if-changed` on `src`, `build`, `../extract/src` (`:44-46`).
+  - `build_id.rs`: hashes the non-test **`.rs`** files of `src/`, `build/` and `extract/src` (`is_build_source`), plus the extracted dir. A `.ron` under `build/` is not hashed today.
+  - `codegen.rs` (774 lines): `consts.rs`, `data.rs` (maps, tilesets, sprites, texts as Rust literals) and `scripts.rs` (one `include!` per map), plus `SCRIPT_NAMES :721`, the `script(id, ctx)` dispatch `match` `:733`, `scripts_rs :750`, `generate :765`.
+  - `battle.rs`: the slice set `slice_uses :112`, `slice_species :128`, `slice_moves :134`, `gen_slice :811`, `UNWORDED_STAT_EFFECTS :320` and its check `:455`, `PLAYER_LEVEL_CAP :31`.
+  - `classify.rs`: `behavior :71`, `movement :109`, `gfx :142`, `ability :280`, `effect_stat :302`, `move_effect :317`, and the `Str` → `STRINGID_*` table `STRS :403` (already here, not in `battle.rs`).
+  - `input.rs`, `stub.rs`.
 - **Content runtime:** `crates/content/src/prelude.rs`: `msgbox`, `callstd :69`, `special :98` (three implemented), `trainer_battle`, `check_player_gender`, `unsupported :220`. `new_game.rs`, `blob.rs` (`Blob`, used by `battle.bin`).
 - **Engine:**
   - `script.rs`: `Request :63`, `Ctx :304` (`flag` … `set_respawn :545`), `Runner :583-729`.
-  - `world/host.rs`: request handling (`:45-320`). `world.rs`: `step :289`. `world/checkpoint.rs`: `capturable` with `StaleView :50`.
-  - `data.rs`: `id!` `:43`, `MovementType :171`, `ObjectEvent` (`trainer_type`, `trainer_sight` `:197-198`, unused), `MapData :268`, `NewGame :322`, `GameData :351-410`.
+  - `world/host.rs` (348 lines): `done :42`, `begin :71`, `resume :315`, `wait :337`.
+  - `world.rs` (757 lines): `step :289`, `step_field :302`, `start_script :340` (the old-map `selected` filter), `start_warp :360`, `control :379` (talk, push warps, step-end triggers), `run_transition :488`, `hash :616`, `load_map :683`, `cross_connection :711`, `run_immediate :739`.
+  - `world/battle.rs` (486 lines, already split): `start_battle :218`, `wild_step :260`, `step_battle :374`, `whiteout :464`. `world/checkpoint.rs`: `capturable` with `StaleView :50`. `world/tests.rs`: one `golden_hashes` test (`:736`, two hashes of one walk).
+  - `data.rs`: `id!` `:43`, `MovementType :171`, `ObjectEvent` (`trainer_type`, `trainer_sight` `:197-198`, unused), `MapData :268`, `NewGame :322`, `GameData :351-410` (`encounters(map)` `:385` takes no wild-set argument). `mon.rs`: `TrainerData :378` (no prize money, no evolution data anywhere).
+  - `flow/vars.rs`: `Vars::hash :156` feeds an O(1) digest maintained on write; the pattern for `Bag` and `str_vars`.
   - `checkpoint.rs`: `SCHEMA = 1` `:20`, `WorldSnapshot :104`. `debug.rs`: `PKRDBG02`, 200 bytes. `trainer.rs`: trainer parties only (no sight).
+  - `crates/emu/tests/parity.rs`: `HASH_LINES_MAX = 65 :109`, `LOOP_LINES_MAX = 217 :110`.
 - **Native, xtask, explorer, studio:**
   - `game-native/src/scenario.rs`: `EMERALD_ROUTE :776`, `cached_route :882`.
   - `xtask/src/budget.rs`: `BASELINE :34` (1,992,712 / 596 / 460), `GROWTH` (+64 KiB / +2 KiB / +16 KiB).
   - `crates/explore/src/goals.rs`: `GOALS` real `:56` (7) and stub `:97` (3). `key.rs`, `probe.rs`, `schema.sql` (v2).
   - Studio: `map_view.rs`, `data_view.rs`, `tests/{map_pixels, map_view, data_views}.rs` iterate every exported map or table.
 - **Committed trees:** `checkpoints/emerald/nodes` c00001–c00004, `checkpoints/stub/nodes` c00001–c00003.
-- **Files naming the slice** (`MAP_IDS`, `export::MAPS`, `SLICE_*`, `slice_species`, `manifest.maps`): `content/build/{battle,battle_load,codegen,input}.rs`, `content/src/{battle_tests,data_tests,lib}.rs`, `explore/src/cli.rs`, `explore/tests/f_policy.rs`, `extract/src/{roots,schema}.rs`, `extract/tests/{codegen,text}.rs`, `studio/src/{data_view,map_view,play_view}.rs`, `studio/tests/{data_views,map_pixels,map_view}.rs`.
+- **Files naming the slice** (`MAP_IDS`, `export::MAPS`, `SLICE_*`, `slice_species`, `manifest.maps`): `content/build/{battle,battle_load,codegen,input}.rs`, `content/src/{battle_tests,data_tests,lib}.rs`, `explore/src/cli.rs`, `explore/tests/f_policy.rs`, `extract/src/{roots,schema}.rs`, `extract/tests/{codegen,text}.rs`, `studio/src/{data_view,explorer,map_view,play_view}.rs`, `studio/tests/{data_views,map_pixels,map_view}.rs`. Of these, `SLICE_SPECIES`/`SLICE_MOVES` are read by `content/src/battle_tests.rs`, `explore/tests/f_policy.rs` and `studio/tests/data_views.rs` (not `studio/src/data_view.rs`, which reads `MAP_IDS`); `export::MAPS` by `extract/tests/{codegen,text}.rs`.
+- **Decomp tables not in `names/generated.rs` yet:** `MULTI_*`, `STDSTRING_*`, `MAPSEC_*`, `LAYOUT_*`. Script command names need no table: `scripts::OPS :172` already carries every macro name.
 
 ---
 
 ## Wave 0 contracts (committed by you before Wave 1; read them, do not redesign them)
 
-Wave 0 makes no feature work. It does four things:
-- the spike, re-run on the merged tree, whose numbers fix decision 7;
+Wave 0 makes no feature work. It does five things:
+- the spike, re-run on the merged tree, whose numbers fix decision 7 and the build gates;
 - every new type, file and signature, with `todo!()` bodies or safe defaults;
-- the module splits that let Wave 1 run without shared files;
+- the module splits that let Wave 1 run without shared files: after Wave 0, no file is owned by two tasks;
+- the named fixed samples, with every consumer migrated, so Wave 1 only deletes slice tables;
 - the one hash change (new state), with the golden update and the tree re-accept.
 
 `cargo test --workspace` (real and stub), `cargo xtask rom`, `cargo xtask parity` and `explore` stay green after Wave 0.
@@ -141,12 +156,26 @@ Wave 0 makes no feature work. It does four things:
    - extracted size with and without previews;
    - native build time and peak RSS;
    - ROM `.text` and `.rodata`, and the size by symbol prefix (`content::scripts`, `content::data`, `content::battle`, `engine`, other);
-   - the largest script future.
+   - the largest script future;
+   - the content **build-script** time (lowering and blob writing, separate from rustc);
+   - GBA release time and peak RSS with **thin vs fat LTO**;
+   - `loop_lines_max` with a `StartAt` on Route 104 and on Rustboro (the object-heavy Act 1 maps; spike: all templates spawn), against the 217 gate.
 3. **Decide `content`'s GBA opt-level.** Take "s" if it saves at least 15% of ROM and the slice route's `loop_lines_max` stays within its gate (spike: −29% `.text`). Set it as `[profile.release.package.content] opt-level = "s"` in `crates/game-gba/Cargo.toml`.
-4. **Baselines on master:** slice route parity (hashes, pictures, `late`, lines); `explore run --secs 60` (nodes/s, db MB per 1k rows); `cargo test --workspace` wall time in both flavors.
+4. **Build profiles** (root `Cargo.toml` and `crates/game-gba/Cargo.toml`, which is its own workspace):
+   - `[profile.dev.build-override]` and `[profile.release.build-override]` `opt-level = 3` (the build script lowers ~97k lines and writes the blobs);
+   - `[profile.release.package.content] debug = false` in game-gba (its release profile has `debug = true`; `"line-tables-only"` if panic locations need it);
+   - keep fat LTO unless thin LTO is within 3% of ROM and saves at least 25% of time or memory (record the choice).
+5. **Baselines on master:** slice route parity (hashes, pictures, `late`, lines); `explore run --secs 60` (nodes/s, db MB per 1k rows); `cargo test --workspace` wall time in both flavors.
+
+**Build gates on the full import** (dev machines with 16 GB): native debug build of `content` (data plus scripts) ≤ 30 s with rustc peak RSS ≤ 4 GB; GBA release peak RSS ≤ 9 GB (no regression over the spike's 8.9 GB; ≤ 5 GB is a stretch) and wall time ≤ 2 min. Wave 0 records where the spike stands against each; L and close-out check them.
+
+**Interim ROM gates for Waves 1 and 2a** (`xtask/src/budget.rs`, until M re-baselines; `budget::sections` is implemented in Wave 0, not stubbed):
+- on the slice extract, per section: engine `.text` ≤ its Wave 0 baseline + 128 KiB (content sections are reported, not gated, since Wave 1 grows them by design);
+- on a full-import build: ROM ≤ 16 MiB absolute;
+- IWRAM and EWRAM gated over the slice baseline (+2 KiB / +16 KiB, today's `GROWTH`).
 
 ### Extract contracts (`crates/extract`)
-- **`schema.rs`: `FORMAT_VERSION = 5`.** The layout doc gains:
+- **`schema.rs`: `FORMAT_VERSION = 5`**, plus `FORMAT_MINOR` (starts at 0): every merge that changes what `extract` writes bumps the minor, and the content build fails with "re-run `cargo xtask extract`" and the names of any missing files when the manifest's minor is older. Every file type below is declared in Wave 0 (serde types, no logic): `ScriptFile`, `ScriptIndex`, `LayoutFile`, `EncountersFile` v5, `FieldEffectSpriteFile`, `ItemsFile`, `MultichoiceFile`, `StdStringsFile`, `MapSectionsFile`, `EvolutionsFile`, `TrainerMoneyFile`. The layout doc gains:
   ```text
   scripts/<Module>.ron       ScriptFile   (IR; <Module> = decomp source: a map dir name, or
                                            Common_<stem> for data/scripts/<stem>.inc)
@@ -159,6 +188,8 @@ Wave 0 makes no feature work. It does four things:
   sprites/field_effects/<Name>.{png,ron}  emote pics (exclamation, question, heart)
   battle/encounters.ron      EncountersFile v5: per map a Vec of headers, each with
                                            land / water / rock_smash / fishing (Option each)
+  battle/evolutions.ron      EvolutionsFile (gEvolutionTable: SPECIES_* -> [(EVO_*, param, SPECIES_*)])
+  battle/trainer_money.ron   TrainerMoneyFile (gTrainerMoneyTable: TRAINER_CLASS_* -> value)
   previews/                  only with `cargo xtask extract --previews`
   ```
 - **The IR** (`schema.rs`; implemented types with serde, no logic):
@@ -186,51 +217,92 @@ Wave 0 makes no feature work. It does four things:
   pub struct ScriptEntry { pub module: String, pub root: bool, pub origin: NameOrigin, pub offset: Hex }
   ```
   The IR is a decoded listing, close to the decomp's `.inc`. Functions, loops and tail calls are decided by the lowering, not by the IR.
-- **Module moves** (mechanical, no behaviour change):
+- **Module moves and stubs** (mechanical, no behaviour change):
   - `export_scripts` and `ScriptInput` move from `export.rs` to `export/scripts.rs` (Task B).
   - New `export/tables.rs` with `pub fn export_tables(rom, out, provenance) -> Result<()>`, an empty body that `export` calls (Task C).
-- **`codegen.rs`, new entry point** (Task D; stub). `generate` keeps working until Task D swaps the build over:
+  - New stub modules `inc.rs`, `labels.rs` (B) and `tables.rs` (C), with their `pub mod` lines in `lib.rs`, so no Wave 1 task edits `lib.rs`.
+  - `names/generated.rs` regenerated (`PKR_BLESS=1`) with `MULTI_*`, `STDSTRING_*`, `MAPSEC_*` and `LAYOUT_*` tables, drift-tested like the others.
+- **Named fixed samples:** `export::SLICE_MAPS` (today's 15 maps, in today's order) replaces every test and tool use of `export::MAPS`, and `ExportOptions` takes it for `--maps slice`. Consumers are migrated in Wave 0 (`extract/tests/{codegen,text}.rs`).
+- **`codegen.rs`, new entry point** (Task D1; stub). `generate` keeps working until Task D2 swaps the build over:
   ```rust
   pub enum Class { Native, Ignore, Default(u16), Unsupported }
   pub struct Support { pub commands: BTreeMap<String, Class>, pub specials: BTreeMap<String, Class> }
   pub struct Lowered {
       pub modules: BTreeMap<String, String>,       // module -> Rust source for $OUT_DIR
+      pub dispatch: String,                        // static thunk table + SCRIPT_NAMES (no giant match)
       pub stats: Stats,                            // Stats gains `by_class`, `reports`, `named_decomp_pct`
-      pub script_digests: BTreeMap<String, u64>,   // FNV of each fn's lowered source
+      /// Keyed by script **name**, never by ScriptId (ids shift when scripts are added).
+      /// Each digest covers the fn's lowered source, the texts and movements it references,
+      /// its static call-graph closure (callees and std scripts) and its override source.
+      pub script_digests: BTreeMap<String, u64>,
       pub trainer_scripts: Vec<(String /* script */, String /* TRAINER_* */)>,
   }
-  /// IR -> Rust. No ROM access. `overrides`: script names whose body is crate::overrides::<Name>.
+  /// IR -> Rust. No ROM access. `overrides`: script name -> override source text (digested).
   pub fn lower(files: &[ScriptFile], index: &ScriptIndex, support: &Support,
-               overrides: &BTreeSet<String>) -> anyhow::Result<Lowered>;
+               overrides: &BTreeMap<String, String>) -> anyhow::Result<Lowered>;
   ```
-- **xtask `extract`** accepts `--maps all|<Dir,Dir,…>` (default `all` from Task A on) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being today's 15 maps.
+- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `all` from Task A on; `slice` = `export::SLICE_MAPS`) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
 
 ### Content contracts (`crates/content`)
 - **Splits** (mechanical):
-  - `build/classify.rs` → `build/classify/{mod.rs, field.rs (behavior, movement, gfx), battle.rs (ability, move_effect, effect_stat)}`.
-  - `src/prelude.rs` → `src/prelude/{mod.rs (re-exports, unsupported, report), msgbox.rs, std.rs (callstd), special.rs, trainer.rs, items.rs (empty), text.rs (empty), menu.rs (empty)}`.
+  - `build/classify.rs` → `build/classify/{mod.rs (shared helpers: hex_names, idents_with_prefix, type_variant, …), field.rs (behavior, movement, gfx; owned by E), battle.rs (ability, move_effect, effect_stat, the `STRS` table; owned by G)}`. `UNWORDED_STAT_EFFECTS` moves from `build/battle.rs` into `classify/battle.rs`.
+  - `build/codegen.rs`: `SCRIPT_NAMES`, `script()` and `scripts_rs` move to `build/scripts.rs` (owned by D2). `codegen.rs` keeps consts and data (owned by E).
+  - `src/prelude.rs` → `src/prelude/{mod.rs (re-exports, unsupported, report), msgbox.rs, std.rs (callstd), special.rs, trainer.rs, items.rs, text.rs, menu.rs}`.
+- **Prelude helpers, declared with default bodies** (each issues its Wave 0 `Request` and returns the host's default; the owning task fills the Gen3 behaviour; D2 lowers to these names only):
+  ```rust
+  // items.rs (H)
+  pub async fn give_item(ctx: &Ctx, item: u16, qty: u16) -> bool;   // Std_ObtainItem
+  pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool;   // Std_FindItem
+  pub async fn check_item(ctx: &Ctx, item: u16, qty: u16) -> bool;
+  pub async fn money_add(ctx: &Ctx, n: u32); pub async fn money_remove(ctx: &Ctx, n: u32);
+  pub async fn money_check(ctx: &Ctx, n: u32) -> bool;
+  // text.rs (H)
+  pub async fn buffer(ctx: &Ctx, slot: u8, src: BufferSrc);
+  // menu.rs (H)
+  pub async fn multichoice(ctx: &Ctx, list: u8, x: u8, y: u8, default: u8, cancel: bool) -> u16;
+  // mod.rs: complete in Wave 0 (one request); the behaviour is host-side, in F's warps.rs
+  pub async fn set_warp(ctx: &Ctx, slot: WarpSlot, map: u16, warp: Option<u8>, x: i16, y: i16);
+  // trainer.rs (I)
+  pub struct TrainerBattle { kind: u8 /* TRAINER_BATTLE_* 0..=12 */, trainer: u16, local_id: u8,
+                             intro: Option<TextId>, lose: TextId, not_enough: Option<TextId>,
+                             event_script: Option<ScriptId>, music: bool }
+  pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle);
+  ```
+  `TrainerBattle` covers every `trainerbattle` type: the nine regular ones (0–8: single, continue-script ± music, no-intro, double, rematch, continue-script double ± music, rematch double) and the four facility ones (9–12: Pyramid, set trainer A/B, Hill), which report `Unsupported`.
+- **Samples:** `src/samples.rs`: `pub const SPECIES: &[&str]` and `pub const MOVES: &[&str]` (named decomp constants, resolved through `consts`; today's `SLICE_SPECIES`/`SLICE_MOVES` contents). Wave 0 migrates every consumer (`content/src/battle_tests.rs`, `explore/tests/f_policy.rs`, `studio/tests/data_views.rs`), so E only deletes `SLICE_*` and never edits `explore/**` or `studio/**`.
 - **New build files:**
-  - `build/scripts.rs` (Task D): `pub fn generate(dir: &Path, out: &Path, w: &World) -> Result<ScriptsOut>`, a stub that runs today's path.
+  - `build/scripts.rs` (Task D2): `pub fn generate(dir: &Path, out: &Path, w: &World) -> Result<ScriptsOut>`, today's path moved from `codegen.rs`.
   - `build/blob_data.rs` (Task E): stub.
-  - `build/support/commands.ron` and `build/support/specials.ron`: generated once in Wave 0 from the decomp names. Every command today's codegen lowers is `Native`; everything else is `Unsupported`.
+  - `build/support/commands.ron` and `build/support/specials.ron`: generated once in Wave 0 from the decomp names (`scripts::OPS`, `names::SPECIALS`). Every command today's codegen lowers is `Native`; everything else is `Unsupported`.
   - `build/main.rs` calls both stubs.
+- **`BUILD_ID`:** `build_id.rs` also hashes `build/support/*.ron` (today it hashes `.rs` files only), and `main.rs` emits `rerun-if-changed` for each of them.
 - **`src/overrides/mod.rs`:** `pub static OVERRIDES: &[&str] = &[];`, with a doc comment on the convention (one file per script, `pub async fn <Name>(ctx: Ctx)`, texts and movements by generated id).
-- **Generated by the build (stubs in Wave 0, filled by D and E):** `content::data::{SCRIPT_DIGESTS: &[(ScriptId, u64)], MAP_DIGESTS: &[(MapId, u64)], GLOBAL_DIGEST: u64}` (battle tables, items, text tables), and `content::REPORT: &str` (the build's classification report, `include_str!` from `$OUT_DIR`).
+- **Generated by the build (stubs in Wave 0, filled by D2 and E):** `content::data::{SCRIPT_DIGESTS: &[(&str, u64)], MAP_DIGESTS: &[(&str, u64)], GLOBAL_DIGEST: u64}`, keyed by decomp name, and `content::REPORT: &str` (the build's classification report, `include_str!` from `$OUT_DIR`). A map's digest covers its compiled data, its tilesets and its connected maps' edges. `GLOBAL_DIGEST` covers the battle tables, items and text tables, **the prelude and every non-generated content source**: a change there counts as global.
 
 ### Engine contracts (`crates/engine`)
 - **`data.rs`:**
   - `id!` gains `ItemId`;
   - `pub struct ItemInfo { pub name: &'static [u8], pub pocket: Pocket, pub price: u16, pub key: bool }`;
   - `pub enum Pocket { Items, KeyItems, PokeBalls, TmHm, Berries }` (Gen3 order).
-  - `GameData` provided methods (defaults `None`):
+  - `pub enum Emote { Exclamation, Question, Heart }`; `pub struct Evolution { pub method: EvoMethod, pub param: u16, pub target: SpeciesId }` with `EvoMethod::{Level, Friendship, Item, Trade, Other}` (Gen3 `EVO_*` folded; the exact kind is kept for M9).
+  - `GameData` provided methods (defaults `None`, or the empty slice). Every new method is added here in Wave 0; no Wave 1 task edits `data.rs` except I's `MovementType`:
     ```rust
     fn item(&self, id: ItemId) -> Option<&'static ItemInfo>;
     fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]>;
     fn std_string(&self, id: u8) -> Option<&'static [u8]>;
     /// The trainer flag a trainer object's script checks (Gen3 `GetTrainerFlagFromScriptPointer`).
     fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId>;
+    fn emote(&self, e: Emote) -> Option<&'static SpriteData>;
+    /// Replaces `encounters(map)`: the land table of header `wild_set` of `map`. The engine
+    /// passes the value of `SpecialIds::var_wild_set` (Gen3 `VAR_ALTERING_CAVE_WILD_SET`);
+    /// maps with one header ignore it. Water, rock smash and fishing come later (M10).
+    fn encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters>;
+    /// Gen3 `gTrainerMoneyTable` value for the trainer's class (`GetTrainerMoneyToGive`).
+    fn trainer_money(&self, id: TrainerId) -> Option<u8>;
+    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution];
     ```
-- **`bag.rs` (new):** `Bag` with Gen3 Emerald pocket capacities (items 30, key items 30, balls 16, TMs/HMs 64, berries 46; 99 per slot). It keeps an O(1) digest like `Vars`. `new`, `count`, `hash`, `snapshot`/`from_snapshot` are implemented; `add`, `remove` and `has_space` are `todo!()` (Task H).
+  - `SpecialIds` gains `var_wild_set: Option<VarId>` and `script_whiteout: Option<ScriptId>` (Gen3 `EventScript_WhiteOut`, run immediately by `DoWhiteOut`).
+- **`bag.rs` (new):** `Bag` with Gen3 Emerald pocket capacities (items 30, key items 30, balls 16, TMs/HMs 64, berries 46; 99 per slot; `include/constants/global.h`). It keeps an O(1) digest maintained on write, as `Vars` does (`flow/vars.rs:156`). `new`, `count`, `hash`, `snapshot`/`from_snapshot` are implemented; `add`, `remove` and `has_space` are `todo!()` (Task H).
 - **`World` state** (implemented, hashed, snapshotted):
   - `bag: Bag`;
   - `money: u32`;
@@ -238,7 +310,7 @@ Wave 0 makes no feature work. It does four things:
   - `warp_slots: WarpSlots { dynamic, escape: Option<WarpDest> }`;
   - `field.stale: Option<StaleRect>`, always `None` until Task F.
 
-  `World::hash` appends them in this order. Accessors: `bag()`, `money()`, `str_var(i)`, `last_script() -> Option<ScriptId>`.
+  `World::hash` appends them in this order. `bag` and `str_vars` are hashed as **digests maintained on write** (like `Vars`), so each adds O(1) per frame, never a pass over the 186 bag slots or the 96 string bytes. Wave 0 measures `hash_lines_max` on the slice route and keeps it ≤ 65 (`HASH_LINES_MAX`, `emu/tests/parity.rs:109`). Accessors: `bag()`, `money()`, `str_var(i)`, `last_script() -> Option<ScriptId>`.
 - **`checkpoint.rs`:** `SCHEMA = 2`. `WorldSnapshot` gains `bag: BagSnap`, `money: u32`, `str_vars: [Vec<u8>; 3]`, `warp_slots: WarpSlotsSnap`. `FieldSnap` gains `stale: Option<StaleSnap>`. The golden-bytes test is updated, `MAX_ENCODED` is unchanged, and old schema-1 snapshots are `Stale` and regenerated by replay (M5 decision 6).
 - **`script.rs`, new `Request`s and `Ctx` methods.** Wave 0 host handlers return safe defaults: false, 0, or 127 (`MULTI_B_PRESSED`) for multichoice. Nothing panics.
   ```rust
@@ -253,21 +325,26 @@ Wave 0 makes no feature work. It does four things:
   Report(Report)                                     // Report::{Unsupported(&'static str), Degraded(&'static str)}
   ```
   `Ctx` also gains `cond()`/`set_cond()`: the script's comparison register as plain `Io` state, so `cond` can flow across calls as Gen3's `comparisonResult` does. It is not hashed; capture requires an idle runner anyway.
-- **`world/host.rs` → `world/host/{mod.rs, items.rs (H), menu.rs (H), buffers.rs (H), trainer.rs (I), warps.rs (F)}`.** Each new request is routed to its file, whose stub answers the default.
+- **`world/host.rs` → `world/host/{mod.rs, items.rs (H), menu.rs (H), buffers.rs (H), trainer.rs (I), warps.rs (F)}`.** `mod.rs` routes **every** new request in `begin`, and the waiting ones (`Multichoice`, the sight approach) in `done`, `wait` and `resume`, to a function in its file, whose stub answers the default. After Wave 0 no Wave 1 task edits `host/mod.rs`.
+- **`world.rs` split** (mechanical; today 757 lines, plus the already split `world/battle.rs`):
+  - `world/maps.rs` (**F**): `load_map`, `cross_connection`, `start_warp`, `run_transition`, and `start_script`'s talk target (the old-map `selected`/`VAR_LAST_TALKED` rule);
+  - `world/sight.rs` (**I**): `pub(super) fn check(…) -> Option<Sighting>`, called from `control` after the step-end triggers (returns `None`);
+  - `world/battle.rs` (**G**): unchanged content, now owned by G (battle start and end, wild steps, whiteout);
+  - `objects/spawn.rs` (**F**): the template spawning that `load_map` and `cross_connection` call (today `Objects::spawn_events`, `objects.rs:569`, and `enter_connected_events`), moved behind one function;
+  - `world.rs` keeps `World`, `step`, `control`, `hash` and the accessors; owned by Wave 0 and edited afterwards only by L (seams) and the `chore(checkpoints)` commits (goldens).
 - **Events** (implemented; not hashed, not snapshotted):
   ```rust
   pub enum Event { MapEntered(MapId), ScriptStarted(ScriptId), BattleStarted, BattleEnded(BattleOutcome), Report(Report) }
   impl World { pub fn events(&self) -> &[Event] }   // this step's events; cleared at the start of `step`
   ```
-  They are pushed where the World loads a map, calls `game.script(id, …)`, enters and leaves `Mode::Battle`, and handles `Request::Report`. Capacity is 16 per frame; extras are dropped and counted (`events_dropped`).
-- **Hooks with no behaviour yet:**
-  - `world.rs` calls `sight::check(…)` after the player's step-end triggers (`engine/src/sight.rs`, new, returns `None`; Task I);
-  - `field.rs` exposes `Field::stale()` (`None`; Task F).
-- **The hash change.** Update the goldens in `world/tests.rs` and the README, then `cargo xtask checkpoints verify --accept` on both trees (`chore(checkpoints)`). Run `cargo xtask parity`: hashes must match between ROM and native, and lines must stay within the gates.
+  They are pushed where the World loads a map, calls `game.script(id, …)`, enters and leaves `Mode::Battle`, and handles `Request::Report`. Capacity is 32 per frame; extras are dropped and counted (`events_dropped`, gated at 0 by the sweep and the parity lanes).
+- **Hooks with no behaviour yet:** `world/sight.rs` above; `field.rs` exposes `Field::stale()` (`None`; Task F).
+- **Goldens per scenario.** `world/tests.rs`'s single `golden_hashes` (`:736`) becomes one constant per scenario (`GOLDEN_WALK`, `GOLDEN_WARP`, `GOLDEN_CROSSING`, `GOLDEN_SCRIPT`, `GOLDEN_WILD_BATTLE`, `GOLDEN_TRAINER`), so a route-changing merge updates only the constants it moves.
+- **The hash change.** Update the goldens and the README, then `cargo xtask checkpoints verify --accept` on both trees (`chore(checkpoints)`). Run `cargo xtask parity`: hashes must match between ROM and native, and lines must stay within the gates.
 
 ### Native, xtask, explorer contracts
 - `game-native`: none (the `Session` API is unchanged).
-- **xtask:** `mod sweep;` with `Some("sweep") => sweep::main(&args[1..])` (Task L). `budget.rs` gains `pub fn sections(elf: &Path) -> Result<Vec<(String, u64)>>` (stub; Task M).
+- **xtask:** `mod sweep;` with `Some("sweep") => sweep::main(&args[1..])` (Task L). `budget.rs` gains `pub fn sections(elf: &Path) -> Result<Vec<(String, u64)>>`, implemented, and the interim gates above (Task M re-baselines them).
 - **explore:** no Wave 0 change. Task K owns the crate.
 
 ---
@@ -293,10 +370,13 @@ Wave 0 makes no feature work. It does four things:
   - the IR, generated Rust, extracted tables, pics, `explore.db`, repro traces and snapshots stay git-ignored;
   - committed: generators, `commands.ron`/`specials.ron` (decomp names and classes only), overrides (Rust with ids, no text literals), node files (inputs, hashes, digests);
   - **no FR text literals in tests**: assert counts, ids, decomp names, round trips.
-- **Hash:**
-  - Wave 0 changes the hash once.
-  - A task whose change alters the slice route (F's map loads, G's battles, I's sight) says so in its report, re-records with `cargo xtask checkpoints seed` if the route keys change, and lands `verify --accept` as a separate `chore(checkpoints)` commit stating the cause.
-  - Any other task leaves goldens, trees and parity untouched.
+- **Hash and checkpoint discipline:**
+  - Wave 0 changes the hashed state once.
+  - **Route-neutral tasks** (A, B, C, D1, E, K) merge first. Each must verify as `valid` or `valid (rehash)` on both trees **without `--accept`**. Their `BUILD_ID` refreshes are batched into one `chore(checkpoints): refresh build ids after A–E, K` commit on master.
+  - **Route-changing tasks** merge one at a time, in this order: **D2 → H → J → I → G → F** (D2: lowering semantics such as `cond` and end-in-callee; H: `STR_VAR` expansion in the lab's texts; J: specials such as the clock fade; I: sight; G: battles; F: warp-load and crossing timing).
+  - Route-changing branches **never commit tree or golden refreshes**. Each report includes a **route delta** note: which slice-route frames, goldens and nodes it expects to move, and why.
+  - After each such merge, on master: re-accept both trees, update the golden constants it moved, run `cargo xtask parity`, and commit `chore(checkpoints): <task> <cause>`. The reviewer checks that the diff touches only build ids, hashes, digests and frame counts, and that the moved goldens match the route delta.
+  - If the slice route's keys change, `cargo xtask checkpoints seed` re-records in the same chore commit.
 - **GBA:** `late == 0`; bulk uploads only on black frames or spread under the line budget; the budgets of `cargo xtask rom` (new baseline from Wave 0, then gated).
 - **Before committing:**
   - `cargo fmt --all --check`
@@ -307,19 +387,22 @@ Wave 0 makes no feature work. It does four things:
   - `cargo test -p studio --features ui` if you touched `studio`
   - `cargo xtask rom` and `cargo xtask parity` if you touched anything the GBA build compiles (engine, content, game-gba) or `emu`
   - `cd crates/game-gba && cargo fmt --check && cargo clippy -- -D warnings` if you touched game-gba
-- **Extracted data in Wave 1:** Tasks A–C change what `extract` writes. Every other Wave 1 task works on the **Wave 0 extract** (`cargo xtask extract`, 15 maps, format 5) plus its own fixtures. Integration onto the full import is Task L.
-- **Ownership:** only touch the files your task owns, plus new test files named `<crate>/tests/m8_<task>_*.rs`. Describe any other change you need in your report.
+- **Extracted data in Wave 1:** Tasks A–C change what `extract` writes, and each bumps `FORMAT_MINOR`. Every other Wave 1 task works on the **Wave 0 extract** (`cargo xtask extract --maps slice`, format 5) plus its own fixtures. Integration onto the full import is Task L.
+- **Ownership:** only touch the files your task owns, plus new test files named `<crate>/tests/m8_<task>_*.rs`. Describe any other change you need in your report. If a needed signature is missing from Wave 0, add it in your own file and list it; never edit another task's file.
+- **Interim GBA gates** (Waves 1 and 2a): the per-section and absolute gates of Wave 0 Step 0; nothing re-baselines before M.
 
 ---
 
 ## Wave 1 (parallel, 11 agents)
 
+Merge order: the route-neutral tasks (A, B, C, D1, E, K) as they finish; the route-changing ones (H, J, I, G, F) wait for D2 (Wave 2a) and then merge in the order of the rules.
+
 ### Task A — extract: every map, layout, tileset, sprite, encounter and pic
 
-**Owns:** `crates/extract/src/{export.rs, maps.rs, sprites.rs, render.rs, battle_data.rs (encounters, heal locations), battle_gfx.rs (pics)}`, `crates/extract/tests/{export.rs, maps.rs, sprites.rs, battle_data.rs, battle_gfx.rs}`, and `extract()` in `xtask/src/main.rs`.
+**Owns:** `crates/extract/src/{export.rs, maps.rs, sprites.rs, render.rs, battle_data.rs (encounters, heal locations, evolutions, trainer money), battle_gfx.rs (pics)}`, `crates/extract/tests/{export.rs, maps.rs, sprites.rs, battle_data.rs, battle_gfx.rs}`, and `extract()` in `xtask/src/main.rs`.
 
 1. **Maps:**
-   - `ExportOptions::maps` defaults to every `names::MAPS` entry in `gMapGroups` order (`--maps` restricts it; fixtures use it). `export::MAPS` is deleted.
+   - `ExportOptions::maps` defaults to every `names::MAPS` entry in `gMapGroups` order (`--maps` restricts it; `--maps slice` gives `export::SLICE_MAPS`; fixtures use it). `export::MAPS` is deleted (its consumers already use `SLICE_MAPS` since Wave 0).
    - Write every layout (`layouts/`), including those reachable only through `setmaplayoutindex` operands. Scan the IR walk's `Const { table: "LAYOUT" }`, or simply export all 442.
    - Write every tileset, and `MAP_DYNAMIC` warps as such.
 2. **Sprites:** every OBJ gfx id placed by any map or reached through `VAR_OBJ_GFX_ID_*` in any script (`var_gfx_ids` over all maps), plus both player sprites, plus the field-effect emote pics (`gFieldEffectObjectPic_ExclamationMark`, `…QuestionMark`, `…HeartIcon`) under `sprites/field_effects/`. Anchors as for object graphics; BPEE checked against the decomp's `graphics/field_effects/pics/*.png` dimensions.
@@ -327,11 +410,13 @@ Wave 0 makes no feature work. It does four things:
    - every wild header, in table order, as a `Vec` per map: Altering Cave's 9 sets, each keyed by its index (Gen3 `VAR_ALTERING_CAVE_WILD_SET`);
    - land, water, rock smash and fishing (with the old/good/super rod slot split, `gWildFishingSlots`).
 4. **Pics:** front, back and shiny palette for **every** species with ROM graphics (Unown keeps form A, documented), and every trainer front and back pic that any trainer references. This replaces the slice set.
-5. **Previews:** off by default (`--previews` writes them). The extracted dir drops from 144 MB to about 23 MB.
-6. **Performance:** `cargo xtask extract` stays under 30 s in release (the spike: 5.5 s without the IR).
-7. **Tests:**
+5. **Battle tables:** `gEvolutionTable` (`src/data/pokemon/evolution.h`; 5 entries per species) into `battle/evolutions.ron` and `gTrainerMoneyTable` (`src/battle_main.c`, `{class, value}` up to the `0xFF` terminator) into `battle/trainer_money.ron`. Anchored by structure, checked on BPEE against the decomp.
+6. **Previews:** off by default (`--previews` writes them). The extracted dir drops from 144 MB to about 23 MB.
+7. **Performance:** `cargo xtask extract` stays under 30 s in release (the spike: 5.5 s without the IR).
+8. **Tests:**
    - BPEF and BPEE export with `--maps all`: 518 maps, 73 tilesets, the layout count, and the sprite count equal to the decomp's referenced set;
    - Altering Cave has 9 headers;
+   - evolution and trainer-money tables equal the decomp's on BPEE;
    - every map's connections name exported maps;
    - every exported string round-trips;
    - `--maps LittlerootTown,Route101` exports exactly what those maps reference;
@@ -342,23 +427,25 @@ Wave 0 makes no feature work. It does four things:
 **Owns:** `crates/extract/src/{scripts.rs, roots.rs, movement.rs, export/scripts.rs}`, new `crates/extract/src/{inc.rs, labels.rs}`, `crates/extract/tests/{labels.rs, script_ir.rs}`.
 
 1. **`inc.rs`, a decomp source reader** (not an assembler):
-   - For every `data/maps/*/scripts.inc` and `data/scripts/*.inc`, read the labels in source order. For each label: its file, its kind (script, text, movement, data), its fallthrough successor, and the **sequence of label references** in its body, in textual order, each with the operand kind implied by its macro (`goto`/`call`/`goto_if_*`/`call_if_*`/`trainerbattle_*` → script; `msgbox`/`message`/`loadword` → text; `applymovement` → movement).
-   - From `data/maps/*/map.json`, read the object, coord and bg event script labels and the `map_scripts` table label.
-   - Macro knowledge stays a small table of reference-bearing macros (about 40, from `asm/macros/event.inc`); every other line contributes no reference.
+   - For every `data/maps/*/scripts.inc`, `data/scripts/*.inc` and `data/text/*.inc` (36 files), and the inline labels of `data/event_scripts.s` itself (about 70, such as `EventScript_WhiteOut`), read the labels in source order. For each label: its file, its kind (script, text, movement, data), its fallthrough successor, and the **sequence of label references** in its body, in textual order, each with the operand kind implied by its macro (`goto`/`call`/`goto_if_*`/`call_if_*`/`trainerbattle_*` → script; `msgbox`/`message`/`loadword` → text; `applymovement` → movement).
+   - From `data/maps/*/map.json`, read the object, coord and bg event script labels and the `map_scripts` table label. Follow `shared_scripts_map` (50 maps: `SecretBase`, `ContestHall`, `BattlePyramidSquare01`) and `shared_events_map` (`ContestHall`) to the map whose labels apply.
+   - Macro knowledge stays a small table of reference-bearing macros (about 40, from `asm/macros/{event,map}.inc`); every other line contributes no reference. It must include: `switch`/`case`; `map_script` and `map_script_2` (`map.inc`); the `trainerbattle_*` forms with their optional arguments (`event_script`, `music`, and `not_enough_pkmn_text` for doubles); `bufferstring` (text); `pokenavcall` (text); and `vgoto*`/`setvaddress`, whose operands are RAM-relative and stay `Raw`.
 2. **`labels.rs`, the transfer:**
    - Positional roots (`<Map>_Obj<n>`, `_Coord<i>`, `_Bg<i>`, map-script roots) map to `map.json` labels by index.
    - Then a parallel walk: for each decoded straight-line block and its decomp label, align the block's label operands (in instruction order, by kind) with the label's reference sequence. Equal length and kinds give `offset → label` for every target; follow fallthrough by the next-label chain.
    - A mismatch leaves that block's targets `Positional` and is counted per module.
    - Texts and movements take their decomp labels the same way.
    - The result is `BTreeMap<u32 /* offset */, (String, NameOrigin)>`. On a collision (one offset, two labels, as with shared tails), the first label in source order wins and the rest are recorded.
+   - **Reverse consistency check:** one label that resolves to two different offsets is a transfer error; both offsets are demoted to `Positional` and counted.
 3. **IR emission (`export/scripts.rs`):**
    - decode as today (`scripts::walk`), then group by label and resolve operands to names (`IrArg`);
    - assign each label to its decomp module (`<Map>` or `Common_<stem>`; positional ones stay in the first referencing root's map module);
    - write `scripts/<Module>.ron`, `scripts/index.ron` and `text/<lang>.ron` keyed by the final names.
-   - `export` no longer writes `.rs` files once Task D lands. Until then, keep the old output alongside: Wave 0's `generate` keeps compiling.
+   - `export` no longer writes `.rs` files once Task D2 lands. Until then, keep the old output alongside: Wave 0's `generate` keeps compiling.
 4. **Without `PKR_DECOMP`:** every name is positional, with one warning.
 5. **Tests (BPEF and BPEE, all maps):**
-   - at least 95% of functions, texts and movements are `Decomp` (print the % per module);
+   - **coverage**, on BPEF: at least 95% of functions, of texts and of movements (each kind separately) are `Decomp` (print the % per module);
+   - **precision**, on BPEE (there is no built decomp symbol map, so content decides): a `Decomp` text decodes (`decode_lang(En)`) to the label's `.string` source; a `Decomp` script's decoded op sequence equals its label body's macro sequence; a movement's actions equal its body. Target 100%, any mismatch listed;
    - every map.json event label is a root;
    - the slice's known roots get their map.json labels (asserted by lookup in map.json, no literals);
    - names do not depend on `--maps` order (export two orders, compare the index for shared maps);
@@ -375,65 +462,64 @@ Wave 0 makes no feature work. It does four things:
 4. Every string re-encodes to its ROM bytes (`round_trip_at`). Counts equal the decomp's.
 5. **Tests:** BPEE equality with the decomp tables (names compared through `decode_lang(En)`); BPEF counts and round trips; no FR literals.
 
-### Task D — content: lowering in the build, support tables, overrides, digests
+### Task D1 — extract: `lower` and the support tables (Wave 1)
 
-**Owns:** `crates/extract/src/codegen.rs`, `crates/extract/tests/codegen.rs`, `crates/content/build/scripts.rs`, `crates/content/build/support/commands.ron`, `crates/content/src/overrides/**`, `crates/content/tests/m8_d_*.rs`.
+**Owns:** `crates/extract/src/codegen.rs`, `crates/extract/tests/codegen.rs`, `crates/content/build/support/commands.ron`, `crates/content/tests/m8_d_*.rs`.
+
+D1 is tested on **hand-written IR** only; it does not touch the content build, so it is route-neutral.
 
 1. **`codegen::lower`:**
    - Port today's structuring (functions, `loop { match pc }`, tail calls) from decoded `Insn`s to the IR.
-   - `generate` becomes `decode → IR → lower` for the old path, and is deleted once the build uses `lower`.
-2. **`build/scripts.rs`:** read `scripts/*.ron` and the index, `support/*.ron` and the override list (file names under `src/overrides/`), call `lower`, and write `$OUT_DIR/scripts/<Module>.rs`, `scripts.rs` (one `pub mod` per module, `include!` from `OUT_DIR`), the digests and `report.txt`.
-3. **Commands newly native**, through the Wave 0 requests and the prelude helpers of Tasks H, I and J (call them by their Wave 0 names):
+   - `generate` becomes `decode → IR → lower` for the old path, and is deleted once D2 swaps the build.
+   - **Dispatch as a static table of thunks:** `pub static SCRIPTS: [fn(Ctx) -> Script; N]` plus `SCRIPT_NAMES`, indexed by `ScriptId`, in place of today's one huge `match` (`build/codegen.rs:733`); `script(id, ctx)` is one bounds-checked call.
+2. **Commands newly native**, lowered to the Wave 0 prelude helpers (by their Wave 0 names; their behaviour lands with H, I and J):
    - `multichoice`, `multichoicedefault` (`multichoicegrid` stays `Unsupported`);
    - `giveitem`/`additem`/`removeitem`/`checkitem`/`checkitemspace`/`finditem`;
    - `checkmoney`/`addmoney`/`removemoney`;
    - every `buffer*` with a `BufferSrc`;
    - `settrainerflag`/`checktrainerflag`/`cleartrainerflag`;
-   - all ten `trainerbattle` types (doubles go to the prelude's degrade);
+   - every `trainerbattle` type (0–12) into `TrainerBattle`;
    - `setdynamicwarp`/`setescapewarp`/`setwarp`;
    - `setwildbattle` + `dowildbattle` (a local pending battle in the function);
    - `messageautoscroll`/`messageinstant` (as `message`);
    - every `copyvar`/`loadword` form;
    - `setobjectmovementtype` everywhere.
-4. **`Ignore`:** audio (`playse`, `waitse`, `playfanfare`, `waitfanfare`, `playmoncry`, `waitmoncry`, `playbgm`, …), `incrementgamestat`, `setweather`/`doweather`/`resetweather`, the money and coin boxes, `showmonpic`/`hidemonpic`, `setflashlevel`/`animateflash`, `dotimebasedevents`, `setstepcallback`, map popups. Each gets a one-line reason in `commands.ron`.
-5. **Everything else is `Unsupported`:** `ctx.report(Report::Unsupported("<op>"))`, and the documented result (VAR_RESULT unchanged unless the command writes it, in which case the class gives `Default(v)`).
-6. **Gen3 semantics fixed:**
+3. **`Ignore`:** audio (`playse`, `waitse`, `playfanfare`, `waitfanfare`, `playmoncry`, `waitmoncry`, `playbgm`, …), `incrementgamestat`, `setweather`/`doweather`/`resetweather`, the money and coin boxes, `showmonpic`/`hidemonpic`, `setflashlevel`/`animateflash`, `dotimebasedevents`, `setstepcallback`, map popups. Each gets a one-line reason in `commands.ron`.
+4. **Everything else is `Unsupported`:** `ctx.report(Report::Unsupported("<op>"))`, and the documented result (VAR_RESULT unchanged unless the command writes it, in which case the class gives `Default(v)`).
+5. **Gen3 semantics fixed:**
    - `cond` across calls through `Ctx::cond`;
    - a callee's `end` stops its caller (the 80 sites): callees return `Flow::{Continue, End}`, and roots wrap them;
    - `waitmovement 0` stays "last mover", and the 80 unresolved sites are checked.
    - **Unknown movement actions:** map the 15 kinds to the closest `Step`, or to `Delay` with the frame count of the Gen3 action, listed in `commands.ron`'s movement section.
-7. **Overrides:** a name in `OVERRIDES` lowers to `pub async fn <Name>(ctx: Ctx) { crate::overrides::<Name>(ctx).await }`. An override naming an unknown script fails the build. Ship one override as the worked example (an end-in-callee site whose structure is clearer by hand), with a test.
-8. **Build checks:** an op or special in the IR missing from `support/*.ron` fails the build with the list. `report.txt` gives the counts per class and per op, and the `Decomp` name %. One `cargo::warning` summary line.
-9. **Digests:** `SCRIPT_DIGESTS` (FNV of each function's lowered source plus the IR digest of the texts and movements it references) and per-module digests, for Task N.
-10. **Trainer scripts:** `trainer_scripts` → content's `GameData::trainer_flag_of` table (generated into `scripts.rs`).
-11. **Tests:**
-    - lowering fixtures (IR written by hand in tests: structured flow, tail calls, `end` in callee, `cond` across a call, every newly native op);
-    - `build_modes.rs`-style fixture dirs: an unclassified op fails, an override replaces, an unknown override fails;
-    - the slice's generated scripts behave identically: the parity route replay hashes are equal on the Wave 0 extract, and only names differ when B's names arrive (L checks this on the full import).
+6. **Overrides in `lower`:** a name in `overrides` lowers to `pub async fn <Name>(ctx: Ctx) { crate::overrides::<Name>(ctx).await }`; an unknown name is an error.
+7. **Digests** as in the Wave 0 contract: by name, over the call-graph closure (std scripts included) and the override source.
+8. **Tests** (hand-written IR): structured flow, tail calls, `end` in callee, `cond` across a call, every newly native op, the thunk table, digest closure (changing a callee changes every caller's digest; changing an override's source changes its digest); **every `Native` command in `commands.ron` has a lowering arm** (a test walks the file).
 
 ### Task E — content: blob data, no slice sets, classification at scale
 
-**Owns:** `crates/content/build/{codegen.rs, input.rs, battle.rs, battle_load.rs, blob_data.rs, classify/field.rs, main.rs, stub.rs}`, `crates/content/src/{lib.rs, blob.rs, data_tests.rs, battle_tests.rs, new_game.rs}`, and the `SLICE_*` call sites in `crates/explore/tests/f_policy.rs` and `crates/studio/src/data_view.rs` (call sites only, listed in the report).
+**Owns:** `crates/content/build/{codegen.rs (consts and data only), input.rs, battle.rs, battle_load.rs, blob_data.rs, classify/field.rs, main.rs, stub.rs, build_id.rs}`, `crates/content/src/{lib.rs, blob.rs, data_tests.rs, battle_tests.rs, new_game.rs, samples.rs}`. E never edits `explore/**` (K) or `studio/**` (S): Wave 0 already moved their consumers onto `content::samples`.
 
 1. **Blobs:** map blocks and layouts, tileset tiles, metatiles and attributes, palettes, sprite frames, font glyphs and text bytes go into `$OUT_DIR/data.bin` (aligned per item, `Blob` slices), next to `battle.bin`. `data.rs` keeps headers, events, connections, ids and `&'static` slices into the blob.
-   - **Acceptance on the spike's full extract:** `data.rs` ≤ 2 MB, a native debug build of `content` in ≤ 20 s, and rustc peak RSS ≤ 2.5 GB. Record all three.
+   - **Acceptance on the spike's full extract:** `data.rs` ≤ 2 MB, a native debug build of `content` (data only) in ≤ 20 s, and rustc peak RSS ≤ 2.5 GB. Record all three.
 2. **No slice:**
-   - `slice_uses`, `slice_species`, `slice_moves`, `gen_slice`, `PLAYER_LEVEL_CAP`, `SLICE_SPECIES` and `SLICE_MOVES` are deleted. Pics are compiled for every species and trainer exported.
-   - The unworded-stat-effect `ensure!` becomes a per-move fallback (the effect is `Unsupported` until G gives it words) and is listed in the report.
-   - Consumers switch to fixed `MOVE_*`/`SPECIES_*` constants.
+   - `slice_uses`, `slice_species`, `slice_moves`, `gen_slice`, `PLAYER_LEVEL_CAP`, `SLICE_SPECIES` and `SLICE_MOVES` are deleted (deletion only: no consumer is left after Wave 0). Pics are compiled for every species and trainer exported.
+   - The unworded-stat-effect `ensure!` becomes a per-move fallback (the effect is `Unsupported` until G gives it words, through `classify/battle.rs`'s `UNWORDED_STAT_EFFECTS`) and is listed in the report.
 3. **New tables:**
    - `ITEMS`, `MULTICHOICE`, `STD_STRINGS` and `MAP_SECTIONS` from Task C's files (Wave 0 schema; a fixture until C merges), behind `GameData::{item, multichoice, std_string}`;
-   - encounters v5 (`encounters(map)` returns the active header: the engine passes `VAR_ALTERING_CAVE_WILD_SET` through `special_ids`; water and fishing tables are compiled now and used by M10).
+   - encounters v5 behind `encounters(map, wild_set)` (header `wild_set` when the map has several, else the only one; `SpecialIds::var_wild_set` = `VAR_ALTERING_CAVE_WILD_SET`); water and fishing tables are compiled now and used by M10;
+   - evolutions and trainer money from Task A's files (fixtures until A merges) behind `GameData::{evolutions, trainer_money}`;
+   - `emote` from A's field-effect sprites (a fixture until A merges); `SpecialIds::script_whiteout` = `EventScript_WhiteOut`.
 4. **`classify/field.rs`:** every one of the 256 behaviours classified, with the approximation list in the report; movement types mapped onto Task I's new `MovementType` variants (until I merges, keep today's mapping behind one function).
-5. **`MAP_DIGESTS`** (FNV of each map's compiled data) and `GLOBAL_DIGEST` (battle tables, items, text tables, behaviour table).
-6. **Tests:**
+5. **`MAP_DIGESTS`** (by map name: the map's compiled data, its tilesets, and its connected maps' edge data) and `GLOBAL_DIGEST` (battle tables, items, text tables, behaviour table, the prelude and every non-generated content source).
+6. **Overrides hygiene test:** every file under `src/overrides/` has no string or byte-string literal and no numeric array literal longer than 8 elements (the "no ROM-derived data in overrides" rule).
+7. **Tests:**
    - the slice's `data.rs` content is equal before and after the blob move: every map's blocks, tiles and texts compared through the `GameData` API against a snapshot taken by the test from the Wave 0 build, so the parity route hashes are unchanged;
    - a fixture dir with 2 maps sharing a tileset dedupes it in the blob;
    - stub mode unchanged.
 
 ### Task F — engine: field at scale
 
-**Owns:** `crates/engine/src/{field.rs, field/*, flow/transition.rs, flow/trigger.rs, grid.rs, world/checkpoint.rs, world/host/warps.rs}` and their tests.
+**Owns:** `crates/engine/src/{field.rs, field/*, flow/transition.rs, flow/trigger.rs, grid.rs, world/maps.rs, world/checkpoint.rs, world/host/warps.rs}`, `crates/engine/src/objects/spawn.rs` (new, the view-based spawner; I owns the rest of `objects`), and their tests. Route-changing; merges last of the ordered merges.
 
 1. **Warp loads spread over black frames** (Gen3 `LoadMapInStepsLocal`): tilesets, palettes and the view are uploaded in chunks under the line budget, so `late_black` goes to 0 (M4 finding).
 2. **Crossings into a different tileset:** the incoming secondary tileset and palettes are uploaded in chunks while the new map's cells are still off screen. No visible-frame overrun.
@@ -446,52 +532,59 @@ Wave 0 makes no feature work. It does four things:
    - The M5 core invariant tests cover crossing frames.
 4. **Dynamic and escape warps:** `SetWarp`, and `MAP_DYNAMIC` warp destinations read `warp_slots.dynamic`.
 5. **Directional impassable behaviours** (`MB_IMPASSABLE_{EAST,…}` and the diagonal ones) block only the matching direction.
-6. **Old-map objects after a crossing** (M3 finding): talking to one sets `selected`/`VAR_LAST_TALKED` as Gen3 does (`GetObjectEventIdByPosition` does not filter by map).
-7. **Not in F:** door animation graphics, elevation-based OBJ priority on bridges, and the one-frame-early step triggers. These are documented as M10 (Act 1 does not need them).
-8. **Hash and route:** items 1 and 2 change frame timing on warps, so the slice route changes. Re-seed or verify, then `--accept` in a separate commit, citing the M4 finding.
+6. **Old-map objects after a crossing** (M3 finding): talking to one sets `selected`/`VAR_LAST_TALKED` as Gen3 does (`GetObjectEventIdByPosition` does not filter by map). Today's filter is in `start_script` (`world.rs:340`), moved to `world/maps.rs` by Wave 0.
+7. **View-based object spawning** (Gen3 `TrySpawnObjectEvents`, `event_object_movement.c:1645`): templates spawn when they enter the camera view plus margin and despawn when they leave it, with the 16-object cap (`OBJECT_EVENTS_COUNT`). Today `load_map` spawns every template (`spawn_events`), which bounds neither the per-frame object cost nor OBJ VRAM on Route 104 and Rustboro (Wave 0's `loop_lines_max` measurement). Route-changing.
+8. **Not in F:** door animation graphics, elevation-based OBJ priority on bridges, and the one-frame-early step triggers. These are documented as M10 (Act 1 does not need them).
+9. **Route delta:** items 1, 2 and 7 change frame timing on warps and the hashed object set, so the slice route changes. The report carries the route delta; master refreshes per the rules, citing the M4 finding.
 
-### Task G — engine: battle breadth for Act 1 and beyond
+### Task G — engine: battle breadth for Act 1 (G1, the gate) and beyond (G2, stretch)
 
-**Owns:** `crates/engine/src/battle/{effects/*, core.rs, core/*, calc.rs, ai.rs, text.rs, mod.rs}`, `crates/engine/src/mon.rs` (evolution only), `crates/content/build/classify/battle.rs`, and their tests.
+**Owns:** `crates/engine/src/battle/{effects/*, core.rs, core/*, calc.rs, ai.rs, text.rs, mod.rs}`, `crates/engine/src/world/battle.rs`, `crates/engine/src/mon.rs` (evolution only), `crates/content/build/classify/battle.rs` (`ability`, `move_effect`, `effect_stat`, `STRS`, `UNWORDED_STAT_EFFECTS`), and their tests. Route-changing.
 
-1. **Effects:**
-   - Implement exactly (Gen3 `battle_script_commands.c` + `data/battle_scripts_1.s`) every effect used by:
-     - a move that any Act 1 encounter mon (Routes 101–104, Petalburg Woods, Rustboro) knows by its level-up learnset at its max level;
-     - any move of a trainer party on those maps, including Roxanne's.
-   - Then implement more, by frequency across all trainer parties and learnsets, until **≥ 120 of 214** effects are implemented. Order: `HIGH_CRITICAL`, `ALWAYS_HIT`, `TRAP`, `DOUBLE_HIT`, `PROTECT`, `RESTORE_HP`, `LEVEL_DAMAGE`, `RECHARGE`, `DEFENSE_CURL`, `MEAN_LOOK`, `YAWN`, `ATTACK_UP_HIT`, … (Task G prints the frequency table in its report).
-   - Unworded stat effects get their Rose/Fell `Str`s (closing E's fallback).
-2. **Abilities:** classify all 77. Implement every ability of an Act 1 species or trainer mon (Sturdy, Rock Head, Magnet Pull's battle part, Truant, Huge Power, Thick Fat, Shed Skin, Natural Cure, Cute Charm, Early Bird, Liquid Ooze, Clear Body, Soundproof, …), plus the top by frequency, to **≥ 40 of 77**. Weather-dependent ones (Swift Swim, Chlorophyll, Rain Dish) are no-ops until weather exists, and that is documented.
-3. **Double trainer battles:** a `BattleTrainer` with a double party runs as singles (open question 3), with `Report::Degraded("double battle")`.
-4. **Prize money:** Gen3 `GetTrainerMoneyToGive` into `World::money` on a win, with its battle string. Whiteout money loss is Gen3 `GetMoneyLossOnWhiteout` (badges × level).
-5. **Evolution after battle** (level, no item, no trade, no friendship): the species changes and stats recalculate, silently, with `Report::Degraded("evolution scene")`. The scene is M9.
-6. **Tests:** golden roll tests per effect and ability (explicit `Rng` rolls, as M4); one Act 1 trainer party end to end in the battle test game; AI flags for Roxanne's party.
-7. **Route:** if the slice route's battles change, refresh the trees as the rules say.
+**G1 (gate; merges in the ordered sequence):**
+1. **Act 1 effects:** implement exactly (Gen3 `battle_script_commands.c` + `data/battle_scripts_1.s`) every effect used by:
+   - a move that any Act 1 encounter mon (Routes 101–104, Petalburg Woods, Rustboro) knows by its level-up learnset at its max level;
+   - any move of a trainer party on those maps, including Roxanne's.
+
+   Unworded stat effects get their Rose/Fell `Str`s (closing E's fallback).
+2. **Act 1 abilities:** classify all 77. Implement every ability of an Act 1 species or trainer mon (Sturdy, Rock Head, Magnet Pull's battle part, Truant, Huge Power, Thick Fat, Shed Skin, Natural Cure, Cute Charm, Early Bird, Liquid Ooze, Clear Body, Soundproof, …). Weather-dependent ones (Swift Swim, Chlorophyll, Rain Dish) are no-ops until weather exists, and that is documented.
+3. **Double trainer battles** (decision Q3): with fewer than 2 usable mons, the exact Gen3 not-enough path (the script's `not_enough_pkmn_text` branch; sight is I's side); with 2 or more, the battle runs as singles against the same party, with `Report::Degraded("double battle")`, and sets the trainer flag.
+4. **Prize money:** Gen3 `GetTrainerMoneyToGive` (`4 × last mon's level × gTrainerMoneyTable[class]`, ×2 for doubles) into `World::money` on a win, through `GameData::trainer_money`, with its battle string.
+5. **Whiteout** (M4 simplification): Emerald's `DoWhiteOut` (`overworld.c:358`): run `SpecialIds::script_whiteout` immediately (`EventScript_WhiteOut`: Elite Four and Mr. Briney resets), **halve the money** (Emerald has no badge-based loss), heal, warp to the last heal location. The Pokémon Center nurse line after a whiteout is FRLG-only; Emerald prints none.
+6. **Evolution after battle** (level only, through `GameData::evolutions`; no item, trade or friendship): the species changes and stats recalculate, silently, with `Report::Degraded("evolution scene")`. The scene is M9.
+7. **Tests:** golden roll tests per effect and ability (explicit `Rng` rolls, as M4); one Act 1 trainer party end to end in the battle test game; AI flags for Roxanne's party; prize money and whiteout money against Gen3 formulas.
+8. **Route delta:** the slice route's battles change if a slice move's effect or a slice ability now acts; stated in the report, refreshed on master per the rules.
+
+**G2 (stretch, after G1 merges; route-neutral for Act 1 if it changes no Act 1 effect):** more effects by frequency across all trainer parties and learnsets toward **≥ 120 of 214** (order: `HIGH_CRITICAL`, `ALWAYS_HIT`, `TRAP`, `DOUBLE_HIT`, `PROTECT`, `RESTORE_HP`, `LEVEL_DAMAGE`, `RECHARGE`, `DEFENSE_CURL`, `MEAN_LOOK`, `YAWN`, `ATTACK_UP_HIT`, …; the frequency table in the report), and abilities toward **≥ 40 of 77**.
 
 ### Task H — engine: items, money, string buffers, multichoice
 
-**Owns:** `crates/engine/src/{bag.rs, menu.rs (new), world/host/{items.rs, menu.rs, buffers.rs}, text.rs (placeholders), text/printer.rs (placeholders)}`, `crates/content/src/prelude/{items.rs, menu.rs, text.rs}`, and their tests.
+**Owns:** `crates/engine/src/{bag.rs, menu.rs (new), world/host/{items.rs, menu.rs, buffers.rs}, text.rs (placeholders), text/printer.rs (placeholders)}`, `crates/content/src/prelude/{items.rs, menu.rs, text.rs}`, and their tests. Route-changing: `{STR_VAR_n}` expansion changes the printed text (and its timing) in the lab.
 
 1. **`Bag`:** Gen3 `AddBagItem`/`RemoveBagItem`/`CheckBagHasSpace`/`CheckBagHasItem`: pockets by `ItemInfo::pocket`, 99 per slot, capacity per pocket, order kept. Its digest is O(1) per change.
 2. **Money:** capped at 999,999 (Gen3 `MAX_MONEY`).
 3. **String buffers:** `Buffer` fills `str_vars[slot]` from species, item and move names, `ConvertIntToDecimalString` numbers (Gen3 `STR_CONV_MODE_LEFT_ALIGN`), std strings, party nicknames and the lead species. `{STR_VAR_1..3}` placeholders expand in the printer (today they expand to nothing).
 4. **Multichoice:** a Gen3 list window (`ScriptMenu_Multichoice`: position, width from the longest string, cursor, A selects, B gives 127 when cancellable, `multichoicedefault`'s start index) on BG0, sharing the text box's tiles and the yes/no cursor drawing. The cost is bounded per frame (the M3 text-budget rule).
-5. **Prelude:**
-   - `giveitem`/`finditem` follow `Std_ObtainItem`/`Std_FindItem`: the message with the item and pocket names through the buffers, the bag-full branch, and the item ball's removal for `finditem`, as today;
-   - `multichoice` helpers.
+5. **Prelude** (bodies of the Wave 0 helpers):
+   - `give_item`/`find_item` follow `Std_ObtainItem`/`Std_FindItem`: the message with the item and pocket names through the buffers, the bag-full branch, and the item ball's removal for `find_item`, as today;
+   - `check_item`, `money_*`, `buffer`, `multichoice`.
 6. **Tests:** bag rules against Gen3 cases (full pocket, stacking, key items); buffer expansion bytes (synthetic charmap); multichoice input → `VAR_RESULT`, B → 127, default index; the hash changes only through the Wave 0 fields.
+7. **Route delta:** the lab texts that use `STR_VAR_*` (stated in the report).
 
 ### Task I — engine: trainer sight, emotes, movement types
 
-**Owns:** `crates/engine/src/{sight.rs, objects.rs, objects/*, trainer.rs, world/host/trainer.rs}`, `crates/engine/src/data.rs` (`MovementType` only), `crates/content/src/prelude/trainer.rs`, and their tests.
+**Owns:** `crates/engine/src/{world/sight.rs, objects.rs, objects/* (except F's spawn.rs), trainer.rs, world/host/trainer.rs}`, `crates/engine/src/data.rs` (`MovementType` only), `crates/content/src/prelude/trainer.rs`, and their tests. Route-changing.
 
-1. **Sight** (Gen3 `CheckForTrainersWantingBattle`, `TrainerSeeFuncList`):
+1. **Sight** (Gen3 `CheckForTrainersWantingBattle`, `TrainerSeeFuncList`), in `world/sight.rs` behind Wave 0's hook:
    - after the player's step, for each visible object with `trainer_type` normal or see-all-directions and a script whose `trainer_flag_of` flag is clear, look along its facing (or all directions) up to `trainer_sight` cells with no blocking cell or object;
+   - a double trainer is skipped when the player has fewer than 2 usable mons (`trainer_see.c:216`, decision Q3);
    - on sight: lock the player, show the `!` emote over the trainer, walk it to the adjacent cell (`TrainerApproach`), face the player, then start the object's script. The `trainerbattle` intro and battle follow as when talked to.
    - Two trainers at once: the first in object order battles; the second is `Report::Degraded("double sight")` and waits for the next step.
-2. **Emotes:** `Emote::{Exclamation, Question, Heart}` sprites from Task A's field-effect pics (`GameData::sprite`-style lookup through a new provided method `emote(Emote) -> Option<&SpriteData>`, `None` draws nothing).
-3. **Movement types:** add exact variants for the walk sequences (24), face-two and three directions (12), rotations (2), and jog, run and walk-slowly in place (12). That gives **≥ 65 of 81 exact**. The rest (copy-player, disguises, buried, berry growth) keep approximations, reported.
-4. **Tests:** sight geometry (range, blocking, facing, flag set → no sight), the approach timing against Gen3 frame counts, a trainer battle started by sight in the world test game, each new movement type's step pattern.
-5. **Route:** if a slice-route trainer now sees the player, the route changes. Refresh as the rules say.
+2. **Emotes:** `Emote::{Exclamation, Question, Heart}` sprites through Wave 0's `GameData::emote` (`None` draws nothing).
+3. **Prelude `trainer_battle`:** the body for every `TrainerBattle` kind (0–8 as Gen3 `trainer_battle.inc`; 9–12 report `Unsupported` and continue).
+4. **Movement types:** add exact variants for the walk sequences (24), face-two and three directions (12), rotations (2), and jog, run and walk-slowly in place (12). That gives **≥ 65 of 81 exact**. The rest (copy-player, disguises, buried, berry growth) keep approximations, reported.
+5. **Tests:** sight geometry (range, blocking, facing, flag set → no sight, double trainer with one mon → no sight), the approach timing against Gen3 frame counts, a trainer battle started by sight in the world test game, each new movement type's step pattern.
+6. **Route delta:** slice-route NPCs whose movement type becomes exact, and any slice trainer that now sees the player (stated in the report).
 
 ### Task J — content: specials, std scripts, msgbox
 
@@ -509,6 +602,7 @@ Wave 0 makes no feature work. It does four things:
    - `PlayerPC`/`BedroomPC`: `Unsupported` (M9); the script must not softlock (tested).
 3. **`callstd`:** every `STD_*` is routed (msgbox kinds, `STD_OBTAIN_ITEM`/`STD_FIND_ITEM` to Task H's helpers, `STD_REGISTER_MATCH_CALL` `Ignore`, …).
 4. **Tests:** each `Native` special against a synthetic `Ctx` run (requests issued, in order); the Act 1 set is fully classified; no `Unsupported` special is reachable on the Act 1 maps without a reason.
+5. **Route delta:** route-changing (the clock fade after `StartWallClock` in Brendan's house, and any slice special that becomes `Native`); stated in the report, refreshed on master per the rules.
 
 ### Task K — explorer at scale (headless)
 
@@ -547,9 +641,10 @@ Wave 0 makes no feature work. It does four things:
    - `SimSummary.scripts`, `maps` and `battles` come from `World::events()`.
    - `Probe` is kept only as a test wrapper, or deleted if unused.
    - **New `FindingKind::Unsupported`** (report-only): one finding per `(name, map)` from `Report` events, with the repro tail. Its signature has no digits, so each site is listed once.
-   - The panic finding's `script` comes from `World::last_script()`.
-6. `softlock_sample` is removed (M7 finding). Old configs still load: unknown fields are ignored.
-7. **Tests:**
+   - The panic finding's `script` comes from `World::last_script()`, and the `CapturableStuck` and `RoundTrip` signatures gain `last_script`, so distinct traps on one map stay distinct rows (M7 close-out).
+6. **Schema v3 clean-ups** (M7 close-out): `node.region` is written but no longer read (the probe uses the place): drop it, or store the place. Node and export labels use decomp constants only (`MAP_*`, `FLAG_*`), never FR map-section names.
+7. **Optional:** a repeat-pair syntax for committed traces (`TRACE_SCHEMA` 3, the A/release alternation of battles), if P's Act 1 trace exceeds 1.5 MB. Either K or P takes it, not both, and then owns `crates/game-native/src/trace.rs` (`TRACE_SCHEMA = 2` today); it changes no hash.
+8. **Tests:**
    - v3 round trip and size (a 2,000-node stub db is ≤ 40% of v2's);
    - determinism (threads 1, 4, 8) and resume digests;
    - the new key parts;
@@ -560,28 +655,47 @@ Wave 0 makes no feature work. It does four things:
 
 ---
 
-## Wave 2a — integration (after Wave 1 is merged)
+## Wave 2a — integration (after the route-neutral Wave 1 tasks merge)
+
+Order: D2 (after B and D1), then the route-changing merges H → J → I → G1 → F (each followed by its `chore(checkpoints)` on master), then L.
+
+### Task D2 — content: the build swap (Wave 2a, after B and D1 merge)
+
+**Owns:** `crates/content/build/scripts.rs`, `crates/content/src/overrides/**`, `crates/content/tests/m8_d2_*.rs`; fix-ups in `crates/extract/src/codegen.rs`.
+
+Route-changing (it is the first of the ordered merges): the slice's scripts now run D1's semantics (`cond`, end-in-callee, movement actions).
+
+1. **`build/scripts.rs`:** read `scripts/*.ron` and the index, `support/*.ron` and the override sources (files under `src/overrides/`), call `lower`, and write `$OUT_DIR/scripts/<Module>.rs`, `scripts.rs` (one `pub mod` per module, `include!` from `OUT_DIR`), the thunk table, the digests and `report.txt`. `generate` and the old `.rs` export are deleted.
+2. **Build checks:** an op or special in the IR missing from `support/*.ron` fails the build with the list. `report.txt` gives the counts per class and per op, and the `Decomp` name % per kind. One `cargo::warning` summary line.
+3. **Overrides:** ship one override as the worked example (an end-in-callee site whose structure is clearer by hand), with a test. An override naming an unknown script fails the build.
+4. **Trainer scripts:** `trainer_scripts` → content's `GameData::trainer_flag_of` table (generated into `scripts.rs`).
+5. **Tests:**
+   - `build_modes.rs`-style fixture dirs: an unclassified op fails, an override replaces, an unknown override fails;
+   - the slice's parity route replays with identical ROM/native hashes on the new names; the route delta (D1 semantics) is stated in the report and refreshed on master per the rules.
 
 ### Task L — full import, end to end, and `cargo xtask sweep`
 
-**Owns:** `xtask/src/sweep.rs`, cross-task fix-ups in the files of Wave 1 tasks A–J (each listed in the report), the README (Content, Scripts and Tests sections), and `checkpoints/*` refreshes.
+**Owns:** `xtask/src/sweep.rs`, cross-task fix-ups in the files of Wave 1 tasks A–J (each listed in the report), the README (Content, Scripts and Tests sections), the fixed test samples of `crates/studio/tests/{map_pixels, map_view, data_views}.rs`, and `checkpoints/*` refreshes.
 
 1. `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
 2. **The slice still holds:**
    - the parity route replays with identical ROM/native hashes;
-   - the committed trees verify `valid (rehash)`, or re-accept once with the cause: names changed, so `BUILD_ID` changed; behaviour changed only through the tasks that announced it;
+   - the committed trees verify `valid (rehash)`, or re-accept once with the cause: names changed, so `BUILD_ID` changed; behaviour changed only through the merges that announced a route delta;
    - the M5 checkpoint invariant tests pass.
+3. **Test sampling** (moved from S): `map_pixels`, `map_view` and `data_views` use a fixed sample (the 15 slice maps plus Petalburg, Rustboro, Route 104, Petalburg Woods and one interior per tileset family). Whole-game versions are `#[ignore]` and run by `cargo xtask sweep --studio`.
 3. **`cargo xtask sweep`** (release, native; the `#[ignore]`d sweeps run under it). For every map:
    - `World::new` on a `StartAt { map, pos }` wrapper `GameData`: the first warp's cell, else the first walkable cell nearest the centre;
    - 600 idle frames with no panic, ending capturable, or the reason, listed;
    - a checkpoint round trip with an equal hash, and 60 frames shadowed;
    - a render (no PPU validation error).
 
-   It also aggregates `Report` events per op and special, and prints the build report (`content::REPORT`). Output goes to `target/sweep/report.txt`; exit 1 on any panic or invariant failure.
-4. **Acceptance:**
-   - 518/518 maps pass, or each exception is listed with a reason (for example link-only rooms whose map scripts wait for a link);
-   - the native debug build of `content` stays within E's numbers on the full import;
-   - `cargo test --workspace` wall time grows by at most 2× the Wave 0 baseline.
+   It also aggregates `Report` events per op and special, and prints the build report (`content::REPORT`). Output goes to `target/sweep/report.txt`; exit 1 on any panic, invariant failure, or `events_dropped > 0`.
+4. **`cargo xtask sweep --repro`** (in `sweep.rs`, so no new `main.rs` arm): builds `content` twice (native, clean `$OUT_DIR` each time) and diffs the two `$OUT_DIR`s byte for byte; fails on any difference.
+5. **Acceptance:**
+   - 518/518 maps pass, or each exception is listed with a reason (for example link-only rooms whose map scripts wait for a link); every sweep finding has a verdict, with zero untriaged Panic or RoundTrip findings;
+   - the build gates of Wave 0 hold on the full import (native debug data plus scripts ≤ 30 s and ≤ 4 GB; GBA release ≤ 9 GB and ≤ 2 min), recorded;
+   - `sweep --repro` passes;
+   - `cargo test --workspace` wall time grows by at most 2× the Wave 0 baseline, recorded.
 
 ## Wave 2b (parallel, after L)
 
@@ -592,50 +706,55 @@ Wave 0 makes no feature work. It does four things:
 1. **Debug region v3** (`PKRDBG03`, size grows to 216):
    - `heap_max` (high-water of a counting wrapper around agb's global allocator);
    - `last_script` and `map` (from `World`);
-   - `reports` (count of `Report` events);
+   - `reports` (count of `Report` events) and `events_dropped`;
+   - `stack_min` (IWRAM stack high-water: the shell paints the stack with a pattern at boot and scans it at the end of each frame's slack);
    - `panicked` (the GBA panic handler writes it and the panic location's line).
 
    `emu::DebugSnapshot` reads them.
 2. **`xtask rom`:**
    - prints the ROM by section and by symbol prefix (`budget::sections`);
-   - the gates become: ROM ≤ 16 MiB (open question 4), IWRAM ≤ the Wave 0 full-import baseline + 2 KiB, EWRAM statics ≤ baseline + 16 KiB;
-   - `xtask parity` gates `heap_max` ≤ 160 KiB on every route it runs;
+   - re-baselines the interim gates: ROM ≤ 16 MiB (decision Q4), IWRAM ≤ the full-import baseline + 2 KiB, EWRAM statics ≤ baseline + 16 KiB;
+   - `xtask parity` gates `heap_max` ≤ 160 KiB, the stack high-water (≥ 1 KiB of stack never touched) and `events_dropped == 0` on every lane it runs;
    - record every number in "As built".
-3. **Map tour** (`--features tour`, ROM-only, not in the normal build): boot, then on L+R+START warp to the next map in `MAP_IDS` order (first warp cell). An mGBA test (`emu/tests/tour.rs`, ignored, run by `xtask parity --long`) drives it through all 518 maps and checks:
+3. **Map tour** (`--features tour`, ROM-only, not in the normal build): boot, then on L+R+START warp to the next map of the tour list (first warp cell). An mGBA test (`emu/tests/tour.rs`, ignored, run by `xtask parity --long`) checks, on each map:
    - `late == 0`;
    - every black overrun follows a bulk step;
    - `loop_lines_max` ≤ 217;
    - no panic.
 
-   Any map over budget is fixed (with F's chunking) or listed with its cause.
-4. **Compression:** only if the ROM exceeds the gate. LZ77 (Gen3's) for tileset tiles and pics, decompressed in black bulk frames, with IWRAM ARM code if the decompressor is hot. Otherwise record "not needed" with the size.
+   **Gate:** the Act 1 maps plus one map per tileset family (primary/secondary pair). **Stretch:** all 518 maps. Any gated map over budget is fixed (with F's chunking or spawning) or listed with its cause.
+4. **Compression:** only if the ROM exceeds the gate. LZ77 (Gen3's) for tileset tiles and pics, decompressed in black bulk frames, with IWRAM ARM code if the decompressor is hot. Otherwise record "not needed" with the size (M12's audio may bring it back).
+5. **Contingency (only if `hash_lines_max` exceeds 65 on an Act 1 lane):** battle sub-digests maintained on write (M5 finding 1b), so the battle state hashes in O(1) as `Vars` does. It changes hash bytes, so it follows the route-changing merge rule (no tree refresh on the branch; a `chore(checkpoints)` on master).
 
 ### Task N — explorer on the full import: incremental revalidation and Act 1 tuning
 
 **Owns:** `crates/explore/**`.
 
 1. **Incremental revalidation** (M7 findings):
-   - when only `content` changed (`BuildHash.engine` equal, `GLOBAL_DIGEST` equal), compare `SCRIPT_DIGESTS`/`MAP_DIGESTS` with the ones stored in `meta`;
-   - mark Stale only the nodes whose own or any ancestor's `node_touch` includes a changed script or map;
+   - when only `content` changed (`BuildHash.engine` equal, `GLOBAL_DIGEST` equal), compare `SCRIPT_DIGESTS`/`MAP_DIGESTS` (keyed by name) with the ones stored in `meta`;
+   - mark Stale only the nodes whose own or any ancestor's `node_touch` includes a changed script or map. Scripts are touched by name; a script's digest already covers its call-graph closure, std scripts and override source, and a map's covers its tilesets and connected maps (D1, E);
    - every other node becomes Valid on the new build without replay;
-   - any engine or global change stays "revalidate all".
-   - **Test:** an override that changes one Littleroot script leaves every node that never touched Littleroot's scripts `Valid` with no replay.
+   - any engine, prelude, non-generated content source or other global change stays "revalidate all"; so does a name present in one build and missing in the other.
+   - **Tests:** an override that changes one Littleroot script leaves every node that never touched Littleroot's scripts `Valid` with no replay; changing a std script that a touched script calls marks it Stale; a prelude change revalidates all.
+   - Memory: revalidation at M7 scale (476k rows) peaked at 2.08 GB; with K's non-resident inputs it stays ≤ 1 GB (recorded).
 2. **`Cross` ends one cell into the new map** now that the stale view is capturable (F): remove the walk-away and talk fallback (M7 Task A deviation), keeping a test that the old fallback path is gone.
-3. **`explore sweep`** (release): for every map, root at Task L's `StartAt` state, run 10 generations, and aggregate findings by kind and map into `target/explore/sweep.txt`. Triage the results in the report (bugs to Findings, or fixed in a `fix(…)` commit when trivial and route-neutral).
-4. **Act 1 tuning:** `run --act act1 --secs 1800` from an empty db, then `--from` the furthest goal's exported node, in segments, until `FLAG_BADGE01_GET` or the budget runs out. Tune weights and limits in `Config::default` (the M7 order: goal weight, plan length, age penalty, cell shift). Record each attempt.
+3. **Probe cost** (M7 close-out): the worst case is `(1 + probe_resumes) × softlock_breadth` = 320 expansions per softlock check; tune both on the full import and record nodes/s before and after.
+4. **Act 1 tuning:** `run --act act1 --secs 1800` from an empty db, then `--from` the furthest goal's exported node, in segments, until `FLAG_BADGE01_GET` or the budget runs out. Budget: **≤ 4 h total wall time, ≤ 45 min per segment.** Tune weights and limits in `Config::default` (the M7 order: goal weight, plan length, age penalty, cell shift). Record each attempt. If a segment stalls, a hand-authored scenario-recorder segment is allowed; it is labelled as such in the node's label and counted in the numbers.
+5. **Elevation check:** confirm or refute "Act 1 has no elevation-sensitive path" (Route 104's bridges): count `PlannerDivergence` findings on Route 104 and Petalburg Woods during tuning; any is a finding for P (or N fixes the planner if trivial).
+
+`explore sweep` (every map, 10 generations) moves to M9.
 
 ### Task S — studio at scale
 
-**Owns:** `crates/studio/**`.
+**Owns:** `crates/studio/**` (except the three test files L samples).
 
-1. **Map tab:** a map picker for 518 maps (grouped by map group, with a filter by name or constant); `MapCache` stays an LRU of 32; overlays for the new event kinds (dynamic warps, trainer sight ranges as a layer).
-2. **Data tab:** an Items sub-tab; encounters show water, rock smash and fishing; trainers list all.
-3. **Tests at scale:** `map_pixels`, `map_view` and `data_views` use a fixed sample (the 15 slice maps plus Petalburg, Rustboro, Route 104, Petalburg Woods and one interior per tileset family). Whole-game versions are `#[ignore]` and run by `cargo xtask sweep --studio`.
-4. **M6 and M7 leftovers:**
-   - a `Materializer` per worker thread (M6 finding 4): each pane and the explorer-open path get their own, with the shared disk cache;
-   - quit kills the explorer run's process group (a tao `RunEvent::ExitRequested` hook, M7 S2 note);
-   - nodes/s as a moving average over the last 5 polls.
-5. **Gates:** all M6 gates, and `cargo xtask studio --smoke 8` ≥ 58 fps with the full import.
+Reduced to what the full import needs:
+1. **Map tab:** a map picker for 518 maps (grouped by map group, with a filter by name or constant); `MapCache` stays an LRU of 32.
+2. **Sampled tests:** the tests L moved onto the fixed sample stay green; nothing in `cargo test -p studio` iterates every map.
+3. **M6 leftover:** a `Materializer` per worker thread (M6 finding 4): each pane and the explorer-open path get their own, with the shared disk cache.
+4. **Gates:** all M6 gates, and `cargo xtask studio --smoke 8` ≥ 58 fps with the full import.
+
+Items sub-tab, water/fishing encounter views, trainer lists and new overlays (dynamic warps, sight ranges) move to M9.
 
 ---
 
@@ -645,16 +764,17 @@ Wave 0 makes no feature work. It does four things:
 
 **Owns:** the `act1:*` nodes in `checkpoints/emerald/nodes/`, `crates/game-native/tests/act1.rs`, `crates/emu/tests/parity.rs` (the Act 1 lanes), and this doc's "Wave 3 as built".
 
-1. **Find the route:** explorer segments (Task N's best config) from a new game to `FLAG_BADGE01_GET`. Export each goal's node (`export --to-store`), `verify --local`, then `cargo xtask checkpoints promote` as `act1:pokedex`, `act1:petalburg`, `act1:woods`, `act1:rustboro`, `act1:badge1`. The run's seed, config and wall time are recorded.
+1. **Find the route:** explorer segments (Task N's best config, within N's budget: ≤ 4 h total, ≤ 45 min per segment) from a new game to `FLAG_BADGE01_GET`. Export each goal's node (`export --to-store`), `verify --local`, then `cargo xtask checkpoints promote` as `act1:pokedex`, `act1:petalburg`, `act1:woods`, `act1:rustboro`, `act1:badge1` (labels from decomp names, never FR map-section names). The run's seed, config and wall time are recorded; any hand-authored segment is labelled and counted.
+   - **Elevation:** check the route through Route 104's bridges against N's elevation finding; if a path depends on elevation, record it as a finding for M10 with its node.
 2. **Native invariant along Act 1** (`act1.rs`, release, `#[ignore]`, run by `xtask parity`): the M5 core invariant at about 100 capturable points of the flattened Act 1 trace (round trip, equal hash, 120 frames equal), and 3 points to the end.
 3. **ROM parity:**
-   - every `act1:*` node resumes on the ROM from its `.sav` for 2,000 frames, with identical hashes and pictures every 100 frames, `late == 0` and `heap_max` gated;
+   - every `act1:*` node resumes on the ROM from its `.sav` for 2,000 frames, with identical hashes and pictures every 100 frames, `late == 0`, `events_dropped == 0`, and `heap_max` and the stack high-water gated;
    - `cargo xtask parity --long` replays the whole Act 1 trace on mGBA from a new game, with every hash compared.
 4. **Triage:** every finding and every `Unsupported` report reached on the Act 1 route goes into Findings for M9, or is fixed if trivial.
 5. **Numbers:** total frames to the badge, the explorer wall time, maps entered, % of Act 1 cells reached, battles won/lost/ran, ROM/IWRAM/EWRAM/heap, worst lines per segment.
 
 ### Close-out
-- **Whole-milestone review:** determinism (build reproducibility, explorer digests); write locations (nothing ROM-derived tracked: `git ls-files` against the ignore rules); FR literals; panics reachable from content; engine game-agnosticism. Fix the findings.
+- **Whole-milestone review:** determinism (`sweep --repro`, explorer digests); write locations (nothing ROM-derived tracked: `git ls-files` against the ignore rules); FR literals; panics reachable from content; engine game-agnosticism. Fix the findings.
 - **This doc:** "As built" per task (contracts changed, numbers), the findings table updated, "Findings for Milestone 9".
 - **README:** the full-import workflow (`extract`, the build report, `sweep`, overrides), and the Act 1 parity lanes.
 - **Cleanup:** clean up worktrees.
@@ -663,30 +783,32 @@ Wave 0 makes no feature work. It does four things:
 
 ## Done when
 
-- **Import:** `cargo xtask extract` (BPEF and BPEE) exports **518/518 maps**, 73 tilesets, every layout, every referenced sprite, the emote pics, pics for every species and trainer, every wild header (Altering Cave's 9), items, multichoice lists, std strings and map sections. **100% of exported strings re-encode** to their ROM bytes. No previews unless asked. Two exports are byte-identical.
+- **Import:** `cargo xtask extract` (BPEF and BPEE) exports **518/518 maps**, 73 tilesets, every layout, every referenced sprite, the emote pics, pics for every species and trainer, every wild header (Altering Cave's 9), evolutions, trainer money, items, multichoice lists, std strings and map sections. **100% of exported strings re-encode** to their ROM bytes. No previews unless asked. Two exports are byte-identical.
 - **Scripts:**
   - every reachable script (about 4,560 functions) is lowered by `content/build.rs` from the IR;
-  - **≥ 95% carry decomp names**;
-  - every command and special is classified (the build fails otherwise);
+  - **≥ 95% decomp names, per kind** (functions, texts, movements, each measured separately) on BPEF, with **precision** measured on BPEE (B's content checks; 100% target, mismatches listed);
+  - every command and special is classified (the build fails otherwise), and every `Native` command in `commands.ron` has a lowering arm (D1's test);
   - the build report lists the `Unsupported` sites by op;
-  - **no `Unsupported` command or special is reached on the Act 1 route** without a recorded reason.
-- **Run:** `cargo xtask sweep` passes on 518 maps (or a listed, justified exception set): no panic, idle-capturable, checkpoint round trip, render. `explore sweep` findings are triaged.
+  - **no `Unsupported` command or special is reached on the Act 1 route** without a recorded reason;
+  - the overrides hygiene test passes (no string or byte-string literals, no large numeric arrays).
+- **Run:** `cargo xtask sweep` passes on 518 maps (or a listed, justified exception set): no panic, idle-capturable, checkpoint round trip, render, `events_dropped == 0`. **Triage rule:** every sweep and Act 1 finding has a verdict (bug in Findings for M9, fixed, or accepted with a reason), and there are **zero untriaged Panic or RoundTrip findings**.
 - **Act 1:**
   - the committed `act1:*` nodes reach `FLAG_BADGE01_GET` from a new game and verify `Valid`;
   - native invariant points pass;
   - every `act1:*` node resumes on the ROM with identical hashes, and `parity --long` replays the whole act identically;
-  - `late == 0`.
+  - `late == 0` and `events_dropped == 0` on every parity lane.
 - **GBA:**
-  - ROM ≤ 16 MiB (or the answered gate);
-  - IWRAM and EWRAM within the new gates;
-  - `heap_max` ≤ 160 KiB on every parity lane;
-  - `loop_lines_max` ≤ 217 on the slice route, the Act 1 segments and the map tour (or re-gated ≤ 226 with the cause recorded).
+  - ROM ≤ 16 MiB;
+  - IWRAM and EWRAM within M's gates;
+  - `heap_max` ≤ 160 KiB and the IWRAM stack high-water within its gate on every parity lane;
+  - `loop_lines_max` ≤ 217 on the slice route, the Act 1 segments and the gated tour maps (or re-gated ≤ 226 with the cause recorded); `hash_lines_max` ≤ 65.
+- **Build:** reproducible (`cargo xtask sweep --repro`); on the full import, native debug `content` (data plus scripts) ≤ 30 s and ≤ 4 GB, GBA release ≤ 9 GB peak RSS and ≤ 2 min; `cargo test --workspace` wall time ≤ 2× the Wave 0 baseline. All numbers recorded.
 - **Explorer:**
   - db ≤ 0.3 MB per 1,000 rows;
   - thread-count and resume determinism hold;
-  - an override of one script revalidates only the touching subtree;
+  - an override of one script revalidates only the touching subtree; a prelude or std-script change is handled as the rules say;
   - Unsupported findings are listed;
-  - Act 1 goals are reached by segments within the recorded budget.
+  - Act 1 goals are reached by segments within **≤ 4 h total and ≤ 45 min per segment**, hand-authored segments labelled and counted.
 - **Folded findings:** every row of the findings table below is Done, Decided or Deferred with a milestone.
 - **Gates:**
   - fmt and both clippy runs;
@@ -694,7 +816,7 @@ Wave 0 makes no feature work. It does four things:
   - `cargo test -p studio --features ui` and `cargo xtask studio --smoke`;
   - `cargo xtask rom`, `cargo xtask parity` (and `--long` once, recorded);
   - game-gba fmt and clippy.
-- **Hygiene:** no ROM-derived file committed (IR, generated Rust, tables, pics, db, snapshots); no FR literals in tests; `engine` names no Emerald constant.
+- **Hygiene:** no ROM-derived file committed (IR, generated Rust, tables, pics, db, snapshots); no FR literals in tests or overrides; `engine` names no Emerald constant.
 
 ---
 
@@ -708,11 +830,18 @@ Wave 0 makes no feature work. It does four things:
 | Abstract-key gaps: `respawn`, `templates` deltas, `VAR_OBJ_GFX_ID_*` (M7 B) | **Task K** |
 | Party switching, items and bag in policy and key (M7) | **K** adds key items to the key. Policy switching and bag use: **M9** (they need the party and bag menus) |
 | explore.db size: merged rows and inputs text (M7 H) | **Task K** (binary inputs, `key_hit`, no leaf merged rows, inputs not resident) |
-| `DetectConfig::softlock_sample` unused (M7 H) | **Task K** (removed) |
-| Per-script and per-map content digests for incremental re-simulation (M7) | **D**/**E** emit them, **N** uses them |
+| `DetectConfig::softlock_sample` unused (M7 H) | **Done in M7** (close-out) |
+| `softlock_message` still says "region" (M7) | **Done in M7** (close-out) |
+| `node.region` is written but no longer read; the probe uses the place (M7 close-out) | **Task K** (schema v3 drops it or stores the place) |
+| `CapturableStuck`/`RoundTrip` signatures omit the script, so distinct traps on one map collapse into one row (M7 close-out) | **Task K** (`last_script` in the non-panic signatures) |
+| Revalidation memory: 2.08 GB for 476k rows (M7 close-out) | **K** (inputs not resident), **N** (incremental revalidation) |
+| Probe worst case `(1 + probe_resumes) × softlock_breadth` = 320 expansions (M7 close-out) | **Task N** (tune on the full import) |
+| Content build: with `PKR_EXTRACTED_DIR` pointing at a missing dir, creating it later goes unnoticed until the env var changes (M7 close-out) | **Accepted**, documented in the README |
+| `SlowFrame` is report-only and host-dependent (M7 close-out) | **Kept report-only**; parity's late-frame and scanline gates are the frame budget |
+| Per-script and per-map content digests for incremental re-simulation (M7) | **D1**/**D2**/**E** emit them, **N** uses them |
 | Engine `FrameOut` events in place of `Probe`; script-line coverage (M7) | Events: **Wave 0** + **K**. Line coverage: **M14** (explorer v1; needs per-block marks) |
 | Engine-side panic context (M7) | **Wave 0** (`last_script`, events), **K** (findings), **M** (GBA panic handler) |
-| Elevation-aware pathfinding (M7) | **Deferred to M10** with bridges (no `PlannerDivergence` in M7 H; Act 1 has no elevation-sensitive path) |
+| Elevation-aware pathfinding (M7) | **Deferred to M10** with bridges (no `PlannerDivergence` in M7 H). "Act 1 has no elevation-sensitive path" is an assumption: Route 104 has bridges, so **N** checks it during tuning and **P** on the route |
 | Balance fitness (M7) | **M14** |
 | Goal-directed completability per checkpoint (M7) | **Task K** (`--from` segments, per-act goals) |
 | Explorer exports as local-store nodes (M7 decision 14, M6 F3) | **Task K** (`export --to-store`, `xtask checkpoints promote`) |
@@ -721,13 +850,16 @@ Wave 0 makes no feature work. It does four things:
 | `Parent::Edited` (M5 decision 17, M6 F5) | **Decided, deferred:** the state editor is M14; when it lands, edited nodes are local-only with a deterministic op list (`Parent::Edited { base, ops_digest }`), and `verify` reports them unverifiable in the committed tree |
 | Data editing and write-back target (M6 decision 5) | **Decided:** overrides layer (decision 12) for scripts in M8; data patches over extracted data and studio write-back in M14 |
 | Linux CI for the `ui` feature (M6 decision 3) | **Deferred** (M14) |
-| Studio quit orphans an explorer run; nodes/s jitter (M7 S2) | **Task S** |
+| Studio quit orphans an explorer run; nodes/s jitter (M7 S2) | **Done in M7 S2** (review fixes I1, M8). I1 used `ui::on_quit` on tao `LoopDestroyed`, not `RunEvent::ExitRequested` |
 | Spread warp-load uploads, `late_black` → 0; crossings between different tilesets (M4) | **Task F**, checked by **M**'s map tour |
 | Doors: no animation graphics (M4) | **M10** (cosmetic) |
 | Old-map NPCs after a crossing, `selected` (M4) | **Task F** |
 | Step triggers fire one frame early (M4) | **Deferred to M10** (it changes all route timing; not needed for Act 1) |
-| Next script commands: `setrespawn` (done), `multichoice`, `trainerbattle`, `givemon` (done), `pokemart`, specials (M4) | **D/H/I/J**. `pokemart` stays `Unsupported` (the Mart UI is M9); Act 1 does not need a purchase |
-| Trainer sight; Attract/Rollout; doubles; `bufferleadmonspeciesname` (M4 simplifications) | Sight **I**; Attract/Rollout **G**; doubles degrade **G**; buffers **H** |
+| Next script commands: `setrespawn` (done), `multichoice`, `trainerbattle`, `givemon` (done), `pokemart`, specials (M4) | **D1/H/I/J**. `pokemart` stays `Unsupported` (the Mart UI is M9); Act 1 does not need a purchase |
+| Trainer sight; Attract/Rollout; doubles; `bufferleadmonspeciesname` (M4 simplifications) | Sight **I**; Attract/Rollout **G1** if Act 1 uses them, else **G2**; doubles per decision Q3 (**G1**, **I**); buffers **H** |
+| Whiteout: no money loss, no whiteout script (M4 simplification) | **G1**: Emerald `DoWhiteOut` (run `EventScript_WhiteOut` immediately, halve the money, heal, warp). The reviewer's `EventScript_AfterWhiteOutHeal` is a pokefirered label; Emerald has no after-whiteout nurse or Mom script |
+| Object spawning: every template spawns at load (no view window, no 16-object cap) | **Task F** (Gen3 `TrySpawnObjectEvents`), measured by Wave 0 on Route 104 and Rustboro |
+| Battle state hashed in full each frame (M5 finding 1b) | **M** contingency: sub-digests on write, only if an Act 1 lane exceeds `HASH_LINES_MAX` |
 | `Emote` TODO; elevation-based OBJ priority (M3) | Emote **I**; priority **M10** |
 | Known risk: a stale `setmetatile` override after a crossing (M5 decision 15) | **Task F** (the stale rect redraws overrides) |
 | Flash 64 KiB, about 24 KiB per slot, for a future full save (M5 decision 10) | **M9** (full save with bag/PC); M8's state stays under `MAX_ENCODED` 8 KiB (checked by L's sweep) |
@@ -745,7 +877,9 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
   - the naming screen and the real new-game intro (truck, Birch's speech, clock);
   - the evolution scene, catching through the bag;
   - the in-game save through the start menu, with a **full save format** (bag, PC boxes; flash 128 KiB with the mGBA override, or a compact layout in 64 KiB);
-  - money and coin boxes; policy switching and items in the explorer.
+  - money and coin boxes; policy switching and items in the explorer;
+  - `explore sweep` (every map rooted at L's `StartAt`, 10 generations, findings triaged);
+  - the studio views deferred from M8 S: Items sub-tab, water/fishing encounters, trainer lists, dynamic-warp and sight-range overlays.
 - **M10 — Field moves and overworld systems (Acts 3–4):**
   - Cut, Rock Smash, Strength, Surf, Flash, Fly (map screen), Dive, Waterfall; bikes and their tiles;
   - weather and field effects; tileset animations;
@@ -768,7 +902,7 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
 
 ## Decisions taken
 
-1. **Scope: import everything, play Act 1 (taken; open question 1).**
+1. **Scope: import everything, play Act 1 (taken; decision Q1).**
    - "Full engine parity" cannot be one milestone: the spike shows 90 unsupported command kinds and 433 specials, and menus, field moves, doubles, contests and audio are each milestone-sized.
    - Importing everything at once is cheap: the spike exported 518 maps in 5.5 s and compiled them. It is also what removes the slice's structural assumptions (names, slice sets, Rust literals, one wild header).
    - A story target proves the import works end to end. Roxanne is the first point the story needs items, money, trainer sight and broader battles, without menus or field moves.
@@ -778,7 +912,7 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
    - The IR keeps the hygiene rule: it is ROM-derived and git-ignored like the rest of `content/extracted/`. The generator is committed; the generated Rust exists only in `$OUT_DIR`.
    - **Not decompiling the `.inc` sources:** the design makes the FR ROM the asset source (FR text pointers, FR-specific data). The decomp is a format and naming guide. Bytecode decoding already covers all 227 opcodes and 518 maps.
    - **Cost:** the content build lowers about 97k lines at build time. The probe shows generation takes about a second; the compile dominates, and E's blob move pays for it.
-3. **Decomp label names (taken; open question 2).**
+3. **Decomp label names (taken; decision Q2).**
    - Positional names are stable only for a frozen export order. Shared scripts are named after their first referencing root (the nurse is `OldaleTown_PokemonCenter_1F_Obj1_L0`), and adding maps before Oldale would rename them.
    - Decomp labels are stable, readable in the studio and explorer findings, and the natural key for overrides.
    - Label transfer needs only reference sequences, not an assembler. Mismatches fall back per block and are measured (≥ 95% target).
@@ -788,22 +922,24 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
    - Failing the build on an unclassified command forces a decision when the IR gains one.
 5. **Remove the slice structurally (taken).** The slice was encoded as constants (`MAPS`, `slice_*`, `SLICE_*`, `PLAYER_LEVEL_CAP`) and as single-instance assumptions (one wild header, previews always). Each is replaced by "everything, filtered by explicit options", and tests move to named fixed samples.
 6. **Binary blobs for bulk data (taken).** The spike's 11.7 MB `data.rs` compiled in 31 s at 4.96 GB of rustc memory, and the GBA build peaked at 8.9 GB. `battle.bin` has shown the blob pattern since M4. Rust literals stay for small typed tables, where type checking matters.
-7. **GBA budget (taken; open question 4).**
+7. **GBA budget (taken; decision Q4).**
    - The spike's full ROM is ≈ 12.4 MB at opt-level 3, and ≈ 10.2 MB with `content` at "s". Projected with every pic: 11.4–13.6 MB. That is under 16 MiB, so **no banking** (the GBA has none to do below 32 MiB) and **no compression** unless the gate trips.
    - Script code is 59% of the ROM at scale, so "s" on `content` is the cheap lever. Scripts are light per frame, so speed is not at risk; Wave 0 checks the lines.
    - Futures are tiny (host max 200 B; on the GBA smaller with 4-byte pointers), so the M1 risk "box large futures in EWRAM" does not materialize. Heap high-water joins the debug region to keep it measured.
-   - **Compile memory** (8.9 GB peak for the GBA LTO build) is a dev-machine cost, reduced by decision 6 and recorded.
+   - **Compile memory** (8.9 GB peak for the GBA LTO build) is a dev-machine cost. Dev machines with 16 GB are supported, so it is gated (≤ 9 GB, ≤ 5 GB stretch), reduced by decision 6, the thunk dispatch table, `debug = false` on `content` and `build-override` opt-level 3, and recorded.
+   - **Interim gates:** a full-import ROM can only be built from Wave 2a on, so Waves 1 and 2a gate the slice build per section (an engine regression cannot hide behind content growth) and the full import against 16 MiB absolute.
 8. **One hash change in Wave 0; announced route changes (taken).**
    - The M5/M6 practice was "only one task changes hash bytes". M8 adds state in several tasks, so the state lands at once, unused, with one re-accept.
-   - Behaviour that genuinely changes the slice route (warp timing, battles, sight) cannot be avoided. Those tasks re-accept in a separate, reviewed `chore(checkpoints)` commit with the cause, so a tree change is never silent.
+   - Behaviour that genuinely changes the slice route (lowering semantics, text buffers, specials, sight, battles, warp timing and spawning) cannot be avoided. Six parallel branches each re-accepting the same trees would conflict on every node file and hide which change moved which frame. So route-changing branches never commit refreshes; they merge one at a time in a fixed order (D2 → H → J → I → G → F), and master re-accepts after each in a reviewed `chore(checkpoints)` commit with the cause, so a tree change is never silent and always attributable.
+   - The new state is hashed through digests maintained on write, so the hash's per-frame cost stays within `HASH_LINES_MAX` (65).
 9. **Act 1 parity in segments plus one long run (taken).** A 150k–300k-frame ROM replay is too slow for every `xtask parity`. M5's "ROM resumes from native checkpoints" gives segment parity at every `act1:*` node in seconds. The full straight replay is `--long`, run at close-out and before releases. The map tour covers maps the route never visits.
 10. **The explorer finds the Act 1 route (taken).** The scenario recorder's hand-written route (M3–M5) does not scale to an act. The explorer already reaches the slice's goals in 1.7 s. With `--from` segments and per-act goals, its exported lineage becomes the committed route, and that route is input-only and verifiable like any node.
 11. **French text and offsets (taken).**
     - No offset is hard-coded: maps, tilesets, scripts and texts are found by anchors and pointer tracing, and the spike read all 518 map headers and round-tripped all 5,503 reached texts on BPEF.
     - The new C-side tables follow the same rule: located by structure, validated on BPEE against the decomp, every FR string round-tripped.
     - If a table differs in layout in BPEF (for example longer FR names in a fixed-width field), the reader takes the width from the ROM's structure, never from the decomp's `#define`.
-12. **Overrides only for scripts in M8 (taken).** M6 deferred "where edits live" to M8. Script overrides are needed now (worked example in D) and cost little. Data patches need a patch format and studio write-back, which is M14 work with no M8 consumer.
-13. **Release-only sweeps (taken).** 518 maps × (load, 600 frames, round trip, render) is minutes in release and far too slow in debug. Debug tests keep the fast red/green loop on fixed samples; the sweeps are gates at the end of Wave 2a and at close-out.
+12. **Overrides only for scripts in M8 (taken).** M6 deferred "where edits live" to M8. Script overrides are needed now (worked example in D2) and cost little. Data patches need a patch format and studio write-back, which is M14 work with no M8 consumer.
+13. **Release-only sweeps (taken).** 518 maps × (load, 600 frames, round trip, render) is minutes in release and far too slow in debug. Debug tests keep the fast red/green loop on fixed samples; the sweeps are gates at the end of Wave 2a and at close-out. `explore sweep` is deferred to M9: it needs a tuned explorer on the full import, which is N's output, and it does not gate Act 1.
 14. **pokeemerald-expansion not used (taken).** It changes mechanics toward later generations and restructures data. Vanilla behaviour is the spec; the expansion is consulted only for readability.
 
 ---
@@ -813,18 +949,20 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
 | Wave | Tasks | Size (agent sessions) |
 |---|---|---|
 | 0 | contracts, spike re-run, hash change | 1 large |
-| 1 | A (L), B (L), C (M), D (L), E (M), F (L), G (L), H (M), I (M), J (M), K (L) | 11 parallel |
-| 2a | L (L) | 1 |
-| 2b | M (M), N (M), S (S) | 3 parallel |
+| 1 | A (L), B (L), C (M), D1 (M), E (M), F (L), G1 (L), H (M), I (M), J (M), K (L) | 11 parallel |
+| 2a | D2 (M), the ordered route-changing merges, L (L) | 2, sequential |
+| 2b | M (M), N (M), S (S), G2 (M, stretch) | 3–4 parallel |
 | 3 | P (L), close-out (M) | 2 |
 
-- **In total:** 18 task sessions, against M7's 10. About 1.8–2.5× M7's effort.
+- **In total:** 19 task sessions (20 with G2), against M7's 10. About 1.9–2.6× M7's effort.
 - **Hand-written code:** about 20–30k lines including tests (M7 added 13k in `explore` and 10k in `studio`). The generated code (about 100k lines of Rust plus blobs) lives in `$OUT_DIR` and is not counted.
-- **Longest chain:** Wave 0 → B → D → L → N → P.
+- **Critical path:** Wave 0 → **B → D2 → L → N → P**. D1 runs in parallel with B, so D2 is a short swap once B lands; the route-changing merges sit between D2 and L and are each one rebase plus one chore commit.
+- **Fallback split (only if L slips):** **M8a** = import, classification, budgets and the explorer (Wave 0, A–E, K, D2, L, M's gates, the sweep); **M8b** = Act 1 (F–J's remaining behaviour, N, P). Decided as a fallback only; the plan runs as one milestone.
 - **Main risks:**
   - the label transfer's match rate (B), with the positional fallback as the floor;
   - the explorer reaching the badge within budget (N/P), with `--from` segments and tuning as levers, and the scenario recorder as a last resort for one hard segment;
-  - GBA frame budget on maps with many objects (M's tour, with F's chunking).
+  - GBA frame budget on maps with many objects (Wave 0's Route 104/Rustboro measurement, F's view-based spawning, M's tour);
+  - build memory on 16 GB machines (Wave 0's measurements and profiles; L's gates).
 
 ---
 
