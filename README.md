@@ -40,11 +40,14 @@ Known simplifications: singles only; no bag, party screen or Poké Balls (SAC an
 to the menu, and the next usable Pokémon is sent out by itself); one battle background (grass or
 plain); move animations are a lunge, the hit blink and the healthbox shake; no trainer sight
 (trainers battle when spoken to); no sound, running shoes or start menu; parties and encounter
-rolls are drawn when the battle is requested, before its transition (Gen3 draws some after it).
+rolls are drawn when the battle is requested, before its transition (Gen3 draws some after it);
+a script battle without a Pokémon that can fight is skipped and answers `Won` (Gen3 would start
+it and lose); a starter screen that a script answers without a battle fades back to the field
+with the script already resumed (Emerald's always battles).
 
 Without an extracted dir everything builds against a small built-in map (stub mode,
-`cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`). There a new game starts with a
-Pokémon, and the one tall-grass cell at (12, 3) has wild battles.
+`cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`). There the shells and parity
+(`Emerald::for_shells()`) start a new game with a Pokémon, and the one tall-grass cell at (12, 3) has wild battles.
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
@@ -67,9 +70,13 @@ then Route 103 and May's battle (about 19000 frames, 8 battles); in stub mode it
 stub map and fights in its tall-grass cell. Its named moments (`cargo xtask shot`) include the
 starter screen, a wild battle's intro, the action and move menus, an HP bar draining, a level-up
 message and May's intro. The ROM must not apply any frame late while something is visible
-(`DebugRegion::late`); late applies on a black screen (bulk loads) are counted in `late_black`,
-which may not exceed the route's warps and script teleports plus two per battle (its load on
-the way in, the field's restore on the way out).
+(`DebugRegion::late`); late applies on a black screen are counted in `late_black`, and each
+must be explained: steps doing bulk work set `Frame::bulk` (a map load for a warp or a whiteout,
+a whole-view field redraw such as a script teleport, the starter screen's load, a battle's load
+and the field's restore after it), every late-black frame must follow such a step within the
+display lag (`scenario::DISPLAY_LAG`), and there are at most as many as bulk events (runs of
+bulk steps, `Recording::bulk_events`; about warps + 2 × battles + starters + teleports, 21 of 22
+on the extracted route).
 
 `crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
 `0x3f86f67e851de7b8` after `World::new` and `0xe51e3e6ef153f261` after 25 frames each of Right,

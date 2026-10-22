@@ -33,6 +33,11 @@
 //!   (`BattleSetup_GetEnvironmentId`, simplified).
 //! - Field wild encounters also require a party with a mon that can fight (Gen3 relies on the
 //!   story never letting the player into grass without one).
+//! - A script battle (`dowildbattle`, `trainerbattle`) without a mon that can fight is not
+//!   started and answers `Won` at once (Gen3 would start it and lose at the first turn); a
+//!   map script's (`immediate`) battle answers `Ran`.
+//! - A starter screen answered without a battle fades back to the field with the script
+//!   already resumed (see `World::step_starter`).
 
 use super::{Ground, State, World, draw_field, load_map};
 use crate::battle::scene::BattleScene;
@@ -351,6 +356,11 @@ impl World {
         match &mut self.s.mode {
             Mode::Battle(b) => b.backdrop = Some(Box::new(run.choice)),
             _ => {
+                // Not Gen3 (whose starter script always battles): the script has already run
+                // on to its next wait while the starter screen still owns BG0, and the fade out
+                // and field restore below close the field text box. Content that answers the
+                // starter screen without a battle must not print before the field is back (a
+                // `delay`/`waitstate` first); the Emerald content always battles.
                 self.s.log("starter chosen without a battle");
                 let mut fader = Fader::new();
                 fader.start(Fade::ToBlack);
