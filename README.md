@@ -16,6 +16,7 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 - `cargo xtask shot`: play the same route and write ROM and native PNGs of each named moment to
   `target/shots/<moment>-{rom,native}.png`
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
+- `cargo xtask studio`: run the studio desktop app (release; see Tests for its gates)
 
 ## Play
 1. Extract your ROM (see Extract), then `cargo xtask rom`.
@@ -162,6 +163,14 @@ changes; update them only for an intended change.
 Defaults are relative to this checkout's root (so `../emerald.gba` sits next to it). Set the variables to point elsewhere, e.g.
 `PKR_ROM_US=~/roms/emerald.gba cargo test --workspace`. `cargo test -p extract --lib` runs only
 the extractor's unit tests, which need none of these.
+
+The studio's desktop UI is behind the `studio` crate's `ui` feature, so `cargo test --workspace`
+and the workspace clippy skip it. Its gates are `cargo test -p studio --features ui` (display-free)
+and `cargo clippy -p studio --all-targets --features ui -- -D warnings`; `cargo xtask studio
+--check` runs both. `cargo xtask studio --smoke [secs]` (default 10) opens the real window with
+two test-pattern panes for `secs` seconds and fails if a pane delivers under 50 fps or the run
+outlives `secs` + 60 s. It needs a logged-in GUI session (not SSH or CI without a display); the
+window stays on top and takes focus while it runs.
 
 ## Extract
 `cargo xtask extract` reads your French ROM into editable, git-ignored files.

@@ -4,8 +4,9 @@
 //! Frames reach the webview through the `frames` asset handler: `studio.js` pulls
 //! `/frames/<pane>?after=<seq>` for every `<canvas data-pane=<pane>>` and the handler answers
 //! from the [`Frames`] context (a pane is registered by putting its `FrameSlot` there). The
-//! request is a long poll: it is answered when a frame newer than `after` is published (or with
-//! 204 after [`LONG_POLL`]), from a short-lived thread, never blocking the UI thread.
+//! request is a long poll: it is answered as soon as the slot holds a frame whose seq differs
+//! from `after` (or with 204 after [`LONG_POLL`]), by the slot's waiter thread
+//! ([`FrameSlot::wait_then`]), never blocking the UI thread.
 
 pub mod data;
 pub mod map;
@@ -29,9 +30,17 @@ const JS: &str = include_str!("studio.js");
 #[derive(Clone, Default)]
 pub struct Frames(pub Arc<HashMap<&'static str, FrameSlot>>);
 
-/// What `studio.js` reports through `/stats/<pane>` (smoke runs).
+/// What `studio.js` reports through `/stats/<pane>`. Smoke runs only: it is in context, the
+/// `stats` handler registered and the JS reporter on only with `STUDIO_SMOKE_SECS`.
 #[derive(Clone, Default)]
 pub struct Stats(Arc<Mutex<BTreeMap<String, Reports>>>);
+
+/// A smoke run: how long it lasts, and the reports it prints at the end.
+#[derive(Clone)]
+struct Smoke {
+    secs: f64,
+    stats: Stats,
+}
 
 /// A pane's reports, with when each arrived.
 type Reports = Vec<(Instant, Report)>;
@@ -69,9 +78,15 @@ impl Report {
     }
 }
 
-/// The custom head: the stylesheet and the frame pump.
-pub fn head() -> String {
-    format!("<style>{CSS}</style><script>{JS}</script>")
+/// The custom head: the stylesheet and the frame pump. `smoke` sets `window.STUDIO_SMOKE`,
+/// which turns on the pump's `/stats` reports.
+pub fn head(smoke: bool) -> String {
+    let flag = if smoke {
+        "<script>window.STUDIO_SMOKE = true;</script>"
+    } else {
+        ""
+    };
+    format!("<style>{CSS}</style>{flag}<script>{JS}</script>")
 }
 
 /// Opens the studio window. With `STUDIO_SMOKE_SECS=<n>` it closes itself after `n` seconds
@@ -79,8 +94,13 @@ pub fn head() -> String {
 pub fn launch() {
     let smoke = std::env::var("STUDIO_SMOKE_SECS")
         .ok()
-        .and_then(|s| s.parse::<f64>().ok());
-    // The spike panes. Their handles live as long as this function, i.e. the app.
+        .and_then(|s| s.parse::<f64>().ok())
+        .map(|secs| Smoke {
+            secs,
+            stats: Stats::default(),
+        });
+    // The spike panes. The desktop event loop never returns (it exits the process), so these
+    // handles live as long as the app.
     let panes = [
         pane::spawn("a", TestPattern::new),
         pane::spawn("b", TestPattern::new),
@@ -89,17 +109,6 @@ pub fn launch() {
         ("a", panes[0].frames.clone()),
         ("b", panes[1].frames.clone()),
     ])));
-    let stats = Stats::default();
-    if let Some(secs) = smoke {
-        let stats = stats.clone();
-        let names: Vec<&'static str> = frames.0.keys().copied().collect();
-        let start = Instant::now();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_secs_f64(secs));
-            print_smoke(&stats, &names, start, secs);
-            std::process::exit(0);
-        });
-    }
     let window = WindowBuilder::new()
         .with_title("Studio")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
@@ -108,15 +117,26 @@ pub fn launch() {
         // run behind other windows would measure nothing.
         .with_always_on_top(smoke.is_some());
     let cfg = Config::new()
-        .with_custom_head(head())
+        .with_custom_head(head(smoke.is_some()))
         .with_window(window)
         .with_disable_context_menu(true);
-    dioxus::LaunchBuilder::desktop()
+    let mut app = dioxus::LaunchBuilder::desktop()
         .with_cfg(cfg)
-        .with_context(frames)
-        .with_context(stats)
-        .launch(App);
-    drop(panes);
+        .with_context(frames);
+    if let Some(smoke) = smoke {
+        app = app.with_context(smoke);
+    }
+    app.launch(App);
+}
+
+/// Resolves after `d`, without assuming an async runtime (a sleeping thread completes it).
+async fn sleep(d: Duration) {
+    let (tx, rx) = futures_channel::oneshot::channel();
+    std::thread::spawn(move || {
+        std::thread::sleep(d);
+        let _ = tx.send(());
+    });
+    let _ = rx.await;
 }
 
 /// Steady-state numbers from the reports received after a 2 s warm-up.
@@ -164,47 +184,60 @@ fn respond(status: StatusCode) -> Response<Vec<u8>> {
         .unwrap()
 }
 
-/// The desktop root: the asset handlers, then the [`Shell`].
+/// The desktop root: the asset handlers (and in a smoke run, the timer that closes the
+/// window), then the [`Shell`].
 #[component]
 fn App() -> Element {
     let frames = use_context::<Frames>();
-    let stats = use_context::<Stats>();
+    let names: Vec<&'static str> = frames.0.keys().copied().collect();
     use_asset_handler("frames", move |req, responder| {
         let path = req.uri().path_and_query().map_or("", |p| p.as_str());
-        let slot = match parse_frame_request(path) {
+        let (pane, after) = match parse_frame_request(path) {
             None => return responder.respond(respond(StatusCode::BAD_REQUEST)),
-            Some((pane, after)) => match frames.0.get(pane) {
-                None => return responder.respond(respond(StatusCode::NOT_FOUND)),
-                Some(slot) => (slot.clone(), after),
-            },
+            Some(r) => r,
         };
-        // Long poll off the UI thread: answer with the next frame as soon as it is published.
-        std::thread::spawn(move || {
-            let (slot, after) = slot;
-            let t0 = Instant::now();
-            let latest = slot.wait(after, LONG_POLL);
-            let wait = t0.elapsed().as_micros() as u64;
-            responder.respond(match latest {
-                None => respond(StatusCode::NO_CONTENT),
-                Some((seq, rgba, age)) => Response::builder()
+        let Some(slot) = frames.0.get(pane) else {
+            return responder.respond(respond(StatusCode::NOT_FOUND));
+        };
+        let t0 = Instant::now();
+        slot.wait_then(after, LONG_POLL, move |answer| {
+            responder.respond(match answer {
+                Err(_) => respond(StatusCode::SERVICE_UNAVAILABLE),
+                Ok(None) => respond(StatusCode::NO_CONTENT),
+                Ok(Some((seq, rgba, age))) => Response::builder()
                     .header("Content-Type", "application/octet-stream")
                     .header("Cache-Control", "no-store")
                     .header("x-seq", seq)
                     .header("x-age-us", age.as_micros() as u64)
-                    .header("x-wait-us", wait)
+                    .header("x-wait-us", t0.elapsed().as_micros() as u64)
                     .body(rgba.to_vec())
                     .unwrap(),
-            });
+            })
         });
     });
-    use_asset_handler("stats", move |req, responder| {
-        let pane = req.uri().path().trim_start_matches("/stats/").to_string();
-        if let Some(r) = req.uri().query().and_then(Report::parse) {
-            let mut all = stats.0.lock().unwrap();
-            all.entry(pane).or_default().push((Instant::now(), r));
-        }
-        responder.respond(respond(StatusCode::NO_CONTENT));
-    });
+    // The context never changes, so these hooks run on every render or on none.
+    if let Some(smoke) = try_use_context::<Smoke>() {
+        let stats = smoke.stats.clone();
+        use_asset_handler("stats", move |req, responder| {
+            let pane = req.uri().path().trim_start_matches("/stats/").to_string();
+            if let Some(r) = req.uri().query().and_then(Report::parse) {
+                let mut all = stats.0.lock().unwrap();
+                all.entry(pane).or_default().push((Instant::now(), r));
+            }
+            responder.respond(respond(StatusCode::NO_CONTENT));
+        });
+        use_future(move || {
+            let (smoke, names) = (smoke.clone(), names.clone());
+            async move {
+                let start = Instant::now();
+                sleep(Duration::from_secs_f64(smoke.secs)).await;
+                print_smoke(&smoke.stats, &names, start, smoke.secs);
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+                // The last window closing ends the event loop and the process (status 0).
+                dioxus::desktop::window().close();
+            }
+        });
+    }
     rsx! { Shell {} }
 }
 
@@ -306,9 +339,14 @@ mod tests {
 
     #[test]
     fn the_head_carries_the_css_and_the_frame_pump() {
-        let h = head();
+        let h = head(false);
         assert!(h.contains("image-rendering: pixelated"));
         assert!(h.contains("/frames/${name}?after="));
+        assert!(
+            !h.contains("STUDIO_SMOKE = true"),
+            "no /stats reports by default"
+        );
+        assert!(head(true).contains("<script>window.STUDIO_SMOKE = true;</script><script>"));
     }
 
     #[test]

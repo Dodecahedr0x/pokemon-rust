@@ -304,6 +304,6 @@ fn main() -> Result<()> {
         Some("extract") => extract(&args[1..]),
         Some("checkpoints") => checkpoints::main(&args[1..]),
         Some("studio") => studio::main(&args[1..]),
-        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints>"),
+        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio>"),
     }
 }
