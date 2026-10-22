@@ -107,7 +107,7 @@ fn shot() -> Result<()> {
     let checkpoints: Vec<u32> = rec.moments.iter().map(|m| m.frame + 1).collect();
     let total = rec.frames().max(checkpoints.last().copied().unwrap_or(0));
     let run = emu::run_rom(&rom, |f| rec.keys_at(f), total, &checkpoints)?;
-    let mut native = game_native::Session::new(content::Emerald);
+    let mut native = game_native::Session::new(content::Emerald::for_shells());
     let dir = root().join("target/shots");
     std::fs::create_dir_all(&dir)?;
     let mut same = 0;

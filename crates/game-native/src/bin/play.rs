@@ -38,7 +38,7 @@ fn main() {
     )
     .expect("open a window");
     window.set_target_fps(60);
-    let mut session = Session::new(content::Emerald);
+    let mut session = Session::new(content::Emerald::for_shells());
     let mut buf = vec![0u32; SCREEN_W * SCREEN_H];
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let keys = KEYS

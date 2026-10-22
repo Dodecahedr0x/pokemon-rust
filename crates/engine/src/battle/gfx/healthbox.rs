@@ -19,6 +19,7 @@ use crate::Tile;
 use crate::data::Font;
 use crate::hash::Fnv64;
 use crate::mon::{Gender, NAME_LEN, Status};
+use crate::text::{Colors, Pen, px_mask};
 use crate::video::{Cmd, Frame, Obj, ObjShape, layout::battle::OBJ_PRIORITY_BOX};
 use alloc::vec;
 use alloc::vec::Vec;
@@ -142,35 +143,43 @@ impl Window {
         Window([[(COLOR_BG as u32) * 0x1111_1111; 8]; 16])
     }
 
-    fn set(&mut self, x: usize, y: usize, c: u8) {
-        if x >= 64 || y >= 16 {
-            return;
-        }
-        let row = &mut self.0[(y / 8) * 8 + x / 8][y % 8];
-        let shift = (x % 8) * 4;
-        *row = (*row & !(0xF << shift)) | ((c as u32 & 0xF) << shift);
-    }
-
     /// Gen3 `CopyGlyphToWindow` for `FONT_SMALL`: `width` x 13 pixels, 2bpp 0/3 -> bg,
-    /// 1 -> fg, 2 -> shadow. Returns the advance.
+    /// 1 -> fg, 2 -> shadow. Returns the advance. Whole tile rows at a time (as
+    /// `text::Canvas::draw_glyph`): text is slow on the GBA.
     fn glyph(&mut self, font: &Font, id: u16, x: usize, y: usize, fg: u8) -> usize {
         let (Some(g), Some(&w)) = (font.glyphs.get(id as usize), font.widths.get(id as usize))
         else {
             return 0;
         };
+        let pen = Pen::new(Colors::new(fg, COLOR_SHADOW, COLOR_BG));
+        let width = (w as usize).min(16);
+        let shift = (x % 8) * 4;
         for gy in 0..GLYPH_HEIGHT {
-            for gx in 0..(w as usize).min(16) {
-                let off = ((gy / 8) * 2 + gx / 8) * 16 + (gy % 8) * 2;
-                let word = u16::from_le_bytes([g[off], g[off + 1]]);
-                let c = match (word >> (14 - 2 * (gx % 8))) & 3 {
-                    1 => fg,
-                    2 => COLOR_SHADOW,
-                    _ => COLOR_BG,
-                };
-                self.set(x + gx, y + gy, c);
+            let cy = y + gy;
+            if cy >= 16 {
+                break;
+            }
+            for half in 0..width.div_ceil(8) {
+                let off = ((gy / 8) * 2 + half) * 16 + (gy % 8) * 2;
+                let word = pen.row(g[off], g[off + 1]);
+                let mask = px_mask(width - half * 8);
+                let tx = x / 8 + half;
+                self.put_row(tx, cy, word << shift, mask << shift);
+                if shift != 0 {
+                    self.put_row(tx + 1, cy, word >> (32 - shift), mask >> (32 - shift));
+                }
             }
         }
         w as usize
+    }
+
+    /// Writes `word` under `mask` into pixel row `y` of tile column `tx` (clipped to 8x2).
+    #[inline(always)]
+    fn put_row(&mut self, tx: usize, y: usize, word: u32, mask: u32) {
+        if tx < 8 && mask != 0 {
+            let r = &mut self.0[(y / 8) * 8 + tx][y % 8];
+            *r = (*r & !mask) | (word & mask);
+        }
     }
 
     /// Prints `text` (glyph bytes, `{EXTRA_SYMBOL n}` pairs) at (x, y) in the normal color.
@@ -676,6 +685,51 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn glyph_rows_match_the_pixel_model() {
+        // The Gen3 per-pixel copy, as the model of the word-at-a-time `Window::glyph`.
+        fn model(px: &mut [[u8; 64]; 16], g: &[u8; 64], w: u8, x: usize, y: usize, fg: u8) {
+            for gy in 0..GLYPH_HEIGHT {
+                for gx in 0..(w as usize).min(16) {
+                    let off = ((gy / 8) * 2 + gx / 8) * 16 + (gy % 8) * 2;
+                    let word = u16::from_le_bytes([g[off], g[off + 1]]);
+                    let c = match (word >> (14 - 2 * (gx % 8))) & 3 {
+                        1 => fg,
+                        2 => COLOR_SHADOW,
+                        _ => COLOR_BG,
+                    };
+                    if x + gx < 64 && y + gy < 16 {
+                        px[y + gy][x + gx] = c;
+                    }
+                }
+            }
+        }
+        let mut seed = 0x9e37_79b9u32;
+        let mut next = move || {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            (seed >> 16) as u8
+        };
+        let glyphs: Vec<[u8; 64]> = (0..17).map(|_| core::array::from_fn(|_| next())).collect();
+        let font = alloc::boxed::Box::leak(alloc::boxed::Box::new(Font {
+            glyphs: alloc::boxed::Box::leak(glyphs.clone().into_boxed_slice()),
+            widths: alloc::boxed::Box::leak((0..17u8).collect::<Vec<_>>().into_boxed_slice()),
+        }));
+        for id in 0..17u16 {
+            for (x, y) in [(0, 0), (3, 3), (5, 5), (13, 2), (50, 4), (60, 3)] {
+                let mut w = Window::new();
+                let mut want = [[COLOR_BG; 64]; 16];
+                w.glyph(font, id, x, y, COLOR_MALE);
+                model(&mut want, &glyphs[id as usize], id as u8, x, y, COLOR_MALE);
+                for (py, row) in want.iter().enumerate() {
+                    for (px, &c) in row.iter().enumerate() {
+                        let got = (w.0[(py / 8) * 8 + px / 8][py % 8] >> ((px % 8) * 4)) & 0xF;
+                        assert_eq!(got as u8, c, "glyph {id} at ({x}, {y}): ({px}, {py})");
+                    }
+                }
+            }
+        }
     }
 
     #[test]

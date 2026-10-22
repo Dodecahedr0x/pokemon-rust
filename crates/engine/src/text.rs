@@ -25,6 +25,7 @@ mod printer;
 
 #[cfg(test)]
 use self::printer::State;
+pub(crate) use self::printer::px_mask;
 pub use self::printer::{Canvas, Colors, Pen, Printer};
 
 use crate::Tile;

@@ -8,19 +8,19 @@
 //! - `LittlerootTown_ProfessorBirchsLab_EventScript_*` (`VAR_BIRCH_LAB_STATE` 3, starter),
 //! - `data/scripts/new_game.inc` `EventScript_ResetAllMapFlags` (objects hidden from the start).
 //!
-//! [`Start::BeforeRescue`] (`Emerald::default()`): May has been met in her bedroom and the
-//! player has left the houses (`VAR_LITTLEROOT_TOWN_STATE` 1: go and find Birch;
-//! `VAR_LITTLEROOT_INTRO_STATE` 7, `VAR_LITTLEROOT_RIVAL_STATE` 3). Nothing of Route 101 has
-//! happened (`VAR_ROUTE101_STATE` 0, `VAR_BIRCH_LAB_STATE` 0): Birch, the Zigzagoon and the bag
-//! are on Route 101 (`FLAG_HIDE_ROUTE_101_BIRCH_ZIGZAGOON_BATTLE` /
-//! `FLAG_HIDE_ROUTE_101_BIRCH_STARTERS_BAG` / `FLAG_HIDE_ROUTE_101_ZIGZAGOON` clear), Birch is
-//! not in his lab
+//! [`Start::BeforeRescue`] (`Emerald::default()`, and `Emerald::for_shells()` on the extracted
+//! world): May has been met in her bedroom and the player has left the houses
+//! (`VAR_LITTLEROOT_TOWN_STATE` 1: go and find Birch; `VAR_LITTLEROOT_INTRO_STATE` 7,
+//! `VAR_LITTLEROOT_RIVAL_STATE` 3). Nothing of Route 101 has happened (`VAR_ROUTE101_STATE` 0,
+//! `VAR_BIRCH_LAB_STATE` 0): Birch, the Zigzagoon and the bag are on Route 101
+//! (`FLAG_HIDE_ROUTE_101_BIRCH_ZIGZAGOON_BATTLE` / `FLAG_HIDE_ROUTE_101_BIRCH_STARTERS_BAG` /
+//! `FLAG_HIDE_ROUTE_101_ZIGZAGOON` clear), Birch is not in his lab
 //! (`FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH` set, as `ResetAllMapFlags` leaves it) and the
 //! Route 101 boy is hidden (`FLAG_HIDE_ROUTE_101_BOY`, cleared by the lab later). May is back
 //! in her bedroom (`FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_RIVAL_BEDROOM` clear) until the rescue.
 //! No party, no `FLAG_SYS_POKEMON_GET`.
 //!
-//! [`Start::AfterStarter`] (the Milestone 3 start, `content::Emerald`): Birch saved, the
+//! [`Start::AfterStarter`] (the Milestone 3 start, `Emerald::after_starter()`): Birch saved, the
 //! starter received in the lab (Mudkip, level 5, `VAR_STARTER_MON` 2), told to meet May on
 //! Route 103.
 //!

@@ -91,6 +91,9 @@ pub async fn callstd(ctx: &Ctx, std: u8) {
 ///   starter screen, `VAR_STARTER_MON` = the choice, the starter at level 5, then the first
 ///   battle (`battle_controllers.c`: Zigzagoon, level 2).
 /// - `HealPlayerParty`: heals the party.
+/// - `ChangePokemonNickname`: no naming screen, the name is kept; the field fades back in from
+///   the script's `fadescreen FADE_TO_BLACK` as `CB2_ReturnToFieldContinueScriptPlayMapMusic`
+///   does.
 /// - `PlayerFaceTrainerAfterBattle`: cosmetic (the player turns to the trainer), only logged.
 pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     ctx.log(name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?"))
@@ -110,6 +113,7 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.battle_wild(foe, level, true).await;
         }
         id if id == SPECIAL_HealPlayerParty => ctx.heal_party().await,
+        id if id == SPECIAL_ChangePokemonNickname => ctx.fade(Fade::FromBlack).await,
         _ => {}
     }
     0

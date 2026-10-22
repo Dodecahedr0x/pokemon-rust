@@ -277,6 +277,9 @@ impl BattleWindows {
             });
         }
         self.loaded = true;
+        // The action menu's text never changes: drawn here, on a black frame (text is slow on
+        // the GBA), and uploaded with its first view.
+        self.draw_action_menu(game);
         self.msg.clear(MSG_COLORS);
         self.show(View::Msg, game, f);
         self.msg.flush(f);
@@ -345,15 +348,37 @@ impl BattleWindows {
             slots: [names.mons[0].party, names.mons[1].party],
         };
         let prompt = super::text::expand(game, &msg, names);
-        let font = game.font();
-        self.prompt.fill(MSG_COLORS.bg);
-        self.prompt.draw_text(font, &prompt, 1, 1, MSG_COLORS);
-        self.action.fill(MENU_COLORS.bg);
-        let menu = game.battle_text(Str::BattleMenu);
-        self.action.draw_text(font, menu, 0, 1, MENU_COLORS);
+        self.prompt.redraw(game.font(), &prompt, 1, 1, MSG_COLORS);
+        self.draw_action_menu(game);
         self.enter_menu(Menu::Action, f);
         self.action_result = None;
         self.show(View::Action, game, f);
+    }
+
+    /// The 2x2 action menu (`gText_BattleMenu`).
+    fn draw_action_menu(&mut self, game: &impl GameData) {
+        let menu = game.battle_text(Str::BattleMenu);
+        self.action.redraw(game.font(), menu, 0, 1, MENU_COLORS);
+    }
+
+    /// Draws the action prompt and the move view of `mon` ahead of time, while the screen is
+    /// black (`BattleScene::load`): the menus' first opening then finds its text drawn (the
+    /// canvases skip unchanged text), as text is slow on the GBA. Nothing is shown.
+    pub fn prepare(&mut self, game: &impl GameData, names: &Names, mon: &BattleMon) {
+        let msg = Msg {
+            id: Str::WhatWillPkmnDo,
+            attacker: Side::Player,
+            target: Side::Opponent,
+            active: Side::Player,
+            mov: None,
+            buffs: [Buff::None; 3],
+            wait: MsgWait::Frames(0),
+            slots: [names.mons[0].party, names.mons[1].party],
+        };
+        let prompt = super::text::expand(game, &msg, names);
+        self.prompt.redraw(game.font(), &prompt, 1, 1, MSG_COLORS);
+        self.draw_moves(game, mon, None);
+        self.draw_move_text(game);
     }
 
     /// Shows the move menu of `mon`: its 4 move names, "PP cur/max" in the PP colors and
@@ -382,6 +407,15 @@ impl BattleWindows {
         learning: Option<MoveId>,
         f: &mut Frame,
     ) {
+        self.draw_moves(game, mon, learning);
+        self.enter_menu(Menu::Move, f);
+        self.move_result = None;
+        self.draw_move_info(game, f);
+        self.show(View::Move, game, f);
+    }
+
+    /// The move view's state and its names (and the "PP" label or the new move).
+    fn draw_moves(&mut self, game: &impl GameData, mon: &BattleMon, learning: Option<MoveId>) {
         self.moves = mon.moves;
         self.pp_cur = mon.pp;
         self.pp_max = mon.max_pp;
@@ -394,22 +428,15 @@ impl BattleWindows {
         for i in 0..4 {
             // An empty slot shows `gMoveNames[MOVE_NONE]`.
             let name = move_name(game, self.moves[i].unwrap_or(MoveId(0)));
-            self.names[i].fill(MENU_COLORS.bg);
-            self.names[i].draw_text(font, name, 0, 1, MENU_COLORS);
+            self.names[i].redraw(font, name, 0, 1, MENU_COLORS);
         }
         if let Some(new) = learning {
             let name = move_name(game, new);
-            self.learn.fill(MENU_COLORS.bg);
-            self.learn.draw_text(font, name, 0, 1, MENU_COLORS);
+            self.learn.redraw(font, name, 0, 1, MENU_COLORS);
         } else {
-            self.pp_label.fill(PP_COLORS.bg);
             let label = game.battle_text(Str::MoveInterfacePP);
-            self.pp_label.draw_text(font, label, 0, 1, PP_COLORS);
+            self.pp_label.redraw(font, label, 0, 1, PP_COLORS);
         }
-        self.enter_menu(Menu::Move, f);
-        self.move_result = None;
-        self.draw_move_info(game, f);
-        self.show(View::Move, game, f);
     }
 
     /// The move under the cursor (the new move on the fifth entry).
@@ -429,17 +456,10 @@ impl BattleWindows {
 
     /// `MoveSelectionDisplayPpNumber` (with its palette) and `MoveSelectionDisplayMoveType`.
     fn draw_move_info(&mut self, game: &impl GameData, f: &mut Frame) {
-        let font = game.font();
+        self.draw_move_text(game);
         if self.learning.is_none() {
             let c = self.move_cursor as usize & 3;
             let (cur, max) = (self.pp_cur[c], self.pp_max[c]);
-            let mut text = Vec::with_capacity(6);
-            push_2_digits(&mut text, cur);
-            text.push(CHAR_SLASH);
-            push_2_digits(&mut text, max);
-            text.push(EOS);
-            self.pp.fill(PP_COLORS.bg);
-            self.pp.draw_text(font, &text, 2, 1, PP_COLORS);
             let tb = &game.battle_gfx().textbox;
             if let (Some(&base), Some(pp)) = (tb.palettes.get(2), tb.palettes.get(3)) {
                 let s = pp_state(cur, max) as usize * 2;
@@ -452,6 +472,22 @@ impl BattleWindows {
                 });
             }
         }
+    }
+
+    /// The text of [`Self::draw_move_info`]: "cur/max" PP of the move under the cursor (not
+    /// in the learn-move view) and "TYPE/type".
+    fn draw_move_text(&mut self, game: &impl GameData) {
+        let font = game.font();
+        if self.learning.is_none() {
+            let c = self.move_cursor as usize & 3;
+            let (cur, max) = (self.pp_cur[c], self.pp_max[c]);
+            let mut text = Vec::with_capacity(6);
+            push_2_digits(&mut text, cur);
+            text.push(CHAR_SLASH);
+            push_2_digits(&mut text, max);
+            text.push(EOS);
+            self.pp.redraw(font, &text, 2, 1, PP_COLORS);
+        }
         let mut text = Vec::with_capacity(16);
         push(&mut text, game.battle_text(Str::MoveInterfaceType));
         if let Some(m) = self.cursor_move()
@@ -460,16 +496,14 @@ impl BattleWindows {
             push(&mut text, game.battle_text(Str::TypeName(info.ty)));
         }
         text.push(EOS);
-        self.move_type.fill(MENU_COLORS.bg);
-        self.move_type.draw_text(font, &text, 0, 1, MENU_COLORS);
+        self.move_type.redraw(font, &text, 0, 1, MENU_COLORS);
     }
 
     /// Shows the yes/no box on BG1 (`gText_BattleYesNoChoice`), cursor on yes
     /// (`Cmd_yesnoboxlearnmove`). The current view stays.
     pub fn yes_no(&mut self, game: &impl GameData, f: &mut Frame) {
-        self.yes_no.fill(MENU_COLORS.bg);
         let text = game.battle_text(Str::BattleYesNoChoice);
-        self.yes_no.draw_text(game.font(), text, 0, 1, MENU_COLORS);
+        self.yes_no.redraw(game.font(), text, 0, 1, MENU_COLORS);
         self.yes_no_cursor = 0;
         self.yes_no_result = None;
         self.enter_menu(Menu::YesNo, f);
@@ -596,6 +630,17 @@ impl BattleWindows {
             self.put_yes_no(f, true);
         } else if self.yes_no_cursor != c {
             self.put_yes_no(f, false);
+        }
+    }
+
+    /// The cursor of the menu waiting for input (action, move or yes/no), for scripted input
+    /// and debugging; `None` when no menu is open.
+    pub fn menu_cursor(&self) -> Option<u8> {
+        match self.menu {
+            Menu::Action => Some(self.action_cursor),
+            Menu::Move => Some(self.move_cursor),
+            Menu::YesNo => Some(self.yes_no_cursor),
+            Menu::None => None,
         }
     }
 

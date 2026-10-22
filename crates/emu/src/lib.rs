@@ -173,6 +173,8 @@ pub struct RomRun {
     pub emu_frames: u32,
     /// `DebugSnapshot::late_black` at the end.
     pub late_black: u32,
+    /// The engine frame read after each `late_black` increment (one entry per increment).
+    pub late_black_frames: Vec<u32>,
 }
 
 /// Runs the ROM until engine frame `total`, feeding `keys(f)` while the ROM is at engine frame
@@ -201,6 +203,7 @@ pub fn run_rom(
     let mut captures = Vec::new();
     let mut next = checkpoints.iter().peekable();
     let mut emu_frames = 0;
+    let mut late_black_frames = Vec::new();
     while snap.frame < total {
         emu.run_frame(keys(snap.frame))?;
         snap = emu
@@ -213,6 +216,8 @@ pub fn run_rom(
         for f in have + 1..=snap.frame {
             consumed.push(Buttons(snap.inputs[engine::debug::input_slot(f)]));
         }
+        let counted = late_black_frames.len() as u32;
+        late_black_frames.extend((counted..snap.late_black).map(|_| snap.frame));
         if snap.late != 0 {
             return Err(anyhow!(
                 "ROM applied a frame late by engine frame {}",
@@ -248,6 +253,7 @@ pub fn run_rom(
         captures,
         emu_frames,
         late_black: snap.late_black,
+        late_black_frames,
     })
 }
 

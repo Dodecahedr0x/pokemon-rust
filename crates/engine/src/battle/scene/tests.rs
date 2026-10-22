@@ -197,9 +197,9 @@ fn prompt_detection() {
 #[test]
 fn load_is_black_chunked_and_shows_nothing() {
     let mut r = Run::wild(&[starter()], &[foe(3)], 1);
-    // Control + palettes, 3 environment chunks (300 tiles) and the map, the textbox, the pics,
-    // the trainer pics and the two healthboxes.
-    assert_eq!(r.load(), 10);
+    // Control + palettes, 3 environment chunks (300 tiles) and the map, the textbox, the menu
+    // text drawn ahead (no upload), the pics, the trainer pics and the two healthboxes.
+    assert_eq!(r.load(), 11);
     let mut f = Frame::default();
     assert!(r.scene.load(&r.game, &r.battle, &mut f));
     assert!(f.cmds.is_empty());

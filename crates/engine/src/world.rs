@@ -24,10 +24,14 @@
 //! once, and text, fades and warps there are logged and ignored. A warp load ends the running
 //! script (Gen3 `CB2_LoadMap` resets the script context).
 
+mod battle;
 mod host;
 #[cfg(test)]
 mod tests;
 
+pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
+
+use crate::battle::scene::BattleScene;
 use crate::data::{
     Behavior, BgKind, Dir, FlagId, GameData, MapData, MapId, ObjectEvent, PLAYER, ScriptId,
     SpecialIds, VarId,
@@ -39,12 +43,15 @@ use crate::flow::{
     warp_on_push,
 };
 use crate::hash::Fnv64;
+use crate::mon::Party;
 use crate::objects::{Objects, PlayerEvent, PlayerInput, Terrain};
 use crate::script::{Fade, Runner, Speed, Step};
+use crate::starter::StarterChoice;
 use crate::text::TextBox;
 use crate::video::Frame;
 use crate::{Buttons, Rng};
 use alloc::vec::Vec;
+use battle::Mode;
 use host::Host;
 
 /// Screen pixel of the player's cell top-left when the camera is centered on the player.
@@ -112,6 +119,22 @@ pub(crate) struct State {
     /// Frames left of a door animation.
     door: u8,
     log: Log,
+    /// The player's party (Gen3 `gPlayerParty`).
+    party: Party,
+    /// Heal location of the last `setrespawn` (Gen3 `gSaveBlock1Ptr->lastHealLocation`).
+    respawn: u8,
+    /// The player's trainer id, the OT id of their mons (Gen3 `playerTrainerId`).
+    player_id: u32,
+    /// Gen3 `sPrevMetatileBehavior`: the cell behavior of the last checked step.
+    prev_behavior: Behavior,
+    /// Gen3 `sWildEncounterImmunitySteps`: steps since the last
+    /// `RestartWildEncounterImmunitySteps` (map loads and battles), up to
+    /// [`ENCOUNTER_IMMUNITY_STEPS`].
+    encounter_immunity: u8,
+    /// What owns the screen: the field, the starter screen or a battle.
+    mode: Mode,
+    /// The answer to the script's pending `ChooseStarter` / `BattleWild` / `BattleTrainer`.
+    answer: Option<u16>,
 }
 
 /// All mutable game state. Deterministic: the same state and input give the same next state.
@@ -201,15 +224,19 @@ impl World {
     /// The seed of the world RNG.
     pub const SEED: u32 = 0x5EED_0001;
 
-    /// A new game: runs `NewGame::script` at once, loads the start map with the screen black,
-    /// and fades in over the first frames. The uploads go to [`World::initial_frame`].
+    /// A new game: draws the player's trainer id, runs `NewGame::script` at once, loads the
+    /// start map with the screen black, and fades in over the first frames. The uploads go to
+    /// [`World::initial_frame`].
     pub fn new(game: &impl GameData) -> Self {
         let ng = game.new_game();
+        let mut rng = Rng::new(Self::SEED);
+        // Gen3 `NewGameInitData` sets the trainer id before anything else draws.
+        let player_id = rng.random32();
         let mut w = World {
             frame: 0,
             runner: Runner::new(),
             s: State {
-                rng: Rng::new(Self::SEED),
+                rng,
                 input: Input::default(),
                 field: Field::new(ng.map),
                 objects: Objects::new(),
@@ -223,6 +250,13 @@ impl World {
                 delay: 0,
                 door: 0,
                 log: Log::new(),
+                party: Party::default(),
+                respawn: game.special_ids().respawn_default,
+                player_id,
+                prev_behavior: Behavior::Normal,
+                encounter_immunity: 0,
+                mode: Mode::Field,
+                answer: None,
             },
             boot: None,
         };
@@ -233,7 +267,7 @@ impl World {
         load_map(game, &mut w.s, &mut f, ng.map, ng.x, ng.y);
         w.s.objects.face(PLAYER, ng.facing);
         w.s.fader.start(Fade::FromBlack);
-        w.finish_frame(game, &mut f);
+        draw_field(game, &mut w.s, &mut f);
         w.boot = Some(f);
         w
     }
@@ -249,13 +283,23 @@ impl World {
         let mut f = Frame::default();
         self.frame = self.frame.wrapping_add(1);
         self.s.input.update(keys);
+        match core::mem::replace(&mut self.s.mode, Mode::Field) {
+            Mode::Field => self.step_field(game, &mut f),
+            Mode::Starter(run) => self.step_starter(game, run, &mut f),
+            Mode::Battle(run) => self.step_battle(game, run, &mut f),
+        }
+        f
+    }
+
+    /// One overworld frame (see the module docs for the order).
+    fn step_field(&mut self, game: &impl GameData, f: &mut Frame) {
         let mut player_updated = false;
         if self.s.transition.is_active() {
-            self.run_transition(game, &mut f);
+            self.run_transition(game, f);
         } else if self.runner.is_running() {
-            self.step_script(game, &mut f);
+            self.step_script(game, f);
         } else {
-            player_updated = self.control(game, &mut f);
+            player_updated = self.control(game, f);
         }
         let s = &mut self.s;
         let ground = Ground {
@@ -269,18 +313,7 @@ impl World {
         if s.door > 0 {
             s.door -= 1;
         }
-        self.finish_frame(game, &mut f);
-        f
-    }
-
-    /// Camera, sprites, text box and brightness.
-    fn finish_frame(&mut self, game: &impl GameData, f: &mut Frame) {
-        let s = &mut self.s;
-        let camera = camera_for(s.objects.player().pixel_pos());
-        s.field.set_camera(game, camera, f);
-        s.objects.draw(game, camera, f);
-        s.text.update(game, s.input.pressed, s.input.held, f);
-        f.brightness = s.fader.level();
+        draw_field(game, s, f);
     }
 
     fn step_script(&mut self, game: &impl GameData, f: &mut Frame) {
@@ -433,6 +466,10 @@ impl World {
                     let b = block_behavior(game, map, s.field.block(game, x, y));
                     if let Some(w) = warp_on_enter(map, x, y, elevation, b) {
                         self.start_warp(game, map, w, false);
+                    } else {
+                        // Gen3 `CheckStandardWildEncounter`, after the step-based scripts.
+                        let id = s.field.map();
+                        s.wild_step(game, id, b, f);
                     }
                 }
             }
@@ -507,6 +544,47 @@ impl World {
         self.s.transition.is_active()
     }
 
+    /// The player's party.
+    pub fn party(&self) -> &Party {
+        &self.s.party
+    }
+
+    /// The heal location the player whites out to.
+    pub fn respawn(&self) -> u8 {
+        self.s.respawn
+    }
+
+    /// The player's trainer id.
+    pub fn player_id(&self) -> u32 {
+        self.s.player_id
+    }
+
+    /// Whether the overworld owns the frame (no starter screen, no battle).
+    pub fn field_active(&self) -> bool {
+        matches!(self.s.mode, Mode::Field)
+    }
+
+    /// Whether a battle owns the frame (from its transition until the field has faded back in).
+    pub fn in_battle(&self) -> bool {
+        matches!(self.s.mode, Mode::Battle(_))
+    }
+
+    /// The running battle's stage, core and scene.
+    pub fn battle(&self) -> Option<(Stage, &crate::battle::Battle, &BattleScene)> {
+        match &self.s.mode {
+            Mode::Battle(run) => Some((run.stage, &run.battle, &run.scene)),
+            _ => None,
+        }
+    }
+
+    /// The starter screen, while it is shown (not during the first battle's transition).
+    pub fn starter(&self) -> Option<&StarterChoice> {
+        match &self.s.mode {
+            Mode::Starter(run) if run.leaving.is_none() => Some(&run.choice),
+            _ => None,
+        }
+    }
+
     /// Hash of every piece of state that affects future frames (the parity contract). Render
     /// caches (OBJ VRAM slots, text canvases), the log and the boot frame are left out. Cheap
     /// enough to run every frame on the GBA. Field order is part of the contract; append new
@@ -533,15 +611,39 @@ impl World {
             h.write_u16(t.y as u16);
             h.write(&crate::objects::movement_code(t.movement));
         }
+        // Milestone 4.
+        s.party.hash(&mut h);
+        h.write(&[s.respawn, s.encounter_immunity]);
+        h.write_u32(s.player_id);
+        h.write(&battle::behavior_code(s.prev_behavior));
+        match s.answer {
+            None => h.write(&[0]),
+            Some(v) => {
+                h.write(&[1]);
+                h.write_u16(v);
+            }
+        }
+        s.mode.hash(&mut h);
         h.finish()
     }
+}
+
+/// Camera, sprites, text box and brightness: the end of a field frame.
+fn draw_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
+    let camera = camera_for(s.objects.player().pixel_pos());
+    s.field.set_camera(game, camera, f);
+    s.objects.draw(game, camera, f);
+    s.text.update(game, s.input.pressed, s.input.held, f);
+    f.brightness = s.fader.level();
 }
 
 /// Loads `id` with the player on (x, y) (Gen3 warp load). Drawing happens at the frame's
 /// camera update.
 fn load_map(game: &impl GameData, s: &mut State, f: &mut Frame, id: MapId, x: i16, y: i16) {
+    f.bulk = true;
     let map = game.map(id);
     s.clear_temp(&game.special_ids());
+    s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
     s.templates = map.objects.to_vec();
     s.objects.spawn_events(id, &[], |_| true, |_| 0);
     s.objects.set_pos(PLAYER, x, y);
@@ -574,6 +676,7 @@ fn cross_connection(
 ) {
     let map = game.map(to);
     s.clear_temp(&game.special_ids());
+    s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
     s.templates = map.objects.to_vec();
     s.objects
         .enter_connected_events(to, &[], shift, |_| true, |_| 0);

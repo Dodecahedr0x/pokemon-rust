@@ -1,10 +1,15 @@
 //! Tests of the generated tables (both modes) and of the prelude helpers.
 
 use super::*;
+
 use crate::prelude::{MsgBox, msgbox};
 use engine::data::{Gfx, block_collision};
 use engine::script::{Request, Response, Runner, ScriptHost};
 use std::vec::Vec;
+
+/// These tests were written for the Milestone 3 start (the starter received).
+#[allow(non_upper_case_globals)]
+const Emerald: Emerald = Emerald::after_starter();
 
 /// The charmap of the generated texts (`data::LANG`).
 fn lang() -> extract::text::Lang {

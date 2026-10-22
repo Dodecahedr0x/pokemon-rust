@@ -196,6 +196,10 @@ pub struct Frame {
     /// `brightness` brightens towards white instead (BLDCNT effect 2): `BRIGHTNESS_BLACK` is then
     /// fully white.
     pub lighten: bool,
+    /// This step did bulk work meant for a black screen (a map load, a whole-view redraw, a
+    /// starter or battle loading chunk, the field's restore): the GBA may overrun the frame
+    /// here. Not applied by the shells; the parity test checks every black overrun against it.
+    pub bulk: bool,
 }
 
 /// BG VRAM bytes (char blocks 0..3; screen blocks 0..31 overlap them).
