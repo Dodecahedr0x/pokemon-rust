@@ -25,8 +25,8 @@ use alloc::vec::Vec;
 
 impl World {
     /// `Ok` when the world can be captured: field mode, no transition, no script or pending
-    /// answer, a pristine text box, no fade, no object running a movement script, and no cell
-    /// in view left from the map before a connection crossing (checked in that order).
+    /// answer, a pristine text box, no fade and no object running a movement script (checked in
+    /// that order).
     pub fn capturable(&self) -> Result<(), NotCapturable> {
         let s = &self.s;
         match s.mode {
@@ -49,9 +49,8 @@ impl World {
         if let Some(id) = s.objects.any_moves() {
             return Err(NotCapturable::Moving(id));
         }
-        if s.field.view_stale() {
-            return Err(NotCapturable::StaleView);
-        }
+        // `NotCapturable::StaleView` is no longer returned (Milestone 8 Task F): a connection
+        // crossing redraws the cells it keeps that the new map draws differently.
         Ok(())
     }
 

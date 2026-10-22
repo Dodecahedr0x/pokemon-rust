@@ -64,10 +64,6 @@ impl Rect {
     fn contains(self, x: i16, y: i16) -> bool {
         (self.x0..=self.x1).contains(&x) && (self.y0..=self.y1).contains(&y)
     }
-
-    fn overlaps(self, o: Rect) -> bool {
-        self.x0 <= o.x1 && o.x0 <= self.x1 && self.y0 <= o.y1 && o.y0 <= self.y1
-    }
 }
 
 /// Cells left drawn from the map before a connection crossing ([`Field::stale`]), inclusive.
@@ -88,11 +84,6 @@ pub struct Field {
     overrides: BTreeMap<(i16, i16), u16>,
     /// Ring origin (see the module doc), each in `0..RING`.
     ring: (i16, i16),
-    /// The cells drawn before a connection crossing kept them (new coordinates): drawn from the
-    /// old map, they may differ from what the new map would draw there (its border, a third
-    /// map). Set until the view leaves them. Not hashed: it only gates checkpoint capture
-    /// (`World::capturable`), never the simulation.
-    stale: Option<Rect>,
 }
 
 impl Field {
@@ -103,7 +94,6 @@ impl Field {
             drawn: None,
             overrides: BTreeMap::new(),
             ring: (0, 0),
-            stale: None,
         }
     }
 
@@ -111,21 +101,17 @@ impl Field {
         self.map
     }
 
-    /// Whether the view still shows cells drawn from the map before a connection crossing
-    /// (redrawing it from the current map could differ until they scroll out).
+    /// Whether the view still shows cells drawn from the map before a connection crossing.
+    /// Never since Milestone 8 Task F: a crossing redraws the kept cells the new map draws
+    /// differently ([`Field::switch_map_enter`]), so the view is always the current map's.
     pub fn view_stale(&self) -> bool {
-        self.stale.is_some()
+        false
     }
 
-    /// The cells the view still shows from the map before a connection crossing, if any
-    /// (Milestone 8: hashed by `World::hash`; Task F makes them capturable).
+    /// The cells the view still shows from the map before a connection crossing: always `None`
+    /// (see [`Field::view_stale`]). Kept for `World::hash` and the snapshot's `stale`.
     pub fn stale(&self) -> Option<StaleRect> {
-        self.stale.map(|r| StaleRect {
-            x0: r.x0,
-            y0: r.y0,
-            x1: r.x1,
-            y1: r.y1,
-        })
+        None
     }
 
     /// Map pixel of the screen's top-left corner.
@@ -164,7 +150,6 @@ impl Field {
         self.camera_px = camera_px;
         self.drawn = None;
         self.ring = (0, 0);
-        self.stale = None;
     }
 
     /// Re-uploads the current map's tilesets and palettes and BG1–BG3 controls, and invalidates
@@ -195,9 +180,6 @@ impl Field {
         self.camera_px = camera_px;
         let view = Rect::view(camera_px);
         let old = self.drawn;
-        if old.is_none() || self.stale.is_some_and(|r| !r.overlaps(view)) {
-            self.stale = None;
-        }
         let mut cells = Vec::new();
         for y in view.y0..=view.y1 {
             for x in view.x0..=view.x1 {
@@ -247,11 +229,15 @@ impl Field {
 
     /// Seamless switch to a connected map: the caller has moved the player across the edge. A
     /// cell at old coordinates (x, y) has new coordinates (x + shift.0, y + shift.1); the camera
-    /// and the ring origin move with it, so the cells already drawn stay drawn. Clears overrides
-    /// (cells drawn with one keep it until redrawn, as Gen3). Re-uploads a tileset (tiles and
-    /// palettes) only if it differs; then the view is invalidated and the next
-    /// [`Field::set_camera`] redraws it whole (Gen3 keeps the stale entries). Follow with on-load
+    /// and the ring origin move with it, so the cells already drawn stay drawn. Clears overrides.
+    /// Re-uploads a tileset (tiles and palettes) only if it differs; then the view is
+    /// invalidated and the next [`Field::set_camera`] redraws it whole. Follow with on-load
     /// `set_block`s, then [`Field::set_camera`].
+    ///
+    /// Gen3 keeps every drawn entry, so the old map's border and `setmetatile` overrides stay on
+    /// screen until they scroll out. Here the kept cells whose metatile differs from what the
+    /// new map draws there are redrawn at once (Milestone 8 Task F): the view is then always the
+    /// current map's, so a crossing frame is capturable and a restore redraws the same picture.
     ///
     /// Tileset identity is pointer identity (`ptr::eq`), so tilesets must be `static`s shared by
     /// the maps that use them.
@@ -272,6 +258,19 @@ impl Field {
             upload_secondary(new.secondary, f);
             same = false;
         }
+        // The kept cells (new coordinates) the new map draws differently.
+        let mut differ = Vec::new();
+        if same && let Some(r) = self.drawn {
+            for y in r.y0..=r.y1 {
+                for x in r.x0..=r.x1 {
+                    let (nx, ny) = (x + shift.0, y + shift.1);
+                    let drawn = block_metatile(self.block(game, x, y));
+                    if drawn != block_metatile(grid::block_at(game, new, nx, ny)) {
+                        differ.push((nx, ny));
+                    }
+                }
+            }
+        }
         self.map = to;
         self.overrides.clear();
         self.camera_px.0 += shift.0 as i32 * 16;
@@ -289,7 +288,7 @@ impl Field {
             }),
             _ => None,
         };
-        self.stale = self.drawn;
+        self.draw_cells(game, &differ, f);
     }
 
     /// [`Field::switch_map_enter`] then [`Field::redraw`].
