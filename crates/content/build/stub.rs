@@ -405,6 +405,7 @@ pub fn battle() -> BattleIn {
                 ("TYPE_NORMAL".into(), "TYPE_GHOST".into(), 0),
             ],
             foresight_split: 2,
+            ability_names: (0..78).map(|i| format!("ABILITY{i}")).collect(),
         },
         trainers: vec![Trainer {
             id: "TRAINER_NONE".into(),

@@ -491,7 +491,7 @@ const fn tm(attack: Type, defend: Type, multiplier: u8) -> TypeMatchup {
 }
 
 /// A `gTypeEffectiveness` subset, in Gen3 order; Foresight-ignored entries last.
-pub static TYPE_CHART: [TypeMatchup; 13] = [
+pub static TYPE_CHART: [TypeMatchup; 14] = [
     tm(Type::Normal, Type::Rock, 5),
     tm(Type::Normal, Type::Steel, 5),
     tm(Type::Fire, Type::Fire, 5),
@@ -501,6 +501,7 @@ pub static TYPE_CHART: [TypeMatchup; 13] = [
     tm(Type::Water, Type::Fire, 20),
     tm(Type::Water, Type::Water, 5),
     tm(Type::Water, Type::Grass, 5),
+    tm(Type::Grass, Type::Water, 20),
     tm(Type::Bug, Type::Fire, 5),
     tm(Type::Dark, Type::Ghost, 20),
     // TYPE_FORESIGHT
@@ -512,7 +513,7 @@ pub static TABLES: BattleTables = BattleTables {
     species: &SPECIES,
     moves: &MOVES,
     type_chart: &TYPE_CHART,
-    foresight_split: 11,
+    foresight_split: 12,
     struggle: STRUGGLE,
     nature_power: [SWIFT; 10],
 };

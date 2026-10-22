@@ -197,6 +197,9 @@ fn absorb(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
     b.attack_string(env, u);
     let r = b.damage(env, u);
     let r = b.deal(env, u, r);
+    // No effect (an immune target): `negativedamage` still sets -1, but `healthbarupdate` /
+    // `datahpupdate BS_ATTACKER` do nothing under MOVE_RESULT_NO_EFFECT and
+    // `jumpifmovehadnoeffect` skips the drain string, so neither heal nor message.
     if r.eff != Effectiveness::NoEffect {
         let heal = (r.hp_dealt / 2).max(1);
         b.change_hp_passive(env, u.attacker, -(heal as i32));

@@ -7,6 +7,7 @@
 //!   an empty slot or one without PP), four `simulatedRNG` rolls (`100 - Random() % 16`) are
 //!   drawn, then each AI script of the flags runs over the slots, bit 0 first. The first battle
 //!   uses `AI_SCRIPT_FIRST_BATTLE` alone; trainers use `Battle::trainer_ai`.
+//! - Trainer battles first ask [`switch`] (`AI_TrySwitchOrUseItem`, before the move scores).
 //! - Implemented scripts (every `Random()` of the implemented branches is drawn in order):
 //!   - `AI_CheckBadMove` (bit 0): the type immunity of damaging moves and the branches of the
 //!     engine's effects (sleep, stat ups/downs at the cap, Keen Eye, Bide / Sonic Boom, poison
@@ -14,13 +15,15 @@
 //!   - `AI_TryToFaint` (bit 1): exact;
 //!   - `AI_CheckViability` (bit 2): Sleep, Absorb, the stat up/down scripts, Swift's
 //!     `AI_CV_AlwaysHit`, Bide, Toxic / Leech Seed, Confuse, Poison, Paralyze, Vital Throw;
+//!   - `AI_SetupFirstTurn` (bit 3): exact;
 //!   - `AI_FirstBattle` (bit 31): flee at ≤ 20% target HP → `Choice::Run`.
-//! - Not modelled: the other flag bits (`AI_SCRIPT_SETUP_FIRST_TURN`, `RISKY`, … — their
-//!   scripts' rolls are not drawn), abilities outside `mon::Ability` (Soundproof, Volt Absorb,
-//!   Levitate, Wonder Guard, Clear Body, Hyper Cutter, Insomnia, Own Tempo, Limber …), the
-//!   target's revealed moves (`BATTLE_HISTORY->usedMoves`: Dream Eater / Nightmare checks see
-//!   none), `AI_CV_SpeedDownFromChance` (it names moves), `AI_TrySwitchOrUseItem`, and the four
-//!   rolls of `BattleAI_HandleItemUseBeforeAISetup` at battle setup.
+//! - Not modelled: the other flag bits (`RISKY`, `PREFER_POWER_EXTREMES`, … — their scripts'
+//!   rolls are not drawn; no slice trainer uses them), abilities outside `mon::Ability`
+//!   (Soundproof, Volt Absorb, Levitate, Wonder Guard, Clear Body, Hyper Cutter, Insomnia, Own
+//!   Tempo, Limber, Natural Cure …), the target's revealed moves (`BATTLE_HISTORY->usedMoves`:
+//!   Dream Eater / Nightmare checks see none) and `AI_CV_SpeedDownFromChance` (it names
+//!   moves). The four rolls of `BattleAI_HandleItemUseBeforeAISetup` at battle setup are drawn
+//!   by `Battle::new`.
 
 use super::calc;
 use super::core::Battle;
@@ -33,6 +36,7 @@ use crate::rng::Rng;
 pub const AI_SCRIPT_CHECK_BAD_MOVE: u32 = 1 << 0;
 pub const AI_SCRIPT_TRY_TO_FAINT: u32 = 1 << 1;
 pub const AI_SCRIPT_CHECK_VIABILITY: u32 = 1 << 2;
+pub const AI_SCRIPT_SETUP_FIRST_TURN: u32 = 1 << 3;
 pub const AI_SCRIPT_FIRST_BATTLE: u32 = 1 << 31;
 
 /// `AI_EFFECTIVENESS_*` (`Cmd_if_type_effectiveness`).
@@ -75,6 +79,7 @@ pub fn choose(battle: &Battle, t: &BattleTables, rng: &mut Rng) -> Choice {
                 AI_SCRIPT_CHECK_BAD_MOVE => ai.check_bad_move(slot, mov),
                 AI_SCRIPT_TRY_TO_FAINT => ai.try_to_faint(slot, mov),
                 AI_SCRIPT_CHECK_VIABILITY => ai.check_viability(slot, mov),
+                AI_SCRIPT_SETUP_FIRST_TURN => ai.setup_first_turn(slot, mov),
                 AI_SCRIPT_FIRST_BATTLE => {
                     // AI_FirstBattle: `flee` sets AI_ACTION_DO_NOT_ATTACK, ending the loop.
                     let hp = ai.hp(Side::Player);
@@ -109,7 +114,7 @@ struct Ai<'a> {
     b: &'a Battle,
     t: &'a BattleTables,
     rng: &'a mut Rng,
-    /// `s8 score[4]`, kept ≥ 0 by `Cmd_score`.
+    /// `s8 score[4]`: `Cmd_score` adds in s8 (127 + 1 wraps to -128) and floors at 0.
     score: [i16; 4],
     /// `simulatedRNG`.
     sim: [i32; 4],
@@ -175,9 +180,10 @@ impl<'a> Ai<'a> {
         Choice::Move(best[(self.rng.random() % n as u16) as usize])
     }
 
-    /// `Cmd_score`.
+    /// `Cmd_score`: `score[i] += d` stored as s8, then `if (score[i] < 0) score[i] = 0`.
     fn add(&mut self, slot: usize, d: i16) {
-        self.score[slot] = (self.score[slot] + d).clamp(0, 127);
+        let v = (self.score[slot] as i8).wrapping_add(d as i8);
+        self.score[slot] = v.max(0) as i16;
     }
 
     /// `Random() % 256 < n` (`if_random_less_than`).
@@ -340,6 +346,18 @@ impl<'a> Ai<'a> {
         };
         if bad {
             self.add(slot, -10);
+        }
+    }
+
+    /// `AI_SetupFirstTurn`: on the battle's first turn (`get_turn_count` =
+    /// `gBattleResults.battleTurnCounter`), a move whose effect is in
+    /// `AI_SetupFirstTurn_SetupEffectsToEncourage` gets +2 unless `if_random_less_than 80`.
+    fn setup_first_turn(&mut self, slot: usize, mov: MoveId) {
+        if self.b.turn != 0 || !setup_effect(self.info(mov).effect) {
+            return;
+        }
+        if !self.random_lt(80) {
+            self.add(slot, 2);
         }
     }
 
@@ -693,3 +711,133 @@ const SPECIAL_TYPE_LIST: [Type; 8] = [
     Type::Dragon,
     Type::Dark,
 ];
+
+/// `AI_SetupFirstTurn_SetupEffectsToEncourage` beyond the engine's effects, as raw
+/// `EFFECT_*`: CONVERSION, LIGHT_SCREEN, REFLECT, SUBSTITUTE, MINIMIZE, CURSE, SWAGGER,
+/// TORMENT, FLATTER, WILL_O_WISP, INGRAIN, YAWN, IMPRISON, TEETER_DANCE, CAMOUFLAGE, TICKLE,
+/// COSMIC_POWER, BULK_UP, CALM_MIND.
+const SETUP_UNSUPPORTED: [u8; 19] = [
+    30, 35, 65, 79, 108, 109, 118, 165, 166, 167, 181, 187, 192, 199, 213, 205, 206, 208, 211,
+];
+
+/// Whether `e` is in `AI_SetupFirstTurn_SetupEffectsToEncourage`: every stat up / down (1 or
+/// 2 stages), Focus Energy, Confuse, Poison, Paralyze, Leech Seed, Defense Curl and
+/// [`SETUP_UNSUPPORTED`] (not Sleep nor Toxic).
+fn setup_effect(e: MoveEffect) -> bool {
+    match e {
+        MoveEffect::StatUp { .. }
+        | MoveEffect::StatDown { .. }
+        | MoveEffect::FocusEnergy
+        | MoveEffect::Confuse
+        | MoveEffect::Status(StatusKind::Poison | StatusKind::Paralysis)
+        | MoveEffect::LeechSeed
+        | MoveEffect::DefenseCurl => true,
+        MoveEffect::Unsupported(n) => SETUP_UNSUPPORTED.contains(&n),
+        _ => false,
+    }
+}
+
+/// `AI_TrySwitchOrUseItem` for the opponent (`battle_ai_switch_items.c`): the party slot to
+/// switch to, or `None` to choose a move. Trainer battles only. `ShouldSwitch` as the engine
+/// can reach it, drawing every `Random()` Gen3 draws there:
+/// - no trapping (Wrap, Mean Look, Ingrain, Shadow Tag, Arena Trap, Magnet Pull) in the engine;
+/// - nothing to do without another mon that can fight (`availableToSwitch == 0`);
+/// - `ShouldSwitchIfPerishSong` / `ShouldSwitchIfWonderGuard`: no Perish Song nor Wonder Guard;
+/// - `FindMonThatAbsorbsOpponentsMove`: `HasSuperEffectiveMoveAgainstOpponents(TRUE) &&
+///   Random() % 3 != 0` is drawn; the rest needs Flash Fire / Water Absorb / Volt Absorb in the
+///   party (`Ability::Other` for the engine, assumed absent: no draw);
+/// - `ShouldSwitchIfNaturalCure`: Natural Cure is `Ability::Other` (not modelled);
+/// - `HasSuperEffectiveMoveAgainstOpponents(FALSE)` (`Random() % 10 != 0` per super effective
+///   move) and `AreStatsRaised` keep the mon in;
+/// - `FindMonWithFlagsAndSuperEffective(DOESNT_AFFECT_FOE, 2)`, then `(NOT_VERY_EFFECTIVE, 3)`.
+///
+/// `ShouldUseItem` is out: the slice trainers have no items (`gTrainers[].items` all
+/// `ITEM_NONE`), so it never draws.
+pub fn switch(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
+    if !b.is_trainer() {
+        return None;
+    }
+    let me = b.battler(USER);
+    let party = &b.parties[USER as usize];
+    let others = |i: usize, p: &crate::mon::Pokemon| i != me.mon.party as usize && p.hp > 0;
+    if !party.iter().enumerate().any(|(i, p)| others(i, p)) {
+        return None;
+    }
+    // FindMonThatAbsorbsOpponentsMove's first line (its `&&` draws only after a hit).
+    if super_effective_move(b, t, rng, true) {
+        rng.random();
+    }
+    if super_effective_move(b, t, rng, false) {
+        return None;
+    }
+    // AreStatsRaised: the raised stages add up to more than 3.
+    let raised: i32 = me.stages.iter().map(|&s| s.max(0) as i32).sum();
+    if raised > 3 {
+        return None;
+    }
+    find_mon(b, t, rng, Effectiveness::NoEffect, 2)
+        .or_else(|| find_mon(b, t, rng, Effectiveness::NotVery, 3))
+}
+
+/// `AI_TypeCalc(move, species, ability)`: the chart on the species' types (Foresight ignored,
+/// no Levitate nor Wonder Guard in the engine); Struggle has no flags.
+fn type_calc(t: &BattleTables, mov: MoveId, species: crate::data::SpeciesId) -> Effectiveness {
+    if mov == t.struggle {
+        return Effectiveness::Normal;
+    }
+    let info = t.move_info(mov);
+    let types = t.species_info(species).types;
+    calc::type_effect(
+        t.type_chart,
+        t.foresight_split,
+        false,
+        info.ty,
+        types,
+        info.power,
+        1,
+    )
+    .eff
+}
+
+/// `HasSuperEffectiveMoveAgainstOpponents(noRng)` (singles): a move of the AI's battler super
+/// effective on the player's species; with RNG each one passes on `Random() % 10 != 0`.
+fn super_effective_move(b: &Battle, t: &BattleTables, rng: &mut Rng, no_rng: bool) -> bool {
+    let foe = b.battler(TARGET).mon.species;
+    for m in b.battler(USER).mon.moves.into_iter().flatten() {
+        if type_calc(t, m, foe) == Effectiveness::Super
+            && (no_rng || !rng.random().is_multiple_of(10))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// `FindMonWithFlagsAndSuperEffective(flags, moduloPercent)`: the move that last hit the AI's
+/// battler (with power) has `flags` on a party mon, which has a move super effective on the
+/// attacker (`gLastHitBy`, the player) passing `Random() % moduloPercent == 0`.
+fn find_mon(
+    b: &Battle,
+    t: &BattleTables,
+    rng: &mut Rng,
+    flags: Effectiveness,
+    modulo: u16,
+) -> Option<u8> {
+    let me = b.battler(USER);
+    let last = me.last_landed?;
+    if t.move_info(last).power == 0 {
+        return None;
+    }
+    let foe = b.battler(TARGET).mon.species;
+    for (i, p) in b.parties[USER as usize].iter().enumerate() {
+        if p.hp == 0 || i == me.mon.party as usize || type_calc(t, last, p.species) != flags {
+            continue;
+        }
+        for m in p.moves.into_iter().flatten() {
+            if type_calc(t, m, foe) == Effectiveness::Super && rng.random().is_multiple_of(modulo) {
+                return Some(i as u8);
+            }
+        }
+    }
+    None
+}

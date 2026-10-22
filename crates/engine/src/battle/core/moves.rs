@@ -79,20 +79,33 @@ impl Battle {
         };
         let u = self.move_use(env, side, mov, slot);
         self.sync = None;
-        match effects::before_move(self, env, &u) {
+        self.no_effect = false;
+        // MOVEEND_UPDATE_LAST_MOVES: a move cancelled before `HITMARKER_OBEYS` (sleep,
+        // paralysis, flinch, confusion…) leaves MOVE_UNAVAILABLE on its target.
+        let landed = match effects::before_move(self, env, &u) {
             effects::Canceler::Use => {
                 let hit = self.execute(env, &u);
                 self.battler_mut(side).last_move = Some(mov);
                 effects::after_move(self, env, &u, hit);
+                self.landed(&u)
             }
             // The canceler ran the move itself (Bide's release): `moveend` still runs.
             effects::Canceler::Done(u, hit) => {
                 self.battler_mut(side).last_move = Some(mov);
                 effects::after_move(self, env, &u, hit);
+                self.landed(&u)
             }
-            effects::Canceler::Skip => {}
-        }
+            effects::Canceler::Skip => None,
+        };
+        self.battler_mut(u.target).last_landed = landed;
         self.sync = None;
+    }
+
+    /// `gLastLandedMoves[target]` after `u` (see [`super::Battler::last_landed`]): the move
+    /// when it had power and no `MOVE_RESULT_NO_EFFECT`. Bide's storing turns (power 1, no
+    /// result flags in Gen3) count as nothing landed.
+    fn landed(&self, u: &MoveUse) -> Option<MoveId> {
+        (!self.no_effect && u.power > 0 && u.info.effect != MoveEffect::Bide).then_some(u.mov)
     }
 
     /// The `MoveUse` of `mov` by `attacker` (singles: user-targeting moves target the user,
@@ -204,6 +217,7 @@ impl Battle {
     /// `BattleScript_PrintMoveMissed`: "X used Y!" then "X's attack missed!", or "It doesn't
     /// affect Z…" for a damaging move against an immune type (`CheckWonderGuardAndLevitate`).
     pub(crate) fn missed(&mut self, env: &mut Env, u: &MoveUse) {
+        self.no_effect = true;
         self.attack_string(env, u);
         let m = if u.power > 0 && u.mov != env.t.struggle && self.immune(env, u) {
             u.msg_long(Str::ItDoesntAffect, u.target)
@@ -215,6 +229,7 @@ impl Battle {
 
     /// `BattleScript_ButItFailed` (after `attackstring`).
     pub(crate) fn fail(&mut self, env: &mut Env, u: &MoveUse) {
+        self.no_effect = true;
         env.out
             .push(BattleEvent::Msg(u.msg_long(Str::ButItFailed, u.attacker)));
     }

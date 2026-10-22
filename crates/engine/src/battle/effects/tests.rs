@@ -661,3 +661,163 @@ fn catch_escape_messages_by_shakes() {
     assert_eq!(seen, [true; 4]);
     assert_eq!(crate::battle::calc::shake_threshold(85), 49931);
 }
+
+// ---- RNG sequences: the number and order of `Random()` calls ----
+
+/// `n` draws from `Rng::new(seed)`.
+fn draws(seed: u32, n: usize) -> Rng {
+    let mut r = Rng::new(seed);
+    for _ in 0..n {
+        r.random();
+    }
+    r
+}
+
+/// The `k`-th draw (0-based) from `Rng::new(seed)`.
+fn nth(seed: u32, k: usize) -> u16 {
+    let mut r = draws(seed, k);
+    r.random()
+}
+
+/// A fresh battle's state with `rng` = `Rng::new(seed)` handed to `f` through an `Env`.
+fn with_env<T>(
+    r: &mut Run,
+    seed: u32,
+    f: impl FnOnce(&mut crate::battle::core::Battle, &mut Env) -> T,
+) -> (T, Rng) {
+    let mut rng = Rng::new(seed);
+    let mut out = Vec::new();
+    let mut env = Env::new(&TABLES, &mut rng, &mut out);
+    let t = f(&mut r.b, &mut env);
+    (t, rng)
+}
+
+#[test]
+fn confusion_roll_then_damage_roll() {
+    // CANCELER_CONFUSED: `Random() & 1`; a self-hit then draws only the damage roll
+    // (`adjustnormaldamage2`, no crit roll). Both branches, by seed.
+    for hurt in [true, false] {
+        let seed = seed_where(|s| (nth(s, 0) & 1 == 0) == hurt);
+        let mut r = wild(me(WATER, &[TACKLE]), foe(NORMAL, &[SPLASH]), 1);
+        r.b.battler_mut(P).confusion = 3;
+        let u = {
+            let mut rng = Rng::new(1);
+            let mut out = Vec::new();
+            let env = Env::new(&TABLES, &mut rng, &mut out);
+            r.b.move_use(&env, P, TACKLE, Some(0))
+        };
+        let (_, rng) = with_env(&mut r, seed, |b, env| super::before_move(b, env, &u));
+        assert_eq!(rng, draws(seed, if hurt { 2 } else { 1 }), "hurt {hurt}");
+        assert_eq!(r.b.mon(P).hp < 20, hurt);
+    }
+}
+
+fn contact_hit() -> Option<crate::battle::core::HitResult> {
+    Some(crate::battle::core::HitResult {
+        damage: 5,
+        hp_dealt: 5,
+        crit: false,
+        eff: crate::battle::Effectiveness::Normal,
+    })
+}
+
+#[test]
+fn effect_spore_rolls_ten_then_and_three_until_non_zero() {
+    // ABILITYEFFECT_ON_DAMAGE, Effect Spore: `Random() % 10 == 0`, then `Random() & 3` until
+    // non-zero (1 sleep, 2 poison, 3 paralysis). Pinned: a miss (1 draw), and a hit whose
+    // first `& 3` is 0 and second is 2 (poison: 3 draws, poison draws nothing more).
+    let miss = seed_where(|s| !nth(s, 0).is_multiple_of(10));
+    let hit =
+        seed_where(|s| nth(s, 0).is_multiple_of(10) && nth(s, 1) & 3 == 0 && nth(s, 2) & 3 == 2);
+    for (seed, n, status) in [(miss, 1, Status::None), (hit, 3, Status::Poison)] {
+        let mut r = wild(me(WATER, &[TACKLE]), foe(SPORE, &[SPLASH]), 1);
+        let (_, rng) = with_env(&mut r, seed, |b, env| {
+            let u = b.move_use(env, P, TACKLE, Some(0));
+            super::abilities::move_end(b, env, &u, contact_hit());
+        });
+        assert_eq!(rng, draws(seed, n));
+        assert_eq!(r.b.mon(P).status, status);
+    }
+}
+
+#[test]
+fn static_and_poison_point_roll_mod_three() {
+    // `Random() % 3 == 0`: one draw either way.
+    for (sp, status) in [(ELECTRIC, Status::Paralysis), (POISON, Status::Poison)] {
+        for proc in [true, false] {
+            let seed = seed_where(|s| nth(s, 0).is_multiple_of(3) == proc);
+            let mut r = wild(me(WATER, &[TACKLE]), foe(sp, &[SPLASH]), 1);
+            let (_, rng) = with_env(&mut r, seed, |b, env| {
+                let u = b.move_use(env, P, TACKLE, Some(0));
+                super::abilities::move_end(b, env, &u, contact_hit());
+            });
+            assert_eq!(rng, draws(seed, 1));
+            let want = if proc { status } else { Status::None };
+            assert_eq!(r.b.mon(P).status, want);
+        }
+    }
+}
+
+#[test]
+fn multi_hit_count_follows_the_accuracy_roll() {
+    // BattleScript_EffectMultiHit: accuracy (`Random() % 100`), then `setmultihitcounter`:
+    // `Random() & 3`; above 1 a second `(Random() & 3) + 2`, else + 2.
+    let mut seen = [false; 4];
+    for seed in 1..80 {
+        let mut r = wild(me(WATER, &[DOUBLE_SLAP]), foe(NORMAL, &[REAL_SPLASH]), seed);
+        let start = r.rng;
+        let l = r.choose(Choice::Move(0));
+        let mut x = start;
+        if x.random() % 100 >= 85 {
+            continue;
+        }
+        let first = x.random() & 3;
+        let count = if first > 1 {
+            (x.random() & 3) + 2
+        } else {
+            first + 2
+        };
+        let hits = l.iter().filter(|e| *e == "Hit O Normal").count() as u16;
+        assert_eq!(hits, count, "seed {seed}");
+        seen[(count - 2) as usize] = true;
+    }
+    assert_eq!(seen, [true; 4]);
+}
+
+#[test]
+fn catch_shakes_stop_at_the_first_failure() {
+    // Cmd_handleballthrow: `while (shakes < 4 && Random() < threshold) shakes++`: a failed
+    // roll ends the loop (shakes + 1 draws), four passes draw four.
+    let threshold = crate::battle::calc::shake_threshold(85) as u16;
+    for (rolls, shakes, used) in [
+        (&[0u16, 0, threshold, 0][..], 2, 3),
+        (&[threshold, 0, 0, 0][..], 0, 1),
+        (&[0, 0, 0, 0][..], 4, 4),
+    ] {
+        let mut i = 0;
+        let got = crate::battle::calc::catch_shakes(85, || {
+            i += 1;
+            rolls[i - 1]
+        });
+        assert_eq!((got, i), (shakes, used));
+    }
+}
+
+#[test]
+fn full_paralysis_also_ends_bide() {
+    // CANCELER_PARALYZED's own CancelMultiTurnMoves is commented out in Emerald, but its
+    // script, BattleScript_MoveUsedIsParalyzed, runs `cancelmultiturnmoves BS_ATTACKER`
+    // (data/battle_scripts_1.s), which clears STATUS2_BIDE: Bide still ends.
+    let seed = seed_where(|s| nth(s, 0).is_multiple_of(4));
+    let mut m = me(WATER, &[BIDE]);
+    m.status = Status::Paralysis;
+    let mut r = wild(m, foe(NORMAL, &[SPLASH]), 1);
+    r.b.battler_mut(P).bide_turns = 2;
+    let (c, rng) = with_env(&mut r, seed, |b, env| {
+        let u = b.move_use(env, P, BIDE, Some(0));
+        super::before_move(b, env, &u)
+    });
+    assert!(matches!(c, super::Canceler::Skip));
+    assert_eq!(rng, draws(seed, 1));
+    assert_eq!(r.b.battler(P).bide_turns, 0);
+}

@@ -643,11 +643,14 @@ Components, each with `hash` and a per-frame `update(&mut self, f: &mut Frame)`,
    - Pickup, weather abilities and Early Bird have no effect in the slice: documented.
 4. **AI** (`battle_ai_script_commands.c`, `data/battle_ai_scripts.s`), a documented simplification of the Gen3 score model:
    - every usable move starts at 100
-   - `AI_CHECK_BAD_MOVE` subset: no-effect type −10, status on already-statused −10, stat change at the cap −10, confusing a confused target −10, Leech Seed on Grass or seeded −10
-   - `AI_TRY_TO_FAINT`: a KO with the max roll scores +4, Quick Attack +2 more; "not most powerful" −1; ×4 effectiveness +2 at 80/256 (`if_random_less_than 80`)
+   - `AI_CHECK_BAD_MOVE` subset: no-effect type −10, status on already-statused −10, stat change at the cap −10, confusing a confused target −5, Leech Seed on Grass or seeded −10
+   - `AI_TRY_TO_FAINT`: a KO with the slot's `simulatedRNG` roll (`100 - Random() % 16`, drawn per slot by `BattleAI_SetupAIData`, not the max roll) scores +4, Quick Attack +2 more; "not most powerful" −1; ×4 effectiveness +2 unless `if_random_less_than 80`
+   - `AI_SETUP_FIRST_TURN`: on turn 0, +2 for a setup effect unless `if_random_less_than 80`
+   - trainer battles ask `AI_TrySwitchOrUseItem` / `ShouldSwitch` first (RNG-relevant subset; no items)
    - `AI_CHECK_VIABILITY`: only the entries for the slice's effects
    - pick the highest score, with ties broken by `random()` among the best (as `BattleAI_ChooseMoveOrAction`)
-   - first battle: `AI_FirstBattle`, flee when the target's HP is ≤ 20% → `MonFled` + `WildPkmnFled`
+   - first battle: `AI_FirstBattle`, flee when the target's HP is ≤ 20% → `MonFled` + `WildPkmnFled` (ordered by speed: only the player's run goes first)
+   - battle setup draws `BattleAI_HandleItemUseBeforeAISetup`'s four rolls before the held-item roll and `gRandomTurnNumber`
    - wild: random, as Task D
 5. **Catching:** `Choice::Ball` in the core: `Ball { shakes, caught }`, `Gotcha`, then the party (or "no room": logged, no PC). No UI entry yet, since the bag is out of scope; covered by core tests.
 6. **Tests:**

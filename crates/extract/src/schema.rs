@@ -438,6 +438,9 @@ pub struct TypesFile {
     pub chart: Vec<(String, String, u8)>,
     /// Index into `chart` where the Foresight separator (`TYPE_FORESIGHT`) was.
     pub foresight_split: usize,
+    /// FR ability names (`gAbilityNames`), in `ABILITY_*` order, decomp `.string` syntax.
+    #[serde(default)]
+    pub ability_names: Vec<String>,
 }
 
 /// `battle/trainers.ron`.
@@ -600,6 +603,7 @@ mod tests {
             names: vec!["NORMAL".into()],
             chart: vec![("TYPE_FIRE".into(), "TYPE_GRASS".into(), 20)],
             foresight_split: 1,
+            ability_names: vec!["STATIC".into()],
         };
         let s = ron::to_string(&types).unwrap();
         assert_eq!(ron::from_str::<TypesFile>(&s).unwrap(), types);

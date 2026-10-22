@@ -392,8 +392,8 @@ pub enum StrSrc {
     TypeNames,
     /// `gStatNamesTable` (`extract::battle_data::STAT_NAME_KEYS`), by `Stat`.
     StatNames,
-    /// `gAbilityNames`, by `Ability`. Not exported by `extract` yet: every ability name is
-    /// the empty string until it is (follow-up), so `{B_*_ABILITY}` expands to nothing.
+    /// `gAbilityNames` (`battle/types.ron` `ability_names`), by `Ability` (through
+    /// [`ability`]); `Ability::Other` stands for many abilities and has no name (empty).
     AbilityNames,
 }
 
@@ -544,6 +544,6 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("HitXTimes", Key("STRINGID_HITXTIMES")),
         ("ButNothingHappened", Key("STRINGID_BUTNOTHINGHAPPENED")),
         ("PkmnChargingPower", Key("STRINGID_PKMNCHARGINGPOWER")),
-        ("AbilityName(_)", AbilityNames),
+        ("AbilityName(a)", AbilityNames),
     ]
 };

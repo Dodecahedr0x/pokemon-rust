@@ -63,6 +63,31 @@ pub(crate) fn lines(events: &[BattleEvent]) -> Vec<String> {
     events.iter().map(fmt).collect()
 }
 
+/// The seed whose `Rng`, after `Battle::new`'s four `BattleAI_HandleItemUseBeforeAISetup`
+/// draws, is `Rng::new(seed)` (xorshift32 run backwards): the hand-traced goldens below start
+/// from the RNG state after those draws, which [`setup_draws_come_first`] checks.
+pub(crate) fn before_setup_draws(seed: u32) -> u32 {
+    fn unshl(y: u32, s: u32) -> u32 {
+        let mut x = y;
+        for _ in 0..32 / s {
+            x = y ^ (x << s);
+        }
+        x
+    }
+    fn unshr(y: u32, s: u32) -> u32 {
+        let mut x = y;
+        for _ in 0..32 / s {
+            x = y ^ (x >> s);
+        }
+        x
+    }
+    let mut x = Rng::new(seed).state();
+    for _ in 0..4 {
+        x = unshl(unshr(unshl(x, 5), 17), 13);
+    }
+    x
+}
+
 /// A started battle and its RNG.
 pub(crate) struct Run {
     pub b: Battle,
@@ -71,8 +96,9 @@ pub(crate) struct Run {
 }
 
 impl Run {
+    /// `seed` is the RNG state after the setup draws ([`before_setup_draws`]).
     pub fn new(kind: BattleKind, player: &[Pokemon], opponents: &[Pokemon], seed: u32) -> Run {
-        let mut rng = Rng::new(seed);
+        let mut rng = Rng::new(before_setup_draws(seed));
         let setup = BattleSetup {
             kind,
             opponents: party(opponents),
@@ -680,8 +706,11 @@ fn turn_draws_rolls_in_gen3_order() {
 }
 
 #[test]
-fn wild_battles_draw_the_held_item_roll() {
-    // SetWildMonHeldItem's Random() comes before gRandomTurnNumber in wild battles only.
+fn setup_draws_come_first() {
+    // CB2_InitBattleInternal: SetUpBattleVarsAndBirchZigzagoon's
+    // BattleAI_HandleItemUseBeforeAISetup(0xF) (4 simulatedRNG rolls, every battle), then
+    // SetWildMonHeldItem's Random() (wild battles only, the first battle included), then
+    // BattleStartClearSetData's gRandomTurnNumber.
     let setup = |kind| BattleSetup {
         kind,
         opponents: party(&[normal(2)]),
@@ -691,28 +720,37 @@ fn wild_battles_draw_the_held_item_roll() {
         let mut rng = Rng::new(3);
         let b = Battle::new(&Game, setup(kind), &party(&[water(5)]), &mut rng);
         let mut reference = Rng::new(3);
-        (0..3)
+        (0..8)
             .position(|_| {
                 reference.random();
                 reference == rng
             })
             .map(|n| (n + 1, b.random_turn))
     };
-    let mut r = Rng::new(3);
-    r.random();
-    let second = r.random();
+    let nth = |n: usize| {
+        let mut r = Rng::new(3);
+        (0..n - 1).for_each(|_| {
+            r.random();
+        });
+        r.random()
+    };
     assert_eq!(
         draws(BattleKind::Wild {
             first_battle: false
         }),
-        Some((2, second))
+        Some((6, nth(6)))
     );
     assert_eq!(
         draws(BattleKind::Wild { first_battle: true }),
-        Some((2, second))
+        Some((6, nth(6)))
     );
-    let first = Rng::new(3).random();
-    assert_eq!(draws(trainer()), Some((1, first)));
+    assert_eq!(draws(trainer()), Some((5, nth(5))));
+    // The test seeds name the state after the four setup draws.
+    let mut r = Rng::new(before_setup_draws(77));
+    for _ in 0..4 {
+        r.random();
+    }
+    assert_eq!(r, Rng::new(77));
 }
 
 #[test]

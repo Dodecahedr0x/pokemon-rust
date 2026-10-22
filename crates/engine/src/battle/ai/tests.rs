@@ -6,6 +6,7 @@ use crate::battle::test_data::*;
 use crate::battle::{BattleKind, BattleOutcome, Need};
 use crate::data::MoveId;
 use crate::mon::Pokemon;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 /// A trainer battle with the given AI flags: the player's mon against `foe_moves`.
@@ -169,14 +170,197 @@ fn first_battle_flees_at_a_fifth_of_the_target_hp() {
     // AI_FirstBattle: `if_hp_equal 20` / `if_hp_less_than 20` (100 × hp / maxHP) → flee.
     let first = BattleKind::Wild { first_battle: true };
     let foe = mon(NORMAL, 2, [13, 6, 6, 8, 5, 5], &[TACKLE, GROWL]);
-    let mut r = Run::new(first, &[target(WATER, 4)], &[foe], 1);
+    // A slower player (Speed 7 < 8): the foe's B_ACTION_RUN goes through GetWhoStrikesFirst
+    // like a priority-0 move and wins, so the player's move never runs. The name is
+    // `B_BUFF_MON_NICK` (HandleEndTurn_MonFled: PREPARE_MON_NICK_BUFFER, no tag).
+    let slow = |hp| {
+        let mut m = mon(WATER, 5, [20, 13, 10, 7, 9, 10], &[TACKLE]);
+        m.hp = hp;
+        m
+    };
+    let mut r = Run::new(first, &[slow(4)], &[foe], 1);
     let l = r.choose(Choice::Move(0));
-    // A fleeing battler acts first (B_ACTION_RUN), so the player's move never runs. The
-    // name is `B_BUFF_MON_NICK` (HandleEndTurn_MonFled: PREPARE_MON_NICK_BUFFER, no tag).
     assert_eq!(l, ["WildPkmnFled@O nick:O0 !", "End(MonFled)"]);
     assert_eq!(r.b.need(), Need::Ended(BattleOutcome::MonFled));
-    // 5 / 20 = 25%: no flee.
-    let mut r = Run::new(first, &[target(WATER, 5)], &[foe], 1);
+    // 5 / 20 = 25%: no flee; the faster foe attacks first.
+    let mut r = Run::new(first, &[slow(5)], &[foe], 1);
     let l = r.choose(Choice::Move(0));
-    assert_eq!(l[0], "UsedMove@P move:1");
+    assert!(l[0].starts_with("UsedMove@O"));
+    assert!(l.contains(&"UsedMove@P move:1".to_string()));
+    assert!(!l.iter().any(|e| e.starts_with("WildPkmnFled")));
+}
+
+#[test]
+fn a_faster_player_moves_before_the_foe_flees() {
+    // SetActionsAndBattlersTurnOrder puts B_ACTION_RUN first for the player's battlers only:
+    // the player (Speed 9 > 8) attacks, then the foe flees.
+    let first = BattleKind::Wild { first_battle: true };
+    let foe = mon(NORMAL, 2, [13, 6, 6, 8, 5, 5], &[TACKLE, GROWL]);
+    let mut r = Run::new(first, &[target(WATER, 4)], &[foe], 1);
+    let l = r.choose(Choice::Move(0));
+    assert_eq!(
+        l,
+        [
+            "UsedMove@P move:1",
+            "Anim P move:1",
+            "Hit O Normal",
+            "Hp O 13->6",
+            "WildPkmnFled@O nick:O0 !",
+            "End(MonFled)"
+        ]
+    );
+}
+
+#[test]
+fn first_battle_flee_threshold_is_twenty_percent() {
+    // 100 × 21 / 100 = 21: kept; 100 × 20 / 100 = 20: `if_hp_equal 20` flees.
+    let first = BattleKind::Wild { first_battle: true };
+    let foe = mon(NORMAL, 2, [13, 6, 6, 8, 5, 5], &[TACKLE, GROWL]);
+    let player = |hp| {
+        let mut m = mon(WATER, 5, [100, 13, 10, 9, 9, 10], &[TACKLE]);
+        m.hp = hp;
+        m
+    };
+    let ai = |hp| {
+        let r = Run::new(first, &[player(hp)], &[foe], 1);
+        choose(&r.b, &TABLES, &mut Rng::new(5))
+    };
+    assert_eq!(ai(20), Choice::Run);
+    assert!(matches!(ai(21), Choice::Move(_)));
+}
+
+/// `n` draws from `Rng::new(seed)`.
+fn after(seed: u32, n: usize) -> Rng {
+    let mut r = Rng::new(seed);
+    for _ in 0..n {
+        r.random();
+    }
+    r
+}
+
+#[test]
+fn score_wraps_as_s8_then_floors_at_zero() {
+    // Cmd_score: `score[i] += d` on an s8, then `if (score[i] < 0) score[i] = 0`.
+    let r = setup(target(WATER, 20), &[TACKLE], 0);
+    let mut rng = Rng::new(1);
+    let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+    ai.score[0] = 125;
+    ai.add(0, 2);
+    assert_eq!(ai.score[0], 127);
+    ai.add(0, 1);
+    assert_eq!(ai.score[0], 0, "127 + 1 wraps to -128");
+    ai.score[0] = 100;
+    ai.add(0, -110);
+    assert_eq!(ai.score[0], 0);
+}
+
+#[test]
+fn setup_first_turn_rolls_for_setup_moves_on_turn_zero() {
+    // AI_SetupFirstTurn: Growl (EFFECT_ATTACK_DOWN) draws `if_random_less_than 80` on turn 0
+    // only; Tackle draws nothing. 4 simulatedRNG + Growl's roll + the pick.
+    let mut r = setup(
+        target(WATER, 20),
+        &[TACKLE, GROWL],
+        AI_SCRIPT_SETUP_FIRST_TURN,
+    );
+    let mut rng = Rng::new(9);
+    choose(&r.b, &TABLES, &mut rng);
+    assert_eq!(rng, after(9, 6));
+    r.b.turn = 1;
+    let mut rng = Rng::new(9);
+    choose(&r.b, &TABLES, &mut rng);
+    assert_eq!(rng, after(9, 5));
+    // +2 unless the roll is below 80.
+    for seed in 1..40 {
+        let mut r = setup(target(WATER, 20), &[GROWL], AI_SCRIPT_SETUP_FIRST_TURN);
+        r.b.turn = 0;
+        let mut rng = Rng::new(seed);
+        let mut ai = Ai::setup(&r.b, &TABLES, &mut rng);
+        let roll = {
+            let mut x = *ai.rng;
+            x.random() % 256
+        };
+        ai.setup_first_turn(0, GROWL);
+        assert_eq!(
+            ai.score[0],
+            if roll < 80 { 100 } else { 102 },
+            "seed {seed}"
+        );
+    }
+}
+
+/// A trainer battle: the player's Mudkip-like mon against `lead` then a Ghost with Absorb
+/// (Grass, super effective on Water).
+fn two_mon_trainer(lead: &[MoveId], seed: u32) -> Run {
+    let foe = mon(NORMAL, 5, [20, 10, 10, 5, 10, 10], lead);
+    let ghost = mon(GHOST, 5, [20, 10, 10, 5, 10, 10], &[ABSORB]);
+    let mut r = Run::new(trainer(), &[target(WATER, 20)], &[foe, ghost], seed);
+    r.b.trainer_ai = 0;
+    r
+}
+
+#[test]
+fn should_switch_draws_and_decision() {
+    // Nothing landed on the AI's battler yet: no switch, no draw.
+    let r = two_mon_trainer(&[TACKLE], 1);
+    let mut rng = Rng::new(3);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(rng, Rng::new(3));
+    // Tackle landed: FindMonWithFlagsAndSuperEffective(DOESNT_AFFECT_FOE, 2) finds the Ghost
+    // (Normal does nothing to it) with Absorb super effective on the player: one
+    // `Random() % 2` decides. On a miss, the (NOT_VERY_EFFECTIVE, 3) pass finds nothing.
+    for go in [true, false] {
+        let seed = (1..)
+            .find(|&s| Rng::new(s).random().is_multiple_of(2) == go)
+            .unwrap();
+        let mut r = two_mon_trainer(&[TACKLE], 1);
+        r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
+        let mut rng = Rng::new(seed);
+        let got = switch(&r.b, &TABLES, &mut rng);
+        assert_eq!(got, go.then_some(1));
+        assert_eq!(rng, after(seed, 1));
+    }
+    // A super effective move of its own: FindMonThatAbsorbsOpponentsMove's `Random() % 3`,
+    // then HasSuperEffectiveMoveAgainstOpponents' `Random() % 10 != 0` keeps it in.
+    let seed = (1..)
+        .find(|&s| !after(s, 1).random().is_multiple_of(10))
+        .unwrap();
+    let mut r = two_mon_trainer(&[ABSORB], 1);
+    r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
+    let mut rng = Rng::new(seed);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(rng, after(seed, 2));
+    // AreStatsRaised (more than 3 stages up) keeps it in, without a draw.
+    let mut r = two_mon_trainer(&[TACKLE], 1);
+    r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
+    r.b.battler_mut(Side::Opponent).stages[Stat::Atk as usize] = 4;
+    let mut rng = Rng::new(3);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(rng, Rng::new(3));
+    // Wild battles and one-mon trainers never ask.
+    let mut r = setup(target(WATER, 20), &[TACKLE], 0);
+    r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(rng, Rng::new(3));
+}
+
+#[test]
+fn the_trainer_switches_before_choosing_a_move() {
+    // Turn 1: the player's Tackle lands on the Normal lead. Turn 2 starts with
+    // AI_TrySwitchOrUseItem: on some seeds the Ghost comes in (B_ACTION_SWITCH goes first).
+    let mut switched = 0;
+    for seed in 1..30 {
+        let mut r = two_mon_trainer(&[TACKLE], seed);
+        r.choose(Choice::Move(0));
+        if r.b.battler(Side::Opponent).last_landed != Some(TACKLE) {
+            continue;
+        }
+        let l = r.choose(Choice::Move(0));
+        if l.first().map(String::as_str) == Some("Recall O") {
+            assert!(l.contains(&"SendOut O1".to_string()), "{l:?}");
+            assert_eq!(r.b.mon(Side::Opponent).party, 1);
+            switched += 1;
+        }
+    }
+    assert!(switched > 0);
 }
