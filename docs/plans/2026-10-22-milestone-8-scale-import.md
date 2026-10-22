@@ -967,7 +967,109 @@ Each later milestone keeps M8's shape: Wave 0 contracts, parallel waves, a story
 ---
 
 ## Wave 0 as built
-*(filled by Wave 0: the spike re-run numbers, the opt-level decision, baselines, contract deltas.)*
+
+Commits on top of `cbc9a15`, merged with master `dcaa10e` (the M7 close-out; no conflicts). Extract contracts `a823b04`, engine contracts `4c79485` (Wave 1 B, C and K started from these).
+
+### Spike (re-run on the merged tree; throwaway branch, scratch extracted dir, all 518 maps)
+Apple M4 Max, with other Wave 1 builds running at the same time: treat the times as upper bounds.
+- **Export:** 6.0 s, 67 MB RSS. 518 maps, 156 sprites, 4,560 script fns, 5,503 texts, 978 movements, 3,493 files. Extracted size: 147 MB, of which previews are 124 MB (23.6 MB without previews).
+- **Native debug build of `content`** (data plus scripts): 30.0 s wall, rustc 26.9 s, **peak RSS 4.89 GB**. `data.rs` is 11.7 MB.
+  - Build script: 2.7 s, of which generation is 2.5 s at opt-level 0. With `build-override` at opt-level 3, generation takes 0.35 s and the build 27.8 s.
+  - Against the build gates: the time is at the 30 s gate, but the RSS is **over the 4 GB gate**. Task E's blobs (no Rust literals for bulk data) are the planned fix, and L checks it.
+- **Largest script future:** 200 B (median 160 B, minimum 16 B, over 4,560 roots).
+- **GBA release builds** (fat LTO unless noted):
+
+  | content opt-level, LTO | time | peak RSS | ROM | `.text` | `.rodata` | `content::scripts` `.text` (+ generics) | `content::data` | `content::battle` | `engine` `.text` |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 3, fat | 163 s | 9.02 GB | 12,447,176 | 7,760,232 | 4,685,380 | 5,542,384 (+1,721,994) | 2,458,530 | 1,167,380 | 195,896 |
+  | **"s", fat (taken)** | **113 s** | **5.11 GB** | **10,178,376 (−18.2%)** | 5,491,424 (−29%) | 4,685,388 | 4,083,034 (+950,454) | 2,458,530 | 1,167,386 | 195,596 |
+  | "s", thin | 141 s | 4.84 GB | 11,055,416 (+8.6% over fat) | 6,333,388 | 4,720,284 | 4,435,644 (+1,419,842) | 2,458,564 | 1,167,386 | 202,416 |
+
+  - **LTO: fat kept.** Thin LTO is 8.6% larger (the gate allows 3%) and slower; it saves only 5% of memory.
+  - Against the build gates: "s" with fat LTO is within the GBA release gates (≤ 9 GB, ≤ 2 min), and its 5.1 GB is just over the 5 GB stretch.
+- **`loop_lines_max` on Act 1 maps.** Spike ROM, 3,000 frames: 600 idle, then walking a square. Every template spawns.
+
+  | start | hash | step | loop | at opt-level |
+  |---|---|---|---|---|
+  | Route 104 (0x0013 at 17,51) | 42 | 221 | **225** | "s" and 3 alike |
+  | Rustboro (0x0003 at 27,20) | 23 | 160 | 164 | "s" |
+  | new game | 8 | 141 | 145 | "s" |
+
+  - Route 104 is over the 217 gate whatever the opt-level, because of the object cost. Task F's view-window spawning has to bring it under the gate, and M's map tour checks it.
+
+### Decisions
+- **`content` at opt-level "s" on the GBA**, in `crates/game-gba/Cargo.toml`, with `debug = false`. It saves 18% of the full ROM, 29% of `.text`, 31% of the build time and 43% of the build memory.
+  - On the slice it saves 13% of the ROM (2,022,576 → 1,761,240 B).
+- **The slice route's frame gate first failed with "s".** Measured by `cargo xtask parity` across the Wave 0 commits (`content` at opt-level 3 unless noted):
+
+  | Tree | `loop` lines on the route |
+  |---|---|
+  | `a823b04` and the split `6d77e05` | 214 |
+  | the requests and events `4c79485` | 216 |
+  | the hashed state and contracts `fce358f` | 217 |
+  | `fce358f` with `content` at "s" | 220 |
+
+  - The worst frame is May's trainer-battle start (frame 16185).
+  - Scanline marks on that frame (scratch-only instrumentation) found where the step time goes:
+    - `Battle::start`: 38 lines, mostly the first turn, against 4 in a wild battle;
+    - `BattleScene::new`: 34 lines;
+    - the rest of the field step: 47 lines;
+    - **`Box::new` of the ~4 KiB `BattleRun` literal: about 10 lines**, a stack-to-heap copy.
+  - Fix in `59b1114`: `start_battle` builds the run in its heap allocation (`Box::new_uninit` and field writes). This is the engine's first `unsafe` outside `hash.rs`; the hash and behaviour are unchanged.
+  - With "s", the route now takes **hash 63 (gate 65) and loop 215 (gate 217)**.
+- **Build scripts** run at opt-level 3 (`[profile.*.build-override]`) in both workspaces.
+
+### Baselines
+- **Slice ROM:** `cargo xtask rom` gives 1,761,240 B, IWRAM 788, EWRAM 460. These are now `budget::BASELINE`; it was M5's 1,992,712 / 596 / 460.
+  - Engine `.text`: 205,448 (`ENGINE_TEXT_BASELINE`).
+  - `budget::sections` breaks down the slice: `content::scripts` `.text` 404,964 (+114,220 generics), `content::data` `.rodata` 323,500, `content::battle` `.rodata` 351,398, other `.text` 83,080, `other(engine)` `.text` 27,204.
+- **Interim gates** (`xtask/src/budget.rs`):
+  - the ROM is reported, not gated, on the slice and the stub;
+  - on a full import (`MAP_COUNT` > `SLICE_MAPS`), the ROM is gated at 16 MiB;
+  - on the slice, engine `.text` is gated at the baseline + 128 KiB;
+  - IWRAM and EWRAM are gated at the baseline + 2 KiB / 16 KiB.
+- **Slice parity** (content at "s"): hashes and pictures are identical, with late 0. Hash and loop lines per lane:
+
+  | lane | hash | loop |
+  |---|---|---|
+  | lab | 41 | 163 |
+  | oldale_center | 59 | 199 |
+  | before_may | 63 | 214 |
+  | route | 63 | 215 |
+  | mid-battle save | 43 | 167 |
+  | save run | 43 | 167 |
+
+- **Explorer:**
+  - `explore run --generations 50`: 3,822 nodes, 4,042,998 frames, digest `0x65ddd0bdcfb76fc6`, the same on 1 and 8 threads. It takes 18.7 s on 1 thread and 2.6 s on 8.
+  - `run --secs 60` (8 threads, other builds running): 52,298 nodes and 60.5 M frames (871 inserted nodes/s, 1.0 M frames/s). The db is 95.2 MB, about 1.8 MB per 1k nodes.
+  - Stub `--generations 50` digest: `0x8eae1debc306e2f0` (222 nodes), identical on 1 and 8 threads.
+- **`cargo test --workspace`:**
+  - before Wave 0: real 1066 passed / 11 ignored in 3:15; stub 1056 / 11 in 2:40;
+  - after (merged tree): real 1079 / 11 in 4:28, stub 1069 / 11 in 3:17 (wall times inflated by concurrent Wave 1 builds).
+
+### Contract deviations (with reasons)
+- **Extract:**
+  - The legacy script index is `scripts/legacy_index.ron` (`LegacyScriptIndex`) next to the IR schema, so the slice codegen keeps working until D2 swaps it.
+  - The slice trainer-battle helper moved to `prelude/legacy.rs` as `LegacyTrainerBattle` / `legacy_trainer_battle`, freeing the `TrainerBattle` name for the contract.
+  - `export::MAPS` stays as an alias of `SLICE_MAPS` until Task A removes it.
+  - `ExportOptions::default()` keeps previews on. `--previews` is parsed; Task A flips the default.
+- **Engine:**
+  - `GameData::wild_encounters(map, wild_set)` is added and defaults to `encounters(map)`. `encounters` is kept so `explore` (Task K's crate) needs no Wave 0 change.
+  - `Request::TrainerApproach { obj }` was added (hash tag 54). Task I needs a host-side approach walk that the sight contract did not list.
+  - `Field::stale()` returns the existing stale rect, not `None`, because the rect already existed and is hashed now.
+  - `Pocket` is in save-block order (`Items, KeyItems, PokeBalls, TmHm, Berries`), with capacities 30/30/16/64/46.
+  - `start_battle` builds its `BattleRun` in place (`unsafe`, see Decisions).
+- **Content:**
+  - `scripts::generate(dir: Option<&Path>, out, w, &Support)`: it takes the support tables and an optional extracted dir, so the stub build shares the path.
+  - Sound commands are classed `Ignore` in `build/support/commands.ron`, not `Unsupported`.
+  - Of the specials, 3 are Native, `PlayerFaceTrainerAfterBattle` is `Ignore`, and `ShouldTryRematchBattle`, `IsTrainerRegistered` and `HasAllHoennMons` are `Default(0)`.
+  - The samples gained `SPECIES_IDS` and `MOVE_IDS` companions and a per-flavour `cfg(pkr_stub_battle)`, so the stub build has samples too.
+- **xtask:** `budget::sections` demangles with `rustc-demangle` (the GBA build uses v0 mangling) and lists every allocated section.
+
+### Findings check
+M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings folded in" with an owner, so nothing was added or dropped. Wave 0 handled its share of two rows:
+- events and `last_script` (engine panic context, `FrameOut`);
+- the stale rect, now hashed and in `FieldSnap`.
 
 ## Findings for Milestone 9
 *(filled at close-out.)*
