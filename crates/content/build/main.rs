@@ -62,13 +62,17 @@ fn main() {
             // `content::STALE_EXTRACT`: the parity and screenshot tools refuse this build.
             println!("cargo::rustc-cfg=pkr_stale_extract");
         } else if overridden.is_some() {
-            // An explicit dir that is missing: say so, and stay always dirty (cargo reruns a
-            // script whose watched path is missing) so it is picked up once it appears.
+            // An explicit dir without a manifest (`/nonexistent` for the stub): say so. Never
+            // watch a missing path: cargo treats one as always dirty, which rebuilt content and
+            // everything above it on every stub build. The script reruns when
+            // `PKR_EXTRACTED_DIR` changes; when the dir exists, also when a file appears in it.
             println!(
                 "cargo::warning=PKR_EXTRACTED_DIR={} has no manifest.ron: building the stub world",
                 dir.display()
             );
-            println!("cargo::rerun-if-changed={}", manifest.display());
+            if dir.is_dir() {
+                println!("cargo::rerun-if-changed={}", dir.display());
+            }
         } else {
             // Fresh clone: quietly build the stub. `content/` is tracked (`content/.gitkeep`),
             // and `cargo xtask extract` creates `content/extracted/` in it, so watching it reruns
