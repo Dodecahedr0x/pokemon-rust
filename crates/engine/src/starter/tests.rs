@@ -185,7 +185,12 @@ const CHOICES: [SpeciesId; 3] = [SpeciesId(0), SpeciesId(1), SpeciesId(2)];
 
 /// A screen loaded and entered (the label drawn), and the frames that did it.
 fn loaded(g: &Game) -> (StarterChoice, Vec<Frame>) {
-    let mut s = StarterChoice::new(CHOICES);
+    loaded_as(g, [0xFF; 8])
+}
+
+/// [`loaded`] for a player named `player`.
+fn loaded_as(g: &Game, player: PlayerName) -> (StarterChoice, Vec<Frame>) {
+    let mut s = StarterChoice::new(CHOICES, player);
     let mut frames = Vec::new();
     loop {
         let mut f = Frame::default();
@@ -577,4 +582,20 @@ fn birch_in_trouble_prints_while_choosing_and_after_no() {
     step(&mut s, &g, NONE);
     assert_eq!(s.stage, Stage::Choose);
     assert!(s.text.is_printing(), "reprinted after no");
+}
+
+/// `{PLAYER}` in the screen's texts prints the name the World passed in.
+#[test]
+fn texts_print_the_worlds_player_name() {
+    let g = Game {
+        birch: &[0xFD, 0x01, 0xFF],
+        ..game()
+    };
+    let printed = |player: PlayerName| {
+        let (s, _) = loaded_as(&g, player);
+        s.text.printed().to_vec()
+    };
+    let name = [1, 2, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+    assert_eq!(printed(name), [1, 2, 0xFF]);
+    assert_eq!(printed([0xFF; 8]), [0xFF]);
 }

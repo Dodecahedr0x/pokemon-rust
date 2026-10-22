@@ -427,7 +427,7 @@ impl Probe {
         Self {
             part: Part::Setup,
             transition: BattleTransition::new(&WILD),
-            starter: StarterChoice::new([SpeciesId(0), SpeciesId(1), SpeciesId(2)]),
+            starter: StarterChoice::new([SpeciesId(0), SpeciesId(1), SpeciesId(2)], [0xFF; 8]),
             chosen: None,
         }
     }

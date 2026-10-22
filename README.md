@@ -79,7 +79,7 @@ bulk steps, `Recording::bulk_events`; about warps + 2 × battles + starters + te
 on the extracted route).
 
 `crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
-`0x3f86f67e851de7b8` after `World::new` and `0xe51e3e6ef153f261` after 25 frames each of Right,
+`0x54c3f87e89e27c7e` after `World::new` and `0xb94e51c5d0228cf7` after 25 frames each of Right,
 A, nothing and Down. They change whenever the hashed state, its order or the frame logic
 changes; update them only for an intended change.
 
