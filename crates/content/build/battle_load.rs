@@ -1,9 +1,6 @@
 //! Reading the battle files of an extracted dir ([`load`]) into a [`BattleIn`].
 
-use crate::battle::{
-    BattleIn, FIRST_FOE, GfxIn, MonGfxIn, PLAYER_BACK, PicIn, STARTERS, UiGfx, slice_species,
-};
-use crate::classify;
+use crate::battle::{BattleIn, FIRST_FOE, GfxIn, MonGfxIn, PLAYER_BACK, PicIn, STARTERS, UiGfx};
 use crate::input::{self, Tile};
 use anyhow::{Context, Result, bail, ensure};
 use extract::battle_gfx::ENVIRONMENTS;
@@ -86,9 +83,9 @@ fn gfx_file(dir: &Path, rel: &str) -> Result<GfxIn> {
     })
 }
 
-/// Reads the battle files of an extracted dir. `scripts` are the generated script sources
-/// (they name the trainers to build).
-pub fn load(dir: &Path, scripts: &[String]) -> Result<BattleIn> {
+/// Reads the battle files of an extracted dir: every table, and every species and trainer pic
+/// the extract has.
+pub fn load(dir: &Path) -> Result<BattleIn> {
     let b = dir.join("battle");
     let species: SpeciesFile = read_ron(&b.join("species.ron"))?;
     let moves: MovesFile = read_ron(&b.join("moves.ron"))?;
@@ -97,29 +94,19 @@ pub fn load(dir: &Path, scripts: &[String]) -> Result<BattleIn> {
     let encounters: EncountersFile = read_ron(&b.join("encounters.ron"))?;
     let heal: HealLocationsFile = read_ron(&b.join("heal_locations.ron"))?;
     let strings: BattleStringsFile = read_ron(&b.join("strings.ron"))?;
-    let ids: BTreeSet<&str> = trainers.trainers.iter().map(|t| t.id.as_str()).collect();
-    let referenced: BTreeSet<String> = scripts
-        .iter()
-        .flat_map(|s| classify::idents_with_prefix(&classify::without_line_comments(s), "TRAINER_"))
-        .filter(|n| ids.contains(n.as_str()) && n != "TRAINER_NONE")
-        .collect();
     let mut out = BattleIn {
         species: species.species,
         moves,
         types,
         trainers: trainers.trainers,
-        referenced,
-        // Format 5 keeps every wild header per map; until Milestone 8 Task E the build uses the
-        // first header's land table, as before.
-        encounters: encounters
-            .maps
-            .into_iter()
-            .filter_map(|(map, headers)| Some((map, headers.into_iter().next()?.land?)))
-            .collect(),
+        encounters: encounters.maps,
         heal,
         strings,
         mon_gfx: BTreeMap::new(),
         trainer_pics: BTreeMap::new(),
+        // Format 5.1 (Task A); empty in older extracts.
+        evolutions: crate::read_opt!(b.join("evolutions.ron")),
+        trainer_money: crate::read_opt!(b.join("trainer_money.ron")),
         player_back: PicIn {
             tiles: vec![],
             palette: [0; 16],
@@ -135,11 +122,13 @@ pub fn load(dir: &Path, scripts: &[String]) -> Result<BattleIn> {
     };
 
     let coords: MonCoordsFile = read_ron(&dir.join("pokemon/coords.ron"))?;
-    for s in slice_species(&out) {
-        let p = dir.join("pokemon").join(&s);
-        let c = *coords
-            .get(&s)
-            .with_context(|| format!("pokemon/coords.ron has no {s}"))?;
+    for s in out.species.iter().map(|s| &s.id) {
+        let p = dir.join("pokemon").join(s);
+        // A species without pics battles without them (`gfx: None`; listed in the report).
+        let Some(&c) = coords.get(s) else { continue };
+        if !p.join("front.png").exists() {
+            continue;
+        }
         let front = tiles_png(&p.join("front.png"))?;
         let back = tiles_png(&p.join("back.png"))?;
         ensure!(
@@ -153,18 +142,18 @@ pub fn load(dir: &Path, scripts: &[String]) -> Result<BattleIn> {
             shiny: gfx::read_jasc_pal(&p.join("shiny.pal"))?.0,
             coords: c,
         };
-        out.mon_gfx.insert(s, g);
+        out.mon_gfx.insert(s.clone(), g);
     }
 
     let pics: TrainerPicsFile = read_ron(&dir.join("trainers/pics.ron"))?;
-    let used_pics: BTreeSet<String> = out
-        .trainers
-        .iter()
-        .filter(|t| out.referenced.contains(&t.id))
-        .map(|t| t.pic.clone())
-        .collect();
+    let used_pics: BTreeSet<String> = out.trainers.iter().map(|t| t.pic.clone()).collect();
     for pic in used_pics {
         let path = dir.join(format!("trainers/front/{pic}.png"));
+        // A trainer whose pic was not exported is left out (`trainer()` is `None`; listed in
+        // the report).
+        if !path.exists() {
+            continue;
+        }
         let info = pics
             .front
             .get(&pic)
