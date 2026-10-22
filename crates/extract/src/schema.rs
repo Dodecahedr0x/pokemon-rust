@@ -85,6 +85,19 @@ pub const FORMAT_VERSION: u32 = 5;
 /// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
 /// extract.
 pub const FORMAT_MINOR: u32 = 0;
+/// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
+/// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
+/// ones when an extract is older ([`missing_since`]).
+pub const MINOR_FILES: &[(u32, &str)] = &[];
+
+/// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
+pub fn missing_since(minor: u32, exists: impl Fn(&str) -> bool) -> Vec<&'static str> {
+    MINOR_FILES
+        .iter()
+        .filter(|&&(m, path)| m > minor && !exists(path))
+        .map(|&(_, path)| path)
+        .collect()
+}
 
 /// A ROM file offset, written `"0x3e45f0"`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]

@@ -9,12 +9,13 @@
 mod anim;
 mod draw;
 mod snapshot;
+mod spawn;
 #[cfg(test)]
 mod tests;
 
 use crate::data::{
-    Behavior, Dir, FlagId, Gfx, GfxId, MapData, MapId, MovementType, ObjectEvent, PLAYER, VarId,
-    block_collision, block_elevation,
+    Behavior, Dir, Gfx, GfxId, MapId, MovementType, ObjectEvent, PLAYER, VarId, block_collision,
+    block_elevation,
 };
 use crate::hash::Fnv64;
 use crate::input::Buttons;
@@ -494,11 +495,6 @@ const fn elevations_compatible(a: u8, b: u8) -> bool {
     a == 0 || b == 0 || a == b
 }
 
-/// Gen3 `RemoveObjectEventIfOutsideView`: the kept area around the player's cell
-/// (`pos - 2 ..= pos + 17` by `pos ..= pos + 16`, with the player at `pos + 7`).
-const VIEW_X: (i16, i16) = (-9, 10);
-const VIEW_Y: (i16, i16) = (-7, 9);
-
 /// Every object: the current map's, plus the previous map's still in view after crossing a
 /// connection. Index 0 is always the player.
 pub struct Objects {
@@ -536,98 +532,6 @@ impl Objects {
     fn set_map(&mut self, id: MapId) {
         self.map = id;
         self.objs[0].map = id;
-    }
-
-    fn spawn(
-        &mut self,
-        id: MapId,
-        events: &[ObjectEvent],
-        flags: impl Fn(FlagId) -> bool,
-        vars: impl Fn(VarId) -> u16,
-    ) {
-        for ev in events {
-            if !ev.hide_flag.is_some_and(&flags) {
-                self.objs.push(Object::from_event(id, ev, &vars));
-            }
-        }
-    }
-
-    /// Makes `id` the current map and replaces every NPC with `map`'s objects, skipping those
-    /// whose `hide_flag` is set and resolving `Gfx::Var` through `vars`. The player is kept.
-    pub fn spawn_map(
-        &mut self,
-        id: MapId,
-        map: &MapData,
-        flags: impl Fn(FlagId) -> bool,
-        vars: impl Fn(VarId) -> u16,
-    ) {
-        self.spawn_events(id, map.objects, flags, vars);
-    }
-
-    /// [`Objects::spawn_map`] from a copy of the map's templates (edited by scripts for this
-    /// visit, Gen3 `setobjectxyperm` / `setobjectmovementtype`).
-    pub fn spawn_events(
-        &mut self,
-        id: MapId,
-        events: &[ObjectEvent],
-        flags: impl Fn(FlagId) -> bool,
-        vars: impl Fn(VarId) -> u16,
-    ) {
-        self.objs.truncate(1);
-        self.set_map(id);
-        self.spawn(id, events, flags, vars);
-    }
-
-    /// Crossing into connected map `id`: shifts every object by `shift` cells (old map
-    /// coordinates to the new map's), makes `id` current and spawns its objects alongside the
-    /// old map's. Those stay, still moving, until they leave the view (checked here and on
-    /// every `update`), as Gen3 `RemoveObjectEventsOutsideView`. Objects of `id` left over
-    /// from an earlier visit are replaced.
-    pub fn enter_connected(
-        &mut self,
-        id: MapId,
-        map: &MapData,
-        shift: (i16, i16),
-        flags: impl Fn(FlagId) -> bool,
-        vars: impl Fn(VarId) -> u16,
-    ) {
-        self.enter_connected_events(id, map.objects, shift, flags, vars);
-    }
-
-    /// [`Objects::enter_connected`] from a copy of the map's templates.
-    pub fn enter_connected_events(
-        &mut self,
-        id: MapId,
-        events: &[ObjectEvent],
-        shift: (i16, i16),
-        flags: impl Fn(FlagId) -> bool,
-        vars: impl Fn(VarId) -> u16,
-    ) {
-        self.shift(shift.0, shift.1);
-        self.objs.retain(|o| o.local_id == PLAYER || o.map != id);
-        self.set_map(id);
-        self.spawn(id, events, flags, vars);
-        self.despawn_outside_view();
-    }
-
-    /// Removes other maps' objects whose cell and home are both outside the view (Gen3
-    /// `RemoveObjectEventIfOutsideView`).
-    fn despawn_outside_view(&mut self) {
-        let (px, py) = self.objs[0].pos();
-        let inside = |(x, y): (i16, i16)| {
-            (px + VIEW_X.0..=px + VIEW_X.1).contains(&x)
-                && (py + VIEW_Y.0..=py + VIEW_Y.1).contains(&y)
-        };
-        let map = self.map;
-        self.objs
-            .retain(|o| o.map == map || inside(o.pos()) || inside(o.home));
-    }
-
-    /// Spawns one object of the current map (Gen3 `addobject`), replacing any with the same
-    /// local id.
-    pub fn add(&mut self, ev: &ObjectEvent, vars: impl Fn(VarId) -> u16) {
-        self.remove(ev.local_id);
-        self.objs.push(Object::from_event(self.map, ev, &vars));
     }
 
     /// Despawns an object of the current map (Gen3 `removeobject`). The player cannot be

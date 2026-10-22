@@ -1935,8 +1935,22 @@ mod lowering {
         )
         .unwrap();
         prelude += STUB_PRELUDE_M8;
+        // Wave 0's `set_warp` body and helper modules, as `content::prelude` has them.
+        let content_prelude = Path::new(env!("CARGO_MANIFEST_DIR")).join("../content/src/prelude");
+        let mod_rs = std::fs::read_to_string(content_prelude.join("mod.rs")).unwrap();
+        let start = mod_rs.find("pub async fn set_warp(").unwrap();
+        let end = start + mod_rs[start..].find("\n}\n").unwrap() + 3;
+        prelude += &mod_rs[start..end];
         prelude += &consts(ix.texts.keys());
-        std::fs::write(dir.join("prelude.rs"), prelude).unwrap();
+        std::fs::create_dir_all(dir.join("prelude")).unwrap();
+        std::fs::write(dir.join("prelude/mod.rs"), prelude).unwrap();
+        for m in M8_HELPER_MODULES {
+            std::fs::copy(
+                content_prelude.join(format!("{m}.rs")),
+                dir.join(format!("prelude/{m}.rs")),
+            )
+            .unwrap();
+        }
         std::fs::write(dir.join("dispatch.rs"), &out.dispatch).unwrap();
         let mut overrides = String::new();
         for (m, src) in &out.modules {
@@ -1952,7 +1966,7 @@ mod lowering {
         }
         let mut lib = String::from(
             "extern crate alloc;\n\
-             #[allow(non_upper_case_globals)]\npub mod prelude {\n    include!(\"prelude.rs\");\n}\n\
+             #[allow(non_upper_case_globals)]\npub mod prelude;\n\
              #[allow(non_snake_case)]\npub mod overrides {\n",
         );
         lib += &overrides;
@@ -2026,108 +2040,26 @@ mod lowering {
         s
     }
 
-    /// The Milestone 8 prelude contract (Wave 0 names and signatures) over today's engine. The
-    /// `Ctx` methods Wave 0 adds come from `CtxM8` until the engine has them; then this stub
-    /// re-exports `engine::script::{Report, BufferSrc, WarpSlot}` and `engine::data::ItemId`.
+    /// The `content::prelude` modules holding Wave 0's Milestone 8 helpers, copied as they are.
+    const M8_HELPER_MODULES: [&str; 4] = ["items", "menu", "text", "trainer"];
+
+    /// The Milestone 8 prelude over the engine: its types, and Wave 0's helper modules
+    /// ([`M8_HELPER_MODULES`]) and `set_warp` (appended by `compile_lowered`).
     const STUB_PRELUDE_M8: &str = r#"
-pub use engine::data::{MoveId, ScriptId};
+pub use engine::battle::BattleOutcome;
+pub use engine::data::{ItemId, MoveId, ScriptId};
+pub use engine::script::{BufferSrc, Report, WarpSlot};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct ItemId(pub u16);
+mod items;
+mod menu;
+mod text;
+mod trainer;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Report {
-    Unsupported(&'static str),
-    Degraded(&'static str),
-}
+pub use items::*;
+pub use menu::*;
+pub use text::*;
+pub use trainer::*;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BufferSrc {
-    Species(SpeciesId),
-    Item(ItemId),
-    Move(MoveId),
-    Number(u32),
-    Std(u8),
-    PartyNick(u8),
-    LeadSpecies,
-    Text(TextId),
-}
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum WarpSlot {
-    Dynamic,
-    Escape,
-}
-
-#[allow(async_fn_in_trait)]
-pub trait CtxM8 {
-    fn cond(&self) -> Ordering;
-    fn set_cond(&self, o: Ordering);
-    async fn report(&self, r: Report);
-    async fn item_add(&self, item: ItemId, qty: u16) -> bool;
-    async fn item_remove(&self, item: ItemId, qty: u16) -> bool;
-    async fn item_space(&self, item: ItemId, qty: u16) -> bool;
-}
-
-impl CtxM8 for Ctx {
-    fn cond(&self) -> Ordering {
-        Ordering::Equal
-    }
-    fn set_cond(&self, o: Ordering) {
-        let _ = o;
-    }
-    async fn report(&self, r: Report) {
-        let _ = r;
-        self.log("report").await;
-    }
-    async fn item_add(&self, item: ItemId, qty: u16) -> bool {
-        let _ = (item, qty);
-        false
-    }
-    async fn item_remove(&self, item: ItemId, qty: u16) -> bool {
-        let _ = (item, qty);
-        false
-    }
-    async fn item_space(&self, item: ItemId, qty: u16) -> bool {
-        let _ = (item, qty);
-        false
-    }
-}
-
-pub const TRAINER_FLAGS_START: u16 = 0x500;
-pub const fn trainer_flag(trainer: TrainerId) -> FlagId {
-    FlagId(TRAINER_FLAGS_START + trainer.0)
-}
-
-pub async fn give_item(ctx: &Ctx, item: u16, qty: u16) -> bool { let _ = (ctx, item, qty); false }
-pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool { let _ = (ctx, item, qty); false }
-pub async fn check_item(ctx: &Ctx, item: u16, qty: u16) -> bool { let _ = (ctx, item, qty); false }
-pub async fn money_add(ctx: &Ctx, n: u32) { let _ = (ctx, n); }
-pub async fn money_remove(ctx: &Ctx, n: u32) { let _ = (ctx, n); }
-pub async fn money_check(ctx: &Ctx, n: u32) -> bool { let _ = (ctx, n); false }
-pub async fn buffer(ctx: &Ctx, slot: u8, src: BufferSrc) { let _ = (ctx, slot, src); }
-pub async fn multichoice(ctx: &Ctx, list: u8, x: u8, y: u8, default: u8, cancel: bool) -> u16 {
-    let _ = (ctx, list, x, y, default, cancel);
-    127
-}
-pub async fn set_warp(ctx: &Ctx, slot: WarpSlot, map: u16, warp: Option<u8>, x: i16, y: i16) {
-    let _ = (ctx, slot, map, warp, x, y);
-}
-
-pub struct TrainerBattle {
-    pub kind: u8,
-    pub trainer: u16,
-    pub local_id: u8,
-    pub intro: Option<TextId>,
-    pub lose: TextId,
-    pub not_enough: Option<TextId>,
-    pub event_script: Option<ScriptId>,
-    pub music: bool,
-}
-
-pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
-    let _ = (ctx, b.kind, b.trainer, b.local_id, b.intro, b.lose, b.not_enough, b.event_script, b.music);
-    true
-}
 "#;
 }
