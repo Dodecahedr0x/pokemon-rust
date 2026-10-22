@@ -728,9 +728,35 @@ fn golden_hashes() {
     let h1 = w.hash();
     assert_eq!(
         (h0, h1),
-        (0x3f86_f67e_851d_e7b8, 0xe51e_3e6e_f153_f261),
+        (0x54c3_f87e_89e2_7c7e, 0xb94e_51c5_d022_8cf7),
         "{h0:#018x} {h1:#018x}"
     );
+}
+
+/// Regression: `Object.moves` hashed only the table length, so two different movement scripts
+/// of the same length collided.
+#[test]
+fn movement_scripts_hash_their_steps() {
+    static A: [Step; 2] = [Step::Walk(Dir::Up, Speed::Normal), Step::Face(Dir::Left)];
+    static B: [Step; 2] = [Step::Walk(Dir::Down, Speed::Normal), Step::Face(Dir::Left)];
+    static A2: [Step; 2] = [Step::Walk(Dir::Up, Speed::Normal), Step::Face(Dir::Left)];
+    let with = |steps: &'static [Step]| {
+        let mut w = started();
+        w.s.objects.start_moves(PLAYER, steps);
+        w.hash()
+    };
+    assert_ne!(with(&A), with(&B));
+    assert_eq!(with(&A), with(&A2));
+}
+
+#[test]
+fn the_player_name_is_hashed_state() {
+    let mut a = started();
+    let before = a.hash();
+    a.set_player_name(&[1, 0xFF]);
+    assert_eq!(a.hash(), before, "same name as NewGame");
+    a.set_player_name(&[0xBB, 0xCD, 0xC2, 0xFF]); // "ASH"
+    assert_ne!(a.hash(), before);
 }
 
 #[test]

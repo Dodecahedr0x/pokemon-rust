@@ -641,6 +641,8 @@ impl World {
             }
         }
         s.mode.hash(&mut h);
+        // Milestone 5.
+        h.write(&s.player_name);
         h.finish()
     }
 }
