@@ -23,7 +23,7 @@ pub mod play;
 pub mod tree;
 
 use crate::build::BuildState;
-use crate::explorer::RunSlot;
+use crate::explorer::{Children, RunSlot};
 use crate::frames::{FrameSlot, parse_frame_request};
 use crate::native::{Inspector, NativeCmd, NativePane};
 use crate::pane::{self, PaneHandle, RunMode, TestPattern};
@@ -75,8 +75,10 @@ pub struct Studio {
     /// The tree read at start-up, or why it could not be read.
     tree: Result<TreeModel, String>,
     /// The Explorer tab's `explore run` (M7 S2). Kept here, in the app state, so that leaving
-    /// the tab keeps the run; dropping the studio (closing the window) kills it.
+    /// the tab keeps the run; quitting stops it ([`on_quit`]), and so does dropping the studio.
     pub explorer: RunSlot,
+    /// The Explorer tab's exports (`explore export`), stopped at quit too.
+    pub exports: Children,
 }
 
 impl Studio {
@@ -91,6 +93,7 @@ impl Studio {
             panes: None,
             tree,
             explorer: RunSlot::default(),
+            exports: Children::default(),
         }
     }
 
@@ -154,6 +157,24 @@ impl Studio {
     fn statuses(&self) -> Option<(Inspector, RomStatus)> {
         let p = self.panes.as_ref()?;
         Some((p.native.status.get(), p.rom.status.get()))
+    }
+}
+
+/// The window loop's handler that stops the explorer's run and exports when the loop ends.
+///
+/// tao ends the loop (`LoopDestroyed`) on every quit, Cmd+Q included, and then exits the
+/// process without dropping the loop's closure, so the [`Studio`]'s drop never runs there: the
+/// `explore` process group would outlive the studio and a later run would make a second writer
+/// on the db.
+pub fn on_quit<T>(
+    run: RunSlot,
+    exports: Children,
+) -> impl for<'a> FnMut(&dioxus::desktop::tao::event::Event<'a, T>) + 'static {
+    move |e| {
+        if matches!(e, dioxus::desktop::tao::event::Event::LoopDestroyed) {
+            run.stop();
+            exports.stop_all();
+        }
     }
 }
 
@@ -288,7 +309,9 @@ pub fn launch() {
         // WebKit throttles an occluded webview (no animation frames, slow timers), so a smoke
         // run behind other windows would measure nothing.
         .with_always_on_top(smoke.is_some());
+    let mut quit = on_quit(studio.explorer.clone(), studio.exports.clone());
     let cfg = Config::new()
+        .with_custom_event_handler(move |e, _| quit(e))
         .with_custom_head(head(smoke.is_some()))
         .with_window(window)
         .with_disable_context_menu(true);
@@ -721,6 +744,45 @@ mod tests {
             "no /stats reports by default"
         );
         assert!(head(true).contains("<script>window.STUDIO_SMOKE = true;</script><script>"));
+    }
+
+    /// The quit handler stops a running explorer (and its exports) on `LoopDestroyed` only.
+    #[cfg(unix)]
+    #[test]
+    fn quitting_stops_the_explorer_run() {
+        use crate::explorer::{ExplorerProc, RunState};
+        use dioxus::desktop::tao::event::{Event, StartCause};
+        let dir = temp_root("quit");
+        let slot = RunSlot::default();
+        slot.start_with(|| {
+            let mut c = std::process::Command::new("sh");
+            c.args(["-c", "sleep 30"]);
+            ExplorerProc::spawn(c, &dir.join("explore.log"))
+        })
+        .unwrap();
+        let kids = Children::default();
+        let k2 = kids.clone();
+        let export = std::thread::spawn(move || {
+            let mut c = std::process::Command::new("sleep");
+            c.arg("30");
+            k2.output(c).unwrap().0
+        });
+        let t0 = Instant::now();
+        while kids.is_empty() {
+            assert!(
+                t0.elapsed() < Duration::from_secs(10),
+                "the export never started"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let mut quit = on_quit::<()>(slot.clone(), kids.clone());
+        quit(&Event::NewEvents(StartCause::Init));
+        assert_eq!(slot.state(), RunState::Running);
+        quit(&Event::LoopDestroyed);
+        assert_eq!(slot.state(), RunState::Stopped);
+        assert_eq!(export.join().unwrap(), None, "the export was stopped");
+        assert!(kids.is_empty());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

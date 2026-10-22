@@ -1,20 +1,21 @@
 //! Explorer tab (M7 Task S2): start and stop an `explore run`, its live stats, and the findings
 //! table with "Open at frame before", "Export repro" and "Copy repro command" per finding.
 //!
-//! - The run is the [`Studio`]'s [`RunSlot`] (app state: leaving the tab keeps it; closing the
-//!   window drops it, which kills the run). Starting, stopping and reading it happen on worker
-//!   threads ([`off_thread`]).
+//! - The run is the [`Studio`]'s [`RunSlot`] (app state: leaving the tab keeps it; quitting
+//!   stops it, see `ui::launch`). Starting, stopping and reading it happen on worker threads
+//!   ([`off_thread`]); exports run in the studio's [`Children`](crate::explorer::Children).
 //! - The [`ExplorerState`] (context, provided by the [`Shell`](super::Shell)) holds the last
 //!   [`poll`]: the db read read-only, the run's state and this build. The shell polls every
-//!   [`POLL`] while this tab is shown or a run is going; each poll that changes the db's totals
-//!   bumps [`ExplorerState::tick`], which refreshes the Map tab's coverage layer.
+//!   [`POLL`] while this tab is shown, the Map tab shows the coverage layer, or a run is going;
+//!   each poll that changes the db's totals bumps [`ExplorerState::tick`], which refreshes the
+//!   Map tab's coverage layer ([`next_poll`]).
 //! - The text (stats, rows, run state) and the form's validation are the core's
 //!   ([`crate::explorer`]).
 
 use super::{Studio, Tab, focus_pane, off_thread, sleep};
 use crate::explorer::{
-    self, BudgetKind, OPEN_BEFORE, Poll, RunForm, RunSlot, RunState, export_repro, finding_cells,
-    nodes_per_sec, open_finding_cmds, opened_text, parse_before, poll, repro_command,
+    self, BudgetKind, OPEN_BEFORE, Poll, Polled, RunForm, RunSlot, RunState, export_repro,
+    finding_cells, next_poll, open_finding_cmds, opened_text, parse_before, poll, repro_command,
     run_state_text, stats_rows,
 };
 use dioxus::dioxus_core::spawn_forever;
@@ -26,52 +27,39 @@ use std::time::{Duration, Instant};
 /// How often the db and the run are polled (while the tab is shown or a run is going).
 pub const POLL: Duration = Duration::from_secs(2);
 
-/// The last poll, with the node rate since the one before.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct Polled {
-    /// `None` until the first poll.
-    pub poll: Option<Poll>,
-    pub rate: Option<f64>,
-    pub at: Option<Instant>,
-}
-
-impl Polled {
-    pub fn running(&self) -> bool {
-        self.poll.as_ref().is_some_and(|p| p.run.running())
-    }
-}
-
-/// The Explorer tab's signals, in context.
+/// The Explorer tab's signals, in context (owned by the shell, so tasks in the root scope may
+/// write them after the tab is gone).
 #[derive(Clone, Copy)]
 pub struct ExplorerState {
     pub polled: Signal<Polled>,
     /// Bumped by each poll that changes the db's totals (the Map tab refetches coverage).
     pub tick: Signal<u64>,
+    /// A start or stop is in flight.
+    pub busy: Signal<bool>,
+    /// The Map tab shows the coverage layer (set by the Map tab): poll, so that a run started
+    /// from the CLI refreshes it too.
+    pub coverage: Signal<bool>,
 }
 
 impl ExplorerState {
-    /// Records poll `p` taken at `at`: the rate since the previous poll, and a tick when the
-    /// totals changed.
+    /// Before the first poll (needs a scope: signals are owned by it).
+    pub fn empty() -> ExplorerState {
+        ExplorerState {
+            polled: Signal::new(Polled::default()),
+            tick: Signal::new(0),
+            busy: Signal::new(false),
+            coverage: Signal::new(false),
+        }
+    }
+
+    /// Records poll `p` taken at `at` ([`next_poll`]: the averaged rate, and a tick when the
+    /// totals changed).
     pub fn apply(mut self, p: Poll, at: Instant) {
-        let prev = self.polled.peek().clone();
-        let stats = |p: &Option<Poll>| {
-            p.as_ref()
-                .and_then(|p| p.model.as_ref().ok())
-                .map(|m| m.stats.clone())
-        };
-        let (before, now) = (stats(&prev.poll), stats(&Some(p.clone())));
-        let rate = match (&before, &now, prev.at) {
-            (Some(b), Some(n), Some(t)) => nodes_per_sec(b.nodes, n.nodes, at - t),
-            _ => None,
-        };
-        if before != now {
+        let (next, changed) = next_poll(&self.polled.peek(), p, at);
+        if changed {
             self.tick += 1;
         }
-        self.polled.set(Polled {
-            poll: Some(p),
-            rate,
-            at: Some(at),
-        });
+        self.polled.set(next);
     }
 
     /// Polls once on a worker thread and records it. Runs in the root scope, so leaving the tab
@@ -86,20 +74,19 @@ impl ExplorerState {
     }
 }
 
-/// Provides the [`ExplorerState`] and polls every [`POLL`] while `tab` is the Explorer or a
-/// run is going.
+/// Provides the [`ExplorerState`] and polls every [`POLL`] while `tab` is the Explorer (or the
+/// Map with its coverage layer on) or a run is going.
 pub fn use_explorer_state(studio: &Studio, tab: Signal<Tab>) -> ExplorerState {
-    let state = use_context_provider(|| ExplorerState {
-        polled: Signal::new(Polled::default()),
-        tick: Signal::new(0),
-    });
+    let state = use_context_provider(ExplorerState::empty);
     use_future({
         let studio = studio.clone();
         move || {
             let (db, run) = (studio.paths.explore_db.clone(), studio.explorer.clone());
             async move {
                 loop {
-                    if *tab.peek() == Tab::Explorer || state.polled.peek().running() {
+                    let shown = *tab.peek() == Tab::Explorer
+                        || (*tab.peek() == Tab::Map && *state.coverage.peek());
+                    if shown || state.polled.peek().running() {
                         let (db, run) = (db.clone(), run.clone());
                         if let Some(p) = off_thread(move || poll(&db, &run)).await {
                             state.apply(p, Instant::now());
@@ -146,7 +133,7 @@ pub fn Explorer() -> Element {
     let studio = use_context::<Studio>();
     let state = use_context::<ExplorerState>();
     let mut form = use_signal(RunForm::default);
-    let mut busy = use_signal(|| false);
+    let mut busy = state.busy;
     // A fresh poll when the tab opens (the shell's loop may be sleeping).
     use_hook(|| state.refresh(&studio));
     let polled = state.polled.read();
@@ -166,7 +153,7 @@ pub fn Explorer() -> Element {
             busy.set(true);
             let (slot, log) = (studio.explorer.clone(), studio.paths.explore_log.clone());
             let studio = studio.clone();
-            spawn(async move {
+            spawn_forever(async move {
                 let _ = off_thread(move || slot.start(&args, &log)).await;
                 busy.set(false);
                 state.refresh(&studio);
@@ -179,7 +166,7 @@ pub fn Explorer() -> Element {
             busy.set(true);
             let slot: RunSlot = studio.explorer.clone();
             let studio = studio.clone();
-            spawn(async move {
+            spawn_forever(async move {
                 let _ = off_thread(move || slot.stop()).await;
                 busy.set(false);
                 state.refresh(&studio);
@@ -350,9 +337,9 @@ fn Finding(row: FindingRow, this_build: BuildHash) -> Element {
             note.set(Some(Ok(
                 "exporting (cargo run -p explore --release -- export)…".into(),
             )));
-            let db = studio.paths.explore_db.clone();
+            let (db, kids) = (studio.paths.explore_db.clone(), studio.exports.clone());
             spawn(async move {
-                let r = off_thread(move || export_repro(id, &db)).await;
+                let r = off_thread(move || export_repro(&kids, id, &db)).await;
                 busy.set(false);
                 note.set(Some(match r {
                     Some(Ok(out)) => Ok(format!("exported: {out}")),
@@ -447,9 +434,10 @@ pub(crate) mod tests {
     #[component]
     fn Harness(polled: Polled) -> Element {
         use_context_provider(|| Signal::new(Tab::Explorer));
-        use_context_provider(|| ExplorerState {
-            polled: Signal::new(polled.clone()),
-            tick: Signal::new(0),
+        use_context_provider(|| {
+            let s = ExplorerState::empty();
+            s.polled.clone().set(polled.clone());
+            s
         });
         rsx! { Explorer {} }
     }
@@ -468,10 +456,7 @@ pub(crate) mod tests {
     }
 
     fn polled(p: Poll) -> Polled {
-        Polled {
-            poll: Some(p),
-            ..Polled::default()
-        }
+        next_poll(&Polled::default(), p, Instant::now()).0
     }
 
     #[test]
@@ -561,10 +546,7 @@ pub(crate) mod tests {
         let db = filled_db(&dir);
         let p = poll(&db, &RunSlot::default());
         let mut dom = VirtualDom::new(|| {
-            use_context_provider(|| ExplorerState {
-                polled: Signal::new(Polled::default()),
-                tick: Signal::new(0),
-            });
+            use_context_provider(ExplorerState::empty);
             rsx! {}
         });
         dom.rebuild_in_place();
@@ -584,7 +566,7 @@ pub(crate) mod tests {
             }
             state.apply(more, t0 + Duration::from_secs(4));
             assert_eq!(*state.tick.peek(), 2);
-            assert_eq!(state.polled.peek().rate, Some(5.0));
+            assert_eq!(state.polled.peek().rate, Some(2.5), "10 nodes over 4 s");
         });
         let _ = std::fs::remove_dir_all(dir);
     }

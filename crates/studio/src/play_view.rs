@@ -134,11 +134,12 @@ pub fn load_cmds(id: CheckpointId, run: RunMode) -> Vec<NativeCmd> {
     cmds
 }
 
-/// "Open at…": seek `frames` into the node's trace, paused there.
+/// "Open at…": pause, then seek `frames` into the node's trace (paused first, so no tick
+/// runs past the frame in between).
 pub fn open_at_cmds(id: CheckpointId, frames: u32) -> [NativeCmd; 2] {
     [
-        NativeCmd::Seek { id, frames },
         NativeCmd::Mode(RunMode::Pause),
+        NativeCmd::Seek { id, frames },
     ]
 }
 
@@ -275,8 +276,8 @@ mod tests {
         assert!(matches!(
             open_at_cmds(id, 7),
             [
-                NativeCmd::Seek { id: i, frames: 7 },
-                NativeCmd::Mode(RunMode::Pause)
+                NativeCmd::Mode(RunMode::Pause),
+                NativeCmd::Seek { id: i, frames: 7 }
             ] if i == id
         ));
     }

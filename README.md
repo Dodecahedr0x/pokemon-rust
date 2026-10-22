@@ -133,18 +133,21 @@ the explorer it starts writes `target/explore/`.
 - **Map** and **Data**: the read-only map view with its overlays, and the species, moves,
   trainers, encounters and texts tables. The map's "coverage" layer shades each cell the
   explorer stood on by its hits (1, 2-9, 10-99, 100+, as `explore coverage` prints them),
-  read from the explorer db for the shown map, and again every couple of seconds while a run
-  is going.
+  read from the explorer db for the shown map, and again every couple of seconds while the db
+  changes (a run from the studio or from `cargo xtask explore run`).
 - **Explorer**: starts and stops `explore run` (`cargo run -p explore --release`, logging to
   `target/studio/explore.log`) with a budget in generations, seconds or nodes, an optional
-  seed and thread count; the run keeps going when you leave the tab and stops when the studio
-  closes. A failed run (a build error, a panic) shows the log's tail. Every 2 s the tab reads
-  `target/explore/<flavor>/explore.db` read-only (also a db written by `cargo xtask explore
-  run`): nodes, nodes/s, the goals reached by name, maps, cells and findings. The findings
+  seed and thread count. The run keeps going when you leave the tab; quitting the studio
+  (closing the window or Cmd+Q) stops it, and any export in flight. The state line says
+  "building explore…" while cargo compiles, and a failed run (a build error, a panic) shows
+  the log's tail. Every 2 s the tab reads `target/explore/<flavor>/explore.db` read-only (also
+  a db written by `cargo xtask explore run`): nodes, nodes/s (averaged over the last 5 polls),
+  the goals reached by name, maps, cells and findings. The findings
   table (open first, then by hits) gives kind, map, cell, message, hits, status, and "found
   on another build" when the finding's build is not this one. Per finding: "Open at frame
   before" (120 by default) replays it into the native pane, paused that many frames before
-  its last frame, and shows the Play tab (F5 from there saves a local node with a NewGame
+  its last frame, and shows the Play tab (the inspector's "last" repeats the other-build
+  warning) (F5 from there saves a local node with a NewGame
   parent); "Export repro" runs `explore export <id>` (a NewGame trace under
   `target/explore/<flavor>/repro/`); "Copy repro command" copies `cargo xtask explore repro
   <id>`.

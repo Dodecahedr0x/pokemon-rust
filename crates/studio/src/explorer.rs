@@ -27,7 +27,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The frames "Open at frame before" goes back from a finding's last frame by default.
 pub const OPEN_BEFORE: u32 = 120;
@@ -412,6 +412,8 @@ pub enum RunState {
     /// Never started in this studio.
     #[default]
     Idle,
+    /// Cargo is building `explore` (the log's last line starts with `Compiling`).
+    Building,
     Running,
     /// Ended with status 0 (its budget is spent).
     Finished,
@@ -428,8 +430,9 @@ pub enum RunState {
 }
 
 impl RunState {
+    /// Running, the build included.
     pub fn running(&self) -> bool {
-        *self == RunState::Running
+        matches!(self, RunState::Running | RunState::Building)
     }
 }
 
@@ -437,6 +440,7 @@ impl RunState {
 pub fn run_state_text(s: &RunState) -> String {
     match s {
         RunState::Idle => "not running".into(),
+        RunState::Building => "building explore…".into(),
         RunState::Running => "running (cargo run -p explore --release)".into(),
         RunState::Finished => "finished".into(),
         RunState::Stopped => "stopped".into(),
@@ -455,6 +459,15 @@ pub fn log_tail(text: &str, n: usize) -> Vec<String> {
         .iter()
         .map(|l| l.to_string())
         .collect()
+}
+
+/// Whether a running `cargo run`'s log says it is still building: its last line starts with
+/// `Compiling` (cargo indents its status lines).
+pub fn building(log: &str) -> bool {
+    log.lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .is_some_and(|l| l.trim_start().starts_with("Compiling"))
 }
 
 /// An exit status as text: `exit code N` or `killed by a signal`.
@@ -542,22 +555,29 @@ impl RunSlot {
                 return RunState::Idle;
             };
             if p.running() {
-                return RunState::Running;
-            }
-            if stopped {
+                (None, p.log().to_path_buf())
+            } else if stopped {
                 return RunState::Stopped;
+            } else {
+                let st = p.exit_status();
+                if st.is_some_and(|st| st.success()) {
+                    return RunState::Finished;
+                }
+                (Some(status_text(st)), p.log().to_path_buf())
             }
-            let st = p.exit_status();
-            if st.is_some_and(|st| st.success()) {
-                return RunState::Finished;
-            }
-            (status_text(st), p.log().to_path_buf())
         };
-        let text = std::fs::read_to_string(&log)
-            .unwrap_or_else(|e| format!("(reading {}: {e})", log.display()));
-        RunState::Failed {
-            status,
-            tail: log_tail(&text, LOG_TAIL),
+        // Read outside the lock.
+        let text = std::fs::read_to_string(&log);
+        match status {
+            None if text.as_deref().is_ok_and(building) => RunState::Building,
+            None => RunState::Running,
+            Some(status) => RunState::Failed {
+                status,
+                tail: log_tail(
+                    &text.unwrap_or_else(|e| format!("(reading {}: {e})", log.display())),
+                    LOG_TAIL,
+                ),
+            },
         }
     }
 }
@@ -577,6 +597,62 @@ pub fn poll(db: &Path, run: &RunSlot) -> Poll {
         run: run.state(),
         build: build_hash(&content::Emerald::for_shells()),
     }
+}
+
+/// The Explorer tab's last poll, with the node rate averaged over the last [`RATE_POLLS`]
+/// polls ([`next_poll`]).
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Polled {
+    /// `None` until the first poll.
+    pub poll: Option<Poll>,
+    pub rate: Option<f64>,
+    /// `(when, nodes)` of the recent polls that read the db, oldest first.
+    samples: Vec<(Instant, u64)>,
+}
+
+impl Polled {
+    pub fn running(&self) -> bool {
+        self.poll.as_ref().is_some_and(|p| p.run.running())
+    }
+}
+
+/// Polls the node rate is averaged over.
+pub const RATE_POLLS: usize = 5;
+
+/// `prev` updated with poll `p` taken at `at`, and whether the db's totals changed (the Map
+/// tab's coverage then reads the db again). The rate is the nodes added per second over the
+/// last [`RATE_POLLS`] polls; the window restarts when the db cannot be read or its node count
+/// goes down (a reset db).
+pub fn next_poll(prev: &Polled, p: Poll, at: Instant) -> (Polled, bool) {
+    let stats = |p: Option<&Poll>| {
+        p.and_then(|p| p.model.as_ref().ok())
+            .map(|m| m.stats.clone())
+    };
+    let (before, now) = (stats(prev.poll.as_ref()), stats(Some(&p)));
+    let changed = before != now;
+    let mut samples = prev.samples.clone();
+    match &now {
+        Some(n) if samples.last().is_none_or(|&(_, last)| n.nodes >= last) => {
+            samples.push((at, n.nodes));
+            if samples.len() > RATE_POLLS + 1 {
+                samples.remove(0);
+            }
+        }
+        Some(n) => samples = vec![(at, n.nodes)],
+        None => samples.clear(),
+    }
+    let rate = match (samples.first(), samples.last()) {
+        (Some(&(t0, n0)), Some(&(t1, n1))) if samples.len() > 1 => {
+            nodes_per_sec(n0, n1, t1.saturating_duration_since(t0))
+        }
+        _ => None,
+    };
+    let next = Polled {
+        poll: Some(p),
+        rate,
+        samples,
+    };
+    (next, changed)
 }
 
 /// Nodes per second between two polls; `None` without time between them or when the count
@@ -667,24 +743,39 @@ pub fn finding_cells(f: &FindingRow, build: BuildHash) -> FindingCells {
     }
 }
 
-/// "Open at frame before": open the finding's trace at its frame in the native pane, paused
-/// there. The UI then shows the Play tab and focuses the native pane.
-pub fn open_finding_cmds(ft: FindingTrace) -> [NativeCmd; 2] {
-    [
+/// "Open at frame before": pause, then open the finding's trace at its frame in the native
+/// pane (paused first, so no tick runs past the frame in between), then, for a finding from
+/// another build, a note in the inspector's `last` ([`stale_note`]). The UI then shows the
+/// Play tab and focuses the native pane.
+pub fn open_finding_cmds(ft: FindingTrace) -> Vec<NativeCmd> {
+    let note = stale_note(&ft);
+    let mut cmds = vec![
+        NativeCmd::Mode(RunMode::Pause),
         NativeCmd::OpenTrace {
             trace: ft.trace,
             frames: ft.frames,
         },
-        NativeCmd::Mode(RunMode::Pause),
-    ]
+    ];
+    cmds.extend(note.map(NativeCmd::Note));
+    cmds
+}
+
+/// The warning for a finding found on another build, `None` for one from this build.
+pub fn stale_note(ft: &FindingTrace) -> Option<String> {
+    ft.stale.then(|| {
+        format!(
+            "finding {}: {OTHER_BUILD}, the replay may not reach it",
+            ft.row.id
+        )
+    })
 }
 
 /// The note shown after opening a finding: where it opened, and a warning when it was found
 /// on another build.
 pub fn opened_text(ft: &FindingTrace) -> String {
     let mut s = format!("opened at frame {} of {}", ft.frames, ft.trace.frames());
-    if ft.stale {
-        s.push_str(&format!(" ({OTHER_BUILD}: the replay may not reach it)"));
+    if let Some(n) = stale_note(ft) {
+        s.push_str(&format!(" ({n})"));
     }
     s
 }
@@ -719,18 +810,96 @@ pub fn export_outcome(success: bool, stdout: &str, stderr: &str) -> Result<Strin
     }
 }
 
-/// Runs `explore export <id> --db P` through cargo and waits for it (blocking: off the UI
-/// thread).
-pub fn export_repro(id: i64, db: &Path) -> Result<String, String> {
-    let out = explore_command(&export_args(id, db))
-        .stdin(Stdio::null())
-        .output()
+/// Runs `explore export <id> --db P` through cargo in `children` and waits for it (blocking:
+/// off the UI thread).
+pub fn export_repro(children: &Children, id: i64, db: &Path) -> Result<String, String> {
+    let (status, out, err) = children
+        .output(explore_command(&export_args(id, db)))
         .map_err(|e| format!("starting cargo: {e}"))?;
-    export_outcome(
-        out.status.success(),
-        &String::from_utf8_lossy(&out.stdout),
-        &String::from_utf8_lossy(&out.stderr),
-    )
+    export_outcome(status.is_some_and(|s| s.success()), &out, &err)
+}
+
+type ChildList = (u64, Vec<(u64, Child)>);
+
+/// Short-lived child processes the studio waits on (exports), each in its own process group,
+/// so that [`Children::stop_all`] (at quit) ends them with what they started.
+#[derive(Clone, Default)]
+pub struct Children(Arc<Mutex<ChildList>>);
+
+impl Children {
+    fn lock(&self) -> std::sync::MutexGuard<'_, ChildList> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Runs `cmd` (no stdin, its own process group) to its end: its status (`None` when it
+    /// could not be waited on, or was ended by [`stop_all`](Self::stop_all)), stdout and
+    /// stderr.
+    pub fn output(&self, mut cmd: Command) -> io::Result<(Option<ExitStatus>, String, String)> {
+        crate::proc::new_group(&mut cmd);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = cmd.spawn()?;
+        fn read(r: Option<impl io::Read + Send + 'static>) -> std::thread::JoinHandle<String> {
+            std::thread::spawn(move || {
+                let mut s = Vec::new();
+                if let Some(mut r) = r {
+                    let _ = r.read_to_end(&mut s);
+                }
+                String::from_utf8_lossy(&s).into_owned()
+            })
+        }
+        let out = read(child.stdout.take());
+        let err = read(child.stderr.take());
+        let key = {
+            let mut g = self.lock();
+            g.0 += 1;
+            let key = g.0;
+            g.1.push((key, child));
+            key
+        };
+        let status = loop {
+            {
+                let mut g = self.lock();
+                let Some(i) = g.1.iter().position(|(k, _)| *k == key) else {
+                    break None; // stopped
+                };
+                match g.1[i].1.try_wait() {
+                    Ok(None) => {}
+                    Ok(Some(st)) => {
+                        g.1.remove(i);
+                        break Some(st);
+                    }
+                    Err(_) => {
+                        g.1.remove(i);
+                        break None;
+                    }
+                }
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        let out = out.join().unwrap_or_default();
+        let err = err.join().unwrap_or_default();
+        Ok((status, out, err))
+    }
+
+    /// Kills every running child's process group and reaps it.
+    pub fn stop_all(&self) {
+        let running = std::mem::take(&mut self.lock().1);
+        for (_, mut c) in running {
+            crate::proc::kill_group(&mut c);
+            let _ = c.wait();
+        }
+    }
+
+    /// How many children run.
+    pub fn len(&self) -> usize {
+        self.lock().1.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 #[cfg(test)]
@@ -1045,11 +1214,28 @@ mod tests {
             stale: true,
         };
         assert!(opened_text(&ft).contains(OTHER_BUILD));
-        assert!(matches!(
-            open_finding_cmds(ft),
+        let note = stale_note(&ft).unwrap();
+        assert!(
+            note.contains(OTHER_BUILD) && note.contains("finding 3"),
+            "{note}"
+        );
+        // Paused first, then opened, then the stale-build note for the inspector.
+        match &open_finding_cmds(ft.clone())[..] {
             [
+                NativeCmd::Mode(RunMode::Pause),
                 NativeCmd::OpenTrace { frames: 0, .. },
-                NativeCmd::Mode(RunMode::Pause)
+                NativeCmd::Note(n),
+            ] => assert_eq!(*n, note),
+            c => panic!("{} commands", c.len()),
+        }
+        let fresh = FindingTrace { stale: false, ..ft };
+        assert_eq!(stale_note(&fresh), None);
+        assert!(!opened_text(&fresh).contains(OTHER_BUILD));
+        assert!(matches!(
+            open_finding_cmds(fresh)[..],
+            [
+                NativeCmd::Mode(RunMode::Pause),
+                NativeCmd::OpenTrace { frames: 0, .. }
             ]
         ));
         assert_eq!(repro_command(42), "cargo xtask explore repro 42");
@@ -1069,6 +1255,113 @@ mod tests {
         assert_eq!(log_tail("a\nb\nc", 2), ["b", "c"]);
         assert_eq!(log_tail("a", 5), ["a"]);
         assert!(log_tail("", 5).is_empty());
+    }
+
+    fn poll_of(nodes: Option<u64>, cells: u64) -> Poll {
+        Poll {
+            model: match nodes {
+                Some(nodes) => Ok(ExplorerModel {
+                    stats: DbStats {
+                        nodes,
+                        cells,
+                        ..DbStats::default()
+                    },
+                    findings: Vec::new(),
+                }),
+                None => Err("no explorer db".into()),
+            },
+            run: RunState::Idle,
+            build: BuildHash::default(),
+        }
+    }
+
+    #[test]
+    fn next_poll_averages_the_rate_and_flags_changed_totals() {
+        let t0 = Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let (p, changed) = next_poll(&Polled::default(), poll_of(None, 0), at(0));
+        assert!(!changed, "no db before or after");
+        assert_eq!(p.rate, None);
+        let (p, changed) = next_poll(&p, poll_of(Some(0), 0), at(2));
+        assert!(changed, "the db appeared");
+        assert_eq!(p.rate, None, "one sample");
+        // A generation commits every other poll: the average smooths the bursts.
+        let (p, _) = next_poll(&p, poll_of(Some(40), 1), at(4));
+        assert_eq!(p.rate, Some(20.0));
+        let (p, changed) = next_poll(&p, poll_of(Some(40), 1), at(6));
+        assert!(!changed, "same totals");
+        assert_eq!(p.rate, Some(10.0), "40 nodes over 4 s");
+        let mut q = p;
+        for (i, n) in [80, 80, 120, 120, 160].into_iter().enumerate() {
+            q = next_poll(&q, poll_of(Some(n), 1), at(8 + 2 * i as u64)).0;
+        }
+        // The window keeps the last RATE_POLLS intervals: from t=6 (40) to t=16 (160).
+        assert_eq!(q.samples.len(), RATE_POLLS + 1);
+        assert_eq!(q.rate, Some((160.0 - 40.0) / 10.0));
+        // A reset db restarts the window; an unreadable db clears it.
+        let (r, changed) = next_poll(&q, poll_of(Some(5), 1), at(30));
+        assert!(changed);
+        assert_eq!((r.rate, r.samples.len()), (None, 1));
+        let (r, changed) = next_poll(&r, poll_of(None, 0), at(32));
+        assert!(changed);
+        assert_eq!((r.rate, r.samples.len()), (None, 0));
+        assert!(!r.running());
+        assert!(r.poll.is_some());
+    }
+
+    #[test]
+    fn the_build_shows_in_the_log() {
+        assert!(building("   Compiling explore v0.1.0 (/x)\n"));
+        assert!(building(
+            "   Compiling content v0.1.0\n   Compiling explore\n\n"
+        ));
+        assert!(!building(
+            "   Compiling explore\n    Finished `release`\n     Running `x`\n"
+        ));
+        assert!(!building("gen 10 nodes 300\n"));
+        assert!(!building(""));
+        assert_eq!(run_state_text(&RunState::Building), "building explore…");
+        assert!(RunState::Building.running() && RunState::Running.running());
+        assert!(!RunState::Finished.running());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn children_report_their_output_and_stop_all_ends_them() {
+        let kids = Children::default();
+        let mut c = Command::new("sh");
+        c.args(["-c", "echo out; echo err >&2; exit 2"]);
+        let (st, out, err) = kids.output(c).unwrap();
+        assert_eq!(st.and_then(|s| s.code()), Some(2));
+        assert_eq!((out.as_str(), err.as_str()), ("out\n", "err\n"));
+        assert!(kids.is_empty());
+
+        // A long child (with a grandchild) is ended by stop_all from another thread.
+        let k2 = kids.clone();
+        let t = std::thread::spawn(move || {
+            let mut c = Command::new("sh");
+            c.args(["-c", "sleep 30 & echo $!; wait"]);
+            k2.output(c).unwrap()
+        });
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while kids.is_empty() {
+            assert!(std::time::Instant::now() < deadline, "never started");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        std::thread::sleep(Duration::from_millis(100)); // the grandchild starts
+        kids.stop_all();
+        let (st, out, _) = t.join().unwrap();
+        assert_eq!(st, None, "stopped");
+        assert!(kids.is_empty());
+        let grandchild: i32 = out.trim().parse().unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while crate::proc::alive(grandchild) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the grandchild survived"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     #[cfg(unix)]
@@ -1100,6 +1393,16 @@ mod tests {
         slot.start_with(|| sh("true")).unwrap();
         wait_end(&slot);
         assert_eq!(slot.state(), RunState::Finished);
+
+        slot.start_with(|| sh("echo '   Compiling explore v0.1.0'; sleep 30"))
+            .unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while slot.state() != RunState::Building {
+            assert!(std::time::Instant::now() < deadline, "{:?}", slot.state());
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        slot.stop();
+        assert_eq!(slot.state(), RunState::Stopped);
 
         slot.start_with(|| sh("echo one; echo two >&2; exit 3"))
             .unwrap();

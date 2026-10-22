@@ -273,11 +273,16 @@ const LAYERS: [(Layer, &str, bool); N_LAYERS] = [
     (Layer::Coverage, "coverage", false),
 ];
 
-fn layer_on(layers: [bool; N_LAYERS], l: Layer) -> bool {
+/// `l`'s position in [`LAYERS`] (every layer is listed).
+fn layer_index(l: Layer) -> usize {
     LAYERS
         .iter()
         .position(|x| x.0 == l)
-        .is_some_and(|i| layers[i])
+        .expect("every layer is in LAYERS")
+}
+
+fn layer_on(layers: [bool; N_LAYERS], l: Layer) -> bool {
+    layers[layer_index(l)]
 }
 
 fn layer_of(o: &Overlay) -> Layer {
@@ -378,14 +383,30 @@ pub fn Map(
     let mut zoom = use_signal(|| 2i32);
     let mut layers = use_signal(|| {
         let mut on = LAYERS.map(|l| l.2);
-        on[N_LAYERS - 1] = coverage;
+        on[layer_index(Layer::Coverage)] = coverage;
         on
     });
     let mut loaded = use_signal(|| 0u64);
     let requested = use_hook(|| Rc::new(Cell::new(None::<MapId>)));
     let mut heat = use_signal(|| None::<CoverageView>);
     let heat_requested = use_hook(|| Rc::new(Cell::new(None::<(MapId, u64)>)));
-    let tick = try_use_context::<ExplorerState>().map(|s| s.tick);
+    let explorer = try_use_context::<ExplorerState>();
+    let tick = explorer.map(|s| s.tick);
+    // Tell the shell's explorer poll whether the coverage layer is shown (it then polls, so a
+    // run started from the CLI refreshes the layer too).
+    use_effect(move || {
+        let on = layer_on(layers(), Layer::Coverage);
+        if let Some(mut s) = explorer
+            && *s.coverage.peek() != on
+        {
+            s.coverage.set(on);
+        }
+    });
+    use_drop(move || {
+        if let Some(mut s) = explorer {
+            s.coverage.set(false);
+        }
+    });
 
     let shown = shown_map(selected(), follow(), live);
     let _ = loaded();
@@ -403,14 +424,19 @@ pub fn Map(
         follow.set(false);
         selected.set(m);
     };
-    // The coverage layer: read again when the map changes or the explorer db did.
+    // The coverage layer: read again when the map changes or the explorer db did. Only the
+    // latest request's answer is kept, so an older read that ends last (another map, or an
+    // earlier tick) never replaces a newer one.
     let coverage_on = layer_on(layers(), Layer::Coverage);
     if let (true, Some(db)) = (coverage_on, coverage_db) {
         let key = (shown, tick.map_or(0, |t| t()));
         if heat_requested.get() != Some(key) {
             heat_requested.set(Some(key));
+            let latest = heat_requested.clone();
             spawn(async move {
-                if let Some(v) = off_thread(move || load_coverage(&db, shown)).await {
+                if let Some(v) = off_thread(move || load_coverage(&db, shown)).await
+                    && latest.get() == Some(key)
+                {
                     heat.set(Some(v));
                 }
             });

@@ -1811,3 +1811,35 @@ Master's digests (`0x4309279c8e23c2e1` real, `0x51be88a0fa670e1b` stub) no longe
 - A run started from the studio survives a quit that skips destructors (Cmd+Q may `exit` without dropping the VirtualDom). If that matters, kill the slot's group from a quit hook (tao `RunEvent::ExitRequested`, or an `atexit` in `proc.rs`).
 - nodes/s is per poll and the db commits once per generation, so the rate jumps between 0 and a burst; a moving average over the last few polls would read better.
 - The explore release build on a first Start or Export takes minutes; the tab shows "running" during it and a failed build's tail afterwards. Export waits on cargo's build lock while a run builds.
+
+**S2 review fixes (after merging master with Task H):**
+- **I1. Quit stops the run.**
+  - New: `ui::on_quit(run: RunSlot, exports: Children)`, a handler that matches tao's `Event::LoopDestroyed`, then stops the run and kills every export.
+  - `launch` installs it with `Config::with_custom_event_handler`.
+  - Why: tao sends `LoopDestroyed` on every quit, Cmd+Q included. It then exits the process without dropping the loop's closure, so `Studio`'s drop never runs. Without the handler, the `explore` process group outlived the studio, and a second run gave two writers on one db.
+  - Test: `ui::tests::quitting_stops_the_explorer_run` checks that a `sh` run and a `sleep` export survive `NewEvents(Init)` and are stopped by `LoopDestroyed`.
+  - The README now says quitting (window close or Cmd+Q) stops the run and any export.
+- **I2. Coverage race.** The Map tab keeps a coverage read only if it is still the latest request (`(shown map, tick)` still equals `heat_requested`). An older read that finishes last, for another map or an earlier tick, is dropped.
+  - Kept the render-time `spawn` with this guard rather than `use_resource`: the key is computed during render next to the map cache's own request, which keeps the existing pattern.
+  - No test: the ordering of two worker threads cannot be forced from an ssr test without a seam in `load_coverage`.
+- **M1.** `NativeCmd::Note(String)` adds a line after the inspector's `last`. When `ft.stale` is set, `open_finding_cmds` ends with `Note(stale_note(ft))`, so "found on another build" shows on the Play tab next to the replay's own note (for example "diverged on this build"). Test: `tests/native.rs::a_note_goes_after_the_last_line`.
+- **M2.** Both `open_finding_cmds` and `play_view::open_at_cmds` now send `Mode(Pause)` first, then `OpenTrace`/`Seek`. Their tests are updated.
+- **M3.** Start and Stop finish in `spawn_forever` tasks. `busy` moved into `ExplorerState`, which the shell owns, so a task never writes a signal of an unmounted tab.
+- **M4.** `layer_index(Layer)` looks the coverage toggle up by position in `LAYERS`.
+- **M5.** `ExplorerState::coverage`: the Map tab sets it while its coverage layer is on (`use_effect`) and clears it on unmount (`use_drop`). The shell also polls while the Map tab shows coverage, so a run started from the CLI refreshes the layer.
+- **M6.** `explorer::Children`: short-lived children, each in its own process group, with `output(cmd) -> (Option<ExitStatus>, stdout, stderr)` and `stop_all`. `export_repro(&Children, id, db)` runs in `Studio::exports`, and `on_quit` stops them. Test: output and status, plus `stop_all` from another thread killing a grandchild.
+- **M7.** `Polled` moved to the core.
+  - New: `explorer::next_poll(&Polled, Poll, Instant) -> (Polled, changed)`, unit-tested.
+  - `ExplorerState::apply` only stores the result and bumps `tick` when `changed`.
+- **M8.**
+  - The rate is averaged over the last `RATE_POLLS = 5` polls. The window restarts on a reset db and clears when the db cannot be read.
+  - New: `RunState::Building` (`running()` is true for it), chosen when the log's last non-empty line starts with `Compiling` (`explorer::building`). It reads "building explore…".
+  - Tests: `building`, a slot whose `sh` prints a `Compiling` line, and `next_poll`.
+
+**Gates (review fixes):**
+- `cargo fmt --all --check`, and both clippy runs with `-D warnings`.
+- `cargo test --workspace`, real: 62 suites, 1066 passed, 11 ignored.
+- `cargo test --workspace`, stub: 62 suites, 1056 passed, 11 ignored.
+- `cargo test -p studio --features ui`: 98 lib tests.
+- `cargo xtask studio --check`.
+- `cargo xtask studio --smoke 8`: see the review-fix report. During this session the transport panes ran at about 34 fps with or without the quit handler (load average about 9 to 12, another process at 100% CPU), against 60.0 / 60.0 fps on the first S2 run.
