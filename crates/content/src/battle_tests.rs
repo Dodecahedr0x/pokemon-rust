@@ -321,6 +321,24 @@ fn every_trainer_resolves() {
     assert!(Emerald.trainer(TrainerId(0)).is_none());
 }
 
+/// Format 5.1 extracts (Task A) carry trainer money and evolutions; older ones neither.
+#[test]
+fn trainer_money_and_evolutions_when_extracted() {
+    for &id in &battle::TRAINER_IDS {
+        assert_eq!(
+            Emerald.trainer_money(id).is_some(),
+            !battle::TRAINER_MONEY.is_empty(),
+            "{id:?}"
+        );
+    }
+    let t = Emerald.battle();
+    for s in 0..t.species.len() as u16 {
+        for e in Emerald.evolutions(engine::data::SpeciesId(s)) {
+            assert!((e.target.0 as usize) < t.species.len());
+        }
+    }
+}
+
 #[test]
 fn the_player_back_pic_has_whole_frames() {
     let p = &Emerald.battle_gfx().player_back;

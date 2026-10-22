@@ -11,8 +11,9 @@ extern crate alloc;
 
 use engine::battle::{BattleGfx, Str};
 use engine::data::{
-    Behavior, Dir, FlagId, Font, GameData, GfxId, MapData, MapId, NewGame, ScriptId, SpecialIds,
-    SpriteData, TextId, TrainerId, UiText, WindowGfx,
+    Behavior, Dir, Emote, Evolution, FlagId, Font, GameData, GfxId, ItemId, ItemInfo, MapData,
+    MapId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText,
+    WindowGfx,
 };
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
 use engine::script::{Ctx, Script};
@@ -32,14 +33,17 @@ pub mod consts {
     include!(concat!(env!("OUT_DIR"), "/consts.rs"));
 }
 
-/// Battle tables (`TABLES`), trainers, encounters, heal locations, battle strings and
-/// graphics (`GFX`), and the slice (`STARTERS`, `SLICE_SPECIES`, `SLICE_MOVES`).
+/// Battle tables (`TABLES`), trainers, encounters (every wild header), evolutions, trainer
+/// money, heal locations, battle strings and graphics (`GFX`, with every species and trainer
+/// pic the extract has), the starters and `SUMMARY`.
 #[allow(non_upper_case_globals, dead_code, clippy::all)]
 pub mod battle {
     include!(concat!(env!("OUT_DIR"), "/battle.rs"));
 }
 
-/// Static tables: tilesets (`TS_*`), maps (`M_*`), sprites (`S_*`), font, window, texts.
+/// Static tables: tilesets (`TS_*`), maps (`M_*`), sprites (`S_*`), font, window, texts, items,
+/// multichoice lists, std strings, map sections and emotes; their bulk data is in the `DATA`
+/// blob.
 #[allow(non_upper_case_globals, non_snake_case, dead_code, clippy::all)]
 pub mod data {
     include!(concat!(env!("OUT_DIR"), "/data.rs"));
@@ -154,8 +158,8 @@ impl GameData for Emerald {
             // `InsideOfTruck_EventScript_SetIntroFlagsMale`.
             respawn_default: consts::HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
-            // `EventScript_WhiteOut` (Milestone 8 Task G).
-            script_whiteout: None,
+            // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
+            script_whiteout: data::SCRIPT_WHITEOUT,
         }
     }
 
@@ -219,6 +223,10 @@ impl GameData for Emerald {
         battle::encounters(map.0)
     }
 
+    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+        battle::wild_encounters(map.0, wild_set)
+    }
+
     fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
         battle::trainer(id.0)
     }
@@ -237,6 +245,31 @@ impl GameData for Emerald {
 
     fn build_id(&self) -> u64 {
         BUILD_ID
+    }
+
+    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
+        data::ITEMS.get(id.0 as usize)?.as_ref()
+    }
+
+    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+        data::multichoice(list)
+    }
+
+    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+        data::std_string(id)
+    }
+
+    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
+        data::emote(e)
+    }
+
+    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
+        battle::trainer(id.0)?;
+        battle::TRAINER_MONEY.get(id.0 as usize).copied()
+    }
+
+    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
+        battle::evolutions(species.0)
     }
 }
 

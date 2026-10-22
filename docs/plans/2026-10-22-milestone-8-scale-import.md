@@ -392,7 +392,7 @@ Wave 0 makes no feature work. It does five things:
 - **Hash and checkpoint discipline:**
   - Wave 0 changes the hashed state once.
   - **Route-neutral tasks** (A, B, C, D1, E, K) merge first. Each must verify as `valid` or `valid (rehash)` on both trees **without `--accept`**. Their `BUILD_ID` refreshes are batched into one `chore(checkpoints): refresh build ids after A–E, K` commit on master.
-  - **Route-changing tasks** merge one at a time, in this order: **D2 → H → J → I → G → F** (D2: lowering semantics such as `cond` and end-in-callee; H: `STR_VAR` expansion in the lab's texts; J: specials such as the clock fade; I: sight; G: battles; F: warp-load and crossing timing).
+  - **Route-changing tasks** merge one at a time, in this order: **D2 → H → J → F → I → G** (revised after the Wave 1 reviews: F cuts the route loop from 215 to 181, which I (216/217 alone) and G need; F depends on none of I, G, H, J) (D2: lowering semantics such as `cond` and end-in-callee; H: `STR_VAR` expansion in the lab's texts; J: specials such as the clock fade; I: sight; G: battles; F: warp-load and crossing timing).
   - Route-changing branches **never commit tree or golden refreshes**. Each report includes a **route delta** note: which slice-route frames, goldens and nodes it expects to move, and why.
   - After each such merge, on master: re-accept both trees, update the golden constants it moved, run `cargo xtask parity`, and commit `chore(checkpoints): <task> <cause>`. The reviewer checks that the diff touches only build ids, hashes, digests and frame counts, and that the moved goldens match the route delta.
   - If the slice route's keys change, `cargo xtask checkpoints seed` re-records in the same chore commit.
@@ -539,6 +539,32 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
    - the slice's `data.rs` content is equal before and after the blob move: every map's blocks, tiles and texts compared through the `GameData` API against a snapshot taken by the test from the Wave 0 build, so the parity route hashes are unchanged;
    - a fixture dir with 2 maps sharing a tileset dedupes it in the blob;
    - stub mode unchanged.
+
+**Task E as built.**
+- **Full extract (Task A's 518 maps), native debug build of `content`.** Apple M4 Max, loaded machine, so the times are upper bounds.
+  - Data only (the full extract without `scripts/`): 3.6 s and 0.65 GB peak RSS. `data.rs` is 1.58 MB (it was 11.7 MB), `data.bin` 2.67 MB, `battle.rs` 1.1 MB, `battle.bin` 1.97 MB. The data acceptance (≤ 2 MB, ≤ 20 s, ≤ 2.5 GB) is met.
+  - Data plus the legacy scripts: 33.6–38.0 s and **4.50–4.56 GB, still over the 4 GB gate** (the spike measured 4.89 GB). The remaining ~3.9 GB is the 5.7 MB of legacy generated scripts. **Open: D2's lowering and L close it.**
+  - For L: the same build with `profile.dev.package.content.debug = "line-tables-only"` (workspace `Cargo.toml`, not E's) peaks at 4.00 GB.
+- **GBA release on the full extract:** 3 min 37 s wall (116 s user, on a loaded machine), 3.74 GB peak RSS, ROM 10,961,640 B.
+- **Slice ROM:** 3,481,496 B (from 1,761,240), because every species and trainer pic is now compiled (`content::battle` `.rodata` 2.05 MB). The ROM is not gated on the slice; IWRAM and EWRAM are unchanged (788 / 460). Parity: identical, route hash 63 / loop 215.
+- **Degradations, all in `content::REPORT`:**
+  - 5 moves with unworded stat effects are `MoveEffect::Unsupported`;
+  - 194 moves have unsupported effects, and 62 abilities are `Ability::Other`;
+  - a species without pics has `gfx: None`, and a trainer without a pic or party has no `TrainerData`;
+  - 217 behaviours are approximated (`classify::behavior_class`); `MB_UNUSED_*` count as exact;
+  - the approximated movement types are listed.
+- **Digests:**
+  - `MAP_DIGESTS` hash a map's inputs: its map file, its tilesets, and its connected maps' layouts and tilesets.
+  - `GLOBAL_DIGEST` hashes:
+    - the generator and every content source (`codegen::sources_digest`: non-test `src/`, `build/`, `build/support/*.ron`, `extract/src`);
+    - the battle module and blob, and the texts;
+    - C's tables and the emotes;
+    - the object sprites, font, window, UI texts and new-game start;
+    - the behaviour table.
+- **Follow-ups:**
+  - `SpeciesInfo.weight` waits for G (TODO in `build/battle.rs`);
+  - `classify::extra_move_flags` waits for G;
+  - J/H: in the find-item test, `VAR_RESULT` becomes 0.
 
 ### Task F — engine: field at scale
 
@@ -691,7 +717,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
 
 ## Wave 2a — integration (after the route-neutral Wave 1 tasks merge)
 
-Order: D2 (after B and D1), then the route-changing merges H → J → I → G1 → F (each followed by its `chore(checkpoints)` on master), then L.
+Order: D2 (after B and D1), then the route-changing merges H → J → F → I → G1 (each followed by its `chore(checkpoints)` on master; F and later need `checkpoints seed`, since `--accept` never re-baselines a Broken node), then L.
 
 ### Task D2 — content: the build swap (Wave 2a, after B and D1 merge)
 
