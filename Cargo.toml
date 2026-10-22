@@ -36,3 +36,8 @@ opt-level = 3
 
 [profile.release.build-override]
 opt-level = 3
+
+# The content crate holds every generated script (Milestone 8 Task D2): line tables only take
+# ~0.9 GB off its native debug build on the full import.
+[profile.dev.package.content]
+debug = "line-tables-only"

@@ -32,7 +32,10 @@ use crate::Tile;
 use crate::data::{Font, GameData, UiText, WindowGfx};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
+use crate::menu::{Choice, Multichoice};
+use crate::str_vars::StrVars;
 use crate::video::{BgControl, Cmd, Frame, MAP_SIZE, layout};
+use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -78,26 +81,34 @@ pub const LINE_HEIGHT: i16 = 16;
 const GLYPH_HEIGHT: i16 = 15;
 /// Printer origin inside a window (`AddTextPrinterParameterized2`: x 0, y 1).
 const TEXT_X: i16 = 0;
-const TEXT_Y: i16 = 1;
+pub(crate) const TEXT_Y: i16 = 1;
 /// Yes/no layout (`CreateYesNoMenu`, `InitMenuInUpperLeftCorner`, `sMenuCursorDimensions`).
-const YES_NO_TEXT_X: i16 = 8;
-const CURSOR_W: i16 = 8;
-const CURSOR_H: i16 = 15;
+pub(crate) const YES_NO_TEXT_X: i16 = 8;
+pub(crate) const CURSOR_W: i16 = 8;
+pub(crate) const CURSOR_H: i16 = 15;
 /// `▶` (`gText_SelectorArrow3`).
-const CHAR_CURSOR: u16 = 0xEF;
+pub(crate) const CHAR_CURSOR: u16 = 0xEF;
 
-const EOS: u8 = 0xFF;
-const NEWLINE: u8 = 0xFE;
+pub(crate) const EOS: u8 = 0xFF;
+pub(crate) const NEWLINE: u8 = 0xFE;
 const PLACEHOLDER: u8 = 0xFD;
 const EXT_CTRL: u8 = 0xFC;
 const PROMPT_CLEAR: u8 = 0xFB;
 const PROMPT_SCROLL: u8 = 0xFA;
-const EXTRA_SYMBOL: u8 = 0xF9;
+pub(crate) const EXTRA_SYMBOL: u8 = 0xF9;
 const KEYPAD_ICON: u8 = 0xF8;
 const DYNAMIC: u8 = 0xF7;
 
 const PLACEHOLDER_PLAYER: u8 = 0x01;
+/// `{STR_VAR_1}`; `{STR_VAR_2}` and `{STR_VAR_3}` follow.
+const PLACEHOLDER_STR_VAR_1: u8 = 0x02;
+const PLACEHOLDER_STR_VAR_3: u8 = 0x04;
 const PLACEHOLDER_RIVAL: u8 = 0x06;
+/// Gen3 `gStringVar4`'s size: an expansion keeps at most this many bytes, terminator included.
+pub const EXPANDED_MAX: usize = 1000;
+/// Placeholders inside expanded placeholders are expanded this deep (Gen3 recurses without
+/// bound, so a string var naming itself hangs it); deeper ones expand to nothing.
+const EXPAND_DEPTH: u8 = 3;
 
 const EXT_COLOR: u8 = 0x01;
 const EXT_HIGHLIGHT: u8 = 0x02;
@@ -124,26 +135,65 @@ pub(crate) fn unit_len(text: &[u8], i: usize) -> usize {
 }
 
 /// Copies `text` up to its 0xFF, expanding `{PLAYER}` to `player` (the World's name, up to its
-/// 0xFF) and `{RIVAL}`; other placeholders expand to nothing. The result always ends with 0xFF.
+/// 0xFF) and `{RIVAL}`; other placeholders, string vars included, expand to nothing. The result
+/// always ends with 0xFF. See [`expand_vars`].
 pub fn expand(game: &impl GameData, text: &[u8], player: &[u8]) -> Vec<u8> {
+    expand_vars(game, text, player, None)
+}
+
+/// Gen3 `StringExpandPlaceholders`: copies `text` up to its 0xFF, expanding `{PLAYER}` to
+/// `player`, `{RIVAL}`, and `{STR_VAR_1}`..`{STR_VAR_3}` to the string vars (when given), each
+/// expansion itself expanded (up to `EXPAND_DEPTH` deep). Other placeholders expand to nothing
+/// (`{KUN}` is empty in Emerald). The result keeps whole code units, at most [`EXPANDED_MAX`]
+/// bytes, and always ends with 0xFF.
+pub fn expand_vars(
+    game: &impl GameData,
+    text: &[u8],
+    player: &[u8],
+    vars: Option<&StrVars>,
+) -> Vec<u8> {
     let mut out = Vec::with_capacity(text.len() + 8);
+    expand_into(game, text, player, vars, 0, &mut out);
+    out.push(EOS);
+    out
+}
+
+/// Appends the expansion of `text` to `out`; whether `out` is full (a code unit did not fit in
+/// [`EXPANDED_MAX`]), after which nothing more is written at any depth: the text is cut at
+/// one point, never with later shorter units squeezed in.
+fn expand_into(
+    game: &impl GameData,
+    text: &[u8],
+    player: &[u8],
+    vars: Option<&StrVars>,
+    depth: u8,
+    out: &mut Vec<u8>,
+) -> bool {
     let mut i = 0;
     while i < text.len() && text[i] != EOS {
         let n = unit_len(text, i);
         if text[i] == PLACEHOLDER {
-            let name: &[u8] = match text.get(i + 1).copied() {
+            let sub: &[u8] = match text.get(i + 1).copied() {
                 Some(PLACEHOLDER_PLAYER) => player,
                 Some(PLACEHOLDER_RIVAL) => game.ui_text(UiText::RivalName),
+                Some(v @ PLACEHOLDER_STR_VAR_1..=PLACEHOLDER_STR_VAR_3) => {
+                    vars.map_or(&[], |s| &s.get((v - PLACEHOLDER_STR_VAR_1) as usize)[..])
+                }
                 _ => &[],
             };
-            out.extend(name.iter().take_while(|&&b| b != EOS));
+            if depth < EXPAND_DEPTH && expand_into(game, sub, player, vars, depth + 1, out) {
+                return true;
+            }
         } else {
-            out.extend_from_slice(&text[i..(i + n).min(text.len())]);
+            let unit = &text[i..(i + n).min(text.len())];
+            if out.len() + unit.len() >= EXPANDED_MAX {
+                return true;
+            }
+            out.extend_from_slice(unit);
         }
         i += n;
     }
-    out.push(EOS);
-    out
+    false
 }
 
 const fn frame_entry(tile: u16, vflip: bool) -> u16 {
@@ -246,6 +296,10 @@ pub struct TextBox {
     /// Cursor position (0 = yes) while the yes/no menu is shown.
     yes_no_cursor: Option<u8>,
     yes_no_result: Option<bool>,
+    /// The script multichoice while it is shown (Milestone 8).
+    menu: Option<Box<Multichoice>>,
+    /// The last multichoice answer, until the next `start_multichoice` or `close`.
+    menu_result: Option<u16>,
 }
 
 impl Default for TextBox {
@@ -268,6 +322,8 @@ impl TextBox {
             yes_no: Canvas::new(YES_NO_WINDOW, layout::TEXT_CHAR_BLOCK),
             yes_no_cursor: None,
             yes_no_result: None,
+            menu: None,
+            menu_result: None,
         }
     }
 
@@ -334,13 +390,26 @@ impl TextBox {
     }
 
     /// Clears the window and starts printing `text` (Gen3-encoded, 0xFF-terminated). Opens the
-    /// window first if needed. `{PLAYER}` prints `player`. The first character appears on the next
-    /// `update`.
+    /// window first if needed. `{PLAYER}` prints `player`; string vars print nothing (see
+    /// [`TextBox::print_vars`]). The first character appears on the next `update`.
     pub fn print(
         &mut self,
         game: &impl GameData,
         text: &'static [u8],
         player: &[u8],
+        f: &mut Frame,
+    ) {
+        self.print_vars(game, text, player, None, f);
+    }
+
+    /// [`TextBox::print`], with `{STR_VAR_1}`..`{STR_VAR_3}` printing `vars` (Gen3
+    /// `StringExpandPlaceholders` into `gStringVar4`, as `message` does).
+    pub fn print_vars(
+        &mut self,
+        game: &impl GameData,
+        text: &'static [u8],
+        player: &[u8],
+        vars: Option<&StrVars>,
         f: &mut Frame,
     ) {
         // Opening clears the canvas with the default colours already; it is flushed once below.
@@ -350,13 +419,23 @@ impl TextBox {
         }
         let colors = Colors::of(game.window());
         self.printer
-            .start(expand(game, text, player), colors, !cleared);
+            .start(expand_vars(game, text, player, vars), colors, !cleared);
         self.printer.flush(f);
     }
 
     /// Advances one frame. `pressed` = buttons newly pressed this frame, `held` = all held.
     pub fn update(&mut self, game: &impl GameData, pressed: Buttons, held: Buttons, f: &mut Frame) {
-        if self.yes_no_cursor.is_some() {
+        if let Some(menu) = &mut self.menu {
+            if let Choice::Done(answer) = menu.update(game, pressed, f) {
+                self.menu = None;
+                self.menu_result = Some(answer);
+            }
+            // A message started without `waitmessage` goes on printing under the menu, as
+            // Gen3's text printer and multichoice task both run.
+            if self.open {
+                self.printer.update(game.font(), pressed, held);
+            }
+        } else if self.yes_no_cursor.is_some() {
             self.update_yes_no(game, pressed, f);
         } else if self.open {
             self.printer.update(game.font(), pressed, held);
@@ -453,6 +532,35 @@ impl TextBox {
         self.yes_no_result
     }
 
+    /// Shows the script multichoice `menu` (laid out by [`Multichoice::new`]). Enables BG0 if
+    /// needed; the window is drawn by the following updates, the first one this frame.
+    pub fn start_multichoice(&mut self, game: &impl GameData, menu: Multichoice, f: &mut Frame) {
+        self.enable_bg(game.window(), f);
+        self.menu = Some(Box::new(menu));
+        self.menu_result = None;
+    }
+
+    /// True while a multichoice waits for a choice.
+    pub fn is_multichoice_active(&self) -> bool {
+        self.menu.is_some()
+    }
+
+    /// The open multichoice, if any.
+    pub fn multichoice(&self) -> Option<&Multichoice> {
+        self.menu.as_deref()
+    }
+
+    /// The last multichoice answer (an index or `MULTI_B_PRESSED`), until it is taken, the next
+    /// `start_multichoice` or `close`.
+    pub fn multichoice_result(&self) -> Option<u16> {
+        self.menu_result
+    }
+
+    /// Takes the last multichoice answer (the script has it; nothing of the menu remains).
+    pub fn take_multichoice_result(&mut self) -> Option<u16> {
+        self.menu_result.take()
+    }
+
     /// Clears BG0's map, disables it and forgets any message or menu.
     pub fn close(&mut self, f: &mut Frame) {
         f.cmds.push(Cmd::MapFill {
@@ -495,6 +603,16 @@ impl TextBox {
             self.yes_no_cursor.map_or(0xFF, |c| c),
             self.yes_no_result.map_or(0xFF, |r| r as u8),
         ]);
+        // Nothing while no multichoice was shown, so the hash of a world without one is the
+        // same as before multichoices existed.
+        if let Some(m) = &self.menu {
+            h.write(&[1]);
+            m.hash(h);
+        }
+        if let Some(r) = self.menu_result {
+            h.write(&[2]);
+            h.write_u16(r);
+        }
         // The canvases are not hashed: they follow from the state above.
     }
 }

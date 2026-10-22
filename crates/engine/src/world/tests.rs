@@ -1064,9 +1064,14 @@ fn events_report_map_entries_scripts_and_reports_for_one_step() {
         })
     });
     run(&mut w, Buttons::NONE, 1);
+    // The test game has no multichoice lists or items (Task H reports them).
     assert_eq!(
         w.events(),
-        &[Event::Report(Report::Unsupported("special Foo"))]
+        &[
+            Event::Report(Report::Unsupported("special Foo")),
+            Event::Report(Report::Degraded("multichoice: unknown list")),
+            Event::Report(Report::Degraded("additem: unknown item")),
+        ]
     );
     until_done(&mut w, 4);
     assert_eq!(w.var(VAR_RESULT), crate::script::MULTI_B_PRESSED);

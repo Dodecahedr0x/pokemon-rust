@@ -453,14 +453,15 @@ fn every_script_id_dispatches() {
     }
 }
 
-/// Only does something on the fixture of `tests/build_modes.rs`: its hand-written
-/// `StubTown_Obj1` runs through msgbox, a movement table, a label call, a cross-file call,
-/// special, callstd, unsupported and a warp.
+/// Only does something on the fixture of `tests/build_modes.rs`: its hand-written IR
+/// `StubTown_EventScript_Obj1`, lowered by the build, runs through msgbox, a movement table, a
+/// label call, a cross-module call, special, `checkplayergender`, `STD_OBTAIN_ITEM`, an
+/// unsupported command and a warp.
 #[test]
 fn fixture_script_runs_through_the_prelude() {
     let Some(id) = data::SCRIPT_NAMES
         .iter()
-        .position(|&n| n == "StubTown_Obj1")
+        .position(|&n| n == "StubTown_EventScript_Obj1")
     else {
         return;
     };
@@ -468,7 +469,7 @@ fn fixture_script_runs_through_the_prelude() {
     run(|ctx| Emerald.script(ScriptId(id as u16), ctx), &mut h);
     let text = |name| TextId(data::TEXT_NAMES.iter().position(|&n| n == name).unwrap() as u16);
     let log = &h.log;
-    assert_eq!(log[2], Request::Message(text("StubTown_Obj1_T0")));
+    assert_eq!(log[2], Request::Message(text("StubTown_Text_Hello")));
     assert!(
         log.iter()
             .any(|r| matches!(r, Request::Move { obj: 0xFF, steps } if steps.len() == 3))
@@ -477,28 +478,32 @@ fn fixture_script_runs_through_the_prelude() {
         consts::FLAG_HIDE_LITTLEROOT_TOWN_RIVAL,
         true
     )));
-    assert!(log.contains(&Request::Message(text("Other_Main_T0"))));
-    assert!(log.contains(&Request::Log("SPECIAL_HealPlayerParty")));
+    assert!(log.contains(&Request::Message(text("Other_Text_Bye"))));
     assert!(log.contains(&Request::HealParty));
-    assert!(log.contains(&Request::Log("STD_OBTAIN_ITEM")));
-    // checkplayergender: male; STD_FIND_ITEM removes the object talked to (VAR_LAST_TALKED,
-    // 0 for this host).
+    // checkplayergender: male.
     assert!(log.contains(&Request::SetVar(consts::VAR_RESULT, 0)));
-    assert!(log.contains(&Request::RemoveObject(0)));
-    assert!(log.contains(&Request::Log("playse")));
+    assert!(log.contains(&Request::ItemAdd {
+        item: engine::data::ItemId(consts::ITEM_POTION),
+        qty: 1
+    }));
     assert!(log.contains(&Request::Warp {
         map: consts::MAP_PETALBURG_CITY,
         warp: Some(0),
         x: 0,
         y: 0
     }));
-    assert_eq!(log.last(), Some(&Request::Log("FIXTURE SCRIPT DONE")));
+    assert_eq!(
+        log.last(),
+        Some(&Request::Report(engine::script::Report::Unsupported(
+            "pokemart"
+        )))
+    );
     let m = Emerald.map(Emerald.new_game().map);
     assert_eq!(m.objects[0].script, Some(ScriptId(id as u16)));
     assert_eq!(m.objects[0].hide_flag, Some(engine::data::FlagId(0x1AC)));
-    let t = Emerald.text(text("StubTown_Obj1_T0"));
+    let t = Emerald.text(text("StubTown_Text_Hello"));
     let (s, _) = extract::text::decode_lang(t, extract::text::Lang::Fr).unwrap();
-    assert_eq!(s, "BONJOUR {PLAYER}!\\nÇa va?");
+    assert_eq!(s, "HELLO {PLAYER}!\\nOK É?");
     std::println!("FIXTURE SCRIPT OK");
 }
 
@@ -562,7 +567,8 @@ fn std_find_item_removes_the_last_talked_object() {
     );
     assert!(h.log.contains(&Request::RemoveObject(4)));
     assert!(!h.log.iter().any(|r| matches!(r, Request::HideObject(_))));
-    assert_eq!(h.vars[&consts::VAR_RESULT.0], 1);
+    // Gen3 `Std_FindItem` leaves `PYRAMID_LOCATION_NONE` (0) after a pick-up.
+    assert_eq!(h.vars[&consts::VAR_RESULT.0], 0);
 }
 
 #[cfg(not(pkr_stub))]
@@ -655,7 +661,7 @@ mod extracted {
             twin.script,
             data::SCRIPT_NAMES
                 .iter()
-                .position(|&n| n == "LittlerootTown_Obj1")
+                .position(|&n| n == "LittlerootTown_EventScript_Twin")
                 .map(|i| ScriptId(i as u16)),
             "objects point at their canonical script"
         );
@@ -796,7 +802,9 @@ mod extracted {
     /// The bulk data the slice reads is the Wave 0 build's, byte for byte, whatever form the
     /// build gives it (Rust literals then, the `data.bin` blob since Milestone 8 Task E): the
     /// parity route hashes depend on it. The digests are of the French ROM's slice extract
-    /// (format 5.3, `cargo xtask extract --maps slice`); other extracts only print theirs.
+    /// (format 5.4, `cargo xtask extract --maps slice`); other extracts only print theirs. The
+    /// field digest covers the texts and their names: Task D2 (5.4) names them as the IR does
+    /// and adds the std scripts' texts, which moved it from `0x35d7_3d4c_82aa_efe1`.
     #[test]
     fn slice_bulk_data_is_the_wave0_builds() {
         let (field, battle) = slice_bulk_digests();
@@ -804,7 +812,7 @@ mod extracted {
         if source_rom().is_none() || data::MAP_COUNT != 15 {
             return;
         }
-        assert_eq!(field, 0x35d7_3d4c_82aa_efe1);
+        assert_eq!(field, 0x2dad_729f_bec3_4fe9);
         assert_eq!(battle, 0x0f9d_09db_0c67_77b7);
     }
 

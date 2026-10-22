@@ -230,7 +230,7 @@ impl World {
 }
 
 /// Gen3 `MAX_MONEY`.
-const MAX_MONEY: u32 = 999_999;
+pub(super) const MAX_MONEY: u32 = 999_999;
 
 fn warp_dest_snap(d: WarpDest) -> WarpDestSnap {
     WarpDestSnap {

@@ -5,9 +5,8 @@ use anyhow::{Context, Result, bail, ensure};
 use extract::export::{read_map, read_ron, read_tileset, to_ron};
 use extract::gfx::{self, IndexedImage, Palette};
 use extract::schema::{
-    FORMAT_VERSION, FieldEffectSpriteFile, FontFile, ItemsFile, LegacyScriptIndex, Manifest,
-    MapFile, MapSectionsFile, MultichoiceFile, SpriteFile, StdStringsFile, TextFile, TilesetFile,
-    WindowFile,
+    FORMAT_VERSION, FieldEffectSpriteFile, FontFile, ItemsFile, Manifest, MapFile, MapSectionsFile,
+    MultichoiceFile, SpriteFile, StdStringsFile, TextFile, TilesetFile, WindowFile,
 };
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
@@ -60,9 +59,8 @@ pub struct World {
     pub window_tiles: Vec<Tile>,
     /// Text name -> Gen3 bytes, 0xFF-terminated.
     pub texts: BTreeMap<String, Vec<u8>>,
-    /// `scripts/legacy_index.ron`, when scripts were generated (Milestone 8 Task D2 moves the
-    /// build to the IR's `scripts/index.ron`).
-    pub index: Option<LegacyScriptIndex>,
+    /// The script IR (`scripts/*.ron`), when the extract has one (Milestone 8 Task D2 lowers it).
+    pub ir: Option<crate::scripts::Ir>,
     /// sha1 of the source ROM (`manifest.sha1`).
     pub sha1: String,
     /// Absolute extracted dir (`None` for the built-in stub).
@@ -272,12 +270,7 @@ pub fn load(dir: &Path) -> Result<World> {
             texts.insert(k, bytes);
         }
     }
-    let index_path = dir.join("scripts/legacy_index.ron");
-    let index = if index_path.exists() {
-        Some(read_ron::<LegacyScriptIndex>(&index_path)?)
-    } else {
-        None
-    };
+    let ir = crate::scripts::read_ir(dir, &manifest)?;
     let tables = read_tables(dir)?;
     let emotes = read_emotes(dir)?;
     let battle = if dir.join("battle/species.ron").exists() {
@@ -295,7 +288,7 @@ pub fn load(dir: &Path) -> Result<World> {
         window,
         window_tiles,
         texts,
-        index,
+        ir,
         sha1: manifest.sha1.clone(),
         dir: Some(dir.to_path_buf()),
         battle,

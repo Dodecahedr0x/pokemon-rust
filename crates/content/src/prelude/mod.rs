@@ -1,4 +1,4 @@
-//! What generated scripts (`content/extracted/scripts/<Map>.rs`) may use: the engine's script
+//! What generated scripts (`$OUT_DIR/scripts/<Module>.rs`, Task D2) may use: the engine's script
 //! types, every Gen3 constant (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
 //! `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`), every text id,
 //! and the Gen3 std-script helpers, one file per owner (Milestone 8): [`msgbox`], `std`
@@ -17,7 +17,6 @@ pub use engine::data::{
 pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Report, Speed, Step, WarpSlot};
 
 mod items;
-mod legacy;
 mod menu;
 mod msgbox;
 mod special;
@@ -27,7 +26,6 @@ mod trainer;
 
 pub use self::std::*;
 pub use items::*;
-pub use legacy::*;
 pub use menu::*;
 pub use msgbox::*;
 pub use special::*;
@@ -54,6 +52,23 @@ pub async fn report(ctx: &Ctx, what: &'static str) {
 /// Gen3 `setdynamicwarp` / `setescapewarp`: one request; the host stores it (Task F).
 pub async fn set_warp(ctx: &Ctx, slot: WarpSlot, map: u16, warp: Option<u8>, x: i16, y: i16) {
     ctx.set_warp(slot, MapId(map), warp, x, y).await;
+}
+
+/// The text with decomp label `name`, if this build has it. `data::TEXT_NAMES` is sorted (the
+/// build writes texts in key order). (Task H; here rather than in `items.rs` so that module
+/// names nothing at the crate root.)
+pub fn text_named(name: &str) -> Option<TextId> {
+    let i = crate::data::TEXT_NAMES.binary_search(&name).ok()?;
+    Some(TextId(i as u16))
+}
+
+/// The pocket of `item` in this build's item table (Gen3 `GetPocketByItemId`), `None` for
+/// `ITEM_NONE` and unknown items. (Task H, as [`text_named`].)
+pub fn item_pocket(item: u16) -> Option<engine::data::Pocket> {
+    use engine::data::GameData;
+    crate::Emerald::default()
+        .item(ItemId(item))
+        .map(|i| i.pocket)
 }
 
 /// The name of `id` in a `(value, name)` table of `crate::data` (for logs).
