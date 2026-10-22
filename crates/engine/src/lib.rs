@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+pub mod bag;
 pub mod battle;
 pub mod checkpoint;
 pub mod data;
@@ -17,6 +18,7 @@ pub mod objects;
 pub mod rng;
 pub mod script;
 pub mod starter;
+pub mod str_vars;
 pub mod text;
 pub mod trainer;
 pub mod video;

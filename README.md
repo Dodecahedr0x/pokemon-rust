@@ -216,10 +216,12 @@ extracted data, IWRAM 596, EWRAM 460) plus 64 KiB of ROM, 2 KiB of IWRAM or 16 K
 stub-content ROM skips the ROM gate. The build remaps the checkout, `CARGO_HOME` and sysroot
 paths (`--remap-path-prefix`), so the ROM does not depend on where the repository lives.
 
-`crates/engine/src/world/tests.rs` pins two World hashes on a synthetic game (`golden_hashes`):
-`0x54c3f87e89e27c7e` after `World::new` and `0xb94e51c5d0228cf7` after 25 frames each of Right,
-A, nothing and Down. They change whenever the hashed state, its order or the frame logic
-changes; update them only for an intended change.
+`crates/engine/src/world/tests/goldens.rs` pins World hashes on a synthetic game, one constant
+per scenario (`golden_hashes`): `GOLDEN_WALK` (`0x0192d9180c0ec15a` after `World::new` and
+`0xbb221ad00c37fd51` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
+`GOLDEN_CROSSING`, `GOLDEN_SCRIPT`, `GOLDEN_WILD_BATTLE` and `GOLDEN_TRAINER`. They change
+whenever the hashed state, its order or the frame logic changes; update them only for an
+intended change (a change that moves one scenario updates only its constant).
 
 Defaults are relative to this checkout's root (so `../emerald.gba` sits next to it). Set the variables to point elsewhere, e.g.
 `PKR_ROM_US=~/roms/emerald.gba cargo test --workspace`. `cargo test -p extract --lib` runs only
@@ -248,7 +250,9 @@ the closing webview never acknowledged).
    replaces `content/extracted/` with it (a failed run keeps the previous output). It prints a
    summary (maps, tilesets, sprites, skipped graphics, script and text files, the codegen
    statistics, any undecoded script instructions).
-3. See the output in `content/extracted/` (format v4, described in `crates/extract/src/schema.rs`).
+3. See the output in `content/extracted/` (format v5, described in `crates/extract/src/schema.rs`).
+   `--maps all|slice|<Dir,Dir,…>` picks the maps (default: the 15-map slice) and `--previews`
+   asks for the map renders (written by default until Milestone 8 turns them off).
    Everything is named with decomp identifiers (`LittlerootTown`, `General`, `FLAG_HIDE_…`,
    `OBJ_EVENT_GFX_…`, `SPECIES_…`, `TRAINER_PIC_…`); ROM offsets only appear in the manifest:
    - `manifest.ron`: format, game code, language, ROM sha1, the exported maps, tilesets and
@@ -268,7 +272,7 @@ the closing webview never acknowledged).
    - `previews/<Map>.png`: map renders
    - `text/<lang>.ron`: every text the scripts use, keyed `<Script>_T<n>`, re-encoding to its
      exact ROM bytes
-   - `scripts/<Map>.rs` + `scripts/index.ron`: the map's event scripts as generated async Rust
+   - `scripts/<Map>.rs` + `scripts/legacy_index.ron`: the map's event scripts as generated async Rust
      (compiled into `content` by its build script), and the root name to function index
    - `battle/*.ron`: battle data. `species.ron` (stats, types, abilities, learnsets, FR names),
      `moves.ron`, `types.ron` (type chart, type and ability names), `trainers.ron` (every

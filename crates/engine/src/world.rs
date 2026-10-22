@@ -34,6 +34,7 @@ mod tests;
 
 pub use battle::{ENCOUNTER_IMMUNITY_STEPS, Origin, Stage, WHITEOUT_FRAMES};
 
+use crate::bag::Bag;
 use crate::battle::BattleOutcome;
 use crate::battle::scene::BattleScene;
 use crate::checkpoint::{PLAYER_NAME_SIZE, PlayerName};
@@ -51,6 +52,7 @@ use crate::mon::Party;
 use crate::objects::{Objects, PlayerEvent, PlayerInput, Terrain};
 use crate::script::{Fade, Report, Runner, Speed, Step};
 use crate::starter::StarterChoice;
+use crate::str_vars::{STR_VAR_LEN, StrVars};
 use crate::text::TextBox;
 use crate::video::Frame;
 use crate::{Buttons, Rng};
@@ -118,6 +120,37 @@ impl Log {
     }
 }
 
+/// A warp destination a script stored (Gen3 `struct WarpData`): warp `warp` of `map`, else
+/// cell (x, y).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct WarpDest {
+    pub map: MapId,
+    pub warp: Option<u8>,
+    pub x: i16,
+    pub y: i16,
+}
+
+/// The warps scripts set for later (Gen3 `gSaveBlock1Ptr->dynamicWarp` and `escapeWarp`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct WarpSlots {
+    pub dynamic: Option<WarpDest>,
+    pub escape: Option<WarpDest>,
+}
+
+impl WarpDest {
+    fn hash(d: Option<WarpDest>, h: &mut Fnv64) {
+        match d {
+            None => h.write(&[0]),
+            Some(d) => {
+                h.write(&[1, d.warp.unwrap_or(0xFF), d.warp.is_some() as u8]);
+                h.write_u16(d.map.0);
+                h.write_u16(d.x as u16);
+                h.write_u16(d.y as u16);
+            }
+        }
+    }
+}
+
 /// Everything the script host touches (all of the world but the runner).
 pub(crate) struct State {
     rng: Rng,
@@ -160,7 +193,15 @@ pub(crate) struct State {
     /// from `NewGame` at a new game; hashed last in `World::hash`. Texts, the starter screen and
     /// battles print this copy.
     player_name: PlayerName,
-    // ---- Milestone 8: tool-facing, neither hashed nor snapshotted ----
+    // ---- Milestone 8 ----
+    /// The player's bag (Gen3 `gSaveBlock1Ptr->bagPocket_*`).
+    bag: Bag,
+    /// Gen3 `gSaveBlock1Ptr->money`.
+    money: u32,
+    /// Gen3 `gStringVar1..3`.
+    str_vars: StrVars,
+    warp_slots: WarpSlots,
+    // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`), at most [`EVENTS_MAX`].
     events: Vec<Event>,
     /// Events dropped past [`EVENTS_MAX`] since the world was created or restored.
@@ -297,6 +338,10 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: player_name(ng.player_name),
+                bag: Bag::new(),
+                money: 0,
+                str_vars: StrVars::new(),
+                warp_slots: WarpSlots::default(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -528,6 +573,23 @@ impl World {
         &self.s.log
     }
 
+    pub fn bag(&self) -> &Bag {
+        &self.s.bag
+    }
+
+    pub fn money(&self) -> u32 {
+        self.s.money
+    }
+
+    /// String var `i` (0..3), 0xFF-terminated and padded.
+    pub fn str_var(&self, i: usize) -> &[u8; STR_VAR_LEN] {
+        self.s.str_vars.get(i)
+    }
+
+    pub fn warp_slots(&self) -> &WarpSlots {
+        &self.s.warp_slots
+    }
+
     /// This step's [`Event`]s, in order (at most [`EVENTS_MAX`]).
     pub fn events(&self) -> &[Event] {
         &self.s.events
@@ -652,6 +714,21 @@ impl World {
         s.mode.hash(&mut h);
         // Milestone 5.
         h.write(&s.player_name);
+        // Milestone 8: the bag and string vars as digests maintained on write (O(1)).
+        s.bag.hash(&mut h);
+        h.write_u32(s.money);
+        s.str_vars.hash(&mut h);
+        WarpDest::hash(s.warp_slots.dynamic, &mut h);
+        WarpDest::hash(s.warp_slots.escape, &mut h);
+        match s.field.stale() {
+            None => h.write(&[0]),
+            Some(r) => {
+                h.write(&[1]);
+                for v in [r.x0, r.y0, r.x1, r.y1] {
+                    h.write_u16(v as u16);
+                }
+            }
+        }
         h.finish()
     }
 }

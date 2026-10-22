@@ -731,24 +731,6 @@ fn same_inputs_same_hash_and_different_inputs_differ() {
     assert_ne!(c.hash(), d.hash());
 }
 
-/// Golden values pin the GBA/native parity contract on this synthetic game: any change to the
-/// hashed state, its order or the frame logic shows up here. Update them (and the README's
-/// Tests section) only for an intended change.
-#[test]
-fn golden_hashes() {
-    let mut w = World::new(&Game);
-    let h0 = w.hash();
-    for k in [Buttons::RIGHT, Buttons::A, Buttons::NONE, Buttons::DOWN] {
-        run(&mut w, k, 25);
-    }
-    let h1 = w.hash();
-    assert_eq!(
-        (h0, h1),
-        (0x54c3_f87e_89e2_7c7e, 0xb94e_51c5_d022_8cf7),
-        "{h0:#018x} {h1:#018x}"
-    );
-}
-
 /// Regression: `Object.moves` hashed only the table length, so two different movement scripts
 /// of the same length collided.
 #[test]
@@ -1009,6 +991,7 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
 
 mod battles;
 mod checkpoint;
+mod goldens;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).
