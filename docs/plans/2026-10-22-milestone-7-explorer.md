@@ -1549,25 +1549,37 @@ All runs: Apple M4 Max, release, 8 threads, default seed `0x5EEDE7`, an empty db
 - **Fix (explorer): softlock false positives in tall grass.**
   - **Symptom:** the master defaults raised five `Softlock` findings in 300 s, all reproducing: Route 101 (17,13) twice, and Route 102 (11,14), (9,14) and (6,17).
   - **Cause:** every macro from those cells met a wild encounter within a step or two. A battle ends a macro (an interrupt) and almost never changes the region, so three macros never left it.
-  - **Fix:** the probe now **resumes a walk that a battle interrupted** (`WalkTo`, `Enter`, `Cross`, `Talk`, `Inspect`), up to `sim::PROBE_RESUMES` (4) times, while it stays in the start's region. All five findings now say "not trapped any more: Free".
-  - **Test:** `h_tuning::route101_grass_is_not_a_softlock` replays the first finding's button runs (`tests/fixtures/route101_grass.runs`: inputs only, 12,071 frames). With `PROBE_RESUMES = 0` it fails with `Trapped { reached: 64 }`.
+  - **Fix:** the probe now **resumes a walk that a battle interrupted before its target**, up to `DetectConfig::probe_resumes` (default 4) times, while it stays in the start's place. All five findings now say "not trapped any more: Free".
+    - Resumed: `WalkTo` until the player stands on the target, `Inspect` until the player stands on its approach cell, and `Enter`/`Cross` while the map is unchanged.
+    - Never resumed: `Talk` (a trainer battle is the talk's purpose).
+    - Each resume runs under its own panic guard, so an earlier valid end survives a panic.
+  - **The probe compares places, not regions (review fix).** `key::place_region(parts)` folds only the map, the story flags and the story vars. The party bucket is left out, and so is the cell. The probe's start and every reached state use it. Otherwise a level-up or a faint inside a sealed grass pocket would count as getting out, and resumes would make that more likely. A softlock message's "region" is now this place.
+  - **Tests:**
+    - `h_tuning::route101_grass_is_not_a_softlock` replays the first finding's button runs (`tests/fixtures/route101_grass.runs`: inputs only, 12,071 frames; the regeneration steps are in the test's doc comment). With the defaults the probe is `Free`. With `probe_resumes: 0` it is `Trapped { reached: 64 }`.
+    - `h_tuning::a_grass_pocket_stays_trapped_whatever_the_party_does` uses the stub with a new `testing::GrassPocket`: a sealed 3x3 pocket around the tall-grass cell, plus an exit warp elsewhere. With `level_step` 1, the party bucket changes inside the pocket, and the probe stays `Trapped`. With `key::region` in place of `place_region`, it was `Free`.
+    - `key::tests::the_place_ignores_the_party_and_the_cell`.
+  - **Re-checks:** after the review fixes, all five Route 101/102 cases are still `Free`, `WallAround` is still `Trapped`, and a 300 s real run raises no softlock.
+  - **Changed test:** `e2e_stub`'s walled start used to check "without the wall it does not reproduce" with the wall moved to (0,0). That probe had been freed only by a party change. The stub has no event that changes a flag, a var or the map, so the check now uses the plain stub, which has no exit (`NoExits`).
 - **Probe cost (no effect on verdicts).**
   - `softlock::probe` returns `Free` at the first expansion that leaves the start's region and never reads the rest. `sim::expand_all` now stops there, instead of first expanding up to `remaining` (64) candidates.
   - On its own, this leaves verdicts, findings and digests unchanged.
   - Job time went from 0.50M to 1.26M frames per second (A0 → A1 below), and most probes now take a few expansions.
   - `softlock_breadth` stays 64: a real trap still tries 64 states.
+  - **Worst case:** with resumes, a probe can expand `(1 + probe_resumes) x softlock_breadth` macros, 5x the pre-Task-H cost (320 expansions with the defaults). That happens only on a true trap whose walks keep meeting battles. Free probes stop early.
 - **Stub coverage: block `WalkTo`s jitter.**
-  - `macros::block_mates` gives the reachable cells of a target's coarse block (none for an active coord-event cell).
+  - `macros::block_mates` gives the reachable cells of a target's coarse block. It leaves out the player's cell and the active coord-event cells, which are candidates of their own, and it is empty when the target itself is an active coord-event cell.
   - `sim`'s `Plan::Random` replaces a chosen block `WalkTo` with one of those cells, drawn from the step's RNG. Candidates, and the probe, are unchanged.
   - **Result:** with the default 4x4 blocks, the stub covers **196 of 196** cells by generation 10. Before, it covered 105 even at 200 generations.
   - `cell_shift` stays 2, so the key is unchanged.
   - **Tests:** `h_tuning::block_mates_are_the_reachable_cells_of_the_target_block`, and `e2e_stub::ten_default_generations_cover_the_stub_and_reach_every_goal` (the true defaults; it was `cell_shift` 0 for 30 generations).
 - **CLI:**
-  - `run` prints each goal when it is first reached, with its generation and the run's wall time (`GenOutcome::max_progress`).
+  - `run` prints every goal when it is first reached, with its generation and the run's wall time. Several goals passed in one generation each get a line (`GenOutcome::max_progress`).
+  - `run --cache N` sets `cache_capacity`; the usage text gives the memory figures.
   - `coverage` prints "N of the M cells reachable from them (P%)".
   - `status` prints the scripts started as a share of `SCRIPT_NAMES`.
 - **Defaults (`Config::default`):**
-  - **Changed:** `batch` 0 → **128**; `cache_capacity` 4096 → **65536**.
+  - **Changed:** `batch` 0 → **128**; `cache_capacity` 4096 → **65536**; new `detect.probe_resumes` **4**.
+  - **Thread independence of the shipped default:** `d_runner::the_shipped_default_config_gives_identical_deltas_on_one_and_eight_threads` runs plain `Config::default()` and asserts 128 jobs and equal deltas. The `batch: 0` test stays.
   - **Unchanged:** `max_plan_len` 3, `tournament` 4, `age_penalty` 1, `expanded_penalty` 4, the weights (`goal` 1000), `cell_shift` 2, `snapshot_every_depth` 8, `softlock_k` 3, `softlock_breadth` 64.
   - **Tuning order:** every attempt reached `may_defeated` within 5 s, so the plan's order (goal weight, plan length, age penalty, cell shift) had nothing to fix.
   - **Tests:** the e2e stub tests other than coverage use `batch: 0` (the runner's 32), which keeps the debug run at about 10 s. `d_runner`'s default-batch test sets `batch: 0` explicitly.
@@ -1588,6 +1600,15 @@ A3 became the defaults.
 
 Memory:
 - A2 peaks at 325 MB RSS at 120 s.
+- **Cache size (review), after the review fixes and the master merge, 120 s, batch 128:**
+
+  | `--cache` | frames | plan + reach | misses | peak RSS |
+  |---|---|---|---|---|
+  | 4,096 | 72.5M | 55.6 s | 54,710 | (not measured) |
+  | 16,384 | 99.4M | 23.1 s | 21,715 | 347 MB |
+  | 65,536 | 110.8M | 2.9 s | 430 | 443 MB |
+
+  16,384 keeps about 70% of the gain over 4,096 and is 10% slower than 65,536 at 120 s. Its misses keep growing with the tree. **65,536 stays the default**, at about 1.1 GB once full (600 s).
 - The final 600 s run peaks at 1.06 GB: the cache is full (65,536 states) and every row is in the in-memory graph.
 
 ### Release runs with the final defaults
@@ -1630,7 +1651,21 @@ Cell coverage (cells stood on / cells reachable from them):
 
 Master (A0, 300 s) had 86.3% on Route 101, 91.4% on Oldale and 97.3% on Route 103.
 
-### Determinism (final defaults, 50 generations, `explore digest`)
+### Determinism (50 generations, `explore digest`)
+**After the review fixes and the master merge (final):**
+
+| flavor | 1 thread | 8 threads | digest |
+|---|---|---|---|
+| stub | 7.9 s | 1.6 s | `0x30ec96cf029cb82f` (also from `cargo xtask explore run --generations 50` + `digest`) |
+| real | 13.7 s (3,822 rows) | 2.5 s | `0xa8a8b7baa262e20c` |
+
+Why they changed:
+- The master merge changed the content `BUILD_ID` (S1), which every row stores.
+- The `block_mates` coord-cell filter and the probe's place comparison and resume rule change the search (real).
+
+A 300 s real run with these defaults: 2,360 generations, 314,418 rows (60,956 valid), 725k frames/s, 564 inserted/s, `may_defeated` at generation 14 (0.6 s), the same 2,098 cells and per-map coverage, and the same 2 `CapturableStuck` findings.
+
+**Before the review (the runs above):**
 | flavor | 1 thread | 8 threads | digest |
 |---|---|---|---|
 | stub | 8.6 s | 1.6 s | `0xb0af80aa077443c7` (also from `cargo xtask explore run --generations 50` + `digest`, default threads) |
@@ -1663,6 +1698,7 @@ Master's digests (`0x4309279c8e23c2e1` real, `0x51be88a0fa670e1b` stub) no longe
 | `Softlock` `0x0010` (17,13) ×2, and `0x0011` (11,14), (9,14), (6,17) (A0 only) | **False positive:** encounters interrupt every walk. Fixed (the probe resumes interrupted walks), with a test. |
 
 ### Left for close-out
+- `softlock_message` still says "region" for what is now the place (`key::place_region`); the signature is unaffected.
 - The unused `softlock_sample` field, and the db-size items in Findings.
 - `cargo xtask parity` was not run: no engine or content change was committed.
 
