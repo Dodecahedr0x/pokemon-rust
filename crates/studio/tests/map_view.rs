@@ -5,7 +5,57 @@ use content::Emerald;
 use engine::data::{BgKind, Dir, GameData, Gfx, VarId, block_metatile};
 use std::time::Instant;
 use studio::map_view::{Overlay, cells, map_list, overlays, render_map};
-use studio::sprite::{decode_sprite, object_sprite};
+use studio::sprite::{decode_sprite, initial_facing, object_sprite};
+
+#[test]
+fn initial_facing_matches_the_engine() {
+    use engine::data::{GfxId, MovementType, ObjectEvent};
+    use engine::objects::Objects;
+    let mut all = vec![
+        MovementType::LookAround,
+        MovementType::Wander,
+        MovementType::WanderVertical,
+        MovementType::WanderHorizontal,
+        MovementType::Invisible,
+    ];
+    for d in Dir::ALL {
+        all.push(MovementType::Face(d));
+        all.push(MovementType::WalkInPlace(d));
+    }
+    for m in &all {
+        // Exhaustive: a new engine variant stops this compiling until it is listed above.
+        match m {
+            MovementType::Face(_)
+            | MovementType::LookAround
+            | MovementType::Wander
+            | MovementType::WanderVertical
+            | MovementType::WanderHorizontal
+            | MovementType::WalkInPlace(_)
+            | MovementType::Invisible => {}
+        }
+    }
+    for m in all {
+        // The engine's facing at spawn (`Objects::add`).
+        let mut objs = Objects::new();
+        objs.add(
+            &ObjectEvent {
+                local_id: 1,
+                gfx: Gfx::Fixed(GfxId(0)),
+                x: 3,
+                y: 3,
+                elevation: 3,
+                movement: m,
+                range: (0, 0),
+                trainer_type: 0,
+                trainer_sight: 0,
+                script: None,
+                hide_flag: None,
+            },
+            |_| 0,
+        );
+        assert_eq!(initial_facing(m), objs.get(1).unwrap().facing, "{m:?}");
+    }
+}
 
 #[test]
 fn map_list_is_map_ids_in_order() {
@@ -55,19 +105,23 @@ fn every_map_renders_with_its_margin() {
 #[test]
 fn an_override_draws_the_overriding_block() {
     let game = Emerald::for_shells();
-    let (id, _) = map_list()[0];
+    // The first map with a cell (1, 1) and a block whose metatile differs from that cell's
+    // (the stub map has one), so the test never passes vacuously.
+    let found = map_list().into_iter().find_map(|(id, _)| {
+        let m = game.map(id);
+        if m.width < 3 || m.height < 3 {
+            return None;
+        }
+        let target = m.blocks[m.width as usize + 1];
+        let other = m
+            .blocks
+            .iter()
+            .find(|&&b| block_metatile(b) != block_metatile(target))?;
+        Some((id, *other))
+    });
+    let (id, other) = found.expect("a map with two distinct metatiles");
     let m = game.map(id);
-    assert!(m.width >= 3 && m.height >= 3);
     let w = m.width as usize;
-    // Cell (1, 1) takes a block of the map whose metatile differs, if there is one.
-    let target = m.blocks[w + 1];
-    let Some(&other) = m
-        .blocks
-        .iter()
-        .find(|&&b| block_metatile(b) != block_metatile(target))
-    else {
-        return;
-    };
     let src = m.blocks.iter().position(|&b| b == other).unwrap();
     let (sx, sy) = (src % w, src / w);
     let margin = 2;
