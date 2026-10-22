@@ -12,15 +12,22 @@ const FLOOR: u16 = 0;
 const WALL: u16 = 1 | 1 << BLOCK_COLLISION_SHIFT;
 const DOOR: u16 = 2;
 const MAT: u16 = 3;
+const GRASS: u16 = 4;
 
-static TILES: [Tile; 4] = [[0; 8], [0x1111_1111; 8], [0x2222_2222; 8], [0x3333_3333; 8]];
+static TILES: [Tile; 5] = [
+    [0; 8],
+    [0x1111_1111; 8],
+    [0x2222_2222; 8],
+    [0x3333_3333; 8],
+    [0x4444_4444; 8],
+];
 static TS: Tileset = Tileset {
     tiles: &TILES,
     palettes: &[[0x1234; 16]; 16],
     // Metatile k uses tile k on the bottom layer.
-    metatiles: &[[0; 8], [1, 1, 1, 1, 0, 0, 0, 0], [2; 8], [3; 8]],
+    metatiles: &[[0; 8], [1, 1, 1, 1, 0, 0, 0, 0], [2; 8], [3; 8], [4; 8]],
     // Raw behavior = metatile id.
-    attributes: &[0, 1, 2, 3],
+    attributes: &[0, 1, 2, 3, 4],
 };
 static TS2: Tileset = Tileset {
     tiles: &[],
@@ -49,7 +56,17 @@ const fn house_blocks() -> [u16; 36] {
     b
 }
 static HOUSE_BLOCKS: [u16; 36] = house_blocks();
-static ROUTE_BLOCKS: [u16; 100] = [FLOOR; 100];
+/// Rows 2..4 of the route are tall grass.
+const fn route_blocks() -> [u16; 100] {
+    let mut b = [FLOOR; 100];
+    let mut i = 20;
+    while i < 40 {
+        b[i] = GRASS;
+        i += 1;
+    }
+    b
+}
+static ROUTE_BLOCKS: [u16; 100] = route_blocks();
 
 pub const TOWN: MapId = MapId(0);
 pub const HOUSE: MapId = MapId(1);
@@ -245,6 +262,38 @@ static TEXT: [u8; 5] = [1, 2, 0xFB, 3, 0xFF];
 
 pub struct Game;
 
+const RESPAWN: u8 = 1;
+const TRAINER: TrainerId = TrainerId(1);
+const WILD: crate::mon::WildMon = crate::mon::WildMon {
+    species: crate::battle::test_data::NORMAL,
+    min_level: 2,
+    max_level: 3,
+};
+/// Every check passes `WildEncounterCheck` (rate 255 is capped at 2880 / 2880).
+static ROUTE_ENCOUNTERS: crate::mon::LandEncounters = crate::mon::LandEncounters {
+    rate: 255,
+    mons: [WILD; 12],
+};
+static TRAINER_PIC: crate::mon::TrainerPic = crate::mon::TrainerPic {
+    tiles: &[],
+    palette: &[0; 16],
+    y: 8,
+};
+static TRAINER_DATA: crate::mon::TrainerData = crate::mon::TrainerData {
+    class_name: &[1, 0xFF],
+    name: &[2, 0xFF],
+    pic: &TRAINER_PIC,
+    female: false,
+    ai: 0,
+    double: false,
+    party: &[crate::mon::TrainerMon {
+        species: crate::battle::test_data::NORMAL,
+        level: 2,
+        iv: 0,
+        moves: None,
+    }],
+};
+
 async fn npc(ctx: Ctx) {
     ctx.lock().await;
     ctx.face_player().await;
@@ -323,7 +372,7 @@ impl GameData for Game {
             var_last_talked: Some(VAR_LAST_TALKED),
             flag_running: None,
             flags_cleared_on_map_change: &[FLAG_CLEARED],
-            respawn_default: 0,
+            respawn_default: RESPAWN,
         }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -349,6 +398,7 @@ impl GameData for Game {
             1 => Behavior::Blocked,
             2 => Behavior::Door,
             3 => Behavior::ArrowWarp(Dir::Down),
+            4 => Behavior::TallGrass,
             _ => Behavior::Normal,
         }
     }
@@ -366,6 +416,18 @@ impl GameData for Game {
             12 => Box::pin(house_resume(ctx)),
             _ => Box::pin(async {}),
         }
+    }
+    fn battle(&self) -> &'static crate::mon::BattleTables {
+        &crate::battle::test_data::TABLES
+    }
+    fn encounters(&self, map: MapId) -> Option<&'static crate::mon::LandEncounters> {
+        (map == ROUTE).then_some(&ROUTE_ENCOUNTERS)
+    }
+    fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
+        (id == TRAINER).then_some(&TRAINER_DATA)
+    }
+    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
+        (id == RESPAWN).then_some((HOUSE, 3, 3))
     }
     fn new_game(&self) -> NewGame {
         NewGame {
@@ -666,7 +728,7 @@ fn golden_hashes() {
     let h1 = w.hash();
     assert_eq!(
         (h0, h1),
-        (0x8883_c746_7137_2a45, 0x9849_b3c4_72df_bec7),
+        (0x3f86_f67e_851d_e7b8, 0xe51e_3e6e_f153_f261),
         "{h0:#018x} {h1:#018x}"
     );
 }
@@ -863,26 +925,4 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
     assert_eq!(w.objects().iter().filter(|o| o.local_id == 1).count(), 1);
 }
 
-#[test]
-fn battle_requests_are_logged_placeholders_until_task_j() {
-    let mut w = started();
-    start(&mut w, |ctx| {
-        Box::pin(async move {
-            let i = ctx
-                .choose_starter([SpeciesId(1), SpeciesId(2), SpeciesId(3)])
-                .await;
-            let o = ctx.battle_wild(SpeciesId(4), 2, true).await;
-            let t = ctx.battle_trainer(TrainerId(1), TextId(0)).await;
-            let given = ctx.give_mon(SpeciesId(1), 5).await;
-            let size = ctx.party_size().await;
-            ctx.heal_party().await;
-            ctx.set_respawn(1).await;
-            let won = crate::battle::BattleOutcome::Won;
-            let ok = i == 0 && o == won && t == won && given == 2 && size == 0;
-            ctx.set_flag(FLAG_DONE, ok).await;
-        })
-    });
-    assert_eq!(until_done(&mut w, 5), 1, "all answered in one frame");
-    assert!(w.flag(FLAG_DONE));
-    assert!(w.log().lines().any(|l| l.contains("M4 Task J")));
-}
+mod battles;

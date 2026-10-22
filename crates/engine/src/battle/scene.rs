@@ -197,6 +197,21 @@ impl Parts {
     }
 }
 
+/// A menu of the scene waiting for input, with its cursor ([`BattleScene::open_menu`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum OpenMenu {
+    /// FIGHT 0, BAG 1, POKéMON 2, RUN 3.
+    Action(u8),
+    /// Move slot.
+    Move(u8),
+    /// "Learn the move?" yes/no (0 = yes).
+    LearnAsk(u8),
+    /// The move to forget (4 = the new move: do not learn).
+    LearnPick(u8),
+    /// "Stop learning?" yes/no (0 = yes).
+    StopAsk(u8),
+}
+
 /// Plays a battle's events and turns input into [`Choice`]s. See the module docs.
 pub struct BattleScene {
     kind: BattleKind,
@@ -438,6 +453,20 @@ impl BattleScene {
     /// black; `None` before.
     pub fn finished(&self) -> Option<BattleOutcome> {
         if self.finished { self.outcome } else { None }
+    }
+
+    /// The menu waiting for the player's input, with its cursor (for scripted input and
+    /// debugging; not state).
+    pub fn open_menu(&self) -> Option<OpenMenu> {
+        let cursor = self.parts.windows.menu_cursor()?;
+        Some(match self.menu {
+            Menu::Action => OpenMenu::Action(cursor),
+            Menu::Move => OpenMenu::Move(cursor),
+            Menu::LearnAsk { .. } => OpenMenu::LearnAsk(cursor),
+            Menu::LearnPick { .. } => OpenMenu::LearnPick(cursor),
+            Menu::StopAsk { .. } => OpenMenu::StopAsk(cursor),
+            Menu::None | Menu::StopMsg { .. } | Menu::Retry { .. } => return None,
+        })
     }
 
     /// Feeds every piece of state into `h` (cheap enough for every frame).

@@ -128,6 +128,22 @@ impl Field {
         self.ring = (0, 0);
     }
 
+    /// Re-uploads the current map's tilesets and palettes and BG1–BG3 controls, and invalidates
+    /// the view, after something else owned the screen (a battle, the starter screen). Map,
+    /// camera, ring origin and `setmetatile` overrides are kept; the next
+    /// [`Field::set_camera`] redraws the whole view (Gen3 `CB2_ReturnToField` reloads the map
+    /// graphics and calls `DrawWholeMapView`). Bulk: call it on a black frame.
+    pub fn restore(&mut self, game: &impl GameData, f: &mut Frame) {
+        let (camera, ring, overrides) = (
+            self.camera_px,
+            self.ring,
+            core::mem::take(&mut self.overrides),
+        );
+        self.enter(game, self.map, camera, f);
+        self.ring = ring;
+        self.overrides = overrides;
+    }
+
     /// [`Field::enter`] then [`Field::redraw`].
     pub fn load(&mut self, game: &impl GameData, map: MapId, camera_px: (i32, i32), f: &mut Frame) {
         self.enter(game, map, camera_px, f);

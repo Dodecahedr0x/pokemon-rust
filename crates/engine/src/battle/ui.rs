@@ -599,6 +599,17 @@ impl BattleWindows {
         }
     }
 
+    /// The cursor of the menu waiting for input (action, move or yes/no), for scripted input
+    /// and debugging; `None` when no menu is open.
+    pub fn menu_cursor(&self) -> Option<u8> {
+        match self.menu {
+            Menu::Action => Some(self.action_cursor),
+            Menu::Move => Some(self.move_cursor),
+            Menu::YesNo => Some(self.yes_no_cursor),
+            Menu::None => None,
+        }
+    }
+
     /// The action menu's choice, until the next `action_menu`.
     pub fn action_result(&self) -> Option<Action> {
         self.action_result

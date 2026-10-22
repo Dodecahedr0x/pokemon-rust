@@ -1,16 +1,22 @@
 //! [`ScriptHost`] for the world: every [`Request`], as the Gen3 script command it stands for
 //! (`scrcmd.c`).
 
+use super::battle::{Mode, Origin, StarterRun};
 use super::{DOOR_FRAMES, State};
 use crate::Buttons;
-use crate::battle::BattleOutcome;
+use crate::battle::{BattleKind, BattleOutcome};
 use crate::data::{BLOCK_COLLISION_SHIFT, BLOCK_METATILE_MASK, GameData, PLAYER};
+use crate::mon::Party;
 use crate::script::{Request, Response, ScriptHost};
+use crate::starter::StarterChoice;
+use crate::trainer::create_trainer_party;
 use crate::video::Frame;
+use alloc::boxed::Box;
 
 /// Block bits `setmetatile` keeps (Gen3 `MapGridSetMetatileIdAt` keeps the elevation).
 const ELEVATION_MASK: u16 = 0xF000;
-/// Gen3 `MON_CANT_GIVE` (`givemon` result).
+/// Gen3 `MON_GIVEN_TO_PARTY` / `MON_CANT_GIVE` (`givemon` results).
+const MON_GIVEN_TO_PARTY: u16 = 0;
 const MON_CANT_GIVE: u16 = 2;
 /// Gen3 `MAPGRID_COLLISION_MASK`.
 const COLLISION_MASK: u16 = 3 << BLOCK_COLLISION_SHIFT;
@@ -229,27 +235,74 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 }
                 self.wait(r)
             }
-            // ---- Milestone 4 placeholders, replaced by Task J: logged, answered at once ----
-            Request::GiveMon { .. } => {
-                s.log("givemon: no party yet (M4 Task J)");
-                Some(Response::Value(MON_CANT_GIVE))
+            // ---- party and battle (Milestone 4) ----
+            Request::GiveMon { species, level } => {
+                // Gen3 `ScriptGiveMon`: the party, else the PC (none yet).
+                let mon = s.create_mon(game, species, level);
+                Some(Response::Value(match s.party.push(mon) {
+                    Ok(_) => MON_GIVEN_TO_PARTY,
+                    Err(_) => {
+                        s.log("givemon: party full and no PC");
+                        MON_CANT_GIVE
+                    }
+                }))
             }
-            Request::PartySize => Some(Response::Value(0)),
+            Request::PartySize => Some(Response::Value(s.party.len() as u16)),
             Request::HealParty => {
-                s.log("heal party: no party yet (M4 Task J)");
+                s.party.heal(game.battle());
                 UNIT
             }
-            Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
-                s.log("battle skipped, answered Won (M4 Task J)");
-                Some(Response::Value(BattleOutcome::Won as u16))
+            Request::SetRespawn(id) => {
+                s.respawn = id;
+                UNIT
             }
-            Request::ChooseStarter(_) => {
-                s.log("starter choice skipped, answered 0 (M4 Task J)");
+            Request::ChooseStarter(_) if self.immediate => {
+                s.log("starter choice in a map script answered 0");
                 Some(Response::Value(0))
             }
-            Request::SetRespawn(_) => {
-                s.log("setrespawn ignored (M4 Task J)");
-                UNIT
+            Request::ChooseStarter(choices) => {
+                // The starter screen owns the screen; the field text box is rebuilt with the
+                // field afterwards.
+                s.text = crate::text::TextBox::new();
+                s.mode = Mode::Starter(Box::new(StarterRun {
+                    choice: StarterChoice::new(choices),
+                    leaving: None,
+                }));
+                None
+            }
+            Request::BattleWild { .. } | Request::BattleTrainer { .. } if self.immediate => {
+                s.log("battle in a map script answered Ran");
+                Some(Response::Value(BattleOutcome::Ran as u16))
+            }
+            Request::BattleWild { .. } | Request::BattleTrainer { .. } if !s.can_battle() => {
+                s.log("battle without a mon that can fight answered Won");
+                Some(Response::Value(BattleOutcome::Won as u16))
+            }
+            Request::BattleWild {
+                species,
+                level,
+                first_battle,
+            } => {
+                // Gen3 `CreateScriptedWildMon` / the first battle's `CreateMon`.
+                let mon = s.create_mon(game, species, level);
+                let mut opponents = Party::default();
+                let _ = opponents.push(mon);
+                let kind = BattleKind::Wild { first_battle };
+                s.start_battle(game, kind, opponents, Origin::Script, self.f);
+                None
+            }
+            Request::BattleTrainer { trainer, defeat } => {
+                let opponents = game
+                    .trainer(trainer)
+                    .map(|t| create_trainer_party(game.battle(), t, &mut s.rng))
+                    .filter(|p| p.first_usable().is_some());
+                let Some(opponents) = opponents else {
+                    s.log("battle against an unknown or empty trainer answered Won");
+                    return Some(Response::Value(BattleOutcome::Won as u16));
+                };
+                let kind = BattleKind::Trainer { trainer, defeat };
+                s.start_battle(game, kind, opponents, Origin::Script, self.f);
+                None
             }
             Request::Message(_)
             | Request::WaitMessage
@@ -260,6 +313,13 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
     }
 
     fn resume(&mut self, r: &Request) -> Option<Response> {
+        if let Request::ChooseStarter(_)
+        | Request::BattleWild { .. }
+        | Request::BattleTrainer { .. } = r
+        {
+            // Set once the starter screen or the battle has handed the screen back.
+            return self.s.answer.take().map(Response::Value);
+        }
         if let Request::YesNo = r {
             let t = &self.s.text;
             return match t.yes_no_result() {
