@@ -23,12 +23,14 @@ pub const OFF_SAVES: u32 = 180;
 pub const OFF_SAVE_STATUS: u32 = 184;
 pub const OFF_HASH_LINES_MAX: u32 = 188;
 pub const OFF_STEP_LINES_MAX: u32 = 192;
+pub const OFF_LOOP_LINES_MAX: u32 = 196;
 /// `size_of::<DebugRegion>()`.
 pub const SIZE: usize = 200;
 
 /// How the ROM's World started (`DebugRegion::boot`).
 pub mod boot {
-    /// No save: `World::new`.
+    /// No save (an empty slot; blank or foreign flash is reformatted at init and lands here):
+    /// `World::new`.
     pub const NEW_GAME: u32 = 0;
     /// `World::restore` from the flash checkpoint.
     pub const RESTORED: u32 = 1;
@@ -36,9 +38,9 @@ pub mod boot {
     pub const SKIPPED: u32 = 2;
     /// The save has another schema, or `World::restore` refused it.
     pub const REJECTED: u32 = 3;
-    /// The save could not be read or decoded.
+    /// The slot (and agb's ghost copy) failed its checks, or could not be read or decoded.
     pub const CORRUPT: u32 = 4;
-    /// No flash chip answered.
+    /// Flash init failed: no chip answered, or agb could not format it.
     pub const NO_MEDIA: u32 = 5;
 }
 
@@ -84,10 +86,16 @@ pub struct DebugRegion {
     pub saves: u32,
     /// The last flash write: a [`save`] code.
     pub save_status: u32,
-    /// Worst scanlines of `World::hash()` on a visible frame.
+    /// Worst scanlines of `World::hash()` on a visible frame (the applied frame not black).
+    ///
+    /// All three `*_lines_max` are measured with `VCOUNT`, mod one frame (228 lines): the
+    /// maxima are meaningful only when `late == 0`.
     pub hash_lines_max: u32,
     /// Worst scanlines from the apply to the end of publish on a visible frame.
     pub step_lines_max: u32,
+    /// Worst scanlines of the whole shell loop body (apply, step, publish, save tail; a flash
+    /// write excluded) on a visible frame, from the vblank wake to the next wait.
+    pub loop_lines_max: u32,
 }
 
 const _: () = {
@@ -103,6 +111,7 @@ const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, save_status) == OFF_SAVE_STATUS as usize);
     assert!(core::mem::offset_of!(DebugRegion, hash_lines_max) == OFF_HASH_LINES_MAX as usize);
     assert!(core::mem::offset_of!(DebugRegion, step_lines_max) == OFF_STEP_LINES_MAX as usize);
+    assert!(core::mem::offset_of!(DebugRegion, loop_lines_max) == OFF_LOOP_LINES_MAX as usize);
     assert!(core::mem::size_of::<DebugRegion>() == SIZE);
     // emu scans EWRAM in 8-byte steps.
     assert!(core::mem::align_of::<DebugRegion>() == 8);
@@ -126,6 +135,7 @@ impl DebugRegion {
             save_status: save::NONE,
             hash_lines_max: 0,
             step_lines_max: 0,
+            loop_lines_max: 0,
         }
     }
 }
@@ -155,6 +165,7 @@ mod tests {
         assert_eq!(offset_of!(DebugRegion, save_status), 184);
         assert_eq!(offset_of!(DebugRegion, hash_lines_max), 188);
         assert_eq!(offset_of!(DebugRegion, step_lines_max), 192);
+        assert_eq!(offset_of!(DebugRegion, loop_lines_max), 196);
         assert_eq!(size_of::<DebugRegion>(), 200);
         assert_eq!(core::mem::align_of::<DebugRegion>(), 8);
         assert_eq!(&DebugRegion::new().magic, b"PKRDBG02");

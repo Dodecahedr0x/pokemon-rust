@@ -24,16 +24,26 @@ pub enum BootChoice {
     NewGame(u32),
 }
 
-/// B held at boot skips any save; then no slot is a new game, and another schema is refused
-/// before anything is decoded.
-pub fn boot_choice(meta: Option<SaveMeta>, held_at_boot: Buttons) -> BootChoice {
+/// What agb reports for slot 0 at boot. Blank or foreign flash is reformatted by agb at init
+/// and shows up as `Empty`; `Corrupted` is a slot whose data and ghost copy both fail checks.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SlotSeen {
+    Empty,
+    Valid(SaveMeta),
+    Corrupted,
+}
+
+/// B held at boot skips any save; then an empty slot is a new game, a corrupted one is
+/// reported, and another schema is refused before anything is decoded.
+pub fn boot_choice(slot: SlotSeen, held_at_boot: Buttons) -> BootChoice {
     if held_at_boot.contains(Buttons::B) {
         return BootChoice::NewGame(boot::SKIPPED);
     }
-    match meta {
-        None => BootChoice::NewGame(boot::NEW_GAME),
-        Some(m) if m.schema != SCHEMA => BootChoice::NewGame(boot::REJECTED),
-        Some(_) => BootChoice::Restore,
+    match slot {
+        SlotSeen::Empty => BootChoice::NewGame(boot::NEW_GAME),
+        SlotSeen::Corrupted => BootChoice::NewGame(boot::CORRUPT),
+        SlotSeen::Valid(m) if m.schema != SCHEMA => BootChoice::NewGame(boot::REJECTED),
+        SlotSeen::Valid(_) => BootChoice::Restore,
     }
 }
 

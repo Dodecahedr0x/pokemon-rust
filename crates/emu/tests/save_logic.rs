@@ -9,7 +9,7 @@ use engine::checkpoint::{BuildHash, SCHEMA, SaveMeta};
 use engine::data::MapId;
 use engine::debug::boot;
 use save_logic::{
-    BootChoice, PendingSave, SAVE_WAIT_FRAMES, boot_choice, combo_pressed, scanlines,
+    BootChoice, PendingSave, SAVE_WAIT_FRAMES, SlotSeen, boot_choice, combo_pressed, scanlines,
 };
 
 const LR: Buttons = Buttons(Buttons::L.0 | Buttons::R.0);
@@ -49,30 +49,37 @@ fn combo_needs_both_shoulders() {
 
 #[test]
 fn boot_choice_branches() {
+    use SlotSeen::{Corrupted, Empty, Valid};
+    let none = Buttons::NONE;
     assert_eq!(
-        boot_choice(None, Buttons::NONE),
+        boot_choice(Empty, none),
         BootChoice::NewGame(boot::NEW_GAME)
     );
+    assert_eq!(boot_choice(Valid(meta(SCHEMA)), none), BootChoice::Restore);
     assert_eq!(
-        boot_choice(Some(meta(SCHEMA)), Buttons::NONE),
-        BootChoice::Restore
-    );
-    assert_eq!(
-        boot_choice(Some(meta(SCHEMA)), Buttons::B),
+        boot_choice(Valid(meta(SCHEMA)), Buttons::B),
         BootChoice::NewGame(boot::SKIPPED)
     );
     // B is checked first.
     assert_eq!(
-        boot_choice(None, Buttons::B | Buttons::A),
+        boot_choice(Empty, Buttons::B | Buttons::A),
         BootChoice::NewGame(boot::SKIPPED)
     );
     assert_eq!(
-        boot_choice(Some(meta(SCHEMA.wrapping_add(1))), Buttons::NONE),
+        boot_choice(Valid(meta(SCHEMA.wrapping_add(1))), none),
         BootChoice::NewGame(boot::REJECTED)
+    );
+    assert_eq!(
+        boot_choice(Corrupted, none),
+        BootChoice::NewGame(boot::CORRUPT)
+    );
+    assert_eq!(
+        boot_choice(Corrupted, Buttons::B),
+        BootChoice::NewGame(boot::SKIPPED)
     );
     // Other keys held at boot do not skip.
     assert_eq!(
-        boot_choice(Some(meta(SCHEMA)), Buttons::A | Buttons::START),
+        boot_choice(Valid(meta(SCHEMA)), Buttons::A | Buttons::START),
         BootChoice::Restore
     );
 }
@@ -80,6 +87,7 @@ fn boot_choice_branches() {
 #[test]
 fn pending_save_times_out_after_the_wait() {
     assert_eq!(SAVE_WAIT_FRAMES, 600);
+    assert_eq!(PendingSave::default(), PendingSave::new());
     let mut p = PendingSave::new();
     assert_eq!(p.frames_left, SAVE_WAIT_FRAMES);
     for _ in 0..SAVE_WAIT_FRAMES - 1 {
@@ -97,5 +105,4 @@ fn scanlines_wrap_mod_one_frame() {
     assert_eq!(scanlines(220, 3), 11);
     assert_eq!(scanlines(5, 5), 0);
     assert_eq!(scanlines(0, 227), 227);
-    assert!(PendingSave::default() == PendingSave::new());
 }

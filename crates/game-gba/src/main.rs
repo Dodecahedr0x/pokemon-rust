@@ -79,21 +79,28 @@ fn publish_save(saves: u32, status: u32) {
     }
 }
 
-fn publish_costs(hash_lines_max: u32, step_lines_max: u32) {
-    let d = core::ptr::addr_of_mut!(PKR_DEBUG);
-    unsafe {
-        (&raw mut (*d).hash_lines_max).write_volatile(hash_lines_max);
-        (&raw mut (*d).step_lines_max).write_volatile(step_lines_max);
-    }
+/// Worst scanline costs on visible frames (see `DebugRegion::hash_lines_max`): meaningful
+/// only when `late == 0`, since each is measured mod one frame.
+#[derive(Default)]
+struct Costs {
+    hash: u32,
+    step: u32,
+    whole: u32,
 }
 
-/// After a flash write (many frames with the picture frozen): drain agb's vblank catch-up
-/// until a wait really lands at the start of vblank, so the next apply is on time.
-fn resync(vblank: &agb::interrupt::VBlank) {
-    loop {
-        vblank.wait_for_vblank();
-        if vcount() == VBLANK_LINE {
+impl Costs {
+    fn record(&mut self, hash: u32, step: u32, whole: u32) {
+        if hash <= self.hash && step <= self.step && whole <= self.whole {
             return;
+        }
+        self.hash = self.hash.max(hash);
+        self.step = self.step.max(step);
+        self.whole = self.whole.max(whole);
+        let d = core::ptr::addr_of_mut!(PKR_DEBUG);
+        unsafe {
+            (&raw mut (*d).hash_lines_max).write_volatile(self.hash);
+            (&raw mut (*d).step_lines_max).write_volatile(self.step);
+            (&raw mut (*d).loop_lines_max).write_volatile(self.whole);
         }
     }
 }
@@ -110,9 +117,11 @@ fn main(mut gba: agb::Gba) -> ! {
     video.apply_blanked(&frame);
     // Its commands are done; the loop re-applies only its registers.
     frame.cmds.clear();
+    // Boot order on the debug region: build and boot, then the boot World's hash, `frame`
+    // last. The hash stays 0 until then (the emu takes the first non-zero hash as the boot).
     publish_boot(build_hash(&game), boot);
     let (mut late, mut late_black) = (0u32, 0u32);
-    let (mut hash_lines_max, mut step_lines_max) = (0u32, 0u32);
+    let mut costs = Costs::default();
     let mut saves = 0u32;
     let mut pending: Option<PendingSave> = None;
     // Keys held at boot never complete the combo.
@@ -122,16 +131,12 @@ fn main(mut gba: agb::Gba) -> ! {
     // Frame 0 (or the restored frame) publishes the real hash rather than the static's 0.
     publish_debug(world, Buttons::NONE, late, late_black);
     let vblank = agb::interrupt::VBlank::get();
-    // Set by a flash write's resync: we already stand at the start of vblank.
-    let mut synced = false;
     loop {
-        if !synced {
-            vblank.wait_for_vblank();
-        }
-        synced = false;
+        vblank.wait_for_vblank();
+        let woke = vcount();
         // On time, we wake at the start of vblank. Anywhere else means the last step overran
         // and agb's catch-up returned at once, so this apply lands mid-frame.
-        let woke_late = vcount() != VBLANK_LINE;
+        let woke_late = woke != VBLANK_LINE;
         // Shows the previous step's Frame (one-frame display lag, see engine::debug).
         video.apply(&frame);
         let applied = vcount();
@@ -149,15 +154,8 @@ fn main(mut gba: agb::Gba) -> ! {
         let keys = read_keys();
         frame = world.step(&game, keys);
         let hash_lines = publish_debug(world, keys, late, late_black);
-        // Costs count on visible frames only: bulk work (map loads) runs while black.
-        if !black {
-            let step_lines = scanlines(applied, vcount());
-            if hash_lines > hash_lines_max || step_lines > step_lines_max {
-                hash_lines_max = hash_lines_max.max(hash_lines);
-                step_lines_max = step_lines_max.max(step_lines);
-                publish_costs(hash_lines_max, step_lines_max);
-            }
-        }
+        let step_lines = scanlines(applied, vcount());
+        let mut wrote = false;
 
         // Debug save (L+R+SELECT), outside the simulation: the World never sees it.
         if combo_pressed(prev_keys, keys) {
@@ -176,9 +174,11 @@ fn main(mut gba: agb::Gba) -> ! {
                         saves = saves.wrapping_add(1);
                     }
                     publish_save(saves, status);
-                    // The picture stayed frozen on the last applied frame during the write.
-                    resync(&vblank);
-                    synced = true;
+                    wrote = true;
+                    // The picture stayed frozen on the last applied frame during the write,
+                    // over many vblanks. One wait drains agb's catch-up (it returns at once),
+                    // so the loop's own wait is a real one and lands on `VBLANK_LINE`.
+                    vblank.wait_for_vblank();
                 }
                 Err(_) => {
                     if wait.tick() {
@@ -187,6 +187,11 @@ fn main(mut gba: agb::Gba) -> ! {
                     }
                 }
             }
+        }
+        // Costs count on visible frames only (bulk work such as map loads runs while black),
+        // and never across a flash write.
+        if !black && !wrote {
+            costs.record(hash_lines, step_lines, scanlines(woke, vcount()));
         }
     }
 }
