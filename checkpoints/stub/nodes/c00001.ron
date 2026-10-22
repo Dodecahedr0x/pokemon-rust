@@ -5,7 +5,7 @@
         schema: 2,
         build: (
             engine: 3590135998446755438,
-            content: 5875683769278456523,
+            content: 17223016602852571413,
         ),
         frame: 24,
         map: (9),
@@ -17,7 +17,7 @@
         parent: NewGame,
         build: (
             engine: 3590135998446755438,
-            content: 5875683769278456523,
+            content: 17223016602852571413,
         ),
         start_frame: 0,
         inputs: [
