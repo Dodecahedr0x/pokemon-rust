@@ -821,6 +821,12 @@ impl Db {
 
     /// FNV of the node, finding, seen and coverage tables in key order, without timings or
     /// run rows (determinism tests, `explore digest`).
+    ///
+    /// `battle` and `node_touch` are left out on purpose: both are derived from the nodes'
+    /// expansions (the balance record and the re-simulation index), written in the same
+    /// transaction as the node rows, so they add nothing the node table does not already pin.
+    /// `snapshot` (a cache) and `meta` are left out too. Changing the table list changes every
+    /// recorded digest.
     pub fn content_digest(&self) -> Result<u64, DbError> {
         let mut h = engine::hash::Fnv64::new();
         for (table, order) in [

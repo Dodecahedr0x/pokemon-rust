@@ -8,7 +8,7 @@
 - **Fitness:** novelty (new flags, var values, maps, scripts started, cells, keys), plus progress along a hand-written goal list for the slice, plus bug signal. Balance is recorded but weighted 0 in v0.
 - **Bug signals:**
   - native panics (`catch_unwind`, with the Rust location, map, cell, last script started and log)
-  - softlocks: the player is trapped, with no new region reachable within K macro-steps on a map that has exits
+  - softlocks: the player is trapped, with no new place (map, story flags and vars) reachable within K macro-steps on a map that has exits
   - invariant breaks: the checkpoint round trip and shadow follow, `capturable` stuck outside a battle or script, planner/engine divergence, and slow frames (report-only)
 - **Persistence:** `target/explore/{stub,emerald}/explore.db`, git-ignored. Nodes are `(parent, macro, RLE inputs, build, key, digest, fitness)`. States are reached by replay from the nearest cached snapshot (memory LRU, then the db `snapshot` table, then a new game).
 - **Rebuilds:** v0 re-validates every node when the build changes. It replays the inputs, checks the digest, re-expands the macro if they diverge, and otherwise marks the node `broken`. Touched maps and scripts are recorded now for the incremental version.
@@ -1088,7 +1088,7 @@ It may make small edits to Wave 1 files for wiring, listed in its report.
 1. **`wire.rs`:**
    - `Explore<G>` holds `Db`, `SnapCache`, `Runner`, `Evaluator` (with its archive loaded from the db), `Config` and a `rayon::ThreadPool`.
    - `generation()`: `plan` → fill `start` through `cache::reach` → `run_jobs(sim::simulate with Detectors)` → `merge` → `db.apply`.
-   - `Plan::Softlock` in `sim` goes through `softlock::probe`. Its `expand_all` runs `candidates` + `expand`, capped by breadth. `Trapped` becomes a `Softlock` finding whose tail is empty (the node itself) and whose message lists the region and map.
+   - `Plan::Softlock` in `sim` goes through `softlock::probe`. Its `expand_all` runs `candidates` + `expand`, capped by breadth. `Trapped` becomes a `Softlock` finding whose tail is empty (the node itself) and whose message holds the place, K and the reached count (the map is the finding's own column).
    - The repair closure for `revalidate` is `expand` from the start checkpoint.
    - On `build_changed`: `mark_all_stale` → `revalidate` before exploring.
 2. **`cli.rs`:**
@@ -1255,7 +1255,7 @@ It depends on M6's `Materializer`, `TraceRecorder::from_prefix`, `Seeked`/`Contr
 
    The fold is part of the db schema.
 4. **Integer fitness and seeded `SplitMix64` (taken).** Results are reproducible across machines and thread counts. Floats are not allowed in decisions.
-5. **Batch-synchronous generations (taken).** This is slightly less parallel than a free-running pool (the tail of a batch waits). In return the tree is deterministic and testable. Batch = 4 × threads hides most of the wait.
+5. **Batch-synchronous generations (taken).** This is slightly less parallel than a free-running pool (the tail of a batch waits). In return the tree is deterministic and testable. A fixed `batch` of 128 (Task H), independent of threads, hides most of the wait.
 6. **Single SQLite writer, WAL, one transaction per generation (taken).** The studio and CLI read concurrently (`open_read_only`). The `run` table holds timings and is excluded from `content_digest`.
 7. **Store inputs and macro (taken).** Revalidation replays the inputs first, which is cheap and exact. It re-expands the macro only on divergence (repair). Inputs use the Trace run syntax, so exports are direct.
 8. **Rebuild v0 = re-validate everything on any build change (taken; gap documented).**
@@ -1266,8 +1266,8 @@ It depends on M6's `Materializer`, `TraceRecorder::from_prefix`, `Seeked`/`Contr
 10. **Panics:**
     - **Captured:** the explorer records the Rust `Location`, the map, the cell, the last script started (`Probe`) and the log ring. The "script/map location inside the panic" of design §3 is an engine follow-up.
     - **Requirement:** profiles must keep `panic = "unwind"`, and the hook suppresses output only while a guard is active.
-11. **Softlock definition v0 (taken):** trapped = the map has exits, and every state reachable within K macro-steps (bounded breadth) has the same map and region.
-    - It runs on sampled nodes, and on nodes whose candidate expansions all failed.
+11. **Softlock definition v0 (taken):** trapped = the map has exits, and every state reachable within K macro-steps (bounded breadth) has the same map and place (`key::place_region`: map, story flags and vars).
+    - It runs as the 5% `Probe` mutation and on barren nodes; `softlock_sample` removed.
     - A K per map is configurable.
     - Stuck scripts and fades show up as `CapturableStuck` or `Timeout` instead.
 12. **Slow frames are report-only (taken).** Native step time is host-dependent. The real frame budget remains `cargo xtask parity`'s `late == 0` and loop-lines gates.
@@ -1284,7 +1284,7 @@ It depends on M6's `Materializer`, `TraceRecorder::from_prefix`, `Seeked`/`Contr
 17. **Dependencies (taken):** rusqlite 0.40.2 with `default-features = false, features = ["bundled"]` (SQLite 3.53.2), rayon 1.12. Both are verified in the local registry; the offline build is checked in Wave 0, with fallback `=0.39.0`.
 18. **The policy has a one-mon party, no bag, no switching (taken).** Losing leads to a whiteout and the respawn, a normal state. Party switching arrives with the M8 party menu.
 19. **Debug versus release:** unit and e2e tests run small budgets in debug. Measured runs use `cargo xtask explore` (release by default).
-20. **Open: the default `snapshot_every_depth` (8) and `cache_capacity` (4096).** Task H tunes them from the cache hit rate and the db size.
+20. **Resolved by Task H: the default `snapshot_every_depth` and `cache_capacity`.** `snapshot_every_depth` stays 8; `cache_capacity` is 65536 (from the cache hit rate and the db size).
 
 ---
 
@@ -1424,8 +1424,7 @@ Consequence: the `node` table grows by one non-live row per such duplicate. Thos
 - **Findings for Milestone 8 (Task H triage):**
   - **Engine/content: `special StartWallClock` is not implemented, and the screen stays black.** `PlayersHouse_2F_EventScript_SetWallClock` runs `fadescreen FADE_TO_BLACK`, `special StartWallClock`, `waitstate`. The special only logs its name, so nothing fades back in and the field is never capturable again. The two `CapturableStuck` findings are this one gap: map `0x0101` (Brendan's 2F, `Inspect (5,1) Up`, script 65) and map `0x0103` (May's 2F, `Inspect (3,1) Up`, script 148). Both reproduce. **Not fixed:** a fade-in stub for the special is not a trivial, hash-neutral change, and the real fix is the wall-clock screen.
   - **Explorer: db size.** `merged` history rows are 81% of the rows (386,504 of 475,962 after 600 s), and the `inputs` runs text is 318 MB of the 499 MB db. Battle inputs alternate A and release every frame, so the RLE barely compresses them. 178,215 merged rows (37% of all rows) have no child; they are kept only for `key_hits`. Options for M8: a per-key hit counter in place of leaf history rows, or compressed inputs. At about 1.05 MB per 1,000 rows, a 1800 s run would be about 1.3–1.5 GB.
-  - **Explorer: `DetectConfig::softlock_sample` is unused.** Task D's 5% `Probe` operator replaced it. With the probe's early stop (Wave 2 as built), probes are cheap, so the operator stays. Remove the field, or wire it in, at close-out.
-- **House map 0x101, `Inspect` at (5,1) and (3,1) facing Up (Task A's probe):** the script ends but the fade never returns to 0, so the state is never capturable again. Likely a real engine or content bug; `CapturableStuck` should report it once Task G runs.
+  - **Explorer: `DetectConfig::softlock_sample` is unused.** Task D's 5% `Probe` operator replaced it. With the probe's early stop (Wave 2 as built), probes are cheap, so the operator stays. Remove the field, or wire it in, at close-out. **Resolved at close-out:** the field is removed; old config files that set it still load.
 - **M8 follow-up (engine): the stale view after a connection crossing should be capturable.** Today it is capturable only once the camera has left the crossing's view, so `Cross` needs the walk-away and talk fallback (Task A as built). Capturing it, by snapshotting the stale rect or redrawing the view on restore, would let `Cross` end one cell into the new map as specified.
 - **M8 follow-up (explorer): make summary-only goals observable in state.** `wild_won` (stub) and `rescue_started` (real) are read from an expansion's summary, not from the end state, so the key cannot tell a lineage that reached them from one that did not. Task G's merge rule (more goals first) keeps such lineages alive, at the cost of the invariant below (a node can be superseded by its own descendant). A flag or var set by the engine (or a key part derived from the save state) would make them part of the key, and the merge rule could return to frames only.
 
@@ -1448,7 +1447,7 @@ Consequence: the `node` table grows by one non-live row per such duplicate. Thos
 - `GenOutcome.phases` / `RunSummary.phases` (`Phases { plan, jobs, merge, apply }`): host time, report-only, never in the db.
 
 **`sim.rs` (wiring edit).**
-- `Plan::Softlock { k, breadth }` calls `sim::trap(game, start, k, breadth, cfg)`, which is `softlock::probe` with the start's region (`key::region(key_parts(start))`, equal to the node's) and `map_exits`.
+- `Plan::Softlock { k, breadth }` calls `sim::trap(game, start, k, breadth, cfg)`, which is `softlock::probe` with the start's place (`key::place_region(key_parts(start))`, Task H; not the node's `region`) and `map_exits`.
 - `expand_all` restores a fresh `Session<Probe<G>>` per candidate, takes `MacroKind::Wait { frames: PROBE_WAIT_FRAMES }` (300) first and then `candidates_with` in order, and `expand`s each under `guard::catch` with the policy and no detectors. It keeps at most `remaining` successful ends `(region, map, cp)`; panics and failed expansions are skipped. `Wait` (a new last `MacroKind` variant: press nothing, then settle) lets a wandering object free the way; it is never a search candidate. The probe's frames are counted in `JobResult::probe_frames` / `GenStats::probe_frames`, and the run's frames/s includes them.
 - `Trapped` gives a `Softlock` finding with an empty tail, no macro, the start's map and cell, and the message `findings::softlock_message(region, k, reached)` (decimal, no hex). Its signature is `findings::softlock_signature(map, region)` (`findings::signature` reads the region back from the message), so the same trap dedupes whatever the reached count. `Free`/`NoExits` give `Stop::NotTrapped`. A probe without a start state is `Pruned`.
 - `sim::softlock_k(cfg, map)` (per-map K, else `softlock_k`) is used by `repro`. The root's `World::new` panic was already a finding (`Session::new` under `guard::catch`, empty tail, `new_game().map`), so `PanicOnScript` at `NEW_GAME_SCRIPT` gives one finding with `node = NULL`, and the runner stalls.
@@ -1494,12 +1493,14 @@ The bin exits with `cli::exit_code`; xtask is unchanged (`cargo xtask explore` a
 
 **Numbers** (Apple M4 Max, 16 rayon threads by default, release unless noted):
 - **Debug test times:** `e2e_stub` 9.6 s (10 tests); `e2e_real` 4.3 s.
-- **After the review (probe `Wait`, probe frames counted), real `run --generations 50`:** 984 nodes inserted (615 valid), 1,585,889 frames with the probes, 7/7 goals (`may_defeated`), 13 maps, 988 cells, 2 findings (the two Fades, no softlock). `--threads 1`: 4.5 s, about 356k frames/s; `--threads 8`: 1.6 s, about 991k frames/s. `explore digest` is `0x4309279c8e23c2e1` on both. The numbers below predate the review: the probe now waits first, so the search and digests differ, and frames/s then left probe frames out.
+- **After the review (probe `Wait`, probe frames counted), real `run --generations 50`:** 984 nodes inserted (615 valid), 1,585,889 frames with the probes, 7/7 goals (`may_defeated`), 13 maps, 988 cells, 2 findings (the two Fades, no softlock). `--threads 1`: 4.5 s, about 356k frames/s; `--threads 8`: 1.6 s, about 991k frames/s. `explore digest` is `0x4309279c8e23c2e1` (superseded: see Wave 2 as built, Determinism) on both. The numbers below predate the review: the probe now waits first, so the search and digests differ, and frames/s then left probe frames out.
 - **Stub, `cargo xtask explore run --generations 50`:**
   - 0.5 s, 130 nodes inserted (32 valid), 3/3 goals, 105 cells, about 1.3M frames/s;
   - `--threads 1`: 2.2 s, about 313k frames/s;
-  - `explore digest` is `0x51be88a0fa670e1b` on both.
+  - `explore digest` is `0x51be88a0fa670e1b` (superseded: see Wave 2 as built, Determinism) on both.
 - **Real, determinism (60 generations, 1,204 nodes, 1.03M frames):**
+
+  The digests below are superseded: see Wave 2 as built, Determinism.
 
   | Run | Wall | Frames/s | `content_digest` |
   |---|---|---|---|
@@ -1684,7 +1685,7 @@ Master's digests (`0x4309279c8e23c2e1` real, `0x51be88a0fa670e1b` stub) no longe
   - `Rng64(mix(seed ^ i))` would not help: `mix` is a bijection, so it collides on exactly the same pairs.
   - Only a different derivation would remove the overlap, for example one `Rng64(seed)` drawn per step. That is not worth a digest change.
 - **Softlock probe weight:**
-  - Task D's 5% `Probe` operator stays, and `softlock_sample` stays unused (see Findings).
+  - Task D's 5% `Probe` operator stays, and `softlock_sample` stays unused (see Findings; removed at close-out).
   - After the early stop, a probe that finds the state free costs a few expansions.
   - Jobs went from 77% of wall time (Task G) to 58% (the 600 s run).
 - **Merged rows:** they matter for db size (above, and Findings), not for speed. `apply` is 15% of the 600 s run.
@@ -1698,8 +1699,8 @@ Master's digests (`0x4309279c8e23c2e1` real, `0x51be88a0fa670e1b` stub) no longe
 | `Softlock` `0x0010` (17,13) ×2, and `0x0011` (11,14), (9,14), (6,17) (A0 only) | **False positive:** encounters interrupt every walk. Fixed (the probe resumes interrupted walks), with a test. |
 
 ### Left for close-out
-- `softlock_message` still says "region" for what is now the place (`key::place_region`); the signature is unaffected.
-- The unused `softlock_sample` field, and the db-size items in Findings.
+- `softlock_message` still says "region" for what is now the place (`key::place_region`); the signature is unaffected. **Resolved at close-out:** the message says "place", and its parser still accepts "region" from older rows.
+- The unused `softlock_sample` field, and the db-size items in Findings. **Resolved at close-out:** the field is removed; the db-size items moved to Findings for Milestone 8 (item 13).
 - `cargo xtask parity` was not run: no engine or content change was committed.
 
 ## Task S1 as built
@@ -1843,3 +1844,67 @@ Master's digests (`0x4309279c8e23c2e1` real, `0x51be88a0fa670e1b` stub) no longe
 - `cargo test -p studio --features ui`: 98 lib tests.
 - `cargo xtask studio --check`.
 - `cargo xtask studio --smoke 8`: see the review-fix report. During this session the transport panes ran at about 34 fps with or without the quit handler (load average about 9 to 12, another process at 100% CPU), against 60.0 / 60.0 fps on the first S2 run.
+
+## Wave 3 as built (close-out)
+
+**Review.**
+- Determinism: no `HashMap`/`HashSet` in `crates/explore`. Floats are used only for CLI printing. `Instant` is used only in the report-only `SlowFrame`/`max_step_ns`, the phase timings and the `--secs` budget, and `SystemTime` only in the `run` row, which is outside `content_digest`. Merge runs in job order, and revalidation applies in id order.
+- Threads: only `Arc<Checkpoint>`, `Job`/`JobResult`, `NodeRow`s and `Config` cross the rayon pool. Sessions are built inside the job closure. The single writer `Connection` stays on the main thread. The studio opens the db read-only.
+- Write locations: `target/explore/{stub,emerald}/` (absolute, from `CARGO_MANIFEST_DIR`), `target/studio/explore.log` and temp dirs in tests. `git status` was clean after the explorer runs and the gates.
+- Engine: untouched by M7. M7's shared-file changes:
+  - `game_native::checkpoints::SeekStart::from_trace` (S1, additive);
+  - the content `build.rs` rerun rule (S1), which changes `BUILD_ID`: the checkpoints were re-accepted, and the ROM is +8 bytes (1,991,320 B) from the new constant. Hashes and budgets are unchanged.
+- Fixed at close-out:
+  - `DetectConfig::softlock_sample` removed (old configs still load);
+  - the softlock message now says "place" (its parser accepts "region" from older rows; signatures unchanged);
+  - `status` generation count made 1-based;
+  - the heat-bucket rule shared between explore and studio;
+  - `slow_step_us` excluded from the config-change note;
+  - stale plan statements corrected.
+
+**Contracts changed over M7 (summary).**
+- Schema v2 (`SCHEMA_VERSION = 2`: `finding.node` nullable).
+- Merge rule: more goals reached, then fewer total frames, then lower id (Task G).
+- The softlock probe compares `key::place_region` (map, story flags, story vars), resumes walks that a battle interrupted (`probe_resumes` 4), waits first (`MacroKind::Wait`, 300 frames), and stops at the first free expansion.
+- Block `WalkTo` jitter (`macros::block_mates`).
+- Defaults: `batch` 128, `cache_capacity` 65536, `snapshot_every_depth` 8, `softlock_k` 3, `softlock_breadth` 64.
+- `SeekStart::from_trace`; studio `explorer`, `proc`, `ui::explorer`; the Map tab's coverage layer.
+
+**Numbers (Apple M4 Max, release, close-out re-runs at a load average of about 11).**
+
+| measure | value |
+|---|---|
+| real 50 gens, 1 / 8 threads, 25+25 resumed | 12.6 s / 2.5 s / 1.2 + 1.5 s; all `0xa8a8b7baa262e20c` |
+| stub `cargo xtask explore run --generations 50` + `digest` | `0x30ec96cf029cb82f` |
+| stub 200 gens | 5.1 s, 196/196 cells, 3/3 goals, 0 findings |
+| real 120 s (16 threads) | 1,417 gens, 190,260 rows (41,480 valid), 1.065M frames/s, 877 inserted/s, `may_defeated` gen 14 at 0.5 s, 14 maps, 2,098 cells, 89/359 scripts |
+| db size | about 105 MB per 100k rows (199 MB at 190k rows; 499 MB at 476k rows after 600 s, H) |
+| snapshot cache hit rate | 99.5% at 120 s (180,302 hits, 946 misses); 92.5% over 600 s (422,505 / 34,327, H) |
+| revalidation | forced, same build: 41,480 nodes in 21.5 s (1.09 GB); after an engine-source change: 475,962 rows in 69.6 s (2.08 GB, H). All `Valid`, digests unchanged |
+| findings | 2 `CapturableStuck` (StartWallClock fade), both reproducing; no Panic, RoundTrip, Softlock or PlannerDivergence |
+| parity | unchanged: 19070 hashes and 204 pictures, no late frames; route hash 63 / step 210 / loop 214 |
+| gates | fmt; both clippy runs; workspace tests real 1071 and stub 1061 passed (62 suites, 11 ignored; 1066 and 1056 before the close-out fixes' 5 new tests); studio ui 98; `studio --check`. `studio --smoke 8` at about 32 fps under a load average of 12 to 16 (environment; 60/60 fps unloaded in S2) |
+
+The 30-minute run was replaced by H's 600 s run: coverage, maps, scripts and findings were flat after about 150 s.
+
+After the close-out fixes, the stub and real 50-generation digests (1 and 8 threads) are unchanged: `0x30ec96cf029cb82f` and `0xa8a8b7baa262e20c`.
+
+## Findings for Milestone 8
+1. **Engine/content: `special StartWallClock`** is not implemented, and the fade never clears. Two `CapturableStuck` findings: 0x0101 (5,2) and 0x0103 (3,2). → M8 Task J.
+2. **Engine: the stale view after a crossing should be capturable.** Then `Cross` can end one cell into the new map. → Task F, then N.
+3. **Explorer: summary-only goals** (`wild_won`, `rescue_started`) should be state predicates. Then the merge rule can return to frames only (today a node can be superseded by its own descendant). → Task K.
+4. **Content digests:** per-script and per-map digests from `content/build.rs`, so re-simulation through `node_touch` can be incremental. → D/E emit them, N uses them.
+5. **Engine `FrameOut`/`World::events()`** in place of `Probe`; script-line coverage. → Wave 0 + K; line coverage M14.
+6. **Engine-side panic context** (script id and map in the panic). → Wave 0, K, M.
+7. **Elevation-aware pathfinding.** No `PlannerDivergence` in M7. → M10.
+8. **Party switching, items and bag** in the policy and the key. → K (key items); M9 (policy).
+9. **Abstract-key gaps:** `respawn`, object `templates` deltas, `VAR_OBJ_GFX_ID_*` as story vars. → K.
+10. **Balance fitness.** → M14.
+11. **Goal-directed completability per checkpoint** (`--from` segments, per-act goals). → K.
+12. **Explorer exports as local-store nodes** (`export --to-store`, `checkpoints promote`). → K.
+13. **db size:** merged history rows (78% of rows at 120 s, 81% at 600 s; 37% are childless) and the `inputs` text (318 of 499 MB). → K (binary inputs, `key_hit`, no leaf merged rows).
+14. **`node.region`** is written but no longer read: the probe uses the place. → K (schema v3: drop it or store the place).
+15. **`CapturableStuck`/`RoundTrip` signatures leave out the script.** Distinct traps on one map share a row (0x0101's row is first found through the bedroom PC, before the wall clock). → K: add `last_script` to non-panic signatures.
+16. **Revalidation memory:** 2.08 GB for 476k rows. Rows and inputs are resident, plus one level of checkpoints. → K (inputs not resident), N (incremental).
+17. **Probe worst case:** `(1 + probe_resumes) × softlock_breadth` = 320 expansions on a true trap with battles. → N tuning on the full import.
+18. **Content build:** with `PKR_EXTRACTED_DIR` pointing at a missing dir, creating the dir later is not noticed until the env var changes. Accepted, documented.

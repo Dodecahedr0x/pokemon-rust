@@ -19,39 +19,59 @@ use game_native::trace::{HASH_EVERY, Parent, Run, Trace, TraceRecorder, rle};
 /// then the map. A panic keeps its signature across unrelated edits that move its line; the
 /// full location stays in the finding row for display.
 ///
-/// A `Softlock` is signed on its map and region instead ([`softlock_signature`], the region
+/// A `Softlock` is signed on its map and place instead ([`softlock_signature`], the place
 /// read back from [`softlock_message`]).
 pub fn signature(f: &FindingDraft) -> u64 {
     if f.kind == FindingKind::Softlock
-        && let Some(region) = softlock_region(&f.message)
+        && let Some(place) = softlock_place(&f.message)
     {
-        return softlock_signature(f.map, region);
+        return softlock_signature(f.map, place);
     }
     signature_of(f.kind, &f.message, f.location.as_deref(), f.map)
 }
 
-/// A `Softlock` finding's message (the region in decimal, so no hex letters).
-pub fn softlock_message(region: u64, k: u32, reached: u32) -> String {
-    format!("trapped: the {reached} states within {k} macros stay in region {region}")
+/// A `Softlock` finding's message: the place (`key::place_region`) in decimal, so no hex
+/// letters, the probe depth K and the reached count. The map is the finding's own column.
+pub fn softlock_message(place: u64, k: u32, reached: u32) -> String {
+    format!("trapped: the {reached} states within {k} macros stay in place {place}")
 }
 
-/// The region of a [`softlock_message`].
-pub fn softlock_region(message: &str) -> Option<u64> {
-    message.rsplit_once(" region ")?.1.parse().ok()
+/// The place of a [`softlock_message`]. Rows written before the M7 close-out say " region "
+/// where newer ones say " place "; both parse, so old rows re-sign to the same signature.
+pub fn softlock_place(message: &str) -> Option<u64> {
+    message
+        .rsplit_once(" place ")
+        .or_else(|| message.rsplit_once(" region "))?
+        .1
+        .parse()
+        .ok()
 }
 
-/// A softlock's dedupe signature: FNV-1a 64 of its kind name, the map and the region.
-pub fn softlock_signature(map: MapId, region: u64) -> u64 {
+/// A softlock's dedupe signature: FNV-1a 64 of its kind name, the map and the place.
+pub fn softlock_signature(map: MapId, place: u64) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let bytes = kind_name(FindingKind::Softlock)
         .bytes()
         .chain([0xFF])
         .chain(map.0.to_le_bytes())
-        .chain(region.to_le_bytes());
+        .chain(place.to_le_bytes());
     for b in bytes {
         h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
     }
     h
+}
+
+/// The coverage heat bucket of a cell visited `hits` times: 0 when never, then 1, 2-9, 10-99
+/// and 100+ hits as 1 to 4. Shared by the `explore coverage` grid and the studio's coverage
+/// layer.
+pub fn heat_bucket(hits: u32) -> u8 {
+    match hits {
+        0 => 0,
+        1 => 1,
+        2..=9 => 2,
+        10..=99 => 3,
+        _ => 4,
+    }
 }
 
 /// The stable name of a kind in signatures (never renamed: dedupe depends on it).
@@ -250,4 +270,54 @@ pub fn end_state<G: GameData + Clone>(game: &G, trace: &Trace) -> Result<Checkpo
     }
     s.checkpoint()
         .map_err(|e| format!("the end state is not capturable: {e:?}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn softlock_draft(message: String) -> FindingDraft {
+        FindingDraft {
+            kind: FindingKind::Softlock,
+            message,
+            location: None,
+            macro_: None,
+            tail: Vec::new(),
+            map: MapId(0x0101),
+            pos: (3, 4),
+            script: None,
+            log: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn softlock_message_says_place_and_parses_back() {
+        let m = softlock_message(123_456, 3, 17);
+        assert_eq!(
+            m,
+            "trapped: the 17 states within 3 macros stay in place 123456"
+        );
+        assert_eq!(softlock_place(&m), Some(123_456));
+    }
+
+    #[test]
+    fn old_region_rows_re_sign_like_new_place_rows() {
+        let old = "trapped: the 17 states within 3 macros stay in region 123456";
+        assert_eq!(softlock_place(old), Some(123_456));
+        let want = softlock_signature(MapId(0x0101), 123_456);
+        assert_eq!(signature(&softlock_draft(old.to_string())), want);
+        assert_eq!(
+            signature(&softlock_draft(softlock_message(123_456, 3, 17))),
+            want
+        );
+        assert_eq!(softlock_place("trapped somewhere"), None);
+    }
+
+    #[test]
+    fn heat_buckets() {
+        assert_eq!(
+            [0, 1, 2, 9, 10, 99, 100, u32::MAX].map(heat_bucket),
+            [0, 1, 2, 2, 3, 3, 4, 4]
+        );
+    }
 }

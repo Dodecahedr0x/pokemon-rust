@@ -122,7 +122,8 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
     /// - On a build change every valid node becomes stale and is revalidated before exploring
     ///   (repair = re-expanding the node's macro from its parent's new end state). Stale nodes
     ///   left by an interrupted revalidation are revalidated too.
-    /// - `config_changed` tells whether `cfg` differs from the last run's config.
+    /// - `config_changed` tells whether `cfg` differs from the last run's config
+    ///   (`Config::differs_from_ron`: the report-only `slow_step_us` is left out).
     /// - The runner and the archive are rebuilt from the rows (`Graph::from_rows`,
     ///   `Archive::from_db`); the next generation follows the db's last one.
     pub fn open(game: G, path: &Path, mut cfg: Config) -> anyhow::Result<Explore<G>> {
@@ -148,7 +149,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         }
         let config_changed = db
             .last_run_config()?
-            .is_some_and(|last| last != cfg.to_ron());
+            .is_some_and(|last| cfg.differs_from_ron(&last));
         let (runner, eval) = load(&db, &cfg)?;
         Ok(Explore {
             game,
@@ -431,7 +432,7 @@ fn prefix<G: GameData + Clone>(game: &G, trace: &Trace, frames: u32) -> anyhow::
 /// Whether finding `id` reproduces on `game` from a new game: `Ok(Ok(()))` when it does,
 /// `Ok(Err(why))` when it does not, `Err` when it cannot be tried (no such finding, a db
 /// error). `findings::reproduce` on its trace, or for a softlock the probe again from the
-/// trace's end state (`findings::end_state`), which must be trapped on the same map and region.
+/// trace's end state (`findings::end_state`), which must be trapped on the same map and place.
 pub fn reproduce<G: GameData + Clone>(
     game: &G,
     db: &Db,
@@ -457,12 +458,12 @@ pub fn reproduce<G: GameData + Clone>(
     let k = sim::softlock_k(cfg, map);
     let probed = sim::trap(game, &end, k, cfg.detect.softlock_breadth, cfg);
     Ok(match probed.trap {
-        Trap::Trapped { .. } if findings::softlock_signature(map, probed.region) == f.signature => {
+        Trap::Trapped { .. } if findings::softlock_signature(map, probed.place) == f.signature => {
             Ok(())
         }
         Trap::Trapped { .. } => Err(format!(
-            "trapped again, but elsewhere (region {}, map {:#06x})",
-            probed.region, map.0
+            "trapped again, but elsewhere (place {}, map {:#06x})",
+            probed.place, map.0
         )),
         t => Err(format!("not trapped any more: {t:?}")),
     })
