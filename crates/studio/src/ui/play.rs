@@ -1,18 +1,19 @@
 //! Play tab (Task G): the native and ROM panes side by side, their controls, the native
 //! inspector and event list, and the ROM debug timeline with its build banner.
 //!
-//! A focused pane takes the keyboard ([`keys`](super::keys)); leaving it releases every key.
+//! A focused pane takes the keyboard ([`crate::keys`]); leaving it releases every key. The text
+//! helpers live in the core ([`crate::play_view`]).
 
-use super::keys::{Keyboard, native_cmds, rom_cmds};
 use super::tree::TreeState;
 use super::{Live, PaneView, Studio, off_thread, sleep};
 use crate::build::{BuildState, RomBuild};
-use crate::native::{EventKind, Inspector, NativeCmd};
+use crate::keys::{Keyboard, native_cmds, rom_cmds};
+use crate::native::{Inspector, NativeCmd};
 use crate::pane::RunMode;
-use crate::rom::{RomCmd, RomFile, RomSource, RomStatus, Shadow, TimelineEntry, boot_name};
+use crate::play_view::{event_text, run_text, shadow_text, timeline_cells};
+use crate::rom::{RomCmd, RomFile, RomSource, RomStatus, boot_name};
 use dioxus::dioxus_core::spawn_forever;
 use dioxus::prelude::*;
-use engine::data::GameData;
 use game_native::trace::Parent;
 use std::time::Duration;
 
@@ -27,49 +28,6 @@ const BUILD_POLL: Duration = Duration::from_millis(250);
 
 /// The fast-forward speeds offered.
 const FAST: [u8; 3] = [2, 4, 8];
-
-/// An event's line in the event list.
-pub fn event_text(kind: &EventKind) -> String {
-    match kind {
-        EventKind::MapEntered(m) => {
-            let name = if content::has_map(*m) {
-                content::Emerald::for_shells().map(*m).name
-            } else {
-                "?"
-            };
-            format!("entered {name} ({})", m.0)
-        }
-        EventKind::ScriptStarted => "script started".into(),
-        EventKind::ScriptEnded => "script ended".into(),
-        EventKind::BattleStarted => "battle started".into(),
-        EventKind::BattleEnded => "battle ended".into(),
-        EventKind::Log(line) => format!("log: {line}"),
-        EventKind::Saved(id) => format!("saved {id}"),
-        EventKind::Loaded(id) => format!("loaded {id}"),
-        EventKind::Seeked(id, f) => format!("opened {id} at +{f}"),
-        EventKind::Rewound(n) => format!("rewound {n} frames"),
-        EventKind::NewGame => "new game".into(),
-    }
-}
-
-/// The run mode's label.
-pub fn run_text(run: RunMode) -> String {
-    match run {
-        RunMode::Play => "playing".into(),
-        RunMode::Pause => "paused".into(),
-        RunMode::Fast(n) => format!("fast ×{n}"),
-    }
-}
-
-/// The native shadow's line.
-pub fn shadow_text(s: Shadow) -> String {
-    match s {
-        Shadow::Off => "off".into(),
-        Shadow::Matching => "matching".into(),
-        Shadow::Mismatch(f) => format!("differs since frame {f}"),
-        Shadow::Lost(f) => format!("lost at frame {f}"),
-    }
-}
 
 #[component]
 pub fn Play() -> Element {
@@ -253,26 +211,6 @@ fn NativeColumn() -> Element {
     }
 }
 
-/// One timeline row's cells.
-fn timeline_cells(e: &TimelineEntry) -> [String; 9] {
-    let native = match e.native_hash {
-        None => "-".to_string(),
-        Some(h) if h == e.hash => "=".to_string(),
-        Some(h) => format!("{h:016x}"),
-    };
-    [
-        e.emu_frame.to_string(),
-        e.frame.to_string(),
-        format!("{:016x}", e.hash),
-        native,
-        format!("{}/{}", e.late, e.late_black),
-        format!("{}/{}", e.saves, e.save_status),
-        e.hash_lines_max.to_string(),
-        e.step_lines_max.to_string(),
-        e.loop_lines_max.to_string(),
-    ]
-}
-
 #[component]
 fn RomColumn() -> Element {
     let studio = use_context::<Studio>();
@@ -442,52 +380,6 @@ fn RomColumn() -> Element {
 mod tests {
     use super::super::Tab;
     use super::super::tests::{render, temp_root, test_studio};
-    use super::*;
-    use engine::data::MapId;
-    use game_native::trace::CheckpointId;
-
-    #[test]
-    fn event_lines() {
-        let m = content::data::MAP_IDS[0];
-        let name = content::Emerald::for_shells().map(m).name;
-        let line = event_text(&EventKind::MapEntered(m));
-        assert!(
-            line.contains(name) && line.contains(&m.0.to_string()),
-            "{line}"
-        );
-        assert_eq!(
-            event_text(&EventKind::Saved(CheckpointId(10001))),
-            format!("saved {}", CheckpointId(10001))
-        );
-        assert_eq!(event_text(&EventKind::Rewound(120)), "rewound 120 frames");
-        assert!(event_text(&EventKind::MapEntered(MapId(u16::MAX))).contains('?'));
-        assert_eq!(run_text(RunMode::Fast(4)), "fast ×4");
-        assert_eq!(shadow_text(Shadow::Mismatch(7)), "differs since frame 7");
-    }
-
-    #[test]
-    fn timeline_cells_mark_the_shadow() {
-        let mut e = TimelineEntry {
-            emu_frame: 1,
-            frame: 2,
-            hash: 0xab,
-            late: 0,
-            late_black: 0,
-            saves: 0,
-            save_status: 0,
-            hash_lines_max: 60,
-            step_lines_max: 200,
-            loop_lines_max: 210,
-            native_hash: Some(0xab),
-        };
-        assert_eq!(timeline_cells(&e)[3], "=");
-        e.native_hash = None;
-        assert_eq!(timeline_cells(&e)[3], "-");
-        e.native_hash = Some(1);
-        assert_eq!(timeline_cells(&e)[3], format!("{:016x}", 1));
-        assert_eq!(timeline_cells(&e)[8], "210");
-    }
-
     /// The Play tab shows both panes, their controls and the inspector, before any status.
     #[test]
     fn the_play_tab_renders_the_controls() {

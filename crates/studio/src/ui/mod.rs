@@ -15,7 +15,6 @@
 //! worker threads ([`off_thread`]); the UI thread only sends commands and renders.
 
 pub mod data;
-pub mod keys;
 pub mod map;
 pub mod play;
 pub mod tree;
@@ -490,12 +489,21 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
                     }
                 },
                 Tab::Checkpoints => rsx! { tree::Tree {} },
-                // TODO(M6 Task H merge): `map::Map { live: map::Live::from_inspector(live.native.read().map, live.native.read().camera) }`
-                Tab::Map => rsx! { map::Map {} },
+                Tab::Map => rsx! { LiveMap {} },
                 Tab::Data => rsx! { data::Data {} },
             }
         }
     }
+}
+
+/// The Map tab, following the native pane's map and camera ("Show live map"). Its own
+/// component, so the 15 Hz inspector updates re-render only the map view, not the shell.
+#[component]
+fn LiveMap() -> Element {
+    let live = use_context::<Live>();
+    let s = live.native.read();
+    let live = map::Live::from_inspector(s.map, s.camera);
+    rsx! { map::Map { live } }
 }
 
 /// A pane's canvas (filled by `studio.js`) and its fps counter. With `keys`, the canvas is
@@ -589,6 +597,17 @@ mod tests {
             );
         }
         assert!(!local.exists(), "rendering writes nothing");
+    }
+
+    /// The Map and Data tabs render inside the shell (the Map tab through the live-map wrapper).
+    #[test]
+    fn the_map_and_data_tabs_render_in_the_shell() {
+        let local = temp_root("tabs");
+        for tab in [Tab::Map, Tab::Data] {
+            let html = render(test_studio(&local), tab);
+            assert!(html.contains("class=\"active\">"), "{tab:?}: {html}");
+        }
+        assert!(!local.exists());
     }
 
     #[test]

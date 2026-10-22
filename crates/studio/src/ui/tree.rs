@@ -8,52 +8,17 @@
 use super::{Live, Studio, Tab, focus_pane, off_thread, sleep};
 use crate::native::NativeCmd;
 use crate::pane::RunMode;
+use crate::play_view::{badge, nodes_stamp, seek_world_frame};
 use crate::rom::{RomCmd, RomSource};
 use crate::tree::{Origin, TreeModel, TreeRow, relabel, remove, verify_in_background};
 use dioxus::dioxus_core::spawn_forever;
 use dioxus::prelude::*;
-use game_native::store::{Status, Store};
+use game_native::store::Store;
 use game_native::trace::Parent;
-use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 /// How often the tree checks its `nodes/` directories for changes (a save or a CLI command).
 pub const WATCH: Duration = Duration::from_secs(2);
-
-/// A status badge: its CSS class and its text.
-pub fn badge(status: Option<&Status>) -> (&'static str, String) {
-    match status {
-        None => ("unverified", "unverified".into()),
-        Some(Status::Valid) => ("valid", "valid".into()),
-        Some(Status::Stale { schema }) => ("stale", format!("stale (schema {schema})")),
-        Some(Status::Diverged {
-            hash,
-            parent_diverged,
-        }) => {
-            let mut s = match hash {
-                Some(m) => format!("diverged at frame {}", m.frame),
-                None => "diverged (end state)".into(),
-            };
-            if *parent_diverged {
-                s.push_str(", parent diverged");
-            }
-            ("diverged", s)
-        }
-        Some(Status::Broken(msg)) => ("broken", format!("broken: {msg}")),
-    }
-}
-
-/// The modification times of the store's `nodes/` directories (local, then the base): a node
-/// added, rewritten or removed changes one of them.
-pub fn nodes_stamp(store: &Store) -> Vec<Option<SystemTime>> {
-    let dirs = std::iter::once(store.root()).chain(store.base());
-    dirs.map(|d: &Path| {
-        std::fs::metadata(d.join("nodes"))
-            .and_then(|m| m.modified())
-            .ok()
-    })
-    .collect()
-}
 
 /// The tree's signals, in context (provided by the [`Shell`](super::Shell)).
 #[derive(Clone, Copy)]
@@ -370,7 +335,7 @@ fn Row(row: TreeRow) -> Element {
             },
             Some(RowEdit::Seek(frames)) => {
                 // The world frame: the trace starts at the parent's frame.
-                let at = row.frame - row.trace_frames.min(row.frame) + frames;
+                let at = seek_world_frame(row.frame, row.trace_frames, frames);
                 rsx! {
                 tr { class: "seek",
                     td { colspan: "7",
@@ -414,54 +379,6 @@ fn Row(row: TreeRow) -> Element {
 mod tests {
     use super::super::tests::{render, temp_root, test_studio};
     use super::*;
-    use game_native::trace::HashMismatch;
-
-    #[test]
-    fn badges() {
-        assert_eq!(badge(None).0, "unverified");
-        assert_eq!(badge(Some(&Status::Valid)), ("valid", "valid".into()));
-        assert_eq!(
-            badge(Some(&Status::Stale { schema: 3 })).1,
-            "stale (schema 3)"
-        );
-        let d = Status::Diverged {
-            hash: Some(HashMismatch {
-                frame: 120,
-                want: 1,
-                got: 2,
-            }),
-            parent_diverged: true,
-        };
-        assert_eq!(
-            badge(Some(&d)),
-            ("diverged", "diverged at frame 120, parent diverged".into())
-        );
-        let d = Status::Diverged {
-            hash: None,
-            parent_diverged: false,
-        };
-        assert_eq!(badge(Some(&d)).1, "diverged (end state)");
-        assert_eq!(
-            badge(Some(&Status::Broken("boom".into()))),
-            ("broken", "broken: boom".into())
-        );
-    }
-
-    #[test]
-    fn the_stamp_follows_the_nodes_dirs() {
-        let local = temp_root("stamp");
-        let base = temp_root("stamp-base");
-        std::fs::create_dir_all(base.join("nodes")).unwrap();
-        let store = Store::layered(&base, &local).unwrap();
-        let before = nodes_stamp(&store);
-        assert_eq!(before.len(), 2);
-        assert!(before[0].is_none() && before[1].is_some());
-        std::fs::create_dir_all(local.join("nodes")).unwrap();
-        assert!(nodes_stamp(&store)[0].is_some());
-        std::fs::remove_dir_all(local).unwrap();
-        std::fs::remove_dir_all(base).unwrap();
-    }
-
     /// The Checkpoints tab lists every node of the committed tree (labels and ids), with the
     /// committed nodes read-only.
     #[test]

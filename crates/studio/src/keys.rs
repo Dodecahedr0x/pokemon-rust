@@ -1,4 +1,5 @@
-//! Keyboard input for a focused play pane (plan: Task G "keys.rs"). Pure: the UI feeds it
+//! Keyboard input for a focused play pane (plan: Task G "keys.rs", in the core so it is tested
+//! without the `ui` feature). Pure: the UI feeds it
 //! `KeyboardEvent::code()` names and turns its [`Outcome`]s into pane commands.
 //!
 //! The layout is the `play` bin's: arrows, X = A, Z = B, A = L, S = R, Enter = Start,
