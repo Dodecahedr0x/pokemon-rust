@@ -1,6 +1,7 @@
 //! Host shell: runs engine + content natively and draws each [`Frame`] with a software PPU.
 
 pub mod checkpoints;
+pub mod controls;
 pub mod flash;
 pub mod ppu;
 pub mod scenario;
@@ -47,24 +48,40 @@ impl<G: GameData> Session<G> {
         Ok(Self::boot(game, world))
     }
 
+    /// Replaces the world by `cp`'s (`World::restore`) on a fresh PPU, as [`Session::restore`]
+    /// does; on error the session is unchanged.
+    pub fn load(&mut self, cp: &Checkpoint) -> Result<(), RestoreError> {
+        self.world = World::restore(&self.game, cp)?;
+        self.reset();
+        Ok(())
+    }
+
     /// Captures the world (`World::checkpoint`).
     pub fn checkpoint(&self) -> Result<Checkpoint, NotCapturable> {
         self.world.checkpoint(&self.game)
     }
 
-    /// Applies `world`'s boot frame to a fresh PPU.
-    fn boot(game: G, mut world: World) -> Self {
-        let frame = world.initial_frame();
-        let mut ppu = Ppu::new();
-        ppu.apply(&frame);
-        Self {
+    /// A session on `world`, its boot frame applied to a fresh PPU.
+    fn boot(game: G, world: World) -> Self {
+        let mut s = Self {
             game,
             world,
-            ppu,
-            frame,
+            ppu: Ppu::new(),
+            frame: Frame::default(),
             fb: vec![0; SCREEN_W * SCREEN_H],
             drawn: false,
-        }
+        };
+        s.reset();
+        s
+    }
+
+    /// Applies the world's boot frame to a fresh PPU (shared by [`Session::boot`] and
+    /// [`Session::load`]).
+    fn reset(&mut self) {
+        self.frame = self.world.initial_frame();
+        self.ppu = Ppu::new();
+        self.ppu.apply(&self.frame);
+        self.drawn = false;
     }
 
     pub fn step(&mut self, keys: Buttons) {

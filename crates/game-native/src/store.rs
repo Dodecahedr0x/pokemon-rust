@@ -7,7 +7,8 @@
 //! ```
 //!
 //! Every file is pretty RON with a fixed format (declaration field order, `\n` lines, 4-space
-//! indent), written to `*.tmp` and renamed into place. Nothing in a file depends on the host,
+//! indent), written to a per-writer `*.tmp` file and renamed into place (a new node is
+//! hard-linked, so two writers never publish the same id). Nothing in a file depends on the host,
 //! the clock or the store's location, so writing the same node twice gives the same bytes.
 
 use crate::trace::{CheckpointId, HashMismatch, Parent, ReplayReport, TRACE_SCHEMA, Trace};
@@ -19,6 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct NodeMeta {
@@ -129,20 +131,40 @@ fn read_ron<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
     })
 }
 
-/// Writes `path` through `path.tmp` (synced) and a rename, so readers never see half a file.
-/// The store assumes one writer at a time: two concurrent writers share the `.tmp` name and
-/// may both allocate the same id.
-fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
+/// Writes `text` to a temp file next to `path`, named `{name}.{pid}.{counter}.tmp` so that
+/// concurrent writers never share one, and syncs it.
+fn write_tmp(path: &Path, text: &str) -> io::Result<PathBuf> {
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
     let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
+    tmp.push(format!(
+        ".{}.{}.tmp",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    let tmp = PathBuf::from(tmp);
     let mut f = fs::File::create(&tmp)?;
     f.write_all(text.as_bytes())?;
     f.sync_all()?;
-    drop(f);
-    fs::rename(&tmp, path)
+    Ok(tmp)
+}
+
+/// Writes `path` through a temp file and a rename, so readers never see half a file.
+fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
+    let tmp = write_tmp(path, text)?;
+    fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = fs::remove_file(&tmp);
+    })
+}
+
+/// Publishes `path` whole, unless it exists (`AlreadyExists`): a hard link of a temp file.
+fn write_new(path: &Path, text: &str) -> io::Result<()> {
+    let tmp = write_tmp(path, text)?;
+    let r = fs::hard_link(&tmp, path);
+    let _ = fs::remove_file(&tmp);
+    r
 }
 
 /// Only the schema of a snapshot file (the rest may not parse under this build).
@@ -308,15 +330,24 @@ impl Store {
                 ),
             ));
         }
-        let next = nodes.last().map_or(Some(1), |n| n.meta.id.0.checked_add(1));
-        let id = CheckpointId(next.ok_or_else(|| invalid("no checkpoint id left"))?);
-        let node = Node {
-            meta: NodeMeta::of(id, label.into(), cp),
+        let mut next = nodes.last().map_or(Some(1), |n| n.meta.id.0.checked_add(1));
+        let mut node = Node {
+            meta: NodeMeta::of(CheckpointId(0), label.into(), cp),
             trace,
         };
-        self.put_snapshot(id, cp)?;
-        self.write_node(&node)?;
-        Ok(id)
+        // Another writer may publish the same id meanwhile: take the next one.
+        loop {
+            let id = CheckpointId(next.ok_or_else(|| invalid("no checkpoint id left"))?);
+            node.meta.id = id;
+            match write_new(&self.node_path(id), &to_ron(&node)?) {
+                Ok(()) => {
+                    self.put_snapshot(id, cp)?;
+                    return Ok(id);
+                }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => next = id.0.checked_add(1),
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     pub fn relabel(&self, id: CheckpointId, label: &str) -> io::Result<()> {
@@ -516,6 +547,25 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn write_new_never_replaces_and_leaves_no_temp_file() {
+        let dir = std::env::temp_dir().join(format!("pkr-store-new-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("c00001.ron");
+        write_new(&path, "a").unwrap();
+        let e = write_new(&path, "b").unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a");
+        write_atomic(&path, "c").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "c");
+        let names: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["c00001.ron"]);
+        fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn ids_parse_with_or_without_prefix() {
