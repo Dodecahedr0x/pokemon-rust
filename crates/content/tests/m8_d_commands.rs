@@ -1,18 +1,53 @@
 //! Milestone 8 Task D1: `build/support/commands.ron` classifies every script command of the
-//! decomp, every `Native` one has a lowering arm, and every movement fallback lowers.
+//! decomp, every `Native` one has a lowering arm, `movements.ron` covers every movement action
+//! with no `Step`, and `specials.ron` parses.
 
 use extract::codegen::{Class, MoveFallback, NATIVE_COMMANDS, Support};
 use extract::{movement, names};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+fn read(name: &str) -> Option<String> {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("build/support")
+        .join(name);
+    std::fs::read_to_string(p).ok()
+}
+
 fn source() -> String {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("build/support/commands.ron");
-    std::fs::read_to_string(p).unwrap()
+    read("commands.ron").unwrap()
 }
 
 fn support() -> Support {
-    Support::parse(&source(), None).unwrap()
+    Support::parse(&source(), None, read("movements.ron").as_deref()).unwrap()
+}
+
+/// `specials.ron` as Wave 0 writes it: a header comment, then a top-level map.
+const SPECIALS_FIXTURE: &str = r#"// How the script lowering runs each special (`SPECIAL_*`) (`extract::codegen::Support`, Milestone 8).
+// Generated once in Wave 0 from the decomp names; edited by hand since. Decomp names only.
+{
+    "SPECIAL_AccessHallOfFamePC": Unsupported,
+    "SPECIAL_HealPlayerParty": Native,
+    "SPECIAL_PlayTrainerEncounterMusic": Ignore,
+    "SPECIAL_GetPlayerBigGuyGirlString": Default(0),
+}
+"#;
+
+#[test]
+fn specials_ron_parses_as_a_top_level_map() {
+    let s = Support::parse(&source(), Some(SPECIALS_FIXTURE), None).unwrap();
+    assert_eq!(s.specials.len(), 4);
+    assert_eq!(s.specials["SPECIAL_HealPlayerParty"], Class::Native);
+    assert_eq!(
+        s.specials["SPECIAL_GetPlayerBigGuyGirlString"],
+        Class::Default(0)
+    );
+    // The committed one, once Wave 0 has added it.
+    if let Some(real) = read("specials.ron") {
+        let s = Support::parse(&source(), Some(&real), None).unwrap();
+        assert!(!s.specials.is_empty());
+        assert!(s.specials.keys().all(|k| k.starts_with("SPECIAL_")));
+    }
 }
 
 fn decomp() -> Option<PathBuf> {
@@ -33,6 +68,10 @@ fn commands_ron_classifies_227_commands() {
         "one entry per gScriptCmdTable command"
     );
     assert!(s.specials.is_empty(), "specials live in specials.ron");
+    assert!(
+        !source().contains("MOVEMENT_ACTION_"),
+        "movements live in movements.ron"
+    );
     let count = |f: fn(&Class) -> bool| s.commands.values().filter(|c| f(c)).count();
     let native = count(|c| *c == Class::Native);
     let ignore = count(|c| *c == Class::Ignore);

@@ -766,16 +766,23 @@ mod lowering {
         ix
     }
 
-    fn commands_ron() -> String {
+    fn support_file(name: &str) -> String {
         std::fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../content/build/support/commands.ron"),
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../content/build/support")
+                .join(name),
         )
         .unwrap()
     }
 
-    /// The committed `commands.ron` plus a few specials of each class.
+    /// The committed `commands.ron` and `movements.ron`, plus a few specials of each class.
     fn support() -> Support {
-        let mut s = Support::parse(&commands_ron(), None).unwrap();
+        let mut s = Support::parse(
+            &support_file("commands.ron"),
+            None,
+            Some(&support_file("movements.ron")),
+        )
+        .unwrap();
         s.specials = BTreeMap::from([
             ("SPECIAL_HealPlayerParty".to_string(), Class::Native),
             ("SPECIAL_ShowMapNamePopup".to_string(), Class::Ignore),
@@ -894,7 +901,7 @@ mod lowering {
     fn lower_structured_flow_golden() {
         let out = lower(&kid());
         let src = &out.modules["Town"];
-        assert!(src.starts_with("use super::Flow;\n"), "{src}");
+        assert!(src.starts_with("use crate::data::Flow;\n"), "{src}");
         assert_eq!(fn_src(src, "Town_EventScript_Kid"), KID, "{src}");
         // Blocks owned by one function are arms, not functions.
         assert_eq!(out.stats.fns, 1);
@@ -962,9 +969,94 @@ mod lowering {
         );
         assert!(
             fn_src(&out.modules["B"], "B_Root")
-                .contains("return Box::pin(super::A::A_Two(ctx.clone())).await;")
+                .contains("return Box::pin(crate::scripts::A::A_Two(ctx.clone())).await;")
         );
         assert_eq!(out.stats.fns, 4);
+        assert_eq!(out.stats.tail_call_groups, 0);
+    }
+
+    /// Functions that tail-call each other share one loop: a `goto` cycle between them runs in
+    /// constant memory. Each member enters the loop at its own block.
+    #[test]
+    fn lower_tail_call_groups_share_one_loop() {
+        let files = vec![file(
+            "M",
+            vec![
+                label(
+                    "M_A",
+                    Some(RootKind::Object(1)),
+                    vec![
+                        i("lock", vec![]),
+                        i("goto_if", vec![Byte(1), s("M_B")]),
+                        i("end", vec![]),
+                    ],
+                    None,
+                ),
+                label(
+                    "M_B",
+                    Some(RootKind::Object(2)),
+                    vec![i("release", vec![]), i("goto", vec![s("M_A")])],
+                    None,
+                ),
+                label(
+                    "M_C",
+                    Some(RootKind::Object(3)),
+                    vec![i("goto", vec![s("M_B")])],
+                    None,
+                ),
+            ],
+            vec![],
+        )];
+        let out = lower(&files);
+        let m = &out.modules["M"];
+        assert_eq!(out.stats.tail_call_groups, 1);
+        assert_eq!(
+            fn_src(m, "M_A"),
+            "pub async fn M_A(ctx: Ctx) -> Flow {\n    M_A__tail(ctx, 0).await\n}\n"
+        );
+        assert_eq!(
+            fn_src(m, "M_B"),
+            "pub async fn M_B(ctx: Ctx) -> Flow {\n    M_A__tail(ctx, 1).await\n}\n"
+        );
+        assert_eq!(
+            fn_src(m, "M_A__tail"),
+            "pub async fn M_A__tail(ctx: Ctx, mut pc: u16) -> Flow {\n    loop {\n        match pc {\n            \
+             0 => {\n                // M_A\n                ctx.lock().await;\n                \
+             if ctx.cond() == Ordering::Equal {\n                    pc = 1;\n                    continue;\n                }\n                \
+             return Flow::End;\n            }\n            \
+             1 => {\n                // M_B\n                ctx.release().await;\n                \
+             pc = 0;\n                continue;\n            }\n            \
+             _ => return Flow::End,\n        }\n    }\n}\n"
+        );
+        assert!(m.contains("/// The tail-call group of M_A, M_B.\n"), "{m}");
+        // Outside the group, still a tail call.
+        assert!(fn_src(m, "M_C").contains("return Box::pin(M_B(ctx.clone())).await;"));
+        // The group is not a script.
+        assert!(!out.dispatch.contains("M_A__tail"));
+        // A member's digest covers the shared loop.
+        let mut g = files.clone();
+        g[0].labels[1].insns[0] = i("lock", vec![]);
+        assert_ne!(out.script_digests["M_A"], lower(&g).script_digests["M_A"]);
+    }
+
+    /// The order of the input files changes nothing: not the sources, not the digests.
+    #[test]
+    fn lower_ignores_file_order() {
+        let mut files = graph("FLAG_TEMP_2");
+        files.extend(kid());
+        files.extend(every_native());
+        let a = lower(&files);
+        for k in 1..files.len() {
+            let mut shuffled = files.clone();
+            shuffled.rotate_left(k);
+            assert_eq!(
+                lower(&shuffled).script_digests,
+                a.script_digests,
+                "rotation {k}"
+            );
+        }
+        files.reverse();
+        assert_eq!(lower(&files), a);
     }
 
     /// Gen3: an `end` in a callee ends the whole script, so its callers stop too; a callee that
@@ -1181,15 +1273,12 @@ mod lowering {
             fn_src(&out.modules["M"], "M_Root"),
             "pub async fn M_Root(ctx: Ctx) -> Flow {\n    \
              // playse SE_PIN\n    \
-             ctx.report(Report::Unsupported(\"checkpartymove\")).await; // MOVE_CUT\n    \
-             ctx.set_var(VAR_RESULT, 6).await;\n    \
-             ctx.report(Report::Unsupported(\"checkcoins\")).await; // VAR_0x8005\n    \
-             ctx.set_var(VAR_0x8005, 0).await;\n    \
+             ctx.set_var(VAR_RESULT, 6).await; // checkpartymove (default)\n    \
+             ctx.set_var(VAR_0x8005, 0).await; // checkcoins (default)\n    \
              ctx.report(Report::Unsupported(\"pokemart\")).await; // 0x1234\n    \
              special(&ctx, SPECIAL_HealPlayerParty).await;\n    \
              // special SPECIAL_ShowMapNamePopup\n    \
-             ctx.report(Report::Unsupported(\"SPECIAL_ShouldTryRematchBattle\")).await;\n    \
-             ctx.set_var(VAR_RESULT, 0).await;\n    \
+             ctx.set_var(VAR_RESULT, 0).await; // SPECIAL_ShouldTryRematchBattle (default)\n    \
              ctx.report(Report::Unsupported(\"SPECIAL_DoPCTurnOnEffect\")).await;\n    \
              ctx.report(Report::Unsupported(\"gotobeatenscript\")).await;\n    \
              return Flow::End;\n}\n"
@@ -1198,7 +1287,14 @@ mod lowering {
         assert_eq!(st.by_class["Ignore"], 2, "{:?}", st.by_class);
         assert_eq!(st.by_class["Default"], 3, "{:?}", st.by_class);
         assert_eq!(st.by_class["Unsupported"], 3, "{:?}", st.by_class);
-        assert_eq!(st.reports.len(), 6, "{:?}", st.reports);
+        // Only `Unsupported` reports; `Default` is the documented behaviour.
+        assert_eq!(
+            st.reports.keys().collect::<Vec<_>>(),
+            ["SPECIAL_DoPCTurnOnEffect", "gotobeatenscript", "pokemart"],
+            "{:?}",
+            st.reports
+        );
+        assert!(st.unsupported.is_empty(), "lower counts in `reports` only");
     }
 
     #[test]
@@ -1235,9 +1331,12 @@ mod lowering {
         assert!(d.contains("pub const Town_EventScript_Kid: ScriptId = ScriptId(0);"));
         assert!(d.contains(
             "pub static SCRIPTS: [fn(engine::script::Ctx) -> engine::script::Script; 1] = [\n    \
-             |ctx| Box::pin(run(Town::Town_EventScript_Kid(ctx))),\n];"
+             |ctx| alloc::boxed::Box::pin(run(crate::scripts::Town::Town_EventScript_Kid(ctx))),\n];"
         ));
         assert!(d.contains("pub fn script(id: u16, ctx: engine::script::Ctx)"));
+        // Absolute paths only: the content crate `include!`s it in `crate::data`.
+        assert!(!d.contains("\nuse "), "{d}");
+        assert!(!d.contains("super::"), "{d}");
     }
 
     fn graph(callee_flag: &str) -> Vec<ScriptFile> {
@@ -1402,26 +1501,29 @@ mod lowering {
         assert_eq!(
             fn_src(m, "M_Single"),
             "pub async fn M_Single(ctx: Ctx) -> Flow {\n    \
-             let beaten = ctx.flag(trainer_flag(TRAINER_CALVIN_1)).await;\n    \
-             trainer_battle(&ctx, TrainerBattle { kind: 0, trainer: TRAINER_CALVIN_1.0, local_id: 1, \
+             if !trainer_battle(&ctx, TrainerBattle { kind: 0, trainer: TRAINER_CALVIN_1.0, local_id: 1, \
              intro: Some(M_Text_Intro), lose: M_Text_Lose, not_enough: None, event_script: None, \
-             music: true }).await;\n    \
-             if !beaten {\n        return Flow::End;\n    }\n    return Flow::End;\n}\n"
+             music: true }).await {\n        return Flow::End;\n    }\n    return Flow::End;\n}\n"
         );
-        assert!(
-            fn_src(m, "M_Continue")
-                .contains("event_script: Some(super::script_ids::M_After), music: false }).await;")
-        );
+        assert!(fn_src(m, "M_Continue").contains(
+            "event_script: Some(crate::data::script_ids::M_After), music: false }).await {"
+        ));
         let no_intro = fn_src(m, "M_NoIntro");
         assert!(no_intro.contains("kind: 3,") && no_intro.contains("intro: None"));
-        assert!(!no_intro.contains("beaten"));
         assert!(fn_src(m, "M_Double").contains("not_enough: Some(M_Text_NotEnough)"));
-        let rematch = fn_src(m, "M_Rematch");
-        assert!(!rematch.contains("beaten"));
-        assert!(
-            rematch.contains(").await;\n    return Flow::End;\n"),
-            "{rematch}"
-        );
+        // Every kind has the same shape: the helper owns flags, rematches and facilities.
+        for name in [
+            "M_Single",
+            "M_Continue",
+            "M_NoIntro",
+            "M_Double",
+            "M_Rematch",
+        ] {
+            let src = fn_src(m, name);
+            assert!(src.contains("    if !trainer_battle(&ctx, "), "{src}");
+            assert!(!src.contains("trainer_flag"), "{src}");
+            assert_eq!(src.matches("return Flow::End;").count(), 2, "{src}");
+        }
         // A battle with no lose text cannot be described: reported.
         assert!(fn_src(m, "M_Hill").contains("Report::Unsupported(\"trainerbattle\")"));
         assert_eq!(
@@ -1763,18 +1865,52 @@ mod lowering {
                     vec![i("call", vec![s("N_Sub")]), i("goto", vec![s("M_Callee")])],
                     None,
                 ),
+                // A tail-call group across modules, led by `G_Loop`.
+                label(
+                    "O_Loop",
+                    Some(RootKind::Coord(2)),
+                    vec![
+                        i(
+                            "setwildbattle",
+                            vec![c("SPECIES_ZIGZAGOON"), Byte(2), Byte(0)],
+                        ),
+                        i("goto", vec![s("G_Loop")]),
+                    ],
+                    None,
+                ),
             ],
+            vec![],
+        ));
+        files.push(file(
+            "G",
+            vec![label(
+                "G_Loop",
+                Some(RootKind::Coord(0)),
+                vec![
+                    i("random", vec![Half(2)]),
+                    i("goto_if", vec![Byte(1), s("O_Loop")]),
+                    i("end", vec![]),
+                ],
+                None,
+            )],
             vec![],
         ));
         let o = BTreeMap::from([("M_Other".to_string(), String::new())]);
         let out = lower_with(&files, &o);
         assert!(out.stats.reports.contains_key("unknown opcode"));
+        assert_eq!(out.stats.tail_call_groups, 1);
+        assert!(
+            out.modules["Other"].contains("crate::scripts::G::G_Loop__tail(ctx, 1).await"),
+            "{}",
+            out.modules["Other"]
+        );
         compile_lowered("m8", &out, &index(&files));
     }
 
-    /// Builds a scratch crate laid out as `content` is after Task D2 (`crate::prelude`,
-    /// `crate::overrides`, and `crate::scripts` holding the dispatch and one module per IR
-    /// module) against the real `engine`, and runs `cargo check` with warnings denied.
+    /// Builds a scratch crate laid out as `content` is after Wave 0 and Task D2 (`extern crate
+    /// alloc`, `crate::prelude`, `crate::overrides`, `crate::data` holding the dispatch and
+    /// `crate::scripts` one module per IR module) against the real `engine`, and runs
+    /// `cargo check` with warnings denied.
     fn compile_lowered(tag: &str, out: &Lowered, ix: &ScriptIndex) {
         let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
         let dir = tmp.join(format!("lowered-{tag}"));
@@ -1815,11 +1951,12 @@ mod lowering {
             }
         }
         let mut lib = String::from(
-            "#[allow(non_upper_case_globals)]\npub mod prelude {\n    include!(\"prelude.rs\");\n}\n\
+            "extern crate alloc;\n\
+             #[allow(non_upper_case_globals)]\npub mod prelude {\n    include!(\"prelude.rs\");\n}\n\
              #[allow(non_snake_case)]\npub mod overrides {\n",
         );
         lib += &overrides;
-        lib += "}\npub mod scripts {\n    include!(\"dispatch.rs\");\n";
+        lib += "}\npub mod data {\n    include!(\"dispatch.rs\");\n}\npub mod scripts {\n";
         for m in out.modules.keys() {
             lib += &format!(
                 "    #[allow(non_snake_case, non_upper_case_globals, unused_mut, unused_variables, \
@@ -1988,8 +2125,9 @@ pub struct TrainerBattle {
     pub music: bool,
 }
 
-pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) {
+pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
     let _ = (ctx, b.kind, b.trainer, b.local_id, b.intro, b.lose, b.not_enough, b.event_script, b.music);
+    true
 }
 "#;
 }

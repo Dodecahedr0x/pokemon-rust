@@ -79,7 +79,8 @@ pub struct Stats {
     pub labels: usize,
     pub texts: usize,
     pub movements: usize,
-    /// `unsupported(…)` calls emitted, by command name.
+    /// [`generate`]: `unsupported(…)` calls emitted, by command name ([`lower`] fills
+    /// `reports` instead).
     pub unsupported: BTreeMap<String, usize>,
     /// Undecodable instructions: offset -> opcode.
     pub unknown_ops: BTreeMap<u32, u8>,
@@ -92,8 +93,14 @@ pub struct Stats {
     pub end_in_callee: usize,
     /// Reads of `cond` that Gen3 would take from the caller or from a callee.
     pub foreign_cond: usize,
-    /// `waitmovement 0` with no `applymovement` earlier in the same block.
+    /// `waitmovement 0` with no `applymovement` earlier in the same block. Per block, not per
+    /// path: an `applymovement` in a caller or in an earlier block of the function still counts
+    /// the site as unresolved (it runs as `ctx.wait_move(0)`, the engine's last mover, either
+    /// way).
     pub unresolved_waitmovement: usize,
+    /// [`lower`]: tail-call groups (functions that tail-call each other), each lowered to one
+    /// shared `loop { match pc }`.
+    pub tail_call_groups: usize,
     /// [`lower`]: command and special sites by [`Class`] name (`Native`, `Ignore`, `Default`,
     /// `Unsupported`).
     pub by_class: BTreeMap<String, usize>,
@@ -150,7 +157,8 @@ pub enum Class {
     Native,
     /// Has no effect on the engine's state (audio, cosmetic windows): nothing is emitted.
     Ignore,
-    /// Writes this value where the command or special writes its result (`VAR_RESULT`).
+    /// Writes this value where the command or special writes its result (`VAR_RESULT`), with no
+    /// report: the default is the documented behaviour.
     Default(u16),
     /// `ctx.report(Report::Unsupported(name))`, logged; the script continues.
     Unsupported,
@@ -160,8 +168,9 @@ pub enum Class {
 /// (`SPECIAL_*`) with its [`Class`], and the movement actions with no engine `Step`. A command or
 /// special missing from them fails [`lower`].
 ///
-/// `content/build/support/commands.ron` holds `commands` and `movements`,
-/// `content/build/support/specials.ron` holds `specials`; [`Support::parse`] merges them.
+/// Each table is its own file under `content/build/support/`, a top-level RON map:
+/// `commands.ron` (`{ "op": Class }`), `specials.ron` (`{ "SPECIAL_*": Class }`) and
+/// `movements.ron` (`{ "MOVEMENT_ACTION_*": MoveFallback }`); [`Support::parse`] reads them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Support {
     #[serde(default)]
@@ -174,19 +183,27 @@ pub struct Support {
 }
 
 impl Support {
-    /// Merges the sources of `commands.ron` and, if any, `specials.ron` (each a RON [`Support`]
-    /// with only its own fields).
-    pub fn parse(commands: &str, specials: Option<&str>) -> Result<Support> {
-        let mut s: Support = ron::from_str(commands).context("commands.ron")?;
-        if let Some(src) = specials {
-            let sp: Support = ron::from_str(src).context("specials.ron")?;
-            s.specials.extend(sp.specials);
-        }
-        Ok(s)
+    /// Reads the sources of `commands.ron` and, if given, `specials.ron` and `movements.ron`.
+    pub fn parse(
+        commands: &str,
+        specials: Option<&str>,
+        movements: Option<&str>,
+    ) -> Result<Support> {
+        Ok(Support {
+            commands: ron::from_str(commands).context("commands.ron")?,
+            specials: match specials {
+                Some(s) => ron::from_str(s).context("specials.ron")?,
+                None => BTreeMap::new(),
+            },
+            movements: match movements {
+                Some(s) => ron::from_str(s).context("movements.ron")?,
+                None => BTreeMap::new(),
+            },
+        })
     }
 }
 
-/// A movement action the engine has no `Step` for (`commands.ron`'s `movements`).
+/// A movement action the engine has no `Step` for (`movements.ron`).
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MoveFallback {
     /// The nearest actions that have a `Step`, in order (a diagonal walk is two straight ones).
