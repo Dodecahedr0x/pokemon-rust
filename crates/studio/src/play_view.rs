@@ -2,11 +2,12 @@
 //! the ROM shadow and timeline rows, status badges, and the `nodes/` change stamp the tree
 //! watches. Pure, so they are tested without the `ui` feature.
 
-use crate::native::EventKind;
+use crate::native::{EventKind, NativeCmd};
 use crate::pane::RunMode;
-use crate::rom::{Shadow, TimelineEntry};
+use crate::rom::{RomCmd, Shadow, TimelineEntry};
 use engine::data::GameData;
 use game_native::store::{Status, Store};
+use game_native::trace::{CheckpointId, Parent};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -30,6 +31,7 @@ pub fn event_text(kind: &EventKind) -> String {
         EventKind::Loaded(id) => format!("loaded {id}"),
         EventKind::Seeked(id, f) => format!("opened {id} at +{f}"),
         EventKind::Rewound(n) => format!("rewound {n} frames"),
+        EventKind::OpenedTrace(f) => format!("opened a trace at {f}"),
         EventKind::NewGame => "new game".into(),
     }
 }
@@ -109,6 +111,37 @@ pub fn nodes_stamp(store: &Store) -> Vec<Option<SystemTime>> {
         .collect()
 }
 
+/// F9 or "Reload parent" on the native pane: the node the trace starts from, or a new game.
+pub fn reload_parent(parent: Parent) -> NativeCmd {
+    match parent {
+        Parent::Checkpoint(id) => NativeCmd::Load(id),
+        Parent::NewGame => NativeCmd::NewGame,
+    }
+}
+
+/// `.` or "Step" on the ROM pane: pause, then run `n` pending frames (the native pane's
+/// `Step` pauses by itself).
+pub fn rom_step(n: u32) -> [RomCmd; 2] {
+    [RomCmd::Mode(RunMode::Pause), RomCmd::Step(n)]
+}
+
+/// "Native" or "Branch" on a tree row: load the node, and play if the pane is paused.
+pub fn load_cmds(id: CheckpointId, run: RunMode) -> Vec<NativeCmd> {
+    let mut cmds = vec![NativeCmd::Load(id)];
+    if run == RunMode::Pause {
+        cmds.push(NativeCmd::Mode(RunMode::Play));
+    }
+    cmds
+}
+
+/// "Open at…": seek `frames` into the node's trace, paused there.
+pub fn open_at_cmds(id: CheckpointId, frames: u32) -> [NativeCmd; 2] {
+    [
+        NativeCmd::Seek { id, frames },
+        NativeCmd::Mode(RunMode::Pause),
+    ]
+}
+
 /// The world frame of "Open at frame": a node's trace starts at its parent's frame.
 pub fn seek_world_frame(node_frame: u32, trace_frames: u32, frames: u32) -> u32 {
     node_frame - trace_frames.min(node_frame) + frames
@@ -118,7 +151,7 @@ pub fn seek_world_frame(node_frame: u32, trace_frames: u32, frames: u32) -> u32 
 mod tests {
     use super::*;
     use engine::data::MapId;
-    use game_native::trace::{CheckpointId, HashMismatch};
+    use game_native::trace::HashMismatch;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     fn temp_root(tag: &str) -> std::path::PathBuf {
@@ -223,6 +256,29 @@ mod tests {
         );
         std::fs::remove_dir_all(local).unwrap();
         std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn button_commands() {
+        let id = CheckpointId(10002);
+        // `NativeCmd` has no `PartialEq`: compared by pattern.
+        assert!(matches!(reload_parent(Parent::Checkpoint(id)), NativeCmd::Load(i) if i == id));
+        assert!(matches!(reload_parent(Parent::NewGame), NativeCmd::NewGame));
+        assert_eq!(rom_step(3), [RomCmd::Mode(RunMode::Pause), RomCmd::Step(3)]);
+        assert!(matches!(
+            load_cmds(id, RunMode::Pause)[..],
+            [NativeCmd::Load(i), NativeCmd::Mode(RunMode::Play)] if i == id
+        ));
+        for run in [RunMode::Play, RunMode::Fast(4)] {
+            assert!(matches!(load_cmds(id, run)[..], [NativeCmd::Load(i)] if i == id));
+        }
+        assert!(matches!(
+            open_at_cmds(id, 7),
+            [
+                NativeCmd::Seek { id: i, frames: 7 },
+                NativeCmd::Mode(RunMode::Pause)
+            ] if i == id
+        ));
     }
 
     #[test]

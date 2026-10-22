@@ -6,7 +6,7 @@ use engine::Buttons;
 use engine::checkpoint::state_digest;
 use game_native::Session;
 use game_native::checkpoints::{
-    KEYFRAME_EVERY, Link, Materializer, SeekPrep, add_save, replayer, seed, seek,
+    KEYFRAME_EVERY, Link, Materializer, SeekPrep, SeekStart, add_save, replayer, seed, seek,
 };
 use game_native::controls::Controls;
 use game_native::scenario::cached_route;
@@ -412,5 +412,40 @@ fn seek_timings() {
     let t = Instant::now();
     let _ = seek(&mut m, &store, n.meta.id, mid).unwrap();
     println!("  cold, no snapshots: {:?}", t.elapsed());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+/// M7 Task S1: a NewGame trace that is no store node, seeked from a new game.
+#[test]
+fn a_trace_seeks_from_a_new_game() {
+    let (root, store, ids) = store("from-trace");
+    let trace = node(&store, ids[0]).trace;
+    assert_eq!(trace.parent, Parent::NewGame);
+    let mid = trace.frames() / 2;
+    let s = SeekStart::from_trace(trace.clone(), mid)
+        .run(game())
+        .unwrap();
+    let mut straight = Session::new(game());
+    for k in trace.keys().take(mid as usize) {
+        straight.step(k);
+    }
+    assert_eq!(s.session.world().frame(), mid);
+    assert_eq!(s.session.world().hash(), straight.world().hash());
+    assert_eq!(
+        (s.parent, s.recorder.frames(), s.diverged),
+        (Parent::NewGame, mid, false)
+    );
+    let end = SeekStart::from_trace(trace.clone(), u32::MAX);
+    assert_eq!(end.frames, trace.frames(), "clamped");
+    // A recorded hash the replay misses is a divergence.
+    let mut bent = trace.clone();
+    bent.hashes[0].1 ^= 1;
+    let at = bent.hashes[0].0;
+    assert!(
+        SeekStart::from_trace(bent, at)
+            .run(game())
+            .unwrap()
+            .diverged
+    );
     let _ = std::fs::remove_dir_all(root);
 }

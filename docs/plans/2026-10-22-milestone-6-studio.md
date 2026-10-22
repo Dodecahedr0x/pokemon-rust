@@ -30,6 +30,9 @@
 - `dioxus-ssr = "0.7.10"` as an optional dev-dependency under `ui`, for the display-free smoke test.
 - The workspace crates `engine`, `content`, `game-native` and `emu`.
 - `extract`, for `text::decode_lang` (`crates/extract/src/text.rs:124`, `Lang::{En, Fr}`).
+- Added while building (all already in Dioxus's dependency tree): `png 0.18` (map pictures,
+  Task H), and under `ui` `futures-channel` (map cache waiters) and `tokio` with `time` (the
+  UI's `sleep`).
 - No new dependency in `engine`.
 
 A task may add to a contract if it needs to. It may not change the meaning of what is already there, and every addition must be listed in its final report.
@@ -70,6 +73,12 @@ A task may add to a contract if it needs to. It may not change the meaning of wh
 ---
 
 ## Wave 0 contracts (committed before Wave 1; read them, do not redesign them)
+
+> **Superseded in part (kept as planned).** The store, materialisation and studio core blocks
+> below predate the layered store: `Stores`, `Origin` in commands, `plan_save`, `trace::flatten`,
+> `Inspector.parent: Option<(Origin, Parent)>`, `RomSource::Node { origin, id }` and the
+> `StoreError` returns of the materializer were not built. See
+> [Final contracts (as built)](#final-contracts-as-built) at the end of this doc.
 
 Wave 0 does the following:
 - adds the crate and the dependencies
@@ -430,8 +439,8 @@ pub fn decode(bytes: &[u8]) -> String;
 - **Hash:**
   - Only Task A touches `Fnv64`, and the bytes must be identical: the goldens in `world/tests.rs`, the committed trees and parity must not move.
   - Task A2 (conditional) is the only task allowed to change hash bytes. It must update the goldens, the README and the trees (`verify --accept`).
-- **GBA budget:** `late == 0`, `loop_lines_max ≤ 216` and `hash_lines_max ≤ 65` (tightened by Task A), and the ROM/IWRAM/EWRAM budgets in `xtask rom`.
-- **Determinism:** no floats, clocks or `HashMap` iteration in `engine`/`content`. Studio pacing uses `Instant` only in `pane.rs`.
+- **GBA budget:** `late == 0`, `loop_lines_max ≤ 217` and `hash_lines_max ≤ 65` (Task A: the measured worst + 2), and the ROM/IWRAM/EWRAM budgets in `xtask rom`.
+- **Determinism:** no floats, clocks or `HashMap` iteration in `engine`/`content`. The studio uses `Instant` for pacing, timeouts and stats (`pane.rs`, `frames.rs`, `build.rs`, `ui/mod.rs`); nothing it measures feeds the game.
 - **Before committing:**
   - `cargo fmt`
   - `cargo clippy --workspace --all-targets -- -D warnings`
@@ -555,7 +564,7 @@ pub fn decode(bytes: &[u8]) -> String;
      - `Sav`: `open_with_save` directly.
    - Then `boot(600)`. Record `boot` and `rom_build`, compare with `build_hash(&Emerald::for_shells())`, and show a banner on mismatch.
    - Each run frame `debug()` gives a `TimelineEntry` (ring of 600).
-   - `ExportSave` writes `Emu::save_data()` to `target/studio/<timestamp>.sav`, never the repo.
+   - `ExportSave` writes `Emu::save_data()` to `target/studio/rom-<unix ms>.sav`, never the repo.
    - A missing ROM is a status, not a panic.
 2. **`RomBuild`:** `cargo xtask rom` in the workspace with stdout and stderr captured line by line. `poll` is non-blocking. The UI reloads the pane on `Ok`.
 3. **Optional (stretch):** a native shadow. Step a native `Session` with the keys the ROM consumed (the `DebugSnapshot.inputs` ring, aligned as `run_rom_from` aligns them) and flag timeline entries whose hash differs.
@@ -633,7 +642,7 @@ pub fn decode(bytes: &[u8]) -> String;
 **Owns:** `crates/studio/src/ui/{map.rs, data.rs}`
 
 1. **Map tab:**
-   - A map list (`map_list`), and a zoomable image. `render_map` is cached in memory per map, and the PNG-free RGBA is served by the same asset handler under `/maps/<id>` (add the route; describe the `ui/mod.rs` change for G).
+   - A map list (`map_list`), and a zoomable image. `render_map` is cached in memory per map, and the PNG-free RGBA is served by the same asset handler under `/maps/<id>` (add the route; describe the `ui/mod.rs` change for G). *(Built as PNG through the `png` crate: `/maps/<id>.png`, and `/maps/<id>/<n>.png` for object sprites, from an in-memory LRU of 32 maps; see Task H as built.)*
    - Overlay toggles: collision, behavior, elevation, warps, objects (sprites), coords, bgs, connections. They are an SVG layer over the image.
    - A hover cell shows `CellInfo`. Clicking a warp or connection opens that map.
    - "Show live map" follows the native pane's map and camera.
@@ -672,7 +681,7 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 - `cargo run -p studio --features ui` (or `cargo xtask studio`) opens the studio. On the extracted build:
   - Native pane: plays the route at 60 fps with keyboard input. Pause, step, fast-forward ×8, F8 rewind, F5 save (to the local store) and F9 work. "Open at frame" on `route:after_wild` lands mid-trace with the same hash as a straight replay. The inspector shows frame, map, hash, mode and the capturable reason.
   - ROM pane: boots `target/game.gba` as a new game and from `route:lab` (`boot == RESTORED`) and shows the timeline. A ROM/native build mismatch shows a banner, and "Build ROM" rebuilds and reloads.
-  - Tree: shared and local nodes with Verify statuses. Label, rm, load into native or ROM, and branch-then-save produce a local node that `cargo xtask checkpoints verify --root checkpoints/emerald/local` reports `Valid`.
+  - Tree: shared and local nodes with Verify statuses. Label, rm, load into native or ROM, and branch-then-save produce a local node that `cargo xtask checkpoints verify --local` (the local store layered over the committed tree) reports `Valid`. *(Was `--root checkpoints/emerald/local`: alone, a local store cannot resolve a committed parent.)*
   - Map view: every exported map with overlays. The pixel-identity test passes.
   - Data views: species, moves, trainers, encounters and texts browse and filter.
 - `cargo xtask studio --smoke` reports at least 58 fps per pane in release on macOS.
@@ -694,6 +703,7 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 5. **Read-only map and data views (taken).** Editing is not v0: write-back targets would be ROM-derived, git-ignored files (`content/extracted/`), lost on re-extract, and hot reload needs the M8 content pipeline. It is not "cheap".
 6. **State editor deferred (decision 17 stands).** No `Parent::Edited` in M6. Seek plus branch covers "start here" for now.
 7. **Personal saves go to the local store; shared trees change only through the CLI** (`seed`, `verify --accept`).
+   - *Superseded (Wave 0 Step 0): the M5 close-out built cross-store parents, so a local node keeps its committed parent; no flattening, no `trace::flatten`. The rule "shared trees change only through the CLI" stands.*
    - Branching from a shared node saves a flattened NewGame trace (`trace::flatten`), unless the close-out added cross-store parents.
    - Cost of flattening: a route-length replay on verify (about 19k frames, well under a second natively) and no visible link to the shared parent in the tree. The label records it: `from route:lab f…`.
 8. **`verify --accept` stays CLI-only (taken).** Re-baselining is a commit-worthy act, like goldens.
@@ -702,7 +712,7 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 11. **Event timeline from state diffs (taken).** The engine still has no `FrameOut` event list (design §3). Diffs of map, script, battle and `Log` give the v0 timeline without touching engine or hash.
 12. **Frame headroom:** (a) buffered `Fnv64` + an ARM fold in IWRAM behind `engine/iwram` (the engine stays game-agnostic; only game-gba enables it). (b) battle sub-digests only if (a) leaves under 8 lines (A2), because it costs a golden and tree re-accept.
 13. **Open: the dev profile.** Native play and seeks in debug builds may not reach 60 fps. `cargo xtask studio` uses `--release`. Optional: `[profile.dev.package.{engine,game-native,studio}] opt-level = 2` in the root `Cargo.toml` (decide in Wave 0 from the spike's debug numbers).
-14. **Open: shared-store relabel or rm from the studio.** It is allowed with a confirmation, since node files are committed and the user commits them. Alternative: shared read-only in v0.
+14. **Shared-store relabel or rm from the studio: settled as shared read-only** (Task G as built). The committed tree is the layered store's read-only base (`StoreError::ReadOnly`); Label and Remove are disabled on its nodes, and it changes through `cargo xtask checkpoints` only. *(Was open: allowed with a confirmation.)*
 
 ---
 
@@ -719,7 +729,7 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 - `Stores` becomes one layered `Store`. `Origin` is only a per-node display and permission flag (base nodes are read-only), and commands are keyed by `CheckpointId`.
 
 **Spike (merged).**
-- **Transport:** asset handler plus `putImageData`, served as a **long poll**. Each canvas keeps one request in flight; the handler hands the responder to a short-lived thread that blocks in `FrameSlot::wait(after, 250 ms)`. The first design, a rAF-gated pull answered 204 at once, beat against vsync and reached about 55 fps.
+- **Transport:** asset handler plus `putImageData`, served as a **long poll**. Each canvas keeps one request in flight; the handler registers the responder with `FrameSlot::wait_then(after, 250 ms, …)`: one waiter thread per slot (started on demand, ending after 1 s idle) answers every pending request once a frame newer than `after` exists, or at its deadline (204). The first design, a rAF-gated pull answered 204 at once, beat against vsync (about 55 fps); an intermediate thread per request blocking in `FrameSlot::wait` was replaced by the per-slot waiter.
 - **Measured (macOS, two test-pattern panes):**
 
   | Build | fps per pane | Latency, mean / max | CPU |
@@ -740,11 +750,43 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 
 **Task A (frame headroom).**
 - Buffered `Fnv64` (N = 256), with its fold in IWRAM as ARM code: two 32-bit halves, UMULL plus MUL, unrolled by 4.
-- Route worst case, in scanlines: hash 73→63, step 219→210, loop 223→**214**.
-- IWRAM grew by 192 bytes.
-- Gates tightened to `HASH_LINES_MAX` 65 and `LOOP_LINES_MAX` 216. A2 is not needed.
+- Route worst case, in scanlines: hash 73→63, step 219→210, loop 223→**214–215** (run to run).
+- IWRAM +192 bytes (596→788); ROM −1400 bytes.
+- Gates tightened to `HASH_LINES_MAX` 65 and `LOOP_LINES_MAX` 217 (`crates/emu/tests/parity.rs:109-110`). The margin to the 226-line M5 gate is 11–12 lines (at least 8), so A2 is not needed.
 
-**Scheduling.** The studio skeleton (`crates/studio`, the `Pane` trait and `RunMode`) was committed first. The spike, A, D, E and F then started in parallel. B and C started after the M5 close-out merged, against the layered store. `StoreError` is B's job, and C writes its new APIs with `String` errors until Wave 2 aligns them.
+**Scheduling.** The studio skeleton (`crates/studio`, the `Pane` trait and `RunMode`) was committed first. The spike, A, D, E and F then started in parallel. B and C started after the M5 close-out merged, against the layered store. `StoreError` is B's job, and C wrote its new APIs with `String` errors. *Final contract (close-out): the materializer APIs keep `String` errors (they carry replay errors, which are strings); `StoreError` stays the `Store`'s error type.*
+
+**Task B (as built): store v2 and the tree model.**
+- `StoreError` as planned, plus `ReadOnly(id)` (a base node of a layered store), `Invalid(msg)` (a bad trace, frame or root) and `is_corrupt()` (an unreadable cache file, rebuilt rather than fatal). Every `Store` method returns it.
+- `Store::index` reads `nodes/` once (both layers in a layered store); a missing parent and a cycle are typed errors; `topo_order` and `find` go through it, and `Index::is_base` gives a node's layer.
+- `snapshot` parses once; a layered store falls back on the base's (git-ignored) cache for a base node.
+- `statuses` merges the base's and the local `status.ron` (the newer file wins); `merge_statuses` keeps other entries and only nodes that exist, so `remove` forgets a verdict and a reused id starts unverified. `verify` merges its verdicts.
+- `xtask checkpoints list` reads `index` + `statuses`; its output is unchanged.
+- `tree.rs`: `TreeModel` over the one layered `Store` (rows depth first, siblings committed before local, then by id), `Origin::of(index, id)`. `Stores` and `plan_save` were dropped (Step 0). The `relabel`/`remove` wrappers and `verify_in_background` were inlined at close-out.
+
+**Task C (as built): materializer, seek and the native pane.**
+- `Materializer`: a hand-rolled LRU of node states keyed by id, build and recorded digest (a reseeded tree reusing ids misses), in front of the disk cache (schema, build and digest must match). `get` returns the chain with `cached` and `diverged` per link; only matching replays reach the disk cache.
+- Keyframes every `KEYFRAME_EVERY` (600) frames at the first capturable frame, for the last `KEYFRAME_NODES` (4) nodes. The seek is two-phase so the lock is never held across a replay: `prepare_seek` gives `SeekPrep::Ready(SeekStart)` or `Keyframes(KeyframePlan)`; `KeyframePlan::build` replays off the lock, `insert_keyframes` caches it; `SeekStart::run(game)` steps a `Session` on the pane thread and flags divergence against the recorded hashes up to the target only. `seek` and `materialize` are thin wrappers.
+- `add_save` moved from `play.rs` (label suffix retry on `StoreError::Label`). `TraceRecorder::{from_prefix, hash_after}`, `Controls::{from_seek, last, trace_frames}`. Not built: `flatten`, `held_parent_chain`, `Session::into_game`.
+- `World::camera` (engine, read-only) for the inspector; both trees' builds were refreshed after it.
+- `NativePane::new(store, m)` over the layered store; `lock_materializer` recovers a poisoned lock and clears the caches. Events come from per-frame state diffs (decision 11).
+- Errors stay `String` (see Scheduling).
+
+**Task D (as built): ROM pane and one-click build.**
+- `RomPane::new(rom_path, scratch, store, m)`: `Reset(NewGame | Node(id) | Sav)`, then `Emu::boot_published(600)`; the node goes through the shared `Materializer`, then `flash::encode_sav`. `Reload` re-boots the last source; `rom_changed` compares the file's mtime with the loaded one.
+- The native shadow (the stretch) is built: a `Session` steps on the keys the ROM consumed (the debug input ring, aligned as `run_rom_from` does) and `Shadow::{Off, Matching, Mismatch(f), Lost(f)}` flags the first differing frame; each `TimelineEntry` carries `native_hash`.
+- Timeline ring of 600, `Worst` over it, `boot_name`. `ExportSave` writes `target/studio/rom-<unix ms>.sav`. A missing ROM is a status.
+- `emu` gained `framebuffer_into` and `boot_published` (additive).
+- `RomBuild`: `cargo xtask rom` in its own process group (dropping it kills the inner cargo), stdout and stderr read line by line on threads, `poll` never blocks, `Ok` keeps its lines.
+- The three `#[ignore]`d ROM tests: a new game boots and runs on time, a spawned pane publishes frames, a node boots `RESTORED` at its frame. `cargo xtask parity` runs them (close-out).
+
+**Task E (as built): map view core.**
+- `render_map` drives the engine's `Field` over a grid of 240x160 camera windows on a fresh native `Ppu` and stitches them (`MapImage::{to_image, crop}`); no engine change. `cells`, `overlays` (objects, warps, coord and bg events, connections), `map_list`, `script_name`, `map_name`; `sprite::decode_sprite` for object sprites (wander-axis facing matches the engine's `initial_facing`).
+- `tests/map_pixels.rs`: along the route, every sampled capturable frame drawn without OBJs equals the crop of the whole-map render at the session's camera, including frames with a connection in view.
+
+**Task F (as built): data views.**
+- `text::decode` through `extract::text::decode_lang` with the build's `LANG`; invalid bytes never panic.
+- Row builders for species (with learnsets, trainers and maps), moves, trainers, encounters (Gen3 land slot percentages) and texts; `filter` on decoded names. Real ability names (review). No FR literals in tests: counts against the tables and decoding checks only.
 
 **Task G (as built): deviations from the plan.**
 - **Label and Remove are disabled on committed nodes**, instead of asking for a confirmation: with the layered store the committed tree is a read-only base (`StoreError::ReadOnly`), and it changes only through `cargo xtask checkpoints` (decision 14 settled as "shared read-only").
@@ -753,6 +795,59 @@ G adds `cargo xtask studio --smoke` to the README Tests paragraph. Every gate in
 - **The smoke run exits from a thread.** dioxus-desktop 0.7.10 stops polling every VirtualDom task while an edit batch is unacknowledged (`webview.rs:561-564`), so a deadline inside a `use_future` can freeze with a stalled webview (the likely cause of two runs that hung at the 68 s timeout; not reproduced since). A std thread now sleeps `secs`, prints the `SMOKE`/`INFO` lines (plus `INFO vdom_polls=N`, the status loop's iterations), and exits 0; a watchdog prints `STALL vdom-not-polled` and exits 3 ten seconds later. `window().close()` remains as a nicety. On a timeout, `xtask studio --smoke` prints the output so far and a `sample` of the studio's threads.
 - **Smoke panes:** the Wave 0 test patterns run only in smoke runs, as the gated transport panes (`SMOKE`). The play panes publish only changed pictures, so they are `INFO` lines, gated loosely (thread alive, at least one frame drawn).
 - **Keys and view helpers live in the core** (`studio::keys`, `studio::play_view`), tested without the `ui` feature. Cmd/Ctrl chords go to the webview, a Cmd key-up and the window losing focus release every key (macOS sends no key-up for keys released while Cmd is held).
+
+**Task H (as built): map and data tabs.**
+- Map tab: each map's `MapEntry` (picture as PNG through the `png` crate, cell layers, overlay placements and object sprites) is built once on a background thread into `ui::map::MapCache`, an in-memory LRU of 32 maps. The `maps` asset handler serves `/maps/<id>.png` and `/maps/<id>/<n>.png` (overlay `n`'s sprite). Overlays are an SVG layer over the `<img>`; hover shows `CellInfo`; a click on a warp or a connection opens that map; "Show live map" follows the native pane's map and camera.
+- Data tab: sub-tabs Species, Moves, Trainers, Encounters, Texts with a filter, a list and a detail panel; links between them. Rows are built once per process on a thread (`data_view::rows`).
+- The models live in the core (`map_view::{MapEntry, Live, shown_map, CellLayers, layer_paths, click_target, describe, parse_map_request, encode_png}`, `data_view::{DataRows, rows, rows_if_ready, Pick, Sub, list, text_parts}`); cell layers and overlay marks are memoized child components, so a 60 Hz camera move or a hover re-renders neither.
+- ssr tests render each tab in either flavor.
+
+---
+
+## Wave 3 as built (close-out)
+
+The whole-milestone review found no `World` crossing threads, no write outside the local store and `target/studio/`, and no FR literal in tests. Its fixes:
+- **CLI verify of local nodes.** `cargo xtask checkpoints list --local` and `verify --local` open the local store layered over the committed tree (`Store::layered`), so a local node with a committed parent lists and verifies. `verify --local --accept` is refused (the base is read-only; accept the committed tree on its own). Tested on a split two-node route.
+- **Studio ROM tests in parity.** `cargo xtask parity` now ends with `cargo test -p studio --release --lib rom::tests:: -- --ignored` on the ROM it built. `node_boots_restored_at_the_node_frame` asserted that the materializer's cache went to the temp local root, which fails on a warm checkout (it reads the base's ignored snapshots and writes nothing); it now asserts that the committed tree's `snapshots/` and `status.ron` are untouched (names and mtimes).
+- **UI logic in the core:** `play_view::{reload_parent, rom_step, load_cmds, open_at_cmds}` (used by both the buttons and the keys) and `TreeRow::{can_label, can_remove}`, unit-tested. Verify calls `Store::verify` on the UI's worker thread (no second thread); the one-line `tree::{relabel, remove}` wrappers are gone.
+- **`paths.rs`:** `write_locations` lists only `local/{nodes, snapshots, status.ron}` and `target/studio/`, all `Never` committable (the studio never writes the committed tree); the `scratch` doc names what it holds.
+- **ROM pane:** the ROM file's mtime is probed every 60 ticks (about once a second), not every tick; `RomStatus::timeline` is an `Arc<[TimelineEntry]>`, rebuilt only when it changed.
+- **Maps handler:** a missing map's requests wait on its one build thread (`MapCache::load_then`), instead of a thread per request.
+- **Smoke:** a run that fails only the fps gate is retried once (the rate is load-sensitive); the harmless `ERROR dioxus_desktop::edits` line at shutdown is documented.
+- **Docs:** this section, the stale items above, Final contracts, Wave 3 numbers and the Findings.
+
+## Final contracts (as built)
+
+- **Commands carry no `Origin`.** The layered `Store` resolves ids; `Origin` is a display and permission flag only (`tree::Origin::of(index, id)`; a base node is `StoreError::ReadOnly`).
+- **native:** `NativeCmd::{Keys, Mode, Step, Rewind, Save, Load(CheckpointId), Seek { id, frames }, NewGame}`; `EventKind` adds `Seeked(id, frames)` and `NewGame`; `Inspector` adds `camera: Option<(i32, i32)>` (new `World::camera`), `parent: Parent`, `saved: Option<CheckpointId>`, and derives `PartialEq`; `NativePane::new(store: Store /* layered */, Arc<Mutex<Materializer>>)`; `lock_materializer` recovers a poisoned lock and clears the caches.
+- **game_native::checkpoints:** `Materializer::{new, get, keyframes, prepare_seek -> SeekPrep { Ready(SeekStart) | Keyframes(KeyframePlan) }, insert_keyframes, seek_start, clear, len, is_empty, game}`; `KeyframePlan::build` (off the lock); `BuiltKeyframes::start`; `SeekStart::run(game) -> Seeked`; `KEYFRAME_EVERY = 600`, `KEYFRAME_NODES = 4`; `add_save` (moved from `play.rs`); `seek` and `materialize` are thin wrappers. **The materializer APIs return `String` errors** (final); `StoreError` is the `Store`'s.
+- **trace / controls:** `TraceRecorder::{from_prefix, hash_after}`; `Controls::{from_seek, last, trace_frames}`. Not added: `flatten`, `plan_save`, `held_parent_chain`, `Session::into_game`.
+- **store:** `StoreError` adds `ReadOnly`, `Invalid` and `is_corrupt`; `Store::layered`; `Index::is_base`; `statuses()` merges the base and local `status.ron` (the newer file wins).
+- **rom:** `RomSource::{NewGame, Node(CheckpointId), Sav}`; `RomCmd` adds `Reload`; `RomStatus` adds `rom_changed`, `shadow: Shadow { Off, Matching, Mismatch(f), Lost(f) }` and `diverged`, and holds `timeline: Arc<[TimelineEntry]>`; `TimelineEntry.native_hash`; `Worst`; `boot_name`; `PROBE_TICKS`; `RomPane::new(rom_path, scratch, store, m)`; the native shadow (D stretch) is built; `emu` adds `framebuffer_into` and `boot_published`.
+- **tree:** `TreeModel::{load(&Store), rows, row(id), set_statuses}`; `TreeRow::{can_label, can_remove}`. `Stores`, `plan_save`, `relabel`, `remove` and `verify_in_background` are gone (the UI calls `Store::{relabel, remove, verify}` on a worker thread).
+- **Core helpers (G and close-out):** `studio::keys::{Keyboard, Action, Outcome, native_cmds, rom_cmds}`; `studio::play_view::{event_text, run_text, shadow_text, timeline_cells, badge, nodes_stamp, seek_world_frame, reload_parent, rom_step, load_cmds, open_at_cmds}`.
+- **Map (E/H):** `map_view::{MapEntry::build, Live, shown_map, CellLayers, layer_paths, click_target, describe, parse_map_request, encode_png, …}`; the `maps` handler serves PNG from `ui::map::MapCache` (LRU of 32; `load_then`).
+- **Data (F/H):** `data_view::{DataRows, rows(), rows_if_ready(), Pick, Sub, list, text_parts}`, built once per process on a thread.
+- **paths:** `write_locations` = `local/{nodes, snapshots, status.ron}` and `scratch`, all `Committable::Never`.
+- **UI shell:** `ui::{Studio, Panes, Live, Shell(start), PaneView, off_thread, sleep, focus_pane}`; statuses polled every 66 ms; the tree is re-read on a save or an edit, and every 2 s when a `nodes/` or `status.ron` mtime changes.
+- **xtask:** `studio --check` (the `ui` feature's tests and clippy); `studio --smoke N` (deadline on its own thread, watchdog, `sample` on a timeout, one retry on an fps failure); smoke gate `MIN_FPS` 50 (acceptance 58); `checkpoints {list, verify} --local`; `parity` runs the studio ROM tests.
+
+## Wave 3 numbers
+
+- **Studio** (release, macOS, `--smoke`): the two transport panes at 59.9–60.0 fps each, 0.46–0.64 ms mean latency, 1.4–24 ms max, in 3 of 4 review runs; one run under a load average of about 20 gave 34.6 fps (hence the retry). Steady-state CPU about 28–31% of one core in total (studio 9%, WebKit GPU 10%, WebContent 8–10%, Networking 1%). Studio RSS about 111 MB. Close-out `--smoke 8`: 60.0 / 60.0 fps, 0.51 / 0.52 ms mean latency, 2.3 / 2.6 ms max, at a load average of about 24 to 38.
+- **Seek**, `route:after_wild` (2208 frames) to frame 1104: cold 4.5 ms, warm 2.2 ms, warm +300 frames 3.9 ms, cold without the snapshot cache 15 ms.
+- **Frame headroom** (parity today): hash 63 (gate 65), step 210, loop 214 (gate 217). Per restore point (hash/step/loop): before_may 63/210/214; oldale_center 58/195/199; lab 41/162/167; save run 43/160/165; mid-battle 43/163/167; save-and-resume 9/44/48.
+- **ROM** 1,991,312 bytes (66,936 left); IWRAM 788 (1,856 left); EWRAM 460 (16,384 left).
+- **Tests at close-out:** workspace real 1040 / stub 1030 passed (11 ignored); `studio --check` 114 passed; `xtask parity` adds the 3 studio ROM tests.
+
+## Findings for Milestone 7 (Explorer)
+
+1. **Findings in the studio ("Open at frame before").** Implement `NativeCmd::OpenTrace` on M6's seek path through `SeekStart::from_trace(trace, frames)` (no base, from frame 0, parent NewGame, recorded = `trace.hashes`), then `run`, then `Controls::from_seek`. It gets recorded-hash divergence detection and the right recorder prefix; `EventKind::OpenedTrace(frames)`. A 20k-frame lineage replays in about 0.1 s in release, so no keyframes are needed. (Being built in M7 Wave 2b S1.)
+2. **Coverage overlay.** A per-cell layer next to `CellLayers`/`layer_paths` (`coverage_paths(&CoverageGrid, margin)`, 4 buckets), fetched live outside `MapCache`; `ui/map.rs` `LAYERS` goes from 8 to 9. Not an `Overlay` variant. (M7 S1/S2.)
+3. **Node files vs `explore.db`: keep them separate** (M7 decision 14, M5 decision 7). The landing spot: `explore export --to-store` writes a local node with a NewGame parent (the flattened lineage plus tail), labelled `explore:<id>`; the studio tree and the layered Verify (studio, or `cargo xtask checkpoints verify --local`) handle it unchanged.
+4. **A background `Materializer` per thread.** Both panes share one `Arc<Mutex<Materializer>>`; a cold `get` replays the chain under the lock (15 ms on the slice, growing with the route). For explorer work in the studio, give each worker its own `Materializer`, or make `get` two-phase like `prepare_seek`.
+5. **`Parent::Edited`** (if the state editor is next): an edited state is not reachable by inputs. Options: a typed, deterministic op list in the node (`Parent::Edited { base, ops_digest }`) replayed on the base's state; or edited nodes local-only, with a ban in the committed tree. Decide before the editor lands: verify and materialize must apply the ops.
+6. **Contract renames M7 Wave 2b follows:** no `Origin` in `NativeCmd`; `NativePane::new(store, m)` with the layered store; materializer errors are `String`; map PNG routes `/maps/<id>.png`; the Shell's `TABS` gains Explorer.
 
 ---
 

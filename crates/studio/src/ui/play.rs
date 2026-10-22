@@ -10,7 +10,9 @@ use crate::build::{BuildState, RomBuild};
 use crate::keys::{Keyboard, Mods, native_cmds, rom_cmds};
 use crate::native::NativeCmd;
 use crate::pane::RunMode;
-use crate::play_view::{event_text, run_text, shadow_text, timeline_cells};
+use crate::play_view::{
+    event_text, reload_parent, rom_step, run_text, shadow_text, timeline_cells,
+};
 use crate::rom::{RomCmd, RomFile, RomSource, RomStatus, boot_name};
 use dioxus::dioxus_core::spawn_forever;
 use dioxus::prelude::*;
@@ -175,10 +177,7 @@ fn NativeColumn() -> Element {
                 button { title: "F5: a local node (at the first idle frame)", onclick: move |_| st4.native(NativeCmd::Save), "Save" }
                 button {
                     title: "F9: the node this trace starts from",
-                    onclick: move |_| st5.native(match live.native.peek().parent {
-                        Parent::Checkpoint(id) => NativeCmd::Load(id),
-                        Parent::NewGame => NativeCmd::NewGame,
-                    }),
+                    onclick: move |_| st5.native(reload_parent(live.native.peek().parent)),
                     "Reload parent"
                 }
                 button { onclick: move |_| st6.native(NativeCmd::NewGame), "New game" }
@@ -257,7 +256,7 @@ fn RomColumn() -> Element {
         let worst = s.worst();
         (
             RomStatus {
-                timeline: Vec::new(),
+                timeline: Default::default(),
                 ..s.clone()
             },
             worst,
@@ -348,8 +347,9 @@ fn RomColumn() -> Element {
                         }
                     },
                     on_step: move |n| {
-                        st3.rom(RomCmd::Mode(RunMode::Pause));
-                        st3.rom(RomCmd::Step(n));
+                        for c in rom_step(n) {
+                            st3.rom(c);
+                        }
                     },
                 }
                 button { onclick: move |_| st4.rom(RomCmd::Reset(RomSource::NewGame)), "New game" }

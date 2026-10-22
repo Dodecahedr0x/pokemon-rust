@@ -6,13 +6,12 @@
 //! `cargo xtask checkpoints`, decisions 7, 8 and 14).
 
 use super::{Live, Studio, Tab, focus_pane, off_thread, sleep};
-use crate::native::NativeCmd;
-use crate::pane::RunMode;
-use crate::play_view::{badge, nodes_stamp, seek_world_frame};
+use crate::play_view::{badge, load_cmds, nodes_stamp, open_at_cmds, seek_world_frame};
 use crate::rom::{RomCmd, RomSource};
-use crate::tree::{Origin, TreeModel, TreeRow, relabel, remove, verify_in_background};
+use crate::tree::{Origin, TreeModel, TreeRow};
 use dioxus::dioxus_core::spawn_forever;
 use dioxus::prelude::*;
+use game_native::checkpoints::replayer;
 use game_native::store::Store;
 use game_native::trace::Parent;
 use std::time::Duration;
@@ -59,10 +58,9 @@ impl TreeState {
         let studio = studio.clone();
         spawn_forever(async move {
             let r = off_thread(move || {
-                verify_in_background(store, content::Emerald::for_shells())
-                    .join()
-                    .map_err(|_| "the verify thread panicked".to_string())
-                    .and_then(|r| r.map_err(|e| e.to_string()))
+                store
+                    .verify(replayer(&content::Emerald::for_shells()), false)
+                    .map_err(|e| e.to_string())
             })
             .await;
             match r {
@@ -214,7 +212,7 @@ fn Row(row: TreeRow) -> Element {
     let live = use_context::<Live>();
     let mut edit = use_signal(|| None::<RowEdit>);
     let id = row.id;
-    let local = row.origin == Origin::Local;
+    let (can_label, can_remove) = (row.can_label(), row.can_remove());
     let (class, text) = badge(row.status.as_ref());
     let indent = format!("padding-left: {}em", f32::from(row.depth) * 1.2);
     let parent = match row.parent {
@@ -228,9 +226,8 @@ fn Row(row: TreeRow) -> Element {
     let read_only = "committed node: change it with cargo xtask checkpoints";
     let s = studio.clone();
     let load_native = move |focus: bool| {
-        s.native(NativeCmd::Load(id));
-        if live.native.peek().run == RunMode::Pause {
-            s.native(NativeCmd::Mode(RunMode::Play));
+        for c in load_cmds(id, live.native.peek().run) {
+            s.native(c);
         }
         tab.set(Tab::Play);
         if focus {
@@ -254,7 +251,7 @@ fn Row(row: TreeRow) -> Element {
                                 move |e: KeyboardEvent| match e.key() {
                                     Key::Enter => {
                                         if let Some(RowEdit::Label(l)) = edit() {
-                                            state.edit(&studio, "label", move |st| relabel(st, id, &l));
+                                            state.edit(&studio, "label", move |st| st.relabel(id, &l));
                                         }
                                         edit.set(None);
                                     }
@@ -300,14 +297,14 @@ fn Row(row: TreeRow) -> Element {
                     "Open at…"
                 }
                 button {
-                    disabled: !local,
-                    title: if local { "Rename" } else { read_only },
+                    disabled: !can_label,
+                    title: if can_label { "Rename" } else { read_only },
                     onclick: move |_| edit.set(Some(RowEdit::Label(row.label.clone()))),
                     "Label"
                 }
                 button {
-                    disabled: !local || row.children > 0,
-                    title: if !local { read_only } else if row.children > 0 { "remove its children first" } else { "Remove this node" },
+                    disabled: !can_remove,
+                    title: if !can_label { read_only } else if !can_remove { "remove its children first" } else { "Remove this node" },
                     onclick: move |_| edit.set(Some(RowEdit::ConfirmRemove)),
                     "Remove"
                 }
@@ -323,7 +320,7 @@ fn Row(row: TreeRow) -> Element {
                             onclick: {
                                 let studio = studio.clone();
                                 move |_| {
-                                    state.edit(&studio, "remove", move |st| remove(st, id));
+                                    state.edit(&studio, "remove", move |st| st.remove(id));
                                     edit.set(None);
                                 }
                             },
@@ -356,8 +353,9 @@ fn Row(row: TreeRow) -> Element {
                             onclick: {
                                 let studio = studio.clone();
                                 move |_| {
-                                    studio.native(NativeCmd::Seek { id, frames });
-                                    studio.native(NativeCmd::Mode(RunMode::Pause));
+                                    for c in open_at_cmds(id, frames) {
+                                        studio.native(c);
+                                    }
                                     edit.set(None);
                                     tab.set(Tab::Play);
                                     focus_pane("native");
