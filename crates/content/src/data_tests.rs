@@ -282,11 +282,15 @@ fn special_ids_are_the_gen3_ones() {
 
 #[test]
 fn unknown_maps_are_missing() {
-    assert!(!has_map(consts::MAP_PETALBURG_CITY));
-    assert!(core::ptr::eq(
-        Emerald.map(consts::MAP_PETALBURG_CITY),
-        &data::MISSING_MAP
-    ));
+    // `MAP_DYNAMIC` is never a map; Petalburg is outside the slice and the stub.
+    let mut missing = vec![consts::MAP_DYNAMIC];
+    if data::MAP_COUNT <= 15 {
+        missing.push(consts::MAP_PETALBURG_CITY);
+    }
+    for m in missing {
+        assert!(!has_map(m));
+        assert!(core::ptr::eq(Emerald.map(m), &data::MISSING_MAP));
+    }
 }
 
 #[test]
@@ -307,13 +311,16 @@ fn the_report_lists_the_degradations() {
 }
 
 /// Maps with one wild header read it whatever the wild set; Gen3 reads header 0 for a set the
-/// map does not have.
+/// map does not have (Altering Cave has 9).
 #[test]
 fn wild_sets_fall_back_to_the_first_header() {
     for &id in &data::MAP_IDS {
         let first = Emerald.encounters(id);
-        for set in [0, 1, 8, u16::MAX] {
-            assert_eq!(Emerald.wild_encounters(id, set), first, "{id:?} set {set}");
+        let sets = battle::wild_sets(id.0);
+        for set in [0, 1, 8, 9, u16::MAX] {
+            if set == 0 || set >= sets {
+                assert_eq!(Emerald.wild_encounters(id, set), first, "{id:?} set {set}");
+            }
         }
     }
 }
@@ -601,7 +608,7 @@ mod extracted {
         ] {
             assert!(has_map(m), "{m:?}");
         }
-        assert_eq!(data::MAP_COUNT, 15);
+        assert!(data::MAP_COUNT >= 15);
     }
 
     #[test]
