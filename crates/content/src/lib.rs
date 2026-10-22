@@ -64,6 +64,10 @@ const _: () = assert!(!STALE_EXTRACT || STUB);
 pub const STALE_EXTRACT_MSG: &str = "content/extracted/ is in an older format, so the content \
     built the stub world: run `cargo xtask extract` to refresh it";
 
+/// Identity of this content build (`build/build_id.rs`): the content sources plus the extracted
+/// dir, or `stub`. Never 0 (`TreeHash::finish`). [`GameData::build_id`] returns it.
+pub const BUILD_ID: u64 = include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
+
 /// Script id of the new-game script ([`new_game::new_game`]); never a generated id.
 pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 
@@ -221,7 +225,25 @@ impl GameData for Emerald {
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         battle::heal_location(id)
     }
+
+    fn build_id(&self) -> u64 {
+        BUILD_ID
+    }
 }
 
 #[cfg(test)]
 mod data_tests;
+
+#[cfg(test)]
+mod build_id_tests {
+    use super::*;
+
+    /// `crates/content/tests/build_modes.rs` reads the printed id of each build mode.
+    #[test]
+    fn build_id_is_set() {
+        std::println!("CONTENT BUILD_ID={BUILD_ID:#018x}");
+        assert_ne!(BUILD_ID, 0);
+        assert_eq!(Emerald::for_shells().build_id(), BUILD_ID);
+        assert_eq!(Emerald::after_starter().build_id(), BUILD_ID);
+    }
+}

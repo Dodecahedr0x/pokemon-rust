@@ -13,6 +13,11 @@ mod battle;
 #[allow(dead_code)]
 #[path = "../build/battle_load.rs"]
 mod battle_load;
+#[path = "../build/build_id.rs"]
+mod build_id;
+#[allow(dead_code)]
+#[path = "../../engine/build_support.rs"]
+mod build_support;
 #[allow(dead_code)]
 #[path = "../build/classify.rs"]
 mod classify;
@@ -25,6 +30,15 @@ mod input;
 #[allow(dead_code)]
 #[path = "../build/stub.rs"]
 mod stub;
+
+/// The id a nested build printed (`content::build_id_tests`).
+fn printed_build_id(out: &str) -> u64 {
+    let line = out
+        .lines()
+        .find_map(|l| l.split("CONTENT BUILD_ID=0x").nth(1))
+        .unwrap_or_else(|| panic!("no CONTENT BUILD_ID in:\n{out}"));
+    u64::from_str_radix(line.get(..16).unwrap(), 16).unwrap()
+}
 
 use extract::schema::{Object, ScriptEntry, ScriptIndex};
 use std::collections::BTreeMap;
@@ -163,6 +177,9 @@ fn stub_and_generated_script_modes_build_and_pass() {
         "{out}"
     );
     assert!(!out.contains("STALE EXTRACT FLAGGED"), "{out}");
+    let content = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let stub_id = printed_build_id(&out);
+    assert_eq!(stub_id, build_id::build_id(content, None).unwrap());
 
     let fixture = tmp.join("extracted");
     write_fixture(&fixture);
@@ -170,6 +187,12 @@ fn stub_and_generated_script_modes_build_and_pass() {
     assert!(out.contains("FIXTURE SCRIPT OK"), "{out}");
     assert!(out.contains("every_script_id_dispatches ... ok"), "{out}");
     assert!(!out.contains("STALE EXTRACT FLAGGED"), "{out}");
+    let fixture_id = printed_build_id(&out);
+    assert_eq!(
+        fixture_id,
+        build_id::build_id(content, Some(&fixture)).unwrap()
+    );
+    assert_ne!(fixture_id, stub_id);
 
     let stale = tmp.join("stale");
     write_fixture(&stale);
@@ -185,4 +208,80 @@ fn stub_and_generated_script_modes_build_and_pass() {
         out.contains("the_stub_world_is_one_small_map ... ok"),
         "{out}"
     );
+    // A stale extract builds the stub, so it has the stub's identity.
+    assert_eq!(printed_build_id(&out), stub_id);
+}
+
+/// The content, build and extract sources are inputs; their tests are not.
+#[test]
+fn build_id_tracks_the_sources() {
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("content-build-id-src");
+    let _ = std::fs::remove_dir_all(&root);
+    let put = |rel: &str, s: &str| {
+        let p = root.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, s).unwrap();
+    };
+    put("content/src/lib.rs", "// lib\n");
+    put("content/build/main.rs", "// main\n");
+    put("extract/src/lib.rs", "// extract\n");
+    let content = root.join("content");
+    let id = || build_id::build_id(&content, None).unwrap();
+    let base = id();
+    put("content/src/data_tests.rs", "// tests\n");
+    put("extract/src/tests.rs", "// tests\n");
+    assert_eq!(id(), base);
+    for (rel, edit) in [
+        ("content/src/lib.rs", "// lib 2\n"),
+        ("content/build/main.rs", "// main 2\n"),
+        ("extract/src/lib.rs", "// extract 2\n"),
+    ] {
+        let before = id();
+        put(rel, edit);
+        assert_ne!(id(), before, "{rel}");
+    }
+}
+
+/// The content build id: deterministic, stub vs extracted, and every extracted file but the
+/// previews counts.
+#[test]
+fn build_id_tracks_the_extracted_files() {
+    let content = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let tmp = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("content-build-id");
+    let one = tmp.join("one");
+    let two = tmp.join("two");
+    write_fixture(&one);
+    write_fixture(&two);
+    let stub = build_id::build_id(content, None).unwrap();
+    assert_eq!(build_id::build_id(content, None).unwrap(), stub);
+    let id = build_id::build_id(content, Some(&one)).unwrap();
+    assert_ne!(id, stub);
+    assert_ne!(id, 0);
+    // Another absolute path, same files.
+    assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
+    // Map renders, hidden files and backups are not build inputs.
+    std::fs::create_dir_all(two.join("previews")).unwrap();
+    std::fs::write(two.join("previews/StubTown.png"), b"png").unwrap();
+    std::fs::write(two.join(".DS_Store"), b"finder").unwrap();
+    std::fs::write(two.join("maps/.DS_Store"), b"finder").unwrap();
+    std::fs::write(two.join("maps/StubTown.ron~"), b"backup").unwrap();
+    std::fs::create_dir_all(two.join(".cache")).unwrap();
+    std::fs::write(two.join(".cache/x"), b"x").unwrap();
+    assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
+    // A symlinked dir is followed (same files, same id).
+    #[cfg(unix)]
+    {
+        let moved = tmp.join("moved-maps");
+        let _ = std::fs::remove_dir_all(&moved);
+        std::fs::rename(two.join("maps"), &moved).unwrap();
+        std::os::unix::fs::symlink(&moved, two.join("maps")).unwrap();
+        assert_eq!(build_id::build_id(content, Some(&two)).unwrap(), id);
+    }
+    // A hand edit that leaves the manifest as is still counts.
+    std::fs::write(
+        two.join("scripts/Other.rs"),
+        format!("{OTHER_RS}// edited\n"),
+    )
+    .unwrap();
+    assert_ne!(build_id::build_id(content, Some(&two)).unwrap(), id);
 }

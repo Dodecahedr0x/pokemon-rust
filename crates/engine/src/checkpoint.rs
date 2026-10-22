@@ -9,6 +9,7 @@
 //! writes the same types as RON.
 
 use crate::data::{Behavior, Dir, FlagId, GameData, GfxId, MapId, MovementType, VarId};
+use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::mon::Pokemon;
 use crate::script::Speed;
@@ -36,7 +37,7 @@ pub type PlayerName = [u8; PLAYER_NAME_SIZE];
 const _: () =
     assert!(FLASH_SIZE / FLASH_SECTOR * FLASH_SECTOR == FLASH_SIZE && MAX_ENCODED < FLASH_SIZE / 2);
 
-/// Engine sources hash (build.rs, Task C; Wave 0: 0) and content build id (`GameData::build_id`).
+/// Engine sources hash (`build.rs`) and content build id (`GameData::build_id`).
 #[derive(
     Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, Serialize, Deserialize,
 )]
@@ -45,6 +46,7 @@ pub struct BuildHash {
     pub content: u64,
 }
 
+/// FNV-1a-64 of the non-test engine sources (`build.rs`, `build_support.rs`); never 0.
 pub const ENGINE_SRC_HASH: u64 = include!(concat!(env!("OUT_DIR"), "/engine_src_hash.rs"));
 
 /// The identity of this build: the engine sources and the content build.
@@ -57,7 +59,9 @@ pub fn build_hash(game: &impl GameData) -> BuildHash {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Header {
-    /// First field: `decode` reads it alone before anything else.
+    /// Permanently the first field of `Header`, and so of `Checkpoint`, encoded as a postcard
+    /// varint `u16`: `decode` reads it alone before anything else, in every schema
+    /// (`tests::encoding_starts_with_the_schema`). Never move or retype it.
     pub schema: u16,
     /// The capturing build (informational across builds).
     pub build: BuildHash,
@@ -76,6 +80,8 @@ pub struct Checkpoint {
 /// agb_save slot metadata (readable without loading the slot).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct SaveMeta {
+    /// Permanently the first field, encoded as a postcard varint `u16`, so the metadata of any
+    /// schema can be read (`tests::encoding_starts_with_the_schema`). Never move or retype it.
     pub schema: u16,
     pub build: BuildHash,
     pub frame: u32,
@@ -95,6 +101,7 @@ pub struct WorldSnapshot {
     pub field: FieldSnap,
     pub objects: ObjectsSnap,
     /// Only templates differing from the current map's data.
+    #[serde(deserialize_with = "seq")]
     pub templates: Vec<TemplateDelta>,
     pub vars: VarsSnap,
     pub fader: FaderSnap,
@@ -104,6 +111,7 @@ pub struct WorldSnapshot {
     pub last_mover: u8,
     pub delay: u16,
     pub door: u8,
+    #[serde(deserialize_with = "seq")]
     pub party: Vec<Pokemon>,
     pub respawn: u8,
     pub prev_behavior: Behavior,
@@ -124,6 +132,7 @@ pub struct FieldSnap {
     pub drawn: Option<[i16; 4]>,
     pub ring: (i16, i16),
     /// Ascending.
+    #[serde(deserialize_with = "seq")]
     pub overrides: Vec<((i16, i16), u16)>,
 }
 
@@ -132,6 +141,7 @@ pub struct ObjectsSnap {
     pub map: MapId,
     pub run_state: RunStateSnap,
     /// `[0]` = player.
+    #[serde(deserialize_with = "seq")]
     pub objs: Vec<ObjectSnap>,
 }
 
@@ -212,8 +222,10 @@ pub struct TemplateDelta {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct VarsSnap {
     /// Set flags, ascending.
+    #[serde(deserialize_with = "seq")]
     pub flags: Vec<FlagId>,
     /// Non-zero vars, ascending.
+    #[serde(deserialize_with = "seq")]
     pub vars: Vec<(VarId, u16)>,
 }
 
@@ -264,29 +276,132 @@ pub enum DecodeError {
     TooLarge(usize),
 }
 
-/// Postcard bytes of `cp` (Task C).
+/// Postcard bytes of `cp`. The header comes first and the schema first of all, so any build can
+/// read the schema of any checkpoint.
 pub fn encode(cp: &Checkpoint) -> Vec<u8> {
-    let _ = cp;
-    todo!("Milestone 5 Task C")
+    // Plain data into a growable buffer: postcard cannot fail here.
+    postcard::to_allocvec(cp).expect("postcard encoding of a checkpoint")
 }
 
-/// [`encode`], `TooLarge` past [`MAX_ENCODED`].
+/// [`encode`], `TooLarge` past [`MAX_ENCODED`] (the GBA flash slot).
+/// Checks the size before encoding, so an oversized checkpoint is never materialised.
 pub fn encode_checked(cp: &Checkpoint) -> Result<Vec<u8>, DecodeError> {
-    let _ = cp;
-    todo!("Milestone 5 Task C")
+    let len = encoded_len(cp);
+    if len > MAX_ENCODED {
+        return Err(DecodeError::TooLarge(len));
+    }
+    Ok(encode(cp))
+}
+
+/// `encode(cp).len()`, without allocating (a counting postcard output).
+pub fn encoded_len(cp: &Checkpoint) -> usize {
+    postcard::serialize_with_flavor(cp, LenFlavor(0)).expect("postcard sizing of a checkpoint")
+}
+
+/// A postcard output that only counts the bytes.
+struct LenFlavor(usize);
+
+impl postcard::ser_flavors::Flavor for LenFlavor {
+    type Output = usize;
+
+    fn try_push(&mut self, _: u8) -> postcard::Result<()> {
+        self.0 += 1;
+        Ok(())
+    }
+
+    fn try_extend(&mut self, data: &[u8]) -> postcard::Result<()> {
+        self.0 += data.len();
+        Ok(())
+    }
+
+    fn finalize(self) -> postcard::Result<usize> {
+        Ok(self.0)
+    }
 }
 
 /// Reads the leading u16 schema first, then the whole checkpoint.
+///
+/// **Schema policy: migrate or fail.** A checkpoint of another [`SCHEMA`] is refused with
+/// `Schema { found }` before anything else is decoded. Schema 1 has no migrations. When a DTO
+/// changes (the golden-bytes test fails), bump `SCHEMA`, then decide per bump: either keep the
+/// old DTOs in `checkpoint/v<N>.rs` with a `migrate` to the current ones, called from here, or
+/// accept `Schema` errors. Native snapshots are a cache that regenerates from their traces, and
+/// the GBA starts a new game.
+///
+/// The input must be exactly one checkpoint: trailing bytes are a `Postcard` error, and more
+/// than [`MAX_ENCODED`] bytes are `TooLarge` (nothing is decoded). With the snapshot `Vec`s
+/// decoded by [`seq`], the memory a decode allocates is bounded by the input size.
 pub fn decode(bytes: &[u8]) -> Result<Checkpoint, DecodeError> {
-    let _ = bytes;
-    todo!("Milestone 5 Task C")
+    if bytes.len() > MAX_ENCODED {
+        return Err(DecodeError::TooLarge(bytes.len()));
+    }
+    let (schema, _) = postcard::take_from_bytes::<u16>(bytes).map_err(|_| DecodeError::Postcard)?;
+    if schema != SCHEMA {
+        return Err(DecodeError::Schema { found: schema });
+    }
+    match postcard::take_from_bytes::<Checkpoint>(bytes) {
+        Ok((cp, [])) => Ok(cp),
+        _ => Err(DecodeError::Postcard),
+    }
 }
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
+/// The header (build, frame, world hash) is not part of it.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
-    let _ = w;
-    todo!("Milestone 5 Task C")
+    postcard::serialize_with_flavor(w, DigestFlavor(Fnv64::new()))
+        .expect("postcard encoding of a snapshot")
 }
+
+/// A postcard output that hashes the bytes instead of storing them.
+struct DigestFlavor(Fnv64);
+
+impl postcard::ser_flavors::Flavor for DigestFlavor {
+    type Output = u64;
+
+    fn try_push(&mut self, data: u8) -> postcard::Result<()> {
+        self.0.write(&[data]);
+        Ok(())
+    }
+
+    fn try_extend(&mut self, data: &[u8]) -> postcard::Result<()> {
+        self.0.write(data);
+        Ok(())
+    }
+
+    fn finalize(self) -> postcard::Result<u64> {
+        Ok(self.0.finish())
+    }
+}
+
+/// Deserializes a snapshot `Vec` without trusting the encoded length: elements are pushed one by
+/// one, so a forged length (a party of 4000) cannot preallocate more than the input holds.
+/// Serialization is the derived one, so the bytes are unchanged.
+fn seq<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    struct Seq<T>(core::marker::PhantomData<T>);
+    impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Seq<T> {
+        type Value = Vec<T>;
+
+        fn expecting(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            f.write_str("a sequence")
+        }
+
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut a: A) -> Result<Vec<T>, A::Error> {
+            let mut v = Vec::new();
+            while let Some(x) = a.next_element()? {
+                v.push(x);
+            }
+            Ok(v)
+        }
+    }
+    d.deserialize_seq(Seq(core::marker::PhantomData))
+}
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod wave0_tests {

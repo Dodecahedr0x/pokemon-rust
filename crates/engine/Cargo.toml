@@ -10,3 +10,6 @@ publish.workspace = true
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 
+[dev-dependencies]
+# The RON golden of the checkpoint schema (`checkpoint/tests.rs`); the shells write RON.
+ron = "0.8"
