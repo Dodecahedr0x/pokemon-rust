@@ -283,7 +283,7 @@ impl<'a, G: GameData> Driver<'a, G> {
 
     /// Up-front planning: `NoPath` when `m` is not applicable to a capturable start.
     fn plan(&mut self, m: &Macro) -> Result<(), ExpandError> {
-        if m.kind == MacroKind::Settle {
+        if matches!(m.kind, MacroKind::Settle | MacroKind::Wait { .. }) {
             return Ok(());
         }
         let Ok(snap) = self.w().snapshot(self.s.game()) else {
@@ -617,6 +617,14 @@ impl<'a, G: GameData> Driver<'a, G> {
                 }
             }
             MacroKind::Grass { x, y } => self.grass((x, y))?,
+            MacroKind::Wait { frames } => {
+                for _ in 0..frames {
+                    if self.interrupted() {
+                        break;
+                    }
+                    self.press(Buttons::NONE)?;
+                }
+            }
         }
         self.resolve()
     }

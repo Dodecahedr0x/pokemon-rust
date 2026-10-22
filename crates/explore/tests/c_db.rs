@@ -84,7 +84,9 @@ fn open_creates_dirs_and_is_idempotent() {
     assert_eq!(db.meta("schema").unwrap(), Some(SCHEMA_VERSION.to_string()));
     assert_eq!(db.meta("flavor").unwrap().as_deref(), Some("stub"));
     assert_eq!(db.meta_build().unwrap(), Some(B1));
-    assert_eq!(db.meta("generation").unwrap().as_deref(), Some("0"));
+    // No generation applied yet (Task G: `meta.generation` exists once one is).
+    assert_eq!(db.meta("generation").unwrap(), None);
+    assert_eq!(db.stats().unwrap().generation, 0);
     drop(db);
     let (_, st) = Db::open(&path, B1, true).unwrap();
     assert!(!st.fresh && !st.build_changed);

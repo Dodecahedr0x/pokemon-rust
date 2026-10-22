@@ -2,8 +2,8 @@
 //! connection setup are Wave 0).
 
 use crate::model::{
-    AbstractKey, FindingDraft, FindingKind, Fitness, GenerationDelta, Macro, NodeId, NodeRow,
-    NodeStatus, SeenKind, Touch,
+    AbstractKey, FindingKind, Fitness, GenerationDelta, Macro, NodeId, NodeRow, NodeStatus,
+    SeenKind, Touch,
 };
 use crate::runs;
 use engine::checkpoint::{self, BuildHash, Checkpoint};
@@ -11,6 +11,7 @@ use engine::data::{MapId, ScriptId};
 use game_native::trace::Run;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, params};
+use std::collections::BTreeSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -233,25 +234,6 @@ fn finding_from_row(r: &Row) -> Result<FindingRow, DbError> {
     })
 }
 
-/// The finding dedupe signature: FNV-1a of the kind, the location (else the message with its
-/// digits stripped) and the map. Mirrors the contract of `findings::signature` (Task E), which
-/// Task G substitutes here when wiring.
-fn draft_signature(f: &FindingDraft) -> u64 {
-    let mut h = engine::hash::Fnv64::new();
-    h.write(kind_str(f.kind).as_bytes());
-    h.write(&[0]);
-    match &f.location {
-        Some(l) => h.write(l.as_bytes()),
-        None => {
-            let m: String = f.message.chars().filter(|c| !c.is_ascii_digit()).collect();
-            h.write(m.as_bytes());
-        }
-    }
-    h.write(&[0]);
-    h.write_u16(f.map.0);
-    h.finish()
-}
-
 impl Db {
     /// `<workspace>/target/explore/{stub|emerald}/explore.db`.
     pub fn default_path(stub: bool) -> PathBuf {
@@ -267,8 +249,8 @@ impl Db {
     }
 
     /// Opens (creating the parent dirs and the schema) the db for `build` and the `stub` or
-    /// emerald flavor. A fresh db gets `meta` schema, flavor, build and generation 0 (the
-    /// caller records `seed` with `set_meta`). `build_changed` is reported, never acted on.
+    /// emerald flavor. A fresh db gets `meta` schema, flavor and build; `generation`
+    /// appears with the first `apply` (the caller records `seed` with `set_meta`). `build_changed` is reported, never acted on.
     pub fn open(path: &Path, build: BuildHash, stub: bool) -> Result<(Db, OpenState), DbError> {
         if let Some(dir) = path.parent()
             && !dir.as_os_str().is_empty()
@@ -314,7 +296,6 @@ impl Db {
                     ("flavor", flavor.to_string()),
                     ("build_engine", build.engine.to_string()),
                     ("build_content", build.content.to_string()),
-                    ("generation", "0".to_string()),
                 ] {
                     tx.execute(
                         "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
@@ -388,15 +369,21 @@ impl Db {
     pub fn apply(&mut self, d: &GenerationDelta) -> Result<(), DbError> {
         let build = self.build;
         let tx = self.conn.transaction()?;
-        // `merged_into` may name a node inserted below: foreign keys are checked at commit.
-        tx.pragma_update(None, "defer_foreign_keys", "ON")?;
+        // Foreign keys stay immediate (Task G). With deferred keys, a `merged_into` naming a
+        // later row of the delta left the deferred-violation counter non-zero, and while it is,
+        // SQLite scans the child tables of every row inserted into `node` (`seen`,
+        // `coverage`, `battle` and `node.merged_into` have no index on their node column):
+        // a cost that grew with the db. So the `merged_into`s naming a row of this delta are
+        // written after the inserts, and no violation is ever pending.
+        let mut late_merged_into: Vec<(NodeId, NodeId)> = Vec::new();
         {
-            let mut st =
-                tx.prepare("UPDATE node SET status = 'merged', merged_into = ?2 WHERE id = ?1")?;
+            // The old live nodes leave the live key index before the inserts take their keys.
+            let mut st = tx.prepare("UPDATE node SET status = 'merged' WHERE id = ?1")?;
             for (old, new) in &d.merged {
-                if st.execute(params![old, new])? != 1 {
+                if st.execute(params![old])? != 1 {
                     return Err(DbError::Codec(format!("merged: no node {old}")));
                 }
+                late_merged_into.push((*old, *new));
             }
             let mut st = tx.prepare("UPDATE node SET expanded = expanded + ?2 WHERE id = ?1")?;
             for (id, n) in &d.expanded {
@@ -409,7 +396,15 @@ impl Db {
                  ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, \
                  ?25, ?26, ?27)"
             ))?;
+            let in_delta: BTreeSet<NodeId> = d.nodes.iter().map(|n| n.id).collect();
             for n in &d.nodes {
+                let merged_into = match n.merged_into {
+                    Some(m) if in_delta.contains(&m) => {
+                        late_merged_into.push((n.id, m));
+                        None
+                    }
+                    m => m,
+                };
                 st.execute(params![
                     n.id,
                     n.parent,
@@ -435,10 +430,14 @@ impl Db {
                     n.generation,
                     n.expanded,
                     status_str(n.status),
-                    n.merged_into,
+                    merged_into,
                     n.build.engine as i64,
                     n.build.content as i64,
                 ])?;
+            }
+            let mut st = tx.prepare("UPDATE node SET merged_into = ?2 WHERE id = ?1")?;
+            for (id, into) in &late_merged_into {
+                st.execute(params![id, into])?;
             }
             for (id, cp) in &d.snapshots {
                 put_snapshot(&tx, *id, cp)?;
@@ -511,7 +510,7 @@ impl Db {
             ))?;
             for (f, node, total) in &d.findings {
                 st.execute(params![
-                    draft_signature(f) as i64,
+                    crate::findings::signature(f) as i64,
                     kind_str(f.kind),
                     node,
                     f.macro_.as_ref().map(macro_text).transpose()?,
@@ -758,6 +757,16 @@ impl Db {
         tx.commit()?;
         self.build = build;
         Ok(n as u64)
+    }
+
+    /// The config (RON) of the last `run` row, if any.
+    pub fn last_run_config(&self) -> Result<Option<String>, DbError> {
+        Ok(self
+            .conn
+            .query_row("SELECT config FROM run ORDER BY id DESC LIMIT 1", [], |r| {
+                r.get(0)
+            })
+            .optional()?)
     }
 
     pub fn record_run(&mut self, r: &RunRow) -> Result<(), DbError> {

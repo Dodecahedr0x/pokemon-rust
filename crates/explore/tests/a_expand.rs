@@ -133,7 +133,7 @@ fn candidates_are_deterministic_and_applicable() {
         MacroKind::Inspect { .. } => 3,
         MacroKind::Grass { .. } => 4,
         MacroKind::WalkTo { .. } => 5,
-        MacroKind::Settle => 6,
+        MacroKind::Settle | MacroKind::Wait { .. } => 6,
     };
     assert!(c1.windows(2).all(|w| rank(&w[0].kind) <= rank(&w[1].kind)));
     // The player's own cell is never a WalkTo; unreachable cells are not applicable.
@@ -311,7 +311,8 @@ fn errors_prune() {
     assert!(r.steps.is_empty());
     assert!(matches!(r.stop, Some(Stop::Pruned(_))), "{:?}", r.stop);
     let r = run(&game, &job(None, Plan::Softlock { k: 3, breadth: 8 }));
-    assert!(matches!(&r.stop, Some(Stop::Pruned(s)) if s == "unwired"));
+    // A probe needs a start state (Task G wired it).
+    assert!(matches!(&r.stop, Some(Stop::Pruned(_))), "{:?}", r.stop);
 }
 
 #[test]

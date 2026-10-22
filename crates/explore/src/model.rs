@@ -39,6 +39,9 @@ pub enum MacroKind {
     Inspect { x: i16, y: i16, dir: Dir },
     /// Pace between tall-grass cell (x, y) and a walkable neighbour until a battle starts.
     Grass { x: i16, y: i16 },
+    /// Press nothing for `frames` frames, then settle (Task G: the softlock probe's wait, so
+    /// that wandering objects can free a way; never a search candidate).
+    Wait { frames: u16 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -220,6 +223,9 @@ pub struct StepResult {
     /// Capturable end state.
     pub end: Arc<Checkpoint>,
     pub summary: SimSummary,
+    /// The job stopped on a finding right after this step (its last): the merge adds the bug
+    /// weight to the node (Task G).
+    pub bug: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -238,6 +244,12 @@ pub struct JobResult {
     /// Each becomes a candidate node, chained.
     pub steps: Vec<StepResult>,
     pub stop: Option<Stop>,
+    /// Frames the job stepped beyond its steps' inputs: softlock probe expansions (Task G).
+    pub probe_frames: u64,
+    /// Report-only slow frames (`Expanded::slow`) of the job's steps.
+    pub slow_frames: u32,
+    /// What the driver did beyond the macros (`Expanded::notes`), in step order.
+    pub notes: Vec<String>,
 }
 
 /// The merge's output: one SQLite transaction.
@@ -269,6 +281,12 @@ pub struct GenStats {
     pub duplicates: u32,
     pub pruned: u32,
     pub frames: u64,
+    /// Softlock probe frames (not in `frames`, which counts node and finding inputs).
+    pub probe_frames: u64,
+    /// Report-only slow frames.
+    pub slow_frames: u32,
+    /// Driver notes (`JobResult::notes`).
+    pub notes: u32,
 }
 
 /// The scorer the runner merges with (Task B implements it; tests use fakes).
@@ -312,6 +330,7 @@ mod tests {
                 dir: Dir::Right,
             },
             MacroKind::Grass { x: 12, y: 3 },
+            MacroKind::Wait { frames: 300 },
         ];
         for (i, kind) in all.into_iter().enumerate() {
             let m = Macro {

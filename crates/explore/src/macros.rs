@@ -88,7 +88,7 @@ pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m:
     let st = State::new(game, snap, reach);
     let map = st.grid.map;
     match m.kind {
-        MacroKind::Settle => true,
+        MacroKind::Settle | MacroKind::Wait { .. } => true,
         MacroKind::WalkTo { x, y } => st.walk_target((x, y)),
         MacroKind::Enter { x, y, dir } => {
             map.warps.iter().any(|w| (w.x, w.y) == (x, y))

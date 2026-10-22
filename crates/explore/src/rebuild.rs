@@ -73,12 +73,13 @@ fn is_live(s: NodeStatus) -> bool {
 ///   They stay Merged unless they break, or unless the node they were merged into broke or
 ///   lost the key, in which case they claim the key again.
 /// - One live node per key. A node whose key is held by a node already checked in this run
-///   merges with it (fewer total frames wins, then the lower id). If the holder is not
+///   merges with it (as `Runner::merge`: more goals reached wins, then fewer total frames,
+///   then the lower id). If the holder is not
 ///   checked yet, the node waits merged into it: when the holder keeps the key the same rule
 ///   applies, otherwise (it broke or was repaired to another key) the best waiting node
 ///   becomes the holder. A holder that breaks hands the key to the best node merged into it.
 /// - Total frames are recomputed down the tree. A repaired node keeps its `progress` and
-///   fitness (Task G re-scores with `goals::progress` if needed).
+///   fitness (not re-scored: `goals::progress` needs the expansions' summaries).
 /// - Each level is one transaction (statuses and the new snapshots, at depths that are
 ///   multiples of `cfg.snapshot_every_depth`). At the end `meta.build_*` becomes this build,
 ///   snapshots of other builds are dropped and open findings of other builds become `stale`.
@@ -269,9 +270,14 @@ impl State {
         !self.todo.contains(&id) || self.processed.contains(&id)
     }
 
-    /// The usual winner: fewer total frames, then the lower id.
+    /// The usual winner, as `Runner::merge`: more goals reached, then fewer total frames, then
+    /// the lower id.
     fn better(&self, a: NodeId, b: NodeId) -> bool {
-        (self.rows[&a].total_frames, a) < (self.rows[&b].total_frames, b)
+        let rank = |id: NodeId| {
+            let n = &self.rows[&id];
+            (std::cmp::Reverse(n.progress), n.total_frames, id)
+        };
+        rank(a) < rank(b)
     }
 
     fn merge_into(&mut self, loser: NodeId, winner: NodeId) {

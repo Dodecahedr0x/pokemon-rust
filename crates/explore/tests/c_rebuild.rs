@@ -332,6 +332,44 @@ fn a_repaired_key_waits_for_the_deeper_holder_then_merges() {
 }
 
 #[test]
+fn more_goals_keep_the_key_against_fewer_frames() {
+    // As `Runner::merge` (Task G; `d_runner::more_goals_supersede_even_with_more_frames`):
+    // node 4 is repaired onto node 3's key; of the two, the one with more total frames has
+    // reached more goals, and it keeps the key.
+    let f = Fixture::new();
+    let dir = tempfile::tempdir().unwrap();
+    let mut rows = f.rows.clone();
+    corrupt_inputs(&mut rows[3]);
+    let (t3, t4) = (f.rows[2].total_frames, f.rows[3].total_frames);
+    assert_ne!(t3, t4);
+    let (win, lose) = if t4 > t3 { (4, 3) } else { (3, 4) };
+    rows[win as usize - 1].progress = 10;
+    rows[lose as usize - 1].progress = 0;
+    let mut db = f.db(&dir.path().join("explore.db"), rows);
+    let calls = AtomicU32::new(0);
+    let r = revalidate_with_key(
+        &mut db,
+        &f.game,
+        &cfg(),
+        &f.repair(&calls, &[]),
+        &f.keys(&[(3, 1003)]),
+    )
+    .unwrap();
+    assert_eq!((r.valid, r.repaired, r.broken), (3, 1, 0));
+    let w = db.node(win).unwrap().unwrap();
+    let l = db.node(lose).unwrap().unwrap();
+    assert!(w.total_frames > l.total_frames && w.progress > l.progress);
+    assert_eq!(
+        (w.status, w.merged_into, w.key),
+        (Valid, None, AbstractKey(1003))
+    );
+    assert_eq!(
+        (l.status, l.merged_into, l.key),
+        (Merged, Some(win), AbstractKey(1003))
+    );
+}
+
+#[test]
 fn a_waiting_node_takes_the_key_when_the_holder_breaks() {
     let f = Fixture::new();
     let dir = tempfile::tempdir().unwrap();

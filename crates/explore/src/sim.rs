@@ -2,17 +2,21 @@
 
 use crate::config::Config;
 use crate::expand::{self, ExpandError, Expanded, Intents};
+use crate::findings;
 use crate::graph::Rng64;
 use crate::guard::{self, Panicked};
+use crate::key;
 use crate::macros;
 use crate::model::{
     FindingDraft, FindingKind, Job, JobResult, Macro, MacroKind, Opts, Plan, StepResult, Stop,
 };
-use crate::observe::StepObserver;
+use crate::observe::{NoObserver, StepObserver};
 use crate::path;
 use crate::policy::Policy;
 use crate::probe::Probe;
 use crate::runs;
+use crate::softlock::{self, Trap};
+use engine::checkpoint::Checkpoint;
 use engine::data::{GameData, MapId};
 use game_native::Session;
 use game_native::trace::rle;
@@ -21,7 +25,8 @@ use std::sync::Arc;
 /// Candidates tried per `Plan::Random` step before the job is pruned.
 pub const RANDOM_TRIES: usize = 8;
 
-/// Runs one job on a fresh session built on this thread. Plan::Softlock is wired by Task G.
+/// Runs one job on a fresh session built on this thread. `Plan::Softlock` probes the start
+/// state with [`trap`] (no step: `Stop::NotTrapped` or a `Softlock` finding).
 pub fn simulate<G: GameData + Clone>(
     game: &G,
     job: &Job,
@@ -49,9 +54,16 @@ pub fn simulate_with<G: GameData + Clone>(
             parent: job.parent,
             steps: Vec::new(),
             stop: None,
+            probe_frames: 0,
+            slow_frames: 0,
+            notes: Vec::new(),
         },
     };
     if let Err(stop) = sim.run(job) {
+        // The bug weight goes to the step the finding follows (`StepResult::bug`).
+        if let (Stop::Finding(_), Some(last)) = (&stop, sim.res.steps.last_mut()) {
+            last.bug = true;
+        }
         sim.res.stop = Some(stop);
     }
     sim.res
@@ -68,7 +80,7 @@ struct Sim<'a, G: GameData + Clone> {
 type Live<G> = (Session<Probe<G>>, Box<dyn StepObserver<G>>);
 
 impl<G: GameData + Clone> Sim<'_, G> {
-    fn session(&mut self, start: Option<&engine::checkpoint::Checkpoint>) -> Result<Live<G>, Stop> {
+    fn session(&mut self, start: Option<&Checkpoint>) -> Result<Live<G>, Stop> {
         let probe = Probe::new(self.game.clone());
         // A panic while building the world is a finding on the start map (the new game's for `World::new`, as `findings::reproduce` expects).
         // The tail is the job's steps so far (empty for the job's own start), as `finding`.
@@ -102,8 +114,18 @@ impl<G: GameData + Clone> Sim<'_, G> {
     }
 
     fn run(&mut self, job: &Job) -> Result<(), Stop> {
-        if let Plan::Softlock { .. } = job.plan {
-            return Err(Stop::Pruned("unwired".into()));
+        if let Plan::Softlock { k, breadth } = job.plan {
+            let Some(start) = job.start.as_deref() else {
+                return Err(Stop::Pruned("softlock probe without a start state".into()));
+            };
+            let probed = trap(self.game, start, k, breadth, self.cfg);
+            self.res.probe_frames = probed.frames;
+            return Err(match probed.trap {
+                Trap::Trapped { reached } => {
+                    Stop::Finding(softlock_finding(start, probed.region, k, reached))
+                }
+                _ => Stop::NotTrapped,
+            });
         }
         let mut live = self.session(job.start.as_deref())?;
         let first = match &job.plan {
@@ -184,11 +206,14 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 let end = s
                     .checkpoint()
                     .map_err(|e| Err(Stop::Pruned(format!("{m:?}: ended {e:?}"))))?;
+                self.res.slow_frames += ex.slow.len() as u32;
+                self.res.notes.extend(ex.notes);
                 self.res.steps.push(StepResult {
                     macro_: *m,
                     inputs: rle(ex.keys),
                     end: Arc::new(end),
                     summary: ex.summary,
+                    bug: false,
                 });
                 Ok(())
             }
@@ -211,6 +236,127 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 ex,
             )))),
         }
+    }
+}
+
+/// The softlock probe's depth on `map`: `softlock_k_per_map[map]`, else `softlock_k`.
+pub fn softlock_k(cfg: &Config, map: MapId) -> u32 {
+    cfg.detect
+        .softlock_k_per_map
+        .get(&map.0)
+        .copied()
+        .unwrap_or(cfg.detect.softlock_k)
+}
+
+/// Frames of the probe's [`MacroKind::Wait`]: long enough for a wandering NPC to step off a
+/// cell it blocks (the movement types pause one to four seconds between steps).
+pub const PROBE_WAIT_FRAMES: u16 = 300;
+
+/// A softlock probe's verdict, the start's region and the frames it stepped.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Probed {
+    pub trap: Trap,
+    pub region: u64,
+    pub frames: u64,
+}
+
+/// The softlock probe of `start` (`softlock::probe` with the start's region and its map's
+/// exits): from each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
+/// wander may free a way out), then every candidate macro, each expanded from a fresh session
+/// restored there (the policy, no detectors), at most `remaining` successful ones per state.
+pub fn trap<G: GameData + Clone>(
+    game: &G,
+    start: &Checkpoint,
+    k: u32,
+    breadth: u32,
+    cfg: &Config,
+) -> Probed {
+    let region = key::region(&key::key_parts(&start.world, &cfg.key));
+    let exits = softlock::map_exits(game, start.world.field.map);
+    let mut frames = 0u64;
+    let mut expand_all =
+        |cp: &Checkpoint, remaining: u32| expand_all(game, cp, remaining, cfg, &mut frames);
+    let trap = softlock::probe(start, region, exits, k, breadth, &mut expand_all);
+    Probed {
+        trap,
+        region,
+        frames,
+    }
+}
+
+/// The states one successful macro away from `cp`: (region, map, end state), the wait then
+/// the candidates in order, at most `remaining`. A panic or a failed expansion skips the macro.
+/// Every stepped frame counts in `frames`.
+fn expand_all<G: GameData + Clone>(
+    game: &G,
+    cp: &Checkpoint,
+    remaining: u32,
+    cfg: &Config,
+    frames: &mut u64,
+) -> Vec<(u64, MapId, Checkpoint)> {
+    let restore = || {
+        guard::catch(|| Session::restore(Probe::new(game.clone()), cp))
+            .ok()
+            .and_then(Result::ok)
+    };
+    let Some(s) = restore() else {
+        return Vec::new();
+    };
+    let Ok(snap) = s.world().snapshot(s.game()) else {
+        return Vec::new();
+    };
+    let reach = path::reach(game, &snap);
+    let wait = Macro {
+        kind: MacroKind::Wait {
+            frames: PROBE_WAIT_FRAMES,
+        },
+        opts: Opts::default(),
+    };
+    let cands = std::iter::once(wait).chain(macros::candidates_with(
+        game,
+        &snap,
+        &reach,
+        cfg.key.cell_shift,
+    ));
+    let mut first = Some(s);
+    let mut out = Vec::new();
+    for m in cands {
+        if out.len() as u32 >= remaining {
+            break;
+        }
+        let Some(mut s) = first.take().or_else(restore) else {
+            break;
+        };
+        let start_frame = s.world().frame();
+        let ok = guard::catch(|| {
+            expand::expand(&mut s, &m, &mut Policy::new(), &mut NoObserver, &cfg.limits).is_ok()
+        });
+        // A panicked session's frame counter is still readable (the step that panicked did
+        // not count).
+        *frames += u64::from(s.world().frame().wrapping_sub(start_frame));
+        if ok == Ok(true)
+            && let Ok(end) = s.checkpoint()
+        {
+            let region = key::region(&key::key_parts(&end.world, &cfg.key));
+            out.push((region, end.world.field.map, end));
+        }
+    }
+    out
+}
+
+/// The `Softlock` finding of a trapped start state: an empty tail (the node itself).
+fn softlock_finding(start: &Checkpoint, region: u64, k: u32, reached: u32) -> FindingDraft {
+    let map = start.world.field.map;
+    FindingDraft {
+        kind: FindingKind::Softlock,
+        message: findings::softlock_message(region, k, reached),
+        location: None,
+        macro_: None,
+        tail: Vec::new(),
+        map,
+        pos: start.world.objects.objs.first().map_or((0, 0), |o| o.pos),
+        script: None,
+        log: Vec::new(),
     }
 }
 
