@@ -3,11 +3,15 @@
 
 extern crate alloc;
 
+mod save;
+mod save_logic;
 mod video;
 
 use content::Emerald;
-use engine::debug::{DebugRegion, input_slot};
+use engine::checkpoint::{BuildHash, build_hash};
+use engine::debug::{self, DebugRegion, input_slot};
 use engine::{Buttons, World};
+use save_logic::{PendingSave, combo_pressed, scanlines};
 use video::Video;
 
 const KEYINPUT: *const u16 = 0x0400_0130 as *const u16;
@@ -40,41 +44,104 @@ fn vcount() -> u16 {
     unsafe { VCOUNT.read_volatile() }
 }
 
-fn publish_debug(world: &World, keys: Buttons, late: u32, late_black: u32) {
+/// Publishes step `world.frame()` (frame last = commit). Returns the scanlines `World::hash`
+/// took.
+fn publish_debug(world: &World, keys: Buttons, late: u32, late_black: u32) -> u32 {
     let d = core::ptr::addr_of_mut!(PKR_DEBUG);
+    let start = vcount();
+    let hash = world.hash();
+    let hash_lines = scanlines(start, vcount());
     unsafe {
         (&raw mut (*d).inputs[input_slot(world.frame())]).write_volatile(keys.0);
-        (&raw mut (*d).hash).write_volatile(world.hash());
+        (&raw mut (*d).hash).write_volatile(hash);
         (&raw mut (*d).late).write_volatile(late);
         (&raw mut (*d).late_black).write_volatile(late_black);
         (&raw mut (*d).frame).write_volatile(world.frame());
     }
+    hash_lines
+}
+
+/// Written once, before the first frame is published.
+fn publish_boot(build: BuildHash, boot: u32) {
+    let d = core::ptr::addr_of_mut!(PKR_DEBUG);
+    unsafe {
+        (&raw mut (*d).build_engine).write_volatile(build.engine);
+        (&raw mut (*d).build_content).write_volatile(build.content);
+        (&raw mut (*d).boot).write_volatile(boot);
+    }
+}
+
+fn publish_save(saves: u32, status: u32) {
+    let d = core::ptr::addr_of_mut!(PKR_DEBUG);
+    unsafe {
+        (&raw mut (*d).saves).write_volatile(saves);
+        (&raw mut (*d).save_status).write_volatile(status);
+    }
+}
+
+/// Worst scanline costs on visible frames (see `DebugRegion::hash_lines_max`): meaningful
+/// only when `late == 0`, since each is measured mod one frame.
+#[derive(Default)]
+struct Costs {
+    hash: u32,
+    step: u32,
+    whole: u32,
+}
+
+impl Costs {
+    fn record(&mut self, hash: u32, step: u32, whole: u32) {
+        if hash <= self.hash && step <= self.step && whole <= self.whole {
+            return;
+        }
+        self.hash = self.hash.max(hash);
+        self.step = self.step.max(step);
+        self.whole = self.whole.max(whole);
+        let d = core::ptr::addr_of_mut!(PKR_DEBUG);
+        unsafe {
+            (&raw mut (*d).hash_lines_max).write_volatile(self.hash);
+            (&raw mut (*d).step_lines_max).write_volatile(self.step);
+            (&raw mut (*d).loop_lines_max).write_volatile(self.whole);
+        }
+    }
 }
 
 #[agb::entry]
-fn main(_gba: agb::Gba) -> ! {
+fn main(mut gba: agb::Gba) -> ! {
     let game = Emerald::for_shells();
     let mut video = Video::new();
-    let world = &mut World::new(&game);
+    let mut slots = save::init(&mut gba);
+    let boot_keys = read_keys();
+    let (mut world, boot) = save::boot_world(&game, slots.as_mut(), boot_keys);
+    let world = &mut world;
     let mut frame = world.initial_frame();
     video.apply_blanked(&frame);
     // Its commands are done; the loop re-applies only its registers.
     frame.cmds.clear();
+    // Boot order on the debug region: build and boot, then the boot World's hash, `frame`
+    // last. The hash stays 0 until then (the emu takes the first non-zero hash as the boot).
+    publish_boot(build_hash(&game), boot);
     let (mut late, mut late_black) = (0u32, 0u32);
+    let mut costs = Costs::default();
+    let mut saves = 0u32;
+    let mut pending: Option<PendingSave> = None;
+    // Keys held at boot never complete the combo.
+    let mut prev_keys = boot_keys;
     // Whether the last applied frame left the screen fully black.
     let mut black = frame.is_black();
-    // Frame 0 publishes the real initial hash rather than the static's placeholder 0.
+    // Frame 0 (or the restored frame) publishes the real hash rather than the static's 0.
     publish_debug(world, Buttons::NONE, late, late_black);
     let vblank = agb::interrupt::VBlank::get();
     loop {
         vblank.wait_for_vblank();
+        let woke = vcount();
         // On time, we wake at the start of vblank. Anywhere else means the last step overran
         // and agb's catch-up returned at once, so this apply lands mid-frame.
-        let woke_late = vcount() != VBLANK_LINE;
+        let woke_late = woke != VBLANK_LINE;
         // Shows the previous step's Frame (one-frame display lag, see engine::debug).
         video.apply(&frame);
+        let applied = vcount();
         // Vblank lasts lines 160..228; back in 0..160 means the apply ran into the picture.
-        if woke_late || vcount() < VBLANK_LINE {
+        if woke_late || applied < VBLANK_LINE {
             // Black before and after (map loads while faded out): nothing visible differs.
             let now_black = frame.is_black();
             if black && now_black {
@@ -86,6 +153,45 @@ fn main(_gba: agb::Gba) -> ! {
         black = frame.is_black();
         let keys = read_keys();
         frame = world.step(&game, keys);
-        publish_debug(world, keys, late, late_black);
+        let hash_lines = publish_debug(world, keys, late, late_black);
+        let step_lines = scanlines(applied, vcount());
+        let mut wrote = false;
+
+        // Debug save (L+R+SELECT), outside the simulation: the World never sees it.
+        if combo_pressed(prev_keys, keys) {
+            pending = Some(PendingSave::new());
+        }
+        prev_keys = keys;
+        if let Some(wait) = pending.as_mut() {
+            match world.checkpoint(&game) {
+                Ok(cp) => {
+                    pending = None;
+                    let status = match slots.as_mut() {
+                        Some(slots) => save::write(slots, &cp),
+                        None => debug::save::STORAGE,
+                    };
+                    if status == debug::save::OK {
+                        saves = saves.wrapping_add(1);
+                    }
+                    publish_save(saves, status);
+                    wrote = true;
+                    // The picture stayed frozen on the last applied frame during the write,
+                    // over many vblanks. One wait drains agb's catch-up (it returns at once),
+                    // so the loop's own wait is a real one and lands on `VBLANK_LINE`.
+                    vblank.wait_for_vblank();
+                }
+                Err(_) => {
+                    if wait.tick() {
+                        pending = None;
+                        publish_save(saves, debug::save::TIMEOUT);
+                    }
+                }
+            }
+        }
+        // Costs count on visible frames only (bulk work such as map loads runs while black),
+        // and never across a flash write.
+        if !black && !wrote {
+            costs.record(hash_lines, step_lines, scanlines(woke, vcount()));
+        }
     }
 }
