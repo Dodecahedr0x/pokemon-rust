@@ -10,7 +10,7 @@
 //! `--load`, `--list` and F9 see both, and a save may start from a committed node.
 
 use engine::Buttons;
-use game_native::checkpoints::materialize;
+use game_native::checkpoints::{Materializer, add_save};
 use game_native::controls::{Controls, SaveRequest};
 use game_native::store::{Node, Store, StoreError};
 use game_native::trace::{CheckpointId, Parent};
@@ -39,29 +39,25 @@ fn rgb555_to_0rgb(c: u16) -> u32 {
     ch(c) << 16 | ch(c >> 5) << 8 | ch(c >> 10)
 }
 
-/// Adds the save, retrying with a suffix when its label is taken.
-fn add(store: &Store, req: &SaveRequest) -> Result<CheckpointId, StoreError> {
-    let mut label = req.label.clone();
-    for n in 2.. {
-        match store.add(&label, req.trace.clone(), &req.checkpoint) {
-            Err(StoreError::Label(_)) => label = format!("{} #{n}", req.label),
-            r => return r,
-        }
-    }
-    unreachable!()
-}
-
 fn save(store: &Store, c: &mut Controls<content::Emerald>, req: Option<SaveRequest>) {
     if let Some(req) = req {
-        match add(store, &req) {
+        match add_save(store, &req) {
             Ok(id) => c.saved(id),
             Err(e) => c.note(format!("save failed: {e}")),
         }
     }
 }
 
-fn load(store: &Store, c: &mut Controls<content::Emerald>, id: CheckpointId) -> Result<(), String> {
-    let m = materialize(store, &content::Emerald::for_shells(), id)?;
+/// The node states F9 reloads (one chain of a few nodes is plenty for one player).
+const MATERIALIZED: usize = 8;
+
+fn load(
+    store: &Store,
+    m: &mut Materializer<content::Emerald>,
+    c: &mut Controls<content::Emerald>,
+    id: CheckpointId,
+) -> Result<(), String> {
+    let m = m.get(store, id)?;
     c.load(id, &m.checkpoint)
         .map_err(|e| format!("restore: {e:?}"))?;
     if m.diverged {
@@ -93,6 +89,7 @@ fn main() -> ExitCode {
         }
     };
     let mut controls = Controls::new(content::Emerald::for_shells());
+    let mut mat = Materializer::new(content::Emerald::for_shells(), MATERIALIZED);
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         [] => {}
         ["--list"] => {
@@ -108,7 +105,7 @@ fn main() -> ExitCode {
             let r = store
                 .find(node)
                 .map_err(|e| e.to_string())
-                .and_then(|n| load(&store, &mut controls, n.meta.id));
+                .and_then(|n| load(&store, &mut mat, &mut controls, n.meta.id));
             if let Err(e) = r {
                 eprintln!("--load {node}: {e}");
                 return ExitCode::FAILURE;
@@ -140,7 +137,7 @@ fn main() -> ExitCode {
         if window.is_key_pressed(Key::F9, KeyRepeat::No) {
             match controls.parent() {
                 Parent::Checkpoint(id) => {
-                    if let Err(e) = load(&store, &mut controls, id) {
+                    if let Err(e) = load(&store, &mut mat, &mut controls, id) {
                         controls.note(format!("load failed: {e}"));
                     }
                 }
