@@ -1,6 +1,9 @@
-//! The player's bag (Milestone 8; `add`, `remove` and `has_space` are Task H's): Gen3 Emerald
-//! pockets with their capacities (`include/constants/global.h`), at most [`MAX_PER_SLOT`] of an
-//! item per slot.
+//! The player's bag (Milestone 8): Gen3 Emerald pockets with their capacities
+//! (`include/constants/global.h`), at most [`slot_capacity`] of an item per slot (99, berries
+//! 999), and Gen3 `item.c`'s rules for adding, removing and checking items.
+//!
+//! Every write goes through [`Bag::set_slot`], whose bounds `assert!` is unreachable from the
+//! other methods: they only index slots of the pocket they iterate.
 //!
 //! As [`crate::flow::Vars`], the bag keeps a digest of its contents up to date on every write,
 //! so [`Bag::hash`] is O(1) and never walks the 186 slots.
@@ -14,8 +17,25 @@ use alloc::vec;
 /// Slots per pocket, in [`Pocket::ALL`] order (Gen3 `BAG_ITEMS_COUNT`, `BAG_KEYITEMS_COUNT`,
 /// `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT`, `BAG_BERRIES_COUNT`).
 pub const POCKET_CAPACITY: [usize; 5] = [30, 30, 16, 64, 46];
-/// Gen3 `MAX_BAG_ITEM_CAPACITY`.
+/// Gen3 `MAX_BAG_ITEM_CAPACITY`: per slot, in every pocket but the berries one.
 pub const MAX_PER_SLOT: u16 = 99;
+/// Gen3 `MAX_BERRY_CAPACITY`: per slot in the berries pocket.
+pub const MAX_BERRIES_PER_SLOT: u16 = 999;
+/// The largest pocket (TMs and HMs).
+const MAX_POCKET: usize = 64;
+
+/// How many of an item one slot of `pocket` holds (Gen3 `AddBagItem`'s `slotCapacity`).
+pub const fn slot_capacity(pocket: Pocket) -> u16 {
+    match pocket {
+        Pocket::Berries => MAX_BERRIES_PER_SLOT,
+        _ => MAX_PER_SLOT,
+    }
+}
+
+/// Gen3 `TMHM_POCKET` and `BERRIES_POCKET`: an item never takes a second slot there.
+const fn single_slot(pocket: Pocket) -> bool {
+    matches!(pocket, Pocket::TmHm | Pocket::Berries)
+}
 /// Every slot of every pocket.
 pub const BAG_SLOTS: usize = 30 + 30 + 16 + 64 + 46;
 
@@ -106,22 +126,156 @@ impl Bag {
         self.slots[i] = slot;
     }
 
-    /// Gen3 `AddBagItem`: adds `qty` of `item` to `pocket` if it all fits. Task H.
+    /// Gen3 `CheckBagHasItem`: whether the slots of `pocket` hold at least `qty` of `item`
+    /// together (`qty` 0 needs one slot of it).
+    pub fn has(&self, pocket: Pocket, item: ItemId, qty: u16) -> bool {
+        let mut count = qty;
+        for s in self.pocket(pocket) {
+            if s.qty > 0 && s.item == item {
+                if s.qty >= count {
+                    return true;
+                }
+                count -= s.qty;
+            }
+        }
+        false
+    }
+
+    /// Gen3 `AddBagItem`: adds `qty` of `item` to `pocket` if it all fits, else changes nothing.
+    /// Existing stacks fill first, in slot order, then the first empty slots; in the TM/HM and
+    /// berries pockets an item never takes a second slot. `qty` 0 always succeeds.
     pub fn add(&mut self, pocket: Pocket, item: ItemId, qty: u16) -> bool {
-        let _ = (pocket, item, qty);
-        todo!("Milestone 8 Task H: Bag::add")
+        if item.0 == 0 {
+            return false;
+        }
+        let cap = slot_capacity(pocket);
+        let n = POCKET_CAPACITY[pocket as usize];
+        // Gen3 works on a copy (`newItems`) and keeps it only on success.
+        let mut new = [Slot::default(); MAX_POCKET];
+        new[..n].copy_from_slice(self.pocket(pocket));
+        let mut count = qty;
+        for s in new[..n].iter_mut() {
+            if s.qty > 0 && s.item == item {
+                let owned = s.qty;
+                if owned as u32 + count as u32 <= cap as u32 {
+                    s.qty = owned + count;
+                    count = 0;
+                    break;
+                }
+                if single_slot(pocket) {
+                    return false;
+                }
+                count -= cap - owned;
+                s.qty = cap;
+                if count == 0 {
+                    break;
+                }
+            }
+        }
+        if count > 0 {
+            for s in new[..n].iter_mut() {
+                if s.qty == 0 {
+                    s.item = item;
+                    if count > cap {
+                        if single_slot(pocket) {
+                            return false;
+                        }
+                        count -= cap;
+                        s.qty = cap;
+                    } else {
+                        s.qty = count;
+                        count = 0;
+                        break;
+                    }
+                }
+            }
+            if count > 0 {
+                return false;
+            }
+        }
+        for (i, s) in new[..n].iter().enumerate() {
+            if *s != self.pocket(pocket)[i] {
+                self.set_slot(pocket, i, *s);
+            }
+        }
+        true
     }
 
-    /// Gen3 `RemoveBagItem`: removes `qty` of `item` if the bag holds that many. Task H.
+    /// Gen3 `RemoveBagItem`: removes `qty` of `item` from `pocket`, slot by slot in order, if
+    /// the pocket holds that many together; else changes nothing. Emptied slots stay where they
+    /// are (Gen3 compacts pockets only when the bag menu opens). Gen3 first tries the slot under
+    /// the bag menu's cursor, which is the first slot without a bag menu.
     pub fn remove(&mut self, pocket: Pocket, item: ItemId, qty: u16) -> bool {
-        let _ = (pocket, item, qty);
-        todo!("Milestone 8 Task H: Bag::remove")
+        if item.0 == 0 {
+            return false;
+        }
+        let total: u32 = (self.pocket(pocket).iter())
+            .filter(|s| s.qty > 0 && s.item == item)
+            .map(|s| s.qty as u32)
+            .sum();
+        if total < qty as u32 {
+            return false;
+        }
+        let mut count = qty;
+        for i in 0..POCKET_CAPACITY[pocket as usize] {
+            let s = self.pocket(pocket)[i];
+            if s.qty > 0 && s.item == item {
+                let take = s.qty.min(count);
+                self.set_slot(
+                    pocket,
+                    i,
+                    Slot {
+                        item,
+                        qty: s.qty - take,
+                    },
+                );
+                count -= take;
+                if count == 0 {
+                    break;
+                }
+            }
+        }
+        true
     }
 
-    /// Gen3 `CheckBagHasSpace`. Task H.
+    /// Gen3 `CheckBagHasSpace`: whether [`Bag::add`] of the same arguments would succeed.
     pub fn has_space(&self, pocket: Pocket, item: ItemId, qty: u16) -> bool {
-        let _ = (pocket, item, qty);
-        todo!("Milestone 8 Task H: Bag::has_space")
+        if item.0 == 0 {
+            return false;
+        }
+        let cap = slot_capacity(pocket);
+        let slots = self.pocket(pocket);
+        let mut count = qty;
+        for s in slots {
+            if s.qty > 0 && s.item == item {
+                if s.qty as u32 + count as u32 <= cap as u32 {
+                    return true;
+                }
+                if single_slot(pocket) {
+                    return false;
+                }
+                count -= cap - s.qty;
+                if count == 0 {
+                    break;
+                }
+            }
+        }
+        if count > 0 {
+            for s in slots {
+                if s.qty == 0 {
+                    if count > cap {
+                        if single_slot(pocket) {
+                            return false;
+                        }
+                        count -= cap;
+                    } else {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        true
     }
 
     /// The digest of every slot, recomputed from scratch (what `digest` tracks).
@@ -155,7 +309,8 @@ impl Bag {
     }
 
     /// Rebuilt through [`Bag::set_slot`], so the digest matches the contents. Refuses slots out
-    /// of range, quantities outside `1..=MAX_PER_SLOT`, `ITEM_NONE` and repeated slots.
+    /// of range, quantities outside `1..=slot_capacity(pocket)`, `ITEM_NONE` and repeated
+    /// slots.
     pub fn from_snapshot(s: &BagSnap) -> Result<Bag, &'static str> {
         let mut bag = Bag::new();
         for b in &s.slots {
@@ -163,7 +318,7 @@ impl Bag {
             if index >= POCKET_CAPACITY[b.pocket as usize] {
                 return Err("bag slot out of range");
             }
-            if b.qty == 0 || b.qty > MAX_PER_SLOT || b.item.0 == 0 {
+            if b.qty == 0 || b.qty > slot_capacity(b.pocket) || b.item.0 == 0 {
                 return Err("bad bag slot");
             }
             if bag.pocket(b.pocket)[index].qty > 0 {
