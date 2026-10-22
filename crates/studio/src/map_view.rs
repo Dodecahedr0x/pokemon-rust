@@ -6,6 +6,7 @@
 //! windows, so tileset uploads, layer routing, the NORMAL underlay, the border and connections
 //! are the game's own (decision 9). `tests/map_pixels.rs` checks it against live sessions.
 
+use crate::explorer::CoverageGrid;
 use engine::data::{
     BLOCK_METATILE_MASK, Behavior, BgKind, Dir, FlagId, GameData, Gfx, METATILES_IN_PRIMARY,
     MapData, MapId, MovementType, ScriptId, VarId, attr_behavior, block_collision, block_elevation,
@@ -560,6 +561,36 @@ pub fn layer_paths(cells: &[CellInfo], margin: u16, on: CellLayers) -> Vec<(Stri
     }
     paths.retain(|(_, d)| !d.is_empty());
     paths
+}
+
+/// The coverage heat bucket of a cell visited `hits` times: 0 when never, then 1, 2-9, 10-99
+/// and 100+ hits as 1 to 4 (the `explore coverage` grid's rule).
+pub fn heat_bucket(hits: u32) -> u8 {
+    match hits {
+        0 => 0,
+        1 => 1,
+        2..=9 => 2,
+        10..=99 => 3,
+        _ => 4,
+    }
+}
+
+/// The CSS class of heat buckets 1 to 4, cool to hot (the UI styles them).
+pub const HEAT_CLASSES: [&str; 4] = ["heat-1", "heat-2", "heat-3", "heat-4"];
+
+/// The explorer's coverage layer (M7 Task S1), a per-cell layer like [`layer_paths`]: one SVG
+/// path `(class, d)` per heat bucket that has cells, bucket 1 first ([`HEAT_CLASSES`]).
+/// Unvisited cells are not drawn. Fetched live from the db, never baked into a [`MapEntry`].
+pub fn coverage_paths(grid: &CoverageGrid, margin: u16) -> Vec<(String, String)> {
+    let mut d = [const { String::new() }; 4];
+    for (x, y, hits) in grid.rows() {
+        let r = Rect::cell(x, y, margin);
+        d[heat_bucket(hits) as usize - 1] += &format!("M{} {}h16v16h-16z", r.x, r.y);
+    }
+    (HEAT_CLASSES.iter().zip(d))
+        .filter(|(_, d)| !d.is_empty())
+        .map(|(class, d)| (class.to_string(), d))
+        .collect()
 }
 
 /// `width x height` RGBA8 (`rgba` holds at least `width * height * 4` bytes) as a PNG with

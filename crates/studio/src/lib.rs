@@ -3,6 +3,7 @@
 
 pub mod build; // Task D
 pub mod data_view; // Task F
+pub mod explorer; // M7 Task S1
 pub mod frames; // Wave 0 spike
 pub mod keys; // Task G
 pub mod map_view; // Task E
@@ -10,6 +11,7 @@ pub mod native; // Task C
 pub mod pane; // Wave 0 spike (the trait below is the contract)
 pub mod paths; // Wave 0 spike
 pub mod play_view; // Task G
+pub mod proc; // M7 Task S1: process groups (build, explorer)
 pub mod rom; // Task D
 pub mod sprite; // Task E
 pub mod text; // Task F

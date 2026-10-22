@@ -31,6 +31,7 @@ pub fn event_text(kind: &EventKind) -> String {
         EventKind::Loaded(id) => format!("loaded {id}"),
         EventKind::Seeked(id, f) => format!("opened {id} at +{f}"),
         EventKind::Rewound(n) => format!("rewound {n} frames"),
+        EventKind::OpenedTrace(f) => format!("opened a trace at {f}"),
         EventKind::NewGame => "new game".into(),
     }
 }

@@ -46,14 +46,6 @@ pub fn rom_command(workspace: &Path) -> Command {
     c
 }
 
-#[cfg(unix)]
-unsafe extern "C" {
-    /// libc's `kill(2)`.
-    fn kill(pid: i32, sig: i32) -> i32;
-}
-#[cfg(unix)]
-const SIGKILL: i32 = 9;
-
 impl RomBuild {
     /// Starts `cargo xtask rom` in `workspace`.
     pub fn start(workspace: &Path) -> io::Result<RomBuild> {
@@ -62,8 +54,7 @@ impl RomBuild {
 
     /// Starts `cmd` with its output captured (stdin closed), in a new process group on unix.
     pub fn spawn(mut cmd: Command) -> io::Result<RomBuild> {
-        #[cfg(unix)]
-        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        crate::proc::new_group(&mut cmd);
         let mut child = cmd
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -141,16 +132,7 @@ impl RomBuild {
 
     /// Kills the build's process group (unix) and the child, then reaps the child.
     fn kill(&mut self) {
-        #[cfg(unix)]
-        if let Ok(pgid) = i32::try_from(self.child.id()) {
-            // SAFETY: a plain syscall. `-pgid` names the group `spawn` created; its id is the
-            // child's pid, not reused while the child is unreaped (we reap it just below) or
-            // while the group still has members.
-            unsafe {
-                kill(-pgid, SIGKILL);
-            }
-        }
-        let _ = self.child.kill();
+        crate::proc::kill_group(&mut self.child);
         let _ = self.child.wait();
     }
 }
@@ -209,10 +191,7 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn alive(pid: i32) -> bool {
-        // SAFETY: signal 0 only checks that the process exists.
-        unsafe { kill(pid, 0) == 0 }
-    }
+    use crate::proc::alive;
 
     /// Whether `pid` is gone within a few seconds (an orphan is reaped by init).
     #[cfg(unix)]

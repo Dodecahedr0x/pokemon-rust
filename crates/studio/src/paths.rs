@@ -15,6 +15,12 @@ pub struct StudioPaths {
     pub shared: PathBuf,
     /// The personal, git-ignored store: `<shared>/local`.
     pub local: PathBuf,
+    /// The explorer's db (M7 Wave 2b): `explore::db::Db::default_path(content::STUB)`, i.e.
+    /// `target/explore/{stub|emerald}/explore.db`. The studio only reads it; the `explore`
+    /// process it starts writes it.
+    pub explore_db: PathBuf,
+    /// The `explore` process's output when the studio starts it: `<scratch>/explore.log`.
+    pub explore_log: PathBuf,
 }
 
 impl StudioPaths {
@@ -30,9 +36,11 @@ impl StudioPaths {
         StudioPaths {
             rom: target.join("game.gba"),
             scratch: target.join("studio"),
+            explore_log: target.join("studio").join("explore.log"),
             workspace,
             shared,
             local,
+            explore_db: explore::db::Db::default_path(content::STUB),
         }
     }
 }
@@ -47,15 +55,24 @@ pub enum Committable {
     Never,
 }
 
-/// Every directory (or file) the studio may write to: the local store and the scratch dir, all
-/// git-ignored. The committed tree is the layered store's read-only base.
+/// Every directory (or file) the studio may write to: the local store, the scratch dir and
+/// `target/explore` (through the `explore` process it starts), all git-ignored. The committed
+/// tree is the layered store's read-only base.
 pub fn write_locations(p: &StudioPaths) -> Vec<(PathBuf, Committable)> {
     ["nodes", "snapshots", "status.ron"]
         .map(|f| p.local.join(f))
         .into_iter()
-        .chain([p.scratch.clone()])
+        .chain([p.scratch.clone(), explore_dir(p)])
         .map(|d| (d, Committable::Never))
         .collect()
+}
+
+/// `target/explore`: the db the studio's `explore` process writes (both flavors), with its WAL
+/// and repro exports.
+fn explore_dir(p: &StudioPaths) -> PathBuf {
+    (p.explore_db.ancestors().nth(2))
+        .expect("explore_db is <dir>/<flavor>/explore.db")
+        .to_path_buf()
 }
 
 #[cfg(test)]
@@ -98,7 +115,16 @@ mod tests {
     }
 
     #[test]
-    fn the_studio_writes_only_the_local_store_and_scratch() {
+    fn the_explore_db_is_under_target_explore() {
+        let p = StudioPaths::detect();
+        let flavor = if content::STUB { "stub" } else { "emerald" };
+        let want = p.workspace.join("target/explore").join(flavor);
+        assert_eq!(p.explore_db, want.join("explore.db"));
+        assert_eq!(p.explore_log, p.scratch.join("explore.log"));
+    }
+
+    #[test]
+    fn the_studio_writes_only_the_local_store_scratch_and_explore() {
         let p = StudioPaths::detect();
         let w = write_locations(&p);
         assert!(w.iter().all(|(_, c)| *c == Committable::Never));
@@ -110,6 +136,7 @@ mod tests {
                 p.local.join("snapshots"),
                 p.local.join("status.ron"),
                 p.scratch.clone(),
+                p.workspace.join("target/explore"),
             ]
         );
     }
