@@ -13,7 +13,7 @@ pub struct Config {
     pub seed: u64,
     /// 0 = rayon default.
     pub threads: usize,
-    /// Jobs per generation; 0 = 4 x threads.
+    /// Jobs per generation; 0 = `runner::DEFAULT_BATCH` (32), never the thread count.
     pub batch: usize,
     pub max_plan_len: u8,
     pub tournament: usize,
@@ -100,7 +100,7 @@ impl Default for Config {
         Config {
             seed: 0x005E_EDE7,
             threads: 0,
-            batch: 0,
+            batch: 128,
             max_plan_len: 3,
             tournament: 4,
             age_penalty: 1,
@@ -109,7 +109,7 @@ impl Default for Config {
             key: KeyConfig::default(),
             limits: Limits::default(),
             detect: DetectConfig::default(),
-            cache_capacity: 4096,
+            cache_capacity: 65536,
             snapshot_every_depth: 8,
         }
     }
@@ -198,7 +198,10 @@ mod tests {
         let c = Config::default();
         assert_eq!(c.seed, 0x005E_EDE7);
         assert_eq!((c.max_plan_len, c.tournament), (3, 4));
-        assert_eq!((c.cache_capacity, c.snapshot_every_depth), (4096, 8));
+        // Task H: 128 jobs per generation and 65,536 cached snapshots (see the plan's "Wave 2
+        // as built").
+        assert_eq!(c.batch, 128);
+        assert_eq!((c.cache_capacity, c.snapshot_every_depth), (65536, 8));
         assert_eq!((c.key.cell_shift, c.key.level_step), (2, 3));
         assert_eq!(c.weights.balance, 0);
         assert_eq!(
