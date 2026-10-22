@@ -20,6 +20,7 @@ const TAG_FLAGS: u64 = 0x4b45_5946_4c41_4753; // "KEYFLAGS"
 const TAG_VARS: u64 = 0x4b45_5956_4152_5321; // "KEYVARS!"
 const TAG_KEY: u64 = 0x4b45_594b_4559_2121; // "KEYKEY!!"
 const TAG_REGION: u64 = 0x4b45_5952_4547_494f; // "KEYREGIO"
+const TAG_PLACE: u64 = 0x4b45_5950_4c41_4345; // "KEYPLACE"
 
 /// The splitmix64 finalizer (Steele, Lea and Flood): a bijective, platform-independent mix.
 pub const fn splitmix64(x: u64) -> u64 {
@@ -158,6 +159,15 @@ pub fn region(parts: &KeyParts) -> u64 {
     fold_region(TAG_REGION, parts)
 }
 
+/// The place: map, story flags and story vars, folded (no cell, no party). The softlock probe
+/// compares places, so a level-up or a faint (the party bucket) inside a sealed pocket does not
+/// count as getting out.
+pub fn place_region(parts: &KeyParts) -> u64 {
+    let h = fold(TAG_PLACE, u64::from(parts.map.0));
+    let h = fold(h, parts.flags);
+    fold(h, parts.vars)
+}
+
 /// The key config. The content's exclusions are built in ([`story_flag`], [`story_var`]), so
 /// this equals `KeyConfig::default()`; kept for callers of the Wave 0 contract.
 pub fn default_key_config() -> KeyConfig {
@@ -197,5 +207,39 @@ mod tests {
             assert!((TEMP_VARS_END..VARS_END).contains(&v.0));
             assert!(!story_var(v.0, &cfg));
         }
+    }
+
+    #[test]
+    fn the_place_ignores_the_party_and_the_cell() {
+        let a = KeyParts {
+            map: engine::data::MapId(7),
+            cell: (1, 2),
+            flags: 11,
+            vars: 13,
+            party: Default::default(),
+        };
+        let mut b = a.clone();
+        b.cell = (3, 3);
+        b.party.level_bucket = 4;
+        b.party.fainted = 1;
+        assert_ne!(region(&a), region(&b));
+        assert_eq!(place_region(&a), place_region(&b));
+        for c in [
+            KeyParts {
+                flags: 12,
+                ..a.clone()
+            },
+            KeyParts {
+                vars: 14,
+                ..a.clone()
+            },
+            KeyParts {
+                map: engine::data::MapId(8),
+                ..a.clone()
+            },
+        ] {
+            assert_ne!(place_region(&a), place_region(&c));
+        }
+        assert_ne!(place_region(&a), region(&a), "its own tag");
     }
 }

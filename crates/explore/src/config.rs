@@ -13,7 +13,7 @@ pub struct Config {
     pub seed: u64,
     /// 0 = rayon default.
     pub threads: usize,
-    /// Jobs per generation; 0 = 4 x threads.
+    /// Jobs per generation; 0 = `runner::DEFAULT_BATCH` (32), never the thread count.
     pub batch: usize,
     pub max_plan_len: u8,
     pub tournament: usize,
@@ -82,6 +82,10 @@ pub struct DetectConfig {
     pub softlock_breadth: u32,
     /// Probe 1 in N new nodes, plus every node whose candidates all failed.
     pub softlock_sample: u32,
+    /// How often the probe resumes a walk that a battle interrupted before its target (Task H;
+    /// 0 = never). Each resume can cost another full macro, so a probe's worst case is
+    /// `(1 + probe_resumes) x softlock_breadth` expansions.
+    pub probe_resumes: u32,
     /// Report-only; 0 = off (the default in debug builds, 4000 in release).
     pub slow_step_us: u32,
 }
@@ -100,7 +104,7 @@ impl Default for Config {
         Config {
             seed: 0x005E_EDE7,
             threads: 0,
-            batch: 0,
+            batch: 128,
             max_plan_len: 3,
             tournament: 4,
             age_penalty: 1,
@@ -109,7 +113,7 @@ impl Default for Config {
             key: KeyConfig::default(),
             limits: Limits::default(),
             detect: DetectConfig::default(),
-            cache_capacity: 4096,
+            cache_capacity: 65536,
             snapshot_every_depth: 8,
         }
     }
@@ -165,6 +169,7 @@ impl Default for DetectConfig {
             softlock_k_per_map: BTreeMap::new(),
             softlock_breadth: 64,
             softlock_sample: 32,
+            probe_resumes: 4,
             slow_step_us: if cfg!(debug_assertions) { 0 } else { 4000 },
         }
     }
@@ -198,7 +203,10 @@ mod tests {
         let c = Config::default();
         assert_eq!(c.seed, 0x005E_EDE7);
         assert_eq!((c.max_plan_len, c.tournament), (3, 4));
-        assert_eq!((c.cache_capacity, c.snapshot_every_depth), (4096, 8));
+        // Task H: 128 jobs per generation and 65,536 cached snapshots (see the plan's "Wave 2
+        // as built").
+        assert_eq!(c.batch, 128);
+        assert_eq!((c.cache_capacity, c.snapshot_every_depth), (65536, 8));
         assert_eq!((c.key.cell_shift, c.key.level_step), (2, 3));
         assert_eq!(c.weights.balance, 0);
         assert_eq!(
@@ -220,6 +228,7 @@ mod tests {
             (d.softlock_k, d.softlock_breadth, d.softlock_sample),
             (3, 64, 32)
         );
+        assert_eq!(d.probe_resumes, 4);
     }
 
     #[test]

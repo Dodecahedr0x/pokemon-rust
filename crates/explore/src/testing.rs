@@ -118,6 +118,30 @@ impl<G: GameData> GameData for WallAround<G> {
     }
 }
 
+/// A leaked `MapData` copy of `map` with the ring of cells two steps around `at` blocked: a
+/// 3x3 pocket centred on `at`, plus the exit warp of [`WallAround`] outside it. Centred on the
+/// stub's tall-grass cell, it is a sealed grass pocket: walks meet wild battles, and the party
+/// can level up or faint without ever leaving.
+#[derive(Clone, Copy, Debug)]
+pub struct GrassPocket<G> {
+    pub inner: G,
+    pub map: MapId,
+    pub at: (i16, i16),
+}
+
+impl<G: GameData> GameData for GrassPocket<G> {
+    forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
+             new_game build_id battle encounters trainer battle_text battle_gfx heal_location);
+
+    fn map(&self, id: MapId) -> &'static MapData {
+        let base = self.inner.map(id);
+        if id != self.map {
+            return base;
+        }
+        leaked(Patch::Pocket, base, self.at)
+    }
+}
+
 /// `encounters()` depends on a call counter: it answers `None` for the first [`DRIFT_CALLS`]
 /// calls of an instance. A clone starts again at 0 calls: the counter is state that a
 /// checkpoint does not carry, so a session restored on a clone drifts from the live one at the
@@ -214,6 +238,7 @@ impl<G: GameData> GameData for Rebuilt<G> {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Patch {
     Wall,
+    Pocket,
     Coord,
 }
 
@@ -238,17 +263,20 @@ fn leaked(patch: Patch, base: &'static MapData, at: (i16, i16)) -> &'static MapD
         return m;
     }
     let m: &'static MapData = Box::leak(Box::new(match patch {
-        Patch::Wall => walled(base, at),
+        Patch::Wall => walled(base, at, 1),
+        Patch::Pocket => walled(base, at, 2),
         Patch::Coord => with_coord(base, at),
     }));
     all.push((patch, addr, at, m));
     m
 }
 
-fn walled(base: &'static MapData, at: (i16, i16)) -> MapData {
+/// `base` with the ring of cells at Chebyshev distance `radius` from `at` blocked, plus the
+/// exit warp described at [`WallAround`].
+fn walled(base: &'static MapData, at: (i16, i16), radius: i32) -> MapData {
     let (w, h) = (i32::from(base.width), i32::from(base.height));
     let at = (i32::from(at.0), i32::from(at.1));
-    let ring = |x: i32, y: i32| (x - at.0).abs() <= 1 && (y - at.1).abs() <= 1 && (x, y) != at;
+    let ring = |x: i32, y: i32| (x - at.0).abs().max((y - at.1).abs()) == radius;
     let mut blocks = base.blocks.to_vec();
     for y in 0..h {
         for x in 0..w {
@@ -261,8 +289,7 @@ fn walled(base: &'static MapData, at: (i16, i16)) -> MapData {
     let exit = (0..h)
         .flat_map(|y| (0..w).map(move |x| (x, y)))
         .find(|&(x, y)| {
-            !ring(x, y)
-                && (x, y) != at
+            (x - at.0).abs().max((y - at.1).abs()) > radius
                 && engine::data::block_collision(blocks[(y * w + x) as usize]) == 0
         });
     let mut warps = copy_warps(base.warps);

@@ -83,6 +83,42 @@ pub fn candidates_with<G: GameData>(
         .collect()
 }
 
+/// The cells a block `WalkTo` toward `to` may be jittered to: every reachable cell of `to`'s
+/// coarse block (`1 << cell_shift` cells), row-major, except the player's cell and the active
+/// coord-event cells (those are `WalkTo` candidates of their own, listed first). Empty when
+/// `to` itself is an active coord-event cell or is not reachable.
+///
+/// `candidates` keeps one cell per block, nearest its centre, so its walks between block
+/// centres follow the same lines and leave the other cells unvisited (Task G as built: 105
+/// of the stub's 196 cells with 4x4 blocks). `sim`'s random plans walk to a seeded cell of
+/// the chosen block instead (Task H).
+pub fn block_mates<G: GameData>(
+    game: &G,
+    snap: &WorldSnapshot,
+    reach: &Reach,
+    cell_shift: u8,
+    to: (i16, i16),
+) -> Vec<(i16, i16)> {
+    let st = State::new(game, snap, reach);
+    let map = st.grid.map;
+    let vars = Vars::from_snapshot(&snap.vars);
+    let coords: BTreeSet<(i16, i16)> = map
+        .coords
+        .iter()
+        .filter(|c| coord_trigger(map, c.x, c.y, c.elevation, &vars).is_some())
+        .map(|c| (c.x, c.y))
+        .collect();
+    if coords.contains(&to) || !st.walk_target(to) {
+        return Vec::new();
+    }
+    let shift = cell_shift.min(14);
+    let block = |(x, y): (i16, i16)| (x as i32 >> shift, y as i32 >> shift);
+    reach
+        .cells()
+        .filter(|&c| block(c) == block(to) && st.walk_target(c) && !coords.contains(&c))
+        .collect()
+}
+
 /// Whether `m` is still applicable to `snap` (mutations replaying a sibling's macro).
 pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m: &Macro) -> bool {
     let st = State::new(game, snap, reach);
