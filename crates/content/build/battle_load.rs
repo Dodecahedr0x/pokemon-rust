@@ -109,7 +109,13 @@ pub fn load(dir: &Path, scripts: &[String]) -> Result<BattleIn> {
         types,
         trainers: trainers.trainers,
         referenced,
-        encounters: encounters.maps,
+        // Format 5 keeps every wild header per map; until Milestone 8 Task E the build uses the
+        // first header's land table, as before.
+        encounters: encounters
+            .maps
+            .into_iter()
+            .filter_map(|(map, headers)| Some((map, headers.into_iter().next()?.land?)))
+            .collect(),
         heal,
         strings,
         mon_gfx: BTreeMap::new(),

@@ -8,6 +8,8 @@ pub mod export;
 pub mod fixtures;
 pub mod font;
 pub mod gfx;
+pub mod inc;
+pub mod labels;
 pub mod lz77;
 pub mod maps;
 pub mod movement;
@@ -18,6 +20,7 @@ pub mod roots;
 pub mod schema;
 pub mod scripts;
 pub mod sprites;
+pub mod tables;
 pub mod text;
 pub mod window;
 

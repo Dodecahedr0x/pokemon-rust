@@ -1,4 +1,4 @@
-use extract::export::{self, MAPS};
+use extract::export::{self, ExportOptions, SLICE_MAPS as MAPS};
 use extract::schema::{
     BgKind, FontFile, Hex, Manifest, MapFile, SpriteFile, TilesetFile, WindowFile, from_rows,
 };
@@ -20,7 +20,7 @@ fn fr_export() -> &'static (PathBuf, Manifest) {
     static OUT: OnceLock<(PathBuf, Manifest)> = OnceLock::new();
     OUT.get_or_init(|| {
         let dir = temp_dir("shared");
-        let manifest = export::export(&fixtures::fr(), &dir).unwrap();
+        let manifest = export::export(&fixtures::fr(), &dir, &ExportOptions::slice(true)).unwrap();
         (dir, manifest)
     })
 }
@@ -67,7 +67,7 @@ fn via_png(c: u16) -> u16 {
 fn export_is_deterministic() {
     let (a, _) = fr_export();
     let b = temp_dir("second");
-    export::export(&fixtures::fr(), &b).unwrap();
+    export::export(&fixtures::fr(), &b, &ExportOptions::slice(true)).unwrap();
     let (ta, tb) = (tree(a), tree(&b));
     assert_eq!(ta.keys().collect::<Vec<_>>(), tb.keys().collect::<Vec<_>>());
     for (path, bytes) in &ta {
@@ -94,7 +94,7 @@ fn writes_current_format_tree() {
         want.insert(format!("previews/{map}.png"));
         want.insert(format!("scripts/{map}.rs"));
     }
-    want.insert("scripts/index.ron".to_string());
+    want.insert("scripts/legacy_index.ron".to_string());
     want.insert("text/fr.ron".to_string());
     // Battle data (M4 Task A).
     for f in [
@@ -386,7 +386,7 @@ fn sprites_font_and_window() {
 #[test]
 fn us_export_smoke() {
     let dir = temp_dir("us");
-    let m = export::export(&fixtures::us(), &dir).unwrap();
+    let m = export::export(&fixtures::us(), &dir, &ExportOptions::slice(true)).unwrap();
     assert_eq!((m.game_code.as_str(), m.language.as_str()), ("BPEE", "en"));
     assert_eq!(m.provenance["map/LittlerootTown/header"], Hex(0x4825b4));
     assert_eq!(m.provenance["map/LittlerootTown/layout"], Hex(0x3ea284));

@@ -1,7 +1,12 @@
 //! Event scripts to async Rust (Milestone 3 Task B).
 //!
 //! Every script reachable from the exported maps' roots is decoded ([`scripts::decode`]) and
-//! written as `scripts/<Map>.rs`, plus `text/<lang>.ron` and `scripts/index.ron`.
+//! written as `scripts/<Map>.rs`, plus `text/<lang>.ron` and `scripts/legacy_index.ron`
+//! ([`generate`], the path the content build compiles until Milestone 8 Task D2).
+//!
+//! Milestone 8 adds [`lower`]: the script IR ([`ScriptFile`]) to async Rust, run by the content
+//! build with the committed support tables ([`Support`]) and overrides. Task D1 implements it;
+//! Task D2 swaps the build over and deletes [`generate`].
 //!
 //! **Names** follow [`crate::schema`]. Roots (canonical names only) are labelled first, in map
 //! export order. Then each root's code is scanned in that order, linearly with a FIFO of jump
@@ -34,8 +39,10 @@
 //!
 //! so calls into another map's file are `super::<Map>::<Name>`. Besides the `Ctx` methods, the
 //! prelude provides `msgbox`, `callstd`, `special`, `unsupported` and `check_player_gender`;
-//! since Milestone 4 also `trainer_battle` with `TrainerBattle::{single, continue_script,
-//! no_intro}`, `SpeciesId`, and the `SPECIES_*`, `TRAINER_*` (`TrainerId`) and
+//! since Milestone 4 also `legacy_trainer_battle` with `LegacyTrainerBattle::{single,
+//! continue_script, no_intro}` (named `trainer_battle`/`TrainerBattle` until Milestone 8, whose
+//! `prelude::trainer` reuses those names), `SpeciesId`, and the `SPECIES_*`, `TRAINER_*`
+//! (`TrainerId`) and
 //! `HEAL_LOCATION_*` (`u8`) constants. `givemon` and `getpartysize` write `VAR_RESULT`.
 //!
 //! **Gen3 semantics kept:** the comparison register is a local `cond: Ordering` (`checkflag`
@@ -45,7 +52,7 @@
 //! `end` stopping its caller, `cond` flowing across a call) is commented in the output and
 //! counted in [`Stats`].
 
-use crate::schema::{ScriptEntry, ScriptIndex, TextFile};
+use crate::schema::{LegacyScriptEntry, LegacyScriptIndex, ScriptFile, ScriptIndex, TextFile};
 use crate::scripts::{self, Insn, Operand};
 use crate::{Rom, movement, names, roots, text};
 use anyhow::{Context, Result, ensure};
@@ -83,6 +90,14 @@ pub struct Stats {
     pub foreign_cond: usize,
     /// `waitmovement 0` with no `applymovement` earlier in the same block.
     pub unresolved_waitmovement: usize,
+    /// [`lower`]: command and special sites by [`Class`] name (`Native`, `Ignore`, `Default`,
+    /// `Unsupported`).
+    pub by_class: BTreeMap<String, usize>,
+    /// [`lower`]: `Report::Unsupported` sites by command or special name.
+    pub reports: BTreeMap<String, usize>,
+    /// [`lower`]: percentage of decomp names (`NameOrigin::Decomp`) per kind (`functions`,
+    /// `texts`, `movements`), rounded down.
+    pub named_decomp_pct: BTreeMap<String, u32>,
 }
 
 impl Stats {
@@ -120,8 +135,57 @@ pub struct Generated {
     pub texts: TextFile,
     /// Text name -> ROM file offset.
     pub text_offsets: BTreeMap<String, u32>,
-    pub index: ScriptIndex,
+    pub index: LegacyScriptIndex,
     pub stats: Stats,
+}
+
+/// How a script command or special runs (`content/build/support/{commands,specials}.ron`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Class {
+    /// Lowered to engine requests or prelude helpers.
+    Native,
+    /// Has no effect on the engine's state (audio, cosmetic windows): nothing is emitted.
+    Ignore,
+    /// Writes this value where the command or special writes its result (`VAR_RESULT`).
+    Default(u16),
+    /// `ctx.report(Report::Unsupported(name))`, logged; the script continues.
+    Unsupported,
+}
+
+/// The committed support tables: every command (`scripts::OPS` macro name) and special
+/// (`SPECIAL_*`) with its [`Class`]. A name missing from them fails the build.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Support {
+    pub commands: BTreeMap<String, Class>,
+    pub specials: BTreeMap<String, Class>,
+}
+
+/// What [`lower`] produces for the content build's `$OUT_DIR`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Lowered {
+    /// Module -> Rust source for `$OUT_DIR/scripts/<Module>.rs`.
+    pub modules: BTreeMap<String, String>,
+    /// The static thunk table and `SCRIPT_NAMES` (no giant `match`).
+    pub dispatch: String,
+    pub stats: Stats,
+    /// Keyed by script **name**, never by `ScriptId` (ids shift when scripts are added). Each
+    /// digest covers the fn's lowered source, the texts and movements it references, its static
+    /// call-graph closure (callees and std scripts) and its override source.
+    pub script_digests: BTreeMap<String, u64>,
+    /// (script, `TRAINER_*`) of every `trainerbattle` site, for `GameData::trainer_flag_of`.
+    pub trainer_scripts: Vec<(String, String)>,
+}
+
+/// IR -> Rust (Milestone 8 Task D1). No ROM access. `overrides`: script name -> override source
+/// text (digested). Wave 0: an error (nothing calls it until Task D2).
+pub fn lower(
+    files: &[ScriptFile],
+    index: &ScriptIndex,
+    support: &Support,
+    overrides: &BTreeMap<String, String>,
+) -> Result<Lowered> {
+    let _ = (files, index, support, overrides);
+    anyhow::bail!("codegen::lower is not implemented yet (Milestone 8 Task D1)")
 }
 
 /// `// @generated …` first line of every generated file.
@@ -269,7 +333,7 @@ pub fn generate(rom: &Rom, maps: &[MapRoots], header: &str) -> Result<Generated>
         file.push_str(&src);
         out.index
             .scripts
-            .insert(name, ScriptEntry { file: map, root });
+            .insert(name, LegacyScriptEntry { file: map, root });
     }
     for off in p.movement_order.clone() {
         let (name, map) = p.movements[&off].clone();
@@ -1132,7 +1196,7 @@ impl Prog<'_> {
         match (kind, rest) {
             (0 | 5, [i, d]) if text(i).is_some() && text(d).is_some() => {
                 out.push(format!(
-                    "if trainer_battle(&ctx, TrainerBattle::single({tr}, {local}, {}, {})).await {{",
+                    "if legacy_trainer_battle(&ctx, LegacyTrainerBattle::single({tr}, {local}, {}, {})).await {{",
                     text(i).unwrap(),
                     text(d).unwrap()
                 ));
@@ -1141,7 +1205,7 @@ impl Prog<'_> {
             }
             (1 | 2, [i, d, Operand::Script(s)]) if text(i).is_some() && text(d).is_some() => {
                 out.push(format!(
-                    "if trainer_battle(&ctx, TrainerBattle::continue_script({tr}, {local}, {}, {})).await {{",
+                    "if legacy_trainer_battle(&ctx, LegacyTrainerBattle::continue_script({tr}, {local}, {}, {})).await {{",
                     text(i).unwrap(),
                     text(d).unwrap()
                 ));
@@ -1150,7 +1214,7 @@ impl Prog<'_> {
                 out.push("}".to_string());
             }
             (3, [d]) if text(d).is_some() => out.push(format!(
-                "trainer_battle(&ctx, TrainerBattle::no_intro({tr}, {})).await;",
+                "legacy_trainer_battle(&ctx, LegacyTrainerBattle::no_intro({tr}, {})).await;",
                 text(d).unwrap()
             )),
             _ => self.unsupported(insn, out),
