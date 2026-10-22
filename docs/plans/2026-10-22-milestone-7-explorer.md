@@ -1284,7 +1284,42 @@ It depends on M6's `Materializer`, `TraceRecorder::from_prefix`, `Seeked`/`Contr
 ---
 
 ## Wave 0 as built
-*(filled by Wave 0: offline build result, rusqlite/rayon versions in the lock, baseline frames/s per core in release, any threshold rescaling, contract deltas.)*
+**Step 0.** M6 Wave 0 had not merged: `xtask/src/main.rs` has no `mod studio;`, so `mod explore;` and the `explore` dispatch were added alone (`<rom|parity|shot|extract|checkpoints|explore>` usage). The merge with M6 resolves that line and `Cargo.lock`.
+
+**Offline build.** `cargo build -p explore --offline` (and `--locked`) succeeds with rusqlite 0.40.2; the `=0.39.0` fallback was not needed. Offline resolution also downgraded `redox_syscall` 0.9.5 → 0.9.4 (redox-only, unrelated); that was reverted by hand in the lock, and the `--offline --locked` build passes with 0.9.5.
+
+**Versions in the lock (new):** `rusqlite 0.40.2`, `libsqlite3-sys 0.38.2` (bundled SQLite 3.53.2), `fallible-iterator 0.3.0`, `fallible-streaming-iterator 0.1.9`, `rayon 1.12.0`, `rayon-core 1.13.0`, `crossbeam-deque 0.8.8`, `crossbeam-epoch 0.9.21`, `crossbeam-utils 0.8.23`, plus `libsqlite3-sys`'s build dependencies `pkg-config 0.3.34` and `vcpkg 0.2.15` (compiled, unused with `bundled`). Already present: `cc`, `smallvec 1.16.3`, `bitflags 2`, `either`, `tempfile`. No `hashlink`/`hashbrown` (`cache` feature off).
+
+**Baseline (release, one thread, Apple M4 Max).** Replaying `scenario::cached_route()`, best of 3 × 5 replays (`cargo test -p explore --release --test w0_baseline -- --ignored --nocapture`):
+
+| flavor | route frames | `Session` | `Session<Probe>` |
+|---|---|---|---|
+| extracted | 19082 | ≈ 2.60M frames/s | ≈ 2.65M frames/s |
+| stub | 1543 | ≈ 2.76M frames/s | ≈ 2.72M frames/s |
+
+That is about 50× the 50k frames/s that the "Done when" nodes/s thresholds assume, so **no rescaling**. `Probe` costs nothing measurable.
+
+**Implemented and tested (W0):** `model` (RON round trip of every `MacroKind`, `SeenKind` numbers), `config` (defaults, partial RON, errors), `runs` (round trip, whitespace, bad runs, saturation), `probe` (route replay with identical hashes on every frame in both flavors; at least one script recorded on the real flavor; `build_hash(&probe) == build_hash(&inner)`; provided methods forwarded, checked against a game that overrides them), `guard` (message and `file:line:col`, nesting, unguarded panics untouched, a game panic inside `Session::step` caught), `observe` (object safety on a `Session<Probe<_>>`), `schema.sql` (idempotent DDL on a file db, WAL/NORMAL/foreign keys, STRICT, the `node_live_key` partial index, status check, u64 bit-cast).
+
+**Contract deltas (additions only):**
+- `guard::catch(f) -> Result<R, Panicked>`: the guard for any closure. `step_guarded` is `catch(|| s.step(keys))`.
+- `db::SCHEMA_SQL` (`include_str!("schema.sql")`) and `db::init_connection(&Connection)`, which sets `journal_mode=WAL`, `synchronous=NORMAL` and `foreign_keys=ON`, then runs the DDL. **Task C:** `Db::open` calls it. `DbError`'s `Display`, `Error` (with `source`) and `From<rusqlite::Error>` are implemented.
+- Type aliases with the same types as the contract: `rebuild::Repair` (the `repair` closure type) and `softlock::ExpandAll<'a>` (the `expand_all` closure type).
+- `Graph::is_empty` (clippy `len_without_is_empty`) and `impl Default for Policy` (clippy `new_without_default`).
+- `Detectors<G: GameData>`: the struct carries the bound, because `Session<G>` requires it.
+- `Config::to_ron()` (pretty RON, for the `run` table). Every config struct is `#[serde(default)]` and derives `PartialEq`, so a config file lists only what it changes.
+- `Flag` and `Panicked` derive `Clone, PartialEq, Eq, Debug` (`ExpandError` needs them).
+- `expand::expand` carries `#[allow(clippy::result_large_err)]` (the error returns the partial expansion).
+- Defaults the plan left open (Task H tunes them): `age_penalty 1`, `expanded_penalty 4`, `Weights { flag 40, var_value 20, map 100, script 30, cell 2, new_key 10, goal 1000, bug 500, balance 0 }`. The seed is written `0x005E_EDE7` (= `0x5EED_E7`, clippy byte grouping).
+
+**Notes for Wave 1:**
+- The module list in `lib.rs` is alphabetical (rustfmt reorders `mod` items), with each module's owner in a trailing comment.
+- Each stub file starts with `#![allow(unused_variables, dead_code)] // Wave 0 stub`. Remove it when you implement the module.
+- The private fields of the stub structs (`Reach`, `Graph`, `SnapCache` with a `tick`, `Archive`, `Detectors`, `BattleTracker`, `Policy`) are placeholders from the comments. The owning task may change them.
+- `testing.rs` has the four wrapper structs without `GameData` impls (Task E). A test game must forward the provided `GameData` methods too: the stub's `AfterStarter` new game needs `battle()`, or `World::new` panics in `mon.rs`.
+- The guard's hook is process-wide and installed once; it is silent only on a thread with an active guard. Panics elsewhere still print, test-harness panics included.
+- `cli::main` and `wire.rs` are empty (Task G). Until then the `explore` bin and `cargo xtask explore` hit `todo!()`.
+- `.gitignore` already covers `target/explore/` (`target/`) and `explore.db`. Unchanged.
 
 
 **Scheduling (taken).** M7 started early, in parallel with M6 Wave 1 (requested by the user). Wave 0 and Wave 1 are headless and independent of M6 files. Wave 2b waits for M6. Once M6 is complete, M7 gets a second pass against M6's final APIs.
