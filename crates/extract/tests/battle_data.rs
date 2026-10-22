@@ -1,7 +1,7 @@
 //! Battle data and strings (`battle_data.rs`) against the decomp: the US ROM must give exactly
 //! the decomp's values, the French ROM the same numbers with French names and strings.
 use extract::battle_data::{self, BattleData, CODE_STRINGS, MENU_STRINGS, STAT_NAME_KEYS};
-use extract::export::{self, MAPS};
+use extract::export::{self, ExportOptions, SLICE_MAPS};
 use extract::schema::{
     BattleStringsFile, EncountersFile, HealLocationsFile, Manifest, MovesFile, SpeciesFile,
     TrainersFile, TypesFile,
@@ -15,7 +15,7 @@ fn us() -> &'static (Rom, BattleData) {
     static D: OnceLock<(Rom, BattleData)> = OnceLock::new();
     D.get_or_init(|| {
         let rom = fixtures::us();
-        let data = battle_data::extract(&rom, &MAPS).unwrap();
+        let data = battle_data::extract(&rom, &SLICE_MAPS).unwrap();
         (rom, data)
     })
 }
@@ -24,7 +24,7 @@ fn fr() -> &'static (Rom, BattleData) {
     static D: OnceLock<(Rom, BattleData)> = OnceLock::new();
     D.get_or_init(|| {
         let rom = fixtures::fr();
-        let data = battle_data::extract(&rom, &MAPS).unwrap();
+        let data = battle_data::extract(&rom, &SLICE_MAPS).unwrap();
         (rom, data)
     })
 }
@@ -494,7 +494,7 @@ fn us_encounters_and_heal_locations_match_decomp() {
     let mut want: BTreeMap<String, LandTable> = BTreeMap::new();
     for e in headers["encounters"].as_array().unwrap() {
         let map = names::map_by_constant(e["map"].as_str().unwrap()).unwrap();
-        if !MAPS.contains(&map.dir) || e["land_mons"].is_null() {
+        if !SLICE_MAPS.contains(&map.dir) || e["land_mons"].is_null() {
             continue;
         }
         let land = &e["land_mons"];
@@ -519,7 +519,9 @@ fn us_encounters_and_heal_locations_match_decomp() {
         .encounters
         .maps
         .iter()
-        .map(|(k, v)| {
+        .map(|(k, headers)| {
+            assert_eq!(headers.len(), 1, "{k}: one wild header");
+            let v = headers[0].land.as_ref().expect("a land table");
             (
                 k.clone(),
                 (
@@ -533,10 +535,11 @@ fn us_encounters_and_heal_locations_match_decomp() {
         })
         .collect();
     assert_eq!(have, want);
+    let land = |map: &str| d.encounters.maps[map][0].land.as_ref().unwrap();
     for map in ["Route101", "Route102", "Route103"] {
-        assert_eq!(d.encounters.maps[map].mons.len(), 12, "{map}");
+        assert_eq!(land(map).mons.len(), 12, "{map}");
     }
-    assert_eq!(d.encounters.maps["Route101"].rate, 20);
+    assert_eq!(land("Route101").rate, 20);
 
     let json: serde_json::Value =
         serde_json::from_str(&src("src/data/heal_locations.json")).unwrap();
@@ -866,7 +869,8 @@ fn export_writes_battle_files_that_round_trip() {
     let (_, d) = fr();
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("battle-data-export");
     let _ = std::fs::remove_dir_all(&dir);
-    let manifest: Manifest = export::export(&fixtures::fr(), &dir).unwrap();
+    let manifest: Manifest =
+        export::export(&fixtures::fr(), &dir, &ExportOptions::slice(false)).unwrap();
     let read = |f: &str| dir.join("battle").join(f);
     assert_eq!(
         export::read_ron::<SpeciesFile>(&read("species.ron")).unwrap(),

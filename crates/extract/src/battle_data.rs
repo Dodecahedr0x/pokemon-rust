@@ -48,8 +48,8 @@
 
 use crate::export::Out;
 use crate::schema::{
-    BattleStringsFile, EncountersFile, HealLocationsFile, Hex, LandEncounters, Move, MovesFile,
-    Species, SpeciesFile, Trainer, TrainerMon, TrainersFile, TypesFile, WildMon,
+    BattleStringsFile, EncounterHeader, EncountersFile, HealLocationsFile, Hex, LandEncounters,
+    Move, MovesFile, Species, SpeciesFile, Trainer, TrainerMon, TrainersFile, TypesFile, WildMon,
 };
 use crate::text::{self, charmap};
 use crate::{ROM_BASE, Rom, names};
@@ -1070,9 +1070,16 @@ fn read_encounters(rom: &Rom, loc: &Locations, maps: &[&str]) -> Result<Encounte
                     species: names::SPECIES.name_or_hex(rom.u16(w + 2)?.into()),
                 });
             }
+            // Wave 0: one header per map (Task A reads every header, Altering Cave's 9).
             ensure!(
-                out.insert(m.dir.to_string(), LandEncounters { rate, mons })
-                    .is_none(),
+                out.insert(
+                    m.dir.to_string(),
+                    vec![EncounterHeader {
+                        land: Some(LandEncounters { rate, mons }),
+                        ..EncounterHeader::default()
+                    }]
+                )
+                .is_none(),
                 "{}: two wild headers",
                 m.dir
             );

@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 fn exported_texts(rom: &Rom) -> BTreeSet<u32> {
     let table = maps::locate_map_table(rom).unwrap();
     let mut texts = BTreeSet::new();
-    for name in export::MAPS {
+    for name in export::SLICE_MAPS {
         let m = names::map_by_dir(name).unwrap();
         let id = maps::MapId {
             group: m.group,

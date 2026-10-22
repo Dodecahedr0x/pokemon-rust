@@ -1,12 +1,12 @@
 //! Everything the generator needs, in memory: read from `content/extracted/` ([`load`]) or
 //! built in ([`crate::stub`]). [`write`] does the reverse of [`load`] (for test fixtures).
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use extract::export::{read_map, read_ron, read_tileset, to_ron};
 use extract::gfx::{self, IndexedImage, Palette};
 use extract::schema::{
-    FORMAT_VERSION, FontFile, Manifest, MapFile, ScriptIndex, SpriteFile, TextFile, TilesetFile,
-    WindowFile,
+    FORMAT_VERSION, FontFile, LegacyScriptIndex, Manifest, MapFile, SpriteFile, TextFile,
+    TilesetFile, WindowFile,
 };
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
@@ -40,8 +40,9 @@ pub struct World {
     pub window_tiles: Vec<Tile>,
     /// Text name -> Gen3 bytes, 0xFF-terminated.
     pub texts: BTreeMap<String, Vec<u8>>,
-    /// `scripts/index.ron`, when scripts were generated.
-    pub index: Option<ScriptIndex>,
+    /// `scripts/legacy_index.ron`, when scripts were generated (Milestone 8 Task D2 moves the
+    /// build to the IR's `scripts/index.ron`).
+    pub index: Option<LegacyScriptIndex>,
     /// sha1 of the source ROM (`manifest.sha1`).
     pub sha1: String,
     /// Absolute extracted dir (`None` for the built-in stub).
@@ -140,6 +141,8 @@ pub fn format_of(manifest: &Path) -> Option<u32> {
 
 /// Reads an extracted dir written by `cargo xtask extract` (plus Task B's scripts and texts
 /// when present).
+// `FORMAT_MINOR` is 0 until Milestone 8 Wave 1 bumps it.
+#[allow(clippy::absurd_extreme_comparisons)]
 pub fn load(dir: &Path) -> Result<World> {
     let manifest: Manifest = read_ron(&dir.join("manifest.ron"))?;
     ensure!(
@@ -148,6 +151,24 @@ pub fn load(dir: &Path) -> Result<World> {
         dir.display(),
         manifest.format
     );
+    // Within a format, files are only added: an older minor lacks some (Milestone 8).
+    if manifest.format_minor < extract::schema::FORMAT_MINOR {
+        let missing =
+            extract::schema::missing_since(manifest.format_minor, |p| dir.join(p).exists());
+        bail!(
+            "{}: format v{}.{}, expected v{FORMAT_VERSION}.{} (missing: {}); re-run `cargo xtask \
+             extract`",
+            dir.display(),
+            manifest.format,
+            manifest.format_minor,
+            extract::schema::FORMAT_MINOR,
+            if missing.is_empty() {
+                "none of the listed files".to_string()
+            } else {
+                missing.join(", ")
+            }
+        );
+    }
     let lang = lang(&manifest.language)?;
     let maps = manifest
         .maps
@@ -215,9 +236,9 @@ pub fn load(dir: &Path) -> Result<World> {
             texts.insert(k, bytes);
         }
     }
-    let index_path = dir.join("scripts/index.ron");
+    let index_path = dir.join("scripts/legacy_index.ron");
     let index = if index_path.exists() {
-        Some(read_ron::<ScriptIndex>(&index_path)?)
+        Some(read_ron::<LegacyScriptIndex>(&index_path)?)
     } else {
         None
     };
@@ -353,6 +374,7 @@ pub fn write(w: &World, dir: &Path) -> Result<()> {
     put("window/message_box.ron", to_ron(&w.window)?)?;
     let manifest = Manifest {
         format: FORMAT_VERSION,
+        format_minor: extract::schema::FORMAT_MINOR,
         game_code: "BPEF".into(),
         sha1: w.sha1.clone(),
         language: w.lang.code().into(),

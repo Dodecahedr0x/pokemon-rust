@@ -5,9 +5,11 @@
 //! re-uploads every VRAM byte the state implies without mutating hashed state.
 
 use super::{Log, Mode, State, World};
+use super::{WarpDest, WarpSlots};
+use crate::bag::Bag;
 use crate::checkpoint::{
-    Checkpoint, Header, NotCapturable, RestoreError, SCHEMA, TemplateDelta, WorldSnapshot,
-    build_hash,
+    Checkpoint, Header, NotCapturable, RestoreError, SCHEMA, TemplateDelta, WarpDestSnap,
+    WarpSlotsSnap, WorldSnapshot, build_hash,
 };
 use crate::data::{GameData, Gfx, ObjectEvent, PLAYER};
 use crate::field::Field;
@@ -16,6 +18,7 @@ use crate::mon::{PARTY_SIZE, Party};
 use crate::objects::Objects;
 use crate::rng::Rng;
 use crate::script::Runner;
+use crate::str_vars::StrVars;
 use crate::text::TextBox;
 use crate::video::Frame;
 use alloc::vec::Vec;
@@ -78,6 +81,13 @@ impl World {
             respawn: s.respawn,
             prev_behavior: s.prev_behavior,
             encounter_immunity: s.encounter_immunity,
+            bag: s.bag.snapshot(),
+            money: s.money,
+            str_vars: s.str_vars.snapshot(),
+            warp_slots: WarpSlotsSnap {
+                dynamic: s.warp_slots.dynamic.map(warp_dest_snap),
+                escape: s.warp_slots.escape.map(warp_dest_snap),
+            },
         })
     }
 
@@ -139,6 +149,11 @@ impl World {
                 }
             })?;
         check_objects_against_templates(w, &templates)?;
+        let bag = Bag::from_snapshot(&w.bag).map_err(RestoreError::Invalid)?;
+        let str_vars = StrVars::from_snapshot(&w.str_vars).map_err(RestoreError::Invalid)?;
+        if w.money > MAX_MONEY {
+            return Err(RestoreError::Invalid("money over Gen3 MAX_MONEY"));
+        }
         let mut world = World {
             frame: w.frame,
             runner: Runner::restore_idle(w.runner_issued),
@@ -165,6 +180,16 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: w.player_name,
+                bag,
+                money: w.money,
+                str_vars,
+                warp_slots: WarpSlots {
+                    dynamic: w.warp_slots.dynamic.map(warp_dest),
+                    escape: w.warp_slots.escape.map(warp_dest),
+                },
+                events: Vec::with_capacity(super::EVENTS_MAX),
+                events_dropped: 0,
+                last_script: None,
             },
             boot: None,
         };
@@ -198,6 +223,27 @@ impl World {
         f.brightness = s.fader.level();
         f.lighten = false;
         f
+    }
+}
+
+/// Gen3 `MAX_MONEY`.
+const MAX_MONEY: u32 = 999_999;
+
+fn warp_dest_snap(d: WarpDest) -> WarpDestSnap {
+    WarpDestSnap {
+        map: d.map,
+        warp: d.warp,
+        x: d.x,
+        y: d.y,
+    }
+}
+
+fn warp_dest(d: WarpDestSnap) -> WarpDest {
+    WarpDest {
+        map: d.map,
+        warp: d.warp,
+        x: d.x,
+        y: d.y,
     }
 }
 

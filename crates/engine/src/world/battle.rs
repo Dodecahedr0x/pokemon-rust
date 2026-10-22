@@ -228,11 +228,50 @@ impl State {
             opponents,
             environment: self.environment(game),
         };
-        let mut battle = Battle::new(game, setup, &self.party, &mut self.rng);
+        let transition = BattleTransition::new(&kind);
+        // The run (about 4 KiB) is built in its heap allocation: `Box::new` of a literal copies
+        // it from the stack, 6 scanlines on the GBA's trainer-battle start, the route's worst
+        // frame (Milestone 8 Wave 0).
+        let mut run = Box::<BattleRun>::new_uninit();
+        let p = run.as_mut_ptr();
+        // Fails to compile when `BattleRun` gains or loses a field: the writes below must list
+        // exactly these fields.
+        const _: fn(BattleRun) = |BattleRun {
+                                      stage: _,
+                                      origin: _,
+                                      battle: _,
+                                      scene: _,
+                                      transition: _,
+                                      backdrop: _,
+                                      outcome: _,
+                                      whiteout: _,
+                                  }| {};
+        // SAFETY: `p` points to the allocation of an uninitialised `BattleRun`. Each field is
+        // written exactly once through a raw field pointer before `assume_init`, and only the
+        // `battle` field is borrowed before then, after it is written. The writes must cover
+        // the field list of the destructuring guard above, which the compiler keeps in sync
+        // with the struct.
+        let battle = unsafe {
+            let b = &raw mut (*p).battle;
+            b.write(Battle::new(game, setup, &self.party, &mut self.rng));
+            &mut *b
+        };
         let mut events = Vec::new();
         battle.start(game, &mut self.rng, &mut events);
-        let mut scene = BattleScene::new(battle.setup(), self.player_name);
-        scene.push(&mut events);
+        let scene = BattleScene::new(battle.setup(), self.player_name);
+        // SAFETY: as above; this writes every remaining field.
+        let mut run = unsafe {
+            (&raw mut (*p).scene).write(scene);
+            (&raw mut (*p).stage).write(Stage::Transition);
+            (&raw mut (*p).origin).write(origin);
+            (&raw mut (*p).transition).write(transition);
+            (&raw mut (*p).backdrop).write(None);
+            (&raw mut (*p).outcome).write(None);
+            (&raw mut (*p).whiteout).write(false);
+            run.assume_init()
+        };
+        run.scene.push(&mut events);
+        self.event(super::Event::BattleStarted);
         if self.text.is_open() {
             self.text.close(f);
         }
@@ -241,16 +280,7 @@ impl State {
         if origin == Origin::Field {
             self.objects.freeze_all();
         }
-        self.mode = Mode::Battle(Box::new(BattleRun {
-            stage: Stage::Transition,
-            origin,
-            battle,
-            scene,
-            transition: BattleTransition::new(&kind),
-            backdrop: None,
-            outcome: None,
-            whiteout: false,
-        }));
+        self.mode = Mode::Battle(run);
     }
 
     /// Gen3 `CheckStandardWildEncounter` for a completed player step onto a `cur` cell of
@@ -270,7 +300,11 @@ impl State {
             return false;
         }
         let t = game.battle();
-        let found = match game.encounters(map) {
+        let wild_set = game
+            .special_ids()
+            .var_wild_set
+            .map_or(0, |v| self.vars.var(v));
+        let found = match game.wild_encounters(map, wild_set) {
             Some(table) if self.can_battle() => {
                 // `gPlayerParty[0]`, fainted or not.
                 let lead = self.party.get(0).copied();
@@ -401,6 +435,7 @@ impl World {
                     .step(game, &mut run.battle, &mut s.rng, &s.input, f);
                 if let Some(outcome) = run.scene.finished() {
                     run.outcome = Some(outcome);
+                    s.event(super::Event::BattleEnded(outcome));
                     s.party = run.battle.party(Side::Player).clone();
                     if run.battle.caught_without_room().is_some() {
                         s.log("caught a mon with a full party (no PC): released");
