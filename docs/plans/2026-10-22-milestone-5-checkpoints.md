@@ -783,7 +783,7 @@ The text box needs nothing (pristine means BG0 off).
     - **Implementation:** `FLASH_SIZE = 64 * 1024`. The GBA calls `init_flash_64k`. The emu forces a FLASH512 override.
     - **Layout:** 16 sectors: global, slot header, ghost, and 13 data sectors.
     - **Capacity:** about 24 KiB per slot with a ghost copy. A future full save (PC boxes, bag) has to fit in that, or move to 128 KiB with an explicit mGBA override.
-    - **Unresolved interpretation (Task D):** an unparseable node file is an error that names the file, not `Stale`. Merge-conflict markers fail loudly, and `--accept` needs a parseable trace.
+    - **Store parse errors (Task D, accepted):** an unparseable node file is an error that names the file, not `Stale`. Merge-conflict markers fail loudly, and `--accept` needs a parseable trace.
 
     *Original decision:*
     - agb ghost slots give crash safety.
