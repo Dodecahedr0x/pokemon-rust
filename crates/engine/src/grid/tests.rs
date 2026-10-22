@@ -42,7 +42,9 @@ const fn map(
 }
 
 // Center 2x2 map; north neighbor 4x1 shifted left by 1; east neighbor 1x3 shifted up by 1.
-static MAPS: [MapData; 3] = [
+// Then a mirrored pair: "south" (4x3) with "upper" (3x2) north of it, one cell right, and
+// "upper" connected back; and "skew", whose north connection to "upper" is not mirrored.
+static MAPS: [MapData; 6] = [
     map(
         "center",
         2,
@@ -63,7 +65,77 @@ static MAPS: [MapData; 3] = [
     ),
     map("north", 4, 1, &[20, 21, 22, 23], &[]),
     map("east", 1, 3, &[30, 31, 32], &[]),
+    map(
+        "south",
+        4,
+        3,
+        &[40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+        &[Connection {
+            dir: Dir::Up,
+            offset: 1,
+            map: MapId(4),
+        }],
+    ),
+    map(
+        "upper",
+        3,
+        2,
+        &[60, 61, 62, 63, 64, 65],
+        &[Connection {
+            dir: Dir::Down,
+            offset: -1,
+            map: MapId(3),
+        }],
+    ),
+    map(
+        "skew",
+        4,
+        3,
+        &[40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+        &[Connection {
+            dir: Dir::Up,
+            offset: 0,
+            map: MapId(4),
+        }],
+    ),
 ];
+
+#[test]
+fn a_mirrored_crossing_has_a_seam_where_both_maps_draw_alike() {
+    let (south, upper) = (MapId(3), MapId(4));
+    let s = Game.map(south);
+    let (to, shift) = (neighbor(&Game, s, 2, -1))
+        .map(|n| (n.map, (n.x - 2, n.y + 1)))
+        .unwrap();
+    assert_eq!((to, shift), (upper, (-1, 2)));
+    let there = seam(&Game, south, upper, shift).unwrap();
+    assert_eq!(
+        there,
+        Seam {
+            vertical: true,
+            along: (1, 4),
+            across: (-2, 3)
+        }
+    );
+    let u = Game.map(upper);
+    for y in -5..8 {
+        for x in -5..9 {
+            let on = (1..4).contains(&x) && (-2..3).contains(&y);
+            let same = block_at(&Game, s, x, y) == block_at(&Game, u, x + shift.0, y + shift.1);
+            assert!(!on || same, "({x}, {y}) on the seam differs");
+        }
+    }
+    // And back, from the upper map.
+    let back = seam(&Game, upper, south, (1, -2)).unwrap();
+    assert_eq!((back.along, back.across), ((0, 3), (0, 5)));
+}
+
+#[test]
+fn a_crossing_without_a_mirror_has_no_seam() {
+    // `north` has no connection back; `skew`'s offset is not mirrored by `upper`'s.
+    assert_eq!(seam(&Game, MapId(0), MapId(1), (1, 1)), None);
+    assert_eq!(seam(&Game, MapId(5), MapId(4), (0, 2)), None);
+}
 
 pub(crate) struct Game;
 

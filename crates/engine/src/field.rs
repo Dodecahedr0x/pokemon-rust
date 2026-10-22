@@ -258,19 +258,10 @@ impl Field {
             upload_secondary(new.secondary, f);
             same = false;
         }
-        // The kept cells (new coordinates) the new map draws differently.
-        let mut differ = Vec::new();
-        if same && let Some(r) = self.drawn {
-            for y in r.y0..=r.y1 {
-                for x in r.x0..=r.x1 {
-                    let (nx, ny) = (x + shift.0, y + shift.1);
-                    let drawn = block_metatile(self.block(game, x, y));
-                    if drawn != block_metatile(grid::block_at(game, new, nx, ny)) {
-                        differ.push((nx, ny));
-                    }
-                }
-            }
-        }
+        let differ = match self.drawn {
+            Some(r) if same => self.kept_cells_to_redraw(game, to, shift, r),
+            _ => Vec::new(),
+        };
         self.map = to;
         self.overrides.clear();
         self.camera_px.0 += shift.0 as i32 * 16;
@@ -341,6 +332,58 @@ impl Field {
         for bg in FIELD_BGS {
             f.scroll[bg as usize] = s;
         }
+    }
+
+    /// The cells of `kept` (drawn from the current map, old coordinates) that map `to` draws
+    /// with another metatile, in new coordinates. Before the switch: the current map is still
+    /// the old one, its overrides included. Only cells off the [`grid::Seam`] are compared, plus
+    /// the overrides on it, so a usual crossing compares a handful of cells.
+    fn kept_cells_to_redraw(
+        &self,
+        game: &impl GameData,
+        to: MapId,
+        shift: (i16, i16),
+        kept: Rect,
+    ) -> Vec<(i16, i16)> {
+        let new = game.map(to);
+        let mut differ = Vec::new();
+        let mut check = |x: i16, y: i16| {
+            let (nx, ny) = (x + shift.0, y + shift.1);
+            let drawn = block_metatile(self.block(game, x, y));
+            if drawn != block_metatile(grid::block_at(game, new, nx, ny)) {
+                differ.push((nx, ny));
+            }
+        };
+        let Some(seam) = grid::seam(game, self.map, to, shift) else {
+            for y in kept.y0..=kept.y1 {
+                for x in kept.x0..=kept.x1 {
+                    check(x, y);
+                }
+            }
+            return differ;
+        };
+        let on_seam = |x: i16, y: i16| {
+            let (a, b) = if seam.vertical { (x, y) } else { (y, x) };
+            (seam.along.0..seam.along.1).contains(&a) && (seam.across.0..seam.across.1).contains(&b)
+        };
+        for y in kept.y0..=kept.y1 {
+            // This row's cells on the seam (half-open, maybe empty), skipped.
+            let (s0, s1) = match seam.vertical {
+                true if (seam.across.0..seam.across.1).contains(&y) => seam.along,
+                false if (seam.along.0..seam.along.1).contains(&y) => seam.across,
+                _ => (0, 0),
+            };
+            let (s0, s1) = if s0 < s1 { (s0, s1) } else { (0, 0) };
+            for x in (kept.x0..s0.min(kept.x1 + 1)).chain(s1.max(kept.x0)..=kept.x1) {
+                check(x, y);
+            }
+        }
+        for &(x, y) in self.overrides.keys() {
+            if kept.contains(x, y) && on_seam(x, y) {
+                check(x, y);
+            }
+        }
+        differ
     }
 
     /// Draws `cells` (at most one per ring slot) into the ring: per BG (top, middle, bottom), one
