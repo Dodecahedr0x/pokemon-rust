@@ -9,8 +9,8 @@
 //! 1. `Battle::new`, `Battle::start(.., &mut events)`, [`BattleScene::new`] and
 //!    [`BattleScene::push`] the start events.
 //! 2. While the screen is black (after the transition): [`BattleScene::load`] each frame until
-//!    it returns true. It uploads in chunks (environment, textbox, pics, healthboxes), so no
-//!    frame is a big bulk copy.
+//!    it returns true. It uploads in chunks (environment, textbox, menu text drawn ahead, pics,
+//!    healthboxes), so no frame is a big bulk copy.
 //! 3. Then each frame [`BattleScene::step`] (or [`BattleScene::update`], answering a returned
 //!    [`Choice`] with `Battle::choose` and pushing its events). The scene fades in, plays the
 //!    events and opens the menus when the core needs the player.
@@ -98,7 +98,7 @@ use super::gfx::{
 use super::ui::BattleWindows;
 use super::{
     Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleSetup, Choice,
-    EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, text,
+    EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, Str, text,
 };
 use crate::data::{GameData, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
@@ -234,6 +234,9 @@ pub struct BattleScene {
     queue: VecDeque<BattleEvent>,
     play: Play,
     menu: Menu,
+    /// The kind of the last `Msg` event printed (scripted input and debugging only: not
+    /// state, nothing reads it back).
+    last_msg: Option<Str>,
     fader: Fader,
     outcome: Option<BattleOutcome>,
     finished: bool,
@@ -281,6 +284,7 @@ impl BattleScene {
             queue: VecDeque::new(),
             play: Play::Idle,
             menu: Menu::None,
+            last_msg: None,
             fader,
             outcome: None,
             finished: false,
@@ -327,25 +331,31 @@ impl BattleScene {
                 3
             }
             3 => {
+                // Text only (slow on the GBA): a black frame of its own.
+                p.windows
+                    .prepare(game, &names(game, battle), battle.mon(Side::Player));
+                4
+            }
+            4 => {
                 for side in [Side::Opponent, Side::Player] {
                     let mon = self.mon(side);
                     let pic = (mon.species, mon.is_shiny());
                     self.parts.mons[side as usize].load(game, pic.0, pic.1, f);
                     self.pics[side as usize] = Some(pic);
                 }
-                4
+                5
             }
-            4 => {
+            5 => {
                 if let BattleKind::Trainer { trainer, .. } = self.kind
                     && let Some(data) = game.trainer(trainer)
                 {
                     p.trainers[1].load(data.pic, f);
                 }
                 p.trainers[0].load(&gfx.player_back, f);
-                5
+                6
             }
-            5 | 6 => {
-                let side = if step == 5 {
+            6 | 7 => {
+                let side = if step == 6 {
                     Side::Player
                 } else {
                     Side::Opponent
@@ -363,7 +373,7 @@ impl BattleScene {
                     self.loading = None;
                     return true;
                 }
-                6
+                7
             }
             _ => unreachable!("load step {step}"),
         };
@@ -467,6 +477,20 @@ impl BattleScene {
             Menu::StopAsk { .. } => OpenMenu::StopAsk(cursor),
             Menu::None | Menu::StopMsg { .. } | Menu::Retry { .. } => return None,
         })
+    }
+
+    /// The battle message being printed or waited on (scripted input and debugging).
+    pub fn message(&self) -> Option<Str> {
+        if self.play == Play::Msg {
+            self.last_msg
+        } else {
+            None
+        }
+    }
+
+    /// Whether an HP bar is draining (scripted input and debugging).
+    pub fn draining_hp(&self) -> bool {
+        matches!(self.play, Play::Hp(_))
     }
 
     /// Feeds every piece of state into `h` (cheap enough for every frame).
@@ -843,6 +867,7 @@ impl BattleScene {
 
     /// Prints `m` (expanded with the battle's names).
     fn print(&mut self, game: &impl GameData, battle: &Battle, m: &Msg, f: &mut Frame) {
+        self.last_msg = Some(m.id);
         let text = text::expand(game, m, &names(game, battle));
         let wait = match m.wait {
             MsgWait::Button if ends_with_prompt(&text) => MsgWait::Frames(0),

@@ -45,23 +45,22 @@ impl Colors {
     }
 }
 
-/// Text colors plus a byte -> half-row lookup like Gen3 `sFontHalfRowLookupTable`: one font
-/// byte (4 pixels of 2bpp, leftmost in bits 7-6) -> 4 canvas nibbles (leftmost in the low one).
+/// Text colors plus a lookup like Gen3 `sFontHalfRowLookupTable`, by nibble: two font pixels
+/// (2bpp, leftmost in bits 3-2) -> two canvas nibbles (leftmost in the low one). A font byte
+/// (4 pixels, leftmost in bits 7-6) is two lookups. Small, as a pen is made per menu text.
 pub struct Pen {
     pub(crate) colors: Colors,
-    half: [u16; 256],
+    two: [u16; 16],
 }
 
 impl Pen {
     pub fn new(colors: Colors) -> Self {
         let map = [colors.bg, colors.fg, colors.shadow, colors.bg].map(|c| c as u16 & 0xF);
-        let mut half = [0u16; 256];
-        for (b, h) in half.iter_mut().enumerate() {
-            for i in 0..4 {
-                *h |= map[(b >> (6 - 2 * i)) & 3] << (4 * i);
-            }
+        let mut two = [0u16; 16];
+        for (n, t) in two.iter_mut().enumerate() {
+            *t = map[n >> 2] | map[n & 3] << 4;
         }
-        Self { colors, half }
+        Self { colors, two }
     }
 
     pub const fn colors(&self) -> Colors {
@@ -69,13 +68,15 @@ impl Pen {
     }
 
     /// 8 pixels of a glyph tile row (`.latfont` u16 as little-endian bytes) as a 4bpp row.
-    fn row(&self, lo: u8, hi: u8) -> u32 {
-        self.half[hi as usize] as u32 | (self.half[lo as usize] as u32) << 16
+    pub(crate) fn row(&self, lo: u8, hi: u8) -> u32 {
+        let half =
+            |b: u8| self.two[b as usize >> 4] as u32 | (self.two[b as usize & 0xF] as u32) << 8;
+        half(hi) | half(lo) << 16
     }
 }
 
 /// Mask of the first `n` (<= 8) pixels of a 4bpp row.
-const fn px_mask(n: usize) -> u32 {
+pub(crate) const fn px_mask(n: usize) -> u32 {
     if n >= 8 { u32::MAX } else { (1 << (4 * n)) - 1 }
 }
 
@@ -90,6 +91,9 @@ pub struct Canvas {
     char_block: u8,
     pub(crate) tiles: Vec<Tile>,
     dirty: Vec<bool>,
+    /// What [`Canvas::redraw`] last drew, while nothing else has drawn since: redrawing the
+    /// same text is then skipped (text is slow on the GBA). A cache, not state.
+    memo: Option<(Vec<u8>, i16, i16, Colors)>,
 }
 
 impl Canvas {
@@ -100,7 +104,22 @@ impl Canvas {
             char_block,
             tiles: vec![[0; 8]; n],
             dirty: vec![false; n],
+            memo: None,
         }
+    }
+
+    /// `fill(colors.bg)` then `draw_text(font, text, x, y, colors)`, skipped when the canvas
+    /// still shows exactly that (the same call last, nothing drawn since). Its tiles then stay
+    /// clean: nothing to upload either.
+    pub fn redraw(&mut self, font: &Font, text: &[u8], x: i16, y: i16, colors: Colors) {
+        if let Some((t, mx, my, c)) = &self.memo
+            && (t.as_slice(), *mx, *my, *c) == (text, x, y, colors)
+        {
+            return;
+        }
+        self.fill(colors.bg);
+        self.draw_text(font, text, x, y, colors);
+        self.memo = Some((text.to_vec(), x, y, colors));
     }
 
     pub const fn window(&self) -> Window {
@@ -129,33 +148,41 @@ impl Canvas {
         ((t[y % 8] >> ((x % 8) * 4)) & 0xF) as u8
     }
 
-    fn set(&mut self, x: i16, y: i16, c: u8) {
-        if x < 0 || y < 0 || x >= self.w_px() || y >= self.h_px() {
-            return;
-        }
-        let (x, y) = (x as usize, y as usize);
-        let t = (y / 8) * self.win.width as usize + x / 8;
-        let shift = (x % 8) * 4;
-        let row = &mut self.tiles[t][y % 8];
-        *row = (*row & !(0xF << shift)) | ((c as u32 & 0xF) << shift);
-        self.dirty[t] = true;
-    }
-
     pub fn fill(&mut self, c: u8) {
+        self.memo = None;
         self.tiles.fill([fill_word(c); 8]);
         self.dirty.fill(true);
     }
 
     pub fn fill_rect(&mut self, x: i16, y: i16, w: i16, h: i16, c: u8) {
-        for py in y..y + h {
-            for px in x..x + w {
-                self.set(px, py, c);
+        self.memo = None;
+        // Clipped to the canvas, then whole tile rows at a time (masked at both ends).
+        let (x0, y0) = (x.max(0), y.max(0));
+        let (x1, y1) = (
+            x.saturating_add(w).min(self.w_px()),
+            y.saturating_add(h).min(self.h_px()),
+        );
+        if x0 >= x1 || y0 >= y1 {
+            return;
+        }
+        let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
+        let (w_tiles, word) = (self.win.width as usize, fill_word(c));
+        for tx in x0 / 8..x1.div_ceil(8) {
+            let from = x0.max(tx * 8) - tx * 8;
+            let to = x1.min(tx * 8 + 8) - tx * 8;
+            let mask = px_mask(to) & !px_mask(from);
+            for py in y0..y1 {
+                let t = (py / 8) * w_tiles + tx;
+                let r = &mut self.tiles[t][py % 8];
+                *r = (*r & !mask) | (word & mask);
+                self.dirty[t] = true;
             }
         }
     }
 
     /// Gen3 `ScrollWindow` upwards by `n` pixels, filling the bottom with `c`.
     fn scroll_up(&mut self, n: i16, c: u8) {
+        self.memo = None;
         let (w, h) = (self.win.width as usize, self.h_px() as usize);
         for tx in 0..w {
             for py in 0..h {
@@ -171,10 +198,24 @@ impl Canvas {
         self.dirty.fill(true);
     }
 
+    /// Writes the pixels of `w` under mask `m` into row `row` of tile `tx` of the tile row
+    /// starting at `base` (nothing past the canvas' right edge).
+    #[inline(always)]
+    fn put(&mut self, base: usize, tx: usize, w_tiles: usize, row: usize, w: u32, m: u32) {
+        if tx >= w_tiles || m == 0 {
+            return;
+        }
+        let t = base + tx;
+        let r = &mut self.tiles[t][row];
+        *r = (*r & !m) | (w & m);
+        self.dirty[t] = true;
+    }
+
     /// Draws glyph `id` with its top-left at (x, y) as Gen3 `CopyGlyphToWindow` does: `width`
     /// columns and 15 rows, 2bpp values 0/3 -> bg, 1 -> fg, 2 -> shadow. Returns the advance.
     /// Works on whole tile rows: each 8-pixel glyph half is shifted into two canvas words.
     pub fn draw_glyph(&mut self, font: &Font, id: u16, x: i16, y: i16, pen: &Pen) -> i16 {
+        self.memo = None;
         let (Some(glyph), Some(&width)) =
             (font.glyphs.get(id as usize), font.widths.get(id as usize))
         else {
@@ -185,32 +226,27 @@ impl Canvas {
         }
         let (x, w_tiles) = (x as usize, self.win.width as usize);
         let width_px = (width as usize).min(16);
+        let h_px = self.h_px() as i32;
+        // 32-bit words only (a u64 shift is a library call on the GBA): a glyph half's row
+        // lands in its tile shifted left, and its overflow in the next tile shifted right.
+        let shift = (x % 8) * 4;
+        let halves = width_px.div_ceil(8);
         for row in 0..GLYPH_HEIGHT as i32 {
             let cy = y as i32 + row;
-            if cy < 0 || cy >= self.h_px() as i32 {
+            if cy < 0 || cy >= h_px {
                 continue;
             }
             let (cy, row) = (cy as usize, row as usize);
-            for half in 0..2 {
-                if width_px <= half * 8 {
-                    break;
-                }
+            let base = (cy / 8) * w_tiles;
+            for half in 0..halves {
                 let off = ((row / 8) * 2 + half) * 16 + (row % 8) * 2;
-                let word = pen.row(glyph[off], glyph[off + 1]) as u64;
-                let mask = px_mask(width_px - half * 8) as u64;
-                let px = x + half * 8;
-                let shift = (px % 8) * 4;
-                let (word, mask) = (word << shift, mask << shift);
-                for k in 0..2 {
-                    let tx = px / 8 + k;
-                    let m = (mask >> (32 * k)) as u32;
-                    if tx >= w_tiles || m == 0 {
-                        continue;
-                    }
-                    let t = (cy / 8) * w_tiles + tx;
-                    let r = &mut self.tiles[t][cy % 8];
-                    *r = (*r & !m) | ((word >> (32 * k)) as u32 & m);
-                    self.dirty[t] = true;
+                let word = pen.row(glyph[off], glyph[off + 1]);
+                let mask = px_mask(width_px - half * 8);
+                let tx = x / 8 + half;
+                self.put(base, tx, w_tiles, cy % 8, word << shift, mask << shift);
+                if shift != 0 {
+                    let (w, m) = (word >> (32 - shift), mask >> (32 - shift));
+                    self.put(base, tx + 1, w_tiles, cy % 8, w, m);
                 }
             }
         }
@@ -241,6 +277,7 @@ impl Canvas {
     /// first clearing the span to the background), `{CLEAR n}` clears `n` pixels, the color
     /// codes change `colors` and `{ESCAPE n}` draws glyph 0x100 + n. Other codes are skipped.
     pub fn draw_text(&mut self, font: &Font, text: &[u8], x: i16, y: i16, colors: Colors) {
+        self.memo = None;
         let mut pen = Pen::new(colors);
         let (mut cx, mut cy) = (x, y);
         let mut i = 0;
@@ -594,6 +631,76 @@ mod tests {
     }
 
     const C: Colors = Colors::new(2, 3, 1);
+
+    /// A per-pixel model of `draw_glyph` (Gen3 `CopyGlyphToWindow`) and `fill_rect`, for the
+    /// word-at-a-time versions.
+    fn model_glyph(px: &mut [[u8; 40]; 24], glyph: &[u8; 64], width: u8, x: i16, y: i16) {
+        let map = [C.bg, C.fg, C.shadow, C.bg];
+        for row in 0..GLYPH_HEIGHT {
+            for col in 0..(width as i16).min(16) {
+                let (cx, cy) = (x + col, y + row);
+                if !(0..40).contains(&cx) || !(0..24).contains(&cy) {
+                    continue;
+                }
+                let (r, c) = (row as usize, col as usize);
+                let off = ((r / 8) * 2 + c / 8) * 16 + (r % 8) * 2;
+                let byte = if c % 8 < 4 {
+                    glyph[off + 1]
+                } else {
+                    glyph[off]
+                };
+                let v = (byte >> (6 - 2 * (c % 4))) & 3;
+                px[cy as usize][cx as usize] = map[v as usize];
+            }
+        }
+    }
+
+    #[test]
+    fn word_drawing_matches_the_pixel_model() {
+        let mut seed = 0x1234_5678u32;
+        let mut next = move || {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            (seed >> 16) as u8
+        };
+        let glyphs: Vec<[u8; 64]> = (0..17).map(|_| core::array::from_fn(|_| next())).collect();
+        let font = Box::leak(Box::new(Font {
+            glyphs: Box::leak(glyphs.clone().into_boxed_slice()),
+            widths: Box::leak((0..17u8).collect::<Vec<_>>().into_boxed_slice()),
+        }));
+        let pen = Pen::new(C);
+        for id in 0..17u16 {
+            for (x, y) in [
+                (-1, 0),
+                (0, 0),
+                (3, 2),
+                (7, -4),
+                (13, 9),
+                (30, 11),
+                (36, 20),
+            ] {
+                let mut c = Canvas::new(Window::new(0, 0, 5, 3, 0), 0);
+                c.fill(7);
+                let mut model = [[7u8; 40]; 24];
+                c.draw_glyph(font, id, x, y, &pen);
+                if x >= 0 {
+                    model_glyph(&mut model, &glyphs[id as usize], id as u8, x, y);
+                }
+                c.fill_rect(x + 2, y - 1, id as i16, 5, 9);
+                for py in (y - 1).max(0)..(y + 4).min(24) {
+                    for px in (x + 2).max(0)..(x + 2 + id as i16).min(40) {
+                        model[py as usize][px as usize] = 9;
+                    }
+                }
+                for py in 0..24 {
+                    for px in 0..40 {
+                        let got = c.pixel(px, py);
+                        let want = model[py as usize][px as usize];
+                        assert_eq!(got, want, "glyph {id} at ({x}, {y}), pixel ({px}, {py})");
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn draw_text_clear_to_and_newlines() {
