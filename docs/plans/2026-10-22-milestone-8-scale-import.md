@@ -222,6 +222,7 @@ Wave 0 makes no feature work. It does five things:
   - New `export/tables.rs` with `pub fn export_tables(rom, out, provenance) -> Result<()>`, an empty body that `export` calls (Task C).
   - New stub modules `inc.rs`, `labels.rs` (B) and `tables.rs` (C), with their `pub mod` lines in `lib.rs`, so no Wave 1 task edits `lib.rs`.
   - `names/generated.rs` regenerated (`PKR_BLESS=1`) with `MULTI_*`, `STDSTRING_*`, `MAPSEC_*` and `LAYOUT_*` tables, drift-tested like the others.
+- **`Species.weight`** (`schema.rs`, owned by A, carried into content by E): `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight` in hectograms (Low Kick, G), `#[serde(default)]`; 0 when a species has no Pokédex entry or the tables cannot be located.
 - **Named fixed samples:** `export::SLICE_MAPS` (today's 15 maps, in today's order) replaces every test and tool use of `export::MAPS`, and `ExportOptions` takes it for `--maps slice`. Consumers are migrated in Wave 0 (`extract/tests/{codegen,text}.rs`).
 - **`codegen.rs`, new entry point** (Task D1; stub). `generate` keeps working until Task D2 swaps the build over:
   ```rust
@@ -241,7 +242,7 @@ Wave 0 makes no feature work. It does five things:
   pub fn lower(files: &[ScriptFile], index: &ScriptIndex, support: &Support,
                overrides: &BTreeMap<String, String>) -> anyhow::Result<Lowered>;
   ```
-- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `all` from Task A on; `slice` = `export::SLICE_MAPS`) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
+- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `slice` = `export::SLICE_MAPS` until Task L, which flips `ExportOptions::default()` and the xtask `extract` doc to `all` once the content build consumes every map; Task A makes `all` work) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
 
 ### Content contracts (`crates/content`)
 - **Splits** (mechanical):
@@ -703,7 +704,7 @@ Route-changing (it is the first of the ordered merges): the slice's scripts now 
 
 **Owns:** `xtask/src/sweep.rs`, cross-task fix-ups in the files of Wave 1 tasks A–J (each listed in the report), the README (Content, Scripts and Tests sections), the fixed test samples of `crates/studio/tests/{map_pixels, map_view, data_views}.rs`, and `checkpoints/*` refreshes.
 
-1. `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
+1. Flip the extract default to `all`: `ExportOptions::default()` and the xtask `extract` doc and warning (Task A keeps `slice`, since the content build cannot consume every map before E). Then `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
    - **Remove `GameData::encounters(map)`** (kept by Wave 0 as `wild_encounters`' default so explore needed no change), once E implements `wild_encounters` and K forwards it.
 2. **The slice still holds:**
    - the parity route replays with identical ROM/native hashes;
@@ -1119,6 +1120,13 @@ Apple M4 Max, with other Wave 1 builds running at the same time: treat the times
 M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings folded in" with an owner, so nothing was added or dropped. Wave 0 handled its share of two rows:
 - events and `last_script` (engine panic context, `FrameOut`);
 - the stale rect, now hashed and in `FieldSnap`.
+
+### Task A as built
+- `cargo xtask extract --maps all` (BPEF): 518 maps, 418 layouts (every map's plus every `setmaplayoutindex` target; `gMapLayouts` has 441), 73 tilesets, 156 OBJ sprites plus 3 emotes (`sprites/field_effects/`), 124 wild headers (Altering Cave 9; land, water, rock smash, fishing), evolutions for 172 species, trainer money (54 classes plus the `0xFF` default), `Species.weight`. Every count equals the decomp's referenced set.
+- Time: one full export about 5–6 s in release (the ignored sweep test's three exports: 17.6 s), 23.8 s with the debug `cargo xtask`; 39.8 s with `--previews`. Size: 26 MB without previews, 147 MB with them (previews 121 MB).
+- Default kept at `slice` (L flips it, step 1): the content build panics on a full extract (slice-move wording, E), and since xtask depends on content, so does `cargo xtask`; `extract` warns with the recovery command.
+- Location: layouts, emotes, evolutions and `gPokedexEntries`/`sSpeciesToNationalPokedexNum` by structural anchors; `gTrainerMoneyTable` by adjacency (the 4-byte boundary after `gTypeNames`), then validated. All checked on BPEE against the decomp. (The commit message of `bbcc190` says "all located by structure"; trainer money is by adjacency.)
+- `FORMAT_MINOR` = 2 (after B's 1): layouts, emotes, encounters v5, evolutions, trainer money, weight; `MINOR_FILES` lists `battle/evolutions.ron`, `battle/trainer_money.ron` and the six emote files.
 
 ## Findings for Milestone 9
 *(filled at close-out.)*
