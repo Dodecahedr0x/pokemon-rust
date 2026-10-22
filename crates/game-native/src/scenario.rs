@@ -11,8 +11,10 @@
 //! game logic: elevation is ignored and the run stops with an error when stuck.
 
 use crate::Session;
+use crate::trace::{CheckpointId, Parent, Trace, TraceRecorder};
 use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleOutcome, Str};
+use engine::checkpoint::BuildHash;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
 use engine::grid::{block_at, in_bounds};
@@ -58,6 +60,9 @@ pub enum Action {
     LevelUp((i16, i16), (i16, i16), u8, &'static str),
     /// Battle with move `slot` until `When`, then name that moment.
     BattleShot(u8, When, &'static str),
+    /// Press nothing until the world is capturable (`World::capturable`), then name that frame
+    /// a checkpoint node ([`Recording::nodes`]).
+    Checkpoint(&'static str),
 }
 
 /// A battle moment for [`Action::BattleShot`].
@@ -86,6 +91,10 @@ pub struct Recording {
     pub keys: Vec<Buttons>,
     /// Each [`Action::Shot`]; the picture is the output of step `frame`.
     pub moments: Vec<Moment>,
+    /// `World::hash` after each step (`hashes[i]` after step `i + 1`).
+    pub hashes: Vec<u64>,
+    /// Each [`Action::Checkpoint`]: its name and the (capturable) frame it was taken at.
+    pub nodes: Vec<(&'static str, u32)>,
     /// Warp transitions started.
     pub warps: u32,
     /// Battles started.
@@ -148,6 +157,29 @@ impl Recording {
 
     pub fn frames(&self) -> u32 {
         self.keys.len() as u32
+    }
+
+    /// The trace of each [`Recording::nodes`] entry, chained from a new game: the first starts
+    /// at `NewGame`, each later one at the node before it, given as
+    /// `Parent::Checkpoint(CheckpointId(k))` with `k` the 1-based position of that node in
+    /// this list (the ids a fresh store allocates; a caller adding to another store remaps
+    /// them).
+    pub fn traces(&self, build: BuildHash) -> Vec<(&'static str, Trace)> {
+        let mut out = Vec::with_capacity(self.nodes.len());
+        let mut start = 0u32;
+        for (k, &(name, frame)) in self.nodes.iter().enumerate() {
+            let parent = match k {
+                0 => Parent::NewGame,
+                k => Parent::Checkpoint(CheckpointId(k as u32)),
+            };
+            let mut r = TraceRecorder::new(start);
+            for i in start..frame {
+                r.push(self.keys_at(i), self.hashes[i as usize]);
+            }
+            out.push((name, r.trace(parent, build)));
+            start = frame;
+        }
+        out
     }
 
     /// Ascending frames to compare pictures at: every moment, the first frames and one every
@@ -234,6 +266,7 @@ impl<G: GameData> Recorder<G> {
         );
         self.rec.keys.push(keys);
         self.s.step(keys);
+        self.rec.hashes.push(self.world().hash());
         self.last = keys;
         if !before.0 && self.world().transition_active() {
             self.rec.warps += 1;
@@ -529,6 +562,17 @@ impl<G: GameData> Recorder<G> {
                 self.rec.moments.push(Moment { name, frame, map });
                 Ok(())
             }
+            Action::Checkpoint(name) => {
+                while let Err(why) = self.world().capturable() {
+                    if stuck(self) {
+                        return Err(format!("never capturable ({why:?})"));
+                    }
+                    self.press(Buttons::NONE);
+                }
+                let frame = self.frame();
+                self.rec.nodes.push((name, frame));
+                Ok(())
+            }
             Action::Step(d) => {
                 self.settle()?;
                 let at = self.world().objects().player().pos();
@@ -757,6 +801,7 @@ pub const EMERALD_ROUTE: &[Action] = &[
     // Birch's thanks, the heal and the warp to his lab, where he gives Mudkip.
     Action::Mash,
     Action::Shot("lab"),
+    Action::Checkpoint("lab"),
     Action::GoTo(6, 11),
     Action::Enter(Dir::Down),
     // Back north to Route 101's tall grass.
@@ -769,6 +814,7 @@ pub const EMERALD_ROUTE: &[Action] = &[
     Action::BattleShot(0, When::HpDrain, "hp_drain"),
     Action::Fight(0),
     Action::Shot("after_wild"),
+    Action::Checkpoint("after_wild"),
     Action::Grass((12, 11), (13, 11)),
     Action::Run,
     Action::LevelUp((12, 11), (13, 11), 0, "level_up"),
@@ -782,6 +828,7 @@ pub const EMERALD_ROUTE: &[Action] = &[
     Action::Face(Dir::Up),
     Action::Interact,
     Action::Mash,
+    Action::Checkpoint("oldale_center"),
     Action::GoTo(7, 7),
     Action::Enter(Dir::Down),
     // Route 103, where May waits at (10, 3) facing right.
@@ -794,6 +841,7 @@ pub const EMERALD_ROUTE: &[Action] = &[
     Action::Fight(0),
     Action::Mash,
     Action::Shot("route103_after_may"),
+    Action::Checkpoint("route103_after_may"),
 ];
 
 /// The route on the built-in stub world (one 16x16 map without events; the new game starts
@@ -801,6 +849,7 @@ pub const EMERALD_ROUTE: &[Action] = &[
 pub const STUB_ROUTE: &[Action] = &[
     Action::Wait(24),
     Action::Shot("stub_start"),
+    Action::Checkpoint("stub_start"),
     Action::GoTo(10, 9),
     Action::Shot("stub_east"),
     // The one tall-grass cell, (12, 3): back and forth until a wild battle starts.
@@ -809,9 +858,11 @@ pub const STUB_ROUTE: &[Action] = &[
     Action::BattleShot(0, When::ActionMenu, "stub_action_menu"),
     Action::Fight(0),
     Action::Shot("stub_after_battle"),
+    Action::Checkpoint("stub_after_battle"),
     Action::GoTo(3, 3),
     Action::GoTo(5, 12),
     Action::Shot("stub_end"),
+    Action::Checkpoint("stub_end"),
 ];
 
 /// The route for the current content build.

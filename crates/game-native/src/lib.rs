@@ -1,6 +1,7 @@
 //! Host shell: runs engine + content natively and draws each [`Frame`] with a software PPU.
 
 pub mod checkpoints;
+pub mod controls;
 pub mod flash;
 pub mod ppu;
 pub mod scenario;
@@ -45,6 +46,19 @@ impl<G: GameData> Session<G> {
     pub fn restore(game: G, cp: &Checkpoint) -> Result<Self, RestoreError> {
         let world = World::restore(&game, cp)?;
         Ok(Self::boot(game, world))
+    }
+
+    /// Replaces the world by `cp`'s (`World::restore`) on a fresh PPU, as [`Session::restore`]
+    /// does; on error the session is unchanged.
+    pub fn load(&mut self, cp: &Checkpoint) -> Result<(), RestoreError> {
+        let mut world = World::restore(&self.game, cp)?;
+        let frame = world.initial_frame();
+        self.ppu = Ppu::new();
+        self.ppu.apply(&frame);
+        self.world = world;
+        self.frame = frame;
+        self.drawn = false;
+        Ok(())
     }
 
     /// Captures the world (`World::checkpoint`).

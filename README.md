@@ -20,8 +20,13 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 ## Play
 1. Extract your ROM (see Extract), then `cargo xtask rom`.
 2. Open `target/game.gba` in any GBA emulator (mGBA, …) or on a flash cart. Or play natively:
-   `cargo run -p game-native --features window --bin play` (arrows, X = A, Z = B,
-   Enter = Start, Backspace = Select, Escape quits).
+   `cargo run -p game-native --features window --bin play` (arrows, X = A, Z = B, A = L,
+   S = R, Enter = Start, Backspace = Select, Escape quits). Native play also saves and loads
+   checkpoints (see Checkpoints): F5 saves one (at once when the field is idle, else at the
+   first idle frame; the title says "saving…"), F9 reloads the last one saved or loaded, F8
+   rewinds at least two seconds (a ring of 64 states, one a second, since that checkpoint).
+   `play --load <id|label>` starts at a node and `play --list` prints the tree. The title shows
+   the frame, the node the session started from and the last action.
 
 A new game starts in Littleroot Town outside Brendan's house, after meeting May and before
 Birch's rescue (`crates/content/src/new_game.rs` lists the story vars and flags). Go north to
@@ -48,6 +53,35 @@ with the script already resumed (Emerald's always battles).
 Without an extracted dir everything builds against a small built-in map (stub mode,
 `cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`). There the shells and parity
 (`Emerald::for_shells()`) start a new game with a Pokémon, and the one tall-grass cell at (12, 3) has wild battles.
+
+## Checkpoints
+A checkpoint is a versioned snapshot of an idle `World` (field mode, no script, battle, warp,
+fade or scripted movement, and the view drawn from the current map); restoring it is
+bit-identical to the run that was never interrupted. Natively they live in a tree:
+`checkpoints/stub` or `checkpoints/emerald` after the content flavor (or `$PKR_CHECKPOINTS`).
+
+- `nodes/c00001.ron` (committed): a label, the parent node (or a new game), the RLE input
+  trace from the parent, the `World::hash` every 60 frames, and the state digest. No ROM data.
+- `snapshots/` and `status.ron` (ignored): the snapshot cache (it holds ROM-derived names and
+  is always rebuilt by replaying the traces) and the last verdicts.
+
+`cargo xtask checkpoints [--root <dir>] <command>`:
+- `list`: the tree (id, frame, map, parent, label, last status)
+- `verify [--accept]`: replays every trace on the current build. A node is Valid when it reaches
+  the same state, Stale after a snapshot schema change, Diverged when this build reaches another
+  state (with the first frame whose hash differs), Broken on a replay error or a different state
+  on the node's own build (nondeterminism). Fails on Diverged or Broken; `--accept`
+  re-baselines Diverged and Stale nodes, like the golden hashes.
+- `seed`: records the parity route and writes its `route:<name>` nodes (replacing the earlier
+  `route:` nodes, never others): `lab`, `after_wild`, `oldale_center`, `route103_after_may`
+  (stub: `stub_start`, `stub_after_battle`, `stub_end`)
+- `label <id> <text>`, `rm <id>` (refused for a node with children)
+- `sav <id> [-o <path>]`: writes the node's flash image to `target/game.sav`, which mGBA loads
+  with `target/game.gba`: the ROM boots at the node (hold B at boot to ignore a save)
+
+Ids are `c00012`, `12` or a label. `cargo test` verifies the committed tree of the current
+flavor (`crates/game-native/tests/checkpoint_tree.rs`), so an intended behaviour change needs
+`verify --accept` and the updated nodes committed. On the GBA, L+R+SELECT saves to flash.
 
 ## Tests
 `cargo test --workspace` runs unit tests and the ROM-backed tests in `crates/extract/tests/`, which
