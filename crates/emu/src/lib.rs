@@ -284,11 +284,14 @@ pub struct Capture {
     pub fb: Vec<u16>,
 }
 
-/// A scripted ROM run (see [`run_rom`]).
+/// A scripted ROM run (see [`run_rom_from`]).
 pub struct RomRun {
-    /// Input consumed by step `i + 1`.
+    /// The engine frame the ROM booted at: 0 for a new game, the checkpoint's frame for a
+    /// restored save.
+    pub start: u32,
+    /// Input consumed by step `start + i + 1`.
     pub consumed: Vec<Buttons>,
-    /// (engine frame, World hash) at every sample, including checkpoints.
+    /// (engine frame, World hash) at every sample after `start`, including picture frames.
     pub hashes: Vec<(u32, u64)>,
     pub captures: Vec<Capture>,
     /// Emulator frames the run took after boot.
@@ -297,33 +300,82 @@ pub struct RomRun {
     pub late_black: u32,
     /// The engine frame read after each `late_black` increment (one entry per increment).
     pub late_black_frames: Vec<u32>,
+    /// The debug region once the ROM published its boot state (frame `start`, its hash, and
+    /// the `build` and `boot` fields).
+    pub boot: DebugSnapshot,
+    /// The debug region at the end (`saves`, `save_status`, the scanline maxima).
+    pub end: DebugSnapshot,
+    /// The cartridge flash at the end ([`Emu::save_data`]).
+    pub save: Vec<u8>,
 }
 
-/// Runs the ROM until engine frame `total`, feeding `keys(f)` while the ROM is at engine frame
-/// `f` (so step `f + 1` consumes it). Records the hash at every sample and the picture when the
-/// ROM is at each checkpoint (the picture of step `checkpoint - 1`, see `engine::debug`).
-///
-/// Fails if the ROM steps past a checkpoint between two samples (two engine steps in one
-/// emulator frame), reports a late frame apply (`DebugRegion::late`), runs more steps than the
-/// input ring holds between reads, or stops advancing.
+/// [`run_rom_from`] on erased flash: a new game, `start == 0`.
 pub fn run_rom(
     rom: &Path,
     keys: impl Fn(u32) -> Buttons,
     total: u32,
-    checkpoints: &[u32],
+    picture_frames: &[u32],
 ) -> Result<RomRun> {
-    if !checkpoints.windows(2).all(|w| w[0] < w[1]) {
-        return Err(anyhow!("checkpoints must ascend"));
+    run_rom_from(rom, None, keys, total, picture_frames)
+}
+
+/// Emulator frames [`run_rom_from`] waits for the ROM to publish its boot state.
+const BOOT_FRAMES: u32 = 120;
+
+/// Boots the ROM on `sav` (erased flash if `None`, see [`Emu::open_with_save`]) and runs it
+/// until engine frame `total`, feeding `keys(f)` while the ROM is at engine frame `f` (so step
+/// `f + 1` consumes it). The run starts at the ROM's first published frame (`RomRun::start`).
+/// Records the hash at every sample and the picture when the ROM is at each of
+/// `picture_frames` (the picture of step `frame - 1`, see `engine::debug`), which must lie in
+/// `start + 1..=total`.
+///
+/// Fails if the ROM steps past a picture frame between two samples (two engine steps in one
+/// emulator frame), reports a late frame apply (`DebugRegion::late`), runs more steps than the
+/// input ring holds between reads, or stops advancing.
+pub fn run_rom_from(
+    rom: &Path,
+    sav: Option<&[u8]>,
+    keys: impl Fn(u32) -> Buttons,
+    total: u32,
+    picture_frames: &[u32],
+) -> Result<RomRun> {
+    if !picture_frames.windows(2).all(|w| w[0] < w[1]) {
+        return Err(anyhow!("picture frames must ascend"));
     }
-    if !checkpoints.iter().all(|&c| (1..=total).contains(&c)) {
-        return Err(anyhow!("checkpoints must lie in 1..={total}"));
+    let mut emu = Emu::open_with_save(rom, sav)?;
+    let mut snap = emu.boot(BOOT_FRAMES)?;
+    // The region is visible from the ROM's first instructions (its static initialiser), with a
+    // placeholder hash of 0 until the shell publishes the World it booted (new or restored).
+    // The shell publishes before its first step, so no input is consumed while waiting.
+    let mut waited = 0;
+    while snap.hash == 0 {
+        waited += 1;
+        if waited > BOOT_FRAMES {
+            return Err(anyhow!("ROM never published its boot state"));
+        }
+        emu.run_frame(Buttons::NONE)?;
+        snap = emu
+            .debug()
+            .ok_or_else(|| anyhow!("debug region vanished"))?;
     }
-    let mut emu = Emu::open(rom)?;
-    let mut snap = emu.boot(120)?;
+    let boot = snap.clone();
+    let start = snap.frame;
+    if total < start {
+        return Err(anyhow!("ROM booted at frame {start}, past {total}"));
+    }
+    if !picture_frames
+        .iter()
+        .all(|&c| (start + 1..=total).contains(&c))
+    {
+        return Err(anyhow!(
+            "picture frames must lie in {}..={total}",
+            start + 1
+        ));
+    }
     let mut consumed: Vec<Buttons> = Vec::new();
     let mut hashes = Vec::new();
     let mut captures = Vec::new();
-    let mut next = checkpoints.iter().peekable();
+    let mut next = picture_frames.iter().peekable();
     let mut emu_frames = 0;
     let mut late_black_frames = Vec::new();
     while snap.frame < total {
@@ -331,7 +383,10 @@ pub fn run_rom(
         snap = emu
             .debug()
             .ok_or_else(|| anyhow!("debug region vanished"))?;
-        let have = consumed.len() as u32;
+        let have = start + consumed.len() as u32;
+        if snap.frame < have {
+            return Err(anyhow!("ROM went back from frame {have} to {}", snap.frame));
+        }
         if snap.frame - have > INPUT_RING as u32 {
             return Err(anyhow!("ROM ran >{INPUT_RING} steps between reads"));
         }
@@ -352,7 +407,7 @@ pub fn run_rom(
         if let Some(&&c) = next.peek() {
             if snap.frame > c {
                 return Err(anyhow!(
-                    "ROM jumped from frame {have} to {} past checkpoint {c}",
+                    "ROM jumped from frame {have} to {} past picture frame {c}",
                     snap.frame
                 ));
             }
@@ -365,17 +420,21 @@ pub fn run_rom(
             }
         }
         emu_frames += 1;
-        if emu_frames > total * 3 {
+        if emu_frames > (total - start) * 3 {
             return Err(anyhow!("ROM stopped advancing at frame {}", snap.frame));
         }
     }
     Ok(RomRun {
+        start,
         consumed,
         hashes,
         captures,
         emu_frames,
         late_black: snap.late_black,
         late_black_frames,
+        boot,
+        save: emu.save_data(),
+        end: snap,
     })
 }
 
