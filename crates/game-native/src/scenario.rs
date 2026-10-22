@@ -11,7 +11,7 @@
 //! game logic: elevation is ignored and the run stops with an error when stuck.
 
 use crate::Session;
-use engine::battle::Str;
+use engine::battle::{BattleOutcome, Str};
 use engine::battle::scene::OpenMenu;
 use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, block_collision};
 use engine::flow::block_behavior;
@@ -51,8 +51,11 @@ pub enum Action {
     Starter(u8),
     /// Battle with move `slot` every turn, mashing through messages, until the field is back.
     Fight(u8),
-    /// Battle: RUN every turn until the field is back.
+    /// Battle: RUN every turn until the field is back; the battle must end `Ran`.
     Run,
+    /// [`Action::Grass`] then [`Action::Fight`] with move `slot`, again and again, until a
+    /// "grew to level" message shows; name that moment, then fight that battle out.
+    LevelUp((i16, i16), (i16, i16), u8, &'static str),
     /// Battle with move `slot` until `When`, then name that moment.
     BattleShot(u8, When, &'static str),
 }
@@ -288,17 +291,64 @@ impl<G: GameData> Recorder<G> {
         }
     }
 
-    /// Battles until the field is back.
-    fn battle(&mut self, slot: u8, run: bool) -> Result<(), String> {
+    /// Battles until the field is back; gives the battle's outcome.
+    fn battle(&mut self, slot: u8, run: bool) -> Result<BattleOutcome, String> {
         let start = self.frame();
+        let mut outcome = None;
         while self.world().in_battle() {
             if self.frame() - start > BATTLE_STUCK {
                 return Err("battle never ended".into());
             }
             let k = self.battle_key(slot, run);
             self.tap(k);
+            if let Some((_, _, scene)) = self.world().battle() {
+                outcome = scene.finished().or(outcome);
+            }
         }
-        Ok(())
+        outcome.ok_or_else(|| "the battle ended without an outcome".into())
+    }
+
+    /// Battles with move `slot` (through a script's lead-in) until `when` or the battle's end:
+    /// whether `when` came.
+    fn battle_until(&mut self, slot: u8, when: When) -> Result<bool, String> {
+        let start = self.frame();
+        let mut started = false;
+        while !self.battle_moment(when) {
+            let w = self.world();
+            started |= w.in_battle();
+            let lead_in = !w.in_battle() && w.script_running() && !started;
+            if !(w.in_battle() || lead_in) {
+                return Ok(false);
+            }
+            if self.frame() - start > BATTLE_STUCK {
+                return Err(format!("no {when:?} in the battle"));
+            }
+            // A script leading into a battle: A through its messages.
+            let k = if lead_in {
+                Buttons::A
+            } else {
+                self.battle_key(slot, false)
+            };
+            self.tap(k);
+        }
+        Ok(true)
+    }
+
+    /// Lets a battle moment show (a message prints, a bar drains a little), then names it.
+    fn battle_shot(&mut self, when: When, name: &'static str) -> Result<(), String> {
+        let wait = match when {
+            When::Message(_) => 60,
+            When::HpDrain => 4,
+            // The menu's window and cursor are drawn.
+            When::ActionMenu | When::MoveMenu => 8,
+        };
+        for _ in 0..wait {
+            if !self.battle_moment(when) {
+                break;
+            }
+            self.press(Buttons::NONE);
+        }
+        self.run(Action::Shot(name))
     }
 
     /// Whether a battle moment has come.
@@ -499,7 +549,7 @@ impl<G: GameData> Recorder<G> {
                         self.press(Buttons::NONE);
                     } else if self.world().in_battle() {
                         calm = 0;
-                        self.battle(0, false)?;
+                        self.battle(0, false).map(drop)?;
                     } else {
                         calm = 0;
                         self.tap(Buttons::A);
@@ -559,43 +609,36 @@ impl<G: GameData> Recorder<G> {
                 if !self.world().in_battle() {
                     return Err("not in a battle".into());
                 }
-                self.battle(slot, false)
+                self.battle(slot, false).map(drop)
             }
             Action::Run => {
                 if !self.world().in_battle() {
                     return Err("not in a battle".into());
                 }
-                self.battle(0, true)
+                match self.battle(0, true)? {
+                    BattleOutcome::Ran => Ok(()),
+                    o => Err(format!("ran from the battle but it ended {o:?}")),
+                }
             }
             Action::BattleShot(slot, when, name) => {
-                while !self.battle_moment(when) {
-                    let w = self.world();
-                    let lead_in = !w.in_battle() && w.script_running();
-                    if !(w.in_battle() || lead_in) || self.frame() - start > BATTLE_STUCK {
-                        return Err(format!("no {when:?} in the battle"));
-                    }
-                    // A script leading into a battle: A through its messages.
-                    let k = if lead_in {
-                        Buttons::A
-                    } else {
-                        self.battle_key(slot, false)
-                    };
-                    self.tap(k);
+                if !self.battle_until(slot, when)? {
+                    return Err(format!("no {when:?} in the battle"));
                 }
-                // Let the moment show: a message prints, a bar drains a little.
-                let wait = match when {
-                    When::Message(_) => 60,
-                    When::HpDrain => 4,
-                    // The menu's window and cursor are drawn.
-                    When::ActionMenu | When::MoveMenu => 8,
-                };
-                for _ in 0..wait {
-                    if !self.battle_moment(when) {
-                        break;
+                self.battle_shot(when, name)
+            }
+            Action::LevelUp(a, b, slot, name) => {
+                let when = When::Message(Str::PkmnGrewToLv);
+                loop {
+                    if self.frame() - start > 8 * BATTLE_STUCK {
+                        return Err("never grew a level".into());
                     }
-                    self.press(Buttons::NONE);
+                    self.run(Action::Grass(a, b))?;
+                    if self.battle_until(slot, when)? {
+                        self.battle_shot(when, name)?;
+                        return self.run(Action::Fight(slot));
+                    }
+                    self.settle()?;
                 }
-                self.run(Action::Shot(name))
             }
         }
     }
@@ -708,9 +751,7 @@ pub const EMERALD_ROUTE: &[Action] = &[
     Action::Shot("after_wild"),
     Action::Grass((12, 11), (13, 11)),
     Action::Run,
-    Action::Grass((12, 11), (13, 11)),
-    Action::BattleShot(0, When::Message(Str::PkmnGrewToLv), "level_up"),
-    Action::Fight(0),
+    Action::LevelUp((12, 11), (13, 11), 0, "level_up"),
     // Oldale: the Pokémon Center nurse (`Common_EventScript_PkmnCenterNurse`, across the
     // counter) heals the party and the respawn moves here.
     Action::GoTo(10, 0),
