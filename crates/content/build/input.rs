@@ -1,7 +1,7 @@
 //! Everything the generator needs, in memory: read from `content/extracted/` ([`load`]) or
 //! built in ([`crate::stub`]). [`write`] does the reverse of [`load`] (for test fixtures).
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use extract::export::{read_map, read_ron, read_tileset, to_ron};
 use extract::gfx::{self, IndexedImage, Palette};
 use extract::schema::{
@@ -152,14 +152,23 @@ pub fn load(dir: &Path) -> Result<World> {
         manifest.format
     );
     // Within a format, files are only added: an older minor lacks some (Milestone 8).
-    ensure!(
-        manifest.format_minor >= extract::schema::FORMAT_MINOR,
-        "{}: format v{}.{}, expected v{FORMAT_VERSION}.{}; re-run `cargo xtask extract`",
-        dir.display(),
-        manifest.format,
-        manifest.format_minor,
-        extract::schema::FORMAT_MINOR
-    );
+    if manifest.format_minor < extract::schema::FORMAT_MINOR {
+        let missing =
+            extract::schema::missing_since(manifest.format_minor, |p| dir.join(p).exists());
+        bail!(
+            "{}: format v{}.{}, expected v{FORMAT_VERSION}.{} (missing: {}); re-run `cargo xtask \
+             extract`",
+            dir.display(),
+            manifest.format,
+            manifest.format_minor,
+            extract::schema::FORMAT_MINOR,
+            if missing.is_empty() {
+                "none of the listed files".to_string()
+            } else {
+                missing.join(", ")
+            }
+        );
+    }
     let lang = lang(&manifest.language)?;
     let maps = manifest
         .maps

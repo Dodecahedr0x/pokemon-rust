@@ -93,8 +93,17 @@ fn main() {
     let g = codegen::generate(&world).unwrap_or_else(|e| panic!("generating content: {e:#}"));
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let build_dir = manifest_dir.join("build");
-    for name in ["commands.ron", "specials.ron"] {
-        println!("cargo::rerun-if-changed=build/support/{name}");
+    // Every support table, including ones Wave 1 adds (`movements.ron`).
+    let support_dir = build_dir.join("support");
+    let mut tables: Vec<_> = std::fs::read_dir(&support_dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", support_dir.display()))
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "ron"))
+        .collect();
+    tables.sort();
+    println!("cargo::rerun-if-changed={}", support_dir.display());
+    for t in &tables {
+        println!("cargo::rerun-if-changed={}", t.display());
     }
     let support = scripts::support(&build_dir).unwrap_or_else(|e| panic!("{e:#}"));
     let sc = scripts::generate(real.then_some(dir.as_path()), &out, &world, &support)
