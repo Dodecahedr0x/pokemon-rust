@@ -1,5 +1,6 @@
 //! Compiles `content/extracted/` (written by `cargo xtask extract`) into `'static` tables in
-//! `$OUT_DIR/{consts,data,scripts,battle}.rs` (+ `battle.bin`). Without an extracted dir it builds a small built-in
+//! `$OUT_DIR/{consts,data,scripts,battle}.rs` (+ `battle.bin`), and `content::BUILD_ID` into
+//! `$OUT_DIR/build_id.rs` (`build_id.rs`). Without an extracted dir it builds a small built-in
 //! world instead and sets `cfg(pkr_stub)`.
 //!
 //! `PKR_EXTRACTED_DIR` overrides the extracted dir (tests point it at a fixture, or at a
@@ -7,6 +8,10 @@
 
 mod battle;
 mod battle_load;
+mod build_id;
+#[allow(dead_code)]
+#[path = "../../engine/build_support.rs"]
+mod build_support;
 mod classify;
 mod codegen;
 #[allow(dead_code)]
@@ -34,7 +39,13 @@ fn main() {
     // `cargo xtask extract`, which links this crate, can run to replace it.
     let stale =
         manifest.exists() && input::format_of(&manifest) != Some(extract::schema::FORMAT_VERSION);
-    let world = if manifest.exists() && !stale {
+    // `BUILD_ID` hashes the content sources: any edit under them reruns this script.
+    println!("cargo::rerun-if-changed=src");
+    println!("cargo::rerun-if-changed=build");
+    let real = manifest.exists() && !stale;
+    let id = build_id::build_id(&manifest_dir, real.then_some(dir.as_path()))
+        .unwrap_or_else(|e| panic!("hashing the content build inputs: {e}"));
+    let world = if real {
         let dir = dir.canonicalize().unwrap();
         println!("cargo::rerun-if-changed={}", dir.display());
         println!("cargo::rustc-env=PKR_EXTRACTED={}", dir.display());
@@ -82,6 +93,7 @@ fn main() {
         write_if_changed(&out.join(name), src.as_bytes());
     }
     write_if_changed(&out.join("battle.bin"), &g.battle_bin);
+    write_if_changed(&out.join("build_id.rs"), format!("{id:#018x}\n").as_bytes());
 }
 
 /// Keeps the mtime when nothing changed.
