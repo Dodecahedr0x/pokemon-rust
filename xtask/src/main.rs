@@ -149,9 +149,11 @@ fn shot() -> Result<()> {
     fresh_extract()?;
     let rom = rom()?;
     let rec = game_native::scenario::record_route().map_err(anyhow::Error::msg)?;
-    let checkpoints: Vec<u32> = rec.moments.iter().map(|m| m.frame + 1).collect();
-    let total = rec.frames().max(checkpoints.last().copied().unwrap_or(0));
-    let run = emu::run_rom(&rom, |f| rec.keys_at(f), total, &checkpoints)?;
+    let picture_frames: Vec<u32> = rec.moments.iter().map(|m| m.frame + 1).collect();
+    let total = rec
+        .frames()
+        .max(picture_frames.last().copied().unwrap_or(0));
+    let run = emu::run_rom(&rom, |f| rec.keys_at(f), total, &picture_frames)?;
     let mut native = game_native::Session::new(content::Emerald::for_shells());
     let dir = root().join("target/shots");
     std::fs::create_dir_all(&dir)?;
