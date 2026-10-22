@@ -4,7 +4,7 @@
         label: "route:stub_start",
         schema: 1,
         build: (
-            engine: 18443809362056734937,
+            engine: 3299972936233125756,
             content: 15220190035815031481,
         ),
         frame: 24,
@@ -16,7 +16,7 @@
         schema: 2,
         parent: NewGame,
         build: (
-            engine: 18443809362056734937,
+            engine: 3299972936233125756,
             content: 15220190035815031481,
         ),
         start_frame: 0,
