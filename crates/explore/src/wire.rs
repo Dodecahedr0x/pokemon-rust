@@ -61,6 +61,8 @@ pub struct GenOutcome {
     pub generation: u32,
     pub stats: GenStats,
     pub findings: u32,
+    /// The most goals reached by a node this generation inserted (0 if none).
+    pub max_progress: u32,
     /// Host time per phase (report-only, never in the db).
     pub phases: Phases,
 }
@@ -231,6 +233,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             generation: delta.generation,
             stats: delta.stats,
             findings: delta.findings.len() as u32,
+            max_progress: delta.nodes.iter().map(|n| n.progress).max().unwrap_or(0),
             phases,
         }))
     }

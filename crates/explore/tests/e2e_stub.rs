@@ -13,9 +13,12 @@ use game_native::Session;
 use std::collections::BTreeSet;
 use std::path::Path;
 
+/// The default config with Task G's batch of 32 (the runner's `DEFAULT_BATCH`), which keeps
+/// these debug runs short; the coverage test runs the true defaults.
 fn config(threads: usize) -> Config {
     Config {
         threads,
+        batch: 0,
         ..Config::default()
     }
 }
@@ -50,18 +53,16 @@ fn reachable() -> BTreeSet<(i16, i16)> {
 }
 
 #[test]
-fn thirty_generations_cover_the_stub_and_reach_every_goal() {
+fn ten_default_generations_cover_the_stub_and_reach_every_goal() {
     if !content::STUB {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
-    // One WalkTo per cell (`cell_shift` 0): with the default 4x4 blocks the walks between
-    // block centres follow the same BFS lines and leave about half the cells unvisited
-    // (Task H tunes the density).
-    let mut cfg = config(0);
-    cfg.key.cell_shift = 0;
+    // The default 4x4 blocks: random plans walk to a seeded cell of the block (Task H), so
+    // the walks reach every cell, not only the lines between block centres.
+    let cfg = Config::default();
     let mut ex = Explore::open(Emerald::for_shells(), &dir.path().join("explore.db"), cfg).unwrap();
-    ex.run(Budget::Generations(30), |_| {}).unwrap();
+    ex.run(Budget::Generations(10), |_| {}).unwrap();
     let stats = ex.stats().unwrap();
     assert_eq!(stats.max_progress as usize, explore::goals::goals().len());
     assert_eq!(stats.findings, 0, "{:?}", ex.db.findings().unwrap());
@@ -182,17 +183,14 @@ fn a_walled_in_start_is_one_softlock_that_reproduces() {
     wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
         .unwrap()
         .unwrap();
-    // Without the wall the same finding does not reproduce.
-    let free = WallAround {
-        inner,
-        map: ng.map,
-        at: (0, 0),
-    };
-    assert!(
-        wire::reproduce(&free, &ex.db, f.id, &ex.cfg)
-            .unwrap()
-            .is_err()
-    );
+    // Without the wall (and its exit warp) the same finding does not reproduce. The stub has
+    // no event that changes a flag, a var or the map, so a walled game with the exit warp
+    // anywhere else is trapped too (the probe compares places, not the party: Task H); the
+    // plain stub has no exit at all (`NoExits`).
+    let why = wire::reproduce(&inner, &ex.db, f.id, &ex.cfg)
+        .unwrap()
+        .unwrap_err();
+    assert!(why.contains("NoExits"), "{why}");
     assert!(
         wire::reproduce(&game, &ex.db, 99, &ex.cfg).is_err(),
         "no finding 99"
