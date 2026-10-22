@@ -1,9 +1,45 @@
 //! [`Objects`] to and from its checkpoint DTO (Milestone 5 Task B).
 
-use super::{Action, ActionKind, Idle, Object, Objects, RunState, anim::Anim};
+use super::{
+    Action, ActionKind, Idle, JUMP_Y_HIGH, JUMP_Y_NORMAL, Object, Objects, RunState, anim::Anim,
+};
 use crate::checkpoint::{
     ActionKindSnap, ActionSnap, IdleSnap, ObjectSnap, ObjectsSnap, RunStateSnap,
 };
+use crate::script::Speed;
+
+/// Checks an action from an untrusted snapshot against what `Object::begin` and `tick` can
+/// leave between frames, so stepping it cannot panic: `t` frames played (at least the first,
+/// and fewer than the action lasts), an offset back along `dir` that the action can have, and
+/// the jump height its table gives for `t`.
+fn check_action(a: &ActionSnap) -> Result<(), &'static str> {
+    // (frames, cells of offset at most, jump table and its index shift)
+    let (frames, cells, jump): (u8, i16, Option<(&[i8; 16], u8)>) = match a.kind {
+        ActionKindSnap::Walk(Speed::Slow) => (31, 1, None),
+        ActionKindSnap::Walk(Speed::Normal) => (16, 1, None),
+        ActionKindSnap::Walk(Speed::Fast) | ActionKindSnap::Run => (8, 1, None),
+        ActionKindSnap::Walk(Speed::Faster) => (4, 1, None),
+        ActionKindSnap::InPlace(n) => (n, 0, None),
+        ActionKindSnap::Jump(0) => (16, 0, Some((&JUMP_Y_HIGH, 0))),
+        ActionKindSnap::Jump(1) => (16, 1, Some((&JUMP_Y_NORMAL, 0))),
+        ActionKindSnap::Jump(2) => (32, 2, Some((&JUMP_Y_HIGH, 1))),
+        ActionKindSnap::Jump(_) => return Err("jump of more than 2 cells"),
+        ActionKindSnap::Delay(n) => (n.max(1), 0, None),
+    };
+    if !(1..frames).contains(&a.t) {
+        return Err("action frame out of range");
+    }
+    let (dx, dy) = a.dir.delta();
+    let k = -(a.off.0 * dx + a.off.1 * dy);
+    if a.off != (-k * dx, -k * dy) || !(0..=16 * cells).contains(&k) {
+        return Err("action offset inconsistent with its direction");
+    }
+    let want = jump.map_or(0, |(table, shift)| table[((a.t - 1) >> shift) as usize]);
+    if a.jump_y != want {
+        return Err("jump height off its table");
+    }
+    Ok(())
+}
 
 impl Objects {
     /// Every hashed field. Live movement scripts are not kept: capture requires
@@ -22,6 +58,19 @@ impl Objects {
             },
             objs: self.objs.iter().map(Object::snapshot).collect(),
         }
+    }
+
+    /// Checks a snapshot from an untrusted source (forged, or another engine build) so that
+    /// restoring and stepping it cannot panic: every action and animation is one the live
+    /// objects can be in between frames.
+    pub(crate) fn check_snapshot(s: &ObjectsSnap) -> Result<(), &'static str> {
+        for o in &s.objs {
+            if let Some(a) = &o.action {
+                check_action(a)?;
+            }
+            Anim::check_snapshot(o.anim)?;
+        }
+        Ok(())
     }
 
     /// `vram`, `uploaded` and `banks` start empty; the boot frame's `draw` refills them.

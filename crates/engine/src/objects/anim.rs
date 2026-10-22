@@ -145,6 +145,16 @@ impl Anim {
         }
     }
 
+    /// `cmd` indexes 4-entry tables.
+    pub(super) const fn check_snapshot(s: AnimSnap) -> Result<(), &'static str> {
+        if s.cmd < 4 {
+            Ok(())
+        } else {
+            Err("animation command out of range")
+        }
+    }
+
+    /// Check it first ([`Anim::check_snapshot`]).
     pub(super) const fn from_snapshot(s: AnimSnap) -> Anim {
         Anim {
             table: match s.table {
@@ -152,8 +162,7 @@ impl Anim {
                 AnimTableSnap::Go(d) => Table::Go(d),
                 AnimTableSnap::Run => Table::Run,
             },
-            // `cmd` indexes 4-entry tables.
-            cmd: s.cmd & 3,
+            cmd: s.cmd,
             timer: s.timer,
         }
     }

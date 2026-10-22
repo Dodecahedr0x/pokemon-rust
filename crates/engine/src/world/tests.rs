@@ -13,6 +13,8 @@ const WALL: u16 = 1 | 1 << BLOCK_COLLISION_SHIFT;
 const DOOR: u16 = 2;
 const MAT: u16 = 3;
 const GRASS: u16 = 4;
+/// A border unlike the wall: what a crossing leaves drawn from the other map shows.
+const ROUTE_BORDER: u16 = 5 | 1 << BLOCK_COLLISION_SHIFT;
 
 static TILES: [Tile; 5] = [
     [0; 8],
@@ -24,10 +26,17 @@ static TILES: [Tile; 5] = [
 static TS: Tileset = Tileset {
     tiles: &TILES,
     palettes: &[[0x1234; 16]; 16],
-    // Metatile k uses tile k on the bottom layer.
-    metatiles: &[[0; 8], [1, 1, 1, 1, 0, 0, 0, 0], [2; 8], [3; 8], [4; 8]],
-    // Raw behavior = metatile id.
-    attributes: &[0, 1, 2, 3, 4],
+    // Metatile k uses tile k on the bottom layer; 5 is the route's border (tile 2, blocked).
+    metatiles: &[
+        [0; 8],
+        [1, 1, 1, 1, 0, 0, 0, 0],
+        [2; 8],
+        [3; 8],
+        [4; 8],
+        [2, 2, 2, 2, 0, 0, 0, 0],
+    ],
+    // Raw behavior = metatile id (5: blocked, as the wall).
+    attributes: &[0, 1, 2, 3, 4, 1],
 };
 static TS2: Tileset = Tileset {
     tiles: &[],
@@ -207,7 +216,7 @@ static MAPS: [MapData; 3] = [
         width: 10,
         height: 10,
         blocks: &ROUTE_BLOCKS,
-        border: [WALL; 4],
+        border: [ROUTE_BORDER; 4],
         primary: &TS,
         secondary: &TS2,
         objects: &[obj(1, 2, 2, 1, None)],

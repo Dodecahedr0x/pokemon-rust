@@ -9,7 +9,7 @@ use crate::checkpoint::{
     Checkpoint, Header, NotCapturable, RestoreError, SCHEMA, TemplateDelta, WorldSnapshot,
     build_hash,
 };
-use crate::data::{GameData, ObjectEvent, PLAYER};
+use crate::data::{GameData, Gfx, ObjectEvent, PLAYER};
 use crate::field::Field;
 use crate::flow::{Fader, Input, Transition, Vars};
 use crate::mon::{PARTY_SIZE, Party};
@@ -22,8 +22,8 @@ use alloc::vec::Vec;
 
 impl World {
     /// `Ok` when the world can be captured: field mode, no transition, no script or pending
-    /// answer, a pristine text box, no fade, and no object running a movement script (checked
-    /// in that order).
+    /// answer, a pristine text box, no fade, no object running a movement script, and no cell
+    /// in view left from the map before a connection crossing (checked in that order).
     pub fn capturable(&self) -> Result<(), NotCapturable> {
         let s = &self.s;
         match s.mode {
@@ -43,10 +43,13 @@ impl World {
         if !s.fader.is_done() || s.fader.level() != 0 {
             return Err(NotCapturable::Fade);
         }
-        match s.objects.any_moves() {
-            Some(id) => Err(NotCapturable::Moving(id)),
-            None => Ok(()),
+        if let Some(id) = s.objects.any_moves() {
+            return Err(NotCapturable::Moving(id));
         }
+        if s.field.view_stale() {
+            return Err(NotCapturable::StaleView);
+        }
+        Ok(())
     }
 
     /// The semantic state, if [`World::capturable`]. `game` gives the current map's object
@@ -99,10 +102,18 @@ impl World {
             return Err(RestoreError::Schema(cp.header.schema));
         }
         let w = &cp.world;
+        if cp.header.frame != w.frame {
+            return Err(RestoreError::Invalid(
+                "header frame differs from the world's",
+            ));
+        }
         for map in [w.field.map, w.objects.map] {
             if !game.has_map(map) {
                 return Err(RestoreError::UnknownMap(map));
             }
+        }
+        if w.objects.map != w.field.map {
+            return Err(RestoreError::Invalid("objects and field on different maps"));
         }
         if w.objects.objs.first().is_none_or(|o| o.local_id != PLAYER) {
             return Err(RestoreError::NoPlayer);
@@ -111,6 +122,8 @@ impl World {
         if w.party.len() > PARTY_SIZE {
             return Err(RestoreError::PartyTooLarge);
         }
+        Field::check_snapshot(game, &w.field).map_err(RestoreError::Invalid)?;
+        Objects::check_snapshot(&w.objects).map_err(RestoreError::Invalid)?;
         let mut party = Party::default();
         for &p in &w.party {
             let _ = party.push(p);
@@ -122,6 +135,7 @@ impl World {
                     local_id,
                 }
             })?;
+        check_objects_against_templates(w, &templates)?;
         let mut world = World {
             frame: w.frame,
             runner: Runner::restore_idle(w.runner_issued),
@@ -166,13 +180,15 @@ impl World {
 
     /// The boot frame of a restored world: every upload its state implies, for a screen whose
     /// VRAM is unknown (a fresh PPU, or the GBA's blanked boot). Only render caches change
-    /// (OBJ VRAM slots and palette banks); the pristine text box needs nothing, BG0 stays off.
-    fn restore_frame(&mut self, game: &impl GameData) -> Frame {
+    /// (OBJ VRAM slots and palette banks). The text box is pristine: BG0 is cleared and
+    /// disabled as `TextBox::close` leaves it, so the frame is right over any old picture.
+    pub(in crate::world) fn restore_frame(&mut self, game: &impl GameData) -> Frame {
         let s = &mut self.s;
         let mut f = Frame {
             bulk: true,
             ..Frame::default()
         };
+        TextBox::new().close(&mut f);
         s.field.upload_all(game, &mut f);
         s.objects.invalidate_vram();
         s.objects.draw(game, s.field.camera(), &mut f);
@@ -198,6 +214,31 @@ fn template_deltas(map: &[ObjectEvent], live: &[ObjectEvent]) -> Vec<TemplateDel
             })
         })
         .collect()
+}
+
+/// Every object of the current map comes from one of its templates (scripts spawn and remove
+/// objects, they never make new ones), with the template's fixed graphics.
+fn check_objects_against_templates(
+    w: &WorldSnapshot,
+    templates: &[ObjectEvent],
+) -> Result<(), RestoreError> {
+    let map = w.field.map;
+    for o in (w.objects.objs.iter()).filter(|o| o.map == map && o.local_id != PLAYER) {
+        let t = (templates.iter())
+            .find(|t| t.local_id == o.local_id)
+            .ok_or(RestoreError::UnknownTemplate {
+                map,
+                local_id: o.local_id,
+            })?;
+        if let Gfx::Fixed(g) = t.gfx
+            && o.gfx != Some(g)
+        {
+            return Err(RestoreError::Invalid(
+                "object graphics differ from its template",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The map's templates with `deltas` applied; `Err(local id)` for a delta naming no template.
