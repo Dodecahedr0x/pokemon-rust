@@ -62,7 +62,7 @@ fn the_top_frame_row_is_drawn_on_screen_row_0() {
     let mut m = Multichoice::new(&FONT, 0, &ONE, (0, 0), 0, true);
     let mut f = Frame::default();
     let pen = Pen::new(Colors::new(2, 3, 1));
-    m.draw_next(&FONT, &pen, &mut f);
+    m.draw_next(&FONT, &pen, GLYPHS_PER_FRAME, &mut f);
     let starts: Vec<u16> = (f.cmds.iter())
         .filter_map(|c| match c {
             Cmd::MapEntries { start, .. } => Some(*start),
@@ -71,4 +71,34 @@ fn the_top_frame_row_is_drawn_on_screen_row_0() {
         .collect();
     let rows: Vec<u16> = starts.iter().map(|s| s / MAP_SIZE as u16).collect();
     assert_eq!(rows, [0, 1, 2, 3]);
+}
+
+#[test]
+fn a_long_choice_is_drawn_over_several_frames() {
+    use crate::video::Cmd;
+    // 30 glyphs (and a control code, which costs nothing): three frames of at most 12.
+    static LONG: [&[u8]; 1] = [&{
+        let mut t = [1u8; 32];
+        t[5] = 0xFC;
+        t[6] = 0x01;
+        t[31] = 0xFF;
+        t
+    }];
+    let mut m = Multichoice::new(&FONT, 0, &LONG, (0, 0), 0, true);
+    let pen = Pen::new(Colors::new(2, 3, 1));
+    let maps = |f: &Frame| {
+        (f.cmds.iter())
+            .filter(|c| matches!(c, Cmd::MapEntries { .. }))
+            .count()
+    };
+    let mut frames = Vec::new();
+    while !m.is_drawn() {
+        let mut f = Frame::default();
+        m.draw_next(&FONT, &pen, GLYPHS_PER_FRAME, &mut f);
+        frames.push(maps(&f));
+        assert!(frames.len() <= 3);
+    }
+    assert_eq!(GLYPHS_PER_FRAME, 12);
+    // The map rows (frame, choice, frame) come with the last glyphs only.
+    assert_eq!(frames, [0, 0, 4]);
 }

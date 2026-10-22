@@ -2,11 +2,13 @@
 //! `script_menu.c`), shown by the field [`TextBox`] on BG0 next to the message window and the
 //! yes/no box, with their frame tiles, colors and cursor.
 //!
-//! Gen3 draws the whole window at once. Here the window appears one choice per frame (its two
-//! tile rows, its glyphs and its tile uploads), so a frame's cost stays bounded by one line of
-//! text whatever the list (the M3 text budget). Input waits as Gen3's does
+//! Gen3 draws the whole window at once. Here the window appears a choice at a time, at most
+//! [`GLYPHS_PER_FRAME`] glyphs a frame (a choice's two tile rows are cleared with its first
+//! glyphs, its map rows written with its last), so a frame's cost stays bounded whatever the
+//! list (the M3 text budget): a full-width choice (28 tiles) holds up to about 50 glyphs, and
+//! drawn at once cost more than a frame on the GBA. Input waits as Gen3's does
 //! (`sProcessInputDelay`: from the third update on), and also until every choice is drawn; for
-//! lists of up to three choices that is the same frame.
+//! up to three short choices that is the same frame.
 //!
 //! [`TextBox`]: crate::text::TextBox
 
@@ -31,6 +33,11 @@ const CANVAS_TILES: usize = 512 - CANVAS_BASE as usize;
 pub const INPUT_DELAY: u8 = 2;
 /// Gen3 `MULTI_B_PRESSED`.
 pub const B_PRESSED: u16 = crate::script::MULTI_B_PRESSED;
+/// Glyphs drawn per frame at most (half on the opening frame). Measured on the GBA (scratch
+/// build, five choices of 34 and 60 glyphs): 91–129 lines of step a frame while drawing; one
+/// whole 20-glyph choice a frame peaked at 195 lines with the window's opening, and whole
+/// 34- or 60-glyph choices ran late.
+pub const GLYPHS_PER_FRAME: u8 = 12;
 /// Tile rows of the screen (BG0 map rows the window may use).
 const SCREEN_ROWS: u8 = 20;
 
@@ -88,6 +95,10 @@ pub struct Multichoice {
     entries: Vec<u16>,
     /// Choices drawn so far.
     drawn: u8,
+    /// In choice `drawn`: the byte of its text drawn next (0: the choice is not started), and
+    /// the pen's x.
+    at: u16,
+    pen_x: i16,
     cursor: u8,
     /// Gen3 `sProcessInputDelay`.
     delay: u8,
@@ -145,6 +156,8 @@ impl Multichoice {
             canvas: Canvas::new(win, layout::TEXT_CHAR_BLOCK),
             entries: win.frame_entries(),
             drawn: 0,
+            at: 0,
+            pen_x: YES_NO_TEXT_X,
             cursor: if default < count { default } else { 0 },
             delay: INPUT_DELAY,
             wrap: count > 3,
@@ -171,7 +184,11 @@ impl Multichoice {
     pub fn update(&mut self, game: &impl GameData, pressed: Buttons, f: &mut Frame) -> Choice {
         let pen = Pen::new(Colors::of(game.window()));
         if !self.is_drawn() {
-            self.draw_next(game.font(), &pen, f);
+            // The opening frame also lays the window out (and measures every choice): half
+            // the glyphs.
+            let opening = self.delay == INPUT_DELAY && self.drawn == 0 && self.at == 0;
+            let budget = GLYPHS_PER_FRAME >> opening as u8;
+            self.draw_next(game.font(), &pen, budget, f);
         }
         if self.delay > 0 {
             self.delay -= 1;
@@ -217,22 +234,52 @@ impl Multichoice {
         self.canvas.draw_glyph(font, CHAR_CURSOR, 0, y, pen);
     }
 
-    /// Choice `drawn`: its two tile rows cleared, its text (Gen3 `PrintMenuTable`: x 8,
-    /// y `16 i + 1`), the cursor if it is on it, the tiles uploaded, then its map rows (the top
-    /// frame row with the first choice, the bottom one with the last).
-    fn draw_next(&mut self, font: &Font, pen: &Pen, f: &mut Frame) {
+    /// Up to `budget` glyphs of choice `drawn` (Gen3 `PrintMenuTable`: x 8,
+    /// y `16 i + 1`): its two tile rows cleared first; when its text ends, the cursor if it is
+    /// on it, then its map rows (the top frame row with the first choice, the bottom one with
+    /// the last). The tiles drawn are uploaded each frame.
+    fn draw_next(&mut self, font: &Font, pen: &Pen, budget: u8, f: &mut Frame) {
         let i = self.drawn;
         let y = i as i16 * LINE_HEIGHT;
-        let w_px = self.window().width() as i16 * 8;
-        self.canvas
-            .fill_rect(0, y, w_px, LINE_HEIGHT, pen.colors().bg);
+        if self.at == 0 {
+            let w_px = self.window().width() as i16 * 8;
+            (self.canvas).fill_rect(0, y, w_px, LINE_HEIGHT, pen.colors().bg);
+        }
         let text = self.items[i as usize];
-        (self.canvas).draw_line(font, text, YES_NO_TEXT_X, y + TEXT_Y, pen);
+        let mut at = self.at as usize;
+        let mut glyphs = 0;
+        let done = loop {
+            let Some(&b) = text.get(at) else {
+                break true;
+            };
+            let glyph = match b {
+                EOS | NEWLINE => break true,
+                EXTRA_SYMBOL => text.get(at + 1).map(|&a| 0x100 | a as u16),
+                c if c >= 0xF7 => None,
+                c => Some(c as u16),
+            };
+            if let Some(g) = glyph {
+                if glyphs == budget {
+                    break false;
+                }
+                let w = (self.canvas).draw_glyph(font, g, self.pen_x, y + TEXT_Y, pen);
+                self.pen_x = self.pen_x.saturating_add(w);
+                glyphs += 1;
+            }
+            at += unit_len(text, at);
+        };
+        if !done {
+            self.at = at.min(u16::MAX as usize) as u16;
+            self.canvas.flush(f);
+            return;
+        }
         if self.cursor == i {
             self.draw_cursor(font, pen);
         }
         self.canvas.flush(f);
         self.drawn += 1;
+        self.at = 0;
+        self.pen_x = YES_NO_TEXT_X;
         let first = if i == 0 { 0 } else { 1 + 2 * i as usize };
         let last = if self.is_drawn() {
             self.entries.len() / MAP_SIZE - 1
@@ -284,6 +331,10 @@ impl Multichoice {
             win.width(),
             self.items.len() as u8,
             self.drawn,
+            self.at as u8,
+            (self.at >> 8) as u8,
+            self.pen_x as u8,
+            (self.pen_x >> 8) as u8,
             self.cursor,
             self.delay,
             self.wrap as u8 | (self.cancel as u8) << 1,
