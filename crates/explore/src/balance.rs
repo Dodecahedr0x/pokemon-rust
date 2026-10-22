@@ -20,8 +20,9 @@ pub struct BattleTracker {
     /// The player battler's HP and max HP on the first frame.
     hp_start: u16,
     max_hp: u16,
-    /// The player battler's HP on the last observed battle frame.
-    hp_last: u16,
+    /// The player battler's lowest HP over the observed battle frames (a level-up mid-battle
+    /// raises the HP, so the last value would under-count the loss).
+    hp_min: u16,
     /// The scene's outcome, once observed.
     outcome: Option<u8>,
 }
@@ -47,17 +48,17 @@ impl BattleTracker {
             opponent_level: battle.mon(Side::Opponent).level,
             hp_start: player.hp,
             max_hp: player.max_hp,
-            hp_last: player.hp,
+            hp_min: player.hp,
             outcome: scene.finished().map(|o| o as u8),
         })
     }
 
-    /// Records the player battler's HP and the outcome once the scene has one (no-op outside
-    /// a battle). HP is read in battle only, since a whiteout heals the party once the field is
-    /// back.
+    /// Records the player battler's lowest HP and the outcome once the scene has one (no-op
+    /// outside a battle). HP is read in battle only, since a whiteout heals the party once the
+    /// field is back. `hp_lost_permille` is then the deepest loss, against the starting max HP.
     pub fn observe(&mut self, w: &World) {
         if let Some((_, battle, scene)) = w.battle() {
-            self.hp_last = battle.mon(Side::Player).hp;
+            self.hp_min = self.hp_min.min(battle.mon(Side::Player).hp);
             if let Some(o) = scene.finished() {
                 self.outcome = Some(o as u8);
             }
@@ -72,7 +73,7 @@ impl BattleTracker {
     /// The battle's record. `outcome` (the driver's) wins over the observed one.
     pub fn finish(mut self, w: &World, outcome: Option<u8>) -> BattleSummary {
         self.observe(w);
-        let lost = self.hp_start.saturating_sub(self.hp_last);
+        let lost = self.hp_start.saturating_sub(self.hp_min);
         let hp_lost_permille = if self.max_hp == 0 {
             0
         } else {

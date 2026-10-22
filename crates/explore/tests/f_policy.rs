@@ -4,7 +4,8 @@
 
 use content::Emerald;
 use engine::GameData;
-use engine::battle::{BattleMon, BattleOutcome};
+use engine::battle::scene::OpenMenu;
+use engine::battle::{BattleMon, BattleOutcome, Side};
 use engine::data::{MoveId, SpeciesId};
 use engine::mon::{BattleTables, Gender, NAME_LEN, Status};
 use engine::{Buttons, World};
@@ -22,6 +23,10 @@ const BATTLE_FRAMES: u32 = 12_000;
 struct Driver {
     s: Session<Emerald>,
     last: Buttons,
+    /// The last [`Driver::fight`]: the player battler's lowest HP, and the frames a
+    /// learn-move prompt (`LearnAsk`/`LearnPick`/`StopAsk`) was open.
+    min_hp: u16,
+    learn_prompts: u32,
 }
 
 impl Driver {
@@ -36,7 +41,12 @@ impl Driver {
         } else {
             rec.keys_at(frame - 1)
         };
-        Driver { s, last }
+        Driver {
+            s,
+            last,
+            min_hp: 0,
+            learn_prompts: 0,
+        }
     }
 
     fn w(&self) -> &World {
@@ -61,6 +71,8 @@ impl Driver {
         let mut p = Policy::new();
         let mut tracker = BattleTracker::start(self.w()).expect("in a battle");
         let start = self.w().frame();
+        self.min_hp = self.w().battle().unwrap().1.mon(Side::Player).hp;
+        self.learn_prompts = 0;
         while self.w().in_battle() {
             assert!(
                 self.w().frame() - start <= BATTLE_FRAMES,
@@ -69,6 +81,15 @@ impl Driver {
             let k = p.battle(self.w(), t, opts);
             self.tap(k);
             tracker.observe(self.w());
+            if let Some((_, battle, scene)) = self.s.world().battle() {
+                self.min_hp = self.min_hp.min(battle.mon(Side::Player).hp);
+                if matches!(
+                    scene.open_menu(),
+                    Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_) | OpenMenu::StopAsk(_))
+                ) {
+                    self.learn_prompts += 1;
+                }
+            }
         }
         tracker.finish(self.w(), None)
     }
@@ -76,13 +97,18 @@ impl Driver {
 
 /// The frames the route's battles start at (`in_battle` turns true), in order.
 fn battle_starts(rec: &Recording) -> Vec<u32> {
+    battles(rec).into_iter().map(|(f, _)| f).collect()
+}
+
+/// [`battle_starts`] with the party lead's level at each start.
+fn battles(rec: &Recording) -> Vec<(u32, u8)> {
     let mut s = Session::new(Emerald::for_shells());
     let mut out = Vec::new();
     for f in 0..rec.frames() {
         let was = s.world().in_battle();
         s.step(rec.keys_at(f));
         if !was && s.world().in_battle() {
-            out.push(f + 1);
+            out.push((f + 1, s.world().party().get(0).unwrap().level));
         }
     }
     out
@@ -166,12 +192,25 @@ fn the_tracker_records_a_battle() {
     let mut d = Driver::at(rec, start);
     let w = d.w();
     let (_, battle, _) = w.battle().unwrap();
-    let opp = battle.mon(engine::battle::Side::Opponent).level;
+    let opp = battle.mon(Side::Opponent).level;
+    let player = battle.mon(Side::Player);
+    let (hp, max_hp) = (player.hp, player.max_hp);
     let lead = w.party().get(0).unwrap().level;
     assert!(BattleTracker::start(w).is_some());
     let b = d.fight(Opts::default());
+    assert!(
+        matches!(
+            outcome(&b),
+            Some(BattleOutcome::Won | BattleOutcome::MonFled)
+        ),
+        "{b:?}"
+    );
     assert_eq!(b.opponent_level, opp);
     assert_eq!(b.player_level, lead);
+    // The deepest HP loss of the battle, against the starting max HP.
+    let want = u32::from(hp - d.min_hp) * 1000 / u32::from(max_hp);
+    assert_eq!(u32::from(b.hp_lost_permille), want);
+    assert!(b.hp_lost_permille > 0, "{b:?}");
     let want = if content::STUB { 0 } else { 1 };
     assert_eq!(b.kind, want);
     // Not in a battle: no tracker.
@@ -222,8 +261,14 @@ fn first_damaging_slot_skips_status_and_empty_moves() {
     // Empty slot skipped.
     let m = mon([Some(status), None, None, Some(a)], [5, 0, 0, 3]);
     assert_eq!(first_damaging_slot(&m, t), 3);
-    // Nothing usable: slot 0.
+    // No damaging move with PP: the first move with PP (never a 0-PP slot, which the engine
+    // refuses forever while another move has PP).
     let m = mon([Some(status), Some(a), None, None], [5, 0, 0, 0]);
+    assert_eq!(first_damaging_slot(&m, t), 0);
+    let m = mon([Some(a), Some(status), None, None], [0, 5, 0, 0]);
+    assert_eq!(first_damaging_slot(&m, t), 1);
+    // No PP anywhere: slot 0 (the engine uses Struggle).
+    let m = mon([Some(a), Some(status), None, None], [0, 0, 0, 0]);
     assert_eq!(first_damaging_slot(&m, t), 0);
     assert_eq!(first_damaging_slot(&mon([None; 4], [0; 4]), t), 0);
 }
@@ -233,6 +278,7 @@ fn first_damaging_slot_skips_status_and_empty_moves() {
 fn the_starter_screen_takes_the_chosen_ball() {
     if content::STUB {
         // The stub's new game starts with a Pokémon: no starter screen.
+        eprintln!("skipped: stub has no starter screen");
         return;
     }
     let rec = cached_route();
@@ -273,4 +319,69 @@ fn the_starter_screen_takes_the_chosen_ball() {
             "choice {choice}"
         );
     }
+}
+
+/// A lead with a full moveset levels up into a new move: the policy keeps the known moves
+/// (B on `LearnAsk`, yes on `StopAsk`). From the route's `after_wild` node with the lead's empty
+/// slots filled, the route's keys to its level-up battle, then the policy.
+#[test]
+fn a_full_moveset_keeps_its_moves_on_level_up() {
+    let rec = cached_route();
+    let Some(&(_, node)) = rec.nodes.iter().find(|(n, _)| *n == "after_wild") else {
+        eprintln!("skipped: stub has no after_wild node");
+        return;
+    };
+    let starts = battles(rec);
+    // The first battle after the node whose next battle starts a level higher.
+    let Some(&(start, level)) = starts
+        .windows(2)
+        .find(|w| w[0].0 > node && w[1].1 > w[0].1)
+        .map(|w| &w[0])
+    else {
+        eprintln!("skipped: no level-up battle after the node");
+        return;
+    };
+    let game = Emerald::for_shells();
+    let t: &BattleTables = game.battle();
+    let mut cp = Driver::at(rec, node)
+        .s
+        .checkpoint()
+        .expect("the node is capturable");
+    let lead = &mut cp.world.party[0];
+    let mut fill = content::battle::SLICE_MOVES
+        .iter()
+        .copied()
+        .filter(|&m| t.move_info(m).power > 0 && t.move_info(m).pp > 0);
+    for i in 0..4 {
+        if lead.moves[i].is_none() {
+            let m = fill
+                .find(|m| !lead.moves.contains(&Some(*m)))
+                .expect("a move to fill");
+            lead.moves[i] = Some(m);
+            lead.pp[i] = t.move_info(m).pp;
+        }
+    }
+    let moves = lead.moves;
+    // Restore checks the capture hash on the same build: recompute it for the edited party.
+    let mut other = cp.clone();
+    other.header.build.engine ^= 1;
+    cp.header.world_hash = World::restore(&game, &other).unwrap().hash();
+    let mut d = Driver {
+        s: Session::restore(game, &cp).expect("the edited node restores"),
+        last: rec.keys_at(node - 1),
+        min_hp: 0,
+        learn_prompts: 0,
+    };
+    for f in node..start {
+        d.s.step(rec.keys_at(f));
+    }
+    d.last = rec.keys_at(start - 1);
+    assert!(d.w().in_battle(), "the route's battle starts");
+    assert_eq!(d.w().party().get(0).unwrap().level, level);
+    let b = d.fight(Opts::default());
+    assert_eq!(outcome(&b), Some(BattleOutcome::Won), "{b:?}");
+    let lead = d.w().party().get(0).unwrap();
+    assert!(lead.level > level, "no level-up");
+    assert!(d.learn_prompts > 0, "no learn-move prompt");
+    assert_eq!(lead.moves, moves, "the known moves are kept");
 }

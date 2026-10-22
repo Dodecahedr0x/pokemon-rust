@@ -685,8 +685,9 @@ pub struct Policy { last: Buttons }
 impl Policy {
     pub fn new() -> Policy;
     /// Next intent while a battle owns the frame: first damaging usable move (power > 0, pp > 0;
-    /// slot 0 if none), RUN from wild battles when `opts.run_wild` (never the first battle or a
-    /// trainer), keep known moves (B on learn prompts), A through messages.
+    /// else the first move with pp > 0; slot 0 if none), RUN from wild battles when
+    /// `opts.run_wild` (never the first battle or a trainer), keep known moves (B on learn
+    /// prompts), A through messages.
     pub fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons;
     /// Next intent while a script or the starter screen runs: A through text; yes/no -> A for
     /// choice 0, B otherwise; starter -> move to ball `opts.choice % 3`, then A.
@@ -1057,7 +1058,7 @@ STRICT tables need SQLite 3.37 or later; the bundled version is 3.53.2. `apply` 
 
 1. **`Policy::battle`:**
    - `OpenMenu::Action(c)`: navigate to FIGHT, or RUN when `opts.run_wild` and the battle is `Wild { first_battle: false }`. Use the 2x2 cursor walk of `scenario.rs:311-340`.
-   - `Move(c)`: navigate to `first_damaging_slot(battle.mon(Side::Player))`, where power > 0 and pp > 0 (from `BattleTables::move_info`); slot 0 if none.
+   - `Move(c)`: navigate to `first_damaging_slot(battle.mon(Side::Player))`, where power > 0 and pp > 0 (from `BattleTables::move_info`); else the first slot with a move and pp > 0; slot 0 only when no move has PP (the engine then uses Struggle, `core.rs` `player_action`). Falling back to a 0-PP slot 0 while another move has PP would loop on "no PP left" until `battle_frames`.
    - `LearnAsk`/`LearnPick`: B. `StopAsk(0)`: A, else UP.
    - Otherwise A.
 2. **`Policy::script`:** A through text. On `is_yes_no_active`, A for choice 0 and B otherwise. On the starter screen, LEFT/RIGHT to ball `choice % 3`, then A.

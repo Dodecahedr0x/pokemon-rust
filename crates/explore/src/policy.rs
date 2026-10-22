@@ -59,7 +59,7 @@ impl Policy {
     }
 
     /// Next intent while a battle owns the frame: first damaging usable move (power > 0, pp > 0;
-    /// slot 0 if none), RUN from wild battles when `opts.run_wild` (never the first battle or a
+    /// else the first move with pp > 0; else slot 0, where the engine uses Struggle), RUN from wild battles when `opts.run_wild` (never the first battle or a
     /// trainer), keep known moves (B on learn prompts), A through messages.
     pub fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons {
         let k = match w.battle() {
@@ -93,6 +93,9 @@ impl Policy {
 
     /// Next intent while a script or the starter screen runs: A through text; yes/no -> A for
     /// choice 0, B otherwise; starter -> move to ball `opts.choice % 3`, then A.
+    ///
+    /// B on every yes/no when `choice != 0` can cycle on a script that re-asks until it gets a
+    /// yes: the driver's `settle_frames`/`macro_frames` limits end such a macro (a `Timeout`).
     pub fn script(&mut self, w: &World, opts: Opts) -> Buttons {
         let k = if let Some(starter) = w.starter() {
             // Its own "Do you choose this?" yes/no starts on yes: A confirms the ball.
@@ -117,16 +120,21 @@ impl Policy {
     }
 }
 
-/// The first move slot of `m` with power > 0 and pp > 0 (slot 0 if none).
+/// The move slot to use: the first with power > 0 and pp > 0, else the first with a move and
+/// pp > 0 (a status move beats selecting a slot without PP, which the engine refuses forever),
+/// else slot 0 (no PP anywhere: the engine uses Struggle).
 pub fn first_damaging_slot(m: &BattleMon, t: &BattleTables) -> u8 {
-    (0..4u8)
-        .find(|&i| {
-            let i = i as usize;
-            m.moves[i].is_some_and(|id| {
-                m.pp[i] > 0 && t.moves.get(id.0 as usize).is_some_and(|mi| mi.power > 0)
-            })
-        })
-        .unwrap_or(0)
+    let usable = |i: usize| m.moves[i].is_some() && m.pp[i] > 0;
+    let damaging = |i: usize| {
+        usable(i)
+            && m.moves[i]
+                .and_then(|id| t.moves.get(id.0 as usize))
+                .is_some_and(|mi| mi.power > 0)
+    };
+    (0..4)
+        .find(|&i| damaging(i))
+        .or_else(|| (0..4).find(|&i| usable(i)))
+        .unwrap_or(0) as u8
 }
 
 #[cfg(test)]
