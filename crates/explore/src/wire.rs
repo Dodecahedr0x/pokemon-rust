@@ -29,7 +29,6 @@ use crate::model::{
 };
 use crate::observe::{NoObserver, StepObserver};
 use crate::policy::Policy;
-use crate::probe::Probe;
 use crate::rebuild::{self, RevalidateReport};
 use crate::runner::{self, Runner};
 use crate::runs;
@@ -499,10 +498,10 @@ pub fn repair<G: GameData + Clone>(
     m: &Macro,
     cfg: &Config,
 ) -> Option<(Vec<Run>, Checkpoint)> {
-    let probe = Probe::new(game.clone());
+    let game = game.clone();
     let mut s = match start {
-        None => Session::new(probe),
-        Some(cp) => Session::restore(probe, cp).ok()?,
+        None => Session::new(game),
+        Some(cp) => Session::restore(game, cp).ok()?,
     };
     let ex = expand::expand(&mut s, m, &mut Policy::new(), &mut NoObserver, &cfg.limits).ok()?;
     let end = s.checkpoint().ok()?;

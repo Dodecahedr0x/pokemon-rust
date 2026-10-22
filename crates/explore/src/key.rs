@@ -3,20 +3,21 @@
 //!
 //! A key is a pure function of a capturable [`WorldSnapshot`]: the map, the coarse cell of the
 //! player, a digest of the story flags, a digest of the story vars, a party bucket
-//! (decision 3), the respawn point and a digest of the object template deltas (Milestone 8:
-//! scripts that move an object for good, `setobjectxyperm`/`setobjectmovementtype`).
+//! (decision 3), the respawn point, a digest of the object template deltas (Milestone 8:
+//! scripts that move an object for good, `setobjectxyperm`/`setobjectmovementtype`) and a
+//! digest of the key items held.
 //! Temporary and special flags and vars, the flags cleared on every map change and the
 //! content's counters, random vars and object graphics vars ([`EXCLUDED_VARS`]) are always left
 //! out, so that walking around does not make new keys. `KeyConfig::ignore_*` only adds user
 //! exclusions.
 //!
 //! The content lookups (cleared flags, [`EXCLUDED_VARS`]) read `content` directly, not the
-//! `GameData` being simulated: a wrapper (`Probe`, the `testing` faults) never changes them.
+//! `GameData` being simulated: a wrapper (the `testing` faults) never changes them.
 
 use crate::config::KeyConfig;
 use crate::model::{AbstractKey, KeyParts, PartyBucket};
-use engine::checkpoint::{TemplateDelta, WorldSnapshot};
-use engine::data::{Dir, FlagId, GameData, MovementType, VarId};
+use engine::checkpoint::{BagSnap, TemplateDelta, WorldSnapshot};
+use engine::data::{Dir, FlagId, GameData, MovementType, Pocket, VarId};
 use engine::flow::{FLAG_COUNT, TEMP_FLAGS_END, TEMP_VARS_END, VARS_END};
 
 /// Domain tags, so that a key, a place and the digests never collide by construction.
@@ -26,10 +27,12 @@ const TAG_KEY: u64 = 0x4b45_594b_4559_2121; // "KEYKEY!!"
 
 const TAG_PLACE: u64 = 0x4b45_5950_4c41_4345; // "KEYPLACE"
 const TAG_TEMPLATES: u64 = 0x4b45_5954_454d_504c; // "KEYTEMPL"
+const TAG_KEY_ITEMS: u64 = 0x4b45_594b_4559_4954; // "KEYKEYIT"
 
 /// The version of the key fold, recorded as `meta.key_version`. 1: Milestone 7. 2 (Milestone 8
 /// Task K): the respawn point and the template deltas join the key, `VAR_OBJ_GFX_ID_*` leave it.
-pub const KEY_VERSION: u32 = 2;
+/// 3 (Task K phase 2): the key items digest joins the key.
+pub const KEY_VERSION: u32 = 3;
 
 /// The splitmix64 finalizer (Steele, Lea and Flood): a bijective, platform-independent mix.
 pub const fn splitmix64(x: u64) -> u64 {
@@ -159,6 +162,22 @@ pub fn templates_digest(templates: &[TemplateDelta]) -> u64 {
     })
 }
 
+/// Digest of the key items held (the `KeyItems` pocket's item ids, sorted: the order they were
+/// obtained in does not count).
+pub fn key_items_digest(bag: &BagSnap) -> u64 {
+    let mut items: Vec<u16> = bag
+        .slots
+        .iter()
+        .filter(|s| s.pocket == Pocket::KeyItems && s.qty > 0)
+        .map(|s| s.item.0)
+        .collect();
+    items.sort_unstable();
+    items.dedup();
+    items
+        .into_iter()
+        .fold(TAG_KEY_ITEMS, |h, i| fold(h, u64::from(i)))
+}
+
 pub fn key_parts(snap: &WorldSnapshot, cfg: &KeyConfig) -> KeyParts {
     let pos = snap.objects.objs.first().map_or((0, 0), |p| p.pos);
     let shift = u32::from(cfg.cell_shift.min(15));
@@ -184,6 +203,7 @@ pub fn key_parts(snap: &WorldSnapshot, cfg: &KeyConfig) -> KeyParts {
         party: party_bucket(snap, cfg),
         respawn: snap.respawn,
         templates: templates_digest(&snap.templates),
+        key_items: key_items_digest(&snap.bag),
     }
 }
 
@@ -200,7 +220,8 @@ fn fold_parts(tag: u64, parts: &KeyParts) -> u64 {
     h = fold(h, u64::from(p.level_bucket));
     h = fold(h, u64::from(p.fainted));
     h = fold(h, u64::from(parts.respawn));
-    fold(h, parts.templates)
+    h = fold(h, parts.templates);
+    fold(h, parts.key_items)
 }
 
 /// Stable splitmix fold, platform-independent.
@@ -274,6 +295,7 @@ mod tests {
             party: Default::default(),
             respawn: 0,
             templates: 0,
+            key_items: 0,
         };
         let mut b = a.clone();
         b.cell = (3, 3);

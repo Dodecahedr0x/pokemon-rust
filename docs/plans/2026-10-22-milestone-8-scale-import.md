@@ -1132,5 +1132,13 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
 - 50-generation digests, identical on 1, 4, 8 threads and 25+25: real `0x02157751a7452ae3`, stub `0xf68ea453a6b24e45`.
 - **Task S item:** `crates/studio/src/native.rs:180` refuses traces whose parent is not a new game, so findings of a `--from` db (traces from `Parent::Checkpoint`) do not open in the studio pane.
 
+## Task K as built (Phase 2: item 5, key version 3)
+- `Probe` is deleted: sessions are `Session<G>`. `SimSummary.maps` / `scripts` come from `MapEntered` / `ScriptStarted`; a battle is tracked from `BattleStarted` to the frame the field is back, with the `BattleEnded` outcome. Dropped events (past `EVENTS_MAX`) become an expansion note.
+- `FindingKind::Unsupported` (report-only, `kind_name` "unsupported"): one per (report, map) per job, message `unsupported: NAME` / `degraded: NAME`, tail ending on the reporting frame; the db merges the rest by signature (`hits`). It reproduces when the replay's last frame has the report. Fixture: `testing::Reporting` (every script reports first), `tests/m8_k_events.rs`.
+- **Deviation (last script):** the finding's `script` is the last `ScriptStarted` over its tail (the job's steps, then the failed expansion, the panicking frame included), not `World::last_script()`: that resets on restore, and the explorer restores mid-job (a failed random try), while a replay from the root would count the lineage too. `reproduce` folds the same events over the tail's frames. `CapturableStuck` and `RoundTrip` signatures include it; other kinds do not.
+- Key version 3: the key items held (`KeyItems` pocket ids, sorted, so the order obtained does not count) join the key, not the place. Pin: key `0xc72f_46f9_8e19_820c` (place unchanged).
+- Every Milestone 8 `GameData` method is forwarded by the `testing` wrappers (`Drifting` drifts `wild_encounters`, which the engine reads, as well as `encounters`) and the guard's test game; `testing::same_answers` checks each wrapper against a fixture game that answers every method.
+- 50-generation digests, identical on 1, 4, 8 threads and 25+25: real `0xeeeeab9ae5eef60f`, stub `0xbb1aa650526b2525` (the real run: 4,884 rows, 8/15 goals, 2 `CapturableStuck` findings, no `Unsupported`: the slice's scripts report nothing yet).
+
 ## Findings for Milestone 9
 *(filled at close-out.)*

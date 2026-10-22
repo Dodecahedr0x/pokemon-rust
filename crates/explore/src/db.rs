@@ -146,13 +146,14 @@ fn parse_status(s: &str) -> Result<NodeStatus, DbError> {
     })
 }
 
-const FINDING_KINDS: [FindingKind; 6] = [
+const FINDING_KINDS: [FindingKind; 7] = [
     FindingKind::Panic,
     FindingKind::Softlock,
     FindingKind::RoundTrip,
     FindingKind::CapturableStuck,
     FindingKind::PlannerDivergence,
     FindingKind::SlowFrame,
+    FindingKind::Unsupported,
 ];
 
 fn kind_str(k: FindingKind) -> String {

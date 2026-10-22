@@ -80,8 +80,8 @@ mod tests {
     use content::Emerald;
     use engine::battle::{self, BattleGfx};
     use engine::data::{
-        Behavior, Font, GfxId, MapData, MapId, NewGame, ScriptId, SpecialIds, SpriteData, TextId,
-        TrainerId, UiText, WindowGfx,
+        Behavior, Emote, Evolution, FlagId, Font, GfxId, ItemId, ItemInfo, MapData, MapId, NewGame,
+        ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText, WindowGfx,
     };
     use engine::mon::{BattleTables, LandEncounters, TrainerData};
     use engine::script::{Ctx, Script};
@@ -176,6 +176,39 @@ mod tests {
         fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
             self.0.heal_location(id)
         }
+        fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+            self.0.wild_encounters(map, wild_set)
+        }
+        fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
+            self.0.item(id)
+        }
+        fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+            self.0.multichoice(list)
+        }
+        fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+            self.0.std_string(id)
+        }
+        fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+            self.0.trainer_flag_of(script)
+        }
+        fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
+            self.0.emote(e)
+        }
+        fn trainer_money(&self, id: TrainerId) -> Option<u8> {
+            self.0.trainer_money(id)
+        }
+        fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
+            self.0.evolutions(species)
+        }
+    }
+
+    #[test]
+    fn armed_answers_the_milestone_8_methods_like_emerald() {
+        let g = Emerald::for_shells();
+        assert_eq!(
+            crate::testing::same_answers(&Armed(g, Cell::new(false)), &g),
+            Ok(())
+        );
     }
 
     #[test]

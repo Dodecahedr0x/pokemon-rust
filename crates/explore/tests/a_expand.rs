@@ -19,7 +19,6 @@ use explore::model::*;
 use explore::observe::{NoObserver, StepObserver};
 use explore::path::{self, reach};
 use explore::policy::Policy;
-use explore::probe::Probe;
 use explore::runs;
 use explore::sim::simulate;
 use game_native::Session;
@@ -289,7 +288,7 @@ fn errors_prune() {
     let game = Emerald::for_shells();
     let start = root(&game);
     // Out of the map: no path, planned up front (no frame stepped).
-    let mut s = Session::restore(Probe::new(game), &start).unwrap();
+    let mut s = Session::restore(game, &start).unwrap();
     let e = expand::expand_with(
         &mut s,
         &m(MacroKind::WalkTo { x: -3, y: 2 }),
@@ -319,7 +318,7 @@ fn errors_prune() {
 fn next_dir_heads_for_the_target() {
     let game = Emerald::for_shells();
     let start = root(&game);
-    let s = Session::restore(Probe::new(game), &start).unwrap();
+    let s = Session::restore(game, &start).unwrap();
     let r = reach(&game, &start.world);
     let p = player(&start);
     // A reachable neighbour cell: the first step goes straight to it.
@@ -623,7 +622,7 @@ fn slow_frames_never_end_a_job() {
         .cells()
         .find(|&c| c != player(&start))
         .unwrap();
-    let mut s = Session::restore(Probe::new(game), &start).unwrap();
+    let mut s = Session::restore(game, &start).unwrap();
     let ex = expand::expand_with(
         &mut s,
         &m(MacroKind::WalkTo {
@@ -726,7 +725,7 @@ fn real_stale_view_tries_each_object_once() {
     (text.x, text.y) = (8, 15);
     let text_id = text.local_id;
     let game = Fake::patched(MAP_ROUTE101, base.blocks.to_vec(), objects);
-    let mut s = Session::new(Probe::new(game));
+    let mut s = Session::new(game);
     let mut policy = Policy::new();
     for kind in [
         MacroKind::Settle,

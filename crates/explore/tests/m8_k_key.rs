@@ -1,11 +1,12 @@
-//! Milestone 8 Task K: the key gaps (key version 2). The respawn point and the object
-//! template deltas are in the key; the object graphics vars are not.
+//! Milestone 8 Task K: the key gaps (key versions 2 and 3). The respawn point, the object
+//! template deltas and the key items are in the key; the object graphics vars are not.
 
 use content::Emerald;
-use engine::checkpoint::{TemplateDelta, WorldSnapshot};
-use engine::data::{Dir, MovementType, VarId};
+use engine::checkpoint::{BagSlotSnap, TemplateDelta, WorldSnapshot};
+use engine::data::{Dir, ItemId, MovementType, Pocket, VarId};
 use explore::key::{
-    KEY_VERSION, default_key_config, key, key_parts, place_region, templates_digest,
+    KEY_VERSION, default_key_config, key, key_items_digest, key_parts, place_region,
+    templates_digest,
 };
 use game_native::Session;
 
@@ -28,8 +29,49 @@ fn place(s: &WorldSnapshot) -> u64 {
 }
 
 #[test]
-fn the_key_version_is_2() {
-    assert_eq!(KEY_VERSION, 2);
+fn the_key_version_is_3() {
+    assert_eq!(KEY_VERSION, 3);
+}
+
+#[test]
+fn key_items_are_in_the_key_in_any_order_other_pockets_are_not() {
+    let a = snap();
+    let slot = |pocket, index, item| BagSlotSnap {
+        pocket,
+        index,
+        item: ItemId(item),
+        qty: 1,
+    };
+    let with = |slots: Vec<BagSlotSnap>| {
+        let mut b = a.clone();
+        b.bag.slots = slots;
+        b
+    };
+    let devon = with(vec![slot(Pocket::KeyItems, 0, 0x0105)]);
+    assert_ne!(k(&a), k(&devon), "the Devon Goods is progress");
+    assert_eq!(place(&a), place(&devon), "the place has no items");
+    let both = with(vec![
+        slot(Pocket::KeyItems, 0, 0x0105),
+        slot(Pocket::KeyItems, 1, 0x0106),
+    ]);
+    let swapped = with(vec![
+        slot(Pocket::KeyItems, 0, 0x0106),
+        slot(Pocket::KeyItems, 1, 0x0105),
+    ]);
+    assert_ne!(k(&devon), k(&both));
+    assert_eq!(k(&both), k(&swapped), "the order obtained does not count");
+    let potion = with(vec![slot(Pocket::Items, 0, 0x000D)]);
+    assert_eq!(k(&a), k(&potion), "other pockets are not in the key");
+    assert_eq!(
+        key_items_digest(&devon.bag),
+        key_items_digest(
+            &with(vec![
+                slot(Pocket::Items, 0, 0x000D),
+                slot(Pocket::KeyItems, 0, 0x0105),
+            ])
+            .bag
+        )
+    );
 }
 
 #[test]

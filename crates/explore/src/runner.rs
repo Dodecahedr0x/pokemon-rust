@@ -172,15 +172,20 @@ impl Runner {
                     job.hit(&mut self.graph, h.row.key);
                 }
             }
+            let start = r
+                .parent
+                .and_then(|id| self.graph.node(id))
+                .map_or(0, |p| p.total_frames);
+            // Report-only: their frames are the steps' (or a failed try's, not counted).
+            for f in r.reports {
+                let tail = u64::from(runs::frames(&f.tail));
+                d.findings.push((f, r.parent, start + tail));
+            }
             match r.stop {
                 Some(Stop::Finding(f)) => {
                     let tail = u64::from(runs::frames(&f.tail));
                     // The steps' frames are counted already.
                     d.stats.frames += tail.saturating_sub(step_frames);
-                    let start = r
-                        .parent
-                        .and_then(|id| self.graph.node(id))
-                        .map_or(0, |p| p.total_frames);
                     d.findings.push((f, r.parent, start + tail));
                 }
                 Some(Stop::Pruned(_)) => d.stats.pruned += 1,

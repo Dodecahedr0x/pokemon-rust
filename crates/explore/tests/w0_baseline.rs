@@ -3,7 +3,6 @@
 //! `cargo test -p explore --release --test w0_baseline -- --ignored --nocapture`
 
 use content::Emerald;
-use explore::probe::Probe;
 use game_native::Session;
 use game_native::scenario::cached_route;
 use std::time::Instant;
@@ -42,11 +41,11 @@ fn baseline_frames_per_sec() {
         best_probe = best_probe.max(frames_per_sec(
             |i| {
                 if i == 0 {
-                    probe = Some(Session::new(Probe::new(Emerald::for_shells())));
+                    probe = Some(Session::new(Emerald::for_shells()));
                 }
                 let s = probe.as_mut().unwrap();
                 s.step(rec.keys[i]);
-                s.game().take_started();
+                std::hint::black_box(s.world().events().len());
             },
             n,
             reps,
@@ -54,7 +53,7 @@ fn baseline_frames_per_sec() {
     }
     println!(
         "route {n} frames (stub: {}), {reps} reps, best of 3: Session {best_plain:.0} frames/s, \
-         Session<Probe> {best_probe:.0} frames/s",
+         Session reading events {best_probe:.0} frames/s",
         content::STUB
     );
 }

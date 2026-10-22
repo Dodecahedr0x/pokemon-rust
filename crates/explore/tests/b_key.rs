@@ -164,10 +164,11 @@ fn the_fold_is_stable() {
         },
         respawn: 1,
         templates: 5,
+        key_items: 6,
     };
-    // KEY_VERSION 2 (Milestone 8 Task K: respawn and templates in the fold).
-    assert_eq!(explore::key::KEY_VERSION, 2);
-    assert_eq!(key(&parts).0, 0x37f7_8af8_2115_f8ee);
+    // KEY_VERSION 3 (Milestone 8 Task K: respawn, templates and key items in the fold).
+    assert_eq!(explore::key::KEY_VERSION, 3);
+    assert_eq!(key(&parts).0, 0xc72f_46f9_8e19_820c);
     assert_eq!(place_region(&parts), 0xfe1d_f57c_ca2a_8de8);
 }
 

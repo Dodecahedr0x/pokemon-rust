@@ -2,22 +2,29 @@
 //!
 //! A finding's map (in its signature) is `World::map()` after the frame that raised it, or the
 //! new game's map for a panic inside `World::new`.
+//!
+//! A finding's `script` is the last script started (`Event::ScriptStarted`) over its tail, the
+//! frame that raised it included. `World::last_script` would also count the frames before the
+//! tail on a replay from the root, and the explorer restores sessions mid-job, so it is folded
+//! from the events instead.
 
 use crate::config::DetectConfig;
 use crate::detect::Detectors;
 use crate::guard::{self, Panicked};
 use crate::model::{FindingDraft, FindingKind};
-use crate::probe::Probe;
 use engine::Buttons;
 use engine::checkpoint::{Checkpoint, build_hash};
-use engine::data::{GameData, MapId};
+use engine::data::{GameData, MapId, ScriptId};
+use engine::script::Report;
+use engine::world::Event;
 use game_native::Session;
 use game_native::trace::{CheckpointId, HASH_EVERY, Parent, Run, Trace, TraceRecorder, rle};
 
 /// Dedupe signature: FNV-1a 64 of the kind's stable name ([`kind_name`]), then the location's
 /// file (without line and column) if any, then the message with its ASCII digits stripped,
-/// then the map. A panic keeps its signature across unrelated edits that move its line; the
-/// full location stays in the finding row for display.
+/// then the map, then (`CapturableStuck` and `RoundTrip` only) the finding's last script. A
+/// panic keeps its signature across unrelated edits that move its line; the full location
+/// stays in the finding row for display.
 ///
 /// A `Softlock` is signed on its map and place instead ([`softlock_signature`], the place
 /// read back from [`softlock_message`]).
@@ -27,7 +34,15 @@ pub fn signature(f: &FindingDraft) -> u64 {
     {
         return softlock_signature(f.map, place);
     }
-    signature_of(f.kind, &f.message, f.location.as_deref(), f.map)
+    signature_of(f.kind, &f.message, f.location.as_deref(), f.map, f.script)
+}
+
+/// The message of an `Unsupported` finding: `unsupported: NAME` or `degraded: NAME`.
+pub fn report_message(r: Report) -> String {
+    match r {
+        Report::Unsupported(name) => format!("unsupported: {name}"),
+        Report::Degraded(name) => format!("degraded: {name}"),
+    }
 }
 
 /// A `Softlock` finding's message: the place (`key::place_region`) in decimal, so no hex
@@ -83,11 +98,18 @@ pub fn kind_name(kind: FindingKind) -> &'static str {
         FindingKind::CapturableStuck => "capturable_stuck",
         FindingKind::PlannerDivergence => "planner_divergence",
         FindingKind::SlowFrame => "slow_frame",
+        FindingKind::Unsupported => "unsupported",
     }
 }
 
-/// [`signature`] from its parts.
-pub fn signature_of(kind: FindingKind, message: &str, location: Option<&str>, map: MapId) -> u64 {
+/// [`signature`] from its parts (`script` counts for `CapturableStuck` and `RoundTrip` only).
+pub fn signature_of(
+    kind: FindingKind,
+    message: &str,
+    location: Option<&str>,
+    map: MapId,
+    script: Option<ScriptId>,
+) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut write = |bytes: &[u8]| {
         for &b in bytes {
@@ -104,6 +126,12 @@ pub fn signature_of(kind: FindingKind, message: &str, location: Option<&str>, ma
     write(&text);
     write(&[0xFF]);
     write(&map.0.to_le_bytes());
+    if matches!(kind, FindingKind::CapturableStuck | FindingKind::RoundTrip) {
+        match script {
+            Some(id) => write(&[&[1u8][..], &id.0.to_le_bytes()].concat()),
+            None => write(&[0]),
+        }
+    }
     h
 }
 
@@ -215,6 +243,7 @@ fn check_parent(trace: &Trace, start: Option<(CheckpointId, &Checkpoint)>) -> Re
 /// is raised at its last frame.
 ///
 /// - Slow frames are report-only and never reproduce.
+/// - An `Unsupported` finding reproduces when the last frame has its report.
 /// - A softlock is not raised by stepping: reproduce it with [`end_state`] and
 ///   `softlock::probe`.
 /// - On the trace's build, a recorded hash the replay misses is an error.
@@ -246,12 +275,21 @@ pub fn reproduce_from<G: GameData + Clone>(
     check_parent(trace, start)?;
     let want_sig = signature(want);
     let n = trace.frames();
-    let matches = |kind, message: &str, location: Option<&str>, map| {
-        signature_of(kind, message, location, map) == want_sig
+    // The tail's first frame: scripts started from there on are the finding's.
+    let tail_from = n.saturating_sub(crate::runs::keys(&want.tail).count() as u32);
+    let matches = |kind, message: &str, location: Option<&str>, map, script| {
+        signature_of(kind, message, location, map, script) == want_sig
     };
     // A panic ends the replay: it reproduces only on the last frame.
     let panicked = |at: u32, p: Panicked, map: MapId| {
-        if matches(FindingKind::Panic, &p.message, p.location.as_deref(), map) && at == n {
+        if matches(
+            FindingKind::Panic,
+            &p.message,
+            p.location.as_deref(),
+            map,
+            None,
+        ) && at == n
+        {
             Ok(())
         } else {
             Err(format!(
@@ -261,7 +299,7 @@ pub fn reproduce_from<G: GameData + Clone>(
             ))
         }
     };
-    let mut s = match start_session(Probe::new(game.clone()), start.map(|(_, cp)| cp)) {
+    let mut s = match start_session(game.clone(), start.map(|(_, cp)| cp)) {
         Ok(Ok(s)) => s,
         Ok(Err(e)) => return Err(e),
         Err(p) => {
@@ -276,11 +314,18 @@ pub fn reproduce_from<G: GameData + Clone>(
         ..cfg.clone()
     });
     let mut last = Vec::new();
+    let mut script = None;
     for (i, keys) in (1..).zip(trace.keys()) {
         if let Err(p) = guard::step_guarded(&mut s, keys) {
             return panicked(i, p, s.world().map());
         }
-        s.game().take_started();
+        if i > tail_from {
+            for e in s.world().events() {
+                if let &Event::ScriptStarted(id) = e {
+                    script = Some(id);
+                }
+            }
+        }
         if check_hashes {
             while hashes.next_if(|&(at, _)| at < i).is_some() {}
             if let Some((_, want)) = hashes.next_if(|&(at, _)| at == i) {
@@ -297,7 +342,19 @@ pub fn reproduce_from<G: GameData + Clone>(
         last = det.after_step_all(&s, keys, 0);
     }
     let map = s.world().map();
-    if last.iter().any(|f| matches(f.kind, &f.message, None, map)) {
+    let raised = if want.kind == FindingKind::Unsupported {
+        let reports = s.world().events().iter().filter_map(|e| match e {
+            &Event::Report(r) => Some(report_message(r)),
+            _ => None,
+        });
+        reports
+            .into_iter()
+            .any(|m| matches(FindingKind::Unsupported, &m, None, map, script))
+    } else {
+        last.iter()
+            .any(|f| matches(f.kind, &f.message, None, map, script))
+    };
+    if raised {
         Ok(())
     } else {
         Err(format!("not raised on the last frame ({n}): {last:?}"))

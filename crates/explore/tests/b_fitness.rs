@@ -8,13 +8,12 @@ use explore::config::{Config, Weights};
 use explore::fitness::{Archive, Evaluator, Novelty, score, selection_score};
 use explore::key;
 use explore::model::*;
-use explore::probe::Probe;
 use game_native::Session;
 use std::sync::Arc;
 
 /// The root's step: a new game settled to its first capturable frame, summarised by hand.
 fn root_step() -> StepResult {
-    let mut s = Session::new(Probe::new(Emerald::for_shells()));
+    let mut s = Session::new(Emerald::for_shells());
     let mut summary = SimSummary::default();
     let mut frames = 0;
     while s.world().capturable().is_err() {
@@ -27,7 +26,12 @@ fn root_step() -> StepResult {
         }
         let p = w.objects().player();
         summary.cells.insert((w.map(), p.x, p.y));
-        summary.scripts.extend(s.game().take_started());
+        summary
+            .scripts
+            .extend(w.events().iter().filter_map(|e| match e {
+                &engine::world::Event::ScriptStarted(id) => Some(id),
+                _ => None,
+            }));
     }
     summary.frames = frames;
     StepResult {

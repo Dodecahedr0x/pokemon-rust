@@ -143,6 +143,8 @@ pub struct KeyParts {
     pub respawn: u8,
     /// `key::templates_digest` of the object template deltas (key version 2).
     pub templates: u64,
+    /// `key::key_items_digest` of the key items held (key version 3).
+    pub key_items: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
@@ -225,7 +227,7 @@ pub struct SimSummary {
     pub maps: Vec<MapId>,
     /// Player cells stood on.
     pub cells: BTreeSet<(MapId, i16, i16)>,
-    /// Started (`Probe`).
+    /// Started (`Event::ScriptStarted`).
     pub scripts: BTreeSet<ScriptId>,
     pub battles: Vec<BattleSummary>,
     /// `World::log().count()` delta.
@@ -242,6 +244,9 @@ pub enum FindingKind {
     CapturableStuck,
     PlannerDivergence,
     SlowFrame,
+    /// A script's `Request::Report` (an unsupported or degraded command or special):
+    /// report-only, one per (report, map) (`findings::report_message`).
+    Unsupported,
 }
 
 /// A bug seen during a job, with everything needed to reproduce it.
@@ -331,6 +336,9 @@ pub struct JobResult {
     pub slow_frames: u32,
     /// What the driver did beyond the macros (`Expanded::notes`), in step order.
     pub notes: Vec<String>,
+    /// Report-only `Unsupported` findings (`Expanded::reports`), one per signature, tails from
+    /// the job's start; they never stop the job.
+    pub reports: Vec<FindingDraft>,
 }
 
 /// The merge's output: one SQLite transaction.
