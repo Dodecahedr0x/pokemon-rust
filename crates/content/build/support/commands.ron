@@ -1,0 +1,244 @@
+// Script command classes for the Milestone 8 lowering (`extract::codegen::lower`), one entry
+// per `data/script_cmd_table.inc` command, keyed by its `asm/macros/event.inc` macro name.
+//
+// - Native: lowered to engine requests or prelude helpers.
+// - Ignore: no effect on the engine's state; nothing is emitted (each has a one-line reason).
+// - Default(v): `v` is written where the command writes its result (VAR_RESULT, or
+//   `checkcoins`'s var operand), with no report: the default is the documented behaviour.
+// - Unsupported: `Report::Unsupported("<op>")`, logged; the script continues and VAR_RESULT is
+//   unchanged (other state it would write stays stale, noted where scripts read it). A
+//   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
+// Only Unsupported commands report.
+//
+// Counts: 101 Native, 42 Ignore, 15 Default, 69 Unsupported.
+//
+// Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
+{
+    "nop": Native,
+    "nop1": Native,
+    "end": Native,
+    "return": Native,
+    "call": Native,
+    "goto": Native,
+    "goto_if": Native,
+    "call_if": Native,
+    "gotostd": Native,
+    "callstd": Native,
+    "gotostd_if": Native,
+    "callstd_if": Native,
+    "returnram": Native,
+    "endram": Native,
+    "setmysteryeventstatus": Unsupported,
+    "loadword": Native,
+    "loadbyte": Unsupported,
+    "setptr": Unsupported,
+    "loadbytefromptr": Unsupported,
+    "setptrbyte": Unsupported,
+    "copylocal": Unsupported,
+    "copybyte": Unsupported,
+    "setvar": Native,
+    "addvar": Native,
+    "subvar": Native,
+    "copyvar": Native,
+    "setorcopyvar": Native,
+    "compare_local_to_local": Unsupported,          // leaves the comparison register stale (no script-local bytes)
+    "compare_local_to_value": Unsupported,          // leaves the comparison register stale (no script-local bytes)
+    "compare_local_to_ptr": Unsupported,            // leaves the comparison register stale (no RAM pointers)
+    "compare_ptr_to_local": Unsupported,            // leaves the comparison register stale (no RAM pointers)
+    "compare_ptr_to_value": Unsupported,            // leaves the comparison register stale (no RAM pointers)
+    "compare_ptr_to_ptr": Unsupported,              // leaves the comparison register stale (no RAM pointers)
+    "compare_var_to_value": Native,
+    "compare_var_to_var": Native,
+    "callnative": Unsupported,
+    "gotonative": Unsupported,
+    "special": Native,
+    "specialvar": Native,
+    "waitstate": Native,
+    "delay": Native,
+    "setflag": Native,
+    "clearflag": Native,
+    "checkflag": Native,
+    "initclock": Ignore,                            // sets the RTC; there is no clock until M10, time stays the M8 default
+    "dotimebasedevents": Ignore,                    // time-based events need the RTC (M10)
+    "gettime": Unsupported,                         // leaves VAR_0x8000..VAR_0x8002 (hours, minutes, seconds) stale: no RTC
+    "playse": Ignore,                               // audio (no sound until M12)
+    "waitse": Ignore,                               // audio (no sound until M12)
+    "playfanfare": Ignore,                          // audio (no sound until M12)
+    "waitfanfare": Ignore,                          // audio (no sound until M12)
+    "playbgm": Ignore,                              // audio (no sound until M12)
+    "savebgm": Ignore,                              // audio (no sound until M12)
+    "fadedefaultbgm": Ignore,                       // audio (no sound until M12)
+    "fadenewbgm": Ignore,                           // audio (no sound until M12)
+    "fadeoutbgm": Ignore,                           // audio (no sound until M12)
+    "fadeinbgm": Ignore,                            // audio (no sound until M12)
+    "warp": Native,
+    "warpsilent": Native,
+    "warpdoor": Native,
+    "warphole": Unsupported,                        // falling through holes is not modelled
+    "warpteleport": Native,
+    "setwarp": Unsupported,                         // the warp destination of warp specials (DoContestHallWarp, ...); no WarpSlot for it
+    "setdynamicwarp": Native,
+    "setdivewarp": Unsupported,                     // Dive is M9
+    "setholewarp": Unsupported,                     // falling through holes is not modelled
+    "getplayerxy": Native,
+    "getpartysize": Native,
+    "additem": Native,
+    "removeitem": Native,
+    "checkitemspace": Native,
+    "checkitem": Native,
+    "checkitemtype": Default(0),                    // pocket of an item (VAR_RESULT): no pocket
+    "addpcitem": Default(0),                        // VAR_RESULT: the PC has no room (no PC storage until M9)
+    "checkpcitem": Default(0),                      // VAR_RESULT: not in the PC
+    "adddecoration": Default(0),                    // VAR_RESULT: not added (no decorations)
+    "removedecoration": Default(0),                 // VAR_RESULT: not removed
+    "checkdecor": Default(0),                       // VAR_RESULT: not owned
+    "checkdecorspace": Default(0),                  // VAR_RESULT: no space
+    "applymovement": Native,
+    "applymovementat": Native,
+    "waitmovement": Native,
+    "waitmovementat": Native,
+    "removeobject": Native,
+    "removeobjectat": Native,
+    "addobject": Native,
+    "addobjectat": Native,
+    "setobjectxy": Native,
+    "showobjectat": Native,
+    "hideobjectat": Native,
+    "faceplayer": Native,
+    "turnobject": Native,
+    "trainerbattle": Native,
+    "dotrainerbattle": Unsupported,
+    "gotopostbattlescript": Unsupported,
+    "gotobeatenscript": Unsupported,
+    "checktrainerflag": Native,
+    "settrainerflag": Native,
+    "cleartrainerflag": Native,
+    "setobjectxyperm": Native,
+    "copyobjectxytoperm": Unsupported,
+    "setobjectmovementtype": Native,
+    "waitmessage": Native,
+    "message": Native,
+    "closemessage": Native,
+    "lockall": Native,
+    "lock": Native,
+    "releaseall": Native,
+    "release": Native,
+    "waitbuttonpress": Native,
+    "yesnobox": Native,
+    "multichoice": Native,
+    "multichoicedefault": Native,
+    "multichoicegrid": Default(127),                // VAR_RESULT: MULTI_B_PRESSED
+    "drawbox": Ignore,                              // ScrCmd_drawbox does nothing in Emerald
+    "erasebox": Ignore,                             // cosmetic window erase
+    "drawboxtext": Ignore,                          // cosmetic window
+    "showmonpic": Ignore,                           // cosmetic picture window
+    "hidemonpic": Ignore,                           // cosmetic picture window
+    "showcontestpainting": Unsupported,
+    "braillemessage": Unsupported,
+    "givemon": Native,
+    "giveegg": Default(2),                          // VAR_RESULT: MON_CANT_GIVE, the truth: the egg is not given
+    "setmonmove": Unsupported,
+    "checkpartymove": Default(6),                   // VAR_RESULT: PARTY_SIZE, no party mon knows the move
+    "bufferspeciesname": Native,
+    "bufferleadmonspeciesname": Native,
+    "bufferpartymonnick": Native,
+    "bufferitemname": Native,
+    "bufferdecorationname": Unsupported,
+    "buffermovename": Native,
+    "buffernumberstring": Native,
+    "bufferstdstring": Native,
+    "bufferstring": Native,
+    "pokemart": Unsupported,
+    "pokemartdecoration": Unsupported,
+    "pokemartdecoration2": Unsupported,
+    "playslotmachine": Unsupported,
+    "setberrytree": Unsupported,
+    "choosecontestmon": Unsupported,
+    "startcontest": Unsupported,
+    "showcontestresults": Unsupported,
+    "contestlinktransfer": Unsupported,
+    "random": Native,
+    "addmoney": Native,
+    "removemoney": Native,
+    "checkmoney": Native,
+    "showmoneybox": Ignore,                         // cosmetic window; money itself is native
+    "hidemoneybox": Ignore,                         // cosmetic window; money itself is native
+    "updatemoneybox": Ignore,                       // cosmetic window; money itself is native
+    "getpokenewsactive": Default(0),                // VAR_RESULT: no PokeNews
+    "fadescreen": Native,
+    "fadescreenspeed": Native,
+    "setflashlevel": Ignore,                        // darkness (Flash) is not drawn
+    "animateflash": Ignore,                         // darkness (Flash) is not drawn
+    "messageautoscroll": Native,
+    "dofieldeffect": Unsupported,
+    "setfieldeffectargument": Unsupported,
+    "waitfieldeffect": Unsupported,
+    "setrespawn": Native,
+    "checkplayergender": Native,
+    "playmoncry": Ignore,                           // audio (no sound until M12)
+    "setmetatile": Native,
+    "resetweather": Ignore,                         // weather is not drawn
+    "setweather": Ignore,                           // weather is not drawn
+    "doweather": Ignore,                            // weather is not drawn
+    "setstepcallback": Ignore,                      // per-step field effects (ash, ice, footprints) are not modelled
+    "setmaplayoutindex": Unsupported,
+    "setobjectsubpriority": Ignore,                 // sprite draw order only
+    "resetobjectsubpriority": Ignore,               // sprite draw order only
+    "createvobject": Unsupported,
+    "turnvobject": Unsupported,
+    "opendoor": Native,
+    "closedoor": Native,
+    "waitdooranim": Native,
+    "setdooropen": Unsupported,
+    "setdoorclosed": Unsupported,
+    "addelevmenuitem": Unsupported,
+    "showelevmenu": Unsupported,
+    "checkcoins": Default(0),                       // writes its var operand: no coins
+    "addcoins": Default(1),                         // VAR_RESULT: TRUE is failure here (coins are not kept)
+    "removecoins": Default(1),                      // VAR_RESULT: TRUE is failure here (coins are not kept)
+    "setwildbattle": Native,
+    "dowildbattle": Native,
+    "setvaddress": Unsupported,
+    "vgoto": Unsupported,
+    "vcall": Unsupported,
+    "vgoto_if": Unsupported,
+    "vcall_if": Unsupported,
+    "vmessage": Unsupported,
+    "vbuffermessage": Unsupported,
+    "vbufferstring": Unsupported,
+    "showcoinsbox": Ignore,                         // cosmetic window (coins are not kept)
+    "hidecoinsbox": Ignore,                         // cosmetic window (coins are not kept)
+    "updatecoinsbox": Ignore,                       // cosmetic window (coins are not kept)
+    "incrementgamestat": Ignore,                    // game stats are not kept (no trainer card)
+    "setescapewarp": Native,
+    "waitmoncry": Ignore,                           // audio (no sound until M12)
+    "bufferboxname": Unsupported,
+    "textcolor": Ignore,                            // ScrCmd_nop1 in Emerald
+    "loadhelp": Ignore,                             // ScrCmd_nop1 in Emerald
+    "unloadhelp": Ignore,                           // ScrCmd_nop1 in Emerald
+    "signmsg": Ignore,                              // ScrCmd_nop1 in Emerald
+    "normalmsg": Ignore,                            // ScrCmd_nop1 in Emerald
+    "comparehiddenvar": Ignore,                     // ScrCmd_nop1 in Emerald
+    "setmodernfatefulencounter": Unsupported,
+    "checkmodernfatefulencounter": Default(0),      // VAR_RESULT: not a fateful encounter
+    "trywondercardscript": Unsupported,
+    "setworldmapflag": Ignore,                      // ScrCmd_nop1 in Emerald
+    "warpspinenter": Native,
+    "setmonmetlocation": Unsupported,
+    "moverotatingtileobjects": Unsupported,
+    "turnrotatingtileobjects": Unsupported,
+    "initrotatingtilepuzzle": Unsupported,
+    "freerotatingtilepuzzle": Unsupported,
+    "warpmossdeepgym": Native,
+    "selectapproachingtrainer": Unsupported,
+    "lockfortrainer": Unsupported,
+    "closebraillemessage": Ignore,                  // closes the braille window, which braillemessage never opens
+    "messageinstant": Native,
+    "fadescreenswapbuffers": Native,
+    "buffertrainerclassname": Unsupported,
+    "buffertrainername": Unsupported,
+    "pokenavcall": Unsupported,
+    "warpwhitefade": Native,
+    "buffercontestname": Unsupported,
+    "bufferitemnameplural": Native,
+}

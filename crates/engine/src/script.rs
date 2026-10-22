@@ -5,11 +5,15 @@
 //! fading…) suspend the script until the host reports completion on a later frame.
 
 use crate::battle::BattleOutcome;
-use crate::data::{Dir, FlagId, MapId, MovementType, SpeciesId, TextId, TrainerId, VarId};
+pub use crate::data::Emote;
+use crate::data::{
+    Dir, FlagId, ItemId, MapId, MoveId, MovementType, SpeciesId, TextId, TrainerId, VarId,
+};
 use crate::hash::Fnv64;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
+use core::cmp::Ordering;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
@@ -24,14 +28,6 @@ pub enum Speed {
     Normal,
     Fast,
     Faster,
-}
-
-/// Emote bubble shown above an object.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Emote {
-    Exclamation,
-    Question,
-    Heart,
 }
 
 /// One action of a movement script (Gen3 `applymovement` data).
@@ -57,6 +53,48 @@ pub enum Fade {
     ToBlack,
     FromBlack,
 }
+
+/// What a `buffer*` command writes into a string var (Gen3 `gStringVar1..3`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BufferSrc {
+    /// `bufferspeciesname`.
+    Species(SpeciesId),
+    /// `bufferitemname`.
+    Item(ItemId),
+    /// `buffermovename`.
+    Move(MoveId),
+    /// `buffernumberstring`.
+    Number(u32),
+    /// `bufferstdstring` (`STDSTRING_*`).
+    Std(u8),
+    /// `bufferpartymonnick`: the nickname of party slot `n`.
+    PartyNick(u8),
+    /// `bufferleadmonspeciesname`.
+    LeadSpecies,
+    /// `bufferstring` of a script text.
+    Text(TextId),
+}
+
+/// Which warp a `setdynamicwarp` / `setescapewarp` sets.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WarpSlot {
+    /// Gen3 `gSaveBlock1Ptr->dynamicWarp` (warps whose destination is `WARP_ID_DYNAMIC`).
+    Dynamic,
+    /// Gen3 `escapeWarp` (Escape Rope, Dig).
+    Escape,
+}
+
+/// Something a script could not do as Gen3 would (logged, and an [`crate::world::Event`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Report {
+    /// A command or special the engine does not implement (its decomp name).
+    Unsupported(&'static str),
+    /// A command run in a simplified way (its decomp name).
+    Degraded(&'static str),
+}
+
+/// Gen3 `MULTI_B_PRESSED`: the multichoice answer when B cancels it.
+pub const MULTI_B_PRESSED: u16 = 127;
 
 /// Everything a script can ask of the world.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -187,6 +225,62 @@ pub enum Request {
     ChooseStarter([SpeciesId; 3]),
     /// Gen3 `setrespawn` (heal location number).
     SetRespawn(u8),
+    // ---- Milestone 8 ----
+    /// Gen3 `additem`/`giveitem`: answers `Bool` (whether it fit in the bag).
+    ItemAdd {
+        item: ItemId,
+        qty: u16,
+    },
+    /// Gen3 `removeitem`: answers `Bool` (whether the bag held that many).
+    ItemRemove {
+        item: ItemId,
+        qty: u16,
+    },
+    /// Gen3 `checkitem`: answers `Bool`.
+    ItemCheck {
+        item: ItemId,
+        qty: u16,
+    },
+    /// Gen3 `checkitemspace`: answers `Bool`.
+    ItemSpace {
+        item: ItemId,
+        qty: u16,
+    },
+    /// Gen3 `addmoney`.
+    MoneyAdd(u32),
+    /// Gen3 `removemoney`.
+    MoneyRemove(u32),
+    /// Gen3 `checkmoney`: answers `Bool` (whether the player has at least that much).
+    MoneyCheck(u32),
+    /// Gen3 `buffer*`: writes string var `slot` (0..3).
+    Buffer {
+        slot: u8,
+        src: BufferSrc,
+    },
+    /// Gen3 `multichoice`/`multichoicedefault`: answers `Value` (the index, or
+    /// [`MULTI_B_PRESSED`]).
+    Multichoice {
+        list: u8,
+        x: u8,
+        y: u8,
+        default: u8,
+        cancel: bool,
+    },
+    /// Gen3 `setdynamicwarp`/`setescapewarp`.
+    SetWarp {
+        slot: WarpSlot,
+        map: MapId,
+        warp: Option<u8>,
+        x: i16,
+        y: i16,
+    },
+    /// Logged and reported as an event; answers at once.
+    Report(Report),
+    /// Until trainer `obj` has walked up to the player after seeing them (Gen3
+    /// `TrainerSeeFunc` steps); the sight check issues it before the trainer's script.
+    TrainerApproach {
+        obj: u8,
+    },
 }
 
 impl Request {
@@ -261,6 +355,55 @@ impl Request {
             Request::BattleTrainer { trainer, defeat } => (40, trainer.0, defeat.0, 0, 0),
             Request::ChooseStarter([a, b, c]) => (41, a.0, b.0, c.0, 0),
             Request::SetRespawn(id) => (42, id as u16, 0, 0, 0),
+            Request::ItemAdd { item, qty } => (43, item.0, qty, 0, 0),
+            Request::ItemRemove { item, qty } => (44, item.0, qty, 0, 0),
+            Request::ItemCheck { item, qty } => (45, item.0, qty, 0, 0),
+            Request::ItemSpace { item, qty } => (46, item.0, qty, 0, 0),
+            Request::MoneyAdd(n) => (47, n as u16, (n >> 16) as u16, 0, 0),
+            Request::MoneyRemove(n) => (48, n as u16, (n >> 16) as u16, 0, 0),
+            Request::MoneyCheck(n) => (49, n as u16, (n >> 16) as u16, 0, 0),
+            Request::Buffer { slot, src } => {
+                let (kind, v): (u16, u32) = match src {
+                    BufferSrc::Species(s) => (0, s.0 as u32),
+                    BufferSrc::Item(i) => (1, i.0 as u32),
+                    BufferSrc::Move(m) => (2, m.0 as u32),
+                    BufferSrc::Number(n) => (3, n),
+                    BufferSrc::Std(s) => (4, s as u32),
+                    BufferSrc::PartyNick(n) => (5, n as u32),
+                    BufferSrc::LeadSpecies => (6, 0),
+                    BufferSrc::Text(t) => (7, t.0 as u32),
+                };
+                (50, slot as u16, kind, v as u16, (v >> 16) as u16)
+            }
+            Request::Multichoice {
+                list,
+                x,
+                y,
+                default,
+                cancel,
+            } => (
+                51,
+                list as u16,
+                x as u16 | (y as u16) << 8,
+                default as u16,
+                cancel as u16,
+            ),
+            Request::SetWarp {
+                slot,
+                map,
+                warp,
+                x,
+                y,
+            } => (
+                52,
+                map.0,
+                (slot as u16) << 8 | warp.map_or(0xFF, |w| w as u16),
+                i(x),
+                i(y),
+            ),
+            // The report's text is not hashed (as a log line).
+            Request::Report(r) => (53, matches!(r, Report::Degraded(_)) as u16, 0, 0, 0),
+            Request::TrainerApproach { obj } => (54, obj as u16, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -293,10 +436,24 @@ impl Response {
     }
 }
 
-#[derive(Default)]
 struct Io {
     request: Option<Request>,
     response: Option<Response>,
+    /// The comparison register (Gen3 `comparisonResult`): plain script state, shared by every
+    /// clone of the script's [`Ctx`], so it flows across calls. Not hashed (capture needs an
+    /// idle runner, which resets it).
+    cond: Ordering,
+}
+
+impl Default for Io {
+    fn default() -> Self {
+        Io {
+            request: None,
+            response: None,
+            // Gen3 `comparisonResult` starts at 0 (`<`).
+            cond: Ordering::Less,
+        }
+    }
 }
 
 /// A script's handle on the world. Cheap to clone; all clones share one mailbox.
@@ -544,6 +701,81 @@ impl Ctx {
 
     pub async fn set_respawn(&self, heal_location: u8) {
         self.unit(Request::SetRespawn(heal_location)).await
+    }
+
+    // ---- Milestone 8 ----
+
+    /// The comparison register (Gen3 `comparisonResult`).
+    pub fn cond(&self) -> Ordering {
+        self.0.borrow().cond
+    }
+
+    pub fn set_cond(&self, o: Ordering) {
+        self.0.borrow_mut().cond = o;
+    }
+
+    pub async fn item_add(&self, item: ItemId, qty: u16) -> bool {
+        self.request(Request::ItemAdd { item, qty }).await.bool()
+    }
+
+    pub async fn item_remove(&self, item: ItemId, qty: u16) -> bool {
+        self.request(Request::ItemRemove { item, qty }).await.bool()
+    }
+
+    pub async fn item_check(&self, item: ItemId, qty: u16) -> bool {
+        self.request(Request::ItemCheck { item, qty }).await.bool()
+    }
+
+    pub async fn item_space(&self, item: ItemId, qty: u16) -> bool {
+        self.request(Request::ItemSpace { item, qty }).await.bool()
+    }
+
+    pub async fn money_add(&self, n: u32) {
+        self.unit(Request::MoneyAdd(n)).await
+    }
+
+    pub async fn money_remove(&self, n: u32) {
+        self.unit(Request::MoneyRemove(n)).await
+    }
+
+    pub async fn money_check(&self, n: u32) -> bool {
+        self.request(Request::MoneyCheck(n)).await.bool()
+    }
+
+    pub async fn buffer(&self, slot: u8, src: BufferSrc) {
+        self.unit(Request::Buffer { slot, src }).await
+    }
+
+    /// The chosen index, or [`MULTI_B_PRESSED`].
+    pub async fn multichoice(&self, list: u8, x: u8, y: u8, default: u8, cancel: bool) -> u16 {
+        self.request(Request::Multichoice {
+            list,
+            x,
+            y,
+            default,
+            cancel,
+        })
+        .await
+        .value()
+    }
+
+    pub async fn set_warp(&self, slot: WarpSlot, map: MapId, warp: Option<u8>, x: i16, y: i16) {
+        self.unit(Request::SetWarp {
+            slot,
+            map,
+            warp,
+            x,
+            y,
+        })
+        .await
+    }
+
+    pub async fn report(&self, r: Report) {
+        self.unit(Request::Report(r)).await
+    }
+
+    pub async fn trainer_approach(&self, obj: u8) {
+        self.unit(Request::TrainerApproach { obj }).await
     }
 }
 

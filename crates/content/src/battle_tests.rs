@@ -289,7 +289,7 @@ fn the_tables_are_indexed_by_id() {
 #[test]
 fn every_slice_species_has_pics() {
     let t = Emerald.battle();
-    for s in battle::SLICE_SPECIES
+    for s in crate::samples::SPECIES_IDS
         .iter()
         .chain(&battle::STARTERS)
         .chain([&battle::FIRST_BATTLE_FOE.0])
@@ -367,7 +367,7 @@ mod extracted {
     #[test]
     fn slice_moves_have_supported_effects() {
         let t = Emerald.battle();
-        let unsupported: Vec<MoveId> = battle::SLICE_MOVES
+        let unsupported: Vec<MoveId> = crate::samples::MOVE_IDS
             .iter()
             .copied()
             .filter(|&m| matches!(t.move_info(m).effect, MoveEffect::Unsupported(_)))
@@ -548,7 +548,7 @@ mod stub {
         }
         assert!(battle::TRAINER_IDS.is_empty());
         assert!(
-            battle::SLICE_MOVES
+            crate::samples::MOVE_IDS
                 .iter()
                 .all(|&m| !matches!(t.move_info(m).effect, MoveEffect::Unsupported(_)))
         );

@@ -8,7 +8,9 @@
 //! Postcard is the binary form (GBA flash, [`encode`], [`state_digest`]); the native shell also
 //! writes the same types as RON.
 
-use crate::data::{Behavior, Dir, FlagId, GameData, GfxId, MapId, MovementType, VarId};
+use crate::data::{
+    Behavior, Dir, FlagId, GameData, GfxId, ItemId, MapId, MovementType, Pocket, VarId,
+};
 use crate::hash::Fnv64;
 use crate::input::Buttons;
 use crate::mon::Pokemon;
@@ -17,7 +19,7 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 /// Snapshot schema. Bump on any change to a DTO below (the golden-bytes test fails otherwise).
-pub const SCHEMA: u16 = 1;
+pub const SCHEMA: u16 = 2;
 /// Largest postcard checkpoint the GBA flash slot accepts (route max is reported by the tests).
 pub const MAX_ENCODED: usize = 8 * 1024;
 /// agb_save layout, shared by game-gba and game-native::flash (byte-identical images).
@@ -128,6 +130,52 @@ pub struct WorldSnapshot {
     pub respawn: u8,
     pub prev_behavior: Behavior,
     pub encounter_immunity: u8,
+    // Schema 2 (Milestone 8).
+    pub bag: BagSnap,
+    pub money: u32,
+    /// `gStringVar1..3`, each up to its 0xFF terminator.
+    #[serde(deserialize_with = "str_vars")]
+    pub str_vars: [Vec<u8>; 3],
+    pub warp_slots: WarpSlotsSnap,
+}
+
+/// The bag's non-empty slots, in pocket then slot order.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct BagSnap {
+    #[serde(deserialize_with = "seq")]
+    pub slots: Vec<BagSlotSnap>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct BagSlotSnap {
+    pub pocket: Pocket,
+    /// Slot in the pocket.
+    pub index: u8,
+    pub item: ItemId,
+    pub qty: u16,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct WarpSlotsSnap {
+    pub dynamic: Option<WarpDestSnap>,
+    pub escape: Option<WarpDestSnap>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct WarpDestSnap {
+    pub map: MapId,
+    pub warp: Option<u8>,
+    pub x: i16,
+    pub y: i16,
+}
+
+/// `Field::stale` (inclusive cells).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct StaleSnap {
+    pub x0: i16,
+    pub y0: i16,
+    pub x1: i16,
+    pub y1: i16,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -146,6 +194,9 @@ pub struct FieldSnap {
     /// Ascending.
     #[serde(deserialize_with = "seq")]
     pub overrides: Vec<((i16, i16), u16)>,
+    /// Schema 2: cells left drawn from the map before a connection crossing (capture refuses a
+    /// stale view, so `None` in every capture until Milestone 8 Task F).
+    pub stale: Option<StaleSnap>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -425,6 +476,15 @@ where
         }
     }
     d.deserialize_seq(Seq(core::marker::PhantomData))
+}
+
+/// [`seq`] for each of the three string vars (the derived array serialization is unchanged).
+fn str_vars<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[Vec<u8>; 3], D::Error> {
+    #[derive(Deserialize)]
+    #[serde(transparent)]
+    struct Bytes(#[serde(deserialize_with = "seq")] Vec<u8>);
+    let [a, b, c] = <[Bytes; 3]>::deserialize(d)?;
+    Ok([a.0, b.0, c.0])
 }
 
 #[cfg(test)]

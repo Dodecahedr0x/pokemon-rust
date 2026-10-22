@@ -71,6 +71,72 @@ id! {
     MoveId,
     /// Content-assigned = Gen3 `TRAINER_*` number; `GameData::trainer` resolves it.
     TrainerId,
+    /// Gen3 `ITEM_*` number; `GameData::item` resolves it (Milestone 8).
+    ItemId,
+}
+
+/// Gen3 bag pockets, in save-block order (`gSaveBlock1Ptr->bagPocket_*`).
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, serde::Serialize, serde::Deserialize,
+)]
+pub enum Pocket {
+    Items,
+    KeyItems,
+    PokeBalls,
+    TmHm,
+    Berries,
+}
+
+impl Pocket {
+    pub const ALL: [Pocket; 5] = [
+        Pocket::Items,
+        Pocket::KeyItems,
+        Pocket::PokeBalls,
+        Pocket::TmHm,
+        Pocket::Berries,
+    ];
+}
+
+/// One item (`gItems`): Gen3-encoded 0xFF-terminated name, pocket, price, and whether it is a
+/// key item (`importance`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct ItemInfo {
+    pub name: &'static [u8],
+    pub pocket: Pocket,
+    pub price: u16,
+    pub key: bool,
+}
+
+/// Emote bubble shown above an object (Gen3 field effects `FLDEFF_EXCLAMATION_MARK_ICON`,
+/// `FLDEFF_QUESTION_MARK_ICON`, `FLDEFF_HEART_ICON`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Emote {
+    Exclamation,
+    Question,
+    Heart,
+}
+
+/// How a species evolves, Gen3 `EVO_*` folded (the exact kind is kept for Milestone 9).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EvoMethod {
+    /// `EVO_LEVEL` and its stat/personality variants: `param` is the level.
+    Level,
+    /// `EVO_FRIENDSHIP*`.
+    Friendship,
+    /// `EVO_ITEM`: `param` is the item.
+    Item,
+    /// `EVO_TRADE*`.
+    Trade,
+    /// Anything else (`EVO_BEAUTY`, `EVO_LEVEL_NINJASK`, …).
+    Other,
+}
+
+/// One `gEvolutionTable` entry.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Evolution {
+    pub method: EvoMethod,
+    pub param: u16,
+    pub target: SpeciesId,
 }
 
 /// Gen3 local id addressing the player in object commands (`OBJ_EVENT_ID_PLAYER`).
@@ -345,6 +411,10 @@ pub struct SpecialIds {
     pub flags_cleared_on_map_change: &'static [FlagId],
     /// Heal location of a new game (`setrespawn` default; Gen3 `HEAL_LOCATION_*` number).
     pub respawn_default: u8,
+    /// Selects the wild header of maps with several (Gen3 `VAR_ALTERING_CAVE_WILD_SET`).
+    pub var_wild_set: Option<VarId>,
+    /// Run immediately after a whiteout (Gen3 `EventScript_WhiteOut`, from `DoWhiteOut`).
+    pub script_whiteout: Option<ScriptId>,
 }
 
 /// Everything game-specific the engine reads. Implemented by the `content` crate.
@@ -386,6 +456,14 @@ pub trait GameData {
         let _ = map;
         None
     }
+    /// The land table of header `wild_set` of `map` (what the engine reads; Milestone 8). The
+    /// engine passes the value of `SpecialIds::var_wild_set` (Gen3 `VAR_ALTERING_CAVE_WILD_SET`);
+    /// maps with one header ignore it. Water, rock smash and fishing come later (M10). Default:
+    /// [`GameData::encounters`].
+    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
+        let _ = wild_set;
+        self.encounters(map)
+    }
     fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
         let _ = id;
         None
@@ -403,6 +481,41 @@ pub trait GameData {
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         let _ = id;
         None
+    }
+
+    // ---- Milestone 8 ----
+
+    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
+        let _ = id;
+        None
+    }
+    /// The Gen3-encoded choices of multichoice list `list` (`MULTI_*`, `sMultichoiceLists`).
+    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+        let _ = list;
+        None
+    }
+    /// Gen3-encoded `gStdStrings[id]` (`STDSTRING_*`).
+    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+        let _ = id;
+        None
+    }
+    /// The trainer flag a trainer object's script checks (Gen3 `GetTrainerFlagFromScriptPointer`).
+    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+        let _ = script;
+        None
+    }
+    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
+        let _ = e;
+        None
+    }
+    /// Gen3 `gTrainerMoneyTable` value for the trainer's class (`GetTrainerMoneyToGive`).
+    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
+        let _ = id;
+        None
+    }
+    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
+        let _ = species;
+        &[]
     }
 }
 

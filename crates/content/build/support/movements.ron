@@ -1,0 +1,98 @@
+// Movement actions (`MOVEMENT_ACTION_*`) with no engine `Step`, for the Milestone 8 lowering
+// (`extract::codegen::MoveFallback`): the nearest steps (`As`), a delay of about the Gen3
+// action's frame count (`Delay`), or nothing (`Skip`, effects not drawn). Every action without a
+// `Step` has an entry. Decomp names only: no ROM data.
+{
+    "MOVEMENT_ACTION_RIDE_WATER_CURRENT_DOWN": As(["MOVEMENT_ACTION_WALK_FAST_DOWN"]),// one cell at walk_fast speed
+    "MOVEMENT_ACTION_RIDE_WATER_CURRENT_UP": As(["MOVEMENT_ACTION_WALK_FAST_UP"]),// one cell at walk_fast speed
+    "MOVEMENT_ACTION_RIDE_WATER_CURRENT_LEFT": As(["MOVEMENT_ACTION_WALK_FAST_LEFT"]),// one cell at walk_fast speed
+    "MOVEMENT_ACTION_RIDE_WATER_CURRENT_RIGHT": As(["MOVEMENT_ACTION_WALK_FAST_RIGHT"]),// one cell at walk_fast speed
+    "MOVEMENT_ACTION_SLIDE_DOWN": As(["MOVEMENT_ACTION_WALK_FAST_DOWN"]),// one cell at walk_fast speed, no step animation
+    "MOVEMENT_ACTION_SLIDE_UP": As(["MOVEMENT_ACTION_WALK_FAST_UP"]),// one cell at walk_fast speed, no step animation
+    "MOVEMENT_ACTION_SLIDE_LEFT": As(["MOVEMENT_ACTION_WALK_FAST_LEFT"]),// one cell at walk_fast speed, no step animation
+    "MOVEMENT_ACTION_SLIDE_RIGHT": As(["MOVEMENT_ACTION_WALK_FAST_RIGHT"]),// one cell at walk_fast speed, no step animation
+    "MOVEMENT_ACTION_START_ANIM_IN_DIRECTION": Skip,                // animation only
+    "MOVEMENT_ACTION_JUMP_SPECIAL_DOWN": As(["MOVEMENT_ACTION_JUMP_DOWN"]),// one-cell jump (JUMP_TYPE_HIGH)
+    "MOVEMENT_ACTION_JUMP_SPECIAL_UP": As(["MOVEMENT_ACTION_JUMP_UP"]),// one-cell jump (JUMP_TYPE_HIGH)
+    "MOVEMENT_ACTION_JUMP_SPECIAL_LEFT": As(["MOVEMENT_ACTION_JUMP_LEFT"]),// one-cell jump (JUMP_TYPE_HIGH)
+    "MOVEMENT_ACTION_JUMP_SPECIAL_RIGHT": As(["MOVEMENT_ACTION_JUMP_RIGHT"]),// one-cell jump (JUMP_TYPE_HIGH)
+    "MOVEMENT_ACTION_JUMP_IN_PLACE_DOWN_UP": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_UP"]),// jump in place, ends facing the second direction
+    "MOVEMENT_ACTION_JUMP_IN_PLACE_UP_DOWN": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_DOWN"]),// jump in place, ends facing the second direction
+    "MOVEMENT_ACTION_JUMP_IN_PLACE_LEFT_RIGHT": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_RIGHT"]),// jump in place, ends facing the second direction
+    "MOVEMENT_ACTION_JUMP_IN_PLACE_RIGHT_LEFT": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_LEFT"]),// jump in place, ends facing the second direction
+    "MOVEMENT_ACTION_FACE_ORIGINAL_DIRECTION": Skip,                // approximation: keeps the current facing instead of turning back to the template's
+    "MOVEMENT_ACTION_NURSE_JOY_BOW_DOWN": Delay(32),                // bow animation
+    "MOVEMENT_ACTION_ENABLE_JUMP_LANDING_GROUND_EFFECT": Skip,      // ground effect not drawn
+    "MOVEMENT_ACTION_DISABLE_JUMP_LANDING_GROUND_EFFECT": Skip,     // ground effect not drawn
+    "MOVEMENT_ACTION_DISABLE_ANIMATION": Skip,                      // animation only
+    "MOVEMENT_ACTION_RESTORE_ANIMATION": Skip,                      // animation only
+    "MOVEMENT_ACTION_REVEAL_TRAINER": Delay(16),                    // disguise reveal animation
+    "MOVEMENT_ACTION_ROCK_SMASH_BREAK": Delay(32),                  // rock breaking animation
+    "MOVEMENT_ACTION_CUT_TREE": Delay(32),                          // tree cutting animation
+    "MOVEMENT_ACTION_SET_FIXED_PRIORITY": Skip,                     // draw order only
+    "MOVEMENT_ACTION_CLEAR_FIXED_PRIORITY": Skip,                   // draw order only
+    "MOVEMENT_ACTION_INIT_AFFINE_ANIM": Skip,                       // affine (rotation) not drawn
+    "MOVEMENT_ACTION_CLEAR_AFFINE_ANIM": Skip,                      // affine (rotation) not drawn
+    "MOVEMENT_ACTION_HIDE_REFLECTION": Skip,                        // reflections not drawn
+    "MOVEMENT_ACTION_SHOW_REFLECTION": Skip,                        // reflections not drawn
+    "MOVEMENT_ACTION_WALK_DOWN_START_AFFINE": As(["MOVEMENT_ACTION_WALK_SLOW_DOWN"]),// walks one cell down slowly while rotating
+    "MOVEMENT_ACTION_WALK_DOWN_AFFINE": As(["MOVEMENT_ACTION_WALK_SLOW_DOWN"]),// walks one cell down slowly while rotating
+    "MOVEMENT_ACTION_ACRO_WHEELIE_FACE_DOWN": As(["MOVEMENT_ACTION_FACE_DOWN"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_WHEELIE_FACE_UP": As(["MOVEMENT_ACTION_FACE_UP"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_WHEELIE_FACE_LEFT": As(["MOVEMENT_ACTION_FACE_LEFT"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_WHEELIE_FACE_RIGHT": As(["MOVEMENT_ACTION_FACE_RIGHT"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_DOWN": As(["MOVEMENT_ACTION_FACE_DOWN"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_UP": As(["MOVEMENT_ACTION_FACE_UP"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_LEFT": As(["MOVEMENT_ACTION_FACE_LEFT"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_RIGHT": As(["MOVEMENT_ACTION_FACE_RIGHT"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_FACE_DOWN": As(["MOVEMENT_ACTION_FACE_DOWN"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_FACE_UP": As(["MOVEMENT_ACTION_FACE_UP"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_FACE_LEFT": As(["MOVEMENT_ACTION_FACE_LEFT"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_FACE_RIGHT": As(["MOVEMENT_ACTION_FACE_RIGHT"]),// Acro Bike pose
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_FACE_DOWN": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_DOWN"]),// Acro Bike hop in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_FACE_UP": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_UP"]),// Acro Bike hop in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_FACE_LEFT": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_LEFT"]),// Acro Bike hop in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_FACE_RIGHT": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_RIGHT"]),// Acro Bike hop in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_DOWN": As(["MOVEMENT_ACTION_JUMP_DOWN"]),// Acro Bike hop, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_UP": As(["MOVEMENT_ACTION_JUMP_UP"]),// Acro Bike hop, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_LEFT": As(["MOVEMENT_ACTION_JUMP_LEFT"]),// Acro Bike hop, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_HOP_RIGHT": As(["MOVEMENT_ACTION_JUMP_RIGHT"]),// Acro Bike hop, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_JUMP_DOWN": As(["MOVEMENT_ACTION_JUMP_2_DOWN"]),// Acro Bike jump, two cells
+    "MOVEMENT_ACTION_ACRO_WHEELIE_JUMP_UP": As(["MOVEMENT_ACTION_JUMP_2_UP"]),// Acro Bike jump, two cells
+    "MOVEMENT_ACTION_ACRO_WHEELIE_JUMP_LEFT": As(["MOVEMENT_ACTION_JUMP_2_LEFT"]),// Acro Bike jump, two cells
+    "MOVEMENT_ACTION_ACRO_WHEELIE_JUMP_RIGHT": As(["MOVEMENT_ACTION_JUMP_2_RIGHT"]),// Acro Bike jump, two cells
+    "MOVEMENT_ACTION_ACRO_WHEELIE_IN_PLACE_DOWN": As(["MOVEMENT_ACTION_WALK_IN_PLACE_NORMAL_DOWN"]),// Acro Bike in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_IN_PLACE_UP": As(["MOVEMENT_ACTION_WALK_IN_PLACE_NORMAL_UP"]),// Acro Bike in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_IN_PLACE_LEFT": As(["MOVEMENT_ACTION_WALK_IN_PLACE_NORMAL_LEFT"]),// Acro Bike in place
+    "MOVEMENT_ACTION_ACRO_WHEELIE_IN_PLACE_RIGHT": As(["MOVEMENT_ACTION_WALK_IN_PLACE_NORMAL_RIGHT"]),// Acro Bike in place
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_MOVE_DOWN": As(["MOVEMENT_ACTION_WALK_NORMAL_DOWN"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_MOVE_UP": As(["MOVEMENT_ACTION_WALK_NORMAL_UP"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_MOVE_LEFT": As(["MOVEMENT_ACTION_WALK_NORMAL_LEFT"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_POP_WHEELIE_MOVE_RIGHT": As(["MOVEMENT_ACTION_WALK_NORMAL_RIGHT"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_MOVE_DOWN": As(["MOVEMENT_ACTION_WALK_NORMAL_DOWN"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_MOVE_UP": As(["MOVEMENT_ACTION_WALK_NORMAL_UP"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_MOVE_LEFT": As(["MOVEMENT_ACTION_WALK_NORMAL_LEFT"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_WHEELIE_MOVE_RIGHT": As(["MOVEMENT_ACTION_WALK_NORMAL_RIGHT"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_MOVE_DOWN": As(["MOVEMENT_ACTION_WALK_NORMAL_DOWN"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_MOVE_UP": As(["MOVEMENT_ACTION_WALK_NORMAL_UP"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_MOVE_LEFT": As(["MOVEMENT_ACTION_WALK_NORMAL_LEFT"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_ACRO_END_WHEELIE_MOVE_RIGHT": As(["MOVEMENT_ACTION_WALK_NORMAL_RIGHT"]),// Acro Bike move, one cell
+    "MOVEMENT_ACTION_WALK_NORMAL_DIAGONAL_UP_LEFT": As(["MOVEMENT_ACTION_WALK_FAST_UP", "MOVEMENT_ACTION_WALK_FAST_LEFT"]),// same end cell and duration (16 frames)
+    "MOVEMENT_ACTION_WALK_NORMAL_DIAGONAL_UP_RIGHT": As(["MOVEMENT_ACTION_WALK_FAST_UP", "MOVEMENT_ACTION_WALK_FAST_RIGHT"]),// same end cell and duration (16 frames)
+    "MOVEMENT_ACTION_WALK_NORMAL_DIAGONAL_DOWN_LEFT": As(["MOVEMENT_ACTION_WALK_FAST_DOWN", "MOVEMENT_ACTION_WALK_FAST_LEFT"]),// same end cell and duration (16 frames)
+    "MOVEMENT_ACTION_WALK_NORMAL_DIAGONAL_DOWN_RIGHT": As(["MOVEMENT_ACTION_WALK_FAST_DOWN", "MOVEMENT_ACTION_WALK_FAST_RIGHT"]),// same end cell and duration (16 frames)
+    "MOVEMENT_ACTION_WALK_SLOW_DIAGONAL_UP_LEFT": As(["MOVEMENT_ACTION_WALK_NORMAL_UP", "MOVEMENT_ACTION_WALK_NORMAL_LEFT"]),// same end cell and duration (32 frames)
+    "MOVEMENT_ACTION_WALK_SLOW_DIAGONAL_UP_RIGHT": As(["MOVEMENT_ACTION_WALK_NORMAL_UP", "MOVEMENT_ACTION_WALK_NORMAL_RIGHT"]),// same end cell and duration (32 frames)
+    "MOVEMENT_ACTION_WALK_SLOW_DIAGONAL_DOWN_LEFT": As(["MOVEMENT_ACTION_WALK_NORMAL_DOWN", "MOVEMENT_ACTION_WALK_NORMAL_LEFT"]),// same end cell and duration (32 frames)
+    "MOVEMENT_ACTION_WALK_SLOW_DIAGONAL_DOWN_RIGHT": As(["MOVEMENT_ACTION_WALK_NORMAL_DOWN", "MOVEMENT_ACTION_WALK_NORMAL_RIGHT"]),// same end cell and duration (32 frames)
+    "MOVEMENT_ACTION_LOCK_ANIM": Skip,                              // animation only
+    "MOVEMENT_ACTION_UNLOCK_ANIM": Skip,                            // animation only
+    "MOVEMENT_ACTION_WALK_LEFT_AFFINE": As(["MOVEMENT_ACTION_WALK_NORMAL_LEFT"]),// walks one cell while rotating
+    "MOVEMENT_ACTION_WALK_RIGHT_AFFINE": As(["MOVEMENT_ACTION_WALK_NORMAL_RIGHT"]),// walks one cell while rotating
+    "MOVEMENT_ACTION_LEVITATE": Skip,                               // bobbing effect not drawn
+    "MOVEMENT_ACTION_STOP_LEVITATE": Skip,                          // bobbing effect not drawn
+    "MOVEMENT_ACTION_STOP_LEVITATE_AT_TOP": Skip,                   // bobbing effect not drawn
+    "MOVEMENT_ACTION_FIGURE_8": Delay(64),                          // flies a figure eight in place
+    "MOVEMENT_ACTION_FLY_UP": Delay(32),                            // flies off screen (Sootopolis legendaries)
+    "MOVEMENT_ACTION_FLY_DOWN": Delay(32),                          // flies back down
+}

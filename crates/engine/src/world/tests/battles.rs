@@ -8,7 +8,7 @@ use crate::battle::{BattleOutcome, Environment};
 
 /// Alternates A and nothing (a new A press every other frame: it picks FIGHT and move slot 0
 /// and dismisses messages) until `done`; returns the frames taken. Panics after `max`.
-fn mash(w: &mut World, max: u32, done: impl Fn(&World) -> bool) -> u32 {
+pub(super) fn mash(w: &mut World, max: u32, done: impl Fn(&World) -> bool) -> u32 {
     for n in 0..max {
         if done(w) {
             return n;
@@ -189,7 +189,7 @@ fn battles_without_a_mon_or_in_map_scripts_answer_at_once() {
 }
 
 /// Walks the route's grass up and down until a wild battle starts.
-fn walk_grass_until_battle(w: &mut World) {
+pub(super) fn walk_grass_until_battle(w: &mut World) {
     for dir in [Dir::Up, Dir::Down].into_iter().cycle().take(40) {
         if w.in_battle() {
             return;

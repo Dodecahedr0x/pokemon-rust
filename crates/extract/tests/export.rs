@@ -1,7 +1,7 @@
 use extract::export::{self, ExportOptions, SLICE_MAPS as MAPS};
 use extract::schema::{
     BgKind, EncountersFile, FieldEffectSpriteFile, FontFile, Hex, LayoutFile, Manifest, MapFile,
-    SpriteFile, TextFile, TilesetFile, WindowFile, from_rows,
+    ScriptIndex, SpriteFile, TextFile, TilesetFile, WindowFile, from_rows,
 };
 use extract::{Rom, fixtures, gfx, maps, names, text};
 use std::collections::{BTreeMap, BTreeSet};
@@ -118,6 +118,16 @@ fn writes_current_format_tree() {
     }
     want.insert("scripts/legacy_index.ron".to_string());
     want.insert("text/fr.ron".to_string());
+    // The script IR (M8 Task B), whose contents tests/script_ir.rs checks.
+    want.insert("text/ir_fr.ron".to_string());
+    let ix: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
+    want.insert("scripts/index.ron".to_string());
+    let modules = ix
+        .scripts
+        .values()
+        .map(|e| &e.module)
+        .chain(ix.movements.values());
+    want.extend(modules.map(|m| format!("scripts/{m}.ron")));
     // Layouts: the slice maps' and the one Birch's lab switches to (`setmaplayoutindex`).
     for layout in SLICE_LAYOUTS {
         want.insert(format!("layouts/{layout}.ron"));
