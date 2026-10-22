@@ -3,7 +3,7 @@
 //! ```text
 //! nodes/c00001.ron       Node { meta, trace }            committed (no ROM data)
 //! snapshots/c00001.ron   Checkpoint (RON, pretty)        git-ignored cache (ROM-derived nicknames)
-//! status.ron             BTreeMap<CheckpointId, Status>  git-ignored, written by verify
+//! status.ron             BTreeMap<CheckpointId, Status>  git-ignored, merged into by verify
 //! ```
 //!
 //! A layered store ([`Store::layered`], the `play` bin's) writes its own nodes in a local root
@@ -140,16 +140,208 @@ pub struct Store {
 /// with the committed tree's.
 pub const LOCAL_IDS: u32 = 10_000;
 
+/// What a [`Store`] operation fails with.
+#[derive(Debug)]
+pub enum StoreError {
+    /// No node with this id or label (as asked).
+    NotFound(String),
+    /// A label that is empty, reads as an id, or is taken (the message says which).
+    Label(String),
+    /// Node `id`'s parent is not in the store.
+    Parent {
+        id: CheckpointId,
+        parent: CheckpointId,
+    },
+    /// A parent cycle through these nodes (ascending).
+    Cycle(Vec<CheckpointId>),
+    /// `remove` of a node other nodes start from.
+    HasChildren(CheckpointId),
+    /// A write to a node of a layered store's read-only base.
+    ReadOnly(CheckpointId),
+    /// A file that does not parse, or a node file whose name or content is not a node's.
+    Parse {
+        file: PathBuf,
+        msg: String,
+    },
+    /// A request the store refuses: a trace or checkpoint of another schema, a trace that does
+    /// not lead from its parent to its checkpoint, an id both local and in the base, no id left.
+    Invalid(String),
+    Io(io::Error),
+}
+
+impl std::fmt::Display for StoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StoreError::NotFound(q) => write!(f, "no node {q:?}"),
+            StoreError::Label(msg) | StoreError::Invalid(msg) => f.write_str(msg),
+            StoreError::Parent { id, parent } => write!(f, "{id}: parent {parent} is missing"),
+            StoreError::Cycle(ids) => {
+                let ids: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
+                write!(f, "parent cycle through {}", ids.join(", "))
+            }
+            StoreError::HasChildren(id) => write!(f, "{id} has children"),
+            StoreError::ReadOnly(id) => write!(f, "{id} is in the read-only base tree"),
+            StoreError::Parse { file, msg } => write!(f, "{}: {msg}", file.display()),
+            StoreError::Io(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for StoreError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            StoreError::Io(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for StoreError {
+    fn from(e: io::Error) -> Self {
+        StoreError::Io(e)
+    }
+}
+
+impl StoreError {
+    /// A missing file (an absent cache or status is not an error).
+    fn is_not_found(&self) -> bool {
+        matches!(self, StoreError::Io(e) if e.kind() == io::ErrorKind::NotFound)
+    }
+}
+
+/// Every node of a store, read once: by id, with their children and a topological order. Built
+/// by [`Store::index`], which refuses a missing parent or a cycle.
+#[derive(Clone, Debug, Default)]
+pub struct Index {
+    nodes: BTreeMap<CheckpointId, Node>,
+    /// The nodes of a layered store's read-only base.
+    base: BTreeSet<CheckpointId>,
+    /// The nodes starting from a new game, ascending.
+    roots: Vec<CheckpointId>,
+    /// Each node's children, ascending.
+    children: BTreeMap<CheckpointId, Vec<CheckpointId>>,
+    /// Parents first, siblings by id.
+    topo: Vec<CheckpointId>,
+}
+
+impl Index {
+    fn build(loaded: Vec<(Node, bool)>) -> Result<Index, StoreError> {
+        let mut index = Index::default();
+        for (node, base) in loaded {
+            if base {
+                index.base.insert(node.meta.id);
+            }
+            index.nodes.insert(node.meta.id, node);
+        }
+        for (&id, n) in &index.nodes {
+            match n.trace.parent {
+                Parent::NewGame => index.roots.push(id),
+                Parent::Checkpoint(p) if index.nodes.contains_key(&p) => {
+                    index.children.entry(p).or_default().push(id)
+                }
+                Parent::Checkpoint(parent) => return Err(StoreError::Parent { id, parent }),
+            }
+        }
+        let mut ready: BTreeSet<CheckpointId> = index.roots.iter().copied().collect();
+        while let Some(id) = ready.pop_first() {
+            index.topo.push(id);
+            ready.extend(index.children.get(&id).into_iter().flatten().copied());
+        }
+        if index.topo.len() < index.nodes.len() {
+            // Every node left is on a cycle or below one: walk up from the first to it.
+            let placed: BTreeSet<CheckpointId> = index.topo.iter().copied().collect();
+            let mut id = *index
+                .nodes
+                .keys()
+                .find(|id| !placed.contains(id))
+                .expect("left");
+            let mut path = Vec::new();
+            while !path.contains(&id) {
+                path.push(id);
+                id = match index.nodes[&id].trace.parent {
+                    Parent::Checkpoint(p) => p,
+                    Parent::NewGame => unreachable!("a node below a root is placed"),
+                };
+            }
+            let start = path.iter().position(|&p| p == id).expect("on the path");
+            let mut cycle = path.split_off(start);
+            cycle.sort_unstable();
+            return Err(StoreError::Cycle(cycle));
+        }
+        Ok(index)
+    }
+
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    pub fn node(&self, id: CheckpointId) -> Option<&Node> {
+        self.nodes.get(&id)
+    }
+
+    /// Every node, by id.
+    pub fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
+
+    /// Node `id` is in a layered store's read-only base.
+    pub fn is_base(&self, id: CheckpointId) -> bool {
+        self.base.contains(&id)
+    }
+
+    /// The nodes starting from `p`, ascending (`Parent::NewGame`: the roots).
+    pub fn children(&self, p: Parent) -> &[CheckpointId] {
+        match p {
+            Parent::NewGame => &self.roots,
+            Parent::Checkpoint(id) => self.children.get(&id).map_or(&[], Vec::as_slice),
+        }
+    }
+
+    /// Parents first, siblings by id.
+    pub fn topo(&self) -> &[CheckpointId] {
+        &self.topo
+    }
+
+    /// `id` and its ancestors, root first.
+    pub fn chain(&self, id: CheckpointId) -> Result<Vec<CheckpointId>, StoreError> {
+        let mut chain = Vec::new();
+        let mut at = Parent::Checkpoint(id);
+        while let Parent::Checkpoint(id) = at {
+            let node = self
+                .node(id)
+                .ok_or_else(|| StoreError::NotFound(id.to_string()))?;
+            chain.push(id);
+            at = node.trace.parent;
+        }
+        chain.reverse();
+        Ok(chain)
+    }
+
+    /// The node labelled `label`.
+    pub fn labelled(&self, label: &str) -> Option<&Node> {
+        self.nodes().find(|n| n.meta.label == label)
+    }
+}
+
 fn node_file(root: &Path, id: CheckpointId) -> PathBuf {
     root.join("nodes").join(format!("{id}.ron"))
 }
 
+fn status_file(root: &Path) -> PathBuf {
+    root.join("status.ron")
+}
+
 /// The ids of `root/nodes/*.ron` (a missing directory has none).
-fn node_ids(root: &Path) -> io::Result<Vec<CheckpointId>> {
-    let entries = match fs::read_dir(root.join("nodes")) {
+fn node_ids(root: &Path) -> Result<Vec<CheckpointId>, StoreError> {
+    let dir = root.join("nodes");
+    let entries = match fs::read_dir(&dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e),
+        Err(e) => return Err(e.into()),
     };
     let mut ids = Vec::new();
     for entry in entries {
@@ -160,10 +352,28 @@ fn node_ids(root: &Path) -> io::Result<Vec<CheckpointId>> {
         };
         let id = parse_id(stem)
             .filter(|id| stem == id.to_string())
-            .ok_or_else(|| invalid(format!("nodes/{name}: not a node file name")))?;
+            .ok_or_else(|| StoreError::Parse {
+                file: dir.join(&*name),
+                msg: "not a node file name".into(),
+            })?;
         ids.push(id);
     }
     Ok(ids)
+}
+
+/// Node `id` from `path`: a missing file is `NotFound`, a file holding another id `Parse`.
+fn read_node_file(path: &Path, id: CheckpointId) -> Result<Node, StoreError> {
+    let node: Node = read_ron(path).map_err(|e| match e {
+        e if e.is_not_found() => StoreError::NotFound(id.to_string()),
+        e => e,
+    })?;
+    if node.meta.id != id {
+        return Err(StoreError::Parse {
+            file: path.into(),
+            msg: format!("holds node {}", node.meta.id),
+        });
+    }
+    Ok(node)
 }
 
 /// The semantic identity of a snapshot (`engine::checkpoint::state_digest`).
@@ -180,10 +390,6 @@ fn parse_id(s: &str) -> Option<CheckpointId> {
     digits.parse().ok().map(CheckpointId)
 }
 
-fn invalid(msg: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, msg.into())
-}
-
 fn ron_config() -> ron::ser::PrettyConfig {
     ron::ser::PrettyConfig::new()
         .new_line("\n".into())
@@ -196,18 +402,26 @@ fn ron_config() -> ron::ser::PrettyConfig {
 }
 
 /// Pretty RON with a trailing newline.
-fn to_ron<T: Serialize>(v: &T) -> io::Result<String> {
-    let mut s = ron::ser::to_string_pretty(v, ron_config()).map_err(|e| invalid(e.to_string()))?;
+fn to_ron<T: Serialize>(v: &T) -> Result<String, StoreError> {
+    let mut s = ron::ser::to_string_pretty(v, ron_config()).map_err(io::Error::other)?;
     s.push('\n');
     Ok(s)
 }
 
-fn read_ron<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
+fn read_ron<T: DeserializeOwned>(path: &Path) -> Result<T, StoreError> {
     let text = fs::read_to_string(path)?;
-    ron::from_str(&text).map_err(|e| {
-        let name = path.file_name().unwrap_or_default().to_string_lossy();
-        invalid(format!("{name}: {e}"))
+    ron::from_str(&text).map_err(|e| StoreError::Parse {
+        file: path.into(),
+        msg: e.to_string(),
     })
+}
+
+/// `status.ron` at `path`; absent is empty.
+fn read_statuses(path: &Path) -> Result<BTreeMap<CheckpointId, Status>, StoreError> {
+    match read_ron(path) {
+        Err(e) if e.is_not_found() => Ok(BTreeMap::new()),
+        r => r,
+    }
 }
 
 /// Writes `text` to a temp file next to `path`, named `{name}.{pid}.{counter}.tmp` so that
@@ -246,17 +460,6 @@ fn write_new(path: &Path, text: &str) -> io::Result<()> {
     r
 }
 
-/// Only the schema of a snapshot file (the rest may not parse under this build).
-#[derive(Deserialize)]
-struct SchemaProbe {
-    header: HeaderProbe,
-}
-
-#[derive(Deserialize)]
-struct HeaderProbe {
-    schema: u16,
-}
-
 impl Store {
     /// The committed tree: `<workspace>/checkpoints/{stub|emerald}`.
     pub fn default_root(stub: bool) -> PathBuf {
@@ -280,19 +483,26 @@ impl Store {
 
     /// A store at `root`. Nothing is created until a node is added: a missing root is an
     /// empty store.
-    pub fn open(root: impl Into<PathBuf>) -> io::Result<Store> {
+    pub fn open(root: impl Into<PathBuf>) -> Result<Store, StoreError> {
         let root = root.into();
         if root.exists() && !root.is_dir() {
-            return Err(invalid(format!("{} is not a directory", root.display())));
+            return Err(StoreError::Invalid(format!(
+                "{} is not a directory",
+                root.display()
+            )));
         }
         Ok(Store { root, base: None })
     }
 
-    /// A store writing at `local` over the read-only tree at `base`: `nodes`, `find`,
-    /// `topo_order` and `materialize` see both, a local node may have a base parent, and
-    /// `add`, `relabel`, `remove` and the snapshot cache only touch `local`. A base node is
-    /// never rewritten (`relabel`, `remove`, or a `verify --accept` that would change it fail).
-    pub fn layered(base: impl Into<PathBuf>, local: impl Into<PathBuf>) -> io::Result<Store> {
+    /// A store writing at `local` over the read-only tree at `base`: `nodes`, `index`, `find`,
+    /// `topo_order`, `statuses` and `materialize` see both, a local node may have a base
+    /// parent, and `add`, `relabel`, `remove`, `status.ron` and the snapshot cache only touch
+    /// `local`. A base node is never rewritten (`relabel`, `remove`, or a `verify --accept`
+    /// that would change it fail with [`StoreError::ReadOnly`]).
+    pub fn layered(
+        base: impl Into<PathBuf>,
+        local: impl Into<PathBuf>,
+    ) -> Result<Store, StoreError> {
         let base = Store::open(base)?.root;
         Ok(Store {
             base: Some(base),
@@ -304,101 +514,106 @@ impl Store {
         &self.root
     }
 
+    /// The read-only base of a layered store.
+    pub fn base(&self) -> Option<&Path> {
+        self.base.as_deref()
+    }
+
     fn node_path(&self, id: CheckpointId) -> PathBuf {
         node_file(&self.root, id)
     }
 
     /// Node `id` lives in the read-only base (not in this store's own root).
-    fn in_base(&self, id: CheckpointId) -> bool {
+    pub fn is_base(&self, id: CheckpointId) -> bool {
         self.base
             .as_deref()
             .is_some_and(|base| !self.node_path(id).exists() && node_file(base, id).exists())
-    }
-
-    fn read_only(id: CheckpointId) -> io::Error {
-        io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            format!("{id} is in the read-only base tree"),
-        )
     }
 
     fn snapshot_path(&self, id: CheckpointId) -> PathBuf {
         self.root.join("snapshots").join(format!("{id}.ron"))
     }
 
-    fn read_node(&self, id: CheckpointId) -> io::Result<Node> {
+    fn read_node(&self, id: CheckpointId) -> Result<Node, StoreError> {
         let path = match &self.base {
-            Some(base) if self.in_base(id) => node_file(base, id),
+            Some(base) if self.is_base(id) => node_file(base, id),
             _ => self.node_path(id),
         };
-        let node: Node = read_ron(&path).map_err(|e| match e.kind() {
-            io::ErrorKind::NotFound => io::Error::new(e.kind(), format!("no node {id}")),
-            _ => e,
-        })?;
-        if node.meta.id != id {
-            return Err(invalid(format!("{id}.ron holds node {}", node.meta.id)));
-        }
-        Ok(node)
+        read_node_file(&path, id)
     }
 
-    fn write_node(&self, node: &Node) -> io::Result<()> {
-        if self.in_base(node.meta.id) {
-            return Err(Self::read_only(node.meta.id));
+    fn write_node(&self, node: &Node) -> Result<(), StoreError> {
+        if self.is_base(node.meta.id) {
+            return Err(StoreError::ReadOnly(node.meta.id));
         }
-        write_atomic(&self.node_path(node.meta.id), &to_ron(node)?)
+        Ok(write_atomic(&self.node_path(node.meta.id), &to_ron(node)?)?)
     }
 
-    /// Every node (with the base's, if layered), by id.
-    pub fn nodes(&self) -> io::Result<Vec<Node>> {
-        let mut ids = node_ids(&self.root)?;
+    /// Every node file, by id, each read once, with whether it is a base node.
+    fn load(&self) -> Result<Vec<(Node, bool)>, StoreError> {
+        let mut files: BTreeMap<CheckpointId, (PathBuf, bool)> = node_ids(&self.root)?
+            .into_iter()
+            .map(|id| (id, (node_file(&self.root, id), false)))
+            .collect();
         if let Some(base) = &self.base {
-            let local: BTreeSet<CheckpointId> = ids.iter().copied().collect();
             for id in node_ids(base)? {
-                if local.contains(&id) {
-                    return Err(invalid(format!(
+                if files.contains_key(&id) {
+                    return Err(StoreError::Invalid(format!(
                         "{id} is both a local node and one of {}",
                         base.display()
                     )));
                 }
-                ids.push(id);
+                files.insert(id, (node_file(base, id), true));
             }
         }
-        ids.sort_unstable();
-        ids.into_iter().map(|id| self.read_node(id)).collect()
+        files
+            .into_iter()
+            .map(|(id, (path, base))| Ok((read_node_file(&path, id)?, base)))
+            .collect()
     }
 
-    /// By `c00012`, `12` or label.
-    pub fn find(&self, id_or_label: &str) -> io::Result<Node> {
+    /// Every node (with the base's, if layered), by id. Unlike [`Store::index`], parents are
+    /// not checked.
+    pub fn nodes(&self) -> Result<Vec<Node>, StoreError> {
+        Ok(self.load()?.into_iter().map(|(n, _)| n).collect())
+    }
+
+    /// Every node, read once, with children and order; a missing parent or a cycle is an
+    /// error.
+    pub fn index(&self) -> Result<Index, StoreError> {
+        Index::build(self.load()?)
+    }
+
+    /// By `c00012`, `12` (that one file) or label (through the index).
+    pub fn find(&self, id_or_label: &str) -> Result<Node, StoreError> {
         if let Some(id) = parse_id(id_or_label) {
             return self.read_node(id);
         }
-        self.nodes()?
-            .into_iter()
-            .find(|n| n.meta.label == id_or_label)
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("no node labelled {id_or_label:?}"),
-                )
-            })
+        self.index()?
+            .labelled(id_or_label)
+            .cloned()
+            .ok_or_else(|| StoreError::NotFound(id_or_label.into()))
     }
 
     /// A label is non-empty, cannot be read as an id, and no other node has it.
-    fn check_label(nodes: &[Node], label: &str, id: Option<CheckpointId>) -> io::Result<()> {
+    fn check_label(
+        nodes: &[Node],
+        label: &str,
+        id: Option<CheckpointId>,
+    ) -> Result<(), StoreError> {
         if label.is_empty() || parse_id(label).is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("label {label:?} is empty or reads as an id"),
-            ));
+            return Err(StoreError::Label(format!(
+                "label {label:?} is empty or reads as an id"
+            )));
         }
         if let Some(other) = nodes
             .iter()
             .find(|n| n.meta.label == label && Some(n.meta.id) != id)
         {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("label {label:?} is taken by {}", other.meta.id),
-            ));
+            return Err(StoreError::Label(format!(
+                "label {label:?} is taken by {}",
+                other.meta.id
+            )));
         }
         Ok(())
     }
@@ -408,42 +623,36 @@ impl Store {
     /// `cp`.
     /// The parent must exist, the trace must start at the parent's frame (0 for a new game)
     /// and end at `cp`'s.
-    pub fn add(&self, label: &str, trace: Trace, cp: &Checkpoint) -> io::Result<CheckpointId> {
+    pub fn add(
+        &self,
+        label: &str,
+        trace: Trace,
+        cp: &Checkpoint,
+    ) -> Result<CheckpointId, StoreError> {
         let nodes = self.nodes()?;
         Self::check_label(&nodes, label, None)?;
         if trace.schema != TRACE_SCHEMA || cp.header.schema != SCHEMA {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "trace schema {} / checkpoint schema {} (this build: {TRACE_SCHEMA} / {SCHEMA})",
-                    trace.schema, cp.header.schema
-                ),
-            ));
+            return Err(StoreError::Invalid(format!(
+                "trace schema {} / checkpoint schema {} (this build: {TRACE_SCHEMA} / {SCHEMA})",
+                trace.schema, cp.header.schema
+            )));
         }
         let parent_frame = match trace.parent {
             Parent::NewGame => 0,
             Parent::Checkpoint(p) => match nodes.iter().find(|n| n.meta.id == p) {
                 Some(n) => n.meta.frame,
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        format!("parent {p} does not exist"),
-                    ));
-                }
+                None => return Err(StoreError::NotFound(p.to_string())),
             },
         };
         let end = trace.start_frame.checked_add(trace.frames());
         if trace.start_frame != parent_frame || end != Some(cp.header.frame) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "trace frames {}+{} do not lead from the parent (frame {parent_frame}) to the \
-                     checkpoint (frame {})",
-                    trace.start_frame,
-                    trace.frames(),
-                    cp.header.frame
-                ),
-            ));
+            return Err(StoreError::Invalid(format!(
+                "trace frames {}+{} do not lead from the parent (frame {parent_frame}) to the \
+                 checkpoint (frame {})",
+                trace.start_frame,
+                trace.frames(),
+                cp.header.frame
+            )));
         }
         // Above every node (and above `LOCAL_IDS` in a layered store).
         let floor = if self.base.is_some() { LOCAL_IDS } else { 0 };
@@ -457,7 +666,9 @@ impl Store {
         };
         // Another writer may publish the same id meanwhile: take the next one.
         loop {
-            let id = CheckpointId(next.ok_or_else(|| invalid("no checkpoint id left"))?);
+            let id = CheckpointId(
+                next.ok_or_else(|| StoreError::Invalid("no checkpoint id left".into()))?,
+            );
             node.meta.id = id;
             match write_new(&self.node_path(id), &to_ron(&node)?) {
                 Ok(()) => {
@@ -465,12 +676,17 @@ impl Store {
                     return Ok(id);
                 }
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists => next = id.0.checked_add(1),
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             }
         }
     }
 
-    pub fn relabel(&self, id: CheckpointId, label: &str) -> io::Result<()> {
+    /// Refuses a base node ([`StoreError::ReadOnly`]) and a label in use
+    /// ([`StoreError::Label`]).
+    pub fn relabel(&self, id: CheckpointId, label: &str) -> Result<(), StoreError> {
+        if self.is_base(id) {
+            return Err(StoreError::ReadOnly(id));
+        }
         let nodes = self.nodes()?;
         Self::check_label(&nodes, label, Some(id))?;
         let mut node = self.read_node(id)?;
@@ -478,112 +694,100 @@ impl Store {
         self.write_node(&node)
     }
 
-    /// Refuses a node with children, and a base node. Also drops its cached snapshot.
-    pub fn remove(&self, id: CheckpointId) -> io::Result<()> {
-        if self.in_base(id) {
-            return Err(Self::read_only(id));
+    /// Refuses a node with children, and a base node. Also drops its cached snapshot and its
+    /// `status.ron` entry. Parents are not checked, so a broken tree can be repaired.
+    pub fn remove(&self, id: CheckpointId) -> Result<(), StoreError> {
+        if self.is_base(id) {
+            return Err(StoreError::ReadOnly(id));
         }
         let nodes = self.nodes()?;
         if !nodes.iter().any(|n| n.meta.id == id) {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("no node {id}"),
-            ));
+            return Err(StoreError::NotFound(id.to_string()));
         }
-        let children: Vec<String> = nodes
+        if nodes
             .iter()
-            .filter(|n| n.trace.parent == Parent::Checkpoint(id))
-            .map(|n| n.meta.id.to_string())
-            .collect();
-        if !children.is_empty() {
-            return Err(io::Error::other(format!(
-                "{id} has children: {}",
-                children.join(", ")
-            )));
+            .any(|n| n.trace.parent == Parent::Checkpoint(id))
+        {
+            return Err(StoreError::HasChildren(id));
         }
         fs::remove_file(self.node_path(id))?;
         match fs::remove_file(self.snapshot_path(id)) {
-            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),
             _ => {}
         }
         // The id may be reused: forget its verdict (a missing or unreadable status is fine).
-        let status_path = self.root.join("status.ron");
-        if let Ok(mut status) = read_ron::<BTreeMap<CheckpointId, Status>>(&status_path)
+        let path = status_file(&self.root);
+        if let Ok(mut status) = read_statuses(&path)
             && status.remove(&id).is_some()
         {
-            write_atomic(&status_path, &to_ron(&status)?)?;
+            write_atomic(&path, &to_ron(&status)?)?;
         }
         Ok(())
     }
 
     /// The cached snapshot; `None` if absent, of another schema, or undecodable (it is a
-    /// cache: replay rebuilds it). A layered store falls back on the base's cache for a base
-    /// node.
-    pub fn snapshot(&self, id: CheckpointId) -> io::Result<Option<Checkpoint>> {
+    /// cache: replay rebuilds it). One parse. A layered store falls back on the base's cache
+    /// for a base node.
+    pub fn snapshot(&self, id: CheckpointId) -> Result<Option<Checkpoint>, StoreError> {
         match (Self::cached(&self.snapshot_path(id))?, &self.base) {
-            (None, Some(base)) if self.in_base(id) => {
+            (None, Some(base)) if self.is_base(id) => {
                 Self::cached(&base.join("snapshots").join(format!("{id}.ron")))
             }
             (cp, _) => Ok(cp),
         }
     }
 
-    fn cached(path: &Path) -> io::Result<Option<Checkpoint>> {
-        let probe: SchemaProbe = match read_ron(path) {
-            Ok(p) => p,
-            Err(e)
+    fn cached(path: &Path) -> Result<Option<Checkpoint>, StoreError> {
+        match read_ron::<Checkpoint>(path) {
+            Ok(cp) => Ok((cp.header.schema == SCHEMA).then_some(cp)),
+            Err(StoreError::Parse { .. }) => Ok(None),
+            Err(StoreError::Io(e))
                 if matches!(
                     e.kind(),
                     io::ErrorKind::NotFound | io::ErrorKind::InvalidData
                 ) =>
             {
-                return Ok(None);
+                Ok(None)
             }
-            Err(e) => return Err(e),
-        };
-        if probe.header.schema != SCHEMA {
-            return Ok(None);
-        }
-        match read_ron(path) {
-            Ok(cp) => Ok(Some(cp)),
-            Err(e) if e.kind() == io::ErrorKind::InvalidData => Ok(None),
             Err(e) => Err(e),
         }
     }
 
-    pub fn put_snapshot(&self, id: CheckpointId, cp: &Checkpoint) -> io::Result<()> {
-        write_atomic(&self.snapshot_path(id), &to_ron(cp)?)
+    pub fn put_snapshot(&self, id: CheckpointId, cp: &Checkpoint) -> Result<(), StoreError> {
+        Ok(write_atomic(&self.snapshot_path(id), &to_ron(cp)?)?)
+    }
+
+    /// The last verdicts (`status.ron`; none if absent). A layered store's are the base's
+    /// `status.ron` overlaid with its own.
+    pub fn statuses(&self) -> Result<BTreeMap<CheckpointId, Status>, StoreError> {
+        let mut all = match &self.base {
+            Some(base) => read_statuses(&status_file(base))?,
+            None => BTreeMap::new(),
+        };
+        all.extend(read_statuses(&status_file(&self.root))?);
+        Ok(all)
+    }
+
+    /// Merges `verdicts` into this store's own `status.ron` (read, modify, atomic rename):
+    /// other entries stay. An unreadable `status.ron` is replaced.
+    pub fn merge_statuses(&self, verdicts: &[(CheckpointId, Status)]) -> Result<(), StoreError> {
+        let path = status_file(&self.root);
+        let mut all = match read_statuses(&path) {
+            Err(StoreError::Parse { .. }) => BTreeMap::new(),
+            r => r?,
+        };
+        all.extend(verdicts.iter().cloned());
+        Ok(write_atomic(&path, &to_ron(&all)?)?)
     }
 
     /// Parents first (siblings by id); a missing parent or a cycle is an error.
-    pub fn topo_order(&self) -> io::Result<Vec<Node>> {
-        let mut pending: BTreeMap<CheckpointId, Node> =
-            self.nodes()?.into_iter().map(|n| (n.meta.id, n)).collect();
-        let mut children: BTreeMap<CheckpointId, Vec<CheckpointId>> = BTreeMap::new();
-        let mut ready = BTreeSet::new();
-        for (&id, n) in &pending {
-            match n.trace.parent {
-                Parent::NewGame => {
-                    ready.insert(id);
-                }
-                Parent::Checkpoint(p) if pending.contains_key(&p) => {
-                    children.entry(p).or_default().push(id)
-                }
-                Parent::Checkpoint(p) => {
-                    return Err(invalid(format!("{id}: parent {p} is missing")));
-                }
-            }
-        }
-        let mut order = Vec::with_capacity(pending.len());
-        while let Some(id) = ready.pop_first() {
-            order.push(pending.remove(&id).expect("each node is ready once"));
-            ready.extend(children.remove(&id).unwrap_or_default());
-        }
-        if !pending.is_empty() {
-            let ids: Vec<String> = pending.keys().map(|id| id.to_string()).collect();
-            return Err(invalid(format!("parent cycle through {}", ids.join(", "))));
-        }
-        Ok(order)
+    pub fn topo_order(&self) -> Result<Vec<Node>, StoreError> {
+        let mut index = self.index()?;
+        Ok(index
+            .topo
+            .iter()
+            .map(|id| index.nodes.remove(id).expect("indexed"))
+            .collect())
     }
 
     /// [`Store::verify_nodes`], as (id, status) pairs.
@@ -591,7 +795,7 @@ impl Store {
         &self,
         replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
         accept: bool,
-    ) -> io::Result<Vec<(CheckpointId, Status)>> {
+    ) -> Result<Vec<(CheckpointId, Status)>, StoreError> {
         Ok(self
             .verify_nodes(replay, accept)?
             .into_iter()
@@ -599,7 +803,8 @@ impl Store {
             .collect())
     }
 
-    /// Replays every node in topological order and classifies it; also writes `status.ron`.
+    /// Replays every node in topological order and classifies it; also merges the verdicts into `status.ron`
+    /// ([`Store::merge_statuses`]: entries of other nodes stay).
     ///
     /// Each trace replays from its parent's state *of this run* (`None` for a new game):
     /// - a Broken parent (or a replayer error) makes the node Broken, without replaying it;
@@ -624,7 +829,7 @@ impl Store {
         &self,
         mut replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
         accept: bool,
-    ) -> io::Result<Vec<Verdict>> {
+    ) -> Result<Vec<Verdict>, StoreError> {
         // Each verified node's state in this run (`None`: Broken).
         let mut states: BTreeMap<CheckpointId, Option<Checkpoint>> = BTreeMap::new();
         let mut verdicts: BTreeMap<CheckpointId, Status> = BTreeMap::new();
@@ -705,7 +910,7 @@ impl Store {
             verdicts.insert(id, status.clone());
             out.push(Verdict { id, status, rehash });
         }
-        write_atomic(&self.root.join("status.ron"), &to_ron(&after)?)?;
+        self.merge_statuses(&after.into_iter().collect::<Vec<_>>())?;
         Ok(out)
     }
 }

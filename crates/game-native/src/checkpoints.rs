@@ -126,7 +126,7 @@ pub fn seed<G: GameData>(
     game: &G,
     rec: &crate::scenario::Recording,
 ) -> Result<Vec<CheckpointId>, String> {
-    let err = |e: std::io::Error| e.to_string();
+    let err = |e: crate::store::StoreError| e.to_string();
     let order = store.topo_order().map_err(err)?;
     let is_route = |id: CheckpointId| {
         order

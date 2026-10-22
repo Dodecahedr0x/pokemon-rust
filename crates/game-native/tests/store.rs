@@ -8,14 +8,13 @@ use engine::checkpoint::{
 };
 use engine::data::{Behavior, Dir, FlagId, MapId, MovementType};
 use engine::{Buttons, World};
-use game_native::store::{LOCAL_IDS, Node, Replayed, Status, Store, Verdict};
+use game_native::store::{LOCAL_IDS, Node, Replayed, Status, Store, StoreError, Verdict};
 use game_native::trace::{
     CheckpointId, HASH_EVERY, HashMismatch, Parent, ReplayReport, Run, TRACE_SCHEMA, Trace,
     TraceRecorder, replay, replay_with_hashes,
 };
 use std::collections::BTreeMap;
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 
 mod common;
@@ -266,6 +265,21 @@ fn replayer(
     }
 }
 
+/// The variant of a store error, for assertions.
+fn kind(e: StoreError) -> &'static str {
+    match e {
+        StoreError::NotFound(_) => "NotFound",
+        StoreError::Label(_) => "Label",
+        StoreError::Parent { .. } => "Parent",
+        StoreError::Cycle(_) => "Cycle",
+        StoreError::HasChildren(_) => "HasChildren",
+        StoreError::ReadOnly(_) => "ReadOnly",
+        StoreError::Parse { .. } => "Parse",
+        StoreError::Invalid(_) => "Invalid",
+        StoreError::Io(_) => "Io",
+    }
+}
+
 fn read_status(root: &Path) -> BTreeMap<CheckpointId, Status> {
     ron::from_str(&fs::read_to_string(root.join("status.ron")).unwrap()).unwrap()
 }
@@ -329,11 +343,7 @@ fn add_nodes_find_and_layout() {
         assert_eq!(&store.find(q).unwrap(), nb, "find {q}");
     }
     for q in ["c00009", "9", "nope"] {
-        assert_eq!(
-            store.find(q).unwrap_err().kind(),
-            io::ErrorKind::NotFound,
-            "{q}"
-        );
+        assert_eq!(kind(store.find(q).unwrap_err()), "NotFound", "{q}");
     }
     assert!(root.join("nodes/c00001.ron").is_file());
     assert!(root.join("snapshots/c00004.ron").is_file());
@@ -355,29 +365,21 @@ fn add_checks_labels_parents_and_frames() {
     let (root, store, [a, ..]) = tree("add-checks");
     let cp = checkpoint(12, 3, BUILD);
     let t = |parent, start| trace(parent, start, &[(Buttons::NONE, 2)]);
-    let kind = |r: io::Result<CheckpointId>| r.unwrap_err().kind();
-    let e = kind(store.add("a", t(Parent::Checkpoint(a), 10), &cp));
-    assert_eq!(e, io::ErrorKind::AlreadyExists, "labels are unique");
+    let err = |r: Result<CheckpointId, StoreError>| kind(r.unwrap_err());
+    let e = err(store.add("a", t(Parent::Checkpoint(a), 10), &cp));
+    assert_eq!(e, "Label", "labels are unique");
     for label in ["", "7", "c00007"] {
-        let e = kind(store.add(label, t(Parent::Checkpoint(a), 10), &cp));
-        assert_eq!(e, io::ErrorKind::InvalidInput, "label {label:?}");
+        let e = err(store.add(label, t(Parent::Checkpoint(a), 10), &cp));
+        assert_eq!(e, "Label", "label {label:?}");
     }
-    let e = kind(store.add("x", t(Parent::Checkpoint(CheckpointId(42)), 10), &cp));
-    assert_eq!(e, io::ErrorKind::NotFound, "missing parent");
-    let e = kind(store.add("x", t(Parent::Checkpoint(a), 9), &cp));
-    assert_eq!(
-        e,
-        io::ErrorKind::InvalidInput,
-        "start frame != parent frame"
-    );
-    let e = kind(store.add("x", t(Parent::Checkpoint(a), 10), &checkpoint(13, 3, BUILD)));
-    assert_eq!(
-        e,
-        io::ErrorKind::InvalidInput,
-        "end frame != checkpoint frame"
-    );
-    let e = kind(store.add("x", t(Parent::NewGame, 5), &checkpoint(7, 3, BUILD)));
-    assert_eq!(e, io::ErrorKind::InvalidInput, "a new game starts at 0");
+    let e = err(store.add("x", t(Parent::Checkpoint(CheckpointId(42)), 10), &cp));
+    assert_eq!(e, "NotFound", "missing parent");
+    let e = err(store.add("x", t(Parent::Checkpoint(a), 9), &cp));
+    assert_eq!(e, "Invalid", "start frame != parent frame");
+    let e = err(store.add("x", t(Parent::Checkpoint(a), 10), &checkpoint(13, 3, BUILD)));
+    assert_eq!(e, "Invalid", "end frame != checkpoint frame");
+    let e = err(store.add("x", t(Parent::NewGame, 5), &checkpoint(7, 3, BUILD)));
+    assert_eq!(e, "Invalid", "a new game starts at 0");
     assert_eq!(store.nodes().unwrap().len(), 4);
     fs::remove_dir_all(root).unwrap();
 }
@@ -389,21 +391,18 @@ fn relabel_and_remove() {
     assert_eq!(store.find("bee").unwrap().meta.id, b);
     assert!(store.find("b").is_err());
     store.relabel(b, "bee").unwrap();
-    assert_eq!(
-        store.relabel(c, "bee").unwrap_err().kind(),
-        io::ErrorKind::AlreadyExists
-    );
+    assert_eq!(kind(store.relabel(c, "bee").unwrap_err()), "Label");
     assert!(store.relabel(CheckpointId(9), "z").is_err());
 
-    assert!(store.remove(a).is_err(), "a has children");
-    assert!(store.remove(b).is_err(), "b has a child");
+    assert_eq!(kind(store.remove(a).unwrap_err()), "HasChildren");
+    assert_eq!(kind(store.remove(b).unwrap_err()), "HasChildren");
     store.remove(c).unwrap();
     assert!(!root.join("snapshots/c00003.ron").exists());
     store.remove(b).unwrap();
     store.remove(d).unwrap();
     store.remove(a).unwrap();
     assert!(store.nodes().unwrap().is_empty());
-    assert_eq!(store.remove(a).unwrap_err().kind(), io::ErrorKind::NotFound);
+    assert_eq!(kind(store.remove(a).unwrap_err()), "NotFound");
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -823,9 +822,8 @@ fn a_layered_store_reads_the_base_and_writes_only_locally() {
     // The base alone never sees the local nodes.
     assert_eq!(base.nodes().unwrap().len(), 4);
     // Base nodes are read-only; local ones are not.
-    let denied = io::ErrorKind::PermissionDenied;
-    assert_eq!(store.relabel(a, "aa").unwrap_err().kind(), denied);
-    assert_eq!(store.remove(d).unwrap_err().kind(), denied);
+    assert_eq!(kind(store.relabel(a, "aa").unwrap_err()), "ReadOnly");
+    assert_eq!(kind(store.remove(d).unwrap_err()), "ReadOnly");
     assert!(store.remove(c).is_err(), "c has a local child");
     store.relabel(mine, "mine2").unwrap();
     store.remove(next).unwrap();
@@ -942,11 +940,11 @@ fn a_trace_of_another_schema_is_broken_and_add_rejects_other_schemas() {
     let e = store
         .add("x", wrong, &checkpoint(12, 3, BUILD))
         .unwrap_err();
-    assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    assert_eq!(kind(e), "Invalid");
     let mut cp = checkpoint(12, 3, BUILD);
     cp.header.schema = SCHEMA + 1;
     let e = store.add("x", t, &cp).unwrap_err();
-    assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    assert_eq!(kind(e), "Invalid");
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -980,7 +978,143 @@ fn remove_forgets_the_status_of_the_id() {
     store.remove(d).unwrap();
     let status = read_status(&root);
     assert!(!status.contains_key(&d) && status.contains_key(&c));
+    assert_eq!(store.statuses().unwrap(), status);
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn the_index_has_children_chains_and_order() {
+    let (root, store, [a, b, c, d]) = tree("index");
+    let index = store.index().unwrap();
+    assert_eq!(index.len(), 4);
+    assert_eq!(index.children(Parent::NewGame), [a]);
+    assert_eq!(index.children(Parent::Checkpoint(a)), [b, d]);
+    assert_eq!(index.children(Parent::Checkpoint(b)), [c]);
+    assert!(index.children(Parent::Checkpoint(c)).is_empty());
+    assert_eq!(index.topo(), [a, b, c, d]);
+    assert_eq!(index.chain(c).unwrap(), [a, b, c]);
+    assert_eq!(index.chain(a).unwrap(), [a]);
+    assert_eq!(kind(index.chain(CheckpointId(9)).unwrap_err()), "NotFound");
+    assert_eq!(index.node(b).unwrap().meta.label, "b");
+    assert_eq!(index.labelled("d").unwrap().meta.id, d);
+    assert!(!index.is_base(a));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_missing_parent_and_a_cycle_are_typed_errors() {
+    let (root, store, _) = tree("index-errors");
+    write_node(&root, 7, Parent::Checkpoint(CheckpointId(99)));
+    match store.index().unwrap_err() {
+        StoreError::Parent { id, parent } => {
+            assert_eq!((id, parent), (CheckpointId(7), CheckpointId(99)))
+        }
+        e => panic!("{e}"),
+    }
+    // 7 -> 8 -> 7, and 9 below the cycle.
+    write_node(&root, 7, Parent::Checkpoint(CheckpointId(8)));
+    write_node(&root, 8, Parent::Checkpoint(CheckpointId(7)));
+    write_node(&root, 9, Parent::Checkpoint(CheckpointId(8)));
+    match store.index().unwrap_err() {
+        StoreError::Cycle(ids) => assert_eq!(ids, [CheckpointId(7), CheckpointId(8)]),
+        e => panic!("{e}"),
+    }
+    // A broken tree can still be listed and repaired.
+    assert_eq!(store.nodes().unwrap().len(), 7);
+    store.remove(CheckpointId(9)).unwrap();
+    assert_eq!(
+        kind(store.remove(CheckpointId(8)).unwrap_err()),
+        "HasChildren"
+    );
+    write_node(&root, 7, Parent::NewGame);
+    store.remove(CheckpointId(8)).unwrap();
+    store.remove(CheckpointId(7)).unwrap();
+    assert_eq!(store.index().unwrap().len(), 4);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn an_unparseable_node_is_a_parse_error_naming_its_file() {
+    let (root, store, [_, b, ..]) = tree("parse");
+    let file = root.join(format!("nodes/{b}.ron"));
+    fs::write(&file, "(meta: (id: 2, lab").unwrap();
+    for e in [
+        store.index().unwrap_err(),
+        store.nodes().unwrap_err(),
+        store.find("b00").unwrap_err(),
+        store.find("2").unwrap_err(),
+    ] {
+        match e {
+            StoreError::Parse { file: f, .. } => assert_eq!(f, file),
+            e => panic!("{e}"),
+        }
+    }
+    // A node file holding another node's id.
+    let a = fs::read(root.join("nodes/c00001.ron")).unwrap();
+    fs::write(&file, a).unwrap();
+    assert_eq!(kind(store.find("2").unwrap_err()), "Parse");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn merge_statuses_keeps_other_entries() {
+    let (root, store, [a, b, c, d]) = tree("merge");
+    assert!(store.statuses().unwrap().is_empty(), "absent is empty");
+    store.merge_statuses(&[(a, Status::Valid)]).unwrap();
+    let stale = Status::Stale { schema: 1 };
+    store.merge_statuses(&[(b, stale.clone())]).unwrap();
+    assert_eq!(
+        store.statuses().unwrap(),
+        BTreeMap::from([(a, Status::Valid), (b, stale.clone())])
+    );
+    // verify merges too: an entry of a node it did not replay stays.
+    let gone = CheckpointId(77);
+    store.merge_statuses(&[(gone, stale.clone())]).unwrap();
+    store.verify(replayer(BUILD, None, None), false).unwrap();
+    let mut want: BTreeMap<_, _> = [a, b, c, d].map(|id| (id, Status::Valid)).into();
+    want.insert(gone, stale);
+    assert_eq!(store.statuses().unwrap(), want);
+    // An unreadable status.ron is an error to read and replaced by a merge.
+    fs::write(root.join("status.ron"), "garbage").unwrap();
+    assert_eq!(kind(store.statuses().unwrap_err()), "Parse");
+    store.merge_statuses(&[(a, Status::Valid)]).unwrap();
+    assert_eq!(store.statuses().unwrap(), [(a, Status::Valid)].into());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_layered_store_indexes_both_and_overlays_statuses() {
+    let (base_root, base, [a, b, c, _]) = tree("lbase");
+    base.verify(replayer(BUILD, None, None), false).unwrap();
+    let local_root = temp_root("llocal");
+    let store = Store::layered(&base_root, &local_root).unwrap();
+    assert_eq!(store.base(), Some(base_root.as_path()));
+    let mine = add(&store, "mine", Parent::Checkpoint(c), &[(Buttons::UP, 3)]);
+    let index = store.index().unwrap();
+    assert!(index.is_base(a) && store.is_base(a));
+    assert!(!index.is_base(mine) && !store.is_base(mine));
+    assert_eq!(index.children(Parent::Checkpoint(c)), [mine]);
+    assert_eq!(index.chain(mine).unwrap(), [a, b, c, mine]);
+    // The base's status.ron, overlaid with the local one; merges go to the local one.
+    let diverged = Status::Diverged {
+        hash: None,
+        parent_diverged: false,
+    };
+    store
+        .merge_statuses(&[(b, diverged.clone()), (mine, Status::Valid)])
+        .unwrap();
+    let all = store.statuses().unwrap();
+    assert_eq!(
+        (&all[&a], &all[&b], &all[&mine]),
+        (&Status::Valid, &diverged, &Status::Valid)
+    );
+    assert_eq!(
+        read_status(&base_root)[&b],
+        Status::Valid,
+        "the base is untouched"
+    );
+    fs::remove_dir_all(base_root).unwrap();
+    fs::remove_dir_all(local_root).unwrap();
 }
 
 #[test]
