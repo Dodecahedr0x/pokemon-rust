@@ -34,6 +34,16 @@ impl Rng {
     }
 }
 
+// Milestone 5 Task B.
+impl Rng {
+    /// The generator in state `state` (what [`Rng::state`] returned); `None` for 0, which
+    /// xorshift32 never reaches.
+    pub const fn from_state(state: u32) -> Option<Rng> {
+        let _ = state;
+        todo!() // Milestone 5 Task B (const: no message)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

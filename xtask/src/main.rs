@@ -1,3 +1,6 @@
+mod budget;
+mod checkpoints;
+
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -250,6 +253,7 @@ fn main() -> Result<()> {
         Some("parity") => parity(),
         Some("shot") => shot(),
         Some("extract") => extract(&args[1..]),
-        _ => bail!("usage: cargo xtask <rom|parity|shot|extract>"),
+        Some("checkpoints") => checkpoints::main(&args[1..]),
+        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints>"),
     }
 }

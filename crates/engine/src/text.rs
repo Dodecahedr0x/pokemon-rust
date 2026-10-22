@@ -462,6 +462,16 @@ impl TextBox {
         self.open
     }
 
+    /// Same hash as `TextBox::new()` (what `close` leaves): nothing on BG0 needs restoring.
+    pub fn is_pristine(&self) -> bool {
+        let digest = |t: &TextBox| {
+            let mut h = Fnv64::new();
+            t.hash(&mut h);
+            h.finish()
+        };
+        digest(self) == digest(&TextBox::new())
+    }
+
     /// Feeds all state into `h` (parity contract).
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {

@@ -61,6 +61,18 @@ impl Fader {
     }
 }
 
+// Milestone 5 Task B.
+impl Fader {
+    pub fn snapshot(&self) -> crate::checkpoint::FaderSnap {
+        todo!("Milestone 5 Task B")
+    }
+
+    pub const fn from_snapshot(s: crate::checkpoint::FaderSnap) -> Fader {
+        let _ = s;
+        todo!() // Milestone 5 Task B (const: no message)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

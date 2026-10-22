@@ -159,7 +159,7 @@ pub enum StatusKind {
 }
 
 /// Gen3 `STATUS1_*`: `Sleep(turns left)`, `Toxic(counter)`.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub enum Status {
     #[default]
     None,
@@ -441,7 +441,7 @@ pub static EMPTY_TABLES: BattleTables = BattleTables {
 };
 
 /// A party or box Pokémon (Gen3 `struct Pokemon`, decrypted).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Pokemon {
     pub species: SpeciesId,
     pub personality: u32,

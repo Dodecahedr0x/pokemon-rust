@@ -10,3 +10,5 @@ explore.db
 content/extracted/
 content/.extracted.tmp/
 content/.extracted.old/
+checkpoints/*/snapshots/
+checkpoints/*/status.ron

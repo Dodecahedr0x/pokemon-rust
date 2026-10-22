@@ -159,6 +159,20 @@ impl Vars {
     }
 }
 
+// Milestone 5 Task B.
+impl Vars {
+    /// Set flags and non-zero vars, ascending.
+    pub fn snapshot(&self) -> crate::checkpoint::VarsSnap {
+        todo!("Milestone 5 Task B")
+    }
+
+    /// Rebuilt through the setters, so the digest matches the contents.
+    pub fn from_snapshot(s: &crate::checkpoint::VarsSnap) -> Vars {
+        let _ = s;
+        todo!("Milestone 5 Task B")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

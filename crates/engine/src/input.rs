@@ -1,5 +1,7 @@
 /// Pressed buttons, one bit per key, in GBA KEYINPUT order (active-high).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Hash)]
+#[derive(
+    Clone, Copy, PartialEq, Eq, Debug, Default, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct Buttons(pub u16);
 
 impl Buttons {

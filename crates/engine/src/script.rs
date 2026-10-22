@@ -18,7 +18,7 @@ use core::task::{Context, Poll, Waker};
 pub type Script = Pin<Box<dyn Future<Output = ()>>>;
 
 /// Movement speed of one step (Gen3 `walk_slow` … `walk_faster`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Speed {
     Slow,
     Normal,
@@ -580,6 +580,15 @@ impl Runner {
         }
     }
 
+    /// An idle runner whose last script issued `issued` requests (checkpoint restore: only
+    /// `issued` survives the end of a script and is hashed).
+    pub fn restore_idle(issued: u32) -> Runner {
+        Self {
+            issued,
+            ..Self::new()
+        }
+    }
+
     /// The handle to pass to the script being started.
     pub fn ctx(&self) -> Ctx {
         Ctx(self.io.clone())
@@ -666,6 +675,13 @@ impl Runner {
         }
         true
     }
+}
+
+/// FNV-1a-32 over a stable encoding of each step (tag byte + args); the identity of a step
+/// table (Milestone 5 Task A).
+pub fn steps_digest(steps: &[Step]) -> u32 {
+    let _ = steps;
+    todo!("Milestone 5 Task A")
 }
 
 #[cfg(test)]
