@@ -22,9 +22,10 @@ static mut PKR_DEBUG: DebugRegion = DebugRegion::new();
 
 // The black-screen test below (`late_black`, `Frame::is_black`) is sound only if BLDY at
 // `BRIGHTNESS_BLACK` blackens every pixel: brightness decrease must target BG0-3, OBJ and the
-// backdrop (BLDCNT bits 0-5, mode 3; `lighten` frames, mode 2, are never black), no window may exclude anything from the effect (DISPCNT bits 13-15 clear;
-// the shell never writes WININ/WINOUT), and no OBJ may be semi-transparent (OBJ mode 1 would
-// alpha-blend instead; `video::oam_entry` always writes mode 0).
+// backdrop (BLDCNT bits 0-5, mode 3; `lighten` frames, mode 2, are never black), no window may
+// exclude anything from the effect (DISPCNT bits 13-15 clear; the shell never writes
+// WININ/WINOUT), and no OBJ may be semi-transparent (OBJ mode 1 would alpha-blend instead;
+// `video::oam_entry` always writes mode 0).
 const _: () = {
     assert!(video::BLDCNT_DARKEN_ALL == 0x3F | (3 << 6));
     assert!(video::BLDCNT_LIGHTEN_ALL == 0x3F | (2 << 6));
