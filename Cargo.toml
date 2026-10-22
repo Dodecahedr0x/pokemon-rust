@@ -28,3 +28,11 @@ opt-level = 2
 
 [profile.dev.package.game-native]
 opt-level = 2
+
+# The content build script generates the data and the scripts (Milestone 8): optimized, it runs
+# 7x faster than at opt-level 0.
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3

@@ -19,3 +19,17 @@ debug = true
 opt-level = 3
 lto = "fat"
 debug = true
+
+# Milestone 8: the generated scripts are most of the code, and size-optimized they are 29% less
+# `.text` (18% less ROM) and build in 30% less time and 43% less memory, within the frame budget
+# (Wave 0 spike, plan "Wave 0 as built").
+[profile.release.package.content]
+opt-level = "s"
+debug = false
+
+# The content build script generates the data and the scripts: optimized, it runs 7x faster.
+[profile.release.build-override]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3
