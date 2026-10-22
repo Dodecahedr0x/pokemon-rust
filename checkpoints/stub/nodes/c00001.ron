@@ -13,7 +13,7 @@
         world_hash: 14794414614833508977,
     ),
     trace: (
-        schema: 1,
+        schema: 2,
         parent: NewGame,
         build: (
             engine: 1779857800260147988,
@@ -21,7 +21,7 @@
         ),
         start_frame: 0,
         inputs: [
-            ((0), 24),
+            "0*24",
         ],
         hashes: [
             (24, 14794414614833508977),
