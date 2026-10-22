@@ -8,8 +8,7 @@ use engine::checkpoint::BuildHash;
 use engine::data::{MapId, ScriptId};
 use explore::db::{Db, DbError, RunRow, SCHEMA_VERSION};
 use explore::{
-    AbstractKey, BattleSummary, FindingDraft, FindingKind, GenerationDelta, NodeStatus, SeenKind,
-    Touch,
+    BattleSummary, FindingDraft, FindingKind, GenerationDelta, NodeStatus, SeenKind, Touch,
 };
 use game_native::trace::rle;
 
@@ -71,7 +70,7 @@ fn gen1() -> GenerationDelta {
                 hp_lost_permille: 250,
             },
         )],
-        findings: vec![(draft("boom 12"), 3, 9)],
+        findings: vec![(draft("boom 12"), Some(3), 9)],
         ..Default::default()
     }
 }
@@ -155,7 +154,7 @@ fn apply_round_trip() {
     let want = draft("boom 12");
     assert_eq!(
         (f.kind, f.node, f.macro_, &f.tail, f.total_frame),
-        (want.kind, 3, want.macro_, &want.tail, 9)
+        (want.kind, Some(3), want.macro_, &want.tail, 9)
     );
     assert_eq!((f.map, f.pos, f.script), (want.map, want.pos, want.script));
     assert_eq!(
@@ -210,7 +209,7 @@ fn upserts_count_hits() {
         nodes: vec![row(5, Some(1), 50, B1)],
         seen: vec![(SeenKind::Map, 1, 5)],
         cells: vec![(MapId(1), 1, -1, 5)],
-        findings: vec![(draft("boom 13"), 5, 11)],
+        findings: vec![(draft("boom 13"), Some(5), 11)],
         ..Default::default()
     };
     db.apply(&d).unwrap();
@@ -219,7 +218,7 @@ fn upserts_count_hits() {
     // An open finding keeps its first repro.
     assert_eq!(
         (f.node, f.total_frame, f.message.as_str()),
-        (3, 9, "boom 12")
+        (Some(3), 9, "boom 12")
     );
     assert!(db.seen().unwrap().contains(&(SeenKind::Map, 1, 2)));
     assert_eq!(
@@ -233,7 +232,7 @@ fn upserts_count_hits() {
     assert_eq!(db.findings().unwrap()[0].status, "stale");
     let d = GenerationDelta {
         generation: 5,
-        findings: vec![(draft("boom 14"), 5, 12)],
+        findings: vec![(draft("boom 14"), Some(5), 12)],
         ..Default::default()
     };
     db.apply(&d).unwrap();
@@ -241,7 +240,7 @@ fn upserts_count_hits() {
     assert_eq!((f.status.as_str(), f.hits, f.build), ("open", 3, B2));
     assert_eq!(
         (f.node, f.total_frame, f.message.as_str()),
-        (5, 12, "boom 14")
+        (Some(5), 12, "boom 14")
     );
 }
 
@@ -355,23 +354,73 @@ fn a_forward_merged_into_inside_one_delta() {
 }
 
 #[test]
-fn key_hits_persist() {
+fn a_root_finding_has_no_node() {
+    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    // The root job failed: no node, the tail starts from a new game.
+    db.apply(&GenerationDelta {
+        generation: 1,
+        findings: vec![(draft("boom"), None, 3)],
+        ..Default::default()
+    })
+    .unwrap();
+    let f = &db.findings().unwrap()[0];
+    assert_eq!(
+        (f.node, f.total_frame, &f.tail),
+        (None, 3, &draft("boom").tail)
+    );
+    assert_eq!(db.finding(f.id).unwrap().as_ref(), Some(f));
+}
+
+#[test]
+fn unknown_ids_in_merged_or_expanded_are_errors() {
     let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
     db.apply(&gen1()).unwrap();
-    let a = db.content_digest().unwrap();
-    assert!(db.key_hits().unwrap().is_empty());
-    let hits = [
-        (AbstractKey(5), 2),
-        (AbstractKey(u64::MAX), 7),
-        (AbstractKey(9), 0),
-    ];
-    db.set_key_hits(&hits).unwrap();
-    assert_eq!(
-        db.key_hits().unwrap(),
-        [(AbstractKey(5), 2), (AbstractKey(u64::MAX), 7)]
-    );
-    assert_ne!(db.content_digest().unwrap(), a, "key hits are search state");
-    // A replacement, not an accumulation.
-    db.set_key_hits(&[(AbstractKey(5), 3)]).unwrap();
-    assert_eq!(db.key_hits().unwrap(), [(AbstractKey(5), 3)]);
+    let digest = db.content_digest().unwrap();
+    for d in [
+        GenerationDelta {
+            generation: 2,
+            merged: vec![(99, 1)],
+            ..Default::default()
+        },
+        GenerationDelta {
+            generation: 2,
+            expanded: vec![(1, 1), (99, 1)],
+            ..Default::default()
+        },
+    ] {
+        assert!(matches!(db.apply(&d), Err(DbError::Codec(_))));
+    }
+    assert_eq!(db.content_digest().unwrap(), digest, "nothing applied");
+}
+
+#[test]
+fn a_mismatched_db_is_refused_before_any_change() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    // A db of another schema, in the default (rollback) journal mode.
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); \
+             INSERT INTO meta VALUES ('schema', '1'), ('flavor', 'stub');",
+        )
+        .unwrap();
+    }
+    assert!(matches!(
+        Db::open(&path, B1, true),
+        Err(DbError::Schema { found: 1, .. })
+    ));
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let mode: String = conn
+        .pragma_query_value(None, "journal_mode", |r| r.get(0))
+        .unwrap();
+    assert_eq!(mode, "delete", "no switch to WAL");
+    let tables: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(tables, 1, "no DDL");
 }

@@ -5,6 +5,7 @@
 *.ppm
 target/
 explore.db
+explore.db-*
 .DS_Store
 .claude/worktrees/
 content/extracted/

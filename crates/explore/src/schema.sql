@@ -65,11 +65,6 @@ CREATE TABLE IF NOT EXISTS coverage (             -- studio heatmap
   PRIMARY KEY (map, x, y)
 ) STRICT, WITHOUT ROWID;
 
-CREATE TABLE IF NOT EXISTS key_hit (              -- selection decay: Graph::all_key_hits (v2)
-  key  INTEGER PRIMARY KEY,                       -- AbstractKey
-  hits INTEGER NOT NULL
-) STRICT;
-
 CREATE TABLE IF NOT EXISTS battle (               -- balance tables (v0: recorded, weight 0)
   id               INTEGER PRIMARY KEY,
   node             INTEGER NOT NULL REFERENCES node(id),
@@ -86,7 +81,7 @@ CREATE TABLE IF NOT EXISTS finding (
   id               INTEGER PRIMARY KEY,
   signature        INTEGER NOT NULL UNIQUE,
   kind             TEXT    NOT NULL,
-  node             INTEGER NOT NULL REFERENCES node(id),  -- the tail starts at this node's end state
+  node             INTEGER REFERENCES node(id),  -- the tail starts at this node's end state; NULL = a new game (v2)
   macro            TEXT,
   tail             TEXT    NOT NULL,              -- runs text to the finding frame (inclusive)
   total_frame      INTEGER NOT NULL,              -- frames from a new game to the finding

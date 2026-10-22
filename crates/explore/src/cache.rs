@@ -9,9 +9,12 @@ use game_native::Session;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// In-memory LRU (by tick) of node end states.
+/// In-memory LRU (by tick) of node end states, for one build: [`reach`] clears it when the
+/// game's build differs from the one it was filled on.
 pub struct SnapCache {
     cap: usize,
+    /// The build the states were captured on (`None` until the first `reach`).
+    build: Option<BuildHash>,
     tick: u64,
     map: BTreeMap<NodeId, (Arc<Checkpoint>, u64)>,
     /// tick -> id, the eviction order.
@@ -25,6 +28,7 @@ impl SnapCache {
     pub fn new(cap: usize) -> Self {
         SnapCache {
             cap,
+            build: None,
             tick: 0,
             map: BTreeMap::new(),
             order: BTreeMap::new(),
@@ -95,6 +99,14 @@ impl SnapCache {
         self.map.clear();
         self.order.clear();
     }
+
+    /// Ties the cache to `build`, dropping every state of another build.
+    pub fn set_build(&mut self, build: BuildHash) {
+        if self.build != Some(build) {
+            self.clear();
+            self.build = Some(build);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -102,12 +114,12 @@ pub enum ReachError {
     Db(DbError),
     Missing(NodeId),
     Restore(String),
-    /// Replaying `node`'s inputs did not reach its digest; `got` is 0 when the end frame was
-    /// not capturable.
+    /// Replaying `node`'s inputs did not reach its digest; `got` is `None` when the end frame
+    /// was not capturable.
     Diverged {
         node: NodeId,
         want: u64,
-        got: u64,
+        got: Option<u64>,
     },
 }
 
@@ -117,9 +129,21 @@ impl std::fmt::Display for ReachError {
             ReachError::Db(e) => write!(f, "{e}"),
             ReachError::Missing(id) => write!(f, "node {id} is not in the db"),
             ReachError::Restore(e) => write!(f, "restore: {e}"),
-            ReachError::Diverged { node, want, got } => write!(
+            ReachError::Diverged {
+                node,
+                want,
+                got: Some(got),
+            } => write!(
                 f,
                 "node {node} replays to digest {got:#018x}, want {want:#018x}"
+            ),
+            ReachError::Diverged {
+                node,
+                want,
+                got: None,
+            } => write!(
+                f,
+                "node {node} replays to a frame that is not capturable, want {want:#018x}"
             ),
         }
     }
@@ -147,10 +171,10 @@ pub(crate) fn replay_node<G: GameData>(
         want: n.digest,
         got,
     };
-    let cp = s.checkpoint().map_err(|_| diverged(0))?;
+    let cp = s.checkpoint().map_err(|_| diverged(None))?;
     let got = state_digest(&cp.world);
     if got != n.digest {
-        return Err(diverged(got));
+        return Err(diverged(Some(got)));
     }
     Ok(cp)
 }
@@ -177,25 +201,28 @@ fn db_snapshot(db: &Db, n: &NodeRow, build: BuildHash) -> Result<Option<Checkpoi
 
 /// Node `id`'s end state: the nearest ancestor in the cache, then in the db (same build), else
 /// a new game; replays the inputs down the lineage, checks each digest, caches the result
-/// (and every state replayed on the way).
+/// (and every state replayed on the way). Counts one cache hit or one miss per call. The
+/// cache is cleared first if it holds states of another build.
 pub fn reach<G: GameData + Clone>(
     game: &G,
     db: &Db,
     cache: &mut SnapCache,
     id: NodeId,
 ) -> Result<Arc<Checkpoint>, ReachError> {
-    if let Some(cp) = cache.get(id) {
-        return Ok(cp);
+    let build = build_hash(game);
+    cache.set_build(build);
+    if cache.contains(id) {
+        return Ok(cache.get(id).expect("contained"));
     }
+    cache.misses += 1;
     let lineage = db.lineage(id)?;
     if lineage.last().map(|n| n.id) != Some(id) {
         return Err(ReachError::Missing(id));
     }
-    let build = build_hash(game);
     // (index of the deepest node whose state we have, that state)
     let mut start: Option<(usize, Arc<Checkpoint>)> = None;
     for (i, n) in lineage.iter().enumerate().rev() {
-        if let Some(cp) = cache.get(n.id) {
+        if let Some(cp) = cache.touch(n.id) {
             start = Some((i, cp));
             break;
         }

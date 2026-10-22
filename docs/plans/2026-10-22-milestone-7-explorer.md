@@ -1323,3 +1323,21 @@ That is about 50× the 50k frames/s that the "Done when" nodes/s thresholds assu
 
 
 **Scheduling (taken).** M7 started early, in parallel with M6 Wave 1 (requested by the user). Wave 0 and Wave 1 are headless and independent of M6 files. Wave 2b waits for M6. Once M6 is complete, M7 gets a second pass against M6's final APIs.
+
+## Task C as built
+**Schema v2** (`SCHEMA_VERSION = 2`): `finding.node` is nullable (`NULL` = the tail starts from a new game, the root job's findings); `GenerationDelta.findings` and `FindingRow.node` carry `Option<NodeId>`. No `key_hit` table: `Graph` key hits are rows per key − 1, rebuilt from the node rows.
+
+**Contract deltas:**
+- `rebuild::Repair<'a> = dyn Fn(Option<&Checkpoint>, &Macro) -> Option<(Vec<Run>, Checkpoint)> + Sync + 'a`: `None` is a new game, so a diverged root re-expands from boot; the lifetime lets the closure borrow. `revalidate` takes `&Repair<'_>`.
+- `rebuild::revalidate_with_key` (`#[doc(hidden)]`): `revalidate` with the repaired nodes' key and region from a closure (`KeyFn`); `revalidate` passes `key::key_parts` + `key::key`/`region` with `cfg.key`. Tests use fakes.
+- `ReachError::Diverged.got` is `Option<u64>` (`None` = the end frame was not capturable). `ReachError` implements `Display`, `Error` and `From<DbError>`.
+- `Db`: `open_in_memory`, `build`, `meta_build`, `set_build` (meta build + open findings of other builds → `stale`), `drop_snapshots_except`, `set_status_and_snapshots` (one transaction per revalidated level). `apply` errors (`Codec`) on unknown ids in `merged`/`expanded`; foreign keys are deferred to commit, so `merged_into` may name a later row of the same delta.
+- `SnapCache`: `contains`, `len`, `is_empty`, `hit_stats` (one hit or one miss per `reach`), `clear`, `set_build` (`reach` ties the cache to the game's build and clears it on a mismatch).
+- `FindingRow`/`RunRow`/`DbStats`/`RevalidateReport` derive `Clone, PartialEq, Debug` (+ `Eq`, `Default` where possible).
+
+**Behaviour:**
+- `Db::open` checks schema and flavor before the DDL and the WAL switch; both connections set `busy_timeout(5 s)`. Directory creation errors map to `DbError::Codec`. The seed is the caller's `set_meta("seed", …)`.
+- `apply` writes every `delta.snapshots` entry to the db: the delta carries only the `snapshot_every_depth` ones. A stale or gone finding seen again reopens with the new repro and build.
+- `revalidate`: merged nodes of another build are replayed too (they can be ancestors); a key collision resolves only against holders already checked in the run, pending otherwise (the holder that keeps the key competes by fewer total frames, then lower id; a holder that breaks or changes key hands it to the best waiting or merged-into node). Total frames are recomputed down the tree; repaired nodes keep `progress` and fitness. A db error while reaching a parent is returned; `Diverged`/`Missing`/`Restore` break the child.
+
+**For Task G:** `db.rs` signs findings with a private `draft_signature` that follows `findings::signature`'s spec (Task E was a stub); swap in `crate::findings::signature` when wiring. `progress` of repaired nodes is not re-scored (`goals::progress` needs the summary).

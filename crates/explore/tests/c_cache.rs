@@ -38,6 +38,15 @@ fn reach_replays_the_lineage_from_an_empty_cache() {
     let cp1 = reach(&game, &db, &mut cache, 1).unwrap();
     assert_eq!(state_digest(&cp1.world), digests[0]);
     assert_eq!(cache.hit_stats().0, hits + 1);
+    // One miss for the replaying reach, one hit for the cached one.
+    assert_eq!(cache.hit_stats(), (1, 1));
+    // States of another build are dropped.
+    let mut other = build_hash(&game);
+    other.engine ^= 1;
+    cache.set_build(other);
+    assert!(cache.is_empty());
+    reach(&game, &db, &mut cache, 2).unwrap();
+    assert_eq!(cache.len(), 2);
 }
 
 #[test]
@@ -70,7 +79,7 @@ fn a_wrong_digest_diverges() {
     db.set_status(&[n3]).unwrap();
     match reach(&game, &db, &mut SnapCache::new(16), 3) {
         Err(ReachError::Diverged { node: 3, want, got }) => {
-            assert_eq!((want, got), (digests[2] ^ 1, digests[2]));
+            assert_eq!((want, got), (digests[2] ^ 1, Some(digests[2])));
         }
         r => panic!("{:?}", r.map(|_| ())),
     }

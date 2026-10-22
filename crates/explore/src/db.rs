@@ -16,8 +16,11 @@ use std::path::{Path, PathBuf};
 
 /// The DDL (`CREATE … IF NOT EXISTS`, idempotent).
 pub const SCHEMA_SQL: &str = include_str!("schema.sql");
-/// 2: the `key_hit` table.
+/// 2: `finding.node` is nullable (a tail from a new game).
 pub const SCHEMA_VERSION: i64 = 2;
+
+/// How long a connection waits on a lock held by another (writer or reader).
+const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Sets the pragmas `Db::open` uses (`journal_mode=WAL; synchronous=NORMAL;
 /// foreign_keys=ON`) and runs [`SCHEMA_SQL`].
@@ -282,10 +285,28 @@ impl Db {
     }
 
     fn init(conn: Connection, build: BuildHash, stub: bool) -> Result<(Db, OpenState), DbError> {
-        init_connection(&conn)?;
-        let mut db = Db { conn, build };
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         let flavor = flavor_name(stub);
-        let state = match db.meta("schema")? {
+        // Refuse another schema or flavor before touching the file (no DDL, no WAL switch).
+        let has_meta: bool = conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'meta')",
+            [],
+            |r| r.get(0),
+        )?;
+        let mut db = Db { conn, build };
+        let existing = if has_meta { db.meta("schema")? } else { None };
+        if let Some(v) = &existing {
+            check_schema(v)?;
+            let db_flavor = db.meta("flavor")?.unwrap_or_default();
+            if db_flavor != flavor {
+                return Err(DbError::Flavor {
+                    db: db_flavor,
+                    build: flavor.to_string(),
+                });
+            }
+        }
+        init_connection(&db.conn)?;
+        let state = match existing {
             None => {
                 let tx = db.conn.transaction()?;
                 for (k, v) in [
@@ -306,20 +327,10 @@ impl Db {
                     build_changed: false,
                 }
             }
-            Some(v) => {
-                check_schema(&v)?;
-                let db_flavor = db.meta("flavor")?.unwrap_or_default();
-                if db_flavor != flavor {
-                    return Err(DbError::Flavor {
-                        db: db_flavor,
-                        build: flavor.to_string(),
-                    });
-                }
-                OpenState {
-                    fresh: false,
-                    build_changed: db.meta_build()? != Some(build),
-                }
-            }
+            Some(_) => OpenState {
+                fresh: false,
+                build_changed: db.meta_build()? != Some(build),
+            },
         };
         Ok((db, state))
     }
@@ -333,6 +344,7 @@ impl Db {
                 | OpenFlags::SQLITE_OPEN_URI
                 | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         let mut db = Db {
             conn,
             build: BuildHash::default(),
@@ -382,11 +394,15 @@ impl Db {
             let mut st =
                 tx.prepare("UPDATE node SET status = 'merged', merged_into = ?2 WHERE id = ?1")?;
             for (old, new) in &d.merged {
-                st.execute(params![old, new])?;
+                if st.execute(params![old, new])? != 1 {
+                    return Err(DbError::Codec(format!("merged: no node {old}")));
+                }
             }
             let mut st = tx.prepare("UPDATE node SET expanded = expanded + ?2 WHERE id = ?1")?;
             for (id, n) in &d.expanded {
-                st.execute(params![id, n])?;
+                if st.execute(params![id, n])? != 1 {
+                    return Err(DbError::Codec(format!("expanded: no node {id}")));
+                }
             }
             let mut st = tx.prepare(&format!(
                 "INSERT INTO node ({NODE_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, \
@@ -665,24 +681,34 @@ impl Db {
 
     /// Revalidation results, in one transaction: each row's inputs, frames, total frames, end
     /// frame, key, region, digest, world hash, map, pos, progress, status, `merged_into` and
-    /// build (parent, depth, macro, fitness, generation and `expanded` are kept). Rows leaving
-    /// the live set (merged, broken) are written first, so a key can move between rows.
+    /// build (parent, depth, macro, fitness, generation and `expanded` are kept). The rows
+    /// leave the live set first, so keys can move between them in any order.
     pub fn set_status(&mut self, rows: &[NodeRow]) -> Result<(), DbError> {
+        self.set_status_and_snapshots(rows, &[])
+    }
+
+    /// [`Db::set_status`] and [`Db::put_snapshot`]s in one transaction (a revalidated level).
+    pub fn set_status_and_snapshots(
+        &mut self,
+        rows: &[NodeRow],
+        snapshots: &[(NodeId, &Checkpoint)],
+    ) -> Result<(), DbError> {
         let tx = self.conn.transaction()?;
         tx.pragma_update(None, "defer_foreign_keys", "ON")?;
         {
+            let mut out = tx.prepare("UPDATE node SET status = 'broken' WHERE id = ?1")?;
+            for n in rows {
+                if out.execute([n.id])? != 1 {
+                    return Err(DbError::Codec(format!("set_status: no node {}", n.id)));
+                }
+            }
             let mut st = tx.prepare(
                 "UPDATE node SET inputs = ?2, frames = ?3, total_frames = ?4, end_frame = ?5, \
                  key = ?6, region = ?7, digest = ?8, world_hash = ?9, map = ?10, x = ?11, \
                  y = ?12, progress = ?13, status = ?14, merged_into = ?15, build_engine = ?16, \
                  build_content = ?17 WHERE id = ?1",
             )?;
-            let live = |n: &&NodeRow| matches!(n.status, NodeStatus::Valid | NodeStatus::Stale);
-            for n in rows
-                .iter()
-                .filter(|n| !live(n))
-                .chain(rows.iter().filter(live))
-            {
+            for n in rows {
                 st.execute(params![
                     n.id,
                     runs::to_text(&n.inputs),
@@ -702,6 +728,9 @@ impl Db {
                     n.build.engine as i64,
                     n.build.content as i64,
                 ])?;
+            }
+            for (id, cp) in snapshots {
+                put_snapshot(&tx, *id, cp)?;
             }
         }
         tx.commit()?;
@@ -781,34 +810,8 @@ impl Db {
         })
     }
 
-    /// Replaces the persisted key hits (`Graph::all_key_hits`, after each `apply`) in one
-    /// transaction; zero counts are not stored.
-    pub fn set_key_hits(&mut self, hits: &[(AbstractKey, u32)]) -> Result<(), DbError> {
-        let tx = self.conn.transaction()?;
-        tx.execute("DELETE FROM key_hit", [])?;
-        {
-            let mut st = tx.prepare("INSERT INTO key_hit (key, hits) VALUES (?1, ?2)")?;
-            for (k, n) in hits.iter().filter(|(_, n)| *n > 0) {
-                st.execute(params![k.0 as i64, n])?;
-            }
-        }
-        tx.commit()?;
-        Ok(())
-    }
-
-    /// The persisted key hits, key ascending (`Graph::set_key_hits` on resume).
-    pub fn key_hits(&self) -> Result<Vec<(AbstractKey, u32)>, DbError> {
-        let mut st = self.conn.prepare("SELECT key, hits FROM key_hit")?;
-        let rows = st.query_map([], |r| {
-            Ok((AbstractKey(r.get::<_, i64>(0)? as u64), r.get(1)?))
-        })?;
-        let mut out: Vec<(AbstractKey, u32)> = rows.collect::<Result<_, _>>()?;
-        out.sort_unstable();
-        Ok(out)
-    }
-
-    /// FNV of the node, finding, seen, coverage and key-hit tables in key order, without
-    /// timings or run rows (determinism tests, `explore digest`).
+    /// FNV of the node, finding, seen and coverage tables in key order, without timings or
+    /// run rows (determinism tests, `explore digest`).
     pub fn content_digest(&self) -> Result<u64, DbError> {
         let mut h = engine::hash::Fnv64::new();
         for (table, order) in [
@@ -816,7 +819,6 @@ impl Db {
             ("finding", "id"),
             ("seen", "kind, id"),
             ("coverage", "map, x, y"),
-            ("key_hit", "key"),
         ] {
             h.write(table.as_bytes());
             h.write(&[0xFF]);
@@ -884,7 +886,8 @@ pub struct FindingRow {
     pub id: i64,
     pub signature: u64,
     pub kind: FindingKind,
-    pub node: NodeId,
+    /// The node whose end state the tail starts at; `None` = a new game.
+    pub node: Option<NodeId>,
     pub macro_: Option<Macro>,
     pub tail: Vec<Run>,
     pub total_frame: u64,
@@ -969,7 +972,6 @@ mod tests {
                     "battle",
                     "coverage",
                     "finding",
-                    "key_hit",
                     "meta",
                     "node",
                     "node_touch",
