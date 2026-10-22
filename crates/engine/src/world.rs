@@ -608,6 +608,8 @@ impl World {
     /// enough to run every frame on the GBA. Field order is part of the contract; append new
     /// fields at the end.
     pub fn hash(&self) -> u64 {
+        #[cfg(test)]
+        tests::HASH_CALLS.with(|n| n.set(n.get() + 1));
         let s = &self.s;
         let mut h = Fnv64::new();
         h.write_u32(self.frame);
