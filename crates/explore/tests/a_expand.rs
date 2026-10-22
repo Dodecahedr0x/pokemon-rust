@@ -521,7 +521,7 @@ fn real_route_moments() {
     assert_eq!(r.steps.len(), 3);
     assert_eq!(player(&r.steps[0].end), (11, 2));
     // The girl stops the player: the coord script runs, and the node ends after it.
-    let coord2 = script_id("LittlerootTown_Coord2");
+    let coord2 = script_id("LittlerootTown_EventScript_GoSaveBirchTrigger");
     assert!(r.steps[1].summary.scripts.contains(&coord2));
     assert!(!r.steps[0].summary.scripts.contains(&coord2));
     assert_eq!(r.steps[1].end.world.field.map, MAP_LITTLEROOT_TOWN);
@@ -535,7 +535,7 @@ fn real_route_moments() {
         cross
             .summary
             .scripts
-            .contains(&script_id("Route101_Coord0")),
+            .contains(&script_id("Route101_EventScript_StartBirchRescue")),
         "{:?}",
         cross.summary.scripts
     );

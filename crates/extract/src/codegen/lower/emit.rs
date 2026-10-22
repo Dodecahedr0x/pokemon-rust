@@ -1018,7 +1018,7 @@ impl<'a> Low<'a> {
         }
         o.push_str("];\n");
         o.push_str(
-            "/// `ScriptId` of every script, by name.\n#[allow(non_upper_case_globals)]\npub mod script_ids {\n    use engine::data::ScriptId;\n",
+            "/// `ScriptId` of every script, by name.\n#[allow(non_upper_case_globals, unused_imports)]\npub mod script_ids {\n    use engine::data::ScriptId;\n",
         );
         for (i, (name, _)) in names.iter().enumerate() {
             let _ = writeln!(o, "    pub const {name}: ScriptId = ScriptId({i});");

@@ -3,7 +3,7 @@
 
 use super::*;
 
-use crate::prelude::{LegacyTrainerBattle, legacy_trainer_battle, trainer_flag};
+use crate::prelude::{TrainerBattle, trainer_battle, trainer_flag};
 use engine::battle::BattleOutcome;
 use engine::data::{FlagId, TrainerId};
 use engine::mon::MoveEffect;
@@ -12,12 +12,27 @@ use engine::mon::MoveEffect;
 #[allow(non_upper_case_globals)]
 const Emerald: Emerald = Emerald::after_starter();
 
-fn fought(b: LegacyTrainerBattle, h: &mut Host) {
+/// A `trainerbattle` of `kind` (decomp `TRAINER_BATTLE_*` numbering).
+fn battle(kind: u8, trainer: u16, intro: Option<TextId>, lose: TextId) -> TrainerBattle {
+    TrainerBattle {
+        kind,
+        trainer,
+        local_id: 2,
+        intro,
+        lose,
+        not_enough: None,
+        event_script: None,
+        music: false,
+    }
+}
+
+/// Runs `b`; `VAR_RESULT` = whether the calling script goes on after the `trainerbattle`.
+fn fought(b: TrainerBattle, h: &mut Host) {
     run(
         |ctx| {
             Box::pin(async move {
-                let fought = legacy_trainer_battle(&ctx, b).await;
-                ctx.set_var(consts::VAR_RESULT, fought as u16).await;
+                let goes_on = trainer_battle(&ctx, b).await;
+                ctx.set_var(consts::VAR_RESULT, goes_on as u16).await;
             })
         },
         h,
@@ -27,7 +42,7 @@ fn fought(b: LegacyTrainerBattle, h: &mut Host) {
 #[test]
 fn trainer_battle_single_follows_trainer_battle_inc() {
     let tr = TrainerId(3);
-    let b = LegacyTrainerBattle::single(tr, 2, TextId(1), TextId(2));
+    let b = battle(0, tr.0, Some(TextId(1)), TextId(2));
     let mut h = Host::default();
     fought(b, &mut h);
     assert_eq!(
@@ -45,7 +60,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
             },
             Request::SetFlag(FlagId(0x503), true),
             Request::ReleaseAll,
-            Request::SetVar(consts::VAR_RESULT, 1),
+            Request::SetVar(consts::VAR_RESULT, 0),
         ]
     );
 
@@ -54,7 +69,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
     h.flags.insert(0x503);
     fought(b, &mut h);
     assert_eq!(h.log.len(), 4);
-    assert_eq!(h.vars[&consts::VAR_RESULT.0], 0);
+    assert_eq!(h.vars[&consts::VAR_RESULT.0], 1);
 
     // Defeated (`IsPlayerDefeated`: lost or drew): the flag stays clear.
     for outcome in [BattleOutcome::Lost, BattleOutcome::Drew] {
@@ -70,8 +85,9 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
 #[test]
 fn trainer_battle_variants() {
     let tr = TrainerId(7);
+    // 3 `SINGLE_NO_INTRO_TEXT`: the battle, then the post-battle code.
     let mut h = Host::default();
-    fought(LegacyTrainerBattle::no_intro(tr, TextId(4)), &mut h);
+    fought(battle(3, tr.0, None, TextId(4)), &mut h);
     assert_eq!(
         h.log,
         [
@@ -83,17 +99,12 @@ fn trainer_battle_variants() {
             Request::SetVar(consts::VAR_RESULT, 1),
         ]
     );
+    // 2 `CONTINUE_SCRIPT`: the intro and the battle; the calling script stops.
     let mut h = Host::default();
-    fought(
-        LegacyTrainerBattle::continue_script(tr, 1, TextId(1), TextId(2)),
-        &mut h,
-    );
+    fought(battle(2, tr.0, Some(TextId(1)), TextId(2)), &mut h);
     assert!(h.log.contains(&Request::Message(TextId(1))));
-    assert!(
-        !h.log.contains(&Request::ReleaseAll),
-        "the continue script releases"
-    );
-    assert_eq!(h.vars[&consts::VAR_RESULT.0], 1);
+    assert!(h.flags.contains(&0x507));
+    assert_eq!(h.vars[&consts::VAR_RESULT.0], 0);
 }
 
 #[test]
@@ -319,6 +330,24 @@ fn every_trainer_resolves() {
         }
     }
     assert!(Emerald.trainer(TrainerId(0)).is_none());
+}
+
+/// Format 5.1 extracts (Task A) carry trainer money and evolutions; older ones neither.
+#[test]
+fn trainer_money_and_evolutions_when_extracted() {
+    for &id in &battle::TRAINER_IDS {
+        assert_eq!(
+            Emerald.trainer_money(id).is_some(),
+            !battle::TRAINER_MONEY.is_empty(),
+            "{id:?}"
+        );
+    }
+    let t = Emerald.battle();
+    for s in 0..t.species.len() as u16 {
+        for e in Emerald.evolutions(engine::data::SpeciesId(s)) {
+            assert!((e.target.0 as usize) < t.species.len());
+        }
+    }
 }
 
 #[test]
