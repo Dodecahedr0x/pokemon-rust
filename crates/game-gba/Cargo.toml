@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 agb = "0.25.0"
-engine = { path = "../engine" }
+engine = { path = "../engine", features = ["iwram"] }
 content = { path = "../content" }
 
 [profile.dev]

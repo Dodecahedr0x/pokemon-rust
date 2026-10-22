@@ -101,9 +101,10 @@ fn dump_mismatch(frame: u32, rom: &[u16], native: &[u16]) {
 
 /// Gates on the ROM's scanline costs (`engine::debug::DebugRegion`): `World::hash` and the
 /// whole loop body on visible frames. `late == 0` is the hard gate (`run_rom_from` fails on a
-/// late apply); `LOOP_LINES_MAX` keeps two lines of the 228-line frame in reserve.
-const HASH_LINES_MAX: u32 = 80;
-const LOOP_LINES_MAX: u32 = 226;
+/// late apply). Both gates are the route's measured worst + 2 after Milestone 6 Task A's buffered
+/// hash (hash 63, loop 214 lines), so a cost regression fails here before it eats the margin.
+const HASH_LINES_MAX: u32 = 65;
+const LOOP_LINES_MAX: u32 = 216;
 /// Scanlines in a frame.
 const FRAME_LINES: u32 = 228;
 
