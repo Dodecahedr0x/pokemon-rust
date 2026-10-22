@@ -95,6 +95,7 @@ fn the_routes_first_map_change_or_battle_is_an_event() {
         p.handle(NativeCmd::Keys(rec.keys_at(i)));
         p.tick();
         let s = status(&p);
+        assert_eq!(s.camera.is_some(), s.mode == "field", "frame {}", s.frame);
         if s.map != start || s.mode == "battle" {
             found = Some(s);
             break;
@@ -131,7 +132,9 @@ fn load_seek_and_save_into_the_local_store() {
     assert_eq!(s.parent, Parent::Checkpoint(first.meta.id));
     assert_eq!(s.capturable, Ok(()));
     assert_eq!(s.mode, "field");
-    assert!(s.camera.is_some(), "a capturable field has a camera");
+    let session = p.controls().session();
+    let snap = session.world().snapshot(session.game()).unwrap();
+    assert_eq!(s.camera, Some(snap.field.camera), "the field camera");
     assert_eq!(
         s.events.last().unwrap().kind,
         EventKind::Loaded(first.meta.id)

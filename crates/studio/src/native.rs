@@ -75,8 +75,7 @@ pub struct Inspector {
     /// `"field"`, `"battle"` or `"starter"`.
     pub mode: &'static str,
     pub capturable: Result<(), NotCapturable>,
-    /// The field camera's top-left map pixel; `None` outside the field or while not
-    /// capturable (read from `World::snapshot`).
+    /// The field camera's top-left map pixel (`World::camera`); `None` outside the field.
     pub camera: Option<(i32, i32)>,
     pub run: RunMode,
     /// The node the current trace starts from.
@@ -325,11 +324,6 @@ impl Pane for NativePane {
         } else {
             "field"
         };
-        let camera = if w.field_active() {
-            w.snapshot(s.game()).ok().map(|snap| snap.field.camera)
-        } else {
-            None
-        };
         Inspector {
             frame: w.frame(),
             map: w.map(),
@@ -337,7 +331,7 @@ impl Pane for NativePane {
             hash: w.hash(),
             mode,
             capturable: w.capturable(),
-            camera,
+            camera: w.camera(),
             run: self.run,
             parent: self.controls.parent(),
             trace_frames: self.controls.trace_frames(),
