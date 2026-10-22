@@ -214,6 +214,14 @@ impl Emu {
             .collect()
     }
 
+    /// [`Emu::framebuffer_rgb555`] into `out` without allocating; `out` must hold the screen
+    /// (`SCREEN_W * SCREEN_H` pixels); extra entries are left untouched.
+    pub fn framebuffer_into(&self, out: &mut [u16]) {
+        for (o, &p) in out.iter_mut().zip(self.core.video_buffer()) {
+            *o = xbgr8_to_rgb555(p);
+        }
+    }
+
     fn read16(&mut self, addr: u32) -> u16 {
         // SAFETY: core is initialised and loaded; busRead16 is a pure memory read.
         // libmgba declares busRead16 as returning uint32_t; only the low half is meaningful.
@@ -287,6 +295,24 @@ impl Emu {
         }
         Err(anyhow!(
             "debug region not found after {max_frames} frames (is the ROM a pokemon-rust build?)"
+        ))
+    }
+
+    /// Runs frames without input until the debug region is visible and the ROM has published
+    /// the World it booted (the region's hash is a placeholder 0 until then; [`run_rom_from`]
+    /// waits the same way), within `max_frames` emulator frames. Returns the region at that
+    /// point and the emulator frames run.
+    pub fn boot_published(&mut self, max_frames: u32) -> Result<(DebugSnapshot, u32)> {
+        for ran in 1..=max_frames {
+            self.run_frame(Buttons::NONE)?;
+            if let Some(s) = self.debug()
+                && s.hash != 0
+            {
+                return Ok((s, ran));
+            }
+        }
+        Err(anyhow!(
+            "ROM never published its boot state within {max_frames} frames (is it a pokemon-rust build?)"
         ))
     }
 }
