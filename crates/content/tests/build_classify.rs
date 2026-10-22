@@ -193,7 +193,8 @@ fn move_effects_by_name() {
         e("EFFECT_MULTI_HIT").as_deref(),
         Some("MoveEffect::MultiHit")
     );
-    assert_eq!(e("EFFECT_ATTRACT"), None);
+    assert_eq!(e("EFFECT_ATTRACT").as_deref(), Some("MoveEffect::Attract"));
+    assert_eq!(e("EFFECT_ROLLOUT"), None);
     assert_eq!(e("HIT"), None);
     // The mapped names are real `EFFECT_*`s.
     let mapped = extract::names::MOVE_EFFECTS
@@ -215,9 +216,12 @@ fn battle_enums_by_name() {
     }
     for (v, n) in extract::names::MOVE_FLAGS.iter() {
         assert_eq!(move_flag(n).map(u32::from), Some(v), "{n}");
+        assert_ne!(u32::from(SOUND_FLAG), v, "{n}");
     }
     assert_eq!(ability("ABILITY_TORRENT"), "Ability::Torrent");
-    assert_eq!(ability("ABILITY_PICKUP"), "Ability::Other");
+    assert_eq!(ability("ABILITY_PICKUP"), "Ability::Pickup");
+    assert_eq!(ability("ABILITY_CLEAR_BODY"), "Ability::ClearBody");
+    assert_eq!(ability("ABILITY_WHITE_SMOKE"), "Ability::Other");
 }
 
 #[test]

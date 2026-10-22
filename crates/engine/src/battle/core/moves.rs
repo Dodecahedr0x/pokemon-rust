@@ -26,6 +26,8 @@ pub(crate) struct MoveUse {
     /// `gBattleMovePower` / the move type, overridable (`gDynamicBasePower`, Bide).
     pub power: u8,
     pub ty: Type,
+    /// `gBattleScripting.dmgMultiplier`: 1, or 2 for Pursuit on a switching foe.
+    pub multiplier: u8,
 }
 
 impl MoveUse {
@@ -130,6 +132,7 @@ impl Battle {
             info,
             power: info.power,
             ty: info.ty,
+            multiplier: 1,
         }
     }
 
@@ -202,8 +205,12 @@ impl Battle {
     }
 
     /// `Cmd_accuracycheck` with `ACC_CURR_MOVE`: one roll. Under Foresight the target's
-    /// evasion is ignored.
+    /// evasion is ignored; Compound Eyes and Hustle change the odds. `AccuracyCalcHelper`'s
+    /// always-hit effects (`ALWAYS_HIT`, `VITAL_THROW`) draw no roll.
     pub(crate) fn accuracy(&mut self, env: &mut Env, u: &MoveUse) -> bool {
+        if matches!(u.info.effect, MoveEffect::VitalThrow) {
+            return true;
+        }
         let (a, d) = (self.battler(u.attacker), self.battler(u.target));
         let eva = if d.foresight {
             0
@@ -211,15 +218,39 @@ impl Battle {
             d.stages[Stat::Evasion as usize]
         };
         let acc = a.stages[Stat::Accuracy as usize];
-        calc::accuracy_hits(u.info.accuracy, acc, eva, env.rng.random())
+        calc::accuracy_hits_by(
+            u.info.accuracy,
+            acc,
+            eva,
+            a.ability,
+            u.ty.is_physical(),
+            env.rng.random(),
+        )
+    }
+
+    /// `ABILITYEFFECT_FIELD_SPORT`: Mud Sport / Water Sport on any battler.
+    pub(crate) fn field(&self) -> calc::Field {
+        let any = |f: fn(&super::Volatiles) -> bool| self.battlers.iter().any(|b| f(&b.v));
+        calc::Field {
+            mud_sport: any(|v| v.mud_sport),
+            water_sport: any(|v| v.water_sport),
+        }
     }
 
     /// `BattleScript_PrintMoveMissed`: "X used Y!" then "X's attack missed!", or "It doesn't
     /// affect Z…" for a damaging move against an immune type (`CheckWonderGuardAndLevitate`).
     pub(crate) fn missed(&mut self, env: &mut Env, u: &MoveUse) {
-        self.no_effect = true;
         self.attack_string(env, u);
+        self.miss_message(env, u);
+    }
+
+    /// The `resultmessage` of a miss (after the attack string): "It doesn't affect Z…" when
+    /// `CheckWonderGuardAndLevitate` found the type immune (`targetNotAffected`), else "X's
+    /// attack missed!".
+    pub(crate) fn miss_message(&mut self, env: &mut Env, u: &MoveUse) {
+        self.no_effect = true;
         let m = if u.power > 0 && u.mov != env.t.struggle && self.immune(env, u) {
+            self.battler_mut(u.attacker).v.unable = true;
             u.msg_long(Str::ItDoesntAffect, u.target)
         } else {
             u.msg_long(Str::AttackMissed, u.attacker)
@@ -260,7 +291,9 @@ impl Battle {
             let stage = calc::crit_chance_stage(self.battler(u.attacker).focus_energy);
             calc::is_crit(stage, env.rng.random())
         };
-        let mut damage = calc::base_damage(&a, &d, u.power, u.ty, crit) * if crit { 2 } else { 1 };
+        let mut damage = calc::base_damage_in(&a, &d, u.power, u.ty, crit, self.field())
+            * if crit { 2 } else { 1 }
+            * u.multiplier as i32;
         // Cmd_damagecalc: STATUS3_CHARGED_UP doubles the move's damage when its base type
         // (`gBattleMoves[gCurrentMove].type`) is Electric.
         if self.battler(u.attacker).charge > 0 && u.info.ty == Type::Electric {
@@ -282,6 +315,10 @@ impl Battle {
             );
             damage = r.damage;
             eff = r.eff;
+            if eff == Effectiveness::NoEffect {
+                // `gProtectStructs.targetNotAffected` (`WasUnableToUseMove`).
+                self.battler_mut(u.attacker).v.unable = true;
+            }
         }
         damage = calc::random_damage(damage, env.rng.random());
         HitResult {
@@ -392,10 +429,12 @@ impl Battle {
         b.bide_turns = 0;
         b.charge = 0;
         b.bide_damage = 0;
+        b.v = super::Volatiles::default();
+        let party = b.mon.party;
+        self.clear_bonds(side);
         env.out.push(BattleEvent::Faint { side });
         // STRINGID_PKMNFAINTED names the target battler; B_BUFF1 also carries the party slot,
         // since a replacement may be out by the time the message is expanded.
-        let party = b.mon.party;
         env.out.push(BattleEvent::Msg(Msg {
             buffs: [Buff::Mon { side, party }, Buff::None, Buff::None],
             ..msg(Str::PkmnFainted, side, side, side)
@@ -480,7 +519,8 @@ impl Battle {
         }
     }
 
-    /// `BattleScript_EffectStatDown` (no Substitute, Mist or Clear Body in the engine).
+    /// `BattleScript_EffectStatDown` (no Substitute nor Mist in the engine; Clear Body and
+    /// Keen Eye in `effects::abilities::blocks_stat_drop`).
     pub(crate) fn stat_down_move(&mut self, env: &mut Env, u: &MoveUse, stat: Stat, stages: u8) {
         if !self.accuracy(env, u) {
             self.missed(env, u);
@@ -510,9 +550,12 @@ impl Battle {
 }
 
 /// `MOVE_EFFECT_RECOIL_25` → `BattleScript_MoveEffectRecoil`: a quarter of the HP dealt
-/// (minimum 1) to the attacker, "X is hit with recoil!", then its faint check. No Rock Head in
-/// the engine (Struggle always recoils in Gen3).
+/// (minimum 1) to the attacker, "X is hit with recoil!", then its faint check. Rock Head
+/// prevents it, except for Struggle.
 fn recoil(b: &mut Battle, env: &mut Env, u: &MoveUse, r: &HitResult) {
+    if u.mov != env.t.struggle && b.battler(u.attacker).ability == crate::mon::Ability::RockHead {
+        return;
+    }
     let damage = (r.hp_dealt / 4).max(1);
     b.change_hp(env, u.attacker, damage as i32);
     env.out.push(BattleEvent::Msg(

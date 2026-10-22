@@ -948,6 +948,9 @@ fn move_info(m: &Move, effect: &str, lang: Lang) -> Result<String> {
     for f in &m.flags {
         flags |= classify::move_flag(f).with_context(|| format!("{}: unknown flag {f}", m.id))?;
     }
+    if classify::SOUND_MOVES.contains(&m.id.as_str()) {
+        flags |= classify::SOUND_FLAG;
+    }
     Ok(format!(
         "MoveInfo {{ name: {}, effect: {effect}, power: {}, ty: {}, accuracy: {}, pp: {}, effect_chance: {}, target: {}, priority: {}, flags: MoveFlags({flags:#X}) }}",
         bytes_lit(&encode_lang(&m.name, lang).with_context(|| m.id.clone())?),

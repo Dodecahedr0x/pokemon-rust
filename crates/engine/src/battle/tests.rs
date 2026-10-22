@@ -7,14 +7,19 @@ fn outcomes_are_gen3_b_outcome_values() {
         BattleOutcome::Lost,
         BattleOutcome::Drew,
         BattleOutcome::Ran,
+        BattleOutcome::PlayerTeleported,
         BattleOutcome::MonFled,
         BattleOutcome::Caught,
+        BattleOutcome::MonTeleported,
     ] {
         assert_eq!(BattleOutcome::from_u16(o as u16), Some(o));
     }
     assert_eq!(BattleOutcome::Won as u8, 1);
     assert_eq!(BattleOutcome::MonFled as u8, 6);
-    assert_eq!(BattleOutcome::from_u16(5), None);
+    // B_OUTCOME_PLAYER_TELEPORTED / B_OUTCOME_MON_TELEPORTED.
+    assert_eq!(BattleOutcome::PlayerTeleported as u8, 5);
+    assert_eq!(BattleOutcome::MonTeleported as u8, 10);
+    assert_eq!(BattleOutcome::from_u16(8), None);
     assert_eq!(BattleOutcome::from_u16(0), None);
 }
 

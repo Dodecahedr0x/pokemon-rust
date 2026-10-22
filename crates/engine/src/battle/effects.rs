@@ -5,20 +5,25 @@
 //! `SetMoveEffect` / `Cmd_seteffect*` (`battle_script_commands.c`) in Gen3 order, on the core's
 //! `pub(crate)` state (`Battle`, `Battler`) with the building blocks of `core/moves.rs`.
 //! - [`moves`]: the move scripts (status moves, `*_HIT` secondaries, Absorb, Leech Seed, Bide,
-//!   Focus Energy, Nature Power).
+//!   Focus Energy, Nature Power; Task G: Attract, Mean Look, the sports, Teleport, Uproar,
+//!   Yawn, Double Kick, Foresight, Fury Cutter, Pursuit and its switch-out hit).
 //! - [`status`]: `SetMoveEffect` for statuses, confusion and flinch; `attackcanceler`
 //!   (`AtkCanceler_UnableToUseMove`); `DoBattlerEndTurnEffects`.
-//! - [`abilities`]: `moveend`'s Synchronize, contact abilities and defrost; Intimidate and
-//!   Trace on switch-in; Keen Eye.
+//! - [`abilities`]: `moveend`'s Synchronize, contact abilities (Cute Charm included) and
+//!   defrost; Intimidate and Trace on switch-in; Keen Eye; Soundproof; Shed Skin and Truant at
+//!   the end of the turn.
+//! - [`run_block`]: `IsRunningFromBattleImpossible` (Run Away, Magnet Pull, Mean Look).
 //! - [`ball`]: `Cmd_handleballthrow` for a Poké Ball.
 //!
 //! # Not modelled
-//! - Abilities outside `mon::Ability` (`Ability::Other`): Immunity, Limber, Insomnia, Own
-//!   Tempo, Inner Focus, Clear Body, Hyper Cutter, Water Veil, Liquid Ooze, Early Bird, Wonder
-//!   Guard, Levitate … act as no ability. Pickup, weather abilities and Early Bird have no effect
-//!   in the slice.
-//! - Substitute, Safeguard, Mist, Uproar, Minimize (Astonish never doubles), Destiny Bond,
-//!   held items (Focus Band, King's Rock, Quick Claw), the `pause` commands.
+//! - Abilities outside `mon::Ability` (`Ability::Other`): Immunity, Limber, Own Tempo, White
+//!   Smoke, Hyper Cutter, Water Veil, Wonder Guard, Levitate … act as no ability. Pickup,
+//!   Rain Dish, Swift Swim and Chlorophyll have no effect (no items after battle, no
+//!   weather). Sturdy only matters against OHKO moves, which the engine does not have yet
+//!   (G2). Shed Skin's message leaves the status name empty (Gen3 buffers a
+//!   `gStatusConditionString_*Jpn` string the content does not extract).
+//! - Substitute, Safeguard, Mist, Minimize (Astonish never doubles), Destiny Bond, held items
+//!   (Focus Band, King's Rock, Quick Claw), the `pause` commands.
 //! - `statusanimation` / `status2animation` (no event; `StatusIcon` updates the healthbox).
 //! - The toxic counter is not reset on a switch.
 //! - Catching: `STRINGID_PLAYERUSEDITEM` (no item names), the Pokédex and nickname prompts, the
@@ -30,10 +35,13 @@ mod moves;
 mod status;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_g;
 
-use super::Side;
-use super::core::{Action, Battle, Env, HitResult, MoveUse};
-use crate::mon::{BattleTables, MoveEffect, Stat};
+use super::core::{Action, Battle, Env, HitResult, MoveUse, msg};
+use super::{Buff, Msg, Side, Str};
+use crate::mon::{Ability, BattleTables, MoveEffect, Stat, Type};
+pub(crate) use abilities::opposite_genders;
 
 /// The result of `attackcanceler` (`AtkCanceler_UnableToUseMove`).
 #[derive(Clone, Copy, Debug)]
@@ -59,10 +67,14 @@ pub(crate) fn after_move(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option
     abilities::move_end(b, env, u, hit);
 }
 
-/// `attackcanceler`'s status checks, in `AtkCanceler_UnableToUseMove` order: sleep, freeze,
-/// flinch, confusion, paralysis, Bide.
+/// `attackcanceler`: the status checks in `AtkCanceler_UnableToUseMove` order (sleep, freeze,
+/// Truant, flinch, confusion, paralysis, infatuation, Bide), then the target's Soundproof
+/// (`ABILITYEFFECT_MOVES_BLOCK`).
 pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
-    status::canceler(b, env, u)
+    match status::canceler(b, env, u) {
+        Canceler::Use => abilities::moves_block(b, env, u),
+        c => c,
+    }
 }
 
 /// `DoBattlerEndTurnEffects` for each battler in turn order: Leech Seed, poison, toxic, burn.
@@ -105,14 +117,85 @@ pub(crate) fn ball(b: &mut Battle, env: &mut Env) {
     ball::throw(b, env);
 }
 
-/// The action of a battler locked into a move (`STATUS2_MULTIPLETURNS`: Bide's two turns), so
-/// it is not asked (`HandleTurnActionSelectionState` skips it). `None` when free.
+/// The action of a battler locked into a move (`STATUS2_MULTIPLETURNS`: Bide's two turns,
+/// Uproar's `gLockedMoves`), so it is not asked (`HandleTurnActionSelectionState` skips it).
+/// `None` when free.
 pub(crate) fn locked_action(b: &Battle, t: &BattleTables, side: Side) -> Option<Action> {
     let m = b.battler(side);
-    if m.bide_turns == 0 || m.mon.hp == 0 {
+    let effect = if m.bide_turns > 0 {
+        MoveEffect::Bide
+    } else if m.v.uproar > 0 {
+        MoveEffect::Uproar
+    } else {
+        return None;
+    };
+    if m.mon.hp == 0 {
         return None;
     }
-    let slot = (0..4)
-        .find(|&i| m.mon.moves[i].is_some_and(|mv| t.move_info(mv).effect == MoveEffect::Bide))?;
+    let slot =
+        (0..4).find(|&i| m.mon.moves[i].is_some_and(|mv| t.move_info(mv).effect == effect))?;
     Some(Action::Move(slot as u8))
+}
+
+/// Why `IsRunningFromBattleImpossible` refuses `side` (no items, no Shadow Tag / Arena Trap /
+/// Wrap / Ingrain in the engine).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum RunBlock {
+    /// `BATTLE_RUN_FORBIDDEN`: escape prevention (`B_MSG_CANT_ESCAPE`) or the first battle
+    /// (`B_MSG_DONT_LEAVE_BIRCH`).
+    Forbidden(Str),
+    /// `BATTLE_RUN_FAILURE`: the foe's Magnet Pull holds a Steel battler
+    /// (`B_MSG_PREVENTS_ESCAPE`).
+    Ability { owner: Side, ability: Ability },
+}
+
+impl RunBlock {
+    /// Whether the battler is trapped (switching is refused too); the first battle only
+    /// forbids running.
+    pub fn traps(self) -> bool {
+        self != RunBlock::Forbidden(Str::DontLeaveBirch)
+    }
+
+    /// The `gNoEscapeStringIds` message about `side`.
+    pub fn msg(self, side: Side) -> Msg {
+        match self {
+            RunBlock::Forbidden(id) => msg(id, side, side, side),
+            RunBlock::Ability { owner, ability } => Msg {
+                buffs: [
+                    Buff::None,
+                    Buff::None,
+                    Buff::Text(Str::AbilityName(ability)),
+                ],
+                ..msg(Str::PreventsEscape, side, side, owner)
+            },
+        }
+    }
+}
+
+/// Gen3 `IsRunningFromBattleImpossible` for `side`: `None` when it may run.
+pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
+    let (me, foe) = (b.battler(side), b.battler(side.other()));
+    if me.ability == Ability::RunAway {
+        return None;
+    }
+    if foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel) {
+        return Some(RunBlock::Ability {
+            owner: side.other(),
+            ability: Ability::MagnetPull,
+        });
+    }
+    if me.v.escape_prevented {
+        return Some(RunBlock::Forbidden(Str::CantEscape));
+    }
+    if b.is_first_battle() {
+        return Some(RunBlock::Forbidden(Str::DontLeaveBirch));
+    }
+    None
+}
+
+/// `jumpifnopursuitswitchdmg` + `BattleScript_PursuitDmgOnSwitchOut` when `side` switches out
+/// and the foe chose Pursuit: the foe's action is cancelled and Pursuit hits first at double
+/// damage. True when it struck (the core then gives the exp and finishes the switch).
+pub(crate) fn pursuit_on_switch(b: &mut Battle, env: &mut Env, side: Side) -> bool {
+    moves::pursuit_on_switch(b, env, side)
 }

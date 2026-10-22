@@ -50,9 +50,28 @@ fn effect_msg(u: &MoveUse, id: Str, effect: Side, cause: Cause) -> Msg {
     }
 }
 
-/// `CancelMultiTurnMoves`: ends Bide.
+/// `CancelMultiTurnMoves`: ends Bide and Uproar, resets Fury Cutter.
 pub(super) fn cancel_multi_turn(b: &mut Battle, side: Side) {
-    b.battler_mut(side).bide_turns = 0;
+    let m = b.battler_mut(side);
+    m.bide_turns = 0;
+    m.v.uproar = 0;
+    m.v.fury_cutter = 0;
+}
+
+/// `UproarWakeUpCheck`: some battler is making an uproar and `side` is not Soundproof. The
+/// uproarer, if any.
+pub(super) fn uproar_keeps_awake(b: &Battle, side: Side) -> Option<Side> {
+    if b.battler(side).ability == Ability::Soundproof {
+        return None;
+    }
+    [Side::Player, Side::Opponent]
+        .into_iter()
+        .find(|&s| b.battler(s).v.uproar > 0)
+}
+
+/// Insomnia / Vital Spirit.
+pub(super) fn never_sleeps(a: Ability) -> bool {
+    matches!(a, Ability::Insomnia | Ability::VitalSpirit)
 }
 
 /// `SetMoveEffect` for a primary status on `effect`. True when it was inflicted.
@@ -76,7 +95,14 @@ pub(super) fn set_status(
         StatusKind::Poison | StatusKind::Toxic => has(Type::Poison) || has(Type::Steel),
         StatusKind::Burn => has(Type::Fire),
         StatusKind::Freeze => has(Type::Ice),
-        StatusKind::Sleep | StatusKind::Paralysis => false,
+        StatusKind::Paralysis => false,
+        // An uproar (unless Soundproof), Insomnia and Vital Spirit keep it awake, silently.
+        StatusKind::Sleep => {
+            if statused {
+                return false;
+            }
+            uproar_keeps_awake(b, effect).is_some() || never_sleeps(m.ability)
+        }
     };
     if immune && no_effect_msg && kind != StatusKind::Freeze {
         env.out.push(BattleEvent::Msg(effect_msg(
@@ -160,9 +186,23 @@ pub(super) fn confuse(
 }
 
 /// `MOVE_EFFECT_FLINCH` on `effect`: only when it has not acted yet this turn
-/// (`GetBattlerTurnOrderNum(gEffectBattler) > gCurrentTurnActionNumber`). Silent.
-pub(super) fn flinch(b: &mut Battle, effect: Side, cause: Cause) {
+/// (`GetBattlerTurnOrderNum(gEffectBattler) > gCurrentTurnActionNumber`). Silent, but Inner
+/// Focus names itself for a primary or certain flinch (`BattleScript_FlinchPrevention`).
+pub(super) fn flinch(b: &mut Battle, env: &mut Env, u: &MoveUse, effect: Side, cause: Cause) {
     if cause.shield_dust(b, effect) || b.battler(effect).mon.hp == 0 {
+        return;
+    }
+    if b.battler(effect).ability == Ability::InnerFocus {
+        if cause.primary || u.info.effect_chance >= 100 {
+            env.out.push(BattleEvent::Msg(Msg {
+                buffs: [
+                    Buff::None,
+                    Buff::None,
+                    Buff::Text(Str::AbilityName(Ability::InnerFocus)),
+                ],
+                ..u.msg_long(Str::PkmnSXPreventsFlinching, effect)
+            }));
+        }
         return;
     }
     if b.actions[effect as usize].is_some() {
@@ -182,27 +222,42 @@ fn status_icon(b: &Battle, env: &mut Env, side: Side) {
     });
 }
 
-/// `AtkCanceler_UnableToUseMove` (singles, the engine's statuses): sleep, freeze, flinch,
-/// confusion, paralysis, Bide.
+/// `AtkCanceler_UnableToUseMove` (singles, the engine's statuses): sleep, freeze, Truant,
+/// flinch, confusion, paralysis, infatuation, Bide. The immobilities that
+/// `WasUnableToUseMove` reads set `Volatiles::unable`.
 pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
     let a = u.attacker;
-    // CANCELLER_ASLEEP: the counter drops first (no Early Bird: it is `Ability::Other`).
+    // CANCELLER_ASLEEP: an uproar wakes it (`UproarWakeUpCheck`); else the counter drops by
+    // one (two with Early Bird) first.
     if let Status::Sleep(n) = b.battler(a).mon.status {
-        let n = n.saturating_sub(1);
-        b.battler_mut(a).mon.status = if n == 0 {
-            Status::None
+        if uproar_keeps_awake(b, a).is_some() {
+            b.battler_mut(a).mon.status = Status::None;
+            b.write_back(a);
+            // BattleScript_MoveUsedWokeUp (B_MSG_WOKE_UP_UPROAR).
+            env.out.push(about_attacker(u, Str::PkmnWokeUpInUproar));
+            status_icon(b, env, a);
         } else {
-            Status::Sleep(n)
-        };
-        b.write_back(a);
-        if n > 0 {
-            // BattleScript_MoveUsedIsAsleep.
-            env.out.push(about_attacker(u, Str::PkmnFastAsleep));
-            return Canceler::Skip;
+            let sub = if b.battler(a).ability == Ability::EarlyBird {
+                2
+            } else {
+                1
+            };
+            let n = n.saturating_sub(sub);
+            b.battler_mut(a).mon.status = if n == 0 {
+                Status::None
+            } else {
+                Status::Sleep(n)
+            };
+            b.write_back(a);
+            if n > 0 {
+                // BattleScript_MoveUsedIsAsleep.
+                env.out.push(about_attacker(u, Str::PkmnFastAsleep));
+                return Canceler::Skip;
+            }
+            // BattleScript_MoveUsedWokeUp.
+            env.out.push(about_attacker(u, Str::PkmnWokeUp));
+            status_icon(b, env, a);
         }
-        // BattleScript_MoveUsedWokeUp.
-        env.out.push(about_attacker(u, Str::PkmnWokeUp));
-        status_icon(b, env, a);
     }
     // CANCELLER_FROZEN: thaws when `Random() % 5 == 0`.
     if b.battler(a).mon.status == Status::Freeze {
@@ -216,9 +271,16 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
         env.out.push(about_attacker(u, Str::PkmnWasDefrosted2));
         status_icon(b, env, a);
     }
+    // CANCELLER_TRUANT: BattleScript_MoveUsedLoafingAround.
+    if b.battler(a).ability == Ability::Truant && b.battler(a).v.truant {
+        cancel_multi_turn(b, a);
+        env.out.push(about_attacker(u, Str::PkmnLoafing));
+        return Canceler::Skip;
+    }
     // CANCELLER_FLINCH.
     if b.battler(a).flinched {
         b.battler_mut(a).flinched = false;
+        b.battler_mut(a).v.unable = true;
         cancel_multi_turn(b, a);
         env.out.push(about_attacker(u, Str::PkmnFlinched));
         return Canceler::Skip;
@@ -231,6 +293,7 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
             // BattleScript_MoveUsedIsConfused.
             env.out.push(about_attacker(u, Str::PkmnIsConfused));
             if !fine {
+                b.battler_mut(a).v.unable = true;
                 confusion_self_hit(b, env, u);
                 return Canceler::Skip;
             }
@@ -242,9 +305,26 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
     // CANCELLER_PARALYSED: `Random() % 4 == 0` (drawn only when paralysed).
     if b.battler(a).mon.status == Status::Paralysis && env.rng.random().is_multiple_of(4) {
         // BattleScript_MoveUsedIsParalyzed.
+        b.battler_mut(a).v.unable = true;
         env.out.push(about_attacker(u, Str::PkmnIsParalyzed));
         cancel_multi_turn(b, a);
         return Canceler::Skip;
+    }
+    // CANCELLER_IN_LOVE: `Random() & 1`; BattleScript_MoveUsedIsInLove names the attacker and
+    // the battler it loves (`gBattleScripting.battler`), then 0 immobilizes it.
+    if b.battler(a).v.infatuated {
+        let fine = env.rng.random() & 1 != 0;
+        env.out.push(BattleEvent::Msg(Msg {
+            mov: Some(u.mov),
+            wait: LONG,
+            ..msg(Str::PkmnInLove, a, u.target, a.other())
+        }));
+        if !fine {
+            b.battler_mut(a).v.unable = true;
+            env.out.push(about_attacker(u, Str::PkmnImmobilizedByLove));
+            cancel_multi_turn(b, a);
+            return Canceler::Skip;
+        }
     }
     // CANCELLER_BIDE.
     if b.battler(a).bide_turns > 0 {
@@ -320,20 +400,29 @@ fn fraction(max_hp: u16, div: u16) -> i32 {
     (max_hp / div).max(1) as i32
 }
 
-/// `DoBattlerEndTurnEffects` for each battler in turn order (the engine's subset): Leech Seed,
-/// poison, toxic, burn, then the Charge timer. Residual damage ignores Bide
-/// (`HITMARKER_IGNORE_BIDE`).
+/// `DoBattlerEndTurnEffects` for each battler in turn order (the engine's subset): the end-turn
+/// abilities (Shed Skin, Truant), Leech Seed, poison, toxic, burn, Uproar, the Charge timer,
+/// then Yawn. Residual damage ignores Bide (`HITMARKER_IGNORE_BIDE`).
 pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
     for side in b.order {
         let foe = side.other();
+        // ENDTURN_ABILITIES.
+        super::abilities::end_turn(b, env, side);
         // ENDTURN_LEECH_SEED: BattleScript_LeechSeedTurnDrain.
         let m = b.battler(side);
         if m.seeded && m.mon.hp != 0 && b.battler(foe).mon.hp != 0 {
-            let dealt = b.change_hp_passive(env, side, fraction(m.mon.max_hp, 8));
-            b.change_hp_passive(env, foe, -(dealt as i32));
+            // Liquid Ooze on the seeded battler: the seeder loses what it would have gained.
+            let ooze = m.ability == Ability::LiquidOoze;
+            let dealt = b.change_hp_passive(env, side, fraction(m.mon.max_hp, 8)) as i32;
+            let (hp, id) = if ooze {
+                (dealt, Str::ItSuckedLiquidOoze)
+            } else {
+                (-dealt, Str::LeechSeedDrain)
+            };
+            b.change_hp_passive(env, foe, hp);
             env.out.push(BattleEvent::Msg(Msg {
                 wait: LONG,
-                ..msg(Str::LeechSeedDrain, side, foe, side)
+                ..msg(id, side, foe, side)
             }));
             b.try_faint(env, side);
             b.try_faint(env, foe);
@@ -363,8 +452,77 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
             b.change_hp_passive(env, side, damage);
             b.try_faint(env, side);
         }
+        // ENDTURN_UPROAR.
+        uproar_turn(b, env, side);
         // ENDTURN_CHARGE.
         let m = b.battler_mut(side);
         m.charge = m.charge.saturating_sub(1);
+        // ENDTURN_YAWN.
+        yawn_turn(b, env, side);
     }
+}
+
+/// `ENDTURN_UPROAR` for an uproaring `side`: every sleeping battler but a Soundproof one wakes
+/// (index order: player first; `BattleScript_MonWokeUpInUproar`), then the counter drops:
+/// "calmed down" when it ends or the battler could not move this turn (`WasUnableToUseMove`,
+/// which also ends it), else "is making an uproar".
+fn uproar_turn(b: &mut Battle, env: &mut Env, side: Side) {
+    if b.battler(side).v.uproar == 0 {
+        return;
+    }
+    for s in [Side::Player, Side::Opponent] {
+        let m = b.battler(s);
+        if matches!(m.mon.status, Status::Sleep(_))
+            && m.mon.hp > 0
+            && m.ability != Ability::Soundproof
+        {
+            b.battler_mut(s).mon.status = Status::None;
+            b.write_back(s);
+            env.out.push(BattleEvent::Msg(Msg {
+                wait: LONG,
+                ..msg(Str::PkmnWokeUpInUproar, s, s.other(), s)
+            }));
+            status_icon(b, env, s);
+        }
+    }
+    b.battler_mut(side).v.uproar -= 1;
+    let m = b.battler(side);
+    let id = if m.v.unable || m.v.uproar == 0 {
+        cancel_multi_turn(b, side);
+        Str::PkmnCalmedDown
+    } else {
+        Str::PkmnMakingUproar
+    };
+    // BattleScript_PrintUproarOverTurns.
+    env.out.push(BattleEvent::Msg(Msg {
+        wait: LONG,
+        ..msg(id, side, side.other(), side)
+    }));
+}
+
+/// `ENDTURN_YAWN`: the counter drops; at 0 a battler without a status, Insomnia, Vital
+/// Spirit nor an uproar falls asleep for `(Random() & 3) + 2` turns
+/// (`BattleScript_YawnMakesAsleep`).
+fn yawn_turn(b: &mut Battle, env: &mut Env, side: Side) {
+    if b.battler(side).v.yawn == 0 {
+        return;
+    }
+    b.battler_mut(side).v.yawn -= 1;
+    let m = b.battler(side);
+    if m.v.yawn != 0
+        || m.mon.status != Status::None
+        || never_sleeps(m.ability)
+        || uproar_keeps_awake(b, side).is_some()
+    {
+        return;
+    }
+    cancel_multi_turn(b, side);
+    let status = Status::Sleep((env.rng.random() & 3) as u8 + 2);
+    b.battler_mut(side).mon.status = status;
+    b.write_back(side);
+    env.out.push(BattleEvent::Msg(Msg {
+        wait: LONG,
+        ..msg(Str::PkmnFellAsleep, side, side, side)
+    }));
+    env.out.push(BattleEvent::StatusIcon { side, status });
 }

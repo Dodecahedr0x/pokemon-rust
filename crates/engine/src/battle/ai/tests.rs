@@ -364,3 +364,107 @@ fn the_trainer_switches_before_choosing_a_move() {
     }
     assert!(switched > 0);
 }
+
+// ---- Task G ----
+
+fn male(mut p: Pokemon) -> Pokemon {
+    p.personality = 0xFF;
+    p
+}
+
+#[test]
+fn check_bad_move_task_g_branches() {
+    let f = AI_SCRIPT_CHECK_BAD_MOVE;
+    let only_slot_1 = |r: &Run| choices(r).iter().all(|&m| m == 1);
+    // AI_CheckBadMove_CheckSoundproof: the named sound moves on a Soundproof target.
+    assert!(only_slot_1(&setup(
+        target(SOUNDPROOF, 20),
+        &[SOUND_GROWL, GROWL],
+        f
+    )));
+    // CheckIfAbilityBlocksStatChange: Clear Body.
+    assert!(only_slot_1(&setup(target(CLEAR, 20), &[GROWL, TACKLE], f)));
+    // AI_CBM_Sleep: Insomnia.
+    assert!(only_slot_1(&setup(
+        target(INSOMNIAC, 20),
+        &[SLEEP_POWDER, GROWL],
+        f
+    )));
+    // AI_CBM_CantEscape, AI_CBM_Foresight.
+    let mut r = setup(target(WATER, 20), &[BLOCK, GROWL], f);
+    assert!(choices(&r).contains(&0));
+    r.b.battler_mut(Side::Player).v.escape_prevented = true;
+    assert!(only_slot_1(&r));
+    let mut r = setup(target(WATER, 20), &[FORESIGHT, GROWL], f);
+    r.b.battler_mut(Side::Player).foresight = true;
+    assert!(only_slot_1(&r));
+    // AI_CBM_Attract: same gender (both female), Oblivious; a male target is fine.
+    assert!(only_slot_1(&setup(target(WATER, 20), &[ATTRACT, GROWL], f)));
+    assert!(only_slot_1(&setup(
+        male(target(OBLIVIOUS, 20)),
+        &[ATTRACT, GROWL],
+        f
+    )));
+    assert!(choices(&setup(male(target(WATER, 20)), &[ATTRACT, GROWL], f)).contains(&0));
+    // Teleport: always -10. AI_CBM_MudSport: the user's own Mud Sport.
+    assert!(only_slot_1(&setup(
+        target(WATER, 20),
+        &[TELEPORT, GROWL],
+        f
+    )));
+    let mut r = setup(target(WATER, 20), &[MUD_SPORT, GROWL], f);
+    assert!(choices(&r).contains(&0));
+    r.b.battler_mut(Side::Opponent).v.mud_sport = true;
+    assert!(only_slot_1(&r));
+}
+
+#[test]
+fn check_viability_task_g_branches() {
+    let f = AI_SCRIPT_CHECK_VIABILITY;
+    // AI_CV_MudSport: -1 unless the target is Electric (+1); no roll.
+    let r = setup(target(WATER, 20), &[MUD_SPORT, TACKLE], f);
+    assert!(choices(&r).iter().all(|&m| m == 1));
+    let r = setup(target(ELECTRIC, 20), &[MUD_SPORT, TACKLE], f);
+    assert!(choices(&r).iter().all(|&m| m == 0));
+    // AI_CV_Foresight (non-BUGFIX: the user's types and evasion): -2 without a roll.
+    let r = setup(target(GHOST, 20), &[FORESIGHT, TACKLE], f);
+    assert!(choices(&r).iter().all(|&m| m == 1));
+    // Draw counts: 4 simulatedRNG + the script's rolls + the pick.
+    let draws = |r: &Run| {
+        let mut rng = Rng::new(7);
+        choose(&r.b, &TABLES, &mut rng);
+        (0..10).find(|&n| after(7, n) == rng).unwrap()
+    };
+    // AI_CV_Trap: one roll when the target is badly poisoned or infatuated.
+    let mut r = setup(target(WATER, 20), &[BLOCK], f);
+    assert_eq!(draws(&r), 5);
+    r.b.battler_mut(Side::Player).v.infatuated = true;
+    assert_eq!(draws(&r), 6);
+    // AI_CV_Foresight3: user evasion above 8 rolls once.
+    let mut r = setup(target(WATER, 20), &[FORESIGHT], f);
+    assert_eq!(draws(&r), 5);
+    r.b.battler_mut(Side::Opponent).stages[Stat::Evasion as usize] = 3;
+    assert_eq!(draws(&r), 6);
+    // AI_CV_SpeedDownFromChance: the 100% Speed-drop hits (Icy Wind, Rock Tomb, Mud Shot)
+    // run AI_CV_SpeedDown (the faster target: one roll).
+    assert_eq!(draws(&setup(target(WATER, 20), &[ICY_WIND], f)), 6);
+}
+
+#[test]
+fn a_trapped_trainer_mon_never_switches() {
+    // ShouldSwitch: STATUS2_ESCAPE_PREVENTION, or Magnet Pull on the field and a Steel
+    // battler: FALSE before any draw.
+    let mut r = two_mon_trainer(&[TACKLE], 1);
+    r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
+    r.b.battler_mut(Side::Opponent).v.escape_prevented = true;
+    let mut rng = Rng::new(3);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(rng, Rng::new(3));
+    let mut r = two_mon_trainer(&[TACKLE], 1);
+    r.b.battler_mut(Side::Opponent).last_landed = Some(TACKLE);
+    r.b.battler_mut(Side::Opponent).types = [Type::Steel, Type::Steel];
+    r.b.battler_mut(Side::Player).ability = Ability::MagnetPull;
+    let mut rng = Rng::new(3);
+    assert_eq!(switch(&r.b, &TABLES, &mut rng), None);
+    assert_eq!(rng, Rng::new(3));
+}

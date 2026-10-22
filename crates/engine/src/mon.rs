@@ -205,6 +205,34 @@ pub enum Ability {
     Static,
     PoisonPoint,
     Other,
+    // Task G (appended: the discriminants above are hashed and coded in `Str::AbilityName`).
+    // Abilities without an effect in the engine's battles (no weather, no items after battle)
+    // are named so Trace and the messages that name an ability print them.
+    Chlorophyll,
+    CompoundEyes,
+    CuteCharm,
+    EarlyBird,
+    HugePower,
+    InnerFocus,
+    MagnetPull,
+    Pickup,
+    RainDish,
+    RockHead,
+    ShedSkin,
+    Soundproof,
+    Sturdy,
+    SwiftSwim,
+    ThickFat,
+    Truant,
+    Oblivious,
+    Insomnia,
+    VitalSpirit,
+    Hustle,
+    MarvelScale,
+    PurePower,
+    ClearBody,
+    LiquidOoze,
+    NaturalCure,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).
@@ -252,6 +280,29 @@ pub enum MoveEffect {
     VitalThrow,
     /// `EFFECT_CHARGE`: doubles the user's Electric damage until the end of the next turn.
     Charge,
+    // Task G.
+    /// `EFFECT_ATTRACT`.
+    Attract,
+    /// `EFFECT_MEAN_LOOK` (Mean Look, Block, Spider Web).
+    MeanLook,
+    /// `EFFECT_MUD_SPORT`: Electric power halved while the user is out.
+    MudSport,
+    /// `EFFECT_WATER_SPORT`: Fire power halved while the user is out.
+    WaterSport,
+    /// `EFFECT_TELEPORT`: flees a wild battle.
+    Teleport,
+    /// `EFFECT_UPROAR`: 2–5 locked turns; nobody sleeps meanwhile.
+    Uproar,
+    /// `EFFECT_YAWN`: the target falls asleep at the end of the next turn.
+    Yawn,
+    /// `EFFECT_DOUBLE_HIT` (Double Kick): two hits.
+    DoubleHit,
+    /// `EFFECT_FORESIGHT`.
+    Foresight,
+    /// `EFFECT_FURY_CUTTER`: power doubles with each consecutive hit (up to 5).
+    FuryCutter,
+    /// `EFFECT_PURSUIT`: a hit, doubled and first against a foe switching out.
+    Pursuit,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
 }
@@ -280,6 +331,8 @@ impl MoveFlags {
     pub const SNATCH_AFFECTED: u8 = 1 << 3;
     pub const MIRROR_MOVE_AFFECTED: u8 = 1 << 4;
     pub const KINGS_ROCK_AFFECTED: u8 = 1 << 5;
+    /// Not a Gen3 flag: the move is in `sSoundMovesTable` (blocked by Soundproof).
+    pub const SOUND: u8 = 1 << 6;
 
     pub const fn has(self, flag: u8) -> bool {
         self.0 & flag != 0

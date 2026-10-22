@@ -93,17 +93,61 @@ pub fn apply_stage(stat: u16, stage: i8) -> u32 {
     stat as u32 * num as u32 / den as u32
 }
 
+/// The field state `CalculateBaseDamage` reads (`ABILITYEFFECT_FIELD_SPORT`): Mud Sport /
+/// Water Sport on any battler.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Field {
+    pub mud_sport: bool,
+    pub water_sport: bool,
+}
+
+/// [`base_damage_in`] without Mud Sport or Water Sport.
+pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) -> i32 {
+    base_damage_in(a, d, power, ty, crit, Field::default())
+}
+
 /// Gen3 `CalculateBaseDamage` (`pokemon.c`) for a single battle without items, badges,
-/// weather or screens:
-/// - Guts ×150/100 attack with any status; Overgrow / Blaze / Torrent / Swarm ×150/100 power
-///   for their type at HP ≤ max / 3.
+/// weather or screens, in its order:
+/// - Huge Power / Pure Power ×2 attack; the defender's Thick Fat halves the special attack
+///   for Fire and Ice; Hustle and Guts (any status) ×150/100 attack; the defender's Marvel
+///   Scale (any status) ×150/100 defense (u16 stats, as Gen3).
+/// - Mud Sport / Water Sport halve Electric / Fire power, then Overgrow / Blaze / Torrent /
+///   Swarm ×150/100 power for their type at HP ≤ max / 3.
 /// - A crit ignores the attacker's attack drops and the defender's defense boosts.
 /// - Physical: burn halves (not with Guts), minimum 1. Special has no minimum (as Gen3).
 /// - `Mystery` skips both branches, so it returns the bare `+ 2`.
 ///
 /// The defender's divisor is clamped to 1 (Gen3 divides by zero at -6 on a 1-point stat).
-pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) -> i32 {
+pub fn base_damage_in(
+    a: &Fighter,
+    d: &Fighter,
+    power: u8,
+    ty: Type,
+    crit: bool,
+    field: Field,
+) -> i32 {
+    let mut attack = a.stat(Stat::Atk);
+    let mut defense = d.stat(Stat::Def);
+    let mut sp_attack = a.stat(Stat::SpAtk);
+    if matches!(a.ability, Ability::HugePower | Ability::PurePower) {
+        attack = attack.wrapping_mul(2);
+    }
+    if d.ability == Ability::ThickFat && matches!(ty, Type::Fire | Type::Ice) {
+        sp_attack /= 2;
+    }
+    if a.ability == Ability::Hustle {
+        attack = (150 * attack as u32 / 100) as u16;
+    }
+    if a.ability == Ability::Guts && a.status != Status::None {
+        attack = (150 * attack as u32 / 100) as u16;
+    }
+    if d.ability == Ability::MarvelScale && d.status != Status::None {
+        defense = (150 * defense as u32 / 100) as u16;
+    }
     let mut power = power as u32;
+    if (ty == Type::Electric && field.mud_sport) || (ty == Type::Fire && field.water_sport) {
+        power /= 2;
+    }
     let pinch = match a.ability {
         Ability::Overgrow => ty == Type::Grass,
         Ability::Blaze => ty == Type::Fire,
@@ -113,10 +157,6 @@ pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) ->
     };
     if pinch && a.hp <= a.max_hp / 3 {
         power = 150 * power / 100;
-    }
-    let mut attack = a.stat(Stat::Atk) as u32;
-    if a.ability == Ability::Guts && a.status != Status::None {
-        attack = 150 * attack / 100;
     }
     // Both branches: (atk with stage) * power * (2 * level / 5 + 2) / (def with stage) / 50.
     let core = |atk: u32, atk_stage: i8, def: u32, def_stage: i8| -> i32 {
@@ -138,9 +178,9 @@ pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) ->
     let mut damage = 0;
     if ty.is_physical() {
         damage = core(
-            attack.min(u16::MAX as u32),
+            attack as u32,
             a.stage(Stat::Atk),
-            d.stat(Stat::Def) as u32,
+            defense as u32,
             d.stage(Stat::Def),
         );
         if a.status == Status::Burn && a.ability != Ability::Guts {
@@ -155,7 +195,7 @@ pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) ->
     }
     if (ty as u8) > Type::Mystery as u8 {
         damage = core(
-            a.stat(Stat::SpAtk) as u32,
+            sp_attack as u32,
             a.stage(Stat::SpAtk),
             d.stat(Stat::SpDef) as u32,
             d.stage(Stat::SpDef),
@@ -266,9 +306,28 @@ pub fn is_crit(stage: u8, roll: u16) -> bool {
 /// Gen3 `Cmd_accuracycheck`: the attacker's accuracy stage against the target's evasion
 /// (clamped), `sAccuracyStageRatios × accuracy`, and a miss when `roll % 100 + 1 > calc`.
 pub fn accuracy_hits(move_acc: u8, acc_stage: i8, eva_stage: i8, roll: u16) -> bool {
+    accuracy_hits_by(move_acc, acc_stage, eva_stage, Ability::None, false, roll)
+}
+
+/// [`accuracy_hits`] with the attacker's ability: Compound Eyes ×130/100, then Hustle
+/// ×80/100 for a `physical` move (no weather, no held items).
+pub fn accuracy_hits_by(
+    move_acc: u8,
+    acc_stage: i8,
+    eva_stage: i8,
+    ability: Ability,
+    physical: bool,
+    roll: u16,
+) -> bool {
     let buff = (acc_stage - eva_stage).clamp(MIN_STAGE, MAX_STAGE);
     let (num, den) = ratio(&ACCURACY_STAGE_RATIOS, buff);
-    let calc = (num * move_acc as u16) / den;
+    let mut calc = (num * move_acc as u16) / den;
+    if ability == Ability::CompoundEyes {
+        calc = (calc as u32 * 130 / 100) as u16;
+    }
+    if ability == Ability::Hustle && physical {
+        calc = (calc as u32 * 80 / 100) as u16;
+    }
     roll % 100 < calc
 }
 

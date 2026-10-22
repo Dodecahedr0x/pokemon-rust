@@ -37,7 +37,9 @@
 //!
 //! # Outcomes
 //! `Drew` (both last battlers fainted together) plays the whiteout texts like `Lost`: Gen3
-//! `IsPlayerDefeated(B_OUTCOME_DREW)`, so Task J whites out on it too.
+//! `IsPlayerDefeated(B_OUTCOME_DREW)`, so Task J whites out on it too. Teleport ends a wild
+//! battle with `PlayerTeleported` / `MonTeleported` and no closing message
+//! (`HandleEndTurn_FinishBattle`); the world should treat them as `Ran` / `MonFled`.
 //!
 //! # Not modelled
 //! - Friendship changes (fainting, level ups, `AdjustFriendship` at the battle's end).
@@ -129,6 +131,51 @@ pub(crate) struct Battler {
     pub last_landed: Option<MoveId>,
     /// `HITMARKER_FAINTED`: the faint was played.
     pub fainted: bool,
+    /// Task G's volatile state (hashed only when set, see [`Volatiles`]).
+    pub v: Volatiles,
+}
+
+/// Task G's `STATUS2` / `STATUS3` / `gDisableStructs` / `gProtectStructs` bits of a battler.
+/// In singles the other battler is always the source (`STATUS2_INFATUATED_WITH`,
+/// `battlerPreventingEscape`), so its switch-out or faint clears them
+/// ([`Battle::clear_bonds`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) struct Volatiles {
+    /// `STATUS2_INFATUATED_WITH(other)`.
+    pub infatuated: bool,
+    /// `STATUS2_ESCAPE_PREVENTION` by the other battler.
+    pub escape_prevented: bool,
+    /// `STATUS3_MUDSPORT`.
+    pub mud_sport: bool,
+    /// `STATUS3_WATERSPORT`.
+    pub water_sport: bool,
+    /// `STATUS2_UPROAR` turns left (`STATUS2_MULTIPLETURNS` while set).
+    pub uproar: u8,
+    /// `STATUS3_YAWN` turns left.
+    pub yawn: u8,
+    /// `gDisableStructs.furyCutterCounter`.
+    pub fury_cutter: u8,
+    /// `gDisableStructs.truantCounter`: loafs this turn.
+    pub truant: bool,
+    /// `WasUnableToUseMove`: a `gProtectStructs` immobility flag of this turn (paralysis,
+    /// love, flinch, confusion self-hit, a type immunity), cleared when the turn passes.
+    pub unable: bool,
+}
+
+impl Volatiles {
+    fn hash(&self, h: &mut Fnv64) {
+        h.write(&[
+            self.infatuated as u8,
+            self.escape_prevented as u8,
+            self.mud_sport as u8,
+            self.water_sport as u8,
+            self.uproar,
+            self.yawn,
+            self.fury_cutter,
+            self.truant as u8,
+            self.unable as u8,
+        ]);
+    }
 }
 
 impl Battler {
@@ -164,6 +211,7 @@ impl Battler {
             last_move: None,
             last_landed: None,
             fainted: false,
+            v: Volatiles::default(),
         }
     }
 
@@ -220,6 +268,12 @@ impl Battler {
         h.write_u32(self.bide_damage);
         h.write_u16(self.last_move.map_or(0xFFFF, |m| m.0));
         h.write_u16(self.last_landed.map_or(0xFFFF, |m| m.0));
+        // Task G: a tagged block only when set, so battles without these effects hash as
+        // before.
+        if self.v != Volatiles::default() {
+            h.write(&[0xA7]);
+            self.v.hash(h);
+        }
     }
 }
 
@@ -276,6 +330,8 @@ pub(crate) enum Step {
     Learn { party: u8, level: u8, next: u8 },
     /// `BattleTurnPassed`.
     EndTurn,
+    /// The rest of `BattleScript_ActionSwitch` after a Pursuit hit (and its exp).
+    SwitchOut { side: Side, party: u8 },
 }
 
 impl Step {
@@ -302,6 +358,7 @@ impl Step {
             }
             Step::Learn { party, level, next } => h.write(&[7, party, level, next]),
             Step::EndTurn => h.write(&[8]),
+            Step::SwitchOut { side, party } => h.write(&[9, side as u8, party]),
         }
     }
 }
@@ -640,12 +697,20 @@ impl Battle {
             } => self.gain_exp(env, party, exp, sent, defeated),
             Step::AddExp { party, rest } => self.exp_step(env, party, rest),
             Step::Learn { party, level, next } => self.learn(env, party, level, next),
+            Step::SwitchOut { side, party } => {
+                self.switch_out(env, side);
+                self.switch_in(env, side, party);
+            }
             Step::EndTurn => {
                 // HandleEndTurn_ContinueBattle + BattleTurnPassed.
                 for b in &mut self.battlers {
                     b.flinched = false;
                 }
                 super::effects::end_turn(self, env);
+                // TurnValuesCleanUp(FALSE): this turn's gProtectStructs.
+                for b in &mut self.battlers {
+                    b.v.unable = false;
+                }
                 self.turn = self.turn.saturating_add(1);
                 self.steps.push_front(Step::NewTurn);
                 self.steps.push_front(Step::Fainted);
@@ -724,19 +789,24 @@ impl Battle {
                 }
                 Some(Action::Move(slot as u8))
             }
-            Choice::Switch(i) if self.can_switch_to(p, i) => Some(Action::Switch(i)),
+            // The party menu refuses a trapped battler (PARTY_ACTION_CANT_SWITCH /
+            // PARTY_ACTION_ABILITY_PREVENTS: party menu texts, not battle strings).
+            Choice::Switch(i) if self.can_switch_to(p, i) => {
+                if super::effects::run_block(self, p).is_some_and(|r| r.traps()) {
+                    return None;
+                }
+                Some(Action::Switch(i))
+            }
             Choice::Run => {
-                // Selection-time refusals: BattleScript_PrintCantRunFromTrainer and
-                // IsRunningFromBattleImpossible (B_MSG_DONT_LEAVE_BIRCH).
-                let refusal = if self.is_trainer() {
-                    Some(Str::NoRunningFromTrainers)
-                } else if self.is_first_battle() {
-                    Some(Str::DontLeaveBirch)
-                } else {
-                    None
-                };
-                if let Some(id) = refusal {
-                    env.out.push(BattleEvent::Msg(about(id, p)));
+                // Selection-time refusals: BattleScript_PrintCantRunFromTrainer, then
+                // IsRunningFromBattleImpossible (BattleScript_PrintCantEscapeFromBattle).
+                if self.is_trainer() {
+                    env.out
+                        .push(BattleEvent::Msg(about(Str::NoRunningFromTrainers, p)));
+                    return None;
+                }
+                if let Some(r) = super::effects::run_block(self, p) {
+                    env.out.push(BattleEvent::Msg(r.msg(p)));
                     return None;
                 }
                 Some(Action::Run)
@@ -804,12 +874,24 @@ impl Battle {
         match action {
             Action::Move(_) | Action::Struggle => self.use_move(env, side, action),
             Action::Switch(i) => {
-                // BattleScript_ActionSwitch (no STRINGID_RETURNMON string in `Str`).
-                env.out.push(BattleEvent::Recall { side });
+                // BattleScript_ActionSwitch (no STRINGID_RETURNMON string in `Str`): the foe's
+                // Pursuit strikes first (`jumpifnopursuitswitchdmg`), then its exp.
+                if super::effects::pursuit_on_switch(self, env, side) {
+                    self.steps.push_front(Step::SwitchOut { side, party: i });
+                    if let Some(exp) = self.exp_for_fainted_foe(env) {
+                        self.steps.push_front(exp);
+                    }
+                    return;
+                }
+                self.switch_out(env, side);
                 self.switch_in(env, side, i);
             }
             Action::Run => self.run_action(env, side),
-            Action::Ball => super::effects::ball(self, env),
+            Action::Ball => {
+                // HandleAction_UseItem: ClearFuryCutterDestinyBondGrudge.
+                self.battler_mut(side).v.fury_cutter = 0;
+                super::effects::ball(self, env)
+            }
         }
     }
 
@@ -836,7 +918,8 @@ impl Battle {
         if fled {
             self.finish(env, BattleOutcome::Ran);
         } else {
-            // BattleScript_PrintFailedToRunString.
+            // ClearFuryCutterDestinyBondGrudge, then BattleScript_PrintFailedToRunString.
+            self.battler_mut(side).v.fury_cutter = 0;
             env.out.push(BattleEvent::Msg(Msg {
                 wait: LONG,
                 ..about(Str::CantEscape, side)
@@ -882,6 +965,13 @@ impl Battle {
             .get(i as usize)
             .expect("switch to a party slot");
         self.battlers[side as usize] = Battler::new(env.t, &p, i);
+        // SwitchInClearSetData: the foe's escape prevention and infatuation by this battler.
+        self.clear_bonds(side);
+        // `switchineffects`: a Truant mon sent out mid-battle starts with the counter set (the
+        // end of the turn clears it before its next move).
+        if self.battler(side).ability == Ability::Truant {
+            self.battler_mut(side).v.truant = true;
+        }
         let player_party = self.battler(Side::Player).mon.party;
         match side {
             // UpdateSentPokesToOpponentValue.
@@ -897,26 +987,8 @@ impl Battle {
     /// `BattleScript_HandleFaintedMon` for each fainted battler, player first.
     fn fainted(&mut self, env: &mut Env) {
         let mut next: Vec<Step> = Vec::new();
-        let o = *self.battler(Side::Opponent);
-        if o.mon.hp == 0 && self.exp_given & (1 << o.mon.party) == 0 {
-            self.exp_given |= 1 << o.mon.party;
-            // Cmd_getexp state 1: the exp of each participant still standing.
-            let sent = self.sent_in;
-            let participants = self.parties[Side::Player as usize]
-                .iter()
-                .enumerate()
-                .filter(|(i, p)| p.hp > 0 && sent & (1 << i) != 0)
-                .count() as u8;
-            let base = env.t.species_info(o.mon.species).exp_yield;
-            let exp = calc::exp_yield(base, o.mon.level, self.is_trainer(), participants);
-            next.push(Step::GainExp {
-                party: 0,
-                exp,
-                sent,
-                defeated: o.mon.species,
-            });
-            // HandleFaintedMonActions case 2.
-            self.sent_in = 1 << self.battler(Side::Player).mon.party;
+        if let Some(exp) = self.exp_for_fainted_foe(env) {
+            next.push(exp);
         }
         for side in [Side::Player, Side::Opponent] {
             if self.battler(side).mon.hp == 0 {
@@ -926,6 +998,50 @@ impl Battle {
         for s in next.into_iter().rev() {
             self.steps.push_front(s);
         }
+    }
+
+    /// `Cmd_getexp` state 1 for a fainted opponent whose exp was not given yet: the exp of
+    /// each participant still standing, as a [`Step::GainExp`].
+    fn exp_for_fainted_foe(&mut self, env: &mut Env) -> Option<Step> {
+        let o = *self.battler(Side::Opponent);
+        if o.mon.hp != 0 || self.exp_given & (1 << o.mon.party) != 0 {
+            return None;
+        }
+        self.exp_given |= 1 << o.mon.party;
+        let sent = self.sent_in;
+        let participants = self.parties[Side::Player as usize]
+            .iter()
+            .enumerate()
+            .filter(|(i, p)| p.hp > 0 && sent & (1 << i) != 0)
+            .count() as u8;
+        let base = env.t.species_info(o.mon.species).exp_yield;
+        let exp = calc::exp_yield(base, o.mon.level, self.is_trainer(), participants);
+        // HandleFaintedMonActions case 2.
+        self.sent_in = 1 << self.battler(Side::Player).mon.party;
+        Some(Step::GainExp {
+            party: 0,
+            exp,
+            sent,
+            defeated: o.mon.species,
+        })
+    }
+
+    /// `SwitchInClearSetData` / `FaintClearSetData` for the battler leaving `side`: the other
+    /// battler's escape prevention and infatuation (their source in singles) end.
+    /// `BattleScript_ActionSwitch` from `switchoutabilities` (Natural Cure clears the status,
+    /// silently) to `returnatktoball`.
+    fn switch_out(&mut self, env: &mut Env, side: Side) {
+        if self.battler(side).ability == Ability::NaturalCure {
+            self.battler_mut(side).mon.status = crate::mon::Status::None;
+            self.write_back(side);
+        }
+        env.out.push(BattleEvent::Recall { side });
+    }
+
+    pub(crate) fn clear_bonds(&mut self, side: Side) {
+        let v = &mut self.battler_mut(side.other()).v;
+        v.escape_prevented = false;
+        v.infatuated = false;
     }
 
     /// `checkteamslost`, then the replacement of a fainted battler.
@@ -1173,7 +1289,11 @@ impl Battle {
                     ..about(Str::WildPkmnFled, o)
                 }));
             }
-            BattleOutcome::Won | BattleOutcome::Caught => {}
+            // HandleEndTurn_FinishBattle: no closing message.
+            BattleOutcome::Won
+            | BattleOutcome::Caught
+            | BattleOutcome::PlayerTeleported
+            | BattleOutcome::MonTeleported => {}
         }
         env.out.push(BattleEvent::End(outcome));
         self.need = Need::Ended(outcome);

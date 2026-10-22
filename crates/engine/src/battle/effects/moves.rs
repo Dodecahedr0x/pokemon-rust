@@ -2,9 +2,10 @@
 
 use super::abilities;
 use super::status::{self, Cause};
-use crate::battle::core::{Battle, Env, HitResult, MoveUse, Secondary};
-use crate::battle::{BattleEvent, Buff, Effectiveness, Msg, Str};
-use crate::mon::{MoveEffect, Stat, Status, StatusKind, Type};
+use super::{RunBlock, run_block};
+use crate::battle::core::{Action, Battle, Env, HitResult, MoveUse, Secondary};
+use crate::battle::{BattleEvent, BattleOutcome, Buff, Effectiveness, Msg, Side, Str};
+use crate::mon::{Ability, MoveEffect, Stat, Status, StatusKind, Type};
 
 /// Runs `u`'s script by effect; `Unsupported` falls back to the core's handling.
 pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
@@ -44,9 +45,42 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         }
         MoveEffect::NaturePower => nature_power(b, env, u),
         MoveEffect::MultiHit => {
-            multi_hit(b, env, u);
+            multi_hit(b, env, u, None);
             None
         }
+        MoveEffect::DoubleHit => {
+            // BattleScript_EffectDoubleHit: `setmultihitcounter 2`.
+            multi_hit(b, env, u, Some(2));
+            None
+        }
+        // As a move, Pursuit is a plain hit (its double damage is `pursuit_on_switch`).
+        MoveEffect::Pursuit => b.hit(env, u, None, false),
+        MoveEffect::Attract => {
+            attract(b, env, u);
+            None
+        }
+        MoveEffect::MeanLook => {
+            mean_look(b, env, u);
+            None
+        }
+        MoveEffect::MudSport | MoveEffect::WaterSport => {
+            sport(b, env, u);
+            None
+        }
+        MoveEffect::Teleport => {
+            teleport(b, env, u);
+            None
+        }
+        MoveEffect::Uproar => uproar(b, env, u),
+        MoveEffect::Yawn => {
+            yawn(b, env, u);
+            None
+        }
+        MoveEffect::Foresight => {
+            foresight(b, env, u);
+            None
+        }
+        MoveEffect::FuryCutter => fury_cutter(b, env, u),
         MoveEffect::Splash => {
             b.attack_string(env, u);
             anim(env, u);
@@ -120,8 +154,8 @@ fn confuse_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     status::confuse(b, env, u, u.target, Cause::SECONDARY);
 }
 
-fn flinch_hit(b: &mut Battle, _env: &mut Env, u: &MoveUse, _r: &HitResult) {
-    status::flinch(b, u.target, Cause::SECONDARY);
+fn flinch_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
+    status::flinch(b, env, u, u.target, Cause::SECONDARY);
 }
 
 /// `BattleScript_EffectSleep` / `Poison` / `Toxic` / `Paralyze` (and Will-O-Wisp's burn):
@@ -139,6 +173,23 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
         StatusKind::Sleep if matches!(status, Status::Sleep(_)) => {
             target_msg(Str::PkmnAlreadyAsleep)
         }
+        // `jumpifcantmakeasleep` → BattleScript_CantMakeAsleep (gUproarAwakeStringIds).
+        StatusKind::Sleep if status::uproar_keeps_awake(b, u.target).is_some() => {
+            let uproarer = status::uproar_keeps_awake(b, u.target);
+            target_msg(if uproarer == Some(u.target) {
+                Str::PkmnCantSleepInUproar
+            } else {
+                Str::UproarKeptPkmnAwake
+            })
+        }
+        StatusKind::Sleep if status::never_sleeps(t.ability) => Some(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::None,
+                Buff::None,
+                Buff::Text(Str::AbilityName(t.ability)),
+            ],
+            ..u.msg_long(Str::PkmnStayedAwakeUsing, u.target)
+        })),
         StatusKind::Poison if poisoned => target_msg(Str::PkmnAlreadyPoisoned),
         StatusKind::Poison if poison_type => target_msg(Str::ItDoesntAffect),
         StatusKind::Toxic if poisoned => target_msg(Str::PkmnAlreadyPoisoned),
@@ -200,11 +251,16 @@ fn absorb(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
     // No effect (an immune target): `negativedamage` still sets -1, but `healthbarupdate` /
     // `datahpupdate BS_ATTACKER` do nothing under MOVE_RESULT_NO_EFFECT and
     // `jumpifmovehadnoeffect` skips the drain string, so neither heal nor message.
+    // Liquid Ooze (BattleScript_AbsorbLiquidOoze): the same amount hurts the attacker.
     if r.eff != Effectiveness::NoEffect {
-        let heal = (r.hp_dealt / 2).max(1);
-        b.change_hp_passive(env, u.attacker, -(heal as i32));
-        env.out
-            .push(BattleEvent::Msg(u.msg_long(Str::AbsorbDrain, u.target)));
+        let heal = (r.hp_dealt / 2).max(1) as i32;
+        let (hp, id) = if b.battler(u.target).ability == Ability::LiquidOoze {
+            (heal, Str::ItSuckedLiquidOoze)
+        } else {
+            (-heal, Str::AbsorbDrain)
+        };
+        b.change_hp_passive(env, u.attacker, hp);
+        env.out.push(BattleEvent::Msg(u.msg_long(id, u.target)));
     }
     b.try_faint(env, u.attacker);
     b.try_faint(env, u.target);
@@ -281,23 +337,26 @@ fn sonic_boom(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
 }
 
 /// `BattleScript_EffectMultiHit`: one accuracy check, `setmultihitcounter` (2–5: `Random() &
-/// 3`, then `(Random() & 3) + 2` above 1), then per hit `critcalc` … `datahpupdate`,
+/// 3`, then `(Random() & 3) + 2` above 1; `fixed` for Double Kick's 2, no roll), then per
+/// hit `critcalc` … `datahpupdate`,
 /// `critmessage` and `moveendto MOVEEND_NEXT_TARGET` (defrost, Synchronize, contact
 /// abilities); the loop stops when the attacker faints, the target faints or the attacker
 /// falls asleep. Then the result message, "Hit N time(s)!", `seteffectwithchance` (its roll)
 /// and the target's faint. Returns nothing: `moveend` already ran per hit.
-fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
     if !b.accuracy(env, u) {
         b.missed(env, u);
         return;
     }
     b.attack_string(env, u);
-    let mut count = env.rng.random() & 3;
-    if count > 1 {
-        count = (env.rng.random() & 3) + 2;
-    } else {
-        count += 2;
-    }
+    let count = fixed.unwrap_or_else(|| {
+        let count = env.rng.random() & 3;
+        if count > 1 {
+            (env.rng.random() & 3) + 2
+        } else {
+            count + 2
+        }
+    });
     let mut hits = 0u32;
     let mut last: Option<HitResult> = None;
     let mut strings = true;
@@ -316,6 +375,7 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse) {
             if !b.is_first_battle() {
                 env.rng.random();
             }
+            b.battler_mut(u.attacker).v.unable = true;
             last = Some(HitResult {
                 damage: 0,
                 hp_dealt: 0,
@@ -364,4 +424,262 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     }
     b.secondary(env, u, &r, None);
     b.try_faint(env, u.target);
+}
+
+/// A message naming `ability` (`B_*_ABILITY` = `buffs[2]`) about `active`, waiting long.
+fn ability_msg(u: &MoveUse, id: Str, active: Side, ability: Ability) -> BattleEvent {
+    BattleEvent::Msg(Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(ability)),
+        ],
+        ..u.msg_long(id, active)
+    })
+}
+
+/// `BattleScript_EffectAttract` + `Cmd_tryinfatuating`: the attack string, one accuracy roll
+/// (a miss is "X's attack missed!"), the target's Oblivious ("prevents romance"), then "But it
+/// failed!" for the same gender, a genderless mon or an infatuated target; else it falls in
+/// love with the attacker.
+fn attract(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    b.attack_string(env, u);
+    if !b.accuracy(env, u) {
+        b.miss_message(env, u);
+        return;
+    }
+    let (a, t) = (b.battler(u.attacker), b.battler(u.target));
+    if t.ability == Ability::Oblivious {
+        env.out.push(ability_msg(
+            u,
+            Str::PkmnPreventsRomanceWith,
+            u.target,
+            Ability::Oblivious,
+        ));
+        return;
+    }
+    if !abilities::opposite_genders(a.mon.gender, t.mon.gender) || t.v.infatuated {
+        b.fail(env, u);
+        return;
+    }
+    b.battler_mut(u.target).v.infatuated = true;
+    anim(env, u);
+    env.out
+        .push(BattleEvent::Msg(u.msg_long(Str::PkmnFellInLove, u.target)));
+}
+
+/// `BattleScript_EffectMeanLook` (Mean Look, Block, Spider Web): no accuracy roll
+/// (`NO_ACC_CALC`); "But it failed!" when the target already cannot escape.
+fn mean_look(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    b.attack_string(env, u);
+    if b.battler(u.target).v.escape_prevented {
+        b.fail(env, u);
+        return;
+    }
+    anim(env, u);
+    b.battler_mut(u.target).v.escape_prevented = true;
+    env.out.push(BattleEvent::Msg(
+        u.msg_long(Str::TargetCantEscapeNow, u.target),
+    ));
+}
+
+/// `BattleScript_EffectMudSport` / `WaterSport` + `Cmd_settypebasedhalvers`: once per user
+/// (`STATUS3_MUDSPORT` / `_WATERSPORT`), "But it failed!" again.
+fn sport(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    b.attack_string(env, u);
+    let mud = u.info.effect == MoveEffect::MudSport;
+    let v = &mut b.battler_mut(u.attacker).v;
+    let set = if mud {
+        &mut v.mud_sport
+    } else {
+        &mut v.water_sport
+    };
+    if *set {
+        b.fail(env, u);
+        return;
+    }
+    *set = true;
+    anim(env, u);
+    // gSportsUsedStringIds.
+    let id = if mud {
+        Str::ElectricityWeakened
+    } else {
+        Str::FireWeakened
+    };
+    env.out.push(BattleEvent::Msg(u.msg_long(id, u.attacker)));
+}
+
+/// `BattleScript_EffectTeleport`: "But it failed!" in a trainer battle or when the attacker
+/// may not run (`BATTLE_RUN_FORBIDDEN`); a foe's trapping ability "made it ineffective"; else
+/// the attacker flees and the battle ends (`setoutcomeonteleport`, no closing message).
+fn teleport(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    b.attack_string(env, u);
+    if b.is_trainer() {
+        b.fail(env, u);
+        return;
+    }
+    match run_block(b, u.attacker) {
+        Some(RunBlock::Forbidden(_)) => b.fail(env, u),
+        Some(RunBlock::Ability { owner, ability }) => {
+            env.out
+                .push(ability_msg(u, Str::PkmnSXMadeItIneffective, owner, ability))
+        }
+        None => {
+            anim(env, u);
+            env.out.push(BattleEvent::Msg(
+                u.msg_long(Str::PkmnFledFromBattle, u.attacker),
+            ));
+            let outcome = match u.attacker {
+                Side::Player => BattleOutcome::PlayerTeleported,
+                Side::Opponent => BattleOutcome::MonTeleported,
+            };
+            b.finish(env, outcome);
+        }
+    }
+}
+
+/// `BattleScript_EffectUproar`: accuracy (a miss is `BattleScript_PrintMoveMissed`), the
+/// attack string (PP only on the first turn: `STATUS2_MULTIPLETURNS` skips `ppreduce`), the
+/// hit, then `seteffectwithchance` (its roll, chance 100): `MOVE_EFFECT_UPROAR` on the
+/// attacker when it is not making one yet.
+fn uproar(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
+    if !b.accuracy(env, u) {
+        b.missed(env, u);
+        return None;
+    }
+    if b.battler(u.attacker).v.uproar > 0 {
+        env.out
+            .push(BattleEvent::Msg(u.msg(Str::UsedMove, u.attacker)));
+    } else {
+        b.attack_string(env, u);
+    }
+    let r = b.damage(env, u);
+    let r = b.deal(env, u, r);
+    b.secondary(env, u, &r, with(start_uproar));
+    b.try_faint(env, u.target);
+    Some(r)
+}
+
+/// `MOVE_EFFECT_UPROAR`: `(Random() & 3) + 2` turns, `gLockedMoves`, "X caused an UPROAR!".
+fn start_uproar(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
+    if b.battler(u.attacker).v.uproar > 0 {
+        return;
+    }
+    b.battler_mut(u.attacker).v.uproar = (env.rng.random() & 3) as u8 + 2;
+    env.out.push(BattleEvent::Msg(
+        u.msg_long(Str::PkmnCausedUproar, u.attacker),
+    ));
+}
+
+/// `BattleScript_EffectYawn`: Insomnia / Vital Spirit "made it ineffective"; no accuracy roll;
+/// "But it failed!" during an uproar (`jumpifcantmakeasleep`), for a drowsy or statused target
+/// (`setyawn`); else the target is drowsy (`STATUS3_YAWN_TURN(2)`).
+fn yawn(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    b.attack_string(env, u);
+    let t = b.battler(u.target);
+    if status::never_sleeps(t.ability) {
+        env.out.push(ability_msg(
+            u,
+            Str::PkmnSXMadeItIneffective,
+            u.target,
+            t.ability,
+        ));
+        return;
+    }
+    if status::uproar_keeps_awake(b, u.target).is_some()
+        || t.v.yawn > 0
+        || t.mon.status != Status::None
+    {
+        b.fail(env, u);
+        return;
+    }
+    b.battler_mut(u.target).v.yawn = 2;
+    anim(env, u);
+    env.out.push(BattleEvent::Msg(
+        u.msg_long(Str::PkmnWasMadeDrowsy, u.target),
+    ));
+}
+
+/// `BattleScript_EffectForesight`: accuracy (a miss is `BattleScript_PrintMoveMissed`), then
+/// `setforesight` (always) and "X identified Y!".
+fn foresight(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    if !b.accuracy(env, u) {
+        b.missed(env, u);
+        return;
+    }
+    b.attack_string(env, u);
+    b.battler_mut(u.target).foresight = true;
+    anim(env, u);
+    env.out
+        .push(BattleEvent::Msg(u.msg_long(Str::PkmnIdentified, u.target)));
+}
+
+/// `BattleScript_EffectFuryCutter`: the attack string, then accuracy; `furycuttercalc` resets
+/// the counter on a miss, else raises it (to 5) and doubles the power per earlier hit. A type
+/// immunity (`jumpifmovehadnoeffect` after the crit roll) resets it too, with no damage roll.
+fn fury_cutter(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
+    b.attack_string(env, u);
+    if !b.accuracy(env, u) {
+        b.battler_mut(u.attacker).v.fury_cutter = 0;
+        b.miss_message(env, u);
+        return None;
+    }
+    let n = (b.battler(u.attacker).v.fury_cutter + 1).min(5);
+    b.battler_mut(u.attacker).v.fury_cutter = n;
+    let u = MoveUse {
+        power: (u.info.power as u16 * (1 << (n - 1))).min(u8::MAX as u16) as u8,
+        ..*u
+    };
+    if b.immune(env, &u) {
+        if !b.is_first_battle() {
+            env.rng.random();
+        }
+        let a = b.battler_mut(u.attacker);
+        a.v.fury_cutter = 0;
+        a.v.unable = true;
+        b.no_effect = true;
+        env.out
+            .push(BattleEvent::Msg(u.msg_long(Str::ItDoesntAffect, u.target)));
+        return None;
+    }
+    let r = b.damage(env, &u);
+    let r = b.deal(env, &u, r);
+    b.secondary(env, &u, &r, None);
+    b.try_faint(env, u.target);
+    Some(r)
+}
+
+/// See [`super::pursuit_on_switch`]: `jumpifnopursuitswitchdmg` (the foe chose Pursuit, is
+/// neither asleep nor frozen nor loafing, and the switching battler has HP), then
+/// `BattleScript_PursuitDmgOnSwitchOut` with `sDMG_MULTIPLIER` 2: the attack string and PP,
+/// the damage (no accuracy check), the faint check and `moveendfromto
+/// MOVEEND_ON_DAMAGE_ABILITIES`.
+pub(super) fn pursuit_on_switch(b: &mut Battle, env: &mut Env, side: Side) -> bool {
+    let foe = side.other();
+    let Some(Action::Move(slot)) = b.actions[foe as usize] else {
+        return false;
+    };
+    let f = b.battler(foe);
+    let Some(mov) = f.mon.moves[slot as usize] else {
+        return false;
+    };
+    if env.t.move_info(mov).effect != MoveEffect::Pursuit
+        || matches!(f.mon.status, Status::Sleep(_) | Status::Freeze)
+        || f.v.truant
+        || b.battler(side).mon.hp == 0
+    {
+        return false;
+    }
+    b.actions[foe as usize] = None;
+    let u = MoveUse {
+        target: side,
+        multiplier: 2,
+        ..b.move_use(env, foe, mov, Some(slot))
+    };
+    b.attack_string(env, &u);
+    let r = b.damage(env, &u);
+    let r = b.deal(env, &u, r);
+    b.try_faint(env, side);
+    abilities::move_end_from_on_damage(b, env, &u, Some(r));
+    true
 }

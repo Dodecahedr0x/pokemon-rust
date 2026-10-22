@@ -79,6 +79,24 @@ pub const POISON_ALL: MoveId = MoveId(40);
 // The Pokémon model, wild and trainer tests (formerly `mon::test_tables`).
 /// Defense -1, PP 30.
 pub const TAIL_WHIP: MoveId = MoveId(41);
+// Task G (Gen3 data of the namesakes).
+pub const ATTRACT: MoveId = MoveId(42);
+/// Mean Look's effect.
+pub const BLOCK: MoveId = MoveId(43);
+pub const MUD_SPORT: MoveId = MoveId(44);
+pub const WATER_SPORT: MoveId = MoveId(45);
+pub const TELEPORT: MoveId = MoveId(46);
+/// Sound.
+pub const UPROAR: MoveId = MoveId(47);
+pub const YAWN: MoveId = MoveId(48);
+pub const DOUBLE_KICK: MoveId = MoveId(49);
+pub const FORESIGHT: MoveId = MoveId(50);
+pub const FURY_CUTTER: MoveId = MoveId(51);
+pub const PURSUIT: MoveId = MoveId(52);
+/// Growl with the sound flag (Soundproof blocks it).
+pub const SOUND_GROWL: MoveId = MoveId(53);
+/// Speed -1 secondary with a 100% chance (Icy Wind).
+pub const ICY_WIND: MoveId = MoveId(54);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -126,6 +144,35 @@ pub const BLOB: SpeciesId = SpeciesId(19);
 pub const HAWK: SpeciesId = SpeciesId(20);
 /// Intimidate only; its name (`LONG_NAME`) is 12 characters, over `POKEMON_NAME_LENGTH`.
 pub const GROWLER: SpeciesId = SpeciesId(21);
+// Task G (one ability each, `STATS`).
+/// Normal, Oblivious.
+pub const OBLIVIOUS: SpeciesId = SpeciesId(22);
+/// Normal, Cute Charm.
+pub const CHARMER: SpeciesId = SpeciesId(23);
+/// Rock, Magnet Pull.
+pub const MAGNET: SpeciesId = SpeciesId(24);
+/// Normal, Soundproof.
+pub const SOUNDPROOF: SpeciesId = SpeciesId(25);
+/// Normal, Insomnia.
+pub const INSOMNIAC: SpeciesId = SpeciesId(26);
+/// Normal, Truant.
+pub const TRUANT: SpeciesId = SpeciesId(27);
+/// Bug, Shed Skin.
+pub const SHEDDER: SpeciesId = SpeciesId(28);
+/// Psychic, Inner Focus.
+pub const FOCUSED: SpeciesId = SpeciesId(29);
+/// Grass, Early Bird.
+pub const EARLY: SpeciesId = SpeciesId(30);
+/// Rock, Rock Head.
+pub const ROCKHEAD: SpeciesId = SpeciesId(31);
+/// Bug, Compound Eyes.
+pub const EYES: SpeciesId = SpeciesId(32);
+/// Water, Clear Body.
+pub const CLEAR: SpeciesId = SpeciesId(33);
+/// Water, Liquid Ooze.
+pub const OOZE: SpeciesId = SpeciesId(34);
+/// Normal, Natural Cure.
+pub const CURER: SpeciesId = SpeciesId(35);
 /// Gen3-encoded "MUDKIP", "ZIGZAGOON", "ABCDEFGHIJKL".
 pub const MUDKIP_NAME: &[u8] = &[0xC7, 0xCF, 0xBE, 0xC5, 0xC3, 0xCA, 0xFF];
 pub const ZIGZAGOON_NAME: &[u8] = &[0xD4, 0xC3, 0xC1, 0xD4, 0xBB, 0xC1, 0xC9, 0xC9, 0xC8, 0xFF];
@@ -175,7 +222,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 42] = [
+pub static MOVES: [MoveInfo; 55] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -414,6 +461,55 @@ pub static MOVES: [MoveInfo; 42] = [
         Selected,
         0,
     ),
+    // ---- Task G ----
+    e2(MoveEffect::Attract, 0, Type::Normal, 100, 15, 0, false),
+    e2(MoveEffect::MeanLook, 0, Type::Normal, 100, 5, 0, false),
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::MudSport, 0, Type::Ground, 100, 15, 0, false)
+    },
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::WaterSport, 0, Type::Water, 100, 15, 0, false)
+    },
+    MoveInfo {
+        target: User,
+        ..e2(MoveEffect::Teleport, 0, Type::Psychic, 0, 20, 0, false)
+    },
+    MoveInfo {
+        target: MoveTarget::Random,
+        flags: MoveFlags(MoveFlags::SOUND),
+        ..e2(MoveEffect::Uproar, 50, Type::Normal, 100, 10, 100, false)
+    },
+    e2(MoveEffect::Yawn, 0, Type::Normal, 100, 10, 0, false),
+    e2(MoveEffect::DoubleHit, 30, Type::Fighting, 100, 30, 0, true),
+    e2(MoveEffect::Foresight, 0, Type::Normal, 100, 40, 0, false),
+    e2(MoveEffect::FuryCutter, 10, Type::Bug, 95, 20, 0, true),
+    e2(MoveEffect::Pursuit, 40, Type::Dark, 100, 20, 0, true),
+    MoveInfo {
+        flags: MoveFlags(MoveFlags::SOUND),
+        ..e2(
+            MoveEffect::StatDown {
+                stat: Stat::Atk,
+                stages: 1,
+            },
+            0,
+            Type::Normal,
+            100,
+            40,
+            0,
+            false,
+        )
+    },
+    e2(
+        MoveEffect::StatDownHit(Stat::Speed),
+        55,
+        Type::Ice,
+        95,
+        15,
+        100,
+        false,
+    ),
 ];
 
 const fn lv(level: u8, mov: MoveId) -> LevelUpMove {
@@ -458,7 +554,7 @@ const fn species(
     }
 }
 
-pub static SPECIES: [SpeciesInfo; 22] = [
+pub static SPECIES: [SpeciesInfo; 36] = [
     species([0; 6], Type::Normal, 0, Ability::None, &[]),
     species(
         [50, 70, 50, 40, 50, 50],
@@ -588,6 +684,21 @@ pub static SPECIES: [SpeciesInfo; 22] = [
         [Ability::Intimidate, Ability::None],
         &[lv(1, TACKLE)],
     ),
+    // ---- Task G ----
+    species(STATS, Type::Normal, 50, Ability::Oblivious, &[]),
+    species(STATS, Type::Normal, 50, Ability::CuteCharm, &[]),
+    species(STATS, Type::Rock, 50, Ability::MagnetPull, &[]),
+    species(STATS, Type::Normal, 50, Ability::Soundproof, &[]),
+    species(STATS, Type::Normal, 50, Ability::Insomnia, &[]),
+    species(STATS, Type::Normal, 50, Ability::Truant, &[]),
+    species(STATS, Type::Bug, 50, Ability::ShedSkin, &[]),
+    species(STATS, Type::Psychic, 50, Ability::InnerFocus, &[]),
+    species(STATS, Type::Grass, 50, Ability::EarlyBird, &[]),
+    species(STATS, Type::Rock, 50, Ability::RockHead, &[]),
+    species(STATS, Type::Bug, 50, Ability::CompoundEyes, &[]),
+    species(STATS, Type::Water, 50, Ability::ClearBody, &[]),
+    species(STATS, Type::Water, 50, Ability::LiquidOoze, &[]),
+    species(STATS, Type::Normal, 50, Ability::NaturalCure, &[]),
 ];
 
 /// A Pokémon-model species: named, exp yield 50, its own EV yield, gender ratio, growth rate

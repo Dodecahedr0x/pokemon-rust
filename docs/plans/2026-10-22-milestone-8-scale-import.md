@@ -555,6 +555,15 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
 7. **Tests:** golden roll tests per effect and ability (explicit `Rng` rolls, as M4); one Act 1 trainer party end to end in the battle test game; AI flags for Roxanne's party; prize money and whiteout money against Gen3 formulas.
 8. **Route delta:** the slice route's battles change if a slice move's effect or a slice ability now acts; stated in the report, refreshed on master per the rules.
 
+**G1 Act 1 list (Phase 1, measured from the decomp).** Scope: the land encounters of Routes 101–104, Petalburg Woods and Route 116 (level-up learnsets at each species' max encounter level), and the parties of every trainer met before `FLAG_BADGE01_GET`: Route 102 (Calvin, Allen, Rick, Tiana), the Route 103 rival (6 variants), Route 104 (Gina & Mia, Cindy, Haley, Winston, Billy, Darian, Ivan), Petalburg Woods (the grunt, James, Lyle), Route 116 (Clark, Dawson, Devan, Janice, Jerry, Joey, Johnson, Jose, Karen, Sarah), Rustboro Gym (Josh, Marc, Tommy, Roxanne) and Wally's tutorial. Water encounters (no Surf nor rod before the badge), the Route 103 east trainers, the Rustboro rival and rematches are out.
+- Effects already in the engine: `ABSORB`, `ACCURACY_DOWN(_HIT)`, `ATTACK_DOWN`, `ATTACK_UP`, `BIDE`, `BURN_HIT`, `CONFUSE_HIT`, `DEFENSE_CURL`, `DEFENSE_DOWN`, `DEFENSE_UP`, `FLINCH_MINIMIZE_HIT`, `FOCUS_ENERGY`, `HIT`, `PARALYZE`, `POISON_HIT`, `QUICK_ATTACK`, `SPECIAL_ATTACK_UP`, `SPEED_DOWN(_HIT)`, `SPLASH`.
+- Effects added by G1: `ATTRACT`, `MEAN_LOOK` (Block), `MUD_SPORT` (and `WATER_SPORT`), `TELEPORT`, `UPROAR`, `YAWN`, `DOUBLE_HIT`, `FORESIGHT`, `FURY_CUTTER`, `PURSUIT` (with its switch-out hit).
+- Blocked: `LOW_KICK` needs species weights (`gSpeciesInfo` has none; the Pokédex `weight` must be extracted (A), carried by the blob (E) and exposed on `SpeciesInfo`).
+- Abilities already in the engine: Blaze, Overgrow, Torrent, Run Away, Shield Dust, Keen Eye, Guts, Effect Spore, Synchronize, Trace.
+- Abilities added by G1: Compound Eyes, Cute Charm, Early Bird, Huge Power, Inner Focus, Magnet Pull, Rock Head, Shed Skin, Soundproof, Thick Fat, Truant; also Oblivious, Insomnia, Vital Spirit, Hustle, Marvel Scale, Pure Power (they gate the new effects), and Clear Body, Liquid Ooze, Natural Cure (the slice's water encounters).
+- Named, no effect yet: Sturdy (OHKO moves are G2), Pickup (no items after battle), Chlorophyll, Rain Dish, Swift Swim (no weather).
+- AI: the `AI_CheckBadMove` / `AI_CheckViability` branches of the new effects and abilities, `ShouldSwitch`'s trapping checks. Not modelled: `AI_CV_Pursuit` (`isFirstTurn`), `ShouldSwitchIfNaturalCure`.
+
 **G2 (stretch, after G1 merges; route-neutral for Act 1 if it changes no Act 1 effect):** more effects by frequency across all trainer parties and learnsets toward **≥ 120 of 214** (order: `HIGH_CRITICAL`, `ALWAYS_HIT`, `TRAP`, `DOUBLE_HIT`, `PROTECT`, `RESTORE_HP`, `LEVEL_DAMAGE`, `RECHARGE`, `DEFENSE_CURL`, `MEAN_LOOK`, `YAWN`, `ATTACK_UP_HIT`, …; the frequency table in the report), and abilities toward **≥ 40 of 77**.
 
 ### Task H — engine: items, money, string buffers, multichoice

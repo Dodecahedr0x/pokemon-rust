@@ -15,26 +15,26 @@ const P: Side = Side::Player;
 const O: Side = Side::Opponent;
 
 /// L5, 20 HP, Atk 13, Def 10, Speed 9 (fast enough to move first against the 5-speed foes).
-fn me(species: crate::data::SpeciesId, moves: &[MoveId]) -> Pokemon {
+pub(super) fn me(species: crate::data::SpeciesId, moves: &[MoveId]) -> Pokemon {
     mon(species, 5, [20, 13, 10, 9, 9, 10], moves)
 }
 
 /// L5, 20 HP, Atk 10, Def 10, Speed 5.
-fn foe(species: crate::data::SpeciesId, moves: &[MoveId]) -> Pokemon {
+pub(super) fn foe(species: crate::data::SpeciesId, moves: &[MoveId]) -> Pokemon {
     mon(species, 5, [20, 10, 10, 5, 10, 10], moves)
 }
 
-fn wild(p: Pokemon, o: Pokemon, seed: u32) -> Run {
+pub(super) fn wild(p: Pokemon, o: Pokemon, seed: u32) -> Run {
     Run::wild(&[p], o, seed)
 }
 
 /// The first seed in `1..` whose run satisfies `ok` (a search over pinned seeds, so a test
 /// documents the situation rather than a magic number).
-fn seed_where(mut ok: impl FnMut(u32) -> bool) -> u32 {
+pub(super) fn seed_where(mut ok: impl FnMut(u32) -> bool) -> u32 {
     (1..2000).find(|&s| ok(s)).expect("no seed")
 }
 
-fn has(lines: &[String], l: &str) -> bool {
+pub(super) fn has(lines: &[String], l: &str) -> bool {
     lines.iter().any(|x| x == l)
 }
 
@@ -665,7 +665,7 @@ fn catch_escape_messages_by_shakes() {
 // ---- RNG sequences: the number and order of `Random()` calls ----
 
 /// `n` draws from `Rng::new(seed)`.
-fn draws(seed: u32, n: usize) -> Rng {
+pub(super) fn draws(seed: u32, n: usize) -> Rng {
     let mut r = Rng::new(seed);
     for _ in 0..n {
         r.random();
@@ -674,7 +674,7 @@ fn draws(seed: u32, n: usize) -> Rng {
 }
 
 /// The `k`-th draw (0-based) from `Rng::new(seed)`.
-fn nth(seed: u32, k: usize) -> u16 {
+pub(super) fn nth(seed: u32, k: usize) -> u16 {
     let mut r = draws(seed, k);
     r.random()
 }
@@ -712,7 +712,7 @@ fn confusion_roll_then_damage_roll() {
     }
 }
 
-fn contact_hit() -> Option<crate::battle::core::HitResult> {
+pub(super) fn contact_hit() -> Option<crate::battle::core::HitResult> {
     Some(crate::battle::core::HitResult {
         damage: 5,
         hp_dealt: 5,
