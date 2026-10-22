@@ -458,6 +458,7 @@ fn multichoice_reads_input_from_the_third_update_on() {
     assert!(!w.s.text.is_multichoice_active(), "third frame");
     run_h(&mut w, Buttons::NONE, 1);
     assert_eq!(w.var(VAR_RESULT), 1001);
+    assert_eq!(w.s.text.multichoice_result(), None, "taken by the script");
 }
 
 #[test]

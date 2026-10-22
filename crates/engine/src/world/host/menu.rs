@@ -54,6 +54,9 @@ pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Re
     if !done(h, r) {
         return None;
     }
-    let answer = h.s.text.multichoice_result().unwrap_or(MULTI_B_PRESSED);
+    let answer =
+        h.s.text
+            .take_multichoice_result()
+            .unwrap_or(MULTI_B_PRESSED);
     Some(Response::Value(answer))
 }

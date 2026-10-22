@@ -426,6 +426,11 @@ impl TextBox {
                 self.menu = None;
                 self.menu_result = Some(answer);
             }
+            // A message started without `waitmessage` goes on printing under the menu, as
+            // Gen3's text printer and multichoice task both run.
+            if self.open {
+                self.printer.update(game.font(), pressed, held);
+            }
         } else if self.yes_no_cursor.is_some() {
             self.update_yes_no(game, pressed, f);
         } else if self.open {
@@ -541,10 +546,15 @@ impl TextBox {
         self.menu.as_deref()
     }
 
-    /// The last multichoice answer (an index or `MULTI_B_PRESSED`), until the next
+    /// The last multichoice answer (an index or `MULTI_B_PRESSED`), until it is taken, the next
     /// `start_multichoice` or `close`.
     pub fn multichoice_result(&self) -> Option<u16> {
         self.menu_result
+    }
+
+    /// Takes the last multichoice answer (the script has it; nothing of the menu remains).
+    pub fn take_multichoice_result(&mut self) -> Option<u16> {
+        self.menu_result.take()
     }
 
     /// Clears BG0's map, disables it and forgets any message or menu.
