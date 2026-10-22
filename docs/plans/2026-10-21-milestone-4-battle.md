@@ -807,3 +807,112 @@ The milestone review covers the whole workspace: fix review findings, update thi
 11. **RNG:** we keep our xorshift. Gen3 *call order* is mirrored, but not Gen3 LCG values. Exactness is defined by the formulas and the per-roll mapping, which are tested with explicit rolls.
 12. **To verify in Task A:** whether the FR "sauvage/ennemi" tag is a prefix or a suffix (it changes `text::expand`), and FR-localized status icons in the healthbox gfx (Task B).
 13. **Battle VRAM:** the battle owns VRAM while it runs, and the field fully re-uploads on return (one black bulk frame). That is simpler and safer than preserving field VRAM across the battle.
+
+---
+
+## As built
+
+Master after the close-out merges. The route: 19 082 frames, 8 battles (first battle, 5 wild won, 1 run, May won). Parity: 19 071 hashes and 204 pictures identical, `late == 0`, 21 black overruns all attributed to the 22 bulk events. Stub: 1 543 frames, 1 battle. ROM 1875 KiB (stub 375 KiB). Extract format v4.
+
+**Contracts that changed after Wave 0**
+- `Str`:
+  - `Attacker/DefenderStatChanged` became `…StatRose` (codes kept), plus `…StatFell`.
+  - Added `NoRunningFromTrainers`, `BirchInTrouble` (a decomp string id, allowed by the rules), the E2 status, ability, catch and misc strings, and `AbilityName(Ability)` (`gAbilityNames`, extracted in v4).
+  - `Str::code()` is the stable, exhaustive hash code. Retired codes leave gaps.
+- `Msg::slots: [u8; 2]` and `Names::parties`: a queued message names the battler that was active when it was emitted, even after a `SendOut` in the same batch. Battlers are replaced only through `switch_in`.
+- `Buff::MonNick`. `MonFled` uses it, following `HandleEndTurn_MonFled`'s `PREPARE_MON_NICK_BUFFER`.
+- `Battle::new` draws the 4 `BattleAI_HandleItemUseBeforeAISetup` rolls, then the held-item roll (wild only), then `gRandomTurnNumber`. Parties and the scripted wild mon are created when the battle is requested, before the transition. This is a deviation: Gen3 creates them after the transition.
+- Outcomes:
+  - `Drew` is a whiteout like `Lost`, except in the first battle, which always returns to its script.
+  - The trainer flag is set unless the outcome is `Lost | Drew` (`IsPlayerDefeated`).
+- Trainer AI:
+  - The Gen3 score model, with flags `CHECK_BAD_MOVE`, `TRY_TO_FAINT`, `CHECK_VIABILITY`, `SETUP_FIRST_TURN` and `FIRST_BATTLE`. Score is an s8 that wraps.
+  - `simulatedRNG` rolls, then `ShouldSwitch`, restricted to the subset that draws the RNG.
+  - The opponent's Run is ordered by speed. Only the player's Run goes first.
+- `BattleScene`:
+  - `finished() -> Option<BattleOutcome>`, `Some` only after the fade to black.
+  - `step(game, &mut Battle, &mut Rng, &Input, f)` is the World driver.
+  - `load` takes 11 black chunks and marks `Frame::bulk`.
+  - The scene owns BG0–3, char blocks 0–2, screen blocks 24/26/28, BG palettes 0–5, OBJ tiles 0–468 and OBJ palettes 0–7.
+- OBJ layout:
+  - Tiles: pics 0/64/128/192, player box 256..384, enemy box 384..448, HP bars 448/456, ball 464, 468..512 free.
+  - Palettes: OBJ 4 for the player box, 7 for the enemy box, 8..10 for tints.
+  - At most 16 OBJ tiles per visible frame.
+- `BattleGfx`:
+  - textbox: 4 palettes `[tb0, tb1, text, text_pp]` and the full 32×64 map
+  - `starter_bag.tilemap`: the bag map padded to 1024, then the grass map
+  - `TrainerPic.y` is Gen3's `MonCoords.size`
+- Content:
+  - `Emerald { start: Start }`, with `Start::default() = BeforeRescue`.
+  - `Emerald::for_shells()` gives BeforeRescue on real data and AfterStarter on the stub. The stub has no story, and its route battles in the StubTown (12,3) grass. The old `Emerald` const was removed.
+  - Generated `trainer_battle` covers types 0/1/2/3/5 (5 is treated as 0). Doubles are unsupported.
+- World:
+  - `Mode { Field, Starter, Battle }`, with `BattleRun` stages Transition → Loading → Running → Leaving → Whiteout(120) → Returning.
+  - Only field encounters freeze objects (`DoStandardWildBattle`).
+  - Objects update during the return fade-in.
+  - The field text box closes when a battle starts.
+  - Environment is Grass on tall grass and Plain otherwise.
+  - Encounter immunity is 4 steps, reset on map load, connection crossing and battle.
+  - A script battle with no usable mon answers `Won`; a map-script battle answers `Ran`.
+  - `ChangePokemonNickname` (no naming screen) only fades back in.
+- Parity budget:
+  - `Frame::bulk` marks warp loads, whole-view redraws (script teleports), starter-screen chunks, battle loads and field restores.
+  - Every black overrun must follow a bulk step within `DISPLAY_LAG = 3` frames, and the count must be ≤ the number of bulk events. This replaces `late_black <= warps + 2 × battles`, which the starter screen and teleports broke.
+- GBA performance:
+  - Text glyphs and `fill_rect` are drawn as 32-bit words, one tile row at a time.
+  - `Canvas::redraw` skips unchanged text.
+  - `BattleWindows::prepare` pre-draws the menus while the screen is black.
+  - The worst visible frame costs about 197 of 273 timer ticks.
+
+**Simplifications (documented in module docs and the README)**
+- Move names use the normal font (no FONT_NARROW) and are clipped at 64 px.
+- Missing presentation:
+  - no level-up stat window, no "Come back X!", no ball-throw animation
+  - no intro window reveal, no environment slide
+- BAG and POKéMON do nothing.
+- Unsupported:
+  - trainer sight
+  - Attract and Rollout (`KNOWN_UNSUPPORTED`)
+  - the Route 103 twins (doubles)
+  - the lab's Johto `givemon`
+  - `bufferleadmonspeciesname`
+- The pale mint field palette is faithful. Emerald's raw palettes look like this; it was checked against the original ROMs' palette RAM in mGBA. A GBA LCD colour-correction filter would have to be an opt-in display option.
+
+## Findings for Milestone 5 (checkpoints and replay traces)
+
+- **Capture point.** "No script running" is not enough, because a field wild battle runs without a script. Capture only when all of these hold:
+  - `Mode::Field`
+  - the warp transition is idle
+  - the text box is closed
+  - the runner is idle (`Runner.task` is a `Pin<Box<dyn Future>>`; `io` is an `Rc<RefCell>`)
+  - no object has live `moves`
+
+  States in the middle of a battle or a script are then reached by replaying from the last checkpoint.
+- **Semantic state that needs serde:**
+  - `World`/`State`:
+    - core: `frame`, `rng`, `input.held`, `vars`, `fader`, `transition`, `selected`, `last_mover`, `delay`, `door`, `answer`
+    - field: map, camera, ring, overrides
+    - objects: `objs`, `map`, `run_state`
+    - player and party: `party`, `respawn`, `player_id`, `prev_behavior`, `encounter_immunity`
+  - `Runner::issued`: hashed, and it survives the end of a script.
+  - Object templates, stored as deltas: scripts only change x, y and movement.
+  - `Party`/`Pokemon` are plain `Copy` data.
+  - `Battle` is Clone and plain data, if battles are ever captured.
+  - The player name currently comes from `game.new_game()` (`battle/scene.rs`, `text.rs`). Move it into World state before any save or naming screen.
+- **`&'static` references in live state must become ids:**
+  - `Request::Move { steps }` and `Object.moves.steps`: use the ScriptId plus a step index.
+  - `Request::Log`.
+  - `&'static BattleGfx` in the gfx parts: re-inject it from `game.battle_gfx()` instead.
+- **Caches that can be rebuilt:**
+  - `Field.drawn` (rebuilt by `Field::restore`)
+  - object VRAM slots and banks (`Objects::invalidate_vram`)
+  - `Vars::digest`, `Pen`, `Printer::text_digest`, the `Canvas` memo
+  - the healthbox and bar tile caches
+- **Hash/restore hazard.** Several hashed fields mirror VRAM: `Field.drawn`, `HpBar/ExpBar.drawn`, the healthbox dirty flags, `TextBox.bg_on`, `BattleWindows.loaded`, `TrainerSprite.loaded`, and `Background.step`. A restore that re-uploads through the existing hooks changes the hash, so a restored world would diverge from its trace. Pick one approach:
+  - serialize these fields verbatim and add "re-upload without mutating" restore hooks (`Field`, `Objects`, `TextBox`, and later `BattleScene`), or
+  - take them out of the hash.
+- **Hash collisions.** `Object.moves` and `Request::Move` hash only `steps.len()`, so two movement scripts of the same length collide. Hash the step-table id instead. That id is also the serde handle.
+- **No derives yet.** None of `World`, `State`, `Runner`, `Mode`, `Field`, `Objects`, `TextBox`, `Printer`, `BattleScene` or `BattleWindows` derives `Clone` or `Debug`. Add `#[derive(Clone, Debug, Serialize, Deserialize)]` on the semantic structs behind a `serde` feature, so the GBA build stays `no_std` and lean.
+- **Hash cost.** `World::hash` during a battle covers four parties, the scene event queue, the core and every gfx part. Measure it on GBA before adding more hashed state. Consider hashing the scene queue incrementally.
+- **Test shims.** Unify the test `GameData` shims (`battle/test_data.rs`, `mon::test_tables`, the scene, ui and gfx shims) before M5 adds checkpoint fixtures. This is partly done in the close-out.
+- **Display.** Consider an optional GBA LCD colour-correction filter for the native window and the studio. It must stay outside parity.
