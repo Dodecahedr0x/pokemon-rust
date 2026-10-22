@@ -716,7 +716,7 @@ The text box needs nothing (pristine means BG0 off).
    - The ROM's `build` equals native `build_hash(&Emerald::for_shells())` (also asserted in `rom_and_native_agree`).
    - Print `hash_lines_max` and `step_lines_max`; gate them per "Wave 2 gate revisions" (`hash_lines_max ≤ 80`, `loop_lines_max ≤ 226`).
 5. **`xtask rom` budgets (`budget.rs`):**
-   - Use `object` to sum the ELF section sizes: IWRAM (`.iwram*`, plus `.bss`/`.data` placed in IWRAM per agb's `gba.ld`) and EWRAM statics (`.ewram*`, `.data`).
+   - Use `object` to sum the allocated ELF sections by link address: IWRAM (`.iwram*`, `.text_iwram*`) and EWRAM statics. agb 0.25's `gba.ld` puts `.data*` inside the `.ewram` output section and `.bss` in EWRAM (NOLOAD), not in IWRAM as first written here.
    - Print them with the ROM size. Measure the baseline on master first.
    - Fail above baseline + 2 KiB IWRAM, baseline + 16 KiB EWRAM, or a ROM growth over 64 KiB compared with M4's 1875 KiB (record the numbers in As built).
    - Also `cargo xtask parity` calls `checkpoints::verify(Store::default_root(..), false)` before the ROM tests.
