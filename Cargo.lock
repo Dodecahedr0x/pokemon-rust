@@ -1415,6 +1415,7 @@ dependencies = [
  "content",
  "engine",
  "explore",
+ "extract",
  "game-native",
  "rayon",
  "ron",

@@ -1,0 +1,214 @@
+//! Milestone 8 Task K: schema v3 (blob inputs, integer macros, the `key_hit` table, no region
+//! column), the key version, and the refusal of older dbs.
+
+mod c_common;
+
+use c_common::row;
+use engine::Buttons;
+use engine::checkpoint::BuildHash;
+use explore::config::{Budget, Config};
+use explore::db::{Db, DbError, SCHEMA_VERSION};
+use explore::key::KEY_VERSION;
+use explore::wire::Explore;
+use explore::{AbstractKey, GenerationDelta, NodeStatus, runs};
+use game_native::trace::Run;
+use rusqlite::Connection;
+use std::path::Path;
+
+const B1: BuildHash = BuildHash {
+    engine: 7,
+    content: 8,
+};
+
+#[test]
+fn the_schema_is_3_and_fresh_dbs_record_the_key_version() {
+    assert_eq!(SCHEMA_VERSION, 3);
+    let dir = tempfile::tempdir().unwrap();
+    let (db, _) = Db::open(&dir.path().join("explore.db"), B1, true).unwrap();
+    assert_eq!(
+        db.meta("key_version").unwrap(),
+        Some(KEY_VERSION.to_string())
+    );
+}
+
+#[test]
+fn a_schema_2_db_is_refused_with_the_reset_hint() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    {
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); \
+             INSERT INTO meta VALUES ('schema', '2'), ('flavor', 'stub');",
+        )
+        .unwrap();
+    }
+    let e = Db::open(&path, B1, true).err().expect("refused");
+    assert!(matches!(e, DbError::Schema { found: 2, want: 3 }), "{e}");
+    assert!(e.to_string().contains("explore reset --yes"), "{e}");
+    assert!(matches!(
+        Db::open_read_only(&path),
+        Err(DbError::Schema { found: 2, .. })
+    ));
+}
+
+#[test]
+fn another_key_version_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    let (mut db, _) = Db::open(&path, B1, true).unwrap();
+    db.set_meta("key_version", "1").unwrap();
+    drop(db);
+    let e = Db::open(&path, B1, true).err().expect("refused");
+    assert!(
+        matches!(&e, DbError::KeyVersion { found, want } if found == "1" && *want == KEY_VERSION),
+        "{e}"
+    );
+    assert!(e.to_string().contains("explore reset --yes"), "{e}");
+    assert!(matches!(
+        Db::open_read_only(&path),
+        Err(DbError::KeyVersion { .. })
+    ));
+}
+
+/// Inputs with a repeated pair of runs (a mashed text box).
+fn mashed() -> Vec<Run> {
+    let r = |keys, frames| Run { keys, frames };
+    let mut v = vec![r(Buttons::UP, 16)];
+    for _ in 0..40 {
+        v.push(r(Buttons::A, 1));
+        v.push(r(Buttons::NONE, 7));
+    }
+    v.push(r(Buttons::NONE, 300));
+    v
+}
+
+#[test]
+fn inputs_are_blobs_macros_integers_and_light_rows_skip_inputs() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    let (mut db, _) = Db::open(&path, B1, false).unwrap();
+    let mut n1 = row(1, None, 10, B1);
+    n1.inputs = mashed();
+    let n2 = row(2, Some(1), 20, B1);
+    db.apply(&GenerationDelta {
+        generation: 1,
+        nodes: vec![n1.clone(), n2.clone()],
+        ..Default::default()
+    })
+    .unwrap();
+    assert_eq!(db.nodes().unwrap(), [n1.clone(), n2.clone()]);
+    assert_eq!(db.inputs(1).unwrap(), Some(n1.inputs.clone()));
+    assert_eq!(db.inputs(3).unwrap(), None);
+    let light = db.nodes_light().unwrap();
+    for (l, n) in light.iter().zip([&n1, &n2]) {
+        assert!(l.inputs.is_empty());
+        let mut l = l.clone();
+        l.inputs = n.inputs.clone();
+        assert_eq!(&l, n);
+    }
+    drop(db);
+
+    let conn = Connection::open(&path).unwrap();
+    let (inputs, macro_, len): (String, String, i64) = conn
+        .query_row(
+            "SELECT typeof(inputs), typeof(macro), length(inputs) FROM node WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!((inputs.as_str(), macro_.as_str()), ("blob", "integer"));
+    // The 80 alternating runs are one repeat pair.
+    assert!(len < 12, "{len} bytes");
+    assert!((len as usize) * 10 < runs::to_text(&n1.inputs).len());
+    let cols: Vec<String> = conn
+        .prepare("SELECT name FROM pragma_table_info('node')")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert!(!cols.iter().any(|c| c == "region"), "{cols:?}");
+}
+
+#[test]
+fn key_hits_add_up_and_are_content() {
+    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    db.apply(&GenerationDelta {
+        generation: 1,
+        nodes: vec![row(1, None, 10, B1)],
+        key_hits: vec![(AbstractKey(10), 2), (AbstractKey(99), 1)],
+        ..Default::default()
+    })
+    .unwrap();
+    let before = db.content_digest().unwrap();
+    db.apply(&GenerationDelta {
+        generation: 2,
+        key_hits: vec![(AbstractKey(10), 3)],
+        ..Default::default()
+    })
+    .unwrap();
+    assert_eq!(
+        db.key_hits().unwrap(),
+        [(AbstractKey(10), 5), (AbstractKey(99), 1)]
+    );
+    assert_ne!(db.content_digest().unwrap(), before);
+}
+
+/// Page bytes in use (the file without its free pages).
+fn used_bytes(conn: &Connection) -> i64 {
+    let q = |p: &str| -> i64 { conn.pragma_query_value(None, p, |r| r.get(0)).unwrap() };
+    (q("page_count") - q("freelist_count")) * q("page_size")
+}
+
+/// A run of the default config: 2000 inserted nodes on the extracted build; 30 generations
+/// on the stub, whose 196 cells hold about 32 keys.
+fn explore_some(path: &Path) {
+    let mut ex = Explore::open(content::Emerald::for_shells(), path, Config::default()).unwrap();
+    let budget = if content::STUB {
+        Budget::Generations(30)
+    } else {
+        Budget::Nodes(2000)
+    };
+    ex.run(budget, |_| {}).unwrap();
+}
+
+#[test]
+fn a_run_keeps_no_childless_merged_rows_and_small_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    explore_some(&path);
+    let db = Db::open_read_only(&path).unwrap();
+    let nodes = db.nodes().unwrap();
+    // A duplicate's row (merged into an older live node) is kept only as a parent; a
+    // superseded row (merged into a newer one) stays, as it was live and written.
+    let childless: Vec<_> = nodes
+        .iter()
+        .filter(|m| m.status == NodeStatus::Merged)
+        .filter(|m| !nodes.iter().any(|n| n.parent == Some(m.id)))
+        .collect();
+    let duplicates = childless
+        .iter()
+        .filter(|m| m.merged_into.is_some_and(|into| into < m.id))
+        .count();
+    assert_eq!(duplicates, 0, "a duplicate's row is kept only as a parent");
+    eprintln!("{} childless superseded rows", childless.len());
+    let hits: u32 = db.key_hits().unwrap().iter().map(|&(_, h)| h).sum();
+    assert!(
+        hits as usize > nodes.len(),
+        "duplicates count hits, not rows"
+    );
+    // Blob inputs against M7's text codec.
+    let blob: usize = nodes.iter().map(|n| runs::to_blob(&n.inputs).len()).sum();
+    let text: usize = nodes.iter().map(|n| runs::to_text(&n.inputs).len()).sum();
+    assert!(blob * 10 <= text * 4, "blob {blob} B, text {text} B");
+    drop(db);
+    let conn = Connection::open(&path).unwrap();
+    let per_row = used_bytes(&conn) / nodes.len() as i64;
+    eprintln!("{} rows, {per_row} B per row", nodes.len());
+    if !content::STUB {
+        // The target: 0.3 MB per 1000 rows (M7: 1.05 MB).
+        assert!(nodes.len() >= 1000, "{} rows", nodes.len());
+        assert!(per_row <= 300, "{per_row} B per row");
+    }
+}

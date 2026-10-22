@@ -17,8 +17,11 @@ use std::path::{Path, PathBuf};
 
 /// The DDL (`CREATE … IF NOT EXISTS`, idempotent).
 pub const SCHEMA_SQL: &str = include_str!("schema.sql");
-/// 2: `finding.node` is nullable (a tail from a new game).
-pub const SCHEMA_VERSION: i64 = 2;
+/// 2: `finding.node` is nullable (a tail from a new game). 3 (Milestone 8): `node.inputs` is a
+/// binary blob (`runs::to_blob`), `node.macro` an integer (`Macro::code`), `node.region` is
+/// gone, `key_hit` counts the duplicates that leave no row, and `meta` records `key_version`,
+/// `act` and `root`.
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// How long a connection waits on a lock held by another (writer or reader).
 const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -35,8 +38,19 @@ pub fn init_connection(conn: &Connection) -> rusqlite::Result<()> {
 #[derive(Debug)]
 pub enum DbError {
     Sql(rusqlite::Error),
-    Schema { found: i64, want: i64 },
-    Flavor { db: String, build: String },
+    Schema {
+        found: i64,
+        want: i64,
+    },
+    /// The db's keys were folded by another `key::KEY_VERSION`.
+    KeyVersion {
+        found: String,
+        want: u32,
+    },
+    Flavor {
+        db: String,
+        build: String,
+    },
     Codec(String),
 }
 
@@ -45,8 +59,17 @@ impl fmt::Display for DbError {
         match self {
             DbError::Sql(e) => write!(f, "sqlite: {e}"),
             DbError::Schema { found, want } => {
-                write!(f, "explore.db schema {found}, this build wants {want}")
+                write!(
+                    f,
+                    "explore.db schema {found}, this build wants {want} (explore dbs are caches: \
+                     run `explore reset --yes`)"
+                )
             }
+            DbError::KeyVersion { found, want } => write!(
+                f,
+                "explore.db keys are of key version {found}, this build folds version {want} \
+                 (explore dbs are caches: run `explore reset --yes`)"
+            ),
             DbError::Flavor { db, build } => {
                 write!(
                     f,
@@ -88,8 +111,13 @@ pub struct Db {
 }
 
 const NODE_COLS: &str = "id, parent, depth, macro, inputs, frames, total_frames, end_frame, \
-     key, region, digest, world_hash, map, x, y, progress, f_novelty, f_progress, f_bug, \
-     f_balance, f_total, generation, expanded, status, merged_into, build_engine, build_content";
+     key, digest, world_hash, map, x, y, progress, f_novelty, f_progress, f_bug, f_balance, \
+     f_total, generation, expanded, status, merged_into, build_engine, build_content";
+
+/// [`NODE_COLS`] with an empty blob for the inputs (rows without inputs, `Db::nodes_light`).
+const NODE_COLS_LIGHT: &str = "id, parent, depth, macro, x'', frames, total_frames, end_frame, \
+     key, digest, world_hash, map, x, y, progress, f_novelty, f_progress, f_bug, f_balance, \
+     f_total, generation, expanded, status, merged_into, build_engine, build_content";
 
 const FINDING_COLS: &str = "id, signature, kind, node, macro, tail, total_frame, map, x, y, \
      message, location, script, log, build_engine, build_content, status, hits, \
@@ -160,6 +188,10 @@ fn parse_runs(s: &str) -> Result<Vec<Run>, DbError> {
     runs::from_text(s).map_err(DbError::Codec)
 }
 
+fn parse_blob(b: &[u8]) -> Result<Vec<Run>, DbError> {
+    runs::from_blob(b).map_err(DbError::Codec)
+}
+
 fn touch_cols(t: &Touch) -> (i64, i64) {
     match t {
         Touch::Map(m) => (0, i64::from(m.0)),
@@ -168,39 +200,41 @@ fn touch_cols(t: &Touch) -> (i64, i64) {
 }
 
 fn node_from_row(r: &Row) -> Result<NodeRow, DbError> {
-    let macro_: String = r.get(3)?;
-    let inputs: String = r.get(4)?;
-    let status: String = r.get(23)?;
+    let code: i64 = r.get(3)?;
+    let status: String = r.get(22)?;
     Ok(NodeRow {
         id: r.get(0)?,
         parent: r.get(1)?,
         depth: r.get(2)?,
-        macro_: parse_macro(&macro_)?,
-        inputs: parse_runs(&inputs)?,
+        macro_: Macro::from_code(code)
+            .ok_or_else(|| DbError::Codec(format!("bad macro code {code:#x}")))?,
+        inputs: match r.get_ref(4)? {
+            ValueRef::Blob(b) => parse_blob(b)?,
+            v => return Err(DbError::Codec(format!("node inputs: {:?}", v.data_type()))),
+        },
         frames: r.get(5)?,
         total_frames: r.get::<_, i64>(6)? as u64,
         end_frame: r.get(7)?,
         key: AbstractKey(r.get::<_, i64>(8)? as u64),
-        region: r.get::<_, i64>(9)? as u64,
-        digest: r.get::<_, i64>(10)? as u64,
-        world_hash: r.get::<_, i64>(11)? as u64,
-        map: MapId(r.get(12)?),
-        pos: (r.get(13)?, r.get(14)?),
-        progress: r.get(15)?,
+        digest: r.get::<_, i64>(9)? as u64,
+        world_hash: r.get::<_, i64>(10)? as u64,
+        map: MapId(r.get(11)?),
+        pos: (r.get(12)?, r.get(13)?),
+        progress: r.get(14)?,
         fitness: Fitness {
-            novelty: r.get(16)?,
-            progress: r.get(17)?,
-            bug: r.get(18)?,
-            balance: r.get(19)?,
-            total: r.get(20)?,
+            novelty: r.get(15)?,
+            progress: r.get(16)?,
+            bug: r.get(17)?,
+            balance: r.get(18)?,
+            total: r.get(19)?,
         },
-        generation: r.get(21)?,
-        expanded: r.get(22)?,
+        generation: r.get(20)?,
+        expanded: r.get(21)?,
         status: parse_status(&status)?,
-        merged_into: r.get(24)?,
+        merged_into: r.get(23)?,
         build: BuildHash {
-            engine: r.get::<_, i64>(25)? as u64,
-            content: r.get::<_, i64>(26)? as u64,
+            engine: r.get::<_, i64>(24)? as u64,
+            content: r.get::<_, i64>(25)? as u64,
         },
     })
 }
@@ -286,6 +320,7 @@ impl Db {
                     build: flavor.to_string(),
                 });
             }
+            check_key_version(db.meta("key_version")?)?;
         }
         init_connection(&db.conn)?;
         let state = match existing {
@@ -296,6 +331,7 @@ impl Db {
                     ("flavor", flavor.to_string()),
                     ("build_engine", build.engine.to_string()),
                     ("build_content", build.content.to_string()),
+                    ("key_version", crate::key::KEY_VERSION.to_string()),
                 ] {
                     tx.execute(
                         "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
@@ -339,6 +375,7 @@ impl Db {
             }
             Some(v) => check_schema(&v)?,
         }
+        check_key_version(db.meta("key_version")?)?;
         db.build = db.meta_build()?.unwrap_or_default();
         Ok(db)
     }
@@ -391,10 +428,17 @@ impl Db {
                     return Err(DbError::Codec(format!("expanded: no node {id}")));
                 }
             }
+            let mut st = tx.prepare(
+                "INSERT INTO key_hit (key, hits) VALUES (?1, ?2) \
+                 ON CONFLICT (key) DO UPDATE SET hits = hits + excluded.hits",
+            )?;
+            for (k, n) in &d.key_hits {
+                st.execute(params![k.0 as i64, n])?;
+            }
             let mut st = tx.prepare(&format!(
                 "INSERT INTO node ({NODE_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, \
                  ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, \
-                 ?25, ?26, ?27)"
+                 ?25, ?26)"
             ))?;
             let in_delta: BTreeSet<NodeId> = d.nodes.iter().map(|n| n.id).collect();
             for n in &d.nodes {
@@ -409,13 +453,12 @@ impl Db {
                     n.id,
                     n.parent,
                     n.depth,
-                    macro_text(&n.macro_)?,
-                    runs::to_text(&n.inputs),
+                    n.macro_.code(),
+                    runs::to_blob(&n.inputs),
                     n.frames,
                     n.total_frames as i64,
                     n.end_frame,
                     n.key.0 as i64,
-                    n.region as i64,
                     n.digest as i64,
                     n.world_hash as i64,
                     n.map.0,
@@ -538,9 +581,18 @@ impl Db {
     }
 
     fn query_nodes(&self, filter: &str, p: impl rusqlite::Params) -> Result<Vec<NodeRow>, DbError> {
-        let mut st = self.conn.prepare(&format!(
-            "SELECT {NODE_COLS} FROM node {filter} ORDER BY id"
-        ))?;
+        self.query_cols(NODE_COLS, filter, p)
+    }
+
+    fn query_cols(
+        &self,
+        cols: &str,
+        filter: &str,
+        p: impl rusqlite::Params,
+    ) -> Result<Vec<NodeRow>, DbError> {
+        let mut st = self
+            .conn
+            .prepare(&format!("SELECT {cols} FROM node {filter} ORDER BY id"))?;
         let mut rows = st.query(p)?;
         let mut out = Vec::new();
         while let Some(r) = rows.next()? {
@@ -549,16 +601,42 @@ impl Db {
         Ok(out)
     }
 
-    /// Id ascending.
+    /// Id ascending, with their inputs.
     pub fn nodes(&self) -> Result<Vec<NodeRow>, DbError> {
         self.query_nodes("", [])
+    }
+
+    /// Id ascending, without their inputs (`inputs` empty): what the runner and revalidation
+    /// keep in memory (schema v3: inputs are not resident).
+    pub fn nodes_light(&self) -> Result<Vec<NodeRow>, DbError> {
+        self.query_cols(NODE_COLS_LIGHT, "", [])
+    }
+
+    /// Node `id`'s inputs (`None`: no such node).
+    pub fn inputs(&self, id: NodeId) -> Result<Option<Vec<Run>>, DbError> {
+        let blob: Option<Vec<u8>> = self
+            .conn
+            .query_row("SELECT inputs FROM node WHERE id = ?1", [id], |r| r.get(0))
+            .optional()?;
+        blob.map(|b| parse_blob(&b)).transpose()
+    }
+
+    /// `(key, hits)` of the `key_hit` table, key order.
+    pub fn key_hits(&self) -> Result<Vec<(AbstractKey, u32)>, DbError> {
+        let mut st = self
+            .conn
+            .prepare("SELECT key, hits FROM key_hit ORDER BY key")?;
+        let rows = st.query_map([], |r| {
+            Ok((AbstractKey(r.get::<_, i64>(0)? as u64), r.get(1)?))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     pub fn node(&self, id: NodeId) -> Result<Option<NodeRow>, DbError> {
         Ok(self.query_nodes("WHERE id = ?1", [id])?.pop())
     }
 
-    /// Root first; empty when `id` does not exist.
+    /// Root first, with their inputs; empty when `id` does not exist.
     pub fn lineage(&self, id: NodeId) -> Result<Vec<NodeRow>, DbError> {
         let mut out = Vec::new();
         let mut next = Some(id);
@@ -679,17 +757,22 @@ impl Db {
     }
 
     /// Revalidation results, in one transaction: each row's inputs, frames, total frames, end
-    /// frame, key, region, digest, world hash, map, pos, progress, status, `merged_into` and
-    /// build (parent, depth, macro, fitness, generation and `expanded` are kept). The rows
-    /// leave the live set first, so keys can move between them in any order.
+    /// frame, key, digest, world hash, map, pos, progress, status, `merged_into` and build
+    /// (parent, depth, macro, fitness, generation and `expanded` are kept). The rows leave the
+    /// live set first, so keys can move between them in any order.
     pub fn set_status(&mut self, rows: &[NodeRow]) -> Result<(), DbError> {
-        self.set_status_and_snapshots(rows, &[])
+        let inputs: Vec<(NodeId, &[Run])> =
+            rows.iter().map(|n| (n.id, n.inputs.as_slice())).collect();
+        self.set_status_and_snapshots(rows, &inputs, &[])
     }
 
-    /// [`Db::set_status`] and [`Db::put_snapshot`]s in one transaction (a revalidated level).
+    /// [`Db::set_status`] without the rows' inputs (light rows), the new inputs of the
+    /// `inputs` nodes (repaired ones), and [`Db::put_snapshot`]s, in one transaction (a
+    /// revalidated level).
     pub fn set_status_and_snapshots(
         &mut self,
         rows: &[NodeRow],
+        inputs: &[(NodeId, &[Run])],
         snapshots: &[(NodeId, &Checkpoint)],
     ) -> Result<(), DbError> {
         let tx = self.conn.transaction()?;
@@ -701,21 +784,25 @@ impl Db {
                     return Err(DbError::Codec(format!("set_status: no node {}", n.id)));
                 }
             }
+            let mut st = tx.prepare("UPDATE node SET inputs = ?2 WHERE id = ?1")?;
+            for (id, runs) in inputs {
+                if st.execute(params![id, runs::to_blob(runs)])? != 1 {
+                    return Err(DbError::Codec(format!("set_status: no node {id}")));
+                }
+            }
             let mut st = tx.prepare(
-                "UPDATE node SET inputs = ?2, frames = ?3, total_frames = ?4, end_frame = ?5, \
-                 key = ?6, region = ?7, digest = ?8, world_hash = ?9, map = ?10, x = ?11, \
-                 y = ?12, progress = ?13, status = ?14, merged_into = ?15, build_engine = ?16, \
-                 build_content = ?17 WHERE id = ?1",
+                "UPDATE node SET frames = ?2, total_frames = ?3, end_frame = ?4, key = ?5, \
+                 digest = ?6, world_hash = ?7, map = ?8, x = ?9, y = ?10, progress = ?11, \
+                 status = ?12, merged_into = ?13, build_engine = ?14, build_content = ?15 \
+                 WHERE id = ?1",
             )?;
             for n in rows {
                 st.execute(params![
                     n.id,
-                    runs::to_text(&n.inputs),
                     n.frames,
                     n.total_frames as i64,
                     n.end_frame,
                     n.key.0 as i64,
-                    n.region as i64,
                     n.digest as i64,
                     n.world_hash as i64,
                     n.map.0,
@@ -819,8 +906,8 @@ impl Db {
         })
     }
 
-    /// FNV of the node, finding, seen and coverage tables in key order, without timings or
-    /// run rows (determinism tests, `explore digest`).
+    /// FNV of the node, key_hit, finding, seen and coverage tables in key order, without
+    /// timings or run rows (determinism tests, `explore digest`).
     ///
     /// `battle` and `node_touch` are left out on purpose: both are derived from the nodes'
     /// expansions (the balance record and the re-simulation index), written in the same
@@ -831,6 +918,7 @@ impl Db {
         let mut h = engine::hash::Fnv64::new();
         for (table, order) in [
             ("node", "id"),
+            ("key_hit", "key"),
             ("finding", "id"),
             ("seen", "kind, id"),
             ("coverage", "map, x, y"),
@@ -879,6 +967,18 @@ fn check_schema(v: &str) -> Result<(), DbError> {
         });
     }
     Ok(())
+}
+
+/// A db without `key_version` predates it (schema 2, refused before this is reached).
+fn check_key_version(v: Option<String>) -> Result<(), DbError> {
+    let want = crate::key::KEY_VERSION;
+    match v {
+        Some(v) if v == want.to_string() => Ok(()),
+        v => Err(DbError::KeyVersion {
+            found: v.unwrap_or_else(|| "none".into()),
+            want,
+        }),
+    }
 }
 
 fn put_snapshot(conn: &Connection, id: NodeId, cp: &Checkpoint) -> Result<(), DbError> {
@@ -987,6 +1087,7 @@ mod tests {
                     "battle",
                     "coverage",
                     "finding",
+                    "key_hit",
                     "meta",
                     "node",
                     "node_touch",
@@ -1005,9 +1106,9 @@ mod tests {
         let insert = |id: i64, key: i64, status: &str| {
             conn.execute(
                 "INSERT INTO node (id, parent, depth, macro, inputs, frames, total_frames, \
-                 end_frame, key, region, digest, world_hash, map, x, y, progress, f_novelty, \
+                 end_frame, key, digest, world_hash, map, x, y, progress, f_novelty, \
                  f_progress, f_bug, f_balance, f_total, generation, status, build_engine, \
-                 build_content) VALUES (?1, NULL, 0, 'Settle', '', 0, 0, 0, ?2, 0, \
+                 build_content) VALUES (?1, NULL, 0, 0, x'', 0, 0, 0, ?2, \
                  -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?3, 1, 2)",
                 rusqlite::params![id, key, status],
             )

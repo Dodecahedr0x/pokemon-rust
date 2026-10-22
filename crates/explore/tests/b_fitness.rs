@@ -84,7 +84,6 @@ fn a_fresh_archive_scores_the_root_and_a_repeat_scores_less() {
     assert_eq!(first.progress, 0);
     let parts = key::key_parts(snap, &ev.cfg.key);
     assert_eq!(first.key, key::key(&parts));
-    assert_eq!(first.region, key::region(&parts));
     assert!(
         first
             .seen
@@ -129,7 +128,6 @@ fn progress_chains_from_the_parent_row() {
         total_frames: 0,
         end_frame: 0,
         key: AbstractKey(0),
-        region: 0,
         digest: 0,
         world_hash: 0,
         map: MapId(0),
@@ -212,7 +210,6 @@ fn selection_decays_with_hits_age_and_children() {
         total_frames: 0,
         end_frame: 0,
         key: e.key,
-        region: e.region,
         digest: 0,
         world_hash: 0,
         map: MapId(0),

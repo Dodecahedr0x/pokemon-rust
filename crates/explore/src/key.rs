@@ -1,18 +1,22 @@
-//! The abstract key (Task B). The fold is part of the db schema: changing it is a schema change.
+//! The abstract key (Task B). The fold is part of the db: changing it bumps [`KEY_VERSION`]
+//! (`meta.key_version`; a db of another version is refused).
 //!
 //! A key is a pure function of a capturable [`WorldSnapshot`]: the map, the coarse cell of the
-//! player, a digest of the story flags, a digest of the story vars and a party bucket
-//! (decision 3). Temporary and special flags and vars, the flags cleared on every map change
-//! and the content's counters and random vars ([`EXCLUDED_VARS`]) are always left out, so that
-//! walking around does not make new keys. `KeyConfig::ignore_*` only adds user exclusions.
+//! player, a digest of the story flags, a digest of the story vars, a party bucket
+//! (decision 3), the respawn point and a digest of the object template deltas (Milestone 8:
+//! scripts that move an object for good, `setobjectxyperm`/`setobjectmovementtype`).
+//! Temporary and special flags and vars, the flags cleared on every map change and the
+//! content's counters, random vars and object graphics vars ([`EXCLUDED_VARS`]) are always left
+//! out, so that walking around does not make new keys. `KeyConfig::ignore_*` only adds user
+//! exclusions.
 //!
 //! The content lookups (cleared flags, [`EXCLUDED_VARS`]) read `content` directly, not the
 //! `GameData` being simulated: a wrapper (`Probe`, the `testing` faults) never changes them.
 
 use crate::config::KeyConfig;
 use crate::model::{AbstractKey, KeyParts, PartyBucket};
-use engine::checkpoint::WorldSnapshot;
-use engine::data::{FlagId, GameData, VarId};
+use engine::checkpoint::{TemplateDelta, WorldSnapshot};
+use engine::data::{Dir, FlagId, GameData, MovementType, VarId};
 use engine::flow::{FLAG_COUNT, TEMP_FLAGS_END, TEMP_VARS_END, VARS_END};
 
 /// Domain tags, so that a key, a region and the digests never collide by construction.
@@ -21,6 +25,11 @@ const TAG_VARS: u64 = 0x4b45_5956_4152_5321; // "KEYVARS!"
 const TAG_KEY: u64 = 0x4b45_594b_4559_2121; // "KEYKEY!!"
 const TAG_REGION: u64 = 0x4b45_5952_4547_494f; // "KEYREGIO"
 const TAG_PLACE: u64 = 0x4b45_5950_4c41_4345; // "KEYPLACE"
+const TAG_TEMPLATES: u64 = 0x4b45_5954_454d_504c; // "KEYTEMPL"
+
+/// The version of the key fold, recorded as `meta.key_version`. 1: Milestone 7. 2 (Milestone 8
+/// Task K): the respawn point and the template deltas join the key, `VAR_OBJ_GFX_ID_*` leave it.
+pub const KEY_VERSION: u32 = 2;
 
 /// The splitmix64 finalizer (Steele, Lea and Flood): a bijective, platform-independent mix.
 pub const fn splitmix64(x: u64) -> u64 {
@@ -51,8 +60,10 @@ pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
         && !cleared_on_map_change().contains(&f)
 }
 
-/// Saved vars that never take part in a key: the Emerald step and day counters and the random
-/// vars (from `content::consts`). Empty on the stub world.
+/// Saved vars that never take part in a key: the Emerald step and day counters, the random
+/// vars and the object graphics vars `VAR_OBJ_GFX_ID_0..F` (scripts set them to pick a sprite,
+/// for a scene or a rival; not story progress) (from `content::consts`). Empty on the stub
+/// world.
 pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
     &[]
 } else {
@@ -79,6 +90,22 @@ pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
         VAR_ROXANNE_CALL_STEP_COUNTER,
         VAR_SCOTT_BF_CALL_STEP_COUNTER,
         VAR_RIVAL_RAYQUAZA_CALL_STEP_COUNTER,
+        VAR_OBJ_GFX_ID_0,
+        VAR_OBJ_GFX_ID_1,
+        VAR_OBJ_GFX_ID_2,
+        VAR_OBJ_GFX_ID_3,
+        VAR_OBJ_GFX_ID_4,
+        VAR_OBJ_GFX_ID_5,
+        VAR_OBJ_GFX_ID_6,
+        VAR_OBJ_GFX_ID_7,
+        VAR_OBJ_GFX_ID_8,
+        VAR_OBJ_GFX_ID_9,
+        VAR_OBJ_GFX_ID_A,
+        VAR_OBJ_GFX_ID_B,
+        VAR_OBJ_GFX_ID_C,
+        VAR_OBJ_GFX_ID_D,
+        VAR_OBJ_GFX_ID_E,
+        VAR_OBJ_GFX_ID_F,
     ]
 };
 
@@ -106,6 +133,32 @@ pub fn party_bucket(snap: &WorldSnapshot, cfg: &KeyConfig) -> PartyBucket {
     b
 }
 
+/// A stable number per movement type (the template digest; never renumber).
+fn movement_code(m: MovementType) -> u64 {
+    let dir = |d: Dir| Dir::ALL.iter().position(|&x| x == d).unwrap_or(0) as u64;
+    match m {
+        MovementType::Face(d) => 0x10 | dir(d),
+        MovementType::LookAround => 1,
+        MovementType::Wander => 2,
+        MovementType::WanderVertical => 3,
+        MovementType::WanderHorizontal => 4,
+        MovementType::WalkInPlace(d) => 0x20 | dir(d),
+        MovementType::Invisible => 5,
+    }
+}
+
+/// Digest of the object template deltas (the snapshot's order: by local id).
+pub fn templates_digest(templates: &[TemplateDelta]) -> u64 {
+    templates.iter().fold(TAG_TEMPLATES, |h, t| {
+        let mut h = fold(h, u64::from(t.local_id));
+        h = match t.pos {
+            None => fold(h, 0),
+            Some((x, y)) => fold(h, 1 << 32 | u64::from(x as u16) << 16 | u64::from(y as u16)),
+        };
+        fold(h, t.movement.map_or(0, |m| 0x100 | movement_code(m)))
+    })
+}
+
 pub fn key_parts(snap: &WorldSnapshot, cfg: &KeyConfig) -> KeyParts {
     let pos = snap.objects.objs.first().map_or((0, 0), |p| p.pos);
     let shift = u32::from(cfg.cell_shift.min(15));
@@ -129,6 +182,8 @@ pub fn key_parts(snap: &WorldSnapshot, cfg: &KeyConfig) -> KeyParts {
         flags,
         vars,
         party: party_bucket(snap, cfg),
+        respawn: snap.respawn,
+        templates: templates_digest(&snap.templates),
     }
 }
 
@@ -143,7 +198,9 @@ fn fold_region(tag: u64, parts: &KeyParts) -> u64 {
         h = fold(h, u64::from(s));
     }
     h = fold(h, u64::from(p.level_bucket));
-    fold(h, u64::from(p.fainted))
+    h = fold(h, u64::from(p.fainted));
+    h = fold(h, u64::from(parts.respawn));
+    fold(h, parts.templates)
 }
 
 /// Stable splitmix fold, platform-independent.
@@ -191,7 +248,10 @@ mod tests {
         assert!(story_flag(FlagId(TEMP_FLAGS_END), &cfg));
         assert!(!story_flag(FlagId(FLAG_COUNT), &cfg));
         assert!(!story_var(TEMP_VARS_END - 1, &cfg));
-        assert!(story_var(TEMP_VARS_END, &cfg));
+        // The first vars after the temp ones are the object graphics vars (excluded on the
+        // extracted build); the first story var follows them.
+        assert_eq!(story_var(TEMP_VARS_END, &cfg), content::STUB);
+        assert!(story_var(TEMP_VARS_END + 0x10, &cfg));
         assert!(!story_var(engine::flow::SPECIAL_VARS_START, &cfg));
         for &f in cleared_on_map_change() {
             assert!(!story_flag(f, &cfg));
@@ -217,6 +277,8 @@ mod tests {
             flags: 11,
             vars: 13,
             party: Default::default(),
+            respawn: 0,
+            templates: 0,
         };
         let mut b = a.clone();
         b.cell = (3, 3);

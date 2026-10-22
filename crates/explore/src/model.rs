@@ -50,6 +50,79 @@ pub struct Macro {
     pub opts: Opts,
 }
 
+impl Macro {
+    /// The macro packed in an integer (schema v3 `node.macro`): bits 0-2 the kind, 3 the
+    /// `run_wild` option, 4-11 the `choice` option, 12-13 the direction, 16-31 x (a `Talk`'s
+    /// local id, a `Wait`'s frames) and 32-47 y, as their u16 bit patterns.
+    pub fn code(&self) -> i64 {
+        let (tag, x, y, dir) = match self.kind {
+            MacroKind::Settle => (0, 0, 0, Dir::Down),
+            MacroKind::WalkTo { x, y } => (1, x as u16, y as u16, Dir::Down),
+            MacroKind::Enter { x, y, dir } => (2, x as u16, y as u16, dir),
+            MacroKind::Cross { x, y, dir } => (3, x as u16, y as u16, dir),
+            MacroKind::Talk { local_id } => (4, u16::from(local_id), 0, Dir::Down),
+            MacroKind::Inspect { x, y, dir } => (5, x as u16, y as u16, dir),
+            MacroKind::Grass { x, y } => (6, x as u16, y as u16, Dir::Down),
+            MacroKind::Wait { frames } => (7, frames, 0, Dir::Down),
+        };
+        let dir = Dir::ALL.iter().position(|&d| d == dir).unwrap_or(0) as i64;
+        tag | i64::from(self.opts.run_wild) << 3
+            | i64::from(self.opts.choice) << 4
+            | dir << 12
+            | i64::from(x) << 16
+            | i64::from(y) << 32
+    }
+
+    /// [`Macro::code`] back (`None` for a code no macro has).
+    pub fn from_code(c: i64) -> Option<Macro> {
+        if c < 0 || c >> 48 != 0 || c & (0b11 << 14) != 0 {
+            return None;
+        }
+        let x = (c >> 16) as u16;
+        let y = (c >> 32) as u16;
+        let dir = Dir::ALL[(c >> 12 & 3) as usize];
+        let kind = match c & 7 {
+            0 => MacroKind::Settle,
+            1 => MacroKind::WalkTo {
+                x: x as i16,
+                y: y as i16,
+            },
+            2 => MacroKind::Enter {
+                x: x as i16,
+                y: y as i16,
+                dir,
+            },
+            3 => MacroKind::Cross {
+                x: x as i16,
+                y: y as i16,
+                dir,
+            },
+            4 => MacroKind::Talk {
+                local_id: u8::try_from(x).ok()?,
+            },
+            5 => MacroKind::Inspect {
+                x: x as i16,
+                y: y as i16,
+                dir,
+            },
+            6 => MacroKind::Grass {
+                x: x as i16,
+                y: y as i16,
+            },
+            _ => MacroKind::Wait { frames: x },
+        };
+        let m = Macro {
+            kind,
+            opts: Opts {
+                run_wild: c >> 3 & 1 == 1,
+                choice: (c >> 4) as u8,
+            },
+        };
+        // Bits a kind does not use must be clear.
+        (m.code() == c).then_some(m)
+    }
+}
+
 #[derive(
     Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, Serialize, Deserialize,
 )]
@@ -66,6 +139,10 @@ pub struct KeyParts {
     /// Digest of story vars.
     pub vars: u64,
     pub party: PartyBucket,
+    /// The heal location of the last `setrespawn` (`WorldSnapshot::respawn`; key version 2).
+    pub respawn: u8,
+    /// `key::templates_digest` of the object template deltas (key version 2).
+    pub templates: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
@@ -101,14 +178,17 @@ pub struct NodeRow {
     pub parent: Option<NodeId>,
     pub depth: u32,
     pub macro_: Macro,
-    /// From the parent's end state (a new game for the root) to this node's end state.
+    /// From the parent's end state (the db's root start for the root: a new game, or the
+    /// `--from` checkpoint) to this node's end state. Empty in the runner's graph and in
+    /// [`Db::nodes_light`](crate::db::Db::nodes_light) rows (schema v3: inputs are not
+    /// resident); `Db::node`, `Db::nodes` and `Db::lineage` load them.
     pub inputs: Vec<Run>,
     pub frames: u32,
+    /// Frames from the root start (a new game, or the `--from` checkpoint).
     pub total_frames: u64,
     /// `World::frame` at the end.
     pub end_frame: u32,
     pub key: AbstractKey,
-    pub region: u64,
     /// `state_digest` of the end snapshot.
     pub digest: u64,
     pub world_hash: u64,
@@ -260,6 +340,8 @@ pub struct GenerationDelta {
     pub merged: Vec<(NodeId, NodeId)>,
     /// `expanded += n`.
     pub expanded: Vec<(NodeId, u32)>,
+    /// `key_hit.hits += n` (schema v3): duplicates that left no row, per key, key order.
+    pub key_hits: Vec<(AbstractKey, u32)>,
     pub nodes: Vec<NodeRow>,
     pub snapshots: Vec<(NodeId, Arc<Checkpoint>)>,
     pub touches: Vec<(NodeId, Touch)>,
@@ -297,7 +379,6 @@ pub trait Evaluate {
 #[derive(Clone, Debug)]
 pub struct Evaluation {
     pub key: AbstractKey,
-    pub region: u64,
     pub progress: u32,
     pub fitness: Fitness,
     pub seen: Vec<(SeenKind, i64)>,
@@ -342,6 +423,42 @@ mod tests {
             };
             let text = ron::to_string(&m).unwrap();
             assert_eq!(ron::from_str::<Macro>(&text).unwrap(), m, "{text}");
+            assert_eq!(Macro::from_code(m.code()), Some(m), "{m:?}");
+        }
+    }
+
+    #[test]
+    fn macro_codes_round_trip_at_the_extremes() {
+        for kind in [
+            MacroKind::WalkTo {
+                x: i16::MIN,
+                y: i16::MAX,
+            },
+            MacroKind::Enter {
+                x: -1,
+                y: -1,
+                dir: Dir::Right,
+            },
+            MacroKind::Talk { local_id: 255 },
+            MacroKind::Wait { frames: u16::MAX },
+        ] {
+            let m = Macro {
+                kind,
+                opts: Opts {
+                    run_wild: true,
+                    choice: 255,
+                },
+            };
+            assert_eq!(Macro::from_code(m.code()), Some(m), "{m:?}");
+        }
+        // Unused bits, negative codes and a Talk id above u8 are refused.
+        let settle = Macro {
+            kind: MacroKind::Settle,
+            opts: Opts::default(),
+        };
+        assert_eq!(settle.code(), 0);
+        for bad in [-1, 1 << 48, 1 << 14, 1 << 16, 4 | 256 << 16] {
+            assert_eq!(Macro::from_code(bad), None, "{bad:#x}");
         }
     }
 

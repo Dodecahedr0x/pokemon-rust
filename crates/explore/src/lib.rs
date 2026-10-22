@@ -31,7 +31,7 @@ pub mod policy; // Task F
 pub mod probe; // implemented (W0): Probe<G> GameData wrapper
 pub mod rebuild; // Task C
 pub mod runner; // Task D
-pub mod runs; // implemented (W0): run text codec
+pub mod runs; // implemented (W0): run text codec; M8 K: the blob codec
 pub mod select; // Task D
 pub mod sim; // Task A
 pub mod softlock; // Task E

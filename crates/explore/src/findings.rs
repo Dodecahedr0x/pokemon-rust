@@ -12,7 +12,7 @@ use engine::Buttons;
 use engine::checkpoint::{Checkpoint, build_hash};
 use engine::data::{GameData, MapId};
 use game_native::Session;
-use game_native::trace::{HASH_EVERY, Parent, Run, Trace, TraceRecorder, rle};
+use game_native::trace::{CheckpointId, HASH_EVERY, Parent, Run, Trace, TraceRecorder, rle};
 
 /// Dedupe signature: FNV-1a 64 of the kind's stable name ([`kind_name`]), then the location's
 /// file (without line and column) if any, then the message with its ASCII digits stripped,
@@ -133,6 +133,17 @@ pub fn repro_trace<G: GameData + Clone>(
     lineage: &[&[Run]],
     tail: &[Run],
 ) -> Result<Trace, (Trace, u32)> {
+    repro_trace_from(game, None, lineage, tail)
+}
+
+/// [`repro_trace`] from `start` (a `--from` db's root node and its state; `None`: a new game).
+/// The trace's parent is that node, and it starts at its frame.
+pub fn repro_trace_from<G: GameData + Clone>(
+    game: &G,
+    start: Option<(CheckpointId, &Checkpoint)>,
+    lineage: &[&[Run]],
+    tail: &[Run],
+) -> Result<Trace, (Trace, u32)> {
     let runs: Vec<Run> = lineage
         .iter()
         .flat_map(|r| r.iter())
@@ -142,14 +153,17 @@ pub fn repro_trace<G: GameData + Clone>(
     let keys: Vec<Buttons> = crate::runs::keys(&runs).collect();
     let n = keys.len();
     let build = build_hash(game);
-    let mut rec = TraceRecorder::new(0);
-    let Ok(mut s) = guard::catch(|| Session::new(game.clone())) else {
-        let t = rec.trace(Parent::NewGame, build);
+    let (parent, frame) = start.map_or((Parent::NewGame, 0), |(id, cp)| {
+        (Parent::Checkpoint(id), cp.header.frame)
+    });
+    let mut rec = TraceRecorder::new(frame);
+    let Ok(Ok(mut s)) = start_session(game.clone(), start.map(|(_, cp)| cp)) else {
+        let t = rec.trace(parent, build);
         return if n == 0 { Ok(t) } else { Err((t, 0)) };
     };
     for (i, &k) in keys.iter().enumerate() {
         if guard::step_guarded(&mut s, k).is_err() {
-            let mut t = rec.trace(Parent::NewGame, build);
+            let mut t = rec.trace(parent, build);
             t.inputs = rle(keys[..=i].iter().copied());
             return if i + 1 == n {
                 Ok(t)
@@ -159,7 +173,42 @@ pub fn repro_trace<G: GameData + Clone>(
         }
         rec.push(k, s.world().hash());
     }
-    Ok(rec.trace(Parent::NewGame, build))
+    Ok(rec.trace(parent, build))
+}
+
+/// A session at `start` (a new game for `None`) under the guard: `Err` is a panic, `Ok(Err)` a
+/// restore that failed.
+fn start_session<H: GameData>(
+    game: H,
+    start: Option<&Checkpoint>,
+) -> Result<Result<Session<H>, String>, Panicked> {
+    guard::catch(move || match start {
+        None => Ok(Session::new(game)),
+        Some(cp) => Session::restore(game, cp).map_err(|e| format!("restore: {e:?}")),
+    })
+}
+
+/// Whether `trace` starts where `start` is (a new game for `None`).
+fn check_parent(trace: &Trace, start: Option<&Checkpoint>) -> Result<(), String> {
+    let ok = match start {
+        None => trace.parent == Parent::NewGame,
+        Some(cp) => {
+            matches!(trace.parent, Parent::Checkpoint(_)) && trace.start_frame == cp.header.frame
+        }
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "the trace starts at {} (frame {}), not at {}",
+            trace.parent,
+            trace.start_frame,
+            start.map_or("a new game".into(), |cp| format!(
+                "the root (frame {})",
+                cp.header.frame
+            ))
+        ))
+    }
 }
 
 /// Replays `trace` with the guard and the detectors; Ok iff a finding with `want`'s signature
@@ -175,6 +224,17 @@ pub fn reproduce<G: GameData + Clone>(
     want: &FindingDraft,
     cfg: &DetectConfig,
 ) -> Result<(), String> {
+    reproduce_from(game, None, trace, want, cfg)
+}
+
+/// [`reproduce`] for a trace from `start` (a `--from` db's root state; `None`: a new game).
+pub fn reproduce_from<G: GameData + Clone>(
+    game: &G,
+    start: Option<&Checkpoint>,
+    trace: &Trace,
+    want: &FindingDraft,
+    cfg: &DetectConfig,
+) -> Result<(), String> {
     match want.kind {
         FindingKind::SlowFrame => return Err("slow frames are report-only".into()),
         FindingKind::Softlock => {
@@ -182,12 +242,7 @@ pub fn reproduce<G: GameData + Clone>(
         }
         _ => {}
     }
-    if trace.parent != Parent::NewGame {
-        return Err(format!(
-            "the trace starts at {}, not a new game",
-            trace.parent
-        ));
-    }
+    check_parent(trace, start)?;
     let want_sig = signature(want);
     let n = trace.frames();
     let matches = |kind, message: &str, location: Option<&str>, map| {
@@ -205,9 +260,13 @@ pub fn reproduce<G: GameData + Clone>(
             ))
         }
     };
-    let mut s = match guard::catch(|| Session::new(Probe::new(game.clone()))) {
-        Ok(s) => s,
-        Err(p) => return panicked(0, p, game.new_game().map),
+    let mut s = match start_session(Probe::new(game.clone()), start) {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => return Err(e),
+        Err(p) => {
+            let map = start.map_or(game.new_game().map, |cp| cp.world.field.map);
+            return panicked(0, p, map);
+        }
     };
     let check_hashes = trace.build == build_hash(game);
     let mut hashes = trace.hashes.iter().copied().peekable();
@@ -247,14 +306,18 @@ pub fn reproduce<G: GameData + Clone>(
 /// The capturable end state of a NewGame `trace` (checked against its hashes on its build):
 /// where a `Softlock` finding's probe starts.
 pub fn end_state<G: GameData + Clone>(game: &G, trace: &Trace) -> Result<Checkpoint, String> {
-    if trace.parent != Parent::NewGame {
-        return Err(format!(
-            "the trace starts at {}, not a new game",
-            trace.parent
-        ));
-    }
+    end_state_from(game, None, trace)
+}
+
+/// [`end_state`] for a trace from `start` (a `--from` db's root state; `None`: a new game).
+pub fn end_state_from<G: GameData + Clone>(
+    game: &G,
+    start: Option<&Checkpoint>,
+    trace: &Trace,
+) -> Result<Checkpoint, String> {
+    check_parent(trace, start)?;
     let check_hashes = trace.build == build_hash(game);
-    let mut s = guard::catch(|| Session::new(game.clone())).map_err(|p| p.message)?;
+    let mut s = start_session(game.clone(), start).map_err(|p| p.message)??;
     let mut hashes = trace.hashes.iter().copied().peekable();
     for (i, keys) in (1..).zip(trace.keys()) {
         guard::step_guarded(&mut s, keys)

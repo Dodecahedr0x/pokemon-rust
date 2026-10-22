@@ -8,13 +8,14 @@
 use crate::config::Config;
 use crate::graph::{Graph, Rng64, mix};
 use crate::model::{
-    Evaluate, GenerationDelta, Job, JobResult, Macro, MacroKind, NodeId, NodeRow, NodeStatus, Opts,
-    Plan, StepResult, Stop,
+    AbstractKey, BattleSummary, Evaluate, GenerationDelta, Job, JobResult, Macro, MacroKind,
+    NodeId, NodeRow, NodeStatus, Opts, Plan, StepResult, Stop, Touch,
 };
 use crate::mutate::{barren, mutate_with};
 use crate::runs;
 use crate::select::tournament_in;
 use engine::checkpoint::{Checkpoint, state_digest};
+use engine::data::MapId;
 use rayon::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -57,8 +58,9 @@ pub const ROOT_MACRO: Macro = Macro {
 };
 
 impl Runner {
-    /// `rows` are the db's nodes (any order and status); `generation` is the next one to make
-    /// (0 on an empty db, else the db's last generation + 1).
+    /// `rows` are the db's nodes (any order and status; their inputs are dropped, see
+    /// `Graph::insert`); `generation` is the next one to make (0 on an empty db, else the db's
+    /// last generation + 1). The db's `key_hit` rows go to `graph.add_key_hits`.
     pub fn new(cfg: Config, rows: Vec<NodeRow>, generation: u32) -> Runner {
         Runner {
             graph: Graph::from_rows(rows),
@@ -118,15 +120,15 @@ impl Runner {
     /// later step of its lineage back on its key with more goals).
     ///
     /// A finding's tail starts at the job parent's end state (it includes the job's steps), so
-    /// it attaches to the job parent (`None` for the root job: a new game).
+    /// it attaches to the job parent (`None` for the root job: the db's root start).
     ///
     /// A duplicate step (its key is live with at least as many goals and, on equal goals, at
-    /// most as many total frames) is not a live node.
-    /// When nothing of its job follows, it is dropped. When later steps or a finding follow,
-    /// they must replay from its actual end state: with the live node's digest they chain from
-    /// the live node, otherwise the step is kept as a `Merged` history row (`merged_into` = the
-    /// live node) and they chain from it. A dropped duplicate's sightings (`seen`, cells) are
-    /// credited to the live node; it adds no key hit (`key_hits` counts rows).
+    /// most as many total frames) is not a live node, and its sightings (`seen`, cells) are
+    /// credited to the live node. When a later step of its job is inserted below it and must
+    /// replay from its actual end state (its digest differs from the live node's), it is kept
+    /// as a `Merged` history row (`merged_into` = the live node), written just before that
+    /// step. Otherwise it leaves no row and adds one `key_hit` to its key (schema v3: no
+    /// childless history rows); the job goes on from the live node when the digests match.
     pub fn merge(
         &mut self,
         mut results: Vec<JobResult>,
@@ -140,6 +142,7 @@ impl Runner {
         };
         d.stats.jobs = results.len() as u32;
         let mut expanded: BTreeMap<NodeId, u32> = BTreeMap::new();
+        let mut key_hits: BTreeMap<AbstractKey, u32> = BTreeMap::new();
         for r in results {
             d.stats.probe_frames += r.probe_frames;
             d.stats.slow_frames += r.slow_frames;
@@ -153,9 +156,21 @@ impl Runner {
                 .map(|s| u64::from(runs::frames(&s.inputs)))
                 .sum();
             let n = r.steps.len();
-            let mut at = r.parent;
+            let mut job = JobMerge {
+                d: &mut d,
+                key_hits: &mut key_hits,
+                first_new,
+                held: Vec::new(),
+            };
+            let mut at = At::Node(r.parent);
             for (i, step) in r.steps.into_iter().enumerate() {
-                at = Some(self.merge_step(&mut d, eval, at, step, i + 1 < n, first_new));
+                at = self.merge_step(&mut job, eval, at, step, i + 1 < n);
+            }
+            // Held duplicates nothing was inserted below.
+            for h in std::mem::take(&mut job.held) {
+                if h.id.is_none() {
+                    job.hit(&mut self.graph, h.row.key);
+                }
             }
             match r.stop {
                 Some(Stop::Finding(f)) => {
@@ -178,102 +193,139 @@ impl Runner {
             }
             d.expanded.push((id, n));
         }
+        d.key_hits = key_hits.into_iter().collect();
         self.generation += 1;
         d
     }
 
-    /// Merges one step that starts from `at`'s end state; returns the node the job's next step
+    /// Merges one step that starts from `at`'s end state; returns where the job's next step
     /// starts from.
     fn merge_step(
         &mut self,
-        d: &mut GenerationDelta,
+        job: &mut JobMerge,
         eval: &mut dyn Evaluate,
-        at: Option<NodeId>,
+        at: At,
         step: StepResult,
         more: bool,
-        first_new: NodeId,
-    ) -> NodeId {
-        let parent = at.and_then(|id| self.graph.node(id));
+    ) -> At {
+        let parent = match at {
+            At::Node(id) => id.and_then(|id| self.graph.node(id)),
+            At::Held(i) => Some(&job.held[i].row),
+        };
         let ev = eval.evaluate(parent, &step);
         let frames = runs::frames(&step.inputs);
         let total = parent.map_or(0, |p| p.total_frames) + u64::from(frames);
         let depth = parent.map_or(0, |p| p.depth + 1);
         let digest = state_digest(&step.end.world);
-        d.stats.steps += 1;
-        d.stats.frames += u64::from(frames);
+        job.d.stats.steps += 1;
+        job.d.stats.frames += u64::from(frames);
 
         let mut superseded = None;
-        let mut status = NodeStatus::Valid;
-        let mut merged_into = None;
+        let mut duplicate_of = None;
         if let Some(old) = self.graph.best(ev.key) {
             let o = self.graph.node(old).expect("best is a node");
-            // More goals reached wins (the key does not hold progress: a goal seen only in the
-            // summary, like a won battle, must not be dropped), then fewer frames.
+            // More goals reached wins, then fewer frames.
             if (ev.progress, std::cmp::Reverse(total))
                 > (o.progress, std::cmp::Reverse(o.total_frames))
             {
                 superseded = Some(old);
             } else {
-                d.stats.duplicates += 1;
+                job.d.stats.duplicates += 1;
+                record_sightings(job.d, &ev.seen, &step.summary.cells, old);
                 if !more || o.digest == digest {
-                    record_sightings(d, &ev.seen, &step, old);
-                    return old;
+                    job.hit(&mut self.graph, ev.key);
+                    return At::Node(Some(old));
                 }
-                status = NodeStatus::Merged;
-                merged_into = Some(old);
+                duplicate_of = Some(old);
             }
         }
 
-        let id = self.graph.next_id();
         let snap = &step.end.world;
-        let row = NodeRow {
-            id,
+        let mut held = Held {
+            row: NodeRow {
+                id: 0,
+                parent: None,
+                depth,
+                macro_: step.macro_,
+                inputs: step.inputs,
+                frames,
+                total_frames: total,
+                end_frame: step.end.header.frame,
+                key: ev.key,
+                digest,
+                world_hash: step.end.header.world_hash,
+                map: snap.field.map,
+                pos: snap.objects.objs.first().map_or((0, 0), |o| o.pos),
+                progress: ev.progress,
+                fitness: ev.fitness,
+                generation: self.generation,
+                expanded: 0,
+                status: NodeStatus::Valid,
+                merged_into: None,
+                build: step.end.header.build,
+            },
             parent: at,
-            depth,
-            macro_: step.macro_,
-            inputs: step.inputs.clone(),
-            frames,
-            total_frames: total,
-            end_frame: step.end.header.frame,
-            key: ev.key,
-            region: ev.region,
-            digest,
-            world_hash: step.end.header.world_hash,
-            map: snap.field.map,
-            pos: snap.objects.objs.first().map_or((0, 0), |o| o.pos),
-            progress: ev.progress,
-            fitness: ev.fitness,
-            generation: self.generation,
-            expanded: 0,
-            status,
-            merged_into,
-            build: step.end.header.build,
+            touches: ev.touches,
+            battles: step.summary.battles,
+            end: step.end,
+            id: None,
         };
-        self.graph.insert(row.clone());
-        d.nodes.push(row);
-        if status == NodeStatus::Valid {
-            d.stats.inserted += 1;
+        if let Some(old) = duplicate_of {
+            // Kept back until a later step of the job is inserted below it.
+            held.row.status = NodeStatus::Merged;
+            held.row.merged_into = Some(old);
+            job.held.push(held);
+            return At::Held(job.held.len() - 1);
         }
+        let id = self.insert(job, held);
+        job.d.stats.inserted += 1;
         if let Some(old) = superseded {
             self.graph.supersede(old, id);
-            if old >= first_new {
+            if old >= job.first_new {
                 // Inserted by this delta: it is written already merged.
-                let r = d.nodes.iter_mut().find(|r| r.id == old).expect("in delta");
+                let r = job
+                    .d
+                    .nodes
+                    .iter_mut()
+                    .find(|r| r.id == old)
+                    .expect("in delta");
                 r.status = NodeStatus::Merged;
                 r.merged_into = Some(id);
             } else {
-                d.merged.push((old, id));
+                job.d.merged.push((old, id));
             }
         }
-        d.touches.extend(ev.touches.iter().map(|&t| (id, t)));
-        record_sightings(d, &ev.seen, &step, id);
-        d.battles
-            .extend(step.summary.battles.iter().map(|&b| (id, b)));
+        record_sightings(job.d, &ev.seen, &step.summary.cells, id);
+        At::Node(Some(id))
+    }
+
+    /// Writes `held` (its held parents first) with the next id: the delta row, the graph row
+    /// (without inputs), its touches, battles and snapshot, and its end state for the cache.
+    fn insert(&mut self, job: &mut JobMerge, mut held: Held) -> NodeId {
+        held.row.parent = match held.parent {
+            At::Node(p) => p,
+            At::Held(i) => Some(match job.held[i].id {
+                Some(id) => id,
+                None => {
+                    let parent = job.held[i].clone();
+                    let id = self.insert(job, parent);
+                    job.held[i].id = Some(id);
+                    id
+                }
+            }),
+        };
+        let id = self.graph.next_id();
+        held.row.id = id;
+        let depth = held.row.depth;
+        self.graph.insert(held.row.clone());
+        job.d.nodes.push(held.row);
+        job.d.touches.extend(held.touches.iter().map(|&t| (id, t)));
+        job.d.battles.extend(held.battles.iter().map(|&b| (id, b)));
         let every = self.cfg.snapshot_every_depth;
         if every > 0 && depth.is_multiple_of(every) {
-            d.snapshots.push((id, step.end.clone()));
+            job.d.snapshots.push((id, held.end.clone()));
         }
-        self.fresh.push((id, step.end));
+        self.fresh.push((id, held.end));
         id
     }
 
@@ -284,15 +336,51 @@ impl Runner {
     }
 }
 
+/// Where a job's next step starts: a node (`None` = the root start), or a held duplicate of
+/// the job (`JobMerge::held`).
+#[derive(Clone, Copy)]
+enum At {
+    Node(Option<NodeId>),
+    Held(usize),
+}
+
+/// A duplicate step kept back (or a step about to be inserted).
+#[derive(Clone)]
+struct Held {
+    row: NodeRow,
+    parent: At,
+    touches: Vec<Touch>,
+    battles: Vec<BattleSummary>,
+    end: Arc<Checkpoint>,
+    /// Its id once written.
+    id: Option<NodeId>,
+}
+
+/// One job's merge state.
+struct JobMerge<'a> {
+    d: &'a mut GenerationDelta,
+    key_hits: &'a mut BTreeMap<AbstractKey, u32>,
+    first_new: NodeId,
+    held: Vec<Held>,
+}
+
+impl JobMerge<'_> {
+    /// A duplicate that leaves no row: one key hit, in the delta and the graph.
+    fn hit(&mut self, g: &mut Graph, k: AbstractKey) {
+        *self.key_hits.entry(k).or_default() += 1;
+        g.hit_key(k);
+    }
+}
+
 fn record_sightings(
     d: &mut GenerationDelta,
     seen: &[(crate::model::SeenKind, i64)],
-    step: &StepResult,
+    cells: &BTreeSet<(MapId, i16, i16)>,
     node: NodeId,
 ) {
     d.seen.extend(seen.iter().map(|&(k, v)| (k, v, node)));
     d.cells
-        .extend(step.summary.cells.iter().map(|&(m, x, y)| (m, x, y, node)));
+        .extend(cells.iter().map(|&(m, x, y)| (m, x, y, node)));
 }
 
 /// rayon par_iter, results in job order. Runs on the caller's thread pool (`pool.install`).

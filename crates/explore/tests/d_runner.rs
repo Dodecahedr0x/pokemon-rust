@@ -78,7 +78,6 @@ impl Evaluate for FakeEval {
         let first = self.seen.insert(i64::from(x));
         Evaluation {
             key: AbstractKey(x as u64),
-            region: x as u64 / 4,
             progress: parent.map_or(0, |p| p.progress),
             fitness: Fitness {
                 novelty: i64::from(first) * 50,
@@ -331,12 +330,16 @@ fn the_default_batch_gives_identical_deltas_on_one_and_eight_threads() {
 #[test]
 fn from_rows_of_the_merge_output_equals_the_graph() {
     let (r, deltas, _) = run(3, 10, None);
-    // The applied rows alone rebuild the graph, key hits included.
-    let g = Graph::from_rows(applied(&deltas));
+    // The applied rows and key hits (the `key_hit` table) rebuild the graph.
+    let hits: Vec<(AbstractKey, u32)> = deltas.iter().flat_map(|d| d.key_hits.clone()).collect();
+    assert!(!hits.is_empty(), "duplicates count key hits without rows");
+    let mut g = Graph::from_rows(applied(&deltas));
+    g.add_key_hits(&hits);
     assert_eq!(g, r.graph);
     assert!(r.graph.nodes().any(|n| r.graph.key_hits(n.key) > 0));
-    // A runner resumed from the rows alone plans and merges what a straight one does.
+    // A runner resumed from them plans and merges what a straight one does.
     let mut resumed = Runner::new(cfg(3), applied(&deltas), r.generation);
+    resumed.graph.add_key_hits(&hits);
     let mut straight = r;
     let (mut ea, mut eb) = (FakeEval::default(), FakeEval::default());
     for d in &deltas {
@@ -414,11 +417,13 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.best(AbstractKey(5)), Some(2));
     assert_eq!(d.expanded, [(1, 1)]);
 
-    // More frames: a duplicate, no row, so no key hit (hits count rows).
+    // More frames: a duplicate, no row, but a key hit (Milestone 8 Task K: the `key_hit`
+    // table counts every duplicate, not only the merged rows).
     let d = r.merge(vec![job(0, 1, vec![step(11, 5, 80)], None)], &mut eval);
     assert!(d.nodes.is_empty());
     assert_eq!(d.stats.duplicates, 1);
-    assert_eq!(r.graph.key_hits(AbstractKey(5)), 0);
+    assert_eq!(d.key_hits, [(AbstractKey(5), 1)]);
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
     assert_eq!(r.graph.best(AbstractKey(5)), Some(2));
     // Its cells are attributed to the live node.
     assert_eq!(d.cells, [(MapId(1), 5, 0, 2)]);
@@ -426,6 +431,7 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     // Equal frames: still a duplicate.
     let d = r.merge(vec![job(0, 1, vec![step(12, 5, 50)], None)], &mut eval);
     assert!(d.nodes.is_empty());
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 2);
 
     // Fewer frames: a new live node, the old one merged into it.
     let d = r.merge(vec![job(0, 1, vec![step(13, 5, 20)], None)], &mut eval);
@@ -436,7 +442,8 @@ fn fewer_frames_supersede_and_more_frames_are_duplicates() {
     assert_eq!(r.graph.best(AbstractKey(5)), Some(3));
     let old = r.graph.node(2).unwrap();
     assert_eq!((old.status, old.merged_into), (NodeStatus::Merged, Some(3)));
-    assert_eq!(r.graph.key_hits(AbstractKey(5)), 1);
+    // Two duplicates and the superseded row.
+    assert_eq!(r.graph.key_hits(AbstractKey(5)), 3);
     assert_eq!(r.graph.frontier().map(|n| n.id).collect::<Vec<_>>(), [1, 3]);
     assert_eq!(r.graph.node(1).unwrap().expanded, 4);
 }
@@ -659,7 +666,6 @@ fn row(id: NodeId, parent: Option<NodeId>, total: i64, generation: u32) -> NodeR
         total_frames: 0,
         end_frame: 0,
         key: AbstractKey(id as u64),
-        region: 0,
         digest: id as u64,
         world_hash: 0,
         map: MapId(1),

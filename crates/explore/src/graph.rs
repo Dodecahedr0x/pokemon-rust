@@ -1,8 +1,10 @@
 //! The in-memory node graph and the seeded RNG (Task D).
 //!
-//! The graph mirrors the db's `node` table: every row (any status), the live node of every
-//! abstract key (`best`), and the rows per key (`key_hits` = rows - 1, the selection decay).
-//! It is a pure function of the rows, so a run resumed from the db has the same graph. Everything is a `BTreeMap`, so iteration is in id or key
+//! The graph mirrors the db's `node` table: every row (any status) without its inputs (schema
+//! v3: inputs are not resident; `cache::reach` loads a lineage's from the db), the live node of
+//! every abstract key (`best`), and the selection decay per key (`key_hits` = rows - 1 + the
+//! db's `key_hit`). It is a pure function of the rows and the `key_hit` table, so a run resumed
+//! from the db has the same graph. Everything is a `BTreeMap`, so iteration is in id or key
 //! order and never depends on hashing.
 
 use crate::model::{AbstractKey, NodeId, NodeRow, NodeStatus};
@@ -52,6 +54,8 @@ pub struct Graph {
     best: BTreeMap<AbstractKey, NodeId>,
     /// Rows (any status) per key.
     key_rows: BTreeMap<AbstractKey, u32>,
+    /// Duplicates that left no row, per key (the db's `key_hit`).
+    extra_hits: BTreeMap<AbstractKey, u32>,
     /// Rows (any status) whose parent is the key.
     children: BTreeMap<NodeId, u32>,
     next_id: NodeId,
@@ -101,10 +105,24 @@ impl Graph {
     }
 
     /// How often `k` was reached again after its first node: its rows (any status) minus one,
-    /// so `from_rows` rebuilds it exactly (0 for a fresh or unknown key). Duplicates that leave
-    /// no row do not count.
+    /// plus the duplicates that left no row (`key_hit`), so `from_rows` and
+    /// [`Graph::add_key_hits`] rebuild it exactly (0 for a fresh or unknown key).
     pub fn key_hits(&self, k: AbstractKey) -> u32 {
-        self.key_rows.get(&k).map_or(0, |n| n.saturating_sub(1))
+        let rows = self.key_rows.get(&k).map_or(0, |n| n.saturating_sub(1));
+        rows.saturating_add(self.extra_hits.get(&k).copied().unwrap_or(0))
+    }
+
+    /// Adds the db's `key_hit` rows.
+    pub fn add_key_hits(&mut self, hits: &[(AbstractKey, u32)]) {
+        for &(k, n) in hits {
+            let e = self.extra_hits.entry(k).or_default();
+            *e = e.saturating_add(n);
+        }
+    }
+
+    /// One duplicate of `k` that left no row.
+    pub(crate) fn hit_key(&mut self, k: AbstractKey) {
+        self.add_key_hits(&[(k, 1)]);
     }
 
     /// The number of rows (any status) whose parent is `id`.
@@ -129,8 +147,9 @@ impl Graph {
         at
     }
 
-    /// Adds a row as it is (the merge assigns ids from [`Graph::next_id`]).
-    pub(crate) fn insert(&mut self, row: NodeRow) {
+    /// Adds a row (the merge assigns ids from [`Graph::next_id`]), without its inputs.
+    pub(crate) fn insert(&mut self, mut row: NodeRow) {
+        row.inputs = Vec::new();
         let (id, key) = (row.id, row.key);
         *self.key_rows.entry(key).or_default() += 1;
         if is_live(row.status) {

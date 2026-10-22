@@ -161,9 +161,13 @@ fn the_fold_is_stable() {
             level_bucket: 1,
             fainted: 0,
         },
+        respawn: 1,
+        templates: 5,
     };
-    assert_eq!(key(&parts).0, 0xbb5c_364e_29cb_f3b6);
-    assert_eq!(region(&parts), 0x3042_127e_1a95_ce1c);
+    // KEY_VERSION 2 (Milestone 8 Task K: respawn and templates in the fold).
+    assert_eq!(explore::key::KEY_VERSION, 2);
+    assert_eq!(key(&parts).0, 0x37f7_8af8_2115_f8ee);
+    assert_eq!(region(&parts), 0x19d2_c0ac_092b_a424);
 }
 
 #[test]

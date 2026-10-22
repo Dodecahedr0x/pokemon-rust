@@ -6,6 +6,7 @@
 
 use crate::config::{Budget, Config};
 use crate::db::{Db, DbStats, FindingRow};
+use crate::goals::Act;
 use crate::model::NodeId;
 use crate::path::Grid;
 use crate::wire::{self, Explore};
@@ -13,20 +14,28 @@ use crate::{findings, goals};
 use anyhow::{Context, anyhow, bail};
 use content::Emerald;
 use engine::data::{GameData, MapId, block_collision};
+use game_native::store::Store;
 use std::path::{Path, PathBuf};
 
 const USAGE: &str = "\
 usage: explore <command> [--db <path>] [--config <path>]
   run [--nodes N | --frames N | --generations N | --secs N] [--threads N] [--seed S]
-      [--cache N]
+      [--cache N] [--from <checkpoint id|label>] [--act slice|act1]
       explore (default budget: --generations 10); one line per 10 generations;
-      --cache N: snapshots kept in memory (default 65536: about 0.45 GB peak RSS after
-      120 s of the extracted slice, about 1.1 GB once full; 16384: 0.35 GB, 10% slower)
+      --cache N: snapshots kept in memory (default 65536; 16384 is about 10% slower);
+      --from: a fresh db explores from that checkpoint node (the committed tree with the
+      local saves over it); an existing db keeps its own root and refuses another;
+      --act: the goal list (default act1, which begins with the slice's; a db keeps its own)
   status                      db totals, goals, seed and build
   findings [--all]            open findings (--all: stale and gone ones too)
   show <id>                   one finding in full
   export <id> [--before N] [--out <path>]
-                              the finding as a NewGame trace (RON), N frames before its end
+                              the finding as a trace (RON) from the db's root start, N frames
+                              before its end
+  export --to-store <node> [--label L]
+                              the node as a local checkpoint node (its inputs from the db's
+                              root start; default label explore:<MAP_*>:n<node>); promote it
+                              with `cargo xtask checkpoints promote <id> --label L`
   repro <id>                  replays the finding from a new game; exit 0 iff it reproduces
   revalidate                  replays every node on this build (repairs or breaks them)
   coverage <map>              ASCII heat grid of the cells stood on (map id or name)
@@ -61,9 +70,17 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             if let Some(s) = seed {
                 cfg.seed = s;
             }
+            let act = a
+                .take("--act")
+                .map(|s| Act::parse(&s).ok_or_else(|| anyhow!("--act {s:?}: slice or act1")))
+                .transpose()?;
+            if let Some(act) = act {
+                cfg.act = act;
+            }
+            let from = a.take("--from");
             let budget = budget(&mut a)?;
             a.done()?;
-            run(&db_path, cfg, seed, budget)
+            run(&db_path, cfg, Asked { seed, act, from }, budget)
         }
         "status" => {
             a.done()?;
@@ -78,6 +95,25 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             let id = a.id()?;
             a.done()?;
             show(&db_path, id)
+        }
+        "export" if a.options.iter().any(|(n, _)| n == "--to-store") => {
+            let node = a.take_num("--to-store")?.expect("present") as NodeId;
+            let label = a.take("--label");
+            a.done()?;
+            let game = Emerald::for_shells();
+            let db = Db::open_read_only(&db_path)?;
+            let store = match wire::db_root(&game, &db)? {
+                Some(root) => root.store()?,
+                None => default_store()?,
+            };
+            let id = wire::export_to_store(&game, &db, node, &store, label.as_deref())?;
+            let n = store.find(&id.to_string())?;
+            println!(
+                "node {node} -> {id} {:?} in {}",
+                n.meta.label,
+                store.root().display()
+            );
+            Ok(())
         }
         "export" => {
             let id = a.id()?;
@@ -304,18 +340,45 @@ fn budget(a: &mut Args) -> anyhow::Result<Budget> {
     Ok(b.unwrap_or(Budget::Generations(10)))
 }
 
-/// "goal i/n (name)" of a progress.
-fn goal_text(progress: u32) -> String {
-    let n = goals::goals().len();
-    match progress.checked_sub(1).and_then(goals::name) {
+/// "goal i/n (name)" of a progress on `act`'s list.
+fn goal_text(act: Act, progress: u32) -> String {
+    let n = goals::goals_of(act).len();
+    match progress.checked_sub(1).and_then(|i| goals::name_of(act, i)) {
         Some(name) => format!("{progress}/{n} ({name})"),
         None => format!("0/{n}"),
     }
 }
 
-fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow::Result<()> {
-    let mut ex = Explore::open(Emerald::for_shells(), db_path, cfg)?;
-    if let Some(s) = seed
+/// The db's act (`meta.act`; a db without one is the default act).
+fn db_act(db: &Db) -> anyhow::Result<Act> {
+    match db.meta("act")? {
+        Some(a) => Act::parse(&a).ok_or_else(|| anyhow!("meta act = {a:?}")),
+        None => Ok(Act::default()),
+    }
+}
+
+/// The committed checkpoint tree with the local saves over it (`play`'s store).
+fn default_store() -> anyhow::Result<Store> {
+    Ok(Store::layered(
+        Store::default_root(content::STUB),
+        Store::local_root(content::STUB),
+    )?)
+}
+
+/// What `run` was asked for, beyond the config.
+struct Asked {
+    seed: Option<u64>,
+    act: Option<Act>,
+    from: Option<String>,
+}
+
+fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Result<()> {
+    let game = Emerald::for_shells();
+    let mut ex = match &asked.from {
+        Some(from) => Explore::open_from(game, db_path, cfg, &default_store()?, from)?,
+        None => Explore::open(game, db_path, cfg)?,
+    };
+    if let Some(s) = asked.seed
         && s != ex.cfg.seed
     {
         println!(
@@ -323,6 +386,16 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
             ex.cfg.seed
         );
     }
+    if let Some(a) = asked.act
+        && a != ex.cfg.act
+    {
+        println!(
+            "note: the db explores act {} (its own), not {}",
+            ex.cfg.act.name(),
+            a.name()
+        );
+    }
+    let act = ex.cfg.act;
     if ex.config_changed {
         println!("note: the config differs from the last run's (see the db's run table)");
     }
@@ -333,10 +406,14 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
         );
     }
     println!(
-        "exploring {} ({} threads, seed {:#x}, {budget:?})",
+        "exploring {} ({} threads, seed {:#x}, act {}, from {}, {budget:?})",
         db_path.display(),
         ex.threads(),
-        ex.cfg.seed
+        ex.cfg.seed,
+        act.name(),
+        ex.root
+            .as_ref()
+            .map_or("a new game".into(), |r| format!("{} {:?}", r.id, r.label)),
     );
     // `gens` counts the db's generations (1-based); inserted/s and frames/s are this run's
     // (frames include the softlock probes').
@@ -349,7 +426,7 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
             s.valid,
             sum.nodes as f64 / secs,
             sum.frames as f64 / secs,
-            goal_text(s.max_progress),
+            goal_text(act, s.max_progress),
             s.maps,
             s.cells,
             s.findings
@@ -363,7 +440,7 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
             best += 1;
             println!(
                 "goal {} first reached in generation {} at {:.1} s",
-                goal_text(best),
+                goal_text(act, best),
                 p.last.generation + 1,
                 p.summary.wall.as_secs_f64()
             );
@@ -415,7 +492,15 @@ fn status(db_path: &Path) -> anyhow::Result<()> {
         None => 0,
     };
     println!("generations {generations}");
-    println!("goals     {}", goal_text(s.max_progress));
+    let act = db_act(&db)?;
+    println!(
+        "goals     {} (act {})",
+        goal_text(act, s.max_progress),
+        act.name()
+    );
+    if let Some(root) = db.meta("root")? {
+        println!("from      {root}");
+    }
     let names = content::data::SCRIPT_NAMES.len();
     // The stub has no named scripts: no share to give.
     let scripts = if names == 0 {

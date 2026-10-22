@@ -1,21 +1,21 @@
--- Explorer database, schema version 2 (`db::SCHEMA_VERSION`).
+-- Explorer database, schema version 3 (`db::SCHEMA_VERSION`).
 -- u64 values (keys, digests, hashes, build ids) are stored bit-cast to i64.
 CREATE TABLE IF NOT EXISTS meta (
-  key   TEXT PRIMARY KEY,           -- schema, flavor ('stub'|'emerald'), build_engine, build_content, seed, generation
+  key   TEXT PRIMARY KEY,           -- schema, flavor ('stub'|'emerald'), build_engine, build_content, seed, generation,
+                                    -- key_version, act, root (v3)
   value TEXT NOT NULL
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS node (
   id             INTEGER PRIMARY KEY,
-  parent         INTEGER REFERENCES node(id),   -- NULL = root (new game)
+  parent         INTEGER REFERENCES node(id),   -- NULL = root (the db's root start)
   depth          INTEGER NOT NULL,
-  macro          TEXT    NOT NULL,              -- RON of Macro
-  inputs         TEXT    NOT NULL,              -- runs text from the parent's end state
+  macro          INTEGER NOT NULL,              -- Macro::code (v3)
+  inputs         BLOB    NOT NULL,              -- runs::to_blob from the parent's end state (v3)
   frames         INTEGER NOT NULL,
   total_frames   INTEGER NOT NULL,
   end_frame      INTEGER NOT NULL,
   key            INTEGER NOT NULL,
-  region         INTEGER NOT NULL,
   digest         INTEGER NOT NULL,              -- state_digest of the end snapshot
   world_hash     INTEGER NOT NULL,
   map            INTEGER NOT NULL,
@@ -34,11 +34,17 @@ CREATE TABLE IF NOT EXISTS node (
   build_engine   INTEGER NOT NULL,
   build_content  INTEGER NOT NULL
 ) STRICT;
+-- v3: no `node(key)` or `node(map)` index (no query used them).
 CREATE INDEX IF NOT EXISTS node_parent ON node(parent);
-CREATE INDEX IF NOT EXISTS node_key    ON node(key);
-CREATE INDEX IF NOT EXISTS node_map    ON node(map);
 -- One live node per abstract key ('merged' rows keep their key for history).
 CREATE UNIQUE INDEX IF NOT EXISTS node_live_key ON node(key) WHERE status IN ('valid','stale');
+
+-- Duplicates that left no row (v3): a step back on a live key, not better than its node, that
+-- nothing of its job needed as a parent. `Graph::key_hits` = rows of the key - 1 + hits.
+CREATE TABLE IF NOT EXISTS key_hit (
+  key  INTEGER PRIMARY KEY,
+  hits INTEGER NOT NULL
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS node_touch (           -- incremental re-simulation (v1)
   node INTEGER NOT NULL REFERENCES node(id),
