@@ -1,42 +1,84 @@
 //! Template spawning (owned by Milestone 8 Task F): what a warp load and a connection crossing
-//! keep of the old map's objects, which templates spawn, `addobject`, and the view window
+//! keep of the objects, which templates spawn (Gen3 `TrySpawnObjectEvents`: those in the view
+//! window, while object slots are free), `addobject`, and the view window
 //! ([`Objects::view_moved`], [`Objects::despawn_outside_view`]).
 
 use super::{Object, Objects};
 use crate::data::{FlagId, MapData, MapId, ObjectEvent, PLAYER, VarId};
 use crate::flow::Vars;
 
-/// Gen3 `RemoveObjectEventIfOutsideView`: the kept area around the player's cell
-/// (`pos - 2 ..= pos + 17` by `pos ..= pos + 16`, with the player at `pos + 7`).
+/// Gen3 `TrySpawnObjectEvents` / `RemoveObjectEventIfOutsideView`: the window around the
+/// player's cell (`pos - 2 ..= pos + 17` by `pos ..= pos + 16` in Gen3's offset coordinates,
+/// with the player at `pos + 7`) in which templates spawn and outside which objects despawn.
 const VIEW_X: (i16, i16) = (-9, 10);
 const VIEW_Y: (i16, i16) = (-7, 9);
 
+/// Gen3 `OBJECT_EVENTS_COUNT`: object slots, the player's included.
+pub const OBJECT_EVENTS_COUNT: usize = 16;
+
+/// Whether `cell` is in the view window around `player`.
+fn in_view(player: (i16, i16), (x, y): (i16, i16)) -> bool {
+    (player.0 + VIEW_X.0..=player.0 + VIEW_X.1).contains(&x)
+        && (player.1 + VIEW_Y.0..=player.1 + VIEW_Y.1).contains(&y)
+}
+
 impl Objects {
-    /// Enters map `id`: a warp load (`shift` `None`) keeps only the player; a connection crossing
-    /// shifts every object by `shift` and keeps the old map's objects still in view. The current
+    /// Enters map `id`: a warp load (`shift` `None`) keeps only the player (Gen3
+    /// `ResetObjectEvents`); a connection crossing shifts every object by `shift` (old map
+    /// coordinates to the new map's) and keeps them all, the new map's objects left from an
+    /// earlier visit included (Gen3 `LoadMapFromCameraTransition` removes none). The current
     /// map's templates spawn afterwards ([`Objects::spawn_templates`]), once map scripts ran.
     pub(crate) fn enter_map(&mut self, id: MapId, shift: Option<(i16, i16)>) {
         match shift {
-            None => self.spawn_events(id, &[], |_| true, |_| 0),
-            Some(shift) => self.enter_connected_events(id, &[], shift, |_| true, |_| 0),
+            None => self.objs.truncate(1),
+            Some((dx, dy)) => self.shift(dx, dy),
         }
+        self.set_map(id);
     }
 
-    /// Spawns the templates whose hide flag is clear (Gen3 `TrySpawnObjectEvents`).
+    /// Spawns the templates in the view window whose hide flag is clear and whose object does
+    /// not exist yet, while object slots are free, then despawns the objects outside the window
+    /// (Gen3 `TrySpawnObjectEvents`, then `RemoveObjectEventsOutsideView`).
     pub(crate) fn spawn_templates(&mut self, templates: &[ObjectEvent], vars: &Vars) {
+        let player = self.objs[0].pos();
+        let map = self.map;
         for ev in templates {
-            if !ev.hide_flag.is_some_and(|f| vars.flag(f)) {
-                self.add(ev, |v| vars.var(v));
+            if !in_view(player, (ev.x, ev.y))
+                || ev.hide_flag.is_some_and(|f| vars.flag(f))
+                || (self.objs.iter()).any(|o| o.local_id == ev.local_id && o.map == map)
+            {
+                continue;
             }
+            if self.objs.len() >= OBJECT_EVENTS_COUNT {
+                break;
+            }
+            self.objs
+                .push(Object::from_event(map, ev, &|v| vars.var(v)));
         }
+        self.remove_outside_view();
     }
 
     /// The view moved: called by `World::control` once per completed player step (before its
     /// step-end triggers) and once per connection crossing (after the new map's objects
-    /// spawned). Wave 0: no-op; Task F spawns and despawns templates by the view window here
-    /// (Gen3 `TrySpawnObjectEvents`), so it never needs to edit `world.rs`.
+    /// spawned). Spawns and despawns by the view window, as [`Objects::spawn_templates`] (Gen3
+    /// `UpdateObjectEventsForCameraUpdate`).
     pub(crate) fn view_moved(&mut self, templates: &[ObjectEvent], vars: &Vars) {
-        let _ = (templates, vars);
+        self.spawn_templates(templates, vars);
+    }
+
+    /// Removes every NPC whose cell and home are both outside the view window (Gen3
+    /// `RemoveObjectEventsOutsideView`).
+    fn remove_outside_view(&mut self) {
+        let player = self.objs[0].pos();
+        let mut i = 1;
+        while i < self.objs.len() {
+            let o = &self.objs[i];
+            if in_view(player, o.pos()) || in_view(player, o.home) {
+                i += 1;
+            } else {
+                self.objs.remove(i);
+            }
+        }
     }
 
     fn spawn(
@@ -55,6 +97,7 @@ impl Objects {
 
     /// Makes `id` the current map and replaces every NPC with `map`'s objects, skipping those
     /// whose `hide_flag` is set and resolving `Gfx::Var` through `vars`. The player is kept.
+    /// Every template spawns, wherever the player is (tools; the World spawns by the view).
     pub fn spawn_map(
         &mut self,
         id: MapId,
@@ -83,7 +126,8 @@ impl Objects {
     /// coordinates to the new map's), makes `id` current and spawns its objects alongside the
     /// old map's. Those stay, still moving, until they leave the view (checked here and on
     /// every `update`), as Gen3 `RemoveObjectEventsOutsideView`. Objects of `id` left over
-    /// from an earlier visit are replaced.
+    /// from an earlier visit are replaced. Every template spawns (tools; the World spawns by
+    /// the view).
     pub fn enter_connected(
         &mut self,
         id: MapId,
@@ -112,22 +156,23 @@ impl Objects {
     }
 
     /// Removes other maps' objects whose cell and home are both outside the view (Gen3
-    /// `RemoveObjectEventIfOutsideView`).
+    /// `RemoveObjectEventIfOutsideView`; run every frame by `update`).
     pub(super) fn despawn_outside_view(&mut self) {
-        let (px, py) = self.objs[0].pos();
-        let inside = |(x, y): (i16, i16)| {
-            (px + VIEW_X.0..=px + VIEW_X.1).contains(&x)
-                && (py + VIEW_Y.0..=py + VIEW_Y.1).contains(&y)
-        };
+        let player = self.objs[0].pos();
         let map = self.map;
         self.objs
-            .retain(|o| o.map == map || inside(o.pos()) || inside(o.home));
+            .retain(|o| o.map == map || in_view(player, o.pos()) || in_view(player, o.home));
     }
 
     /// Spawns one object of the current map (Gen3 `addobject`), replacing any with the same
-    /// local id.
+    /// local id, if an object slot is free ([`OBJECT_EVENTS_COUNT`]).
     pub fn add(&mut self, ev: &ObjectEvent, vars: impl Fn(VarId) -> u16) {
         self.remove(ev.local_id);
-        self.objs.push(Object::from_event(self.map, ev, &vars));
+        if self.objs.len() < OBJECT_EVENTS_COUNT {
+            self.objs.push(Object::from_event(self.map, ev, &vars));
+        }
     }
 }
+
+#[cfg(test)]
+mod tests;
