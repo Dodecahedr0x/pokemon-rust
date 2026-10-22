@@ -1,8 +1,9 @@
 //! Battle data and French battle strings (Milestone 4 Task A): `gSpeciesInfo` with
 //! `gSpeciesNames` and `gLevelUpLearnsets`, `gBattleMoves` with `gMoveNames`,
 //! `gTypeEffectiveness` with `gTypeNames`, `gTrainers` with their parties and
-//! `gTrainerClassNames`, the land tables of `gWildMonHeaders`, `sNaturePowerMoves`,
-//! `sHealLocations`, `gBattleStringsTable` and the code-referenced battle strings.
+//! `gTrainerClassNames`, every table of `gWildMonHeaders`, `gEvolutionTable`,
+//! `gTrainerMoneyTable`, `sNaturePowerMoves`, `sHealLocations`, `gBattleStringsTable` and the
+//! code-referenced battle strings.
 //!
 //! **Locating.** Every table is found on both ROMs (BPEE and BPEF) from language-independent
 //! bytes; the US decomp is the test oracle (`tests/battle_data.rs`):
@@ -13,7 +14,15 @@
 //!   `gSpeciesNames[0]` (`??????????`).
 //! - layout: `src/data.c` emits `gTrainerClassNames`, `gTrainers`, `gSpeciesNames` and
 //!   `gMoveNames` back to back, and `battle_main.c` puts `gTypeNames` right after
-//!   `gTypeEffectiveness`. `gWildMonHeaders` is the run of valid headers holding `MAP_ROUTE101`.
+//!   `gTypeEffectiveness`, then `gTrainerMoneyTable` (`{class, value}` pairs up to the `0xFF`
+//!   class). `gWildMonHeaders` is the run of valid headers holding `MAP_ROUTE101`.
+//! - `sSpeciesToNationalPokedexNum` is the referenced run of national numbers 1 to 251 (Gen1-2
+//!   species are in national order), and `gPokedexEntries` the referenced table of 0x20-byte
+//!   entries whose entries 0 to 3 weigh 0, 69, 130 and 1000 hectograms (none, Bulbasaur, Ivysaur,
+//!   Venusaur, with heights 0, 7, 10 and 20): only the numbers, as the category names are
+//!   localized.
+//! - `gEvolutionTable` (`NUM_SPECIES` × `EVOS_PER_MON` × 8 bytes): `SPECIES_NONE`'s empty row
+//!   then Bulbasaur's (`{EVO_LEVEL, 16, SPECIES_IVYSAUR}`) and Ivysaur's first entry.
 //! - `gBattleStringsTable` is the only run of exactly `BATTLESTRINGS_COUNT -
 //!   BATTLESTRINGS_TABLE_START` ROM pointers whose first string is `{B_TRAINER1_LOSE_TEXT}`.
 //! - strings only code refers to: `battle_message.c` strings are packed in source order, so the
@@ -48,8 +57,9 @@
 
 use crate::export::Out;
 use crate::schema::{
-    BattleStringsFile, EncounterHeader, EncountersFile, HealLocationsFile, Hex, LandEncounters,
-    Move, MovesFile, Species, SpeciesFile, Trainer, TrainerMon, TrainersFile, TypesFile, WildMon,
+    BattleStringsFile, EncounterHeader, EncountersFile, EvolutionsFile, HealLocationsFile, Hex,
+    LandEncounters, Move, MovesFile, Species, SpeciesFile, Trainer, TrainerMon, TrainerMoneyFile,
+    TrainersFile, TypesFile, WildMon,
 };
 use crate::text::{self, charmap};
 use crate::{ROM_BASE, Rom, names};
@@ -72,7 +82,46 @@ const ABILITY_NAME_SIZE: u32 = 13;
 const ABILITY_SEARCH_SPAN: u32 = 0x2000;
 /// `trainerName` spans 0x04..0x10 of `struct Trainer`.
 const TRAINER_NAME_SIZE: usize = 12;
-const LAND_SLOTS: u32 = 12;
+/// Slots of the `landMonsInfo`, `waterMonsInfo`, `rockSmashMonsInfo` and `fishingMonsInfo`
+/// tables (`wild_encounters.json` `fields`; fishing: old rod 0-1, good rod 2-4, super rod 5-9).
+const WILD_SLOTS: [u32; 4] = [12, 5, 5, 10];
+/// `EVOS_PER_MON`, and `sizeof(struct Evolution)` (three u16 padded to 8 by agbcc).
+const EVOS_PER_MON: u32 = 5;
+const EVOLUTION_SIZE: u32 = 8;
+/// `EVO_*` by value (`include/constants/pokemon.h`); 0 is an empty slot.
+pub const EVO_METHODS: [&str; 16] = [
+    "",
+    "EVO_FRIENDSHIP",
+    "EVO_FRIENDSHIP_DAY",
+    "EVO_FRIENDSHIP_NIGHT",
+    "EVO_LEVEL",
+    "EVO_TRADE",
+    "EVO_TRADE_ITEM",
+    "EVO_ITEM",
+    "EVO_LEVEL_ATK_GT_DEF",
+    "EVO_LEVEL_ATK_EQ_DEF",
+    "EVO_LEVEL_ATK_LT_DEF",
+    "EVO_LEVEL_SILCOON",
+    "EVO_LEVEL_CASCOON",
+    "EVO_LEVEL_NINJASK",
+    "EVO_LEVEL_SHEDINJA",
+    "EVO_BEAUTY",
+];
+/// `sizeof(struct PokedexEntry)`, and the offset of its `height` (then `weight`).
+const DEX_ENTRY_SIZE: u32 = 0x20;
+const DEX_ENTRY_HEIGHT: u32 = 0x0C;
+/// `NATIONAL_DEX_COUNT` (`NATIONAL_DEX_DEOXYS`): `gPokedexEntries` has entries 0 to this.
+pub const NATIONAL_DEX_COUNT: u32 = 386;
+/// Species 1 to this are numbered in national order (`NATIONAL_DEX_CELEBI`, Gen1-2).
+const JOHTO_DEX_COUNT: u16 = 251;
+/// (height, weight) of `gPokedexEntries[0..4]`.
+const DEX_ANCHOR: [(u16, u16); 4] = [(0, 0), (7, 69), (10, 130), (20, 1000)];
+/// The class that ends `gTrainerMoneyTable`; its value is the default of unlisted classes.
+const TRAINER_MONEY_END: u8 = 0xFF;
+/// `sizeof(struct TrainerMoney)`: two u8 padded to 4 by agbcc.
+const TRAINER_MONEY_SIZE: u32 = 4;
+/// Guard for a corrupt money table.
+const MAX_TRAINER_MONEY: u32 = 256;
 pub const MAX_LEVEL: usize = 100;
 pub const GROWTH_RATES: usize = 6;
 /// `LEVEL_UP_END`.
@@ -221,6 +270,10 @@ pub struct Locations {
     pub trainer_class_names: u32,
     pub experience_tables: u32,
     pub wild_headers: u32,
+    pub evolutions: u32,
+    pub trainer_money: u32,
+    pub species_to_national: u32,
+    pub pokedex_entries: u32,
     pub nature_power: u32,
     pub heal_locations: u32,
     pub battle_strings: u32,
@@ -402,6 +455,14 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
     ensure_referenced(rom, trainer_class_names, "gTrainerClassNames")?;
 
     let wild_headers = locate_wild_headers(rom)?;
+    let evolutions = locate_evolutions(rom, &n)?;
+    let trainer_money = locate_trainer_money(rom, type_names, &n)?;
+    let species_to_national = unique_referenced(
+        rom,
+        &u16s_le(&(1..=JOHTO_DEX_COUNT).collect::<Vec<_>>()),
+        "sSpeciesToNationalPokedexNum",
+    )?;
+    let pokedex_entries = locate_pokedex_entries(rom)?;
 
     let nature_power =
         unique_referenced(rom, &u16s_le(&NATURE_POWER.map(mv)), "sNaturePowerMoves")?;
@@ -435,6 +496,10 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         trainer_class_names,
         experience_tables,
         wild_headers,
+        evolutions,
+        trainer_money,
+        species_to_national,
+        pokedex_entries,
         nature_power,
         heal_locations,
         battle_strings,
@@ -479,6 +544,82 @@ fn locate_ability_names(rom: &Rom, type_names: u32, n: &Counts) -> Result<u32> {
         [names] => Ok(names),
         _ => bail!("gAbilityNames: expected 1 referenced table after gTypeNames, found {hits:#x?}"),
     }
+}
+
+/// `gEvolutionTable`: the referenced table whose `SPECIES_NONE` row is empty, followed by
+/// Bulbasaur's row (one `EVO_LEVEL` 16 to Ivysaur) and Ivysaur's first entry (32 to
+/// Venusaur).
+fn locate_evolutions(rom: &Rom, n: &Counts) -> Result<u32> {
+    let sp = |name| value(&names::SPECIES, name) as u16;
+    let level = EVO_METHODS.iter().position(|&m| m == "EVO_LEVEL").unwrap() as u16;
+    let row = (EVOS_PER_MON * EVOLUTION_SIZE) as usize;
+    let mut sig = vec![0u8; row];
+    sig.extend(u16s_le(&[level, 16, sp("SPECIES_IVYSAUR")]));
+    sig.resize(2 * row, 0);
+    sig.extend(u16s_le(&[level, 32, sp("SPECIES_VENUSAUR")]));
+    let table = unique_referenced(rom, &sig, "gEvolutionTable")?;
+    rom.slice(table, row * n.species as usize)
+        .context("gEvolutionTable")?;
+    Ok(table)
+}
+
+/// `gPokedexEntries`: the referenced table whose first entries have the heights and weights of
+/// [`DEX_ANCHOR`].
+fn locate_pokedex_entries(rom: &Rom) -> Result<u32> {
+    let (h, w) = DEX_ANCHOR[1];
+    let mut hits = Vec::new();
+    for at in rom.find_all(&u16s_le(&[h, w])) {
+        let Some(start) = at.checked_sub(DEX_ENTRY_SIZE + DEX_ENTRY_HEIGHT) else {
+            continue;
+        };
+        let ok = DEX_ANCHOR.iter().enumerate().all(|(i, &(h, w))| {
+            rom.u16s(start + DEX_ENTRY_SIZE * i as u32 + DEX_ENTRY_HEIGHT, 2)
+                .is_ok_and(|v| v == [h, w])
+        });
+        if ok && !rom.pointers_to(start).is_empty() {
+            hits.push(start);
+        }
+    }
+    match hits[..] {
+        [t] => Ok(t),
+        _ => bail!("gPokedexEntries: expected 1 referenced table, found {hits:#x?}"),
+    }
+}
+
+/// `gTrainerMoneyTable`, at the first 4-byte boundary after `gTypeNames` (`battle_main.c`):
+/// a referenced run of `{class, value}` entries of distinct known classes, ended by the `0xFF`
+/// class.
+fn locate_trainer_money(rom: &Rom, type_names: u32, n: &Counts) -> Result<u32> {
+    let at = (type_names + TYPE_NAME_SIZE * n.types).next_multiple_of(4);
+    ensure_referenced(rom, at, "gTrainerMoneyTable")?;
+    read_money_pairs(rom, at, n).context("gTrainerMoneyTable after gTypeNames")?;
+    Ok(at)
+}
+
+/// The `(class, value)` pairs of the money table at `at`, its `0xFF` end included.
+fn read_money_pairs(rom: &Rom, at: u32, n: &Counts) -> Result<Vec<(u8, u8)>> {
+    let mut pairs: Vec<(u8, u8)> = Vec::new();
+    for i in 0..MAX_TRAINER_MONEY {
+        let [class, v, pad0, pad1] = rom
+            .slice(at + TRAINER_MONEY_SIZE * i, TRAINER_MONEY_SIZE as usize)?
+            .try_into()
+            .unwrap();
+        ensure!(
+            v > 0 && pad0 == 0 && pad1 == 0,
+            "money table at {at:#x}: bad entry {i} (class {class}, value {v})"
+        );
+        if class == TRAINER_MONEY_END {
+            pairs.push((class, v));
+            ensure!(pairs.len() > 1, "money table at {at:#x}: empty");
+            return Ok(pairs);
+        }
+        ensure!(
+            u32::from(class) < n.trainer_classes && pairs.iter().all(|&(c, _)| c != class),
+            "money table at {at:#x}: bad class {class}"
+        );
+        pairs.push((class, v));
+    }
+    bail!("money table at {at:#x}: no end")
 }
 
 /// Offset of the `TYPE_ENDTABLE` triple.
@@ -764,6 +905,8 @@ pub struct BattleData {
     pub types: TypesFile,
     pub trainers: TrainersFile,
     pub encounters: EncountersFile,
+    pub evolutions: EvolutionsFile,
+    pub trainer_money: TrainerMoneyFile,
     pub heal_locations: HealLocationsFile,
     pub strings: BattleStringsFile,
     /// `battle/<table>` -> offset, for the manifest.
@@ -786,8 +929,8 @@ fn bits(t: &names::Table, v: u32) -> Vec<String> {
         .collect()
 }
 
-/// Reads every table of [`locate`]; encounters for the land tables of `maps` (decomp
-/// directory names) only.
+/// Reads every table of [`locate`]; encounters for the headers of `maps` (decomp directory
+/// names) only.
 pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
     let loc = locate(rom)?;
     let n = counts();
@@ -805,6 +948,10 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         ("trainer_class_names", loc.trainer_class_names),
         ("experience_tables", loc.experience_tables),
         ("wild_headers", loc.wild_headers),
+        ("evolutions", loc.evolutions),
+        ("trainer_money", loc.trainer_money),
+        ("species_to_national", loc.species_to_national),
+        ("pokedex_entries", loc.pokedex_entries),
         ("nature_power", loc.nature_power),
         ("heal_locations", loc.heal_locations),
         ("strings", loc.battle_strings),
@@ -820,6 +967,13 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         types: read_types(rom, &loc, &n)?,
         trainers: read_trainers(rom, &loc, &n)?,
         encounters: read_encounters(rom, &loc, maps)?,
+        evolutions: read_evolutions(rom, &loc, &n)?,
+        trainer_money: TrainerMoneyFile {
+            classes: read_money_pairs(rom, loc.trainer_money, &n)?
+                .into_iter()
+                .map(|(c, v)| (names::TRAINER_CLASSES.name_or_hex(c.into()), v))
+                .collect(),
+        },
         heal_locations: read_heal_locations(rom, &loc, &n)?,
         strings: read_strings(rom, &loc, &n)?,
         provenance,
@@ -834,6 +988,8 @@ impl BattleData {
         o.ron("battle/types.ron", &self.types)?;
         o.ron("battle/trainers.ron", &self.trainers)?;
         o.ron("battle/encounters.ron", &self.encounters)?;
+        o.ron("battle/evolutions.ron", &self.evolutions)?;
+        o.ron("battle/trainer_money.ron", &self.trainer_money)?;
         o.ron("battle/heal_locations.ron", &self.heal_locations)?;
         o.ron("battle/strings.ron", &self.strings)
     }
@@ -893,9 +1049,23 @@ fn read_species(rom: &Rom, loc: &Locations, n: &Counts) -> Result<SpeciesFile> {
                 names::ABILITIES.name_or_hex(b[0x17].into()),
             ],
             learnset,
+            weight: species_weight(rom, loc, i).with_context(ctx)?,
         });
     }
     Ok(SpeciesFile { species })
+}
+
+/// `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight`, 0 without an entry
+/// (`SPECIES_NONE`, and the old Unown placeholders, numbered past `NATIONAL_DEX_COUNT`).
+fn species_weight(rom: &Rom, loc: &Locations, species: u32) -> Result<u16> {
+    let Some(i) = species.checked_sub(1) else {
+        return Ok(0);
+    };
+    let national = u32::from(rom.u16(loc.species_to_national + 2 * i)?);
+    if national == 0 || national > NATIONAL_DEX_COUNT {
+        return Ok(0);
+    }
+    rom.u16(loc.pokedex_entries + DEX_ENTRY_SIZE * national + DEX_ENTRY_HEIGHT + 2)
 }
 
 fn read_moves(rom: &Rom, loc: &Locations, n: &Counts) -> Result<MovesFile> {
@@ -1051,42 +1221,94 @@ fn read_trainers(rom: &Rom, loc: &Locations, n: &Counts) -> Result<TrainersFile>
     Ok(TrainersFile { trainers })
 }
 
+/// One `WildPokemonInfo` (`{u8 encounterRate; const struct WildPokemon *wildPokemon;}`) of
+/// `slots` mons, or `None` for a null pointer.
+fn read_wild_table(rom: &Rom, info: Option<u32>, slots: u32) -> Result<Option<LandEncounters>> {
+    let Some(info) = info else {
+        return Ok(None);
+    };
+    let rate = rom.u8(info)?;
+    let mons_at = rom.req_ptr(info + 4, "wild mons")?;
+    let mut mons = Vec::with_capacity(slots as usize);
+    for k in 0..slots {
+        let w = mons_at + 4 * k;
+        let species = rom.u16(w + 2)?;
+        ensure!(
+            u32::from(species) < counts().species,
+            "wild mon at {w:#x}: species {species}"
+        );
+        mons.push(WildMon {
+            min_level: rom.u8(w)?,
+            max_level: rom.u8(w + 1)?,
+            species: names::SPECIES.name_or_hex(species.into()),
+        });
+    }
+    Ok(Some(LandEncounters { rate, mons }))
+}
+
+/// Every `gWildMonHeaders` entry of `maps`, in table order per map (Altering Cave has 9, one per
+/// `VAR_ALTERING_CAVE_WILD_SET` value).
 fn read_encounters(rom: &Rom, loc: &Locations, maps: &[&str]) -> Result<EncountersFile> {
-    let mut out = BTreeMap::new();
+    let mut out: BTreeMap<String, Vec<EncounterHeader>> = BTreeMap::new();
     let mut at = loc.wild_headers;
     while wild_header_ok(rom, at) {
         let m = names::map(rom.u8(at)?, rom.u8(at + 1)?).expect("checked");
-        if maps.contains(&m.dir)
-            && let Some(info) = rom.ptr(at + 4)?
-        {
-            let rate = rom.u8(info)?;
-            let mons_at = rom.req_ptr(info + 4, "land mons")?;
-            let mut mons = Vec::with_capacity(LAND_SLOTS as usize);
-            for k in 0..LAND_SLOTS {
-                let w = mons_at + 4 * k;
-                mons.push(WildMon {
-                    min_level: rom.u8(w)?,
-                    max_level: rom.u8(w + 1)?,
-                    species: names::SPECIES.name_or_hex(rom.u16(w + 2)?.into()),
+        if maps.contains(&m.dir) {
+            let table = |i: u32| -> Result<Option<LandEncounters>> {
+                read_wild_table(rom, rom.ptr(at + 4 + 4 * i)?, WILD_SLOTS[i as usize])
+                    .with_context(|| format!("{}: wild header at {at:#x}", m.dir))
+            };
+            out.entry(m.dir.to_string())
+                .or_default()
+                .push(EncounterHeader {
+                    land: table(0)?,
+                    water: table(1)?,
+                    rock_smash: table(2)?,
+                    fishing: table(3)?,
                 });
-            }
-            // Wave 0: one header per map (Task A reads every header, Altering Cave's 9).
-            ensure!(
-                out.insert(
-                    m.dir.to_string(),
-                    vec![EncounterHeader {
-                        land: Some(LandEncounters { rate, mons }),
-                        ..EncounterHeader::default()
-                    }]
-                )
-                .is_none(),
-                "{}: two wild headers",
-                m.dir
-            );
         }
         at += WILD_HEADER_SIZE;
     }
     Ok(EncountersFile { maps: out })
+}
+
+/// `gEvolutionTable`: the non-empty slots of each species, which must come first in its row.
+fn read_evolutions(rom: &Rom, loc: &Locations, n: &Counts) -> Result<EvolutionsFile> {
+    let mut out = EvolutionsFile::default();
+    for i in 0..n.species {
+        let id = names::SPECIES.name_or_hex(i);
+        let mut evos = Vec::new();
+        let mut ended = false;
+        for k in 0..EVOS_PER_MON {
+            let at = loc.evolutions + (i * EVOS_PER_MON + k) * EVOLUTION_SIZE;
+            let [method, param, target]: [u16; 3] = rom.u16s(at, 3)?.try_into().unwrap();
+            if method == 0 {
+                ensure!(
+                    param == 0 && target == 0,
+                    "{id}: empty evolution slot {k} at {at:#x} holds data"
+                );
+                ended = true;
+                continue;
+            }
+            ensure!(!ended, "{id}: evolution slot {k} after an empty one");
+            let name = EVO_METHODS
+                .get(usize::from(method))
+                .with_context(|| format!("{id}: evolution method {method} at {at:#x}"))?;
+            ensure!(
+                u32::from(target) < n.species && target != 0,
+                "{id}: evolution target {target} at {at:#x}"
+            );
+            evos.push((
+                name.to_string(),
+                param,
+                names::SPECIES.name_or_hex(target.into()),
+            ));
+        }
+        if !evos.is_empty() {
+            out.species.insert(id, evos);
+        }
+    }
+    Ok(out)
 }
 
 fn read_heal_locations(rom: &Rom, loc: &Locations, n: &Counts) -> Result<HealLocationsFile> {

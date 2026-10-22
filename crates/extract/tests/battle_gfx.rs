@@ -575,8 +575,26 @@ fn export_round_trips_and_is_deterministic() {
     let id = species("SPECIES_TREECKO");
     assert_eq!(shiny.0, fr_located().mons.get(fr(), id).unwrap().shiny);
 
+    // Every species with ROM graphics (Unown's entry is form A; forms B-? are their own
+    // `SPECIES_UNOWN_*` entries), not a slice set.
+    for (_, s) in extract::names::SPECIES.iter() {
+        for f in ["front.png", "back.png", "shiny.pal"] {
+            assert!(dir.join(format!("pokemon/{s}/{f}")).exists(), "{s}/{f}");
+        }
+    }
+
     let pics: TrainerPicsFile = export::read_ron(&dir.join("trainers/pics.ron")).unwrap();
     assert_eq!(pics.front.len(), 93);
+    // Every trainer's pic.
+    let trainers = extract::battle_data::extract(fr(), &[]).unwrap().trainers;
+    for t in &trainers.trainers {
+        assert!(pics.front.contains_key(&t.pic), "{}: {}", t.id, t.pic);
+        assert!(
+            dir.join(format!("trainers/front/{}.png", t.pic)).exists(),
+            "{}",
+            t.pic
+        );
+    }
     assert_eq!(pics.back["TRAINER_BACK_PIC_BRENDAN"], 4);
     assert_eq!(pics.back_coords["TRAINER_BACK_PIC_BRENDAN"].size, 8);
     let back = gfx::read_png_indexed(&dir.join("trainers/back/TRAINER_BACK_PIC_BRENDAN.png"));

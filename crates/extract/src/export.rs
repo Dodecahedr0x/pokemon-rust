@@ -1,5 +1,6 @@
-//! Writes `content/extracted/` in the format of [`crate::schema`]: maps, tilesets, sprites,
-//! font, window graphics and previews, all named by decomp identifiers. Texts and scripts are
+//! Writes `content/extracted/` in the format of [`crate::schema`]: maps, layouts, tilesets,
+//! sprites, field-effect emotes, font, window graphics and (with [`ExportOptions::previews`])
+//! previews, all named by decomp identifiers. Texts and scripts are
 //! written by [`scripts::export_scripts`] (Milestone 3 Task B; M8 Task B owns
 //! `export/scripts.rs`), the item, multichoice, std-string and map-section tables by
 //! [`tables::export_tables`] (M8 Task C owns `export/tables.rs`).
@@ -12,10 +13,11 @@ use crate::maps::{self, BgEventKind, Direction, MapHeader, MapId, TilesetHeaders
 use crate::render::{self, NUM_PALS_IN_PRIMARY, TilesetData};
 use crate::roots::{self, MapScriptTable};
 use crate::schema::{
-    self, Bg, BgKind, Connection, ConnectionDir, Coord, FontFile, Header, Hex, Layout, Manifest,
-    MapFile, MapScripts, Object, SpriteFile, TilesetFile, VarScript, Warp, WindowFile,
+    self, Bg, BgKind, Connection, ConnectionDir, Coord, FieldEffectSpriteFile, FontFile, Header,
+    Hex, Layout, LayoutFile, Manifest, MapFile, MapScripts, Object, SpriteFile, TilesetFile,
+    VarScript, Warp, WindowFile,
 };
-use crate::sprites::{self, ObjectGraphics};
+use crate::sprites::{self, ObjectGraphics, ObjectGraphicsTable};
 use crate::{GameCode, Rom, battle_data, battle_gfx, font, names, window};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
@@ -48,10 +50,6 @@ pub const SLICE_MAPS: [&str; 15] = [
     "OldaleTown_Mart",
 ];
 
-/// The exported maps until Milestone 8 Task A exports every map: [`SLICE_MAPS`]. Deleted by
-/// Task A; nothing but [`ExportOptions::default`] reads it.
-pub const MAPS: [&str; 15] = SLICE_MAPS;
-
 /// What [`export`] writes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExportOptions {
@@ -70,7 +68,7 @@ impl ExportOptions {
         }
     }
 
-    /// Every `names::MAPS` entry, in `gMapGroups` order (Task A makes this the default).
+    /// Every `names::MAPS` entry, in `gMapGroups` order.
     pub fn all(previews: bool) -> ExportOptions {
         ExportOptions {
             maps: names::MAPS.iter().map(|m| m.dir).collect(),
@@ -80,9 +78,11 @@ impl ExportOptions {
 }
 
 impl Default for ExportOptions {
-    /// Wave 0: the slice, with previews.
+    /// [`SLICE_MAPS`], without previews. Every map exports and round-trips
+    /// ([`ExportOptions::all`]), but the content build cannot consume all of them yet (Milestone 8
+    /// Task E); Task L makes `all` the default once it does.
     fn default() -> ExportOptions {
-        ExportOptions::slice(true)
+        ExportOptions::slice(false)
     }
 }
 
@@ -95,6 +95,10 @@ const GFX_PREFIX: &str = "OBJ_EVENT_GFX_";
 const VAR_OBJ_GFX_ID_0: u16 = 0x4010;
 /// `setvar` (`data/script_cmd_table.inc`).
 const OP_SETVAR: u8 = 0x16;
+/// `setmaplayoutindex` (`data/script_cmd_table.inc`).
+const OP_SETMAPLAYOUTINDEX: u8 = 0xA7;
+/// `VARS_START`: `VarGet` operands from here on name a var.
+const FIRST_VAR: u16 = 0x4000;
 /// gbagfx's font palette (`gFontPalette` in `tools/gbagfx/font.c`).
 const FONT_PALETTE: [[u8; 3]; 4] = [
     [0x90, 0xC8, 0xFF],
@@ -189,8 +193,9 @@ pub struct ExportedMap {
     pub roots: Vec<(String, u32)>,
 }
 
-/// Exports `opts.maps`, their tilesets, the sprites they use, the font, the window graphics,
-/// the battle data, the scripts and the tables from `rom` into `out`, which is created if needed
+/// Exports `opts.maps`, their layouts (and those their scripts switch to), the tilesets of those
+/// layouts, the sprites they use, the field-effect emotes, the font, the window graphics, the
+/// battle data, the scripts and the tables from `rom` into `out`, which is created if needed
 /// (existing files are overwritten, others left alone).
 pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     let mut o = Out {
@@ -202,6 +207,8 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     provenance.insert("map_table".to_string(), Hex(table.offset));
     let ts_headers = TilesetHeaders::locate(rom, &table)?;
     provenance.insert("tileset_headers".to_string(), Hex(ts_headers.offset));
+    let layout_table = maps::locate_layout_table(rom, &table)?;
+    provenance.insert("layout_table".to_string(), Hex(layout_table.offset));
 
     let mut exported = Vec::new();
     for &name in &opts.maps {
@@ -224,17 +231,35 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
         provenance.insert(format!("script/{script}"), Hex(*off));
     }
 
-    // Tilesets, keyed by header index (headers.h order).
+    // Script walk: unknown opcodes per root, `setvar VAR_OBJ_GFX_ID_*` graphics and
+    // `setmaplayoutindex` layouts.
+    let mut unknown_script_ops = BTreeMap::new();
+    let mut gfx_ids: BTreeSet<u8> = BTreeSet::new();
+    let mut layout_ids: BTreeSet<u16> = exported.iter().map(|m| m.header.layout_id).collect();
+    for (&off, script) in &canonical {
+        let scan = crate::scripts::walk(rom, &[off]).with_context(|| format!("script {script}"))?;
+        if !scan.unknown.is_empty() {
+            let ops = scan.unknown.iter().map(|(&k, &v)| (Hex(k), v)).collect();
+            unknown_script_ops.insert(script.clone(), ops);
+        }
+        gfx_ids.extend(var_gfx_ids(rom, &scan).with_context(|| format!("script {script}"))?);
+        layout_ids.extend(set_layout_ids(rom, &scan)?);
+    }
+
+    // Layouts by id, and the tilesets they use, keyed by header index (headers.h order).
+    let mut layouts: BTreeMap<u16, maps::MapLayout> = BTreeMap::new();
+    for &id in &layout_ids {
+        layouts.insert(id, layout_table.layout(rom, id)?);
+    }
     let mut tilesets: BTreeMap<u32, (&'static str, maps::TilesetRef, TilesetData)> =
         BTreeMap::new();
-    for m in &exported {
-        let l = &m.header.layout;
+    for (&id, l) in &layouts {
         for off in [l.primary_tileset, l.secondary_tileset] {
             let name = ts_headers.name(off)?;
             let index = names::TILESETS.value(name).expect("named tileset");
             if let std::collections::btree_map::Entry::Vacant(e) = tilesets.entry(index) {
                 let r = maps::read_tileset(rom, off, &table)
-                    .with_context(|| format!("{}: tileset {name}", m.name))?;
+                    .with_context(|| format!("layout {id}: tileset {name}"))?;
                 let data = render::load_tileset(rom, &r)?;
                 e.insert((name, r, data));
             }
@@ -244,6 +269,20 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
         .values()
         .map(|(n, r, d)| (r.offset, (*n, d)))
         .collect();
+    for (&id, l) in &layouts {
+        let name = maps::LayoutTable::name(id)?;
+        let file = LayoutFile {
+            id: names::LAYOUTS.name_or_hex(id.into()),
+            layout: layout(
+                l,
+                tileset_by_offset[&l.primary_tileset].0,
+                tileset_by_offset[&l.secondary_tileset].0,
+            )
+            .with_context(|| format!("layout {name}"))?,
+        };
+        o.ron(&format!("layouts/{name}.ron"), &file)?;
+        provenance.insert(format!("layout/{name}"), Hex(l.offset));
+    }
 
     let exported_names: BTreeMap<MapId, &str> = exported.iter().map(|m| (m.id, m.name)).collect();
     for m in &exported {
@@ -292,17 +331,6 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
         }
     }
 
-    // Script walk: unknown opcodes per root, and `setvar VAR_OBJ_GFX_ID_*` graphics.
-    let mut unknown_script_ops = BTreeMap::new();
-    let mut gfx_ids: BTreeSet<u8> = BTreeSet::new();
-    for (&off, script) in &canonical {
-        let scan = crate::scripts::walk(rom, &[off]).with_context(|| format!("script {script}"))?;
-        if !scan.unknown.is_empty() {
-            let ops = scan.unknown.iter().map(|(&k, &v)| (Hex(k), v)).collect();
-            unknown_script_ops.insert(script.clone(), ops);
-        }
-        gfx_ids.extend(var_gfx_ids(rom, &scan).with_context(|| format!("script {script}"))?);
-    }
     for p in PLAYER_SPRITES {
         gfx_ids.insert(names::OBJ_EVENT_GFX.value(p).expect("player gfx") as u8);
     }
@@ -334,6 +362,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
         provenance.insert(format!("sprite/{}", file.name), Hex(g.offset));
         sprite_names.push(file.name);
     }
+    write_emotes(rom, &gfx_table, &mut o, &mut provenance)?;
 
     let (glyphs_off, widths_off) = font::locate_latin_normal(rom)?;
     let f = font::read_latin_normal_at(rom, glyphs_off, widths_off)?;
@@ -402,6 +431,54 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     std::fs::write(&path, to_ron(&manifest)?)
         .with_context(|| format!("writing {}", path.display()))?;
     Ok(manifest)
+}
+
+/// `sprites/field_effects/<Name>.{png,ron}` for each of [`sprites::EMOTES`].
+fn write_emotes(
+    rom: &Rom,
+    objects: &ObjectGraphicsTable,
+    o: &mut Out,
+    provenance: &mut BTreeMap<String, Hex>,
+) -> Result<()> {
+    let emotes = sprites::locate_emotes(rom)?;
+    let palette = emotes.palette(rom, objects)?;
+    provenance.insert("emotes".to_string(), Hex(emotes.offset));
+    for p in &emotes.pics {
+        let img = gfx::tiles_4bpp_to_image(&p.tiles, u32::from(p.width) / 8)
+            .with_context(|| format!("emote {}", p.name))?;
+        o.png_indexed(
+            &format!("sprites/field_effects/{}.png", p.name),
+            &img,
+            &Palette(palette),
+        )?;
+        o.ron(
+            &format!("sprites/field_effects/{}.ron", p.name),
+            &FieldEffectSpriteFile {
+                name: p.name.to_string(),
+                width: p.width,
+                height: p.height,
+                frames: 1,
+                palette,
+            },
+        )?;
+        provenance.insert(format!("sprite/field_effects/{}", p.name), Hex(p.offset));
+    }
+    Ok(())
+}
+
+/// Layout ids a walk switches to through `setmaplayoutindex <LAYOUT_*>`. The operand goes through
+/// `VarGet`, so a var (0x4000 and up) is possible; Emerald never uses one, and one is skipped.
+pub fn set_layout_ids(rom: &Rom, scan: &crate::scripts::ScriptScan) -> Result<BTreeSet<u16>> {
+    let mut ids = BTreeSet::new();
+    for &pc in &scan.visited {
+        if rom.u8(pc)? == OP_SETMAPLAYOUTINDEX {
+            let id = rom.u16(pc + 1)?;
+            if id < FIRST_VAR {
+                ids.insert(id);
+            }
+        }
+    }
+    Ok(ids)
 }
 
 /// The canonical root name of the script at `off`, `None` for a null script.
@@ -502,23 +579,11 @@ pub fn map_file(
             })
             .collect()
     };
-    ensure!(
-        l.border.len() == 4 && l.blocks.len() == usize::from(l.width) * usize::from(l.height),
-        "{}: bad layout size",
-        m.name
-    );
     Ok(MapFile {
         name: m.name.to_string(),
         group: m.id.group,
         num: m.id.num,
-        layout: Layout {
-            width: l.width,
-            height: l.height,
-            primary: primary.to_string(),
-            secondary: secondary.to_string(),
-            border: schema::to_rows(&l.border, 2),
-            blocks: schema::to_rows(&l.blocks, l.width.into()),
-        },
+        layout: layout(l, primary, secondary).with_context(|| m.name.to_string())?,
         header: Header {
             music: h.music,
             region_map_section: h.region_map_section,
@@ -604,6 +669,22 @@ pub fn map_file(
             on_frame: var_scripts(&map_scripts.on_frame)?,
             on_warp_into: var_scripts(&map_scripts.on_warp_into)?,
         },
+    })
+}
+
+/// The schema `Layout` of `l`, with its tilesets' names.
+fn layout(l: &maps::MapLayout, primary: &str, secondary: &str) -> Result<Layout> {
+    ensure!(
+        l.border.len() == 4 && l.blocks.len() == usize::from(l.width) * usize::from(l.height),
+        "bad layout size"
+    );
+    Ok(Layout {
+        width: l.width,
+        height: l.height,
+        primary: primary.to_string(),
+        secondary: secondary.to_string(),
+        border: schema::to_rows(&l.border, 2),
+        blocks: schema::to_rows(&l.blocks, l.width.into()),
     })
 }
 

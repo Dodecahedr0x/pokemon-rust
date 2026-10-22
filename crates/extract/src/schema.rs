@@ -83,8 +83,9 @@ use std::collections::{BTreeMap, BTreeSet};
 /// scripts' index renamed `scripts/legacy_index.ron`.
 pub const FORMAT_VERSION: u32 = 5;
 /// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
-/// extract.
-pub const FORMAT_MINOR: u32 = 0;
+/// extract; 1 (Task A) adds `layouts/`, `sprites/field_effects/`, every wild table of every
+/// header, `battle/evolutions.ron` and `battle/trainer_money.ron`, and makes previews optional.
+pub const FORMAT_MINOR: u32 = 1;
 
 /// A ROM file offset, written `"0x3e45f0"`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -424,6 +425,11 @@ pub struct Species {
     pub abilities: [String; 2],
     /// `(level, MOVE_*)` in `gLevelUpLearnsets` order.
     pub learnset: Vec<(u8, String)>,
+    /// `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight`, in hectograms (Low Kick);
+    /// 0 for species without a Pokédex entry. Format 5.1 (Milestone 8 Task A); absent in older
+    /// files, which read as 0.
+    #[serde(default)]
+    pub weight: u16,
 }
 
 /// `battle/moves.ron`.
@@ -801,7 +807,9 @@ pub struct EvolutionsFile {
     pub species: BTreeMap<String, Vec<EvolutionEntry>>,
 }
 
-/// `battle/trainer_money.ron`: `TRAINER_CLASS_*` -> its `gTrainerMoneyTable` value.
+/// `battle/trainer_money.ron`: `TRAINER_CLASS_*` -> its `gTrainerMoneyTable` value. The
+/// table's `0xFF` terminator is kept as `TRAINER_CLASS_0xFF`: its value is the default of every
+/// class not listed (`GetTrainerMoneyToGive`).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct TrainerMoneyFile {
     pub classes: BTreeMap<String, u8>,
@@ -835,6 +843,7 @@ mod tests {
                 growth: "GROWTH_MEDIUM_SLOW".into(),
                 abilities: ["ABILITY_TORRENT".into(), "ABILITY_NONE".into()],
                 learnset: vec![(1, "MOVE_TACKLE".into()), (1, "MOVE_GROWL".into())],
+                weight: 76,
             }],
         };
         let s = ron::to_string(&species).unwrap();
