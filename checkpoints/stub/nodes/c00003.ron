@@ -4,8 +4,8 @@
         label: "route:stub_end",
         schema: 2,
         build: (
-            engine: 12878835011620170871,
-            content: 10399531972722403209,
+            engine: 3590135998446755438,
+            content: 5875683769278456523,
         ),
         frame: 1543,
         map: (9),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(2),
         build: (
-            engine: 12878835011620170871,
-            content: 10399531972722403209,
+            engine: 3590135998446755438,
+            content: 5875683769278456523,
         ),
         start_frame: 1207,
         inputs: [
