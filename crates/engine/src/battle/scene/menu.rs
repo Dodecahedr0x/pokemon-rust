@@ -70,7 +70,7 @@ impl BattleScene {
         match self.menu {
             Menu::None => match battle.need() {
                 Need::Action => {
-                    w.action_menu(game, &names(game, battle), f);
+                    w.action_menu(game, &names(game, battle, &self.player), f);
                     self.menu = Menu::Action;
                 }
                 // No party screen: the first mon that can fight.
@@ -101,7 +101,7 @@ impl BattleScene {
                 }
                 // No bag nor party screen in the slice: back to the menu.
                 Some(Action::Bag | Action::Pokemon) => {
-                    w.action_menu(game, &names(game, battle), f);
+                    w.action_menu(game, &names(game, battle, &self.player), f);
                 }
                 None => {}
             },
@@ -111,7 +111,7 @@ impl BattleScene {
                     return Some(Choice::Move(slot));
                 }
                 Some(MoveChoice::Back) => {
-                    w.action_menu(game, &names(game, battle), f);
+                    w.action_menu(game, &names(game, battle, &self.player), f);
                     self.menu = Menu::Action;
                 }
                 None => {}

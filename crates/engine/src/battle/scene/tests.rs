@@ -78,7 +78,7 @@ impl Run {
             environment: Environment::Grass,
         };
         let mut battle = Battle::new(&game, setup.clone(), &party(player), &mut rng);
-        let mut scene = BattleScene::new(&setup);
+        let mut scene = BattleScene::new(&setup, named("ASH"));
         let mut events = Vec::new();
         battle.start(&game, &mut rng, &mut events);
         scene.push(&mut events);
@@ -490,6 +490,44 @@ fn hash_follows_playback() {
             "event {i} hashes like a later one"
         );
     }
+}
+
+/// A [`PlayerName`] spelling `s`.
+fn named(s: &str) -> PlayerName {
+    let mut name = [EOS; 8];
+    for (o, c) in name.iter_mut().zip(
+        crate::battle::ui::test_game::enc(s)
+            .into_iter()
+            .take_while(|&c| c != EOS),
+    ) {
+        *o = c;
+    }
+    name
+}
+
+/// `{B_PLAYER_NAME}` prints the name the World gave the scene; the scene does not hash the
+/// name itself (the World does).
+#[test]
+fn messages_print_the_worlds_player_name() {
+    let run = |name: &str| {
+        let mut r = at_first_menu();
+        r.scene.player = named(name);
+        let before = r.hash();
+        // The test game's `BirchInTrouble` is "{B_PLAYER_NAME}".
+        r.scene
+            .queue
+            .push_back(script_msg(Str::BirchInTrouble, MsgWait::Button));
+        for _ in 0..30 {
+            r.frame(NONE);
+        }
+        assert_eq!(r.scene.play, Play::Msg);
+        (before, r.hash())
+    };
+    let (ash0, ash1) = run("ASH");
+    let (may0, may1) = run("MAY");
+    assert_eq!(ash0, may0, "the scene's copy of the name is not hashed");
+    assert_ne!(ash1, may1);
+    assert_eq!(run("ASH"), (ash0, ash1));
 }
 
 /// A message about the opponent, no buffers.

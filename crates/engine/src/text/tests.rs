@@ -119,7 +119,7 @@ fn leak(b: &[u8]) -> &'static [u8] {
 /// A text box printing `text`.
 fn printing(g: &Game, text: &[u8]) -> TextBox {
     let mut tb = TextBox::new();
-    tb.print(g, leak(text), &mut Frame::default());
+    tb.print(g, leak(text), &[0xFF], &mut Frame::default());
     tb
 }
 
@@ -271,11 +271,13 @@ fn prompt_scroll_waits_then_scrolls_one_line() {
 #[test]
 fn placeholders_expand() {
     let g = game();
-    // {PLAYER} {RIVAL} {STR_VAR_1} 1
-    let out = expand(&g, &[0xFD, 0x01, 0xFD, 0x06, 0xFD, 0x02, 1, 0xFF, 9]);
-    assert_eq!(out, [4, 4, 5, 1, 0xFF]);
+    // {PLAYER} {RIVAL} {STR_VAR_1} 1: the player is the name passed in (the World's), not
+    // `NewGame::player_name` ([4, 4]); it stops at its 0xFF.
+    let text = [0xFD, 0x01, 0xFD, 0x06, 0xFD, 0x02, 1, 0xFF, 9];
+    let out = expand(&g, &text, &[7, 8, 0xFF, 9]);
+    assert_eq!(out, [7, 8, 5, 1, 0xFF]);
     // Unterminated input still ends with 0xFF.
-    assert_eq!(expand(&g, &[1]), [1, 0xFF]);
+    assert_eq!(expand(&g, &[1], &[7, 0xFF]), [1, 0xFF]);
 }
 
 #[test]
@@ -285,7 +287,7 @@ fn code_arguments_are_never_text() {
     let text = [
         0xFC, 0x0B, 0xFD, 0x01, 0xFC, 0x10, 0xFF, 0xFE, 0xF9, 0xFF, 1, 0xFF,
     ];
-    assert_eq!(expand(&g, &text), text);
+    assert_eq!(expand(&g, &text, &[7, 0xFF]), text);
     let mut tb = printing(&g, &[0xFC, 0x0B, 0xFF, 0xFE, 0xF8, 0xFF, 1, 0xFF]);
     run_page(&mut tb, &g);
     assert_eq!(px(&tb.printer.canvas, 0, 1), FG);
