@@ -1,7 +1,8 @@
 //! `cargo xtask checkpoints <list|verify|seed|label|rm|sav>` (Milestone 5 Task G).
 //!
-//! The store is `checkpoints/{stub|emerald}` after the content flavor (`content::STUB`), or
-//! `$PKR_CHECKPOINTS`; `--root <dir>` overrides both.
+//! The store is the committed tree, `checkpoints/{stub|emerald}` after the content flavor
+//! (`content::STUB`); `--root <dir>` overrides it. `play`'s personal saves (`local/`,
+//! `$PKR_CHECKPOINTS`) are not part of it.
 
 use anyhow::{Context, Result, anyhow, bail};
 use game_native::checkpoints::{materialize, replayer, seed};

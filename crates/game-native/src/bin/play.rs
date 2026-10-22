@@ -4,9 +4,10 @@
 //! F5 saves a checkpoint, F9 reloads the current one, F8 rewinds, Escape quits.
 //! The window is 4x the GBA screen; the game runs at the window's 60 fps target.
 //!
-//! `play --load <id|label>` starts at a checkpoint node, `play --list` prints the tree. The
-//! store is `checkpoints/{stub|emerald}` (or `$PKR_CHECKPOINTS`), as for `cargo xtask
-//! checkpoints`.
+//! `play --load <id|label>` starts at a checkpoint node, `play --list` prints the tree. Saves
+//! go to a personal, git-ignored store (`checkpoints/{stub|emerald}/local`, or
+//! `$PKR_CHECKPOINTS`) layered over the committed tree (`checkpoints/{stub|emerald}`, read only):
+//! `--load`, `--list` and F9 see both, and a save may start from a committed node.
 
 use engine::Buttons;
 use game_native::checkpoints::materialize;
@@ -82,7 +83,10 @@ fn list(store: &Store) -> std::io::Result<()> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let store = match Store::open(Store::default_root(content::STUB)) {
+    let store = match Store::layered(
+        Store::default_root(content::STUB),
+        Store::local_root(content::STUB),
+    ) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("checkpoint store: {e}");

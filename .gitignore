@@ -12,3 +12,4 @@ content/.extracted.tmp/
 content/.extracted.old/
 checkpoints/*/snapshots/
 checkpoints/*/status.ron
+checkpoints/*/local/

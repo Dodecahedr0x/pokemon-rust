@@ -6,6 +6,11 @@
 //! status.ron             BTreeMap<CheckpointId, Status>  git-ignored, written by verify
 //! ```
 //!
+//! A layered store ([`Store::layered`], the `play` bin's) writes its own nodes in a local root
+//! (`checkpoints/{flavor}/local/`, git-ignored, or `$PKR_CHECKPOINTS`) and reads the committed
+//! tree as a read-only base: base nodes are listed, found and may be parents, but never
+//! written. Local ids start above [`LOCAL_IDS`], away from the committed ones.
+//!
 //! Every file is pretty RON with a fixed format (declaration field order, `\n` lines, 4-space
 //! indent), written to a per-writer `*.tmp` file and renamed into place (a new node is
 //! hard-linked, so two writers never publish the same id). Nothing in a file depends on the host,
@@ -127,6 +132,38 @@ pub struct Replayed {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Store {
     root: PathBuf,
+    /// The read-only tree under this one ([`Store::layered`]).
+    base: Option<PathBuf>,
+}
+
+/// A layered store's own nodes get ids above this one (`c10001`, ...), so they never collide
+/// with the committed tree's.
+pub const LOCAL_IDS: u32 = 10_000;
+
+fn node_file(root: &Path, id: CheckpointId) -> PathBuf {
+    root.join("nodes").join(format!("{id}.ron"))
+}
+
+/// The ids of `root/nodes/*.ron` (a missing directory has none).
+fn node_ids(root: &Path) -> io::Result<Vec<CheckpointId>> {
+    let entries = match fs::read_dir(root.join("nodes")) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e),
+    };
+    let mut ids = Vec::new();
+    for entry in entries {
+        let name = entry?.file_name();
+        let name = name.to_string_lossy();
+        let Some(stem) = name.strip_suffix(".ron") else {
+            continue; // `*.tmp` leftovers, editor files
+        };
+        let id = parse_id(stem)
+            .filter(|id| stem == id.to_string())
+            .ok_or_else(|| invalid(format!("nodes/{name}: not a node file name")))?;
+        ids.push(id);
+    }
+    Ok(ids)
 }
 
 /// The semantic identity of a snapshot (`engine::checkpoint::state_digest`).
@@ -221,11 +258,8 @@ struct HeaderProbe {
 }
 
 impl Store {
-    /// `$PKR_CHECKPOINTS`, else `<workspace>/checkpoints/{stub|emerald}`.
+    /// The committed tree: `<workspace>/checkpoints/{stub|emerald}`.
     pub fn default_root(stub: bool) -> PathBuf {
-        if let Some(dir) = std::env::var_os("PKR_CHECKPOINTS").filter(|d| !d.is_empty()) {
-            return dir.into();
-        }
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
@@ -235,6 +269,15 @@ impl Store {
             .join(if stub { "stub" } else { "emerald" })
     }
 
+    /// Where personal saves go (the `play` bin): `$PKR_CHECKPOINTS`, else
+    /// `<default_root>/local` (git-ignored).
+    pub fn local_root(stub: bool) -> PathBuf {
+        match std::env::var_os("PKR_CHECKPOINTS").filter(|d| !d.is_empty()) {
+            Some(dir) => dir.into(),
+            None => Self::default_root(stub).join("local"),
+        }
+    }
+
     /// A store at `root`. Nothing is created until a node is added: a missing root is an
     /// empty store.
     pub fn open(root: impl Into<PathBuf>) -> io::Result<Store> {
@@ -242,7 +285,19 @@ impl Store {
         if root.exists() && !root.is_dir() {
             return Err(invalid(format!("{} is not a directory", root.display())));
         }
-        Ok(Store { root })
+        Ok(Store { root, base: None })
+    }
+
+    /// A store writing at `local` over the read-only tree at `base`: `nodes`, `find`,
+    /// `topo_order` and `materialize` see both, a local node may have a base parent, and
+    /// `add`, `relabel`, `remove` and the snapshot cache only touch `local`. A base node is
+    /// never rewritten (`relabel`, `remove`, or a `verify --accept` that would change it fail).
+    pub fn layered(base: impl Into<PathBuf>, local: impl Into<PathBuf>) -> io::Result<Store> {
+        let base = Store::open(base)?.root;
+        Ok(Store {
+            base: Some(base),
+            ..Store::open(local)?
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -250,7 +305,21 @@ impl Store {
     }
 
     fn node_path(&self, id: CheckpointId) -> PathBuf {
-        self.root.join("nodes").join(format!("{id}.ron"))
+        node_file(&self.root, id)
+    }
+
+    /// Node `id` lives in the read-only base (not in this store's own root).
+    fn in_base(&self, id: CheckpointId) -> bool {
+        self.base
+            .as_deref()
+            .is_some_and(|base| !self.node_path(id).exists() && node_file(base, id).exists())
+    }
+
+    fn read_only(id: CheckpointId) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("{id} is in the read-only base tree"),
+        )
     }
 
     fn snapshot_path(&self, id: CheckpointId) -> PathBuf {
@@ -258,7 +327,11 @@ impl Store {
     }
 
     fn read_node(&self, id: CheckpointId) -> io::Result<Node> {
-        let node: Node = read_ron(&self.node_path(id)).map_err(|e| match e.kind() {
+        let path = match &self.base {
+            Some(base) if self.in_base(id) => node_file(base, id),
+            _ => self.node_path(id),
+        };
+        let node: Node = read_ron(&path).map_err(|e| match e.kind() {
             io::ErrorKind::NotFound => io::Error::new(e.kind(), format!("no node {id}")),
             _ => e,
         })?;
@@ -269,27 +342,26 @@ impl Store {
     }
 
     fn write_node(&self, node: &Node) -> io::Result<()> {
+        if self.in_base(node.meta.id) {
+            return Err(Self::read_only(node.meta.id));
+        }
         write_atomic(&self.node_path(node.meta.id), &to_ron(node)?)
     }
 
-    /// Every node, by id.
+    /// Every node (with the base's, if layered), by id.
     pub fn nodes(&self) -> io::Result<Vec<Node>> {
-        let entries = match fs::read_dir(self.root.join("nodes")) {
-            Ok(entries) => entries,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(e) => return Err(e),
-        };
-        let mut ids = Vec::new();
-        for entry in entries {
-            let name = entry?.file_name();
-            let name = name.to_string_lossy();
-            let Some(stem) = name.strip_suffix(".ron") else {
-                continue; // `*.tmp` leftovers, editor files
-            };
-            let id = parse_id(stem)
-                .filter(|id| stem == id.to_string())
-                .ok_or_else(|| invalid(format!("nodes/{name}: not a node file name")))?;
-            ids.push(id);
+        let mut ids = node_ids(&self.root)?;
+        if let Some(base) = &self.base {
+            let local: BTreeSet<CheckpointId> = ids.iter().copied().collect();
+            for id in node_ids(base)? {
+                if local.contains(&id) {
+                    return Err(invalid(format!(
+                        "{id} is both a local node and one of {}",
+                        base.display()
+                    )));
+                }
+                ids.push(id);
+            }
         }
         ids.sort_unstable();
         ids.into_iter().map(|id| self.read_node(id)).collect()
@@ -331,8 +403,9 @@ impl Store {
         Ok(())
     }
 
-    /// Adds a node (id: max + 1, so removing the highest node frees its id for reuse) whose
-    /// `trace` leads from its parent to `cp`, and caches `cp`.
+    /// Adds a node (id: max + 1, above [`LOCAL_IDS`] in a layered store; removing the highest
+    /// node frees its id for reuse) whose `trace` leads from its parent to `cp`, and caches
+    /// `cp`.
     /// The parent must exist, the trace must start at the parent's frame (0 for a new game)
     /// and end at `cp`'s.
     pub fn add(&self, label: &str, trace: Trace, cp: &Checkpoint) -> io::Result<CheckpointId> {
@@ -372,7 +445,12 @@ impl Store {
                 ),
             ));
         }
-        let mut next = nodes.last().map_or(Some(1), |n| n.meta.id.0.checked_add(1));
+        // Above every node (and above `LOCAL_IDS` in a layered store).
+        let floor = if self.base.is_some() { LOCAL_IDS } else { 0 };
+        let mut next = nodes
+            .last()
+            .map_or(floor, |n| n.meta.id.0.max(floor))
+            .checked_add(1);
         let mut node = Node {
             meta: NodeMeta::of(CheckpointId(0), label.into(), cp),
             trace,
@@ -400,8 +478,11 @@ impl Store {
         self.write_node(&node)
     }
 
-    /// Refuses a node with children. Also drops its cached snapshot.
+    /// Refuses a node with children, and a base node. Also drops its cached snapshot.
     pub fn remove(&self, id: CheckpointId) -> io::Result<()> {
+        if self.in_base(id) {
+            return Err(Self::read_only(id));
+        }
         let nodes = self.nodes()?;
         if !nodes.iter().any(|n| n.meta.id == id) {
             return Err(io::Error::new(
@@ -436,10 +517,19 @@ impl Store {
     }
 
     /// The cached snapshot; `None` if absent, of another schema, or undecodable (it is a
-    /// cache: replay rebuilds it).
+    /// cache: replay rebuilds it). A layered store falls back on the base's cache for a base
+    /// node.
     pub fn snapshot(&self, id: CheckpointId) -> io::Result<Option<Checkpoint>> {
-        let path = self.snapshot_path(id);
-        let probe: SchemaProbe = match read_ron(&path) {
+        match (Self::cached(&self.snapshot_path(id))?, &self.base) {
+            (None, Some(base)) if self.in_base(id) => {
+                Self::cached(&base.join("snapshots").join(format!("{id}.ron")))
+            }
+            (cp, _) => Ok(cp),
+        }
+    }
+
+    fn cached(path: &Path) -> io::Result<Option<Checkpoint>> {
+        let probe: SchemaProbe = match read_ron(path) {
             Ok(p) => p,
             Err(e)
                 if matches!(
@@ -454,7 +544,7 @@ impl Store {
         if probe.header.schema != SCHEMA {
             return Ok(None);
         }
-        match read_ron(&path) {
+        match read_ron(path) {
             Ok(cp) => Ok(Some(cp)),
             Err(e) if e.kind() == io::ErrorKind::InvalidData => Ok(None),
             Err(e) => Err(e),
