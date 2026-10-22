@@ -193,8 +193,9 @@ fn decomp_std_strings() -> Vec<(String, String)> {
         .collect()
 }
 
-/// `MAPSEC_*` -> name, from `region_map_sections.json` (the enum is generated from it).
-fn decomp_map_sections() -> Vec<(String, String)> {
+/// `MAPSEC_*` -> name and `[x, y, width, height]`, from `region_map_sections.json` (the enum
+/// and `gRegionMapEntries` are generated from it; x and y default to 0, width and height to 1).
+fn decomp_map_sections() -> Vec<(String, String, [u8; 4])> {
     let j: serde_json::Value =
         serde_json::from_str(&src("src/data/region_map/region_map_sections.json")).unwrap();
     j["map_sections"]
@@ -202,8 +203,17 @@ fn decomp_map_sections() -> Vec<(String, String)> {
         .unwrap()
         .iter()
         .map(|m| {
-            let name = m["name"].as_str().unwrap_or("");
-            (m["id"].as_str().unwrap().to_string(), name.to_string())
+            let id = m["id"].as_str().unwrap().to_string();
+            let name = m["name"].as_str().unwrap().to_string();
+            let field =
+                |k: &str, default: u8| m.get(k).map_or(default, |v| v.as_u64().unwrap() as u8);
+            let geometry = [
+                field("x", 0),
+                field("y", 0),
+                field("width", 1),
+                field("height", 1),
+            ];
+            (id, name, geometry)
         })
         .collect()
 }
@@ -288,13 +298,16 @@ fn us_std_strings_match_decomp() {
 
 #[test]
 fn us_map_sections_match_decomp() {
-    let (_, t) = us();
+    let (rom, t) = us();
     let got = &t.map_sections.sections;
     let want = decomp_map_sections();
     assert_eq!(got.len(), want.len());
     assert_eq!(got.len() as u32, tables::map_section_count());
-    for (id, name) in &want {
+    let base = tables::locate(rom).unwrap().map_sections;
+    for (i, (id, name, geometry)) in want.iter().enumerate() {
         assert_eq!(got[id], en(name), "{id}");
+        let g = tables::map_section_geometry(rom, base, i as u32).unwrap();
+        assert_eq!(&g, geometry, "{id}");
     }
 }
 
@@ -401,13 +414,21 @@ fn export_writes_the_four_tables() {
         f.sort();
         f
     });
-    let minor3: Vec<&str> = MINOR_FILES
-        .iter()
-        .filter(|&&(m, _)| m == 3)
-        .map(|&(_, p)| p)
-        .collect();
-    assert_eq!(minor3, FILES);
-    const { assert!(FORMAT_MINOR >= 3) };
+    // The four files arrived together in one minor, no newer than the writer's.
+    let minor_of = |path: &str| {
+        let m: Vec<u32> = MINOR_FILES
+            .iter()
+            .filter(|&&(_, p)| p == path)
+            .map(|&(m, _)| m)
+            .collect();
+        assert_eq!(m.len(), 1, "{path} in MINOR_FILES");
+        m[0]
+    };
+    let minor = minor_of(FILES[0]);
+    for f in FILES {
+        assert_eq!(minor_of(f), minor, "{f}");
+    }
+    assert!(minor <= FORMAT_MINOR);
 
     let items: ItemsFile = read(&dir, FILES[0]);
     let multichoice: MultichoiceFile = read(&dir, FILES[1]);

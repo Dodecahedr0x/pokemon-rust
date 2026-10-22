@@ -769,7 +769,8 @@ pub struct Item {
     pub id: String,
     /// The ROM's name, decomp `.string` syntax.
     pub name: String,
-    /// `None` for `POCKET_NONE` (`ITEM_NONE`, unused slots).
+    /// `None` for `POCKET_NONE`, which no Emerald item uses: `ITEM_NONE` and the unused slots
+    /// (`ITEM_034` …, itemId 0) are `POCKET_ITEMS`, named "????????" with price 0.
     pub pocket: Option<ItemPocket>,
     pub price: u16,
     /// `importance`: key items cannot be tossed or sold.

@@ -15,6 +15,9 @@
 //!   1×1).
 //!
 //! Every string is decoded with [`text::round_trip_at`], so it re-encodes to its ROM bytes.
+//!
+//! **Ids** are the primary names of the `names` tables. TMs and HMs are named `ITEM_TMnn` /
+//! `ITEM_HMnn` (not `ITEM_TM_FOCUS_PUNCH`): `names::ITEMS` has no `EQUIV_TM` aliases.
 
 use crate::schema::{
     Item, ItemPocket, ItemsFile, MapSectionsFile, MultichoiceFile, StdStringsFile,
@@ -30,6 +33,23 @@ pub const MAPSEC_SIZE: u32 = 8;
 const MULTICHOICE_SIZE: u32 = 8;
 const MENU_ACTION_SIZE: u32 = 8;
 const ITEM_NAME_LENGTH: u32 = 14;
+/// Field offsets in `struct Item` (`include/item.h`).
+const ITEM_ID: u32 = ITEM_NAME_LENGTH;
+const ITEM_PRICE: u32 = 16;
+const ITEM_IMPORTANCE: u32 = 24;
+const ITEM_POCKET: u32 = 26;
+/// `POCKET_ITEMS`, `POCKET_POKE_BALLS`.
+const POCKET_ITEMS: u8 = 1;
+const POCKET_POKE_BALLS: u8 = 2;
+/// `gItems[ITEM_POTION].price` and `gItems[ITEM_POKE_BALL].price` (`src/data/items.h`).
+const POTION_PRICE: u16 = 300;
+const POKE_BALL_PRICE: u16 = 200;
+/// `{ x, y, width, height }` of `MAPSEC_LITTLEROOT_TOWN`, `MAPSEC_OLDALE_TOWN` and
+/// `MAPSEC_DEWFORD_TOWN`, the first three `gRegionMapEntries`.
+const MAPSEC_ANCHOR: [[u8; 4]; 3] = [[4, 11, 1, 1], [4, 9, 1, 1], [2, 14, 1, 1]];
+/// The Hoenn region map grid (`MAP_WIDTH` × `MAP_HEIGHT` in `region_map.c`) every section fits.
+const REGION_MAP_WIDTH: u8 = 28;
+const REGION_MAP_HEIGHT: u8 = 15;
 /// Longest list a `struct MultichoiceListStruct` may hold here (the longest has 9).
 const MAX_MULTICHOICE_COUNT: u8 = 16;
 /// Shortest run of multichoice-shaped entries taken for `sMultichoiceLists`.
@@ -122,6 +142,13 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
     for i in 0..std_string_count() {
         rom.req_ptr(std_strings + 4 * i, "gStdStrings")?;
     }
+    let end = std_strings + 4 * std_string_count();
+    ensure!(
+        !is_rom_ptr(rom, rom.u32(end)?),
+        "gStdStrings at {std_strings:#x}: the word after its {} entries ({end:#x}) is a ROM \
+         pointer, so the table is longer than the decomp's",
+        std_string_count()
+    );
     let map_sections = locate_map_sections(rom)?;
     Ok(Locations {
         items,
@@ -137,23 +164,28 @@ fn locate_items(rom: &Rom) -> Result<u32> {
     let ball = item_id("ITEM_POKE_BALL");
     // (id, price, pocket) of the two anchor entries.
     let entry_is = |at: u32, id: u32, price: u16, pocket: u8| {
-        rom.u16(at + ITEM_NAME_LENGTH).ok() == Some(id as u16)
-            && rom.u16(at + ITEM_NAME_LENGTH + 2).ok() == Some(price)
-            && rom.u8(at + 26).ok() == Some(pocket)
+        rom.u16(at + ITEM_ID).ok() == Some(id as u16)
+            && rom.u16(at + ITEM_PRICE).ok() == Some(price)
+            && rom.u8(at + ITEM_POCKET).ok() == Some(pocket)
     };
     let mut needle = (potion as u16).to_le_bytes().to_vec();
-    needle.extend(300u16.to_le_bytes());
+    needle.extend(POTION_PRICE.to_le_bytes());
     let mut hits = Vec::new();
     for o in rom.find_all(&needle) {
-        let Some(at) = o.checked_sub(ITEM_NAME_LENGTH) else {
+        let Some(at) = o.checked_sub(ITEM_ID) else {
             continue;
         };
         let Some(base) = at.checked_sub(ITEM_SIZE * potion) else {
             continue;
         };
         if at % 4 == 0
-            && entry_is(at, potion, 300, 1)
-            && entry_is(base + ITEM_SIZE * ball, ball, 200, 2)
+            && entry_is(at, potion, POTION_PRICE, POCKET_ITEMS)
+            && entry_is(
+                base + ITEM_SIZE * ball,
+                ball,
+                POKE_BALL_PRICE,
+                POCKET_POKE_BALLS,
+            )
             && (0..item_count()).all(|i| item_ok(rom, base, i))
         {
             hits.push(base);
@@ -173,9 +205,9 @@ fn locate_items(rom: &Rom) -> Result<u32> {
 /// `ITEM_NONE` (the unused `ITEM_034` … slots).
 fn item_ok(rom: &Rom, base: u32, i: u32) -> bool {
     let at = base + ITEM_SIZE * i;
-    rom.u16(at + ITEM_NAME_LENGTH)
+    rom.u16(at + ITEM_ID)
         .is_ok_and(|id| id == i as u16 || id == 0)
-        && rom.u8(at + 26).is_ok_and(|p| p <= MAX_POCKET)
+        && rom.u8(at + ITEM_POCKET).is_ok_and(|p| p <= MAX_POCKET)
 }
 
 /// A `struct MultichoiceListStruct` at `at`: a list of `count` `{ text, NULL }` menu actions.
@@ -222,13 +254,12 @@ fn locate_multichoice(rom: &Rom) -> Result<(u32, u32)> {
 }
 
 fn locate_map_sections(rom: &Rom) -> Result<u32> {
-    const GEOMETRY: [[u8; 4]; 3] = [[4, 11, 1, 1], [4, 9, 1, 1], [2, 14, 1, 1]];
     let hits: Vec<u32> = rom
-        .find_all(&GEOMETRY[0])
+        .find_all(&MAPSEC_ANCHOR[0])
         .into_iter()
         .filter(|&o| {
             o % 4 == 0
-                && GEOMETRY.iter().enumerate().all(|(i, g)| {
+                && MAPSEC_ANCHOR.iter().enumerate().all(|(i, g)| {
                     let at = o + MAPSEC_SIZE * i as u32;
                     rom.slice(at, 4).ok() == Some(&g[..])
                         && rom.u32(at + 4).is_ok_and(|p| is_rom_ptr(rom, p))
@@ -240,7 +271,25 @@ fn locate_map_sections(rom: &Rom) -> Result<u32> {
         _ => bail!("gRegionMapEntries: expected 1 match, found {hits:#x?}"),
     };
     ensure_referenced(rom, base, "gRegionMapEntries")?;
+    for i in 0..map_section_count() {
+        let at = base + MAPSEC_SIZE * i;
+        let [x, y, w, h] = map_section_geometry(rom, base, i)?;
+        ensure!(
+            w >= 1
+                && h >= 1
+                && x as u32 + w as u32 <= REGION_MAP_WIDTH as u32
+                && y as u32 + h as u32 <= REGION_MAP_HEIGHT as u32,
+            "gRegionMapEntries at {base:#x}: entry {i} ({at:#x}) is {w}x{h} at {x},{y}, outside \
+             the {REGION_MAP_WIDTH}x{REGION_MAP_HEIGHT} map"
+        );
+        rom.req_ptr(at + 4, "gRegionMapEntries name")?;
+    }
     Ok(base)
+}
+
+/// `{ x, y, width, height }` of `gRegionMapEntries[i]` (the table at `base`).
+pub fn map_section_geometry(rom: &Rom, base: u32, i: u32) -> Result<[u8; 4]> {
+    Ok(rom.slice(base + MAPSEC_SIZE * i, 4)?.try_into().unwrap())
 }
 
 /// Offsets of the strings of every `sMultichoiceLists` entry, in `MULTI_*` order.
@@ -294,9 +343,9 @@ pub fn extract_at(rom: &Rom, loc: &Locations) -> Result<Tables> {
             );
             Ok(Item {
                 name,
-                pocket: pocket(rom.u8(at + 26)?).with_context(|| id.clone())?,
-                price: rom.u16(at + ITEM_NAME_LENGTH + 2)?,
-                importance: rom.u8(at + 24)?,
+                pocket: pocket(rom.u8(at + ITEM_POCKET)?).with_context(|| id.clone())?,
+                price: rom.u16(at + ITEM_PRICE)?,
+                importance: rom.u8(at + ITEM_IMPORTANCE)?,
                 id,
             })
         })
@@ -306,26 +355,27 @@ pub fn extract_at(rom: &Rom, loc: &Locations) -> Result<Tables> {
         .enumerate()
         .map(|(i, list)| {
             let id = decomp_name(&names::MULTICHOICE, i as u32)?;
-            let strings = list.iter().map(|&o| text::round_trip_at(rom, o));
-            Ok((id, strings.collect::<Result<_>>()?))
+            let strings = list.iter().enumerate().map(|(k, &o)| {
+                text::round_trip_at(rom, o).with_context(|| format!("{id} string {k}"))
+            });
+            let strings = strings.collect::<Result<Vec<_>>>()?;
+            Ok((id, strings))
         })
         .collect::<Result<_>>()?;
     let strings = (0..std_string_count())
         .map(|i| {
             let p = rom.req_ptr(loc.std_strings + 4 * i, "gStdStrings")?;
-            Ok((
-                decomp_name(&names::STD_STRINGS, i)?,
-                text::round_trip_at(rom, p)?,
-            ))
+            let id = decomp_name(&names::STD_STRINGS, i)?;
+            let s = text::round_trip_at(rom, p).with_context(|| id.clone())?;
+            Ok((id, s))
         })
         .collect::<Result<_>>()?;
     let sections = (0..map_section_count())
         .map(|i| {
             let p = rom.req_ptr(loc.map_sections + MAPSEC_SIZE * i + 4, "gRegionMapEntries")?;
-            Ok((
-                decomp_name(&names::MAP_SECTIONS, i)?,
-                text::round_trip_at(rom, p)?,
-            ))
+            let id = decomp_name(&names::MAP_SECTIONS, i)?;
+            let s = text::round_trip_at(rom, p).with_context(|| id.clone())?;
+            Ok((id, s))
         })
         .collect::<Result<_>>()?;
     Ok(Tables {
