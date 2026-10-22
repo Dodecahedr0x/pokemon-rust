@@ -2,7 +2,7 @@
 #![deny(clippy::float_arithmetic)]
 
 use crate::config::{Config, Weights};
-use crate::goals::{self, GoalCtx};
+use crate::goals;
 use crate::key;
 use crate::model::{
     AbstractKey, Evaluate, Evaluation, Fitness, NodeRow, SeenKind, StepResult, Touch,
@@ -148,7 +148,8 @@ impl Evaluator {
 }
 
 impl Evaluate for Evaluator {
-    /// key_parts/key/region, novelty vs the archive (then records), goals::progress, score.
+    /// key_parts/key, novelty vs the archive (then records), goals::progress (the config's
+    /// act, on the end state), score.
     ///
     /// `seen` lists every distinct sighting of the step (story flags and `(var, value)`s set at
     /// the end, maps entered or ended on, scripts started), first sightings or not: the db
@@ -166,7 +167,6 @@ impl Evaluate for Evaluator {
         let kcfg = &self.cfg.key;
         let parts = key::key_parts(snap, kcfg);
         let k = key::key(&parts);
-        let region = key::region(&parts);
 
         let flags: Vec<FlagId> = snap
             .vars
@@ -216,13 +216,7 @@ impl Evaluate for Evaluator {
         nov.new_key = a.keys.insert(k);
 
         let before = parent.map_or(0, |p| p.progress);
-        let progress = goals::progress(
-            before,
-            &GoalCtx {
-                snap,
-                summary: &step.summary,
-            },
-        );
+        let progress = goals::progress(self.cfg.act, before, snap);
         let fitness = score(&nov, progress - before, 0, &self.cfg.weights);
 
         let touches = maps
@@ -232,7 +226,6 @@ impl Evaluate for Evaluator {
             .collect();
         Evaluation {
             key: k,
-            region,
             progress,
             fitness,
             seen,

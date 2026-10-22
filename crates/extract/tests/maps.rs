@@ -407,3 +407,93 @@ fn tileset_headers_are_named_in_decomp_order() {
     }
     assert_eq!(fr_headers.name(fr_headers.offset).unwrap(), "General");
 }
+
+#[test]
+fn layout_names_match_decomp() {
+    let layouts = json(&fixtures::decomp().join("data/layouts/layouts.json"));
+    let want: Vec<(String, String)> = layouts["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            let name = l["name"].as_str().unwrap();
+            (
+                l["id"].as_str().unwrap().to_string(),
+                name.strip_suffix("_Layout").unwrap().to_string(),
+            )
+        })
+        .collect();
+    let have: Vec<(String, String)> = maps::LAYOUT_NAMES
+        .iter()
+        .enumerate()
+        .map(|(i, n)| {
+            let id = extract::names::LAYOUTS.name(i as u32 + 1).unwrap();
+            (id.to_string(), n.to_string())
+        })
+        .collect();
+    assert_eq!(have, want);
+}
+
+#[test]
+fn layout_table_matches_decomp() {
+    let d = fixtures::decomp();
+    let layouts = json(&d.join("data/layouts/layouts.json"));
+    let want: Vec<(u32, u32)> = layouts["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            (
+                l["width"].as_u64().unwrap() as u32,
+                l["height"].as_u64().unwrap() as u32,
+            )
+        })
+        .collect();
+    // Layouts without a secondary tileset (unused by any map) do not read as `MapLayout`s.
+    let no_secondary: Vec<usize> = layouts["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l["secondary_tileset"] == "0")
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(no_secondary.len(), 1);
+    for (rom_name, rom) in both() {
+        let table = maps::locate_map_table(&rom).unwrap();
+        let lt = maps::locate_layout_table(&rom, &table).unwrap();
+        assert_eq!(lt.layouts.len(), maps::LAYOUT_NAMES.len(), "{rom_name}");
+        let littleroot = table.header(&rom, LITTLEROOT).unwrap();
+        assert_eq!(
+            lt.layouts[usize::from(littleroot.layout_id) - 1],
+            littleroot.layout.offset,
+            "{rom_name}"
+        );
+        let have: Vec<(u32, u32)> = lt
+            .layouts
+            .iter()
+            .map(|&l| (rom.u32(l).unwrap(), rom.u32(l + 4).unwrap()))
+            .collect();
+        for i in 0..lt.layouts.len() {
+            let read = lt.layout(&rom, i as u16 + 1);
+            assert_eq!(
+                read.is_err(),
+                no_secondary.contains(&i),
+                "{rom_name} layout {i}"
+            );
+        }
+        assert_eq!(have, want, "{rom_name}");
+        assert!(lt.layout(&rom, 0).is_err(), "{rom_name}: id 0 is no layout");
+        // Every map's layout is the table entry of its layout id.
+        for group in &table.groups {
+            for &h in group {
+                let header = maps::read_header(&rom, h).unwrap();
+                assert_eq!(
+                    lt.layouts[usize::from(header.layout_id) - 1],
+                    header.layout.offset,
+                    "{rom_name} header {h:#x}"
+                );
+            }
+        }
+    }
+}

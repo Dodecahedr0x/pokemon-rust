@@ -3,7 +3,8 @@
 //!
 //! Layouts from the decomp: `struct ObjectEventGraphicsInfo` (include/global.fieldmap.h, 0x24 bytes),
 //! `struct SpriteFrameImage { const void *data; u16 size; }` (include/sprite.h, 8 bytes) and
-//! `struct SpritePalette { const u16 *data; u16 tag; }` (8 bytes).
+//! `struct SpritePalette { const u16 *data; u16 tag; }` (8 bytes). Also the field-effect emote pics
+//! ([`locate_emotes`]).
 
 use crate::gfx::TILE_BYTES;
 use crate::{ROM_BASE, Rom};
@@ -256,7 +257,8 @@ impl ObjectGraphicsTable {
         })
     }
 
-    fn palette(&self, rom: &Rom, tag: u16) -> Result<[u16; 16]> {
+    /// The `sObjectEventSpritePalettes` palette of `tag`.
+    pub fn palette(&self, rom: &Rom, tag: u16) -> Result<[u16; 16]> {
         for i in 0.. {
             let e = self.palettes_offset + 8 * i;
             let t = rom.u16(e + 4)?;
@@ -276,6 +278,97 @@ impl ObjectGraphicsTable {
             "palette tag {tag:#x} not in palette table at {:#x}",
             self.palettes_offset
         )
+    }
+}
+
+/// The field-effect emote pics (`src/trainer_see.c`), in this order: the names of
+/// `sprites/field_effects/<Name>`.
+pub const EMOTES: [&str; 3] = ["ExclamationMark", "QuestionMark", "HeartIcon"];
+/// Each emote is one uncompressed 16×16 4bpp frame (`sOamData_Icons`).
+const EMOTE_SIZE: u16 = 16;
+/// `sSpriteAnim_Icons1` and `sSpriteAnim_Icons2` (`ANIMCMD_FRAME(0, 60), ANIMCMD_END`, then
+/// frame 1), which follow the two emote image tables.
+const EMOTE_ANIMS: [u32; 4] = [60 << 16, 0xFFFF, 1 | 60 << 16, 0xFFFF];
+/// The object-event palette the decomp's emote PNGs carry: `OBJ_EVENT_PAL_TAG_NPC_1`.
+const EMOTE_PALETTE_TAG: u16 = FIRST_PALETTE_TAGS[0];
+
+/// One field-effect pic.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldEffectPic {
+    /// One of [`EMOTES`].
+    pub name: &'static str,
+    /// File offset of the 4bpp data.
+    pub offset: u32,
+    pub width: u16,
+    pub height: u16,
+    /// 4bpp, 8×8 tiles row-major.
+    pub tiles: Vec<u8>,
+}
+
+/// The emote pics: `sSpriteImageTable_ExclamationQuestionMark` (exclamation, question) then
+/// `sSpriteImageTable_HeartIcon`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Emotes {
+    /// File offset of `sSpriteImageTable_ExclamationQuestionMark`.
+    pub offset: u32,
+    pub pics: Vec<FieldEffectPic>,
+}
+
+/// Finds the emote image tables (`trainer_see.c`): three `SpriteFrameImage`s of one 16×16 frame
+/// each, whose data (`sEmotion_*Gfx`, `INCBIN_U8`) sit back to back, followed by the icons'
+/// two animations. Unique in BPEE and BPEF.
+pub fn locate_emotes(rom: &Rom) -> Result<Emotes> {
+    let frame = u32::from(EMOTE_SIZE) * u32::from(EMOTE_SIZE) / 2;
+    let anims: Vec<u8> = EMOTE_ANIMS.iter().flat_map(|w| w.to_le_bytes()).collect();
+    let mut hits = Vec::new();
+    for tail in rom.find_all(&anims) {
+        let Some(table) = tail.checked_sub(8 * EMOTES.len() as u32) else {
+            continue;
+        };
+        let entries: Option<Vec<u32>> = (0..EMOTES.len() as u32)
+            .map(|i| {
+                let e = table + 8 * i;
+                let data = rom.ptr(e).ok()??;
+                (rom.u32(e + 4).ok()? == frame).then_some(data)
+            })
+            .collect();
+        let Some(entries) = entries else { continue };
+        if entries.windows(2).all(|w| w[1] == w[0] + frame) {
+            hits.push((table, entries));
+        }
+    }
+    let [(offset, entries)] = &hits[..] else {
+        let tables: Vec<u32> = hits.iter().map(|h| h.0).collect();
+        bail!("emote image tables: expected 1 match, found {tables:x?}");
+    };
+    let pics = EMOTES
+        .iter()
+        .zip(entries)
+        .map(|(&name, &data)| {
+            Ok(FieldEffectPic {
+                name,
+                offset: data,
+                width: EMOTE_SIZE,
+                height: EMOTE_SIZE,
+                tiles: rom
+                    .slice(data, frame as usize)
+                    .with_context(|| format!("emote {name}"))?
+                    .to_vec(),
+            })
+        })
+        .collect::<Result<_>>()?;
+    Ok(Emotes {
+        offset: *offset,
+        pics,
+    })
+}
+
+impl Emotes {
+    /// The palette written with the emotes: `OBJ_EVENT_PAL_TAG_NPC_1`, the palette of the
+    /// decomp's `emotion_*.png`. Gen3 draws the exclamation and question marks with whatever
+    /// OBJ palette 0 holds (`TAG_NONE`) and the heart with OBJ palette 2.
+    pub fn palette(&self, rom: &Rom, objects: &ObjectGraphicsTable) -> Result<[u16; 16]> {
+        objects.palette(rom, EMOTE_PALETTE_TAG)
     }
 }
 

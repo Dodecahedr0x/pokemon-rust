@@ -262,9 +262,13 @@ fn parse_maps(arg: &str) -> Result<Vec<&'static str>> {
 
 /// Reads the user's ROM into content/extracted/, replacing it whole (no stale files remain).
 ///
-/// `--maps all|slice|<Dir,Dir,...>` picks the exported maps (Wave 0 default: `slice`,
-/// `extract::export::SLICE_MAPS`; Milestone 8 Task A makes `all` the default) and `--previews`
-/// asks for `previews/<Map>.png` (Wave 0 always writes them; Task A turns them off by default).
+/// `--maps all|slice|<Dir,Dir,...>` picks the exported maps (default `slice`,
+/// `extract::export::SLICE_MAPS`, until the content build consumes every map: Milestone 8 Task L
+/// flips it to `all`) and `--previews` also writes `previews/<Map>.png` (off by default: they
+/// are most of the extracted size and nothing in the build reads them).
+///
+/// Any other map set prints a warning: content cannot build a full extract until Task L; to
+/// recover run `PKR_EXTRACTED_DIR=/nonexistent cargo xtask extract --maps slice`.
 ///
 /// Exports into content/.extracted.tmp/, then moves the previous output aside to
 /// content/.extracted.old/, renames the new export into place and only then deletes the old
@@ -274,18 +278,21 @@ fn extract(args: &[String]) -> Result<()> {
         "usage: cargo xtask extract [--rom <path>] [--maps all|slice|<Dir,Dir,...>] [--previews]";
     let mut rom_path = root().join("rom/emeraude-fr.gba");
     let mut opts = extract::export::ExportOptions::default();
-    let mut previews = false;
     let mut it = args.iter();
     while let Some(flag) = it.next() {
         match flag.as_str() {
             "--rom" => rom_path = PathBuf::from(it.next().context(USAGE)?),
             "--maps" => opts.maps = parse_maps(it.next().context(USAGE)?)?,
-            "--previews" => previews = true,
+            "--previews" => opts.previews = true,
             _ => bail!(USAGE),
         }
     }
-    // Wave 0 keeps today's output (previews on); Task A: `opts.previews = previews`.
-    opts.previews |= previews;
+    if opts.maps != extract::export::SLICE_MAPS {
+        println!(
+            "warning: content cannot build a full extract until Task L; to recover run \
+             `PKR_EXTRACTED_DIR=/nonexistent cargo xtask extract --maps slice`"
+        );
+    }
     let rom = extract::Rom::open(&rom_path)?;
     let out = root().join("content/extracted");
     let tmp = root().join("content/.extracted.tmp");
@@ -329,9 +336,21 @@ fn extract(args: &[String]) -> Result<()> {
         m.sha1,
         m.format
     );
-    println!("maps: {} ({})", m.maps.len(), m.maps.join(", "));
-    println!("tilesets: {} ({})", m.tilesets.len(), m.tilesets.join(", "));
-    println!("sprites: {} ({})", m.sprites.len(), m.sprites.join(", "));
+    let count = |prefix: &str, ext: &str| {
+        m.files
+            .keys()
+            .filter(|f| f.starts_with(prefix) && f.ends_with(ext))
+            .count()
+    };
+    println!(
+        "maps: {}, layouts: {}, tilesets: {}, sprites: {} (+{} field effects), previews: {}",
+        m.maps.len(),
+        count("layouts/", ".ron"),
+        m.tilesets.len(),
+        m.sprites.len(),
+        count("sprites/field_effects/", ".ron"),
+        count("previews/", ".png"),
+    );
     if !m.skipped_graphics.is_empty() {
         let skipped: Vec<&str> = m.skipped_graphics.iter().map(String::as_str).collect();
         println!("skipped graphics: {}", skipped.join(", "));

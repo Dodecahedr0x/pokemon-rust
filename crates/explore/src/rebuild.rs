@@ -18,9 +18,9 @@ use std::sync::Arc;
 pub type Repair<'a> =
     dyn Fn(Option<&Checkpoint>, &Macro) -> Option<(Vec<Run>, Checkpoint)> + Sync + 'a;
 
-/// A repaired end state's abstract key and region (`key::key_parts` + `key::key`/`region` in
-/// [`revalidate`]; tests pass fakes to [`revalidate_with_key`]).
-pub type KeyFn<'a> = dyn Fn(&WorldSnapshot) -> (AbstractKey, u64) + 'a;
+/// A repaired end state's abstract key (`key::key_parts` + `key::key` in [`revalidate`]; tests
+/// pass fakes to [`revalidate_with_key`]).
+pub type KeyFn<'a> = dyn Fn(&WorldSnapshot) -> AbstractKey + 'a;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct RevalidateReport {
@@ -39,8 +39,8 @@ enum Outcome {
     Broken,
 }
 
-/// Replays `n` from `start` (a new game for `None`); on divergence (or a panic) re-expands its
-/// macro with `repair` from the same start.
+/// Replays `n` (with its inputs) from `start` (a new game for `None`); on divergence (or a
+/// panic) re-expands its macro with `repair` from the same start.
 fn check<G: GameData + Clone>(
     game: &G,
     n: &NodeRow,
@@ -65,6 +65,8 @@ fn is_live(s: NodeStatus) -> bool {
 }
 
 /// After a build change: every Stale node, parents first, depth levels in parallel (rayon).
+/// The rows are held without their inputs (schema v3); each level loads its own nodes' inputs.
+/// The root's start is a new game ([`revalidate_from`] takes another one: a `--from` db's).
 /// Replays its inputs from its parent's (new) end state; digest equal -> Valid on this build;
 /// otherwise `repair(start, macro)` re-expands; Some -> Valid with new inputs, digest, key and
 /// pos (repaired); None -> Broken, and its subtree Broken.
@@ -93,25 +95,35 @@ pub fn revalidate<G: GameData + Clone + Send + Sync>(
     cfg: &Config,
     repair: &Repair<'_>,
 ) -> Result<RevalidateReport, DbError> {
-    let key = |w: &WorldSnapshot| {
-        let parts = crate::key::key_parts(w, &cfg.key);
-        (crate::key::key(&parts), crate::key::region(&parts))
-    };
-    revalidate_with_key(db, game, cfg, repair, &key)
+    revalidate_from(db, game, cfg, None, repair)
 }
 
-/// [`revalidate`] with the repaired nodes' key and region from `key`.
+/// [`revalidate`] with the root nodes replayed and repaired from `root` (`None`: a new game).
+pub fn revalidate_from<G: GameData + Clone + Send + Sync>(
+    db: &mut Db,
+    game: &G,
+    cfg: &Config,
+    root: Option<Arc<Checkpoint>>,
+    repair: &Repair<'_>,
+) -> Result<RevalidateReport, DbError> {
+    let key = |w: &WorldSnapshot| crate::key::key(&crate::key::key_parts(w, &cfg.key));
+    revalidate_with_key(db, game, cfg, root, repair, &key)
+}
+
+/// [`revalidate_from`] with the repaired nodes' key from `key`.
 #[doc(hidden)]
 pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
     db: &mut Db,
     game: &G,
     cfg: &Config,
+    root: Option<Arc<Checkpoint>>,
     repair: &Repair<'_>,
     key: &KeyFn<'_>,
 ) -> Result<RevalidateReport, DbError> {
     guard::install_hook();
     let build = build_hash(game);
-    let rows: BTreeMap<NodeId, NodeRow> = db.nodes()?.into_iter().map(|n| (n.id, n)).collect();
+    let rows: BTreeMap<NodeId, NodeRow> =
+        db.nodes_light()?.into_iter().map(|n| (n.id, n)).collect();
     let todo: BTreeSet<NodeId> = rows
         .values()
         .filter(|n| {
@@ -143,6 +155,7 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
         report: RevalidateReport::default(),
     };
     let mut fallback = SnapCache::new(cfg.cache_capacity);
+    fallback.set_root(root.clone());
     // End states of the previous level's checked nodes.
     let mut prev: BTreeMap<NodeId, Arc<Checkpoint>> = BTreeMap::new();
 
@@ -152,7 +165,7 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
         let mut orphans = Vec::new();
         for id in ids {
             let start = match st.rows[&id].parent {
-                None => Some(None),
+                None => Some(root.clone()),
                 Some(p) if st.broken.contains(&p) => None,
                 Some(p) => match prev.get(&p) {
                     Some(cp) => Some(Some(cp.clone())),
@@ -168,12 +181,23 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
                 None => orphans.push(id),
             }
         }
-        let outcomes: Vec<Outcome> = {
-            let rows = &st.rows;
-            jobs.par_iter()
-                .map(|(id, start)| check(game, &rows[id], start.as_deref(), repair))
-                .collect()
-        };
+        // This level's rows with their inputs (only one level's inputs are resident).
+        let mut full: Vec<NodeRow> = Vec::with_capacity(jobs.len());
+        for (id, _) in &jobs {
+            let inputs = db
+                .inputs(*id)?
+                .ok_or(DbError::Codec(format!("no node {id}")))?;
+            full.push(NodeRow {
+                inputs,
+                ..st.rows[id].clone()
+            });
+        }
+        let outcomes: Vec<Outcome> = jobs
+            .par_iter()
+            .zip(full.par_iter())
+            .map(|((_, start), n)| check(game, n, start.as_deref(), repair))
+            .collect();
+        drop(full);
 
         // Apply in id order.
         let mut results: BTreeMap<NodeId, Option<Outcome>> =
@@ -185,6 +209,7 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
         );
         let mut next: BTreeMap<NodeId, Arc<Checkpoint>> = BTreeMap::new();
         let mut snaps: Vec<(NodeId, Arc<Checkpoint>)> = Vec::new();
+        let mut repaired: Vec<(NodeId, Vec<Run>)> = Vec::new();
         for (id, outcome) in results {
             let mut n = st.rows[&id].clone();
             let old_key = n.key;
@@ -199,11 +224,9 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
                 }
                 Some(Outcome::Repaired(inputs, cp)) => {
                     st.report.repaired += 1;
-                    let (k, region) = key(&cp.world);
-                    n.inputs = inputs;
-                    n.frames = runs::frames(&n.inputs);
-                    n.key = k;
-                    n.region = region;
+                    n.frames = runs::frames(&inputs);
+                    repaired.push((id, inputs));
+                    n.key = key(&cp.world);
                     n.digest = state_digest(&cp.world);
                     n.map = cp.world.field.map;
                     n.pos = cp.world.objects.objs.first().map_or(n.pos, |o| o.pos);
@@ -233,7 +256,9 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
             .collect();
         let snaps: Vec<(NodeId, &Checkpoint)> =
             snaps.iter().map(|(id, cp)| (*id, cp.as_ref())).collect();
-        db.set_status_and_snapshots(&batch, &snaps)?;
+        let repaired: Vec<(NodeId, &[Run])> =
+            repaired.iter().map(|(id, r)| (*id, r.as_slice())).collect();
+        db.set_status_and_snapshots(&batch, &repaired, &snaps)?;
         prev = next;
     }
 

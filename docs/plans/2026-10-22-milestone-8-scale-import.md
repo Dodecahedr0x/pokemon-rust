@@ -222,6 +222,7 @@ Wave 0 makes no feature work. It does five things:
   - New `export/tables.rs` with `pub fn export_tables(rom, out, provenance) -> Result<()>`, an empty body that `export` calls (Task C).
   - New stub modules `inc.rs`, `labels.rs` (B) and `tables.rs` (C), with their `pub mod` lines in `lib.rs`, so no Wave 1 task edits `lib.rs`.
   - `names/generated.rs` regenerated (`PKR_BLESS=1`) with `MULTI_*`, `STDSTRING_*`, `MAPSEC_*` and `LAYOUT_*` tables, drift-tested like the others.
+- **`Species.weight`** (`schema.rs`, owned by A, carried into content by E): `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight` in hectograms (Low Kick, G), `#[serde(default)]`; 0 when a species has no Pokédex entry or the tables cannot be located.
 - **Named fixed samples:** `export::SLICE_MAPS` (today's 15 maps, in today's order) replaces every test and tool use of `export::MAPS`, and `ExportOptions` takes it for `--maps slice`. Consumers are migrated in Wave 0 (`extract/tests/{codegen,text}.rs`).
 - **`codegen.rs`, new entry point** (Task D1; stub). `generate` keeps working until Task D2 swaps the build over:
   ```rust
@@ -241,7 +242,7 @@ Wave 0 makes no feature work. It does five things:
   pub fn lower(files: &[ScriptFile], index: &ScriptIndex, support: &Support,
                overrides: &BTreeMap<String, String>) -> anyhow::Result<Lowered>;
   ```
-- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `all` from Task A on; `slice` = `export::SLICE_MAPS`) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
+- **xtask `extract`** accepts `--maps all|slice|<Dir,Dir,…>` (default `slice` = `export::SLICE_MAPS` until Task L, which flips `ExportOptions::default()` and the xtask `extract` doc to `all` once the content build consumes every map; Task A makes `all` work) and `--previews`. Wave 0 parses the flags and passes them through; `export` takes `&ExportOptions { maps: Vec<&'static str>, previews: bool }`, with Wave 0's default being `slice`.
 
 ### Content contracts (`crates/content`)
 - **Splits** (mechanical):
@@ -655,6 +656,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
      14. `FLAG_DEFEATED_RUSTBORO_GYM`;
      15. `FLAG_BADGE01_GET`.
    - Every constant is checked to exist in `content::consts`.
+   - **As built (town goals):** `oldale` (slice goal 5), `petalburg` (9) and `rustboro` (13) are the visited flags `FLAG_VISITED_OLDALE_TOWN` / `_PETALBURG_CITY` / `_RUSTBORO_CITY` (set by each town's `OnTransition`), not "on the map". Reason: a goal is read only at capturable node ends, and the parity route crosses Oldale into its Pokémon Center without a capturable frame in the town, so "on `MAP_OLDALE_TOWN`" was never seen; the flag stays set. The routes (103, 104) keep "on the map": they have no visited flag.
    - `--act` selects the list (default `act1` on real data, `slice` keeps M7's).
    - The `(progress, -frames)` merge rule stays; it is now also consistent with the key for flag and var goals.
 4. **Goal-directed segments:**
@@ -703,7 +705,7 @@ Route-changing (it is the first of the ordered merges): the slice's scripts now 
 
 **Owns:** `xtask/src/sweep.rs`, cross-task fix-ups in the files of Wave 1 tasks A–J (each listed in the report), the README (Content, Scripts and Tests sections), the fixed test samples of `crates/studio/tests/{map_pixels, map_view, data_views}.rs`, and `checkpoints/*` refreshes.
 
-1. `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
+1. Flip the extract default to `all`: `ExportOptions::default()` and the xtask `extract` doc and warning (Task A keeps `slice`, since the content build cannot consume every map before E). Then `cargo xtask extract` (all maps, format 5), then build everything. Fix the seams between A–J: IR names in the lowering, tables wired into `GameData`, `trainer_flag_of`, emotes, encounters v5.
    - **Remove `GameData::encounters(map)`** (kept by Wave 0 as `wild_encounters`' default so explore needed no change), once E implements `wild_encounters` and K forwards it.
 2. **The slice still holds:**
    - the parity route replays with identical ROM/native hashes;
@@ -1120,5 +1122,44 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
 - events and `last_script` (engine panic context, `FrameOut`);
 - the stale rect, now hashed and in `FieldSnap`.
 
+## Task K as built (Phase 1: items 1–4, 6)
+- Schema v3 (`c4252e1`): blob inputs with a repeat-pair opcode, `Macro::code` integer macros, no `region` column, no `node(key)`/`node(map)` index, `key_hit` table, `meta.key_version` / `act` / `root`. A superseded row stays even when childless (it was live and written); only duplicates leave no row.
+- Key version 2: `respawn` and a template-delta digest in the key; `VAR_OBJ_GFX_ID_0..F` excluded. The key-items pocket digest waits for Wave 0's bag (Phase 2, key version 3).
+- `TRAINER_GRUNT_PETALBURG_WOODS` is missing from the stub's `content::consts`: the goal reads it from `extract::names::TRAINERS` (the table the real constant is generated from). All 14 Act 1 constants are checked against the decomp headers by `tests/m8_k_goals.rs`.
+- 120 s real run: 133,155 rows, 35.2 MB (0.26 MB per 1,000 rows; M7: 167,643 rows, 175.3 MB, 1.05 MB), peak RSS 184 MB (M7: 455 MB).
+- **Deviation (RSS):** the target is stated at 600 s (≤ half of M7's 1.06 GB); only 120 s runs were measured, M7 and v3 on the same machine and load. v3 is at 40% of M7 at 120 s; the 600 s figure is an extrapolation, not a measurement.
+- **Deviation (size test):** the spec's "a 2,000-node stub db is ≤ 40% of v2's" is not tested: the stub's 196 cells hold about 32 keys (no 2,000-node stub db), and no v2 writer remains to compare with. Instead `tests/m8_k_db.rs` checks, on both flavors, that blob inputs are ≤ 40% of M7's text codec for the same rows, that no duplicate leaves a childless row, and that hits exceed rows; the real-build size gate (≤ 300 B per row on 2,000 inserted nodes; 281 B measured) is `#[ignore]`d in debug (85 s of CPU) and runs in release with `--ignored`.
+- `promote` replays the node on the current build from its parent's state (never its cached snapshot) and refuses a stale or diverged node even when `status.ron` says Valid (it carries no build). Local children move with `Store::reparent` (atomic, the store's format); on a partial failure the error says how to recover. `export --to-store` writes only into a layered (local) store.
+- 50-generation digests, identical on 1, 4, 8 threads and 25+25: real `0x02157751a7452ae3`, stub `0xf68ea453a6b24e45`.
+- **Task S item:** `crates/studio/src/native.rs:180` refuses traces whose parent is not a new game, so findings of a `--from` db (traces from `Parent::Checkpoint`) do not open in the studio pane.
+
+## Task K as built (Phase 2: item 5, key version 3)
+- `Probe` is deleted: sessions are `Session<G>`. `SimSummary.maps` / `scripts` come from `MapEntered` / `ScriptStarted`; a battle is tracked from `BattleStarted` to the frame the field is back, with the `BattleEnded` outcome. Dropped events (past `EVENTS_MAX`) become an expansion note.
+- `FindingKind::Unsupported` (report-only, `kind_name` "unsupported"): one per (report, map) per job, message `unsupported: NAME` / `degraded: NAME`, tail ending on the reporting frame; the db merges the rest by signature (`hits`). It reproduces when the replay's last frame has the report. Fixture: `testing::Reporting` (every script reports first), `tests/m8_k_events.rs`.
+- **Deviation (last script):** the finding's `script` is the last `ScriptStarted` over its tail (the job's steps, then the failed expansion, the panicking frame included), not `World::last_script()`: that resets on restore, and the explorer restores mid-job (a failed random try), while a replay from the root would count the lineage too. `reproduce` folds the same events over the tail's frames. `CapturableStuck` and `RoundTrip` signatures include it; other kinds do not.
+- Key version 3: the key items held (`KeyItems` pocket ids, sorted, so the order obtained does not count) join the key, not the place. Pin: key `0xc72f_46f9_8e19_820c` (place unchanged).
+- Every `GameData` method is forwarded by the test games through `explore::forward_game_data!` (exported, absolute paths): the `testing` wrappers (`Drifting` drifts `wild_encounters`, which the engine reads, as well as `encounters`), the guard's `Armed<G>` and `a_expand`'s `Fake<G>` (which panics in `wild_encounters` like `encounters`). `testing::same_answers` compares every provided method against `testing::Answers`, a game answering each one on its own.
+- A report on a warp frame is attributed to the map after the warp (`Reported::map`). New (report, map) pairs past `MAX_REPORTS` per expansion are counted in a note.
+- Report-only findings are counted apart: `FindingKind::report_only`, `Db::report_count`, `GenOutcome`/`RunSummary.reports`, the `run`/`status` lines (`findings` are the bugs, `reports` apart), `explore findings --bugs`. `DbStats.findings` keeps counting every row (the studio reads it).
+- Tests (`tests/m8_k_events.rs`): a stub `FadeTrap` run raises a `CapturableStuck` row signed with `FADE_TRAP_SCRIPT` that reproduces, and not without its script; `Unsupported` rows are the same on 1 and 2 threads; reports past `MAX_REPORTS` make a note. `key_items_digest` is pinned on an unsorted mixed-pocket bag (`0x89d1_c97b_d01a_7c7c`).
+- 50-generation digests, identical on 1, 4, 8 threads and 25+25 (after merging master `74668c1`): real `0x6cf00f30af70d35d`, stub `0x5ca6da52ed2d7739` (the real run: 4,884 rows, 8/15 goals, 2 `CapturableStuck` findings, no `Unsupported`: the slice's scripts report nothing yet). Before the merge: real `0xeeeeab9ae5eef60f`, stub `0xbb1aa650526b2525`, same rows.
+
+### Task A as built
+- `cargo xtask extract --maps all` (BPEF): 518 maps, 418 layouts (every map's plus every `setmaplayoutindex` target; `gMapLayouts` has 441), 73 tilesets, 156 OBJ sprites plus 3 emotes (`sprites/field_effects/`), 124 wild headers (Altering Cave 9; land, water, rock smash, fishing), evolutions for 172 species, trainer money (54 classes plus the `0xFF` default), `Species.weight`. Every count equals the decomp's referenced set.
+- Time: one full export about 5–6 s in release (the ignored sweep test's three exports: 17.6 s), 23.8 s with the debug `cargo xtask`; 39.8 s with `--previews`. Size: 26 MB without previews, 147 MB with them (previews 121 MB).
+- Default kept at `slice` (L flips it, step 1): the content build panics on a full extract (slice-move wording, E), and since xtask depends on content, so does `cargo xtask`; `extract` warns with the recovery command.
+- Location: layouts, emotes, evolutions and `gPokedexEntries`/`sSpeciesToNationalPokedexNum` by structural anchors; `gTrainerMoneyTable` by adjacency (the 4-byte boundary after `gTypeNames`), then validated. All checked on BPEE against the decomp. (The commit message of `bbcc190` says "all located by structure"; trainer money is by adjacency.)
+- `FORMAT_MINOR` = 2 (after B's 1): layouts, emotes, encounters v5, evolutions, trainer money, weight; `MINOR_FILES` lists `battle/evolutions.ron`, `battle/trainer_money.ron` and the six emote files.
+
 ## Findings for Milestone 9
 *(filled at close-out.)*
+
+## Task B as built
+- **Label transfer** (`extract::inc`, `extract::labels`): on all 518 maps, 100% of functions (7,233), texts (5,503) and movements (978) get decomp names on both BPEF and BPEE; 0 transfer errors, 0 collisions, 0 mismatched blocks. Precision on BPEE by content: 7,234 scripts (op names and Flag/Var/Const operands; the battle-facility helper macros of `data/scripts/*.inc` are expanded too), 5,503 texts and 978 movements match their source; only the 22 braille strings are unchecked.
+- **Fallthrough rules:** a label falls through only to a following label of the same kind (`TrainerHill_1F_EventScript_DummyOnWarp` runs into a table whose first byte is `end`); a chain with no terminator ("forced stop" after `warp`, Slateport Battle Tent) is aligned against the first N commands the ROM decodes, N being the expanded command count of the chain.
+- **Modules beyond the contract (accepted):** `data/text/<stem>.inc` is `Text_<stem>` (`cable_club` exists in both `data/scripts` and `data/text`); the inline labels of `data/event_scripts.s` are `Common_event_scripts`.
+- **Test budget (accepted):** `extract/tests/labels.rs` runs all 518 maps unignored (about 5 s in debug); `tests/script_ir.rs` likewise for the IR.
+- **IR:** `scripts/<Module>.ron` (433 modules on the full import), `scripts/index.ron`, and the texts keyed by final names in **`text/ir_<lang>.ron`**: the legacy `text/<lang>.ron` keeps its `<Script>_T<n>` keys because the legacy scripts number texts by them. D2 renames `text/ir_<lang>.ron` to `text/<lang>.ron` when it deletes the legacy output. Invalid opcodes appear as the pseudo-command `unknown` (one `Byte` operand). The IR's instruction count equals today's walk (49,225 on the full import). `FORMAT_MINOR` = 1.
+- **Contract additions:** `scripts::{op_name, opcode, is_terminator_op}`; `export::scripts::{build_ir, Ir, ir_summary, decomp_dir}`; `labels::{transfer, Transfer, Kind, MapInput, …}` (`NameOrigin` re-exported from `schema`; `Transfer.root_kinds`); `ScriptIndex.movements` (movement name to module, `#[serde(default)]`).
+- **Without the decomp:** a missing or unreadable `PKR_DECOMP` warns and exports positional names; the manifest provenance key `scripts/decomp_names` is 1 when decomp names were used, else 0. A label inside a decoded command warns and is skipped. `serde_json` is a regular dependency of `extract` (decomp `map.json`).
+- **Outside B's files:** `extract/tests/export.rs` (Task A's) lists the IR files in its expected tree; `schema.rs` bumps `FORMAT_MINOR`, documents `text/ir_<lang>.ron` and adds `ScriptIndex.movements`; `export.rs` passes the provenance map to `export_scripts`. The decomp is loaded once per process (cache keyed by dir); `tests/export.rs` takes about 53 s in debug (46 s without `PKR_DECOMP`), the rest is `Decomp::load` and the transfer in an unoptimised build.

@@ -232,7 +232,7 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
     let game = Emerald::for_shells();
     let ex = explore(game, &dir.join("explore.db"), 4);
     let deepest = (ex.db.nodes().unwrap().into_iter())
-        .filter(|n| n.status == NodeStatus::Valid)
+        .filter(|n| n.status == NodeStatus::Valid && n.parent.is_some())
         .max_by_key(|n| (n.total_frames, n.id))
         .unwrap();
     let lineage = ex.db.lineage(deepest.id).unwrap();
@@ -240,7 +240,10 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
     let trace = findings::repro_trace(&game, &runs, &[]).unwrap();
     assert_eq!(u64::from(trace.frames()), deepest.total_frames);
     assert_eq!(straight(&trace, trace.frames()).1, deepest.world_hash);
-    let frames = trace.frames().saturating_sub(OPEN_BEFORE);
+    // Opened at its parent's end: a node end, capturable, so the save holding no key is too
+    // (`OPEN_BEFORE` frames back may land in an earlier step's text box).
+    let frames = trace.frames() - deepest.frames;
+    assert!(frames > 0);
     open_and_save(&trace, frames, "lineage");
     // Past the end is clamped to the end.
     let local = temp_dir("lineage-end");
