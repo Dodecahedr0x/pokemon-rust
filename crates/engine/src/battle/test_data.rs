@@ -97,6 +97,8 @@ pub const PURSUIT: MoveId = MoveId(52);
 pub const SOUND_GROWL: MoveId = MoveId(53);
 /// Speed -1 secondary with a 100% chance (Icy Wind).
 pub const ICY_WIND: MoveId = MoveId(54);
+/// Low Kick: power from the target's weight.
+pub const LOW_KICK: MoveId = MoveId(55);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -173,6 +175,10 @@ pub const CLEAR: SpeciesId = SpeciesId(33);
 pub const OOZE: SpeciesId = SpeciesId(34);
 /// Normal, Natural Cure.
 pub const CURER: SpeciesId = SpeciesId(35);
+/// Normal, Pickup.
+pub const PICKER: SpeciesId = SpeciesId(36);
+/// Rock, no ability, weight 200 hectograms (Geodude's).
+pub const HEAVY: SpeciesId = SpeciesId(37);
 /// Gen3-encoded "MUDKIP", "ZIGZAGOON", "ABCDEFGHIJKL".
 pub const MUDKIP_NAME: &[u8] = &[0xC7, 0xCF, 0xBE, 0xC5, 0xC3, 0xCA, 0xFF];
 pub const ZIGZAGOON_NAME: &[u8] = &[0xD4, 0xC3, 0xC1, 0xD4, 0xBB, 0xC1, 0xC9, 0xC9, 0xC8, 0xFF];
@@ -222,7 +228,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 55] = [
+pub static MOVES: [MoveInfo; 56] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -510,6 +516,7 @@ pub static MOVES: [MoveInfo; 55] = [
         100,
         false,
     ),
+    e2(MoveEffect::LowKick, 1, Type::Fighting, 100, 20, 0, true),
 ];
 
 const fn lv(level: u8, mov: MoveId) -> LevelUpMove {
@@ -550,11 +557,12 @@ const fn species(
         growth: GrowthRate::MediumFast,
         abilities: [ability, Ability::None],
         learnset,
+        weight: 0,
         gfx: None,
     }
 }
 
-pub static SPECIES: [SpeciesInfo; 36] = [
+pub static SPECIES: [SpeciesInfo; 38] = [
     species([0; 6], Type::Normal, 0, Ability::None, &[]),
     species(
         [50, 70, 50, 40, 50, 50],
@@ -699,6 +707,11 @@ pub static SPECIES: [SpeciesInfo; 36] = [
     species(STATS, Type::Water, 50, Ability::ClearBody, &[]),
     species(STATS, Type::Water, 50, Ability::LiquidOoze, &[]),
     species(STATS, Type::Normal, 50, Ability::NaturalCure, &[]),
+    species(STATS, Type::Normal, 50, Ability::Pickup, &[]),
+    SpeciesInfo {
+        weight: 200,
+        ..species(STATS, Type::Rock, 50, Ability::None, &[])
+    },
 ];
 
 /// A Pokémon-model species: named, exp yield 50, its own EV yield, gender ratio, growth rate

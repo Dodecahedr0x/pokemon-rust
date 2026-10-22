@@ -458,25 +458,110 @@ fn fury_cutter_doubles_until_a_miss() {
 fn pursuit_strikes_a_switching_foe_first_at_double_damage() {
     // BattleScript_ActionSwitch → jumpifnopursuitswitchdmg: the foe's Pursuit action is
     // cancelled and hits the switching battler first, sDMG_MULTIPLIER 2, no accuracy roll.
-    // Foe Atk 10 vs Def 10, 40 power: 10*40*4/10/50 + 2 = 5, ×2 = 10, then ×(100 - r)/100.
+    // Foe Atk 10 vs Def 10, L5, 40 power: 4×40×10/10/50 + 2 = 5, ×2 = 10, Dark STAB 15, then
+    // seed 3's rolls: no crit, and 15 × (100 - Random() % 16) / 100 = 13.
     let mut r = Run::wild(
         &[me(WATER, &[TACKLE]), me(FIRE, &[TACKLE])],
         foe(DARK, &[PURSUIT]),
-        1,
+        3,
     );
     let l = r.choose(Choice::Switch(1));
-    assert_eq!(l[0], "UsedMove@O move:52", "{l:?}");
-    let recall = l.iter().position(|x| x == "Recall P").expect("recall");
-    let used = l.iter().filter(|x| x.starts_with("UsedMove@O")).count();
-    assert_eq!(used, 1, "{l:?}");
-    let lost = 20 - r.b.party(P).get(0).unwrap().hp;
-    // ×2 with STAB (Dark): 15 → 12..=15 after the random roll; a crit doubles again.
-    assert!((12..=30).contains(&lost), "{lost} {l:?}");
-    assert!(
-        l[..recall].iter().any(|x| x.starts_with("Hp P 20->")),
+    assert_eq!(
+        l[..7],
+        [
+            "UsedMove@O move:52",
+            "Anim O move:52",
+            "Hit P Normal",
+            "Hp P 20->7",
+            "Recall P",
+            "GoPkmn@P nick:P1",
+            "SendOut P1",
+        ],
         "{l:?}"
     );
+    assert_eq!(r.b.party(P).get(0).unwrap().hp, 7);
+    let used = l.iter().filter(|x| x.starts_with("UsedMove@O")).count();
+    assert_eq!(used, 1, "{l:?}");
     assert_eq!(r.b.mon(P).party, 1);
+}
+
+#[test]
+fn pursuit_ko_gives_exp_and_the_chosen_mon_still_comes_in() {
+    // A trainer's mon switching out under the player's Pursuit faints: `getexp` in
+    // BattleScript_PursuitDmgOnSwitchOut, no `returnatktoball` for a fainted battler, then the
+    // chosen mon is sent out (BattleScript_DoSwitchOut).
+    let make = |s: u32| {
+        let lead = mon(NORMAL, 5, [20, 10, 10, 5, 10, 10], &[TACKLE]);
+        let ghost = mon(GHOST, 5, [20, 10, 10, 5, 10, 10], &[ABSORB]);
+        let mut r = Run::new(
+            trainer(),
+            &[me(WATER, &[TACKLE, PURSUIT])],
+            &[lead, ghost],
+            s,
+        );
+        r.b.trainer_ai = 0;
+        r.choose(Choice::Move(0));
+        r
+    };
+    // ShouldSwitch after the landed Tackle: the Ghost is immune to it (one `Random() % 2`).
+    let seed = seed_where(|s| {
+        let r = make(s);
+        r.b.mon(O).hp > 0 && r.b.actions[O as usize] == Some(Action::Switch(1))
+    });
+    let mut r = make(seed);
+    r.b.battler_mut(O).mon.hp = 1;
+    let l = r.choose(Choice::Move(1));
+    assert_eq!(l[0], "UsedMove@P move:52", "{l:?}");
+    let faint = l.iter().position(|x| x == "Faint O").expect("faint");
+    let exp = l
+        .iter()
+        .position(|x| x.starts_with("PkmnGainedExp@P"))
+        .expect("exp");
+    let sent = l.iter().position(|x| x == "SendOut O1").expect("send out");
+    assert!(faint < exp && exp < sent, "{l:?}");
+    assert!(!has(&l, "Recall O"), "{l:?}");
+    assert_eq!(r.b.mon(O).party, 1);
+    assert_eq!(r.b.need(), Need::Action);
+    // The player's switching mon knocked out by the foe's Pursuit: no Recall, the chosen mon
+    // comes in and the battle goes on.
+    let mut m = me(WATER, &[TACKLE]);
+    m.hp = 1;
+    let mut r = Run::wild(&[m, me(FIRE, &[TACKLE])], foe(DARK, &[PURSUIT]), 1);
+    let l = r.choose(Choice::Switch(1));
+    assert!(has(&l, "Faint P"), "{l:?}");
+    assert!(!has(&l, "Recall P"), "{l:?}");
+    assert!(has(&l, "SendOut P1"), "{l:?}");
+    assert_eq!(r.b.mon(P).party, 1);
+    assert_eq!(r.b.need(), Need::Action);
+}
+
+#[test]
+fn pursuit_needs_an_able_user() {
+    // jumpifnopursuitswitchdmg: an asleep (or frozen) or loafing Pursuit user does not strike;
+    // the switch goes first as usual.
+    let mut f = foe(DARK, &[PURSUIT]);
+    f.status = Status::Sleep(3);
+    let mut r = Run::wild(&[me(WATER, &[TACKLE]), me(FIRE, &[TACKLE])], f, 1);
+    let l = r.choose(Choice::Switch(1));
+    assert_eq!(
+        l[..3],
+        ["Recall P", "GoPkmn@P nick:P1", "SendOut P1"],
+        "{l:?}"
+    );
+    let mut r = Run::wild(
+        &[me(WATER, &[TACKLE]), me(FIRE, &[TACKLE])],
+        foe(TRUANT, &[PURSUIT]),
+        1,
+    );
+    r.b.battler_mut(O).v.truant = true;
+    let l = r.choose(Choice::Switch(1));
+    assert_eq!(
+        l[..3],
+        ["Recall P", "GoPkmn@P nick:P1", "SendOut P1"],
+        "{l:?}"
+    );
+    assert!(has(&l, "PkmnLoafing@O ~64"), "{l:?}");
+    assert_eq!(r.b.party(P).get(0).unwrap().hp, 20);
 }
 
 // ---- abilities ----
@@ -506,6 +591,7 @@ fn shed_skin_rolls_mod_three_at_the_end_of_the_turn() {
                 l,
                 [
                     "PkmnSXCuredYProblem@O AbilityName(ShedSkin) ~64",
+                    "Report(Degraded(\"shed skin status name\"))",
                     "StatusIcon { side: Opponent, status: None }"
                 ]
             );
@@ -514,23 +600,19 @@ fn shed_skin_rolls_mod_three_at_the_end_of_the_turn() {
 }
 
 #[test]
-fn inner_focus_names_itself_for_a_sure_flinch_only() {
-    // BattleScript_FlinchPrevention for MOVE_EFFECT_CERTAIN (chance 100); silent otherwise.
+fn inner_focus_names_itself_for_a_certain_flinch_only() {
+    // SetMoveEffect(MOVE_EFFECT_FLINCH): BattleScript_FlinchPrevention when the effect is
+    // primary or MOVE_EFFECT_CERTAIN (Fake Out's); a secondary flinch, even at 100%, is
+    // blocked silently.
     let mut r = wild(me(WATER, &[FLINCH_ALL]), foe(FOCUSED, &[TACKLE]), 3);
     let l = r.choose(Choice::Move(0));
-    assert!(
-        has(&l, "PkmnSXPreventsFlinching@O AbilityName(InnerFocus) ~64"),
-        "{l:?}"
-    );
-    assert!(!has(&l, "PkmnFlinched@O ~64"), "{l:?}");
-    let seed = seed_where(|s| {
-        let mut r = wild(me(WATER, &[BITE]), foe(FOCUSED, &[TACKLE]), s);
-        let l = r.choose(Choice::Move(0));
-        l.iter().any(|x| x == "Hit O Normal")
-    });
-    let mut r = wild(me(WATER, &[BITE]), foe(FOCUSED, &[TACKLE]), seed);
-    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "Hit O Normal"), "{l:?}");
     assert!(!l.iter().any(|x| x.contains("Flinch")), "{l:?}");
+    let ((), _, l) = run_env(&mut r, 1, |b, env| {
+        let u = b.move_use(env, P, FLINCH_ALL, Some(0));
+        super::status::flinch(b, env, &u, O, super::status::Cause::SECONDARY, true);
+    });
+    assert_eq!(l, ["PkmnSXPreventsFlinching@O AbilityName(InnerFocus) ~64"]);
 }
 
 #[test]
@@ -651,4 +733,137 @@ fn natural_cure_heals_on_switching_out() {
     let mut r = Run::wild(&[m, me(WATER, &[TACKLE])], foe(NORMAL, &[SPLASH]), 1);
     r.choose(Choice::Switch(1));
     assert_eq!(r.b.party(P).get(0).unwrap().status, Status::None);
+}
+
+#[test]
+fn trapped_run_away_mon_cannot_switch() {
+    // HandleTurnActionSelectionState, B_ACTION_SWITCH: escape prevention gives
+    // PARTY_ACTION_CANT_SWITCH whatever the ability (Run Away only helps running), and Magnet
+    // Pull holds a Steel battler.
+    let mut r = Run::wild(
+        &[me(DARK, &[TACKLE]), me(FIRE, &[TACKLE])],
+        foe(NORMAL, &[SPLASH]),
+        1,
+    );
+    r.b.battler_mut(P).v.escape_prevented = true;
+    assert_eq!(r.choose(Choice::Switch(1)), Vec::<String>::new());
+    assert_eq!(r.b.need(), Need::Action);
+    assert_eq!(r.b.mon(P).party, 0);
+    let mut r = Run::wild(
+        &[me(STEEL, &[TACKLE]), me(FIRE, &[TACKLE])],
+        foe(MAGNET, &[SPLASH]),
+        1,
+    );
+    assert_eq!(r.choose(Choice::Switch(1)), Vec::<String>::new());
+    assert_eq!(r.b.mon(P).party, 0);
+}
+
+/// Wins a wild battle with one Tackle against a 1 HP foe: the RNG after it and the events.
+fn win_with(party: &[Pokemon], seed: u32) -> (Rng, Vec<String>) {
+    let mut f = foe(NORMAL, &[SPLASH]);
+    f.hp = 1;
+    let mut r = Run::wild(party, f, seed);
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "End(Won)"), "{l:?}");
+    (r.rng, l)
+}
+
+#[test]
+fn pickup_draws_after_a_win() {
+    // Cmd_pickup (BattleScript_PayDayMoneyAndPickUpItems): per party mon with Pickup and no
+    // held item (the engine's mons hold nothing), `Random() % 10`, and on 0 `Random() % 100`
+    // for the item, which the engine does not give (reported). PICKER is NORMAL with Pickup.
+    for found in [false, true] {
+        // The draws after the battle's own: compare with a non-Pickup twin.
+        let seed = seed_where(|s| {
+            let (mut after, _) = win_with(&[me(NORMAL, &[TACKLE])], s);
+            after.random().is_multiple_of(10) == found
+        });
+        let (mut expect, _) = win_with(&[me(NORMAL, &[TACKLE])], seed);
+        let (rng, l) = win_with(&[me(PICKER, &[TACKLE])], seed);
+        expect.random();
+        if found {
+            expect.random();
+        }
+        assert_eq!(rng, expect, "found {found}");
+        assert_eq!(has(&l, "Report(Degraded(\"pickup item\"))"), found, "{l:?}");
+    }
+    // A fainted Pickup mon rolls too (no HP check).
+    let mut picker = me(PICKER, &[TACKLE]);
+    picker.hp = 0;
+    let (mut expect, _) = win_with(&[me(NORMAL, &[TACKLE]), me(NORMAL, &[TACKLE])], 1);
+    let (rng, _) = win_with(&[me(NORMAL, &[TACKLE]), picker], 1);
+    expect.random();
+    assert!(
+        rng == expect || {
+            expect.random();
+            rng == expect
+        }
+    );
+}
+
+#[test]
+fn low_kick_power_follows_the_target_weight() {
+    // weightdamagecalculation (sWeightToDamageTable, hectograms): the first bracket whose
+    // bound is above the weight, else 120. Real weights from pokedex_entries.h.
+    use crate::battle::calc::low_kick_power;
+    for (weight, power) in [
+        (0, 20),
+        (36, 20),  // Wurmple
+        (100, 40), // a bound is exclusive
+        (175, 40), // Zigzagoon
+        (200, 40), // Geodude
+        (864, 80), // Makuhita
+        (970, 80), // Nosepass
+        (1000, 100),
+        (2000, 120),
+        (4600, 120), // Snorlax
+    ] {
+        assert_eq!(low_kick_power(weight), power, "{weight}");
+    }
+}
+
+#[test]
+fn low_kick_hits_by_weight_and_reports_a_missing_one() {
+    // BattleScript_EffectLowKick: attackstring, ppreduce, weightdamagecalculation, then the
+    // accuracy roll and BattleScript_HitFromCritCalc (crit, damage, the secondary roll).
+    // HEAVY (Rock) weighs 200, as Geodude: 40 power. Atk 13, Def 10, L5:
+    // 4×40×13/10/50 + 2 = 6 at the top roll (the test type chart has no Fighting on Rock).
+    let seed = seed_where(|s| !nth(s, 1).is_multiple_of(16) && nth(s, 2).is_multiple_of(16));
+    let mut r = wild(me(WATER, &[LOW_KICK]), foe(HEAVY, &[SPLASH]), 1);
+    let (rng, l) = use_slot0(&mut r, seed, P);
+    assert_eq!(rng, draws(seed, 4), "accuracy, crit, damage, secondary");
+    assert_eq!(20 - r.b.mon(O).hp, 6, "{l:?}");
+    assert!(!l.iter().any(|x| x.starts_with("Report")), "{l:?}");
+    // Weight 0 (content without weights yet): Gen3's lowest bracket (20), reported.
+    // 4×20×13/10/50 + 2 = 4 at the top roll.
+    let mut r = wild(me(WATER, &[LOW_KICK]), foe(NORMAL, &[SPLASH]), 1);
+    let (_, l) = use_slot0(&mut r, seed, P);
+    assert!(has(&l, "Report(Degraded(\"low kick weight\"))"), "{l:?}");
+    assert_eq!(20 - r.b.mon(O).hp, 4, "{l:?}");
+}
+
+#[test]
+fn unsupported_effects_are_reported() {
+    // Degradation, not silence: the core's fallback names the raw EFFECT_* number.
+    let mut r = wild(me(WATER, &[SPLASH]), foe(NORMAL, &[SPLASH]), 1);
+    let (_, l) = use_slot0(&mut r, 1, P);
+    assert!(has(&l, "Report(UnsupportedEffect(85))"), "{l:?}");
+}
+
+#[test]
+fn trainer_ai_scoring_pursuit_is_reported() {
+    // AI_CV_Pursuit reads `isFirstTurn` and a predicted switch the engine does not model.
+    let foes = [mon(DARK, 5, [20, 10, 10, 5, 10, 10], &[PURSUIT])];
+    let mut r = Run::new(trainer(), &[me(WATER, &[TACKLE])], &foes, 1);
+    r.b.trainer_ai = crate::battle::ai::AI_SCRIPT_CHECK_VIABILITY;
+    let l = r.choose(Choice::Move(0));
+    assert!(
+        has(&l, "Report(Degraded(\"ai pursuit viability\"))"),
+        "{l:?}"
+    );
+    let mut r = Run::new(trainer(), &[me(WATER, &[TACKLE])], &foes, 1);
+    r.b.trainer_ai = 0;
+    let l = r.choose(Choice::Move(0));
+    assert!(!l.iter().any(|x| x.starts_with("Report")), "{l:?}");
 }

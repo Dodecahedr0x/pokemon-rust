@@ -3,8 +3,11 @@
 use super::abilities;
 use super::status::{self, Cause};
 use super::{RunBlock, run_block};
+use crate::battle::calc;
 use crate::battle::core::{Action, Battle, Env, HitResult, MoveUse, Secondary};
-use crate::battle::{BattleEvent, BattleOutcome, Buff, Effectiveness, Msg, Side, Str};
+use crate::battle::{
+    BattleEvent, BattleOutcome, BattleReport, Buff, Effectiveness, Msg, Side, Str,
+};
 use crate::mon::{Ability, MoveEffect, Stat, Status, StatusKind, Type};
 
 /// Runs `u`'s script by effect; `Unsupported` falls back to the core's handling.
@@ -55,6 +58,7 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         }
         // As a move, Pursuit is a plain hit (its double damage is `pursuit_on_switch`).
         MoveEffect::Pursuit => b.hit(env, u, None, false),
+        MoveEffect::LowKick => low_kick(b, env, u),
         MoveEffect::Attract => {
             attract(b, env, u);
             None
@@ -154,8 +158,36 @@ fn confuse_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     status::confuse(b, env, u, u.target, Cause::SECONDARY);
 }
 
+/// Only a [`with`] (`seteffectwithchance`) secondary, never `certain`.
 fn flinch_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
-    status::flinch(b, env, u, u.target, Cause::SECONDARY);
+    status::flinch(b, env, u, u.target, Cause::SECONDARY, false);
+}
+
+/// `BattleScript_EffectLowKick`: `attackstring`, `ppreduce`, `weightdamagecalculation` (the
+/// target species' weight), then the accuracy check (a miss is `BattleScript_MoveMissedPause`)
+/// and `BattleScript_HitFromCritCalc`. A species without a weight (0) gets Gen3's lowest
+/// bracket, reported.
+fn low_kick(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
+    b.attack_string(env, u);
+    let weight = env.t.species_info(b.battler(u.target).mon.species).weight;
+    if weight == 0 {
+        env.out.push(BattleEvent::Report(BattleReport::Degraded(
+            "low kick weight",
+        )));
+    }
+    let u = &MoveUse {
+        power: calc::low_kick_power(weight),
+        ..*u
+    };
+    if !b.accuracy(env, u) {
+        b.miss_message(env, u);
+        return None;
+    }
+    let r = b.damage(env, u);
+    let r = b.deal(env, u, r);
+    b.secondary(env, u, &r, None);
+    b.try_faint(env, u.target);
+    Some(r)
 }
 
 /// `BattleScript_EffectSleep` / `Poison` / `Toxic` / `Paralyze` (and Will-O-Wisp's burn):

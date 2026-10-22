@@ -531,7 +531,8 @@ fn struggle_when_no_move_has_pp() {
             // Recoil: a quarter of the damage dealt.
             "Hp P 20->18",
             "PkmnHitWithRecoil@P ~64",
-            // Splash is an E2 effect: the stub fails.
+            // Splash is an E2 effect: reported, the stub fails.
+            "Report(UnsupportedEffect(85))",
             "UsedMove@O move:10",
             "ButItFailed@O ~64",
         ]
@@ -542,7 +543,11 @@ fn struggle_when_no_move_has_pp() {
 fn stat_moves() {
     let me = mon(WATER, 5, [20, 13, 10, 9, 9, 10], &[GROWL, SWORDS_DANCE]);
     let mut r = Run::wild(&[me], mon(GHOST, 5, [20, 10, 10, 5, 10, 10], &[SPLASH]), 8);
-    let foe_fails = ["UsedMove@O move:10", "ButItFailed@O ~64"];
+    let foe_fails = [
+        "Report(UnsupportedEffect(85))",
+        "UsedMove@O move:10",
+        "ButItFailed@O ~64",
+    ];
     let growl = [
         "UsedMove@P move:2",
         "Anim P move:2",
@@ -568,7 +573,8 @@ fn stat_moves() {
             "UsedMove@P move:2",
             "StatWontDecrease@O Atk ~64",
             foe_fails[0],
-            foe_fails[1]
+            foe_fails[1],
+            foe_fails[2],
         ]
     );
     r.choose(Choice::Move(1));
@@ -580,7 +586,8 @@ fn stat_moves() {
             "UsedMove@P move:8",
             "StatWontIncrease@P Atk ~64",
             foe_fails[0],
-            foe_fails[1]
+            foe_fails[1],
+            foe_fails[2],
         ]
     );
 }
@@ -593,13 +600,15 @@ fn ghosts_are_immune_to_normal_moves() {
         alloc::vec![
             format!("UsedMove@P move:{m}"),
             "ItDoesntAffect@O ~64".into(),
+            "Report(UnsupportedEffect(85))".into(),
             "UsedMove@O move:10".into(),
             "ButItFailed@O ~64".into(),
         ]
     };
     assert_eq!(r.choose(Choice::Move(0)), immune(1));
     // Swift (an unsupported effect) still goes through the type chart.
-    assert_eq!(r.choose(Choice::Move(1)), immune(14));
+    let swift = [&["Report(UnsupportedEffect(17))".into()][..], &immune(14)].concat();
+    assert_eq!(r.choose(Choice::Move(1)), swift);
     assert_eq!(r.b.mon(Side::Opponent).hp, 20);
 }
 

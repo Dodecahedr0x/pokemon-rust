@@ -291,6 +291,18 @@ pub const SOUND_MOVES: [&str; 10] = [
 ];
 pub const SOUND_FLAG: u8 = 1 << 6;
 
+/// The `MoveFlags` bits of move `id` (`MOVE_*`) that are not Gen3 move flags (OR them into the
+/// `move_flag` bits): [`SOUND_FLAG`] for the moves of [`SOUND_MOVES`]. Not called by
+/// `move_info` yet (its owner wires it in).
+#[allow(dead_code)]
+pub fn extra_move_flags(id: &str) -> u8 {
+    if SOUND_MOVES.contains(&id) {
+        SOUND_FLAG
+    } else {
+        0
+    }
+}
+
 /// `ABILITY_*` name -> `Ability` expression; the abilities the engine does not implement are
 /// `Ability::Other`.
 pub fn ability(name: &str) -> &'static str {
@@ -412,6 +424,7 @@ pub fn move_effect(name: &str) -> Option<String> {
             "FORESIGHT" => "MoveEffect::Foresight",
             "FURY_CUTTER" => "MoveEffect::FuryCutter",
             "PURSUIT" => "MoveEffect::Pursuit",
+            "LOW_KICK" => "MoveEffect::LowKick",
             _ => return None,
         }
         .to_string(),

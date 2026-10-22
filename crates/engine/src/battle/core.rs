@@ -53,8 +53,8 @@ pub(crate) mod tests;
 
 use super::calc::{self, Fighter};
 use super::{
-    BattleEvent, BattleKind, BattleMon, BattleOutcome, BattleSetup, Buff, Choice, Msg, MsgWait,
-    Need, Side, Str,
+    BattleEvent, BattleKind, BattleMon, BattleOutcome, BattleReport, BattleSetup, Buff, Choice,
+    Msg, MsgWait, Need, Side, Str,
 };
 use crate::data::{GameData, MoveId, SpeciesId};
 use crate::hash::Fnv64;
@@ -268,8 +268,9 @@ impl Battler {
         h.write_u32(self.bide_damage);
         h.write_u16(self.last_move.map_or(0xFFFF, |m| m.0));
         h.write_u16(self.last_landed.map_or(0xFFFF, |m| m.0));
-        // Task G: a tagged block only when set, so battles without these effects hash as
-        // before.
+        // Task G: a tagged block only while any is set. Some are set mid-turn by effects that
+        // existed before Task G (`unable` by a flinch, full paralysis, a miss on an immune
+        // target…), so such turns hash differently than before.
         if self.v != Volatiles::default() {
             h.write(&[0xA7]);
             self.v.hash(h);
@@ -736,6 +737,20 @@ impl Battle {
         } else if o.all_moves_unusable() {
             Action::Struggle
         } else {
+            if self.is_trainer()
+                && self.trainer_ai & super::ai::AI_SCRIPT_CHECK_VIABILITY != 0
+                && o.mon
+                    .moves
+                    .iter()
+                    .flatten()
+                    .any(|&m| env.t.move_info(m).effect == crate::mon::MoveEffect::Pursuit)
+            {
+                // AI_CV_Pursuit reads `isFirstTurn` and the foe's predicted switch, which the
+                // engine does not model: the score may differ.
+                env.out.push(BattleEvent::Report(BattleReport::Degraded(
+                    "ai pursuit viability",
+                )));
+            }
             match super::ai::choose(self, env.t, env.rng) {
                 Choice::Move(s) if (s as usize) < 4 && o.mon.pp[s as usize] > 0 => Action::Move(s),
                 Choice::Switch(i) if self.can_switch_to(Side::Opponent, i) => Action::Switch(i),
@@ -792,7 +807,7 @@ impl Battle {
             // The party menu refuses a trapped battler (PARTY_ACTION_CANT_SWITCH /
             // PARTY_ACTION_ABILITY_PREVENTS: party menu texts, not battle strings).
             Choice::Switch(i) if self.can_switch_to(p, i) => {
-                if super::effects::run_block(self, p).is_some_and(|r| r.traps()) {
+                if super::effects::switch_block(self, p) {
                     return None;
                 }
                 Some(Action::Switch(i))
@@ -1030,12 +1045,31 @@ impl Battle {
     /// battler's escape prevention and infatuation (their source in singles) end.
     /// `BattleScript_ActionSwitch` from `switchoutabilities` (Natural Cure clears the status,
     /// silently) to `returnatktoball`.
+    /// A battler knocked out on its way out (Pursuit) is not recalled (`returnatktoball`
+    /// skips a fainted battler).
     fn switch_out(&mut self, env: &mut Env, side: Side) {
+        if self.battler(side).mon.hp == 0 {
+            return;
+        }
         if self.battler(side).ability == Ability::NaturalCure {
             self.battler_mut(side).mon.status = crate::mon::Status::None;
             self.write_back(side);
         }
         env.out.push(BattleEvent::Recall { side });
+    }
+
+    /// `Cmd_pickup` (`BattleScript_PayDayMoneyAndPickUpItems`, after a win): for each player
+    /// mon whose ability is Pickup and that holds no item (any HP), `Random() % 10`, and on 0
+    /// `Random() % 100` for the item. The engine's mons hold nothing and get no item: reported.
+    fn pickup(&mut self, env: &mut Env) {
+        for m in self.parties[Side::Player as usize].iter() {
+            if m.ability(env.t) != Ability::Pickup || !env.rng.random().is_multiple_of(10) {
+                continue;
+            }
+            env.rng.random();
+            env.out
+                .push(BattleEvent::Report(BattleReport::Degraded("pickup item")));
+        }
     }
 
     pub(crate) fn clear_bonds(&mut self, side: Side) {
@@ -1294,6 +1328,9 @@ impl Battle {
             | BattleOutcome::Caught
             | BattleOutcome::PlayerTeleported
             | BattleOutcome::MonTeleported => {}
+        }
+        if outcome == BattleOutcome::Won {
+            self.pickup(env);
         }
         env.out.push(BattleEvent::End(outcome));
         self.need = Need::Ended(outcome);

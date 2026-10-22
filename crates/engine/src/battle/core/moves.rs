@@ -10,7 +10,7 @@
 use super::super::effects;
 use super::{Action, Battle, Env, LONG, msg};
 use crate::battle::calc;
-use crate::battle::{BattleEvent, Buff, Effectiveness, Msg, Side, Str};
+use crate::battle::{BattleEvent, BattleReport, Buff, Effectiveness, Msg, Side, Str};
 use crate::data::MoveId;
 use crate::mon::{MoveEffect, MoveInfo, MoveTarget, Stat, Type};
 
@@ -162,7 +162,12 @@ impl Battle {
 
     /// The fallback for effects the engine does not implement: a plain hit when the move has
     /// power (accuracy 0 = Gen3's always-hit moves), else "But it failed!".
+    /// Reported as [`BattleReport::UnsupportedEffect`].
     pub(crate) fn unsupported(&mut self, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
+        env.out.push(BattleEvent::Report(match u.info.effect {
+            MoveEffect::Unsupported(n) => BattleReport::UnsupportedEffect(n),
+            _ => BattleReport::Degraded("unhandled move effect"),
+        }));
         if u.power > 0 {
             self.hit(env, u, None, u.info.accuracy == 0)
         } else {
@@ -206,11 +211,9 @@ impl Battle {
 
     /// `Cmd_accuracycheck` with `ACC_CURR_MOVE`: one roll. Under Foresight the target's
     /// evasion is ignored; Compound Eyes and Hustle change the odds. `AccuracyCalcHelper`'s
-    /// always-hit effects (`ALWAYS_HIT`, `VITAL_THROW`) draw no roll.
+    /// always-hit effects (`ALWAYS_HIT`, `VITAL_THROW`) draw no roll: their scripts call
+    /// [`Battle::hit`] with `sure_hit` instead.
     pub(crate) fn accuracy(&mut self, env: &mut Env, u: &MoveUse) -> bool {
-        if matches!(u.info.effect, MoveEffect::VitalThrow) {
-            return true;
-        }
         let (a, d) = (self.battler(u.attacker), self.battler(u.target));
         let eva = if d.foresight {
             0

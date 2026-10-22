@@ -194,6 +194,7 @@ fn move_effects_by_name() {
         Some("MoveEffect::MultiHit")
     );
     assert_eq!(e("EFFECT_ATTRACT").as_deref(), Some("MoveEffect::Attract"));
+    assert_eq!(e("EFFECT_LOW_KICK").as_deref(), Some("MoveEffect::LowKick"));
     assert_eq!(e("EFFECT_ROLLOUT"), None);
     assert_eq!(e("HIT"), None);
     // The mapped names are real `EFFECT_*`s.
@@ -222,6 +223,34 @@ fn battle_enums_by_name() {
     assert_eq!(ability("ABILITY_PICKUP"), "Ability::Pickup");
     assert_eq!(ability("ABILITY_CLEAR_BODY"), "Ability::ClearBody");
     assert_eq!(ability("ABILITY_WHITE_SMOKE"), "Ability::Other");
+}
+
+#[test]
+fn extra_flags_mark_the_sound_moves() {
+    assert_eq!(extra_move_flags("MOVE_GROWL"), SOUND_FLAG);
+    assert_eq!(extra_move_flags("MOVE_HYPER_VOICE"), SOUND_FLAG);
+    assert_eq!(extra_move_flags("MOVE_TACKLE"), 0);
+    assert_eq!(extra_move_flags("GROWL"), 0);
+}
+
+/// `SOUND_MOVES` is `sSoundMovesTable` (battle_util.c), in order (skipped without
+/// `PKR_DECOMP`).
+#[test]
+fn sound_moves_match_the_decomp() {
+    let Ok(dir) = std::env::var("PKR_DECOMP") else {
+        return;
+    };
+    let src =
+        std::fs::read_to_string(std::path::Path::new(&dir).join("src/battle_util.c")).unwrap();
+    let start = src.find("sSoundMovesTable[] =").expect("sSoundMovesTable");
+    let body = &src[start..];
+    let body = &body[body.find('{').unwrap() + 1..body.find('}').unwrap()];
+    let table: Vec<&str> = body
+        .split(',')
+        .map(str::trim)
+        .filter(|n| !n.is_empty() && *n != "SOUND_MOVES_END")
+        .collect();
+    assert_eq!(table, SOUND_MOVES);
 }
 
 #[test]

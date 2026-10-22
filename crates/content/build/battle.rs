@@ -408,7 +408,7 @@ impl Gen<'_> {
             });
             writeln!(
                 species,
-                "    SpeciesInfo {{ name: {}, base: {:?}, types: [{}, {}], catch_rate: {}, exp_yield: {}, ev_yield: {:?}, gender_ratio: {}, friendship: {}, growth: {}, abilities: [{}, {}], learnset: &LS_{i}, gfx: {gfx} }}, // {}",
+                "    SpeciesInfo {{ name: {}, base: {:?}, types: [{}, {}], catch_rate: {}, exp_yield: {}, ev_yield: {:?}, gender_ratio: {}, friendship: {}, growth: {}, abilities: [{}, {}], learnset: &LS_{i}, weight: 0, gfx: {gfx} }}, // {}",
                 bytes_lit(&self.enc(&s.name, &s.id)?),
                 s.base,
                 ty(&s.types[0])?,
@@ -947,9 +947,6 @@ fn move_info(m: &Move, effect: &str, lang: Lang) -> Result<String> {
     let mut flags = 0u8;
     for f in &m.flags {
         flags |= classify::move_flag(f).with_context(|| format!("{}: unknown flag {f}", m.id))?;
-    }
-    if classify::SOUND_MOVES.contains(&m.id.as_str()) {
-        flags |= classify::SOUND_FLAG;
     }
     Ok(format!(
         "MoveInfo {{ name: {}, effect: {effect}, power: {}, ty: {}, accuracy: {}, pp: {}, effect_chance: {}, target: {}, priority: {}, flags: MoveFlags({flags:#X}) }}",

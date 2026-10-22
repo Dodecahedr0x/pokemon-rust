@@ -555,6 +555,17 @@ impl Str {
     }
 }
 
+/// What the engine did not do as the game does, for the host to log (not presentation: the
+/// scene keeps these aside, see [`BattleScene::take_reports`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BattleReport {
+    /// A move effect the engine does not implement (the raw effect number); the move fell back
+    /// to a plain hit or "But it failed!".
+    UnsupportedEffect(u8),
+    /// A behaviour approximated for lack of data or support (what, in a few words).
+    Degraded(&'static str),
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BattleEvent {
     Msg(Msg),
@@ -611,6 +622,8 @@ pub enum BattleEvent {
         caught: bool,
     },
     End(BattleOutcome),
+    /// Not presentation: [`BattleScene::push`] sets it aside.
+    Report(BattleReport),
 }
 
 /// What presentation reads of a battler (Gen3 `struct BattlePokemon` subset). The core keeps

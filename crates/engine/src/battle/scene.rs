@@ -97,8 +97,8 @@ use super::gfx::{
 };
 use super::ui::BattleWindows;
 use super::{
-    Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleSetup, Choice,
-    EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, Str, text,
+    Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleReport,
+    BattleSetup, Choice, EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, Str, text,
 };
 use crate::checkpoint::PlayerName;
 use crate::data::{GameData, SpeciesId};
@@ -214,6 +214,9 @@ pub enum OpenMenu {
 }
 
 /// Plays a battle's events and turns input into [`Choice`]s. See the module docs.
+/// The most reports a scene keeps until `take_reports` (the rest are dropped).
+pub const MAX_REPORTS: usize = 32;
+
 pub struct BattleScene {
     kind: BattleKind,
     parts: Parts,
@@ -233,6 +236,8 @@ pub struct BattleScene {
     hp_pending: [bool; 2],
     exp_pending: bool,
     queue: VecDeque<BattleEvent>,
+    /// Reports set aside by `push` (capped, not hashed), until `take_reports`.
+    reports: Vec<BattleReport>,
     play: Play,
     menu: Menu,
     /// The kind of the last `Msg` event printed (scripted input and debugging only: not
@@ -286,6 +291,7 @@ impl BattleScene {
             hp_pending: [false; 2],
             exp_pending: false,
             queue: VecDeque::new(),
+            reports: Vec::new(),
             play: Play::Idle,
             menu: Menu::None,
             last_msg: None,
@@ -390,9 +396,23 @@ impl BattleScene {
         false
     }
 
-    /// Queues events (drains `events`).
+    /// Queues events (drains `events`); reports go aside (see [`BattleScene::take_reports`]).
     pub fn push(&mut self, events: &mut Vec<BattleEvent>) {
-        self.queue.extend(events.drain(..));
+        for e in events.drain(..) {
+            match e {
+                BattleEvent::Report(r) => {
+                    if self.reports.len() < MAX_REPORTS {
+                        self.reports.push(r);
+                    }
+                }
+                e => self.queue.push_back(e),
+            }
+        }
+    }
+
+    /// The reports pushed since the last call (at most [`MAX_REPORTS`]).
+    pub fn take_reports(&mut self) -> Vec<BattleReport> {
+        core::mem::take(&mut self.reports)
     }
 
     /// One frame of playback and menus. `Some` is the player's answer to `battle.need()`:
@@ -847,6 +867,8 @@ impl BattleScene {
                 self.fader.start(Fade::ToBlack);
                 Play::Ending
             }
+            // `push` never queues one.
+            BattleEvent::Report(_) => Play::Idle,
         };
     }
 

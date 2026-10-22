@@ -131,6 +131,7 @@ fn moves_at_level_filters_the_learnset() {
             growth: GrowthRate::MediumFast,
             abilities: [Ability::None; 2],
             learnset: &[],
+            weight: 0,
             gfx: None,
         },
         SpeciesInfo {
@@ -145,6 +146,7 @@ fn moves_at_level_filters_the_learnset() {
             growth: GrowthRate::MediumSlow,
             abilities: [Ability::Torrent, Ability::None],
             learnset: &LEARNSET,
+            weight: 0,
             gfx: None,
         },
     ];

@@ -131,6 +131,7 @@ const fn species(name: &'static [u8], i: usize) -> SpeciesInfo {
         growth: GrowthRate::MediumSlow,
         abilities: [Ability::None; 2],
         learnset: &[],
+        weight: 0,
         gfx: Some(&PICS[i]),
     }
 }

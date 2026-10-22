@@ -150,12 +150,6 @@ pub(crate) enum RunBlock {
 }
 
 impl RunBlock {
-    /// Whether the battler is trapped (switching is refused too); the first battle only
-    /// forbids running.
-    pub fn traps(self) -> bool {
-        self != RunBlock::Forbidden(Str::DontLeaveBirch)
-    }
-
     /// The `gNoEscapeStringIds` message about `side`.
     pub fn msg(self, side: Side) -> Msg {
         match self {
@@ -191,6 +185,14 @@ pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
         return Some(RunBlock::Forbidden(Str::DontLeaveBirch));
     }
     None
+}
+
+/// `HandleTurnActionSelectionState`, `B_ACTION_SWITCH`: whether `side` may not switch
+/// (`PARTY_ACTION_CANT_SWITCH` / `PARTY_ACTION_ABILITY_PREVENTS`). Unlike running, Run Away
+/// does not help, and the first battle does not forbid it.
+pub(crate) fn switch_block(b: &Battle, side: Side) -> bool {
+    let (me, foe) = (b.battler(side), b.battler(side.other()));
+    me.v.escape_prevented || (foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel))
 }
 
 /// `jumpifnopursuitswitchdmg` + `BattleScript_PursuitDmgOnSwitchOut` when `side` switches out

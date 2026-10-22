@@ -303,6 +303,8 @@ pub enum MoveEffect {
     FuryCutter,
     /// `EFFECT_PURSUIT`: a hit, doubled and first against a foe switching out.
     Pursuit,
+    /// `EFFECT_LOW_KICK`: power from the target's weight.
+    LowKick,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
 }
@@ -377,6 +379,9 @@ pub struct SpeciesInfo {
     pub growth: GrowthRate,
     pub abilities: [Ability; 2],
     pub learnset: &'static [LevelUpMove],
+    /// Pokédex weight in hectograms (`GetPokedexHeightWeight`, Low Kick); 0 when the content
+    /// does not carry it yet.
+    pub weight: u16,
     /// `None` for species the build left out.
     pub gfx: Option<&'static MonGfx>,
 }

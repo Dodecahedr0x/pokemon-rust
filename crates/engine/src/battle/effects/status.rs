@@ -187,13 +187,21 @@ pub(super) fn confuse(
 
 /// `MOVE_EFFECT_FLINCH` on `effect`: only when it has not acted yet this turn
 /// (`GetBattlerTurnOrderNum(gEffectBattler) > gCurrentTurnActionNumber`). Silent, but Inner
-/// Focus names itself for a primary or certain flinch (`BattleScript_FlinchPrevention`).
-pub(super) fn flinch(b: &mut Battle, env: &mut Env, u: &MoveUse, effect: Side, cause: Cause) {
+/// Focus names itself for a primary or `certain` (`MOVE_EFFECT_CERTAIN`) flinch
+/// (`BattleScript_FlinchPrevention`); a chance flinch, even at 100%, is blocked silently.
+pub(super) fn flinch(
+    b: &mut Battle,
+    env: &mut Env,
+    u: &MoveUse,
+    effect: Side,
+    cause: Cause,
+    certain: bool,
+) {
     if cause.shield_dust(b, effect) || b.battler(effect).mon.hp == 0 {
         return;
     }
     if b.battler(effect).ability == Ability::InnerFocus {
-        if cause.primary || u.info.effect_chance >= 100 {
+        if cause.primary || certain {
             env.out.push(BattleEvent::Msg(Msg {
                 buffs: [
                     Buff::None,

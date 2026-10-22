@@ -451,10 +451,12 @@ fn nature_power_calls_swift_with_one_pp() {
     let mut r = wild(me(WATER, &[NATURE_POWER]), foe(NORMAL, &[REAL_SPLASH]), 5);
     let l = r.choose(Choice::Move(0));
     assert_eq!(
-        l[..4],
+        l[..5],
         [
             "UsedMove@P move:26",
             "NaturePowerTurnedInto@P ~64",
+            // Swift's EFFECT_ALWAYS_HIT is not implemented in the test data.
+            "Report(UnsupportedEffect(17))",
             "UsedMove@P move:14",
             "Anim P move:14",
         ]

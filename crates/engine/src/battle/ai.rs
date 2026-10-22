@@ -271,7 +271,7 @@ impl<'a> Ai<'a> {
         let info = self.info(mov);
         let (user, target) = (self.b.battler(USER), self.b.battler(TARGET));
         let (a, d) = (user.fighter(), target.fighter());
-        let mut dmg = calc::base_damage(&a, &d, info.power, info.ty, false);
+        let mut dmg = calc::base_damage_in(&a, &d, info.power, info.ty, false, self.b.field());
         if user.charge > 0 && info.ty == Type::Electric {
             dmg *= 2;
         }

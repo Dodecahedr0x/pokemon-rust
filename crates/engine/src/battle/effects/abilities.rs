@@ -14,7 +14,7 @@
 
 use super::status::{self, Cause};
 use crate::battle::core::{Battle, Env, HitResult, LONG, MoveUse, msg};
-use crate::battle::{BattleEvent, Buff, Effectiveness, Msg, Side, Str};
+use crate::battle::{BattleEvent, BattleReport, Buff, Effectiveness, Msg, Side, Str};
 use crate::mon::{Ability, Gender, MoveFlags, Stat, Status, StatusKind, Type};
 
 /// `Cmd_moveend` cases `MOVEEND_DEFROST` … `MOVEEND_SYNCHRONIZE_ATTACKER`.
@@ -212,6 +212,11 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
                 wait: LONG,
                 ..msg(Str::PkmnSXCuredYProblem, side, side.other(), side)
             }));
+            // The message's {B_BUFF1} is the status name (`gStatusConditionString_*`), which
+            // the engine does not carry: it prints empty.
+            env.out.push(BattleEvent::Report(BattleReport::Degraded(
+                "shed skin status name",
+            )));
             env.out.push(BattleEvent::StatusIcon {
                 side,
                 status: Status::None,

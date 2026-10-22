@@ -102,6 +102,16 @@ pub struct Field {
 }
 
 /// [`base_damage_in`] without Mud Sport or Water Sport.
+/// `Cmd_weightdamagecalculation` (`sWeightToDamageTable`): the power for a target weighing
+/// `weight` hectograms: the first bracket whose bound exceeds it, else 120.
+pub fn low_kick_power(weight: u16) -> u8 {
+    const TABLE: [(u16, u8); 5] = [(100, 20), (250, 40), (500, 60), (1000, 80), (2000, 100)];
+    TABLE
+        .iter()
+        .find(|&&(bound, _)| weight < bound)
+        .map_or(120, |&(_, power)| power)
+}
+
 pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) -> i32 {
     base_damage_in(a, d, power, ty, crit, Field::default())
 }

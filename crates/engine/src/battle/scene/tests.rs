@@ -633,3 +633,24 @@ fn hp_drain_moves_the_numbers_with_the_bar() {
     assert!(seen.windows(2).all(|w| w[1] <= w[0]));
     assert_eq!(r.scene.parties[0].get(0).unwrap().hp, 4);
 }
+
+#[test]
+fn reports_are_set_aside_unhashed_and_capped() {
+    use crate::battle::BattleReport;
+    use crate::battle::scene::MAX_REPORTS;
+    let mut r = Run::wild(&[starter()], &[foe(3)], 1);
+    let mut plain = Run::wild(&[starter()], &[foe(3)], 1);
+    let queued = r.scene.queue.len();
+    let mut events = alloc::vec![BattleEvent::Report(BattleReport::Degraded("x")); MAX_REPORTS + 1];
+    events.insert(0, BattleEvent::Report(BattleReport::UnsupportedEffect(85)));
+    r.scene.push(&mut events);
+    assert_eq!(r.scene.queue.len(), queued);
+    assert_eq!(r.hash(), plain.hash());
+    let reports = r.scene.take_reports();
+    assert_eq!(reports.len(), MAX_REPORTS);
+    assert_eq!(reports[0], BattleReport::UnsupportedEffect(85));
+    assert!(r.scene.take_reports().is_empty());
+    r.load();
+    plain.load();
+    assert_eq!(r.hash(), plain.hash());
+}
