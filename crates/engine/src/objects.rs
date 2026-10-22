@@ -7,7 +7,10 @@
 //! `-16 * dir` to 0 while the step plays. Between steps `prev == (x, y)`.
 
 mod anim;
+mod approach;
 mod draw;
+mod emote;
+mod movement;
 mod snapshot;
 mod spawn;
 #[cfg(test)]
@@ -23,6 +26,11 @@ use crate::rng::Rng;
 use crate::script::{Speed, Step};
 use alloc::vec::Vec;
 use anim::Anim;
+pub(crate) use approach::{Approach, ApproachStep};
+use emote::EmoteFx;
+pub use emote::{EMOTE_FRAMES, EMOTES_MAX};
+#[cfg(test)]
+use movement::{DELAYS_MEDIUM, DELAYS_SHORT, ROTATE_DELAY};
 
 /// What objects need to know about the map around them. Implemented by the integration
 /// (field blocks with overrides and connections, and the game's behavior classification).
@@ -106,8 +114,6 @@ const fn in_place_frames(s: Speed) -> u8 {
 pub const TURN_FRAMES: u8 = 8;
 /// The player's bump: `walk_in_place_slow` (`PlayerNotOnBikeCollide`).
 pub const BUMP_FRAMES: u8 = 32;
-/// `sMovementDelaysMedium`, picked with `Random() % 4` by look-around and wander types.
-const DELAYS_MEDIUM: [u16; 4] = [32, 64, 96, 128];
 /// `sJumpY_High` / `sJumpY_Normal`.
 const JUMP_Y_HIGH: [i8; 16] = [
     -4, -6, -8, -10, -11, -12, -12, -12, -11, -10, -9, -8, -6, -4, 0, 0,
@@ -154,6 +160,8 @@ enum Idle {
     Start,
     Wait(u16),
     Done,
+    /// Walk sequences and back-and-forth walks: Gen3 `directionSequenceIndex` (`Start` is 0).
+    Seq(u8),
 }
 
 /// Gen3 `gPlayerAvatar.runningState`.
@@ -199,9 +207,18 @@ pub struct Object {
 }
 
 /// Initial facing per movement type (Gen3 `gInitialMovementTypeFacingDirections`).
-const fn initial_facing(m: MovementType) -> Dir {
+pub const fn initial_facing(m: MovementType) -> Dir {
     match m {
-        MovementType::Face(d) | MovementType::WalkInPlace(d) => d,
+        MovementType::Face(d)
+        | MovementType::WalkInPlace(d)
+        | MovementType::JogInPlace(d)
+        | MovementType::RunInPlace(d)
+        | MovementType::WalkSlowlyInPlace(d)
+        | MovementType::WalkBackAndForth(d)
+        | MovementType::FaceTwo(d, _) => d,
+        MovementType::WalkSequence(route) => route[0],
+        // `FACE_UP_LEFT_AND_RIGHT` starts north, the other three-direction ones south.
+        MovementType::FaceAllBut(Dir::Down) => Dir::Up,
         MovementType::WanderVertical => Dir::Up,
         MovementType::WanderHorizontal => Dir::Left,
         _ => Dir::Down,
@@ -445,6 +462,7 @@ impl Object {
                 h.write_u16(n);
             }
             Idle::Done => h.write(&[2]),
+            Idle::Seq(n) => h.write(&[3, n]),
         }
         self.anim.hash(h);
     }
@@ -460,6 +478,17 @@ pub const fn movement_code(m: MovementType) -> [u8; 2] {
         MovementType::WanderHorizontal => [4, 0],
         MovementType::WalkInPlace(d) => [5, d as u8],
         MovementType::Invisible => [6, 0],
+        MovementType::FaceTwo(a, b) => [7, a as u8 | (b as u8) << 2],
+        MovementType::FaceAllBut(d) => [8, d as u8],
+        MovementType::Rotate { clockwise } => [9, clockwise as u8],
+        MovementType::WalkBackAndForth(d) => [10, d as u8],
+        MovementType::WalkSequence([a, b, c, d]) => [
+            11,
+            a as u8 | (b as u8) << 2 | (c as u8) << 4 | (d as u8) << 6,
+        ],
+        MovementType::JogInPlace(d) => [12, d as u8],
+        MovementType::RunInPlace(d) => [13, d as u8],
+        MovementType::WalkSlowlyInPlace(d) => [14, d as u8],
     }
 }
 
@@ -504,6 +533,11 @@ pub struct Objects {
     run_state: RunState,
     /// Render cache (not hashed): colors last uploaded to each OBJ palette bank.
     banks: [Option<[u16; 16]>; 16],
+    // ---- Milestone 8 ----
+    /// Emote bubbles shown (Gen3 field effects), at most [`EMOTES_MAX`].
+    emotes: Vec<EmoteFx>,
+    /// A trainer that saw the player and walks up (Gen3 `TrainerSeeFuncList`).
+    approach: Option<Approach>,
 }
 
 impl Default for Objects {
@@ -521,6 +555,8 @@ impl Objects {
             map: MapId(0),
             run_state: RunState::NotMoving,
             banks: [None; 16],
+            emotes: Vec::new(),
+            approach: None,
         }
     }
 
@@ -699,6 +735,38 @@ impl Objects {
         }
     }
 
+    /// Gen3 `GetCollisionAtCoords` for object `local` at (x, y) with its wander range ignored and
+    /// without the `Behavior::Blocked` test (Gen3's collision has no water): what trainer sight
+    /// checks along its line.
+    pub fn sight_collision(
+        &self,
+        terrain: &impl Terrain,
+        local: u8,
+        (x, y): (i16, i16),
+    ) -> Collision {
+        let Some(i) = self.index(local) else {
+            return Collision::None;
+        };
+        let o = &self.objs[i];
+        let block = terrain.block(x, y);
+        if block_collision(block) != 0 {
+            return Collision::Impassable;
+        }
+        if elevation_mismatch(o.elevation, block_elevation(block)) {
+            return Collision::ElevationMismatch;
+        }
+        let blocked = self.objs.iter().enumerate().any(|(j, other)| {
+            j != i
+                && ((other.x, other.y) == (x, y) || other.prev == (x, y))
+                && elevations_compatible(o.elevation, other.elevation)
+        });
+        if blocked {
+            Collision::Object
+        } else {
+            Collision::None
+        }
+    }
+
     /// Collision for `local` taking one step towards `dir`.
     pub fn collision(&self, terrain: &impl Terrain, local: u8, dir: Dir) -> Collision {
         let Some(i) = self.index(local) else {
@@ -712,6 +780,9 @@ impl Objects {
     /// Player control for one frame, as Gen3 `MovePlayerNotOnBike`. Does nothing while the
     /// player runs a movement script (`update` plays it).
     pub fn update_player(&mut self, terrain: &impl Terrain, input: PlayerInput) -> PlayerEvent {
+        // Player control runs only when no script does: an approach left over by a trainer
+        // script that ended without one is dropped.
+        self.cancel_approach();
         if self.objs[0].moves.is_some() {
             return PlayerEvent::Idle;
         }
@@ -791,6 +862,7 @@ impl Objects {
             self.idle(terrain, rng, i);
         }
         self.despawn_outside_view();
+        self.update_emotes();
     }
 
     /// Plays the action in progress or the next scripted step. Returns false if the object is
@@ -846,61 +918,12 @@ impl Objects {
             Step::UnlockFacing => o.facing_locked = false,
             Step::Hide => o.visible = false,
             Step::Show => o.visible = true,
-            // TODO: emote bubble sprite (Gen3 field effect, ~60 frames, independent of the
-            // movement script).
-            Step::Emote(_) => {}
-        }
-    }
-
-    /// Idle movement per `MovementType` (Gen3 `MovementType_*` callbacks).
-    fn idle(&mut self, terrain: &impl Terrain, rng: &mut Rng, i: usize) {
-        let random = |rng: &mut Rng| (rng.next_u32() >> 16) as u16;
-        let o = &mut self.objs[i];
-        let dirs: &[Dir] = match o.movement {
-            MovementType::Face(d) => {
-                if o.idle == Idle::Start {
-                    o.face(d);
-                    o.idle = Idle::Done;
-                }
-                return;
-            }
-            MovementType::Invisible => {
-                if o.idle == Idle::Start {
-                    o.visible = false;
-                    o.idle = Idle::Done;
-                }
-                return;
-            }
-            MovementType::WalkInPlace(d) => {
-                o.begin(ActionKind::InPlace(in_place_frames(Speed::Normal)), d);
-                return;
-            }
-            MovementType::LookAround | MovementType::Wander => &Dir::ALL,
-            // `gUpAndDownDirections` / `gLeftAndRightDirections`.
-            MovementType::WanderVertical => &[Dir::Down, Dir::Up],
-            MovementType::WanderHorizontal => &[Dir::Left, Dir::Right],
-        };
-        if let Idle::Wait(n) = o.idle {
-            if n > 1 {
-                o.idle = Idle::Wait(n - 1);
-                return;
-            }
-            // Delay over: pick a direction (`Random() & 3` / `& 1`) and walk if free.
-            let d = dirs[random(rng) as usize & (dirs.len() - 1)];
-            o.set_dir(d);
-            let wanders = o.movement != MovementType::LookAround;
-            if wanders && self.collision(terrain, self.objs[i].local_id, d) == Collision::None {
-                let o = &mut self.objs[i];
-                o.begin(ActionKind::Walk(Speed::Normal), d);
-                o.idle = Idle::Start;
-                return;
+            // Gen3 `MovementAction_Emote*`: starts the field effect and ends at once.
+            Step::Emote(e) => {
+                let (local, map) = (o.local_id, o.map);
+                self.start_emote(local, map, e);
             }
         }
-        // Face the current direction, then wait `sMovementDelaysMedium[Random() % 4]`.
-        let o = &mut self.objs[i];
-        let f = o.facing;
-        o.face(f);
-        o.idle = Idle::Wait(DELAYS_MEDIUM[random(rng) as usize % 4]);
     }
 
     /// Hashes everything that affects future frames, except the render cache (VRAM slots,
@@ -913,5 +936,10 @@ impl Objects {
         }
         h.write_u16(self.map.0);
         h.write(&[self.run_state as u8]);
+        // Milestone 8: written only while present, so hashes without them are unchanged.
+        if !self.emotes.is_empty() {
+            self.hash_emotes(h);
+        }
+        self.hash_approach(h);
     }
 }

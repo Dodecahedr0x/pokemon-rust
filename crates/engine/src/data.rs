@@ -231,8 +231,10 @@ pub enum Gfx {
     Var(VarId),
 }
 
-/// Idle behavior of an object (subset of Gen3 `MOVEMENT_TYPE_*`; content maps the rest to
-/// the closest variant).
+/// Idle behavior of an object (Gen3 `MOVEMENT_TYPE_*`; content maps the ones without a variant,
+/// copy-player, disguises, buried and berry trees, to the closest one).
+///
+/// New variants are appended: checkpoints encode the variant index.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum MovementType {
     /// Stays put facing `Dir`.
@@ -246,6 +248,31 @@ pub enum MovementType {
     /// Walks on the spot facing `Dir`.
     WalkInPlace(Dir),
     Invisible,
+    // ---- Milestone 8 ----
+    /// Gen3 `FACE_DOWN_AND_UP`, `FACE_LEFT_AND_RIGHT`, `FACE_UP_AND_LEFT`, `FACE_UP_AND_RIGHT`,
+    /// `FACE_DOWN_AND_LEFT`, `FACE_DOWN_AND_RIGHT`: turns to one of the two (Gen3's array order;
+    /// the first is the initial facing) after medium delays.
+    FaceTwo(Dir, Dir),
+    /// Gen3 `FACE_DOWN_UP_AND_LEFT` (`Right` missing), `FACE_DOWN_UP_AND_RIGHT` (`Left`),
+    /// `FACE_UP_LEFT_AND_RIGHT` (`Down`), `FACE_DOWN_LEFT_AND_RIGHT` (`Up`): turns among the other
+    /// three after short delays.
+    FaceAllBut(Dir),
+    /// Gen3 `ROTATE_CLOCKWISE` / `ROTATE_COUNTERCLOCKWISE`: a quarter turn every 48 frames.
+    Rotate {
+        clockwise: bool,
+    },
+    /// Gen3 `WALK_UP_AND_DOWN` (`Up`), `WALK_DOWN_AND_UP` (`Down`), `WALK_LEFT_AND_RIGHT` (`Left`),
+    /// `WALK_RIGHT_AND_LEFT` (`Right`): walks to the end of its range and back, starting towards
+    /// `Dir`.
+    WalkBackAndForth(Dir),
+    /// Gen3 `WALK_SEQUENCE_*`: walks the four directions in this order around its range.
+    WalkSequence([Dir; 4]),
+    /// Gen3 `JOG_IN_PLACE_*` (`walk_in_place_fast`).
+    JogInPlace(Dir),
+    /// Gen3 `RUN_IN_PLACE_*` (`walk_in_place_faster`).
+    RunInPlace(Dir),
+    /// Gen3 `WALK_SLOWLY_IN_PLACE_*` (`walk_in_place_slow`).
+    WalkSlowlyInPlace(Dir),
 }
 
 /// An object template. `Copy` so the world can keep a per-visit copy that scripts edit

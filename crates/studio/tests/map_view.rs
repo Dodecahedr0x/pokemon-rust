@@ -17,10 +17,24 @@ fn initial_facing_matches_the_engine() {
         MovementType::WanderVertical,
         MovementType::WanderHorizontal,
         MovementType::Invisible,
+        MovementType::Rotate { clockwise: true },
+        MovementType::Rotate { clockwise: false },
     ];
     for d in Dir::ALL {
         all.push(MovementType::Face(d));
         all.push(MovementType::WalkInPlace(d));
+        all.push(MovementType::JogInPlace(d));
+        all.push(MovementType::RunInPlace(d));
+        all.push(MovementType::WalkSlowlyInPlace(d));
+        all.push(MovementType::WalkBackAndForth(d));
+        all.push(MovementType::FaceAllBut(d));
+        all.push(MovementType::FaceTwo(d, d.opposite()));
+        all.push(MovementType::WalkSequence([
+            d,
+            d.opposite(),
+            d,
+            d.opposite(),
+        ]));
     }
     for m in &all {
         // Exhaustive: a new engine variant stops this compiling until it is listed above.
@@ -31,7 +45,15 @@ fn initial_facing_matches_the_engine() {
             | MovementType::WanderVertical
             | MovementType::WanderHorizontal
             | MovementType::WalkInPlace(_)
-            | MovementType::Invisible => {}
+            | MovementType::Invisible
+            | MovementType::FaceTwo(..)
+            | MovementType::FaceAllBut(_)
+            | MovementType::Rotate { .. }
+            | MovementType::WalkBackAndForth(_)
+            | MovementType::WalkSequence(_)
+            | MovementType::JogInPlace(_)
+            | MovementType::RunInPlace(_)
+            | MovementType::WalkSlowlyInPlace(_) => {}
         }
     }
     for m in all {

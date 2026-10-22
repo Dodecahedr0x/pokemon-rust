@@ -5,11 +5,22 @@
 //! palette goes to a bank already holding the same colors, else to an empty bank, else to the
 //! lowest bank no object drawn this frame uses. An object whose palette finds no bank (more
 //! than 16 distinct palettes on screen) is not drawn.
+//!
+//! Emote bubbles (Milestone 8) own the last [`EMOTES_MAX`] × [`EMOTE_TILES`] tiles, one fixed
+//! slot each, and are drawn in front of every object (Gen3: OAM priority 1, above the field's
+//! top layer and the objects).
 
-use super::Objects;
+use super::{EMOTES_MAX, Objects};
 use crate::data::GameData;
 use crate::video::{Cmd, Frame, MAX_OBJS, OBJ_TILES, Obj, SCREEN_H, SCREEN_W, layout};
 use alloc::vec::Vec;
+
+/// Tiles of one emote slot (a 16x16 bubble).
+pub const EMOTE_TILES: u16 = 4;
+/// First tile of the emote slots; objects use the tiles below.
+const EMOTE_FIRST_TILE: u16 = OBJ_TILES as u16 - EMOTES_MAX as u16 * EMOTE_TILES;
+/// Gen3 `sOamData_Icons.priority`.
+const EMOTE_PRIORITY: u8 = 1;
 
 impl Objects {
     /// Pushes the visible objects' sprites, lower y behind (ties: the player, then spawn order,
@@ -75,8 +86,86 @@ impl Objects {
         }
         // Stable: equal y keeps object order, so the player wins ties.
         out.sort_by_key(|&(y, _)| core::cmp::Reverse(y));
+        if !self.emotes.is_empty() {
+            let bubbles = self.draw_emotes(game, camera_px, &mut used_banks, f);
+            let room = MAX_OBJS.saturating_sub(f.objs.len());
+            f.objs.extend(bubbles.into_iter().take(room));
+        }
         let room = MAX_OBJS.saturating_sub(f.objs.len());
         f.objs.extend(out.into_iter().take(room).map(|(_, o)| o));
+    }
+
+    /// The bubbles' OBJs (Gen3 `SpriteCB_TrainerIcons`: centered 16 px above the object's
+    /// sprite center, plus the bounce), and their uploads. A kind the game has no sprite for
+    /// draws nothing.
+    fn draw_emotes(
+        &mut self,
+        game: &impl GameData,
+        camera_px: (i32, i32),
+        used_banks: &mut u16,
+        f: &mut Frame,
+    ) -> Vec<Obj> {
+        let mut out = Vec::new();
+        for k in 0..self.emotes.len() {
+            let e = self.emotes[k];
+            let Some(sprite) = game.emote(e.kind) else {
+                continue;
+            };
+            let Some(o) = self
+                .objs
+                .iter()
+                .find(|o| o.local_id == e.local_id && o.map == e.map)
+            else {
+                continue;
+            };
+            if !o.visible {
+                continue;
+            }
+            let Some((shape, size)) = Obj::shape_for(sprite.width, sprite.height) else {
+                continue;
+            };
+            let Some(&tiles) = sprite.frames.first() else {
+                continue;
+            };
+            if tiles.len() > EMOTE_TILES as usize {
+                continue;
+            }
+            let height = o
+                .gfx
+                .map_or(game.player_sprite(), |g| game.sprite(g).unwrap_or(sprite))
+                .height as i32;
+            let (px, py) = o.pixel_pos();
+            // The object sprite's center is (px + 8, py + 16 - h / 2) (Gen3 `sprite->y += 16 +
+            // centerToCornerVecY`); the bubble's center is 16 px above it.
+            let (w, h) = (sprite.width as i32, sprite.height as i32);
+            let cx = px + 8 - camera_px.0;
+            let cy = py + 16 - height / 2 - 16 - camera_px.1 + o.jump_y() as i32 + e.y_off as i32;
+            let (x, y) = (cx - w / 2, cy - h / 2);
+            if x <= -w || x >= SCREEN_W as i32 || y <= -h || y >= SCREEN_H as i32 {
+                continue;
+            }
+            let Some(palette) = self.palette_bank(sprite.palette, used_banks, f) else {
+                continue;
+            };
+            let first = EMOTE_FIRST_TILE + e.slot as u16 * EMOTE_TILES;
+            let shown = Some(sprite as *const _ as usize);
+            if self.emotes[k].uploaded != shown {
+                f.cmds.push(Cmd::ObjTiles { first, tiles });
+                self.emotes[k].uploaded = shown;
+            }
+            out.push(Obj {
+                x: x as i16,
+                y: y as i16,
+                tile: first,
+                palette,
+                shape,
+                size,
+                hflip: false,
+                vflip: false,
+                priority: EMOTE_PRIORITY,
+            });
+        }
+        out
     }
 
     /// Forgets what OBJ VRAM and palettes hold, so everything is uploaded again on the next
@@ -84,6 +173,9 @@ impl Objects {
     pub fn invalidate_vram(&mut self) {
         for o in &mut self.objs {
             o.uploaded = None;
+        }
+        for e in &mut self.emotes {
+            e.uploaded = None;
         }
         self.banks = [None; 16];
     }
@@ -107,7 +199,7 @@ impl Objects {
             }
             first = first.max(start + n);
         }
-        if first as usize + count as usize > OBJ_TILES {
+        if first + count > EMOTE_FIRST_TILE {
             return None;
         }
         let o = &mut self.objs[i];
