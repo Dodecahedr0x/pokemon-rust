@@ -302,6 +302,18 @@ fn one_and_four_threads_give_identical_deltas() {
 }
 
 #[test]
+fn the_shipped_default_config_gives_identical_deltas_on_one_and_eight_threads() {
+    // `Config::default()` as shipped (batch 128 since Task H).
+    let cfg = Config::default();
+    assert_eq!(batch_size(&cfg), 128);
+    let (a, da, _) = run_with(cfg.clone(), 8, Some(&pool(1)));
+    let (b, db, _) = run_with(cfg, 8, Some(&pool(8)));
+    assert_eq!(format!("{da:?}"), format!("{db:?}"));
+    assert_eq!(a.graph, b.graph);
+    assert_eq!(da[1].stats.jobs, 128);
+}
+
+#[test]
 fn the_default_batch_gives_identical_deltas_on_one_and_eight_threads() {
     // `batch: 0` is the runner's default batch (`Config::default` sets 128 since Task H).
     let cfg = Config {

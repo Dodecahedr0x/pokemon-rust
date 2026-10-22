@@ -84,9 +84,9 @@ pub fn candidates_with<G: GameData>(
 }
 
 /// The cells a block `WalkTo` toward `to` may be jittered to: every reachable cell of `to`'s
-/// coarse block (`1 << cell_shift` cells), row-major, the player's cell excluded. Empty when
-/// `to` is an active coord-event cell (those are targets of their own) or when `to` is not
-/// reachable.
+/// coarse block (`1 << cell_shift` cells), row-major, except the player's cell and the active
+/// coord-event cells (those are `WalkTo` candidates of their own, listed first). Empty when
+/// `to` itself is an active coord-event cell or is not reachable.
 ///
 /// `candidates` keeps one cell per block, nearest its centre, so its walks between block
 /// centres follow the same lines and leave the other cells unvisited (Task G as built: 105
@@ -102,18 +102,20 @@ pub fn block_mates<G: GameData>(
     let st = State::new(game, snap, reach);
     let map = st.grid.map;
     let vars = Vars::from_snapshot(&snap.vars);
-    let coord = map
+    let coords: BTreeSet<(i16, i16)> = map
         .coords
         .iter()
-        .any(|c| (c.x, c.y) == to && coord_trigger(map, c.x, c.y, c.elevation, &vars).is_some());
-    if coord || !st.walk_target(to) {
+        .filter(|c| coord_trigger(map, c.x, c.y, c.elevation, &vars).is_some())
+        .map(|c| (c.x, c.y))
+        .collect();
+    if coords.contains(&to) || !st.walk_target(to) {
         return Vec::new();
     }
     let shift = cell_shift.min(14);
     let block = |(x, y): (i16, i16)| (x as i32 >> shift, y as i32 >> shift);
     reach
         .cells()
-        .filter(|&c| block(c) == block(to) && st.walk_target(c))
+        .filter(|&c| block(c) == block(to) && st.walk_target(c) && !coords.contains(&c))
         .collect()
 }
 

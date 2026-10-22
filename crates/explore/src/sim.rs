@@ -262,22 +262,25 @@ pub fn softlock_k(cfg: &Config, map: MapId) -> u32 {
 /// cell it blocks (the movement types pause one to four seconds between steps).
 pub const PROBE_WAIT_FRAMES: u16 = 300;
 
-/// How often the probe resumes a walk that a battle interrupted (see [`trap`]).
-pub const PROBE_RESUMES: u32 = 4;
-
-/// Macros the probe resumes after a battle interrupted them: those that walk to a target.
-fn resumable(m: &Macro) -> bool {
-    matches!(
-        m.kind,
-        MacroKind::WalkTo { .. }
-            | MacroKind::Enter { .. }
-            | MacroKind::Cross { .. }
-            | MacroKind::Talk { .. }
-            | MacroKind::Inspect { .. }
-    )
+/// Whether the probe resumes `m` after a battle interrupted it, the player standing at `pos`:
+/// a walk whose target is not reached yet. `WalkTo` until the player stands on its cell,
+/// `Inspect` until the player stands on its approach cell, `Enter`/`Cross` while the map is
+/// the same (the caller resumes only inside the start's place). `Talk` is never resumed: a
+/// trainer's battle is what the talk was for, and talking again would only repeat it.
+fn resumable(m: &Macro, pos: (i16, i16)) -> bool {
+    match m.kind {
+        MacroKind::WalkTo { x, y } => pos != (x, y),
+        MacroKind::Inspect { x, y, dir } => {
+            let (dx, dy) = dir.delta();
+            pos != (x - dx, y - dy)
+        }
+        MacroKind::Enter { .. } | MacroKind::Cross { .. } => true,
+        _ => false,
+    }
 }
 
-/// A softlock probe's verdict, the start's region and the frames it stepped.
+/// A softlock probe's verdict, the start's place (`key::place_region`) and the frames it
+/// stepped.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Probed {
     pub trap: Trap,
@@ -285,15 +288,20 @@ pub struct Probed {
     pub frames: u64,
 }
 
-/// The softlock probe of `start` (`softlock::probe` with the start's region and its map's
-/// exits): from each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
+/// The softlock probe of `start` (`softlock::probe` with the start's place and its map's
+/// exits). The probe compares places (`key::place_region`: map, story flags and vars), not
+/// regions: a level-up or a faint inside a sealed pocket changes the party bucket, not the
+/// way out. From each state: from each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
 /// wander may free a way out), then every candidate macro, each expanded from a fresh session
 /// restored there (the policy, no detectors), at most `remaining` successful ones per state.
 ///
-/// A walk that a battle interrupted (a wild encounter in tall grass, a trainer's sight) is
-/// resumed up to [`PROBE_RESUMES`] times while it stays in the start's region (Task H: on
-/// Routes 101 and 102 every walk from a cell in the grass met an encounter after a step or
-/// two, so three macros never got out and the probe reported grassy cells as traps).
+/// A walk that a battle interrupted before its target (a wild encounter in tall grass, a
+/// trainer's sight; see `resumable`) is resumed up to `cfg.detect.probe_resumes` times while
+/// it stays in the start's place (Task H: on Routes 101 and 102 every walk from a cell by the
+/// grass met an encounter after a step or two, so three macros never got out and the probe
+/// reported those cells as traps). Each resume runs under its own panic guard: a panic keeps
+/// the last good end state. Worst case, a probe expands `(1 + probe_resumes) x breadth`
+/// macros.
 pub fn trap<G: GameData + Clone>(
     game: &G,
     start: &Checkpoint,
@@ -301,7 +309,7 @@ pub fn trap<G: GameData + Clone>(
     breadth: u32,
     cfg: &Config,
 ) -> Probed {
-    let region = key::region(&key::key_parts(&start.world, &cfg.key));
+    let region = key::place_region(&key::key_parts(&start.world, &cfg.key));
     let map = start.world.field.map;
     let exits = softlock::map_exits(game, map);
     let mut frames = 0u64;
@@ -316,11 +324,11 @@ pub fn trap<G: GameData + Clone>(
     }
 }
 
-/// The states one successful macro away from `cp`: (region, map, end state), the wait then
+/// The states one successful macro away from `cp`: (place, map, end state), the wait then
 /// the candidates in order, at most `remaining`. A panic or a failed expansion skips the macro.
 /// Every stepped frame counts in `frames`.
 ///
-/// The list stops after the first state that leaves `start` (its (region, map)):
+/// The list stops after the first state that leaves `start` (its (place, map)):
 /// `softlock::probe` returns `Free` on that element and never reads the rest, so the verdict
 /// is the same, without expanding the remaining candidates (Task H: most probes are free, and
 /// the full first level cost up to `breadth` expansions each).
@@ -366,33 +374,35 @@ fn expand_all<G: GameData + Clone>(
             break;
         };
         let start_frame = s.world().frame();
-        let end = guard::catch(|| {
-            let mut last = None;
-            for _ in 0..=PROBE_RESUMES {
-                let Ok(ex) =
-                    expand::expand(&mut s, &m, &mut Policy::new(), &mut NoObserver, &cfg.limits)
-                else {
-                    break;
-                };
-                let Ok(end) = s.checkpoint() else {
-                    break;
-                };
-                let here = (
-                    key::region(&key::key_parts(&end.world, &cfg.key)),
-                    end.world.field.map,
-                );
-                let interrupted = !ex.summary.battles.is_empty() && resumable(&m);
-                last = Some((here, end));
-                if !interrupted || here != start {
-                    break;
-                }
+        // Each expansion under its own guard: a panic in a resume keeps the last good end.
+        let mut end = None;
+        for _ in 0..=cfg.detect.probe_resumes {
+            // Only whether a battle interrupted it matters (the error is dropped).
+            let Ok(Some(battled)) = guard::catch(|| {
+                expand::expand(&mut s, &m, &mut Policy::new(), &mut NoObserver, &cfg.limits)
+                    .ok()
+                    .map(|ex| !ex.summary.battles.is_empty())
+            }) else {
+                break;
+            };
+            let Ok(cp) = s.checkpoint() else {
+                break;
+            };
+            let here = (
+                key::place_region(&key::key_parts(&cp.world, &cfg.key)),
+                cp.world.field.map,
+            );
+            let pos = cp.world.objects.objs[0].pos;
+            let resume = battled && resumable(&m, pos);
+            end = Some((here, cp));
+            if !resume || here != start {
+                break;
             }
-            last
-        });
+        }
         // A panicked session's frame counter is still readable (the step that panicked did
         // not count).
         *frames += u64::from(s.world().frame().wrapping_sub(start_frame));
-        if let Ok(Some(((region, map), end))) = end {
+        if let Some(((region, map), end)) = end {
             out.push((region, map, end));
             if (region, map) != start {
                 break;

@@ -82,6 +82,10 @@ pub struct DetectConfig {
     pub softlock_breadth: u32,
     /// Probe 1 in N new nodes, plus every node whose candidates all failed.
     pub softlock_sample: u32,
+    /// How often the probe resumes a walk that a battle interrupted before its target (Task H;
+    /// 0 = never). Each resume can cost another full macro, so a probe's worst case is
+    /// `(1 + probe_resumes) x softlock_breadth` expansions.
+    pub probe_resumes: u32,
     /// Report-only; 0 = off (the default in debug builds, 4000 in release).
     pub slow_step_us: u32,
 }
@@ -165,6 +169,7 @@ impl Default for DetectConfig {
             softlock_k_per_map: BTreeMap::new(),
             softlock_breadth: 64,
             softlock_sample: 32,
+            probe_resumes: 4,
             slow_step_us: if cfg!(debug_assertions) { 0 } else { 4000 },
         }
     }
@@ -223,6 +228,7 @@ mod tests {
             (d.softlock_k, d.softlock_breadth, d.softlock_sample),
             (3, 64, 32)
         );
+        assert_eq!(d.probe_resumes, 4);
     }
 
     #[test]

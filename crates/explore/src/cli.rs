@@ -18,7 +18,10 @@ use std::path::{Path, PathBuf};
 const USAGE: &str = "\
 usage: explore <command> [--db <path>] [--config <path>]
   run [--nodes N | --frames N | --generations N | --secs N] [--threads N] [--seed S]
-      explore (default budget: --generations 10); one line per 10 generations
+      [--cache N]
+      explore (default budget: --generations 10); one line per 10 generations;
+      --cache N: snapshots kept in memory (default 65536: about 0.45 GB peak RSS after
+      120 s of the extracted slice, about 1.1 GB once full; 16384: 0.35 GB, 10% slower)
   status                      db totals, goals, seed and build
   findings [--all]            open findings (--all: stale and gone ones too)
   show <id>                   one finding in full
@@ -50,6 +53,9 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
         "run" => {
             if let Some(t) = a.take_num("--threads")? {
                 cfg.threads = t as usize;
+            }
+            if let Some(n) = a.take_num("--cache")? {
+                cfg.cache_capacity = n as usize;
             }
             let seed = a.take_num("--seed")?;
             if let Some(s) = seed {
@@ -352,8 +358,9 @@ fn run(db_path: &Path, cfg: Config, seed: Option<u64>, budget: Budget) -> anyhow
     // Goals first reached in this run, with the generation and the run's wall time.
     let mut best = ex.stats()?.max_progress;
     let sum = ex.run(budget, |p| {
-        if p.last.max_progress > best {
-            best = p.last.max_progress;
+        // Every goal passed this generation, in order (a lineage can pass several at once).
+        while best < p.last.max_progress {
+            best += 1;
             println!(
                 "goal {} first reached in generation {} at {:.1} s",
                 goal_text(best),
@@ -405,13 +412,19 @@ fn status(db_path: &Path) -> anyhow::Result<()> {
     println!("generation {}", s.generation);
     println!("goals     {}", goal_text(s.max_progress));
     let names = content::data::SCRIPT_NAMES.len();
+    // The stub has no named scripts: no share to give.
+    let scripts = if names == 0 {
+        format!("{}", s.scripts)
+    } else {
+        format!(
+            "{} of {names} ({:.1}%)",
+            s.scripts,
+            100.0 * f64::from(s.scripts) / names as f64
+        )
+    };
     println!(
-        "maps {}  cells {}  scripts {} of {names} ({:.1}%)  findings {}",
-        s.maps,
-        s.cells,
-        s.scripts,
-        100.0 * f64::from(s.scripts) / names.max(1) as f64,
-        s.findings
+        "maps {}  cells {}  scripts {scripts}  findings {}",
+        s.maps, s.cells, s.findings
     );
     println!(
         "seed {}  build {:?}",

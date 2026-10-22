@@ -183,17 +183,14 @@ fn a_walled_in_start_is_one_softlock_that_reproduces() {
     wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
         .unwrap()
         .unwrap();
-    // Without the wall the same finding does not reproduce.
-    let free = WallAround {
-        inner,
-        map: ng.map,
-        at: (0, 0),
-    };
-    assert!(
-        wire::reproduce(&free, &ex.db, f.id, &ex.cfg)
-            .unwrap()
-            .is_err()
-    );
+    // Without the wall (and its exit warp) the same finding does not reproduce. The stub has
+    // no event that changes a flag, a var or the map, so a walled game with the exit warp
+    // anywhere else is trapped too (the probe compares places, not the party: Task H); the
+    // plain stub has no exit at all (`NoExits`).
+    let why = wire::reproduce(&inner, &ex.db, f.id, &ex.cfg)
+        .unwrap()
+        .unwrap_err();
+    assert!(why.contains("NoExits"), "{why}");
     assert!(
         wire::reproduce(&game, &ex.db, 99, &ex.cfg).is_err(),
         "no finding 99"
