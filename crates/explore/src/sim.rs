@@ -158,7 +158,9 @@ impl<G: GameData + Clone> Sim<'_, G> {
     }
 
     /// Picks among the candidates with `Rng64(seed)`; a `NoPath`/`NoEffect` candidate is
-    /// skipped (the session restored) up to [`RANDOM_TRIES`] tries.
+    /// skipped (the session restored) up to [`RANDOM_TRIES`] tries. A block `WalkTo` walks to
+    /// a cell of its block drawn from the same RNG (`macros::block_mates`), so the walks
+    /// cover every cell, not only the block centres.
     fn random_step(&mut self, mut live: Live<G>, seed: u64) -> Result<Live<G>, Stop> {
         let s = &live.0;
         let snap = s
@@ -176,7 +178,15 @@ impl<G: GameData + Clone> Sim<'_, G> {
             if cands.is_empty() {
                 break;
             }
-            let m = cands.remove(rng.below(cands.len() as u64) as usize);
+            let mut m = cands.remove(rng.below(cands.len() as u64) as usize);
+            if let MacroKind::WalkTo { x, y } = m.kind {
+                let mates =
+                    macros::block_mates(self.game, &snap, &reach, self.cfg.key.cell_shift, (x, y));
+                if !mates.is_empty() {
+                    let (x, y) = mates[rng.below(mates.len() as u64) as usize];
+                    m.kind = MacroKind::WalkTo { x, y };
+                }
+            }
             match self.try_step(&mut live, &m) {
                 Ok(()) => return Ok(live),
                 Err(Ok(e)) => {
@@ -252,6 +262,21 @@ pub fn softlock_k(cfg: &Config, map: MapId) -> u32 {
 /// cell it blocks (the movement types pause one to four seconds between steps).
 pub const PROBE_WAIT_FRAMES: u16 = 300;
 
+/// How often the probe resumes a walk that a battle interrupted (see [`trap`]).
+pub const PROBE_RESUMES: u32 = 4;
+
+/// Macros the probe resumes after a battle interrupted them: those that walk to a target.
+fn resumable(m: &Macro) -> bool {
+    matches!(
+        m.kind,
+        MacroKind::WalkTo { .. }
+            | MacroKind::Enter { .. }
+            | MacroKind::Cross { .. }
+            | MacroKind::Talk { .. }
+            | MacroKind::Inspect { .. }
+    )
+}
+
 /// A softlock probe's verdict, the start's region and the frames it stepped.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Probed {
@@ -264,6 +289,11 @@ pub struct Probed {
 /// exits): from each state, a [`MacroKind::Wait`] of [`PROBE_WAIT_FRAMES`] (objects that
 /// wander may free a way out), then every candidate macro, each expanded from a fresh session
 /// restored there (the policy, no detectors), at most `remaining` successful ones per state.
+///
+/// A walk that a battle interrupted (a wild encounter in tall grass, a trainer's sight) is
+/// resumed up to [`PROBE_RESUMES`] times while it stays in the start's region (Task H: on
+/// Routes 101 and 102 every walk from a cell in the grass met an encounter after a step or
+/// two, so three macros never got out and the probe reported grassy cells as traps).
 pub fn trap<G: GameData + Clone>(
     game: &G,
     start: &Checkpoint,
@@ -272,10 +302,12 @@ pub fn trap<G: GameData + Clone>(
     cfg: &Config,
 ) -> Probed {
     let region = key::region(&key::key_parts(&start.world, &cfg.key));
-    let exits = softlock::map_exits(game, start.world.field.map);
+    let map = start.world.field.map;
+    let exits = softlock::map_exits(game, map);
     let mut frames = 0u64;
-    let mut expand_all =
-        |cp: &Checkpoint, remaining: u32| expand_all(game, cp, remaining, cfg, &mut frames);
+    let mut expand_all = |cp: &Checkpoint, remaining: u32| {
+        expand_all(game, cp, remaining, (region, map), cfg, &mut frames)
+    };
     let trap = softlock::probe(start, region, exits, k, breadth, &mut expand_all);
     Probed {
         trap,
@@ -287,10 +319,16 @@ pub fn trap<G: GameData + Clone>(
 /// The states one successful macro away from `cp`: (region, map, end state), the wait then
 /// the candidates in order, at most `remaining`. A panic or a failed expansion skips the macro.
 /// Every stepped frame counts in `frames`.
+///
+/// The list stops after the first state that leaves `start` (its (region, map)):
+/// `softlock::probe` returns `Free` on that element and never reads the rest, so the verdict
+/// is the same, without expanding the remaining candidates (Task H: most probes are free, and
+/// the full first level cost up to `breadth` expansions each).
 fn expand_all<G: GameData + Clone>(
     game: &G,
     cp: &Checkpoint,
     remaining: u32,
+    start: (u64, MapId),
     cfg: &Config,
     frames: &mut u64,
 ) -> Vec<(u64, MapId, Checkpoint)> {
@@ -328,17 +366,37 @@ fn expand_all<G: GameData + Clone>(
             break;
         };
         let start_frame = s.world().frame();
-        let ok = guard::catch(|| {
-            expand::expand(&mut s, &m, &mut Policy::new(), &mut NoObserver, &cfg.limits).is_ok()
+        let end = guard::catch(|| {
+            let mut last = None;
+            for _ in 0..=PROBE_RESUMES {
+                let Ok(ex) =
+                    expand::expand(&mut s, &m, &mut Policy::new(), &mut NoObserver, &cfg.limits)
+                else {
+                    break;
+                };
+                let Ok(end) = s.checkpoint() else {
+                    break;
+                };
+                let here = (
+                    key::region(&key::key_parts(&end.world, &cfg.key)),
+                    end.world.field.map,
+                );
+                let interrupted = !ex.summary.battles.is_empty() && resumable(&m);
+                last = Some((here, end));
+                if !interrupted || here != start {
+                    break;
+                }
+            }
+            last
         });
         // A panicked session's frame counter is still readable (the step that panicked did
         // not count).
         *frames += u64::from(s.world().frame().wrapping_sub(start_frame));
-        if ok == Ok(true)
-            && let Ok(end) = s.checkpoint()
-        {
-            let region = key::region(&key::key_parts(&end.world, &cfg.key));
-            out.push((region, end.world.field.map, end));
+        if let Ok(Some(((region, map), end))) = end {
+            out.push((region, map, end));
+            if (region, map) != start {
+                break;
+            }
         }
     }
     out
