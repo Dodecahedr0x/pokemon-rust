@@ -7,6 +7,8 @@ publish.workspace = true
 [dependencies]
 engine.workspace = true
 content.workspace = true
+# Decomp names (`names::MAPS` constants) for node export labels (Milestone 8 Task K).
+extract.workspace = true
 game-native.workspace = true
 anyhow.workspace = true
 rayon.workspace = true

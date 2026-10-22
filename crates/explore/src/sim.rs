@@ -13,11 +13,10 @@ use crate::model::{
 use crate::observe::{NoObserver, StepObserver};
 use crate::path;
 use crate::policy::Policy;
-use crate::probe::Probe;
 use crate::runs;
 use crate::softlock::{self, Trap};
 use engine::checkpoint::Checkpoint;
-use engine::data::{GameData, MapId};
+use engine::data::{GameData, MapId, ScriptId};
 use game_native::Session;
 use game_native::trace::rle;
 use std::sync::Arc;
@@ -57,7 +56,9 @@ pub fn simulate_with<G: GameData + Clone>(
             probe_frames: 0,
             slow_frames: 0,
             notes: Vec::new(),
+            reports: Vec::new(),
         },
+        last_script: None,
     };
     if let Err(stop) = sim.run(job) {
         // The bug weight goes to the step the finding follows (`StepResult::bug`).
@@ -75,13 +76,15 @@ struct Sim<'a, G: GameData + Clone> {
     obs: &'a mut dyn FnMut() -> Box<dyn StepObserver<G>>,
     intents: &'a mut dyn Intents,
     res: JobResult,
+    /// The last script started over the job's steps (see `findings` on `script`).
+    last_script: Option<ScriptId>,
 }
 
-type Live<G> = (Session<Probe<G>>, Box<dyn StepObserver<G>>);
+type Live<G> = (Session<G>, Box<dyn StepObserver<G>>);
 
 impl<G: GameData + Clone> Sim<'_, G> {
     fn session(&mut self, start: Option<&Checkpoint>) -> Result<Live<G>, Stop> {
-        let probe = Probe::new(self.game.clone());
+        let game = self.game.clone();
         // A panic while building the world is a finding on the start map (the new game's for `World::new`, as `findings::reproduce` expects).
         // The tail is the job's steps so far (empty for the job's own start), as `finding`.
         let tail = rle(self.res.steps.iter().flat_map(|st| runs::keys(&st.inputs)));
@@ -101,11 +104,11 @@ impl<G: GameData + Clone> Sim<'_, G> {
         let s = match start {
             Some(cp) => {
                 let at = (cp.world.field.map, cp.world.objects.objs[0].pos);
-                guard::catch(|| Session::restore(probe, cp))
+                guard::catch(|| Session::restore(game, cp))
                     .map_err(|p| panicked(p, at.0, at.1))?
                     .map_err(|e| Stop::Pruned(format!("restore failed: {e:?}")))?
             }
-            None => guard::catch(|| Session::new(probe)).map_err(|p| {
+            None => guard::catch(|| Session::new(game)).map_err(|p| {
                 let ng = self.game.new_game();
                 panicked(p, ng.map, (ng.x, ng.y))
             })?,
@@ -211,8 +214,27 @@ impl<G: GameData + Clone> Sim<'_, G> {
     /// the job stops (a finding, or a prune).
     fn try_step(&mut self, live: &mut Live<G>, m: &Macro) -> Result<(), Result<ExpandError, Stop>> {
         let (s, obs) = live;
-        match expand::expand_with(s, m, self.intents, obs.as_mut(), &self.cfg.limits) {
+        let r = expand::expand_with(s, m, self.intents, obs.as_mut(), &self.cfg.limits);
+        // Every expansion starts at the end of the job's steps, so a report's tail is valid
+        // even when the expansion fails and the session is restored.
+        let ex = match &r {
+            Ok(ex) | Err((_, ex)) => ex,
+        };
+        for rep in &ex.reports {
+            let f = report_finding(&self.res.steps, m, ex, rep, self.last_script);
+            let sig = findings::signature(&f);
+            if !self
+                .res
+                .reports
+                .iter()
+                .any(|g| findings::signature(g) == sig)
+            {
+                self.res.reports.push(f);
+            }
+        }
+        match r {
             Ok(ex) => {
+                self.last_script = ex.last_script.or(self.last_script);
                 let end = s
                     .checkpoint()
                     .map_err(|e| Err(Stop::Pruned(format!("{m:?}: ended {e:?}"))))?;
@@ -237,6 +259,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 m,
                 (FindingKind::Panic, p.message, p.location),
                 ex,
+                self.last_script,
             )))),
             Err((ExpandError::Flagged(f), ex)) => Err(Err(Stop::Finding(finding(
                 s,
@@ -244,6 +267,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 m,
                 (f.kind, f.message, None),
                 ex,
+                self.last_script,
             )))),
         }
     }
@@ -341,7 +365,7 @@ fn expand_all<G: GameData + Clone>(
     frames: &mut u64,
 ) -> Vec<(u64, MapId, Checkpoint)> {
     let restore = || {
-        guard::catch(|| Session::restore(Probe::new(game.clone()), cp))
+        guard::catch(|| Session::restore(game.clone(), cp))
             .ok()
             .and_then(Result::ok)
     };
@@ -430,13 +454,15 @@ fn softlock_finding(start: &Checkpoint, place: u64, k: u32, reached: u32) -> Fin
 
 /// A finding at the session's current frame. Its tail runs from the job's start (its
 /// parent's end state, or a new game) to that frame: the job's steps so far, then the failed
-/// macro's inputs.
+/// macro's inputs. Its script is the last one started over that tail (`job_script`: the
+/// steps').
 fn finding<G: GameData>(
-    s: &Session<Probe<G>>,
+    s: &Session<G>,
     steps: &[StepResult],
     m: &Macro,
     (kind, message, location): (FindingKind, String, Option<String>),
     ex: Expanded,
+    job_script: Option<ScriptId>,
 ) -> FindingDraft {
     let w = s.world();
     let keys = steps.iter().flat_map(|st| runs::keys(&st.inputs));
@@ -448,7 +474,31 @@ fn finding<G: GameData>(
         tail: rle(keys.chain(ex.keys)),
         map: w.map(),
         pos: w.objects().player().pos(),
-        script: ex.last_script,
+        script: ex.last_script.or(job_script),
         log: w.log().lines().collect(),
+    }
+}
+
+/// The report-only `Unsupported` finding of a script's report during `m` (expanded as `ex`):
+/// its tail ends on the reporting frame.
+fn report_finding(
+    steps: &[StepResult],
+    m: &Macro,
+    ex: &Expanded,
+    rep: &expand::Reported,
+    job_script: Option<ScriptId>,
+) -> FindingDraft {
+    let keys = steps.iter().flat_map(|st| runs::keys(&st.inputs));
+    let upto = (rep.frames as usize).min(ex.keys.len());
+    FindingDraft {
+        kind: FindingKind::Unsupported,
+        message: findings::report_message(rep.report),
+        location: None,
+        macro_: Some(*m),
+        tail: rle(keys.chain(ex.keys[..upto].iter().copied())),
+        map: rep.map,
+        pos: rep.pos,
+        script: rep.script.or(job_script),
+        log: Vec::new(),
     }
 }

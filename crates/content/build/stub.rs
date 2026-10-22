@@ -244,6 +244,7 @@ fn species(id: &str, ty: &str, learnset: &[(u8, &str)]) -> Species {
         growth: "GROWTH_MEDIUM_SLOW".into(),
         abilities: ["ABILITY_NONE".into(), "ABILITY_NONE".into()],
         learnset: learnset.iter().map(|&(l, m)| (l, m.into())).collect(),
+        weight: 0,
     }
 }
 

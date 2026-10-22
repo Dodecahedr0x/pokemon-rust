@@ -39,6 +39,8 @@
 //!   scripts/<Module>.ron         ScriptFile   (IR; <Module> = decomp source: a map dir name, or
 //!                                             Common_<stem> for data/scripts/<stem>.inc)
 //!   scripts/index.ron            ScriptIndex v5 (name -> module, root, origin, offset)
+//!   text/ir_<lang>.ron           TextFile keyed by the IR's final names (until D2 deletes the
+//!                                legacy text/<lang>.ron and takes its place)
 //!   layouts/<Layout>.ron         LayoutFile   (every layout, incl. ones only setmaplayoutindex uses)
 //!   tables/items.ron             ItemsFile    (all ITEM_*: name, pocket, price, importance)
 //!   tables/multichoice.ron       MultichoiceFile (MULTI_* -> list of strings)
@@ -84,11 +86,34 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const FORMAT_VERSION: u32 = 5;
 /// Additions within [`FORMAT_VERSION`] (see the module docs): 0 is the Milestone 8 Wave 0
 /// extract.
-pub const FORMAT_MINOR: u32 = 0;
+/// - 1: Task B adds the script IR (`scripts/<Module>.ron`, `scripts/index.ron`,
+///   `text/ir_<lang>.ron`).
+/// - 2: Task A adds `layouts/`, `sprites/field_effects/` (emotes), every wild table of every
+///   header (encounters v5), `battle/evolutions.ron`, `battle/trainer_money.ron` and
+///   `Species.weight`, and makes previews optional.
+/// - 3: Task C adds the `tables/` files (items, multichoice, std strings, map sections).
+pub const FORMAT_MINOR: u32 = 3;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
-/// ones when an extract is older ([`missing_since`]).
-pub const MINOR_FILES: &[(u32, &str)] = &[];
+/// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
+/// minor 1's per-language texts and most modules depend on the ROM and the map set, so the
+/// index and the module of a slice map stand for them.
+pub const MINOR_FILES: &[(u32, &str)] = &[
+    (1, "scripts/index.ron"),
+    (1, "scripts/LittlerootTown.ron"),
+    (2, "battle/evolutions.ron"),
+    (2, "battle/trainer_money.ron"),
+    (2, "sprites/field_effects/ExclamationMark.ron"),
+    (2, "sprites/field_effects/ExclamationMark.png"),
+    (2, "sprites/field_effects/QuestionMark.ron"),
+    (2, "sprites/field_effects/QuestionMark.png"),
+    (2, "sprites/field_effects/HeartIcon.ron"),
+    (2, "sprites/field_effects/HeartIcon.png"),
+    (3, "tables/items.ron"),
+    (3, "tables/multichoice.ron"),
+    (3, "tables/std_strings.ron"),
+    (3, "tables/map_sections.ron"),
+];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
 pub fn missing_since(minor: u32, exists: impl Fn(&str) -> bool) -> Vec<&'static str> {
@@ -437,6 +462,11 @@ pub struct Species {
     pub abilities: [String; 2],
     /// `(level, MOVE_*)` in `gLevelUpLearnsets` order.
     pub learnset: Vec<(u8, String)>,
+    /// `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight`, in hectograms (Low Kick);
+    /// 0 for species without a Pokédex entry. Format 5.1 (Milestone 8 Task A); absent in older
+    /// files, which read as 0.
+    #[serde(default)]
+    pub weight: u16,
 }
 
 /// `battle/moves.ron`.
@@ -542,8 +572,9 @@ pub struct EncounterHeader {
     pub water: Option<WaterEncounters>,
     /// `rockSmashMonsInfo` (5 slots).
     pub rock_smash: Option<RockSmashEncounters>,
-    /// `fishingMonsInfo` (10 slots: old rod 0-1, good rod 2-4, super rod 5-9;
-    /// `gWildFishingSlots`).
+    /// `fishingMonsInfo` (10 slots: old rod 0-1, good rod 2-4, super rod 5-9, as
+    /// `battle_data::FISHING_ROD_SLOTS`; the `wild_encounters.json` groups,
+    /// `ChooseWildMonIndex_Fishing`).
     pub fishing: Option<FishingEncounters>,
 }
 
@@ -725,6 +756,9 @@ pub struct ScriptIndex {
     pub scripts: BTreeMap<String, ScriptEntry>,
     /// Every text, by final name -> its module.
     pub texts: BTreeMap<String, String>,
+    /// Every movement, by final name -> its module (Task B addition).
+    #[serde(default)]
+    pub movements: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -763,7 +797,8 @@ pub struct Item {
     pub id: String,
     /// The ROM's name, decomp `.string` syntax.
     pub name: String,
-    /// `None` for `POCKET_NONE` (`ITEM_NONE`, unused slots).
+    /// `None` for `POCKET_NONE`, which no Emerald item uses: `ITEM_NONE` and the unused slots
+    /// (`ITEM_034` …, itemId 0) are `POCKET_ITEMS`, named "????????" with price 0.
     pub pocket: Option<ItemPocket>,
     pub price: u16,
     /// `importance`: key items cannot be tossed or sold.
@@ -814,7 +849,9 @@ pub struct EvolutionsFile {
     pub species: BTreeMap<String, Vec<EvolutionEntry>>,
 }
 
-/// `battle/trainer_money.ron`: `TRAINER_CLASS_*` -> its `gTrainerMoneyTable` value.
+/// `battle/trainer_money.ron`: `TRAINER_CLASS_*` -> its `gTrainerMoneyTable` value. The
+/// table's `0xFF` terminator is kept as `battle_data::TRAINER_MONEY_DEFAULT_CLASS`: its value is
+/// the default of every class not listed (`GetTrainerMoneyToGive`).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct TrainerMoneyFile {
     pub classes: BTreeMap<String, u8>,
@@ -848,6 +885,7 @@ mod tests {
                 growth: "GROWTH_MEDIUM_SLOW".into(),
                 abilities: ["ABILITY_TORRENT".into(), "ABILITY_NONE".into()],
                 learnset: vec![(1, "MOVE_TACKLE".into()), (1, "MOVE_GROWL".into())],
+                weight: 76,
             }],
         };
         let s = ron::to_string(&species).unwrap();

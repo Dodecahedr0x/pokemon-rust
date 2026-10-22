@@ -1,21 +1,29 @@
 //! Battle data and strings (`battle_data.rs`) against the decomp: the US ROM must give exactly
 //! the decomp's values, the French ROM the same numbers with French names and strings.
-use extract::battle_data::{self, BattleData, CODE_STRINGS, MENU_STRINGS, STAT_NAME_KEYS};
+use extract::battle_data::{
+    self, BattleData, CODE_STRINGS, FISHING_ROD_SLOTS, MENU_STRINGS, STAT_NAME_KEYS,
+    TRAINER_MONEY_DEFAULT_CLASS,
+};
 use extract::export::{self, ExportOptions, SLICE_MAPS};
 use extract::schema::{
-    BattleStringsFile, EncountersFile, HealLocationsFile, Manifest, MovesFile, SpeciesFile,
-    TrainersFile, TypesFile,
+    BattleStringsFile, EncounterHeader, EncountersFile, EvolutionsFile, HealLocationsFile,
+    LandEncounters, Manifest, MovesFile, SpeciesFile, TrainerMoneyFile, TrainersFile, TypesFile,
 };
 use extract::{Rom, fixtures, names, text};
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::OnceLock;
 
+/// Every map, in `gMapGroups` order: encounters are read for all of them.
+fn all_maps() -> Vec<&'static str> {
+    ExportOptions::all(false).maps
+}
+
 fn us() -> &'static (Rom, BattleData) {
     static D: OnceLock<(Rom, BattleData)> = OnceLock::new();
     D.get_or_init(|| {
         let rom = fixtures::us();
-        let data = battle_data::extract(&rom, &SLICE_MAPS).unwrap();
+        let data = battle_data::extract(&rom, &all_maps()).unwrap();
         (rom, data)
     })
 }
@@ -24,7 +32,7 @@ fn fr() -> &'static (Rom, BattleData) {
     static D: OnceLock<(Rom, BattleData)> = OnceLock::new();
     D.get_or_init(|| {
         let rom = fixtures::fr();
-        let data = battle_data::extract(&rom, &SLICE_MAPS).unwrap();
+        let data = battle_data::extract(&rom, &all_maps()).unwrap();
         (rom, data)
     })
 }
@@ -477,12 +485,29 @@ fn us_trainers_match_decomp() {
     );
 }
 
-/// `(rate, [(species, min, max)])`.
-type LandTable = (u8, Vec<(String, u8, u8)>);
+/// One decomp `*_mons` table as an exported table, `None` when absent.
+fn decomp_table(v: &serde_json::Value) -> Option<LandEncounters> {
+    if v.is_null() {
+        return None;
+    }
+    let mons = v["mons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| extract::schema::WildMon {
+            min_level: m["min_level"].as_u64().unwrap() as u8,
+            max_level: m["max_level"].as_u64().unwrap() as u8,
+            species: m["species"].as_str().unwrap().to_string(),
+        })
+        .collect();
+    Some(LandEncounters {
+        rate: v["encounter_rate"].as_u64().unwrap() as u8,
+        mons,
+    })
+}
 
-#[test]
-fn us_encounters_and_heal_locations_match_decomp() {
-    let (_, d) = us();
+/// `gWildMonHeaders` of `src/data/wild_encounters.json`, by map, in table order.
+fn decomp_encounters() -> EncountersFile {
     let json: serde_json::Value =
         serde_json::from_str(&src("src/data/wild_encounters.json")).unwrap();
     let headers = json["wild_encounter_groups"]
@@ -491,56 +516,187 @@ fn us_encounters_and_heal_locations_match_decomp() {
         .iter()
         .find(|g| g["label"] == "gWildMonHeaders")
         .unwrap();
-    let mut want: BTreeMap<String, LandTable> = BTreeMap::new();
+    let mut want = EncountersFile::default();
     for e in headers["encounters"].as_array().unwrap() {
         let map = names::map_by_constant(e["map"].as_str().unwrap()).unwrap();
-        if !SLICE_MAPS.contains(&map.dir) || e["land_mons"].is_null() {
-            continue;
-        }
-        let land = &e["land_mons"];
-        let mons: Vec<(String, u8, u8)> = land["mons"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|m| {
-                (
-                    m["species"].as_str().unwrap().to_string(),
-                    m["min_level"].as_u64().unwrap() as u8,
-                    m["max_level"].as_u64().unwrap() as u8,
-                )
-            })
-            .collect();
-        want.insert(
-            map.dir.to_string(),
-            (land["encounter_rate"].as_u64().unwrap() as u8, mons),
-        );
+        want.maps
+            .entry(map.dir.to_string())
+            .or_default()
+            .push(EncounterHeader {
+                land: decomp_table(&e["land_mons"]),
+                water: decomp_table(&e["water_mons"]),
+                rock_smash: decomp_table(&e["rock_smash_mons"]),
+                fishing: decomp_table(&e["fishing_mons"]),
+            });
     }
-    let have: BTreeMap<String, LandTable> = d
-        .encounters
-        .maps
-        .iter()
-        .map(|(k, headers)| {
-            assert_eq!(headers.len(), 1, "{k}: one wild header");
-            let v = headers[0].land.as_ref().expect("a land table");
-            (
-                k.clone(),
-                (
-                    v.rate,
-                    v.mons
-                        .iter()
-                        .map(|m| (m.species.clone(), m.min_level, m.max_level))
-                        .collect(),
-                ),
-            )
-        })
-        .collect();
-    assert_eq!(have, want);
+    want
+}
+
+#[test]
+fn us_encounters_match_decomp() {
+    let (_, d) = us();
+    let want = decomp_encounters();
+    assert_eq!(d.encounters.maps.len(), want.maps.len());
+    for (map, headers) in &want.maps {
+        assert_eq!(d.encounters.maps.get(map), Some(headers), "{map}");
+    }
     let land = |map: &str| d.encounters.maps[map][0].land.as_ref().unwrap();
     for map in ["Route101", "Route102", "Route103"] {
         assert_eq!(land(map).mons.len(), 12, "{map}");
     }
     assert_eq!(land("Route101").rate, 20);
+    // Slot counts: land 12, water 5, rock smash 5, fishing 10 (`wild_encounters.json` fields).
+    for (map, headers) in &d.encounters.maps {
+        for h in headers {
+            let n = |t: &Option<LandEncounters>| t.as_ref().map(|t| t.mons.len());
+            assert!(n(&h.land).is_none_or(|n| n == 12), "{map}");
+            assert!(n(&h.water).is_none_or(|n| n == 5), "{map}");
+            assert!(n(&h.rock_smash).is_none_or(|n| n == 5), "{map}");
+            assert!(n(&h.fishing).is_none_or(|n| n == 10), "{map}");
+        }
+    }
+}
 
+/// The rod groups of the `fishing_mons` field of `wild_encounters.json`.
+#[test]
+fn fishing_rod_slots_match_decomp() {
+    let json: serde_json::Value =
+        serde_json::from_str(&src("src/data/wild_encounters.json")).unwrap();
+    let fields = json["wild_encounter_groups"][0]["fields"]
+        .as_array()
+        .unwrap();
+    let fishing = fields.iter().find(|f| f["type"] == "fishing_mons").unwrap();
+    let groups = &fishing["groups"];
+    for (rod, slots) in ["old_rod", "good_rod", "super_rod"]
+        .into_iter()
+        .zip(FISHING_ROD_SLOTS)
+    {
+        let want: Vec<u64> = groups[rod]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap())
+            .collect();
+        let got: Vec<u64> = slots.map(|i| i as u64).collect();
+        assert_eq!(got, want, "{rod}");
+    }
+}
+
+#[test]
+fn altering_cave_has_nine_wild_sets() {
+    for (_, d) in [us(), fr()] {
+        let sets = &d.encounters.maps["AlteringCave"];
+        assert_eq!(sets.len(), 9);
+        assert!(sets.iter().all(|h| h.land.is_some()));
+        // Every other map has one header.
+        let multi: Vec<&String> = d
+            .encounters
+            .maps
+            .iter()
+            .filter(|(_, h)| h.len() != 1)
+            .map(|(m, _)| m)
+            .collect();
+        assert_eq!(multi, ["AlteringCave"]);
+    }
+}
+
+#[test]
+fn encounters_are_limited_to_the_exported_maps() {
+    let rom = fixtures::us();
+    let d = battle_data::extract(&rom, &["Route101", "LittlerootTown", "AlteringCave"]).unwrap();
+    assert_eq!(
+        d.encounters.maps.keys().collect::<Vec<_>>(),
+        ["AlteringCave", "Route101"]
+    );
+}
+
+/// `gEvolutionTable` from `src/data/pokemon/evolution.h`.
+fn decomp_evolutions() -> EvolutionsFile {
+    let text = src("src/data/pokemon/evolution.h");
+    let body = text.split_once("] =\n{").unwrap().1;
+    let mut want = EvolutionsFile::default();
+    for chunk in body.split("[SPECIES_").skip(1) {
+        let (species, rest) = chunk.split_once(']').unwrap();
+        let mut evos = Vec::new();
+        for e in rest
+            .split('{')
+            .filter(|e| e.trim_start().starts_with("EVO_"))
+        {
+            let e = e.split('}').next().unwrap();
+            let f: Vec<&str> = e.split(',').map(str::trim).collect();
+            let param = match f[1].parse::<u16>() {
+                Ok(v) => v,
+                Err(_) => names::ITEMS.value(f[1]).unwrap() as u16,
+            };
+            evos.push((f[0].to_string(), param, f[2].to_string()));
+        }
+        want.species.insert(format!("SPECIES_{species}"), evos);
+    }
+    want
+}
+
+#[test]
+fn us_evolutions_match_decomp() {
+    let (_, d) = us();
+    let want = decomp_evolutions();
+    assert!(want.species.len() > 150, "{}", want.species.len());
+    assert_eq!(d.evolutions, want);
+    assert_eq!(
+        d.evolutions.species["SPECIES_TREECKO"],
+        [("EVO_LEVEL".to_string(), 16, "SPECIES_GROVYLE".to_string())]
+    );
+}
+
+#[test]
+fn evo_methods_match_decomp() {
+    let text = src("include/constants/pokemon.h");
+    let want: Vec<(String, u16)> = text
+        .lines()
+        .filter_map(|l| {
+            let mut w = l.strip_prefix("#define ")?.split_whitespace();
+            let (name, v) = (w.next()?, w.next()?);
+            (name.starts_with("EVO_") && !name.starts_with("EVO_MODE"))
+                .then(|| (name.to_string(), v.parse().unwrap()))
+        })
+        .collect();
+    let have: Vec<(String, u16)> = battle_data::EVO_METHODS
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(i, n)| (n.to_string(), i as u16))
+        .collect();
+    assert_eq!(have, want);
+}
+
+#[test]
+fn us_trainer_money_matches_decomp() {
+    let (_, d) = us();
+    let text = src("src/battle_main.c");
+    let body = text
+        .split_once("gTrainerMoneyTable[] =")
+        .unwrap()
+        .1
+        .split_once("};")
+        .unwrap()
+        .0;
+    let mut want = TrainerMoneyFile::default();
+    for e in body.split('{').skip(2) {
+        let e = e.split('}').next().unwrap();
+        let (class, value) = e.split_once(',').unwrap();
+        let class = match class.trim() {
+            "0xFF" => names::TRAINER_CLASSES.name_or_hex(0xFF),
+            c => c.to_string(),
+        };
+        want.classes.insert(class, value.trim().parse().unwrap());
+    }
+    assert!(want.classes.len() > 40, "{}", want.classes.len());
+    assert_eq!(d.trainer_money, want);
+    assert_eq!(d.trainer_money.classes[TRAINER_MONEY_DEFAULT_CLASS], 5);
+}
+
+#[test]
+fn us_heal_locations_match_decomp() {
+    let (_, d) = us();
     let json: serde_json::Value =
         serde_json::from_str(&src("src/data/heal_locations.json")).unwrap();
     let want: HealLocationsFile = json["heal_locations"]
@@ -721,6 +877,8 @@ fn fr_numbers_match_us() {
         assert_eq!(a, &b);
     }
     assert_eq!(u.encounters, f.encounters);
+    assert_eq!(u.evolutions, f.evolutions);
+    assert_eq!(u.trainer_money, f.trainer_money);
     assert_eq!(u.heal_locations, f.heal_locations);
     assert_eq!(
         u.strings.keys().collect::<Vec<_>>(),
@@ -888,9 +1046,20 @@ fn export_writes_battle_files_that_round_trip() {
         export::read_ron::<TrainersFile>(&read("trainers.ron")).unwrap(),
         d.trainers
     );
+    // The slice export holds the slice maps' headers only.
+    let mut slice = d.encounters.clone();
+    slice.maps.retain(|m, _| SLICE_MAPS.contains(&m.as_str()));
     assert_eq!(
         export::read_ron::<EncountersFile>(&read("encounters.ron")).unwrap(),
-        d.encounters
+        slice
+    );
+    assert_eq!(
+        export::read_ron::<EvolutionsFile>(&read("evolutions.ron")).unwrap(),
+        d.evolutions
+    );
+    assert_eq!(
+        export::read_ron::<TrainerMoneyFile>(&read("trainer_money.ron")).unwrap(),
+        d.trainer_money
     );
     assert_eq!(
         export::read_ron::<HealLocationsFile>(&read("heal_locations.ron")).unwrap(),
@@ -906,6 +1075,8 @@ fn export_writes_battle_files_that_round_trip() {
         "types",
         "trainers",
         "encounters",
+        "evolutions",
+        "trainer_money",
         "heal_locations",
         "strings",
     ] {
@@ -918,4 +1089,49 @@ fn export_writes_battle_files_that_round_trip() {
         assert_eq!(manifest.provenance.get(k), Some(v), "{k}");
     }
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Each species' `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight` from the decomp
+/// (`SPECIES_TO_NATIONAL` in `src/pokemon.c`, `src/data/pokemon/pokedex_entries.h`); 0 for
+/// species without an entry (`SPECIES_NONE`, the old Unown placeholders).
+fn decomp_weights() -> BTreeMap<String, u16> {
+    let entries = src("src/data/pokemon/pokedex_entries.h");
+    let mut by_dex = HashMap::new();
+    for chunk in entries.split("[NATIONAL_DEX_").skip(1) {
+        let (dex, rest) = chunk.split_once(']').unwrap();
+        let w = rest.split_once(".weight = ").unwrap().1;
+        let w: u16 = w.split(',').next().unwrap().trim().parse().unwrap();
+        by_dex.insert(dex.to_string(), w);
+    }
+    let pokemon = src("src/pokemon.c");
+    let mut out = BTreeMap::new();
+    for chunk in pokemon.split("    SPECIES_TO_NATIONAL(").skip(1) {
+        let name = chunk.split(')').next().unwrap();
+        out.insert(
+            format!("SPECIES_{name}"),
+            by_dex.get(name).copied().unwrap_or(0),
+        );
+    }
+    out
+}
+
+#[test]
+fn us_weights_match_decomp() {
+    let (_, d) = us();
+    let want = decomp_weights();
+    assert!(want.len() > 400, "{}", want.len());
+    assert_eq!(d.species.species[0].weight, 0);
+    for s in &d.species.species[1..] {
+        assert_eq!(Some(&s.weight), want.get(&s.id), "{}", s.id);
+    }
+    let w = |id: &str| {
+        d.species
+            .species
+            .iter()
+            .find(|s| s.id == id)
+            .unwrap()
+            .weight
+    };
+    assert_eq!(w("SPECIES_BULBASAUR"), 69);
+    assert_eq!(w("SPECIES_ZIGZAGOON"), 175);
 }
