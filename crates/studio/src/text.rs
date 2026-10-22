@@ -4,36 +4,71 @@
 
 use extract::text::{Lang, decode_lang};
 
-/// The charmap of this content build: `content::data::LANG` (`"fr"` or `"en"`).
-pub fn lang() -> Lang {
-    match content::data::LANG {
-        "en" => Lang::En,
-        _ => Lang::Fr,
+/// `a == b`, in a const context.
+const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
     }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+const _: () = assert!(
+    str_eq(content::data::LANG, "fr") || str_eq(content::data::LANG, "en"),
+    "content::data::LANG is neither \"fr\" nor \"en\": teach studio::text the new charmap"
+);
+
+/// The charmap of a `manifest.language` code. Panics on a code other than `"fr"` or `"en"`.
+pub fn lang_of(code: &str) -> Lang {
+    match code {
+        "fr" => Lang::Fr,
+        "en" => Lang::En,
+        other => unreachable!("unknown content language {other:?} (expected \"fr\" or \"en\")"),
+    }
+}
+
+/// The charmap of this content build: `content::data::LANG` (checked at compile time).
+pub fn lang() -> Lang {
+    lang_of(content::data::LANG)
 }
 
 /// Gen3 bytes -> display string with the build's charmap ([`lang`]), in the decomp's `.string`
 /// syntax: escapes stay `\n`, `\l`, `\p` and placeholders stay `{PLAYER}`, `{STRING 3}`, …
 ///
-/// Decoding stops at the first 0xFF; a missing terminator is tolerated. A byte the charmap does
-/// not know is shown as `<?xx>` (upper-case hex). Never fails.
+/// Decoding stops at the first 0xFF terminator; a missing one is tolerated. A byte the charmap
+/// does not know is shown as `<?xx>` (upper-case hex), and so are the bytes of a code whose
+/// arguments run past the end (after the decoded valid prefix). Never fails.
 pub fn decode(bytes: &[u8]) -> String {
-    let owned;
-    let bytes = if bytes.contains(&0xFF) {
-        bytes
-    } else {
-        owned = [bytes, &[0xFF]].concat();
-        &owned
-    };
-    match decode_lang(bytes, lang()) {
-        Ok((s, _)) => mark_unknown(&s),
-        // Only an argument byte running past the end gets here: show the raw bytes.
-        Err(_) => bytes
-            .iter()
-            .take_while(|&&b| b != 0xFF)
-            .map(|b| format!("<?{b:02X}>"))
-            .collect(),
+    decode_with(bytes, lang())
+}
+
+fn decode_with(bytes: &[u8], lang: Lang) -> String {
+    // Always terminate: a 0xFF inside `bytes` may be an argument (`FD FF`), not the end.
+    let terminated = |k: usize| [&bytes[..k], &[0xFF]].concat();
+    if let Ok((s, _)) = decode_lang(&terminated(bytes.len()), lang) {
+        return mark_unknown(&s);
     }
+    // A code's arguments run past the end: decode the longest prefix that ends on a code
+    // boundary (its appended 0xFF is read as the terminator) and mark the rest raw.
+    let (k, s) = (0..bytes.len())
+        .rev()
+        .find_map(|k| match decode_lang(&terminated(k), lang) {
+            Ok((s, used)) if used == k + 1 => Some((k, s)),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let mut out = mark_unknown(&s);
+    for b in &bytes[k..] {
+        out.push_str(&format!("<?{b:02X}>"));
+    }
+    out
 }
 
 /// `decode_lang` writes an unknown single byte as `{0xNN}`; rewrite it as `<?NN>`. The
@@ -84,5 +119,44 @@ mod tests {
         assert_eq!(decode(&[0xFD]), "<?FD>");
         // FD 01 is the player name placeholder.
         assert_eq!(decode(&[0xFD, 0x01, 0xFF]), "{PLAYER}");
+    }
+
+    #[test]
+    fn a_ff_argument_is_not_the_terminator() {
+        // Placeholder 0xFF (`FD FF`), then a letter; the input has no terminator.
+        let letter = decode(&[0xBB]);
+        let s = decode(&[0xFD, 0xFF, 0xBB]);
+        assert_eq!(s, format!("{{STRING 255}}{letter}"));
+    }
+
+    #[test]
+    fn a_truncated_tail_keeps_the_valid_prefix() {
+        // 0xBB 0xBC are letters; FC 0C (`ESCAPE`) needs one more argument byte.
+        let ok = decode(&[0xBB, 0xBC]);
+        assert!(ok.chars().count() == 2 && !ok.contains("<?"), "{ok}");
+        assert_eq!(decode(&[0xBB, 0xBC, 0xFC, 0x0C]), format!("{ok}<?FC><?0C>"));
+        assert_eq!(decode(&[0xBB, 0xBC, 0xFD]), format!("{ok}<?FD>"));
+    }
+
+    #[test]
+    fn languages() {
+        assert_eq!(lang_of("fr"), Lang::Fr);
+        assert_eq!(lang_of("en"), Lang::En);
+        assert_eq!(lang(), lang_of(content::data::LANG));
+        // The charmaps differ only on the overlay bytes (0xB1 / 0xB2).
+        assert_ne!(
+            decode_with(&[0xB1], Lang::Fr),
+            decode_with(&[0xB1], Lang::En)
+        );
+        assert_eq!(
+            decode_with(&[0xBB], Lang::Fr),
+            decode_with(&[0xBB], Lang::En)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown content language")]
+    fn an_unknown_language_fails_clearly() {
+        lang_of("de");
     }
 }

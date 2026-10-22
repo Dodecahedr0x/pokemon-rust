@@ -2,8 +2,9 @@
 //! from `crates/content/build/stub.rs`.
 
 use content::battle;
+use engine::battle::Str;
 use engine::data::{MapId, SpeciesId, TextId, TrainerId};
-use engine::mon::Type;
+use engine::mon::{Ability, Type};
 use std::collections::BTreeSet;
 use studio::data_view::{self, LAND_SLOT_PERCENT, filter};
 use studio::text::decode;
@@ -58,6 +59,9 @@ fn slice_names_decode_cleanly() {
         let r = &species[s.0 as usize];
         assert!(clean(&r.name), "species {}: {:?}", s.0, r.name);
         assert!(r.has_gfx, "slice species {} has pics", s.0);
+        for n in &r.ability_names {
+            assert!(clean(n), "species {} ability {n:?}", s.0);
+        }
     }
     for m in &battle::SLICE_MOVES {
         let r = &moves[m.0 as usize];
@@ -149,6 +153,23 @@ fn texts_decode_cleanly() {
     }
 }
 
+#[test]
+fn ability_names_are_the_raw_ids_names() {
+    let species = data_view::species();
+    assert_eq!(battle::SPECIES_ABILITY_IDS.len(), species.len());
+    assert!(!battle::ABILITY_NAMES.is_empty());
+    for (r, ids) in species.iter().zip(battle::SPECIES_ABILITY_IDS) {
+        for ((id, name), a) in ids.iter().zip(&r.ability_names).zip(r.abilities) {
+            assert!((*id as usize) < battle::ABILITY_NAMES.len());
+            assert_eq!(name, &decode(battle::ABILITY_NAMES[*id as usize]));
+            // Where the engine names the ability itself, the names agree.
+            if a != Ability::Other {
+                assert_eq!(name, &decode(battle::text(Str::AbilityName(a))));
+            }
+        }
+    }
+}
+
 /// Mixed case: upper-case the even characters, lower-case the odd ones.
 fn mixed(s: &str) -> String {
     s.chars()
@@ -224,6 +245,11 @@ fn stub_counts() {
         assert_eq!((m.0, m.2, m.3), (sp, lv, lv));
     }
     assert_eq!(species[1].maps, vec![enc[0].map]);
+    // Every stub species has ABILITY_NONE (id 0) twice; stub ability i is named `ABILITY{i}`.
+    assert_eq!(battle::ABILITY_NAMES.len(), 78);
+    for r in &species {
+        assert_eq!(r.ability_names, ["ABILITY0", "ABILITY0"].map(String::from));
+    }
     assert_eq!(species[1].learnset.len(), 2);
     assert_eq!(species[2].learnset.len(), 1);
     assert!(species[1].has_gfx && species[2].has_gfx && !species[0].has_gfx);

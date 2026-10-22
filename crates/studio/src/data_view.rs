@@ -21,7 +21,10 @@ pub struct SpeciesRow {
     /// HP, Atk, Def, Speed, SpAtk, SpDef.
     pub base: [u8; 6],
     pub types: [Type; 2],
+    /// The engine's view: abilities it does not implement are `Ability::Other`.
     pub abilities: [Ability; 2],
+    /// The real names (`gAbilityNames` of the species' raw `ABILITY_*` ids).
+    pub ability_names: [String; 2],
     pub catch_rate: u8,
     pub exp_yield: u8,
     pub growth: GrowthRate,
@@ -99,10 +102,11 @@ pub fn type_name(t: Type) -> String {
     decode(battle::text(Str::TypeName(t)))
 }
 
-/// The decoded name of ability `a` (`gAbilityNames`); empty for `Ability::Other`, which the
-/// content does not distinguish further.
-pub fn ability_name(a: Ability) -> String {
-    decode(battle::text(Str::AbilityName(a)))
+/// The decoded name of raw ability id `id` (`gAbilityNames[id]`); empty for an unknown id.
+pub fn ability_name(id: u8) -> String {
+    battle::ABILITY_NAMES
+        .get(id as usize)
+        .map_or_else(String::new, |n| decode(n))
 }
 
 fn species_name(id: SpeciesId) -> String {
@@ -149,6 +153,7 @@ pub fn species() -> Vec<SpeciesRow> {
             base: s.base,
             types: s.types,
             abilities: s.abilities,
+            ability_names: battle::SPECIES_ABILITY_IDS[i].map(ability_name),
             catch_rate: s.catch_rate,
             exp_yield: s.exp_yield,
             growth: s.growth,
