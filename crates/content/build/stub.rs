@@ -230,7 +230,7 @@ pub fn world() -> World {
         battle: battle(),
         tables: Default::default(),
         emotes: Vec::new(),
-        silice: None,
+        authored: None,
     }
 }
 

@@ -111,21 +111,32 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
         }
         Ok(())
     };
+    // An authored game's own flags and vars take numbers of Gen3 story ones: those Gen3 names
+    // would alias them, so they go.
+    let taken: BTreeSet<&str> = (w.authored.iter().flat_map(|a| &a.consts))
+        .map(|(_, _, v)| v.as_str())
+        .collect();
     for (v, n) in entries(&names::FLAGS) {
-        c(&mut o, n, "FlagId", format!("FlagId({v:#X})"))?;
+        let value = format!("FlagId({v:#X})");
+        if !taken.contains(value.as_str()) {
+            c(&mut o, n, "FlagId", value)?;
+        }
     }
     for (v, n) in entries(&names::VARS) {
-        c(&mut o, n, "VarId", format!("VarId({v:#X})"))?;
+        let value = format!("VarId({v:#X})");
+        if !taken.contains(value.as_str()) {
+            c(&mut o, n, "VarId", value)?;
+        }
     }
-    // The Silice flavour has its own map numbers (`games/silice/ids/maps.ron`, emitted with its
-    // other ids below): Emerald's `MAP_*` would alias them.
-    if w.silice.is_none() {
+    // An authored game has its own map numbers (emitted with its other ids below): Emerald's
+    // `MAP_*` would alias them.
+    if w.authored.is_none() {
         for m in names::MAPS {
             let v = u16::from(m.group) << 8 | u16::from(m.num);
             c(&mut o, m.constant, "MapId", format!("MapId({v:#X})"))?;
         }
     }
-    for (n, ty, v) in w.silice.iter().flat_map(|s| &s.consts) {
+    for (n, ty, v) in w.authored.iter().flat_map(|s| &s.consts) {
         c(&mut o, n, ty, v.clone())?;
     }
     c(&mut o, "MAP_DYNAMIC", "MapId", "MapId(0x7F7F)".into())?;
@@ -200,10 +211,10 @@ fn dir_of(d: ConnectionDir) -> Option<&'static str> {
 }
 
 /// Where a new game starts: outside the player's house in Littleroot (in front of the warp
-/// leading to `LittlerootTown_BrendansHouse_1F`), else the middle of the first map. The Silice
-/// flavour's start is its own (`SiliceIn::start`).
+/// leading to `LittlerootTown_BrendansHouse_1F`), else the middle of the first map. An authored
+/// game's start is its own (`AuthoredIn::start`).
 fn new_game(w: &World) -> Result<(u16, i16, i16)> {
-    if let Some(s) = &w.silice {
+    if let Some(s) = &w.authored {
         let (name, x, y) = &s.start;
         let m = (w.maps.iter().find(|m| &m.name == name))
             .with_context(|| format!("the new game's map {name} is not loaded"))?;

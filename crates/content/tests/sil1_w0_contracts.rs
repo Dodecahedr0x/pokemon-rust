@@ -151,6 +151,95 @@ fn ids_files_reject_duplicates_out_of_range_and_reserved_numbers() {
     let mut no_file = entry("MAP_X", 1);
     no_file.map = None;
     assert!(ids::validate(IdKind::Maps, &file(vec![no_file])).is_err());
+
+    // A var on a number the shared code uses (VAR_STARTER_MON, 0x4023) collides; moved
+    // (tombstoned, then appended live), it is fine, and the golden keeps both numbers.
+    let vars = |ids: Vec<IdEntry>| IdsFile { base: 0x4020, ids };
+    let on_starter = vars(vec![entry("VAR_SIL_A", 0x4022), entry("VAR_SIL_B", 0x4023)]);
+    let e = ids::validate(IdKind::Vars, &on_starter).unwrap_err();
+    assert!(format!("{e:#}").contains("is reserved"), "{e:#}");
+    let mut moved = on_starter.clone();
+    moved.ids[1].removed = true;
+    moved.ids.push(entry("VAR_SIL_B", 0x4024));
+    ids::validate(IdKind::Vars, &moved).unwrap();
+    let mut both = ids::Ids::default();
+    both.files.insert(IdKind::Vars, moved.clone());
+    assert_eq!(both.live(IdKind::Vars, "VAR_SIL_B").unwrap(), Some(0x4024));
+    let consts = both.consts();
+    assert!(consts.contains(&("VAR_SIL_B".into(), "VarId", "VarId(0x4024)".into())));
+    assert!(!consts.iter().any(|c| c.2 == "VarId(0x4023)"));
+    let golden = "vars VAR_SIL_B 16419\nvars VAR_SIL_B 16420\n";
+    assert_eq!(ids::check_golden(golden, &both).unwrap(), 2);
+    // Twice live, or listed again before its tombstone: rejected.
+    let mut twice = moved.clone();
+    twice.ids[1].removed = false;
+    assert!(ids::validate(IdKind::Vars, &twice).is_err());
+    let mut before = moved;
+    before.ids.swap(1, 2);
+    assert!(ids::validate(IdKind::Vars, &before).is_err());
+}
+
+/// `VAR_SIL_EVALON_PARTENAIRE` sat on `VAR_STARTER_MON`'s number (0x4023): it was moved, its
+/// tombstone keeps 0x4023, and no live Silice flag or var is on a shared Gen3 number.
+#[test]
+fn no_committed_silice_id_takes_a_shared_gen3_number() {
+    let ids = ids::load(&games()).unwrap();
+    let vars = &ids.files[&IdKind::Vars];
+    let evalon: Vec<_> = (vars.ids.iter())
+        .filter(|e| e.name == "VAR_SIL_EVALON_PARTENAIRE")
+        .map(|e| (e.num, e.removed))
+        .collect();
+    assert_eq!(evalon, [(0x4023, true), (0x4034, false)]);
+    for (kind, name, num) in extract::games::shared_gen3() {
+        for e in ids.files[&kind].ids.iter().filter(|e| !e.removed) {
+            assert_ne!(e.num, num, "{} takes {name}'s number", e.name);
+        }
+    }
+}
+
+/// `extract::games::SHARED_GEN3` is exactly the Gen3 flags and vars the shared code names: the
+/// Gen3 prelude, the crate root, `samples.rs` and the Silice root (its `SpecialIds`).
+#[test]
+fn the_reserved_gen3_names_are_the_ones_the_shared_code_uses() {
+    let src = workspace().join("crates/content/src");
+    let mut files = vec![
+        src.join("lib.rs"),
+        src.join("samples.rs"),
+        src.join("silice/mod.rs"),
+        src.join("silice/prelude.rs"),
+        src.join("silice/new_game.rs"),
+    ];
+    for e in std::fs::read_dir(src.join("prelude")).unwrap() {
+        files.push(e.unwrap().path());
+    }
+    let mut used = std::collections::BTreeSet::new();
+    for f in &files {
+        let text = std::fs::read_to_string(f).unwrap();
+        for w in words(&text) {
+            let gen3 = if w.starts_with("FLAG_") {
+                extract::names::FLAGS.value(w).is_some()
+            } else {
+                w.starts_with("VAR_") && extract::names::VARS.value(w).is_some()
+            };
+            // Silice's own names (`*_SIL_*`) and hex names are not Gen3 ones.
+            if gen3 && !w.contains("_SIL_") && !w.contains("_0x") {
+                used.insert(w.to_string());
+            }
+        }
+    }
+    let listed: std::collections::BTreeSet<String> = (extract::games::SHARED_GEN3.iter())
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        used, listed,
+        "update extract::games::SHARED_GEN3 to the Gen3 flags and vars the shared code names"
+    );
+}
+
+/// The identifier-like words of `text`.
+fn words(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|w| !w.is_empty())
 }
 
 #[test]
@@ -248,41 +337,56 @@ fn the_committed_scripts_register() {
 
 // ---- unknown scripts in maps ----
 
+/// Resolves every committed map, then the strict check (as `silice::world` does).
 fn committed_maps(strict: bool, reg: &Registry) -> (anyhow::Result<()>, Resolver) {
     let ids = ids::load(&games()).unwrap();
     let mut r = Resolver::new(reg, strict);
-    let mut res = Ok(());
     for m in silice::load::load_maps(&games()).unwrap() {
-        if let Err(e) = silice::merge::to_map_file(&m, &ids, &mut r) {
-            res = Err(e);
-            break;
-        }
+        silice::merge::to_map_file(&m, &ids, &mut r).unwrap();
     }
-    (res, r)
+    (r.finish(), r)
 }
 
 #[test]
 fn an_unknown_script_fails_when_strict_and_is_listed_in_the_allowlist_mode() {
     let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
-    let (strict, _) = committed_maps(true, &reg);
-    let e = strict.unwrap_err();
-    assert!(
-        format!("{e:#}").contains("is not defined by any src/silice/scripts/*.rs"),
-        "{e:#}"
-    );
     let (allowed, r) = committed_maps(false, &reg);
     allowed.unwrap();
-    assert!(!r.unwritten.is_empty());
+    assert!(r.unwritten.len() > 1);
     for s in &reg.scripts {
-        assert!(!r.unwritten.contains(&s.name), "{} is registered", s.name);
+        assert!(
+            !r.unwritten.contains_key(&s.name),
+            "{} is registered",
+            s.name
+        );
+    }
+    // Strict: one error after every map, naming every unknown script once, with its maps.
+    let (strict, _) = committed_maps(true, &reg);
+    let e = format!("{:#}", strict.unwrap_err());
+    assert!(
+        e.starts_with(&format!(
+            "{} scripts the maps name are not defined by any src/silice/scripts/*.rs: ",
+            r.unwritten.len()
+        )),
+        "{e}"
+    );
+    for (name, maps) in &r.unwritten {
+        assert_eq!(
+            e.matches(&format!("{name} (map ")).count(),
+            1,
+            "{name}: {e}"
+        );
+        for m in maps {
+            assert!(e.contains(m.as_str()), "{name} in {m}: {e}");
+        }
     }
     // With every name registered, the strict build passes.
     let all = Registry {
         scripts: (r
             .unwritten
-            .iter()
+            .keys()
             .chain(reg.scripts.iter().map(|s| &s.name)))
-        .map(|n| input::ScriptIn {
+        .map(|n| registry::ScriptIn {
             name: n.clone(),
             module: "m".into(),
             digest: 0,
@@ -372,6 +476,29 @@ fn each_flavour_hashes_only_its_own_sources() {
     put(&tmp, "content/src/overrides/X.rs", "o");
     assert_eq!((silice(), id(Some(&games))), (s1, ids2));
     assert_ne!(emerald(), e0);
+
+    // The extracted dir: Silice hashes its base assets, not the Emerald maps, script IR or
+    // previews; Emerald hashes all of it but the previews.
+    let x = tmp.join("extracted");
+    put(&x, "manifest.ron", "m");
+    put(&x, "tilesets/t.ron", "t");
+    put(&x, "maps/LittlerootTown.ron", "l");
+    put(&x, "scripts/index.ron", "i");
+    let ide = |x: &Path| build_id::build_id_for(&content, Some(x), None).unwrap();
+    let ids = |x: &Path| build_id::build_id_for(&content, Some(x), Some(&games)).unwrap();
+    let (xe0, xs0) = (ide(&x), ids(&x));
+    assert_ne!(xe0, xs0);
+    assert_ne!(xe0, id(None), "the stub hashes `stub`, not an extract");
+    put(&x, "maps/LittlerootTown.ron", "l2");
+    put(&x, "scripts/index.ron", "i2");
+    assert_eq!(ids(&x), xs0, "the Emerald game is not a Silice input");
+    let xe1 = ide(&x);
+    assert_ne!(xe1, xe0);
+    put(&x, "previews/LittlerootTown.png", "p");
+    assert_eq!((ide(&x), ids(&x)), (xe1, xs0), "previews never count");
+    put(&x, "tilesets/t.ron", "t2");
+    assert_ne!(ids(&x), xs0, "a base asset is a Silice input");
+    assert_ne!(ide(&x), xe1);
 }
 
 // ---- texts ----

@@ -74,37 +74,23 @@ pub struct World {
     pub tables: Tables,
     /// The emote pics (`sprites/field_effects/`, Task A).
     pub emotes: Vec<EmoteIn>,
-    /// The Silice flavour's own inputs (SIL1, `build/silice/`); `None` for the stub and Emerald.
-    /// With it, `maps` are the Silice maps and `ir` is `None`.
-    pub silice: Option<SiliceIn>,
+    /// A game authored outside the extract (the Silice flavour, SIL1); `None` for the stub and
+    /// Emerald. With it, `maps` are the authored maps and `ir` is `None`.
+    pub authored: Option<AuthoredIn>,
 }
 
-/// What the Silice flavour adds to a [`World`] (SIL1 Wave 0, `build/silice/mod.rs`). Plain data,
-/// so that the generator (`codegen.rs`, `scripts.rs`) and the tests that include it need no
-/// `silice` module.
+/// What an authored game (`build/silice/`) gives the shared generator. Flavour-neutral plain
+/// data and deliberately small: the flavour's own build code (`build/silice/`, which only the
+/// Silice `BUILD_ID` hashes) computes it, and writes its own script files
+/// (`build/silice/dispatch.rs`), so that its changes never touch the files Emerald hashes.
 #[derive(Clone, Debug, Default)]
-pub struct SiliceIn {
-    /// The script registry (`src/silice/scripts/*.rs`), sorted by name: the index is the
-    /// `ScriptId`.
-    pub scripts: Vec<ScriptIn>,
-    /// Every script file: (module name, absolute path), sorted by module.
-    pub modules: Vec<(String, PathBuf)>,
-    /// The constants of the allocated ids (`games/silice/ids/*.ron`): (name, type, value).
+pub struct AuthoredIn {
+    /// Every script name, in `ScriptId` order.
+    pub script_names: Vec<String>,
+    /// Constants of the game's own ids, `(name, type, value)`; they replace Emerald's `MAP_*`.
     pub consts: Vec<(String, &'static str, String)>,
     /// The new game's map (file name) and cell.
     pub start: (String, i16, i16),
-    /// Script names the maps use that no script defines, dropped from the maps (the Wave 0
-    /// allowlist mode, `build/silice/registry.rs`); empty when the build is strict.
-    pub unwritten: std::collections::BTreeSet<String>,
-}
-
-/// One registered Silice script: `pub async fn <name>(ctx: Ctx)` in `scripts/<module>.rs`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScriptIn {
-    pub name: String,
-    pub module: String,
-    /// Its `SCRIPT_DIGESTS` value (`build/silice/registry.rs`).
-    pub digest: u64,
 }
 
 /// `read_ron` of a file added within the format (`FORMAT_MINOR`), or the default when an older
@@ -344,7 +330,7 @@ fn load_with(dir: &Path, game: bool) -> Result<World> {
         battle,
         tables,
         emotes,
-        silice: None,
+        authored: None,
     })
 }
 

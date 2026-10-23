@@ -19,12 +19,7 @@ extern crate alloc;
 use engine::data::{FlagId, MapId, ScriptId};
 #[cfg(not(pkr_silice))]
 use {
-    engine::battle::{BattleGfx, Str},
-    engine::data::{
-        Behavior, Dir, Emote, Evolution, Font, GameData, GfxId, ItemId, ItemInfo, MapData, NewGame,
-        SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText, WindowGfx,
-    },
-    engine::mon::{BattleTables, LandEncounters, TrainerData},
+    engine::data::{GameData, SpecialIds},
     engine::script::{Ctx, Script},
 };
 
@@ -213,62 +208,188 @@ pub fn has_map(id: MapId) -> bool {
     data::map(id.0).is_some()
 }
 
+/// The [`SpecialIds`](engine::data::SpecialIds) every flavour shares (Gen3's system flags and
+/// vars, which the shared prelude also uses). Each root's `special_ids` sets only its own
+/// fields (respawn, wild-set var, whiteout script) and takes the rest from here
+/// (`..gen3_special_ids()`), so a new shared field reaches every flavour; the placeholders below
+/// for the per-flavour fields are always overridden.
+pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
+    engine::data::SpecialIds {
+        var_facing: Some(consts::VAR_FACING),
+        var_last_talked: Some(consts::VAR_LAST_TALKED),
+        flag_running: Some(consts::FLAG_SYS_B_DASH),
+        flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
+        respawn_default: 0,
+        var_wild_set: None,
+        script_whiteout: None,
+    }
+}
+
+/// The [`GameData`](engine::data::GameData) methods every flavour answers from its generated
+/// tables (`data`, `battle`, `scripts`), defined once so the flavours cannot drift: a new
+/// defaulted trait method that the tables can answer goes here, and both roots get it. Each
+/// root adds only what differs: `special_ids` (over [`gen3_special_ids`]), `script` (its
+/// new-game script) and
+/// `heal_location`. `form_changes` keeps the trait default (no flavour has form-change data
+/// yet; Task A's Silice data adds it here).
+macro_rules! game_data_tables {
+    () => {
+        fn map(&self, id: ::engine::data::MapId) -> &'static ::engine::data::MapData {
+            $crate::data::map(id.0).unwrap_or(&$crate::data::MISSING_MAP)
+        }
+
+        fn has_map(&self, id: ::engine::data::MapId) -> bool {
+            $crate::has_map(id)
+        }
+
+        fn sprite(
+            &self,
+            gfx: ::engine::data::GfxId,
+        ) -> Option<&'static ::engine::data::SpriteData> {
+            $crate::data::sprite(gfx.0)
+        }
+
+        fn player_sprite(&self) -> &'static ::engine::data::SpriteData {
+            $crate::data::PLAYER_SPRITE
+        }
+
+        fn font(&self) -> &'static ::engine::data::Font {
+            &$crate::data::FONT
+        }
+
+        fn window(&self) -> &'static ::engine::data::WindowGfx {
+            &$crate::data::WINDOW
+        }
+
+        fn text(&self, id: ::engine::data::TextId) -> &'static [u8] {
+            $crate::data::TEXTS
+                .get(id.0 as usize)
+                .copied()
+                .unwrap_or(&[0xFF])
+        }
+
+        fn ui_text(&self, t: ::engine::data::UiText) -> &'static [u8] {
+            match t {
+                ::engine::data::UiText::Yes => $crate::data::UI_YES,
+                ::engine::data::UiText::No => $crate::data::UI_NO,
+                ::engine::data::UiText::RivalName => $crate::data::UI_RIVAL_NAME,
+            }
+        }
+
+        fn behavior(&self, raw: u8) -> ::engine::data::Behavior {
+            $crate::data::BEHAVIORS[raw as usize]
+        }
+
+        /// The flavour's start (`data::NEW_GAME`), facing down, running its new-game script.
+        fn new_game(&self) -> ::engine::data::NewGame {
+            let (map, x, y) = $crate::data::NEW_GAME;
+            ::engine::data::NewGame {
+                map,
+                x,
+                y,
+                facing: ::engine::data::Dir::Down,
+                script: Some($crate::NEW_GAME_SCRIPT),
+                player_name: $crate::data::PLAYER_NAME,
+            }
+        }
+
+        fn battle(&self) -> &'static ::engine::mon::BattleTables {
+            &$crate::battle::TABLES
+        }
+
+        fn wild_encounters(
+            &self,
+            map: ::engine::data::MapId,
+            wild_set: u16,
+        ) -> Option<&'static ::engine::mon::LandEncounters> {
+            $crate::battle::wild_encounters(map.0, wild_set)
+        }
+
+        fn trainer(
+            &self,
+            id: ::engine::data::TrainerId,
+        ) -> Option<&'static ::engine::mon::TrainerData> {
+            $crate::battle::trainer(id.0)
+        }
+
+        fn battle_text(&self, s: ::engine::battle::Str) -> &'static [u8] {
+            $crate::battle::text(s)
+        }
+
+        fn battle_gfx(&self) -> &'static ::engine::battle::BattleGfx {
+            &$crate::battle::GFX
+        }
+
+        fn build_id(&self) -> u64 {
+            $crate::BUILD_ID
+        }
+
+        fn item(&self, id: ::engine::data::ItemId) -> Option<&'static ::engine::data::ItemInfo> {
+            $crate::data::ITEMS.get(id.0 as usize)?.as_ref()
+        }
+
+        fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+            $crate::data::multichoice(list)
+        }
+
+        fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+            $crate::data::std_string(id)
+        }
+
+        fn emote(&self, e: ::engine::data::Emote) -> Option<&'static ::engine::data::SpriteData> {
+            $crate::data::emote(e)
+        }
+
+        fn trainer_money(&self, id: ::engine::data::TrainerId) -> Option<u8> {
+            $crate::battle::trainer(id.0)?;
+            $crate::battle::TRAINER_MONEY.get(id.0 as usize).copied()
+        }
+
+        fn evolutions(
+            &self,
+            species: ::engine::data::SpeciesId,
+        ) -> &'static [::engine::data::Evolution] {
+            $crate::battle::evolutions(species.0)
+        }
+
+        fn hold_effect(&self, id: ::engine::data::ItemId) -> Option<::engine::mon::HoldEffect> {
+            $crate::battle::hold_effect(id.0)
+        }
+
+        fn trainer_flag_of(
+            &self,
+            script: ::engine::data::ScriptId,
+        ) -> Option<::engine::data::FlagId> {
+            let (trainer, _) = $crate::scripts::trainer_script(script.0)?;
+            Some($crate::prelude::trainer_flag(::engine::data::TrainerId(
+                trainer,
+            )))
+        }
+
+        fn trainer_battle_kind(&self, script: ::engine::data::ScriptId) -> Option<u8> {
+            $crate::scripts::trainer_script(script.0).map(|(_, kind)| kind)
+        }
+    };
+}
+#[cfg_attr(not(pkr_silice), allow(unused_imports))] // the Silice root names it by path
+pub(crate) use game_data_tables;
+
 #[cfg(not(pkr_silice))]
 impl GameData for Game {
-    fn map(&self, id: MapId) -> &'static MapData {
-        data::map(id.0).unwrap_or(&data::MISSING_MAP)
-    }
-
-    fn has_map(&self, id: MapId) -> bool {
-        has_map(id)
-    }
+    game_data_tables!();
 
     fn special_ids(&self) -> SpecialIds {
         SpecialIds {
-            var_facing: Some(consts::VAR_FACING),
-            var_last_talked: Some(consts::VAR_LAST_TALKED),
-            flag_running: Some(consts::FLAG_SYS_B_DASH),
-            flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
             // `InsideOfTruck_EventScript_SetIntroFlagsMale`.
             respawn_default: consts::HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
             // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
             script_whiteout: data::SCRIPT_WHITEOUT,
+            ..gen3_special_ids()
         }
     }
 
-    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
-        data::sprite(gfx.0)
-    }
-
-    fn player_sprite(&self) -> &'static SpriteData {
-        data::PLAYER_SPRITE
-    }
-
-    fn font(&self) -> &'static Font {
-        &data::FONT
-    }
-
-    fn window(&self) -> &'static WindowGfx {
-        &data::WINDOW
-    }
-
-    fn text(&self, id: TextId) -> &'static [u8] {
-        data::TEXTS.get(id.0 as usize).copied().unwrap_or(&[0xFF])
-    }
-
-    fn ui_text(&self, t: UiText) -> &'static [u8] {
-        match t {
-            UiText::Yes => data::UI_YES,
-            UiText::No => data::UI_NO,
-            UiText::RivalName => data::UI_RIVAL_NAME,
-        }
-    }
-
-    fn behavior(&self, raw: u8) -> Behavior {
-        data::BEHAVIORS[raw as usize]
-    }
-
+    /// The new game: Littleroot, outside Brendan's house (see [`new_game`]).
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         if id == NEW_GAME_SCRIPT {
             return alloc::boxed::Box::pin(new_game::new_game(ctx, self.start));
@@ -276,83 +397,8 @@ impl GameData for Game {
         data::script(id.0, ctx)
     }
 
-    /// Littleroot, outside Brendan's house, facing down (see [`new_game`]).
-    fn new_game(&self) -> NewGame {
-        let (map, x, y) = data::NEW_GAME;
-        NewGame {
-            map,
-            x,
-            y,
-            facing: Dir::Down,
-            script: Some(NEW_GAME_SCRIPT),
-            player_name: data::PLAYER_NAME,
-        }
-    }
-
-    fn battle(&self) -> &'static BattleTables {
-        &battle::TABLES
-    }
-
-    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
-        battle::wild_encounters(map.0, wild_set)
-    }
-
-    fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
-        battle::trainer(id.0)
-    }
-
-    fn battle_text(&self, s: Str) -> &'static [u8] {
-        battle::text(s)
-    }
-
-    fn battle_gfx(&self) -> &'static BattleGfx {
-        &battle::GFX
-    }
-
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         battle::heal_location(id)
-    }
-
-    fn build_id(&self) -> u64 {
-        BUILD_ID
-    }
-
-    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
-        data::ITEMS.get(id.0 as usize)?.as_ref()
-    }
-
-    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
-        data::multichoice(list)
-    }
-
-    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
-        data::std_string(id)
-    }
-
-    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
-        data::emote(e)
-    }
-
-    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
-        battle::trainer(id.0)?;
-        battle::TRAINER_MONEY.get(id.0 as usize).copied()
-    }
-
-    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
-        battle::evolutions(species.0)
-    }
-
-    fn hold_effect(&self, id: ItemId) -> Option<engine::mon::HoldEffect> {
-        battle::hold_effect(id.0)
-    }
-
-    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
-        let (trainer, _) = scripts::trainer_script(script.0)?;
-        Some(prelude::trainer_flag(TrainerId(trainer)))
-    }
-
-    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
-        scripts::trainer_script(script.0).map(|(_, kind)| kind)
     }
 }
 

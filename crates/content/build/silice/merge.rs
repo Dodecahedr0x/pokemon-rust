@@ -65,7 +65,7 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
             range_y: o.range_y,
             trainer_type: o.trainer_type.clone(),
             trainer_sight_or_berry_tree: o.trainer_sight_or_berry_tree,
-            script: scripts.opt(n, &o.script)?,
+            script: scripts.opt(n, &o.script),
             flag: o.flag.as_deref().map(flag).transpose()?,
         });
     }
@@ -88,7 +88,7 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
     for c in &g.coords {
         coords.push(Coord {
             var: c.var.as_deref().map(var).transpose()?,
-            script: scripts.opt(n, &c.script)?,
+            script: scripts.opt(n, &c.script),
             ..c.clone()
         });
     }
@@ -97,7 +97,7 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
         let kind = match &b.kind {
             BgKind::Script { facing, script } => BgKind::Script {
                 facing: *facing,
-                script: scripts.opt(n, script)?,
+                script: scripts.opt(n, script),
             },
             BgKind::HiddenItem { item, flag: f } => BgKind::HiddenItem {
                 item: constant(ids, IdKind::Items, &names::ITEMS, item)?,
@@ -120,7 +120,7 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
     let mut var_scripts = |v: &[VarScript]| -> Result<Vec<VarScript>> {
         let mut out = Vec::new();
         for t in v {
-            if let Some(script) = scripts.script(n, &t.script)? {
+            if let Some(script) = scripts.script(n, &t.script) {
                 out.push(VarScript {
                     var: var(&t.var)?,
                     value: t.value,
@@ -133,11 +133,11 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
     let on_frame = var_scripts(&s.on_frame)?;
     let on_warp_into = var_scripts(&s.on_warp_into)?;
     let map_scripts = MapScripts {
-        on_load: scripts.opt(n, &s.on_load)?,
-        on_transition: scripts.opt(n, &s.on_transition)?,
-        on_resume: scripts.opt(n, &s.on_resume)?,
-        on_return_to_field: scripts.opt(n, &s.on_return_to_field)?,
-        on_dive_warp: scripts.opt(n, &s.on_dive_warp)?,
+        on_load: scripts.opt(n, &s.on_load),
+        on_transition: scripts.opt(n, &s.on_transition),
+        on_resume: scripts.opt(n, &s.on_resume),
+        on_return_to_field: scripts.opt(n, &s.on_return_to_field),
+        on_dive_warp: scripts.opt(n, &s.on_dive_warp),
         on_frame,
         on_warp_into,
     };

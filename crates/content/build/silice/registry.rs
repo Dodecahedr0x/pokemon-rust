@@ -9,17 +9,21 @@
 //! - **Ids.** Script names are unique across files; `ScriptId`s are assigned in name order
 //!   (`SCRIPT_NAMES`), so adding a script renumbers the later ones. That is fine: snapshots
 //!   hold no `ScriptId` (M5), so a rename or an addition moves only `BUILD_ID`.
-//! - **Digests.** `SCRIPT_DIGESTS[name]` is FNV-1a 64 over the name and its whole file (CRLF
-//!   folded): any edit of a file revalidates its scripts. Calls into another file's script or
-//!   helper are not followed yet (Task F, if scripts start sharing helpers across files).
+//! - **Digests.** `SCRIPT_DIGESTS` pairs each script name, in `SCRIPT_NAMES` order, with
+//!   `TreeHash::file(name, source)`: FNV-1a 64 over the length-prefixed script name and the whole
+//!   source of the file defining it (CRLF folded to LF). Any edit of a file moves the digest of
+//!   every script in it; the module (file) name is not hashed. Calls into another file's script
+//!   or helper are not followed yet (Task F, if scripts start sharing helpers across files).
 //! - **References.** A map naming a script no file defines fails the build, except in the
-//!   Wave 0 allowlist mode ([`ALLOW_UNWRITTEN`]): the Ch0 maps name about 68 scripts that do not
-//!   exist yet, so they are dropped from the maps, listed in `content::REPORT` and summed up in
-//!   one cargo warning. `PKR_SILICE_STRICT_SCRIPTS=1` makes the build strict now.
+//!   Wave 0 allowlist mode ([`ALLOW_UNWRITTEN`]): the committed maps name 48 scripts that do
+//!   not exist yet, so they are dropped from the maps, listed in `content::REPORT` and summed up
+//!   in one cargo warning. `PKR_SILICE_STRICT_SCRIPTS=1` makes the build strict now. Every map
+//!   is resolved first; a strict build then fails once, listing every unknown name with the
+//!   maps that use it ([`Resolver::finish`]).
 
 use crate::build_support::TreeHash;
 use crate::codegen::ident_ok;
-use crate::input::ScriptIn;
+
 use anyhow::{Context, Result, bail, ensure};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -28,6 +32,15 @@ use std::path::{Path, PathBuf};
 /// Task F sets it to `false`** once the Ch0 scripts exist; from then on an unknown script fails
 /// the build.
 pub const ALLOW_UNWRITTEN: bool = true;
+
+/// One registered script: `pub async fn <name>(ctx: Ctx)` in `scripts/<module>.rs`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScriptIn {
+    pub name: String,
+    pub module: String,
+    /// Its `SCRIPT_DIGESTS` value.
+    pub digest: u64,
+}
 
 /// Set to `1` to fail on unwritten scripts while [`ALLOW_UNWRITTEN`] is still `true`.
 pub const STRICT_ENV: &str = "PKR_SILICE_STRICT_SCRIPTS";
@@ -117,12 +130,14 @@ pub fn script_fns(src: &str) -> Result<Vec<String>> {
     Ok(out)
 }
 
-/// Resolves the script names the maps use against a [`Registry`].
+/// Resolves the script names the maps use against a [`Registry`]. Resolution never fails: an
+/// unknown name is recorded with its map and dropped; [`Resolver::finish`] fails a strict build
+/// once, after every map, with all of them.
 pub struct Resolver {
     known: BTreeSet<String>,
     strict: bool,
-    /// The unknown names dropped (allowlist mode).
-    pub unwritten: BTreeSet<String>,
+    /// The unknown script names, each with the maps that use it.
+    pub unwritten: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Resolver {
@@ -130,28 +145,39 @@ impl Resolver {
         Resolver {
             known: reg.scripts.iter().map(|s| s.name.clone()).collect(),
             strict,
-            unwritten: BTreeSet::new(),
+            unwritten: BTreeMap::new(),
         }
     }
 
-    /// `Some(name)` for a registered script; for an unknown one, an error when strict, else
-    /// `None` (the reference is dropped and recorded in [`Self::unwritten`]).
-    pub fn script(&mut self, map: &str, name: &str) -> Result<Option<String>> {
+    /// `Some(name)` for a registered script; `None` for an unknown one (the reference is
+    /// dropped and recorded in [`Self::unwritten`] under `map`).
+    pub fn script(&mut self, map: &str, name: &str) -> Option<String> {
         if self.known.contains(name) {
-            return Ok(Some(name.to_string()));
+            return Some(name.to_string());
         }
-        ensure!(
-            !self.strict,
-            "map {map}: script {name} is not defined by any src/silice/scripts/*.rs"
-        );
-        self.unwritten.insert(name.to_string());
-        Ok(None)
+        (self.unwritten.entry(name.to_string()).or_default()).insert(map.to_string());
+        None
     }
 
-    pub fn opt(&mut self, map: &str, name: &Option<String>) -> Result<Option<String>> {
-        match name {
-            Some(n) => self.script(map, n),
-            None => Ok(None),
+    pub fn opt(&mut self, map: &str, name: &Option<String>) -> Option<String> {
+        self.script(map, name.as_deref()?)
+    }
+
+    /// After every map: a strict build fails with every unknown name and its maps.
+    pub fn finish(&self) -> Result<()> {
+        if !self.strict || self.unwritten.is_empty() {
+            return Ok(());
         }
+        let list: Vec<String> = (self.unwritten.iter())
+            .map(|(name, maps)| {
+                let maps: Vec<&str> = maps.iter().map(String::as_str).collect();
+                format!("{name} (map {})", maps.join(", "))
+            })
+            .collect();
+        bail!(
+            "{} scripts the maps name are not defined by any src/silice/scripts/*.rs: {}",
+            list.len(),
+            list.join("; ")
+        )
     }
 }

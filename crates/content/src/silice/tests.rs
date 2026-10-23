@@ -1,6 +1,7 @@
 //! The Silice flavour's generated tables and game root (SIL1 Wave 0).
 
 use super::*;
+use crate::consts;
 use engine::data::block_collision;
 use engine::input::Buttons;
 use extract::games::{IdKind, IdsFile};
@@ -65,9 +66,9 @@ fn the_dispatch_has_the_registry_shape() {
     let digests: Vec<&str> = data::SCRIPT_DIGESTS.iter().map(|d| d.0).collect();
     assert_eq!(digests, data::SCRIPT_NAMES);
     const { assert!(data::SCRIPT_COUNT >= 1, "the Wave 0 placeholder script") };
-    const { assert!(!scripts::DECOMP_NAMES) };
+    const { assert!(!crate::scripts::DECOMP_NAMES) };
     assert!(crate::overrides::OVERRIDES.is_empty());
-    assert!(crate::REPORT.contains("scripts (build/scripts.rs, Silice)"));
+    assert!(crate::REPORT.contains("== scripts (build/silice/dispatch.rs) =="));
 }
 
 #[test]
@@ -117,6 +118,29 @@ fn ids_constants_follow_the_ids_files() {
     );
     assert!(first_live(IdKind::Flags) >= flags.base);
     assert!(first_live(IdKind::Vars) >= 0x4020);
+}
+
+#[test]
+fn the_build_is_the_silice_flavour() {
+    // `PKR_GAME=silice` never falls back to the stub silently (`build/main.rs`).
+    assert_eq!(crate::FLAVOR, crate::Flavor::Silice);
+    assert!(!crate::STUB);
+}
+
+/// The shared `game_data_tables!` methods reach the Silice root: held items have their battle
+/// effects (the trait default would answer `None`).
+#[test]
+fn held_items_have_their_effects() {
+    use engine::mon::HoldEffect;
+    assert_eq!(
+        Game.hold_effect(engine::data::ItemId(consts::ITEM_LEFTOVERS)),
+        Some(HoldEffect::Leftovers)
+    );
+    assert_eq!(
+        Game.hold_effect(engine::data::ItemId(consts::ITEM_ORAN_BERRY)),
+        Some(HoldEffect::RestoreHp(10))
+    );
+    assert!(Game.form_changes().is_empty());
 }
 
 #[test]
