@@ -641,18 +641,18 @@ Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d
     - **Type-boost items**: `(100+param)%` of the type's attacking stat, applied after Huge Power.
     - **Choice Band**: Attack ×1.5. The move lock is not modelled.
     - **Quick Claw**: `gRandomTurnNumber < 0xFFFF*param/100` gives `UINT_MAX` speed, with no draw of its own.
-    - **King's Rock**: `MOVEEND_KINGSROCK_SHELLBELL`. `Random()%100` is drawn only after damage, then the flag check, then the target's HP. It flinches through `SetMoveEffect(FALSE)`.
+    - **King's Rock**: `MOVEEND_KINGSROCK_SHELLBELL`. `Random()%100` is drawn only after damage, then the flag check, then the target's HP. It flinches through `SetMoveEffect(FALSE)`. A multi-hit move runs the item effects and King's Rock after each hit (`moveendto MOVEEND_NEXT_TARGET`) and once more on the last hit after its loop, as Gen3.
     - **BrightPowder / Lax Incense**: accuracy ×`(100-param)/100`, after Compound Eyes and Hustle.
-    - **Focus Band**: `Random()%100` right after the damage roll, drawn whenever the item is held. The "hung on" message comes after the result message.
+    - **Focus Band** (`Battle::focus_band`): `Random()%100` right after the damage roll, drawn whenever the item is held. The "hung on" message comes after the result message. The same roll runs in `adjustsetdamage` (Sonic Boom, Bide's release) and in `adjustnormaldamage2` for the confusion self-hit, where the attacker is the target (its own band).
   - Not modelled:
     - Shell Bell, White Herb, Mental Herb, the stat berries and the species items.
     - The held-item animation.
     - `HandleFaintedMonActions`' item check.
   - Consumption clears the battler's item, its hold, `x.holds` and the party mon's `held`, so the party loses the berry, as in Gen3.
-  - **Emerald switch:** `classify::TRAINER_HELD_ITEMS` stays **off**. Turning it on gives Emerald's trainers their `gTrainers` items, which changes the route (berry heals, Quick Claw order, Focus Band draws). That is a later Emerald route change: re-baseline parity and `checkpoints verify --accept`.
+  - **Emerald switch:** `classify::TRAINER_HELD_ITEMS` stays **off**. Turning it on gives Emerald's trainers their `gTrainers` items, which changes the route (berry heals, Quick Claw order, Focus Band draws). That is a later Emerald route change: re-baseline parity and `checkpoints verify --accept`. It would also be **inaccurate** until the effects listed as not modelled are: the Choice Band lock, Shell Bell, the herbs, the stat berries, Amulet Coin and `HandleFaintedMonActions`' item check (Emerald trainers hold several of these).
 - **Fairy.**
   - `Type::Fairy` (18) sits after Mystery, so the Gen3 split by type makes it **special**. This is documented on `Type::Fairy`.
-  - `FAIRY_MATCHUPS` holds the 12 Gen6 entries. The content build appends them before the Foresight split only when the content uses Fairy, so Emerald's chart is byte-identical. Tested in `fairy_has_the_gen6_matchups_and_is_special`.
+  - `FAIRY_MATCHUPS` holds the 12 Gen6 entries. The content build appends them before the Foresight split only when the content uses Fairy, so Emerald's chart is byte-identical. Tested in `fairy_has_the_gen6_matchups_and_is_special`; the build script's copy of the count (`engine_fairy_len`, it cannot link the engine) is checked against `FAIRY_MATCHUPS.len()` by `the_build_fairy_count_matches_the_engine`.
 - **Mega / Primal** (`battle/core/forms.rs`).
   - Data: `GameData::form_changes() -> &[FormChange { base, item, form, kind: Mega|Primal, enable_flag }]`. Form species are ordinary entries of `BattleTables.species`.
   - Setup:
@@ -661,48 +661,52 @@ Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d
     - The form state lives in `Battle::x`, not in `BattleRun`, so the `BattleRun` field guard is unchanged. This deviates from the plan's "hashed in `BattleRun`" on purpose: it is hashed through `Battle::hash`.
   - Player trigger: in the move menu, START toggles Mega Evolution when `Battle::can_mega(Player)`. While armed, the type window shows `Str::MegaArmed`. A move chosen armed is `Choice::Mega(slot)`.
   - The AI arms Mega Evolution with its first move when the battle is a trainer battle and the mon can Mega Evolve. Wild mons never Mega Evolve.
-  - Order: Mega Evolutions happen in `queue_turn` before the turn order, faster battler first (ties go to the player), and the new speed orders the turn (Gen7). One Mega per side per battle.
+  - Order (expansion `TryDoGimmicksBeforeMoves`): Mega Evolutions happen after the switches, items and running and before the first move action, faster battler first by full speed (Swift Swim and Chlorophyll count; ties go to the player). When both sides use a move, the turn is then ordered with the new speeds (Gen7); when one side switches, the Mega's switch-in abilities (Intimidate) hit the mon that just came in (`Step::Megas`, queued only when a Mega is pending). Simplified: a Pursuit on a switching foe strikes before the Mega. One Mega per side per battle. A mon with no PP left may still Mega Evolve (then Struggle), for the player and the AI.
   - Primal Reversion happens at the battle start (in speed order) and on each switch-in, before the switch-in abilities. It does not use the side's Mega.
   - The change takes the form's stats (HP stat and HP kept), types and ability, keeps the battle state, and runs the new ability's switch-in effects. The form lasts through switches. The party species is never changed, so the party is "restored" by construction.
   - Messages through `battle_text`: `MegaReacting`, `MegaEvolved`, `PrimalReversion`, the primal weathers', `BreaksTheMold`, `BouncedBack` and `MegaArmed`. They are `StrSrc::Missing` (empty) in Emerald.
   - Event `FormChange { side, party, species }`: the scene reloads the pic (`Play::Form`).
   - **Frame cost** (`crates/game-gba/src/bin/battle_probe.rs`, read by `parity.rs` `battle_probe_mega_turn`, synthetic battle on the GBA):
-    - A turn costs 25 lines (30,762 cycles); with the Mega Evolution, **33 lines (39,683 cycles): +8 lines**.
+    - A turn costs 25 lines (30,762 cycles); with the Mega Evolution, **33 lines (39,683 cycles): +8 lines**. After the review fixes and the M8 Task L merge: 28 lines (33,866 cycles), with the Mega 35 lines (42,918 cycles): +7 lines.
     - Finding the forms at battle start (34 changes) costs +2 lines.
     - The scene's pic reload is spread over frames, as a send-out's.
 - **Abilities.** All have a test in `effects/tests_s.rs`.
   - The weather (`effects/later.rs`):
     - Drizzle, Drought and Sand Stream give a permanent weather, as in Gen3. Each turn prints "Rain continues…", "The sunlight is strong." or "The sandstorm rages."
-    - Sandstorm damage is max HP / 16 in turn order. Rock, Ground, Steel and Sand Force are immune.
+    - Sandstorm damage is max HP / 16 in turn order. Rock, Ground, Steel, Sand Veil and Sand Force are immune.
+    - **Rain Dish**: max HP / 16 at the end of the turn in rain (`STRINGID_PKMNSXRESTOREDHPALITTLE2`). **Sand Veil**: no sand damage, and the foe's accuracy ×80/100 in sand (after Compound Eyes, before Hustle).
+    - Not modelled: **Cloud Nine** and **Air Lock** (weather suppression); Sand Veil's overworld encounter halving.
     - Rain and sun change Fire and Water damage in the special branch. Swift Swim and Chlorophyll double speed.
     - **Primordial Sea / Desolate Land**: heavy rain or harsh sun, which only the other primal weather replaces. Damaging Fire or Water moves fail after their attack string. The weather ends when no battler with the ability is left (switch-out or faint).
   - Done:
-    - **Aerilate, Pixilate, Refrigerate** (Normal moves change type, ×1.2).
+    - **Aerilate, Pixilate, Refrigerate** (Normal moves change type, ×1.2). **Content decision:** under the Gen3 split by type, the new type decides the category, so a converted Normal physical move becomes special (Mega Glalie's and Mega Altaria's Return use Sp. Atk); Gen4+ games keep it physical.
     - **Tough Claws** ×1.3 on contact.
     - **Magic Bounce** reflects `MAGIC_COAT_AFFECTED` moves: the bounced move costs no PP and is not bounced again.
-    - **Parental Bond**: a second hit at a quarter of the damage, then "Hit 2 times!".
+    - **Parental Bond** (Gen7 25%): a second hit at a quarter of the damage, then "Hit 2 times!". Not for the multi-strike moves, Uproar, Explosion / Self-Destruct, the two-turn moves, Rollout / Ice Ball, Beat Up and Endeavor (the Gen7 exclusions the engine can name).
     - **Mold Breaker** turns off the target's breakable ability for the move and announces itself on entry.
     - **Technician** ×1.5 at power 60 or less.
     - **Skill Link**: always 5 hits.
     - **Sand Force** ×1.3 on Rock, Ground and Steel moves in sand, and is immune to sand damage.
-    - **Solar Power**: Sp. Atk ×1.5 in sun, and loses 1/8 HP each turn.
+    - **Solar Power**: Sp. Atk ×1.5 in sun, and loses 1/8 HP each turn with `Str::SolarPowerHurt` (`Missing` in Emerald).
     - **Filter**: super-effective damage ×3/4.
     - **Prankster**: +1 priority for status moves, which fail against a Dark target.
     - **Steadfast**: Speed +1 on a flinch.
-    - **Speed Boost** (Gen3: not on the turn it came in).
-    - **Shadow Tag** (Gen4: not against Shadow Tag).
+    - **Speed Boost** (Gen3 `isFirstTurn`: 2 on entry, decremented by `TurnValuesCleanUp(FALSE)` at the end of `TryDoEventsBeforeFirstTurn` and in `BattleTurnPassed` after the fainted replacements, so a lead boosts at the end of turn 1 and an end-of-turn replacement at the end of the next turn).
+    - **Shadow Tag** (Gen3: traps every foe; `Ability::ShadowTagGen4` adds Gen4's exemption of a Shadow Tag foe).
     - **Levitate** (Gen3 `MAKESGROUNDMISS`, accuracy still drawn).
     - **Shell Armor / Battle Armor** (no crit roll).
-    - **Lightning Rod** (the Gen5 absorb: Sp. Atk +1).
+    - **Lightning Rod** (the Gen5 absorb: Sp. Atk +1). Gen3's only redirects in doubles, so it does nothing in singles: Emerald's maps to `Other`.
   - Silice's stones also need Trace, Thick Fat, Huge/Pure Power, Intimidate, Insomnia and Swift Swim, which were already there.
   - **Deferred** (no Silice stone needs them; canonical Megas only):
     - Adaptability (Lucario, Beedrill), Mega Launcher (Blastoise), Strong Jaw (Sharpedo), Sheer Force (Camerupt), No Guard (Pidgeot) and Scrappy (Lopunny): new damage or accuracy rules.
     - Snow Warning (Abomasnow): needs hail.
     - Delta Stream (Rayquaza): needs strong winds and Dragon Ascent.
     - Healer (Audino): doubles only.
-  - **Emerald switch:** `classify::GEN3_EXTRA_ABILITIES` stays **off**. Emerald's Drizzle, Drought, Sand Stream, Speed Boost, Shadow Tag, Levitate, Shell/Battle Armor and Lightning Rod species keep `Ability::Other`. Turning it on changes Emerald battles (Torkoal, Tyranitar, Ninjask, Wobbuffet, the Levitate ghosts…) and is a later Emerald route change.
+  - **Emerald switch:** `classify::GEN3_EXTRA_ABILITIES` stays **off**. Emerald's Drizzle, Drought, Sand Stream, Speed Boost, Shadow Tag, Levitate, Shell/Battle Armor and Sand Veil species keep `Ability::Other`. Turning it on gives them their Gen3 behaviour; it changes Emerald battles (Torkoal, Tyranitar, Ninjask, Wobbuffet, the Levitate ghosts…) and is a later Emerald route change. Rain Dish keeps its earlier name-only mapping (only these abilities bring rain).
+  - **Silice switch:** `classify::SILICE_ABILITY_RULES` (off for Emerald) maps Lightning Rod to the Gen5 absorb and Shadow Tag to `ShadowTagGen4`. These are not Gen3 behaviour, so they stay out of `GEN3_EXTRA_ABILITIES`; the Silice content turns the switch on.
 - **Build.**
   - ROM and `.text` against `db07b1d` (Emerald FR, full content): ROM 3,658,784 → 3,683,904 B (+25,120); engine `.text` 244,194 → 258,698 B (+14,504; 77,822 B left under its limit); all `.text` +17,344; `.rodata` +7,776; IWRAM and EWRAM +0.
+  - After the review fixes, on top of master with M8 Task L (the full 518-map import, so the ROM is 9,545,968 B and not comparable): engine `.text` 259,754 B (+1,056 over the number above, merge included); IWRAM and EWRAM +0.
   - The battle probe ROM (`target/battle-probe.gba`) is built by `cargo xtask rom` and read by `cargo xtask parity`.
   - The Wave 0 battle digest test leaves out `TrainerMon::item` (all `None`), so its value is unchanged.
 
