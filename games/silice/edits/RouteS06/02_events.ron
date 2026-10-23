@@ -1,0 +1,58 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    // Fog over the whole route: Mt. Pyre's own weather. The source wants it in the upper half only, which a
+    // header cannot say.
+    Header((music: "MUS_ROUTE120", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_FOG_HORIZONTAL", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // on_load reopens the bamboo curtain (23, 26) once FLAG_SIL_ROUTE_S06_RACCOURCI is set.
+    // on_transition sets the hide flags (sbires and Adrien outside VAR_SIL_STORY 60, the randonneur
+    // before 61). Route_S06_Sc01 ("first entry", VAR_SIL_STORY < 60) is an on-frame script keyed on 55,
+    // Ch5's last value (Owlys_Sc05): an on-transition script cannot show a message. It sets 60, so it
+    // runs once.
+    Scripts((on_load: Some("RouteS06_OnLoad"), on_transition: Some("RouteS06_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 55, script: "RouteS06_Sc01")], on_warp_into: [])),
+    // Warp 0: the Monks'' shortcut tunnel behind the bamboo curtain, to Manga-Square's warp 5 (Rue des Echoppes).
+    Warp(x: 25, y: 26, dest_map: "MangaSquare", dest_warp: 5),
+    // Route_S06_Sc02's actors (source obj 1-3) on the Plateau de l'Encens.
+    Object(x: 13, y: 25, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ROUTE_S06_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN"),
+    Object(x: 12, y: 25, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ROUTE_S06_SBIRE_A", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A"),
+    Object(x: 14, y: 25, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_ROUTE_S06_SBIRE_B", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B"),
+    // Trainers of the climb (section 5): Luna and Hoshi in the Lacets hauts, Yumi in the middle zone,
+    // Gaston and Kotaro in the Lacets bas.
+    Object(x: 6, y: 9, gfx: "OBJ_EVENT_GFX_BEAUTY", id: "LOCALID_ROUTE_S06_LUNA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS06_EventScript_Luna", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 20, y: 13, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_ROUTE_S06_HOSHI", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS06_EventScript_Hoshi", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 8, y: 36, gfx: "OBJ_EVENT_GFX_ARTIST", id: "LOCALID_ROUTE_S06_YUMI", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS06_EventScript_Yumi", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 12, y: 49, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_ROUTE_S06_GASTON", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS06_EventScript_Gaston", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 20, y: 57, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_ROUTE_S06_KOTARO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS06_EventScript_Kotaro", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // Ambient NPCs (section 2).
+    Object(x: 7, y: 26, gfx: "OBJ_EVENT_GFX_OLD_WOMAN", id: "LOCALID_ROUTE_S06_PELERINE", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS06_EventScript_Pelerine"),
+    Object(x: 16, y: 39, gfx: "OBJ_EVENT_GFX_RUNNING_TRIATHLETE_M", id: "LOCALID_ROUTE_S06_COUREUR", movement: "MOVEMENT_TYPE_WALK_UP_AND_DOWN", range_y: 3, script: "RouteS06_EventScript_Coureur"),
+    Object(x: 4, y: 20, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_ROUTE_S06_BONZE", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS06_EventScript_Bonze"),
+    Object(x: 20, y: 41, gfx: "OBJ_EVENT_GFX_CAMPER", id: "LOCALID_ROUTE_S06_RANDONNEUR", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS06_EventScript_Rochers", flag: "FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR"),
+    // Cracked rocks R1-R3 (Rock Smash, once FLAG_SIL_MODULE_ECLATE_ROC is set). No hide flag: a smashed
+    // rock comes back on the next map load, as in Emerald. Each fills the one gap into its niche and is
+    // smashed from the path: R1 from (6, 57), R2 from (21, 41), R3 from the altar ledge (19, 19).
+    Object(x: 5, y: 57, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S06_ROCHER_R1", script: "RouteS06_EventScript_Rocher"),
+    Object(x: 22, y: 41, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S06_ROCHER_R2", script: "RouteS06_EventScript_Rocher"),
+    Object(x: 20, y: 19, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S06_ROCHER_R3", script: "RouteS06_EventScript_Rocher"),
+    // Item balls (section 7). PP Up, Max Ether and Dragon Scale wait behind R1, R2 and R3.
+    Object(x: 18, y: 60, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S06_ITEM_HYPER_POTION", script: "RouteS06_EventScript_ItemHyperPotion", flag: "FLAG_SIL_ITEM_ROUTE_S06_HYPER_POTION"),
+    Object(x: 23, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S06_ITEM_ULTRA_BALL", script: "RouteS06_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_ROUTE_S06_ULTRA_BALL"),
+    Object(x: 3, y: 56, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S06_ITEM_PP_UP", script: "RouteS06_EventScript_ItemPpUp", flag: "FLAG_SIL_ITEM_ROUTE_S06_PP_UP"),
+    Object(x: 24, y: 40, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S06_ITEM_MAX_ETHER", script: "RouteS06_EventScript_ItemMaxEther", flag: "FLAG_SIL_ITEM_ROUTE_S06_MAX_ETHER"),
+    Object(x: 23, y: 18, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S06_ITEM_DRAGON_SCALE", script: "RouteS06_EventScript_ItemDragonScale", flag: "FLAG_SIL_ITEM_ROUTE_S06_DRAGON_SCALE"),
+    // Route_S06_Sc02, VAR_SIL_STORY 60: the four cells at the top of the plateau's stairs (x 12-15, y 28).
+    Coord(x: 12, y: 28, var: "VAR_SIL_STORY", value: 60, script: "RouteS06_Sc02"),
+    Coord(x: 13, y: 28, var: "VAR_SIL_STORY", value: 60, script: "RouteS06_Sc02"),
+    Coord(x: 14, y: 28, var: "VAR_SIL_STORY", value: 60, script: "RouteS06_Sc02"),
+    Coord(x: 15, y: 28, var: "VAR_SIL_STORY", value: 60, script: "RouteS06_Sc02"),
+    Sign(x: 11, y: 60, script: "RouteS06_EventScript_SignEntree"),
+    Sign(x: 16, y: 28, script: "RouteS06_EventScript_SignEncens"),
+    Sign(x: 6, y: 56, script: "RouteS06_EventScript_SignRocher"),
+    Sign(x: 4, y: 19, script: "RouteS06_EventScript_SignAutel"),
+    Sign(x: 5, y: 19, script: "RouteS06_EventScript_SignAutel"),
+    // The hidden Lax Incense behind the third burner (17, 25).
+    HiddenItem(x: 17, y: 24, item: "ITEM_LAX_INCENSE", flag: "FLAG_SIL_ITEM_ROUTE_S06_ENCENS"),
+    // Manga-Square to the north: our exit x 12-14 meets its Torii Sud x 21-23.
+    Connect((dir: North, offset: -9, map: "MangaSquare")),
+    // The Bois des Soupirs to the west: our exit y 33-35 meets its east exit y 8-10.
+    Connect((dir: West, offset: 25, map: "RouteS06_BoisSoupirs")),
+]

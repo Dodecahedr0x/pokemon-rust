@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "BattleFrontierOutsideEast",
+    width: 5,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1336, 1155, 1156, 15, 1338),
+        (1344, 1163, 1164, 1047, 1346),
+        (1352, 1353, 1353, 1353, 1354),
+    ],
+)

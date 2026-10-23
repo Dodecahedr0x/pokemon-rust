@@ -576,5 +576,10 @@
             num: 114,
             map: Some("Zone404_Noyau"),
         ),
+        (
+            name: "MAP_MANGA_SQUARE_GYM",
+            num: 115,
+            map: Some("MangaSquare_Gym"),
+        ),
     ],
 )
