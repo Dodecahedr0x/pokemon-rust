@@ -312,6 +312,39 @@ impl Emu {
         }
     }
 
+    /// mGBA's whole-machine save state (`mCore::saveState`): a vanilla-oracle position to
+    /// replay branches from ([`Emu::load_state`]).
+    pub fn save_state(&mut self) -> Result<Vec<u8>> {
+        // SAFETY: the core is loaded; `stateSize` bytes are what `saveState` writes.
+        unsafe {
+            let raw = self.core.raw_ptr();
+            let size = (*raw).stateSize.ok_or_else(|| anyhow!("no stateSize"))?(raw);
+            let save = (*raw).saveState.ok_or_else(|| anyhow!("no saveState"))?;
+            let mut buf = vec![0u8; size];
+            if !save(raw, buf.as_mut_ptr().cast()) {
+                return Err(anyhow!("saveState failed"));
+            }
+            Ok(buf)
+        }
+    }
+
+    /// Restores a [`Emu::save_state`] of the same core.
+    pub fn load_state(&mut self, state: &[u8]) -> Result<()> {
+        // SAFETY: as `save_state`; the size is checked first.
+        unsafe {
+            let raw = self.core.raw_ptr();
+            let size = (*raw).stateSize.ok_or_else(|| anyhow!("no stateSize"))?(raw);
+            if state.len() != size {
+                return Err(anyhow!("state is {} bytes, not {size}", state.len()));
+            }
+            let load = (*raw).loadState.ok_or_else(|| anyhow!("no loadState"))?;
+            if !load(raw, state.as_ptr().cast()) {
+                return Err(anyhow!("loadState failed"));
+            }
+            Ok(())
+        }
+    }
+
     pub fn run_frame(&mut self, keys: Buttons) -> Result<()> {
         self.core
             .set_keys(Buttons::from_raw(keys.0).0 as u32)
