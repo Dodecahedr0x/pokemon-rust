@@ -22,6 +22,9 @@ mod classify;
 #[path = "../build/codegen.rs"]
 mod codegen;
 #[allow(dead_code)]
+#[path = "../build/layouts.rs"]
+mod layouts;
+#[allow(dead_code)]
 #[path = "../build/input.rs"]
 mod input;
 #[allow(dead_code)]
