@@ -331,8 +331,8 @@ fn a_new_world_has_new_game_init_data() {
     assert_eq!(w.money(), 3000);
     assert_eq!(w.var(VAR_SEEDOT_SIZE_RECORD), 0x8000);
     assert_eq!(w.var(VAR_LOTAD_SIZE_RECORD), 0x8000);
-    // The stub world has no item table: the Potion is reported, not stored.
-    if !crate::STUB {
+    // A world without the Potion in its item table (the stub) reports it instead.
+    if Emerald.item(engine::data::ItemId(ITEM_POTION)).is_some() {
         assert_eq!(
             w.pc().item_entries().collect::<Vec<_>>(),
             [(0, engine::data::ItemId(ITEM_POTION), 1)]

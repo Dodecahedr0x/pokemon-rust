@@ -161,5 +161,8 @@ fn intro_to_our_new_game_start() {
     // house.
     let placement = |f: &str| ["map", "cell", "facing"].contains(&f) || f.starts_with("object ");
     let unexpected: Vec<_> = d.iter().filter(|x| !placement(&x.field)).collect();
-    assert!(unexpected.is_empty(), "after-starter state gaps: {unexpected:?}");
+    assert!(
+        unexpected.is_empty(),
+        "after-starter state gaps: {unexpected:?}"
+    );
 }
