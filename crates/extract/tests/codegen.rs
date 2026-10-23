@@ -794,6 +794,33 @@ mod lowering {
         }
     }
 
+    /// `copyvar` from an id below `VARS_START` copies the id (decomp UBFIX; Gen3 reads NULL):
+    /// `CaveHole_FixCrackedGround`'s `copyvar VAR_ICE_STEP_COUNT, 1` (Task L sweep finding).
+    #[test]
+    fn lower_copyvar_of_a_literal_copies_the_id() {
+        let files = vec![file(
+            "M",
+            vec![label(
+                "M_Fix",
+                Some(RootKind::MapScript("OnTransition".into())),
+                vec![
+                    i("copyvar", vec![v("VAR_0x8004"), v("VAR_0x1")]),
+                    i("copyvar", vec![v("VAR_0x8005"), v("VAR_RESULT")]),
+                    i("end", vec![]),
+                ],
+                None,
+            )],
+            vec![],
+        )];
+        let out = lower(&files);
+        let src = fn_src(&out.modules["M"], "M_Fix");
+        assert!(src.contains("ctx.set_var(VAR_0x8004, 1).await;"), "{src}");
+        assert!(
+            src.contains("ctx.set_var(VAR_0x8005, ctx.var(VAR_RESULT).await).await;"),
+            "{src}"
+        );
+    }
+
     #[test]
     fn lower_dispatch_is_a_thunk_table() {
         let out = lower(&kid());

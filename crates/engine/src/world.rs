@@ -630,6 +630,11 @@ impl World {
         self.runner.is_running()
     }
 
+    /// The request the running script waits on, if any (the sweep's diagnostics).
+    pub fn script_waiting(&self) -> Option<&crate::script::Request> {
+        self.runner.waiting_on()
+    }
+
     pub fn transition_active(&self) -> bool {
         self.s.transition.is_active()
     }

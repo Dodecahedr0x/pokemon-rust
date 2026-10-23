@@ -185,6 +185,16 @@ pub(super) fn flag_name(f: &str) -> Option<String> {
 }
 
 /// A var operand Gen3 reads with `GetVarPointer` (a destination or a `copyvar` source).
+/// A var operand naming an id below `VARS_START` (no var: Gen3 `GetVarPointer` gives NULL).
+pub(super) fn literal_var(a: &IrArg) -> Option<u16> {
+    let id = match a {
+        IrArg::Var(v) => u16::from_str_radix(v.strip_prefix("VAR_0x")?, 16).ok()?,
+        IrArg::Half(h) => *h,
+        _ => return None,
+    };
+    (id < VARS_START).then_some(id)
+}
+
 pub(super) fn var_target(a: &IrArg) -> Option<String> {
     match a {
         IrArg::Var(v) => var_name(v),

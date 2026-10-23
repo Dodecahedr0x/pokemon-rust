@@ -6027,6 +6027,7 @@ dependencies = [
  "content",
  "emu",
  "engine",
+ "explore",
  "extract",
  "game-native",
  "object",

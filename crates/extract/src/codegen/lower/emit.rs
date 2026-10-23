@@ -351,6 +351,18 @@ impl<'a> Low<'a> {
                 ));
             }
             ("copyvar", [a, c]) => {
+                // A source below VARS_START has no var: Gen3 dereferences NULL there (it reads
+                // the BIOS); the decomp's UBFIX, and this lowering, copy the id itself (Granite
+                // Cave's `copyvar VAR_ICE_STEP_COUNT, 1`, which must leave the count non-zero).
+                if let Some(id) = literal_var(c) {
+                    let Some(a) = var_target(a) else {
+                        return Ok(false);
+                    };
+                    out.push(format!(
+                        "ctx.set_var({a}, {id}).await; // copyvar of a literal"
+                    ));
+                    return Ok(true);
+                }
                 let (Some(a), Some(c)) = (var_target(a), var_target(c)) else {
                     return Ok(false);
                 };
