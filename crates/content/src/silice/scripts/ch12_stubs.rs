@@ -12,8 +12,9 @@ use crate::silice::prelude::*;
 
 // ---- RouteS05_Epave (claimed by ch05_route_s05.rs) ----
 
-/// Ch12: shows Arthur (`FLAG_SIL_HIDE_ARTHUR_EPAVE`) from `VAR_SIL_STORY` 123 until
-/// `FLAG_SIL_VESTIGE_ARTHUR`.
+/// Ch12: shows Arthur (`FLAG_SIL_HIDE_ARTHUR_EPAVE`) from `VAR_SIL_STORY` 123 until his Vestige
+/// scene (Sc06) is done. (The stubs name no item flag: `silice check`'s `placement-map` reads
+/// a flag named in a script as given.)
 pub async fn RouteS05_Epave_OnTransition(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet: Arthur stays hidden.
 }
@@ -25,10 +26,10 @@ pub async fn RouteS05_Epave_PG_Sc06(_ctx: Ctx) {
 
 // ---- Owlys_GrotteEst (claimed by ch05_grotte_est.rs) ----
 // Ch12 also extends ch05's `Owlys_GrotteEst_OnTransition`: Silas (`FLAG_SIL_HIDE_SILAS_GROTTE`)
-// shown from 123 until `FLAG_SIL_VESTIGE_SILAS`.
+// shown from 123 until his Vestige scene (Sc07) is done.
 
 /// Ch12 `Owlys_PG_Sc07`, Silas at the Point Zéro: the coord (33, 9) (`VAR_TEMP_1` 0, so it
-/// fires on every step; the scene checks `VAR_SIL_STORY >= 123` and `FLAG_SIL_VESTIGE_SILAS`).
+/// fires on every step; the scene checks `VAR_SIL_STORY >= 123` and that Sc07 is not done).
 pub async fn Owlys_GrotteEst_PG_Sc07(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet: the step does nothing.
 }
