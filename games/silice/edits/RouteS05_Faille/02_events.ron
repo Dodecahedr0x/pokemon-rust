@@ -1,0 +1,13 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_NONE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: true, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // The source's track is "silence and a dull rumble": MUS_NONE.
+    // Warp 0: the entrance hole, to Route S5's warp 2. Warps 1-2: the iron door, to Owlys's warp 0.
+    Warp(x: 9, y: 2, dest_map: "RouteS05", dest_warp: 2),
+    Warp(x: 9, y: 35, dest_map: "Owlys", dest_warp: 0),
+    Warp(x: 10, y: 35, dest_map: "Owlys", dest_warp: 0),
+    // Object 1: the Escape Rope on the natural quay.
+    Object(x: 15, y: 13, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_FAILLE_ITEM_ESCAPE_ROPE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_Faille_EventScript_ItemCorde", flag: "FLAG_SIL_ITEM_ROUTE_S05_FAILLE_CORDE"),
+    // The sign is engraved under a gargoyle (the rock left of the door).
+    Sign(x: 5, y: 35, script: "RouteS05_Faille_EventScript_Gargouille"),
+]

@@ -52,7 +52,7 @@ fn the_dispatch_has_the_registry_shape() {
     assert!(data::SCRIPT_NAMES.windows(2).all(|w| w[0] < w[1]));
     let digests: Vec<&str> = data::SCRIPT_DIGESTS.iter().map(|d| d.0).collect();
     assert_eq!(digests, data::SCRIPT_NAMES);
-    const { assert!(data::SCRIPT_COUNT >= 1, "the Wave 0 placeholder script") };
+    const { assert!(data::SCRIPT_COUNT >= 1, "the Ch0 scripts") };
     const { assert!(!crate::scripts::DECOMP_NAMES) };
     assert!(crate::overrides::OVERRIDES.is_empty());
     assert!(crate::REPORT.contains("== scripts (build/silice/dispatch.rs) =="));
@@ -90,8 +90,20 @@ fn map_script_references_are_registered_scripts() {
             refs += 1;
         }
     }
-    // The placeholder script is the bedroom window's.
+    // The Ch0 maps are strict (claimed by the `ch00_*.rs` files, SIL1 Task F): an unwritten
+    // name there fails the build; only the unclaimed maps' names are dropped and listed.
     assert!(refs >= 1);
+    for (map, module) in [
+        ("BricoBourg", "ch00_town"),
+        ("BricoBourg_Bar", "ch00_bar"),
+        ("BricoBourg_FriendsHouse", "ch00_houses"),
+        ("BricoBourg_PlayerHouse_1F", "ch00_houses"),
+        ("BricoBourg_PlayerHouse_2F", "ch00_houses"),
+        ("RouteS01", "ch00_route_s01"),
+    ] {
+        let line = format!("  strict: {map} (scripts/{module}.rs)");
+        assert!(crate::REPORT.contains(&line), "{line}");
+    }
 }
 
 #[test]

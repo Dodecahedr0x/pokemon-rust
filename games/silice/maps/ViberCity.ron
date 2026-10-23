@@ -490,6 +490,11 @@
             offset: 10,
             map: "RouteS03",
         ),
+        (
+            dir: East,
+            offset: 7,
+            map: "RouteS04",
+        ),
     ],
     scripts: (
         on_load: Some("ViberCity_OnLoad"),

@@ -53,6 +53,7 @@ fn map_id(ids: &Ids, name: &str) -> Result<String> {
 pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFile> {
     let g = &m.map;
     let n = g.name.as_str();
+    scripts.map(n);
     let id = map_id(ids, n)?;
     let (group, num) = id.split_once('.').unwrap();
     let flag = |f: &str| constant(ids, IdKind::Flags, &names::FLAGS, f);

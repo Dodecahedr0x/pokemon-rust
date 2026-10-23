@@ -82,6 +82,65 @@
         "FLAG_SIL_HIDE_CASINO_ROMAIN",
         "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN",
         "FLAG_SIL_ITEM_DEPOT_METAL_COAT",
+        // Ch6 Manga-Square. Route S6: Route_S06_Sc02's Adrien and sbires (RouteS06_OnTransition
+        // shows them at VAR_SIL_STORY 60) and the randonneur (from 61). Manga-Square: Benou and
+        // Adrien (shown by Manga_Square_Sc02 and Sc03; the source sets them at the start) and the
+        // delivery man (MangaSquare_OnTransition, from 64). The Bibliothèque's Adrien appears when
+        // Dojo_Sc01 sends him there. The Dojo's Adrien, Kimiko, her drones and the Grand Torii's
+        // controleur start visible.
+        "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN",
+        "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A",
+        "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B",
+        "FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR",
+        "FLAG_SIL_HIDE_MANGA_SQUARE_BENOU",
+        "FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN",
+        "FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR",
+        "FLAG_SIL_HIDE_BIBLIO_ADRIEN",
+        // Ch4 Port-Ressac (the OnTransition scripts own them from VAR_SIL_STORY): Crow's four
+        // passers-by and Samuel on the quay, shown by Port_Ressac_Sc02, _Sc04 and _Sc05 only; the
+        // quay fight (the three pirates, the four sbires, the foreman, the three decor sbires) at
+        // VAR_SIL_STORY 46 only; Gwada at the Taverne (42–47) and on the Zenith-Grog (Gym_Sc03);
+        // Adrien asleep at the Taverne once FLAG_SIL_ROUTE_S04_ADRIEN is set. Adrien and his
+        // Magikarp in the tunnel, the cargo and its guard, Crow's client and the gangway pirate
+        // start visible.
+        "FLAG_SIL_HIDE_PORT_PASSANT_1",
+        "FLAG_SIL_HIDE_PORT_PASSANT_2",
+        "FLAG_SIL_HIDE_PORT_PASSANT_3",
+        "FLAG_SIL_HIDE_PORT_PASSANT_4",
+        "FLAG_SIL_HIDE_PORT_SAMUEL",
+        "FLAG_SIL_HIDE_PORT_PIRATE_1",
+        "FLAG_SIL_HIDE_PORT_PIRATE_2",
+        "FLAG_SIL_HIDE_PORT_PIRATE_3",
+        "FLAG_SIL_HIDE_PORT_SBIRE_1",
+        "FLAG_SIL_HIDE_PORT_SBIRE_2",
+        "FLAG_SIL_HIDE_PORT_SBIRE_3",
+        "FLAG_SIL_HIDE_PORT_SBIRE_4",
+        "FLAG_SIL_HIDE_PORT_CONTREMAITRE",
+        "FLAG_SIL_HIDE_PORT_DECOR_1",
+        "FLAG_SIL_HIDE_PORT_DECOR_2",
+        "FLAG_SIL_HIDE_PORT_DECOR_3",
+        "FLAG_SIL_HIDE_PORT_GYM_GWADA",
+        "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA",
+        "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN",
+        // Ch5 Owlys (each map's OnTransition owns them from VAR_SIL_STORY and the flags): the grunt
+        // crossing the square (Owlys_Sc02 only), Mathieu on the square after the badge (from 55), the
+        // East Cave's duo-scene actors (Mathieu and both drivers at 52, Owl-Justice and the Shaded
+        // Feather shown by Owlys_GrotteEst_Sc01 only), Skycker's face and the gym's Mathieu
+        // (Owlys_Gym_Sc01), and the silo's three Umbreon (Owlys_Entrepot_B1F_Sc01_1-3). Mathieu on the
+        // square, Milo and the alley grunt, the elevator's two Watchers, masked Skycker and Lokhlass
+        // start visible.
+        "FLAG_SIL_HIDE_OWLYS_SBIRE_EST",
+        "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME",
+        "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE",
+        "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
         // Ch7 Reverse-City: the welcoming resident (Reverse_City_Sc01 adds and removes him),
         // Benou at the Porte Eta-Nord (Reverse_City_Sc07) and in the gym (Gym_Sc02), and the black
         // pixels Reverse leaves behind (Gym_Sc01 adds them, Gym_Sc02 removes them). Gogo, Romain,

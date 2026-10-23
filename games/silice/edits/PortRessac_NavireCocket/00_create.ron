@@ -1,0 +1,6 @@
+// Silice Ch4, MAP_PORT_RESSAC_NAVIRE_COCKET: Team Cocket's grey cargo ship (24 x 14, the source's
+// size): the gangway (south), the deck with its two cranes, the stairs, the hold full of silica
+// stacks and processors, and the terminal room (north-east). General + Facility (Emerald tilesets
+// by name): the Abandoned Ship's grey deck, railings and stairs, plus the Aqua Hideout's machines
+// and wall terminals (green screens) in the same secondary. Border: black, blocked.
+(name: "PortRessac_NavireCocket", width: 24, height: 14, primary: "General", secondary: "Facility", fill: 552, border: [1537, 1537, 1537, 1537])

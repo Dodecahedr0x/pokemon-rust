@@ -1,0 +1,15 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: true, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the exit, to Route S5's warp 1 (the rock's cave mouth).
+    Warp(x: 13, y: 17, dest_map: "RouteS05", dest_warp: 1),
+    // Objects. 1: Lokhlass (the source's obj 1), still in the water off the back beach; the player talks
+    // to it from the beach (14, 4). Route_S05_Grotte_Sc01 hides it when caught (FLAG_SIL_ROUTE_S05_LOKHLASS).
+    // 2-3: the item balls of the west beach.
+    Object(x: 14, y: 5, gfx: "OBJ_EVENT_GFX_AZUMARILL", id: "LOCALID_GROTTE_CORAIL_LOKHLASS", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS05_GrotteCorail_Sc01", flag: "FLAG_SIL_ROUTE_S05_LOKHLASS"),
+    Object(x: 5, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GROTTE_CORAIL_ITEM_WATER_STONE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_GrotteCorail_EventScript_ItemPierreEau", flag: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_PIERRE_EAU"),
+    Object(x: 4, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GROTTE_CORAIL_ITEM_TM18", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_GrotteCorail_EventScript_ItemDansePluie", flag: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_DANSE_PLUIE"),
+    // The sign: the grey coral by the landing. The Deep Sea Scale is hidden near Lokhlass.
+    Sign(x: 11, y: 15, script: "RouteS05_GrotteCorail_EventScript_Corail"),
+    HiddenItem(x: 18, y: 3, item: "ITEM_DEEP_SEA_SCALE", flag: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_ECAILLE_OCEAN"),
+]
