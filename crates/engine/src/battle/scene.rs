@@ -56,8 +56,10 @@
 //! # Input
 //! When everything is idle and the core needs the player:
 //! - `Need::Action`: the action menu; FIGHT → the move menu → `Choice::Move`, B goes back;
-//!   RUN → `Choice::Run`. BAG and POKéMON do nothing yet (no bag or party screen in the
-//!   slice): the menu stays open.
+//!   RUN → `Choice::Run`. BAG, in a wild battle with a ball in the bag
+//!   ([`BattleScene::set_balls`]), is `Choice::Ball` at once (degraded: no bag screen, the
+//!   first ball of the pocket, counted as a Poké Ball by the core); otherwise, and POKéMON (no
+//!   party screen in the slice), the menu stays open.
 //! - `Need::Switch`: the first usable mon at once (no party screen).
 //! - `Need::LearnMove`: the core printed `TryToLearnMove1..3`; yes/no "learn it?"
 //!   (`Cmd_yesnoboxlearnmove`). Yes opens the move menu with the new move as a fifth entry
@@ -101,7 +103,7 @@ use super::{
     BattleSetup, Choice, Environment, Msg, MsgWait, Names, Side, Str, text,
 };
 use crate::checkpoint::PlayerName;
-use crate::data::{GameData, SpeciesId};
+use crate::data::{GameData, ItemId, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{BattleTables, Party, Pokemon, exp_for_level};
@@ -255,6 +257,10 @@ pub struct BattleScene {
     finished: bool,
     /// The World's player name (`{B_PLAYER_NAME}`, `{PLAYER}`). Not hashed: the World hashes it.
     player: PlayerName,
+    /// The ball BAG throws and how many the bag holds ([`BattleScene::set_balls`]).
+    balls: Option<(ItemId, u16)>,
+    /// Balls thrown so far ([`BattleScene::balls_thrown`]).
+    thrown: u16,
 }
 
 /// What presentation shows of party mon `p` (slot `party`), as `CopyMonToBattleMon`.
@@ -306,7 +312,28 @@ impl BattleScene {
             outcome: None,
             finished: false,
             player,
+            balls: None,
+            thrown: 0,
         }
+    }
+
+    /// The ball the degraded BAG throws in a wild battle and how many there are: the first of
+    /// the bag's Poké Balls pocket (no bag screen: Gen3 `BattleMenu` → `CB2_BagMenuFromBattle`
+    /// picks one).
+    pub fn set_balls(&mut self, ball: ItemId, qty: u16) {
+        self.balls = (qty > 0).then_some((ball, qty));
+    }
+
+    /// The ball thrown and how many times (the field takes them out of the bag), if any.
+    pub fn balls_thrown(&self) -> Option<(ItemId, u16)> {
+        let (ball, _) = self.balls?;
+        (self.thrown > 0).then_some((ball, self.thrown))
+    }
+
+    /// Whether BAG throws a ball: a wild battle (not the first one) with a ball left.
+    pub fn can_throw(&self) -> bool {
+        matches!(self.kind, BattleKind::Wild { first_battle: false, .. })
+            && self.balls.is_some_and(|(_, n)| n > self.thrown)
     }
 
     /// Uploads one chunk while the screen is black (the frame is set black); true once
@@ -563,6 +590,10 @@ impl BattleScene {
                 p.exp.hash(h);
             }
         }
+        let (ball, balls) = self.balls.unwrap_or((ItemId(0), 0));
+        h.write_u16(ball.0);
+        h.write_u16(balls);
+        h.write_u16(self.thrown);
         h.write(&[
             self.loading.unwrap_or(0xFF),
             self.out[0],

@@ -324,6 +324,53 @@ fn bag_and_pokemon_do_nothing() {
     assert!(r.choices.is_empty());
 }
 
+/// The degraded bag: with a ball, BAG (top right) throws it at once, in a wild battle only; the
+/// scene counts the throws for the field.
+#[test]
+fn bag_throws_the_first_ball() {
+    let ball = crate::data::ItemId(4);
+    for (kind, throws) in [
+        (
+            BattleKind::Wild {
+                first_battle: false,
+            },
+            true,
+        ),
+        (
+            BattleKind::Wild {
+                first_battle: true,
+            },
+            false,
+        ),
+    ] {
+        let mut r = Run::new(kind, &[starter()], &[foe(3)], 2);
+        r.scene.set_balls(ball, 2);
+        assert_eq!(r.scene.balls_thrown(), None);
+        r.load();
+        r.mash_until(|s| s.menu == Menu::Action);
+        for b in [NONE, Buttons::RIGHT, NONE, A] {
+            r.frame(b);
+        }
+        if throws {
+            assert_eq!(r.choices, [Choice::Ball]);
+            assert_eq!(r.scene.balls_thrown(), Some((ball, 1)));
+        } else {
+            assert_eq!(r.scene.menu, Menu::Action);
+            assert!(r.choices.is_empty());
+        }
+    }
+    // Every ball thrown: BAG does nothing.
+    let mut r = Run::wild(&[starter()], &[foe(3)], 2);
+    r.scene.set_balls(ball, 1);
+    r.scene.thrown = 1;
+    r.load();
+    r.mash_until(|s| s.menu == Menu::Action);
+    for b in [NONE, Buttons::RIGHT, NONE, A] {
+        r.frame(b);
+    }
+    assert!(r.choices.is_empty());
+}
+
 /// A whole wild battle from the test data: a knock-out, exp, a level-up and two moves learned
 /// over a full moveset, played with A pressed every 4th frame.
 #[test]
