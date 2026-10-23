@@ -244,6 +244,14 @@
     coords: [
         (
             x: 1,
+            y: 2,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 17,
+            script: Some("RouteS02_Sc01"),
+        ),
+        (
+            x: 1,
             y: 3,
             elevation: 3,
             var: Some("VAR_SIL_STORY"),
@@ -430,6 +438,11 @@
             dir: East,
             offset: -7,
             map: "GrisEchec",
+        ),
+        (
+            dir: West,
+            offset: -10,
+            map: "BoisEther",
         ),
     ],
     scripts: (

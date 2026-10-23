@@ -25,7 +25,9 @@
     Object(x: 13, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_X_SPEED", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemXSpeed", flag: "FLAG_SIL_ITEM_ROUTE_S02_X_SPEED"),
     Object(x: 40, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_MAGNET", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemMagnet", flag: "FLAG_SIL_ITEM_ROUTE_S02_MAGNET"),
     Object(x: 48, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_GREAT_BALL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemGreatBall", flag: "FLAG_SIL_ITEM_ROUTE_S02_GREAT_BALL"),
-    // Route_S02_Sc01: the west entrance (x 1, y 3-5), VAR_SIL_STORY 17.
+    // Route_S02_Sc01: the west entrance (x 1, y 2-5: the source's y 3-5 plus the fourth row of
+    // the Bois-Ether link), VAR_SIL_STORY 17.
+    Coord(x: 1, y: 2, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
     Coord(x: 1, y: 3, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
     Coord(x: 1, y: 4, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
     Coord(x: 1, y: 5, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
@@ -53,7 +55,8 @@
     Sign(x: 48, y: 10, script: "RouteS02_EventScript_Serveur"),
     HiddenItem(x: 36, y: 12, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S02_ETHER"),
     HiddenItem(x: 52, y: 12, item: "ITEM_THUNDER_STONE", flag: "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE"),
-    // Gris-Echec to the east: our exit y 3-5 meets its y 10-12. The west connection to
-    // MAP_BOIS_ETHER (Ch1) is added with that map; (0, 3-5) stays forest until then.
+    // Gris-Echec to the east: our exit y 3-5 meets its y 10-12. Bois-Ether to the west: our
+    // entrance y 2-5 meets its east corridor y 12-15.
     Connect((dir: East, offset: -7, map: "GrisEchec")),
+    Connect((dir: West, offset: -10, map: "BoisEther")),
 ]
