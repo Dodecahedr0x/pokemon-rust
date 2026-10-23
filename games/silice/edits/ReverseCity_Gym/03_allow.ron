@@ -1,4 +1,8 @@
 // Allowances (behaviour warnings accepted on purpose).
 [
     AllowCollision(cells: [(6, 29)], reason: "warp 2 is an arrival point for the mirror doors' scripted warps (the tileset has no warp metatile)"),
+    AllowReach(subject: "warp 2", reason: "the S mat is the left and right mirror doors' scripted warp() target (PorteGauche, PorteDroite), never stepped on as a warp"),
+    AllowReach(subject: "warp 3", reason: "room 3 is reached only by the middle mirror door's scripted warp() (PorteMilieu); this mat is its arrival and its exit"),
+    AllowReach(subject: "warp 4", reason: "room 3's exit mat, reached after PorteMilieu's scripted warp() to warp 3"),
+    AllowReach(subject: "coords VAR_TEMP_1=0", reason: "the three mirror doors are the room's choice, not a gate: walking past a door is meant"),
 ]

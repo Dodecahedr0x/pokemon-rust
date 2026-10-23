@@ -8,4 +8,5 @@
     Ascii(x: 35, y: 0, rows: ["rr:rr"], legend: {'r': (metatile: 617, collision: 1), ':': (metatile: 573, collision: 0)}),
     Warp(x: 37, y: 0, dest_map: "RouteS07", dest_warp: 2),
     AllowCollision(cells: [(35, 0), (36, 0), (38, 0), (39, 0)], reason: "the Grand Torii's roof beside the Route S7 exit: solid, so the exit is entered only from Manga_Square_Sc03's cell (37, 1)"),
+    AllowReach(subject: "coords VAR_SIL_STORY=67", reason: "only warp 6's exit walk from Route S7 lands on (37, 1) without stepping on it, and Route S7 is reached only after Sc03 sets 68"),
 ]
