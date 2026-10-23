@@ -184,37 +184,43 @@ fn the_policy_wins_the_route_battles_and_runs_from_wild_ones() {
     }
 }
 
-/// The battle record of the stub's grass battle, by hand: kind, levels, frames, HP.
+/// The battle records of the route's battles, by hand (kind, levels, frames, HP), in order up
+/// to the first one in which the player's mon loses HP, so that the HP record is checked on a
+/// non-zero loss whichever battle the RNG makes it (stub: the grass battle; extracted: Birch's
+/// rescue, then the wild battles).
 #[test]
 fn the_tracker_records_a_battle() {
     let rec = cached_route();
-    let start = battle_starts(rec)[0];
-    let mut d = Driver::at(rec, start);
-    let w = d.w();
-    let (_, battle, _) = w.battle().unwrap();
-    let opp = battle.mon(Side::Opponent).level;
-    let player = battle.mon(Side::Player);
-    let (hp, max_hp) = (player.hp, player.max_hp);
-    let lead = w.party().get(0).unwrap().level;
-    assert!(BattleTracker::start(w).is_some());
-    let b = d.fight(Opts::default());
-    assert!(
-        matches!(
-            outcome(&b),
-            Some(BattleOutcome::Won | BattleOutcome::MonFled)
-        ),
-        "{b:?}"
-    );
-    assert_eq!(b.opponent_level, opp);
-    assert_eq!(b.player_level, lead);
-    // The deepest HP loss of the battle, against the starting max HP.
-    let want = u32::from(hp - d.min_hp) * 1000 / u32::from(max_hp);
-    assert_eq!(u32::from(b.hp_lost_permille), want);
-    assert!(b.hp_lost_permille > 0, "{b:?}");
+    let mut kinds = Vec::new();
+    let mut damaged = false;
+    for start in battle_starts(rec) {
+        let mut d = Driver::at(rec, start);
+        let w = d.w();
+        let (_, battle, _) = w.battle().unwrap();
+        let opp = battle.mon(Side::Opponent).level;
+        let player = battle.mon(Side::Player);
+        let (hp, max_hp) = (player.hp, player.max_hp);
+        let lead = w.party().get(0).unwrap().level;
+        assert!(BattleTracker::start(w).is_some());
+        let b = d.fight(Opts::default());
+        check(&b, Opts::default());
+        assert_eq!(b.opponent_level, opp);
+        assert_eq!(b.player_level, lead);
+        // The deepest HP loss of the battle, against the starting max HP.
+        let want = u32::from(hp - d.min_hp) * 1000 / u32::from(max_hp);
+        assert_eq!(u32::from(b.hp_lost_permille), want, "{b:?}");
+        // Not in a battle: no tracker.
+        assert!(BattleTracker::start(d.w()).is_none());
+        kinds.push(b.kind);
+        if b.hp_lost_permille > 0 {
+            damaged = true;
+            break;
+        }
+    }
+    assert!(damaged, "no battle of the route loses HP: {kinds:?}");
+    // The route's first battle: the stub's grass battle, or Birch's rescue.
     let want = if content::STUB { 0 } else { 1 };
-    assert_eq!(b.kind, want);
-    // Not in a battle: no tracker.
-    assert!(BattleTracker::start(d.w()).is_none());
+    assert_eq!(kinds.first(), Some(&want), "{kinds:?}");
 }
 
 fn mon(moves: [Option<MoveId>; 4], pp: [u8; 4]) -> BattleMon {
