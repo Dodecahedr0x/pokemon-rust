@@ -1,0 +1,11 @@
+(
+    primary: "Building",
+    secondary: "SilViberCityGym",
+    width: 2,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (512, 513),
+        (514, 515),
+    ],
+)

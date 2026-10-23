@@ -24,14 +24,18 @@ const BARRIERES: [(i16, i16, i16, u16); 4] = [
     (9, 10, 11, 2),
 ];
 
-/// The Mauville gym's beam: closed, solid (552 on even columns, 553 on odd ones), or open,
-/// walkable (570 / 571), as `01_terrain.ron` draws them.
-fn barrier_metatile(x: i16, open: bool) -> u16 {
-    match (open, x % 2 == 0) {
-        (false, true) => 552,
-        (false, false) => 553,
-        (true, true) => 570,
-        (true, false) => 571,
+/// `METATILE_LASER_*`: SilViberCityGym's laser barriers (games/silice/gfx/SilViberCityGym.ron),
+/// closed (solid) in the order blue, yellow, violet, then open (walkable) in the same order.
+const METATILE_LASER_FERME: u16 = 534;
+const METATILE_LASER_OUVERT: u16 = 537;
+
+/// A barrier cell of `colour` (0 blue, 1 yellow, 2 violet), closed or open, as `01_terrain.ron`
+/// draws them.
+fn barrier_metatile(colour: u16, open: bool) -> u16 {
+    if open {
+        METATILE_LASER_OUVERT + colour
+    } else {
+        METATILE_LASER_FERME + colour
     }
 }
 
@@ -40,7 +44,7 @@ async fn draw_track(ctx: &Ctx, track: u16) {
     for (x0, x1, y, colour) in BARRIERES {
         let open = colour == track;
         for x in x0..=x1 {
-            ctx.set_metatile(x, y, barrier_metatile(x, open), !open)
+            ctx.set_metatile(x, y, barrier_metatile(colour, open), !open)
                 .await;
         }
     }

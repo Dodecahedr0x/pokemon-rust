@@ -16,11 +16,13 @@ pub const MAPS: &[&str] = &[
     "ViberCity_House1",
 ];
 
-/// The sector barrier to Route S4, two cells at the east street's end.
-const BARRIERE: [(i16, i16); 2] = [(37, 15), (37, 16)];
+/// The sector barrier to Route S4, two cells across the east street (x 32: the strip Route S4
+/// sees, x 33-39, keeps primary metatiles).
+const BARRIERE: [(i16, i16); 2] = [(32, 15), (32, 16)];
 
-/// `METATILE_BARRIERE_OUVERTE`: the open sector barrier, the city's street (General 94), walkable.
-pub const METATILE_VIBER_BARRIERE_OUVERTE: u16 = 94;
+/// `METATILE_BARRIERE_OUVERTE`: the open sector barrier, SilViberCity's `barriere_ouverte`
+/// (games/silice/gfx/SilViberCity.ron; closed, `barriere`, is 661), walkable.
+pub const METATILE_VIBER_BARRIERE_OUVERTE: u16 = 662;
 
 // ---- map scripts ----
 

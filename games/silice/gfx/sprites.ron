@@ -43,5 +43,15 @@
             gfx_id: Some(0x105),
             prompt: "Loic, a 23-year-old forest technician in light techwear: dark green waterproof jacket with purple straps, thick protective gloves, a filter mask hanging at the neck, short brown hair.",
         ),
+        (
+            name: "SIL_TAUBER",
+            gfx_id: Some(0x130),
+            prompt: "Tauber, a calm DJ and mechanic in his late twenties (half of the DJ duo of the Nocturne club): big black headphones around the neck, short dark blond hair, a navy blue mechanic's jumpsuit with rolled sleeves and a cyan neon stripe, a wrench in the back pocket, black boots.",
+        ),
+        (
+            name: "SIL_HOCSEAT",
+            gfx_id: Some(0x131),
+            prompt: "Hocseat, a hyperactive showman DJ in his late twenties (the other half of the DJ duo of the Nocturne club): spiky violet hair, small dark sunglasses on a light-skinned face, a bright violet jacket open over a black t-shirt with a yellow lightning bolt, black trousers, white sneakers, arms at his sides.",
+        ),
     ],
 )

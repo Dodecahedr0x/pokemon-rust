@@ -3,16 +3,18 @@
     Header((music: "MUS_RUSTBORO", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_CITY", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // OnTransition: the music (silence while FLAG_SIL_VIBER_BLACKOUT is set and VAR_SIL_STORY < 35),
     // and VAR_TEMP_1 = 1 when FLAG_SIL_VIBER_BLACKOUT is set and VAR_SIL_STORY is 33 (Station_Lumiere_
-    // Sc03 has just warped the player to (8, 5)). OnLoad: the barrier (37, 15-16) drawn open once
+    // Sc03 has just warped the player to (8, 5)). OnLoad: the barrier (32, 15-16) drawn open once
     // FLAG_SIL_VIBER_BARRIERE_EST. Viber_City_Sc05 runs from on_frame on VAR_TEMP_1 = 1 and must set
     // it back to 0 (with VAR_SIL_STORY 34), so it runs once and no script runs on other entries.
     // (Temp vars are 0 on every map load; keying on VAR_SIL_STORY 33 alone would also match before
     // the black-out and loop.)
     Scripts((on_load: Some("ViberCity_OnLoad"), on_transition: Some("ViberCity_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_TEMP_1", value: 1, script: "ViberCity_Sc05")], on_warp_into: [])),
     // Warps: 0 the Centre, 1 the Volt-Market, 2 the Station Lumiere, 3 the Nocturne, 4 the Casino,
-    // 5 the dancer's house.
+    // 5 the dancer's house. The source's Boutique (34, 14), its barrier (37, 15-16) with its guard
+    // (36, 15) and the Revive (37, 26) moved west (Volt-Market (31, 14), barrier (32, 15-16), guard
+    // (31, 16), Revive (31, 25)): the east strip Route S4 sees keeps primary metatiles only.
     Warp(x: 6, y: 14, dest_map: "ViberCity_PokemonCenter", dest_warp: 0),
-    Warp(x: 34, y: 14, dest_map: "ViberCity_Mart", dest_warp: 0),
+    Warp(x: 31, y: 14, dest_map: "ViberCity_Mart", dest_warp: 0),
     Warp(x: 8, y: 4, dest_map: "ViberCity_StationLumiere", dest_warp: 0),
     Warp(x: 28, y: 4, dest_map: "ViberCity_Gym", dest_warp: 0),
     Warp(x: 20, y: 22, dest_map: "ViberCity_Casino", dest_warp: 0),
@@ -39,7 +41,7 @@
     Object(x: 27, y: 5, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_VIBER_DANSEUR_2", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2"),
     Object(x: 29, y: 5, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_VIBER_DANSEUR_3", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3"),
     Object(x: 30, y: 5, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_VIBER_DANSEUR_4", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_4"),
-    Object(x: 28, y: 4, gfx: "OBJ_EVENT_GFX_TATE", id: "LOCALID_VIBER_TAUBER", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_VIBER_TAUBER"),
+    Object(x: 28, y: 4, gfx: "OBJ_EVENT_GFX_SIL_TAUBER", id: "LOCALID_VIBER_TAUBER", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_VIBER_TAUBER"),
     Object(x: 8, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_VIBER_GARDE_STATION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_GardeStation", flag: "FLAG_SIL_HIDE_STATION_GARDE"),
     Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_VIBER_MATHIEU_CHARIOT", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT"),
     Object(x: 14, y: 11, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_VIBER_OUVRIERE", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj04"),
@@ -50,8 +52,8 @@
     Object(x: 18, y: 23, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_VIBER_GAMIN", movement: "MOVEMENT_TYPE_FACE_UP", script: "ViberCity_EventScript_Pnj05"),
     Object(x: 27, y: 17, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_VIBER_TOURISTE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_EventScript_Pnj06"),
     Object(x: 10, y: 16, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_VIBER_DJ", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj07"),
-    Object(x: 36, y: 15, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_VIBER_GARDE_BARRIERE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_EventScript_GardeBarriere", flag: "FLAG_SIL_VIBER_BARRIERE_EST"),
-    Object(x: 37, y: 26, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_VIBER_ITEM_REVIVE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_ItemRevive", flag: "FLAG_SIL_ITEM_VIBER_REVIVE"),
+    Object(x: 31, y: 16, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_VIBER_GARDE_BARRIERE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_EventScript_GardeBarriere", flag: "FLAG_SIL_VIBER_BARRIERE_EST"),
+    Object(x: 31, y: 25, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_VIBER_ITEM_REVIVE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_ItemRevive", flag: "FLAG_SIL_ITEM_VIBER_REVIVE"),
     // Viber_City_Sc01: the south ramp (20, 29), VAR_SIL_STORY 31.
     Coord(x: 20, y: 29, var: "VAR_SIL_STORY", value: 31, script: "ViberCity_Sc01"),
     // Viber_City_Sc03: two cells before the Nocturne door, VAR_SIL_STORY 32, on the whole row in
