@@ -1,0 +1,59 @@
+// Header, map scripts, objects, coord and bg events, connection.
+[
+    Header((music: "MUS_ROUTE110", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: the hide flags below. OnLoad: the security cables drawn cut per
+    // FLAG_SIL_ROUTE_S02_CABLE_1/_2/_3 and the server block (48, 10) drawn moved per
+    // FLAG_SIL_ROUTE_S02_SERVER_MOVED.
+    Scripts((on_load: Some("RouteS02_OnLoad"), on_transition: Some("RouteS02_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Objects 1-5: the source's obj 1-5. The Promeneur moves from (6, 8) (Rene's cell in the
+    // trainer table) to the cliff edge (4, 13), his Skitty beside him. Adrien (temp flag 1) and
+    // Gwada (temp flag 2) show only while VAR_SIL_STORY is 20 or 21.
+    Object(x: 34, y: 6, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_ROUTE_S02_TECHNICIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Technicien"),
+    Object(x: 16, y: 10, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_ROUTE_S02_AGENT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Agent"),
+    Object(x: 24, y: 14, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ROUTE_S02_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_Sc02", flag: "FLAG_TEMP_1"),
+    Object(x: 50, y: 6, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_ROUTE_S02_GWADA", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Gwada", flag: "FLAG_TEMP_2"),
+    Object(x: 4, y: 13, gfx: "OBJ_EVENT_GFX_MAN_1", id: "LOCALID_ROUTE_S02_PROMENEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Promeneur"),
+    Object(x: 5, y: 13, gfx: "OBJ_EVENT_GFX_SKITTY", id: "LOCALID_ROUTE_S02_SKITTY", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Skitty"),
+    // The trainers (T1-T6), then the item balls.
+    Object(x: 12, y: 2, gfx: "OBJ_EVENT_GFX_CAMPER", id: "LOCALID_ROUTE_S02_HUGO", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Hugo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 6, y: 8, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_ROUTE_S02_RENE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS02_EventScript_Rene", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 30, y: 10, gfx: "OBJ_EVENT_GFX_GIRL_1", id: "LOCALID_ROUTE_S02_ZOE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Zoe", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 24, y: 4, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_ROUTE_S02_GERARD", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Gerard", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 42, y: 8, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_ROUTE_S02_SBIRE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Sbire", trainer_type: "TRAINER_TYPE_NORMAL", sight: 5),
+    Object(x: 44, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_ROUTE_S02_ANAIS", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Anais", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    // The X Speed moves from (11, 12) (cable A's gap) to (13, 12) so the gap stays open.
+    Object(x: 13, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_X_SPEED", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemXSpeed", flag: "FLAG_SIL_ITEM_ROUTE_S02_X_SPEED"),
+    Object(x: 40, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_MAGNET", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemMagnet", flag: "FLAG_SIL_ITEM_ROUTE_S02_MAGNET"),
+    Object(x: 48, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_GREAT_BALL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemGreatBall", flag: "FLAG_SIL_ITEM_ROUTE_S02_GREAT_BALL"),
+    // Route_S02_Sc01: the west entrance (x 1, y 3-5), VAR_SIL_STORY 17.
+    Coord(x: 1, y: 3, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
+    Coord(x: 1, y: 4, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
+    Coord(x: 1, y: 5, var: "VAR_SIL_STORY", value: 17, script: "RouteS02_Sc01"),
+    // Route_S02_Sc03: every way north to Gris-Echec crosses row y 7 then row y 6 of x 48-51. The
+    // source fires at VAR_SIL_STORY 21 (or 20 if Adrien was skipped); a coord event matches one
+    // value, so row 7 holds 20 and row 6 holds 21 ((48, 7) is the pocket wall, (50, 6) is Gwada).
+    Coord(x: 49, y: 7, var: "VAR_SIL_STORY", value: 20, script: "RouteS02_Sc03"),
+    Coord(x: 50, y: 7, var: "VAR_SIL_STORY", value: 20, script: "RouteS02_Sc03"),
+    Coord(x: 51, y: 7, var: "VAR_SIL_STORY", value: 20, script: "RouteS02_Sc03"),
+    Coord(x: 48, y: 6, var: "VAR_SIL_STORY", value: 21, script: "RouteS02_Sc03"),
+    Coord(x: 49, y: 6, var: "VAR_SIL_STORY", value: 21, script: "RouteS02_Sc03"),
+    Coord(x: 51, y: 6, var: "VAR_SIL_STORY", value: 21, script: "RouteS02_Sc03"),
+    Sign(x: 2, y: 6, script: "RouteS02_EventScript_SignEntree"),
+    Sign(x: 13, y: 7, script: "RouteS02_EventScript_SignCable"),
+    Sign(x: 33, y: 3, script: "RouteS02_EventScript_SignTransfo"),
+    Sign(x: 27, y: 13, script: "RouteS02_EventScript_SignFalaise"),
+    // Route_S02_Sc04: the security cables (Lame-Frequence). The source's c1 (9, 6) and c2 (27, 9)
+    // sit on cables A and C here, (10-11, 5) and (31-32, 9); c3 stays at (38, 2).
+    Sign(x: 10, y: 5, script: "RouteS02_EventScript_Cable1"),
+    Sign(x: 11, y: 5, script: "RouteS02_EventScript_Cable1"),
+    Sign(x: 31, y: 9, script: "RouteS02_EventScript_Cable2"),
+    Sign(x: 32, y: 9, script: "RouteS02_EventScript_Cable2"),
+    Sign(x: 38, y: 2, script: "RouteS02_EventScript_Cable3"),
+    // The server block (Champ Magnetique), read from the south.
+    Sign(x: 48, y: 10, script: "RouteS02_EventScript_Serveur"),
+    HiddenItem(x: 36, y: 12, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S02_ETHER"),
+    HiddenItem(x: 52, y: 12, item: "ITEM_THUNDER_STONE", flag: "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE"),
+    // Gris-Echec to the east: our exit y 3-5 meets its y 10-12. The west connection to
+    // MAP_BOIS_ETHER (Ch1) is added with that map; (0, 3-5) stays forest until then.
+    Connect((dir: East, offset: -7, map: "GrisEchec")),
+]

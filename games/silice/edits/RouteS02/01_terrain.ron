@@ -1,0 +1,30 @@
+// Cells: forest edge, grass and tall grass, the containment cables (x 10-11, 22-23, 31-32,
+// 46-47) and their gaps, the security cables c1 (10-11, 5), c2 (31-32, 9) and c3 (38, 2), the
+// transformer, the server block (48, 10), the cliff path (y 14) and the sea. The west entrance
+// (0, 3-5) stays forest until Ch1 links Bois-Ether.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyXxYyYTtTYyYyYyYyYyYyYy",
+        "T.,,,,,,..||..,,,,....||..,,,,.||.Vv..e...=...||.,,,,,.t",
+        "Y.........||..,,,,........,,,,...s....=====...||.,,,,,..",
+        "T.........||..............,,,,.||.............||........",
+        "Y.,,,,....ee.......,,,||..,,,,.||....,,,,.....||........",
+        "T.s,,,....||.......,,,||.......||....,,,,.....||....TtTt",
+        "Y..,,,,...||.s.....,,,||.......||.............||=...YyYy",
+        "T.........||..........||...,,,,||.............||.=..TtTt",
+        "Y.........||..........||...,,,,ee....,,,,.....||.=..YyYy",
+        "T...,,,...||..........||...,,,,||....,,,,.....||Q......t",
+        "Y...,,,........,,,,...||.......||....,,,,..............y",
+        "T...,,,........,,,,...||.......||......................t",
+        "Y.........||...,,,,...||...s...||.............||.......y",
+        "Y.........||..........||.......||.............||.......y",
+        "abbbbbbbbb||bbbbbbbbbb||bbbbbbb||bbbbbbbbbbbbb||bbbbbbbz",
+        "~~~~~~~~~~||~~~~~~~~~~||~~~~~~~||~~~~~~~~~~~~~||~~~~~~~~",
+        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+    ], legend: {',': (metatile: 13, collision: 0), '.': (metatile: 1, collision: 0), '=': (metatile: 241, collision: 1), 'Q': (metatile: 631, collision: 1), 'T': (metatile: 468, collision: 1), 'V': (metatile: 646, collision: 1), 'X': (metatile: 638, collision: 1), 'Y': (metatile: 476, collision: 1), 'a': (metatile: 123, collision: 1), 'b': (metatile: 124, collision: 1), 'e': (metatile: 241, collision: 1), 's': (metatile: 3, collision: 1), 't': (metatile: 469, collision: 1), 'v': (metatile: 647, collision: 1), 'w': (metatile: 368, collision: 0, elevation: 1), 'x': (metatile: 639, collision: 1), 'y': (metatile: 477, collision: 1), 'z': (metatile: 125, collision: 1), '|': (metatile: 704, collision: 1), '~': (metatile: 393, collision: 0, elevation: 1)}),
+]

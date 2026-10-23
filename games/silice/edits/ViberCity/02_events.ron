@@ -1,0 +1,69 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RUSTBORO", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_CITY", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: the music (silence while FLAG_SIL_VIBER_BLACKOUT is set and VAR_SIL_STORY < 35),
+    // the hide flags below. OnLoad: the barrier (37, 15-16) drawn open once FLAG_SIL_VIBER_BARRIERE_EST.
+    // Viber_City_Sc05 runs from on_frame while VAR_SIL_STORY is 34 and VAR_TEMP_1 is 0 (it sets
+    // VAR_TEMP_1, so it runs once per visit; the script checks FLAG_SIL_VIBER_BLACKOUT).
+    Scripts((on_load: Some("ViberCity_OnLoad"), on_transition: Some("ViberCity_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_TEMP_1", value: 0, script: "ViberCity_Sc05")], on_warp_into: [])),
+    // Warps: 0 the Centre, 1 the Volt-Market, 2 the Station Lumiere, 3 the Nocturne, 4 the Casino,
+    // 5 the dancer's house.
+    Warp(x: 6, y: 14, dest_map: "ViberCity_PokemonCenter", dest_warp: 0),
+    Warp(x: 34, y: 14, dest_map: "ViberCity_Mart", dest_warp: 0),
+    Warp(x: 8, y: 4, dest_map: "ViberCity_StationLumiere", dest_warp: 0),
+    Warp(x: 28, y: 4, dest_map: "ViberCity_Gym", dest_warp: 0),
+    Warp(x: 20, y: 22, dest_map: "ViberCity_Casino", dest_warp: 0),
+    Warp(x: 6, y: 22, dest_map: "ViberCity_House1", dest_warp: 0),
+    // Objects 1-11 in the source's numbering. Hide flags: Adrien and the Station guard and the
+    // first dancer use their FLAG_SIL_HIDE_* flags; the others are temp flags OnTransition sets.
+    Object(x: 20, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_VIBER_MATHIEU", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_Mathieu", flag: "FLAG_TEMP_1"),
+    Object(x: 21, y: 17, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_VIBER_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_Adrien", flag: "FLAG_SIL_HIDE_VIBER_ADRIEN"),
+    Object(x: 28, y: 5, gfx: "OBJ_EVENT_GFX_GIRL_3", id: "LOCALID_VIBER_DANSEUR_1", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEURS"),
+    Object(x: 27, y: 5, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_VIBER_DANSEUR_2", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_TEMP_3"),
+    Object(x: 29, y: 5, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_VIBER_DANSEUR_3", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_TEMP_4"),
+    Object(x: 30, y: 5, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_VIBER_DANSEUR_4", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_TEMP_5"),
+    Object(x: 28, y: 4, gfx: "OBJ_EVENT_GFX_TATE", id: "LOCALID_VIBER_TAUBER", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_TEMP_2"),
+    Object(x: 8, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_VIBER_GARDE_STATION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_GardeStation", flag: "FLAG_SIL_HIDE_STATION_GARDE"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_VIBER_MATHIEU_CHARIOT", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_TEMP_6"),
+    Object(x: 14, y: 11, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_VIBER_OUVRIERE", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj04"),
+    Object(x: 25, y: 14, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_VIBER_PAPI", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj03"),
+    // The other ambient NPCs (Pnj01, 02, 05, 06, 07), the east barrier's guard (PNJ 08), the items.
+    Object(x: 16, y: 6, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_VIBER_BALAYEUR", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_LEFT", script: "ViberCity_EventScript_Pnj01"),
+    Object(x: 13, y: 15, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_VIBER_VENDEUSE", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj02"),
+    Object(x: 18, y: 23, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_VIBER_GAMIN", movement: "MOVEMENT_TYPE_FACE_UP", script: "ViberCity_EventScript_Pnj05"),
+    Object(x: 27, y: 17, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_VIBER_TOURISTE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_EventScript_Pnj06"),
+    Object(x: 10, y: 16, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_VIBER_DJ", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj07"),
+    Object(x: 36, y: 15, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_VIBER_GARDE_BARRIERE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_EventScript_GardeBarriere"),
+    Object(x: 37, y: 26, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_VIBER_ITEM_REVIVE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_ItemRevive", flag: "FLAG_SIL_ITEM_VIBER_REVIVE"),
+    // Viber_City_Sc01: the south ramp (20, 29), VAR_SIL_STORY 31.
+    Coord(x: 20, y: 29, var: "VAR_SIL_STORY", value: 31, script: "ViberCity_Sc01"),
+    // Viber_City_Sc03: two cells before the Nocturne door, VAR_SIL_STORY 32.
+    Coord(x: 28, y: 6, var: "VAR_SIL_STORY", value: 32, script: "ViberCity_Sc03"),
+    // Viber_City_Sc04: before the Station door, VAR_SIL_STORY 33 (the guard stands on (8, 5), so
+    // the cells beside it).
+    Coord(x: 7, y: 5, var: "VAR_SIL_STORY", value: 33, script: "ViberCity_Sc04"),
+    Coord(x: 9, y: 5, var: "VAR_SIL_STORY", value: 33, script: "ViberCity_Sc04"),
+    Coord(x: 8, y: 6, var: "VAR_SIL_STORY", value: 33, script: "ViberCity_Sc04"),
+    // Viber_City_Sc06: leaving the Nocturne, VAR_SIL_STORY 35. (28, 6) holds Sc03, so the row
+    // below the parvis, y 7, x 24-32.
+    Coord(x: 24, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 25, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 26, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 27, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 28, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 29, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 30, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 31, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    Coord(x: 32, y: 7, var: "VAR_SIL_STORY", value: 35, script: "ViberCity_Sc06"),
+    // Viber_City_Sc02: the giant neon sign.
+    Sign(x: 20, y: 12, script: "ViberCity_Sc02"),
+    Sign(x: 21, y: 28, script: "ViberCity_EventScript_Panneau1"),
+    Sign(x: 31, y: 6, script: "ViberCity_EventScript_Panneau2"),
+    Sign(x: 10, y: 5, script: "ViberCity_EventScript_Panneau3"),
+    Sign(x: 23, y: 23, script: "ViberCity_EventScript_Panneau4"),
+    HiddenItem(x: 29, y: 26, item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_VIBER_HYPER_POTION"),
+    HiddenItem(x: 13, y: 3, item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_VIBER_PP_UP"),
+    // Route S3 to the south: our ramp x 20 meets its north exit x 10. The east connection to
+    // MAP_ROUTE_S04 (Ch4) is added with that map; the street end (38-39, 15-16) stays trees.
+    Connect((dir: South, offset: 10, map: "RouteS03")),
+]

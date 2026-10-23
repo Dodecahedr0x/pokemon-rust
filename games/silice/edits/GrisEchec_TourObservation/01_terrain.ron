@@ -1,0 +1,15 @@
+// Cells: the window wall, screens, the gate railing, stools, the lift, the mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!###$%&#####",
+        "()))*+,)))))",
+        "-.../.0.....",
+        "123232232322",
+        "145222222452",
+        "167222222672",
+        "1888922:8889",
+        "1;<222222222",
+        "1=>222222222",
+        "12222?@22222",
+    ], legend: {'!': (metatile: 536, collision: 1), '#': (metatile: 760, collision: 1), '$': (metatile: 691, collision: 1), '%': (metatile: 692, collision: 1), '&': (metatile: 693, collision: 1), '(': (metatile: 698, collision: 1), ')': (metatile: 768, collision: 1), '*': (metatile: 699, collision: 1), '+': (metatile: 700, collision: 0), ',': (metatile: 701, collision: 1), '-': (metatile: 887, collision: 0), '.': (metatile: 870, collision: 0), '/': (metatile: 878, collision: 0), '0': (metatile: 879, collision: 0), '1': (metatile: 753, collision: 0), '2': (metatile: 752, collision: 0), '3': (metatile: 865, collision: 0), '4': (metatile: 867, collision: 0), '5': (metatile: 868, collision: 0), '6': (metatile: 875, collision: 1), '7': (metatile: 876, collision: 1), '8': (metatile: 883, collision: 1), '9': (metatile: 884, collision: 1), ':': (metatile: 854, collision: 1), ';': (metatile: 872, collision: 1), '<': (metatile: 873, collision: 1), '=': (metatile: 880, collision: 1), '>': (metatile: 881, collision: 1), '?': (metatile: 518, collision: 0), '@': (metatile: 519, collision: 0)}),
+]

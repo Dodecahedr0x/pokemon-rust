@@ -1,0 +1,86 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: the temp hide flags below (the robot; Gwada, Wattouat and Lainergie until
+    // Gym2_Sc11 shows them).
+    Scripts((on_load: None, on_transition: Some("GrisEchec_Gym_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the entrance mat, to Gris-Echec's warp 4 (the arena door). Warp 2: the side pad
+    // (11, 26) to the Chambre Sourde.
+    Warp(x: 7, y: 45, dest_map: "GrisEchec", dest_warp: 4),
+    Warp(x: 8, y: 45, dest_map: "GrisEchec", dest_warp: 4),
+    Warp(x: 11, y: 26, dest_map: "GrisEchec_Gym_Sourde", dest_warp: 0),
+    // Hall: the guide. Salle 1: the robot (hidden; Gym2_S1 shows it on a wrong tile).
+    Object(x: 9, y: 43, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_GYM2_CONSEILLER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Conseiller"),
+    Object(x: 10, y: 33, gfx: "OBJ_EVENT_GFX_MOVING_BOX", id: "LOCALID_GYM2_ROBOT", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_TEMP_1"),
+    // Salle 3: the pieces (sight 0: every watched square is a coord event), then Yohan on e8.
+    Object(x: 5, y: 18, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_GYM2_PION_1", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Pion1"),
+    Object(x: 8, y: 18, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_GYM2_PION_2", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Pion2"),
+    Object(x: 4, y: 15, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GYM2_CAVALIER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Cavalier"),
+    Object(x: 8, y: 16, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_GYM2_FOU", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_EventScript_Fou"),
+    Object(x: 10, y: 15, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM2_TOUR", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_Gym_EventScript_Tour"),
+    Object(x: 7, y: 13, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_GYM2_YOHAN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_Sc10"),
+    // Gym2_Sc11: Gwada (the source's obj 30) and Wattouat (obj 31) appear under e1 and walk up;
+    // Lainergie is the fallback's add_object (it replaces Wattouat on the same cell).
+    Object(x: 7, y: 21, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_GYM2_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_2"),
+    Object(x: 7, y: 22, gfx: "OBJ_EVENT_GFX_PIKACHU", id: "LOCALID_GYM2_WATTOUAT", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_3"),
+    Object(x: 7, y: 22, gfx: "OBJ_EVENT_GFX_PIKACHU", id: "LOCALID_GYM2_LAINERGIE", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_4"),
+    // Salle 1: every tile is a coord event on VAR_TEMP_3 (never set on this map, so always 0;
+    // the scripts decide). Wrong tiles: Gym2_S1 error (robot, back to (7, 38)). Right tiles count
+    // the bits in VAR_TEMP_2 (row by row, read with the player's y); the doorway (7, 29) checks
+    // the count is 8, so walking straight up the transition column x 7 fails too.
+    Coord(x: 6, y: 37, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 8, y: 37, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 8, y: 36, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 6, y: 36, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 6, y: 35, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 8, y: 35, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 6, y: 34, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 8, y: 34, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 8, y: 33, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 6, y: 33, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 8, y: 32, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 6, y: 32, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 6, y: 31, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 8, y: 31, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 8, y: 30, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Erreur"),
+    Coord(x: 6, y: 30, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Bit"),
+    Coord(x: 7, y: 29, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_S1Fin"),
+    // Salle 3: one coord event per watched square; the script names the watchers in the
+    // source's priority order (the first one not defeated battles; Roi = Gym2_Sc10).
+    Coord(x: 3, y: 13, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueC"),
+    Coord(x: 5, y: 13, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueCF"),
+    Coord(x: 6, y: 13, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueRoi"),
+    Coord(x: 8, y: 13, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueRoi"),
+    Coord(x: 10, y: 13, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 6, y: 14, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueCFRoi"),
+    Coord(x: 7, y: 14, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueRoi"),
+    Coord(x: 8, y: 14, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueRoi"),
+    Coord(x: 10, y: 14, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueFT"),
+    Coord(x: 5, y: 15, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 6, y: 15, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 7, y: 15, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueFT"),
+    Coord(x: 8, y: 15, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 9, y: 15, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueFT"),
+    Coord(x: 6, y: 16, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueC"),
+    Coord(x: 10, y: 16, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 3, y: 17, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueC"),
+    Coord(x: 5, y: 17, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueC"),
+    Coord(x: 7, y: 17, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueF"),
+    Coord(x: 9, y: 17, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueF"),
+    Coord(x: 10, y: 17, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 6, y: 18, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueF"),
+    Coord(x: 10, y: 18, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueFT"),
+    Coord(x: 4, y: 19, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueP1"),
+    Coord(x: 5, y: 19, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueF"),
+    Coord(x: 6, y: 19, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueP1"),
+    Coord(x: 7, y: 19, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueP2"),
+    Coord(x: 9, y: 19, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueP2"),
+    Coord(x: 10, y: 19, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Coord(x: 4, y: 20, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueF"),
+    Coord(x: 10, y: 20, var: "VAR_TEMP_3", value: 0, script: "GrisEchec_Gym_EventScript_VueT"),
+    Sign(x: 6, y: 39, script: "GrisEchec_Gym_EventScript_EcranS1"),
+    Sign(x: 8, y: 39, script: "GrisEchec_Gym_EventScript_EcranHall"),
+    // Gym2_S2 terminal: the console beside the entry (7, 28) (the source puts it on the entry cell).
+    Sign(x: 6, y: 28, script: "GrisEchec_Gym_EventScript_Terminal"),
+    Sign(x: 4, y: 12, script: "GrisEchec_Gym_EventScript_EcranEchiquier"),
+]

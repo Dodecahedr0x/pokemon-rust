@@ -1,0 +1,41 @@
+// Header, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ROUTE110", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the south portal, to the depot's south entry. Warp 1: the north portal, to the
+    // depot's north exit.
+    Warp(x: 10, y: 20, dest_map: "RouteS03_Depot", dest_warp: 0),
+    Warp(x: 10, y: 17, dest_map: "RouteS03_Depot", dest_warp: 1),
+    // The source's ambient NPCs (Pnj01-03), the portal guard, then the trainers and items.
+    Object(x: 7, y: 45, gfx: "OBJ_EVENT_GFX_PICNICKER", id: "LOCALID_ROUTE_S03_RANDONNEUSE", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS03_EventScript_Pnj01"),
+    Object(x: 6, y: 22, gfx: "OBJ_EVENT_GFX_FAT_MAN", id: "LOCALID_ROUTE_S03_CAMIONNEUR", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS03_EventScript_Pnj02"),
+    Object(x: 12, y: 5, gfx: "OBJ_EVENT_GFX_GIRL_1", id: "LOCALID_ROUTE_S03_FILLETTE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_Pnj03"),
+    Object(x: 12, y: 21, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_ROUTE_S03_SBIRE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS03_EventScript_Sbire", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 16, y: 35, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_ROUTE_S03_ROGER", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS03_EventScript_Roger", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 8, y: 31, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_ROUTE_S03_SACHA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS03_EventScript_Sacha", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 13, y: 27, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_ROUTE_S03_MARCO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS03_EventScript_Marco", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 5, y: 24, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_ROUTE_S03_INES", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS03_EventScript_Ines", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 8, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_ROUTE_S03_NOE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_Noe", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 17, y: 34, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S03_ITEM_SUPER_POTION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_ItemSuperPotion", flag: "FLAG_SIL_ITEM_S03_SUPER_POTION"),
+    Object(x: 5, y: 36, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S03_ITEM_HARD_STONE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_ItemHardStone", flag: "FLAG_SIL_ITEM_S03_HARD_STONE"),
+    Object(x: 13, y: 13, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S03_ITEM_SUPER_REPEL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_ItemSuperRepel", flag: "FLAG_SIL_ITEM_S03_SUPER_REPEL"),
+    // Route_S03_Sc01: three cells after the south entry, the full width, VAR_SIL_STORY 28.
+    Coord(x: 5, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 6, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 7, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 8, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 9, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 10, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 11, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 12, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 13, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Coord(x: 14, y: 46, var: "VAR_SIL_STORY", value: 28, script: "RouteS03_Sc01"),
+    Sign(x: 11, y: 47, script: "RouteS03_EventScript_Panneau1"),
+    Sign(x: 8, y: 21, script: "RouteS03_EventScript_Panneau2"),
+    // The Ether behind the trucker (no truck drawn), the Nugget by the echo rock.
+    HiddenItem(x: 5, y: 22, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_S03_ETHER"),
+    HiddenItem(x: 8, y: 15, item: "ITEM_NUGGET", flag: "FLAG_SIL_ITEM_S03_NUGGET"),
+    // Gris-Echec to the south: our entry x 9-10 meets its corridor x 38-39. Viber-City to the
+    // north: our exit x 10 meets its south ramp x 20.
+    Connect((dir: South, offset: -29, map: "GrisEchec")),
+    Connect((dir: North, offset: -10, map: "ViberCity")),
+]

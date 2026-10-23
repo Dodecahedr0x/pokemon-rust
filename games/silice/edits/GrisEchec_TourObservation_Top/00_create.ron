@@ -1,0 +1,3 @@
+// Silice Ch2, MAP_GRIS_ECHEC_TOUR_OBSERVATION_TOP: the glass room under the antenna (10 x 8).
+// General + Facility (Emerald tilesets by name): the window wall, consoles, the stairs down.
+(name: "GrisEchec_TourObservation_Top", width: 10, height: 8, primary: "General", secondary: "Facility", fill: 752, border: [1537, 1537, 1537, 1537])

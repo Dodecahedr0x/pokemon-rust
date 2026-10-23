@@ -1,0 +1,4 @@
+// Silice Ch3, MAP_VIBER_CITY_GYM: le Nocturne, Tauber & Hocseat's club (13 x 16). Building +
+// MauvilleGym (Emerald tilesets by name: the yellow floor and the electric barriers, closed or
+// open). The three colours are not drawn: every barrier uses the same Mauville beam.
+(name: "ViberCity_Gym", width: 13, height: 16, primary: "Building", secondary: "MauvilleGym", fill: 522, border: [1025, 1025, 1025, 1025])

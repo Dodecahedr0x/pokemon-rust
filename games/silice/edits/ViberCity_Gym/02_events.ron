@@ -1,0 +1,25 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: VAR_SIL_NOCTURNE_STATE reset to 0 (BLUE) and the barriers drawn for it (the cells
+    // below show that state: blue open, yellow and violet closed).
+    Scripts((on_load: Some("ViberCity_Gym_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the entry (6, 15), to Viber-City's warp 3 (the Nocturne door).
+    Warp(x: 6, y: 15, dest_map: "ViberCity", dest_warp: 3),
+    // Objects 1-2: Tauber and Hocseat (Nocturne_Sc02). Then the club trainers, the manager, the
+    // Magnet (the false track).
+    Object(x: 5, y: 2, gfx: "OBJ_EVENT_GFX_TATE", id: "LOCALID_NOCTURNE_TAUBER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Gym_Sc02"),
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_LIZA", id: "LOCALID_NOCTURNE_HOCSEAT", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Gym_Sc02"),
+    Object(x: 6, y: 13, gfx: "OBJ_EVENT_GFX_GIRL_3", id: "LOCALID_NOCTURNE_LENA", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Gym_EventScript_Lena", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1),
+    Object(x: 10, y: 14, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_NOCTURNE_HUGO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_Gym_EventScript_Hugo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 2, y: 9, gfx: "OBJ_EVENT_GFX_HEX_MANIAC", id: "LOCALID_NOCTURNE_NINA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ViberCity_Gym_EventScript_Nina", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 6, y: 6, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_NOCTURNE_ELIOTT", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Gym_EventScript_Eliott", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 4, y: 14, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_NOCTURNE_GERANT", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ViberCity_Gym_EventScript_Gerant"),
+    Object(x: 1, y: 10, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NOCTURNE_ITEM_MAGNET", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Gym_EventScript_ItemMagnet", flag: "FLAG_SIL_ITEM_NOCTURNE_MAGNET"),
+    // Nocturne_Sc02: (6, 3), the cell before the champions, VAR_SIL_STORY 34.
+    Coord(x: 6, y: 3, var: "VAR_SIL_STORY", value: 34, script: "ViberCity_Gym_Sc02"),
+    // Nocturne_Sc01: the DJ consoles A, B, C.
+    Sign(x: 2, y: 13, script: "ViberCity_Gym_EventScript_ConsoleA"),
+    Sign(x: 9, y: 9, script: "ViberCity_Gym_EventScript_ConsoleB"),
+    Sign(x: 1, y: 6, script: "ViberCity_Gym_EventScript_ConsoleC"),
+]

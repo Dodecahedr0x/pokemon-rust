@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(8, 23), (9, 23), (10, 23), (5, 24), (6, 24), (7, 24), (8, 24), (9, 24), (10, 24), (4, 26), (5, 26), (6, 26), (7, 26), (8, 26), (9, 26), (4, 27), (5, 27), (6, 27)], reason: "Salle 2, the invisible maze: floor metatiles made solid (the source's invisible walls)"),
+]

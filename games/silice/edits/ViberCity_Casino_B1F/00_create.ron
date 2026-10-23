@@ -1,0 +1,3 @@
+// Silice Ch3, MAP_VIBER_CITY_CASINO_B1F: the casino basement (16 x 12). General + Facility
+// (Emerald tilesets by name, the Aqua Hideout set): metal floor, server racks, the capsule.
+(name: "ViberCity_Casino_B1F", width: 16, height: 12, primary: "General", secondary: "Facility", fill: 552, border: [1537, 1537, 1537, 1537])
