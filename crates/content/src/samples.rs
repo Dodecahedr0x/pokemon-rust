@@ -3,11 +3,13 @@
 //! removed. On the extracted world they are the Milestone 7 slice's species and moves (once
 //! `SLICE_SPECIES` and `SLICE_MOVES`); on the stub battle data, the stub's.
 
-use engine::data::{MoveId, SpeciesId};
+use alloc::vec::Vec;
+use engine::data::{MapId, MoveId, SpeciesId};
 
 macro_rules! samples {
-    ($names:ident, $ids:ident: $ty:ty = [$($c:ident),* $(,)?]) => {
+    ($(#[$doc:meta])* $names:ident, $ids:ident: $ty:ty = [$($c:ident),* $(,)?]) => {
         /// Decomp names.
+        $(#[$doc])*
         pub const $names: &[&str] = &[$(stringify!($c)),*];
         /// The same, as ids.
         pub const $ids: &[$ty] = &[$(crate::consts::$c),*];
@@ -38,3 +40,40 @@ samples!(SPECIES, SPECIES_IDS: SpeciesId = [SPECIES_STUB_A, SPECIES_STUB_B]);
 
 #[cfg(pkr_stub_battle)]
 samples!(MOVES, MOVE_IDS: MoveId = [MOVE_STUB_GROWL, MOVE_STUB_HIT, MOVE_STUB_STRUGGLE]);
+
+#[cfg(not(pkr_stub))]
+samples!(
+    /// The maps debug tests sample (Milestone 8 Task L): the 15 slice maps, the Act 1 maps
+    /// the slice does not have (Petalburg, Route 104, Petalburg Woods, Rustboro), and one
+    /// interior per tileset family (`primary`/`secondary` pair) the rest leaves out. Whole-game
+    /// versions of the tests are `#[ignore]`d and run under `cargo xtask sweep --studio`.
+    /// Interiors: Building + GenericBuilding, Gym, Shop, Facility, School; General + Cave,
+    /// Facility, InsideShip, Underwater; SecretBase.
+    MAPS, MAP_SAMPLE: MapId = [
+    MAP_LITTLEROOT_TOWN, MAP_ROUTE101, MAP_OLDALE_TOWN, MAP_ROUTE102, MAP_ROUTE103,
+    MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F, MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
+    MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F, MAP_LITTLEROOT_TOWN_MAYS_HOUSE_2F,
+    MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB, MAP_OLDALE_TOWN_HOUSE1, MAP_OLDALE_TOWN_HOUSE2,
+    MAP_OLDALE_TOWN_POKEMON_CENTER_1F, MAP_OLDALE_TOWN_POKEMON_CENTER_2F, MAP_OLDALE_TOWN_MART,
+    MAP_PETALBURG_CITY, MAP_RUSTBORO_CITY, MAP_ROUTE104, MAP_PETALBURG_WOODS,
+    MAP_PETALBURG_CITY_HOUSE1, MAP_RUSTBORO_CITY_GYM, MAP_RUSTBORO_CITY_MART,
+    MAP_RUSTBORO_CITY_DEVON_CORP_1F, MAP_RUSTBORO_CITY_POKEMON_SCHOOL, MAP_GRANITE_CAVE_1F,
+    MAP_AQUA_HIDEOUT_1F, MAP_ABANDONED_SHIP_CORRIDORS_1F, MAP_UNDERWATER_ROUTE105,
+    MAP_SECRET_BASE_BLUE_CAVE1,
+]);
+
+/// The stub world is small: every map (no names).
+#[cfg(pkr_stub)]
+pub const MAPS: &[&str] = &[];
+
+/// [`MAPS`] that this build has (every map of the stub world), in [`MAPS`] order.
+pub fn map_ids() -> Vec<MapId> {
+    #[cfg(not(pkr_stub))]
+    return MAP_SAMPLE
+        .iter()
+        .copied()
+        .filter(|&m| crate::has_map(m))
+        .collect();
+    #[cfg(pkr_stub)]
+    return crate::data::MAP_IDS.to_vec();
+}

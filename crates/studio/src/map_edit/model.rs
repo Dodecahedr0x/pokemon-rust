@@ -1163,8 +1163,9 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) ->
             check_event_pos(d, *x, *y)?;
             if dest_map == MAP_DYNAMIC {
                 ensure!(
-                    *dest_warp == WARP_ID_DYNAMIC,
-                    "a {MAP_DYNAMIC} warp has dest_warp {WARP_ID_DYNAMIC}"
+                    super::schema::dynamic_warp_id(*dest_warp),
+                    "a {MAP_DYNAMIC} warp has dest_warp {WARP_ID_DYNAMIC} or {} (got {dest_warp})",
+                    super::schema::WARP_ID_SECRET_BASE
                 );
             }
             d.map.warps.push(GameWarp {

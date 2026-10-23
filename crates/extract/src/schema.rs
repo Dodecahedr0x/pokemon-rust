@@ -42,6 +42,7 @@
 //!   tables/items.ron             ItemsFile    (all ITEM_*: name, pocket, price, importance)
 //!   tables/multichoice.ron       MultichoiceFile (MULTI_* -> list of strings)
 //!   tables/std_strings.ron       StdStringsFile  (STDSTRING_* -> string)
+//!   tables/field_strings.ron     FieldStringsFile (gText_BigGuy, … -> string)
 //!   tables/map_sections.ron      MapSectionsFile (MAPSEC_* -> name)
 //!   sprites/field_effects/<Name>.{png,ron}  FieldEffectSpriteFile: emote pics (exclamation,
 //!                                question, heart)
@@ -93,7 +94,9 @@ pub const FORMAT_VERSION: u32 = 5;
 ///   `text/<lang>.ron` takes the IR's final names (`text/ir_<lang>.ron` is gone), the map files
 ///   name their scripts by them, and the IR also holds the std scripts (`gStdScripts`) and
 ///   their texts. No file is added, so [`MINOR_FILES`] has no minor-4 entry.
-pub const FORMAT_MINOR: u32 = 4;
+/// - 5: Task L adds `tables/field_strings.ron` (the strings of `GetPlayerBigGuyGirlString`,
+///   `GetRivalSonDaughterString` and `GetMomOrDadStringForTVMessage`).
+pub const FORMAT_MINOR: u32 = 5;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -114,6 +117,7 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (3, "tables/multichoice.ron"),
     (3, "tables/std_strings.ron"),
     (3, "tables/map_sections.ron"),
+    (5, "tables/field_strings.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -803,6 +807,13 @@ pub struct MultichoiceFile {
 /// `tables/std_strings.ron`: `STDSTRING_*` -> string (`gStdStrings`, `bufferstdstring`).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct StdStringsFile {
+    pub strings: BTreeMap<String, String>,
+}
+
+/// `tables/field_strings.ron`: decomp C name (`gText_BigGuy`, …, `tables::FIELD_STRINGS`) ->
+/// string: the C strings field specials copy into `gStringVar1`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct FieldStringsFile {
     pub strings: BTreeMap<String, String>,
 }
 

@@ -1,6 +1,7 @@
 mod budget;
 mod checkpoints;
 mod explore;
+mod silice;
 mod studio;
 mod sweep;
 
@@ -269,13 +270,10 @@ fn parse_maps(arg: &str) -> Result<Vec<&'static str>> {
 
 /// Reads the user's ROM into content/extracted/, replacing it whole (no stale files remain).
 ///
-/// `--maps all|slice|<Dir,Dir,...>` picks the exported maps (default `slice`,
-/// `extract::export::SLICE_MAPS`, until the content build consumes every map: Milestone 8 Task L
-/// flips it to `all`) and `--previews` also writes `previews/<Map>.png` (off by default: they
-/// are most of the extracted size and nothing in the build reads them).
-///
-/// Any other map set prints a warning: content cannot build a full extract until Task L; to
-/// recover run `PKR_EXTRACTED_DIR=/nonexistent cargo xtask extract --maps slice`.
+/// `--maps all|slice|<Dir,Dir,...>` picks the exported maps (default `all`, every map since
+/// Milestone 8 Task L; `slice` is `extract::export::SLICE_MAPS`, for fixtures) and `--previews`
+/// also writes `previews/<Map>.png` (off by default: they are most of the extracted size and
+/// nothing in the build reads them).
 ///
 /// Exports into content/.extracted.tmp/, then moves the previous output aside to
 /// content/.extracted.old/, renames the new export into place and only then deletes the old
@@ -293,12 +291,6 @@ fn extract(args: &[String]) -> Result<()> {
             "--previews" => opts.previews = true,
             _ => bail!(USAGE),
         }
-    }
-    if opts.maps != extract::export::SLICE_MAPS {
-        println!(
-            "warning: content cannot build a full extract until Task L; to recover run \
-             `PKR_EXTRACTED_DIR=/nonexistent cargo xtask extract --maps slice`"
-        );
     }
     let rom = extract::Rom::open(&rom_path)?;
     let out = root().join("content/extracted");
@@ -391,6 +383,9 @@ fn main() -> Result<()> {
         Some("studio") => studio::main(&args[1..]),
         Some("explore") => explore::main(&args[1..]),
         Some("sweep") => sweep::main(&args[1..]),
-        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep>"),
+        Some("silice") => silice::main(&args[1..]),
+        _ => bail!(
+            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice>"
+        ),
     }
 }

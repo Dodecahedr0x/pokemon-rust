@@ -14,8 +14,7 @@ use crate::model::{FindingKind, Macro, MacroKind, Opts, SimSummary};
 use crate::observe::{Flag, NoObserver, StepObserver};
 use crate::path::{self, live_grid};
 use crate::policy::Policy;
-use engine::checkpoint::NotCapturable;
-use engine::data::{Behavior, Dir, GameData, MapId, PLAYER, ScriptId};
+use engine::data::{Behavior, Dir, GameData, MapId, ScriptId};
 use engine::mon::BattleTables;
 use engine::script::Report;
 use engine::world::Event;
@@ -44,8 +43,8 @@ pub struct Expanded {
     /// Report-only flags (`FindingKind::SlowFrame`) raised during the expansion, at most
     /// [`MAX_SLOW`]; they never end it.
     pub slow: Vec<Flag>,
-    /// What the driver did beyond the macro itself, e.g. `"stale view after a crossing:
-    /// talked to object 2"` (the Cross fallback, see `Driver::resolve`).
+    /// What the driver noticed beyond the macro itself, e.g. `"3 engine events dropped
+    /// (EVENTS_MAX)"`.
     pub notes: Vec<String>,
 }
 
@@ -75,11 +74,6 @@ pub const STALL_FRAMES: u32 = 64;
 /// Frames the player may wait on one cell for its way to clear (no path, or an object in the
 /// planned cell) before the walk gives up with `NoPath`.
 pub const BLOCKED_FRAMES: u32 = 240;
-/// How far (cells, x and y) the player walks from a crossing cell for the view to leave the
-/// one drawn at the crossing (a 15x10-cell screen, plus a cell for the scroll in progress).
-const STALE_CLEAR: (i16, i16) = (17, 12);
-/// Scripts stopping the walk out of a stale view before the driver talks to objects instead.
-const STALE_PUSHES: u32 = 2;
 /// Frames after pressing A for the interaction's script to start.
 const INTERACT_FRAMES: u32 = 4;
 
@@ -238,14 +232,6 @@ struct Driver<'a, G: GameData> {
     nonbattle: u32,
     /// Frames of the current battle (`Limits::battle_frames`).
     battle_frames: u32,
-    /// The player's cell on the first frame on a map entered by a connection crossing.
-    crossed_at: Option<(i16, i16)>,
-    /// Where the player walks while the view is stale.
-    stale_target: Option<(i16, i16)>,
-    /// Scripts that stopped a walk out of a stale view.
-    stale_pushed: u32,
-    /// Objects talked to (or tried) to get out of a stale view.
-    stale_tried: Vec<u8>,
 }
 
 impl<'a, G: GameData> Driver<'a, G> {
@@ -284,10 +270,6 @@ impl<'a, G: GameData> Driver<'a, G> {
             battle: None,
             nonbattle: 0,
             battle_frames: 0,
-            crossed_at: None,
-            stale_target: None,
-            stale_pushed: 0,
-            stale_tried: Vec::new(),
         }
     }
 
@@ -399,10 +381,6 @@ impl<'a, G: GameData> Driver<'a, G> {
         if map != self.map {
             self.map = map;
             self.overrides.clear();
-            if !w.transition_active() {
-                self.crossed_at = Some(pos);
-                self.stale_target = None;
-            }
         }
         sum.cells.insert((map, pos.0, pos.1));
         let mut started = false;
@@ -472,29 +450,22 @@ impl<'a, G: GameData> Driver<'a, G> {
     }
 
     /// Resolves whatever runs (battles with the policy, scripts and the starter screen with
-    /// the policy, a stale view by walking on) until the first capturable frame with the
-    /// player settled.
+    /// the policy) until the first capturable frame with the player settled. Anything else
+    /// is waited out with no input: a crossing's upload (`NotCapturable::StaleView`) ends by
+    /// itself within a few frames (Milestone 8 Task F).
     fn resolve(&mut self) -> Result<(), ExpandError> {
         let mut idle = 0u32;
-        let mut was_stale = false;
         loop {
             let w = self.s.world();
-            let why = match w.capturable() {
-                Ok(()) if w.objects().player().is_settled() => return Ok(()),
-                Ok(()) => None,
-                Err(why) => Some(why),
-            };
+            if w.capturable().is_ok() && w.objects().player().is_settled() {
+                return Ok(());
+            }
             if w.in_battle() {
                 idle = 0;
                 let k = self.intents.battle(w, self.s.game().battle(), self.opts);
                 self.tap(k)?;
             } else if w.script_running() || w.starter().is_some() {
                 idle = 0;
-                if std::mem::take(&mut was_stale) {
-                    // A script stopped the walk out of a stale view (a trigger keeping the
-                    // player in).
-                    self.stale_pushed += 1;
-                }
                 let k = self.intents.script(w, self.opts);
                 self.tap(k)?;
             } else {
@@ -502,103 +473,9 @@ impl<'a, G: GameData> Driver<'a, G> {
                 if idle > self.limits.settle_frames {
                     return Err(ExpandError::Timeout("settle"));
                 }
-                if why != Some(NotCapturable::StaleView) {
-                    self.press(Buttons::NONE)?;
-                    continue;
-                }
-                if self.stale_pushed < STALE_PUSHES
-                    && let Some(d) = self.stale_dir()
-                {
-                    was_stale = true;
-                    self.press(dir_key(d))?;
-                    continue;
-                }
-                // Walking cannot clear the view: talk to the nearest scripted object.
-                let Some(id) = self.stale_interaction() else {
-                    self.press(Buttons::NONE)?;
-                    continue;
-                };
-                idle = 0;
-                // Each object once: one that only shows text leaves the view stale, and the
-                // next one is tried.
-                self.stale_tried.push(id);
-                match self.talk(id) {
-                    Ok(()) => self.notes.push(format!(
-                        "stale view after a crossing: talked to object {id}"
-                    )),
-                    Err(ExpandError::NoPath | ExpandError::NoEffect(_)) => {}
-                    Err(e) => return Err(e),
-                }
+                self.press(Buttons::NONE)?;
             }
         }
-    }
-
-    /// The nearest object with a template script the player can walk next to, not tried yet.
-    fn stale_interaction(&self) -> Option<u8> {
-        let w = self.s.world();
-        let pos = w.objects().player().pos();
-        let grid = live_grid(self.s.game(), w, self.overrides());
-        let dist = grid.distances(pos, false);
-        let at = |(x, y): (i16, i16)| {
-            (grid.in_bounds((x, y)))
-                .then(|| dist[y as usize * grid.map.width as usize + x as usize])
-        };
-        w.objects()
-            .iter()
-            .filter(|o| {
-                o.local_id != PLAYER
-                    && o.visible
-                    && o.map == w.map()
-                    && !self.stale_tried.contains(&o.local_id)
-                    && grid
-                        .map
-                        .objects
-                        .iter()
-                        .any(|t| t.local_id == o.local_id && t.script.is_some())
-            })
-            .filter_map(|o| {
-                let d = macros::talk_approaches(&grid, o.pos())
-                    .iter()
-                    .filter_map(|&(c, _)| at(c))
-                    .min()?;
-                (d != u16::MAX).then_some((d, o.local_id))
-            })
-            .min()
-            .map(|(_, id)| id)
-    }
-
-    /// Walking on after a crossing until the view no longer shows the old map (the stale
-    /// rectangle is the view at the crossing, so the camera must leave it entirely): toward the
-    /// nearest reachable cell a full view away from the crossing cell, else the farthest.
-    fn stale_dir(&mut self) -> Option<Dir> {
-        let w = self.s.world();
-        let pos = w.objects().player().pos();
-        if self.stale_target.is_none_or(|t| t == pos) {
-            let p0 = self.crossed_at.unwrap_or(pos);
-            let grid = live_grid(self.s.game(), w, self.overrides());
-            let dist = grid.distances(pos, false);
-            let width = grid.map.width as usize;
-            let away = |(x, y): (i16, i16)| {
-                let (dx, dy) = ((x - p0.0).abs(), (y - p0.1).abs());
-                (dx - STALE_CLEAR.0).max(dy - STALE_CLEAR.1)
-            };
-            let cells = dist
-                .iter()
-                .enumerate()
-                .filter(|(_, d)| **d != u16::MAX)
-                .map(|(i, &d)| (d, ((i % width) as i16, (i / width) as i16)));
-            self.stale_target = cells
-                .clone()
-                .filter(|&(_, c)| away(c) >= 0)
-                .min_by_key(|&(d, (x, y))| (d, y, x))
-                .or_else(|| {
-                    cells.max_by_key(|&(d, (x, y))| (away((x, y)), std::cmp::Reverse((d, y, x))))
-                })
-                .map(|(_, c)| c)
-                .filter(|&c| c != pos);
-        }
-        let to = self.stale_target?;
-        path::next_dir(self.s.game(), self.s.world(), self.overrides(), to)
     }
 
     /// Walks to `to` (re-planned every frame), finishing the last step.

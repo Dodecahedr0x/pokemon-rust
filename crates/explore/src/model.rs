@@ -30,8 +30,8 @@ pub enum MacroKind {
     WalkTo { x: i16, y: i16 },
     /// Walk next to warp cell (x, y) and move `dir` into it until a transition starts.
     Enter { x: i16, y: i16, dir: Dir },
-    /// Walk to edge cell (x, y) and hold `dir` until the map changes, then walk on until
-    /// the view is no longer stale.
+    /// Walk to edge cell (x, y) and hold `dir` until the map changes, then settle (a
+    /// crossing's upload is waited out).
     Cross { x: i16, y: i16, dir: Dir },
     /// Walk next to object `local_id`, face it, press A, resolve the script.
     Talk { local_id: u8 },

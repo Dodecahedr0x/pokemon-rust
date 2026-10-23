@@ -8,7 +8,7 @@ use content::consts::*;
 use content::prelude::{MsgBox, callstd, msgbox, special};
 use engine::battle::BattleOutcome;
 use engine::data::{FlagId, ItemId, TextId, VarId};
-use engine::script::{Ctx, Fade, Report, Request, Response, Runner, Script, ScriptHost};
+use engine::script::{BufferSrc, Ctx, Fade, Report, Request, Response, Runner, Script, ScriptHost};
 use extract::codegen::Class;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -81,6 +81,8 @@ struct Rec {
     party: u16,
     /// The answer to `Random`.
     rand: u16,
+    /// The answer to `CurrentMap`.
+    map: u16,
 }
 
 impl Rec {
@@ -112,6 +114,7 @@ impl Rec {
             Request::GiveMon { .. } => Response::Value(0),
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
+            Request::CurrentMap => Response::Value(self.map),
             Request::YesNo => Response::Bool(false),
             Request::Multichoice { .. } => Response::Value(engine::script::MULTI_B_PRESSED),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
@@ -223,6 +226,20 @@ fn set(v: VarId, x: u16) -> Request {
     Request::SetVar(v, x)
 }
 
+/// `STR_VAR_1` = field string `i` (`extract::tables::FIELD_STRINGS` order).
+fn field_string(i: u8) -> Request {
+    Request::Buffer {
+        slot: 0,
+        src: BufferSrc::Std(content::data::FIELD_STRING_BASE + i),
+    }
+}
+
+/// `extract::tables::FIELD_STRINGS` indices.
+const BIG_GUY: u8 = 0;
+const DAUGHTER: u8 = 3;
+const MOM: u8 = 4;
+const DAD: u8 = 5;
+
 /// Each `Native` special's requests, in order, and its result.
 #[test]
 fn native_specials_issue_their_requests_in_order() {
@@ -298,24 +315,27 @@ fn native_specials_issue_their_requests_in_order() {
         (
             "SPECIAL_GetPlayerBigGuyGirlString",
             1,
-            vec![degraded("SPECIAL_GetPlayerBigGuyGirlString")],
+            vec![field_string(BIG_GUY)],
             0,
         ),
+        // The rival of a male player is May: a daughter.
         (
             "SPECIAL_GetRivalSonDaughterString",
             1,
-            vec![degraded("SPECIAL_GetRivalSonDaughterString")],
+            vec![field_string(DAUGHTER)],
             0,
         ),
-        // `tv.c`: `VAR_TEMP_3` unset, so Mom or Dad at random (the host answers 0: Dad).
+        // `tv.c`: not in the player's house and `VAR_TEMP_3` unset, so Mom or Dad at random
+        // (the host answers 0: Dad).
         (
             "SPECIAL_GetMomOrDadStringForTVMessage",
             1,
             vec![
-                degraded("SPECIAL_GetMomOrDadStringForTVMessage"),
+                Request::CurrentMap,
                 Request::GetVar(VAR_TEMP_3),
                 Request::Random(2),
                 set(VAR_TEMP_3, 2),
+                field_string(DAD),
             ],
             0,
         ),
@@ -416,16 +436,17 @@ fn native_specials_issue_their_requests_in_order() {
     assert_eq!(h.log.len(), 4);
     covered.insert("SPECIAL_ChooseStarter");
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
-    // no random draw, as in Gen3.
-    for t3 in [1, 2, 5] {
+    // no random draw, as in Gen3; above 2 by parity.
+    for (t3, s) in [(1, MOM), (2, DAD), (5, DAD), (6, MOM)] {
         let mut h = Rec::default();
         h.vars.insert(VAR_TEMP_3.0, t3);
         run_special(&mut h, "SPECIAL_GetMomOrDadStringForTVMessage");
         assert_eq!(
             h.log,
             [
-                degraded("SPECIAL_GetMomOrDadStringForTVMessage"),
-                Request::GetVar(VAR_TEMP_3)
+                Request::CurrentMap,
+                Request::GetVar(VAR_TEMP_3),
+                field_string(s)
             ],
             "VAR_TEMP_3 = {t3}"
         );
@@ -436,7 +457,23 @@ fn native_specials_issue_their_requests_in_order() {
         ..Rec::default()
     };
     run_special(&mut h, "SPECIAL_GetMomOrDadStringForTVMessage");
-    assert_eq!(h.log.last(), Some(&set(VAR_TEMP_3, 1)));
+    assert!(h.log.contains(&set(VAR_TEMP_3, 1)));
+    assert_eq!(h.log.last(), Some(&field_string(MOM)));
+    // In the player's own house (Brendan's 1F: the player is male): Mom, with no draw.
+    let mut h = Rec {
+        map: MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F.0,
+        ..Rec::default()
+    };
+    run_special(&mut h, "SPECIAL_GetMomOrDadStringForTVMessage");
+    assert_eq!(
+        h.log,
+        [
+            Request::CurrentMap,
+            set(VAR_TEMP_3, 1),
+            Request::GetVar(VAR_TEMP_3),
+            field_string(MOM)
+        ]
+    );
     // Every Native special has a case above.
     for (name, class) in classes() {
         if class == Class::Native {
@@ -948,4 +985,20 @@ fn act1_specials_are_classified_with_a_reason() {
         *counts.entry(format!("{:?}", c[*s])).or_default() += 1;
     }
     eprintln!("Act 1 specials: {} {counts:?}", act1.len());
+}
+
+/// Task L: the extract's field strings (`tables/field_strings.ron`) are `std_string`s past
+/// `FIELD_STRING_BASE`; the stub world has none.
+#[test]
+fn field_strings_follow_the_std_strings() {
+    use engine::data::GameData;
+    let game = content::Emerald::for_shells();
+    for i in 0..extract::tables::FIELD_STRINGS.len() as u8 {
+        let s = game.std_string(content::data::FIELD_STRING_BASE + i);
+        assert_eq!(s.is_some(), !content::STUB, "field string {i}");
+    }
+    assert!(
+        game.std_string(content::data::FIELD_STRING_BASE - 1)
+            .is_none()
+    );
 }

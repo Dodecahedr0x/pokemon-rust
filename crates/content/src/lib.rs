@@ -232,10 +232,6 @@ impl GameData for Emerald {
         &battle::TABLES
     }
 
-    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-        battle::encounters(map.0)
-    }
-
     fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
         battle::wild_encounters(map.0, wild_set)
     }

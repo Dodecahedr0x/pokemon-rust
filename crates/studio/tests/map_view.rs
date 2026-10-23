@@ -2,7 +2,7 @@
 //! sprites. Structure only: no ROM text is asserted.
 
 use content::Emerald;
-use engine::data::{BgKind, Dir, GameData, Gfx, VarId, block_metatile};
+use engine::data::{BgKind, Dir, GameData, Gfx, MapId, VarId, block_metatile};
 use std::time::Instant;
 use studio::map_view::{Overlay, cells, map_list, overlays, render_map};
 use studio::sprite::{decode_sprite, initial_facing, object_sprite};
@@ -45,11 +45,33 @@ fn map_list_is_map_ids_in_order() {
     }
 }
 
+/// The maps of `content::samples::map_ids` (Milestone 8 Task L): debug tests sample them; the
+/// `#[ignore]`d `*_every_map` versions (`cargo xtask sweep --studio`) take every map.
+fn sample() -> Vec<(MapId, &'static str)> {
+    let ids = content::samples::map_ids();
+    let list: Vec<_> = map_list()
+        .into_iter()
+        .filter(|(id, _)| ids.contains(id))
+        .collect();
+    assert_eq!(list.len(), ids.len());
+    list
+}
+
 #[test]
+fn sampled_maps_render_with_their_margin() {
+    renders_with_margin(&sample());
+}
+
+#[test]
+#[ignore = "every map: cargo xtask sweep --studio"]
 fn every_map_renders_with_its_margin() {
+    renders_with_margin(&map_list());
+}
+
+fn renders_with_margin(maps: &[(MapId, &str)]) {
     let game = Emerald::for_shells();
     let t = Instant::now();
-    for (id, name) in map_list() {
+    for &(id, name) in maps {
         let m = game.map(id);
         for margin in [0u16, 3] {
             let img = render_map(&game, id, margin, &[]);
@@ -73,7 +95,7 @@ fn every_map_renders_with_its_margin() {
     }
     println!(
         "{} maps rendered at margins 0 and 3 in {:?}",
-        content::data::MAP_COUNT,
+        maps.len(),
         t.elapsed()
     );
 }
@@ -129,8 +151,18 @@ fn an_override_draws_the_overriding_block() {
 
 #[test]
 fn cells_follow_the_blocks() {
+    cells_of(&sample());
+}
+
+#[test]
+#[ignore = "every map: cargo xtask sweep --studio"]
+fn cells_follow_the_blocks_every_map() {
+    cells_of(&map_list());
+}
+
+fn cells_of(maps: &[(MapId, &str)]) {
     let game = Emerald::for_shells();
-    for (id, name) in map_list() {
+    for &(id, name) in maps {
         let m = game.map(id);
         let c = cells(&game, id);
         assert_eq!(c.len(), m.width as usize * m.height as usize, "{name}");
@@ -152,9 +184,19 @@ fn cells_follow_the_blocks() {
 
 #[test]
 fn overlay_counts_equal_the_map_data() {
+    overlays_of(&sample());
+}
+
+#[test]
+#[ignore = "every map: cargo xtask sweep --studio"]
+fn overlay_counts_equal_the_map_data_every_map() {
+    overlays_of(&map_list());
+}
+
+fn overlays_of(maps: &[(MapId, &str)]) {
     let game = Emerald::for_shells();
     let mut total = 0;
-    for (id, name) in map_list() {
+    for &(id, name) in maps {
         let m = game.map(id);
         let o = overlays(&game, id);
         let count = |f: fn(&Overlay) -> bool| o.iter().filter(|x| f(x)).count();

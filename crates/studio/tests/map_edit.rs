@@ -162,68 +162,82 @@ fn renders_draw_connected_games_dir_maps() {
     assert!(render(&alone, &c, 1).unwrap().rgb555 != with.rgb555);
 }
 
-// TODO(M8 Task L): use `content::samples::map_ids()` once the full import provides it.
-/// The Milestone 7 slice's maps and a few from later in the game (those the build has).
-const SAMPLE_MAPS: [&str; 20] = [
-    "LittlerootTown",
-    "LittlerootTown_BrendansHouse_1F",
-    "LittlerootTown_BrendansHouse_2F",
-    "LittlerootTown_MaysHouse_1F",
-    "LittlerootTown_MaysHouse_2F",
-    "LittlerootTown_ProfessorBirchsLab",
-    "OldaleTown",
-    "OldaleTown_House1",
-    "OldaleTown_House2",
-    "OldaleTown_Mart",
-    "OldaleTown_PokemonCenter_1F",
-    "OldaleTown_PokemonCenter_2F",
-    "Route101",
-    "Route102",
-    "Route103",
-    "PetalburgCity",
-    "Route104",
-    "RustboroCity",
+/// Maps whose Gen3 data has events outside the map (as in the decomp's `map.json`): the
+/// editor flags them, the game never reaches them.
+const OUT_OF_MAP_IN_GEN3: [&str; 13] = [
     "SlateportCity",
-    "MtChimney",
+    "SlateportCity_Harbor",
+    "LilycoveCity_DepartmentStore_1F",
+    "MeteorFalls_1F_1R",
+    "MeteorFalls_1F_2R",
+    "UnusedContestHall1",
+    "UnusedContestHall2",
+    "UnusedContestHall3",
+    "UnusedContestHall4",
+    "UnusedContestHall5",
+    "UnusedContestHall6",
+    "BattleFrontier_BattleDomeCorridor",
+    "BattleFrontier_BattleDomePreBattleRoom",
 ];
 
-/// Loads each extracted map into the editor; checks it has no errors (but warps to maps the
-/// extract lacks) and renders exactly as the game draws it.
-fn check_extracted_maps(only: Option<&[&str]>) {
+/// An editor error the extract may have: a warp to a map it lacks, a secret base bg event (the
+/// editor does not edit secret bases; they render as the game does), and Gen3's own
+/// out-of-map events ([`OUT_OF_MAP_IN_GEN3`]).
+fn tolerated(map: &str, message: &str) -> bool {
+    message.contains("UNEXPORTED_")
+        || message == "secret bases are not supported"
+        || (OUT_OF_MAP_IN_GEN3.contains(&map) && message.contains(" is outside the "))
+}
+
+/// Loads each extracted map into the editor; checks it has no errors but [`tolerated`] ones and
+/// renders exactly as the game draws it. Every failing map is listed.
+fn check_extracted_maps(only: Option<&[engine::data::MapId]>) {
     let game = Emerald::for_shells();
     let c = Catalog::from_content().unwrap();
     let mut n = 0;
+    let mut failed = Vec::new();
     for (id, name) in map_list() {
-        if only.is_some_and(|o| !o.contains(&name)) {
+        if only.is_some_and(|o| !o.contains(&id)) {
             continue;
         }
         n += 1;
         let doc = Doc::from_map_file(&extracted_map(name)).unwrap();
         let issues = validate(&doc, &c);
         let errs: Vec<_> = (issues.iter())
-            .filter(|i| i.severity == Severity::Error && !i.message.contains("UNEXPORTED_"))
+            .filter(|i| i.severity == Severity::Error && !tolerated(name, &i.message))
+            .map(|i| format!("{}: {}", i.at, i.message))
             .collect();
-        assert!(errs.is_empty(), "{name}: {errs:#?}");
+        if !errs.is_empty() {
+            failed.push(format!("{name}: {errs:?}"));
+            continue;
+        }
         let edited = render(&doc, &c, 3).unwrap();
         let want = render_map(&game, id, 3, &[]);
-        assert_eq!(
-            (edited.width, edited.height),
-            (want.width, want.height),
-            "{name}"
-        );
-        assert!(edited.rgb555 == want.rgb555, "{name}: pixels differ");
+        if (edited.width, edited.height) != (want.width, want.height) {
+            failed.push(format!("{name}: size"));
+        } else if edited.rgb555 != want.rgb555 {
+            failed.push(format!("{name}: pixels differ"));
+        }
     }
+    assert!(
+        failed.is_empty(),
+        "{} maps:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
     assert!(n >= 15, "{n} maps checked");
 }
 
+/// The fixed sample (`content::samples`: the slice, later towns and routes, one interior per
+/// tileset family).
 #[test]
 fn sample_extracted_maps_render_as_the_game() {
     if real() {
-        check_extracted_maps(Some(&SAMPLE_MAPS));
+        check_extracted_maps(Some(&content::samples::map_ids()));
     }
 }
 
-/// Every map of the build (slow on the full import: `cargo test -- --ignored`).
+/// Every map of the build (slow on the full import: `cargo xtask sweep --studio`).
 #[test]
 #[ignore]
 fn every_extracted_map_renders_as_the_game() {
@@ -242,10 +256,12 @@ fn extracted_warps_keep_their_indices() {
     let doc = Doc::from_map_file(&f).unwrap();
     assert_eq!(doc.map.warps.len(), f.warps.len());
     let dests: Vec<&str> = doc.map.warps.iter().map(|w| w.dest_map.as_str()).collect();
-    // The Union Room and the Colosseum (Cable Club maps the slice does not export).
-    assert_eq!(
-        &dests[dests.len() - 2..],
-        ["UNEXPORTED_25_60", "UNEXPORTED_25_25"]
+    // The Union Room and the Trade Center (Cable Club maps: `UNEXPORTED_*` on an extract
+    // without them, named on the full import), last as in the extract.
+    let last = &dests[dests.len() - 2..];
+    assert!(
+        last == ["UnionRoom", "TradeCenter"] || last == ["UNEXPORTED_25_60", "UNEXPORTED_25_25"],
+        "{last:?}"
     );
 }
 

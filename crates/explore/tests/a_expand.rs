@@ -418,11 +418,7 @@ impl<G: GameData> GameData for Fake<G> {
         assert!(!self.panic_scripts, "script started");
         self.inner.script(id, ctx)
     }
-    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-        assert!(!self.panic_encounters, "encounter table read");
-        self.inner.encounters(map)
-    }
-    /// What the engine reads: panics like [`Fake::encounters`].
+    /// What the engine reads.
     fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
         assert!(!self.panic_encounters, "encounter table read");
         self.inner.wild_encounters(map, wild_set)
