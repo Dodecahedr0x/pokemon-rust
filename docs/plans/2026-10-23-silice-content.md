@@ -1060,13 +1060,13 @@ The six Chapter 1 maps are in `games/silice/{maps,layouts}/`, made only with the
 Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, blocked (1025), as in Ch0.
 
 **Warnings and allowances.**
-- `validate` reports no errors. Its only warnings are the 167 unwritten scripts: 98 come from the Ch1 maps (Bois-Éther 38, Gym 43, Labo 11, Center 3, Mart 2, Herboriste 1), 69 from Ch0 (68 plus `BricoBourg_OnLoad`). `registry::ALLOW_UNWRITTEN` drops them at build time.
+- `validate` reports no errors. Its only warnings are the 194 unwritten scripts: 125 come from the Ch1 maps (Bois-Éther 65, Gym 43, Labo 11, Center 3, Mart 2, Herboriste 1), 69 from Ch0 (68 plus `BricoBourg_OnLoad`). `registry::ALLOW_UNWRITTEN` drops them at build time.
 - `BoisEther/03_allow.ron` keeps two kinds of solid cell on purpose:
   - the Team Cocket cables (General's rail metatile 241, as on Route S1);
   - the doors of the two decorative treehouses, (23, 7) and (30, 4), which have no interior.
 - Fixed instead of allowed: the Mart's roof ridge (General 40–43) is walkable, as in Emerald.
 - The Gym raises no behaviour warning. Its workbench (the dais pieces with collision 1) and its closed doors are solid on purpose.
-- `cargo xtask silice check` passes. Every flag, var and item the maps name already exists in `ids/` or in Gen3; see the hide flags below.
+- `cargo xtask silice check` passes. Every flag, var and item the maps name exists in `ids/` or in Gen3; the ten hide flags were allocated for these maps (see the hide flags below).
 
 **Events per map** (my coordinates; changes from the source are listed after).
 
@@ -1089,22 +1089,22 @@ Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, b
     | 3 | FILLETTE | (20, 7), wanders 1 | LITTLE_GIRL | `_EventScript_Fillette` | |
     | 4 | MARCHAND | (6, 14) | POKEFAN_M | `_EventScript_Marchand` | |
     | 5 | FAN | (16, 6) | BOY_3 | `_EventScript_Fan` | |
-    | 6 | TECHNICIEN | (24, 3), faces his cable | SCIENTIST_1 | `_EventScript_Technicien` | `FLAG_TEMP_11` (VAR ≥ 16) |
+    | 6 | TECHNICIEN | (24, 3), faces his cable | SCIENTIST_1 | `_EventScript_Technicien` | `_TECHNICIEN` (VAR ≥ 16) |
     | 7 | TOUX | (22, 14) | WOMAN_4 | `_EventScript_Toux` | |
     | 8 | GARDIEN | (19, 12) | EXPERT_M | `BoisEther_Sc04` | |
-    | 9 | GARDE | (32, 13) | MAGMA_MEMBER_M | `BoisEther_Sc07` | `FLAG_TEMP_12` (VAR ≥ 17) |
-    | 10 | ADRIEN | (17, 12) | SCHOOL_KID_M | none (Sc02) | `FLAG_TEMP_13` (outside VAR 10–11) |
-    | 11 | GOGO | (15, 10) | MAXIE | none | `FLAG_TEMP_14` |
-    | 12 | ROMAIN | (19, 10) | ARCHIE | none | `FLAG_TEMP_15` |
-    | 13 | SBIRE_1 | (15, 11) | MAGMA_MEMBER_M | none | `FLAG_TEMP_16` |
-    | 14 | SBIRE_2 | (19, 11) | MAGMA_MEMBER_F | none | `FLAG_TEMP_17` |
-    | 15 | MATHIEU | (22, 11) | BLACK_BELT | none | `FLAG_TEMP_18` |
+    | 9 | GARDE | (32, 13) | MAGMA_MEMBER_M | `BoisEther_Sc07` | `_GARDE` (VAR ≥ 17) |
+    | 10 | ADRIEN | (17, 12) | SCHOOL_KID_M | none (Sc02) | `_ADRIEN` (outside VAR 10–11) |
+    | 11 | GOGO | (15, 10) | MAXIE | none | `_GOGO` |
+    | 12 | ROMAIN | (19, 10) | ARCHIE | none | `_ROMAIN` |
+    | 13 | SBIRE_1 | (15, 11) | MAGMA_MEMBER_M | none | `_SBIRE_1` |
+    | 14 | SBIRE_2 | (19, 11) | MAGMA_MEMBER_F | none | `_SBIRE_2` |
+    | 15 | MATHIEU | (22, 11) | BLACK_BELT | none | `_MATHIEU` |
     | 16 | ITEM_X_DEFEND | (28, 8), behind the Center | item ball | `_EventScript_ItemXDefend` | `FLAG_SIL_ITEM_BOIS_ETHER_X_DEFEND` |
 
-    Objects 11–15 are Sc06's actors, hidden outside the scene. The source's obj 16 (reserved) is not drawn, so the item ball takes local id 16.
+    The hide flags are `FLAG_SIL_HIDE_BOIS_ETHER_<WHO>`. Objects 11–15 are Sc06's actors, hidden outside the scene. The source's obj 16 (reserved) is not drawn, so the item ball takes local id 16.
   - Coord events:
     - `BoisEther_Sc01` on (12–15, 24), `VAR_SIL_STORY` 9;
-    - `BoisEther_Sc02` on (16–18, 13), value 10;
+    - `BoisEther_Sc02` on the whole row y 13 (x 2–31), value 10;
     - `BoisEther_Sc06` on (13–21, 6), value 15;
     - `BoisEther_Sc07` on (32, 12–15), value 16.
   - Signs:
@@ -1131,11 +1131,11 @@ Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, b
   - Header: `MUS_GYM`, indoor.
   - Map scripts:
     - `on_load` is `BoisEther_Gym_OnLoad`. Once `FLAG_SIL_GYM1_VALVE` is set, it opens both airlock doors, (7, 8–9) and (7, 11–12). Without the second one, a player who reloads the map in the greenhouse would be locked in;
-    - `on_transition` is `BoisEther_Gym_OnTransition`. It hides Loïc (`FLAG_TEMP_11`) once `FLAG_SIL_BADGE_01` is set.
+    - `on_transition` is `BoisEther_Gym_OnTransition`. It hides Loïc (`FLAG_SIL_HIDE_GYM1_LOIC`) once `FLAG_SIL_BADGE_01` is set.
   - Warps 0–1: the mat (6–7, 39) to Bois-Éther's warp 0.
   - Zones, bottom to top:
     - the hall, y 31–39;
-    - zone 1, x 2–12, y 22–30;
+    - zone 1, x 3–11 inside its walls, y 22–30;
     - zone 2, x 1–13, y 11–20;
     - zone 3, the chamber (6–8, 10);
     - zone 4, the greenhouse, y 0–9.
@@ -1158,7 +1158,7 @@ Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, b
     - the workbench (5–7, 14);
     - crates c2 (4, 15, the fuse) and c3 (6, 15, the spring);
     - the private greenhouse door (12, 1).
-  - The grates follow the source's grid exactly (origin (2, 22)), so the safe path and both forced battles are unchanged.
+  - The grates and the walls follow the source's grid exactly (origin (2, 22)), so the safe path and both forced battles are unchanged. A breadth-first search over the layout confirms it: with the grates solid, every path from the shower (7, 30) to the door's front cell (8, 23) crosses Jules's and Iris's lines of sight.
 - **BoisEther_Herboriste.** Header `MUS_FORTREE`, indoor. Warps 0–1: the mat (3–4, 6) to Bois-Éther's warp 3. Object 1: the herbalist (MAN_4) behind the counter at (0, 4), script `BoisEther_Herboriste_Sc05` (the source's Bois_Ether_Sc05 runs here). The player talks across the counter (x 1, y 3–5).
 - **BoisEther_PokemonCenter.** Header `MUS_POKE_CENTER`. `on_transition` is `BoisEther_PokemonCenter_OnTransition`, which sets the respawn point. Warps 0–1: the mat (5–6, 7) to warp 1. Objects:
   1. the nurse at (6, 2);
@@ -1168,7 +1168,7 @@ Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, b
   2. the client (MAN_1) at (4, 5).
 - **BricoBourg_Labo.**
   - Header: `MUS_AQUA_MAGMA_HIDEOUT` (the source's `MUS_TEAM_AQUA_HIDEOUT` does not exist).
-  - `on_transition` is `BricoBourg_Labo_OnTransition`. It hides the Chimiste (`FLAG_TEMP_11`) once `VAR_SIL_BRICO_LABO_STATE` is 2.
+  - `on_transition` is `BricoBourg_Labo_OnTransition`. It hides the Chimiste (`FLAG_SIL_HIDE_LABO_CHIMISTE`) once `VAR_SIL_BRICO_LABO_STATE` is 2.
   - Warps 0–1: the mat (6–7, 11) to BricoBourg's warp 3.
   - Objects:
     1. the Chimiste (SCIENTIST_2) at (2, 1). He is a talked-to boss, not a sight trainer: his script battles;
@@ -1184,10 +1184,10 @@ Borders: Bois-Éther uses Fortree's forest (198/199); the interiors use black, b
   - warp 3 on the Labo door (4, 7). The door stays solid: it is an animated door, and pushing into it warps;
   - `on_load` `BricoBourg_OnLoad` repaints the cut brambles (4, 8) when `FLAG_SIL_BRICO_LABO_RONCES_CUT` is set. The `Scripts` op restates Ch0's `on_transition` and `on_frame`.
 
-**Hide flags.** The maps may name only ids that exist, or `silice check` fails, and this task must not edit `ids/`. So the scene actors use Gen3's temporary flags `FLAG_TEMP_11`–`18`, numbered per map. Temporary flags are cleared on every map load, and each `_OnTransition` sets them again from `VAR_SIL_STORY`, `FLAG_SIL_BADGE_01` and `VAR_SIL_BRICO_LABO_STATE`, before the objects spawn. Every hide state in Ch1 follows from those three, so no dedicated flag is needed. If the ids import prefers dedicated flags, allocate these and swap them in `02_events.ron`:
-- `FLAG_SIL_HIDE_BOIS_ETHER_{TECHNICIEN, GARDE, ADRIEN, GOGO, ROMAIN, SBIRE_1, SBIRE_2, MATHIEU}`;
-- `FLAG_SIL_HIDE_GYM1_LOIC`;
-- `FLAG_SIL_HIDE_LABO_CHIMISTE`.
+**Hide flags.** Each scene actor has its own persistent hide flag, as in Ch0: `FLAG_SIL_HIDE_BOIS_ETHER_{TECHNICIEN, GARDE, ADRIEN, GOGO, ROMAIN, SBIRE_1, SBIRE_2, MATHIEU}`, `FLAG_SIL_HIDE_GYM1_LOIC` and `FLAG_SIL_HIDE_LABO_CHIMISTE`. The first build used Gen3's temporary `FLAG_TEMP_11`–`18`, because the ids were owned by another task.
+- They were allocated by `cargo xtask silice import … --force` from `maps/*.ron` (flags 765–774) and appended to `xtask/tests/fixtures/silice/ids.golden`. Only `ids/flags.ron` and `IMPORT-REPORT.md` were taken from the import: it would also undo Task A's provisional `Tour_Sbire{1,2}_Intro_Ch09` rename.
+- Each `_OnTransition` owns its map's flags, as Ch0's do. It sets them from `VAR_SIL_STORY`, `FLAG_SIL_BADGE_01` and `VAR_SIL_BRICO_LABO_STATE` before the objects spawn. A scene that shows or hides an actor (`show`/`hide`) also sets its flag.
+- `game.ron`'s `new_game_flags` sets those hidden at story 0: Adrien (`_ADRIEN`) and Sc06's five actors. The technician, the guard, Loïc and the Chimiste start visible. `game_tests.rs` checks both groups.
 
 No new flags or vars are otherwise needed.
 
@@ -1199,7 +1199,10 @@ No new flags or vars are otherwise needed.
   - zone 2, (7, 11) and (7, 12);
   - zone 3, (7, 8) and (7, 9).
 
-  The zone-3 script's `door(7, 11)` and `door(7, 9)` are the bottom halves of those doors.
+  Each airlock door is two cells tall, so every script that opens or closes one must set both cells. The source's single cells do not suffice:
+  - the workbench's `set_metatile(7, 12)` must also open (7, 11);
+  - the zone-3 scene's `door(7, 11, false)` must also close (7, 12);
+  - its `door(7, 9, true)` must also open (7, 8). Otherwise (7, 8) stays solid and the greenhouse cannot be reached.
 
 **Script names (the contract for `crates/content/src/silice/scripts/ch01_*.rs`)**, following the Ch0 rules (`<Map>_ScNN`, `<Map>_EventScript_<What>`, `<Map>_OnTransition`/`_OnLoad`):
 - BoisEther:
@@ -1231,6 +1234,8 @@ No new flags or vars are otherwise needed.
   - The Mart's door is (27, 17), not (27, 16): a 4-row Mart under the Center's door would block it.
   - The X Defend is at (28, 8), behind the Center (the source's (28, 9) is inside its roof).
   - Sc06 fires on the whole row y 6 (x 13–21) rather than on (17, 7). Every step off the gym's deck crosses that row, and the Grand Chêne fills y 8–10 in front of the door.
+  - Sc02 fires on the whole row y 13 (x 2–31) rather than on (16–18, 13). The clearing could be walked around, which skipped Sc02, Sc03 and their story steps. The gym, the Center's and the Herboriste's doors are all north of that row. The scene walks the player to (17, 13) before Adrien turns.
+  - The second treehouse's stamp keeps the gym deck's right end at (21, 5).
   - The fan stands at (16, 6), off the deck.
   - The east ponds and the clearing's pond are left out: the extract has no small pond that fits. Flower beds and tall grass take their place.
   - The cables are at x 9–12, y 1, and x 22–26, y 2.
@@ -1241,6 +1246,7 @@ No new flags or vars are otherwise needed.
   - Zone 3's front door is (7, 8–9).
   - The guide is at (5, 35).
   - The workbench spans x 4–8, y 13–14 (the source draws it as one row).
+  - Loïc's exit (`Walk(Up) x2, Walk(Right) x3` from (7, 2)) walks into the back wall. It must be re-derived in Rust, towards the private greenhouse door (12, 1).
 - **Labo.**
   - The memo is read on the desk at (11–12, 2): the source's (12, 1) has no free neighbour once the desk is drawn.
   - Brico-Bourg's Labo door keeps Ch0's (4, 7) (the source's (5, 3)).
@@ -1270,7 +1276,7 @@ No new flags or vars are otherwise needed.
 5. **`render --collision` still marks allowed cells with `!`.** It could grey them out.
 6. **Building's metatile 1 is black only with some secondaries.** With Lab it draws as floor; I used Lab 513.
 7. **In the agent worktree, shell loops and variables in a command are refused.** Renders and palettes went through small helper scripts.
-8. **Ids are owned by another task.** New hide flags could not be added, hence the `FLAG_TEMP_*` design above. A shared "pending ids" file the ids import picks up would help.
+8. **Ids were owned by another task.** New hide flags could not be added at first, hence the temporary `FLAG_TEMP_*` design (replaced since; see the hide flags). A shared "pending ids" file the ids import picks up would help.
 
 **Time.** About 2.5 h:
 - 1 h learning four new tileset pairs (Fortree, PokemonCenter/Shop, PrettyPetalFlowerShop, Lab and PetalburgGym) through reference renders;
