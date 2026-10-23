@@ -294,6 +294,12 @@ impl<'g, G: GameData> Live<'g, G> {
             Step::UseItem(u) => {
                 (self.v).use_item(u.item.0, u.mon, u.forget, crate::drive::USE_ITEM_FRAMES)?
             }
+            Step::Buy {
+                local_id,
+                item,
+                qty,
+                ..
+            } => self.buy(local_id, item, qty)?,
             Step::Grass { x, y, .. } => {
                 self.grass((x, y))?;
             }
@@ -380,12 +386,37 @@ impl<'g, G: GameData> Live<'g, G> {
             MacroKind::UseItem { item, mon, forget } => {
                 (self.v).use_item(item, mon, forget, crate::drive::USE_ITEM_FRAMES)?
             }
+            MacroKind::Buy {
+                local_id,
+                item,
+                qty,
+            } => self.buy(local_id, engine::data::ItemId(item), qty)?,
             MacroKind::Push { dir } => {
                 if self.map()? == start {
                     self.v.push(dir, MACRO_FRAMES)?;
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Plays a [`Step::Buy`]: the oracle does not drive Gen3's shop screens, so the purchase
+    /// is written into vanilla's bag and money (an oracle stand-in, noted); the clerk is not
+    /// talked to.
+    fn buy(&mut self, local_id: u8, item: engine::data::ItemId, qty: u16) -> Result<()> {
+        self.v.settle(MACRO_FRAMES)?;
+        let info = (self.game.item(item)).ok_or_else(|| anyhow!("buy: no item {}", item.0))?;
+        let cost = u32::from(info.price) * u32::from(qty);
+        ensure!(
+            self.v.buy(info.pocket, item.0, qty, cost)?,
+            "buy: {qty} of item {} (¥{cost}) do not fit or are not affordable",
+            item.0
+        );
+        self.note = Some(format!(
+            "buy: not played natively (the oracle does not drive the shop): {qty} of item {} \
+             for ¥{cost} written into vanilla's bag and money (clerk {local_id} not talked to)",
+            item.0
+        ));
         Ok(())
     }
 
