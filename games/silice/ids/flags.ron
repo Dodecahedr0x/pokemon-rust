@@ -2390,5 +2390,87 @@
             name: "FLAG_SIL_HIDE_CRATERE_ROCHER",
             num: 994,
         ),
+        // SIL2 Ch2 scripts (script-only, 1050+): the Usine's cable, cut with the Coupe module
+        // (GrisEchec_Usine_EventScript_Cable).
+        (
+            name: "FLAG_SIL_USINE_CABLE_CUT",
+            num: 1050,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_MATHIEU",
+            num: 1200,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_ADRIEN",
+            num: 1201,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN",
+            num: 1202,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA",
+            num: 1203,
+        ),
+        (
+            name: "FLAG_SIL_S09_CABLES",
+            num: 1204,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL_2",
+            num: 1205,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL_3",
+            num: 1206,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL_4",
+            num: 1207,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_TOUR_REVENGE",
+            num: 1250,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_JULIEN",
+            num: 1251,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_ROMAIN",
+            num: 1252,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_MATHIEU",
+            num: 1253,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ADRIEN",
+            num: 1254,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_GWADA",
+            num: 1255,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_MATHIEU",
+            num: 1256,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN",
+            num: 1257,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_GWADA",
+            num: 1258,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_JULIEN",
+            num: 1259,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_TOUR_DRONE",
+            num: 1260,
+        ),
     ],
 )

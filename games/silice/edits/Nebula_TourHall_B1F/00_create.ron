@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_NEBULA_TOUR_HALL_B1F: la Salle des Pompes under the Tower (20 x 16). General +
+// Facility (Emerald tilesets by name): the Aqua Hideout's pool frame for the cuve, its machines as
+// the pipes, railings. Border: black, blocked.
+(name: "Nebula_TourHall_B1F", width: 20, height: 16, primary: "General", secondary: "Facility", fill: 552, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

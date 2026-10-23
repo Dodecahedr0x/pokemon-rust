@@ -1,4 +1,6 @@
 // Behaviour warnings accepted on purpose.
 [
     AllowCollision(cells: [(25, 4)], reason: "the security cable before J3: a rail metatile stands in for a thin cable and is solid until cut (GrisEchec_Usine_OnLoad redraws it walkable)"),
+    AllowReach(subject: "object LOCALID_USINE_ITEM_METAL_COAT", reason: "behind the crates (12-13, 3), moved by GrisEchec_Usine_EventScript_Caisses with the Champ Magnetique"),
+    AllowReach(subject: "bg 1", reason: "J3 (26, 4) is read from (25, 4), behind the cable that GrisEchec_Usine_EventScript_Cable cuts with the Lame-Frequence"),
 ]

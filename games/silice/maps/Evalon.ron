@@ -425,6 +425,13 @@
             dest_map: "Evalon_Citadelle",
             dest_warp: 0,
         ),
+        (
+            x: 48,
+            y: 44,
+            elevation: 0,
+            dest_map: "RouteS09",
+            dest_warp: 2,
+        ),
     ],
     coords: [
         (
@@ -754,6 +761,22 @@
             var: Some("VAR_TEMP_3"),
             value: 0,
             script: Some("Evalon_EventScript_Gresillement"),
+        ),
+        (
+            x: 47,
+            y: 44,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 85,
+            script: Some("Evalon_Sc10"),
+        ),
+        (
+            x: 47,
+            y: 45,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 85,
+            script: Some("Evalon_Sc10"),
         ),
     ],
     bgs: [

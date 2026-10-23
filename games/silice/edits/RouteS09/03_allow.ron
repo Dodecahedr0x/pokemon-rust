@@ -1,0 +1,9 @@
+// Behaviour and reachability warnings accepted on purpose.
+[
+    AllowReach(subject: "warp 2", reason: "the Evalon side and the station bank are joined by Surf, past the security cables that RouteS09_OnLoad opens; checked with bypass --surf --open"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_MARIN", reason: "on the lake, seen and reached by Surf; checked with reach --surf"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_OCEANE", reason: "on the lake, seen and reached by Surf; checked with reach --surf"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_PLONGEUR_7", reason: "on the lake, seen and reached by Surf; checked with reach --surf"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_PLONGEUSE_12", reason: "on the lake, seen and reached by Surf; checked with reach --surf"),
+    AllowCollision(metatiles: [241], reason: "the rail drawn solid: the security cables (47, 18-19, opened by RouteS09_OnLoad) and the dam grille (30-41, 43)"),
+]

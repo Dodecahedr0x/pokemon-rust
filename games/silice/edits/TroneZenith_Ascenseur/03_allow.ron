@@ -1,0 +1,6 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(3, 4), (3, 5), (3, 6)], reason: "the warps are landings only: the cabin's on-frame scenes warp away by script"),
+    AllowReach(subject: "warp 1", reason: "a landing only (the Zenith's tube names it); TroneZenith_Ascenseur_Sc00 warps away on every arrival"),
+    AllowReach(subject: "warp 2", reason: "a landing only (the night Zenith's tube names it); TroneZenith_Ascenseur_Sc00 warps away on every arrival"),
+]
