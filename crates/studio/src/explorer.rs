@@ -244,8 +244,8 @@ impl RunArgs {
 /// It runs in its own process group ([`crate::proc`]): `stop` kills the whole group, so
 /// stopping during the build also ends cargo's rustc processes. Once built, `cargo run`
 /// replaces itself with the explorer (exec on unix). The kill is a SIGKILL, not a graceful
-/// stop: the db commits one WAL transaction per generation, so a kill loses at most the
-/// generation in flight (and the run's `run` row), never the db.
+/// stop: the db commits the spine, then all the branches, each in one WAL transaction, so a
+/// kill loses at most the branches in flight, never the db.
 pub struct ExplorerProc {
     child: Child,
     log: PathBuf,

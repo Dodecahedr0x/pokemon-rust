@@ -88,10 +88,10 @@ pub struct BranchConfig {
     /// Branch from every `every`-th spine step's end, besides every checkpoint (0: checkpoints
     /// only).
     pub every: u32,
-    /// Exploration frames past which a branch is aborted (no recovery).
+    /// Exploration frames past which a branch stops exploring and recovers.
     pub budget_frames: u32,
-    /// Novelty points (`Weights`) per 1,000 frames below which a branch stops exploring after
-    /// its first macro.
+    /// Novelty points (`Weights`) per 1,000 frames below which a branch that chained past its
+    /// target is aborted (no recovery).
     pub min_novelty: u32,
     /// Macros a branch plays at most (its target included).
     pub max_steps: u32,

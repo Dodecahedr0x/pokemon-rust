@@ -309,7 +309,8 @@ pub enum Outcome {
     Diverged { expected: bool },
     /// No way back to the origin within the hops and frames.
     Stranded,
-    /// The budget or the novelty rate ended the exploration.
+    /// Too little novelty for its frames (the rate fell below `min_novelty` past the target),
+    /// or a macro timed out: no recovery.
     Aborted,
     /// A detector or a panic stopped it (a finding).
     Bug,
@@ -346,9 +347,10 @@ impl Outcome {
 pub enum Explored {
     /// No new candidate left, or `max_steps` played.
     Exhausted,
-    /// The novelty rate fell below `min_novelty`.
+    /// The novelty rate fell below `min_novelty` once the branch chained past its target
+    /// (aborted: no recovery).
     LowNovelty,
-    /// More than `budget_frames`.
+    /// More than `budget_frames` (it then recovers).
     Budget,
 }
 
@@ -442,6 +444,8 @@ pub fn run<G: GameData + Clone + 'static>(
     if let Action::Macro(m) = target.action {
         r.macros.push(m);
     }
+    // Macros chained after the target.
+    let mut chained = 0u32;
     let explored = loop {
         let frames = live.frames();
         r.explore_frames = frames;
@@ -449,14 +453,16 @@ pub fn run<G: GameData + Clone + 'static>(
         let gain = cov.gain_over(&spine.coverage);
         r.gain = gain;
         r.points = gain.points(&cfg.weights);
+        // The target always plays; the rate judges the chain after it.
+        if chained > 0 && (r.points.max(0) as u64) * 1000 < u64::from(b.min_novelty) * frames.max(1)
+        {
+            break Explored::LowNovelty;
+        }
         if frames > u64::from(b.budget_frames) {
             break Explored::Budget;
         }
         if live.res.steps.len() as u32 >= b.max_steps {
             break Explored::Exhausted;
-        }
-        if (r.points.max(0) as u64) * 1000 < u64::from(b.min_novelty) * frames.max(1) {
-            break Explored::LowNovelty;
         }
         // The next new candidate (against the spine and the branch so far).
         let snap = &live.last_end().expect("a step").world;
@@ -472,6 +478,7 @@ pub fn run<G: GameData + Clone + 'static>(
             match live.step_with(&m, &mut crate::policy::Policy::new()) {
                 Ok(()) => {
                     r.macros.push(m);
+                    chained += 1;
                     played = true;
                     break;
                 }
@@ -498,20 +505,26 @@ pub fn run<G: GameData + Clone + 'static>(
     };
     r.explored = Some(explored);
     r.explore_frames = live.frames();
-    if explored == Explored::Budget {
+    // Too many frames for too little novelty: aborted, no recovery. A branch stopped by its
+    // budget or its step cap while still finding things, or with nothing new left, recovers.
+    if explored == Explored::LowNovelty {
         r.outcome = Outcome::Aborted;
-        r.message = format!("over the budget ({} frames)", b.budget_frames);
+        r.message = format!(
+            "{} points in {} frames: under {} per 1,000 frames",
+            r.points, r.explore_frames, b.min_novelty
+        );
         r.coverage = coverage_of(&live, origin, cfg);
         r.reports = std::mem::take(&mut live.res.reports);
         return r;
     }
     let changed = {
         let now = Progress::of(
+            game,
             &live.last_end().expect("a step").world,
             &spine.spine_flags,
             &cfg.key,
         );
-        let at = spine.progress(target.origin, &cfg.key);
+        let at = spine.progress(game, target.origin, &cfg.key);
         (now != at).then(|| now.diff(&at))
     };
     // ---- recover ----
@@ -585,11 +598,12 @@ pub fn run<G: GameData + Clone + 'static>(
         }
         None => {
             let now = Progress::of(
+                game,
                 &live.last_end().expect("a step").world,
                 &spine.spine_flags,
                 &cfg.key,
             );
-            let want = spine.progress(done, &cfg.key);
+            let want = spine.progress(game, done, &cfg.key);
             if now == want {
                 (false, String::new())
             } else {

@@ -7,9 +7,8 @@
 //! - [`Drifting`]: state the checkpoint does not carry (`RoundTrip` findings).
 //! - [`FadeTrap`]: a script that leaves the screen black (`CapturableStuck` findings).
 //! - [`VarTrap`]: a cell that sets a story var (expected divergences).
-//! - [`Rebuilt`]: another build id with the same behaviour (revalidation).
+//! - [`Rebuilt`]: another build id with the same behaviour (stale findings).
 //! - [`Reporting`]: every script reports first (`Unsupported` findings).
-//! - [`TrainerOn`]: one more trainer on a map (incremental revalidation's sight maps).
 //!
 //! [`same_answers`] checks that a wrapper answers every provided method like its inner game,
 //! with [`Answers`] (a game answering each one on its own) as the inner game.
@@ -401,48 +400,6 @@ impl<G: GameData> GameData for Rebuilt<G> {
 
     fn build_id(&self) -> u64 {
         self.build_id
-    }
-}
-
-/// `map` gets one more object, `trainer` (its `script` and `trainer_type` as given): a trainer
-/// whose script only sight reads on that map (`incremental::sighting_maps`). Not for playing:
-/// the object is leaked once per (map, script) and placed where `trainer` says.
-#[derive(Clone, Copy, Debug)]
-pub struct TrainerOn<G> {
-    pub inner: G,
-    pub map: MapId,
-    pub trainer: ObjectEvent,
-}
-
-impl<G: GameData> GameData for TrainerOn<G> {
-    forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
-             new_game build_id battle trainer battle_text battle_gfx heal_location
-             wild_encounters m8);
-
-    fn map(&self, id: MapId) -> &'static MapData {
-        let base = self.inner.map(id);
-        if id != self.map {
-            return base;
-        }
-        type Key = (usize, Option<ScriptId>, u8);
-        static ADDED: RwLock<Vec<(Key, &'static MapData)>> = RwLock::new(Vec::new());
-        let key = (
-            std::ptr::from_ref(base) as usize,
-            self.trainer.script,
-            self.trainer.trainer_type,
-        );
-        let mut all = ADDED.write().unwrap_or_else(|e| e.into_inner());
-        if let Some(&(_, m)) = all.iter().find(|(k, _)| *k == key) {
-            return m;
-        }
-        let mut objects = base.objects.to_vec();
-        objects.push(self.trainer);
-        let m: &'static MapData = Box::leak(Box::new(MapData {
-            objects: Box::leak(objects.into_boxed_slice()),
-            ..copy_map(base)
-        }));
-        all.push((key, m));
-        m
     }
 }
 

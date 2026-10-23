@@ -240,7 +240,7 @@ pub fn Explorer() -> Element {
             }
             if let RunState::Failed { status, tail } = &run {
                 details { class: "build", open: true,
-                    summary { "explore run failed ({status}): {studio.paths.explore_log.display()}" }
+                    summary { "explore failed ({status}): {studio.paths.explore_log.display()}" }
                     pre { {tail.join("\n")} }
                 }
             }

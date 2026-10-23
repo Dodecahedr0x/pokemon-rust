@@ -214,30 +214,43 @@ fn branches_recover_rejoin_and_do_not_depend_on_the_job_count() {
 }
 
 #[test]
-fn a_tiny_budget_aborts_and_a_high_novelty_bar_stops_exploring() {
+fn a_tiny_budget_recovers_and_a_high_novelty_bar_aborts_the_chain() {
     if !content::STUB {
         return;
     }
     let game = Emerald::for_shells();
     let s = spine_of(&game);
+    // The budget stops the exploration after the target; the branch still recovers.
     let mut c = cfg(2);
     c.branch.budget_frames = 1;
     let (_, r) = branches(&game, &s, &c);
     let played: Vec<_> = r.iter().filter(|r| r.explore_frames > 1).collect();
     assert!(!played.is_empty());
     for r in played {
-        assert_eq!(r.outcome, Outcome::Aborted, "{r:?}");
-        assert_eq!(r.explored, Some(Explored::Budget));
-        assert_eq!((r.recover_frames, r.window_frames), (0, 0), "no recovery");
+        assert_eq!(r.explored, Some(Explored::Budget), "{r:?}");
+        assert_eq!(r.macros.len(), 1, "only the target");
+        assert_eq!(r.outcome, Outcome::Rejoined, "it still recovers: {r:?}");
+        assert!(r.window_frames > 0, "the window ran");
     }
+    // Too little novelty for the frames: the target plays, one chained macro, then the branch
+    // is aborted without a recovery.
     let mut c = cfg(2);
     c.branch.min_novelty = u32::MAX;
     let (_, r) = branches(&game, &s, &c);
+    let mut aborted = 0;
     for r in r.iter().filter(|r| r.explored.is_some()) {
-        assert_eq!(r.explored, Some(Explored::LowNovelty), "{r:?}");
-        assert_eq!(r.macros.len(), 1, "only the target");
-        assert_eq!(r.outcome, Outcome::Rejoined, "it still recovers");
+        match r.explored {
+            Some(Explored::LowNovelty) => {
+                aborted += 1;
+                assert_eq!(r.macros.len(), 2, "the target and one more: {r:?}");
+                assert_eq!(r.outcome, Outcome::Aborted, "{r:?}");
+                assert_eq!((r.recover_frames, r.window_frames), (0, 0), "no recovery");
+            }
+            // Nothing new after the target: it recovers.
+            _ => assert_eq!(r.outcome, Outcome::Rejoined, "{r:?}"),
+        }
     }
+    assert!(aborted > 0, "{:#?}", summary(&r));
     let mut c = cfg(2);
     c.branch.max_steps = 1;
     let (_, r) = branches(&game, &s, &c);
@@ -528,8 +541,9 @@ fn the_cli_plays_the_spine_branches_and_reports() {
     let code = |v: &[&str]| cli::exit_code(&args(v), &cli::main(args(v)));
     assert_eq!(code(&["repro", "7"]), 2, "no finding 7");
     assert_eq!(code(&["digest"]), 0);
-    let gone = cli(&["run"]).unwrap_err().to_string();
-    assert!(gone.contains("spine") && gone.contains("branch"), "{gone}");
+    let unknown = cli(&["run"]).unwrap_err().to_string();
+    assert!(unknown.contains("unknown command"), "{unknown}");
+    assert!(cli(&["--help"]).is_ok());
     assert!(cli(&["bogus"]).is_err());
     assert!(cli(&["reset"]).is_err(), "needs --yes");
     cli(&["reset", "--yes"]).unwrap();

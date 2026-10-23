@@ -195,10 +195,12 @@ mod list {
             map: MAP_PETALBURG_CITY_GYM,
             local_id: 1,
         },
-        // The tutorial ends outside, at the gym door: back in (the return scene is a frame script
-        // of the gym that starts once the player walks).
-        Step::Walk(Up),
-        Step::Walk(Up),
+        // Norman's script ends outside the gym; two frame scripts follow on idle frames: the
+        // city's (Wally's catching tutorial, then the warp back into the gym), then the gym's
+        // (`ReturnFromWallyTutorial`), which starts on the field's first frame after the warp,
+        // one frame after the first scene's macro ended.
+        Step::WaitScript,
+        Step::WaitScript,
         Step::Expect("wally_tutorial"),
         // ---- West to Route 104 and Petalburg Woods: the Aqua grunt ----
         Step::Enter {

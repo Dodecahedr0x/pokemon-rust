@@ -310,8 +310,30 @@ pub struct Progress {
     pub usable: bool,
 }
 
+/// Gen3 trainer types that look for the player (`TRAINER_TYPE_NORMAL`, `_BURIED`).
+const TRAINER_TYPES_LOOKING: [u8; 2] = [1, 3];
+
 impl Progress {
-    pub fn of(w: &WorldSnapshot, spine_flags: &BTreeSet<u16>, cfg: &KeyConfig) -> Progress {
+    /// The progress state of `w`. Template deltas of trainers that look for the player are
+    /// left out: a trainer that spots the player stays where it stopped for the rest of the
+    /// visit (Gen3 `OverrideTemplateCoordsForObjectEvent`), so which ones moved depends on the
+    /// path a walk took past their sight lines, not on progress (their defeat flags are not
+    /// spine flags either).
+    pub fn of<G: GameData>(
+        game: &G,
+        w: &WorldSnapshot,
+        spine_flags: &BTreeSet<u16>,
+        cfg: &KeyConfig,
+    ) -> Progress {
+        let objects = game.map(w.field.map).objects;
+        let looks = |local: u8| {
+            (objects.iter())
+                .any(|o| o.local_id == local && TRAINER_TYPES_LOOKING.contains(&o.trainer_type))
+        };
+        let templates: Vec<_> = (w.templates.iter())
+            .filter(|t| !looks(t.local_id))
+            .copied()
+            .collect();
         Progress {
             vars: (w.vars.vars.iter())
                 .filter(|(v, value)| *value != 0 && key::story_var(v.0, cfg))
@@ -321,7 +343,7 @@ impl Progress {
                 .filter(|f| spine_flags.contains(&f.0))
                 .map(|f| f.0)
                 .collect(),
-            templates: key::templates_digest(&w.templates),
+            templates: key::templates_digest(&templates),
             key_items: key::key_items_digest(&w.bag),
             respawn: w.respawn,
             usable: w.party.is_empty() || w.party.iter().any(|m| m.hp > 0),
@@ -410,8 +432,8 @@ impl SpineRun {
     }
 
     /// The progress state at position `i`.
-    pub fn progress(&self, i: usize, cfg: &KeyConfig) -> Progress {
-        Progress::of(&self.positions[i].end.world, &self.spine_flags, cfg)
+    pub fn progress<G: GameData>(&self, game: &G, i: usize, cfg: &KeyConfig) -> Progress {
+        Progress::of(game, &self.positions[i].end.world, &self.spine_flags, cfg)
     }
 }
 

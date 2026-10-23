@@ -170,7 +170,7 @@ mod tests {
         let mut a = s(&["--game", "emerald", "checkpoints", "verify"]);
         assert_eq!(take(&mut a).unwrap(), Some(Game::Emerald));
         assert_eq!(a, s(&["checkpoints", "verify"]));
-        let mut a = s(&["explore", "spine", "--act", "sil_ch0"]);
+        let mut a = s(&["explore", "spine", "--label", "ch0_end"]);
         assert_eq!(take(&mut a).unwrap(), None);
         assert_eq!(a.len(), 4);
     }

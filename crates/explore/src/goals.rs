@@ -17,7 +17,7 @@ pub struct Goal {
     pub reached: fn(&WorldSnapshot) -> bool,
 }
 
-/// Which goal list a db explores (`meta.act`, `Config::act`, `run --act`).
+/// Which goal list a db explores (`meta.act`, `Config::act`: the build's, which the spine's `Expect`s check).
 /// The acts are per flavour ([`Act::of`]): a build explores only its own ([`Act::in_build`]).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub enum Act {

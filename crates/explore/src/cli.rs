@@ -25,19 +25,20 @@ use std::time::Instant;
 
 const USAGE: &str = "\
 usage: explore <command> [--db <path>] [--config <path>]
-  spine [--export] [--label L] [--trace] [--act A]
+  spine [--export] [--label L] [--trace]
                               plays the flavour's spine from a new game: positions, frames,
                               coverage; compares its checkpoints with the committed <act>:<label>
                               nodes; --export writes them to the local checkpoint store as
                               spine:<act>:<label> (promote with `cargo xtask checkpoints promote`);
                               --trace: every step's end (map, cell, frame, vars and flags changed)
   branch [--from L] [--budget F] [--jobs N] [--every N] [--min-novelty N] [--max-steps N]
-         [--limit N] [--act A]
+         [--limit N]
                               plays the spine, then branches from its positions (--from: the
                               segment of checkpoint L) toward what it never touched; each branch
-                              explores until its budget (frames), its novelty rate (points per
-                              1000 frames) or its steps run out, then returns to the spine and
-                              plays the next steps; --limit: at most N branches
+                              explores until its budget (frames) or its steps run out, then
+                              returns to the spine and plays the next steps; it is aborted
+                              instead when its novelty rate (points per 1000 frames) falls under
+                              --min-novelty past its target; --limit: at most N branches
   branches [--outcome O]      the db's branches (O: rejoined, diverged_expected, diverged,
                               stranded, aborted, bug, unplayable)
   status                      db totals: the spine, the branches, novelty, findings, build
@@ -69,8 +70,14 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
         Some(p) => Config::load_or_default(Path::new(&p))?,
         None => Config::default(),
     };
-    if let Some(act) = a.take("--act") {
-        cfg.act = Act::parse_in_build(&act).map_err(|e| anyhow!("--act: {e}"))?;
+    // The spine's `Expect`s are the goals of the build's act: a config naming another act
+    // (another flavour's, or the Emerald slice) would fail them.
+    if cfg.act != Act::default() {
+        let why = match Act::parse_in_build(cfg.act.name()) {
+            Err(e) => e,
+            Ok(_) => format!("the spine plays {}", Act::default().name()),
+        };
+        bail!("config act {:?}: {why}", cfg.act.name());
     }
     match cmd.as_str() {
         "spine" => {
@@ -190,10 +197,6 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             println!("{USAGE}");
             Ok(())
         }
-        "run" | "revalidate" => bail!(
-            "`explore {cmd}` is gone with the evolutionary explorer: play the spine with \
-             `explore spine` and branch off it with `explore branch`\n{USAGE}"
-        ),
         other => bail!("unknown command {other:?}\n{USAGE}"),
     }
 }
@@ -256,6 +259,7 @@ struct Args {
 impl Args {
     fn parse(args: Vec<String>) -> anyhow::Result<Args> {
         const SWITCHES: [&str; 5] = ["--all", "--bugs", "--yes", "--export", "--trace"];
+        const HELP: [&str; 2] = ["--help", "-h"];
         let mut a = Args {
             positional: Vec::new(),
             options: Vec::new(),
@@ -264,6 +268,8 @@ impl Args {
         while let Some(s) = it.next() {
             if SWITCHES.contains(&s.as_str()) {
                 a.options.push((s, None));
+            } else if HELP.contains(&s.as_str()) {
+                a.positional.push(s);
             } else if s.starts_with("--") {
                 let v = it.next().ok_or_else(|| anyhow!("{s} needs a value"))?;
                 a.options.push((s, Some(v)));
