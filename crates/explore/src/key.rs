@@ -65,12 +65,11 @@ pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
 
 /// Saved vars that never take part in a key: the Emerald step and day counters, the random
 /// vars and the object graphics vars `VAR_OBJ_GFX_ID_0..F` (scripts set them to pick a sprite,
-/// for a scene or a rival; not story progress) (from `content::consts`). Empty on the stub
-/// world; Silice has its own list.
+/// for a scene or a rival; not story progress) (from `content::consts`). The stub world too:
+/// the engine runs the step counters there as well (field poison's `VAR_POISON_STEP_COUNTER`,
+/// the wild battle's `VAR_DAILY_WILDS`). Silice has its own list.
 #[cfg(not(pkr_silice))]
-pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
-    &[]
-} else {
+pub static EXCLUDED_VARS: &[VarId] = {
     use content::consts::*;
     &[
         VAR_REPEL_STEP_COUNT,
@@ -353,9 +352,9 @@ mod tests {
         assert!(story_flag(FlagId(TEMP_FLAGS_END), &cfg));
         assert!(!story_flag(FlagId(FLAG_COUNT), &cfg));
         assert!(!story_var(TEMP_VARS_END - 1, &cfg));
-        // The first vars after the temp ones are the object graphics vars (excluded on the
-        // extracted build); the first story var follows them.
-        assert_eq!(story_var(TEMP_VARS_END, &cfg), content::STUB);
+        // The first vars after the temp ones are the object graphics vars (excluded); the
+        // first story var follows them.
+        assert!(!story_var(TEMP_VARS_END, &cfg));
         assert!(story_var(TEMP_VARS_END + 0x10, &cfg));
         assert!(!story_var(engine::flow::SPECIAL_VARS_START, &cfg));
         for &f in cleared_on_map_change() {
@@ -366,7 +365,7 @@ mod tests {
     #[test]
     fn content_counters_are_always_excluded() {
         assert_eq!(default_key_config(), KeyConfig::default());
-        assert_eq!(EXCLUDED_VARS.is_empty(), content::STUB);
+        assert!(!EXCLUDED_VARS.is_empty());
         let cfg = KeyConfig::default();
         for v in EXCLUDED_VARS {
             assert!((TEMP_VARS_END..VARS_END).contains(&v.0));
