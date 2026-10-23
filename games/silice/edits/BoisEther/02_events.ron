@@ -88,8 +88,14 @@
     Sign(x: 22, y: 2, script: "BoisEther_EventScript_SignCable"),
     // Bois_Ether_Sc08: the brambles in front of the secret grove.
     Sign(x: 8, y: 6, script: "BoisEther_Sc08"),
-    HiddenItem(x: 4, y: 14, item: "ITEM_SUPER_POTION", flag: "FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION"),
-    HiddenItem(x: 4, y: 7, item: "ITEM_SIL_EVOLUROC", flag: "FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC"),
+    // The hidden items: the Super Potion in the market's high-tech pot, the Evoluroc in the secret
+    // grove. Fallback (SIL2 Ch1 scripts, as Ch0's): sign scripts that give them once behind their
+    // flags, because the engine does not pick up hidden items yet. Back to
+    // HiddenItem(x: 4, y: 14, item: "ITEM_SUPER_POTION", flag: "FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION")
+    // HiddenItem(x: 4, y: 7, item: "ITEM_SIL_EVOLUROC", flag: "FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC")
+    // once it does.
+    Sign(x: 4, y: 14, script: "BoisEther_EventScript_HiddenSuperPotion"),
+    Sign(x: 4, y: 7, script: "BoisEther_EventScript_HiddenEvoluroc"),
     // Route S1 to the south: our exit x 12-15 meets its x 7-10. The east connection to
     // MAP_ROUTE_S02 (Ch2) is not made here: see the plan's as-built.
     Connect((dir: South, offset: 5, map: "RouteS01")),

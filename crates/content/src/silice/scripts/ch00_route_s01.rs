@@ -48,7 +48,7 @@ pub async fn RouteS01_EventScript_Teo(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S01_Teo_Defeat).await;
+        post_battle(&ctx, Route_S01_Teo_Defeat).await;
     }
 }
 
@@ -63,7 +63,7 @@ pub async fn RouteS01_EventScript_Noah(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S01_Noah_Defeat).await;
+        post_battle(&ctx, Route_S01_Noah_Defeat).await;
     }
 }
 
@@ -78,7 +78,7 @@ pub async fn RouteS01_EventScript_Lila(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S01_Lila_Defeat).await;
+        post_battle(&ctx, Route_S01_Lila_Defeat).await;
     }
 }
 
@@ -93,16 +93,10 @@ pub async fn RouteS01_EventScript_Yanis(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S01_Yanis_Defeat).await;
+        post_battle(&ctx, Route_S01_Yanis_Defeat).await;
     }
 }
 
-/// A beaten trainer talked to again. The source writes no post-battle lines: the defeat text
-/// stands in (Gen3 `msgbox <PostBattle>, MSGBOX_AUTOCLOSE`; the trainer is locked and faces the
-/// player already).
-async fn after_battle(ctx: &Ctx, text: TextId) {
-    msgbox(ctx, text, MsgBox::Autoclose).await;
-}
 
 // ---- items (§7) ----
 

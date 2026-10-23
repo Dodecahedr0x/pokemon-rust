@@ -7,7 +7,8 @@
 //! receives its `Ctx` by value and passes `&ctx`.
 //!
 //! **Story and state:** [`story`], [`set_story`] (`VAR_SIL_STORY`), [`defeated`] (a trainer's
-//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight),
+//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight) and
+//! [`post_battle`] (its line once beaten),
 //! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
 //! as a sign script, a fallback).
 //!
@@ -18,11 +19,14 @@
 //! `if yes_no`), [`walk`] and the other step builders, [`move_wait`] (`move_obj` then
 //! `wait_move`), [`show`] / [`hide`] (the source's `show_object` / `hide_object`, which keep
 //! the hide flag in step), [`warp`], [`choose_starter`] (the Silice starters of `game.ron`),
-//! [`battle_wild`].
+//! [`battle_wild`], [`battle_trainer`] (a scripted trainer battle, the leader's or a boss's).
+//!
+//! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
 //! on: [`screen_shake`] (a fade out and in), [`play_se`] (nothing), [`mallette_call`] and
-//! [`end_call`] (nothing: the call's lines are plain messages).
+//! [`end_call`] (nothing: the call's lines are plain messages), [`battle_two_trainers`] (two
+//! single battles in a row), [`show_sync`] (the sync gauge: the scene's text says the value).
 //!
 //! The rest of the source's primitives are `Ctx` methods, called directly: `lock`, `lock_all`,
 //! `release`, `release_all`, `face_player`, `set_flag(f, true)` (`set_flag`) and
@@ -77,6 +81,13 @@ pub async fn trainer(
     trainer_battle(ctx, b).await
 }
 
+/// A beaten [`trainer`] talked to again: `text` as Gen3's `msgbox <PostBattle>, MSGBOX_AUTOCLOSE`
+/// (the trainer is locked and faces the player already). The sources write no post-battle lines:
+/// the scripts pass the defeat text.
+pub async fn post_battle(ctx: &Ctx, text: TextId) {
+    msgbox(ctx, text, MsgBox::Autoclose).await;
+}
+
 /// How [`gift`] tells the player.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Obtain {
@@ -118,7 +129,7 @@ pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
 // ---- module obstacles ----
 
 /// `METATILE_RONCES_COUPEES`: synthetic brambles once cut, General's grass (metatile 1), walkable.
-/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 8),
+/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 9),
 /// Bois-Éther (8, 6); "SIL2 Ch1 maps as built").
 pub const METATILE_RONCES_COUPEES: u16 = 1;
 
@@ -276,4 +287,68 @@ pub async fn mallette_call(ctx: &Ctx, who: &'static str) {
 /// `end_call()`: closes no call window (see [`mallette_call`]). Reported.
 pub async fn end_call(ctx: &Ctx) {
     fallback(ctx, "end_call").await;
+}
+
+/// The source's `battle_two_trainers(A, B)` (Gen3 `trainerbattle_two_trainers`): no double
+/// battle before Milestone 11, so the source's documented fallback, two single battles in a row
+/// without a heal between them ([`battle_trainer`] each, with each trainer's defeat text).
+/// Reported. Returns the second battle's outcome (a loss in the first whites out).
+pub async fn battle_two_trainers(
+    ctx: &Ctx,
+    (a, a_defeat): (TrainerId, TextId),
+    (b, b_defeat): (TrainerId, TextId),
+) -> BattleOutcome {
+    fallback(ctx, "battle_two_trainers").await;
+    battle_trainer(ctx, a, a_defeat).await;
+    battle_trainer(ctx, b, b_defeat).await
+}
+
+/// The source's `show_sync(n)`: the Mallette's animated synchronisation gauge (`VAR_SIL_SYNC`,
+/// which the scene sets first). No gauge screen yet (the Mallette's panels are SIL2 content on
+/// M9's kit): nothing is drawn; the scene's next text gives the value. Reported.
+pub async fn show_sync(ctx: &Ctx, _percent: u16) {
+    fallback(ctx, "show_sync").await;
+}
+
+/// The source's `mart(MART_*)` (Gen3 `pokemart`): no shop screen before Milestone 9 (its
+/// Task J's `mart`), so the clerk greets and says goodbye on Gen3's own `gText_*` and nothing is
+/// sold. Reported. `_items` is the stock the shop will sell (unused until then), kept at the call
+/// site so that the swap to the real screen is one line.
+pub async fn mart(ctx: &Ctx, _items: &'static [ItemId]) {
+    ctx.lock().await;
+    ctx.face_player().await;
+    say(ctx, gText_HowMayIServeYou).await;
+    fallback(ctx, "mart").await;
+    say(ctx, gText_PleaseComeAgain).await;
+    ctx.release().await;
+}
+
+// ---- battles and buildings ----
+
+/// The source's `battle_trainer(TRAINER, Defeat)`: a scripted trainer battle (a leader, a boss
+/// talked to; not a sight trainer, which is [`trainer`]). Unless the player lost, the trainer's
+/// beaten flag is set, as Gen3 `CB2_EndTrainerBattle` does; a loss whites out and ends the
+/// script.
+pub async fn battle_trainer(ctx: &Ctx, trainer: TrainerId, defeat: TextId) -> BattleOutcome {
+    let outcome = ctx.battle_trainer(trainer, defeat).await;
+    if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
+        ctx.set_flag(trainer_flag(trainer), true).await;
+    }
+    outcome
+}
+
+/// Gen3 `Common_EventScript_PkmnCenterNurse` (`data/scripts/pkmn_center_nurse.inc`) without the
+/// Gold Card, Pokérus and Union Room branches: rest the party (yes/no), heal, goodbye, on Gen3's
+/// own `gText_*`. The heal machine's field effect (`FLDEFF_POKECENTER_HEAL`) is a pause.
+pub async fn pokecenter_nurse(ctx: &Ctx) {
+    ctx.lock().await;
+    ctx.face_player().await;
+    if ask(ctx, gText_WouldYouLikeToRestYourPkmn).await {
+        say(ctx, gText_IllTakeYourPkmn).await;
+        ctx.delay(60).await;
+        ctx.heal_party().await;
+        say(ctx, gText_RestoredPkmnToFullHealth).await;
+    }
+    say(ctx, gText_WeHopeToSeeYouAgain).await;
+    ctx.release().await;
 }
