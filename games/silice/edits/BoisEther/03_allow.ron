@@ -3,4 +3,9 @@
 [
     AllowCollision(metatiles: [241], reason: "Team Cocket's high-voltage cables use rail metatiles as a placeholder (as on Route S1) and are an obstacle by design; Emerald's rails are walkable"),
     AllowCollision(cells: [(23, 7), (30, 4)], reason: "decorative treehouses with no interior: their doors are kept solid so they lead nowhere; Emerald's treehouse door is walkable because every one has a warp"),
+    // Reachability (lint-reach): what the Ch1 scripts open or gate.
+    AllowReach(subject: "edge east 12-15", reason: "the Secteur Beta barrier (33, 13-14) is closed until BoisEther_Sc07 opens it at VAR_SIL_STORY 16 (BoisEther_OnLoad keeps it open from 17)"),
+    AllowReach(subject: "bg 7", reason: "the hidden Evoluroc (4, 7) is in the secret grove, behind the brambles (8, 6) that BoisEther_Sc08 cuts with the Lame-Frequence"),
+    AllowReach(subject: "coords VAR_SIL_STORY=10", reason: "BoisEther_Sc02's row is crossed by every walk from the south entrance (Sc01) to the doors north of it; warp 3's arrival on it is only reached after the scene"),
+    AllowReach(subject: "coords VAR_SIL_STORY=16", reason: "BoisEther_Sc07 also runs from the guard (obj 9); walking around its cells never passes the barrier, which stays closed until the scene"),
 ]

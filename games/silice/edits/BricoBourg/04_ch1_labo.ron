@@ -1,9 +1,11 @@
 // Chapter 1: the Labo opens (MAP_BRICO_BOURG_LABO).
 [
-    // BricoBourg_OnLoad repaints the cut brambles at (4, 8) once FLAG_SIL_BRICO_LABO_RONCES_CUT is set
+    // BricoBourg_OnLoad repaints the cut brambles at (4, 9) once FLAG_SIL_BRICO_LABO_RONCES_CUT is set
     // (the generic Lame-Frequence obstacle, BricoBourg_EventScript_Ronces, cuts them with set_metatile).
     Scripts((on_load: Some("BricoBourg_OnLoad"), on_transition: Some("BricoBourg_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 3, script: "BricoBourg_Sc02")], on_warp_into: [])),
     // Warp 3: the Labo door (4, 7), to the Labo's mat. The door stays solid (an animated door: pushing
-    // up into it warps), and the brambles below it (4, 8) block it until they are cut.
+    // up into it warps). Its front cell (4, 8) is a fenced porch, closed by the brambles (4, 9) until
+    // they are cut; the exit walk lands on the porch.
     Warp(x: 4, y: 7, dest_map: "BricoBourg_Labo", dest_warp: 0),
+    AllowReach(subject: "warp 3", reason: "behind the Labo's brambles (4, 9), which BricoBourg_EventScript_Ronces cuts with Chapter 1's Lame-Frequence (FLAG_SIL_MODULE_COUPE) and BricoBourg_OnLoad keeps cut"),
 ]
