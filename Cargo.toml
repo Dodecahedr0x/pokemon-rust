@@ -29,6 +29,43 @@ opt-level = 2
 [profile.dev.package.game-native]
 opt-level = 2
 
+# The extract and studio tests decode, re-encode and export the whole ROM (explorer and gate
+# speed work): optimized, with the image and data crates they lean on, their slowest test
+# binaries take 3x to 10x less CPU (extract's export 149 s to 27 s, studio's map_edit 55 s to
+# 5 s), for about two more minutes of build when these crates rebuild.
+[profile.dev.package.extract]
+opt-level = 2
+
+[profile.dev.package.studio]
+opt-level = 2
+
+[profile.dev.package.png]
+opt-level = 2
+
+[profile.dev.package.fdeflate]
+opt-level = 2
+
+[profile.dev.package.miniz_oxide]
+opt-level = 2
+
+[profile.dev.package.flate2]
+opt-level = 2
+
+[profile.dev.package.crc32fast]
+opt-level = 2
+
+[profile.dev.package.adler2]
+opt-level = 2
+
+[profile.dev.package.simd-adler32]
+opt-level = 2
+
+[profile.dev.package.ron]
+opt-level = 2
+
+[profile.dev.package.serde_json]
+opt-level = 2
+
 # The content build script generates the data and the scripts (Milestone 8): optimized, it runs
 # 7x faster than at opt-level 0.
 [profile.dev.build-override]
