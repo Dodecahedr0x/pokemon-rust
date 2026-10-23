@@ -1,0 +1,29 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ROUTE119", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_SHADE", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Route_S05_Sc01: on the first frame while VAR_SIL_STORY is 49 (the scene sets 50).
+    Scripts((on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 49, script: "RouteS05_Sc01")], on_warp_into: [])),
+    // Warps. 0: the wreck's hole (38, 19) to the Epave's warp 0. 1: the Coral Cave's mouth (25, 34).
+    // 2: the rift (75, 27) at the Dome wall's foot.
+    Warp(x: 38, y: 19, dest_map: "RouteS05_Epave", dest_warp: 0),
+    Warp(x: 25, y: 34, dest_map: "RouteS05_GrotteCorail", dest_warp: 0),
+    Warp(x: 75, y: 27, dest_map: "RouteS05_Faille", dest_warp: 0),
+    // Objects. 1: the sailor of the islet (the source's obj 1, Route_S05_Sc02: gift, then shop).
+    // 2: the fisherman of the islet (the Super Rod). 3-7: the trainers. 8-9: the item balls.
+    Object(x: 13, y: 9, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_ROUTE_S05_MARIN", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS05_Sc02"),
+    Object(x: 9, y: 12, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_ROUTE_S05_PECHEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_EventScript_Pecheur"),
+    Object(x: 14, y: 22, gfx: "OBJ_EVENT_GFX_SWIMMER_M", id: "LOCALID_ROUTE_S05_HUGO", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS05_EventScript_Hugo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 30, y: 40, gfx: "OBJ_EVENT_GFX_SWIMMER_F", id: "LOCALID_ROUTE_S05_INES", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS05_EventScript_Ines", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 52, y: 14, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_ROUTE_S05_YVON", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS05_EventScript_Yvon", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 55, y: 38, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_ROUTE_S05_GASTON", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS05_EventScript_Gaston", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 60, y: 26, gfx: "OBJ_EVENT_GFX_SWIMMER_F", id: "LOCALID_ROUTE_S05_CORALIE", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS05_EventScript_Coralie", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 5, y: 40, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S05_ITEM_HYPER_POTION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_EventScript_ItemHyperPotion", flag: "FLAG_SIL_ITEM_ROUTE_S05_HYPER_POTION"),
+    Object(x: 16, y: 5, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S05_ITEM_MAX_REPEL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_EventScript_ItemMaxRepel", flag: "FLAG_SIL_ITEM_ROUTE_S05_MAX_REPOUSSE"),
+    // Signs (buoys): the entrance on the west rock, the sector limit on the rock before the wall.
+    Sign(x: 3, y: 26, script: "RouteS05_EventScript_SignEntree"),
+    Sign(x: 69, y: 20, script: "RouteS05_EventScript_SignParoi"),
+    HiddenItem(x: 43, y: 22, item: "ITEM_HEART_SCALE", flag: "FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR"),
+    // Connection: south to the Banc de Silice (our x 20-59 meet its x 0-39). The west connection to
+    // MAP_PORT_RESSAC (Ch4) is added with that map; until then the west edge blocks like any edge.
+    Connect((dir: South, offset: 20, map: "RouteS05_Banc")),
+]
