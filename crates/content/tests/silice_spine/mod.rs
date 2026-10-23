@@ -1,7 +1,9 @@
 //! Silice's spine: the authored main path through the chapters, as ordered high-level steps
 //! ([`Step`]) that a runner expands deterministically into buttons. The end-to-end tests
-//! (`sil1_f_ch0.rs`, `sil2_ch1.rs`) play them with [`driver::Run`]; the explorer's Silice spine
-//! can import the same lists ([`ch00::steps`], [`ch01::steps`]) and map each step onto its own.
+//! (`sil1_f_ch0.rs`, `sil2_ch1.rs`, `sil2_ch2.rs`) play them with [`driver::Run`]; the
+//! explorer's Silice spine can import the same lists ([`ch00::steps`], [`ch01::steps`],
+//! [`ch02::steps`]) and map each step onto its own. A chapter can also start from its documented
+//! start state ([`driver::Start`], e.g. [`ch02::start`]) instead of the chapters before it.
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids
@@ -36,11 +38,12 @@
 
 pub mod ch00;
 pub mod ch01;
+pub mod ch02;
 pub mod driver;
 
 use engine::data::{Dir, FlagId, MapId, SpeciesId};
 
-pub use driver::Run;
+pub use driver::{Run, Start};
 
 /// One step of the spine (see the module docs).
 #[derive(Clone, Copy)]
