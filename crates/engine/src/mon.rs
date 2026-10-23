@@ -682,6 +682,24 @@ pub enum MoveEffect {
     MagicCoat,
     /// `EFFECT_TRICK`.
     Trick,
+    /// `EFFECT_SUBSTITUTE`.
+    Substitute,
+    /// `EFFECT_BATON_PASS`.
+    BatonPass,
+    /// `EFFECT_TRANSFORM`.
+    Transform,
+    /// `EFFECT_SKETCH`.
+    Sketch,
+    /// `EFFECT_MIMIC`.
+    Mimic,
+    /// `EFFECT_RECYCLE`.
+    Recycle,
+    /// `EFFECT_CONVERSION_2`.
+    Conversion2,
+    /// `EFFECT_SNATCH`.
+    Snatch,
+    /// `EFFECT_BEAT_UP`.
+    BeatUp,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
 }
@@ -947,6 +965,9 @@ pub enum HoldEffect {
     /// `HOLD_EFFECT_DRAGON_SCALE` / `HOLD_EFFECT_UP_GRADE`: trade evolution items, no battle
     /// effect in Gen3.
     TradeItem,
+    /// Mail (`IS_ITEM_MAIL`) and the Enigma Berry: no hold effect, but Thief and Trick refuse
+    /// them (`MOVE_EFFECT_STEAL_ITEM`, `Cmd_tryswapitems`).
+    NoSwap,
 }
 
 impl HoldEffect {
@@ -995,6 +1016,7 @@ impl HoldEffect {
             FriendshipUp => [80, 0],
             PreventEvolve => [81, 0],
             TradeItem => [82, 0],
+            NoSwap => [83, 0],
         }
     }
 
