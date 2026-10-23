@@ -21,10 +21,10 @@
 //! the Banc), which is not played now.
 //!
 //! **The party** ([`end_of_chapter_4`]): Chapter 2's end (QUILAVA 26, MAREEP 12, ARON 30) plus
-//! about 4–5 levels a chapter for Chapters 3 and 4 (QUILAVA 35, LAIRON 38, FLAAFFY 21). There
+//! about 4–5 levels a chapter for Chapters 3 and 4 (QUILAVA 35, LAIRON 37, FLAAFFY 21). There
 //! is no [`Step::Train`]: the engine's wild encounters are tall grass only, and the chapter's
 //! land (the rift, the East Cave) is cave floor, so nothing is met there. The silo's and the
-//! cave's trainers are the training instead (QUILAVA 35 to TYPHLOSION 40, LAIRON 38 to 40 by
+//! cave's trainers are the training instead (QUILAVA 35 to TYPHLOSION 41, LAIRON 37 to 39 by
 //! Skycker), with a heal at the Centre after the alley, mid-silo, after the silo and the cave,
 //! and before the watchers and Skycker. One hooked fourth Pokémon for Skycker ([`FOURTH`]).
 
@@ -117,7 +117,7 @@ async fn end_of_chapter_4(ctx: Ctx, story: u16) {
     ctx.set_var(VAR_SIL_CH0_GATE, 1).await;
     ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
     ctx.give_mon(SPECIES_QUILAVA, START_LEVEL).await;
-    ctx.give_mon(SPECIES_LAIRON, 38).await;
+    ctx.give_mon(SPECIES_LAIRON, 37).await;
     ctx.give_mon(SPECIES_FLAAFFY, 21).await;
 }
 
@@ -259,15 +259,16 @@ const GYM_HEAL: &[Step] = &[
     },
 ];
 
-/// The party's fourth Pokémon, for Skycker only (a test hook, the chapter's one; **revisit after
-/// the battle policy fix**): a LANTURN at 38 (Route S4 and S5's wild lists, §6), joining before
-/// `Owlys_Gym_Sc01`. The battle policy learns new moves into free slots only (B on "forget a
-/// move?"), so the start party keeps its start movesets: the TYPHLOSION at 40 (Smokescreen,
-/// Ember, Quick Attack, Flame Wheel) and the LAIRON at 40 (Roar, Take Down, Iron Tail, Protect)
-/// win every battle up to the watchers but lose to Skycker's five (38–42: Crobat, Skarmory,
-/// Noctowl, Absol, Houndoom). Lanturn's Electric moves hit his three Flying types, and Water
-/// resists Houndoom's Fire. Measured: without the hook the run loses to Skycker.
-pub const FOURTH: Hook = Hook::MonBefore("Owlys_Gym_Sc01", SPECIES_LANTURN, 38);
+/// The party's fourth Pokémon, for Skycker only (a test hook, the chapter's one): a LANTURN at
+/// 36 (Route S4 and S5's wild lists, §6), joining before `Owlys_Gym_Sc01`. Re-tuned under the
+/// spine's learn policy (`driver::learn_slot`), which changes nothing here: neither line learns
+/// a move between 35 and 41, so the TYPHLOSION (Smokescreen, Ember, Quick Attack, Flame Wheel)
+/// and the LAIRON (Roar, Take Down, Iron Tail, Protect) keep their start movesets. They win
+/// every battle up to the watchers but lose to Skycker's five (38–42: Crobat, Skarmory, Noctowl,
+/// Absol, Houndoom); his Houndoom wins untouched. Lanturn's Electric moves hit his three Flying
+/// types, and Water resists Houndoom's Fire. Measured: no hook, or a LANTURN at 30–34, loses
+/// to Skycker; 35–39 win (36 is the lowest whose neighbours win).
+pub const FOURTH: Hook = Hook::MonBefore("Owlys_Gym_Sc01", SPECIES_LANTURN, 36);
 
 /// Chapter 5's main steps, from [`start`].
 pub fn steps() -> Vec<Step> {
