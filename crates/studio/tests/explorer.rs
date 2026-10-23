@@ -73,7 +73,7 @@ fn fade_trapped(far: i16) -> FadeTrap<Emerald> {
 }
 
 fn pane(local: &Path) -> (NativePane, Store) {
-    let store = Store::layered(Store::default_root(content::STUB), local).unwrap();
+    let store = Store::layered(Store::default_root(content::FLAVOR), local).unwrap();
     (NativePane::new(store.clone()), store)
 }
 
@@ -285,7 +285,7 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
 #[test]
 fn a_from_db_finding_opens_from_its_root_node() {
     let dir = temp_dir("from");
-    let store = Store::layered(Store::default_root(content::STUB), dir.join("local")).unwrap();
+    let store = Store::layered(Store::default_root(content::FLAVOR), dir.join("local")).unwrap();
     // The shortest committed node below a new game.
     let Some(root) = (store.nodes().unwrap().into_iter())
         .filter(|n| n.trace.parent == Parent::NewGame)

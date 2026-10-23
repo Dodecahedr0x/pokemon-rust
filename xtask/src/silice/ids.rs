@@ -60,20 +60,55 @@ pub fn allocate(
 }
 
 /// Marks `names` as removed in `file` (tombstones keep their numbers). Returns the names it did
-/// not find.
+/// not find. A name already tombstoned stays so.
 pub fn tombstone(file: &mut IdsFile, names: &[String]) -> Vec<String> {
     let mut missing = Vec::new();
     for n in names {
-        match file.ids.iter_mut().find(|e| &e.name == n) {
+        let listed = file.ids.iter().any(|e| &e.name == n);
+        match file.ids.iter_mut().find(|e| &e.name == n && !e.removed) {
             Some(e) => e.removed = true,
+            None if listed => {}
             None => missing.push(n.clone()),
         }
     }
     missing
 }
 
-/// Problems in an ids file: duplicate names or numbers, numbers outside the kind's range or
-/// reserved, a base lower than the kind's.
+/// Moves the live `name` to a new number: its entry becomes a tombstone (keeping the old number
+/// taken) and the name is appended again, live, at the next free number (append-only, see the
+/// content build's `build/silice/ids.rs`). For an id on a number that must not be used, such as
+/// one [`IdKind::reserved`] since it was allocated. Returns (old, new).
+pub fn relocate(kind: IdKind, file: &mut IdsFile, name: &str) -> Result<(u32, u32)> {
+    let (_, max) = kind.range();
+    let Some(e) = file.ids.iter_mut().find(|e| e.name == name && !e.removed) else {
+        bail!("ids/{}.ron: no live {name}", kind.file());
+    };
+    e.removed = true;
+    let (old, map) = (e.num, e.map.clone());
+    let mut next = file
+        .ids
+        .iter()
+        .map(|e| e.num + 1)
+        .max()
+        .unwrap_or(file.base);
+    while kind.reserved(next) {
+        next += 1;
+    }
+    if next > max {
+        bail!("ids/{}.ron: no number left for {name}", kind.file());
+    }
+    file.ids.push(IdEntry {
+        name: name.to_string(),
+        num: next,
+        map,
+        removed: false,
+    });
+    Ok((old, next))
+}
+
+/// Problems in an ids file (the content build's `build/silice/ids.rs` rules): a name live
+/// twice, or listed again before its tombstone; a number used twice; a number outside the kind's
+/// range; a live entry on a reserved number; a base lower than the kind's.
 pub fn problems(kind: IdKind, file: &IdsFile) -> Vec<(String, String)> {
     let (base, max) = kind.range();
     let mut out = Vec::new();
@@ -83,21 +118,28 @@ pub fn problems(kind: IdKind, file: &IdsFile) -> Vec<(String, String)> {
             format!("base {} is below the first free number {base}", file.base),
         ));
     }
-    let mut names = BTreeSet::new();
+    let mut names = BTreeMap::new();
     let mut nums = BTreeMap::new();
     for e in &file.ids {
-        if !names.insert(e.name.as_str()) {
+        if names.insert(e.name.as_str(), !e.removed) == Some(true) {
             out.push((e.name.clone(), "listed twice".to_string()));
         }
         if let Some(other) = nums.insert(e.num, e.name.as_str()) {
             out.push((e.name.clone(), format!("number {} is also {other}", e.num)));
         }
-        if e.num < file.base.max(base) || e.num > max || kind.reserved(e.num) {
+        if e.num < file.base.max(base) || e.num > max {
+            out.push((
+                e.name.clone(),
+                format!("number {:#x} is outside {:#x}..={max:#x}", e.num, base),
+            ));
+        }
+        if !e.removed && kind.reserved(e.num) {
             out.push((
                 e.name.clone(),
                 format!(
-                    "number {:#x} is outside {:#x}..={max:#x} or reserved",
-                    e.num, base
+                    "number {:#x} is reserved (MAP_DYNAMIC or a Gen3 flag or var the shared \
+                     code uses); move it: `cargo xtask silice move {}`",
+                    e.num, e.name
                 ),
             ));
         }
@@ -191,5 +233,41 @@ mod tests {
         let mut bad = g.clone();
         bad.ids[1].num = 0x7F7E;
         assert_eq!(problems(IdKind::Maps, &bad).len(), 1);
+    }
+
+    /// A var on a shared Gen3 number (`VAR_STARTER_MON` 0x4023) is a problem; moving it leaves
+    /// a tombstone there and appends the name past the reserved numbers.
+    #[test]
+    fn reserved_vars_move() {
+        let (mut f, _) = allocate(
+            IdKind::Vars,
+            None,
+            &names(&["VAR_SIL_A", "VAR_SIL_B", "VAR_SIL_C", "VAR_SIL_D"]),
+            None,
+        )
+        .unwrap();
+        assert_eq!(f.ids[3].num, 0x4024, "the allocator skips 0x4023");
+        f.ids[3].num = 0x4023;
+        let p = problems(IdKind::Vars, &f);
+        assert_eq!(p.len(), 1, "{p:?}");
+        assert!(p[0].1.contains("reserved"), "{p:?}");
+        assert_eq!(
+            relocate(IdKind::Vars, &mut f, "VAR_SIL_D").unwrap(),
+            (0x4023, 0x4024)
+        );
+        assert!(f.ids[3].removed && f.ids[3].num == 0x4023);
+        assert_eq!(
+            (f.ids[4].name.as_str(), f.ids[4].removed),
+            ("VAR_SIL_D", false)
+        );
+        assert!(problems(IdKind::Vars, &f).is_empty());
+        // A second live entry is listed twice; tombstoning reaches the live one.
+        let mut g = f.clone();
+        g.ids.push(g.ids[4].clone());
+        g.ids[5].num = 0x4025;
+        assert_eq!(problems(IdKind::Vars, &g).len(), 1);
+        assert!(tombstone(&mut f, &["VAR_SIL_D".into()]).is_empty());
+        assert!(f.ids[4].removed);
+        assert!(relocate(IdKind::Vars, &mut f, "VAR_SIL_D").is_err());
     }
 }

@@ -6,19 +6,25 @@
 //! [`blob`]) and `scripts` (the generated per-map script modules). Without an extracted dir it
 //! builds a small built-in world and sets `cfg(pkr_stub)`; without battle data (the stub, test
 //! fixtures) it uses built-in battle data and sets `cfg(pkr_stub_battle)`.
+//!
+//! **Flavours** ([`FLAVOR`], SIL1): the stub, Emerald, and Silice (`PKR_GAME=silice`,
+//! `cfg(pkr_silice)`: the authored `games/silice` on the extract's base assets, with the
+//! game root and scripts of [`silice`]). Every flavour has the same API shape: `consts`, `data`
+//! (with the script dispatch), `battle`, `scripts`, `overrides`, `prelude`, [`Game`] (the
+//! [`GameData`] root; [`Emerald`] is its old name) and [`BUILD_ID`]. Emerald-only items
+//! ([`Start`], `Game::{before_rescue, after_starter}`) are `cfg(not(pkr_silice))`.
 
 extern crate alloc;
 
-use engine::battle::{BattleGfx, Str};
-use engine::data::{
-    Behavior, Dir, Emote, Evolution, FlagId, Font, GameData, GfxId, ItemId, ItemInfo, MapData,
-    MapId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId, UiText,
-    WindowGfx,
+use engine::data::{FlagId, MapId, ScriptId};
+#[cfg(not(pkr_silice))]
+use {
+    engine::data::{GameData, SpecialIds},
+    engine::script::{Ctx, Script},
 };
-use engine::mon::{BattleTables, LandEncounters, TrainerData};
-use engine::script::{Ctx, Script};
 
 pub mod blob;
+#[cfg(not(pkr_silice))]
 mod new_game;
 /// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
 /// does, replaced by hand. The build digests each override's source into the script's
@@ -34,6 +40,8 @@ pub mod overrides {
 }
 pub mod prelude;
 pub mod samples;
+#[cfg(pkr_silice)]
+pub mod silice;
 
 /// Gen3 constants (`FLAG_*`, `VAR_*`, `MAP_*`, `SPECIAL_*`, `STD_*`, `ITEM_*`,
 /// `OBJ_EVENT_GFX_*`, `SPECIES_*`, `MOVE_*`, `TRAINER_*`, `HEAL_LOCATION_*`,
@@ -73,8 +81,45 @@ pub use data::script_ids;
 /// The build's script classification report (`build/scripts.rs`; Milestone 8 Task D2 fills it).
 pub const REPORT: &str = include_str!(concat!(env!("OUT_DIR"), "/report.txt"));
 
-/// Whether the content was built without an extracted dir (the small built-in world).
-pub const STUB: bool = cfg!(pkr_stub);
+/// Which game this content build is (`build/main.rs`).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum Flavor {
+    /// No usable extracted dir: the small built-in world (`cfg(pkr_stub)`).
+    Stub,
+    /// Pokémon Emerald from the extract (the default).
+    Emerald,
+    /// Pokémon Silice: `games/silice` on the extract's base assets (`PKR_GAME=silice`,
+    /// `cfg(pkr_silice)`).
+    Silice,
+}
+
+impl Flavor {
+    pub const ALL: [Flavor; 3] = [Flavor::Stub, Flavor::Emerald, Flavor::Silice];
+
+    /// `stub`, `emerald` or `silice`: the directory name of the flavour's checkpoint tree
+    /// (`checkpoints/<name>`) and explorer db (`target/explore/<name>`).
+    pub const fn name(self) -> &'static str {
+        match self {
+            Flavor::Stub => "stub",
+            Flavor::Emerald => "emerald",
+            Flavor::Silice => "silice",
+        }
+    }
+}
+
+/// This build's flavour.
+pub const FLAVOR: Flavor = if cfg!(pkr_stub) {
+    Flavor::Stub
+} else if cfg!(pkr_silice) {
+    Flavor::Silice
+} else {
+    Flavor::Emerald
+};
+const _: () = assert!(!(cfg!(pkr_stub) && cfg!(pkr_silice)));
+
+/// Whether the content was built without an extracted dir (the small built-in world):
+/// `FLAVOR == Flavor::Stub`.
+pub const STUB: bool = matches!(FLAVOR, Flavor::Stub);
 
 /// Whether an extracted dir exists but in an older format, so the content fell back to the
 /// stub world ([`STUB`] is set too). It still builds so that `cargo xtask extract` (which links
@@ -91,11 +136,18 @@ pub const STALE_EXTRACT_MSG: &str = "content/extracted/ is in an older format, s
 /// dir, or `stub`. Never 0 (`TreeHash::finish`). [`GameData::build_id`] returns it.
 pub const BUILD_ID: u64 = include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
 
-/// Script id of the new-game script ([`new_game::new_game`]); never a generated id.
+/// Script id of the new-game script (each flavour's `new_game::new_game`); never a generated
+/// id.
 pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 
+/// The game's content root under its old name (kept for one milestone, SIL1).
+pub type Emerald = Game;
+
+#[cfg(pkr_silice)]
+pub use silice::Game;
+
 /// Flags Gen3 `ClearTempFieldEventData` clears on every map change.
-static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
+pub(crate) static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
     consts::FLAG_SYS_ENC_UP_ITEM,
     consts::FLAG_SYS_ENC_DOWN_ITEM,
     consts::FLAG_SYS_USE_STRENGTH,
@@ -104,6 +156,7 @@ static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
 ];
 
 /// Where a new game starts (the default: [`Start::BeforeRescue`]).
+#[cfg(not(pkr_silice))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Start {
     /// Littleroot after meeting the rival, sent to find Birch on Route 101: no Pokémon yet.
@@ -114,23 +167,25 @@ pub enum Start {
     AfterStarter,
 }
 
-/// The game's content root. `Emerald::default()` starts [`Start::BeforeRescue`]; the shells and
-/// the parity route run [`Emerald::for_shells`]. [`Emerald::after_starter`] is the Milestone 3
-/// start, kept for fast tests.
+/// The game's content root (Emerald and the stub; the Silice flavour's is `silice::Game`).
+/// `Game::default()` starts [`Start::BeforeRescue`]; the shells and the parity route run
+/// [`Game::for_shells`]. [`Game::after_starter`] is the Milestone 3 start, kept for fast tests.
+#[cfg(not(pkr_silice))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub struct Emerald {
+pub struct Game {
     pub start: Start,
 }
 
-impl Emerald {
-    pub const fn before_rescue() -> Emerald {
-        Emerald {
+#[cfg(not(pkr_silice))]
+impl Game {
+    pub const fn before_rescue() -> Game {
+        Game {
             start: Start::BeforeRescue,
         }
     }
 
-    pub const fn after_starter() -> Emerald {
-        Emerald {
+    pub const fn after_starter() -> Game {
+        Game {
             start: Start::AfterStarter,
         }
     }
@@ -138,11 +193,11 @@ impl Emerald {
     /// What the shells and the parity route play: [`Start::BeforeRescue`] on the extracted
     /// world, [`Start::AfterStarter`] on the stub world (no story, no Route 101), so that the
     /// stub route has a Pokémon to battle with in its tall grass.
-    pub const fn for_shells() -> Emerald {
+    pub const fn for_shells() -> Game {
         if STUB {
-            Emerald::after_starter()
+            Game::after_starter()
         } else {
-            Emerald::before_rescue()
+            Game::before_rescue()
         }
     }
 }
@@ -153,61 +208,188 @@ pub fn has_map(id: MapId) -> bool {
     data::map(id.0).is_some()
 }
 
-impl GameData for Emerald {
-    fn map(&self, id: MapId) -> &'static MapData {
-        data::map(id.0).unwrap_or(&data::MISSING_MAP)
+/// The [`SpecialIds`](engine::data::SpecialIds) every flavour shares (Gen3's system flags and
+/// vars, which the shared prelude also uses). Each root's `special_ids` sets only its own
+/// fields (respawn, wild-set var, whiteout script) and takes the rest from here
+/// (`..gen3_special_ids()`), so a new shared field reaches every flavour; the placeholders below
+/// for the per-flavour fields are always overridden.
+pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
+    engine::data::SpecialIds {
+        var_facing: Some(consts::VAR_FACING),
+        var_last_talked: Some(consts::VAR_LAST_TALKED),
+        flag_running: Some(consts::FLAG_SYS_B_DASH),
+        flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
+        respawn_default: 0,
+        var_wild_set: None,
+        script_whiteout: None,
     }
+}
 
-    fn has_map(&self, id: MapId) -> bool {
-        has_map(id)
-    }
+/// The [`GameData`](engine::data::GameData) methods every flavour answers from its generated
+/// tables (`data`, `battle`, `scripts`), defined once so the flavours cannot drift: a new
+/// defaulted trait method that the tables can answer goes here, and both roots get it. Each
+/// root adds only what differs: `special_ids` (over [`gen3_special_ids`]), `script` (its
+/// new-game script) and
+/// `heal_location`. `form_changes` keeps the trait default (no flavour has form-change data
+/// yet; Task A's Silice data adds it here).
+macro_rules! game_data_tables {
+    () => {
+        fn map(&self, id: ::engine::data::MapId) -> &'static ::engine::data::MapData {
+            $crate::data::map(id.0).unwrap_or(&$crate::data::MISSING_MAP)
+        }
+
+        fn has_map(&self, id: ::engine::data::MapId) -> bool {
+            $crate::has_map(id)
+        }
+
+        fn sprite(
+            &self,
+            gfx: ::engine::data::GfxId,
+        ) -> Option<&'static ::engine::data::SpriteData> {
+            $crate::data::sprite(gfx.0)
+        }
+
+        fn player_sprite(&self) -> &'static ::engine::data::SpriteData {
+            $crate::data::PLAYER_SPRITE
+        }
+
+        fn font(&self) -> &'static ::engine::data::Font {
+            &$crate::data::FONT
+        }
+
+        fn window(&self) -> &'static ::engine::data::WindowGfx {
+            &$crate::data::WINDOW
+        }
+
+        fn text(&self, id: ::engine::data::TextId) -> &'static [u8] {
+            $crate::data::TEXTS
+                .get(id.0 as usize)
+                .copied()
+                .unwrap_or(&[0xFF])
+        }
+
+        fn ui_text(&self, t: ::engine::data::UiText) -> &'static [u8] {
+            match t {
+                ::engine::data::UiText::Yes => $crate::data::UI_YES,
+                ::engine::data::UiText::No => $crate::data::UI_NO,
+                ::engine::data::UiText::RivalName => $crate::data::UI_RIVAL_NAME,
+            }
+        }
+
+        fn behavior(&self, raw: u8) -> ::engine::data::Behavior {
+            $crate::data::BEHAVIORS[raw as usize]
+        }
+
+        /// The flavour's start (`data::NEW_GAME`), facing down, running its new-game script.
+        fn new_game(&self) -> ::engine::data::NewGame {
+            let (map, x, y) = $crate::data::NEW_GAME;
+            ::engine::data::NewGame {
+                map,
+                x,
+                y,
+                facing: ::engine::data::Dir::Down,
+                script: Some($crate::NEW_GAME_SCRIPT),
+                player_name: $crate::data::PLAYER_NAME,
+            }
+        }
+
+        fn battle(&self) -> &'static ::engine::mon::BattleTables {
+            &$crate::battle::TABLES
+        }
+
+        fn wild_encounters(
+            &self,
+            map: ::engine::data::MapId,
+            wild_set: u16,
+        ) -> Option<&'static ::engine::mon::LandEncounters> {
+            $crate::battle::wild_encounters(map.0, wild_set)
+        }
+
+        fn trainer(
+            &self,
+            id: ::engine::data::TrainerId,
+        ) -> Option<&'static ::engine::mon::TrainerData> {
+            $crate::battle::trainer(id.0)
+        }
+
+        fn battle_text(&self, s: ::engine::battle::Str) -> &'static [u8] {
+            $crate::battle::text(s)
+        }
+
+        fn battle_gfx(&self) -> &'static ::engine::battle::BattleGfx {
+            &$crate::battle::GFX
+        }
+
+        fn build_id(&self) -> u64 {
+            $crate::BUILD_ID
+        }
+
+        fn item(&self, id: ::engine::data::ItemId) -> Option<&'static ::engine::data::ItemInfo> {
+            $crate::data::ITEMS.get(id.0 as usize)?.as_ref()
+        }
+
+        fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
+            $crate::data::multichoice(list)
+        }
+
+        fn std_string(&self, id: u8) -> Option<&'static [u8]> {
+            $crate::data::std_string(id)
+        }
+
+        fn emote(&self, e: ::engine::data::Emote) -> Option<&'static ::engine::data::SpriteData> {
+            $crate::data::emote(e)
+        }
+
+        fn trainer_money(&self, id: ::engine::data::TrainerId) -> Option<u8> {
+            $crate::battle::trainer(id.0)?;
+            $crate::battle::TRAINER_MONEY.get(id.0 as usize).copied()
+        }
+
+        fn evolutions(
+            &self,
+            species: ::engine::data::SpeciesId,
+        ) -> &'static [::engine::data::Evolution] {
+            $crate::battle::evolutions(species.0)
+        }
+
+        fn hold_effect(&self, id: ::engine::data::ItemId) -> Option<::engine::mon::HoldEffect> {
+            $crate::battle::hold_effect(id.0)
+        }
+
+        fn trainer_flag_of(
+            &self,
+            script: ::engine::data::ScriptId,
+        ) -> Option<::engine::data::FlagId> {
+            let (trainer, _) = $crate::scripts::trainer_script(script.0)?;
+            Some($crate::prelude::trainer_flag(::engine::data::TrainerId(
+                trainer,
+            )))
+        }
+
+        fn trainer_battle_kind(&self, script: ::engine::data::ScriptId) -> Option<u8> {
+            $crate::scripts::trainer_script(script.0).map(|(_, kind)| kind)
+        }
+    };
+}
+#[cfg_attr(not(pkr_silice), allow(unused_imports))] // the Silice root names it by path
+pub(crate) use game_data_tables;
+
+#[cfg(not(pkr_silice))]
+impl GameData for Game {
+    game_data_tables!();
 
     fn special_ids(&self) -> SpecialIds {
         SpecialIds {
-            var_facing: Some(consts::VAR_FACING),
-            var_last_talked: Some(consts::VAR_LAST_TALKED),
-            flag_running: Some(consts::FLAG_SYS_B_DASH),
-            flags_cleared_on_map_change: &CLEARED_ON_MAP_CHANGE,
             // `InsideOfTruck_EventScript_SetIntroFlagsMale`.
             respawn_default: consts::HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
             // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
             script_whiteout: data::SCRIPT_WHITEOUT,
+            ..gen3_special_ids()
         }
     }
 
-    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
-        data::sprite(gfx.0)
-    }
-
-    fn player_sprite(&self) -> &'static SpriteData {
-        data::PLAYER_SPRITE
-    }
-
-    fn font(&self) -> &'static Font {
-        &data::FONT
-    }
-
-    fn window(&self) -> &'static WindowGfx {
-        &data::WINDOW
-    }
-
-    fn text(&self, id: TextId) -> &'static [u8] {
-        data::TEXTS.get(id.0 as usize).copied().unwrap_or(&[0xFF])
-    }
-
-    fn ui_text(&self, t: UiText) -> &'static [u8] {
-        match t {
-            UiText::Yes => data::UI_YES,
-            UiText::No => data::UI_NO,
-            UiText::RivalName => data::UI_RIVAL_NAME,
-        }
-    }
-
-    fn behavior(&self, raw: u8) -> Behavior {
-        data::BEHAVIORS[raw as usize]
-    }
-
+    /// The new game: Littleroot, outside Brendan's house (see [`new_game`]).
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         if id == NEW_GAME_SCRIPT {
             return alloc::boxed::Box::pin(new_game::new_game(ctx, self.start));
@@ -215,87 +397,13 @@ impl GameData for Emerald {
         data::script(id.0, ctx)
     }
 
-    /// Littleroot, outside Brendan's house, facing down (see [`new_game`]).
-    fn new_game(&self) -> NewGame {
-        let (map, x, y) = data::NEW_GAME;
-        NewGame {
-            map,
-            x,
-            y,
-            facing: Dir::Down,
-            script: Some(NEW_GAME_SCRIPT),
-            player_name: data::PLAYER_NAME,
-        }
-    }
-
-    fn battle(&self) -> &'static BattleTables {
-        &battle::TABLES
-    }
-
-    fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
-        battle::wild_encounters(map.0, wild_set)
-    }
-
-    fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
-        battle::trainer(id.0)
-    }
-
-    fn battle_text(&self, s: Str) -> &'static [u8] {
-        battle::text(s)
-    }
-
-    fn battle_gfx(&self) -> &'static BattleGfx {
-        &battle::GFX
-    }
-
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         battle::heal_location(id)
     }
-
-    fn build_id(&self) -> u64 {
-        BUILD_ID
-    }
-
-    fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
-        data::ITEMS.get(id.0 as usize)?.as_ref()
-    }
-
-    fn multichoice(&self, list: u8) -> Option<&'static [&'static [u8]]> {
-        data::multichoice(list)
-    }
-
-    fn std_string(&self, id: u8) -> Option<&'static [u8]> {
-        data::std_string(id)
-    }
-
-    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
-        data::emote(e)
-    }
-
-    fn trainer_money(&self, id: TrainerId) -> Option<u8> {
-        battle::trainer(id.0)?;
-        battle::TRAINER_MONEY.get(id.0 as usize).copied()
-    }
-
-    fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
-        battle::evolutions(species.0)
-    }
-
-    fn hold_effect(&self, id: ItemId) -> Option<engine::mon::HoldEffect> {
-        battle::hold_effect(id.0)
-    }
-
-    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
-        let (trainer, _) = scripts::trainer_script(script.0)?;
-        Some(prelude::trainer_flag(TrainerId(trainer)))
-    }
-
-    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
-        scripts::trainer_script(script.0).map(|(_, kind)| kind)
-    }
 }
 
-#[cfg(test)]
+/// The Emerald and stub tables and scripts (the Silice flavour's are `silice::tests`).
+#[cfg(all(test, not(pkr_silice)))]
 mod data_tests;
 
 #[cfg(test)]
@@ -305,9 +413,18 @@ mod build_id_tests {
     /// `crates/content/tests/build_modes.rs` reads the printed id of each build mode.
     #[test]
     fn build_id_is_set() {
+        use engine::data::GameData;
         std::println!("CONTENT BUILD_ID={BUILD_ID:#018x}");
         assert_ne!(BUILD_ID, 0);
-        assert_eq!(Emerald::for_shells().build_id(), BUILD_ID);
-        assert_eq!(Emerald::after_starter().build_id(), BUILD_ID);
+        assert_eq!(Game::for_shells().build_id(), BUILD_ID);
+        assert_eq!(Emerald::default().build_id(), BUILD_ID);
+    }
+
+    #[test]
+    fn flavor_names_and_stub() {
+        let names: std::vec::Vec<_> = Flavor::ALL.iter().map(|f| f.name()).collect();
+        assert_eq!(names, ["stub", "emerald", "silice"]);
+        assert_eq!(STUB, FLAVOR == Flavor::Stub);
+        assert_eq!(cfg!(pkr_silice), FLAVOR == Flavor::Silice);
     }
 }

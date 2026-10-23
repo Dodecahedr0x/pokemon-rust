@@ -244,8 +244,14 @@ pub struct Scripts {
     pub names: Vec<String>,
 }
 
-/// `ScriptId` numbering: every lowered function, sorted by name (`SCRIPT_NAMES`).
+/// `ScriptId` numbering: every lowered function, sorted by name (`SCRIPT_NAMES`); in the
+/// authored game, its own names (`AuthoredIn::script_names`).
 pub fn scripts(w: &World) -> Scripts {
+    if let Some(a) = &w.authored {
+        return Scripts {
+            names: a.script_names.clone(),
+        };
+    }
     let s = scripted(w).unwrap_or_else(|e| panic!("lowering the scripts: {e:#}"));
     Scripts {
         names: s.module.keys().cloned().collect(),

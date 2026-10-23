@@ -270,8 +270,9 @@ fn finding_from_row(r: &Row) -> Result<FindingRow, DbError> {
 }
 
 impl Db {
-    /// `<workspace>/target/explore/{stub|emerald}/explore.db`.
-    pub fn default_path(stub: bool) -> PathBuf {
+    /// `<workspace>/target/explore/{stub|emerald|silice}/explore.db` (`content::Flavor::name`;
+    /// the shells pass `content::FLAVOR`).
+    pub fn default_path(flavor: content::Flavor) -> PathBuf {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
@@ -279,7 +280,7 @@ impl Db {
         workspace
             .join("target")
             .join("explore")
-            .join(flavor_name(stub))
+            .join(flavor.name())
             .join("explore.db")
     }
 

@@ -26,16 +26,24 @@ pub enum Act {
     /// Roxanne's badge (15 goals; decision Q1).
     #[default]
     Act1,
+    /// Silice's Prologue (SIL1): from the new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge.
+    /// Wave 0 stub: no goal yet (SIL1 Wave 3 fills [`silice::CH0`]).
+    SilCh0,
 }
 
 impl Act {
-    pub const ALL: [Act; 2] = [Act::Slice, Act::Act1];
+    pub const ALL: [Act; 3] = [Act::Slice, Act::Act1, Act::SilCh0];
+    /// The Emerald acts (and the stub's, which shares one list).
+    pub const EMERALD: [Act; 2] = [Act::Slice, Act::Act1];
+    /// The Silice acts (`sil_ch1` and onwards come with their chapters).
+    pub const SILICE: [Act; 1] = [Act::SilCh0];
 
-    /// `slice` or `act1` (the CLI's and `meta.act`'s spelling).
+    /// `slice`, `act1` or `sil_ch0` (the CLI's and `meta.act`'s spelling).
     pub fn name(self) -> &'static str {
         match self {
             Act::Slice => "slice",
             Act::Act1 => "act1",
+            Act::SilCh0 => "sil_ch0",
         }
     }
 
@@ -247,12 +255,23 @@ mod stub {
     ];
 }
 
+/// Silice's goal lists (SIL1). Wave 0: the act exists, its goals come in Wave 3
+/// (`FLAG_SIL_INTRO_DONE`, `VAR_SIL_STORY ≥ 1`, the Mallette, the starter, Route S1,
+/// `VAR_SIL_STORY ≥ 9`), named through `content::consts` of the Silice build.
+mod silice {
+    use super::Goal;
+
+    /// The Prologue's goals: none yet.
+    pub static CH0: [Goal; 0] = [];
+}
+
 /// `act`'s goals in story order (`content::STUB` picks the stub list).
 pub fn goals_of(act: Act) -> &'static [Goal] {
     match (content::STUB, act) {
         (true, _) => &stub::GOALS,
         (false, Act::Slice) => &emerald::SLICE,
         (false, Act::Act1) => &emerald::ACT1,
+        (false, Act::SilCh0) => &silice::CH0,
     }
 }
 

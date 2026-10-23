@@ -5,9 +5,13 @@
 //! cargo xtask silice import <contenu-jeu> [--out DIR] [--force] [--report FILE] [--maps DIR]
 //! cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...
 //! cargo xtask silice tombstone [--games DIR] NAME...
+//! cargo xtask silice move [--games DIR] NAME...
 //! ```
 //!
-//! `tombstone` marks ids as removed in their `ids/*.ron` file (they keep their numbers).
+//! `tombstone` marks ids as removed in their `ids/*.ron` file (they keep their numbers). `move`
+//! gives live ids a new number: each entry is tombstoned and the name appended again at the
+//! next free number (for an id on a number that became reserved); append the new numbers to
+//! `xtask/tests/fixtures/silice/ids.golden`.
 
 mod check;
 mod ids;
@@ -23,7 +27,8 @@ use std::path::{Path, PathBuf};
 
 const USAGE: &str = "usage: cargo xtask silice import <contenu-jeu dir> [--out DIR] [--force] [--report FILE] [--maps DIR]\n       \
      cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...\n       \
-     cargo xtask silice tombstone [--games DIR] NAME...";
+     cargo xtask silice tombstone [--games DIR] NAME...\n       \
+     cargo xtask silice move [--games DIR] NAME...";
 
 pub fn main(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
@@ -74,7 +79,7 @@ pub fn main(args: &[String]) -> Result<()> {
             }
             check::run(&o)
         }
-        Some("tombstone") => {
+        Some(cmd @ ("tombstone" | "move")) => {
             let mut games = crate::root().join("games/silice");
             let mut names = Vec::new();
             let mut it = args[1..].iter();
@@ -88,7 +93,10 @@ pub fn main(args: &[String]) -> Result<()> {
             if names.is_empty() {
                 bail!(USAGE);
             }
-            tombstone(&games, &names)
+            match cmd {
+                "move" => move_ids(&games, &names),
+                _ => tombstone(&games, &names),
+            }
         }
         _ => bail!(USAGE),
     }
@@ -117,6 +125,46 @@ fn tombstone(games: &Path, names: &[String]) -> Result<()> {
     write_files(games, &files, true)?;
     for n in names {
         println!("tombstoned {n}");
+    }
+    Ok(())
+}
+
+/// Moves the live `names` to new numbers in whichever `ids/*.ron` holds them
+/// ([`ids::relocate`]).
+fn move_ids(games: &Path, names: &[String]) -> Result<()> {
+    let mut files: BTreeMap<String, String> = BTreeMap::new();
+    let mut moved = Vec::new();
+    for n in names {
+        let mut found = false;
+        for k in schema::IdKind::ALL {
+            let rel = format!("ids/{}.ron", k.file());
+            let path = games.join(&rel);
+            if !path.exists() {
+                continue;
+            }
+            let mut f: schema::IdsFile = match files.get(&rel) {
+                Some(text) => ron::from_str(text.as_str())?,
+                None => read_ron(&path)?,
+            };
+            if !f.ids.iter().any(|e| &e.name == n && !e.removed) {
+                continue;
+            }
+            let (old, new) = ids::relocate(k, &mut f, n)?;
+            let golden = format!("{} {n} {new}", k.file());
+            moved.push(format!(
+                "moved {n}: {old:#x} -> {new:#x}; golden line: {golden}"
+            ));
+            files.insert(rel, extract::export::to_ron(&f)?);
+            found = true;
+            break;
+        }
+        if !found {
+            bail!("no live {n} in any ids file");
+        }
+    }
+    write_files(games, &files, true)?;
+    for m in moved {
+        println!("{m}");
     }
     Ok(())
 }

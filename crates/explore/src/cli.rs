@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 const USAGE: &str = "\
 usage: explore <command> [--db <path>] [--config <path>]
   run [--nodes N | --frames N | --generations N | --secs N] [--threads N] [--seed S]
-      [--cache N] [--from <checkpoint id|label>] [--act slice|act1]
+      [--cache N] [--from <checkpoint id|label>] [--act slice|act1|sil_ch0]
       explore (default budget: --generations 10); one line per 10 generations;
       --cache N: snapshots kept in memory (default 65536; 16384 is about 10% slower);
       --from: a fresh db explores from that checkpoint node (the committed tree with the
@@ -53,7 +53,7 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
     let db_path = a
         .take("--db")
         .map(PathBuf::from)
-        .unwrap_or_else(|| Db::default_path(content::STUB));
+        .unwrap_or_else(|| Db::default_path(content::FLAVOR));
     let mut cfg = match a.take("--config") {
         Some(p) if !Path::new(&p).exists() => bail!("no config file {p}"),
         Some(p) => Config::load_or_default(Path::new(&p))?,
@@ -73,7 +73,9 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             }
             let act = a
                 .take("--act")
-                .map(|s| Act::parse(&s).ok_or_else(|| anyhow!("--act {s:?}: slice or act1")))
+                .map(|s| {
+                    Act::parse(&s).ok_or_else(|| anyhow!("--act {s:?}: slice, act1 or sil_ch0"))
+                })
                 .transpose()?;
             if let Some(act) = act {
                 cfg.act = act;
@@ -365,8 +367,8 @@ fn db_act(db: &Db) -> anyhow::Result<Act> {
 /// The committed checkpoint tree with the local saves over it (`play`'s store).
 fn default_store() -> anyhow::Result<Store> {
     Ok(Store::layered(
-        Store::default_root(content::STUB),
-        Store::local_root(content::STUB),
+        Store::default_root(content::FLAVOR),
+        Store::local_root(content::FLAVOR),
     )?)
 }
 
@@ -607,7 +609,7 @@ fn export(db_path: &Path, id: i64, before: u32, out: Option<PathBuf>) -> anyhow:
     let (_, trace) = wire::finding_trace(&Emerald::for_shells(), &db, id, before)?;
     let out = out.unwrap_or_else(|| {
         // Always under `target/` (never next to a `--db` elsewhere).
-        let default = Db::default_path(content::STUB);
+        let default = Db::default_path(content::FLAVOR);
         let dir = default.parent().unwrap_or(Path::new("."));
         let name = if before == 0 {
             format!("finding-{id}.ron")

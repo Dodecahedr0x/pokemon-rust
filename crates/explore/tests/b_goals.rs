@@ -41,7 +41,7 @@ fn route_progress(act: Act) -> Vec<(&'static str, u32)> {
 
 #[test]
 fn the_route_reaches_every_slice_goal_in_order() {
-    for act in Act::ALL {
+    for act in Act::EMERALD {
         let got = route_progress(act);
         if content::STUB {
             assert_eq!(goals::goals_of(act).len(), 3);
@@ -110,6 +110,12 @@ fn goal_names_follow_the_story_order() {
         assert_eq!(Act::parse(act.name()), Some(act));
     }
     assert_eq!(Act::parse("act2"), None);
+    // SIL1 Wave 0: Silice's Prologue act exists, with no goal yet (the stub keeps its list).
+    assert_eq!(Act::parse("sil_ch0"), Some(Act::SilCh0));
+    assert_eq!(Act::SILICE, [Act::SilCh0]);
+    if !content::STUB {
+        assert!(goals::goals_of(Act::SilCh0).is_empty());
+    }
 }
 
 fn settle(game: Emerald) -> engine::checkpoint::WorldSnapshot {
@@ -124,7 +130,7 @@ fn settle(game: Emerald) -> engine::checkpoint::WorldSnapshot {
 fn progress_needs_the_earlier_goals_first() {
     // A new game's settled state satisfies no first goal.
     let snap = settle(Emerald::for_shells());
-    for act in Act::ALL {
+    for act in Act::EMERALD {
         assert_eq!(goals::progress(act, 0, &snap), 0);
         let all = goals::goals_of(act).len() as u32;
         assert_eq!(

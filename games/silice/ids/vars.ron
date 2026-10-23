@@ -16,6 +16,7 @@
         (
             name: "VAR_SIL_EVALON_PARTENAIRE",
             num: 16419,
+            removed: true,
         ),
         (
             name: "VAR_SIL_EVALON_RENOM",
@@ -80,6 +81,10 @@
         (
             name: "VAR_SIL_CH0_GATE",
             num: 16435,
+        ),
+        (
+            name: "VAR_SIL_EVALON_PARTENAIRE",
+            num: 16436,
         ),
     ],
 )

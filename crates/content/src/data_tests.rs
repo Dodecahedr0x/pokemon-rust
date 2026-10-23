@@ -1,6 +1,7 @@
 //! Tests of the generated tables (both modes) and of the prelude helpers.
 
 use super::*;
+use engine::data::*;
 
 use crate::prelude::{MsgBox, msgbox};
 use engine::data::{Gfx, block_collision};

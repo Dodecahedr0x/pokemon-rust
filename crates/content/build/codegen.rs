@@ -111,15 +111,33 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
         }
         Ok(())
     };
+    // An authored game's own flags and vars take numbers of Gen3 story ones: those Gen3 names
+    // would alias them, so they go.
+    let taken: BTreeSet<&str> = (w.authored.iter().flat_map(|a| &a.consts))
+        .map(|(_, _, v)| v.as_str())
+        .collect();
     for (v, n) in entries(&names::FLAGS) {
-        c(&mut o, n, "FlagId", format!("FlagId({v:#X})"))?;
+        let value = format!("FlagId({v:#X})");
+        if !taken.contains(value.as_str()) {
+            c(&mut o, n, "FlagId", value)?;
+        }
     }
     for (v, n) in entries(&names::VARS) {
-        c(&mut o, n, "VarId", format!("VarId({v:#X})"))?;
+        let value = format!("VarId({v:#X})");
+        if !taken.contains(value.as_str()) {
+            c(&mut o, n, "VarId", value)?;
+        }
     }
-    for m in names::MAPS {
-        let v = u16::from(m.group) << 8 | u16::from(m.num);
-        c(&mut o, m.constant, "MapId", format!("MapId({v:#X})"))?;
+    // An authored game has its own map numbers (emitted with its other ids below): Emerald's
+    // `MAP_*` would alias them.
+    if w.authored.is_none() {
+        for m in names::MAPS {
+            let v = u16::from(m.group) << 8 | u16::from(m.num);
+            c(&mut o, m.constant, "MapId", format!("MapId({v:#X})"))?;
+        }
+    }
+    for (n, ty, v) in w.authored.iter().flat_map(|s| &s.consts) {
+        c(&mut o, n, ty, v.clone())?;
     }
     c(&mut o, "MAP_DYNAMIC", "MapId", "MapId(0x7F7F)".into())?;
     c(&mut o, "MAP_UNDEFINED", "MapId", "MapId(0xFFFF)".into())?;
@@ -193,8 +211,15 @@ fn dir_of(d: ConnectionDir) -> Option<&'static str> {
 }
 
 /// Where a new game starts: outside the player's house in Littleroot (in front of the warp
-/// leading to `LittlerootTown_BrendansHouse_1F`), else the middle of the first map.
+/// leading to `LittlerootTown_BrendansHouse_1F`), else the middle of the first map. An authored
+/// game's start is its own (`AuthoredIn::start`).
 fn new_game(w: &World) -> Result<(u16, i16, i16)> {
+    if let Some(s) = &w.authored {
+        let (name, x, y) = &s.start;
+        let m = (w.maps.iter().find(|m| &m.name == name))
+            .with_context(|| format!("the new game's map {name} is not loaded"))?;
+        return Ok((u16::from(m.group) << 8 | u16::from(m.num), *x, *y));
+    }
     if let Some(m) = w.maps.iter().find(|m| m.name == "LittlerootTown")
         && let Some(warp) = m
             .warps
@@ -838,21 +863,77 @@ pub fn map_digests(w: &World) -> Result<Vec<(String, u64)>> {
 /// support tables) and `extract/src` (the text codec, schema and lowering the generator calls).
 /// A change there can change any map's compiled data, so it counts as global. Test sources
 /// (`*_tests.rs`, `tests/`, …; `build_support::is_test_source`) are left out.
+///
+/// Only the stub's and Emerald's sources ([`src_source`], [`build_source`],
+/// [`extract_source`]): the Silice flavour's are [`sources_digest_for`]'s.
+#[allow(dead_code)] // used by the tests
 pub fn sources_digest(content_dir: &std::path::Path) -> std::io::Result<u64> {
-    use crate::build_support::{Content, is_build_source};
+    sources_digest_for(content_dir, None)
+}
+
+/// Whether `rel` (under `crates/content/src`) is a source of the stub and Emerald builds
+/// (`silice` false) or of the Silice build (SIL1 Wave 0). The flavours share the crate root,
+/// the Gen3 prelude, `blob.rs` and `samples.rs`; `silice/` is Silice's only, and `overrides/`
+/// and `new_game.rs` are Emerald's only. So a Silice edit never moves the Emerald `BUILD_ID`
+/// or `GLOBAL_DIGEST` (its checkpoint trees and explorer dbs), and the reverse.
+pub fn src_source(silice: bool, rel: &str) -> bool {
+    crate::build_support::is_build_source(rel)
+        && match silice {
+            true => !rel.starts_with("overrides/") && rel != "new_game.rs",
+            false => !rel.starts_with("silice/"),
+        }
+}
+
+/// [`src_source`] for `crates/content/build`: `build/silice/` is the Silice build's only.
+pub fn build_source(silice: bool, rel: &str) -> bool {
+    crate::build_support::is_build_source(rel) && (silice || !rel.starts_with("silice/"))
+}
+
+/// [`src_source`] for `crates/extract/src`: `games/` (the games dir formats) is the Silice
+/// build's only.
+pub fn extract_source(silice: bool, rel: &str) -> bool {
+    crate::build_support::is_build_source(rel) && (silice || !rel.starts_with("games/"))
+}
+
+/// Whether `rel` (under `games/silice`) is a Silice build input: everything but the map
+/// editor's edit scripts (`edits/`), the import report and the validator's exceptions.
+pub fn games_source(rel: &str) -> bool {
+    !rel.starts_with("edits/") && rel != "IMPORT-REPORT.md" && rel != "check-exceptions.ron"
+}
+
+/// [`sources_digest`] of a flavour: `silice_games` is the Silice games dir (`games/silice`), or
+/// `None` for the stub and Emerald. The Silice digest also covers the games dir's
+/// [`games_source`]s except the maps and layouts (`MAP_DIGESTS`), and leaves out the scripts
+/// (`src/silice/scripts/`, `SCRIPT_DIGESTS`), as the Emerald one covers no map or IR script.
+pub fn sources_digest_for(
+    content_dir: &std::path::Path,
+    silice_games: Option<&std::path::Path>,
+) -> std::io::Result<u64> {
+    use crate::build_support::Content;
+    let silice = silice_games.is_some();
     let mut h = TreeHash::new();
     h.tree(
         "src/",
         &content_dir.join("src"),
-        &is_build_source,
+        &|rel: &str| src_source(silice, rel) && !rel.starts_with("silice/scripts/"),
         Content::Text,
     )?;
     h.tree(
         "build/",
         &content_dir.join("build"),
-        &is_build_source,
+        &|rel: &str| build_source(silice, rel),
         Content::Text,
     )?;
+    if let Some(games) = silice_games {
+        h.tree(
+            "games/",
+            games,
+            &|rel: &str| {
+                games_source(rel) && !rel.starts_with("maps/") && !rel.starts_with("layouts/")
+            },
+            Content::Text,
+        )?;
+    }
     let support = content_dir.join("build/support");
     if support.is_dir() {
         h.tree(
@@ -864,7 +945,12 @@ pub fn sources_digest(content_dir: &std::path::Path) -> std::io::Result<u64> {
     }
     let extract = content_dir.join("../extract/src");
     if extract.is_dir() {
-        h.tree("extract/", &extract, &is_build_source, Content::Text)?;
+        h.tree(
+            "extract/",
+            &extract,
+            &|rel: &str| extract_source(silice, rel),
+            Content::Text,
+        )?;
     }
     Ok(h.finish())
 }

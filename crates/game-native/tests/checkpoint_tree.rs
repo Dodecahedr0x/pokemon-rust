@@ -221,7 +221,7 @@ fn the_committed_tree_verifies_valid() {
         return;
     }
     // This checkout's committed tree: `nodes/` only, never `play`'s saves under `local/`.
-    let committed = Store::default_root(content::STUB);
+    let committed = Store::default_root(content::FLAVOR);
     let root = temp_root("committed");
     if copy_nodes(&committed, &root) == 0 {
         println!("skipped: no committed nodes in {}", committed.display());
