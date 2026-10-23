@@ -1839,6 +1839,131 @@ The Chapter 1 scripts, from `contenu-jeu/chapitres/01-bois-ether.md`, in `crates
 9. Loïc's and Adrien's exit paths are re-derived from the maps; the source's paths do not fit the built layout.
 10. The source's own open questions on Ch1 stand.
 
+#### SIL2 Ch2 scripts as built (Gris-Échec)
+
+The Chapter 2 scripts, from `contenu-jeu/chapitres/02-gris-echec.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the nurse and the clerk). All 95 contract names of "SIL2 Ch2–Ch3 maps as built" are written, and the nine maps are strict.
+
+**Files.**
+- `ch02_route_s02.rs` claims `RouteS02`.
+- `ch02_town.rs` claims `GrisEchec`, `GrisEchec_PokemonCenter`, `GrisEchec_Mart` and `GrisEchec_Usine`.
+- `ch02_tour.rs` claims `GrisEchec_TourObservation` and `GrisEchec_TourObservation_Top`.
+- `ch02_gym.rs` claims `GrisEchec_Gym` and `GrisEchec_Gym_Sourde`.
+
+**Prelude additions (`src/silice/prelude.rs`, generic).** Chapter 2 uses Chapter 1's `battle_trainer`, `show_sync`, `mart` and `pokecenter_nurse`. It adds:
+- `Obstacle` with `module_obstacle` and `repaint_obstacle`: the general form of `cut_obstacle`. It takes any module flag, several cells (metatile and collision each), the obstacle's own blocked, ask and cleared texts, and redraws the map. Route S2's three cables and its server, and the Usine's cable and crates, are `Obstacle`s.
+- `screen_flash(ctx)`: the `screen_flash` fallback, a fade out and in.
+
+No Gen 3 `FLAG_*`/`VAR_*` name is added to the prelude, so `SHARED_GEN3` does not move.
+
+**Map scripts.**
+- `RouteS02_OnTransition` shows Gwada at story 17–21. It shows Adrien from 17 until his gift (`FLAG_SIL_ITEM_ADRIEN_CH2`), and always at 17–21. `RouteS02_OnLoad` repaints the cut cables (grass) and the moved server: (48, 10) becomes grass, and (47, 10) becomes the server (631), solid.
+- `GrisEchec_OnTransition` shows Gwada at 22–27 and the Gamma guard until 28, and Lainergie only at 27. `GrisEchec_OnLoad` keeps the Tour door shut (685, solid) until `FLAG_SIL_TOUR_OPEN`, and opens the barrier (39, 1) (paving 699) from 28.
+- `GrisEchec_PokemonCenter_OnTransition` sets the respawn to the new `HEAL_LOCATION_SIL_GRIS_ECHEC`. It is appended to `game.ron` after Ch1's Bois-Éther entry, at (5, 9) on `GrisEchec`, the cell in front of the Centre door, as Ch1's.
+- `GrisEchec_Usine_OnLoad` repaints the cut cable (25, 4) and the moved crates (12–13, 3) as the factory floor (528).
+- `GrisEchec_Gym_OnTransition` hides the robot and Sc11's Gwada, Wattouat and Lainergie on every load.
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Route Sc01 | `RouteS02_Sc01`: the arrival (x 1, y 2–5) | 17 → 20 |
+| Route Sc02 | `RouteS02_Sc02`: Adrien, the Revive once | 20 → 21 (only from 20) |
+| Route Sc03 | `RouteS02_Sc03`: Gwada (row 7 at 20, row 6 at 21, or talked to). Emote, `screen_flash`, `battle_trainer(GWADA_1)`, he runs ahead along row 5 and heals the party | → 22 |
+| Town Sc01 | `GrisEchec_Sc01`: the embargo (x 1, y 10–12), `VAR_SIL_GRIS_ECHEC_STATE` 0 | 22 → 23 |
+| Town Sc02 | `jammer` (private) for `Brouilleur1`, `Brouilleur2` (the sweeper's battle first while he is undefeated) and the Usine's `Brouilleur3` (behind its cable). The state +1 each time; the third jammer sets 24 | 23 → 24 |
+| Town Sc03 | `GrisEchec_Sc03`, the arena guard: white noise until 23, then T1 and T2, and the Tour door opens (`FLAG_SIL_TOUR_OPEN`, metatile 693) | — |
+| Tour Sc01 | `GrisEchec_TourObservation_Top_Sc01`: Duval, `battle_trainer`, the Carte Perforée (key item) | 24 → 25 |
+| Town Sc05 | `GrisEchec_Sc05` (private, from Sc03 with the card): the guard steps right, his copy at (35, 10) replaces him | — |
+| Gym Sc10 | `GrisEchec_Gym_Sc10` (talked to) or the King's squares (`VueRoi`, `VueCFRoi`): Yohan, `battle_trainer(YOHAN_1)`, the badge, TM23 (`FLAG_SIL_ITEM_YOHAN_TM`), then Sc11 and Sc12 | 25 → 26 |
+| Gym Sc11 | private, chained: Gwada and Wattouat walk up the e column (stopping below a player on e7), `FLAG_SIL_MODULE_FORCE`, `screen_flash`, `play_se`, the evolution fallback, `FLAG_SIL_GWADA_LAINERGIE`, `VAR_SIL_SYNC` 20, `show_sync` | — |
+| Gym Sc12 | private, chained: `LOG_02_Texte`, `FLAG_SIL_LOG_02`, Julien's call; Gwada and Lainergie leave | 26 → 27 |
+| Town Sc06 | `GrisEchec_Sc06` at (34, 11): Kimiko's stream, Benou's call, the guard gone, the barrier opens, Gwada and Lainergie walk off west | 27 → 28 |
+
+**The arena.**
+- **Salle 1.** `S1Bit` counts in `VAR_TEMP_2` only on row 37 − count. `S1Fin` (7, 29) returns when the player faces down. Otherwise, with fewer than 8 bits, it runs `S1Erreur`.
+- **`S1Erreur`** shows Gym2_S1_Erreur. While the robot is undefeated, it places the robot three cells right of the player, walks it two cells left, and the robot battles. Then the warp to (7, 38) resets the count.
+- **Salle 2.** The terminal (6, 28) asks, lights the maze path (19 cells, 612) for 180 frames, restores the floor (513), then shows Gym2_S2_Sature. The maze walls are the layout's collision, so the planner sees them.
+- **Salle 3.** A watched square battles the first watcher in its name's order that is not beaten (the piece faces the player with "!"). A beaten piece watches nothing. The King's squares then start Sc10. Talking to a piece also battles it, or gives its defeat line afterwards.
+- **Chambre Sourde.** The Mélomane is a `trainer()`. The chest gives the Soothe Bell once, behind the item ball's flag, then hides.
+
+**Map edits.** In `RouteS02/02_events.ron` and `GrisEchec/02_events.ron`, the three `HiddenItem`s became `Sign`s, as in Ch0 and Ch1, and the original op is kept in a comment:
+- `RouteS02_EventScript_HiddenEther`;
+- `RouteS02_EventScript_HiddenThunderStone`;
+- `GrisEchec_EventScript_HiddenIron`.
+
+`cargo xtask studio map build` is byte-identical on a second run. No other map changed.
+
+**Reachability (`lint-reach`).** The nine Ch2 maps report 0 warnings and 0 infos, with 7 `AllowReach`s in `03_allow.ron`, each with its reason.
+- Script-gated:
+  - RouteS02's west edge (cable C);
+  - the Magnet (cable 3);
+  - the Great Ball (the server);
+  - the Usine's Metal Coat (the crates);
+  - the Usine's J3 (the cable).
+- Object-gated:
+  - Route Sc03's row 6: Gwada stands on (50, 6);
+  - Town Sc06: Gwada and the stepped-aside guard flank the arena's exit.
+
+**Fallbacks** (each `// fallback:` in the code and reported through `fallback()`).
+
+| Fallback | Where | What runs instead |
+|---|---|---|
+| `strength` | Route server, Usine crates | the module scripted: the cells repainted (`Obstacle`) |
+| `play_evolution` | Gym Sc11 (Wattouat to Lainergie, an NPC) | a fade; Wattouat hidden, Lainergie shown on its cell; then T6 |
+| `sound rule` | the Mélomane | a normal battle; his team keeps its sound moves |
+| `follower` | Gym Sc11, Town Sc06 | two objects moved together |
+| `mega_evolution` | Yohan | a normal battle; `Gym2_Sc10_Mega` is not shown |
+| `screen_flash` | Route Sc03, Gym Sc11 | a fade out and in |
+| `show_sync` | Gym Sc11 | nothing; `VAR_SIL_SYNC` 20 is set and T8 says it |
+| `jammer graphic` | the three jammers | the jammer keeps its graphic (no switched-off metatile in the tilesets) |
+| `key item use` | `EcranS1` | the screen shows `Carte_Perforee_Lire` when the card is held (no bag use yet) |
+| `mart` | the clerk, the drinks machine | Ch1's frame; the stock is kept at the call site |
+| `hidden item` | three hidden items | sign plus `hidden_item` |
+| `play_se`, `mallette_call`, `end_call` | the calls, the thunder | (Ch0's) |
+
+**Ids.** One new flag, `FLAG_SIL_USINE_CABLE_CUT` = 1050, the first of Ch2's script-only block (1050+), is in `ids/flags.ron` and `ids.golden`. Everything else was allocated by the Ch2 maps. The heal location is appended to `game.ron`.
+
+**The spine.** `crates/content/tests/silice_spine/ch02.rs` uses Ch1's vocabulary unchanged.
+- `ch02::steps()` covers:
+  - Route S2: Sc01, the Agent, Adrien, cable C cut and crossed, the Technicien, Gwada;
+  - the town: Sc01, J1 with the roof sbire by sight, J2 with the sweeper, J3 in the Usine along row 4 out of the sbire's sight, the guard, a heal;
+  - the Tour: both sbires by sight, Duval;
+  - a heal and Sc05;
+  - the arena: both screens; one wrong tile (the robot, back to the hall); the key as single `Walk`s; the terminal; the Chambre Sourde (Mélomane, sign, chest); `Goto` the King (the pieces fight on the way); Sc10–Sc12;
+  - out down Salle 1's middle column; Sc06;
+  - the Usine's crates and the Metal Coat.
+- `ch02::from_ch01()` leads from Ch1's last step (the Labo) to Route S2 (0, 3), through the open Secteur Bêta barrier.
+- `ch02::start()` is the documented shortcut, a `driver::Start`. The driver gains `Start { map, x, y, facing, setup }` and `Run::starting_at`. The new game is moved there, and `setup` runs after Silice's new-game script to set Ch1's end state:
+  - story 17 and sync 10;
+  - the Ch0 flags and the Mallette;
+  - the badge, `MODULE_COUPE`, `LOG_01`, the ambush and the Labo hint;
+  - starter 2 and gate 1;
+  - one FERALIGATR, level 50, so that the first-move policy wins.
+
+**The e2e test.** `crates/content/tests/sil2_ch2.rs` has two tests, buttons only, with a limit of 300 000 frames:
+- the chain `ch00` → `ch01` → `from_ch01` → `ch02` from a new game, about 158 000 frames;
+- `ch02` alone from `start()`, about 61 000 frames.
+
+Both assert the story at each step (17 → 20 → 21 → 22 → 23 → 24 → 25 → 26 → 27 → 28). They also assert:
+- the flags, `BADGE_02`, `MODULE_FORCE` and `LOG_02`;
+- the trainers beaten;
+- the Revive, TM34, the 3 Paralyze Heals, the Carte Perforée, TM23, the Soothe Bell and the Metal Coat;
+- the texts by id;
+- every fallback in the table except `mart` and `hidden item`, which no step triggers.
+
+Bag counts are lower bounds, because the chain arrives with Ch1's items. The gift flags pin the "once".
+
+**Author questions.**
+1. The Technicien and the Agent have no line after their gift. They now only turn to the player.
+2. Skitty, Lainergie (in town) and the Tour Top's consoles have no line. They reuse the Promeneur's, `Gris_Echec_Sc06_T7` and `Tour_Ecran`.
+3. Yohan, talked to after the badge, repeats `Gym2_Sc10_Defeat`. Is a post-badge line wanted?
+4. The Usine crates and the Route server reuse the Dépôt's `Depot_Bloc_T1`/`_T2` texts. Do they need their own?
+5. No switched-off jammer graphic exists. Should a metatile be made?
+6. `Gym2_Sc10_Mega` is never shown while Mega Evolution is a fallback. Should it be shown before the battle?
+7. `items.ron` has no Gris-Échec Mart or drinks-machine stock (an import gap). The stocks live in `ch02_town.rs` (`MART_STOCK`, `DISTRIBUTEUR_STOCK`).
+8. The heal location is (5, 9) on `GrisEchec`, in front of the Centre door, as Ch1's.
+9. Gwada's paths (Route Sc03 out along row 5; Gym Sc11 stopping below e7) and the robot's approach are re-derived from the maps.
+
 #### SIL2 Ch2–Ch3 maps as built
 
 The 19 maps of Chapter 2 (Gris-Échec) and Chapter 3 (Viber-City) are in `games/silice/{maps,layouts}/`. As in Ch0, they were made with the studio map editor only. Their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where needed), and the building stamps are under `games/silice/stamps/`.
