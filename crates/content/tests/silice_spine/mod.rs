@@ -37,6 +37,9 @@
 pub mod ch00;
 pub mod ch01;
 pub mod driver;
+// Chapter 4 (SIL3), and the chapter-entry runs it needs (`Run::at_chapter_entry`).
+pub mod ch04;
+pub mod entry;
 
 use engine::data::{Dir, FlagId, MapId, SpeciesId};
 
