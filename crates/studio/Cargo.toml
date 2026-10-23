@@ -3,8 +3,6 @@ name = "studio"
 edition.workspace = true
 version.workspace = true
 publish.workspace = true
-# `cargo run -p studio` is the app; `studio-map` is the headless map editor.
-default-run = "studio"
 
 [features]
 # The desktop app (`cargo run -p studio --features ui`); the core builds without a webview.

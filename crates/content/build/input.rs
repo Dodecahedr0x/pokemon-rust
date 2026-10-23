@@ -254,12 +254,46 @@ fn load_with(dir: &Path, game: bool) -> Result<World> {
             .collect::<Result<Vec<_>>>()?,
         false => Vec::new(),
     };
-    let tilesets = (manifest.tilesets.iter())
-        .map(|name| read_tileset_in(dir, name))
-        .collect::<Result<Vec<_>>>()?;
-    let sprites = (manifest.sprites.iter())
-        .map(|name| read_sprite_in(dir, name))
-        .collect::<Result<Vec<_>>>()?;
+    let mut tilesets = Vec::new();
+    for name in &manifest.tilesets {
+        let file = read_tileset(dir, name)?;
+        let img = gfx::read_png_indexed(&dir.join(format!("tilesets/{name}.png")))?;
+        let mut tiles = tiles_of(&img).with_context(|| format!("tileset {name}"))?;
+        ensure!(
+            tiles.len() >= file.tile_count as usize,
+            "tileset {name}: {} tiles in png, {} in ron",
+            tiles.len(),
+            file.tile_count
+        );
+        tiles.truncate(file.tile_count as usize);
+        tilesets.push(TilesetIn { file, tiles });
+    }
+    let mut sprites = Vec::new();
+    for name in &manifest.sprites {
+        let file: SpriteFile = read_ron(&dir.join(format!("sprites/{name}.ron")))?;
+        let img = gfx::read_png_indexed(&dir.join(format!("sprites/{name}.png")))?;
+        let (cw, ch) = (u32::from(file.cell_width), u32::from(file.cell_height));
+        // Every frame is cut at the cell size: the engine's `SpriteData` has one size. A frame
+        // smaller than its cell (berry tree sprouts, 16x16 in 16x32 cells) sits top-left in its
+        // cell, padded with index 0 (transparent) below.
+        if file
+            .frame_sizes
+            .iter()
+            .any(|&(w, h)| (u32::from(w), u32::from(h)) != (cw, ch))
+        {
+            warn(&format!(
+                "sprite {name}: frames of mixed sizes {:?}, padded to {cw}x{ch}",
+                file.frame_sizes
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+            ));
+        }
+        let frames = (0..file.frame_sizes.len() as u32)
+            .map(|k| tiles_of(&crop(&img, k * cw, 0, cw, ch)?))
+            .collect::<Result<Vec<_>>>()
+            .with_context(|| format!("sprite {name}"))?;
+        sprites.push(SpriteIn { file, frames });
+    }
     let (glyphs, widths) = read_font(dir, "latin_normal")?;
     let window: WindowFile = read_ron(&dir.join("window/message_box.ron"))?;
     let img = gfx::read_png_indexed(&dir.join("window/message_box.png"))?;
@@ -314,48 +348,6 @@ fn load_with(dir: &Path, game: bool) -> Result<World> {
 
 /// Reads `tables/*.ron` (Task C), each optional: an extract without one has an empty table.
 /// The generator encodes the strings (`codegen::tables`).
-/// `tilesets/<name>.{ron,png}` of `dir` (an extracted dir, or a games dir's original tilesets).
-pub fn read_tileset_in(dir: &Path, name: &str) -> Result<TilesetIn> {
-    let file = read_tileset(dir, name)?;
-    let img = gfx::read_png_indexed(&dir.join(format!("tilesets/{name}.png")))?;
-    let mut tiles = tiles_of(&img).with_context(|| format!("tileset {name}"))?;
-    ensure!(
-        tiles.len() >= file.tile_count as usize,
-        "tileset {name}: {} tiles in png, {} in ron",
-        tiles.len(),
-        file.tile_count
-    );
-    tiles.truncate(file.tile_count as usize);
-    Ok(TilesetIn { file, tiles })
-}
-
-/// `sprites/<name>.{ron,png}` of `dir` (an extracted dir, or a games dir's original sprites).
-pub fn read_sprite_in(dir: &Path, name: &str) -> Result<SpriteIn> {
-    let file: SpriteFile = read_ron(&dir.join(format!("sprites/{name}.ron")))?;
-    let img = gfx::read_png_indexed(&dir.join(format!("sprites/{name}.png")))?;
-    let (cw, ch) = (u32::from(file.cell_width), u32::from(file.cell_height));
-    // Every frame is cut at the cell size: the engine's `SpriteData` has one size. A frame
-    // smaller than its cell (berry tree sprouts, 16x16 in 16x32 cells) sits top-left in its
-    // cell, padded with index 0 (transparent) below.
-    if file
-        .frame_sizes
-        .iter()
-        .any(|&(w, h)| (u32::from(w), u32::from(h)) != (cw, ch))
-    {
-        warn(&format!(
-            "sprite {name}: frames of mixed sizes {:?}, padded to {cw}x{ch}",
-            file.frame_sizes
-                .iter()
-                .collect::<std::collections::BTreeSet<_>>()
-        ));
-    }
-    let frames = (0..file.frame_sizes.len() as u32)
-        .map(|k| tiles_of(&crop(&img, k * cw, 0, cw, ch)?))
-        .collect::<Result<Vec<_>>>()
-        .with_context(|| format!("sprite {name}"))?;
-    Ok(SpriteIn { file, frames })
-}
-
 fn read_tables(dir: &Path) -> Result<Tables> {
     let t = dir.join("tables");
     let tables = Tables {
