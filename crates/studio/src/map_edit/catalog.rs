@@ -55,6 +55,9 @@ pub struct MapRef {
     /// Each warp's destination map name.
     pub warps: Vec<String>,
     pub connections: Vec<GameConnection>,
+    /// Its secondary tileset, when known (a games dir map's): a connection's seam is drawn and
+    /// walked with the current map's tilesets (`validate::connections`).
+    pub secondary: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -127,6 +130,7 @@ impl Catalog {
                             map: name_of(cn.map),
                         })
                         .collect(),
+                    secondary: None,
                 },
             );
         }
@@ -208,10 +212,9 @@ impl Catalog {
             let Ok(map) = games.load_map(&name) else {
                 continue;
             };
-            let size = games
-                .load_layout(&map.layout)
-                .ok()
-                .map(|l| (l.width, l.height));
+            let layout = games.load_layout(&map.layout).ok();
+            let size = layout.as_ref().map(|l| (l.width, l.height));
+            let secondary = layout.map(|l| l.secondary);
             self.maps.insert(
                 name,
                 MapRef {
@@ -219,6 +222,7 @@ impl Catalog {
                     size,
                     warps: map.warps.iter().map(|w| w.dest_map.clone()).collect(),
                     connections: map.connections.clone(),
+                    secondary,
                 },
             );
         }

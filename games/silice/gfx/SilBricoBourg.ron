@@ -93,5 +93,27 @@
             key: Some("none"),
             prompt: Some("A small vegetable garden seen from above: three rows of dark brown tilled soil with green leafy vegetables and orange carrots tops, thin paths of lighter soil between the rows."),
         ),
+        // Route S1, the Sentier des Racines (MAP_ROUTE_S01), shares this tileset.
+        (
+            name: "terre",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Packed brown dirt path ground: flat warm brown base with three or four small darker clods and one tiny pebble."),
+        ),
+        (
+            name: "cables",
+            cells: ["#"],
+            prompt: Some("A low barrier of thick black electric cables coiled and stretched horizontally across the whole width between two short rusty metal stakes, one tiny blue spark."),
+        ),
+        (
+            name: "racines_cables",
+            cells: ["##", "##"],
+            prompt: Some("A mound of giant exposed brown tree roots strangled by thick black electric cables coiling around them, two tiny electric blue sparks."),
+        ),
+        (
+            name: "racines_petites",
+            cells: ["##", "##"],
+            prompt: Some("A low mound of giant exposed brown tree roots coming out of the soil, moss patches, no trunk."),
+        ),
     ],
 )

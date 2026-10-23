@@ -42,6 +42,7 @@ fn catalog() -> Catalog {
             size: Some((10, 10)),
             warps: vec!["Test".into(), "Test".into()],
             connections: vec![conn(ConnectionDir::South, 0, "Test")],
+            secondary: None,
         },
     );
     c.maps.insert(
@@ -51,6 +52,7 @@ fn catalog() -> Catalog {
             size: Some((8, 8)),
             warps: Vec::new(),
             connections: vec![conn(ConnectionDir::South, 2, "Test")],
+            secondary: None,
         },
     );
     c.maps.insert(
@@ -1766,4 +1768,32 @@ fn games_dir_header_music_is_checked_like_the_content_build() {
         Vec::<String>::new()
     );
     assert_eq!(errors_with(&mut e, &c, "ROUTE118").len(), 1);
+}
+
+#[test]
+fn a_seam_with_another_secondary_must_be_primary() {
+    // Other (secondary X) is north of Test (secondary S): Other draws and walks Test's top rows
+    // with its own tilesets.
+    let mut c = catalog();
+    c.maps.get_mut("Other").unwrap().secondary = Some("X".into());
+    let mut e = editor(4, 4);
+    e.apply(&Op::Connect(conn(ConnectionDir::North, 0, "Other")))
+        .unwrap();
+    e.apply(&paint(1, 0, 513)).unwrap();
+    e.apply(&Op::Paint {
+        x: 2,
+        y: 2,
+        metatile: Some(514),
+        collision: Some(1),
+        elevation: None,
+    })
+    .unwrap();
+    let text: Vec<String> = validate(e.doc(), &c).iter().map(|i| i.to_string()).collect();
+    let has = |s: &str| text.iter().any(|t| t.contains(s));
+    assert!(has("error: connection 0: Other (X) walks onto (1, 0)"), "{text:#?}");
+    assert!(has("warning: connection 0: Other (X) shows 1 secondary cell"), "{text:#?}");
+    // The same secondary: no seam issue.
+    c.maps.get_mut("Other").unwrap().secondary = Some("S".into());
+    let text: Vec<String> = validate(e.doc(), &c).iter().map(|i| i.to_string()).collect();
+    assert!(!text.iter().any(|t| t.contains("its own tilesets")), "{text:#?}");
 }
