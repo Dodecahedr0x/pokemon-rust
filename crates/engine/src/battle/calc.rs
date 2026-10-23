@@ -130,12 +130,20 @@ pub enum DamageWeather {
 
 /// What [`base_damage_x`] reads beyond [`base_damage_in`]: the weather, the attacker's Flash
 /// Fire boost (`RESOURCE_FLAG_FLASH_FIRE`) and whether its Plus / Minus has its partner on
-/// the field (`ABILITY_ON_FIELD2`).
+/// the field (`ABILITY_ON_FIELD2`); Wave C's move effects: the defender's screen, Explosion's
+/// halved defense, Solar Beam in a weather other than sun.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Extra {
     pub weather: DamageWeather,
     pub flash_fire: bool,
     pub plus_minus: bool,
+    /// Reflect for a physical move, Light Screen for a special one, on the defender's side
+    /// and no crit (`sideStatus` with `gCritMultiplier == 1`): the damage is halved (singles).
+    pub screen: bool,
+    /// `EFFECT_EXPLOSION`: the defense is halved.
+    pub halve_defense: bool,
+    /// `MOVE_SOLAR_BEAM` in rain, sandstorm or hail: the damage is halved.
+    pub weak_solar: bool,
 }
 
 /// [`base_damage_x`] with a Gen3 `u8` power and no weather.
@@ -230,6 +238,11 @@ pub fn base_damage_x(
     if d.ability == Ability::MarvelScale && d.status != Status::None {
         defense = (150 * defense as u32 / 100) as u16;
     }
+    // Self-Destruct / Explosion halve the defense (after the power modifiers in Gen3, which
+    // do not read it).
+    if x.halve_defense {
+        defense /= 2;
+    }
     let mut power = power;
     if (ty == Type::Electric && field.mud_sport) || (ty == Type::Fire && field.water_sport) {
         power /= 2;
@@ -272,6 +285,9 @@ pub fn base_damage_x(
         if a.status == Status::Burn && a.ability != Ability::Guts {
             damage /= 2;
         }
+        if x.screen {
+            damage /= 2;
+        }
         if damage == 0 {
             damage = 1;
         }
@@ -286,11 +302,20 @@ pub fn base_damage_x(
             sp_defense as u32,
             d.stage(Stat::SpDef),
         );
+        if x.screen {
+            damage /= 2;
+        }
         match (x.weather, ty) {
-            (DamageWeather::Rain, Type::Fire) | (DamageWeather::Sun, Type::Water) => damage /= 2,
-            (DamageWeather::Rain, Type::Water) | (DamageWeather::Sun, Type::Fire) => {
-                damage = 15 * damage / 10
-            }
+            (DamageWeather::Rain, Type::Fire) => damage /= 2,
+            (DamageWeather::Rain, Type::Water) => damage = 15 * damage / 10,
+            _ => {}
+        }
+        if x.weak_solar {
+            damage /= 2;
+        }
+        match (x.weather, ty) {
+            (DamageWeather::Sun, Type::Water) => damage /= 2,
+            (DamageWeather::Sun, Type::Fire) => damage = 15 * damage / 10,
             _ => {}
         }
         if x.flash_fire && ty == Type::Fire {

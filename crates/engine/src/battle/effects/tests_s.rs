@@ -120,7 +120,7 @@ static MOVES: [MoveInfo; 19] = [
         MoveFlags::MAKES_CONTACT,
     ),
     mv(MoveEffect::SonicBoom, 1, Type::Normal, 100, 0),
-    mv(MoveEffect::Unsupported(7), 20, Type::Normal, 100, 0),
+    mv(MoveEffect::Explosion, 20, Type::Normal, 100, 0),
 ];
 
 // ---- species ----

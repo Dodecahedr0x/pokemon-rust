@@ -455,8 +455,273 @@ pub enum MoveEffect {
     Pursuit,
     /// `EFFECT_LOW_KICK`: power from the target's weight.
     LowKick,
+    // ---- Wave C (`battle::effects::wc`): `battle_scripts_1.s` per variant ----
+    /// `EFFECT_ALWAYS_HIT`.
+    AlwaysHit,
+    /// `EFFECT_HIGH_CRITICAL` (`None`), `EFFECT_BLAZE_KICK` (burn), `EFFECT_POISON_TAIL`
+    /// (poison): crit stage +1, with that secondary status.
+    HighCritical(Option<StatusKind>),
+    /// `EFFECT_TRI_ATTACK`.
+    TriAttack,
+    /// `EFFECT_THAW_HIT` (Flame Wheel): burn chance; thaws a frozen user.
+    ThawHit,
+    /// `EFFECT_POISON_FANG`: toxic chance.
+    PoisonFang,
+    /// `EFFECT_GUST`: double damage against a flying target.
+    Gust,
+    /// `EFFECT_TWISTER`: flinch chance, double damage against a flying target.
+    Twister,
+    /// `EFFECT_SKY_UPPERCUT`: also hits a flying target.
+    SkyUppercut,
+    /// `EFFECT_THUNDER`: paralysis chance, hits a flying target, never misses in rain.
+    Thunder,
+    /// `EFFECT_EARTHQUAKE`: double damage against a digging target.
+    Earthquake,
+    /// `EFFECT_ATTACK_UP_HIT` / `EFFECT_DEFENSE_UP_HIT`: the user's stat +1 (chance).
+    StatUpHit(Stat),
+    /// `EFFECT_ALL_STATS_UP_HIT`.
+    AllStatsUpHit,
+    /// `EFFECT_FAKE_OUT`.
+    FakeOut,
+    /// `EFFECT_FALSE_SWIPE`.
+    FalseSwipe,
+    /// `EFFECT_PAY_DAY`.
+    PayDay,
+    /// `EFFECT_RAPID_SPIN`.
+    RapidSpin,
+    /// `EFFECT_SECRET_POWER`.
+    SecretPower,
+    /// `EFFECT_SUPERPOWER`: the user's Attack and Defense -1.
+    Superpower,
+    /// `EFFECT_OVERHEAT`: the user's Sp. Atk -2.
+    Overheat,
+    /// `EFFECT_KNOCK_OFF`.
+    KnockOff,
+    /// `EFFECT_THIEF` (Thief, Covet).
+    Thief,
+    /// `EFFECT_SMELLINGSALT`.
+    SmellingSalt,
+    /// `EFFECT_FACADE`.
+    Facade,
+    /// `EFFECT_REVENGE`.
+    Revenge,
+    /// `EFFECT_BRICK_BREAK`.
+    BrickBreak,
+    /// `EFFECT_RECOIL_IF_MISS` (Jump Kick, Hi Jump Kick).
+    RecoilIfMiss,
+    /// `EFFECT_DOUBLE_EDGE`: a third of the HP dealt as recoil.
+    DoubleEdge,
+    /// `EFFECT_RAMPAGE` (Thrash, Petal Dance, Outrage).
+    Rampage,
+    /// `EFFECT_RECHARGE` (Hyper Beam, Blast Burn …).
+    Recharge,
+    /// `EFFECT_TRAP` with its `gTrappingMoves` index (its `gWrappedStringIds` message).
+    Trap(TrapKind),
+    /// `EFFECT_TWINEEDLE`.
+    Twineedle,
+    /// `EFFECT_TRIPLE_KICK`.
+    TripleKick,
+    /// `EFFECT_DREAM_EATER`.
+    DreamEater,
+    /// `EFFECT_EXPLOSION`.
+    Explosion,
+    /// `EFFECT_OHKO`.
+    Ohko,
+    /// `EFFECT_SUPER_FANG`.
+    SuperFang,
+    /// `EFFECT_DRAGON_RAGE`: 40 HP.
+    DragonRage,
+    /// `EFFECT_LEVEL_DAMAGE`.
+    LevelDamage,
+    /// `EFFECT_PSYWAVE`.
+    Psywave,
+    /// `EFFECT_COUNTER`.
+    Counter,
+    /// `EFFECT_MIRROR_COAT`.
+    MirrorCoat,
+    /// `EFFECT_ENDEAVOR`.
+    Endeavor,
+    /// `EFFECT_FLAIL` (Flail, Reversal).
+    Flail,
+    /// `EFFECT_ERUPTION` (Eruption, Water Spout).
+    Eruption,
+    /// `EFFECT_RETURN`.
+    Return,
+    /// `EFFECT_FRUSTRATION`.
+    Frustration,
+    /// `EFFECT_PRESENT`.
+    Present,
+    /// `EFFECT_MAGNITUDE`.
+    Magnitude,
+    /// `EFFECT_HIDDEN_POWER`.
+    HiddenPower,
+    /// `EFFECT_WEATHER_BALL`.
+    WeatherBall,
+    /// `EFFECT_ROLLOUT` (Rollout, Ice Ball).
+    Rollout,
+    /// `EFFECT_RAGE`.
+    Rage,
+    /// `EFFECT_SNORE`.
+    Snore,
+    /// `EFFECT_FOCUS_PUNCH`.
+    FocusPunch,
+    /// `EFFECT_RAZOR_WIND`, `SKY_ATTACK`, `SKULL_BASH`, `SOLAR_BEAM`: a charging turn, then the
+    /// hit.
+    TwoTurn(TwoTurnKind),
+    /// `EFFECT_SEMI_INVULNERABLE` (Fly, Dig, Dive, Bounce).
+    SemiInvulnerable(SemiKind),
+    /// `EFFECT_STOCKPILE`.
+    Stockpile,
+    /// `EFFECT_SPIT_UP`.
+    SpitUp,
+    /// `EFFECT_SWALLOW`.
+    Swallow,
+    /// `EFFECT_FUTURE_SIGHT` (`true`: Doom Desire's message).
+    FutureSight(bool),
+    // `EFFECT_WILL_O_WISP` is `Status(StatusKind::Burn)`.
+    /// `EFFECT_SWAGGER`.
+    Swagger,
+    /// `EFFECT_FLATTER`.
+    Flatter,
+    /// `EFFECT_TEETER_DANCE`.
+    TeeterDance,
+    /// `EFFECT_NIGHTMARE`.
+    Nightmare,
+    /// `EFFECT_CURSE`.
+    Curse,
+    /// `EFFECT_REST`.
+    Rest,
+    /// `EFFECT_RESTORE_HP` / `EFFECT_SOFTBOILED` (the same in singles).
+    RestoreHp,
+    /// `EFFECT_MORNING_SUN` / `SYNTHESIS` / `MOONLIGHT`.
+    WeatherHeal,
+    /// `EFFECT_HEAL_BELL` (`true`: Aromatherapy, which Soundproof does not block).
+    HealBell(bool),
+    /// `EFFECT_REFRESH`.
+    Refresh,
+    /// `EFFECT_PAIN_SPLIT`.
+    PainSplit,
+    /// `EFFECT_BELLY_DRUM`.
+    BellyDrum,
+    /// `EFFECT_PSYCH_UP`.
+    PsychUp,
+    /// `EFFECT_HAZE`.
+    Haze,
+    /// `EFFECT_COSMIC_POWER` / `BULK_UP` / `CALM_MIND` / `DRAGON_DANCE`: two of the user's
+    /// stats +1.
+    StatsUp(Stat, Stat),
+    /// `EFFECT_TICKLE`: the target's Attack and Defense -1.
+    Tickle,
+    /// `EFFECT_MEMENTO`.
+    Memento,
+    /// `EFFECT_MINIMIZE`.
+    Minimize,
+    /// `EFFECT_CONVERSION`.
+    Conversion,
+    /// `EFFECT_CAMOUFLAGE`.
+    Camouflage,
+    /// `EFFECT_METRONOME`.
+    Metronome,
+    /// `EFFECT_MIRROR_MOVE`.
+    MirrorMove,
+    /// `EFFECT_SLEEP_TALK`.
+    SleepTalk,
+    /// `EFFECT_ASSIST`.
+    Assist,
+    /// `EFFECT_DISABLE`.
+    Disable,
+    /// `EFFECT_ENCORE`.
+    Encore,
+    /// `EFFECT_TORMENT`.
+    Torment,
+    /// `EFFECT_TAUNT`.
+    Taunt,
+    /// `EFFECT_SPITE`.
+    Spite,
+    /// `EFFECT_DESTINY_BOND`.
+    DestinyBond,
+    /// `EFFECT_LOCK_ON` (Lock-On, Mind Reader).
+    LockOn,
+    /// `EFFECT_PERISH_SONG`.
+    PerishSong,
+    /// `EFFECT_ROAR` (Roar, Whirlwind).
+    Roar,
+    /// `EFFECT_PROTECT` (Protect, Detect).
+    Protect,
+    /// `EFFECT_ENDURE`.
+    Endure,
+    /// `EFFECT_SPIKES`.
+    Spikes,
+    /// `EFFECT_LIGHT_SCREEN`.
+    LightScreen,
+    /// `EFFECT_REFLECT`.
+    Reflect,
+    /// `EFFECT_MIST`.
+    Mist,
+    /// `EFFECT_SAFEGUARD`.
+    Safeguard,
+    /// `EFFECT_RAIN_DANCE` / `SUNNY_DAY` / `SANDSTORM` / `HAIL`.
+    SetWeather(WeatherKind),
+    /// `EFFECT_INGRAIN`.
+    Ingrain,
+    /// `EFFECT_WISH`.
+    Wish,
+    /// `EFFECT_HELPING_HAND`: fails in singles (no partner).
+    HelpingHand,
+    /// `EFFECT_FOLLOW_ME`: no effect in singles beyond its message.
+    FollowMe,
+    /// `EFFECT_ROLE_PLAY`.
+    RolePlay,
+    /// `EFFECT_SKILL_SWAP`.
+    SkillSwap,
+    /// `EFFECT_GRUDGE`.
+    Grudge,
+    /// `EFFECT_IMPRISON`.
+    Imprison,
+    /// `EFFECT_MAGIC_COAT`.
+    MagicCoat,
+    /// `EFFECT_TRICK`.
+    Trick,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
+}
+
+/// `gTrappingMoves` order: which `gWrappedStringIds` message a trapping move prints.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TrapKind {
+    Bind,
+    Wrap,
+    FireSpin,
+    Clamp,
+    Whirlpool,
+    SandTomb,
+}
+
+/// The charging turn of a two-turn move (`gFirstTurnOfTwoStringIds`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TwoTurnKind {
+    RazorWind,
+    SkyAttack,
+    SkullBash,
+    SolarBeam,
+}
+
+/// Where a semi-invulnerable move hides (`STATUS3_ON_AIR` / `_UNDERGROUND` / `_UNDERWATER`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SemiKind {
+    Fly,
+    Bounce,
+    Dig,
+    Dive,
+}
+
+/// A weather a move sets.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WeatherKind {
+    Rain,
+    Sun,
+    Sandstorm,
+    Hail,
 }
 
 /// Gen3 `MOVE_TARGET_*` (a bit each in Gen3; one variant here).

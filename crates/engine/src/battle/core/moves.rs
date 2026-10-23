@@ -33,6 +33,8 @@ pub(crate) struct MoveUse {
     pub printed: bool,
     /// Parental Bond's second hit: a quarter of the damage (before the random roll).
     pub quarter: bool,
+    /// `gDynamicBasePower` above 255 (Rollout / Ice Ball, Wave C): the power when non-zero.
+    pub dynamic: u16,
 }
 
 impl MoveUse {
@@ -154,6 +156,7 @@ impl Battle {
             multiplier: 1,
             printed: false,
             quarter: false,
+            dynamic: 0,
         }
     }
 
@@ -283,6 +286,10 @@ impl Battle {
     /// always-hit effects (`ALWAYS_HIT`, `VITAL_THROW`) draw no roll: their scripts call
     /// [`Battle::hit`] with `sure_hit` instead.
     pub(crate) fn accuracy(&mut self, env: &mut Env, u: &MoveUse) -> bool {
+        // AccuracyCalcHelper: Lock-On, the semi-invulnerable turn, Thunder in rain (Wave C).
+        if let Some(hit) = effects::sure_accuracy(self, u) {
+            return hit;
+        }
         let (a, d) = (self.battler(u.attacker), self.battler(u.target));
         let eva = if d.foresight {
             0
@@ -291,7 +298,7 @@ impl Battle {
         };
         let acc = a.stages[Stat::Accuracy as usize];
         calc::accuracy_hits_x(
-            u.info.accuracy,
+            effects::move_accuracy(self, u),
             acc,
             eva,
             a.ability,
@@ -347,7 +354,11 @@ impl Battle {
     /// attack missed!".
     pub(crate) fn miss_message(&mut self, env: &mut Env, u: &MoveUse) {
         self.no_effect = true;
-        let m = if self.levitates(env, u) {
+        let m = if effects::protected(self, u) {
+            // `gMissStringIds[B_MSG_PROTECTED]` (JumpIfMoveAffectedByProtect, before the
+            // accuracy roll and `CheckWonderGuardAndLevitate`).
+            u.msg_long(Str::PkmnProtectedItself, u.target)
+        } else if self.levitates(env, u) {
             self.battler_mut(u.attacker).v.unable = true;
             levitate_msg(u)
         } else if u.power > 0 && u.mov != env.t.struggle && self.immune(env, u) {
@@ -388,17 +399,41 @@ impl Battle {
     /// `typecalc` (skipped for Struggle) and `adjustnormaldamage` (its damage roll, then the
     /// target's Focus Band roll). `hp_dealt` is 0 until [`Battle::deal`].
     pub(crate) fn damage(&mut self, env: &mut Env, u: &MoveUse) -> HitResult {
+        let crit = self.crit_roll(env, u);
+        let damage = self.damage_calc(env, u, crit);
+        let (damage, eff) = self.type_calc(env, u, damage);
+        let mut damage = damage;
+        damage = calc::random_damage(damage, env.rng.random());
+        let hung;
+        (damage, hung) = effects::hold_on(self, env, u, damage, eff);
+        HitResult {
+            damage,
+            hp_dealt: 0,
+            crit,
+            eff,
+            hung,
+        }
+    }
+
+    /// `critcalc`: no roll in a first battle nor against Shell / Battle Armor.
+    pub(crate) fn crit_roll(&mut self, env: &mut Env, u: &MoveUse) -> bool {
+        let d = self.battler(u.target);
+        !self.is_first_battle()
+            && !matches!(d.ability, Ability::ShellArmor | Ability::BattleArmor)
+            && {
+                let stage = calc::crit_chance_stage(self.battler(u.attacker).focus_energy)
+                    + effects::crit_bonus(u.info.effect)
+                    + calc::crit_item_stage(self.battler(u.attacker).x.hold);
+                calc::is_crit(stage, env.rng.random())
+            }
+    }
+
+    /// `damagecalc`: `CalculateBaseDamage`, the crit and `dmgMultiplier`, Charge.
+    pub(crate) fn damage_calc(&mut self, env: &mut Env, u: &MoveUse, crit: bool) -> i32 {
         let (a, d) = (
             self.battler(u.attacker).fighter(),
             self.battler(u.target).fighter(),
         );
-        let crit = !self.is_first_battle()
-            && !matches!(d.ability, Ability::ShellArmor | Ability::BattleArmor)
-            && {
-                let stage = calc::crit_chance_stage(self.battler(u.attacker).focus_energy)
-                    + calc::crit_item_stage(a.hold);
-                calc::is_crit(stage, env.rng.random())
-            };
         let weather = match self.weather() {
             w if w.rain() => calc::DamageWeather::Rain,
             w if w.sun() => calc::DamageWeather::Sun,
@@ -407,9 +442,9 @@ impl Battle {
         };
         let power = self.power_with_abilities(env, u, weather);
         let x = calc::Extra {
-            weather,
             flash_fire: self.battler(u.attacker).x.flash_fire,
             plus_minus: self.plus_minus(u.attacker),
+            ..effects::damage_extra(self, u, crit, weather)
         };
         let mut damage = calc::base_damage_x(&a, &d, power, u.ty, crit, self.field(), x)
             * if crit { 2 } else { 1 }
@@ -422,6 +457,20 @@ impl Battle {
         if self.battler(u.attacker).charge > 0 && u.info.ty == Type::Electric {
             damage *= 2;
         }
+        damage
+    }
+
+    /// `typecalc` (skipped for Struggle): STAB, the type chart, Levitate, Filter. A type
+    /// immunity sets `targetNotAffected` (`Volatiles::unable`).
+    pub(crate) fn type_calc(
+        &mut self,
+        env: &mut Env,
+        u: &MoveUse,
+        damage: i32,
+    ) -> (i32, Effectiveness) {
+        let mut damage = damage;
+        let a = self.battler(u.attacker).fighter();
+        let d = self.battler(u.target).fighter();
         let mut eff = Effectiveness::Normal;
         if u.mov != env.t.struggle {
             if a.has_type(u.ty) {
@@ -450,16 +499,7 @@ impl Battle {
                 self.battler_mut(u.attacker).v.unable = true;
             }
         }
-        damage = calc::random_damage(damage, env.rng.random());
-        let hung;
-        (damage, hung) = self.focus_band(env, u.target, damage, eff);
-        HitResult {
-            damage,
-            hp_dealt: 0,
-            crit,
-            eff,
-            hung,
-        }
+        (damage, eff)
     }
 
     /// The Focus Band of `adjustnormaldamage` / `adjustnormaldamage2` / `adjustsetdamage`:
@@ -490,7 +530,11 @@ impl Battle {
     /// converted, Tough Claws x1.3 on contact, Sand Force x1.3 on Rock / Ground / Steel in a
     /// sandstorm.
     fn power_with_abilities(&self, env: &Env, u: &MoveUse, weather: calc::DamageWeather) -> u32 {
-        let mut power = u.power as u32;
+        let mut power = if u.dynamic > 0 {
+            u.dynamic as u32
+        } else {
+            u.power as u32
+        };
         match self.battler(u.attacker).ability {
             Ability::Technician if power <= 60 => power = power * 3 / 2,
             a if ate_type(a).is_some() && u.info.ty == Type::Normal && u.mov != env.t.struggle => {
@@ -512,7 +556,19 @@ impl Battle {
 
     /// The hit's animations, HP drop and messages (`attackanimation` … `resultmessage`).
     /// Nothing but "It doesn't affect…" when the type has no effect.
-    pub(crate) fn deal(&mut self, env: &mut Env, u: &MoveUse, mut r: HitResult) -> HitResult {
+    pub(crate) fn deal(&mut self, env: &mut Env, u: &MoveUse, r: HitResult) -> HitResult {
+        self.deal_with(env, u, r, true)
+    }
+
+    /// [`Battle::deal`]; `anim`: the attack animation plays (scripts that played it already,
+    /// Explosion and Brick Break, pass false).
+    pub(crate) fn deal_with(
+        &mut self,
+        env: &mut Env,
+        u: &MoveUse,
+        mut r: HitResult,
+        anim: bool,
+    ) -> HitResult {
         if effects::wonder_guard(self, env, u, r.eff) {
             return HitResult {
                 damage: 0,
@@ -531,10 +587,12 @@ impl Battle {
             env.out.push(BattleEvent::Msg(m));
             return r;
         }
-        env.out.push(BattleEvent::MoveAnim {
-            attacker: u.attacker,
-            mov: u.mov,
-        });
+        if anim {
+            env.out.push(BattleEvent::MoveAnim {
+                attacker: u.attacker,
+                mov: u.mov,
+            });
+        }
         env.out.push(BattleEvent::Hit {
             target: u.target,
             eff: r.eff,
@@ -559,6 +617,12 @@ impl Battle {
     /// `resultmessage`'s `MOVE_RESULT_FOE_HUNG_ON`: `BattleScript_HangedOnMsg`.
     pub(crate) fn hung_on(&mut self, env: &mut Env, u: &MoveUse, r: &HitResult) {
         if !r.hung {
+            return;
+        }
+        if effects::endured(self, u.target) {
+            // MOVE_RESULT_FOE_ENDURED: STRINGID_PKMNENDUREDHIT.
+            env.out
+                .push(BattleEvent::Msg(u.msg_long(Str::PkmnEnduredHit, u.target)));
             return;
         }
         let item = self.battler(u.target).x.item;
@@ -605,7 +669,10 @@ impl Battle {
             let b = self.battler_mut(side);
             b.bide_damage = b.bide_damage.saturating_add(damage as u32);
         }
-        self.change_hp_passive(env, side, damage)
+        let dealt = self.change_hp_passive(env, side, damage);
+        // `datahpupdate`'s Counter / Mirror Coat records (Wave C).
+        effects::record_damage(self, side, dealt);
+        dealt
     }
 
     /// [`Battle::change_hp`] under `HITMARKER_IGNORE_BIDE` (poison, burn, Leech Seed … at the
@@ -631,6 +698,9 @@ impl Battle {
             return false;
         }
         b.fainted = true;
+        // BattleScript_DestinyBondTakesLife runs before BattleScript_FaintTarget (Wave C).
+        effects::destiny_bond(self, env, side);
+        let b = self.battler_mut(side);
         // FaintClearSetData: stages and volatile statuses.
         b.stages = [0; 8];
         b.confusion = 0;
@@ -642,6 +712,7 @@ impl Battle {
         b.charge = 0;
         b.bide_damage = 0;
         b.v = super::Volatiles::default();
+        b.fx = super::BattlerFx::default();
         let (party, ability, level) = (b.mon.party, b.ability, b.mon.level);
         if side == Side::Player {
             // Gen3 `Cmd_tryfaintmon` → `AdjustFriendshipOnBattleFaint` (Task E).
@@ -774,17 +845,23 @@ impl Battle {
 
 /// The type an -ate ability gives Normal moves.
 /// Whether Parental Bond doubles a move of `effect` (Gen7 exclusions the engine can name):
-/// not the multi-strike moves, Uproar, nor (by their Gen3 `EFFECT_*` numbers) Explosion /
-/// Self-Destruct (7), the two-turn moves (Razor Wind 39, Sky Attack 75, Skull Bash 145, Solar
-/// Beam 151, Fly / Dig / Dive / Bounce 155), Twineedle (77), Triple Kick (104), Rollout / Ice
-/// Ball (117), Beat Up (154) and Endeavor (189).
+/// not the multi-strike moves, Uproar, Explosion / Self-Destruct, the two-turn and
+/// semi-invulnerable moves, Twineedle, Triple Kick, Rollout / Ice Ball, Endeavor, nor Beat Up
+/// (`EFFECT_BEAT_UP` = 154, unsupported).
 pub(crate) fn parental_bond_applies(effect: MoveEffect) -> bool {
     !matches!(
         effect,
         MoveEffect::MultiHit
             | MoveEffect::DoubleHit
             | MoveEffect::Uproar
-            | MoveEffect::Unsupported(7 | 39 | 75 | 77 | 104 | 117 | 145 | 151 | 154 | 155 | 189)
+            | MoveEffect::Explosion
+            | MoveEffect::TwoTurn(_)
+            | MoveEffect::SemiInvulnerable(_)
+            | MoveEffect::Twineedle
+            | MoveEffect::TripleKick
+            | MoveEffect::Rollout
+            | MoveEffect::Endeavor
+            | MoveEffect::Unsupported(154)
     )
 }
 
