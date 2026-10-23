@@ -1,0 +1,26 @@
+// The heart (R-11): an original drawing for Silice, code 0x37 (`extract::games::font`).
+// 7 x 7 foreground ending on the font's baseline (row 11), shadow one pixel right and down,
+// as the Gen3 font draws it. `.` background, `#` foreground, `s` shadow.
+(
+    char: '♥',
+    width: 8,
+    on_baseline: true,
+    rows: [
+        "........",
+        "........",
+        "........",
+        "........",
+        "........",
+        ".##s##s.",
+        "#######s",
+        "#######s",
+        "#######s",
+        "s#####ss",
+        ".s###ss.",
+        "..s#ss..",
+        "...ss...",
+        "........",
+        "........",
+        "........",
+    ],
+)

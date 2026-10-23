@@ -9,7 +9,9 @@
 //!   script rule;
 //! - [`load`], [`merge`]: the maps into the generator's `World`;
 //! - [`dispatch`]: the generated script files;
-//! - [`text`]: the `text/fr.ron` reader (Task A merges the texts).
+//! - [`text`]: the `text/fr.ron` reader (Task A merges the texts);
+//! - [`font`]: the authored glyphs (`font/*.ron`) merged into the extract's font, and the
+//!   encoder hook for them (Task G).
 //!
 //! **Wave 0 world** ([`world`]): every map of `maps/` with its layout, numbered by
 //! `ids/maps.ron`, on the extract's tilesets, sprites, font, window, battle data and tables; of
@@ -21,6 +23,7 @@
 //! constants, start); the script files are [`dispatch`]'s.
 
 pub mod dispatch;
+pub mod font;
 pub mod ids;
 pub mod load;
 pub mod merge;
@@ -57,6 +60,7 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         .collect::<Result<Vec<_>>>()?;
     resolver.finish()?;
     let mut w = crate::input::load_assets(extracted)?;
+    font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
     w.maps = maps;
     w.ir = None;
     // The Gen3 shared texts the prelude prints by decomp label (`text_named`: obtain item,
