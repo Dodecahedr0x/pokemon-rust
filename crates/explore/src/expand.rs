@@ -78,6 +78,8 @@ pub const STALL_FRAMES: u32 = 64;
 pub const BLOCKED_FRAMES: u32 = 240;
 /// Frames after pressing A for the interaction's script to start.
 const INTERACT_FRAMES: u32 = 4;
+/// Frames a [`MacroKind::Buy`] may take once the clerk talks (messages, the mart's fades).
+const BUY_FRAMES: u32 = 4_000;
 /// Frames a [`MacroKind::UseItem`] may take (fades, messages, the teach flow).
 const USE_ITEM_FRAMES: u32 = 4_000;
 
@@ -402,6 +404,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 | MacroKind::Interact
                 | MacroKind::Press { .. }
                 | MacroKind::UseItem { .. }
+                | MacroKind::Buy { .. }
         ) {
             return Ok(());
         }
@@ -741,8 +744,77 @@ impl<'a, G: GameData> Driver<'a, G> {
                 self.resolve()?;
                 self.use_item(engine::data::ItemId(item), mon, forget)?;
             }
+            MacroKind::Buy {
+                local_id,
+                item,
+                qty,
+            } => {
+                self.resolve()?;
+                self.talk(local_id)?;
+                self.buy(engine::data::ItemId(item), qty)?;
+            }
         }
         self.resolve()
+    }
+
+    /// [`MacroKind::Buy`] once the clerk's script runs: the clerk's text (A), then the mart from
+    /// its state (BUY, the item, the quantity, yes; then out), then the script to its end.
+    fn buy(&mut self, item: engine::data::ItemId, qty: u16) -> Result<(), ExpandError> {
+        use engine::ui::ScreenState;
+        use engine::ui::mart::{BUY, Prompt, QUIT};
+        let had = self.w().bag().count(item);
+        let mut opened = false;
+        let mut bought = false;
+        for _ in 0..BUY_FRAMES {
+            let w = self.s.world();
+            let top = w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                Some(ScreenState::Mart(m)) => {
+                    opened = true;
+                    bought |= w.bag().count(item) > had;
+                    match m.prompt() {
+                        Prompt::Menu { cursor } if bought => vertical(cursor.into(), QUIT.into()),
+                        Prompt::Menu { cursor } => vertical(cursor.into(), BUY.into()),
+                        Prompt::List { .. } if bought => Buttons::B,
+                        Prompt::List { selected, .. } => {
+                            let Some(at) = m.items.iter().position(|&i| i == item) else {
+                                return Err(ExpandError::NoEffect("buy: not sold here"));
+                            };
+                            vertical(selected, at as u16)
+                        }
+                        Prompt::Quantity { value, max } => {
+                            if max < qty {
+                                return Err(ExpandError::NoEffect("buy: short of money"));
+                            }
+                            // UP adds one, DOWN takes one (`AdjustQuantityAccordingToDPadInput`).
+                            match value.cmp(&qty) {
+                                std::cmp::Ordering::Less => Buttons::UP,
+                                std::cmp::Ordering::Greater => Buttons::DOWN,
+                                std::cmp::Ordering::Equal => Buttons::A,
+                            }
+                        }
+                        Prompt::YesNo { cursor } => vertical(cursor.into(), 0),
+                        Prompt::Message => Buttons::A,
+                        Prompt::Child => Buttons::B,
+                    }
+                }
+                Some(_) => Buttons::B,
+                None if opened && !w.script_running() => {
+                    if w.capturable().is_ok() && w.objects().player().is_settled() {
+                        return if bought {
+                            Ok(())
+                        } else {
+                            Err(ExpandError::NoEffect("buy: nothing bought"))
+                        };
+                    }
+                    Buttons::NONE
+                }
+                None if w.script_running() => self.intents.script(w, self.opts),
+                None => Buttons::NONE,
+            };
+            self.tap(keys)?;
+        }
+        Err(ExpandError::Timeout("buy"))
     }
 
     /// [`MacroKind::UseItem`]: drives the start menu, the bag, the party menu and the summary
@@ -977,5 +1049,14 @@ impl<'a, G: GameData> Driver<'a, G> {
             self.press(dir.map_or(Buttons::NONE, dir_key))?;
         }
         Ok(())
+    }
+}
+
+/// The key that moves a vertical cursor at `at` toward `want` (A once there).
+fn vertical(at: u16, want: u16) -> Buttons {
+    match at.cmp(&want) {
+        std::cmp::Ordering::Less => Buttons::DOWN,
+        std::cmp::Ordering::Greater => Buttons::UP,
+        std::cmp::Ordering::Equal => Buttons::A,
     }
 }

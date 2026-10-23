@@ -70,7 +70,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "water-door-in",
     "water-door-out",
     "mossdeep-gym-puzzle",
-    "steven-multi",
     "dive-seafloor",
     "legendaries-scene",
     "dive-sootopolis",
@@ -80,7 +79,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "dive-sootopolis",
     "dive-out-sootopolis",
     "waterfall-ever-grande",
-    "league-mart",
     "game-clear",
 ];
 

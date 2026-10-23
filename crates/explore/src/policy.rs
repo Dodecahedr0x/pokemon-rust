@@ -10,6 +10,7 @@ use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleMon, Side};
 use engine::data::{MoveId, SpeciesId};
 use engine::mon::{Ability, BattleTables, Type};
+use engine::ui::{BagMode, ScreenKind};
 use engine::{Buttons, World};
 
 pub struct Policy {
@@ -142,7 +143,14 @@ impl Policy {
             self.yes_nos += 1;
         }
         self.yes_no_open = yes_no;
-        let k = if let Some(starter) = w.starter() {
+        let shop = (w.screens().and_then(|s| s.top())).is_some_and(|(k, _)| {
+            matches!(k, ScreenKind::Mart { .. } | ScreenKind::Bag(BagMode::Sell))
+        });
+        let k = if shop {
+            // A clerk's mart (or its SELL bag): B leaves without buying (A would buy the
+            // first item until the money runs out); `Step::Buy` drives a purchase.
+            Buttons::B
+        } else if let Some(starter) = w.starter() {
             // Its own "Do you choose this?" yes/no starts on yes: A confirms the ball.
             let want = opts.choice % 3;
             match starter.selection().cmp(&want) {
