@@ -183,6 +183,7 @@ fn load_map_spread(
     if let Some(script) = map.scripts.on_transition {
         run_immediate(game, s, f, script);
     }
+    s.field.settle_next_layout(game, id);
     let camera = camera_for((x as i32 * 16, y as i32 * 16));
     if spread {
         s.field.enter_spread(id, camera);
@@ -231,6 +232,7 @@ pub(super) fn cross_connection(
     if let Some(script) = map.scripts.on_transition {
         run_immediate(game, s, f, script);
     }
+    s.field.settle_next_layout(game, to);
     s.field.switch_map_enter(game, to, shift, f);
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()

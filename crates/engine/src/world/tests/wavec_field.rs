@@ -206,8 +206,11 @@ impl GameData for LGame {
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         match id {
             HOUSE_TRANSITION => Box::pin(async move {
-                if ctx.var(VAR_HOUSE).await == 1 {
-                    ctx.set_map_layout(HOUSE_ALT_LAYOUT).await;
+                match ctx.var(VAR_HOUSE).await {
+                    1 => ctx.set_map_layout(HOUSE_ALT_LAYOUT).await,
+                    // A layout the game has no variant of for the house (one equal to its own).
+                    2 => ctx.set_map_layout(HOUSE_ALT_LAYOUT + 1).await,
+                    _ => {}
                 }
             }),
             _ => Game.script(id, ctx),
@@ -291,6 +294,20 @@ fn a_layout_override_survives_a_checkpoint_and_is_hashed() {
         World::restore(&LGame, &bad),
         Err(RestoreError::Invalid(_))
     ));
+}
+
+#[test]
+fn a_layout_the_map_has_no_variant_of_is_no_override() {
+    let mut w = World::new(&LGame);
+    run_l(&mut w, 16);
+    w.s.vars.set_var(VAR_HOUSE, 2);
+    warp_l(&mut w, HOUSE);
+    run_l(&mut w, 30);
+    assert_eq!(w.s.field.layout(), None, "drawn with its own layout");
+    let cp = w.checkpoint(&LGame).expect("capturable");
+    assert_eq!(cp.world.map_layout, None);
+    let back = World::restore(&LGame, &cp).expect("restores");
+    assert_eq!(back.hash(), w.hash());
 }
 
 #[test]

@@ -177,6 +177,16 @@ impl Field {
         self.next_layout = layout;
     }
 
+    /// Drops a next layout that map `to` does not have as a variant
+    /// ([`GameData::map_layout`]: one equal to its own layout, Route 130's `LAYOUT_ROUTE130`
+    /// without Mirage Island, is not one): the map is drawn with its own either way, and
+    /// the override, which a checkpoint must name a variant for, would not survive a restore.
+    pub fn settle_next_layout(&mut self, game: &impl GameData, to: MapId) {
+        if self.next_layout.is_some_and(|l| game.map_layout(to, l).is_none()) {
+            self.next_layout = None;
+        }
+    }
+
     /// The current map's layout override.
     pub fn layout(&self) -> Option<u16> {
         self.layout
