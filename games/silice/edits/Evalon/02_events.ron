@@ -19,9 +19,9 @@
     // setobjectxyperm (24-26, 16)); hidden otherwise. Mathieu keeps the source's FLAG_SIL_HIDE_EVALON_AMIS.
     // Sc01's walks (Mathieu Down x4, Adrien and Gwada Down x3) end on y 44 and 43, short of the
     // trigger row y 45.
-    Object(x: 24, y: 40, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_AMIS"),
-    Object(x: 23, y: 40, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_EVALON_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_ADRIEN"),
-    Object(x: 26, y: 40, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_EVALON_GWADA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GWADA"),
+    Object(x: 24, y: 40, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_EVALON_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_AMIS"),
+    Object(x: 23, y: 40, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_EVALON_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_ADRIEN"),
+    Object(x: 26, y: 40, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_EVALON_GWADA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GWADA"),
     // The Scribe comes to Sc01 (shown at 80-81 only), then goes back to his tower.
     Object(x: 17, y: 44, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_EVALON_SCRIBE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SCRIBE"),
     // The Porte du Fer: the three guards stand in the gate (x 24-26, y 13), Perceval in the middle,

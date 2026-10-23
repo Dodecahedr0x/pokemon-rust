@@ -16,6 +16,7 @@
 
 mod check;
 pub mod gfx;
+mod sprites;
 mod ids;
 mod import;
 mod maps;

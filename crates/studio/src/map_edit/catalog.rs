@@ -155,6 +155,16 @@ impl Catalog {
             }
             c.add_all_tilesets();
             c.gfx = read_gfx(&dir).unwrap_or_default();
+            // The games dir's original sprites (`sprites/<NAME>.ron`), new graphics included.
+            if let Ok(rd) = std::fs::read_dir(silice_dir().join("sprites")) {
+                for p in rd.filter_map(|e| e.ok().map(|e| e.path())) {
+                    if p.extension().is_some_and(|x| x == "ron")
+                        && let Some(n) = p.file_stem().and_then(|s| s.to_str())
+                    {
+                        c.gfx.insert(format!("OBJ_EVENT_GFX_{n}"));
+                    }
+                }
+            }
             return Ok(c);
         }
         for (id, name) in crate::map_view::map_list() {

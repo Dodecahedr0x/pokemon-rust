@@ -166,6 +166,7 @@ pub fn main(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("prep") => prep_cmd(&args[1..]),
         Some("gen") => gen_cmd(&args[1..]),
+        Some("sprites") => super::sprites::main(&args[1..]),
         Some("build") => {
             let mut games = crate::root().join("games/silice");
             let mut extracted = crate::root().join("content/extracted");
@@ -217,7 +218,7 @@ pub struct Rgba {
 }
 
 impl Rgba {
-    fn at(&self, x: u32, y: u32) -> [u8; 4] {
+    pub fn at(&self, x: u32, y: u32) -> [u8; 4] {
         self.px[(y * self.w + x) as usize]
     }
 }
@@ -417,7 +418,7 @@ fn full_prompt(spec: &Spec, f: &Feature, subject: &str) -> String {
 }
 
 /// One `codex exec` image generation; the picture's path under `~/.codex/generated_images`.
-fn codex_image(prompt: &str) -> Result<PathBuf> {
+pub fn codex_image(prompt: &str) -> Result<PathBuf> {
     let dir = std::env::temp_dir().join(format!(
         "pkr-gfx-{}-{:?}",
         std::process::id(),
@@ -534,7 +535,7 @@ fn keyed(c: [u8; 4], key: Option<[u8; 3]>, tol: u32) -> bool {
     k == [0xFF, 0x00, 0xFF] && magenta(c)
 }
 
-fn magenta(c: [u8; 4]) -> bool {
+pub fn magenta(c: [u8; 4]) -> bool {
     let (r, g, b) = (c[0] as u32, c[1] as u32, c[2] as u32);
     r > 110 && b > 110 && g * 10 < r.min(b) * 7
 }
@@ -544,11 +545,11 @@ fn luma(c: u16) -> u32 {
     r * 3 + g * 6 + b
 }
 
-fn rgb555(c: [u8; 4]) -> u16 {
+pub fn rgb555(c: [u8; 4]) -> u16 {
     (c[0] as u16 >> 3) | (c[1] as u16 >> 3) << 5 | (c[2] as u16 >> 3) << 10
 }
 
-fn from555(c: u16) -> [u8; 4] {
+pub fn from555(c: u16) -> [u8; 4] {
     let e = |v: u16| ((v & 31) << 3 | (v & 31) >> 2) as u8;
     [e(c), e(c >> 5), e(c >> 10), 255]
 }
@@ -579,6 +580,26 @@ pub fn prep(
     if key.is_none() {
         (x0, y0, x1, y1) = (0, 0, raw.w, raw.h);
     }
+    prep_box(raw, &mask, (x0, y0, x1, y1), w, h, key, stretch, align)
+}
+
+/// Opaque pixels of `raw` (not the key colour).
+pub fn opaque_mask(raw: &Rgba, key: Option<[u8; 3]>, tol: u32) -> Vec<bool> {
+    raw.px.iter().map(|&c| !keyed(c, key, tol)).collect()
+}
+
+/// [`prep`] of the box `(x0, y0, x1, y1)` of `raw` (`mask`: its opaque pixels).
+#[allow(clippy::too_many_arguments)]
+pub fn prep_box(
+    raw: &Rgba,
+    mask: &[bool],
+    (x0, y0, x1, y1): (u32, u32, u32, u32),
+    w: u32,
+    h: u32,
+    key: Option<[u8; 3]>,
+    stretch: bool,
+    align: Align,
+) -> Result<Rgba> {
     let (bw, bh) = ((x1 - x0) as f64, (y1 - y0) as f64);
     let (tw, th) = if stretch {
         (w, h)
@@ -941,7 +962,7 @@ fn dist(a: [f32; 3], b: [f32; 3]) -> f32 {
     (0..3).map(|i| (a[i] - b[i]).powi(2)).sum()
 }
 
-fn nearest(pal: &[u16], c: u16) -> usize {
+pub fn nearest(pal: &[u16], c: u16) -> usize {
     let l = lab(c);
     (0..pal.len())
         .min_by(|&a, &b| dist(lab(pal[a]), l).total_cmp(&dist(lab(pal[b]), l)))
@@ -949,7 +970,7 @@ fn nearest(pal: &[u16], c: u16) -> usize {
 }
 
 /// `k` colours for weighted `colours` (k-means, seeded by the most frequent distinct ones).
-fn kmeans_colours(colours: &HashMap<u16, u32>, k: usize) -> Vec<u16> {
+pub fn kmeans_colours(colours: &HashMap<u16, u32>, k: usize) -> Vec<u16> {
     let mut list: Vec<(u16, u32)> = colours.iter().map(|(&c, &n)| (c, n)).collect();
     list.sort_by_key(|&(c, n)| (std::cmp::Reverse(n), c));
     if list.len() <= k {

@@ -107,7 +107,7 @@
         (
             local_id: 7,
             id: Some("LOCALID_BRICO_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 4,
             y: 16,
             elevation: 3,
@@ -122,7 +122,7 @@
         (
             local_id: 8,
             id: Some("LOCALID_BRICO_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 5,
             y: 16,
             elevation: 3,
@@ -137,7 +137,7 @@
         (
             local_id: 9,
             id: Some("LOCALID_BRICO_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 6,
             y: 16,
             elevation: 3,

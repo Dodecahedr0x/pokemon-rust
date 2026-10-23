@@ -17,9 +17,9 @@
     Object(x: 9, y: 7, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_EVALON_TAVERNE_ROLISTE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Taverne_EventScript_Roliste"),
     Object(x: 13, y: 8, gfx: "OBJ_EVENT_GFX_ARTIST", id: "LOCALID_EVALON_TAVERNE_BARDE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Taverne_EventScript_Barde"),
     // Sc02: the three friends round the left-hand table, each with a persistent hide flag.
-    Object(x: 2, y: 7, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_TAVERNE_MATHIEU", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU"),
-    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_EVALON_TAVERNE_ADRIEN", local_id: 6, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN"),
-    Object(x: 5, y: 8, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_EVALON_TAVERNE_GWADA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA"),
+    Object(x: 2, y: 7, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_EVALON_TAVERNE_MATHIEU", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_EVALON_TAVERNE_ADRIEN", local_id: 6, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN"),
+    Object(x: 5, y: 8, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_EVALON_TAVERNE_GWADA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA"),
     // The Pigeonnier: the pigeon-keeper (the PC by pigeon, and quest Q3).
     Object(x: 19, y: 4, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_EVALON_TAVERNE_COLOMBOPHILE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Taverne_EventScript_Colombophile"),
     // The keeper's register on the shelf: the PC fallback (the source's 'PC decore en registre').

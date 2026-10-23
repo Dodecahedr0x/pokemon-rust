@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_VIBER_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 20,
             y: 16,
             elevation: 3,
@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_VIBER_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 21,
             y: 17,
             elevation: 3,
@@ -137,7 +137,7 @@
         (
             local_id: 9,
             id: Some("LOCALID_VIBER_MATHIEU_CHARIOT"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 5,
             y: 7,
             elevation: 3,
