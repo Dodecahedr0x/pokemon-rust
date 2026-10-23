@@ -1100,6 +1100,20 @@ impl Env for TestEnv {
 }
 
 #[test]
+fn directional_walls_have_a_code_and_no_usual_collision() {
+    use engine::data::{Behavior, Dir, Sides};
+    let b = super::behavior::MetatileBehavior {
+        raw: mb("MB_IMPASSABLE_EAST") as u8,
+        name: "MB_IMPASSABLE_EAST".into(),
+        class: Behavior::Impassable(Sides::of(&[Dir::Right])),
+    };
+    assert_eq!(b.code(), Some('I'));
+    assert_eq!(b.what(), "directional wall");
+    assert_eq!((b.collision(false), b.collision(true)), (None, None));
+    assert!(!b.triggers_warp());
+}
+
+#[test]
 fn behaviours_have_codes_and_usual_collisions() {
     let c = behavior_catalog();
     let code = |m| behavior(&c, "P", "S", m).unwrap().code();

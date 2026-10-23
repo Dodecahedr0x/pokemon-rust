@@ -14,7 +14,8 @@
 //! | `L` | ledge (solid; jumped from the uphill side) | `MB_JUMP_*` |
 //! | `C` | counter (talk across) | `MB_COUNTER` |
 //! | `S` | water (blocked without Surf) | `MB_POND_WATER`, `MB_OCEAN_WATER`… (`*WATER*`) |
-//! | `B` | other blocked behaviour | directional walls… |
+//! | `I` | directional wall (walkable; some sides cannot be crossed) | `MB_IMPASSABLE_*` |
+//! | `B` | other blocked behaviour | `MB_*_CURRENT`… |
 //!
 //! Normal metatiles (and the other behaviours the engine treats as normal) have no code.
 //!
@@ -85,6 +86,7 @@ impl MetatileBehavior {
             Behavior::Counter => 'C',
             Behavior::Blocked if self.is_water() => 'S',
             Behavior::Blocked => 'B',
+            Behavior::Impassable(_) => 'I',
             Behavior::Normal => return None,
         })
     }
@@ -112,6 +114,7 @@ impl MetatileBehavior {
             Behavior::Counter => "counter",
             Behavior::Blocked if self.is_water() => "water",
             Behavior::Blocked => "blocked",
+            Behavior::Impassable(_) => "directional wall",
             Behavior::Normal => "normal",
         }
     }
@@ -128,13 +131,14 @@ impl MetatileBehavior {
             Behavior::Ledge(_) => Some(1),
             Behavior::Blocked if self.is_water() => Some(0),
             Behavior::Counter => Some(1),
-            Behavior::Blocked | Behavior::Normal => None,
+            // Walkable cells whose sides block: either collision can be right.
+            Behavior::Blocked | Behavior::Impassable(_) | Behavior::Normal => None,
         }
     }
 }
 
 /// The legend of the codes, one line each.
-pub const LEGEND: [(char, &str); 8] = [
+pub const LEGEND: [(char, &str); 9] = [
     (
         'D',
         "door: entering warps (needs a warp event; a decorative door is solid)",
@@ -148,6 +152,7 @@ pub const LEGEND: [(char, &str); 8] = [
     ('L', "ledge (solid; jumped from the uphill side)"),
     ('C', "counter (solid; talk across)"),
     ('S', "water (needs Surf)"),
+    ('I', "directional wall (walkable; some sides blocked)"),
     ('B', "blocked behaviour"),
 ];
 
