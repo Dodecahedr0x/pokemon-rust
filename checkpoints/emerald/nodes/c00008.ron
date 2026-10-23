@@ -2,10 +2,10 @@
     meta: (
         id: 8,
         label: "spine:act1:pokedex",
-        schema: 5,
+        schema: 6,
         build: (
-            engine: 17562835693421906446,
-            content: 4363450027392577382,
+            engine: 3165512288998219621,
+            content: 10332572210572018688,
         ),
         frame: 16158,
         map: (260),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(7),
         build: (
-            engine: 17562835693421906446,
-            content: 4363450027392577382,
+            engine: 3165512288998219621,
+            content: 10332572210572018688,
         ),
         start_frame: 12226,
         inputs: [
