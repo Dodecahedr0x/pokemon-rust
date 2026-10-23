@@ -38,6 +38,18 @@ pub enum Act {
     /// Rusturf Tunnel (HM04 Strength), Rustboro, Petalburg Woods, the Petalburg gym, Wally's
     /// father (Task S).
     Act5,
+    /// Act 6: from Fortree to Winona's badge: Steven's Devon Scope on Route 120, the Kecleon
+    /// before the gym.
+    Act6,
+    /// Act 7: from Winona's badge to Tate and Liza's and HM08: Lilycove, Mt. Pyre's summit (the
+    /// Magma Emblem), the Magma Hideout (Groudon), the Aqua Hideout, Mossdeep's gym, the Space
+    /// Center, Steven's house.
+    Act7,
+    /// Act 8: from HM08 to Juan's badge: Seafloor Cavern (Kyogre), Sootopolis, Sky Pillar
+    /// (Rayquaza), HM07, the gym.
+    Act8,
+    /// The League: Ever Grande, Victory Road, the Elite Four, the Champion, the Hall of Fame.
+    League,
     /// Silice's Prologue (SIL1): from the new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge.
     /// 10 goals (the spine's `Expect`s). The default act on Silice.
     SilCh0,
@@ -54,23 +66,31 @@ impl Default for Act {
 }
 
 impl Act {
-    pub const ALL: [Act; 7] = [
+    pub const ALL: [Act; 11] = [
         Act::Slice,
         Act::Act1,
         Act::Act2,
         Act::Act3,
         Act::Act4,
         Act::Act5,
+        Act::Act6,
+        Act::Act7,
+        Act::Act8,
+        Act::League,
         Act::SilCh0,
     ];
     /// The Emerald acts (and the stub's, which shares one list).
-    pub const EMERALD: [Act; 6] = [
+    pub const EMERALD: [Act; 10] = [
         Act::Slice,
         Act::Act1,
         Act::Act2,
         Act::Act3,
         Act::Act4,
         Act::Act5,
+        Act::Act6,
+        Act::Act7,
+        Act::Act8,
+        Act::League,
     ];
     /// The Silice acts (`sil_ch1` and onwards come with their chapters).
     pub const SILICE: [Act; 1] = [Act::SilCh0];
@@ -84,6 +104,10 @@ impl Act {
             Act::Act3 => "act3",
             Act::Act4 => "act4",
             Act::Act5 => "act5",
+            Act::Act6 => "act6",
+            Act::Act7 => "act7",
+            Act::Act8 => "act8",
+            Act::League => "league",
             Act::SilCh0 => "sil_ch0",
         }
     }
@@ -409,6 +433,138 @@ mod emerald {
         },
     ];
 
+    /// Act 6: Route 120's Devon Scope, the Fortree gym.
+    pub static ACT6: [Goal; 4] = [
+        Goal {
+            name: "devon_scope",
+            // `Route120_EventScript_StevenGiveDeconScope`, after the Kecleon.
+            reached: |s| flag(s, FLAG_RECEIVED_DEVON_SCOPE),
+        },
+        Goal {
+            name: "kecleon_fled",
+            // `FortreeCity_EventScript_UseDevonScope`: the way to the gym is clear.
+            reached: |s| flag(s, FLAG_KECLEON_FLED_FORTREE),
+        },
+        Goal {
+            name: "winona_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_FORTREE_GYM),
+        },
+        Goal {
+            name: "badge6",
+            reached: |s| flag(s, FLAG_BADGE06_GET),
+        },
+    ];
+
+    /// Act 7: Lilycove, Mt. Pyre, the hideouts, Mossdeep, the Space Center, HM08.
+    pub static ACT7: [Goal; 9] = [
+        Goal {
+            name: "lilycove",
+            reached: |s| flag(s, FLAG_VISITED_LILYCOVE_CITY),
+        },
+        Goal {
+            name: "magma_emblem",
+            // `MtPyre_Summit`'s old lady after Archie: the Magma Emblem.
+            reached: |s| flag(s, FLAG_RECEIVED_RED_OR_BLUE_ORB),
+        },
+        Goal {
+            name: "groudon_awakened",
+            // `MagmaHideout_4F`: Maxie wakes Groudon.
+            reached: |s| flag(s, FLAG_GROUDON_AWAKENED_MAGMA_HIDEOUT),
+        },
+        Goal {
+            name: "aqua_submarine",
+            // `AquaHideout_B2F`: Archie's submarine gone.
+            reached: |s| flag(s, FLAG_TEAM_AQUA_ESCAPED_IN_SUBMARINE),
+        },
+        Goal {
+            name: "mossdeep",
+            reached: |s| flag(s, FLAG_VISITED_MOSSDEEP_CITY),
+        },
+        Goal {
+            name: "tate_liza_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_MOSSDEEP_GYM),
+        },
+        Goal {
+            name: "badge7",
+            reached: |s| flag(s, FLAG_BADGE07_GET),
+        },
+        Goal {
+            name: "space_center",
+            // `MossdeepCity_SpaceCenter_2F`: Maxie and Tabitha beaten with Steven.
+            reached: |s| flag(s, FLAG_DEFEATED_MAGMA_SPACE_CENTER),
+        },
+        Goal {
+            name: "hm_dive",
+            // `MossdeepCity_StevensHouse`: Steven gives HM08.
+            reached: |s| flag(s, FLAG_RECEIVED_HM_DIVE),
+        },
+    ];
+
+    /// Act 8: Seafloor Cavern, Sootopolis, Sky Pillar, Juan.
+    pub static ACT8: [Goal; 6] = [
+        Goal {
+            name: "kyogre_awakened",
+            // `SeafloorCavern_Room9`: Archie wakes Kyogre.
+            reached: |s| flag(s, FLAG_KYOGRE_ESCAPED_SEAFLOOR_CAVERN),
+        },
+        Goal {
+            name: "sootopolis",
+            reached: |s| flag(s, FLAG_VISITED_SOOTOPOLIS_CITY),
+        },
+        Goal {
+            name: "rayquaza_awakened",
+            // `SkyPillar_Top`: Rayquaza flies off (`VAR_SKY_PILLAR_STATE` 1).
+            reached: |s| var(s, VAR_SKY_PILLAR_STATE) >= 1,
+        },
+        Goal {
+            name: "hm_waterfall",
+            // Sootopolis: Wallace gives HM07 after the legendaries leave.
+            reached: |s| flag(s, FLAG_RECEIVED_HM_WATERFALL),
+        },
+        Goal {
+            name: "juan_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_SOOTOPOLIS_GYM),
+        },
+        Goal {
+            name: "badge8",
+            reached: |s| flag(s, FLAG_BADGE08_GET),
+        },
+    ];
+
+    /// The League: Ever Grande, the Elite Four, the Champion, the Hall of Fame.
+    pub static LEAGUE: [Goal; 7] = [
+        Goal {
+            name: "ever_grande",
+            reached: |s| flag(s, FLAG_VISITED_EVER_GRANDE_CITY),
+        },
+        Goal {
+            name: "sidney_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_ELITE_4_SIDNEY),
+        },
+        Goal {
+            name: "phoebe_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_ELITE_4_PHOEBE),
+        },
+        Goal {
+            name: "glacia_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_ELITE_4_GLACIA),
+        },
+        Goal {
+            name: "drake_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_ELITE_4_DRAKE),
+        },
+        Goal {
+            name: "champion",
+            // `EverGrandeCity_ChampionsRoom`: Wallace beaten (`FLAG_IS_CHAMPION`).
+            reached: |s| flag(s, FLAG_IS_CHAMPION),
+        },
+        Goal {
+            name: "hall_of_fame",
+            // `EverGrandeCity_HallOfFame`: `special GameClear`.
+            reached: |s| flag(s, FLAG_SYS_GAME_CLEAR),
+        },
+    ];
+
     /// The decomp constants the lists name, for the drift test.
     pub const CONSTANTS: &[(&str, u16)] = &[
         ("VAR_ROUTE101_STATE", VAR_ROUTE101_STATE.0),
@@ -468,6 +624,65 @@ mod emerald {
         ("FLAG_DEFEATED_PETALBURG_GYM", FLAG_DEFEATED_PETALBURG_GYM.0),
         ("FLAG_BADGE05_GET", FLAG_BADGE05_GET.0),
         ("FLAG_RECEIVED_HM_SURF", FLAG_RECEIVED_HM_SURF.0),
+        ("FLAG_RECEIVED_DEVON_SCOPE", FLAG_RECEIVED_DEVON_SCOPE.0),
+        ("FLAG_KECLEON_FLED_FORTREE", FLAG_KECLEON_FLED_FORTREE.0),
+        ("FLAG_DEFEATED_FORTREE_GYM", FLAG_DEFEATED_FORTREE_GYM.0),
+        ("FLAG_BADGE06_GET", FLAG_BADGE06_GET.0),
+        ("FLAG_VISITED_LILYCOVE_CITY", FLAG_VISITED_LILYCOVE_CITY.0),
+        (
+            "FLAG_RECEIVED_RED_OR_BLUE_ORB",
+            FLAG_RECEIVED_RED_OR_BLUE_ORB.0,
+        ),
+        (
+            "FLAG_GROUDON_AWAKENED_MAGMA_HIDEOUT",
+            FLAG_GROUDON_AWAKENED_MAGMA_HIDEOUT.0,
+        ),
+        (
+            "FLAG_TEAM_AQUA_ESCAPED_IN_SUBMARINE",
+            FLAG_TEAM_AQUA_ESCAPED_IN_SUBMARINE.0,
+        ),
+        ("FLAG_VISITED_MOSSDEEP_CITY", FLAG_VISITED_MOSSDEEP_CITY.0),
+        ("FLAG_DEFEATED_MOSSDEEP_GYM", FLAG_DEFEATED_MOSSDEEP_GYM.0),
+        ("FLAG_BADGE07_GET", FLAG_BADGE07_GET.0),
+        (
+            "FLAG_DEFEATED_MAGMA_SPACE_CENTER",
+            FLAG_DEFEATED_MAGMA_SPACE_CENTER.0,
+        ),
+        ("FLAG_RECEIVED_HM_DIVE", FLAG_RECEIVED_HM_DIVE.0),
+        (
+            "FLAG_KYOGRE_ESCAPED_SEAFLOOR_CAVERN",
+            FLAG_KYOGRE_ESCAPED_SEAFLOOR_CAVERN.0,
+        ),
+        (
+            "FLAG_VISITED_SOOTOPOLIS_CITY",
+            FLAG_VISITED_SOOTOPOLIS_CITY.0,
+        ),
+        ("VAR_SKY_PILLAR_STATE", VAR_SKY_PILLAR_STATE.0),
+        ("FLAG_RECEIVED_HM_WATERFALL", FLAG_RECEIVED_HM_WATERFALL.0),
+        (
+            "FLAG_DEFEATED_SOOTOPOLIS_GYM",
+            FLAG_DEFEATED_SOOTOPOLIS_GYM.0,
+        ),
+        ("FLAG_BADGE08_GET", FLAG_BADGE08_GET.0),
+        (
+            "FLAG_VISITED_EVER_GRANDE_CITY",
+            FLAG_VISITED_EVER_GRANDE_CITY.0,
+        ),
+        (
+            "FLAG_DEFEATED_ELITE_4_SIDNEY",
+            FLAG_DEFEATED_ELITE_4_SIDNEY.0,
+        ),
+        (
+            "FLAG_DEFEATED_ELITE_4_PHOEBE",
+            FLAG_DEFEATED_ELITE_4_PHOEBE.0,
+        ),
+        (
+            "FLAG_DEFEATED_ELITE_4_GLACIA",
+            FLAG_DEFEATED_ELITE_4_GLACIA.0,
+        ),
+        ("FLAG_DEFEATED_ELITE_4_DRAKE", FLAG_DEFEATED_ELITE_4_DRAKE.0),
+        ("FLAG_IS_CHAMPION", FLAG_IS_CHAMPION.0),
+        ("FLAG_SYS_GAME_CLEAR", FLAG_SYS_GAME_CLEAR.0),
     ];
 
     /// `TRAINER_GRUNT_PETALBURG_WOODS`. The stub build's `content::consts` names no trainers
@@ -611,8 +826,25 @@ pub fn goals_of(act: Act) -> &'static [Goal] {
         Act::Act4 => &emerald::ACT4,
         #[cfg(not(pkr_silice))]
         Act::Act5 => &emerald::ACT5,
+        #[cfg(not(pkr_silice))]
+        Act::Act6 => &emerald::ACT6,
+        #[cfg(not(pkr_silice))]
+        Act::Act7 => &emerald::ACT7,
+        #[cfg(not(pkr_silice))]
+        Act::Act8 => &emerald::ACT8,
+        #[cfg(not(pkr_silice))]
+        Act::League => &emerald::LEAGUE,
         #[cfg(pkr_silice)]
-        Act::Slice | Act::Act1 | Act::Act2 | Act::Act3 | Act::Act4 | Act::Act5 => &[],
+        Act::Slice
+        | Act::Act1
+        | Act::Act2
+        | Act::Act3
+        | Act::Act4
+        | Act::Act5
+        | Act::Act6
+        | Act::Act7
+        | Act::Act8
+        | Act::League => &[],
         Act::SilCh0 => silice::CH0,
     }
 }

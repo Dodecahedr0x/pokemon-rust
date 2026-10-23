@@ -1120,5 +1120,31 @@ mod list {
         Step::Expect("fortree"),
         Step::Checkpoint("fortree"),
         Step::Battle(BattlePlan::BestLearn),
+        // ================= Act 6: Steven's Devon Scope on Route 120, Winona =================
+        enter(MAP_FORTREE_CITY, 5, 6, Up),
+        use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_FORTREE_CITY, 39, 8, Right),
+        // Steven on the bridge (`Route120_EventScript_Steven`: ready, yes), the Kecleon.
+        Step::Choose(0),
+        talk(MAP_ROUTE120, 31),
+        Step::Expect("devon_scope"),
+        Step::Checkpoint("devon_scope"),
+        // ---- Back to Fortree: the Devon Scope shows the Kecleon before the gym (yes) ----
+        cross(MAP_ROUTE120, 0, 8, Left),
+        // `Talk` finds no path to the invisible Kecleon at the foot of the
+        // walkway ladder that leads down to the gym: `Use` from the ladder.
+        Step::Choose(0),
+        use_(MAP_FORTREE_CITY, 25, 7, Down),
+        Step::Expect("kecleon_fled"),
+        enter(MAP_FORTREE_CITY, 5, 6, Up),
+        use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Winona ----
+        enter(MAP_FORTREE_CITY, 22, 11, Up),
+        talk(MAP_FORTREE_CITY_GYM, 1),
+        Step::Expect("winona_defeated"),
+        Step::Expect("badge6"),
+        Step::Checkpoint("badge6"),
     ];
 }

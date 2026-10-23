@@ -12,8 +12,8 @@ use explore::spine::{self, SpineRun};
 /// (an engine or content change on its path), worth a look before updating it.
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
-/// The whole Emerald spine's frame count (to its last step, past `badge5` to HM03).
-const EMERALD_FRAMES: u64 = 807_082;
+/// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
+const EMERALD_FRAMES: u64 = 841_267;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -39,6 +39,8 @@ const EMERALD_LABELS: &[&str] = &[
     "castform",
     "hm_fly",
     "fortree",
+    "devon_scope",
+    "badge6",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
@@ -92,7 +94,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_badge5() {
+fn spine_reaches_badge6() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
