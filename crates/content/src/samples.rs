@@ -44,75 +44,23 @@ samples!(MOVES, MOVE_IDS: MoveId = [MOVE_STUB_GROWL, MOVE_STUB_HIT, MOVE_STUB_ST
 /// maps the slice does not have (Petalburg, Route 104, Petalburg Woods, Rustboro), and one
 /// interior per tileset family (`primary`/`secondary` pair) the rest leaves out. Whole-game
 /// versions of the tests are `#[ignore]`d and run under `cargo xtask sweep --studio`.
+/// Interiors: Building + GenericBuilding, Gym, Shop, Facility, School; General + Cave,
+/// Facility, InsideShip, Underwater; SecretBase.
 #[cfg(not(pkr_stub))]
-pub const MAPS: &[&str] = &[
-    "MAP_LITTLEROOT_TOWN",
-    "MAP_ROUTE101",
-    "MAP_OLDALE_TOWN",
-    "MAP_ROUTE102",
-    "MAP_ROUTE103",
-    "MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F",
-    "MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F",
-    "MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F",
-    "MAP_LITTLEROOT_TOWN_MAYS_HOUSE_2F",
-    "MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB",
-    "MAP_OLDALE_TOWN_HOUSE1",
-    "MAP_OLDALE_TOWN_HOUSE2",
-    "MAP_OLDALE_TOWN_POKEMON_CENTER_1F",
-    "MAP_OLDALE_TOWN_POKEMON_CENTER_2F",
-    "MAP_OLDALE_TOWN_MART",
-    "MAP_PETALBURG_CITY",
-    "MAP_RUSTBORO_CITY",
-    "MAP_ROUTE104",
-    "MAP_PETALBURG_WOODS",
-    // Interiors: Building + GenericBuilding, Gym, Shop, Facility, School; General + Cave,
-    // Facility, InsideShip, Underwater; SecretBase.
-    "MAP_PETALBURG_CITY_HOUSE1",
-    "MAP_RUSTBORO_CITY_GYM",
-    "MAP_RUSTBORO_CITY_MART",
-    "MAP_RUSTBORO_CITY_DEVON_CORP_1F",
-    "MAP_RUSTBORO_CITY_POKEMON_SCHOOL",
-    "MAP_GRANITE_CAVE_1F",
-    "MAP_AQUA_HIDEOUT_1F",
-    "MAP_ABANDONED_SHIP_CORRIDORS_1F",
-    "MAP_UNDERWATER_ROUTE105",
-    "MAP_SECRET_BASE_BLUE_CAVE1",
-];
+samples!(MAPS, MAP_SAMPLE: MapId = [
+    MAP_LITTLEROOT_TOWN, MAP_ROUTE101, MAP_OLDALE_TOWN, MAP_ROUTE102, MAP_ROUTE103,
+    MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F, MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
+    MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F, MAP_LITTLEROOT_TOWN_MAYS_HOUSE_2F,
+    MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB, MAP_OLDALE_TOWN_HOUSE1, MAP_OLDALE_TOWN_HOUSE2,
+    MAP_OLDALE_TOWN_POKEMON_CENTER_1F, MAP_OLDALE_TOWN_POKEMON_CENTER_2F, MAP_OLDALE_TOWN_MART,
+    MAP_PETALBURG_CITY, MAP_RUSTBORO_CITY, MAP_ROUTE104, MAP_PETALBURG_WOODS,
+    MAP_PETALBURG_CITY_HOUSE1, MAP_RUSTBORO_CITY_GYM, MAP_RUSTBORO_CITY_MART,
+    MAP_RUSTBORO_CITY_DEVON_CORP_1F, MAP_RUSTBORO_CITY_POKEMON_SCHOOL, MAP_GRANITE_CAVE_1F,
+    MAP_AQUA_HIDEOUT_1F, MAP_ABANDONED_SHIP_CORRIDORS_1F, MAP_UNDERWATER_ROUTE105,
+    MAP_SECRET_BASE_BLUE_CAVE1,
+]);
 
-#[cfg(not(pkr_stub))]
-const MAP_SAMPLE: &[MapId] = &[
-    crate::consts::MAP_LITTLEROOT_TOWN,
-    crate::consts::MAP_ROUTE101,
-    crate::consts::MAP_OLDALE_TOWN,
-    crate::consts::MAP_ROUTE102,
-    crate::consts::MAP_ROUTE103,
-    crate::consts::MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F,
-    crate::consts::MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
-    crate::consts::MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F,
-    crate::consts::MAP_LITTLEROOT_TOWN_MAYS_HOUSE_2F,
-    crate::consts::MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB,
-    crate::consts::MAP_OLDALE_TOWN_HOUSE1,
-    crate::consts::MAP_OLDALE_TOWN_HOUSE2,
-    crate::consts::MAP_OLDALE_TOWN_POKEMON_CENTER_1F,
-    crate::consts::MAP_OLDALE_TOWN_POKEMON_CENTER_2F,
-    crate::consts::MAP_OLDALE_TOWN_MART,
-    crate::consts::MAP_PETALBURG_CITY,
-    crate::consts::MAP_RUSTBORO_CITY,
-    crate::consts::MAP_ROUTE104,
-    crate::consts::MAP_PETALBURG_WOODS,
-    crate::consts::MAP_PETALBURG_CITY_HOUSE1,
-    crate::consts::MAP_RUSTBORO_CITY_GYM,
-    crate::consts::MAP_RUSTBORO_CITY_MART,
-    crate::consts::MAP_RUSTBORO_CITY_DEVON_CORP_1F,
-    crate::consts::MAP_RUSTBORO_CITY_POKEMON_SCHOOL,
-    crate::consts::MAP_GRANITE_CAVE_1F,
-    crate::consts::MAP_AQUA_HIDEOUT_1F,
-    crate::consts::MAP_ABANDONED_SHIP_CORRIDORS_1F,
-    crate::consts::MAP_UNDERWATER_ROUTE105,
-    crate::consts::MAP_SECRET_BASE_BLUE_CAVE1,
-];
-
-/// The stub world is small: every map.
+/// The stub world is small: every map (no names).
 #[cfg(pkr_stub)]
 pub const MAPS: &[&str] = &[];
 

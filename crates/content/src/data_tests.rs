@@ -855,5 +855,25 @@ mod stub {
     }
 }
 
+/// The map sample: its names and ids come from one list (`samples!`), all distinct; on the full
+/// import the build has every one, in order; the stub samples its every map.
+#[test]
+fn the_map_sample_is_one_list() {
+    let ids = samples::map_ids();
+    #[cfg(not(pkr_stub))]
+    {
+        assert_eq!(samples::MAPS.len(), samples::MAP_SAMPLE.len());
+        let mut distinct = samples::MAP_SAMPLE.to_vec();
+        distinct.sort_by_key(|m| m.0);
+        distinct.dedup();
+        assert_eq!(distinct.len(), samples::MAP_SAMPLE.len());
+        if data::MAP_IDS.len() > samples::MAP_SAMPLE.len() {
+            assert_eq!(ids, samples::MAP_SAMPLE);
+        }
+    }
+    #[cfg(pkr_stub)]
+    assert_eq!(ids, data::MAP_IDS);
+}
+
 #[path = "battle_tests.rs"]
 mod battle_tests;
