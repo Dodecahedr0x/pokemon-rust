@@ -81,6 +81,7 @@ fn write_edits(games: &Path, edits: &Path) {
     Rect(x: 0, y: 0, w: 9, h: 1, metatile: {a}, collision: 1),
     Ascii(x: 1, y: 2, rows: ["#\"#"], legend: {{'#': (metatile: {b}), '"': (metatile: {c}, collision: 1)}}),
     Stamp(x: 5, y: 4, name: "Fence"),
+    AutoCollision(rect: (x: 0, y: 0, w: 9, h: 3)),
 ]"##,
             a = m[3],
             b = m[4],
@@ -140,6 +141,8 @@ fn build_equals_the_step_by_step_cli() {
     );
     write_edits(&g1.root, &g1.edits_dir());
     write_edits(&g2.root, &g2.edits_dir());
+    put(&g2.edits_dir().join(".DS_Store"), "finder");
+    put(&g2.edits_dir().join("TownA/.DS_Store"), "finder");
 
     let p = plan(&g1.edits_dir()).unwrap();
     let order: Vec<String> = (p.steps.iter())
@@ -176,7 +179,7 @@ fn build_equals_the_step_by_step_cli() {
 
     let r2 = g2.root.to_str().unwrap();
     let out = run(&["--games", r2, "build"]).unwrap();
-    assert!(out.contains("2 created, 4 scripts, 10 ops"), "{out}");
+    assert!(out.contains("2 created, 4 scripts, 11 ops"), "{out}");
     assert!(!out.contains(": error:"), "{out}");
     assert!(out.ends_with("2 maps, no errors\n"), "{out}");
     assert_eq!(
@@ -185,7 +188,16 @@ fn build_equals_the_step_by_step_cli() {
         "build = create + apply, byte for byte"
     );
 
-    // A populated dir is rebuilt from the edits, not edited again.
+    // A populated dir is rebuilt from the edits, not edited again: a hand edit of a saved
+    // file is replaced.
+    let script = d2.join("hand.ron");
+    std::fs::write(
+        &script,
+        "[Paint(x: 0, y: 6, metatile: 1), Delete(kind: Warp, index: 0)]",
+    )
+    .unwrap();
+    run(&["--games", r2, "apply", "TownA", script.to_str().unwrap()]).unwrap();
+    assert_ne!(files(&g1), files(&g2));
     let out = run(&["--games", r2, "build", g2.edits_dir().to_str().unwrap()]).unwrap();
     assert!(out.contains("2 created"), "{out}");
     assert_eq!(files(&g1), files(&g2));
@@ -317,13 +329,21 @@ fn stamps_and_the_hygiene_command() {
     let wall = std::fs::read_to_string(g.stamp_path("Wall")).unwrap();
     std::fs::write(g.stamp_path("Loose"), wall.replace("    ", "  ")).unwrap();
     std::fs::write(g.stamps_dir().join("tiles.bin"), b"\0").unwrap();
+    let mut short = g.load_stamp("Wall").unwrap();
+    short.width = 4;
+    std::fs::write(
+        g.stamp_path("Short"),
+        studio::map_edit::schema::to_ron(&short).unwrap(),
+    )
+    .unwrap();
     put(&g.edits_dir().join("TownA/30_bad.ron"), "[Paint(x: 1)]");
     let e = format!("{:#}", run(&["--games", r, "hygiene"]).unwrap_err());
     for want in [
         "Loose.ron: not in the canonical format",
         "tiles.bin: not a .ron file",
         "30_bad.ron",
-        "3 hygiene problems",
+        "Short.ron: the stamp's blocks are not 4x1",
+        "4 hygiene problems",
     ] {
         assert!(e.contains(want), "{want}: {e}");
     }
@@ -450,15 +470,20 @@ fn auto_collision_on_emerald_tilesets() {
     let out = run(&["--games", r, "build"]).unwrap();
     assert!(
         out.contains(
-            "Field: warning: cell (0, 0): solid (collision 1), but metatile 13 is walkable in all \
-             288 extracted cells using it (AutoCollision sets it)"
-        ),
+            "Field: warning: cell (0, 0): solid (collision 1), but metatile 13 is walkable in "
+        ) && out.contains("extracted cells using it (AutoCollision sets it)"),
         "{out}"
     );
     assert!(
         out.contains("Field: warning: cell (2, 3): walkable door metatile 584 (MB_ANIMATED_DOOR) has no warp event"),
         "{out}"
     );
+    put(
+        &g.edits_dir().join("Field/30_allow.ron"),
+        r#"[AllowCollision(cells: [(2, 3)], reason: "a door that opens in a later chapter")]"#,
+    );
+    let out = run(&["--games", r, "build"]).unwrap();
+    assert!(!out.contains("cell (2, 3)"), "allowed: {out}");
     put(
         &g.edits_dir().join("Field/20_collision.ron"),
         "[AutoCollision()]",

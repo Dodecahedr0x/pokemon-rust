@@ -44,6 +44,20 @@ pub struct Doc {
     pub border: [u16; 4],
     /// `width * height` raw blocks, row-major.
     pub blocks: Vec<u16>,
+    /// Behaviour warnings accepted on purpose (`AllowCollision` ops). Not saved with the map:
+    /// they live in its edit scripts, which `GamesDir::load` reads them from.
+    pub allow: Vec<Allowance>,
+}
+
+/// Cells or metatiles whose behaviour warnings (`behavior::issues`) are accepted, and why.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Allowance {
+    #[serde(default)]
+    pub cells: Vec<(i32, i32)>,
+    #[serde(default)]
+    pub metatiles: Vec<u16>,
+    pub reason: String,
 }
 
 /// What a new map starts with (`cargo xtask studio map create <spec.ron>`).
@@ -161,6 +175,7 @@ impl Doc {
             secondary: spec.secondary.clone(),
             border,
             blocks: vec![fill; spec.width as usize * spec.height as usize],
+            allow: Vec::new(),
         })
     }
 
@@ -193,6 +208,7 @@ impl Doc {
             secondary: layout.secondary,
             border,
             blocks,
+            allow: Vec::new(),
         })
     }
 
@@ -524,11 +540,21 @@ pub enum Op {
         name: String,
     },
     /// Sets the collision of each cell (in `rect`, or the whole map) whose metatile has a usual
-    /// collision ([`super::behavior::usual_collision`]: unanimous in the extract, else from its
+    /// collision ([`super::behavior::usual_collision`]: the extract's clear verdict, else its
     /// behaviour) and disagrees with it (walkable against solid); other cells keep theirs.
     AutoCollision {
         #[serde(default)]
         rect: Option<Area>,
+    },
+    /// Accepts the behaviour warnings of `cells` and of cells holding `metatiles`, for
+    /// `reason` (required). Changes no cell; `validate` honours it, reading it from the map's
+    /// edit scripts. An allowance that silences nothing is a warning.
+    AllowCollision {
+        #[serde(default)]
+        cells: Vec<(i32, i32)>,
+        #[serde(default)]
+        metatiles: Vec<u16>,
+        reason: String,
     },
     /// The 2x2 border (a list of 4 raw blocks, row-major).
     Border {
@@ -669,8 +695,8 @@ pub struct Area {
 /// collisions (from a catalog). [`super::resources::Resources`] is the games dir's.
 pub trait Env: Send + Sync + std::fmt::Debug {
     fn stamp(&self, name: &str) -> Result<Stamp>;
-    /// The usual collision of cell (x, y) of `d` (0 walkable, 1 solid), if it has one.
-    fn usual_collision(&self, d: &Doc, x: i32, y: i32) -> Option<u8>;
+    /// The usual collision of every cell of `d` (0 walkable, 1 solid), row-major.
+    fn usual_collisions(&self, d: &Doc) -> Vec<Option<u8>>;
 }
 
 /// An `Ascii` legend key: a char or a one-character string.
@@ -1027,16 +1053,40 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) ->
                 h: d.height as i32,
             });
             rect_fits(d, a.x, a.y, a.w, a.h)?;
+            let usual = env.usual_collisions(d);
             for cy in a.y..a.y + a.h {
                 for cx in a.x..a.x + a.w {
                     let b = d.block(cx, cy).unwrap_or_default();
-                    if let Some(c) = env.usual_collision(d, cx, cy)
+                    let i = cy as usize * d.width as usize + cx as usize;
+                    if let Some(c) = usual.get(i).copied().flatten()
                         && (block_collision(b) == 0) != (c == 0)
                     {
                         let (mt, el) = (b & BLOCK_METATILE_MASK, block_elevation(b));
                         d.set(cx, cy, block(mt, c, el));
                     }
                 }
+            }
+        }
+        Op::AllowCollision {
+            cells,
+            metatiles,
+            reason,
+        } => {
+            let a = &Allowance {
+                cells: cells.clone(),
+                metatiles: metatiles.clone(),
+                reason: reason.clone(),
+            };
+            ensure!(!a.reason.trim().is_empty(), "an allowance needs a reason");
+            ensure!(
+                !a.cells.is_empty() || !a.metatiles.is_empty(),
+                "an allowance lists cells or metatiles"
+            );
+            for &(x, y) in &a.cells {
+                d.need(x as i64, y as i64)?;
+            }
+            if !d.allow.contains(a) {
+                d.allow.push(a.clone());
             }
         }
         Op::Border { blocks } => d.border = border4(blocks)?,

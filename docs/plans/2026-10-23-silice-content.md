@@ -408,6 +408,7 @@ games/<game>/edits/<Map>/<phase>_<what>.ron
 - A stamp is keyed to its tilesets. The map's primary tileset must be the stamp's. Its secondary must match too, but only when the stamp uses secondary metatiles (512 and up).
 
 **Edit script additions (`model.rs`).**
+- `AllowCollision(cells: [...], metatiles: [...], reason: "...")` accepts behaviour warnings on purpose (see Allowances below).
 - `Stamp(x: 5, y: 4, name: "House")` paints `stamps/House.ron` with its top-left at (x, y). The stamp must fit in the map, and its tilesets are checked as above.
 - `AutoCollision()` or `AutoCollision(rect: (x: 0, y: 0, w: 10, h: 4))` sets collision from the usual-collision heuristic below. It changes only cells whose walkability disagrees with the usual collision, to 0 or 1, so a deliberate collision of 2 or 3 on a solid cell stays.
 - `Ascii` legends accept any character as a key. Write it as a RON char, such as `'#'`, `'"'`, `' '` or `'é'`, with the escapes `'\''` and `'\\'`. A one-character string such as `"\""` also works.
@@ -422,28 +423,32 @@ games/<game>/edits/<Map>/<phase>_<what>.ron
   - `W` warp cell (a plain door, stairs or ladder);
   - `A` arrow warp (a warp mat or exit);
   - `G` tall grass;
-  - `L` ledge;
+  - `L` ledge (solid; jumped from the uphill side);
   - `C` counter;
   - `S` water (`*WATER*` names);
   - `B` another blocked behaviour.
   Normal metatiles have no code.
 - **Usual collision of a cell.** The first rule that applies wins:
-  1. **The extract's verdict.** If the extracted maps use the metatile (with the same tileset) in at least `MIN_USES` = 3 cells:
-     - all walkable gives 0;
-     - all solid (collision 1..=3) gives 1;
-     - mixed gives no usual collision (water at map edges, for example).
-     The counts are taken at run time from the extracted map files that `Catalog::from_content` already reads (`Catalog::collision_uses`). Nothing is committed.
+  1. **The extract's verdict.** If the extracted maps use the metatile (with the same tileset) in at least `MIN_USES` = 5 cells:
+     - at least `MIN_AGREEMENT` = 95% walkable gives 0;
+     - at least 95% solid (collision 1..=3) gives 1;
+     - anything less clear gives no usual collision (water at map edges, for example).
+     The counts are taken at run time from the extracted map files that `Catalog::from_content` already reads (`Catalog::collision_uses`). Extracted map files inline their layout, so maps sharing a layout are deduplicated by its contents and counted once. Nothing is committed.
   2. **The behaviour.**
-     - Tall grass, ledges and water are walkable.
-     - Counters are solid.
+     - Tall grass and water are walkable.
+     - Ledges and counters are solid. Gen3 jumps a ledge before it checks collision, and all 1,054 Emerald ledge cells are solid.
      - Warp cells and arrow warps are walkable when a warp event is on the cell, and have no usual collision without one.
      - Doors have none: Emerald has doors with warps both walkable and solid, because the door opens when the player pushes against it.
   3. Otherwise, none.
 - **Validation warnings** (never errors):
-  - a cell walkable against a solid usual collision, or the reverse (the message gives the reason: "in all N extracted cells using it", or "as a water metatile (MB_OCEAN_WATER)");
+  - a cell walkable against a solid usual collision, or the reverse (the message gives the reason: "in K of N extracted cells using it", or "as a water metatile (MB_OCEAN_WATER)");
   - a walkable door, warp-cell or arrow-warp metatile without a warp event;
-  - a warp event on a metatile that triggers no warp.
-- **Tuning.** On the 15-map extract, these warnings fire for only a few cells (edge water and a ledge end, used once or twice) and one Route 103 warp. To fix the fixture's warps, its warp cells were repainted with metatile 167 (`MB_NON_ANIMATED_DOOR`).
+  - a warp event on a metatile that triggers no warp ("fine if it is only an arrival point");
+  - an allowance that silences nothing.
+- **Allowances.** `AllowCollision(cells: [(4, 7)], metatiles: [584], reason: "...")` accepts the behaviour warnings of the listed cells, and of every cell holding a listed metatile. Either list may be omitted, but not both, and the reason is required.
+  - It changes no cell and is not saved in the map file: it lives in the map's edit scripts, where `GamesDir::load` (and so `validate`, `build` and `apply`) reads it.
+  - Keep each reason honest (why the cell is right as it is). An allowance that silences nothing is itself a warning, so stale ones surface.
+- **Tuning.** On the 15-map extract, these warnings fire for only a few cells (edge water used once or twice) and one Route 103 warp. With the full extract the fixture also warns (FixtureTown (3, 3)), so its test accepts behaviour warnings. To fix the fixture's warps, its warp cells were repainted with metatile 167 (`MB_NON_ANIMATED_DOOR`).
 
 **Pictures (`overlay.rs`).** Text uses a built-in 3x5 bitmap font: digits, the code letters and `!`. A picture with labels or an overlay is scaled 2x unless `--scale N` (1..=8) says otherwise.
 - **`palette --labels`** draws each metatile id at the top-left of its cell and the behaviour code at the bottom-right. It prints the legend: each code, then its metatiles grouped by `MB_*` name.
@@ -474,8 +479,8 @@ games/<game>/edits/<Map>/<phase>_<what>.ron
   Errors from the final validation fail the command after writing, as `apply` saves drafts.
 
 **Hygiene (`games::hygiene`, and the new `studio-map … hygiene` command, which exits 1 on any problem).**
-- `stamps/*.ron` must be canonical `Stamp` RON, as maps and layouts are.
-- `edits/` may hold only `<Map>/<phase>_<what>.ron` files that parse: as a `NewMap` for `create`, and as a list of `Op` otherwise.
+- `stamps/*.ron` must be canonical `Stamp` RON, as maps and layouts are, with blocks that match the stamp's size. This is checked with or without the extract.
+- `edits/` may hold only `<Map>/<phase>_<what>.ron` files that parse: as a `NewMap` for `create`, and as a list of `Op` otherwise. Dot entries (`.DS_Store`…) are skipped there, by `hygiene` and by `build`.
 - **Copies.** `games::copies` checks stamps as it checks layouts: a stamp equal to an extracted layout, or holding a 10x10 square of one with at least 12 distinct metatiles, is flagged. A stamp smaller than 10x10 cannot be flagged on its own. A map it is stamped on is flagged if the result copies an extracted square.
 
 **Case collisions.**

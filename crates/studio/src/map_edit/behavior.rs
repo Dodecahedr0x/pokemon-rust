@@ -11,7 +11,7 @@
 //! | `W` | warp cell (entering warps) | `MB_NON_ANIMATED_DOOR`, ladders, stairs, holes |
 //! | `A` | arrow warp (pushing on it warps) | `MB_*_ARROW_WARP` (warp mats, exits) |
 //! | `G` | tall grass (encounters) | `MB_TALL_GRASS` |
-//! | `L` | ledge (jumped in one direction) | `MB_JUMP_*` |
+//! | `L` | ledge (solid; jumped from the uphill side) | `MB_JUMP_*` |
 //! | `C` | counter (talk across) | `MB_COUNTER` |
 //! | `S` | water (blocked without Surf) | `MB_POND_WATER`, `MB_OCEAN_WATER`… (`*WATER*`) |
 //! | `B` | other blocked behaviour | directional walls… |
@@ -21,25 +21,29 @@
 //! **Usual collision** of a cell ([`usual_collision`], [`cell_collision`]), first rule that
 //! applies:
 //! 1. the extract: when at least [`MIN_USES`] cells of the extracted maps use the metatile
-//!    (with the same tileset), their verdict: all walkable (collision 0) gives 0, all solid
-//!    (1..=3) gives 1, and both ways gives none (the metatile is used both ways, e.g. water
-//!    at a map's edge);
-//! 2. the behaviour: tall grass, ledges and water are walkable (the game steps on them),
-//!    counters are solid; warp cells and arrow warps are walkable when a warp event is on the
+//!    (with the same tileset; maps sharing a layout count it once), their verdict: at least
+//!    [`MIN_AGREEMENT`] percent walkable (collision 0) gives 0, as many solid (1..=3) gives 1,
+//!    and anything less clear gives none (the metatile is used both ways, e.g. water at a
+//!    map's edge);
+//! 2. the behaviour: tall grass and water are walkable (the game steps on them); ledges and
+//!    counters are solid (Gen3 jumps a ledge before it checks collision, and every Emerald
+//!    ledge cell is solid); warp cells and arrow warps are walkable when a warp event is on the
 //!    cell, and have no usual collision without one; doors have none (Emerald's are walkable
 //!    or solid: the door opens when the player pushes against it);
 //! 3. otherwise none: no warning, and `AutoCollision` leaves the cell alone.
 //!
 //! The checks ([`issues`]) are warnings, never errors: a cell walkable against solid (or the
 //! reverse), a walkable door, warp or arrow-warp cell without a warp event, and a warp event on
-//! a metatile that triggers no warp.
+//! a metatile that triggers no warp. An `AllowCollision` op (`model::Allowance`, kept in the
+//! map's edits) silences them for listed cells or metatiles, with a reason; an allowance that
+//! silences nothing is itself a warning.
 //!
 //! The extract has the build's maps only (the M7 slice: 15 maps), so most metatiles fall
 //! through to rule 2 or 3. On the stub world there is no extract and the behaviours are the
 //! stub tilesets'.
 
 use super::catalog::Catalog;
-use super::model::Doc;
+use super::model::{Allowance, Doc};
 use super::validate::{Issue, Out};
 use content::Emerald;
 use engine::data::{
@@ -48,7 +52,9 @@ use engine::data::{
 use std::collections::BTreeSet;
 
 /// Extracted cells a metatile needs before its use counts as its usual collision.
-pub const MIN_USES: u32 = 3;
+pub const MIN_USES: u32 = 5;
+/// Percent of those cells that must agree.
+pub const MIN_AGREEMENT: u32 = 95;
 
 /// A metatile's behaviour: its raw `MB_*` byte, the name and the engine's class.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -118,7 +124,8 @@ impl MetatileBehavior {
             // player pushes against it).
             Behavior::Door => None,
             Behavior::Warp | Behavior::ArrowWarp(_) => warp.then_some(0),
-            Behavior::TallGrass | Behavior::Ledge(_) => Some(0),
+            Behavior::TallGrass => Some(0),
+            Behavior::Ledge(_) => Some(1),
             Behavior::Blocked if self.is_water() => Some(0),
             Behavior::Counter => Some(1),
             Behavior::Blocked | Behavior::Normal => None,
@@ -138,7 +145,7 @@ pub const LEGEND: [(char, &str); 8] = [
     ),
     ('A', "arrow warp (warp mat, exit): pushing on it warps"),
     ('G', "tall grass"),
-    ('L', "ledge"),
+    ('L', "ledge (solid; jumped from the uphill side)"),
     ('C', "counter (solid; talk across)"),
     ('S', "water (needs Surf)"),
     ('B', "blocked behaviour"),
@@ -173,8 +180,8 @@ pub fn behavior(
 /// Why a cell has its usual collision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Usual {
-    /// All `n` cells of the extract that use the metatile agree.
-    Extract { n: u32 },
+    /// `agree` of the `n` cells of the extract that use the metatile agree.
+    Extract { agree: u32, n: u32 },
     /// Its behaviour (`warp`: with a warp event on the cell).
     Behavior { b: MetatileBehavior, warp: bool },
 }
@@ -182,7 +189,9 @@ pub enum Usual {
 impl std::fmt::Display for Usual {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Usual::Extract { n } => write!(f, "in all {n} extracted cells using it"),
+            Usual::Extract { agree, n } => {
+                write!(f, "in {agree} of {n} extracted cells using it")
+            }
             Usual::Behavior { b, warp } => {
                 write!(f, "as a {} metatile ({})", b.what(), b.name)?;
                 if *warp {
@@ -194,8 +203,8 @@ impl std::fmt::Display for Usual {
     }
 }
 
-/// The extract's verdict on `metatile`: `Some(Some(c))` unanimous, `Some(None)` used both
-/// ways (ambiguous), `None` fewer than [`MIN_USES`] cells.
+/// The extract's verdict on `metatile`: `Some(Some(c))` clear, `Some(None)` used both ways
+/// (ambiguous), `None` fewer than [`MIN_USES`] cells.
 fn extract_verdict(
     c: &Catalog,
     primary: &str,
@@ -208,7 +217,8 @@ fn extract_verdict(
     if n < MIN_USES {
         return None;
     }
-    Some((walk == 0 || solid == 0).then_some(((walk == 0) as u8, Usual::Extract { n })))
+    let (agree, usual) = if walk >= solid { (walk, 0) } else { (solid, 1) };
+    Some((agree * 100 >= MIN_AGREEMENT * n).then_some((usual, Usual::Extract { agree, n })))
 }
 
 /// The usual collision of `metatile` (0 walkable, 1 solid) and why, for a cell with or without
@@ -234,44 +244,48 @@ pub fn warp_cells(d: &Doc) -> BTreeSet<(i32, i32)> {
         .collect()
 }
 
-/// The usual collision of cell (x, y) of `d`.
-pub fn cell_collision(
-    c: &Catalog,
-    d: &Doc,
-    warps: &BTreeSet<(i32, i32)>,
-    x: i32,
-    y: i32,
-) -> Option<(u8, Usual)> {
-    let b = d.block(x, y)?;
-    let warp = warps.contains(&(x, y));
-    usual_collision(c, &d.primary, &d.secondary, block_metatile(b), warp)
+/// The usual collision of every cell of `d`, row-major.
+pub fn usual_collisions(c: &Catalog, d: &Doc) -> Vec<Option<(u8, Usual)>> {
+    let warps = warp_cells(d);
+    let w = d.width.max(1) as usize;
+    (d.blocks.iter().enumerate())
+        .map(|(i, &b)| {
+            let warp = warps.contains(&((i % w) as i32, (i / w) as i32));
+            usual_collision(c, &d.primary, &d.secondary, block_metatile(b), warp)
+        })
+        .collect()
 }
 
 /// Cells whose collision disagrees with their usual one (walkable against solid).
 pub fn collision_mismatches(d: &Doc, c: &Catalog) -> Vec<(i32, i32, u8, Usual)> {
-    let warps = warp_cells(d);
-    let mut out = Vec::new();
-    for y in 0..d.height as i32 {
-        for x in 0..d.width as i32 {
-            let Some((usual, why)) = cell_collision(c, d, &warps, x, y) else {
-                continue;
-            };
-            let b = d.block(x, y).unwrap_or_default();
-            if (block_collision(b) == 0) != (usual == 0) {
-                out.push((x, y, usual, why));
-            }
-        }
-    }
-    out
+    let w = d.width.max(1) as usize;
+    (usual_collisions(c, d).into_iter().enumerate())
+        .filter_map(|(i, u)| {
+            let (usual, why) = u?;
+            let b = d.blocks[i];
+            ((block_collision(b) == 0) != (usual == 0))
+                .then(|| ((i % w) as i32, (i / w) as i32, usual, why))
+        })
+        .collect()
 }
 
-/// The behaviour warnings of `d` (heuristics, so never errors):
+/// Which allowance (index) covers cell (x, y) holding `metatile`.
+fn allowed(allow: &[Allowance], x: i32, y: i32, metatile: u16) -> Option<usize> {
+    allow
+        .iter()
+        .position(|a| a.cells.contains(&(x, y)) || a.metatiles.contains(&metatile))
+}
+
+/// The behaviour warnings of `d` (heuristics, so never errors), but those its allowances
+/// silence:
 /// - a cell whose collision disagrees with its usual collision;
 /// - a walkable door, warp or arrow-warp cell without a warp event (a decorative door is
 ///   solid);
-/// - a warp event on a cell whose metatile triggers no warp.
+/// - a warp event on a cell whose metatile triggers no warp;
+/// - an allowance that silences nothing.
 pub fn issues(d: &Doc, c: &Catalog) -> Vec<Issue> {
-    let mut o = Out(Vec::new());
+    // (cell, metatile, at, message)
+    let mut found: Vec<(i32, i32, u16, String, String)> = Vec::new();
     for (x, y, usual, why) in collision_mismatches(d, c) {
         let b = d.block(x, y).unwrap_or_default();
         let (now, want) = match usual {
@@ -281,13 +295,16 @@ pub fn issues(d: &Doc, c: &Catalog) -> Vec<Issue> {
             ),
             _ => ("walkable".to_string(), "solid"),
         };
-        o.warn(
+        found.push((
+            x,
+            y,
+            block_metatile(b),
             format!("cell ({x}, {y})"),
             format!(
                 "{now}, but metatile {} is {want} {why} (AutoCollision sets it)",
                 block_metatile(b)
             ),
-        );
+        ));
     }
     let warps = warp_cells(d);
     for y in 0..d.height as i32 {
@@ -298,7 +315,10 @@ pub fn issues(d: &Doc, c: &Catalog) -> Vec<Issue> {
                 && let Some(mb) = behavior(c, &d.primary, &d.secondary, block_metatile(b))
                 && mb.triggers_warp()
             {
-                o.warn(
+                found.push((
+                    x,
+                    y,
+                    block_metatile(b),
                     format!("cell ({x}, {y})"),
                     format!(
                         "walkable {} metatile {} ({}) has no warp event (a decorative door is \
@@ -307,25 +327,45 @@ pub fn issues(d: &Doc, c: &Catalog) -> Vec<Issue> {
                         block_metatile(b),
                         mb.name
                     ),
-                );
+                ));
             }
         }
     }
     for (i, wp) in d.map.warps.iter().enumerate() {
-        let Some(b) = d.block(wp.x as i32, wp.y as i32) else {
+        let (x, y) = (wp.x as i32, wp.y as i32);
+        let Some(b) = d.block(x, y) else {
             continue; // out of bounds: an error already
         };
         if let Some(mb) = behavior(c, &d.primary, &d.secondary, block_metatile(b))
             && !mb.triggers_warp()
         {
-            o.warn(
+            found.push((
+                x,
+                y,
+                block_metatile(b),
                 format!("warp {i}"),
                 format!(
                     "on metatile {} ({}), which triggers no warp (a door, warp or arrow-warp \
-                     metatile does)",
+                     metatile does; fine if it is only an arrival point)",
                     block_metatile(b),
                     mb.name
                 ),
+            ));
+        }
+    }
+    let mut o = Out(Vec::new());
+    let mut used = vec![false; d.allow.len()];
+    for (x, y, mt, at, msg) in found {
+        match allowed(&d.allow, x, y, mt) {
+            Some(a) => used[a] = true,
+            None => o.warn(at, msg),
+        }
+    }
+    for (i, a) in d.allow.iter().enumerate() {
+        if !used[i] {
+            o.warn(
+                format!("allowance {i}"),
+                format!("{:?} silences no warning (remove it)", a.reason),
             );
         }
     }

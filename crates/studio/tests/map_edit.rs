@@ -101,7 +101,7 @@ fn the_fixture_round_trips_byte_for_byte() {
 }
 
 /// The fixture has no errors and no one-way links: its only warnings are its unwritten
-/// scripts.
+/// scripts and behaviour heuristics (which depend on how much of the extract is present).
 #[test]
 fn the_fixture_validates_against_the_extract() {
     if !real() {
@@ -118,9 +118,8 @@ fn the_fixture_validates_against_the_extract() {
         let issues = validate(&games.load(name).unwrap(), &c);
         assert_eq!(errors(&issues), 0, "{name}: {issues:#?}");
         assert!(
-            issues
-                .iter()
-                .all(|i| i.severity == Severity::Warning && i.message.contains("script")),
+            issues.iter().all(|i| i.severity == Severity::Warning
+                && (i.message.contains("script") || i.message.contains("metatile"))),
             "{name}: {issues:#?}"
         );
     }

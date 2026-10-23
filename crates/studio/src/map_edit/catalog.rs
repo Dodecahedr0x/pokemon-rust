@@ -130,6 +130,7 @@ impl Catalog {
             return Ok(c);
         }
         let dir = extracted_dir();
+        let mut seen = BTreeSet::new();
         for (id, name) in crate::map_view::map_list() {
             let path = dir.join("maps").join(format!("{name}.ron"));
             let text = std::fs::read_to_string(&path)
@@ -139,7 +140,7 @@ impl Catalog {
             let m = game.map(id);
             c.add_tileset(&file.layout.primary, m.primary, false);
             c.add_tileset(&file.layout.secondary, m.secondary, true);
-            c.count_uses(&file.layout);
+            c.count_uses(&file.layout, &mut seen);
         }
         c.gfx = read_gfx(&dir).unwrap_or_default();
         Ok(c)
@@ -178,9 +179,24 @@ impl Catalog {
         Ok(())
     }
 
-    /// Adds a layout's cells to [`Catalog::collision_uses`].
-    pub fn count_uses(&mut self, l: &extract::schema::Layout) {
-        for b in extract::schema::from_rows(&l.blocks) {
+    /// Adds a layout's cells to [`Catalog::collision_uses`], once per layout: extracted map
+    /// files inline their layout, so maps sharing one are deduplicated by its contents
+    /// (`seen`).
+    pub fn count_uses(
+        &mut self,
+        l: &extract::schema::Layout,
+        seen: &mut BTreeSet<(String, String, u16, Vec<u16>)>,
+    ) {
+        let blocks = extract::schema::from_rows(&l.blocks);
+        if !seen.insert((
+            l.primary.clone(),
+            l.secondary.clone(),
+            l.width,
+            blocks.clone(),
+        )) {
+            return;
+        }
+        for b in blocks {
             let mt = block_metatile(b);
             let ts = if mt < METATILES_IN_PRIMARY {
                 &l.primary

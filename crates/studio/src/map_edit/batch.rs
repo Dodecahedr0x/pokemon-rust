@@ -28,7 +28,7 @@
 //! validation's errors fail it after writing, as `apply` saves drafts.
 
 use super::catalog::Catalog;
-use super::games::{GamesDir, case_clashes, check_name, write};
+use super::games::{GamesDir, NameKind, case_clashes, check_name, refuse_case_clash, write};
 use super::model::{Doc, Editor, Env, NewMap, Op};
 use super::schema::{GameMap, from_script_ron, to_ron};
 use super::validate::{errors, validate};
@@ -59,7 +59,7 @@ pub struct Plan {
 }
 
 /// `<phase>_<what>.ron` as (phase, what).
-fn split_name(file: &str) -> Option<(u32, &str)> {
+pub fn split_name(file: &str) -> Option<(u32, &str)> {
     let stem = file.strip_suffix(".ron")?;
     let (phase, what) = stem.split_once('_')?;
     if phase.is_empty() || !phase.bytes().all(|b| b.is_ascii_digit()) || what.is_empty() {
@@ -68,10 +68,18 @@ fn split_name(file: &str) -> Option<(u32, &str)> {
     Some((phase.parse().ok()?, what))
 }
 
+/// The entries of `dir`, sorted, without dot entries (`.DS_Store`…).
 fn sorted_entries(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut v = Vec::new();
     for e in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
-        v.push(e?.path());
+        let p = e?.path();
+        if !p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with('.'))
+        {
+            v.push(p);
+        }
     }
     v.sort();
     Ok(v)
@@ -155,18 +163,12 @@ impl Store<'_> {
         Ok(self.names(self.games.layout_names()?, &self.layouts))
     }
 
-    fn check_case(&self, what: &str, name: &str) -> Result<()> {
-        let names = match what {
-            "map" => self.map_names()?,
+    fn check_case(&self, kind: NameKind, name: &str) -> Result<()> {
+        let names = match kind {
+            NameKind::Map => self.map_names()?,
             _ => self.layout_names()?,
         };
-        if let Some(other) = super::games::case_clash(&names, name) {
-            bail!(
-                "{what} {name} differs from {what} {other} only in case (one file on a \
-                 case-insensitive file system): use {other}, or another name"
-            );
-        }
-        Ok(())
+        refuse_case_clash(kind, &names, name)
     }
 
     fn map(&self, name: &str) -> Result<Option<GameMap>> {
@@ -187,7 +189,7 @@ impl Store<'_> {
 
     /// `GamesDir::load`.
     fn load(&self, name: &str) -> Result<Doc> {
-        self.check_case("map", name)?;
+        self.check_case(NameKind::Map, name)?;
         let map = self
             .map(name)?
             .with_context(|| format!("no map {name} (create it first)"))?;
@@ -202,8 +204,8 @@ impl Store<'_> {
         let layout = spec.layout_name();
         check_name(&spec.name)?;
         check_name(&layout)?;
-        self.check_case("map", &spec.name)?;
-        self.check_case("layout", &layout)?;
+        self.check_case(NameKind::Map, &spec.name)?;
+        self.check_case(NameKind::Layout, &layout)?;
         ensure!(self.map(&spec.name)?.is_none(), "map {} exists", spec.name);
         if spec.shared_layout {
             let saved = self
@@ -236,8 +238,8 @@ impl Store<'_> {
     fn save(&mut self, doc: &Doc) -> Result<()> {
         check_name(&doc.map.name)?;
         check_name(&doc.map.layout)?;
-        self.check_case("map", &doc.map.name)?;
-        self.check_case("layout", &doc.map.layout)?;
+        self.check_case(NameKind::Map, &doc.map.name)?;
+        self.check_case(NameKind::Layout, &doc.map.layout)?;
         self.layouts
             .insert(doc.map.layout.clone(), Some(doc.layout()));
         self.maps

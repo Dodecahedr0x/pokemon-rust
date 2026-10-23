@@ -1,6 +1,6 @@
 //! The [`Env`] of a games dir: its stamps and the catalog's usual collisions.
 
-use super::behavior::{cell_collision, warp_cells};
+use super::behavior::usual_collisions;
 use super::catalog::Catalog;
 use super::games::GamesDir;
 use super::model::{Doc, Env};
@@ -25,7 +25,10 @@ impl Env for Resources {
         self.games.load_stamp(name)
     }
 
-    fn usual_collision(&self, d: &Doc, x: i32, y: i32) -> Option<u8> {
-        cell_collision(&self.catalog, d, &warp_cells(d), x, y).map(|u| u.0)
+    fn usual_collisions(&self, d: &Doc) -> Vec<Option<u8>> {
+        usual_collisions(&self.catalog, d)
+            .into_iter()
+            .map(|u| u.map(|u| u.0))
+            .collect()
     }
 }
