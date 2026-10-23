@@ -1326,6 +1326,7 @@ dependencies = [
  "anyhow",
  "content",
  "engine",
+ "explore",
  "game-native",
  "mgba",
  "mgba-sys",
