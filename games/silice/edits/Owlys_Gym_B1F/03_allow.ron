@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose (validate honours these).
+[
+    AllowCollision(cells: [(10, 8)], reason: "warp 1 is only the trapdoors' arrival point (the falls land on the floor)"),
+]

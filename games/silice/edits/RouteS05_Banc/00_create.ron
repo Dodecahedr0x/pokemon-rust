@@ -1,0 +1,4 @@
+// Silice Ch5, MAP_ROUTE_S05_BANC: the Banc de Silice (40 x 24; the source gives no size), a bay south
+// of Route S5 where the water is dense and milky (water encounters and fishing), and a small beach
+// with a hidden Ultra Ball. General + Pacifidlog (Emerald tilesets by name).
+(name: "RouteS05_Banc", width: 40, height: 24, primary: "General", secondary: "Pacifidlog", fill: 368, fill_elevation: 1, border: [368, 368, 368, 368])

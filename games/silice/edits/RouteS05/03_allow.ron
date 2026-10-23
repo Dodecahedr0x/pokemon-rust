@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose (validate honours these).
+[
+    AllowCollision(metatiles: [625, 633], reason: "the wreck's hull is drawn with Pacifidlog's boulder, whose top Emerald uses as a walkable plateau; here it is the hull, solid"),
+]

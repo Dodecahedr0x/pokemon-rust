@@ -1,0 +1,14 @@
+// Cells.
+[
+    // The Center: back wall, the healing counter (x 3-8, y 1-3), a PC, a plant, a table, the mat.
+    Ascii(x: 0, y: 0, rows: [
+        "ABxwwwyzwPQr",
+        "CDm123456RSs",
+        "EFn7890!@UVt",
+        "GHo#$$%$^..u",
+        "G..........u",
+        "G........jku",
+        "G........lqu",
+        "b....ef....c",
+    ], legend: {'A': (metatile: 520, collision: 1), 'B': (metatile: 521, collision: 1), 'x': (metatile: 524, collision: 1), 'w': (metatile: 523, collision: 1), 'y': (metatile: 586, collision: 1), 'z': (metatile: 587, collision: 1), 'P': (metatile: 617, collision: 1), 'Q': (metatile: 618, collision: 1), 'r': (metatile: 527, collision: 1), 'C': (metatile: 528, collision: 1), 'D': (metatile: 529, collision: 1), 'm': (metatile: 4, collision: 1), '1': (metatile: 584, collision: 1), '2': (metatile: 546, collision: 1), '3': (metatile: 547, collision: 1), '4': (metatile: 594, collision: 1), '5': (metatile: 595, collision: 1), '6': (metatile: 585, collision: 1), 'R': (metatile: 625, collision: 1), 'S': (metatile: 626, collision: 1), 's': (metatile: 535, collision: 1), 'E': (metatile: 536, collision: 0), 'F': (metatile: 537, collision: 0), 'n': (metatile: 548, collision: 1), '7': (metatile: 592, collision: 1), '8': (metatile: 554, collision: 1), '9': (metatile: 555, collision: 1), '0': (metatile: 519, collision: 0), '!': (metatile: 603, collision: 1), '@': (metatile: 593, collision: 1), 'U': (metatile: 633, collision: 1), 'V': (metatile: 634, collision: 1), 't': (metatile: 543, collision: 1), 'G': (metatile: 544, collision: 0), 'H': (metatile: 550, collision: 0), 'o': (metatile: 572, collision: 0), '#': (metatile: 600, collision: 1), '$': (metatile: 545, collision: 1), '%': (metatile: 517, collision: 1), '^': (metatile: 601, collision: 1), '.': (metatile: 514, collision: 0), 'u': (metatile: 551, collision: 0), 'j': (metatile: 573, collision: 1), 'k': (metatile: 574, collision: 1), 'l': (metatile: 581, collision: 1), 'q': (metatile: 582, collision: 1), 'b': (metatile: 552, collision: 0), 'e': (metatile: 515, collision: 0), 'f': (metatile: 516, collision: 0), 'c': (metatile: 567, collision: 1)}),
+]
