@@ -1000,8 +1000,14 @@ impl<'a> Low<'a> {
             let _ = writeln!(o, "    pub const {name}: ScriptId = ScriptId({i});");
         }
         o.push_str("}\n");
+        // One non-generic adapter (Task L): a generic `async fn run(f: impl Future)` was one more
+        // async body per script for the type checker.
         o.push_str(
-            "async fn run(f: impl core::future::Future<Output = Flow>) {\n    f.await;\n}\n",
+            "/// A script's future with its `Flow` dropped (the engine's `Script` has no output).\n\
+             struct Run(core::pin::Pin<alloc::boxed::Box<dyn core::future::Future<Output = Flow>>>);\n\
+             impl core::future::Future for Run {\n    type Output = ();\n    \
+             fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<()> {\n        \
+             self.0.as_mut().poll(cx).map(|_| ())\n    }\n}\n",
         );
         let _ = write!(
             o,
@@ -1010,7 +1016,7 @@ impl<'a> Low<'a> {
         for (name, module) in &names {
             let _ = writeln!(
                 o,
-                "    |ctx| alloc::boxed::Box::pin(run({SCRIPTS}::{module}::{name}(ctx))),"
+                "    |ctx| alloc::boxed::Box::pin(Run(alloc::boxed::Box::pin({SCRIPTS}::{module}::{name}(ctx)))),"
             );
         }
         o.push_str("];\n");

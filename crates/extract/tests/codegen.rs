@@ -125,8 +125,67 @@ mod lowering {
         lower_with(files, &BTreeMap::new())
     }
 
+    /// The lowering with every shared body inlined back into its scripts ([`unshare`]), so tests
+    /// read each function's own code.
     fn lower_with(files: &[ScriptFile], overrides: &BTreeMap<String, String>) -> Lowered {
-        codegen::lower(files, &index(files), &support(), overrides).unwrap()
+        unshare(codegen::lower(files, &index(files), &support(), overrides).unwrap())
+    }
+
+    const SHARED_HEAD: &str = "(ctx: Ctx) -> impl core::future::Future<Output = Flow> {\n    crate::scripts::Shapes::shape";
+
+    /// `out` with each script that calls a shape (`pub fn <Name>(ctx: Ctx) -> impl Future`)
+    /// written back as `pub async fn <Name>(ctx: Ctx) -> Flow` with the shape's body, its
+    /// parameters replaced by the script's operands, and without the `Shapes` module. Comments
+    /// are not restored (shapes have none).
+    fn unshare(mut out: Lowered) -> Lowered {
+        let Some(shapes) = out.modules.remove("Shapes") else {
+            return out;
+        };
+        let mut bodies = BTreeMap::new();
+        for chunk in shapes.split("pub async fn shape").skip(1) {
+            let (n, rest) = chunk.split_once('(').unwrap();
+            let body = rest.split_once(" -> Flow {\n").unwrap().1;
+            let body = &body[..body.rfind("}\n").unwrap()];
+            bodies.insert(n.to_string(), body.to_string());
+        }
+        for src in out.modules.values_mut() {
+            while let Some(at) = src.find(SHARED_HEAD) {
+                let start = src[..at].rfind("pub fn ").unwrap();
+                let name = &src[start + "pub fn ".len()..at];
+                let call = &src[at + SHARED_HEAD.len()..];
+                let (n, rest) = call.split_once("(ctx, ").unwrap();
+                let (args, _) = rest.split_once(")\n}\n").unwrap();
+                let end = at + SHARED_HEAD.len() + n.len() + "(ctx, ".len() + args.len() + 4;
+                let args: Vec<&str> = args.split(", ").collect();
+                let mut body = String::new();
+                let b = &bodies[n];
+                let mut i = 0;
+                while i < b.len() {
+                    let tail = &b[i..];
+                    let prev = b[..i].chars().next_back();
+                    if tail.starts_with('p')
+                        && !prev.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+                    {
+                        let digits: String =
+                            tail[1..].chars().take_while(char::is_ascii_digit).collect();
+                        let after = tail[1 + digits.len()..].chars().next();
+                        if !digits.is_empty()
+                            && !after.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+                        {
+                            body.push_str(args[digits.parse::<usize>().unwrap()]);
+                            i += 1 + digits.len();
+                            continue;
+                        }
+                    }
+                    let c = tail.chars().next().unwrap();
+                    body.push(c);
+                    i += c.len_utf8();
+                }
+                let full = format!("pub async fn {name}(ctx: Ctx) -> Flow {{\n{body}}}\n");
+                src.replace_range(start..end, &full);
+            }
+        }
+        out
     }
 
     /// The source of `pub async fn <name>` in `src`.
@@ -657,6 +716,84 @@ mod lowering {
         );
     }
 
+    /// Task L: scripts whose bodies differ only in operands share one `async fn` per shape; each
+    /// is a plain fn returning the shape's future with its operands; unique bodies stay as they
+    /// are; digests do not depend on the sharing.
+    #[test]
+    fn lower_shares_bodies_by_shape() {
+        let walker = |m: &str, n: &str, text: &str| {
+            let mv = format!("{m}_Movement_{n}");
+            (
+                label(
+                    &format!("{m}_EventScript_{n}"),
+                    Some(RootKind::Object(1)),
+                    vec![
+                        i("message", vec![t(text)]),
+                        i("applymovement", vec![Half(2), Movement(mv.clone())]),
+                        i("waitmovement", vec![Half(2)]),
+                        i("setflag", vec![f("FLAG_TEMP_1")]),
+                        i("end", vec![]),
+                    ],
+                    None,
+                ),
+                IrMovement {
+                    name: mv,
+                    origin: NameOrigin::Decomp,
+                    actions: vec!["MOVEMENT_ACTION_WALK_NORMAL_UP".into()],
+                },
+            )
+        };
+        let (a1, ma1) = walker("A", "One", "A_Text_One");
+        let (a2, ma2) = walker("A", "Two", "A_Text_Two");
+        let (b1, mb1) = walker("B", "One", "B_Text_One");
+        let unique = label(
+            "B_EventScript_Unique",
+            Some(RootKind::Object(2)),
+            vec![i("lock", vec![]), i("end", vec![])],
+            None,
+        );
+        let files = vec![
+            file("A", vec![a1, a2], vec![ma1, ma2]),
+            file("B", vec![b1, unique], vec![mb1]),
+        ];
+        let out = codegen::lower(&files, &index(&files), &support(), &BTreeMap::new()).unwrap();
+        let shapes = &out.modules["Shapes"];
+        assert_eq!(shapes.matches("pub async fn shape").count(), 1, "{shapes}");
+        assert!(shapes.contains(
+            "pub async fn shape0(ctx: Ctx, p0: TextId, p1: u8, p2: &'static [Step], p3: FlagId) -> Flow {"
+        ), "{shapes}");
+        assert!(shapes.contains("ctx.move_obj(p1, p2).await;"), "{shapes}");
+        assert!(out.modules["A"].contains(
+            "pub fn A_EventScript_Two(ctx: Ctx) -> impl core::future::Future<Output = Flow> {\n    \
+             crate::scripts::Shapes::shape0(ctx, A_Text_Two, 2, &A_Movement_Two, FLAG_TEMP_1)\n}"
+        ), "{}", out.modules["A"]);
+        assert!(out.modules["B"].contains("pub async fn B_EventScript_Unique(ctx: Ctx) -> Flow {"));
+        // The same operands in another module: the movement by its absolute path.
+        assert!(
+            out.modules["B"].contains("shape0(ctx, B_Text_One, 2, &B_Movement_One, FLAG_TEMP_1)"),
+            "{}",
+            out.modules["B"]
+        );
+        // Inlining the shapes back gives each script's own body.
+        let un = unshare(out.clone());
+        assert!(un.modules["A"].contains(
+            "pub async fn A_EventScript_One(ctx: Ctx) -> Flow {\n    ctx.message(A_Text_One).await;\n    \
+             ctx.move_obj(2, &A_Movement_One).await;"
+        ), "{}", un.modules["A"]);
+        // Digests come from the unshared sources: renaming B's text changes B's digest only.
+        let mut renamed = files.clone();
+        renamed[1].labels[0].insns[0] = i("message", vec![t("B_Text_Other")]);
+        let out2 =
+            codegen::lower(&renamed, &index(&renamed), &support(), &BTreeMap::new()).unwrap();
+        for (k, d) in &out.script_digests {
+            assert_eq!(
+                *d == out2.script_digests[k],
+                k != "B_EventScript_One",
+                "{k}"
+            );
+        }
+    }
+
     #[test]
     fn lower_dispatch_is_a_thunk_table() {
         let out = lower(&kid());
@@ -666,7 +803,7 @@ mod lowering {
         assert!(d.contains("pub const Town_EventScript_Kid: ScriptId = ScriptId(0);"));
         assert!(d.contains(
             "pub static SCRIPTS: [fn(engine::script::Ctx) -> engine::script::Script; 1] = [\n    \
-             |ctx| alloc::boxed::Box::pin(run(crate::scripts::Town::Town_EventScript_Kid(ctx))),\n];"
+             |ctx| alloc::boxed::Box::pin(Run(alloc::boxed::Box::pin(crate::scripts::Town::Town_EventScript_Kid(ctx)))),\n];"
         ));
         assert!(d.contains("pub fn script(id: u16, ctx: engine::script::Ctx)"));
         // Absolute paths only: the content crate `include!`s it in `crate::data`.
@@ -1308,7 +1445,8 @@ mod lowering {
             vec![],
         ));
         let o = BTreeMap::from([("M_Other".to_string(), String::new())]);
-        let out = lower_with(&files, &o);
+        let out = codegen::lower(&files, &index(&files), &support(), &o).unwrap();
+        assert!(out.modules.contains_key("Shapes"), "nothing shared");
         assert!(out.stats.reports.contains_key("unknown opcode"));
         assert_eq!(out.stats.tail_call_groups, 1);
         assert!(
