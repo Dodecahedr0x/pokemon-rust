@@ -125,7 +125,7 @@ fn bourg_en_vol_round_trips_in_fr_rom() {
 /// Slow (about 90 s in release, much longer in debug): one ROM scan per string.
 /// Run with `cargo test --release -p extract --test text -- --ignored`.
 #[test]
-#[ignore]
+#[ignore = "slow: one ROM scan per string; run in release with --ignored"]
 fn every_map_string_is_found_and_round_trips_in_us_rom() {
     let rom = fixtures::us();
     let mut count = 0;

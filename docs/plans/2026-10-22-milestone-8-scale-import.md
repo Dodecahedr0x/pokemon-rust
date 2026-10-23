@@ -1286,7 +1286,7 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
 - `FORMAT_MINOR` = 2 (after B's 1): layouts, emotes, encounters v5, evolutions, trainer money, weight; `MINOR_FILES` lists `battle/evolutions.ron`, `battle/trainer_money.ron` and the six emote files.
 
 ## Findings for Milestone 9
-*(filled at close-out.)*
+See "M8 close-out" at the end of this doc (it also carries Task P's findings).
 
 ## Task B as built
 - **Label transfer** (`extract::inc`, `extract::labels`): on all 518 maps, 100% of functions (7,233), texts (5,503) and movements (978) get decomp names on both BPEF and BPEE; 0 transfer errors, 0 collisions, 0 mismatched blocks. Precision on BPEE by content: 7,234 scripts (op names and Flag/Var/Const operands; the battle-facility helper macros of `data/scripts/*.inc` are expanded too), 5,503 texts and 978 movements match their source; only the 22 braille strings are unchecked.
@@ -1652,3 +1652,115 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
      - `SPECIAL_ShowEasyChatScreen` (Petalburg);
      - `SPECIAL_DoWaldaNamingScreen` and `SPECIAL_ChoosePartyMon` (Rustboro houses).
    - On the trace: only the three `Degraded` listed under Triage.
+
+## M8 close-out
+
+Reviewed on master `b5ce185` (M8 Task P merged), against the code and tests rather than the "as built" text. Every task was checked item by item; the result per task, then the findings carried forward, the known failures and the gates.
+
+### Delivered
+- **Import (A, B, C, L):** `cargo xtask extract` exports all 518 maps (418 layouts, 73 tilesets, 156 OBJ sprites plus the 3 emotes, 124 wild headers with Altering Cave's 9, pics for every species and trainer, evolutions, trainer money, items, multichoice lists, std and field strings, map sections), previews off by default. The script IR carries decomp names for 100 % of functions, texts and movements on BPEF and BPEE, with precision checked by content on BPEE.
+- **Scripts (D1, D2, J, H, I):** the content build lowers the IR (4,584 functions) to async Rust in `$OUT_DIR`, through a thunk table, with per-script digests, overrides (the nurse is the worked example) and `content::REPORT`. Every command and special is classified, and an unclassified one fails the build. The prelude covers items, money, buffers, multichoice, every `trainerbattle` kind and every `STD_*`.
+- **Data (E):** bulk data in `data.bin`; no slice sets; `MAP_DIGESTS`, `GLOBAL_DIGEST`; the overrides hygiene test.
+- **Engine (Wave 0, F, G1, H, I, L, P's warp fix):**
+  - bag, money, string vars, warp slots and events (`World::events`);
+  - spread warp loads and crossings, view-window spawning with the 16-object cap, directional walls, old-map talk targets, dynamic warps, the Gen3 warp arrivals;
+  - trainer sight, the approach and emotes, 67 of 81 movement types exact;
+  - the Act 1 battle effects and abilities, doubles as singles, prize money, `DoWhiteOut` and level evolution.
+  - No Emerald constant is left in the engine (`max_money`, `multichoice_cancel` and `pocket_slots` live in `SpecialIds`).
+- **Run (L, N):** `cargo xtask sweep` passes 490/518 maps; 24 are checked on another map and 4 are not capturable, each with a verdict; 0 panics, 0 round-trip failures, 0 dropped events. `sweep --repro` gives byte-identical `$OUT_DIR`s.
+- **GBA (M):** ROM 9,294,448 B (16 MiB gate), IWRAM 788, EWRAM 492; debug region v3 with the heap, stack, report and panic marks gated on every game lane; the map tour of all 518 maps (107 gated, Sidney's room the only listed overrun).
+- **Explorer (K, N):** schema v3 (0.26 MB per 1,000 rows), key version 3, per-act state goals, `--from` segments, `export --to-store`, `checkpoints promote`, report-only `Unsupported` findings, and incremental revalidation by script and map digests (an override edit replays 19,170 of 762,343 nodes).
+- **Studio (S):** a map picker for 518 maps, and one `Materializer` per pane.
+- **Act 1 (P):** `act1:pokedex` … `act1:badge1` (c00005–c00009), committed and `valid`. They reach `FLAG_BADGE01_GET` at frame 85,307, found by the explorer with no hand-authored segment. Lanes: the native invariant at 105 points, a ROM resume from every node, and `parity --long` identical to frame 80,362.
+
+### Spec compliance (what is short of the spec)
+Every task's items are done or deviate in a way its "as built" records, except the following. These deviations are undocumented or newly found by this review.
+- **A:** "every exported string round-trips" is checked as encode then decode (`extract/tests/export.rs`), not against the ROM bytes. The 30 s extract target has no test; about 5–6 s is measured.
+- **B:** the map-order test compares two `labels::transfer` runs (forward and reversed maps), not two exports' `scripts/index.ron`.
+- **C, D1, J:** these have no "as built" section. What the code shows:
+  - C: four tables plus L's field strings, `FORMAT_MINOR` 3, tested on both ROMs.
+  - D1: `setwarp` stays `Unsupported` (no slot for it), and `multichoicegrid` is `Default(127)` rather than `Unsupported`.
+  - J: 524 unique special names (528 ids; three names repeat) are classified: Native 25, Ignore 19, Default 35, Unsupported 445. `StartWallyTutorialBattle` is `Native` and reports `Degraded`. `act1_specials_are_classified_with_a_reason` passes without `PKR_DECOMP`, and it accepts `Unsupported` with a reason (`PlayerPC`).
+- **D2:** `report.txt` counts sites per class and the unsupported ones per op or special, not every op.
+- **E:** `slice_bulk_data_is_the_wave0_builds` only asserts on a 15-map slice extract (it prints otherwise). The overrides hygiene test reads `src/overrides/` without recursing and keeps an exception for the deleted `mod.rs`.
+- **F:**
+  - The crossing test checks the view entries, not a comparison with a direct full upload.
+  - No test checks `VAR_LAST_TALKED` for a previous-map NPC (the lock and `faceplayer` are tested).
+- **G1:**
+  - Item 7 has no engine test of an Act 1 trainer party end to end and no test of Roxanne's AI flags; Act 1 battles are covered by the P lanes.
+  - G2 (stretch) stands at 73 of 214 move effects (target 120) and 39 of 77 abilities named, about 34 of them acting (target 40).
+- **K:** the default act is `act1` on the stub too. The `--from` test verifies through `Store::verify_nodes`, not `checkpoints verify --local`. The optional repeat-pair trace syntax was not needed (the Act 1 nodes total 371 KB).
+- **L:**
+  - `sweep --studio` runs `map_view`, `data_views` and `map_edit`; `map_pixels` has no whole-game version.
+  - Item 12 (one `StartAt`) is still open; see the findings.
+- **M:** the video-probe and battle-probe lanes do not call `check_costs`/`check_memory`. They are not the game binary, but the spec says "every lane".
+- **N:** the incremental tests flip stored digests rather than editing a real override, std script or prelude. The real override edit was measured once by hand (above).
+- **S:** the `--smoke` fps gate (50) was not met on a loaded machine (on master too). It is still to be re-measured on an idle machine.
+- **P:** `late == 0` is not met on `act1_long` (finding 1 below). The node labels are short forms of the `ACT1` goal names (`act1:woods` for `woods_grunt_defeated`).
+- **Done when:** met, except `late == 0` on the long Act 1 lane, the studio smoke fps, and the G2 stretch.
+
+### Fixed in the close-out
+- The two `#[ignore]`s without a reason (`extract/tests/text.rs`, `studio/tests/map_edit.rs`) now have one.
+- Stale docs:
+  - `extract`: the lowering's references to the deleted legacy generator, and `Species.weight`'s format minor.
+  - `engine`: `FieldSnap.stale` and `StaleRect` (always `None` since F), the host's "Wave 0 bodies", and the warp-slot doc (only `MAP_DYNAMIC` reads the dynamic slot).
+  - `content`: `REPORT` (scripts plus data), and the classify helpers' comment.
+- Dead code: the prelude's uncalled `unsupported()` and `report()`, and the always-false `Field::view_stale`.
+- README: rewritten for the state after M8.
+  - What plays: Act 1, natively and on the GBA, with ROM parity to frame 80,362.
+  - `parity --long` and the Act 1 lanes, the memory gates and current budgets, `checkpoints promote`, the explorer's acts and `--from` segments, the extract's IR layout, the sweep numbers, the current goldens, and a Silice section (`PKR_GAME=silice` / `--game silice`).
+  - There is no `cargo xtask gates` on master yet, so it is not documented.
+
+### Findings carried to Milestone 9 (and later)
+1. **Late frame at Roxanne's battle start** (P finding 1; engine). `Battle::start`'s first-turn AI choice makes a 223-line step. Run it on a later transition frame, after checking the RNG order. Then remove `KNOWN_LATE` and replay frames 80,366–85,307 on the ROM.
+2. **Briney's boat RoundTrip**, Route 104 (71, 189), "camera far outside the map" (P finding 2): M9.
+3. **Route 115 PlannerDivergence** at (10, 63), (10, 64) and (12, 61) (elevation): M10.
+4. **Explorer policy** has no type matchup or level term (P finding 4): M9's policy work.
+5. **Unsupported on Act 1 maps, off the trace** (P finding 5): `pokemart`, `dofieldeffect`/`waitfieldeffect`, `pokenavcall`, `copyobjectxytoperm`, `BedroomPC`, `ShowPokedexRatingMessage` and `EFFECT_CURSE`. Mart and PC are M9.
+6. **`DrawWholeMapView`** redraws the whole view on a visible frame (M review 8; Sidney's room in `KNOWN_OVER`). Needs a dirty-cell redraw before Mauville's gym is gated (Act 2).
+7. **One `StartAt` and one start-cell rule** (L item 12):
+   - The `StartAt` `GameData` wrapper is duplicated in `xtask/src/sweep.rs` and `emu/tests/parity.rs`, with a near copy in `explore/tests/warp_exits_real.rs`.
+   - The start-cell rule exists twice: `sweep::start_cell` and `game-gba`'s `tour_logic::landing`.
+   - There are three `script_name` helpers (sweep, `game-native/tests/act1.rs`, `studio/src/map_view.rs`).
+8. **`explore`'s `testing` feature in a normal build:** xtask enables it as a regular dependency only to reach `forward_game_data!`, so the fault-injection wrappers link into xtask. Move the macro, and a shared `StartAt` (7), out of `testing`.
+9. **Test gaps** (spec compliance above):
+   - G1: an Act 1 party end to end, and Roxanne's AI flags.
+   - F: a crossing compared with a full upload; `VAR_LAST_TALKED` for a previous-map NPC.
+   - A: string round trips against the ROM bytes.
+   - N: a real override, std-script and prelude edit.
+   - J: the Act 1 specials test without `PKR_DECOMP`.
+   - M: the memory gates on the probe lanes.
+   - E: a recursive overrides hygiene check.
+10. **As-built gaps:** C, D1 and J have no section. Their deviations are listed above; write them up if those areas change.
+11. **G2 breadth** (73 of 214 effects, 39 of 77 abilities): M11. The badge stat boosts and the player-side effects of the G1 list (Gust, Protect, Encore, High Critical) come first.
+12. **Gen3-wide constants still in the engine:**
+    - the per-slot caps 99 and 999;
+    - `MAP_DYNAMIC` 0x7F7F;
+    - the trainer types and the double `trainerbattle` kinds 4, 6 and 7 in `sight.rs`;
+    - `CHAR_0`;
+    - `OBJECT_EVENTS_COUNT` 16.
+
+    None is Emerald-only. Move them into `SpecialIds` if a second game needs other values.
+13. **Small leftovers:**
+    - `battle::encounters(id)` (first header only) is still generated, for the studio's encounter view; M9's water and fishing views should use `wild_encounters`.
+    - `Objects::spawn_map`/`enter_connected` are public but only engine tests call them.
+    - `#[allow(unused_imports)]` sits on `battle/core.rs`'s re-export.
+14. **Studio smoke:** re-measure the 50 fps gate on an idle machine.
+
+### Known failures
+- **Act 1 long lane:** `KNOWN_LATE` at engine frame 80,366 (finding 1). `parity --long` passes with it pinned, but `late == 0` is not met there.
+- **Silice-flavour tests:** since the Chapter 0 scripts, a script holds the Silice new game's start. The Silice `game-native`, `emu` and `xtask` tests (and `explore`'s) that need a capturable start fail ("never capturable (Script)" at `silice_start`), as Task P recorded. That belongs to the Silice work, and another agent is fixing it; it is not an M8 regression on Emerald.
+
+### Gates
+Run on this close-out's tree (master `b5ce185` plus the fixes above), on the full FR extract:
+- `cargo fmt --all --check`: clean.
+- Clippy `-D warnings`: clean, both plain and with `--features game-native/window,studio/ui`.
+- `cargo test --workspace` (Emerald): **1643 passed, 0 failed, 24 ignored**.
+- `cargo xtask checkpoints verify`:
+  - emerald c00001–c00009 are all `valid (rehash)`. Only `BUILD_ID` moved, from the content source edits, so nothing was re-accepted.
+  - The stub tree was not run; that needs a stub build.
+
+Not run: `parity` and `parity --long`, since no engine, content behaviour or GBA code changed; Task P's runs stand. The stub flavour, the Silice flavour and the studio smoke were not run either.
+
+### Cleanup
+Task worktrees are cleaned up by their owners; this close-out ran in its own worktree, with no tree or golden change (no route delta).

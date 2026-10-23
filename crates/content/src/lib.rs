@@ -78,7 +78,8 @@ pub mod scripts {
 
 pub use data::script_ids;
 
-/// The build's script classification report (`build/scripts.rs`; Milestone 8 Task D2 fills it).
+/// The build's report: the script classification (`build/scripts.rs`), then the data
+/// approximations (`build/codegen.rs`).
 pub const REPORT: &str = include_str!(concat!(env!("OUT_DIR"), "/report.txt"));
 
 /// Which game this content build is (`build/main.rs`).
