@@ -100,14 +100,25 @@ fn replay() {
         &Config::default(),
         Some(start),
     );
+    let game = Emerald::for_shells();
     for p in &s.positions {
+        // The party: species, level and HP per mon.
+        let party: Vec<(u16, u8, u16)> = engine::World::restore(&game, &p.end)
+            .map(|w| {
+                w.party()
+                    .iter()
+                    .map(|m| (m.species.0, m.level, m.hp))
+                    .collect()
+            })
+            .unwrap_or_default();
         println!(
-            "{:5} {:?} {:?} {:?} frame {}",
+            "{:5} {:?} {:?} {:?} frame {} party {:?}",
             p.index,
             p.label,
             p.map(),
             p.pos(),
-            p.frame
+            p.frame,
+            party
         );
     }
     for r in &s.reports {
