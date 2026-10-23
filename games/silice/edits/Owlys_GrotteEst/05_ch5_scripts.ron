@@ -1,0 +1,10 @@
+// SIL3 Ch5 scripts: the map changes the Chapter 5 scripts need.
+[
+    // Owlys_GrotteEst_OnTransition shows the duo scene's actors (Mathieu, both drivers) at VAR_SIL_STORY
+    // 52 only: they are hidden at start (game.ron) and the map had no transition script to show them.
+    ScriptsSet(on_transition: "Owlys_GrotteEst_OnTransition"),
+    // The hidden-item fallback (as Ch0-Ch2): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 1, event: Bg((x: 37, y: 21, elevation: 0, kind: HiddenItem(item: "ITEM_ULTRA_BALL", flag: "FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL")))).
+    Replace(index: 1, event: Bg((x: 37, y: 21, elevation: 0, kind: Script(facing: 0, script: Some("Owlys_GrotteEst_EventScript_HiddenUltraBall"))))),
+]
