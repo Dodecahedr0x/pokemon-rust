@@ -14,6 +14,7 @@
 //! events and the map scripts are the extract's own types. The content build resolves the names.
 //! Both files are written with `crate::export::to_ron`.
 
+use crate::names::Table;
 use crate::schema::{Bg, ConnectionDir, Coord, MapScripts, Object};
 use serde::{Deserialize, Serialize};
 
@@ -156,3 +157,63 @@ pub struct GameConnection {
     pub offset: i32,
     pub map: String,
 }
+
+// The header's constant names (pokeemerald `include/constants/{weather,map_types}.h` and
+// `MAP_BATTLE_SCENE_*`, names only): the studio names an imported Emerald header with them and
+// the content build resolves a games dir header with them. Unnamed numbers read and write as
+// `<PREFIX>0x<HEX>` (`Table::value`, `Table::name_or_hex`).
+
+pub static WEATHER: Table = Table {
+    prefix: "WEATHER_",
+    entries: &[
+        (0, "WEATHER_NONE"),
+        (1, "WEATHER_SUNNY_CLOUDS"),
+        (2, "WEATHER_SUNNY"),
+        (3, "WEATHER_RAIN"),
+        (4, "WEATHER_SNOW"),
+        (5, "WEATHER_RAIN_THUNDERSTORM"),
+        (6, "WEATHER_FOG_HORIZONTAL"),
+        (7, "WEATHER_VOLCANIC_ASH"),
+        (8, "WEATHER_SANDSTORM"),
+        (9, "WEATHER_FOG_DIAGONAL"),
+        (10, "WEATHER_UNDERWATER"),
+        (11, "WEATHER_SHADE"),
+        (12, "WEATHER_DROUGHT"),
+        (13, "WEATHER_DOWNPOUR"),
+        (14, "WEATHER_UNDERWATER_BUBBLES"),
+        (15, "WEATHER_ABNORMAL"),
+        (20, "WEATHER_ROUTE119_CYCLE"),
+        (21, "WEATHER_ROUTE123_CYCLE"),
+    ],
+};
+
+pub static MAP_TYPES: Table = Table {
+    prefix: "MAP_TYPE_",
+    entries: &[
+        (0, "MAP_TYPE_NONE"),
+        (1, "MAP_TYPE_TOWN"),
+        (2, "MAP_TYPE_CITY"),
+        (3, "MAP_TYPE_ROUTE"),
+        (4, "MAP_TYPE_UNDERGROUND"),
+        (5, "MAP_TYPE_UNDERWATER"),
+        (6, "MAP_TYPE_OCEAN_ROUTE"),
+        (7, "MAP_TYPE_UNKNOWN"),
+        (8, "MAP_TYPE_INDOOR"),
+        (9, "MAP_TYPE_SECRET_BASE"),
+    ],
+};
+
+pub static BATTLE_SCENES: Table = Table {
+    prefix: "MAP_BATTLE_SCENE_",
+    entries: &[
+        (0, "MAP_BATTLE_SCENE_NORMAL"),
+        (1, "MAP_BATTLE_SCENE_GYM"),
+        (2, "MAP_BATTLE_SCENE_MAGMA"),
+        (3, "MAP_BATTLE_SCENE_AQUA"),
+        (4, "MAP_BATTLE_SCENE_SIDNEY"),
+        (5, "MAP_BATTLE_SCENE_PHOEBE"),
+        (6, "MAP_BATTLE_SCENE_GLACIA"),
+        (7, "MAP_BATTLE_SCENE_DRAKE"),
+        (8, "MAP_BATTLE_SCENE_FRONTIER"),
+    ],
+};

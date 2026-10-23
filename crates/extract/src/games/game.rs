@@ -23,6 +23,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct GameFile {
     pub start: GameStart,
+    /// The player's default name (Gen3 `PLAYER_NAME_LENGTH`: at most 7 characters).
+    pub player_name: String,
     pub running_flag: String,
     pub cleared_on_map_change: Vec<String>,
     pub heal_locations: Vec<HealLocation>,

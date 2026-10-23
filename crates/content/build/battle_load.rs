@@ -83,6 +83,23 @@ fn gfx_file(dir: &Path, rel: &str) -> Result<GfxIn> {
     })
 }
 
+/// The front pic `pic` (`TRAINER_PIC_*`) of an extracted dir, `None` when it was not exported.
+pub fn trainer_pic(dir: &Path, pics: &TrainerPicsFile, pic: &str) -> Result<Option<PicIn>> {
+    let path = dir.join(format!("trainers/front/{pic}.png"));
+    if !path.exists() {
+        return Ok(None);
+    }
+    let info = pics
+        .front
+        .get(pic)
+        .with_context(|| format!("trainers/pics.ron has no {pic}"))?;
+    Ok(Some(PicIn {
+        tiles: frames_png(&path, 1)?,
+        palette: png_palette(&path)?,
+        y: info.size,
+    }))
+}
+
 /// Reads the battle files of an extracted dir: every table, and every species and trainer pic
 /// the extract has.
 pub fn load(dir: &Path) -> Result<BattleIn> {
@@ -148,25 +165,11 @@ pub fn load(dir: &Path) -> Result<BattleIn> {
     let pics: TrainerPicsFile = read_ron(&dir.join("trainers/pics.ron"))?;
     let used_pics: BTreeSet<String> = out.trainers.iter().map(|t| t.pic.clone()).collect();
     for pic in used_pics {
-        let path = dir.join(format!("trainers/front/{pic}.png"));
         // A trainer whose pic was not exported is left out (`trainer()` is `None`; listed in
         // the report).
-        if !path.exists() {
-            continue;
+        if let Some(p) = trainer_pic(dir, &pics, &pic)? {
+            out.trainer_pics.insert(pic, p);
         }
-        let info = pics
-            .front
-            .get(&pic)
-            .with_context(|| format!("trainers/pics.ron has no {pic}"))?;
-        let tiles = frames_png(&path, 1)?;
-        out.trainer_pics.insert(
-            pic,
-            PicIn {
-                tiles,
-                palette: png_palette(&path)?,
-                y: info.size,
-            },
-        );
     }
     let frames = *pics
         .back

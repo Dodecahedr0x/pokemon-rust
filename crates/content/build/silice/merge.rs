@@ -7,14 +7,19 @@
 //! decomp tables know stays as it is; anything else, or a tombstone, fails the build. Scripts go
 //! through the registry's [`Resolver`].
 //!
-//! **Wave 0 limits** (Task A): the header's names are not resolved yet (its numbers are 0; the
-//! engine reads `allow_running` only), `LOCALID_*` constants are not emitted, and the editor's
-//! map limits are not checked again.
+//! **Header** ([`header`]): `MUS_*`/`SE_*` through `ids/songs.ron`, else the Gen3 song names
+//! (`charmap::SOUNDS`), `MUS_NONE` as Gen3's 0xFFFF; `MAPSEC_*` through the Gen3 names (Silice
+//! has no map section of its own yet: `MAPSEC_NONE`); `WEATHER_*`, `MAP_TYPE_*` and
+//! `MAP_BATTLE_SCENE_*` through `extract::games`'s tables. An unknown name fails. The engine
+//! reads `allow_running` only; the others are kept for the shells and later milestones.
+//!
+//! **Objects** keep their `LOCALID_*` name: [`localid_consts`] emits it (`u8`, the local id),
+//! as scripts name objects by it. The map limits are `load::check_limits`'s.
 
 use super::ids::Ids;
 use super::load::MapIn;
 use super::registry::Resolver;
-use super::schema::{IdKind, MAP_DYNAMIC};
+use super::schema::{BATTLE_SCENES, GameHeader, IdKind, MAP_DYNAMIC, MAP_TYPES, WEATHER};
 use anyhow::{Context, Result, bail};
 use extract::names::{self, Table};
 use extract::schema::{
@@ -141,24 +146,12 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
         on_frame,
         on_warp_into,
     };
-    let h = &g.header;
     Ok(MapFile {
         name: g.name.clone(),
         group: group.parse()?,
         num: num.parse()?,
         layout: m.layout.clone(),
-        header: Header {
-            music: 0,
-            region_map_section: 0,
-            cave: h.cave,
-            weather: 0,
-            map_type: 0,
-            allow_cycling: h.allow_cycling,
-            allow_escaping: h.allow_escaping,
-            allow_running: h.allow_running,
-            show_map_name: h.show_map_name,
-            battle_type: 0,
-        },
+        header: header(&g.header, ids).context("header")?,
         objects,
         warps,
         coords,
@@ -166,4 +159,50 @@ pub fn to_map_file(m: &MapIn, ids: &Ids, scripts: &mut Resolver) -> Result<MapFi
         connections,
         scripts: map_scripts,
     })
+}
+
+/// The header with its names resolved (see the module doc).
+pub fn header(h: &GameHeader, ids: &Ids) -> Result<Header> {
+    let byte = |t: &Table, n: &str| -> Result<u8> {
+        let v = t
+            .value(n)
+            .with_context(|| format!("unknown {}* name {n}", t.prefix))?;
+        u8::try_from(v).with_context(|| format!("{n} = {v} is over 255"))
+    };
+    Ok(Header {
+        music: song(ids, &h.music)?,
+        region_map_section: byte(&names::MAP_SECTIONS, &h.region_map_section)?,
+        cave: h.cave,
+        weather: byte(&WEATHER, &h.weather)?,
+        map_type: byte(&MAP_TYPES, &h.map_type)?,
+        allow_cycling: h.allow_cycling,
+        allow_escaping: h.allow_escaping,
+        allow_running: h.allow_running,
+        show_map_name: h.show_map_name,
+        battle_type: byte(&BATTLE_SCENES, &h.battle_scene)?,
+    })
+}
+
+/// Gen3 `MUS_NONE`: no music change.
+pub const MUS_NONE: u16 = 0xFFFF;
+
+/// The number of a song (`MUS_*` or `SE_*`): Silice's (`ids/songs.ron`), else Gen3's.
+pub fn song(ids: &Ids, name: &str) -> Result<u16> {
+    if name == "MUS_NONE" {
+        return Ok(MUS_NONE);
+    }
+    if let Some(n) = ids.live(IdKind::Songs, name)? {
+        return Ok(u16::try_from(n)?);
+    }
+    (extract::text::charmap::SOUNDS.iter())
+        .find(|s| s.1 == name)
+        .map(|s| s.0)
+        .with_context(|| format!("unknown song {name} (neither ids/songs.ron nor Gen3)"))
+}
+
+/// The `LOCALID_*` constants of a map's objects: (name, `u8`, local id).
+pub fn localid_consts(m: &MapIn) -> Vec<(String, &'static str, String)> {
+    (m.map.objects.iter())
+        .filter_map(|o| Some((o.id.clone()?, "u8", o.local_id.to_string())))
+        .collect()
 }

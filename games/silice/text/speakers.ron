@@ -8885,7 +8885,7 @@
             speaker: Some("SBIRE COCKET"),
         ),
         (
-            id: "Tour_Sbire1_Intro",
+            id: "Tour_Sbire1_Intro_Ch09",
             chapter: "09-nebula",
             speaker: Some("SBIRE COCKET"),
         ),
@@ -8905,7 +8905,7 @@
             speaker: Some("SBIRE COCKET"),
         ),
         (
-            id: "Tour_Sbire2_Intro",
+            id: "Tour_Sbire2_Intro_Ch09",
             chapter: "09-nebula",
             speaker: Some("SBIRE COCKET"),
         ),
