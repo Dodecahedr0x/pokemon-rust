@@ -351,9 +351,12 @@ impl<'a> Low<'a> {
                 ));
             }
             ("copyvar", [a, c]) => {
-                // A source below VARS_START has no var: Gen3 dereferences NULL there (it reads
-                // the BIOS); the decomp's UBFIX, and this lowering, copy the id itself (Granite
-                // Cave's `copyvar VAR_ICE_STEP_COUNT, 1`, which must leave the count non-zero).
+                // A source below VARS_START has no var: Gen3 dereferences NULL there. The BIOS
+                // is read-protected, so the load returns BIOS open bus (the last opcode the
+                // BIOS fetched, after an interrupt or a SWI: non-zero in practice, and not a
+                // value the engine models). The decomp's UBFIX, and this lowering, copy the id
+                // itself (Granite Cave's `copyvar VAR_ICE_STEP_COUNT, 1`, which must leave the
+                // count non-zero; both give that, though not the same number).
                 if let Some(id) = literal_var(c) {
                     let Some(a) = var_target(a) else {
                         return Ok(false);
