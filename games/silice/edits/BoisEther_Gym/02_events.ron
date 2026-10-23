@@ -1,0 +1,59 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // BoisEther_Gym_OnLoad opens the doors already opened: the airlock doors (7, 8-9) and (7, 11-12)
+    // once FLAG_SIL_GYM1_VALVE is set. BoisEther_Gym_OnTransition hides Loic (FLAG_TEMP_11) once
+    // FLAG_SIL_BADGE_01 is set.
+    Scripts((on_load: Some("BoisEther_Gym_OnLoad"), on_transition: Some("BoisEther_Gym_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the entrance mat, to Bois-Ether's warp 0 (the gym door).
+    Warp(x: 6, y: 39, dest_map: "BoisEther", dest_warp: 0),
+    Warp(x: 7, y: 39, dest_map: "BoisEther", dest_warp: 0),
+    Object(x: 5, y: 35, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_GYM1_CONSEILLER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_EventScript_Conseiller"),
+    Object(x: 6, y: 23, gfx: "OBJ_EVENT_GFX_PICNICKER", id: "LOCALID_GYM1_IRIS", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BoisEther_Gym_EventScript_Iris", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 11, y: 26, gfx: "OBJ_EVENT_GFX_CAMPER", id: "LOCALID_GYM1_JULES", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Jules", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 8, y: 17, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_GYM1_MILO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Milo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 11, y: 13, gfx: "OBJ_EVENT_GFX_LASS", id: "LOCALID_GYM1_ROSE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_EventScript_Rose", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 11, y: 18, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_GYM1_PAUL", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Paul"),
+    // Crate c1 (the blue one): its Super Potion as an item object.
+    Object(x: 2, y: 15, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GYM1_ITEM_SUPER_POTION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_EventScript_CaissePotion", flag: "FLAG_SIL_ITEM_GYM1_SUPER_POTION"),
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_WALLY", id: "LOCALID_GYM1_LOIC", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_Sc10", flag: "FLAG_TEMP_11"),
+    // Gym_Sc01: one step in from the mat, VAR_SIL_STORY 12.
+    Coord(x: 6, y: 38, var: "VAR_SIL_STORY", value: 12, script: "BoisEther_Gym_Sc01"),
+    Coord(x: 7, y: 38, var: "VAR_SIL_STORY", value: 12, script: "BoisEther_Gym_Sc01"),
+    // Zone 1: the shower on the entrance cell and the one above it, then every active grate.
+    // VAR_TEMP_1 stays 0, so they fire on every step; the scripts test FLAG_SIL_GYM1_CONTAMINE.
+    Coord(x: 7, y: 30, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Douche"),
+    Coord(x: 7, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Douche"),
+    Coord(x: 5, y: 23, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 11, y: 23, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 4, y: 24, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 7, y: 24, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 8, y: 24, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 9, y: 24, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 5, y: 25, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 9, y: 25, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 11, y: 25, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 3, y: 26, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 6, y: 26, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 8, y: 26, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 5, y: 27, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 8, y: 27, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 10, y: 27, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 4, y: 28, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 7, y: 28, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 11, y: 28, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 6, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    Coord(x: 9, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    // Zone 3: the chamber's centre. The scene sets VAR_TEMP_2 to 1, so it plays once per visit.
+    Coord(x: 7, y: 10, var: "VAR_TEMP_2", value: 0, script: "BoisEther_Gym_EventScript_Sas2"),
+    // Signs: the airlock door D (from either side), the poster, the workbench (front row), the
+    // two crates c2 (red, the fuse) and c3 (the spring), the private greenhouse door.
+    Sign(x: 8, y: 22, script: "BoisEther_Gym_EventScript_PorteSas1"),
+    Sign(x: 4, y: 22, script: "BoisEther_Gym_EventScript_Affiche", facing: 1),
+    Sign(x: 5, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
+    Sign(x: 6, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
+    Sign(x: 7, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
+    Sign(x: 4, y: 15, script: "BoisEther_Gym_EventScript_CaisseFusible"),
+    Sign(x: 6, y: 15, script: "BoisEther_Gym_EventScript_CaisseRessort"),
+    Sign(x: 12, y: 1, script: "BoisEther_Gym_EventScript_SerrePrivee", facing: 1),
+]

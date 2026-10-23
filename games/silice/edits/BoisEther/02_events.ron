@@ -1,0 +1,68 @@
+// Header, map scripts, warps, objects, coord and bg events, connection.
+[
+    Header((music: "MUS_FORTREE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_TOWN", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // BoisEther_OnTransition sets the scene actors' temporary hide flags from VAR_SIL_STORY (see the
+    // as-built: FLAG_TEMP_11-18 until dedicated FLAG_SIL_HIDE_BOIS_ETHER_* ids exist), the red sky
+    // (FLAG_SIL_BOIS_ETHER_RED_SKY) and the music. BoisEther_OnLoad repaints the cut brambles
+    // (FLAG_SIL_BOIS_ETHER_RONCES_CUT) and the open barrier (VAR_SIL_STORY >= 17).
+    Scripts((on_load: Some("BoisEther_OnLoad"), on_transition: Some("BoisEther_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the gym. 1: the Pokemon Center. 2: the Mart. 3: the Herboriste.
+    Warp(x: 17, y: 4, dest_map: "BoisEther_Gym", dest_warp: 0),
+    Warp(x: 27, y: 12, dest_map: "BoisEther_PokemonCenter", dest_warp: 0),
+    Warp(x: 27, y: 17, dest_map: "BoisEther_Mart", dest_warp: 0),
+    Warp(x: 5, y: 12, dest_map: "BoisEther_Herboriste", dest_warp: 0),
+    // Objects 1-15 in the source's obj order; 16 (reserved) is not drawn, so the X Defend ball takes 16.
+    Object(x: 10, y: 7, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_BOIS_ETHER_JARDINIERE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BoisEther_EventScript_Jardiniere"),
+    Object(x: 14, y: 12, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_BOIS_ETHER_VIEUX", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BoisEther_EventScript_Vieux"),
+    Object(x: 20, y: 7, gfx: "OBJ_EVENT_GFX_LITTLE_GIRL", id: "LOCALID_BOIS_ETHER_FILLETTE", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "BoisEther_EventScript_Fillette"),
+    Object(x: 6, y: 14, gfx: "OBJ_EVENT_GFX_POKEFAN_M", id: "LOCALID_BOIS_ETHER_MARCHAND", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_EventScript_Marchand"),
+    Object(x: 16, y: 6, gfx: "OBJ_EVENT_GFX_BOY_3", id: "LOCALID_BOIS_ETHER_FAN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BoisEther_EventScript_Fan"),
+    Object(x: 24, y: 3, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_BOIS_ETHER_TECHNICIEN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BoisEther_EventScript_Technicien", flag: "FLAG_TEMP_11"),
+    Object(x: 22, y: 14, gfx: "OBJ_EVENT_GFX_WOMAN_4", id: "LOCALID_BOIS_ETHER_TOUX", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_EventScript_Toux"),
+    Object(x: 19, y: 12, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_BOIS_ETHER_GARDIEN", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Sc04"),
+    Object(x: 32, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BOIS_ETHER_GARDE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Sc07", flag: "FLAG_TEMP_12"),
+    Object(x: 17, y: 12, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BOIS_ETHER_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_TEMP_13"),
+    // Bois_Ether_Sc06's actors (hidden outside the scene; their paths are re-derived in Rust).
+    Object(x: 15, y: 10, gfx: "OBJ_EVENT_GFX_MAXIE", id: "LOCALID_BOIS_ETHER_GOGO", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_14"),
+    Object(x: 19, y: 10, gfx: "OBJ_EVENT_GFX_ARCHIE", id: "LOCALID_BOIS_ETHER_ROMAIN", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_15"),
+    Object(x: 15, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BOIS_ETHER_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_16"),
+    Object(x: 19, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_BOIS_ETHER_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_17"),
+    Object(x: 22, y: 11, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_BOIS_ETHER_MATHIEU", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_TEMP_18"),
+    Object(x: 28, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_BOIS_ETHER_ITEM_X_DEFEND", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_EventScript_ItemXDefend", flag: "FLAG_SIL_ITEM_BOIS_ETHER_X_DEFEND"),
+    // Bois_Ether_Sc01: the south entrance (x 12-15), one row inside the edge, VAR_SIL_STORY 9.
+    Coord(x: 12, y: 24, var: "VAR_SIL_STORY", value: 9, script: "BoisEther_Sc01"),
+    Coord(x: 13, y: 24, var: "VAR_SIL_STORY", value: 9, script: "BoisEther_Sc01"),
+    Coord(x: 14, y: 24, var: "VAR_SIL_STORY", value: 9, script: "BoisEther_Sc01"),
+    Coord(x: 15, y: 24, var: "VAR_SIL_STORY", value: 9, script: "BoisEther_Sc01"),
+    // Bois_Ether_Sc02 (then Sc03): around the meeting point (17, 12), VAR_SIL_STORY 10.
+    Coord(x: 16, y: 13, var: "VAR_SIL_STORY", value: 10, script: "BoisEther_Sc02"),
+    Coord(x: 17, y: 13, var: "VAR_SIL_STORY", value: 10, script: "BoisEther_Sc02"),
+    Coord(x: 18, y: 13, var: "VAR_SIL_STORY", value: 10, script: "BoisEther_Sc02"),
+    // Bois_Ether_Sc06: the row every step off the gym's deck crosses (x 13-21, y 6), VAR_SIL_STORY 15.
+    Coord(x: 13, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 14, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 15, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 16, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 17, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 18, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 19, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 20, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    Coord(x: 21, y: 6, var: "VAR_SIL_STORY", value: 15, script: "BoisEther_Sc06"),
+    // Bois_Ether_Sc07: the barrier approach (32, 12-15), VAR_SIL_STORY 16.
+    Coord(x: 32, y: 12, var: "VAR_SIL_STORY", value: 16, script: "BoisEther_Sc07"),
+    Coord(x: 32, y: 13, var: "VAR_SIL_STORY", value: 16, script: "BoisEther_Sc07"),
+    Coord(x: 32, y: 14, var: "VAR_SIL_STORY", value: 16, script: "BoisEther_Sc07"),
+    Coord(x: 32, y: 15, var: "VAR_SIL_STORY", value: 16, script: "BoisEther_Sc07"),
+    Sign(x: 11, y: 20, script: "BoisEther_EventScript_SignVille"),
+    Sign(x: 12, y: 5, script: "BoisEther_EventScript_SignArene"),
+    Sign(x: 17, y: 10, script: "BoisEther_EventScript_SignChene"),
+    Sign(x: 30, y: 11, script: "BoisEther_EventScript_SignBarriere"),
+    Sign(x: 22, y: 2, script: "BoisEther_EventScript_SignCable"),
+    // Bois_Ether_Sc08: the brambles in front of the secret grove.
+    Sign(x: 8, y: 6, script: "BoisEther_Sc08"),
+    HiddenItem(x: 4, y: 14, item: "ITEM_SUPER_POTION", flag: "FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION"),
+    HiddenItem(x: 4, y: 7, item: "ITEM_SIL_EVOLUROC", flag: "FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC"),
+    // Route S1 to the south: our exit x 12-15 meets its x 7-10. The east connection to
+    // MAP_ROUTE_S02 (Ch2) is not made here: see the plan's as-built.
+    Connect((dir: South, offset: 5, map: "RouteS01")),
+]
