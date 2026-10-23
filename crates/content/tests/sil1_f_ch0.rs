@@ -25,4 +25,5 @@ fn chapter_0_plays_from_a_new_game_to_the_bois_ether_edge() {
     let mut r = Run::new(FRAME_LIMIT);
     r.play(&ch00::steps_with_probes());
     ch00::check_end(&r);
+    eprintln!("frames {}", r.frame);
 }

@@ -15,7 +15,7 @@ impl Field {
             drawn: self.drawn.map(|r| [r.x0, r.y0, r.x1, r.y1]),
             ring: self.ring,
             overrides: self.overrides.iter().map(|(&c, &b)| (c, b)).collect(),
-            // A crossing leaves no stale cells since Milestone 8 Task F (`Field::view_stale`).
+            // A crossing leaves no stale cells since Milestone 8 Task F (`Field::stale`).
             stale: None,
         }
     }

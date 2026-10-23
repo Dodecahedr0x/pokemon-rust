@@ -67,6 +67,8 @@ impl Rect {
 }
 
 /// Cells left drawn from the map before a connection crossing ([`Field::stale`]), inclusive.
+/// Never set since Milestone 8 Task F (a crossing redraws what differs); kept for the hash and
+/// the snapshot format.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct StaleRect {
     pub x0: i16,
@@ -163,15 +165,10 @@ impl Field {
         self.map
     }
 
-    /// Whether the view still shows cells drawn from the map before a connection crossing.
-    /// Never since Milestone 8 Task F: a crossing redraws the kept cells the new map draws
-    /// differently ([`Field::switch_map_enter`]), so the view is always the current map's.
-    pub fn view_stale(&self) -> bool {
-        false
-    }
-
     /// The cells the view still shows from the map before a connection crossing: always `None`
-    /// (see [`Field::view_stale`]). Kept for `World::hash` and the snapshot's `stale`.
+    /// since Milestone 8 Task F, since a crossing redraws the kept cells the new map draws
+    /// differently ([`Field::switch_map_enter`]). Kept for `World::hash` and the snapshot's
+    /// `stale`.
     pub fn stale(&self) -> Option<StaleRect> {
         None
     }

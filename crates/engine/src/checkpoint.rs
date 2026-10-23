@@ -210,8 +210,9 @@ pub struct FieldSnap {
     /// Ascending.
     #[serde(deserialize_with = "seq")]
     pub overrides: Vec<((i16, i16), u16)>,
-    /// Schema 2: cells left drawn from the map before a connection crossing (capture refuses a
-    /// stale view, so `None` in every capture until Milestone 8 Task F).
+    /// Schema 2: always `None` (a restore rejects `Some`). Since Milestone 8 Task F a crossing
+    /// redraws the cells that differ instead of keeping a stale rect; the field stays for the
+    /// format.
     pub stale: Option<StaleSnap>,
 }
 
