@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use regex::Regex;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -105,9 +105,52 @@ pub fn scan_scripts(dir: &Path) -> Result<BTreeMap<String, Vec<String>>> {
     Ok(out)
 }
 
+/// The maps the scene scripts claim, by map file stem: each script file's `pub const MAPS:
+/// &[&str] = &["A", …];` (the content build's per-map strictness, `build/silice/registry.rs`,
+/// which also rejects any other form). A claimed map's scenes are written. Empty while the
+/// directory does not exist.
+pub fn scan_claims(dir: &Path) -> Result<BTreeSet<String>> {
+    static MAPS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"pub\s+const\s+MAPS\s*:[^=]*=\s*&?\[([^\]]*)\]").unwrap());
+    static NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#""([^"]+)""#).unwrap());
+    let mut out = BTreeSet::new();
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return Ok(out);
+    };
+    for p in rd.flatten().map(|e| e.path()) {
+        if p.extension().is_none_or(|x| x != "rs") {
+            continue;
+        }
+        let text =
+            std::fs::read_to_string(&p).with_context(|| format!("reading {}", p.display()))?;
+        for c in MAPS.captures_iter(&text) {
+            out.extend(NAME.captures_iter(&c[1]).map(|n| n[1].to_string()));
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scans_the_claimed_maps() {
+        let d = std::env::temp_dir().join(format!("pkr_scan_claims_{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(
+            d.join("ch00_a.rs"),
+            "pub const MAPS: &[&str] = &[\n    \"A\",\n    \"B_1F\",\n];\npub async fn S(ctx: Ctx) {}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("ch01_b.rs"), "pub const MAPS: &[&str] = &[\"C\"];\n").unwrap();
+        std::fs::write(d.join("ch02_c.rs"), "pub async fn T(ctx: Ctx) {}\n").unwrap();
+        std::fs::write(d.join("notes.txt"), "pub const MAPS: &[&str] = &[\"D\"];\n").unwrap();
+        let c = scan_claims(&d).unwrap();
+        std::fs::remove_dir_all(&d).unwrap();
+        assert_eq!(c.into_iter().collect::<Vec<_>>(), ["A", "B_1F", "C"]);
+        assert!(scan_claims(Path::new("/nonexistent")).unwrap().is_empty());
+    }
 
     #[test]
     fn scans_fields() {
