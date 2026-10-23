@@ -55,6 +55,7 @@
 //!                                sSpeciesToHoennPokedexNum)
 //!   battle/rematches.ron         RematchesFile (minor 6: gRematchTable)
 //!   tables/tmhm.ron              TmHmFile (minor 7: sTMHMMoves, gTMHMLearnsets)
+//!   tables/berries.ron           BerriesFile (minor 9: gBerries)
 //! ```
 //!
 //! **Versions.** [`FORMAT_VERSION`] is the major version: an extract of another major builds the
@@ -106,7 +107,8 @@ pub const FORMAT_VERSION: u32 = 5;
 /// - 8: Wave C (field moves) exports the field scripts the C code starts as roots
 ///   (`EventScript_UseSurf`: `scripts/Common_surf.ron`).
 /// - 9: Wave E (step-count scripts) exports the Match Call registrations `TryStartStepCountScript`
-///   starts (`roots::STEP_CALL_SCRIPTS`), in their maps' modules. No file is added.
+///   starts (`roots::STEP_CALL_SCRIPTS`), in their maps' modules. Wave E (berry trees) adds
+///   `tables/berries.ron` (`gBerries`).
 pub const FORMAT_MINOR: u32 = 9;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
@@ -133,6 +135,7 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (6, "battle/rematches.ron"),
     (7, "tables/tmhm.ron"),
     (8, "scripts/Common_surf.ron"),
+    (9, "tables/berries.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -974,6 +977,23 @@ pub struct ItemEffectEntry {
 pub struct TmHmFile {
     pub moves: Vec<(String, String)>,
     pub learnsets: BTreeMap<String, u64>,
+}
+
+/// `tables/berries.ron` (minor 9): `gBerries`, in `ITEM_*_BERRY` order.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct BerriesFile {
+    pub berries: Vec<BerryEntry>,
+}
+
+/// One `struct Berry`: the item, the Gen3-encoded name (no terminator), the yields and the
+/// hours per growth stage.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct BerryEntry {
+    pub item: String,
+    pub name: Vec<u8>,
+    pub max_yield: u8,
+    pub min_yield: u8,
+    pub stage_duration: u8,
 }
 
 /// `tables/natures.ron`: the nature names, in `NATURE_*` order.

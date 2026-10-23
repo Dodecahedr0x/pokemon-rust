@@ -418,6 +418,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
 
     tables::export_tables(rom, &mut o, &mut provenance)?;
     tables::export_tmhm(rom, &mut o, &mut provenance).context("TM/HM tables")?;
+    tables::export_berries(rom, &mut o, &mut provenance).context("berry table")?;
     ui::export_ui(rom, &mut o, &mut provenance)?;
 
     let manifest = Manifest {
