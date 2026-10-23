@@ -20,7 +20,8 @@ impl Field {
         }
     }
 
-    pub(crate) fn from_snapshot(s: &FieldSnap) -> Field {
+    /// The field of `s`, on layout `layout` (the snapshot's `map_layout`, schema 6).
+    pub(crate) fn from_snapshot(s: &FieldSnap, layout: Option<u16>) -> Field {
         Field {
             map: s.map,
             camera_px: s.camera,
@@ -28,21 +29,29 @@ impl Field {
             overrides: s.overrides.iter().copied().collect(),
             ring: s.ring,
             spread: None,
-            // TODO(schema 5): the layout override is not in the checkpoint DTO yet; a restore
-            // draws the map's own layout.
-            layout: None,
-            next_layout: None,
+            // A capturable field has entered its map: the next layout is the current one (the
+            // map scripts set another only in `on_transition`).
+            layout,
+            next_layout: layout,
         }
     }
 
     /// Checks a snapshot from an untrusted source (forged, or another engine build) against the
     /// invariants the live field keeps, so restoring it cannot panic: `drawn` is the camera's
     /// view (or nothing yet), the ring origin is in range, the camera is near the map and every
-    /// override is a cell of the map. The map must exist.
-    pub(crate) fn check_snapshot(game: &impl GameData, s: &FieldSnap) -> Result<(), &'static str> {
+    /// override is a cell of the map (on `layout`, which the game must have for the map). The
+    /// map must exist.
+    pub(crate) fn check_snapshot(
+        game: &impl GameData,
+        s: &FieldSnap,
+        layout: Option<u16>,
+    ) -> Result<(), &'static str> {
         /// How far (in pixels) the camera may be outside the map.
         const MARGIN: i32 = 32 * 16;
-        let map = game.map(s.map);
+        if layout.is_some_and(|l| game.map_layout(s.map, l).is_none()) {
+            return Err("layout override the map does not have");
+        }
+        let map = Self::data_of(game, s.map, layout);
         let (w, h) = (map.width as i32 * 16, map.height as i32 * 16);
         let (cx, cy) = s.camera;
         if !(-MARGIN..=w + MARGIN).contains(&cx) || !(-MARGIN..=h + MARGIN).contains(&cy) {

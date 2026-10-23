@@ -536,8 +536,12 @@ impl Field {
         if let Some(s) = &self.spread {
             s.hash(h);
         }
-        // Not the layout override (Wave C): checkpoints do not keep it yet (schema 5), so a
-        // restore must hash the same.
+        // The layout override (checkpoint schema 6), only when there is one, so the hash of
+        // a map on its own layout is unchanged.
+        if let Some(l) = self.layout {
+            h.write(&[0x4C]);
+            h.write_u16(l);
+        }
     }
 
     fn set_scroll(&self, f: &mut Frame) {

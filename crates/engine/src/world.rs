@@ -704,6 +704,11 @@ impl World {
         self.s.field.map()
     }
 
+    /// The current map's layout override (Gen3 `setmaplayoutindex`; `None`: its own).
+    pub fn map_layout(&self) -> Option<u16> {
+        self.s.field.layout()
+    }
+
     pub fn objects(&self) -> &Objects {
         &self.s.objects
     }
