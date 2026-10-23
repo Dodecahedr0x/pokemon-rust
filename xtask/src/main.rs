@@ -248,13 +248,16 @@ fn fresh_extract() -> Result<()> {
 }
 
 /// `cargo xtask parity [--long]`: the committed tree verified, the ROM built, then the parity
-/// lanes (`emu/tests/parity.rs`) and the studio's ROM pane. `--long` then builds the map tour
-/// ROM (`target/game-tour.gba`, `game-gba --features tour`) and runs `emu/tests/tour.rs`.
+/// lanes (`emu/tests/parity.rs`, but `act1_long`), the native Act 1 invariant
+/// (`game-native/tests/act1.rs`) and the studio's ROM pane. `--long` then replays the whole Act 1
+/// trace on the ROM (`parity.rs`'s `act1_long`), builds the map tour ROM
+/// (`target/game-tour.gba`, `game-gba --features tour`) and runs `emu/tests/tour.rs`.
 ///
 /// Steps that do not depend on each other run at once: the tree's verification, the ROM build
-/// and the two test builds; then the parity lanes, the studio's ROM pane and (`--long`) the
-/// tour ROM's build; then the tour test. The studio output and the test builds' output are
-/// held and printed in one piece each, so they do not interleave with the parity lanes'.
+/// and the three test builds; then the parity lanes, the native Act 1 invariant, the studio's
+/// ROM pane and (`--long`) the tour ROM's build; then (`--long`) `act1_long` and the tour test.
+/// The side steps' output is held and printed in one piece each, so it does not interleave with
+/// the parity lanes'.
 fn parity(args: &[String]) -> Result<()> {
     let long = match args {
         [] => false,
@@ -269,33 +272,45 @@ fn parity(args: &[String]) -> Result<()> {
         "the script IR has positional names only (scripts/decomp_names = 0): set PKR_DECOMP and \
          re-run `cargo xtask extract` before `cargo xtask parity`"
     );
-    let parity_test = |no_run: bool| {
+    // `cargo test <args>`, or its build only (`--no-run`) with `run_args` dropped.
+    let test = |args: &[&str], run_args: &[&str], no_run: bool| {
         let mut c = Command::new("cargo");
-        c.current_dir(root())
-            .args(["test", "-p", "emu", "--test", "parity"]);
+        c.current_dir(root()).arg("test").args(args);
         if no_run {
             c.arg("--no-run");
         } else {
-            c.args(["--", "--ignored", "--nocapture"]);
+            c.args(run_args);
         }
         c
     };
+    let parity_test = |no_run: bool| {
+        test(
+            &["-p", "emu", "--test", "parity"],
+            &["--", "--ignored", "--nocapture", "--skip", "act1_long"],
+            no_run,
+        )
+    };
+    // The checkpoint invariant along Act 1 (Milestone 8 Task P), native, in release.
+    let act1_test = |no_run: bool| {
+        test(
+            &["-p", "game-native", "--release", "--test", "act1"],
+            &["--", "--ignored", "--nocapture"],
+            no_run,
+        )
+    };
     // The studio's ROM pane on the ROM just built (its `#[ignore]`d tests need `target/game.gba`).
     let studio_test = |no_run: bool| {
-        let mut c = Command::new("cargo");
-        c.current_dir(root())
-            .args(["test", "-p", "studio", "--release", "--lib"]);
-        if no_run {
-            c.arg("--no-run");
-        } else {
-            c.args(["rom::tests::", "--", "--ignored"]);
-        }
-        c
+        test(
+            &["-p", "studio", "--release", "--lib"],
+            &["rom::tests::", "--", "--ignored"],
+            no_run,
+        )
     };
     std::thread::scope(|s| -> Result<()> {
         let rom = s.spawn(rom);
         let builds = [
             s.spawn(|| held(&mut parity_test(true))),
+            s.spawn(|| held(&mut act1_test(true))),
             s.spawn(|| held(&mut studio_test(true))),
         ];
         // The committed tree must replay to its nodes before the ROM is compared against
@@ -311,14 +326,23 @@ fn parity(args: &[String]) -> Result<()> {
         for b in builds {
             b?;
         }
+        let act1 = s.spawn(|| held(&mut act1_test(false)));
         let studio = s.spawn(|| held(&mut studio_test(false)));
         let tour = long.then(|| s.spawn(tour_rom));
         let lanes = run(&mut parity_test(false));
+        let act1 = act1.join().unwrap();
         let studio = studio.join().unwrap();
         let tour = tour.map(|t| t.join().unwrap());
         lanes?;
+        act1?;
         studio?;
         if let Some(tour) = tour {
+            // The whole Act 1 trace on the ROM from a new game (Milestone 8 Task P).
+            run(&mut test(
+                &["-p", "emu", "--test", "parity", "act1_long"],
+                &["--", "--ignored", "--nocapture"],
+                false,
+            ))?;
             tour?;
             run(Command::new("cargo").current_dir(root()).args([
                 "test",

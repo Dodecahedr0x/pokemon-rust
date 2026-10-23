@@ -1531,3 +1531,152 @@ Measured on the 16-core dev machine while other agents ran (load average 25 to 1
   The warm run's longest binaries are extract's `export` (62 s) and `battle_gfx` (50 s), stretched by the load: the gate is now bounded by its slowest binary plus the build. The first run after the profile change rebuilt the nested content builds of `build_modes`, `m8_e_tables_build` and `sil1_a_loader` (75–140 s each); warm they take 10–29 s.
 - **Splitting the Act 1 lanes (Task P's files, not edited here).** `game-native/tests/act1.rs` and the Act 1 lanes in `emu/tests/parity.rs` play one long serial route. Once P's `act1:*` nodes are committed, give each segment its own `#[test]`: open `Store::default_root(content::FLAVOR)`, take the segment's start with `store.snapshot(store.find("act1:<start>")?.meta.id)`, restore it into a `Session`, play that segment's committed trace and require the end node's digest (native), or boot the ROM from the start node's save and compare hashes over the segment (parity, as `rom_resumes_from_native_checkpoints` does). The libtest harness runs the segments on separate threads, so the test takes the longest segment instead of their sum; `checkpoints verify` already proves the chain of nodes end to end. In `rom_resumes_from_native_checkpoints`, the three resume runs are independent and can run on scoped threads the same way.
 - **Gates (this branch):** fmt; clippy `-D warnings` plain and with `--features game-native/window,studio/ui`; `cargo test --workspace` real **1628 passed, 0 failed, 21 ignored**, stub **1616 / 0 / 21**; `PKR_GAME=silice cargo test -p content -p explore` **322 / 0 / 2**; `cargo xtask parity` exit 0 (route, lanes, video probe and trainer sighting identical); `cargo xtask checkpoints verify`: emerald c00001–c00004 and stub c00001–c00003 `valid (rehash)`. Route delta: none; BUILD_ID and the committed tree unchanged.
+
+## Wave 3 as built
+
+### Task P as built
+- **Commits:** `9230528` chore(checkpoints): rehash after M8 merges (emerald c00001–c00004 and stub c00001–c00003 by `verify --accept`; the engine goldens did not move); `b567e75` the `act1:*` nodes; `1dba4d1` the native invariant (`game-native/tests/act1.rs`, `tests/act1/trace.rs`); `76cf539` the parity lanes (`emu/tests/parity.rs` and the `xtask parity` wiring); this docs commit.
+- **The route** (committed; `cargo xtask checkpoints verify`: all valid):
+
+  | node | label | parent | frame | map | segment frames |
+  |---|---|---|---|---|---|
+  | c00005 | `act1:pokedex` | new game | 19,313 | Birch's lab | 19,313 |
+  | c00006 | `act1:petalburg` | c00005 | 34,094 | Petalburg City | 14,781 |
+  | c00007 | `act1:woods` | c00006 | 65,819 | Petalburg Woods | 31,725 |
+  | c00008 | `act1:rustboro` | c00007 | 71,917 | Rustboro City | 6,098 |
+  | c00009 | `act1:badge1` | c00008 | 85,307 | Rustboro Gym | 13,390 |
+
+  It takes **85,307 frames** from a new game to `FLAG_BADGE01_GET` (23.7 min of game time). The node files total 371 KB (the traces' inputs and a hash every 60 frames). The labels are the goal names of `explore::goals::emerald::ACT1`.
+- **How it was found:**
+  - Task N's default `Config` (seed `0x5EEDE7`, batch 128, plan length 3, default weights and detector), 8 threads, act `act1`, one db per segment under `target/`.
+  - Each segment explores `--from` the node promoted before it (`export --to-store`, `verify --local`, `checkpoints promote`), so the five nodes form one chain. The node exported is the one with the lowest end frame that reached the goal.
+  - **No segment is hand-authored.**
+
+  | segment | db run | goal first reached | node used |
+  |---|---|---|---|
+  | new game → pokedex | 240 s + 840 s (18.0 min) | 26.4 s (a Torchic lineage); the Mudkip node used, at generation 4,838 (about 14 min in) | 425658, frame 19,313 |
+  | pokedex → petalburg | 300 s | 3.0 s | 2976 |
+  | petalburg → woods | 300 s (the badge too, at 113.7 s) | 3.6 s | 1974 (an ancestor of that badge node) |
+  | woods → rustboro | 240 s (the badge too, at 93.7 s) | 3.3 s | 871 (an ancestor of that badge node) |
+  | rustboro → badge1 | 300 s | 3.0 s (generation 6) | 458 |
+
+  - **First attempt, dropped:**
+    - The pokedex node with the lowest frame had chosen Torchic. Chained the same way, it reached Rustboro (segments of 240, 240 and 120 s) with a level 11 Torchic.
+    - 34 min from that Rustboro node (540 s + 1,500 s; 3,350 generations, 296,000 valid nodes, 43 maps) never beat Roxanne. Her party is Rock type, and the explorer's policy knows nothing of types or levels (`balance` weighs 0).
+    - The Mudkip subtree of the new-game db gave a pokedex node at frame 19,313 (`seen` var `VAR_STARTER_MON` = 2, first node 2109). From that chain, Roxanne fell 3 s after Rustboro.
+    - The Torchic nodes were removed before any commit.
+  - **Explorer wall time:**
+    - 4,860 s (81 min) in all, every segment ≤ 45 min (the longest is the dropped one, 34 min).
+    - The five segments used took 2,220 s (37 min).
+    - Load averages were 13–111 during the runs (other agents' builds and explorers), so the wall times are pessimistic. Task N found the generation counts to be the stable figure.
+- **Native invariant** (`game-native/tests/act1.rs`, release, `#[ignore]`, run by `cargo xtask parity`):
+  - The trace: `act1::trace::load` flattens the chain from `act1:badge1` back to a new game and checks it against the five labels. It has 22,493 capturable frames.
+  - 105 checkpoints (100 spread out, plus the five node frames) round-trip through postcard and RON. Each restores with the live hash and picture, then follows the live session for 120 frames (pictures at +1, +2, +60 and +120).
+  - Three of them (frames 16, 34,070 and 79,660) run to the end of the act.
+  - Each node frame reaches its committed digest.
+  - The largest checkpoint is 662 bytes (frame 71,612; budget 8,192). The run takes under a second in release.
+- **Numbers** (spec item 5):
+  - **Frames:** 85,307 (above).
+  - **Maps entered** along the trace: 29 entries (`Event::MapEntered`), 14 distinct maps.
+  - **Act 1 cells reached: 67.9 %.**
+    - The five route dbs stood on 6,518 of the 9,606 collision-free cells of the 45 Act 1 maps (`content/build/support/act1_maps.ron`).
+    - They reached 40 of the 45 maps. The three Pokémon Center 2Fs and DevonCorp 2F and 3F were never entered.
+    - Most of the rest is open water and ledge-side grass on Routes 103 and 104, and the Petalburg gym's other rooms.
+  - **Battles** on the trace: **18 won, 1 ran, 0 lost.**
+    - pokedex: 3 won; petalburg: 5 won, 1 ran; woods: 5 won; rustboro: 1 won; badge1: 4 won (the gym's trainers and Roxanne).
+    - The starter ends as a Marshtomp (it evolves after Roxanne).
+  - **Memory:**
+    - **ROM** 9,294,448 B (16 MiB gate, 7,482,768 B left); **IWRAM** 788; **EWRAM** 492 (baseline +0).
+    - **Heap** max 48,244 B (gate 163,840). IWRAM stack untouched: at least 11,972 B (gate 1,024).
+    - Events dropped: 0 on every lane.
+  - **Worst lines per segment** (hash / step / loop, on the ROM, each segment run alone by `parity --long`):
+
+    | segment | hash | step | loop |
+    |---|---|---|---|
+    | pokedex | 47 | 172 | 176 |
+    | petalburg | 51 | 152 | 159 |
+    | woods | 54 | 171 | 175 |
+    | rustboro | 56 | 125 | 129 |
+    | badge1 (to frame 80,362) | 50 | 144 | 156 |
+
+    All are within the gates (hash 65, loop 217). Not counted here: the one late frame below (step 223).
+- **ROM parity:**
+  - `rom_resumes_from_act1_nodes` (run by `cargo xtask parity`):
+    - Each `act1:*` node's native checkpoint is written as a `.sav`; it equals the committed digest.
+    - The ROM boots restored at the node frame and follows the act for 2,000 frames (`act1:badge1` idles past the end).
+    - Every sampled hash, and a picture every 100 frames (22 per node), is identical. No late frame. Black-screen late applies come only after bulk steps.
+    - Per node:
+
+      | node | heap_max (B) | stack untouched (B) | hash / step / loop lines |
+      |---|---|---|---|
+      | pokedex | 34,816 | 16,204 | 10 / 152 / 156 |
+      | petalburg | 34,684 | 16,204 | 13 / 159 / 163 |
+      | woods | 43,964 | 11,972 | 53 / 122 / 127 |
+      | rustboro | 43,996 | 11,972 | 47 / 135 / 150 |
+      | badge1 | 34,980 | 18,364 | 10 / 48 / 52 |
+  - `act1_long_whole_trace_from_a_new_game` (run only by `cargo xtask parity --long`; the plain run passes `--skip act1_long`):
+    - It plays the act on the ROM from a new game, compares every hash and a picture every 100 frames, then runs each segment alone (from its parent's `.sav`) for its own marks.
+    - **Frames 0–80,362 replay identically:** 80,344 hashes and 803 pictures. 18 black-screen late applies for 55 bulk events. Heap 47,444 B, stack untouched 11,972 B, hash / step / loop 56 / 172 / 176.
+    - **The ROM cannot replay frames 80,366–85,307.** Roxanne's battle start overruns a visible frame (step 223 lines; `late` at engine frame 80,366). After that, the ROM consumes another frame's keys, and the trace no longer drives it (the A mash alternates every frame).
+    - The lane handles it through `KNOWN_LATE`, which records the cause. It stops 4 frames before the late frame, and resumes at the next capturable frame. There is none before `act1:badge1`, whose resume lane covers 85,307 onward.
+    - The lane checks that the late apply still happens: it fails once the cause is fixed, so the entry gets removed.
+    - So **`late == 0` is not met on the Act 1 long lane**: see finding 1 below.
+- **I-3 (sighting frame against Gen3):**
+  - **Why mGBA with vanilla Emerald was not used:** that needs a vanilla save standing at Route 102 (35, 17) with a party, and none exists (no save or state fixture in the repo or in `rom/`). Making one means driving vanilla's intro, naming, truck and Birch's rescue with inputs written for vanilla: our traces do not replay there (the intro and the RNG differ). The harness also reads only our ROM's debug region.
+  - **Counted from the decomp instead,** from the same start (facing south, Left held from step 1):
+    - Each frame, `DoCB1_Overworld` runs `ProcessPlayerFieldInput` (with `CheckForTrainersWantingBattle`) before `PlayerStep`. Movement actions run in that frame's `AnimateSprites`.
+    - Frame 0 starts the turn (`PlayerTurnInPlace`, `WALK_IN_PLACE_FAST`, 8 frames: 0–7).
+    - Frame 8 starts the step to (34, 17) (16 frames: 8–23).
+    - Frame 24 starts the step to (33, 17). Its `InitNpcForMovement` moves `currentCoords` to the destination at once.
+    - Frame 25's `GetTrainerApproachDistance` (`PlayerGetDestCoords`) sees the player 3 cells below Calvin and starts `EventScript_StartTrainerApproach`.
+  - That is the **26th frame of held input, equal to native's `SIGHTED_AFTER` = 26**. The approach length (108) is not counted here.
+- **Elevation (N's finding):**
+  - On Route 104 and in Petalburg Woods, the trace stands only on elevation 3 (elevation 0 on warp and door cells), never on a bridge cell.
+  - No route db has a PlannerDivergence on Route 104 or in the woods. So the route does not depend on elevation.
+  - The Route 115 PlannerDivergences N found recur in every db that reaches Rustboro's north exit: (10, 63) and (10, 64), plus a new one at (12, 61). They are off the Act 1 route (finding 3).
+- **Triage:**
+  - No `Unsupported` report is reached on the trace.
+  - Three `Degraded` reports are: `bufferitemnameplural` (the lab's `GivePokedexEvent`), `SPECIAL_StartWallyTutorialBattle` (`PetalburgCity_EventScript_WallyTutorial`) and `evolution scene` (after Roxanne).
+  - Everything else is in the findings below. None was trivial to fix within the owned files.
+- **Outside the owned files:** `xtask/src/main.rs`: `parity` runs `game-native --test act1 --release`, skips `act1_long` in the plain run, and runs it under `--long`.
+- **Gates** (load averages 20–68 throughout):
+  - `cargo fmt --all --check`; clippy `-D warnings`, plain and with `--features game-native/window,studio/ui`.
+  - `cargo test --workspace`: real **1589 passed, 0 failed, 24 ignored** (6:13); stub **1577 / 0 / 24** (7:25).
+  - `cargo xtask parity`: every lane passes, the Act 1 resume lanes and the native invariant included; the route is unchanged (19,184 frames, 19,176 hashes and 205 pictures identical, hash / step / loop 46 / 162 / 166).
+  - `cargo xtask parity --long`: exit 0 in 12:16. The Act 1 lane is as above (80,362 of 85,307 frames on the ROM, `KNOWN_LATE` at 80,366). The tour is unchanged: 518 maps, 107 gated, Sidney's room the only gated overrun.
+  - `cargo xtask checkpoints verify`: emerald c00001–c00009 and stub c00001–c00003 all `valid`.
+- **Review and merge with master** (SIL1 Tasks A, D and F, the M9 plan, the studio editor fixes and reachability checker, the Silice maps of Ch1–Ch8 and the Ch1 scripts):
+  - **Flavour gating** (Task D's runtime pattern): `act1::trace::load` returns `None` off Emerald (it checked `content::STUB` only), and the three Act 1 tests print `act 1: <flavour> build, no act1 nodes` and pass. Under `PKR_GAME=silice` they compile and skip; `cargo xtask parity` on Silice runs them as no-ops.
+  - **`KNOWN_LATE` pinned exactly:** the check compares the whole error, `ROM applied a frame late by engine frame 80366`, instead of a substring. A late apply that moves earlier fails the run, one that moves later (or goes away) fails the "still happens" check. Either way the entry has to be updated or removed.
+  - **Rehash:** `chore(checkpoints): rehash after SIL1 A and D`. Emerald c00001–c00009 and stub c00001–c00003 were all `valid (rehash)` before `verify --accept`. Only the `content` build ids changed; no digest or world hash moved. The later merges (Task F, Ch5–Ch8 maps, the Ch1 scripts) did not change Emerald's build again (all `valid`).
+  - **A master test fixed on the way:** `studio`'s `committed_silice_edits_rebuild_byte_identical` copied the committed edits but not the stamps they name (`GrisEchec_Immeuble`, …), so it failed on any build with an extract. Fixed here by copying `games/silice/stamps/*.ron`; master fixed it the same way at the same time, and the last merge kept master's version.
+  - **Gates after the merge** (load averages 20–100):
+    - fmt; clippy `-D warnings`, plain (34 s) and with `--features game-native/window,studio/ui` (38 s).
+    - `cargo test --workspace`: Emerald **1626 passed, 0 failed, 24 ignored** (8:30); stub **1614 / 0 / 24** (6:32).
+    - `cargo xtask parity`: exit 0 in 11:39. The native Act 1 invariant runs in 0.8 s, but its release build adds about 3:20 (another release feature set beside the studio's).
+    - `cargo xtask parity --long`: exit 0 in 22:45. `act1_long` took 15:11, of which the whole-trace piece took 10:23; the numbers are unchanged (80,344 hashes and 803 pictures identical, 18 late applies while black for 55 bulk events, hash / step / loop 56 / 172 / 176, `KNOWN_LATE` 80,366 still there). The tour is unchanged.
+    - `cargo xtask checkpoints verify`: all `valid`.
+    - **After the last master merge** (`38a9aae`; master's studio reachability checker and the Ch7–Ch8 maps): `checkpoints verify` all `valid`; fmt and both clippy runs clean; stub **1631 / 0 / 24**. Emerald **1642 passed, 1 failed, 24 ignored**: the failure is master's `studio` `reach_tools_on_the_committed_silice_maps` (it expects `LOCALID_GYM1_JULES: sees 3 cells`, but the committed BoisEther_Gym now gives 1 cell). That is Silice map data, not Task P's.
+    - **Silice** (`CARGO_TARGET_DIR=target/silice PKR_GAME=silice`, `-p game-native -p emu -p xtask`): the Act 1 tests compile and skip. There are **29 failures, all from master**: 26 panic with `the route does not play natively: action 2 Checkpoint("silice_start") at frame 625: never capturable (Script)` (map 8 at (7, 4)), and the other three are `controls` tests that need a capturable Silice new game. Since Task F's Chapter 0 scripts, a script holds the Silice route's start. `explore`'s Silice tests fail the same way, and its `m8_k_key` hangs in debug. None of this is Task P's; it belongs to SIL1 (the Silice route and `sil:*` nodes).
+
+### Findings for M9 (from Task P)
+1. **Late frame at Roxanne's battle start** (engine; breaks the gate `late == 0` on the long lane):
+   - `World` runs `Battle::start` on the transition's first frame (`world/battle.rs`, `Stage::Transition`).
+   - `start` runs `Step::FirstTurn` and then `Step::NewTurn`, whose opponent choice (`battle::ai::choose`, with a gym leader's AI flags) makes that step 223 lines on the GBA. Every other step the ROM replayed takes at most 172.
+   - **Fix:** run the first turn's AI choice, or `start` itself, on a later frame of the transition. First check that nothing else draws from the world `Rng` during the transition, so the RNG order and the routes stay as they are.
+   - Until then, `KNOWN_LATE` in `parity.rs` holds it, and the ROM cannot replay the Roxanne battle (frames 80,366–85,307).
+2. **Briney's boat RoundTrip** (Route 104 (71, 189), "restore failed: camera far outside the map", `Route104_EventScript_StartSailToDewford`): the explorer reaches it from the pokedex and petalburg roots (3–32 hits per db). It is off the trace (N's finding, still open).
+3. **Route 115 PlannerDivergence** at (10, 63), (10, 64) and (12, 61) (elevation; N's finding): for M10. It is off the trace.
+4. **Explorer policy:** the policy has no notion of type matchups or levels, so a Torchic chain stalls at Roxanne (above), and `Weights::balance` is 0. M9's policy work (party switching, items) should add a level or matchup term, or the act runner should try each starter.
+5. **Reached by the explorer on Act 1 maps, off the trace** (report-only):
+   - `Unsupported`:
+     - `pokemart` (the Oldale, Petalburg and Rustboro marts);
+     - `dofieldeffect` and `waitfieldeffect` (the healing in the three Pokémon Centers);
+     - `pokenavcall` and `copyobjectxytoperm` (Route 104);
+     - `SPECIAL_BedroomPC` and `SPECIAL_ShowPokedexRatingMessage`;
+     - `move effect 109` (`EFFECT_CURSE`, Route 104 and Rustboro).
+   - `Degraded`:
+     - `SPECIAL_ObjectEventInteractionGetBerryTreeData` (Routes 102 and 104);
+     - `SPECIAL_ShowEasyChatScreen` (Petalburg);
+     - `SPECIAL_DoWaldaNamingScreen` and `SPECIAL_ChoosePartyMon` (Rustboro houses).
+   - On the trace: only the three `Degraded` listed under Triage.

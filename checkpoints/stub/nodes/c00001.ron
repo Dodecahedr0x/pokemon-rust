@@ -2,10 +2,10 @@
     meta: (
         id: 1,
         label: "route:stub_start",
-        schema: 2,
+        schema: 3,
         build: (
-            engine: 12946783700625945929,
-            content: 10930910960670443905,
+            engine: 1617382213109023687,
+            content: 13797831909457897923,
         ),
         frame: 24,
         map: (9),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: NewGame,
         build: (
-            engine: 12946783700625945929,
-            content: 10930910960670443905,
+            engine: 1617382213109023687,
+            content: 13797831909457897923,
         ),
         start_frame: 0,
         inputs: [

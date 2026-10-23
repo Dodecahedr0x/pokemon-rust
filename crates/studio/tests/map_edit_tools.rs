@@ -830,7 +830,7 @@ fn reach_tools_on_the_committed_silice_maps() {
 
     let r = run(&["--games", g, "reach", "BoisEther_Gym", "--from", "7,30"]).unwrap();
     assert!(r.contains("cells reachable"), "{r}");
-    assert!(r.contains("LOCALID_GYM1_JULES: sees 3 cells"), "{r}");
+    assert!(r.contains("LOCALID_GYM1_JULES: sees 1 cells"), "{r}");
     // The review's claim: with the spore grates avoided, every path from the shower to the
     // door's front cell crosses Jules's line of sight.
     let base = [

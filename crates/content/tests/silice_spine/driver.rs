@@ -204,6 +204,9 @@ pub struct Run {
     pub degraded: BTreeSet<&'static str>,
     /// The index the next choice takes ([`Step::Choose`]; the starter screen's ball).
     choice: u8,
+    /// Whether a lost (or drawn) battle is expected: a run that tests a defeat branch. Off by
+    /// default: a spine wins every battle, and a loss fails the run at once.
+    pub allow_losses: bool,
 }
 
 impl Run {
@@ -231,6 +234,7 @@ impl Run {
             battles: Vec::new(),
             degraded: BTreeSet::new(),
             choice: 0,
+            allow_losses: false,
         }
     }
 
@@ -277,7 +281,7 @@ impl Run {
             }
             if let Event::BattleEnded(o) = e {
                 assert!(
-                    !matches!(o, BattleOutcome::Lost | BattleOutcome::Drew),
+                    self.allow_losses || !matches!(o, BattleOutcome::Lost | BattleOutcome::Drew),
                     "a battle was lost at frame {} on {:?}",
                     self.frame,
                     self.w.map()
