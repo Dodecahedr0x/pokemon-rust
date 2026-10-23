@@ -65,9 +65,14 @@ fn behaviors_by_name() {
     );
     assert_eq!(behavior("MB_SHOAL_CAVE_ENTRANCE"), "ArrowWarp(Dir::Down)");
     assert_eq!(behavior("MB_COUNTER"), "Counter");
-    assert_eq!(behavior("MB_POND_WATER"), "Blocked");
-    assert_eq!(behavior("MB_DEEP_WATER"), "Blocked");
-    assert_eq!(behavior("MB_OCEAN_WATER"), "Blocked");
+    assert_eq!(behavior("MB_POND_WATER"), "Water(Water::Pond)");
+    assert_eq!(behavior("MB_DEEP_WATER"), "Water(Water::Deep)");
+    assert_eq!(behavior("MB_OCEAN_WATER"), "Water(Water::Ocean)");
+    assert_eq!(
+        behavior("MB_SOUTHWARD_CURRENT"),
+        "Water(Water::Current(Dir::Down))"
+    );
+    assert_eq!(behavior("MB_WATER_DOOR"), "Blocked");
     assert_eq!(behavior("MB_SHALLOW_WATER"), "Normal");
     assert_eq!(
         behavior("MB_IMPASSABLE_SOUTH"),

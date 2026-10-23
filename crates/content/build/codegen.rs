@@ -705,6 +705,12 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// `EventScript_WhiteOut`, when the scripts have it (decomp names, Task D2).\npub const SCRIPT_WHITEOUT: Option<ScriptId> = {};",
         whiteout.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
+    let surf = s.names.iter().position(|n| n == "EventScript_UseSurf");
+    writeln!(
+        o,
+        "/// `EventScript_UseSurf` (`GetInteractedWaterScript`), when the scripts have it (Wave C).\npub const SCRIPT_USE_SURF: Option<ScriptId> = {};",
+        surf.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    )?;
     let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
     writeln!(
         o,

@@ -680,10 +680,26 @@ impl Gen<'_> {
                         writeln!(first_arms, "        {id:#X} => Some(&ENC_{id:X}_0),")?;
                     }
                 }
-                for ((_, arms), table) in
-                    other.iter_mut().zip([&h.water, &h.rock_smash, &h.fishing])
+                // Water and rock smash: `WaterEncounters` (5 slots, `GameData::water_encounters`,
+                // `rock_smash_encounters`; Wave C); fishing: (rate, slots) for Milestone 10.
+                for (k, ((name, arms), table)) in
+                    (other.iter_mut().zip([&h.water, &h.rock_smash, &h.fishing])).enumerate()
                 {
-                    if let Some(e) = table {
+                    let Some(e) = table else { continue };
+                    if k < 2 {
+                        ensure!(
+                            e.mons.len() == 5,
+                            "encounters {map} #{set}: {} {name} slots",
+                            e.mons.len()
+                        );
+                        let st = format!("{}_{id:X}_{set}", name.to_uppercase());
+                        out.push(format!(
+                            "static {st}: WaterEncounters = WaterEncounters {{ rate: {}, mons: [{}] }}; // {map}",
+                            e.rate,
+                            mons(&e.mons)?
+                        ));
+                        writeln!(arms, "        ({id:#X}, {set}) => Some(&{st}),")?;
+                    } else {
                         writeln!(
                             arms,
                             "        ({id:#X}, {set}) => Some(({}, &[{}])), // {map}",
@@ -717,10 +733,15 @@ impl Gen<'_> {
             self.o,
             "/// How many wild headers map `id` has.\npub fn wild_sets(id: u16) -> u16 {{\n    match id {{\n{sets}        _ => 1,\n    }}\n}}"
         )?;
-        for (name, arms) in other {
+        for (k, (name, arms)) in other.into_iter().enumerate() {
+            let ty = if k < 2 {
+                "&'static WaterEncounters"
+            } else {
+                "(u8, &'static [WildMon])"
+            };
             writeln!(
                 self.o,
-                "/// The {name} table (rate, slots) of wild header `set` of map `id` (Milestone 10).\npub fn {name}(id: u16, set: u16) -> Option<(u8, &'static [WildMon])> {{\n    let set = if set < wild_sets(id) {{ set }} else {{ 0 }};\n    match (id, set) {{\n{arms}        _ => None,\n    }}\n}}"
+                "/// The {name} table of wild header `set` of map `id`.\npub fn {name}(id: u16, set: u16) -> Option<{ty}> {{\n    let set = if set < wild_sets(id) {{ set }} else {{ 0 }};\n    match (id, set) {{\n{arms}        _ => None,\n    }}\n}}"
             )?;
         }
         Ok(())

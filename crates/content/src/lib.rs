@@ -448,6 +448,22 @@ macro_rules! game_data_tables {
             $crate::battle::wild_encounters(map.0, wild_set)
         }
 
+        fn water_encounters(
+            &self,
+            map: ::engine::data::MapId,
+            wild_set: u16,
+        ) -> Option<&'static ::engine::mon::WaterEncounters> {
+            $crate::battle::water(map.0, wild_set)
+        }
+
+        fn rock_smash_encounters(
+            &self,
+            map: ::engine::data::MapId,
+            wild_set: u16,
+        ) -> Option<&'static ::engine::mon::WaterEncounters> {
+            $crate::battle::rock_smash(map.0, wild_set)
+        }
+
         fn trainer(
             &self,
             id: ::engine::data::TrainerId,
@@ -546,6 +562,52 @@ impl GameData for Game {
 
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         battle::heal_location(id)
+    }
+
+    /// Gen3's HM moves (`sHMMoves`, `IsHMMove2`): what `ITEM_HM01..08` teach.
+    fn is_hm_move(&self, m: engine::data::MoveId) -> bool {
+        (0..8).any(|i| self.tm_move(engine::data::ItemId(consts::ITEM_HM01 + i)) == Some(m))
+    }
+
+    /// The HMs' field moves and their badges (Gen3 `sFieldMoves`, the party menu's
+    /// `SetUpFieldMove_*` and `GetInteractedWaterScript`: Cut needs badge 1, Flash 2, Rock
+    /// Smash 3, Strength 4, Surf 5, Fly 6, Dive 7, Waterfall 8); the move is the HM's.
+    fn field_move_gate(&self, m: engine::data::FieldMove) -> engine::data::FieldMoveGate {
+        use engine::data::FieldMove as F;
+        // (`ITEM_HM0n` - 1, badge - 1).
+        let (hm, badge) = match m {
+            F::Cut => (0, 0),
+            F::Fly => (1, 5),
+            F::Surf => (2, 4),
+            F::Strength => (3, 3),
+            F::Flash => (4, 1),
+            F::RockSmash => (5, 2),
+            F::Waterfall => (6, 7),
+            F::Dive => (7, 6),
+            _ => return engine::data::FieldMoveGate::Never,
+        };
+        match self.tm_move(engine::data::ItemId(consts::ITEM_HM01 + hm)) {
+            Some(move_id) => engine::data::FieldMoveGate::PartyMove {
+                move_id,
+                badge: Some(FlagId(consts::FLAG_BADGE01_GET.0 + badge)),
+            },
+            None => engine::data::FieldMoveGate::Never,
+        }
+    }
+
+    fn field_move_script(&self, m: engine::data::FieldMove) -> Option<ScriptId> {
+        match m {
+            engine::data::FieldMove::Surf => data::SCRIPT_USE_SURF,
+            _ => None,
+        }
+    }
+
+    /// `TryPushBoulder`.
+    fn pushable_boulder(&self) -> Option<(engine::data::GfxId, FlagId)> {
+        Some((
+            engine::data::GfxId(consts::OBJ_EVENT_GFX_PUSHABLE_BOULDER),
+            consts::FLAG_SYS_USE_STRENGTH,
+        ))
     }
 }
 
