@@ -40,6 +40,8 @@ pub struct Live<'g, G: GameData> {
     pub rerolls: u32,
     /// What the last step played natively for a [`Step::Bypass`].
     pub note: Option<String>,
+    /// Moves a bypass search may still try ([`SEARCH_MOVES`]).
+    budget: u32,
 }
 
 /// The answer a bypassed scripted talk takes natively (the spine has no `Choose` before a
@@ -52,6 +54,9 @@ const NATIVE_CHOICE: &[(&str, u8)] = &[
 /// Floor triggers and warps stepped on at most to open a way ([`Live::bypass`]: Mauville's
 /// gym switches, Lavaridge's holes and geysers, Petalburg's room doors).
 const SEARCH_DEPTH: u32 = 5;
+
+/// Moves (a trigger, a warp, a talk) one bypass search tries at most.
+const SEARCH_MOVES: u32 = 150;
 
 /// Gen3 `MAP_TYPE_UNDERGROUND` and `MAP_TYPE_INDOOR`: the maps whose warps [`Live::bypass`]
 /// searches (a gym's holes and doors; not an outdoor map's houses).
@@ -70,6 +75,7 @@ impl<'g, G: GameData> Live<'g, G> {
             opts: StepOpts::default(),
             rerolls: 0,
             note: None,
+            budget: 0,
         }
     }
 
@@ -398,6 +404,7 @@ impl<'g, G: GameData> Live<'g, G> {
             let mut path = Vec::new();
             let mut seen = Vec::new();
             let battles = self.v.battles.len();
+            self.budget = SEARCH_MOVES;
             let found = self.search(m, (x, y), SEARCH_DEPTH, &mut path, &mut seen)?;
             // Trainers on the way fought vanilla (ours warps past them): restore the party's
             // HP so the next battle starts as ours does (an oracle alignment, noted).
@@ -479,7 +486,7 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Walks to `to` on `m`, stepping first on the current map's floor triggers and its warps
     /// that stay in `m`'s building ([`Live::inside`]), depth-first over save states (`depth`
     /// steps at most), while it is out of reach. `path` gets the cells stepped on; `seen` the
-    /// `(map, cell)`s warps landed on (a warp loop is not searched twice).
+    /// `(map, cell)`s warps landed on along the path (no warp loop).
     fn search(
         &mut self,
         m: MapId,
@@ -512,11 +519,12 @@ impl<'g, G: GameData> Live<'g, G> {
             return Ok(false);
         }
         let data = self.game.map(map);
-        // Steps: the floor triggers; indoors (a gym), the warps staying in the building; and
-        // the objects next to the target (a rock to smash, a boulder), talked to (yes).
-        let mut moves: Vec<(Option<u8>, (i16, i16))> =
-            (data.coords.iter()).map(|c| (None, (c.x, c.y))).collect();
-        if matches!(data.map_type, MAP_TYPE_UNDERGROUND | MAP_TYPE_INDOOR) {
+        // Steps: the objects next to the target (a rock to smash, a boulder), talked to
+        // (yes); indoors (a gym), the floor triggers and the warps staying in the building.
+        let mut moves: Vec<(Option<u8>, (i16, i16))> = Vec::new();
+        let indoors = matches!(data.map_type, MAP_TYPE_UNDERGROUND | MAP_TYPE_INDOOR);
+        if indoors {
+            moves.extend((data.coords.iter()).map(|c| (None, (c.x, c.y))));
             for w in data.warps {
                 if self.game.has_map(w.dest_map) && self.inside(w.dest_map, m) {
                     moves.push((None, (w.x, w.y)));
@@ -528,15 +536,21 @@ impl<'g, G: GameData> Live<'g, G> {
             {
                 let near = (o.cell.0 - to.0).abs() + (o.cell.1 - to.1).abs() <= 2;
                 if !o.is_player && o.visible && o.map == map && near {
-                    moves.push((Some(o.local_id), o.cell));
+                    moves.insert(0, (Some(o.local_id), o.cell));
                 }
             }
         }
         moves.dedup();
+        // Talks first, then nearest the target (a gym's floors share their coordinates).
+        moves.sort_by_key(|&(talk, c)| (talk.is_none(), (c.0 - to.0).abs() + (c.1 - to.1).abs()));
         for (talk, t) in moves {
             if talk.is_none() && (self.cell()? == t || !self.reachable(map, t)?) {
                 continue;
             }
+            if self.budget == 0 {
+                return Ok(false);
+            }
+            self.budget -= 1;
             let state = self.v.emu.save_state()?;
             let (frames, battles, outcomes) =
                 (self.v.frames, self.v.battles.len(), self.v.outcomes.len());
@@ -550,8 +564,15 @@ impl<'g, G: GameData> Live<'g, G> {
             let on = self.map()?;
             let landed = (on, self.cell()?);
             let ok = walked && self.inside(on, m) && (on == map || !seen.contains(&landed));
+            if self.v.trace {
+                eprintln!(
+                    "  search depth {depth} on {} {talk:?} {t:?}: walked {walked} landed {landed:?} ok {ok}",
+                    map_name(map)
+                );
+            }
             if ok {
-                if on != map {
+                let warped = on != map;
+                if warped {
                     seen.push(landed);
                 }
                 path.push((map, t.0, t.1));
@@ -559,6 +580,9 @@ impl<'g, G: GameData> Live<'g, G> {
                     return Ok(true);
                 }
                 path.pop();
+                if warped {
+                    seen.pop();
+                }
             }
             self.v.emu.load_state(&state)?;
             self.v.frames = frames;
