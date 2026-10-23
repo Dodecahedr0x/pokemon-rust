@@ -1,0 +1,21 @@
+// Header, map scripts, warps, objects and bg events.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: the cable (25, 4) drawn cut once FLAG_SIL_GRIS_JAMMER_3 or the cable script ran
+    // (a temp flag), the crates (12-13, 3) drawn moved per FLAG_SIL_USINE_CRATES_MOVED.
+    Scripts((on_load: Some("GrisEchec_Usine_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the entrance mat, to Gris-Echec's warp 5 (the factory door).
+    Warp(x: 14, y: 23, dest_map: "GrisEchec", dest_warp: 5),
+    Warp(x: 15, y: 23, dest_map: "GrisEchec", dest_warp: 5),
+    // J3's sbire watches (24-25, 5): (25, 5) is the only cell in front of the cable (25, 4). The
+    // source's (24, 6) facing left could be walked past by x 25-26.
+    Object(x: 23, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_USINE_SBIRE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_Usine_EventScript_Sbire", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 27, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_USINE_ITEM_ETHER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Usine_EventScript_ItemEther", flag: "FLAG_SIL_ITEM_USINE_ETHER"),
+    Object(x: 3, y: 4, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_USINE_ITEM_METAL_COAT", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Usine_EventScript_ItemMetalCoat", flag: "FLAG_SIL_ITEM_USINE_METAL_COAT"),
+    Object(x: 14, y: 18, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_USINE_ITEM_SUPER_REPEL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Usine_EventScript_ItemSuperRepel", flag: "FLAG_SIL_ITEM_USINE_SUPER_REPEL"),
+    // Gris_Echec_Sc02 with n = 3: the cable first (Lame-Frequence), then the jammer.
+    Sign(x: 25, y: 4, script: "GrisEchec_Usine_EventScript_Cable"),
+    Sign(x: 26, y: 4, script: "GrisEchec_Usine_EventScript_Brouilleur3"),
+    // The crates (Champ Magnetique, after the badge), read from the east.
+    Sign(x: 13, y: 3, script: "GrisEchec_Usine_EventScript_Caisses"),
+]

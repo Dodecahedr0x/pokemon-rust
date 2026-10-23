@@ -4,6 +4,9 @@ edition.workspace = true
 version.workspace = true
 publish.workspace = true
 build = "build/main.rs"
+# The build script tells its direct dependents which flavour it built (`cargo::metadata=flavor=…`,
+# their `DEP_PKR_CONTENT_FLAVOR`); the shells' build scripts set their own `cfg(pkr_silice)` from it.
+links = "pkr_content"
 
 [dependencies]
 engine.workspace = true

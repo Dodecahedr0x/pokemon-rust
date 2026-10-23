@@ -1,0 +1,13 @@
+(
+    primary: "General",
+    secondary: "BattleFrontierOutsideEast",
+    width: 6,
+    height: 4,
+    elevation: false,
+    blocks: [
+        (890, 891, 891, 891, 891, 892),
+        (1922, 1923, 1923, 1923, 1923, 1924),
+        (1930, 2036, 1898, 1898, 1898, 1932),
+        (1938, 2044, 1906, 1906, 1906, 1940),
+    ],
+)

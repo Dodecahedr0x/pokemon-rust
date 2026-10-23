@@ -12,7 +12,7 @@ use engine::data::{
     block_elevation,
 };
 use extract::schema::{
-    Bg, BgKind, ConnectionDir, Coord, Layout, MapFile, MapScripts, from_rows, to_rows,
+    Bg, BgKind, ConnectionDir, Coord, Layout, MapFile, MapScripts, VarScript, from_rows, to_rows,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -582,8 +582,30 @@ pub enum Op {
         secondary: String,
     },
     Header(GameHeader),
+    /// Replaces every map script (fields left out of the RON are not defaulted: all seven are
+    /// required). [`Op::ScriptsSet`] changes only some.
     Scripts(MapScripts),
-    /// A new object; its local id is the highest + 1.
+    /// Sets only the map scripts given, keeping the others: `ScriptsSet(on_load:
+    /// "Map_OnLoad")`. A string field set to `""` clears it; `on_frame` and `on_warp_into`
+    /// replace their whole list. At least one field must be given.
+    ScriptsSet {
+        #[serde(default)]
+        on_load: Option<String>,
+        #[serde(default)]
+        on_transition: Option<String>,
+        #[serde(default)]
+        on_resume: Option<String>,
+        #[serde(default)]
+        on_return_to_field: Option<String>,
+        #[serde(default)]
+        on_dive_warp: Option<String>,
+        #[serde(default)]
+        on_frame: Option<Vec<VarScript>>,
+        #[serde(default)]
+        on_warp_into: Option<Vec<VarScript>>,
+    },
+    /// A new object. Its local id is `local_id` when given (1..64, unused in the map), else
+    /// the highest + 1.
     Object {
         x: i16,
         y: i16,
@@ -592,6 +614,9 @@ pub enum Op {
         /// `LOCALID_*` name scripts refer to it by.
         #[serde(default)]
         id: Option<String>,
+        /// The local id (`None`: the highest + 1).
+        #[serde(default)]
+        local_id: Option<u8>,
         #[serde(default = "face_down")]
         movement: String,
         #[serde(default)]
@@ -1121,11 +1146,53 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) ->
         }
         Op::Header(h) => d.map.header = h.clone(),
         Op::Scripts(s) => d.map.scripts = s.clone(),
+        Op::ScriptsSet {
+            on_load,
+            on_transition,
+            on_resume,
+            on_return_to_field,
+            on_dive_warp,
+            on_frame,
+            on_warp_into,
+        } => {
+            let strings = [
+                on_load,
+                on_transition,
+                on_resume,
+                on_return_to_field,
+                on_dive_warp,
+            ];
+            ensure!(
+                strings.iter().any(|f| f.is_some()) || on_frame.is_some() || on_warp_into.is_some(),
+                "ScriptsSet sets no field (on_load, on_transition, on_resume, \
+                 on_return_to_field, on_dive_warp, on_frame, on_warp_into)"
+            );
+            let s = &mut d.map.scripts;
+            let slots = [
+                &mut s.on_load,
+                &mut s.on_transition,
+                &mut s.on_resume,
+                &mut s.on_return_to_field,
+                &mut s.on_dive_warp,
+            ];
+            for (slot, v) in slots.into_iter().zip(strings) {
+                if let Some(v) = v {
+                    *slot = (!v.is_empty()).then(|| v.clone());
+                }
+            }
+            if let Some(v) = on_frame {
+                s.on_frame = v.clone();
+            }
+            if let Some(v) = on_warp_into {
+                s.on_warp_into = v.clone();
+            }
+        }
         Op::Object {
             x,
             y,
             gfx,
             id,
+            local_id,
             movement,
             range_x,
             range_y,
@@ -1136,7 +1203,20 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) ->
             elevation,
         } => {
             check_event_pos(d, *x, *y)?;
-            let local_id = d.next_local_id();
+            let local_id = match *local_id {
+                Some(l) => {
+                    let max = super::validate::MAX_OBJECTS;
+                    ensure!(
+                        l != 0 && (l as usize) < max,
+                        "local id {l} is outside 1..{max}"
+                    );
+                    if let Some(i) = d.map.objects.iter().position(|o| o.local_id == l) {
+                        bail!("local id {l} is already object {i}'s");
+                    }
+                    l
+                }
+                None => d.next_local_id(),
+            };
             d.map.objects.push(GameObject {
                 local_id,
                 id: id.clone(),

@@ -66,7 +66,8 @@ pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
 /// Saved vars that never take part in a key: the Emerald step and day counters, the random
 /// vars and the object graphics vars `VAR_OBJ_GFX_ID_0..F` (scripts set them to pick a sprite,
 /// for a scene or a rival; not story progress) (from `content::consts`). Empty on the stub
-/// world.
+/// world; Silice has its own list.
+#[cfg(not(pkr_silice))]
 pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
     &[]
 } else {
@@ -93,6 +94,33 @@ pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
         VAR_ROXANNE_CALL_STEP_COUNTER,
         VAR_SCOTT_BF_CALL_STEP_COUNTER,
         VAR_RIVAL_RAYQUAZA_CALL_STEP_COUNTER,
+        VAR_OBJ_GFX_ID_0,
+        VAR_OBJ_GFX_ID_1,
+        VAR_OBJ_GFX_ID_2,
+        VAR_OBJ_GFX_ID_3,
+        VAR_OBJ_GFX_ID_4,
+        VAR_OBJ_GFX_ID_5,
+        VAR_OBJ_GFX_ID_6,
+        VAR_OBJ_GFX_ID_7,
+        VAR_OBJ_GFX_ID_8,
+        VAR_OBJ_GFX_ID_9,
+        VAR_OBJ_GFX_ID_A,
+        VAR_OBJ_GFX_ID_B,
+        VAR_OBJ_GFX_ID_C,
+        VAR_OBJ_GFX_ID_D,
+        VAR_OBJ_GFX_ID_E,
+        VAR_OBJ_GFX_ID_F,
+    ]
+};
+
+/// Silice's [`EXCLUDED_VARS`]: the Gen3 vars it shares that are not story progress (the day
+/// counter and the object graphics vars). Silice's own vars are story vars; the Emerald
+/// counters it does not have (their numbers may be Silice ids).
+#[cfg(pkr_silice)]
+pub static EXCLUDED_VARS: &[VarId] = {
+    use content::consts::*;
+    &[
+        VAR_DAYS,
         VAR_OBJ_GFX_ID_0,
         VAR_OBJ_GFX_ID_1,
         VAR_OBJ_GFX_ID_2,

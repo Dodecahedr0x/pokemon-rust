@@ -68,7 +68,8 @@ pub fn extra_move_flags(id: &str) -> u8 {
     }
 }
 
-/// Whether trainer mons get their `heldItem` (`TrainerMon::item`). **Off for Emerald**: the
+/// Whether trainer mons get their `heldItem` (`TrainerMon::item`) in Emerald (Silice turns it on:
+/// [`Rules`]). **Off for Emerald**: the
 /// recorded route (parity, checkpoints) was played without trainer items, and a trainer that
 /// holds a berry or a Quick Claw changes its battle. Turning it on is a later, deliberate
 /// Emerald route change (re-baseline the parity route and the checkpoint tree).
@@ -118,9 +119,50 @@ pub fn hold_effect(name: &str) -> Option<&'static str> {
     })
 }
 
-/// `ABILITY_*` name -> `Ability` expression; the abilities the engine does not implement are
-/// `Ability::Other`.
+/// `ABILITY_*` name -> `Ability` expression under Emerald's [`Rules`]; the abilities the
+/// engine does not implement are `Ability::Other`.
 pub fn ability(name: &str) -> &'static str {
+    ability_with(name, Rules::EMERALD)
+}
+
+/// A flavour's battle switches. The Gen3 behaviour the recorded Emerald route was played
+/// without stays off for Emerald ([`Rules::EMERALD`]); a game with no recorded route turns it
+/// on ([`Rules::SILICE`], SIL1 Task A). The generator reads them from `input::AuthoredIn`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rules {
+    /// Trainer mons get their held item ([`TRAINER_HELD_ITEMS`]).
+    pub trainer_held_items: bool,
+    /// The Gen3 abilities the Silice engine added act ([`GEN3_EXTRA_ABILITIES`]).
+    pub gen3_extra_abilities: bool,
+    /// Lightning Rod's Gen5 absorb, Shadow Tag's Gen4 exemption ([`SILICE_ABILITY_RULES`]).
+    pub silice_abilities: bool,
+}
+
+impl Rules {
+    /// Emerald and the stub: the constants.
+    pub const EMERALD: Rules = Rules {
+        trainer_held_items: TRAINER_HELD_ITEMS,
+        gen3_extra_abilities: GEN3_EXTRA_ABILITIES,
+        silice_abilities: SILICE_ABILITY_RULES,
+    };
+    /// Silice: trainer held items and every ability the engine models (its Mega forms need
+    /// Drought, Sand Stream, Levitate…).
+    pub const SILICE: Rules = Rules {
+        trainer_held_items: true,
+        gen3_extra_abilities: true,
+        silice_abilities: true,
+    };
+}
+
+impl Default for Rules {
+    fn default() -> Rules {
+        Rules::EMERALD
+    }
+}
+
+/// [`ability`] under `r`.
+pub fn ability_with(name: &str, r: Rules) -> &'static str {
+    let (gen3_extra, silice) = (r.gen3_extra_abilities, r.silice_abilities);
     match name {
         "ABILITY_NONE" => "Ability::None",
         "ABILITY_OVERGROW" => "Ability::Overgrow",
@@ -164,18 +206,18 @@ pub fn ability(name: &str) -> &'static str {
         "ABILITY_LIQUID_OOZE" => "Ability::LiquidOoze",
         "ABILITY_NATURAL_CURE" => "Ability::NaturalCure",
         // Silice engine: Gen3 abilities that Emerald species have, gated.
-        "ABILITY_DROUGHT" if GEN3_EXTRA_ABILITIES => "Ability::Drought",
-        "ABILITY_DRIZZLE" if GEN3_EXTRA_ABILITIES => "Ability::Drizzle",
-        "ABILITY_SAND_STREAM" if GEN3_EXTRA_ABILITIES => "Ability::SandStream",
-        "ABILITY_SPEED_BOOST" if GEN3_EXTRA_ABILITIES => "Ability::SpeedBoost",
-        "ABILITY_SHADOW_TAG" if SILICE_ABILITY_RULES => "Ability::ShadowTagGen4",
-        "ABILITY_SHADOW_TAG" if GEN3_EXTRA_ABILITIES => "Ability::ShadowTag",
-        "ABILITY_LEVITATE" if GEN3_EXTRA_ABILITIES => "Ability::Levitate",
-        "ABILITY_SHELL_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::ShellArmor",
-        "ABILITY_BATTLE_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::BattleArmor",
-        "ABILITY_SAND_VEIL" if GEN3_EXTRA_ABILITIES => "Ability::SandVeil",
+        "ABILITY_DROUGHT" if gen3_extra => "Ability::Drought",
+        "ABILITY_DRIZZLE" if gen3_extra => "Ability::Drizzle",
+        "ABILITY_SAND_STREAM" if gen3_extra => "Ability::SandStream",
+        "ABILITY_SPEED_BOOST" if gen3_extra => "Ability::SpeedBoost",
+        "ABILITY_SHADOW_TAG" if silice => "Ability::ShadowTagGen4",
+        "ABILITY_SHADOW_TAG" if gen3_extra => "Ability::ShadowTag",
+        "ABILITY_LEVITATE" if gen3_extra => "Ability::Levitate",
+        "ABILITY_SHELL_ARMOR" if gen3_extra => "Ability::ShellArmor",
+        "ABILITY_BATTLE_ARMOR" if gen3_extra => "Ability::BattleArmor",
+        "ABILITY_SAND_VEIL" if gen3_extra => "Ability::SandVeil",
         // Gen3's Lightning Rod only redirects in doubles: nothing in singles (`Other`).
-        "ABILITY_LIGHTNING_ROD" if SILICE_ABILITY_RULES => "Ability::LightningRod",
+        "ABILITY_LIGHTNING_ROD" if silice => "Ability::LightningRod",
         // Post-Gen3 (no Emerald species has them).
         "ABILITY_PRIMORDIAL_SEA" => "Ability::PrimordialSea",
         "ABILITY_DESOLATE_LAND" => "Ability::DesolateLand",
@@ -208,7 +250,7 @@ pub const GEN3_EXTRA_ABILITIES: bool = false;
 
 /// The Silice game's later-generation rules for Gen3 abilities: Lightning Rod's Gen5 absorb,
 /// Shadow Tag's Gen4 exemption. **Off** for Emerald (not Gen3 behaviour); the Silice content
-/// turns it on.
+/// turns it on ([`Rules::SILICE`]).
 pub const SILICE_ABILITY_RULES: bool = false;
 
 /// The `Stat` of a `battle_move_effects.h` stat word.

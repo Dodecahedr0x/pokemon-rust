@@ -1,0 +1,13 @@
+// Cells: the window wall, consoles, a desk, the stairs down.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#$%&&&&&&",
+        "()*+,,,,,,",
+        "-./0//////",
+        "1222223421",
+        "1222225621",
+        "1234227821",
+        "1256229:21",
+        "1222222221",
+    ], legend: {'!': (metatile: 536, collision: 1), '#': (metatile: 707, collision: 1), '$': (metatile: 708, collision: 1), '%': (metatile: 709, collision: 1), '&': (metatile: 760, collision: 1), '(': (metatile: 698, collision: 1), ')': (metatile: 715, collision: 1), '*': (metatile: 716, collision: 0), '+': (metatile: 717, collision: 1), ',': (metatile: 768, collision: 1), '-': (metatile: 887, collision: 0), '.': (metatile: 878, collision: 0), '/': (metatile: 870, collision: 0), '0': (metatile: 879, collision: 0), '1': (metatile: 753, collision: 0), '2': (metatile: 752, collision: 0), '3': (metatile: 867, collision: 0), '4': (metatile: 868, collision: 0), '5': (metatile: 875, collision: 1), '6': (metatile: 876, collision: 1), '7': (metatile: 872, collision: 1), '8': (metatile: 873, collision: 1), '9': (metatile: 880, collision: 1), ':': (metatile: 881, collision: 1)}),
+]

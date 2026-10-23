@@ -1,0 +1,13 @@
+(
+    primary: "General",
+    secondary: "Rustboro",
+    width: 4,
+    height: 4,
+    elevation: false,
+    blocks: [
+        (805, 615, 615, 806),
+        (1072, 1073, 1074, 1075),
+        (1080, 1081, 1082, 1083),
+        (1638, 1089, 1090, 1663),
+    ],
+)

@@ -3,8 +3,10 @@
 (
     // Ch0 Bar_Sc01 opens the game in the Shaker: the source puts the player on the free stool in
     // front of the counter ((7, 8) in its plan); the built bar has its stools at y 4, between
-    // GWADA (6, 4) and ADRIEN (9, 4). Facing down: the shared new game always faces down.
-    start: (map: "BricoBourg_Bar", x: 7, y: 4, facing: Down),
+    // GWADA (6, 4) and ADRIEN (9, 4), facing the counter (up).
+    start: (map: "BricoBourg_Bar", x: 7, y: 4, facing: Up),
+    // bible/personnages.md: the hero's default name (renamable).
+    player_name: "NOOBODY",
     // Ch0 Player_House_Sc03: MAMAN gives the running shoes as a flag, not an item.
     running_flag: "FLAG_SIL_RUNNING_SHOES",
     // Gen3 ClearTempFieldEventData, minus the Union Room nurse reminder (no Union Room).
@@ -40,6 +42,60 @@
         "FLAG_SIL_HIDE_BRICO_LINGE",
         "FLAG_SIL_HIDE_BRICO_GAMIN",
         "FLAG_SIL_HIDE_BRICO_BRICOLEUSE",
+        // Ch1 Bois-Éther (BoisEther_OnTransition owns them from VAR_SIL_STORY): Adrien waits at
+        // the meeting point at VAR_SIL_STORY 10–11 only; Bois_Ether_Sc06 shows Gogo, Romain, the
+        // two sbires and Mathieu for the ambush, and hides them again. The technician, the
+        // barrier guard, Loïc and the Labo's Chimiste start visible.
+        "FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN",
+        "FLAG_SIL_HIDE_BOIS_ETHER_GOGO",
+        "FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN",
+        "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1",
+        "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2",
+        "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU",
+        // Ch2 Gris-Échec. Route S2: Adrien and Gwada (RouteS02_OnTransition shows them from
+        // VAR_SIL_STORY 17). Gris-Échec: Gwada at the arena (22–27), Lainergie (27), the arena
+        // guard's stepped-aside copy (Gris_Echec_Sc05 swaps the two guards). The arena: the binary
+        // robot and Gym2_Sc11's Gwada, Wattouat and Lainergie, shown by their scenes only.
+        "FLAG_SIL_HIDE_ROUTE_S02_ADRIEN",
+        "FLAG_SIL_HIDE_ROUTE_S02_GWADA",
+        "FLAG_SIL_HIDE_GRIS_GWADA",
+        "FLAG_SIL_HIDE_GRIS_LAINERGIE",
+        "FLAG_SIL_HIDE_GRIS_GARDE_ECARTE",
+        "FLAG_SIL_HIDE_GYM2_ROBOT",
+        "FLAG_SIL_HIDE_GYM2_GWADA",
+        "FLAG_SIL_HIDE_GYM2_WATTOUAT",
+        "FLAG_SIL_HIDE_GYM2_LAINERGIE",
+        // Ch3 Viber-City: Tauber and Mathieu with the cart (scene actors), the six people under
+        // blankets in the Centre (from the black-out on), Gogo and Romain at the casino (from
+        // VAR_SIL_STORY 32), Romain in the basement (Casino_B1F_Sc02). The Depot's Metal Coat
+        // appears once Depot_Sc02 clears its flag. The Depot pair and sbire, the stand's Mathieu,
+        // the dancers and the Station's sbires start visible.
+        "FLAG_SIL_HIDE_VIBER_TAUBER",
+        "FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ01",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ02",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ03",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ04",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ05",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ06",
+        "FLAG_SIL_HIDE_CASINO_GOGO",
+        "FLAG_SIL_HIDE_CASINO_ROMAIN",
+        "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN",
+        "FLAG_SIL_ITEM_DEPOT_METAL_COAT",
+        // Ch6 Manga-Square. Route S6: Route_S06_Sc02's Adrien and sbires (RouteS06_OnTransition
+        // shows them at VAR_SIL_STORY 60) and the randonneur (from 61). Manga-Square: Benou and
+        // Adrien (shown by Manga_Square_Sc02 and Sc03; the source sets them at the start) and the
+        // delivery man (MangaSquare_OnTransition, from 64). The Bibliothèque's Adrien appears when
+        // Dojo_Sc01 sends him there. The Dojo's Adrien, Kimiko, her drones and the Grand Torii's
+        // controleur start visible.
+        "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN",
+        "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A",
+        "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B",
+        "FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR",
+        "FLAG_SIL_HIDE_MANGA_SQUARE_BENOU",
+        "FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN",
+        "FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR",
+        "FLAG_SIL_HIDE_BIBLIO_ADRIEN",
     ],
     new_game_vars: [],
 )

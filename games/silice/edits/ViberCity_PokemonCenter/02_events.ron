@@ -1,0 +1,19 @@
+// Header, map scripts, warps and objects.
+[
+    Header((music: "MUS_POKE_CENTER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: set_respawn, and the six blanket NPCs' hide flags from FLAG_SIL_VIBER_BLACKOUT
+    // (they start hidden, in game.ron, and show from the black-out on).
+    Scripts((on_load: None, on_transition: Some("ViberCity_PokemonCenter_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the entrance mat, to Viber-City's warp 0 (the Centre's door).
+    Warp(x: 6, y: 8, dest_map: "ViberCity", dest_warp: 0),
+    Warp(x: 7, y: 8, dest_map: "ViberCity", dest_warp: 0),
+    // The nurse (her text changes after the black-out), then the six people under blankets: the
+    // source's Pnj01 and Pnj02 talk; the four others share one line.
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_NURSE", id: "LOCALID_VIBER_PC_NURSE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_PokemonCenter_EventScript_Nurse"),
+    Object(x: 1, y: 3, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_VIBER_PC_PNJ01", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_PokemonCenter_EventScript_Pnj01", flag: "FLAG_SIL_HIDE_VIBER_PC_PNJ01"),
+    Object(x: 9, y: 5, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_VIBER_PC_PNJ02", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_PokemonCenter_EventScript_Pnj02", flag: "FLAG_SIL_HIDE_VIBER_PC_PNJ02"),
+    Object(x: 2, y: 3, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_VIBER_PC_PNJ03", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_PokemonCenter_EventScript_Couverture", flag: "FLAG_SIL_HIDE_VIBER_PC_PNJ03"),
+    Object(x: 9, y: 6, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_VIBER_PC_PNJ04", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_PokemonCenter_EventScript_Couverture", flag: "FLAG_SIL_HIDE_VIBER_PC_PNJ04"),
+    Object(x: 3, y: 5, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_VIBER_PC_PNJ05", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_PokemonCenter_EventScript_Couverture", flag: "FLAG_SIL_HIDE_VIBER_PC_PNJ05"),
+    Object(x: 3, y: 6, gfx: "OBJ_EVENT_GFX_GIRL_2", id: "LOCALID_VIBER_PC_PNJ06", movement: "MOVEMENT_TYPE_FACE_UP", script: "ViberCity_PokemonCenter_EventScript_Couverture", flag: "FLAG_SIL_HIDE_VIBER_PC_PNJ06"),
+]

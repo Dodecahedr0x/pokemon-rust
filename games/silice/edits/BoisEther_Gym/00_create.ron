@@ -1,0 +1,4 @@
+// Silice Ch1, MAP_BOIS_ETHER_GYM: La Grass-Hopper, Loic's gym inside the hollow tree (15 x 40, the
+// source's size, vertical). Building + PetalburgGym (Emerald tilesets by name): its rooms, sliding
+// doors and dais make the source's airlocks (sas), workshop and greenhouse. Border: black, blocked.
+(name: "BoisEther_Gym", width: 15, height: 40, primary: "Building", secondary: "PetalburgGym", fill: 513, border: [1025, 1025, 1025, 1025])

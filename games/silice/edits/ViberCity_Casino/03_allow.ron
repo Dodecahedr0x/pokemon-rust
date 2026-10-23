@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(18, 1)], reason: "the hidden stairs: walled until Casino_Sc08; ViberCity_Casino_OnLoad draws the exit mat (518) there once VAR_SIL_CASINO_STATE >= 2, and the warp works from then on"),
+]

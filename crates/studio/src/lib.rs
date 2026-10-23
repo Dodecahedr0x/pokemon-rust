@@ -1,6 +1,9 @@
 //! The Milestone 6 studio (`docs/plans/2026-10-22-milestone-6-studio.md`): a headless core of
 //! pure controllers, plus the Dioxus desktop UI behind the `ui` feature.
 
+// `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
+const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
+
 pub mod build; // Task D
 pub mod data_view; // Task F
 pub mod explorer; // M7 Task S1

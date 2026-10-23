@@ -86,6 +86,31 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_BAR_GWADA,
         FLAG_SIL_HIDE_BAR_ADRIEN,
         FLAG_SIL_HIDE_BAR_JULIEN,
+        // Ch1: shown until their scene (or a story step) hides them.
+        FLAG_SIL_HIDE_BOIS_ETHER_TECHNICIEN,
+        FLAG_SIL_HIDE_BOIS_ETHER_GARDE,
+        FLAG_SIL_HIDE_GYM1_LOIC,
+        FLAG_SIL_HIDE_LABO_CHIMISTE,
+        // Ch2–Ch3: shown until a scene hides them.
+        FLAG_SIL_HIDE_GRIS_GARDE,
+        FLAG_SIL_HIDE_GRIS_GARDE_S3,
+        FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN,
+        FLAG_SIL_HIDE_DEPOT_ROMAIN,
+        FLAG_SIL_HIDE_DEPOT_SBIRE,
+        FLAG_SIL_HIDE_VIBER_MATHIEU,
+        FLAG_SIL_HIDE_NOCTURNE_DANSEURS,
+        FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2,
+        FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3,
+        FLAG_SIL_HIDE_NOCTURNE_DANSEUR_4,
+        FLAG_SIL_HIDE_STATION_SBIRES,
+        FLAG_SIL_HIDE_STATION_SBIRE_2,
+        FLAG_SIL_VIBER_BARRIERE_EST,
+        // Ch6: shown until a scene hides them.
+        FLAG_SIL_HIDE_DOJO_ADRIEN,
+        FLAG_SIL_HIDE_DOJO_KIMIKO,
+        FLAG_SIL_HIDE_DOJO_DRONE_1,
+        FLAG_SIL_HIDE_DOJO_DRONE_2,
+        FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -95,6 +120,42 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_BAR_SBIRE_B,
         FLAG_SIL_HIDE_BAR_MALLETTE,
         FLAG_SIL_HIDE_BRICO_SBIRE,
+        // Ch1: Adrien at the meeting point, and Bois_Ether_Sc06's actors.
+        FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN,
+        FLAG_SIL_HIDE_BOIS_ETHER_GOGO,
+        FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN,
+        FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1,
+        FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2,
+        FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU,
+        // Ch2–Ch3: scene actors, the arena guard's second position, the Centre's blanket
+        // people, the casino pair, and the Depot's Metal Coat (shown after Depot_Sc02).
+        FLAG_SIL_HIDE_ROUTE_S02_ADRIEN,
+        FLAG_SIL_HIDE_ROUTE_S02_GWADA,
+        FLAG_SIL_HIDE_GRIS_GWADA,
+        FLAG_SIL_HIDE_GRIS_LAINERGIE,
+        FLAG_SIL_HIDE_GRIS_GARDE_ECARTE,
+        FLAG_SIL_HIDE_GYM2_ROBOT,
+        FLAG_SIL_HIDE_GYM2_GWADA,
+        FLAG_SIL_HIDE_GYM2_WATTOUAT,
+        FLAG_SIL_HIDE_GYM2_LAINERGIE,
+        FLAG_SIL_HIDE_VIBER_TAUBER,
+        FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT,
+        FLAG_SIL_HIDE_VIBER_PC_PNJ01,
+        FLAG_SIL_HIDE_VIBER_PC_PNJ06,
+        FLAG_SIL_HIDE_CASINO_GOGO,
+        FLAG_SIL_HIDE_CASINO_ROMAIN,
+        FLAG_SIL_HIDE_CASINO_B1F_ROMAIN,
+        FLAG_SIL_ITEM_DEPOT_METAL_COAT,
+        // Ch6: Route_S06_Sc02's actors, the randonneur, Benou and Adrien at the Grand Torii, the
+        // delivery man, and Adrien in the Bibliothèque.
+        FLAG_SIL_HIDE_ROUTE_S06_ADRIEN,
+        FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A,
+        FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B,
+        FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR,
+        FLAG_SIL_HIDE_MANGA_SQUARE_BENOU,
+        FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN,
+        FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR,
+        FLAG_SIL_HIDE_BIBLIO_ADRIEN,
     ] {
         assert!(w.flag(f), "{f:?}");
     }

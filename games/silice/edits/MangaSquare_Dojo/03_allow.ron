@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose (validate honours these).
+[
+    AllowCollision(metatiles: [629], reason: "the signing queue's ribbon barrier (y 11) uses the Battle Arena's court-line rope, walkable there; here it fences the queue so the player joins it from its end, past ADRIEN"),
+]

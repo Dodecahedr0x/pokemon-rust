@@ -1,0 +1,3 @@
+// Silice Ch1, MAP_BOIS_ETHER_POKEMON_CENTER: a standard Pokemon Center (12 x 8, smaller than Emerald's).
+// Building + PokemonCenter (Emerald tilesets by name). Out-of-map border: black, blocked.
+(name: "BoisEther_PokemonCenter", width: 12, height: 8, primary: "Building", secondary: "PokemonCenter", fill: 514, border: [1025, 1025, 1025, 1025])

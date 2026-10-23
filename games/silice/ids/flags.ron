@@ -1962,5 +1962,189 @@
             name: "FLAG_SIL_HIDE_BRICO_SBIRE",
             num: 764,
         ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN",
+            num: 765,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_GARDE",
+            num: 766,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_GOGO",
+            num: 767,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU",
+            num: 768,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN",
+            num: 769,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1",
+            num: 770,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2",
+            num: 771,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_ETHER_TECHNICIEN",
+            num: 772,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM1_LOIC",
+            num: 773,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_LABO_CHIMISTE",
+            num: 774,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN",
+            num: 775,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CASINO_GOGO",
+            num: 776,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CASINO_ROMAIN",
+            num: 777,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DEPOT_ROMAIN",
+            num: 778,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DEPOT_SBIRE",
+            num: 779,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GRIS_GARDE",
+            num: 780,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GRIS_GARDE_ECARTE",
+            num: 781,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GRIS_GARDE_S3",
+            num: 782,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GRIS_GWADA",
+            num: 783,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GRIS_LAINERGIE",
+            num: 784,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM2_GWADA",
+            num: 785,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM2_LAINERGIE",
+            num: 786,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM2_ROBOT",
+            num: 787,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM2_WATTOUAT",
+            num: 788,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2",
+            num: 789,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3",
+            num: 790,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_4",
+            num: 791,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S02_ADRIEN",
+            num: 792,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S02_GWADA",
+            num: 793,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_STATION_SBIRE_2",
+            num: 794,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_MATHIEU",
+            num: 795,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT",
+            num: 796,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_PC_PNJ01",
+            num: 797,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_PC_PNJ02",
+            num: 798,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_PC_PNJ03",
+            num: 799,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_PC_PNJ04",
+            num: 800,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_PC_PNJ05",
+            num: 801,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_PC_PNJ06",
+            num: 802,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_TAUBER",
+            num: 803,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_ADRIEN",
+            num: 830,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_DRONE_1",
+            num: 831,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_DRONE_2",
+            num: 832,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR",
+            num: 833,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR",
+            num: 834,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A",
+            num: 835,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B",
+            num: 836,
+        ),
     ],
 )

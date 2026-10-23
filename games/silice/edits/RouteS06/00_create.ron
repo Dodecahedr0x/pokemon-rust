@@ -1,0 +1,4 @@
+// Silice Ch6, MAP_ROUTE_S06: the Sentier des Pelerins, a climb by terraces (28 x 64, the source's size).
+// General + Facility: Facility is the secondary of Emerald's Mt. Pyre exterior, the only mountain shrine path
+// (stone stairs between terraces, stone markers that serve as lanterns and incense burners). Border: rock.
+(name: "RouteS06", width: 28, height: 64, primary: "General", secondary: "Facility", fill: 1, border: [113, 113, 113, 113])

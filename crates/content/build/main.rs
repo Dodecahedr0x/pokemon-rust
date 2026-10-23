@@ -116,7 +116,7 @@ fn main() {
             ));
         }
         silice_scripts = Some(
-            silice::dispatch::generate(&s.registry, &s.unwritten)
+            silice::dispatch::generate(&s.registry, &s.unwritten, &s.report)
                 .unwrap_or_else(|e| panic!("generating the Silice scripts: {e:#}")),
         );
         s.world
@@ -161,6 +161,14 @@ fn main() {
         // No `battle/` (the stub, or a test fixture): the stub battle data.
         println!("cargo::rustc-cfg=pkr_stub_battle");
     }
+    // The flavour built, for the dependents' build scripts (`DEP_PKR_CONTENT_FLAVOR`: the shells
+    // set their own `cfg(pkr_silice)` from it).
+    let flavor = match (silice, real) {
+        (Some(_), _) => "silice",
+        (None, true) => "emerald",
+        (None, false) => "stub",
+    };
+    println!("cargo::metadata=flavor={flavor}");
     // The non-generated sources, for `content::data::GLOBAL_DIGEST`.
     let sources = codegen::sources_digest_for(&manifest_dir, silice)
         .unwrap_or_else(|e| panic!("hashing the content sources: {e}"));

@@ -1,0 +1,4 @@
+// Silice Ch1, MAP_BRICO_BOURG_LABO: the old botany lab turned Gogo & Romain's clandestine club (14 x 12,
+// the source's size). Building + Lab (Emerald tilesets by name): lab benches, shelves of jars, machines
+// for the turntables and the still. Out-of-map border: black, blocked.
+(name: "BricoBourg_Labo", width: 14, height: 12, primary: "Building", secondary: "Lab", fill: 514, border: [1025, 1025, 1025, 1025])

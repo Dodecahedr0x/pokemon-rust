@@ -1,0 +1,16 @@
+// Cells: wall with shelves and a picture, the pink rug with two armchairs (the cushions), plants, the mat.
+[
+    // W V wall, a-h shelves, p q a picture, . wall, ^ _ the wall's shadow, | : , floor, 1-9 ! 0 the rug,
+    // R r S s armchairs, P X Q Z plants, < > the exit mat.
+    Ascii(x: 0, y: 0, rows: [
+        "WVWVWWVWVW",
+        "ab..pq..cd",
+        "ef^_^_^_gh",
+        "|:,:,:,:,:",
+        "|:123334,:",
+        "|:5R666S,:",
+        "|:7r666s,:",
+        "P:9!!!!0,Q",
+        "X:,:<>,:,Z",
+    ], legend: {'!': (metatile: 572, collision: 0), ',': (metatile: 514, collision: 0), '.': (metatile: 541, collision: 1), '0': (metatile: 570, collision: 0), '1': (metatile: 552, collision: 0), '2': (metatile: 553, collision: 0), '3': (metatile: 553, collision: 0), '4': (metatile: 554, collision: 0), '5': (metatile: 560, collision: 0), '6': (metatile: 561, collision: 0), '7': (metatile: 560, collision: 0), '9': (metatile: 568, collision: 0), ':': (metatile: 513, collision: 0), '<': (metatile: 6, collision: 0), '>': (metatile: 7, collision: 0), 'P': (metatile: 582, collision: 0), 'Q': (metatile: 583, collision: 0), 'R': (metatile: 558, collision: 1), 'S': (metatile: 557, collision: 1), 'V': (metatile: 530, collision: 1), 'W': (metatile: 529, collision: 1), 'X': (metatile: 590, collision: 1), 'Z': (metatile: 591, collision: 1), '^': (metatile: 546, collision: 0), '_': (metatile: 545, collision: 0), 'a': (metatile: 576, collision: 1), 'b': (metatile: 577, collision: 1), 'c': (metatile: 578, collision: 1), 'd': (metatile: 579, collision: 1), 'e': (metatile: 584, collision: 1), 'f': (metatile: 585, collision: 1), 'g': (metatile: 586, collision: 1), 'h': (metatile: 587, collision: 1), 'p': (metatile: 537, collision: 1), 'q': (metatile: 538, collision: 1), 'r': (metatile: 566, collision: 1), 's': (metatile: 565, collision: 1), '|': (metatile: 516, collision: 0)}),
+]

@@ -1,0 +1,29 @@
+// Cells: the forest frame and its east exit, the tall-grass ring, the big cherry tree, the pond, its bridge
+// (Armand's post) and the Pierre aux Vers. Water has elevation 1 (Surf), as in Emerald.
+[
+    // . grass, , tall grass, " flowers, : leaf path, A-F the big tree, q w e l ~ r _ pond water and banks,
+    // 1-7 and 8-) the bridge (posts, ramps, deck), [ ] { the bridge's shadow on the water, k tree trunks closing
+    // the Heart Scale notch, W X V Z the Pierre aux Vers (a boulder), T t Y y forest.
+    Ascii(x: 0, y: 0, rows: [
+        "TtTtTtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyYy",
+        "Tt,,,,,,,,,,,,,,,,,,,,Tt",
+        "Yy,,,,,,,,,,,,,,,,,,,,Yy",
+        "Tt,,\"\"...\"\"\"....TtTt,,Tt",
+        "Yy,,.AB.........YyYy,,Yy",
+        "Tt,,.CD.............,,Tt",
+        "Yy,,.EF..qwwwwe.....,,Yy",
+        "Tt,,...1234444567...::..",
+        "Yy,,...89%&&&&*():::::..",
+        "Tt,,.....[]]]]{.....::..",
+        "Yy,,.....______.WX..,,Yy",
+        "Tt,,Tt..k.k.....VZ..,,Tt",
+        "Yy,,Yy...k........Yy,,Yy",
+        "Tt,,.........\"\"...Tt,,Tt",
+        "Yy,,................,,Yy",
+        "Tt,,,,,,,,,,,,,,,,,,,,Tt",
+        "Yy,,,,,,,,,,,,,,,,,,,,Yy",
+        "TtTtTtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyYy",
+    ], legend: {'"': (metatile: 4, collision: 0, elevation: 3), '%': (metatile: 669, collision: 0, elevation: 3), '&': (metatile: 671, collision: 0, elevation: 3), '(': (metatile: 788, collision: 0, elevation: 3), ')': (metatile: 759, collision: 0, elevation: 3), '*': (metatile: 670, collision: 0, elevation: 3), ',': (metatile: 13, collision: 0, elevation: 3), '.': (metatile: 1, collision: 0, elevation: 3), '1': (metatile: 751, collision: 0, elevation: 3), '2': (metatile: 779, collision: 0, elevation: 3), '3': (metatile: 661, collision: 0, elevation: 3), '4': (metatile: 663, collision: 0, elevation: 3), '5': (metatile: 662, collision: 0, elevation: 3), '6': (metatile: 780, collision: 0, elevation: 3), '7': (metatile: 751, collision: 0, elevation: 3), '8': (metatile: 759, collision: 0, elevation: 3), '9': (metatile: 787, collision: 0, elevation: 3), ':': (metatile: 473, collision: 0, elevation: 3), 'A': (metatile: 38, collision: 1, elevation: 3), 'B': (metatile: 39, collision: 1, elevation: 3), 'C': (metatile: 46, collision: 1, elevation: 3), 'D': (metatile: 47, collision: 1, elevation: 3), 'E': (metatile: 54, collision: 1, elevation: 3), 'F': (metatile: 55, collision: 1, elevation: 3), 'T': (metatile: 468, collision: 1, elevation: 3), 'V': (metatile: 171, collision: 1, elevation: 3), 'W': (metatile: 163, collision: 1, elevation: 3), 'X': (metatile: 164, collision: 1, elevation: 3), 'Y': (metatile: 476, collision: 1, elevation: 3), 'Z': (metatile: 172, collision: 1, elevation: 3), '[': (metatile: 622, collision: 0, elevation: 1), ']': (metatile: 631, collision: 0, elevation: 1), '_': (metatile: 45, collision: 0, elevation: 1), 'e': (metatile: 178, collision: 0, elevation: 1), 'k': (metatile: 198, collision: 1, elevation: 3), 'q': (metatile: 195, collision: 0, elevation: 1), 't': (metatile: 469, collision: 1, elevation: 3), 'w': (metatile: 177, collision: 0, elevation: 1), 'y': (metatile: 477, collision: 1, elevation: 3), '{': (metatile: 623, collision: 0, elevation: 1)}),
+]

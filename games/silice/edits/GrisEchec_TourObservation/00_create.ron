@@ -1,0 +1,4 @@
+// Silice Ch2, MAP_GRIS_ECHEC_TOUR_OBSERVATION: the Tour's security hall (12 x 10). General +
+// Facility (Emerald tilesets by name, the Space Centre set): window wall, surveillance screens,
+// a railing with one gate, the lift (stairs) up at (5, 1).
+(name: "GrisEchec_TourObservation", width: 12, height: 10, primary: "General", secondary: "Facility", fill: 752, border: [1537, 1537, 1537, 1537])

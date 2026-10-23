@@ -1,0 +1,18 @@
+// Cells: the source's grid: walls, levers (cabinets), tubes (green machines), the reset
+// lever, transformers (generator bases), the notice desk, the entry mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!!!!!######!!!!!",
+        "!!!!!$$$$%&%!!!!",
+        "!!!!!(((((()!!!!",
+        "!##!#((((((####!",
+        "!**!***(*******!",
+        "!++$+++(+++++++!",
+        "!(,-(,-(,-(,-((!",
+        "!((((((((((((((!",
+        "!*#*(******(***!",
+        "!+$+(++++++(+++!",
+        "!((((((((.(((((!",
+        "!!!!!!!/!!!!!!!!",
+    ], legend: {'!': (metatile: 520, collision: 1), '#': (metatile: 543, collision: 1), '$': (metatile: 727, collision: 1), '%': (metatile: 724, collision: 1), '&': (metatile: 725, collision: 1), '(': (metatile: 528, collision: 0), ')': (metatile: 704, collision: 1), '*': (metatile: 551, collision: 1), '+': (metatile: 559, collision: 0), ',': (metatile: 740, collision: 1), '-': (metatile: 741, collision: 1), '.': (metatile: 705, collision: 1), '/': (metatile: 536, collision: 0)}),
+]

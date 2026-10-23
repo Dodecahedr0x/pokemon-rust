@@ -1,7 +1,7 @@
 //! SIL1 Task E: `games/silice/game.ron` (`build/silice/game.rs`), on the build's own code, in any
 //! flavour and without the extract: the committed file checks clean and emits its constants, and
 //! each rule rejects a broken copy (unknown, removed or unreserved flags, an unwalkable or missing
-//! cell, a facing the shared new game cannot apply, an unknown respawn, a heal location without
+//! cell, a player name over Gen3's 7 characters or empty, an unknown respawn, a heal location without
 //! the Silice prefix or listed twice, a wrong starter count, species or level).
 
 #[allow(dead_code)]
@@ -38,7 +38,7 @@ mod silice;
 #[path = "../build/stub.rs"]
 mod stub;
 
-use silice::schema::{Facing, GameFile};
+use silice::schema::GameFile;
 use silice::{game, ids, load};
 use std::path::{Path, PathBuf};
 
@@ -83,7 +83,7 @@ fn the_committed_game_ron_checks_and_emits_its_constants() {
     assert_eq!(get("SIL_RESPAWN"), g.respawn);
     assert_eq!(get("SIL_RUNNING_FLAG"), g.running_flag);
     assert_eq!(get("SIL_STARTERS"), format!("[{}]", g.starters.join(", ")));
-    assert_eq!(get("SIL_START_FACING"), "Dir::Down");
+    assert_eq!(get("SIL_START_FACING"), game::facing(g.start.facing));
     assert_eq!(
         get("SIL_NEW_GAME_FLAGS"),
         format!("&[{}]", g.new_game_flags.join(", "))
@@ -109,7 +109,8 @@ fn each_game_ron_rule_rejects_a_broken_copy() {
     fails("not walkable", |g| (g.start.x, g.start.y) = (0, 0));
     fails("outside", |g| g.start.y = 99);
     fails("not in maps/", |g| g.start.map = "NoSuchMap".into());
-    fails("faces down", |g| g.start.facing = Facing::Up);
+    fails("player_name", |g| g.player_name = "N".repeat(8));
+    fails("player_name", |g| g.player_name.clear());
     fails("not a heal location", |g| {
         g.respawn = "HEAL_LOCATION_SIL_NOPE".into()
     });

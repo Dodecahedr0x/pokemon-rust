@@ -411,8 +411,10 @@ fn overlays_and_labels() {
     ])
     .unwrap();
     assert!(out.contains("behaviour codes"), "{out}");
+    // Labels sit in a gutter: a column is a 4-digit id and a code wide (46 px at scale 2,
+    // wider than the 32 px art) plus a 2 px gap.
     let (w, _) = png_size(&pal);
-    assert_eq!(w, 8 * 32);
+    assert_eq!(w, 8 * 48);
     run(&[
         "palette",
         &p,
@@ -424,7 +426,8 @@ fn overlays_and_labels() {
         pal.to_str().unwrap(),
     ])
     .unwrap();
-    assert_eq!(png_size(&pal).0, 8 * 16);
+    // 23 px of labels, a 1 px gap.
+    assert_eq!(png_size(&pal).0, 8 * 24);
     assert!(
         run(&["palette", &p, &s, "--events"]).is_err(),
         "a render option"
@@ -547,5 +550,244 @@ fn stamps_copied_from_the_extract_are_flagged() {
         bad[0].contains("Lifted.ron: the 10x10 cells at (0, 0)"),
         "{bad:#?}"
     );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `render --extract` and `dump --extract` read the extract's own maps (reference for
+/// authors); without the extract they fail with a hint.
+#[test]
+fn extract_maps_render_and_dump() {
+    let dir = temp_dir("extract");
+    let png = dir.join("ref.png");
+    let args = |map: &'static str| {
+        [
+            "render",
+            map,
+            "--extract",
+            "--collision",
+            "--events",
+            "--out",
+            png.to_str().unwrap(),
+        ]
+        .map(String::from)
+    };
+    if !real() {
+        let err = cli::run(&args("LittlerootTown")).unwrap_err();
+        assert!(format!("{err:#}").contains("--extract"), "{err:#}");
+        return;
+    }
+    let out = cli::run(&args("LittlerootTown")).unwrap();
+    assert!(out.contains("LittlerootTown: 20x20 cells"), "{out}");
+    assert_eq!(png_size(&png), ((20 + 4) * 32, (20 + 4) * 32));
+    let text = run(&["dump", "LittlerootTown", "--extract", "--out", "-"]).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(
+        lines[0],
+        "LittlerootTown: 20x20, General + Petalburg; metatile ids, * = solid"
+    );
+    // A header line, the border, the x indices, then 20 rows of 20 cells.
+    assert_eq!(lines.len(), 3 + 20);
+    assert!(lines[3..].iter().all(|l| l.len() == 3 + 20 * 5), "{text}");
+    assert!(text.contains('*'), "solid cells are marked");
+    let file = dir.join("ref.txt");
+    let out = run(&[
+        "dump",
+        "LittlerootTown",
+        "--extract",
+        "--out",
+        file.to_str().unwrap(),
+    ])
+    .unwrap();
+    assert!(out.contains("20x20 cells"), "{out}");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), text);
+    for bad in ["NoSuchMap", "../maps/LittlerootTown"] {
+        assert!(cli::run(&args(bad)).is_err(), "{bad}");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `palette --range` keeps a slice of the pair, `--zoom` scales the art apart from the
+/// labels, and labels sit in a gutter above the art, never over it.
+#[test]
+fn palette_ranges_zoom_and_gutter_labels() {
+    use studio::map_edit::render::{palette, palette_of};
+    let dir = temp_dir("palette");
+    let (p, s, _) = tilesets();
+    let c = Catalog::from_content().unwrap();
+    let (pr, sr) = c.metatile_ranges(&p, &s).unwrap();
+    let pal = dir.join("pal.png");
+    let out_ = pal.to_str().unwrap();
+    // The stub world's secondary has no metatiles.
+    let first = if sr.is_empty() { pr.start } else { sr.start };
+    let range = format!("{first}..={}", first + 1);
+    let out = run(&["palette", &p, &s, "--range", &range, "--out", out_]).unwrap();
+    assert!(
+        out.contains(&format!("metatiles {range}: 8 cells")),
+        "{out}"
+    );
+    assert_eq!(png_size(&pal), (8 * 16, 16));
+    run(&[
+        "palette", &p, &s, "--range", &range, "--zoom", "3", "--out", out_,
+    ])
+    .unwrap();
+    assert_eq!(png_size(&pal), (8 * 48, 48));
+    // Labels at scale 1 over art at zoom 4: 64 px cells plus a 1 px gap; rows add a 7 px band.
+    let out = run(&[
+        "palette", &p, &s, "--range", &range, "--labels", "--scale", "1", "--zoom", "4", "--out",
+        out_,
+    ])
+    .unwrap();
+    assert!(out.contains("behaviour codes"), "{out}");
+    assert_eq!(png_size(&pal), (8 * 65, 7 + 64 + 1));
+    let err = run(&["palette", &p, &s, "--range", "2000..=2001"]).unwrap_err();
+    assert!(format!("{err:#}").contains("no metatile"), "{err:#}");
+    assert!(run(&["palette", &p, &s, "--range", "9..2"]).is_err());
+    assert!(run(&["palette", &p, &s, "--zoom", "9"]).is_err());
+
+    // The art under the labels is the plain palette's, pixel for pixel.
+    let both = format!("{}..={}", pr.start, sr.start);
+    let r = studio::map_edit::cli::metatile_range(&both).unwrap();
+    let part = palette_of(&c, &p, &s, Some(r)).unwrap();
+    assert_eq!(part.metatiles[0], Some(pr.start));
+    assert_eq!(part.metatiles.contains(&Some(sr.start)), !sr.is_empty());
+    let full = palette(&c, &p, &s).unwrap();
+    let (ts, zoom) = (2, 3);
+    let img = overlay::label_palette(&full, &c, &p, &s, ts, zoom, true);
+    let art = overlay::scale(&full.image, zoom);
+    let (cell, band) = (16 * zoom, overlay::text_box("0", ts).1);
+    let col_w = cell.max(overlay::text_box("0000", ts).0 + ts + overlay::text_box("D", ts).0) + ts;
+    let row_h = band + cell + ts;
+    for i in [0usize, 1, 9] {
+        let Some(_) = full.metatiles.get(i).copied().flatten() else {
+            continue;
+        };
+        let (cx, cy) = (i % 8, i / 8);
+        for (x, y) in [(0, 0), (cell - 1, cell - 1), (cell / 2, 3)] {
+            assert_eq!(
+                img.rgb555[(cy * row_h + band + y) * img.width + cx * col_w + x],
+                art.rgb555[(cy * cell + y) * art.width + cx * cell + x],
+                "cell {i} ({x}, {y})"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Gen3 draws `Building`'s metatile 1 black whatever the secondary (its tiles are the
+/// primary's), so it is a safe out-of-map border for any interior; `palette` lists each
+/// pair's black metatiles.
+#[test]
+fn building_metatile_1_is_void_with_every_secondary() {
+    if !real() {
+        return;
+    }
+    use studio::map_edit::render::palette_of;
+    let c = Catalog::from_content().unwrap();
+    let secondaries = c.tileset_names(true);
+    assert!(secondaries.len() > 40, "{secondaries:?}");
+    for s in &secondaries {
+        let pal = palette_of(&c, "Building", s, Some(1..=1)).unwrap();
+        assert_eq!(pal.void_metatiles(), [1], "Building + {s}");
+    }
+    let out = run(&[
+        "palette",
+        "Building",
+        "Lab",
+        "--out",
+        temp_dir("void").join("p.png").to_str().unwrap(),
+    ])
+    .unwrap();
+    assert!(
+        out.contains("void (all-black) metatiles, for an interior's border: 1 513"),
+        "{out}"
+    );
+}
+
+/// The new op forms through `build`: `Object(local_id: N)` and `ScriptsSet`.
+#[test]
+fn local_ids_and_scripts_set_through_build() {
+    let dir = temp_dir("ops");
+    let g = GamesDir::new(dir.join("games"));
+    write_edits(&g.root, &g.edits_dir());
+    put(
+        &g.edits_dir().join("TownA/30_more.ron"),
+        r#"[
+    Scripts((on_load: None, on_transition: Some("TownA_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    ScriptsSet(on_load: "TownA_OnLoad"),
+    Object(x: 3, y: 3, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_TOWNA_GUIDE", local_id: 20),
+]"#,
+    );
+    let r = g.root.to_str().unwrap();
+    run(&["--games", r, "build"]).unwrap();
+    let d = g.load("TownA").unwrap();
+    assert_eq!(d.map.scripts.on_load.as_deref(), Some("TownA_OnLoad"));
+    assert_eq!(
+        d.map.scripts.on_transition.as_deref(),
+        Some("TownA_OnTransition")
+    );
+    let ids: Vec<u8> = d.map.objects.iter().map(|o| o.local_id).collect();
+    assert_eq!(ids, [1, 20]);
+    put(
+        &g.edits_dir().join("TownA/40_dup.ron"),
+        r#"[Object(x: 4, y: 3, gfx: "OBJ_EVENT_GFX_BOY_1", local_id: 1)]"#,
+    );
+    let err = run(&["--games", r, "build"]).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("local id 1 is already object 0's"),
+        "{err:#}"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `build` on a copy of the committed Silice edits gives the committed maps and layouts,
+/// byte for byte (the op changes are backward compatible).
+#[test]
+fn committed_silice_edits_rebuild_byte_identical() {
+    if !real() {
+        return;
+    }
+    let ws = studio::paths::StudioPaths::detect().workspace;
+    let committed = GamesDir::new(ws.join("games/silice"));
+    let dir = temp_dir("silice");
+    let g = GamesDir::new(dir.join("games"));
+    for e in std::fs::read_dir(committed.edits_dir()).unwrap() {
+        let map = e.unwrap().path();
+        if !map.is_dir() {
+            continue;
+        }
+        for f in std::fs::read_dir(&map).unwrap() {
+            let f = f.unwrap().path();
+            let to = g
+                .edits_dir()
+                .join(map.file_name().unwrap())
+                .join(f.file_name().unwrap());
+            put(&to, &std::fs::read_to_string(&f).unwrap());
+        }
+    }
+    run(&["--games", g.root.to_str().unwrap(), "build"]).unwrap();
+    let rel = |g: &GamesDir| {
+        files(g)
+            .into_iter()
+            .filter(|(p, _)| {
+                let name = Path::new(p)
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string();
+                g.edits_dir().join(&name).is_dir()
+            })
+            .collect::<Vec<_>>()
+    };
+    let built = files(&g);
+    assert!(!built.is_empty());
+    let want = rel(&committed);
+    assert_eq!(
+        built.iter().map(|f| &f.0).collect::<Vec<_>>(),
+        want.iter().map(|f| &f.0).collect::<Vec<_>>()
+    );
+    for ((p, a), (_, b)) in built.iter().zip(&want) {
+        assert!(a == b, "{p} differs from the committed file");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }

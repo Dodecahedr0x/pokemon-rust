@@ -232,6 +232,7 @@ fn seek_equals_a_straight_replay_at_0_k_k1_and_the_end() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn seek_into_a_battle_replays_from_the_last_capturable_keyframe() {
     let (root, store, ids) = store("seek-battle");

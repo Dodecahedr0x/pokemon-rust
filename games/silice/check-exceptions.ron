@@ -563,11 +563,6 @@
         ),
         (
             rule: "map-undefined",
-            subject: "MAP_MANGA_SQUARE_GYM",
-            reason: "the gym is described in ch06 §4 but no heading names the constant; add it to a heading",
-        ),
-        (
-            rule: "map-undefined",
             subject: "MAP_MANGA_SQUARE_HOUSE_1",
             reason: "named in ch06 §2 text, no heading or content",
             ruling_needed: true,
@@ -1391,14 +1386,14 @@
         ),
         (
             rule: "text-duplicate",
-            subject: "Tour_Sbire1_Intro",
-            reason: "defined in ch02 and ch09 with different bodies; rename one pair",
+            subject: "Tour_Sbire1_Intro_Ch09",
+            reason: "defined in ch02 and ch09 with different bodies; the ch09 one is renamed Tour_Sbire1_Intro_Ch09 provisionally (SIL1 Task A, reversible) so the loader accepts text/fr.ron: confirm or pick the names",
             ruling_needed: true,
         ),
         (
             rule: "text-duplicate",
-            subject: "Tour_Sbire2_Intro",
-            reason: "defined in ch02 and ch09 with different bodies; rename one pair",
+            subject: "Tour_Sbire2_Intro_Ch09",
+            reason: "defined in ch02 and ch09 with different bodies; the ch09 one is renamed Tour_Sbire2_Intro_Ch09 provisionally (SIL1 Task A, reversible) so the loader accepts text/fr.ron: confirm or pick the names",
             ruling_needed: true,
         ),
         (
@@ -1508,6 +1503,12 @@
             subject: "TRAINER_SIL_TAUBER_HOCSEAT_9",
             reason: "name \"TAUBER&HOCS\" is 11 bytes (max 10); TRAINER_NAME_LENGTH is 10 (shorten, or a double battle with two trainers)",
             ruling_needed: true,
+        ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_ITEM_CASINO_COINS_FLOOR",
+            reason: "20 coins are not an item, so no hidden item can carry the flag: the map has a bg script ViberCity_Casino_EventScript_JetonsCaches at (14,3) that gives the coins and sets the flag; drop this entry once ch03 scripts name the flag",
+            ruling_needed: false,
         ),
     ],
 )

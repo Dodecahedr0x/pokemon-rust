@@ -291,14 +291,14 @@ macro_rules! game_data_tables {
             $crate::data::BEHAVIORS[raw as usize]
         }
 
-        /// The flavour's start (`data::NEW_GAME`), facing down, running its new-game script.
+        /// The flavour's start and facing (`data::NEW_GAME`), running its new-game script.
         fn new_game(&self) -> ::engine::data::NewGame {
-            let (map, x, y) = $crate::data::NEW_GAME;
+            let (map, x, y, facing) = $crate::data::NEW_GAME;
             ::engine::data::NewGame {
                 map,
                 x,
                 y,
-                facing: ::engine::data::Dir::Down,
+                facing,
                 script: Some($crate::NEW_GAME_SCRIPT),
                 player_name: $crate::data::PLAYER_NAME,
             }
