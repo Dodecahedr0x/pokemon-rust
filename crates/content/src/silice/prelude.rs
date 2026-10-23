@@ -7,7 +7,12 @@
 //! receives its `Ctx` by value and passes `&ctx`.
 //!
 //! **Story and state:** [`story`], [`set_story`] (`VAR_SIL_STORY`), [`defeated`] (a trainer's
-//! beaten flag), [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`).
+//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight),
+//! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
+//! as a sign script, a fallback).
+//!
+//! **Module obstacles:** [`cut_obstacle`] (the generic Lame-Frequence obstacle) and
+//! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`].
 //!
 //! **Scenes:** [`say`] (a line inside a locked scene), [`ask`] (`msgbox(T, YesNo)` then
 //! `if yes_no`), [`walk`] and the other step builders, [`move_wait`] (`move_obj` then
@@ -44,6 +49,34 @@ pub async fn defeated(ctx: &Ctx, trainer: TrainerId) -> bool {
     ctx.flag(trainer_flag(trainer)).await
 }
 
+/// A route trainer, Gen3 `trainerbattle_single TRAINER, intro, defeat` (kind
+/// `TRAINER_BATTLE_SINGLE`): seen (the engine's sight walks it up) or talked to, the intro, the
+/// battle, the defeat text. Returns whether the trainer was already beaten when talked to (Gen3
+/// `gotopostbattlescript`): the script then says its post-battle line.
+///
+/// **Registry contract** (`build/silice/registry.rs`): a script whose *first statement* calls
+/// `trainer(&ctx, LOCALID_…, TRAINER_…, …)` is a trainer script, listed in `TRAINER_SCRIPTS`
+/// so that sight knows its trainer and flag. `obj` is the trainer object's local id.
+pub async fn trainer(
+    ctx: &Ctx,
+    obj: u8,
+    trainer: TrainerId,
+    intro: TextId,
+    defeat: TextId,
+) -> bool {
+    let b = TrainerBattle {
+        kind: kind::SINGLE,
+        trainer: trainer.0,
+        local_id: obj,
+        intro: Some(intro),
+        lose: defeat,
+        not_enough: None,
+        event_script: None,
+        music: true,
+    };
+    trainer_battle(ctx, b).await
+}
+
 /// How [`gift`] tells the player.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Obtain {
@@ -67,6 +100,62 @@ pub async fn gift(ctx: &Ctx, flag: FlagId, item: u16, qty: u16, how: Obtain) -> 
         ctx.set_flag(flag, true).await;
     }
     fit
+}
+
+/// A hidden item as a sign script (the engine does not pick up `BgKind::HiddenItem` yet):
+/// nothing once `flag` is set; else, locked, Gen3 `giveitem` (its "Obtained" and pocket
+/// messages) and `flag` when it fit. A fallback (`Report::Degraded("hidden item")`).
+pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
+    if ctx.flag(flag).await {
+        return;
+    }
+    fallback(ctx, "hidden item").await;
+    ctx.lock().await;
+    gift(ctx, flag, item, 1, Obtain::Message).await;
+    ctx.release().await;
+}
+
+// ---- module obstacles ----
+
+/// `METATILE_RONCES_COUPEES`: synthetic brambles once cut, General's grass (metatile 1), walkable.
+/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 8),
+/// Bois-Éther (8, 6); "SIL2 Ch1 maps as built").
+pub const METATILE_RONCES_COUPEES: u16 = 1;
+
+/// The generic Lame-Frequence obstacle (Ch1 `Bois_Ether_Sc08`, "the same script for every
+/// bramble and cable; only the obstacle's flag changes"): nothing once `cut` is set; without
+/// `FLAG_SIL_MODULE_COUPE`, `blocked` as a sign; else `Bois_Ether_Sc08_T2` (yes/no), on yes
+/// `_T3`, the cell `(x, y)` repainted as `metatile` (walkable) and `cut` set. The map's
+/// `on_load` repaints the cell from `cut` on every later load ([`repaint_if`]).
+pub async fn cut_obstacle(
+    ctx: &Ctx,
+    (x, y): (i16, i16),
+    metatile: u16,
+    cut: FlagId,
+    blocked: TextId,
+) {
+    if ctx.flag(cut).await {
+        return;
+    }
+    if !ctx.flag(FLAG_SIL_MODULE_COUPE).await {
+        msgbox(ctx, blocked, MsgBox::Sign).await;
+        return;
+    }
+    ctx.lock().await;
+    if ask(ctx, Bois_Ether_Sc08_T2).await {
+        say(ctx, Bois_Ether_Sc08_T3).await;
+        ctx.set_metatile(x, y, metatile, false).await;
+        ctx.set_flag(cut, true).await;
+    }
+    ctx.release().await;
+}
+
+/// An `on_load` repaint: the cell `(x, y)` as `metatile` (walkable) when `flag` is set (Gen3
+/// `call_if_set FLAG, …_EventScript_SetCutMetatile`; the map loads from its layout every time).
+pub async fn repaint_if(ctx: &Ctx, flag: FlagId, (x, y): (i16, i16), metatile: u16) {
+    if ctx.flag(flag).await {
+        ctx.set_metatile(x, y, metatile, false).await;
+    }
 }
 
 // ---- scenes ----

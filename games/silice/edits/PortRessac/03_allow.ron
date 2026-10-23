@@ -1,0 +1,5 @@
+// Behaviour warnings accepted on purpose (validate honours these; see the editor upgrades in
+// docs/plans/2026-10-23-silice-content.md).
+[
+    AllowCollision(metatiles: [414], reason: "the light shoal round the two hulls is decor (Route 108 keeps it round the Abandoned Ship): solid, so neither ship can be walked or surfed round, only boarded by its stairs"),
+]

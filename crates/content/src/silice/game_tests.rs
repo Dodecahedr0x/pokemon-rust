@@ -105,6 +105,18 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_STATION_SBIRES,
         FLAG_SIL_HIDE_STATION_SBIRE_2,
         FLAG_SIL_VIBER_BARRIERE_EST,
+        // Ch6: shown until a scene hides them.
+        FLAG_SIL_HIDE_DOJO_ADRIEN,
+        FLAG_SIL_HIDE_DOJO_KIMIKO,
+        FLAG_SIL_HIDE_DOJO_DRONE_1,
+        FLAG_SIL_HIDE_DOJO_DRONE_2,
+        FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR,
+        // Ch4: shown until a scene or a story step hides them.
+        FLAG_SIL_HIDE_ROUTE_S04_ADRIEN,
+        FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE,
+        FLAG_SIL_HIDE_PORT_CARGO,
+        FLAG_SIL_HIDE_PORT_MARIN_CLIENT,
+        FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -140,6 +152,29 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_CASINO_ROMAIN,
         FLAG_SIL_HIDE_CASINO_B1F_ROMAIN,
         FLAG_SIL_ITEM_DEPOT_METAL_COAT,
+        // Ch6: Route_S06_Sc02's actors, the randonneur, Benou and Adrien at the Grand Torii, the
+        // delivery man, and Adrien in the Bibliothèque.
+        FLAG_SIL_HIDE_ROUTE_S06_ADRIEN,
+        FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A,
+        FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B,
+        FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR,
+        FLAG_SIL_HIDE_MANGA_SQUARE_BENOU,
+        FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN,
+        FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR,
+        FLAG_SIL_HIDE_BIBLIO_ADRIEN,
+        // Ch4: Crow's passers-by, Samuel on the quay, the quay fight's actors, and Gwada and
+        // Adrien at the Taverne and on the Zenith-Grog.
+        FLAG_SIL_HIDE_PORT_PASSANT_1,
+        FLAG_SIL_HIDE_PORT_PASSANT_4,
+        FLAG_SIL_HIDE_PORT_SAMUEL,
+        FLAG_SIL_HIDE_PORT_PIRATE_1,
+        FLAG_SIL_HIDE_PORT_SBIRE_1,
+        FLAG_SIL_HIDE_PORT_SBIRE_4,
+        FLAG_SIL_HIDE_PORT_CONTREMAITRE,
+        FLAG_SIL_HIDE_PORT_DECOR_3,
+        FLAG_SIL_HIDE_PORT_GYM_GWADA,
+        FLAG_SIL_HIDE_PORT_TAVERNE_GWADA,
+        FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN,
     ] {
         assert!(w.flag(f), "{f:?}");
     }

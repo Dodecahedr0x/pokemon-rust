@@ -1,0 +1,7 @@
+// Silice Ch4, MAP_PORT_RESSAC: Port-Ressac, Secteur Delta (50 x 40, the source's size): a free port of
+// silica sand, containers and ship carcasses round a mirror-smooth harbour. General + Slateport
+// (Emerald tilesets by name): Emerald's own port town, with its quays and quay edges, sand, market
+// stalls, crates and warehouse walls (stacked here as containers), the Pokemon Center building (the
+// Taverne) and, in the same secondary, the Abandoned Ship's exterior hull with its boarding stairs
+// (used for both the Cocket cargo and the Zenith-Grog). Border: open sea, blocked.
+(name: "PortRessac", width: 50, height: 40, primary: "General", secondary: "Slateport", fill: 368, border: [1392, 1392, 1392, 1392])

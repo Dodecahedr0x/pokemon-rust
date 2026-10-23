@@ -80,6 +80,6 @@
     HiddenItem(x: 29, y: 26, item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_VIBER_HYPER_POTION"),
     HiddenItem(x: 13, y: 3, item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_VIBER_PP_UP"),
     // Route S3 to the south: our ramp x 20 meets its north exit x 10. The east connection to
-    // MAP_ROUTE_S04 (Ch4) is added with that map; the street end (38-39, 15-16) stays trees.
+    // MAP_ROUTE_S04 (Ch4) is added by 05_ch4_connect.ron.
     Connect((dir: South, offset: 10, map: "RouteS03")),
 ]

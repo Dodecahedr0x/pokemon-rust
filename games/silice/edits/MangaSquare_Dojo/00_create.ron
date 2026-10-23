@@ -1,0 +1,4 @@
+// Silice Ch6, MAP_MANGA_SQUARE_DOJO: the Grand Dojo turned into a mini-expo (30 x 22, the source's size).
+// Building + BattleArena: Emerald's Battle Arena is a dojo (tatami, shoji doors, wooden walls, a training
+// court, bonsai, a big screen). Border: black, blocked.
+(name: "MangaSquare_Dojo", width: 30, height: 22, primary: "Building", secondary: "BattleArena", fill: 513, border: [1025, 1025, 1025, 1025])

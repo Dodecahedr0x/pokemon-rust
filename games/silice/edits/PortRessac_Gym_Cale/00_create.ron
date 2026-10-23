@@ -1,0 +1,4 @@
+// Silice Ch4, MAP_PORT_RESSAC_GYM_CALE: the Zenith-Grog's hold, the barrel puzzle (11 x 9, the
+// source's own grid, ch04 §4). General + InsideShip (Emerald tilesets by name): the SS Tidal's cargo
+// deck has the hold floor, the white drums used as lashed barrels, and the stairs. Border: black, blocked.
+(name: "PortRessac_Gym_Cale", width: 11, height: 9, primary: "General", secondary: "InsideShip", fill: 525, border: [1537, 1537, 1537, 1537])
