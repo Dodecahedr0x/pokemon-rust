@@ -1,5 +1,7 @@
 // Cells, north to south: room 3 (the great mirror, Reverse's corridor), room 2 (three mirror doors,
 // two mime statues), room 1 (the source's ice grid at (1, 21): ice 525, pillars 515), the hall and mat.
+// Room 2's wall row y 17 leaves only (6-8, 17) open: Xela, on (8, 17), sees the way to the doors. Room
+// 3's exit is a mat (6-7, 10), Building 6/7 (MB_SOUTH_ARROW_WARP): pushing south leaves for the S mat.
 [
     Ascii(x: 0, y: 0, rows: [
         "!!!!!!!!!!!!!!",
@@ -12,14 +14,14 @@
         "####),,,######",
         "####,,,,######",
         "#####,,,######",
-        "#####,,,######",
+        "#####,34######",
         "##############",
         "##$%##$%##$%##",
         "#)&(#)&()#&()#",
         "#,-./,-.,/-.,#",
         "#,,,,,,,,,,,,#",
         "#,,,,,,,,,,,,#",
-        "#,,,,,,,,,,,,#",
+        "######,,,#####",
         "#,,,,,,,,,,,,#",
         "#,,,,,,,,,,,,#",
         "######0#######",

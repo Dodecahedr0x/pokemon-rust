@@ -1,6 +1,8 @@
-// Header, warps and objects.
+// Header, map scripts, warps and objects.
 [
     Header((music: "MUS_MT_PYRE", region_map_section: "MAPSEC_NONE", cave: 1, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // ReverseCity_Phare_OnTransition: set_input_inverted(false), as in every Reverse-City interior.
+    Scripts((on_load: None, on_transition: Some("ReverseCity_Phare_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warps 0-1: the mat, to Reverse-City's warp 6 (the lighthouse door).
     Warp(x: 6, y: 19, dest_map: "ReverseCity", dest_warp: 6),
     Warp(x: 7, y: 19, dest_map: "ReverseCity", dest_warp: 6),

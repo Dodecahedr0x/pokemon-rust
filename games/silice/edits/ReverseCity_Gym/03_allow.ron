@@ -1,4 +1,4 @@
 // Allowances (behaviour warnings accepted on purpose).
 [
-    AllowCollision(cells: [(6, 29), (6, 10)], reason: "warps 2 and 3 are arrival points for the mirror doors' scripted warps (the tileset has no warp metatile)"),
+    AllowCollision(cells: [(6, 29)], reason: "warp 2 is an arrival point for the mirror doors' scripted warps (the tileset has no warp metatile)"),
 ]
