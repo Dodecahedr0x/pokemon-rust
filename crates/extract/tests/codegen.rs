@@ -638,7 +638,7 @@ mod lowering {
                 Some(RootKind::Object(1)),
                 vec![
                     i("playse", vec![c("SE_PIN")]),
-                    i("checkpartymove", vec![c("MOVE_CUT")]),
+                    i("checkpcitem", vec![c("ITEM_POTION"), Half(1)]),
                     i("checkcoins", vec![v("VAR_0x8005")]),
                     i("pokemart", vec![Raw(0x1234)]),
                     i("special", vec![c("SPECIAL_HealPlayerParty")]),
@@ -663,7 +663,7 @@ mod lowering {
             fn_src(&out.modules["M"], "M_Root"),
             "pub async fn M_Root(ctx: Ctx) -> Flow {\n    \
              // playse SE_PIN\n    \
-             ctx.set_var(VAR_RESULT, 6).await; // checkpartymove (default)\n    \
+             ctx.set_var(VAR_RESULT, 0).await; // checkpcitem (default)\n    \
              ctx.set_var(VAR_0x8005, 0).await; // checkcoins (default)\n    \
              ctx.report(Report::Unsupported(\"pokemart\")).await; // 0x1234\n    \
              special(&ctx, SPECIAL_HealPlayerParty).await;\n    \
@@ -1143,6 +1143,7 @@ mod lowering {
             i("checkitemspace", vec![c("ITEM_POTION"), Half(2)]),
             i("checkitem", vec![c("ITEM_POTION"), v("VAR_0x8005")]),
             i("checkitemtype", vec![c("ITEM_POTION")]),
+            i("checkpartymove", vec![c("MOVE_CUT")]),
             i(
                 "applymovement",
                 vec![c("LOCALID_PLAYER"), mv("N_Movement_Walk")],
@@ -1188,6 +1189,7 @@ mod lowering {
             i("message", vec![t("N_Text_Hello")]),
             i("messageautoscroll", vec![t("N_Text_Hello")]),
             i("messageinstant", vec![t("N_Text_Hello")]),
+            i("pokenavcall", vec![t("N_Text_Hello")]),
             i("waitmessage", vec![]),
             i("closemessage", vec![]),
             i("lockall", vec![]),
@@ -1358,7 +1360,7 @@ mod lowering {
             "ctx.set_metatile(3, 4, 513, true).await;",
             "ctx.door(ctx.var(VAR_0x8004).await as i16, 4, false).await;",
             "wild = Some((SPECIES_ZIGZAGOON, 2));",
-            "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }",
+            "if let Some((s, l)) = wild { outcome = ctx.battle_wild(s, l, false).await as u16; }",
             "return Flow::Continue;",
         ] {
             assert!(src.contains(needle), "missing {needle:?} in:\n{src}");

@@ -33,6 +33,22 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
     0
 }
 
+pub async fn check_party_move(ctx: &Ctx, m: MoveId) {
+    let _ = m;
+    ctx.log("check_party_move").await;
+}
+
+pub async fn register_in_match_call(ctx: &Ctx, trainer: TrainerId) {
+    let _ = trainer;
+    ctx.log("register_in_match_call").await;
+}
+
+pub async fn special_vs(ctx: &Ctx, id: u16, trainer: TrainerId) -> u16 {
+    let _ = (id, trainer);
+    ctx.log("special_vs").await;
+    0
+}
+
 /// Gen3 `checkplayergender`: 0 male, 1 female.
 pub async fn check_player_gender(ctx: &Ctx) -> u16 {
     ctx.log("check_player_gender").await;
