@@ -1,0 +1,5 @@
+// Behaviour warnings accepted on purpose (validate honours these; see the editor upgrades in
+// docs/plans/2026-10-23-silice-content.md).
+[
+    AllowCollision(metatiles: [414], reason: "the sea around the Zenith-Grog's hull is decor, as on the Abandoned Ship's deck (which also keeps 414 solid): the gym is not surfed around"),
+]

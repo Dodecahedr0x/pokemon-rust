@@ -1,0 +1,89 @@
+// Cells: the ground plan, then the buildings (stamps and the General Center and Mart), then fixes.
+[
+    // Ground: . paving, , grass, " flowers, w pond, s sign or screen board, O the Monks' shortcut tunnel
+    // (General 167, a plain warp cell), b m n slim trees (top, trunk, base), T t Y y the forest.
+    Ascii(x: 0, y: 0, rows: [
+        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYy",
+        "Tt,,,,,,,,,,,,,,,...........,,,,,,........Tt",
+        "Yy,,,,,,,,,,,,,,,...........,wwww,........Yy",
+        "Tt..........................,wwww,........Tt",
+        "Yy..........................,wwww,........Yy",
+        "Tt..........................,,,,,,.....s..Tt",
+        "Yy..........................,,,,,,........Yy",
+        "Tt......................................TtTt",
+        "Yy..........b.....b.....................YyYy",
+        "Tt..........m.....m.....................TtTt",
+        "Yy..........n.....n.....................YyYy",
+        "Tt......................................TtTt",
+        "Yy................s.......s.............YyYy",
+        "Tt......................................TtTt",
+        "Yy......................................YyYy",
+        "Tt......................................TtTt",
+        "Yy......................................YyYy",
+        "Tt......................................TtTt",
+        "Yy......................................YyYy",
+        "Tt........................b...b.........TtTt",
+        "Yy........................m...m.........YyYy",
+        "Tt........................n...n.........TtTt",
+        "Yy......................................YyYy",
+        "Tt,,,,,,,,,,............................TtTt",
+        "YO......................................YyYy",
+        "Tt,,,,,,,,,,............................TtTt",
+        "Yy,,,,,,,,,,............................YyYy",
+        "Tt,\"\"\",,,,,,..............................Tt",
+        "Yy,,,,,,,,,,..............................Yy",
+        "Tt,\"\"\"\"\"\",,,,,,,,,,.......,,,,,,,,,,,,,,..Tt",
+        "Yy,,,,,,,,,,,\"\"\"\",,.......,,\"\"\"\"\",,,,,,,..Yy",
+        "Ttb,,b,,b,,b,,,,,,,.......,,,,,,,,,,,,,,..Tt",
+        "Yym..m..m..m,,,,,,,.......,b,,b,,b\"\"b\"\"b..Yy",
+        "Ttn..n..n..n,,,,,,,.......sn,,n,,n,,n,,n..Tt",
+        "Yy........................................Yy",
+        "TtTtTtTtTtTtTtTtTtTtT...TtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyY...YyYyYyYyYyYyYyYyYyYy",
+    ], legend: {'"': (metatile: 4, collision: 0), ',': (metatile: 1, collision: 0), '.': (metatile: 265, collision: 0), 'O': (metatile: 167, collision: 0), 'T': (metatile: 468, collision: 1), 'Y': (metatile: 476, collision: 1), 'b': (metatile: 14, collision: 1), 'm': (metatile: 198, collision: 1), 'n': (metatile: 22, collision: 1), 's': (metatile: 3, collision: 1), 't': (metatile: 469, collision: 1), 'w': (metatile: 368, collision: 0, elevation: 1), 'y': (metatile: 477, collision: 1)}),
+    // BIBLIOTHEQUE ANCESTRALE: the Battle Palace pagoda, x 17-27, y 1-7, door (22, 7).
+    Stamp(x: 17, y: 1, name: "ms_pagoda"),
+    // The pagoda's base row is walkable in Emerald (an elevation trick); here it is solid, and the stamp's
+    // bottom row keeps only the door and its frame.
+    Rect(x: 17, y: 6, w: 4, h: 1, collision: 1),
+    Rect(x: 24, y: 6, w: 4, h: 1, collision: 1),
+    Ascii(x: 17, y: 7, rows: ["...."], legend: {'.': (metatile: 265, collision: 0)}),
+    Ascii(x: 24, y: 7, rows: ["...."], legend: {'.': (metatile: 265, collision: 0)}),
+    // GRAND TORII (north-east), x 34-40, y 1-5; passage x 36-38. Its posts and side panels are solid.
+    Stamp(x: 34, y: 1, name: "ms_gate"),
+    Rect(x: 34, y: 3, w: 2, h: 3, collision: 1),
+    Rect(x: 39, y: 3, w: 2, h: 3, collision: 1),
+    // The beam's ends (x 34 and 40, y 1-2) are solid too, so the passage is entered only from y 6, across
+    // Manga_Square_Sc02's three cells (rows 1-2 would otherwise join it to the pond and the east path).
+    Rect(x: 34, y: 1, w: 1, h: 2, collision: 1),
+    Rect(x: 40, y: 1, w: 1, h: 2, collision: 1),
+    // Street torii (Rue des Echoppes), x 3-9, y 5-9; passage x 5-7.
+    Stamp(x: 3, y: 5, name: "ms_gate"),
+    Rect(x: 3, y: 7, w: 2, h: 3, collision: 1),
+    Rect(x: 8, y: 7, w: 2, h: 3, collision: 1),
+    // Dojo torii, x 33-39, y 20-24; passage x 35-37.
+    Stamp(x: 33, y: 20, name: "ms_gate"),
+    Rect(x: 33, y: 22, w: 2, h: 3, collision: 1),
+    Rect(x: 38, y: 22, w: 2, h: 3, collision: 1),
+    // Torii Sud, x 19-25, y 32-36; passage x 21-23, then the south exit.
+    Stamp(x: 19, y: 32, name: "ms_gate"),
+    Rect(x: 19, y: 34, w: 2, h: 3, collision: 1),
+    Rect(x: 24, y: 34, w: 2, h: 3, collision: 1),
+    // GRAND DOJO: the Battle Arena hall on its deck, x 32-40, y 10-18, door (36, 16), steps x 35-37.
+    Stamp(x: 32, y: 10, name: "ms_dojo"),
+    // DRAGON STATUE: the fenced boulder, x 20-24, y 14-16 (a placeholder for a jade dragon).
+    Stamp(x: 20, y: 14, name: "ms_rock_pen"),
+    // KONBINI (General's Mart), x 2-5, y 11-14, door (3, 14).
+    Ascii(x: 2, y: 11, rows: ["abcd", "efgh", "ijkl", "mnop"], legend: {'a': (metatile: 40, collision: 0), 'b': (metatile: 41, collision: 0), 'c': (metatile: 42, collision: 0), 'd': (metatile: 43, collision: 0), 'e': (metatile: 48, collision: 1), 'f': (metatile: 49, collision: 1), 'g': (metatile: 50, collision: 1), 'h': (metatile: 51, collision: 1), 'i': (metatile: 56, collision: 1), 'j': (metatile: 57, collision: 1), 'k': (metatile: 58, collision: 1), 'l': (metatile: 59, collision: 1), 'm': (metatile: 64, collision: 1), 'n': (metatile: 65, collision: 1), 'o': (metatile: 66, collision: 1), 'p': (metatile: 67, collision: 1)}),
+    // TOILETTEUR "Kawaii Grooming" (a Frontier house), x 8-10, y 11-14, door (9, 14).
+    Stamp(x: 8, y: 11, name: "ms_house_small"),
+    // MAP_MANGA_SQUARE_HOUSE_1 (no content yet: the door is solid and has no warp), x 2-4, y 18-21, door (3, 21).
+    Stamp(x: 2, y: 18, name: "ms_house_small"),
+    // MAP_MANGA_SQUARE_HOUSE_2 (no content yet), x 6-11, y 18-21, door (7, 21).
+    Stamp(x: 6, y: 18, name: "ms_house_long"),
+    // CENTRE POKeMON (General's), x 14-17, y 20-23, door (15, 23).
+    Ascii(x: 14, y: 20, rows: ["abcd", "efgh", "ijkl", "mnop"], legend: {'a': (metatile: 72, collision: 0), 'b': (metatile: 73, collision: 0), 'c': (metatile: 74, collision: 0), 'd': (metatile: 75, collision: 0), 'e': (metatile: 80, collision: 1), 'f': (metatile: 81, collision: 1), 'g': (metatile: 82, collision: 1), 'h': (metatile: 83, collision: 1), 'i': (metatile: 88, collision: 1), 'j': (metatile: 89, collision: 1), 'k': (metatile: 90, collision: 1), 'l': (metatile: 91, collision: 1), 'm': (metatile: 96, collision: 1), 'n': (metatile: 97, collision: 1), 'o': (metatile: 98, collision: 1), 'p': (metatile: 99, collision: 1)}),
+    // The flower planter on the south square.
+    Stamp(x: 27, y: 26, name: "ms_planter"),
+]

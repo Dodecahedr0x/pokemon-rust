@@ -1,0 +1,20 @@
+// Header, the gangway warp, the two deck grunts, the terminal, the PP Up and Crow's crate.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the gangway steps (3, 13) and (4, 13), back to Port-Ressac's cargo stairs (its warp 2).
+    Warp(x: 3, y: 13, dest_map: "PortRessac", dest_warp: 2),
+    Warp(x: 4, y: 13, dest_map: "PortRessac", dest_warp: 2),
+    // 1: Sbire Cargo_1 on the deck, watching the way up from the gangway.
+    Object(x: 2, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NAVIRE_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_NavireCocket_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    // 2: Sbire Cargo_2 at the foot of the stairs (6-7, 8).
+    Object(x: 9, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NAVIRE_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_NavireCocket_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    // 3: the PP Up in the terminal room.
+    Object(x: 22, y: 6, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NAVIRE_PP_PLUS", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "PortRessac_NavireCocket_EventScript_PpPlus", flag: "FLAG_SIL_ITEM_PORT_NAVIRE_PP_PLUS"),
+    // Port_Ressac_Navire_Sc01: the terminal (the green wall screens), read from (19-20, 2).
+    Sign(x: 19, y: 1, script: "PortRessac_NavireCocket_Sc01"),
+    Sign(x: 20, y: 1, script: "PortRessac_NavireCocket_Sc01"),
+    // Crow's crate: the silica stack at (7, 4), read from (7, 5). A hidden item, the method the
+    // source's §7 gives; Gen3's hidden item has its own found-item text, so Port_Ressac_Navire_Caisse
+    // is not shown (see the Ch4 notes).
+    HiddenItem(x: 7, y: 4, item: "ITEM_LUCKY_PUNCH", flag: "FLAG_SIL_ITEM_PORT_NAVIRE_POING_CHANCE"),
+]

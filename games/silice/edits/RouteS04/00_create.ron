@@ -1,0 +1,6 @@
+// Silice Ch4, MAP_ROUTE_S04: the Tunnel de Verre (60 x 20, the source's size), a dark maintenance
+// tunnel from Viber-City (west) to Port-Ressac (east): the hall, the glass gallery along a black
+// canal, the scree ramp. General + Cave (Emerald tilesets by name): Granite Cave's set, the dark cave
+// the source cites (it needs the Flash module), with its rock walls, scree and cave mouths; the
+// canal is General's water inside the cave, as in Shoal Cave at high tide. Border: solid rock.
+(name: "RouteS04", width: 60, height: 20, primary: "General", secondary: "Cave", fill: 529, border: [1553, 1553, 1553, 1553])

@@ -1,0 +1,32 @@
+// Cells: the wall (scroll, giant screen, back door), the stage, the queue's ribbons, the stands, the mats.
+[
+    // . tatami, W w v wall (L l m lattice windows), ^ | S the scroll, 1-6 the giant screen, d D e E the back door,
+    // the stage (Emerald's training court, 552-591), ( ) the ribbon barrier, c counters, p bonsai planters,
+    // M the training mat, < A > the exit mat.
+    Ascii(x: 0, y: 0, rows: [
+        "WWWLWWW^WWWLWWWLWWWWWWWWWWWWWW",
+        "wwwlwww|wwwlwwwlwwww123wwwwdDw",
+        "vvvmvvvSvvvmvvvmvvvv456vvvveEv",
+        "p.........................p..p",
+        "..........................p.pp",
+        "..............................",
+        "..ccc..ccc....................",
+        "..............................",
+        "..............................",
+        "..............................",
+        "..............................",
+        "............())))))(..........",
+        "..ccc....p....................",
+        "..............................",
+        "...........p..................",
+        "............MMM...............",
+        "............MMM...............",
+        "..............................",
+        "..............................",
+        "..............................",
+        "p............................p",
+        "...<A>........................",
+    ], legend: {'(': (metatile: 630, collision: 1), ')': (metatile: 629, collision: 1), '.': (metatile: 513, collision: 0), '1': (metatile: 657, collision: 1), '2': (metatile: 658, collision: 1), '3': (metatile: 659, collision: 1), '4': (metatile: 665, collision: 1), '5': (metatile: 666, collision: 1), '6': (metatile: 667, collision: 1), '<': (metatile: 668, collision: 0), '>': (metatile: 670, collision: 0), 'A': (metatile: 669, collision: 0), 'D': (metatile: 532, collision: 1), 'E': (metatile: 540, collision: 1), 'L': (metatile: 593, collision: 1), 'M': (metatile: 638, collision: 0), 'S': (metatile: 612, collision: 1), 'W': (metatile: 592, collision: 1), '^': (metatile: 600, collision: 1), 'c': (metatile: 533, collision: 1), 'd': (metatile: 531, collision: 1), 'e': (metatile: 539, collision: 1), 'l': (metatile: 601, collision: 1), 'm': (metatile: 609, collision: 1), 'p': (metatile: 653, collision: 1), 'v': (metatile: 608, collision: 1), 'w': (metatile: 600, collision: 1), '|': (metatile: 604, collision: 1)}),
+    // The stage: Emerald's training court (552-591), x 18-25, y 4-8.
+    Ascii(x: 18, y: 4, rows: ["abcdefgh", "ijklmnop", "qrstuvwx", "yzABCDEF", "GHIJKLMN"], legend: {'a': (metatile: 552, collision: 0), 'b': (metatile: 553, collision: 0), 'c': (metatile: 554, collision: 0), 'd': (metatile: 555, collision: 0), 'e': (metatile: 556, collision: 0), 'f': (metatile: 557, collision: 0), 'g': (metatile: 558, collision: 0), 'h': (metatile: 559, collision: 0), 'i': (metatile: 560, collision: 0), 'j': (metatile: 561, collision: 0), 'k': (metatile: 562, collision: 0), 'l': (metatile: 563, collision: 0), 'm': (metatile: 564, collision: 0), 'n': (metatile: 565, collision: 0), 'o': (metatile: 566, collision: 0), 'p': (metatile: 567, collision: 0), 'q': (metatile: 568, collision: 0), 'r': (metatile: 569, collision: 0), 's': (metatile: 570, collision: 0), 't': (metatile: 571, collision: 0), 'u': (metatile: 572, collision: 0), 'v': (metatile: 573, collision: 0), 'w': (metatile: 574, collision: 0), 'x': (metatile: 575, collision: 0), 'y': (metatile: 576, collision: 0), 'z': (metatile: 577, collision: 0), 'A': (metatile: 578, collision: 0), 'B': (metatile: 579, collision: 0), 'C': (metatile: 580, collision: 0), 'D': (metatile: 581, collision: 0), 'E': (metatile: 582, collision: 0), 'F': (metatile: 583, collision: 0), 'G': (metatile: 584, collision: 0), 'H': (metatile: 585, collision: 0), 'I': (metatile: 586, collision: 0), 'J': (metatile: 587, collision: 0), 'K': (metatile: 588, collision: 0), 'L': (metatile: 589, collision: 0), 'M': (metatile: 590, collision: 0), 'N': (metatile: 591, collision: 0)}),
+]
