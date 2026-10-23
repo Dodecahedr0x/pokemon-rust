@@ -402,6 +402,44 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             degraded(ctx, id).await;
             ctx.set_var(VAR_RESULT, START_MENU_POKENAV).await;
         }
+        id if id == SPECIAL_TryFieldPoisonWhiteOut => {
+            // `Task_TryFieldPoisonWhiteOut` (`field_poison.c`): `FaintFromFieldPoison` (status
+            // cleared, `FRIENDSHIP_EVENT_FAINT_FIELD_PSN`) already ran with the step
+            // (`crate::step_count`); its "{STR_VAR_1} fainted…" message
+            // (`gText_PkmnFainted_FldPsn`, a C string) is not shown. Then `AllMonsFainted`.
+            // No battle facility: never `FLDPSN_FRONTIER_WHITEOUT`.
+            degraded(ctx, id).await;
+            let mut all_fainted = true;
+            for slot in 0..PARTY_SIZE as u8 {
+                if ctx.query(Query::PartySpecies(slot)).await != 0
+                    && ctx.query(Query::PartyHp(slot)).await != 0
+                {
+                    all_fainted = false;
+                    break;
+                }
+            }
+            let result = if all_fainted {
+                FLDPSN_WHITEOUT
+            } else {
+                FLDPSN_NO_WHITEOUT
+            };
+            ctx.set_var(VAR_RESULT, result).await;
+        }
+        id if id == SPECIAL_SetCB2WhiteOut => {
+            // `SetCB2WhiteOut`: `CB2_WhiteOut` then `DoWhiteOut`; the script ends there.
+            ctx.field_whiteout().await;
+        }
+        id if id == SPECIAL_OpenPokenavForTutorial => {
+            // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): the
+            // tutorial forces the call to Mr. Stone, whose first text
+            // (`sMrStoneTextScripts[0]`, `pokenav_match_call_data.c`) sets
+            // `FLAG_ENABLE_MR_STONE_POKENAV`. No PokéNav screen: the flag only.
+            degraded(ctx, id).await;
+            let Some(flag) = story::MR_STONE_POKENAV else {
+                return not_in_game(ctx, id).await;
+            };
+            ctx.set_flag(flag, true).await;
+        }
         // ---- Wave C: specials that read the player's state (`Request::Query`) ----
         id if id == SPECIAL_ScriptGetPokedexInfo => {
             // `birch_pc.c`: the Hoenn counts for VAR_0x8004 0, else the National ones.
@@ -803,6 +841,9 @@ mod mauville_gym {
 
 /// Gen3 `PARTY_SIZE`.
 const PARTY_SIZE: u16 = engine::script::PARTY_SIZE;
+/// Gen3 `FLDPSN_NO_WHITEOUT` / `FLDPSN_WHITEOUT` (`include/constants/field_poison.h`).
+const FLDPSN_NO_WHITEOUT: u16 = 0;
+const FLDPSN_WHITEOUT: u16 = 1;
 /// Gen3 `MAX_TOTAL_EVS`.
 const MAX_TOTAL_EVS: u16 = 510;
 /// Gen3 `NUM_FRONTIER_FACILITIES`.
@@ -829,6 +870,7 @@ mod story {
     pub const DAILY_PICKED_BERRIES: Option<VarId> = None;
     pub const DAILY_PLANTED_BERRIES: Option<VarId> = None;
     pub const HAS_MATCH_CALL: Option<FlagId> = None;
+    pub const MR_STONE_POKENAV: Option<FlagId> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
 }
