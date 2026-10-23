@@ -117,6 +117,8 @@ symbols! {
     /// `struct MonSummaryScreenData *` (`pokemon_summary_screen.c`): `newMove` at +0x40C4,
     /// `firstMoveIndex` (the forget-a-move cursor) at +0x40C6.
     mon_summary_screen = "sMonSummaryScreen" @ 0x0203cf1c,
+    /// A Match Call on the field (the PokéNav window's text waits for A).
+    task_match_call = "ExecuteMatchCall" @ 0x081960e0,
     /// The PokéNav's main callback.
     cb2_pokenav = "CB2_Pokenav" @ 0x081c7400,
     /// `struct PokenavResources *`: `mode` at +8.

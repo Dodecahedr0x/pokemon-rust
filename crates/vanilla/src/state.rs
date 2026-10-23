@@ -405,6 +405,9 @@ impl Vanilla {
             if tasks.contains(&s.task_multichoice) {
                 return Mode::Multichoice;
             }
+            if tasks.contains(&s.task_match_call) {
+                return Mode::Message;
+            }
             if self.fade_active() {
                 return Mode::Transition;
             }

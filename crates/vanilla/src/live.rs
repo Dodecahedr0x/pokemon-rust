@@ -523,10 +523,32 @@ impl<'g, G: GameData> Live<'g, G> {
         for _ in 0..RETRIES {
             self.v.settle(MACRO_FRAMES)?;
             let map = self.map()?;
-            let o = (0..crate::state::layout::OBJECT_EVENTS)
-                .filter_map(|i| self.v.object_event(i))
-                .find(|o| !o.is_player && o.visible && o.map == map && o.local_id == local_id)
-                .ok_or_else(|| anyhow!("talk: no object {local_id} on {}", map_name(map)))?;
+            let Some(o) = self.object(local_id)? else {
+                // Gen3 spawns objects only near the camera: walk next to an unspawned one's
+                // template cell first (as `explore::spine::Exec` does).
+                let t = (self.game.map(map).objects.iter())
+                    .find(|t| t.local_id == local_id)
+                    .ok_or_else(|| anyhow!("talk: no object {local_id} on {}", map_name(map)))?;
+                let mut side = None;
+                for d in Dir::ALL {
+                    let (dx, dy) = d.delta();
+                    let c = (t.x - dx, t.y - dy);
+                    if self.reachable(map, c)? {
+                        side = Some(c);
+                        break;
+                    }
+                }
+                let c = side.ok_or_else(|| {
+                    anyhow!("talk: object {local_id} unspawned, no way next to its home")
+                })?;
+                self.v.walk_to(self.game, c, MACRO_FRAMES)?;
+                ensure!(
+                    self.object(local_id)?.is_some(),
+                    "talk: no object {local_id} on {} at its home",
+                    map_name(map)
+                );
+                continue;
+            };
             let overrides = self.v.overrides(self.game, map);
             let occupied = self.v.occupied(map);
             let me = self.cell()?;
