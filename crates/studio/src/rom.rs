@@ -838,8 +838,14 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_secs(3));
         let s = h.status.get();
         let seq = h.frames.seq();
-        // Walking changes the picture (an idle field may not).
-        h.send(RomCmd::Keys(Buttons::LEFT));
+        // Walking changes the picture (an idle field may not). Silice starts in the bar with a
+        // customer west of the player: walk south instead.
+        let walk = if cfg!(pkr_silice) {
+            Buttons::DOWN
+        } else {
+            Buttons::LEFT
+        };
+        h.send(RomCmd::Keys(walk));
         std::thread::sleep(std::time::Duration::from_secs(1));
         let more = h.frames.seq() - seq;
         let s2 = h.status.get();
