@@ -20,6 +20,10 @@ pub struct Opts {
     /// of the first damaging one (the spine's `Battle(Best)`).
     #[serde(default)]
     pub best_move: bool,
+    /// Learn a level-up move when it hits harder than the weakest known one, forgetting that
+    /// one (the spine's `Battle(BestLearn)`); else keep the known moves.
+    #[serde(default)]
+    pub learn: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
