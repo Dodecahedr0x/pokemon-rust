@@ -1,0 +1,8 @@
+// Made with the Ch4 scripts. The hidden Ether under M6 (50, 3) becomes a sign running
+// RouteS04_EventScript_HiddenEther: the engine ignores BgKind::HiddenItem (the SIL1 Task F
+// fallback). Restore with:
+//     HiddenItem(x: 50, y: 3, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S04_ETHER"),
+[
+    Delete(kind: Bg, index: 10),
+    Sign(x: 50, y: 3, script: "RouteS04_EventScript_HiddenEther"),
+]

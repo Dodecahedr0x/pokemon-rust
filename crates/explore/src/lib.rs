@@ -42,5 +42,6 @@ pub mod softlock; // Task E
 #[doc(hidden)]
 pub mod testing; // Task E: fault-injection GameData wrappers
 pub mod wire; // Task G (Wave 2): Evaluate/sim/db glue
+pub mod workers; // Deterministic worker pool (explorer speed work)
 
 pub use model::*;

@@ -1,0 +1,9 @@
+// Made with the Ch4 scripts. Crow's crate (7, 4) becomes a sign running
+// PortRessac_NavireCocket_EventScript_CaisseCorbeau: the engine ignores BgKind::HiddenItem (the
+// SIL1 Task F fallback), and the sign also shows the crate's own text (Port_Ressac_Navire_Caisse).
+// Restore with:
+//     HiddenItem(x: 7, y: 4, item: "ITEM_LUCKY_PUNCH", flag: "FLAG_SIL_ITEM_PORT_NAVIRE_POING_CHANCE"),
+[
+    Delete(kind: Bg, index: 2),
+    Sign(x: 7, y: 4, script: "PortRessac_NavireCocket_EventScript_CaisseCorbeau"),
+]

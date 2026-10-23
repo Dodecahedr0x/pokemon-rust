@@ -16,8 +16,8 @@ mod silice_spine;
 
 use silice_spine::{Run, ch00, ch01};
 
-/// Every frame of the run, at most (the training is most of it).
-const FRAME_LIMIT: u64 = 400_000;
+/// Every frame of the run, at most (the training is most of it; the run ends at about 217 000).
+const FRAME_LIMIT: u64 = 300_000;
 
 #[test]
 fn chapter_1_plays_from_the_bois_ether_edge_to_the_open_barrier() {
@@ -25,4 +25,5 @@ fn chapter_1_plays_from_the_bois_ether_edge_to_the_open_barrier() {
     r.play(&ch00::steps());
     r.play(&ch01::steps());
     ch01::check_end(&r);
+    eprintln!("frames {}", r.frame);
 }

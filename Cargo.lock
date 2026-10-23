@@ -6040,6 +6040,7 @@ dependencies = [
  "ron",
  "rustc-demangle",
  "serde",
+ "serde_json",
  "tempfile",
 ]
 

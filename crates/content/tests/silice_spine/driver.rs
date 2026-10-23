@@ -11,11 +11,11 @@ use core::cell::RefCell;
 use engine::World;
 use engine::battle::calc::type_effect;
 use engine::battle::scene::OpenMenu;
-use engine::battle::{Battle, BattleOutcome, Side};
+use engine::battle::{Battle, BattleOutcome, Need, Side};
 use engine::data::{
     Behavior, Dir, Emote, Evolution, FlagId, Font, FormChange, GameData, GfxId, ItemId, ItemInfo,
-    MapData, MapId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId,
-    UiText, WindowGfx, block_collision,
+    MapData, MapId, MoveId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId,
+    TrainerId, UiText, WindowGfx, block_collision,
 };
 use engine::input::Buttons;
 use engine::mon::{BattleTables, Status};
@@ -204,6 +204,9 @@ pub struct Run {
     pub degraded: BTreeSet<&'static str>,
     /// The index the next choice takes ([`Step::Choose`]; the starter screen's ball).
     choice: u8,
+    /// Whether a lost (or drawn) battle is expected: a run that tests a defeat branch. Off by
+    /// default: a spine wins every battle, and a loss fails the run at once.
+    pub allow_losses: bool,
 }
 
 impl Run {
@@ -231,6 +234,7 @@ impl Run {
             battles: Vec::new(),
             degraded: BTreeSet::new(),
             choice: 0,
+            allow_losses: false,
         }
     }
 
@@ -276,8 +280,11 @@ impl Run {
                 self.degraded.insert(*name);
             }
             if let Event::BattleEnded(o) = e {
+                if std::env::var_os("SPINE_DEBUG").is_some() {
+                    self.log_battle(*o);
+                }
                 assert!(
-                    !matches!(o, BattleOutcome::Lost | BattleOutcome::Drew),
+                    self.allow_losses || !matches!(o, BattleOutcome::Lost | BattleOutcome::Drew),
                     "a battle was lost at frame {} on {:?}",
                     self.frame,
                     self.w.map()
@@ -298,6 +305,25 @@ impl Run {
             self.w.field_active(),
             self.battles.len(),
         );
+    }
+
+    /// `SPINE_DEBUG=1`: a battle's outcome, both parties' levels and HP, and the player's
+    /// moves (for tuning the training levels and hooks).
+    fn log_battle(&self, o: BattleOutcome) {
+        eprintln!("battle {o:?} at frame {} on {:?}", self.frame, self.w.map());
+        for m in self.w.party().iter() {
+            let (hp, max) = (m.hp, m.stats[0]);
+            eprintln!(
+                "  {:?} lv {} hp {hp}/{max} {:?}",
+                m.species, m.level, m.moves
+            );
+        }
+        if let Some((_, b, _)) = self.w.battle() {
+            for m in b.party(Side::Opponent).iter() {
+                let (hp, max) = (m.hp, m.stats[0]);
+                eprintln!("  foe {:?} lv {} hp {hp}/{max}", m.species, m.level);
+            }
+        }
     }
 
     pub fn pos(&self) -> (i16, i16) {
@@ -339,8 +365,9 @@ impl Run {
     }
 
     /// The settle policy's next key: the starter screen moves to the [`Step::Choose`] ball then
-    /// confirms; a battle menu fights with [`best_move`], keeps the known moves when a new one
-    /// needs a slot (B), and stops learning (yes); everything else is A (text, yes/no on yes).
+    /// confirms; a battle menu fights with [`best_move`]; when a new move needs a slot, forgets
+    /// [`learn_slot`]'s move, or keeps the known moves (B, then "stop learning?" yes);
+    /// everything else is A (text, yes/no on yes).
     fn key(&self) -> Buttons {
         if let Some(st) = self.w.starter() {
             return match st.selection().cmp(&self.choice) {
@@ -355,7 +382,17 @@ impl Run {
         match scene.open_menu() {
             Some(OpenMenu::Action(c)) => toward(c, 0),
             Some(OpenMenu::Move(c)) => toward(c, best_move(battle, Game.battle())),
-            Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_)) => Buttons::B,
+            // A learn prompt: yes (then the slot) when [`learn_slot`] finds a move to forget.
+            Some(OpenMenu::LearnAsk(c)) => match learn_slot(battle, Game.battle()) {
+                Some(_) if c != 0 => Buttons::UP,
+                Some(_) => Buttons::A,
+                None => Buttons::B,
+            },
+            Some(OpenMenu::LearnPick(c)) => match learn_slot(battle, Game.battle()) {
+                Some(_) if c == 4 => Buttons::LEFT,
+                Some(slot) => toward(c, slot),
+                None => Buttons::B,
+            },
             Some(OpenMenu::StopAsk(0)) => Buttons::A,
             Some(OpenMenu::StopAsk(_)) => Buttons::UP,
             None => Buttons::A,
@@ -454,9 +491,25 @@ impl Run {
             if p == target {
                 return;
             }
-            let d = self.plan(p, target, avoid).unwrap_or_else(|| {
-                panic!("no way from {p:?} to {target:?} on {map:?}");
-            });
+            // A wandering NPC can close the only way for a while (the Casino's (6–8, 9)): wait
+            // for it, up to [`WAIT_FOR_WAY`] frames (deterministic: the world steps as always).
+            let mut waited = 0;
+            let d = loop {
+                if let Some(d) = self.plan(p, target, avoid) {
+                    break d;
+                }
+                assert!(
+                    waited < WAIT_FOR_WAY,
+                    "no way from {p:?} to {target:?} on {map:?} after {WAIT_FOR_WAY} frames"
+                );
+                if self.busy() {
+                    self.settle();
+                    assert_eq!(self.w.map(), map, "walking to {target:?} left the map");
+                } else {
+                    self.step(Buttons::NONE);
+                }
+                waited += 1;
+            };
             let mut n = 0;
             while self.pos() == p && !self.busy() && n < 40 {
                 self.step(dir_button(d));
@@ -514,6 +567,10 @@ impl Run {
     }
 }
 
+/// How long [`Run::walk_to`] waits for a way to open (a wanderer in a one-cell corridor; the
+/// Casino's has been measured closing it for 450 frames).
+const WAIT_FOR_WAY: u32 = 1200;
+
 /// The key that moves a 2x2 battle menu cursor from `c` toward `want` (column first, then row),
 /// or A once it is there (the explorer's `policy::toward`).
 fn toward(c: u8, want: u8) -> Buttons {
@@ -569,6 +626,37 @@ pub fn best_move(battle: &Battle, t: &BattleTables) -> u8 {
     best.map(|(_, i)| i)
         .or_else(|| (0..4).find(|&i| usable(i)))
         .unwrap_or(0) as u8
+}
+
+/// A move's worth outside any matchup, for learning: power × accuracy, ×1.5 for the same type
+/// as `species` (0 for a move without power).
+fn move_worth(t: &BattleTables, species: SpeciesId, m: MoveId) -> i64 {
+    let m = t.move_info(m);
+    let stab = if t.species_info(species).types.contains(&m.ty) {
+        3
+    } else {
+        2
+    };
+    let accuracy = if m.accuracy == 0 { 100 } else { m.accuracy };
+    i64::from(m.power) * i64::from(accuracy) * stab
+}
+
+/// The battle policy's answer to "forget a move to learn the new one?" (`Need::LearnMove`):
+/// the slot of the weakest damaging move ([`move_worth`]; the lowest slot on a tie) when the
+/// new move is worth more, else `None` (keep the known moves). Moves without power are never
+/// forgotten nor learned this way; no field ability is a move in Silice (Cut, Strength and
+/// Flash are the Mallette's modules, flags), so no move is kept for the scripts.
+pub fn learn_slot(battle: &Battle, t: &BattleTables) -> Option<u8> {
+    let Need::LearnMove { party, mov } = battle.need() else {
+        return None;
+    };
+    let mon = battle.party(Side::Player).get(party as usize)?;
+    let worth = |m| move_worth(t, mon.species, m);
+    let (weakest, slot) = (0..4)
+        .filter_map(|i| mon.moves[i].map(|m| (worth(m), i)))
+        .filter(|&(w, _)| w > 0)
+        .min()?;
+    (worth(mov) > weakest).then_some(slot as u8)
 }
 
 fn dir_button(d: Dir) -> Buttons {
