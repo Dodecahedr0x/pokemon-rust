@@ -86,6 +86,7 @@ impl MetatileBehavior {
         Some(match self.class {
             Behavior::Door => 'D',
             Behavior::Warp
+            | Behavior::PadWarp
             | Behavior::NonAnimDoor(_)
             | Behavior::Ladder
             | Behavior::Escalator(_)
@@ -120,6 +121,7 @@ impl MetatileBehavior {
         match self.class {
             Behavior::Door => "door",
             Behavior::Warp => "warp",
+            Behavior::PadWarp => "pad warp",
             Behavior::NonAnimDoor(_) => "non-animated door",
             Behavior::Ladder => "ladder",
             Behavior::Escalator(_) => "escalator",
@@ -161,6 +163,7 @@ impl MetatileBehavior {
             // player pushes against it).
             Behavior::Door => None,
             Behavior::Warp
+            | Behavior::PadWarp
             | Behavior::NonAnimDoor(_)
             | Behavior::Ladder
             | Behavior::Escalator(_)

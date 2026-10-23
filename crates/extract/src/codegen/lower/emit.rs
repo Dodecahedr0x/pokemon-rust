@@ -879,6 +879,27 @@ impl<'a> Low<'a> {
                 };
                 out.push(format!("ctx.set_map_layout({e}).await;{note}"));
             }
+            // Wave F: the rotating tile puzzle (`prelude::puzzle` picks the puzzle's metatiles).
+            ("initrotatingtilepuzzle", [t]) => {
+                let Some(t) = u16_expr(t, true) else {
+                    return Ok(false);
+                };
+                out.push(format!("rotating_tile_puzzle(&ctx, {t}).await;"));
+            }
+            ("moverotatingtileobjects", [n]) => {
+                let Some(n) = u16_expr(n, true) else {
+                    return Ok(false);
+                };
+                // `sMovingNpcId`: the last object it moved is `waitmovement 0`'s.
+                st.moved = true;
+                out.push(format!("ctx.rotating_tiles_move({n}).await;"));
+            }
+            ("turnrotatingtileobjects", _) => {
+                out.push("ctx.rotating_tiles_turn().await;".to_string())
+            }
+            ("freerotatingtilepuzzle", _) => {
+                out.push("ctx.rotating_tiles_free().await;".to_string())
+            }
             ("copyobjectxytoperm", [id]) => {
                 let Some(id) = local_id(id) else {
                     return Ok(false);

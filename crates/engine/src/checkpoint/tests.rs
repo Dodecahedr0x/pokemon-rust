@@ -210,6 +210,7 @@ fn sample() -> Checkpoint {
                 watered: 0b0101,
             },
         }],
+        map_layout: Some(291),
     };
     Checkpoint {
         header: Header {
@@ -234,7 +235,7 @@ fn hex(bytes: &[u8]) -> String {
 /// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
 /// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
-    "05ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
+    "06ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
     "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a81040101031e",
     "01030202ff03000a0c0a0e030000000a0c010201000001000101040007000201",
     "0101030203010710061006030002100601020100000001110000000102011006",
@@ -245,10 +246,10 @@ const GOLDEN_POSTCARD: &str = concat!(
     "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a101030008010001018b010102010000",
     "000003020080010201000de70701011d8202f8acd191018de0b75dd4d4cec9ca",
     "ffffffffffff8701c198c862000000000000212d00002328000000460000018f",
-    "4e0183020103070501d005020005",
+    "4e0183020103070501d00502000501a302",
 );
 const GOLDEN_RON: &str = concat!(
-    "(header:(schema:5,build:(engine:81985529216486895,content:42),frame:1234,",
+    "(header:(schema:6,build:(engine:81985529216486895,content:42),frame:1234,",
     "world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,input:(held:(64),",
     "pressed:(0)),runner_issued:9,player_name:(187,188,189,255,255,255,255,255),",
     "player_id:195948557,field:(map:(3),camera:(-16,32),drawn:Some((-1,-2,15,11)),ring:(3,4),",
@@ -279,7 +280,7 @@ const GOLDEN_RON: &str = concat!(
     "evs:(0,0,0,0,0,0),moves:(33,45,0,0),pp:(35,40,0,0),pp_bonuses:0,friendship:70,",
     "ability_slot:0,held:None))],current_box:1),coins:9999,registered_item:Some((259)),",
     "berry_trees:[(id:3,tree:(berry:7,stage:5,stop_growth:true,minutes_until_next_stage:720,",
-    "berry_yield:2,regrowth_count:0,watered:5))]))",
+    "berry_yield:2,regrowth_count:0,watered:5))],map_layout:Some(291)))",
 );
 
 #[test]
@@ -288,7 +289,7 @@ fn golden_postcard_bytes() {
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
     assert_eq!(encoded_len(&sample()), bytes.len());
-    assert_eq!(SCHEMA, 5);
+    assert_eq!(SCHEMA, 6);
 }
 
 /// The CONTINUE window's data: the name, the species caught, the badges among the set flags.
@@ -323,7 +324,7 @@ fn schema_3_ron_reads_without_m9_fields() {
     let mut cp = sample_m9_default();
     let ron = ron::to_string(&cp).unwrap();
     let start = ron.find(",options:").unwrap();
-    let v3 = format!("{}))", &ron[..start]).replacen("schema:5", "schema:3", 1);
+    let v3 = format!("{}))", &ron[..start]).replacen("schema:6", "schema:3", 1);
     let back: Checkpoint = ron::from_str(&v3).unwrap();
     cp.header.schema = 3;
     assert_eq!(back, cp);
@@ -346,7 +347,7 @@ fn encoding_starts_with_the_schema() {
 #[test]
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
-    for old_or_new in [1, 6] {
+    for old_or_new in [1, 7] {
         cp.header.schema = old_or_new;
         assert_eq!(
             decode(&encode(&cp)),
@@ -354,17 +355,19 @@ fn another_schema_is_refused_before_decoding() {
         );
     }
     // Only the schema is read: a newer layout behind it does not matter.
-    let mut bytes = postcard::to_allocvec(&6u16).unwrap();
+    let mut bytes = postcard::to_allocvec(&7u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 6 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 7 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
     assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
 }
 
-/// `sample()` with the schema 4 fields at a new game's values and no berry trees.
+/// `sample()` with the schema 4 fields at a new game's values, no berry trees and no layout
+/// override.
 fn sample_m9_default() -> Checkpoint {
     let mut cp = sample();
+    cp.world.map_layout = None;
     cp.world.berry_trees.clear();
     cp.world.options = None;
     cp.world.pokedex = PokedexSnap::default();
@@ -375,37 +378,38 @@ fn sample_m9_default() -> Checkpoint {
     cp
 }
 
-/// A schema-2 checkpoint is a schema-5 one without held items, Milestone 9 state and berry
-/// trees, minus the trailing empty `party_held`, `M9_DEFAULT_TAIL` and the empty berry trees: it
-/// decodes (as schema 5), and its digest is the schema-2 bytes' digest.
+/// A schema-2 checkpoint is a schema-6 one without held items, Milestone 9 state, berry trees
+/// and layout override, minus the trailing empty `party_held`, `M9_DEFAULT_TAIL`, the empty
+/// berry trees and the `None` layout: it decodes (as schema 6), and its digest is the schema-2
+/// bytes' digest.
 #[test]
-fn schema_2_reads_as_5_without_held_items() {
+fn schema_2_reads_as_6_without_held_items() {
     let mut cp = sample_m9_default();
     cp.world.party_held.clear();
     let v5 = encode(&cp);
-    let tail = 1 + M9_DEFAULT_TAIL.len() + 1;
+    let tail = 1 + M9_DEFAULT_TAIL.len() + 2;
     assert!(v5[v5.len() - tail..].iter().all(|&b| b == 0));
     let mut v2 = v5[..v5.len() - tail].to_vec();
-    assert_eq!(v2[0], 5);
+    assert_eq!(v2[0], 6);
     v2[0] = 2;
     assert_eq!(decode(&v2), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
     h.write(&world[..world.len() - tail]);
     assert_eq!(state_digest(&cp.world), h.finish());
-    assert!(schema_readable(2) && schema_readable(3) && schema_readable(4) && schema_readable(5));
-    assert!(!schema_readable(1) && !schema_readable(6));
+    assert!((2..=6).all(schema_readable));
+    assert!(!schema_readable(1) && !schema_readable(7));
 }
 
-/// A schema-3 checkpoint is a schema-5 one minus `M9_DEFAULT_TAIL` and the empty berry trees: it
-/// decodes (as schema 5) and keeps its schema-3 digest; any Milestone 9 state makes the whole
-/// encoding count.
+/// A schema-3 checkpoint is a schema-6 one minus `M9_DEFAULT_TAIL`, the empty berry trees and the
+/// `None` layout: it decodes (as schema 6) and keeps its schema-3 digest; any Milestone 9 state
+/// makes the whole encoding count.
 #[test]
-fn schema_3_reads_as_5_without_m9_state() {
+fn schema_3_reads_as_6_without_m9_state() {
     let cp = sample_m9_default();
     let v5 = encode(&cp);
-    let tail = M9_DEFAULT_TAIL.len() + 1;
-    assert_eq!(&v5[v5.len() - tail..v5.len() - 1], &M9_DEFAULT_TAIL);
+    let tail = M9_DEFAULT_TAIL.len() + 2;
+    assert_eq!(&v5[v5.len() - tail..v5.len() - 2], &M9_DEFAULT_TAIL);
     let mut v3 = v5[..v5.len() - tail].to_vec();
     v3[0] = 3;
     assert_eq!(decode(&v3), Ok(cp.clone()));
@@ -420,10 +424,10 @@ fn schema_3_reads_as_5_without_m9_state() {
         w
     }] {
         if w.berry_trees.is_empty() {
-            // Only the empty berry trees' byte is left out.
+            // Only the empty berry trees' and the layout's bytes are left out.
             let bytes = postcard::to_allocvec(&w).unwrap();
             let mut h = Fnv64::new();
-            h.write(&bytes[..bytes.len() - 1]);
+            h.write(&bytes[..bytes.len() - 2]);
             assert_eq!(state_digest(&w), h.finish());
             continue;
         }
@@ -433,22 +437,47 @@ fn schema_3_reads_as_5_without_m9_state() {
     }
 }
 
-/// A schema-4 checkpoint is a schema-5 one without berry trees, minus their 0 byte: it decodes
-/// (as schema 5) and keeps its schema-4 digest; a berry tree makes the whole encoding count.
+/// A schema-4 checkpoint is a schema-6 one without berry trees and layout override, minus their
+/// 0 bytes: it decodes (as schema 6) and keeps its schema-4 digest; a berry tree makes the whole
+/// encoding count.
 #[test]
-fn schema_4_reads_as_5_without_berry_trees() {
+fn schema_4_reads_as_6_without_berry_trees() {
     let mut cp = sample();
     cp.world.berry_trees.clear();
-    let v5 = encode(&cp);
-    assert_eq!(v5[v5.len() - 1], 0);
-    let mut v4 = v5[..v5.len() - 1].to_vec();
+    cp.world.map_layout = None;
+    let v6 = encode(&cp);
+    assert_eq!(v6[v6.len() - 2..], [0, 0]);
+    let mut v4 = v6[..v6.len() - 2].to_vec();
     v4[0] = 4;
     assert_eq!(decode(&v4), Ok(cp.clone()));
+    let world = postcard::to_allocvec(&cp.world).unwrap();
+    let mut h = Fnv64::new();
+    h.write(&world[..world.len() - 2]);
+    assert_eq!(state_digest(&cp.world), h.finish());
+    let w = sample().world;
+    let mut h = Fnv64::new();
+    h.write(&postcard::to_allocvec(&w).unwrap());
+    assert_eq!(state_digest(&w), h.finish());
+}
+
+/// A schema-5 checkpoint is a schema-6 one on its map's own layout, minus the `None` layout's 0
+/// byte: it decodes (as schema 6) and keeps its schema-5 digest; a layout override makes the
+/// whole encoding count.
+#[test]
+fn schema_5_reads_as_6_without_layout() {
+    let mut cp = sample();
+    cp.world.map_layout = None;
+    let v6 = encode(&cp);
+    assert_eq!(v6[v6.len() - 1], 0);
+    let mut v5 = v6[..v6.len() - 1].to_vec();
+    v5[0] = 5;
+    assert_eq!(decode(&v5), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
     h.write(&world[..world.len() - 1]);
     assert_eq!(state_digest(&cp.world), h.finish());
     let w = sample().world;
+    assert!(w.map_layout.is_some());
     let mut h = Fnv64::new();
     h.write(&postcard::to_allocvec(&w).unwrap());
     assert_eq!(state_digest(&w), h.finish());
@@ -590,6 +619,7 @@ fn a_forged_length_cannot_preallocate() {
         &w.party_held,
         (&w.options, &w.pokedex, &w.pc, w.coins, w.registered_item),
         &w.berry_trees,
+        w.map_layout,
     ))
     .unwrap();
     let party_at = bytes.len() - after.len() - 1;
@@ -772,6 +802,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::CrackedFloorHole,
             Behavior::Floor(Floor::Cave),
             Behavior::Water(crate::data::Water::Ocean),
+            Behavior::PadWarp,
             Behavior::PopOutWarp(Dir::Right),
         ],
         |v| match v {
@@ -797,7 +828,8 @@ fn enum_variant_indices_are_pinned() {
             Behavior::CrackedFloorHole => 19,
             Behavior::Floor(_) => 20,
             Behavior::Water(_) => 21,
-            Behavior::PopOutWarp(_) => 22,
+            Behavior::PadWarp => 22,
+            Behavior::PopOutWarp(_) => 23,
         },
     );
     check(

@@ -165,7 +165,8 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::CrackedFloorHole => [19, 0],
         Behavior::Floor(g) => [20, g as u8],
         Behavior::Water(w) => [21, w.code()],
-        Behavior::PopOutWarp(d) => [22, d as u8],
+        Behavior::PadWarp => [22, 0],
+        Behavior::PopOutWarp(d) => [23, d as u8],
     }
 }
 

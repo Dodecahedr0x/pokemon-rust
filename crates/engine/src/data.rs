@@ -332,13 +332,18 @@ pub enum Behavior {
     ///
     /// Appended after [`Behavior::Floor`] (postcard index 21, hash code 21).
     Water(Water),
+    /// A [`Behavior::Warp`] that keeps the current map's object templates when it lands on the
+    /// same map (Gen3 `MB_MOSSDEEP_GYM_WARP`, `DoMossdeepGymWarp`: `SKIP_OBJECT_EVENT_LOAD`,
+    /// so the statues the gym's switches moved stay moved). Wave F, appended (postcard index
+    /// 22, hash code 22).
+    PadWarp,
     /// A warp cell the player pops out of when a warp from below lands on it (Gen3
     /// `MB_LAVARIDGE_GYM_1F_WARP`, the B1F geysers' destinations: `DoLavaridgeGymB1FWarp`,
     /// `FieldCB_LavaridgeGymB1FWarpExit`): entering it triggers its warp; arriving on one, the
     /// player is hidden during the fade-in, then jumps one cell `Dir`
     /// (`GetJumpMovementAction`), without the ash puff.
     ///
-    /// Appended (postcard index 22, hash code 22; Wave E2).
+    /// Appended after [`Behavior::PadWarp`] (postcard index 23, hash code 23; Wave E2).
     PopOutWarp(Dir),
 }
 
@@ -485,6 +490,7 @@ impl Behavior {
             self,
             Behavior::Door
                 | Behavior::Warp
+                | Behavior::PadWarp
                 | Behavior::NonAnimDoor(_)
                 | Behavior::Ladder
                 | Behavior::Escalator(_)

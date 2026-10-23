@@ -4,7 +4,7 @@
 //! their numbers in Silice.
 
 use crate::consts::*;
-use crate::prelude::Rusturf;
+use crate::prelude::{GameClear, Rusturf};
 use engine::data::{FlagId, VarId};
 
 pub const BLACK_GLASSES: Option<FlagId> = Some(FLAG_HIDDEN_ITEM_ROUTE_116_BLACK_GLASSES);
@@ -41,6 +41,14 @@ pub const RUSTURF: Option<Rusturf> = Some(Rusturf {
         (FLAG_HIDE_RUSTURF_TUNNEL_ROCK_2, 5),
     ],
     state: VAR_RUSTURF_TUNNEL_STATE,
+});
+/// `GameClear`'s flag and CONTINUE warps.
+pub const GAME_CLEAR: Option<GameClear> = Some(GameClear {
+    flag: FLAG_SYS_GAME_CLEAR,
+    rooms: [
+        HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
+        HEAL_LOCATION_LITTLEROOT_TOWN_MAYS_HOUSE_2F,
+    ],
 });
 
 /// `ChooseHalfPartyForBattle` sets it to `FACILITY_MULTI_OR_EREADER`.

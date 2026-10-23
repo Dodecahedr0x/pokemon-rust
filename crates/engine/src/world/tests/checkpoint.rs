@@ -559,7 +559,7 @@ fn the_boot_frame_uploads_the_field_and_every_visible_object() {
     let cells = ((d[2] - d[0] + 1) * (d[3] - d[1] + 1)) as usize;
     assert_eq!(entries(&boot), cells * 4 * FIELD_BGS.len());
     // The same field uploads as the battle return path (restore + whole redraw) of a copy.
-    let mut copy = Field::from_snapshot(&w.s.field.snapshot());
+    let mut copy = Field::from_snapshot(&w.s.field.snapshot(), w.s.field.layout());
     let mut redraw = Frame::default();
     copy.restore(&Game, &mut redraw);
     copy.redraw(&Game, &mut redraw);

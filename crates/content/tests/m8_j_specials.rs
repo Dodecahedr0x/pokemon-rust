@@ -617,6 +617,52 @@ fn native_specials_issue_their_requests_in_order() {
             ]
         );
     }
+    // Wave F: `Script_DoRayquazaScene` (degraded): black for the scene by `VAR_0x8004`, then
+    // the field fades back in.
+    for (arrives, frames) in [(0, 360), (1, 2_110)] {
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, arrives);
+        run_special(&mut h, "SPECIAL_Script_DoRayquazaScene");
+        assert_eq!(
+            h.log,
+            [
+                degraded("SPECIAL_Script_DoRayquazaScene"),
+                Request::GetVar(VAR_0x8004),
+                Request::Fade(Fade::ToBlack),
+                Request::Delay(frames),
+                Request::Fade(Fade::FromBlack),
+            ]
+        );
+    }
+    covered.insert("SPECIAL_Script_DoRayquazaScene");
+    // Wave F: `GameClear` (degraded): healed, `FLAG_SYS_GAME_CLEAR`, then the CONTINUE warp to
+    // the (male) player's room.
+    #[cfg(not(pkr_silice))]
+    {
+        let mut h = Rec::default();
+        run_special(&mut h, "SPECIAL_GameClear");
+        let (map, x, y) =
+            content::battle::heal_location(HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F)
+                .unwrap();
+        assert_eq!(map, MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F);
+        assert_eq!(
+            h.log,
+            [
+                degraded("SPECIAL_GameClear"),
+                Request::HealParty,
+                Request::SetFlag(FLAG_SYS_GAME_CLEAR, true),
+                Request::Fade(Fade::ToBlack),
+                Request::Delay(120),
+                Request::Warp {
+                    map,
+                    warp: None,
+                    x,
+                    y
+                },
+            ]
+        );
+    }
+    covered.insert("SPECIAL_GameClear");
     // `CallFrontierUtilFunc` with no frontier data: `GET_STATUS` answers no challenge (0xFF:
     // a Battle Tent lobby's `ON_FRAME` table then stops), `GET_DATA` 0, the others report.
     for (func, want) in [

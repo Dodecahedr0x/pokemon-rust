@@ -60,6 +60,16 @@ const CABLE_CAR_ARRIVAL: (i16, i16) = (6, 4);
 /// takes 32 more.
 const CABLE_CAR_RIDE_FRAMES: u16 = 570 + 32;
 
+/// `Script_DoRayquazaScene`'s scenes on their black screen (`rayquaza_scene.c`, summed from
+/// the tasks' timers and palette fades, approximately): Groudon and Kyogre's fight
+/// (`VAR_0x8004` 0: `RAY_ANIM_DUO_FIGHT_PRE`, 16 frames in, 328, 16 out) and Rayquaza's arrival
+/// (`RAY_ANIM_DUO_FIGHT` through `RAY_ANIM_CHASES_AWAY`).
+const RAYQUAZA_SCENE_FRAMES: [u16; 2] = [16 + 328 + 16, 2_110];
+
+/// `GameClear`'s Hall of Fame screen and credits on their black screen (`hall_of_fame.c`,
+/// `credits.c`), a stand-in: the engine has neither (nor the reset and the CONTINUE).
+const GAME_CLEAR_FRAMES: u16 = 120;
+
 /// Gen3 `sPetalburgGymSlidingDoorMetatiles` (`METATILE_PetalburgGym_SlidingDoor_Frame0..4`,
 /// `include/constants/metatile_labels.h`): the door's top half; the bottom half is a metatile
 /// row (`METATILE_ROW_WIDTH`, 8) further.
@@ -252,6 +262,16 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   frames apart, `Task_PetalburgGymSlideOpenRoomDoors`; the script's `waitstate` then
 ///   passes). The unlock sound is not modelled.
 /// - `CallFrontierUtilFunc`: see [`call_frontier_util_func`].
+/// - `Script_DoRayquazaScene` (`field_specials.c`, `rayquaza_scene.c`), degraded: no scene. The
+///   script faded the field out first; it stays black for the scene's frames
+///   ([`RAYQUAZA_SCENE_FRAMES`] by `VAR_0x8004`), then fades back in as
+///   `CB2_ReturnToFieldContinueScriptPlayMapMusic` does, and the script goes on.
+/// - `GameClear` (`post_battle_event_funcs.c`), degraded: `HealPlayerParty`, then
+///   `FLAG_SYS_GAME_CLEAR`; no champion ribbons, game stats, Hall of Fame screen, credits or
+///   save (the engine has none). The screen stays black for [`GAME_CLEAR_FRAMES`], then the
+///   player lands where the credits' soft reset and CONTINUE would: the CONTINUE warp
+///   (`SetContinueGameWarpToHealLocation`, the player's 2F room by gender). The warp's map load
+///   ends the script, as the reset does.
 /// - Wave F, Steven's multi battle (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`):
 ///   - `SavePlayerParty`, `LoadPlayerParty`, `ReducePlayerPartyToSelectedMons`: the engine's
 ///     [`PartyStash`] (`load_save.c`, `script_pokemon_util.c`);
@@ -384,6 +404,31 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.delay(CABLE_CAR_RIDE_FRAMES).await;
             let (x, y) = CABLE_CAR_ARRIVAL;
             ctx.warp(map, None, x, y).await;
+        }
+        id if id == SPECIAL_Script_DoRayquazaScene => {
+            degraded(ctx, id).await;
+            let arrives = ctx.var(VAR_0x8004).await != 0;
+            ctx.fade(Fade::ToBlack).await;
+            ctx.delay(RAYQUAZA_SCENE_FRAMES[arrives as usize]).await;
+            ctx.fade(Fade::FromBlack).await;
+        }
+        id if id == SPECIAL_GameClear => {
+            let Some(g) = story::GAME_CLEAR else {
+                return not_in_game(ctx, id).await;
+            };
+            degraded(ctx, id).await;
+            ctx.heal_party().await;
+            ctx.set_flag(g.flag, true).await;
+            let room = if check_player_gender(ctx).await == MALE {
+                g.rooms[0]
+            } else {
+                g.rooms[1]
+            };
+            ctx.fade(Fade::ToBlack).await;
+            ctx.delay(GAME_CLEAR_FRAMES).await;
+            if let Some((map, x, y)) = crate::battle::heal_location(room) {
+                ctx.warp(map, None, x, y).await;
+            }
         }
         id if id == SPECIAL_GetMomOrDadStringForTVMessage => {
             let [male_house, female_house] = PLAYER_HOUSES_1F;
@@ -975,8 +1020,16 @@ mod story {
     pub const MAUVILLE_OLD_MAN_GFX: Option<(VarId, u16)> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
+    pub const GAME_CLEAR: Option<GameClear> = None;
     pub const FRONTIER_FACILITY: Option<VarId> = None;
     pub const STEVEN_MULTI_FOES: Option<[(TrainerId, &str); 2]> = None;
+}
+
+/// `GameClear`'s names: `FLAG_SYS_GAME_CLEAR` and the CONTINUE warp's heal locations, the male
+/// player's room then the female's (`HEAL_LOCATION_LITTLEROOT_TOWN_*_HOUSE_2F`).
+pub struct GameClear {
+    pub flag: FlagId,
+    pub rooms: [u8; 2],
 }
 
 /// `TryUpdateRusturfTunnelState`'s names: the tunnel's map, its opened flag, its two rocks'

@@ -1157,6 +1157,7 @@ mod warp_exits;
 mod wave_c_query;
 mod wavec_field;
 mod wavef_multi;
+mod wavef_rotating_tiles;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).

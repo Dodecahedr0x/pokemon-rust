@@ -447,6 +447,24 @@ pub enum Request {
     /// `layout` ([`GameData::map_layout`](crate::data::GameData::map_layout)); scripts set it in
     /// `on_transition`, before the layout loads.
     SetMapLayout(u16),
+    /// Gen3 `initrotatingtilepuzzle` (`InitRotatingTilePuzzle`, `rotating_tile_puzzle.c`): the
+    /// puzzle's arrow metatiles start at `start` (yellow right; each colour is a metatile row,
+    /// right, down, left, up), and no cell below metatile `floor` is a puzzle tile (Gen3 compares
+    /// with Mossdeep's first arrow for both puzzles). The state lives until
+    /// [`Request::RotatingTilesFree`]; transient script RAM, neither hashed nor captured.
+    RotatingTilesInit {
+        start: u16,
+        floor: u16,
+    },
+    /// Gen3 `moverotatingtileobjects` (`MoveRotatingTileObjects`): every template on an arrow of
+    /// puzzle `n` (its colour, 0 yellow to 4 red) moves one cell along it, its object by a
+    /// movement script; the last one moved becomes the `waitmovement 0` object.
+    RotatingTilesMove(u16),
+    /// Gen3 `turnrotatingtileobjects` (`TurnRotatingTileObjects`): each object the last move
+    /// moved turns a quarter counterclockwise (template movement type and a face movement).
+    RotatingTilesTurn,
+    /// Gen3 `freerotatingtilepuzzle` (`FreeRotatingTilePuzzle`).
+    RotatingTilesFree,
     /// Gen3 `createvobject` (`CreateVirtualObject`): a sprite of object graphics `gfx` standing
     /// on map cell (x, y) facing `dir`, known to scripts by `id` (not a local id).
     CreateVirtualObject {
@@ -772,6 +790,11 @@ impl Request {
                 i(y),
             ),
             Request::TurnVirtualObject { id, dir } => (146, id as u16, dir as u16, 0, 0),
+            // Wave F rotating tile puzzle: tags 190 and up.
+            Request::RotatingTilesInit { start, floor } => (190, start, floor, 0, 0),
+            Request::RotatingTilesMove(n) => (191, n, 0, 0, 0),
+            Request::RotatingTilesTurn => (192, 0, 0, 0, 0),
+            Request::RotatingTilesFree => (193, 0, 0, 0, 0),
             Request::MoveAt { obj, map, steps } => {
                 let d = steps_digest(steps);
                 (
@@ -1158,6 +1181,26 @@ impl Ctx {
     /// Gen3 `turnvobject` (see [`Request::TurnVirtualObject`]).
     pub fn turn_virtual_object(&self, id: u8, dir: Dir) -> Req<()> {
         self.req(Request::TurnVirtualObject { id, dir }, unit)
+    }
+
+    /// Gen3 `initrotatingtilepuzzle` (see [`Request::RotatingTilesInit`]).
+    pub fn rotating_tiles_init(&self, start: u16, floor: u16) -> Req<()> {
+        self.req(Request::RotatingTilesInit { start, floor }, unit)
+    }
+
+    /// Gen3 `moverotatingtileobjects` (see [`Request::RotatingTilesMove`]).
+    pub fn rotating_tiles_move(&self, puzzle: u16) -> Req<()> {
+        self.req(Request::RotatingTilesMove(puzzle), unit)
+    }
+
+    /// Gen3 `turnrotatingtileobjects` (see [`Request::RotatingTilesTurn`]).
+    pub fn rotating_tiles_turn(&self) -> Req<()> {
+        self.req(Request::RotatingTilesTurn, unit)
+    }
+
+    /// Gen3 `freerotatingtilepuzzle` (see [`Request::RotatingTilesFree`]).
+    pub fn rotating_tiles_free(&self) -> Req<()> {
+        self.req(Request::RotatingTilesFree, unit)
     }
 
     /// Gen3 `setmaplayoutindex` (see [`Request::SetMapLayout`]).
