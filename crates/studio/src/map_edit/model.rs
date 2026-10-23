@@ -5,13 +5,18 @@
 use super::schema::{
     GameConnection, GameHeader, GameMap, GameObject, GameWarp, MAP_DYNAMIC, WARP_ID_DYNAMIC,
 };
+use super::stamp::Stamp;
 use anyhow::{Result, bail, ensure};
-use engine::data::{BLOCK_COLLISION_SHIFT, BLOCK_ELEVATION_SHIFT, BLOCK_METATILE_MASK};
+use engine::data::{
+    BLOCK_COLLISION_SHIFT, BLOCK_ELEVATION_SHIFT, BLOCK_METATILE_MASK, block_collision,
+    block_elevation,
+};
 use extract::schema::{
     Bg, BgKind, ConnectionDir, Coord, Layout, MapFile, MapScripts, from_rows, to_rows,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 /// Undo steps kept.
 pub const UNDO_LIMIT: usize = 256;
@@ -511,6 +516,20 @@ pub enum Op {
         x: i32,
         y: i32,
     },
+    /// Paints stamp `name` (`stamps/<name>.ron` of the games dir, [`super::stamp`]) with its
+    /// top-left at (x, y). It must fit in the map, and its tilesets must be the map's.
+    Stamp {
+        x: i32,
+        y: i32,
+        name: String,
+    },
+    /// Sets the collision of each cell (in `rect`, or the whole map) whose metatile has a usual
+    /// collision ([`super::behavior::usual_collision`]: unanimous in the extract, else from its
+    /// behaviour) and disagrees with it (walkable against solid); other cells keep theirs.
+    AutoCollision {
+        #[serde(default)]
+        rect: Option<Area>,
+    },
     /// The 2x2 border (a list of 4 raw blocks, row-major).
     Border {
         blocks: Vec<u16>,
@@ -636,6 +655,24 @@ pub enum Op {
     Redo,
 }
 
+/// A rectangle of cells.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Area {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+/// What the ops that read outside the document need: stamps (from a games dir) and usual
+/// collisions (from a catalog). [`super::resources::Resources`] is the games dir's.
+pub trait Env: Send + Sync + std::fmt::Debug {
+    fn stamp(&self, name: &str) -> Result<Stamp>;
+    /// The usual collision of cell (x, y) of `d` (0 walkable, 1 solid), if it has one.
+    fn usual_collision(&self, d: &Doc, x: i32, y: i32) -> Option<u8>;
+}
+
 /// An `Ascii` legend key: a char or a one-character string.
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct LegendKey(char);
@@ -705,6 +742,8 @@ pub struct Editor {
     stroke: Option<Doc>,
     /// The document as last saved (`None`: never saved).
     saved: Option<Doc>,
+    /// Stamps and usual collisions (`Stamp` and `AutoCollision` fail without).
+    env: Option<Arc<dyn Env>>,
 }
 
 impl Editor {
@@ -717,7 +756,18 @@ impl Editor {
             redo: Vec::new(),
             clip: None,
             stroke: None,
+            env: None,
         }
+    }
+
+    /// With stamps and usual collisions (for `Stamp` and `AutoCollision`).
+    pub fn with_env(mut self, env: Arc<dyn Env>) -> Editor {
+        self.env = Some(env);
+        self
+    }
+
+    pub fn set_env(&mut self, env: Option<Arc<dyn Env>>) {
+        self.env = env;
     }
 
     /// Editing a document no file holds yet (dirty until saved).
@@ -776,7 +826,7 @@ impl Editor {
             _ => {}
         }
         let mut next = self.doc.clone();
-        apply_op(&mut next, op, self.clip.as_ref())?;
+        apply_op(&mut next, op, self.clip.as_ref(), self.env.as_deref())?;
         self.commit(next);
         Ok(())
     }
@@ -870,7 +920,8 @@ fn check_event_pos(d: &Doc, x: i16, y: i16) -> Result<()> {
 }
 
 /// Applies `op` to `d` (not `Undo`, `Redo` or `Copy`, which are the editor's).
-fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
+fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) -> Result<()> {
+    let need_env = || env.ok_or_else(|| anyhow::anyhow!("{op:?} needs a games dir"));
     match op {
         Op::Paint {
             x,
@@ -943,6 +994,47 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
                             cy as i32,
                             c.blocks[dy as usize * c.w as usize + dx as usize],
                         );
+                    }
+                }
+            }
+        }
+        Op::Stamp { x, y, name } => {
+            let st = need_env()?.stamp(name)?;
+            let cells = st.cells()?;
+            st.check_tilesets(d)?;
+            rect_fits(d, *x, *y, st.width as i32, st.height as i32)?;
+            let w = st.width as i32;
+            for (i, &b) in cells.iter().enumerate() {
+                let (cx, cy) = (x + i as i32 % w, y + i as i32 / w);
+                let old = d.block(cx, cy).unwrap_or_default();
+                let el = match st.elevation {
+                    true => block_elevation(b),
+                    false => block_elevation(old),
+                };
+                d.set(
+                    cx,
+                    cy,
+                    block(b & BLOCK_METATILE_MASK, block_collision(b), el),
+                );
+            }
+        }
+        Op::AutoCollision { rect } => {
+            let env = need_env()?;
+            let a = rect.unwrap_or(Area {
+                x: 0,
+                y: 0,
+                w: d.width as i32,
+                h: d.height as i32,
+            });
+            rect_fits(d, a.x, a.y, a.w, a.h)?;
+            for cy in a.y..a.y + a.h {
+                for cx in a.x..a.x + a.w {
+                    let b = d.block(cx, cy).unwrap_or_default();
+                    if let Some(c) = env.usual_collision(d, cx, cy)
+                        && (block_collision(b) == 0) != (c == 0)
+                    {
+                        let (mt, el) = (b & BLOCK_METATILE_MASK, block_elevation(b));
+                        d.set(cx, cy, block(mt, c, el));
                     }
                 }
             }

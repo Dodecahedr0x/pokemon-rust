@@ -549,6 +549,43 @@ fn new_maps_share_layouts_only_when_asked() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Names that differ only in case are one file on macOS: they are refused with a clear error
+/// on every OS.
+#[test]
+fn names_differing_only_in_case_are_refused() {
+    let c = Catalog::from_content().unwrap();
+    let (p, s, mts) = tilesets(&c);
+    let dir = temp_dir("case");
+    let games = GamesDir::new(dir.join("games"));
+    let doc = |name: &str| Doc::new(&new_map(name, 4, 4, &p, &s, mts[0])).unwrap();
+    games.create(&doc("RouteOne")).unwrap();
+    for name in ["Routeone", "ROUTEONE"] {
+        let want = format!("{name} differs from map RouteOne only in case");
+        let e = format!(
+            "{:#}",
+            games
+                .new_doc(&new_map(name, 4, 4, &p, &s, mts[0]))
+                .unwrap_err()
+        );
+        assert!(e.contains(&want), "{e}");
+        let e = format!("{:#}", games.create(&doc(name)).unwrap_err());
+        assert!(e.contains(&want), "{e}");
+        let e = format!("{:#}", games.save(&doc(name)).unwrap_err());
+        assert!(e.contains(&want), "{e}");
+        let e = format!("{:#}", games.load(name).unwrap_err());
+        assert!(e.contains(&want), "{e}");
+    }
+    let mut other = doc("Other");
+    other.map.layout = "ROUTEONE".into();
+    let e = format!("{:#}", games.create(&other).unwrap_err());
+    assert!(
+        e.contains("layout ROUTEONE differs from layout RouteOne only in case"),
+        "{e}"
+    );
+    assert_eq!(games.map_names().unwrap(), ["RouteOne"]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn validate_fails_on_errors_and_reports_every_map() {
     let c = Catalog::from_content().unwrap();

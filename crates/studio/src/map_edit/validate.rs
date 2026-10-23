@@ -184,6 +184,7 @@ pub fn validate(d: &Doc, c: &Catalog) -> Vec<Issue> {
         }
     }
     connections(d, c, &mut o);
+    o.0.extend(super::behavior::issues(d, c));
     for (what, s) in [
         ("on_load", &m.scripts.on_load),
         ("on_transition", &m.scripts.on_transition),

@@ -13,7 +13,9 @@ use super::games::GamesDir;
 use super::schema::GameConnection;
 use anyhow::{Context, Result};
 use content::Emerald;
-use engine::data::{Dir, GameData, METATILES_IN_PRIMARY, MapId, Tileset};
+use engine::data::{
+    Dir, GameData, METATILES_IN_PRIMARY, MapId, Tileset, block_collision, block_metatile,
+};
 use extract::schema::ConnectionDir;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -65,6 +67,10 @@ pub struct Catalog {
     pub scripts: BTreeSet<String>,
     /// The games dir whose maps these are (renders draw connected games dir maps from it).
     pub games: Option<GamesDir>,
+    /// How the extract's map cells use each metatile, keyed by (owning tileset name, metatile
+    /// id as in a block): `[walkable, solid]` cell counts (`behavior::usual_collision`). Empty
+    /// on the stub world.
+    pub collision_uses: BTreeMap<(String, u16), [u32; 2]>,
 }
 
 /// The extracted dir the content build read: `PKR_EXTRACTED_DIR`, else `content/extracted`.
@@ -133,6 +139,7 @@ impl Catalog {
             let m = game.map(id);
             c.add_tileset(&file.layout.primary, m.primary, false);
             c.add_tileset(&file.layout.secondary, m.secondary, true);
+            c.count_uses(&file.layout);
         }
         c.gfx = read_gfx(&dir).unwrap_or_default();
         Ok(c)
@@ -169,6 +176,20 @@ impl Catalog {
         }
         self.games = Some(games.clone());
         Ok(())
+    }
+
+    /// Adds a layout's cells to [`Catalog::collision_uses`].
+    pub fn count_uses(&mut self, l: &extract::schema::Layout) {
+        for b in extract::schema::from_rows(&l.blocks) {
+            let mt = block_metatile(b);
+            let ts = if mt < METATILES_IN_PRIMARY {
+                &l.primary
+            } else {
+                &l.secondary
+            };
+            let e = self.collision_uses.entry((ts.clone(), mt)).or_default();
+            e[(block_collision(b) != 0) as usize] += 1;
+        }
     }
 
     pub fn add_tileset(&mut self, name: &str, tileset: &'static Tileset, secondary: bool) {
