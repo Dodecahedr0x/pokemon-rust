@@ -5,9 +5,12 @@
     Header((music: "MUS_PETALBURG_WOODS", region_map_section: "MAPSEC_NONE", cave: 1, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: true, allow_escaping: true, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // Sc01: the dark (VAR_SIL_STORY 36 -> 40).
     Scripts((on_load: None, on_transition: Some("RouteS04_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 36, script: "RouteS04_Sc01")], on_warp_into: [])),
-    // Warp 0: the east cave mouth, to Port-Ressac's tunnel door (its warp 0). The west mouth (5, 2)
-    // to Viber-City is solid, pending the Ch3 link.
+    // Warp 0: the east cave mouth, to Port-Ressac's tunnel door (its warp 0).
     Warp(x: 56, y: 2, dest_map: "PortRessac", dest_warp: 0),
+    // West: Viber-City's east street (its y 15-16) meets the hall's opening (rows 8-9). The source
+    // has a warp to Viber's south exit; Ch3 put Route S3 there and left its east street for this
+    // connection. ViberCity mirrors it (East, offset 7).
+    Connect((dir: West, offset: -7, map: "ViberCity")),
     // 1: Adrien sitting against the wall by the canal, facing the way in (Sc02, VAR_SIL_STORY 40).
     Object(x: 28, y: 9, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_S04_ADRIEN", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS04_Sc02", flag: "FLAG_SIL_HIDE_ROUTE_S04_ADRIEN"),
     // 2: his Magikarp in the canal (placeholder: Azurill).

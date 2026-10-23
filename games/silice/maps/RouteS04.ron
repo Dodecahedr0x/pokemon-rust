@@ -362,7 +362,13 @@
             ),
         ),
     ],
-    connections: [],
+    connections: [
+        (
+            dir: West,
+            offset: -7,
+            map: "ViberCity",
+        ),
+    ],
     scripts: (
         on_load: None,
         on_transition: Some("RouteS04_OnTransition"),

@@ -1,6 +1,7 @@
 // Cells (generated as one Ascii op: floors carved as rectangles, each rock cell's wall piece from its
 // floor neighbours, as in Granite Cave and Shoal Cave). A, the maintenance hall (x 2-15, rows 3-14):
-// the cave mouth to Viber-City (5, 2), solid until the Ch3 link; the empty guard booth (3-5, 6-7).
+// open to the west edge on rows 8-9, the map connection to Viber-City's east street (Ch3 drew that
+// link as a connection); the empty guard booth (3-5, 6-7).
 // B, the glass gallery (x 16-40, rows 5-9) along the black canal (x 18-37, rows 10-11: General's
 // water 368, as in Shoal Cave at high tide; elevation 1, fishable). C, the ramp (x 41-58,
 // rows 3-16): glass scree in a small maze (dead end 41-43, 11-16), the cave mouth to Port-Ressac
@@ -8,16 +9,16 @@
 [
     Ascii(x: 0, y: 0, rows: [
         "############################################################",
-        "####uvx################################################uvx##",
-        "#eTTyOzTTTTTTTTTg#######################eTTTTTTTTTTTTTTyDzTg",
+        "#######################################################uvx##",
+        "#eTTTTTTTTTTTTTTg#######################eTTTTTTTTTTTTTTyDzTg",
         "#L..............J#######################L.......R..........J",
         "#L..............cTTTTTTTTTTTTTTTTTTTTTTTd.......Q..........J",
         "#L..............................................R..........J",
         "#L.aBb..........................................Q..........J",
-        "#L.cTd..........................................R...R......J",
-        "#L..............................................Q...Q......J",
-        "#L..............................................R.R.R..Q...J",
-        "#L................~~~~~~~~~~~~~~~~~~~~....QR....Q...Q...Q..J",
+        "Td.cTd..........................................R...R......J",
+        "................................................Q...Q......J",
+        "................................................R.R.R..Q...J",
+        "Bb................~~~~~~~~~~~~~~~~~~~~....QR....Q...Q...Q..J",
         "#L................~~~~~~~~~~~~~~~~~~~~......R...R...R......J",
         "#L..............aBBBBBBBBBBBBBBBBBBBBBBBb...Q...Q...Q......J",
         "#L..............J#######################L...RQ......R.R....J",
@@ -51,6 +52,5 @@
         'y': (metatile: 531, collision: 1),
         'z': (metatile: 533, collision: 1),
         'D': (metatile: 532, collision: 0),
-        'O': (metatile: 532, collision: 1),
     }),
 ]
