@@ -195,6 +195,30 @@ mod list {
         ..Bypass::NONE
     };
 
+    /// Dive from Route 126's deep water, Underwater Route 126's tunnel (45, 65) to Underwater
+    /// Sootopolis, and the surfacing in the crater's lake, as [`DIVE_SEAFLOOR`].
+    static DIVE_SOOTOPOLIS: Bypass = Bypass {
+        issue: "dive-sootopolis",
+        features: &[
+            "FIELD_MOVE_DIVE",
+            "FLDEFF_USE_DIVE",
+            "MB_DEEP_WATER",
+            "underwater maps",
+        ],
+        warp: Some((MAP_SOOTOPOLIS_CITY, 31, 50)),
+        ..Bypass::NONE
+    };
+
+    /// Sootopolis's Groudon/Kyogre scene: `SPECIAL_Script_DoRayquazaScene` (the fight's own
+    /// screen, which fades back in) is unsupported, so the field stays faded out. The bypass
+    /// writes the scene's end (`VAR_SOOTOPOLIS_CITY_STATE` 2).
+    static LEGENDARIES_SCENE: Bypass = Bypass {
+        issue: "legendaries-scene",
+        features: &["SPECIAL_Script_DoRayquazaScene"],
+        vars: &[(VAR_SOOTOPOLIS_CITY_STATE, 2)],
+        ..Bypass::NONE
+    };
+
     /// Steven's multi battle against Maxie and Tabitha
     /// (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`): its specials are
     /// unsupported, the script goes on as if won, and the objects stay frozen (Gen3 reloads the
@@ -1670,5 +1694,30 @@ mod list {
         Step::WaitScript,
         Step::Expect("kyogre_awakened"),
         Step::Checkpoint("seafloor_cavern"),
+        // ---- Sootopolis: Surf off Route 128's islet, Route 127 north, Route 126 west; Dive
+        // into the crater (`dive-sootopolis`) ----
+        Step::Choose(0),
+        use_(MAP_ROUTE128, 42, 22, Right),
+        cross(MAP_ROUTE128, 30, 0, Up),
+        cross(MAP_ROUTE127, 0, 40, Left),
+        goto(MAP_ROUTE126, 45, 66),
+        // Groudon and Kyogre on arrival (`SootopolisCity_EventScript_LegendariesSceneFromDive`):
+        // its `Script_DoRayquazaScene` is unsupported and leaves the screen black, so
+        // `legendaries-scene` writes the scene's end before the dive lands.
+        Step::Bypass(&LEGENDARIES_SCENE),
+        Step::Bypass(&DIVE_SOOTOPOLIS),
+        Step::Expect("sootopolis"),
+        goto(MAP_SOOTOPOLIS_CITY, 23, 37),
+        Step::Walk(Left),
+        // Steven leads to the Cave of Origin; Wallace in B1F asks where Rayquaza is: Sky
+        // Pillar (the multichoice's third answer).
+        talk(MAP_SOOTOPOLIS_CITY, 7),
+        Step::WaitScript,
+        enter(MAP_CAVE_OF_ORIGIN_ENTRANCE, 9, 5, Up),
+        enter(MAP_CAVE_OF_ORIGIN_1F, 14, 5, Up),
+        Step::Choose(2),
+        talk(MAP_CAVE_OF_ORIGIN_B1F, 1),
+        Step::WaitScript,
+        Step::Checkpoint("cave_of_origin"),
     ];
 }
