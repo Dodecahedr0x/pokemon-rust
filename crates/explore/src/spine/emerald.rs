@@ -235,6 +235,16 @@ mod list {
         warp: Some((MAP_ROUTE109, 21, 23)),
     };
 
+    /// Mauville's gym: its floor switches run `special MauvilleGymSetDefaultBarriers` and
+    /// `MauvilleGymPressSwitch` (unsupported), which toggle every beam barrier; without them
+    /// the barriers never move and Wattson's dais is walled off. The bypass stands the player
+    /// below Wattson (the gym's trainers are optional).
+    static MAUVILLE_GYM_BARRIERS: Bypass = Bypass {
+        issue: "mauville-gym-barriers",
+        warp: Some((MAP_MAUVILLE_CITY_GYM, 5, 3)),
+        ..Bypass::NONE
+    };
+
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
         // ---- Littleroot: the girl at the north exit sends the player to save Birch ----
@@ -680,5 +690,111 @@ mod list {
         Step::Bypass(&BRINEY_SAIL_TO_SLATEPORT),
         cross(MAP_ROUTE109, 19, 0, Up),
         Step::Expect("slateport"),
+        // ---- Slateport: heal, Dock at the shipyard (the grunts at the museum's door leave),
+        // the Oceanic Museum (its fee: yes), Capt. Stern on 2F ----
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_SLATEPORT_CITY, 26, 38, Up),
+        talk(MAP_SLATEPORT_CITY_STERNS_SHIPYARD_1F, 1),
+        enter(MAP_SLATEPORT_CITY_STERNS_SHIPYARD_1F, 2, 14, Down),
+        enter(MAP_SLATEPORT_CITY, 30, 26, Up),
+        goto(MAP_SLATEPORT_CITY_OCEANIC_MUSEUM_1F, 9, 6),
+        Step::WaitScript,
+        enter(MAP_SLATEPORT_CITY_OCEANIC_MUSEUM_1F, 6, 1, Up),
+        talk(MAP_SLATEPORT_CITY_OCEANIC_MUSEUM_2F, 1),
+        Step::Expect("devon_goods_delivered"),
+        Step::Checkpoint("museum"),
+        // ---- Route 110: the rival's trigger, then north to Mauville ----
+        enter(MAP_SLATEPORT_CITY_OCEANIC_MUSEUM_2F, 6, 1, Up),
+        enter(MAP_SLATEPORT_CITY_OCEANIC_MUSEUM_1F, 9, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        // The rival's Grovyle beats a level 30 Marshtomp that never learnt a move: from here
+        // on, learn the stronger level-up moves. Level 31 (Take Down) on the south grass, a
+        // level at a time (a level drains the lead's PP), healing in Slateport after each.
+        Step::Battle(BattlePlan::BestLearn),
+        train(MAP_ROUTE110, 14, 96, 24),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 25),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 26),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 27),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 28),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 29),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 30),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        train(MAP_ROUTE110, 14, 96, 31),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        // The trainers on the way drain the lead: beat them, heal, then the rival.
+        goto(MAP_ROUTE110, 34, 57),
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        goto(MAP_ROUTE110, 34, 56),
+        Step::WaitScript,
+        Step::Expect("rival_route110"),
+        // Heal again before the trainers of the north half.
+        cross(MAP_ROUTE110, 17, 99, Down),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_SLATEPORT_CITY, 17, 0, Up),
+        Step::Battle(BattlePlan::RunWild),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        Step::Expect("mauville"),
+        // ---- Mauville: heal, Wally's battle at the gym's door (yes), the gym ----
+        Step::Battle(BattlePlan::BestLearn),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        talk(MAP_MAUVILLE_CITY, 6),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_MAUVILLE_CITY, 8, 5, Up),
+        // The switches never open the barriers (`mauville-gym-barriers`).
+        Step::Bypass(&MAUVILLE_GYM_BARRIERS),
+        talk(MAP_MAUVILLE_CITY_GYM, 1),
+        Step::Expect("wattson_defeated"),
+        Step::Expect("badge3"),
+        Step::Checkpoint("badge3"),
     ];
 }

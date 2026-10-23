@@ -34,6 +34,9 @@ pub enum BattlePlan {
     Best,
     /// RUN from wild battles (never the first battle, never trainers).
     RunWild,
+    /// [`BattlePlan::Best`], learning the level-up moves that hit harder than the weakest
+    /// known one (`Opts::learn`).
+    BestLearn,
 }
 
 /// One step of the spine. Map fields are asserted before the step plays (a wrong map fails
@@ -203,6 +206,8 @@ pub struct StepOpts {
     pub run_wild: bool,
     /// [`BattlePlan::Best`].
     pub best_move: bool,
+    /// [`BattlePlan::BestLearn`].
+    pub learn: bool,
     /// Set by `Choose`, used (and cleared) by the next playing step.
     pub choice: Option<u8>,
 }
@@ -765,10 +770,17 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                     BattlePlan::Fight => {
                         self.opts.run_wild = false;
                         self.opts.best_move = false;
+                        self.opts.learn = false;
                     }
                     BattlePlan::Best => {
                         self.opts.run_wild = false;
                         self.opts.best_move = true;
+                        self.opts.learn = false;
+                    }
+                    BattlePlan::BestLearn => {
+                        self.opts.run_wild = false;
+                        self.opts.best_move = true;
+                        self.opts.learn = true;
                     }
                     BattlePlan::RunWild => self.opts.run_wild = true,
                 }
@@ -806,6 +818,7 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             run_wild: self.opts.run_wild,
             choice: self.opts.choice.take().unwrap_or(0),
             best_move: self.opts.best_move,
+            learn: self.opts.learn,
         };
         let start_map = live.s.world().map();
         let mk = |kind| Macro { kind, opts };
@@ -848,6 +861,23 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             }
             // A wild battle on the way (a cave floor) ends the macro before the talk: again.
             Step::Talk { local_id, .. } => {
+                // Gen3 spawns objects only near the camera: walk next to an unspawned one's
+                // template cell first (the first reachable side).
+                if live.s.world().objects().get(local_id).is_none()
+                    && let Some(t) =
+                        (self.game.map(start_map).objects.iter()).find(|t| t.local_id == local_id)
+                    && let Ok(snap) = live.s.world().snapshot(live.s.game())
+                {
+                    let reach = crate::path::reach(self.game, &snap);
+                    let side = Dir::ALL.into_iter().find_map(|d| {
+                        let (dx, dy) = d.delta();
+                        let c = (t.x - dx, t.y - dy);
+                        reach.dist(c.0, c.1).map(|_| c)
+                    });
+                    if let Some((x, y)) = side {
+                        self.goto(live, start_map, x, y, opts)?;
+                    }
+                }
                 for _ in 0..RETRIES {
                     self.macro_(live, mk(MacroKind::Talk { local_id }))?;
                     let s = &live.res.steps.last().expect("a step").summary;
