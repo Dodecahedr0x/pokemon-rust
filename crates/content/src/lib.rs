@@ -609,8 +609,22 @@ impl GameData for Game {
     fn field_move_script(&self, m: engine::data::FieldMove) -> Option<ScriptId> {
         match m {
             engine::data::FieldMove::Surf => data::SCRIPT_USE_SURF,
+            engine::data::FieldMove::Waterfall => data::SCRIPT_USE_WATERFALL,
+            engine::data::FieldMove::Dive => data::SCRIPT_USE_DIVE,
             _ => None,
         }
+    }
+
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        data::SCRIPT_CANNOT_USE_WATERFALL
+    }
+
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        data::SCRIPT_USE_DIVE_UNDERWATER
+    }
+
+    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+        prelude::dive_warp(map, emerge)
     }
 
     /// `TryPushBoulder`.

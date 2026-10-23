@@ -50,8 +50,11 @@ fn behaviors_by_name() {
     assert_eq!(behavior("MB_WALK_EAST"), "ForcedWalk(Dir::Right)");
     assert_eq!(behavior("MB_SLIDE_NORTH"), "Slide(Dir::Up)");
     assert_eq!(behavior("MB_BATTLE_PYRAMID_WARP"), "Normal");
-    assert_eq!(behavior("MB_WATER_DOOR"), "Blocked");
-    assert_eq!(behavior("MB_WATER_SOUTH_ARROW_WARP"), "Blocked");
+    assert_eq!(behavior("MB_WATER_DOOR"), "Water(Water::Door)");
+    assert_eq!(
+        behavior("MB_WATER_SOUTH_ARROW_WARP"),
+        "Water(Water::SouthArrowWarp)"
+    );
     assert_eq!(behavior("MB_NON_ANIMATED_DOOR"), "NonAnimDoor(Dir::Down)");
     assert_eq!(behavior("MB_LADDER"), "Ladder");
     assert_eq!(behavior("MB_UP_ESCALATOR"), "Escalator(Dir::Right)");
@@ -72,7 +75,7 @@ fn behaviors_by_name() {
         behavior("MB_SOUTHWARD_CURRENT"),
         "Water(Water::Current(Dir::Down))"
     );
-    assert_eq!(behavior("MB_WATER_DOOR"), "Blocked");
+    assert_eq!(behavior("MB_WATER_DOOR"), "Water(Water::Door)");
     assert_eq!(behavior("MB_SHALLOW_WATER"), "Normal");
     assert_eq!(
         behavior("MB_IMPASSABLE_SOUTH"),

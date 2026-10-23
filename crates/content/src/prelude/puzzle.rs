@@ -106,3 +106,49 @@ pub async fn set_sootopolis_gym_cracked_ice(ctx: &Ctx) {
         }
     }
 }
+
+/// The fixed dive warps the maps' `on_resume` scripts set (`setdivewarp <map>, <x>, <y>`,
+/// `data/maps/*/scripts.inc`): where Dive leads from a map without a dive or emerge connection
+/// (Gen3 `SetDiveWarp`'s `SetWarpDestinationToDiveWarp`). Left out:
+/// `Underwater_SealedChamber`'s `MAP_SCRIPT_ON_DIVE_WARP`, which picks one by the player's
+/// cell.
+#[cfg(not(pkr_silice))]
+const DIVE_WARPS: [(MapId, (MapId, i16, i16)); 10] = [
+    (MAP_MARINE_CAVE_ENTRANCE, (MAP_UNDERWATER_MARINE_CAVE, 9, 6)),
+    (MAP_ROUTE134, (MAP_UNDERWATER_ROUTE134, 8, 6)),
+    (
+        MAP_SEALED_CHAMBER_OUTER_ROOM,
+        (MAP_UNDERWATER_SEALED_CHAMBER, 12, 44),
+    ),
+    (MAP_SOOTOPOLIS_CITY, (MAP_UNDERWATER_SOOTOPOLIS_CITY, 9, 6)),
+    (
+        MAP_ABANDONED_SHIP_UNDERWATER2,
+        (MAP_ABANDONED_SHIP_ROOMS_B1F, 13, 7),
+    ),
+    (
+        MAP_SEAFLOOR_CAVERN_ENTRANCE,
+        (MAP_UNDERWATER_SEAFLOOR_CAVERN, 6, 5),
+    ),
+    (
+        MAP_ABANDONED_SHIP_CORRIDORS_B1F,
+        (MAP_ABANDONED_SHIP_UNDERWATER1, 5, 4),
+    ),
+    (
+        MAP_UNDERWATER_SEAFLOOR_CAVERN,
+        (MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 17),
+    ),
+    (MAP_UNDERWATER_MARINE_CAVE, (MAP_MARINE_CAVE_ENTRANCE, 10, 17)),
+    (MAP_UNDERWATER_SOOTOPOLIS_CITY, (MAP_SOOTOPOLIS_CITY, 29, 53)),
+];
+#[cfg(pkr_silice)]
+const DIVE_WARPS: [(MapId, (MapId, i16, i16)); 0] = [];
+
+/// Gen3 `SetDiveWarp` from `map`: its dive (`emerge` false) or emerge connection, keeping the
+/// player's cell, else its fixed dive warp ([`DIVE_WARPS`]).
+pub fn dive_warp(map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+    if let Some(to) = crate::data::dive_connection(map.0, emerge) {
+        return Some((to, None));
+    }
+    let &(_, (to, x, y)) = DIVE_WARPS.iter().find(|w| w.0 == map)?;
+    Some((to, Some((x, y))))
+}
