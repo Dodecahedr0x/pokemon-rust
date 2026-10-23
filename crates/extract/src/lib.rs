@@ -3,6 +3,7 @@
 
 pub mod battle_data;
 pub mod battle_gfx;
+pub mod berries;
 pub mod codegen;
 pub mod export;
 pub mod fixtures;

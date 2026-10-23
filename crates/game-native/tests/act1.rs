@@ -1,5 +1,5 @@
 //! The checkpoint invariant along Act 1 (Milestone 8 Task P): the flattened trace of the
-//! committed `act1:*` chain (`act1/trace.rs`), from a new game to `FLAG_BADGE01_GET`. At about
+//! committed `spine:act1:*` chain (`act1/trace.rs`), from a new game to `FLAG_BADGE01_GET`. At about
 //! [`POINTS`] capturable frames, and at every node's frame, the live World is captured, encoded
 //! (postcard, within the flash budget), decoded and restored into a fresh [`Session`], which must
 //! have the live hash and picture and then stay equal to the live session for [`FOLLOW`] frames

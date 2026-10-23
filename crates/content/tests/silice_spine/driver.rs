@@ -603,7 +603,9 @@ pub fn best_move(battle: &Battle, t: &BattleTables) -> u8 {
     let me = battle.mon(Side::Player);
     let foe = t.species_info(battle.mon(Side::Opponent).species).types;
     let own = t.species_info(me.species).types;
-    let usable = |i: usize| me.moves[i].is_some() && me.pp[i] > 0;
+    // Selectable: Disable, Torment, Taunt and Imprison refuse a move and reopen the menu, so
+    // choosing it again would loop forever.
+    let usable = |i: usize| battle.move_selectable(t, Side::Player, i as u8);
     let score = |i: usize| {
         let m = t.move_info(me.moves[i].expect("usable"));
         if m.power == 0 {

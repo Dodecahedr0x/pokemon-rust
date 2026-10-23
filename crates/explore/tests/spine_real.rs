@@ -84,8 +84,9 @@ const SPINE_BLOCKERS: &[&str] = &[
     "game-clear",
 ];
 
-/// The Silice spine's frame count to the end of Chapter 0.
-const SILICE_CH0_FRAMES: u64 = 21_821;
+/// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
+/// Brico-Bourg on its own tileset: the walks are 8 frames shorter).
+const SILICE_CH0_FRAMES: u64 = 21_813;
 
 fn play() -> SpineRun {
     let s = spine::run(&Emerald::for_shells(), spine::steps(), &Config::default());

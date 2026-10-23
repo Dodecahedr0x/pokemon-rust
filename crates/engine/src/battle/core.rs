@@ -822,10 +822,11 @@ impl Battle {
         &self.battlers[side as usize].mon
     }
 
-    /// Whether `side`'s move `slot` may be chosen now (Gen3 `TrySetCantSelectMoveBattleScript`:
-    /// not disabled, tormented after its last use, taunted or sealed; PP is not checked).
+    /// Whether move slot `slot` of `side` can be chosen: a move with PP that Disable, Torment,
+    /// Taunt or Imprison does not block (Gen3 `CheckMoveLimitations(MOVE_LIMITATIONS_ALL)`).
+    /// Choosing another one is refused with a message and the menu reopens.
     pub fn move_selectable(&self, t: &BattleTables, side: Side, slot: u8) -> bool {
-        super::effects::selection_block(self, t, side, slot).is_none()
+        slot < 4 && !super::effects::slot_limited(self, t, side, slot as usize)
     }
 
     /// The party of `side`. Player: written back to the World at the end.

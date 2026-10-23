@@ -98,6 +98,8 @@ const FLAG_WARP_INTO: FlagId = FlagId(0x301);
 const FLAG_DONE: FlagId = FlagId(0x302);
 const VAR_HOUSE: VarId = VarId(0x4030);
 const VAR_RESULT: VarId = VarId(0x800D);
+/// The test game's `SpecialIds::var_daily_wilds`.
+const VAR_DAILY_WILDS: VarId = VarId(0x4040);
 
 const fn obj(local_id: u8, x: i16, y: i16, script: u16, hide: Option<FlagId>) -> ObjectEvent {
     ObjectEvent {
@@ -425,6 +427,7 @@ impl GameData for Game {
             max_money: MAX_MONEY,
             multichoice_cancel: MULTI_B_PRESSED,
             pocket_slots: POCKET_SLOTS,
+            var_daily_wilds: Some(VAR_DAILY_WILDS),
             ..SpecialIds::default()
         }
     }
@@ -913,6 +916,23 @@ fn the_worlds_player_name_reaches_messages_the_starter_screen_and_battles() {
     });
     run(&mut w, Buttons::NONE, 1);
     assert_eq!(w.battle().map(|b| *b.2.player()), Some(PADDED));
+}
+
+#[test]
+fn a_wild_battle_counts_the_daily_wilds() {
+    // Gen3 `IncrementDailyWildBattles`, from every wild battle's setup.
+    let mut w = started();
+    w.s.vars.set_var(VAR_DAILY_WILDS, 4);
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(crate::battle::test_data::WATER, 5).await;
+            ctx.battle_wild(crate::battle::test_data::NORMAL, 3, false)
+                .await;
+        })
+    });
+    run(&mut w, Buttons::NONE, 1);
+    assert!(w.battle().is_some());
+    assert_eq!(w.var(VAR_DAILY_WILDS), 5);
 }
 
 #[test]

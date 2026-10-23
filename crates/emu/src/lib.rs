@@ -345,6 +345,20 @@ impl Emu {
         }
     }
 
+    /// Skips drawing `n` frames out of `n + 1` (mGBA's `frameskip` option: the scanline
+    /// renderer is not run, the emulation is unchanged). The vanilla oracle reads only RAM.
+    pub fn set_frameskip(&mut self, n: i32) {
+        // SAFETY: the core is initialised; `reloadConfigOption` with no option name copies
+        // `opts` (frameskip among them) into the board (`_GBACoreReloadConfigOption`).
+        unsafe {
+            let raw = self.core.raw_ptr();
+            (*raw).opts.frameskip = n;
+            if let Some(reload) = (*raw).reloadConfigOption {
+                reload(raw, core::ptr::null(), core::ptr::null());
+            }
+        }
+    }
+
     pub fn run_frame(&mut self, keys: Buttons) -> Result<()> {
         self.core
             .set_keys(Buttons::from_raw(keys.0).0 as u32)
@@ -700,13 +714,23 @@ pub fn run_rom_from(
         let counted = late_black_frames.len() as u32;
         late_black_frames.extend((counted..snap.late_black).map(|_| snap.frame));
         if snap.late != 0 {
+            // The marks so far (meaningful up to the late step): its cost when it is the worst.
             return Err(anyhow!(
-                "ROM applied a frame late by engine frame {}",
-                snap.frame
+                "ROM applied a frame late by engine frame {} (so far: step {} lines, loop {} \
+                 lines)",
+                snap.frame,
+                snap.step_lines_max,
+                snap.loop_lines_max
             ));
         }
         if snap.frame > have {
             hashes.push((snap.frame, snap.hash));
+        }
+        // A late apply on a black screen (allowed after a bulk step; the caller checks it) runs
+        // two engine frames in one emulator frame: the picture frames it steps over were never
+        // shown, so they are skipped rather than failing the run.
+        if snap.late_black > counted {
+            while next.next_if(|&&c| c < snap.frame).is_some() {}
         }
         if let Some(&&c) = next.peek() {
             if snap.frame > c {

@@ -27,8 +27,9 @@ use std::sync::RwLock;
 /// `GameData` methods delegating to the field `$f` of `self`, one per name, for wrappers in
 /// tests and tools: `forward_game_data!(inner; map has_map … m8)`. `m8` stands for the
 /// Milestone 8 methods but `wild_encounters` (name it, or override it, separately: the engine
-/// reads it), plus the Silice battle methods (`hold_effect`, `form_changes`) and `map_type`
-/// (the battle background). Paths are absolute, so
+/// reads it), plus the Silice battle methods (`hold_effect`, `form_changes`), `map_type`
+/// (the battle background) and `m9`: every provided method added since (menus, field moves,
+/// puzzles, step-count scripts, encounters by method). Paths are absolute, so
 /// the caller needs only the `engine` crate.
 #[macro_export]
 macro_rules! forward_game_data {
@@ -184,9 +185,37 @@ macro_rules! forward_game_data {
             self.$f.map_type(map)
         }
     };
+    (@ $f:tt map_layout) => { fn map_layout(&self, id: ::engine::data::MapId, layout: u16) -> ::core::option::Option<&'static ::engine::data::MapData> { self.$f.map_layout(id, layout) } };
+    (@ $f:tt trainer_battle_kind) => { fn trainer_battle_kind(&self, script: ::engine::data::ScriptId) -> ::core::option::Option<u8> { self.$f.trainer_battle_kind(script) } };
+    (@ $f:tt start_menu) => { fn start_menu(&self) -> &'static [::engine::data::StartItem] { self.$f.start_menu() } };
+    (@ $f:tt field_move_gate) => { fn field_move_gate(&self, m: ::engine::data::FieldMove) -> ::engine::data::FieldMoveGate { self.$f.field_move_gate(m) } };
+    (@ $f:tt item_use) => { fn item_use(&self, id: ::engine::data::ItemId) -> ::engine::data::ItemUse { self.$f.item_use(id) } };
+    (@ $f:tt item_description) => { fn item_description(&self, id: ::engine::data::ItemId) -> ::core::option::Option<&'static [u8]> { self.$f.item_description(id) } };
+    (@ $f:tt move_description) => { fn move_description(&self, id: ::engine::data::MoveId) -> ::core::option::Option<&'static [u8]> { self.$f.move_description(id) } };
+    (@ $f:tt is_hm_move) => { fn is_hm_move(&self, m: ::engine::data::MoveId) -> bool { self.$f.is_hm_move(m) } };
+    (@ $f:tt tm_move) => { fn tm_move(&self, id: ::engine::data::ItemId) -> ::core::option::Option<::engine::data::MoveId> { self.$f.tm_move(id) } };
+    (@ $f:tt can_learn_tm) => { fn can_learn_tm(&self, species: ::engine::data::SpeciesId, tm: ::engine::data::ItemId) -> bool { self.$f.can_learn_tm(species, tm) } };
+    (@ $f:tt ui_gfx) => { fn ui_gfx(&self, g: ::engine::data::UiGfx) -> ::core::option::Option<&'static ::engine::data::UiPicture> { self.$f.ui_gfx(g) } };
+    (@ $f:tt window_frame) => { fn window_frame(&self, n: u8) -> ::core::option::Option<&'static ::engine::data::WindowGfx> { self.$f.window_frame(n) } };
+    (@ $f:tt item_icon) => { fn item_icon(&self, id: ::engine::data::ItemId) -> ::core::option::Option<&'static ::engine::data::Icon> { self.$f.item_icon(id) } };
+    (@ $f:tt mon_icon) => { fn mon_icon(&self, species: ::engine::data::SpeciesId) -> ::core::option::Option<&'static ::engine::data::Icon> { self.$f.mon_icon(species) } };
+    (@ $f:tt in_game_trade) => { fn in_game_trade(&self, n: u8) -> ::core::option::Option<&'static ::engine::data::InGameTrade> { self.$f.in_game_trade(n) } };
+    (@ $f:tt nature_name) => { fn nature_name(&self, n: u8) -> ::core::option::Option<&'static [u8]> { self.$f.nature_name(n) } };
+    (@ $f:tt step_callback) => { fn step_callback(&self, map: ::engine::data::MapId) -> ::core::option::Option<::engine::data::StepCallback> { self.$f.step_callback(map) } };
+    (@ $f:tt hole_warp) => { fn hole_warp(&self, map: ::engine::data::MapId) -> ::core::option::Option<::engine::data::MapId> { self.$f.hole_warp(map) } };
+    (@ $f:tt fall_script) => { fn fall_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.fall_script() } };
+    (@ $f:tt step_count_script) => { fn step_count_script(&self, step: ::engine::data::StepCount<'_>) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.step_count_script(step) } };
+    (@ $f:tt field_move_script) => { fn field_move_script(&self, m: ::engine::data::FieldMove) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.field_move_script(m) } };
+    (@ $f:tt water_encounters) => { fn water_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.water_encounters(map, wild_set) } };
+    (@ $f:tt rock_smash_encounters) => { fn rock_smash_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.rock_smash_encounters(map, wild_set) } };
+    (@ $f:tt pushable_boulder) => { fn pushable_boulder(&self) -> ::core::option::Option<(::engine::data::GfxId, ::engine::data::FlagId)> { self.$f.pushable_boulder() } };
+    (@ $f:tt player_surf_sprite) => { fn player_surf_sprite(&self) -> ::core::option::Option<&'static ::engine::data::SpriteData> { self.$f.player_surf_sprite() } };
     (@ $f:tt m8) => {
         $crate::forward_game_data!($f; item multichoice std_string trainer_flag_of emote
-                                   trainer_money evolutions hold_effect form_changes map_type);
+                                   trainer_money evolutions hold_effect form_changes map_type m9);
+    };
+    (@ $f:tt m9) => {
+        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script water_encounters rock_smash_encounters pushable_boulder player_surf_sprite);
     };
 }
 

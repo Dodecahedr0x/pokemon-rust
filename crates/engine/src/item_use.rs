@@ -387,7 +387,8 @@ pub(crate) fn use_on_field(s: &mut State, game: &impl GameData, item: ItemId) ->
             if !s.bag.remove(pocket, item, 1) {
                 return None;
             }
-            s.transition.start(game, dest.map, dest.warp, dest.x, dest.y);
+            s.transition
+                .start(game, dest.map, dest.warp, dest.x, dest.y);
             s.objects.freeze_all();
             None
         }

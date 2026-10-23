@@ -44,5 +44,8 @@ pub(super) fn answer<G: GameData>(h: &Host<'_, G>, q: Query) -> u16 {
         Query::PlayerIdLow => s.player_id as u16,
         Query::PocketNonEmpty(p) => s.bag.pocket(p).iter().any(|sl| sl.qty > 0) as u16,
         Query::Metatile { x, y } => block_metatile(s.field.block(h.game, x, y)),
+        Query::ObjectBerryTree(local_id) => (h.game.map(s.field.map()).objects.iter())
+            .find(|o| o.local_id == local_id)
+            .map_or(0, |o| o.trainer_sight.into()),
     }
 }

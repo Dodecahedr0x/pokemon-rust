@@ -205,6 +205,7 @@ mod tests {
                 pc: Default::default(),
                 coins: 0,
                 registered_item: None,
+                berry_trees: Vec::new(),
             },
         }
     }

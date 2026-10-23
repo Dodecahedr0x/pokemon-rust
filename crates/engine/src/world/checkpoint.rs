@@ -123,6 +123,9 @@ impl World {
             pc: pc_snap(&s.pc),
             coins: s.coins,
             registered_item: s.registered_item,
+            berry_trees: (s.berry_trees.entries())
+                .map(|(id, tree)| crate::checkpoint::BerryTreeSnap { id, tree })
+                .collect(),
         }
     }
 
@@ -201,6 +204,15 @@ impl World {
         if w.coins > ids.max_coins {
             return Err(RestoreError::Invalid("coins over the game's max_coins"));
         }
+        let mut berry_trees = crate::berry::BerryTrees::new(ids.berry_trees);
+        for t in &w.berry_trees {
+            if t.id >= ids.berry_trees {
+                return Err(RestoreError::Invalid(
+                    "berry tree id over the game's berry_trees",
+                ));
+            }
+            berry_trees.set(t.id, t.tree);
+        }
         let mut world = World {
             frame: w.frame,
             runner: Runner::restore_idle(w.runner_issued),
@@ -239,6 +251,7 @@ impl World {
                 pc,
                 coins: w.coins,
                 registered_item: w.registered_item,
+                berry_trees,
                 fx: ScreenFx::default(),
                 field_effects: super::host::FieldEffects::default(),
                 field_move: None,

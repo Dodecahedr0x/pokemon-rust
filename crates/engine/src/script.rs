@@ -464,6 +464,12 @@ pub enum Request {
     // ---- Wave C: specials' reads (`world/host/query.rs`) ----
     /// A read of the world a special needs: answers `Value` at once.
     Query(Query),
+    // ---- Wave E: berry trees (`crate::berry`) ----
+    /// Berry tree `id` (Gen3 `GetBerryTreeInfo`): answers `Berry` at once.
+    BerryTree(u8),
+    /// Overwrites berry tree `id` (Gen3 `PlantBerryTree`, `RemoveBerryTree`, the watering and
+    /// growth flags): answers at once.
+    SetBerryTree(u8, crate::berry::BerryTree),
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -500,6 +506,9 @@ pub enum Query {
     /// The metatile of cell (`x`, `y`) of the current map, with `setmetatile`'s changes (Gen3
     /// `MapGridGetMetatileIdAt`).
     Metatile { x: i16, y: i16 },
+    /// The berry tree id of the current map's object `local_id` (Gen3
+    /// `GetObjectEventBerryTreeId`: its template's `trainerRange_berryTreeId`), 0 for none.
+    ObjectBerryTree(u8),
 }
 
 impl Query {
@@ -522,6 +531,7 @@ impl Query {
             Query::PartyHp(slot) => (8, slot as u16, 0),
             Query::PartyPersonalityLow(slot) => (9, slot as u16, 0),
             Query::Metatile { x, y } => (10, x as u16, y as u16),
+            Query::ObjectBerryTree(local_id) => (11, local_id as u16, 0),
         }
     }
 }
@@ -747,6 +757,18 @@ impl Request {
                 let (k, a, b) = q.key();
                 (121, k, a, b, 0)
             }
+            // Wave E berry trees: tags 170 and up.
+            Request::BerryTree(id) => (170, id as u16, 0, 0, 0),
+            Request::SetBerryTree(id, t) => (
+                171,
+                id as u16,
+                t.berry as u16 | (t.stage as u16) << 8,
+                t.minutes_until_next_stage,
+                t.berry_yield as u16
+                    | (t.regrowth_count as u16) << 8
+                    | (t.watered as u16) << 12
+                    | (t.stop_growth as u16) << 15,
+            ),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -778,6 +800,8 @@ pub enum Response {
     Pos(i16, i16),
     /// Milestone 9 (`MoneyGet`).
     Word(u32),
+    /// Wave E (`BerryTree`).
+    Berry(crate::berry::BerryTree),
 }
 
 impl Response {
@@ -1420,6 +1444,19 @@ impl Ctx {
     /// Gen3 `AddPCItem`: whether it fit in the PC's item storage.
     pub fn pc_item_add(&self, item: ItemId, qty: u16) -> Req<bool> {
         self.req(Request::PcItemAdd { item, qty }, Response::bool)
+    }
+
+    /// Berry tree `id` (see [`Request::BerryTree`]).
+    pub fn berry_tree(&self, id: u8) -> Req<crate::berry::BerryTree> {
+        self.req(Request::BerryTree(id), |r| match r {
+            Response::Berry(t) => t,
+            r => panic!("expected Berry, got {r:?}"),
+        })
+    }
+
+    /// Overwrites berry tree `id` (see [`Request::SetBerryTree`]).
+    pub fn set_berry_tree(&self, id: u8, tree: crate::berry::BerryTree) -> Req<()> {
+        self.req(Request::SetBerryTree(id, tree), unit)
     }
 }
 

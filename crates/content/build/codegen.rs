@@ -204,6 +204,18 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
         write!(o, "FlagId({:#X}),", table_value(&names::FLAGS, f)?)?;
     }
     o.push_str("];\n");
+    // `EventScript_ResetAllBerries` (`names::RESET_ALL_BERRIES`): `(tree, berry item)`, each
+    // planted at `BERRY_STAGE_BERRIES` (Wave E).
+    o.push_str("/// The trees Gen3 `EventScript_ResetAllBerries` plants fully grown (`NewGameInitData`):\n/// `(BERRY_TREE_*, ITEM_*_BERRY)`.\npub const RESET_ALL_BERRIES: &[(u8, u16)] = &[");
+    for (tree, item) in names::RESET_ALL_BERRIES {
+        write!(
+            o,
+            "({:#X}, {:#X}),",
+            table_value(&names::BERRY_TREES, tree)?,
+            table_value(&names::ITEMS, item)?
+        )?;
+    }
+    o.push_str("];\n");
     Ok(o)
 }
 
@@ -734,6 +746,39 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// `EventScript_FallDownHole`, when the scripts have it (`GameData::fall_script`).\npub const SCRIPT_FALL_DOWN_HOLE: Option<ScriptId> = {};",
         fall.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
+    // `TryStartStepCountScript`'s Match Call registrations, in `extract::roots::FIELD_SCRIPTS`
+    // order (Wave E).
+    let calls = [
+        "RustboroCity_Gym_EventScript_RegisterRoxanne",
+        "MauvilleCity_EventScript_RegisterWallyCall",
+        "Route119_EventScript_ScottWonAtFortreeGymCall",
+        "LittlerootTown_ProfessorBirchsLab_EventScript_ScottAboardSSTidalCall",
+        "MossdeepCity_SpaceCenter_2F_EventScript_RivalRayquazaCall",
+    ]
+    .map(|name| {
+        s.names
+            .iter()
+            .position(|n| n == name)
+            .map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    });
+    writeln!(
+        o,
+        "/// The step-count Match Call registrations (Roxanne, Wally, Scott at Fortree, Scott's SS Tidal\n/// call, the rival's Rayquaza call), when the scripts have them (Wave E).\npub const SCRIPT_STEP_CALLS: [Option<ScriptId>; 5] = [{}];",
+        calls.join(", ")
+    )?;
+    // `gBerries` (`tables/berries.ron`, Wave E): by berry type - 1.
+    o.push_str("/// Gen3 `gBerries` by berry type - 1: `(item, name, maxYield, minYield, stageDuration)` (Wave E;\n/// empty without `tables/berries.ron`).\npub static BERRIES: &[(u16, &[u8], u8, u8, u8)] = &[");
+    for b in &w.tables.berries.berries {
+        let item = names::ITEMS
+            .value(&b.item)
+            .with_context(|| format!("berry item {}", b.item))?;
+        write!(
+            o,
+            "({item:#X}, &{:?}, {}, {}, {}),",
+            b.name, b.max_yield, b.min_yield, b.stage_duration
+        )?;
+    }
+    o.push_str("];\n");
     let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
     writeln!(
         o,

@@ -276,7 +276,7 @@ fn nebula_tour_hall(t: &Path) -> Result<()> {
     let mut h = floor.clone();
     for y in [4, 8, 12] {
         for x in 0..16 {
-            let c = if x < 2 || x > 13 {
+            let c = if !(2..=13).contains(&x) {
                 [24, 24, 28]
             } else {
                 [248, 56, 56]

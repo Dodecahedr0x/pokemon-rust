@@ -7,6 +7,7 @@
 use content::consts::*;
 use content::prelude::{MsgBox, callstd, msgbox, special};
 use engine::battle::BattleOutcome;
+use engine::berry::BerryTree;
 use engine::data::{FlagId, ItemId, TextId, VarId};
 use engine::script::{
     BufferSrc, Ctx, Fade, Query, Report, Request, Response, Runner, Script, ScriptHost,
@@ -134,6 +135,7 @@ impl Rec {
                     .map_or(0, |&(_, v)| v),
             ),
             Request::PlayerFacing | Request::ChooseStarter(_) => Response::Value(0),
+            Request::BerryTree(_) => Response::Berry(Default::default()),
             Request::GiveMon { .. } => Response::Value(0),
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
@@ -267,6 +269,14 @@ const DAD: u8 = 5;
 #[test]
 fn native_specials_issue_their_requests_in_order() {
     let fade_in = vec![Request::Fade(Fade::FromBlack)];
+    // The first berry (Cheri): its name, and its stage duration in minutes (`gBerries`).
+    let cheri = Request::Buffer {
+        slot: 0,
+        src: BufferSrc::Item(ItemId(ITEM_CHERI_BERRY)),
+    };
+    let cheri_minutes = content::data::BERRIES
+        .first()
+        .map_or(0, |b| u16::from(b.4) * 60);
     let cases: Vec<(&str, u16, Vec<Request>, u16)> = vec![
         ("SPECIAL_HealPlayerParty", 1, vec![Request::HealParty], 0),
         ("SPECIAL_ChangePokemonNickname", 1, fade_in.clone(), 0),
@@ -400,11 +410,111 @@ fn native_specials_issue_their_requests_in_order() {
         (
             "SPECIAL_ObjectEventInteractionGetBerryTreeData",
             1,
+            // Wave E: the talked object's tree (here tree 0, blank; its berry falls back to the
+            // first, `GetBerryInfo`).
             vec![
-                degraded("SPECIAL_ObjectEventInteractionGetBerryTreeData"),
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::BerryTree(0),
                 set(VAR_0x8004, 0),
                 set(VAR_0x8005, 0),
                 set(VAR_0x8006, 0),
+                Request::Buffer {
+                    slot: 0,
+                    src: BufferSrc::Item(ItemId(ITEM_CHERI_BERRY)),
+                },
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_ObjectEventInteractionRemoveBerryTree",
+            1,
+            vec![
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::SetBerryTree(0, Default::default()),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_DoWateringBerryTreeAnim",
+            1,
+            vec![degraded("SPECIAL_DoWateringBerryTreeAnim")],
+            0,
+        ),
+        (
+            "SPECIAL_ObjectEventInteractionGetBerryName",
+            1,
+            vec![
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::BerryTree(0),
+                cheri.clone(),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_ObjectEventInteractionGetBerryCountString",
+            1,
+            vec![
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::BerryTree(0),
+                cheri.clone(),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_ObjectEventInteractionPickBerryTree",
+            1,
+            // A blank tree yields nothing (`AddBagItem` of 0 succeeds).
+            vec![
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::BerryTree(0),
+                Request::ItemAdd {
+                    item: ItemId(ITEM_CHERI_BERRY),
+                    qty: 0,
+                },
+                set(VAR_0x8004, 1),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_ObjectEventInteractionWaterBerryTree",
+            1,
+            // A blank tree has no stage to water.
+            vec![
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::BerryTree(0),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_ObjectEventInteractionPlantBerryTree",
+            1,
+            // `VAR_ITEM_ID` 0 plants the first berry (`ItemIdToBerryType`), growing.
+            vec![
+                Request::GetVar(VAR_ITEM_ID),
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::SetBerryTree(
+                    0,
+                    BerryTree {
+                        berry: 1,
+                        stage: 1,
+                        minutes_until_next_stage: cheri_minutes,
+                        ..BerryTree::default()
+                    },
+                ),
+                Request::GetVar(VAR_LAST_TALKED),
+                Request::Query(Query::ObjectBerryTree(0)),
+                Request::BerryTree(0),
+                set(VAR_0x8004, 0),
+                set(VAR_0x8005, 0),
+                set(VAR_0x8006, 0),
+                cheri.clone(),
             ],
             0,
         ),
@@ -861,6 +971,9 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
         "SPECIAL_FoundAbandonedShipRoom6Key",
         "SPECIAL_IsMirageIslandPresent",
         "SPECIAL_GetDaysUntilPacifidlogTMAvailable",
+        "SPECIAL_SetMirageTowerVisibility",
+        "SPECIAL_IncrementDailyPickedBerries",
+        "SPECIAL_IncrementDailyPlantedBerries",
     ];
     if cfg!(pkr_silice) {
         covered.extend(story);
@@ -898,6 +1011,35 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
                     (0..6).map(species).collect(),
                 ]
                 .concat(),
+                0,
+            ),
+            (
+                "SPECIAL_SetMirageTowerVisibility",
+                1,
+                vec![
+                    Request::GetVar(VAR_MIRAGE_TOWER_STATE),
+                    Request::Random(2),
+                    Request::GetFlag(FLAG_FORCE_MIRAGE_TOWER_VISIBLE),
+                    Request::SetFlag(FLAG_MIRAGE_TOWER_VISIBLE, false),
+                ],
+                0,
+            ),
+            (
+                "SPECIAL_IncrementDailyPickedBerries",
+                1,
+                vec![
+                    Request::GetVar(VAR_DAILY_PICKED_BERRIES),
+                    set(VAR_DAILY_PICKED_BERRIES, 1),
+                ],
+                0,
+            ),
+            (
+                "SPECIAL_IncrementDailyPlantedBerries",
+                1,
+                vec![
+                    Request::GetVar(VAR_DAILY_PLANTED_BERRIES),
+                    set(VAR_DAILY_PLANTED_BERRIES, 1),
+                ],
                 0,
             ),
         ]);
