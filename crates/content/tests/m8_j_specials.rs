@@ -568,7 +568,9 @@ fn native_specials_issue_their_requests_in_order() {
             blocked: false,
         });
     }
-    for v in [0x4002, 0x4003, 0x4004, 0x4005, 0x4006, 0x4007, 0x4008, 0x4009, 0x400A] {
+    for v in [
+        0x4002, 0x4003, 0x4004, 0x4005, 0x4006, 0x4007, 0x4008, 0x4009, 0x400A,
+    ] {
         want.push(Request::GetVar(VarId(v)));
     }
     assert_eq!(h.log, want);
