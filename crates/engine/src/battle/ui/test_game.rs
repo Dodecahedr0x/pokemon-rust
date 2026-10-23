@@ -276,6 +276,7 @@ impl GameData for Game {
             }
             Str::MoveInterfacePP => raw(enc("PP ")),
             Str::MoveInterfaceType => raw(enc("TYPE/")),
+            Str::MegaArmed => raw(enc("MEGA ON")),
             Str::BattleYesNoChoice => {
                 let mut v = vec![0xFC, 0x05, 5, 0xFC, 0x04, 13, 14, 15];
                 v.extend(t("YES"));
