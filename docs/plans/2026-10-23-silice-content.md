@@ -1370,6 +1370,143 @@ No new flags or vars are otherwise needed.
 - 1 h drafting the six maps;
 - 0.5 h events, gates and this write-up.
 
+#### SIL3 Ch4 maps as built (Port-Ressac)
+
+The six Chapter 4 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Port-Ressac, the Gym and Route S4). No other chapter's map was touched, and `game.ron` and the text were left alone.
+
+`cargo xtask studio map build` rebuilds all 18 maps and writes the same bytes (checked with everything staged: no diff).
+
+**Names.** The chapter's `MAP_*` constants are `MAP_ROUTE_S04`, `MAP_PORT_RESSAC`, `_TAVERNE`, `_NAVIRE_COCKET`, `_GYM` and `_GYM_CALE`, with the names `ids/maps.ron` already gives (`RouteS04`, `PortRessac`, `PortRessac_Taverne`, `PortRessac_NavireCocket`, `PortRessac_Gym`, `PortRessac_Gym_Cale`). Its other names are `MAP_VIBER_CITY` (Ch3) and `MAP_ROUTE_S05` (Ch5): their links are pending (below). Each layout has its map's name.
+
+**Sizes and tilesets** (Emerald tilesets by name; every layout is original, and `hygiene`, which includes `games::copies` with the full extract, is clean):
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS04 | 60 × 20 (the source's size) | General + Cave | Granite Cave's pair: the dark cave the source cites, with rock walls, scree (514/515) and cave mouths (523–533). The canal is General's water 368 inside the cave, as in Shoal Cave at high tide. |
+| PortRessac | 50 × 40 (the source's size) | General + Slateport | Emerald's port town: quays and quay edges (605), sand (292), market stalls, crates, warehouse walls (stacked as containers), the Pokémon Center building (the Taverne). The same secondary has the Abandoned Ship's exterior hull with its boarding stairs (874), used for both ships. |
+| PortRessac_Taverne | 16 × 11 | Building + PokemonCenter | It is a Pokémon Center. The 2F's desk counter (717/719 over 725/727) is the shop counter. |
+| PortRessac_NavireCocket | 24 × 14 (the source's size) | General + Facility | The Abandoned Ship's grey deck, railings and stairs, plus the Aqua Hideout's machines (the processors) and wall terminals (green screens). |
+| PortRessac_Gym | 20 × 22 | General + Facility | The Abandoned Ship's deck: quarterdeck, raised front with stairs, deckhouses, a mast, the gangway. |
+| PortRessac_Gym_Cale | 11 × 9 (the source's size) | General + InsideShip | The S.S. Tidal's hold: plank floor and the white drums (639) as the barrels; the source's grid is kept cell for cell. |
+
+Borders: Port-Ressac is open sea (368, blocked), the Gym its decor sea (414), Route S4 solid rock, the interiors black, blocked.
+
+**Warnings and allowances.**
+- `validate` reports no errors. Its only warnings are the unwritten scripts: 296 in all, of which 102 are Ch4's (Port-Ressac 42, Route S4 30, Gym 11, Cale 7, Navire 6, Taverne 6). `registry::ALLOW_UNWRITTEN` drops them at build time.
+- `03_allow.ron`:
+  - Gym and Port-Ressac keep the Abandoned Ship's decor sea 414 solid round the hulls (Emerald keeps it round the Abandoned Ship too): the ships can only be boarded by their stairs;
+  - Route S4 keeps its west cave mouth (532 at (5, 2)) solid until the Viber-City link.
+- Validate warns on a hide flag shared by two objects, and no allowance exists for that. So every scene actor has its own hide flag, where the source shares one (`FLAG_SIL_HIDE_PORT_QUAIS_SBIRES` for the quay cleaning).
+- `cargo xtask silice check` passes. Every flag, var and item the maps name exists in `ids/` or in Gen3.
+
+**Ids allocated** (commit `feat(silice): ids for Ch4 maps`; the import run on a scratch copy, only `ids/flags.ron` and the report's ids lines taken, the 22 lines added to `ids.golden`): flags 775–796, the hide flags `FLAG_SIL_HIDE_PORT_` `CONTREMAITRE`, `DECOR_1`–`3`, `GYM_GWADA`, `MARIN_CLIENT`, `PASSANT_1`–`4`, `PIRATE_1`–`3`, `PIRATE_PASSERELLE`, `SAMUEL`, `SBIRE_1`–`4`, `TAVERNE_ADRIEN`, `TAVERNE_GWADA`, and `FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE`. No `FLAG_TEMP_*` is used. The source's `FLAG_SIL_HIDE_PORT_CARGO` (the cargo's guard) and `FLAG_SIL_HIDE_ROUTE_S04_ADRIEN` are used as they are. **For `game.ron`** (not edited here): the hidden-at-start actors' flags should go in `new_game_flags`, as Ch1 did: the four `PASSANT`s, `SAMUEL`, the three `PIRATE`s, the four `SBIRE`s, `CONTREMAITRE`, the three `DECOR`s, `GYM_GWADA`, `TAVERNE_GWADA` and `TAVERNE_ADRIEN`. The OnTransition scripts set them anyway.
+
+**Events per map** (my coordinates; the source's own coordinates are kept where it gives them: the Cale's grid, the lookout's (41, 18) and (44, 16)).
+
+- **RouteS04.**
+  - Header: `MUS_PETALBURG_WOODS`, `MAP_TYPE_UNDERGROUND`, `cave: 1` (requires Flash), as Granite Cave 1F.
+  - Map scripts: `on_frame` VAR_SIL_STORY 36 → `RouteS04_Sc01`; `on_transition` `RouteS04_OnTransition`.
+  - Warp 0: the east cave mouth (56, 2) → Port-Ressac warp 0.
+  - Objects: 1 Adrien (28, 9) facing west, `RouteS04_Sc02`, `FLAG_SIL_HIDE_ROUTE_S04_ADRIEN`; 2 his Magikarp (28, 10) in the canal, `_MAGICARPE`; 3 the worker (13, 12); 4 Bernard (9, 9) and 5 Kevin (14, 4) in the hall; 6 Luna (21, 5) and 7 the grunt (34, 9) in the gallery; 8 the reveller (38, 6); 9 Roxane (46, 4) on the ramp; 10–13 the balls: Super Repel (4, 5) behind the booth, Moon Stone (39, 11) at the canal's end, Hyper Potion (51, 12) in the scree, Escape Rope (42, 16) in the dead end. Trainer sights are 4 (Roxane 5).
+  - Coord events: `RouteS04_Sc02` on (26, 5–9), value 40: the whole gallery, two tiles before Adrien.
+  - Signs: the entrance (8, 2), the works (42, 2), M1 (12, 2), M2 (24, 4), M3 (33, 4), M4–M7 (45, 47, 50, 53; 2), M8 = `RouteS04_Sc03` (58, 2), all on wall faces. Hidden: the Ether (50, 3) under M6.
+- **PortRessac.**
+  - Header: `MUS_SLATEPORT`, `MAP_TYPE_CITY`, map name shown.
+  - Map scripts: `on_frame` 41 → `PortRessac_Sc01`; `on_transition` `PortRessac_OnTransition`; `on_load` `PortRessac_OnLoad` (the cargo's departure, below).
+  - Warps: 0 the tunnel door (25, 3) → RouteS04 0; 1 the Taverne (4, 7) → Taverne 0; 2 the cargo's stairs (7, 25) → Navire 0; 3 the Zenith-Grog's stairs (32, 25) → Gym 0.
+  - Objects (local ids 1–26 are the source's obj numbers; 1–4 are free in the source):
+
+    | Local id | Who | Cell | Gfx | Script | Hide flag |
+    |---|---|---|---|---|---|
+    | 1 | Docker | (20, 19) | MAN_3 | `_EventScript_Docker` | |
+    | 2 | Vieux marin | (13, 17) | OLD_MAN | `_EventScript_VieuxMarin` | |
+    | 3 | Fêtarde | (30, 8) | BEAUTY | `_EventScript_Fetarde` | |
+    | 4 | Enfant | (11, 10) | LITTLE_BOY | `_EventScript_Enfant` | |
+    | 5 | Crow | (44, 15) | GENTLEMAN | `PortRessac_Sc02` | |
+    | 6 | Marin client | (46, 16) | SAILOR | `_EventScript_MarinClient` | `_MARIN_CLIENT` |
+    | 7–10 | Passants | (47, 19), (47, 20), (43, 19), (47, 18) | MAGMA_MEMBER_M, SAILOR, SKITTY, SAILOR | none | `_PASSANT_1`–`4` |
+    | 11 | Cargo guard | (8, 26) | MAGMA_MEMBER_M | `_EventScript_GardeCargo` | `FLAG_SIL_HIDE_PORT_CARGO` |
+    | 12 | Gogo | (47, 22) | MAXIE | `_EventScript_Gogo` | |
+    | 13 | Romain | (46, 21), sways | ARCHIE | `_EventScript_Romain` | |
+    | 14 | Pirate passerelle | (32, 26) | SAILOR | `PortRessac_Sc04` | `_PIRATE_PASSERELLE` |
+    | 15 | Samuel | (32, 23), on deck | BRAWLY | none | `_SAMUEL` |
+    | 16–18 | Pirates | (17, 18), (35, 19), (38, 20), walk in place east | SAILOR | `_EventScript_Pirate` | `_PIRATE_1`–`3` |
+    | 19–22 | Quay grunts | alcoves (13, 11, 9, 7; 19), sight 1 | MAGMA_MEMBER_M/F | `_EventScript_Sbire1`–`4` | `_SBIRE_1`–`4` |
+    | 23 | Contremaître | (3, 20) | MAGMA_MEMBER_M | `_EventScript_Contremaitre` | `_CONTREMAITRE` |
+    | 24–26 | Decor grunts | (18, 18), (36, 19), (39, 20), walk in place west | MAGMA_MEMBER_M/F | `_EventScript_SbireDecor` | `_DECOR_1`–`3` |
+    | 27 | Grunt by the container | (8, 16) | MAGMA_MEMBER_M | `_EventScript_Sbire` | |
+    | 28 | Pêcheur | (24, 20) | FISHERMAN | `_EventScript_Pecheur` | |
+    | 29 | Blue container | (6, 15) | PUSHABLE_BOULDER | `_EventScript_Container` | |
+    | 30 | Great Ball | (14, 11) | item ball | `_EventScript_SuperBall` | `FLAG_SIL_ITEM_PORT_SUPER_BALL` |
+
+  - Coord events: `_EventScript_CargoBloque` (6, 26) at 42; `PortRessac_Sc03` (44, 21–23) at 43; `PortRessac_Sc05` (5, 20) at 46; `_EventScript_PasserelleQuais` (31, 26) at 46; `PortRessac_Sc06` (42, 21–23) at 49.
+  - Signs: the town (22, 5), the neon (34, 6), the cargo (4, 19, stencilled on a container), the gym (26, 20), the distributor (8, 7). Hidden: the Water Stone (4, 15), the Pearl (16, 17).
+  - The quays: the four grunts stand in container alcoves over the one-tile corridor (row 20) between the containers and the water, so each sees the player pass and none blocks it once beaten (Gen3 trainers stay where they stand). The foreman closes the corridor's west end, before the cargo's pier.
+  - The blue container is pushed north from (6, 16) into the pocket (6, 14); the corridor west then leads to the Water Stone (4, 15).
+- **PortRessac_Taverne.**
+  - Header: `MUS_POKE_CENTER`, indoor. `on_transition` `PortRessac_Taverne_OnTransition`.
+  - Warps 0–1: the mat (7–8, 10) → Port-Ressac warp 1.
+  - Objects: 1 the nurse (9, 2), `_EventScript_Infirmiere`; 2 the clerk behind the shop counter (3, 2), `_EventScript_Vendeur`; 3 Gwada on a stool (6, 6), `PortRessac_Taverne_Sc01`, `_TAVERNE_GWADA`; 4 Adrien asleep (12, 6), `_EventScript_Adrien`, `_TAVERNE_ADRIEN`; 5 the regular (3, 7), `_EventScript_Pilier`.
+- **PortRessac_NavireCocket.**
+  - Header: `MUS_AQUA_MAGMA_HIDEOUT`, indoor.
+  - Warps 0–1: the gangway steps (3–4, 13), south arrows → Port-Ressac warp 2.
+  - Objects: 1 grunt Cargo_1 (2, 11) facing east, sight 4; 2 grunt Cargo_2 (9, 9) facing west at the stairs' foot, sight 2; 3 the PP Up (22, 6).
+  - Signs: the terminal (19–20, 1) → `PortRessac_NavireCocket_Sc01`. Hidden: the Lucky Punch in Crow's crate (7, 4).
+- **PortRessac_Gym.**
+  - Header: `MUS_GYM`, indoor, `MAP_BATTLE_SCENE_GYM`. `on_transition` `PortRessac_Gym_OnTransition`.
+  - Warps: 0–1 the gangway's exit steps (9–10, 21) → Port-Ressac 3; 2 the hatch deckhouse (13, 13) → Cale 0; 3 the quarterdeck deckhouse (5, 4) → Cale 1.
+  - Objects: 1 Samuel at the helm (13, 3), `PortRessac_Gym_Sc01` (it runs Sc02); 2 the guide (5, 14); 3 Patrice (4, 16) facing east, sight 5; 4 Jessy (15, 15) facing west, sight 3; 5 Gus (7, 5) facing west, sight 2, over the ladder's top; 9 Gwada (7, 15), `_GYM_GWADA` (local id 9 is the source's obj 9).
+  - Coord events: `PortRessac_Gym_Sc03` on the coupée's top (9–10, 18) at 48. Signs: the grille (9–10, 10), the roll notice (12, 13).
+  - The way: gangway → main deck (Patrice, Jessy) → the hatch (13, 13) → the hold's puzzle → its ladder → the quarterdeck (Gus) → Samuel. The grille bars the quarterdeck stairs from the deck.
+- **PortRessac_Gym_Cale.**
+  - Header: `MUS_GYM`, indoor, gym scene. `on_load` `PortRessac_Gym_Cale_OnLoad` (repaints an exploded barrel's cell as floor when `FLAG_SIL_PORT_CALE_FUT_1`/`_2` is set).
+  - Warps: 0 the hatch (5, 8) → Gym 2; 1 the ladder (8, 0) → Gym 3.
+  - Objects: the barrels A (4, 3), D (4, 4) and B (2, 6) as Strength boulders, `_EventScript_Fut`; Timothé (6, 1), sight 1.
+  - Signs: the explosive barrels n°1 (7, 6) and n°2 (8, 3). Hidden: Hyper Potion (1, 5), Rhum Pirate (9, 5).
+
+**Ch4 script contract** (the scripts the maps name; none is written yet).
+- **RouteS04.** `RouteS04_Sc01` (frame, 36 → 40). `RouteS04_Sc02` (Adrien's object and the gallery's coord column at 40: the scene, then `hide_object` Adrien and the Magikarp, which sets both hide flags, then 41). `RouteS04_Sc03` (M8). `RouteS04_OnTransition` (the dark state; keeps the Magikarp's flag equal to Adrien's). `_EventScript_MurM1`–`M7` (Mur_Sombre until `FLAG_SIL_ROUTE_S04_MURS`, then the message), `_SignEntree`, `_SignChantier`, `_Ouvrier`, `_Fetard`, `_Magicarpe`, the trainers `_Bernard` (MINEUR), `_Kevin` (TEUFEUR), `_Luna` (KINESISTE), `_Sbire` (SBIRE), `_Roxane` (COURSIERE), the balls `_SuperRepousse`, `_PierreLune`, `_HyperPotion`, `_Corde`.
+- **PortRessac.**
+  - `PortRessac_OnLoad`: when `FLAG_SIL_HIDE_PORT_CARGO` is set, repaint the cargo (hull, stairs, shoal and dock, x 4–11, rows 22–26) as open water 368 (elevation 1) and clear warp 2's stairs.
+  - `PortRessac_OnTransition`: set `_PASSANT_1`–`4` and `_SAMUEL` always (the scenes show them); `_MARIN_CLIENT` once `FLAG_SIL_PORT_CROW_GUET` is set; `_PIRATE_PASSERELLE` from 46; the pirates', grunts', foreman's and decor grunts' flags unless VAR_SIL_STORY is 46 (the source's `FLAG_SIL_HIDE_PORT_QUAIS_SBIRES` can stay the story flag Sc04 clears and Sc05 sets).
+  - `PortRessac_Sc01` (frame 41 → 42), `_Sc02` (Crow at 42; warps to (41, 18) and (44, 16); hides the client), `_Sc03` (the jetty's coords at 43), `_Sc04` (the gangway pirate at 45; Samuel at (32, 23) walks down 3 to (32, 26), facing the player at (31, 26)), `_Sc05` (the coord (5, 20) at 46; at its end it moves Samuel next to the player before his "walk left 3", since his template is on the gym's deck), `_Sc06` (the coords at 49; returns at once when `FLAG_SIL_PORT_APPEL_JULIEN` is set, since a coord event repeats while its var matches).
+  - `_EventScript_CargoBloque` (Garde_Cargo_T1, the player steps back), `_PasserelleQuais` (a pirate's line: clear the quays first; the player steps back), `_GardeCargo` (T1, or T2 from `FLAG_SIL_PORT_GARDE_DORT`), `_Distributeur` (T1 and the Lemonade once with `FLAG_SIL_PORT_LIMONADE`, then T2 and the vending menu), `_Container` (Champ Magnétique, the Strength boulder behaviour), `_Pecheur` (the Good Rod with `FLAG_SIL_PORT_CANNE`), `_Sbire1`–`4` (TRAINER_SIL_PORT_SBIRE_1–4), `_Contremaitre` (his talk line; his battle is Sc05's), the ambient `_Docker`, `_VieuxMarin`, `_Fetarde`, `_Enfant`, `_MarinClient`, `_Gogo`, `_Romain`, `_Pirate`, `_SbireDecor`, `_Sbire`, the signs `_SignVille`, `_SignNeon`, `_SignCargo`, `_SignGym`, the ball `_SuperBall`. The ambient lines switch to `_Apres` from 47.
+- **PortRessac_Taverne.** `_OnTransition` (`_TAVERNE_GWADA` set outside VAR_SIL_STORY 42–47: the scene's range; the map section says 42–48, but at 48 Gwada is on the Zenith-Grog; `_TAVERNE_ADRIEN` set until `FLAG_SIL_ROUTE_S04_ADRIEN` and again from 49), `PortRessac_Taverne_Sc01`, `_Infirmiere` (heal, `set_respawn(HEAL_LOCATION_PORT_RESSAC)` the first time), `_Vendeur` (the §7 mart), `_Adrien`, `_Pilier`.
+- **PortRessac_NavireCocket.** `PortRessac_NavireCocket_Sc01` (the terminal, 44 → 45, LOG_04), `_EventScript_Sbire1`/`2` (TRAINER_SIL_PORT_CARGO_1/2), `_PpPlus`.
+- **PortRessac_Gym.** `_OnTransition` (sets `_GYM_GWADA`), `PortRessac_Gym_Sc01` (the breathalyser, then Sc02), `PortRessac_Gym_Sc03` (Gwada: show, walk down 2), `_EventScript_Guide`, `_Patrice`, `_Jessy`, `_Gus`, `_Grille`, `_SignRoulis`.
+- **PortRessac_Gym_Cale.** `_OnLoad`, `_EventScript_Fut` (the Strength barrels), `_Explosif1`/`2` (the wild battle, then `set_metatile` and the barrel's flag), `_Timothe`.
+
+**Pending links** (left solid or unconnected, to add with the other chapter):
+- Route S4 west ↔ Viber-City (Ch3): make the cave mouth (5, 2) walkable (`collision 0`), add a warp there to Viber-City's south exit and drop Route S4's 532 allowance; Viber-City's exit warps back to it.
+- Port-Ressac east → Route S5 (Ch5): a map connection on the east edge (column 49, rows 21–39 are open sea; the jetty ends at x 47). Surf only (M10).
+
+**Changes from the source.**
+- The cargo's guard stands beside the stairs, not on them; the block before the lookout is a coord event (6, 26) at 42.
+- Crow's crate is a hidden item, the method §7 gives; its own text (Port_Ressac_Navire_Caisse) cannot show with Gen3's hidden item.
+- The Cale's Rhum Pirate ×2 is one: `HiddenItem` has no quantity.
+- The canal is fishable, so it is also surfable once Surf exists: Gen3 needs both on water whose elevation differs from the player's. The source says not surfable; it is a short dead-end strip.
+- One hide flag per actor, not the source's one shared flag (above).
+- Timothé stands visible next to his barrel (the source's fallback for a trainer hidden in an object).
+
+**Placeholders and what is missing.**
+- Graphics: Samuel BRAWLY, Gwada BOY_2, Crow GENTLEMAN, Gogo MAXIE, Romain ARCHIE, Cocket grunts MAGMA_MEMBER_M/F, pirates SAILOR, the guide MAN_2, Jessy EXPERT_F, Gus BLACK_BELT, Kevin (guitarist) MANIAC, Luna (psychic) HEX_MANIAC, the reveller BOY_3, the worker MAN_4, the Magikarp AZURILL (no MAGIKARP object), the blue container and the barrels PUSHABLE_BOULDER, the pirate nurse NURSE. The sleeping guard needs a second sprite (or a gfx swap).
+- Tiles: blue silica sand, the "RHUM DE SAM" neons, glass walls, real containers (warehouse walls stand in), ship-carcass houses, a grey cargo with red neons (both ships are the Abandoned Ship's hull), the Dome's wall line at sea, the slowed water animation.
+- Mechanics: darkness and the Flash module, Surf, Strength (Champ Magnétique), fishing (M10); the vending machine menu; `set_metatile` for the cargo's departure and the barrels; a field module run by a script (`use_field_module`).
+
+**Editor friction.**
+1. **A hide flag shared by several objects warns, with no allowance.** The source's shared `FLAG_SIL_HIDE_PORT_QUAIS_SBIRES` (8 actors) and one flag for the four passers-by became 18 flags. Suggest an `AllowSharedFlag(flag, reason)` op, or not warning when the objects are a scene's group.
+2. **No wall autotiling.** Route S4's walls (corners, faces, lips) and Port-Ressac's 50 × 40 grid were written by small Python generators in the scratch dir that print one `Ascii` op. Suggest a `Walls(floor: …, set: "cave")` op that picks each rock cell's piece from its floor neighbours.
+3. **Behaviours are still not shown.** General + Cave's 664–682, which look like water in Shoal Cave's low-tide room, are wet sand; only the render showed it. `palette --behaviors` or a behaviour overlay would have said so.
+4. **`import` rewrites the text too.** Run on a newer `contenu-jeu`, it also changes `text/fr.ron` and `speakers.ron` (other chapters' edits). I ran it on a scratch copy and took only the ids. Suggest `import --ids-only`.
+5. **Hidden items carry no quantity and no text.** See the Cale's ×2 and Crow's crate.
+6. **In the agent worktree, shell loops and variables in a command are still refused** (as in Ch1).
+7. The master merge mid-task (`Object(local_id)`, `ScriptsSet`, `render --extract`, `dump --extract`, `palette --range`) helped: `dump --extract` replaced my scratch grid script for Route 108, Route 116 and Shoal Cave, and Gwada has the source's local id 9.
+
+**Time.** About 3 h:
+- 1 h learning five tileset pairs (Cave, Slateport with the ship hull, Facility, InsideShip, PokemonCenter) through reference renders and dumps;
+- 1.5 h drafting the six maps;
+- 0.5 h events, ids, gates and this write-up.
+
 #### SIL1 Task A as built: the authored-data loader
 
 `build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
