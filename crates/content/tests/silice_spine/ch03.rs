@@ -38,20 +38,26 @@ const CASINO: MapId = MAP_VIBER_CITY_CASINO;
 const B1F: MapId = MAP_VIBER_CITY_CASINO_B1F;
 
 /// The lead's level before the Station Lumière (its trainers are 26–29, §5).
+/// Lower loses (re-measured with the learn policy: 32 and 30 lose a battle on the chained run).
 pub const STATION_LEVEL: u8 = 34;
 
 /// The lead's level before the Nocturne (Tauber & Hocseat's six are 28–34, Raikou the ace, §4).
-pub const GYM_LEVEL: u8 = 36;
+/// 38 rather than 36 since the learn policy: at 36 (37 on the start state) the Dugtrio of
+/// [`FIFTH`] meets Raikou too late and the run loses; 38, 39 and 40 win on both runs.
+pub const GYM_LEVEL: u8 = 38;
 
 /// The party's fifth Pokémon, from the leaders' battle on (a test hook, the chapter's one): a
-/// DUGTRIO (Route S2's wild DIGLETT, Chapter 2's list) caught then and trained to 32. **The
-/// reason:** the leaders' ace RAIKOU (34) sets Rain Dance and Calm Mind, then Thunder never
-/// misses; the run's party has no Ground type (Chapter 3's wild lists have none, §6), the
-/// trained starter only knows Ember (the battle policy learns new moves into free slots only)
-/// and the rain halves it. Measured without the hook: the run loses to Raikou with the lead at
-/// 40 (start state; the chained run won once at 42, lost at 40) and at 42 (start state), the
-/// lead's Ember doing 25–30 a turn against Raikou's Sitrus Berry and Calm Mind.
-pub const FIFTH: Hook = Hook::MonBefore("ViberCity_Gym_Sc02", SPECIES_DUGTRIO, 32);
+/// DUGTRIO (Route S2's wild DIGLETT, Chapter 2's list) caught and evolved, at 26 (its evolution
+/// level: the least Dugtrio there is). **The reason:** the leaders' ace RAIKOU (34) sets Rain
+/// Dance and Calm Mind, then Thunder never misses; the run's party has no Ground type (Chapter
+/// 3's wild lists have none, §6), and the starter's Fire moves are halved by the rain.
+/// Measured with the learn policy (the trained TYPHLOSION knows Flame Wheel and Ember), without
+/// the hook: lost to Raikou at a lead of 36 (chained run won, start state lost), 38 (both
+/// lost), 40 (start state won, chained lost) and 42 (start state lost): Raikou keeps 6–74 HP
+/// of 113. With the hook: DUGTRIO 26 to 32 win at a lead of 38; a DIGLETT 25 loses (chained);
+/// a DUGTRIO 30 or 32 at a lead of 36 loses (chained). Before the learn policy the hook was a
+/// DUGTRIO 32 at a lead of 36.
+pub const FIFTH: Hook = Hook::MonBefore("ViberCity_Gym_Sc02", SPECIES_DUGTRIO, 26);
 
 /// Chapter 3's start: Route S3's south edge (9, 49), facing north.
 pub fn start() -> Start {

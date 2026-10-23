@@ -2063,10 +2063,10 @@ No prelude addition: Chapter 3 uses the existing helpers (`trainer`, `post_battl
 - `ch03::steps()`: Route S3 (Sc01, the sign, the depot's sbire by sight, the other trainers' sight lines avoided), the depot (the magnet, the pushes, Sc02, both items, out north), Viber-City (Sc01 by a single `Walk` onto (20, 29), since a `goto` would walk back to its target after the scene moved the player; Mathieu's heal; the neon; the Center), training in the east garden (27, 21–22) to `STATION_LEVEL` 34, Sc03, Sc04, the Station (the notice, the foreman, a tube, levers 2 and 4), the black-out and Sc05, the Casino (Sc03, the counter without a case, the case, 50 coins, the hidden coins, the poster, the basement's terminal, head croupier, Porygon and Rare Candy), training to `GYM_LEVEL` 36, the Nocturne twice (Léna by sight, the manager, the consoles, Éliott; a heal; the consoles again, the hook `FIFTH`, the leaders, back down and the manager's Fresh Water), Sc06, the barrier.
 - `ch03::from_ch02()` leads from Ch2's last step (the Usine's Metal Coat) to Route S3's south edge (9, 49), by Gris-Échec's Centre.
 - `ch03::start()` is a `driver::Start` at (9, 49) with Ch2's end state: Ch1's flags (as `ch02::start`), story 28, sync 20, `BADGE_02`, `MODULE_FORCE`, Lainergie, `LOG_02`, the Usine crates, Ch2's bag, 8 000 ₽, the respawn at Gris-Échec, and Ch2's end party (QUILAVA 26, MAREEP 12, ARON 30).
-- **The party and the hook.** One test hook, `ch03::FIFTH`: a DUGTRIO (Route S2's DIGLETT) trained to 32 joins before the leaders. The leaders' RAIKOU (34) sets Rain Dance and Calm Mind and its Thunder never misses; the run has no Ground type (the Ch3 wild lists have none), the trained starter only knows Ember (the policy learns new moves into free slots only) and the rain halves it. Measured without the hook: lost to Raikou with the lead at 40 (start state) and 42 (start state); the chained run won once at 42 and lost at 40. With the hook, the lead at 36 suffices and Dugtrio ends the fight with about 40 % of its HP.
-- **The driver.** One generic change: `walk_to` waits up to 300 frames for a way to open before failing (the Casino's wanderer (6–8, 9) closes the only way to the coin-case seller for a while).
+- **The party and the hook** (superseded by the review below: a DUGTRIO 26 and a lead at 38 since the learn policy). One test hook, `ch03::FIFTH`: a DUGTRIO (Route S2's DIGLETT) trained to 32 joins before the leaders. The leaders' RAIKOU (34) sets Rain Dance and Calm Mind and its Thunder never misses; the run has no Ground type (the Ch3 wild lists have none), the trained starter only knows Ember (the policy learns new moves into free slots only) and the rain halves it. Measured without the hook: lost to Raikou with the lead at 40 (start state) and 42 (start state); the chained run won once at 42 and lost at 40. With the hook, the lead at 36 suffices and Dugtrio ends the fight with about 40 % of its HP.
+- **The driver.** One generic change: `walk_to` waits up to 300 frames (1 200 since the review) for a way to open before failing (the Casino's wanderer (6–8, 9) closes the only way to the coin-case seller for a while).
 
-**The e2e test.** `crates/content/tests/sil4_ch3.rs`, buttons only, limit 1 200 000 frames:
+**The e2e test.** `crates/content/tests/sil4_ch3.rs`, buttons only, limit 1 200 000 frames (700 000 since the review; the review's counts below):
 - the chain `ch00` → `ch01` → `from_ch01` → `ch02` → `from_ch02` → `ch03` from a new game: about 548 000 frames;
 - `ch03` alone from `start()`: about 277 000 frames.
 
@@ -2085,6 +2085,55 @@ Both assert the story at each step (28 → 30 → 31 → 32 → 33 → 34 → 35
 10. The heal location is (6, 15) on `ViberCity`, in front of the Center door, as Ch1's and Ch2's.
 11. The scene paths (the player to Mathieu's stand, Adrien to the Center, PRAUGECT and the guard, Tauber at the door) are re-derived from the built maps.
 12. The leaders' Raikou (Rain Dance, Calm Mind, Thunder) is hard for a party without a Ground type, and Ch3's wild lists have none: is a Ground Pokémon wanted on Route S3 or in the garden?
+
+#### SIL2 Ch3 scripts: review, and the spine's learn policy
+
+A review of the Ch3 scripts (the ten strict maps, the edits, `game.ron`, `check-exceptions.ron`, `silice_spine/ch03.rs`, `sil4_ch3.rs`), after merging master (the Ch10–Ch11 maps; `check-exceptions.ron` kept master's `FLAG_SIL_ARTHUR_BOUSSOLE_PRISE` entry and still drops the casino coins one).
+
+**Checked and correct.** Story steps 28 → 30 → 31 → 32 → 33 → 34 → 35 → 36, each coord event keyed to its exact value; no step can be skipped (Route Sc01 covers row 46, the rest area is entered only through (7, 10), the ramp (20, 29) is the only way into the city, the dancers and the Station guard block their doors until their scenes). Text order of every scene, trainer ids, sight versus scripted battles, defeat texts, the items (visible, hidden as sign plus `hidden_item`, given), the Volt-Market stock. Every `lock`/`lock_all` is released on every path (the black-out ends in a warp). Sc05's on-frame script clears `VAR_TEMP_1` first and moves the story, so it does not loop. The depot's reset holds (temp vars and object templates are rebuilt before `OnTransition`). The casino's coins cannot go negative and cap at 9 999; losing money cannot block the story (the Casino is optional). The head croupier's seat (6, 10) is a sealed pocket: it never blocks (9, 10), Romain's path or the Rare Candy. Strictness: the 10 maps' object, bg, coord and map script names match the `pub async fn`s exactly; the build fails on a missing one. `lint-reach` on the Ch3 maps: 0 warnings.
+
+**Fixed.**
+
+| Severity | Issue | Fix |
+|---|---|---|
+| High | `ViberCity_Sc04` replayed at every pass of the Station's door at story 33 (no guard; leaving the Station puts the player on (8, 5), past the coord cells): the guard's T1 again, the cart Mathieu shown again | returns at once when `FLAG_SIL_HIDE_STATION_GARDE` is set |
+| High | The Porygon could be lost: with a full party `give_mon` drops it (no PC), and the script still set state 3, which closes the capsule | a full party hears Gen3's `gText_NoMoreRoomForPokemon` and the capsule waits (state 2) |
+| Medium | The depot could be softlocked within one visit: a block pushed down into the south corridor (rows 10–12) walls off the south portal, the only way out of a botched layout (`Depot_Panneau_T1`'s promise; the source's grid allows it) | no push down into rows 10–12 (the solution never needs one) |
+| Medium | Mathieu said T1 on the first talk of every visit even after the black-out | T1 before story 34, T2 from it; the heal stays once a visit |
+| Medium | The Nocturne's manager repeated T2 ("Tiens, de l'EAU FRAÎCHE") after the gift | T2 and the water once; T1 (the rules) before and after |
+| Low | `set_flash_level` was reported only by Sc05, not by the black-out itself | reported in `black_out` too |
+| Low | Slots: `gained + win` could overflow once loyal (a debug panic after ~65 000 coins in one visit) | `saturating_add` |
+| Low | Five casino fallbacks had their `// fallback:` note only in the doc comment | a `// fallback:` comment at each call |
+
+**Driver.** `walk_to`'s wait for a way to open: still deterministic (the world steps as on any frame, and a script that starts during the wait is settled, then the map is asserted), and it still panics with "no way from … to … on … after 1200 frames". 300 was too short: the Casino's wanderer (6–8, 9) closed the way to the coin-case seller for 447 frames on one run; the limit is now `WAIT_FOR_WAY` (1 200).
+
+**Not fixed (latent or for the author).**
+- `ViberCity_Gym_OnLoad` resets the track to blue. Safe today (the engine does not re-run `on_load` after a battle, and there is no save/continue), but a Gen3-style `ON_LOAD` from a saved game on the stage, or behind Éliott's yellow barrier, would trap the player. The fix (reset in an `OnTransition`, draw from the var in `OnLoad`) needs a map header edit (`on_transition`), left to the maps' owner.
+- Nocturne_Sc02 gives TM34 after T9 (Hocseat's "Et prends ça"), where the source's script gives it before; kept (the line offers it), now recorded here.
+- The source's strobe fallback (§4.5: Sableye and Dusclops hold Bright Powder, Magneton a Quick Claw) is not in `trainers.ron` (Sitrus Berry, none, Magnet); the scripts only report `strobe`.
+- Mathieu's stand shop (§7: Fresh Water 200, Soda Pop 300, Lemonade 350, Neon Skewer 300, from story 32, sold by a stand NPC) has no object on the built map; nothing sells the Neon Skewer in Ch3.
+- `ViberCity_Casino_OnTransition` hides Gogo with Romain from casino state 3; the source only takes Romain downstairs.
+- Code duplication left as is (small, cross-chapter): the `FACE_*` step constants (about ten files), the long `walk` paths (a run-length helper would do), the barrier repaint (the prelude's `repaint_if`), and three "walk aside, then re-place on load" copies (Ch2's guard, the foreman, the head croupier) that could become a prelude helper next to `Obstacle`. No `Obstacle` or `post_battle` is re-implemented.
+
+**The learn policy** (`silice_spine` docs, `driver::learn_slot`). Before, the driver pressed B on every "forget a move?", so the starter kept Tackle, Leer, Smokescreen and Ember. Now, on that prompt, the weakest damaging move (power × accuracy, ×1.5 for the same type, the lowest slot on a tie) is forgotten for the new one when the new one is worth more; status moves are never forgotten nor learned this way; no move is reserved (Silice's field abilities are modules, flags). On the main path: Quick Attack replaces Tackle at 21, Flame Wheel replaces Quick Attack at 31; the trained TYPHLOSION reaches the leaders with Flame Wheel, Leer, Smokescreen and Ember. A voluntary switch (lead with no damage, or immune) was considered and left out: the battle scene has no party screen (POKéMON redraws the action menu), so it needs engine work. `SPINE_DEBUG=1` logs every battle's outcome and both parties.
+
+**Re-tuning** (each measured on both runs, chained and from the start state):
+
+| Chapter | Before | After | Measured |
+|---|---|---|---|
+| Ch1 | lead 16, MAREEP 12 hook | unchanged | no hook: lost to the Chimiste (Koffing left at 19/41). MAREEP 5 (its catch level) passes Ch1 and the chains, but the Ch2 start state (whose party mirrors the chain) then loses to Yohan's Alakazam. Lead 15 passes Ch1, loses the chained Ch2; 14 loses Ch1 |
+| Ch2 | lead 26, ARON 30 hook | unchanged | ARON 26 or 28: the start state loses to Alakazam. Lead 24 passes Ch2 but the chained Ch3 then loses a battle |
+| Ch3 | Station 34, gym 36, DUGTRIO 32 hook | Station 34, gym **38**, DUGTRIO **26** | no hook: Raikou wins at a lead of 36, 38, 40 and 42 (one of the two runs or both; it keeps 6–74 of 113 HP). DUGTRIO 32 at 36 loses (chained, Raikou at 6 HP); 26–32 at 38 win; 26 at 37 loses (start state), at 39 and 40 wins; DIGLETT 25 at 38 loses. Station 32 or 30 loses on the chain |
+
+The outcomes swing on the engine's RNG stream (any change in the run moves it), so a level only counts when both runs and its neighbours pass; the Ch3 hook is now the least Dugtrio there is (26, Diglett's evolution level), at two more levels of training. The Raikou wall (Rain Dance, Calm Mind, Thunder, no Ground type in Ch3's wild lists) is author question 12.
+
+**Frames** (debug build, each run): Ch0 47 904; Ch1 217 057 (limit 400 000 → 300 000); Ch2 148 529 alone, 351 490 chained (450 000); Ch3 309 562 alone (was 276 788), 551 922 chained (was 547 603) (1 200 000 → 700 000).
+
+**Author questions (new).**
+13. Mathieu's stand: add the stand seller's object, or let Mathieu sell?
+14. The manager after the Fresh Water: is T1 (the rules) right, or a short line?
+15. Should the leaders' Sableye, Dusclops and Magneton hold the strobe fallback's items (§4.5)?
+16. Casino state 3: should Gogo stay upstairs?
 
 #### SIL2 Ch2–Ch3 maps as built
 

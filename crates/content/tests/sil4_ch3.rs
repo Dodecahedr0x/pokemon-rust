@@ -14,8 +14,9 @@ mod silice_spine;
 
 use silice_spine::{Run, ch00, ch01, ch02, ch03};
 
-/// Every frame of a run, at most (Chapter 2's chained end is about frame 348 000).
-const FRAME_LIMIT: u64 = 1_200_000;
+/// Every frame of a run, at most (the chained run ends at about frame 552 000, the start state
+/// at about 310 000).
+const FRAME_LIMIT: u64 = 700_000;
 
 #[test]
 fn chapters_0_to_3_chain_from_a_new_game_to_the_open_east_barrier() {
