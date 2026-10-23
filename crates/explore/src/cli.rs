@@ -465,7 +465,17 @@ fn print_trace(s: &SpineRun) {
         let party: Vec<String> = b
             .party
             .iter()
-            .map(|m| format!("L{} {}hp", m.level, m.hp))
+            .enumerate()
+            .map(|(i, m)| {
+                // The moves too when they changed (a level-up learn, a TM/HM, a bypass).
+                let old = a.party.get(i).map(|o| o.moves);
+                let moves = m.moves.map(|v| v.map_or(0, |v| v.0));
+                if old == Some(m.moves) {
+                    format!("L{} {}hp", m.level, m.hp)
+                } else {
+                    format!("L{} {}hp moves {moves:?}", m.level, m.hp)
+                }
+            })
             .collect();
         println!(
             "  {:>3} {:>7} {:#06x} {:?} {:?} [{}]  {step:?}  {}",

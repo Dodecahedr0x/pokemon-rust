@@ -9,7 +9,7 @@ use crate::model::Opts;
 use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleMon, Side};
 use engine::data::MoveId;
-use engine::mon::BattleTables;
+use engine::mon::{Ability, BattleTables, Type};
 use engine::{Buttons, World};
 
 pub struct Policy {
@@ -220,9 +220,23 @@ pub fn forget_slot(me: &BattleMon, t: &BattleTables, is_hm: &dyn Fn(MoveId) -> b
     (move_worth(me, new, t) > worth).then_some(slot)
 }
 
+/// Whether every ability `foe`'s species can have makes it immune to a `ty` move (Gen3's
+/// Levitate, Water Absorb, Volt Absorb, Flash Fire): the policy cannot see which one it has.
+fn immune_by_ability(abilities: [Ability; 2], ty: Type) -> bool {
+    let immune = |a: Ability| match a {
+        Ability::Levitate => ty == Type::Ground,
+        Ability::WaterAbsorb => ty == Type::Water,
+        Ability::VoltAbsorb => ty == Type::Electric,
+        Ability::FlashFire => ty == Type::Fire,
+        _ => false,
+    };
+    immune(abilities[0]) && (abilities[1] == Ability::None || immune(abilities[1]))
+}
+
 pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> u8 {
     let mine = t.species_info(me.species).types;
     let theirs = t.species_info(foe.species).types;
+    let abilities = t.species_info(foe.species).abilities;
     let score = |i: usize| -> Option<u32> {
         let id = me.moves[i]?;
         if me.pp[i] == 0 {
@@ -231,6 +245,9 @@ pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> 
         let mi = t.moves.get(id.0 as usize)?;
         if mi.power == 0 {
             return None;
+        }
+        if immune_by_ability(abilities, mi.ty) {
+            return Some(0);
         }
         let mut s = u32::from(mi.power) * if mine.contains(&mi.ty) { 15 } else { 10 };
         let mut seen = None;
@@ -260,6 +277,22 @@ pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ability_immunity_needs_every_ability() {
+        let lev = [Ability::Levitate, Ability::None];
+        assert!(immune_by_ability(lev, Type::Ground));
+        assert!(!immune_by_ability(lev, Type::Water));
+        assert!(immune_by_ability(
+            [Ability::WaterAbsorb, Ability::WaterAbsorb],
+            Type::Water
+        ));
+        // Lanturn: Volt Absorb or Illuminate, unknown which.
+        assert!(!immune_by_ability(
+            [Ability::VoltAbsorb, Ability::Illuminate],
+            Type::Electric
+        ));
+    }
 
     #[test]
     fn toward_walks_the_2x2_grid() {

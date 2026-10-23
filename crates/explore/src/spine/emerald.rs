@@ -22,6 +22,8 @@ mod list {
     /// Gen3's `ITEM_HM03` (`include/constants/items.h`), named here because the stub build's
     /// `content::consts` has no Emerald items (this local item shadows the glob import).
     const ITEM_HM03: engine::data::ItemId = engine::data::ItemId(341);
+    /// Gen3's `ITEM_HM04`, for the same reason.
+    const ITEM_HM04: engine::data::ItemId = engine::data::ItemId(342);
     /// Gen3's `ITEM_HM06`, for the same reason.
     const ITEM_HM06: engine::data::ItemId = engine::data::ItemId(344);
 
@@ -80,6 +82,101 @@ mod list {
 
     /// HM03 from the bag on the lead, as [`USE_HM06`], forgetting Water Gun (slot 3), so
     /// `EventScript_UseSurf`'s `checkpartymove` finds it.
+    /// Fly from the party menu (`FIELD_MOVE_FLY`, `FLDEFF_USE_FLY`, the region map): the
+    /// engine has neither the field move from the party menu (Milestone 10) nor a party that
+    /// could carry it (nothing in Swampert's or Castform's learnsets; catching is the bag in
+    /// battle, Milestone 9). The bypass lands where Gen3's Fly does, on the city's heal
+    /// location (`heal_locations.json`).
+    const fn fly(issue: &'static str, map: MapId, x: i16, y: i16) -> Bypass {
+        Bypass {
+            issue,
+            features: &[
+                "FIELD_MOVE_FLY",
+                "FLDEFF_USE_FLY",
+                "party menu: Fly",
+                "catching (a mon that learns Fly)",
+            ],
+            warp: Some((map, x, y)),
+            ..Bypass::NONE
+        }
+    }
+
+    /// HM04 from the bag on the lead, as [`USE_HM06`], forgetting Take Down (slot 1), for the
+    /// Magma Hideout's boulders.
+    static USE_HM04: Bypass = Bypass {
+        issue: "bag-use-hm04",
+        features: &["bag: use a TM/HM"],
+        use_item: Some(UseItem {
+            item: ITEM_HM04,
+            mon: 0,
+            forget: 1,
+        }),
+        ..Bypass::NONE
+    };
+
+    /// Route 120's ledges are one-way south: back from Mt. Pyre to the Jagged Pass by Fly.
+    static FLY_MAUVILLE: Bypass = fly("fly-mauville", MAP_MAUVILLE_CITY, 22, 6);
+    /// From the Jagged Pass (Groudon awake) to Slateport's harbor, where Archie takes the
+    /// submarine.
+    static FLY_SLATEPORT: Bypass = fly("fly-slateport", MAP_SLATEPORT_CITY, 19, 20);
+    /// From Slateport to Lilycove's Aqua Hideout.
+    static FLY_LILYCOVE: Bypass = fly("fly-lilycove", MAP_LILYCOVE_CITY, 24, 15);
+
+    /// Lilycove's water door into the Aqua Hideout (`MB_WATER_DOOR` at (70, 5), surfing): the
+    /// engine's surf movement never takes its warp. The bypass lands past the hideout's pool
+    /// (whose surfing it skips) on 1F's first dry cell.
+    static WATER_DOOR_IN: Bypass = Bypass {
+        issue: "water-door-in",
+        features: &["MB_WATER_DOOR", "surfing onto a warp"],
+        warp: Some((MAP_AQUA_HIDEOUT_1F, 13, 12)),
+        ..Bypass::NONE
+    };
+    /// The way back: 1F's pool ends on the water warps (13, 27)/(14, 27) to Lilycove's water
+    /// door; the bypass lands on the shore Lilycove's Surf leaves from.
+    static WATER_DOOR_OUT: Bypass = Bypass {
+        issue: "water-door-out",
+        features: &["MB_WATER_DOOR", "surfing onto a warp"],
+        warp: Some((MAP_LILYCOVE_CITY, 63, 14)),
+        ..Bypass::NONE
+    };
+
+    /// Mossdeep's gym: the trick-house statues block every way to Tate and Liza until the
+    /// floor switches turn them (`MossdeepCity_Gym_EventScript_*FloorSwitch`: the rotating
+    /// tile puzzle's commands are unsupported). The bypass lands in front of the twins, where
+    /// the gym's warp pads end.
+    static MOSSDEEP_GYM_PUZZLE: Bypass = Bypass {
+        issue: "mossdeep-gym-puzzle",
+        features: &[
+            "initrotatingtilepuzzle",
+            "moverotatingtileobjects",
+            "turnrotatingtileobjects",
+            "freerotatingtilepuzzle",
+        ],
+        warp: Some((MAP_MOSSDEEP_CITY_GYM, 23, 8)),
+        ..Bypass::NONE
+    };
+
+    /// One training round on the water west of Mossdeep: Surf from (10, 10), pace on (8, 10)
+    /// to `level` (stopping at half HP or low PP), back ashore, healed at the Center.
+    const fn mossdeep_train(level: u8) -> [Step; 9] {
+        [
+            goto(MAP_MOSSDEEP_CITY, 10, 10),
+            Step::Choose(0),
+            use_(MAP_MOSSDEEP_CITY, 10, 10, Left),
+            train_fresh(MAP_MOSSDEEP_CITY, 8, 10, level),
+            goto(MAP_MOSSDEEP_CITY, 9, 10),
+            Step::Walk(Right),
+            enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+            use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+            enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        ]
+    }
+    // Rounds to these levels (a round stops short at half HP; one past its level is cheap).
+    const MT53: [Step; 9] = mossdeep_train(53);
+    const MT55: [Step; 9] = mossdeep_train(55);
+    const MT57: [Step; 9] = mossdeep_train(57);
+    const MT58: [Step; 9] = mossdeep_train(58);
+
     static USE_HM03: Bypass = Bypass {
         issue: "bag-use-hm03",
         features: &["bag: use a TM/HM"],
@@ -1146,5 +1243,270 @@ mod list {
         Step::Expect("winona_defeated"),
         Step::Expect("badge6"),
         Step::Checkpoint("badge6"),
+        // ================= Act 7: Route 120 south, Route 121, Lilycove; Mt. Pyre =================
+        enter(MAP_FORTREE_CITY_GYM, 15, 24, Down),
+        enter(MAP_FORTREE_CITY, 5, 6, Up),
+        use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_FORTREE_CITY, 39, 8, Right),
+        cross(MAP_ROUTE120, 39, 89, Right),
+        // Aqua's grunts block the way east until the player steps on their trigger
+        // (`Route121_EventScript_AquaGruntsMoveOut`, x 25).
+        goto(MAP_ROUTE121, 25, 6),
+        Step::WaitScript,
+        cross(MAP_ROUTE121, 79, 6, Right),
+        Step::Expect("lilycove"),
+        Step::Checkpoint("lilycove"),
+        enter(MAP_LILYCOVE_CITY, 24, 14, Up),
+        use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Back west to Route 121's pier, Surf south over Route 122 to Mt. Pyre ----
+        cross(MAP_LILYCOVE_CITY, 0, 16, Left),
+        // Round the twins Kate and Joy's sight (a double battle, below).
+        Step::GotoAvoiding {
+            map: MAP_ROUTE121,
+            x: 30,
+            y: 18,
+            avoid: &[(39, 10), (40, 10)],
+        },
+        Step::Choose(0),
+        use_(MAP_ROUTE121, 30, 18, Down),
+        cross(MAP_ROUTE121, 30, 19, Down),
+        // Off the water onto Mt. Pyre's island (the planner surfs water only).
+        goto(MAP_ROUTE122, 22, 32),
+        Step::Walk(Up),
+        enter(MAP_ROUTE122, 22, 29, Up),
+        enter(MAP_MT_PYRE_1F, 3, 6, Down),
+        enter(MAP_MT_PYRE_EXTERIOR, 19, 10, Up),
+        // The summit: Aqua's grunts by sight, then Archie takes the orb
+        // (`MtPyre_Summit_EventScript_TeamAquaTrigger*`) and the old lady gives the Magma Emblem.
+        goto(MAP_MT_PYRE_SUMMIT, 23, 7),
+        Step::WaitScript,
+        Step::Expect("magma_emblem"),
+        Step::Checkpoint("magma_emblem"),
+        // ---- The Magma Hideout, on the Jagged Pass: back by Surf to Route 121 and
+        // Lilycove (a heal), Fly to Mauville, Route 111, the cable car to Mt. Chimney, down
+        // the pass ----
+        enter(MAP_MT_PYRE_SUMMIT, 23, 31, Down),
+        enter(MAP_MT_PYRE_EXTERIOR, 10, 42, Up),
+        enter(MAP_MT_PYRE_1F, 17, 18, Down),
+        Step::Choose(0),
+        use_(MAP_ROUTE122, 22, 31, Down),
+        cross(MAP_ROUTE122, 10, 0, Up),
+        Step::Walk(Up),
+        // The summit's grunts leave the lead weak: Lilycove's Center first.
+        Step::GotoAvoiding {
+            map: MAP_ROUTE121,
+            x: 78,
+            y: 6,
+            avoid: &[(39, 10), (40, 10)],
+        },
+        cross(MAP_ROUTE121, 79, 6, Right),
+        enter(MAP_LILYCOVE_CITY, 24, 14, Up),
+        use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Route 120 is one-way south (its ledges): the way back is Fly (`fly-mauville`).
+        Step::Bypass(&FLY_MAUVILLE),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 16, 0, Up),
+        Step::Choose(0),
+        talk(MAP_ROUTE111, 15),
+        cross(MAP_ROUTE111, 0, 68, Left),
+        enter(MAP_ROUTE112, 28, 27, Up),
+        talk(MAP_ROUTE112_CABLE_CAR_STATION, 1),
+        Step::WaitScript,
+        enter(MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 11, Down),
+        enter(MAP_MT_CHIMNEY, 20, 41, Down),
+        // The emblem opens the hideout (`JaggedPass_EventScript_OpenMagmaHideout`).
+        goto(MAP_JAGGED_PASS, 14, 15),
+        Step::WaitScript,
+        enter(MAP_JAGGED_PASS, 16, 18, Up),
+        // ---- The hideout: 1F, 2F 1R, 3F 1R, 4F down its arrow warps; Maxie wakes Groudon ----
+        // Three boulders close the way north (`EventScript_StrengthBoulder`): Strength from
+        // the bag (`bag-use-hm04`), then (6, 23) west, up, and (5, 22) west.
+        Step::Bypass(&USE_HM04),
+        Step::Choose(0),
+        use_(MAP_MAGMA_HIDEOUT_1F, 7, 23, Left),
+        // (A `Walk` into a boulder pushes it, then steps after it.)
+        Step::Walk(Left),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        Step::Walk(Up),
+        enter(MAP_MAGMA_HIDEOUT_1F, 25, 34, Down),
+        enter(MAP_MAGMA_HIDEOUT_2F_1R, 17, 33, Down),
+        enter(MAP_MAGMA_HIDEOUT_3F_1R, 7, 21, Down),
+        talk(MAP_MAGMA_HIDEOUT_4F, 6),
+        Step::WaitScript,
+        Step::Expect("groudon_awakened"),
+        Step::Checkpoint("magma_hideout"),
+        // ---- Out the way in: 4F, 3F, 2F, 1F (the boulders again, from the north: (5, 22)
+        // down, (7, 22) east), the Jagged Pass; the wild battles run (a Geodude's
+        // Self-Destruct finished the hurt lead) ----
+        Step::Battle(BattlePlan::RunWild),
+        enter(MAP_MAGMA_HIDEOUT_4F, 46, 7, Up),
+        enter(MAP_MAGMA_HIDEOUT_3F_1R, 23, 3, Up),
+        enter(MAP_MAGMA_HIDEOUT_2F_1R, 8, 2, Up),
+        Step::Choose(0),
+        use_(MAP_MAGMA_HIDEOUT_1F, 5, 21, Down),
+        Step::Walk(Down),
+        Step::Walk(Right),
+        Step::Walk(Right),
+        Step::Walk(Down),
+        enter(MAP_MAGMA_HIDEOUT_1F, 10, 34, Down),
+        // ---- Slateport's harbor: Archie takes Stern's submarine ----
+        Step::Bypass(&FLY_SLATEPORT),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Capt. Stern's interview in front of the harbor (`SlateportCity_EventScript_CaptStern`)
+        // ends with a warp into it.
+        use_(MAP_SLATEPORT_CITY, 27, 13, Right),
+        goto(MAP_SLATEPORT_CITY_HARBOR, 8, 13),
+        Step::WaitScript,
+        Step::Checkpoint("submarine_stolen"),
+        // ---- Lilycove: Surf east to the Aqua Hideout's water door ----
+        enter(MAP_SLATEPORT_CITY_HARBOR, 11, 14, Down),
+        Step::Bypass(&FLY_LILYCOVE),
+        enter(MAP_LILYCOVE_CITY, 24, 14, Up),
+        use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        Step::Choose(0),
+        goto(MAP_LILYCOVE_CITY, 50, 8),
+        Step::Walk(Down),
+        Step::Walk(Down),
+        use_(MAP_LILYCOVE_CITY, 63, 14, Right),
+        goto(MAP_LILYCOVE_CITY, 70, 6),
+        // The water door (`MB_WATER_DOOR`, (70, 5)) does not warp a surfer: `water-door-in`
+        // lands on the hideout's first dry cell past its pool. It warps from the shore: a
+        // warp keeps the engine's surfing state (Gen3's `GetInitialPlayerAvatarState` drops
+        // it on dry land), so the player gets off the water first.
+        goto(MAP_LILYCOVE_CITY, 64, 14),
+        Step::Walk(Left),
+        Step::Bypass(&WATER_DOOR_IN),
+        // ---- The Aqua Hideout: 1F, B1F's and B2F's warp pads to Matt ----
+        enter(MAP_AQUA_HIDEOUT_1F, 22, 1, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 27, 4, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 32, 19, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 18, 1, Up),
+        enter(MAP_AQUA_HIDEOUT_B2F, 31, 8, Up),
+        enter(MAP_AQUA_HIDEOUT_B2F, 3, 3, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 12, 1, Up),
+        enter(MAP_AQUA_HIDEOUT_B2F, 8, 8, Up),
+        // Matt notices the player on (28, 17) (`AquaHideout_B2F_EventScript_MattNoticePlayer`).
+        goto(MAP_AQUA_HIDEOUT_B2F, 28, 17),
+        Step::WaitScript,
+        // (`Talk` finds no path to him: an explorer gap, the same as Stern's.)
+        use_(MAP_AQUA_HIDEOUT_B2F, 24, 19, Left),
+        Step::WaitScript,
+        Step::Expect("aqua_submarine"),
+        Step::Checkpoint("aqua_hideout"),
+        // ---- Out by B2F's east pad, back to the pool: the water door again (`water-door-out`)
+        enter(MAP_AQUA_HIDEOUT_B2F, 32, 20, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 29, 1, Up),
+        goto(MAP_AQUA_HIDEOUT_1F, 13, 12),
+        Step::Bypass(&WATER_DOOR_OUT),
+        // ---- Route 124 east to Mossdeep ----
+        goto(MAP_LILYCOVE_CITY, 62, 14),
+        Step::Choose(0),
+        use_(MAP_LILYCOVE_CITY, 63, 14, Right),
+        cross(MAP_LILYCOVE_CITY, 79, 12, Right),
+        cross(MAP_ROUTE124, 79, 50, Right),
+        goto(MAP_MOSSDEEP_CITY, 9, 10),
+        Step::Walk(Right),
+        // `MossdeepCity_EventScript_VisitedMossdeep` (coord events) sets the visited flag.
+        goto(MAP_MOSSDEEP_CITY, 25, 25),
+        Step::WaitScript,
+        Step::Expect("mossdeep"),
+        enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+        use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        Step::Checkpoint("mossdeep"),
+        // Tate and Liza's four (the double degrades to singles: `Degraded("double battle")`)
+        // beat the lead alone at 52 (Solrock's SolarBeam in the sun): it trains on the water
+        // west of the city, in rounds healed at the Center (fighting the wild battles again).
+        Step::Battle(BattlePlan::BestLearn),
+        MT53[0],
+        MT53[1],
+        MT53[2],
+        MT53[3],
+        MT53[4],
+        MT53[5],
+        MT53[6],
+        MT53[7],
+        MT53[8],
+        MT53[0],
+        MT53[1],
+        MT53[2],
+        MT53[3],
+        MT53[4],
+        MT53[5],
+        MT53[6],
+        MT53[7],
+        MT53[8],
+        MT55[0],
+        MT55[1],
+        MT55[2],
+        MT55[3],
+        MT55[4],
+        MT55[5],
+        MT55[6],
+        MT55[7],
+        MT55[8],
+        MT55[0],
+        MT55[1],
+        MT55[2],
+        MT55[3],
+        MT55[4],
+        MT55[5],
+        MT55[6],
+        MT55[7],
+        MT55[8],
+        MT57[0],
+        MT57[1],
+        MT57[2],
+        MT57[3],
+        MT57[4],
+        MT57[5],
+        MT57[6],
+        MT57[7],
+        MT57[8],
+        MT57[0],
+        MT57[1],
+        MT57[2],
+        MT57[3],
+        MT57[4],
+        MT57[5],
+        MT57[6],
+        MT57[7],
+        MT57[8],
+        MT58[0],
+        MT58[1],
+        MT58[2],
+        MT58[3],
+        MT58[4],
+        MT58[5],
+        MT58[6],
+        MT58[7],
+        MT58[8],
+        MT58[0],
+        MT58[1],
+        MT58[2],
+        MT58[3],
+        MT58[4],
+        MT58[5],
+        MT58[6],
+        MT58[7],
+        MT58[8],
+        enter(MAP_MOSSDEEP_CITY, 38, 9, Up),
+        // The gym's statues move with its floor switches (`initrotatingtilepuzzle`, ...):
+        // `mossdeep-gym-puzzle` lands in front of the twins.
+        Step::Bypass(&MOSSDEEP_GYM_PUZZLE),
+        talk(MAP_MOSSDEEP_CITY_GYM, 1),
+        Step::WaitScript,
+        Step::Expect("tate_liza_defeated"),
+        Step::Expect("badge7"),
+        Step::Checkpoint("badge7"),
     ];
 }

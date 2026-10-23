@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 841_267;
+const EMERALD_FRAMES: u64 = 1_375_570;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -41,12 +41,29 @@ const EMERALD_LABELS: &[&str] = &[
     "fortree",
     "devon_scope",
     "badge6",
+    "lilycove",
+    "magma_emblem",
+    "magma_hideout",
+    "submarine_stolen",
+    "aqua_hideout",
+    "mossdeep",
+    "badge7",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
-const SPINE_BLOCKERS: &[&str] = &["bag-use-hm06", "bag-use-hm03"];
+const SPINE_BLOCKERS: &[&str] = &[
+    "bag-use-hm06",
+    "bag-use-hm03",
+    "fly-mauville",
+    "bag-use-hm04",
+    "fly-slateport",
+    "fly-lilycove",
+    "water-door-in",
+    "water-door-out",
+    "mossdeep-gym-puzzle",
+];
 
 /// The Silice spine's frame count to the end of Chapter 0.
 const SILICE_CH0_FRAMES: u64 = 21_821;
@@ -94,7 +111,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_badge6() {
+fn spine_reaches_badge7() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
