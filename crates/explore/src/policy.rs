@@ -9,7 +9,7 @@ use crate::model::Opts;
 use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleMon, Side};
 use engine::data::{MoveId, SpeciesId};
-use engine::mon::BattleTables;
+use engine::mon::{Ability, BattleTables, Type};
 use engine::{Buttons, World};
 
 pub struct Policy {
@@ -98,10 +98,9 @@ impl Policy {
                     Some(OpenMenu::Action(c)) => toward(c, if run { RUN } else { FIGHT }),
                     // Never fight when running: back out to the action menu.
                     Some(OpenMenu::Move(_)) if run => Buttons::B,
-                    Some(OpenMenu::Move(c)) if opts.best_move => toward(
-                        c,
-                        best_damaging_slot(battle.mon(Side::Player), battle.mon(Side::Opponent), t),
-                    ),
+                    Some(OpenMenu::Move(c)) if opts.best_move => {
+                        toward(c, best_selectable_slot(battle, t))
+                    }
                     Some(OpenMenu::Move(c)) => {
                         toward(c, first_damaging_slot(battle.mon(Side::Player), t))
                     }
@@ -236,6 +235,33 @@ pub fn forget_slot_of(
     (move_worth(me, new, t) > worth).then_some(slot)
 }
 
+/// Whether every ability `foe`'s species can have makes it immune to a `ty` move (Gen3's
+/// Levitate, Water Absorb, Volt Absorb, Flash Fire): the policy cannot see which one it has.
+fn immune_by_ability(abilities: [Ability; 2], ty: Type) -> bool {
+    let immune = |a: Ability| match a {
+        Ability::Levitate => ty == Type::Ground,
+        Ability::WaterAbsorb => ty == Type::Water,
+        Ability::VoltAbsorb => ty == Type::Electric,
+        Ability::FlashFire => ty == Type::Fire,
+        _ => false,
+    };
+    immune(abilities[0]) && (abilities[1] == Ability::None || immune(abilities[1]))
+}
+
+/// [`best_damaging_slot`] over the moves the player may choose now
+/// ([`engine::battle::Battle::move_selectable`]): Torment, Disable or Taunt refuse a move and
+/// reopen the move menu, so asking for it again would loop.
+fn best_selectable_slot(battle: &engine::battle::Battle, t: &BattleTables) -> u8 {
+    let (me, foe) = (battle.mon(Side::Player), battle.mon(Side::Opponent));
+    let mut pp = me.pp;
+    for (s, p) in pp.iter_mut().enumerate() {
+        if !battle.move_selectable(t, Side::Player, s as u8) {
+            *p = 0;
+        }
+    }
+    best_damaging_slot_of(me.species, &me.moves, &pp, foe.species, t)
+}
+
 pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> u8 {
     best_damaging_slot_of(me.species, &me.moves, &me.pp, foe.species, t)
 }
@@ -250,6 +276,7 @@ pub fn best_damaging_slot_of(
 ) -> u8 {
     let mine = t.species_info(me).types;
     let theirs = t.species_info(foe).types;
+    let abilities = t.species_info(foe).abilities;
     let score = |i: usize| -> Option<u32> {
         let id = moves[i]?;
         if pp[i] == 0 {
@@ -258,6 +285,9 @@ pub fn best_damaging_slot_of(
         let mi = t.moves.get(id.0 as usize)?;
         if mi.power == 0 {
             return None;
+        }
+        if immune_by_ability(abilities, mi.ty) {
+            return Some(0);
         }
         let mut s = u32::from(mi.power) * if mine.contains(&mi.ty) { 15 } else { 10 };
         let mut seen = None;
@@ -287,6 +317,22 @@ pub fn best_damaging_slot_of(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ability_immunity_needs_every_ability() {
+        let lev = [Ability::Levitate, Ability::None];
+        assert!(immune_by_ability(lev, Type::Ground));
+        assert!(!immune_by_ability(lev, Type::Water));
+        assert!(immune_by_ability(
+            [Ability::WaterAbsorb, Ability::WaterAbsorb],
+            Type::Water
+        ));
+        // Lanturn: Volt Absorb or Illuminate, unknown which.
+        assert!(!immune_by_ability(
+            [Ability::VoltAbsorb, Ability::Illuminate],
+            Type::Electric
+        ));
+    }
 
     #[test]
     fn toward_walks_the_2x2_grid() {

@@ -282,6 +282,39 @@ static CELL_STEPS: &[Step] = &[
     Step::Checkpoint("end"),
 ];
 
+/// A spine that walks a written-out route.
+static PATH_STEPS: &[Step] = &[
+    Step::Goto {
+        map: spine::NEW_GAME_MAP,
+        x: 10,
+        y: 9,
+    },
+    Step::Path {
+        map: spine::NEW_GAME_MAP,
+        dirs: &[
+            engine::data::Dir::Up,
+            engine::data::Dir::Up,
+            engine::data::Dir::Left,
+        ],
+    },
+    Step::Checkpoint("end"),
+];
+
+#[test]
+fn a_path_step_walks_each_direction_in_order() {
+    if !content::STUB {
+        return;
+    }
+    let game = Emerald::for_shells();
+    let s = spine::run(&game, PATH_STEPS, &cfg(1));
+    assert!(s.complete(), "{:?}", s.error);
+    let end = s.labelled("end").unwrap();
+    let p = &end.end.world.objects.objs[0];
+    assert_eq!(p.pos, (9, 7));
+    assert_eq!(PATH_STEPS[1].map(), Some(spine::NEW_GAME_MAP));
+    assert!(PATH_STEPS[1].needs_cell());
+}
+
 #[test]
 fn recovery_walks_back_to_the_cell_or_strands_the_branch() {
     if !content::STUB {

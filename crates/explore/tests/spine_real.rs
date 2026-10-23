@@ -12,8 +12,8 @@ use explore::spine::{self, SpineRun};
 /// (an engine or content change on its path), worth a look before updating it.
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
-/// The whole Emerald spine's frame count (to its last step, past `badge5` to HM03).
-const EMERALD_FRAMES: u64 = 809_611;
+/// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
+const EMERALD_FRAMES: u64 = 2_850_424;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -39,12 +39,50 @@ const EMERALD_LABELS: &[&str] = &[
     "castform",
     "hm_fly",
     "fortree",
+    "devon_scope",
+    "badge6",
+    "lilycove",
+    "magma_emblem",
+    "magma_hideout",
+    "submarine_stolen",
+    "aqua_hideout",
+    "mossdeep",
+    "badge7",
+    "space_center",
+    "hm_dive",
+    "seafloor_cavern",
+    "cave_of_origin",
+    "rayquaza_awakened",
+    "hm_waterfall",
+    "badge8",
+    "ever_grande",
+    "victory_road",
+    "hall_of_fame",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
-const SPINE_BLOCKERS: &[&str] = &[];
+const SPINE_BLOCKERS: &[&str] = &[
+    "fly-mauville",
+    "fly-slateport",
+    "fly-lilycove",
+    "water-door-in",
+    "water-door-out",
+    "mossdeep-gym-puzzle",
+    "steven-multi",
+    "dive-seafloor",
+    "legendaries-scene",
+    "dive-sootopolis",
+    "dive-out-sootopolis",
+    "sky-pillar-layouts",
+    "rayquaza-scene",
+    "dive-sootopolis",
+    "dive-out-sootopolis",
+    "waterfall-ever-grande",
+    "league-mart",
+    "game-clear",
+];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
 /// Brico-Bourg on its own tileset: the walks are 8 frames shorter).
@@ -93,7 +131,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_badge5() {
+fn spine_reaches_hall_of_fame() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
