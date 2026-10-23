@@ -17,7 +17,7 @@ use crate::model::{FindingDraft, Macro, MacroKind, Opts, StepResult, Stop};
 use crate::observe::StepObserver;
 use crate::sim::{Live, StepFail};
 use engine::checkpoint::{Checkpoint, WorldSnapshot};
-use engine::data::{Dir, FlagId, GameData, MapId, ScriptId, VarId};
+use engine::data::{Dir, FlagId, GameData, MapId, MoveId, ScriptId, VarId};
 use game_native::trace::Run;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -103,6 +103,15 @@ pub enum Step {
         y: i16,
         level: u8,
     },
+    /// [`Step::Train`] that also stops, short of `level`, once the lead is below half its HP
+    /// or its moves have fewer than [`TIRED_PP`] PP left: the spine heals, then trains again
+    /// (a level at 30+ on low-level grass is long enough to lose to recoil or Struggle).
+    TrainFresh {
+        map: MapId,
+        x: i16,
+        y: i16,
+        level: u8,
+    },
     /// Sticky from here on.
     Battle(BattlePlan),
     /// The yes/no answer (0 yes, 1 no) and the starter ball for the **next** playing step.
@@ -135,6 +144,9 @@ pub struct Bypass {
     pub vars: &'static [(VarId, u16)],
     /// `(map, x, y)`: a debug warp onto that cell (`World::debug_warp`), waited out.
     pub warp: Option<(MapId, i16, i16)>,
+    /// `(slot, move)`: the lead learns `move` in move slot `slot`, full PP (what teaching an
+    /// HM from the party menu would leave).
+    pub teach: &'static [(u8, MoveId)],
 }
 
 impl std::fmt::Debug for Bypass {
@@ -152,6 +164,7 @@ impl Bypass {
         clear: &[],
         vars: &[],
         warp: None,
+        teach: &[],
     };
 }
 
@@ -166,7 +179,8 @@ impl Step {
             | Step::Talk { map, .. }
             | Step::Use { map, .. }
             | Step::Grass { map, .. }
-            | Step::Train { map, .. } => Some(map),
+            | Step::Train { map, .. }
+            | Step::TrainFresh { map, .. } => Some(map),
             Step::Bypass(_) => None,
             _ => None,
         }
@@ -195,6 +209,9 @@ impl Step {
         )
     }
 }
+
+/// [`Step::TrainFresh`] stops below this many PP over the lead's four moves.
+pub const TIRED_PP: u32 = 20;
 
 /// The build's spine ([`content::FLAVOR`]).
 pub fn steps() -> &'static [Step] {
@@ -836,18 +853,33 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 self.goto_avoiding(live, start_map, (x, y), avoid, opts)?
             }
             Step::Enter { x, y, dir, .. } => {
+                let warp = (self.game.map(start_map).warps.iter()).find(|w| (w.x, w.y) == (x, y));
+                // A warp to another cell of the same map (the Petalburg gym's doors): done
+                // once the player stands on its destination.
+                let same_map_dest = warp
+                    .filter(|w| w.dest_map == start_map)
+                    .and_then(|w| self.game.map(start_map).warps.get(w.dest_warp as usize))
+                    .map(|d| (d.x, d.y));
                 for _ in 0..RETRIES {
-                    if live.s.world().map() != start_map {
+                    if live.s.world().map() != start_map
+                        || same_map_dest
+                            .is_some_and(|d| live.s.world().objects().player().pos() == d)
+                    {
                         break;
                     }
                     self.macro_(live, mk(MacroKind::Enter { x, y, dir }))?;
                 }
-                let want = (self.game.map(start_map).warps.iter())
-                    .find(|w| (w.x, w.y) == (x, y))
-                    .map(|w| w.dest_map)
-                    .filter(|&m| self.game.has_map(m));
+                let want = warp.map(|w| w.dest_map).filter(|&m| self.game.has_map(m));
                 let on = live.s.world().map();
-                if want.is_some_and(|m| m != on) || (want.is_none() && on == start_map) {
+                if let Some(d) = same_map_dest {
+                    let at = live.s.world().objects().player().pos();
+                    if on != start_map || at != d {
+                        return Err(err(format!(
+                            "entered ({x}, {y}) but at {at:?} on {:#06x}, not {d:?}",
+                            on.0
+                        )));
+                    }
+                } else if want.is_some_and(|m| m != on) || (want.is_none() && on == start_map) {
                     return Err(err(format!(
                         "entered ({x}, {y}) but on map {:#06x}, not {want:?}",
                         on.0
@@ -870,18 +902,27 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             // A wild battle on the way (a cave floor) ends the macro before the talk: again.
             Step::Talk { local_id, .. } => {
                 // Gen3 spawns objects only near the camera: walk next to an unspawned one's
-                // template cell first (the first reachable side).
+                // template cell first.
                 if live.s.world().objects().get(local_id).is_none()
                     && let Some(t) =
                         (self.game.map(start_map).objects.iter()).find(|t| t.local_id == local_id)
                     && let Ok(snap) = live.s.world().snapshot(live.s.game())
                 {
                     let reach = crate::path::reach(self.game, &snap);
-                    let side = Dir::ALL.into_iter().find_map(|d| {
-                        let (dx, dy) = d.delta();
-                        let c = (t.x - dx, t.y - dy);
-                        reach.dist(c.0, c.1).map(|_| c)
-                    });
+                    // The nearest side that is no other object's home (unspawned objects leave
+                    // their cells free in the reach).
+                    let objects = self.game.map(start_map).objects;
+                    let side = (Dir::ALL.into_iter())
+                        .filter_map(|d| {
+                            let (dx, dy) = d.delta();
+                            let c = (t.x - dx, t.y - dy);
+                            if objects.iter().any(|o| (o.x, o.y) == c) {
+                                return None;
+                            }
+                            reach.dist(c.0, c.1).map(|n| (n, c))
+                        })
+                        .min()
+                        .map(|(_, c)| c);
                     if let Some((x, y)) = side {
                         self.goto(live, start_map, x, y, opts)?;
                     }
@@ -949,16 +990,16 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 }
             }
             Step::Grass { x, y, .. } => self.macro_(live, mk(MacroKind::Grass { x, y }))?,
-            Step::Train { x, y, level, .. } => {
+            Step::Train { x, y, level, .. } | Step::TrainFresh { x, y, level, .. } => {
+                let fresh = matches!(step, Step::TrainFresh { .. });
                 let fight = mk(MacroKind::Grass { x, y });
                 let (mut n, mut dry) = (0, 0);
-                while live
-                    .s
-                    .world()
-                    .party()
-                    .get(0)
-                    .is_some_and(|m| m.level < level)
-                {
+                while live.s.world().party().get(0).is_some_and(|m| {
+                    m.level < level
+                        && !(fresh
+                            && (m.hp * 2 < m.stats[0]
+                                || m.pp.iter().map(|&p| u32::from(p)).sum::<u32>() < TIRED_PP))
+                }) {
                     n += 1;
                     if n > TRAIN_BATTLES {
                         return Err(err(format!(
@@ -1152,6 +1193,15 @@ fn bypass<G: GameData + Clone>(
             (Err(_), 0) => {}
             (Err(i), _) => v.vars.insert(i, (var, value)),
         }
+    }
+    if let Some(lead) = cp.world.party.first_mut() {
+        for &(slot, mov) in b.teach {
+            let slot = slot as usize % 4;
+            lead.moves[slot] = Some(mov);
+            lead.pp[slot] = game.battle().move_info(mov).pp;
+        }
+    } else if !b.teach.is_empty() {
+        return Err(format!("bypass {}: no lead to teach", b.issue));
     }
     cp.header.build = engine::checkpoint::BuildHash {
         engine: 0,

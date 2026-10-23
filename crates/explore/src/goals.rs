@@ -31,6 +31,13 @@ pub enum Act {
     /// Act 3: from Brawly's badge to Wattson's: the boat to Slateport, Capt. Stern and the
     /// museum, Route 110's rival, Mauville, the gym (Task S).
     Act3,
+    /// Act 4: from Wattson's badge to Flannery's: Route 111 and 112, the Fiery Path, Fallarbor,
+    /// Meteor Falls, the cable car, Mt. Chimney, Jagged Pass, Lavaridge (Task S).
+    Act4,
+    /// Act 5: from Flannery's badge to Norman's and HM03: the Go-Goggles, back to Mauville,
+    /// Rusturf Tunnel (HM04 Strength), Rustboro, Petalburg Woods, the Petalburg gym, Wally's
+    /// father (Task S).
+    Act5,
     /// Silice's Prologue (SIL1): from the new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge.
     /// 10 goals (the spine's `Expect`s). The default act on Silice.
     SilCh0,
@@ -47,9 +54,24 @@ impl Default for Act {
 }
 
 impl Act {
-    pub const ALL: [Act; 5] = [Act::Slice, Act::Act1, Act::Act2, Act::Act3, Act::SilCh0];
+    pub const ALL: [Act; 7] = [
+        Act::Slice,
+        Act::Act1,
+        Act::Act2,
+        Act::Act3,
+        Act::Act4,
+        Act::Act5,
+        Act::SilCh0,
+    ];
     /// The Emerald acts (and the stub's, which shares one list).
-    pub const EMERALD: [Act; 4] = [Act::Slice, Act::Act1, Act::Act2, Act::Act3];
+    pub const EMERALD: [Act; 6] = [
+        Act::Slice,
+        Act::Act1,
+        Act::Act2,
+        Act::Act3,
+        Act::Act4,
+        Act::Act5,
+    ];
     /// The Silice acts (`sil_ch1` and onwards come with their chapters).
     pub const SILICE: [Act; 1] = [Act::SilCh0];
 
@@ -60,6 +82,8 @@ impl Act {
             Act::Act1 => "act1",
             Act::Act2 => "act2",
             Act::Act3 => "act3",
+            Act::Act4 => "act4",
+            Act::Act5 => "act5",
             Act::SilCh0 => "sil_ch0",
         }
     }
@@ -301,6 +325,67 @@ mod emerald {
         },
     ];
 
+    /// Act 4: from Wattson's badge to Flannery's.
+    pub static ACT4: [Goal; 6] = [
+        Goal {
+            name: "fallarbor",
+            reached: |s| flag(s, FLAG_VISITED_FALLARBOR_TOWN),
+        },
+        Goal {
+            name: "meteor_falls",
+            // `MeteorFalls_1F_1R_EventScript_MagmaAquaScene`.
+            reached: |s| flag(s, FLAG_MET_ARCHIE_METEOR_FALLS),
+        },
+        Goal {
+            name: "mt_chimney",
+            // `MtChimney_EventScript_Maxie`, after Maxie's battle.
+            reached: |s| flag(s, FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY),
+        },
+        Goal {
+            name: "lavaridge",
+            reached: |s| flag(s, FLAG_VISITED_LAVARIDGE_TOWN),
+        },
+        Goal {
+            name: "flannery_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_LAVARIDGE_GYM),
+        },
+        Goal {
+            name: "badge4",
+            reached: |s| flag(s, FLAG_BADGE04_GET),
+        },
+    ];
+
+    /// Act 5: from Flannery's badge to Norman's.
+    pub static ACT5: [Goal; 6] = [
+        Goal {
+            name: "go_goggles",
+            // `LavaridgeTown_EventScript_RivalGiveGoGoggles`, on leaving the gym.
+            reached: |s| flag(s, FLAG_RECEIVED_GO_GOGGLES),
+        },
+        Goal {
+            name: "verdanturf",
+            reached: |s| flag(s, FLAG_VISITED_VERDANTURF_TOWN),
+        },
+        Goal {
+            name: "hm_strength",
+            // `RusturfTunnel_EventScript_ClearTunnelScene`, Wanda's boyfriend.
+            reached: |s| flag(s, FLAG_RECEIVED_HM_STRENGTH),
+        },
+        Goal {
+            name: "norman_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_PETALBURG_GYM),
+        },
+        Goal {
+            name: "badge5",
+            reached: |s| flag(s, FLAG_BADGE05_GET),
+        },
+        Goal {
+            name: "hm_surf",
+            // `PetalburgCity_WallysHouse_EventScript_GiveHMSurf`.
+            reached: |s| flag(s, FLAG_RECEIVED_HM_SURF),
+        },
+    ];
+
     /// The decomp constants the lists name, for the drift test.
     pub const CONSTANTS: &[(&str, u16)] = &[
         ("VAR_ROUTE101_STATE", VAR_ROUTE101_STATE.0),
@@ -339,6 +424,27 @@ mod emerald {
         ("FLAG_VISITED_MAUVILLE_CITY", FLAG_VISITED_MAUVILLE_CITY.0),
         ("FLAG_DEFEATED_MAUVILLE_GYM", FLAG_DEFEATED_MAUVILLE_GYM.0),
         ("FLAG_BADGE03_GET", FLAG_BADGE03_GET.0),
+        ("FLAG_VISITED_FALLARBOR_TOWN", FLAG_VISITED_FALLARBOR_TOWN.0),
+        (
+            "FLAG_MET_ARCHIE_METEOR_FALLS",
+            FLAG_MET_ARCHIE_METEOR_FALLS.0,
+        ),
+        (
+            "FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY",
+            FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY.0,
+        ),
+        ("FLAG_VISITED_LAVARIDGE_TOWN", FLAG_VISITED_LAVARIDGE_TOWN.0),
+        ("FLAG_DEFEATED_LAVARIDGE_GYM", FLAG_DEFEATED_LAVARIDGE_GYM.0),
+        ("FLAG_BADGE04_GET", FLAG_BADGE04_GET.0),
+        ("FLAG_RECEIVED_GO_GOGGLES", FLAG_RECEIVED_GO_GOGGLES.0),
+        (
+            "FLAG_VISITED_VERDANTURF_TOWN",
+            FLAG_VISITED_VERDANTURF_TOWN.0,
+        ),
+        ("FLAG_RECEIVED_HM_STRENGTH", FLAG_RECEIVED_HM_STRENGTH.0),
+        ("FLAG_DEFEATED_PETALBURG_GYM", FLAG_DEFEATED_PETALBURG_GYM.0),
+        ("FLAG_BADGE05_GET", FLAG_BADGE05_GET.0),
+        ("FLAG_RECEIVED_HM_SURF", FLAG_RECEIVED_HM_SURF.0),
     ];
 
     /// `TRAINER_GRUNT_PETALBURG_WOODS`. The stub build's `content::consts` names no trainers
@@ -478,8 +584,12 @@ pub fn goals_of(act: Act) -> &'static [Goal] {
         Act::Act2 => &emerald::ACT2,
         #[cfg(not(pkr_silice))]
         Act::Act3 => &emerald::ACT3,
+        #[cfg(not(pkr_silice))]
+        Act::Act4 => &emerald::ACT4,
+        #[cfg(not(pkr_silice))]
+        Act::Act5 => &emerald::ACT5,
         #[cfg(pkr_silice)]
-        Act::Slice | Act::Act1 | Act::Act2 | Act::Act3 => &[],
+        Act::Slice | Act::Act1 | Act::Act2 | Act::Act3 | Act::Act4 | Act::Act5 => &[],
         Act::SilCh0 => silice::CH0,
     }
 }

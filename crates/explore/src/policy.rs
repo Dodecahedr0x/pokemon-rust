@@ -15,7 +15,15 @@ use engine::{Buttons, World};
 pub struct Policy {
     /// The last intent given (diagnostics; the tap rule is the driver's).
     last: Buttons,
+    /// The yes/no prompts seen so far (counted on the frame each opens).
+    yes_nos: u32,
+    /// Whether a yes/no was open on the previous script frame.
+    yes_no_open: bool,
 }
+
+/// [`Opts::choice`] value: yes to the first yes/no of the macro, no to every later one (a
+/// script that offers again after a yes, the Route 111 rest stop's old lady).
+pub const YES_ONCE: u8 = 3;
 
 impl Default for Policy {
     fn default() -> Self {
@@ -51,6 +59,8 @@ impl Policy {
     pub fn new() -> Policy {
         Policy {
             last: Buttons::NONE,
+            yes_nos: 0,
+            yes_no_open: false,
         }
     }
 
@@ -110,12 +120,17 @@ impl Policy {
     }
 
     /// Next intent while a script or the starter screen runs: A through text; yes/no -> A for
-    /// choice 0, B otherwise; a multichoice -> move to choice `opts.choice`, then A; starter ->
+    /// choice 0 (and the first one for [`YES_ONCE`]), B otherwise; a multichoice -> move to choice `opts.choice`, then A; starter ->
     /// move to ball `opts.choice % 3`, then A.
     ///
     /// B on every yes/no when `choice != 0` can cycle on a script that re-asks until it gets a
     /// yes: the driver's `settle_frames`/`macro_frames` limits end such a macro (a `Timeout`).
     pub fn script(&mut self, w: &World, opts: Opts) -> Buttons {
+        let yes_no = w.text().is_yes_no_active();
+        if yes_no && !self.yes_no_open {
+            self.yes_nos += 1;
+        }
+        self.yes_no_open = yes_no;
         let k = if let Some(starter) = w.starter() {
             // Its own "Do you choose this?" yes/no starts on yes: A confirms the ball.
             let want = opts.choice % 3;
@@ -131,9 +146,9 @@ impl Policy {
                 std::cmp::Ordering::Greater => Buttons::UP,
                 std::cmp::Ordering::Equal => Buttons::A,
             }
-        } else if w.text().is_yes_no_active() {
+        } else if yes_no {
             // The cursor starts on yes; B answers no wherever it is.
-            if opts.choice == 0 {
+            if opts.choice == 0 || (opts.choice == YES_ONCE && self.yes_nos == 1) {
                 Buttons::A
             } else {
                 Buttons::B

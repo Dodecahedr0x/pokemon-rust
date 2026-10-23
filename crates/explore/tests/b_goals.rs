@@ -123,6 +123,8 @@ fn goal_names_follow_the_story_order() {
         };
         assert_eq!(names(Act::Act2).last(), Some(&"badge2"));
         assert_eq!(names(Act::Act3).last(), Some(&"badge3"));
+        assert_eq!(names(Act::Act4).last(), Some(&"badge4"));
+        assert_eq!(names(Act::Act5).last(), Some(&"hm_surf"));
     }
     // SIL1 Wave 0: Silice's Prologue act exists, with no goal yet (the stub keeps its list).
     assert_eq!(Act::parse("sil_ch0"), Some(Act::SilCh0));
