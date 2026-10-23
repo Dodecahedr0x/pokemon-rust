@@ -779,7 +779,9 @@ impl<'a, G: GameData> Driver<'a, G> {
                         return if used {
                             Ok(())
                         } else {
-                            Err(ExpandError::NoEffect("use item: the party menu never opened"))
+                            Err(ExpandError::NoEffect(
+                                "use item: the party menu never opened",
+                            ))
                         };
                     }
                     Buttons::NONE
