@@ -7,11 +7,11 @@
     // Warps 0-1: the service stairs' mat, down to B1F's warp 0.
     Warp(x: 20, y: 15, dest_map: "Nebula_TourHall_B1F", dest_warp: 0),
     Warp(x: 21, y: 15, dest_map: "Nebula_TourHall_B1F", dest_warp: 0),
-    // Tour_Hall_Sc02 (l'ascenseur de cristal) at VAR_SIL_STORY 97, across the elevator's approach: it
+    // Nebula_TourHall_Sc02 (Tour_Hall_Sc02, l'ascenseur de cristal) at VAR_SIL_STORY 97, across the elevator's approach: it
     // warps to MAP_TOUR_NEBULA_1F (no warp event; Ch10's elevator sign covers later rides).
-    Coord(x: 11, y: 3, var: "VAR_SIL_STORY", value: 97, script: "Tour_Hall_Sc02"),
-    Coord(x: 12, y: 3, var: "VAR_SIL_STORY", value: 97, script: "Tour_Hall_Sc02"),
-    Coord(x: 13, y: 3, var: "VAR_SIL_STORY", value: 97, script: "Tour_Hall_Sc02"),
+    Coord(x: 11, y: 3, var: "VAR_SIL_STORY", value: 97, script: "Nebula_TourHall_Sc02"),
+    Coord(x: 12, y: 3, var: "VAR_SIL_STORY", value: 97, script: "Nebula_TourHall_Sc02"),
+    Coord(x: 13, y: 3, var: "VAR_SIL_STORY", value: 97, script: "Nebula_TourHall_Sc02"),
     // 1: Sbire 3 (sas 1), his sight across V1's whole width at row 12.
     // 2-3: Viktor (sas 2, facing down from his niche) and Nadia (facing up), each across H's whole height.
     // 4: Kroll (sas 3), across V2 at row 6; his after-battle script sets VAR_SIL_STORY 97.

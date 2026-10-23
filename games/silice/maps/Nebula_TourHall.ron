@@ -98,7 +98,7 @@
             elevation: 3,
             var: Some("VAR_SIL_STORY"),
             value: 97,
-            script: Some("Tour_Hall_Sc02"),
+            script: Some("Nebula_TourHall_Sc02"),
         ),
         (
             x: 12,
@@ -106,7 +106,7 @@
             elevation: 3,
             var: Some("VAR_SIL_STORY"),
             value: 97,
-            script: Some("Tour_Hall_Sc02"),
+            script: Some("Nebula_TourHall_Sc02"),
         ),
         (
             x: 13,
@@ -114,7 +114,7 @@
             elevation: 3,
             var: Some("VAR_SIL_STORY"),
             value: 97,
-            script: Some("Tour_Hall_Sc02"),
+            script: Some("Nebula_TourHall_Sc02"),
         ),
     ],
     bgs: [
