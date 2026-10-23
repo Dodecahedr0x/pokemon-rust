@@ -258,6 +258,22 @@ pub fn scripts(w: &World) -> Scripts {
     }
 }
 
+/// `parity.tsv` (`content::PARITY`, `build/parity.rs`): empty for an authored game.
+pub fn parity(w: &World) -> Result<String> {
+    if w.authored.is_some() {
+        return Ok(String::new());
+    }
+    let s = scripted(w)?;
+    let support = support(&content_dir().join("build"))?;
+    let overrides = s.overrides.keys().cloned().collect();
+    Ok(crate::parity::emit(
+        w.ir.as_ref(),
+        &support,
+        &overrides,
+        &s.lowered.stats,
+    ))
+}
+
 /// The scripts of `w`: writes `out/scripts/<Module>.rs` and returns the other files.
 pub fn generate(out: &Path, w: &World) -> Result<ScriptsOut> {
     let s = scripted(w)?;
