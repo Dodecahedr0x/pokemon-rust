@@ -53,3 +53,9 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         _ => UNIT,
     }
 }
+
+/// The answer of a request [`begin`] made wait, polled every frame (Task R). Wave 0: [`begin`]
+/// never waits.
+pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
+    begin(h, r)
+}

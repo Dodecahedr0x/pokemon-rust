@@ -146,3 +146,26 @@ fn new_state_is_hashed_only_when_not_default() {
     w.s.registered_item = None;
     assert_eq!(w.hash(), h);
 }
+
+/// A stub screen opened over the field reports itself, closes on its first frame and hands
+/// the field back; the stack hashes while open and the world is not capturable then.
+#[test]
+fn a_stub_screen_closes_back_to_the_field() {
+    use crate::ui::{PartyMode, ScreenKind};
+    let mut w = started();
+    let idle = w.hash();
+    crate::world::screens::open(&mut w.s, ScreenKind::Party(PartyMode::Field));
+    assert_eq!(w.screens_open(), 1);
+    assert_ne!(w.hash(), idle, "an open screen is hashed");
+    assert_eq!(
+        w.capturable(),
+        Err(crate::checkpoint::NotCapturable::Screen)
+    );
+    w.step(&Game, Buttons::NONE);
+    assert_eq!(w.screens_open(), 0);
+    assert!(w.field_active());
+    let events = w.events();
+    assert!(events.contains(&Event::Report(Report::Unsupported("party menu"))));
+    assert!(events.contains(&Event::ScreenClosed));
+    assert!(w.capturable().is_ok());
+}

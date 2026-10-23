@@ -302,6 +302,19 @@ fn golden_ron() {
     );
 }
 
+/// A schema 3 RON snapshot (a store's cache) has none of the Milestone 9 fields: it reads as a
+/// new game's.
+#[test]
+fn schema_3_ron_reads_without_m9_fields() {
+    let mut cp = sample_m9_default();
+    let ron = ron::to_string(&cp).unwrap();
+    let start = ron.find(",options:").unwrap();
+    let v3 = format!("{}))", &ron[..start]).replacen("schema:4", "schema:3", 1);
+    let back: Checkpoint = ron::from_str(&v3).unwrap();
+    cp.header.schema = 3;
+    assert_eq!(back, cp);
+}
+
 #[test]
 fn postcard_and_ron_round_trip() {
     let cp = sample();

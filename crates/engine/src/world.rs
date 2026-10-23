@@ -426,7 +426,7 @@ impl World {
             self.s.events.clear();
         }
         self.frame = self.frame.wrapping_add(1);
-        self.s.input.update(keys);
+        self.s.input.update_mode(keys, self.s.options.button_mode);
         match core::mem::replace(&mut self.s.mode, Mode::Field) {
             Mode::Field => self.step_field(game, &mut f),
             Mode::Starter(run) => self.step_starter(game, run, &mut f),
@@ -434,7 +434,7 @@ impl World {
             Mode::Screens(stack) => self.step_screens(game, stack, &mut f),
         }
         // Screen effects post-process the whole frame, last (Task R).
-        crate::fx::apply(&self.s.fx, &mut f);
+        crate::fx::apply(&mut self.s.fx, &mut f);
         f
     }
 
@@ -913,6 +913,8 @@ fn draw_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
     s.objects.draw(game, camera, f);
     s.text.update(game, s.input.pressed, s.input.held, f);
     f.brightness = s.fader.level();
+    // Milestone 9: white fades (Task R's `Fader`).
+    f.lighten = s.fader.is_white();
 }
 
 /// Runs a map script to completion now (Gen3 `RunScriptImmediately`).

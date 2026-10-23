@@ -68,8 +68,16 @@ impl World {
     /// templates, which the snapshot stores as deltas.
     pub fn snapshot(&self, game: &impl GameData) -> Result<WorldSnapshot, NotCapturable> {
         self.capturable()?;
+        Ok(self.snapshot_unchecked(game))
+    }
+
+    /// The state as [`World::snapshot`] writes it, without the capture checks (Milestone 9: the
+    /// in-game save, `world/save.rs`, snapshots mid-script or with a screen open and normalises
+    /// the DTO to field idle before it captures). What the DTO cannot hold is dropped: the
+    /// runner's future (only its `issued` count stays), the mode, the text box, screen effects.
+    pub(super) fn snapshot_unchecked(&self, game: &impl GameData) -> WorldSnapshot {
         let s = &self.s;
-        Ok(WorldSnapshot {
+        WorldSnapshot {
             frame: self.frame,
             rng: s.rng.state(),
             input: s.input.snapshot(),
@@ -110,7 +118,7 @@ impl World {
             pc: pc_snap(&s.pc),
             coins: s.coins,
             registered_item: s.registered_item,
-        })
+        }
     }
 
     /// [`World::snapshot`] with its header (schema, build, frame, hash). The capture predicate

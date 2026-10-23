@@ -391,6 +391,23 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         {
             return screens::resume(self, r);
         }
+        if let Request::ScreenFlash { .. }
+        | Request::ScreenShake { .. }
+        | Request::SetTint { .. }
+        | Request::WaitInputOrTimeout(_) = r
+        {
+            return fx::resume(self, r);
+        }
+        if let Request::MoneyGet
+        | Request::CoinsGet
+        | Request::CoinsAdd(_)
+        | Request::CoinsRemove(_)
+        | Request::AddFriendship { .. }
+        | Request::PartyMonSpecies(_)
+        | Request::InGameTrade { .. } = r
+        {
+            return party::resume(self, r);
+        }
         if let Request::YesNo { .. } = r {
             let t = &self.s.text;
             return match t.yes_no_result() {

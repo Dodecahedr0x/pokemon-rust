@@ -1,6 +1,13 @@
 //! Evolution after a battle (Gen3 `TryEvolvePokemon` from `CB2_ReturnToField`; moved out of
 //! `world/battle.rs` by Milestone 9 Wave 0, unchanged; Task E owns the file and replaces the
 //! silent evolution with the scene).
+//!
+//! Two hooks, both called by `world/battle.rs`:
+//! - [`after_win`] when a battle is won, with the battle still open (Wave 0: the silent level
+//!   evolution of Milestone 8);
+//! - [`after_battle`] when a won battle leaves, over the black screen and before the field is
+//!   restored (Gen3 `FreeResetData_ReturnToOvOrDoEvolutions` → `TryEvolvePokemon`, for the
+//!   mons in `Battle::leveled_up`): Task E opens the evolution scene there.
 
 use super::State;
 use super::battle::report;
@@ -37,4 +44,14 @@ pub(super) fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
         }
         report(s, Report::Degraded("evolution scene"));
     }
+}
+
+/// Over the black screen a won battle leaves (Gen3 `TryEvolvePokemon`): `true` when it opened
+/// the evolution scene (`world/screens.rs::open`, which sets `Mode::Screens`); the battle then
+/// ends without restoring the field, and the screens' host restores it when the last screen
+/// closes. `false` returns to the field as before. Wave 0: `false` (the evolution happened in
+/// [`after_win`]).
+pub(super) fn after_battle(game: &impl GameData, s: &mut State, battle: &Battle) -> bool {
+    let _ = (game, s, battle);
+    false
 }

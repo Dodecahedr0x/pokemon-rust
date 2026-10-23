@@ -98,7 +98,8 @@ impl ScreenFx {
     }
 }
 
-/// Applies the effects to the frame about to be shown (Task R). Wave 0: nothing.
-pub fn apply(fx: &ScreenFx, f: &mut Frame) {
+/// Applies the effects to the frame about to be shown and advances them one frame (Task R:
+/// `t`, the tint's `current`, an effect removed when it ends). Wave 0: nothing.
+pub fn apply(fx: &mut ScreenFx, f: &mut Frame) {
     let _ = (fx, f);
 }

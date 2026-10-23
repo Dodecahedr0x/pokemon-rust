@@ -423,6 +423,21 @@ fn see_opponent(s: &mut State, battle: &Battle) {
     }
 }
 
+/// The battle hands the frame back (to the field, or to the evolution scenes): the objects a
+/// field battle froze move again, a script's battle request gets its answer, and the encounter
+/// immunity restarts.
+fn end_battle(s: &mut State, run: &mut BattleRun) {
+    if run.origin == Origin::Field || run.whiteout {
+        s.objects.unfreeze_all();
+    }
+    if run.origin == Origin::Script && !run.whiteout {
+        s.answer = run.outcome.map(|o| o as u16);
+    }
+    // `RestartWildEncounterImmunitySteps` (also done at the battle start).
+    s.encounter_immunity = 0;
+    drain_reports(s, &mut run.scene);
+}
+
 /// A world report: its log line and its event.
 pub(super) fn report(s: &mut State, r: Report) {
     s.log(match r {
@@ -583,6 +598,15 @@ impl World {
                 }
             }
             Stage::Leaving => {
+                // Gen3 `FreeResetData_ReturnToOvOrDoEvolutions`: after a win with a level-up,
+                // the evolution scenes run over the black screen before the field comes back
+                // (Task E opens them; their host restores the field when the last closes).
+                if run.outcome == Some(BattleOutcome::Won)
+                    && super::evolve::after_battle(game, s, &run.battle)
+                {
+                    end_battle(s, &mut run);
+                    return;
+                }
                 // The fade from black starts black and only moves in `Returning`.
                 restore_field_spread(s, f);
                 s.fader.start(Fade::FromBlack);
@@ -619,15 +643,7 @@ impl World {
                 s.fader.update();
                 draw_field(game, s, f);
                 if s.fader.is_done() {
-                    if run.origin == Origin::Field || run.whiteout {
-                        s.objects.unfreeze_all();
-                    }
-                    if run.origin == Origin::Script && !run.whiteout {
-                        s.answer = run.outcome.map(|o| o as u16);
-                    }
-                    // `RestartWildEncounterImmunitySteps` (also done at the battle start).
-                    s.encounter_immunity = 0;
-                    drain_reports(s, &mut run.scene);
+                    end_battle(s, &mut run);
                     s.mode = Mode::Field;
                     return;
                 }

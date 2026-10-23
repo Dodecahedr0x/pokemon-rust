@@ -27,7 +27,7 @@ pub mod summary;
 
 use crate::bag::Bag;
 use crate::checkpoint::PlayerName;
-use crate::data::{GameData, ItemId, MoveId, ScriptId, SpeciesId};
+use crate::data::{GameData, ItemId, MapId, MoveId, ScriptId, SpeciesId};
 use crate::flow::Vars;
 use crate::hash::Fnv64;
 use crate::input::Buttons;
@@ -35,6 +35,7 @@ use crate::mon::Party;
 use crate::options::Options;
 use crate::pc::PcStorage;
 use crate::pokedex::Pokedex;
+use crate::rng::Rng;
 use crate::script::Report;
 use crate::video::Frame;
 use alloc::vec::Vec;
@@ -80,7 +81,9 @@ pub enum PartyMode {
     UseItem(ItemId),
     /// Giving an item from the bag.
     GiveItem(ItemId),
-    /// The battle's POKéMON action; `forced` after a faint (no CANCEL).
+    /// The battle's POKéMON action; `forced` after a faint (no CANCEL). Task BM hosts it inside
+    /// the battle with the battle's party in battle order (Gen3 `gBattlePartyCurrentOrder`), so
+    /// the active mon is slot 0.
     Battle { forced: bool },
 }
 
@@ -235,14 +238,20 @@ pub enum ScreenOut {
     /// game-defined entry).
     RunScript(ScriptId),
     /// Ask the World to save now (`world/save.rs`); the screen gets the result next frame
-    /// through [`ScreenCx::saved`].
+    /// through [`ScreenCx::saved`], and the World raises `Event::Saved`.
     Save,
+    /// Close every screen and use the item on the field (Gen3 `SetUpItemUseOnFieldCallback`:
+    /// the bag closes, the field comes back, then the item's field callback runs; Escape Rope,
+    /// and the M10 bikes, rods and Itemfinder): `item_use::use_on_field` (Task B).
+    UseOnField(ItemId),
 }
 
 /// What a screen may touch: the game, this frame's output, and the player's state.
 pub struct ScreenCx<'a, G: GameData> {
     pub game: &'a G,
     pub f: &'a mut Frame,
+    /// The world's random numbers (friendship events from items, Task E's `on_event`).
+    pub rng: &'a mut Rng,
     pub party: &'a mut Party,
     pub bag: &'a mut Bag,
     pub money: &'a mut u32,
@@ -251,8 +260,14 @@ pub struct ScreenCx<'a, G: GameData> {
     pub coins: &'a mut u16,
     pub pokedex: &'a mut Pokedex,
     pub registered_item: &'a mut Option<ItemId>,
-    pub vars: &'a Vars,
+    /// Flags and vars: read by most screens, written by item use (Gen3 `VAR_REPEL_STEP_COUNT`)
+    /// and the PC (`VAR_PC_BOX_TO_SEND_MON`).
+    pub vars: &'a mut Vars,
     pub player_name: &'a PlayerName,
+    /// The current map (the save dialog's location line).
+    pub map: MapId,
+    /// The World's frame count (the save dialog's and CONTINUE window's play time).
+    pub frame: u32,
     /// The result of the last [`ScreenOut::Save`], given once on the frame after it.
     pub saved: Option<bool>,
     /// The result of the screen this one pushed, given once on the frame it closed.
@@ -355,16 +370,26 @@ impl ScreenState {
     }
 }
 
-/// The open screens, bottom first (at most [`MAX_DEPTH`]).
+/// The open screens, bottom first (at most [`MAX_DEPTH`]), with the results waiting for the
+/// top screen and the hosting state (`world/screens.rs`).
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct ScreenStack {
     screens: Vec<(ScreenKind, ScreenState)>,
+    /// The World's answer to the last [`ScreenOut::Save`], given to the top screen once
+    /// ([`ScreenCx::saved`]) on the next frame. `World::save_failed` turns it to `false`.
+    pub saved: Option<bool>,
+    /// The result of the screen that just closed, given once to the one below it
+    /// ([`ScreenCx::child`]).
+    pub child: Option<ScreenResult>,
+    /// The hosting state (fades, VRAM handover, the waiting request; Task K's [`kit::Hosting`]).
+    pub host: kit::Hosting,
 }
 
 impl ScreenStack {
     pub fn new() -> Self {
         ScreenStack {
             screens: Vec::with_capacity(MAX_DEPTH),
+            ..ScreenStack::default()
         }
     }
 
@@ -415,6 +440,17 @@ impl ScreenStack {
             k.hash(h);
             s.hash(h);
         }
+        h.write(&[self.saved.map_or(0xFF, u8::from)]);
+        match self.child {
+            None => h.write(&[0xFF]),
+            Some(ScreenResult::Cancel) => h.write(&[0]),
+            Some(ScreenResult::Value(v)) => {
+                h.write(&[1]);
+                h.write_u16(v);
+            }
+            Some(ScreenResult::Bool(b)) => h.write(&[2, b as u8]),
+        }
+        self.host.hash(h);
     }
 }
 

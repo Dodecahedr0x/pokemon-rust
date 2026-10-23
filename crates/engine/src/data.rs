@@ -918,6 +918,16 @@ pub struct SpecialIds {
     /// The CONTINUE window shows the Pokédex line while this flag is set (Gen3
     /// `FLAG_SYS_POKEDEX_GET`).
     pub flag_pokedex: Option<FlagId>,
+    /// The box the next mon sent to the PC tries first, set to the box it went to (Gen3
+    /// `VAR_PC_BOX_TO_SEND_MON`, `CopyMonToPC`).
+    pub var_pc_box_to_send_mon: Option<VarId>,
+    /// Box and slot of the last mon sent to the PC (Gen3 `gSpecialVar_MonBoxId`,
+    /// `gSpecialVar_MonBoxPos`: `VAR_MON_BOX_ID`, `VAR_MON_BOX_POS`).
+    pub var_mon_box_id: Option<VarId>,
+    pub var_mon_box_pos: Option<VarId>,
+    /// Cleared when a mon goes to another box than `var_pc_box_to_send_mon` named (Gen3
+    /// `FLAG_SHOWN_BOX_WAS_FULL_MESSAGE`).
+    pub flag_shown_box_was_full: Option<FlagId>,
 }
 
 impl Default for SpecialIds {
@@ -941,6 +951,10 @@ impl Default for SpecialIds {
             var_friendship_steps: None,
             script_repel_wore_off: None,
             flag_pokedex: None,
+            var_pc_box_to_send_mon: None,
+            var_mon_box_id: None,
+            var_mon_box_pos: None,
+            flag_shown_box_was_full: None,
         }
     }
 }

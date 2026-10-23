@@ -188,12 +188,18 @@ pub struct WorldSnapshot {
     #[serde(default, deserialize_with = "seq")]
     pub party_held: Vec<Option<ItemId>>,
     // Schema 4 (Milestone 9). At a new game's values they encode as [`M9_DEFAULT_TAIL`], which
-    // `decode` adds to an older checkpoint and `state_digest` leaves out.
+    // `decode` adds to an older checkpoint and `state_digest` leaves out. `serde(default)` reads
+    // an older RON snapshot (the stores' caches) the same way.
     /// `None` at Gen3's defaults.
+    #[serde(default)]
     pub options: Option<Options>,
+    #[serde(default)]
     pub pokedex: PokedexSnap,
+    #[serde(default)]
     pub pc: PcSnap,
+    #[serde(default)]
     pub coins: u16,
+    #[serde(default)]
     pub registered_item: Option<ItemId>,
 }
 

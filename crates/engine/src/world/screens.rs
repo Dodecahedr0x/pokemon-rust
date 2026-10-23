@@ -43,6 +43,7 @@ pub(super) fn open(s: &mut State, kind: ScreenKind) {
 }
 
 /// Closes every screen (Task K: restores the field).
+#[allow(dead_code, reason = "Milestone 9 Wave 0: Task K closes screens")]
 pub(super) fn close(s: &mut State) {
     if matches!(s.mode, Mode::Screens(_)) {
         s.mode = Mode::Field;
@@ -58,18 +59,22 @@ impl World {
         mut stack: Box<ScreenStack>,
         f: &mut Frame,
     ) {
+        let frame = self.frame;
         let s = &mut self.s;
         let mut reports = Vec::new();
         let input = ScreenInput {
             pressed: s.input.pressed,
             held: s.input.held,
         };
+        // Each waiting result is given to the top screen once.
+        let (saved, child) = (stack.saved.take(), stack.child.take());
         let out = match stack.top_mut() {
             None => ScreenOut::Done(ScreenResult::Cancel),
             Some(top) => {
                 let mut cx = ScreenCx {
                     game,
                     f,
+                    rng: &mut s.rng,
                     party: &mut s.party,
                     bag: &mut s.bag,
                     money: &mut s.money,
@@ -78,10 +83,12 @@ impl World {
                     coins: &mut s.coins,
                     pokedex: &mut s.pokedex,
                     registered_item: &mut s.registered_item,
-                    vars: &s.vars,
+                    vars: &mut s.vars,
                     player_name: &s.player_name,
-                    saved: None,
-                    child: None,
+                    map: s.field.map(),
+                    frame,
+                    saved,
+                    child,
                     reports: &mut reports,
                 };
                 top.step(&mut cx, input)
@@ -99,20 +106,33 @@ impl World {
             }
             ScreenOut::Done(result) => {
                 stack.pop();
-                // Task K hands `result` to the parent screen (`ScreenCx::child`) or, for the
-                // last screen, to the waiting request (`host/screens.rs`).
-                let _ = result;
+                // The screen below gets the result next frame; for the last screen, Task K
+                // answers the waiting request (`host/screens.rs`).
+                stack.child = Some(result);
             }
             ScreenOut::RunScript(id) => {
-                close(s);
+                // Every screen closes (the stack is out of `s.mode`), then the script runs
+                // with the field locked (Gen3 `ScriptContext_SetupScript` after the menu).
+                s.event(Event::ScreenClosed);
                 s.objects.freeze_all();
+                draw_field(game, s, f);
                 self.start_script(game, id, None);
                 return;
             }
+            ScreenOut::UseOnField(item) => {
+                // Every screen closes, then the item's field use (Task B).
+                s.event(Event::ScreenClosed);
+                draw_field(game, s, f);
+                if let Some(id) = crate::item_use::use_on_field(s, game, item) {
+                    self.start_script(game, id, None);
+                }
+                return;
+            }
             ScreenOut::Save => {
-                // Task K hands the result to the screen next frame; Wave 0 has no screen
-                // that saves.
-                let _ = super::save::save_now(self, game);
+                // Task K: the dialog's result next frame, and the shells' cue to persist.
+                let ok = super::save::save_now(self, game).is_ok();
+                stack.saved = Some(ok);
+                self.s.event(Event::Saved { ok });
             }
         }
         let s = &mut self.s;

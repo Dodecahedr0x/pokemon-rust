@@ -49,6 +49,13 @@ impl Fader {
         self.level
     }
 
+    /// Whether the level brightens towards white (`Frame::lighten`) rather than darkens: a
+    /// `ToWhite` / `FromWhite` fade (Task R). `draw_field` copies it into the frame. Wave 0:
+    /// never (the white fades run as black ones).
+    pub const fn is_white(&self) -> bool {
+        false
+    }
+
     pub const fn level(&self) -> u8 {
         self.level
     }

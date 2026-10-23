@@ -17,6 +17,12 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
     }
 }
 
+/// The answer once the effect or the wait is over, polled every frame after [`begin`] answered
+/// `None` (Task R). Wave 0: [`begin`] never waits.
+pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
+    begin(h, r)
+}
+
 /// Whether losing the trainer battle the script waits on whites out (Gen3 `DoWhiteOut`).
 /// `false` for `BattleTrainer { no_whiteout: true }` (Task R). Wave 0: always `true`.
 pub(in crate::world) fn whiteout_allowed(waiting: Option<&Request>) -> bool {

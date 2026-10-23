@@ -252,6 +252,10 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         var_friendship_steps: Some(consts::VAR_FRIENDSHIP_STEP_COUNTER),
         script_repel_wore_off: data::SCRIPT_REPEL_WORE_OFF,
         flag_pokedex: Some(consts::FLAG_SYS_POKEDEX_GET),
+        var_pc_box_to_send_mon: Some(consts::VAR_PC_BOX_TO_SEND_MON),
+        var_mon_box_id: Some(consts::VAR_MON_BOX_ID),
+        var_mon_box_pos: Some(consts::VAR_MON_BOX_POS),
+        flag_shown_box_was_full: Some(consts::FLAG_SHOWN_BOX_WAS_FULL_MESSAGE),
     }
 }
 

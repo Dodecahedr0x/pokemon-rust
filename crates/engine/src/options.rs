@@ -18,7 +18,10 @@ pub enum TextSpeed {
 }
 
 impl TextSpeed {
-    /// Frames per drawn glyph (Gen3 `sTextSpeedFrameDelays`: 8, 4, 1).
+    /// Frames per drawn glyph (Gen3 `sTextSpeedFrameDelays`: 8, 4, 1). Gen3's printer draws a
+    /// glyph and then waits that many frames, so a glyph takes one frame more there (and
+    /// control codes cost a frame); the engine's printer has charged the delay itself per drawn
+    /// glyph since Milestone 3 (`text.rs`), and keeps that model for the three speeds.
     pub const fn frames_per_char(self) -> u8 {
         match self {
             TextSpeed::Slow => 8,
