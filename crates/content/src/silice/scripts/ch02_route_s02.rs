@@ -3,7 +3,6 @@
 //! §5 (the six trainers) and §7 (the items). `VAR_SIL_STORY` runs 17 (the Bêta barrier open,
 //! the end of Chapter 1) to 22 (Gwada fought); Gris-Échec is east.
 
-use super::ch02_common::{Obstacle, module_obstacle, repaint_obstacle, scene_battle, screen_flash};
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
@@ -137,10 +136,7 @@ pub async fn RouteS02_Sc03(ctx: Ctx) {
     // fade out and in.
     screen_flash(&ctx).await;
     say(&ctx, Route_S02_Sc03_T2).await;
-    if !scene_battle(&ctx, TRAINER_SIL_GWADA_1, Route_S02_Gwada_Defeat).await {
-        ctx.release_all().await;
-        return;
-    }
+    battle_trainer(&ctx, TRAINER_SIL_GWADA_1, Route_S02_Gwada_Defeat).await;
     say(&ctx, Route_S02_Sc03_T3).await;
     say(&ctx, Route_S02_Sc03_T4).await;
     move_wait(&ctx, LOCALID_ROUTE_S02_GWADA, out).await;

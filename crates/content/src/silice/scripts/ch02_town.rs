@@ -5,7 +5,6 @@
 //! barrier open): 23 the embargo, 24 the three jammers cut, 25 the Carte Perforée, 26–27 the
 //! arena (`ch02_gym.rs`), 28 Kimiko's stream. `VAR_SIL_GRIS_ECHEC_STATE` counts the jammers.
 
-use super::ch02_common::{Obstacle, mart, module_obstacle, pokecenter_nurse, repaint_obstacle};
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).

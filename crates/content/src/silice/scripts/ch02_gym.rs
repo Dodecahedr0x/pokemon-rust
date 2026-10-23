@@ -8,7 +8,6 @@
 //! fire and the scripts decide. Salle 1 counts the right bits in `VAR_TEMP_2` (cleared on every
 //! map load, as Gen3's `ClearTempFieldEventData`).
 
-use super::ch02_common::{scene_battle, screen_flash};
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
@@ -69,10 +68,7 @@ async fn s1_error(ctx: &Ctx) {
         show(ctx, LOCALID_GYM2_ROBOT, FLAG_SIL_HIDE_GYM2_ROBOT).await;
         move_wait(ctx, LOCALID_GYM2_ROBOT, ROBOT_IN).await;
         say(ctx, Gym2_Robot_Intro).await;
-        if !scene_battle(ctx, TRAINER_SIL_ROBOT_BINAIRE, Gym2_Robot_Defeat).await {
-            ctx.release_all().await;
-            return;
-        }
+        battle_trainer(ctx, TRAINER_SIL_ROBOT_BINAIRE, Gym2_Robot_Defeat).await;
         hide(ctx, LOCALID_GYM2_ROBOT).await;
     }
     warp(ctx, MAP_GRIS_ECHEC_GYM, 7, 38).await;
@@ -202,7 +198,7 @@ async fn piece_battle(ctx: &Ctx, p: Piece) {
     ctx.lock_all().await;
     move_wait(ctx, p.obj, PIECE_SEES).await;
     say(ctx, p.intro).await;
-    scene_battle(ctx, p.trainer, p.defeat).await;
+    battle_trainer(ctx, p.trainer, p.defeat).await;
     ctx.release_all().await;
 }
 
@@ -320,10 +316,7 @@ async fn yohan(ctx: Ctx, talked: bool) {
     // fallback (§9): Alakazam battles unevolved, a normal battle, and its Gym2_Sc10_Mega screen
     // is not shown.
     fallback(&ctx, "mega_evolution").await;
-    if !scene_battle(&ctx, TRAINER_SIL_YOHAN_1, Gym2_Sc10_Defeat).await {
-        ctx.release_all().await;
-        return;
-    }
+    battle_trainer(&ctx, TRAINER_SIL_YOHAN_1, Gym2_Sc10_Defeat).await;
     say(&ctx, Gym2_Sc10_T3).await;
     ctx.set_flag(FLAG_SIL_BADGE_02, true).await;
     say(&ctx, Gym2_Sc10_T4).await;
@@ -407,7 +400,7 @@ async fn gym2_sc11(ctx: &Ctx) {
     say(ctx, Gym2_Sc11_T7).await;
     ctx.set_var(VAR_SIL_SYNC, 20).await;
     // fallback: show_sync(20) (the Mallette's sync gauge, a SIL2 Mallette panel): T8 says it.
-    fallback(ctx, "show_sync").await;
+    show_sync(ctx, 20).await;
     say(ctx, Gym2_Sc11_T8).await;
     gym2_sc12(ctx).await;
 }

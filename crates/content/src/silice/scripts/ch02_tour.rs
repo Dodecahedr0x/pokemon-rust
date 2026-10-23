@@ -3,7 +3,6 @@
 //! the Carte Perforée, `VAR_SIL_STORY` 24 → 25) and §5 (the two sbires). The door opens with
 //! `FLAG_SIL_TOUR_OPEN` (Gris_Echec_Sc03, `ch02_town.rs`).
 
-use super::ch02_common::scene_battle;
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
@@ -59,10 +58,7 @@ pub async fn GrisEchec_TourObservation_Top_Sc01(ctx: Ctx) {
     ctx.lock().await;
     ctx.face_player().await;
     say(&ctx, Tour_Sc01_T1).await;
-    if !scene_battle(&ctx, TRAINER_SIL_CHEF_SECURITE_DUVAL, Tour_Sc01_Defeat).await {
-        ctx.release().await;
-        return;
-    }
+    battle_trainer(&ctx, TRAINER_SIL_CHEF_SECURITE_DUVAL, Tour_Sc01_Defeat).await;
     say(&ctx, Tour_Sc01_T2).await;
     gift(
         &ctx,
