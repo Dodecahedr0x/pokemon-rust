@@ -19,9 +19,11 @@ use std::path::{Path, PathBuf};
 
 const USAGE: &str = "\
 usage: explore <command> [--db <path>] [--config <path>]
-  run [--nodes N | --frames N | --generations N | --secs N] [--threads N] [--seed S]
+  run [--nodes N | --frames N | --generations N | --secs N] [--jobs N] [--seed S]
       [--cache N] [--from <checkpoint id|label>] [--act slice|act1|sil_ch0]
       explore (default budget: --generations 10); one line per 10 generations;
+      --jobs N (or --threads N): worker threads (default: the available parallelism less a
+      quarter); the result never depends on it;
       --cache N: snapshots kept in memory (default 65536; 16384 is about 10% slower);
       --from: a fresh db explores from that checkpoint node (the committed tree with the
       local saves over it); an existing db keeps its own root and refuses another;
@@ -61,8 +63,10 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
     };
     match cmd.as_str() {
         "run" => {
-            if let Some(t) = a.take_num("--threads")? {
-                cfg.threads = t as usize;
+            for name in ["--threads", "--jobs"] {
+                if let Some(t) = a.take_num(name)? {
+                    cfg.threads = t as usize;
+                }
             }
             if let Some(n) = a.take_num("--cache")? {
                 cfg.cache_capacity = n as usize;
@@ -452,8 +456,9 @@ fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Res
             );
         }
         if p.summary.generations.is_multiple_of(10)
-            && let Ok(s) = p.db.stats()
-            && let Ok(reports) = p.db.report_count()
+            && let Ok(db) = p.db()
+            && let Ok(s) = db.stats()
+            && let Ok(reports) = db.report_count()
         {
             line(&s, reports, p.summary);
         }

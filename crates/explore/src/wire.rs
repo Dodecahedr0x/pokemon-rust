@@ -25,8 +25,8 @@ use crate::goals::Act;
 use crate::guard;
 use crate::incremental::{self, Digests};
 use crate::model::{
-    AbstractKey, Evaluate, Evaluation, FindingDraft, FindingKind, GenStats, Macro, NodeId, NodeRow,
-    NodeStatus, Plan, StepResult,
+    AbstractKey, Evaluate, Evaluation, FindingDraft, FindingKind, GenStats, GenerationDelta, Macro,
+    NodeId, NodeRow, NodeStatus, Plan, StepResult,
 };
 use crate::observe::{NoObserver, StepObserver};
 use crate::policy::Policy;
@@ -153,7 +153,8 @@ fn set_fresh_meta(db: &mut Db, cfg: &Config, root: Option<&Root>) -> anyhow::Res
 }
 
 /// The explorer on one db: the store, the snapshot cache, the runner, the evaluator (its
-/// archive loaded from the db) and a rayon pool of `cfg.threads` threads (0 = rayon's default).
+/// archive loaded from the db) and a rayon pool of `cfg.threads` threads ([`jobs`]: 0 =
+/// [`default_jobs`]).
 pub struct Explore<G> {
     pub game: G,
     pub db: Db,
@@ -170,6 +171,9 @@ pub struct Explore<G> {
     pub revalidated: Option<RevalidateReport>,
     /// The config differs from the last `run` row's.
     pub config_changed: bool,
+    /// Inside `run`: the last generation's delta, written while the next generation's jobs
+    /// run (always `None` outside `run`).
+    pending: Option<GenerationDelta>,
 }
 
 /// One generation's outcome.
@@ -190,7 +194,8 @@ pub struct GenOutcome {
 }
 
 /// Host time of a generation's phases: planning and reaching the starts (sequential), the
-/// jobs (parallel), the merge and the db transaction (sequential).
+/// jobs (parallel), the merge (sequential) and the db transaction (in `run`, the previous
+/// generation's, on its own thread while the jobs run).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Phases {
     pub plan: Duration,
@@ -235,12 +240,28 @@ pub struct RunSummary {
 }
 
 /// `Explore::run`'s progress callback argument.
-#[derive(Clone, Copy)]
 pub struct Progress<'a> {
     pub summary: &'a RunSummary,
     pub last: &'a GenOutcome,
-    /// The db, the generation committed.
-    pub db: &'a Db,
+    db: &'a mut Db,
+    pending: &'a mut Option<GenerationDelta>,
+}
+
+impl Progress<'_> {
+    /// The db with every generation so far committed: `run` writes a generation's delta while
+    /// the next one's jobs run, so this writes the last one first.
+    pub fn db(&mut self) -> anyhow::Result<&Db> {
+        flush(self.db, self.pending)?;
+        Ok(self.db)
+    }
+}
+
+/// Applies the delta `run` holds back, if any.
+fn flush(db: &mut Db, pending: &mut Option<GenerationDelta>) -> anyhow::Result<()> {
+    if let Some(d) = pending.take() {
+        db.apply(&d)?;
+    }
+    Ok(())
 }
 
 impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
@@ -311,7 +332,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             root
         };
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(cfg.threads)
+            .num_threads(jobs(cfg.threads))
             .build()
             .context("building the thread pool")?;
         let mut revalidated = None;
@@ -354,6 +375,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             opened,
             revalidated,
             config_changed,
+            pending: None,
         })
     }
 
@@ -376,8 +398,24 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         self.runner.stalled()
     }
 
-    /// One generation; `None` when the runner is stalled (nothing planned).
+    /// One generation; `None` when the runner is stalled (nothing planned). Its delta is
+    /// committed on return.
     pub fn generation(&mut self) -> anyhow::Result<Option<GenOutcome>> {
+        let mut g = self.generation_overlapped()?;
+        let t = Instant::now();
+        flush(&mut self.db, &mut self.pending)?;
+        if let Some(g) = &mut g {
+            g.phases.apply = t.elapsed();
+        }
+        Ok(g)
+    }
+
+    /// [`Explore::generation`], leaving its delta in `pending`: the next call writes it while
+    /// its jobs run (one transaction per generation, in order, as `generation`). Only the
+    /// writes overlap: the plan, the merge and the starts never read what is pending (the
+    /// runner and the evaluator are in memory, and the pending nodes' states are in the cache;
+    /// a start that is not is reached after the pending delta is written).
+    fn generation_overlapped(&mut self) -> anyhow::Result<Option<GenOutcome>> {
         let t = Instant::now();
         let mut phases = Phases::default();
         let planned = self.runner.plan();
@@ -388,6 +426,15 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             .iter()
             .filter(|(_, p)| matches!(p, Plan::Softlock { .. }))
             .count() as u32;
+        // A start the cache does not hold is replayed from the db's rows (`cache::reach` first
+        // drops the states of another build: so does this check).
+        self.cache.set_build(build_hash(&self.game));
+        if planned
+            .iter()
+            .any(|(p, _)| p.is_some_and(|id| !self.cache.contains(id)))
+        {
+            flush(&mut self.db, &mut self.pending)?;
+        }
         let mut err = None;
         let (game, db, cache) = (&self.game, &self.db, &mut self.cache);
         let jobs = runner::jobs(planned, |parent| {
@@ -408,13 +455,33 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         phases.plan = t.elapsed();
         let t = Instant::now();
         let cfg = &self.cfg;
-        let results = self.pool.install(|| {
-            runner::run_jobs(&jobs, |job| {
-                let mut obs =
-                    || -> Box<dyn StepObserver<G>> { Box::new(Detectors::<G>::new(&cfg.detect)) };
-                sim::simulate(game, job, cfg, &mut obs)
-            })
+        let (pool, db, pending) = (&self.pool, &mut self.db, self.pending.take());
+        let (results, written) = std::thread::scope(|sc| {
+            // The previous generation's delta, on its own thread (the db's only writer).
+            let writer = pending.map(|d| {
+                sc.spawn(move || {
+                    let t = Instant::now();
+                    db.apply(&d).map(|()| t.elapsed())
+                })
+            });
+            let results = pool.install(|| {
+                runner::run_jobs(&jobs, |job| {
+                    let mut obs = || -> Box<dyn StepObserver<G>> {
+                        Box::new(Detectors::<G>::new(&cfg.detect))
+                    };
+                    sim::simulate(game, job, cfg, &mut obs)
+                })
+            });
+            let written = writer.map(|h| h.join().expect("the db writer panicked"));
+            (results, written)
         });
+        // The write's own time, overlapped with the jobs.
+        let apply = written.as_ref().map_or(Duration::ZERO, |w| {
+            w.as_ref().map_or(Duration::ZERO, |&d| d)
+        });
+        if let Some(w) = written {
+            w?;
+        }
         phases.jobs = t.elapsed();
         let t = Instant::now();
         let mut eval = BugWeighted {
@@ -423,13 +490,11 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         };
         let delta = self.runner.merge(results, &mut eval);
         phases.merge = t.elapsed();
-        let t = Instant::now();
-        self.db.apply(&delta)?;
-        phases.apply = t.elapsed();
+        phases.apply = apply;
         for (id, cp) in self.runner.take_fresh() {
             self.cache.put(id, cp);
         }
-        Ok(Some(GenOutcome {
+        let outcome = GenOutcome {
             generation: delta.generation,
             stats: delta.stats,
             findings: delta.findings.len() as u32,
@@ -441,7 +506,9 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             max_progress: delta.nodes.iter().map(|n| n.progress).max().unwrap_or(0),
             probes,
             phases,
-        }))
+        };
+        self.pending = Some(delta);
+        Ok(Some(outcome))
     }
 
     /// Generations until `budget` (counted from this call) is spent or the runner stalls;
@@ -449,12 +516,38 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
     pub fn run(
         &mut self,
         budget: Budget,
-        mut progress: impl FnMut(&Progress),
+        mut progress: impl FnMut(&mut Progress),
     ) -> anyhow::Result<RunSummary> {
         let start = Instant::now();
         let mut sum = RunSummary::default();
-        while !spent(budget, &sum, start.elapsed()) {
-            let Some(g) = self.generation()? else {
+        let r = self.run_overlapped(budget, &mut progress, start, &mut sum);
+        // The last generation's delta, after an error too (it was merged: keep it).
+        let flushed = flush(&mut self.db, &mut self.pending);
+        r?;
+        flushed?;
+        sum.wall = start.elapsed();
+        self.db.record_run(&RunRow {
+            started: unix_secs().to_string(),
+            config: self.cfg.to_ron(),
+            threads: self.pool.current_num_threads() as u32,
+            generations: sum.generations,
+            nodes: sum.nodes,
+            frames: sum.frames,
+            wall_ms: sum.wall.as_millis() as u64,
+        })?;
+        Ok(sum)
+    }
+
+    /// `run`'s generations, each delta written while the next generation's jobs run.
+    fn run_overlapped(
+        &mut self,
+        budget: Budget,
+        progress: &mut impl FnMut(&mut Progress),
+        start: Instant,
+        sum: &mut RunSummary,
+    ) -> anyhow::Result<()> {
+        while !spent(budget, sum, start.elapsed()) {
+            let Some(g) = self.generation_overlapped()? else {
                 sum.stalled = true;
                 break;
             };
@@ -469,23 +562,14 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             sum.notes += u64::from(g.stats.notes);
             sum.phases += g.phases;
             sum.wall = start.elapsed();
-            progress(&Progress {
-                summary: &sum,
+            progress(&mut Progress {
+                summary: sum,
                 last: &g,
-                db: &self.db,
+                db: &mut self.db,
+                pending: &mut self.pending,
             });
         }
-        sum.wall = start.elapsed();
-        self.db.record_run(&RunRow {
-            started: unix_secs().to_string(),
-            config: self.cfg.to_ron(),
-            threads: self.pool.current_num_threads() as u32,
-            generations: sum.generations,
-            nodes: sum.nodes,
-            frames: sum.frames,
-            wall_ms: sum.wall.as_millis() as u64,
-        })?;
-        Ok(sum)
+        Ok(())
     }
 
     /// The pool's thread count.
@@ -561,6 +645,20 @@ pub fn repair<G: GameData + Clone>(
         end,
         touches,
     })
+}
+
+/// The worker threads for `threads` (`Config::threads`): itself, or for 0
+/// [`default_jobs`].
+pub fn jobs(threads: usize) -> usize {
+    if threads > 0 { threads } else { default_jobs() }
+}
+
+/// The default worker count: the available parallelism less a quarter (at least 1), leaving
+/// room on a machine shared with builds and other runs. The thread count never changes the
+/// result (`runner`: fixed batches merged in job order).
+pub fn default_jobs() -> usize {
+    let n = std::thread::available_parallelism().map_or(1, |n| n.get());
+    (n - n / 4).max(1)
 }
 
 fn spent(budget: Budget, sum: &RunSummary, elapsed: Duration) -> bool {

@@ -11,7 +11,8 @@ use std::path::Path;
 #[serde(default)]
 pub struct Config {
     pub seed: u64,
-    /// 0 = rayon default.
+    /// Worker threads (`run --jobs`); 0 = `wire::default_jobs` (the available parallelism less
+    /// a quarter). Never changes the result.
     pub threads: usize,
     /// Jobs per generation; 0 = `runner::DEFAULT_BATCH` (32), never the thread count.
     pub batch: usize,

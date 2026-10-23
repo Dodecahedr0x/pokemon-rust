@@ -11,7 +11,7 @@ use engine::data::{MapId, ScriptId};
 use game_native::trace::Run;
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, params};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -132,6 +132,15 @@ const NODE_COLS_LIGHT: &str = "id, parent, depth, macro, x'', frames, total_fram
 const FINDING_COLS: &str = "id, signature, kind, node, macro, tail, total_frame, map, x, y, \
      message, location, script, log, build_engine, build_content, status, hits, \
      first_generation, last_generation";
+
+/// Sightings per key, in key order: the first sighting's node and the number of sightings.
+fn tally<K: Ord>(sightings: impl Iterator<Item = (K, NodeId)>) -> BTreeMap<K, (NodeId, u32)> {
+    let mut out = BTreeMap::new();
+    for (k, node) in sightings {
+        out.entry(k).or_insert((node, 0)).1 += 1;
+    }
+    out
+}
 
 fn status_str(s: NodeStatus) -> &'static str {
     match s {
@@ -512,19 +521,28 @@ impl Db {
                 let (k, id) = touch_cols(t);
                 st.execute(params![node, k, id])?;
             }
+            // One upsert per distinct key, with the delta's count of it: the same rows as one
+            // upsert per sighting (the first sighting's node, `hits` + 1 per sighting), with
+            // far fewer statements (a generation sees the same flags and cells many times).
             let mut st = tx.prepare(
-                "INSERT INTO seen (kind, id, first_node) VALUES (?1, ?2, ?3) \
-                 ON CONFLICT (kind, id) DO UPDATE SET hits = hits + 1",
+                "INSERT INTO seen (kind, id, first_node, hits) VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT (kind, id) DO UPDATE SET hits = hits + excluded.hits",
             )?;
-            for (k, id, node) in &d.seen {
-                st.execute(params![*k as i64, id, node])?;
+            for ((k, id), (node, n)) in
+                tally(d.seen.iter().map(|&(k, id, node)| ((k as i64, id), node)))
+            {
+                st.execute(params![k, id, node, n])?;
             }
             let mut st = tx.prepare(
-                "INSERT INTO coverage (map, x, y, first_node) VALUES (?1, ?2, ?3, ?4) \
-                 ON CONFLICT (map, x, y) DO UPDATE SET hits = hits + 1",
+                "INSERT INTO coverage (map, x, y, first_node, hits) VALUES (?1, ?2, ?3, ?4, ?5) \
+                 ON CONFLICT (map, x, y) DO UPDATE SET hits = hits + excluded.hits",
             )?;
-            for (map, x, y, node) in &d.cells {
-                st.execute(params![map.0, x, y, node])?;
+            for ((map, x, y), (node, n)) in tally(
+                d.cells
+                    .iter()
+                    .map(|&(map, x, y, node)| ((map.0, x, y), node)),
+            ) {
+                st.execute(params![map, x, y, node, n])?;
             }
             let mut st = tx.prepare(
                 "INSERT INTO battle (node, kind, trainer, outcome, frames, player_level, \
