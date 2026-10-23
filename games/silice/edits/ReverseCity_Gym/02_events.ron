@@ -12,7 +12,7 @@
     Warp(x: 6, y: 29, dest_map: "ReverseCity_Gym", dest_warp: 3),
     Warp(x: 6, y: 10, dest_map: "ReverseCity_Gym", dest_warp: 2),
     Warp(x: 7, y: 10, dest_map: "ReverseCity_Gym", dest_warp: 2),
-    Object(x: 6, y: 4, gfx: "OBJ_EVENT_GFX_JUAN", id: "LOCALID_GYM07_REVERSE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "ReverseCity_Gym_Sc01", flag: "FLAG_SIL_HIDE_GYM07_REVERSE"),
+    Object(x: 6, y: 4, gfx: "OBJ_EVENT_GFX_SIL_REVERSE", id: "LOCALID_GYM07_REVERSE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "ReverseCity_Gym_Sc01", flag: "FLAG_SIL_HIDE_GYM07_REVERSE"),
     Object(x: 9, y: 4, gfx: "OBJ_EVENT_GFX_SIL_BENOU", id: "LOCALID_GYM07_BENOU", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_GYM07_BENOU"),
     Object(x: 4, y: 32, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_GYM07_GUIDE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ReverseCity_Gym_EventScript_Guide"),
     Object(x: 3, y: 19, gfx: "OBJ_EVENT_GFX_BEAUTY", id: "LOCALID_GYM07_ANNA", local_id: 4, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ReverseCity_Gym_EventScript_Anna", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),

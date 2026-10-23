@@ -1,0 +1,11 @@
+(
+    primary: "Building",
+    secondary: "SilReverseCityGym",
+    width: 1,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (530),
+        (531),
+    ],
+)

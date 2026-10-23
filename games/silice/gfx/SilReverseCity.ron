@@ -1,0 +1,154 @@
+// Reverse-City (Ch7, MAP_REVERSE_CITY): the upside-down city, Secteur Eta, the Cocket outpost.
+// contenu-jeu/chapitres/07-reverse-city.md §2: a city at the bottom of a huge covered crater, a
+// photographic negative of the earlier towns: blue grass, red quay water, green roofs on black walls,
+// buildings hanging upside down from the crater's ceiling, mirror-written signs, Cocket logos
+// everywhere. The ground is this tileset's dark paving (`pave`); the objects stand on it (`under`).
+// Footprints keep the map's doors in one cell, bottom middle: the Palais 7x4 (door (5, 8)), the Mart
+// 5x3 (door (31, 8)), the Centre 5x3 (door (4, 20)), the vault bunker 3x3 (door (13, 3)), the house
+// 3x4 (door (10, 20)), the lighthouse 3x4 (door (29, 28)), the Porte Eta-Nord 5x2 (door (27, 0)).
+// The town has no connection (Route S7 and S8 are warps): no seam.
+// Derived (derive.rs): the house upside down (standing on its roof, and hanging from the ceiling),
+// the open Porte Eta-Nord (METATILE_PORTE_NORD in ch07_reverse_city.rs), the quay's water edges.
+(
+    name: "SilReverseCity",
+    primary: "General",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), in a city drawn as a photographic negative. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: black and charcoal walls, mint green roofs, cold cyan-white highlights, a few flat accents in crimson red and cobalt blue.",
+    features: [
+        (
+            name: "palais",
+            under: Some("pave"),
+            cells: ["#######", "#######", "#######", "###D###"],
+            prompt: Some("The Palace of Paradoxes, a wide low palace made of glossy black mirror panels with thin cyan-white reflections, a flat mint green roof, two short corner towers each topped by an upside-down crystal chandelier pointing up at the sky, a big red cocktail-glass emblem (no letters) over the entrance, a tall narrow black mirror door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "mart",
+            under: Some("pave"),
+            cells: ["#####", "#####", "##D##"],
+            prompt: Some("A small supermarket of an evil team: black walls, a flat mint green roof with a big red cocktail-glass emblem sign on it (no letters), a wide shop window showing stacked crates of red and cyan pill bottles, a glass sliding door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "centre",
+            under: Some("pave"),
+            cells: ["#####", "#####", "##D##"],
+            prompt: Some("A Pokemon Center drawn as a photographic negative: black walls, a rounded mint green roof (instead of red) with a big cyan and black Poke Ball emblem on the roof's front, two cyan-lit windows, a glass sliding door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "coffre",
+            under: Some("pave"),
+            cells: ["###", "###", "#D#"],
+            prompt: Some("A small square steel bunker of an evil team: dark gunmetal grey riveted walls, a flat black roof with a red warning light, a heavy round grey vault door with a wheel handle exactly in the middle of the bottom edge, a small red cocktail-glass emblem (no letters) above it."),
+        ),
+        (
+            name: "phare",
+            under: Some("pave"),
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A slim lighthouse tower drawn as a photographic negative: a black tower with mint green horizontal bands, at the top a lantern room shooting short flat beams of dark violet black light to the left and right, a small black door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison",
+            under: Some("pave"),
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A small narrow two-storey town house drawn as a photographic negative: black walls with cyan-white window frames, a pointed mint green roof, two square windows, a dark door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison_renversee",
+            under: Some("pave"),
+            cells: ["###", "###", "###", "###"],
+        ),
+        (
+            name: "maison_suspendue",
+            under: Some("paroi"),
+            cells: ["###", "###", "###"],
+        ),
+        (
+            name: "porte_nord",
+            under: Some("paroi"),
+            cells: ["##N##", "##.##"],
+            legend: {'N': (behavior: "MB_NON_ANIMATED_DOOR", collision: 1)},
+            prompt: Some("A massive fortified city gate seen from the front: two thick black steel pillars, each two fifths of the width, at the left and right, full height, with a red warning light on top; between them, in the middle fifth, the top half is a closed heavy steel shutter with red and black hazard stripes along its bottom edge and a small red cocktail-glass emblem (no letters), and the bottom half is an open dark grey paved passage leading up to the shutter."),
+        ),
+        (
+            name: "porte_nord_ouverte",
+            under: Some("paroi"),
+            cells: ["N"],
+            legend: {'N': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+        ),
+        (
+            name: "fontaine",
+            under: Some("pave"),
+            cells: ["##", "##"],
+            prompt: Some("An upside-down fountain: a round grey stone basin floating in the air on top, held by nothing, with thin streams of bright crimson red water rising from a small round drain on the ground up into the basin, a few red drops in the air."),
+        ),
+        (
+            name: "pave",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("City paving drawn as a photographic negative: four square dark charcoal grey paving slabs (#30303a) in a 2x2 grid, separated by thin pale cyan-white joints (#b8e8f0). Almost flat, only 16x16 pixels."),
+        ),
+        (
+            name: "paroi",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The rock wall of a dark crater: big chunky blocks of dark indigo-violet rock (#2a2040) with a few lighter violet edges and one thin cyan crack. Only 16x16 pixels, chunky details."),
+        ),
+        (
+            name: "herbe_haute",
+            cells: ["g"],
+            legend: {'g': (behavior: "MB_TALL_GRASS", collision: 0)},
+            key: Some("none"),
+            prompt: Some("Tall grass in the Pokemon GBA style but blue instead of green: exactly two rows of two big pointed grass tufts, each tuft a simple upside-down V shape of three thick blades, medium cobalt blue (#3050c0) with a dark navy outline and one pale blue highlight, on a dark navy (#182050) background. Very few pixels, only 16x16, no noise, no speckles."),
+        ),
+        (
+            name: "gazon",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Short mown lawn in the Pokemon GBA style but blue instead of green, seen from straight above: a flat muted slate blue (#40508c) ground with four small darker navy (#28305c) grass-blade marks shaped like little v's scattered evenly, and two tiny pale blue dots. Only 16x16 pixels; it must clearly read as grass, not water."),
+        ),
+        (
+            name: "eau",
+            cells: ["w"],
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 0)},
+            key: Some("none"),
+            prompt: Some("Calm harbour water coloured deep crimson red (red instead of blue) seen from straight above: flat dark crimson (#901018) with two short horizontal wavy ripple lines in light red (#e04048) and one tiny pink-white glint. Only 16x16 pixels, chunky ripples."),
+        ),
+        (
+            name: "eau_quai",
+            cells: ["w"],
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 0)},
+        ),
+        (
+            name: "eau_droite",
+            cells: ["w"],
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 0)},
+        ),
+        (
+            name: "eau_mur",
+            cells: ["w"],
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 1)},
+        ),
+        (
+            name: "barriere",
+            under: Some("pave"),
+            cells: ["#"],
+            prompt: Some("A low black steel crowd barrier seen from the front, tiling left to right: a top rail and a bottom rail with red and white diagonal hazard stripes between them, short feet."),
+        ),
+        (
+            name: "poubelle",
+            under: Some("pave"),
+            cells: ["#"],
+            prompt: Some("A big round metal trash can standing upside down: it fills the whole canvas, its wide lid flat on the ground at the bottom, the narrow bottom pointing up at the top, light grey metal with two dark grey ribs, a crumpled green paper sticking out under the lid."),
+        ),
+        (
+            name: "panneau",
+            under: Some("pave"),
+            cells: ["#"],
+            prompt: Some("A signboard filling the whole canvas: a wide black wooden board with a mint green frame on one short thick post, on the board two short lines of white backwards scribbles (mirror writing, no real letters) and a small square cyan plaque in the lower right corner."),
+        ),
+        (
+            name: "banniere",
+            under: Some("pave"),
+            cells: ["#", "#"],
+            prompt: Some("A tall vertical black banner as wide as the whole canvas, hanging from a horizontal grey bar on top of two short posts, the banner showing one big bright red cocktail-glass emblem (no letters) in its middle and a red stripe along its pointed bottom edge, the posts standing on a small grey stone foot. Big simple shapes."),
+        ),
+    ],
+)

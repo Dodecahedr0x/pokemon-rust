@@ -12,6 +12,7 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
     match name {
         "SilGrisEchec" => gris_echec(&gfx.join(name))?,
         "SilGrisEchecGym" => gris_echec_gym(&gfx.join(name))?,
+        "SilReverseCity" => reverse_city(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -181,4 +182,55 @@ fn gris_echec_gym(g: &Path) -> Result<()> {
         "bloc_mousse_sol",
         &over(&load(g, "mousse_sol")?, &load(g, "bloc_mousse")?),
     )
+}
+
+fn flip_v(img: &Rgba) -> Rgba {
+    Rgba {
+        w: img.w,
+        h: img.h,
+        px: (0..img.h)
+            .flat_map(|y| (0..img.w).map(move |x| (x, y)))
+            .map(|(x, y)| get(img, x, img.h - 1 - y))
+            .collect(),
+    }
+}
+
+/// SilReverseCity: the house upside down (on its roof; hanging from the ceiling, its door row
+/// lost in the rock), the open Porte Eta-Nord, the quay's water edges (paving and a dark lip over
+/// the red water).
+fn reverse_city(r: &Path) -> Result<()> {
+    let flipped = flip_v(&load(r, "maison")?);
+    save(r, "maison_renversee", &flipped)?;
+    save(r, "maison_suspendue", &crop(&flipped, 0, 16, 48, 48))?;
+    // The shutter's leaf (inside its frame) becomes the dark open passage.
+    let mut open = crop(&load(r, "porte_nord")?, 32, 0, 16, 16);
+    for y in 3..16 {
+        for x in 2..14 {
+            set(&mut open, x, y, if y < 5 { [40, 32, 56] } else { [12, 12, 20] });
+        }
+    }
+    save(r, "porte_nord_ouverte", &open)?;
+    let (eau, pave) = (load(r, "eau")?, load(r, "pave")?);
+    let lip = [20, 20, 28];
+    let (mut quai, mut droite, mut mur) = (eau.clone(), eau.clone(), eau.clone());
+    let px = |x, y| {
+        let p = get(&pave, x, y);
+        [p[0], p[1], p[2]]
+    };
+    for i in 0..16 {
+        for j in 0..4 {
+            set(&mut quai, i, j, px(i, j));
+            set(&mut droite, 12 + j, i, px(12 + j, i));
+        }
+        set(&mut quai, i, 4, lip);
+        set(&mut droite, 11, i, lip);
+        for j in 12..16 {
+            set(&mut mur, i, j, px(i, j));
+        }
+        set(&mut mur, i, 10, lip);
+        set(&mut mur, i, 11, [56, 56, 72]);
+    }
+    save(r, "eau_quai", &quai)?;
+    save(r, "eau_droite", &droite)?;
+    save(r, "eau_mur", &mur)
 }

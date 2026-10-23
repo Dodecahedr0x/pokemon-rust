@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "SilReverseCity",
+    width: 3,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1594, 1595, 1596),
+        (1597, 1598, 1599),
+        (1600, 1601, 1602),
+    ],
+)
