@@ -511,6 +511,12 @@ impl World {
         };
         if !self.runner.step(&mut host) {
             self.s.selected = None;
+            // Gen3 never freezes the player object (`FreezeObjectEvents` skips
+            // `gPlayerAvatar.objectEventId`); `lock`/`lockall` lock the field controls, which
+            // `ScriptContext_RunScript` unlocks when the script ends (`UnlockPlayerFieldControls`),
+            // released or not. A script that ends without `release` (Space Center 2F's multi
+            // battle without `BUGFIX`) leaves the other objects frozen, the player free.
+            self.s.objects.unfreeze(crate::data::PLAYER);
         }
     }
 
