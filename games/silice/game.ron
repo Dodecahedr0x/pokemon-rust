@@ -125,6 +125,25 @@
         "FLAG_SIL_HIDE_PORT_GYM_GWADA",
         "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA",
         "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN",
+        // Ch5 Owlys (each map's OnTransition owns them from VAR_SIL_STORY and the flags): the grunt
+        // crossing the square (Owlys_Sc02 only), Mathieu on the square after the badge (from 55), the
+        // East Cave's duo-scene actors (Mathieu and both drivers at 52, Owl-Justice and the Shaded
+        // Feather shown by Owlys_GrotteEst_Sc01 only), Skycker's face and the gym's Mathieu
+        // (Owlys_Gym_Sc01), and the silo's three Umbreon (Owlys_Entrepot_B1F_Sc01_1-3). Mathieu on the
+        // square, Milo and the alley grunt, the elevator's two Watchers, masked Skycker and Lokhlass
+        // start visible.
+        "FLAG_SIL_HIDE_OWLYS_SBIRE_EST",
+        "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME",
+        "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE",
+        "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
     ],
     new_game_vars: [],
 )

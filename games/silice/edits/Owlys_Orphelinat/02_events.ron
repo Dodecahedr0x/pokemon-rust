@@ -1,0 +1,14 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_LITTLEROOT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mat, to Owlys's warp 4.
+    Warp(x: 5, y: 8, dest_map: "Owlys", dest_warp: 4),
+    Warp(x: 6, y: 8, dest_map: "Owlys", dest_warp: 4),
+    // Objects. 1: the director. 2-4: the three children.
+    Object(x: 10, y: 3, gfx: "OBJ_EVENT_GFX_OLD_WOMAN", id: "LOCALID_ORPHELINAT_DIRECTRICE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_Orphelinat_EventScript_Directrice"),
+    Object(x: 2, y: 4, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_ORPHELINAT_ENFANT_1", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "Owlys_Orphelinat_EventScript_Enfant1"),
+    Object(x: 4, y: 7, gfx: "OBJ_EVENT_GFX_LITTLE_GIRL", id: "LOCALID_ORPHELINAT_ENFANT_2", movement: "MOVEMENT_TYPE_FACE_UP", script: "Owlys_Orphelinat_EventScript_Enfant2"),
+    Object(x: 7, y: 5, gfx: "OBJ_EVENT_GFX_TWIN", id: "LOCALID_ORPHELINAT_ENFANT_3", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_Orphelinat_EventScript_Enfant3"),
+    // The children's owl drawings, pinned on the back wall.
+    Sign(x: 6, y: 1, script: "Owlys_Orphelinat_EventScript_Dessins"),
+]

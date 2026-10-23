@@ -323,6 +323,27 @@
             dest_map: "MangaSquare",
             dest_warp: 5,
         ),
+        (
+            x: 12,
+            y: 63,
+            elevation: 0,
+            dest_map: "Owlys",
+            dest_warp: 8,
+        ),
+        (
+            x: 13,
+            y: 63,
+            elevation: 0,
+            dest_map: "Owlys",
+            dest_warp: 8,
+        ),
+        (
+            x: 14,
+            y: 63,
+            elevation: 0,
+            dest_map: "Owlys",
+            dest_warp: 8,
+        ),
     ],
     coords: [
         (

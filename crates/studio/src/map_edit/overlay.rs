@@ -7,6 +7,8 @@
 //! (`H<index>`). `render --collision`: solid cells are tinted red, each cell's behaviour code
 //! is drawn bottom-right (`behavior`), and cells whose collision disagrees with the usual one
 //! are outlined yellow and marked `!` (green and `+` when an allowance accepts them).
+//! `render --reach`: reached cells tinted green, the start framed white; `--sight`: the
+//! trainers' lines of sight tinted orange.
 
 use super::behavior::{allowed, behavior, collision_mismatches};
 use super::catalog::Catalog;
@@ -15,7 +17,7 @@ use super::render::Palette;
 use crate::map_view::MapImage;
 use engine::data::{block_collision, block_metatile};
 use extract::schema::BgKind;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Pixels of a glyph (before scaling); glyphs are drawn one pixel apart.
 pub const GLYPH_W: usize = 3;
@@ -315,5 +317,28 @@ pub fn draw_collision(img: &mut MapImage, d: &Doc, c: &Catalog, s: usize) {
         outline(img, px, py, cell, cell, s, col);
         let (_, bh) = text_box(mark, s);
         text(img, px + s, py + cell - bh - s, mark, s, col);
+    }
+}
+
+/// `render --reach`: tints the reached `cells` green and frames the `start` cell white.
+pub fn draw_reach(img: &mut MapImage, cells: &BTreeSet<(i32, i32)>, start: (i32, i32), s: usize) {
+    let cell = 16 * s;
+    for &(x, y) in cells {
+        if let Some((px, py)) = cell_px(img, x, y, s) {
+            tint(img, px, py, cell, cell, GREEN);
+        }
+    }
+    if let Some((px, py)) = cell_px(img, start.0, start.1, s) {
+        outline(img, px, py, cell, cell, 2 * s, WHITE);
+    }
+}
+
+/// `render --sight`: tints the cells a trainer sees orange.
+pub fn draw_sight(img: &mut MapImage, cells: &BTreeSet<(i32, i32)>, s: usize) {
+    let cell = 16 * s;
+    for &(x, y) in cells {
+        if let Some((px, py)) = cell_px(img, x, y, s) {
+            tint(img, px, py, cell, cell, ORANGE);
+        }
     }
 }

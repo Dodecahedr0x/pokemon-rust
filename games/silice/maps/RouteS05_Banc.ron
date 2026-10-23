@@ -1,0 +1,46 @@
+(
+    name: "RouteS05_Banc",
+    layout: "RouteS05_Banc",
+    header: (
+        music: "MUS_ROUTE119",
+        region_map_section: "MAPSEC_NONE",
+        cave: 0,
+        weather: "WEATHER_SHADE",
+        map_type: "MAP_TYPE_ROUTE",
+        allow_cycling: false,
+        allow_escaping: false,
+        allow_running: true,
+        show_map_name: false,
+        battle_scene: "MAP_BATTLE_SCENE_NORMAL",
+    ),
+    objects: [],
+    warps: [],
+    coords: [],
+    bgs: [
+        (
+            x: 20,
+            y: 20,
+            elevation: 0,
+            kind: HiddenItem(
+                item: "ITEM_ULTRA_BALL",
+                flag: "FLAG_SIL_ITEM_ROUTE_S05_BANC_ULTRA_BALL",
+            ),
+        ),
+    ],
+    connections: [
+        (
+            dir: North,
+            offset: -20,
+            map: "RouteS05",
+        ),
+    ],
+    scripts: (
+        on_load: None,
+        on_transition: None,
+        on_resume: None,
+        on_return_to_field: None,
+        on_dive_warp: None,
+        on_frame: [],
+        on_warp_into: [],
+    ),
+)
