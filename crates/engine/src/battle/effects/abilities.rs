@@ -191,6 +191,8 @@ pub(super) fn forecast(b: &mut Battle, env: &mut Env, side: Side) -> bool {
     let to = match b.weather() {
         Weather::Sun | Weather::HarshSun => Type::Fire,
         Weather::Rain | Weather::HeavyRain => Type::Water,
+        // CastformDataTypeChange: hail is Ice.
+        Weather::Hail => Type::Ice,
         Weather::None | Weather::Sand => Type::Normal,
     };
     if m.types.contains(&to) {

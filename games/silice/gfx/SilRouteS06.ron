@@ -1,0 +1,114 @@
+// Route S6 (Ch6, MAP_ROUTE_S06): the Sentier des Pelerins, a switchback climb up a mountain flank
+// from Owlys's elevator to Manga-Square's Torii Sud. contenu-jeu/chapitres/06-manga-square.md
+// (MAP_ROUTE_S06): mossy stone steps, stone lanterns (toro), small red torii every twenty steps,
+// bamboo, maples, incense burners smoking by the path, the jade Wishing Dragon altar, the bamboo
+// curtain of the Monks' shortcut; the screen sky turns dawn pink higher up.
+// The mountain is this tileset's rose granite (`roche`, also the border) and its mossy terrace walls
+// (`falaise`, 2 wide: top lip, face, foot). The path is mossy flagstones (`dalles`), the stairs
+// mossy steps (`marches`). A torii stands at the head of each staircase, its posts on the terrace
+// wall: `torii` and `torii_grand` are derived (derive.rs) from the prompted `torii_art` and
+// `torii_grand_art`, set on the wall's and the steps' art. Seams: rows 0-6 (Manga-Square) and
+// columns 0-6 of rows 25-44 (the Bois des Soupirs) stay on General (forest, rock, the pale path).
+// `roche` and `falaise` come first: a 1x1 stamp of metatile 513 or 524 would equal an extract layout
+// (studio map hygiene). The open bamboo curtain is `dalles` (METATILE_BAMBOU_OUVERT, ch06_route_s06.rs).
+(
+    name: "SilRouteS06",
+    primary: "General",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), a Japanese mountain pilgrimage path at dawn. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing, no letters. Palette: warm rose-grey granite, mossy greens, vermilion red wood, jade green, with soft dawn pink accents.",
+    features: [
+        (
+            name: "roche",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("Mountain rock texture seen from above, only 32x32 pixels, chunky details: four or five big rounded granite boulders in two shades of warm rose-grey (#c8a8a0 and #a88880) with a dark plum-brown outline (#583840), two small flat patches of dark moss green on top of the boulders. It must tile seamlessly in every direction."),
+        ),
+        (
+            // A terrace wall, 2 cells wide, seen from the front: row 0 the mossy lip (cliff top), row 1
+            // the face, row 2 the foot.
+            name: "falaise",
+            cells: ["##", "##", "##"],
+            key: Some("none"),
+            prompt: Some("A terrace wall of a mountain path seen from the front, 32 pixels wide and 48 pixels tall, filling the whole canvas: the top 10 pixels are a rounded lip of bright moss green grass hanging over the edge, below it a wall of big stacked angular granite blocks in warm rose-grey (#c0a098) with dark plum-brown joints (#583840), a few small moss tufts in the joints, and along the very bottom edge a thin dark plum shadow line. No sky. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "dalles",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Mossy stone path paving seen from straight above, ONE single tile of the pattern: three or four irregular flat pale grey-rose flagstones (#c8b8b0) separated by thick joints of bright moss green (#58a048), one stone with a tiny darker crack. Flat, no shading, only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "marches",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Old mossy stone steps of a temple stairway seen from above, filling the square: three horizontal pale grey-rose stone steps (#c8b8b0), each with a dark plum-brown shadow line under its front edge, small moss green tufts at the left and right ends. Flat, only 16x16 pixels, chunky."),
+        ),
+        (
+            // The Wishing Dragon (Rayquaza, never named): the altar, read from below (signs (4, 19), (5, 19)).
+            name: "autel",
+            cells: ["##", "##"],
+            prompt: Some("A small wayside shrine statue seen from the front: a jade green serpent dragon with yellow ring markings coiled tightly around a big white pearl, its head on top, on a low square grey stone pedestal, a tiny red offering cloth and two small white candles at the foot of the pedestal. Bold chunky shapes."),
+        ),
+        (
+            name: "bambous",
+            cells: ["##", "##"],
+            prompt: Some("A dense clump of bamboo seen from 3/4 above, filling the square: eight tall straight bamboo stalks in two shades of fresh green with darker green rings, close together, with spiky green leaf sprays on top. Bold chunky shapes."),
+        ),
+        (
+            name: "erable",
+            cells: ["##", "##"],
+            key: Some("00FF00"),
+            prompt: Some("A Japanese maple tree seen from 3/4 above: a big round crown of bright orange-red and crimson leaves in three clusters filling most of the picture, a short dark brown trunk at the bottom middle. Bold chunky shapes."),
+        ),
+        (
+            // Sources of the derived torii (never painted on the map).
+            name: "torii_art",
+            cells: ["####", "####"],
+            prompt: Some("A small vermilion red torii gate seen from the front, twice as wide as tall: a thick top beam with a black cap curving up at both ends across the whole width, a thinner red tie beam below it, and two round red posts with black feet standing exactly in the middle of the leftmost quarter and of the rightmost quarter of the width, reaching the bottom edge. Completely empty between and around the posts."),
+        ),
+        (
+            name: "torii",
+            cells: ["#..#", "#..#"],
+            over: [0],
+        ),
+        (
+            name: "torii_grand_art",
+            cells: ["######", "######"],
+            prompt: Some("A vermilion red torii gate seen from the front, three times as wide as tall: a thick top beam with a black cap curving up at both ends across the whole width, a thinner red tie beam below it with a tiny black plaque in its middle, and two round red posts with black feet standing exactly in the middle of the leftmost sixth and of the rightmost sixth of the width, reaching the bottom edge. Completely empty between and around the posts."),
+        ),
+        (
+            name: "torii_grand",
+            cells: ["#....#", "#....#"],
+            over: [0],
+        ),
+        (
+            name: "toro",
+            cells: ["#"],
+            prompt: Some("A squat Japanese stone lantern (toro) seen from the front, filling the square: grey stone, a wide pointed roof-shaped cap, a small square window glowing warm yellow, a thick short pillar, a wide base, a little moss on the cap. Bold chunky shapes."),
+        ),
+        (
+            name: "encens",
+            cells: ["#"],
+            prompt: Some("A bronze incense burner on short legs seen from the front, filling the square: a round dark bronze bowl with a small pagoda-shaped lid, three thin incense sticks with red tips poking out, a thin curl of pale grey-pink smoke rising to the top edge. Bold chunky shapes."),
+        ),
+        (
+            name: "panneau",
+            cells: ["#"],
+            prompt: Some("A small wooden pilgrim notice board on one thick post, filling the square: a dark brown wooden plank under a tiny curved black roof, a cream paper sheet on it with three short dark lines (no letters), a red paper charm hanging from the roof. Bold chunky shapes."),
+        ),
+        (
+            // The bamboo curtain (23, 26) over the Monks' shortcut, closed (opened: `dalles`).
+            name: "rideau",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A curtain of thin bamboo stalks seen from the front, filling the square: seven vertical fresh green bamboo canes side by side with dark green rings, tied by one horizontal brown rope across the middle, thin dark gaps between the canes. Only 16x16 pixels, chunky."),
+        ),
+        (
+            // The mouth of the Monks' shortcut (warp 0, (25, 25)): arriving walks the player down. Drawn
+            // in derive.rs (a dark arch cut in `roche`).
+            name: "passage",
+            cells: ["P"],
+            legend: {'P': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+        ),
+    ],
+)

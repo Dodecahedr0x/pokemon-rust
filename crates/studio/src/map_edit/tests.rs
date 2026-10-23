@@ -1788,12 +1788,27 @@ fn a_seam_with_another_secondary_must_be_primary() {
         elevation: None,
     })
     .unwrap();
-    let text: Vec<String> = validate(e.doc(), &c).iter().map(|i| i.to_string()).collect();
+    let text: Vec<String> = validate(e.doc(), &c)
+        .iter()
+        .map(|i| i.to_string())
+        .collect();
     let has = |s: &str| text.iter().any(|t| t.contains(s));
-    assert!(has("error: connection 0: Other (X) walks onto (1, 0)"), "{text:#?}");
-    assert!(has("warning: connection 0: Other (X) shows 1 secondary cell"), "{text:#?}");
+    assert!(
+        has("error: connection 0: Other (X) walks onto (1, 0)"),
+        "{text:#?}"
+    );
+    assert!(
+        has("warning: connection 0: Other (X) shows 1 secondary cell"),
+        "{text:#?}"
+    );
     // The same secondary: no seam issue.
     c.maps.get_mut("Other").unwrap().secondary = Some("S".into());
-    let text: Vec<String> = validate(e.doc(), &c).iter().map(|i| i.to_string()).collect();
-    assert!(!text.iter().any(|t| t.contains("its own tilesets")), "{text:#?}");
+    let text: Vec<String> = validate(e.doc(), &c)
+        .iter()
+        .map(|i| i.to_string())
+        .collect();
+    assert!(
+        !text.iter().any(|t| t.contains("its own tilesets")),
+        "{text:#?}"
+    );
 }

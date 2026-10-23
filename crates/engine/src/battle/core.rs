@@ -74,6 +74,8 @@ use crate::rng::Rng;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
+use super::effects::{BattlerFx, FieldFx};
+
 // The building blocks of Task E2's effects.
 #[allow(unused_imports)]
 pub(crate) use moves::{HitResult, MoveUse, Secondary};
@@ -146,6 +148,8 @@ pub(crate) struct Battler {
     pub v: Volatiles,
     /// The Silice engine's state (hashed only when set, see [`BattlerExt`]).
     pub x: BattlerExt,
+    /// Wave C's move-effect state (hashed only when set, see [`BattlerFx`]).
+    pub fx: BattlerFx,
 }
 
 /// A battler's held item and the Silice engine's per-battler state. All default for a Gen3
@@ -255,6 +259,7 @@ impl Battler {
                 item: p.held,
                 ..BattlerExt::default()
             },
+            fx: BattlerFx::default(),
         }
     }
 
@@ -271,11 +276,6 @@ impl Battler {
             status: self.mon.status,
             hold: self.x.hold.and_then(|h| h.for_species(self.mon.species)),
         }
-    }
-
-    /// Gen3 `AreAllMovesUnusable` (no Disable/Taunt yet): every known move is out of PP.
-    pub fn all_moves_unusable(&self) -> bool {
-        (0..4).all(|i| self.mon.moves[i].is_none() || self.mon.pp[i] == 0)
     }
 
     fn hash(&self, h: &mut Fnv64) {
@@ -323,6 +323,10 @@ impl Battler {
             h.write(&[0xA8]);
             self.x.hash(h);
         }
+        if self.fx.is_set() {
+            h.write(&[0xAB]);
+            self.fx.hash(h);
+        }
     }
 }
 
@@ -341,6 +345,8 @@ pub(crate) enum Weather {
     HeavyRain,
     /// Desolate Land: sun, and Water moves fail.
     HarshSun,
+    /// `B_WEATHER_HAIL_TEMPORARY` (Hail, Wave C).
+    Hail,
 }
 
 impl Weather {
@@ -549,6 +555,8 @@ pub struct Battle {
     pub(crate) leveled_up: u8,
     /// The Silice engine's state (hashed only when set, see [`BattleExt`]).
     pub(crate) x: BattleExt,
+    /// Wave C's side and field move-effect state (hashed only when set, see [`FieldFx`]).
+    pub(crate) fx: FieldFx,
 }
 
 /// Gen3 `GetTrainerMoneyToGive` (`moneyMultiplier` 1: no Amulet Coin without held items):
@@ -658,6 +666,7 @@ impl Battle {
             prize,
             leveled_up: 0,
             x,
+            fx: FieldFx::default(),
         };
         b.find_forms(game, Side::Player, |_| false);
         b.find_forms(game, Side::Opponent, |_| false);
@@ -694,7 +703,12 @@ impl Battle {
             None => Battler::new(t, &p, i),
         };
         b.x.hold = self.x.holds[side as usize][i as usize];
-        if b.ability == Ability::SpeedBoost {
+        // Knock Off: the item stays gone for the battle (`gWishFutureKnock.knockedOffMons`).
+        if self.fx.knocked_off[side as usize] & (1 << i) != 0 {
+            b.x.item = None;
+            b.x.hold = None;
+        }
+        if b.ability == Ability::SpeedBoost || super::effects::reads_first_turn(t, &b) {
             b.x.first_turn = 2;
         }
         b
@@ -858,6 +872,10 @@ impl Battle {
             h.write(&[0xA9]);
             self.x.hash(h);
         }
+        if self.fx.is_set() {
+            h.write(&[0xAC]);
+            self.fx.hash(h);
+        }
     }
 
     /// The prize money of a trainer battle (Gen3 `getmoneyreward`), paid on a win; `None` in a
@@ -1008,11 +1026,14 @@ impl Battle {
             // OpponentHandleChooseAction → AI_TrySwitchOrUseItem, before the move choice
             // (and before the all-moves-unusable check of B_ACTION_USE_MOVE).
             Action::Switch(i)
-        } else if o.all_moves_unusable() {
+        } else if super::effects::all_moves_unusable(self, env.t, Side::Opponent) {
             if self.is_trainer() && self.can_mega(Side::Opponent) {
                 self.x.mega_pending[Side::Opponent as usize] = true;
             }
             Action::Struggle
+        } else if let Some(slot) = super::effects::encored_slot(self, Side::Opponent) {
+            // HandleTurnActionSelectionState: an encored battler's move is not asked.
+            Action::Move(slot)
         } else {
             if self.is_trainer()
                 && self.trainer_ai & super::ai::AI_SCRIPT_CHECK_VIABILITY != 0
@@ -1028,7 +1049,21 @@ impl Battle {
                     "ai pursuit viability",
                 )));
             }
-            match super::ai::choose(self, env.t, env.rng) {
+            // TrySetCantSelectMoveBattleScript refuses a disabled, tormented or taunted move:
+            // the action is chosen again.
+            let mut choice = super::ai::choose(self, env.t, env.rng);
+            for _ in 0..64 {
+                match choice {
+                    Choice::Move(s)
+                        if super::effects::selection_block(self, env.t, Side::Opponent, s)
+                            .is_some() =>
+                    {
+                        choice = super::ai::choose(self, env.t, env.rng)
+                    }
+                    _ => break,
+                }
+            }
+            match choice {
                 Choice::Move(s) if (s as usize) < 4 && o.mon.pp[s as usize] > 0 => {
                     // A trainer Mega Evolves at the first opportunity (with a move).
                     if self.is_trainer() && self.can_mega(Side::Opponent) {
@@ -1063,6 +1098,8 @@ impl Battle {
         }
         let [first, second] = self.turn_order(env);
         self.order = [first, second];
+        // CheckFocusPunch_ClearVarsBeforeTurnStarts.
+        super::effects::before_turn(self, env);
         self.steps.push_back(Step::Act(first));
         self.steps.push_back(Step::Fainted);
         if pending && !moves(self.actions[first as usize]) {
@@ -1090,10 +1127,18 @@ impl Battle {
                 if slot >= 4 || b.mon.moves[slot].is_none() {
                     return None;
                 }
-                if b.all_moves_unusable() {
+                if super::effects::all_moves_unusable(self, env.t, p) {
                     // BattleScript_NoMovesLeft (STRINGID_PKMNHASNOMOVESLEFT), then Struggle.
                     env.out.push(BattleEvent::Msg(about(Str::Struggle, p)));
                     return Some(Action::Struggle);
+                }
+                if let Some(s) = super::effects::encored_slot(self, p) {
+                    return Some(Action::Move(s));
+                }
+                if let Some(m) = super::effects::selection_block(self, env.t, p, slot as u8) {
+                    // BattleScript_SelectingDisabledMove / TormentedMove / NotAllowedMoveTaunt.
+                    env.out.push(BattleEvent::Msg(m));
+                    return None;
                 }
                 if b.mon.pp[slot] == 0 {
                     // BattleScript_SelectingMoveWithNoPP.
@@ -1296,6 +1341,18 @@ impl Battle {
     /// Sends out party slot `i` on `side` (`switchindataupdate`, STRINGID_SWITCHINMON,
     /// `switchinanim`, `switchineffects`).
     pub(crate) fn switch_in(&mut self, env: &mut Env, side: Side, i: u8) {
+        self.switch_in_with(env, side, i, None);
+    }
+
+    /// [`Battle::switch_in`]; `dragged` (Roar, Whirlwind) replaces the send-out message
+    /// (`BattleScript_SuccessForceOut`: `switchinanim`, then "was dragged out!").
+    pub(crate) fn switch_in_with(
+        &mut self,
+        env: &mut Env,
+        side: Side,
+        i: u8,
+        dragged: Option<Msg>,
+    ) {
         self.stamp(env);
         self.write_back(side);
         let left = self.battler(side).ability;
@@ -1316,7 +1373,14 @@ impl Battle {
             // OpponentSwitchInResetSentPokesToOpponentValue.
             Side::Opponent => self.sent_in = 1 << player_party,
         }
-        self.send_out_events(env, side, false);
+        match dragged {
+            Some(m) => {
+                env.out.push(BattleEvent::SendOut { side, party: i });
+                env.out.push(BattleEvent::Msg(m));
+            }
+            None => self.send_out_events(env, side, false),
+        }
+        super::effects::spikes(self, env, side);
         // Primal Reversion on entry (Gen6), then the switch-in abilities.
         self.primal_reversion(env, side);
         super::effects::on_switch_in(self, env, side);
@@ -1404,7 +1468,7 @@ impl Battle {
     /// silently) to `returnatktoball`.
     /// A battler knocked out on its way out (Pursuit) is not recalled (`returnatktoball`
     /// skips a fainted battler).
-    fn switch_out(&mut self, env: &mut Env, side: Side) {
+    pub(crate) fn switch_out(&mut self, env: &mut Env, side: Side) {
         if self.battler(side).mon.hp == 0 {
             return;
         }
@@ -1433,6 +1497,7 @@ impl Battle {
         let v = &mut self.battler_mut(side.other()).v;
         v.escape_prevented = false;
         v.infatuated = false;
+        super::effects::clear_bonds(self, side);
     }
 
     /// `checkteamslost`, then the replacement of a fainted battler.

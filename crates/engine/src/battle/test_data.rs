@@ -15,7 +15,8 @@ use crate::data::{
 };
 use crate::mon::{
     Ability, BattleTables, GrowthRate, LevelUpMove, MoveEffect, MoveFlags, MoveInfo, MoveTarget,
-    NAME_LEN, Party, Pokemon, SpeciesInfo, Stat, Status, StatusKind, Type, TypeMatchup,
+    NAME_LEN, Party, Pokemon, SemiKind, SpeciesInfo, Stat, Status, StatusKind, TrapKind,
+    TwoTurnKind, Type, TypeMatchup, WeatherKind,
 };
 use crate::script::{Ctx, Script};
 
@@ -99,6 +100,58 @@ pub const SOUND_GROWL: MoveId = MoveId(53);
 pub const ICY_WIND: MoveId = MoveId(54);
 /// Low Kick: power from the target's weight.
 pub const LOW_KICK: MoveId = MoveId(55);
+// Wave C (Gen3 data of the namesakes, PP 10).
+/// A plain 40-power Normal hit that Protect blocks and Mirror Move copies.
+pub const POUND: MoveId = MoveId(56);
+pub const ROLLOUT: MoveId = MoveId(57);
+pub const THRASH: MoveId = MoveId(58);
+pub const HYPER_BEAM: MoveId = MoveId(59);
+pub const SOLAR_BEAM: MoveId = MoveId(60);
+pub const FLY: MoveId = MoveId(61);
+pub const SUPER_FANG: MoveId = MoveId(62);
+pub const DRAGON_RAGE: MoveId = MoveId(63);
+pub const SEISMIC_TOSS: MoveId = MoveId(64);
+pub const COUNTER: MoveId = MoveId(65);
+pub const CURSE: MoveId = MoveId(66);
+pub const SWAGGER: MoveId = MoveId(67);
+pub const REST: MoveId = MoveId(68);
+pub const RECOVER: MoveId = MoveId(69);
+pub const HAZE: MoveId = MoveId(70);
+pub const BELLY_DRUM: MoveId = MoveId(71);
+pub const PAIN_SPLIT: MoveId = MoveId(72);
+pub const DISABLE: MoveId = MoveId(73);
+pub const ENCORE: MoveId = MoveId(74);
+pub const TAUNT: MoveId = MoveId(75);
+pub const TORMENT: MoveId = MoveId(76);
+pub const PROTECT: MoveId = MoveId(77);
+pub const REFLECT: MoveId = MoveId(78);
+pub const SAFEGUARD: MoveId = MoveId(79);
+pub const SPIKES: MoveId = MoveId(80);
+pub const RAIN_DANCE: MoveId = MoveId(81);
+pub const HAIL: MoveId = MoveId(82);
+pub const MIST: MoveId = MoveId(83);
+pub const METRONOME: MoveId = MoveId(84);
+pub const SLEEP_TALK: MoveId = MoveId(85);
+pub const MIRROR_MOVE: MoveId = MoveId(86);
+pub const HELPING_HAND: MoveId = MoveId(87);
+pub const FOLLOW_ME: MoveId = MoveId(88);
+pub const PERISH_SONG: MoveId = MoveId(89);
+pub const FUTURE_SIGHT: MoveId = MoveId(90);
+pub const WRAP: MoveId = MoveId(91);
+pub const DESTINY_BOND: MoveId = MoveId(92);
+pub const INGRAIN: MoveId = MoveId(93);
+pub const WISH: MoveId = MoveId(94);
+pub const FACADE: MoveId = MoveId(95);
+pub const KNOCK_OFF: MoveId = MoveId(96);
+pub const ROAR: MoveId = MoveId(97);
+pub const OHKO: MoveId = MoveId(98);
+pub const RAGE: MoveId = MoveId(99);
+pub const ROLE_PLAY: MoveId = MoveId(100);
+pub const SKILL_SWAP: MoveId = MoveId(101);
+pub const GRUDGE: MoveId = MoveId(102);
+pub const IMPRISON: MoveId = MoveId(103);
+pub const MAGIC_COAT: MoveId = MoveId(104);
+pub const TRICK: MoveId = MoveId(105);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -211,6 +264,21 @@ const fn mv(
 
 use MoveTarget::{Selected, User};
 
+/// A Wave C move: PP 10, priority 0, `effect_chance` 0.
+const fn wc(
+    effect: MoveEffect,
+    power: u8,
+    ty: Type,
+    accuracy: u8,
+    target: MoveTarget,
+    flags: u8,
+) -> MoveInfo {
+    MoveInfo {
+        flags: MoveFlags(flags),
+        ..mv(effect, power, ty, accuracy, 10, target, 0)
+    }
+}
+
 /// A Task E2 move: `Selected`, priority 0, with its secondary chance and contact flag.
 const fn e2(
     effect: MoveEffect,
@@ -228,7 +296,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 56] = [
+pub static MOVES: [MoveInfo; 106] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -517,6 +585,379 @@ pub static MOVES: [MoveInfo; 56] = [
         false,
     ),
     e2(MoveEffect::LowKick, 1, Type::Fighting, 100, 20, 0, true),
+    wc(
+        MoveEffect::Hit,
+        40,
+        Type::Normal,
+        100,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Rollout,
+        30,
+        Type::Rock,
+        90,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    MoveInfo {
+        effect_chance: 100,
+        ..wc(
+            MoveEffect::Rampage,
+            90,
+            Type::Normal,
+            100,
+            MoveTarget::Random,
+            MoveFlags::MAKES_CONTACT
+                | MoveFlags::PROTECT_AFFECTED
+                | MoveFlags::MIRROR_MOVE_AFFECTED,
+        )
+    },
+    wc(
+        MoveEffect::Recharge,
+        150,
+        Type::Normal,
+        90,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::TwoTurn(TwoTurnKind::SolarBeam),
+        120,
+        Type::Grass,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::SemiInvulnerable(SemiKind::Fly),
+        70,
+        Type::Flying,
+        95,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::SuperFang,
+        1,
+        Type::Normal,
+        90,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::DragonRage,
+        1,
+        Type::Dragon,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::LevelDamage,
+        1,
+        Type::Fighting,
+        100,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    MoveInfo {
+        priority: -5,
+        ..wc(
+            MoveEffect::Counter,
+            1,
+            Type::Fighting,
+            100,
+            MoveTarget::Depends,
+            MoveFlags::MAKES_CONTACT
+                | MoveFlags::PROTECT_AFFECTED
+                | MoveFlags::MIRROR_MOVE_AFFECTED,
+        )
+    },
+    wc(MoveEffect::Curse, 0, Type::Mystery, 0, User, 0),
+    wc(
+        MoveEffect::Swagger,
+        0,
+        Type::Normal,
+        90,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED
+            | MoveFlags::MIRROR_MOVE_AFFECTED
+            | MoveFlags::MAGIC_COAT_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Rest,
+        0,
+        Type::Psychic,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::RestoreHp,
+        0,
+        Type::Normal,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(MoveEffect::Haze, 0, Type::Ice, 0, User, 0),
+    wc(
+        MoveEffect::BellyDrum,
+        0,
+        Type::Normal,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::PainSplit,
+        0,
+        Type::Normal,
+        0,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Disable,
+        0,
+        Type::Normal,
+        55,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED
+            | MoveFlags::MIRROR_MOVE_AFFECTED
+            | MoveFlags::MAGIC_COAT_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Encore,
+        0,
+        Type::Normal,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED
+            | MoveFlags::MIRROR_MOVE_AFFECTED
+            | MoveFlags::MAGIC_COAT_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Taunt,
+        0,
+        Type::Dark,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Torment,
+        0,
+        Type::Dark,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED
+            | MoveFlags::MIRROR_MOVE_AFFECTED
+            | MoveFlags::MAGIC_COAT_AFFECTED,
+    ),
+    MoveInfo {
+        priority: 3,
+        ..wc(MoveEffect::Protect, 0, Type::Normal, 0, User, 0)
+    },
+    wc(
+        MoveEffect::Reflect,
+        0,
+        Type::Psychic,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Safeguard,
+        0,
+        Type::Normal,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Spikes,
+        0,
+        Type::Ground,
+        0,
+        MoveTarget::OpponentsField,
+        0,
+    ),
+    wc(
+        MoveEffect::SetWeather(WeatherKind::Rain),
+        0,
+        Type::Water,
+        0,
+        User,
+        0,
+    ),
+    wc(
+        MoveEffect::SetWeather(WeatherKind::Hail),
+        0,
+        Type::Ice,
+        0,
+        User,
+        0,
+    ),
+    wc(
+        MoveEffect::Mist,
+        0,
+        Type::Ice,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Metronome,
+        0,
+        Type::Normal,
+        0,
+        MoveTarget::Depends,
+        0,
+    ),
+    wc(
+        MoveEffect::SleepTalk,
+        0,
+        Type::Normal,
+        0,
+        MoveTarget::Depends,
+        0,
+    ),
+    wc(
+        MoveEffect::MirrorMove,
+        0,
+        Type::Flying,
+        0,
+        MoveTarget::Depends,
+        0,
+    ),
+    MoveInfo {
+        priority: 5,
+        ..wc(MoveEffect::HelpingHand, 0, Type::Normal, 0, User, 0)
+    },
+    MoveInfo {
+        priority: 3,
+        ..wc(MoveEffect::FollowMe, 0, Type::Normal, 0, User, 0)
+    },
+    wc(
+        MoveEffect::PerishSong,
+        0,
+        Type::Normal,
+        0,
+        MoveTarget::FoesAndAlly,
+        MoveFlags::SOUND,
+    ),
+    wc(
+        MoveEffect::FutureSight(false),
+        80,
+        Type::Psychic,
+        90,
+        Selected,
+        0,
+    ),
+    MoveInfo {
+        effect_chance: 100,
+        ..wc(
+            MoveEffect::Trap(TrapKind::Wrap),
+            15,
+            Type::Normal,
+            85,
+            Selected,
+            MoveFlags::MAKES_CONTACT
+                | MoveFlags::PROTECT_AFFECTED
+                | MoveFlags::MIRROR_MOVE_AFFECTED,
+        )
+    },
+    wc(MoveEffect::DestinyBond, 0, Type::Ghost, 0, User, 0),
+    wc(
+        MoveEffect::Ingrain,
+        0,
+        Type::Grass,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Wish,
+        0,
+        Type::Normal,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Facade,
+        70,
+        Type::Normal,
+        100,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    MoveInfo {
+        effect_chance: 100,
+        ..wc(
+            MoveEffect::KnockOff,
+            20,
+            Type::Dark,
+            100,
+            Selected,
+            MoveFlags::MAKES_CONTACT
+                | MoveFlags::PROTECT_AFFECTED
+                | MoveFlags::MIRROR_MOVE_AFFECTED,
+        )
+    },
+    MoveInfo {
+        priority: -6,
+        ..wc(
+            MoveEffect::Roar,
+            0,
+            Type::Normal,
+            100,
+            Selected,
+            MoveFlags::SOUND | MoveFlags::MIRROR_MOVE_AFFECTED | MoveFlags::MAGIC_COAT_AFFECTED,
+        )
+    },
+    wc(
+        MoveEffect::Ohko,
+        1,
+        Type::Normal,
+        30,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Rage,
+        20,
+        Type::Normal,
+        100,
+        Selected,
+        MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(MoveEffect::RolePlay, 0, Type::Psychic, 0, Selected, 0),
+    wc(
+        MoveEffect::SkillSwap,
+        0,
+        Type::Psychic,
+        0,
+        Selected,
+        MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(MoveEffect::Grudge, 0, Type::Ghost, 0, User, 0),
+    wc(MoveEffect::Imprison, 0, Type::Psychic, 0, User, 0),
+    MoveInfo {
+        priority: 4,
+        ..wc(MoveEffect::MagicCoat, 0, Type::Psychic, 0, User, 0)
+    },
+    wc(
+        MoveEffect::Trick,
+        0,
+        Type::Psychic,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
 ];
 
 const fn lv(level: u8, mov: MoveId) -> LevelUpMove {

@@ -437,10 +437,10 @@ mod extracted {
         assert!(t.species_info(SPECIES_TREECKO).weight > 0);
     }
 
-    /// Slice moves whose effect the engine does not implement yet (for Task E2). They come
-    /// from the parties of the Route 102 and Route 103 trainers. Drop a move from the list
-    /// once its effect is supported.
-    const KNOWN_UNSUPPORTED: &[MoveId] = &[consts::MOVE_ROLLOUT];
+    /// Slice moves whose effect the engine does not implement yet. They come from the
+    /// parties of the Route 102 and Route 103 trainers. Drop a move from the list once its
+    /// effect is supported (Wave C: Rollout).
+    const KNOWN_UNSUPPORTED: &[MoveId] = &[];
 
     #[test]
     fn slice_moves_have_supported_effects() {

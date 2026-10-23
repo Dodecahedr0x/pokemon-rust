@@ -16,10 +16,19 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         MoveEffect::StatDownHit(_) => b.hit(env, u, with(stat_down_hit), false),
         MoveEffect::StatusHit(_) => b.hit(env, u, with(status_hit), false),
         MoveEffect::ConfuseHit => b.hit(env, u, with(confuse_hit), false),
-        MoveEffect::FlinchHit | MoveEffect::FlinchMinimizeHit => {
+        MoveEffect::FlinchHit => b.hit(env, u, with(flinch_hit), false),
+        // BattleScript_EffectFlinchMinimizeHit: double damage on a minimized target.
+        MoveEffect::FlinchMinimizeHit => {
+            let multiplier = if b.battler(u.target).fx.minimized {
+                2
+            } else {
+                1
+            };
+            let u = &MoveUse { multiplier, ..*u };
             b.hit(env, u, with(flinch_hit), false)
         }
-        MoveEffect::VitalThrow => b.hit(env, u, None, true),
+        // AccuracyCalcHelper's sure hit, after Protect ([`super::mech::sure_accuracy`]).
+        MoveEffect::VitalThrow => b.hit(env, u, None, false),
         MoveEffect::Status(kind) => {
             status_move(b, env, u, kind);
             None
@@ -48,12 +57,12 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         }
         MoveEffect::NaturePower => nature_power(b, env, u),
         MoveEffect::MultiHit => {
-            multi_hit(b, env, u, None);
+            multi_hit_with(b, env, u, None, None);
             None
         }
         MoveEffect::DoubleHit => {
             // BattleScript_EffectDoubleHit: `setmultihitcounter 2`.
-            multi_hit(b, env, u, Some(2));
+            multi_hit_with(b, env, u, Some(2), None);
             None
         }
         // As a move, Pursuit is a plain hit (its double damage is `pursuit_on_switch`).
@@ -96,6 +105,7 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         MoveEffect::DefenseCurl => {
             // BattleScript_EffectDefenseCurl: `setdefensecurlbit` (only Rollout reads it), then
             // the Defense +1 of BattleScript_EffectStatUp.
+            b.battler_mut(u.attacker).fx.defense_curl = true;
             b.stat_up_move(env, u, Stat::Def, 1);
             None
         }
@@ -110,7 +120,7 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
             ));
             None
         }
-        _ => b.unsupported(env, u),
+        _ => super::mech::apply(b, env, u),
     }
 }
 
@@ -138,6 +148,10 @@ fn stat_down_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     };
     let side = u.target;
     if b.battler(side).mon.hp == 0 || abilities::blocks_secondary_drop(b, side, stat) {
+        return;
+    }
+    // Mist, silently (no `STAT_CHANGE_ALLOW_PTR`).
+    if super::mech::mist_blocks(b, env, u, side, false) {
         return;
     }
     if b.change_stage(side, stat, -1) {
@@ -264,8 +278,14 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
         return;
     }
     if !b.accuracy(env, u) {
-        env.out
-            .push(BattleEvent::Msg(u.msg_long(Str::AttackMissed, u.attacker)));
+        b.miss_message(env, u);
+        return;
+    }
+    // `jumpifsideaffecting BS_TARGET, SIDE_STATUS_SAFEGUARD, BattleScript_SafeguardProtected`.
+    if super::mech::safeguarded(b, u.target) {
+        env.out.push(BattleEvent::Msg(
+            u.msg_long(Str::PkmnUsedSafeguard, u.target),
+        ));
         return;
     }
     // JumpIfMoveFailed: Flash Fire takes Will-O-Wisp (the attack string is out already).
@@ -305,8 +325,13 @@ fn confuse_move(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         return;
     }
     if !b.accuracy(env, u) {
-        env.out
-            .push(BattleEvent::Msg(u.msg_long(Str::AttackMissed, u.attacker)));
+        b.miss_message(env, u);
+        return;
+    }
+    if super::mech::safeguarded(b, u.target) {
+        env.out.push(BattleEvent::Msg(
+            u.msg_long(Str::PkmnUsedSafeguard, u.target),
+        ));
         return;
     }
     anim(env, u);
@@ -401,7 +426,7 @@ fn sonic_boom(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
         Effectiveness::Normal
     };
     // adjustsetdamage.
-    let (damage, hung) = b.focus_band(env, u.target, 20, eff);
+    let (damage, hung) = super::mech::hold_on(b, env, u, 20, eff);
     let r = HitResult {
         damage,
         hp_dealt: 0,
@@ -422,7 +447,15 @@ fn sonic_boom(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
 /// abilities); the loop stops when the attacker faints, the target faints or the attacker
 /// falls asleep. Then the result message, "Hit N time(s)!", `seteffectwithchance` (its roll)
 /// and the target's faint. Returns nothing: `moveend` already ran per hit.
-fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
+/// Wave C: `sec` is Twineedle's poison (`seteffectwithchance` after the loop); a sleeping
+/// attacker goes on under Sleep Talk.
+pub(super) fn multi_hit_with(
+    b: &mut Battle,
+    env: &mut Env,
+    u: &MoveUse,
+    fixed: Option<u16>,
+    sec: Option<Secondary>,
+) {
     if !b.accuracy(env, u) {
         b.missed(env, u);
         return;
@@ -448,7 +481,8 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
             break;
         }
         if b.battler(u.target).mon.hp == 0
-            || matches!(b.battler(u.attacker).mon.status, Status::Sleep(_))
+            || (matches!(b.battler(u.attacker).mon.status, Status::Sleep(_))
+                && !super::mech::via_sleep_talk(b))
         {
             break;
         }
@@ -515,7 +549,7 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
             }));
         }
     }
-    b.secondary(env, u, &r, None);
+    b.secondary(env, u, &r, sec);
     b.try_faint(env, u.target);
     // The script's last `moveendfrom MOVEEND_IMMUNITY_ABILITIES` rolls King's Rock again on
     // the last hit's damage ([`super::after_move`]).
@@ -772,10 +806,12 @@ pub(super) fn pursuit_on_switch(b: &mut Battle, env: &mut Env, side: Side) -> bo
         multiplier: 2,
         ..b.move_use(env, foe, mov, Some(slot))
     };
+    super::mech::start_move(b, &u);
     b.attack_string(env, &u);
     let r = b.damage(env, &u);
     let r = b.deal(env, &u, r);
     b.try_faint(env, side);
     abilities::move_end_from_on_damage(b, env, &u, Some(r));
+    super::mech::skipped(b);
     true
 }

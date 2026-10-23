@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, past `badge5` to HM03).
-const EMERALD_FRAMES: u64 = 758_129;
+const EMERALD_FRAMES: u64 = 756_438;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[

@@ -61,10 +61,12 @@ pub(super) fn on_switch_in(b: &mut Battle, env: &mut Env, side: Side) {
         }
         _ => return,
     };
-    if current == weather || (current.primal() && !weather.primal()) {
+    // A move's timed weather is replaced (Gen3: only the same permanent weather is skipped).
+    if (current == weather && b.fx.weather_turns == 0) || (current.primal() && !weather.primal()) {
         return;
     }
     b.x.weather = weather;
+    b.fx.weather_turns = 0;
     env.out.push(ability_about(id, side, ability));
 }
 
@@ -96,35 +98,63 @@ pub(super) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
 /// battler in turn order (`BattleScript_DamagingWeatherContinues`: max HP / 16, at least 1;
 /// not Rock / Ground / Steel, nor Sand Force, Gen5, nor Sand Veil, Gen4; none under Cloud Nine
 /// / Air Lock).
+/// Wave C: a move's weather lasts 5 turns (`B_WEATHER_*_TEMPORARY`, "The rain stopped." …);
+/// Hail pelts all but Ice battlers; Dig and Dive dodge both.
 pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
-    let id = match b.x.weather {
-        Weather::None => return,
-        Weather::Rain | Weather::HeavyRain => Str::RainContinues,
-        Weather::Sun | Weather::HarshSun => Str::SunlightStrong,
-        Weather::Sand => Str::SandstormRages,
+    let ended = b.fx.weather_turns > 0 && {
+        b.fx.weather_turns -= 1;
+        b.fx.weather_turns == 0
+    };
+    let id = match (b.x.weather, ended) {
+        (Weather::None, _) => return,
+        (Weather::Rain, true) => Str::RainStopped,
+        (Weather::Sun, true) => Str::SunlightFaded,
+        (Weather::Sand, true) => Str::SandstormSubsided,
+        (Weather::Hail, true) => Str::HailStopped,
+        (Weather::Rain | Weather::HeavyRain, _) => Str::RainContinues,
+        (Weather::Sun | Weather::HarshSun, _) => Str::SunlightStrong,
+        (Weather::Sand, _) => Str::SandstormRages,
+        (Weather::Hail, _) => Str::HailContinues,
     };
     env.out.push(BattleEvent::Msg(Msg {
         wait: LONG,
         ..msg(id, Side::Player, Side::Player, Side::Player)
     }));
+    if ended {
+        b.x.weather = Weather::None;
+        return;
+    }
+    let hail = b.x.weather == Weather::Hail;
     // Cmd_weatherdamage: no damage while Cloud Nine / Air Lock is out (the message stays).
-    if b.x.weather != Weather::Sand || b.weather() != Weather::Sand {
+    if (b.x.weather != Weather::Sand && !hail) || b.weather() != b.x.weather {
         return;
     }
     for side in b.order {
         let m = b.battler(side);
-        if m.mon.hp == 0
-            || m.types
+        let immune = if hail {
+            m.types.contains(&Type::Ice)
+        } else {
+            m.types
                 .iter()
                 .any(|t| matches!(t, Type::Rock | Type::Ground | Type::Steel))
-            || matches!(m.ability, Ability::SandForce | Ability::SandVeil)
-        {
+                || matches!(m.ability, Ability::SandForce | Ability::SandVeil)
+        };
+        let hidden = matches!(
+            m.fx.semi,
+            Some(crate::mon::SemiKind::Dig | crate::mon::SemiKind::Dive)
+        );
+        if m.mon.hp == 0 || immune || hidden {
             continue;
         }
         let damage = (m.mon.max_hp / 16).max(1) as i32;
+        let id = if hail {
+            Str::PkmnPeltedByHail
+        } else {
+            Str::BuffetedBySandstorm
+        };
         env.out.push(BattleEvent::Msg(Msg {
             wait: LONG,
-            ..msg(Str::BuffetedBySandstorm, side, side, side)
+            ..msg(id, side, side, side)
         }));
         b.change_hp_passive(env, side, damage);
         b.try_faint(env, side);
