@@ -2410,5 +2410,9 @@
             name: "FLAG_SIL_HIDE_ZENITH_ASC_JULIEN",
             num: 1259,
         ),
+        (
+            name: "FLAG_SIL_HIDE_TOUR_DRONE",
+            num: 1260,
+        ),
     ],
 )

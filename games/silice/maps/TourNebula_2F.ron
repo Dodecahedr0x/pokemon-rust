@@ -87,7 +87,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("TourNebula_2F_EventScript_Drone"),
-            flag: None,
+            flag: Some("FLAG_SIL_HIDE_TOUR_DRONE"),
         ),
         (
             local_id: 6,

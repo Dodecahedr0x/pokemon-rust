@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 602
+- ids/flags: 603
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -289,6 +289,7 @@
 - maps/RouteS08.ron: FLAG_SIL_HIDE_S08_PIGEON
 - maps/SommetApex.ron: FLAG_SIL_HIDE_APEX_JULIEN
 - maps/SommetApex.ron: FLAG_SIL_HIDE_APEX_ROMAIN
+- maps/TourNebula_2F.ron: FLAG_SIL_HIDE_TOUR_DRONE
 - maps/TourNebula_4F.ron: FLAG_SIL_HIDE_TOUR_REVENGE
 - maps/TroneZenith.ron: FLAG_SIL_HIDE_ZENITH_MATHIEU
 - maps/TroneZenith.ron: FLAG_SIL_HIDE_ZENITH_ADRIEN

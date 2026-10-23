@@ -140,6 +140,7 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_APEX_POUSSIN,
         FLAG_SIL_HIDE_APEX_GOGO_ROMAIN,
         FLAG_SIL_HIDE_APEX_ROMAIN,
+        FLAG_SIL_HIDE_TOUR_DRONE,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
