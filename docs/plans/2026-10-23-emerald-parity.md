@@ -416,6 +416,40 @@ The spine plays to `hall_of_fame` (1,256 steps, 2,850,424 frames, 2.1 s), with 1
     Fix: planner/rejoin.
 - The Route 111 round-trip finding (origin 448) did not come back on this spine. The remaining round-trip risk is the layout override above (engine).
 
+### Wave F — explorer rejoin (the explorer's own false findings)
+
+**Measured** with `explore branch` on a fresh db, before and after, on master's explorer with F's spine fix laid over the working tree (`worktree-agent-a9dbfbbf12e1b72b8`'s `spine/emerald.rs`, to the Hall of Fame, 2,804,579 frames; not committed here). Master's own spine stops at step 373 (the Route 113 whiteout); on it (49 origins), before → after: 598 → 647 rejoined, 221 → 184 diverged as expected, 4 → 0 diverged, 12 → 12 stranded, 154 → 155 aborted, 56 → 16 unplayable.
+
+| outcome (167 origins) | before | after |
+|---|---:|---:|
+| branches | 2,850 | 2,772 |
+| rejoined | 1,460 | 1,662 |
+| diverged as expected | 320 | 304 |
+| diverged | 85 | 11 |
+| stranded | 107 | 45 |
+| aborted | 705 | 709 |
+| unplayable | 173 | 41 |
+| new things | 10,832 | 11,304 |
+
+The spine itself is unchanged (2,804,579 frames, the same positions): no checkpoint or golden moves.
+
+**What is built** (`branch.rs`, `key.rs`, `path.rs`, `policy.rs`):
+- **Side flags** (`key::SIDE_FLAGS`, `side_flag`): Match Call registrations, hidden items, item balls, beaten trainers (`TRAINER_FLAGS_START..+863`) and the daily flags are not spine flags, so a branch that only sets them rejoins (devon_goods 0x618, badge4 0x177, route119 0x513, badge6 0x695/0x173/0x5e2, badge8 0x742). One the spine sets later, set ahead by the branch, makes a failed window expected ("side flag …").
+- **Unspawned objects** (`path::reach_all`, the branch candidates): Gen3 spawns object events near the camera only, so a target behind a boulder or an NPC off screen was planned through it and stalled (`NoPath`: 110 `cells` targets; Fiery Path's boulders, Mossdeep). Each template whose hide flag is clear and that is not spawned now blocks its cell (moved by the template deltas).
+- **Window retry**: a window step that fails without a finding is retried once from the spine's own cell before it (`back_to`: a `GotoAvoiding` around the coord triggers that would run, else a `Goto`, then the facing). Route 111's rest-stop `Enter` was walking into the vicious sandstorm trigger at (21,12) (`Route111_EventScript_ViciousSandstormTriggerLeft`) until the macro timed out (32 branches after badge3).
+- **Recovery**: the neighbours nearest to the origin's map first (`toward`, maps not yet visited first), not only the one on the shortest static path; back in by a crossing whose arrival reaches the origin's cell carrying the player's elevation (`crossings_into`: a surfer crossing from Route 124 at the middle of the edge landed on Mossdeep's west shore, out of the origin's water); and on the origin's map, out and back in while its cell is out of reach (`near_origin`).
+- **Whiteouts**: a branch whose exploration lost a battle and then cannot get back is an expected divergence, not stranded (hm_fly: the spine leaves the lead at 0 HP there, so every wild battle whites out to Fortree, 46 branches).
+- **Policy**: `first_damaging_slot`'s caller skips the moves the battle refuses (`first_selectable_slot`, as S2's `best_selectable_slot`).
+
+**Tried and dropped:** a surfer's dismount in the planner (Gen3 `CanStopSurfing`, water 1 → land 3): branches then landed on islands and could not get back into the water (no Surf macro), 221 divergences. Nearest-first chaining: more novelty in fewer frames, but more low-novelty aborts.
+
+**Left** (2,772 branches):
+- **Aborted (709)**: 653 are the design's low-novelty rule. 56 are macro timeouts, most with a script running and no text or battle, engine-side: `Route117_EventScript_Anna`/`_Girl` (a double battle, 20), Sootopolis Gym B1F (about 30: its trainers `_Connie`, `_Daphne`, `_Annika` spotting the player on the ice, and talks there), `Route123_OnTransition` (1), a trainer battle over its frame cap in Victory Road (1).
+- **Unplayable (41)**: `Enter` (1,6)/(1,7) Down on the Pokémon Centers' 1F, "no warp" (16, engine or content); `Talk` `NoPath` toward wandering NPCs (14); no encounter on cave floors in 10 steps (5); objects gone (3).
+- **Diverged (11)**: Route 121 `GotoAvoiding` blocked by trainers that stopped in the way after spotting the player (Gen3 keeps them there until the map reloads).
+- **Stranded (45)**: rooms the recovery cannot walk back through: the Mt. Chimney cable car station (12), Aqua Hideout B2F's warp pads (10), the Petalburg Gym's doors (6) and Lavaridge Gym's holes (4) (same-map warps and one-way drops it does not use), Seafloor Cavern's rooms (6), Fortree (3); 3 more `Goto`s left the map.
+- **Stub world**: `key::EXCLUDED_VARS` is the same list on the stub (it was empty): the engine runs the step counters there too, so `VAR_POISON_STEP_COUNTER`/`VAR_DAILY_WILDS` made every stub branch diverge (`spine_branch` 5 tests and `h_tuning` failed on master's stub build; they pass).
+
 ### Wave C — spine warps, doors and field controls
 
 **Spine.** 478 steps and 769,586 frames (`EMERALD_FRAMES`); `badge1` unchanged (step 81, frame 104,879). The `cable-car`, `lavaridge-gym-warps` and `petalburg-gym-doors` bypasses are gone; three remain (§2).
@@ -622,7 +656,7 @@ The bulk checkpoint re-baseline after Waves C/D and M9 K/PT, then green gates. R
 
 **Fixed on the way.**
 - `emu::run_rom_from`: a black-screen late apply that steps over a picture frame skipped it instead of failing. The spine trace's late apply at 29,500 (a wild battle's load on Route 102) fell on a 100-frame picture.
-- The Silice spine driver chose a Disabled move forever (Ch2's Drowzee disables Ember). `engine::Battle::move_selectable` (Gen3 `CheckMoveLimitations`: PP, Disable, Torment, Taunt, Imprison) is now public, and the driver's `best_move` uses it. The explorer's `policy::first_damaging_slot` has the same blind spot; the Emerald spine never meets it.
+- The Silice spine driver chose a Disabled move forever (Ch2's Drowzee disables Ember). `engine::Battle::move_selectable` (Gen3 `CheckMoveLimitations`: PP, Disable, Torment, Taunt, Imprison) is now public, and the driver's `best_move` uses it. The explorer's `policy::first_damaging_slot` had the same blind spot (fixed in Wave F, explorer rejoin).
 - `m8_e_blob_data` checks an unused effect slot (Transform is native since Wave C2b; master fixed it too).
 - `map_edit_tools::reach_tools_on_the_committed_silice_maps` runs on the Silice build only: the redrawn maps name the games dir's own tilesets.
 - `spine_real::SILICE_CH0_FRAMES` 21,821 → 21,813, bisected to `2fc4c16` (Brico-Bourg redrawn: the walks are 8 frames shorter).
