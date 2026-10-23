@@ -86,10 +86,14 @@ impl Objects {
         });
     }
 
-    /// Starts the approach pending for `obj`, if any (Gen3 `lockfortrainer`, `DoTrainerApproach`).
-    pub(crate) fn approach_begin(&mut self, obj: u8) -> bool {
+    /// Starts the pending approach, if any (Gen3 `lockfortrainer`, `DoTrainerApproach`). The
+    /// approach belongs to the sighting that started the running script, whatever local id
+    /// its `trainerbattle` names (Gen3 `ConfigureAndSetUpOneTrainerBattle` runs
+    /// `EventScript_StartTrainerApproach` for the trainer that saw the player; Emerald's
+    /// `trainerbattle_*` macros pass local id 0).
+    pub(crate) fn approach_begin(&mut self) -> bool {
         match &mut self.approach {
-            Some(a) if a.obj == obj && a.phase == Phase::Pending => {
+            Some(a) if a.phase == Phase::Pending => {
                 a.phase = Phase::Lock;
                 self.freeze_all();
                 true

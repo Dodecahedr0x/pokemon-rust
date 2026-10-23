@@ -32,7 +32,19 @@ fn behaviors_by_name() {
     assert_eq!(behavior("MB_DEEP_WATER"), "Blocked");
     assert_eq!(behavior("MB_OCEAN_WATER"), "Blocked");
     assert_eq!(behavior("MB_SHALLOW_WATER"), "Normal");
-    assert_eq!(behavior("MB_IMPASSABLE_SOUTH"), "Blocked");
+    assert_eq!(
+        behavior("MB_IMPASSABLE_SOUTH"),
+        "Impassable(Sides::of(&[Dir::Down]))"
+    );
+    assert_eq!(
+        behavior("MB_IMPASSABLE_NORTHEAST"),
+        "Impassable(Sides::of(&[Dir::Up, Dir::Right]))"
+    );
+    assert_eq!(
+        behavior("MB_SECRET_BASE_BREAKABLE_DOOR"),
+        "Impassable(Sides::of(&[Dir::Left, Dir::Right]))"
+    );
+    assert_eq!(behavior("MB_SECRET_BASE_IMPASSABLE"), "Blocked");
     assert_eq!(behavior("MB_0xF5"), "Normal");
 }
 

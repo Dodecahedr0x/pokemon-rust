@@ -11,6 +11,7 @@ engine.workspace = true
 content.workspace = true
 game-native.workspace = true
 extract.workspace = true
+explore = { workspace = true, features = ["testing"] }
 png = "0.17"
 object = "0.37"
 ron = "0.8"

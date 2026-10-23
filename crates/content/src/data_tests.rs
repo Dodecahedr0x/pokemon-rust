@@ -61,6 +61,7 @@ impl ScriptHost for Host {
             }
             Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
+            Request::CurrentMap => Response::Value(0),
             Request::YesNo => Response::Bool(self.yes),
             // The bag and money always succeed.
             Request::ItemAdd { .. }
@@ -324,7 +325,7 @@ fn the_report_lists_the_degradations() {
 #[test]
 fn wild_sets_fall_back_to_the_first_header() {
     for &id in &data::MAP_IDS {
-        let first = Emerald.encounters(id);
+        let first = Emerald.wild_encounters(id, 0);
         let sets = battle::wild_sets(id.0);
         for set in [0, 1, 8, 9, u16::MAX] {
             if set == 0 || set >= sets {
@@ -852,6 +853,26 @@ mod stub {
             println!("STALE EXTRACT FLAGGED");
         }
     }
+}
+
+/// The map sample: its names and ids come from one list (`samples!`), all distinct; on the full
+/// import the build has every one, in order; the stub samples its every map.
+#[test]
+fn the_map_sample_is_one_list() {
+    let ids = samples::map_ids();
+    #[cfg(not(pkr_stub))]
+    {
+        assert_eq!(samples::MAPS.len(), samples::MAP_SAMPLE.len());
+        let mut distinct = samples::MAP_SAMPLE.to_vec();
+        distinct.sort_by_key(|m| m.0);
+        distinct.dedup();
+        assert_eq!(distinct.len(), samples::MAP_SAMPLE.len());
+        if data::MAP_IDS.len() > samples::MAP_SAMPLE.len() {
+            assert_eq!(ids, samples::MAP_SAMPLE);
+        }
+    }
+    #[cfg(pkr_stub)]
+    assert_eq!(ids, data::MAP_IDS);
 }
 
 #[path = "battle_tests.rs"]

@@ -104,8 +104,8 @@ impl GameData for GGame {
     fn battle(&self) -> &'static crate::mon::BattleTables {
         Game.battle()
     }
-    fn encounters(&self, map: MapId) -> Option<&'static crate::mon::LandEncounters> {
-        Game.encounters(map)
+    fn wild_encounters(&self, map: MapId, set: u16) -> Option<&'static crate::mon::LandEncounters> {
+        Game.wild_encounters(map, set)
     }
     fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
         if id == DOUBLE_TRAINER {

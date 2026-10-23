@@ -5,8 +5,9 @@ use anyhow::{Context, Result, bail, ensure};
 use extract::export::{read_map, read_ron, read_tileset, to_ron};
 use extract::gfx::{self, IndexedImage, Palette};
 use extract::schema::{
-    FORMAT_VERSION, FieldEffectSpriteFile, FontFile, ItemsFile, Manifest, MapFile, MapSectionsFile,
-    MultichoiceFile, SpriteFile, StdStringsFile, TextFile, TilesetFile, WindowFile,
+    FORMAT_VERSION, FieldEffectSpriteFile, FieldStringsFile, FontFile, ItemsFile, Manifest,
+    MapFile, MapSectionsFile, MultichoiceFile, SpriteFile, StdStringsFile, TextFile, TilesetFile,
+    WindowFile,
 };
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
@@ -45,6 +46,8 @@ pub struct Tables {
     pub multichoice: MultichoiceFile,
     pub std_strings: StdStringsFile,
     pub map_sections: MapSectionsFile,
+    /// Task L's field strings (`tables/field_strings.ron`).
+    pub field_strings: FieldStringsFile,
 }
 
 pub struct World {
@@ -306,6 +309,7 @@ fn read_tables(dir: &Path) -> Result<Tables> {
         multichoice: read_opt!(t.join("multichoice.ron")),
         std_strings: read_opt!(t.join("std_strings.ron")),
         map_sections: read_opt!(t.join("map_sections.ron")),
+        field_strings: read_opt!(t.join("field_strings.ron")),
     };
     Ok(tables)
 }

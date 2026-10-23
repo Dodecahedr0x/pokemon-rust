@@ -574,6 +574,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::ArrowWarp(Dir::Down),
             Behavior::Counter,
             Behavior::TallGrass,
+            Behavior::Impassable(crate::data::Sides(1)),
         ],
         |v| match v {
             Behavior::Normal => 0,
@@ -584,6 +585,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::ArrowWarp(_) => 5,
             Behavior::Counter => 6,
             Behavior::TallGrass => 7,
+            Behavior::Impassable(_) => 8,
         },
     );
     check(

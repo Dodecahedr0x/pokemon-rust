@@ -24,6 +24,17 @@ const START_MENU_POKENAV: u16 = 3;
 /// Gen3 `CB2_HandleGivenWaldaPhrase`: no phrase given and none before.
 const WALDA_CANCEL_FIRST_PHRASE: u16 = 2;
 
+/// `crate::data::std_string` ids of the field strings (`FIELD_STRING_BASE` +
+/// `extract::tables::FIELD_STRINGS` index).
+const BIG_GUY: u8 = crate::data::FIELD_STRING_BASE;
+const BIG_GIRL: u8 = crate::data::FIELD_STRING_BASE + 1;
+const SON: u8 = crate::data::FIELD_STRING_BASE + 2;
+const DAUGHTER: u8 = crate::data::FIELD_STRING_BASE + 3;
+const MOM: u8 = crate::data::FIELD_STRING_BASE + 4;
+const DAD: u8 = crate::data::FIELD_STRING_BASE + 5;
+/// Gen3 `MALE` (`checkplayergender`).
+const MALE: u16 = 0;
+
 /// Reports `id` as run in a simplified way (its decomp name).
 async fn degraded(ctx: &Ctx, id: u16) {
     let name = name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?");
@@ -54,12 +65,14 @@ async fn degraded(ctx: &Ctx, id: u16) {
 /// - `CalculatePlayerPartyCount`, `CountPartyNonEggMons`: the party size (no eggs yet).
 /// - `HasEnoughMonsForDoubleBattle`: `VAR_RESULT` from the party size (degraded with 2 or more:
 ///   fainted mons count as usable).
+/// - `GetPlayerBigGuyGirlString`, `GetRivalSonDaughterString` (`field_specials.c`):
+///   `STR_VAR_1` = `gText_BigGuy` / `gText_Daughter` for a male player, else `gText_BigGirl` /
+///   `gText_Son` (the extract's field strings; an older extract buffers nothing and reports).
+/// - `GetMomOrDadStringForTVMessage` (`tv.c`): in the player's own house (Brendan's 1F for a
+///   male player, May's else) Mom, `VAR_TEMP_3` = 1, with no draw; else `VAR_TEMP_3` picks
+///   (1 Mom, 2 Dad, above 2 by parity), and when unset Mom or Dad at random, kept in
+///   `VAR_TEMP_3`; `STR_VAR_1` gets `gText_Mom` or `gText_Dad`.
 /// - Degraded (reported), as if cancelled:
-///   - `GetPlayerBigGuyGirlString`, `GetRivalSonDaughterString`,
-///     `GetMomOrDadStringForTVMessage`: `STR_VAR_1` is left as is (no table of the C strings).
-///     `GetMomOrDadStringForTVMessage` still keeps Mom or Dad in `VAR_TEMP_3`, drawn at random
-///     when unset, so the RNG advances as in Gen3; in the player's house Gen3 picks Mom with no
-///     draw (a map check this host cannot make yet), so there one draw too many is made;
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
 ///   - `DoWaldaNamingScreen`: `VAR_0x8004` = cancelled with no phrase before, so no phrase is
@@ -119,20 +132,39 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             let flag = ctx.var(VAR_0x8004).await;
             ctx.set_flag(FlagId(flag), true).await;
         }
-        id if id == SPECIAL_GetPlayerBigGuyGirlString
-            || id == SPECIAL_GetRivalSonDaughterString
-            || id == SPECIAL_StartWallyTutorialBattle =>
-        {
-            degraded(ctx, id).await
+        id if id == SPECIAL_GetPlayerBigGuyGirlString => {
+            let male = check_player_gender(ctx).await == MALE;
+            let s = if male { BIG_GUY } else { BIG_GIRL };
+            ctx.buffer(0, BufferSrc::Std(s)).await;
         }
+        id if id == SPECIAL_GetRivalSonDaughterString => {
+            let male = check_player_gender(ctx).await == MALE;
+            let s = if male { DAUGHTER } else { SON };
+            ctx.buffer(0, BufferSrc::Std(s)).await;
+        }
+        id if id == SPECIAL_StartWallyTutorialBattle => degraded(ctx, id).await,
         id if id == SPECIAL_GetMomOrDadStringForTVMessage => {
-            degraded(ctx, id).await;
-            // `tv.c`: with `VAR_TEMP_3` unset, Mom or Dad at random, kept in `VAR_TEMP_3`
-            // (1 Mom, 2 Dad), so the RNG advances as in Gen3.
-            if ctx.var(VAR_TEMP_3).await == 0 {
-                let mom = ctx.random(2).await != 0;
-                ctx.set_var(VAR_TEMP_3, if mom { 1 } else { 2 }).await;
+            let house = if check_player_gender(ctx).await == MALE {
+                MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F
+            } else {
+                MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F
+            };
+            if ctx.current_map().await == house {
+                ctx.set_var(VAR_TEMP_3, 1).await;
             }
+            let mom = match ctx.var(VAR_TEMP_3).await {
+                0 => {
+                    let mom = ctx.random(2).await != 0;
+                    ctx.set_var(VAR_TEMP_3, if mom { 1 } else { 2 }).await;
+                    mom
+                }
+                1 => true,
+                2 => false,
+                // Above 2: another use of the var; Gen3 picks by parity.
+                t3 => t3 % 2 == 0,
+            };
+            ctx.buffer(0, BufferSrc::Std(if mom { MOM } else { DAD }))
+                .await;
         }
         id if id == SPECIAL_ChoosePartyMon => {
             degraded(ctx, id).await;

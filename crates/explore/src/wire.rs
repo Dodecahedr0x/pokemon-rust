@@ -218,7 +218,7 @@ pub struct RunSummary {
     pub reports: u64,
     /// `SlowFrame`s seen (report-only, `Expanded::slow`).
     pub slow_frames: u64,
-    /// Expansion notes (`Expanded::notes`, e.g. the `Cross` fallback talks).
+    /// Expansion notes (`Expanded::notes`, e.g. dropped engine events).
     pub notes: u64,
     pub wall: Duration,
     pub phases: Phases,

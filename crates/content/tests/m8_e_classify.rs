@@ -37,8 +37,11 @@ fn behavior_exactness() {
         ("MB_UNUSED_6F", true),
         // Needs Surf.
         ("MB_POND_WATER", false),
-        // Directional blocking, not modelled.
-        ("MB_IMPASSABLE_SOUTH", false),
+        // Directional walls (Task L).
+        ("MB_IMPASSABLE_SOUTH", true),
+        ("MB_IMPASSABLE_WEST_AND_EAST", true),
+        // Walls only: breaking the door is missing.
+        ("MB_SECRET_BASE_BREAKABLE_DOOR", false),
         // Slides the player.
         ("MB_ICE", false),
         ("MB_LONG_GRASS", false),

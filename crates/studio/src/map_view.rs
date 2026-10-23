@@ -512,6 +512,14 @@ pub fn behavior_label(b: Behavior) -> Option<String> {
         Behavior::Normal => None,
         Behavior::Ledge(d) => Some(format!("ledge {d:?}")),
         Behavior::ArrowWarp(d) => Some(format!("arrow warp {d:?}")),
+        Behavior::Impassable(s) => {
+            let sides: Vec<String> = engine::data::Dir::ALL
+                .iter()
+                .filter(|&&d| s.has(d))
+                .map(|d| format!("{d:?}"))
+                .collect();
+            Some(format!("wall {}", sides.join("+")))
+        }
         other => Some(format!("{other:?}")),
     }
 }

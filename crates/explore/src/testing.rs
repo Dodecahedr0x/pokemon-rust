@@ -26,7 +26,7 @@ use std::sync::RwLock;
 /// `GameData` methods delegating to the field `$f` of `self`, one per name, for wrappers in
 /// tests and tools: `forward_game_data!(inner; map has_map … m8)`. `m8` stands for the
 /// Milestone 8 methods but `wild_encounters` (name it, or override it, separately: the engine
-/// reads it, and a wrapper that breaks `encounters` must break it too). Paths are absolute, so
+/// reads it). Paths are absolute, so
 /// the caller needs only the `engine` crate.
 #[macro_export]
 macro_rules! forward_game_data {
@@ -83,14 +83,6 @@ macro_rules! forward_game_data {
     (@ $f:tt build_id) => { fn build_id(&self) -> u64 { self.$f.build_id() } };
     (@ $f:tt battle) => {
         fn battle(&self) -> &'static ::engine::mon::BattleTables { self.$f.battle() }
-    };
-    (@ $f:tt encounters) => {
-        fn encounters(
-            &self,
-            map: ::engine::data::MapId,
-        ) -> ::core::option::Option<&'static ::engine::mon::LandEncounters> {
-            self.$f.encounters(map)
-        }
     };
     (@ $f:tt trainer) => {
         fn trainer(
@@ -199,7 +191,7 @@ pub const INJECTED_PANIC: &str = "injected panic in script";
 
 impl<G: GameData> GameData for PanicOnScript<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             new_game build_id battle trainer battle_text battle_gfx heal_location
              wild_encounters m8);
 
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
@@ -228,7 +220,7 @@ pub const NOWHERE: MapId = MapId(u16::MAX);
 
 impl<G: GameData> GameData for WallAround<G> {
     forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             new_game build_id battle trainer battle_text battle_gfx heal_location
              wild_encounters m8);
 
     fn map(&self, id: MapId) -> &'static MapData {
@@ -253,7 +245,7 @@ pub struct GrassPocket<G> {
 
 impl<G: GameData> GameData for GrassPocket<G> {
     forward!(has_map special_ids sprite player_sprite font window text ui_text behavior script
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             new_game build_id battle trainer battle_text battle_gfx heal_location
              wild_encounters m8);
 
     fn map(&self, id: MapId) -> &'static MapData {
@@ -265,7 +257,7 @@ impl<G: GameData> GameData for GrassPocket<G> {
     }
 }
 
-/// `encounters()` depends on a call counter: it answers `None` for the first [`DRIFT_CALLS`]
+/// `wild_encounters()` depends on a call counter: it answers `None` for the first [`DRIFT_CALLS`]
 /// calls of an instance. A clone starts again at 0 calls: the counter is state that a
 /// checkpoint does not carry, so a session restored on a clone drifts from the live one at the
 /// next tall-grass step (round-trip break).
@@ -275,7 +267,7 @@ pub struct Drifting<G> {
     pub calls: Cell<u32>,
 }
 
-/// Calls of [`Drifting::encounters`] answered `None`.
+/// Calls of [`Drifting::wild_encounters`] answered `None`.
 pub const DRIFT_CALLS: u32 = 16;
 
 impl<G> Drifting<G> {
@@ -305,11 +297,7 @@ impl<G: GameData> GameData for Drifting<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
              script new_game build_id battle trainer battle_text battle_gfx heal_location m8);
 
-    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-        self.drift().then(|| self.inner.encounters(map)).flatten()
-    }
-
-    /// What the engine reads: drifts like [`Drifting::encounters`].
+    /// What the engine reads.
     fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
         self.drift()
             .then(|| self.inner.wild_encounters(map, wild_set))
@@ -332,7 +320,7 @@ pub const FADE_TRAP_SCRIPT: ScriptId = ScriptId(u16::MAX - 1);
 
 impl<G: GameData> GameData for FadeTrap<G> {
     forward!(has_map special_ids sprite player_sprite font window text ui_text behavior
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             new_game build_id battle trainer battle_text battle_gfx heal_location
              wild_encounters m8);
 
     fn map(&self, id: MapId) -> &'static MapData {
@@ -360,7 +348,7 @@ pub struct Rebuilt<G> {
 
 impl<G: GameData> GameData for Rebuilt<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
-             script new_game battle encounters trainer battle_text battle_gfx heal_location
+             script new_game battle trainer battle_text battle_gfx heal_location
              wild_encounters m8);
 
     fn build_id(&self) -> u64 {
@@ -380,7 +368,7 @@ pub const INJECTED_REPORT: &str = "special InjectedReport";
 
 impl<G: GameData> GameData for Reporting<G> {
     forward!(map has_map special_ids sprite player_sprite font window text ui_text behavior
-             new_game build_id battle encounters trainer battle_text battle_gfx heal_location
+             new_game build_id battle trainer battle_text battle_gfx heal_location
              wild_encounters m8);
 
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
@@ -428,9 +416,6 @@ pub fn same_answers(a: &impl GameData, b: &impl GameData) -> Result<(), String> 
         }
         if !b.has_map(map) {
             continue;
-        }
-        if addr(a.encounters(map)) != addr(b.encounters(map)) {
-            return differ(format!("encounters({map:?})"));
         }
         for set in [0, 1] {
             if addr(a.wild_encounters(map, set)) != addr(b.wild_encounters(map, set)) {
@@ -540,11 +525,8 @@ impl<G: GameData> GameData for Answers<G> {
             self.inner.battle_text(s)
         }
     }
-    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-        (map == self.inner.new_game().map).then_some(&LAND)
-    }
     fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
-        if wild_set == 1 {
+        if wild_set == 1 || map == self.inner.new_game().map {
             Some(&LAND)
         } else {
             self.inner.wild_encounters(map, wild_set)

@@ -15,6 +15,8 @@ const WARP: u16 = 3;
 const LEDGE_DOWN: u16 = 4;
 const GRASS: u16 = 5;
 const ARROW_DOWN: u16 = 6;
+/// A cell walled on its east side (Gen3 `MB_IMPASSABLE_EAST`).
+const WALL_EAST: u16 = 7;
 const WALL: u16 = 1 << BLOCK_COLLISION_SHIFT;
 
 /// A synthetic map: metatile `i` has raw behavior `i` (classified below); the rest is the
@@ -27,7 +29,7 @@ fn synth(width: u16, rows: &[&[u16]]) -> Synth {
         tiles: &[],
         palettes: &[],
         metatiles: &[],
-        attributes: &[0, 1, 2, 3, 4, 5, 6],
+        attributes: &[0, 1, 2, 3, 4, 5, 6, 7],
     }));
     Synth(Box::leak(Box::new(MapData {
         name: "Synth",
@@ -77,6 +79,7 @@ impl GameData for Synth {
             LEDGE_DOWN => Behavior::Ledge(Dir::Down),
             GRASS => Behavior::TallGrass,
             ARROW_DOWN => Behavior::ArrowWarp(Dir::Down),
+            WALL_EAST => Behavior::Impassable(engine::data::Sides::of(&[Dir::Right])),
             _ => Behavior::Normal,
         }
     }
@@ -105,6 +108,23 @@ fn ledges_are_one_way() {
     // Back up only the long way round.
     assert_eq!(dist(&g, (0, 2), (0, 0)), None);
     assert_eq!(dist(&g, (0, 2), (2, 0)), Some(4));
+}
+
+/// A directional wall blocks crossing its side both ways (the walled cell's side, or the
+/// neighbour's opposite side) and nothing else: the walled cell is entered from the other sides.
+#[test]
+fn walls_block_crossing_their_side_only() {
+    let (n, e) = (NORMAL, WALL_EAST);
+    let game = synth(2, &[&[n, n], &[e, n], &[n, n]]);
+    let g = Grid::new(&game, MapId(0), &[], Vec::new());
+    // (0, 1) -> (1, 1) crosses the wall: round by row 0 or row 2.
+    assert_eq!(dist(&g, (0, 1), (1, 1)), Some(3));
+    assert_ne!(g.first_dir((0, 1), (1, 1), false), Some(Dir::Right));
+    // Into the walled cell from the east: the neighbour's west side is the same wall.
+    assert_eq!(dist(&g, (1, 1), (0, 1)), Some(3));
+    // From above and below it is open.
+    assert_eq!(dist(&g, (0, 0), (0, 1)), Some(1));
+    assert_eq!(dist(&g, (0, 2), (0, 1)), Some(1));
 }
 
 #[test]

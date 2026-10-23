@@ -658,12 +658,30 @@ impl Objects {
         }
     }
 
+    /// [`Objects::set_pos`] for map `map`'s object `local` (tests: the previous map's).
+    #[cfg(test)]
+    pub(crate) fn set_pos_on(&mut self, local: u8, map: MapId, x: i16, y: i16) {
+        if let Some(o) = (self.objs.iter_mut()).find(|o| o.local_id == local && o.map == map) {
+            (o.x, o.y, o.prev) = (x, y, (x, y));
+            (o.action, o.moves) = (None, None);
+        }
+    }
+
     /// Turns an object at once (Gen3 `ObjectEventTurn`, `turnobject`).
     pub fn face(&mut self, local: u8, dir: Dir) {
-        self.with(local, |o| {
+        self.face_on(local, self.map, dir);
+    }
+
+    /// [`Objects::face`] for map `map`'s object `local` (the previous map's after a crossing).
+    pub fn face_on(&mut self, local: u8, map: MapId, dir: Dir) {
+        if let Some(o) = self
+            .objs
+            .iter_mut()
+            .find(|o| o.local_id == local && o.map == map)
+        {
             o.set_dir(dir);
             o.anim.turn();
-        });
+        }
     }
 
     /// Direction from `local` towards the player.
@@ -709,6 +727,14 @@ impl Objects {
         self.get(local).is_none_or(Object::is_settled)
     }
 
+    /// [`Objects::is_settled`] for map `map`'s object `local`.
+    pub fn is_settled_on(&self, local: u8, map: MapId) -> bool {
+        self.objs
+            .iter()
+            .find(|o| o.local_id == local && o.map == map)
+            .is_none_or(Object::is_settled)
+    }
+
     /// Gives `local` a movement script. It starts once the current action has finished.
     pub fn start_moves(&mut self, local: u8, steps: &'static [Step]) {
         self.with(local, |o| {
@@ -725,10 +751,12 @@ impl Objects {
         self.get(local).is_none_or(|o| o.moves.is_none())
     }
 
-    /// Collision for object `i` entering (x, y) (Gen3 `GetCollisionAtCoords`). `Behavior::Blocked`
-    /// counts as impassable.
-    fn collision_at(&self, terrain: &impl Terrain, i: usize, x: i16, y: i16) -> Collision {
+    /// Collision for object `i` taking one step towards `dir` (Gen3 `GetCollisionAtCoords`).
+    /// `Behavior::Blocked` and walls ([`Behavior::walled`]) count as impassable.
+    fn collision_at(&self, terrain: &impl Terrain, i: usize, dir: Dir) -> Collision {
         let o = &self.objs[i];
+        let (dx, dy) = dir.delta();
+        let (x, y) = (o.x + dx, o.y + dy);
         let outside = |home: i16, range: u8, v: i16| {
             range != 0 && (v < home - range as i16 || v > home + range as i16)
         };
@@ -736,7 +764,11 @@ impl Objects {
             return Collision::OutsideRange;
         }
         let block = terrain.block(x, y);
-        if block_collision(block) != 0 || terrain.behavior(x, y) == Behavior::Blocked {
+        let to = terrain.behavior(x, y);
+        if block_collision(block) != 0
+            || to == Behavior::Blocked
+            || Behavior::walled(terrain.behavior(o.x, o.y), to, dir)
+        {
             return Collision::Impassable;
         }
         if elevation_mismatch(o.elevation, block_elevation(block)) {
@@ -754,18 +786,23 @@ impl Objects {
         }
     }
 
-    /// Gen3 `GetCollisionAtCoords` for the object in slot `i` ([`Objects::slot`]) at (x, y) with
-    /// its wander range ignored and without the `Behavior::Blocked` test (Gen3's collision has no
-    /// water): what trainer sight checks along its line.
+    /// Gen3 `GetCollisionAtCoords` for the object in slot `i` ([`Objects::slot`]) at (x, y),
+    /// looking towards `dir`, with its wander range ignored and without the `Behavior::Blocked`
+    /// test (Gen3's collision has no water): what trainer sight checks along its line. Walls
+    /// are tested as Gen3 does, against the trainer's own cell, not the previous cell of the
+    /// line (`currentMetatileBehavior`).
     pub fn sight_collision(
         &self,
         terrain: &impl Terrain,
         i: usize,
         (x, y): (i16, i16),
+        dir: Dir,
     ) -> Collision {
         let o = &self.objs[i];
         let block = terrain.block(x, y);
-        if block_collision(block) != 0 {
+        if block_collision(block) != 0
+            || Behavior::walled(terrain.behavior(o.x, o.y), terrain.behavior(x, y), dir)
+        {
             return Collision::Impassable;
         }
         if elevation_mismatch(o.elevation, block_elevation(block)) {
@@ -788,9 +825,7 @@ impl Objects {
         let Some(i) = self.index(local) else {
             return Collision::None;
         };
-        let o = &self.objs[i];
-        let (dx, dy) = dir.delta();
-        self.collision_at(terrain, i, o.x + dx, o.y + dy)
+        self.collision_at(terrain, i, dir)
     }
 
     /// Player control for one frame, as Gen3 `MovePlayerNotOnBike`. Does nothing while the
@@ -848,7 +883,7 @@ impl Objects {
                 dir,
             };
         }
-        if self.collision_at(terrain, 0, tx, ty) != Collision::None {
+        if self.collision_at(terrain, 0, dir) != Collision::None {
             self.objs[0].begin(ActionKind::InPlace(BUMP_FRAMES), dir);
             return PlayerEvent::Bumped(dir);
         }
