@@ -37,7 +37,8 @@ pub mod schema;
 pub mod text;
 
 use crate::input::{AuthoredIn, World};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
+use extract::schema::MapFile;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -46,12 +47,13 @@ use std::path::Path;
 pub const STD_TEXT_PREFIX: &str = "gText_";
 
 /// The Silice world: the base assets of the extracted dir `extracted`, the games dir `games`
-/// and the scripts of `scripts` (`src/silice/scripts`). `strict`: an unknown script fails
-/// once, after every map, listing them all ([`registry::strict`]).
+/// and the scripts of `scripts` (`src/silice/scripts`). An unknown script of a claimed map (or
+/// of any map when `strict`, [`registry::strict`]) fails once, after every map, listing them
+/// all; the other maps' are dropped and reported ([`registry`]).
 pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Result<Silice> {
     let ids = ids::load(games).context("ids")?;
     let exc = load::Exceptions::load(games).context("check-exceptions.ron")?;
-    let reg = registry::scan(scripts).context("scripts")?;
+    let mut reg = registry::scan(scripts).context("scripts")?;
     let mut resolver = registry::Resolver::new(&reg, strict);
     let loaded = load::load_maps(games)?;
     for m in &loaded {
@@ -70,6 +72,9 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     let mut w = crate::input::load_assets(extracted)?;
     font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
     check_assets(&loaded, &w)?;
+    resolver.check_claims()?;
+    check_trainer_objects(&maps, &reg, &resolver)?;
+    reg.trainer_table = trainer_scripts(&reg, &ids)?;
     w.maps = maps;
     w.ir = None;
     let mut report = Vec::new();
@@ -146,6 +151,61 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     })
 }
 
+/// `TRAINER_SCRIPTS` (`Registry::trainer_table`): (`ScriptId`, trainer number,
+/// `TRAINER_BATTLE_SINGLE`) of every trainer script of the registry, sorted by `ScriptId`. A
+/// trainer constant missing from `ids/trainers.ron` fails.
+fn trainer_scripts(reg: &registry::Registry, ids: &ids::Ids) -> Result<Vec<(u16, u16, u8)>> {
+    let mut out = Vec::new();
+    for (script, trainer) in &reg.trainers {
+        let id = reg.id(script).context("a trainer script is a script")?;
+        let num = (ids.live(schema::IdKind::Trainers, trainer)?)
+            .with_context(|| format!("script {script}: {trainer} is not in ids/trainers.ron"))?;
+        out.push((id, u16::try_from(num)?, 0));
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// Every trainer object (`trainer_type` other than `TRAINER_TYPE_NONE`) of a strict map runs a
+/// trainer script, one whose first statement is the prelude's `trainer(..)`
+/// ([`registry::Registry::trainers`]). Otherwise `TRAINER_SCRIPTS` would leave it out and the
+/// engine's sight would silently ignore it. Fails once, listing every such object.
+pub fn check_trainer_objects(
+    maps: &[MapFile],
+    reg: &registry::Registry,
+    resolver: &registry::Resolver,
+) -> Result<()> {
+    let trainer_scripts: BTreeSet<&str> = reg.trainers.iter().map(|(s, _)| s.as_str()).collect();
+    let mut bad = Vec::new();
+    for m in maps.iter().filter(|m| resolver.is_strict(&m.name)) {
+        for o in m
+            .objects
+            .iter()
+            .filter(|o| o.trainer_type != "TRAINER_TYPE_NONE")
+        {
+            match o.script.as_deref() {
+                Some(s) if trainer_scripts.contains(s) => {}
+                s => bad.push(format!(
+                    "{} object {} ({}, {}): {}",
+                    m.name,
+                    o.local_id,
+                    o.x,
+                    o.y,
+                    s.unwrap_or("no script")
+                )),
+            }
+        }
+    }
+    ensure!(
+        bad.is_empty(),
+        "{} trainer objects of strict maps do not run a trainer script (a `pub async fn` whose \
+         first statement is the prelude's `trainer(&ctx, LOCALID_…, TRAINER_…, …)`): {}",
+        bad.len(),
+        bad.join("; ")
+    );
+    Ok(())
+}
+
 /// The extract assets the maps name: each layout's tilesets, each object's sprite.
 fn check_assets(maps: &[load::MapIn], w: &World) -> Result<()> {
     let tilesets: BTreeSet<&str> = w.tilesets.iter().map(|t| t.file.name.as_str()).collect();
@@ -180,8 +240,8 @@ fn check_assets(maps: &[load::MapIn], w: &World) -> Result<()> {
 pub struct Silice {
     pub world: World,
     pub registry: registry::Registry,
-    /// Script names the maps use that no script defines, dropped from the maps (the Wave 0
-    /// allowlist mode); empty when the build is strict.
+    /// Script names the maps use that no script defines, dropped from the maps (the allowlist
+    /// mode of the maps no script file claims, [`registry`]); empty when every map is strict.
     pub unwritten: BTreeSet<String>,
     /// The data part of `content::REPORT`: counts, then every placeholder and cut.
     pub report: Vec<String>,
