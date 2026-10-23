@@ -1,6 +1,8 @@
-// Cells.
+// Cells (SilOwlysGym, games/silice/gfx/SilOwlysGym.ron, original art). The first build's collisions
+// and elevations stay cell for cell.
 [
-    // Ground plan, autotiled walls. . floor, o tombs (rocks), & the ladder up (in the back wall).
+    // Ground plan. . the crypt's slabs (MB_CAVE), o stone tombs, & the ladder up (in the back wall),
+    // # the masonry, ^ 7 9 l r the wall with its red stained glass, [ ] _ the wall rims.
     Ascii(x: 0, y: 0, rows: [
         "####################",
         "#########7^9########",
@@ -16,5 +18,18 @@
         "##[..............]##",
         "##________________##",
         "####################",
-    ], legend: {'.': (metatile: 513, collision: 0, elevation: 3), 'o': (metatile: 514, collision: 1, elevation: 3), '&': (metatile: 573, collision: 0, elevation: 3), '7': (metatile: 747, collision: 1, elevation: 0), '9': (metatile: 748, collision: 1, elevation: 0), '#': (metatile: 753, collision: 1, elevation: 0), '^': (metatile: 761, collision: 1, elevation: 0), 'l': (metatile: 761, collision: 1, elevation: 0), 'r': (metatile: 761, collision: 1, elevation: 0), ']': (metatile: 772, collision: 1, elevation: 0), '[': (metatile: 773, collision: 1, elevation: 0), '_': (metatile: 912, collision: 1, elevation: 0)}),
+    ], legend: {
+        '.': (metatile: 512, collision: 0, elevation: 3),
+        'o': (metatile: 564, collision: 1, elevation: 3),
+        '&': (metatile: 565, collision: 0, elevation: 3),
+        '#': (metatile: 544, collision: 1, elevation: 0),
+        '7': (metatile: 545, collision: 1, elevation: 0),
+        '9': (metatile: 545, collision: 1, elevation: 0),
+        '^': (metatile: 545, collision: 1, elevation: 0),
+        'l': (metatile: 545, collision: 1, elevation: 0),
+        'r': (metatile: 545, collision: 1, elevation: 0),
+        '[': (metatile: 546, collision: 1, elevation: 0),
+        ']': (metatile: 547, collision: 1, elevation: 0),
+        '_': (metatile: 548, collision: 1, elevation: 0),
+    }),
 ]

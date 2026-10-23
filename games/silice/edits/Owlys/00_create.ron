@@ -3,6 +3,7 @@
 // warehouse. Middle: the chasm, crossed by the central isthmus and two walkways (west to the Ruelle des
 // Gargouilles, east to a lookout). South: the Place des Gargouilles, the Center, the Gray Market, the
 // convoy road to the East Cave, and the iron door from the Sea Rift.
-// General + Cave (Emerald tilesets by name): the cavern walls, the void (581, black) and Victory Road's
-// plank walkways; General adds the Pokemon Center.
-(name: "Owlys", width: 60, height: 50, primary: "General", secondary: "Cave", fill: 753, border: [753, 753, 753, 753])
+// General (Emerald, by name) + SilOwlys (original, games/silice/tilesets): slate flagstones, the void,
+// the hanging iron walkways, carved cavern walls with yellow steam projectors, Hoothoot gargoyles, the
+// neo-gothic sanctuary, the elevator cage, the warehouse's red neons. Border: the cavern rock, blocked.
+(name: "Owlys", width: 60, height: 50, primary: "General", secondary: "SilOwlys", fill: 516, border: [1540, 1540, 1540, 1540])

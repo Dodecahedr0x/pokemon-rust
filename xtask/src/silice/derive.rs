@@ -15,6 +15,8 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
         "SilReverseCity" => reverse_city(&gfx.join(name))?,
         "SilMangaSquareGym" => manga_square_gym(&gfx.join(name))?,
         "SilNebulaTourHall" => nebula_tour_hall(&gfx.join(name))?,
+        "SilOwlys" => owlys(&gfx.join(name))?,
+        "SilOwlysGym" => owlys_gym(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -290,4 +292,50 @@ fn nebula_tour_hall(t: &Path) -> Result<()> {
         }
     }
     save(t, "laser_v", &v)
+}
+
+/// SilOwlys: a gargoyle perched on the left rim (the Ruelle des Gargouilles); the flagstones of
+/// the gate's arrows.
+fn owlys(t: &Path) -> Result<()> {
+    save(t, "seuil", &load(t, "pave")?)?;
+    save(
+        t,
+        "bord_gargouille",
+        &over(&load(t, "bord_g")?, &load(t, "gargouille")?),
+    )
+}
+
+/// SilOwlysGym: the trapdoor (a slab with a discreet crack, the source's fallback), the
+/// pillar's top row with the owl's red eyes put out.
+fn owlys_gym(g: &Path) -> Result<()> {
+    let mut trappe = load(g, "dalle")?;
+    const CRACK: [(u32, u32); 14] = [
+        (3, 4),
+        (4, 5),
+        (5, 5),
+        (6, 6),
+        (7, 7),
+        (8, 7),
+        (9, 8),
+        (10, 9),
+        (11, 9),
+        (12, 10),
+        (7, 8),
+        (6, 9),
+        (6, 10),
+        (5, 11),
+    ];
+    for (x, y) in CRACK {
+        set(&mut trappe, x, y, [16, 16, 22]);
+    }
+    save(g, "trappe", &trappe)?;
+    let pil = load(g, "pilier")?;
+    let mut off = crop(&pil, 0, 0, pil.w, 16);
+    // The saturated red eyes go dark grey.
+    for p in off.px.iter_mut().filter(|p| p[3] >= 128) {
+        if p[0] as u32 > p[1] as u32 + 60 && p[0] as u32 > p[2] as u32 + 60 {
+            *p = [40, 42, 52, 255];
+        }
+    }
+    save(g, "pilier_eteint", &off)
 }
