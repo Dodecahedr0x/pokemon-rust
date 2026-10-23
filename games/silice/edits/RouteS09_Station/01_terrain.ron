@@ -1,0 +1,42 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   | 522/1/0 side wall
+//   = 537/1/0 wall top
+//   W 545/1/0 wall face
+//   . 552/0/3 concrete floor
+//   ! 676/1/0 glass partition
+//   - 617/1/0 railing
+//   a 595/1/0 
+//   b 596/1/0 
+//   c 603/1/0 
+//   d 604/1/0 
+//   e 611/1/0 
+//   f 612/1/0 
+//   g 619/0/3 
+//   h 620/0/3 
+//   _ 621/1/0 bottom wall
+//   M 518/0/3 exit mat (south arrow warp)
+//   N 519/0/3 exit mat (south arrow warp)
+// The glass office (x 1-8, y 2-5; door gap (4, 6)): the cabinet (2, 2) hides the breaker on the wall (2, 1).
+// Pumps A (x 3-4), B (x 11-12) and C (x 17-18), y 8-11, each read from its foot row (y 11). The rail
+// (11-12, 12) means pump B's foot is reached only along row 11, in the technician's sight.
+// Pump C's catwalk (x 19-20, y 8-13). The mat (10-11, 15).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "|====================|",
+        "|WWWWWWWWWWWWWWWWWWWW|",
+        "|........!...........|",
+        "|........!...........|",
+        "|........!...........|",
+        "|........!...........|",
+        "|---.----!...........|",
+        "|..................--|",
+        "|..ab......ab....ab..|",
+        "|..cd......cd....cd..|",
+        "|..ef......ef....ef..|",
+        "|..gh......gh....gh..|",
+        "|..........--........|",
+        "|....................|",
+        "|....................|",
+        "__________MN__________",
+    ], legend: {'|': (metatile: 522, collision: 1, elevation: 0), '=': (metatile: 537, collision: 1, elevation: 0), 'W': (metatile: 545, collision: 1, elevation: 0), '.': (metatile: 552, collision: 0, elevation: 3), '!': (metatile: 676, collision: 1, elevation: 0), '-': (metatile: 617, collision: 1, elevation: 0), 'a': (metatile: 595, collision: 1, elevation: 0), 'b': (metatile: 596, collision: 1, elevation: 0), 'c': (metatile: 603, collision: 1, elevation: 0), 'd': (metatile: 604, collision: 1, elevation: 0), 'e': (metatile: 611, collision: 1, elevation: 0), 'f': (metatile: 612, collision: 1, elevation: 0), 'g': (metatile: 619, collision: 0, elevation: 3), 'h': (metatile: 620, collision: 0, elevation: 3), '_': (metatile: 621, collision: 1, elevation: 0), 'M': (metatile: 518, collision: 0, elevation: 3), 'N': (metatile: 519, collision: 0, elevation: 3)}),
+]

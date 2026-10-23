@@ -1,0 +1,37 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   # 521/1/0 wall
+//   a 542/1/0 
+//   b 518/1/0 
+//   d 543/1/0 
+//   e 550/1/0 
+//   f 526/1/0 
+//   g 551/1/0 
+//   , 553/0/3 the security corridor's floor
+//   ! 669/1/0 laser barrier (OnLoad opens it)
+//   . 512/0/3 marble floor
+//   c 528/1/0 reception counter
+//   M 534/0/3 service stairs mat (south arrow warp)
+//   N 535/0/3 service stairs mat (south arrow warp)
+// The lobby (x 2-21, y 12-14): the windows (west wall), the screen wall (north), the empty reception
+// (8-10, 13). The security corridor: V1 (x 19-21, y 9-11, sas 1 at y 11), H (x 11-18, y 9-10, sas 2
+// at x 14), V2 (x 11-13, y 2-8, sas 3 at y 5), the elevator door (12, 1).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "###########abd##########",
+        "###########efg##########",
+        "###########,,,##########",
+        "###########,,,##########",
+        "###########,,,##########",
+        "###########!!!##########",
+        "###########,,,,#########",
+        "###########,,,##########",
+        "###########,,,##,#######",
+        "###########,,,!,,,,,,,##",
+        "###########,,,!,,,,,,,##",
+        "###############,###!!!##",
+        "##....................##",
+        "##......ccc...........##",
+        "##....................##",
+        "####################MN##",
+    ], legend: {'#': (metatile: 521, collision: 1, elevation: 0), 'a': (metatile: 542, collision: 1, elevation: 0), 'b': (metatile: 518, collision: 1, elevation: 0), 'd': (metatile: 543, collision: 1, elevation: 0), 'e': (metatile: 550, collision: 1, elevation: 0), 'f': (metatile: 526, collision: 1, elevation: 0), 'g': (metatile: 551, collision: 1, elevation: 0), ',': (metatile: 553, collision: 0, elevation: 3), '!': (metatile: 669, collision: 1, elevation: 0), '.': (metatile: 512, collision: 0, elevation: 3), 'c': (metatile: 528, collision: 1, elevation: 0), 'M': (metatile: 534, collision: 0, elevation: 3), 'N': (metatile: 535, collision: 0, elevation: 3)}),
+]

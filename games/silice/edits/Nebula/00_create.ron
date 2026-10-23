@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_NEBULA: Nebula, the capital at the foot of the Tower (60 x 60, the source's size).
+// General + Rustboro (Emerald tilesets by name): a paved grid town of grey blocks, iron fences and
+// street lamps; the gilded block north is the Tower's base and its Grande Porte. Border: trees.
+(name: "Nebula", width: 60, height: 60, primary: "General", secondary: "Rustboro", fill: 699, fill_collision: 0, fill_elevation: 3, border: [468, 469, 476, 477])
