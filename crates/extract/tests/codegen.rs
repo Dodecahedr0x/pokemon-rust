@@ -907,6 +907,22 @@ mod lowering {
         assert_ne!(d1["M_Other"], d3["M_Other"], "the override names M_Callee");
     }
 
+    /// Editing an override changes its script's digest and its callers', no other (Task N:
+    /// incremental revalidation reads an override edit as a change of those scripts only).
+    #[test]
+    fn lower_an_override_edit_changes_its_script_and_its_callers_only() {
+        let ov = |src: &str| BTreeMap::from([("M_Callee".to_string(), src.to_string())]);
+        let g = graph("FLAG_TEMP_2");
+        let d1 = lower_with(&g, &ov("pub async fn M_Callee(ctx: Ctx) {} // 1")).script_digests;
+        let d2 = lower_with(&g, &ov("pub async fn M_Callee(ctx: Ctx) {} // 2")).script_digests;
+        let changed: Vec<&str> = d1
+            .iter()
+            .filter(|(k, v)| d2[*k] != **v)
+            .map(|(k, _)| k.as_str())
+            .collect();
+        assert_eq!(changed, ["M_Callee", "M_Root"]);
+    }
+
     #[test]
     fn lower_overrides_replace_a_script() {
         let o = BTreeMap::from([(

@@ -4,12 +4,20 @@
 //! For every map (`content::data::MAP_IDS`), a new game (`game_native::scenario::after_starter`:
 //! the story flags of the Milestone 3 start, one Pokémon; on Silice its own new game) starts there through [`StartAt`], on the
 //! first warp's cell, else on the walkable cell nearest the centre. Then:
-//! - [`IDLE`] frames with no input, with no panic; the World must end capturable, or the reason
-//!   is listed (a map whose scripts wait for a link partner, a cutscene still running…);
+//! - [`IDLE`] frames with no input, with no panic; when the World is not capturable then, up
+//!   to [`MASH`] frames mashing A (B while a yes/no question waits), until it is (Task N: so
+//!   the maps with an entry cutscene or question reach the checks below). A map still not
+//!   capturable is listed with its verdict, its last script and whether the map changed; the
+//!   scripts that loop on a facility's challenge status are listed as known defects
+//!   ([`KNOWN_SPIN`]; one that is not capturable also counts as not capturable);
 //! - when capturable: a checkpoint round trip (postcard within the flash budget, decoded equal),
 //!   restored with an equal hash, then [`SHADOW`] frames stepped beside the live session with
 //!   equal hashes;
 //! - a render of the last frame (the PPU panics on a command or object it rejects).
+//!
+//! A map passes when these checks ran on it without a failure. When a cutscene or an answer
+//! warped the player away first, the checks ran on the other map: "checked on another map",
+//! counted apart from the passes.
 //!
 //! `Report` events are aggregated per op or special (sites are maps), and the build's
 //! classification report (`content::REPORT`) is appended. Everything goes to
@@ -36,8 +44,21 @@ use std::process::Command;
 
 /// Idle frames per map.
 const IDLE: u32 = 600;
+/// Frames of mashing (A pressed every other frame, B instead while a yes/no question waits)
+/// after the idle frames, for a map not capturable yet (Task N: cutscenes and questions).
+const MASH: u32 = 3000;
 /// Frames a restored session runs beside the live one.
 const SHADOW: u32 = 60;
+/// A script started at least this often over a map's whole run (the idle frames, then any
+/// mashed ones) spins: once every 4 frames over the idle frames alone, so restarting every few
+/// frames (a map script whose condition never changes).
+const SPIN_STARTS: u32 = IDLE / 4;
+/// The suffix of the facility scripts known to spin (known defects, not verdicts): a
+/// facility lobby's `OnFrame` table runs `<Lobby>_EventScript_GetChallengeStatus` while the
+/// challenge status (`CallFrontierUtilFunc`, unsupported, answers a default) says a challenge
+/// is under way, so it restarts every frame. The rooms warp the player back to their lobby on
+/// entry, so they spin there too.
+const KNOWN_SPIN: &str = "_EventScript_GetChallengeStatus";
 /// Set on the release re-run, so it does not re-run itself.
 const INNER: &str = "PKR_SWEEP_INNER";
 
@@ -121,8 +142,16 @@ struct MapRun {
     reports: BTreeMap<String, u32>,
     maps_entered: u32,
     scripts_started: u32,
+    /// Starts per script over the run.
+    starts: BTreeMap<engine::data::ScriptId, u32>,
     /// Idle frames whose world hash differs from the previous frame's.
     changed: u32,
+    /// Frames mashed until capturable (`None`: capturable after the idle frames).
+    mashed: Option<u32>,
+    /// The map at the end (after a warp from a cutscene or answer, not the start map).
+    end_map: MapId,
+    /// The last script started, by name.
+    last_script: String,
 }
 
 thread_local! {
@@ -138,16 +167,14 @@ fn script_name(id: Option<engine::data::ScriptId>) -> String {
     }
 }
 
-/// Why a World is still busy after the idle frames, in words (the sweep's triage).
+/// Why a World is still busy after the idle and mashed frames, in words (the sweep's triage).
 fn verdict(w: &World) -> &'static str {
     use engine::script::Request;
     match w.script_waiting() {
-        Some(
-            Request::WaitButton
-            | Request::WaitMessage
-            | Request::YesNo
-            | Request::Multichoice { .. },
-        ) => "waits for the player (an entry cutscene or question; no input in the sweep)",
+        Some(Request::WaitMessage) => "still waits on a message after mashing",
+        Some(Request::WaitButton | Request::YesNo | Request::Multichoice { .. }) => {
+            "still waits for the player after mashing"
+        }
         Some(_) => "script waits on the engine",
         None if w.script_running() => {
             "script loops without waiting (a facility's challenge state, unsupported specials)"
@@ -177,7 +204,11 @@ fn run_map(map: MapId) -> MapRun {
         reports: BTreeMap::new(),
         maps_entered: 0,
         scripts_started: 0,
+        starts: BTreeMap::new(),
         changed: 0,
+        mashed: None,
+        end_map: map,
+        last_script: script_name(None),
     };
     let frame = std::cell::Cell::new(0u32);
     let last_script = std::cell::Cell::new(None);
@@ -188,7 +219,10 @@ fn run_map(map: MapId) -> MapRun {
                 match e {
                     Event::Report(rep) => *r.reports.entry(format!("{rep:?}")).or_default() += 1,
                     Event::MapEntered(_) => r.maps_entered += 1,
-                    Event::ScriptStarted(_) => r.scripts_started += 1,
+                    Event::ScriptStarted(id) => {
+                        r.scripts_started += 1;
+                        *r.starts.entry(*id).or_default() += 1;
+                    }
                     _ => {}
                 }
             }
@@ -205,16 +239,34 @@ fn run_map(map: MapId) -> MapRun {
             last_script.set(s.world().last_script());
             collect(s.world(), &mut r);
         }
+        if s.world().capturable().is_err() {
+            let mut n = 0;
+            while n < MASH && s.world().capturable().is_err() {
+                n += 1;
+                frame.set(IDLE + n);
+                let key = if n % 2 == 0 {
+                    Buttons::default()
+                } else if s.world().script_waiting() == Some(&engine::script::Request::YesNo) {
+                    Buttons::B
+                } else {
+                    Buttons::A
+                };
+                s.step(key);
+                last_script.set(s.world().last_script());
+                collect(s.world(), &mut r);
+            }
+            r.mashed = Some(n);
+        }
+        r.end_map = s.world().map();
+        r.last_script = script_name(s.world().last_script());
         s.framebuffer();
         let cp = match s.checkpoint() {
             Ok(cp) => cp,
             Err(e) => {
                 let w = s.world();
                 r.not_capturable = Some(format!(
-                    "{}: {e:?}; map {:#06x}, last script {}, waiting on {:?}",
+                    "{}: {e:?}; waiting on {:?}",
                     verdict(w),
-                    w.map().0,
-                    script_name(w.last_script()),
                     w.script_waiting()
                 ));
                 return;
@@ -236,8 +288,9 @@ fn run_map(map: MapId) -> MapRun {
         if back.world().hash() != s.world().hash() {
             return r.round_trip = Some("restored hash differs".into());
         }
+        let at = frame.get();
         for n in 1..=SHADOW {
-            frame.set(IDLE + n);
+            frame.set(at + n);
             s.step(Buttons::default());
             back.step(Buttons::default());
             if back.world().hash() != s.world().hash() {
@@ -308,38 +361,79 @@ fn sweep() -> Result<()> {
     let panics: Vec<&MapRun> = runs.iter().filter(|r| r.panic.is_some()).collect();
     let trips: Vec<&MapRun> = runs.iter().filter(|r| r.round_trip.is_some()).collect();
     let dropped: Vec<&MapRun> = runs.iter().filter(|r| r.events_dropped > 0).collect();
+    // Known defects that are not capturable stay counted here (and are listed as known).
     let stuck: Vec<&MapRun> = runs.iter().filter(|r| r.not_capturable.is_some()).collect();
+    let known: Vec<&MapRun> = runs.iter().filter(|r| r.known_loop()).collect();
+    let spins: Vec<&MapRun> = runs
+        .iter()
+        .filter(|r| r.spin().is_some() && !r.known_loop())
+        .collect();
+    let mashed: Vec<&MapRun> = runs
+        .iter()
+        .filter(|r| r.mashed.is_some() && r.not_capturable.is_none() && !r.known_loop())
+        .collect();
+    // Checked without a failure: on the map itself (passed), or on the map a cutscene or an
+    // answer warped to (checked on another map, counted apart).
+    let clean = |r: &&MapRun| {
+        r.panic.is_none()
+            && r.round_trip.is_none()
+            && r.events_dropped == 0
+            && r.not_capturable.is_none()
+    };
     let passed = runs
         .iter()
-        .filter(|r| {
-            r.panic.is_none()
-                && r.round_trip.is_none()
-                && r.events_dropped == 0
-                && r.not_capturable.is_none()
-        })
+        .filter(clean)
+        .filter(|r| r.end_map == r.map)
+        .count();
+    let elsewhere = runs
+        .iter()
+        .filter(clean)
+        .filter(|r| r.end_map != r.map)
         .count();
     writeln!(
         out,
-        "== sweep: {} maps, {IDLE} idle frames + {SHADOW} shadowed, {threads} threads, {:.2} s ==",
+        "== sweep: {} maps, {IDLE} idle frames (then up to {MASH} mashed) + {SHADOW} shadowed, \
+         {threads} threads, {:.2} s ==",
         runs.len(),
         elapsed.as_secs_f64()
     )?;
     writeln!(
         out,
-        "passed {passed}/{}; panics {}; round-trip failures {}; events dropped on {} maps; \
-         not capturable {}",
+        "passed {passed}/{} ({} after mashing); checked on another map {elsewhere}; panics {}; \
+         round-trip failures {}; events dropped on {} maps; not capturable {}; other spinning \
+         scripts {}; known defects {}",
         runs.len(),
+        mashed.iter().filter(|r| r.end_map == r.map).count(),
         panics.len(),
         trips.len(),
         dropped.len(),
-        stuck.len()
+        stuck.len(),
+        spins.len(),
+        known.len()
     )?;
     let label = |r: &MapRun| format!("{:#06x} {} at {:?}", r.map.0, r.name_key(), r.start);
+    // Where a map's run ended: its last script, and the map when a warp changed it.
+    let end = |r: &MapRun| {
+        let moved = if r.end_map == r.map {
+            "same map".to_string()
+        } else {
+            format!("map changed to {}", map_key(r.end_map))
+        };
+        format!("last script {}, {moved}", r.last_script)
+    };
     for (title, list, what) in [
         ("panics", &panics, 0),
         ("round-trip failures", &trips, 1),
         ("events dropped", &dropped, 2),
-        ("not capturable after the idle frames", &stuck, 3),
+        ("capturable after mashing (then checked)", &mashed, 3),
+        ("not capturable after mashing", &stuck, 4),
+        ("spinning scripts (restart every few frames)", &spins, 5),
+        (
+            "known defects: a facility's challenge-status script spins (unsupported facility \
+             specials; the checks ran when capturable)",
+            &known,
+            5,
+        ),
     ] {
         if list.is_empty() {
             continue;
@@ -350,7 +444,21 @@ fn sweep() -> Result<()> {
                 0 => r.panic.clone().unwrap_or_default(),
                 1 => r.round_trip.clone().unwrap_or_default(),
                 2 => format!("{} events dropped", r.events_dropped),
-                _ => r.not_capturable.clone().unwrap_or_default(),
+                3 => format!("{} frames mashed; {}", r.mashed.unwrap_or(0), end(r)),
+                4 => format!(
+                    "{}; {}",
+                    r.not_capturable.clone().unwrap_or_default(),
+                    end(r)
+                ),
+                _ => {
+                    let (name, n) = r.spin().unwrap_or_default();
+                    let checked = if r.not_capturable.is_some() {
+                        "not capturable"
+                    } else {
+                        "checked"
+                    };
+                    format!("{name} started {n} times; {checked}; {}", end(r))
+                }
             };
             writeln!(out, "{}: {why}", label(r))?;
         }
@@ -399,6 +507,14 @@ fn sweep() -> Result<()> {
     Ok(())
 }
 
+/// `map`'s decomp name, else its id.
+fn map_key(map: MapId) -> String {
+    extract::names::MAPS
+        .iter()
+        .find(|m| (u16::from(m.group) << 8 | u16::from(m.num)) == map.0)
+        .map_or_else(|| format!("{:#06x}", map.0), |m| m.dir.to_string())
+}
+
 impl MapRun {
     /// The map's decomp name when the build has one, else its display name.
     fn name_key(&self) -> String {
@@ -406,6 +522,21 @@ impl MapRun {
             .iter()
             .find(|m| (u16::from(m.group) << 8 | u16::from(m.num)) == self.map.0)
             .map_or_else(|| self.name.to_string(), |m| m.dir.to_string())
+    }
+
+    /// The script that started most often, if it spins ([`SPIN_STARTS`]): name and starts.
+    fn spin(&self) -> Option<(String, u32)> {
+        let (&id, &n) = self
+            .starts
+            .iter()
+            .max_by_key(|&(id, n)| (*n, std::cmp::Reverse(*id)))?;
+        (n >= SPIN_STARTS).then(|| (script_name(Some(id)), n))
+    }
+
+    /// A known defect: a facility's challenge-status script spins ([`KNOWN_SPIN`]).
+    fn known_loop(&self) -> bool {
+        self.spin()
+            .is_some_and(|(name, _)| name.ends_with(KNOWN_SPIN))
     }
 }
 

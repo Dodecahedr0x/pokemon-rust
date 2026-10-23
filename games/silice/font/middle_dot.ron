@@ -1,0 +1,27 @@
+// The middle dot (R-11), drawn by hand for Silice. Gen3 has the character at 0xAF; this
+// glyph redraws that code at the extract's width (3). A 2 x 2 dot centred on the x-height
+// (rows 6 to 11 in the FR font), shadow one pixel right and down.
+// `.` background, `#` foreground, `s` shadow.
+(
+    char: '·',
+    width: 3,
+    on_baseline: false,
+    rows: [
+        "...",
+        "...",
+        "...",
+        "...",
+        "...",
+        "...",
+        "...",
+        "...",
+        "##s",
+        "##s",
+        "sss",
+        "...",
+        "...",
+        "...",
+        "...",
+        "...",
+    ],
+)

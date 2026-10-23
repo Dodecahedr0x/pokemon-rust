@@ -198,6 +198,7 @@ fn touch_cols(t: &Touch) -> (i64, i64) {
     match t {
         Touch::Map(m) => (0, i64::from(m.0)),
         Touch::Script(s) => (1, i64::from(s.0)),
+        Touch::EventsDropped => (2, 0),
     }
 }
 
@@ -817,17 +818,19 @@ impl Db {
         }
         let inputs: Vec<(NodeId, &[Run])> =
             rows.iter().map(|n| (n.id, n.inputs.as_slice())).collect();
-        self.set_status_and_snapshots(rows, &inputs, &[])
+        self.set_status_and_snapshots(rows, &inputs, &[], &[])
     }
 
     /// [`Db::set_status`] without the rows' inputs (light rows), the new inputs of the
-    /// `inputs` nodes (repaired ones), and [`Db::put_snapshot`]s, in one transaction (a
-    /// revalidated level).
+    /// `inputs` nodes (repaired ones), [`Db::put_snapshot`]s, and the new `node_touch` rows of
+    /// the `touches` nodes (each node's old rows are replaced: the replay or repair is what
+    /// the node now touches), in one transaction (a revalidated level).
     pub fn set_status_and_snapshots(
         &mut self,
         rows: &[NodeRow],
         inputs: &[(NodeId, &[Run])],
         snapshots: &[(NodeId, &Checkpoint)],
+        touches: &[(NodeId, &[Touch])],
     ) -> Result<(), DbError> {
         let tx = self.conn.transaction()?;
         tx.pragma_update(None, "defer_foreign_keys", "ON")?;
@@ -872,6 +875,16 @@ impl Db {
             for (id, cp) in snapshots {
                 put_snapshot(&tx, *id, cp)?;
             }
+            let mut del = tx.prepare("DELETE FROM node_touch WHERE node = ?1")?;
+            let mut ins = tx
+                .prepare("INSERT OR IGNORE INTO node_touch (node, kind, id) VALUES (?1, ?2, ?3)")?;
+            for (id, ts) in touches {
+                del.execute([id])?;
+                for t in ts.iter() {
+                    let (k, x) = touch_cols(t);
+                    ins.execute(params![id, k, x])?;
+                }
+            }
         }
         tx.commit()?;
         Ok(())
@@ -898,6 +911,47 @@ impl Db {
         tx.commit()?;
         self.build = build;
         Ok(n as u64)
+    }
+
+    /// The nodes whose `node_touch` names `t` (incremental revalidation, Task N).
+    pub fn touching(&self, t: Touch) -> Result<Vec<NodeId>, DbError> {
+        let (kind, id) = touch_cols(&t);
+        let mut st = self
+            .conn
+            .prepare("SELECT node FROM node_touch WHERE kind = ?1 AND id = ?2")?;
+        let rows = st.query_map(params![kind, id], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// In one transaction: the `kept` nodes and their snapshots move to `build` (their state is
+    /// the same on it; a snapshot's header keeps the capturing build, which is informational),
+    /// and the valid ones of `stale` become stale (incremental revalidation, Task N).
+    pub fn retag(
+        &mut self,
+        kept: &[NodeId],
+        stale: &[NodeId],
+        build: BuildHash,
+    ) -> Result<(), DbError> {
+        let (e, c) = (build.engine as i64, build.content as i64);
+        let tx = self.conn.transaction()?;
+        {
+            let mut node =
+                tx.prepare("UPDATE node SET build_engine = ?2, build_content = ?3 WHERE id = ?1")?;
+            let mut snap = tx.prepare(
+                "UPDATE snapshot SET build_engine = ?2, build_content = ?3 WHERE node = ?1",
+            )?;
+            for id in kept {
+                node.execute(params![id, e, c])?;
+                snap.execute(params![id, e, c])?;
+            }
+            let mut st =
+                tx.prepare("UPDATE node SET status = 'stale' WHERE id = ?1 AND status = 'valid'")?;
+            for id in stale {
+                st.execute([id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     /// The config (RON) of the last `run` row, if any.

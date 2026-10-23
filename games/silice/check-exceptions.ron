@@ -954,7 +954,7 @@
         (
             rule: "text-charmap",
             subject: "Gris_Echec_Sc06_T2",
-            reason: "underscores (LOG_xx names) are not in the FR charmap (add a glyph or reword); R-11 adds the heart glyph; not in the FR charmap yet",
+            reason: "underscores (LOG_xx names) are not in the FR charmap (add a glyph or reword)",
             ruling_needed: true,
         ),
         (
@@ -1079,12 +1079,6 @@
         ),
         (
             rule: "text-charmap",
-            subject: "Nebula_Ecran_1",
-            reason: "R-11 adds the heart glyph; not in the FR charmap yet",
-            ruling_needed: true,
-        ),
-        (
-            rule: "text-charmap",
             subject: "Nebula_Sc01_T3",
             reason: "the em dash is not in the FR charmap; R-11 does not cover it (add a glyph or reword)",
             ruling_needed: true,
@@ -1116,7 +1110,7 @@
         (
             rule: "text-charmap",
             subject: "Owlys_Entrepot_Sc02_T3",
-            reason: "the em dash is not in the FR charmap; R-11 does not cover it (add a glyph or reword); R-11 adds the heart glyph; not in the FR charmap yet",
+            reason: "the em dash is not in the FR charmap; R-11 does not cover it (add a glyph or reword)",
             ruling_needed: true,
         ),
         (
@@ -1319,12 +1313,6 @@
         ),
         (
             rule: "text-charmap",
-            subject: "Tour_2F_Chat_08",
-            reason: "R-11 adds the heart glyph; not in the FR charmap yet",
-            ruling_needed: true,
-        ),
-        (
-            rule: "text-charmap",
             subject: "Tour_2F_Chat_11",
             reason: "underscores (LOG_xx names) are not in the FR charmap (add a glyph or reword)",
             ruling_needed: true,
@@ -1333,18 +1321,6 @@
             rule: "text-charmap",
             subject: "Tour_2F_Chat_12",
             reason: "the degree sign is not in the FR charmap (add a glyph or reword, e.g. N°)",
-            ruling_needed: true,
-        ),
-        (
-            rule: "text-charmap",
-            subject: "Tour_2F_Sc04_T1",
-            reason: "R-11 adds the heart glyph; not in the FR charmap yet",
-            ruling_needed: true,
-        ),
-        (
-            rule: "text-charmap",
-            subject: "Tour_2F_Sc05_T1",
-            reason: "R-11 adds the heart glyph; not in the FR charmap yet",
             ruling_needed: true,
         ),
         (

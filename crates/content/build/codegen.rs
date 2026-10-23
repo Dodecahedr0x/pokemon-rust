@@ -859,7 +859,8 @@ pub fn map_digests(w: &World) -> Result<Vec<(String, u64)>> {
 }
 
 /// The hash of every non-generated, non-test source the content depends on, beyond the extracted
-/// data: `src/` (the prelude, overrides, `lib.rs`, …), the generator itself (`build/`, its
+/// data: `src/` (the prelude, `lib.rs`, …; not the override files `src/overrides/<Name>.rs`,
+/// each in its script's digest), the generator itself (`build/`, its
 /// support tables) and `extract/src` (the text codec, schema and lowering the generator calls).
 /// A change there can change any map's compiled data, so it counts as global. Test sources
 /// (`*_tests.rs`, `tests/`, …; `build_support::is_test_source`) are left out.
@@ -915,7 +916,13 @@ pub fn sources_digest_for(
     h.tree(
         "src/",
         &content_dir.join("src"),
-        &|rel: &str| src_source(silice, rel) && !rel.starts_with("silice/scripts/"),
+        // An override's source is in its script's digest (`SCRIPT_DIGESTS`), so editing one
+        // is not a global change (Task N); `overrides/mod.rs`, if any, still is.
+        &|rel: &str| {
+            src_source(silice, rel)
+                && !rel.starts_with("silice/scripts/")
+                && !(rel.starts_with("overrides/") && rel != "overrides/mod.rs")
+        },
         Content::Text,
     )?;
     h.tree(

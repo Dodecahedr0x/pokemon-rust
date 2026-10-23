@@ -232,6 +232,8 @@ pub struct SimSummary {
     pub battles: Vec<BattleSummary>,
     /// `World::log().count()` delta.
     pub log_lines: u32,
+    /// `World::events_dropped` delta (`EVENTS_MAX`): `maps` and `scripts` may be incomplete.
+    pub events_dropped: u32,
     /// Host time, report-only.
     pub max_step_ns: u64,
 }
@@ -274,10 +276,14 @@ pub struct FindingDraft {
     pub log: Vec<&'static str>,
 }
 
+/// What a node's step touched (`node_touch`; incremental revalidation, Task N).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Touch {
     Map(MapId),
     Script(ScriptId),
+    /// Engine events were dropped past `EVENTS_MAX` during the step, so its maps and scripts
+    /// may be incomplete: any content change revalidates the node (`incremental::mark`).
+    EventsDropped,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
