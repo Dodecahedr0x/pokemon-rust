@@ -658,6 +658,15 @@ impl Objects {
         }
     }
 
+    /// [`Objects::set_pos`] for map `map`'s object `local` (tests: the previous map's).
+    #[cfg(test)]
+    pub(crate) fn set_pos_on(&mut self, local: u8, map: MapId, x: i16, y: i16) {
+        if let Some(o) = (self.objs.iter_mut()).find(|o| o.local_id == local && o.map == map) {
+            (o.x, o.y, o.prev) = (x, y, (x, y));
+            (o.action, o.moves) = (None, None);
+        }
+    }
+
     /// Turns an object at once (Gen3 `ObjectEventTurn`, `turnobject`).
     pub fn face(&mut self, local: u8, dir: Dir) {
         self.face_on(local, self.map, dir);
