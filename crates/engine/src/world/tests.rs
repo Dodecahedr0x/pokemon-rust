@@ -1132,6 +1132,7 @@ mod m9_sm;
 mod m9_w;
 mod m9_wave0;
 mod warp_exits;
+mod wave_c_query;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).
