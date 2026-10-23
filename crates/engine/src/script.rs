@@ -476,6 +476,12 @@ pub enum Request {
     /// lost battle (`EventScript_WhiteOut`, the money halved, the party healed, the respawn
     /// loaded). Never answered: the whiteout resets the script context.
     FieldWhiteOut,
+    /// Gen3 `special RockSmashWildEncounter`: the current map's rock smash table
+    /// ([`GameData::rock_smash_encounters`](crate::data::GameData::rock_smash_encounters)),
+    /// `WildEncounterCheck(rate, TRUE)` and `TryGenerateWildMon(WILD_AREA_ROCKS)`; on a mon, the
+    /// wild battle starts (`BattleSetup_StartWildBattle`, a field battle: the script's
+    /// `waitstate` waits for its end). Answers `Bool` at once (whether a battle started).
+    RockSmashEncounter,
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -777,6 +783,7 @@ impl Request {
             ),
             // Wave E2: tags 180 and up.
             Request::FieldWhiteOut => (180, 0, 0, 0, 0),
+            Request::RockSmashEncounter => (181, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1470,6 +1477,12 @@ impl Ctx {
     /// Gen3 `SetCB2WhiteOut` (see [`Request::FieldWhiteOut`]): never answered.
     pub fn field_whiteout(&self) -> Req<()> {
         self.req(Request::FieldWhiteOut, unit)
+    }
+
+    /// Gen3 `RockSmashWildEncounter` (see [`Request::RockSmashEncounter`]): whether a wild
+    /// battle started.
+    pub fn rock_smash_encounter(&self) -> Req<bool> {
+        self.req(Request::RockSmashEncounter, Response::bool)
     }
 }
 

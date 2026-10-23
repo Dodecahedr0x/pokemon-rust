@@ -356,6 +356,53 @@ impl State {
         self.mode = Mode::Battle(run);
     }
 
+    /// Gen3 `RockSmashWildEncounter` (`wild_encounter.c`): the current map's rock smash table
+    /// (none: no battle), `wild::try_rock_smash_encounter`, `create_wild`, then
+    /// `BattleSetup_StartWildBattle` (a field battle). Returns whether a battle started.
+    pub(super) fn rock_smash_encounter(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
+        if !self.can_battle() {
+            return false;
+        }
+        let t = game.battle();
+        let map = self.field.map();
+        let wild_set = game
+            .special_ids()
+            .var_wild_set
+            .map_or(0, |v| self.vars.var(v));
+        let Some(table) = game.rock_smash_encounters(map, wild_set) else {
+            return false;
+        };
+        let lead = self.party.get(0).copied();
+        let (vars, party, ids) = (&self.vars, &self.party, game.special_ids());
+        let lead_of = wild::Lead::of(lead.as_ref(), t, |i| game.hold_effect(i));
+        let repel = |level| wild::repel_blocks(level, vars, party, &ids);
+        let Some((species, level)) =
+            wild::try_rock_smash_encounter(table, lead_of, &mut self.rng, repel)
+        else {
+            return false;
+        };
+        let mon = wild::create_wild(
+            t,
+            species,
+            level,
+            lead.as_ref(),
+            self.player_id,
+            &mut self.rng,
+        );
+        let mut opponents = Party::default();
+        let _ = opponents.push(mon);
+        self.start_battle(
+            game,
+            BattleKind::Wild {
+                first_battle: false,
+            },
+            opponents,
+            Origin::Field,
+            f,
+        );
+        true
+    }
+
     /// Gen3 `CheckStandardWildEncounter` for a completed player step onto a `cur` cell of
     /// `map`: the immunity steps, then `StandardWildEncounter` (`try_land_encounter`, then at
     /// once `create_wild`, as `TryGenerateWildMon`), and `sPrevMetatileBehavior`. Returns

@@ -224,6 +224,13 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.edit_template(obj, |t| (t.x, t.y) = (x, y));
                 UNIT
             }
+            Request::RockSmashEncounter if self.immediate => {
+                s.log("rock smash encounter in a map script answered false");
+                Some(Response::Bool(false))
+            }
+            Request::RockSmashEncounter => {
+                Some(Response::Bool(s.rock_smash_encounter(game, self.f)))
+            }
             Request::FieldWhiteOut if self.immediate => {
                 s.log("whiteout in a map script ignored");
                 UNIT
