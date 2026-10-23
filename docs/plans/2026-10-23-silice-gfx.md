@@ -73,9 +73,26 @@ The Q3 question (original art) is answered for tilesets and overworld objects: e
 - **SilEvalon** (Ch8, `Evalon`): red iron-ore cliffs, half-timbered houses, the Citadelle gate over the moat (drawbridge 520), the Tour du Scribe, the Taverne and its Pigeonnier, the belfry, the Porte du Fer, the mill, faction pennants. **SilEvalonCitadelle** (`Evalon_Citadelle` moved to `Building`, and `_2F`): flagstones with marked trap slabs (derived), torches, banners, armours, the game table.
 - **SilNebula** (Ch9, `Nebula`): glass towers with Kimiko billboards (also the border), the black marble esplanade, the Tower's glass, the Grande Porte, the giant screen, ground screens, Cocket barricades, the Bassin's fence (General water and Dive tiles kept). **SilNebulaTourHall**: black marble, the wall of screens, the crystal elevator, laser sas (derived).
 - **Sprites:** `MAGMA_MEMBER_M/F` are Team Cocket grunts; `SIL_ADRIEN` 0x100, `SIL_GWADA` 0x101, `SIL_MATHIEU` 0x102, `SIL_JULIEN` 0x103, `SIL_BENOU` 0x104, `SIL_LOIC` 0x105, `SIL_YOHAN` 0x120, `SIL_TAUBER` 0x130, `SIL_HOCSEAT` 0x131, `SIL_REVERSE` 0x170, `SIL_EMETTEUR` 0x171, `SIL_DRONE` 0x190; every map object whose `LOCALID_` names the character uses them.
+- **SilRoutesS2S3** (`RouteS02`, `RouteS03`): pylons on the river bank, transformers, cable posts; the rail cut with the Cocket container wall. **SilRouteS06** (`RouteS06`): mossy terraces with a torii over each stair, bamboo, red maples, lanterns, incense burners, the jade altar. **SilRouteS07** (`RouteS07`): the data-fog void in four colours, the glass walkway with violet reversal slabs, concrete piers, arrows; most of it drawn in `derive.rs` (Codex hit its usage limit): give those features prompts and re-`gen` to replace them.
 
-## Next
+## Progress (2026-10-23)
 
-- **Seams still showing wrong pictures** (warnings of `studio map build`): Route S4 toward Viber-City, Route S8's rows 0-6 toward Évalon, Route S6 toward Manga-Square and the Bois des Soupirs. Fix with the routes: draw their edge rows with primary metatiles, or move a route onto its town's secondary.
-- **Wave 3:** the routes (S1 done) with a shared `SilRoutes…` secondary per biome, then the interiors (Centres and Marts on `Building` keep Emerald's look; the Labo, houses, Taverne, Casino, Station, the Tour Nébula floors), then the dungeons (Zone 404, No Man's Land, Trône Zénith, Sommet Apex).
-- **Engine features the sources want but no tileset can give:** animated neons and water, darkness (Flash), the blinking 3-phase neons of Viber-City.
+- Done: every town and its gym (10 towns, 19 tilesets), Routes S1, S2, S3, S6, S7, 10 character sprites. `studio map build`: 110 maps, no errors; hygiene clean; the native sweep enters and idles all 110 maps (no panic). The Silice ROM builds (`cargo xtask --game silice rom`, 5.0 MiB) and boots into the new game with the new art.
+- Stopped mid-way (WIP commits on branches, not merged, tilesets not built yet):
+  - `worktree-agent-a94e9d36817192f5f` (`6b0858a`): Routes S4 and S5 (`SilRouteS04`, `SilRouteS05` specs, art, edits).
+  - `worktree-agent-a335971346942644c` (`7e099fa`): Routes S8 and S9 (`SilRouteS08`, `SilRouteS09` specs, art, edits, a script constant).
+  - To resume: check out the branch in a worktree, rebase on master, `gen` the missing features, `build`, `studio map build`, review renders, run the chapter tests, merge.
+- Silice e2e tests on master: Ch0, Ch1, Ch2's first test, the loaders pass. Failing, none from the graphics:
+  - `sil6_ch5`, `sil8_ch7`, `sil9_ch8` already failed before the graphics work (checked at `fd3fe0f`).
+  - Since Wave C2 (battle move effects, `cbebc36`, another session) battles stall: `sil2_ch2`, `sil4_ch3`, `sil5_ch4`, `sil7_ch6` now run out of frames in battle (or lose one), and `sil6_ch5` fails earlier. `sil1_w0_contracts` wants `extract::games::SHARED_GEN3` updated for Wave C4's flags.
+
+## Todo
+
+1. **Routes S4, S5, S8, S9**: finish the two WIP branches (above). They also fix the remaining seam warnings: Route S4 toward Viber-City, Route S8's rows 0-6 toward Évalon.
+2. **Regenerate hand-drawn art** once Codex is available again: Route S7's void, glass, crystal grass, gate, screens, barrier, pylon (give them prompts in `SilRouteS07.ron`).
+3. **Interiors**: Centres and Marts (on `Building`, still Emerald's look), the Labo, houses, the Bar (the new game starts there), Taverne, Casino, Station Lumière, Tour d'Observation, the Tour Nébula floors, the Usine, the Silo.
+4. **Dungeons**: Zone 404, No Man's Land, Trône Zénith, Sommet Apex, the caves (Grotte Est, Grotte de Corail), the Épave.
+5. **Sprites**: Gogo and Romain (still MAXIE/ARCHIE), the chess pieces and robot of Gris-Échec, the Évalon golems; check that every new sprite's side view faces west.
+6. **Tile budgets**: SilEvalon (508/512), SilViberCity (504), SilGrisEchec (506) are full; new features there need a second secondary or smaller art.
+7. **Engine** (not tilesets): animated neons and water, darkness (Flash), Viber-City's blinking neons, Reverse-City's negative palette effects.
+8. **Tests** (other sessions' regressions): the battle stalls since Wave C2 and the `SHARED_GEN3` contract; then the three older chapter failures (a chip task exists for them).
