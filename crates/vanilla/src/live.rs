@@ -564,10 +564,29 @@ impl<'g, G: GameData> Live<'g, G> {
             if let Some(&(_, d)) = approaches.iter().find(|(c, _)| *c == me) {
                 return self.v.interact(d, MACRO_FRAMES);
             }
-            let &(c, _) = reachable
-                .first()
-                .ok_or_else(|| anyhow!("talk: no way next to object {local_id} at {:?}", o.cell))?;
-            self.v.walk_to(self.game, c, MACRO_FRAMES)?;
+            // Warp cells (a door next to the object) last; the next approach when a walk finds
+            // no way after all.
+            let warps = &self.game.map(map).warps;
+            let mut reachable = reachable;
+            reachable.sort_by_key(|(c, _)| warps.iter().any(|w| (w.x, w.y) == *c));
+            ensure!(
+                !reachable.is_empty(),
+                "talk: no way next to object {local_id} at {:?}",
+                o.cell
+            );
+            let mut last = None;
+            for &(c, _) in &reachable {
+                match self.v.walk_to(self.game, c, MACRO_FRAMES) {
+                    Ok(_) => {
+                        last = None;
+                        break;
+                    }
+                    Err(e) => last = Some(e),
+                }
+            }
+            if let Some(e) = last {
+                return Err(e);
+            }
         }
         bail!("talk: never next to object {local_id}")
     }
