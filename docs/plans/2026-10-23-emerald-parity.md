@@ -122,8 +122,13 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 | `briney-sail-camera` (115) | Route104_MrBrineysHouse (9,6) to Route 104 (13,51) | RoundTrip finding: `restore failed: Invalid("camera far outside the map")` during the sail | `Route104_EventScript_SailToDewford`: `applymovement` of the boat and player across map connections, `showobjectat` on another map | engine (camera / checkpoint across connections), Wave C |
 | `briney-sail-camera-slateport` (151) | Dewford Town (11,9), Briney's multichoice: Slateport | the same RoundTrip finding | `DewfordTown_EventScript_SailToSlateport` (same pattern, lands on Route 109) | engine, same fix as `briney-sail-camera` |
 | `mauville-gym-barriers` (245) | MauvilleCity_Gym (4,20) | Wattson unreachable: the floor switches' trigger runs but no barrier moves (`NoPath` to Wattson) | `SPECIAL_MauvilleGymSetDefaultBarriers`, `SPECIAL_MauvilleGymPressSwitch` (unsupported; they toggle every beam metatile) | engine specials, Wave C |
+| `mauville-gym-deactivate` (250) | MauvilleCity_Gym (4,19), after Wattson | the way out stays barred: Wattson's script deactivates the puzzle through an unsupported special | `SPECIAL_MauvilleGymDeactivatePuzzle` | engine specials, Wave C (with `mauville-gym-barriers`) |
+| `teach-hm-rock-smash` (258) | Mauville City (32,15), after HM06 | the spine has no way to teach an HM: no bag or party menu; the bypass writes Rock Smash over the lead's slot 2 | party menu: teach a TM/HM (`ItemUseOutOfBattle_TMHM`, `party_menu.c`) | engine UI (bag, party menu), Milestone 9 |
+| `checkpartymove-rock-smash` (261) | Route 111 (18,101), the rock north of the Winstrates' | `EventScript_RockSmash` never offers to smash: `checkpartymove` is a `Default(6)` stub, so no party mon "knows" the move; the rock and the tip man block the corridor (`NoPath`) | `checkpartymove` (`ScrCmd_checkpartymove`), then the field move (`dofieldeffect FLDEFF_USE_ROCK_SMASH`) | content (script command), Wave C; every later HM (Cut, Strength, Surf...) needs it |
+| `cable-car` (302) | Route112_CableCarStation (6,4) | the ride never starts: the attendant's script sets `VAR_CABLE_CAR_STATION_STATE` 1 and the player stays in the station | `SPECIAL_CableCarWarp` (sets the warp to the Mt. Chimney station's (6,4)), `SPECIAL_CableCar` (the ride scene, `cable_car.c`) | engine specials, Wave C |
+| `lavaridge-gym-warps` (315) | LavaridgeTown_Gym_1F (8,9) | "enter: no warp": the gym's holes and geysers do not warp; Flannery's platform is reached only through them (1F (8,9), B1F (8,6), 1F (10,6), B1F (12,12)) | `MB_LAVARIDGE_GYM_1F_WARP`, `MB_LAVARIDGE_GYM_B1F_WARP` (`field_control_avatar.c` Lavaridge warp checks, `FLDEFF_LAVARIDGE_GYM_WARP` / `FLDEFF_POP_OUT_OF_ASH`) | engine (field), Wave C |
 
-**Report-only findings along the spine** (it plays on; first site of each): `dofieldeffect` and `waitfieldeffect` (every Center heal); `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `copyobjectxytoperm` (Rustboro (30,11), Rusturf Tunnel (9,5)); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson).
+**Report-only findings along the spine** (it plays on; first site of each): `dofieldeffect` and `waitfieldeffect` (every Center heal); `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `copyobjectxytoperm` (Rustboro (30,11), Rusturf Tunnel (9,5)); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility`, `setmaplayoutindex` and `SPECIAL_GabbyAndTyGetBattleNum` (Route 111 (16,139)); move effect 117 (Route 113 (7,9)); `SPECIAL_CableCarWarp` and `SPECIAL_CableCar` (also a bypass).
 
 ## 3. As built
 
@@ -313,7 +318,7 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 
 ### Task S — spine Act 2+ (branch `worktree-agent-abf2907939cd907aa`)
 
-**Reach.** The Emerald spine runs 250 steps and 436,161 frames to Wattson's badge, 1.3 s in release. Act 1 is unchanged: `badge1` is still at step 78, frame 109,851, and no bypass comes before it. Four bypasses come after it (§2).
+**Reach.** The Emerald spine runs 320 steps and 548,040 frames to Flannery's badge (Act 4's end), about 1 s in release, after the Wave C3 merge (abilities and hold effects). Act 1 is unchanged: `badge1` is still at step 78, frame 109,851, and no bypass comes before it. Nine bypasses come after it (§2); `spine_reaches_badge4` asserts their list equals `SPINE_BLOCKERS`.
 
 | checkpoint | step | frame | where |
 |---|---|---|---|
@@ -322,19 +327,23 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 | `dewford` | 118 | 151,423 | after `briney-sail-camera` |
 | `steven` | 132 | 162,016 | Granite Cave, Steven's room |
 | `badge2` | 145 | 222,593 | Brawly |
-| `museum` | 167 | 242,459 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
-| `badge3` | 250 | 436,161 | Wattson, after `mauville-gym-barriers` |
+| `museum` | 167 | 242,807 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
+| `badge3` | 250 | 436,605 | Wattson, after `mauville-gym-barriers` |
+| `badge4` | 320 | 548,040 | Flannery, after `cable-car` and `lavaridge-gym-warps` |
 
 **Goals.** Two new acts:
 - `act2` (8 goals, from `goods_stolen` to `badge2`);
-- `act3` (6 goals: `slateport`, `devon_goods_delivered`, `rival_route110`, `mauville`, `wattson_defeated`, `badge3`).
+- `act3` (6 goals: `slateport`, `devon_goods_delivered`, `rival_route110`, `mauville`, `wattson_defeated`, `badge3`);
+- `act4` (6 goals: `fallarbor`, `meteor_falls` (`FLAG_MET_ARCHIE_METEOR_FALLS`), `mt_chimney` (`FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY`), `lavaridge`, `flannery_defeated`, `badge4`).
 
-Their constants are checked against the decomp headers (`m8_k_goals`: 28 constants). A spine `Expect` looks its goal up in the run's act first, then in the build's other acts (`goals::find`).
+Act 4's route: Rock Smash from Mauville, Route 111 to its row 68 exit, Route 112 and the Fiery Path to Route 112's north part, Route 111 north of the desert (the planner would otherwise walk into the sandstorm, which pushes back without the Go-Goggles), the old lady's rest stop (a heal), Route 113, Fallarbor, Route 114, Meteor Falls; back the same way to the cable car; Mt. Chimney (Maxie), the Jagged Pass, Lavaridge, Flannery.
+
+Their constants are checked against the decomp headers (`m8_k_goals`: 34 constants). A spine `Expect` looks its goal up in the run's act first, then in the build's other acts (`goals::find`).
 
 **Explorer-side changes the spine needed.** None of them touch the engine.
 
 New steps:
-- `Step::Bypass(&Bypass { issue, features, set, clear, vars, warp })`. It writes flags and vars, debug-warps if asked, and plays no input. `explore spine` lists the bypasses and the frame up to which the inputs reproduce. `SpineRun::bypasses` and `SpineRun::first_bypass_frame` expose them. The parity ledger reads `features`.
+- `Step::Bypass(&Bypass { issue, features, set, clear, vars, warp, teach })`. It writes flags and vars, writes moves over the lead's slots (`teach`), debug-warps if asked, and plays no input. `explore spine` lists the bypasses and the frame up to which the inputs reproduce. `SpineRun::bypasses` and `SpineRun::first_bypass_frame` expose them. The parity ledger reads `features`.
 - `Step::WaitFor { local_id, x, y }`: wait until an object stands on a cell. Used for Mr. Briney's looping Peeko.
 
 Planner (`path.rs`):
@@ -351,6 +360,7 @@ Spine execution:
 
 Policy:
 - A multichoice moves its cursor to `Choose(n)`. It was previously answered as yes/no.
+- `policy::YES_ONCE` (`Choose(3)`): yes to a macro's first yes/no, no to the later ones. The rest stop's old lady offers again after every yes; always answering yes loops.
 - `BattlePlan::BestLearn` (`Opts::learn`) learns a level-up move when it hits harder than the weakest known move, and forgets that one. Act 1 keeps `Best`, so its frames are unchanged. Without it, the level-30 Marshtomp never learnt Take Down and lost the Route 110 rival battle to Grovyle.
 
 **Explorer gaps worked around in the spine:**
@@ -359,5 +369,9 @@ Policy:
 - `GotoAvoiding` finds no path around a trigger that every way in crosses by design.
 - Route 110's trainers drain the lead. The spine fights them first, heals in Slateport, then triggers the rival.
 - Level 31 is trained a level at a time, with a Center heal after each: one level uses up Tackle's PP or Take Down's recoil.
+- `Talk` on an unspawned object picks the nearest side of its template cell that is no other template's home (Wally's uncle stood on the far side).
+- Route 113's first crossing whited out at 47 HP: the spine heals at the Route 111 rest stop first. Lavaridge cannot heal earlier: Route 112's west ledges are one-way.
+- `Cross` of Route 113 from Fallarbor timed out at (0,11) while Route 113's two beaten trainers walked up and down column 7; a `Goto` to (14,13) first gets through.
+- Route 111's rest stop: the planner's direct walk stalled at (21,12); `Goto`s to (28,11) and (29,17) first.
 
 **Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. `cargo xtask explore branch` on the extended spine: see the final report.

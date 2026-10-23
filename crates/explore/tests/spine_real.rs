@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 109_851;
 
 /// The whole Emerald spine's frame count (to its last checkpoint, [`EMERALD_LABELS`]'s last).
-const EMERALD_FRAMES: u64 = 436_613;
+const EMERALD_FRAMES: u64 = 548_040;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -32,6 +32,7 @@ const EMERALD_LABELS: &[&str] = &[
     "badge2",
     "museum",
     "badge3",
+    "badge4",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
@@ -42,6 +43,11 @@ const SPINE_BLOCKERS: &[&str] = &[
     "briney-sail-camera",
     "briney-sail-camera-slateport",
     "mauville-gym-barriers",
+    "mauville-gym-deactivate",
+    "teach-hm-rock-smash",
+    "checkpartymove-rock-smash",
+    "cable-car",
+    "lavaridge-gym-warps",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.
@@ -90,7 +96,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_badge3() {
+fn spine_reaches_badge4() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
