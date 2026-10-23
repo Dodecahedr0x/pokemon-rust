@@ -1,0 +1,1966 @@
+(
+    base: 275,
+    ids: [
+        (
+            name: "FLAG_SIL_ADRIEN_TRADUCTION_NZ",
+            num: 275,
+        ),
+        (
+            name: "FLAG_SIL_ANTENNE_ALPHA",
+            num: 276,
+        ),
+        (
+            name: "FLAG_SIL_ANTENNE_ETA",
+            num: 277,
+        ),
+        (
+            name: "FLAG_SIL_ANTENNE_GAMMA",
+            num: 278,
+        ),
+        (
+            name: "FLAG_SIL_ARTHUR_BATTU",
+            num: 279,
+        ),
+        (
+            name: "FLAG_SIL_ARTHUR_BOUSSOLE_PRISE",
+            num: 280,
+        ),
+        (
+            name: "FLAG_SIL_ARTHUR_BOUSSOLE_RENDUE",
+            num: 281,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_01",
+            num: 282,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_02",
+            num: 283,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_03",
+            num: 284,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_04",
+            num: 285,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_05",
+            num: 286,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_06",
+            num: 287,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_07",
+            num: 288,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_07_CORROMPU",
+            num: 289,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_08",
+            num: 290,
+        ),
+        (
+            name: "FLAG_SIL_BADGE_MIROIR_RESTORED",
+            num: 291,
+        ),
+        (
+            name: "FLAG_SIL_BENOU_BATTU",
+            num: 292,
+        ),
+        (
+            name: "FLAG_SIL_BOIS_ETHER_AMBUSH",
+            num: 293,
+        ),
+        (
+            name: "FLAG_SIL_BOIS_ETHER_RED_SKY",
+            num: 294,
+        ),
+        (
+            name: "FLAG_SIL_BOIS_ETHER_RONCES_CUT",
+            num: 295,
+        ),
+        (
+            name: "FLAG_SIL_BRECHE_ALERTE",
+            num: 296,
+        ),
+        (
+            name: "FLAG_SIL_BRICO_CHASE",
+            num: 297,
+        ),
+        (
+            name: "FLAG_SIL_BRICO_LABO_RONCES_CUT",
+            num: 298,
+        ),
+        (
+            name: "FLAG_SIL_CARTE_PERFOREE",
+            num: 299,
+        ),
+        (
+            name: "FLAG_SIL_CASINO_CHEF",
+            num: 300,
+        ),
+        (
+            name: "FLAG_SIL_CASINO_LOYAL",
+            num: 301,
+        ),
+        (
+            name: "FLAG_SIL_CASINO_PREUVE",
+            num: 302,
+        ),
+        (
+            name: "FLAG_SIL_CAVE_GRILLE_OUVERTE",
+            num: 303,
+        ),
+        (
+            name: "FLAG_SIL_CENTRALE_A",
+            num: 304,
+        ),
+        (
+            name: "FLAG_SIL_CENTRALE_B",
+            num: 305,
+        ),
+        (
+            name: "FLAG_SIL_CENTRALE_C",
+            num: 306,
+        ),
+        (
+            name: "FLAG_SIL_CIEL_VRAI",
+            num: 307,
+        ),
+        (
+            name: "FLAG_SIL_CLE_DEBUG",
+            num: 308,
+        ),
+        (
+            name: "FLAG_SIL_CLE_DEBUG_INSTALLEE",
+            num: 309,
+        ),
+        (
+            name: "FLAG_SIL_CLONE_BATTU",
+            num: 310,
+        ),
+        (
+            name: "FLAG_SIL_COEUR_EVALON",
+            num: 311,
+        ),
+        (
+            name: "FLAG_SIL_COMPOSANT_1",
+            num: 312,
+        ),
+        (
+            name: "FLAG_SIL_COMPOSANT_2",
+            num: 313,
+        ),
+        (
+            name: "FLAG_SIL_COMPOSANT_3",
+            num: 314,
+        ),
+        (
+            name: "FLAG_SIL_CONTE_COQ_LU",
+            num: 315,
+        ),
+        (
+            name: "FLAG_SIL_CROW_RECOMPENSE",
+            num: 316,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_CROW",
+            num: 317,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_JULIEN",
+            num: 318,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_POUSSIN",
+            num: 319,
+        ),
+        (
+            name: "FLAG_SIL_DAILY_TOURNOI",
+            num: 320,
+        ),
+        (
+            name: "FLAG_SIL_DEPOT_MAGNET_ON",
+            num: 321,
+        ),
+        (
+            name: "FLAG_SIL_ECHANTILLON_1",
+            num: 322,
+        ),
+        (
+            name: "FLAG_SIL_ECHANTILLON_2",
+            num: 323,
+        ),
+        (
+            name: "FLAG_SIL_ECHANTILLON_3",
+            num: 324,
+        ),
+        (
+            name: "FLAG_SIL_ELYSIUM_ACTIF",
+            num: 325,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_EPREUVE_ESPRIT",
+            num: 326,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_EPREUVE_FER",
+            num: 327,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_EPREUVE_SCRIBE",
+            num: 328,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_INVASION",
+            num: 329,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_Q1",
+            num: 330,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_Q1_ROCHER",
+            num: 331,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_Q2",
+            num: 332,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_Q3",
+            num: 333,
+        ),
+        (
+            name: "FLAG_SIL_FIN_ELYSIUM_EN_COURS",
+            num: 334,
+        ),
+        (
+            name: "FLAG_SIL_FORME_ORIGINELLE",
+            num: 335,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENTS_ACTIFS",
+            num: 336,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_01",
+            num: 337,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_02",
+            num: 338,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_03",
+            num: 339,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_04",
+            num: 340,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_05",
+            num: 341,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_06",
+            num: 342,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_07",
+            num: 343,
+        ),
+        (
+            name: "FLAG_SIL_FRAGMENT_08",
+            num: 344,
+        ),
+        (
+            name: "FLAG_SIL_GAME_CLEAR",
+            num: 345,
+        ),
+        (
+            name: "FLAG_SIL_GRIS_JAMMER_1",
+            num: 346,
+        ),
+        (
+            name: "FLAG_SIL_GRIS_JAMMER_2",
+            num: 347,
+        ),
+        (
+            name: "FLAG_SIL_GRIS_JAMMER_3",
+            num: 348,
+        ),
+        (
+            name: "FLAG_SIL_GWADA_LAINERGIE",
+            num: 349,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_PORTE_1",
+            num: 350,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_PORTE_2",
+            num: 351,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_PORTE_3",
+            num: 352,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_PORTE_4",
+            num: 353,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_PORTE_5",
+            num: 354,
+        ),
+        (
+            name: "FLAG_SIL_GYM1_CONTAMINE",
+            num: 355,
+        ),
+        (
+            name: "FLAG_SIL_GYM1_FUSIBLE",
+            num: 356,
+        ),
+        (
+            name: "FLAG_SIL_GYM1_JOINT",
+            num: 357,
+        ),
+        (
+            name: "FLAG_SIL_GYM1_MANO",
+            num: 358,
+        ),
+        (
+            name: "FLAG_SIL_GYM1_VALVE",
+            num: 359,
+        ),
+        (
+            name: "FLAG_SIL_HAS_MALLETTE",
+            num: 360,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_GOGO_ROMAIN",
+            num: 361,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_POUSSIN",
+            num: 362,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_POUSSIN_PG",
+            num: 363,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ARTHUR_BOUSSOLE",
+            num: 364,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ARTHUR_EPAVE",
+            num: 365,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ARTICUNO",
+            num: 366,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_SBIRES",
+            num: 367,
+            removed: true,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CELEBI",
+            num: 368,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DEOXYS",
+            num: 369,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN",
+            num: 370,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_ADRIEN",
+            num: 371,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_KIMIKO",
+            num: 372,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ENTEI",
+            num: 373,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_AMIS",
+            num: 374,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN",
+            num: 375,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_01",
+            num: 376,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_02",
+            num: 377,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_03",
+            num: 378,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_04",
+            num: 379,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_05",
+            num: 380,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_06",
+            num: 381,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_07",
+            num: 382,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GAZ_08",
+            num: 383,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GROUDON",
+            num: 384,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM07_BENOU",
+            num: 385,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_GYM07_REVERSE",
+            num: 386,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_HOUSE_ELYSIUM",
+            num: 387,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_HOUSE_EPILOGUE",
+            num: 388,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_HO_OH",
+            num: 389,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_JIRACHI",
+            num: 390,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_KIMIKO_BOIS",
+            num: 391,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_KYOGRE",
+            num: 392,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_LATIAS",
+            num: 393,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_LATIOS",
+            num: 394,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_LUGIA",
+            num: 395,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN",
+            num: 396,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_SQUARE_BENOU",
+            num: 397,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR",
+            num: 398,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MEW",
+            num: 399,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MEWTWO",
+            num: 400,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MOLTRES",
+            num: 401,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE",
+            num: 402,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL",
+            num: 403,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN",
+            num: 404,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NOCTURNE_DANSEURS",
+            num: 405,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR",
+            num: 406,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE",
+            num: 407,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_CARGO",
+            num: 408,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_QUAIS_SBIRES",
+            num: 409,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_RAIKOU",
+            num: 410,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_RAYQUAZA",
+            num: 411,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REGICE",
+            num: 412,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REGIROCK",
+            num: 413,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REGISTEEL",
+            num: 414,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVENGE_STATUE",
+            num: 415,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_BENOU_PORTE",
+            num: 416,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_GARDE_PALAIS",
+            num: 417,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_GOGO_ROMAIN",
+            num: 418,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S04_ADRIEN",
+            num: 419,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN",
+            num: 420,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_SILAS_GROTTE",
+            num: 421,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_STATION_GARDE",
+            num: 422,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_STATION_SBIRES",
+            num: 423,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_SUICUNE",
+            num: 424,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_THOMAS_PHARE",
+            num: 425,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_TOUR_MATHIEU",
+            num: 426,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_VIBER_ADRIEN",
+            num: 427,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZAPDOS",
+            num: 428,
+        ),
+        (
+            name: "FLAG_SIL_HO_OH",
+            num: 429,
+        ),
+        (
+            name: "FLAG_SIL_INTRO_DONE",
+            num: 430,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ADRIEN_CH2",
+            num: 431,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_APEX_FULL_RESTORE",
+            num: 432,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR",
+            num: 433,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX",
+            num: 434,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_APEX_MAX_REVIVE",
+            num: 435,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_APEX_ROMAIN",
+            num: 436,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BIBLIO_MOON_STONE",
+            num: 437,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BIBLIO_SUN_STONE",
+            num: 438,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC",
+            num: 439,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BOIS_ETHER_MIRACLE_SEED",
+            num: 440,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION",
+            num: 441,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BOIS_ETHER_X_DEFEND",
+            num: 442,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BOIS_SOUPIRS_HEART_SCALE",
+            num: 443,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BOIS_SOUPIRS_MIRACLE_SEED",
+            num: 444,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BRICO_LABO_REVIVE",
+            num: 445,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BRICO_LABO_SILICE",
+            num: 446,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BRICO_LABO_TM",
+            num: 447,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_BRICO_POTION",
+            num: 448,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_CASINO_B1F_RARE_CANDY",
+            num: 449,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_CASINO_B1F_SILK",
+            num: 450,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_CASINO_B1F_ULTRA_BALL",
+            num: 451,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_CASINO_COINS_FLOOR",
+            num: 452,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_DEPOT_GREAT_BALL",
+            num: 453,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_DEPOT_METAL_COAT",
+            num: 454,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_DOJO_BLACK_BELT",
+            num: 455,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_DOJO_NANAB",
+            num: 456,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_DOJO_TM_FRUSTRATION",
+            num: 457,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_DOJO_TM_GONFLETTE",
+            num: 458,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_AGGRONITE",
+            num: 459,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_BRACELET",
+            num: 460,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_CACHE_1",
+            num: 461,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_CT_BALL_OMBRE",
+            num: 462,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_EPEE",
+            num: 463,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_ETANG",
+            num: 464,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_GALERIES_1",
+            num: 465,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_GALERIES_2",
+            num: 466,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_LARME_FEE",
+            num: 467,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_LUM",
+            num: 468,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_ORBE",
+            num: 469,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_PIERRE_LIEN",
+            num: 470,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_EVALON_POUDRE",
+            num: 471,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GRIS_ECHEC_IRON",
+            num: 472,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM06_CHARIZARDITE_Y",
+            num: 473,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM06_TM_AEROPIQUE",
+            num: 474,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM07_ALAKAZITE",
+            num: 475,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM07_LUM_BERRY",
+            num: 476,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM1_FRESH_WATER",
+            num: 477,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM1_SUPER_POTION",
+            num: 478,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_GYM2_SOOTHE_BELL",
+            num: 479,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_HERBORISTE_SAMPLE",
+            num: 480,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_LOIC_TM",
+            num: 481,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_MANGA_SQUARE_REVIVE",
+            num: 482,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_MATHIEU_CH1",
+            num: 483,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NEBULA_CACHE_1",
+            num: 484,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NEBULA_CACHE_2",
+            num: 485,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NEBULA_MANECTITE",
+            num: 486,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NEBULA_RESTES",
+            num: 487,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NOCTURNE_FRESH_WATER",
+            num: 488,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NOCTURNE_MAGNET",
+            num: 489,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_NOCTURNE_PIERRE_LIEN",
+            num: 490,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_CORDE_1",
+            num: 491,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_GROTTE_CORDE",
+            num: 492,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL",
+            num: 493,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_GROTTE_PIERRE_LUNE",
+            num: 494,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_GYM_B1F_HYPER_POTION",
+            num: 495,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_GYM_BEC_POINTU",
+            num: 496,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_LUNETTES_NOIRES",
+            num: 497,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_SILO_CALCIUM",
+            num: 498,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_SILO_CORDE",
+            num: 499,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_SILO_FER",
+            num: 500,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_SILO_PIERRE_LIEN",
+            num: 501,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE",
+            num: 502,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_OWLYS_SILO_ZINC",
+            num: 503,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_BRECHE_1",
+            num: 504,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_BRECHE_2",
+            num: 505,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_BRECHE_3",
+            num: 506,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_CAVEAU_GLALITITE",
+            num: 507,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_CENTRALE_ZINC",
+            num: 508,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_CONSEIL_GUERISONS",
+            num: 509,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_CRATERE_AERODACTYLITE",
+            num: 510,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_CRATERE_HOUNDOOMINITE",
+            num: 511,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_GEM_LOIC",
+            num: 512,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_HERACRONITE",
+            num: 513,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_ILE_STARF",
+            num: 514,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_NML_LATIOSITE",
+            num: 515,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_NML_PPMAX",
+            num: 516,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_NML_RAPPELMAX",
+            num: 517,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_NML_TYRANITARITE",
+            num: 518,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_RUINE1_RHUM",
+            num: 519,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_RUINE3_PPUP",
+            num: 520,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_RUINE4_TIMER",
+            num: 521,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_SALAMENCITE",
+            num: 522,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_SCEPTILITE",
+            num: 523,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_SWAMPERTITE",
+            num: 524,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_ZONE404_1",
+            num: 525,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_ZONE404_2",
+            num: 526,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PG_ZONE404_3",
+            num: 527,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PHARE_MAX_ETHER",
+            num: 528,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PHARE_TM_ZENITH",
+            num: 529,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_CALE_HYPER_POTION",
+            num: 530,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_CALE_RHUM",
+            num: 531,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_NAVIRE_POING_CHANCE",
+            num: 532,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_NAVIRE_PP_PLUS",
+            num: 533,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_PERLE",
+            num: 534,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_PIERRE_EAU",
+            num: 535,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_RHUM_PIRATE",
+            num: 536,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PORT_SUPER_BALL",
+            num: 537,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PROLOGUE_BALLS",
+            num: 538,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_PROLOGUE_POTIONS",
+            num: 539,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_HP_UP",
+            num: 540,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_MASTER_BALL",
+            num: 541,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_MULTI_EXP_V2",
+            num: 542,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE",
+            num: 543,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2",
+            num: 544,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_PP_UP",
+            num: 545,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_REVERSE_REVIVAL_HERB",
+            num: 546,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE",
+            num: 547,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S01_ORAN",
+            num: 548,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S01_POKE_BALL",
+            num: 549,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S01_POTION",
+            num: 550,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_ETHER",
+            num: 551,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_GREAT_BALL",
+            num: 552,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_MAGNET",
+            num: 553,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_PARALYZE_HEAL",
+            num: 554,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE",
+            num: 555,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_TM_SHOCK_WAVE",
+            num: 556,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S02_X_SPEED",
+            num: 557,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S04_CORDE",
+            num: 558,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S04_ETHER",
+            num: 559,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S04_HYPER_POTION",
+            num: 560,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S04_PIERRE_LUNE",
+            num: 561,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S04_SUPER_REPOUSSE",
+            num: 562,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_BANC_ULTRA_BALL",
+            num: 563,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR",
+            num: 564,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_GROSSE_PERLE",
+            num: 565,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_PROTECTION",
+            num: 566,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_RAPPEL",
+            num: 567,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_FAILLE_CORDE",
+            num: 568,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_DANSE_PLUIE",
+            num: 569,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_ECAILLE_OCEAN",
+            num: 570,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_PIERRE_EAU",
+            num: 571,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_HYPER_POTION",
+            num: 572,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S05_MAX_REPOUSSE",
+            num: 573,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S06_DRAGON_SCALE",
+            num: 574,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S06_ENCENS",
+            num: 575,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S06_HYPER_POTION",
+            num: 576,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S06_MAX_ETHER",
+            num: 577,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S06_PP_UP",
+            num: 578,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S06_ULTRA_BALL",
+            num: 579,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S07_FULL_HEAL",
+            num: 580,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER",
+            num: 581,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S07_MAX_REVIVE",
+            num: 582,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S07_RARE_CANDY",
+            num: 583,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S07_TWISTED_SPOON",
+            num: 584,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_ROUTE_S07_ULTRA_BALL",
+            num: 585,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S03_ETHER",
+            num: 586,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S03_HARD_STONE",
+            num: 587,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S03_NUGGET",
+            num: 588,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S03_SUPER_POTION",
+            num: 589,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S03_SUPER_REPEL",
+            num: 590,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S08_CACHE_1",
+            num: 591,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S08_CT_LASER_GLACE",
+            num: 592,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S08_ILOT",
+            num: 593,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S08_RACCOURCI",
+            num: 594,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S08_ULTRA_BALL",
+            num: 595,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_CACHE_1",
+            num: 596,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_CONTENEURS",
+            num: 597,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_CT_TONNERRE",
+            num: 598,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_STATION_ELIXIR",
+            num: 599,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_ULTRA_BALL",
+            num: 600,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_UW_1",
+            num: 601,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_UW_2",
+            num: 602,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_UW_3",
+            num: 603,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_S09_UW_4",
+            num: 604,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_STATION_ELIXIR",
+            num: 605,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_1F_FULL_RESTORE",
+            num: 606,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR",
+            num: 607,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_2F_MAX_REVIVE",
+            num: 608,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_2F_PP_UP",
+            num: 609,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_3F_FULL_RESTORE",
+            num: 610,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_4F_FULL_RESTORE",
+            num: 611,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_4F_MAX_REVIVE",
+            num: 612,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_B1F_ELIXIR",
+            num: 613,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_TOUR_HALL_ACCUEIL",
+            num: 614,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_USINE_ETHER",
+            num: 615,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_USINE_METAL_COAT",
+            num: 616,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_USINE_SUPER_REPEL",
+            num: 617,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_VIBER_COIN_CASE",
+            num: 618,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_VIBER_HYPER_POTION",
+            num: 619,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_VIBER_PP_UP",
+            num: 620,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_VIBER_QUICK_CLAW",
+            num: 621,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_VIBER_REVIVE",
+            num: 622,
+        ),
+        (
+            name: "FLAG_SIL_ITEM_YOHAN_TM",
+            num: 623,
+        ),
+        (
+            name: "FLAG_SIL_KEY_ACCES_ALPHA",
+            num: 624,
+        ),
+        (
+            name: "FLAG_SIL_KEY_ACCES_BETA",
+            num: 625,
+        ),
+        (
+            name: "FLAG_SIL_KEY_ACCES_GAMMA",
+            num: 626,
+        ),
+        (
+            name: "FLAG_SIL_LABO_HINT",
+            num: 627,
+        ),
+        (
+            name: "FLAG_SIL_LIBERATION_ARTIKODIN",
+            num: 628,
+        ),
+        (
+            name: "FLAG_SIL_LIBERATION_CELEBI",
+            num: 629,
+        ),
+        (
+            name: "FLAG_SIL_LIBERATION_EVALON",
+            num: 630,
+        ),
+        (
+            name: "FLAG_SIL_LIBERATION_JULIEN",
+            num: 631,
+        ),
+        (
+            name: "FLAG_SIL_LIBERATION_RAIKOU",
+            num: 632,
+        ),
+        (
+            name: "FLAG_SIL_LOGS_ORIGINAUX",
+            num: 633,
+        ),
+        (
+            name: "FLAG_SIL_LOG_01",
+            num: 634,
+        ),
+        (
+            name: "FLAG_SIL_LOG_02",
+            num: 635,
+        ),
+        (
+            name: "FLAG_SIL_LOG_03",
+            num: 636,
+        ),
+        (
+            name: "FLAG_SIL_LOG_04",
+            num: 637,
+        ),
+        (
+            name: "FLAG_SIL_LOG_05",
+            num: 638,
+        ),
+        (
+            name: "FLAG_SIL_LOG_06",
+            num: 639,
+        ),
+        (
+            name: "FLAG_SIL_LOG_07",
+            num: 640,
+        ),
+        (
+            name: "FLAG_SIL_LOG_08",
+            num: 641,
+        ),
+        (
+            name: "FLAG_SIL_LOUNGE_OUVERT",
+            num: 642,
+        ),
+        (
+            name: "FLAG_SIL_MAIL_SILAS",
+            num: 643,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_CALLS",
+            num: 644,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_DEX",
+            num: 645,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_FELEE",
+            num: 646,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_MAP",
+            num: 647,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_OPEN",
+            num: 648,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_PRISE",
+            num: 649,
+        ),
+        (
+            name: "FLAG_SIL_MALLETTE_TRIED",
+            num: 650,
+        ),
+        (
+            name: "FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT",
+            num: 651,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_CASCADE",
+            num: 652,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_COUPE",
+            num: 653,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_ECLATE_ROC",
+            num: 654,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_FILTRE",
+            num: 655,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_FLASH",
+            num: 656,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_FORCE",
+            num: 657,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_MEGA",
+            num: 658,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_PLONGEE",
+            num: 659,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_SURF",
+            num: 660,
+        ),
+        (
+            name: "FLAG_SIL_MODULE_VOL",
+            num: 661,
+        ),
+        (
+            name: "FLAG_SIL_NEBULA_DIVERSION",
+            num: 662,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_GYM_COUR_OK",
+            num: 663,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_GYM_P1",
+            num: 664,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_GYM_P2",
+            num: 665,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_GYM_P3",
+            num: 666,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_GYM_P4",
+            num: 667,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_GYM_P5",
+            num: 668,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_MATHIEU_BROCHETTES",
+            num: 669,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_MATHIEU_RESTE",
+            num: 670,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_MILO",
+            num: 671,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_PLUME",
+            num: 672,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_PORTE_GYM",
+            num: 673,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_SILO_DECIDE",
+            num: 674,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_SILO_NOCTALI_1",
+            num: 675,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_SILO_NOCTALI_2",
+            num: 676,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_SILO_NOCTALI_3",
+            num: 677,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_SILO_VIDE",
+            num: 678,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_VEILLEUR_1",
+            num: 679,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_VEILLEUR_2",
+            num: 680,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_VEILLEUR_3",
+            num: 681,
+        ),
+        (
+            name: "FLAG_SIL_OWLYS_VEILLEUR_4",
+            num: 682,
+        ),
+        (
+            name: "FLAG_SIL_PARDON_ARTHUR",
+            num: 683,
+        ),
+        (
+            name: "FLAG_SIL_PARDON_KIMIKO",
+            num: 684,
+        ),
+        (
+            name: "FLAG_SIL_PARDON_SILAS",
+            num: 685,
+        ),
+        (
+            name: "FLAG_SIL_PG_DEHORS_VU",
+            num: 686,
+        ),
+        (
+            name: "FLAG_SIL_PORT_APPEL_JULIEN",
+            num: 687,
+        ),
+        (
+            name: "FLAG_SIL_PORT_CALE_FUT_1",
+            num: 688,
+        ),
+        (
+            name: "FLAG_SIL_PORT_CALE_FUT_2",
+            num: 689,
+        ),
+        (
+            name: "FLAG_SIL_PORT_CANNE",
+            num: 690,
+        ),
+        (
+            name: "FLAG_SIL_PORT_CROW_GUET",
+            num: 691,
+        ),
+        (
+            name: "FLAG_SIL_PORT_GARDE_DORT",
+            num: 692,
+        ),
+        (
+            name: "FLAG_SIL_PORT_GWADA_BATTU",
+            num: 693,
+        ),
+        (
+            name: "FLAG_SIL_PORT_GWADA_RHUM",
+            num: 694,
+        ),
+        (
+            name: "FLAG_SIL_PORT_GYM_ALCOOTEST",
+            num: 695,
+        ),
+        (
+            name: "FLAG_SIL_PORT_GYM_CONFUS",
+            num: 696,
+        ),
+        (
+            name: "FLAG_SIL_PORT_LIBERE",
+            num: 697,
+        ),
+        (
+            name: "FLAG_SIL_PORT_LIMONADE",
+            num: 698,
+        ),
+        (
+            name: "FLAG_SIL_PORT_SAMUEL_ALLIE",
+            num: 699,
+        ),
+        (
+            name: "FLAG_SIL_PORT_VIEUX_PATCH",
+            num: 700,
+        ),
+        (
+            name: "FLAG_SIL_PORYGON_LIBERE",
+            num: 701,
+        ),
+        (
+            name: "FLAG_SIL_POSTGAME",
+            num: 702,
+        ),
+        (
+            name: "FLAG_SIL_REFLETS_PORTE_OUVERTE",
+            num: 703,
+        ),
+        (
+            name: "FLAG_SIL_RELAIS_ETEINT",
+            num: 704,
+        ),
+        (
+            name: "FLAG_SIL_REVENGE_ALLIE",
+            num: 705,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_BATTU",
+            num: 706,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_EMETTEUR_1",
+            num: 707,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_EMETTEUR_2",
+            num: 708,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_EMETTEUR_3",
+            num: 709,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE",
+            num: 710,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S02_CABLE_1",
+            num: 711,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S02_CABLE_2",
+            num: 712,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S02_CABLE_3",
+            num: 713,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S02_SERVER_MOVED",
+            num: 714,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S04_ADRIEN",
+            num: 715,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S04_M8",
+            num: 716,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S04_MURS",
+            num: 717,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S05_LOKHLASS",
+            num: 718,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S05_PUNCH",
+            num: 719,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S05_SUPER_CANNE",
+            num: 720,
+        ),
+        (
+            name: "FLAG_SIL_ROUTE_S06_RACCOURCI",
+            num: 721,
+        ),
+        (
+            name: "FLAG_SIL_RUNNING_SHOES",
+            num: 722,
+        ),
+        (
+            name: "FLAG_SIL_S01_SIGNAL_SEEN",
+            num: 723,
+        ),
+        (
+            name: "FLAG_SIL_S09_DISJONCTEUR",
+            num: 724,
+        ),
+        (
+            name: "FLAG_SIL_S09_POMPE_A",
+            num: 725,
+        ),
+        (
+            name: "FLAG_SIL_S09_POMPE_B",
+            num: 726,
+        ),
+        (
+            name: "FLAG_SIL_S09_PREMIERE_PLONGEE",
+            num: 727,
+        ),
+        (
+            name: "FLAG_SIL_SAMUEL_PERDU",
+            num: 728,
+        ),
+        (
+            name: "FLAG_SIL_STATION_CONTREMAITRE",
+            num: 729,
+        ),
+        (
+            name: "FLAG_SIL_STUDIO_DECOR_COUPE",
+            num: 730,
+        ),
+        (
+            name: "FLAG_SIL_TICKET_ESPACE",
+            num: 731,
+        ),
+        (
+            name: "FLAG_SIL_TMP_MATHIEU_HEAL",
+            num: 732,
+        ),
+        (
+            name: "FLAG_SIL_TOURNOI_AMIS",
+            num: 733,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_1F_INTRO",
+            num: 734,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_2F_INTRO",
+            num: 735,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_3F_INTRO",
+            num: 736,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_4F_INTRO",
+            num: 737,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_COEUR_PULSE",
+            num: 738,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_OPEN",
+            num: 739,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_RAVITAILLEMENT",
+            num: 740,
+        ),
+        (
+            name: "FLAG_SIL_TOUR_SEUIL_VU",
+            num: 741,
+        ),
+        (
+            name: "FLAG_SIL_USINE_CRATES_MOVED",
+            num: 742,
+        ),
+        (
+            name: "FLAG_SIL_VESTIGE_ARTHUR",
+            num: 743,
+        ),
+        (
+            name: "FLAG_SIL_VESTIGE_KIMIKO",
+            num: 744,
+        ),
+        (
+            name: "FLAG_SIL_VESTIGE_SILAS",
+            num: 745,
+        ),
+        (
+            name: "FLAG_SIL_VIBER_BARRIERE_EST",
+            num: 746,
+        ),
+        (
+            name: "FLAG_SIL_VIBER_BLACKOUT",
+            num: 747,
+        ),
+        (
+            name: "FLAG_SIL_VIBER_NEONS_BLANCS",
+            num: 748,
+        ),
+        (
+            name: "FLAG_SIL_VIBER_NEON_SCANNED",
+            num: 749,
+        ),
+        (
+            name: "FLAG_SIL_ZONE404_OUVERTE",
+            num: 750,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_ADRIEN",
+            num: 751,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_GWADA",
+            num: 752,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_JULIEN",
+            num: 753,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_MALLETTE",
+            num: 754,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_MATHIEU",
+            num: 755,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_SBIRE_A",
+            num: 756,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BAR_SBIRE_B",
+            num: 757,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_ADRIEN",
+            num: 758,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_BRICOLEUSE",
+            num: 759,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_GAMIN",
+            num: 760,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_GWADA",
+            num: 761,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_LINGE",
+            num: 762,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_MATHIEU",
+            num: 763,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_SBIRE",
+            num: 764,
+        ),
+    ],
+)

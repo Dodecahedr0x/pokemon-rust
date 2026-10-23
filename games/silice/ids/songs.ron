@@ -1,0 +1,57 @@
+(
+    base: 610,
+    ids: [
+        (
+            name: "MUS_SIL_ALERTE_BRECHE",
+            num: 610,
+        ),
+        (
+            name: "MUS_SIL_APEX_BRUME",
+            num: 611,
+        ),
+        (
+            name: "MUS_SIL_APEX_SOLO",
+            num: 612,
+        ),
+        (
+            name: "MUS_SIL_AUBE_VRAIE",
+            num: 613,
+        ),
+        (
+            name: "MUS_SIL_BRICO_ACOUSTIQUE",
+            num: 614,
+        ),
+        (
+            name: "MUS_SIL_CREDITS",
+            num: 615,
+        ),
+        (
+            name: "MUS_SIL_ELYSIUM",
+            num: 616,
+        ),
+        (
+            name: "MUS_SIL_FIN",
+            num: 617,
+        ),
+        (
+            name: "MUS_SIL_JULIEN_MESSIE",
+            num: 618,
+        ),
+        (
+            name: "MUS_SIL_NO_MANS_LAND",
+            num: 619,
+        ),
+        (
+            name: "MUS_SIL_VRAI_CIEL",
+            num: 620,
+        ),
+        (
+            name: "MUS_SIL_VS_COCORICO",
+            num: 621,
+        ),
+        (
+            name: "MUS_SIL_VS_POUSSIN",
+            num: 622,
+        ),
+    ],
+)

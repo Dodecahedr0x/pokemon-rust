@@ -275,6 +275,7 @@
             ],
             notes: [
                 "sprite à créer : LOÏC (techwear, gants de cuivre)",
+                "Revanche post-game : voir TRAINER_SIL_LOIC_9 (chapitres/12-post-game.md)",
             ],
         ),
         (
@@ -316,7 +317,6 @@
                 ),
             ],
             notes: [
-                "Revanche post-game : voir TRAINER_SIL_LOIC_9 (chapitres/12-post-game.md)",
                 "classe à créer : AGENT COCKET ; sprite à créer : GOGO (couleurs glitchées)",
             ],
         ),
@@ -1189,6 +1189,7 @@
                 "remplace Xatu (Natu = pré-évolution) ; Prescience frappe 2 tours après",
                 "remplace Hypnomade (Soporifik) ; Distorsion (Gen4) → Hypnose + Mur Lumière",
                 "L\'AS. Méga-Évolue (D-02) grâce à la Méga-Gemme tenue",
+                "Revanche post-game : voir TRAINER_SIL_YOHAN_9 (chapitres/12-post-game.md)",
             ],
         ),
         (

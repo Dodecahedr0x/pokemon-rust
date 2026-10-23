@@ -3870,22 +3870,27 @@
                 (
                     item: "ITEM_TM14",
                     price: 5500,
+                    note: Some("Puissance brute pour le Secteur Delta"),
                 ),
                 (
                     item: "ITEM_TM25",
                     price: 5500,
+                    note: Some("Synergie avec les néons de la ville"),
                 ),
                 (
                     item: "ITEM_TM30",
                     price: 3500,
+                    note: Some("Contre les Spectres de l\'arène"),
                 ),
                 (
                     item: "ITEM_TM35",
                     price: 4000,
+                    note: Some("Indispensable contre les ronces (Ch.1)"),
                 ),
                 (
                     item: "ITEM_TM44",
                     price: 1500,
+                    note: Some("Pour tenir dans le Tunnel de Verre"),
                 ),
             ],
         ),
@@ -3927,8 +3932,10 @@
         ),
         (
             chapter: "03-viber-city",
-            label: "Stand de MATHIEU (place Stroboscope, à partir de `VAR_SIL_STORY` ≥ 32)",
+            label: "Stand de MATHIEU (place Stroboscope, à partir de VAR_SIL_STORY ≥ 32)",
             map: None,
+            condition: Some("place Stroboscope, à partir de VAR_SIL_STORY ≥ 32"),
+            note: Some("Le marchand est un PNJ du stand (MATHIEU l\'aide « bénévolement »)."),
             currency: Money,
             stock: [
                 (
@@ -4037,11 +4044,13 @@
             chapter: "05-owlys",
             label: "Boutique — le Marché Gris (MAP_OWLYS_MARCHE_GRIS, « sbire corrompu »)",
             map: Some("MAP_OWLYS_MARCHE_GRIS"),
+            note: Some("Objets de boost « normalement indisponibles », à prix de contrebande"),
             currency: Money,
             stock: [
                 (
                     item: "ITEM_LUM_BERRY",
                     price: 5000,
+                    note: Some("Remplace le « Masque Protecteur » des notes (pas d\'équivalent Gen3 permanent)"),
                 ),
                 (
                     item: "ITEM_FOCUS_BAND",
@@ -4062,14 +4071,17 @@
                 (
                     item: "ITEM_RARE_CANDY",
                     price: 10000,
+                    note: Some("Cher exprès"),
                 ),
                 (
                     item: "ITEM_SIL_PIERRE_LIEN",
                     price: 3000,
+                    note: Some("D-30 : fait évoluer les Pokémon « par échange » (Kadabra, Machopeur, Gravalanch, Spectrum ; avec l\'objet tenu requis pour les autres). Objet inventé, voir bible"),
                 ),
                 (
                     item: "ITEM_X_ATTACK",
                     price: 300,
+                    note: Some("« tombé du camion », moins cher qu\'ailleurs"),
                 ),
                 (
                     item: "ITEM_X_DEFEND",
@@ -4095,7 +4107,7 @@
         ),
         (
             chapter: "06-manga-square",
-            label: "Konbini de Manga-Square** (`MAP_MANGA_SQUARE_MART`)",
+            label: "Konbini de Manga-Square (MAP_MANGA_SQUARE_MART)",
             map: Some("MAP_MANGA_SQUARE_MART"),
             currency: Money,
             stock: [
@@ -4135,17 +4147,19 @@
         ),
         (
             chapter: "06-manga-square",
-            label: "Stand Shinobi-Gear** (Dojo) — boutique spécialisée",
+            label: "Stand Shinobi-Gear (Dojo) — boutique spécialisée",
             map: None,
             currency: Money,
             stock: [
                 (
                     item: "ITEM_FOCUS_BAND",
                     price: 6000,
+                    note: Some("« Laisse 1 PV si le POKéMON est fier » (10 % en Gen3)"),
                 ),
                 (
                     item: "ITEM_SMOKE_BALL",
                     price: 3000,
+                    note: Some("Fuite garantie, très ninja"),
                 ),
                 (
                     item: "ITEM_QUICK_CLAW",
@@ -4154,8 +4168,28 @@
             ],
         ),
         (
+            chapter: "06-manga-square",
+            label: "Stand Bouffe",
+            map: None,
+            currency: Money,
+            stock: [
+                (
+                    item: "ITEM_FRESH_WATER",
+                    price: 200,
+                ),
+                (
+                    item: "ITEM_SODA_POP",
+                    price: 300,
+                ),
+                (
+                    item: "ITEM_LEMONADE",
+                    price: 350,
+                ),
+            ],
+        ),
+        (
             chapter: "07-reverse-city",
-            label: "Supermarché Cocket** (`MAP_REVERSE_CITY_MART`) — « Boosts en gros, prix en petit »",
+            label: "Supermarché Cocket (MAP_REVERSE_CITY_MART) — « Boosts en gros, prix en petit »",
             map: Some("MAP_REVERSE_CITY_MART"),
             currency: Money,
             stock: [
@@ -4207,7 +4241,7 @@
         ),
         (
             chapter: "10-tour-piliers",
-            label: "Boutique de l\'intendant (1F, palier).** Ouverte tant que le joueur est au 1F.",
+            label: "Boutique de l\'intendant (1F, palier). Ouverte tant que le joueur est au 1F.",
             map: None,
             currency: Money,
             stock: [
