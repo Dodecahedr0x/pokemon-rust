@@ -31,8 +31,6 @@ pub const CANVAS_BASE: u16 = 192;
 const CANVAS_TILES: usize = 512 - CANVAS_BASE as usize;
 /// Gen3 `sProcessInputDelay` for a multichoice: updates before input is read.
 pub const INPUT_DELAY: u8 = 2;
-/// Gen3 `MULTI_B_PRESSED`.
-pub const B_PRESSED: u16 = crate::script::MULTI_B_PRESSED;
 /// Glyphs drawn per frame at most (half on the opening frame). Measured on the GBA (scratch
 /// build, five choices of 34 and 60 glyphs): 91–129 lines of step a frame while drawing; one
 /// whole 20-glyph choice a frame peaked at 195 lines with the window's opening, and whole
@@ -104,8 +102,9 @@ pub struct Multichoice {
     delay: u8,
     /// More than three choices: the cursor wraps (Gen3 `tDoWrap`).
     wrap: bool,
-    /// B answers [`B_PRESSED`] (Gen3 `!tIgnoreBPress`).
-    cancel: bool,
+    /// What B answers (`SpecialIds::multichoice_cancel`); `None`: B does nothing (Gen3
+    /// `tIgnoreBPress`).
+    cancel: Option<u16>,
 }
 
 /// What an update of the menu decided.
@@ -113,7 +112,7 @@ pub struct Multichoice {
 pub enum Choice {
     /// Still open.
     Open,
-    /// Closed with this answer (a choice index, or [`B_PRESSED`]).
+    /// Closed with this answer (a choice index, or the cancel answer).
     Done(u16),
 }
 
@@ -122,8 +121,8 @@ fn screen_block() -> u8 {
 }
 
 impl Multichoice {
-    /// Gen3 `ScriptMenu_MultichoiceWithDefault(left, top, list, ignoreBPress = !cancel,
-    /// default)`: lays the window out (width from the longest choice, moved left to fit
+    /// Gen3 `ScriptMenu_MultichoiceWithDefault(left, top, list, ignoreBPress = cancel.is_none(),
+    /// default)`, B answering `cancel`: lays the window out (width from the longest choice, moved left to fit
     /// [`MAX_WIDTH`]) and clears it; [`Multichoice::update`] then draws it. An out-of-range
     /// `default` starts on the first choice (Gen3 `InitMenu`). Choices that do not fit the
     /// screen or the canvas are left out.
@@ -133,7 +132,7 @@ impl Multichoice {
         items: &'static [&'static [u8]],
         (left, top): (u8, u8),
         default: u8,
-        cancel: bool,
+        cancel: Option<u16>,
     ) -> Self {
         let px = (items.iter()).fold(0, |w, t| w.max(text_width(font, t)));
         let width = tile_width(px);
@@ -201,10 +200,10 @@ impl Multichoice {
         let to = if pressed.contains(Buttons::A) {
             return self.close(self.cursor as u16, f);
         } else if pressed.contains(Buttons::B) {
-            if !self.cancel {
+            let Some(answer) = self.cancel else {
                 return Choice::Open;
-            }
-            return self.close(B_PRESSED, f);
+            };
+            return self.close(answer, f);
         } else if pressed.contains(Buttons::UP) {
             match self.cursor {
                 0 if self.wrap => count - 1,
@@ -337,7 +336,7 @@ impl Multichoice {
             (self.pen_x >> 8) as u8,
             self.cursor,
             self.delay,
-            self.wrap as u8 | (self.cancel as u8) << 1,
+            self.wrap as u8 | (self.cancel.is_some() as u8) << 1,
         ]);
     }
 }

@@ -195,8 +195,7 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         }
         id if id == SPECIAL_ScriptMenu_CreatePCMultichoice => {
             degraded(ctx, id).await;
-            ctx.set_var(VAR_RESULT, engine::script::MULTI_B_PRESSED)
-                .await;
+            ctx.set_var(VAR_RESULT, crate::MULTI_B_PRESSED).await;
         }
         id if id == SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial => {
             degraded(ctx, id).await;

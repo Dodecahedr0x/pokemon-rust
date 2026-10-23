@@ -152,10 +152,11 @@ impl World {
                 }
             })?;
         check_objects_against_templates(w, &templates)?;
-        let bag = Bag::from_snapshot(&w.bag).map_err(RestoreError::Invalid)?;
+        let ids = game.special_ids();
+        let bag = Bag::from_snapshot(&w.bag, ids.pocket_slots).map_err(RestoreError::Invalid)?;
         let str_vars = StrVars::from_snapshot(&w.str_vars).map_err(RestoreError::Invalid)?;
-        if w.money > MAX_MONEY {
-            return Err(RestoreError::Invalid("money over Gen3 MAX_MONEY"));
+        if w.money > ids.max_money {
+            return Err(RestoreError::Invalid("money over the game's max_money"));
         }
         let mut world = World {
             frame: w.frame,
@@ -228,9 +229,6 @@ impl World {
         f
     }
 }
-
-/// Gen3 `MAX_MONEY`.
-pub(super) const MAX_MONEY: u32 = 999_999;
 
 fn warp_dest_snap(d: WarpDest) -> WarpDestSnap {
     WarpDestSnap {

@@ -94,6 +94,14 @@ pub const BUILD_ID: u64 = include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
 /// Script id of the new-game script ([`new_game::new_game`]); never a generated id.
 pub const NEW_GAME_SCRIPT: ScriptId = ScriptId(u16::MAX);
 
+/// Gen3 `MAX_MONEY` (`include/constants/global.h`).
+pub const MAX_MONEY: u32 = 999_999;
+/// Gen3 `MULTI_B_PRESSED` (`include/constants/script_menu.h`): a multichoice's answer to B.
+pub const MULTI_B_PRESSED: u16 = 127;
+/// Gen3 `BAG_ITEMS_COUNT`, `BAG_KEYITEMS_COUNT`, `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT` and
+/// `BAG_BERRIES_COUNT` (`include/constants/global.h`), in `Pocket::ALL` order.
+pub const POCKET_SLOTS: [u8; 5] = [30, 30, 16, 64, 46];
+
 /// Flags Gen3 `ClearTempFieldEventData` clears on every map change.
 static CLEARED_ON_MAP_CHANGE: [FlagId; 5] = [
     consts::FLAG_SYS_ENC_UP_ITEM,
@@ -173,6 +181,9 @@ impl GameData for Emerald {
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
             // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
             script_whiteout: data::SCRIPT_WHITEOUT,
+            max_money: MAX_MONEY,
+            multichoice_cancel: MULTI_B_PRESSED,
+            pocket_slots: POCKET_SLOTS,
         }
     }
 

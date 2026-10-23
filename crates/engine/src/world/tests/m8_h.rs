@@ -5,7 +5,7 @@
 use super::*;
 use crate::battle::test_data::{NORMAL, TABLES, TACKLE};
 use crate::menu::{INPUT_DELAY, MAX_WIDTH};
-use crate::script::{BufferSrc, MULTI_B_PRESSED};
+use crate::script::BufferSrc;
 use crate::str_vars::STR_VAR_LEN;
 
 /// Glyph bytes the synthetic font draws (it has glyphs 0..4).
@@ -231,7 +231,7 @@ fn unknown_items_answer_false_and_report_item_none_answers_false() {
             Report::Degraded("checkitem: unknown item"),
         ]
     );
-    assert_eq!(w.bag(), &crate::bag::Bag::new());
+    assert_eq!(w.bag(), &crate::bag::Bag::new(POCKET_SLOTS));
 }
 
 #[test]

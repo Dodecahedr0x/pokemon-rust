@@ -501,6 +501,16 @@ pub struct SpecialIds {
     pub var_wild_set: Option<VarId>,
     /// Run immediately after a whiteout (Gen3 `EventScript_WhiteOut`, from `DoWhiteOut`).
     pub script_whiteout: Option<ScriptId>,
+    /// The money cap (Gen3 `MAX_MONEY`): money added (scripts, prize money) stops there and a
+    /// restore refuses more. 0 for a game without money.
+    pub max_money: u32,
+    /// A multichoice's answer when B cancels it (Gen3 `MULTI_B_PRESSED`), also the answer of a
+    /// multichoice the engine cannot show.
+    pub multichoice_cancel: u16,
+    /// Slots per bag pocket, in [`Pocket::ALL`] order (Gen3 `BAG_ITEMS_COUNT`,
+    /// `BAG_KEYITEMS_COUNT`, `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT`, `BAG_BERRIES_COUNT`). All 0
+    /// for a game without a bag.
+    pub pocket_slots: [u8; 5],
 }
 
 /// Everything game-specific the engine reads. Implemented by the `content` crate.
