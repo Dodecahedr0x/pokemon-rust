@@ -868,6 +868,9 @@ fn dynamic_warps_take_warp_127() {
     e.apply(&warp(0, 0, MAP_DYNAMIC, 127)).unwrap();
     assert_eq!(texts(e.doc()), Vec::<String>::new());
     let mut d = e.doc().clone();
+    // `WARP_ID_SECRET_BASE` (the secret bases' exits on the full import).
+    d.map.warps[0].dest_warp = 126;
+    assert_eq!(texts(&d), Vec::<String>::new());
     d.map.warps[0].dest_warp = 3;
     assert_eq!(
         texts(&d),

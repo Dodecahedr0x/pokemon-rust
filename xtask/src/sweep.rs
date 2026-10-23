@@ -17,7 +17,7 @@
 //! events (`World::events_dropped`).
 //!
 //! `cargo xtask sweep --studio` runs the studio's `#[ignore]`d whole-game tests (map renders,
-//! cells, overlays, encounters) in release. `cargo xtask sweep --repro` builds `content` twice
+//! cells, overlays, encounters, the map editor's renders) in release. `cargo xtask sweep --repro` builds `content` twice
 //! (native debug, its `$OUT_DIR` cleaned each time) and fails on any byte of difference.
 
 use anyhow::{Context, Result, bail, ensure};
@@ -418,6 +418,8 @@ fn studio() -> Result<()> {
         "map_view",
         "--test",
         "data_views",
+        "--test",
+        "map_edit",
         "--",
         "--ignored",
     ]))
