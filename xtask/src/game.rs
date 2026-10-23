@@ -8,6 +8,13 @@
 //! roots) read `content::FLAVOR`: when the running xtask was built for another flavour, it
 //! re-runs itself through `cargo run -p xtask` under the new `PKR_GAME` (once: [`REEXEC`]).
 //! Without the flag the inherited `PKR_GAME` applies, as before.
+//!
+//! **Target dirs.** Content is built once per target dir, so a flavour switch rebuilds content
+//! and every crate above it. The re-run for Silice therefore builds in `target/silice`
+//! ([`SILICE_TARGET`], unless `CARGO_TARGET_DIR` is set), it and its child cargo invocations,
+//! and the GBA build has its own Silice dir too (`gba_target` in `main.rs`): `--game silice` and
+//! a plain (Emerald) `cargo xtask` keep their builds. A plain `PKR_GAME=silice cargo …` still
+//! shares `target/` with Emerald.
 
 use anyhow::{Context, Result, bail};
 use content::Flavor;
@@ -19,6 +26,9 @@ const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, Flavor::Sili
 /// Set on the re-run, so a build that still is not the asked flavour (no extract: the stub)
 /// fails instead of re-running forever.
 const REEXEC: &str = "PKR_XTASK_GAME";
+
+/// The host target dir of the Silice re-run, under the workspace root (module docs).
+const SILICE_TARGET: &str = "target/silice";
 
 /// A `--game` value.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -93,6 +103,10 @@ pub fn take(args: &mut Vec<String>) -> Result<Option<Game>> {
 /// Applies `--game` (module docs): returns `Some(exit code)` when this run re-ran itself for the
 /// asked flavour (the caller exits with it), `None` to go on with `args` (the flag removed).
 pub fn select(args: &mut Vec<String>) -> Result<Option<i32>> {
+    // Read once and cleared, so that the commands' own child processes do not inherit it.
+    let reexec = std::env::var_os(REEXEC).is_some();
+    // SAFETY: at the start of `main`, before any thread is spawned.
+    unsafe { std::env::remove_var(REEXEC) };
     let all = args.clone();
     let Some(game) = take(args)? else {
         return Ok(None);
@@ -108,7 +122,7 @@ pub fn select(args: &mut Vec<String>) -> Result<Option<i32>> {
         }
         return Ok(None);
     }
-    if std::env::var_os(REEXEC).is_some() {
+    if reexec {
         bail!(
             "--game {}: xtask re-ran under PKR_GAME={} but content still built the {} flavour \
              (Silice needs an extract: run `cargo xtask extract`)",
@@ -133,6 +147,9 @@ pub fn select(args: &mut Vec<String>) -> Result<Option<i32>> {
         Game::Emerald => cmd.env_remove("PKR_GAME"),
         Game::Silice => cmd.env("PKR_GAME", game.name()),
     };
+    if game == Game::Silice && std::env::var_os("CARGO_TARGET_DIR").is_none() {
+        cmd.env("CARGO_TARGET_DIR", crate::root().join(SILICE_TARGET));
+    }
     let status = cmd.status().with_context(|| format!("spawning {cmd:?}"))?;
     Ok(Some(status.code().unwrap_or(1)))
 }
