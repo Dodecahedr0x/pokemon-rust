@@ -66,7 +66,7 @@ pub fn text_named(name: &str) -> Option<TextId> {
 /// `ITEM_NONE` and unknown items. (Task H, as [`text_named`].)
 pub fn item_pocket(item: u16) -> Option<engine::data::Pocket> {
     use engine::data::GameData;
-    crate::Emerald::default()
+    crate::Game::for_shells()
         .item(ItemId(item))
         .map(|i| i.pocket)
 }

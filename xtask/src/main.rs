@@ -248,7 +248,7 @@ fn parity(args: &[String]) -> Result<()> {
     );
     // The committed tree must replay to its nodes before the ROM is compared against native.
     checkpoints::verify(
-        &game_native::store::Store::default_root(content::STUB),
+        &game_native::store::Store::default_root(content::FLAVOR),
         false,
     )?;
     rom()?;

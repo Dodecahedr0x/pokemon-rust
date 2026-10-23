@@ -230,6 +230,7 @@ dependencies = [
  "anyhow",
  "engine",
  "extract",
+ "syn 2.0.119",
 ]
 
 [[package]]

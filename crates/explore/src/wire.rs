@@ -588,6 +588,19 @@ pub fn finding_trace<G: GameData + Clone>(
     finding_trace_at(game, db, root.as_ref(), id, before)
 }
 
+/// [`finding_trace`] and the db's root it starts from ([`db_root`]; `None`: a new game), for
+/// callers that open the trace from the root's state (the studio's native pane).
+pub fn finding_trace_with_root<G: GameData + Clone>(
+    game: &G,
+    db: &Db,
+    id: i64,
+    before: u32,
+) -> anyhow::Result<(FindingRow, Trace, Option<Root>)> {
+    let root = db_root(game, db)?;
+    let (row, trace) = finding_trace_at(game, db, root.as_ref(), id, before)?;
+    Ok((row, trace, root))
+}
+
 /// [`finding_trace`] from `root`, the db's root ([`db_root`]) loaded once by the caller.
 fn finding_trace_at<G: GameData + Clone>(
     game: &G,

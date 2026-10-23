@@ -34,6 +34,15 @@ const MOM: u8 = crate::data::FIELD_STRING_BASE + 4;
 const DAD: u8 = crate::data::FIELD_STRING_BASE + 5;
 /// Gen3 `MALE` (`checkplayergender`).
 const MALE: u16 = 0;
+/// The male and the female player's house, ground floor (`GetMomOrDadStringForTVMessage`).
+#[cfg(not(pkr_silice))]
+const PLAYER_HOUSES_1F: [MapId; 2] = [
+    MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F,
+    MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F,
+];
+/// Silice has one player's house.
+#[cfg(pkr_silice)]
+const PLAYER_HOUSES_1F: [MapId; 2] = [MAP_BRICO_BOURG_PLAYER_HOUSE_1F; 2];
 
 /// Reports `id` as run in a simplified way (its decomp name).
 async fn degraded(ctx: &Ctx, id: u16) {
@@ -144,10 +153,11 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         }
         id if id == SPECIAL_StartWallyTutorialBattle => degraded(ctx, id).await,
         id if id == SPECIAL_GetMomOrDadStringForTVMessage => {
+            let [male_house, female_house] = PLAYER_HOUSES_1F;
             let house = if check_player_gender(ctx).await == MALE {
-                MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F
+                male_house
             } else {
-                MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F
+                female_house
             };
             if ctx.current_map().await == house {
                 ctx.set_var(VAR_TEMP_3, 1).await;

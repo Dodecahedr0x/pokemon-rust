@@ -64,6 +64,7 @@ fn content_tests(extracted: &Path, target: &Path, extra: &[&str]) -> String {
         .current_dir(workspace())
         .env_remove("CARGO_TARGET_DIR")
         .env_remove("CARGO_BUILD_TARGET_DIR")
+        .env_remove("PKR_GAME")
         .env("PKR_EXTRACTED_DIR", extracted)
         .args(["test", "-p", "content", "--lib", "--target-dir"])
         .arg(target)

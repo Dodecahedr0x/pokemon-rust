@@ -301,7 +301,7 @@ mod tests {
             println!("skipped: {}", content::STALE_EXTRACT_MSG);
             return;
         }
-        let committed = Store::default_root(content::STUB);
+        let committed = Store::default_root(content::FLAVOR);
         let local = temp_root("committed");
         // The committed tree as the base: verify writes only the local status and snapshots.
         let store = Store::layered(&committed, &local).unwrap();

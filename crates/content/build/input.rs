@@ -74,6 +74,23 @@ pub struct World {
     pub tables: Tables,
     /// The emote pics (`sprites/field_effects/`, Task A).
     pub emotes: Vec<EmoteIn>,
+    /// A game authored outside the extract (the Silice flavour, SIL1); `None` for the stub and
+    /// Emerald. With it, `maps` are the authored maps and `ir` is `None`.
+    pub authored: Option<AuthoredIn>,
+}
+
+/// What an authored game (`build/silice/`) gives the shared generator. Flavour-neutral plain
+/// data and deliberately small: the flavour's own build code (`build/silice/`, which only the
+/// Silice `BUILD_ID` hashes) computes it, and writes its own script files
+/// (`build/silice/dispatch.rs`), so that its changes never touch the files Emerald hashes.
+#[derive(Clone, Debug, Default)]
+pub struct AuthoredIn {
+    /// Every script name, in `ScriptId` order.
+    pub script_names: Vec<String>,
+    /// Constants of the game's own ids, `(name, type, value)`; they replace Emerald's `MAP_*`.
+    pub consts: Vec<(String, &'static str, String)>,
+    /// The new game's map (file name) and cell.
+    pub start: (String, i16, i16),
 }
 
 /// `read_ron` of a file added within the format (`FORMAT_MINOR`), or the default when an older
@@ -181,6 +198,16 @@ pub fn format_of(manifest: &Path) -> Option<u32> {
 /// Reads an extracted dir written by `cargo xtask extract` (plus Task B's scripts and texts
 /// when present).
 pub fn load(dir: &Path) -> Result<World> {
+    load_with(dir, true)
+}
+
+/// [`load`] without the Emerald game: no maps, no script IR. The Silice flavour's base
+/// assets (tilesets, sprites, font, window, texts, battle data, tables, emotes).
+pub fn load_assets(dir: &Path) -> Result<World> {
+    load_with(dir, false)
+}
+
+fn load_with(dir: &Path, game: bool) -> Result<World> {
     let manifest: Manifest = read_ron(&dir.join("manifest.ron"))?;
     ensure!(
         manifest.format == FORMAT_VERSION,
@@ -207,11 +234,14 @@ pub fn load(dir: &Path) -> Result<World> {
         );
     }
     let lang = lang(&manifest.language)?;
-    let maps = manifest
-        .maps
-        .iter()
-        .map(|m| read_map(dir, m))
-        .collect::<Result<Vec<_>>>()?;
+    let maps = match game {
+        true => manifest
+            .maps
+            .iter()
+            .map(|m| read_map(dir, m))
+            .collect::<Result<Vec<_>>>()?,
+        false => Vec::new(),
+    };
     let mut tilesets = Vec::new();
     for name in &manifest.tilesets {
         let file = read_tileset(dir, name)?;
@@ -273,7 +303,10 @@ pub fn load(dir: &Path) -> Result<World> {
             texts.insert(k, bytes);
         }
     }
-    let ir = crate::scripts::read_ir(dir, &manifest)?;
+    let ir = match game {
+        true => crate::scripts::read_ir(dir, &manifest)?,
+        false => None,
+    };
     let tables = read_tables(dir)?;
     let emotes = read_emotes(dir)?;
     let battle = if dir.join("battle/species.ron").exists() {
@@ -297,6 +330,7 @@ pub fn load(dir: &Path) -> Result<World> {
         battle,
         tables,
         emotes,
+        authored: None,
     })
 }
 
