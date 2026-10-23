@@ -564,9 +564,9 @@ impl GameData for Game {
         battle::heal_location(id)
     }
 
-    /// Gen3's HM moves (`sHMMoves`, `IsHMMove2`): what `ITEM_HM01..08` teach.
+    /// Gen3's HM moves (`sHMMoves`, `IsHMMove2`).
     fn is_hm_move(&self, m: engine::data::MoveId) -> bool {
-        (0..8).any(|i| self.tm_move(engine::data::ItemId(consts::ITEM_HM01 + i)) == Some(m))
+        data::HM_MOVES.contains(&m)
     }
 
     /// The HMs' field moves and their badges (Gen3 `sFieldMoves`, the party menu's
@@ -574,7 +574,7 @@ impl GameData for Game {
     /// Smash 3, Strength 4, Surf 5, Fly 6, Dive 7, Waterfall 8); the move is the HM's.
     fn field_move_gate(&self, m: engine::data::FieldMove) -> engine::data::FieldMoveGate {
         use engine::data::FieldMove as F;
-        // (`ITEM_HM0n` - 1, badge - 1).
+        // (HM number - 1, badge - 1).
         let (hm, badge) = match m {
             F::Cut => (0, 0),
             F::Fly => (1, 5),
@@ -586,12 +586,9 @@ impl GameData for Game {
             F::Dive => (7, 6),
             _ => return engine::data::FieldMoveGate::Never,
         };
-        match self.tm_move(engine::data::ItemId(consts::ITEM_HM01 + hm)) {
-            Some(move_id) => engine::data::FieldMoveGate::PartyMove {
-                move_id,
-                badge: Some(FlagId(consts::FLAG_BADGE01_GET.0 + badge)),
-            },
-            None => engine::data::FieldMoveGate::Never,
+        engine::data::FieldMoveGate::PartyMove {
+            move_id: data::HM_MOVES[hm],
+            badge: Some(FlagId(consts::FLAG_BADGE01_GET.0 + badge)),
         }
     }
 

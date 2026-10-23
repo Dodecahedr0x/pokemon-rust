@@ -711,6 +711,23 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// `EventScript_UseSurf` (`GetInteractedWaterScript`), when the scripts have it (Wave C).\npub const SCRIPT_USE_SURF: Option<ScriptId> = {};",
         surf.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
+    // Gen3 `sHMMoves` / `gTMHMMoves[50..58]`: HM01..HM08's moves (decomp names).
+    let hms = [
+        "MOVE_CUT",
+        "MOVE_FLY",
+        "MOVE_SURF",
+        "MOVE_STRENGTH",
+        "MOVE_FLASH",
+        "MOVE_ROCK_SMASH",
+        "MOVE_WATERFALL",
+        "MOVE_DIVE",
+    ]
+    .map(|n| names::MOVES.value(n).map_or(0, |v| v as u16));
+    writeln!(
+        o,
+        "/// HM01..HM08's moves (Gen3 `sHMMoves`, by `ITEM_HM0n`; Wave C).\npub static HM_MOVES: [MoveId; 8] = [{}];",
+        hms.map(|v| format!("MoveId({v})")).join(", ")
+    )?;
     let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
     writeln!(
         o,

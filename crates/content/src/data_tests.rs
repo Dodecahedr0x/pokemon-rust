@@ -968,3 +968,24 @@ fn the_map_sample_is_one_list() {
 
 #[path = "battle_tests.rs"]
 mod battle_tests;
+
+/// Gen3 `sHMMoves` (`IsHMMove2`) and the HM gates (`GetInteractedWaterScript`, the party
+/// menu's `SetUpFieldMove_*`), when the ROM data is in.
+#[test]
+fn hm_moves_and_field_move_gates() {
+    if STUB {
+        return;
+    }
+    let (surf, rock_smash) = (data::HM_MOVES[2], data::HM_MOVES[5]);
+    assert_eq!((surf, rock_smash), (MoveId(57), MoveId(249)));
+    assert!(Emerald.is_hm_move(surf) && Emerald.is_hm_move(rock_smash));
+    assert!(!Emerald.is_hm_move(MoveId(1)));
+    assert_eq!(
+        Emerald.field_move_gate(FieldMove::Surf),
+        FieldMoveGate::PartyMove {
+            move_id: surf,
+            badge: Some(consts::FLAG_BADGE05_GET),
+        }
+    );
+    assert!(Emerald.field_move_script(FieldMove::Surf).is_some());
+}
