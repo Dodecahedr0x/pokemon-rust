@@ -1,5 +1,7 @@
-// Silice Ch7, MAP_REVERSE_CITY: Reverse-City, le Secteur Eta (40 x 36, the source's size). General +
-// Sootopolis (Emerald tilesets by name): Sootopolis is Emerald's city at the bottom of a crater, which is
-// the source's covered crater; its white rock, ridges, towers and pond water become the negative city
-// (palette pending). General adds the Centre, the Mart, tall grass and signs. Border: crater rock.
-(name: "ReverseCity", width: 40, height: 36, primary: "General", secondary: "Sootopolis", fill: 729, fill_collision: 1, border: [729, 729, 729, 729])
+// Silice Ch7, MAP_REVERSE_CITY: Reverse-City, le Secteur Eta (40 x 36, the source's size): the
+// upside-down city at the bottom of a covered crater, a negative of the earlier towns. General (Emerald,
+// by name) + SilReverseCity (original, games/silice/tilesets): dark paving, blue grass and lawns, red
+// quay water, black walls under mint green roofs, houses on their roofs and hanging from the crater's
+// ceiling, the black-mirror Palais, the Supermarche Cocket, the Porte Eta-Nord, mirror signs. Border:
+// the crater wall, blocked.
+(name: "ReverseCity", width: 40, height: 36, primary: "General", secondary: "SilReverseCity", fill: 640, fill_collision: 1, border: [640, 640, 640, 640])

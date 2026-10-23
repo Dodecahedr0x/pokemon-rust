@@ -26,9 +26,9 @@
     Object(x: 20, y: 26, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_REVERSE_DOCKER", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ReverseCity_EventScript_Docker"),
     Object(x: 5, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_REVERSE_GARDE_PALAIS", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ReverseCity_EventScript_GardePalais", flag: "FLAG_SIL_HIDE_REVERSE_GARDE_PALAIS"),
     // The Emetteurs de Confusion, as the source's fallback trainer objects (sight 2).
-    Object(x: 3, y: 12, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_REVERSE_EMETTEUR1", local_id: 10, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ReverseCity_EventScript_Emetteur1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
-    Object(x: 36, y: 12, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_REVERSE_EMETTEUR2", local_id: 11, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ReverseCity_EventScript_Emetteur2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
-    Object(x: 12, y: 34, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_REVERSE_EMETTEUR3", local_id: 12, movement: "MOVEMENT_TYPE_FACE_UP", script: "ReverseCity_EventScript_Emetteur3", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 3, y: 12, gfx: "OBJ_EVENT_GFX_SIL_EMETTEUR", id: "LOCALID_REVERSE_EMETTEUR1", local_id: 10, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ReverseCity_EventScript_Emetteur1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 36, y: 12, gfx: "OBJ_EVENT_GFX_SIL_EMETTEUR", id: "LOCALID_REVERSE_EMETTEUR2", local_id: 11, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ReverseCity_EventScript_Emetteur2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 12, y: 34, gfx: "OBJ_EVENT_GFX_SIL_EMETTEUR", id: "LOCALID_REVERSE_EMETTEUR3", local_id: 12, movement: "MOVEMENT_TYPE_FACE_UP", script: "ReverseCity_EventScript_Emetteur3", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     // The alley sbire stands at the alley's mouth (10, 9), on the near side of the block he talks about.
     Object(x: 11, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_REVERSE_SBIRE_RUELLE", local_id: 13, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ReverseCity_EventScript_SbireRuelle"),
     Object(x: 10, y: 6, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_REVERSE_BLOC_RUELLE", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ReverseCity_EventScript_BlocRuelle"),
