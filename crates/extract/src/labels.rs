@@ -193,6 +193,18 @@ pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
             root_list.push((pos, off, STD_MODULE.to_string()));
         }
     }
+    // The field scripts C starts (Wave C), in the std scripts' module: functions the content
+    // looks up by name (`EventScript_UseSurf`).
+    if !maps.is_empty() {
+        for (i, off) in roots::field_scripts(rom)?.into_iter().enumerate() {
+            let Some(off) = off else { continue };
+            let pos = roots::field_root_name(i);
+            if decomp.is_some() {
+                std_labels.insert(pos.clone(), roots::FIELD_SCRIPTS[i].to_string());
+            }
+            root_list.push((pos, off, STD_MODULE.to_string()));
+        }
+    }
     let plain = plain_walk(rom, &root_list)?;
     t.reached = plain.reached.clone();
     let mut claims = Vec::new();
