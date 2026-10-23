@@ -4,8 +4,8 @@
 //! (bounded breadth) has the start's map and place (`key::place_region`: map, story flags and
 //! vars). A map without exits is never a finding.
 
-use engine::checkpoint::{Checkpoint, state_digest};
-use engine::data::{GameData, MapId};
+use engine::checkpoint::{Checkpoint, WorldSnapshot, state_digest};
+use engine::data::{GameData, MapId, MovementType};
 use std::collections::{BTreeSet, VecDeque};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -65,6 +65,73 @@ pub fn probe(
         }
     }
     Trap::Trapped { reached }
+}
+
+/// The states after a wait from a state: (place, map, end state), or `None` when the wait
+/// could not end on a capturable frame.
+pub type Wait<'a> = dyn FnMut(&Checkpoint) -> Option<(u64, MapId, Checkpoint)> + 'a;
+
+/// [`probe`], tolerant of objects that block the way for a while (Task N: the wandering aide
+/// of Birch's lab blocks its dead-end corridor for about 1,100 frames, longer than the probe's
+/// own wait). When `start` is trapped and an object of its map walks on its own
+/// ([`walks`]), up to `reprobes` times: `wait` from the last state, then probe again from
+/// there. A wait that leaves the start's place or map frees it; a wait that fails keeps the
+/// verdict. Returns the verdict and how many re-probes ran.
+#[allow(clippy::too_many_arguments)]
+pub fn probe_waiting(
+    start: &Checkpoint,
+    place: u64,
+    map_exits: usize,
+    k: u32,
+    breadth: u32,
+    reprobes: u32,
+    expand_all: &mut ExpandAll<'_>,
+    wait: &mut Wait<'_>,
+) -> (Trap, u32) {
+    let mut trap = probe(start, place, map_exits, k, breadth, expand_all);
+    let map = start.world.field.map;
+    if !matches!(trap, Trap::Trapped { .. }) || !walkers(&start.world) {
+        return (trap, 0);
+    }
+    let mut cp = start.clone();
+    let mut n = 0;
+    while n < reprobes {
+        let Some((r, m, next)) = wait(&cp) else {
+            break;
+        };
+        n += 1;
+        if r != place || m != map {
+            return (Trap::Free, n);
+        }
+        trap = probe(&next, place, map_exits, k, breadth, expand_all);
+        if !matches!(trap, Trap::Trapped { .. }) {
+            break;
+        }
+        cp = next;
+    }
+    (trap, n)
+}
+
+/// Whether a movement type walks off its cell by itself (wanders, walks back and forth or in
+/// a sequence): such an object can block a way out for a while, not for good.
+pub fn walks(m: MovementType) -> bool {
+    matches!(
+        m,
+        MovementType::Wander
+            | MovementType::WanderVertical
+            | MovementType::WanderHorizontal
+            | MovementType::WalkBackAndForth(_)
+            | MovementType::WalkSequence(_)
+    )
+}
+
+/// Whether an object other than the player, visible and not frozen, walks by itself.
+pub fn walkers(w: &WorldSnapshot) -> bool {
+    w.objects
+        .objs
+        .iter()
+        .skip(1)
+        .any(|o| o.visible && !o.frozen && walks(o.movement))
 }
 
 /// Warps + connections.
