@@ -6,17 +6,31 @@
 //! (`content::scripts::<module>::<Name>`, `ScriptId`s in name order), written against
 //! [`prelude`] and naming texts, flags and maps by their generated constants only.
 //!
-//! **Wave 0 stub** (Task E owns this file, [`prelude`] and [`new_game`]): the new game on the
-//! player's bedroom (`data::NEW_GAME`), no story state, the Gen3 system ids; every heal
-//! location and the whiteout respawn lead to the new-game cell; no wild encounters (Task A merges
-//! Silice's).
+//! **Task E** (this file, [`prelude`] and [`new_game`]): the new game, the system ids and the
+//! heal locations come from `games/silice/game.ron` (`build/silice/game.rs`, as the `SIL_*` and
+//! `HEAL_LOCATION_SIL_*` constants of `crate::consts`):
+//! - the new game on `game.ron`'s start cell and facing (`data::NEW_GAME`), with its player
+//!   name (`data::PLAYER_NAME`), running [`new_game::new_game`] (its flags and vars);
+//! - running on `SIL_RUNNING_FLAG` (`FLAG_SIL_RUNNING_SHOES`), the map-change flags of
+//!   `SIL_FLAGS_CLEARED_ON_MAP_CHANGE`, the respawn `SIL_RESPAWN`;
+//! - heal location `n` is `SIL_HEAL_LOCATIONS[n - 1]`;
+//! - no whiteout script and no wild-set var yet.
+//!
+//! **Task A** (`build/silice/{text,data,merge}.rs`): the texts of `text/fr.ron`, Silice's
+//! trainers, wild encounters (by Silice map), items (with their base items' hold effects) and
+//! marts (`data::MARTS`), the map headers and `LOCALID_*`, through the shared `game_data_tables!`.
 
 pub mod new_game;
 pub mod prelude;
 
 #[cfg(test)]
+mod game_tests;
+#[cfg(test)]
 mod tests;
 
+use crate::consts::{
+    SIL_FLAGS_CLEARED_ON_MAP_CHANGE, SIL_HEAL_LOCATIONS, SIL_RESPAWN, SIL_RUNNING_FLAG,
+};
 use crate::{NEW_GAME_SCRIPT, data};
 use engine::data::{GameData, MapId, ScriptId, SpecialIds};
 use engine::script::{Ctx, Script};
@@ -37,15 +51,16 @@ impl GameData for Game {
 
     fn special_ids(&self) -> SpecialIds {
         SpecialIds {
-            // Any id: `heal_location` answers the new-game cell for all (Task E).
-            respawn_default: 0,
+            flag_running: Some(SIL_RUNNING_FLAG),
+            flags_cleared_on_map_change: SIL_FLAGS_CLEARED_ON_MAP_CHANGE,
+            respawn_default: SIL_RESPAWN,
             var_wild_set: None,
             script_whiteout: None,
             ..crate::gen3_special_ids()
         }
     }
 
-    /// The new game: the player's bedroom (`build/silice/mod.rs` `START`).
+    /// The new game: `game.ron`'s start, running [`new_game::new_game`].
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         if id == NEW_GAME_SCRIPT {
             return alloc::boxed::Box::pin(new_game::new_game(ctx));
@@ -53,8 +68,10 @@ impl GameData for Game {
         data::script(id.0, ctx)
     }
 
-    fn heal_location(&self, _id: u8) -> Option<(MapId, i16, i16)> {
-        let (map, x, y) = data::NEW_GAME;
-        Some((map, x, y))
+    /// `game.ron`'s heal location `id` (numbered from 1).
+    fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
+        SIL_HEAL_LOCATIONS
+            .get(usize::from(id).checked_sub(1)?)
+            .copied()
     }
 }

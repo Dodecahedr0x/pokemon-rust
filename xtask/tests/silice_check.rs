@@ -168,12 +168,15 @@ fn text_rules() {
     fails_with(&g, "error[text-missing] Beta_Sc01_Hello");
 
     let (_tmp, g) = imported();
-    plant(&g, "text/fr.ron", "Sign number one.", "Sign \u{2665} one.");
+    plant(&g, "text/fr.ron", "Sign number one.", "Sign \u{2014} one.");
     let out = fails_with(
         &g,
-        "error[text-charmap] Alpha_Sign_1: not in the FR charmap: '\u{2665}'",
+        "error[text-charmap] Alpha_Sign_1: no glyph (FR charmap or font/): '\u{2014}'",
     );
-    assert!(out.contains("glyphs missing from the FR charmap"), "{out}");
+    assert!(
+        out.contains("glyphs in neither the FR charmap nor font/"),
+        "{out}"
+    );
 
     let (_tmp, g) = imported();
     // `{PLAYER}` counts as 7 of the widest capital (6 px here): 30 + 42 + 150 = 222 px.
@@ -194,7 +197,7 @@ fn text_rules() {
         &g,
         "text/fr.ron",
         "Sign number two.",
-        &"\u{2665}".repeat(37),
+        &"\u{2014}".repeat(37),
     );
     let out = fails_with(
         &g,
@@ -267,6 +270,148 @@ fn text_rules() {
     let g = tmp.path().join("games");
     assert!(import(&src2, &g, false).ok);
     fails_with(&g, "error[dynamic-unresolved] Beta_Q<n>_Pick");
+}
+
+/// The authored glyphs (`font/*.ron`, SIL1 Task G): the committed files, on the fixture extract
+/// (every glyph 6 px wide).
+fn with_glyphs(g: &Path) {
+    let font = g.join("font");
+    std::fs::create_dir_all(&font).unwrap();
+    let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../games/silice/font");
+    for e in std::fs::read_dir(&committed).unwrap().flatten() {
+        std::fs::copy(e.path(), font.join(e.file_name())).unwrap();
+    }
+}
+
+/// The glyph file `name` redrawn at `width` (rows padded or cut on the right).
+fn set_width(g: &Path, name: &str, width: usize) {
+    let p = g.join("font").join(format!("{name}.ron"));
+    let mut f: extract::games::font::GlyphFile =
+        ron::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
+    f.width = width as u8;
+    for r in &mut f.rows {
+        *r = format!("{r:.<width$}").chars().take(width).collect();
+    }
+    std::fs::write(&p, ron::to_string(&f).unwrap()).unwrap();
+}
+
+/// The committed glyphs at the fixture extract's widths (every glyph 6 px).
+fn fit_fixture(g: &Path) {
+    set_width(g, "middle_dot", 6);
+    set_width(g, "heart", 6);
+}
+
+#[test]
+fn authored_glyph_rules() {
+    let heart = char::from_u32(0x2665).unwrap();
+    let dot = char::from_u32(0xB7).unwrap();
+    // A redrawn glyph keeps the extract's width (6 in the fixture; 3 and 8 in the FR font).
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    let out = fails_with(
+        &g,
+        "error[font-glyph] font: glyph middle_dot: width 3 but the extract draws 0xAF 6 wide",
+    );
+    assert!(
+        out.contains("glyph heart: width 8 but the extract draws 0x1E7 6 wide"),
+        "{out}"
+    );
+
+    // Both encode; the heart (`{EMOJI_HEART}`, F9 E7) is measured at glyph 0x1E7's width
+    // (6 here): 36 fit in 216 px, 37 make 222.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        &format!("Sign {heart} one {dot} two."),
+    );
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number two.",
+        &heart.to_string().repeat(36),
+    );
+    let r = check(&g, &[]);
+    assert!(r.ok, "{}", r.out);
+    assert!(!r.out.contains("text-charmap"), "{}", r.out);
+    assert!(!r.out.contains("font-glyph"), "{}", r.out);
+    let row = |n: usize| heart.to_string().repeat(n);
+    plant(&g, "text/fr.ron", &row(36), &row(37));
+    fails_with(
+        &g,
+        "error[text-width] Alpha_Sign_2: line 1 is 222 px (max 216)",
+    );
+
+    // In a name a heart costs 2 bytes: 5 hearts are a 10-byte trainer name, 6 are too long.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    plant(
+        &g,
+        "battle/trainers.ron",
+        "name: \"ONE\",",
+        &format!("name: \"{}\",", row(5)),
+    );
+    let r = check(&g, &[]);
+    assert!(r.ok, "{}", r.out);
+    plant(&g, "battle/trainers.ron", &row(5), &row(6));
+    fails_with(&g, "error[trainer-name] TRAINER_SIL_ALPHA_ONE: name");
+
+    // Kana encode in Gen3's charmap (on the reserved bytes among others) but not in Silice.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    let kana = char::from_u32(0x30AC).unwrap();
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        &format!("Sign {kana}."),
+    );
+    fails_with(&g, "error[text-charmap] Alpha_Sign_1");
+
+    // The other missing glyphs still need a ruling.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        &format!("{heart} \u{2014} \u{B0}"),
+    );
+    fails_with(
+        &g,
+        "error[text-charmap] Alpha_Sign_1: no glyph (FR charmap or font/): '\u{B0}' '\u{2014}'",
+    );
+
+    // A code without its glyph, and a glyph without a code.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    std::fs::remove_file(g.join("font/heart.ron")).unwrap();
+    fails_with(
+        &g,
+        "error[font-glyph] font: no glyph file draws '\u{2665}' ([F9, E7])",
+    );
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    plant(&g, "font/heart.ron", &format!("'{heart}'"), "'\u{2014}'");
+    fails_with(&g, "has no code in extract::games::font::CODES");
+
+    // Without `font/` the check runs and says so.
+    let (_tmp, g) = imported();
+    let r = check(&g, &[]);
+    assert!(r.ok, "{}", r.out);
+    assert!(
+        r.out
+            .contains("the authored glyphs encode, drawn with the extract's glyphs"),
+        "{}",
+        r.out
+    );
 }
 
 #[test]
@@ -543,4 +688,43 @@ fn id_file_rules() {
     let (_tmp, g) = imported();
     std::fs::write(g.join("ids/music.ron"), read(&g, "ids/songs.ron")).unwrap();
     fails_with(&g, "error[id-alloc] ids/music.ron");
+}
+
+#[test]
+fn game_ron_heal_locations_are_names_the_scripts_may_use() {
+    let (tmp, g) = imported();
+    let scripts = tmp.path().join("scripts");
+    std::fs::create_dir_all(&scripts).unwrap();
+    std::fs::write(
+        scripts.join("ch00_a.rs"),
+        "pub async fn A(ctx: Ctx) { ctx.set_respawn(HEAL_LOCATION_SIL_HOME).await; }\n",
+    )
+    .unwrap();
+    let ex = extracted();
+    let run = || {
+        xtask(&[
+            "check",
+            "--games",
+            g.to_str().unwrap(),
+            "--extracted",
+            ex.to_str().unwrap(),
+            "--scripts",
+            scripts.to_str().unwrap(),
+        ])
+    };
+    let tag = "error[sil-prefix] HEAL_LOCATION_SIL_HOME";
+    let out = run().out;
+    assert!(out.contains(tag), "{out}");
+    std::fs::write(
+        g.join("game.ron"),
+        "(start: (map: \"AlphaTown\", x: 1, y: 1, facing: Down), \
+         running_flag: \"FLAG_SIL_RUNNING_SHOES\", cleared_on_map_change: [], \
+         heal_locations: [(name: \"HEAL_LOCATION_SIL_HOME\", map: \"AlphaTown\", x: 1, y: 1)], \
+         respawn: \"HEAL_LOCATION_SIL_HOME\", \
+         starters: [\"SPECIES_CHIKORITA\", \"SPECIES_CYNDAQUIL\", \"SPECIES_TOTODILE\"], \
+         starter_level: 5)\n",
+    )
+    .unwrap();
+    let out = run().out;
+    assert!(!out.contains(tag), "{out}");
 }

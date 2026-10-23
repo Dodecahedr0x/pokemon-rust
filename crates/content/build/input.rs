@@ -89,8 +89,10 @@ pub struct AuthoredIn {
     pub script_names: Vec<String>,
     /// Constants of the game's own ids, `(name, type, value)`; they replace Emerald's `MAP_*`.
     pub consts: Vec<(String, &'static str, String)>,
-    /// The new game's map (file name) and cell.
-    pub start: (String, i16, i16),
+    /// The new game's map (file name), cell and facing (`Dir::*`).
+    pub start: (String, i16, i16, &'static str),
+    /// The player's default name (`data::PLAYER_NAME`; Emerald's is SACHA).
+    pub player_name: String,
     /// Every map number of the game by map file name, built or not: encounters and heal
     /// locations name maps by it, never by Emerald's names.
     pub map_numbers: BTreeMap<String, u16>,

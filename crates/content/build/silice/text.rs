@@ -4,8 +4,8 @@
 //!
 //! **Encoding.** The extract's codec (`extract::text::encode_lang`) with its language overlay
 //! (French: `«`/`»` on the bytes English draws as curly quotes), plus the glyph codes of
-//! [`glyph_codes`], the hook for Silice's own glyphs (SIL1 Task G: `♥`, `·`…): each such
-//! character is written as its byte (`{0xNN}` to the codec).
+//! [`glyph_codes`], Silice's own glyphs ([`super::font::GLYPHS`], SIL1 Task G: `♥`, `·`): each such
+//! character is written as its bytes (`{0xNN}` each to the codec); Japanese characters fail.
 //!
 //! **Unencodable characters** fail the build, listing every text and character, unless
 //! `check-exceptions.ron` lists the text (rule `text-charmap`, its id as the subject): then each
@@ -16,8 +16,8 @@
 //! Emerald's `gText_*` and map texts), numbered with the kept Gen3 texts in name order.
 
 use super::load::Exceptions;
-use crate::input::World;
 use anyhow::{Context, Result, bail, ensure};
+use extract::games::font::is_japanese;
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -31,16 +31,16 @@ pub fn read(path: &Path) -> Result<Vec<(String, String)>> {
 /// What an excepted unencodable character becomes.
 pub const PLACEHOLDER: char = '?';
 
-/// **The text-encoder hook (SIL1 Task G).** Silice's own glyphs: each `(character, bytes)` is
-/// encoded as those bytes, one or more (e.g. a 2-byte `{EMOJI_HEART}`), each written `{0xNN}`
-/// before the FR codec runs (what `font::encode` / `extract::games::font::encode_fr` do). Task
-/// G's `font.rs` merges its glyphs into `w`'s font in `world` (`font::merge`, right after
-/// `load_assets`); when it lands, this body returns its table's pairs, e.g.
-/// `Ok(super::font::GLYPHS.iter().map(|&(c, b)| (c, b.to_vec())).collect())` for a
-/// `(char, &[u8])` slice (`(c, vec![b])` for one byte). Every text, trainer, class and item name
-/// goes through [`Encoder`], so nothing else changes. Until then: none (plain `encode_lang`).
-pub fn glyph_codes(_games: &Path, _w: &mut World) -> Result<Vec<(char, Vec<u8>)>> {
-    Ok(Vec::new())
+/// **The text-encoder hook (SIL1 Task G).** Silice's own glyphs, [`super::font::GLYPHS`]:
+/// each `(character, bytes)` is encoded as those bytes (one, or two for the heart's
+/// `{EMOJI_HEART}`), each written `{0xNN}` before the FR codec runs: what `font::encode`
+/// (`extract::games::font::encode_fr`) does, with Japanese characters rejected the same way.
+/// `world` merges the glyphs' pixels into the font (`font::merge`) right after `load_assets`.
+/// Every text, trainer, class and item name goes through [`Encoder`].
+pub fn glyph_codes() -> Vec<(char, Vec<u8>)> {
+    (super::font::GLYPHS.iter())
+        .map(|&(c, b)| (c, b.to_vec()))
+        .collect()
 }
 
 /// The Silice text encoder: the extract's codec for `lang`, plus `glyphs` ([`glyph_codes`]).
@@ -56,6 +56,9 @@ impl Encoder {
 
     /// `s` (decomp `.string` syntax) as Gen3 bytes, 0xFF-terminated.
     pub fn encode(&self, s: &str) -> Result<Vec<u8>> {
+        if let Some(c) = s.chars().find(|&c| is_japanese(c)) {
+            bail!("encoding {s:?}: Japanese character {c:?}");
+        }
         let mut t = String::with_capacity(s.len());
         for c in s.chars() {
             match self.glyphs.iter().find(|g| g.0 == c) {
@@ -72,7 +75,9 @@ impl Encoder {
 
     /// Whether the character `c` alone can be encoded.
     fn char_ok(&self, c: char) -> bool {
-        self.glyphs.iter().any(|g| g.0 == c) || encode_lang(&c.to_string(), self.lang).is_ok()
+        !is_japanese(c)
+            && (self.glyphs.iter().any(|g| g.0 == c)
+                || encode_lang(&c.to_string(), self.lang).is_ok())
     }
 
     /// The characters of `s` outside `{…}` codes and `\` escapes that cannot be encoded, in

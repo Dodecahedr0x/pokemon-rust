@@ -371,9 +371,9 @@ impl IdKind {
 
 /// The Gen3 flags and vars that the code every flavour shares reads or writes: the content
 /// crate root and its `SpecialIds`, the Gen3 prelude (`crates/content/src/prelude/`), the
-/// Silice root (`crates/content/src/silice/{mod,prelude,new_game}.rs`) and `samples.rs`. The
-/// Silice ids never take their numbers ([`IdKind::reserved`]): a Silice var on
-/// `VAR_STARTER_MON` would be overwritten by `choose_starter`. The list is derived from those
+/// Silice root (`crates/content/src/silice/{mod,prelude,new_game}.rs`, with `game.ron`) and
+/// `samples.rs`. The Silice ids never take their numbers ([`IdKind::reserved`]): a Silice var
+/// on `VAR_STARTER_MON` would be overwritten by `choose_starter`. The list is derived from those
 /// sources: `crates/content/tests/sil1_w0_contracts.rs` scans them for every Gen3 `FLAG_*` and
 /// `VAR_*` name and fails when this list differs.
 pub const SHARED_GEN3: &[&str] = &[

@@ -220,6 +220,38 @@ fn write_exceptions(games: &Path, list: &[(&str, &str)]) {
     put_ron!(games, "check-exceptions.ron", &f);
 }
 
+/// The fixture's `game.ron` (Task E's format): the start and heal location on the fixture map,
+/// a reserved Gen3 flag, Gen3 starters.
+fn fixture_game() -> games::GameFile {
+    let flag = (games::SHARED_GEN3.iter())
+        .find(|n| n.starts_with("FLAG_"))
+        .unwrap()
+        .to_string();
+    let species = |n| extract::names::SPECIES.name(n).unwrap().to_string();
+    games::GameFile {
+        start: games::GameStart {
+            map: MAP.into(),
+            x: 1,
+            y: 1,
+            facing: games::Facing::Up,
+        },
+        player_name: "FIX".into(),
+        running_flag: flag,
+        cleared_on_map_change: vec![],
+        heal_locations: vec![games::HealLocation {
+            name: "HEAL_LOCATION_SIL_FIX".into(),
+            map: MAP.into(),
+            x: 2,
+            y: 2,
+        }],
+        respawn: "HEAL_LOCATION_SIL_FIX".into(),
+        starters: vec![species(1), species(2), species(3)],
+        starter_level: 5,
+        new_game_flags: vec![],
+        new_game_vars: vec![],
+    }
+}
+
 /// A fixture extract (the stub world, plus one trainer pic) and games dir and scripts dir:
 /// (extracted, games, scripts).
 fn fixture(name: &str) -> (PathBuf, PathBuf, PathBuf) {
@@ -397,14 +429,12 @@ fn fixture(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     );
     write_texts(&g, &fixture_texts());
     write_exceptions(&g, &[]);
+    put_ron!(&g, "game.ron", &fixture_game());
     (x, g, s)
 }
 
-/// The fixture's world, its new game on the fixture map (`silice::START` is Task E's).
 fn world(f: &(PathBuf, PathBuf, PathBuf), strict: bool) -> anyhow::Result<silice::Silice> {
-    let mut s = silice::world(&f.0, &f.1, &f.2, strict)?;
-    s.world.authored.as_mut().unwrap().start = (MAP.into(), 1, 1);
-    Ok(s)
+    silice::world(&f.0, &f.1, &f.2, strict)
 }
 
 fn err(f: &(PathBuf, PathBuf, PathBuf)) -> String {
@@ -520,6 +550,16 @@ fn the_fixture_loads_every_kind_of_data() {
     assert!(g.data.contains("pub static MARTS: [Mart; 1]"));
     assert!(g.data.contains(&format!("({item:#X}, 1200)")));
     assert!(s.report[0].starts_with("silice: 1 maps, 2 texts, 2 trainers, 1 encounter maps"));
+
+    // `game.ron`'s start, facing and player name reach `data::NEW_GAME` and `PLAYER_NAME`.
+    let game = fixture_game();
+    assert!(g.data.contains(&format!(
+        "pub const NEW_GAME: (MapId, i16, i16, Dir) = (MapId(0x0), {}, {}, {});",
+        game.start.x,
+        game.start.y,
+        silice::game::facing(game.start.facing)
+    )));
+    assert_eq!(a.player_name, game.player_name);
 }
 
 #[test]
@@ -885,6 +925,18 @@ mod flavour {
             }
         }
         assert!(checked > texts.len() / 2);
+    }
+
+    #[test]
+    fn the_new_game_has_game_ron_s_facing_and_player_name() {
+        let g: games::GameFile = extract::export::read_ron(&committed().join("game.ron")).unwrap();
+        let ng = Game.new_game();
+        let name = extract::text::encode_lang(&g.player_name, extract::text::Lang::Fr).unwrap();
+        assert_eq!(ng.player_name, &name[..]);
+        assert_eq!(
+            format!("Dir::{:?}", ng.facing),
+            silice::game::facing(g.start.facing)
+        );
     }
 }
 

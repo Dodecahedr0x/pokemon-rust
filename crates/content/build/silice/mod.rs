@@ -10,21 +10,25 @@
 //! - [`load`]: the maps and layouts, their Gen3 limits, and `check-exceptions.ron`;
 //! - [`merge`]: the maps into the generator's `MapFile`s (names to numbers, headers,
 //!   `LOCALID_*`);
-//! - [`text`]: `text/fr.ron` and the Silice text encoder (with Task G's glyph hook);
+//! - [`text`]: `text/fr.ron` and the Silice text encoder (with [`font`]'s glyphs);
+//! - [`font`]: the authored glyphs (`font/*.ron`) merged into the extract's font (Task G);
+//! - [`game`]: `game.ron`: the new game, system ids and heal locations (Task E);
 //! - [`data`]: trainers, encounters, items and marts;
 //! - [`dispatch`]: the generated script files and the report.
 //!
 //! **World** ([`world`], SIL1 Task A): every map of `maps/` with its layout, numbered by
 //! `ids/maps.ron`, on the extract's tilesets, sprites, font, window, battle data and tables; the
 //! texts of `text/fr.ron` with Gen3's shared `gText_*` ([`STD_TEXT_PREFIX`]); Silice's trainers,
-//! encounters and items instead of Emerald's; no heal location (Task E: `game.ron`); the new
-//! game on [`START`]. The generator sees Silice only through `input::AuthoredIn` (script names,
+//! encounters and items instead of Emerald's; the new game, system ids and heal locations from
+//! `game.ron` ([`game`]). The generator sees Silice only through `input::AuthoredIn` (script names,
 //! id constants, map numbers, item bases, battle rules, the marts, start); the script files are
 //! [`dispatch`]'s. Every placeholder or cut is allowed by `check-exceptions.ron` and listed in
 //! `content::REPORT` ([`Silice::report`]).
 
 pub mod data;
 pub mod dispatch;
+pub mod font;
+pub mod game;
 pub mod ids;
 pub mod load;
 pub mod merge;
@@ -36,9 +40,6 @@ use crate::input::{AuthoredIn, World};
 use anyhow::{Context, Result, bail};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-
-/// The new game: the player's bedroom, in front of the desk (Task E: `game.ron`).
-pub const START: (&str, i16, i16) = ("BricoBourg_PlayerHouse_2F", 4, 3);
 
 /// The extract's texts Silice keeps: Gen3's shared `gText_*` (`data/text/*.inc`), which the
 /// prelude prints by label. `text/fr.ron`'s join them.
@@ -57,6 +58,8 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         load::check_limits(m).with_context(|| format!("map {}", m.map.name))?;
     }
     load::check_warps(&loaded).context("warps")?;
+    let game = game::load(games).context("game.ron")?;
+    game::check(&game, &ids, &loaded).context("game.ron")?;
     let maps = (loaded.iter())
         .map(|m| {
             merge::to_map_file(m, &ids, &mut resolver)
@@ -65,6 +68,7 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         .collect::<Result<Vec<_>>>()?;
     resolver.finish()?;
     let mut w = crate::input::load_assets(extracted)?;
+    font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
     check_assets(&loaded, &w)?;
     w.maps = maps;
     w.ir = None;
@@ -73,11 +77,11 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     for m in &loaded {
         consts.extend(merge::localid_consts(m));
     }
+    consts.extend(game::consts(&game, &ids)?);
 
     // Texts: the Gen3 shared texts the prelude prints by decomp label (`text_named`: obtain
     // item, bag full…), then Silice's; the Emerald map texts go.
-    let glyphs = text::glyph_codes(games, &mut w).context("glyphs")?;
-    let enc = text::Encoder::new(w.lang, glyphs);
+    let enc = text::Encoder::new(w.lang, text::glyph_codes());
     w.texts.retain(|k, _| k.starts_with(STD_TEXT_PREFIX));
     let texts = text::load(games, &enc, &exc, &mut report).context("text/fr.ron")?;
     let text_count = texts.len();
@@ -87,7 +91,8 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         }
     }
 
-    // Battle and items: Silice's replace Emerald's; no heal location yet (Task E).
+    // Battle and items: Silice's replace Emerald's. The extract's heal locations go: Silice's
+    // come from `game.ron` (`heal_location()`, Task E).
     let items = data::items(games, &ids, &exc, &enc, &mut w, &mut report).context("items.ron")?;
     consts.extend(items.consts);
     consts.extend(
@@ -121,7 +126,13 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     w.authored = Some(AuthoredIn {
         script_names: reg.scripts.iter().map(|s| s.name.clone()).collect(),
         consts,
-        start: (START.0.to_string(), START.1, START.2),
+        start: (
+            game.start.map.clone(),
+            game.start.x,
+            game.start.y,
+            game::facing(game.start.facing),
+        ),
+        player_name: game.player_name.clone(),
         map_numbers,
         item_bases: items.bases,
         rules: crate::classify::Rules::SILICE,

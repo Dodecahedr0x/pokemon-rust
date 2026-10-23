@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS key_hit (
 
 CREATE TABLE IF NOT EXISTS node_touch (           -- incremental re-simulation (v1)
   node INTEGER NOT NULL REFERENCES node(id),
-  kind INTEGER NOT NULL,                          -- 0 map, 1 script
+  kind INTEGER NOT NULL,                          -- 0 map, 1 script, 2 events dropped
   id   INTEGER NOT NULL,
   PRIMARY KEY (node, kind, id)
 ) STRICT, WITHOUT ROWID;

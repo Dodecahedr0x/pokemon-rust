@@ -158,7 +158,8 @@ games/silice/                      committed, original only (no ROM-derived byte
   battle/encounters.ron            extract EncountersFile v5 (map name -> Vec of headers)
   battle/heal_locations.ron, items.ron (ITEM_SIL_*: name, pocket, price, key, hold effect/clone_of),
   multichoice.ron, marts.ron, species_forms.ron (SIL3), moves.ron (MOVE_SIL_*, SIL6)
-  font/glyphs.ron + .png           ♥ · (R-11) and any approved extra glyph, original drawings
+  font/<name>.ron                  ♥ · (R-11) and any approved extra glyph, drawn by hand
+                                   (one glyph per file; see "SIL1 Task G as built")
   gfx/…                            original art only (Q3)
 crates/content/src/silice/         cfg(pkr_silice)
   mod.rs                           `impl GameData for Game` (Silice)
@@ -1042,7 +1043,7 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 **What loads (real data).** 6 maps, 1923 texts, 238 trainers, 39 encounter maps, 69 items and 13 marts. The first line of `content::REPORT`'s data part gives these counts; the line after it lists every placeholder and cut.
 
 **Modules.**
-- `text.rs`: reads `text/fr.ron` with `parse_texts`, which fails on a repeated id. The `Encoder` runs the extract codec (FR, with « » from `FR_OVERLAY`) plus the glyph hook `text::glyph_codes(games, w) -> Vec<(char, Vec<u8>)>`. A hook char is written as its bytes, one `{0xNN}` each (one byte, or two for a `{EMOJI_HEART}`); this equals Task G's `font::encode`. Until G lands, the hook returns nothing; then it must return G's `font::GLYPHS` pairs, or the heart texts (whose exceptions G removed) fail. Text constants are `TextId`s named after the `fr.ron` ids. The Gen3 `gText_*` texts stay, and a collision with them fails.
+- `text.rs`: reads `text/fr.ron` with `parse_texts`, which fails on a repeated id. The `Encoder` runs the extract codec (FR, with « » from `FR_OVERLAY`) plus the glyph hook `text::glyph_codes() -> Vec<(char, Vec<u8>)>` (G's `font::GLYPHS`). A hook char is written as its bytes, one `{0xNN}` each (one byte, or two for a `{EMOJI_HEART}`); this equals Task G's `font::encode`. Text constants are `TextId`s named after the `fr.ron` ids. The Gen3 `gText_*` texts stay, and a collision with them fails.
 - `data.rs`:
   - **Trainers** (`battle/trainers.ron`): party, levels, IVs and custom moves (1–4, padded with `MOVE_NONE`), plus held items, AI flags, class and pic. Only the pics in use are compiled, and they must be in the extract. Trainers are numbered by `ids/trainers.ron`; a tombstone or gap is an empty `TRAINER_SIL_NONE_<n>` with a report line. `TRAINER_SIL_*` are `TrainerId`s. The Emerald trainer table goes, except `TRAINER_NONE`.
   - **Encounters** (`battle/encounters.ron`): `wild_encounters`, keyed by Silice map (numbered by `ids/maps.ron`), with slot counts 12/5/5/10.
@@ -1074,6 +1075,15 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 
 **Form changes.** None are emitted. Five form species are named (the Mega Alakazam, Charizard X/Y, Gyarados and Steelix), but none has battle data and no `items.ron` stone maps to a form. Both are needed: the forms' base stats, types and abilities, and each stone's `(base species, form)`.
 
+**After the merge with Tasks E and G.**
+- `text::glyph_codes()` returns G's `font::GLYPHS`: ♥ as `{EMOJI_HEART}` (F9 E7), · as 0xAF. The encoder rejects Japanese characters, as `font::encode` does.
+- `world` runs E's `game::load`/`game::check` after the map limits, and G's `font::merge` right after `load_assets`.
+- From E's review:
+  - `data::NEW_GAME` is now `(MapId, i16, i16, Dir)`, and `game_data_tables!` reads it.
+  - `game.ron` has a `player_name`, the bible's NOOBODY, 1 to 7 characters. It is passed through `AuthoredIn::player_name` to `data::PLAYER_NAME`.
+  - The start faces up, onto the bar counter, and the Down-only check is gone.
+- Emerald keeps `Dir::Down` and SACHA, and its `new_game` digest input is unchanged.
+
 **Texts renamed (provisional, reversible).** The ch09 `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are now `Tour_Sbire1_Intro_Ch09` and `Tour_Sbire2_Intro_Ch09`, in `text/fr.ron` and `text/speakers.ron`. The `text-duplicate` exceptions now name those ids and keep `ruling_needed`. `silice check` flags a `<id>_ChNN` whose `<id>` exists, so the rename stays visible. See open question 6.
 
 **Tests.**
@@ -1085,6 +1095,243 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 - A nested `cargo check` with `PKR_SILICE_DIR` fails on a fixture with an unknown tileset.
 - With a real extract, the committed dir loads with one constant per `LOCALID`, trainer, item and text.
 - Under `cfg(pkr_silice)`, every trainer's party and held items, the encounters, the items' prices and hold effects, `MARTS` and the texts are checked against the RON files.
+
+#### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
+
+Commits:
+- `feat(silice): load game.ron (start, system ids, heal locations, starters, new-game flags) in the build`
+- `feat(content): Silice root, new game and prelude helpers from game.ron`
+- `feat(xtask): silice check knows game.ron's heal locations`
+- a merge of master (M8 Task M) and `docs(plan): SIL1 Task E as built`
+
+Emerald's `BUILD_ID` does not move: every file touched is Silice-only (`src/silice/`, `build/silice/`, `extract/src/games/`, `games/silice/`), a test, or xtask. `content/src/lib.rs` is untouched.
+
+**`games/silice/game.ron`** (format `extract::games::GameFile`, in `extract/src/games/game.rs`; hand-written, never imported):
+
+| Field | Value | Why |
+|---|---|---|
+| `start` | `BricoBourg_Bar` (7, 4), `Down` | Bar_Sc01 opens the game in the Shaker. The source's P (7, 8) is "the free stool in front of the counter"; the built bar's stools are y 4, between Gwada (6, 4) and Adrien (9, 4). |
+| `running_flag` | `FLAG_SIL_RUNNING_SHOES` | Player_House_Sc03: Maman gives the shoes as a flag. |
+| `cleared_on_map_change` | `FLAG_SYS_ENC_UP_ITEM`, `_ENC_DOWN_ITEM`, `_USE_STRENGTH`, `_CTRL_OBJ_DELETE` | Gen3 `ClearTempFieldEventData` minus the Union Room nurse reminder. |
+| `heal_locations` | 1: `HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE`, `BricoBourg_PlayerHouse_2F` (4, 2) | As Emerald's `..._BRENDANS_HOUSE_2F` (4, 2); "set_respawn on the house at the start". Append-only, numbered from 1. |
+| `respawn` | that heal location | |
+| `starters`, `starter_level` | Chikorita, Cyndaquil, Totodile; 5 | Brico_Bourg_Sc03 (D-18); index = `VAR_SIL_STARTER`. |
+| `new_game_flags` | `FLAG_SIL_HIDE_BAR_SBIRE_A`, `_B`, `_BAR_MALLETTE`, `_BRICO_SBIRE`, `_BRICO_MATHIEU`, `_GWADA`, `_ADRIEN`, `_BRICO_LINGE`, `_GAMIN`, `_BRICOLEUSE` | Hidden at story 0: shown by a scene (sbires, Mallette), in front of the house at story 3–4 (friends), or by day at story ≥ 3 (day NPCs; `BricoBourg_OnTransition` still owns them after that). The bar's friends and Julien start visible. |
+| `new_game_vars` | none | Every var starts at 0. |
+
+No new ids were allocated: every name already exists in `ids/`. Heal locations have no ids kind; `game.ron`'s list is their append-only allocation.
+
+**Build** (`build/silice/game.rs`; three touch points in `build/silice/mod.rs`: `pub mod game`, load and check after the maps, the consts and start into `AuthoredIn`). `START` is gone.
+- Checks: start and heal cells are walkable cells of loaded maps; facing is `Down`; flags and vars are live Silice ids, or Gen3 names in `SHARED_GEN3`; heal locations are `HEAL_LOCATION_SIL_*` and unique; the respawn is one of them; three Gen3 starters; level 1–100.
+- **Facing is `Down` only**: the shared `game_data_tables!` `new_game` hardcodes it, and reading another facing would change `lib.rs` and `codegen.rs`, which Emerald hashes. Bar_Sc01 can `ctx.turn(PLAYER, Dir::Up)` if the scene wants the player facing the counter.
+- Emitted as `content::consts`, each naming the constant it stands for, so a renamed id fails to compile: `HEAL_LOCATION_SIL_*: u8`, `SIL_HEAL_LOCATIONS`, `SIL_RESPAWN`, `SIL_START_FACING`, `SIL_RUNNING_FLAG`, `SIL_FLAGS_CLEARED_ON_MAP_CHANGE`, `SIL_STARTERS`, `SIL_STARTER_LEVEL`, `SIL_NEW_GAME_FLAGS`, `SIL_NEW_GAME_VARS`.
+- `game.ron` joins the `SHARED_GEN3` scan (`tests/sil1_w0_contracts.rs`).
+- xtask `silice check` adds `game.ron`'s heal location names to its known names, so a script naming `HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE` is not a `sil-prefix` error.
+
+**Root** (`src/silice/mod.rs`): `special_ids` takes `flag_running`, `flags_cleared_on_map_change` and `respawn_default` from `game.ron` over `..gen3_special_ids()` (so M8 Task M's `max_money`, `multichoice_cancel` and `pocket_slots` still reach Silice); no whiteout script, no wild-set var. `heal_location(n)` is `SIL_HEAL_LOCATIONS[n - 1]`. The new-game script (`new_game.rs`) sets `SIL_NEW_GAME_FLAGS` and `SIL_NEW_GAME_VARS`.
+
+**Prelude API for Task F** (`crate::silice::prelude`, `use crate::silice::prelude::*;`). It re-exports the Gen3 prelude (`msgbox`/`MsgBox`, `give_item`, `add_item`, `find_item`, `trainer_battle`, `trainer_flag`, `buffer`, `multichoice`, `text_named`, every generated constant). Every helper takes `&Ctx`.
+
+| Helper | Does |
+|---|---|
+| `story(&ctx) -> u16`, `set_story(&ctx, n)` | `VAR_SIL_STORY` |
+| `defeated(&ctx, TrainerId) -> bool` | the trainer's beaten flag (`0x500 + id`) |
+| `gift(&ctx, flag, item, qty, Obtain::Message \| Obtain::Quiet) -> bool` | nothing if `flag` is set; else `give_item` (Gen3 messages) or `add_item` (silent: the scene's text says it), and sets `flag` when it fit |
+| `say(&ctx, T)` | one line of a locked scene (`message`, wait, button) |
+| `ask(&ctx, T) -> bool` | `msgbox(T, YesNo)` then the answer |
+| `walk(Dir)`, `walk_in_place(Dir)`, `face(Dir)` | `const fn` step builders, for `const PATH: &[Step] = &[walk(Dir::Up), …]` |
+| `move_wait(&ctx, obj, PATH)` | `move_obj` then `wait_move` |
+| `show(&ctx, obj, hide_flag)` | the source's `show_object`: clear the hide flag, `add_object` |
+| `hide(&ctx, obj)` | the source's `hide_object`: `remove_object`, which sets the hide flag |
+| `warp(&ctx, MAP, x, y)` | warp to a cell; the map load ends the script |
+| `choose_starter(&ctx) -> u8` | starter screen on `SIL_STARTERS`, `VAR_SIL_STARTER` = index, the mon at level 5, no battle |
+| `battle_wild(&ctx, SPECIES, level) -> BattleOutcome` | an ordinary wild battle (run and catch allowed) |
+| `fallback(&ctx, "name")` | `Report::Degraded(name)`, then the scene goes on |
+| `screen_shake(&ctx, mag, frames)` | fallback, then a fade to black and back |
+| `play_se(&ctx, "SE_…")` | fallback, and logs the name; nothing plays |
+| `mallette_call(&ctx, "WHO")`, `end_call(&ctx)` | fallback; the call's lines are plain `say`s |
+
+**Pseudo-script primitives in the Ch0 scenes (§3), with their mapping:**
+
+| Primitive (uses) | Mapping |
+|---|---|
+| `lock`, `lock_all`, `release`, `release_all`, `face_player` | direct: `ctx.lock()` and so on |
+| `msgbox(T, Default)` | `say` |
+| `msgbox(T, Npc)` | inside a locked scene: `say`. Gen3's `MsgBox::Npc` locks, turns the talked-to object and *releases*, so use it only for a lone NPC line (Bar_Sc02). |
+| `msgbox(T, YesNo)` + `if !yes_no` | `ask` |
+| `msgbox(A \| B \| C, Npc)` (Bar_Sc02) | `ctx.var(VAR_LAST_TALKED)` picks the text, then `msgbox(…, MsgBox::Npc)` |
+| `move_obj` + `wait_move` (16 and 9 uses) | `move_wait`, or `ctx.move_obj` per object then one `ctx.wait_move`; `Walk(D) xN` is N `walk(D)` |
+| `Face(D)`, `FacePlayer`, `WalkInPlace` | `face(D)`, `Step::FacePlayer`, `walk_in_place(D)` |
+| `show_object` (4) / `hide_object` (8) | `show(obj, FLAG_SIL_HIDE_…)` / `hide(obj)` |
+| `set_flag(F)` / `flag(F)` | direct: `ctx.set_flag(F, true)` / `ctx.flag(F)` |
+| `set_var(VAR_SIL_STORY, n)` / conditions on it | `set_story` / `story` (other vars: `ctx.set_var`, `ctx.var`) |
+| `fade(In)` / `fade(Out)` | direct: `ctx.fade(Fade::FromBlack)` / `ctx.fade(Fade::ToBlack)` |
+| `delay(n)` | direct: `ctx.delay(n)` |
+| `heal_party` | direct: `ctx.heal_party()` |
+| `give_item(ITEM, n)` (3) | `gift(FLAG_SIL_ITEM_…, ITEM, n, Quiet)` where the scene's text announces it (Sc03 T11/T12); `ITEM_SIL_MALLETTE` in Bar_Sc04 with `FLAG_SIL_HAS_MALLETTE` and T3 |
+| `let i = choose_starter([...])` + `set_var(VAR_SIL_STARTER, i)` | `choose_starter` (does both) |
+| `battle_wild(SPECIES, lvl)` | `battle_wild` |
+| `call(Brico_Bourg_Sc03)` | `BricoBourg_Sc03(ctx.clone()).await` |
+| `return` | `return` |
+| `screen_shake` (2) | fallback: `screen_shake` (fade). For Sc02's small shake, `fallback(&ctx, "screen_shake")` and `ctx.delay(10)` is closer to the source's own fallback. |
+| `play_se` (3) | fallback: `play_se` (nothing plays) |
+| `mallette_call` / `end_call` | fallback: `mallette_call`, `end_call` |
+| `set_respawn` (§2, at the start) | not needed: `game.ron`'s respawn is the house from the new game. Direct `ctx.set_respawn(HEAL_LOCATION_SIL_…)` if a scene changes it. |
+| `set_time_tint(NUIT)` (§9) | missing, no call: the maps leave the night tint out |
+| `field_move` / brambles (§9) | `if ctx.flag(FLAG_SIL_MODULE_COUPE)` then `ctx.set_metatile` (Ch1) |
+
+**Tests** (no French literals). `src/silice/game_tests.rs`:
+- a new game lands on `game.ron`'s start cell and facing;
+- the new game sets exactly `game.ron`'s flags, and nothing of the story (story 0, no shoes, no party; the bar's friends and Julien visible);
+- `special_ids` and `heal_location` are `game.ron`'s, and the respawn cell is walkable;
+- `choose_starter` gives each `game.ron` species at its level, sets `VAR_SIL_STARTER`, starts no battle, and maps an out-of-range answer to the first starter;
+- `fallback` and the fallback helpers report `Degraded` and the script runs to its end;
+- `story`, `defeated`, `gift` (once, quiet, a full bag retries) and the scene helpers' requests;
+- the Gen3 std texts and pocket strings the shared prelude prints are in the build.
+
+`tests/sil1_e_game.rs` checks the committed `game.ron` and each rule on a broken copy; `xtask/tests/silice_check.rs` checks that `game.ron`'s heal locations are known names.
+
+**What F needs to know.**
+- Bar_Sc01 runs on frame 1 of a new game: the player stands at (7, 4) facing down.
+- Set `VAR_SIL_CH0_GATE` 1 with the starter, and `VAR_TEMP_1` in Bar_Sc01 (both from the maps section).
+- Once scene scripts exist, `silice check`'s `placement-map` rule wants every given item's flag named in a map or a script. With a scratch script, it lists `FLAG_SIL_HAS_MALLETTE`, `FLAG_SIL_ITEM_PROLOGUE_BALLS` (and `_POTIONS`), `FLAG_SIL_ITEM_ROUTE_S01_ORAN`, `FLAG_SIL_RUNNING_SHOES`, and the post-game `FLAG_SIL_MAIL_SILAS`, which needs an exception until Ch12.
+- `ITEM_SIL_MALLETTE` and the texts are Task A's constants.
+
+**Gates:** fmt; clippy plain, stub, `game-native/window,studio/ui` and `PKR_GAME=silice -p content -p engine -p extract`; stub and Emerald `cargo test --workspace`; `PKR_GAME=silice cargo test -p content -p engine -p extract`; `cargo xtask silice check`; `cargo xtask parity`; `checkpoints verify`. The results after the master merge are in the task report.
+
+#### SIL1 Task G as built: the font glyphs
+
+Commits:
+- `feat(silice): author the ♥ and · glyphs and merge them into the Silice font`
+- `feat(xtask): accept the authored glyphs in silice check, add the font-glyph rule`
+- `docs(plan): SIL1 Task G as built`
+- after review (originality): `fix(silice): redraw the heart, map ♥ to {EMOJI_HEART}, reject kana, guard against ROM glyphs`
+
+**Finding: Gen3 already encodes both characters.** §4 item 8 counted both as missing, wrongly.
+- `·` is `'·' = AF` in `charmap.txt`, and the FR font draws it at 0xAF, 3 px wide. Task B's check never flagged it.
+- `♥` is Gen3's `{EMOJI_HEART}`, `F9 E7`, which the printer draws as glyph 0x1E7, 8 px wide. Only `encode_lang` lacked a character literal for it.
+
+R-11 is met by redrawing both glyphs with original drawings: 0xAF for `·`, 0x1E7 for `♥`. No new byte is used.
+
+The charmap has other `EMOJI_*` symbols that could answer pending rulings with the same mechanism, for example `EMOJI_UNDERSCORE`, `EMOJI_NOTE`, `EMOJI_CIRCLE` and `EMOJI_SPHERE`. That is the author's call.
+
+**Originality (review fix).**
+- The first heart was not original: it repeated the ROM's own `EMOJI_HEART` glyph (0x1E7), with one row duplicated. It was redrawn as a different shape:
+  - 9 rows tall instead of 7;
+  - single-pixel rounded lobe tops;
+  - a notch two rows deep;
+  - straight sides;
+  - a three-step taper.
+- `crates/content/tests/sil1_g_font.rs::authored_glyphs_are_not_rom_glyphs` now guards every authored glyph. Whenever an extract is present, it compares the glyph's foreground mask, normalized to its top-left, with every glyph of the extracted normal and small fonts. It compares the masks as drawn, and again after collapsing runs of equal rows and columns, so a ROM glyph stretched by a duplicated row also fails. The guard fails on the first heart.
+- Glyphs of 4 foreground pixels or fewer are exempt, for example the 2x2 middle dot: at that size every font draws the same few shapes, so a match says nothing about copying.
+
+**Files.**
+- `crates/extract/src/games/font.rs` holds the format, the codes, the encoder hook and the metric rules. It is shared by the content build and xtask, like the rest of `extract::games`, and is left out of Emerald's `BUILD_ID`.
+- `games/silice/font/heart.ron` and `games/silice/font/middle_dot.ron` are the authored glyphs, drawn by hand.
+- `crates/content/build/silice/font.rs` is the build side: load, check, merge, and the hook for Task A.
+- Outside the owned files, the task touched:
+  - `build/silice/mod.rs`, in three places: the module doc names `font`, `pub mod font;`, and one `font::merge` call in `world` right after `load_assets`;
+  - one line in `extract/src/games/mod.rs`;
+  - `xtask/src/silice/check.rs`;
+  - `xtask/tests/silice_check.rs`;
+  - `games/silice/check-exceptions.ron`.
+
+**Glyph format** (`games/<game>/font/<name>.ron`, one glyph per file, `GlyphFile`):
+- `char` is the character the texts write.
+- `width` is the advance in pixels, shadow column included (1 to 16).
+- `on_baseline` says that the lowest foreground row is the font's baseline.
+- `rows` holds 16 strings, from top to bottom, each exactly `width` characters long:
+  - `.` is the background (2bpp 0);
+  - `#` is the foreground, the text colour (1);
+  - `s` is the shadow (2).
+- Row 15 must be blank, because the printer draws 15 rows.
+- Columns past `width` are background.
+- The drawing sits on the `.latfont` 16x16 cell, so it encodes directly (`Glyph::latfont`).
+
+**Codes** (`extract::games::font::{CODES, RESERVED}`, append-only like the ids).
+- `CODES` is `&[(char, &[u8])]`: each character with its byte sequence. `glyph_index` gives the glyph a sequence draws: one byte `b` draws glyph `b`, and `F9 x` draws glyph `0x100 + x`.
+  - `♥` (U+2665) is `[0xF9, 0xE7]`, `{EMOJI_HEART}`, glyph 0x1E7. It costs **2 bytes** in a text or a name.
+  - `·` (U+00B7) is `[0xAF]`, glyph 0xAF.
+- A character Gen3 can encode keeps its sequence: a `CHARS` byte or a `CONSTANTS` `F9` sequence. Its authored glyph redraws that glyph.
+- `RESERVED`, 0x37..=0x4F, is kept for future characters Gen3 cannot encode (`—`, `°` and the others, pending author rulings). It has no entry yet.
+  - These bytes have no Western character in `charmap.txt`, and the FR normal font leaves them blank. They come right after `Lv`, `=` and `;` (0x34 to 0x36).
+  - Only kana share them. `encode_fr` rejects every Japanese character (U+3000–U+30FF, U+FF00–U+FFEF), so a kana can never alias an authored glyph. A unit test checks that every `CHARS` entry on a reserved byte is kana and is rejected.
+
+**Metrics, read at build time from the extract** (`problems`, run by `font::merge`, which fails the build on any problem):
+- The cell is 16x16 (`.latfont`).
+- The baseline is the lowest foreground row of `A` (0xBB), row 11 in the FR font.
+- No glyph inks below the baseline. An `on_baseline` glyph ends exactly on it.
+- A redrawn glyph keeps the extract's width: · is 3 px and ♥ is 8 px.
+- A reserved glyph must be blank in the extract. Values 0 and 3 both count as background, since the printer draws both as background.
+- A sequence must be either Gen3's encoding of the character or one reserved byte.
+- When any glyph file exists, every character in `CODES` must have one.
+- A games dir without `font/`, such as a test fixture, merges nothing. Its texts still encode and are drawn with the extract's glyphs.
+
+**The drawings.**
+- **♥:** 7 x 9 foreground on rows 3 to 11, ending on the baseline. The shadow falls right and down. The advance is 8, the extract's width for 0x1E7.
+- **·:** a 2 x 2 dot on rows 8 and 9, centred on the FR x-height (rows 6 to 11), with its shadow. The advance is 3.
+  - **Side effect:** Gen3 also prints 0xAF in its own strings, for example the fishing "· · ·" wait and the PokéNav calling dots. Redrawing 0xAF moves those dots one row lower than Emerald's, in the Silice build only.
+- **Small font:** not touched. `FONT_SMALL` prints only the healthbox nickname, level and HP, so dialogue never uses it.
+
+**Hook for Task A (the text encoder).**
+- Encode every Silice text with `font::encode(text)`, which is `extract::games::font::encode_fr`. It:
+  - rejects Japanese characters;
+  - writes each authored character as the decomp byte escape `{0xNN ...}`;
+  - calls `encode_lang(.., Lang::Fr)`.
+- `font::GLYPHS` is `&[(char, &[u8])]`, the **byte sequence** of each character, not one byte. `glyph_codes` can return `super::font::GLYPHS.to_vec()`.
+- A per-character encoder calls `font::authored_glyph(ch) -> Option<&'static [u8]>` first, appends the whole sequence, and falls back on the charmap.
+- Keep `font::merge` right after `load_assets`, before any width measurement, so widths come from the merged font.
+- The three hooks carry `#[allow(dead_code)]` until A's encoder uses them.
+
+**Validator** (`cargo xtask silice check`).
+- Texts, trainer names and item names are encoded with `encode_fr`:
+  - `♥` and `·` pass;
+  - a name counts a heart as 2 bytes;
+  - kana now fail `text-charmap`.
+- `text-width` reads the authored glyphs' widths at their glyph indices, merged into the extract's widths. `F9 x` is measured at glyph `0x100 + x`.
+- New rule `font-glyph` (error), on subject `font`. It fires when a glyph file:
+  - does not parse;
+  - has no code;
+  - breaks the widths: a redrawn glyph at another width, or a sequence that is neither Gen3's nor reserved;
+  - is missing for a character.
+
+  The pixel checks (baseline, blank glyph) need the font png, so they run in the build only.
+- Without `font/`, the check notes that the authored characters encode and are drawn with the extract's glyphs.
+- `text-charmap` reads "no glyph (FR charmap or font/)". It still fires on `—`, `°`, `₽`, `●`, `○`, `♪`, `#`, `*`, `←`, `→`, `[`, `]` and `_`. All remaining `text-charmap` exceptions carry `ruling_needed: true`.
+- Changes to `check-exceptions.ron`:
+  - the 4 heart-only entries are removed (`Nebula_Ecran_1`, `Tour_2F_Chat_08`, `Tour_2F_Sc04_T1`, `Tour_2F_Sc05_T1`);
+  - the heart clause is dropped from 2 reasons (`Gris_Echec_Sc06_T2`, `Owlys_Entrepot_Sc02_T3`).
+- No trainer or item name holds a heart, so the 2-byte cost changes no name finding.
+
+**Tests.**
+- `extract` unit tests (`games::font`):
+  - `substitute` and `encode_fr`: a heart encodes exactly like `{EMOJI_HEART}`;
+  - `glyph_index`;
+  - reserved bytes are kana only, and kana is rejected;
+  - the `.latfont` round trip;
+  - parse errors;
+  - the metric rules;
+  - a reserved glyph is blank on 0 or 3 and not blank on 1 or 2.
+- `crates/content/tests/sil1_g_font.rs`, in every flavour:
+  - the committed files draw exactly `GLYPHS` and encode to their sequences (glyphs 0xAF and 0x1E7);
+  - a merge writes each glyph and width at its index and nothing else;
+  - a merge fails on a missing glyph, on a redrawn glyph at another width, and on another baseline;
+  - the originality guard, with an extract;
+  - the mask helpers.
+- `crates/content/tests/sil1_g_font.rs`, with `PKR_GAME=silice` only:
+  - `content::data::FONT` holds each authored glyph and width;
+  - `A`, then each authored glyph, then `A` is encoded with `font::encode` and drawn on the engine's `Canvas`. Every pixel of each glyph's advance equals the RON drawing.
+- `xtask/tests/silice_check.rs::authored_glyph_rules`, on the fixture extract (every glyph 6 px wide):
+  - `font-glyph` fires on both widths;
+  - `♥` and `·` pass;
+  - 36 hearts fit in 216 px, and 37 measure 222 px;
+  - 5 hearts make a 10-byte name, and 6 fail `trainer-name`;
+  - a kana fails `text-charmap`;
+  - `—` and `°` still fail;
+  - a missing `heart.ron`, or a glyph without a code, fails;
+  - a games dir without `font/` passes, with the note.
+
+**Route.** Neutral. Emerald's sources are unchanged apart from `extract/src/games/`, which its `BUILD_ID` excludes. The Silice `BUILD_ID` moves, because `games/silice/font` and `build/silice` are hashed.
 
 ### 3.2 SIL2: Ch1–Ch3 (needs M9 mart, menus and save, and M10 Cut, Strength and Flash)
 **Wave 0 engine contracts** (each new piece of state hashed and snapshotted once, with a SCHEMA bump):
@@ -1244,7 +1491,7 @@ Sequencing: SIL1 can run in parallel with M9 (its files are disjoint except the 
    - 34 Mega stones are listed, but only 4 `SPECIES_*_MEGA` ids appear (Alakazam, Charizard X, Gyarados, Steelix).
    - The canonical forms need the **Fairy type** (Gardevoir, Altaria, Mawile), which Gen3 does not have, and about 14 abilities newer than Gen3 (Tough Claws, Magic Bounce, Pixilate, Refrigerate, Parental Bond, Mold Breaker, Technician, Skill Link, Sand Force, Solar Power, Filter, Prankster, Steadfast, Lightning Rod as reworked, and others). `bible/besoins-moteur.md` names only 3 new abilities. This blocks SIL3 (Q5).
    - The set is uneven (Venusaurite and Charizardite but no Blastoisinite; Latiosite but no Latiasite). That is a design note, not an error.
-8. **Glyphs missing from the FR charmap** (`crates/extract/src/text/charmap.rs`), counted in text blocks: `—` 71, `·` 24 (R-11), `°` 18, `♥` 14 (R-11), `●` 8, `○` 8, `♪` 4, `₽` 4, `#` 3, `*` 2, `←`/`→` 1 each, and `[`, `]`, `_` in the `[LOG_xx]` titles. R-11 covers only ♥ and ·; the others need a ruling (new glyphs or rewording).
+8. **Glyphs missing from the FR charmap** (`crates/extract/src/text/charmap.rs`), counted in text blocks: `—` 71, `·` 24 (R-11), `°` 18, `♥` 14 (R-11), `●` 8, `○` 8, `♪` 4, `₽` 4, `#` 3, `*` 2, `←`/`→` 1 each, and `[`, `]`, `_` in the `[LOG_xx]` titles. R-11 covers only ♥ and ·; the others need a ruling (new glyphs or rewording). (SIL1 Task G: both were wrongly counted. `·` is Gen3 0xAF, and `♥` is `{EMOJI_HEART}` (`F9 E7`, glyph 0x1E7); both glyphs are now redrawn with original drawings.)
 9. **Duplicate text ids.** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 (line 747) and ch09 (line 1223).
 10. **Non-literal references.** Scripts compose text ids dynamically (`msgbox(Bar_Sc02_T1 | T2 | T3)`, `Gym2_…`, `Nocturne_Sc01_T…`, `Tour_2F_Chat_NN`, `PG_Legendaire_…`, `Evalon_Sc07_Partner_T…`) and use flag families (`FLAG_SIL_FRAGMENT_`, `FLAG_SIL_ITEM_PG_`, `FLAG_SIL_HIDE_GAZ_`, `FLAG_SIL_GYM06_PORTE_`, `FLAG_SIL_PARDON_`). They must be expanded to concrete ids before typed Rust can reference them.
 11. **Format drift the importer must handle.** Several `[Id]` texts are grouped in one fenced block in ch03 (38 blocks), ch04 (21) and ch05 (18). Speaker headers carry parenthetical notes. ch03, ch08 and ch09 number their map headings (`### 2.n MAP_…`). The suggested map size ("Taille") is missing for every map in ch03, ch04, ch05 and ch12.

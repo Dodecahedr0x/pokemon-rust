@@ -198,7 +198,8 @@ fn no_committed_silice_id_takes_a_shared_gen3_number() {
 }
 
 /// `extract::games::SHARED_GEN3` is exactly the Gen3 flags and vars the shared code names: the
-/// Gen3 prelude, the crate root, `samples.rs` and the Silice root (its `SpecialIds`).
+/// Gen3 prelude, the crate root, `samples.rs` and the Silice root (its `SpecialIds`, and
+/// `game.ron`).
 #[test]
 fn the_reserved_gen3_names_are_the_ones_the_shared_code_uses() {
     let src = workspace().join("crates/content/src");
@@ -208,6 +209,8 @@ fn the_reserved_gen3_names_are_the_ones_the_shared_code_uses() {
         src.join("silice/mod.rs"),
         src.join("silice/prelude.rs"),
         src.join("silice/new_game.rs"),
+        // Its system ids and new-game flags (SIL1 Task E).
+        games().join("game.ron"),
     ];
     for e in std::fs::read_dir(src.join("prelude")).unwrap() {
         files.push(e.unwrap().path());
@@ -473,9 +476,16 @@ fn each_flavour_hashes_only_its_own_sources() {
     assert_eq!(id(Some(&games)), ids2);
     assert_eq!((emerald(), id(None)), (e0, ide0));
     // An Emerald-only source: only the Emerald digests move.
-    put(&tmp, "content/src/overrides/X.rs", "o");
+    put(&tmp, "content/src/new_game.rs", "n");
     assert_eq!((silice(), id(Some(&games))), (s1, ids2));
     assert_ne!(emerald(), e0);
+    // An override: Emerald's BUILD_ID only (its source is in its script's SCRIPT_DIGESTS
+    // entry, so not in GLOBAL_DIGEST: Task N).
+    let (e1, ide1) = (emerald(), id(None));
+    put(&tmp, "content/src/overrides/X.rs", "o");
+    assert_eq!((silice(), id(Some(&games))), (s1, ids2));
+    assert_eq!(emerald(), e1);
+    assert_ne!(id(None), ide1);
 
     // The extracted dir: Silice hashes its base assets, not the Emerald maps, script IR or
     // previews; Emerald hashes all of it but the previews.

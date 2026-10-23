@@ -1,10 +1,11 @@
 //! Re-validation after a build change (Task C).
 
-use crate::cache::{self, ReachError, SnapCache, replay_node, session_at};
+use crate::cache::{self, ReachError, SnapCache, replay_node_observed, session_at};
 use crate::config::Config;
 use crate::db::{Db, DbError};
 use crate::guard;
-use crate::model::{AbstractKey, Macro, NodeId, NodeRow, NodeStatus};
+use crate::incremental::TouchLog;
+use crate::model::{AbstractKey, Macro, NodeId, NodeRow, NodeStatus, Touch};
 use crate::runs;
 use engine::checkpoint::{Checkpoint, WorldSnapshot, build_hash, state_digest};
 use engine::data::GameData;
@@ -13,10 +14,18 @@ use rayon::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-/// Re-expands a macro from a start state (`None` = a new game, for the root): new inputs and
-/// end state, or `None` (broken). The lifetime lets the closure borrow.
-pub type Repair<'a> =
-    dyn Fn(Option<&Checkpoint>, &Macro) -> Option<(Vec<Run>, Checkpoint)> + Sync + 'a;
+/// Re-expands a macro from a start state (`None` = a new game, for the root): new inputs, end
+/// state and touches, or `None` (broken). The lifetime lets the closure borrow.
+pub type Repair<'a> = dyn Fn(Option<&Checkpoint>, &Macro) -> Option<Repaired> + Sync + 'a;
+
+/// A [`Repair`]'s re-expansion.
+#[derive(Clone, Debug)]
+pub struct Repaired {
+    pub inputs: Vec<Run>,
+    pub end: Checkpoint,
+    /// What the re-expansion touched (`incremental::touches`): the node's new `node_touch`.
+    pub touches: Vec<Touch>,
+}
 
 /// A repaired end state's abstract key (`key::key_parts` + `key::key` in [`revalidate`]; tests
 /// pass fakes to [`revalidate_with_key`]).
@@ -30,12 +39,15 @@ pub struct RevalidateReport {
     pub repaired: u64,
     /// Newly broken, subtrees included.
     pub broken: u64,
+    /// Moved to the new build without a replay: no script or map they or their ancestors
+    /// touched changed (`incremental::mark`, Task N; filled by the caller).
+    pub kept: u64,
 }
 
-/// What one node's check gave.
+/// What one node's check gave, with the touches of the replay or repair.
 enum Outcome {
-    Valid(Checkpoint),
-    Repaired(Vec<Run>, Checkpoint),
+    Valid(Checkpoint, Vec<Touch>),
+    Repaired(Repaired),
     Broken,
 }
 
@@ -49,13 +61,16 @@ fn check<G: GameData + Clone>(
 ) -> Outcome {
     let replay = guard::catch(|| {
         let mut s = session_at(game, start)?;
-        replay_node(&mut s, n)
+        let mut log = TouchLog::new(s.world());
+        let cp = replay_node_observed(&mut s, n, &mut |w| log.after(w))?;
+        let touches = log.finish(cp.world.field.map);
+        Ok::<_, ReachError>((cp, touches))
     });
-    if let Ok(Ok(cp)) = replay {
-        return Outcome::Valid(cp);
+    if let Ok(Ok((cp, touches))) = replay {
+        return Outcome::Valid(cp, touches);
     }
     match guard::catch(|| repair(start, &n.macro_)) {
-        Ok(Some((inputs, cp))) => Outcome::Repaired(inputs, cp),
+        Ok(Some(r)) => Outcome::Repaired(r),
         _ => Outcome::Broken,
     }
 }
@@ -210,6 +225,7 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
         let mut next: BTreeMap<NodeId, Arc<Checkpoint>> = BTreeMap::new();
         let mut snaps: Vec<(NodeId, Arc<Checkpoint>)> = Vec::new();
         let mut repaired: Vec<(NodeId, Vec<Run>)> = Vec::new();
+        let mut touched: Vec<(NodeId, Vec<Touch>)> = Vec::new();
         for (id, outcome) in results {
             let mut n = st.rows[&id].clone();
             let old_key = n.key;
@@ -218,12 +234,18 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
                     st.break_node(id);
                     continue;
                 }
-                Some(Outcome::Valid(cp)) => {
+                Some(Outcome::Valid(cp, touches)) => {
                     st.report.valid += 1;
+                    touched.push((id, touches));
                     cp
                 }
-                Some(Outcome::Repaired(inputs, cp)) => {
+                Some(Outcome::Repaired(Repaired {
+                    inputs,
+                    end: cp,
+                    touches,
+                })) => {
                     st.report.repaired += 1;
+                    touched.push((id, touches));
                     n.frames = runs::frames(&inputs);
                     repaired.push((id, inputs));
                     n.key = key(&cp.world);
@@ -258,7 +280,9 @@ pub fn revalidate_with_key<G: GameData + Clone + Send + Sync>(
             snaps.iter().map(|(id, cp)| (*id, cp.as_ref())).collect();
         let repaired: Vec<(NodeId, &[Run])> =
             repaired.iter().map(|(id, r)| (*id, r.as_slice())).collect();
-        db.set_status_and_snapshots(&batch, &repaired, &snaps)?;
+        let touched: Vec<(NodeId, &[Touch])> =
+            touched.iter().map(|(id, t)| (*id, t.as_slice())).collect();
+        db.set_status_and_snapshots(&batch, &repaired, &snaps, &touched)?;
         prev = next;
     }
 

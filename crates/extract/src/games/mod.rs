@@ -10,7 +10,10 @@
 //! build's.
 
 pub mod data;
+pub mod font;
+pub mod game;
 pub mod maps;
 
 pub use data::*;
+pub use game::*;
 pub use maps::*;
