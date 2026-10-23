@@ -484,6 +484,10 @@ macro_rules! game_data_tables {
             $crate::battle::hold_effect(id.0)
         }
 
+        fn map_type(&self, map: ::engine::data::MapId) -> ::engine::data::MapType {
+            $crate::data::map_type(map.0)
+        }
+
         fn trainer_flag_of(
             &self,
             script: ::engine::data::ScriptId,

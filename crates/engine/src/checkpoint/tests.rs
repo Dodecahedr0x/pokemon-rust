@@ -1,7 +1,7 @@
 //! Codec, schema policy and build identity. Every value here is synthetic.
 
 use super::*;
-use crate::data::{Dirs, PLAYER};
+use crate::data::{Dirs, Floor, PLAYER};
 use crate::mon::{NAME_LEN, Status};
 use crate::{data::MoveId, data::SpeciesId};
 use alloc::format;
@@ -724,6 +724,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::CrackedIce,
             Behavior::CrackedFloor,
             Behavior::CrackedFloorHole,
+            Behavior::Floor(Floor::Cave),
         ],
         |v| match v {
             Behavior::Normal => 0,
@@ -746,6 +747,31 @@ fn enum_variant_indices_are_pinned() {
             Behavior::CrackedIce => 17,
             Behavior::CrackedFloor => 18,
             Behavior::CrackedFloorHole => 19,
+            Behavior::Floor(_) => 20,
+        },
+    );
+    check(
+        &[
+            Floor::LongGrass,
+            Floor::Unused05,
+            Floor::DeepSand,
+            Floor::Cave,
+            Floor::IndoorEncounter,
+            Floor::AshGrass,
+            Floor::Footprints,
+            Floor::Sand,
+            Floor::MountainTop,
+        ],
+        |v| match v {
+            Floor::LongGrass => 0,
+            Floor::Unused05 => 1,
+            Floor::DeepSand => 2,
+            Floor::Cave => 3,
+            Floor::IndoorEncounter => 4,
+            Floor::AshGrass => 5,
+            Floor::Footprints => 6,
+            Floor::Sand => 7,
+            Floor::MountainTop => 8,
         },
     );
     check(

@@ -326,6 +326,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
 
     // ---- maps ----
     let mut map_arms = String::new();
+    let mut map_type_arms = String::new();
     let exported: BTreeSet<u16> = w
         .maps
         .iter()
@@ -499,6 +500,14 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
             "        {:#X} => Some(&M_{n}),",
             u16::from(m.group) << 8 | u16::from(m.num)
         )?;
+        let ty = classify::map_type(m.header.map_type, n);
+        if ty != "Outdoor" {
+            writeln!(
+                map_type_arms,
+                "        {:#X} => MapType::{ty},",
+                u16::from(m.group) << 8 | u16::from(m.num)
+            )?;
+        }
     }
     writeln!(
         o,
@@ -507,6 +516,10 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     writeln!(
         o,
         "/// The exported map with Gen3 number `id` (`MAP_*`).\npub fn map(id: u16) -> Option<&'static MapData> {{\n    match id {{\n{map_arms}        _ => None,\n    }}\n}}"
+    )?;
+    writeln!(
+        o,
+        "/// The battle background's map type of map `id` (`MAP_*`; see `classify::map_type`).\npub fn map_type(id: u16) -> MapType {{\n    match id {{\n{map_type_arms}        _ => MapType::Outdoor,\n    }}\n}}"
     )?;
     writeln!(o, "pub const MAP_COUNT: usize = {};", w.maps.len())?;
     write!(o, "pub static MAP_IDS: [MapId; {}] = [", w.maps.len())?;

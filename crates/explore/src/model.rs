@@ -37,7 +37,7 @@ pub enum MacroKind {
     Talk { local_id: u8 },
     /// Face bg event (x, y) from the adjacent cell `dir` points from, press A, resolve.
     Inspect { x: i16, y: i16, dir: Dir },
-    /// Pace between tall-grass cell (x, y) and a walkable neighbour until a battle starts.
+    /// Pace between encounter cell (x, y) (tall grass, cave floor, …) and a walkable neighbour until a battle starts.
     Grass { x: i16, y: i16 },
     /// Press nothing for `frames` frames, then settle (the softlock probe's wait, so that
     /// wandering objects can free a way; never a search candidate).

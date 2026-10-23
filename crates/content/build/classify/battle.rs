@@ -97,6 +97,7 @@ pub fn hold_effect(name: &str) -> Option<&'static str> {
         "ITEM_BRIGHT_POWDER" => "HoldEffect::EvasionUp(10)",
         "ITEM_LAX_INCENSE" => "HoldEffect::EvasionUp(5)",
         "ITEM_FOCUS_BAND" => "HoldEffect::FocusBand(10)",
+        "ITEM_CLEANSE_TAG" => "HoldEffect::CleanseTag",
         "ITEM_SILVER_POWDER" => "HoldEffect::TypePower(Type::Bug, 10)",
         "ITEM_METAL_COAT" => "HoldEffect::TypePower(Type::Steel, 10)",
         "ITEM_SOFT_SAND" => "HoldEffect::TypePower(Type::Ground, 10)",
@@ -205,6 +206,12 @@ pub fn ability_with(name: &str, r: Rules) -> &'static str {
         "ABILITY_CLEAR_BODY" => "Ability::ClearBody",
         "ABILITY_LIQUID_OOZE" => "Ability::LiquidOoze",
         "ABILITY_NATURAL_CURE" => "Ability::NaturalCure",
+        // Field-only in Gen3 (the encounter rate; no battle effect).
+        "ABILITY_STENCH" => "Ability::Stench",
+        "ABILITY_ILLUMINATE" => "Ability::Illuminate",
+        // `Ability::WhiteSmoke`, `ArenaTrap` and `Pressure` exist for the encounter rules
+        // (`engine::wild`), but their battle effects (Clear Body's, trapping, double PP use)
+        // are not modelled: their holders stay `Other`.
         // Silice engine: Gen3 abilities that Emerald species have, gated.
         "ABILITY_DROUGHT" if gen3_extra => "Ability::Drought",
         "ABILITY_DRIZZLE" if gen3_extra => "Ability::Drizzle",

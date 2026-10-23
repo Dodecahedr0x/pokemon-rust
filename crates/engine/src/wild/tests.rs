@@ -1,6 +1,7 @@
 use super::*;
 use crate::battle::test_data::*;
-use crate::mon::{Nature, Pokemon};
+use crate::data::Floor;
+use crate::mon::{HoldEffect, Nature, Pokemon};
 
 fn table(rate: u8, species: [SpeciesId; 12]) -> LandEncounters {
     LandEncounters {
@@ -10,6 +11,19 @@ fn table(rate: u8, species: [SpeciesId; 12]) -> LandEncounters {
             min_level: 2,
             max_level: 3,
         }),
+    }
+}
+
+/// The encounter view of `p` (holding nothing the tests' game knows).
+fn of(p: &Pokemon) -> Lead {
+    Lead::of(Some(p), &TABLES, |_| None)
+}
+
+/// A lead with only an ability.
+fn with(ability: Ability) -> Lead {
+    Lead {
+        ability,
+        ..Lead::NONE
     }
 }
 
@@ -62,21 +76,272 @@ fn slot_boundaries_follow_choose_wild_mon_index_land() {
 
 #[test]
 fn rate_gate_is_rate_times_16_of_2880() {
-    assert_eq!(encounter_rate(20), 320);
-    assert_eq!(encounter_rate(180), 2880);
-    assert_eq!(encounter_rate(255), 2880);
-    assert_eq!(encounter_rate(0), 0);
+    assert_eq!(encounter_rate(20, Lead::NONE), 320);
+    assert_eq!(encounter_rate(180, Lead::NONE), 2880);
+    assert_eq!(encounter_rate(255, Lead::NONE), 2880);
+    assert_eq!(encounter_rate(0, Lead::NONE), 0);
+}
+
+/// Gen3 `MetatileBehavior_IsLandWildEncounter`'s tiles: tall grass and the seven other
+/// `TILE_FLAG_HAS_ENCOUNTERS` behaviours that are not water.
+const ENCOUNTER_TILES: [Behavior; 8] = [
+    Behavior::TallGrass,
+    Behavior::Floor(Floor::LongGrass),
+    Behavior::Floor(Floor::Unused05),
+    Behavior::Floor(Floor::DeepSand),
+    Behavior::Floor(Floor::Cave),
+    Behavior::Floor(Floor::IndoorEncounter),
+    Behavior::Floor(Floor::AshGrass),
+    Behavior::Floor(Floor::Footprints),
+];
+
+/// Cells without land encounters, among them the two floors only the battle background reads.
+const PLAIN_TILES: [Behavior; 6] = [
+    Behavior::Normal,
+    Behavior::Floor(Floor::Sand),
+    Behavior::Floor(Floor::MountainTop),
+    Behavior::Counter,
+    Behavior::Ledge(crate::data::Dir::Down),
+    Behavior::Blocked,
+];
+
+#[test]
+fn land_encounter_tiles_are_gen3s() {
+    for b in ENCOUNTER_TILES {
+        assert!(b.land_encounter(), "{b:?}");
+    }
+    for b in PLAIN_TILES {
+        assert!(!b.land_encounter(), "{b:?}");
+    }
 }
 
 #[test]
-fn only_tall_grass_draws() {
+fn only_encounter_tiles_draw() {
     let tb = table(20, [ZIGZAGOON; 12]);
     let mut rng = Rng::new(5);
-    for prev in [Behavior::Normal, Behavior::TallGrass] {
-        let r = try_land_encounter(&tb, prev, Behavior::Normal, None, &TABLES, &mut rng);
-        assert_eq!(r, None);
+    for prev in ENCOUNTER_TILES.into_iter().chain(PLAIN_TILES) {
+        for cur in PLAIN_TILES {
+            let r = try_land_encounter(&tb, prev, cur, Lead::NONE, &TABLES, &mut rng);
+            assert_eq!(r, None);
+        }
     }
     assert_eq!(rng, Rng::new(5));
+}
+
+/// Every encounter behaviour draws as tall grass does: the same rolls, the same mon.
+#[test]
+fn every_encounter_tile_rolls_as_tall_grass() {
+    let tb = table(20, [ZIGZAGOON; 12]);
+    for cur in ENCOUNTER_TILES {
+        let mut hits = 0;
+        for seed in 1..2000 {
+            for new_cell in [false, true] {
+                let (prev, prev_grass) = if new_cell {
+                    (Behavior::Normal, Behavior::Normal)
+                } else {
+                    (cur, Behavior::TallGrass)
+                };
+                let mut a = Rng::new(seed);
+                let mut b = Rng::new(seed);
+                let got = try_land_encounter(&tb, prev, cur, Lead::NONE, &TABLES, &mut a);
+                let want = try_land_encounter(
+                    &tb,
+                    prev_grass,
+                    Behavior::TallGrass,
+                    Lead::NONE,
+                    &TABLES,
+                    &mut b,
+                );
+                assert_eq!(got, want, "{cur:?} seed {seed}");
+                assert_eq!(a, b, "{cur:?} seed {seed}");
+                hits += got.is_some() as u32;
+            }
+        }
+        assert!(hits > 0, "{cur:?}");
+    }
+}
+
+/// Gen3's `prevMetatileBehavior != curMetatileBehavior` compares raw behaviours: any change of
+/// behaviour (tall grass to cave floor, cave floor to long grass, sand to deep sand) draws the
+/// 60% new-metatile gate first; the same behaviour again does not.
+#[test]
+fn new_tile_type_gate_compares_raw_behaviours() {
+    let tb = table(180, [ZIGZAGOON; 12]); // the odds always pass
+    let rolls = |prev: Behavior, cur: Behavior, seed: u32| {
+        let mut rng = Rng::new(seed);
+        let got = try_land_encounter(&tb, prev, cur, Lead::NONE, &TABLES, &mut rng);
+        let mut n = 0;
+        let mut r = Rng::new(seed);
+        while r != rng {
+            r.random();
+            n += 1;
+        }
+        (got, n)
+    };
+    for cur in ENCOUNTER_TILES {
+        for prev in ENCOUNTER_TILES.into_iter().chain(PLAIN_TILES) {
+            for seed in 1..50 {
+                let gate = Rng::new(seed).random() % 100;
+                let (got, n) = rolls(prev, cur, seed);
+                if prev == cur {
+                    assert_eq!(n, 3, "{prev:?} -> {cur:?}: odds, slot, level");
+                    assert!(got.is_some());
+                } else if gate >= 60 {
+                    assert_eq!((got, n), (None, 1), "{prev:?} -> {cur:?} seed {seed}");
+                } else {
+                    assert_eq!(n, 4, "{prev:?} -> {cur:?}: gate, odds, slot, level");
+                    assert!(got.is_some());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn rate_modifiers_follow_wild_encounter_check() {
+    // rate * 16 = 320; Cleanse Tag first (x2/3, floored), then the ability, then the cap.
+    let tag = Lead {
+        cleanse_tag: true,
+        ..Lead::NONE
+    };
+    assert_eq!(encounter_rate(20, tag), 213);
+    assert_eq!(encounter_rate(20, with(Ability::Stench)), 160);
+    assert_eq!(encounter_rate(20, with(Ability::WhiteSmoke)), 160);
+    assert_eq!(encounter_rate(20, with(Ability::Illuminate)), 640);
+    assert_eq!(encounter_rate(20, with(Ability::ArenaTrap)), 640);
+    let tag_stench = Lead {
+        ability: Ability::Stench,
+        cleanse_tag: true,
+        ..Lead::NONE
+    };
+    assert_eq!(encounter_rate(20, tag_stench), 106);
+    // The cap comes after the ability.
+    assert_eq!(
+        encounter_rate(100, with(Ability::Illuminate)),
+        MAX_ENCOUNTER_RATE
+    );
+    assert_eq!(encounter_rate(255, with(Ability::Stench)), 2040);
+    // Abilities with no rate effect (Sand Veil's needs a sandstorm: no field weather).
+    for a in [
+        Ability::KeenEye,
+        Ability::Static,
+        Ability::SandVeil,
+        Ability::Other,
+    ] {
+        assert_eq!(encounter_rate(20, with(a)), 320, "{a:?}");
+    }
+    // The odds roll uses the modified rate.
+    let tb = table(20, [ZIGZAGOON; 12]);
+    for seed in 1..3000 {
+        let odds = (Rng::new(seed).random() % 2880) as u32;
+        for lead in [with(Ability::Illuminate), with(Ability::Stench), tag] {
+            let mut rng = Rng::new(seed);
+            let got = try_land_encounter(
+                &tb,
+                Behavior::Floor(Floor::Cave),
+                Behavior::Floor(Floor::Cave),
+                lead,
+                &TABLES,
+                &mut rng,
+            );
+            assert_eq!(
+                got.is_some(),
+                odds < encounter_rate(20, lead),
+                "seed {seed}"
+            );
+        }
+    }
+}
+
+#[test]
+fn cleanse_tag_is_read_from_the_lead_s_held_item() {
+    let mut p = lead(ZIGZAGOON, 5);
+    let tag = crate::data::ItemId(190);
+    let hold = |i| (i == tag).then_some(HoldEffect::CleanseTag);
+    assert!(!Lead::of(Some(&p), &TABLES, hold).cleanse_tag);
+    p.held = Some(crate::data::ItemId(1));
+    assert!(!Lead::of(Some(&p), &TABLES, hold).cleanse_tag);
+    p.held = Some(tag);
+    let l = Lead::of(Some(&p), &TABLES, hold);
+    assert!(l.cleanse_tag);
+    assert_eq!(l.level, 5);
+    assert_eq!(Lead::of(None, &TABLES, hold), Lead::NONE);
+}
+
+#[test]
+fn magnet_pull_lead_prefers_steel_slots_before_static() {
+    let mut species = [ZIGZAGOON; 12];
+    species[11] = STEEL; // the 1% slot
+    species[10] = SPARK;
+    let tb = table(180, species);
+    let magnet = lead(MAGNET, 5);
+    assert_eq!(magnet.ability(&TABLES), Ability::MagnetPull);
+    let mut steel = 0;
+    for seed in 1..2000 {
+        let mut rng = Rng::new(seed);
+        let got = try_land_encounter(
+            &tb,
+            Behavior::Floor(Floor::Cave),
+            Behavior::Floor(Floor::Cave),
+            of(&magnet),
+            &TABLES,
+            &mut rng,
+        )
+        .unwrap();
+        // Rolls: odds, the Magnet Pull coin, then the Steel pick (one valid slot) or the plain
+        // slot (no Static coin: the lead is not Static), then the level.
+        let mut r = Rng::new(seed);
+        r.random();
+        let slot = if r.random().is_multiple_of(2) {
+            r.random();
+            11
+        } else {
+            land_slot(r.random())
+        };
+        r.random();
+        assert_eq!(got.0, tb.mons[slot].species, "seed {seed}");
+        assert_eq!(rng, r, "seed {seed}");
+        steel += (got.0 == STEEL) as u32;
+    }
+    assert!((900..1100).contains(&steel), "{steel}");
+}
+
+#[test]
+fn hustle_like_leads_get_the_top_level_half_the_time() {
+    let mut tb = table(180, [ZIGZAGOON; 12]);
+    for m in &mut tb.mons {
+        m.min_level = 10;
+        m.max_level = 14;
+    }
+    for ability in [Ability::Hustle, Ability::VitalSpirit, Ability::Pressure] {
+        let mut top = 0;
+        for seed in 1..2000 {
+            let mut rng = Rng::new(seed);
+            let got = try_land_encounter(
+                &tb,
+                Behavior::TallGrass,
+                Behavior::TallGrass,
+                with(ability),
+                &TABLES,
+                &mut rng,
+            )
+            .unwrap();
+            let mut r = Rng::new(seed);
+            r.random(); // odds
+            r.random(); // slot
+            let roll = (r.random() % 5) as u8;
+            let level = if r.random().is_multiple_of(2) {
+                14
+            } else {
+                10 + roll.saturating_sub(1)
+            };
+            assert_eq!(got.1, level, "{ability:?} seed {seed}");
+            assert_eq!(rng, r);
+            top += (got.1 == 14) as u32;
+        }
+        // Half the time the top level; the other half never (a roll of 4 is lowered to 3).
+        assert!((900..1100).contains(&top), "{ability:?} {top}");
+    }
 }
 
 /// Replays the Gen3 roll order by hand for many seeds: gate, odds, slot, level.
@@ -96,7 +361,14 @@ fn roll_order_matches_gen3() {
                 Behavior::TallGrass
             };
             let mut rng = Rng::new(seed);
-            let got = try_land_encounter(&tb, prev, Behavior::TallGrass, None, &TABLES, &mut rng);
+            let got = try_land_encounter(
+                &tb,
+                prev,
+                Behavior::TallGrass,
+                Lead::NONE,
+                &TABLES,
+                &mut rng,
+            );
             let mut r = Rng::new(seed);
             let want = (|| {
                 if new_cell && r.random() % 100 >= 60 {
@@ -145,8 +417,8 @@ fn static_lead_prefers_electric_slots() {
                 &mut rng,
             )
         };
-        with += (enc(Some(&spark)).unwrap().0 == SPARK) as u32;
-        without += (enc(None).unwrap().0 == SPARK) as u32;
+        with += (enc(of(&spark)).unwrap().0 == SPARK) as u32;
+        without += (enc(Lead::NONE).unwrap().0 == SPARK) as u32;
     }
     // Half the time the only Electric slot, else 1%: ~50.5% vs ~1%.
     assert!((900..1100).contains(&with), "{with}");
@@ -159,7 +431,7 @@ fn static_lead_prefers_electric_slots() {
         &all,
         Behavior::TallGrass,
         Behavior::TallGrass,
-        Some(&spark),
+        of(&spark),
         &TABLES,
         &mut a,
     );
@@ -184,7 +456,7 @@ fn keen_eye_skips_weak_encounters_half_the_time() {
                 &tb,
                 Behavior::TallGrass,
                 Behavior::TallGrass,
-                Some(l),
+                of(l),
                 &TABLES,
                 &mut rng,
             )
@@ -212,7 +484,7 @@ fn intimidate_filters_like_keen_eye() {
             &tb,
             Behavior::TallGrass,
             Behavior::TallGrass,
-            Some(&lead),
+            of(&lead),
             &TABLES,
             &mut rng,
         );

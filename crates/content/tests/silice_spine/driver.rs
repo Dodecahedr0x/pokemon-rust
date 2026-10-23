@@ -189,6 +189,9 @@ impl GameData for Spy {
     fn form_changes(&self) -> &'static [FormChange] {
         Game.form_changes()
     }
+    fn map_type(&self, map: MapId) -> engine::data::MapType {
+        Game.map_type(map)
+    }
 }
 
 // ---- the runner ----
@@ -522,7 +525,8 @@ impl Run {
         }
     }
 
-    /// The first step of a shortest path, through non-grass cells when there is such a path.
+    /// The first step of a shortest path, off encounter tiles (tall grass, cave floors, deep sand,
+    /// `Behavior::land_encounter`) when there is such a path; through them otherwise (a cave).
     fn plan(&self, from: (i16, i16), to: (i16, i16), avoid: &[(i16, i16)]) -> Option<Dir> {
         let grid = Grid::new(&self.g, &self.w, avoid);
         grid.first_dir(from, to, true)
@@ -669,7 +673,7 @@ fn dir_button(d: Dir) -> Buttons {
 }
 
 /// The planner's view of the current map: collision, behaviors (walls, ledges one way, warps
-/// as targets only, tall grass), the objects' cells, and the cells scripts repainted
+/// as targets only, encounter tiles), the objects' cells, and the cells scripts repainted
 /// (`setmetatile`: doors opened, brambles cut), as the explorer's `path::Grid`.
 struct Grid<'a> {
     game: &'a Spy,
@@ -726,7 +730,7 @@ impl<'a> Grid<'a> {
             && !self.behavior(c).enters_warp()
             && !self.occupied.contains(&c)
             && !self.avoid.contains(&c)
-            && !(avoid_grass && self.behavior(c) == Behavior::TallGrass)
+            && !(avoid_grass && self.behavior(c).land_encounter())
     }
 
     fn step(&self, c: (i16, i16), d: Dir, grass: bool, target: (i16, i16)) -> Option<(i16, i16)> {

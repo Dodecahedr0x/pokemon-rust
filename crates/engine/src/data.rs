@@ -316,6 +316,49 @@ pub enum Behavior {
     /// Gen3 `MB_CRACKED_FLOOR_HOLE`: finishing a step on it runs [`GameData::fall_script`]
     /// (Gen3 `TryStartMiscWalkingScripts`, `EventScript_FallDownHole`).
     CrackedFloorHole,
+    /// Walkable ground whose raw Gen3 behaviour matters to wild encounters or the battle
+    /// background: the land-encounter tiles besides tall grass, and sand and mountain tops
+    /// (see [`Floor`]).
+    ///
+    /// Appended last, so no serialized (postcard) index shifts. **Merge order:** the
+    /// forced-movement branch appends `Ice` … `CrackedFloorHole` (indices 12–19). This variant
+    /// goes after them (index 20): its hash code is already 20 (`world::battle::behavior_code`),
+    /// and `checkpoint::tests` pins it as the last variant. No committed checkpoint holds it yet.
+    Floor(Floor),
+}
+
+/// The raw Gen3 behaviours behind [`Behavior::Floor`], one variant each: Gen3's new-metatile
+/// check (`StandardWildEncounter`'s `prevMetatileBehavior != curMetatileBehavior`) compares raw
+/// behaviours, so two encounter tiles must never share a variant. Append-only (postcard).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub enum Floor {
+    /// `MB_LONG_GRASS` (Routes 119, 120): encounters; the long-grass battle background.
+    LongGrass,
+    /// `MB_UNUSED_05`: encounters (Gen3 flags it, no map uses it).
+    Unused05,
+    /// `MB_DEEP_SAND` (Route 111's desert): encounters; the sand background.
+    DeepSand,
+    /// `MB_CAVE` (every cave floor): encounters.
+    Cave,
+    /// `MB_INDOOR_ENCOUNTER` (New Mauville, the Abandoned Ship's rooms): encounters; the building
+    /// background underground.
+    IndoorEncounter,
+    /// `MB_ASHGRASS` (Route 113, Jagged Pass): encounters (the ash pickup, which turns the cell
+    /// into plain grass, is not modelled).
+    AshGrass,
+    /// `MB_FOOTPRINTS` (unused in Emerald's maps): encounters.
+    Footprints,
+    /// `MB_SAND` (beaches, the desert's edges): no encounters; the sand background.
+    Sand,
+    /// `MB_MOUNTAIN_TOP` (Mt Chimney's summit): no encounters; the mountain background.
+    MountainTop,
+}
+
+impl Floor {
+    /// Gen3 `TILE_FLAG_HAS_ENCOUNTERS` (none of these is surfable).
+    pub const fn has_encounters(self) -> bool {
+        !matches!(self, Floor::Sand | Floor::MountainTop)
+    }
 }
 
 /// Sides of a cell, one bit per [`Dir`] (`1 << dir as u8`): the payload of
@@ -365,6 +408,17 @@ impl Behavior {
                 | Behavior::MuddySlope
                 | Behavior::CrackedFloor
         )
+    }
+
+    /// Gen3 `MetatileBehavior_IsLandWildEncounter`: an encounter tile that is not water (tall
+    /// grass, and the [`Floor`]s that [`Floor::has_encounters`]). Walking onto one draws the
+    /// land-encounter rolls (`wild::try_land_encounter`).
+    pub const fn land_encounter(self) -> bool {
+        match self {
+            Behavior::TallGrass => true,
+            Behavior::Floor(g) => g.has_encounters(),
+            _ => false,
+        }
     }
 
     /// Gen3 `IsMetatileDirectionallyImpassable`: a step towards `d` from a cell with behavior
@@ -1201,6 +1255,36 @@ pub trait GameData {
     fn fall_script(&self) -> Option<ScriptId> {
         None
     }
+
+    // ---- off-grass encounters ----
+
+    /// Gen3 `gMapHeader.mapType` of `map`, as `BattleSetup_GetEnvironmentId` reads it (the
+    /// battle background). The default, [`MapType::Outdoor`], is a route's.
+    fn map_type(&self, map: MapId) -> MapType {
+        let _ = map;
+        MapType::Outdoor
+    }
+}
+
+/// Gen3 `MAP_TYPE_*`, as far as the battle background tells them apart
+/// (`BattleSetup_GetEnvironmentId`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MapType {
+    /// `MAP_TYPE_TOWN`, `CITY`, `ROUTE` (and `NONE`, `UNKNOWN`, which Gen3's switch lets fall
+    /// through the same way).
+    Outdoor,
+    /// An outdoor map whose plain ground fights on sand: Gen3's `MAP_ROUTE113` special case.
+    /// (Its `WEATHER_SANDSTORM` case reads the current weather, which the engine does not
+    /// model.)
+    OutdoorSand,
+    /// `MAP_TYPE_UNDERGROUND`: caves (the building background on `MB_INDOOR_ENCOUNTER`).
+    Underground,
+    /// `MAP_TYPE_INDOOR`, `MAP_TYPE_SECRET_BASE`.
+    Indoor,
+    /// `MAP_TYPE_UNDERWATER`.
+    Underwater,
+    /// `MAP_TYPE_OCEAN_ROUTE`: plain off the water.
+    OceanRoute,
 }
 
 /// How a [`FormChange`] triggers.

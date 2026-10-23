@@ -597,6 +597,85 @@ mod extracted {
         assert!(g.front.iter().flatten().any(|&w| w != 0));
         assert_ne!(g.palette, g.shiny);
     }
+
+    /// The behaviours of every cell of `map`.
+    fn cells(map: MapId) -> Vec<Behavior> {
+        let m = Emerald.map(map);
+        let mut out = Vec::new();
+        for y in 0..m.height as i16 {
+            for x in 0..m.width as i16 {
+                out.push(engine::flow::behavior_at(&Emerald, m, x, y));
+            }
+        }
+        out
+    }
+
+    /// Off-grass encounters (the Silice Ch5 finding): Gen3's land-encounter tiles besides tall
+    /// grass resolve to their own `Floor`s, so the caves, the desert, the ash and the long
+    /// grass have wild battles; and every exported map with a land table has encounter tiles.
+    #[test]
+    fn off_grass_encounter_maps_resolve_to_encounter_tiles() {
+        use consts::*;
+        use engine::data::{Floor, MapType};
+        let has = |map: MapId, b: Behavior| cells(map).contains(&b);
+        let cave = Behavior::Floor(Floor::Cave);
+        // Granite Cave 1F: cave floor only, no tall grass; Underground (the cave background).
+        let g = cells(MAP_GRANITE_CAVE_1F);
+        assert!(g.contains(&cave));
+        assert!(g.iter().all(|&b| b == cave || !b.land_encounter()));
+        assert!(Emerald.wild_encounters(MAP_GRANITE_CAVE_1F, 0).is_some());
+        assert_eq!(Emerald.map_type(MAP_GRANITE_CAVE_1F), MapType::Underground);
+        // Route 111: the desert's deep sand (encounters); plain sand has none.
+        assert!(has(MAP_ROUTE111, Behavior::Floor(Floor::DeepSand)));
+        assert!(Behavior::Floor(Floor::DeepSand).land_encounter());
+        assert!(!Behavior::Floor(Floor::Sand).land_encounter());
+        assert!(Emerald.wild_encounters(MAP_ROUTE111, 0).is_some());
+        let sand: Vec<&str> = (data::MAP_IDS.iter())
+            .filter(|&&m| has(m, Behavior::Floor(Floor::Sand)))
+            .map(|&m| Emerald.map(m).name)
+            .collect();
+        std::println!("plain sand on {sand:?}");
+        assert!(sand.contains(&"Route109"), "{sand:?}");
+        // The other behaviours of the finding.
+        assert!(has(MAP_ROUTE113, Behavior::Floor(Floor::AshGrass)));
+        assert_eq!(Emerald.map_type(MAP_ROUTE113), MapType::OutdoorSand);
+        assert!(has(MAP_ROUTE119, Behavior::Floor(Floor::LongGrass)));
+        assert!(has(MAP_ROUTE120, Behavior::Floor(Floor::LongGrass)));
+        assert!(has(
+            MAP_NEW_MAUVILLE_INSIDE,
+            Behavior::Floor(Floor::IndoorEncounter)
+        ));
+        assert!(has(MAP_RUSTURF_TUNNEL, cave));
+        assert!(has(MAP_MT_CHIMNEY, Behavior::Floor(Floor::MountainTop)));
+        assert_eq!(Emerald.map_type(MAP_ROUTE101), MapType::Outdoor);
+        assert_eq!(Emerald.map_type(MAP_RUSTBORO_CITY_GYM), MapType::Indoor);
+        // Every exported map with a land table can meet it (Route 130's is Mirage Island's,
+        // whose grass is not in the map's own layout).
+        let mut grass_only = 0;
+        let mut without = Vec::new();
+        let mut tables = 0;
+        for &m in data::MAP_IDS.iter() {
+            if Emerald.wild_encounters(m, 0).is_none() {
+                continue;
+            }
+            tables += 1;
+            let c = cells(m);
+            if !c.iter().any(|b| b.land_encounter()) {
+                without.push(Emerald.map(m).name);
+            } else if c
+                .iter()
+                .all(|&b| b == Behavior::TallGrass || !b.land_encounter())
+            {
+                grass_only += 1;
+            }
+        }
+        std::println!("land tables {tables}, tall grass only {grass_only}, none {without:?}");
+        assert!(without.iter().all(|&n| n == "Route130"), "{without:?}");
+        assert!(
+            tables - grass_only - without.len() >= 58,
+            "maps off tall grass"
+        );
+    }
 }
 
 #[cfg(pkr_stub_battle)]

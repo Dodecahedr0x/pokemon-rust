@@ -22,11 +22,14 @@
 //!
 //! **The party** ([`end_of_chapter_4`]): Chapter 2's end (QUILAVA 26, MAREEP 12, ARON 30) plus
 //! about 4–5 levels a chapter for Chapters 3 and 4 (QUILAVA 35, LAIRON 37, FLAAFFY 21). There
-//! is no [`Step::Train`]: the engine's wild encounters are tall grass only, and the chapter's
-//! land (the rift, the East Cave) is cave floor, so nothing is met there. The silo's and the
-//! cave's trainers are the training instead (QUILAVA 35 to TYPHLOSION 41, LAIRON 37 to 39 by
-//! Skycker), with a heal at the Centre after the alley, mid-silo, after the silo and the cave,
-//! and before the watchers and Skycker. One hooked fourth Pokémon for Skycker ([`FOURTH`]).
+//! is no Chapter-long training: the chapter's land (the rift, the East Cave) is cave floor, where
+//! wild Pokémon are met (Gen3's land rule) but the paths cross it only where they must (the
+//! rift's two wild battles are part of the run). The silo's and the cave's trainers are the
+//! training (QUILAVA 35 to TYPHLOSION 41, LAIRON 37 to 39 by Skycker), with a heal at the
+//! Centre after the alley, before the silo's third grunt, mid-silo, before the Silo Chief,
+//! after the silo and the cave, and before the watchers and Skycker. The one
+//! [`Step::Train`] is on the silo basement's cave floor, before the Silo Chief
+//! ([`CHEF_LEVEL`]). One hooked fourth Pokémon for Skycker ([`FOURTH`]).
 
 use super::{Hook, Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
@@ -214,6 +217,45 @@ const SILO_HEAL: &[Step] = &[
     },
 ];
 
+/// [`SILO_HEAL`] from the basement (B1F) and back down.
+const B1F_HEAL: &[Step] = &[
+    goto(SILO_B1F, 17, 2),
+    Step::Enter {
+        dir: Dir::Up,
+        map: SILO,
+    },
+    goto(SILO, 14, 18),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto_avoiding(TOWN, 15, 30, RUELLE_SIGHT),
+    Step::Enter {
+        dir: Dir::Up,
+        map: CENTER,
+    },
+    goto(CENTER, 6, 4),
+    Step::Interact(Dir::Up),
+    goto(CENTER, 6, 6),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto_avoiding(TOWN, 47, 9, RUELLE_SIGHT),
+    Step::Enter {
+        dir: Dir::Up,
+        map: SILO,
+    },
+    goto(SILO, 4, 2),
+    Step::Enter {
+        dir: Dir::Up,
+        map: SILO_B1F,
+    },
+];
+
+/// The lead's level before the Silo Chief, after [`Step::Train`] on the basement's floor.
+const CHEF_LEVEL: u8 = 40;
+
 /// Lilith's sight in the East Cave (25, 13) left, 4 cells: off the hall's path.
 const LILITH_SIGHT: &[(i16, i16)] = &[(21, 13), (22, 13), (23, 13), (24, 13)];
 
@@ -268,7 +310,7 @@ const GYM_HEAL: &[Step] = &[
 /// Absol, Houndoom); his Houndoom wins untouched. Lanturn's Electric moves hit his three Flying
 /// types, and Water resists Houndoom's Fire. Measured: no hook, or a LANTURN at 30–34, loses
 /// to Skycker; 35–39 win (36 is the lowest whose neighbours win).
-pub const FOURTH: Hook = Hook::MonBefore("Owlys_Gym_Sc01", SPECIES_LANTURN, 36);
+pub const FOURTH: Hook = Hook::MonBefore("Owlys_Gym_Sc01", SPECIES_LANTURN, 38);
 
 /// Chapter 5's main steps, from [`start`].
 pub fn steps() -> Vec<Step> {
@@ -346,6 +388,11 @@ pub fn steps() -> Vec<Step> {
         goto(SILO, 20, 7),
         goto(SILO, 26, 7),
         Step::Interact(Right),
+    ]);
+    // The rift's wild battles (cave floor) leave the party lower than its trainers alone did:
+    // a heal before the third grunt.
+    s.extend_from_slice(SILO_HEAL);
+    s.extend_from_slice(&[
         goto(SILO, 6, 3),
         Step::Check("silo_sbires", |r| {
             for t in [
@@ -386,6 +433,20 @@ pub fn steps() -> Vec<Step> {
         Step::Check("silo_noctali_3", |r| {
             assert!(r.w.flag(FLAG_SIL_OWLYS_SILO_NOCTALI_3));
         }),
+        // The Silo Chief's three (37-38) beat a TYPHLOSION 38 more often than not: training
+        // on the basement's cave floor first, then a heal.
+        Step::Train {
+            a: (12, 22),
+            b: (13, 22),
+            level: CHEF_LEVEL,
+            heal: B1F_HEAL,
+        },
+        Step::Check("silo_trained", |r| {
+            assert!(r.w.party().get(0).unwrap().level >= CHEF_LEVEL);
+        }),
+    ]);
+    s.extend_from_slice(B1F_HEAL);
+    s.extend_from_slice(&[
         goto(SILO_B1F, 9, 23),
         Step::Interact(Down),
         goto(SILO_B1F, 27, 24),
