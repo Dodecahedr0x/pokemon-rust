@@ -1,7 +1,8 @@
 // Cells.
 [
     // Ground plan. # = | walls, . floor (MB_CAVE: land encounters), 3-6 tanks (2 x 2), X crates,
-    // B the Poudre Claire sacks, q-v the freight lift (u: its door).
+    // B the Poudre Claire sacks, q-v the freight lift (u: its door). The reserve (x 22-32, y 25-27) is
+    // entered only through the gap (27, 24) in its crate wall, under the Silo Chief's eyes.
     Ascii(x: 0, y: 0, rows: [
         "|###############qrs###############|",
         "|===============tuv===============|",
@@ -27,7 +28,7 @@
         "|56X..X56565656565656565656565656X|",
         "|X..........................X3434X|",
         "|X..........................X5656X|",
-        "|34343434343434343434X...........X|",
+        "|34343434343434343434XXXXXX.XXXXXX|",
         "|56565656565656565656X........BBBX|",
         "|34343434343434343434X........BBBX|",
         "|56565656565656565656X...........X|",

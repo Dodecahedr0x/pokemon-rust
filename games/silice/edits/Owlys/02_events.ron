@@ -8,14 +8,19 @@
     Scripts((on_load: Some("Owlys_OnLoad"), on_transition: Some("Owlys_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 50, script: "Owlys_Sc01"), (var: "VAR_SIL_STORY", value: 54, script: "Owlys_Sc05")], on_warp_into: [])),
     // Warps. 0-1: the iron door, to the Sea Rift's warp 1. 2: the Center. 3: the Gray Market.
     // 4: the orphanage. 5: the warehouse. 6: the East Cave. 7: the sanctuary (locked until Owlys_Sc04).
+    // The Gray Market's door is a cave mouth standing in the south-west alley (14, 39), entered from
+    // (14, 40): a mouth on the room's bottom wall (the first build's (14, 41)) had no floor below it.
     Warp(x: 29, y: 45, dest_map: "RouteS05_Faille", dest_warp: 1),
     Warp(x: 30, y: 45, dest_map: "RouteS05_Faille", dest_warp: 1),
     Warp(x: 15, y: 29, dest_map: "Owlys_PokemonCenter", dest_warp: 0),
-    Warp(x: 14, y: 41, dest_map: "Owlys_MarcheGris", dest_warp: 0),
+    Warp(x: 14, y: 39, dest_map: "Owlys_MarcheGris", dest_warp: 0),
     Warp(x: 12, y: 8, dest_map: "Owlys_Orphelinat", dest_warp: 0),
     Warp(x: 47, y: 8, dest_map: "Owlys_Entrepot", dest_warp: 0),
     Warp(x: 54, y: 28, dest_map: "Owlys_GrotteEst", dest_warp: 0),
     Warp(x: 30, y: 12, dest_map: "Owlys_Gym", dest_warp: 0),
+    // 8: the Pilgrims' Elevator (30, 3), to Route S6's south landing (its warp 2, the middle of the three
+    // mats). The source makes it a warp ("Ascenseur -> MAP_ROUTE_S06"); Watcher A blocks it until the badge.
+    Warp(x: 30, y: 3, dest_map: "RouteS06", dest_warp: 2),
     // Objects. Local ids 1-7 follow the source's obj numbers where it gives them (Mathieu 2,
     // Sbire Est 3, Milo 6, Sbire Ruelle 7); 1, 4 and 5 are ambient NPCs.
     Object(x: 24, y: 30, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_OWLYS_LANTERNE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Owlys_EventScript_Lanterne"),
@@ -25,25 +30,31 @@
     Object(x: 36, y: 31, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_OWLYS_GAMIN", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "Owlys_EventScript_Gamin"),
     Object(x: 5, y: 33, gfx: "OBJ_EVENT_GFX_TWIN", id: "LOCALID_OWLYS_MILO", local_id: 6, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_OWLYS_MILO"),
     Object(x: 5, y: 31, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_OWLYS_SBIRE_RUELLE", local_id: 7, movement: "MOVEMENT_TYPE_FACE_UP", script: "Owlys_Sc03", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4, flag: "FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE"),
-    // 8-12: ambient NPCs. 13: Mathieu after the badge, by the fountain. 14-15: the elevator's two Veilleurs.
-    Object(x: 33, y: 43, gfx: "OBJ_EVENT_GFX_POKEFAN_M", id: "LOCALID_OWLYS_GARDE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_EventScript_Garde"),
+    // 8-11: ambient NPCs (the first build put the guard in the wall at (33, 43); he stands by the iron
+    // door's road). 12: Mathieu after the badge, by the fountain. 13-14: the elevator's two Watchers. A
+    // stands on the elevator's front cell (30, 4), so it cannot be entered before the badge; B stands at
+    // (29, 4), so the sign right of the door stays readable from (31, 4). Owlys_Gym_Sc01 hides both. A keeps
+    // the source's FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR and B has its own flag (validate warns on a shared
+    // hide flag), as Ch2-Ch3 did with the source's group flags.
+    Object(x: 31, y: 41, gfx: "OBJ_EVENT_GFX_POKEFAN_M", id: "LOCALID_OWLYS_GARDE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_EventScript_Garde"),
     Object(x: 45, y: 30, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_OWLYS_DOCKER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Docker"),
     Object(x: 22, y: 10, gfx: "OBJ_EVENT_GFX_ARTIST", id: "LOCALID_OWLYS_POETE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Poete"),
     Object(x: 40, y: 6, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_OWLYS_RUMEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Rumeur"),
     Object(x: 28, y: 29, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_OWLYS_MATHIEU_APRES", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_MathieuApres", flag: "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES"),
-    Object(x: 29, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_OWLYS_VEILLEUR_A", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Veilleur", flag: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_A"),
-    Object(x: 31, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_OWLYS_VEILLEUR_B", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Veilleur", flag: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B"),
-    // 16: the warehouse's guard (TRAINER_SIL_OWLYS_SILO_GARDE), beside the door, facing it: stepping on
-    // the door's front cell (47, 9) starts the battle. 17: the Escape Rope on the east walkway.
+    Object(x: 30, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_OWLYS_VEILLEUR_A", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Veilleur", flag: "FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR"),
+    Object(x: 29, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_OWLYS_VEILLEUR_B", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Veilleur", flag: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B"),
+    // 15: the warehouse's guard (TRAINER_SIL_OWLYS_SILO_GARDE), beside the door, facing it: stepping on
+    // the door's front cell (47, 9) starts the battle. 16: the Escape Rope on the east walkway.
     Object(x: 46, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_OWLYS_SILO_GARDE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Owlys_EventScript_SiloGarde", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     Object(x: 44, y: 18, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_OWLYS_ITEM_ESCAPE_ROPE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_ItemCorde", flag: "FLAG_SIL_ITEM_OWLYS_CORDE_1"),
-    // Signs: the town (by the iron door), the sanctuary (left of its door, any facing), the elevator,
+    // Signs: the town (by the iron door), the sanctuary (left of its door, any facing), the elevator (right of
+    // its door),
     // the warehouse, the gargoyle statue. The feather lock on the sanctuary door is
     // Owlys_Sc04. The Black Glasses are hidden behind the gargoyle.
     Sign(x: 27, y: 44, script: "Owlys_EventScript_SignVille"),
     Sign(x: 29, y: 12, script: "Owlys_EventScript_SignGym"),
     Sign(x: 30, y: 12, script: "Owlys_Sc04"),
-    Sign(x: 30, y: 3, script: "Owlys_EventScript_SignAscenseur"),
+    Sign(x: 31, y: 3, script: "Owlys_EventScript_SignAscenseur"),
     Sign(x: 48, y: 8, script: "Owlys_EventScript_SignEntrepot"),
     Sign(x: 34, y: 26, script: "Owlys_EventScript_Gargouille"),
     HiddenItem(x: 34, y: 25, item: "ITEM_BLACK_GLASSES", flag: "FLAG_SIL_ITEM_OWLYS_LUNETTES_NOIRES"),

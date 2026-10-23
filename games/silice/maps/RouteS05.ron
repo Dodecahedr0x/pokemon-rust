@@ -209,6 +209,11 @@
             offset: 20,
             map: "RouteS05_Banc",
         ),
+        (
+            dir: West,
+            offset: 0,
+            map: "PortRessac",
+        ),
     ],
     scripts: (
         on_load: None,

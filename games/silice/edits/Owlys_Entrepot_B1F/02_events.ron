@@ -8,14 +8,18 @@
     // Warp 0: the freight lift, to the ground floor's warp 2.
     Warp(x: 17, y: 1, dest_map: "Owlys_Entrepot", dest_warp: 2),
     // Objects 1-3: the Umbreon, one per junction (the source's numbers), hidden; each walks three cells
-    // the right way. 4: the Silo Chief (TRAINER_SIL_OWLYS_CHEF_SILO), by the reserve.
+    // the right way. 4: the Silo Chief (TRAINER_SIL_OWLYS_CHEF_SILO), a sight trainer as the source says ("le
+    // CHEF DE SILO voit le joueur"): he faces the reserve's only gap (27, 24) from (27, 26), so the reserve
+    // and the Sablenite cannot be reached without Owlys_Entrepot_B1F_Sc02.
     Object(x: 14, y: 7, gfx: "OBJ_EVENT_GFX_POOCHYENA", id: "LOCALID_SILO_NOCTALI_1", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1"),
     Object(x: 5, y: 16, gfx: "OBJ_EVENT_GFX_POOCHYENA", id: "LOCALID_SILO_NOCTALI_2", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2"),
     Object(x: 7, y: 23, gfx: "OBJ_EVENT_GFX_POOCHYENA", id: "LOCALID_SILO_NOCTALI_3", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3"),
-    Object(x: 28, y: 25, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_SILO_CHEF", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_Entrepot_B1F_Sc02"),
+    Object(x: 27, y: 26, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_SILO_CHEF", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", script: "Owlys_Entrepot_B1F_Sc02", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     // Owlys_Entrepot_B1F_Sc01_1-3 (the source's Owlys_Entrepot_Sc01, one per junction): coord events on
-    // the cells leading into each junction, on VAR_TEMP_1 0 (every map load). Each checks its
-    // FLAG_SIL_OWLYS_SILO_NOCTALI_n first.
+    // the cells leading into each junction, on VAR_TEMP_1 0. They always fire (the Ch2-Ch3 temp-var idiom):
+    // contract, no script on this map writes VAR_TEMP_1. Each returns at once when its
+    // FLAG_SIL_OWLYS_SILO_NOCTALI_n is set. (The first build had each script set VAR_TEMP_1 to 1, which
+    // would have silenced junctions 2 and 3 for the rest of the visit once junction 1 had played.)
     Coord(x: 16, y: 5, var: "VAR_TEMP_1", value: 0, script: "Owlys_Entrepot_B1F_Sc01_1"),
     Coord(x: 17, y: 5, var: "VAR_TEMP_1", value: 0, script: "Owlys_Entrepot_B1F_Sc01_1"),
     Coord(x: 18, y: 5, var: "VAR_TEMP_1", value: 0, script: "Owlys_Entrepot_B1F_Sc01_1"),
@@ -30,5 +34,5 @@
     HiddenItem(x: 9, y: 24, item: "ITEM_ZINC", flag: "FLAG_SIL_ITEM_OWLYS_SILO_ZINC"),
     HiddenItem(x: 15, y: 3, item: "ITEM_CALCIUM", flag: "FLAG_SIL_ITEM_OWLYS_SILO_CALCIUM"),
     HiddenItem(x: 15, y: 14, item: "ITEM_SIL_PIERRE_LIEN", flag: "FLAG_SIL_ITEM_OWLYS_SILO_PIERRE_LIEN"),
-    HiddenItem(x: 33, y: 25, item: "ITEM_SIL_SABLENITE", flag: "FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE"),
+    HiddenItem(x: 33, y: 27, item: "ITEM_SIL_SABLENITE", flag: "FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE"),
 ]

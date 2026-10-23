@@ -1,5 +1,4 @@
 // Behaviour warnings accepted on purpose (validate honours these).
 [
     AllowCollision(cells: [(30, 12)], reason: "the sanctuary door is locked by the feather lock until Owlys_Sc04 (FLAG_SIL_OWLYS_PORTE_GYM); Owlys_OnLoad opens it"),
-    AllowCollision(cells: [(30, 3)], reason: "the Pilgrims' Elevator leads to MAP_ROUTE_S06 (Ch6), not built yet: solid, with no warp, until that link is added"),
 ]

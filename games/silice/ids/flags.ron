@@ -2235,10 +2235,6 @@
             num: 836,
         ),
         (
-            name: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_A",
-            num: 860,
-        ),
-        (
             name: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B",
             num: 861,
         ),

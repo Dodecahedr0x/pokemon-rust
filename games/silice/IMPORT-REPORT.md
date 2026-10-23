@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 575
+- ids/flags: 574
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -227,7 +227,6 @@
 - maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MILO
 - maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE
 - maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES
-- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_A
 - maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B
 - maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1
 - maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2

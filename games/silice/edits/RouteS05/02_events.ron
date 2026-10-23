@@ -23,7 +23,9 @@
     Sign(x: 3, y: 26, script: "RouteS05_EventScript_SignEntree"),
     Sign(x: 69, y: 20, script: "RouteS05_EventScript_SignParoi"),
     HiddenItem(x: 43, y: 22, item: "ITEM_HEART_SCALE", flag: "FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR"),
-    // Connection: south to the Banc de Silice (our x 20-59 meet its x 0-39). The west connection to
-    // MAP_PORT_RESSAC (Ch4) is added with that map; until then the west edge blocks like any edge.
+    // Connections: south to the Banc de Silice (our x 20-59 meet its x 0-39); west to Port-Ressac (Ch4),
+    // offset 0: its open sea on the east edge (x 49, y 22-39, the jetty ends at x 47) meets our west sea at
+    // the same rows, by the entrance buoy (3, 26). Surf only. Port-Ressac mirrors it (East, offset 0).
     Connect((dir: South, offset: 20, map: "RouteS05_Banc")),
+    Connect((dir: West, offset: 0, map: "PortRessac")),
 ]
