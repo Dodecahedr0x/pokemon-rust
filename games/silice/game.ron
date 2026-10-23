@@ -82,6 +82,14 @@
         "FLAG_SIL_HIDE_CASINO_ROMAIN",
         "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN",
         "FLAG_SIL_ITEM_DEPOT_METAL_COAT",
+        // Ch7 Reverse-City: the welcoming resident (Reverse_City_Sc01 adds and removes him),
+        // Benou at the Porte Eta-Nord (Reverse_City_Sc07) and in the gym (Gym_Sc02), and the black
+        // pixels Reverse leaves behind (Gym_Sc01 adds them, Gym_Sc02 removes them). Gogo, Romain,
+        // the Palais guard and Reverse start visible.
+        "FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL",
+        "FLAG_SIL_HIDE_REVERSE_BENOU_PORTE",
+        "FLAG_SIL_HIDE_GYM07_BENOU",
+        "FLAG_SIL_HIDE_GYM07_PIXELS",
     ],
     new_game_vars: [],
 )

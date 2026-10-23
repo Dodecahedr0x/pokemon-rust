@@ -105,6 +105,11 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_STATION_SBIRES,
         FLAG_SIL_HIDE_STATION_SBIRE_2,
         FLAG_SIL_VIBER_BARRIERE_EST,
+        // Ch7: shown until a scene hides them.
+        FLAG_SIL_HIDE_REVERSE_GOGO_ROMAIN,
+        FLAG_SIL_HIDE_REVERSE_ROMAIN,
+        FLAG_SIL_HIDE_REVERSE_GARDE_PALAIS,
+        FLAG_SIL_HIDE_GYM07_REVERSE,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -140,6 +145,11 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_CASINO_ROMAIN,
         FLAG_SIL_HIDE_CASINO_B1F_ROMAIN,
         FLAG_SIL_ITEM_DEPOT_METAL_COAT,
+        // Ch7: the welcoming resident, Benou at the north gate and in the gym, the black pixels.
+        FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL,
+        FLAG_SIL_HIDE_REVERSE_BENOU_PORTE,
+        FLAG_SIL_HIDE_GYM07_BENOU,
+        FLAG_SIL_HIDE_GYM07_PIXELS,
     ] {
         assert!(w.flag(f), "{f:?}");
     }
