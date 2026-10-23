@@ -764,6 +764,16 @@ fn committed_silice_edits_rebuild_byte_identical() {
             put(&to, &std::fs::read_to_string(&f).unwrap());
         }
     }
+    // Edit scripts may place committed stamps.
+    if let Ok(stamps) = std::fs::read_dir(committed.stamps_dir()) {
+        for s in stamps {
+            let s = s.unwrap().path();
+            put(
+                &g.stamps_dir().join(s.file_name().unwrap()),
+                &std::fs::read_to_string(&s).unwrap(),
+            );
+        }
+    }
     run(&["--games", g.root.to_str().unwrap(), "build"]).unwrap();
     let rel = |g: &GamesDir| {
         files(g)
