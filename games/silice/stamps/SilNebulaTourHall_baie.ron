@@ -1,0 +1,12 @@
+(
+    primary: "Building",
+    secondary: "SilNebulaTourHall",
+    width: 1,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1565),
+        (1566),
+        (1567),
+    ],
+)

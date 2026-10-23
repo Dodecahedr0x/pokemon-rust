@@ -71,5 +71,11 @@
             gfx_id: Some(0x171),
             prompt: "A Confusion Emitter, an object not a person (the same object in all three views): a thin grey metal antenna mast as tall as a person, standing on a short black tripod, a small dish near the top and a big glowing red light bulb on its tip, a small red cocktail-glass emblem (no letters) on a box at its foot.",
         ),
+        // Ch9 (Nébula), ids 0x190..=0x19F.
+        (
+            name: "SIL_DRONE",
+            gfx_id: Some(0x190),
+            prompt: "A small hovering surveillance drone (not a person), floating high above the ground with a small dark shadow under it: a compact white and steel-grey quadcopter body with four little black rotors, a round black camera lens with a red light, and a tiny flat screen on its belly showing a pink heart.",
+        ),
     ],
 )

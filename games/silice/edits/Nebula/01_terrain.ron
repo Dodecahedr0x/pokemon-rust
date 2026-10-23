@@ -1,203 +1,142 @@
-// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
-//   T 468/1/0 tree (2x2)
-//   t 469/1/0 tree (2x2)
-//   Y 476/1/0 tree (2x2)
-//   y 477/1/0 tree (2x2)
-//   a 648/1/0 
-//   b 649/1/0 
-//   c 651/1/0 
-//   e 652/1/0 
-//   f 653/1/0 
-//   g 650/1/0 
-//   h 484/1/0 
-//   = 764/1/0 iron fence / Cocket barricade
-//   j 656/1/0 
-//   k 657/1/0 
-//   l 659/1/0 
-//   m 660/1/0 
-//   n 661/1/0 
-//   o 658/1/0 
-//   p 850/1/0 
-//   [ 792/1/0 iron fence, west side
-//   . 699/0/3 paving
-//   q 664/1/0 
-//   r 665/1/0 
-//   u 666/1/0 
-//   v 654/1/0 
-//   w 655/1/0 
-//   x 662/1/0 
-//   z 663/1/0 
-//   A 667/1/0 
-//   B 732/1/0 
-//   , 707/0/3 paving, shadowed
-//   ~ 368/0/1 water
-//   C 672/1/0 
-//   E 673/1/0 
-//   F 674/1/0 
-//   G 668/1/0 
-//   H 669/1/0 
-//   J 670/1/0 
-//   K 675/1/0 
-//   L 748/1/0 
-//   M 676/1/0 
-//   N 677/1/0 
-//   O 678/1/0 
-//   i 530/0/3 street lamp head (walkable)
-//   I 538/1/0 street lamp post
-//   P 680/1/0 
-//   Q 681/1/0 
-//   R 682/1/0 
-//   S 683/1/0 
-//   U 688/1/0 
-//   V 689/1/0 
-//   W 684/1/0 
-//   X 685/1/0 
-//   Z 686/1/0 
-//   0 690/1/0 
-//   1 691/1/0 
-//   2 692/1/0 
-//   3 693/1/0 
-//   4 694/1/0 
-//   D 334/0/1 deep water (Dive)
-//   d 335/0/1 deep water (Dive)
-//   5 548/0/3 
-//   6 549/0/3 
-//   7 550/0/3 
-//   8 566/1/0 
-//   9 574/1/0 
-//   ! 567/1/0 
-//   # 556/1/0 
-//   $ 557/1/0 
-//   % 558/1/0 
-//   & 544/0/3 
-//   ( 545/0/3 
-//   ) 546/0/3 
-//   + 547/0/3 
-//   - 532/1/0 
-//   / 578/1/0 
-//   : 535/1/0 
-//   ; 534/1/0 
-//   < 552/1/0 
-//   > 553/1/0 
-//   ? 554/1/0 
-//   @ 555/1/0 
-//   ^ 533/1/0 
-//   _ 540/1/0 
-//   ` 541/1/0 
-//   { 543/1/0 
-//   | 542/1/0 
-//   } 560/1/0 
-//   ' 561/1/0 
-//   à 563/1/0 
-//   á 568/1/0 
-//   â 570/1/0 
-//   ä 569/1/0 
-//   ç 571/1/0 
-//   è 551/1/0 
-//   é 576/1/0 
-//   ê 577/1/0 
-//   ë 579/1/0 
-//   ì 598/0/3 
-//   í 606/0/3 
-//   î 607/0/3 
-//   ï 599/0/3 
-//   ñ 805/0/3 
-//   ò 615/0/3 
-//   ó 806/0/3 
-//   ô 80/1/0 
-//   ö 81/1/0 
-//   ù 82/1/0 
-//   ú 83/1/0 
-//   û 48/1/0 
-//   ü 49/1/0 
-//   À 50/1/0 
-//   Á 51/1/0 
-//   Â 88/1/0 
-//   Ä 89/1/0 
-//   Ç 90/1/0 
-//   È 91/1/0 
-//   É 56/1/0 
-//   Ê 57/1/0 
-//   Ë 58/1/0 
-//   Ì 59/1/0 
-//   Í 614/1/0 
-//   Î 97/1/0 
-//   Ï 98/1/0 
-//   Ñ 638/1/0 
-//   Ò 65/1/0 
-//   Ó 66/1/0 
-//   Ô 639/1/0 
-//   * 4/0/3 plastic flower bed
-//   s 3/1/0 post (broken drone, screen post)
-// North (y 2-14): the Esplanade; the Grande Porte block (x 24-34, y 2-10), locked door at (28-29, 10).
-// East (x 44-57, y 3-21): the Bassin de Captage behind an iron fence, its gate at (44, 12) (the
-//   Bassin guard stands on it), deep water (Dive) at (50-52, 10-13).
-// Centre (y 15-40): the giant screen block (x 26-34, y 16-21), the Place de l'Ecran below it, the
-//   Center (x 16-19, y 30-33) west and the Comptoir (x 41-44, y 30-33) east.
-// West (x 2-13): residential towers; the Gargote (x 3-7, y 27-31) and the MAINTENANCE block
-//   (x 9-13, y 14-18, door locked) at the end of the alley.
-// South (y 42-57): the Quai des Eaux Grises over the canal (y 49-56); deep water (Dive) at (29-30, 54-55).
+// Cells: the ground plan, then SilNebula's stamps (games/silice/gfx/SilNebula.ron, original art).
+// Ground legend: . the city paving (512), m the Tower esplanade's black marble (541), b the grey
+// concrete of the Quai des Eaux Grises and the Bassin's rim (542), q the quai's edge over the canal
+// (543), ~ water (General 368, Surf), D d deep water (General 334/335, Dive); A B C E the glass and
+// steel tower blocks (513-516, by cell parity), S T their ground floor (517-518), V W X Y the
+// Tower's black glass (519-522), = the yellow Cocket barricades (608), - | the Bassin's fence
+// (609, 610), g its open gate (611, the Bassin guard stands on it), p the plastic flower planters
+// (629, walkable; the hidden PP Up).
+// North (y 3-13): the esplanade of black marble before the Tower (x 24-33), the Grande Porte
+// (26-31, 8-10), its locked laser gate at (28-29, 10); the west avenue (12-13, 3-13) is barred by the
+// barricade (x 14). The north wall (14-23, 3) is the towers' ground floor; Nebula_OnLoad draws the
+// Breach's crack at (18-19, 3) from VAR_SIL_STORY 126 (General's cave mouth 167).
+// East (x 44-57, y 3-21): the Bassin de Captage behind its fence, the gate at (44, 12), deep water
+// (Dive) at (50-52, 10-13). The east avenue (53-57, 28-33) is barred by the barricade (x 52).
+// Centre (y 14-41): the giant screen (27-33, 18-21) on its tower, the Place de l'Ecran, the Center
+// (16-18, 31-33) west and the Comptoir (41-43, 31-33) east.
+// West (x 2-13): the residential towers; the Gargote (4-6, 29-31) and the MAINTENANCE door (10-12,
+// 17-18, door (11, 18), locked) at the end of the alley.
+// South (y 46-56): the Quai des Eaux Grises over the canal (y 49-56); deep water (Dive) at (29-30, 54-55).
 [
     Ascii(x: 0, y: 0, rows: [
-        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
-        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYy",
-        "TtTtTtTtTtTtTtTtTtTtTtTtabbceefbbghtTtTtTtTtTtTtTtTtTtTtTtTt",
-        "YyYyYyYyYyYyYy==========jkklmmnkkop=======================Yy",
-        "TtTtTtTtTtTtTt[.........qruvwxzuuAB.........[,~~~~~~~~~~~~Tt",
-        "YyYyYyYyYyYyYy[.........CEFGHHJFFKL.........[,~~~~~~~~~~~~Yy",
-        "TtTtTtTtTtTtTt[.........qruMNNOuuAL.........[,~~~~~~~~~~~~Tt",
-        "YyYyYyYyYyYyYy[......i..CEFGHHJFFKL..i......[,~~~~~~~~~~~~Yy",
-        "TtTtTtTtTtTtTt[......I..PQQMNNORRSL..I......[,~~~~~~~~~~~~Tt",
-        "YyYyYyYyYyYyYy[.........UVVWXXZ001L.........[,~~~~~~~~~~~~Yy",
-        "TtTtTtTtTtTtTt[............2334.............[,~~~~DdD~~~~~Tt",
-        "YyYyYyYyYyYyYy[...i.....................i...[,~~~~dDd~~~~~Yy",
-        "TtTtTtTtTtTtTt[...I.....................I....,~~~~DdD~~~~~Tt",
-        "YyYyYyYyYyYyYy[.............................[,~~~~dDd~~~~~Yy",
-        "Tt.......56667[.............................[,~~~~~~~~~~~~Tt",
-        "Yy56666678999!..............................[,~~~~~~~~~~~~Yy",
-        "Tt899999!#$$$%............&(((((()+.........[,~~~~~~~~~~~~Tt",
-        "Yy#$$$$$%-/:/;............<>>>>>>?@.........[,~~~~~~~~~~~~Yy",
-        "Tt-/^/^/;_`{`|............}'''''''à.........[,~~~~~~~~~~~~Tt",
-        "Yy-/^/^/;.................áâäâäâäâç.........[,~~~~~~~~~~~~Yy",
-        "Tt-^^^^^;.................áâääèääâç.........[,~~~~~~~~~~~~Tt",
-        "Yy-/^/^/;.................éêêêêêêêë.........==============Yy",
-        "Tt-/:/^/;............................................tTtTtTt",
-        "Yy_`````|.i.............i...........i........========yYyYyYy",
-        "Tt........I.............I...........I...............[tTtTtTt",
-        "Yy..................................................[yYyYyYy",
-        "Tt..................................................[tTtTtTt",
-        "Yy.56667............................................[yYyYyYy",
-        "Tt.8999!..............i...............i.............[tTtTtTt",
-        "Yy.#$$$%..............I...............I.............[yYyYyYy",
-        "Tt.-/:/;........ìíîï.....................ñòòó.......[tTtTtTt",
-        "Yy._`{`|........ôöùú.....................ûüÀÁ.......[yYyYyYy",
-        "Tt..............ÂÄÇÈ.....................ÉÊËÌ.......[tTtTtTt",
-        "Yy5666667.......ÍÎÏÑ.....................ÍÒÓÔ.......[yYyYyYy",
-        "Tt899999!...............i...........i...............[tTtTtTt",
-        "Yy#$$$$$%.i.............I...........I...............[yYyYyYy",
-        "Tt-/^/^/;.I.........................................[tTtTtTt",
-        "Yy-/^/^/;.......................===.................[yYyYyYy",
-        "Tt-^^^^^;..........****......................=======.tTtTtTt",
-        "Yy-/^/^/;.....i...............................i......yYyYyYy",
-        "Tt-/:/^/;.....I...............................I...........Tt",
-        "Yy_`````|.................................................Yy",
-        "Tt........................................................Tt",
-        "Yy........................................................Yy",
-        "Tt........................................................Tt",
-        "Yy....i...s.......i.......................i...........i...Yy",
-        "Tt....I...........I.......................I...........I...Tt",
-        "Yy........................................................Yy",
-        "Tt........................................................Tt",
-        "Yy~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Yy",
-        "Tt~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Tt",
-        "Yy~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Yy",
-        "Tt~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Tt",
-        "Yy~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Yy",
-        "Tt~~~~~~~~~~~~~~~~~~~~~~~~~~~dD~~~~~~~~~~~~~~~~~~~~~~~~~~~Tt",
-        "Yy~~~~~~~~~~~~~~~~~~~~~~~~~~~Dd~~~~~~~~~~~~~~~~~~~~~~~~~~~Yy",
-        "Tt~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Tt",
-        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYy",
-        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
-        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYy",
-    ], legend: {'T': (metatile: 468, collision: 1, elevation: 0), 't': (metatile: 469, collision: 1, elevation: 0), 'Y': (metatile: 476, collision: 1, elevation: 0), 'y': (metatile: 477, collision: 1, elevation: 0), 'a': (metatile: 648, collision: 1, elevation: 0), 'b': (metatile: 649, collision: 1, elevation: 0), 'c': (metatile: 651, collision: 1, elevation: 0), 'e': (metatile: 652, collision: 1, elevation: 0), 'f': (metatile: 653, collision: 1, elevation: 0), 'g': (metatile: 650, collision: 1, elevation: 0), 'h': (metatile: 484, collision: 1, elevation: 0), '=': (metatile: 764, collision: 1, elevation: 0), 'j': (metatile: 656, collision: 1, elevation: 0), 'k': (metatile: 657, collision: 1, elevation: 0), 'l': (metatile: 659, collision: 1, elevation: 0), 'm': (metatile: 660, collision: 1, elevation: 0), 'n': (metatile: 661, collision: 1, elevation: 0), 'o': (metatile: 658, collision: 1, elevation: 0), 'p': (metatile: 850, collision: 1, elevation: 0), '[': (metatile: 792, collision: 1, elevation: 0), '.': (metatile: 699, collision: 0, elevation: 3), 'q': (metatile: 664, collision: 1, elevation: 0), 'r': (metatile: 665, collision: 1, elevation: 0), 'u': (metatile: 666, collision: 1, elevation: 0), 'v': (metatile: 654, collision: 1, elevation: 0), 'w': (metatile: 655, collision: 1, elevation: 0), 'x': (metatile: 662, collision: 1, elevation: 0), 'z': (metatile: 663, collision: 1, elevation: 0), 'A': (metatile: 667, collision: 1, elevation: 0), 'B': (metatile: 732, collision: 1, elevation: 0), ',': (metatile: 707, collision: 0, elevation: 3), '~': (metatile: 368, collision: 0, elevation: 1), 'C': (metatile: 672, collision: 1, elevation: 0), 'E': (metatile: 673, collision: 1, elevation: 0), 'F': (metatile: 674, collision: 1, elevation: 0), 'G': (metatile: 668, collision: 1, elevation: 0), 'H': (metatile: 669, collision: 1, elevation: 0), 'J': (metatile: 670, collision: 1, elevation: 0), 'K': (metatile: 675, collision: 1, elevation: 0), 'L': (metatile: 748, collision: 1, elevation: 0), 'M': (metatile: 676, collision: 1, elevation: 0), 'N': (metatile: 677, collision: 1, elevation: 0), 'O': (metatile: 678, collision: 1, elevation: 0), 'i': (metatile: 530, collision: 0, elevation: 3), 'I': (metatile: 538, collision: 1, elevation: 0), 'P': (metatile: 680, collision: 1, elevation: 0), 'Q': (metatile: 681, collision: 1, elevation: 0), 'R': (metatile: 682, collision: 1, elevation: 0), 'S': (metatile: 683, collision: 1, elevation: 0), 'U': (metatile: 688, collision: 1, elevation: 0), 'V': (metatile: 689, collision: 1, elevation: 0), 'W': (metatile: 684, collision: 1, elevation: 0), 'X': (metatile: 685, collision: 1, elevation: 0), 'Z': (metatile: 686, collision: 1, elevation: 0), '0': (metatile: 690, collision: 1, elevation: 0), '1': (metatile: 691, collision: 1, elevation: 0), '2': (metatile: 692, collision: 1, elevation: 0), '3': (metatile: 693, collision: 1, elevation: 0), '4': (metatile: 694, collision: 1, elevation: 0), 'D': (metatile: 334, collision: 0, elevation: 1), 'd': (metatile: 335, collision: 0, elevation: 1), '5': (metatile: 548, collision: 0, elevation: 3), '6': (metatile: 549, collision: 0, elevation: 3), '7': (metatile: 550, collision: 0, elevation: 3), '8': (metatile: 566, collision: 1, elevation: 0), '9': (metatile: 574, collision: 1, elevation: 0), '!': (metatile: 567, collision: 1, elevation: 0), '#': (metatile: 556, collision: 1, elevation: 0), '$': (metatile: 557, collision: 1, elevation: 0), '%': (metatile: 558, collision: 1, elevation: 0), '&': (metatile: 544, collision: 0, elevation: 3), '(': (metatile: 545, collision: 0, elevation: 3), ')': (metatile: 546, collision: 0, elevation: 3), '+': (metatile: 547, collision: 0, elevation: 3), '-': (metatile: 532, collision: 1, elevation: 0), '/': (metatile: 578, collision: 1, elevation: 0), ':': (metatile: 535, collision: 1, elevation: 0), ';': (metatile: 534, collision: 1, elevation: 0), '<': (metatile: 552, collision: 1, elevation: 0), '>': (metatile: 553, collision: 1, elevation: 0), '?': (metatile: 554, collision: 1, elevation: 0), '@': (metatile: 555, collision: 1, elevation: 0), '^': (metatile: 533, collision: 1, elevation: 0), '_': (metatile: 540, collision: 1, elevation: 0), '`': (metatile: 541, collision: 1, elevation: 0), '{': (metatile: 543, collision: 1, elevation: 0), '|': (metatile: 542, collision: 1, elevation: 0), '}': (metatile: 560, collision: 1, elevation: 0), '\'': (metatile: 561, collision: 1, elevation: 0), 'à': (metatile: 563, collision: 1, elevation: 0), 'á': (metatile: 568, collision: 1, elevation: 0), 'â': (metatile: 570, collision: 1, elevation: 0), 'ä': (metatile: 569, collision: 1, elevation: 0), 'ç': (metatile: 571, collision: 1, elevation: 0), 'è': (metatile: 551, collision: 1, elevation: 0), 'é': (metatile: 576, collision: 1, elevation: 0), 'ê': (metatile: 577, collision: 1, elevation: 0), 'ë': (metatile: 579, collision: 1, elevation: 0), 'ì': (metatile: 598, collision: 0, elevation: 3), 'í': (metatile: 606, collision: 0, elevation: 3), 'î': (metatile: 607, collision: 0, elevation: 3), 'ï': (metatile: 599, collision: 0, elevation: 3), 'ñ': (metatile: 805, collision: 0, elevation: 3), 'ò': (metatile: 615, collision: 0, elevation: 3), 'ó': (metatile: 806, collision: 0, elevation: 3), 'ô': (metatile: 80, collision: 1, elevation: 0), 'ö': (metatile: 81, collision: 1, elevation: 0), 'ù': (metatile: 82, collision: 1, elevation: 0), 'ú': (metatile: 83, collision: 1, elevation: 0), 'û': (metatile: 48, collision: 1, elevation: 0), 'ü': (metatile: 49, collision: 1, elevation: 0), 'À': (metatile: 50, collision: 1, elevation: 0), 'Á': (metatile: 51, collision: 1, elevation: 0), 'Â': (metatile: 88, collision: 1, elevation: 0), 'Ä': (metatile: 89, collision: 1, elevation: 0), 'Ç': (metatile: 90, collision: 1, elevation: 0), 'È': (metatile: 91, collision: 1, elevation: 0), 'É': (metatile: 56, collision: 1, elevation: 0), 'Ê': (metatile: 57, collision: 1, elevation: 0), 'Ë': (metatile: 58, collision: 1, elevation: 0), 'Ì': (metatile: 59, collision: 1, elevation: 0), 'Í': (metatile: 614, collision: 1, elevation: 0), 'Î': (metatile: 97, collision: 1, elevation: 0), 'Ï': (metatile: 98, collision: 1, elevation: 0), 'Ñ': (metatile: 638, collision: 1, elevation: 0), 'Ò': (metatile: 65, collision: 1, elevation: 0), 'Ó': (metatile: 66, collision: 1, elevation: 0), 'Ô': (metatile: 639, collision: 1, elevation: 0), '*': (metatile: 4, collision: 0, elevation: 3), 's': (metatile: 3, collision: 1, elevation: 0)}),
+        "ABABABABABABABABABABABABVWVWVWVWVWABABABABABABABABABABABABAB",
+        "CECECECECECECECECECECECEXYXYXYXYXYCECECECECECECECECECECECECE",
+        "ABABABABABABABABABABABABVWVWVWVWVWABABABABABABABABABABABABAB",
+        "CECECECECECE..STSTSTSTSTXYXYXYXYXYSTSTSTSTST--------------CE",
+        "ABABABABABAB..=mmmmmmmmmVWVWVWVWVWmmmmmmmmmm|b~~~~~~~~~~~~AB",
+        "CECECECECECE..=mmmmmmmmmXYXYXYXYXYmmmmmmmmmm|b~~~~~~~~~~~~CE",
+        "ABABABABABAB..=mmmmmmmmmVWVWVWVWVWmmmmmmmmmm|b~~~~~~~~~~~~AB",
+        "CECECECECECE..=mmmmmmmmmXYXYXYXYXYmmmmmmmmmm|b~~~~~~~~~~~~CE",
+        "ABABABABABAB..=mmmmmmmmmVWVWVWVWVWmmmmmmmmmm|b~~~~~~~~~~~~AB",
+        "CECECECECECE..=mmmmmmmmmXYXYXYXYXYmmmmmmmmmm|b~~~~~~~~~~~~CE",
+        "ABABABABABAB..=mmmmmmmmmmmmmmmmmmmmmmmmmmmmm|b~~~~DdD~~~~~AB",
+        "CECECECECECE..=mmmmmmmmmmmmmmmmmmmmmmmmmmmmm|b~~~~dDd~~~~~CE",
+        "ABSTSTSTSTST..=mmmmmmmmmmmmmmmmmmmmmmmmmmmmmgb~~~~DdD~~~~~AB",
+        "CE............=mmmmmmmmmmmmmmmmmmmmmmmmmmmmm|b~~~~dDd~~~~~CE",
+        "ABABABAB.BABAB............ABABABABA.........|b~~~~~~~~~~~~AB",
+        "CECECECE.ECECE............CECECECEC.........|b~~~~~~~~~~~~CE",
+        "ABABABAB.BABAB............ABABABABA.........|b~~~~~~~~~~~~AB",
+        "CECECECE.ECECE............STSTSTSTS.........|b~~~~~~~~~~~~CE",
+        "ABABABAB.T...T..............................|b~~~~~~~~~~~~AB",
+        "CECECECE....................................|b~~~~~~~~~~~~CE",
+        "ABABABAB....................................|b~~~~~~~~~~~~AB",
+        "CESTSTST....................................--------------CE",
+        "AB...................................................BABABAB",
+        "CE...................................................ECECECE",
+        "ABABABABA............................................BABABAB",
+        "CECECECEC............................................ECECECE",
+        "ABABABABA.ABAB.......................................BABABAB",
+        "CECECECEC.CECE.......................................TSTSTCE",
+        "ABABABABA.ABAB......................................=.....AB",
+        "CECECECEC.CECE......................................=.....CE",
+        "ABABABABA.ABAB......................................=.....AB",
+        "CESTSTSTS.STST......................................=.....CE",
+        "AB..................................................=.....AB",
+        "CE..................................................=.....CE",
+        "ABABABABA.....................................ABABA..BABABAB",
+        "CECECECEC.....................................CECEC..ECECECE",
+        "ABABABABA.....................................ABABA..BABABAB",
+        "CECECECEC.....................................CECEC..ECECECE",
+        "ABABABABA.........pppp........................ABABA..BABABAB",
+        "CECECECEC.....................................CECEC..ECECECE",
+        "ABABABABA.....................................STSTS..BABABAB",
+        "CESTSTSTS............................................TSTSTCE",
+        "AB........................................................AB",
+        "CE........................................................CE",
+        "AB........................................................AB",
+        "CE........................................................CE",
+        "ABbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbAB",
+        "CEbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbCE",
+        "ABqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAB",
+        "CE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CE",
+        "AB~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AB",
+        "CE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CE",
+        "AB~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AB",
+        "CE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CE",
+        "AB~~~~~~~~~~~~~~~~~~~~~~~~~~~dD~~~~~~~~~~~~~~~~~~~~~~~~~~~AB",
+        "CE~~~~~~~~~~~~~~~~~~~~~~~~~~~Dd~~~~~~~~~~~~~~~~~~~~~~~~~~~CE",
+        "AB~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AB",
+        "CESTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTSTCE",
+        "ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB",
+        "CECECECECECECECECECECECECECECECECECECECECECECECECECECECECECE",
+    ], legend: {'-': (metatile: 609, collision: 1, elevation: 0), '.': (metatile: 512, collision: 0, elevation: 3), '=': (metatile: 608, collision: 1, elevation: 0), 'A': (metatile: 513, collision: 1, elevation: 0), 'B': (metatile: 514, collision: 1, elevation: 0), 'C': (metatile: 515, collision: 1, elevation: 0), 'D': (metatile: 334, collision: 0, elevation: 1), 'E': (metatile: 516, collision: 1, elevation: 0), 'S': (metatile: 517, collision: 1, elevation: 0), 'T': (metatile: 518, collision: 1, elevation: 0), 'V': (metatile: 519, collision: 1, elevation: 0), 'W': (metatile: 520, collision: 1, elevation: 0), 'X': (metatile: 521, collision: 1, elevation: 0), 'Y': (metatile: 522, collision: 1, elevation: 0), 'b': (metatile: 542, collision: 0, elevation: 3), 'd': (metatile: 335, collision: 0, elevation: 1), 'g': (metatile: 611, collision: 0, elevation: 3), 'm': (metatile: 541, collision: 0, elevation: 3), 'p': (metatile: 629, collision: 0, elevation: 3), 'q': (metatile: 543, collision: 0, elevation: 3), '|': (metatile: 610, collision: 1, elevation: 0), '~': (metatile: 368, collision: 0, elevation: 1)}),
+    // The landmarks and props: SilNebula's stamps (games/silice/gfx/SilNebula.ron, original art).
+    // The Grande Porte at the Tower's foot (x 26-31, y 8-10), its locked laser gate (28-29, 10) (bg 4-5).
+    Stamp(x: 26, y: 8, name: "SilNebula_grande_porte"),
+    // Kimiko billboards on the tower blocks.
+    Stamp(x: 16, y: 0, name: "SilNebula_facade_ecran"),
+    Stamp(x: 38, y: 0, name: "SilNebula_facade_ecran"),
+    Stamp(x: 50, y: 0, name: "SilNebula_facade_ecran"),
+    Stamp(x: 4, y: 4, name: "SilNebula_facade_ecran"),
+    Stamp(x: 4, y: 16, name: "SilNebula_facade_ecran"),
+    Stamp(x: 4, y: 36, name: "SilNebula_facade_ecran"),
+    Stamp(x: 54, y: 22, name: "SilNebula_facade_ecran"),
+    Stamp(x: 54, y: 36, name: "SilNebula_facade_ecran"),
+    Stamp(x: 48, y: 36, name: "SilNebula_facade_ecran"),
+    Stamp(x: 10, y: 27, name: "SilNebula_facade_ecran"),
+    // The esplanade's lamps (the one at (21, 7-8) is Julien's workbench in the post-game, bg at (21, 8)).
+    Stamp(x: 21, y: 7, name: "SilNebula_lampadaire_m"),
+    Stamp(x: 38, y: 7, name: "SilNebula_lampadaire_m"),
+    Stamp(x: 19, y: 11, name: "SilNebula_lampadaire_m"),
+    Stamp(x: 41, y: 11, name: "SilNebula_lampadaire_m"),
+    // The MAINTENANCE door at the end of the alley (x 10-12, y 17-18), door (11, 18) (bg 8, warp 4).
+    Stamp(x: 10, y: 17, name: "SilNebula_maintenance"),
+    // The Gargote at the foot of the west towers (x 4-6, y 29-31), door (5, 31) (warp 2).
+    Stamp(x: 4, y: 29, name: "SilNebula_gargote"),
+    // The giant screen of the Place de l'Ecran (x 27-33, y 18-21), read at (30, 21) (bg 0).
+    Stamp(x: 27, y: 18, name: "SilNebula_ecran_geant"),
+    // The Pokemon Center (x 16-18, y 31-33), door (17, 33) (warp 0); the Comptoir Cocket (x 41-43,
+    // y 31-33), door (42, 33) (warp 1).
+    Stamp(x: 16, y: 31, name: "SilNebula_centre"),
+    Stamp(x: 41, y: 31, name: "SilNebula_comptoir"),
+    // The benches facing the screen (the old man (33, 26) sits by one).
+    Stamp(x: 26, y: 25, name: "SilNebula_banc"),
+    Stamp(x: 31, y: 26, name: "SilNebula_banc"),
+    Stamp(x: 24, y: 28, name: "SilNebula_banc"),
+    Stamp(x: 34, y: 30, name: "SilNebula_banc"),
+    // The wanted notice on its pole (22, 28-29) (bg 1), the loudspeaker post (24, 34-35) (bg 3).
+    Stamp(x: 22, y: 28, name: "SilNebula_poteau_avis"),
+    Stamp(x: 24, y: 34, name: "SilNebula_haut_parleur"),
+    // The screen in the Place's paving (29-31, 32), read at (30, 32) (bg 2).
+    Stamp(x: 29, y: 32, name: "SilNebula_ecran_sol"),
+    // More screens set in the paving (no sign).
+    Stamp(x: 19, y: 25, name: "SilNebula_ecran_sol"),
+    Stamp(x: 38, y: 25, name: "SilNebula_ecran_sol"),
+    Stamp(x: 26, y: 42, name: "SilNebula_ecran_sol"),
+    // The bus shelter (x 32-34, y 36-37): Mathieu's stage (33, 37).
+    Stamp(x: 32, y: 36, name: "SilNebula_abribus"),
+    // The street lamps.
+    Stamp(x: 11, y: 23, name: "SilNebula_lampadaire"),
+    Stamp(x: 24, y: 23, name: "SilNebula_lampadaire"),
+    Stamp(x: 37, y: 23, name: "SilNebula_lampadaire"),
+    Stamp(x: 39, y: 28, name: "SilNebula_lampadaire"),
+    Stamp(x: 10, y: 35, name: "SilNebula_lampadaire"),
+    Stamp(x: 36, y: 34, name: "SilNebula_lampadaire"),
+    Stamp(x: 14, y: 39, name: "SilNebula_lampadaire"),
+    Stamp(x: 6, y: 43, name: "SilNebula_lampadaire"),
+    Stamp(x: 18, y: 43, name: "SilNebula_lampadaire"),
+    Stamp(x: 42, y: 43, name: "SilNebula_lampadaire"),
+    Stamp(x: 54, y: 43, name: "SilNebula_lampadaire"),
+    // The broken drone by the quai (10, 45); the hidden Revive behind it (10, 44).
+    Stamp(x: 10, y: 45, name: "SilNebula_drone_casse"),
 ]
