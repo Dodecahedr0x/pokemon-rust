@@ -37,7 +37,8 @@ pub mod schema;
 pub mod text;
 
 use crate::input::{AuthoredIn, World};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
+use extract::schema::MapFile;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -72,6 +73,7 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
     check_assets(&loaded, &w)?;
     resolver.check_claims()?;
+    check_trainer_objects(&maps, &reg, &resolver)?;
     reg.trainer_table = trainer_scripts(&reg, &ids)?;
     w.maps = maps;
     w.ir = None;
@@ -150,8 +152,8 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
 }
 
 /// `TRAINER_SCRIPTS` (`Registry::trainer_table`): (`ScriptId`, trainer number,
-/// `TRAINER_BATTLE_SINGLE`) of every trainer script of the registry, sorted by `ScriptId`. A trainer constant missing from
-/// `ids/trainers.ron` fails.
+/// `TRAINER_BATTLE_SINGLE`) of every trainer script of the registry, sorted by `ScriptId`. A
+/// trainer constant missing from `ids/trainers.ron` fails.
 fn trainer_scripts(reg: &registry::Registry, ids: &ids::Ids) -> Result<Vec<(u16, u16, u8)>> {
     let mut out = Vec::new();
     for (script, trainer) in &reg.trainers {
@@ -162,6 +164,46 @@ fn trainer_scripts(reg: &registry::Registry, ids: &ids::Ids) -> Result<Vec<(u16,
     }
     out.sort();
     Ok(out)
+}
+
+/// Every trainer object (`trainer_type` other than `TRAINER_TYPE_NONE`) of a strict map runs a
+/// trainer script, one whose first statement is the prelude's `trainer(..)`
+/// ([`registry::Registry::trainers`]). Otherwise `TRAINER_SCRIPTS` would leave it out and the
+/// engine's sight would silently ignore it. Fails once, listing every such object.
+pub fn check_trainer_objects(
+    maps: &[MapFile],
+    reg: &registry::Registry,
+    resolver: &registry::Resolver,
+) -> Result<()> {
+    let trainer_scripts: BTreeSet<&str> = reg.trainers.iter().map(|(s, _)| s.as_str()).collect();
+    let mut bad = Vec::new();
+    for m in maps.iter().filter(|m| resolver.is_strict(&m.name)) {
+        for o in m
+            .objects
+            .iter()
+            .filter(|o| o.trainer_type != "TRAINER_TYPE_NONE")
+        {
+            match o.script.as_deref() {
+                Some(s) if trainer_scripts.contains(s) => {}
+                s => bad.push(format!(
+                    "{} object {} ({}, {}): {}",
+                    m.name,
+                    o.local_id,
+                    o.x,
+                    o.y,
+                    s.unwrap_or("no script")
+                )),
+            }
+        }
+    }
+    ensure!(
+        bad.is_empty(),
+        "{} trainer objects of strict maps do not run a trainer script (a `pub async fn` whose \
+         first statement is the prelude's `trainer(&ctx, LOCALID_…, TRAINER_…, …)`): {}",
+        bad.len(),
+        bad.join("; ")
+    );
+    Ok(())
 }
 
 /// The extract assets the maps name: each layout's tilesets, each object's sprite.

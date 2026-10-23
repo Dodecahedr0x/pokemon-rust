@@ -363,28 +363,41 @@ fn without_module(reg: &Registry, module: &str, keep_claims: bool) -> Registry {
     r
 }
 
+/// The Ch0 maps, claimed by the `ch00_*.rs` files.
+const CH0_MAPS: [&str; 6] = [
+    "BricoBourg",
+    "BricoBourg_Bar",
+    "BricoBourg_FriendsHouse",
+    "BricoBourg_PlayerHouse_1F",
+    "BricoBourg_PlayerHouse_2F",
+    "RouteS01",
+];
+
 #[test]
 fn the_committed_maps_are_claimed_and_every_script_they_name_exists() {
     let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
-    // Nothing is unwritten, even with every map forced strict.
-    for force in [false, true] {
-        let (strict, r) = committed_maps(force, &reg);
-        strict.unwrap();
-        assert!(r.unwritten.is_empty(), "{:?}", r.unwritten);
-    }
-    // The Ch0 maps are claimed by the ch00 files, one file per map.
-    for m in silice::load::load_maps(&games()).unwrap() {
-        let n = &m.map.name;
-        if ["BricoBourg", "RouteS01"].contains(&n.as_str()) || n.starts_with("BricoBourg_") {
-            let module = reg.claimed.get(n).unwrap_or_else(|| panic!("{n}"));
-            assert!(module.starts_with("ch00_"), "{n}: {module}");
+    let (strict, r) = committed_maps(false, &reg);
+    strict.unwrap();
+    // Only maps no file claims yet (chapters drafted before their scenes) name unwritten
+    // scripts.
+    for (n, maps) in &r.unwritten {
+        for m in maps {
+            assert!(!reg.claimed.contains_key(m), "{n} in claimed map {m}");
         }
+    }
+    // The Ch0 maps are claimed by the ch00 files.
+    for n in CH0_MAPS {
+        let module = reg.claimed.get(n).unwrap_or_else(|| panic!("{n}"));
+        assert!(module.starts_with("ch00_"), "{n}: {module}");
     }
 }
 
 #[test]
 fn an_unknown_script_fails_in_a_claimed_map_and_is_listed_in_an_unclaimed_one() {
     let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
+    // What the unclaimed maps already leave unwritten.
+    let (_, base) = committed_maps(false, &reg);
+    let base: Vec<&String> = base.unwritten.keys().collect();
     let module = &reg.claimed["RouteS01"];
     // Unclaimed (the allowlist mode): dropped and listed, the build goes on.
     let draft = without_module(&reg, module, false);
@@ -400,17 +413,18 @@ fn an_unknown_script_fails_in_a_claimed_map_and_is_listed_in_an_unclaimed_one() 
         assert!(maps.contains("RouteS01"), "{n}: {maps:?}");
     }
     for n in r.unwritten.keys() {
-        assert!(gone.contains(&n), "{n} is registered");
+        assert!(gone.contains(&n) || base.contains(&n), "{n} is registered");
     }
-    // Forced strict (`PKR_SILICE_STRICT_SCRIPTS=1`), and claimed: one error after every map,
-    // naming every unknown script once, with its maps.
+    // Forced strict (`PKR_SILICE_STRICT_SCRIPTS=1`, which also fails on the unclaimed maps'
+    // names), and claimed: one error after every map, naming every unknown script once, with
+    // its maps.
     for (force, keep) in [(true, false), (false, true)] {
         let (strict, _) = committed_maps(force, &without_module(&reg, module, keep));
         let e = format!("{:#}", strict.unwrap_err());
+        let count = gone.len() + if force { base.len() } else { 0 };
         assert!(
             e.starts_with(&format!(
-                "{} scripts the strict maps name are not defined by any src/silice/scripts/*.rs: ",
-                gone.len()
+                "{count} scripts the strict maps name are not defined by any src/silice/scripts/*.rs: "
             )),
             "{e}"
         );
@@ -444,12 +458,27 @@ fn a_claimed_map_must_exist_and_be_claimed_once() {
     put(&d, "ch01_b.rs", "pub const MAPS: &[&str] = &[\"B\"];\n");
     let e = format!("{:#}", registry::scan(&d).unwrap_err());
     assert!(e.contains("map B is claimed by both"), "{e}");
-    for bad in [
-        "const MAPS: &[&str] = &[\"A\"];",
-        "pub const MAPS: &[&str] = &[NAME];",
-        "pub const MAPS: &[&str] = X;",
+    put(
+        &d,
+        "ch01_b.rs",
+        "pub const MAPS: &[&str] = &[\"C\", \"C\"];\n",
+    );
+    let e = format!("{:#}", registry::scan(&d).unwrap_err());
+    assert!(e.contains("map C is listed twice in `MAPS`"), "{e}");
+    for (bad, why) in [
+        ("const MAPS: &[&str] = &[\"A\"];", "must be `pub`"),
+        (
+            "pub const MAPS: &[&str] = &[\"A\", NAME];",
+            "element 2 is not a string literal",
+        ),
+        (
+            "pub const MAPS: &[&str] = X;",
+            "expected an array of string literals",
+        ),
+        ("pub static MAPS: &[&str] = &[\"A\"];", "`static MAPS`"),
     ] {
-        assert!(registry::claimed_maps(bad).is_err(), "{bad}");
+        let e = format!("{:#}", registry::claimed_maps(bad).unwrap_err());
+        assert!(e.contains(why), "{bad}: {e}");
     }
     assert!(
         registry::claimed_maps("pub const OTHER: u8 = 1;")
@@ -490,6 +519,27 @@ async fn Private(ctx: Ctx) {
             ("T2", "TRAINER_SIL_B"),
             ("T3", "TRAINER_SIL_C")
         ]
+    );
+    // Every trainer object of a strict map runs a trainer script, or the build fails.
+    let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
+    let ids = ids::load(&games()).unwrap();
+    let mut r = Resolver::new(&reg, false);
+    let maps: Vec<_> = (silice::load::load_maps(&games()).unwrap().iter())
+        .map(|m| silice::merge::to_map_file(m, &ids, &mut r).unwrap())
+        .collect();
+    silice::check_trainer_objects(&maps, &reg, &r).unwrap();
+    let mut no_teo = reg.clone();
+    no_teo
+        .trainers
+        .retain(|t| t.0 != "RouteS01_EventScript_Teo");
+    let e = format!(
+        "{:#}",
+        silice::check_trainer_objects(&maps, &no_teo, &r).unwrap_err()
+    );
+    assert!(e.starts_with("1 trainer objects of strict maps"), "{e}");
+    assert!(
+        e.contains("RouteS01 object 3 (3, 24): RouteS01_EventScript_Teo"),
+        "{e}"
     );
     // The committed route trainers.
     let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();

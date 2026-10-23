@@ -115,6 +115,11 @@ pub fn scan(dir: &Path) -> Result<Registry> {
         let src = src.replace("\r\n", "\n");
         for map in claimed_maps(&src).with_context(|| p.display().to_string())? {
             if let Some(old) = reg.claimed.insert(map.clone(), module.clone()) {
+                ensure!(
+                    old != module,
+                    "{}: map {map} is listed twice in `{MAPS_CONST}`",
+                    p.display()
+                );
                 bail!("map {map} is claimed by both scripts/{old}.rs and scripts/{module}.rs");
             }
         }
@@ -172,6 +177,13 @@ pub fn claimed_maps(src: &str) -> Result<Vec<String>> {
     let file = syn::parse_file(src).context("parsing")?;
     let mut out = Vec::new();
     for item in &file.items {
+        if let syn::Item::Static(st) = item {
+            ensure!(
+                st.ident != MAPS_CONST,
+                "`static {MAPS_CONST}`: the maps a file claims are a `pub const {MAPS_CONST}: \
+                 &[&str] = &[\"Map\", …];`"
+            );
+        }
         let syn::Item::Const(c) = item else { continue };
         if c.ident != MAPS_CONST {
             continue;
@@ -185,7 +197,10 @@ pub fn claimed_maps(src: &str) -> Result<Vec<String>> {
             e = &r.expr;
         }
         let syn::Expr::Array(a) = e else {
-            bail!("const {MAPS_CONST}: expected `&[\"Map\", …]`");
+            bail!(
+                "const {MAPS_CONST}: expected an array of string literals, `&[\"Map\", …]` (the \
+                 build reads it without compiling the file: no other const, macro or path)"
+            );
         };
         for el in &a.elems {
             match el {
@@ -193,7 +208,11 @@ pub fn claimed_maps(src: &str) -> Result<Vec<String>> {
                     lit: syn::Lit::Str(s),
                     ..
                 }) => out.push(s.value()),
-                _ => bail!("const {MAPS_CONST}: map names must be string literals"),
+                _ => bail!(
+                    "const {MAPS_CONST}: element {} is not a string literal (the build reads the \
+                     map names without compiling the file)",
+                    out.len() + 1
+                ),
             }
         }
     }
