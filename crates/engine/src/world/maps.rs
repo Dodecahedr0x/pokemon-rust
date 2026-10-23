@@ -3,7 +3,7 @@
 //! starts with.
 
 use super::{Event, State, WALK, World, camera_for, run_immediate};
-use crate::data::{Dir, GameData, MapData, MapId, PLAYER, SpecialIds};
+use crate::data::{Dir, GameData, MapData, MapId, MapType, PLAYER, SpecialIds};
 use crate::flow::{TransitionStep, on_warp_into};
 use crate::grid::MAP_DYNAMIC;
 use crate::objects::Terrain;
@@ -107,9 +107,17 @@ impl World {
                 // The facing the player warped with (kept on a ladder). Gen3 stores it when a
                 // step or push warp starts; a scripted warp reuses it too.
                 let warped_facing = s.objects.player().facing;
+                let was_surfing = s.objects.surfing();
+                let was_underwater = game.map_type(s.field.map()) == MapType::Underwater;
                 load_map_spread(game, s, f, map, x, y, true);
                 let b = s.ground(game).behavior(x, y);
-                let facing = s.transition.arrive(b, warped_facing);
+                // Gen3 `GetAdjustedInitialTransitionFlags`: underwater on an underwater map,
+                // else surfing on a surfable cell, else on foot.
+                let underwater = game.map_type(map) == MapType::Underwater;
+                let surfing = !underwater && b.surfable();
+                s.objects.set_surfing(surfing);
+                let swapped = (was_underwater && surfing) || (was_surfing && underwater);
+                let facing = s.transition.arrive_swapping(b, warped_facing, swapped);
                 s.objects.face(PLAYER, facing);
                 s.objects.freeze_all();
             }

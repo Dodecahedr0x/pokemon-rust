@@ -361,6 +361,13 @@ pub enum Water {
     Current(Dir),
     /// `MB_UNUSED_6F`: surfable, nothing else.
     Unused6F,
+    /// `MB_WATER_DOOR`: surfable, and a non-animated door (Gen3 `MetatileBehavior_IsNonAnimDoor`):
+    /// surfing onto it takes its warp; arriving on one faces south and steps out
+    /// (`Task_ExitNonAnimDoor`). No encounters.
+    Door,
+    /// `MB_WATER_SOUTH_ARROW_WARP`: surfable, and a south arrow warp
+    /// (`MetatileBehavior_IsSouthArrowWarp`): pushing south on it takes its warp. No encounters.
+    SouthArrowWarp,
 }
 
 impl Water {
@@ -404,8 +411,21 @@ impl Water {
             Water::Seaweed => 7,
             Water::SeaweedNoSurfacing => 8,
             Water::Unused6F => 9,
+            Water::Door => 10,
+            Water::SouthArrowWarp => 11,
             Water::Current(d) => 16 + d as u8,
         }
+    }
+
+    /// Gen3 `MetatileBehavior_IsDiveable`: Dive goes down from it.
+    pub const fn diveable(self) -> bool {
+        matches!(self, Water::InteriorDeep | Water::Deep | Water::SootopolisDeep)
+    }
+
+    /// Gen3 `MetatileBehavior_IsUnableToEmerge` (without the `BUGFIX` water door): Dive does
+    /// not surface from it.
+    pub const fn unable_to_emerge(self) -> bool {
+        matches!(self, Water::NoSurfacing | Water::SeaweedNoSurfacing)
     }
 
     /// Gen3 `MetatileBehavior_IsDeepOrOceanWater` (the water battle background).
@@ -480,7 +500,18 @@ impl Behavior {
                 | Behavior::NonAnimDoor(_)
                 | Behavior::Ladder
                 | Behavior::Escalator(_)
+                | Behavior::Water(Water::Door)
         )
+    }
+
+    /// The direction an arrow warp is taken by pushing (Gen3 `IsArrowWarpMetatileBehavior`):
+    /// [`Behavior::ArrowWarp`], and the surfable south arrow warp.
+    pub const fn arrow_warp(self) -> Option<Dir> {
+        match self {
+            Behavior::ArrowWarp(d) => Some(d),
+            Behavior::Water(Water::SouthArrowWarp) => Some(Dir::Down),
+            _ => None,
+        }
     }
 
     /// Gen3 `MetatileBehavior_IsForcedMovementTile` (the behaviors classified here): on such a
@@ -1492,6 +1523,28 @@ pub trait GameData {
     /// never offered from the field.
     fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
         let _ = m;
+        None
+    }
+
+    /// Gen3 `EventScript_CannotUseWaterfall`: run on an A press facing a waterfall when
+    /// Waterfall is not usable there (no badge, or not surfing north).
+    fn waterfall_refused_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// Gen3 `EventScript_UseDiveUnderwater`: run on a B press underwater where Dive can surface
+    /// (`TrySetupDiveEmergeScript`). [`GameData::field_move_script`]`(Dive)` is the way down
+    /// (`EventScript_UseDive`, an A press on diveable water).
+    fn dive_emerge_script(&self) -> Option<ScriptId> {
+        None
+    }
+
+    /// Where Dive leads from `map` (Gen3 `SetDiveWarp`): `emerge` up from an underwater map,
+    /// else down. The map's dive or emerge connection keeps the player's cell (`None`
+    /// coordinates); else the fixed dive warp its `on_resume` script sets (`setdivewarp`, here
+    /// answered per map as [`GameData::hole_warp`]). `None`: no dive warp.
+    fn dive_warp(&self, map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)> {
+        let _ = (map, emerge);
         None
     }
 
