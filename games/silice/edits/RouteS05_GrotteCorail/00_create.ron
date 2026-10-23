@@ -1,0 +1,5 @@
+// Silice Ch5, MAP_ROUTE_S05_GROTTE_CORAIL: the Grey Coral Cave (25 x 20, the source's size), a sea cave
+// behind the rock of Route S5. Entrance (south) -> landing -> inner basin (Surf) -> west beach (items)
+// -> back beach, where Lokhlass waits. General + Cave (Emerald tilesets by name): Seafloor Cavern's sea
+// cave walls, sand and water.
+(name: "RouteS05_GrotteCorail", width: 25, height: 20, primary: "General", secondary: "Cave", fill: 753, border: [753, 753, 753, 753])

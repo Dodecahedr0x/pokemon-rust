@@ -1,0 +1,7 @@
+// Reachability lint fixes (lint-reach).
+[
+    // The south portal (7, 13) is on the map's last row. On General 167 Gen3's exit walk sends an
+    // arriving player south, off the map. A south arrow mat (General 36) leaves him on the portal facing
+    // north; pushing south on it leaves, as an interior's exit mat does.
+    Paint(x: 7, y: 13, metatile: 36, collision: 0),
+]

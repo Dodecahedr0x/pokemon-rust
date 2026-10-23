@@ -1,0 +1,5 @@
+// Silice Ch5, MAP_OWLYS_ENTREPOT: the Plume-Noire Silo, ground floor (30 x 20, the source's size): a
+// warehouse. The guarded entrance (south) -> three aisles of processor crates (a serpentine, a grunt in
+// each) -> the freight lift down to B1F (north-west). General + Facility (Emerald tilesets by name): the
+// hideouts' walls, crates, machines and tanks. The red neon has no tile (see the missing graphics).
+(name: "Owlys_Entrepot", width: 30, height: 20, primary: "General", secondary: "Facility", fill: 513, border: [513, 513, 513, 513])

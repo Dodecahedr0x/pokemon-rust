@@ -1,0 +1,18 @@
+// Header, objects, bg events, connection.
+[
+    // The source wants pink falling petals (WEATHER_PETALS, missing; its fallback is a pink-recoloured
+    // WEATHER_VOLCANIC_ASH, which needs a palette change): no weather until the petals exist.
+    Header((music: "MUS_PETALBURG_WOODS", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Le Poete ARMAND on the pond's bridge.
+    Object(x: 11, y: 8, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_BOIS_SOUPIRS_ARMAND", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS06_BoisSoupirs_EventScript_Armand", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 7, y: 6, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_BOIS_SOUPIRS_AMOUREUX", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS06_BoisSoupirs_EventScript_Amoureux"),
+    // The Heart Scale on the notch (9, 12), reached only from the water (Surf).
+    Object(x: 9, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_BOIS_SOUPIRS_ITEM_HEART_SCALE", script: "RouteS06_BoisSoupirs_EventScript_ItemHeartScale", flag: "FLAG_SIL_ITEM_BOIS_SOUPIRS_HEART_SCALE"),
+    // Bois_Soupirs_Sc01: the Pierre aux Vers (read from below).
+    Sign(x: 16, y: 12, script: "RouteS06_BoisSoupirs_Sc01"),
+    Sign(x: 17, y: 12, script: "RouteS06_BoisSoupirs_Sc01"),
+    // The hidden Miracle Seed at the foot of the biggest cherry tree.
+    HiddenItem(x: 6, y: 8, item: "ITEM_MIRACLE_SEED", flag: "FLAG_SIL_ITEM_BOIS_SOUPIRS_MIRACLE_SEED"),
+    // Route S6 to the east: our exit y 8-10 meets its west exit y 33-35.
+    Connect((dir: East, offset: -25, map: "RouteS06")),
+]

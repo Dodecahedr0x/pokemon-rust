@@ -1,0 +1,124 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_FALLARBOR", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_TOWN", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: draws the drawbridge down (x 24-26, y 7-8) from VAR_SIL_STORY 83, the flowing fountain
+    // (18-20, 39-41) once FLAG_SIL_EVALON_Q1_ROCHER, and the cut brambles (44, 26-29) after Q3's cut.
+    // OnTransition: the hide flags below from VAR_SIL_STORY, and the guards stepping aside
+    // (setobjectxyperm) from 83.
+    Scripts((on_load: Some("Evalon_OnLoad"), on_transition: Some("Evalon_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps: 0 Taverne, 1 Echoppe, 2 Forge, 3 Tour du Scribe, 4 Galeries, 5 Maison des Anciens,
+    // 6 Citadelle, on the source's cells.
+    Warp(x: 22, y: 26, dest_map: "Evalon_Taverne", dest_warp: 0),
+    Warp(x: 28, y: 26, dest_map: "Evalon_Echoppe", dest_warp: 0),
+    Warp(x: 32, y: 30, dest_map: "Evalon_Forge", dest_warp: 0),
+    Warp(x: 6, y: 20, dest_map: "Evalon_TourScribe", dest_warp: 0),
+    Warp(x: 3, y: 12, dest_map: "Evalon_Galeries", dest_warp: 0),
+    Warp(x: 42, y: 22, dest_map: "Evalon_Conseil", dest_warp: 0),
+    Warp(x: 25, y: 3, dest_map: "Evalon_Citadelle", dest_warp: 0),
+    // Sc01's friends (shown at story 80-81 north of the square, and at 83 below the gate,
+    // setobjectxyperm (24-26, 16)); hidden otherwise. Mathieu keeps the source's FLAG_SIL_HIDE_EVALON_AMIS.
+    // Sc01's walks (Mathieu Down x4, Adrien and Gwada Down x3) end on y 44 and 43, short of the
+    // trigger row y 45.
+    Object(x: 24, y: 40, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_AMIS"),
+    Object(x: 23, y: 40, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_EVALON_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_ADRIEN"),
+    Object(x: 26, y: 40, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_EVALON_GWADA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GWADA"),
+    // The Scribe comes to Sc01 (shown at 80-81 only), then goes back to his tower.
+    Object(x: 17, y: 44, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_EVALON_SCRIBE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SCRIBE"),
+    // The Porte du Fer: the three guards stand in the gate (x 24-26, y 13), Perceval in the middle,
+    // so that nobody passes before the Épreuve du Fer and Evalon_EpreuvesFinies (story 83); all three
+    // run Sc04. From 83 OnTransition moves them aside: (22, 12), (27, 12), (28, 10).
+    Object(x: 24, y: 13, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_BERTRAND", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
+    Object(x: 26, y: 13, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_EVALON_IOLANDA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
+    Object(x: 25, y: 13, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_EVALON_PERCEVAL", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
+    // Sc07's invaders, out of the Galeries side of the yard (hidden outside the scene). None stands
+    // on the trigger row y 10, where the player is when the scene shows them.
+    Object(x: 12, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_GOGO", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN"),
+    Object(x: 12, y: 11, gfx: "OBJ_EVENT_GFX_AQUA_MEMBER_M", id: "LOCALID_EVALON_ROMAIN", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_ROMAIN"),
+    Object(x: 11, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_SBIRE_1", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_1"),
+    Object(x: 11, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_EVALON_SBIRE_2", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_2"),
+    Object(x: 11, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_SBIRE_3", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_3"),
+    // Ambient NPCs (Npc_1 to Npc_8; the child says Npc_1b from story 84).
+    Object(x: 15, y: 34, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_EVALON_ENFANT", local_id: 15, movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "Evalon_EventScript_Enfant"),
+    Object(x: 13, y: 33, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_EVALON_MERE", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_Mere"),
+    Object(x: 26, y: 29, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_EVALON_ROLISTE", local_id: 17, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_EventScript_Roliste"),
+    Object(x: 43, y: 41, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_EVALON_CHAUDRONNIER", local_id: 18, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_EventScript_Chaudronnier"),
+    Object(x: 11, y: 36, gfx: "OBJ_EVENT_GFX_OLD_WOMAN", id: "LOCALID_EVALON_VIEILLE_DAME", local_id: 19, movement: "MOVEMENT_TYPE_FACE_UP", script: "Evalon_EventScript_VieilleDame"),
+    // The pigeon-keeper's apprentice outside the Pigeonnier (the keeper himself, the PC and Q3, is in the
+    // Taverne's Pigeonnier room).
+    Object(x: 16, y: 28, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_EVALON_APPRENTI_COLOMBOPHILE", local_id: 20, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_ApprentiColombophile"),
+    Object(x: 33, y: 15, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_EVALON_GARDE_BEFFROI", local_id: 21, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_EventScript_GardeBeffroi"),
+    Object(x: 40, y: 33, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_EVALON_MJ", local_id: 22, movement: "MOVEMENT_TYPE_FACE_UP", script: "Evalon_EventScript_Mj"),
+    // Q1: the fairy by the dry fountain.
+    Object(x: 17, y: 42, gfx: "OBJ_EVENT_GFX_LITTLE_GIRL", id: "LOCALID_EVALON_FEE", local_id: 23, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_EventScript_Fee"),
+    // Q3: Plume-d'Argent behind the brambles (44, 26-29); hidden once he has flown home.
+    Object(x: 46, y: 27, gfx: "OBJ_EVENT_GFX_WINGULL", id: "LOCALID_EVALON_PIGEON", local_id: 24, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_Pigeon", flag: "FLAG_SIL_HIDE_EVALON_PIGEON"),
+    // The south-east shepherd's path to Route S9 (closed here: see the pending links); its guard
+    // until VAR_SIL_STORY 85.
+    Object(x: 44, y: 45, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_EVALON_GARDE_SE", local_id: 25, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_GardeSE", flag: "FLAG_SIL_HIDE_EVALON_GARDE_SE"),
+    // The PP Up on the mill pond's islet (Hydro-Propulseur).
+    Object(x: 37, y: 40, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_EVALON_ITEM_PP_UP", local_id: 26, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_ItemPpUp", flag: "FLAG_SIL_ITEM_EVALON_ETANG"),
+    // Sc01: three cells inside the south portal, the whole corridor (x 23-26).
+    Coord(x: 23, y: 45, var: "VAR_SIL_STORY", value: 81, script: "Evalon_Sc01"),
+    Coord(x: 24, y: 45, var: "VAR_SIL_STORY", value: 81, script: "Evalon_Sc01"),
+    Coord(x: 25, y: 45, var: "VAR_SIL_STORY", value: 81, script: "Evalon_Sc01"),
+    Coord(x: 26, y: 45, var: "VAR_SIL_STORY", value: 81, script: "Evalon_Sc01"),
+    // Sc07: the yard's whole row y 10 (x 11-38), between the Porte du Fer and the drawbridge,
+    // so the bridge cannot be reached without it.
+    Coord(x: 11, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 12, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 13, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 14, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 15, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 16, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 17, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 18, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 19, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 20, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 21, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 22, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 23, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 24, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 25, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 26, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 27, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 28, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 29, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 30, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 31, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 32, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 33, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 34, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 35, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 36, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 37, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    Coord(x: 38, y: 10, var: "VAR_SIL_STORY", value: 83, script: "Evalon_Sc07"),
+    // Sc10: leaving by the south portal (y 47), or down the south-east path (42-45, 45).
+    Coord(x: 23, y: 47, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
+    Coord(x: 24, y: 47, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
+    Coord(x: 25, y: 47, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
+    Coord(x: 26, y: 47, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
+    Coord(x: 42, y: 45, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
+    Coord(x: 43, y: 45, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
+    // The Mallette's crackle fallback: three fixed points on VAR_TEMP_3 0 (always fire; no Evalon
+    // script writes VAR_TEMP_3); the script shows at most one crackle per visit (VAR_TEMP_4).
+    Coord(x: 24, y: 36, var: "VAR_TEMP_3", value: 0, script: "Evalon_EventScript_Gresillement"),
+    Coord(x: 8, y: 31, var: "VAR_TEMP_3", value: 0, script: "Evalon_EventScript_Gresillement"),
+    Coord(x: 40, y: 32, var: "VAR_TEMP_3", value: 0, script: "Evalon_EventScript_Gresillement"),
+    // Signs: the village (Sign_1), the Porte du Fer (Sign_2), the tower (Sign_3), the Anciens
+    // (Sign_4), the quest board (Sign_5); the brambles; the fountain.
+    Sign(x: 27, y: 45, script: "Evalon_EventScript_Sign1"),
+    Sign(x: 22, y: 14, script: "Evalon_EventScript_Sign2"),
+    Sign(x: 9, y: 21, script: "Evalon_EventScript_Sign3"),
+    Sign(x: 39, y: 23, script: "Evalon_EventScript_Sign4"),
+    Sign(x: 27, y: 37, script: "Evalon_EventScript_Sign5"),
+    Sign(x: 44, y: 26, script: "Evalon_EventScript_Ronces"),
+    Sign(x: 44, y: 27, script: "Evalon_EventScript_Ronces"),
+    Sign(x: 44, y: 28, script: "Evalon_EventScript_Ronces"),
+    Sign(x: 44, y: 29, script: "Evalon_EventScript_Ronces"),
+    // The fountain's basin is solid (18-20, 39-41): its sign is on the south rim, read from (19, 42).
+    Sign(x: 19, y: 41, script: "Evalon_EventScript_Fontaine"),
+    // The Revive at the foot of the belfry.
+    HiddenItem(x: 31, y: 15, item: "ITEM_REVIVE", flag: "FLAG_SIL_ITEM_EVALON_CACHE_1"),
+    // Connection: South to Route S8 (its x 18-21 meet the portal x 23-26).
+    Connect((dir: South, offset: 5, map: "RouteS08")),
+]

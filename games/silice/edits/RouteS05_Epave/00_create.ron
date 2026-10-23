@@ -1,0 +1,5 @@
+// Silice Ch5, MAP_ROUTE_S05_EPAVE: inside the wreck of the Vainqueur (30 x 20, the source's size), a dark
+// map. The hole in the hull (south) -> the gangway (Fabrice) -> the officers' mess (west, the captain's
+// log) and the forward hold (east, the items). General + InsideShip (Emerald tilesets by name): the
+// Abandoned Ship's cabins, bunks, broken door and flooded floor.
+(name: "RouteS05_Epave", width: 30, height: 20, primary: "General", secondary: "InsideShip", fill: 513, fill_collision: 1, fill_elevation: 0, border: [513, 513, 513, 513])

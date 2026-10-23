@@ -1,0 +1,10 @@
+// Header, warps and objects.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the stairs down, to the hall's warp 2 (the lift).
+    Warp(x: 2, y: 1, dest_map: "GrisEchec_TourObservation", dest_warp: 2),
+    // Tour_Sc01: Duval, the head of security (obj 1).
+    Object(x: 5, y: 2, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_TOUR_DUVAL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_TourObservation_Top_Sc01"),
+    Sign(x: 6, y: 3, script: "GrisEchec_TourObservation_Top_EventScript_Console"),
+    Sign(x: 7, y: 3, script: "GrisEchec_TourObservation_Top_EventScript_Console"),
+]

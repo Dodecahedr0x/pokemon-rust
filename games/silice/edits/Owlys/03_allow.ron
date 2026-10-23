@@ -1,0 +1,6 @@
+// Behaviour warnings accepted on purpose (validate honours these).
+[
+    AllowCollision(cells: [(30, 12)], reason: "the sanctuary door is locked by the feather lock until Owlys_Sc04 (FLAG_SIL_OWLYS_PORTE_GYM); Owlys_OnLoad opens it"),
+    // Reachability findings accepted on purpose (lint-reach).
+    AllowReach(subject: "warp 7", reason: "the sanctuary door (30, 12), solid until Owlys_Sc04 sets FLAG_SIL_OWLYS_PORTE_GYM and Owlys_OnLoad opens it"),
+]

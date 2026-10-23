@@ -1,0 +1,4 @@
+// Silice Ch6, MAP_MANGA_SQUARE_BIBLIOTHEQUE: the Bibliotheque Ancestrale (26 x 24, the source's size; one floor).
+// Building + Lab: Emerald's lab interiors hold both tall bookshelves and machines, the only pair with shelves and
+// server-like racks together. The source's dark wood is not available. Border: black, blocked.
+(name: "MangaSquare_Bibliotheque", width: 26, height: 24, primary: "Building", secondary: "Lab", fill: 514, border: [1025, 1025, 1025, 1025])

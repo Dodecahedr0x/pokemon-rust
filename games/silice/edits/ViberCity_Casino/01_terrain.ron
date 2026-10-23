@@ -1,0 +1,17 @@
+// Cells: the source's grid: walls, slot machine rows, the roulette, the counters, the walled
+// stairs (18, 1), the entrance mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#!###############!!",
+        "!$%$$$$$$$$$$$$$$$#!",
+        "!$&(&(&$$)*)$$&(&($!",
+        "!$$$$$$$$$$$$$$$$$$!",
+        "!$&(&(&$$$$$$$&(&($!",
+        "!$$$$$$$$$$$$$$$$$$!",
+        "!$&(&(&$$$$$$$&(&($!",
+        "!$$$$$$$$$$$$$$$$$$!",
+        "!+,+,+$$$$$$$$,+,+,!",
+        "!$$$$$$$$$$$$$$$$$$!",
+        "!!!!!!!!!-.!!!!!!!!!",
+    ], legend: {'!': (metatile: 530, collision: 1), '#': (metatile: 538, collision: 1), '$': (metatile: 514, collision: 0), '%': (metatile: 565, collision: 1), '&': (metatile: 556, collision: 1), '(': (metatile: 557, collision: 1), ')': (metatile: 546, collision: 1), '*': (metatile: 547, collision: 1), '+': (metatile: 598, collision: 1), ',': (metatile: 597, collision: 1), '-': (metatile: 518, collision: 0), '.': (metatile: 519, collision: 0)}),
+]

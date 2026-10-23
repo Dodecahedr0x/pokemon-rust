@@ -1,0 +1,22 @@
+// Header, map scripts, warps, objects and bg events.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: sets FLAG_SIL_HIDE_CASINO_B1F_ROMAIN (he starts hidden too, in game.ron;
+    // Casino_B1F_Sc02 shows him, and he walks down twice to (10, 10), beside the capsule's only
+    // reading cell (9, 10)); the head croupier moves aside to (6, 10) once FLAG_SIL_CASINO_CHEF,
+    // which keeps (9-10, 9-10) free.
+    Scripts((on_load: None, on_transition: Some("ViberCity_Casino_B1F_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the stairs (1, 1), to the casino's warp 2 (the hidden stairs).
+    Warp(x: 1, y: 1, dest_map: "ViberCity_Casino", dest_warp: 2),
+    Object(x: 3, y: 3, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_CASINO_B1F_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ViberCity_Casino_B1F_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 11, y: 6, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_CASINO_B1F_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_Casino_B1F_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 10, y: 2, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_CASINO_B1F_SBIRE_3", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_B1F_EventScript_Sbire3", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 10, y: 9, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_CASINO_B1F_CROUPIER_CHEF", movement: "MOVEMENT_TYPE_FACE_UP", script: "ViberCity_Casino_B1F_EventScript_CroupierChef"),
+    Object(x: 10, y: 8, gfx: "OBJ_EVENT_GFX_AQUA_MEMBER_M", id: "LOCALID_CASINO_B1F_ROMAIN", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN"),
+    Object(x: 13, y: 1, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_CASINO_B1F_ITEM_SILK", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_B1F_EventScript_ItemSilk", flag: "FLAG_SIL_ITEM_CASINO_B1F_SILK"),
+    Object(x: 1, y: 6, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_CASINO_B1F_ITEM_ULTRA_BALL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_B1F_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_CASINO_B1F_ULTRA_BALL"),
+    Object(x: 11, y: 10, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_CASINO_B1F_ITEM_RARE_CANDY", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_B1F_EventScript_ItemRareCandy", flag: "FLAG_SIL_ITEM_CASINO_B1F_RARE_CANDY"),
+    // Casino_B1F_Sc01: the terminal (6, 7), read from (6, 8) facing north. Sc02: the capsule.
+    Sign(x: 6, y: 7, script: "ViberCity_Casino_B1F_Sc01"),
+    Sign(x: 8, y: 10, script: "ViberCity_Casino_B1F_Sc02"),
+]

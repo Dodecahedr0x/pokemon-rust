@@ -40,9 +40,13 @@
     Sign(x: 10, y: 5, script: "BricoBourg_EventScript_SignVillage"),
     Sign(x: 12, y: 13, script: "BricoBourg_EventScript_SignShaker"),
     Sign(x: 6, y: 8, script: "BricoBourg_EventScript_SignLabo"),
-    Sign(x: 4, y: 8, script: "BricoBourg_EventScript_Ronces"),
-    // The hidden Potion behind the fountain (Cherch'Objet tutorial).
-    HiddenItem(x: 10, y: 8, item: "ITEM_POTION", flag: "FLAG_SIL_ITEM_BRICO_POTION"),
+    Sign(x: 4, y: 9, script: "BricoBourg_EventScript_Ronces"),
+    // The hidden Potion behind the fountain (Cherch'Objet tutorial). Fallback (SIL1 Task F): a
+    // sign script that gives it once behind FLAG_SIL_ITEM_BRICO_POTION, because the engine does
+    // not pick up hidden items yet. Back to
+    // HiddenItem(x: 10, y: 8, item: "ITEM_POTION", flag: "FLAG_SIL_ITEM_BRICO_POTION")
+    // once it does.
+    Sign(x: 10, y: 8, script: "BricoBourg_EventScript_HiddenPotion"),
     // Route S1 to the north: its exit x 7-10 meets ours x 10-13.
     Connect((dir: North, offset: 3, map: "RouteS01")),
 ]

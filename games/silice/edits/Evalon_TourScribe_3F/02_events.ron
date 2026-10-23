@@ -1,0 +1,8 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the stairs down to 2F (arrives on 2F's trapdoor stairs).
+    Warp(x: 2, y: 1, dest_map: "Evalon_TourScribe_2F", dest_warp: 1),
+    // The Chronique de la Cloture on the central lectern: read, then taken (ITEM_SIL_CHRONIQUE, given by script).
+    Sign(x: 5, y: 5, script: "Evalon_TourScribe_3F_EventScript_Chronique"),
+]

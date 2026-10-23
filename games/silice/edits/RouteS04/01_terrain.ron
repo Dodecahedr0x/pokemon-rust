@@ -1,0 +1,56 @@
+// Cells (generated as one Ascii op: floors carved as rectangles, each rock cell's wall piece from its
+// floor neighbours, as in Granite Cave and Shoal Cave). A, the maintenance hall (x 2-15, rows 3-14):
+// open to the west edge on rows 8-9, the map connection to Viber-City's east street (Ch3 drew that
+// link as a connection); the empty guard booth (3-5, 6-7).
+// B, the glass gallery (x 16-40, rows 5-9) along the black canal (x 18-37, rows 10-11: General's
+// water 368, as in Shoal Cave at high tide; elevation 1, fishable). C, the ramp (x 41-58,
+// rows 3-16): glass scree in a small maze (dead end 41-43, 11-16), the cave mouth to Port-Ressac
+// (56, 2).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "############################################################",
+        "#######################################################uvx##",
+        "#eTTTTTTTTTTTTTTg#######################eTTTTTTTTTTTTTTyDzTg",
+        "#L..............J#######################L.......R..........J",
+        "#L..............cTTTTTTTTTTTTTTTTTTTTTTTd.......Q..........J",
+        "#L..............................................R..........J",
+        "#L.aBb..........................................Q..........J",
+        "Td.cTd..........................................R...R......J",
+        "................................................Q...Q......J",
+        "................................................R.R.R..Q...J",
+        "Bb................~~~~~~~~~~~~~~~~~~~~....QR....Q...Q...Q..J",
+        "#L................~~~~~~~~~~~~~~~~~~~~......R...R...R......J",
+        "#L..............aBBBBBBBBBBBBBBBBBBBBBBBb...Q...Q...Q......J",
+        "#L..............J#######################L...RQ......R.R....J",
+        "#L..............J#######################L...Q.......Q....R.J",
+        "#hBBBBBBBBBBBBBBi#######################L...R.R.....R......J",
+        "########################################L...Q.......Q......J",
+        "########################################hBBBBBBBBBBBBBBBBBBi",
+        "############################################################",
+        "############################################################",
+    ], legend: {
+        '#': (metatile: 529, collision: 1),
+        '.': (metatile: 529, collision: 0),
+        'T': (metatile: 537, collision: 1),
+        'B': (metatile: 521, collision: 1),
+        'L': (metatile: 530, collision: 1),
+        'J': (metatile: 528, collision: 1),
+        'a': (metatile: 544, collision: 1),
+        'b': (metatile: 546, collision: 1),
+        'c': (metatile: 536, collision: 1),
+        'd': (metatile: 538, collision: 1),
+        'e': (metatile: 539, collision: 1),
+        'g': (metatile: 540, collision: 1),
+        'h': (metatile: 547, collision: 1),
+        'i': (metatile: 548, collision: 1),
+        'Q': (metatile: 514, collision: 1),
+        'R': (metatile: 515, collision: 1),
+        '~': (metatile: 368, collision: 0, elevation: 1),
+        'u': (metatile: 523, collision: 1),
+        'v': (metatile: 524, collision: 1),
+        'x': (metatile: 525, collision: 1),
+        'y': (metatile: 531, collision: 1),
+        'z': (metatile: 533, collision: 1),
+        'D': (metatile: 532, collision: 0),
+    }),
+]

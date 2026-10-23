@@ -15,6 +15,8 @@
 //!   dir environment.
 //! - [`overlay`]: labels and overlays over pictures (a built-in bitmap font).
 //! - [`batch`]: rebuilding maps from an edits dir in one process.
+//! - [`reach`]: the walk graph (the engine's movement rules) and trainer sight;
+//!   [`reach_lint`]: the reachability lint over a games dir (`lint-reach`).
 //! - [`cli`]: the headless commands (`cargo xtask studio map …`).
 //! - [`session`]: the Edit tab's tools over an editor, free of Dioxus.
 //! - `ui` (feature `ui`): the studio's Edit tab.
@@ -27,6 +29,9 @@ pub mod games;
 pub mod model;
 pub mod names;
 pub mod overlay;
+pub mod reach;
+mod reach_cli;
+pub mod reach_lint;
 pub mod render;
 pub mod resources;
 pub mod schema;
@@ -41,5 +46,7 @@ pub use games::GamesDir;
 pub use model::{Brush, Doc, Editor, Event, EventKind, NewMap, Op};
 pub use validate::{Issue, Severity, validate};
 
+#[cfg(test)]
+mod reach_tests;
 #[cfg(test)]
 mod tests;

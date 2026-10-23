@@ -1,0 +1,20 @@
+// Cells: the source's grid: containers (#), pavement (.), the loading dock (7, 3), the two
+// portals (7, 0) and (7, 13).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#!#!#!$!#!#!#!",
+        "%&%&%&%(%&%&%&%",
+        "!#!#!(((((!#!#!",
+        "%&%&%(%(%(%&%&%",
+        "!#!#!(((((!#!#!",
+        "%&%&%&%(%&%&%&%",
+        "!#!(((((((((!#!",
+        "%&%(((((((((%&%",
+        "!#!(((((((((!#!",
+        "%&%(((((((((%&%",
+        "!#!#!#!(!#!#!#!",
+        "%&%&%&%(%&%&%&%",
+        "!#!#!#!(!#!#!#!",
+        "%&%&%&%$%&%&%&%",
+    ], legend: {'!': (metatile: 638, collision: 1), '#': (metatile: 639, collision: 1), '$': (metatile: 167, collision: 0), '%': (metatile: 646, collision: 1), '&': (metatile: 647, collision: 1), '(': (metatile: 94, collision: 0)}),
+]

@@ -1,0 +1,4 @@
+// Silice Ch3, MAP_VIBER_CITY_STATION_LUMIERE: the Station Lumiere (16 x 12). General + BikeShop
+// (Emerald tilesets by name, the New Mauville set): the fuse room (5-10, 1-3) with four levers
+// and three tubes, the transformer hall, the entry hall.
+(name: "ViberCity_StationLumiere", width: 16, height: 12, primary: "General", secondary: "BikeShop", fill: 528, border: [1544, 1544, 1544, 1544])

@@ -1,0 +1,102 @@
+// Header, map scripts, warps, the cast (local ids 1-26 follow the source's obj numbers), the scene
+// triggers, the signs and the hidden items.
+[
+    Header((music: "MUS_SLATEPORT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_CITY", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad repaints the cargo (hull, stairs and dock: x 4-10, rows 22-26) as open water once
+    // FLAG_SIL_HIDE_PORT_CARGO is set. OnTransition keeps the scene actors' hide flags in step with
+    // VAR_SIL_STORY (see the Ch4 script contract). Sc01 is the arrival text (VAR_SIL_STORY 41 -> 42).
+    Scripts((on_load: Some("PortRessac_OnLoad"), on_transition: Some("PortRessac_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 41, script: "PortRessac_Sc01")], on_warp_into: [])),
+    // Warp 0: the Tunnel de Verre's door (north), to Route S4's exit (its warp 0).
+    Warp(x: 25, y: 3, dest_map: "RouteS04", dest_warp: 0),
+    // Warp 1: the Taverne's door.
+    Warp(x: 4, y: 7, dest_map: "PortRessac_Taverne", dest_warp: 0),
+    // Warp 2: the Cocket cargo's boarding stairs.
+    Warp(x: 7, y: 25, dest_map: "PortRessac_NavireCocket", dest_warp: 0),
+    // Warp 3: the Zenith-Grog's boarding stairs.
+    Warp(x: 32, y: 25, dest_map: "PortRessac_Gym", dest_warp: 0),
+
+    // 1-4: ambient NPCs (texts switch to the "_Apres" ones from VAR_SIL_STORY 47).
+    Object(x: 20, y: 19, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_PORT_DOCKER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Docker"),
+    Object(x: 13, y: 17, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_PORT_VIEUX_MARIN", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_EventScript_VieuxMarin"),
+    Object(x: 30, y: 8, gfx: "OBJ_EVENT_GFX_BEAUTY", id: "LOCALID_PORT_FETARDE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Fetarde"),
+    Object(x: 11, y: 10, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_PORT_ENFANT", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Enfant"),
+    // 5: Crow in his alley (Port_Ressac_Sc02, the lookout; the scene warps the player to (41, 18),
+    // the alley's corner on the quay, then back to (44, 16), in front of Crow).
+    Object(x: 44, y: 15, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_PORT_CROW", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Sc02"),
+    // 6: Crow's client, gone after the lookout.
+    Object(x: 46, y: 16, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_MARIN_CLIENT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_EventScript_MarinClient", flag: "FLAG_SIL_HIDE_PORT_MARIN_CLIENT"),
+    // 7-10: the four passers-by of the lookout, hidden outside it (one hide flag each: validate
+    // warns on a shared hide flag).
+    Object(x: 47, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_PASSANT_1", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_PORT_PASSANT_1"),
+    Object(x: 47, y: 20, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_PASSANT_2", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_PORT_PASSANT_2"),
+    Object(x: 43, y: 19, gfx: "OBJ_EVENT_GFX_SKITTY", id: "LOCALID_PORT_PASSANT_3", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_PORT_PASSANT_3"),
+    Object(x: 47, y: 18, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_PASSANT_4", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_PORT_PASSANT_4"),
+    // 11: the cargo's guard beside its stairs (Garde_Cargo_T1 awake, T2 asleep from
+    // FLAG_SIL_PORT_GARDE_DORT); gone with the cargo.
+    Object(x: 8, y: 26, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_GARDE_CARGO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_EventScript_GardeCargo", flag: "FLAG_SIL_HIDE_PORT_CARGO"),
+    // 12-13: Gogo (sitting, legs over the water) and Romain (standing, swaying) at the jetty's end.
+    Object(x: 47, y: 22, gfx: "OBJ_EVENT_GFX_MAXIE", id: "LOCALID_PORT_GOGO", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_EventScript_Gogo"),
+    Object(x: 46, y: 21, gfx: "OBJ_EVENT_GFX_ARCHIE", id: "LOCALID_PORT_ROMAIN", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_LEFT", script: "PortRessac_EventScript_Romain"),
+    // 14: the pirate in front of the Zenith-Grog's stairs (Port_Ressac_Sc04 at VAR_SIL_STORY 45,
+    // Npc_Pirate_Passerelle otherwise); he walks up the stairs and is gone after Sc04.
+    Object(x: 32, y: 26, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_PIRATE_PASSERELLE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Sc04", flag: "FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE"),
+    // 15: Samuel, hidden on deck; Sc04 shows him and walks him down 3 to (32, 26).
+    Object(x: 32, y: 23, gfx: "OBJ_EVENT_GFX_BRAWLY", id: "LOCALID_PORT_SAMUEL", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_PORT_SAMUEL"),
+    // 16-18: Samuel's pirates, in a brawl with the decor grunts (24-26) on the quays. Every actor of
+    // the quay cleaning has its own hide flag; OnTransition sets them all unless the source's
+    // FLAG_SIL_HIDE_PORT_QUAIS_SBIRES is clear (Sc04 clears it, Sc05 sets it: visible at 46).
+    Object(x: 17, y: 18, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_PIRATE_1", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_RIGHT", script: "PortRessac_EventScript_Pirate", flag: "FLAG_SIL_HIDE_PORT_PIRATE_1"),
+    Object(x: 35, y: 19, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_PIRATE_2", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_RIGHT", script: "PortRessac_EventScript_Pirate", flag: "FLAG_SIL_HIDE_PORT_PIRATE_2"),
+    Object(x: 38, y: 20, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_PORT_PIRATE_3", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_RIGHT", script: "PortRessac_EventScript_Pirate", flag: "FLAG_SIL_HIDE_PORT_PIRATE_3"),
+    // 19-22: the four quay grunts in the containers' alcoves, each seeing the one-tile corridor
+    // (row 20) below him (TRAINER_SIL_PORT_SBIRE_1-4).
+    Object(x: 13, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1, flag: "FLAG_SIL_HIDE_PORT_SBIRE_1"),
+    Object(x: 11, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_PORT_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1, flag: "FLAG_SIL_HIDE_PORT_SBIRE_2"),
+    Object(x: 9, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_SBIRE_3", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Sbire3", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1, flag: "FLAG_SIL_HIDE_PORT_SBIRE_3"),
+    Object(x: 7, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_PORT_SBIRE_4", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Sbire4", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1, flag: "FLAG_SIL_HIDE_PORT_SBIRE_4"),
+    // 23: the foreman at the corridor's end; the Sc05 trigger (5, 20) starts his battle.
+    Object(x: 3, y: 20, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_CONTREMAITRE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_EventScript_Contremaitre", flag: "FLAG_SIL_HIDE_PORT_CONTREMAITRE"),
+    // 24-26: decor grunts brawling with the pirates 16-18.
+    Object(x: 18, y: 18, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_SBIRE_DECOR_1", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_LEFT", script: "PortRessac_EventScript_SbireDecor", flag: "FLAG_SIL_HIDE_PORT_DECOR_1"),
+    Object(x: 36, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_PORT_SBIRE_DECOR_2", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_LEFT", script: "PortRessac_EventScript_SbireDecor", flag: "FLAG_SIL_HIDE_PORT_DECOR_2"),
+    Object(x: 39, y: 20, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_SBIRE_DECOR_3", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_LEFT", script: "PortRessac_EventScript_SbireDecor", flag: "FLAG_SIL_HIDE_PORT_DECOR_3"),
+    // 27: the grunt by the blue container (Npc_Sbire, then Npc_Sbire_Apres).
+    Object(x: 8, y: 16, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_PORT_SBIRE_CONTAINER", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_EventScript_Sbire"),
+    // 28: the angler on the quay (Npc_Pecheur, gives the Good Rod: Npc_Pecheur_Canne).
+    Object(x: 24, y: 20, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_PORT_PECHEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_EventScript_Pecheur"),
+    // 29: the blue container (Champ Magnetique; placeholder: Strength boulder), pushed north into
+    // the pocket (6, 14) from (6, 16) to open the way to the Water Stone (4, 15).
+    Object(x: 6, y: 15, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_PORT_CONTAINER", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "PortRessac_EventScript_Container"),
+    // 30: the Great Ball in the dunes.
+    Object(x: 14, y: 11, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_PORT_SUPER_BALL", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "PortRessac_EventScript_SuperBall", flag: "FLAG_SIL_ITEM_PORT_SUPER_BALL"),
+
+    // The cargo is off limits until the lookout (Garde_Cargo_T1, the player steps back).
+    Coord(x: 6, y: 26, var: "VAR_SIL_STORY", value: 42, script: "PortRessac_EventScript_CargoBloque"),
+    // Sc03: three tiles before the jetty's end, plus the jetty's top row east of that column
+    // (45, 21) and (47, 21) (Romain stands on (46, 21)): the quay (row 20) opens onto the whole
+    // jetty, so a player stepping down at x 45-47 would otherwise skip the scene.
+    Coord(x: 44, y: 21, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    Coord(x: 44, y: 22, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    Coord(x: 44, y: 23, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    Coord(x: 45, y: 21, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    Coord(x: 47, y: 21, var: "VAR_SIL_STORY", value: 43, script: "PortRessac_Sc03"),
+    // Sc05: the foreman's battle and the cargo's departure, two tiles before him.
+    Coord(x: 5, y: 20, var: "VAR_SIL_STORY", value: 46, script: "PortRessac_Sc05"),
+    // During the cleaning, the gym's dock is closed (a pirate's line: clear the quays first).
+    Coord(x: 31, y: 26, var: "VAR_SIL_STORY", value: 46, script: "PortRessac_EventScript_PasserelleQuais"),
+    // Sc06: Julien's call on the jetty (first time; the script checks FLAG_SIL_PORT_APPEL_JULIEN).
+    Coord(x: 42, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 42, y: 22, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 42, y: 23, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+
+    Sign(x: 22, y: 5, script: "PortRessac_EventScript_SignVille"),
+    Sign(x: 34, y: 6, script: "PortRessac_EventScript_SignNeon"),
+    // The cargo sign is stencilled on the container over the corridor's west end.
+    Sign(x: 4, y: 19, script: "PortRessac_EventScript_SignCargo"),
+    Sign(x: 26, y: 20, script: "PortRessac_EventScript_SignGym"),
+    // The rusty distributor (Distrib_T1 and the free Lemonade once, FLAG_SIL_PORT_LIMONADE; then T2
+    // and the vending menu).
+    Sign(x: 8, y: 7, script: "PortRessac_EventScript_Distributeur"),
+    HiddenItem(x: 4, y: 15, item: "ITEM_WATER_STONE", flag: "FLAG_SIL_ITEM_PORT_PIERRE_EAU"),
+    HiddenItem(x: 16, y: 17, item: "ITEM_PEARL", flag: "FLAG_SIL_ITEM_PORT_PERLE"),
+]
