@@ -169,7 +169,7 @@ impl World {
                 vars: Vars::from_snapshot(&w.vars),
                 fader: Fader::from_snapshot(w.fader),
                 transition: Transition::from_snapshot(&w.transition),
-                templates,
+                templates: super::templates::Templates::new(templates),
                 selected: w.selected,
                 last_mover: w.last_mover,
                 delay: w.delay,

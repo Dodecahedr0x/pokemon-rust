@@ -48,6 +48,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
     assert_eq!(
         h.log,
         [
+            Request::TrainerApproach { obj: 2 },
             Request::Lock,
             Request::FacePlayer,
             Request::GetFlag(trainer_flag(tr)),
@@ -68,7 +69,7 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
     let mut h = Host::default();
     h.flags.insert(0x503);
     fought(b, &mut h);
-    assert_eq!(h.log.len(), 4);
+    assert_eq!(h.log.len(), 5);
     assert_eq!(h.vars[&consts::VAR_RESULT.0], 1);
 
     // Defeated (`IsPlayerDefeated`: lost or drew): the flag stays clear.
@@ -91,6 +92,7 @@ fn trainer_battle_variants() {
     assert_eq!(
         h.log,
         [
+            Request::TrainerApproach { obj: 2 },
             Request::BattleTrainer {
                 trainer: tr,
                 defeat: TextId(4)

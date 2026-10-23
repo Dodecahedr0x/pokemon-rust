@@ -48,6 +48,8 @@ impl ScriptHost for Host {
             }
             Request::GiveMon { .. } => Response::Value(0),
             Request::PartySize => Response::Value(1),
+            // Talked to (no sight approach): the player's usable mons (Task I).
+            Request::TrainerApproach { .. } => Response::Value(2),
             Request::ChooseStarter(_) => Response::Value(self.starter),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
                 Response::Value(self.outcome.unwrap_or(engine::battle::BattleOutcome::Won) as u16)

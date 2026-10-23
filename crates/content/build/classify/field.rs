@@ -122,20 +122,51 @@ pub fn behavior_table() -> Vec<String> {
 }
 
 /// `MovementType` expression for a `MOVEMENT_TYPE_*` name, and whether the mapping is exact
-/// (false: closest equivalent).
+/// (false: closest equivalent). Direction lists keep the name's order, which is Gen3's array
+/// order (`movement_type_func_tables.h`, the initial facing first).
+///
+/// Approximated (they face down): `NONE`, `PLAYER`, `BERRY_TREE_GROWTH`, the `COPY_PLAYER*`
+/// types, the tree and mountain disguises, `BURIED`, and unnamed bytes.
 pub fn movement(name: &str) -> (String, bool) {
     let t = name.strip_prefix("MOVEMENT_TYPE_").unwrap_or(name);
     let exact = |s: &str| (format!("MovementType::{s}"), true);
     let approx = |s: &str| (format!("MovementType::{s}"), false);
-    if let Some(d) = t.strip_prefix("FACE_").and_then(compass) {
-        return exact(&format!("Face({d})"));
-    }
-    if let Some(d) = t.strip_prefix("WALK_IN_PLACE_").and_then(compass) {
-        return exact(&format!("WalkInPlace({d})"));
-    }
-    for p in ["JOG_IN_PLACE_", "RUN_IN_PLACE_", "WALK_SLOWLY_IN_PLACE_"] {
+    // `UP`, `DOWN_AND_UP`, `DOWN_UP_AND_LEFT`, `UP_RIGHT_LEFT_DOWN`: the directions in order.
+    let dirs = |s: &str| -> Option<Vec<&'static str>> {
+        s.split('_').filter(|w| *w != "AND").map(compass).collect()
+    };
+    for (p, v) in [
+        ("WALK_IN_PLACE_", "WalkInPlace"),
+        ("JOG_IN_PLACE_", "JogInPlace"),
+        ("RUN_IN_PLACE_", "RunInPlace"),
+        ("WALK_SLOWLY_IN_PLACE_", "WalkSlowlyInPlace"),
+    ] {
         if let Some(d) = t.strip_prefix(p).and_then(compass) {
-            return approx(&format!("WalkInPlace({d})"));
+            return exact(&format!("{v}({d})"));
+        }
+    }
+    if let Some(ds) = t.strip_prefix("WALK_SEQUENCE_").and_then(dirs)
+        && let [a, b, c, d] = ds[..]
+    {
+        return exact(&format!("WalkSequence(Dirs::new([{a}, {b}, {c}, {d}]))"));
+    }
+    // `WALK_UP_AND_DOWN` …: back and forth, starting towards the first.
+    if let Some(ds) = t.strip_prefix("WALK_").and_then(dirs)
+        && let [a, _] = ds[..]
+    {
+        return exact(&format!("WalkBackAndForth({a})"));
+    }
+    if let Some(ds) = t.strip_prefix("FACE_").and_then(dirs) {
+        match ds[..] {
+            [d] => return exact(&format!("Face({d})")),
+            [a, b] => return exact(&format!("FaceTwo(Dirs::two({a}, {b}))")),
+            [_, _, _] => {
+                let all = ["Dir::Down", "Dir::Up", "Dir::Left", "Dir::Right"];
+                if let Some(m) = all.into_iter().find(|d| !ds.contains(d)) {
+                    return exact(&format!("FaceAllBut({m})"));
+                }
+            }
+            _ => {}
         }
     }
     match t {
@@ -144,12 +175,8 @@ pub fn movement(name: &str) -> (String, bool) {
         "WANDER_UP_AND_DOWN" | "WANDER_DOWN_AND_UP" => exact("WanderVertical"),
         "WANDER_LEFT_AND_RIGHT" | "WANDER_RIGHT_AND_LEFT" => exact("WanderHorizontal"),
         "INVISIBLE" => exact("Invisible"),
-        "WALK_UP_AND_DOWN" | "WALK_DOWN_AND_UP" => approx("WanderVertical"),
-        "WALK_LEFT_AND_RIGHT" | "WALK_RIGHT_AND_LEFT" => approx("WanderHorizontal"),
-        _ if t.starts_with("WALK_SEQUENCE_") => approx("Wander"),
-        // Two- and three-direction facings, rotations: turn in place.
-        _ if t.starts_with("FACE_") || t.starts_with("ROTATE_") => approx("LookAround"),
-        // NONE, PLAYER, BERRY_TREE_GROWTH, COPY_PLAYER*, disguises, BURIED, unnamed.
+        "ROTATE_CLOCKWISE" => exact("Rotate { clockwise: true }"),
+        "ROTATE_COUNTERCLOCKWISE" => exact("Rotate { clockwise: false }"),
         _ => approx("Face(Dir::Down)"),
     }
 }

@@ -73,15 +73,10 @@ fn placeholder() -> ObjectSprite {
     }
 }
 
-/// The direction an object faces when it spawns, from its movement type (the engine's private
+/// The direction an object faces when it spawns, from its movement type (the engine's
 /// `objects::initial_facing`, Gen3 `gInitialMovementTypeFacingDirections`).
 pub fn initial_facing(m: MovementType) -> Dir {
-    match m {
-        MovementType::Face(d) | MovementType::WalkInPlace(d) => d,
-        MovementType::WanderVertical => Dir::Up,
-        MovementType::WanderHorizontal => Dir::Left,
-        _ => Dir::Down,
-    }
+    engine::objects::initial_facing(m)
 }
 
 /// An object's standing frame facing `facing`: `Gfx::Fixed` through `game.sprite`, with the

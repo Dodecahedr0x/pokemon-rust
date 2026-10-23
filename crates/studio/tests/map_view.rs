@@ -7,54 +7,30 @@ use std::time::Instant;
 use studio::map_view::{Overlay, cells, map_list, overlays, render_map};
 use studio::sprite::{decode_sprite, initial_facing, object_sprite};
 
+/// `studio::sprite::initial_facing` is the engine's (`engine::objects::initial_facing`); this
+/// only makes a new engine movement type a compile error here, so the studio's sprite code is
+/// looked at when one is added.
 #[test]
-fn initial_facing_matches_the_engine() {
-    use engine::data::{GfxId, MovementType, ObjectEvent};
-    use engine::objects::Objects;
-    let mut all = vec![
-        MovementType::LookAround,
-        MovementType::Wander,
-        MovementType::WanderVertical,
-        MovementType::WanderHorizontal,
-        MovementType::Invisible,
-    ];
-    for d in Dir::ALL {
-        all.push(MovementType::Face(d));
-        all.push(MovementType::WalkInPlace(d));
-    }
-    for m in &all {
-        // Exhaustive: a new engine variant stops this compiling until it is listed above.
-        match m {
-            MovementType::Face(_)
-            | MovementType::LookAround
-            | MovementType::Wander
-            | MovementType::WanderVertical
-            | MovementType::WanderHorizontal
-            | MovementType::WalkInPlace(_)
-            | MovementType::Invisible => {}
-        }
-    }
-    for m in all {
-        // The engine's facing at spawn (`Objects::add`).
-        let mut objs = Objects::new();
-        objs.add(
-            &ObjectEvent {
-                local_id: 1,
-                gfx: Gfx::Fixed(GfxId(0)),
-                x: 3,
-                y: 3,
-                elevation: 3,
-                movement: m,
-                range: (0, 0),
-                trainer_type: 0,
-                trainer_sight: 0,
-                script: None,
-                hide_flag: None,
-            },
-            |_| 0,
-        );
-        assert_eq!(initial_facing(m), objs.get(1).unwrap().facing, "{m:?}");
-    }
+fn every_movement_type_is_known() {
+    use engine::data::MovementType;
+    let known = |m: MovementType| match m {
+        MovementType::Face(_)
+        | MovementType::LookAround
+        | MovementType::Wander
+        | MovementType::WanderVertical
+        | MovementType::WanderHorizontal
+        | MovementType::WalkInPlace(_)
+        | MovementType::Invisible
+        | MovementType::FaceTwo(_)
+        | MovementType::FaceAllBut(_)
+        | MovementType::Rotate { .. }
+        | MovementType::WalkBackAndForth(_)
+        | MovementType::WalkSequence(_)
+        | MovementType::JogInPlace(_)
+        | MovementType::RunInPlace(_)
+        | MovementType::WalkSlowlyInPlace(_) => initial_facing(m),
+    };
+    assert_eq!(known(MovementType::WanderHorizontal), Dir::Left);
 }
 
 #[test]
