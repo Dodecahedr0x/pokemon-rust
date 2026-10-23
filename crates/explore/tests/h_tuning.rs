@@ -62,10 +62,10 @@ fn block_mates_are_the_reachable_cells_of_the_target_block() {
 }
 
 /// The state of the first Route 101 softlock the slice run raised (before the probe resumed
-/// walks): after the lab, next to the tall grass at (19, 12). `fixtures/route101_grass.runs`
-/// holds only the button runs from a new game (no state, no hashes), 16,931 frames
-/// (regenerated after Milestone 8 Task F, whose crossings and warp loads moved the old one's
-/// end into the lab).
+/// walks): after the lab, next to the tall grass at (19, 9). `fixtures/route101_grass.runs`
+/// holds only the button runs from a new game (no state, no hashes), 16,057 frames
+/// (regenerated after Milestone 8 Task G1, whose spread battle return and trainer prize
+/// message shifted the route timing the Task F one relied on).
 ///
 /// To regenerate it (for example after a content or engine change moves that state): run the
 /// explorer with `probe_resumes: 0` until a Route 101 `Softlock` appears, e.g.
@@ -84,7 +84,7 @@ fn route101_grass() -> engine::checkpoint::Checkpoint {
     let w = s.world();
     assert_eq!(w.map(), MAP_ROUTE101);
     assert!(!w.party().is_empty());
-    assert_eq!(w.objects().player().pos(), (19, 12));
+    assert_eq!(w.objects().player().pos(), (19, 9));
     s.checkpoint().expect("the node's end state is capturable")
 }
 
