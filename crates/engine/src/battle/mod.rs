@@ -600,6 +600,33 @@ pub enum Str {
     PkmnObtainedXYObtainedZ,
     /// `STRINGID_PKMNANCHORSITSELFWITH`.
     PkmnAnchorsItselfWith,
+    // Wave D: the last move effects.
+    /// `STRINGID_PKMNMADESUBSTITUTE`.
+    PkmnMadeSubstitute,
+    /// `STRINGID_PKMNHASSUBSTITUTE`.
+    PkmnHasSubstitute,
+    /// `STRINGID_SUBSTITUTEDAMAGED`.
+    SubstituteDamaged,
+    /// `STRINGID_PKMNSUBSTITUTEFADED`.
+    PkmnSubstituteFaded,
+    /// `STRINGID_TOOWEAKFORSUBSTITUTE`.
+    TooWeakForSubstitute,
+    /// `STRINGID_PKMNTRANSFORMEDINTO`.
+    PkmnTransformedInto,
+    /// `STRINGID_PKMNLEARNEDMOVE2`.
+    PkmnLearnedMove2,
+    /// `STRINGID_PKMNSKETCHEDMOVE`.
+    PkmnSketchedMove,
+    /// `STRINGID_XFOUNDONEY`.
+    XFoundOneY,
+    /// `STRINGID_PKMNWAITSFORTARGET`.
+    PkmnWaitsForTarget,
+    /// `STRINGID_PKMNSNATCHEDMOVE`.
+    PkmnSnatchedMove,
+    /// `STRINGID_PKMNATTACK`.
+    PkmnAttack,
+    /// `STRINGID_PLAYERPICKEDUPMONEY`.
+    PlayerPickedUpMoney,
     // Task G.
     /// `STRINGID_PKMNFELLINLOVE`: Attract: the target (`B_DEF`).
     PkmnFellInLove,
@@ -1018,6 +1045,19 @@ impl Str {
             PkmnObtainedX2 => 420,
             PkmnObtainedXYObtainedZ => 421,
             PkmnAnchorsItselfWith => 422,
+            PkmnMadeSubstitute => 423,
+            PkmnHasSubstitute => 424,
+            SubstituteDamaged => 425,
+            PkmnSubstituteFaded => 426,
+            TooWeakForSubstitute => 427,
+            PkmnTransformedInto => 428,
+            PkmnLearnedMove2 => 429,
+            PkmnSketchedMove => 430,
+            XFoundOneY => 431,
+            PkmnWaitsForTarget => 432,
+            PkmnSnatchedMove => 433,
+            PkmnAttack => 434,
+            PlayerPickedUpMoney => 435,
             AbilityName(a) => 104 << 8 | a as u16,
             // Task G.
             PkmnFellInLove => 105,

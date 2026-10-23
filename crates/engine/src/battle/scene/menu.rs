@@ -73,16 +73,13 @@ impl BattleScene {
                     w.action_menu(game, &names(game, battle, &self.player), f);
                     self.menu = Menu::Action;
                 }
-                // No party screen: the first mon that can fight.
+                // No party screen: the first mon that can fight and is not out (Baton Pass
+                // asks with the user still out).
                 Need::Switch => {
-                    debug_assert!(
-                        battle.party(Side::Player).first_usable().is_some(),
-                        "Need::Switch without a usable mon"
-                    );
-                    return battle
-                        .party(Side::Player)
-                        .first_usable()
-                        .map(Choice::Switch);
+                    let n = battle.party(Side::Player).len() as u8;
+                    let next = (0..n).find(|&i| battle.can_switch_to(Side::Player, i));
+                    debug_assert!(next.is_some(), "Need::Switch without a usable mon");
+                    return next.map(Choice::Switch);
                 }
                 Need::LearnMove { party, mov } => {
                     w.yes_no(game, f);

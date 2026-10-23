@@ -16,8 +16,8 @@ fn forbidden(env: &Env, m: MoveId) -> bool {
         || matches!(
             env.t.move_info(m).effect,
             E::Metronome
-                | E::Unsupported(95) // EFFECT_SKETCH
-                | E::Unsupported(82) // EFFECT_MIMIC
+                | E::Sketch
+                | E::Mimic
                 | E::Counter
                 | E::MirrorCoat
                 | E::Protect
@@ -26,9 +26,9 @@ fn forbidden(env: &Env, m: MoveId) -> bool {
                 | E::SleepTalk
                 | E::Thief
                 | E::FollowMe
-                | E::Unsupported(195) // EFFECT_SNATCH
+                | E::Snatch
                 | E::HelpingHand
-                | E::Unsupported(177) // EFFECT_TRICK
+                | E::Trick
                 | E::FocusPunch
         )
 }

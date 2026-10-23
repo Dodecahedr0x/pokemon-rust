@@ -87,7 +87,9 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> bool {
         E::LockOn => {
             // BattleScript_EffectLockOn + `setalwayshitflag` (STATUS3_ALWAYS_HITS_TURN(2)).
             b.attack_string(env, u);
-            if !b.accuracy(env, u) {
+            if super::sub::subbed(b, u) {
+                b.fail(env, u);
+            } else if !b.accuracy(env, u) {
                 b.miss_message(env, u);
             } else {
                 b.battler_mut(u.target).fx.lock_on = 2;
@@ -186,6 +188,11 @@ fn heal_target(b: &mut Battle, env: &mut Env, u: &MoveUse, side: Side, heal: i32
 /// `BattleScript_EffectSwagger` / `Flatter`: accuracy, then the target's Attack +2 / Sp. Atk +1
 /// and its confusion (`PkmnUsedSafeguard` under Safeguard).
 fn swagger(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    // `jumpifstatus2 BS_TARGET, STATUS2_SUBSTITUTE, BattleScript_MakeMoveMissed`.
+    if super::sub::subbed(b, u) {
+        b.missed(env, u);
+        return;
+    }
     if !b.accuracy(env, u) {
         b.missed(env, u);
         return;
@@ -214,6 +221,12 @@ fn swagger(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 fn teeter_dance(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
     let t = u.target;
+    // BattleScript_TeeterDanceSubstitutePrevents (after Own Tempo, which `status::confuse`
+    // reports).
+    if super::sub::subbed(b, u) && b.battler(t).ability != Ability::OwnTempo {
+        b.fail(env, u);
+        return;
+    }
     if b.battler(t).confusion > 0 {
         say(env, u, Str::PkmnAlreadyConfused, t);
         return;
@@ -237,7 +250,7 @@ fn teeter_dance(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 fn nightmare(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
     let t = b.battler(u.target);
-    if t.fx.nightmare || !matches!(t.mon.status, Status::Sleep(_)) {
+    if super::sub::subbed(b, u) || t.fx.nightmare || !matches!(t.mon.status, Status::Sleep(_)) {
         b.fail(env, u);
         return;
     }
@@ -256,6 +269,10 @@ fn curse(b: &mut Battle, env: &mut Env, u: &MoveUse) {
             ..*u
         };
         b.attack_string(env, u);
+        if super::sub::subbed(b, u) {
+            b.fail(env, u);
+            return;
+        }
         if !no_acc_check(b, u) {
             no_acc_fail(b, env, u);
             return;
@@ -530,8 +547,13 @@ fn memento(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     }
     b.change_hp_passive(env, a, hp);
     anim(env, u);
-    drop(b, env, u, u.target, Stat::Atk, 2);
-    drop(b, env, u, u.target, Stat::SpAtk, 2);
+    if super::sub::subbed(b, u) {
+        // BattleScript_EffectMementoPrintNoEffect.
+        say(env, u, Str::ButNoEffect, a);
+    } else {
+        drop(b, env, u, u.target, Stat::Atk, 2);
+        drop(b, env, u, u.target, Stat::SpAtk, 2);
+    }
     b.try_faint(env, a);
 }
 

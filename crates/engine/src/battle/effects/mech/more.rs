@@ -6,7 +6,7 @@ use super::{anim, no_acc_check, say, say_with};
 use crate::battle::core::{Battle, Env, HitResult, LONG, MoveUse, msg};
 use crate::battle::{BattleEvent, Buff, Msg, Side, Str};
 use crate::data::MoveId;
-use crate::mon::{Ability, MoveEffect, MoveFlags};
+use crate::mon::{Ability, HoldEffect, MoveEffect, MoveFlags};
 
 /// The scripts (`BattleScript_EffectRolePlay` …).
 pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
@@ -79,6 +79,7 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         }
         // `trysetmagiccoat BattleScript_FailedFromAtkString`: not as the turn's last action.
         MoveEffect::MagicCoat => {
+            super::copy::no_pressure(b);
             b.attack_string(env, u);
             if b.order[1] == a {
                 b.fail(env, u);
@@ -93,22 +94,25 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     }
 }
 
-/// `BattleScript_EffectTrick` + `tryswapitems`: never an opponent's (a regular battle), not
-/// after Knock Off, not when neither holds an item. Mail, the Enigma Berry and Sticky Hold are
-/// not modelled.
+/// `BattleScript_EffectTrick` + `tryswapitems`: not behind a substitute; never an opponent's
+/// (a regular battle), not after Knock Off, not when neither holds an item, not with Mail or
+/// the Enigma Berry on either side (`HoldEffect::NoSwap`); Sticky Hold.
 fn trick(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     let (a, t) = (u.attacker, u.target);
     b.attack_string(env, u);
-    if !b.accuracy(env, u) {
+    if super::sub::subbed(b, u) || !b.accuracy(env, u) {
         b.fail(env, u);
         return;
     }
     let (am, tm) = (*b.battler(a), *b.battler(t));
     let knocked = |side: Side, party: u8| b.fx.knocked_off[side as usize] & (1 << party) != 0;
+    let no_swap = |h: Option<HoldEffect>| h == Some(HoldEffect::NoSwap);
     if a == Side::Opponent
         || knocked(a, am.mon.party)
         || knocked(t, tm.mon.party)
         || (am.x.item.is_none() && tm.x.item.is_none())
+        || no_swap(am.x.hold)
+        || no_swap(tm.x.hold)
     {
         b.fail(env, u);
         return;
@@ -196,6 +200,8 @@ pub(in crate::battle::effects) fn bounce(
     {
         return None;
     }
+    // PressurePPLose(attacker, target, MOVE_MAGIC_COAT).
+    super::copy::pressure_pp_lose(b, env, u.attacker, t, MoveEffect::MagicCoat);
     b.battler_mut(t).fx.bounce = false;
     b.attack_string(env, u);
     env.out.push(BattleEvent::Msg(
