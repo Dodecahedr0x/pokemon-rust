@@ -9,12 +9,16 @@
 //! **Task E** (this file, [`prelude`] and [`new_game`]): the new game, the system ids and the
 //! heal locations come from `games/silice/game.ron` (`build/silice/game.rs`, as the `SIL_*` and
 //! `HEAL_LOCATION_SIL_*` constants of `crate::consts`):
-//! - the new game on `game.ron`'s start (`data::NEW_GAME`), running [`new_game::new_game`]
-//!   (its flags and vars);
+//! - the new game on `game.ron`'s start cell and facing (`data::NEW_GAME`), with its player
+//!   name (`data::PLAYER_NAME`), running [`new_game::new_game`] (its flags and vars);
 //! - running on `SIL_RUNNING_FLAG` (`FLAG_SIL_RUNNING_SHOES`), the map-change flags of
 //!   `SIL_FLAGS_CLEARED_ON_MAP_CHANGE`, the respawn `SIL_RESPAWN`;
 //! - heal location `n` is `SIL_HEAL_LOCATIONS[n - 1]`;
 //! - no whiteout script and no wild-set var yet.
+//!
+//! **Task A** (`build/silice/{text,data,merge}.rs`): the texts of `text/fr.ron`, Silice's
+//! trainers, wild encounters (by Silice map), items (with their base items' hold effects) and
+//! marts (`data::MARTS`), the map headers and `LOCALID_*`, through the shared `game_data_tables!`.
 
 pub mod new_game;
 pub mod prelude;

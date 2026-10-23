@@ -12,14 +12,15 @@
 //! - `SIL_STARTERS: [SpeciesId; 3]`, `SIL_STARTER_LEVEL: u8`;
 //! - `SIL_NEW_GAME_FLAGS: &[FlagId]`, `SIL_NEW_GAME_VARS: &[(VarId, u16)]`.
 //!
-//! The start cell itself goes through `input::AuthoredIn::start` (`data::NEW_GAME`), as in Wave 0.
 //!
 //! **Checks** ([`check`]): every map is a loaded map and every cell a walkable cell inside it;
 //! a flag or var is a live Silice id, or a Gen3 one in `extract::games::SHARED_GEN3` (the
 //! numbers no Silice id may take); species are Gen3 names; heal location names are
-//! `HEAL_LOCATION_SIL_*` and unique; the respawn names one of them; the facing is `Down`
-//! (the shared `GameData::new_game`, `content::game_data_tables!`, always faces down; reading
-//! another facing would change a file the Emerald build hashes).
+//! `HEAL_LOCATION_SIL_*` and unique; the respawn names one of them; the player name has 1 to
+//! [`PLAYER_NAME_LENGTH`] characters.
+//!
+//! The start cell and facing go through `input::AuthoredIn::start` and the player name through
+//! `AuthoredIn::player_name` (`data::NEW_GAME`, `data::PLAYER_NAME`).
 
 use super::ids::Ids;
 use super::load::MapIn;
@@ -28,6 +29,9 @@ use anyhow::{Context, Result, bail, ensure};
 use extract::names;
 use std::collections::BTreeSet;
 use std::path::Path;
+
+/// Gen3 `PLAYER_NAME_LENGTH`.
+pub const PLAYER_NAME_LENGTH: usize = 7;
 
 /// `<games>/game.ron`.
 pub fn load(games: &Path) -> Result<GameFile> {
@@ -80,10 +84,11 @@ fn cell(maps: &[MapIn], what: &str, map: &str, x: i16, y: i16) -> Result<()> {
 pub fn check(g: &GameFile, ids: &Ids, maps: &[MapIn]) -> Result<()> {
     let s = &g.start;
     cell(maps, "start", &s.map, s.x, s.y)?;
+    let n = g.player_name.chars().count();
     ensure!(
-        s.facing == Facing::Down,
-        "start: facing {:?}; the shared GameData::new_game faces down",
-        s.facing
+        (1..=PLAYER_NAME_LENGTH).contains(&n),
+        "player_name {:?}: {n} characters (1 to {PLAYER_NAME_LENGTH})",
+        g.player_name
     );
     flag_or_var(ids, IdKind::Flags, &g.running_flag).context("running_flag")?;
     for f in &g.cleared_on_map_change {
@@ -133,6 +138,16 @@ pub fn check(g: &GameFile, ids: &Ids, maps: &[MapIn]) -> Result<()> {
     Ok(())
 }
 
+/// A facing as its `engine::data::Dir` path.
+pub fn facing(f: Facing) -> &'static str {
+    match f {
+        Facing::Down => "Dir::Down",
+        Facing::Up => "Dir::Up",
+        Facing::Left => "Dir::Left",
+        Facing::Right => "Dir::Right",
+    }
+}
+
 /// The `content::consts` of `g` (see the module doc): (name, type, value).
 pub fn consts(g: &GameFile, ids: &Ids) -> Result<Vec<(String, &'static str, String)>> {
     let list = |v: &[String]| format!("&[{}]", v.join(", "));
@@ -150,12 +165,7 @@ pub fn consts(g: &GameFile, ids: &Ids) -> Result<Vec<(String, &'static str, Stri
     let vars: Vec<String> = (g.new_game_vars.iter())
         .map(|(v, x)| format!("({v}, {x})"))
         .collect();
-    let facing = match g.start.facing {
-        Facing::Down => "Dir::Down",
-        Facing::Up => "Dir::Up",
-        Facing::Left => "Dir::Left",
-        Facing::Right => "Dir::Right",
-    };
+    let facing = facing(g.start.facing);
     out.extend([
         (
             "SIL_HEAL_LOCATIONS".into(),

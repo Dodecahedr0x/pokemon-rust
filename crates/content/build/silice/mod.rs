@@ -7,21 +7,25 @@
 //! - [`ids`]: the id allocation contract (append-only, tombstones, constants);
 //! - [`registry`]: the script registry (`src/silice/scripts/*.rs`, `syn`) and the unknown
 //!   script rule;
-//! - [`load`], [`merge`]: the maps into the generator's `World`;
-//! - [`dispatch`]: the generated script files;
-//! - [`text`]: the `text/fr.ron` reader (Task A merges the texts);
-//! - [`font`]: the authored glyphs (`font/*.ron`) merged into the extract's font, and the
-//!   encoder hook for them (Task G).
+//! - [`load`]: the maps and layouts, their Gen3 limits, and `check-exceptions.ron`;
+//! - [`merge`]: the maps into the generator's `MapFile`s (names to numbers, headers,
+//!   `LOCALID_*`);
+//! - [`text`]: `text/fr.ron` and the Silice text encoder (with [`font`]'s glyphs);
+//! - [`font`]: the authored glyphs (`font/*.ron`) merged into the extract's font (Task G);
+//! - [`game`]: `game.ron`: the new game, system ids and heal locations (Task E);
+//! - [`data`]: trainers, encounters, items and marts;
+//! - [`dispatch`]: the generated script files and the report.
 //!
-//! **Wave 0 world** ([`world`]): every map of `maps/` with its layout, numbered by
-//! `ids/maps.ron`, on the extract's tilesets, sprites, font, window, battle data and tables; of
-//! the extract's texts only Gen3's shared `gText_*` ([`STD_TEXT_PREFIX`]); the Emerald
-//! trainers (but `TRAINER_NONE`), encounters and heal locations dropped (they name Emerald
-//! texts and map numbers, which Silice's alias); the new game, system ids and heal locations
-//! from `game.ron` ([`game`], Task E). Task A adds texts, trainers, encounters, items, header
-//! names and `LOCALID_*`. The generator sees Silice only through `input::AuthoredIn` (script
-//! names, id constants, start); the script files are [`dispatch`]'s.
+//! **World** ([`world`], SIL1 Task A): every map of `maps/` with its layout, numbered by
+//! `ids/maps.ron`, on the extract's tilesets, sprites, font, window, battle data and tables; the
+//! texts of `text/fr.ron` with Gen3's shared `gText_*` ([`STD_TEXT_PREFIX`]); Silice's trainers,
+//! encounters and items instead of Emerald's; the new game, system ids and heal locations from
+//! `game.ron` ([`game`]). The generator sees Silice only through `input::AuthoredIn` (script names,
+//! id constants, map numbers, item bases, battle rules, the marts, start); the script files are
+//! [`dispatch`]'s. Every placeholder or cut is allowed by `check-exceptions.ron` and listed in
+//! `content::REPORT` ([`Silice::report`]).
 
+pub mod data;
 pub mod dispatch;
 pub mod font;
 pub mod game;
@@ -30,16 +34,15 @@ pub mod load;
 pub mod merge;
 pub mod registry;
 pub mod schema;
-#[allow(dead_code)]
 pub mod text;
 
 use crate::input::{AuthoredIn, World};
-use anyhow::{Context, Result};
-use std::collections::BTreeSet;
+use anyhow::{Context, Result, bail};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 /// The extract's texts Silice keeps: Gen3's shared `gText_*` (`data/text/*.inc`), which the
-/// prelude prints by label. Task A adds `text/fr.ron`'s.
+/// prelude prints by label. `text/fr.ron`'s join them.
 pub const STD_TEXT_PREFIX: &str = "gText_";
 
 /// The Silice world: the base assets of the extracted dir `extracted`, the games dir `games`
@@ -47,13 +50,17 @@ pub const STD_TEXT_PREFIX: &str = "gText_";
 /// once, after every map, listing them all ([`registry::strict`]).
 pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Result<Silice> {
     let ids = ids::load(games).context("ids")?;
+    let exc = load::Exceptions::load(games).context("check-exceptions.ron")?;
     let reg = registry::scan(scripts).context("scripts")?;
     let mut resolver = registry::Resolver::new(&reg, strict);
     let loaded = load::load_maps(games)?;
+    for m in &loaded {
+        load::check_limits(m).with_context(|| format!("map {}", m.map.name))?;
+    }
+    load::check_warps(&loaded).context("warps")?;
     let game = game::load(games).context("game.ron")?;
     game::check(&game, &ids, &loaded).context("game.ron")?;
-    let maps = loaded
-        .iter()
+    let maps = (loaded.iter())
         .map(|m| {
             merge::to_map_file(m, &ids, &mut resolver)
                 .with_context(|| format!("map {}", m.map.name))
@@ -62,26 +69,111 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     resolver.finish()?;
     let mut w = crate::input::load_assets(extracted)?;
     font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
+    check_assets(&loaded, &w)?;
     w.maps = maps;
     w.ir = None;
-    // The Gen3 shared texts the prelude prints by decomp label (`text_named`: obtain item,
-    // bag full…); the Emerald map texts go.
+    let mut report = Vec::new();
+    let mut consts = ids.consts();
+    for m in &loaded {
+        consts.extend(merge::localid_consts(m));
+    }
+    consts.extend(game::consts(&game, &ids)?);
+
+    // Texts: the Gen3 shared texts the prelude prints by decomp label (`text_named`: obtain
+    // item, bag full…), then Silice's; the Emerald map texts go.
+    let enc = text::Encoder::new(w.lang, text::glyph_codes());
     w.texts.retain(|k, _| k.starts_with(STD_TEXT_PREFIX));
-    // Emerald's trainers, encounters and heal locations go (Task A merges Silice's). The
-    // trainer list keeps `TRAINER_NONE`, number 0, so trainer numbers stay index-equal.
-    w.battle.trainers.truncate(1);
-    w.battle.encounters.clear();
+    let texts = text::load(games, &enc, &exc, &mut report).context("text/fr.ron")?;
+    let text_count = texts.len();
+    for (k, v) in texts {
+        if w.texts.insert(k.clone(), v).is_some() {
+            bail!("text id {k} is also a Gen3 text");
+        }
+    }
+
+    // Battle and items: Silice's replace Emerald's. The extract's heal locations go: Silice's
+    // come from `game.ron` (`heal_location()`, Task E).
+    let items = data::items(games, &ids, &exc, &enc, &mut w, &mut report).context("items.ron")?;
+    consts.extend(items.consts);
+    consts.extend(
+        data::trainers(games, &ids, &exc, &enc, &mut w, &mut report)
+            .context("battle/trainers.ron")?,
+    );
+    let trainer_count = w
+        .battle
+        .trainers
+        .iter()
+        .filter(|t| !t.party.is_empty())
+        .count();
+    let encounter_maps = data::encounters(games, &ids, &mut w).context("battle/encounters.ron")?;
     w.battle.heal = Default::default();
+    let forms = data::form_changes(&ids)?;
+
+    let map_numbers: BTreeMap<String, u16> = (ids.files.get(&schema::IdKind::Maps).into_iter())
+        .flat_map(|f| &f.ids)
+        .filter(|e| !e.removed)
+        .filter_map(|e| Some((e.map.clone()?, e.num as u16)))
+        .collect();
+    let mut summary = vec![format!(
+        "silice: {} maps, {text_count} texts, {trainer_count} trainers, {encounter_maps} \
+         encounter maps, {} items, {} marts",
+        w.maps.len(),
+        items.defined,
+        items.marts
+    )];
+    summary.push(forms);
+    summary.extend(report);
     w.authored = Some(AuthoredIn {
         script_names: reg.scripts.iter().map(|s| s.name.clone()).collect(),
-        consts: [ids.consts(), game::consts(&game, &ids)?].concat(),
-        start: (game.start.map.clone(), game.start.x, game.start.y),
+        consts,
+        start: (
+            game.start.map.clone(),
+            game.start.x,
+            game.start.y,
+            game::facing(game.start.facing),
+        ),
+        player_name: game.player_name.clone(),
+        map_numbers,
+        item_bases: items.bases,
+        rules: crate::classify::Rules::SILICE,
+        data_rs: items.data_rs,
     });
     Ok(Silice {
         world: w,
         registry: reg,
         unwritten: resolver.unwritten.into_keys().collect(),
+        report: summary,
     })
+}
+
+/// The extract assets the maps name: each layout's tilesets, each object's sprite.
+fn check_assets(maps: &[load::MapIn], w: &World) -> Result<()> {
+    let tilesets: BTreeSet<&str> = w.tilesets.iter().map(|t| t.file.name.as_str()).collect();
+    let sprites: BTreeSet<&str> = w.sprites.iter().map(|s| s.file.name.as_str()).collect();
+    let mut bad = Vec::new();
+    for m in maps {
+        let n = &m.map.name;
+        for ts in [&m.layout.primary, &m.layout.secondary] {
+            if !tilesets.contains(ts.as_str()) {
+                bad.push(format!("map {n}: tileset {ts} is not in the extract"));
+            }
+        }
+        for o in &m.map.objects {
+            // A var graphics (`OBJ_EVENT_GFX_VAR_<n>`) is picked at run time.
+            let s = o.gfx.trim_start_matches("OBJ_EVENT_GFX_");
+            let fixed = !s.starts_with("VAR_");
+            if crate::classify::gfx(&o.gfx).is_none() || fixed && !sprites.contains(s) {
+                bad.push(format!(
+                    "map {n}: object {}: graphics {} is not in the extract",
+                    o.local_id, o.gfx
+                ));
+            }
+        }
+    }
+    if !bad.is_empty() {
+        bail!("{}", bad.join("; "));
+    }
+    Ok(())
 }
 
 /// The Silice build's inputs: the generator's world, plus what [`dispatch`] writes.
@@ -91,4 +183,6 @@ pub struct Silice {
     /// Script names the maps use that no script defines, dropped from the maps (the Wave 0
     /// allowlist mode); empty when the build is strict.
     pub unwritten: BTreeSet<String>,
+    /// The data part of `content::REPORT`: counts, then every placeholder and cut.
+    pub report: Vec<String>,
 }
