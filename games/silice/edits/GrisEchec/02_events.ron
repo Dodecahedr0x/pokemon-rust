@@ -57,7 +57,11 @@
     Sign(x: 17, y: 4, script: "GrisEchec_EventScript_Brouilleur1"),
     Sign(x: 20, y: 14, script: "GrisEchec_EventScript_Brouilleur2"),
     // The Iron hidden behind the Pokemon Centre.
-    HiddenItem(x: 6, y: 4, item: "ITEM_IRON", flag: "FLAG_SIL_ITEM_GRIS_ECHEC_IRON"),
+    // Fallback (SIL2 Ch2 scripts): a sign script that gives it once behind its flag, because the
+    // engine does not pick up hidden items yet (as Ch0's Antidote). Back to
+    // HiddenItem(x: 6, y: 4, item: "ITEM_IRON", flag: "FLAG_SIL_ITEM_GRIS_ECHEC_IRON"),
+    // once it does.
+    Sign(x: 6, y: 4, script: "GrisEchec_EventScript_HiddenIron"),
     // Route S2 to the west: its exit y 3-5 meets ours y 10-12. Route S3 to the north: its entry
     // x 9-10 meets our corridor x 38-39.
     Connect((dir: West, offset: 7, map: "RouteS02")),
