@@ -1,0 +1,29 @@
+// Cells.
+[
+    // Ground plan. A-F walls, p-W wall fixtures and the hold's broken door, g-j floor edges, . floor,
+    // b-e bunks, t-Y the mess table, k-L a wardrobe, n N chairs, z a trash can, 1-6 the flooded hold,
+    // m M the hole in the hull (south arrow warps). The mess is x 1-12, y 2-8; the hold x 17-28, y 2-8;
+    // the gangway x 1-28, y 12-19, joined to both through the gaps at x 6-7 and x 22-23.
+    Ascii(x: 0, y: 0, rows: [
+        "ApqBBBBBBBBBBC  ApqBuvwBBBBBBC",
+        "DPQEEEEEEEEEEF  DPQEUVWEEEEEEF",
+        "DghhhhhhhbcbcF  DghhhhhhhhkKhF",
+        "Dj.......dedeF  Dj.......nlL.F",
+        "Dj.n.tT......F  Dj..12223....F",
+        "Dj...yY..n...F  Dj..4~6~5..n.F",
+        "rj...........F  rj..4~~~5....F",
+        "Dj......N....F  Dj..4~~~5....F",
+        "Dj...........F  Dj...........R",
+        "DBBBBBj.BBBBBBBBBBBBBBj.BBBBBF",
+        "DEEEEEj.EEEEEEEEEEEEEEj.EEEEEF",
+        "Dghhhhh.hhhhhhhhhhhhhhh.hhhhhF",
+        "Dj...........................F",
+        "rj....n.......z.......N......F",
+        "Dj...........................F",
+        "Dj..bc.......................R",
+        "Dj..de...............bc......F",
+        "Dj...................de......F",
+        "Dj...........................F",
+        "Dj............mM.............F",
+    ], legend: {'6': (metatile: 342, collision: 0, elevation: 1), '~': (metatile: 368, collision: 0, elevation: 1), '1': (metatile: 384, collision: 0, elevation: 1), '3': (metatile: 385, collision: 0, elevation: 1), '2': (metatile: 393, collision: 0, elevation: 1), '4': (metatile: 400, collision: 0, elevation: 1), '5': (metatile: 402, collision: 0, elevation: 1), ' ': (metatile: 513, collision: 1, elevation: 0), 'B': (metatile: 551, collision: 1, elevation: 0), 'E': (metatile: 559, collision: 1, elevation: 0), 'A': (metatile: 566, collision: 1, elevation: 0), 'C': (metatile: 567, collision: 1, elevation: 0), '.': (metatile: 568, collision: 0, elevation: 3), 'g': (metatile: 570, collision: 0, elevation: 3), 'h': (metatile: 571, collision: 0, elevation: 3), 'j': (metatile: 573, collision: 0, elevation: 3), 'D': (metatile: 574, collision: 1, elevation: 0), 'F': (metatile: 575, collision: 1, elevation: 0), 'p': (metatile: 576, collision: 1, elevation: 0), 'P': (metatile: 584, collision: 1, elevation: 0), 'b': (metatile: 592, collision: 1, elevation: 3), 'c': (metatile: 593, collision: 1, elevation: 3), 'k': (metatile: 596, collision: 1, elevation: 3), 'K': (metatile: 597, collision: 1, elevation: 3), 't': (metatile: 598, collision: 1, elevation: 3), 'T': (metatile: 599, collision: 1, elevation: 3), 'd': (metatile: 600, collision: 1, elevation: 3), 'e': (metatile: 601, collision: 1, elevation: 3), 'l': (metatile: 604, collision: 1, elevation: 3), 'L': (metatile: 605, collision: 1, elevation: 3), 'y': (metatile: 606, collision: 1, elevation: 3), 'Y': (metatile: 607, collision: 1, elevation: 3), 'N': (metatile: 608, collision: 0, elevation: 3), 'n': (metatile: 609, collision: 0, elevation: 3), 'z': (metatile: 610, collision: 1, elevation: 3), 'm': (metatile: 612, collision: 0, elevation: 3), 'M': (metatile: 613, collision: 0, elevation: 3), 'q': (metatile: 619, collision: 1, elevation: 0), 'Q': (metatile: 627, collision: 1, elevation: 0), 'u': (metatile: 661, collision: 1, elevation: 0), 'w': (metatile: 662, collision: 1, elevation: 0), 'U': (metatile: 669, collision: 1, elevation: 0), 'W': (metatile: 670, collision: 1, elevation: 0), 'R': (metatile: 682, collision: 1, elevation: 0), 'r': (metatile: 683, collision: 1, elevation: 0), 'v': (metatile: 687, collision: 1, elevation: 0), 'V': (metatile: 695, collision: 1, elevation: 0)}),
+]

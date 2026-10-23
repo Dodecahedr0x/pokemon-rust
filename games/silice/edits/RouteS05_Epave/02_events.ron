@@ -1,0 +1,15 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 1, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: true, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // cave: 1 makes it dark until Flash (Gen3's flash level); the engine does not draw darkness yet.
+    // Warps 0-1: the hole in the hull, to Route S5's warp 0.
+    Warp(x: 14, y: 19, dest_map: "RouteS05", dest_warp: 0),
+    Warp(x: 15, y: 19, dest_map: "RouteS05", dest_warp: 0),
+    // Objects. 1: Fabrice (Ruin Maniac). 2-3: the item balls (the TM needs light: the hold is dark).
+    Object(x: 9, y: 15, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_EPAVE_FABRICE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS05_Epave_EventScript_Fabrice", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 28, y: 4, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_EPAVE_ITEM_TM17", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_Epave_EventScript_ItemProtection", flag: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_PROTECTION"),
+    Object(x: 3, y: 7, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_EPAVE_ITEM_BIG_PEARL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS05_Epave_EventScript_ItemGrossePerle", flag: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_GROSSE_PERLE"),
+    // The captain's log lies on the mess table. The Revive is hidden in a bunk of the mess.
+    Sign(x: 6, y: 4, script: "RouteS05_Epave_EventScript_Journal"),
+    HiddenItem(x: 11, y: 3, item: "ITEM_REVIVE", flag: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_RAPPEL"),
+]
