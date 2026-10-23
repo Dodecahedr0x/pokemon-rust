@@ -242,6 +242,8 @@ pub(crate) struct State {
     pub(crate) registered_item: Option<ItemId>,
     /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
     pub(crate) fx: ScreenFx,
+    /// Running field effects and their arguments (Wave C; not snapshotted, not hashed).
+    pub(in crate::world) field_effects: host::FieldEffects,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
@@ -274,7 +276,7 @@ impl<G: GameData> Terrain for Ground<'_, G> {
 
     fn behavior(&self, x: i16, y: i16) -> crate::data::Behavior {
         let b = self.field.block(self.game, x, y);
-        block_behavior(self.game, self.game.map(self.field.map()), b)
+        block_behavior(self.game, self.field.data(self.game), b)
     }
 }
 
@@ -394,6 +396,7 @@ impl World {
                 coins: 0,
                 registered_item: None,
                 fx: ScreenFx::default(),
+                field_effects: host::FieldEffects::default(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -456,6 +459,17 @@ impl World {
             field: &s.field,
         };
         s.objects.update(&ground, &mut s.rng, player_updated);
+        // A script's movement walked the player across the map's edge (Wave C): Gen3
+        // `CameraMove` follows the player's sprite and loads the connected map as the step
+        // starts (`LoadMapFromCameraTransition`), cutscenes included (Mr. Briney's sails).
+        if !player_updated && !s.transition.is_active() {
+            let (x, y) = s.objects.player().pos();
+            if !crate::grid::in_bounds(s.field.data(game), x, y)
+                && let Some((to, shift)) = s.field.crossing(game, x, y)
+            {
+                cross_connection(game, s, f, to, shift);
+            }
+        }
         // Gen3's per-step callback task (the map's ice puzzle or cracked floors).
         puzzle::step(game, s, f);
         // The player entered a cell this frame (a step starts, by input or by a script's
@@ -470,6 +484,7 @@ impl World {
         if s.door > 0 {
             s.door -= 1;
         }
+        s.field_effects.tick();
         draw_field(game, s, f);
     }
 
@@ -508,7 +523,7 @@ impl World {
             self.start_sighting(game, sighting);
             return false;
         }
-        let map = game.map(self.s.field.map());
+        let map = self.s.field.data(game);
         if let Some(id) = map_script_on_frame(map, &self.s.vars) {
             self.start_script(game, id, None);
             return false;

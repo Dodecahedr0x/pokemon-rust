@@ -1,0 +1,184 @@
+//! Derived art: features drawn from other features' art instead of a prompt (a switched-off
+//! jammer, glowing floor slabs, a wall screen, an object set on its floor). `gen` runs a
+//! tileset's derivation after prep, so the derived art follows its sources; the derived
+//! features have no prompt (`gen` leaves their art to this module).
+
+use super::gfx::{Rgba, read_rgba, write_rgba};
+use anyhow::Result;
+use std::path::Path;
+
+/// Runs the derivation of tileset `name` (art dir `gfx`), if it has one.
+pub fn run(name: &str, gfx: &Path) -> Result<bool> {
+    match name {
+        "SilGrisEchec" => gris_echec(&gfx.join(name))?,
+        "SilGrisEchecGym" => gris_echec_gym(&gfx.join(name))?,
+        _ => return Ok(false),
+    }
+    println!("derived art for {name}");
+    Ok(true)
+}
+
+fn load(dir: &Path, f: &str) -> Result<Rgba> {
+    read_rgba(&dir.join(format!("{f}.png")))
+}
+
+fn save(dir: &Path, f: &str, img: &Rgba) -> Result<()> {
+    write_rgba(&dir.join(format!("{f}.png")), img)
+}
+
+fn get(img: &Rgba, x: u32, y: u32) -> [u8; 4] {
+    img.px[(y * img.w + x) as usize]
+}
+
+fn set(img: &mut Rgba, x: u32, y: u32, rgb: [u8; 3]) {
+    img.px[(y * img.w + x) as usize] = [rgb[0], rgb[1], rgb[2], 255];
+}
+
+fn crop(img: &Rgba, x0: u32, y0: u32, w: u32, h: u32) -> Rgba {
+    Rgba {
+        w,
+        h,
+        px: (0..h)
+            .flat_map(|y| (0..w).map(move |x| (x, y)))
+            .map(|(x, y)| get(img, x0 + x, y0 + y))
+            .collect(),
+    }
+}
+
+/// `base` tiled to `top`'s size, `top`'s opaque pixels over it.
+fn over(base: &Rgba, top: &Rgba) -> Rgba {
+    let mut out = tile(base, top.w, top.h);
+    for (o, p) in out.px.iter_mut().zip(&top.px) {
+        if p[3] >= 128 {
+            *o = [p[0], p[1], p[2], 255];
+        }
+    }
+    out
+}
+
+fn tile(img: &Rgba, w: u32, h: u32) -> Rgba {
+    Rgba {
+        w,
+        h,
+        px: (0..h)
+            .flat_map(|y| (0..w).map(move |x| (x, y)))
+            .map(|(x, y)| get(img, x % img.w, y % img.h))
+            .collect(),
+    }
+}
+
+fn lum(c: [u8; 4]) -> u32 {
+    (c[0] as u32 * 3 + c[1] as u32 * 6 + c[2] as u32) / 10
+}
+
+/// SilGrisEchec: the roof jammer J1 (on, off), the bin on a white square, the Tour's door
+/// crackling with static.
+fn gris_echec(t: &Path) -> Result<()> {
+    let roof = crop(&load(t, "annexe")?, 48, 16, 16, 16);
+    let jam = load(t, "brouilleur")?;
+    save(t, "j1", &over(&roof, &jam))?;
+    // Switched off: the saturated pixels go dull grey.
+    let mut off = jam.clone();
+    for p in off.px.iter_mut().filter(|p| p[3] >= 128) {
+        let (hi, lo) = (p[0].max(p[1]).max(p[2]), p[0].min(p[1]).min(p[2]));
+        if hi - lo > 60 {
+            let v = (lum(*p) / 2 + 30) as u8;
+            *p = [v, v, v, 255];
+        }
+    }
+    save(t, "j1_hs", &over(&roof, &off))?;
+    save(
+        t,
+        "poubelle_case",
+        &over(&load(t, "case_blanche")?, &load(t, "poubelle")?),
+    )?;
+    // The door leaf (not its frame line at the edges) becomes grey snow.
+    let mut door = crop(&load(t, "tour")?, 16, 64, 32, 16);
+    let mut seed = 2u32;
+    for y in 1..16 {
+        for x in 3..29 {
+            if get(&door, x, y)[3] >= 128 {
+                seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+                let v = [70, 110, 150, 190, 230][(seed >> 16) as usize % 5];
+                set(&mut door, x, y, [v, v, v]);
+            }
+        }
+    }
+    save(t, "tour_porte_brouillee", &door)
+}
+
+/// SilGrisEchecGym: the lit maze floor, the binary slabs 0 and 1, the wall screen, the objects
+/// set on their floor.
+fn gris_echec_gym(g: &Path) -> Result<()> {
+    let sol = load(g, "sol")?;
+    let mut lit = sol.clone();
+    for y in 0..16 {
+        for x in 0..16 {
+            let p = get(&lit, x, y);
+            let c = if x == 0 || x == 15 || y == 0 || y == 15 {
+                [120, 248, 248]
+            } else if x == 1 || x == 14 || y == 1 || y == 14 {
+                [56, 168, 200]
+            } else {
+                [
+                    (p[0] / 2).saturating_add(20),
+                    (p[1] / 2).saturating_add(70),
+                    (p[2] / 2).saturating_add(90),
+                ]
+            };
+            set(&mut lit, x, y, c);
+        }
+    }
+    save(g, "sol_allume", &lit)?;
+    const ZERO: [&str; 8] = [
+        "..####..", ".##..##.", ".##..##.", ".##..##.", ".##..##.", ".##..##.", ".##..##.",
+        "..####..",
+    ];
+    const ONE: [&str; 8] = [
+        "...##...", "..###...", ".####...", "...##...", "...##...", "...##...", "...##...",
+        ".######.",
+    ];
+    for (name, glyph, col, dim) in [
+        ("dalle_0", ZERO, [96, 240, 128], [24, 96, 48]),
+        ("dalle_1", ONE, [248, 168, 64], [112, 64, 24]),
+    ] {
+        let mut d = sol.clone();
+        for y in 2..14 {
+            for x in 2..14 {
+                let edge = x == 2 || x == 13 || y == 2 || y == 13;
+                set(&mut d, x, y, if edge { dim } else { [24, 28, 36] });
+            }
+        }
+        for (gy, row) in glyph.iter().enumerate() {
+            for (gx, ch) in row.chars().enumerate() {
+                if ch == '#' {
+                    set(&mut d, 4 + gx as u32, 4 + gy as u32, col);
+                }
+            }
+        }
+        save(g, name, &d)?;
+    }
+    let mut ecran = load(g, "mur")?;
+    for y in 18..29 {
+        for x in 2..14 {
+            let edge = x == 2 || x == 13 || y == 18 || y == 28;
+            set(&mut ecran, x, y, if edge { [40, 48, 56] } else { [8, 40, 24] });
+        }
+    }
+    for x in 4..11 {
+        set(&mut ecran, x, 21, [96, 240, 128]);
+    }
+    for x in 4..8 {
+        set(&mut ecran, x, 24, [96, 240, 128]);
+    }
+    set(&mut ecran, 4, 21, [200, 255, 210]);
+    save(g, "mur_ecran", &ecran)?;
+    save(g, "statue", &over(&sol, &load(g, "statue_roi")?))?;
+    save(g, "terminal_sol", &over(&sol, &load(g, "terminal")?))?;
+    save(g, "pad_sol", &over(&sol, &load(g, "pad")?))?;
+    save(
+        g,
+        "bloc_mousse_sol",
+        &over(&load(g, "mousse_sol")?, &load(g, "bloc_mousse")?),
+    )
+}

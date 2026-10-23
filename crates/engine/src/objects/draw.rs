@@ -84,6 +84,7 @@ impl Objects {
                 },
             ));
         }
+        self.draw_virtuals(game, camera_px, &mut used_banks, &mut out, f);
         // Stable: equal y keeps object order, so the player wins ties.
         out.sort_by_key(|&(y, _)| core::cmp::Reverse(y));
         if !self.emotes.is_empty() {
@@ -168,6 +169,74 @@ impl Objects {
         out
     }
 
+    /// The virtual objects' OBJs (Gen3 `CreateVirtualObject`: an object's sprite at a cell,
+    /// standing, facing its direction), after the objects in the y sort's ties.
+    fn draw_virtuals(
+        &mut self,
+        game: &impl GameData,
+        camera_px: (i32, i32),
+        used_banks: &mut u16,
+        out: &mut Vec<(i32, Obj)>,
+        f: &mut Frame,
+    ) {
+        for k in 0..self.virtuals.len() {
+            let v = self.virtuals[k];
+            let Some(sprite) = game.sprite(v.gfx) else {
+                continue;
+            };
+            let Some((shape, size)) = Obj::shape_for(sprite.width, sprite.height) else {
+                continue;
+            };
+            if sprite.frames.is_empty() {
+                continue;
+            }
+            let (w, h) = (sprite.width as i32, sprite.height as i32);
+            let (px, py) = (v.x as i32 * 16, v.y as i32 * 16);
+            let x = px - camera_px.0 + 8 - w / 2;
+            let y = py - camera_px.1 + 16 - h;
+            if x <= -w || x >= SCREEN_W as i32 || y <= -h || y >= SCREEN_H as i32 {
+                continue;
+            }
+            // Gen3 `GetFaceDirectionAnimNum`: the standing frame of the direction.
+            let (frame, hflip) = super::anim::face_frame(v.facing, sprite.frames.len());
+            let tiles = sprite.frames[frame.min(sprite.frames.len() - 1)];
+            let count = ((w / 8) * (h / 8)) as u16;
+            let first = match v.vram {
+                Some((first, n)) if n == count => first,
+                _ => {
+                    let Some(first) = self.free_tiles(None, count) else {
+                        continue;
+                    };
+                    self.virtuals[k].vram = Some((first, count));
+                    self.virtuals[k].uploaded = None;
+                    first
+                }
+            };
+            let Some(palette) = self.palette_bank(sprite.palette, used_banks, f) else {
+                continue;
+            };
+            let shown = Some((sprite as *const _ as usize, frame as u16));
+            if self.virtuals[k].uploaded != shown {
+                f.cmds.push(Cmd::ObjTiles { first, tiles });
+                self.virtuals[k].uploaded = shown;
+            }
+            out.push((
+                py,
+                Obj {
+                    x: x as i16,
+                    y: y as i16,
+                    tile: first,
+                    palette,
+                    shape,
+                    size,
+                    hflip,
+                    vflip: false,
+                    priority: layout::OBJ_PRIORITY,
+                },
+            ));
+        }
+    }
+
     /// Forgets what OBJ VRAM and palettes hold, so everything is uploaded again on the next
     /// `draw` (after the shell's VRAM was reset).
     pub fn invalidate_vram(&mut self) {
@@ -176,6 +245,9 @@ impl Objects {
         }
         for e in &mut self.emotes {
             e.uploaded = None;
+        }
+        for v in &mut self.virtuals {
+            v.uploaded = None;
         }
         self.banks = [None; 16];
     }
@@ -187,9 +259,20 @@ impl Objects {
         {
             return Some(first);
         }
+        let first = self.free_tiles(Some(i), count)?;
+        let o = &mut self.objs[i];
+        o.vram = Some((first, count));
+        o.uploaded = None;
+        Some(first)
+    }
+
+    /// The first run of `count` free OBJ tiles (first fit) below the emote slots, besides
+    /// object `except`'s own and the virtual objects'.
+    fn free_tiles(&self, except: Option<usize>, count: u16) -> Option<u16> {
         let mut used: Vec<(u16, u16)> = (self.objs.iter().enumerate())
-            .filter(|&(j, _)| j != i)
+            .filter(|&(j, _)| Some(j) != except)
             .filter_map(|(_, o)| o.vram)
+            .chain(self.virtuals.iter().filter_map(|v| v.vram))
             .collect();
         used.sort_unstable();
         let mut first = 0u16;
@@ -199,13 +282,7 @@ impl Objects {
             }
             first = first.max(start + n);
         }
-        if first + count > EMOTE_FIRST_TILE {
-            return None;
-        }
-        let o = &mut self.objs[i];
-        o.vram = Some((first, count));
-        o.uploaded = None;
-        Some(first)
+        (first + count <= EMOTE_FIRST_TILE).then_some(first)
     }
 
     pub(super) fn palette_bank(

@@ -1,0 +1,97 @@
+// Le Nocturne (Ch3, MAP_VIBER_CITY_GYM): Tauber & Hocseat's private club. contenu-jeu/chapitres/
+// 03-viber-city.md §2.8 and §4: a light-up dance floor, the raised DJ booth in the north, laser
+// barriers of three colours (blue, yellow, violet: the "Trois pistes" puzzle), the DJ consoles,
+// the stage, the club's own generator ("le son ne s'arrête jamais").
+// Ground: Building's black metatile 1 (the club's darkness).
+// The lasers are one cell each, closed (solid) then open (walkable), in the order blue, yellow,
+// violet: crates/content/src/silice/scripts/ch03_gym.rs names their ids (set_metatile).
+(
+    name: "SilViberCityGym",
+    primary: "Building",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), inside a dark night club. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: black, dark navy and dark purple, with bright flat neon accents in cyan blue, lemon yellow and violet.",
+    features: [
+        (
+            name: "sol",
+            cells: ["..", ".."],
+            key: Some("none"),
+            prompt: Some("A night club's light-up dance floor seen from straight above: a 2x2 checkerboard of four square floor panels separated by thin black lines, top-left dark navy, top-right glowing cyan blue, bottom-left glowing violet, bottom-right dark navy; each panel flat with a slightly lighter inner square."),
+        ),
+        (
+            name: "scene",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A club stage floor seen from straight above: dark purple-black metal plates with a thin lighter seam and two tiny rivets, almost flat."),
+        ),
+        (
+            name: "mur",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("A tall section of a night club's back wall seen from the front: black-navy padded acoustic wall panels, a thin cyan neon strip running horizontally near the bottom. It must tile seamlessly left-right."),
+        ),
+        (
+            name: "cabine",
+            cells: ["###", "###"],
+            key: Some("00FF00"),
+            prompt: Some("A raised DJ booth on a small platform: a black desk with two turntables and a mixer full of tiny coloured buttons, two big loudspeakers on each side, the booth front lit by a violet and cyan neon strip, a pink neon crescent moon on the front (no letters)."),
+        ),
+        (
+            name: "groupe",
+            cells: ["##", "##"],
+            prompt: Some("A bulky diesel power generator against a wall: dark yellow metal casing with black hazard stripes, a grey exhaust pipe on top, a small control panel with a green light, thick black cables coming out of its side."),
+        ),
+        (
+            name: "cloison",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The top of a low partition wall seen from above: the top surface a flat medium purple-grey (#5a4a78) band with a lighter top edge, a bright violet (#c040ff) neon line along its bottom front edge, a dark front face strip below. It must tile seamlessly left-right."),
+        ),
+        (
+            name: "enceintes",
+            cells: ["#", "#", "#"],
+            prompt: Some("A tall stack of three big black club loudspeakers on top of each other, each with a large round grey woofer and a small tweeter, thin cyan light lines between them."),
+        ),
+        (
+            name: "console",
+            cells: ["#"],
+            key: Some("00FF00"),
+            prompt: Some("A DJ console filling the whole square: a black box on a short stand, a bright cyan screen on top and three big round buttons, cyan, yellow and violet, in a row on its front. Bold, chunky shapes."),
+        ),
+        (
+            name: "laser_bleu",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A dark navy club floor tile with a bright cyan-blue laser beam: a thick horizontal glowing cyan line straight across the middle from the left edge to the right edge. It must tile seamlessly left-right."),
+        ),
+        (
+            name: "laser_jaune",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A plain flat dark navy square (#141030) crossed by one single bright lemon-yellow (#ffe020) horizontal bar, four pixels thick, exactly through the middle from the left edge to the right edge, a thin pale yellow core line inside it. Nothing else: no dots, no sparkles, no texture."),
+        ),
+        (
+            name: "laser_violet",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A plain flat dark navy square (#141030) crossed by one single bright violet (#c040ff) horizontal bar, four pixels thick, exactly through the middle from the left edge to the right edge, a thin pale pink core line inside it. Nothing else: no dots, no sparkles, no texture."),
+        ),
+        (
+            name: "laser_bleu_ouvert",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A plain flat dark navy square (#141030). At the left edge and at the right edge, centred vertically, one solid bright cyan blue (#30d0ff) square emitter block, each 4 pixels wide and 4 pixels tall. Nothing between them: no line, no dots, no texture."),
+        ),
+        (
+            name: "laser_jaune_ouvert",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A plain flat dark navy square (#141030). At the left edge and at the right edge, centred vertically, one solid bright lemon-yellow (#ffe020) square emitter block, each 4 pixels wide and 4 pixels tall. Nothing between them: no line, no dots, no texture."),
+        ),
+        (
+            name: "laser_violet_ouvert",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A plain flat dark navy square (#141030). At the left edge and at the right edge, centred vertically, one solid bright violet (#c040ff) square emitter block, each 4 pixels wide and 4 pixels tall. Nothing between them: no line, no dots, no texture."),
+        ),
+    ],
+)

@@ -1,0 +1,96 @@
+// L'Échiquier de Yohan (Ch2, MAP_GRIS_ECHEC_GYM and MAP_GRIS_ECHEC_GYM_SOURDE):
+// contenu-jeu/chapitres/02-gris-echec.md §4. An arena of silence inside a black cube: dark slate
+// floors over a black void, black walls whose screens carry Yohan's messages, the hall's glass chess
+// king statues, Salle 1's binary tiles (0 left, 1 right), Salle 2's invisible maze (the floor lit
+// by the terminal's signal), Salle 3's black and white 8x8 chessboard, and the Chambre Sourde lined
+// with grey acoustic foam.
+// No ground: the art is the bottom layer. No 1x1 feature sits on 513 or 524 (hygiene: the
+// extract has 1x1 layouts of those ids). Features without a prompt are derived art (scratch
+// compositing of the generated ones over the floor, see the as-built notes): the lit floor, the
+// binary tiles, the wall screen, the statue, the terminal, the warp pad and the foam block on
+// their floors.
+(
+    name: "SilGrisEchecGym",
+    primary: "Building",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing. Dark, silent palette: black, slate grey, with cold cyan light accents.",
+    features: [
+        (
+            name: "sol",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("An indoor floor tile of dark slate grey polished stone with a thin slightly lighter grey border line along its edges, otherwise flat."),
+        ),
+        (
+            name: "mur",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("An indoor wall strip seen from the front: the upper half a flat dark grey wall top with a light grey rim along its bottom edge, the lower half a dark slate grey wall panel with a vertical seam at each side and one thin horizontal cyan light line near the floor. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "vide",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A bottomless dark void seen from above: almost pure black with two or three tiny dim dark blue specks."),
+        ),
+        (
+            name: "case_blanche",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A single plain white marble floor square, flat white with a faint light grey edge."),
+        ),
+        (
+            name: "case_noire",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A single plain dark charcoal grey (clearly lighter than black) polished marble floor square, one flat colour with a 1-pixel lighter grey border."),
+        ),
+        (
+            name: "statue_roi",
+            cells: ["#", "#"],
+            prompt: Some("A statue of a chess king made of pale blue transparent glass (a crown with a small cross on top, a round body), standing on a small square black pedestal."),
+        ),
+        (
+            name: "terminal",
+            cells: ["#"],
+            prompt: Some("A small computer terminal on a black stand: a dark screen glowing cyan with one white line, a little keyboard below. It fills most of the picture."),
+        ),
+        (
+            name: "pad",
+            cells: ["."],
+            prompt: Some("A round flat teleport pad set in the floor: a black disc with a glowing cyan ring and a white centre dot, seen from above. It fills most of the picture."),
+        ),
+        (
+            name: "mousse_sol",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A floor of soft dark grey felt carpet seen from above, flat with two or three faint darker fibres."),
+        ),
+        (
+            name: "mousse_mur",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("An indoor wall covered in grey acoustic foam: a grid of small grey foam pyramids in two shades, the upper quarter a dark grey ceiling edge. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "bloc_mousse",
+            cells: ["#"],
+            prompt: Some("A big cube of grey acoustic foam with a pattern of foam pyramids on its top, seen in 3/4 top-down view. It fills most of the picture."),
+        ),
+        // Derived from `sol`: the maze path lit by the terminal's signal (cyan glow).
+        (name: "sol_allume", cells: ["."]),
+        // Derived from `sol`: Salle 1's binary tiles, a green 0 and an orange 1 glowing in the slab.
+        (name: "dalle_0", cells: ["."]),
+        (name: "dalle_1", cells: ["."]),
+        // Derived from `mur`: a wall screen with Yohan's green prompt lines (the signs).
+        (name: "mur_ecran", cells: ["#", "#"]),
+        // Derived: the statue, the terminal, the warp pad and the foam block on their floors.
+        (name: "statue", cells: ["#", "#"]),
+        (name: "terminal_sol", cells: ["#"]),
+        (
+            name: "pad_sol",
+            cells: ["w"],
+            legend: {'w': (behavior: "MB_MOSSDEEP_GYM_WARP", collision: 0)},
+        ),
+        (name: "bloc_mousse_sol", cells: ["#"]),
+    ],
+)

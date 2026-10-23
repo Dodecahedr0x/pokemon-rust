@@ -226,6 +226,7 @@ fn rate_modifiers_follow_wild_encounter_check() {
         Ability::KeenEye,
         Ability::Static,
         Ability::SandVeil,
+        Ability::SandVeilGen3,
         Ability::Other,
     ] {
         assert_eq!(encounter_rate(20, with(a)), 320, "{a:?}");

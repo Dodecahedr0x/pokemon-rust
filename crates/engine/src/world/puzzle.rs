@@ -53,7 +53,7 @@ pub(super) fn step(game: &impl GameData, s: &mut State, f: &mut Frame) {
 fn here(game: &impl GameData, s: &State) -> ((i16, i16), u16, Behavior) {
     let (x, y) = s.objects.player().pos();
     let block = s.field.block(game, x, y);
-    let b = block_behavior(game, game.map(s.field.map()), block);
+    let b = block_behavior(game, s.field.data(game), block);
     ((x, y), block, b)
 }
 

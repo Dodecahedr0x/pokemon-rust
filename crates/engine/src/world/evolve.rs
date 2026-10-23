@@ -13,10 +13,11 @@ use super::State;
 use super::battle::report;
 use crate::battle::Battle;
 use crate::data::{EvoMethod, GameData};
+use crate::mon::HoldEffect;
 use crate::script::Report;
 
-/// After a win, each mon that gained a level evolves if a level evolution is reached, without
-/// the scene (`Report::Degraded("evolution scene")`).
+/// After a win, each mon that gained a level evolves if a level evolution is reached (not with
+/// an Everstone), without the scene (`Report::Degraded("evolution scene")`).
 pub(super) fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
     let t = game.battle();
     for i in 0..6 {
@@ -26,6 +27,10 @@ pub(super) fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
         let Some(mon) = s.party.get_mut(i) else {
             continue;
         };
+        // GetEvolutionTargetSpecies: an Everstone (`HOLD_EFFECT_PREVENT_EVOLVE`) stops it.
+        if mon.held.and_then(|id| game.hold_effect(id)) == Some(HoldEffect::PreventEvolve) {
+            continue;
+        }
         let evos = game.evolutions(mon.species);
         let target = mon.evolution_target(evos);
         if evos.iter().any(|e| e.method == EvoMethod::Friendship) {

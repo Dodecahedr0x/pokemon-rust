@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilViberCity",
+    width: 2,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1673, 1674),
+        (1675, 1676),
+    ],
+)

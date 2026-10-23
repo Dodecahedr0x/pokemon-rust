@@ -1,3 +1,3 @@
 // Silice Ch0, MAP_ROUTE_S01: Route S1, Sentier des Racines (20 x 40, vertical), the tutorial route
-// from Brico-Bourg (south) to Bois-Ether (north). General + Petalburg (Emerald tilesets by name).
-(name: "RouteS01", width: 20, height: 40, primary: "General", secondary: "Petalburg", fill: 1, border: [468, 469, 476, 477])
+// from Brico-Bourg (south) to Bois-Ether (north). General (Emerald, by name) + SilBricoBourg (original).
+(name: "RouteS01", width: 20, height: 40, primary: "General", secondary: "SilBricoBourg", fill: 1, border: [468, 469, 476, 477])

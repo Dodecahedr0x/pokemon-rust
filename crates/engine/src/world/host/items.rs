@@ -56,6 +56,10 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
             h.s.money = h.s.money.saturating_sub(n);
             return UNIT;
         }
+        // Gen3 `AddPCItem`: no pocket, any known item.
+        Request::PcItemAdd { item, qty } => {
+            pocket(h, item, "addpcitem: unknown item").is_some() && h.s.pc.add_item(item, qty)
+        }
         // Gen3 `IsEnoughMoney`.
         Request::MoneyCheck(n) => h.s.money >= n,
         _ => return UNIT,

@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "SilPortRessacGym",
+    width: 3,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1557, 1558, 1559),
+        (1560, 1561, 1562),
+        (1563, 540, 1565),
+    ],
+)
