@@ -8,9 +8,11 @@
 //!   their origins, and diffs the end states.
 //!
 //! Options: `--db PATH` (default: the explore db), `--no-db` (print only), `--quiet` (no
-//! per-step deltas). Needs `PKR_ROM_US` (BPEE).
+//! per-step deltas); for iterating on the driver, `--cache DIR` (save vanilla's state at every
+//! position), `--from N` (start from the cache's position N instead of a new game) and
+//! `--to N` (stop after position N). Needs `PKR_ROM_US` (BPEE).
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use content::Emerald;
 use engine::checkpoint::build_hash;
 use explore::branch::Action;
@@ -23,7 +25,7 @@ use std::time::Instant;
 use vanilla::oracle::{self, BranchPlan, OracleRun, Row};
 
 const USAGE: &str = "usage: vanilla <spine|branches> [--db PATH] [--no-db] [--quiet] \
-                     [--limit N] [--outcome NAME]";
+                     [--limit N] [--outcome NAME] [--cache DIR] [--from N] [--to N]";
 
 /// New deltas printed per row (all are stored).
 const MAX_PRINTED: usize = 30;
@@ -33,6 +35,9 @@ struct Opts {
     quiet: bool,
     limit: Option<usize>,
     outcome: Option<String>,
+    cache: Option<PathBuf>,
+    from: usize,
+    to: Option<usize>,
 }
 
 fn main() -> Result<()> {
@@ -45,6 +50,9 @@ fn main() -> Result<()> {
         quiet: false,
         limit: None,
         outcome: None,
+        cache: None,
+        from: 0,
+        to: None,
     };
     let mut it = args[1..].iter();
     while let Some(a) = it.next() {
@@ -54,6 +62,9 @@ fn main() -> Result<()> {
             "--quiet" => o.quiet = true,
             "--limit" => o.limit = Some(it.next().context(USAGE)?.parse()?),
             "--outcome" => o.outcome = Some(it.next().context(USAGE)?.clone()),
+            "--cache" => o.cache = Some(PathBuf::from(it.next().context(USAGE)?)),
+            "--from" => o.from = it.next().context(USAGE)?.parse()?,
+            "--to" => o.to = Some(it.next().context(USAGE)?.parse()?),
             _ => bail!(USAGE),
         }
     }
@@ -70,13 +81,14 @@ fn print_row(r: &Row, quiet: bool) {
         .map_or_else(|| "start".to_string(), |s| format!("{s:?}"));
     let step: String = step.chars().take(70).collect();
     println!(
-        "{:>3} {:<70} ours {:>6} vanilla {:>6}  deltas {:>3} (new {:>2}){}",
+        "{:>3} {:<70} ours {:>6} vanilla {:>6}  deltas {:>3} (new {:>2}, noise {:>2}){}",
         r.index,
         step,
         r.ours_frames,
         r.vanilla_frames,
         r.deltas.len(),
         r.new.len(),
+        r.noise.len(),
         if r.tolerance.levels { "" } else { " ~lv" }.to_string()
             + if r.tolerance.hp { "" } else { " ~hp" }
     );
@@ -84,7 +96,7 @@ fn print_row(r: &Row, quiet: bool) {
         println!("      VANILLA FAILED: {e}");
     }
     if let Some(n) = &r.note {
-        println!("      BYPASS: {n}");
+        println!("      NOTE: {n}");
     }
     if r.rerolls > 0 {
         println!("      vanilla lost a battle: replayed {} times", r.rerolls);
@@ -120,13 +132,35 @@ fn run(o: &Opts, branches: bool) -> Result<()> {
         println!("sym: {n}");
     }
     let t = Instant::now();
-    let mut live = oracle::start(v, &game, &ours)?;
-    println!(
-        "vanilla: booted, intro played and aligned in {} frames",
-        live.v.frames
-    );
+    let mut resume = oracle::Resume {
+        from: o.from,
+        to: o.to,
+        cache: o.cache.clone(),
+        ..Default::default()
+    };
+    let mut live = if o.from == 0 {
+        let live = oracle::start(v, &game, &ours)?;
+        println!(
+            "vanilla: booted, intro played and aligned in {} frames",
+            live.v.frames
+        );
+        live
+    } else {
+        ensure!(!branches, "branches need a whole run (no --from)");
+        let dir = o.cache.as_ref().context("--from needs --cache")?;
+        let mut live = vanilla::live::Live::new(v, &game);
+        resume.history = oracle::Resume::load(dir, o.from, &mut live)?;
+        println!(
+            "vanilla: resumed at position {} from {}",
+            o.from,
+            dir.display()
+        );
+        live
+    };
     let quiet = o.quiet;
-    let run = oracle::run_spine(&game, &ours, &mut live, branches, |r| print_row(r, quiet))?;
+    let run = oracle::run_spine_range(&game, &ours, &mut live, branches, resume, |r| {
+        print_row(r, quiet)
+    })?;
     let wall = t.elapsed();
     summary(&ours, &run, wall.as_secs_f64());
     let mut db = match &o.db {
@@ -275,6 +309,20 @@ fn summary(ours: &spine::SpineRun, run: &OracleRun, wall: f64) {
             p.pos(),
             r.deltas.len()
         );
+    }
+    let failures: Vec<_> = (run.rows.iter())
+        .filter_map(|r| r.error.as_ref().map(|e| (r.index, e)))
+        .collect();
+    for (i, e) in failures {
+        println!("  failed at {i}: {e}");
+    }
+    let noise: usize = run.rows.iter().map(|r| r.noise.len()).sum();
+    println!(
+        "  Parity findings (deltas lasting past the next playing step; {noise} row-deltas of \
+         RNG/timing noise left out):"
+    );
+    for (i, f) in &run.log.findings {
+        println!("    {i:>3} {}", f.message);
     }
     // Frames per checkpoint segment.
     let mut seg: Vec<(&str, u64, u64)> = Vec::new();

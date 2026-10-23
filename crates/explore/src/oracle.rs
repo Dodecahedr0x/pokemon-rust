@@ -154,8 +154,8 @@ pub fn step_kind(step: &Step) -> String {
 }
 
 /// Turns step-boundary diffs into `Parity` findings: a delta is new when its field did not
-/// differ at the previous boundary, or differed with other values. A field that stays
-/// different is reported once, where it started.
+/// differ at the previous boundary. A field that stays different is reported once, where it
+/// started, even as its values move on (a counter only one game counts, a money offset).
 #[derive(Clone, Debug, Default)]
 pub struct ParityLog {
     last: BTreeMap<String, (String, String)>,
@@ -179,7 +179,7 @@ impl ParityLog {
         let mut new = Vec::new();
         for d in deltas {
             let v = (d.ours.clone(), d.vanilla.clone());
-            if self.last.get(&d.field) != Some(&v) {
+            if !self.last.contains_key(&d.field) {
                 new.push(d.clone());
                 self.findings.push((
                     at,
@@ -252,9 +252,9 @@ mod tests {
             )
             .is_empty()
         );
-        // Other values: new again; gone then back: new again.
+        // Other values of a field that kept differing: not new; gone then back: new again.
         let more = delta("money", "200", "3200");
-        assert_eq!(
+        assert!(
             log.record(
                 2,
                 None,
@@ -263,8 +263,7 @@ mod tests {
                 (0, 0),
                 std::slice::from_ref(&more)
             )
-            .len(),
-            1
+            .is_empty()
         );
         log.record(3, None, Some(&step), MapId(1), (0, 0), &[]);
         assert_eq!(
@@ -272,7 +271,7 @@ mod tests {
                 .len(),
             1
         );
-        assert_eq!(log.findings.len(), 3);
+        assert_eq!(log.findings.len(), 2);
         assert_eq!(log.findings[0].1.kind, FindingKind::Parity);
         assert_eq!(
             log.findings[0].1.message,
@@ -281,11 +280,6 @@ mod tests {
         assert_eq!(
             log.findings[1].1.message,
             "after the new game, Wait: money: ours 200 / vanilla 3200"
-        );
-        // Signed without the digits: the two money findings dedupe in the db.
-        assert_eq!(
-            crate::findings::signature(&log.findings[1].1),
-            crate::findings::signature(&log.findings[2].1)
         );
     }
 

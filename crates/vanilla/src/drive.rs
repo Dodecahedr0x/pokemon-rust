@@ -206,6 +206,17 @@ impl Vanilla {
                         }
                     }
                     B_SCR_OP_YESNOBOXLEARNMOVE => Buttons::B,
+                    // "Use next Pokémon?" (a wild battle): YES; "<foe> is about to use <mon>.
+                    // Will you change Pokémon?" (a trainer battle, `BATTLE_STYLE_SHIFT`): NO,
+                    // the lead stays in (`BattleScript_HandleFaintedMon`).
+                    B_SCR_OP_YESNOBOX => {
+                        let want = u8::from(!wild);
+                        match self.emu.read_u8(s.battle_communication + 1).cmp(&want) {
+                            std::cmp::Ordering::Equal => Buttons::A,
+                            std::cmp::Ordering::Less => Buttons::DOWN,
+                            std::cmp::Ordering::Greater => Buttons::UP,
+                        }
+                    }
                     B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE => {
                         if self.emu.read_u8(s.battle_communication + 1) == 0 {
                             Buttons::A
@@ -298,6 +309,23 @@ impl Vanilla {
         }
         if self.callback2() == s.cb2_pokenav {
             return self.pokenav_key();
+        }
+        if self.callback2() == s.cb2_update_party_menu
+            && tasks.contains(&s.task_handle_choose_mon_input)
+        {
+            // A fainted lead's replacement (or a script's choice): the first mon that can
+            // fight. A on a fainted one only prints "no will to fight" and asks again.
+            let want = (self.party().iter()).position(|m| m.hp > 0).unwrap_or(0) as u8;
+            let slot = self.emu.read_u8(s.party_menu + PM_SLOT_ID);
+            if self.trace {
+                let hp: Vec<_> = self.party().iter().map(|m| (m.species, m.hp)).collect();
+                eprintln!("  party menu: slot {slot} want {want} party {hp:?}");
+            }
+            return if slot == want {
+                Buttons::A
+            } else {
+                Buttons::DOWN
+            };
         }
         Buttons::A
     }
@@ -424,11 +452,17 @@ impl Vanilla {
                 }
             }
             if !matches!(self.mode(), Mode::FieldIdle | Mode::Transition) {
+                // A trigger on the target itself: its scene may move the player off it (Meteor
+                // Falls' Magma scene pushes the player aside); the walk did reach it.
+                let at = self.player_object().map(|o| o.cell);
                 self.settle(end.saturating_sub(self.frames))?;
                 let now = self.player_object().ok_or_else(|| anyhow!("no player"))?;
                 let map = self.current_map()?;
                 if map != start {
                     return Ok(Walk::MapChanged(map));
+                }
+                if at == Some(to) {
+                    return Ok(Walk::Reached);
                 }
                 if now.cell != to {
                     return Ok(Walk::Interrupted(now.cell));
@@ -498,5 +532,196 @@ impl Vanilla {
         self.face(dir, max_frames)?;
         self.tap(Buttons::A)?;
         self.settle(end.saturating_sub(self.frames))
+    }
+}
+
+/// Frames a [`Vanilla::use_item`] may take (the start menu, the bag, the party menu, the
+/// summary screen, their fades and messages).
+pub const USE_ITEM_FRAMES: u64 = 6_000;
+
+/// The key from bag list position `pos` toward `at` (the list shows the pocket's non-empty
+/// slots in order), A on it.
+fn list_key(pos: u16, at: u16) -> Buttons {
+    match pos.cmp(&at) {
+        std::cmp::Ordering::Less => Buttons::DOWN,
+        std::cmp::Ordering::Greater => Buttons::UP,
+        std::cmp::Ordering::Equal => Buttons::A,
+    }
+}
+
+impl Vanilla {
+    /// The bag pocket (0-based `*_POCKET`) and list position of `item`, read from the save
+    /// block's pockets (the bag sorts its TM/HM and berry pockets in place when it opens).
+    fn bag_slot(&mut self, item: u16) -> Option<(u8, u16)> {
+        let sb1 = self.save_block1().ok()?;
+        for (i, &(off, len)) in SB1_POCKETS.iter().enumerate() {
+            let b = self.emu.read_bytes(sb1 + off, 4 * len);
+            let at = (b.chunks(4))
+                .map(|s| u16::from_le_bytes([s[0], s[1]]))
+                .filter(|&it| it != 0)
+                .position(|it| it == item);
+            if let Some(at) = at {
+                return Some((BAG_POCKET_OF_SB1[i], at as u16));
+            }
+        }
+        None
+    }
+
+    /// The key [`Vanilla::use_item`] presses on this frame, from RAM: START on the field, the
+    /// start menu's cursor to BAG (`sCurrentStartMenuActions`), the bag's pocket
+    /// (`gBagPosition.pocket`) and list position (scroll + cursor) to `item`, USE (the context
+    /// menu's first cell), the party menu's `gPartyMenu.slotId` to `mon`, the summary's forget
+    /// cursor to `forget`, YES and A through the prompts. Once the party menu was open (`used`),
+    /// B out of the bag and the start menu. `None`: the field is back after the use.
+    fn use_item_key(
+        &mut self,
+        used: &mut bool,
+        item: u16,
+        mon: u8,
+        forget: u8,
+    ) -> Result<Option<Buttons>> {
+        let s = self.sym.clone();
+        let cb2 = self.callback2();
+        let tasks = self.tasks();
+        if cb2 == s.cb2_update_party_menu || tasks.contains(&s.task_replace_move) {
+            *used = true;
+        }
+        if tasks.contains(&s.task_replace_move) {
+            let pss = self.emu.read_u32(s.mon_summary_screen);
+            if pss == 0 {
+                return Ok(Some(Buttons::NONE));
+            }
+            let at = self.emu.read_u8(pss + PSS_FIRST_MOVE_INDEX);
+            return Ok(Some(vertical(at, forget)));
+        }
+        if cb2 == s.cb2_overworld {
+            let mode = self.mode();
+            let start_menu = mode != Mode::FieldIdle
+                && (self.emu.read_u32(s.menu_callback) & !1) == s.handle_start_menu_input
+                && !self.fade_active();
+            if start_menu {
+                if *used {
+                    return Ok(Some(Buttons::B));
+                }
+                let n = self.emu.read_u8(s.num_start_menu_actions).min(9);
+                let actions = (self.emu).read_bytes(s.current_start_menu_actions, usize::from(n));
+                let want = (actions.iter().position(|&a| a == MENU_ACTION_BAG))
+                    .ok_or_else(|| anyhow!("use_item: no BAG in the start menu {actions:?}"))?;
+                let at = self.emu.read_u8(s.start_menu_cursor_pos);
+                return Ok(Some(vertical(at, want as u8)));
+            }
+            return Ok(match mode {
+                Mode::FieldIdle if *used => None,
+                Mode::FieldIdle => Some(Buttons::START),
+                Mode::Message => Some(Buttons::A),
+                Mode::YesNo => Some(self.yes()),
+                _ => Some(Buttons::NONE),
+            });
+        }
+        if cb2 == s.cb2_bag_menu_run {
+            if self.fade_active() {
+                return Ok(Some(Buttons::NONE));
+            }
+            if tasks.contains(&s.task_bag_menu_handle_input) {
+                if *used {
+                    return Ok(Some(Buttons::B));
+                }
+                let (pocket, at) = (self.bag_slot(item))
+                    .ok_or_else(|| anyhow!("use_item: item {item} is not in the bag"))?;
+                let bp = s.bag_position;
+                let cur = self.emu.read_u8(bp + BP_POCKET);
+                if cur != pocket {
+                    return Ok(Some(if cur < pocket {
+                        Buttons::RIGHT
+                    } else {
+                        Buttons::LEFT
+                    }));
+                }
+                let p = u32::from(pocket);
+                let pos = self.emu.read_u16(bp + BP_SCROLL_POSITION + 2 * p)
+                    + self.emu.read_u16(bp + BP_CURSOR_POSITION + 2 * p);
+                return Ok(Some(list_key(pos, at)));
+            }
+            if tasks.contains(&s.task_item_context_multiple_rows)
+                || tasks.contains(&s.task_item_context_single_row)
+            {
+                if *used {
+                    return Ok(Some(Buttons::B));
+                }
+                // USE is the first cell of the context menus that have it (`item_menu.c`
+                // `sContextMenuItems_*Pocket`, a 2-column grid).
+                return Ok(Some(match self.emu.read_u8(s.menu + 2) {
+                    0 => Buttons::A,
+                    1 => Buttons::LEFT,
+                    _ => Buttons::UP,
+                }));
+            }
+            if tasks.contains(&s.task_yes_no) {
+                return Ok(Some(self.yes()));
+            }
+            return Ok(Some(Buttons::A));
+        }
+        if cb2 == s.cb2_update_party_menu {
+            if tasks.contains(&s.task_handle_choose_mon_input) {
+                let slot = self.emu.read_u8(s.party_menu + PM_SLOT_ID);
+                return Ok(Some(if slot == mon {
+                    Buttons::A
+                } else {
+                    Buttons::DOWN
+                }));
+            }
+            if tasks.contains(&s.task_yes_no) {
+                return Ok(Some(self.yes()));
+            }
+            // The party menu's messages and its yes/no boxes (YES is their first cursor).
+            return Ok(Some(if self.fade_active() {
+                Buttons::NONE
+            } else {
+                Buttons::A
+            }));
+        }
+        // Fades and set-ups between the screens.
+        Ok(Some(if self.fade_active() {
+            Buttons::NONE
+        } else {
+            Buttons::A
+        }))
+    }
+
+    /// Uses `item` from the bag on party slot `mon` (START → BAG → the pocket → the item →
+    /// USE → the party menu), forgetting move slot `forget` when the mon knows four moves
+    /// (Gen3 `ItemUseOutOfBattle_TMHM` → `ItemUseCB_TMHM`), then backs out to the field. Every
+    /// input is read from RAM ([`Vanilla::use_item_key`]).
+    pub fn use_item(&mut self, item: u16, mon: u8, forget: u8, max_frames: u64) -> Result<()> {
+        self.settle(max_frames)?;
+        let end = self.frames + max_frames;
+        let mut used = false;
+        let mut idle = 0;
+        loop {
+            if self.frames >= end {
+                let inputs = self.mode_inputs();
+                return Err(anyhow!(
+                    "use_item {item}: not back on the field after {max_frames} frames \
+                     (used {used}): {inputs}"
+                ));
+            }
+            match self.use_item_key(&mut used, item, mon, forget)? {
+                None => {
+                    idle += 1;
+                    if idle > SETTLE_IDLE {
+                        return self.settle(max_frames);
+                    }
+                    self.step(Buttons::NONE)?;
+                }
+                Some(Buttons::NONE) => {
+                    idle = 0;
+                    self.step(Buttons::NONE)?;
+                }
+                Some(k) => {
+                    idle = 0;
+                    self.tap(k)?;
+                }
+            }
+        }
     }
 }

@@ -42,7 +42,7 @@ pub fn rom_from_env() -> Option<PathBuf> {
 
 impl Vanilla {
     /// Powers BPEE on (not stepped yet): checks the ROM's SHA-1, opens it as a retail
-    /// cartridge (fixed RTC) and resolves the symbols ([`sym::Sym::from_env`]). Returns the
+    /// cartridge (fixed RTC, no rendering) and resolves the symbols ([`sym::Sym::from_env`]). Returns the
     /// symbol notes too.
     pub fn open(rom: &Path) -> Result<(Vanilla, Vec<String>)> {
         let bytes = std::fs::read(rom).with_context(|| format!("read {}", rom.display()))?;
@@ -53,7 +53,12 @@ impl Vanilla {
             rom.display()
         );
         let (sym, notes) = sym::Sym::from_env()?;
-        let emu = emu::Emu::open_retail(rom)?;
+        let mut emu = emu::Emu::open_retail(rom)?;
+        // The oracle reads RAM only: no scanline rendering (`PKR_VANILLA_RENDER` keeps it,
+        // for screenshots while debugging).
+        if std::env::var_os("PKR_VANILLA_RENDER").is_none() {
+            emu.set_frameskip(1 << 20);
+        }
         Ok((Vanilla::new(emu, sym), notes))
     }
 }

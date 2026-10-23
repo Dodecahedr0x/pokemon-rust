@@ -345,6 +345,20 @@ impl Emu {
         }
     }
 
+    /// Skips drawing `n` frames out of `n + 1` (mGBA's `frameskip` option: the scanline
+    /// renderer is not run, the emulation is unchanged). The vanilla oracle reads only RAM.
+    pub fn set_frameskip(&mut self, n: i32) {
+        // SAFETY: the core is initialised; `reloadConfigOption` with no option name copies
+        // `opts` (frameskip among them) into the board (`_GBACoreReloadConfigOption`).
+        unsafe {
+            let raw = self.core.raw_ptr();
+            (*raw).opts.frameskip = n;
+            if let Some(reload) = (*raw).reloadConfigOption {
+                reload(raw, core::ptr::null(), core::ptr::null());
+            }
+        }
+    }
+
     pub fn run_frame(&mut self, keys: Buttons) -> Result<()> {
         self.core
             .set_keys(Buttons::from_raw(keys.0).0 as u32)
