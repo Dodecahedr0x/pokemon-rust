@@ -1135,3 +1135,44 @@ fn us_weights_match_decomp() {
     assert_eq!(w("SPECIES_BULBASAUR"), 69);
     assert_eq!(w("SPECIES_ZIGZAGOON"), 175);
 }
+
+/// Wave C: `battle/dex.ron` is the decomp's `HOENN_DEX_*` order (`include/constants/pokedex.h`,
+/// each `HOENN_DEX_<X>` is `SPECIES_<X>`), and `battle/rematches.ron` its `gRematchTable`
+/// (`REMATCH(t1, …, t5, map)` lines of `src/battle_setup.c`), on both ROMs.
+#[test]
+fn hoenn_dex_and_rematches_match_decomp() {
+    let h = src("include/constants/pokedex.h");
+    let want_dex: Vec<String> = h
+        .lines()
+        .map(str::trim)
+        .skip_while(|l| *l != "HOENN_DEX_TREECKO,")
+        .take(battle_data::HOENN_DEX_COUNT as usize)
+        .map(|l| format!("SPECIES_{}", &l["HOENN_DEX_".len()..l.len() - 1]))
+        .collect();
+    assert_eq!(want_dex.len(), battle_data::HOENN_DEX_COUNT as usize);
+    let c = src("src/battle_setup.c");
+    let want_rematches: Vec<(Vec<String>, String)> = c
+        .lines()
+        .filter_map(|l| l.trim().split_once("= REMATCH(").map(|(_, r)| r))
+        .map(|r| {
+            let args: Vec<String> = r
+                .trim_end_matches("),")
+                .split(',')
+                .map(|a| a.trim().to_string())
+                .collect();
+            let map = names::map_by_constant(&args[5]).unwrap().dir.to_string();
+            (args[..5].to_vec(), map)
+        })
+        .collect();
+    assert_eq!(
+        want_rematches.len(),
+        battle_data::REMATCH_TABLE_ENTRIES as usize
+    );
+    for (_, data) in [us(), fr()] {
+        assert_eq!(data.dex.hoenn, want_dex);
+        let got: Vec<(Vec<String>, String)> = (data.rematches.rematches.iter())
+            .map(|r| (r.trainers.clone(), r.map.clone()))
+            .collect();
+        assert_eq!(got, want_rematches);
+    }
+}
