@@ -2071,7 +2071,8 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
     - 2: the Center (15, 23);
     - 3: the Konbini (3, 14);
     - 4: the Toiletteur (9, 14);
-    - 5: the Monks' shortcut (1, 25), to RouteS06's warp 0.
+    - 5: the Monks' shortcut (1, 25), to RouteS06's warp 0;
+    - 6 (added with the Ch7 maps): the Grand Torii's exit (37, 0), to RouteS07's warp 2.
   - Objects:
 
     | Local id | Who | Cell | Gfx | Script | Hide flag |
@@ -2260,13 +2261,9 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
 - MangaSquare_Gym: `_Sc01`, `_Sc02`, `_Sc03`, `_OnLoad`, `_EventScript_{Ayame, Seiji, Guide}`.
 
 **Pending links** (not made: other chapters' maps).
-- **MangaSquare north → `MAP_ROUTE_S07` (Ch7).** The Grand Torii's passage (x 36–38, y 1–5) ends at forest on row 0. Add `games/silice/edits/MangaSquare/05_ch7_connect.ron`:
-  - `Ascii(x: 37, y: 0, rows: [":"], legend: {':': (metatile: 265, collision: 0)})`;
-  - `Connect((dir: North, offset: 37 - X, map: "RouteS07"))`, where X is RouteS07's south-exit column;
-  - RouteS07 mirrors it with South, offset `X - 37`.
-
-  The controleur at (37, 1) blocks the way until Sc02.
 - **Houses 1 and 2.** When `MAP_MANGA_SQUARE_HOUSE_1`/`_2` get content, add warps on (3, 21) and (7, 21). Those doors are solid now.
+
+**Link to Route S7 (made with the Ch7 maps): MangaSquare north → `MAP_ROUTE_S07`, as a warp, not a connection.** The connection planned here cannot work: Route S7 is Building + TrainerHill, and Gen3 draws a neighbour with the current map's tilesets. `MangaSquare/05_ch7_link.ron` paints the Grand Torii's exit (37, 0) with the Frontier gate's carpet (573, `MB_NON_ANIMATED_DOOR`, collision 0) as warp 6, to Route S7's warp 2 (its right south mat). Arriving from Route S7, the player walks down from (37, 0) to (37, 1). The roof cells beside it, (35–36, 0) and (38–39, 0), are now solid (an `AllowCollision`: 617 is walkable in Emerald), so the exit is entered only from (37, 1): `Manga_Square_Sc03` (value 67, sets 68) cannot be walked round, and the controleur on (37, 1) bars the exit until Sc02. See "SIL4 Ch7 maps as built".
 
 **Link to Owlys (made with the Ch5 maps): RouteS06 south → `MAP_OWLYS`, as a warp, not a connection.** Ch5's source makes the Pilgrims' Elevator a warp ("Ascenseur → MAP_ROUTE_S06"), and Owlys is a cavern with a rock border, so a seamless connection would show rock on both sides. `RouteS06/05_ch5_elevator.ron` draws three south arrow mats (General 36, collision 0) on (12–14, 63), the path's end, as warps 1–3 to Owlys's warp 8, the elevator (30, 3). The elevator lands on the middle mat (warp 2). Owlys's Watchers bar the elevator until the badge. See "SIL3 Ch5 maps as built".
 
@@ -2465,6 +2462,198 @@ Borders: Port-Ressac is open sea (368, blocked), the Gym its decor sea (414), Ro
 - 1 h learning five tileset pairs (Cave, Slateport with the ship hull, Facility, InsideShip, PokemonCenter) through reference renders and dumps;
 - 1.5 h drafting the six maps;
 - 0.5 h events, ids, gates and this write-up.
+
+#### SIL4 Ch7 maps as built
+
+The 8 maps of Chapter 7 (Route S7 and Reverse-City) are in `games/silice/{maps,layouts}/`. They were made with the studio map editor only. Their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where needed). No stamps were added: every building is drawn in `01_terrain`.
+
+Gates on the branch:
+- `cargo xtask studio map --game silice build` rebuilds the Silice maps (68 after the merge of master), and a second build leaves the tree clean;
+- `validate` reports only unwritten scripts for Ch7 (94 after the review) and ViberCity's known shared coord cell;
+- `hygiene` is clean, `games::copies` included;
+- `cargo xtask silice check`, `PKR_GAME=silice cargo test -p content -p extract` and `cargo test -p xtask --test silice_games` pass.
+
+**Maps.** §1.2 counts 10 names for Ch7: the 8 below, plus `MANGA_SQUARE` (Ch6) and `ROUTE_S08` (Ch8). All 8 map ids were already in `ids/maps.ron`. The placeholder `MAP_ROUTE_S07_ANTENNE` (post-game) has no map.
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS07 | 30 × 72 | Building + TrainerHill | the only pair with forced-slide arrows (MB_SLIDE_*, 576–579) next to coloured floor panels (green, yellow, blue) for the three zones; void around a walkway reads as the "data road" |
+| ReverseCity | 40 × 36 | General + Sootopolis | white stone town around water: the mirror city, its quays and lighthouse |
+| ReverseCity_Gym | 14 × 37 | Building + SootopolisGym | the ice floor (525) and the pillars for the ice grid, mirror-like wall panels for the doors |
+| ReverseCity_Phare | 14 × 20 | General + Pacifidlog | wooden stairs and ramps for the lighthouse climb; dark (`cave: 1`) |
+| ReverseCity_Coffre | 10 × 10 | General + Facility | metal floor; the round machine is the safe; exit mats 518/519 |
+| ReverseCity_PokemonCenter | 13 × 9 | Building + PokemonCenter | standard Centre, the benches on rows 6–7 |
+| ReverseCity_Mart | 12 × 9 | Building + Shop | standard Mart with one more aisle row |
+| ReverseCity_House1 | 9 × 7 | Building + GenericBuilding | a small house, table on the right |
+
+The interiors are Viber-City's, rearranged; each has its own layout.
+
+**Layout notes.**
+- **Route S7** runs south (Manga-Square side) to north (Reverse-City):
+  - S7-A, the green zone: block C1 sits alone between crates on the only path, C2 guards a balcony with the Twisted Spoon;
+  - S7-B, the puzzle;
+  - S7-C, the yellow zone, entered through a 3-wide corridor where `Sc02` fires;
+  - S7-D, the blue walkway: slide-south arrows (577) in two alternating motifs, a recess with C3 and the Max Revive, and Technicien 2's niche;
+  - the return chute (added by the review): slide arrows from (15, 35), below Sc02's row, east to (20, 35), south to (20, 46) and west into S7-A at (17, 46). It is one way: walking north onto it pushes the player back. The puzzle and S7-D cannot be walked back, so without it the player could never return to Manga-Square on foot;
+  - the Secteur Êta gate, door 537 at (14, 1).
+- **Reverse-City:**
+  - south gate mats (30–32, 35), with `Sc01` on the row in front of them;
+  - a fence across y 16, open only at x 17–21, where `Sc02` fires;
+  - the Palais (the gym), the Mart, the vault building in the alley behind a breakable block (the alley sbire stands at its mouth, (11, 9), on the near side), the lighthouse on the quays, and a pond with a cliff edge;
+  - the Porte Êta-Nord at (26–28, 0–1), with `Sc07` two cells in front of it.
+- **Gym, bottom to top:**
+  - the hall;
+  - room 1, the ice grid. It is solvable, and no stop leaves the player stuck: every stop can still reach the south or the exit;
+  - room 2, the three mirror doors. A wall row (y 17) leaves only (6–8, 17) open, and Xela stands on (8, 17) facing left, so he sees the way to the doors;
+  - room 3, Reverse before the great mirror, with Nomis in a niche. Its exit is a mat (6–7, 10), Building 6/7 (`MB_SOUTH_ARROW_WARP`): warps 3 and 4, back to warp 2, the ice room's S mat.
+
+Reachability was checked by a breadth-first search on the built grids, objects as obstacles, under two models: the intended one (Gen3's `MB_SLIDE_*` and `MB_ICE`: a slide continues over arrows and stops on the first plain cell; ice slides until blocked or onto a plain cell; a blocked slide frees the player) and the engine's (none of these behaviours: arrows and ice are plain floor). Under both:
+- Route S7: C1 is mandatory, `Sc02`'s row cannot be bypassed, every item is reachable, and every reachable cell can get back to the south mats (by the chute) and to the gate. Under the intended model only, the puzzle's trap needs C-Puzzle broken and Pascal cannot be walked round. Under the engine, the arrows are floor, so the trap is open and Pascal can be passed by (6, 2)–(6, 1); nothing softlocks;
+- Reverse-City: `Sc01`, `Sc02` and `Sc07` cannot be bypassed, the guard bars the Palais door until Sc02 hides him, and the vault is reachable once the alley block breaks;
+- the gym: the ice grid's E is reachable from S and no stop is a dead end; Anna, Xela and Nomis cannot be walked round; room 3 is reached only by the middle door and left by its mat;
+- the Phare: Oscar is mandatory.
+
+**Warnings and allowances.**
+- **ReverseCity:** the upside-down fountain (19–20, 10–11) is decorative water, solid.
+- **ReverseCity_Gym:** warp 2 (6, 29) sits on floor; it is only an arrival point for the door scripts' `warp()`.
+- **MangaSquare** (the Ch6 link): the Grand Torii's roof (35–36, 38–39; 0) is solid beside the exit.
+
+Everything else is "not in the build (yet)".
+
+**Source fixes.** Each one is noted in the edit scripts.
+- **The S7-D arrow motif** in the source has no valid path. Two original motifs replace it, built from slide-south arrows and rocks, and the BFS checks them.
+- **Pascal** stood at puzzle (1, 1), the only path, which blocked it. He is in a niche at puzzle (1, 0), facing down with sight 1, so he is still mandatory once the arrows slide (not before: see above).
+- **The route's trainers:** the source counts six but lists five. S7-D gets Technicien 2.
+- **The ice room:** the source's "always back to S" is false, but no stop is a softlock.
+- **The music:** `MUS_ROUTE118` is a pseudo-song (0x7FFF, split by `GetCurrLocationDefaultMusic`). The content build rejects it, so Route S7 uses `MUS_ROUTE119`.
+
+**Ids** (commit `feat(silice): ids for Ch7 maps`), in the coordinator's Ch7 block 900–939:
+- `FLAG_SIL_HIDE_GYM07_PIXELS` 900;
+- `FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL` 901;
+- `FLAG_SIL_HIDE_REVERSE_ROMAIN` 902. Romain has his own flag because the validator warns when two objects share a hide flag. `Sc02` sets both `GOGO_ROMAIN` and `ROMAIN`.
+
+The importer numbered them 804–806; they were renumbered by hand.
+
+`new_game_flags` gains the four that start hidden: `HABITANT_ACCUEIL`, `BENOU_PORTE`, `GYM07_BENOU` and `GYM07_PIXELS`. `game_tests` checks them, and checks that Gogo, Romain, the Palais guard and Reverse start visible.
+
+**Script contracts.** All names stay unwritten under `registry::ALLOW_UNWRITTEN`.
+- **RouteS07:**
+  - `Sc01` (on_frame, `VAR_SIL_STORY` 68 → it sets 70) and `Sc02` (coords y 34, x 13–15, at 70);
+  - trainers: `EventScript_Technicien1`, `EventScript_Pascal`, `EventScript_Selene`, `EventScript_Mira`, `EventScript_Technicien2`;
+  - NPCs: `EventScript_Ouvrier`, `EventScript_Philosophe`, `EventScript_Touriste`;
+  - blocks (C1, C2, C-Puzzle, C3): `EventScript_Bloc`;
+  - items: `EventScript_ItemFullHeal`, `EventScript_ItemTwistedSpoon`, `EventScript_ItemRareCandy`, `EventScript_ItemUltraBall`, `EventScript_ItemMaxRevive`;
+  - signs: `EventScript_SignPremisses`, `EventScript_SignEntree`, `EventScript_SignBloc`, `EventScript_SignPorte`.
+- **ReverseCity:**
+  - `OnLoad`: it repaints the open Porte Êta-Nord once `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE` is set;
+  - `OnTransition`: inverted controls while `FLAG_SIL_REVERSE_BATTU` is clear, and the hide flags;
+  - `Sc07`: Benou (15) waits at (29, 3), on the coord row's east end, and the player stands on (26–28, 3), so his exit `Walk(Left) x4` must go round the player (down first);
+  - `Sc01` (coords y 34, x 30–32, at 71), `Sc02` (y 16, x 17–21, at 72) and `Sc07` (y 3, x 26–28, at 75);
+  - NPCs: `EventScript_Habitant1`, `EventScript_Habitant2`, `EventScript_Enfant`, `EventScript_Vieille`, `EventScript_SbirePromo`, `EventScript_Docker`, `EventScript_GardePalais`, `EventScript_SbireRuelle`;
+  - trainers: `EventScript_Sbire1`, `EventScript_Sbire2`, and the emitters `EventScript_Emetteur1`, `EventScript_Emetteur2`, `EventScript_Emetteur3` (`Sc03`; trainer objects with sight 2, the source's fallback);
+  - the alley block: `EventScript_BlocRuelle`;
+  - items: `EventScript_ItemPoudreSilice`;
+  - signs: `EventScript_SignVille`, `EventScript_SignMart`, `EventScript_SignPhare`, `EventScript_SignGym`, `EventScript_SignPC`, and `EventScript_Poubelle` on both empty bins.
+  - Gogo (5), Romain (6), Benou at the gate (15) and the welcoming resident (17) have no script; they are scene actors.
+- **ReverseCity_Gym:**
+  - `OnTransition`;
+  - `Sc01`: Reverse's object, and coords y 5, x 5–7, at 73;
+  - `Sc02`: on_frame at 74, which replays it if the story stopped there. Benou starts at (9, 4) and the black pixels lie on (6, 4), so his `Walk(Left) x3` must be `x2` (or the pixels removed first);
+  - the doors `EventScript_PorteGauche`, `EventScript_PorteMilieu` and `EventScript_PorteDroite`: coords on `VAR_TEMP_1` 0, which no script on the map writes, so they always fire. Each door warps to warp 2 (back to the ice room's S mat) or 3 (room 3);
+  - trainers: `EventScript_Anna`, `EventScript_Xela`, `EventScript_Nomis`;
+  - NPCs: `EventScript_Guide`;
+  - signs: `EventScript_SignRegle`, `EventScript_Statue1`, `EventScript_Statue2`.
+- **ReverseCity_Phare:**
+  - `OnTransition`: normal controls (added by the review: the source lists the Phare among the interiors);
+  - `Sc06`: the TM ball. It reads the lamp text and gives the TM;
+  - `EventScript_Oscar`;
+  - `EventScript_ItemMaxEther`.
+- **ReverseCity_Coffre:**
+  - `OnTransition`: normal controls;
+  - `Sc04`: the dial, a sign on (4–5, 7) that is read facing up.
+- **ReverseCity_PokemonCenter:** `OnTransition` (`set_respawn`), `EventScript_Nurse`, `EventScript_Dresseuse`.
+- **ReverseCity_Mart:** `OnTransition`, `EventScript_Clerk`, `EventScript_Client`.
+- **ReverseCity_House1:** `OnTransition`, `EventScript_VieilHomme`.
+
+**Link to Manga-Square (Ch6), made by the review.**
+- **Ch6 → Ch7, as warps.** `RouteS07/05_ch6_link.ron` opens the south mats (13–14, 71), Building 6/7 (`MB_SOUTH_ARROW_WARP`), as warps 1–2 to Manga-Square's warp 6, the Grand Torii's exit (37, 0); Manga-Square lands the player on warp 2, the right mat, facing north. A connection is impossible: Manga-Square is General + BattleFrontierOutsideEast. The `03_allow.ron` that kept the mats solid is gone. See the Ch6 section for Manga-Square's side.
+
+**Pending link, left solid on purpose:**
+- **Ch7 → Ch8.** Reverse-City's Porte Êta-Nord, door 545 at (27, 0), is solid.
+  - `Sc07` opens it with `door()` and `set_metatile`;
+  - `OnLoad` repaints it open once `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE` is set;
+  - Ch8 adds `Warp(x: 27, y: 0, dest_map: "RouteS08", …)`, or a north connection if Route S8 shares the General primary.
+
+**Missing graphics and mechanics (static fallbacks in place):**
+- **No ice, forced walk or slide in the engine.** The `Behavior` enum has none of MB_ICE, MB_WALK_*, MB_SLIDE_* or MB_THIN_ICE.
+  - The route's arrows are MB_SLIDE_* from TrainerHill, not the source's MB_WALK_*. The MB_WALK_* arrows exist only in TrickHousePuzzle (608–611), which has neither the floors nor the void.
+  - The gym's ice is SootopolisGym 525, which is MB_THIN_ICE. MB_ICE exists only in Cave (909) and CableClub. A Silice tileset should re-tag 525 as MB_ICE; until then the ice grid is plain floor in the engine.
+- **No grass on Building + TrainerHill.** Route S7's crystal-grass islands use metatile 549 for the look only, so the route has no wild encounters until a Silice metatile carries the tall-grass behaviour.
+- **No door or warp metatile in SootopolisGym.** The mirror doors are coords with scripted warps.
+- **Later work:**
+  - mirror and glitch palettes, and the négatif flash on entry;
+  - inverted controls (`set_input_inverted`);
+  - `WalkBackwards`;
+  - Reverse's hologram;
+  - the emitters' idle timer;
+  - the black-light beam;
+  - `screen_flash`.
+
+  All are in the source's §9.
+- **Sprites.** Placeholders:
+
+  | Character | Placeholder gfx |
+  |---|---|
+  | Reverse | JUAN |
+  | Benou | SCIENTIST_1 |
+  | Gogo, Romain | MAXIE, ARCHIE |
+  | sbires, technicians | MAGMA_MEMBER_M / _F |
+  | emitters | TRICK_HOUSE_STATUE |
+  | black pixels | KECLEON_BRIDGE_SHADOW |
+  | blocks | BREAKABLE_ROCK |
+  | Xela | ARTIST |
+  | Anna | BEAUTY |
+  | Nomis | PSYCHIC_M |
+  | Selene | LASS |
+  | Mira | HEX_MANIAC |
+  | Pascal | SCHOOL_KID_M |
+  | Philosophe | EXPERT_M |
+  | Touriste | CAMERAMAN |
+  | Docker | HIKER |
+  | Oscar | SAILOR |
+- **Heal location.** `ReverseCity_PokemonCenter_OnTransition` calls `set_respawn`, which needs `HEAL_LOCATION_SIL_REVERSE_CITY` in `game.ron`'s append-only `heal_locations`. That entry is left to the ch07 scripts.
+
+**Editor friction (new since Ch2–Ch3):**
+1. `studio-map build` accepts `MUS_ROUTE118`, but the content build rejects it, because it is not in the Gen3 song table. The editor should check songs against the same table.
+2. To find a behaviour, every tileset pair had to be scanned through `dump` and the decomp's `metatile_attributes`. Ice, walk arrows and slides each live in exactly one or two secondaries, and none of them fits a town. A `palette --behavior MB_X` search across all pairs would help.
+3. The importer gives new flags the next free number (804+), so the coordinator's block (900+) was renumbered by hand in `flags.ron` and `ids.golden`. A `--flags-from N` option would remove the step.
+4. The shared scratchpad was overwritten by other agents (`tools/mb.py`); Ch7's generators live in their own `scratchpad/ch7/`.
+5. The sandbox refuses `studio-map` and `cargo` calls inside shell loops, so batches go through Python drivers.
+
+**Review fixes** (after the merge of master with Ch4–Ch6 and the Ch0 scripts). The two-model search above, the renders and a read against ch07 found:
+- **Critical: room 3 of the gym had no way out.** It is reached only by the middle door's scripted warp, and its arrival cell (6, 10) was plain floor, which never takes a warp (`Behavior::enters_warp`). After Reverse (and before him, once warped in) the player was shut in a room with no exit, in a map with `allow_escaping: false`. The arrival row is now a mat (6–7, 10), Building 6/7, as warps 3–4 back to warp 2. Its `AllowCollision` went.
+- **Important: Route S7 could not be walked back south.** The puzzle is one way north under its slides (from (1, 2) the north arrows push back; the trap is one way too), so once past it the player could never return to Manga-Square on foot. The return chute (above) fixes it, one way south, and enters S7-C below Sc02's row so it cannot skip the call under the engine's plain floor.
+- **Important: Xela could be walked round (Ch1's gym convention, as the Ch4 and Ch6 reviews applied it).** At (8, 16) facing down he saw two cells of a 12-wide room. The wall row y 17 and his new cell (8, 17), facing left, put every way to the doors in his sight.
+- **Important: the Phare kept the inverted controls.** The source's on-load rule lists the Phare among the interiors that reset them; it had no `OnTransition`. It has one now.
+- **Ch6 → Ch7 link** (warps, above; the Route S7 allowance is gone). On Manga-Square the roof beside the exit is solid, so Sc03 stays unbypassable.
+- **Suggestion, done:** the alley sbire stood behind the block he talks about ("Derrière ce bloc, il y a le coffre…"); he is at the alley's mouth now.
+- **Noted, not changed:**
+  - Under the engine (no slides yet), Pascal and the puzzle can be walked past. No map layout makes him mandatory under both models without changing the source's grid; it holds once `MB_SLIDE_*` lands.
+  - Route S7's trainers Technicien 1 (sight 5 on a 7-wide row) and Mira can be walked past, as other chapters' route trainers.
+  - The deviations are justified: the source's S7-D motif has no orthogonal path (its "x=2 (y4) → x=1 (y3)" step is diagonal, and from (1, 2) both (1, 1) and (2, 2) are closed); Pascal's move keeps him on the short path; `MUS_ROUTE118` is Gen3's 0x7FFF pseudo-song, so `MUS_ROUTE119` (its eastern half's theme) is the nearest real one.
+  - Script contracts: Benou's walks in Gym_Sc02 and Reverse_City_Sc07 collide with the pixels and the player as written (see the contract above).
+
+**Reachability checker** (after the second merge of master). `lint-reach` on the 8 Ch7 maps and Manga-Square gives no Ch7 warning left:
+- `ReverseCity_Gym/03_allow.ron` allows, with reasons, warps 2–4 (reached only by the mirror doors' scripted `warp()`) and the doors' `VAR_TEMP_1` coords (a choice, not a gate);
+- `MangaSquare/05_ch7_link.ron` allows Sc03's walk-around info: only warp 6's exit walk lands on (37, 1), and Route S7 is reached only after Sc03 sets 68;
+- the one remaining warning, MangaSquare warp 5's exit walk onto solid (1, 26), is Ch6's, listed in "Reachability checker as built", and not changed here.
+
+`bypass` (the engine's model: no slides, no ice) proves:
+- Route S7: from the south mats to the gate, every path crosses `RouteS07_Sc02` and Technicien 2's sight, and none exists past C1 without `--field-moves`. Pascal can be walked past (by puzzle (2, 2)–(2, 1)), as noted above;
+- Reverse-City: `ReverseCity_Sc01`, `_Sc02` and `_Sc07` cannot be avoided; the vault door is reached once the alley block breaks;
+- the gym: Anna and Xela on the way from the hall to the doors, Nomis and `ReverseCity_Gym_Sc01` from room 3's arrival to Reverse;
+- the Phare: Oscar, from the mat to the lamp;
+- Manga-Square: with the controleur hidden, `MangaSquare_Sc03` cannot be avoided on the way to the exit (37, 0).
 
 #### SIL4 Ch8 maps as built (Évalon)
 

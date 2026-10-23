@@ -1,0 +1,14 @@
+// Cells: walls, the counter, two benches by the door, the entrance mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#$%&&&()&*+,",
+        "-./0123456789",
+        ":;<=>?@ABCDEF",
+        "GHIJKLLMLNJJO",
+        "GJJJPJJJJQJJO",
+        "GJJIJJJJJIJJO",
+        "GRSHJJJJJHRSO",
+        "GTUJJJJJJJTUO",
+        "VJJJJJWXJJJJY",
+    ], legend: {'!': (metatile: 520, collision: 1), '#': (metatile: 521, collision: 1), '$': (metatile: 617, collision: 1), '%': (metatile: 618, collision: 1), '&': (metatile: 523, collision: 1), '(': (metatile: 586, collision: 1), ')': (metatile: 587, collision: 1), '*': (metatile: 525, collision: 1), '+': (metatile: 526, collision: 1), ',': (metatile: 527, collision: 1), '-': (metatile: 528, collision: 1), '.': (metatile: 529, collision: 1), '/': (metatile: 625, collision: 1), '0': (metatile: 626, collision: 1), '1': (metatile: 584, collision: 1), '2': (metatile: 546, collision: 1), '3': (metatile: 547, collision: 1), '4': (metatile: 594, collision: 1), '5': (metatile: 595, collision: 1), '6': (metatile: 585, collision: 1), '7': (metatile: 533, collision: 1), '8': (metatile: 534, collision: 1), '9': (metatile: 535, collision: 1), ':': (metatile: 536, collision: 0), ';': (metatile: 537, collision: 0), '<': (metatile: 633, collision: 0), '=': (metatile: 634, collision: 0), '>': (metatile: 592, collision: 1), '?': (metatile: 554, collision: 1), '@': (metatile: 555, collision: 1), 'A': (metatile: 519, collision: 0), 'B': (metatile: 603, collision: 1), 'C': (metatile: 593, collision: 1), 'D': (metatile: 541, collision: 0), 'E': (metatile: 542, collision: 0), 'F': (metatile: 543, collision: 0), 'G': (metatile: 544, collision: 0), 'H': (metatile: 550, collision: 0), 'I': (metatile: 564, collision: 0), 'J': (metatile: 514, collision: 0), 'K': (metatile: 600, collision: 1), 'L': (metatile: 545, collision: 1), 'M': (metatile: 517, collision: 1), 'N': (metatile: 601, collision: 1), 'O': (metatile: 551, collision: 0), 'P': (metatile: 608, collision: 0), 'Q': (metatile: 518, collision: 0), 'R': (metatile: 573, collision: 1), 'S': (metatile: 574, collision: 1), 'T': (metatile: 581, collision: 1), 'U': (metatile: 582, collision: 1), 'V': (metatile: 552, collision: 1), 'W': (metatile: 515, collision: 0), 'X': (metatile: 516, collision: 0), 'Y': (metatile: 567, collision: 1)}),
+]
