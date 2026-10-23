@@ -377,3 +377,49 @@ fn hit_variants() {
     assert!(has(&l, "End(PlayerTeleported)"), "{l:?}");
     assert_eq!(r.b.need, Need::Ended(BattleOutcome::PlayerTeleported));
 }
+
+/// Role Play, Skill Swap, Grudge, Imprison, Magic Coat, Trick.
+#[test]
+fn ability_item_and_seal_moves() {
+    use crate::mon::Ability;
+    let mut r = wild(me(&[ROLE_PLAY, SKILL_SWAP]), foe(&[SPLASH]), 1);
+    r.b.battler_mut(O).ability = Ability::Guts;
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "PkmnCopiedFoe@P AbilityName(Guts) ~64"), "{l:?}");
+    assert_eq!(r.b.battler(P).ability, Ability::Guts);
+    r.b.battler_mut(P).ability = Ability::RunAway;
+    let l = r.choose(Choice::Move(1));
+    assert!(has(&l, "PkmnSwappedAbilities@P ~64"), "{l:?}");
+    assert_eq!(r.b.battler(O).ability, Ability::RunAway);
+
+    // Grudge: the move that knocks the user out loses its PP.
+    let weak = mon(NORMAL, 5, [10, 13, 10, 9, 9, 10], &[GRUDGE]);
+    let mut r = wild(weak, foe(&[MEGA_HIT]), 1);
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "PkmnWantsGrudge@P ~64"), "{l:?}");
+    assert!(has(&l, "PkmnLostPPGrudge@O move:11 ~64"), "{l:?}");
+    assert_eq!(r.b.mon(O).pp[0], 0);
+
+    // Imprison: the foe cannot select a shared move.
+    let mut r = wild(me(&[IMPRISON, POUND]), foe(&[POUND, TACKLE]), 1);
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "PkmnSealedOpponentMove@P ~64"), "{l:?}");
+    for _ in 0..4 {
+        assert!(!has(&r.choose(Choice::Move(1)), "UsedMove@O move:56"));
+    }
+
+    // Magic Coat sends Torment back.
+    let mut r = wild(me(&[MAGIC_COAT]), foe(&[TORMENT]), 1);
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "PkmnShroudedItself@P ~64"), "{l:?}");
+    assert!(has(&l, "PkmnMoveBounced@O ~64"), "{l:?}");
+    assert!(r.b.battler(O).fx.tormented && !r.b.battler(P).fx.tormented);
+
+    // Trick swaps the items (the player's only).
+    let mut r = wild(me(&[TRICK]), foe(&[SPLASH]), 1);
+    r.b.battler_mut(O).x.item = Some(crate::data::ItemId(1));
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "PkmnSwitchedItems@P ~64"), "{l:?}");
+    assert_eq!(r.b.battler(P).x.item, Some(crate::data::ItemId(1)));
+    assert_eq!(r.b.battler(O).x.item, None);
+}

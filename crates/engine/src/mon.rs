@@ -617,6 +617,18 @@ pub enum MoveEffect {
     HelpingHand,
     /// `EFFECT_FOLLOW_ME`: no effect in singles beyond its message.
     FollowMe,
+    /// `EFFECT_ROLE_PLAY`.
+    RolePlay,
+    /// `EFFECT_SKILL_SWAP`.
+    SkillSwap,
+    /// `EFFECT_GRUDGE`.
+    Grudge,
+    /// `EFFECT_IMPRISON`.
+    Imprison,
+    /// `EFFECT_MAGIC_COAT`.
+    MagicCoat,
+    /// `EFFECT_TRICK`.
+    Trick,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
 }

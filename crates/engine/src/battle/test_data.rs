@@ -146,6 +146,12 @@ pub const KNOCK_OFF: MoveId = MoveId(96);
 pub const ROAR: MoveId = MoveId(97);
 pub const OHKO: MoveId = MoveId(98);
 pub const RAGE: MoveId = MoveId(99);
+pub const ROLE_PLAY: MoveId = MoveId(100);
+pub const SKILL_SWAP: MoveId = MoveId(101);
+pub const GRUDGE: MoveId = MoveId(102);
+pub const IMPRISON: MoveId = MoveId(103);
+pub const MAGIC_COAT: MoveId = MoveId(104);
+pub const TRICK: MoveId = MoveId(105);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -290,7 +296,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 100] = [
+pub static MOVES: [MoveInfo; 106] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -928,6 +934,29 @@ pub static MOVES: [MoveInfo; 100] = [
         100,
         Selected,
         MoveFlags::MAKES_CONTACT | MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(MoveEffect::RolePlay, 0, Type::Psychic, 0, Selected, 0),
+    wc(
+        MoveEffect::SkillSwap,
+        0,
+        Type::Psychic,
+        0,
+        Selected,
+        MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(MoveEffect::Grudge, 0, Type::Ghost, 0, User, 0),
+    wc(MoveEffect::Imprison, 0, Type::Psychic, 0, User, 0),
+    MoveInfo {
+        priority: 4,
+        ..wc(MoveEffect::MagicCoat, 0, Type::Psychic, 0, User, 0)
+    },
+    wc(
+        MoveEffect::Trick,
+        0,
+        Type::Psychic,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
     ),
 ];
 

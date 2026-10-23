@@ -36,6 +36,7 @@ pub(in crate::battle::effects) fn limited_except_pp(
     m.fx.disabled == Some(mv)
         || (m.fx.tormented && m.last_move == Some(mv))
         || (m.fx.taunt > 0 && t.move_info(mv).power == 0)
+        || super::imprisoned(b, side, mv)
 }
 
 /// `CheckMoveLimitations(MOVE_LIMITATIONS_ALL)` for slot `i` of `side` (the AI's score 0).
@@ -63,6 +64,8 @@ pub(crate) fn selection_block(b: &Battle, t: &BattleTables, side: Side, slot: u8
         Str::PkmnCantUseMoveTorment
     } else if m.fx.taunt > 0 && t.move_info(mv).power == 0 {
         Str::PkmnCantUseMoveTaunt
+    } else if super::imprisoned(b, side, mv) {
+        Str::PkmnCantUseMoveSealed
     } else {
         return None;
     };
@@ -152,6 +155,8 @@ pub(in crate::battle::effects) fn start_move(b: &mut Battle, u: &MoveUse) {
         sleep_talk: false,
         lowered: [false; 2],
         called: None,
+        mov: u.mov,
+        slot: u.slot,
     });
 }
 
@@ -167,7 +172,9 @@ pub(in crate::battle::effects) fn sleep_usable(u: &MoveUse) -> bool {
 
 /// `CANCELLER_FLAGS`: Destiny Bond ends when its user moves again.
 pub(in crate::battle::effects) fn canceler_flags(b: &mut Battle, u: &MoveUse) {
-    b.battler_mut(u.attacker).fx.destiny_bond = false;
+    let fx = &mut b.battler_mut(u.attacker).fx;
+    fx.destiny_bond = false;
+    fx.grudge = false;
 }
 
 /// `CANCELLER_RECHARGE`: true when the battler must recharge (the move is skipped).
@@ -199,6 +206,9 @@ pub(in crate::battle::effects) fn canceler_limits(
         Str::PkmnMoveIsDisabled
     } else if m.fx.taunt > 0 && u.info.power == 0 {
         Str::PkmnCantUseMoveTaunt
+    } else if super::imprisoned(b, a, u.mov) {
+        // CANCELLER_IMPRISONED.
+        Str::PkmnCantUseMoveSealed
     } else {
         return false;
     };
@@ -271,6 +281,7 @@ pub(crate) fn record_damage(b: &mut Battle, side: Side, dealt: u16) {
 /// `tryfaintmon` of a battler with Destiny Bond: the move's attacker goes down with it
 /// (`BattleScript_DestinyBondTakesLife`, before the target's faint).
 pub(crate) fn destiny_bond(b: &mut Battle, env: &mut Env, side: Side) {
+    super::grudge(b, env, side);
     let Some(c) = b.fx.cur else {
         return;
     };
@@ -389,6 +400,7 @@ pub(in crate::battle::effects) fn turn_clean_up(b: &mut Battle) {
         fx.rec.physical = None;
         fx.rec.special = None;
         fx.recharge = fx.recharge.saturating_sub(1);
+        fx.bounce = false;
     }
 }
 

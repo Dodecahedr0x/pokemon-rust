@@ -576,6 +576,30 @@ pub enum Str {
     StatsWontDecrease2,
     /// `STRINGID_PKMNHEALEDPARALYSIS`.
     PkmnHealedParalysis,
+    /// `STRINGID_PKMNCOPIEDFOE`.
+    PkmnCopiedFoe,
+    /// `STRINGID_PKMNSWAPPEDABILITIES`.
+    PkmnSwappedAbilities,
+    /// `STRINGID_PKMNWANTSGRUDGE`.
+    PkmnWantsGrudge,
+    /// `STRINGID_PKMNLOSTPPGRUDGE`.
+    PkmnLostPPGrudge,
+    /// `STRINGID_PKMNSEALEDOPPONENTMOVE`.
+    PkmnSealedOpponentMove,
+    /// `STRINGID_PKMNCANTUSEMOVESEALED`.
+    PkmnCantUseMoveSealed,
+    /// `STRINGID_PKMNSHROUDEDITSELF`.
+    PkmnShroudedItself,
+    /// `STRINGID_PKMNMOVEBOUNCED`.
+    PkmnMoveBounced,
+    /// `STRINGID_PKMNSWITCHEDITEMS`.
+    PkmnSwitchedItems,
+    /// `STRINGID_PKMNOBTAINEDX`.
+    PkmnObtainedX,
+    /// `STRINGID_PKMNOBTAINEDX2`.
+    PkmnObtainedX2,
+    /// `STRINGID_PKMNOBTAINEDXYOBTAINEDZ`.
+    PkmnObtainedXYObtainedZ,
     // Task G.
     /// `STRINGID_PKMNFELLINLOVE`: Attract: the target (`B_DEF`).
     PkmnFellInLove,
@@ -939,6 +963,18 @@ impl Str {
             StatsWontIncrease2 => 407,
             StatsWontDecrease2 => 408,
             PkmnHealedParalysis => 409,
+            PkmnCopiedFoe => 410,
+            PkmnSwappedAbilities => 411,
+            PkmnWantsGrudge => 412,
+            PkmnLostPPGrudge => 413,
+            PkmnSealedOpponentMove => 414,
+            PkmnCantUseMoveSealed => 415,
+            PkmnShroudedItself => 416,
+            PkmnMoveBounced => 417,
+            PkmnSwitchedItems => 418,
+            PkmnObtainedX => 419,
+            PkmnObtainedX2 => 420,
+            PkmnObtainedXYObtainedZ => 421,
             AbilityName(a) => 104 << 8 | a as u16,
             // Task G.
             PkmnFellInLove => 105,

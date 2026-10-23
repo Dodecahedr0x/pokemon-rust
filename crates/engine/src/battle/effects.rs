@@ -114,6 +114,12 @@ pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Cancele
         },
         c => c,
     };
+    // Magic Coat (`Cmd_attackcanceler`, after `ABILITYEFFECT_MOVES_BLOCK`).
+    if let Canceler::Use = c
+        && let Some((back, hit)) = mech::bounce(b, env, uu)
+    {
+        return Canceler::Done(back, hit);
+    }
     match c {
         Canceler::Use if rerouted.is_some() => Canceler::Done(*uu, b.execute(env, uu)),
         Canceler::Skip => {

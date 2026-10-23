@@ -36,6 +36,7 @@ mod calls;
 mod cond;
 mod field;
 mod hits;
+mod more;
 mod turns;
 
 use super::status;
@@ -46,6 +47,7 @@ use crate::hash::Fnv64;
 use crate::mon::{MoveEffect, SemiKind, Stat};
 
 pub(super) use field::mist_blocks;
+pub(super) use more::{bounce, grudge, imprisoned};
 pub(crate) use turns::{
     all_moves_unusable, before_turn, clear_bonds, destiny_bond, encored_slot, locked_action,
     reads_first_turn, record_damage, selection_block, slot_limited, spikes,
@@ -113,6 +115,12 @@ pub(crate) struct BattlerFx {
     pub rooted: bool,
     /// `STATUS3_MINIMIZED`.
     pub minimized: bool,
+    /// `STATUS3_GRUDGE`.
+    pub grudge: bool,
+    /// `STATUS3_IMPRISONED_OTHERS`.
+    pub imprison: bool,
+    /// `gProtectStructs.bounceMove` (Magic Coat, this turn).
+    pub bounce: bool,
     /// Bookkeeping later moves read (not hashed).
     pub rec: Records,
 }
@@ -168,6 +176,7 @@ impl BattlerFx {
             self.destiny_bond as u8,
             self.rooted as u8,
             self.minimized as u8,
+            self.grudge as u8 | (self.imprison as u8) << 1 | (self.bounce as u8) << 2,
         ]);
     }
 }
@@ -205,6 +214,9 @@ pub(crate) struct Current {
     pub lowered: [bool; 2],
     /// The move a calling move (Metronome, Mirror Move, Sleep Talk, Assist) used.
     pub called: Option<MoveId>,
+    /// `gCurrentMove` and `gChosenMovePos` (Grudge).
+    pub mov: MoveId,
+    pub slot: Option<u8>,
 }
 
 /// Wave C's side and field state (`gSideTimers`, `gWishFutureKnock`), by `Side as usize`.
@@ -552,6 +564,10 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         E::SpitUp => hits::spit_up(b, env, u),
         E::FutureSight(doom) => {
             hits::future_sight(b, env, u, doom);
+            None
+        }
+        E::RolePlay | E::SkillSwap | E::Grudge | E::Imprison | E::MagicCoat | E::Trick => {
+            more::apply(b, env, u);
             None
         }
         E::Metronome => calls::metronome(b, env, u),
