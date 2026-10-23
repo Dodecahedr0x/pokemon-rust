@@ -199,7 +199,7 @@ impl Doc {
         let map = GameMap {
             name: f.name.clone(),
             layout: f.name.clone(),
-            header: GameHeader::from_extract(&f.header),
+            header: super::schema::header_from_extract(&f.header),
             objects: f.objects.iter().map(GameObject::from_extract).collect(),
             warps: (f.warps.iter())
                 .map(|w| GameWarp {
