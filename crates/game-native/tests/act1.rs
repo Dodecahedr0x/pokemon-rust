@@ -176,7 +176,7 @@ fn round_trip(cp: &Checkpoint, n: u32) -> (Checkpoint, usize) {
 #[ignore = "release; run by `cargo xtask parity`"]
 fn checkpoints_restore_bit_identical_along_act1() {
     let Some(act) = trace::load() else {
-        println!("act 1: stub build, no act1 nodes");
+        println!("act 1: {} build, no act1 nodes", content::FLAVOR.name());
         return;
     };
     let digests: BTreeMap<u32, u64> = {

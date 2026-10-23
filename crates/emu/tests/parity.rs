@@ -890,7 +890,7 @@ fn print_memory(what: &str, end: &DebugSnapshot) {
 #[ignore = "needs target/game.gba; run `cargo xtask parity`"]
 fn rom_resumes_from_act1_nodes() {
     let Some(act) = act1::load() else {
-        println!("act 1: stub build, no act1 nodes");
+        println!("act 1: {} build, no act1 nodes", content::FLAVOR.name());
         return;
     };
     let keys = |f| act.keys_at(f);
@@ -998,7 +998,7 @@ fn act1_pieces(native_capturable: &[bool], from: u32, to: u32) -> Vec<(u32, u32)
 #[ignore = "needs target/game.gba; run `cargo xtask parity --long`"]
 fn act1_long_whole_trace_from_a_new_game() {
     let Some(act) = act1::load() else {
-        println!("act 1: stub build, no act1 nodes");
+        println!("act 1: {} build, no act1 nodes", content::FLAVOR.name());
         return;
     };
     let keys = |f| act.keys_at(f);
@@ -1086,9 +1086,10 @@ fn act1_long_whole_trace_from_a_new_game() {
         let err = run_rom_from(&rom_path(), sav.as_deref(), Some(from), keys, k.frame, &[])
             .err()
             .map(|e| format!("{e:#}"));
-        let want = format!("late by engine frame {}", k.frame);
+        // The exact frame: a late apply that moves (earlier or later) fails here too.
+        let want = format!("ROM applied a frame late by engine frame {}", k.frame);
         assert!(
-            err.as_deref().is_some_and(|e| e.contains(&want)),
+            err.as_deref() == Some(want.as_str()),
             "KNOWN_LATE at frame {} no longer happens ({err:?}): remove it",
             k.frame
         );

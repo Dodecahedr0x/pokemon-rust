@@ -32,10 +32,10 @@ impl Act1 {
     }
 }
 
-/// The committed chain ending at `act1:badge1`, or `None` on the stub build (its tree has no
-/// Act 1).
+/// The committed chain ending at `act1:badge1`, or `None` off Emerald (the stub's and Silice's
+/// trees have no Act 1); the caller then skips with a note naming the flavour.
 pub fn load() -> Option<Act1> {
-    if content::STUB {
+    if content::FLAVOR != content::Flavor::Emerald {
         return None;
     }
     let store = Store::open(Store::default_root(content::FLAVOR)).expect("the committed tree");
