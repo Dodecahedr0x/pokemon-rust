@@ -467,3 +467,28 @@ fn the_battle_return_stays_black_while_the_field_uploads() {
     assert!(!g.w.script_running());
     assert!(restoring > 0, "the upload is spread over frames");
 }
+
+#[test]
+fn a_field_whiteout_waits_120_frames_then_whites_out() {
+    // Wave E2: `special SetCB2WhiteOut` (`EventScript_FieldWhiteOut`): `CB2_WhiteOut` counts
+    // 120 frames, then `DoWhiteOut` as after a lost battle; the script never resumes.
+    let mut g = G::new();
+    g.w.s.money = 101;
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(NORMAL, 2).await;
+            ctx.field_whiteout().await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    g.run(Buttons::NONE, u32::from(WHITEOUT_FRAMES));
+    assert!(!g.w.flag(FLAG_WHITEOUT_RAN), "still counting");
+    assert_eq!(g.w.money(), 101);
+    g.run(Buttons::NONE, 2);
+    assert!(g.w.flag(FLAG_WHITEOUT_RAN));
+    assert_eq!(g.w.money(), 50);
+    // The whiteout resets the script context: the script never goes on.
+    g.run(Buttons::NONE, 60);
+    assert!(!g.w.flag(FLAG_DONE));
+    assert_eq!(g.w.map(), HOUSE);
+}

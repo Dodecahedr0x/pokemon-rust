@@ -512,6 +512,14 @@ impl World {
         if !self.runner.step(&mut host) {
             self.s.selected = None;
         }
+        // Gen3 `CB2_WhiteOut` (`special SetCB2WhiteOut`): its 120 frames are over.
+        if matches!(
+            self.runner.waiting_on(),
+            Some(crate::script::Request::FieldWhiteOut)
+        ) && self.s.delay == 0
+        {
+            self.whiteout(game, f);
+        }
     }
 
     /// Starts script `id`. `talked` = (local id, player facing, the object's map: the

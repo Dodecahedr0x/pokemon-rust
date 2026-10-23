@@ -470,6 +470,12 @@ pub enum Request {
     /// Overwrites berry tree `id` (Gen3 `PlantBerryTree`, `RemoveBerryTree`, the watering and
     /// growth flags): answers at once.
     SetBerryTree(u8, crate::berry::BerryTree),
+    // ---- Wave E2: the field whiteout ----
+    /// Gen3 `special SetCB2WhiteOut` (`CB2_WhiteOut`, after the field poison's last faint):
+    /// [`WHITEOUT_FRAMES`](crate::world::WHITEOUT_FRAMES) frames, then `DoWhiteOut` as after a
+    /// lost battle (`EventScript_WhiteOut`, the money halved, the party healed, the respawn
+    /// loaded). Never answered: the whiteout resets the script context.
+    FieldWhiteOut,
 }
 
 /// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
@@ -769,6 +775,8 @@ impl Request {
                     | (t.watered as u16) << 12
                     | (t.stop_growth as u16) << 15,
             ),
+            // Wave E2: tags 180 and up.
+            Request::FieldWhiteOut => (180, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -1457,6 +1465,11 @@ impl Ctx {
     /// Overwrites berry tree `id` (see [`Request::SetBerryTree`]).
     pub fn set_berry_tree(&self, id: u8, tree: crate::berry::BerryTree) -> Req<()> {
         self.req(Request::SetBerryTree(id, tree), unit)
+    }
+
+    /// Gen3 `SetCB2WhiteOut` (see [`Request::FieldWhiteOut`]): never answered.
+    pub fn field_whiteout(&self) -> Req<()> {
+        self.req(Request::FieldWhiteOut, unit)
     }
 }
 

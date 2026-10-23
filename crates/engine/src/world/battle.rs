@@ -731,7 +731,7 @@ impl World {
     /// runs at once (`RunScriptImmediately`), the money is halved, the party healed, and the
     /// respawn heal location loaded (black frame), the player facing down.
     /// `Overworld_ResetStateAfterWhiteOut`'s flag and weather resets are not modelled.
-    fn whiteout(&mut self, game: &impl GameData, f: &mut Frame) {
+    pub(super) fn whiteout(&mut self, game: &impl GameData, f: &mut Frame) {
         self.runner.abort();
         let s = &mut self.s;
         if let Some(id) = game.special_ids().script_whiteout {
