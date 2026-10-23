@@ -8,8 +8,9 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["BoisEther"];
 
-/// `METATILE_BARRIERE_OUVERTE`: the open barrier, Fortree's path (609), walkable.
-pub const METATILE_BARRIERE_OUVERTE: u16 = 609;
+/// `METATILE_BARRIERE_OUVERTE`: the open barrier, General's grass (1), walkable. The barrier
+/// (General's fence, 6) lies in Route S2's connection strip, which stays primary-only.
+pub const METATILE_BARRIERE_OUVERTE: u16 = 1;
 
 /// The Secteur Bêta barrier, two cells between the trees (33, 12) and (33, 15).
 const BARRIER: [(i16, i16); 2] = [(33, 13), (33, 14)];

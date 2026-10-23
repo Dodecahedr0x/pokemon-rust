@@ -3,8 +3,8 @@
     Header((music: "MUS_RUSTBORO", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_CITY", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // OnTransition: the music (white noise while VAR_SIL_STORY is 23) and the hide flags below. Sc03 sets FLAG_SIL_TOUR_OPEN on
     // this map, so it must also set_metatile the door (21-22, 4) open and redraw. OnLoad: the Tour door (21-22, 4)
-    // drawn shut until FLAG_SIL_TOUR_OPEN, the jammers drawn off per FLAG_SIL_GRIS_JAMMER_1/_2, and the
-    // barrier (39, 1) open once VAR_SIL_STORY >= 28.
+    // drawn shut until FLAG_SIL_TOUR_OPEN, the rooftop jammer J1 drawn off per FLAG_SIL_GRIS_JAMMER_1, and the
+    // barrier (39, 3) open once VAR_SIL_STORY >= 28.
     Scripts((on_load: Some("GrisEchec_OnLoad"), on_transition: Some("GrisEchec_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warp 0: the Centre. 1: the Mart. 2-3: the Tour d'Observation. 4: the arena. 5: the factory.
     Warp(x: 5, y: 8, dest_map: "GrisEchec_PokemonCenter", dest_warp: 0),
@@ -21,9 +21,9 @@
     // Gwada and Lainergie start hidden (game.ron). Moves from the source: Enfant stays (6, 15);
     // the balayeur (21, 14) is on (21, 13), beside the bin (20, 14), and Brouilleur2 must start
     // his battle first if he is not defeated (the bin can be reached from every side); the roof
-    // sbire (17, 5) is on (19, 5) with sight 4, so he sees the ladder top (15, 5); J1 (16, 5) is on
-    // the annex roof (17, 4); the S3 guard (36, 1) and the barrier (37, 1) are on (38, 1) and
-    // (39, 1), so Sc06's set_metatile(37, 1) is (39, 1).
+    // sbire stays on (17, 5), with sight 4, so he sees the ladder top (15, 5); J1 (16, 5) is on
+    // the annex roof (17, 4); the S3 guard (36, 1) and the barrier (37, 1) are on (38, 3) and
+    // (39, 3), out of Route S3's seam rows, so Sc06's set_metatile(37, 1) is (39, 3).
     Object(x: 15, y: 13, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_GRIS_ECHECS", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_EventScript_Echecs"),
     Object(x: 9, y: 11, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_GRIS_PRESSEE", movement: "MOVEMENT_TYPE_WANDER_LEFT_AND_RIGHT", range_x: 1, range_y: 0, script: "GrisEchec_EventScript_Pressee"),
     Object(x: 26, y: 8, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_GRIS_REPARATEUR", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_Reparateur"),
@@ -31,10 +31,10 @@
     Object(x: 28, y: 21, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_GRIS_OUVRIER", movement: "MOVEMENT_TYPE_FACE_UP", script: "GrisEchec_EventScript_Ouvrier"),
     Object(x: 6, y: 15, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_GRIS_ENFANT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_Enfant"),
     Object(x: 34, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GRIS_GARDE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Sc03", flag: "FLAG_SIL_HIDE_GRIS_GARDE"),
-    Object(x: 33, y: 10, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_GRIS_GWADA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_EventScript_Gwada", flag: "FLAG_SIL_HIDE_GRIS_GWADA"),
+    Object(x: 33, y: 10, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_GRIS_GWADA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_EventScript_Gwada", flag: "FLAG_SIL_HIDE_GRIS_GWADA"),
     Object(x: 21, y: 13, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_BALAYEUR", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_Balayeur", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
-    Object(x: 19, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_SBIRE_TOIT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_SbireToit", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
-    Object(x: 38, y: 1, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_GARDE_S3", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_EventScript_GardeS3", flag: "FLAG_SIL_HIDE_GRIS_GARDE_S3"),
+    Object(x: 17, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_SBIRE_TOIT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_EventScript_SbireToit", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 38, y: 3, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_GRIS_GARDE_S3", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_EventScript_GardeS3", flag: "FLAG_SIL_HIDE_GRIS_GARDE_S3"),
     Object(x: 32, y: 10, gfx: "OBJ_EVENT_GFX_PIKACHU", id: "LOCALID_GRIS_LAINERGIE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_EventScript_Lainergie", flag: "FLAG_SIL_HIDE_GRIS_LAINERGIE"),
     // The arena guard stepped aside: a second object on (35, 10). Gris_Echec_Sc05 walks the guard
     // (7) right, then sets FLAG_SIL_HIDE_GRIS_GARDE (removing 7) and clears

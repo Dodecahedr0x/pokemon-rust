@@ -7,10 +7,10 @@
     // The Council's table is the desk (16-19, 17-18). Adrien (MangaSquare_Bibliotheque_PG_Sc21, the Friends'
     // Tournament), Gwada (_PG_Sc30, the Space Ticket at 8 fragments; else _PG_Gwada), Kimiko (_PG_Kimiko),
     // Mathieu (_PG_Mathieu), the citizens.
-    Object(x: 15, y: 17, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BIBLIO_PG_ADRIEN", local_id: 10, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Bibliotheque_PG_Sc21", flag: "FLAG_SIL_HIDE_BIBLIO_PG_ADRIEN"),
-    Object(x: 20, y: 17, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_BIBLIO_PG_GWADA", local_id: 11, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Bibliotheque_PG_Sc30", flag: "FLAG_SIL_HIDE_BIBLIO_PG_GWADA"),
+    Object(x: 15, y: 17, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_BIBLIO_PG_ADRIEN", local_id: 10, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Bibliotheque_PG_Sc21", flag: "FLAG_SIL_HIDE_BIBLIO_PG_ADRIEN"),
+    Object(x: 20, y: 17, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_BIBLIO_PG_GWADA", local_id: 11, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Bibliotheque_PG_Sc30", flag: "FLAG_SIL_HIDE_BIBLIO_PG_GWADA"),
     Object(x: 15, y: 18, gfx: "OBJ_EVENT_GFX_LIZA", id: "LOCALID_BIBLIO_PG_KIMIKO", local_id: 12, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Bibliotheque_PG_Kimiko", flag: "FLAG_SIL_HIDE_BIBLIO_PG_KIMIKO"),
-    Object(x: 14, y: 21, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_BIBLIO_PG_MATHIEU", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Bibliotheque_PG_Mathieu", flag: "FLAG_SIL_HIDE_BIBLIO_PG_MATHIEU"),
+    Object(x: 14, y: 21, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_BIBLIO_PG_MATHIEU", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Bibliotheque_PG_Mathieu", flag: "FLAG_SIL_HIDE_BIBLIO_PG_MATHIEU"),
     Object(x: 18, y: 20, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_BIBLIO_PG_CITOYEN_1", local_id: 14, movement: "MOVEMENT_TYPE_FACE_UP", script: "MangaSquare_Bibliotheque_PG_Citoyen", flag: "FLAG_SIL_HIDE_BIBLIO_PG_CITOYEN_1"),
     Object(x: 18, y: 21, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_BIBLIO_PG_CITOYEN_2", local_id: 15, movement: "MOVEMENT_TYPE_FACE_UP", script: "MangaSquare_Bibliotheque_PG_Citoyen", flag: "FLAG_SIL_HIDE_BIBLIO_PG_CITOYEN_2"),
     // MangaSquare_Bibliotheque_PG_Sc02 (the Council of Three; VAR_SIL_STORY 120) on row y 22, the first row

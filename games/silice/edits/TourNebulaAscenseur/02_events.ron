@@ -20,7 +20,7 @@
     Warp(x: 3, y: 6, dest_map: "MAP_DYNAMIC", dest_warp: 127),
     // Object 1: Mathieu (the source's obj 1, hidden by default), for TourNebulaAscenseur_Sc02 (the meal
     // between 2F and 3F): he walks down to the player.
-    Object(x: 3, y: 4, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_TOUR_ASCENSEUR_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_TOUR_MATHIEU"),
+    Object(x: 3, y: 4, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_TOUR_ASCENSEUR_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_TOUR_MATHIEU"),
     // The floor panel, on the window's left post: "1F CAVE ... APEX: ACCES REFUSE".
     Sign(x: 0, y: 2, script: "TourNebulaAscenseur_EventScript_Panneau"),
 ]

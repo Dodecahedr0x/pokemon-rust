@@ -752,6 +752,12 @@ fn committed_silice_edits_rebuild_byte_identical() {
     if !real() {
         return;
     }
+    // The edits name the games dir's own tilesets and sprites, which only the Silice build has
+    // (`PKR_GAME=silice cargo test -p studio`).
+    if content::FLAVOR != content::Flavor::Silice {
+        eprintln!("skipped: needs the Silice build");
+        return;
+    }
     let ws = studio::paths::StudioPaths::detect().workspace;
     let committed = GamesDir::new(ws.join("games/silice"));
     let dir = temp_dir("silice");

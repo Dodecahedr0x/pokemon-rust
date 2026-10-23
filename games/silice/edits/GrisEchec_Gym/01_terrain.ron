@@ -1,6 +1,9 @@
-// Cells: the hall and its statues, the binary tiles (green 0 at x 6, pink 1 at x 8, the
-// transition x 7), the maze (invisible walls: floor with collision), its terminal and side pad,
-// the chessboard.
+// Cells: the hall and its glass chess kings, the binary tiles (0 at x 6, 1 at x 8, the transition
+// x 7), the maze (invisible walls: floor with collision), its terminal and side pad, the
+// chessboard (a1 dark at (3, 20)). SilGrisEchecGym (games/silice/gfx/SilGrisEchecGym.ron):
+// ! void, # $ the black wall (top, face), & floor, ( floor made solid, ) the warp pad to the
+// Chambre Sourde, * the terminal, + the 0 tiles, , the 1 tiles, - . a glass king statue, B W the
+// chessboard; / 0 the exit mat (Building's).
 [
     Ascii(x: 0, y: 0, rows: [
         "!!!!!!!!!!!!!!!",
@@ -16,14 +19,14 @@
         "!!!!!!!!!!!!!!!",
         "!!!########!!!!",
         "!!!$$$$$$$$!!!!",
-        "!!!%&%&%&%&!!!!",
-        "!!!&%&%&%&%!!!!",
-        "!!!%&%&%&%&!!!!",
-        "!!!&%&%&%&%!!!!",
-        "!!!%&%&%&%&!!!!",
-        "!!!&%&%&%&%!!!!",
-        "!!!%&%&%&%&!!!!",
-        "!!!&%&%&%&%!!!!",
+        "!!!WBWBWBWB!!!!",
+        "!!!BWBWBWBW!!!!",
+        "!!!WBWBWBWB!!!!",
+        "!!!BWBWBWBW!!!!",
+        "!!!WBWBWBWB!!!!",
+        "!!!BWBWBWBW!!!!",
+        "!!!WBWBWBWB!!!!",
+        "!!!BWBWBWBW!!!!",
         "!!!!!!!&!!!!!!!",
         "!!!!!!!&!!!!!!!",
         "!!!!&&&&(((!!!!",
@@ -49,5 +52,12 @@
         "!!!&&&&&&&&&!!!",
         "!!!&&&&&&&&&!!!",
         "!!!&&&&/0&&&!!!",
-    ], legend: {'!': (metatile: 520, collision: 1), '#': (metatile: 526, collision: 1), '$': (metatile: 534, collision: 1), '%': (metatile: 605, collision: 0), '&': (metatile: 513, collision: 0), '(': (metatile: 513, collision: 1), ')': (metatile: 529, collision: 0), '*': (metatile: 532, collision: 1), '+': (metatile: 612, collision: 0), ',': (metatile: 620, collision: 0), '-': (metatile: 516, collision: 1), '.': (metatile: 524, collision: 1), '/': (metatile: 6, collision: 0), '0': (metatile: 7, collision: 0)}),
+    ], legend: {'!': (metatile: 515, collision: 1), '#': (metatile: 513, collision: 1), '$': (metatile: 514, collision: 1), '&': (metatile: 512, collision: 0), '(': (metatile: 512, collision: 1), ')': (metatile: 534, collision: 0), '*': (metatile: 533, collision: 1), '+': (metatile: 527, collision: 0), ',': (metatile: 528, collision: 0), '-': (metatile: 531, collision: 1), '.': (metatile: 532, collision: 1), 'B': (metatile: 517, collision: 0), 'W': (metatile: 516, collision: 0), '/': (metatile: 6, collision: 0), '0': (metatile: 7, collision: 0)}),
+    // Yohan's wall screens (the signs (6, 39), (8, 39) and (4, 12)).
+    Paint(x: 6, y: 38, metatile: 529, collision: 1),
+    Paint(x: 6, y: 39, metatile: 530, collision: 1),
+    Paint(x: 8, y: 38, metatile: 529, collision: 1),
+    Paint(x: 8, y: 39, metatile: 530, collision: 1),
+    Paint(x: 4, y: 11, metatile: 529, collision: 1),
+    Paint(x: 4, y: 12, metatile: 530, collision: 1),
 ]

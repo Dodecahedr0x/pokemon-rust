@@ -47,7 +47,7 @@
         (
             local_id: 3,
             id: Some("LOCALID_GYM_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 14,
             y: 9,
             elevation: 3,

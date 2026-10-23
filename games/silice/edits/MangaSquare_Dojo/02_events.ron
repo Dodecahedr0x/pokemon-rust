@@ -16,7 +16,7 @@
     Object(x: 10, y: 13, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_DOJO_COSPLAY_2", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Dojo_EventScript_Cosplay2"),
     // The signing queue (y 10), its ribbons at y 11: Adrien last, then the three Fans Ultras; Kimiko and
     // her two drones on the stage.
-    Object(x: 13, y: 10, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_DOJO_ADRIEN", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Dojo_Sc01", flag: "FLAG_SIL_HIDE_DOJO_ADRIEN"),
+    Object(x: 13, y: 10, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_DOJO_ADRIEN", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Dojo_Sc01", flag: "FLAG_SIL_HIDE_DOJO_ADRIEN"),
     Object(x: 15, y: 10, gfx: "OBJ_EVENT_GFX_POKEFAN_M", id: "LOCALID_DOJO_FAN_KEVIN", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Dojo_EventScript_Kevin"),
     Object(x: 16, y: 10, gfx: "OBJ_EVENT_GFX_FAT_MAN", id: "LOCALID_DOJO_FAN_BRUNO", local_id: 7, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Dojo_EventScript_Bruno"),
     Object(x: 17, y: 10, gfx: "OBJ_EVENT_GFX_POKEFAN_F", id: "LOCALID_DOJO_FAN_DIANE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Dojo_EventScript_Diane"),

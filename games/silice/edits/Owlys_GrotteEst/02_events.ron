@@ -6,7 +6,7 @@
     // Objects 1-5: the duo scene's actors (the source's numbers). 1: Mathieu (Praugect) waits in the hall.
     // 2-3: the two convoy drivers, in the gallery's mouth; they walk two cells left. 4: Owl-Justice on the
     // high ledge (hidden). 5: the Shaded Feather on the ground (hidden; Owlys_GrotteEst_Sc01 shows it).
-    Object(x: 6, y: 17, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GROTTE_EST_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU"),
+    Object(x: 6, y: 17, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_GROTTE_EST_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU"),
     Object(x: 13, y: 14, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_GROTTE_EST_CONVOYEUR_A", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A"),
     Object(x: 13, y: 15, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_GROTTE_EST_CONVOYEUR_B", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B"),
     Object(x: 8, y: 6, gfx: "OBJ_EVENT_GFX_SIDNEY", id: "LOCALID_GROTTE_EST_OWL_JUSTICE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE"),

@@ -1,0 +1,93 @@
+// Bois-Ether (Ch1, MAP_BOIS_ETHER): the forest town of Sector Alpha, a lush forest "on a drip" in an
+// industrial region. contenu-jeu/chapitres/01-bois-ether.md §2: houses nested in tree trunks or on
+// stilts between the roots, high-voltage cables twined with the roots glowing green, the
+// Grass-Hopper (a giant hollow tree ringed with metal hoops and pipes, the gym) to the north, the
+// Great Oak's clearing in the centre, the medicinal-plant market to the west.
+// Footprints keep the map's doors: Grass-Hopper 9x5 (door bottom middle, (17, 4)), Herboriste 5x3
+// (door bottom middle, (5, 12)). The decorative houses have no door cell (no interior).
+(
+    name: "SilBoisEther",
+    primary: "General",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing.",
+    features: [
+        (
+            name: "grass_hopper",
+            cells: ["#########", "#########", "#########", "#########", "####D####"],
+            prompt: Some("A gigantic hollow tree trunk seen from the front, much wider than tall, used as a building: thick brown bark, three wide grey metal hoops ringing the trunk horizontally, copper pipes climbing the bark and bending around it, a lush green leafy canopy on top, big roots spreading at the base, a round arched wooden door with a small green lamp exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "herboriste",
+            cells: ["#####", "#####", "##D##"],
+            prompt: Some("A tiny herbalist shop shaped like a small greenhouse: a pale green glass roof with white frames, low wooden walls, potted plants and hanging herbs behind the windows, a wooden door exactly in the middle of the bottom edge, a small green leaf sign above the door (no letters)."),
+        ),
+        (
+            name: "maison_pilotis",
+            cells: ["###", "###", "###", "###", "###"],
+            prompt: Some("A small wooden cabin raised on four wooden stilts between big tree roots: a dark green moss roof, plank walls with one round window, a little wooden ladder going down from its porch between the stilts to the ground."),
+        ),
+        (
+            name: "maison_tronc",
+            cells: ["###", "###", "###", "###"],
+            prompt: Some("A house carved inside a huge tree trunk: thick brown bark trunk with a leafy green crown on top, a round wooden door and a round window with warm yellow light set in the bark, roots at the base."),
+        ),
+        (
+            name: "grand_chene",
+            cells: ["#####", "#####", ".###.", ".###."],
+            prompt: Some("A majestic ancient oak tree: a huge round dark green crown, a very thick gnarled brown trunk, its roots wrapped by two black high-voltage cables glowing bright green, a small plug socket stuck into the trunk."),
+        ),
+        (
+            name: "cable",
+            cells: ["#"],
+            align: Some("center"),
+            prompt: Some("A straight segment of a very thick black rubber high-voltage power cable lying horizontally, twice as wide as tall, both ends cut flat (it continues past the left and right edges), with two wide bright neon green glowing bands around it and a soft green glow halo above and below it."),
+        ),
+        (
+            name: "racines_cables",
+            cells: ["##", "##"],
+            prompt: Some("A low mound of gnarled brown tree roots tangled with black high-voltage cables that glow bright green, a few green sparks."),
+        ),
+        (
+            name: "chemin",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Forest path ground texture seen from above, only 16x16 pixels, chunky details: packed warm brown earth with three or four small darker pebbles and one thin root, flat colours."),
+        ),
+        (
+            name: "haie",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A dense dark green leafy hedge texture seen from above, only 16x16 pixels, chunky leaf clumps in two or three shades of green, filling the whole square. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "ronces",
+            cells: ["#"],
+            prompt: Some("A tangle of black synthetic plastic brambles with sharp grey thorns and two tiny electric blue sparks, a bush-shaped obstacle."),
+        ),
+        (
+            name: "pot_hightech",
+            cells: ["#"],
+            prompt: Some("A high-tech plant pot: a white cylindrical pot with a small glowing green screen and a black cable plugged into its side, a leafy medicinal plant growing out of it."),
+        ),
+        (
+            name: "etal",
+            cells: ["##"],
+            prompt: Some("A small wooden market stall seen from the front, wider than tall: a green and white striped awning, wicker baskets full of green herbs, leaves and roots on the counter."),
+        ),
+        (
+            name: "fougere",
+            cells: ["#"],
+            prompt: Some("A big potted fern with dull grey-green fronds in a terracotta pot, a little wet soil."),
+        ),
+        (
+            name: "mare",
+            cells: ["###", "###"],
+            prompt: Some("A small calm forest pond seen from slightly above: blue water with two green lily pads, a rim of mossy stones and reeds, a black cable with a green glow dipping into the water on one side."),
+        ),
+        (
+            name: "banc",
+            cells: ["#"],
+            prompt: Some("A small wooden park bench made of a split log, seen from the front."),
+        ),
+    ],
+)
