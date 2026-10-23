@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_NEBULA_GARGOTE: la Gargote de Mme Fenouil (13 x 10), a low room with no screen,
+// the pot on the stove and three tables. Building + GenericBuilding (Emerald tilesets by name):
+// Pacifidlog's wood-cabin pieces. Out-of-map border: black, blocked.
+(name: "Nebula_Gargote", width: 13, height: 10, primary: "Building", secondary: "GenericBuilding", fill: 931, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

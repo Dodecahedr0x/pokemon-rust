@@ -1,0 +1,26 @@
+// Header, map scripts, warps, objects, bg events.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TourNebulaAscenseur_Sc00 (the source's Tour_Ascenseur_Sc00, "on every arrival"): an on-frame script on
+    // VAR_TEMP_1 0, which the map's scripts never write, so it runs on every arrival (Ch2-Ch3's temp-var
+    // idiom). It reads VAR_SIL_STORY, plays the climb's scene (_Sc00a, _Sc01-_Sc04) and always warps away
+    // by coordinates (1F (11, 21), 2F (10, 19), 3F (11, 15), 4F (10, 23), the Apex), so the player never
+    // walks in the cabin.
+    ScriptsSet(on_frame: [(var: "VAR_TEMP_1", value: 0, script: "TourNebulaAscenseur_Sc00")]),
+    // Landings (plain floor: they never warp, see 03_allow). Warps 0-3: each floor's arrival landing and
+    // exit door lead here (1F's counter door, 2F's "SORTIE ARTISTES", 3F's screen; 4F has no exit warp).
+    // Warp 4: the Apex's arrival point names it as its way back (TourNebula_4F_Sc06 boards by script, and
+    // the Apex never comes down). Warp 5: the hall's elevator in Nebula (Ch9, MAP_NEBULA_TOUR_HALL), a
+    // MAP_DYNAMIC landing until the hall exists.
+    Warp(x: 1, y: 6, dest_map: "TourNebula_1F", dest_warp: 0),
+    Warp(x: 2, y: 6, dest_map: "TourNebula_2F", dest_warp: 0),
+    Warp(x: 4, y: 6, dest_map: "TourNebula_3F", dest_warp: 0),
+    Warp(x: 5, y: 6, dest_map: "TourNebula_4F", dest_warp: 0),
+    Warp(x: 3, y: 5, dest_map: "SommetApex", dest_warp: 0),
+    Warp(x: 3, y: 6, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    // Object 1: Mathieu (the source's obj 1, hidden by default), for TourNebulaAscenseur_Sc02 (the meal
+    // between 2F and 3F): he walks down to the player.
+    Object(x: 3, y: 4, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_TOUR_ASCENSEUR_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_TOUR_MATHIEU"),
+    // The floor panel, on the window's left post: "1F CAVE ... APEX: ACCES REFUSE".
+    Sign(x: 0, y: 2, script: "TourNebulaAscenseur_EventScript_Panneau"),
+]

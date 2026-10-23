@@ -27,6 +27,9 @@
         // Ch2: Gris-Échec's Centre, set on entering it (GrisEchec_PokemonCenter_OnTransition).
         // As Ch1's, the cell in front of its door (5, 8).
         (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec", x: 5, y: 9),
+        // Ch4: the Taverne, Port-Ressac's Center (its nurse sets it, "à la première visite").
+        // The cell in front of its door (4, 7).
+        (name: "HEAL_LOCATION_SIL_PORT_RESSAC", map: "PortRessac", x: 4, y: 8),
         // Ch5: Owlys's Centre (the source's HEAL_LOCATION_OWLYS, also Sustentation's destination),
         // set on entering it (Owlys_PokemonCenter_OnTransition). The cell in front of its door (15, 29).
         (name: "HEAL_LOCATION_SIL_OWLYS", map: "Owlys", x: 15, y: 30),
@@ -177,6 +180,32 @@
         "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU",
         "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN",
         "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA",
+        // Ch9 Nébula: Mathieu on the bus shelter and Adrien at the loudspeaker, shown by Nebula_Sc03
+        // only. The Gargote's friends (one flag each, set by Nebula_Sc03), Mme Fenouil and the
+        // Bassin guard start visible.
+        "FLAG_SIL_HIDE_NEBULA_MATHIEU",
+        "FLAG_SIL_HIDE_NEBULA_ADRIEN",
+        // Ch11 on the Ch9 map: the four EVEIL NPCs on the Place (one flag each), shown only by Nebula_Sc13 and
+        // Elysium_E2.
+        "FLAG_SIL_HIDE_NEBULA_EVEIL",
+        "FLAG_SIL_HIDE_NEBULA_EVEIL_2",
+        "FLAG_SIL_HIDE_NEBULA_EVEIL_3",
+        "FLAG_SIL_HIDE_NEBULA_EVEIL_4",
+        // Ch10-Ch11 (the Tower, the Apex, the Zenith; each map's OnTransition or scene owns them): Mathieu in
+        // the Tower's cabin (the source's default), Revenge's statue (the source's default, cleared by
+        // TourNebula_4F_Sc03), Julien by the Apex Console (shown by SommetApex_Sc05), the three friends on
+        // the Zenith (shown by TroneZenith_Sc11) and the four in the crystal cabin (shown at story 117).
+        // Revenge, the compass, Poussin, Gogo and Romain start visible.
+        "FLAG_SIL_HIDE_TOUR_MATHIEU",
+        "FLAG_SIL_HIDE_REVENGE_STATUE",
+        "FLAG_SIL_HIDE_APEX_JULIEN",
+        "FLAG_SIL_HIDE_ZENITH_MATHIEU",
+        "FLAG_SIL_HIDE_ZENITH_ADRIEN",
+        "FLAG_SIL_HIDE_ZENITH_GWADA",
+        "FLAG_SIL_HIDE_ZENITH_ASC_MATHIEU",
+        "FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN",
+        "FLAG_SIL_HIDE_ZENITH_ASC_GWADA",
+        "FLAG_SIL_HIDE_ZENITH_ASC_JULIEN",
     ],
     new_game_vars: [],
 )

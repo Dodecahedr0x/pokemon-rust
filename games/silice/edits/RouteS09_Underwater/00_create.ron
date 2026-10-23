@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_ROUTE_S09_UNDERWATER: la Conduite (60 x 76: the surface's 60 x 50 overlaid at the
+// same cells, as Dive and Emerge need, and the conduit running on south under the dam to Nebula).
+// General + Underwater (Emerald tilesets by name). Border: rock.
+(name: "RouteS09_Underwater", width: 60, height: 76, primary: "General", secondary: "Underwater", fill: 531, fill_collision: 1, fill_elevation: 0, border: [531, 531, 531, 531])

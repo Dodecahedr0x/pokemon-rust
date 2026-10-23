@@ -1,0 +1,50 @@
+// Cells. A mirror maze (m: a mirror, solid; f: one of the four false mirrors, walkable and drawn as a
+// mirror with a lighter frame; the source's "no silhouette" mirror has no tile). The four false mirrors:
+// (1, 10) and (3, 14) are shortcuts, (18, 19) leads to the hidden Max Revive's pocket (17, 19), and
+// (6, 11) leads to prism p3's pocket (5, 11). Prisms p1 (2, 19), p2 (12, 13), p3 (5, 12) are solid (p).
+// P (11, 4) is the prism door (a fourth prism, the seal), solid until TourNebula_4F_OnLoad opens it (FLAG_SIL_REFLETS_PORTE_OUVERTE:
+// metatile 652, collision 0). V (11, 0) is the vault door in the back wall (513-515), D (10, 24) the
+// elevator door, closed (a sign). The hall (row 23) has two ways into the maze, (1, 22) and (19, 22).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "#######wvw123wvw######",
+        "######m---------m#####",
+        "######m.........m#####",
+        "######m.........m#####",
+        "#######mmmmPmmmm######",
+        "mmmmmmmmm.....mmmmmmmm",
+        "mmmmmmmmmmm.mmmmmmmmmm",
+        "m.m.....m.......m...mm",
+        "m.mmm.m.m.mmmmm.m.m.mm",
+        "m...m.m.......m...m.mm",
+        "mfm.mmmmmmmmmmmmmmm.mm",
+        "m.m.m.f...m.......m.mm",
+        "m.m.mpm.m.m.mmmmm.m.mm",
+        "m.m.....m...p.....m.mm",
+        "m.mfmmmmmmmmm.mmmmm.mm",
+        "m...m.......m...m...mm",
+        "m.m.m.mmm.m.mmm.m.m.mm",
+        "m.m.m.m...m...m...m.mm",
+        "m.m.m.m.mmmmm.mmmmm.mm",
+        "m.p.m.m.....m...m.f.mm",
+        "m.m.m.mmmmm.mmmmmmm.mm",
+        "m.m.......m.........mm",
+        "m.mmmmmmmmmmmmmmmmm.mm",
+        "m....................m",
+        "cbcbcbcbcbDbcbcbcbcbcb",
+        "ededededededededededed",
+    ], legend: {
+        '#': (metatile: 1, collision: 1, elevation: 0),
+        'm': (metatile: 653, collision: 1, elevation: 0),
+        'f': (metatile: 645, collision: 0, elevation: 3),
+        'p': (metatile: 522, collision: 1, elevation: 0),
+        'P': (metatile: 522, collision: 1, elevation: 3),
+        '.': (metatile: 652, collision: 0, elevation: 3),
+        '-': (metatile: 626, collision: 0, elevation: 3),
+        'w': (metatile: 517, collision: 1, elevation: 0), 'v': (metatile: 516, collision: 1, elevation: 0),
+        '1': (metatile: 513, collision: 1, elevation: 0), '2': (metatile: 514, collision: 1, elevation: 0), '3': (metatile: 515, collision: 1, elevation: 0),
+        'b': (metatile: 726, collision: 1, elevation: 0), 'c': (metatile: 725, collision: 1, elevation: 0),
+        'd': (metatile: 841, collision: 1, elevation: 0), 'e': (metatile: 840, collision: 1, elevation: 0),
+        'D': (metatile: 837, collision: 1, elevation: 0),
+    }),
+]

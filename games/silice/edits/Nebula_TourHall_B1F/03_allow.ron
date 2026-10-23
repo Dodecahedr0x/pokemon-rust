@@ -1,0 +1,5 @@
+// Behaviour and reachability warnings accepted on purpose.
+[
+    AllowReach(subject: "warp 1", reason: "the cuve arrival from Nebula's Bassin dive (Nebula_OnDiveWarp); Dive is not modelled, Surf leaves it by (10, 11)"),
+    AllowCollision(cells: [(6, 10)], reason: "the cuve arrival from Nebula's Bassin dive; on water, an arrival point only"),
+]

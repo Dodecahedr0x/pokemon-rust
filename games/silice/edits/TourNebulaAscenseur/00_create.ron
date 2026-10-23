@@ -1,0 +1,4 @@
+// Silice Ch10, MAP_TOUR_NEBULA_ASCENSEUR: the Tower's glass cabin (7 x 8), one map reused between every
+// floor. Building + BattleFrontier (the Battle Tower elevator's window and grid floor, Emerald tilesets by
+// name). Border: black, blocked.
+(name: "TourNebulaAscenseur", width: 7, height: 8, primary: "Building", secondary: "BattleFrontier", fill: 613, border: [1025, 1025, 1025, 1025])

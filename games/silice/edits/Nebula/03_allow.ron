@@ -1,0 +1,5 @@
+// Behaviour and reachability warnings accepted on purpose.
+[
+    AllowReach(subject: "warp 3", reason: "the quai arrival from the conduit (RouteS09_Underwater warps 0-1), on the canal; Surf reaches the quai"),
+    AllowCollision(cells: [(30, 52)], reason: "the quai arrival from RouteS09_Underwater's south exit; on water, entered only by arrival"),
+]
