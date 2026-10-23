@@ -404,7 +404,8 @@ fn full_wild_battle_golden() {
     // E2: `Battle::hash` now also covers `charge`, `order`, `sync`, `caught_without_room`
     // and `last_landed`. G: and `leveled_up` (`gLeveledUpInBattle`); the scene hashes whether
     // its parts exist (built by the first load step).
-    assert_eq!((r.frames, r.hash()), (806, 7109523322231117344));
+    // The degraded bag: the scene hashes its ball and throws.
+    assert_eq!((r.frames, r.hash()), (806, 407566406512155080));
     // J's path, `BattleScene::step`, plays the same battle frame for frame.
     let mut j = Run::wild(&[starter()], &[foe(11)], 7);
     j.use_step = true;
@@ -437,7 +438,8 @@ fn trainer_battle_second_mon_and_defeat_text() {
     assert_eq!(r.pic_steps, 5);
     // E2: `Battle::hash` gained fields; the trainer AI draws its score rolls (same frames).
     // G: `leveled_up` and the parts tag are hashed.
-    assert_eq!((r.frames, r.hash()), (1020, 17288747672827412966));
+    // The degraded bag: the scene hashes its ball and throws.
+    assert_eq!((r.frames, r.hash()), (1020, 12470217771155615926));
 }
 
 #[test]

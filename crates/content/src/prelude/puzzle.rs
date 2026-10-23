@@ -152,3 +152,45 @@ pub fn dive_warp(map: MapId, emerge: bool) -> Option<(MapId, Option<(i16, i16)>)
     let &(_, (to, x, y)) = DIVE_WARPS.iter().find(|w| w.0 == map)?;
     Some((to, Some((x, y))))
 }
+
+/// The fly map's destinations (Gen3 `region_map.c`): the town and city sections
+/// `MAPSEC_LITTLEROOT_TOWN` (0) to `MAPSEC_EVER_GRANDE_CITY` (15) in order, each listed once its
+/// `FLAG_VISITED_*` is set (`GetMapsecType`), landing on its `sMapHealLocations` heal location
+/// (`SetFlyDestination` → `SetWarpDestinationToHealLocation`). Not yet: Littleroot's house by
+/// the player's gender (Brendan's here), Ever Grande's League entrance once
+/// `FLAG_LANDMARK_POKEMON_LEAGUE` is set, Southern Island and the Battle Frontier.
+#[cfg(not(pkr_silice))]
+const FLY_DESTINATIONS: [(FlagId, u8); 16] = [
+    (FLAG_VISITED_LITTLEROOT_TOWN, HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE),
+    (FLAG_VISITED_OLDALE_TOWN, HEAL_LOCATION_OLDALE_TOWN),
+    (FLAG_VISITED_DEWFORD_TOWN, HEAL_LOCATION_DEWFORD_TOWN),
+    (FLAG_VISITED_LAVARIDGE_TOWN, HEAL_LOCATION_LAVARIDGE_TOWN),
+    (FLAG_VISITED_FALLARBOR_TOWN, HEAL_LOCATION_FALLARBOR_TOWN),
+    (FLAG_VISITED_VERDANTURF_TOWN, HEAL_LOCATION_VERDANTURF_TOWN),
+    (FLAG_VISITED_PACIFIDLOG_TOWN, HEAL_LOCATION_PACIFIDLOG_TOWN),
+    (FLAG_VISITED_PETALBURG_CITY, HEAL_LOCATION_PETALBURG_CITY),
+    (FLAG_VISITED_SLATEPORT_CITY, HEAL_LOCATION_SLATEPORT_CITY),
+    (FLAG_VISITED_MAUVILLE_CITY, HEAL_LOCATION_MAUVILLE_CITY),
+    (FLAG_VISITED_RUSTBORO_CITY, HEAL_LOCATION_RUSTBORO_CITY),
+    (FLAG_VISITED_FORTREE_CITY, HEAL_LOCATION_FORTREE_CITY),
+    (FLAG_VISITED_LILYCOVE_CITY, HEAL_LOCATION_LILYCOVE_CITY),
+    (FLAG_VISITED_MOSSDEEP_CITY, HEAL_LOCATION_MOSSDEEP_CITY),
+    (FLAG_VISITED_SOOTOPOLIS_CITY, HEAL_LOCATION_SOOTOPOLIS_CITY),
+    (FLAG_VISITED_EVER_GRANDE_CITY, HEAL_LOCATION_EVER_GRANDE_CITY),
+];
+#[cfg(pkr_silice)]
+const FLY_DESTINATIONS: [(FlagId, u8); 0] = [];
+
+/// Fly destination `i` ([`FLY_DESTINATIONS`]); its name is its section's
+/// (`gRegionMapEntries`, section number = `i`).
+pub fn fly_destination(i: u8) -> Option<engine::data::FlyDestination> {
+    let &(visited, heal) = FLY_DESTINATIONS.get(i as usize)?;
+    let (map, x, y) = crate::battle::heal_location(heal)?;
+    Some(engine::data::FlyDestination {
+        name: crate::data::map_section(i).unwrap_or(&[0xFF]),
+        visited,
+        map,
+        x,
+        y,
+    })
+}

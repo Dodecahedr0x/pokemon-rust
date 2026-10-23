@@ -627,6 +627,10 @@ impl GameData for Game {
         prelude::dive_warp(map, emerge)
     }
 
+    fn fly_destination(&self, i: u8) -> Option<engine::data::FlyDestination> {
+        prelude::fly_destination(i)
+    }
+
     /// `TryPushBoulder`.
     fn pushable_boulder(&self) -> Option<(engine::data::GfxId, FlagId)> {
         Some((

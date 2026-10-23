@@ -26,8 +26,9 @@
 //!   messages; forced has no CANCEL and B does nothing.
 //!
 //! Deviations: no slot pictures, mon or item icons, HP bar colours or the switch slide
-//! animation (Gen3 `SlidePartyMenuBoxOneStep`): frames and text, the HP bar a plain line; a
-//! field move reports `Unsupported("field move")` (Milestone 10) and GIVE
+//! animation (Gen3 `SlidePartyMenuBoxOneStep`): frames and text, the HP bar a plain line; FLY
+//! opens the fly map (`ui::fly_map`), any other field move reports `Unsupported("field move")`
+//! (Milestone 10), and GIVE
 //! `Unsupported("bag")`; the move tutor accepts every mon (no `sTutorLearnsets` yet); no mail.
 
 use super::kit::Gfx;
@@ -977,6 +978,25 @@ impl PartyMenu {
                         ScreenOut::Running
                     }
                     None => ScreenOut::Done(ScreenResult::Value(slot as u16)),
+                }
+            }
+            // Gen3 `SetUpFieldMove_Fly`: outdoors only (`Overworld_MapTypeAllowsTeleportAndFly`),
+            // then the fly map (`CB2_OpenFlyMap`).
+            Action::FieldMove(FieldMove::Fly) => {
+                use crate::data::MapType;
+                let outdoors = matches!(
+                    cx.game.map_type(cx.map),
+                    MapType::Outdoor | MapType::OutdoorSand | MapType::OceanRoute
+                );
+                if outdoors {
+                    self.st = St::Summary;
+                    self.gfx.0 = None;
+                    ScreenOut::Push(ScreenKind::FlyMap)
+                } else {
+                    // `PARTY_MSG_CANT_USE_HERE` (no text of its own yet).
+                    cx.report(Report::Degraded("fly: can't use here"));
+                    self.back_to_slots(cx);
+                    ScreenOut::Running
                 }
             }
             Action::FieldMove(_) => {

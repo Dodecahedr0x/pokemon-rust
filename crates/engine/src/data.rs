@@ -1548,6 +1548,14 @@ pub trait GameData {
         None
     }
 
+    /// Fly destination `i` of the fly map (Gen3 `CB2_OpenFlyMap`'s town and city sections,
+    /// region-map order), `None` past the last. The picker lists those whose `visited` flag is
+    /// set (Gen3 `GetMapsecType`'s `FLAG_VISITED_*`).
+    fn fly_destination(&self, i: u8) -> Option<FlyDestination> {
+        let _ = i;
+        None
+    }
+
     /// The water table of header `wild_set` of `map` (Gen3 `waterMonsInfo`, 5 slots), as
     /// [`GameData::wild_encounters`] for land.
     fn water_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static mon::WaterEncounters> {
@@ -1576,6 +1584,19 @@ pub trait GameData {
     fn player_surf_sprite(&self) -> Option<&'static SpriteData> {
         None
     }
+}
+
+/// One place Fly lands ([`GameData::fly_destination`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct FlyDestination {
+    /// Gen3-encoded, 0xFF-terminated (the region map section's name).
+    pub name: &'static [u8],
+    /// Listed once set (`FLAG_VISITED_*`).
+    pub visited: FlagId,
+    /// Where Fly lands: map and cell (Gen3 `SetWarpDestinationToHealLocation`).
+    pub map: MapId,
+    pub x: i16,
+    pub y: i16,
 }
 
 /// Gen3 `MAP_TYPE_*`, as far as the battle background tells them apart
