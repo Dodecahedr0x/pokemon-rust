@@ -361,7 +361,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::ItemSpace { .. }
             | Request::MoneyAdd(_)
             | Request::MoneyRemove(_)
-            | Request::MoneyCheck(_) => items::begin(self, r),
+            | Request::MoneyCheck(_)
+            | Request::PcItemAdd { .. } => items::begin(self, r),
             Request::Buffer { .. } => buffers::begin(self, r),
             Request::Multichoice { .. } => menu::begin(self, r),
             Request::SetWarp { .. } => warps::begin(self, r),

@@ -197,6 +197,13 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
     for (i, k) in w.texts.keys().enumerate() {
         c(&mut o, k, "TextId", format!("TextId({i})"))?;
     }
+    // The decomp's `EventScript_ResetAllMapFlags` (`names::RESET_ALL_MAP_FLAGS`), for the
+    // Emerald new game (`new_game.rs`).
+    o.push_str("/// The flags Gen3 `EventScript_ResetAllMapFlags` sets (`NewGameInitData`).\npub const RESET_ALL_MAP_FLAGS: &[FlagId] = &[");
+    for f in names::RESET_ALL_MAP_FLAGS {
+        write!(o, "FlagId({:#X}),", table_value(&names::FLAGS, f)?)?;
+    }
+    o.push_str("];\n");
     Ok(o)
 }
 

@@ -41,3 +41,21 @@ fn digest_returns_to_empty() {
     pc.set_mon(9, 0, None);
     assert_eq!(pc.boxes().len(), 3);
 }
+
+/// Gen3 `AddPCItem`: tops up the item's slots to 999, then takes the first free slot; nothing
+/// changes when it does not fit.
+#[test]
+fn add_item_stacks_then_takes_a_free_slot() {
+    let mut pc = PcStorage::new(2, 1);
+    assert!(pc.add_item(ItemId(13), 1));
+    assert_eq!(pc.item_entries().collect::<Vec<_>>(), [(0, ItemId(13), 1)]);
+    assert!(pc.add_item(ItemId(13), 998));
+    assert_eq!(pc.items()[0].qty, 999);
+    assert!(pc.add_item(ItemId(13), 5));
+    assert_eq!(pc.item_entries().nth(1), Some((1, ItemId(13), 5)));
+    let before = pc.clone();
+    assert!(!pc.add_item(ItemId(14), 1));
+    assert_eq!(pc, before);
+    assert!(pc.add_item(ItemId(13), 994));
+    assert_eq!(pc.items()[1].qty, 999);
+}

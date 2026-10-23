@@ -125,6 +125,9 @@ fn intro_to_our_new_game_start() {
         println!("  {x}");
     }
     assert!(theirs.party.is_empty());
+    // Expected: our new game stands outside Brendan's house, vanilla has just left May's.
+    let unexpected: Vec<_> = d.iter().filter(|x| x.field != "cell").collect();
+    assert!(unexpected.is_empty(), "new-game state gaps: {unexpected:?}");
 
     // On to Route 101: Birch's rescue (the bag's starter screen picks Mudkip, the battle
     // uses the first move), then the lab, where Birch gives the starter for good.
@@ -150,8 +153,13 @@ fn intro_to_our_new_game_start() {
     };
     let d = diff(&ours, &theirs, tol);
     println!("diff at our after-starter start ({} fields):", d.len());
-    for x in d.iter().filter(|x| !x.field.starts_with("flag FLAG_HIDE")) {
+    for x in &d {
         println!("  {x}");
     }
     assert_eq!(theirs.party.len(), 1);
+    // Expected: vanilla stands in the lab (its objects are the lab's), ours outside Brendan's
+    // house.
+    let placement = |f: &str| ["map", "cell", "facing"].contains(&f) || f.starts_with("object ");
+    let unexpected: Vec<_> = d.iter().filter(|x| !placement(&x.field)).collect();
+    assert!(unexpected.is_empty(), "after-starter state gaps: {unexpected:?}");
 }

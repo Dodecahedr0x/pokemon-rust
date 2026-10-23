@@ -540,6 +540,12 @@ fn generate(d: &Path) -> String {
     for (name, doc, prefix, entries) in &tables {
         render_table(&mut out, name, doc, prefix, entries);
     }
+    out.push_str("/// The flags `EventScript_ResetAllMapFlags` (`data/scripts/new_game.inc`, run by\n/// `NewGameInitData`) sets, in script order: the objects hidden from a new game on.\n");
+    out.push_str("pub static RESET_ALL_MAP_FLAGS: &[&str] = &[\n");
+    for f in reset_all_map_flags(&read(d, "data/scripts/new_game.inc")) {
+        writeln!(out, "    {f:?},").unwrap();
+    }
+    out.push_str("];\n\n");
     out.push_str("/// Byte offset of each `TILESETS` header from `gTileset_General` (the headers are not quite\n/// contiguous: two `Tileset` pointers sit among them).\n");
     out.push_str("pub static TILESET_HEADER_OFFSETS: &[u32] = &[\n");
     for (_, n, at) in &tileset_list {
@@ -552,6 +558,25 @@ fn generate(d: &Path) -> String {
 }
 
 type Entries = Vec<(i64, String)>;
+
+/// The `setflag` operands of `EventScript_ResetAllMapFlags`, up to its `end` (its other
+/// command, `call EventScript_ResetAllBerries`, is berry trees, not flags).
+fn reset_all_map_flags(src: &str) -> Vec<String> {
+    let mut lines = src.lines().map(str::trim);
+    assert!(
+        lines.any(|l| l == "EventScript_ResetAllMapFlags::"),
+        "no EventScript_ResetAllMapFlags"
+    );
+    let mut out = Vec::new();
+    for l in lines.take_while(|&l| l != "end") {
+        if let Some(f) = l.strip_prefix("setflag") {
+            out.push(f.trim().to_string());
+        } else {
+            assert!(l.is_empty() || l.starts_with("call "), "unexpected {l:?}");
+        }
+    }
+    out
+}
 
 /// `MAPSEC_*`: the generated enum of `region_map_sections.constants.json.txt` is every
 /// `map_sections` id in order, then `MAPSEC_NONE` (`MAPSEC_COUNT` is left out).
