@@ -1,0 +1,12 @@
+// Header, warps, objects and bg events.
+[
+    Header((music: "MUS_POKE_MART", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the entrance mat, to Gris-Echec's warp 1 (the Mart's door).
+    Warp(x: 2, y: 7, dest_map: "GrisEchec", dest_warp: 1),
+    Warp(x: 3, y: 7, dest_map: "GrisEchec", dest_warp: 1),
+    Object(x: 1, y: 3, gfx: "OBJ_EVENT_GFX_MART_EMPLOYEE", id: "LOCALID_GRIS_MART_CLERK", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_Mart_EventScript_Clerk"),
+    Object(x: 9, y: 7, gfx: "OBJ_EVENT_GFX_MAN_1", id: "LOCALID_GRIS_MART_CLIENT", movement: "MOVEMENT_TYPE_FACE_UP", script: "GrisEchec_Mart_EventScript_Npc"),
+    // The drinks machine at the back (the source's Distributeur; its own shop list).
+    Sign(x: 9, y: 1, script: "GrisEchec_Mart_EventScript_Distributeur", facing: 1),
+    Sign(x: 10, y: 1, script: "GrisEchec_Mart_EventScript_Distributeur", facing: 1),
+]

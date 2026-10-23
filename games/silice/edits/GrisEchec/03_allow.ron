@@ -1,0 +1,6 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(15, 6), (15, 7)], reason: "the Mart annex ladder: an iron-fence metatile stands in for a ladder (General + Rustboro has none), so it is walkable here"),
+    AllowCollision(cells: [(15, 4), (16, 4), (18, 4), (19, 4), (15, 5), (16, 5), (17, 5), (18, 5), (19, 5)], reason: "the Mart annex roof is walkable: the rooftop jammer J1 and its sbire stand on it (reached by the ladder only)"),
+    AllowCollision(cells: [(14, 3), (15, 3), (16, 3), (17, 3), (18, 3), (19, 3), (20, 3)], reason: "the annex roof top edge is solid so the roof is reached by the ladder only (Emerald walks behind a roof top row)"),
+]

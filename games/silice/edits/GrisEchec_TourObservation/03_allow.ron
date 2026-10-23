@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(0, 6)], reason: "the gate railing's west end: the wall column's floor is solid on the railing's row, so the gap (5-6, 6) is the only way past the first sbire"),
+]

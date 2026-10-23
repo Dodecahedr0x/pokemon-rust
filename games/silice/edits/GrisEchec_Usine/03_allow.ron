@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(25, 4)], reason: "the security cable before J3: a rail metatile stands in for a thin cable and is solid until cut (GrisEchec_Usine_OnLoad redraws it walkable)"),
+]
