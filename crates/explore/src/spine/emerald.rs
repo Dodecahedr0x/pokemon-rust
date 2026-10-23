@@ -218,6 +218,7 @@ mod list {
             (VAR_ROUTE104_STATE, 2),
         ],
         warp: Some((MAP_DEWFORD_TOWN, 11, 11)),
+        teach: &[],
     };
 
     /// `DewfordTown_EventScript_SailToSlateport`: the same scripted sail across map
@@ -236,6 +237,7 @@ mod list {
         ],
         vars: &[],
         warp: Some((MAP_ROUTE109, 21, 23)),
+        teach: &[],
     };
 
     /// Mauville's gym: its floor switches run `special MauvilleGymSetDefaultBarriers` and
@@ -249,6 +251,56 @@ mod list {
             "SPECIAL_MauvilleGymPressSwitch",
         ],
         warp: Some((MAP_MAUVILLE_CITY_GYM, 5, 3)),
+        ..Bypass::NONE
+    };
+
+    /// Mauville's gym after Wattson: `special MauvilleGymDeactivatePuzzle` (unsupported) should
+    /// open every barrier; the dais stays walled off. The bypass stands the player at the door.
+    static MAUVILLE_GYM_DEACTIVATE: Bypass = Bypass {
+        issue: "mauville-gym-deactivate",
+        features: &["SPECIAL_MauvilleGymDeactivatePuzzle"],
+        warp: Some((MAP_MAUVILLE_CITY_GYM, 4, 19)),
+        ..Bypass::NONE
+    };
+
+    /// `Route112_CableCarStation_EventScript_RideCableCar`: `special CableCarWarp` (the warp
+    /// destination) and `special CableCar` (the ride scene) are unsupported, so the player stays
+    /// in the station. The bypass warps to the Mt. Chimney station's (6, 4), where
+    /// `VAR_CABLE_CAR_STATION_STATE` 1 (set by the script) plays the exit.
+    static CABLE_CAR_UP: Bypass = Bypass {
+        issue: "cable-car",
+        features: &["SPECIAL_CableCarWarp", "SPECIAL_CableCar"],
+        warp: Some((MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 4)),
+        ..Bypass::NONE
+    };
+
+    /// The Lavaridge gym's holes and geysers (`MB_LAVARIDGE_GYM_1F_WARP` /
+    /// `MB_LAVARIDGE_GYM_B1F_WARP`, `field_control_avatar.c`'s Lavaridge warp checks with their
+    /// field effects): stepping on 1F (8, 9) does not warp ("enter: no warp"). The bypass lands
+    /// on Flannery's platform, the end of the 1F (8, 9) / B1F (8, 6) / 1F (10, 6) / B1F
+    /// (12, 12) chain.
+    static LAVARIDGE_GYM_WARPS: Bypass = Bypass {
+        issue: "lavaridge-gym-warps",
+        features: &["MB_LAVARIDGE_GYM_1F_WARP", "MB_LAVARIDGE_GYM_B1F_WARP"],
+        warp: Some((MAP_LAVARIDGE_TOWN_GYM_1F, 13, 11)),
+        ..Bypass::NONE
+    };
+
+    /// Teaching HM06 needs the bag and the party menu (Milestone 9): the bypass writes Rock
+    /// Smash over the lead's Mud-Slap, so `EventScript_RockSmash`'s `checkpartymove` finds it.
+    static TEACH_ROCK_SMASH: Bypass = Bypass {
+        issue: "teach-hm-rock-smash",
+        features: &["party menu: teach an HM"],
+        teach: &[(2, MOVE_ROCK_SMASH)],
+        ..Bypass::NONE
+    };
+
+    /// `EventScript_RockSmash`: `checkpartymove` is a `Default(6)` stub (no party mon ever
+    /// knows the move), so the rock says "It's a rugged rock". The bypass steps past it.
+    static ROUTE111_ROCK_SMASH: Bypass = Bypass {
+        issue: "checkpartymove-rock-smash",
+        features: &["checkpartymove"],
+        warp: Some((MAP_ROUTE111, 18, 100)),
         ..Bypass::NONE
     };
 
@@ -803,5 +855,93 @@ mod list {
         Step::Expect("wattson_defeated"),
         Step::Expect("badge3"),
         Step::Checkpoint("badge3"),
+        // ================= Act 4: Route 111 and 112, Fallarbor, Meteor Falls, Mt. Chimney,
+        // Lavaridge, Flannery =================
+        Step::Bypass(&MAUVILLE_GYM_DEACTIVATE),
+        enter(MAP_MAUVILLE_CITY_GYM, 4, 20, Down),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // HM06 from the Rock Smash dude; teach it (blocked: `teach-hm-rock-smash`).
+        enter(MAP_MAUVILLE_CITY, 32, 14, Up),
+        talk(MAP_MAUVILLE_CITY_HOUSE1, 1),
+        enter(MAP_MAUVILLE_CITY_HOUSE1, 3, 7, Down),
+        Step::Bypass(&TEACH_ROCK_SMASH),
+        // ---- Route 111: smash the rock north of the Winstrates', on to Route 113 ----
+        cross(MAP_MAUVILLE_CITY, 16, 0, Up),
+        // The rock (blocked: `checkpartymove-rock-smash`): try it, then step past.
+        talk(MAP_ROUTE111, 15),
+        Step::Bypass(&ROUTE111_ROCK_SMASH),
+        cross(MAP_ROUTE111, 0, 68, Left),
+        // ---- Route 112: through the Fiery Path to its north part, back east onto Route 111
+        // north of the desert, west to Route 113 and Fallarbor ----
+        enter(MAP_ROUTE112, 11, 36, Up),
+        enter(MAP_FIERY_PATH, 26, 4, Down),
+        cross(MAP_ROUTE112, 39, 9, Right),
+        // The old lady's rest stop heals before Route 113's trainers.
+        goto(MAP_ROUTE111, 28, 11),
+        goto(MAP_ROUTE111, 29, 17),
+        enter(MAP_ROUTE111, 26, 18, Up),
+        // Yes to "rest up here", no to "another rest" (she offers again after every yes).
+        Step::Choose(crate::policy::YES_ONCE),
+        talk(MAP_ROUTE111_OLD_LADYS_REST_STOP, 1),
+        enter(MAP_ROUTE111_OLD_LADYS_REST_STOP, 3, 7, Down),
+        cross(MAP_ROUTE111, 0, 8, Left),
+        cross(MAP_ROUTE113, 0, 9, Left),
+        Step::Expect("fallarbor"),
+        // ---- Fallarbor: heal; Route 114 to Meteor Falls, Magma steals the meteorite ----
+        enter(MAP_FALLARBOR_TOWN, 14, 7, Up),
+        use_(MAP_FALLARBOR_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FALLARBOR_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_FALLARBOR_TOWN, 0, 9, Left),
+        enter(MAP_ROUTE114, 8, 63, Up),
+        goto(MAP_METEOR_FALLS_1F_1R, 14, 18),
+        Step::WaitScript,
+        Step::Expect("meteor_falls"),
+        // ---- Back to Route 112's cable car (the Magma grunts are gone): Fallarbor, Route
+        // 113, the rest stop, Route 112 north, the Fiery Path ----
+        enter(MAP_METEOR_FALLS_1F_1R, 27, 18, Down),
+        cross(MAP_ROUTE114, 39, 9, Right),
+        enter(MAP_FALLARBOR_TOWN, 14, 7, Up),
+        use_(MAP_FALLARBOR_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FALLARBOR_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_FALLARBOR_TOWN, 19, 9, Right),
+        goto(MAP_ROUTE113, 14, 13),
+        cross(MAP_ROUTE113, 99, 8, Right),
+        goto(MAP_ROUTE111, 28, 11),
+        goto(MAP_ROUTE111, 29, 17),
+        enter(MAP_ROUTE111, 26, 18, Up),
+        Step::Choose(crate::policy::YES_ONCE),
+        talk(MAP_ROUTE111_OLD_LADYS_REST_STOP, 1),
+        enter(MAP_ROUTE111_OLD_LADYS_REST_STOP, 3, 7, Down),
+        cross(MAP_ROUTE111, 0, 29, Left),
+        enter(MAP_ROUTE112, 22, 10, Up),
+        enter(MAP_FIERY_PATH, 26, 36, Down),
+        enter(MAP_ROUTE112, 28, 27, Up),
+        talk(MAP_ROUTE112_CABLE_CAR_STATION, 1),
+        Step::Bypass(&CABLE_CAR_UP),
+        Step::WaitScript,
+        // ---- Mt. Chimney: Maxie at the meteorite machine ----
+        enter(MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 11, Down),
+        talk(MAP_MT_CHIMNEY, 2),
+        Step::Expect("mt_chimney"),
+        // ---- Down the Jagged Pass to Route 112's west part, Lavaridge ----
+        enter(MAP_MT_CHIMNEY, 20, 41, Down),
+        enter(MAP_JAGGED_PASS, 14, 40, Down),
+        cross(MAP_ROUTE112, 0, 50, Left),
+        Step::Expect("lavaridge"),
+        enter(MAP_LAVARIDGE_TOWN, 9, 6, Up),
+        use_(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Flannery ----
+        // The gym's floors chain through its holes and geysers (warps on both floors at the
+        // same cells): 1F (8, 9) down, B1F (8, 6) up, 1F (10, 6) down, B1F (12, 12) up to
+        // Flannery's platform. The first hole never fires (`lavaridge-gym-warps`).
+        enter(MAP_LAVARIDGE_TOWN, 5, 15, Up),
+        Step::Bypass(&LAVARIDGE_GYM_WARPS),
+        talk(MAP_LAVARIDGE_TOWN_GYM_1F, 1),
+        Step::Expect("flannery_defeated"),
+        Step::Expect("badge4"),
+        Step::Checkpoint("badge4"),
     ];
 }

@@ -17,7 +17,7 @@ use crate::model::{FindingDraft, Macro, MacroKind, Opts, StepResult, Stop};
 use crate::observe::StepObserver;
 use crate::sim::{Live, StepFail};
 use engine::checkpoint::{Checkpoint, WorldSnapshot};
-use engine::data::{Dir, FlagId, GameData, MapId, ScriptId, VarId};
+use engine::data::{Dir, FlagId, GameData, MapId, MoveId, ScriptId, VarId};
 use game_native::trace::Run;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -135,6 +135,9 @@ pub struct Bypass {
     pub vars: &'static [(VarId, u16)],
     /// `(map, x, y)`: a debug warp onto that cell (`World::debug_warp`), waited out.
     pub warp: Option<(MapId, i16, i16)>,
+    /// `(slot, move)`: the lead learns `move` in move slot `slot`, full PP (what teaching an
+    /// HM from the party menu would leave).
+    pub teach: &'static [(u8, MoveId)],
 }
 
 impl std::fmt::Debug for Bypass {
@@ -152,6 +155,7 @@ impl Bypass {
         clear: &[],
         vars: &[],
         warp: None,
+        teach: &[],
     };
 }
 
@@ -867,18 +871,27 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             // A wild battle on the way (a cave floor) ends the macro before the talk: again.
             Step::Talk { local_id, .. } => {
                 // Gen3 spawns objects only near the camera: walk next to an unspawned one's
-                // template cell first (the first reachable side).
+                // template cell first.
                 if live.s.world().objects().get(local_id).is_none()
                     && let Some(t) =
                         (self.game.map(start_map).objects.iter()).find(|t| t.local_id == local_id)
                     && let Ok(snap) = live.s.world().snapshot(live.s.game())
                 {
                     let reach = crate::path::reach(self.game, &snap);
-                    let side = Dir::ALL.into_iter().find_map(|d| {
-                        let (dx, dy) = d.delta();
-                        let c = (t.x - dx, t.y - dy);
-                        reach.dist(c.0, c.1).map(|_| c)
-                    });
+                    // The nearest side that is no other object's home (unspawned objects leave
+                    // their cells free in the reach).
+                    let objects = self.game.map(start_map).objects;
+                    let side = (Dir::ALL.into_iter())
+                        .filter_map(|d| {
+                            let (dx, dy) = d.delta();
+                            let c = (t.x - dx, t.y - dy);
+                            if objects.iter().any(|o| (o.x, o.y) == c) {
+                                return None;
+                            }
+                            reach.dist(c.0, c.1).map(|n| (n, c))
+                        })
+                        .min()
+                        .map(|(_, c)| c);
                     if let Some((x, y)) = side {
                         self.goto(live, start_map, x, y, opts)?;
                     }
@@ -1149,6 +1162,15 @@ fn bypass<G: GameData + Clone>(
             (Err(_), 0) => {}
             (Err(i), _) => v.vars.insert(i, (var, value)),
         }
+    }
+    if let Some(lead) = cp.world.party.first_mut() {
+        for &(slot, mov) in b.teach {
+            let slot = slot as usize % 4;
+            lead.moves[slot] = Some(mov);
+            lead.pp[slot] = game.battle().move_info(mov).pp;
+        }
+    } else if !b.teach.is_empty() {
+        return Err(format!("bypass {}: no lead to teach", b.issue));
     }
     cp.header.build = engine::checkpoint::BuildHash {
         engine: 0,
