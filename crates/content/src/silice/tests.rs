@@ -1,8 +1,8 @@
-//! The Silice flavour's generated tables and game root (SIL1 Wave 0).
+//! The Silice flavour's generated tables and game root (SIL1 Wave 0; `game.ron` and the
+//! prelude: Task E, `e_tests`).
 
 use super::*;
 use crate::consts;
-use engine::data::block_collision;
 use engine::input::Buttons;
 use extract::games::{IdKind, IdsFile};
 use std::collections::BTreeMap;
@@ -35,27 +35,14 @@ fn the_maps_are_the_games_dir_maps_at_their_allocated_numbers() {
 }
 
 #[test]
-fn the_new_game_starts_on_a_walkable_cell_of_the_bedroom() {
-    let g = Game.new_game();
-    assert_eq!(g.map, consts::MAP_BRICO_BOURG_PLAYER_HOUSE_2F);
-    let m = Game.map(g.map);
-    assert!(g.x >= 0 && g.y >= 0 && (g.x as u16) < m.width && (g.y as u16) < m.height);
-    let block = m.blocks[g.y as usize * m.width as usize + g.x as usize];
-    assert_eq!(block_collision(block), 0);
-    let (map, x, y) = Game
-        .heal_location(Game.special_ids().respawn_default)
-        .unwrap();
-    assert_eq!((map, x, y), (g.map, g.x, g.y));
-}
-
-#[test]
 fn the_world_boots_and_idles() {
     let mut w = engine::World::new(&Game);
-    assert_eq!(w.map(), consts::MAP_BRICO_BOURG_PLAYER_HOUSE_2F);
+    let start = Game.new_game().map;
+    assert_eq!(w.map(), start);
     for _ in 0..120 {
         w.step(&Game, Buttons::NONE);
     }
-    assert_eq!(w.map(), consts::MAP_BRICO_BOURG_PLAYER_HOUSE_2F);
+    assert_eq!(w.map(), start);
 }
 
 #[test]
@@ -141,10 +128,4 @@ fn held_items_have_their_effects() {
         Some(HoldEffect::RestoreHp(10))
     );
     assert!(Game.form_changes().is_empty());
-}
-
-#[test]
-fn the_new_game_script_runs() {
-    let w = engine::World::new(&Game);
-    assert!(!w.flag(consts::FLAG_SYS_B_DASH));
 }

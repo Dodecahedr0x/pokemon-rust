@@ -168,6 +168,11 @@ pub fn load(o: &Options) -> Result<Inputs> {
     let mut widths = None;
     let mut extra_names = BTreeSet::new();
     let mut gen3_item_names = BTreeMap::new();
+    // The heal locations `game.ron` defines (SIL1 Task E) are names the scripts may use.
+    if let Some(p) = opt("game.ron") {
+        let game: extract::games::GameFile = read_ron(&p)?;
+        extra_names.extend(game.heal_locations.into_iter().map(|h| h.name));
+    }
     let x = &o.extracted;
     if x.join("manifest.ron").exists() {
         let f = x.join("font/latin_normal.ron");

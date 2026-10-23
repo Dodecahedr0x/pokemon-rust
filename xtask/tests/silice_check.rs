@@ -544,3 +544,42 @@ fn id_file_rules() {
     std::fs::write(g.join("ids/music.ron"), read(&g, "ids/songs.ron")).unwrap();
     fails_with(&g, "error[id-alloc] ids/music.ron");
 }
+
+#[test]
+fn game_ron_heal_locations_are_names_the_scripts_may_use() {
+    let (tmp, g) = imported();
+    let scripts = tmp.path().join("scripts");
+    std::fs::create_dir_all(&scripts).unwrap();
+    std::fs::write(
+        scripts.join("ch00_a.rs"),
+        "pub async fn A(ctx: Ctx) { ctx.set_respawn(HEAL_LOCATION_SIL_HOME).await; }\n",
+    )
+    .unwrap();
+    let ex = extracted();
+    let run = || {
+        xtask(&[
+            "check",
+            "--games",
+            g.to_str().unwrap(),
+            "--extracted",
+            ex.to_str().unwrap(),
+            "--scripts",
+            scripts.to_str().unwrap(),
+        ])
+    };
+    let tag = "error[sil-prefix] HEAL_LOCATION_SIL_HOME";
+    let out = run().out;
+    assert!(out.contains(tag), "{out}");
+    std::fs::write(
+        g.join("game.ron"),
+        "(start: (map: \"AlphaTown\", x: 1, y: 1, facing: Down), \
+         running_flag: \"FLAG_SIL_RUNNING_SHOES\", cleared_on_map_change: [], \
+         heal_locations: [(name: \"HEAL_LOCATION_SIL_HOME\", map: \"AlphaTown\", x: 1, y: 1)], \
+         respawn: \"HEAL_LOCATION_SIL_HOME\", \
+         starters: [\"SPECIES_CHIKORITA\", \"SPECIES_CYNDAQUIL\", \"SPECIES_TOTODILE\"], \
+         starter_level: 5)\n",
+    )
+    .unwrap();
+    let out = run().out;
+    assert!(!out.contains(tag), "{out}");
+}

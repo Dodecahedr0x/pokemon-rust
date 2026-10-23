@@ -15,12 +15,13 @@
 //! `ids/maps.ron`, on the extract's tilesets, sprites, font, window, battle data and tables; of
 //! the extract's texts only Gen3's shared `gText_*` ([`STD_TEXT_PREFIX`]); the Emerald
 //! trainers (but `TRAINER_NONE`), encounters and heal locations dropped (they name Emerald
-//! texts and map numbers, which Silice's alias); the new game on [`START`]. Task A adds texts,
-//! trainers, encounters, items, header names and `LOCALID_*`; Task E moves the start to
-//! `game.ron`. The generator sees Silice only through `input::AuthoredIn` (script names, id
-//! constants, start); the script files are [`dispatch`]'s.
+//! texts and map numbers, which Silice's alias); the new game, system ids and heal locations
+//! from `game.ron` ([`game`], Task E). Task A adds texts, trainers, encounters, items, header
+//! names and `LOCALID_*`. The generator sees Silice only through `input::AuthoredIn` (script
+//! names, id constants, start); the script files are [`dispatch`]'s.
 
 pub mod dispatch;
+pub mod game;
 pub mod ids;
 pub mod load;
 pub mod merge;
@@ -34,9 +35,6 @@ use anyhow::{Context, Result};
 use std::collections::BTreeSet;
 use std::path::Path;
 
-/// The new game: the player's bedroom, in front of the desk (Task E: `game.ron`).
-pub const START: (&str, i16, i16) = ("BricoBourg_PlayerHouse_2F", 4, 3);
-
 /// The extract's texts Silice keeps: Gen3's shared `gText_*` (`data/text/*.inc`), which the
 /// prelude prints by label. Task A adds `text/fr.ron`'s.
 pub const STD_TEXT_PREFIX: &str = "gText_";
@@ -48,7 +46,10 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     let ids = ids::load(games).context("ids")?;
     let reg = registry::scan(scripts).context("scripts")?;
     let mut resolver = registry::Resolver::new(&reg, strict);
-    let maps = load::load_maps(games)?
+    let loaded = load::load_maps(games)?;
+    let game = game::load(games).context("game.ron")?;
+    game::check(&game, &ids, &loaded).context("game.ron")?;
+    let maps = loaded
         .iter()
         .map(|m| {
             merge::to_map_file(m, &ids, &mut resolver)
@@ -69,8 +70,8 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
     w.battle.heal = Default::default();
     w.authored = Some(AuthoredIn {
         script_names: reg.scripts.iter().map(|s| s.name.clone()).collect(),
-        consts: ids.consts(),
-        start: (START.0.to_string(), START.1, START.2),
+        consts: [ids.consts(), game::consts(&game, &ids)?].concat(),
+        start: (game.start.map.clone(), game.start.x, game.start.y),
     });
     Ok(Silice {
         world: w,
