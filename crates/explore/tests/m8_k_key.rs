@@ -8,16 +8,13 @@ use explore::key::{
     KEY_VERSION, default_key_config, key, key_items_digest, key_parts, place_region,
     templates_digest,
 };
-use game_native::Session;
 
+/// A new game settled by the policy (it answers Silice's intro script).
 fn snap() -> WorldSnapshot {
-    let mut s = Session::new(Emerald::for_shells());
-    loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            return snap;
-        }
-        s.step(engine::Buttons::NONE);
-    }
+    let s = explore::expand::new_game(Emerald::for_shells());
+    s.world()
+        .snapshot(s.game())
+        .expect("a settled new game is capturable")
 }
 
 fn k(s: &WorldSnapshot) -> u64 {

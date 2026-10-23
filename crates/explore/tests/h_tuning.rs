@@ -17,15 +17,13 @@ use explore::{Macro, MacroKind, Opts, expand, key, macros, path, sim};
 use game_native::Session;
 use std::collections::BTreeSet;
 
-/// The new game's first capturable state (stub).
+/// The new game's first capturable state, settled by the policy (it answers Silice's intro
+/// script).
 fn first_capturable() -> engine::checkpoint::WorldSnapshot {
-    let mut s = Session::new(Emerald::for_shells());
-    loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            return snap;
-        }
-        s.step(engine::Buttons::NONE);
-    }
+    let s = explore::expand::new_game(Emerald::for_shells());
+    s.world()
+        .snapshot(s.game())
+        .expect("a settled new game is capturable")
 }
 
 #[test]

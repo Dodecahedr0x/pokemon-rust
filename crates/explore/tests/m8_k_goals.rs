@@ -7,7 +7,6 @@ use content::Emerald;
 use engine::checkpoint::WorldSnapshot;
 use engine::data::{FlagId, MapId, VarId};
 use explore::goals::{self, Act};
-use game_native::Session;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -115,14 +114,12 @@ fn act_constants_match_the_decomp_headers() {
     }
 }
 
+/// A new game settled by the policy (it answers Silice's intro script).
 fn settled(game: Emerald) -> WorldSnapshot {
-    let mut s = Session::new(game);
-    loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            return snap;
-        }
-        s.step(engine::Buttons::NONE);
-    }
+    let s = explore::expand::new_game(game);
+    s.world()
+        .snapshot(s.game())
+        .expect("a settled new game is capturable")
 }
 
 fn set_flag(s: &mut WorldSnapshot, f: u16) {
