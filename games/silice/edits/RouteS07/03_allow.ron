@@ -1,4 +1,0 @@
-// Allowances (behaviour warnings accepted on purpose).
-[
-    AllowCollision(cells: [(13, 71), (14, 71)], reason: "the Grand Torii exit to Manga-Square (Ch6): solid until its warp is added"),
-]

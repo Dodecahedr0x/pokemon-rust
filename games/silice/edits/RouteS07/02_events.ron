@@ -4,6 +4,7 @@
     // RouteS07_Sc01 runs on entry while VAR_SIL_STORY is 68 (it sets 70).
     Scripts((on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 68, script: "RouteS07_Sc01")], on_warp_into: [])),
     // Warp 0: the Secteur Eta gate, to Reverse-City's south gate (its warp 1, the middle mat).
+    // Warps 1-2, the south mats to Manga-Square, are in 05_ch6_link.ron.
     Warp(x: 14, y: 1, dest_map: "ReverseCity", dest_warp: 1),
     // S7-A.
     Object(x: 16, y: 65, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ROUTE_S07_OUVRIER", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS07_EventScript_Ouvrier"),

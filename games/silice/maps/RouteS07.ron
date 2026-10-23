@@ -278,6 +278,20 @@
             dest_map: "ReverseCity",
             dest_warp: 1,
         ),
+        (
+            x: 13,
+            y: 71,
+            elevation: 0,
+            dest_map: "MangaSquare",
+            dest_warp: 6,
+        ),
+        (
+            x: 14,
+            y: 71,
+            elevation: 0,
+            dest_map: "MangaSquare",
+            dest_warp: 6,
+        ),
     ],
     coords: [
         (
