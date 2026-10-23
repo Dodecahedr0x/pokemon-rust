@@ -1,0 +1,12 @@
+// Synthetic stand-in for the extract's item table (one made-up entry).
+(
+    items: [
+        (
+            id: "ITEM_POTION",
+            name: "Tonic",
+            pocket: Some(Items),
+            price: 300,
+            importance: 0,
+        ),
+    ],
+)

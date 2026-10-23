@@ -1,6 +1,7 @@
 mod budget;
 mod checkpoints;
 mod explore;
+mod silice;
 mod studio;
 mod sweep;
 
@@ -391,6 +392,9 @@ fn main() -> Result<()> {
         Some("studio") => studio::main(&args[1..]),
         Some("explore") => explore::main(&args[1..]),
         Some("sweep") => sweep::main(&args[1..]),
-        _ => bail!("usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep>"),
+        Some("silice") => silice::main(&args[1..]),
+        _ => bail!(
+            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice>"
+        ),
     }
 }
