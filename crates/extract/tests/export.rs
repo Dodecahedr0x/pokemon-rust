@@ -136,6 +136,7 @@ fn writes_current_format_tree() {
     // C-side tables (M8 Task C), whose contents tests/tables.rs checks.
     want.extend(extract::export::tables::FILES.map(String::from));
     want.insert(extract::export::tables::TMHM_FILE.to_string());
+    want.insert(extract::export::tables::BERRIES_FILE.to_string());
     // Battle data (M4 Task A).
     for f in [
         "species",

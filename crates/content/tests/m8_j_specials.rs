@@ -276,10 +276,16 @@ const DAD: u8 = 5;
 #[test]
 fn native_specials_issue_their_requests_in_order() {
     let fade_in = vec![Request::Fade(Fade::FromBlack)];
-    // The first berry (Cheri): its name, and its stage duration in minutes (`gBerries`).
+    // The first berry (Cheri; no item without berry data, the stub): its name, and its stage
+    // duration in minutes (`gBerries`).
+    let cheri_item = ItemId(if content::data::BERRIES.is_empty() {
+        0
+    } else {
+        ITEM_CHERI_BERRY
+    });
     let cheri = Request::Buffer {
         slot: 0,
-        src: BufferSrc::Item(ItemId(ITEM_CHERI_BERRY)),
+        src: BufferSrc::Item(cheri_item),
     };
     let cheri_minutes = content::data::BERRIES
         .first()
@@ -418,7 +424,7 @@ fn native_specials_issue_their_requests_in_order() {
             "SPECIAL_ObjectEventInteractionGetBerryTreeData",
             1,
             // Wave E: the talked object's tree (here tree 0, blank; its berry falls back to the
-            // first, `GetBerryInfo`).
+            // first, `GetBerryInfo`; none without berry data, the stub).
             vec![
                 Request::GetVar(VAR_LAST_TALKED),
                 Request::Query(Query::ObjectBerryTree(0)),
@@ -428,7 +434,7 @@ fn native_specials_issue_their_requests_in_order() {
                 set(VAR_0x8006, 0),
                 Request::Buffer {
                     slot: 0,
-                    src: BufferSrc::Item(ItemId(ITEM_CHERI_BERRY)),
+                    src: BufferSrc::Item(cheri_item),
                 },
             ],
             0,
@@ -480,7 +486,7 @@ fn native_specials_issue_their_requests_in_order() {
                 Request::Query(Query::ObjectBerryTree(0)),
                 Request::BerryTree(0),
                 Request::ItemAdd {
-                    item: ItemId(ITEM_CHERI_BERRY),
+                    item: cheri_item,
                     qty: 0,
                 },
                 set(VAR_0x8004, 1),

@@ -35,11 +35,12 @@ pub const fn schema_readable(s: u16) -> bool {
     s >= OLDEST_READABLE && s <= SCHEMA
 }
 /// Largest postcard checkpoint the GBA flash slot accepts (route max is reported by the tests).
-/// Milestone 9 Step 0: agb's one-slot layout on 64 KiB holds 24,528 bytes for every later save
-/// (`game-native` `flash::tests::slot_capacity_holds_max_encoded`); this keeps 512 bytes under
-/// it. The worst-case save (`checkpoint/tests/worst_case.rs`) is 9,748 bytes plus 1,950 per
+/// Milestone 9 Step 0: agb's one-slot layout on 64 KiB holds 24,527 bytes for every later save
+/// (`game-native` `flash::tests::slot_capacity_holds_max_encoded`; 24,528 before schema 5 made
+/// its probe checkpoints odd-sized: it grows them two bytes at a time); this keeps 512 bytes
+/// under it. The worst-case save (`checkpoint/tests/worst_case.rs`) is 9,748 bytes plus 1,950 per
 /// full PC box, so 7 boxes fit (decision 5: Emerald's `pc_boxes`).
-pub const MAX_ENCODED: usize = 24_528 - 512;
+pub const MAX_ENCODED: usize = 24_527 - 512;
 /// agb_save layout, shared by game-gba and game-native::flash (byte-identical images).
 pub const FLASH_MAGIC: [u8; 32] = *b"pokemon-rust checkpoint flash v1";
 pub const FLASH_SLOTS: usize = 1;

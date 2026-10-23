@@ -19,7 +19,7 @@ use crate::workers;
 use engine::checkpoint::WorldSnapshot;
 use engine::data::{BgKind, Dir, GameData, MapId, ScriptId};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
 
 /// What a branch does first.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -199,7 +199,7 @@ fn novel<G: GameData>(
 
 /// The candidates of `snap` with the RUN variant of each grass candidate, in candidate order.
 fn candidates<G: GameData>(game: &G, snap: &WorldSnapshot, shift: u8) -> Vec<Macro> {
-    let reach = path::reach(game, snap);
+    let reach = path::reach_all(game, snap);
     let mut out = Vec::new();
     for m in macros::candidates_with(game, snap, &reach, shift) {
         out.push(m);
@@ -525,8 +525,16 @@ pub fn run<G: GameData + Clone + 'static>(
             &cfg.key,
         );
         let at = spine.progress(game, target.origin, &cfg.key);
-        (now != at).then(|| now.diff(&at))
+        let ahead = side_flags_ahead(
+            spine,
+            target.origin,
+            &live.last_end().expect("a step").world,
+        );
+        let mut what: Vec<String> = (now != at).then(|| now.diff(&at)).into_iter().collect();
+        what.extend(ahead.iter().take(4).map(|f| format!("side flag {f:#x}")));
+        (!what.is_empty()).then(|| what.join(", "))
     };
+    let lost_exploring = live.res.steps.iter().any(lost_battle);
     // ---- recover ----
     let rec_from = live.frames();
     let recovered = recover(game, spine, origin, cfg, &mut live, rec_from);
@@ -537,6 +545,14 @@ pub fn run<G: GameData + Clone + 'static>(
             if let Some(stop) = live.res.stop.take() {
                 stopped(&mut r, stop);
             }
+            r.coverage = coverage_of(&live, origin, cfg);
+            r.reports = std::mem::take(&mut live.res.reports);
+            return r;
+        }
+        Recovered::Stranded(why) if lost_exploring => {
+            // A lost battle sent the player to the last heal place: expected, not stranded.
+            r.outcome = Outcome::Diverged { expected: true };
+            r.message = format!("a battle of the exploration was lost (whiteout); {why}");
             r.coverage = coverage_of(&live, origin, cfg);
             r.reports = std::mem::take(&mut live.res.reports);
             return r;
@@ -566,20 +582,32 @@ pub fn run<G: GameData + Clone + 'static>(
     let end = (target.origin + b.window as usize).min(spine.steps.len());
     let mut failed = None;
     let mut done = target.origin;
+    let mut retried = false;
     for (i, step) in spine.steps.iter().enumerate().take(end).skip(target.origin) {
-        if let Err(e) = x.play(&mut live, step) {
+        let opts = x.opts;
+        let Err(e) = x.play(&mut live, step) else {
+            done = i + 1;
+            continue;
+        };
+        // The step may only fail from where the branch left the player (a walk planned past a
+        // trigger that pushes back, a one-way ledge): once per window, back to the spine's own
+        // cell before it, around the coord triggers, then the step again.
+        let retried = e.finding.is_none()
+            && !std::mem::replace(&mut retried, true)
+            && live.rollback().is_ok()
+            && back_to(game, cfg, &mut live, &spine.positions[i]).is_ok()
+            && {
+                x.opts = opts;
+                x.play(&mut live, step).is_ok()
+            };
+        if !retried {
             failed = Some((i, e));
             break;
         }
         done = i + 1;
     }
     r.window_frames = live.frames() - win_from;
-    let lost = live.res.steps[steps_from..].iter().any(|st| {
-        st.summary
-            .battles
-            .iter()
-            .any(|b| matches!(b.outcome, Some(2 | 3)))
-    });
+    let lost = live.res.steps[steps_from..].iter().any(lost_battle);
     let (diverged, why) = match failed {
         Some((i, e)) => {
             if let Some(f) = e.finding {
@@ -617,11 +645,12 @@ pub fn run<G: GameData + Clone + 'static>(
         r.outcome = Outcome::Rejoined;
         return r;
     }
-    let expected = changed.is_some() || lost;
+    let expected = changed.is_some() || lost || lost_exploring;
     r.outcome = Outcome::Diverged { expected };
     r.message = match &changed {
         Some(c) => format!("{why} (the branch changed {c})"),
         None if lost => format!("{why} (a battle of the window was lost)"),
+        None if lost_exploring => format!("{why} (a battle of the exploration was lost)"),
         None => why,
     };
     if !expected {
@@ -639,6 +668,26 @@ pub fn run<G: GameData + Clone + 'static>(
         });
     }
     r
+}
+
+/// The side flags ([`key::side_flag`]) set in `w` but not at position `origin` that the spine
+/// sets later: a trainer the spine fights later beaten early, an item it picks up taken
+/// first. They do not keep a branch from rejoining, but a window step that needed them clear
+/// (talking to that trainer) failing is expected.
+fn side_flags_ahead(spine: &SpineRun, origin: usize, w: &WorldSnapshot) -> Vec<u16> {
+    let (Some(at), Some(last)) = (spine.positions.get(origin), spine.positions.last()) else {
+        return Vec::new();
+    };
+    let set = |s: &WorldSnapshot, f: engine::data::FlagId| s.vars.flags.binary_search(&f).is_ok();
+    (w.vars.flags.iter())
+        .filter(|&&f| key::side_flag(f.0) && !set(&at.end.world, f) && set(&last.end.world, f))
+        .map(|f| f.0)
+        .collect()
+}
+
+/// Whether a battle of step `st` was lost (Gen3 `B_OUTCOME_LOST`, `B_OUTCOME_DREW`).
+fn lost_battle(st: &crate::model::StepResult) -> bool {
+    (st.summary.battles.iter()).any(|b| matches!(b.outcome, Some(2 | 3)))
 }
 
 /// A `Divergence` finding's message: the origin's segment, the target and what diverged
@@ -748,24 +797,89 @@ fn exits<G: GameData>(game: &G, map: MapId) -> Vec<MapId> {
     out
 }
 
-/// The first map on a shortest path from `from` to `to` over the static map graph.
-fn next_map<G: GameData>(game: &G, from: MapId, to: MapId) -> Option<MapId> {
-    let mut first: BTreeMap<MapId, MapId> = BTreeMap::new();
-    let mut q = VecDeque::from([from]);
-    let mut seen = BTreeSet::from([from]);
-    while let Some(m) = q.pop_front() {
-        if m == to {
-            return first.get(&m).copied();
-        }
-        for n in exits(game, m) {
-            if seen.insert(n) {
-                let f = if m == from { n } else { first[&m] };
-                first.insert(n, f);
-                q.push_back(n);
+/// Whether the player on `origin`'s map reaches the origin's cell or a cell next to it (an
+/// object may stand on it).
+fn near_origin<G: GameData + Clone>(game: &G, live: &Live<'_, '_, G>, origin: &Position) -> bool {
+    let Some(end) = live.last_end() else {
+        return true;
+    };
+    if end.world.field.map != origin.map() {
+        return false;
+    }
+    let reach = path::reach(game, &end.world);
+    let (x, y) = origin.pos();
+    [(0, 0), (0, 1), (0, -1), (1, 0), (-1, 0)]
+        .iter()
+        .any(|(dx, dy)| reach.dist(x + dx, y + dy).is_some())
+}
+
+/// Every crossing from `snap`'s map into `origin`'s map whose edge cell the player reaches
+/// and whose arrival cell reaches the origin's cell (on the origin's map with its objects,
+/// carrying the player's elevation over: a surfer crossing onto land is ashore, Gen3
+/// `CanStopSurfing`), nearest edge cell first.
+fn crossings_into<G: GameData>(game: &G, snap: &WorldSnapshot, origin: &Position) -> Vec<Macro> {
+    let here = game.map(snap.field.map);
+    let there_map = game.map(origin.map());
+    let reach = path::reach_all(game, snap);
+    let e = snap.objects.objs[0].current_elevation();
+    let to = origin.pos();
+    let (w, h) = (here.width as i16, here.height as i16);
+    let mut out: Vec<(u16, Macro)> = Vec::new();
+    for c in here.connections.iter().filter(|c| c.map == origin.map()) {
+        let edge: Vec<(i16, i16)> = match c.dir {
+            Dir::Up => (0..w).map(|x| (x, 0)).collect(),
+            Dir::Down => (0..w).map(|x| (x, h - 1)).collect(),
+            Dir::Left => (0..h).map(|y| (0, y)).collect(),
+            Dir::Right => (0..h).map(|y| (w - 1, y)).collect(),
+        };
+        let (dx, dy) = c.dir.delta();
+        for (x, y) in edge {
+            let Some(d) = reach.dist(x, y) else { continue };
+            let Some(n) = engine::grid::neighbor(game, here, x + dx, y + dy) else {
+                continue;
+            };
+            let block = there_map.blocks[n.y as usize * there_map.width as usize + n.x as usize];
+            let en = engine::data::block_elevation(block);
+            let start = if en == 0 || en == 15 { e } else { en };
+            let there = path::Grid::of_snapshot(game, &origin.end.world).with_elevation(start);
+            if n.map != origin.map() || !there.walkable((n.x, n.y), false) {
+                continue;
+            }
+            let back = there.distances((n.x, n.y), false);
+            let i = to.1 as usize * there.map.width as usize + to.0 as usize;
+            if back.get(i).is_some_and(|&b| b != u16::MAX) {
+                out.push((d, Macro::of(MacroKind::Cross { x, y, dir: c.dir })));
             }
         }
     }
-    None
+    out.sort_by_key(|&(d, _)| d);
+    out.into_iter().map(|(_, m)| m).collect()
+}
+
+/// The maps one warp or crossing from `from` that lead to `to` over the static map graph,
+/// nearest to `to` first (ties in map order), the ones in `visited` after the others.
+fn toward<G: GameData>(game: &G, from: MapId, to: MapId, visited: &BTreeSet<MapId>) -> Vec<MapId> {
+    let dist = |start: MapId| -> Option<usize> {
+        let mut q = VecDeque::from([(start, 0usize)]);
+        let mut seen = BTreeSet::from([start]);
+        while let Some((m, d)) = q.pop_front() {
+            if m == to {
+                return Some(d);
+            }
+            for n in exits(game, m) {
+                if seen.insert(n) {
+                    q.push_back((n, d + 1));
+                }
+            }
+        }
+        None
+    };
+    let mut out: Vec<(bool, usize, MapId)> = (exits(game, from).into_iter())
+        .filter(|&n| n != from)
+        .filter_map(|n| Some((visited.contains(&n), dist(n)?, n)))
+        .collect();
+    out.sort();
+    out.into_iter().map(|(_, _, n)| n).collect()
 }
 
 /// Back to the origin's map (warps and crossings toward it), then to its cell and facing when
@@ -781,7 +895,10 @@ fn recover<G: GameData + Clone>(
     let b = &cfg.branch;
     let over = |live: &Live<'_, '_, G>| live.frames() - from_frames > u64::from(b.recover_frames);
     let mut hops = 0;
-    while live.s.world().map() != origin.map() {
+    let mut visited = BTreeSet::new();
+    // Off the origin's map, or on it where its cell is out of reach (another water body,
+    // below a ledge): out and back in by a way that arrives on the origin's side.
+    while live.s.world().map() != origin.map() || !near_origin(game, live, origin) {
         hops += 1;
         if hops > b.recover_hops || over(live) {
             return Recovered::Stranded(format!(
@@ -791,46 +908,58 @@ fn recover<G: GameData + Clone>(
             ));
         }
         let here = live.s.world().map();
-        let Some(next) = next_map(game, here, origin.map()) else {
+        visited.insert(here);
+        // The neighbours nearest to the origin's map first (maps this recovery has not been
+        // on first): the nearest may only be reachable from another part of this map.
+        let nexts = toward(game, here, origin.map(), &visited);
+        if nexts.is_empty() {
             return Recovered::Stranded(format!("no way from map {:#06x}", here.0));
-        };
+        }
         let snap = live.last_end().expect("a step").world.clone();
         let data = game.map(here);
-        let ways: Vec<Macro> = candidates(game, &snap, cfg.key.cell_shift)
-            .into_iter()
-            .filter(|m| match m.kind {
+        let mut all = candidates(game, &snap, cfg.key.cell_shift);
+        // Into the origin's map: first the crossings that arrive where the origin's cell is
+        // reachable (a candidate crosses at the middle of the edge only, maybe into another
+        // water body or ledge side than the origin's).
+        if nexts.contains(&origin.map()) {
+            let mut into = crossings_into(game, &snap, origin);
+            into.append(&mut all);
+            all = into;
+        }
+        let mut moved = false;
+        'next: for &next in &nexts {
+            let ways = all.iter().filter(|m| match m.kind {
                 MacroKind::Enter { x, y, .. } => data
                     .warps
                     .iter()
                     .any(|w| (w.x, w.y) == (x, y) && w.dest_map == next),
                 MacroKind::Cross { dir, .. } => neighbour(data, dir) == Some(next),
                 _ => false,
-            })
-            .collect();
-        let mut moved = false;
-        for m in ways {
-            match live.step_with(&m, &mut crate::policy::Policy::new()) {
-                Ok(()) => {
-                    moved = true;
-                    break;
-                }
-                Err(StepFail::Skip(_)) => {
-                    if live.rollback().is_err() {
-                        return Recovered::Bug;
+            });
+            for m in ways {
+                match live.step_with(m, &mut crate::policy::Policy::new()) {
+                    Ok(()) => {
+                        moved = true;
+                        break 'next;
                     }
-                }
-                Err(StepFail::Stop) => {
-                    return match &live.res.stop {
-                        Some(Stop::Finding(_)) => Recovered::Bug,
-                        _ => Recovered::Stranded("a recovery macro timed out".into()),
-                    };
+                    Err(StepFail::Skip(_)) => {
+                        if live.rollback().is_err() {
+                            return Recovered::Bug;
+                        }
+                    }
+                    Err(StepFail::Stop) => {
+                        return match &live.res.stop {
+                            Some(Stop::Finding(_)) => Recovered::Bug,
+                            _ => Recovered::Stranded("a recovery macro timed out".into()),
+                        };
+                    }
                 }
             }
         }
         if !moved {
             return Recovered::Stranded(format!(
                 "no reachable way from map {:#06x} toward {:#06x}",
-                here.0, next.0
+                here.0, nexts[0].0
             ));
         }
     }
@@ -860,6 +989,58 @@ fn recover<G: GameData + Clone>(
         }
     }
     Recovered::Back
+}
+
+/// The cells of `map`'s coord events that would run now (their var holds their value): a walk
+/// back to the spine steps around them (Route 111's sandstorm pushes the player back from the
+/// desert, forever).
+fn active_triggers<G: GameData>(game: &G, snap: &WorldSnapshot) -> Vec<(i16, i16)> {
+    let var = |v: engine::data::VarId| {
+        (snap.vars.vars.iter())
+            .find(|(id, _)| *id == v)
+            .map_or(0, |&(_, x)| x)
+    };
+    (game.map(snap.field.map).coords.iter())
+        .filter(|c| var(c.var) == c.value)
+        .map(|c| (c.x, c.y))
+        .collect()
+}
+
+/// Walks to position `p`'s cell around the active coord triggers ([`active_triggers`]; a
+/// plain `Goto` when no path avoids them), then faces its way. On `p`'s map only.
+fn back_to<G: GameData + Clone>(
+    game: &G,
+    cfg: &Config,
+    live: &mut Live<'_, '_, G>,
+    p: &Position,
+) -> Result<(), crate::spine::ExecError> {
+    let no = |message: String| crate::spine::ExecError {
+        message,
+        finding: None,
+    };
+    if live.s.world().map() != p.map() {
+        return Err(no("not on the position's map".into()));
+    }
+    let mut x = Exec::new(game, cfg);
+    let snap = (live.s.world().snapshot(game)).map_err(|e| no(format!("{e:?}")))?;
+    let avoid: Vec<(i16, i16)> = (active_triggers(game, &snap).into_iter())
+        .filter(|&c| c != p.pos())
+        .collect();
+    let around = !avoid.is_empty()
+        && x.goto_avoiding(live, p.map(), p.pos(), &avoid, Opts::default())
+            .is_ok();
+    if !around {
+        let (gx, gy) = p.pos();
+        x.play(
+            live,
+            &Step::Goto {
+                map: p.map(),
+                x: gx,
+                y: gy,
+            },
+        )?;
+    }
+    x.play(live, &Step::Face(p.facing()))
 }
 
 /// The signature of a branch finding, with its kind (for tests and repro).
