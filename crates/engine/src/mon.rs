@@ -311,6 +311,20 @@ pub enum Ability {
     // Silice rules for Gen3 abilities (the content's Silice switch).
     /// Shadow Tag with Gen4's exemption: a foe with Shadow Tag (Gen4) is not trapped.
     ShadowTagGen4,
+    // Off-grass encounters (appended): the lead abilities of Gen3 `WildEncounterCheck`.
+    /// A lead halves the encounter rate. No battle effect in Gen3.
+    Stench,
+    /// A lead doubles the encounter rate. No battle effect in Gen3.
+    Illuminate,
+    /// A lead halves the encounter rate. Its battle effect (Clear Body's) is not modelled, so
+    /// the content leaves its holders `Other` (see `classify::battle::ability_with`).
+    WhiteSmoke,
+    /// A lead doubles the encounter rate. Its battle effect (trapping) is not modelled, so the
+    /// content leaves its holders `Other`.
+    ArenaTrap,
+    /// A lead gets the wild table's top level half the time (as Hustle and Vital Spirit). Its
+    /// battle effect (double PP use) is not modelled, so the content leaves its holders `Other`.
+    Pressure,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).
@@ -553,6 +567,10 @@ pub enum HoldEffect {
     EvasionUp(u8),
     /// `HOLD_EFFECT_FOCUS_BAND`: `param`% to survive a hit at 1 HP.
     FocusBand(u8),
+    /// `HOLD_EFFECT_REPEL` (Cleanse Tag): held by the lead, the land encounter rate x2/3
+    /// (Gen3 `ApplyCleanseTagEncounterRateMod`, which tests `ITEM_CLEANSE_TAG`, the only item
+    /// with this effect). No battle effect.
+    CleanseTag,
 }
 
 impl HoldEffect {
@@ -575,6 +593,7 @@ impl HoldEffect {
             KingsRock(p) => [42, p],
             EvasionUp(p) => [43, p],
             FocusBand(p) => [44, p],
+            CleanseTag => [45, 0],
         }
     }
 }

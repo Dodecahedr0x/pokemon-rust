@@ -1102,6 +1102,7 @@ fn wait_move_names_the_last_mover_and_add_object_is_idempotent() {
 }
 
 mod battles;
+mod cave_encounters;
 mod checkpoint;
 mod goldens;
 // Milestone 8 Wave 1: one file per task, so no task edits another's tests.

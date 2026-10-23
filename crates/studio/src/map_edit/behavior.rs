@@ -11,13 +11,15 @@
 //! | `W` | warp cell (entering warps) | `MB_NON_ANIMATED_DOOR`, `MB_DEEP_SOUTH_WARP`, ladders, escalators, holes |
 //! | `A` | arrow warp (pushing on it warps) | `MB_*_ARROW_WARP` (warp mats, exits) |
 //! | `G` | tall grass (encounters) | `MB_TALL_GRASS` |
+//! | `E` | other encounter floor | `MB_CAVE`, `MB_LONG_GRASS`, `MB_DEEP_SAND`, `MB_ASHGRASS`… |
 //! | `L` | ledge (solid; jumped from the uphill side) | `MB_JUMP_*` |
 //! | `C` | counter (talk across) | `MB_COUNTER` |
 //! | `S` | water (blocked without Surf) | `MB_POND_WATER`, `MB_OCEAN_WATER`… (`*WATER*`) |
 //! | `I` | directional wall (walkable; some sides cannot be crossed) | `MB_IMPASSABLE_*` |
 //! | `B` | other blocked behaviour | `MB_*_CURRENT`… |
 //!
-//! Normal metatiles (and the other behaviours the engine treats as normal) have no code.
+//! Normal metatiles (and the other behaviours the engine treats as normal, and the sand and
+//! mountain tops only the battle background reads) have no code.
 //!
 //! **Usual collision** of a cell ([`usual_collision`], [`cell_collision`]), first rule that
 //! applies:
@@ -48,7 +50,7 @@ use super::model::{Allowance, Doc};
 use super::validate::{Issue, Out};
 use content::Emerald;
 use engine::data::{
-    Behavior, GameData, METATILES_IN_PRIMARY, attr_behavior, block_collision, block_metatile,
+    Behavior, Floor, GameData, METATILES_IN_PRIMARY, attr_behavior, block_collision, block_metatile,
 };
 use std::collections::BTreeSet;
 
@@ -85,12 +87,13 @@ impl MetatileBehavior {
             | Behavior::Escalator(_) => 'W',
             Behavior::ArrowWarp(_) => 'A',
             Behavior::TallGrass => 'G',
+            Behavior::Floor(f) if f.has_encounters() => 'E',
             Behavior::Ledge(_) => 'L',
             Behavior::Counter => 'C',
             Behavior::Blocked if self.is_water() => 'S',
             Behavior::Blocked => 'B',
             Behavior::Impassable(_) => 'I',
-            Behavior::Normal => return None,
+            Behavior::Normal | Behavior::Floor(_) => return None,
         })
     }
 
@@ -113,6 +116,15 @@ impl MetatileBehavior {
             Behavior::Escalator(_) => "escalator",
             Behavior::ArrowWarp(_) => "arrow warp",
             Behavior::TallGrass => "tall grass",
+            Behavior::Floor(Floor::LongGrass) => "long grass",
+            Behavior::Floor(Floor::Unused05) => "encounter floor (unused 05)",
+            Behavior::Floor(Floor::DeepSand) => "deep sand",
+            Behavior::Floor(Floor::Cave) => "cave floor",
+            Behavior::Floor(Floor::IndoorEncounter) => "indoor encounter floor",
+            Behavior::Floor(Floor::AshGrass) => "ash grass",
+            Behavior::Floor(Floor::Footprints) => "footprints",
+            Behavior::Floor(Floor::Sand) => "sand",
+            Behavior::Floor(Floor::MountainTop) => "mountain top",
             Behavior::Ledge(_) => "ledge",
             Behavior::Counter => "counter",
             Behavior::Blocked if self.is_water() => "water",
@@ -139,13 +151,16 @@ impl MetatileBehavior {
             Behavior::Blocked if self.is_water() => Some(0),
             Behavior::Counter => Some(1),
             // Walkable cells whose sides block: either collision can be right.
-            Behavior::Blocked | Behavior::Impassable(_) | Behavior::Normal => None,
+            // The other floors: no rule (the extract decides, rule 1).
+            Behavior::Blocked | Behavior::Impassable(_) | Behavior::Normal | Behavior::Floor(_) => {
+                None
+            }
         }
     }
 }
 
 /// The legend of the codes, one line each.
-pub const LEGEND: [(char, &str); 9] = [
+pub const LEGEND: [(char, &str); 10] = [
     (
         'D',
         "door: entering warps (needs a warp event; a decorative door is solid)",
@@ -156,6 +171,10 @@ pub const LEGEND: [(char, &str); 9] = [
     ),
     ('A', "arrow warp (warp mat, exit): pushing on it warps"),
     ('G', "tall grass"),
+    (
+        'E',
+        "other encounter floor (cave, long grass, deep sand, ash grass)",
+    ),
     ('L', "ledge (solid; jumped from the uphill side)"),
     ('C', "counter (solid; talk across)"),
     ('S', "water (needs Surf)"),

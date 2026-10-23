@@ -60,7 +60,7 @@ use crate::battle::BattleReport;
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
-use crate::data::{Behavior, Dir, EvoMethod, GameData, MapId, PLAYER, SpeciesId};
+use crate::data::{Behavior, Dir, EvoMethod, Floor, GameData, MapId, MapType, PLAYER, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{Ivs, Party, Pokemon};
@@ -163,6 +163,38 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::NonAnimDoor(d) => [9, d as u8],
         Behavior::Ladder => [10, 0],
         Behavior::Escalator(d) => [11, d as u8],
+        // 12–19: the forced-movement branch's variants (see `Behavior::Floor`).
+        Behavior::Floor(g) => [20, g as u8],
+    }
+}
+
+/// Gen3 `BattleSetup_GetEnvironmentId` for the player's cell `b` on a map of type `map`:
+/// tall grass, long grass and sand (both kinds) first, then the map type (caves; buildings;
+/// underwater), then mountain tops, then Route 113, else plain.
+///
+/// Not modelled: the water branches (the player never stands on water: no Surf yet; water
+/// behaviours are `Blocked`) and Gen3's `WEATHER_SANDSTORM` case (no field weather), so a
+/// desert battle off sand is plain.
+pub(crate) fn environment(b: Behavior, map: MapType) -> Environment {
+    match b {
+        Behavior::TallGrass => return Environment::Grass,
+        Behavior::Floor(Floor::LongGrass) => return Environment::LongGrass,
+        Behavior::Floor(Floor::Sand | Floor::DeepSand) => return Environment::Sand,
+        _ => {}
+    }
+    match map {
+        MapType::Underground if b == Behavior::Floor(Floor::IndoorEncounter) => {
+            Environment::Building
+        }
+        MapType::Underground => Environment::Cave,
+        MapType::Indoor => Environment::Building,
+        MapType::Underwater => Environment::Underwater,
+        MapType::OceanRoute => Environment::Plain,
+        MapType::Outdoor | MapType::OutdoorSand if b == Behavior::Floor(Floor::MountainTop) => {
+            Environment::Mountain
+        }
+        MapType::OutdoorSand => Environment::Sand,
+        MapType::Outdoor => Environment::Plain,
     }
 }
 
@@ -224,14 +256,13 @@ impl State {
         )
     }
 
-    /// `BattleSetup_GetEnvironmentId`, simplified: tall grass or plain.
+    /// Gen3 `BattleSetup_GetEnvironmentId` on the player's cell of the current map.
     fn environment(&self, game: &impl GameData) -> Environment {
         let (x, y) = self.objects.player().pos();
-        if self.ground(game).behavior(x, y) == Behavior::TallGrass {
-            Environment::Grass
-        } else {
-            Environment::Plain
-        }
+        environment(
+            self.ground(game).behavior(x, y),
+            game.map_type(self.field.map()),
+        )
     }
 
     /// Whether the party can battle.
@@ -349,7 +380,7 @@ impl State {
                     table,
                     self.prev_behavior,
                     cur,
-                    lead.as_ref(),
+                    wild::Lead::of(lead.as_ref(), t, |i| game.hold_effect(i)),
                     t,
                     &mut self.rng,
                 )
