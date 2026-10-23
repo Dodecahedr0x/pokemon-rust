@@ -7,8 +7,9 @@ use alloc::vec::Vec;
 use engine::data::{MapId, MoveId, SpeciesId};
 
 macro_rules! samples {
-    ($names:ident, $ids:ident: $ty:ty = [$($c:ident),* $(,)?]) => {
+    ($(#[$doc:meta])* $names:ident, $ids:ident: $ty:ty = [$($c:ident),* $(,)?]) => {
         /// Decomp names.
+        $(#[$doc])*
         pub const $names: &[&str] = &[$(stringify!($c)),*];
         /// The same, as ids.
         pub const $ids: &[$ty] = &[$(crate::consts::$c),*];
@@ -40,14 +41,15 @@ samples!(SPECIES, SPECIES_IDS: SpeciesId = [SPECIES_STUB_A, SPECIES_STUB_B]);
 #[cfg(pkr_stub_battle)]
 samples!(MOVES, MOVE_IDS: MoveId = [MOVE_STUB_GROWL, MOVE_STUB_HIT, MOVE_STUB_STRUGGLE]);
 
-/// The maps debug tests sample (Milestone 8 Task L), by decomp name: the 15 slice maps, the Act 1
-/// maps the slice does not have (Petalburg, Route 104, Petalburg Woods, Rustboro), and one
-/// interior per tileset family (`primary`/`secondary` pair) the rest leaves out. Whole-game
-/// versions of the tests are `#[ignore]`d and run under `cargo xtask sweep --studio`.
-/// Interiors: Building + GenericBuilding, Gym, Shop, Facility, School; General + Cave,
-/// Facility, InsideShip, Underwater; SecretBase.
 #[cfg(not(pkr_stub))]
-samples!(MAPS, MAP_SAMPLE: MapId = [
+samples!(
+    /// The maps debug tests sample (Milestone 8 Task L): the 15 slice maps, the Act 1 maps
+    /// the slice does not have (Petalburg, Route 104, Petalburg Woods, Rustboro), and one
+    /// interior per tileset family (`primary`/`secondary` pair) the rest leaves out. Whole-game
+    /// versions of the tests are `#[ignore]`d and run under `cargo xtask sweep --studio`.
+    /// Interiors: Building + GenericBuilding, Gym, Shop, Facility, School; General + Cave,
+    /// Facility, InsideShip, Underwater; SecretBase.
+    MAPS, MAP_SAMPLE: MapId = [
     MAP_LITTLEROOT_TOWN, MAP_ROUTE101, MAP_OLDALE_TOWN, MAP_ROUTE102, MAP_ROUTE103,
     MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F, MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F,
     MAP_LITTLEROOT_TOWN_MAYS_HOUSE_1F, MAP_LITTLEROOT_TOWN_MAYS_HOUSE_2F,
