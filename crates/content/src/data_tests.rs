@@ -195,7 +195,15 @@ fn behaviors_follow_the_names_table() {
         Behavior::Ledge(Dir::Down)
     );
     assert_eq!(Emerald.behavior(mb("MB_ANIMATED_DOOR")), Behavior::Door);
-    assert_eq!(Emerald.behavior(mb("MB_NON_ANIMATED_DOOR")), Behavior::Warp);
+    assert_eq!(
+        Emerald.behavior(mb("MB_NON_ANIMATED_DOOR")),
+        Behavior::NonAnimDoor(Dir::Down)
+    );
+    assert_eq!(
+        Emerald.behavior(mb("MB_DEEP_SOUTH_WARP")),
+        Behavior::NonAnimDoor(Dir::Up)
+    );
+    assert_eq!(Emerald.behavior(mb("MB_LADDER")), Behavior::Ladder);
     assert_eq!(
         Emerald.behavior(mb("MB_NORTH_ARROW_WARP")),
         Behavior::ArrowWarp(Dir::Up)

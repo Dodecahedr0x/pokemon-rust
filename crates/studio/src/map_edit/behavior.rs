@@ -8,7 +8,7 @@
 //! | code | class | e.g. |
 //! |---|---|---|
 //! | `D` | door (animated; entering warps) | `MB_ANIMATED_DOOR` |
-//! | `W` | warp cell (entering warps) | `MB_NON_ANIMATED_DOOR`, ladders, stairs, holes |
+//! | `W` | warp cell (entering warps) | `MB_NON_ANIMATED_DOOR`, `MB_DEEP_SOUTH_WARP`, ladders, escalators, holes |
 //! | `A` | arrow warp (pushing on it warps) | `MB_*_ARROW_WARP` (warp mats, exits) |
 //! | `G` | tall grass (encounters) | `MB_TALL_GRASS` |
 //! | `L` | ledge (solid; jumped from the uphill side) | `MB_JUMP_*` |
@@ -79,7 +79,10 @@ impl MetatileBehavior {
     pub fn code(&self) -> Option<char> {
         Some(match self.class {
             Behavior::Door => 'D',
-            Behavior::Warp => 'W',
+            Behavior::Warp
+            | Behavior::NonAnimDoor(_)
+            | Behavior::Ladder
+            | Behavior::Escalator(_) => 'W',
             Behavior::ArrowWarp(_) => 'A',
             Behavior::TallGrass => 'G',
             Behavior::Ledge(_) => 'L',
@@ -97,10 +100,7 @@ impl MetatileBehavior {
 
     /// Whether stepping onto a cell of it triggers the cell's warp.
     pub fn triggers_warp(&self) -> bool {
-        matches!(
-            self.class,
-            Behavior::Door | Behavior::Warp | Behavior::ArrowWarp(_)
-        )
+        self.class.enters_warp() || matches!(self.class, Behavior::ArrowWarp(_))
     }
 
     /// The class in words.
@@ -108,6 +108,9 @@ impl MetatileBehavior {
         match self.class {
             Behavior::Door => "door",
             Behavior::Warp => "warp",
+            Behavior::NonAnimDoor(_) => "non-animated door",
+            Behavior::Ladder => "ladder",
+            Behavior::Escalator(_) => "escalator",
             Behavior::ArrowWarp(_) => "arrow warp",
             Behavior::TallGrass => "tall grass",
             Behavior::Ledge(_) => "ledge",
@@ -126,7 +129,11 @@ impl MetatileBehavior {
             // Emerald has doors with warps both walkable and solid (the door opens when the
             // player pushes against it).
             Behavior::Door => None,
-            Behavior::Warp | Behavior::ArrowWarp(_) => warp.then_some(0),
+            Behavior::Warp
+            | Behavior::NonAnimDoor(_)
+            | Behavior::Ladder
+            | Behavior::Escalator(_)
+            | Behavior::ArrowWarp(_) => warp.then_some(0),
             Behavior::TallGrass => Some(0),
             Behavior::Ledge(_) => Some(1),
             Behavior::Blocked if self.is_water() => Some(0),

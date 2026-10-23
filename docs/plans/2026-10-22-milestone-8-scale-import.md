@@ -922,6 +922,21 @@ Items sub-tab, water/fishing encounter views, trainer lists and new overlays (dy
 4. **Triage:** every finding and every `Unsupported` report reached on the Act 1 route goes into Findings for M9, or is fixed if trivial.
 5. **Numbers:** total frames to the badge, the explorer wall time, maps entered, % of Act 1 cells reached, battles won/lost/ran, ROM/IWRAM/EWRAM/heap, worst lines per segment.
 
+#### Prerequisite: warp behaviours (as built)
+
+Rustboro was unreachable: Route 104's Petalburg Woods exits (10, 30) and (11, 30) are `MB_DEEP_SOUTH_WARP`, which the engine treated as stairs (face and walk south, into the solid (10, 31)). `engine::data::Behavior` now tells the step-on warps apart by their arrival, classified in content (`classify/field.rs`); the engine stays game-agnostic (`Behavior::enters_warp`, `Transition::arrive(behavior, warped_facing)`):
+
+| Behavior | Content (`MB_*`) | Trigger | Arrival (Gen3) |
+|---|---|---|---|
+| `Door` | `ANIMATED_DOOR` | step on, or push north into it | face south, hidden, walk south (`Task_ExitDoor`) |
+| `NonAnimDoor(d)` | `NON_ANIMATED_DOOR` (d = south), `DEEP_SOUTH_WARP` (d = north) | step on | face d, hidden, walk d (`GetAdjustedInitialDirection`, `Task_ExitNonAnimDoor`) |
+| `Ladder` | `LADDER` | step on | keep the facing the player warped with, no walk |
+| `Escalator(d)` | `UP_ESCALATOR`, `DOWN_ESCALATOR` (d = east) | step on | face and walk east, visible (`Task_EscalatorWarpIn`; the ride animation is not drawn) |
+| `ArrowWarp(d)` | `*_ARROW_WARP`, plus `STAIRS_OUTSIDE_ABANDONED_SHIP` (north) and `SHOAL_CAVE_ENTRANCE` (south) | push d while on it | face away from d, no walk (`Task_ExitNonDoor`) |
+| `Warp` | gym/hideout warps, Mt. Pyre hole, Union Room exit | step on | face south, no walk |
+
+Not done (M9): the escalator ride and the Lavaridge, Aqua Hideout, Mossdeep, Mt. Pyre and Union Room warp effects (plain fades); `MB_PETALBURG_GYM_DOOR` arrivals (`Task_ExitDoor`, walk south) stay plain; a scripted warp onto a ladder keeps the current facing (Gen3 reuses the last stored one); `MB_WATER_DOOR` and `MB_WATER_SOUTH_ARROW_WARP` stay `Blocked` (Surf). Tests: `engine` `world::tests::warp_exits` (synthetic deep south and ladder), `flow::transition::tests::each_warp_kind_has_its_gen3_arrival`, and `explore/tests/warp_exits_real.rs` (Petalburg Woods north to Route 104 (10, 28)).
+
 ### Close-out
 - **Whole-milestone review:** determinism (`sweep --repro`, explorer digests); write locations (nothing ROM-derived tracked: `git ls-files` against the ignore rules); FR literals; panics reachable from content; engine game-agnosticism. Fix the findings.
 - **This doc:** "As built" per task (contracts changed, numbers), the findings table updated, "Findings for Milestone 9".
