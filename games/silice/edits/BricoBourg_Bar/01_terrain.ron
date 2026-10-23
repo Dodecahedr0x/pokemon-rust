@@ -1,0 +1,23 @@
+// Cells: walls, counter, stools, banquettes, entrance mat.
+[
+    // Back wall, two rows: bottle shelves behind the counter (x 2-5), the back door at (12, 1) (no warp).
+    Ascii(x: 0, y: 0, rows: ["abbbbbbbbbbbbc", "deeeeeeeeeeeef"], legend: {'a': (metatile: 528, collision: 1), 'b': (metatile: 530, collision: 1), 'c': (metatile: 533, collision: 1), 'd': (metatile: 536, collision: 1), 'e': (metatile: 538, collision: 1), 'f': (metatile: 541, collision: 1)}),
+    Ascii(x: 2, y: 0, rows: ["abab", "cdcd"], legend: {'a': (metatile: 552, collision: 1), 'b': (metatile: 553, collision: 1), 'c': (metatile: 560, collision: 1), 'd': (metatile: 561, collision: 1)}),
+    Ascii(x: 12, y: 0, rows: ["a", "b"], legend: {'a': (metatile: 529, collision: 1), 'b': (metatile: 537, collision: 1)}),
+    // The counter (x 1-9, y 3); Crow's side behind it (y 2). Stools at y 4.
+    Ascii(x: 1, y: 3, rows: ["abbbbbbbb"], legend: {'a': (metatile: 672, collision: 1), 'b': (metatile: 673, collision: 1)}),
+    Paint(x: 3, y: 4, metatile: 622, collision: 0),
+    Paint(x: 5, y: 4, metatile: 622, collision: 0),
+    Paint(x: 6, y: 4, metatile: 622, collision: 0),
+    Paint(x: 7, y: 4, metatile: 622, collision: 0),
+    Paint(x: 9, y: 4, metatile: 622, collision: 0),
+    // Julien's table at (13, 3), where the Mallette lies; banquettes and an armchair in the lounge; plants by the entrance.
+    Paint(x: 13, y: 3, metatile: 714, collision: 1),
+    Ascii(x: 1, y: 6, rows: ["ab"], legend: {'a': (metatile: 696, collision: 1), 'b': (metatile: 697, collision: 1)}),
+    Ascii(x: 10, y: 6, rows: ["ab"], legend: {'a': (metatile: 696, collision: 1), 'b': (metatile: 697, collision: 1)}),
+    Ascii(x: 1, y: 7, rows: ["a", "b"], legend: {'a': (metatile: 704, collision: 1), 'b': (metatile: 712, collision: 1)}),
+    Ascii(x: 0, y: 8, rows: ["a", "b"], legend: {'a': (metatile: 604, collision: 1), 'b': (metatile: 612, collision: 1)}),
+    Ascii(x: 13, y: 8, rows: ["a", "b"], legend: {'a': (metatile: 620, collision: 1), 'b': (metatile: 628, collision: 1)}),
+    // Entrance mat (6-7, 9): exit to Brico-Bourg.
+    Ascii(x: 6, y: 9, rows: ["ab"], legend: {'a': (metatile: 534, collision: 0), 'b': (metatile: 535, collision: 0)}),
+]

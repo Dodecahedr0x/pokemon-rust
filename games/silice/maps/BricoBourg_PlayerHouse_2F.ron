@@ -1,0 +1,84 @@
+(
+    name: "BricoBourg_PlayerHouse_2F",
+    layout: "BricoBourg_PlayerHouse_2F",
+    header: (
+        music: "MUS_LITTLEROOT",
+        region_map_section: "MAPSEC_NONE",
+        cave: 0,
+        weather: "WEATHER_NONE",
+        map_type: "MAP_TYPE_INDOOR",
+        allow_cycling: false,
+        allow_escaping: false,
+        allow_running: true,
+        show_map_name: false,
+        battle_scene: "MAP_BATTLE_SCENE_NORMAL",
+    ),
+    objects: [],
+    warps: [
+        (
+            x: 7,
+            y: 1,
+            elevation: 0,
+            dest_map: "BricoBourg_PlayerHouse_1F",
+            dest_warp: 2,
+        ),
+    ],
+    coords: [],
+    bgs: [
+        (
+            x: 5,
+            y: 2,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BricoBourg_PlayerHouse_2F_EventScript_Bureau"),
+            ),
+        ),
+        (
+            x: 1,
+            y: 2,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BricoBourg_PlayerHouse_2F_EventScript_Lit"),
+            ),
+        ),
+        (
+            x: 1,
+            y: 3,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BricoBourg_PlayerHouse_2F_EventScript_Lit"),
+            ),
+        ),
+        (
+            x: 6,
+            y: 2,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BricoBourg_PlayerHouse_2F_EventScript_Pc"),
+            ),
+        ),
+        (
+            x: 3,
+            y: 1,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BricoBourg_PlayerHouse_2F_EventScript_Fenetre"),
+            ),
+        ),
+    ],
+    connections: [],
+    scripts: (
+        on_load: None,
+        on_transition: None,
+        on_resume: None,
+        on_return_to_field: None,
+        on_dive_warp: None,
+        on_frame: [],
+        on_warp_into: [],
+    ),
+)

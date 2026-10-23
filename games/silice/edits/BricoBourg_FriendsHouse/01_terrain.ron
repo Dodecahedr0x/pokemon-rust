@@ -1,0 +1,18 @@
+// Cells: walls, furniture, door mat.
+[
+    // Back wall, two rows: the kitchen (sink and stove) on the left, a film poster at (6, 0), a bookshelf.
+    Ascii(x: 0, y: 0, rows: ["aaaaaaaaaa", "bbbbbbbbbb"], legend: {'a': (metatile: 514, collision: 1), 'b': (metatile: 522, collision: 1)}),
+    Ascii(x: 0, y: 0, rows: ["abcd", "efgh"], legend: {'a': (metatile: 618, collision: 1), 'b': (metatile: 619, collision: 1), 'c': (metatile: 620, collision: 1), 'd': (metatile: 621, collision: 1), 'e': (metatile: 626, collision: 1), 'f': (metatile: 627, collision: 1), 'g': (metatile: 628, collision: 1), 'h': (metatile: 629, collision: 1)}),
+    Ascii(x: 6, y: 0, rows: ["ab", "cd"], legend: {'a': (metatile: 531, collision: 1), 'b': (metatile: 532, collision: 1), 'c': (metatile: 539, collision: 1), 'd': (metatile: 540, collision: 1)}),
+    Ascii(x: 8, y: 0, rows: ["ab", "cd"], legend: {'a': (metatile: 622, collision: 1), 'b': (metatile: 623, collision: 1), 'c': (metatile: 630, collision: 1), 'd': (metatile: 631, collision: 1)}),
+    // Potted plants everywhere (sent by Loic), a table with a teapot, a cushion where the Skitty sleeps.
+    Ascii(x: 0, y: 2, rows: ["a", "b"], legend: {'a': (metatile: 656, collision: 1), 'b': (metatile: 664, collision: 1)}),
+    Ascii(x: 9, y: 2, rows: ["a", "b"], legend: {'a': (metatile: 656, collision: 1), 'b': (metatile: 664, collision: 1)}),
+    Ascii(x: 0, y: 5, rows: ["a", "b"], legend: {'a': (metatile: 656, collision: 1), 'b': (metatile: 664, collision: 1)}),
+    Ascii(x: 9, y: 5, rows: ["a", "b"], legend: {'a': (metatile: 656, collision: 1), 'b': (metatile: 664, collision: 1)}),
+    Ascii(x: 5, y: 2, rows: ["a", "b"], legend: {'a': (metatile: 656, collision: 1), 'b': (metatile: 664, collision: 1)}),
+    Ascii(x: 3, y: 4, rows: ["ab", "cd"], legend: {'a': (metatile: 584, collision: 1), 'b': (metatile: 585, collision: 1), 'c': (metatile: 592, collision: 1), 'd': (metatile: 593, collision: 1)}),
+    Paint(x: 7, y: 5, metatile: 601, collision: 0),
+    // Door mat (exit to Brico-Bourg).
+    Ascii(x: 4, y: 7, rows: ["ab"], legend: {'a': (metatile: 520, collision: 0), 'b': (metatile: 521, collision: 0)}),
+]

@@ -1,0 +1,3 @@
+// Silice Ch0, MAP_BRICO_BOURG_PLAYER_HOUSE_2F: Noobody's bedroom (8 x 7).
+// Building + BrendansMaysHouse (Emerald tilesets by name). Out-of-map border: the black block, blocked.
+(name: "BricoBourg_PlayerHouse_2F", width: 8, height: 7, primary: "Building", secondary: "BrendansMaysHouse", fill: 513, border: [1025, 1025, 1025, 1025])
