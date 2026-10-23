@@ -1,0 +1,3 @@
+// Silice Ch3, MAP_VIBER_CITY_MART: the Volt-Market (12 x 8). Building + Shop (Emerald tilesets by name): the counter on the
+// left, two shelf pairs, drinks machines at the back. Out-of-map border: black, blocked.
+(name: "ViberCity_Mart", width: 12, height: 8, primary: "Building", secondary: "Shop", fill: 513, border: [1025, 1025, 1025, 1025])

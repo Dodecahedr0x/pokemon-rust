@@ -1,0 +1,22 @@
+// Cells: the source's grid: walls, the DJ booth, the barriers (blue open, yellow and violet
+// closed), consoles, the entry mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!###########!",
+        "!$$$$%&%$$$$!",
+        "!(((((((((((!",
+        "!(((((((((((!",
+        "!)*)*)*)*)*)!",
+        "!(((((((((((!",
+        "!+((((((((((!",
+        "!$$$$)*)$$$$!",
+        "!(((((!(((((!",
+        "!(((((!((+((!",
+        "!(((((#(((((!",
+        "!$,-$$$$$)*$!",
+        "!(((((((((((!",
+        "!(+(((((((((!",
+        "!(((((((((((!",
+        "!!!!!!.!!!!!!",
+    ], legend: {'!': (metatile: 1, collision: 1), '#': (metatile: 531, collision: 1), '$': (metatile: 526, collision: 1), '%': (metatile: 594, collision: 1), '&': (metatile: 595, collision: 1), '(': (metatile: 522, collision: 0), ')': (metatile: 553, collision: 1), '*': (metatile: 552, collision: 1), '+': (metatile: 536, collision: 1), ',': (metatile: 570, collision: 0), '-': (metatile: 571, collision: 0), '.': (metatile: 6, collision: 0)}),
+]

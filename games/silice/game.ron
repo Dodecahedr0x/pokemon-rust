@@ -52,6 +52,36 @@
         "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1",
         "FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2",
         "FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU",
+        // Ch2 Gris-Échec. Route S2: Adrien and Gwada (RouteS02_OnTransition shows them from
+        // VAR_SIL_STORY 17). Gris-Échec: Gwada at the arena (22–27), Lainergie (27), the arena
+        // guard's stepped-aside copy (Gris_Echec_Sc05 swaps the two guards). The arena: the binary
+        // robot and Gym2_Sc11's Gwada, Wattouat and Lainergie, shown by their scenes only.
+        "FLAG_SIL_HIDE_ROUTE_S02_ADRIEN",
+        "FLAG_SIL_HIDE_ROUTE_S02_GWADA",
+        "FLAG_SIL_HIDE_GRIS_GWADA",
+        "FLAG_SIL_HIDE_GRIS_LAINERGIE",
+        "FLAG_SIL_HIDE_GRIS_GARDE_ECARTE",
+        "FLAG_SIL_HIDE_GYM2_ROBOT",
+        "FLAG_SIL_HIDE_GYM2_GWADA",
+        "FLAG_SIL_HIDE_GYM2_WATTOUAT",
+        "FLAG_SIL_HIDE_GYM2_LAINERGIE",
+        // Ch3 Viber-City: Tauber and Mathieu with the cart (scene actors), the six people under
+        // blankets in the Centre (from the black-out on), Gogo and Romain at the casino (from
+        // VAR_SIL_STORY 32), Romain in the basement (Casino_B1F_Sc02). The Depot's Metal Coat
+        // appears once Depot_Sc02 clears its flag. The Depot pair and sbire, the stand's Mathieu,
+        // the dancers and the Station's sbires start visible.
+        "FLAG_SIL_HIDE_VIBER_TAUBER",
+        "FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ01",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ02",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ03",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ04",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ05",
+        "FLAG_SIL_HIDE_VIBER_PC_PNJ06",
+        "FLAG_SIL_HIDE_CASINO_GOGO",
+        "FLAG_SIL_HIDE_CASINO_ROMAIN",
+        "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN",
+        "FLAG_SIL_ITEM_DEPOT_METAL_COAT",
     ],
     new_game_vars: [],
 )

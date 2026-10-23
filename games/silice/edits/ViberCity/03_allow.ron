@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(37, 15), (37, 16)], reason: "the sector barrier to Route S4: a rail metatile, solid until ViberCity_OnLoad opens it (FLAG_SIL_VIBER_BARRIERE_EST)"),
+]
