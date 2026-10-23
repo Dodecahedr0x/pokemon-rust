@@ -1,4 +1,7 @@
 // Behaviour warnings accepted on purpose.
 [
     AllowCollision(cells: [(37, 15), (37, 16)], reason: "the sector barrier to Route S4: a rail metatile, solid until ViberCity_OnLoad opens it (FLAG_SIL_VIBER_BARRIERE_EST)"),
+    // Reachability findings accepted on purpose (lint-reach).
+    AllowReach(subject: "edge east 15-16", reason: "the way to Route S4, behind the sector barrier (37, 15-16), which ViberCity_OnLoad draws open once Viber_City_Sc06 sets FLAG_SIL_VIBER_BARRIERE_EST"),
+    AllowReach(subject: "coords VAR_SIL_STORY=32", reason: "Viber_City_Sc03 is the row in front of the dancers, who block the Nocturne door until Sc05: it gates nothing, and the story (and the Station guard, until Sc04 at 33) waits until the player goes to the door, the chapter's objective"),
 ]

@@ -78,7 +78,7 @@
             local_id: 5,
             id: Some("LOCALID_ROUTE_S03_ROGER"),
             gfx: "OBJ_EVENT_GFX_HIKER",
-            x: 16,
+            x: 17,
             y: 35,
             elevation: 3,
             movement: "MOVEMENT_TYPE_FACE_LEFT",

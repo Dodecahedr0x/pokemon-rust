@@ -1,0 +1,12 @@
+// Reachability lint fixes (lint-reach).
+[
+    // The Heart Scale sat on the notch (9, 12), whose only free neighbour is the water (9, 11). Gen3 cannot
+    // talk from the water (elevation 1) to a land object (3), and the ball filled the only landing cell. The
+    // notch grows east: (10, 12) becomes grass and holds the ball, closed by trunks at (11, 12) and (10, 13).
+    // The player surfs to (9, 11), lands on (9, 12) and takes it facing east: still a Surf-only item, as the
+    // source's "Bord de l'etang (Hydro-Propulseur)" wants.
+    Paint(x: 10, y: 12, metatile: 1, collision: 0),
+    Paint(x: 11, y: 12, metatile: 198, collision: 1),
+    Paint(x: 10, y: 13, metatile: 198, collision: 1),
+    Move(kind: Object, index: 2, x: 10, y: 12),
+]

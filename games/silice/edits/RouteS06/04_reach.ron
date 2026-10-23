@@ -1,0 +1,13 @@
+// Reachability lint fixes (lint-reach).
+[
+    // The shortcut tunnel (25, 26) is General 167, and Gen3's exit walk sends an arriving player south,
+    // into the rock (25, 27). The mouth moves up into the rock row, (25, 25), and its old cell becomes path:
+    // the player arrives, steps down onto (25, 26), then goes west through the bamboo curtain (23, 26).
+    Paint(x: 25, y: 25, metatile: 167, collision: 0),
+    Paint(x: 25, y: 26, metatile: 473, collision: 0),
+    Move(kind: Warp, index: 0, x: 25, y: 25),
+    // The altar's west half (4, 19) can only be read from (4, 20), where the BONZE sits for good (the
+    // source's "assis devant l'autel"; no script moves him). The east half (5, 19), read from (5, 20),
+    // runs the same RouteS06_EventScript_SignAutel, so the dead bg event goes.
+    Delete(kind: Bg, index: 3),
+]

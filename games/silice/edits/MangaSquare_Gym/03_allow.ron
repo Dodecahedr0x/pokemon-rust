@@ -1,0 +1,11 @@
+// Reachability findings accepted on purpose (lint-reach). The five shoji doors (10, y) are closed in
+// the layout; MangaSquare_Gym_OnLoad opens each one whose FLAG_SIL_GYM06_PORTE_n is set, and Gym_Sc02
+// (the desk riddles) sets them.
+[
+    AllowReach(subject: "bg 1", reason: "the P2 desk, past shoji door P1, which Gym_Sc02 opens (FLAG_SIL_GYM06_PORTE_1; OnLoad redraws it)"),
+    AllowReach(subject: "bg 2", reason: "the P3 desk, past shoji door P2, which Gym_Sc02 opens (FLAG_SIL_GYM06_PORTE_2; OnLoad redraws it)"),
+    AllowReach(subject: "bg 3", reason: "the P4 desk, past shoji door P3, which Gym_Sc02 opens (FLAG_SIL_GYM06_PORTE_3; OnLoad redraws it)"),
+    AllowReach(subject: "bg 4", reason: "the P5 desk, past shoji door P4, which Gym_Sc02 opens (FLAG_SIL_GYM06_PORTE_4; OnLoad redraws it)"),
+    AllowReach(subject: "object LOCALID_GYM06_AYAME", reason: "between doors P4 and P3: her sight is reached once Gym_Sc02 opens P3"),
+    AllowReach(subject: "object LOCALID_GYM06_SEIJI", reason: "between doors P5 and P4: his sight is reached once Gym_Sc02 opens P4"),
+]

@@ -1,0 +1,7 @@
+// Reachability findings accepted on purpose (lint-reach). ViberCity_Gym_OnLoad draws the blue track:
+// the yellow and violet barriers are closed, and each console (Nocturne_Sc01) opens the next colour.
+[
+    AllowReach(subject: "object LOCALID_NOCTURNE_ELIOTT", reason: "the yellow barrier (5-7, 7) in front of him is closed on the blue track that OnLoad draws; on the yellow track (console B, Nocturne_Sc01) it opens and he sees (6, 7), as the source's grid places him"),
+    AllowReach(subject: "bg 1", reason: "console B, in zone B's right half, behind the violet barrier (9-10, 11) that console A opens (Nocturne_Sc01)"),
+    AllowReach(subject: "bg 2", reason: "console C, in zone C, behind the yellow barrier (5-7, 7) that console B opens (Nocturne_Sc01)"),
+]
