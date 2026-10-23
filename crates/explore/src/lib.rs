@@ -23,6 +23,7 @@ pub mod key;
 pub mod macros;
 pub mod model;
 pub mod observe;
+pub mod oracle;
 pub mod path;
 pub mod policy;
 pub mod runs;

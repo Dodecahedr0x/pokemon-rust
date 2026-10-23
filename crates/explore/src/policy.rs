@@ -8,7 +8,7 @@
 use crate::model::Opts;
 use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleMon, Side};
-use engine::data::MoveId;
+use engine::data::{MoveId, SpeciesId};
 use engine::mon::BattleTables;
 use engine::{Buttons, World};
 
@@ -37,7 +37,7 @@ const FIGHT: u8 = 0;
 
 /// The key that moves a 2x2 menu cursor from `c` toward `want` (column first, then row), or A
 /// once it is there.
-fn toward(c: u8, want: u8) -> Buttons {
+pub fn toward(c: u8, want: u8) -> Buttons {
     if c & 1 != want & 1 {
         if want & 1 == 0 {
             Buttons::LEFT
@@ -177,10 +177,15 @@ impl Policy {
 /// pp > 0 (a status move beats selecting a slot without PP, which the engine refuses forever),
 /// else slot 0 (no PP anywhere: the engine uses Struggle).
 pub fn first_damaging_slot(m: &BattleMon, t: &BattleTables) -> u8 {
-    let usable = |i: usize| m.moves[i].is_some() && m.pp[i] > 0;
+    first_damaging_slot_of(&m.moves, &m.pp, t)
+}
+
+/// [`first_damaging_slot`] on raw move slots (the vanilla oracle reads them from RAM).
+pub fn first_damaging_slot_of(moves: &[Option<MoveId>; 4], pp: &[u8; 4], t: &BattleTables) -> u8 {
+    let usable = |i: usize| moves[i].is_some() && pp[i] > 0;
     let damaging = |i: usize| {
         usable(i)
-            && m.moves[i]
+            && moves[i]
                 .and_then(|id| t.moves.get(id.0 as usize))
                 .is_some_and(|mi| mi.power > 0)
     };
@@ -194,11 +199,11 @@ pub fn first_damaging_slot(m: &BattleMon, t: &BattleTables) -> u8 {
 /// multipliers on the foe's types, over the usable moves with power; ties go to the lower slot.
 /// Without a damaging move, [`first_damaging_slot`].
 /// A move's worth for [`forget_slot`]: power, x1.5 with STAB; 0 for a status move.
-fn move_worth(me: &BattleMon, mov: MoveId, t: &BattleTables) -> u32 {
+fn move_worth(me: SpeciesId, mov: MoveId, t: &BattleTables) -> u32 {
     let Some(mi) = t.moves.get(mov.0 as usize) else {
         return 0;
     };
-    let stab = t.species_info(me.species).types.contains(&mi.ty);
+    let stab = t.species_info(me).types.contains(&mi.ty);
     u32::from(mi.power) * if stab { 15 } else { 10 }
 }
 
@@ -210,9 +215,20 @@ pub fn forget_slot(me: &BattleMon, t: &BattleTables, is_hm: &dyn Fn(MoveId) -> b
     let new = (t.species_info(me.species).learnset.iter())
         .find(|l| l.level == me.level && !me.moves.contains(&Some(l.mov)))?
         .mov;
+    forget_slot_of(me.species, &me.moves, new, t, is_hm)
+}
+
+/// [`forget_slot`] on raw moves, for learning `new` (the vanilla oracle's `gMoveToLearn`).
+pub fn forget_slot_of(
+    me: SpeciesId,
+    moves: &[Option<MoveId>; 4],
+    new: MoveId,
+    t: &BattleTables,
+    is_hm: &dyn Fn(MoveId) -> bool,
+) -> Option<u8> {
     let (worth, slot) = (0..4)
         .filter_map(|i| {
-            me.moves[i]
+            moves[i]
                 .filter(|&m| !is_hm(m))
                 .map(|m| (move_worth(me, m, t), i as u8))
         })
@@ -221,11 +237,22 @@ pub fn forget_slot(me: &BattleMon, t: &BattleTables, is_hm: &dyn Fn(MoveId) -> b
 }
 
 pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> u8 {
-    let mine = t.species_info(me.species).types;
-    let theirs = t.species_info(foe.species).types;
+    best_damaging_slot_of(me.species, &me.moves, &me.pp, foe.species, t)
+}
+
+/// [`best_damaging_slot`] on raw species and move slots (the vanilla oracle's).
+pub fn best_damaging_slot_of(
+    me: SpeciesId,
+    moves: &[Option<MoveId>; 4],
+    pp: &[u8; 4],
+    foe: SpeciesId,
+    t: &BattleTables,
+) -> u8 {
+    let mine = t.species_info(me).types;
+    let theirs = t.species_info(foe).types;
     let score = |i: usize| -> Option<u32> {
-        let id = me.moves[i]?;
-        if me.pp[i] == 0 {
+        let id = moves[i]?;
+        if pp[i] == 0 {
             return None;
         }
         let mi = t.moves.get(id.0 as usize)?;
@@ -254,7 +281,7 @@ pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> 
             best = Some((s, i));
         }
     }
-    best.map_or_else(|| first_damaging_slot(me, t), |(_, i)| i as u8)
+    best.map_or_else(|| first_damaging_slot_of(moves, pp, t), |(_, i)| i as u8)
 }
 
 #[cfg(test)]

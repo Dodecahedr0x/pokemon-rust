@@ -170,13 +170,17 @@ pub enum FindingKind {
     /// A branch that changed no progress state could not rejoin the spine: its recovery or the
     /// spine's verification window failed, or the progress state differs after it.
     Divergence,
+    /// The vanilla oracle (BPEE in mGBA, `cargo xtask vanilla`) disagrees with our engine on a
+    /// story field at a spine step boundary or a branch's end, outside the RNG tolerances
+    /// (`explore::oracle`): report-only, one per (segment, step kind, field, map).
+    Parity,
 }
 
 impl FindingKind {
     /// Whether rows of this kind are reports, not bugs: they never stop a job, and progress
     /// and `explore findings --bugs` count them apart. (`SlowFrame`s never become rows.)
     pub fn report_only(self) -> bool {
-        matches!(self, FindingKind::Unsupported)
+        matches!(self, FindingKind::Unsupported | FindingKind::Parity)
     }
 }
 
