@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 65 Native, 19 Ignore, 83 Default, 357 Unsupported.
+// Counts: 70 Native, 17 Ignore, 83 Default, 354 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -80,7 +80,7 @@
     "SPECIAL_CheckLeadMonTough": Default(0), // condition stats stay 0 (no Pokeblocks, M13): below 200
     "SPECIAL_CheckPlayerHasSecretBase": Unsupported,
     "SPECIAL_CheckRelicanthWailord": Native, // Wave C: Wailord first and Relicanth last in the party
-    "SPECIAL_ChooseHalfPartyForBattle": Unsupported,
+    "SPECIAL_ChooseHalfPartyForBattle": Native, // Wave F: the choose-half party menu (max 3, min 1); VAR_RESULT = a mon was chosen
     "SPECIAL_ChooseItemsToTossFromPyramidBag": Unsupported,
     "SPECIAL_ChooseMonForMoveRelearner": Unsupported,
     "SPECIAL_ChooseMonForMoveTutor": Unsupported,
@@ -136,7 +136,7 @@
     "SPECIAL_DoSealedChamberShakingEffect_Short": Unsupported,
     "SPECIAL_DoSecretBasePCTurnOffEffect": Unsupported,
     "SPECIAL_DoSoftReset": Unsupported,
-    "SPECIAL_DoSpecialTrainerBattle": Unsupported,
+    "SPECIAL_DoSpecialTrainerBattle": Native, // Wave F: SPECIAL_BATTLE_STEVEN degraded to two single battles (Maxie, then Tabitha) without the partner; the others report
     "SPECIAL_DoTVShow": Default(1), // TV shows are not modelled: ends the show loop (unreachable: no active show)
     "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
     "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
@@ -299,7 +299,7 @@
     "SPECIAL_LinkRetireStatusWithBattleTowerPartner": Unsupported,
     "SPECIAL_LoadLinkContestPlayerPalettes": Unsupported,
     "SPECIAL_LoadPlayerBag": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
-    "SPECIAL_LoadPlayerParty": Ignore, // pairs with SavePlayerParty: the party is unchanged
+    "SPECIAL_LoadPlayerParty": Native, // Wave F: the party is the backup (PartyStash::Load)
     "SPECIAL_LoadWallyZigzagoon": Ignore, // only feeds Wally's tutorial battle, which is not run
     "SPECIAL_LookThroughPorthole": Unsupported,
     "SPECIAL_LoopWingFlapSE": Unsupported,
@@ -349,7 +349,7 @@
     "SPECIAL_QuizLadyShowQuizQuestion": Unsupported,
     "SPECIAL_QuizLadyTakePrizeForCustomQuiz": Unsupported,
     "SPECIAL_RecordMixingPlayerSpotTriggered": Unsupported,
-    "SPECIAL_ReducePlayerPartyToSelectedMons": Unsupported,
+    "SPECIAL_ReducePlayerPartyToSelectedMons": Native, // Wave F: the party is the chosen mons in order (PartyStash::Reduce)
     "SPECIAL_RejectEggFromDayCare": Unsupported,
     "SPECIAL_RemoveBerryPowderVendorMenu": Unsupported,
     "SPECIAL_RemoveCameraObject": Unsupported,
@@ -368,7 +368,7 @@
     "SPECIAL_SaveForBattleTowerLink": Unsupported,
     "SPECIAL_SaveGame": Default(0), // saving is a shell action until M9: "not saved", which every caller treats as a cancel
     "SPECIAL_SaveMuseumContestPainting": Unsupported,
-    "SPECIAL_SavePlayerParty": Ignore, // pairs with LoadPlayerParty around a battle that is not run (Wally, link, facilities): the party is unchanged
+    "SPECIAL_SavePlayerParty": Native, // Wave F: the backup is the party (PartyStash::Save)
     "SPECIAL_ScriptCheckFreePokemonStorageSpace": Default(1), // the PC has room (14 boxes of 30)
     "SPECIAL_ScriptGetPartyMonSpecies": Native, // Wave C: party slot VAR_0x8004's species
     "SPECIAL_ScriptGetPokedexInfo": Native, // Wave C: the Hoenn or National seen/caught counts (Request::Query)

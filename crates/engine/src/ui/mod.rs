@@ -88,6 +88,10 @@ pub enum PartyMode {
     /// the battle with the battle's party in battle order (Gen3 `gBattlePartyCurrentOrder`), so
     /// the active mon is slot 0.
     Battle { forced: bool },
+    /// `special ChooseHalfPartyForBattle` (`PARTY_MENU_TYPE_CHOOSE_HALF`): ENTER up to `max`
+    /// mons (at least `min`) in order, then CONFIRM. Answers the order (see
+    /// [`party::pack_order`](crate::ui::party::pack_order)), `Cancel` when cancelled.
+    ChooseHalf { max: u8, min: u8 },
 }
 
 /// The bag's modes (Gen3 `ITEMMENULOCATION_*`).
@@ -181,6 +185,7 @@ impl ScreenKind {
                     PartyMode::UseItem(i) => (3, i.0),
                     PartyMode::GiveItem(i) => (4, i.0),
                     PartyMode::Battle { forced } => (5, forced as u16),
+                    PartyMode::ChooseHalf { max, min } => (6, max as u16 | (min as u16) << 8),
                 };
                 h.write(&[tag]);
                 h.write_u16(v);

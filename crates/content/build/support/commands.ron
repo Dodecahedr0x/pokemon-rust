@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 112 Native, 44 Ignore, 13 Default, 58 Unsupported.
+// Counts: 113 Native, 44 Ignore, 13 Default, 57 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -148,7 +148,7 @@
     "buffernumberstring": Native,
     "bufferstdstring": Native,
     "bufferstring": Native,
-    "pokemart": Unsupported,
+    "pokemart": Native, // `mart(&ctx, &<list>)` when the extract names the list (minor 10), else reported
     "pokemartdecoration": Unsupported,
     "pokemartdecoration2": Unsupported,
     "playslotmachine": Unsupported,

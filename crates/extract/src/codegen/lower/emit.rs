@@ -745,6 +745,13 @@ impl<'a> Low<'a> {
                     "buffer(&ctx, {slot}, BufferSrc::LeadSpecies).await;"
                 ));
             }
+            // The list by its absolute path (a shared shape compiles in another module).
+            ("pokemart", [Items(l)]) => {
+                let Some(m) = self.lists.get(l.as_str()) else {
+                    return Ok(false);
+                };
+                out.push(format!("mart(&ctx, &{SCRIPTS}::{m}::{l}).await;"));
+            }
             ("random", [n]) => {
                 let Some(n) = u16_expr(n, true) else {
                     return Ok(false);

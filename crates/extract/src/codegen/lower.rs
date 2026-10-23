@@ -185,6 +185,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "bufferstdstring",
     "bufferstring",
     "bufferitemnameplural",
+    "pokemart",
     "random",
     "addmoney",
     "removemoney",
@@ -310,6 +311,8 @@ struct Low<'a> {
     regions: BTreeMap<usize, Vec<usize>>,
     /// Movement name -> (module, movement).
     movements: BTreeMap<&'a str, (&'a str, &'a IrMovement)>,
+    /// Item list name (`pokemart`) -> its module.
+    lists: BTreeMap<&'a str, &'a str>,
     support: &'a Support,
     overrides: &'a BTreeMap<String, String>,
     can_end: BTreeSet<usize>,
@@ -412,6 +415,21 @@ pub fn lower(
                 body.push_str(g);
             }
         }
+        for l in &file.lists {
+            // `pokemart`'s list: `ITEM_*` names that are not identifiers are left out.
+            let items: Vec<String> = (l.items.iter())
+                .filter(|i| is_ident(i))
+                .map(|i| format!("ItemId({i})"))
+                .collect();
+            body.push('\n');
+            writeln!(
+                body,
+                "pub static {}: [ItemId; {}] = [{}];",
+                l.name,
+                items.len(),
+                items.join(", ")
+            )?;
+        }
         for m in &file.movements {
             let s = low.movement_static(m)?;
             body.push('\n');
@@ -500,6 +518,7 @@ impl<'a> Low<'a> {
         let mut labs = Vec::new();
         let mut at = BTreeMap::new();
         let mut movements = BTreeMap::new();
+        let mut lists = BTreeMap::new();
         let mut modules = BTreeSet::new();
         // Module order, not `files` order: the label order picks block numbers and promotions.
         let mut files: Vec<&'a ScriptFile> = files.iter().collect();
@@ -524,6 +543,14 @@ impl<'a> Low<'a> {
                     end: End::Unknown,
                     edges: Vec::new(),
                 });
+            }
+            for l in &f.lists {
+                ensure!(is_ident(&l.name), "item list name {:?}", l.name);
+                ensure!(
+                    lists.insert(l.name.as_str(), f.module.as_str()).is_none(),
+                    "item list {} defined twice",
+                    l.name
+                );
             }
             for m in &f.movements {
                 ensure!(is_ident(&m.name), "movement name {:?}", m.name);
@@ -594,6 +621,7 @@ impl<'a> Low<'a> {
             fns: BTreeSet::new(),
             regions: BTreeMap::new(),
             movements,
+            lists,
             support,
             overrides,
             can_end: BTreeSet::new(),

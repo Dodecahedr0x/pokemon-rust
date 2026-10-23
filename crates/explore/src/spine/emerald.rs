@@ -42,14 +42,13 @@ mod list {
     const ITEM_MAX_ELIXIR: engine::data::ItemId = engine::data::ItemId(37);
 
     /// The League's Poké Mart (`EverGrandeCity_PokemonLeague_1F_EventScript_Clerk`'s
-    /// `pokemart`): the mart screen is a stub (Milestone 9 Task M), so the Full Restores the
-    /// lead drinks between the Elite Four's rooms (the policy uses no items in battle, and the
-    /// rooms have no nurse) are bought here, at the mart's price.
-    static LEAGUE_MART: Bypass = Bypass {
-        issue: "league-mart",
-        features: &["pokemart"],
-        buy: &[(ITEM_FULL_RESTORE, 10)],
-        ..Bypass::NONE
+    /// `pokemart`): the Full Restores the lead drinks between the Elite Four's rooms (the
+    /// policy uses no items in battle, and the rooms have no nurse).
+    const LEAGUE_MART: Step = Step::Buy {
+        map: MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F,
+        local_id: 2,
+        item: ITEM_FULL_RESTORE,
+        qty: 10,
     };
 
     /// The Hall of Fame (`EverGrandeCity_HallOfFame_EventScript_EnterHallOfFame`): its walk and
@@ -289,22 +288,6 @@ mod list {
         issue: "legendaries-scene",
         features: &["SPECIAL_Script_DoRayquazaScene"],
         vars: &[(VAR_SOOTOPOLIS_CITY_STATE, 2)],
-        ..Bypass::NONE
-    };
-
-    /// Steven's multi battle against Maxie and Tabitha
-    /// (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`): its specials are
-    /// unsupported, the script goes on as if won, and the objects stay frozen (Gen3 reloads the
-    /// field after the battle). The bypass warps onto the player's cell, which reloads it.
-    static STEVEN_MULTI: Bypass = Bypass {
-        issue: "steven-multi",
-        features: &[
-            "SPECIAL_ChooseHalfPartyForBattle",
-            "SPECIAL_ReducePlayerPartyToSelectedMons",
-            "SPECIAL_DoSpecialTrainerBattle",
-            "FRONTIER_UTIL_FUNC_SAVE_PARTY",
-        ],
-        warp: Some((MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 1, 7)),
         ..Bypass::NONE
     };
 
@@ -1731,10 +1714,6 @@ mod list {
         talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 4),
         Step::WaitScript,
         Step::Expect("space_center"),
-        // The multi battle with Steven is unsupported (reported, skipped as won); the scene's
-        // `lockall` then never ends (Gen3's battle return reloads the field): `steven-multi`
-        // reloads the room.
-        Step::Bypass(&STEVEN_MULTI),
         Step::Checkpoint("space_center"),
         // ---- Steven's house: HM08 (`MossdeepCity_StevensHouse_EventScript_StevenGivesDive`)
         enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 13, 1, Up),
@@ -1990,9 +1969,10 @@ mod list {
         talk(MAP_VICTORY_ROAD_1F, 5),
         Step::WaitScript,
         // A level on the cave floor, healed, before Wally: at 60 his Altaria's paralysis and
-        // Roselia's Giga Drain can win (they did once field poison moved the RNG).
+        // Roselia's Giga Drain can win (they did once field poison moved the RNG, and at 62
+        // once Steven's battles were fought, Wave F).
         Step::Battle(BattlePlan::BestLearn),
-        train_fresh(MAP_VICTORY_ROAD_1F, 39, 26, 62),
+        train_fresh(MAP_VICTORY_ROAD_1F, 39, 26, 63),
         Step::Battle(BattlePlan::RunWild),
         enter(MAP_VICTORY_ROAD_1F, 15, 40, Down),
         enter(MAP_EVER_GRANDE_CITY, 27, 48, Up),
@@ -2233,7 +2213,13 @@ mod list {
         use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
         // ---- The League: past the badge guards; each Elite Four room walks the player in,
         // then the trainer's talk is the battle ----
-        Step::Bypass(&LEAGUE_MART),
+        // The clerk (16, 2) spawns once the player is near (the object window).
+        Step::Goto {
+            map: MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F,
+            x: 16,
+            y: 4,
+        },
+        LEAGUE_MART,
         talk(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3),
         Step::WaitScript,
         enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 1, Up),

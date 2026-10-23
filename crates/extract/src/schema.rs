@@ -109,11 +109,13 @@ pub const FORMAT_VERSION: u32 = 5;
 /// - 9: Wave E (step-count scripts) exports the Match Call registrations `TryStartStepCountScript`
 ///   starts (`roots::STEP_CALL_SCRIPTS`), in their maps' modules. Wave E (berry trees) adds
 ///   `tables/berries.ron` (`gBerries`).
-/// - 10: Wave F (Waterfall, Dive) exports `roots::FIELD_SCRIPTS`' water scripts
+/// - 10: Wave F (mart) decodes `pokemart`'s item list: the operand becomes `Items(<list>)` and
+///   the list goes in its module's `ScriptFile::lists`. No file is added.
+/// - 11: Wave F (Waterfall, Dive) exports `roots::FIELD_SCRIPTS`' water scripts
 ///   (`EventScript_UseWaterfall`, `_CannotUseWaterfall`, `_UseDive`, `_UseDiveUnderwater`) in
 ///   `scripts/Common_field_move_scripts.ron`, which minor 8's extracts already have: no new
 ///   file.
-pub const FORMAT_MINOR: u32 = 10;
+pub const FORMAT_MINOR: u32 = 11;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:

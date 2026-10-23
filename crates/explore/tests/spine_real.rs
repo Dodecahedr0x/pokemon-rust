@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 2_992_885;
+const EMERALD_FRAMES: u64 = 2_976_669;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -65,13 +65,11 @@ const EMERALD_LABELS: &[&str] = &[
 /// deleting its bypass (and its line here).
 const SPINE_BLOCKERS: &[&str] = &[
     "mossdeep-gym-puzzle",
-    "steven-multi",
     "legendaries-scene",
     "sootopolis-layout",
     "sootopolis-layout",
     "sky-pillar-layouts",
     "rayquaza-scene",
-    "league-mart",
     "game-clear",
 ];
 
@@ -195,6 +193,24 @@ fn spine_reaches_ch0_end() {
 /// that position there (the encoded checkpoint, then the step options); then the steps from
 /// `PKR_SPINE_FROM` to `PKR_SPINE_TO` (default: the end) play from it, and the test prints
 /// where they stopped.
+/// `spine::run_from` at step `at` from `cp` with `opts`.
+fn run_at(
+    game: &Emerald,
+    steps: &'static [spine::Step],
+    cfg: &Config,
+    at: usize,
+    cp: std::sync::Arc<engine::checkpoint::Checkpoint>,
+    opts: spine::StepOpts,
+) -> SpineRun {
+    let start = spine::Start {
+        end: cp,
+        index: at,
+        opts,
+        frame: 0,
+    };
+    spine::run_from(game, steps, cfg, Some(start))
+}
+
 #[test]
 #[ignore]
 fn spine_segment() {
@@ -286,7 +302,7 @@ fn spine_segment() {
     {
         let (at, path) = base.split_once(':').expect("<step>:<save>");
         let (cp, opts) = load(path);
-        write(&spine::run_from(&game, &steps[..from], &cfg, at.parse().unwrap(), cp, opts));
+        write(&run_at(&game, &steps[..from], &cfg, at.parse().unwrap(), cp, opts));
     }
     if !std::path::Path::new(&save).exists() {
         // `PKR_SPINE_HEAL_AT=<step>,<step>,...`: a red spine's workaround (outside the game's
@@ -300,7 +316,7 @@ fn spine_segment() {
             let p = s.positions.last().unwrap();
             let cp = heal(&p.end);
             let next = heals.get(k + 1).copied().unwrap_or(from);
-            s = spine::run_from(&game, &steps[..next], &cfg, h, std::sync::Arc::new(cp), p.opts);
+            s = run_at(&game, &steps[..next], &cfg, h, std::sync::Arc::new(cp), p.opts);
         }
         write(&s);
     }
@@ -312,7 +328,7 @@ fn spine_segment() {
         .map(|h| h.split(',').map(|n| n.parse::<usize>().unwrap()).collect::<Vec<_>>())
         .unwrap_or_default()
     {
-        let s = spine::run_from(&game, &steps[..h], &cfg, at, cp, opts);
+        let s = run_at(&game, &steps[..h], &cfg, at, cp, opts);
         dump(&s);
         assert!(s.complete(), "{:?}", s.error);
         let p = s.positions.last().unwrap();
@@ -320,7 +336,7 @@ fn spine_segment() {
         opts = p.opts;
         at = h;
     }
-    let s = spine::run_from(&game, &steps[..to], &cfg, at, cp, opts);
+    let s = run_at(&game, &steps[..to], &cfg, at, cp, opts);
     let last = s.positions.last().unwrap();
     println!(
         "segment {from}..{to}: reached step {} ({:?} at {:?}), {} frames, labels {:?}",

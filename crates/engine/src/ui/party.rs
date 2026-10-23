@@ -24,6 +24,12 @@
 //! - `GiveItem(item)`: the slot answers; the item goes to a mon holding nothing.
 //! - `Battle { forced }`: SHIFT / SUMMARY / CANCEL; fainted and active mons refused with Gen3's
 //!   messages; forced has no CANCEL and B does nothing.
+//! - `ChooseHalf { max, min }` (`ChooseHalfPartyForBattle`, `PARTY_MENU_TYPE_CHOOSE_HALF` with
+//!   `FACILITY_MULTI_OR_EREADER`): ENTER / NO ENTRY / SUMMARY / CANCEL per mon (fainted mons
+//!   NOT ABLE: SUMMARY only), each slot showing ABLE! or its entry order; the `max`-th ENTER
+//!   moves the cursor to CONFIRM (as START does); CONFIRM with fewer than `min` says "No
+//!   POKéMON for battle!"; CANCEL or B asks "Cancel the battle?". Answers the order
+//!   ([`pack_order`]) or `Cancel`.
 //!
 //! Deviations: no slot pictures, mon or item icons, HP bar colours or the switch slide
 //! animation (Gen3 `SlidePartyMenuBoxOneStep`): frames and text, the HP bar a plain line; FLY
@@ -53,6 +59,24 @@ use alloc::vec::Vec;
 
 /// The CANCEL button's cursor index.
 pub const CANCEL: u8 = PARTY_SIZE as u8;
+/// The CONFIRM button's cursor index (choose-half mode; Gen3 numbers CONFIRM `PARTY_SIZE` and
+/// CANCEL `PARTY_SIZE + 1`).
+pub const CONFIRM: u8 = CANCEL + 1;
+/// `sConfirmButtonWindowTemplate`.
+pub const CONFIRM_RECT: (u8, u8, u8, u8) = (24, 16, 6, 2);
+/// `sMultiCancelButtonWindowTemplate`: CANCEL under CONFIRM.
+pub const MULTI_CANCEL_RECT: (u8, u8, u8, u8) = (24, 18, 6, 2);
+/// Gen3 `MAX_FRONTIER_PARTY_SIZE`: the longest entry order.
+pub const MAX_ORDER: usize = 4;
+
+/// The choose-half answer: the order's party slots + 1, a nibble each from the low one (0 past
+/// the last).
+pub fn pack_order(order: &[u8; MAX_ORDER]) -> u16 {
+    order
+        .iter()
+        .enumerate()
+        .fold(0, |v, (i, &o)| v | (o as u16 & 0xF) << (4 * i))
+}
 /// Gen3 `sSinglePartyMenuWindowTemplate`: (left, top, width, height) per slot.
 pub const SLOT_RECTS: [(u8, u8, u8, u8); PARTY_SIZE] = [
     (1, 3, 10, 7),
@@ -104,6 +128,10 @@ pub enum Action {
     Cancel,
     Shift,
     FieldMove(FieldMove),
+    /// `MENU_ENTER` (choose-half).
+    Enter,
+    /// `MENU_NO_ENTRY` (choose-half).
+    NoEntry,
 }
 
 /// What the menu waits for (for tools: the explorer drives the menu from it).
@@ -135,6 +163,8 @@ enum Next {
     ForgetSummary,
     /// Replace move slot `n` with the move being taught.
     Learn(u8),
+    /// "Cancel the battle?" (choose-half).
+    AskCancel,
 }
 
 /// After a yes/no.
@@ -142,6 +172,8 @@ enum Next {
 enum Question {
     Replace,
     Stop,
+    /// Choose-half's "Cancel the battle?".
+    CancelChoice,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -167,6 +199,8 @@ struct Teaching {
 struct Render {
     slots: Vec<Panel>,
     cancel: Panel,
+    /// The CONFIRM button (choose-half).
+    confirm: Option<Panel>,
     hint: Panel,
     popup: Option<Panel>,
     popup_base: u16,
@@ -180,6 +214,9 @@ pub struct PartyMenu {
     teaching: Option<Teaching>,
     msg: Option<Box<Message>>,
     actions: Vec<Action>,
+    /// Choose-half: the entry order (Gen3 `gSelectedOrderFromParty`: slots + 1, 0 past the
+    /// last).
+    order: [u8; MAX_ORDER],
     /// The hint text shown when no message is.
     hint: UiText,
     gfx: Gfx<Render>,
@@ -198,6 +235,7 @@ impl PartyMenu {
             teaching: None,
             msg: None,
             actions: Vec::new(),
+            order: [0; MAX_ORDER],
             hint,
             gfx: Gfx::none(),
         }
@@ -216,6 +254,11 @@ impl PartyMenu {
             St::Ask { cursor, .. } => Prompt::YesNo { cursor },
             St::Summary => Prompt::Child,
         }
+    }
+
+    /// Choose-half: the entry order so far (party slots + 1, 0 past the last).
+    pub fn order(&self) -> [u8; MAX_ORDER] {
+        self.order
     }
 
     /// The action list shown (empty unless [`Prompt::Actions`]).
@@ -317,7 +360,8 @@ impl PartyMenu {
             .iter()
             .map(|&(l, t, w, h)| tiles.panel(game, l, t, w, h, true))
             .collect();
-        let (l, t, w, h) = CANCEL_RECT;
+        let half = matches!(self.mode, PartyMode::ChooseHalf { .. });
+        let (l, t, w, h) = if half { MULTI_CANCEL_RECT } else { CANCEL_RECT };
         let cancel = tiles.panel(game, l, t, w, h, true);
         let (l, t, w, h) = HINT_RECT;
         let hint = tiles.panel(game, l, t, w, h, true);
@@ -326,9 +370,15 @@ impl PartyMenu {
         let msg_base = tiles.take(w, h);
         debug_assert_eq!(msg_base, msg_tiles_base());
         let popup_base = tiles.take(ACTIONS_W, MAX_ACTIONS * 2);
+        // After the popups: the other screens' tiles stay where they were.
+        let confirm = half.then(|| {
+            let (l, t, w, h) = CONFIRM_RECT;
+            tiles.panel(game, l, t, w, h, true)
+        });
         Render {
             slots,
             cancel,
+            confirm,
             hint,
             popup: None,
             popup_base,
@@ -367,11 +417,25 @@ impl PartyMenu {
         hp.push(CHAR_SLASH);
         push_number(&mut hp, mon.stats[0] as u32, 3, true);
         hp.push(EOS);
-        let desc = taught(game, self.mode).map(|(mv, item)| match teachable(game, mon, mv, item) {
-            Teachable::Able => UiText::PartyAble,
-            Teachable::NotAble => UiText::PartyNotAble,
-            Teachable::Learned => UiText::PartyLearned,
-        });
+        let desc = match self.mode {
+            // `DisplayPartyPokemonDataForChooseHalf` (`GetBattleEntryEligibility`: HP != 0).
+            PartyMode::ChooseHalf { .. } => Some(if mon.hp == 0 {
+                UiText::PartyNotAble
+            } else {
+                match self.order.iter().position(|&o| o as usize == i + 1) {
+                    Some(0) => UiText::PartyFirst,
+                    Some(1) => UiText::PartySecond,
+                    Some(2) => UiText::PartyThird,
+                    Some(_) => UiText::PartyFourth,
+                    None => UiText::PartyAble3,
+                }
+            }),
+            _ => taught(game, self.mode).map(|(mv, item)| match teachable(game, mon, mv, item) {
+                Teachable::Able => UiText::PartyAble,
+                Teachable::NotAble => UiText::PartyNotAble,
+                Teachable::Learned => UiText::PartyLearned,
+            }),
+        };
         let bar = |p: &mut Panel, x: i16, y: i16, w: i16| {
             let max = mon.stats[0].max(1) as i32;
             let fill = (mon.hp as i32 * w as i32 / max) as i16;
@@ -421,6 +485,21 @@ impl PartyMenu {
             .text_colored(game, game.ui_text(UiText::PartyCancel), 4, 1, cc);
     }
 
+    fn draw_confirm<G: GameData>(&self, cx: &ScreenCx<'_, G>, r: &mut Render) {
+        let game = cx.game;
+        let Some(p) = &mut r.confirm else {
+            return;
+        };
+        let c = colors(game);
+        let cc = if self.cursor == CONFIRM {
+            Colors::new(c.fg, c.bg, c.shadow)
+        } else {
+            c
+        };
+        p.canvas.fill(cc.bg);
+        p.text_colored(game, game.ui_text(UiText::PartyConfirm), 4, 1, cc);
+    }
+
     fn draw_hint<G: GameData>(&self, cx: &ScreenCx<'_, G>, r: &mut Render) {
         r.hint.clear(cx.game);
         r.hint.text(cx.game, cx.game.ui_text(self.hint), 0, 1);
@@ -438,6 +517,9 @@ impl PartyMenu {
         if !forced {
             map.put(&r.cancel);
         }
+        if let Some(p) = &r.confirm {
+            map.put(p);
+        }
         match &self.msg {
             Some(m) if m.shown => map.put_window(m.window(), true),
             _ => map.put(&r.hint),
@@ -454,6 +536,7 @@ impl PartyMenu {
             self.draw_slot(cx, &mut r, i);
         }
         self.draw_cancel(cx, &mut r);
+        self.draw_confirm(cx, &mut r);
         self.draw_hint(cx, &mut r);
         r.popup = self.popup_panel(cx, r.popup_base);
         if let Some(m) = &mut self.msg {
@@ -523,6 +606,7 @@ impl PartyMenu {
             self.draw_slot(cx, &mut r, i);
         }
         self.draw_cancel(cx, &mut r);
+        self.draw_confirm(cx, &mut r);
         self.gfx.0 = Some(r);
     }
 
@@ -535,6 +619,8 @@ impl PartyMenu {
         for i in [a, b] {
             if i == CANCEL {
                 self.draw_cancel(cx, &mut r);
+            } else if i == CONFIRM {
+                self.draw_confirm(cx, &mut r);
             } else if (i as usize) < PARTY_SIZE {
                 self.draw_slot(cx, &mut r, i as usize);
             }
@@ -586,13 +672,22 @@ impl PartyMenu {
     /// The menu's input while picking a slot (Gen3 `HandleChooseMonInput`'s d-pad): up/down
     /// through the slots and CANCEL with wrap, left to the lead, right from the lead to slot 1.
     fn move_cursor(&mut self, len: u8, pressed: Buttons, cancel: bool) -> bool {
-        let order: Vec<u8> = (0..len).chain(cancel.then_some(CANCEL)).collect();
+        // Choose-half: CONFIRM between the last slot and CANCEL (`UpdatePartySelectionSingleLayout`).
+        let confirm = matches!(self.mode, PartyMode::ChooseHalf { .. });
+        let order: Vec<u8> = (0..len)
+            .chain(confirm.then_some(CONFIRM))
+            .chain(cancel.then_some(CANCEL))
+            .collect();
         let at = order.iter().position(|&c| c == self.cursor).unwrap_or(0);
         let to = if pressed.contains(Buttons::UP) {
             order[(at + order.len() - 1) % order.len()]
         } else if pressed.contains(Buttons::DOWN) {
             order[(at + 1) % order.len()]
-        } else if pressed.contains(Buttons::LEFT) && self.cursor != 0 && self.cursor != CANCEL {
+        } else if pressed.contains(Buttons::LEFT)
+            && self.cursor != 0
+            && self.cursor != CANCEL
+            && self.cursor != CONFIRM
+        {
             0
         } else if pressed.contains(Buttons::RIGHT) && self.cursor == 0 && len > 1 {
             1
@@ -611,6 +706,17 @@ impl PartyMenu {
                 if !forced {
                     a.push(Action::Cancel);
                 }
+            }
+            PartyMode::ChooseHalf { .. } => {
+                // `GetPartySlotEntryStatus`: not eligible, already entered, eligible.
+                let fainted = cx.party.get(slot as usize).is_none_or(|m| m.hp == 0);
+                if fainted {
+                } else if self.order.contains(&(slot + 1)) {
+                    a.push(Action::NoEntry);
+                } else {
+                    a.push(Action::Enter);
+                }
+                a.extend([Action::Summary, Action::Cancel]);
             }
             _ => {
                 a.push(Action::Summary);
@@ -666,7 +772,7 @@ impl PartyMenu {
                     }
                 },
             },
-            PartyMode::Field | PartyMode::Battle { .. } => {
+            PartyMode::Field | PartyMode::Battle { .. } | PartyMode::ChooseHalf { .. } => {
                 self.actions = self.actions_for(cx, slot);
                 let cursor = MenuCursor::new(self.actions.len() as u8, 0);
                 self.st = St::Actions { slot, cursor };
@@ -825,6 +931,13 @@ impl PartyMenu {
                 };
                 self.relayout(cx);
             }
+            Next::AskCancel => {
+                self.st = St::Ask {
+                    q: Question::CancelChoice,
+                    cursor: 0,
+                };
+                self.relayout(cx);
+            }
             Next::ForgetSummary => {
                 if let Some(t) = self.teaching {
                     self.st = St::Summary;
@@ -848,9 +961,23 @@ impl PartyMenu {
         ScreenOut::Running
     }
 
-    fn answer<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, q: Question, yes: bool) {
+    fn answer<G: GameData>(
+        &mut self,
+        cx: &mut ScreenCx<'_, G>,
+        q: Question,
+        yes: bool,
+    ) -> ScreenOut {
         let v = self.teach_vars(cx);
         match (q, yes) {
+            // `Task_HandleCancelChooseMonYesNoInput`: yes clears the order and closes.
+            (Question::CancelChoice, true) => {
+                self.order = [0; MAX_ORDER];
+                return ScreenOut::Done(ScreenResult::Cancel);
+            }
+            (Question::CancelChoice, false) => {
+                self.hide_msg(cx);
+                self.back_to_slots(cx);
+            }
             (Question::Replace, true) => self.show_msg(
                 cx,
                 UiText::PartyWhichMoveToForget,
@@ -880,6 +1007,7 @@ impl PartyMenu {
                 Next::AskReplace,
             ),
         }
+        ScreenOut::Running
     }
 
     /// The summary closed (`Value(slot)` viewing, `Value(move slot)` / 4 picking a move).
@@ -999,6 +1127,40 @@ impl PartyMenu {
                     ScreenOut::Running
                 }
             }
+            Action::Enter => {
+                // `CursorCb_Enter`.
+                let max = match self.mode {
+                    PartyMode::ChooseHalf { max, .. } => (max as usize).min(MAX_ORDER),
+                    _ => 0,
+                };
+                match self.order[..max].iter().position(|&o| o == 0) {
+                    Some(i) => {
+                        self.order[i] = slot + 1;
+                        if i + 1 == max {
+                            self.cursor = CONFIRM;
+                        }
+                        self.back_to_slots(cx);
+                    }
+                    None => {
+                        let mut n = Vec::with_capacity(2);
+                        push_number(&mut n, max as u32, 1, false);
+                        n.push(EOS);
+                        let v = vars(&n, &[EOS]);
+                        self.actions.clear();
+                        self.show_msg(cx, UiText::PartyNoMoreThan, Some(&v), true, Next::Slots);
+                    }
+                }
+                ScreenOut::Running
+            }
+            Action::NoEntry => {
+                // `CursorCb_NoEntry`: the later entries move up.
+                if let Some(i) = self.order.iter().position(|&o| o == slot + 1) {
+                    self.order.copy_within(i + 1.., i);
+                    self.order[MAX_ORDER - 1] = 0;
+                }
+                self.back_to_slots(cx);
+                ScreenOut::Running
+            }
             Action::FieldMove(_) => {
                 // Milestone 10 runs the field moves from the menu.
                 cx.report(Report::Unsupported("field move"));
@@ -1065,6 +1227,8 @@ fn action_label<G: GameData>(game: &G, a: Action) -> &'static [u8] {
         Action::Item => game.ui_text(UiText::PartyItem),
         Action::Cancel => game.ui_text(UiText::PartyCancel),
         Action::Shift => game.ui_text(UiText::PartyShift),
+        Action::Enter => game.ui_text(UiText::PartyEnter),
+        Action::NoEntry => game.ui_text(UiText::PartyNoEntry),
         // Gen3 prints the move's name (`gMoveNames[sFieldMoves[i]]`).
         Action::FieldMove(fm) => match game.field_move_gate(fm) {
             FieldMoveGate::PartyMove { move_id, .. } => move_name(game, move_id),
@@ -1097,7 +1261,7 @@ impl Screen for PartyMenu {
             self.redraw_all(cx);
         }
         let len = cx.party.len() as u8;
-        if self.cursor != CANCEL && self.cursor >= len {
+        if self.cursor != CANCEL && self.cursor != CONFIRM && self.cursor >= len {
             self.cursor = 0;
         }
         let pressed = input.pressed;
@@ -1109,8 +1273,37 @@ impl Screen for PartyMenu {
                     _ => None,
                 };
                 let before = self.cursor;
+                let half = match self.mode {
+                    PartyMode::ChooseHalf { min, .. } => Some(min),
+                    _ => None,
+                };
                 if self.move_cursor(len, pressed, !forced) {
                     self.redraw_two(cx, before, self.cursor);
+                    ScreenOut::Running
+                } else if half.is_some() && pressed.contains(Buttons::START) {
+                    // `MoveCursorToConfirm`.
+                    self.cursor = CONFIRM;
+                    self.redraw_two(cx, before, self.cursor);
+                    ScreenOut::Running
+                } else if let Some(min) = half
+                    && pressed.contains(Buttons::A)
+                    && self.cursor == CONFIRM
+                {
+                    // `Task_ValidateChosenHalfParty` (`CheckBattleEntriesAndGetMessage`: the
+                    // multi battle checks only the count).
+                    let min = (min as usize).clamp(1, MAX_ORDER);
+                    if self.order[min - 1] == 0 {
+                        self.show_msg(cx, UiText::PartyNoMonForBattle, None, true, Next::Slots);
+                        ScreenOut::Running
+                    } else {
+                        ScreenOut::Done(ScreenResult::Value(pack_order(&self.order)))
+                    }
+                } else if half.is_some()
+                    && (pressed.contains(Buttons::B)
+                        || (pressed.contains(Buttons::A) && self.cursor == CANCEL))
+                {
+                    // `HandleChooseMonCancel` → `DisplayCancelChooseMonYesNo`.
+                    self.show_msg(cx, UiText::PartyCancelBattle, None, false, Next::AskCancel);
                     ScreenOut::Running
                 } else if pressed.contains(Buttons::A) {
                     match (switching, self.cursor) {
@@ -1226,16 +1419,16 @@ impl Screen for PartyMenu {
                 match r {
                     Some(yes) => {
                         self.st = St::Ask { q, cursor };
-                        self.answer(cx, q, yes);
+                        self.answer(cx, q, yes)
                     }
                     None => {
                         self.st = St::Ask {
                             q,
                             cursor: yes_no.cursor,
                         };
+                        ScreenOut::Running
                     }
                 }
-                ScreenOut::Running
             }
             St::Summary => ScreenOut::Running,
         };
@@ -1252,6 +1445,9 @@ impl Screen for PartyMenu {
                 p.flush_within(cx.f, &mut budget);
             }
             r.cancel.flush_within(cx.f, &mut budget);
+            if let Some(p) = &mut r.confirm {
+                p.flush_within(cx.f, &mut budget);
+            }
             r.hint.flush_within(cx.f, &mut budget);
         }
         out
@@ -1272,6 +1468,7 @@ impl Screen for PartyMenu {
                     Next::AskStop => 3,
                     Next::ForgetSummary => 4,
                     Next::Learn(k) => 5 + k,
+                    Next::AskCancel => 20,
                 },
                 0,
             ),
@@ -1279,6 +1476,9 @@ impl Screen for PartyMenu {
             St::Summary => (6, 0, 0),
         };
         h.write(&[self.cursor, tag, a, b, self.actions.len() as u8]);
+        if matches!(self.mode, PartyMode::ChooseHalf { .. }) {
+            h.write(&self.order);
+        }
         if let Some(t) = self.teaching {
             h.write(&[t.slot]);
             h.write_u16(t.mv.0);

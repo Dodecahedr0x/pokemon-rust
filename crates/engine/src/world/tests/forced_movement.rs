@@ -98,6 +98,7 @@ static LANE_BLOCKS: [u16; 80] = [
 const TRAINER_SCRIPT: ScriptId = ScriptId(2);
 const TALK_SCRIPT: ScriptId = ScriptId(3);
 const LOCK_SCRIPT: ScriptId = ScriptId(4);
+const LOCK_ONLY: ScriptId = ScriptId(5);
 const FLAG_TRAINER: FlagId = FlagId(0x501);
 const FLAG_TALKED: FlagId = FlagId(0x502);
 
@@ -206,6 +207,12 @@ async fn lock(ctx: Ctx) {
     ctx.release_all().await;
 }
 
+/// Locks everything and ends without `releaseall` (Space Center 2F without `BUGFIX`).
+async fn lock_only(ctx: Ctx) {
+    ctx.lock_all().await;
+    ctx.delay(5).await;
+}
+
 /// The test [`Game`]'s graphics, with the maps above, running allowed, and the puzzles.
 struct Rink;
 
@@ -262,6 +269,7 @@ impl GameData for Rink {
             TRAINER_SCRIPT => Box::pin(trainer(ctx)),
             TALK_SCRIPT => Box::pin(talk(ctx)),
             LOCK_SCRIPT => Box::pin(lock(ctx)),
+            LOCK_ONLY => Box::pin(lock_only(ctx)),
             _ => Box::pin(async {}),
         }
     }
@@ -807,4 +815,17 @@ fn thin_ice_round_trips_through_a_checkpoint_mid_step() {
     }
     assert_eq!((r.var(VAR_ICE), metatile(&r, 2, 1)), (2, CRACKED));
     assert_eq!(r.var(VAR_ROW), 0b001);
+}
+
+/// A script that ends without `releaseall` leaves the player free (Gen3 `FreezeObjectEvents`
+/// skips the player; `ScriptContext_RunScript` unlocks the field controls at the end).
+#[test]
+fn a_script_ending_without_release_frees_the_player() {
+    let mut w = rink();
+    place(&mut w, (3, 6), Dir::Right);
+    w.s.objects.hold_forced(false);
+    let ctx = w.runner.ctx();
+    w.runner.start(Rink.script(LOCK_ONLY, ctx));
+    let (_, cells) = run_to(&mut w, Buttons::NONE, (8, 6));
+    assert_eq!(cells, [(4, 6), (5, 6), (6, 6), (7, 6), (8, 6)]);
 }

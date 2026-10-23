@@ -631,6 +631,16 @@ impl GameData for Game {
         prelude::fly_destination(i)
     }
 
+    /// `Task_ReturnToItemListAfterItemPurchase`: 10 Poké Balls bought at once add a Premier
+    /// Ball.
+    fn mart_bonus(&self) -> Option<(engine::data::ItemId, u16, engine::data::ItemId)> {
+        Some((
+            engine::data::ItemId(consts::ITEM_POKE_BALL),
+            10,
+            engine::data::ItemId(consts::ITEM_PREMIER_BALL),
+        ))
+    }
+
     /// `TryPushBoulder`.
     fn pushable_boulder(&self) -> Option<(engine::data::GfxId, FlagId)> {
         Some((

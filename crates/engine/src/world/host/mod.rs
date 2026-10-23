@@ -11,6 +11,7 @@
 
 pub(in crate::world) use field::FieldEffects;
 pub(in crate::world) use fx::whiteout_allowed;
+pub(in crate::world) use stash::Stash;
 
 mod buffers;
 mod field;
@@ -21,6 +22,7 @@ mod party;
 mod query;
 mod save;
 mod screens;
+mod stash;
 mod trainer;
 mod warps;
 
@@ -409,6 +411,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::AddFriendship { .. }
             | Request::PartyMonSpecies(_)
             | Request::InGameTrade { .. } => party::begin(self, r),
+            Request::PartyStash(op) => stash::begin(self, op),
             Request::FieldEffectArg { .. }
             | Request::FieldEffect { .. }
             | Request::WaitFieldEffect(_)

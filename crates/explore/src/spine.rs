@@ -94,6 +94,14 @@ pub enum Step {
     /// Use an item from the bag: START → BAG → the item → USE, then the party menu
     /// ([`UseItem`]: Gen3 `ItemUseOutOfBattle_TMHM` → `ItemUseCB_TMHM` for a TM or HM).
     UseItem(UseItem),
+    /// Talk to clerk `local_id` and buy `qty` of `item` at its Poké Mart (Gen3 `pokemart`:
+    /// BUY, the item, how many, yes), then leave the mart and resolve the clerk's script.
+    Buy {
+        map: MapId,
+        local_id: u8,
+        item: ItemId,
+        qty: u16,
+    },
     /// Idle a few frames ([`WAIT_SCRIPT_FRAMES`]: a frame script starts), then resolve
     /// whatever runs.
     WaitScript,
@@ -217,6 +225,7 @@ impl Step {
             | Step::Enter { map, .. }
             | Step::Cross { map, .. }
             | Step::Talk { map, .. }
+            | Step::Buy { map, .. }
             | Step::Use { map, .. }
             | Step::Grass { map, .. }
             | Step::Train { map, .. }
@@ -600,6 +609,29 @@ pub fn run<G: GameData + Clone + 'static>(
     steps: &'static [Step],
     cfg: &Config,
 ) -> SpineRun {
+    run_from(game, steps, cfg, None)
+}
+
+/// Where [`run_from`] starts: a position's state (its build hash is not checked, so a saved
+/// position replays on a changed engine), the index of the first step to play, and the
+/// position's options.
+#[derive(Clone, Debug)]
+pub struct Start {
+    pub end: Arc<Checkpoint>,
+    pub index: usize,
+    pub opts: StepOpts,
+    pub frame: u64,
+}
+
+/// [`run`] from `start` (a new game for `None`): the steps before `start.index` are not
+/// played (their positions are left out; position 0 is the start). A development aid to
+/// replay a segment of a long spine from a saved position.
+pub fn run_from<G: GameData + Clone + 'static>(
+    game: &G,
+    steps: &'static [Step],
+    cfg: &Config,
+    start: Option<Start>,
+) -> SpineRun {
     let cfg = &play_config(cfg);
     let mut make = detectors::<G>(cfg);
     let mut out = SpineRun {
@@ -614,28 +646,42 @@ pub fn run<G: GameData + Clone + 'static>(
         error: None,
         played: Vec::new(),
     };
-    let mut live = match Live::start(game, cfg, None, &mut make) {
+    let first = start.as_ref().map_or(0, |s| s.index);
+    let base = start.as_ref().map_or(0, |s| s.frame);
+    let opts = start.as_ref().map(|s| s.opts);
+    let from = start.map(|s| {
+        let mut cp = (*s.end).clone();
+        cp.header.build = engine::checkpoint::BuildHash {
+            engine: 0,
+            content: 0,
+        };
+        Arc::new(cp)
+    });
+    let mut live = match Live::start(game, cfg, from, &mut make) {
         Ok(l) => l,
         Err(stop) => {
-            out.error = Some(stop_error(0, "the new game", stop));
+            out.error = Some(stop_error(first, "the new game", stop));
             return out;
         }
     };
     // The settled new game is position 0.
     if let Err(e) = live.step(&Macro::of(MacroKind::Settle)) {
-        out.error = Some(fail_error(&mut live, 0, "the new game's settle", e));
+        out.error = Some(fail_error(&mut live, first, "the new game's settle", e));
         return finish(out, live, cfg);
     }
     let mut x = Exec::new(game, cfg);
+    if let Some(o) = opts {
+        x.opts = o;
+    }
     out.positions.push(Position {
-        index: 0,
+        index: first,
         label: None,
         segment: None,
-        frame: live.frames(),
+        frame: base + live.frames(),
         end: live.last_end().expect("settled"),
         opts: x.opts,
     });
-    for (i, step) in steps.iter().enumerate() {
+    for (i, step) in steps.iter().enumerate().skip(first) {
         let played = live.res.steps.len();
         let r = x.play(&mut live, step);
         for st in &live.res.steps[played..] {
@@ -659,81 +705,7 @@ pub fn run<G: GameData + Clone + 'static>(
             index: i + 1,
             label,
             segment,
-            frame: live.frames(),
-            end: live.last_end().expect("a step was played"),
-            opts: x.opts,
-        });
-    }
-    finish(out, live, cfg)
-}
-
-/// Plays `steps[from..]` from a saved position (`start`, `opts`: a [`Position`]'s end and
-/// options, e.g. one written by `spine_real`'s `spine_segment`): a spine segment without the
-/// steps before it. Its positions start at `from` (`positions[0].index == from`), so the
-/// whole-run helpers (`bypasses`, labels) count from there.
-pub fn run_from<G: GameData + Clone + 'static>(
-    game: &G,
-    steps: &'static [Step],
-    cfg: &Config,
-    from: usize,
-    start: Arc<Checkpoint>,
-    opts: StepOpts,
-) -> SpineRun {
-    let cfg = &play_config(cfg);
-    let mut make = detectors::<G>(cfg);
-    let mut out = SpineRun {
-        steps,
-        positions: Vec::new(),
-        inputs: Vec::new(),
-        frames: 0,
-        coverage: Coverage::default(),
-        spine_flags: BTreeSet::new(),
-        reports: Vec::new(),
-        notes: Vec::new(),
-        error: None,
-        played: Vec::new(),
-    };
-    let mut live = match Live::start(game, cfg, Some(start.clone()), &mut make) {
-        Ok(l) => l,
-        Err(stop) => {
-            out.error = Some(stop_error(from, "the saved position", stop));
-            return out;
-        }
-    };
-    let mut x = Exec::at(game, cfg, opts);
-    out.positions.push(Position {
-        index: from,
-        label: None,
-        segment: None,
-        frame: 0,
-        end: start,
-        opts,
-    });
-    for (i, step) in steps.iter().enumerate().skip(from) {
-        let played = live.res.steps.len();
-        let r = x.play(&mut live, step);
-        for st in &live.res.steps[played..] {
-            out.played.push((i, st.macro_));
-        }
-        if let Err(e) = r {
-            out.error = Some(SpineError {
-                step: i,
-                message: format!("{step:?}: {}", e.message),
-                finding: e.finding.map(|f| *f),
-            });
-            break;
-        }
-        let prev = out.positions.last().expect("the start");
-        let label = match step {
-            Step::Checkpoint(l) => Some(*l),
-            _ => None,
-        };
-        let segment = label.or(prev.segment);
-        out.positions.push(Position {
-            index: i + 1,
-            label,
-            segment,
-            frame: live.frames(),
+            frame: base + live.frames(),
             end: live.last_end().expect("a step was played"),
             opts: x.opts,
         });
@@ -1097,6 +1069,19 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 self.macro_(live, mk(MacroKind::Press { keys, frames }))?
             }
             Step::Wait(frames) => self.macro_(live, mk(MacroKind::Wait { frames }))?,
+            Step::Buy {
+                local_id,
+                item,
+                qty,
+                ..
+            } => self.macro_(
+                live,
+                mk(MacroKind::Buy {
+                    local_id,
+                    item: item.0,
+                    qty,
+                }),
+            )?,
             Step::UseItem(u) => self.macro_(
                 live,
                 mk(MacroKind::UseItem {

@@ -133,6 +133,7 @@ pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m:
         | MacroKind::Press { .. }
         | MacroKind::UseItem { .. }
         | MacroKind::Fly { .. } => true,
+        MacroKind::Buy { local_id, .. } => st.talkable(local_id),
         MacroKind::WalkTo { x, y } => st.walk_target((x, y)),
         MacroKind::Enter { x, y, dir } => {
             map.warps.iter().any(|w| (w.x, w.y) == (x, y))

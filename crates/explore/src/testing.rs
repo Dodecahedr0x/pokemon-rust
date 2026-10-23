@@ -190,6 +190,7 @@ macro_rules! forward_game_data {
     (@ $f:tt start_menu) => { fn start_menu(&self) -> &'static [::engine::data::StartItem] { self.$f.start_menu() } };
     (@ $f:tt field_move_gate) => { fn field_move_gate(&self, m: ::engine::data::FieldMove) -> ::engine::data::FieldMoveGate { self.$f.field_move_gate(m) } };
     (@ $f:tt item_use) => { fn item_use(&self, id: ::engine::data::ItemId) -> ::engine::data::ItemUse { self.$f.item_use(id) } };
+    (@ $f:tt mart_bonus) => { fn mart_bonus(&self) -> ::core::option::Option<(::engine::data::ItemId, u16, ::engine::data::ItemId)> { self.$f.mart_bonus() } };
     (@ $f:tt item_description) => { fn item_description(&self, id: ::engine::data::ItemId) -> ::core::option::Option<&'static [u8]> { self.$f.item_description(id) } };
     (@ $f:tt move_description) => { fn move_description(&self, id: ::engine::data::MoveId) -> ::core::option::Option<&'static [u8]> { self.$f.move_description(id) } };
     (@ $f:tt is_hm_move) => { fn is_hm_move(&self, m: ::engine::data::MoveId) -> bool { self.$f.is_hm_move(m) } };
@@ -219,7 +220,7 @@ macro_rules! forward_game_data {
                                    trainer_money evolutions hold_effect form_changes map_type m9);
     };
     (@ $f:tt m9) => {
-        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp fly_destination water_encounters rock_smash_encounters pushable_boulder player_surf_sprite);
+        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use mart_bonus item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp fly_destination water_encounters rock_smash_encounters pushable_boulder player_surf_sprite);
     };
 }
 
