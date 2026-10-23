@@ -203,6 +203,8 @@ impl Stall {
 struct DirQuery {
     map: MapId,
     from: (i16, i16),
+    /// The player's elevation (the searches carry it).
+    elevation: u8,
     to: (i16, i16),
     occupied: Vec<(i16, i16)>,
 }
@@ -349,6 +351,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             let q = DirQuery {
                 map: self.w().map(),
                 from: self.w().objects().player().pos(),
+                elevation: self.w().objects().player().elevation,
                 to,
                 occupied: grid.occupied_cells().to_vec(),
             };
