@@ -1643,6 +1643,169 @@ Below, each map's names are given without the `<Map>_` prefix. Trainer objects c
 - `FLAG_SIL_DEPOT_MAGNET_ON` is a "temporary" flag in the source (cleared on leaving the Depot) but a plain flag in `ids/`. Gen3's boulder gate is `FLAG_SYS_USE_STRENGTH`, which `game.ron` already clears on map change: Depot_Sc01 should set that once the engine pushes boulders.
 - `items.ron` keeps the source's `pos` for the moved Iron (4, 6) and Great Ball (13, 8). The maps are authoritative, and the importer would rewrite a hand edit.
 
+#### SIL4 Ch7 maps as built
+
+The 8 maps of Chapter 7 (Route S7 and Reverse-City) are in `games/silice/{maps,layouts}/`. They were made with the studio map editor only. Their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where needed). No stamps were added: every building is drawn in `01_terrain`.
+
+Gates on the branch:
+- `cargo xtask studio map --game silice build` rebuilds the 39 Silice maps, and a second build leaves the tree clean;
+- `validate` reports only unwritten scripts for Ch7 (93) and ViberCity's known shared coord cell;
+- `hygiene` is clean, `games::copies` included;
+- `cargo xtask silice check`, `PKR_GAME=silice cargo test -p content -p extract` and `cargo test -p xtask --test silice_games` pass.
+
+**Maps.** §1.2 counts 10 names for Ch7: the 8 below, plus `MANGA_SQUARE` (Ch6) and `ROUTE_S08` (Ch8). All 8 map ids were already in `ids/maps.ron`. The placeholder `MAP_ROUTE_S07_ANTENNE` (post-game) has no map.
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS07 | 30 × 72 | Building + TrainerHill | the only pair with forced-slide arrows (MB_SLIDE_*, 576–579) next to coloured floor panels (green, yellow, blue) for the three zones; void around a walkway reads as the "data road" |
+| ReverseCity | 40 × 36 | General + Sootopolis | white stone town around water: the mirror city, its quays and lighthouse |
+| ReverseCity_Gym | 14 × 37 | Building + SootopolisGym | the ice floor (525) and the pillars for the ice grid, mirror-like wall panels for the doors |
+| ReverseCity_Phare | 14 × 20 | General + Pacifidlog | wooden stairs and ramps for the lighthouse climb; dark (`cave: 1`) |
+| ReverseCity_Coffre | 10 × 10 | General + Facility | metal floor; the round machine is the safe; exit mats 518/519 |
+| ReverseCity_PokemonCenter | 13 × 9 | Building + PokemonCenter | standard Centre, the benches on rows 6–7 |
+| ReverseCity_Mart | 12 × 9 | Building + Shop | standard Mart with one more aisle row |
+| ReverseCity_House1 | 9 × 7 | Building + GenericBuilding | a small house, table on the right |
+
+The interiors are Viber-City's, rearranged; each has its own layout.
+
+**Layout notes.**
+- **Route S7** runs south (Manga-Square side) to north (Reverse-City):
+  - S7-A, the green zone: block C1 sits alone between crates on the only path, C2 guards a balcony with the Twisted Spoon;
+  - S7-B, the puzzle;
+  - S7-C, the yellow zone, entered through a 3-wide corridor where `Sc02` fires;
+  - S7-D, the blue walkway: slide-south arrows (577) in two alternating motifs, a recess with C3 and the Max Revive, and Technicien 2's niche;
+  - the Secteur Êta gate, door 537 at (14, 1).
+- **Reverse-City:**
+  - south gate mats (30–32, 35), with `Sc01` on the row in front of them;
+  - a fence across y 16, open only at x 17–21, where `Sc02` fires;
+  - the Palais (the gym), the Mart, the vault building in the alley behind a breakable block, the lighthouse on the quays, and a pond with a cliff edge;
+  - the Porte Êta-Nord at (26–28, 0–1), with `Sc07` two cells in front of it.
+- **Gym, bottom to top:**
+  - the hall;
+  - room 1, the ice grid. It is solvable, and no stop leaves the player stuck: every stop can still reach the south or the exit;
+  - room 2, the three mirror doors;
+  - room 3, Reverse before the great mirror, with Nomis in a niche.
+
+Reachability was checked by BFS on the built grids:
+- Route S7: C1 is mandatory, `Sc02`'s row cannot be bypassed, the puzzle's trap needs its block broken, and Pascal is mandatory;
+- Reverse-City: `Sc01` and `Sc02` cannot be bypassed, and the vault is reachable once the alley block breaks;
+- the Phare: Oscar is mandatory.
+
+**Warnings and allowances.**
+- **RouteS07:** the south mats (13–14, 71) are solid until the Manga-Square warp exists.
+- **ReverseCity:** the upside-down fountain (19–20, 10–11) is decorative water, solid.
+- **ReverseCity_Gym:** warps 2 (6, 29) and 3 (6, 10) sit on floor; they are only arrival points for the door scripts' `warp()`.
+
+Everything else is "not in the build (yet)".
+
+**Source fixes.** Each one is noted in the edit scripts.
+- **The S7-D arrow motif** in the source has no valid path. Two original motifs replace it, built from slide-south arrows and rocks, and the BFS checks them.
+- **Pascal** stood at puzzle (1, 1), the only path, which blocked it. He is in a niche at puzzle (1, 0), facing down with sight 1, so he is still mandatory.
+- **The route's trainers:** the source counts six but lists five. S7-D gets Technicien 2.
+- **The ice room:** the source's "always back to S" is false, but no stop is a softlock.
+- **The music:** `MUS_ROUTE118` is a pseudo-song (0x7FFF, split by `GetCurrLocationDefaultMusic`). The content build rejects it, so Route S7 uses `MUS_ROUTE119`.
+
+**Ids** (commit `feat(silice): ids for Ch7 maps`), in the coordinator's Ch7 block 900–939:
+- `FLAG_SIL_HIDE_GYM07_PIXELS` 900;
+- `FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL` 901;
+- `FLAG_SIL_HIDE_REVERSE_ROMAIN` 902. Romain has his own flag because the validator warns when two objects share a hide flag. `Sc02` sets both `GOGO_ROMAIN` and `ROMAIN`.
+
+The importer numbered them 804–806; they were renumbered by hand.
+
+`new_game_flags` gains the four that start hidden: `HABITANT_ACCUEIL`, `BENOU_PORTE`, `GYM07_BENOU` and `GYM07_PIXELS`. `game_tests` checks them, and checks that Gogo, Romain, the Palais guard and Reverse start visible.
+
+**Script contracts.** All names stay unwritten under `registry::ALLOW_UNWRITTEN`.
+- **RouteS07:**
+  - `Sc01` (on_frame, `VAR_SIL_STORY` 68 → it sets 70) and `Sc02` (coords y 34, x 13–15, at 70);
+  - trainers: `EventScript_Technicien1`, `EventScript_Pascal`, `EventScript_Selene`, `EventScript_Mira`, `EventScript_Technicien2`;
+  - NPCs: `EventScript_Ouvrier`, `EventScript_Philosophe`, `EventScript_Touriste`;
+  - blocks (C1, C2, C-Puzzle, C3): `EventScript_Bloc`;
+  - items: `EventScript_ItemFullHeal`, `EventScript_ItemTwistedSpoon`, `EventScript_ItemRareCandy`, `EventScript_ItemUltraBall`, `EventScript_ItemMaxRevive`;
+  - signs: `EventScript_SignPremisses`, `EventScript_SignEntree`, `EventScript_SignBloc`, `EventScript_SignPorte`.
+- **ReverseCity:**
+  - `OnLoad`: it repaints the open Porte Êta-Nord once `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE` is set;
+  - `OnTransition`: inverted controls while `FLAG_SIL_REVERSE_BATTU` is clear, and the hide flags;
+  - `Sc01` (coords y 34, x 30–32, at 71), `Sc02` (y 16, x 17–21, at 72) and `Sc07` (y 3, x 26–28, at 75);
+  - NPCs: `EventScript_Habitant1`, `EventScript_Habitant2`, `EventScript_Enfant`, `EventScript_Vieille`, `EventScript_SbirePromo`, `EventScript_Docker`, `EventScript_GardePalais`, `EventScript_SbireRuelle`;
+  - trainers: `EventScript_Sbire1`, `EventScript_Sbire2`, and the emitters `EventScript_Emetteur1`, `EventScript_Emetteur2`, `EventScript_Emetteur3` (`Sc03`; trainer objects with sight 2, the source's fallback);
+  - the alley block: `EventScript_BlocRuelle`;
+  - items: `EventScript_ItemPoudreSilice`;
+  - signs: `EventScript_SignVille`, `EventScript_SignMart`, `EventScript_SignPhare`, `EventScript_SignGym`, `EventScript_SignPC`, and `EventScript_Poubelle` on both empty bins.
+  - Gogo (5), Romain (6), Benou at the gate (15) and the welcoming resident (17) have no script; they are scene actors.
+- **ReverseCity_Gym:**
+  - `OnTransition`;
+  - `Sc01`: Reverse's object, and coords y 5, x 5–7, at 73;
+  - `Sc02`: on_frame at 74, which replays it if the story stopped there;
+  - the doors `EventScript_PorteGauche`, `EventScript_PorteMilieu` and `EventScript_PorteDroite`: coords on `VAR_TEMP_1` 0, which no script on the map writes, so they always fire. Each door warps to warp 2 (back to the hall's south mat) or 3 (room 3);
+  - trainers: `EventScript_Anna`, `EventScript_Xela`, `EventScript_Nomis`;
+  - NPCs: `EventScript_Guide`;
+  - signs: `EventScript_SignRegle`, `EventScript_Statue1`, `EventScript_Statue2`.
+- **ReverseCity_Phare:**
+  - `Sc06`: the TM ball. It reads the lamp text and gives the TM;
+  - `EventScript_Oscar`;
+  - `EventScript_ItemMaxEther`.
+- **ReverseCity_Coffre:**
+  - `OnTransition`: normal controls;
+  - `Sc04`: the dial, a sign on (4–5, 7) that is read facing up.
+- **ReverseCity_PokemonCenter:** `OnTransition` (`set_respawn`), `EventScript_Nurse`, `EventScript_Dresseuse`.
+- **ReverseCity_Mart:** `OnTransition`, `EventScript_Clerk`, `EventScript_Client`.
+- **ReverseCity_House1:** `OnTransition`, `EventScript_VieilHomme`.
+
+**Pending links, left solid on purpose:**
+- **Ch6 → Ch7.** Route S7's south mats (13–14, 71) are arrow-warp metatiles 6/7, solid and allowed.
+  - Ch6 or the merge must make them walkable and add two `Warp`s to Manga-Square's north exit, and the matching warps there.
+  - It must be warps, not a connection, unless Manga-Square also uses the Building primary: Gen3 draws a neighbour with the current map's tilesets.
+- **Ch7 → Ch8.** Reverse-City's Porte Êta-Nord, door 545 at (27, 0), is solid.
+  - `Sc07` opens it with `door()` and `set_metatile`;
+  - `OnLoad` repaints it open once `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE` is set;
+  - Ch8 adds `Warp(x: 27, y: 0, dest_map: "RouteS08", …)`, or a north connection if Route S8 shares the General primary.
+
+**Missing graphics and mechanics (static fallbacks in place):**
+- **No ice, forced walk or slide in the engine.** The `Behavior` enum has none of MB_ICE, MB_WALK_*, MB_SLIDE_* or MB_THIN_ICE.
+  - The route's arrows are MB_SLIDE_* from TrainerHill, not the source's MB_WALK_*. The MB_WALK_* arrows exist only in TrickHousePuzzle (608–611), which has neither the floors nor the void.
+  - The gym's ice is SootopolisGym 525, which is MB_THIN_ICE. MB_ICE exists only in Cave (909) and CableClub. A Silice tileset should re-tag 525 as MB_ICE; until then the ice grid is plain floor in the engine.
+- **No grass on Building + TrainerHill.** Route S7's crystal-grass islands use metatile 549 for the look only, so the route has no wild encounters until a Silice metatile carries the tall-grass behaviour.
+- **No door or warp metatile in SootopolisGym.** The mirror doors are coords with scripted warps.
+- **Later work:**
+  - mirror and glitch palettes, and the négatif flash on entry;
+  - inverted controls (`set_input_inverted`);
+  - `WalkBackwards`;
+  - Reverse's hologram;
+  - the emitters' idle timer;
+  - the black-light beam;
+  - `screen_flash`.
+
+  All are in the source's §9.
+- **Sprites.** Placeholders:
+
+  | Character | Placeholder gfx |
+  |---|---|
+  | Reverse | JUAN |
+  | Benou | SCIENTIST_1 |
+  | Gogo, Romain | MAXIE, ARCHIE |
+  | sbires, technicians | MAGMA_MEMBER_M / _F |
+  | emitters | TRICK_HOUSE_STATUE |
+  | black pixels | KECLEON_BRIDGE_SHADOW |
+  | blocks | BREAKABLE_ROCK |
+  | Xela | ARTIST |
+  | Anna | BEAUTY |
+  | Nomis | PSYCHIC_M |
+  | Selene | LASS |
+  | Mira | HEX_MANIAC |
+  | Pascal | SCHOOL_KID_M |
+  | Philosophe | EXPERT_M |
+  | Touriste | CAMERAMAN |
+  | Docker | HIKER |
+  | Oscar | SAILOR |
+- **Heal location.** `ReverseCity_PokemonCenter_OnTransition` calls `set_respawn`, which needs `HEAL_LOCATION_SIL_REVERSE_CITY` in `game.ron`'s append-only `heal_locations`. That entry is left to the ch07 scripts.
+
+**Editor friction (new since Ch2–Ch3):**
+1. `studio-map build` accepts `MUS_ROUTE118`, but the content build rejects it, because it is not in the Gen3 song table. The editor should check songs against the same table.
+2. To find a behaviour, every tileset pair had to be scanned through `dump` and the decomp's `metatile_attributes`. Ice, walk arrows and slides each live in exactly one or two secondaries, and none of them fits a town. A `palette --behavior MB_X` search across all pairs would help.
+3. The importer gives new flags the next free number (804+), so the coordinator's block (900+) was renumbered by hand in `flags.ron` and `ids.golden`. A `--flags-from N` option would remove the step.
+4. The shared scratchpad was overwritten by other agents (`tools/mb.py`); Ch7's generators live in their own `scratchpad/ch7/`.
+5. The sandbox refuses `studio-map` and `cargo` calls inside shell loops, so batches go through Python drivers.
+
 #### SIL1 Task A as built: the authored-data loader
 
 `build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
