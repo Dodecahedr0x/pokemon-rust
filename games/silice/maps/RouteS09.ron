@@ -195,6 +195,13 @@
             dest_map: "RouteS09_Station",
             dest_warp: 0,
         ),
+        (
+            x: 0,
+            y: 4,
+            elevation: 0,
+            dest_map: "Evalon",
+            dest_warp: 7,
+        ),
     ],
     coords: [
         (

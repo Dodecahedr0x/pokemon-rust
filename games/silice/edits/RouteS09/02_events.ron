@@ -6,6 +6,10 @@
     // Warps 0-1: the station's door, to RouteS09_Station's warp 0.
     Warp(x: 53, y: 17, dest_map: "RouteS09_Station", dest_warp: 0),
     Warp(x: 54, y: 17, dest_map: "RouteS09_Station", dest_warp: 0),
+    // Warp 2: the shepherd's path up to Evalon (General's cave mouth 167, MB_NON_ANIMATED_DOOR), to Evalon's
+    // warp 7 at its south-east dead end. A warp, not a connection: Evalon is General + Fallarbor. Arriving
+    // here, the player walks down to (0, 5).
+    Warp(x: 0, y: 4, dest_map: "Evalon", dest_warp: 7),
     // Route_S09_Sc01 (le signal revient) at VAR_SIL_STORY 86 (Evalon_Sc10 leaves 86), 4 tiles in from the
     // west edge, across the whole 2-wide path; it sets 90.
     Coord(x: 4, y: 4, var: "VAR_SIL_STORY", value: 86, script: "RouteS09_Sc01"),
@@ -51,6 +55,5 @@
     // bg 5: hidden Full Restore at the foot of the last tree.
     HiddenItem(x: 13, y: 5, item: "ITEM_FULL_RESTORE", flag: "FLAG_SIL_ITEM_S09_CACHE_1"),
     // Dive: P1, P2 and P3 lead to RouteS09_Underwater at the same cells (its emerge patches).
-    // West edge (0, 4-5): Evalon's SE exit, to connect once Ch8's Evalon is merged (see the plan).
     Connect((dir: Dive, offset: 0, map: "RouteS09_Underwater")),
 ]
