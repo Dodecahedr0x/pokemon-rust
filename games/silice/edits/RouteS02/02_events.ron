@@ -60,8 +60,16 @@
     Sign(x: 38, y: 2, script: "RouteS02_EventScript_Cable3"),
     // The server block (Champ Magnetique), read from the south.
     Sign(x: 48, y: 10, script: "RouteS02_EventScript_Serveur"),
-    HiddenItem(x: 36, y: 12, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S02_ETHER"),
-    HiddenItem(x: 52, y: 12, item: "ITEM_THUNDER_STONE", flag: "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE"),
+    // Fallback (SIL2 Ch2 scripts): a sign script that gives it once behind its flag, because the
+    // engine does not pick up hidden items yet (as Ch0's Antidote). Back to
+    // HiddenItem(x: 36, y: 12, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S02_ETHER"),
+    // once it does.
+    Sign(x: 36, y: 12, script: "RouteS02_EventScript_HiddenEther"),
+    // Fallback (SIL2 Ch2 scripts): a sign script that gives it once behind its flag, because the
+    // engine does not pick up hidden items yet (as Ch0's Antidote). Back to
+    // HiddenItem(x: 52, y: 12, item: "ITEM_THUNDER_STONE", flag: "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE"),
+    // once it does.
+    Sign(x: 52, y: 12, script: "RouteS02_EventScript_HiddenThunderStone"),
     // Gris-Echec to the east: our exit y 3-5 meets its y 10-12. Bois-Ether to the west: our
     // entrance y 2-5 meets its east corridor y 12-15.
     Connect((dir: East, offset: -7, map: "GrisEchec")),
