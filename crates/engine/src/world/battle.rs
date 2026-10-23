@@ -741,6 +741,15 @@ impl World {
         s.selected = None;
         s.last_mover = 0;
         s.answer = None;
+        // Wave F: a whiteout while a script holds the party's backup (Steven's multi battle):
+        // the chosen mons go back and the backup is loaded first, as the script's
+        // `frontier_saveparty` and `LoadPlayerParty` do before its `SetCB2WhiteOut`.
+        if s.stash.saved.is_some() {
+            s.stash
+                .run(&mut s.party, crate::script::PartyStash::SaveSelected);
+            s.stash.run(&mut s.party, crate::script::PartyStash::Load);
+        }
+        s.stash = super::host::Stash::default();
         s.party.heal(game.battle());
         s.text.close(f);
         s.objects.invalidate_vram();

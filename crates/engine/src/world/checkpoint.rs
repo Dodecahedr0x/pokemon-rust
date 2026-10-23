@@ -255,6 +255,7 @@ impl World {
                 fx: ScreenFx::default(),
                 field_effects: super::host::FieldEffects::default(),
                 field_move: None,
+                stash: super::host::Stash::default(),
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,

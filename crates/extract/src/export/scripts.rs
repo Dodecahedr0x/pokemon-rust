@@ -20,7 +20,8 @@ use crate::inc::Decomp;
 use crate::labels::{self, Kind, MapInput, Transfer};
 use crate::names::{self, Table};
 use crate::schema::{
-    Hex, IrArg, IrInsn, IrLabel, IrMovement, ScriptEntry, ScriptFile, ScriptIndex, TextFile,
+    Hex, IrArg, IrInsn, IrLabel, IrList, IrMovement, NameOrigin, ScriptEntry, ScriptFile,
+    ScriptIndex, TextFile,
 };
 use crate::scripts::{self, Operand};
 use crate::{Rom, movement, text};
@@ -106,6 +107,8 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
     let mut ir = Ir::default();
     // (module, source rank, offset) -> label, sorted into source order below.
     let mut labels_by_module: BTreeMap<String, Vec<(Rank, IrLabel)>> = BTreeMap::new();
+    // Module -> its `pokemart` item lists, in first-use order.
+    let mut lists_by_module: BTreeMap<String, Vec<IrList>> = BTreeMap::new();
     for (i, &off) in scripts_at.iter().enumerate() {
         let next_label = scripts_at.get(i + 1).copied();
         let mut insns = Vec::new();
@@ -123,7 +126,24 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
                 });
                 break;
             };
-            insns.push(res.insn(&insn)?);
+            let mut ir_insn = res.insn(&insn)?;
+            if insn.name == "pokemart"
+                && let Some(IrArg::Word(w)) = ir_insn.args.first().cloned()
+            {
+                let label = &t.names[&off].0;
+                let k = insns
+                    .iter()
+                    .filter(|i: &&IrInsn| i.op == "pokemart")
+                    .count();
+                if let Some(list) = mart_list(rom, decomp, label, k, w)? {
+                    ir_insn.args[0] = IrArg::Items(list.name.clone());
+                    let lists = lists_by_module.entry(module(off)?).or_default();
+                    if !lists.iter().any(|l: &IrList| l.name == list.name) {
+                        lists.push(list);
+                    }
+                }
+            }
+            insns.push(ir_insn);
             if insn.is_terminator() {
                 break;
             }
@@ -188,6 +208,7 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
     let modules: std::collections::BTreeSet<String> = labels_by_module
         .keys()
         .chain(movements_by_module.keys())
+        .chain(lists_by_module.keys())
         .cloned()
         .collect();
     for m in modules {
@@ -195,6 +216,7 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
         labels.sort_by_key(|(r, _)| *r);
         let mut movements = movements_by_module.remove(&m).unwrap_or_default();
         movements.sort_by_key(|(r, _)| *r);
+        let lists = lists_by_module.remove(&m).unwrap_or_default();
         let source = decomp.and_then(|d| {
             d.files
                 .iter()
@@ -208,12 +230,61 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
                 source,
                 labels: labels.into_iter().map(|(_, l)| l).collect(),
                 movements: movements.into_iter().map(|(_, l)| l).collect(),
-                lists: Vec::new(),
+                lists,
             },
         );
     }
     ir.transfer = t;
     Ok(ir)
+}
+
+/// Item lists longer than this are not read as a `pokemart` list (a bad pointer).
+const MART_LIST_MAX: usize = 64;
+
+/// The item list `pokemart`'s operand `ptr` points at (Gen3 `SetShopItemsForSale`: halfwords up
+/// to `ITEM_NONE`), named by the decomp's operand of the `k`th `pokemart` of `label`, else
+/// `<label>_Items<k>`. `None` when `ptr` is not a list in the ROM.
+fn mart_list(
+    rom: &Rom,
+    decomp: Option<&Decomp>,
+    label: &str,
+    k: usize,
+    ptr: u32,
+) -> Result<Option<IrList>> {
+    let Some(mut at) = ptr
+        .checked_sub(crate::rom::ROM_BASE)
+        .filter(|&o| (o as usize) < rom.bytes().len())
+    else {
+        return Ok(None);
+    };
+    let mut items = Vec::new();
+    loop {
+        let Ok(id) = rom.u16(at) else {
+            return Ok(None);
+        };
+        if id == 0 {
+            break;
+        }
+        if items.len() == MART_LIST_MAX {
+            return Ok(None);
+        }
+        items.push(names::item_name(id));
+        at += 2;
+    }
+    let decomp_name = decomp
+        .and_then(|d| d.label(label))
+        .and_then(|l| (l.body.iter()).filter(|s| s.mac == "pokemart").nth(k))
+        .and_then(|s| s.args.first())
+        .filter(|n| n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+    let (name, origin) = match decomp_name {
+        Some(n) => (n.clone(), NameOrigin::Decomp),
+        None => (format!("{label}_Items{k}"), NameOrigin::Positional),
+    };
+    Ok(Some(IrList {
+        name,
+        origin,
+        items,
+    }))
 }
 
 /// Source order: a decomp label's (file, line), then positional names by offset.

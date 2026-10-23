@@ -543,6 +543,41 @@ impl Vanilla {
         self.emu.write_bytes(addr, &raw);
     }
 
+    /// Adds `qty` of `item` to bag pocket `pocket` (an owned stack, else the first free slot;
+    /// quantities XOR the save key) and takes `cost` from the money: what a purchase at a Poké
+    /// Mart leaves, which the oracle does not drive (`Step::Buy`). False (nothing written) when
+    /// the money is short or the pocket full.
+    pub fn buy(&mut self, pocket: Pocket, item: u16, qty: u16, cost: u32) -> Result<bool> {
+        let sb1 = self.save_block1()?;
+        let sb2 = self.save_block2()?;
+        let key = self.emu.read_u32(sb2 + SB2_ENCRYPTION_KEY);
+        let money = self.emu.read_u32(sb1 + SB1_MONEY) ^ key;
+        let Some(left) = money.checked_sub(cost) else {
+            return Ok(false);
+        };
+        let Some(i) = Pocket::ALL.iter().position(|&p| p == pocket) else {
+            return Ok(false);
+        };
+        let (off, len) = SB1_POCKETS[i];
+        let slots = self.emu.read_bytes(sb1 + off, 4 * len);
+        let at = |s: &[u8]| u16::from_le_bytes([s[0], s[1]]);
+        let n = |s: &[u8]| u16::from_le_bytes([s[2], s[3]]) ^ key as u16;
+        let slot = (slots.chunks(4).position(|s| at(s) == item && n(s) != 0))
+            .or_else(|| slots.chunks(4).position(|s| at(s) == 0 || n(s) == 0));
+        let Some(slot) = slot else {
+            return Ok(false);
+        };
+        let s = &slots[4 * slot..4 * slot + 4];
+        let have = if at(s) == item { n(s) } else { 0 };
+        let mut w = [0u8; 4];
+        w[..2].copy_from_slice(&item.to_le_bytes());
+        w[2..].copy_from_slice(&((have + qty) ^ key as u16).to_le_bytes());
+        self.emu.write_bytes(sb1 + off + 4 * slot as u32, &w);
+        self.emu
+            .write_bytes(sb1 + SB1_MONEY, &(left ^ key).to_le_bytes());
+        Ok(true)
+    }
+
     /// Sets every party mon's HP to its max (the unencrypted party fields): the oracle's
     /// alignment after battles our side never fought.
     pub fn heal_party(&mut self) {

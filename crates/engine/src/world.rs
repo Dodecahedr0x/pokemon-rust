@@ -249,6 +249,9 @@ pub(crate) struct State {
     pub(in crate::world) field_effects: host::FieldEffects,
     /// The running field-move effect (Wave C; hashed while it runs, never captured).
     pub(in crate::world) field_move: Option<field_move::FieldMoveRun>,
+    /// Wave F: the party's backup and the choose-half order while a script uses them
+    /// (hashed while not empty, never captured: cleared when the script ends).
+    pub(in crate::world) stash: host::Stash,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
@@ -409,6 +412,7 @@ impl World {
                 fx: ScreenFx::default(),
                 field_effects: host::FieldEffects::default(),
                 field_move: None,
+                stash: host::Stash::default(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -511,6 +515,14 @@ impl World {
         };
         if !self.runner.step(&mut host) {
             self.s.selected = None;
+            // Gen3 never freezes the player object (`FreezeObjectEvents` skips
+            // `gPlayerAvatar.objectEventId`); `lock`/`lockall` lock the field controls, which
+            // `ScriptContext_RunScript` unlocks when the script ends (`UnlockPlayerFieldControls`),
+            // released or not. A script that ends without `release` (Space Center 2F's multi
+            // battle without `BUGFIX`) leaves the other objects frozen, the player free.
+            self.s.objects.unfreeze(crate::data::PLAYER);
+            // The backup and the order belong to the script that made them (see `Stash`).
+            self.s.stash = host::Stash::default();
         }
     }
 
@@ -955,6 +967,8 @@ impl World {
         if let Some(run) = &s.field_move {
             run.hash(&mut h);
         }
+        // Wave F: the party's backup, while a script holds one.
+        s.stash.hash(&mut h);
         h.finish()
     }
 }

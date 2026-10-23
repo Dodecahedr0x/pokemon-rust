@@ -65,6 +65,10 @@ pub enum MacroKind {
     /// `forget` if a move must go (a TM or HM); then out of every screen to the field, and
     /// resolve. Reads the screens' state each frame (`engine::ui`). A spine step.
     UseItem { item: u16, mon: u8, forget: u8 },
+    /// Talk to clerk `local_id` (walk next to it, face it, A), then in the mart: BUY, `item`
+    /// (an `ItemId`), `qty` of it, yes; out of the mart, and resolve the clerk's script.
+    /// Reads the mart's state each frame (`engine::ui::mart`). A spine step.
+    Buy { local_id: u8, item: u16, qty: u16 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -323,6 +327,11 @@ mod tests {
                 item: 344,
                 mon: 0,
                 forget: 2,
+            },
+            MacroKind::Buy {
+                local_id: 3,
+                item: 19,
+                qty: 10,
             },
         ];
         for (i, kind) in all.into_iter().enumerate() {
