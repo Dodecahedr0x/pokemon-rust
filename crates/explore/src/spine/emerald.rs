@@ -81,18 +81,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// The Lavaridge gym's holes and geysers (`MB_LAVARIDGE_GYM_1F_WARP` /
-    /// `MB_LAVARIDGE_GYM_B1F_WARP`, `field_control_avatar.c`'s Lavaridge warp checks with their
-    /// field effects): stepping on 1F (8, 9) does not warp ("enter: no warp"). The bypass lands
-    /// on Flannery's platform, the end of the 1F (8, 9) / B1F (8, 6) / 1F (10, 6) / B1F
-    /// (12, 12) chain.
-    static LAVARIDGE_GYM_WARPS: Bypass = Bypass {
-        issue: "lavaridge-gym-warps",
-        features: &["MB_LAVARIDGE_GYM_1F_WARP", "MB_LAVARIDGE_GYM_B1F_WARP"],
-        warp: Some((MAP_LAVARIDGE_TOWN_GYM_1F, 13, 11)),
-        ..Bypass::NONE
-    };
-
     /// Teaching HM06 needs the bag and the party menu (Milestone 9): the bypass writes Rock
     /// Smash over the lead's Mud-Slap, so `EventScript_RockSmash`'s `checkpartymove` finds it.
     static TEACH_ROCK_SMASH: Bypass = Bypass {
@@ -902,11 +890,19 @@ mod list {
         use_(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
         // ---- Flannery ----
-        // The gym's floors chain through its holes and geysers (warps on both floors at the
-        // same cells): 1F (8, 9) down, B1F (8, 6) up, 1F (10, 6) down, B1F (12, 12) up to
-        // Flannery's platform. The first hole never fires (`lavaridge-gym-warps`).
+        // The gym's floors chain through 1F's hidden holes (`MB_LAVARIDGE_GYM_1F_WARP`) and
+        // B1F's geysers (`MB_LAVARIDGE_GYM_B1F_WARP`) to Flannery's platform, clear of the
+        // buried trainers' cells: 1F (8, 9), B1F (1, 14), 1F (0, 10), B1F (0, 6), 1F (2, 3),
+        // B1F (7, 2), 1F (10, 6), then B1F (12, 12) past the ledges.
         enter(MAP_LAVARIDGE_TOWN, 5, 15, Up),
-        Step::Bypass(&LAVARIDGE_GYM_WARPS),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 8, 9, Up),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 1, 14, Left),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 0, 10, Left),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 0, 6, Up),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 2, 3, Right),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 7, 2, Right),
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 10, 6, Right),
+        enter(MAP_LAVARIDGE_TOWN_GYM_B1F, 12, 12, Right),
         talk(MAP_LAVARIDGE_TOWN_GYM_1F, 1),
         Step::Expect("flannery_defeated"),
         Step::Expect("badge4"),
@@ -930,6 +926,9 @@ mod list {
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         // Route 117 west to Verdanturf, the tunnel to Wanda.
         cross(MAP_MAUVILLE_CITY, 0, 9, Left),
+        // A stop at (12, 9) before Lydia (8, 10): walked straight in, her team's paralysis
+        // and Take Down's recoil drew the battle (a whiteout), depending on the RNG.
+        goto(MAP_ROUTE117, 12, 9),
         cross(MAP_ROUTE117, 0, 10, Left),
         Step::Expect("verdanturf"),
         enter(MAP_VERDANTURF_TOWN, 8, 1, Up),
