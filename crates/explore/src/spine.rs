@@ -1094,9 +1094,11 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             message,
             finding: None,
         };
-        // A target that is an armed floor trigger counts as reached once its scene ran (its
-        // var moved), even when the scene moved the player off it (Meteor Falls' Magma scene
-        // pushes the player left): walking back would replay what Gen3 never does.
+        // A target that is an armed floor trigger counts as reached once its own scene ran (its
+        // var moved and its script was the last started), even when the scene moved the player
+        // off it (Meteor Falls' Magma scene pushes the player left): walking back would replay
+        // what Gen3 never does. A neighbouring trigger of the same var (Route 110's rival row)
+        // is not the target's: the walk goes on, as vanilla's.
         let armed = (live.s.world().map() == map)
             .then(|| {
                 let w = live.s.world();
@@ -1108,14 +1110,15 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                     .find(|c| (c.x, c.y) == (x, y) && w.var(c.var) == c.value)
             })
             .flatten()
-            .map(|c| (c.var, c.value));
+            .map(|c| (c.var, c.value, c.script));
         let mut fired = false;
         for _ in 0..RETRIES {
             if live.s.world().objects().player().pos() == (x, y) {
                 break;
             }
-            if let Some((var, value)) = armed
+            if let Some((var, value, script)) = armed
                 && live.s.world().var(var) != value
+                && live.s.world().last_script() == Some(script)
             {
                 fired = true;
                 break;
