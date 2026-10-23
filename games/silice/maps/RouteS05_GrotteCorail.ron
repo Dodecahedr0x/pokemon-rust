@@ -84,9 +84,9 @@
             x: 18,
             y: 3,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_DEEP_SEA_SCALE",
-                flag: "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_ECAILLE_OCEAN",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS05_GrotteCorail_EventScript_HiddenDeepSeaScale"),
             ),
         ),
     ],

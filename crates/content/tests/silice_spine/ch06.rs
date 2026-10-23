@@ -197,7 +197,7 @@ pub const PARTY: &[(SpeciesId, u8)] = &[
 /// script: the story at 55, the sync at 50, five badges, the Lame-Fréquence, Champ Magnétique,
 /// Flash, Hydro-Propulseur and Sustentation modules, `LOG_01` to `LOG_05`; Chapter 0's
 /// Mallette, running shoes and starter (CYNDAQUIL's line); the party ([`PARTY`]), a few potions,
-/// the respawn at Port-Ressac (Owlys's heal location is Chapter 5's, not merged yet).
+/// the respawn at Owlys's Centre.
 async fn end_of_chapter_5(ctx: Ctx) {
     for f in [
         // Chapter 0.
@@ -237,7 +237,7 @@ async fn end_of_chapter_5(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_SUPER_POTION), 5).await;
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(15000).await;
-    ctx.set_respawn(HEAL_LOCATION_SIL_PORT_RESSAC).await;
+    ctx.set_respawn(HEAL_LOCATION_SIL_OWLYS).await;
     for &(species, level) in PARTY {
         ctx.give_mon(species, level).await;
     }

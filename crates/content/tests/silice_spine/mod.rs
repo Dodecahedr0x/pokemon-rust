@@ -1,8 +1,8 @@
 //! Silice's spine: the authored main path through the chapters, as ordered high-level steps
 //! ([`Step`]) that a runner expands deterministically into buttons. The end-to-end tests
-//! (`sil1_f_ch0.rs`, `sil2_ch1.rs`, `sil2_ch2.rs`) play them with [`driver::Run`]; the
-//! explorer's Silice spine can import the same lists ([`ch00::steps`], [`ch01::steps`],
-//! [`ch02::steps`]) and map each step onto its own. A chapter can also start from its documented
+//! (`sil1_f_ch0.rs`, `sil2_ch1.rs`, `sil2_ch2.rs`, `sil6_ch5.rs`) play them with
+//! [`driver::Run`]; the explorer's Silice spine can import the same lists ([`ch00::steps`],
+//! [`ch01::steps`], [`ch02::steps`]) and map each step onto its own. A chapter can also start from its documented
 //! start state ([`driver::Start`], e.g. [`ch02::start`]) instead of the chapters before it;
 //! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) and Chapter 6 (`sil7_ch6.rs`, [`ch06::steps`])
 //! only do so for now ([`ch04::start`], [`ch06::start`]).
@@ -55,6 +55,7 @@ pub mod ch01;
 pub mod ch02;
 pub mod ch03;
 pub mod ch04;
+pub mod ch05;
 pub mod ch06;
 pub mod driver;
 

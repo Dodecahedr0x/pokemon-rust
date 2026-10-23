@@ -936,3 +936,29 @@ fn a_spread_restore_ends_on_the_same_screen_as_a_restore() {
     spread.hash(&mut b);
     assert_eq!(a.finish(), b.finish(), "the same field once done");
 }
+
+#[test]
+fn rect_contains_is_the_range_check_and_a_same_view_brings_no_cell() {
+    // The fast paths of `set_camera` (`7134c3e`) against the computations they replace.
+    let mut x = 0x9E37_79B9_7F4A_7C15u64;
+    let mut next = || {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        x
+    };
+    for _ in 0..2000 {
+        let camera = ((next() % 4096) as i32 - 2048, (next() % 4096) as i32 - 2048);
+        let r = Rect::view(camera);
+        for _ in 0..8 {
+            let (px, py) = ((next() % 64) as i16 - 32, (next() % 64) as i16 - 32);
+            let (px, py) = (r.x0 + px, r.y0 + py);
+            assert_eq!(
+                r.contains(px, py),
+                (r.x0..=r.x1).contains(&px) && (r.y0..=r.y1).contains(&py)
+            );
+        }
+        // The skipped scan (`old == Some(view)`) would have found nothing.
+        assert!((r.y0..=r.y1).all(|y| (r.x0..=r.x1).all(|x| r.contains(x, y))));
+    }
+}

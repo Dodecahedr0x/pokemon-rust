@@ -450,7 +450,7 @@ pub struct Species {
     /// `(level, MOVE_*)` in `gLevelUpLearnsets` order.
     pub learnset: Vec<(u8, String)>,
     /// `gPokedexEntries[SpeciesToNationalPokedexNum(species)].weight`, in hectograms (Low Kick);
-    /// 0 for species without a Pokédex entry. Format 5.1 (Milestone 8 Task A); absent in older
+    /// 0 for species without a Pokédex entry. Format 5.2 (Milestone 8 Task A); absent in older
     /// files, which read as 0.
     #[serde(default)]
     pub weight: u16,

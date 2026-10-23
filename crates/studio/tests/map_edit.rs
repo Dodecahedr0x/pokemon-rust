@@ -251,7 +251,7 @@ fn sample_extracted_maps_render_as_the_game() {
 
 /// Every map of the build (slow on the full import: `cargo xtask sweep --studio`).
 #[test]
-#[ignore]
+#[ignore = "every map: cargo xtask sweep --studio"]
 fn every_extracted_map_renders_as_the_game() {
     if emerald() {
         check_extracted_maps(None);

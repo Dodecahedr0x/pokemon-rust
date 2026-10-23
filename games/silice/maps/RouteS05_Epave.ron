@@ -59,6 +59,21 @@
             script: Some("RouteS05_Epave_EventScript_ItemGrossePerle"),
             flag: Some("FLAG_SIL_ITEM_ROUTE_S05_EPAVE_GROSSE_PERLE"),
         ),
+        (
+            local_id: 15,
+            id: Some("LOCALID_EPAVE_ARTHUR"),
+            gfx: "OBJ_EVENT_GFX_SAILOR",
+            x: 26,
+            y: 7,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_LEFT",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("RouteS05_Epave_PG_Sc06"),
+            flag: Some("FLAG_SIL_HIDE_ARTHUR_EPAVE"),
+        ),
     ],
     warps: [
         (
@@ -91,16 +106,16 @@
             x: 11,
             y: 3,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_REVIVE",
-                flag: "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_RAPPEL",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS05_Epave_EventScript_HiddenRevive"),
             ),
         ),
     ],
     connections: [],
     scripts: (
         on_load: None,
-        on_transition: None,
+        on_transition: Some("RouteS05_Epave_OnTransition"),
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,

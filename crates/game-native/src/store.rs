@@ -891,6 +891,85 @@ impl Store {
         mut replay: impl FnMut(Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
         accept: bool,
     ) -> Result<Vec<Verdict>, StoreError> {
+        self.verify_with(|_, parent, trace| replay(parent, trace), accept)
+    }
+
+    /// [`Store::verify_nodes`] on up to `jobs` threads, with the same verdicts and writes.
+    ///
+    /// Each node is first replayed speculatively, in parallel, from the state its parent will
+    /// most likely have: a new game, or the parent's cached snapshot when it has the parent's
+    /// recorded digest. The verification pass (in topological order, as `verify_nodes`) then
+    /// takes a speculative replay only when it started from exactly (`==`) the parent's state
+    /// of this run, and replays the node itself otherwise. A replay is a function of its start
+    /// and its trace, so the outcome is `verify_nodes`'s: a chain whose snapshots are cached
+    /// verifies in the time of its longest node.
+    ///
+    /// At most `jobs` threads (at least 1). Memory: every guessed start and every speculative
+    /// result is held until the pass ends, so O(nodes x a checkpoint) (a few KiB each).
+    pub fn verify_nodes_par(
+        &self,
+        replay: impl Fn(Option<&Checkpoint>, &Trace) -> Result<Replayed, String> + Sync,
+        accept: bool,
+        jobs: usize,
+    ) -> Result<Vec<Verdict>, StoreError> {
+        let nodes = self.topo_order()?;
+        let digests: BTreeMap<CheckpointId, u64> =
+            nodes.iter().map(|n| (n.meta.id, n.meta.digest)).collect();
+        // (node, the start it is replayed from).
+        let mut guesses: Vec<(&Node, Option<Checkpoint>)> = Vec::new();
+        for n in &nodes {
+            if n.trace.schema != TRACE_SCHEMA {
+                continue;
+            }
+            match n.trace.parent {
+                Parent::NewGame => guesses.push((n, None)),
+                Parent::Checkpoint(p) => {
+                    // An unreadable snapshot is no guess (the serial pass never reads one), so
+                    // a store `verify_nodes` verifies never fails here.
+                    if let Ok(Some(cp)) = self.snapshot(p)
+                        && digests.get(&p) == Some(&digest(&cp.world))
+                    {
+                        guesses.push((n, Some(cp)));
+                    }
+                }
+            }
+        }
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let done = std::sync::Mutex::new(BTreeMap::new());
+        std::thread::scope(|sc| {
+            for _ in 0..jobs.max(1).min(guesses.len()) {
+                sc.spawn(|| {
+                    loop {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        let Some((n, start)) = guesses.get(i) else {
+                            break;
+                        };
+                        let r = replay(start.as_ref(), &n.trace);
+                        done.lock().expect("no panic holds it").insert(n.meta.id, r);
+                    }
+                });
+            }
+        });
+        let mut done = done.into_inner().expect("no panic holds it");
+        let starts: BTreeMap<CheckpointId, Option<Checkpoint>> = guesses
+            .into_iter()
+            .map(|(n, start)| (n.meta.id, start))
+            .collect();
+        self.verify_with(
+            |id, parent, trace| match (starts.get(&id), done.remove(&id)) {
+                (Some(start), Some(r)) if start.as_ref() == parent => r,
+                _ => replay(parent, trace),
+            },
+            accept,
+        )
+    }
+
+    /// [`Store::verify_nodes`] with `replay` also given the node's id.
+    fn verify_with(
+        &self,
+        mut replay: impl FnMut(CheckpointId, Option<&Checkpoint>, &Trace) -> Result<Replayed, String>,
+        accept: bool,
+    ) -> Result<Vec<Verdict>, StoreError> {
         // Each verified node's state in this run (`None`: Broken).
         let mut states: BTreeMap<CheckpointId, Option<Checkpoint>> = BTreeMap::new();
         let mut verdicts: BTreeMap<CheckpointId, Status> = BTreeMap::new();
@@ -910,7 +989,7 @@ impl Store {
                     Err(format!("trace schema {}", node.trace.schema))
                 }
                 None => Err("parent broken".to_string()),
-                Some(parent) => replay(parent, &node.trace),
+                Some(parent) => replay(id, parent, &node.trace),
             };
             let mut rehash = false;
             let (status, state) = match replayed {

@@ -119,6 +119,21 @@
             script: Some("TourNebula_2F_EventScript_ItemMaxRevive"),
             flag: Some("FLAG_SIL_ITEM_TOUR_2F_MAX_REVIVE"),
         ),
+        (
+            local_id: 10,
+            id: Some("LOCALID_TOUR_2F_GWADA"),
+            gfx: "OBJ_EVENT_GFX_BOY_2",
+            x: 14,
+            y: 6,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: Some("TourNebula_2F_PG_Gwada"),
+            flag: Some("FLAG_SIL_HIDE_TOUR_2F_GWADA"),
+        ),
     ],
     warps: [
         (
@@ -334,11 +349,20 @@
                 flag: "FLAG_SIL_ITEM_TOUR_2F_PP_UP",
             ),
         ),
+        (
+            x: 21,
+            y: 5,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("TourNebula_2F_PG_PC"),
+            ),
+        ),
     ],
     connections: [],
     scripts: (
         on_load: Some("TourNebula_2F_OnLoad"),
-        on_transition: None,
+        on_transition: Some("TourNebula_2F_OnTransition"),
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,
