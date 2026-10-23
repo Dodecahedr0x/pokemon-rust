@@ -197,6 +197,10 @@ pub(crate) struct State {
     pub(crate) selected: Option<(u8, MapId)>,
     /// Object of the last `Move` (Gen3 `sMovingNpcId`), for `WaitMove(0)`.
     pub(crate) last_mover: u8,
+    /// The running warp keeps the map's object templates (Gen3 `sObjectEventLoadFlag ==
+    /// SKIP_OBJECT_EVENT_LOAD`, set by `DoMossdeepGymWarp`): only while a transition runs
+    /// (never captured), hashed.
+    pub(crate) keep_templates: bool,
     /// Frames left of a script `Delay`.
     pub(crate) delay: u16,
     /// Frames left of a door animation.
@@ -385,6 +389,7 @@ impl World {
                 templates: templates::Templates::default(),
                 selected: None,
                 last_mover: 0,
+                keep_templates: false,
                 delay: 0,
                 door: 0,
                 log: Log::new(),
@@ -669,7 +674,11 @@ impl World {
                         .fall_script()
                         .filter(|_| b == Behavior::CrackedFloorHole);
                     if let Some(w) = warp_on_enter(map, x, y, elevation, b) {
-                        self.start_warp(game, map, w, false);
+                        if b == Behavior::PadWarp {
+                            self.start_pad_warp(game, map, w);
+                        } else {
+                            self.start_warp(game, map, w, false);
+                        }
                     } else if let Some(id) = fall {
                         // Gen3 `TryStartMiscWalkingScripts`: `EventScript_FallDownHole`.
                         self.start_script(game, id, None);
@@ -911,6 +920,9 @@ impl World {
         s.transition.hash(&mut h);
         self.runner.hash(&mut h);
         h.write(&[s.selected.map_or(0xFF, |x| x.0), s.last_mover, s.door]);
+        if s.keep_templates {
+            h.write(&[0x50]);
+        }
         h.write_u16(s.delay);
         s.templates.hash(&mut h);
         // Milestone 4.

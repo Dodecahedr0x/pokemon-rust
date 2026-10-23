@@ -85,3 +85,57 @@ fn gen3_rotation_is_counterclockwise_for_every_one_step_move() {
         assert_eq!(clockwise(counterclockwise(d)), d);
     }
 }
+
+/// The town, with a pad (warp 0) to the town's own warp 0.
+static PAD_TO_TOWN: MapData = MapData {
+    name: "pad",
+    warps: &[WarpEvent {
+        x: 1,
+        y: 1,
+        elevation: 0,
+        dest_map: TOWN,
+        dest_warp: 0,
+    }],
+    width: 10,
+    height: 10,
+    blocks: &TOWN_BLOCKS,
+    border: [WALL; 4],
+    primary: &TS,
+    secondary: &TS2,
+    objects: &[],
+    coords: &[],
+    bgs: &[],
+    connections: &[],
+    scripts: NO_SCRIPTS,
+    allow_running: false,
+    map_type: 0,
+};
+
+fn finish_warp(w: &mut World) {
+    assert!(w.transition_active(), "a warp started");
+    for _ in 0..200 {
+        if !w.transition_active() {
+            return;
+        }
+        run(w, Buttons::NONE, 1);
+    }
+    panic!("the warp never ended");
+}
+
+#[test]
+fn a_pad_warp_keeps_the_maps_templates_a_plain_warp_reloads_them() {
+    let mut w = started();
+    w.s.templates.edit(1, |t| t.x = 7);
+    // Gen3 `DoMossdeepGymWarp` (`SKIP_OBJECT_EVENT_LOAD`): the objects respawn from the moved
+    // templates.
+    w.start_pad_warp(&Game, &PAD_TO_TOWN, 0);
+    finish_warp(&mut w);
+    assert_eq!(w.map(), TOWN);
+    assert_eq!((template(&w, 1).x, template(&w, 1).y), (7, 5));
+    assert_eq!(w.objects().get(1).unwrap().pos(), (7, 5));
+    // A plain warp loads the header's templates (`LoadObjEventTemplatesFromHeader`).
+    w.start_warp(&Game, &PAD_TO_TOWN, 0, false);
+    finish_warp(&mut w);
+    assert_eq!((template(&w, 1).x, template(&w, 1).y), (6, 5));
+    assert_eq!(w.objects().get(1).unwrap().pos(), (6, 5));
+}

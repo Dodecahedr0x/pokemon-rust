@@ -229,6 +229,7 @@ impl World {
                 templates: super::templates::Templates::new(templates),
                 selected: w.selected.map(|id| (id, w.field.map)),
                 last_mover: w.last_mover,
+                keep_templates: false,
                 delay: w.delay,
                 door: w.door,
                 log: Log::new(),

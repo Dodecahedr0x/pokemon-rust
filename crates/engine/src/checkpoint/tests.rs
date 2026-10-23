@@ -802,6 +802,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::CrackedFloorHole,
             Behavior::Floor(Floor::Cave),
             Behavior::Water(crate::data::Water::Ocean),
+            Behavior::PadWarp,
         ],
         |v| match v {
             Behavior::Normal => 0,
@@ -826,6 +827,7 @@ fn enum_variant_indices_are_pinned() {
             Behavior::CrackedFloorHole => 19,
             Behavior::Floor(_) => 20,
             Behavior::Water(_) => 21,
+            Behavior::PadWarp => 22,
         },
     );
     check(

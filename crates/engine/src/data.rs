@@ -332,6 +332,11 @@ pub enum Behavior {
     ///
     /// Appended after [`Behavior::Floor`] (postcard index 21, hash code 21).
     Water(Water),
+    /// A [`Behavior::Warp`] that keeps the current map's object templates when it lands on the
+    /// same map (Gen3 `MB_MOSSDEEP_GYM_WARP`, `DoMossdeepGymWarp`: `SKIP_OBJECT_EVENT_LOAD`,
+    /// so the statues the gym's switches moved stay moved). Wave F, appended (postcard index
+    /// 22, hash code 22).
+    PadWarp,
 }
 
 /// The raw Gen3 surfable behaviours behind [`Behavior::Water`], one variant each (the
@@ -477,6 +482,7 @@ impl Behavior {
             self,
             Behavior::Door
                 | Behavior::Warp
+                | Behavior::PadWarp
                 | Behavior::NonAnimDoor(_)
                 | Behavior::Ladder
                 | Behavior::Escalator(_)
