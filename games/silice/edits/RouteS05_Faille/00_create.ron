@@ -1,0 +1,5 @@
+// Silice Ch5, MAP_ROUTE_S05_FAILLE: the Sea Rift (20 x 40, vertical, the source's size). Entrance from
+// Route S5's rift (north) -> water corridor (Surf) -> natural quay -> a ramp winding down (wild
+// encounters) -> the great iron door with Hoothoot gargoyles -> Owlys (south).
+// General + Cave (Emerald tilesets by name).
+(name: "RouteS05_Faille", width: 20, height: 40, primary: "General", secondary: "Cave", fill: 753, border: [753, 753, 753, 753])

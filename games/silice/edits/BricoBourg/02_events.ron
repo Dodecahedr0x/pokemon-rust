@@ -40,7 +40,7 @@
     Sign(x: 10, y: 5, script: "BricoBourg_EventScript_SignVillage"),
     Sign(x: 12, y: 13, script: "BricoBourg_EventScript_SignShaker"),
     Sign(x: 6, y: 8, script: "BricoBourg_EventScript_SignLabo"),
-    Sign(x: 4, y: 8, script: "BricoBourg_EventScript_Ronces"),
+    Sign(x: 4, y: 9, script: "BricoBourg_EventScript_Ronces"),
     // The hidden Potion behind the fountain (Cherch'Objet tutorial). Fallback (SIL1 Task F): a
     // sign script that gives it once behind FLAG_SIL_ITEM_BRICO_POTION, because the engine does
     // not pick up hidden items yet. Back to

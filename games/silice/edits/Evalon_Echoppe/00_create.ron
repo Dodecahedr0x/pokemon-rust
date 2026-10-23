@@ -1,0 +1,4 @@
+// Silice Ch8, MAP_EVALON_ECHOPPE: l'Echoppe du Troc, the shop of 'natural' goods (11 x 9).
+// Building + PrettyPetalFlowerShop (Emerald tilesets by name): the flower shop's wooden counter,
+// herb jars and berry crates are the barter stalls. Out-of-map border: black, blocked.
+(name: "Evalon_Echoppe", width: 11, height: 9, primary: "Building", secondary: "PrettyPetalFlowerShop", fill: 513, fill_collision: 0, fill_elevation: 3, border: [1025, 1025, 1025, 1025])

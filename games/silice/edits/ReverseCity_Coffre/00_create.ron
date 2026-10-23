@@ -1,0 +1,4 @@
+// Silice Ch7, MAP_REVERSE_CITY_COFFRE: la salle du coffre (10 x 10). General + Facility (Emerald tilesets
+// by name, the Team hideouts' set): metal walls, a round vault machine as the Cocket safe, computers.
+// Border: black, blocked.
+(name: "ReverseCity_Coffre", width: 10, height: 10, primary: "General", secondary: "Facility", fill: 552, border: [513, 513, 513, 513])

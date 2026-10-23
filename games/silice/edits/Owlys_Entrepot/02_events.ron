@@ -1,0 +1,13 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mat, to Owlys's warp 5. Warp 2: the freight lift, to B1F's warp 0.
+    Warp(x: 14, y: 19, dest_map: "Owlys", dest_warp: 5),
+    Warp(x: 15, y: 19, dest_map: "Owlys", dest_warp: 5),
+    Warp(x: 4, y: 1, dest_map: "Owlys_Entrepot_B1F", dest_warp: 0),
+    // Objects. 1-3: the silo grunts, one per aisle (TRAINER_SIL_OWLYS_SILO_SBIRE_1-3). 4: the Escape Rope (aisle 2).
+    Object(x: 12, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ENTREPOT_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_Entrepot_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 16, y: 7, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_ENTREPOT_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Owlys_Entrepot_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 10, y: 3, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ENTREPOT_SBIRE_3", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_Entrepot_EventScript_Sbire3", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 27, y: 7, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ENTREPOT_ITEM_ESCAPE_ROPE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_Entrepot_EventScript_ItemCorde", flag: "FLAG_SIL_ITEM_OWLYS_SILO_CORDE"),
+]

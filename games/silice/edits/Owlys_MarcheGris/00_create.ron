@@ -1,0 +1,4 @@
+// Silice Ch5, MAP_OWLYS_MARCHE_GRIS: the Gray Market (16 x 12), a crypt turned black market: stalls of crates
+// "fallen off the truck", sacks, the graves along the walls. General + Facility (Emerald tilesets by
+// name): Mt Pyre's crypt (walls, floor, gravestones) and the hideouts' crates and sacks.
+(name: "Owlys_MarcheGris", width: 16, height: 12, primary: "General", secondary: "Facility", fill: 513, fill_collision: 1, fill_elevation: 0, border: [513, 513, 513, 513])

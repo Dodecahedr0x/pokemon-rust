@@ -1,0 +1,7 @@
+// Silice Ch5, MAP_ROUTE_S05: the Sea of Wrecks (80 x 50, mostly water, the source's size). Port-Ressac's
+// jetty (west, pending), the Ilot du Mousse (north-west), the wreck of the Vainqueur on its sandbank
+// (centre), the rock hiding the Coral Cave (south-west of the centre), magnetic currents (north-east)
+// pushing east, the Dome's wall (east) with the rift at its foot, and the Banc de Silice (south).
+// General + Pacifidlog (Emerald tilesets by name): Route 132-134's currents, sea rocks and shallows,
+// Pacifidlog's log house and boulder with a cave mouth.
+(name: "RouteS05", width: 80, height: 50, primary: "General", secondary: "Pacifidlog", fill: 368, fill_elevation: 1, border: [368, 368, 368, 368])

@@ -193,6 +193,13 @@
             dest_map: "RouteS06",
             dest_warp: 0,
         ),
+        (
+            x: 37,
+            y: 0,
+            elevation: 0,
+            dest_map: "RouteS07",
+            dest_warp: 2,
+        ),
     ],
     coords: [
         (

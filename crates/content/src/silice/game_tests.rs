@@ -117,6 +117,23 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_PORT_CARGO,
         FLAG_SIL_HIDE_PORT_MARIN_CLIENT,
         FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE,
+        // Ch5: shown until a scene or a story step hides them.
+        FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE,
+        FLAG_SIL_HIDE_OWLYS_MILO,
+        FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE,
+        FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR,
+        FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B,
+        FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE,
+        FLAG_SIL_ROUTE_S05_LOKHLASS,
+        // Ch7: shown until a scene hides them.
+        FLAG_SIL_HIDE_REVERSE_GOGO_ROMAIN,
+        FLAG_SIL_HIDE_REVERSE_ROMAIN,
+        FLAG_SIL_HIDE_REVERSE_GARDE_PALAIS,
+        FLAG_SIL_HIDE_GYM07_REVERSE,
+        // Ch8: shown until a quest, a story step or the chest's battle hides them.
+        FLAG_SIL_HIDE_EVALON_PIGEON,
+        FLAG_SIL_HIDE_EVALON_GARDE_SE,
+        FLAG_SIL_HIDE_GYM8_COFFRE_GAUCHE,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -175,6 +192,38 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_PORT_GYM_GWADA,
         FLAG_SIL_HIDE_PORT_TAVERNE_GWADA,
         FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN,
+        // Ch5: the square's crossing grunt, Mathieu after the badge, the East Cave's duo-scene
+        // actors, Skycker's face and the gym's Mathieu, and the silo's three Umbreon.
+        FLAG_SIL_HIDE_OWLYS_SBIRE_EST,
+        FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES,
+        FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU,
+        FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A,
+        FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B,
+        FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE,
+        FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME,
+        FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE,
+        FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU,
+        FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1,
+        FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2,
+        FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3,
+        // Ch7: the welcoming resident, Benou at the north gate and in the gym, the black pixels.
+        FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL,
+        FLAG_SIL_HIDE_REVERSE_BENOU_PORTE,
+        FLAG_SIL_HIDE_GYM07_BENOU,
+        FLAG_SIL_HIDE_GYM07_PIXELS,
+        // Ch8: Route_S08_Sc02's pigeon, Évalon's friends and Scribe, Evalon_Sc07's invaders, and
+        // the friends at the Taverne.
+        FLAG_SIL_HIDE_S08_PIGEON,
+        FLAG_SIL_HIDE_EVALON_AMIS,
+        FLAG_SIL_HIDE_EVALON_ADRIEN,
+        FLAG_SIL_HIDE_EVALON_GWADA,
+        FLAG_SIL_HIDE_EVALON_SCRIBE,
+        FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN,
+        FLAG_SIL_HIDE_EVALON_ROMAIN,
+        FLAG_SIL_HIDE_EVALON_SBIRE_1,
+        FLAG_SIL_HIDE_EVALON_SBIRE_3,
+        FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU,
+        FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA,
     ] {
         assert!(w.flag(f), "{f:?}");
     }

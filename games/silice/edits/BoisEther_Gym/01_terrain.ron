@@ -1,6 +1,8 @@
 // Cells, bottom to top: the hall (y 31-39), zone 1 the spore airlock (x 3-11 inside its walls, y 22-30, grates v),
 // zone 2 the workshop (x 1-13, y 11-20), zone 3 the 3-cell airlock (y 10), zone 4 the greenhouse (y 0-9).
 // Closed doors are solid; the scripts open them with set_metatile (see the plan's as-built).
+// The workbench (x 2-6, y 13-14) stands west of zone 2's door column x 7 (SIL2 Ch1 scripts fix:
+// at x 4-8 it covered (7, 13), the only cell below the door, so the greenhouse was unreachable).
 [
     Ascii(x: 0, y: 0, rows: [
         "A-WX---E--WXO-B",
@@ -16,8 +18,8 @@
         "######...######",
         "#A-----O-----B#",
         "#a_____o_____b#",
-        "#,,,([{]),,,,,#",
-        "#...<|^~>.....#",
+        "#,([{]),,,,,,,#",
+        "#.<|^~>.......#",
         "#.k.r.q.......#",
         "#.............#",
         "#.............#",

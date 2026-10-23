@@ -1,0 +1,54 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ROUTE119", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_FOG_HORIZONTAL", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: sets FLAG_SIL_HIDE_S08_PIGEON (the pigeon only shows inside Sc02).
+    Scripts((on_load: None, on_transition: Some("RouteS08_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Palier 1: the hiker, Gaston on the east bank, Nais swimming, the Ultra Ball.
+    Object(x: 22, y: 74, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_S08_RANDONNEUR", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS08_EventScript_Npc1"),
+    // Gaston looks down the bank (35, 65-67): facing the lake, his sight would stop at once on the
+    // water's elevation 1.
+    Object(x: 35, y: 64, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_S08_GASTON", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Gaston", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 14, y: 68, gfx: "OBJ_EVENT_GFX_SWIMMER_F", id: "LOCALID_S08_NAIS", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS08_EventScript_Nais", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4, elevation: 1),
+    Object(x: 35, y: 69, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S08_ITEM_ULTRA_BALL", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_S08_ULTRA_BALL"),
+    // Sc02's pigeon (obj 5 in the source), hidden outside the scene.
+    Object(x: 31, y: 16, gfx: "OBJ_EVENT_GFX_WINGULL", id: "LOCALID_S08_PIGEON", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_S08_PIGEON"),
+    // Palier 2: the angler on the west islet and its Max Ether, the twins on the pontoon, Theo on the
+    // east bank.
+    Object(x: 9, y: 42, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_S08_PECHEUSE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS08_EventScript_Npc2"),
+    Object(x: 8, y: 43, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S08_ITEM_MAX_ETHER", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_ItemMaxEther", flag: "FLAG_SIL_ITEM_S08_ILOT"),
+    Object(x: 11, y: 36, gfx: "OBJ_EVENT_GFX_TWIN", id: "LOCALID_S08_LEA", local_id: 8, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS08_EventScript_LeaZoe", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 12, y: 36, gfx: "OBJ_EVENT_GFX_TWIN", id: "LOCALID_S08_ZOE", local_id: 9, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS08_EventScript_LeaZoe"),
+    Object(x: 32, y: 49, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_S08_THEO", local_id: 10, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS08_EventScript_Theo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // The pocket under waterfall 2: the Ice Beam TM.
+    Object(x: 17, y: 65, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S08_ITEM_TM_LASER_GLACE", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_ItemTmLaserGlace", flag: "FLAG_SIL_ITEM_S08_CT_LASER_GLACE"),
+    // Palier 3: Galahad the lone knight, Ambre, the old roleplayer, the Rare Candy behind the brambles,
+    // the cracked rock (Scanner de Faille) before the braises nook.
+    Object(x: 13, y: 12, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_S08_GALAHAD", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Galahad", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 25, y: 18, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_S08_AMBRE", local_id: 13, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS08_EventScript_Ambre", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 10, y: 5, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_S08_VIEUX_ROLISTE", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Npc3"),
+    Object(x: 6, y: 20, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S08_ITEM_RARE_CANDY", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_ItemRareCandy", flag: "FLAG_SIL_ITEM_S08_RACCOURCI"),
+    Object(x: 31, y: 10, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_S08_ROCHER", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Rocher"),
+    // Sc01: the row inside the south path from Reverse-City (x 18-21; see 05_ch7_link.ron).
+    Coord(x: 18, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
+    Coord(x: 19, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
+    Coord(x: 20, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
+    Coord(x: 21, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
+    // Sc02: the only landing of the pool on top of waterfall 3 (x 30-33, y 21), palier 3's entrance.
+    Coord(x: 30, y: 21, var: "VAR_SIL_STORY", value: 80, script: "RouteS08_Sc02"),
+    Coord(x: 31, y: 21, var: "VAR_SIL_STORY", value: 80, script: "RouteS08_Sc02"),
+    Coord(x: 32, y: 21, var: "VAR_SIL_STORY", value: 80, script: "RouteS08_Sc02"),
+    Coord(x: 33, y: 21, var: "VAR_SIL_STORY", value: 80, script: "RouteS08_Sc02"),
+    // Signs: the entrance (Sign_1), the wooden sign (Sign_2), the cape on a branch, the poem,
+    // the braises.
+    Sign(x: 17, y: 76, script: "RouteS08_EventScript_Sign1"),
+    Sign(x: 16, y: 3, script: "RouteS08_EventScript_Sign2"),
+    Sign(x: 5, y: 73, script: "RouteS08_EventScript_Cape"),
+    Sign(x: 25, y: 41, script: "RouteS08_EventScript_Poeme"),
+    Sign(x: 32, y: 6, script: "RouteS08_EventScript_Braises"),
+    Sign(x: 5, y: 13, script: "RouteS08_EventScript_Ronces"),
+    Sign(x: 6, y: 13, script: "RouteS08_EventScript_Ronces"),
+    // The Hyper Potion Gwada forgot in the braises circle.
+    HiddenItem(x: 33, y: 6, item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_S08_CACHE_1"),
+    // Connection: North to Evalon (our x 18-21 meet its portal x 23-26).
+    Connect((dir: North, offset: -5, map: "Evalon")),
+]
