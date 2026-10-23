@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilOwlys",
+    width: 2,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1671, 1672),
+        (1673, 1674),
+    ],
+)
