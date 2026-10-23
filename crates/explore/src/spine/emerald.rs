@@ -865,6 +865,19 @@ mod list {
         talk(MAP_ROUTE111_OLD_LADYS_REST_STOP, 1),
         enter(MAP_ROUTE111_OLD_LADYS_REST_STOP, 3, 7, Down),
         cross(MAP_ROUTE111, 0, 8, Left),
+        // Route 111's west trainers leave the lead hurt and paralysed (since field poison
+        // drains HP, `DoPoisonFieldEffect`, the battles before differ), short for Route 113:
+        // back to the rest stop (its trainers beaten; via (21, 10): the direct walk sticks at
+        // (21, 11)), then west again.
+        cross(MAP_ROUTE113, 99, 8, Right),
+        goto(MAP_ROUTE111, 21, 10),
+        goto(MAP_ROUTE111, 28, 11),
+        goto(MAP_ROUTE111, 29, 17),
+        enter(MAP_ROUTE111, 26, 18, Up),
+        Step::Choose(crate::policy::YES_ONCE),
+        talk(MAP_ROUTE111_OLD_LADYS_REST_STOP, 1),
+        enter(MAP_ROUTE111_OLD_LADYS_REST_STOP, 3, 7, Down),
+        cross(MAP_ROUTE111, 0, 8, Left),
         cross(MAP_ROUTE113, 0, 9, Left),
         Step::Expect("fallarbor"),
         // ---- Fallarbor: heal; Route 114 to Meteor Falls, Magma steals the meteorite ----
