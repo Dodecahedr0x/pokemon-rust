@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 116 Native, 43 Ignore, 13 Default, 55 Unsupported.
+// Counts: 117 Native, 43 Ignore, 13 Default, 54 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
