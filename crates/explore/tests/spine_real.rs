@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 1_375_570;
+const EMERALD_FRAMES: u64 = 1_421_816;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -48,6 +48,9 @@ const EMERALD_LABELS: &[&str] = &[
     "aqua_hideout",
     "mossdeep",
     "badge7",
+    "space_center",
+    "hm_dive",
+    "seafloor_cavern",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
@@ -63,6 +66,8 @@ const SPINE_BLOCKERS: &[&str] = &[
     "water-door-in",
     "water-door-out",
     "mossdeep-gym-puzzle",
+    "steven-multi",
+    "dive-seafloor",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.
@@ -111,7 +116,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_badge7() {
+fn spine_reaches_seafloor_cavern() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }

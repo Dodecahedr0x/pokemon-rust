@@ -177,6 +177,38 @@ mod list {
     const MT57: [Step; 9] = mossdeep_train(57);
     const MT58: [Step; 9] = mossdeep_train(58);
 
+    /// Dive (`FIELD_MOVE_DIVE`, `FLDEFF_USE_DIVE`: the engine's field-move effects are Surf,
+    /// Cut, Rock Smash and Strength) from Route 128's deep water, Underwater Route 128's warp
+    /// (38, 26) and the surfacing in the cavern's entrance pool. The bypass lands on that pool
+    /// (surfing, as Gen3 leaves the player). HM08 is not taught either: Swampert keeps its moves.
+    static DIVE_SEAFLOOR: Bypass = Bypass {
+        issue: "dive-seafloor",
+        features: &[
+            "FIELD_MOVE_DIVE",
+            "FLDEFF_USE_DIVE",
+            "MB_DEEP_WATER",
+            "underwater maps",
+        ],
+        warp: Some((MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 17)),
+        ..Bypass::NONE
+    };
+
+    /// Steven's multi battle against Maxie and Tabitha
+    /// (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`): its specials are
+    /// unsupported, the script goes on as if won, and the objects stay frozen (Gen3 reloads the
+    /// field after the battle). The bypass warps onto the player's cell, which reloads it.
+    static STEVEN_MULTI: Bypass = Bypass {
+        issue: "steven-multi",
+        features: &[
+            "SPECIAL_ChooseHalfPartyForBattle",
+            "SPECIAL_ReducePlayerPartyToSelectedMons",
+            "SPECIAL_DoSpecialTrainerBattle",
+            "FRONTIER_UTIL_FUNC_SAVE_PARTY",
+        ],
+        warp: Some((MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 1, 7)),
+        ..Bypass::NONE
+    };
+
     static USE_HM03: Bypass = Bypass {
         issue: "bag-use-hm03",
         features: &["bag: use a TM/HM"],
@@ -1508,5 +1540,117 @@ mod list {
         Step::Expect("tate_liza_defeated"),
         Step::Expect("badge7"),
         Step::Checkpoint("badge7"),
+        // ---- The Space Center: out of the gym by its exit pad (21, 6), Maxie's men go in ----
+        goto(MAP_MOSSDEEP_CITY_GYM, 21, 7),
+        Step::Walk(Up),
+        Step::WaitScript,
+        enter(MAP_MOSSDEEP_CITY_GYM, 7, 35, Down),
+        enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+        use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        goto(MAP_MOSSDEEP_CITY, 41, 22),
+        Step::WaitScript,
+        enter(MAP_MOSSDEEP_CITY, 64, 15, Up),
+        // The stair grunt; a grunt's sight interrupts the first walk to him.
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 9),
+        Step::WaitScript,
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 9),
+        Step::WaitScript,
+        // 2F: three grunts in a row ("take us on?" yes), then Steven.
+        Step::Choose(0),
+        enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 13, 1, Up),
+        Step::WaitScript,
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 4),
+        Step::WaitScript,
+        Step::Choose(0),
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 4),
+        Step::WaitScript,
+        Step::Expect("space_center"),
+        // The multi battle with Steven is unsupported (reported, skipped as won); the scene's
+        // `lockall` then never ends (Gen3's battle return reloads the field): `steven-multi`
+        // reloads the room.
+        Step::Bypass(&STEVEN_MULTI),
+        Step::Checkpoint("space_center"),
+        // ---- Steven's house: HM08 (`MossdeepCity_StevensHouse_EventScript_StevenGivesDive`)
+        enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 13, 1, Up),
+        enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 7, 9, Down),
+        enter(MAP_MOSSDEEP_CITY, 19, 10, Up),
+        Step::WaitScript,
+        Step::Expect("hm_dive"),
+        Step::Checkpoint("hm_dive"),
+        // ---- Act 8: Route 127, 128 south; Dive to the Seafloor Cavern (`dive-seafloor`) ----
+        enter(MAP_MOSSDEEP_CITY_STEVENS_HOUSE, 3, 7, Down),
+        enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+        use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        Step::Battle(BattlePlan::RunWild),
+        goto(MAP_MOSSDEEP_CITY, 23, 30),
+        Step::Choose(0),
+        use_(MAP_MOSSDEEP_CITY, 23, 30, Down),
+        cross(MAP_MOSSDEEP_CITY, 30, 39, Down),
+        cross(MAP_ROUTE127, 30, 79, Down),
+        goto(MAP_ROUTE128, 36, 24),
+        Step::Bypass(&DIVE_SEAFLOOR),
+        goto(MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 11),
+        Step::Walk(Up),
+        enter(MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 1, Up),
+        // ---- The cavern: Room 1, 2, 7, 3 (Shelly), 8, 9 (Archie wakes Kyogre) ----
+        // Room 1: smash (5, 10), push (5, 11) down and (12, 11) east.
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM1, 4, 10, Right),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM1, 5, 10, Down),
+        Step::Walk(Down),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM1, 11, 11),
+        Step::Walk(Right),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM1, 6, 2, Up),
+        // Room 2: smash (8, 7), push (4, 5) up thrice, smash (9, 3), push (10, 3) east twice.
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM2, 9, 7, Left),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM2, 4, 6, Up),
+        Step::Walk(Up),
+        Step::Walk(Up),
+        Step::Walk(Up),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM2, 8, 3, Right),
+        Step::Walk(Right),
+        Step::Walk(Right),
+        Step::Walk(Right),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM2, 11, 1, Up),
+        // Room 7: Surf across its pool of currents (the planner does not model them: a step
+        // onto (4, 18) slides west to (3, 18), then the still column 2 north).
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM7, 3, 19, Right),
+        Step::Walk(Up),
+        Step::Wait(60),
+        Step::Walk(Left),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM7, 2, 4),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM7, 4, 4),
+        Step::Walk(Up),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM7, 5, 1, Up),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM3, 8, 1, Up),
+        // Room 8's boulder block (a search's solution).
+        goto(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 8),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 8, Up),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM8, 4, 6),
+        Step::Walk(Right),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        Step::Walk(Up),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 5),
+        Step::Walk(Right),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 2, Up),
+        // Archie's scene (coord (17, 42)) ends with a warp up to Route 128.
+        goto(MAP_SEAFLOOR_CAVERN_ROOM9, 16, 42),
+        Step::Walk(Right),
+        Step::WaitScript,
+        Step::Expect("kyogre_awakened"),
+        Step::Checkpoint("seafloor_cavern"),
     ];
 }
