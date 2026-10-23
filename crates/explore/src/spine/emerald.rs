@@ -110,21 +110,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// The Petalburg gym's room doors (`MB_PETALBURG_GYM_DOOR`) open through
-    /// `SPECIAL_PetalburgGymUnlockRoomDoors` on load (`VAR_PETALBURG_GYM_STATE` 6, the doors of
-    /// beaten rooms) and `SPECIAL_PetalburgGymSlideOpenRoomDoors` after a room's trainer:
-    /// unsupported, so pressing into the entrance room's door (1, 105) does nothing. The bypass
-    /// lands in Norman's room, the end of the (1, 105), (1, 79), (7, 40), (7, 14) chain.
-    static PETALBURG_GYM_DOORS: Bypass = Bypass {
-        issue: "petalburg-gym-doors",
-        features: &[
-            "SPECIAL_PetalburgGymUnlockRoomDoors",
-            "SPECIAL_PetalburgGymSlideOpenRoomDoors",
-        ],
-        warp: Some((MAP_PETALBURG_CITY_GYM, 4, 5)),
-        ..Bypass::NONE
-    };
-
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
         // ---- Littleroot: the girl at the north exit sends the player to save Birch ----
@@ -941,11 +926,20 @@ mod list {
         use_(MAP_PETALBURG_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_PETALBURG_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         // ---- Norman ----
-        // The rooms chain through doors warping within the gym: the entrance room's (1, 105),
-        // then (1, 79), (7, 40) and (7, 14) to Norman's. The doors stay shut
-        // (`petalburg-gym-doors`).
+        // The rooms chain through doors that are signs (`PetalburgCity_Gym_EventScript_*Door`:
+        // yes, then `warpdoor`): the entrance room's (1, 105) (opened on load,
+        // `PetalburgGymUnlockRoomDoors`), then (1, 79), (7, 40) and (7, 14) to Norman's, each
+        // opened by beating its room's trainer (Randall, Parker, Jody), whose script slides the
+        // doors open (`PetalburgGymSlideOpenRoomDoors`).
         enter(MAP_PETALBURG_CITY, 15, 8, Up),
-        Step::Bypass(&PETALBURG_GYM_DOORS),
+        Step::Choose(0),
+        use_(MAP_PETALBURG_CITY_GYM, 1, 106, Up),
+        talk(MAP_PETALBURG_CITY_GYM, 3),
+        use_(MAP_PETALBURG_CITY_GYM, 1, 80, Up),
+        talk(MAP_PETALBURG_CITY_GYM, 4),
+        use_(MAP_PETALBURG_CITY_GYM, 7, 41, Up),
+        talk(MAP_PETALBURG_CITY_GYM, 7),
+        use_(MAP_PETALBURG_CITY_GYM, 7, 15, Up),
         talk(MAP_PETALBURG_CITY_GYM, 1),
         Step::Expect("norman_defeated"),
         Step::Expect("badge5"),

@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 27 Native, 19 Ignore, 35 Default, 443 Unsupported.
+// Counts: 29 Native, 19 Ignore, 35 Default, 441 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -325,8 +325,8 @@
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,
     "SPECIAL_OpenPokenavForTutorial": Ignore, // no PokeNav screen (M9): the script goes on as after closing it
     "SPECIAL_Overworld_PlaySpecialMapMusic": Unsupported,
-    "SPECIAL_PetalburgGymSlideOpenRoomDoors": Unsupported, // Norman's gym rooms open after badge 4
-    "SPECIAL_PetalburgGymUnlockRoomDoors": Unsupported, // Norman's gym rooms open after badge 4
+    "SPECIAL_PetalburgGymSlideOpenRoomDoors": Native, // room VAR_0x8004's doors slide open (5 metatile frames, 2 frames apart)
+    "SPECIAL_PetalburgGymUnlockRoomDoors": Native, // room VAR_0x8004's doors show the open frame
     "SPECIAL_PickLotteryCornerTicket": Unsupported,
     "SPECIAL_PlayBardSong": Unsupported,
     "SPECIAL_PlayRoulette": Unsupported,

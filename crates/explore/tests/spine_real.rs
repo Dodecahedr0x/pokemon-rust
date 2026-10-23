@@ -46,7 +46,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "checkpartymove-rock-smash",
     "checkpartymove-rock-smash-south",
     "checkpartymove-rock-smash-rusturf",
-    "petalburg-gym-doors",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.

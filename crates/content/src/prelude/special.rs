@@ -61,6 +61,41 @@ const CABLE_CAR_ARRIVAL: (i16, i16) = (6, 4);
 /// takes 32 more.
 const CABLE_CAR_RIDE_FRAMES: u16 = 570 + 32;
 
+/// Gen3 `sPetalburgGymSlidingDoorMetatiles` (`METATILE_PetalburgGym_SlidingDoor_Frame0..4`,
+/// `include/constants/metatile_labels.h`): the door's top half; the bottom half is a metatile
+/// row (`METATILE_ROW_WIDTH`, 8) further.
+const PETALBURG_GYM_DOOR_FRAMES: [u16; 5] = [0x218, 0x219, 0x21A, 0x21B, 0x21C];
+const METATILE_ROW_WIDTH: u16 = 8;
+/// `Task_PetalburgGymSlideOpenRoomDoors`' `sSlidingDoorNextFrameDelay` {0, 1, 1, 1, 1}: the
+/// first frame is drawn at once, each later one 2 frames after the previous.
+const PETALBURG_GYM_DOOR_FRAME_GAP: u16 = 2;
+
+/// `PetalburgGymSetDoorMetatiles`' doors of room `room` (`VAR_0x8004`, 1 to 8): the top cells.
+fn petalburg_gym_doors(room: u16) -> &'static [(i16, i16)] {
+    match room {
+        1 => &[(1, 104), (7, 104)],
+        2 => &[(1, 78), (7, 78)],
+        3 => &[(1, 91), (7, 91)],
+        4 => &[(7, 39)],
+        5 => &[(1, 52), (7, 52)],
+        6 => &[(1, 65)],
+        7 => &[(7, 13)],
+        8 => &[(1, 26)],
+        _ => &[],
+    }
+}
+
+/// Gen3 `PetalburgGymSetDoorMetatiles`: room `VAR_0x8004`'s doors (both halves, impassable)
+/// show `metatile`, then `DrawWholeMapView`.
+async fn petalburg_gym_set_doors(ctx: &Ctx, room: u16, metatile: u16) {
+    for &(x, y) in petalburg_gym_doors(room) {
+        ctx.set_metatile(x, y, metatile, true).await;
+        ctx.set_metatile(x, y + 1, metatile + METATILE_ROW_WIDTH, true)
+            .await;
+    }
+    ctx.redraw_map().await;
+}
+
 /// Reports `id` as run in a simplified way (its decomp name).
 async fn degraded(ctx: &Ctx, id: u16) {
     let name = name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?");
@@ -116,6 +151,10 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   `CableCar` does, stays black for the ride's frames, then warps to `CableCarWarp`'s
 ///   destination (`CB2_EndCableCar`'s `WarpIntoMap`); the warp's map load ends the script, as
 ///   `CB2_LoadMap` does in Gen3 (the script's `waitstate` is never reached).
+/// - `PetalburgGymUnlockRoomDoors`, `PetalburgGymSlideOpenRoomDoors` (`field_specials.c`): room
+///   `VAR_0x8004`'s doors show the open frame at once, or slide through the five frames (2
+///   frames apart, `Task_PetalburgGymSlideOpenRoomDoors`; the script's `waitstate` then
+///   passes). The unlock sound is not modelled.
 /// - Degraded (reported), as if cancelled:
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
@@ -187,6 +226,19 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.buffer(0, BufferSrc::Std(s)).await;
         }
         id if id == SPECIAL_StartWallyTutorialBattle => degraded(ctx, id).await,
+        id if id == SPECIAL_PetalburgGymUnlockRoomDoors => {
+            let room = ctx.var(VAR_0x8004).await;
+            petalburg_gym_set_doors(ctx, room, PETALBURG_GYM_DOOR_FRAMES[4]).await;
+        }
+        id if id == SPECIAL_PetalburgGymSlideOpenRoomDoors => {
+            let room = ctx.var(VAR_0x8004).await;
+            for (i, &frame) in PETALBURG_GYM_DOOR_FRAMES.iter().enumerate() {
+                if i > 0 {
+                    ctx.delay(PETALBURG_GYM_DOOR_FRAME_GAP).await;
+                }
+                petalburg_gym_set_doors(ctx, room, frame).await;
+            }
+        }
         id if id == SPECIAL_CableCarWarp => {
             cable_car_destination(ctx).await;
         }
