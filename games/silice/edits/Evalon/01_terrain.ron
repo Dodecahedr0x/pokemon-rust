@@ -1,123 +1,155 @@
-// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
-//   # 617/1/0 rust cliff
-//   ^ 839/1/0 rock above a doorway
-//   D 847/0/3 doorway in the rock (warp cell)
-//   v 625/0/3 ash ground at a cliff foot
-//   . 633/0/3 ash ground
-//   = 175/0/3 stone steps
-//   [ 384/0/1 water, north-west shore
-//   - 393/0/1 water, north shore
-//   ] 385/0/1 water, north-east shore
-//   ( 400/0/1 water, west shore
-//   ~ 368/0/1 water
-//   ) 402/0/1 water, east shore
-//   a 744/0/3 
-//   b 745/0/3 
-//   c 746/0/3 
-//   d 752/0/3 
-//   e 753/0/3 
-//   f 754/0/3 
-//   g 760/0/3 
-//   h 761/0/3 
-//   i 762/0/3 
-//   s 534/1/3 wooden sign
-//   o 687/1/3 boulder
-//   j 802/1/0 
-//   k 803/1/0 
-//   l 804/1/0 
-//   T 619/1/0 forest tree (2x2)
-//   t 620/1/0 forest tree (2x2)
-//   , 671/0/3 ash ground, tuft
-//   m 645/1/0 
-//   n 646/1/0 
-//   p 647/1/0 
-//   Y 627/1/0 forest tree (2x2)
-//   y 628/1/0 forest tree (2x2)
-//   q 653/1/0 
-//   r 670/1/0 
-//   u 669/1/0 
-//   w 655/1/0 
-//   z 661/1/0 
-//   A 678/1/0 
-//   B 677/1/0 
-//   C 663/1/0 
-//   E 836/1/0 
-//   F 837/1/0 
-//   G 838/1/0 
-//   : 1/0/3 grass
-//   x 565/1/3 synthetic brambles (Lame-Frequence)
+// Cells: ground plan, then the buildings and props stamped over it. General (Emerald, by name) +
+// SilEvalon (original, games/silice/gfx/SilEvalon.ron). Legend (char: metatile/collision/elevation, what):
 //   " 13/0/3 tall grass
-//   H 800/1/3 
-//   I 801/1/3 
-//   J 808/1/3 
-//   K 809/1/3 
+//   ( 400/0/1 water, west shore
+//   ) 402/0/1 water, east shore
 //   * 4/0/3 flowers
-//   L 805/1/3 
-//   M 806/1/3 
-//   N 807/1/3 
-//   O 813/1/3 
-//   P 814/1/3 
-//   Q 815/1/3 
-//   R 821/1/3 
-//   S 822/1/3 
-//   U 823/1/3 
+//   - 393/0/1 water, north shore
+//   . 518/0/3 packed earth
+//   1 512/1/0 iron-ore cliff (2x2)
+//   2 513/1/0 iron-ore cliff (2x2)
+//   3 514/1/0 iron-ore cliff (2x2)
+//   4 515/1/0 iron-ore cliff (2x2)
+//   5 516/1/0 cliff foot
+//   6 517/1/0 cliff foot
+//   : 1/0/3 grass
+//   = 175/0/3 stone steps
+//   T 468/1/0 tree (2x2)
+//   Y 476/1/0 tree (2x2)
+//   [ 384/0/1 water, north-west shore
+//   ] 385/0/1 water, north-east shore
+//   p 519/0/3 cobbles
+//   r 638/1/0 rampart
+//   s 27/1/3 General's signpost
+//   t 469/1/0 tree (2x2)
+//   y 477/1/0 tree (2x2)
+//   ~ 368/0/1 water
+// The rows y >= 43 stay primary-only (General's grass, trees and signpost): Route S8's seam.
 [
     Ascii(x: 0, y: 0, rows: [
-        "##################################################",
-        "##################################################",
-        "#########################^########################",
-        "#########################D########################",
-        "###########vvvvvvvvvvvvvv.vvvvvvvvvvvvv###########",
-        "###########.............===............###########",
-        "###########.............===............###########",
-        "###########[--------------------------]###########",
-        "###########(~~~~~~~~~~~~~~~~~~~~~~~~~~)###########",
-        "###########.............abc............###########",
-        "###########.............def............###########",
-        "###^#######.............def....^^......###########",
-        "###D#######.............ghi....##......###########",
-        "##v.vvvvvvv#############...############vvvvvvvvv##",
-        "##.........vvvvvvvvvvvsvac.vvvv##vvvvvv.........##",
-        "##..#####...............df.....vv.o.............##",
-        "##..#####...jkkl........df........TtTt.......,..##",
-        "##..jkkkl...mnnp........df........YyYy..........##",
-        "##..mnnnp...qruw........df......................##",
-        "##..qrurw...zABC........df..............jkkkkl..##",
-        "##..zABAC...............df....o.........mnnnnp..##",
-        "##....ac.s..............df..........,...qrurrw..##",
-        "##....df......oo........df..............zABAAC..##",
-        "##....df..........jkkkkldf.jkkl........s..b.....##",
-        "##....df.jkkl..EFGmnnnnpdf.mnnp...........e.....##",
-        "##....df.mnnp..mnpqrrruwdf.qurw......:::::e:######",
-        "##Tt..df.qurw..qrwzAAABCdf.zBAC......:::::e:x::###",
-        "##Yy..df.zBAC,.zAC....b.df..b..jkkl..:\"\"\"\"e\"x::###",
-        "##Tt..df..............e.df..e..mnnp..:\"\"\"\"e\"x::###",
-        "##Yy..df..............e.df..e..qurwHI:\"\"\"\"e\"x::###",
-        "##.,..df..............e.df..e..zBACJK:\"\"\"\"e\"######",
-        "##....debbbbbbbbbbbbbbebeebbebbbbbbbbbbbbbebc::v##",
-        "##....ghhhhhhhhhhhhhhhhheehhhhhhhhhhhhhhhhhhi::.##",
-        "##......................df...........:\"\"\"\"\"\":::.##",
-        "##.......****...........df...EFFG....::::::::::.##",
-        "##.......****...........df...mnnp....::::::::::.##",
-        "##......................df...qurw,..............##",
-        "##.jkkl.................df.s.zBAC.........HI....##",
-        "##.mnnp.......Tt....abbbeebbbc....[------]JK....##",
-        "##.qruw.......Yy..LMNeeeeeeeef....(~~~~~~)......##",
-        "##.zABC...........OPQeeeeeeeef....(~)::(~)....o.##",
-        "##..........o.....RSUeeeeeeeef....(~)::(~)......##",
-        "##......Tt..........deeeeeeeef....(~~--~~)..Tt..##",
-        "##......Yy..........ghhheehhhi....(~~~~~~)..Yy..##",
-        "Tt..............,.......df....Tt................Tt",
-        "Yy......................gi.s..Yy................Yy",
-        "TtTtTtTtTtTtTtTtTtTtTto....oTtTtTtTtTtTtTtTtTtTtTt",
-        "YyYyYyYyYyYyYyYyYyYyYyY....yYyYyYyYyYyYyYyYyYyYyYy",
-        "TtTtTtTtTtTtTtTtTtTtTtT....tTtTtTtTtTtTtTtTtTtTtTt",
-        "YyYyYyYyYyYyYyYyYyYyYyY....yYyYyYyYyYyYyYyYyYyYyYy",
-    ], legend: {'#': (metatile: 617, collision: 1, elevation: 0), '^': (metatile: 839, collision: 1, elevation: 0), 'D': (metatile: 847, collision: 0, elevation: 3), 'v': (metatile: 625, collision: 0, elevation: 3), '.': (metatile: 633, collision: 0, elevation: 3), '=': (metatile: 175, collision: 0, elevation: 3), '[': (metatile: 384, collision: 0, elevation: 1), '-': (metatile: 393, collision: 0, elevation: 1), ']': (metatile: 385, collision: 0, elevation: 1), '(': (metatile: 400, collision: 0, elevation: 1), '~': (metatile: 368, collision: 0, elevation: 1), ')': (metatile: 402, collision: 0, elevation: 1), 'a': (metatile: 744, collision: 0, elevation: 3), 'b': (metatile: 745, collision: 0, elevation: 3), 'c': (metatile: 746, collision: 0, elevation: 3), 'd': (metatile: 752, collision: 0, elevation: 3), 'e': (metatile: 753, collision: 0, elevation: 3), 'f': (metatile: 754, collision: 0, elevation: 3), 'g': (metatile: 760, collision: 0, elevation: 3), 'h': (metatile: 761, collision: 0, elevation: 3), 'i': (metatile: 762, collision: 0, elevation: 3), 's': (metatile: 534, collision: 1, elevation: 3), 'o': (metatile: 687, collision: 1, elevation: 3), 'j': (metatile: 802, collision: 1, elevation: 0), 'k': (metatile: 803, collision: 1, elevation: 0), 'l': (metatile: 804, collision: 1, elevation: 0), 'T': (metatile: 619, collision: 1, elevation: 0), 't': (metatile: 620, collision: 1, elevation: 0), ',': (metatile: 671, collision: 0, elevation: 3), 'm': (metatile: 645, collision: 1, elevation: 0), 'n': (metatile: 646, collision: 1, elevation: 0), 'p': (metatile: 647, collision: 1, elevation: 0), 'Y': (metatile: 627, collision: 1, elevation: 0), 'y': (metatile: 628, collision: 1, elevation: 0), 'q': (metatile: 653, collision: 1, elevation: 0), 'r': (metatile: 670, collision: 1, elevation: 0), 'u': (metatile: 669, collision: 1, elevation: 0), 'w': (metatile: 655, collision: 1, elevation: 0), 'z': (metatile: 661, collision: 1, elevation: 0), 'A': (metatile: 678, collision: 1, elevation: 0), 'B': (metatile: 677, collision: 1, elevation: 0), 'C': (metatile: 663, collision: 1, elevation: 0), 'E': (metatile: 836, collision: 1, elevation: 0), 'F': (metatile: 837, collision: 1, elevation: 0), 'G': (metatile: 838, collision: 1, elevation: 0), ':': (metatile: 1, collision: 0, elevation: 3), 'x': (metatile: 565, collision: 1, elevation: 3), '"': (metatile: 13, collision: 0, elevation: 3), 'H': (metatile: 800, collision: 1, elevation: 3), 'I': (metatile: 801, collision: 1, elevation: 3), 'J': (metatile: 808, collision: 1, elevation: 3), 'K': (metatile: 809, collision: 1, elevation: 3), '*': (metatile: 4, collision: 0, elevation: 3), 'L': (metatile: 805, collision: 1, elevation: 3), 'M': (metatile: 806, collision: 1, elevation: 3), 'N': (metatile: 807, collision: 1, elevation: 3), 'O': (metatile: 813, collision: 1, elevation: 3), 'P': (metatile: 814, collision: 1, elevation: 3), 'Q': (metatile: 815, collision: 1, elevation: 3), 'R': (metatile: 821, collision: 1, elevation: 3), 'S': (metatile: 822, collision: 1, elevation: 3), 'U': (metatile: 823, collision: 1, elevation: 3)}),
+        "12121212121212121212121212121212121212121212121212",
+        "34343434343434343434343434343434343434343434343434",
+        "12121212121212121212121212121212121212121212121212",
+        "34343434343656565656565656565656565656543434343434",
+        "12121212121............................21212121212",
+        "34343434343.............===............43434343434",
+        "12121212121.............===............21212121212",
+        "34343434343[--------------------------]43434343434",
+        "12121212121(~~~~~~~~~~~~~~~~~~~~~~~~~~)21212121212",
+        "34343434343.............ppp............43434343434",
+        "12121212121.............ppp............21212121212",
+        "34343434343.............ppp............43434343434",
+        "12565656565.............ppp....21......65656565612",
+        "34.........rrrrrrrrrrrrr...rrrrrrrrrrrr.........34",
+        "12......................pp.....65...............12",
+        "34......................pp......................34",
+        "12......................pp........TtTt..........12",
+        "34......................pp........YyYy..........34",
+        "12......................pp......................12",
+        "34......................pp......................34",
+        "12......................pp......................12",
+        "34....pp................pp......................34",
+        "12....pp................pp......................12",
+        "34....pp................pp................p.....34",
+        "12....pp................pp................p.....12",
+        "34....pp................pp...........:::::p:565434",
+        "12Tt..pp................pp...........:::::p::::212",
+        "34Yy..pp..............p.pp..p........:\"\"\"\"p\":::434",
+        "12Tt..pp..............p.pp..p........:\"\"\"\"p\":::212",
+        "34Yy..pp..............p.pp..p........:\"\"\"\"p\":::434",
+        "12....pp..............p.pp..p........:\"\"\"\"p\"565612",
+        "34....ppppppppppppppppppppppppppppppppppppppp::.34",
+        "12....ppppppppppppppppppppppppppppppppppppppp::.12",
+        "34......................pp...........:\"\"\"\"\"\":::.34",
+        "12.......****...........pp...........::::::::::.12",
+        "34.......****...........pp...........::::::::::.34",
+        "12......................pp......................12",
+        "34......................pp......................34",
+        "12............Tt....pppppppppp....[------]......12",
+        "34............Yy.....ppppppppp....(~~~~~~)......34",
+        "12...................ppppppppp....(~)::(~)......12",
+        "34...................ppppppppp....(~)::(~)......34",
+        "12......Tt..........pppppppppp....(~~--~~)..Tt..12",
+        "::::**::Yy::::::::*::::::::::::**:(~~~~~~)::Yy::::",
+        "Tt::::::::::**::::::::::::::::Tt::::::::::::::::Tt",
+        "Yy::::::::::::::*::::::::::s::Yy::::::**::::::::Yy",
+        "TtTtTtTtTtTtTtTtTtTtTtT::::tTtTtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyY::::yYyYyYyYyYyYyYyYyYyYyYy",
+        "TtTtTtTtTtTtTtTtTtTtTtT::::tTtTtTtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyY::::yYyYyYyYyYyYyYyYyYyYyYy",
+    ], legend: {'\"': (metatile: 13, collision: 0, elevation: 3), '(': (metatile: 400, collision: 0, elevation: 1), ')': (metatile: 402, collision: 0, elevation: 1), '*': (metatile: 4, collision: 0, elevation: 3), '-': (metatile: 393, collision: 0, elevation: 1), '.': (metatile: 518, collision: 0, elevation: 3), '1': (metatile: 512, collision: 1, elevation: 0), '2': (metatile: 513, collision: 1, elevation: 0), '3': (metatile: 514, collision: 1, elevation: 0), '4': (metatile: 515, collision: 1, elevation: 0), '5': (metatile: 516, collision: 1, elevation: 0), '6': (metatile: 517, collision: 1, elevation: 0), ':': (metatile: 1, collision: 0, elevation: 3), '=': (metatile: 175, collision: 0, elevation: 3), 'T': (metatile: 468, collision: 1, elevation: 0), 'Y': (metatile: 476, collision: 1, elevation: 0), '[': (metatile: 384, collision: 0, elevation: 1), ']': (metatile: 385, collision: 0, elevation: 1), 'p': (metatile: 519, collision: 0, elevation: 3), 'r': (metatile: 638, collision: 1, elevation: 0), 's': (metatile: 27, collision: 1, elevation: 3), 't': (metatile: 469, collision: 1, elevation: 0), 'y': (metatile: 477, collision: 1, elevation: 0), '~': (metatile: 368, collision: 0, elevation: 1)}),
+    // The buildings and props: SilEvalon's stamps (games/silice/gfx/SilEvalon.ron, original art).
+    // The Citadelle's gate in the cliff, x 23-27, y 1-3; its doorway (25, 3), walkable (warp 6).
+    Stamp(x: 23, y: 1, name: "SilEvalon_citadelle"),
+    // The Galeries' mine mouth, x 2-4, y 11-12; its doorway (3, 12), walkable (warp 4).
+    Stamp(x: 2, y: 11, name: "SilEvalon_galeries"),
+    // The Porte du Fer in the rampart, x 23-27, y 13: the guards stand in its passage (24-26, 13).
+    Stamp(x: 23, y: 13, name: "SilEvalon_porte_fer"),
+    // The belfry with the bronze bell, x 31-32, y 12-14, over the rampart by the gate.
+    Stamp(x: 31, y: 12, name: "SilEvalon_beffroi"),
+    // The Tour du Scribe, x 5-7, y 16-20, door (6, 20).
+    Stamp(x: 5, y: 16, name: "SilEvalon_tour_scribe"),
+    // The Taverne du De a Vingt Faces, x 21-23, y 23-26, door (22, 26); its Pigeonnier against it, x 18-20, y 24-26.
+    Stamp(x: 21, y: 23, name: "SilEvalon_taverne"),
+    Stamp(x: 18, y: 24, name: "SilEvalon_pigeonnier"),
+    // The Echoppe du Troc, x 27-29, y 24-26, door (28, 26).
+    Stamp(x: 27, y: 24, name: "SilEvalon_echoppe"),
+    // The Forge, x 31-33, y 28-30, door (32, 30).
+    Stamp(x: 31, y: 28, name: "SilEvalon_forge"),
+    // The Maison des Anciens, x 40-44, y 20-22, door (42, 22).
+    Stamp(x: 40, y: 20, name: "SilEvalon_anciens"),
+    // The villagers' cottages (no interior; their doors are drawn, solid).
+    Stamp(x: 12, y: 17, name: "SilEvalon_maison"),
+    Stamp(x: 9, y: 25, name: "SilEvalon_maison_m"),
+    Stamp(x: 29, y: 35, name: "SilEvalon_maison"),
+    Stamp(x: 3, y: 38, name: "SilEvalon_maison_m"),
+    Stamp(x: 16, y: 16, name: "SilEvalon_maison"),
+    Stamp(x: 27, y: 17, name: "SilEvalon_maison_m"),
+    Stamp(x: 34, y: 20, name: "SilEvalon_maison_m"),
+    Stamp(x: 10, y: 28, name: "SilEvalon_maison"),
+    Stamp(x: 4, y: 33, name: "SilEvalon_maison_m"),
+    Stamp(x: 33, y: 34, name: "SilEvalon_maison_m"),
+    // The dry fountain, x 18-20, y 39-41 (Q1); its sign (19, 41) is read from (19, 42).
+    Stamp(x: 18, y: 39, name: "SilEvalon_fontaine"),
+    // The mill on the pond's east shore, x 42-44, y 38-40: the wheel drives the steam engine.
+    Stamp(x: 42, y: 38, name: "SilEvalon_moulin"),
+    // The south portal's stone pillars, (22, 41-42) and (27, 41-42), at the square's south side.
+    Stamp(x: 22, y: 41, name: "SilEvalon_pilier"),
+    Stamp(x: 27, y: 41, name: "SilEvalon_pilier_m"),
+    // Signs: the Porte du Fer (Sign2), the tower (Sign3), the Anciens (Sign4); the quest board (Sign5).
+    Stamp(x: 22, y: 14, name: "SilEvalon_panneau"),
+    Stamp(x: 9, y: 21, name: "SilEvalon_panneau"),
+    Stamp(x: 39, y: 23, name: "SilEvalon_panneau"),
+    Stamp(x: 27, y: 37, name: "SilEvalon_tableau"),
+    // The factions' pennants (blue: Ordre de l'Aube, green: Compagnie du Chene), by the gate and the meadow.
+    Stamp(x: 23, y: 14, name: "SilEvalon_fanion_bleu"),
+    Stamp(x: 27, y: 14, name: "SilEvalon_fanion_vert"),
+    Stamp(x: 20, y: 23, name: "SilEvalon_fanion_bleu"),
+    Stamp(x: 36, y: 25, name: "SilEvalon_fanion_vert"),
+    Stamp(x: 20, y: 5, name: "SilEvalon_fanion_bleu"),
+    Stamp(x: 30, y: 5, name: "SilEvalon_fanion_vert"),
+    Stamp(x: 9, y: 19, name: "SilEvalon_fanion_bleu"),
+    Stamp(x: 46, y: 32, name: "SilEvalon_fanion_vert"),
+    // Oil lamps along the main street and at the square.
+    Stamp(x: 23, y: 17, name: "SilEvalon_lampion"),
+    Stamp(x: 26, y: 21, name: "SilEvalon_lampion"),
+    Stamp(x: 23, y: 30, name: "SilEvalon_lampion"),
+    Stamp(x: 26, y: 34, name: "SilEvalon_lampion"),
+    Stamp(x: 20, y: 38, name: "SilEvalon_lampion"),
+    Stamp(x: 29, y: 38, name: "SilEvalon_lampion"),
+    Stamp(x: 23, y: 9, name: "SilEvalon_lampion"),
+    Stamp(x: 27, y: 9, name: "SilEvalon_lampion"),
+    Stamp(x: 8, y: 23, name: "SilEvalon_lampion"),
+    Stamp(x: 41, y: 24, name: "SilEvalon_lampion"),
+    // The brambles before the lost pigeon's pocket (44, 26-29; Lame-Frequence cuts them to grass).
+    Stamp(x: 44, y: 26, name: "SilEvalon_ronces"),
+    Stamp(x: 44, y: 27, name: "SilEvalon_ronces"),
+    Stamp(x: 44, y: 28, name: "SilEvalon_ronces"),
+    Stamp(x: 44, y: 29, name: "SilEvalon_ronces"),
     // The raised drawbridge (x 24-26, y 7-8): water drawn at the yard's elevation 3 and solid, so it
-    // is neither walked nor surfed. Evalon_OnLoad lowers it from story 83 with setmetatile(…, false);
-    // setmetatile keeps the elevation, so the lowered bridge is walked at 3 like the yard (and a
-    // surfer in the moat lands on it, as on any elevation-3 shore).
+    // is neither walked nor surfed. Evalon_OnLoad lowers it from story 83 with setmetatile(…, false)
+    // (SilEvalon's `pont`); setmetatile keeps the elevation, so the lowered bridge is walked at 3 like
+    // the yard (and a surfer in the moat lands on it, as on any elevation-3 shore).
     Paint(x: 24, y: 7, collision: 1, elevation: 3),
     Paint(x: 25, y: 7, collision: 1, elevation: 3),
     Paint(x: 26, y: 7, collision: 1, elevation: 3),

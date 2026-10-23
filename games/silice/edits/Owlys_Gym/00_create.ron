@@ -1,6 +1,6 @@
 // Silice Ch5, MAP_OWLYS_GYM: the Owl Sanctuary (30 x 50), a dark map over the void. The Court of Owls (five
 // islets S, O, C, E, N and five pivoting bridges, three lecterns) -> the Hall of Pillars (four hidden
 // Watchers) -> the walkway down to the suspended platform, where Skycker waits. Four trapdoors drop to the
-// crypt (B1F). General + Cave (Emerald tilesets by name): the void (581), Victory Road's planks (700),
-// the floor holes (563).
-(name: "Owlys_Gym", width: 30, height: 50, primary: "General", secondary: "Cave", fill: 753, border: [753, 753, 753, 753])
+// crypt (B1F). General (Emerald, by name) + SilOwlysGym (original, games/silice/tilesets): slate slabs,
+// the void, plank bridges, cracked trapdoor slabs, owl pillars, lecterns, the round platform.
+(name: "Owlys_Gym", width: 30, height: 50, primary: "General", secondary: "SilOwlysGym", fill: 544, border: [1568, 1568, 1568, 1568])

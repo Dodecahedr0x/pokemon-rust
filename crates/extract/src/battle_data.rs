@@ -61,9 +61,9 @@
 
 use crate::export::Out;
 use crate::schema::{
-    BattleStringsFile, EncounterHeader, EncountersFile, EvolutionsFile, HealLocationsFile, Hex,
-    LandEncounters, Move, MovesFile, Species, SpeciesFile, Trainer, TrainerMon, TrainerMoneyFile,
-    TrainersFile, TypesFile, WildMon,
+    BattleStringsFile, DexFile, EncounterHeader, EncountersFile, EvolutionsFile, HealLocationsFile,
+    Hex, LandEncounters, Move, MovesFile, Rematch, RematchesFile, Species, SpeciesFile, Trainer,
+    TrainerMon, TrainerMoneyFile, TrainersFile, TypesFile, WildMon,
 };
 use crate::text::{self, charmap};
 use crate::{ROM_BASE, Rom, names};
@@ -126,6 +126,26 @@ pub const NATIONAL_DEX_COUNT: u32 = 386;
 const JOHTO_DEX_COUNT: u16 = 251;
 /// (height, weight) of `gPokedexEntries[0..4]`.
 const DEX_ANCHOR: [(u16, u16); 4] = [(0, 0), (7, 69), (10, 130), (20, 1000)];
+/// `HOENN_DEX_COUNT` (`HOENN_DEX_DEOXYS`, `include/constants/pokedex.h`).
+pub const HOENN_DEX_COUNT: u16 = 202;
+/// `REMATCH_TABLE_ENTRIES` (`include/constants/rematches.h`).
+pub const REMATCH_TABLE_ENTRIES: u32 = 78;
+/// `sizeof(struct RematchTrainer)`: `trainerIds[REMATCHES_COUNT]`, `mapGroup`, `mapNum` (u16s),
+/// padded to 4 by agbcc.
+const REMATCH_SIZE: u32 = 16;
+/// `REMATCHES_COUNT` (`include/battle_setup.h`).
+const REMATCHES_COUNT: u32 = 5;
+/// `gRematchTable[REMATCH_ROSE]` (`src/battle_setup.c`): the anchor of the table.
+const REMATCH_ANCHOR: ([&str; 5], &str) = (
+    [
+        "TRAINER_ROSE_1",
+        "TRAINER_ROSE_2",
+        "TRAINER_ROSE_3",
+        "TRAINER_ROSE_4",
+        "TRAINER_ROSE_5",
+    ],
+    "Route118",
+);
 /// The class that ends `gTrainerMoneyTable`; its value is the default of unlisted classes.
 const TRAINER_MONEY_END: u8 = 0xFF;
 /// `sizeof(struct TrainerMoney)`: two u8 padded to 4 by agbcc.
@@ -284,6 +304,10 @@ pub struct Locations {
     pub trainer_money: u32,
     /// `sSpeciesToNationalPokedexNum` and `gPokedexEntries`, if both were found (weights only).
     pub pokedex: Option<Pokedex>,
+    /// `sSpeciesToHoennPokedexNum`, if found ([`locate_hoenn_dex`]).
+    pub hoenn_dex: Option<u32>,
+    /// `gRematchTable`, if found ([`REMATCH_ANCHOR`]).
+    pub rematches: Option<u32>,
     pub nature_power: u32,
     pub heal_locations: u32,
     pub battle_strings: u32,
@@ -471,6 +495,15 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         .inspect_err(|e| eprintln!("warning: species weights are 0: {e:#}"))
         .ok();
 
+    let hoenn_dex = pokedex.and_then(|p| {
+        locate_hoenn_dex(rom, p.species_to_national, &n)
+            .inspect_err(|e| eprintln!("warning: no Hoenn Pokédex order: {e:#}"))
+            .ok()
+    });
+    let rematches = locate_rematches(rom)
+        .inspect_err(|e| eprintln!("warning: no rematch table: {e:#}"))
+        .ok();
+
     let nature_power =
         unique_referenced(rom, &u16s_le(&NATURE_POWER.map(mv)), "sNaturePowerMoves")?;
 
@@ -506,6 +539,8 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         evolutions,
         trainer_money,
         pokedex,
+        hoenn_dex,
+        rematches,
         nature_power,
         heal_locations,
         battle_strings,
@@ -585,6 +620,75 @@ fn locate_pokedex(rom: &Rom) -> Result<Pokedex> {
         )?,
         entries: locate_pokedex_entries(rom)?,
     })
+}
+
+/// `sSpeciesToHoennPokedexNum`, the `NUM_SPECIES - 1` u16s just before
+/// `sSpeciesToNationalPokedexNum` (`src/pokemon.c` defines them in this order). Checked: it is
+/// referenced, and its values `1..=HOENN_DEX_COUNT` each appear once.
+fn locate_hoenn_dex(rom: &Rom, species_to_national: u32, n: &Counts) -> Result<u32> {
+    let at = species_to_national
+        .checked_sub(2 * (n.species - 1))
+        .context("sSpeciesToHoennPokedexNum before ROM start")?;
+    ensure_referenced(rom, at, "sSpeciesToHoennPokedexNum")?;
+    read_hoenn_order(rom, at, n)?;
+    Ok(at)
+}
+
+/// The species in Hoenn order (index `h - 1` is the species numbered `h`) from the table at
+/// `at`.
+fn read_hoenn_order(rom: &Rom, at: u32, n: &Counts) -> Result<Vec<u32>> {
+    let mut order = vec![None; HOENN_DEX_COUNT as usize];
+    for i in 0..n.species - 1 {
+        let h = rom.u16(at + 2 * i)?;
+        if (1..=HOENN_DEX_COUNT).contains(&h) {
+            let slot = &mut order[h as usize - 1];
+            ensure!(slot.is_none(), "Hoenn number {h} twice");
+            *slot = Some(i + 1);
+        }
+    }
+    order
+        .into_iter()
+        .enumerate()
+        .map(|(i, s)| s.with_context(|| format!("no species with Hoenn number {}", i + 1)))
+        .collect()
+}
+
+/// `gRematchTable`: the referenced run starting with [`REMATCH_ANCHOR`].
+fn locate_rematches(rom: &Rom) -> Result<u32> {
+    let (trainers, map) = REMATCH_ANCHOR;
+    let mut needle: Vec<u16> = trainers
+        .iter()
+        .map(|t| names::TRAINERS.value(t).map(|v| v as u16))
+        .collect::<Option<_>>()
+        .context("rematch anchor trainers")?;
+    let m = names::map_by_dir(map).context("rematch anchor map")?;
+    needle.extend([u16::from(m.group), u16::from(m.num)]);
+    unique_referenced(rom, &u16s_le(&needle), "gRematchTable")
+}
+
+fn read_rematches(rom: &Rom, at: u32) -> Result<RematchesFile> {
+    let mut rematches = Vec::new();
+    for i in 0..REMATCH_TABLE_ENTRIES {
+        let e = at + REMATCH_SIZE * i;
+        let ids = rom.u16s(e, REMATCHES_COUNT as usize)?;
+        let (group, num) = (
+            rom.u16(e + 2 * REMATCHES_COUNT)?,
+            rom.u16(e + 2 * REMATCHES_COUNT + 2)?,
+        );
+        let map = u8::try_from(group)
+            .ok()
+            .zip(u8::try_from(num).ok())
+            .and_then(|(g, n)| names::map(g, n))
+            .with_context(|| format!("rematch {i}: unknown map {group}.{num}"))?;
+        rematches.push(Rematch {
+            trainers: ids
+                .iter()
+                .map(|&t| names::TRAINERS.name_or_hex(t.into()))
+                .collect(),
+            map: map.dir.to_string(),
+        });
+    }
+    Ok(RematchesFile { rematches })
 }
 
 /// `gPokedexEntries`: the referenced table whose first entries have the heights and weights of
@@ -933,6 +1037,8 @@ pub struct BattleData {
     pub evolutions: EvolutionsFile,
     pub trainer_money: TrainerMoneyFile,
     pub heal_locations: HealLocationsFile,
+    pub dex: DexFile,
+    pub rematches: RematchesFile,
     pub strings: BattleStringsFile,
     /// `battle/<table>` -> offset, for the manifest.
     pub provenance: BTreeMap<String, Hex>,
@@ -991,6 +1097,12 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
         );
         provenance.insert("battle/pokedex_entries".into(), Hex(p.entries));
     }
+    if let Some(at) = loc.hoenn_dex {
+        provenance.insert("battle/species_to_hoenn".into(), Hex(at));
+    }
+    if let Some(at) = loc.rematches {
+        provenance.insert("battle/rematches".into(), Hex(at));
+    }
     Ok(BattleData {
         species: read_species(rom, &loc, &n)?,
         moves: read_moves(rom, &loc, &n)?,
@@ -1011,6 +1123,19 @@ pub fn extract(rom: &Rom, maps: &[&str]) -> Result<BattleData> {
                 .collect(),
         },
         heal_locations: read_heal_locations(rom, &loc, &n)?,
+        dex: DexFile {
+            hoenn: match loc.hoenn_dex {
+                Some(at) => read_hoenn_order(rom, at, &n)?
+                    .into_iter()
+                    .map(|s| names::SPECIES.name_or_hex(s))
+                    .collect(),
+                None => Vec::new(),
+            },
+        },
+        rematches: match loc.rematches {
+            Some(at) => read_rematches(rom, at)?,
+            None => RematchesFile::default(),
+        },
         strings: read_strings(rom, &loc, &n)?,
         provenance,
     })
@@ -1027,6 +1152,8 @@ impl BattleData {
         o.ron("battle/evolutions.ron", &self.evolutions)?;
         o.ron("battle/trainer_money.ron", &self.trainer_money)?;
         o.ron("battle/heal_locations.ron", &self.heal_locations)?;
+        o.ron("battle/dex.ron", &self.dex)?;
+        o.ron("battle/rematches.ron", &self.rematches)?;
         o.ron("battle/strings.ron", &self.strings)
     }
 }

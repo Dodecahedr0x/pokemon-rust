@@ -60,7 +60,7 @@ impl ScriptHost for Host {
                 self.vars.insert(v.0, x);
                 Response::Unit
             }
-            Request::Random(_) | Request::PlayerFacing => Response::Value(0),
+            Request::Random(_) | Request::PlayerFacing | Request::Query(_) => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(0),
             Request::YesNo { .. } => Response::Bool(self.yes),
@@ -640,6 +640,22 @@ fn std_find_item_removes_the_last_talked_object() {
 #[cfg(not(pkr_stub))]
 mod extracted {
     use super::*;
+
+    /// Wave C: `ShowPokedexRatingMessage`'s 22 texts (extract's `C_TEXT_RUNS`) are built.
+    #[test]
+    fn pokedex_rating_texts_are_built() {
+        let rated = data::TEXT_NAMES
+            .iter()
+            .filter(|n| n.starts_with("gBirchDexRatingText_"))
+            .count();
+        assert!(rated >= 22, "{rated}");
+        for n in [
+            "gBirchDexRatingText_LessThan10",
+            "gBirchDexRatingText_DexCompleted",
+        ] {
+            assert!(crate::prelude::text_named(n).is_some(), "{n}");
+        }
+    }
 
     /// The French ROM, when `PKR_ROM_FR` is set and the data was extracted from it.
     pub(super) fn source_rom() -> Option<extract::Rom> {

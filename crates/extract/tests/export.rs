@@ -146,6 +146,8 @@ fn writes_current_format_tree() {
         "trainer_money",
         "heal_locations",
         "strings",
+        "dex",
+        "rematches",
     ] {
         want.insert(format!("battle/{f}.ron"));
     }

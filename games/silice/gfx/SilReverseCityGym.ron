@@ -1,0 +1,81 @@
+// The Palais des Paradoxes (Ch7, MAP_REVERSE_CITY_GYM): Reverse's gym, three rooms in one map.
+// contenu-jeu/chapitres/07-reverse-city.md §4: a palace of black mirrors and ice floors in negative
+// colours, chandeliers hanging upwards. Room 1, the Patinoire Inversee (ice, MB_ICE, and crystal
+// pillars); room 2, the corridor of the three lying mirror doors and the two mime statues; room 3, the
+// corridor of black mirrors ending at the great mirror that shows no reflection.
+// Building has no floor: the objects stand on this tileset's floor (`sol`), ice (`glace`) or wall
+// face (`mur_face`) with `under`.
+(
+    name: "SilReverseCityGym",
+    primary: "Building",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), inside a palace drawn as a photographic negative. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: black and dark navy mirror surfaces, cold cyan-white reflections, pale violet crystal, a few mint green accents.",
+    features: [
+        (
+            name: "grand_miroir",
+            under: Some("mur_face"),
+            cells: ["####", "####", "####"],
+            prompt: Some("A huge wall mirror seen from the front: a tall rectangular mirror in a thick ornate mint green frame filling the middle half of the width, its glass flat dark grey-black and reflecting nothing at all; on each side of it, on the left and right quarters, a tall golden candelabra standing upside down with its candles pointing to the floor."),
+        ),
+        (
+            name: "porte_miroir",
+            under: Some("sol"),
+            cells: ["##", "##", ".."],
+            prompt: Some("A tall mirror door seen from the front: a pointed arch frame in pale violet crystal around a dark navy mirror glass with two diagonal cyan-white reflection lines, filling the top two thirds; the bottom third is a low flat black threshold step in front of it."),
+        ),
+        (
+            name: "escalier",
+            under: Some("sol"),
+            cells: [".", "."],
+            prompt: Some("A narrow staircase seen from above going up from the bottom to the top: six black glossy steps with thin cyan-white edges, low pale violet side walls on the left and right."),
+        ),
+        (
+            name: "sol",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A polished palace floor drawn as a photographic negative: one single flat dark navy tile (#202848) with a thin pale violet (#8078b0) joint line along its top and left edges and one short cyan-white diagonal reflection stroke in the middle. Nothing else: no dots, no speckles. Only 16x16 pixels."),
+        ),
+        (
+            name: "mur",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The top of a thick black wall seen from straight above: flat black (#101018) with a few faint dark violet marble veins. Almost flat, only 16x16 pixels."),
+        ),
+        (
+            name: "mur_face",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The front face of a palace wall seen head-on, tiling left to right: one tall black mirror panel with a thin pale violet frame line along the bottom edge and a single cyan-white diagonal reflection stroke. Only 16x16 pixels, chunky details."),
+        ),
+        (
+            name: "glace",
+            cells: ["i"],
+            legend: {'i': (behavior: "MB_ICE", collision: 0)},
+            key: Some("none"),
+            prompt: Some("A smooth sheet of ice drawn as a photographic negative, seen from straight above: flat dark teal ice (#1c4a58) with two long thin white diagonal scratch lines. Almost flat, only 16x16 pixels."),
+        ),
+        (
+            name: "pilier",
+            under: Some("glace"),
+            cells: ["#"],
+            prompt: Some("A short thick crystal pillar seen from 3/4 above: a pale violet six-sided crystal column with a white highlight on its left face and a darker purple right face, flat top."),
+        ),
+        (
+            name: "statue_doigt",
+            under: Some("sol"),
+            cells: ["#"],
+            prompt: Some("A big white stone statue of a mime filling the whole canvas: a round white face, a black beret, a black and white horizontally striped shirt, standing on a short black pedestal, one arm stretched straight out to the left, pointing. Very simple, big shapes."),
+        ),
+        (
+            name: "statue_yeux",
+            under: Some("sol"),
+            cells: ["#"],
+            prompt: Some("A big white stone statue of a mime filling the whole canvas: a round white face, a black beret, a black and white horizontally striped shirt, standing on a short black pedestal, both white-gloved hands covering its eyes. Very simple, big shapes."),
+        ),
+        (
+            name: "lustre",
+            under: Some("mur_face"),
+            cells: ["#"],
+            prompt: Some("A golden candelabra standing upside down, filling the whole canvas: its round base at the top, a single thick gold stem going down, three curved gold arms at the bottom holding three white candles pointing downward. Very simple, big shapes, few pixels."),
+        ),
+    ],
+)

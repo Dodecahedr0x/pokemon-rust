@@ -1,3 +1,4 @@
 // Silice Ch5, MAP_OWLYS_GYM_B1F: the crypt under the Sanctuary's trapdoors (20 x 14), a dark map. The fall
-// lands in the middle; a ladder climbs back to the gym's entrance. General + Cave (Emerald tilesets by name).
-(name: "Owlys_Gym_B1F", width: 20, height: 14, primary: "General", secondary: "Cave", fill: 753, border: [753, 753, 753, 753])
+// lands in the middle; a ladder climbs back to the gym's entrance. General (Emerald, by name) +
+// SilOwlysGym (original): the crypt's slabs, stone tombs, the wooden ladder in the back wall.
+(name: "Owlys_Gym_B1F", width: 20, height: 14, primary: "General", secondary: "SilOwlysGym", fill: 544, border: [1568, 1568, 1568, 1568])

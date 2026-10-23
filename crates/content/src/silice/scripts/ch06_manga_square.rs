@@ -37,7 +37,7 @@ pub async fn MangaSquare_OnTransition(ctx: Ctx) {
 
 // ---- scenes ----
 
-/// Manga_Square_Sc01, under the toriis: the Torii Sud (21–23, 33) or the Monks' shortcut's
+/// Manga_Square_Sc01, under the toriis: the way up to the Torii Sud (20–24, 33) or the Monks' shortcut's
 /// first step (2, 25), at `VAR_SIL_STORY` 61. Kimiko's stream on every screen. Sets 62.
 pub async fn MangaSquare_Sc01(ctx: Ctx) {
     if story(&ctx).await != 61 {

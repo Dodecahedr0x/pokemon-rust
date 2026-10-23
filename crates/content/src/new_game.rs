@@ -141,7 +141,10 @@ async fn init_data(ctx: &Ctx) {
     ctx.set_var(VAR_SEEDOT_SIZE_RECORD, DEFAULT_MAX_SIZE).await;
     ctx.set_var(VAR_LOTAD_SIZE_RECORD, DEFAULT_MAX_SIZE).await;
     // `NewGameInitPCItems` (`sNewGamePCItems`, `player_pc.c`).
-    ctx.pc_item_add(ItemId(ITEM_POTION), 1).await;
+    // The stub build has no items: its PC stays empty (no `addpcitem` report).
+    if crate::FLAVOR != crate::Flavor::Stub {
+        ctx.pc_item_add(ItemId(ITEM_POTION), 1).await;
+    }
 }
 
 /// The new-game script (`NewGame::script`).

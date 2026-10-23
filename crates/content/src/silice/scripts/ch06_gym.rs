@@ -8,8 +8,8 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["MangaSquare_Gym"];
 
-/// `METATILE_SHOJI_OUVERT`: an opened shoji door, General's paving (265), walkable.
-const METATILE_SHOJI_OUVERT: u16 = 265;
+/// `METATILE_SHOJI_OUVERT`: an opened shoji door, SilMangaSquareGym `shoji_ouverte`, walkable.
+const METATILE_SHOJI_OUVERT: u16 = 522;
 
 /// Door `n` (1 to 5, south to north) is on (10, 24 − 4n); its desk on (9, 25 − 4n), read from
 /// the alley (10, 25 − 4n) or from below.

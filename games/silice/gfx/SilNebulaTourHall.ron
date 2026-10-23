@@ -1,0 +1,103 @@
+// The Tower's hall (Ch9, MAP_NEBULA_TOUR_HALL): contenu-jeu/chapitres/09-nebula.md §2.9. A hall of black
+// marble and gold, a wall of screens (Kimiko, stock prices, the map of the sectors with blinking
+// red dots: the gyms), the empty reception counter, the bay windows to the west on the Grande Porte,
+// the security corridor's three laser sas, and north the crystal elevator with its golden door.
+// No ground (Building has no floor): the art is the bottom layer; the objects stand on their floor
+// (`under`). No 1x1 feature sits on 513 or 524 (hygiene). The sas: `laser_h` / `laser_v` closed
+// (solid); opened, they become the corridor floor `couloir` (set_metatile).
+(
+    name: "SilNebulaTourHall",
+    primary: "Building",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), an indoor scene. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: black marble, dark grey, thin gold trims, cold white light, a few accents of bright red, cyan and pink on the screens.",
+    features: [
+        // 512: the lobby's black marble floor.
+        (
+            name: "marbre",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Polished black marble floor slab seen from straight above: flat very dark charcoal (#24262e), one short faint grey vein in one corner, a thin gold joint line along its top and left edges only. Calm, almost flat, only 16x16 pixels."),
+        ),
+        // 513-536: the wall of screens (Nebula_Hall_Ecran, signs at (4-5, 2)).
+        (
+            name: "mur_ecrans",
+            cells: ["########", "########", "########"],
+            key: Some("none"),
+            prompt: Some("A huge indoor wall of video screens seen from the front, 8 wide by 3 tall, a grid of flat screens with thin black bezels: in the middle a big screen with a dark blue map of a region with eight bright red dots; on the left a screen with a cute anime idol girl with pink hair and cat ears; on the right screens with green and red stock price line charts; along the bottom a thin gold baseboard on black marble. No text, no letters."),
+        ),
+        // 537: the security corridor's floor (also the sas, opened).
+        (
+            name: "couloir",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A security corridor floor seen from straight above: one flat dark steel grey metal floor plate (#4a4e58) with a thin darker seam along its top and left edges and four tiny rivets in the corners. Flat, calm, only 16x16 pixels."),
+        ),
+        // 538: the wall mass (seen from above); 539: a wall face over a floor; 540: a pilaster.
+        (
+            name: "mur",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The top of a thick black marble wall seen from straight above: flat very dark charcoal (#141418) with a faint slightly lighter edge line. Almost flat, only 16x16 pixels."),
+        ),
+        (
+            name: "mur_face",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("An indoor wall seen from the front, tiling left-right: black polished marble panels with a faint grey vein, a thin gold trim line near the top, a gold baseboard along the bottom edge. Only 16x16 pixels."),
+        ),
+        (
+            name: "colonne",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A black marble pilaster set in a black marble wall, seen from the front, filling the square: a vertical fluted black column with a gold capital at the top and a gold base at the bottom edge, dark wall on both sides. Only 16x16 pixels."),
+        ),
+        // 541-543: the west bay windows on the Grande Porte (Tour_Hall_Vitre).
+        (
+            name: "baie",
+            cells: ["#", "#", "#"],
+            key: Some("none"),
+            prompt: Some("A tall narrow bay window 1 wide by 3 tall seen from inside: thin gold mullions dividing pale blue glass panes, through the glass a crowd of tiny dark silhouettes and a bright pink screen far away, a black marble sill at the bottom. Flat."),
+        ),
+        // 544-546: the empty reception counter (Nebula_Hall_Accueil).
+        (
+            name: "accueil",
+            cells: ["###"],
+            key: Some("00FF00"),
+            under: Some("marbre"),
+            prompt: Some("An empty reception desk 3 wide by 1 tall in 3/4 top-down view: a long low counter of black marble with a gold top edge, a small dark switched-off monitor on it and a little white sign board standing on the counter. Nobody behind it. Chunky shapes."),
+        ),
+        // 547-552: the crystal elevator, its golden door at the bottom middle (sign (12, 1)).
+        (
+            name: "ascenseur",
+            cells: ["###", "###"],
+            key: Some("00FF00"),
+            under: Some("couloir"),
+            prompt: Some("A crystal elevator 3 wide by 2 tall seen from the front: a frame of clear pale cyan crystal glass panels set in a black marble wall, a closed shining gold sliding double door exactly in the middle of the bottom edge, a small red up-arrow light above the door. No text."),
+        ),
+        // 553-554: the service stairs down to B1F (south arrow warps).
+        (
+            name: "escalier",
+            cells: ["AA"],
+            key: Some("none"),
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+            prompt: Some("The top of a steel service staircase going down, seen from straight above, filling the whole canvas: four wide horizontal dark grey steel steps one under the other, each step getting darker toward the bottom edge, a bright yellow safety stripe along the front edge of each step, a thin black handrail along the left and right edges. Flat, chunky, only 32x16 pixels."),
+        ),
+        // 555-556: a closed laser sas, across a vertical corridor (beams left-right) and across a
+        // horizontal one (beams top-bottom). Derived (derive.rs): red beams drawn over `couloir`.
+        (
+            name: "laser_h",
+            cells: ["#"],
+        ),
+        (
+            name: "laser_v",
+            cells: ["#"],
+        ),
+        // 557: a freestanding black marble column of the lobby.
+        (
+            name: "colonne_libre",
+            cells: ["#"],
+            key: Some("00FF00"),
+            under: Some("marbre"),
+            prompt: Some("A short thick round column of polished black marble in 3/4 top-down view, filling the whole square: a gold ring capital at the top, a gold square base at the bottom, a light grey highlight stripe down its left side. Chunky, few pixels."),
+        ),
+    ],
+)

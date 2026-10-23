@@ -124,6 +124,8 @@ pub fn load(dir: &Path) -> Result<BattleIn> {
         // Format 5.1 (Task A); empty in older extracts.
         evolutions: crate::read_opt!(b.join("evolutions.ron")),
         trainer_money: crate::read_opt!(b.join("trainer_money.ron")),
+        dex: crate::read_opt!(b.join("dex.ron")),
+        rematches: crate::read_opt!(b.join("rematches.ron")),
         player_back: PicIn {
             tiles: vec![],
             palette: [0; 16],

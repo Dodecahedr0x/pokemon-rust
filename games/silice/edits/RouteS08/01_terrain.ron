@@ -38,9 +38,11 @@
 //   into the pocket basin) and waterfall 1 (x 27-30, up from the lake).
 // Palier 1 (y 61-79): the lake, its banks, the pocket basin (14-20, 61-63) and recess (15-19,
 //   64-65). The south entrance (x 18-21, y 78-79) is forest until Reverse-City (Ch7) links.
+// The portal's edge cells (18-21, 0) are General's grass: Evalon (General + SilEvalon) walks onto
+//   them with its own tilesets (the connection seam), so they stay primary.
 [
     Ascii(x: 0, y: 0, rows: [
-        "#################o....o#################",
+        "#################o::::o#################",
         "###vvvvvvvvvvvvvvo....ovvvvvvvvvvvvvv###",
         "###tT.............................Tt.###",
         "###yY,..gggggg..s..........,############",

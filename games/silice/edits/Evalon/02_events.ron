@@ -45,7 +45,7 @@
     Object(x: 11, y: 36, gfx: "OBJ_EVENT_GFX_OLD_WOMAN", id: "LOCALID_EVALON_VIEILLE_DAME", local_id: 19, movement: "MOVEMENT_TYPE_FACE_UP", script: "Evalon_EventScript_VieilleDame"),
     // The pigeon-keeper's apprentice outside the Pigeonnier (the keeper himself, the PC and Q3, is in the
     // Taverne's Pigeonnier room).
-    Object(x: 16, y: 28, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_EVALON_APPRENTI_COLOMBOPHILE", local_id: 20, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_ApprentiColombophile"),
+    Object(x: 19, y: 27, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_EVALON_APPRENTI_COLOMBOPHILE", local_id: 20, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_EventScript_ApprentiColombophile"),
     Object(x: 33, y: 15, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_EVALON_GARDE_BEFFROI", local_id: 21, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_EventScript_GardeBeffroi"),
     Object(x: 40, y: 33, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_EVALON_MJ", local_id: 22, movement: "MOVEMENT_TYPE_FACE_UP", script: "Evalon_EventScript_Mj"),
     // Q1: the fairy by the dry fountain.

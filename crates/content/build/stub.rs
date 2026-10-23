@@ -439,6 +439,8 @@ pub fn battle() -> BattleIn {
         trainer_pics: BTreeMap::new(),
         evolutions: Default::default(),
         trainer_money: Default::default(),
+        dex: Default::default(),
+        rematches: Default::default(),
         player_back: PicIn {
             tiles: (0..4).flat_map(|_| pic(1)).collect(),
             palette: back_pal,

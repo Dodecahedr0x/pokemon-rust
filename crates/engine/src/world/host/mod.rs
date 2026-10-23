@@ -18,6 +18,7 @@ mod fx;
 mod items;
 mod menu;
 mod party;
+mod query;
 mod save;
 mod screens;
 mod trainer;
@@ -419,6 +420,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.start_field_move(game, m);
                 UNIT
             }
+            Request::Query(q) => Some(Response::Value(query::answer(self, q))),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

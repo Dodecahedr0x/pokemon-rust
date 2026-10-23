@@ -1,37 +1,43 @@
-// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
-//   # 521/1/0 wall
-//   a 542/1/0 
-//   b 518/1/0 
-//   d 543/1/0 
-//   e 550/1/0 
-//   f 526/1/0 
-//   g 551/1/0 
-//   , 553/0/3 the security corridor's floor
-//   ! 669/1/0 laser barrier (OnLoad opens it)
-//   . 512/0/3 marble floor
-//   c 528/1/0 reception counter
-//   M 534/0/3 service stairs mat (south arrow warp)
-//   N 535/0/3 service stairs mat (south arrow warp)
-// The lobby (x 2-21, y 12-14): the windows (west wall), the screen wall (north), the empty reception
-// (8-10, 13). The security corridor: V1 (x 19-21, y 9-11, sas 1 at y 11), H (x 11-18, y 9-10, sas 2
-// at x 14), V2 (x 11-13, y 2-8, sas 3 at y 5), the elevator door (12, 1).
+// Cells: the ground plan, then SilNebulaTourHall's stamps (games/silice/gfx/SilNebulaTourHall.ron,
+// original art). Legend: # the black marble wall mass (538), F its face over a floor (539), K a gold
+// capped pilaster (540), . the lobby's black marble (512), , the security corridor's steel floor
+// (537, also an opened sas), h v the closed laser sas (555 beams left-right, 556 beams top-bottom;
+// Nebula_TourHall_OnLoad sets an opened sas to 537, collision 0).
+// The lobby (x 2-21, y 12-14): the bay windows (x 1, the west wall), the screen wall (x 2-9, y 9-11),
+// the empty reception (8-10, 13). The security corridor: V1 (x 19-21, y 9-11, sas 1 at y 11), H
+// (x 11-18, y 9-10, sas 2 at x 14), V2 (x 11-13, y 2-8, sas 3 at y 5), the crystal elevator (11-13,
+// 0-1), its golden door (12, 1). The service stairs (20-21, 15) down to B1F.
 [
     Ascii(x: 0, y: 0, rows: [
-        "###########abd##########",
-        "###########efg##########",
+        "########################",
+        "########################",
         "###########,,,##########",
         "###########,,,##########",
         "###########,,,##########",
-        "###########!!!##########",
+        "###########hhhF#########",
         "###########,,,,#########",
-        "###########,,,##########",
-        "###########,,,##,#######",
-        "###########,,,!,,,,,,,##",
-        "###########,,,!,,,,,,,##",
-        "###############,###!!!##",
+        "###########,,,##F#######",
+        "###########,,,FF,FFFFF##",
+        "###########,,,v,,,,,,,##",
+        "###########,,,v,,,,,,,##",
+        "##########KFFFK,FKFhhh##",
         "##....................##",
-        "##......ccc...........##",
         "##....................##",
-        "####################MN##",
-    ], legend: {'#': (metatile: 521, collision: 1, elevation: 0), 'a': (metatile: 542, collision: 1, elevation: 0), 'b': (metatile: 518, collision: 1, elevation: 0), 'd': (metatile: 543, collision: 1, elevation: 0), 'e': (metatile: 550, collision: 1, elevation: 0), 'f': (metatile: 526, collision: 1, elevation: 0), 'g': (metatile: 551, collision: 1, elevation: 0), ',': (metatile: 553, collision: 0, elevation: 3), '!': (metatile: 669, collision: 1, elevation: 0), '.': (metatile: 512, collision: 0, elevation: 3), 'c': (metatile: 528, collision: 1, elevation: 0), 'M': (metatile: 534, collision: 0, elevation: 3), 'N': (metatile: 535, collision: 0, elevation: 3)}),
+        "##....................##",
+        "########################",
+    ], legend: {'#': (metatile: 538, collision: 1, elevation: 0), 'F': (metatile: 539, collision: 1, elevation: 0), 'K': (metatile: 540, collision: 1, elevation: 0), '.': (metatile: 512, collision: 0, elevation: 3), ',': (metatile: 537, collision: 0, elevation: 3), 'h': (metatile: 555, collision: 1, elevation: 0), 'v': (metatile: 556, collision: 1, elevation: 0)}),
+    // The crystal elevator, its golden door (12, 1) (bg 6).
+    Stamp(x: 11, y: 0, name: "SilNebulaTourHall_ascenseur"),
+    // The wall of screens (bg 3-4 at (6-7, 11)): Kimiko, the stock prices, the map with eight red dots.
+    Stamp(x: 2, y: 9, name: "SilNebulaTourHall_mur_ecrans"),
+    // The west bay windows on the Grande Porte (bg 0-2).
+    Stamp(x: 1, y: 12, name: "SilNebulaTourHall_baie"),
+    // The empty reception (bg 5, the hidden Hyper Potion at (10, 13)).
+    Stamp(x: 8, y: 13, name: "SilNebulaTourHall_accueil"),
+    // The lobby's black marble columns.
+    Stamp(x: 5, y: 14, name: "SilNebulaTourHall_colonne_libre"),
+    Stamp(x: 13, y: 14, name: "SilNebulaTourHall_colonne_libre"),
+    Stamp(x: 17, y: 14, name: "SilNebulaTourHall_colonne_libre"),
+    // The service stairs' mat (warps 0-1).
+    Stamp(x: 20, y: 15, name: "SilNebulaTourHall_escalier"),
 ]
