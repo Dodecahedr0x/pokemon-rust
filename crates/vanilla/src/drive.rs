@@ -17,7 +17,9 @@ use anyhow::{Result, anyhow};
 use engine::Buttons;
 use engine::data::{Dir, GameData, MapId, MoveId, SpeciesId};
 use explore::oracle::{Planner, overrides_from_grid};
-use explore::policy::{best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward};
+use explore::policy::{
+    YES_ONCE, best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward,
+};
 
 /// The key that moves a one-column list cursor from `c` to `want`, or A once it is there.
 fn vertical(c: u8, want: u8) -> Buttons {
@@ -78,6 +80,7 @@ impl Vanilla {
         let mut last = None;
         // The script position of the last multichoice, and the times it was asked again.
         let (mut asked, mut reasked, mut in_multichoice) = (None, 0u8, false);
+        let mut in_yes_no = false;
         loop {
             let mode = self.mode();
             if self.trace && last != Some(mode) {
@@ -94,6 +97,10 @@ impl Vanilla {
                 }
             }
             in_multichoice = mode == Mode::Multichoice;
+            if mode == Mode::YesNo && !in_yes_no {
+                self.yes_nos += 1;
+            }
+            in_yes_no = mode == Mode::YesNo;
             let battle = matches!(
                 mode,
                 Mode::BattleAction | Mode::BattleMove | Mode::BattleTarget | Mode::BattleWaiting
@@ -117,7 +124,13 @@ impl Vanilla {
                 | Mode::BattleMove
                 | Mode::BattleTarget
                 | Mode::BattleWaiting => self.battle_key(mode),
-                Mode::YesNo if self.answers.choice == 0 || !self.choice_holds() => self.yes(),
+                Mode::YesNo
+                    if self.answers.choice == 0
+                        || !self.choice_holds()
+                        || (self.answers.choice == YES_ONCE && self.yes_nos == 1) =>
+                {
+                    self.yes()
+                }
                 // B answers NO wherever the cursor is (`menu.c`: MENU_B_PRESSED).
                 Mode::YesNo => Buttons::B,
                 Mode::Screen { .. } => self.screen_key(),

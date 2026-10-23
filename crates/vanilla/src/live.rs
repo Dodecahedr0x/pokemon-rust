@@ -21,7 +21,7 @@ use explore::model::{Macro, MacroKind, Opts};
 use explore::oracle::Planner;
 use explore::semantic::map_name;
 use explore::spine::{
-    BattlePlan, Bypass, NEW_GAME_MAP, RETRIES, Step, StepOpts, TRAIN_BATTLES, TRAIN_DRY,
+    BattlePlan, Bypass, NEW_GAME_MAP, RETRIES, Step, StepOpts, TIRED_PP, TRAIN_BATTLES, TRAIN_DRY,
     WAIT_FOR_FRAMES, WAIT_SCRIPT_FRAMES,
 };
 
@@ -49,8 +49,9 @@ const NATIVE_CHOICE: &[(&str, u8)] = &[
     ("briney-sail-camera-slateport", 1),
 ];
 
-/// Floor triggers pressed at most to open a way ([`Live::bypass`], Mauville's gym).
-const TRIGGER_DEPTH: u32 = 3;
+/// Floor triggers and warps stepped on at most to open a way ([`Live::bypass`]: Mauville's
+/// gym switches, Lavaridge's holes and geysers, Petalburg's room doors).
+const SEARCH_DEPTH: u32 = 5;
 
 /// Replays of a step whose battle vanilla lost ([`Live::play`]).
 pub const REROLLS: u32 = 6;
@@ -168,7 +169,10 @@ impl<'g, G: GameData> Live<'g, G> {
         // Vanilla's random wild battles on the way are not ours (another RNG): RUN from them
         // outside the steps that fight wild battles on purpose, so that their damage does not
         // derail the comparison (an oracle alignment, `oracle` module docs).
-        let pacing = matches!(step, Step::Grass { .. } | Step::Train { .. });
+        let pacing = matches!(
+            step,
+            Step::Grass { .. } | Step::Train { .. } | Step::TrainFresh { .. }
+        );
         let opts = Opts {
             run_wild: self.opts.run_wild || !pacing,
             choice: self.opts.choice.take().unwrap_or(0),
@@ -262,9 +266,15 @@ impl<'g, G: GameData> Live<'g, G> {
             Step::Grass { x, y, .. } => {
                 self.grass((x, y))?;
             }
-            Step::Train { x, y, level, .. } => {
+            Step::Train { x, y, level, .. } | Step::TrainFresh { x, y, level, .. } => {
+                let fresh = matches!(step, Step::TrainFresh { .. });
                 let (mut n, mut dry) = (0, 0);
-                while self.v.party().first().is_some_and(|m| m.level < level) {
+                while self.v.party().first().is_some_and(|m| {
+                    m.level < level
+                        && !(fresh
+                            && (m.hp * 2 < m.max_hp
+                                || m.pp.iter().map(|&p| u32::from(p)).sum::<u32>() < TIRED_PP))
+                }) {
                     n += 1;
                     ensure!(
                         n <= TRAIN_BATTLES,
@@ -345,11 +355,13 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Plays a [`Step::Bypass`] natively, the feature our engine lacks (it writes the state
     /// the feature leaves instead):
     ///
-    /// - no warp: the bypass only writes flags and vars, which vanilla's feature wrote when it
-    ///   ran (nothing to play: the boundary's diff says whether they agree);
-    /// - a warp on the current map (a gym puzzle): walk to the cell, pressing the map's floor
-    ///   triggers (up to [`TRIGGER_DEPTH`], searched on save states) until a way opens;
-    /// - a warp to another map (a scripted trip): A on what the player faces, answering per
+    /// - no warp: the bypass only writes flags and vars (or teaches a move), which vanilla's
+    ///   feature wrote when it ran (nothing to play: the boundary's diff says whether they
+    ///   agree);
+    /// - a warp into the building the player is in (a gym puzzle, a ride that already ran):
+    ///   walk to the cell, stepping on floor triggers and the building's own warps (holes,
+    ///   doors) first, depth-first over save states ([`SEARCH_DEPTH`] steps at most);
+    /// - a warp elsewhere (a scripted trip): A on what the player faces, answering per
     ///   [`NATIVE_CHOICE`], and the script runs to the end.
     ///
     /// [`Live::note`] says what was played and where vanilla stands.
@@ -357,28 +369,55 @@ impl<'g, G: GameData> Live<'g, G> {
         let features = b.features.join(", ");
         let Some((m, x, y)) = b.warp else {
             self.v.settle(MACRO_FRAMES)?;
-            self.note = Some(format!(
-                "{}: nothing to play ({features} ran natively)",
-                b.issue
-            ));
+            // The oracle does not drive the bag and the party menu either: it writes the
+            // taught moves into vanilla's lead the same way (an oracle stand-in, noted).
+            for &(slot, mov) in b.teach {
+                let pp = (self.game.battle().moves.get(usize::from(mov.0))).map_or(0, |m| m.pp);
+                self.v.teach(slot, mov.0, pp);
+            }
+            self.note = Some(if b.teach.is_empty() {
+                format!("{}: nothing to play ({features} ran natively)", b.issue)
+            } else {
+                format!(
+                    "{}: not played natively (the oracle does not drive {features}): the moves \
+                     {:?} written into vanilla's lead as well",
+                    b.issue, b.teach
+                )
+            });
             return Ok(());
         };
         let m = self.resolve_map(m);
         let start = self.map()?;
         let from = self.v.frames;
-        if start == m {
-            let mut pressed = Vec::new();
-            ensure!(
-                self.reach_by_triggers(m, (x, y), TRIGGER_DEPTH, &mut pressed)?,
-                "{}: no way to ({x}, {y}) pressing up to {TRIGGER_DEPTH} triggers",
-                b.issue
-            );
+        if self.inside(start, m) {
+            let mut path = Vec::new();
+            let mut seen = Vec::new();
+            let battles = self.v.battles.len();
+            let found = self.search(m, (x, y), SEARCH_DEPTH, &mut path, &mut seen)?;
+            // Trainers on the way fought vanilla (ours warps past them): restore the party's
+            // HP so the next battle starts as ours does (an oracle alignment, noted).
+            let fought = self.v.battles.len() - battles;
+            if fought > 0 {
+                self.v.heal_party();
+            }
             self.note = Some(format!(
-                "{}: {features} played natively: triggers {pressed:?} pressed, ({x}, {y}) reached \
-                 in {} frames",
+                "{}: {features} played natively: {} via {path:?} in {} frames; {fought} \
+                 battles on the way{}",
                 b.issue,
-                self.v.frames - from
+                if found { "reached" } else { "NOT reached" },
+                self.v.frames - from,
+                if fought > 0 {
+                    " (party HP restored after them)"
+                } else {
+                    ""
+                }
             ));
+            ensure!(
+                found,
+                "{}: no way to {} ({x}, {y}) in {SEARCH_DEPTH} triggers or warps",
+                b.issue,
+                map_name(m)
+            );
             return Ok(());
         }
         let choice = (NATIVE_CHOICE.iter())
@@ -408,6 +447,12 @@ impl<'g, G: GameData> Live<'g, G> {
         Ok(())
     }
 
+    /// Whether map `d` belongs to target `m`'s building: `m` itself, or a map whose every warp
+    /// leads to `m` or to itself (a gym's lower floor).
+    fn inside(&self, d: MapId, m: MapId) -> bool {
+        d == m || (self.game.map(d).warps.iter()).all(|w| w.dest_map == m || w.dest_map == d)
+    }
+
     /// Whether `to` is reachable on `map` now (objects in the way).
     fn reachable(&mut self, map: MapId, to: (i16, i16)) -> Result<bool> {
         let me = self.cell()?;
@@ -417,46 +462,65 @@ impl<'g, G: GameData> Live<'g, G> {
         Ok(me == to || p.first_dir(me, to).is_some())
     }
 
-    /// Walks to `to`, stepping on the map's floor triggers first (depth-first over save
-    /// states, `depth` presses at most) while it is out of reach. `pressed` gets the
-    /// triggers' cells.
-    fn reach_by_triggers(
+    /// Walks to `to` on `m`, stepping first on the current map's floor triggers and its warps
+    /// that stay in `m`'s building ([`Live::inside`]), depth-first over save states (`depth`
+    /// steps at most), while it is out of reach. `path` gets the cells stepped on; `seen` the
+    /// `(map, cell)`s warps landed on (a warp loop is not searched twice).
+    fn search(
         &mut self,
-        map: MapId,
+        m: MapId,
         to: (i16, i16),
         depth: u32,
-        pressed: &mut Vec<(i16, i16)>,
+        path: &mut Vec<(MapId, i16, i16)>,
+        seen: &mut Vec<(MapId, (i16, i16))>,
     ) -> Result<bool> {
-        if self.reachable(map, to)? {
-            self.goto(map, to, &[])?;
-            return Ok(true);
+        let map = self.map()?;
+        if map == m && self.reachable(m, to)? {
+            // The walk re-plans from every cell (objects, elevation): it can still find no
+            // way, and the search goes on from here.
+            let state = self.v.emu.save_state()?;
+            let (frames, battles, outcomes) =
+                (self.v.frames, self.v.battles.len(), self.v.outcomes.len());
+            if self.goto(m, to, &[]).is_ok() {
+                return Ok(true);
+            }
+            self.v.emu.load_state(&state)?;
+            self.v.frames = frames;
+            self.v.battles.truncate(battles);
+            self.v.outcomes.truncate(outcomes);
         }
         if depth == 0 {
             return Ok(false);
         }
-        let mut triggers: Vec<(i16, i16)> = (self.game.map(map).coords.iter())
-            .map(|c| (c.x, c.y))
-            .collect();
-        triggers.dedup();
-        for t in triggers {
+        let data = self.game.map(map);
+        let mut cells: Vec<(i16, i16)> = (data.coords.iter()).map(|c| (c.x, c.y)).collect();
+        for w in data.warps {
+            if self.game.has_map(w.dest_map) && self.inside(w.dest_map, m) {
+                cells.push((w.x, w.y));
+            }
+        }
+        cells.dedup();
+        for t in cells {
             if self.cell()? == t || !self.reachable(map, t)? {
                 continue;
             }
             let state = self.v.emu.save_state()?;
             let (frames, battles, outcomes) =
                 (self.v.frames, self.v.battles.len(), self.v.outcomes.len());
-            let ok = self
-                .v
-                .walk_to(self.game, t, MACRO_FRAMES)
-                .is_ok_and(|w| w == Walk::Reached)
-                && self.v.settle(MACRO_FRAMES).is_ok()
-                && self.map()? == map;
+            let walked = self.v.walk_to(self.game, t, MACRO_FRAMES).is_ok()
+                && self.v.settle(MACRO_FRAMES).is_ok();
+            let on = self.map()?;
+            let landed = (on, self.cell()?);
+            let ok = walked && self.inside(on, m) && (on == map || !seen.contains(&landed));
             if ok {
-                pressed.push(t);
-                if self.reach_by_triggers(map, to, depth - 1, pressed)? {
+                if on != map {
+                    seen.push(landed);
+                }
+                path.push((map, t.0, t.1));
+                if self.search(m, to, depth - 1, path, seen)? {
                     return Ok(true);
                 }
-                pressed.pop();
+                path.pop();
             }
             self.v.emu.load_state(&state)?;
             self.v.frames = frames;
@@ -472,6 +536,7 @@ impl<'g, G: GameData> Live<'g, G> {
         self.v.answers = opts;
         self.v.starter = opts.choice % 3;
         self.v.answers_map = self.v.current_map().ok();
+        self.v.yes_nos = 0;
     }
 
     /// Walks to `to` on `map` (avoiding `avoid`): a battle or a script can interrupt the walk,
@@ -529,19 +594,25 @@ impl<'g, G: GameData> Live<'g, G> {
                 let t = (self.game.map(map).objects.iter())
                     .find(|t| t.local_id == local_id)
                     .ok_or_else(|| anyhow!("talk: no object {local_id} on {}", map_name(map)))?;
-                let mut side = None;
-                for d in Dir::ALL {
-                    let (dx, dy) = d.delta();
-                    let c = (t.x - dx, t.y - dy);
-                    if self.reachable(map, c)? {
-                        side = Some(c);
+                let (tx, ty) = (t.x, t.y);
+                let warps = &self.game.map(map).warps;
+                let mut sides: Vec<(i16, i16)> = Dir::ALL
+                    .into_iter()
+                    .map(|d| (tx - d.delta().0, ty - d.delta().1))
+                    .collect();
+                sides.sort_by_key(|c| warps.iter().any(|w| (w.x, w.y) == *c));
+                let mut walked = false;
+                for c in sides {
+                    if self.reachable(map, c)? && self.v.walk_to(self.game, c, MACRO_FRAMES).is_ok()
+                    {
+                        walked = true;
                         break;
                     }
                 }
-                let c = side.ok_or_else(|| {
-                    anyhow!("talk: object {local_id} unspawned, no way next to its home")
-                })?;
-                self.v.walk_to(self.game, c, MACRO_FRAMES)?;
+                ensure!(
+                    walked,
+                    "talk: object {local_id} unspawned, no way next to its home"
+                );
                 ensure!(
                     self.object(local_id)?.is_some(),
                     "talk: no object {local_id} on {} at its home",

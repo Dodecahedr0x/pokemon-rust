@@ -391,6 +391,19 @@ impl Emu {
         }
     }
 
+    /// Writes `bytes` at `addr` (`rawWrite8`, the current segment): the vanilla oracle's
+    /// stand-ins for what it cannot play (`vanilla::Vanilla::teach`).
+    pub fn write_bytes(&mut self, addr: u32, bytes: &[u8]) {
+        // SAFETY: core is initialised; rawWrite8 writes the bus without side effects.
+        unsafe {
+            let raw = self.core.raw_ptr();
+            let write = (*raw).rawWrite8.expect("rawWrite8");
+            for (i, &b) in bytes.iter().enumerate() {
+                write(raw, addr.wrapping_add(i as u32), -1, b);
+            }
+        }
+    }
+
     pub fn read_u8(&mut self, addr: u32) -> u8 {
         let mut b = [0; 1];
         self.read_into(addr, &mut b);

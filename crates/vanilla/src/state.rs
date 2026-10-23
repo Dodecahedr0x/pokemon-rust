@@ -277,6 +277,8 @@ pub struct Vanilla {
     /// elsewhere, yes/no is answered YES (the choice was for the interaction that warped; our
     /// engine's macro ends at that warp, before the next map's frame script asks).
     pub answers_map: Option<MapId>,
+    /// Yes/no boxes opened since the answers were set (`policy::YES_ONCE`).
+    pub yes_nos: u32,
     /// Our battle tables, for the move choice (`policy::first_damaging_slot_of`,
     /// `best_damaging_slot_of`); without them the first move is used.
     pub tables: Option<&'static engine::mon::BattleTables>,
@@ -297,6 +299,7 @@ impl Vanilla {
             starter: 2,
             answers: explore::Opts::default(),
             answers_map: None,
+            yes_nos: 0,
             tables: None,
             battles: Vec::new(),
             outcomes: Vec::new(),
@@ -499,6 +502,45 @@ impl Vanilla {
             visible: o[1] & 0x20 == 0,
             is_player: o[2] & 1 != 0,
         })
+    }
+
+    /// Writes `mov` with `pp` into move slot `slot` of the lead (`gPlayerParty[0]`'s
+    /// encrypted Attacks substruct, and its checksum): what teaching a TM or HM from the party
+    /// menu leaves, which the oracle does not drive (a `Bypass` with `teach`).
+    pub fn teach(&mut self, slot: u8, mov: u16, pp: u8) {
+        let addr = self.sym.player_party;
+        let mut raw = self.emu.read_bytes(addr, MON_SIZE as usize);
+        let u32_at = |b: &[u8], i: usize| u32::from_le_bytes(b[i..i + 4].try_into().unwrap());
+        let personality = u32_at(&raw, MON_PERSONALITY);
+        let key = personality ^ u32_at(&raw, MON_OT_ID);
+        let mut secure = [0u8; 48];
+        for (i, w) in secure.chunks_mut(4).enumerate() {
+            w.copy_from_slice(&(u32_at(&raw, MON_SECURE + 4 * i) ^ key).to_le_bytes());
+        }
+        let [_, a, _, _] = substruct_positions(personality).map(|p| 12 * p);
+        let s = usize::from(slot.min(3));
+        secure[a + 2 * s..a + 2 * s + 2].copy_from_slice(&mov.to_le_bytes());
+        secure[a + 8 + s] = pp;
+        let sum = (0..24).fold(0u16, |acc, i| {
+            acc.wrapping_add(u16::from_le_bytes([secure[2 * i], secure[2 * i + 1]]))
+        });
+        raw[MON_CHECKSUM..MON_CHECKSUM + 2].copy_from_slice(&sum.to_le_bytes());
+        for (i, w) in secure.chunks(4).enumerate() {
+            let v = u32::from_le_bytes(w.try_into().unwrap()) ^ key;
+            raw[MON_SECURE + 4 * i..MON_SECURE + 4 * i + 4].copy_from_slice(&v.to_le_bytes());
+        }
+        self.emu.write_bytes(addr, &raw);
+    }
+
+    /// Sets every party mon's HP to its max (the unencrypted party fields): the oracle's
+    /// alignment after battles our side never fought.
+    pub fn heal_party(&mut self) {
+        let n = u32::from(self.emu.read_u8(self.sym.player_party_count)).min(6);
+        for i in 0..n {
+            let at = self.sym.player_party + i * MON_SIZE;
+            let max = self.emu.read_u16(at + MON_MAX_HP as u32);
+            self.emu.write_bytes(at + MON_HP as u32, &max.to_le_bytes());
+        }
     }
 
     /// The live party (`gPlayerParty`, not the save block's copy).
