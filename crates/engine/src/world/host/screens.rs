@@ -12,7 +12,7 @@
 use super::Host;
 use crate::data::GameData;
 use crate::script::{PARTY_NOTHING_CHOSEN, Request, Response};
-use crate::ui::ScreenKind;
+use crate::ui::{PartyMode, ScreenKind};
 use crate::world::screens::{ANSWER_CANCEL, open};
 
 /// Opens the request's screen; its result answers it in [`resume`].
@@ -36,6 +36,17 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
 pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
     let v = h.s.answer.take()?;
     Some(match r {
+        // `CB2_ReturnFromChooseHalfParty`: the order is kept (`gSelectedOrderFromParty`), the
+        // answer is whether a mon was chosen.
+        Request::ChoosePartyMon(PartyMode::ChooseHalf { .. }) => {
+            let order = if v == ANSWER_CANCEL {
+                [0; super::stash::MAX_ORDER]
+            } else {
+                super::stash::unpack_order(v)
+            };
+            h.s.stash.order = order;
+            Response::Value((order[0] != 0) as u16)
+        }
         Request::ChoosePartyMon(_) => Response::Value(if v == ANSWER_CANCEL {
             PARTY_NOTHING_CHOSEN
         } else {
@@ -48,6 +59,7 @@ pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Re
 
 fn default_answer(r: &Request) -> Response {
     match r {
+        Request::ChoosePartyMon(PartyMode::ChooseHalf { .. }) => Response::Value(0),
         Request::ChoosePartyMon(_) => Response::Value(PARTY_NOTHING_CHOSEN),
         Request::SaveDialog | Request::Evolve { .. } => Response::Bool(false),
         _ => Response::Unit,
