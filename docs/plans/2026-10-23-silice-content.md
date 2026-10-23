@@ -1774,6 +1774,7 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
     - the altar (4–5, 19).
   - Hidden item: the Lax Incense (17, 24).
   - Connections: North to MangaSquare, offset −9. West to RouteS06_BoisSoupirs, offset 25 (our y 33–35 meet its y 8–10).
+  - Warps 1–3 (added with the Ch5 maps): the elevator landing's south arrow mats (12–14, 63), to Owlys's warp 8.
   - Terrain, south to north:
     - the Lacets bas, with R1's niche (3–4, 56–57);
     - the middle zone, with the west exit and R2's niche (23–24, 40–41);
@@ -1901,11 +1902,9 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
   - RouteS07 mirrors it with South, offset `X - 37`.
 
   The controleur at (37, 1) blocks the way until Sc02.
-- **RouteS06 south → `MAP_OWLYS` (Ch5).** The path reaches (12–14, 62), and row 63 is rock. Add `RouteS06/05_ch5_connect.ron`:
-  - `Ascii(x: 12, y: 63, rows: ["..."], legend: {'.': (metatile: 1, collision: 0)})`, Facility's path;
-  - `Connect((dir: South, offset: 12 - X, map: "Owlys"))`, where X is the left column of Owlys's north exit;
-  - Owlys mirrors it with North.
 - **Houses 1 and 2.** When `MAP_MANGA_SQUARE_HOUSE_1`/`_2` get content, add warps on (3, 21) and (7, 21). Those doors are solid now.
+
+**Link to Owlys (made with the Ch5 maps): RouteS06 south → `MAP_OWLYS`, as a warp, not a connection.** Ch5's source makes the Pilgrims' Elevator a warp ("Ascenseur → MAP_ROUTE_S06"), and Owlys is a cavern with a rock border, so a seamless connection would show rock on both sides. `RouteS06/05_ch5_elevator.ron` draws three south arrow mats (General 36, collision 0) on (12–14, 63), the path's end, as warps 1–3 to Owlys's warp 8, the elevator (30, 3). The elevator lands on the middle mat (warp 2). Owlys's Watchers bar the elevator until the badge. See "SIL3 Ch5 maps as built".
 
 **Changes from the source.**
 - The town:
@@ -1964,7 +1963,7 @@ The six Chapter 4 maps are in `games/silice/{maps,layouts}/`, made only with the
 
 `cargo xtask studio map build` rebuilds all 37 Silice maps (after the Ch2–Ch3 merge) and writes the same bytes (checked with everything staged: no diff).
 
-**Names.** The chapter's `MAP_*` constants are `MAP_ROUTE_S04`, `MAP_PORT_RESSAC`, `_TAVERNE`, `_NAVIRE_COCKET`, `_GYM` and `_GYM_CALE`, with the names `ids/maps.ron` already gives (`RouteS04`, `PortRessac`, `PortRessac_Taverne`, `PortRessac_NavireCocket`, `PortRessac_Gym`, `PortRessac_Gym_Cale`). Its other names are `MAP_VIBER_CITY` (Ch3, linked by the review) and `MAP_ROUTE_S05` (Ch5, pending, below). Each layout has its map's name.
+**Names.** The chapter's `MAP_*` constants are `MAP_ROUTE_S04`, `MAP_PORT_RESSAC`, `_TAVERNE`, `_NAVIRE_COCKET`, `_GYM` and `_GYM_CALE`, with the names `ids/maps.ron` already gives (`RouteS04`, `PortRessac`, `PortRessac_Taverne`, `PortRessac_NavireCocket`, `PortRessac_Gym`, `PortRessac_Gym_Cale`). Its other names are `MAP_VIBER_CITY` (Ch3, linked by the review) and `MAP_ROUTE_S05` (Ch5, linked with the Ch5 maps, below). Each layout has its map's name.
 
 **Sizes and tilesets** (Emerald tilesets by name; every layout is original, and `hygiene`, which includes `games::copies` with the full extract, is clean):
 
@@ -2065,8 +2064,7 @@ Borders: Port-Ressac is open sea (368, blocked), the Gym its decor sea (414), Ro
 - **PortRessac_Gym.** `_OnTransition` (sets `_GYM_GWADA`), `_OnLoad` (from VAR_SIL_STORY 48, `set_metatile` (9, 10) and (10, 10) to floor 552, collision 0), `PortRessac_Gym_Sc01` (the breathalyser, then Sc02, which ends by opening the grille the same way, since the player is still on the quarterdeck), `PortRessac_Gym_Sc03` (Gwada: show, walk down 2), `_EventScript_Guide`, `_Patrice`, `_Jessy`, `_Gus`, `_Grille`, `_SignRoulis`.
 - **PortRessac_Gym_Cale.** `_OnLoad`, `_EventScript_Fut` (the Strength barrels), `_Explosif1`/`2` (the wild battle, then `set_metatile` and the barrel's flag), `_Timothe`.
 
-**Pending links** (left solid or unconnected, to add with the other chapter):
-- Port-Ressac east → Route S5 (Ch5): a map connection on the east edge (column 49, rows 21–39 are open sea; the jetty ends at x 47). Surf only (M10).
+**Link to Route S5 (made with the Ch5 maps).** `games/silice/edits/PortRessac/05_ch5_connect.ron` connects East to RouteS05 with offset 0: our east edge's open sea (column 49, rows 22–39; the jetty ends at x 47) meets Route S5's west sea at the same rows, by its entrance buoy (3, 26). Route S5 mirrors it (`West`, offset 0). Surf only (M10). See "SIL3 Ch5 maps as built".
 
 **Changes from the source.**
 - The cargo's guard stands beside the stairs, not on them; the block before the lookout is a coord event (6, 26) at 42.
@@ -2510,7 +2508,7 @@ Content: `species_forms.ron` (Q5), Mega pics (Q3), Mallette Logs and Sync.
 
 #### SIL3 Ch5 maps as built (Owlys)
 
-The fourteen Chapter 5 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Route S5, Owlys and the gym's crypt). No other chapter's map, `game.ron` or text was touched. `cargo xtask studio map build` rebuilds every map and writes the same bytes (checked after the commit: no diff).
+The fourteen Chapter 5 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Route S5, Owlys and the gym's crypt). The first build touched no other chapter's map, `game.ron` or text; the review added the Port-Ressac and Route S6 links (`PortRessac/05_ch5_connect.ron`, `RouteS06/05_ch5_elevator.ron`) and the hidden-at-start flags in `game.ron`. `cargo xtask studio map build` rebuilds every map and writes the same bytes (checked after the commit: no diff).
 
 **Names.** The chapter's `MAP_*` constants map to the names `ids/maps.ron` already gives:
 
@@ -2569,29 +2567,28 @@ Darkness (`cave: 1`) is set on the wreck, the silo B1F, the gym and its crypt. O
 - `validate` reports no errors.
 - Its only warnings are the 87 unwritten Ch5 scripts, which give 106 warnings because coord rows repeat a name. `registry::ALLOW_UNWRITTEN` drops them at build time.
 - `RouteS05/03_allow.ron` keeps metatiles 625 and 633 solid. That is Pacifidlog's boulder, which Emerald walks on as a plateau; here it is the wreck's hull.
-- `Owlys/03_allow.ron` keeps two holes solid:
-  - the sanctuary door (30, 12), locked until `Owlys_Sc04`;
-  - the elevator (30, 3), until the link to Route S6 is added.
+- `Owlys/03_allow.ron` keeps the sanctuary door (30, 12) solid: it is locked until `Owlys_Sc04`. (The first build also kept the elevator (30, 3) solid until the Route S6 link; the review made the link, see the links below.)
 - `Owlys_Gym_B1F/03_allow.ron` accepts warp 1 on a floor cell. It is only the trapdoors' landing.
 - Fixed instead of allowed: the islet's log house (520–524, 528, 532) is walkable where Emerald walks behind it.
 - Fixed: Route S5 used `MUS_ROUTE134`, which does not exist. Route 134 plays `MUS_ROUTE119`, so S5 does too. The content build caught it; `validate` did not.
 - `cargo xtask silice check` passes, and `PKR_GAME=silice cargo test -p content -p extract` and `cargo test -p xtask` pass.
 
-**Hide flags (commit `feat(silice): ids for Ch5 maps`).** They take 17 flags, 860–876, in Ch5's block (860–899). They were appended by hand, append-only, to `ids/flags.ron` and `ids.golden`. The import (`--force`) keeps them as they are and lists them in `IMPORT-REPORT.md`, and only those two files were kept from its run. They are all `FLAG_SIL_HIDE_OWLYS_*`:
-- Owlys: `SBIRE_EST`, `MILO`, `SBIRE_RUELLE`, `MATHIEU_APRES`, `GARDE_ASCENSEUR_A`, `GARDE_ASCENSEUR_B`;
+**Hide flags (commit `feat(silice): ids for Ch5 maps`, then the review).** They take 16 flags, 861–876, in Ch5's block (860–899). They were appended by hand, append-only, to `ids/flags.ron` and `ids.golden`, after master's Ch4 (804–825) and Ch6 (830–836) entries, in numeric order. The import (`--force`, into a scratch copy) keeps them as they are and lists them in `IMPORT-REPORT.md`; only `ids/flags.ron` (identical) and the report were kept from its run. 860 is free: it was `_GARDE_ASCENSEUR_A` until the review gave Watcher A the source's flag, and the import keeps the gap. They are all `FLAG_SIL_HIDE_OWLYS_*`:
+- Owlys: `SBIRE_EST`, `MILO`, `SBIRE_RUELLE`, `MATHIEU_APRES`, `GARDE_ASCENSEUR_B`;
 - the East Cave: `GROTTE_EST_MATHIEU`, `GROTTE_EST_CONVOYEUR_A`, `GROTTE_EST_CONVOYEUR_B`, `GROTTE_EST_OWL_JUSTICE`, `GROTTE_EST_PLUME`;
 - the gym: `GYM_SKYCKER_MASQUE`, `GYM_SKYCKER_VISAGE`, `GYM_MATHIEU`;
 - the silo: `SILO_NOCTALI_1`, `SILO_NOCTALI_2`, `SILO_NOCTALI_3`.
 
 Existing flags used as hide flags:
 - `FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE`, from the source;
+- `FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR`, from the source, for Watcher A;
 - `FLAG_SIL_ROUTE_S05_LOKHLASS`, for Lokhlass.
 
-The source's single `FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR` would make two objects share a flag, so each Watcher gets its own (`_A`, `_B`). `Owlys_Gym_Sc01` must set both instead of the source's one. The source flag stays allocated and unused.
+The source's single `FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR` would make two objects share a flag (`validate` warns). As Ch2–Ch3 did with `_STATION_SBIRES` and `_NOCTURNE_DANSEURS`, the source's flag stays on the first actor (Watcher A) and Watcher B gets `_GARDE_ASCENSEUR_B`. `Owlys_Gym_Sc01` sets both. (The first build gave each Watcher a new flag and left the source's unused.)
 
-Hidden at start: the eastern grunt, Mathieu after the badge, the East Cave's actors (Mathieu, both drivers, Owl-Justice, the Feather), Skycker's face, the gym's Mathieu and the three Umbreon. Each map's `_OnTransition` sets their flags. Ch2–Ch3 put such flags in `game.ron`'s `new_game_flags` instead; this task may not edit `game.ron`, so whoever writes the Ch5 scripts can add them there instead.
+Hidden at start, in `game.ron`'s `new_game_flags` (with a comment, as Ch1–Ch4): the eastern grunt, Mathieu after the badge, the East Cave's actors (Mathieu, both drivers, Owl-Justice, the Feather), Skycker's face, the gym's Mathieu and the three Umbreon (12 flags). Each map's `_OnTransition` still owns them from `VAR_SIL_STORY` and the flags. Mathieu on the square, Milo and the alley grunt, both Watchers, masked Skycker and Lokhlass start visible. `game_tests.rs` checks both groups.
 
-The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot hide the objects, because the Umbreon are hidden before the scene too. Hence the separate hide flags. No `FLAG_TEMP_*` is used. Ch4 (804–829) and Ch6 (830–859) have their own blocks, so no renumbering is expected.
+The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot hide the objects, because the Umbreon are hidden before the scene too. Hence the separate hide flags. No `FLAG_TEMP_*` is used. Ch4 (804–829) and Ch6 (830–859) have their own blocks, so the merge renumbered nothing.
 
 **Warps** (the warp numbers the scripts and other chapters rely on).
 - RouteS05:
@@ -2604,11 +2601,12 @@ The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot h
 - Owlys:
   - 0–1: the iron door (29–30, 45), to Faille 1;
   - 2: the Center (15, 29);
-  - 3: the Gray Market (14, 41);
+  - 3: the Gray Market (14, 39), a cave mouth standing in the south-west alley, entered from (14, 40);
   - 4: the orphanage (12, 8);
   - 5: the warehouse (47, 8);
   - 6: the East Cave (54, 28);
-  - 7: the sanctuary (30, 12).
+  - 7: the sanctuary (30, 12);
+  - 8: the Pilgrims' Elevator (30, 3), to RouteS06 2 (added by the review, see the links).
 - Each interior's warp 0 (and 1 for a mat) leads back. In the silo, 1F warp 2 (the lift (4, 1)) and B1F warp 0 (17, 1) link the two floors.
 - Owlys_Gym:
   - 0: the exit (14, 47);
@@ -2616,7 +2614,7 @@ The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot h
 - Owlys_Gym_B1F:
   - 0: the ladder (10, 2), to the gym's 0;
   - 1: the landing (10, 8).
-- Connection: RouteS05 south, offset 20, to RouteS05_Banc. Banc has the reverse.
+- Connections: RouteS05 south, offset 20, to RouteS05_Banc (Banc has the reverse); RouteS05 west, offset 0, to PortRessac (Port-Ressac has the reverse; see the links).
 
 **Objects, by map** (local ids; the source's obj numbers are kept where it gives them, with `Object(local_id: N)`).
 - RouteS05:
@@ -2640,13 +2638,13 @@ The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot h
   5. the kid;
   6. Milo;
   7. the alley grunt, trainer `Owlys_Sc03`;
-  8. the guard;
+  8. the guard, by the iron door's road (31, 41);
   9. the docker;
   10. the poet;
   11. a gossip;
   12. Mathieu after the badge;
-  13. Watcher A, at the elevator;
-  14. Watcher B, at the elevator;
+  13. Watcher A, on the elevator's front cell (30, 4): he bars it until the badge;
+  14. Watcher B, beside him (29, 4);
   15. the silo guard, a trainer;
   16. the Escape Rope ball.
 - Owlys_GrotteEst:
@@ -2659,7 +2657,7 @@ The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot h
   7. the Moon Stone ball;
   8. the Escape Rope ball.
 - Owlys_Entrepot: 1–3 the grunts; 4 the Escape Rope ball.
-- Owlys_Entrepot_B1F: 1–3 the Umbreon; 4 the Silo Chief.
+- Owlys_Entrepot_B1F: 1–3 the Umbreon; 4 the Silo Chief, a sight trainer (sight 2) at (27, 26) facing up at the reserve's only gap (27, 24).
 - Owlys_Gym:
   1. Skycker, masked;
   2. Skycker, face shown;
@@ -2699,7 +2697,7 @@ Map scripts:
 
 Coord events:
 - `Owlys_GrotteEst_Sc01` on row y 19 (x 2–12), VAR 52.
-- `Owlys_Entrepot_B1F_Sc01_1` on (16–18, 5), `_2` on (4–5, 13) and `_3` on (4–5, 21), all on `VAR_TEMP_1` 0. Each checks its `FLAG_SIL_OWLYS_SILO_NOCTALI_n` and sets `VAR_TEMP_1` to 1.
+- `Owlys_Entrepot_B1F_Sc01_1` on (16–18, 5), `_2` on (4–5, 13) and `_3` on (4–5, 21), all on `VAR_TEMP_1` 0, which always fires (Ch2–Ch3's temp-var idiom). Contract: no script on the silo B1F writes `VAR_TEMP_1`; each returns at once when its `FLAG_SIL_OWLYS_SILO_NOCTALI_n` is set.
 - `Owlys_Gym_EventScript_CourOk` on islet N's row (12–16, 24), `VAR_TEMP_1` 0. It sets `FLAG_SIL_OWLYS_GYM_COUR_OK`.
 
 The gym:
@@ -2711,14 +2709,29 @@ The gym:
 
 The 87 names in all: the scene and map scripts above, plus one `_EventScript_` per NPC, trainer, item ball and sign. `validate`'s warnings list them.
 
-**Pending links (not made here).**
-- **Route S5 west to Port-Ressac (Ch4).** Route S5's west edge (the open sea, x 0) is water with no connection. When `PortRessac` exists, add a phase-4 script `games/silice/edits/RouteS05/04_ch4_connect.ron`: `Connect((dir: West, offset: <PortRessac's y offset>, map: "PortRessac"))`, plus the reverse East connection in Port-Ressac's edits. The entrance sign is at (3, 26).
-- **Owlys elevator to Route S6 (Ch6).** The elevator hole (30, 3) is solid and has no warp. When `RouteS06` exists, add `games/silice/edits/Owlys/04_ch6_elevator.ron`:
-  - `Paint(x: 30, y: 3, collision: 0)`;
-  - `Warp(x: 30, y: 3, dest_map: "RouteS06", dest_warp: <n>)`, which becomes Owlys warp 8;
-  - removal of the elevator's `AllowCollision`. Remove it from `03_allow.ron`, or the allowance warns that it silences nothing.
+**Links (made by the review, after Ch4 and Ch6 reached master).**
+- **Route S5 west ↔ Port-Ressac (Ch4).** `RouteS05/02_events.ron` connects West to PortRessac with offset 0, and `PortRessac/05_ch5_connect.ron` connects East to RouteS05 with offset 0. Port-Ressac's open sea on its east edge (x 49, y 22–39; the jetty ends at x 47) meets Route S5's west sea (x 0) at the same rows, by the entrance buoy (3, 26). Surf only. Port-Ressac's rows 0–21 at x 49 are solid, so the rest of our west edge stays blocked.
+- **Owlys elevator ↔ Route S6 (Ch6): a warp.** Ch5's source lists the elevator among Owlys's warps ("Ascenseur → MAP_ROUTE_S06"); Ch6's says "connexion". A warp is kept: it is an elevator, and Owlys is a cavern with a rock border, so a connection would show rock on both sides.
+  - Owlys: the elevator hole (30, 3) is walkable (the first build's `Paint` and `AllowCollision` are gone) and is warp 8, to RouteS06's warp 2. Its sign moves to the rock right of it (31, 3).
+  - RouteS06: `RouteS06/05_ch5_elevator.ron` draws three south arrow mats (General 36) on (12–14, 63), the path's end, as warps 1–3 to Owlys's warp 8. The elevator lands on the middle mat.
+  - Gate: Watcher A stands on the elevator's front cell (30, 4) until `Owlys_Gym_Sc01` hides both Watchers. A path search confirms the elevator is unreachable with the Watchers shown and reachable once they are hidden. `RouteS06_Sc01` (on-frame at 55, Ch5's last value) runs on arrival.
 
-  The Watchers (objects 13–14) stand at (29, 4) and (31, 4). `Owlys_Gym_Sc01` hides them.
+**Review fixes.** Every map was rendered with events and collision and searched for paths (Surf, ledges, the currents' push, directional walls, elevation, objects as obstacles, trainers' sight lines).
+- **Critical: the Gray Market could not be entered.** Its cave mouth sat on the alley's bottom wall (14, 41), with rock below and the mouth's own solid top above, so the door had no walkable neighbour (and a player arriving from the Market would be stuck on it). The mouth now stands in the alley at (14, 38–39), entered from (14, 40); warp 3 is (14, 39).
+- **Critical: the silo's Umbreon would have guided only once per visit.** The three junction coords are on `VAR_TEMP_1` 0 and each script set `VAR_TEMP_1` to 1, so junctions 2 and 3 could not fire after junction 1 without a reload. The contract is now Ch2–Ch3's: `VAR_TEMP_1` is never written on that map, and each script checks its own flag.
+- **Important: the Sablenite was unreachable.** Its hidden item (33, 25) was a wall cell with no floor neighbour. It is at (33, 27), the cracked tank behind the sacks, faced from (32, 27).
+- **Important: the reserve and the Sablenite could be reached without the Silo Chief.** He had no sight, and the reserve's 6-cell opening let the player walk past him; the source says he sees the player. Crates now close the reserve's north side except (27, 24), and he is a sight trainer at (27, 26) facing it. A path search with his sight line blocked finds no way in.
+- **Important: the elevator was not barred before the badge once opened.** The Watchers stood at (29, 4) and (31, 4), beside its front cell. Watcher A now stands on (30, 4) (see the links).
+- **Important: the iron door's guard stood in the rock** at (33, 43), with no walkable neighbour. He is at (31, 41).
+- **Consistency: the elevator Watchers' flags** follow Ch2–Ch3 (the source's flag on the first actor; see the hide flags). The Umbreon hide flags are kept: the source's `_NOCTALI_n` flags mean "has guided" and are clear before the scene, while the objects must be hidden. The renamed script names follow the `<Map>_ScNN` rule; `_Sc01_1`–`_3` are needed because one source scene plays at three junctions with three texts.
+- **Checked and kept:**
+  - The gym's bridge puzzle matches the source: from S with p1 posed, blue then black reaches N; red first strands the player on E, whose trapdoor (23, 29) is the only way out; C (no lectern) has its trapdoor (14, 33); every islet with a lectern can toggle back. N's coord row (12–16, 24) is the only way from p5 into the hall. The walkway reaches the platform once posed.
+  - The trapdoors land on B1F (10, 8); its ladder leads to the gym's entrance, where `OnLoad` resets the bridges (all posed once `COUR_OK`).
+  - The hall's Watchers (sight 2) do not see the hall's middle column, so they can be walked past, but the walkway needs all four `VEILLEUR` flags, so each must be fought (talked to). This is the source's "visible trainer" fallback.
+  - The East Cave's coord row y 19 spans the whole hall (x 2–12): `Owlys_GrotteEst_Sc01` cannot be bypassed at 52.
+  - Route S5's currents (x 44–72, y 5–10) push east to the Dome wall; the water around them leads back. The rift, the wreck's hole and the coral cave's mouth are reachable by Surf.
+  - The silo's three 1F grunts and the Route S5 and East Cave trainers can be walked past; they are optional, as in the source. The source's comment puts grunt 3 "in the dark of B1F" while its 1F layout lists three grunts; the 1F is kept.
+  - `games::copies` is clean (`hygiene`, with the full extract).
 
 **Missing mechanics and graphics.**
 - Darkness: `cave: 1` is set, but the engine draws no darkness and there is no Flash radius.
