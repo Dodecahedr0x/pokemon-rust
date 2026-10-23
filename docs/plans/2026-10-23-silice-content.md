@@ -4299,6 +4299,78 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
 | `PKR_GAME=silice cargo test -p content` | all passed |
 | `cargo test -p content -p xtask` | 243 passed, 0 failed |
 
+#### SIL6 Ch12 maps as built (the post-game)
+
+Made only with the studio map editor, from `chapitres/12-post-game.md`. The edit scripts are in `games/silice/edits/<Map>/` and use Emerald tilesets by name. The build is byte-identical on a second run. Ch9 and Ch10–Ch11 reached master during this work, so the links to Nébula are real warps, not pending.
+
+**New maps (13 of the 19 Ch12-owned ones; all ids already existed in `ids/maps.ron`).**
+
+| Map | Size | Tilesets | What |
+|---|---|---|---|
+| `TourNebula_1F_Ruine` | 15 × 15 | General + InsideShip | Mathias's cellar: two barrels to push (Strength) open the middle aisle, gas 06 before the still, Composant A |
+| `TourNebula_3F_Ruine` | 17 × 13 | General + Facility | islets, two broken walkways, the ledge with gas 07 and Ludo, the lectern (Composant B) |
+| `TourNebula_4F_Ruine` | 15 × 15 | Building + EliteFour | mirror maze, three cracked mirrors (Rock Smash), gas 08, the prism's socle (Composant C) |
+| `Breche` | 20 × 40 | General + Fallarbor | the glass corridor: gases 01–03 each on a one-cell neck, Thomas's camp, Articuno's overhang |
+| `NoMansLand` | 60 × 60 | General + Fallarbor | five zones round the Relais; gases 04–05; the steel beam on the broken bridge |
+| `NoMansLand_Centrale` | 20 × 15 | General + BikeShop | turbine hall, three switch panels, the control room behind a blast door (Zapdos) |
+| `NoMansLand_CaveauGlace` | 15 × 20 | General + Cave | two rooms, Shoal Cave's ice (909), the stone door and Regice's niche |
+| `NoMansLand_Cratere` | 15 × 20 | General + Lavaridge | the slope, the ash ledge, Moltres's ridge, the Heart of the Crater (Groudon) behind a boulder |
+| `NoMansLand_Relais_B1F` | 12 × 12 | General + Cave | Island Cave's braille wall, overturned lockers, Regirock |
+| `BenouLab` | 13 × 11 | Building + Lab | Benou's desk, the logs PC, the blast door on the Zone 404 teleporter |
+| `Zone404` | 40 × 40 | General + Rustboro | six 12 × 12 fragments, three missing tiles each (General 167), four "DONNEE ?" trainers |
+| `Zone404_Noyau` | 11 × 11 | Building + Lab | the white room, the Clone and Mewtwo |
+
+`Breche` and `NoMansLand` are joined by a connection (Breche north, offset -20; NoMansLand south, offset 20), which is why both use General + Fallarbor.
+
+**Edits to earlier chapters' maps (own files, `NN_ch12_*.ron`).**
+- `Nebula/05_ch12_postgame.ron`, `06_ch12_allow.ron`: warp 4 on the MAINTENANCE door (11, 18) to `BenouLab`; warps 5–6 on the north wall (18–19, 3) to `Breche` (the crack); Julien (local 15) at the Tower's foot and his workbench sign; `Nebula_PG_Sc10`'s Mathieu, Thomas, Tyranitar, Crobat and two guards (16–19, 21–22); `Nebula_PG_Sc10` added to `on_frame` at 126 (`ScriptsSet` keeps Ch9's `Nebula_Sc01`). The door and the crack stay solid until `Nebula_OnLoad` opens them from 126 (`AllowCollision`, `AllowReach`).
+- `MangaSquare_Bibliotheque/05_ch12_conseil.ron`: the Council (Adrien, Gwada, Kimiko at the table; Mathieu at the door; two queuing citizens) and `_PG_Sc02` on row 22, wall to wall.
+- `ReverseCity_Phare/04_ch12_thomas.ron`: Thomas at the top, `_PG_Sc04` on (12, 8), the only cell into the top room.
+- `RouteS05_Epave/04_ch12_arthur.ron`: Arthur (15) on the upper deck.
+- `RouteS06_BoisSoupirs/05_ch12_clairiere.ron`, `06_ch12_kimiko.ron`: the map grows from 20 to 26 rows (`Resize`, dx 0, dy 0: the east connection does not move); a one-cell secret path (12, 18–19) leads to the clearing (8–16, 20–24) with Kimiko (20), Adrien (21), her drone, Ho-Oh and the feather's stump; `_PG_Sc05` on (12, 19).
+- `Owlys_GrotteEst/04_ch12_point_zero.ron`, `05_ch12_silas.ron`: the Point Zéro room (30–36, 4–8) through (33, 9–10); Silas (9), the machine (10), Mew; `_PG_Sc07` on (33, 9).
+- `BricoBourg/05_ch12_postgame.ron`: Maman on the house door (hidden).
+- `SommetApex/04_ch12_balise.ron`: Poussin PG on Ch11's Poussin's cell, the socle (11, 12), Rayquaza on the stage; `_PG_Sc19` on row 16 wall to wall, `_PG_Sc32` on the socle's four neighbours.
+- `TourNebula_2F/05_ch12_qg.ron`: Gwada (10) and the camp's PC sign.
+
+**Ids.** No new map id. 23 new flags in Ch12's block 1100–1179 (1100–1122), appended to `ids/flags.ron` (after 1050) and `ids.golden`: `FLAG_SIL_HIDE_NML_DRONE`, `_NML_ORIGAMI`, `_CENTRALE_PORTE`, `_CAVEAU_PORTE`, `_CRATERE_ROCHER`, `_NEBULA_JULIEN`, `_NEBULA_PG_MATHIEU`, `_PG_THOMAS`, `_PG_TYRANITAR`, `_PG_CROBAT`, `_PG_GARDE_1`, `_PG_GARDE_2`, `_BIBLIO_PG_ADRIEN`, `_GWADA`, `_KIMIKO`, `_MATHIEU`, `_CITOYEN_1`, `_CITOYEN_2`, `_BOIS_SOUPIRS_ADRIEN`, `_BOIS_SOUPIRS_DRONE`, `_BRICO_MAMAN`, `_APEX_SOCLE`, `_TOUR_2F_GWADA`. The block first given (1450–1549) is past the last flag (0x4FF = 1279). Everything else uses the source's flags (gases, legendaries, items, `COMPOSANT_n`, `ECHANTILLON_n`, `ZONE404_OUVERTE`, `CLONE_BATTU`, the Vestiges' hide flags).
+
+**`game.ron`.** Set at the start (and asserted in `game_tests.rs`): the 13 legendaries placed on maps (Articuno, Zapdos, Moltres, Mewtwo, Mew, Entei, Suicune, Ho-Oh, Regirock, Regice, Latios, Groudon, Rayquaza), `FLAG_SIL_ITEM_PG_NML_LATIOSITE`, and the 25 post-game actors above plus `THOMAS_PHARE`, `ARTHUR_EPAVE`, `KIMIKO_BOIS`, `SILAS_GROTTE`, `APEX_POUSSIN_PG`. Asserted clear: gases 01–08, the three puzzle doors, `ZONE404_OUVERTE`, `CLONE_BATTU`.
+
+**Script contract (names on the maps; no script written).** The source's names keep `_PG_` and take the map's name: `Tour_Nebula_1F_Ruine_PG_Sc12` → `TourNebula_1F_Ruine_PG_Sc12`, `No_Mans_Land_PG_Sc16` → `NoMansLand_PG_Sc16`, `Zone_404_PG_P1` → `Zone404_PG_P1`, and so on.
+- Scenes: `TourNebula_1F_Ruine_PG_Sc12`, `_3F_Ruine_PG_Sc13`, `_4F_Ruine_PG_Sc14` (objects 1); `Breche_PG_Sc10b` (Thomas), `Breche_PG_Shop`; `NoMansLand_PG_Sc16` (coords row 56, 128), `_PG_Sc16b` (row 37, 128; also Poussin, local 30), `_PG_Sc17_1..3` (soil patches 40–42), `_PG_Drone`, `_PG_Origami`; `Nebula_PG_Sc10` (on_frame 126), `Nebula_PG_Julien` (runs Sc03, Sc03b, Sc03c), `Nebula_PG_Etabli`; `BenouLab_PG_Sc23` (Benou), `_PG_Sc24` (PC sign); `Zone404_PG_P1..P6` (signs), `Zone404_Noyau_PG_Sc26` (coords row 6, `VAR_TEMP_1` 0), `_PG_Sc26b` (Mewtwo); `MangaSquare_Bibliotheque_PG_Sc02` (row 22, 120), `_PG_Sc21`, `_PG_Sc30`, `_PG_Kimiko`, `_PG_Mathieu`, `_PG_Citoyen`; `ReverseCity_Phare_PG_Sc04` (122), `_PG_Thomas`; `RouteS05_Epave_PG_Sc06`; `RouteS06_BoisSoupirs_PG_Sc05` (`VAR_TEMP_1` 0), `_PG_Lib`; `Owlys_GrotteEst_PG_Sc07` (`VAR_TEMP_1` 0); `SommetApex_PG_Sc16c`, `_PG_Sc19` (row 16, 129), `_PG_Sc32` (`VAR_TEMP_1` 0); `TourNebula_2F_PG_Gwada` (Sc11, Sc15, Sc18), `_PG_PC`.
+- Coords whose source condition is a range or a flag use `VAR_TEMP_1` 0, and the script checks the condition.
+- Events: `<Map>_EventScript_GazNN` (the gases, through `PG_Gaz`), each trainer's `<Map>_EventScript_<Name>`, each item's `<Map>_EventScript_Item<Item>`, the legendaries' `<Map>_EventScript_<Species>`, `TourNebula_*_Ruine_EventScript_Ascenseur` (the ruins' south door, calls the hub), the Centrale's `InterrupteurA..C`, `Porte`, `Panneau`; the Caveau's `Porte`; the Crater's `Rocher`, `RocherFissure`; the NML's `Poutre`, `Rocher`, `Plaque`, `PanneauCentrale`; BenouLab's `Porte`, `Tableau`, `PanneauPorte`; Zone404's four trainers and `Dalle1/12/20`; the Bois's `Drone`, `HoOh`; the Grotte's `Machine`, `Mew`; the Apex's `Socle`, `Rayquaza`.
+- Map scripts: `NoMansLand_OnLoad` (the trapdoor (31, 27) to 609, collision 0, from `FLAG_SIL_LIBERATION_JULIEN`), `NoMansLand_OnTransition` (Suicune, Latios, the drone and the origami), `NoMansLand_Cratere_OnTransition` (the Heart's boulder from `LIBERATION_JULIEN`; Moltres from 128), `Nebula_OnLoad` (the MAINTENANCE door's collision and the crack (18–19, 3) to 167 from 126), `Nebula_OnTransition` (Julien from 120, Sc10's cast at 126 only), and the `OnTransition` of the Bibliothèque, the Épave, the Bois, the Grotte Est, the Apex and the 2F for their actors.
+- The legendaries: the hide flag is set at the start, cleared by the unlocking scene or condition, and set again by a capture. The source's flag means "caught", which would show them before their condition.
+- The Latiosite: its item flag is set at the start; Latios's capture clears it.
+
+**Links.**
+- Real: Nebula 4 ↔ BenouLab 0–1; Nebula 5–6 ↔ Breche 0–1; Breche ↔ NoMansLand (connection); NoMansLand 0–3 ↔ Centrale, Cratère, Caveau, Relais_B1F; BenouLab 2 ↔ Zone404 0; Zone404's slab 20 → Noyau 0, Noyau 0 → Zone404 5.
+- By script, as Ch10's cabin: the ruins' warp 0 is a landing (`MAP_DYNAMIC`) and their south door calls `Tour_Nebula_PG_Ascenseur`, which warps by coordinates (1F (7, 13), 3F (8, 11), 4F (7, 13)). `lint-reach` reports "nothing leads here" (info) on the three ruins.
+
+**Checks.** `reach`/`bypass`: each ruin's chamber is shut by its gas (and 1F's by the two pushes); Ludo cannot be walked round; the Breach's three gases leave the north unreachable, and Nora's and Bastien's sight cannot be avoided; `NoMansLand_PG_Sc16` and `_Sc16b` cannot be walked round; gases 04 and 05 shut the Centrale's and the Crater's ways; the beam shuts the east; the Heart of the Crater is behind its boulder; every Ch12 coord on earlier maps (Bibliothèque, Phare, Bois, Grotte Est, Apex) cannot be walked round. `lint-reach` on all Ch12 maps and the edited maps: 0 warnings.
+
+**Missing engine features.** Ice sliding is not modelled by the walk model (the Caveau's ice is walkable to it). The Zone 404's patchwork needs per-area tilesets (one pair per map). The palette "détruite", the fog and the sky follow §9 and are not map settings.
+
+**Deviations.**
+- Local ids: Nebula's Julien is 15 (the source's 10 is Ch9's Bassin guard) and Sc10's cast is 16–22 (not 1–6).
+- The Bibliothèque's Sc02 row is the first row past the mat (row 22), the source's "two cells after the door" counting the mat.
+- The Bois des Soupirs had no secret path: the map was grown by 6 rows for it.
+- Placeholder sprites: Zapdos `PIKACHU`, Moltres and Articuno `WINGULL`, Suicune `AZUMARILL`, Entei `POOCHYENA`, Tyranitar `DUSCLOPS`, Crobat `ZIGZAGOON_2`, Mewtwo `KIRLIA`, the Clone `BRENDAN_NORMAL`, Thomas `WALLACE` (as Ch10), "?????" `PSYCHIC_M`, the soil patches `FOSSIL`, doors and lecterns `TRICK_HOUSE_STATUE`, the gases `KECLEON_BRIDGE_SHADOW`.
+
+**Not done (left for a follow-up).**
+- Optional maps: `BricoBourg_Bar_Lounge` (and the Shaker's bookcase), `RouteS05_IleDebug` (and Route S5's blinking tile), `RouteS08_GrotteStele` (and Route S8's waterfall warp), the three `RouteS0x_Antenne` (and their route doors), `SommetApex_TempleNuages`.
+- BricoBourg's `BricoBourg_PG_Sc01` (`on_frame` 119) and `_PG_Sc20` (coords (4, 15), (6, 15), (5, 16) at 130): BricoBourg is a strict map (Ch0's scripts claim it), so the content build refuses names without scripts. They go in with their scripts.
+- The eight Fragments de Code (hidden objects in existing maps), Tak and the statue at Manga-Square (Sc32a), Celebi, Raikou, Registeel, Latias, Lugia, Kyogre and Jirachi, the Horde roaming Nébula from 127 to 129, the TV sheet at Brico-Bourg (no TV is drawn on Ch0's map).
+
+**Editor friction.**
+1. `dump --out` and `render --out` write relative to the worktree, so a relative path lands outside the scratch directory.
+2. A studio build without `PKR_EXTRACTED_DIR` builds the stub world: every tileset is then "unknown".
+3. `ScriptsSet(on_frame: …)` replaces the whole list, so adding one entry means copying the others.
+4. `lint-reach` warns on every non-animated-door warp whose south cell is solid, even when nothing arrives there (the Zone 404's missing tiles).
+5. Intra-map warps are not followed by the walk model, so each fragment's arrival needs an `AllowReach`.
+
 ## 4. Contradictions and errors in `contenu-jeu` that block conversion
 
 1. **Encounter schema.** `donnees/rencontres.ron` keys maps by `"MAP_*"` with one header each. The extract's v5 `EncountersFile` keys by map name with a `Vec` of headers (`content/extracted/battle/encounters.ron`). The conventions call it an "extension de encounters.ron", but it cannot be loaded as is.
