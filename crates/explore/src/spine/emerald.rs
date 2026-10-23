@@ -19,6 +19,10 @@ mod list {
 
     use engine::data::{Dir, MapId};
 
+    /// Gen3's `MOVE_ROCK_SMASH` (`include/constants/moves.h`), named here because the stub
+    /// build's `content::consts` has no Emerald moves (this local item shadows the glob import).
+    const MOVE_ROCK_SMASH: engine::data::MoveId = engine::data::MoveId(249);
+
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
     }
