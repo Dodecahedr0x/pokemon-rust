@@ -1,0 +1,81 @@
+(
+    base: 16416,
+    ids: [
+        (
+            name: "VAR_SIL_BRICO_LABO_STATE",
+            num: 16416,
+        ),
+        (
+            name: "VAR_SIL_CASINO_STATE",
+            num: 16417,
+        ),
+        (
+            name: "VAR_SIL_COINS",
+            num: 16418,
+        ),
+        (
+            name: "VAR_SIL_EVALON_PARTENAIRE",
+            num: 16419,
+        ),
+        (
+            name: "VAR_SIL_EVALON_RENOM",
+            num: 16420,
+        ),
+        (
+            name: "VAR_SIL_EVALON_STATE",
+            num: 16421,
+        ),
+        (
+            name: "VAR_SIL_FRAGMENTS",
+            num: 16422,
+        ),
+        (
+            name: "VAR_SIL_GRIS_ECHEC_STATE",
+            num: 16423,
+        ),
+        (
+            name: "VAR_SIL_NOCTURNE_STATE",
+            num: 16424,
+        ),
+        (
+            name: "VAR_SIL_PARDONS",
+            num: 16425,
+        ),
+        (
+            name: "VAR_SIL_PORT_RESSAC_STATE",
+            num: 16426,
+        ),
+        (
+            name: "VAR_SIL_STARTER",
+            num: 16427,
+        ),
+        (
+            name: "VAR_SIL_STATION_STATE",
+            num: 16428,
+        ),
+        (
+            name: "VAR_SIL_STORY",
+            num: 16429,
+        ),
+        (
+            name: "VAR_SIL_SYNC",
+            num: 16430,
+        ),
+        (
+            name: "VAR_SIL_TOUR_PRISME_1",
+            num: 16431,
+        ),
+        (
+            name: "VAR_SIL_TOUR_PRISME_2",
+            num: 16432,
+        ),
+        (
+            name: "VAR_SIL_TOUR_PRISME_3",
+            num: 16433,
+        ),
+        (
+            name: "VAR_SIL_TOUR_STUDIO_STATE",
+            num: 16434,
+        ),
+    ],
+)

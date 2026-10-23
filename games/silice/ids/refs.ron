@@ -1,0 +1,7282 @@
+(
+    constants: {
+        "FLAG_DAILY": [
+            "12-post-game",
+        ],
+        "FLAG_GEMME": [
+            "12-post-game",
+        ],
+        "FLAG_PREMIERE": [
+            "12-post-game",
+        ],
+        "FLAG_RECEIVED_RUNNING_SHOES": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ADRIEN_TRADUCTION_NZ": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ANTENNE_ALPHA": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ANTENNE_ETA": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ANTENNE_GAMMA": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ARTHUR_BATTU": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ARTHUR_BOUSSOLE_PRISE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ARTHUR_BOUSSOLE_RENDUE": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "FLAG_SIL_BADGE_01": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_BADGE_02": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_BADGE_03": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_BADGE_04": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_BADGE_05": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_BADGE_06": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_BADGE_07": [
+            "06-manga-square",
+            "07-reverse-city",
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_BADGE_07_CORROMPU": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_BADGE_08": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_BADGE_MIROIR_RESTORED": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_BENOU_BATTU": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_BOIS_ETHER_AMBUSH": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_BOIS_ETHER_RED_SKY": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_BOIS_ETHER_RONCES_CUT": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_BRECHE_ALERTE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_BRICO_CHASE": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_BRICO_LABO_RONCES_CUT": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_CARTE_PERFOREE": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_CASINO_CHEF": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_CASINO_LOYAL": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_CASINO_PREUVE": [
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "FLAG_SIL_CAVE_GRILLE_OUVERTE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_CENTRALE_A": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_CENTRALE_B": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_CENTRALE_C": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_CIEL_VRAI": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "FLAG_SIL_CLE_DEBUG": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_CLE_DEBUG_INSTALLEE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_CLONE_BATTU": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_COEUR_EVALON": [
+            "08-evalon",
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_COMPOSANT_1": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_COMPOSANT_2": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_COMPOSANT_3": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_CONTE_COQ_LU": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_CROW_RECOMPENSE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_DAILY_CROW": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_DAILY_JULIEN": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_DAILY_POUSSIN": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_DAILY_TOURNOI": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_DEPOT_MAGNET_ON": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ECHANTILLON_1": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ECHANTILLON_2": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ECHANTILLON_3": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ELYSIUM_ACTIF": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_EVALON_EPREUVE_ESPRIT": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_EPREUVE_FER": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_EPREUVE_SCRIBE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_INVASION": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_Q1": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_Q1_ROCHER": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_Q2": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_EVALON_Q3": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_FIN_ELYSIUM_EN_COURS": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_FORME_ORIGINELLE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENTS_ACTIFS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_01": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_02": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_03": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_04": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_05": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_06": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_07": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_FRAGMENT_08": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_GAME_CLEAR": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "FLAG_SIL_GRIS_JAMMER_1": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_GRIS_JAMMER_2": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_GRIS_JAMMER_3": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_GWADA_LAINERGIE": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_GYM06_PORTE_1": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_GYM06_PORTE_2": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_GYM06_PORTE_3": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_GYM06_PORTE_4": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_GYM06_PORTE_5": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_GYM1_CONTAMINE": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_GYM1_FUSIBLE": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_GYM1_JOINT": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_GYM1_MANO": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_GYM1_VALVE": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_HAS_MALLETTE": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_HIDE_APEX_GOGO_ROMAIN": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_APEX_POUSSIN": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_HIDE_APEX_POUSSIN_PG": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_ARTHUR_BOUSSOLE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_HIDE_ARTHUR_EPAVE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_ARTICUNO": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_BAR_SBIRES": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_HIDE_CELEBI": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_DEOXYS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_HIDE_DOJO_ADRIEN": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_HIDE_DOJO_KIMIKO": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_HIDE_ENTEI": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_EVALON_AMIS": [
+            "08-evalon",
+            "09-nebula",
+        ],
+        "FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_HIDE_GAZ_01": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_02": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_03": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_04": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_05": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_06": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_07": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GAZ_08": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GROUDON": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_GYM07_BENOU": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_HIDE_GYM07_REVERSE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_HIDE_HOUSE_ELYSIUM": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_HIDE_HOUSE_EPILOGUE": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_HIDE_HO_OH": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_JIRACHI": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_KIMIKO_BOIS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_KYOGRE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_LATIAS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_LATIOS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_LUGIA": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_HIDE_MANGA_SQUARE_BENOU": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_HIDE_MEW": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_MEWTWO": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_MOLTRES": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_HIDE_NEBULA_EVEIL": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_HIDE_NOCTURNE_DANSEURS": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_HIDE_PORT_CARGO": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_HIDE_PORT_QUAIS_SBIRES": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_HIDE_RAIKOU": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_RAYQUAZA": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_REGICE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_REGIROCK": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_REGISTEEL": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_REVENGE_STATUE": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_REVERSE_BENOU_PORTE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_HIDE_REVERSE_GARDE_PALAIS": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_HIDE_REVERSE_GOGO_ROMAIN": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_HIDE_ROUTE_S04_ADRIEN": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_HIDE_SILAS_GROTTE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_STATION_GARDE": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_HIDE_STATION_SBIRES": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_HIDE_SUICUNE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_THOMAS_PHARE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HIDE_TOUR_MATHIEU": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_HIDE_VIBER_ADRIEN": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_HIDE_ZAPDOS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_HO_OH": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_INTRO_DONE": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_ADRIEN_CH2": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_APEX_FULL_RESTORE": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_ITEM_APEX_MAX_REVIVE": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_ITEM_APEX_ROMAIN": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_ITEM_BIBLIO_MOON_STONE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_BIBLIO_SUN_STONE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_BOIS_ETHER_EVOLUROC": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BOIS_ETHER_MIRACLE_SEED": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BOIS_ETHER_SUPER_POTION": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BOIS_ETHER_X_DEFEND": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BOIS_SOUPIRS_HEART_SCALE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_BOIS_SOUPIRS_MIRACLE_SEED": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_BRICO_LABO_REVIVE": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BRICO_LABO_SILICE": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BRICO_LABO_TM": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_BRICO_POTION": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_CASINO_B1F_RARE_CANDY": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_CASINO_B1F_SILK": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_CASINO_B1F_ULTRA_BALL": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_CASINO_COINS_FLOOR": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_DEPOT_GREAT_BALL": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_DEPOT_METAL_COAT": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_DOJO_BLACK_BELT": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_DOJO_NANAB": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_DOJO_TM_FRUSTRATION": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_DOJO_TM_GONFLETTE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_EVALON_AGGRONITE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_BRACELET": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_CACHE_1": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_CT_BALL_OMBRE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_EPEE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_ETANG": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_GALERIES_1": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_GALERIES_2": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_LARME_FEE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_LUM": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_ORBE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_PIERRE_LIEN": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_EVALON_POUDRE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_GRIS_ECHEC_IRON": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_GYM06_CHARIZARDITE_Y": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_GYM06_TM_AEROPIQUE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_GYM07_ALAKAZITE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_GYM07_LUM_BERRY": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_GYM1_FRESH_WATER": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_GYM1_SUPER_POTION": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_GYM2_SOOTHE_BELL": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_HERBORISTE_SAMPLE": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_LOIC_TM": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_MANGA_SQUARE_REVIVE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_MATHIEU_CH1": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_ITEM_NEBULA_CACHE_1": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_NEBULA_CACHE_2": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_NEBULA_MANECTITE": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_NEBULA_RESTES": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_NOCTURNE_FRESH_WATER": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_NOCTURNE_MAGNET": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_NOCTURNE_PIERRE_LIEN": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_CORDE_1": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_GROTTE_CORDE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_GROTTE_PIERRE_LUNE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_GYM_B1F_HYPER_POTION": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_GYM_BEC_POINTU": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_LUNETTES_NOIRES": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_SILO_CALCIUM": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_SILO_CORDE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_SILO_FER": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_SILO_PIERRE_LIEN": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_SILO_SABLENITE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_OWLYS_SILO_ZINC": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_PG_BRECHE_1": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_BRECHE_2": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_BRECHE_3": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_CAVEAU_GLALITITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_CENTRALE_ZINC": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_CONSEIL_GUERISONS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_CRATERE_AERODACTYLITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_CRATERE_HOUNDOOMINITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_GEM_LOIC": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_HERACRONITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_ILE_STARF": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_NML_LATIOSITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_NML_PPMAX": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_NML_RAPPELMAX": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_NML_TYRANITARITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_RUINE1_RHUM": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_RUINE3_PPUP": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_RUINE4_TIMER": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_SALAMENCITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_SCEPTILITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_SWAMPERTITE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_ZONE404_1": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_ZONE404_2": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PG_ZONE404_3": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_ITEM_PHARE_MAX_ETHER": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_PHARE_TM_ZENITH": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_PORT_CALE_HYPER_POTION": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_CALE_RHUM": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_NAVIRE_POING_CHANCE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_NAVIRE_PP_PLUS": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_PERLE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_PIERRE_EAU": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_RHUM_PIRATE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PORT_SUPER_BALL": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_PROLOGUE_BALLS": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_PROLOGUE_POTIONS": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_HP_UP": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_MASTER_BALL": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_MULTI_EXP_V2": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_PP_UP": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_REVERSE_REVIVAL_HERB": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S01_ORAN": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S01_POKE_BALL": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S01_POTION": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_ETHER": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_GREAT_BALL": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_MAGNET": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_PARALYZE_HEAL": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_TM_SHOCK_WAVE": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S02_X_SPEED": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S04_CORDE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S04_ETHER": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S04_HYPER_POTION": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S04_PIERRE_LUNE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S04_SUPER_REPOUSSE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_BANC_ULTRA_BALL": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_GROSSE_PERLE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_PROTECTION": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_EPAVE_RAPPEL": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_FAILLE_CORDE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_DANSE_PLUIE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_ECAILLE_OCEAN": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_GROTTE_PIERRE_EAU": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_HYPER_POTION": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S05_MAX_REPOUSSE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S06_DRAGON_SCALE": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S06_ENCENS": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S06_HYPER_POTION": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S06_MAX_ETHER": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S06_PP_UP": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S06_ULTRA_BALL": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S07_FULL_HEAL": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S07_MAX_REVIVE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S07_RARE_CANDY": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S07_TWISTED_SPOON": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_ROUTE_S07_ULTRA_BALL": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ITEM_S03_ETHER": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_S03_HARD_STONE": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_S03_NUGGET": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_S03_SUPER_POTION": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_S03_SUPER_REPEL": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_S08_CACHE_1": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_S08_CT_LASER_GLACE": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_S08_ILOT": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_S08_RACCOURCI": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_S08_ULTRA_BALL": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_ITEM_S09_CACHE_1": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_CONTENEURS": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_CT_TONNERRE": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_STATION_ELIXIR": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_ULTRA_BALL": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_UW_1": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_UW_2": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_UW_3": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_S09_UW_4": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_STATION_ELIXIR": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_TOUR_1F_FULL_RESTORE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_2F_MAX_REVIVE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_2F_PP_UP": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_3F_FULL_RESTORE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_4F_FULL_RESTORE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_4F_MAX_REVIVE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_ITEM_TOUR_B1F_ELIXIR": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_TOUR_HALL_ACCUEIL": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_ITEM_USINE_ETHER": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_USINE_METAL_COAT": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_USINE_SUPER_REPEL": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ITEM_VIBER_COIN_CASE": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_VIBER_HYPER_POTION": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_VIBER_PP_UP": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_VIBER_QUICK_CLAW": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_VIBER_REVIVE": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ITEM_YOHAN_TM": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_KEY_ACCES_ALPHA": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_KEY_ACCES_BETA": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_KEY_ACCES_GAMMA": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_LABO_HINT": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_LIBERATION_ARTIKODIN": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_LIBERATION_CELEBI": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_LIBERATION_EVALON": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_LIBERATION_JULIEN": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_LIBERATION_RAIKOU": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_LOGS_ORIGINAUX": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_LOG_01": [
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_LOG_02": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_LOG_03": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_LOG_04": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_LOG_05": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_LOG_06": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_LOG_07": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_LOG_08": [
+            "08-evalon",
+        ],
+        "FLAG_SIL_LOUNGE_OUVERT": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_MAIL_SILAS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_MALLETTE_CALLS": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_MALLETTE_DEX": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_MALLETTE_FELEE": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "FLAG_SIL_MALLETTE_MAP": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_MALLETTE_OPEN": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_MALLETTE_PRISE": [
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_MALLETTE_TRIED": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_MODULE_CASCADE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_MODULE_COUPE": [
+            "00-prologue",
+            "01-bois-ether",
+        ],
+        "FLAG_SIL_MODULE_ECLATE_ROC": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_MODULE_FILTRE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_MODULE_FLASH": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+        ],
+        "FLAG_SIL_MODULE_FORCE": [
+            "02-gris-echec",
+            "03-viber-city",
+            "08-evalon",
+            "11-apex-zenith",
+        ],
+        "FLAG_SIL_MODULE_MEGA": [
+            "06-manga-square",
+            "08-evalon",
+            "09-nebula",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "FLAG_SIL_MODULE_PLONGEE": [
+            "08-evalon",
+            "09-nebula",
+        ],
+        "FLAG_SIL_MODULE_SURF": [
+            "04-port-ressac",
+            "05-owlys",
+        ],
+        "FLAG_SIL_MODULE_VOL": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_NEBULA_DIVERSION": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_OWLYS_GYM_COUR_OK": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_GYM_P1": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_GYM_P2": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_GYM_P3": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_GYM_P4": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_GYM_P5": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_MATHIEU_BROCHETTES": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_MATHIEU_RESTE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_MILO": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_PLUME": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_PORTE_GYM": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_SILO_DECIDE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_SILO_NOCTALI_1": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_SILO_NOCTALI_2": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_SILO_NOCTALI_3": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_SILO_VIDE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_VEILLEUR_1": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_VEILLEUR_2": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_VEILLEUR_3": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_OWLYS_VEILLEUR_4": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_PARDON_ARTHUR": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_PARDON_KIMIKO": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_PARDON_SILAS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_PG_DEHORS_VU": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_PORT_APPEL_JULIEN": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_CALE_FUT_1": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_CALE_FUT_2": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_CANNE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_CROW_GUET": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_GARDE_DORT": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_GWADA_BATTU": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_GWADA_RHUM": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_GYM_ALCOOTEST": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_GYM_CONFUS": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_LIBERE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_LIMONADE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_SAMUEL_ALLIE": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORT_VIEUX_PATCH": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_PORYGON_LIBERE": [
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "FLAG_SIL_POSTGAME": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_REFLETS_PORTE_OUVERTE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_RELAIS_ETEINT": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_REVENGE_ALLIE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_REVERSE_BATTU": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_REVERSE_EMETTEUR_1": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_REVERSE_EMETTEUR_2": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_REVERSE_EMETTEUR_3": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE": [
+            "07-reverse-city",
+        ],
+        "FLAG_SIL_ROUTE_S02_CABLE_1": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ROUTE_S02_CABLE_2": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ROUTE_S02_CABLE_3": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ROUTE_S02_SERVER_MOVED": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_ROUTE_S04_ADRIEN": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ROUTE_S04_M8": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ROUTE_S04_MURS": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_ROUTE_S05_LOKHLASS": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ROUTE_S05_PUNCH": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ROUTE_S05_SUPER_CANNE": [
+            "05-owlys",
+        ],
+        "FLAG_SIL_ROUTE_S06_RACCOURCI": [
+            "06-manga-square",
+        ],
+        "FLAG_SIL_RUNNING_SHOES": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_S01_SIGNAL_SEEN": [
+            "00-prologue",
+        ],
+        "FLAG_SIL_S09_DISJONCTEUR": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_S09_POMPE_A": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_S09_POMPE_B": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_S09_PREMIERE_PLONGEE": [
+            "09-nebula",
+        ],
+        "FLAG_SIL_SAMUEL_PERDU": [
+            "04-port-ressac",
+        ],
+        "FLAG_SIL_STATION_CONTREMAITRE": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_STUDIO_DECOR_COUPE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TICKET_ESPACE": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_TMP_MATHIEU_HEAL": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_TOURNOI_AMIS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_TOUR_1F_INTRO": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TOUR_2F_INTRO": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TOUR_3F_INTRO": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TOUR_4F_INTRO": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TOUR_COEUR_PULSE": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TOUR_OPEN": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_TOUR_RAVITAILLEMENT": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_TOUR_SEUIL_VU": [
+            "10-tour-piliers",
+        ],
+        "FLAG_SIL_USINE_CRATES_MOVED": [
+            "02-gris-echec",
+        ],
+        "FLAG_SIL_VESTIGE_ARTHUR": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_VESTIGE_KIMIKO": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_VESTIGE_SILAS": [
+            "12-post-game",
+        ],
+        "FLAG_SIL_VIBER_BARRIERE_EST": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_VIBER_BLACKOUT": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_VIBER_NEONS_BLANCS": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_VIBER_NEON_SCANNED": [
+            "03-viber-city",
+        ],
+        "FLAG_SIL_ZONE404_OUVERTE": [
+            "12-post-game",
+        ],
+        "FLAG_SYS_POKEDEX_GET": [
+            "00-prologue",
+        ],
+        "FLAG_SYS_POKENAV_GET": [
+            "00-prologue",
+        ],
+        "HEAL_LOCATION_BRICO_BOURG": [
+            "11-apex-zenith",
+        ],
+        "HEAL_LOCATION_OWLYS": [
+            "05-owlys",
+        ],
+        "HEAL_LOCATION_PORT_RESSAC": [
+            "04-port-ressac",
+        ],
+        "ITEM_ANTIDOTE": [
+            "00-prologue",
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "ITEM_AWAKENING": [
+            "03-viber-city",
+            "08-evalon",
+        ],
+        "ITEM_BERRY_JUICE": [
+            "08-evalon",
+        ],
+        "ITEM_BIG_PEARL": [
+            "05-owlys",
+            "09-nebula",
+        ],
+        "ITEM_BLACK_BELT": [
+            "06-manga-square",
+        ],
+        "ITEM_BLACK_GLASSES": [
+            "05-owlys",
+        ],
+        "ITEM_BRIGHT_POWDER": [
+            "03-viber-city",
+        ],
+        "ITEM_BURN_HEAL": [
+            "03-viber-city",
+        ],
+        "ITEM_CALCIUM": [
+            "05-owlys",
+        ],
+        "ITEM_CHOICE_BAND": [
+            "12-post-game",
+        ],
+        "ITEM_COIN_CASE": [
+            "03-viber-city",
+        ],
+        "ITEM_DEEP_SEA_SCALE": [
+            "05-owlys",
+        ],
+        "ITEM_DEVON_GOODS": [
+            "04-port-ressac",
+        ],
+        "ITEM_DEVON_SCOPE": [
+            "02-gris-echec",
+            "12-post-game",
+        ],
+        "ITEM_DIRE_HIT": [
+            "07-reverse-city",
+            "09-nebula",
+        ],
+        "ITEM_DIVE_BALL": [
+            "04-port-ressac",
+        ],
+        "ITEM_DRAGON_SCALE": [
+            "04-port-ressac",
+            "06-manga-square",
+        ],
+        "ITEM_ELIXIR": [
+            "03-viber-city",
+            "09-nebula",
+        ],
+        "ITEM_ENERGY_POWDER": [
+            "01-bois-ether",
+            "08-evalon",
+        ],
+        "ITEM_ENERGY_ROOT": [
+            "01-bois-ether",
+            "08-evalon",
+        ],
+        "ITEM_ESCAPE_ROPE": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+        ],
+        "ITEM_ETHER": [
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "07-reverse-city",
+        ],
+        "ITEM_EXP_SHARE": [
+            "03-viber-city",
+            "07-reverse-city",
+        ],
+        "ITEM_FIRE_STONE": [
+            "03-viber-city",
+        ],
+        "ITEM_FOCUS_BAND": [
+            "05-owlys",
+            "06-manga-square",
+        ],
+        "ITEM_FRESH_WATER": [
+            "01-bois-ether",
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "06-manga-square",
+            "08-evalon",
+            "09-nebula",
+        ],
+        "ITEM_FULL_HEAL": [
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_FULL_RESTORE": [
+            "09-nebula",
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_GOOD_ROD": [
+            "04-port-ressac",
+        ],
+        "ITEM_GREAT_BALL": [
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "08-evalon",
+        ],
+        "ITEM_GUARD_SPEC": [
+            "07-reverse-city",
+            "09-nebula",
+        ],
+        "ITEM_HARD_STONE": [
+            "03-viber-city",
+            "08-evalon",
+        ],
+        "ITEM_HEAL_POWDER": [
+            "01-bois-ether",
+            "08-evalon",
+        ],
+        "ITEM_HEART_SCALE": [
+            "05-owlys",
+            "06-manga-square",
+            "09-nebula",
+        ],
+        "ITEM_HP_UP": [
+            "07-reverse-city",
+        ],
+        "ITEM_HYPER_POTION": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_IRON": [
+            "02-gris-echec",
+            "05-owlys",
+        ],
+        "ITEM_LAVA_COOKIE": [
+            "08-evalon",
+        ],
+        "ITEM_LAX_INCENSE": [
+            "06-manga-square",
+        ],
+        "ITEM_LEFTOVERS": [
+            "02-gris-echec",
+            "09-nebula",
+        ],
+        "ITEM_LEMONADE": [
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "09-nebula",
+        ],
+        "ITEM_LETTER": [
+            "02-gris-echec",
+            "08-evalon",
+        ],
+        "ITEM_LIGHT_BALL": [
+            "02-gris-echec",
+        ],
+        "ITEM_LUCKY_PUNCH": [
+            "04-port-ressac",
+        ],
+        "ITEM_LUM_BERRY": [
+            "05-owlys",
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "ITEM_MACHO_BRACE": [
+            "08-evalon",
+        ],
+        "ITEM_MAGNET": [
+            "02-gris-echec",
+            "03-viber-city",
+        ],
+        "ITEM_MASTER_BALL": [
+            "07-reverse-city",
+        ],
+        "ITEM_MAX_ELIXIR": [
+            "09-nebula",
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_MAX_ETHER": [
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "ITEM_MAX_POTION": [
+            "05-owlys",
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_MAX_REPEL": [
+            "05-owlys",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "12-post-game",
+        ],
+        "ITEM_MAX_REVIVE": [
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_METAL_COAT": [
+            "02-gris-echec",
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "ITEM_METAL_POWDER": [
+            "01-bois-ether",
+        ],
+        "ITEM_MIRACLE_SEED": [
+            "01-bois-ether",
+            "06-manga-square",
+        ],
+        "ITEM_MOOMOO_MILK": [
+            "08-evalon",
+        ],
+        "ITEM_MOON_STONE": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "08-evalon",
+            "12-post-game",
+        ],
+        "ITEM_MYSTIC_TICKET": [
+            "12-post-game",
+        ],
+        "ITEM_NANAB_BERRY": [
+            "06-manga-square",
+        ],
+        "ITEM_NET_BALL": [
+            "12-post-game",
+        ],
+        "ITEM_NUGGET": [
+            "03-viber-city",
+            "08-evalon",
+        ],
+        "ITEM_ORAN_BERRY": [
+            "00-prologue",
+        ],
+        "ITEM_PARALYZE_HEAL": [
+            "02-gris-echec",
+            "03-viber-city",
+        ],
+        "ITEM_PEARL": [
+            "04-port-ressac",
+        ],
+        "ITEM_PERSIM_BERRY": [
+            "04-port-ressac",
+            "08-evalon",
+            "10-tour-piliers",
+        ],
+        "ITEM_POKE_BALL": [
+            "00-prologue",
+            "03-viber-city",
+        ],
+        "ITEM_POTION": [
+            "00-prologue",
+        ],
+        "ITEM_PP_MAX": [
+            "08-evalon",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_PP_UP": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_QUICK_CLAW": [
+            "01-bois-ether",
+            "03-viber-city",
+            "05-owlys",
+            "06-manga-square",
+        ],
+        "ITEM_RARE_CANDY": [
+            "03-viber-city",
+            "05-owlys",
+            "07-reverse-city",
+            "08-evalon",
+            "12-post-game",
+        ],
+        "ITEM_REVIVAL_HERB": [
+            "01-bois-ether",
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "ITEM_REVIVE": [
+            "01-bois-ether",
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_SACRED_ASH": [
+            "04-port-ressac",
+        ],
+        "ITEM_SCANNER": [
+            "12-post-game",
+        ],
+        "ITEM_SCOPE_LENS": [
+            "03-viber-city",
+            "05-owlys",
+            "08-evalon",
+            "12-post-game",
+        ],
+        "ITEM_SHARP_BEAK": [
+            "05-owlys",
+        ],
+        "ITEM_SHELL_BELL": [
+            "12-post-game",
+        ],
+        "ITEM_SILK_SCARF": [
+            "03-viber-city",
+        ],
+        "ITEM_SIL_ABSOLITE": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "ITEM_SIL_ACCES_ALPHA": [
+            "10-tour-piliers",
+        ],
+        "ITEM_SIL_ACCES_BETA": [
+            "10-tour-piliers",
+        ],
+        "ITEM_SIL_ACCES_GAMMA": [
+            "10-tour-piliers",
+        ],
+        "ITEM_SIL_AERODACTYLITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_AGGRONITE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_ALAKAZITE": [
+            "02-gris-echec",
+            "07-reverse-city",
+            "12-post-game",
+        ],
+        "ITEM_SIL_ALTARIANITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_AMPHAROSITE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_BANETTITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_BATEAU_ORIGAMI": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_SIL_BLAZIKENITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_BOUSSOLE_ARTHUR": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_SIL_BOUTEILLE_PUNCH": [
+            "05-owlys",
+        ],
+        "ITEM_SIL_BROCHETTE_NEON": [
+            "03-viber-city",
+        ],
+        "ITEM_SIL_CARTE_PERFOREE": [
+            "02-gris-echec",
+        ],
+        "ITEM_SIL_CHARIZARDITE_X": [
+            "06-manga-square",
+            "12-post-game",
+        ],
+        "ITEM_SIL_CHARIZARDITE_Y": [
+            "06-manga-square",
+        ],
+        "ITEM_SIL_CHRONIQUE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_CLE_DEBUG": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_COEUR_EVALON": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_COMPOSANT_FILTRE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_ECHANTILLON_SOL": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_EPEE_LEGENDE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_EVOLUROC": [
+            "01-bois-ether",
+        ],
+        "ITEM_SIL_FICHE_PERSONNAGE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_GARDEVOIRITE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_GENGARITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_GLALITITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_GYARADOSITE": [
+            "10-tour-piliers",
+        ],
+        "ITEM_SIL_HERACRONITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_HOUNDOOMINITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_KANGASKHANITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_LARME_FEE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_LATIOSITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_MALLETTE": [
+            "00-prologue",
+            "11-apex-zenith",
+        ],
+        "ITEM_SIL_MANECTITE": [
+            "09-nebula",
+        ],
+        "ITEM_SIL_MAWILITE": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_MEDICHAMITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_METAGROSSITE": [
+            "08-evalon",
+            "12-post-game",
+        ],
+        "ITEM_SIL_MEWTWONITE_X": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_MEWTWONITE_Y": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_MILLESIME_SAM": [
+            "04-port-ressac",
+        ],
+        "ITEM_SIL_MINERAI_FERREUX": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_MULTI_EXP_V2": [
+            "07-reverse-city",
+        ],
+        "ITEM_SIL_ORBE_BLEU": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_SIL_ORBE_EVEIL": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_ORBE_ROUGE": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_SIL_PAIN_LEMBAS": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_PIERRE_LIEN": [
+            "03-viber-city",
+            "05-owlys",
+            "08-evalon",
+            "09-nebula",
+            "12-post-game",
+        ],
+        "ITEM_SIL_PINSIRITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_PLAN_PRISE_EAU": [
+            "08-evalon",
+        ],
+        "ITEM_SIL_PLUME_OMBREE": [
+            "05-owlys",
+        ],
+        "ITEM_SIL_PLUME_OR": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_POUDRE_CLAIRE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_POUDRE_SILICE": [
+            "07-reverse-city",
+        ],
+        "ITEM_SIL_POUSSIERE_SILICE": [
+            "01-bois-ether",
+        ],
+        "ITEM_SIL_RHUM_PIRATE": [
+            "04-port-ressac",
+            "12-post-game",
+        ],
+        "ITEM_SIL_SABLENITE": [
+            "05-owlys",
+        ],
+        "ITEM_SIL_SALAMENCITE": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "ITEM_SIL_SCEPTILITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_SCIZORITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_STEELIXITE": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_SIL_SWAMPERTITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_TICKET_ESPACE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_TYRANITARITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_VENUSAURITE": [
+            "12-post-game",
+        ],
+        "ITEM_SIL_VIEUX_PATCH": [
+            "04-port-ressac",
+        ],
+        "ITEM_SITRUS_BERRY": [
+            "02-gris-echec",
+        ],
+        "ITEM_SMOKE_BALL": [
+            "06-manga-square",
+        ],
+        "ITEM_SODA_POP": [
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "06-manga-square",
+            "09-nebula",
+        ],
+        "ITEM_SOFT_SAND": [
+            "06-manga-square",
+        ],
+        "ITEM_SOOTHE_BELL": [
+            "02-gris-echec",
+            "06-manga-square",
+            "12-post-game",
+        ],
+        "ITEM_SOOT_SACK": [
+            "01-bois-ether",
+            "08-evalon",
+        ],
+        "ITEM_STARF_BERRY": [
+            "12-post-game",
+        ],
+        "ITEM_STAR_PIECE": [
+            "04-port-ressac",
+            "09-nebula",
+        ],
+        "ITEM_STORAGE_KEY": [
+            "10-tour-piliers",
+        ],
+        "ITEM_SUN_STONE": [
+            "03-viber-city",
+            "06-manga-square",
+        ],
+        "ITEM_SUPER_POTION": [
+            "01-bois-ether",
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "08-evalon",
+        ],
+        "ITEM_SUPER_REPEL": [
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "06-manga-square",
+        ],
+        "ITEM_SUPER_ROD": [
+            "05-owlys",
+        ],
+        "ITEM_THUNDER_STONE": [
+            "02-gris-echec",
+            "03-viber-city",
+        ],
+        "ITEM_TIMER_BALL": [
+            "09-nebula",
+            "12-post-game",
+        ],
+        "ITEM_TM01": [
+            "04-port-ressac",
+        ],
+        "ITEM_TM06": [
+            "01-bois-ether",
+        ],
+        "ITEM_TM08": [
+            "06-manga-square",
+        ],
+        "ITEM_TM09": [
+            "01-bois-ether",
+        ],
+        "ITEM_TM11": [
+            "07-reverse-city",
+        ],
+        "ITEM_TM12": [
+            "05-owlys",
+        ],
+        "ITEM_TM13": [
+            "08-evalon",
+        ],
+        "ITEM_TM14": [
+            "03-viber-city",
+        ],
+        "ITEM_TM17": [
+            "05-owlys",
+        ],
+        "ITEM_TM18": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "ITEM_TM19": [
+            "08-evalon",
+        ],
+        "ITEM_TM21": [
+            "06-manga-square",
+        ],
+        "ITEM_TM23": [
+            "02-gris-echec",
+            "08-evalon",
+        ],
+        "ITEM_TM24": [
+            "09-nebula",
+        ],
+        "ITEM_TM25": [
+            "03-viber-city",
+        ],
+        "ITEM_TM30": [
+            "03-viber-city",
+            "08-evalon",
+        ],
+        "ITEM_TM31": [
+            "04-port-ressac",
+        ],
+        "ITEM_TM34": [
+            "02-gris-echec",
+            "03-viber-city",
+        ],
+        "ITEM_TM35": [
+            "03-viber-city",
+        ],
+        "ITEM_TM40": [
+            "06-manga-square",
+        ],
+        "ITEM_TM44": [
+            "03-viber-city",
+        ],
+        "ITEM_TM46": [
+            "05-owlys",
+        ],
+        "ITEM_TWISTED_SPOON": [
+            "07-reverse-city",
+        ],
+        "ITEM_ULTRA_BALL": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "ITEM_UP_GRADE": [
+            "03-viber-city",
+        ],
+        "ITEM_WATER_STONE": [
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+        ],
+        "ITEM_WHITE_HERB": [
+            "12-post-game",
+        ],
+        "ITEM_X_ACCURACY": [
+            "07-reverse-city",
+        ],
+        "ITEM_X_ATTACK": [
+            "05-owlys",
+            "07-reverse-city",
+            "09-nebula",
+        ],
+        "ITEM_X_DEFEND": [
+            "01-bois-ether",
+            "05-owlys",
+            "07-reverse-city",
+            "09-nebula",
+        ],
+        "ITEM_X_SPECIAL": [
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+        ],
+        "ITEM_X_SPEED": [
+            "02-gris-echec",
+            "03-viber-city",
+            "07-reverse-city",
+            "09-nebula",
+        ],
+        "ITEM_ZINC": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_BENOU_LAB": [
+            "09-nebula",
+            "12-post-game",
+        ],
+        "MAP_BOIS_ETHER": [
+            "00-prologue",
+            "01-bois-ether",
+            "02-gris-echec",
+            "12-post-game",
+        ],
+        "MAP_BOIS_ETHER_GYM": [
+            "01-bois-ether",
+            "12-post-game",
+        ],
+        "MAP_BOIS_ETHER_HERBORISTE": [
+            "01-bois-ether",
+        ],
+        "MAP_BOIS_ETHER_MART": [
+            "01-bois-ether",
+        ],
+        "MAP_BOIS_ETHER_POKEMON_CENTER": [
+            "01-bois-ether",
+        ],
+        "MAP_BRECHE": [
+            "12-post-game",
+        ],
+        "MAP_BRICO_BOURG": [
+            "00-prologue",
+            "01-bois-ether",
+            "12-post-game",
+        ],
+        "MAP_BRICO_BOURG_BAR": [
+            "00-prologue",
+            "12-post-game",
+        ],
+        "MAP_BRICO_BOURG_BAR_LOUNGE": [
+            "12-post-game",
+        ],
+        "MAP_BRICO_BOURG_FRIENDS_HOUSE": [
+            "00-prologue",
+        ],
+        "MAP_BRICO_BOURG_LABO": [
+            "00-prologue",
+            "01-bois-ether",
+        ],
+        "MAP_BRICO_BOURG_NIGHT": [
+            "00-prologue",
+        ],
+        "MAP_BRICO_BOURG_PLAYER_HOUSE_1F": [
+            "00-prologue",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "MAP_BRICO_BOURG_PLAYER_HOUSE_2F": [
+            "00-prologue",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "MAP_EVALON": [
+            "08-evalon",
+            "09-nebula",
+            "12-post-game",
+        ],
+        "MAP_EVALON_CITADELLE": [
+            "08-evalon",
+            "12-post-game",
+        ],
+        "MAP_EVALON_CITADELLE_2F": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_CONSEIL": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_ECHOPPE": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_FORGE": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_GALERIES": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_TAVERNE": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_TOUR_SCRIBE": [
+            "08-evalon",
+            "12-post-game",
+        ],
+        "MAP_EVALON_TOUR_SCRIBE_2F": [
+            "08-evalon",
+        ],
+        "MAP_EVALON_TOUR_SCRIBE_3F": [
+            "08-evalon",
+        ],
+        "MAP_GRIS_ECHEC": [
+            "02-gris-echec",
+            "03-viber-city",
+        ],
+        "MAP_GRIS_ECHEC_GYM": [
+            "02-gris-echec",
+            "12-post-game",
+        ],
+        "MAP_GRIS_ECHEC_GYM_SOURDE": [
+            "02-gris-echec",
+        ],
+        "MAP_GRIS_ECHEC_MART": [
+            "02-gris-echec",
+        ],
+        "MAP_GRIS_ECHEC_POKEMON_CENTER": [
+            "02-gris-echec",
+        ],
+        "MAP_GRIS_ECHEC_TOUR_OBSERVATION": [
+            "02-gris-echec",
+            "12-post-game",
+        ],
+        "MAP_GRIS_ECHEC_TOUR_OBSERVATION_TOP": [
+            "02-gris-echec",
+        ],
+        "MAP_GRIS_ECHEC_USINE": [
+            "02-gris-echec",
+        ],
+        "MAP_MANGA_SQUARE": [
+            "06-manga-square",
+            "07-reverse-city",
+            "12-post-game",
+        ],
+        "MAP_MANGA_SQUARE_BIBLIOTHEQUE": [
+            "06-manga-square",
+            "12-post-game",
+        ],
+        "MAP_MANGA_SQUARE_DOJO": [
+            "06-manga-square",
+            "12-post-game",
+        ],
+        "MAP_MANGA_SQUARE_GYM": [
+            "06-manga-square",
+            "12-post-game",
+        ],
+        "MAP_MANGA_SQUARE_HOUSE_1": [
+            "06-manga-square",
+        ],
+        "MAP_MANGA_SQUARE_HOUSE_2": [
+            "06-manga-square",
+        ],
+        "MAP_MANGA_SQUARE_MART": [
+            "06-manga-square",
+        ],
+        "MAP_MANGA_SQUARE_POKEMON_CENTER": [
+            "06-manga-square",
+        ],
+        "MAP_MANGA_SQUARE_TOILETTEUR": [
+            "06-manga-square",
+        ],
+        "MAP_NEBULA": [
+            "09-nebula",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "MAP_NEBULA_GARGOTE": [
+            "09-nebula",
+        ],
+        "MAP_NEBULA_MART": [
+            "09-nebula",
+            "12-post-game",
+        ],
+        "MAP_NEBULA_POKEMON_CENTER": [
+            "09-nebula",
+        ],
+        "MAP_NEBULA_TOUR_HALL": [
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "MAP_NEBULA_TOUR_HALL_B1F": [
+            "09-nebula",
+        ],
+        "MAP_NO_MANS_LAND": [
+            "12-post-game",
+        ],
+        "MAP_NO_MANS_LAND_CAVEAU_GLACE": [
+            "12-post-game",
+        ],
+        "MAP_NO_MANS_LAND_CENTRALE": [
+            "12-post-game",
+        ],
+        "MAP_NO_MANS_LAND_CRATERE": [
+            "12-post-game",
+        ],
+        "MAP_NO_MANS_LAND_RELAIS_B1F": [
+            "12-post-game",
+        ],
+        "MAP_OWLYS": [
+            "05-owlys",
+            "06-manga-square",
+        ],
+        "MAP_OWLYS_ENTREPOT": [
+            "05-owlys",
+        ],
+        "MAP_OWLYS_ENTREPOT_B1F": [
+            "05-owlys",
+        ],
+        "MAP_OWLYS_GROTTE_EST": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_OWLYS_GYM": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_OWLYS_GYM_B1F": [
+            "05-owlys",
+        ],
+        "MAP_OWLYS_MARCHE_GRIS": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_OWLYS_ORPHELINAT": [
+            "05-owlys",
+        ],
+        "MAP_OWLYS_POKEMON_CENTER": [
+            "05-owlys",
+        ],
+        "MAP_PORT_RESSAC": [
+            "04-port-ressac",
+            "05-owlys",
+        ],
+        "MAP_PORT_RESSAC_GYM": [
+            "04-port-ressac",
+            "12-post-game",
+        ],
+        "MAP_PORT_RESSAC_GYM_CALE": [
+            "04-port-ressac",
+        ],
+        "MAP_PORT_RESSAC_NAVIRE_COCKET": [
+            "04-port-ressac",
+        ],
+        "MAP_PORT_RESSAC_TAVERNE": [
+            "04-port-ressac",
+        ],
+        "MAP_REVERSE_CITY": [
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "MAP_REVERSE_CITY_COFFRE": [
+            "07-reverse-city",
+        ],
+        "MAP_REVERSE_CITY_GYM": [
+            "07-reverse-city",
+            "12-post-game",
+        ],
+        "MAP_REVERSE_CITY_HOUSE_1": [
+            "07-reverse-city",
+        ],
+        "MAP_REVERSE_CITY_MART": [
+            "07-reverse-city",
+        ],
+        "MAP_REVERSE_CITY_PHARE": [
+            "07-reverse-city",
+            "12-post-game",
+        ],
+        "MAP_REVERSE_CITY_POKEMON_CENTER": [
+            "07-reverse-city",
+        ],
+        "MAP_ROUTE_S01": [
+            "00-prologue",
+            "01-bois-ether",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S02": [
+            "01-bois-ether",
+            "02-gris-echec",
+        ],
+        "MAP_ROUTE_S02_ANTENNE": [
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S03": [
+            "02-gris-echec",
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S03_ANTENNE": [
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S03_DEPOT": [
+            "03-viber-city",
+        ],
+        "MAP_ROUTE_S04": [
+            "03-viber-city",
+            "04-port-ressac",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S05": [
+            "04-port-ressac",
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S05_BANC": [
+            "05-owlys",
+        ],
+        "MAP_ROUTE_S05_EPAVE": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S05_FAILLE": [
+            "05-owlys",
+        ],
+        "MAP_ROUTE_S05_GROTTE_CORAIL": [
+            "05-owlys",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S05_ILE_DEBUG": [
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S06": [
+            "05-owlys",
+            "06-manga-square",
+        ],
+        "MAP_ROUTE_S06_BOIS_SOUPIRS": [
+            "06-manga-square",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S07": [
+            "06-manga-square",
+            "07-reverse-city",
+        ],
+        "MAP_ROUTE_S07_ANTENNE": [
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S08": [
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "MAP_ROUTE_S08_GROTTE_STELE": [
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S09": [
+            "08-evalon",
+            "09-nebula",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_S09_STATION": [
+            "09-nebula",
+        ],
+        "MAP_ROUTE_S09_UNDERWATER": [
+            "09-nebula",
+            "12-post-game",
+        ],
+        "MAP_ROUTE_SXX_ANTENNE": [
+            "12-post-game",
+        ],
+        "MAP_SOMMET_APEX": [
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "MAP_SOMMET_APEX_TEMPLE_NUAGES": [
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_1F": [
+            "09-nebula",
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_1F_RUINE": [
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_2F": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_3F": [
+            "10-tour-piliers",
+        ],
+        "MAP_TOUR_NEBULA_3F_RUINE": [
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_4F": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_4F_RUINE": [
+            "12-post-game",
+        ],
+        "MAP_TOUR_NEBULA_ASCENSEUR": [
+            "10-tour-piliers",
+            "12-post-game",
+        ],
+        "MAP_TRONE_ZENITH": [
+            "11-apex-zenith",
+        ],
+        "MAP_TRONE_ZENITH_ASCENSEUR": [
+            "11-apex-zenith",
+        ],
+        "MAP_TRONE_ZENITH_NUIT": [
+            "11-apex-zenith",
+        ],
+        "MAP_VIBER_CITY": [
+            "03-viber-city",
+            "04-port-ressac",
+            "12-post-game",
+        ],
+        "MAP_VIBER_CITY_CASINO": [
+            "03-viber-city",
+        ],
+        "MAP_VIBER_CITY_CASINO_B1F": [
+            "03-viber-city",
+        ],
+        "MAP_VIBER_CITY_GYM": [
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "MAP_VIBER_CITY_HOUSE_1": [
+            "03-viber-city",
+        ],
+        "MAP_VIBER_CITY_MART": [
+            "03-viber-city",
+        ],
+        "MAP_VIBER_CITY_POKEMON_CENTER": [
+            "03-viber-city",
+        ],
+        "MAP_VIBER_CITY_STATION_LUMIERE": [
+            "03-viber-city",
+        ],
+        "MAP_ZONE_404": [
+            "12-post-game",
+        ],
+        "MAP_ZONE_404_NOYAU": [
+            "12-post-game",
+        ],
+        "MOVE_ANCIENT_POWER": [
+            "12-post-game",
+        ],
+        "MOVE_CRUNCH": [
+            "12-post-game",
+        ],
+        "MOVE_CRUSH_CLAW": [
+            "12-post-game",
+        ],
+        "MOVE_EXPLOSION": [
+            "10-tour-piliers",
+        ],
+        "MOVE_LIGHT_SCREEN": [
+            "10-tour-piliers",
+        ],
+        "MOVE_REFLECT": [
+            "10-tour-piliers",
+        ],
+        "MOVE_SIL_CODE_AQUA": [
+            "12-post-game",
+        ],
+        "MOVE_SPIKES": [
+            "10-tour-piliers",
+        ],
+        "MUS_ABANDONED_SHIP": [
+            "02-gris-echec",
+        ],
+        "MUS_ABNORMAL_WEATHER": [
+            "08-evalon",
+            "09-nebula",
+        ],
+        "MUS_AQUA_MAGMA_HIDEOUT": [
+            "03-viber-city",
+            "09-nebula",
+        ],
+        "MUS_CONTEST_LOBBY": [
+            "10-tour-piliers",
+        ],
+        "MUS_CONTEST_WINNER": [
+            "02-gris-echec",
+        ],
+        "MUS_CREDITS": [
+            "11-apex-zenith",
+        ],
+        "MUS_ENCOUNTER_AQUA": [
+            "06-manga-square",
+        ],
+        "MUS_ENCOUNTER_BRENDAN": [
+            "01-bois-ether",
+        ],
+        "MUS_ENCOUNTER_ELITE_FOUR": [
+            "11-apex-zenith",
+        ],
+        "MUS_ENCOUNTER_INTENSE": [
+            "08-evalon",
+        ],
+        "MUS_ENCOUNTER_MAGMA": [
+            "00-prologue",
+            "01-bois-ether",
+            "03-viber-city",
+            "07-reverse-city",
+            "10-tour-piliers",
+        ],
+        "MUS_ENCOUNTER_MYSTERIOUS": [
+            "00-prologue",
+        ],
+        "MUS_END": [
+            "11-apex-zenith",
+        ],
+        "MUS_EVER_GRANDE": [
+            "00-prologue",
+            "09-nebula",
+        ],
+        "MUS_FALLARBOR": [
+            "08-evalon",
+        ],
+        "MUS_FORTREE": [
+            "01-bois-ether",
+        ],
+        "MUS_GAME_CORNER": [
+            "03-viber-city",
+        ],
+        "MUS_GYM": [
+            "01-bois-ether",
+            "02-gris-echec",
+            "03-viber-city",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "MUS_HEAL": [
+            "11-apex-zenith",
+        ],
+        "MUS_KIMIKO_STREAM": [
+            "02-gris-echec",
+        ],
+        "MUS_LILYCOVE": [
+            "06-manga-square",
+        ],
+        "MUS_LILYCOVE_MUSEUM": [
+            "06-manga-square",
+            "09-nebula",
+        ],
+        "MUS_LITTLEROOT": [
+            "00-prologue",
+        ],
+        "MUS_MAUVILLE": [
+            "03-viber-city",
+        ],
+        "MUS_MOSSDEEP": [
+            "02-gris-echec",
+        ],
+        "MUS_MT_PYRE": [
+            "11-apex-zenith",
+        ],
+        "MUS_MT_PYRE_EXTERIOR": [
+            "10-tour-piliers",
+        ],
+        "MUS_NONE": [
+            "08-evalon",
+            "09-nebula",
+        ],
+        "MUS_OBTAIN_BADGE": [
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+        ],
+        "MUS_OBTAIN_TMHM": [
+            "06-manga-square",
+            "07-reverse-city",
+        ],
+        "MUS_PETALBURG_WOODS": [
+            "06-manga-square",
+        ],
+        "MUS_RG_ENCOUNTER_GYM_LEADER": [
+            "06-manga-square",
+        ],
+        "MUS_RG_MT_MOON": [
+            "08-evalon",
+        ],
+        "MUS_RG_SEKAIKAN": [
+            "08-evalon",
+        ],
+        "MUS_RG_SEVII_123": [
+            "08-evalon",
+        ],
+        "MUS_RG_SEVII_DUNGEON": [
+            "08-evalon",
+        ],
+        "MUS_RG_SILPH": [
+            "09-nebula",
+        ],
+        "MUS_ROUTE101": [
+            "00-prologue",
+        ],
+        "MUS_ROUTE110": [
+            "02-gris-echec",
+        ],
+        "MUS_ROUTE111": [
+            "03-viber-city",
+        ],
+        "MUS_ROUTE118": [
+            "07-reverse-city",
+        ],
+        "MUS_ROUTE119": [
+            "08-evalon",
+        ],
+        "MUS_ROUTE120": [
+            "06-manga-square",
+        ],
+        "MUS_SEALED_CHAMBER": [
+            "03-viber-city",
+            "08-evalon",
+            "10-tour-piliers",
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_ALERTE_BRECHE": [
+            "12-post-game",
+        ],
+        "MUS_SIL_APEX_BRUME": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_APEX_SOLO": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_AUBE_VRAIE": [
+            "12-post-game",
+        ],
+        "MUS_SIL_BRICO_ACOUSTIQUE": [
+            "12-post-game",
+        ],
+        "MUS_SIL_CREDITS": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_ELYSIUM": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_FIN": [
+            "12-post-game",
+        ],
+        "MUS_SIL_JULIEN_MESSIE": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_NO_MANS_LAND": [
+            "12-post-game",
+        ],
+        "MUS_SIL_VRAI_CIEL": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_VS_COCORICO": [
+            "11-apex-zenith",
+        ],
+        "MUS_SIL_VS_POUSSIN": [
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "MUS_SLATEPORT": [
+            "00-prologue",
+        ],
+        "MUS_SOOTOPOLIS": [
+            "11-apex-zenith",
+        ],
+        "MUS_SURF": [
+            "09-nebula",
+        ],
+        "MUS_TEAM_AQUA_HIDEOUT": [
+            "01-bois-ether",
+        ],
+        "MUS_TRICK_HOUSE": [
+            "10-tour-piliers",
+        ],
+        "MUS_UNDERWATER": [
+            "09-nebula",
+            "10-tour-piliers",
+        ],
+        "MUS_VERDANTURF": [
+            "07-reverse-city",
+        ],
+        "MUS_VS_AQUA_MAGMA": [
+            "01-bois-ether",
+            "09-nebula",
+            "10-tour-piliers",
+        ],
+        "MUS_VS_AQUA_MAGMA_LEADER": [
+            "08-evalon",
+        ],
+        "MUS_VS_ELITE_FOUR": [
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "MUS_VS_GYM_LEADER": [
+            "01-bois-ether",
+            "02-gris-echec",
+            "03-viber-city",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+        ],
+        "MUS_VS_KYOGRE_GROUDON": [
+            "11-apex-zenith",
+        ],
+        "SE_APPEL": [
+            "04-port-ressac",
+            "07-reverse-city",
+        ],
+        "SE_CLICK": [
+            "00-prologue",
+            "01-bois-ether",
+        ],
+        "SE_CLOCHE_BRONZE": [
+            "08-evalon",
+        ],
+        "SE_COFFRE": [
+            "07-reverse-city",
+        ],
+        "SE_DOOR": [
+            "11-apex-zenith",
+        ],
+        "SE_ELEVATOR": [
+            "10-tour-piliers",
+            "11-apex-zenith",
+        ],
+        "SE_EXPLOSION": [
+            "00-prologue",
+        ],
+        "SE_FILTRE": [
+            "12-post-game",
+        ],
+        "SE_GONG": [
+            "06-manga-square",
+        ],
+        "SE_GRESILLEMENT": [
+            "08-evalon",
+        ],
+        "SE_HACK": [
+            "07-reverse-city",
+        ],
+        "SE_ITEMFINDER": [
+            "11-apex-zenith",
+        ],
+        "SE_MALLETTE_APPEL": [
+            "12-post-game",
+        ],
+        "SE_MALLETTE_BIP": [
+            "12-post-game",
+        ],
+        "SE_M_EXPLOSION": [
+            "11-apex-zenith",
+        ],
+        "SE_PC_LOGIN": [
+            "11-apex-zenith",
+        ],
+        "SE_PC_ON": [
+            "11-apex-zenith",
+        ],
+        "SE_PIN": [
+            "10-tour-piliers",
+            "11-apex-zenith",
+        ],
+        "SE_RING": [
+            "00-prologue",
+            "01-bois-ether",
+            "02-gris-echec",
+        ],
+        "SE_SERVEURS": [
+            "06-manga-square",
+        ],
+        "SE_SHOJI": [
+            "06-manga-square",
+        ],
+        "SE_SIFFLET": [
+            "04-port-ressac",
+        ],
+        "SE_THUNDER": [
+            "02-gris-echec",
+            "11-apex-zenith",
+        ],
+        "SPECIES_ALAKAZAM_MEGA": [
+            "07-reverse-city",
+        ],
+        "SPECIES_ARTICUNO": [
+            "12-post-game",
+        ],
+        "SPECIES_BELDUM": [
+            "03-viber-city",
+        ],
+        "SPECIES_CELEBI": [
+            "12-post-game",
+        ],
+        "SPECIES_CHARIZARD_MEGA_X": [
+            "06-manga-square",
+        ],
+        "SPECIES_CHARIZARD_MEGA_Y": [
+            "06-manga-square",
+        ],
+        "SPECIES_CHIKORITA": [
+            "00-prologue",
+        ],
+        "SPECIES_CROBAT": [
+            "12-post-game",
+        ],
+        "SPECIES_CYNDAQUIL": [
+            "00-prologue",
+        ],
+        "SPECIES_DEOXYS": [
+            "12-post-game",
+        ],
+        "SPECIES_EEVEE": [
+            "03-viber-city",
+        ],
+        "SPECIES_ELECTRODE": [
+            "04-port-ressac",
+            "08-evalon",
+        ],
+        "SPECIES_ENTEI": [
+            "12-post-game",
+        ],
+        "SPECIES_FERALIGATR": [
+            "12-post-game",
+        ],
+        "SPECIES_FLAAFFY": [
+            "02-gris-echec",
+        ],
+        "SPECIES_GROUDON": [
+            "12-post-game",
+        ],
+        "SPECIES_GYARADOS_MEGA": [
+            "10-tour-piliers",
+        ],
+        "SPECIES_HO_OH": [
+            "12-post-game",
+        ],
+        "SPECIES_JIRACHI": [
+            "12-post-game",
+        ],
+        "SPECIES_KYOGRE": [
+            "12-post-game",
+        ],
+        "SPECIES_LAPRAS": [
+            "05-owlys",
+        ],
+        "SPECIES_LATIAS": [
+            "12-post-game",
+        ],
+        "SPECIES_LATIOS": [
+            "12-post-game",
+        ],
+        "SPECIES_LILEEP": [
+            "03-viber-city",
+        ],
+        "SPECIES_LUGIA": [
+            "12-post-game",
+        ],
+        "SPECIES_MAREEP": [
+            "02-gris-echec",
+        ],
+        "SPECIES_MAWILE": [
+            "03-viber-city",
+        ],
+        "SPECIES_MEGANIUM": [
+            "12-post-game",
+        ],
+        "SPECIES_MEW": [
+            "12-post-game",
+        ],
+        "SPECIES_MEWTWO": [
+            "12-post-game",
+        ],
+        "SPECIES_MOLTRES": [
+            "12-post-game",
+        ],
+        "SPECIES_PORYGON": [
+            "03-viber-city",
+            "12-post-game",
+        ],
+        "SPECIES_RAIKOU": [
+            "12-post-game",
+        ],
+        "SPECIES_RALTS": [
+            "03-viber-city",
+        ],
+        "SPECIES_RAYQUAZA": [
+            "12-post-game",
+        ],
+        "SPECIES_REGICE": [
+            "12-post-game",
+        ],
+        "SPECIES_REGIROCK": [
+            "12-post-game",
+        ],
+        "SPECIES_REGISTEEL": [
+            "12-post-game",
+        ],
+        "SPECIES_SENTRET": [
+            "00-prologue",
+        ],
+        "SPECIES_STARYU": [
+            "03-viber-city",
+        ],
+        "SPECIES_STEELIX_MEGA": [
+            "10-tour-piliers",
+        ],
+        "SPECIES_SUICUNE": [
+            "12-post-game",
+        ],
+        "SPECIES_TOTODILE": [
+            "00-prologue",
+        ],
+        "SPECIES_TYPHLOSION": [
+            "12-post-game",
+        ],
+        "SPECIES_TYRANITAR": [
+            "12-post-game",
+        ],
+        "SPECIES_VOLTORB": [
+            "04-port-ressac",
+        ],
+        "SPECIES_ZAPDOS": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_ADRIEN_1": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_ADRIEN_2": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_ADRIEN_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_ARTHUR_1": [
+            "10-tour-piliers",
+        ],
+        "TRAINER_SIL_ARTHUR_2": [
+            "10-tour-piliers",
+        ],
+        "TRAINER_SIL_ARTHUR_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_BENOU_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_CAPITAINE_PERCEVAL": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_CHEF_SECURITE_DUVAL": [
+            "02-gris-echec",
+        ],
+        "TRAINER_SIL_CHIMISTE_LABO": [
+            "01-bois-ether",
+        ],
+        "TRAINER_SIL_CLONE_1": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_CLONE_2": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_CLONE_3": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_COCORICO_1": [
+            "11-apex-zenith",
+        ],
+        "TRAINER_SIL_CONTREMAITRE_1": [
+            "03-viber-city",
+        ],
+        "TRAINER_SIL_CROW_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_FAN_BRUNO": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_FAN_DIANE": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_FAN_KEVIN": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_GARDE_BERTRAND": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_GARDE_IOLANDA": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_GOGO_1": [
+            "01-bois-ether",
+        ],
+        "TRAINER_SIL_GOGO_2": [
+            "03-viber-city",
+        ],
+        "TRAINER_SIL_GOGO_3": [
+            "07-reverse-city",
+        ],
+        "TRAINER_SIL_GOGO_4": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_GWADA_1": [
+            "02-gris-echec",
+        ],
+        "TRAINER_SIL_GWADA_2": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_GWADA_3": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_GWADA_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_JULIEN_10": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_JULIEN_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_KIMIKO_1": [
+            "10-tour-piliers",
+        ],
+        "TRAINER_SIL_KIMIKO_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_LOIC_1": [
+            "01-bois-ether",
+            "12-post-game",
+        ],
+        "TRAINER_SIL_LOIC_9": [
+            "01-bois-ether",
+            "12-post-game",
+        ],
+        "TRAINER_SIL_LOULPIX_DORIS": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_LOULPIX_DORIS_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_MATHIAS_1": [
+            "10-tour-piliers",
+        ],
+        "TRAINER_SIL_MATHIEU_3": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_MATHIEU_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_OWLYS_CHEF_SILO": [
+            "05-owlys",
+        ],
+        "TRAINER_SIL_OWLYS_CONVOYEUR_A": [
+            "05-owlys",
+        ],
+        "TRAINER_SIL_OWLYS_CONVOYEUR_B": [
+            "05-owlys",
+        ],
+        "TRAINER_SIL_OWLYS_SBIRE_RUELLE": [
+            "05-owlys",
+        ],
+        "TRAINER_SIL_PORT_CONTREMAITRE": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_PORT_GUET_1": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_PORT_GUET_2": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_PORT_SBIRE_1": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_PORT_SBIRE_2": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_PORT_SBIRE_3": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_PORT_SBIRE_4": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_POUSSIN_1": [
+            "11-apex-zenith",
+        ],
+        "TRAINER_SIL_POUSSIN_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_PRAUGECT_OWLYS": [
+            "05-owlys",
+        ],
+        "TRAINER_SIL_REVENGE_1": [
+            "10-tour-piliers",
+        ],
+        "TRAINER_SIL_REVENGE_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_REVERSE_1": [
+            "07-reverse-city",
+        ],
+        "TRAINER_SIL_REVERSE_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_ROBOT_BINAIRE": [
+            "02-gris-echec",
+        ],
+        "TRAINER_SIL_ROMAIN_1": [
+            "01-bois-ether",
+        ],
+        "TRAINER_SIL_ROMAIN_2": [
+            "03-viber-city",
+        ],
+        "TRAINER_SIL_ROMAIN_3": [
+            "07-reverse-city",
+        ],
+        "TRAINER_SIL_ROMAIN_4": [
+            "08-evalon",
+        ],
+        "TRAINER_SIL_SAMUEL_1": [
+            "04-port-ressac",
+        ],
+        "TRAINER_SIL_SAMUEL_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_SBIRE_S06_1": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_SBIRE_S06_2": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_SILAS_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_SKYCKER_1": [
+            "05-owlys",
+        ],
+        "TRAINER_SIL_SKYCKER_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_TAK_1": [
+            "06-manga-square",
+        ],
+        "TRAINER_SIL_TAK_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_TAUBER_HOCSEAT_1": [
+            "03-viber-city",
+        ],
+        "TRAINER_SIL_TAUBER_HOCSEAT_10": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_TAUBER_HOCSEAT_9": [
+            "12-post-game",
+        ],
+        "TRAINER_SIL_YOHAN_1": [
+            "02-gris-echec",
+        ],
+        "TRAINER_SIL_YOHAN_9": [
+            "02-gris-echec",
+            "12-post-game",
+        ],
+        "VAR_RESULT": [
+            "03-viber-city",
+        ],
+        "VAR_SIL_BRICO_LABO_STATE": [
+            "01-bois-ether",
+        ],
+        "VAR_SIL_CASINO_STATE": [
+            "03-viber-city",
+        ],
+        "VAR_SIL_COINS": [
+            "03-viber-city",
+        ],
+        "VAR_SIL_EVALON_PARTENAIRE": [
+            "08-evalon",
+        ],
+        "VAR_SIL_EVALON_RENOM": [
+            "08-evalon",
+        ],
+        "VAR_SIL_EVALON_STATE": [
+            "08-evalon",
+        ],
+        "VAR_SIL_FRAGMENTS": [
+            "12-post-game",
+        ],
+        "VAR_SIL_GRIS_ECHEC_STATE": [
+            "02-gris-echec",
+        ],
+        "VAR_SIL_NOCTURNE_STATE": [
+            "03-viber-city",
+        ],
+        "VAR_SIL_PARDONS": [
+            "12-post-game",
+        ],
+        "VAR_SIL_PORT_RESSAC_STATE": [
+            "04-port-ressac",
+        ],
+        "VAR_SIL_STARTER": [
+            "00-prologue",
+            "12-post-game",
+        ],
+        "VAR_SIL_STATION_STATE": [
+            "03-viber-city",
+        ],
+        "VAR_SIL_STORY": [
+            "00-prologue",
+            "01-bois-ether",
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "VAR_SIL_SYNC": [
+            "01-bois-ether",
+            "02-gris-echec",
+            "03-viber-city",
+            "04-port-ressac",
+            "05-owlys",
+            "06-manga-square",
+            "07-reverse-city",
+            "08-evalon",
+            "09-nebula",
+            "10-tour-piliers",
+            "11-apex-zenith",
+            "12-post-game",
+        ],
+        "VAR_SIL_TOUR_PRISME_1": [
+            "10-tour-piliers",
+        ],
+        "VAR_SIL_TOUR_PRISME_2": [
+            "10-tour-piliers",
+        ],
+        "VAR_SIL_TOUR_PRISME_3": [
+            "10-tour-piliers",
+        ],
+        "VAR_SIL_TOUR_STUDIO_STATE": [
+            "10-tour-piliers",
+        ],
+        "WEATHER_CLOUDS": [
+            "09-nebula",
+        ],
+        "WEATHER_DROUGHT": [
+            "01-bois-ether",
+            "11-apex-zenith",
+        ],
+        "WEATHER_FOG_HORIZONTAL": [
+            "06-manga-square",
+            "08-evalon",
+            "11-apex-zenith",
+        ],
+        "WEATHER_NONE": [
+            "01-bois-ether",
+            "11-apex-zenith",
+        ],
+        "WEATHER_PETALS": [
+            "06-manga-square",
+        ],
+        "WEATHER_SHADE": [
+            "11-apex-zenith",
+        ],
+        "WEATHER_VOLCANIC_ASH": [
+            "06-manga-square",
+        ],
+    },
+    texts: {
+        "Ascenseur_Sc07_T2": [
+            "11-apex-zenith",
+        ],
+        "Ascenseur_Sc07_T3": [
+            "11-apex-zenith",
+        ],
+        "Ascenseur_Sc12_T1": [
+            "11-apex-zenith",
+        ],
+        "Bar_Sc01_T1": [
+            "00-prologue",
+        ],
+        "Bar_Sc01_T2": [
+            "00-prologue",
+        ],
+        "Bar_Sc01_T3": [
+            "00-prologue",
+        ],
+        "Bar_Sc01_T4": [
+            "00-prologue",
+        ],
+        "Bar_Sc02_T1": [
+            "00-prologue",
+        ],
+        "Bar_Sc03_T1": [
+            "00-prologue",
+        ],
+        "Bar_Sc03_T2": [
+            "00-prologue",
+        ],
+        "Bar_Sc03_T3": [
+            "00-prologue",
+        ],
+        "Bar_Sc03_T4": [
+            "00-prologue",
+        ],
+        "Bar_Sc03_T5": [
+            "00-prologue",
+        ],
+        "Bar_Sc03_T6": [
+            "00-prologue",
+        ],
+        "Bar_Sc04_T1": [
+            "00-prologue",
+        ],
+        "Bar_Sc04_T2": [
+            "00-prologue",
+        ],
+        "Bar_Sc04_T3": [
+            "00-prologue",
+        ],
+        "Bar_Sc04_T4": [
+            "00-prologue",
+        ],
+        "Bar_Sc04_T5": [
+            "00-prologue",
+        ],
+        "Benou_Lab_PG_Sc23_T1": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T2": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T3": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T3b": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T4": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T5": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T6": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T7": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc23_T8": [
+            "12-post-game",
+        ],
+        "Benou_Lab_PG_Sc24_T0": [
+            "12-post-game",
+        ],
+        "Biblio_Conte_Ecran": [
+            "06-manga-square",
+        ],
+        "Biblio_Conte_Papier": [
+            "06-manga-square",
+        ],
+        "Biblio_Livre_1": [
+            "06-manga-square",
+        ],
+        "Biblio_Livre_2": [
+            "06-manga-square",
+        ],
+        "Biblio_Livre_3": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T1": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T2": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T3": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T4": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T5": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T6": [
+            "06-manga-square",
+        ],
+        "Biblio_Sc01_T7": [
+            "06-manga-square",
+        ],
+        "Bois_Ether_Gogo_Defeat": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Fan": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Fan_2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Fillette": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Fillette_2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Garde": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Jardiniere": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Jardiniere_2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Marchand": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Technicien": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Toux": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Npc_Vieux": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Romain_Defeat": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc01_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc02_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc02_T2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc02_T3": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc03_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc03_T2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc03_T3": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc04_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc04_T2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T3": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T4": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T5": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T6": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T7": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T8": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc06_T9": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc07_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc07_T2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc07_T3": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc08_T1": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc08_T2": [
+            "01-bois-ether",
+        ],
+        "Bois_Ether_Sc08_T3": [
+            "01-bois-ether",
+        ],
+        "Bois_Soupirs_Sign_Pierre_Apres": [
+            "06-manga-square",
+        ],
+        "Bois_Soupirs_Sign_Pierre_Avant": [
+            "06-manga-square",
+        ],
+        "Breche_PG_Sc10b_T1": [
+            "12-post-game",
+        ],
+        "Breche_PG_Sc10b_T2": [
+            "12-post-game",
+        ],
+        "Breche_PG_Sc10b_T3": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T1": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T2": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T3": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T4a": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T4b": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T4c": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T5": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T6": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T7": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Bar_PG_Sc22_T8": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Npc_Bricoleuse": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Npc_Gamin": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Npc_Linge": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Npc_Pecheur": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Npc_Vieux": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_PG_Sc01_T1": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc01_T2": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc01_T3": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc09_T1": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc09_T2": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc09_T3": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc09_T4": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc09_T5": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc20_T1": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc20_T2": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc20_T3": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_PG_Sc20_T4": [
+            "12-post-game",
+        ],
+        "Brico_Bourg_Sc01_T1": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc01_T2": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc01_T3": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc02_T1": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc02_T2": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc02_T3": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc02_T4": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T1": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T10": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T11": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T12": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T13": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T2": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T3": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T4": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T5": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T6": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T7": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T8": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc03_T9": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc04_T1": [
+            "00-prologue",
+        ],
+        "Brico_Bourg_Sc14_T1": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T10": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T11": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T2": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T3": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T4": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T5": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T6": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T7": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T8": [
+            "11-apex-zenith",
+        ],
+        "Brico_Bourg_Sc14_T9": [
+            "11-apex-zenith",
+        ],
+        "Brico_Labo_Chimiste_Apres": [
+            "01-bois-ether",
+        ],
+        "Brico_Labo_Chimiste_Defeat": [
+            "01-bois-ether",
+        ],
+        "Brico_Labo_Chimiste_Intro": [
+            "01-bois-ether",
+        ],
+        "Brico_Labo_Sc01_T1": [
+            "01-bois-ether",
+        ],
+        "Casino_B1F_Sc01_T1": [
+            "03-viber-city",
+        ],
+        "Casino_B1F_Sc01_T2": [
+            "03-viber-city",
+        ],
+        "Casino_B1F_Sc01_T3": [
+            "03-viber-city",
+        ],
+        "Casino_B1F_Sc02_T1": [
+            "03-viber-city",
+        ],
+        "Casino_B1F_Sc02_T2": [
+            "03-viber-city",
+        ],
+        "Casino_B1F_Sc02_T3": [
+            "03-viber-city",
+        ],
+        "Casino_B1F_Sc02_T4": [
+            "03-viber-city",
+        ],
+        "Casino_Pnj04_T2": [
+            "03-viber-city",
+        ],
+        "Casino_Sc01_T1": [
+            "03-viber-city",
+        ],
+        "Casino_Sc01_T2": [
+            "03-viber-city",
+        ],
+        "Casino_Sc01_T3": [
+            "03-viber-city",
+        ],
+        "Casino_Sc01_T4": [
+            "03-viber-city",
+        ],
+        "Casino_Sc01_T5": [
+            "03-viber-city",
+        ],
+        "Casino_Sc03_T1": [
+            "03-viber-city",
+        ],
+        "Casino_Sc03_T2": [
+            "03-viber-city",
+        ],
+        "Casino_Sc03_T3": [
+            "03-viber-city",
+        ],
+        "Casino_Sc03_T4": [
+            "03-viber-city",
+        ],
+        "Casino_Sc03_T5": [
+            "03-viber-city",
+        ],
+        "Casino_Sc03_T6": [
+            "03-viber-city",
+        ],
+        "Casino_Sc08_T1": [
+            "03-viber-city",
+        ],
+        "Casino_Sc08_T2": [
+            "03-viber-city",
+        ],
+        "Casino_Sc08_T3": [
+            "03-viber-city",
+        ],
+        "Casino_Sc08_T4": [
+            "03-viber-city",
+        ],
+        "Coffre_T0_Verrouille": [
+            "07-reverse-city",
+        ],
+        "Coffre_T1": [
+            "07-reverse-city",
+        ],
+        "Coffre_T2": [
+            "07-reverse-city",
+        ],
+        "Coffre_T3": [
+            "07-reverse-city",
+        ],
+        "Coffre_T4": [
+            "07-reverse-city",
+        ],
+        "Depot_Bloc_T1": [
+            "03-viber-city",
+        ],
+        "Depot_Bloc_T2": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_Defaite_Gogo": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_Defaite_Romain": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_T1": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_T2": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_T3": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_T4": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_T5": [
+            "03-viber-city",
+        ],
+        "Depot_Sc02_T6": [
+            "03-viber-city",
+        ],
+        "Dojo_Sc02_T1": [
+            "06-manga-square",
+        ],
+        "Dojo_Sc02_T2": [
+            "06-manga-square",
+        ],
+        "Dojo_Sc03_T1": [
+            "06-manga-square",
+        ],
+        "Dojo_Sc03_T2": [
+            "06-manga-square",
+        ],
+        "Dojo_Sc04_T1": [
+            "06-manga-square",
+        ],
+        "Dojo_Sc04_T2": [
+            "06-manga-square",
+        ],
+        "Dojo_Sign_Code": [
+            "06-manga-square",
+        ],
+        "Elysium_E1_T1": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E1_T2": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E1_T3": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E2_T0": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E3_T1": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E3_T2": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E4_T5": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E5_T1": [
+            "11-apex-zenith",
+        ],
+        "Elysium_E5_T2": [
+            "11-apex-zenith",
+        ],
+        "Elysium_Fin_FIN": [
+            "11-apex-zenith",
+        ],
+        "Elysium_Fin_T1": [
+            "11-apex-zenith",
+        ],
+        "Emetteur_T2": [
+            "07-reverse-city",
+        ],
+        "Emetteur_T3": [
+            "07-reverse-city",
+        ],
+        "Emetteur_T4": [
+            "07-reverse-city",
+        ],
+        "Evalon_EpreuvesFinies_T1": [
+            "08-evalon",
+        ],
+        "Evalon_PG_Lib_T1": [
+            "12-post-game",
+        ],
+        "Evalon_Sc01_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T3": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T4": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T5": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T6": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T7": [
+            "08-evalon",
+        ],
+        "Evalon_Sc01_T8": [
+            "08-evalon",
+        ],
+        "Evalon_Sc03_Chronique_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc03_Scribe_T2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc04_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc04_T2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc04_T3": [
+            "08-evalon",
+        ],
+        "Evalon_Sc04_T4": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_Q1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_Q2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_Q3": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_R1_Bon": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_R1_Vantard": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_R2_Bon": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_R2_Vantard": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_R3_Bon": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_R3_Vantard": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc05_T2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T10": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T11": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T12": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T13": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T14": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T15": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T16": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T3": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T4": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T5": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T6": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T7": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T8": [
+            "08-evalon",
+        ],
+        "Evalon_Sc07_T9": [
+            "08-evalon",
+        ],
+        "Evalon_Sc08_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_Epee_T0": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_Epee_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T1": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T2": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T3": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T4": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T5": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T6": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T7": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T8": [
+            "08-evalon",
+        ],
+        "Evalon_Sc09_T9": [
+            "08-evalon",
+        ],
+        "Evalon_Sc10_T1": [
+            "08-evalon",
+        ],
+        "Fin_Texte_FIN": [
+            "11-apex-zenith",
+        ],
+        "Fin_Texte_T1": [
+            "11-apex-zenith",
+        ],
+        "Gris_Echec_Npc_Bruit": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Echecs": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Enfant": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Etudiante": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Garde_S3": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Ouvrier": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Pressee": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Npc_Reparateur": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc01_T1": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc01_T2": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc02_T1": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc02_T2": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc02_T3": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc02_T4": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc03_T1": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc03_T2": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc05_T1": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc05_T2": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc06_T1": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc06_T2": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc06_T3": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc06_T4": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc06_T5": [
+            "02-gris-echec",
+        ],
+        "Gris_Echec_Sc06_T6": [
+            "02-gris-echec",
+        ],
+        "Gym07_Sc01_D": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T1": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T2": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T3": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T4": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T5": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T6": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc01_T7": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_Log07": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T1": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T2": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T3": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T4": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T5": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T6": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T7": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T8": [
+            "07-reverse-city",
+        ],
+        "Gym07_Sc02_T9": [
+            "07-reverse-city",
+        ],
+        "Gym2_Robot_Defeat": [
+            "02-gris-echec",
+        ],
+        "Gym2_Robot_Intro": [
+            "02-gris-echec",
+        ],
+        "Gym2_S1_Ecran": [
+            "02-gris-echec",
+        ],
+        "Gym2_S1_Erreur": [
+            "02-gris-echec",
+        ],
+        "Gym2_S2_Sature": [
+            "02-gris-echec",
+        ],
+        "Gym2_S2_Terminal": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_Defeat": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_Mega": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_T1": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_T2": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_T3": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_T4": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_T5": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc10_T6": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T1": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T2": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T3": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T4": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T5": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T6": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T7": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc11_T8": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc12_T1": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc12_T2": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc12_T3": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc12_T4": [
+            "02-gris-echec",
+        ],
+        "Gym2_Sc12_T5": [
+            "02-gris-echec",
+        ],
+        "Gym_Mega_T1": [
+            "06-manga-square",
+        ],
+        "Gym_Mega_T3": [
+            "06-manga-square",
+        ],
+        "Gym_Sc01_T1": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc01_T2": [
+            "06-manga-square",
+        ],
+        "Gym_Sc01_T3": [
+            "06-manga-square",
+        ],
+        "Gym_Sc01_T4": [
+            "06-manga-square",
+        ],
+        "Gym_Sc02_Faux": [
+            "06-manga-square",
+        ],
+        "Gym_Sc02_Juste": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_D": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_Log06": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T1": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T10": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T11": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T2": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T3": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T4": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T5": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T6": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T7": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T8": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T9": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T9b": [
+            "06-manga-square",
+        ],
+        "Gym_Sc03_T9c": [
+            "06-manga-square",
+        ],
+        "Gym_Sc10_Defeat": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc10_T1": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc10_T2": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc10_T3": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc10_T4": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc10_T5": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc10_T6": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc11_T1": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc11_T2": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc11_T3": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc12_T1": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc12_T2": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc12_T3": [
+            "01-bois-ether",
+        ],
+        "Gym_Sc12_T4": [
+            "01-bois-ether",
+        ],
+        "Gym_Z1_Douche": [
+            "01-bois-ether",
+        ],
+        "Gym_Z1_Porte_Ok": [
+            "01-bois-ether",
+        ],
+        "Gym_Z1_Porte_Refus": [
+            "01-bois-ether",
+        ],
+        "Gym_Z1_Spores": [
+            "01-bois-ether",
+        ],
+        "Gym_Z2_Etabli_Manque": [
+            "01-bois-ether",
+        ],
+        "Gym_Z2_Etabli_Ok": [
+            "01-bois-ether",
+        ],
+        "Gym_Z2_Valve": [
+            "01-bois-ether",
+        ],
+        "Gym_Z3_T1": [
+            "01-bois-ether",
+        ],
+        "Gym_Z3_T2": [
+            "01-bois-ether",
+        ],
+        "Herboriste_Cadeau": [
+            "01-bois-ether",
+        ],
+        "Herboriste_T1": [
+            "01-bois-ether",
+        ],
+        "Herboriste_T2": [
+            "01-bois-ether",
+        ],
+        "LOG_01_Texte": [
+            "01-bois-ether",
+        ],
+        "LOG_02_Texte": [
+            "02-gris-echec",
+        ],
+        "Manga_Square_Dojo_Sc01_D1": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_D2": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_D3": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T1": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T10": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T11": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T12": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T13": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T2": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T3": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T4": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T5": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T6": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T7": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T8": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Dojo_Sc01_T9": [
+            "06-manga-square",
+        ],
+        "Manga_Square_PG_Kimiko": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc02_T1": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc02_T2": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc02_T3": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc02_T4": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc02_T5": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc02_T6": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T0": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T1": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T10": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T2": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T3": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T4": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T5": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T6": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T7": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T8": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc21_T9": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc30_T1": [
+            "12-post-game",
+        ],
+        "Manga_Square_PG_Sc30_T2": [
+            "12-post-game",
+        ],
+        "Manga_Square_Sc01_T1": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc01_T2": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T1": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T2": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T3": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T4": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T5": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T6": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T6b": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T6c": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T6d": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc02_T7": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc03_T1": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc03_T2": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc03_T3": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc03_T4": [
+            "06-manga-square",
+        ],
+        "Manga_Square_Sc03_T5": [
+            "06-manga-square",
+        ],
+        "Nebula_Annonce_T1": [
+            "09-nebula",
+        ],
+        "Nebula_PG_Npc_Silas": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03_T1": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03_T2": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03_T3": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03b_T1": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03b_T2": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03b_T3": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03b_T4": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03b_T5": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03c_T1": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03c_T2": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc03c_T3": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc10_T1": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc10_T2": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc10_T3": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc10_T4": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc10_T5": [
+            "12-post-game",
+        ],
+        "Nebula_PG_Sc10_T6": [
+            "12-post-game",
+        ],
+        "Nebula_Sc01_T1": [
+            "09-nebula",
+        ],
+        "Nebula_Sc01_T2": [
+            "09-nebula",
+        ],
+        "Nebula_Sc01_T3": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T1": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T2": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T3": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T4": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T5": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T6": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T7": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T8": [
+            "09-nebula",
+        ],
+        "Nebula_Sc02_T9": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T0": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T1": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T2": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T3": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T4": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T5": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T6": [
+            "09-nebula",
+        ],
+        "Nebula_Sc03_T7": [
+            "09-nebula",
+        ],
+        "Nebula_Sc04_T1": [
+            "09-nebula",
+        ],
+        "Nebula_Sc13_T1": [
+            "11-apex-zenith",
+        ],
+        "Nebula_Sc13_T2": [
+            "11-apex-zenith",
+        ],
+        "Nebula_Sc13_T3": [
+            "11-apex-zenith",
+        ],
+        "Nebula_Sc13_T4": [
+            "11-apex-zenith",
+        ],
+        "No_Mans_Land_PG_Drone": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Origami": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16_T1": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16_T2": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16_T3": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T1": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T10": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T2": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T3": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T4": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T5": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T6": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T7": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T8": [
+            "12-post-game",
+        ],
+        "No_Mans_Land_PG_Sc16b_T9": [
+            "12-post-game",
+        ],
+        "Nocturne_Sc02_Defaite": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T1": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T10": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T11": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T12": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T13": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T14": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T2": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T3": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T4": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T5": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T6": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T7": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T8": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T9": [
+            "03-viber-city",
+        ],
+        "Nocturne_Sc02_T_PasAssez": [
+            "03-viber-city",
+        ],
+        "Owlys_Entrepot_Sc01_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_Defeat": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T2": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T3": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T4": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T5": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T6": [
+            "05-owlys",
+        ],
+        "Owlys_Entrepot_Sc02_T7": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T10": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T2": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T3": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T4": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T5": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T6": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T7": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T8": [
+            "05-owlys",
+        ],
+        "Owlys_Grotte_Est_Sc01_T9": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Livre_Bleu": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Log05": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Passerelle": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_Badge": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_Defeat": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_Mega": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_Module": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_Sync": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T2": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T3": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T4": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T5": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T6": [
+            "05-owlys",
+        ],
+        "Owlys_Gym_Sc01_T7": [
+            "05-owlys",
+        ],
+        "Owlys_PG_Lib_T1": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T1": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T2": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T3": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T4": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T5": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T6": [
+            "12-post-game",
+        ],
+        "Owlys_PG_Sc07_T7": [
+            "12-post-game",
+        ],
+        "Owlys_Sc01_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Sc02_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Sc02_T2": [
+            "05-owlys",
+        ],
+        "Owlys_Sc02_T3": [
+            "05-owlys",
+        ],
+        "Owlys_Sc02_T4": [
+            "05-owlys",
+        ],
+        "Owlys_Sc02_T5": [
+            "05-owlys",
+        ],
+        "Owlys_Sc03_Defeat": [
+            "05-owlys",
+        ],
+        "Owlys_Sc03_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Sc03_T2": [
+            "05-owlys",
+        ],
+        "Owlys_Sc03_T3": [
+            "05-owlys",
+        ],
+        "Owlys_Sc04_Ferme": [
+            "05-owlys",
+        ],
+        "Owlys_Sc04_T1": [
+            "05-owlys",
+        ],
+        "Owlys_Sc05_T1": [
+            "05-owlys",
+        ],
+        "PG_Antenne_T2": [
+            "12-post-game",
+        ],
+        "PG_Antenne_T3": [
+            "12-post-game",
+        ],
+        "PG_Antenne_T4": [
+            "12-post-game",
+        ],
+        "PG_Antenne_T5": [
+            "12-post-game",
+        ],
+        "PG_Fragment_T1": [
+            "12-post-game",
+        ],
+        "PG_Fragment_T2": [
+            "12-post-game",
+        ],
+        "PG_Fragment_T3": [
+            "12-post-game",
+        ],
+        "PG_Gaz_T1": [
+            "12-post-game",
+        ],
+        "PG_Gaz_T2": [
+            "12-post-game",
+        ],
+        "PG_Gaz_T3": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Artikodin": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Celebi": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Electhor": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Entei": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Groudon": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Kyogre": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Latias": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Latios": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Lugia": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Raikou": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Regice": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Regirock": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Registeel": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Suicune": [
+            "12-post-game",
+        ],
+        "PG_Legendaire_Sulfura": [
+            "12-post-game",
+        ],
+        "PG_Revanche_Deja": [
+            "12-post-game",
+        ],
+        "PG_VestigeFin_T1": [
+            "12-post-game",
+        ],
+        "Phare_Sign_Lampe": [
+            "07-reverse-city",
+        ],
+        "Phare_T1": [
+            "07-reverse-city",
+        ],
+        "Player_House_Sc01_T1": [
+            "00-prologue",
+        ],
+        "Player_House_Sc02_T1": [
+            "00-prologue",
+        ],
+        "Player_House_Sc02_T2": [
+            "00-prologue",
+        ],
+        "Player_House_Sc02_T3": [
+            "00-prologue",
+        ],
+        "Player_House_Sc02_T4": [
+            "00-prologue",
+        ],
+        "Player_House_Sc02_T5": [
+            "00-prologue",
+        ],
+        "Player_House_Sc03_T1": [
+            "00-prologue",
+        ],
+        "Player_House_Sc03_T2": [
+            "00-prologue",
+        ],
+        "Player_House_Sc03_T3": [
+            "00-prologue",
+        ],
+        "Port_Ressac_Cale_Explosif_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Boire": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Revanche": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Revanche_Non": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc01_Rate": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc01_Reussi": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc01_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc01_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Badge": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Defeat": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Module": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Perdu": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Perdu2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Perdu_Badge": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Perdu_Surf": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_Sync": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_T3b": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc02_T4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_Defeat": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_T4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_T5": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Sc03_T6": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Shot1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Shot2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Shot3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Gym_Shot4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Navire_Log04": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Navire_Sc01_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Navire_Sc01_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Navire_Sc01_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc01_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_Bon": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_Faux": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P1_Defeat": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P1_Vu": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P4_Defeat": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_P4_Vu": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_Siffler": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_T4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_T5": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc02_T6": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc03_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc03_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc03_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc03_T4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc03_T5": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc03_T6": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc04_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc04_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc04_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc04_T4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc04_T5": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc04_T6": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc05_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc05_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc05_T3": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc05_T4": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Sc06_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Taverne_Sc01_T1": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Taverne_Sc01_T2": [
+            "04-port-ressac",
+        ],
+        "Port_Ressac_Taverne_Sc01_T3": [
+            "04-port-ressac",
+        ],
+        "Reverse_City_PG_Sc04_T1": [
+            "12-post-game",
+        ],
+        "Reverse_City_PG_Sc04_T2": [
+            "12-post-game",
+        ],
+        "Reverse_City_PG_Sc04_T3": [
+            "12-post-game",
+        ],
+        "Reverse_City_PG_Sc04_T4": [
+            "12-post-game",
+        ],
+        "Reverse_City_PG_Sc04_T5": [
+            "12-post-game",
+        ],
+        "Reverse_City_Sc01_T1": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc01_T2": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc01_T3": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc01_T4": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_D1": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_D2": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T1": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T2": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T3": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T4": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T5": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T6": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T7": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T8": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc02_T9": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc07_T1": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc07_T2": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc07_T3": [
+            "07-reverse-city",
+        ],
+        "Reverse_City_Sc07_T4": [
+            "07-reverse-city",
+        ],
+        "Route_S01_Npc_Promeneuse": [
+            "00-prologue",
+        ],
+        "Route_S01_Npc_Technicien": [
+            "00-prologue",
+        ],
+        "Route_S01_Sc01_T1": [
+            "00-prologue",
+        ],
+        "Route_S01_Sc01_T2": [
+            "00-prologue",
+        ],
+        "Route_S01_Sc02_T1": [
+            "00-prologue",
+        ],
+        "Route_S02_Agent": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Gwada_Defeat": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Promeneur": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc01_T1": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc02_T1": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc02_T2": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc02_T3": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc02_T4": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc02_T5": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc03_T1": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc03_T2": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc03_T3": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc03_T4": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Sc03_T5": [
+            "02-gris-echec",
+        ],
+        "Route_S02_Technicien": [
+            "02-gris-echec",
+        ],
+        "Route_S03_Sc01_T1": [
+            "03-viber-city",
+        ],
+        "Route_S04_Mur_M8": [
+            "04-port-ressac",
+        ],
+        "Route_S04_Sc01_T1": [
+            "04-port-ressac",
+        ],
+        "Route_S04_Sc02_T1": [
+            "04-port-ressac",
+        ],
+        "Route_S04_Sc02_T2": [
+            "04-port-ressac",
+        ],
+        "Route_S04_Sc02_T3": [
+            "04-port-ressac",
+        ],
+        "Route_S04_Sc02_T4": [
+            "04-port-ressac",
+        ],
+        "Route_S04_Sc03_T1": [
+            "04-port-ressac",
+        ],
+        "Route_S05_Grotte_Sc01_T1": [
+            "05-owlys",
+        ],
+        "Route_S05_Grotte_Sc01_T2": [
+            "05-owlys",
+        ],
+        "Route_S05_Grotte_Sc01_T3": [
+            "05-owlys",
+        ],
+        "Route_S05_Grotte_Sc01_T4": [
+            "05-owlys",
+        ],
+        "Route_S05_Grotte_Sc01_T5": [
+            "05-owlys",
+        ],
+        "Route_S05_PG_Sc06_T1": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T2": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T3": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T4": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T5": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T6": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T7": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T8": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc06_T9": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc27_T1": [
+            "12-post-game",
+        ],
+        "Route_S05_PG_Sc27_T2": [
+            "12-post-game",
+        ],
+        "Route_S05_Sc01_T1": [
+            "05-owlys",
+        ],
+        "Route_S05_Sc02_T1": [
+            "05-owlys",
+        ],
+        "Route_S05_Sc02_T2": [
+            "05-owlys",
+        ],
+        "Route_S05_Sc02_T3": [
+            "05-owlys",
+        ],
+        "Route_S06_PG_Lib_T1": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T1": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T10": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T2": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T3": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T4": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T5": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T6": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T7": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T8": [
+            "12-post-game",
+        ],
+        "Route_S06_PG_Sc05_T9": [
+            "12-post-game",
+        ],
+        "Route_S06_Sc01_T1": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_D1": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_D2": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T1": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T2": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T3": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T4": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T5": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T5b": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T6": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T7": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T8": [
+            "06-manga-square",
+        ],
+        "Route_S06_Sc02_T9": [
+            "06-manga-square",
+        ],
+        "Route_S07_Sc01_T1": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T1": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T2": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T3": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T4": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T5": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T6": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T7": [
+            "07-reverse-city",
+        ],
+        "Route_S07_Sc02_T8": [
+            "07-reverse-city",
+        ],
+        "Route_S08_PG_Sc28_T1": [
+            "12-post-game",
+        ],
+        "Route_S08_PG_Sc28_T2": [
+            "12-post-game",
+        ],
+        "Route_S08_PG_Sc28_T3": [
+            "12-post-game",
+        ],
+        "Route_S08_PG_Sc28_T4": [
+            "12-post-game",
+        ],
+        "Route_S08_PG_Sc28_T5": [
+            "12-post-game",
+        ],
+        "Route_S08_Sc01_T1": [
+            "08-evalon",
+        ],
+        "Route_S08_Sc02_T1": [
+            "08-evalon",
+        ],
+        "Route_S08_Sc02_T2": [
+            "08-evalon",
+        ],
+        "Route_S09_Sc01_T1": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc01_T2": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc01_T3": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc01_T4": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc01_T5": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc02_T1": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc02_T2": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc02_T3": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc02_T4": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc03_T1": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc03_T2": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc03_T3": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc03_T4": [
+            "09-nebula",
+        ],
+        "Route_S09_Sc04_T1": [
+            "09-nebula",
+        ],
+        "Sommet_Apex_PG_Sc16c_T1": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc16c_T2": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc16c_T3": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc16c_T4": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc16c_T5": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc16c_T6": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc16c_T7": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T1": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T2": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T3": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T4": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T5": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T6": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T7": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T8": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc19_T9": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc31_T1": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_PG_Sc32_T1": [
+            "12-post-game",
+        ],
+        "Sommet_Apex_Sc01_T1": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc02_T1": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc02_T2": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc02_T3": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc02_T4": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc02_T5": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc03_Defeat": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc03_T1": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc03_T2": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc03_T3": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T1": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T10": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T2": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T3": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T4": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T5": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T6": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T7": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T8": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc04_T9": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_C1": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_C1n": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_C2": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_C2n": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T10": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T11": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T12": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T13": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T14": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T15": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T16": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T17": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T18": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T19": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T1a": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T20": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T21": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T22": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T2a": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T3": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T4": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T5": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T6": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T6n": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T6y": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T7": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T7m": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T7m2": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T8": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc05_T9": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc06_T1": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc06_T2": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc06_T3": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc06_T4": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc06_T5": [
+            "11-apex-zenith",
+        ],
+        "Sommet_Apex_Sc07_T1": [
+            "11-apex-zenith",
+        ],
+        "Station_Lumiere_Sc01_Defaite": [
+            "03-viber-city",
+        ],
+        "Station_Lumiere_Sc01_T1": [
+            "03-viber-city",
+        ],
+        "Station_Lumiere_Sc01_T2": [
+            "03-viber-city",
+        ],
+        "Station_Lumiere_Sc02_T1": [
+            "03-viber-city",
+        ],
+        "Station_Lumiere_Sc03_T1": [
+            "03-viber-city",
+        ],
+        "Tauber_Hocseat_PG_Lib_T1": [
+            "12-post-game",
+        ],
+        "Tauber_Hocseat_PG_Revanche_Defaite": [
+            "12-post-game",
+        ],
+        "Tauber_Hocseat_PG_Revanche_Intro2": [
+            "12-post-game",
+        ],
+        "Toiletteur_T1": [
+            "06-manga-square",
+        ],
+        "Toiletteur_T2": [
+            "06-manga-square",
+        ],
+        "Toiletteur_T3": [
+            "06-manga-square",
+        ],
+        "Tour_1F_Sc01_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc01_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T6": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T7": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc02_T8": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc03_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc03_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc04_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc04_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc04_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc04_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc04_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc04_T6": [
+            "10-tour-piliers",
+        ],
+        "Tour_1F_Sc05_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Chat_Off": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc01_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc01_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc03_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc03_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc03_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc03_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc03_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_Mega": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T10": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T6": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T7": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T8": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc04_T9": [
+            "10-tour-piliers",
+        ],
+        "Tour_2F_Sc05_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc01_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc02_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc02_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc02_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc03_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_Mega": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T10": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T6": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T7": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T8": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc04_T9": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc05_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_3F_Sc05_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc01_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc02_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc02_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T10": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T11": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T6": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T7": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T8": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc03_T9": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc04_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc05_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc06_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc06_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc06_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc06_T3y": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc06_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_4F_Sc06_T4n": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc00a_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc00a_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc01_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc02_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc02_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc02_T3": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc02_T4": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc02_T5": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc03_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc03_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc04_T1": [
+            "10-tour-piliers",
+        ],
+        "Tour_Ascenseur_Sc04_T2": [
+            "10-tour-piliers",
+        ],
+        "Tour_Hall_Kroll_Apres": [
+            "09-nebula",
+        ],
+        "Tour_Hall_Sc02_T1": [
+            "09-nebula",
+        ],
+        "Tour_Hall_Sc02_T2": [
+            "09-nebula",
+        ],
+        "Tour_Nebula_1F_Ruine_PG_Sc12_T1": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_1F_Ruine_PG_Sc12_T2": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_1F_Ruine_PG_Sc12_T3": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc11_T1": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc11_T2": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc11_T3": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc11_T4": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc11_T5": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc15_T1": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc15_T2": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc15_T3": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc18_T1": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc18_T2": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc18_T3": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_2F_PG_Sc18_T4": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_3F_Ruine_PG_Sc13_T1": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_3F_Ruine_PG_Sc13_T2": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_3F_Ruine_PG_Sc13_T3": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_3F_Ruine_PG_Sc13_T4": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_4F_Ruine_PG_Sc14_T1": [
+            "12-post-game",
+        ],
+        "Tour_Nebula_4F_Ruine_PG_Sc14_T2": [
+            "12-post-game",
+        ],
+        "Tour_Sc01_Defeat": [
+            "02-gris-echec",
+        ],
+        "Tour_Sc01_T1": [
+            "02-gris-echec",
+        ],
+        "Tour_Sc01_T2": [
+            "02-gris-echec",
+        ],
+        "Tour_Sc01_T3": [
+            "02-gris-echec",
+        ],
+        "Trone_Zenith_Sc08_C1": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_C3": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_Defeat": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_Lose_T1": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_Lose_T2": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_T1": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_T2": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc08_T3": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc09_T1": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc09_T2": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc09_T3": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc09_T4": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc09_T5": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc10_T1": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc10_T2": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T1": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T10": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T11": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T12": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T2": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T3": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T4": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T5": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T6": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T7": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T8": [
+            "11-apex-zenith",
+        ],
+        "Trone_Zenith_Sc11_T9": [
+            "11-apex-zenith",
+        ],
+        "Viber_City_Sc01_T1": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc01_T2": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc01_T3": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc01_T4": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc01_T5": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc01_T6": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc02_T1": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc03_T1": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc03_T2": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc03_T3": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc03_T4": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc03_T5": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc03_T6": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc04_T1": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc04_T2": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc04_T3": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc04_T4": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc04_T5": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T1": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T2": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T3": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T4": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T5": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T6": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc05_T7": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc06_T1": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc06_T2": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc06_T3": [
+            "03-viber-city",
+        ],
+        "Viber_City_Sc06_T4": [
+            "03-viber-city",
+        ],
+        "Zone_404_PG_P1": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_P2": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_P3": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_P4": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_P5": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_P6": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_Sc26_T1": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_Sc26_T2": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_Sc26b_T1": [
+            "12-post-game",
+        ],
+        "Zone_404_PG_Sc26b_T2": [
+            "12-post-game",
+        ],
+    },
+    dynamic: [
+        (
+            pattern: "<Champion>_PG_Revanche_Defaite",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "Loic_PG_Revanche_Defaite",
+                "Reverse_PG_Revanche_Defaite",
+                "Samuel_PG_Revanche_Defaite",
+                "Skycker_PG_Revanche_Defaite",
+                "Tak_PG_Revanche_Defaite",
+                "Yohan_PG_Revanche_Defaite",
+            ],
+        ),
+        (
+            pattern: "<Champion>_PG_Revanche_Deja",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [],
+        ),
+        (
+            pattern: "<Champion>_PG_Revanche_Intro",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "Loic_PG_Revanche_Intro",
+                "Reverse_PG_Revanche_Intro",
+                "Samuel_PG_Revanche_Intro",
+                "Skycker_PG_Revanche_Intro",
+                "Tak_PG_Revanche_Intro",
+                "Yohan_PG_Revanche_Intro",
+            ],
+        ),
+        (
+            pattern: "Bar_Sc02_T1 | T2 | T3",
+            kind: Text,
+            chapters: [
+                "00-prologue",
+            ],
+            expanded: [
+                "Bar_Sc02_T1",
+                "Bar_Sc02_T2",
+                "Bar_Sc02_T3",
+            ],
+        ),
+        (
+            pattern: "Benou_Lab_PG_Sc24_L<n>",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "Benou_Lab_PG_Sc24_L1",
+                "Benou_Lab_PG_Sc24_L2",
+                "Benou_Lab_PG_Sc24_L3",
+                "Benou_Lab_PG_Sc24_L4",
+                "Benou_Lab_PG_Sc24_L5",
+                "Benou_Lab_PG_Sc24_L6",
+                "Benou_Lab_PG_Sc24_L7",
+                "Benou_Lab_PG_Sc24_L8",
+                "Benou_Lab_PG_Sc24_L9",
+            ],
+        ),
+        (
+            pattern: "Evalon_Sc07_Others_T[choice]",
+            kind: Text,
+            chapters: [
+                "08-evalon",
+            ],
+            expanded: [
+                "Evalon_Sc07_Others_T0",
+                "Evalon_Sc07_Others_T1",
+                "Evalon_Sc07_Others_T2",
+            ],
+        ),
+        (
+            pattern: "Evalon_Sc07_Partner_T[choice]",
+            kind: Text,
+            chapters: [
+                "08-evalon",
+            ],
+            expanded: [
+                "Evalon_Sc07_Partner_T0",
+                "Evalon_Sc07_Partner_T1",
+                "Evalon_Sc07_Partner_T2",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_ECHANTILLON_<n>",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "FLAG_SIL_ECHANTILLON_1",
+                "FLAG_SIL_ECHANTILLON_2",
+                "FLAG_SIL_ECHANTILLON_3",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_FRAGMENT_<n>",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "FLAG_SIL_FRAGMENT_01",
+                "FLAG_SIL_FRAGMENT_02",
+                "FLAG_SIL_FRAGMENT_03",
+                "FLAG_SIL_FRAGMENT_04",
+                "FLAG_SIL_FRAGMENT_05",
+                "FLAG_SIL_FRAGMENT_06",
+                "FLAG_SIL_FRAGMENT_07",
+                "FLAG_SIL_FRAGMENT_08",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_GRIS_JAMMER_n",
+            kind: Constant,
+            chapters: [
+                "02-gris-echec",
+            ],
+            expanded: [
+                "FLAG_SIL_GRIS_JAMMER_1",
+                "FLAG_SIL_GRIS_JAMMER_2",
+                "FLAG_SIL_GRIS_JAMMER_3",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_GYM06_PORTE_<n>",
+            kind: Constant,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [
+                "FLAG_SIL_GYM06_PORTE_1",
+                "FLAG_SIL_GYM06_PORTE_2",
+                "FLAG_SIL_GYM06_PORTE_3",
+                "FLAG_SIL_GYM06_PORTE_4",
+                "FLAG_SIL_GYM06_PORTE_5",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_HIDE_<ESPÈCE>",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "FLAG_SIL_HIDE_ARTICUNO",
+                "FLAG_SIL_HIDE_CELEBI",
+                "FLAG_SIL_HIDE_DEOXYS",
+                "FLAG_SIL_HIDE_ENTEI",
+                "FLAG_SIL_HIDE_GROUDON",
+                "FLAG_SIL_HIDE_JIRACHI",
+                "FLAG_SIL_HIDE_KYOGRE",
+                "FLAG_SIL_HIDE_LATIAS",
+                "FLAG_SIL_HIDE_LATIOS",
+                "FLAG_SIL_HIDE_LUGIA",
+                "FLAG_SIL_HIDE_MEW",
+                "FLAG_SIL_HIDE_MEWTWO",
+                "FLAG_SIL_HIDE_MOLTRES",
+                "FLAG_SIL_HIDE_RAIKOU",
+                "FLAG_SIL_HIDE_RAYQUAZA",
+                "FLAG_SIL_HIDE_REGICE",
+                "FLAG_SIL_HIDE_REGIROCK",
+                "FLAG_SIL_HIDE_REGISTEEL",
+                "FLAG_SIL_HIDE_SUICUNE",
+                "FLAG_SIL_HIDE_ZAPDOS",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_HIDE_<NOM>",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "FLAG_SIL_HIDE_ARTICUNO",
+                "FLAG_SIL_HIDE_CELEBI",
+                "FLAG_SIL_HIDE_DEOXYS",
+                "FLAG_SIL_HIDE_ENTEI",
+                "FLAG_SIL_HIDE_GROUDON",
+                "FLAG_SIL_HIDE_JIRACHI",
+                "FLAG_SIL_HIDE_KYOGRE",
+                "FLAG_SIL_HIDE_LATIAS",
+                "FLAG_SIL_HIDE_LATIOS",
+                "FLAG_SIL_HIDE_LUGIA",
+                "FLAG_SIL_HIDE_MEW",
+                "FLAG_SIL_HIDE_MEWTWO",
+                "FLAG_SIL_HIDE_MOLTRES",
+                "FLAG_SIL_HIDE_RAIKOU",
+                "FLAG_SIL_HIDE_RAYQUAZA",
+                "FLAG_SIL_HIDE_REGICE",
+                "FLAG_SIL_HIDE_REGIROCK",
+                "FLAG_SIL_HIDE_REGISTEEL",
+                "FLAG_SIL_HIDE_SUICUNE",
+                "FLAG_SIL_HIDE_ZAPDOS",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_HIDE_GAZ_<n>",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "FLAG_SIL_HIDE_GAZ_01",
+                "FLAG_SIL_HIDE_GAZ_02",
+                "FLAG_SIL_HIDE_GAZ_03",
+                "FLAG_SIL_HIDE_GAZ_04",
+                "FLAG_SIL_HIDE_GAZ_05",
+                "FLAG_SIL_HIDE_GAZ_06",
+                "FLAG_SIL_HIDE_GAZ_07",
+                "FLAG_SIL_HIDE_GAZ_08",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_ITEM_PG_GEM_LOIC … _LOULPIX",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [],
+        ),
+        (
+            pattern: "FLAG_SIL_OWLYS_SILO_NOCTALI_n",
+            kind: Constant,
+            chapters: [
+                "05-owlys",
+            ],
+            expanded: [
+                "FLAG_SIL_OWLYS_SILO_NOCTALI_1",
+                "FLAG_SIL_OWLYS_SILO_NOCTALI_2",
+                "FLAG_SIL_OWLYS_SILO_NOCTALI_3",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_OWLYS_VEILLEUR_n",
+            kind: Constant,
+            chapters: [
+                "05-owlys",
+            ],
+            expanded: [
+                "FLAG_SIL_OWLYS_VEILLEUR_1",
+                "FLAG_SIL_OWLYS_VEILLEUR_2",
+                "FLAG_SIL_OWLYS_VEILLEUR_3",
+                "FLAG_SIL_OWLYS_VEILLEUR_4",
+            ],
+        ),
+        (
+            pattern: "FLAG_SIL_REVERSE_EMETTEUR_<n>",
+            kind: Constant,
+            chapters: [
+                "07-reverse-city",
+            ],
+            expanded: [
+                "FLAG_SIL_REVERSE_EMETTEUR_1",
+                "FLAG_SIL_REVERSE_EMETTEUR_2",
+                "FLAG_SIL_REVERSE_EMETTEUR_3",
+            ],
+        ),
+        (
+            pattern: "Gym2_<P>_Defeat",
+            kind: Text,
+            chapters: [
+                "02-gris-echec",
+            ],
+            expanded: [
+                "Gym2_Cavalier_Defeat",
+                "Gym2_Fou_Defeat",
+                "Gym2_Melomane_Defeat",
+                "Gym2_Pion1_Defeat",
+                "Gym2_Pion2_Defeat",
+                "Gym2_Robot_Defeat",
+                "Gym2_Sc10_Defeat",
+                "Gym2_Tour_Defeat",
+            ],
+        ),
+        (
+            pattern: "Gym2_<P>_Intro",
+            kind: Text,
+            chapters: [
+                "02-gris-echec",
+            ],
+            expanded: [
+                "Gym2_Cavalier_Intro",
+                "Gym2_Fou_Intro",
+                "Gym2_Melomane_Intro",
+                "Gym2_Pion1_Intro",
+                "Gym2_Pion2_Intro",
+                "Gym2_Robot_Intro",
+                "Gym2_Tour_Intro",
+            ],
+        ),
+        (
+            pattern: "Gym_Sc01_D_<NOM>",
+            kind: Text,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [
+                "Gym_Sc01_D_KOJIRO",
+                "Gym_Sc01_D_MUSASHI",
+            ],
+        ),
+        (
+            pattern: "Gym_Sc01_T1_<NOM>",
+            kind: Text,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [
+                "Gym_Sc01_T1_KOJIRO",
+                "Gym_Sc01_T1_MUSASHI",
+            ],
+        ),
+        (
+            pattern: "Gym_Sc02_Q<n>",
+            kind: Text,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [
+                "Gym_Sc02_Q1",
+                "Gym_Sc02_Q2",
+                "Gym_Sc02_Q3",
+                "Gym_Sc02_Q4",
+                "Gym_Sc02_Q5",
+            ],
+        ),
+        (
+            pattern: "Gym_Sc02_Q<n>_Choix",
+            kind: Text,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [],
+        ),
+        (
+            pattern: "ITEM_SIL_<NOM>ITE",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "ITEM_SIL_ABSOLITE",
+                "ITEM_SIL_AERODACTYLITE",
+                "ITEM_SIL_AGGRONITE",
+                "ITEM_SIL_ALAKAZITE",
+                "ITEM_SIL_ALTARIANITE",
+                "ITEM_SIL_AMPHAROSITE",
+                "ITEM_SIL_BANETTITE",
+                "ITEM_SIL_BLAZIKENITE",
+                "ITEM_SIL_GARDEVOIRITE",
+                "ITEM_SIL_GENGARITE",
+                "ITEM_SIL_GLALITITE",
+                "ITEM_SIL_GYARADOSITE",
+                "ITEM_SIL_HERACRONITE",
+                "ITEM_SIL_HOUNDOOMINITE",
+                "ITEM_SIL_KANGASKHANITE",
+                "ITEM_SIL_LATIOSITE",
+                "ITEM_SIL_MANECTITE",
+                "ITEM_SIL_MAWILITE",
+                "ITEM_SIL_MEDICHAMITE",
+                "ITEM_SIL_METAGROSSITE",
+                "ITEM_SIL_PINSIRITE",
+                "ITEM_SIL_SABLENITE",
+                "ITEM_SIL_SALAMENCITE",
+                "ITEM_SIL_SCEPTILITE",
+                "ITEM_SIL_SCIZORITE",
+                "ITEM_SIL_STEELIXITE",
+                "ITEM_SIL_SWAMPERTITE",
+                "ITEM_SIL_TYRANITARITE",
+                "ITEM_SIL_VENUSAURITE",
+            ],
+        ),
+        (
+            pattern: "MAP_ROUTE_S0x_ANTENNE",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "MAP_ROUTE_S02_ANTENNE",
+                "MAP_ROUTE_S03_ANTENNE",
+                "MAP_ROUTE_S07_ANTENNE",
+            ],
+        ),
+        (
+            pattern: "No_Mans_Land_PG_Sc17_T<n>",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "No_Mans_Land_PG_Sc17_T1",
+                "No_Mans_Land_PG_Sc17_T2",
+                "No_Mans_Land_PG_Sc17_T3",
+            ],
+        ),
+        (
+            pattern: "Nocturne_Sc01_T[piste]",
+            kind: Text,
+            chapters: [
+                "03-viber-city",
+            ],
+            expanded: [
+                "Nocturne_Sc01_T0",
+                "Nocturne_Sc01_T1",
+                "Nocturne_Sc01_T2",
+            ],
+        ),
+        (
+            pattern: "PG_Antenne_T1_<règle>",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "PG_Antenne_T1_MonoAcier",
+                "PG_Antenne_T1_SansObjet",
+                "PG_Antenne_T1_Trio",
+            ],
+        ),
+        (
+            pattern: "PG_Legendaire_<nom>",
+            kind: Text,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [
+                "PG_Legendaire_Artikodin",
+                "PG_Legendaire_Celebi",
+                "PG_Legendaire_Electhor",
+                "PG_Legendaire_Entei",
+                "PG_Legendaire_Groudon",
+                "PG_Legendaire_Kyogre",
+                "PG_Legendaire_Latias",
+                "PG_Legendaire_Latios",
+                "PG_Legendaire_Lugia",
+                "PG_Legendaire_Raikou",
+                "PG_Legendaire_Regice",
+                "PG_Legendaire_Regirock",
+                "PG_Legendaire_Registeel",
+                "PG_Legendaire_Suicune",
+                "PG_Legendaire_Sulfura",
+            ],
+        ),
+        (
+            pattern: "SPECIES_<NOM>",
+            kind: Constant,
+            chapters: [
+                "12-post-game",
+            ],
+            expanded: [],
+        ),
+        (
+            pattern: "TRAINER_SIL_ECHEC_<P>",
+            kind: Constant,
+            chapters: [
+                "02-gris-echec",
+            ],
+            expanded: [
+                "TRAINER_SIL_ECHEC_CAVALIER",
+                "TRAINER_SIL_ECHEC_FOU",
+                "TRAINER_SIL_ECHEC_TOUR",
+            ],
+        ),
+        (
+            pattern: "TRAINER_SIL_EMETTEUR_<n>",
+            kind: Constant,
+            chapters: [
+                "07-reverse-city",
+            ],
+            expanded: [
+                "TRAINER_SIL_EMETTEUR_1",
+                "TRAINER_SIL_EMETTEUR_2",
+                "TRAINER_SIL_EMETTEUR_3",
+            ],
+        ),
+        (
+            pattern: "TRAINER_SIL_SAMOURAI_<NOM>",
+            kind: Constant,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [
+                "TRAINER_SIL_SAMOURAI_KOJIRO",
+                "TRAINER_SIL_SAMOURAI_MUSASHI",
+            ],
+        ),
+        (
+            pattern: "TRAINER_SIL_SAMOURAI_<NOM>_HATIF",
+            kind: Constant,
+            chapters: [
+                "06-manga-square",
+            ],
+            expanded: [
+                "TRAINER_SIL_SAMOURAI_KOJIRO_HATIF",
+                "TRAINER_SIL_SAMOURAI_MUSASHI_HATIF",
+            ],
+        ),
+        (
+            pattern: "Tour_2F_Chat_NN",
+            kind: Text,
+            chapters: [
+                "10-tour-piliers",
+            ],
+            expanded: [
+                "Tour_2F_Chat_01",
+                "Tour_2F_Chat_02",
+                "Tour_2F_Chat_03",
+                "Tour_2F_Chat_04",
+                "Tour_2F_Chat_05",
+                "Tour_2F_Chat_06",
+                "Tour_2F_Chat_07",
+                "Tour_2F_Chat_08",
+                "Tour_2F_Chat_09",
+                "Tour_2F_Chat_10",
+                "Tour_2F_Chat_11",
+                "Tour_2F_Chat_12",
+                "Tour_2F_Chat_Off",
+            ],
+        ),
+        (
+            pattern: "VAR_SIL_TOUR_PRISME_N",
+            kind: Constant,
+            chapters: [
+                "10-tour-piliers",
+            ],
+            expanded: [
+                "VAR_SIL_TOUR_PRISME_1",
+                "VAR_SIL_TOUR_PRISME_2",
+                "VAR_SIL_TOUR_PRISME_3",
+            ],
+        ),
+    ],
+)

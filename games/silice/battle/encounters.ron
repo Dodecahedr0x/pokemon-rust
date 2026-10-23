@@ -1,0 +1,3832 @@
+(
+    maps: {
+        "BoisEther": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_SPINARAK",
+                            min_level: 5,
+                            max_level: 7,
+                        ),
+                        (
+                            species: "SPECIES_MAREEP",
+                            min_level: 5,
+                            max_level: 7,
+                        ),
+                        (
+                            species: "SPECIES_CATERPIE",
+                            min_level: 5,
+                            max_level: 6,
+                        ),
+                        (
+                            species: "SPECIES_ELECTRIKE",
+                            min_level: 5,
+                            max_level: 7,
+                        ),
+                        (
+                            species: "SPECIES_PLUSLE",
+                            min_level: 6,
+                            max_level: 7,
+                        ),
+                        (
+                            species: "SPECIES_MINUN",
+                            min_level: 6,
+                            max_level: 7,
+                        ),
+                        (
+                            species: "SPECIES_PIKACHU",
+                            min_level: 6,
+                            max_level: 8,
+                        ),
+                        (
+                            species: "SPECIES_PARAS",
+                            min_level: 6,
+                            max_level: 8,
+                        ),
+                        (
+                            species: "SPECIES_SHROOMISH",
+                            min_level: 6,
+                            max_level: 8,
+                        ),
+                        (
+                            species: "SPECIES_NINCADA",
+                            min_level: 6,
+                            max_level: 8,
+                        ),
+                        (
+                            species: "SPECIES_SCYTHER",
+                            min_level: 7,
+                            max_level: 8,
+                        ),
+                        (
+                            species: "SPECIES_CHIKORITA",
+                            min_level: 7,
+                            max_level: 8,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 % Mimigal",
+                    "20 % Wattouat",
+                    "10 % Chenipan (remplace Larveyette)",
+                    "10 % Dynavolt (remplace Statitik)",
+                    "10 % Posipi",
+                    "10 % Négapi",
+                    "5 % Pikachu",
+                    "5 % Paras (remplace Carabing)",
+                    "4 % Balignon (remplace Trompignon)",
+                    "4 % Ningale (remplace Escargaume)",
+                    "1 % Insécateur",
+                    "1 % Germignon",
+                ],
+            ),
+        ],
+        "Breche": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MUK",
+                            min_level: 66,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_WEEZING",
+                            min_level: 66,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_ARBOK",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_SWALOT",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_CROBAT",
+                            min_level: 67,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_SEVIPER",
+                            min_level: 67,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_NIDOKING",
+                            min_level: 68,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_NIDOQUEEN",
+                            min_level: 68,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_DUSCLOPS",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_SKARMORY",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_ABSOL",
+                            min_level: 70,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_TYRANITAR",
+                            min_level: 70,
+                            max_level: 72,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "zone toxique : poisons majoritaires (Point Poison, Puanteur, Glu)",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "Evalon": [
+            (
+                land: Some((
+                    rate: 15,
+                    mons: [
+                        (
+                            species: "SPECIES_CLEFAIRY",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_RALTS",
+                            min_level: 30,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_BUTTERFREE",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_BEEDRILL",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_RATICATE",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_MARILL",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_KIRLIA",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_VILEPLUME",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_KADABRA",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_AZUMARILL",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_GARDEVOIR",
+                            min_level: 45,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_ALAKAZAM",
+                            min_level: 45,
+                            max_level: 45,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 2,
+                    mons: [
+                        (
+                            species: "SPECIES_MARILL",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_MARILL",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_AZUMARILL",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_AZUMARILL",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_AZUMARILL",
+                            min_level: 44,
+                            max_level: 45,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "Le Pré des Joutes (herbes hautes à l\'est du bourg)",
+                    "20 % · Mélofée",
+                    "20 % · Tarsal (reste bas : il évolue tard)",
+                    "10 % · Chenipan → Papilusion",
+                    "10 % · Aspicot → Dardargnan",
+                    "10 % · Rattata → Rattatac",
+                    "10 % · Marill",
+                    "5 %",
+                    "5 % · Rafflesia",
+                    "4 %",
+                    "4 %",
+                    "1 % (rare)",
+                    "1 % (rare, « compagnon de JDR »)",
+                    "étang du moulin",
+                ],
+            ),
+        ],
+        "Evalon_Galeries": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_WEEZING",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_LAIRON",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_MACHOKE",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_ARBOK",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_ARIADOS",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_MISDREAVUS",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_KADABRA",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_MISDREAVUS",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_ARON",
+                            min_level: 35,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_ALAKAZAM",
+                            min_level: 45,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_GARDEVOIR",
+                            min_level: 45,
+                            max_level: 45,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_GRAVELER",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_LAIRON",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_ARON",
+                            min_level: 35,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_GRAVELER",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_LAIRON",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                    ],
+                )),
+                fishing: None,
+                notes: [
+                    "20 % · Nosferapti → Nosferalto",
+                    "20 % · Smogo → Smogogo",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 % · Feuforve",
+                    "5 %",
+                    "4 %",
+                    "4 % · Galekid (Galékid des notes)",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "GrisEchec_Usine": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGNEMITE",
+                            min_level: 14,
+                            max_level: 17,
+                        ),
+                        (
+                            species: "SPECIES_GRIMER",
+                            min_level: 14,
+                            max_level: 17,
+                        ),
+                        (
+                            species: "SPECIES_KOFFING",
+                            min_level: 14,
+                            max_level: 16,
+                        ),
+                        (
+                            species: "SPECIES_RATTATA",
+                            min_level: 13,
+                            max_level: 16,
+                        ),
+                        (
+                            species: "SPECIES_MACHOP",
+                            min_level: 14,
+                            max_level: 16,
+                        ),
+                        (
+                            species: "SPECIES_DROWZEE",
+                            min_level: 14,
+                            max_level: 16,
+                        ),
+                        (
+                            species: "SPECIES_ZUBAT",
+                            min_level: 14,
+                            max_level: 16,
+                        ),
+                        (
+                            species: "SPECIES_SHUPPET",
+                            min_level: 15,
+                            max_level: 17,
+                        ),
+                        (
+                            species: "SPECIES_DUSKULL",
+                            min_level: 15,
+                            max_level: 17,
+                        ),
+                        (
+                            species: "SPECIES_NOSEPASS",
+                            min_level: 15,
+                            max_level: 17,
+                        ),
+                        (
+                            species: "SPECIES_MAGMAR",
+                            min_level: 17,
+                            max_level: 18,
+                        ),
+                        (
+                            species: "SPECIES_ALAKAZAM",
+                            min_level: 18,
+                            max_level: 18,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 % Magnéti",
+                    "20 % Tadmorv",
+                    "10 % Smogo",
+                    "10 % Rattata",
+                    "10 % Machoc",
+                    "10 % Soporifik",
+                    "5 % Nosferapti",
+                    "5 % Polichombr",
+                    "4 % Skelénox",
+                    "4 % Tarinor",
+                    "1 % Magmar",
+                    "1 % Alakazam « sauvage très rare » (notes)",
+                ],
+            ),
+        ],
+        "Nebula": [
+            (
+                land: None,
+                water: Some((
+                    rate: 2,
+                    mons: [
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 40,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_TENTACRUEL",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_GRIMER",
+                            min_level: 40,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_MUK",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "Quai des Eaux Grises et Bassin de Captage (surf uniquement)",
+                    "Tadmorv des égouts, en surf",
+                ],
+            ),
+        ],
+        "NoMansLand": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_SANDSLASH",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_CACTURNE",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_DUGTRIO",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_ARBOK",
+                            min_level: 71,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_CAMERUPT",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_SKARMORY",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_HOUNDOOM",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_RHYDON",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_FLYGON",
+                            min_level: 73,
+                            max_level: 77,
+                        ),
+                        (
+                            species: "SPECIES_CLAYDOL",
+                            min_level: 73,
+                            max_level: 77,
+                        ),
+                        (
+                            species: "SPECIES_TYRANITAR",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_AERODACTYL",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_TENTACRUEL",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_QUAGSIRE",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_WHISCASH",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_GOLDUCK",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_MILOTIC",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                    ],
+                )),
+                rock_smash: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_GOLEM",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_SHUCKLE",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_LUNATONE",
+                            min_level: 72,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_SOLROCK",
+                            min_level: 72,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_AERODACTYL",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                    ],
+                )),
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_BARBOACH",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_BARBOACH",
+                            min_level: 50,
+                            max_level: 60,
+                        ),
+                        (
+                            species: "SPECIES_WHISCASH",
+                            min_level: 55,
+                            max_level: 62,
+                        ),
+                        (
+                            species: "SPECIES_CORPHISH",
+                            min_level: 50,
+                            max_level: 60,
+                        ),
+                        (
+                            species: "SPECIES_WHISCASH",
+                            min_level: 68,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_CRAWDAUNT",
+                            min_level: 68,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 70,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_QUAGSIRE",
+                            min_level: 68,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_MILOTIC",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "plaine de cendres + oasis (eau) + rochers",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "canne : 2 slots (70/30), super canne : 3 (60/20/20), méga canne : 5 (40/40/15/4/1)",
+                    "canne",
+                    "canne",
+                    "super canne",
+                    "super canne",
+                    "super canne",
+                    "méga canne",
+                    "méga canne",
+                    "méga canne",
+                    "méga canne",
+                    "méga canne",
+                ],
+            ),
+        ],
+        "NoMansLand_CaveauGlace": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_GLALIE",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_PILOSWINE",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_SNEASEL",
+                            min_level: 71,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_WALREIN",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_DEWGONG",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_JYNX",
+                            min_level: 72,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_DELIBIRD",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_SEALEO",
+                            min_level: 70,
+                            max_level: 73,
+                        ),
+                        (
+                            species: "SPECIES_ABSOL",
+                            min_level: 73,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_LAPRAS",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_SKARMORY",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "caveau glacé : Regice au fond",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "NoMansLand_Centrale": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_ELECTRODE",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_MAGNETON",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_MANECTRIC",
+                            min_level: 71,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_MUK",
+                            min_level: 71,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_WEEZING",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_AMPHAROS",
+                            min_level: 72,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_ELECTABUZZ",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_RAICHU",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_PORYGON",
+                            min_level: 73,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_CLAYDOL",
+                            min_level: 73,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_PORYGON2",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_BANETTE",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "centrale morte : Électhor au cœur",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "NoMansLand_Cratere": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGCARGO",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_CAMERUPT",
+                            min_level: 70,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_TORKOAL",
+                            min_level: 71,
+                            max_level: 74,
+                        ),
+                        (
+                            species: "SPECIES_WEEZING",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_HOUNDOOM",
+                            min_level: 71,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_RAPIDASH",
+                            min_level: 72,
+                            max_level: 75,
+                        ),
+                        (
+                            species: "SPECIES_ARCANINE",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_MAGMAR",
+                            min_level: 72,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_NINETALES",
+                            min_level: 73,
+                            max_level: 76,
+                        ),
+                        (
+                            species: "SPECIES_CHARIZARD",
+                            min_level: 73,
+                            max_level: 77,
+                        ),
+                        (
+                            species: "SPECIES_SALAMENCE",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_TYRANITAR",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "cratère : Sulfura au sommet",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "Owlys_Entrepot_B1F": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_RATTATA",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_GRIMER",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_KOFFING",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_MACHOP",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_DROWZEE",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_RATICATE",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_FEAROW",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_KADABRA",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SABLEYE",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_HAUNTER",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_LARVITAR",
+                            min_level: 30,
+                            max_level: 32,
+                        ),
+                        (
+                            species: "SPECIES_CROBAT",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 % (perché sur les cuves)",
+                    "5 %",
+                    "4 %",
+                    "4 % (remplace Ectoplasma)",
+                    "1 % (remplace Tyranocif)",
+                    "1 %",
+                ],
+            ),
+        ],
+        "Owlys_GrotteEst": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_POOCHYENA",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_MURKROW",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_SPINARAK",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_HOOTHOOT",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_TAILLOW",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_MIGHTYENA",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_ARIADOS",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_NOCTOWL",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SPEAROW",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_MISDREAVUS",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_ABSOL",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_BAGON",
+                            min_level: 30,
+                            max_level: 32,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "PortRessac": [
+            (
+                land: Some((
+                    rate: 15,
+                    mons: [
+                        (
+                            species: "SPECIES_KRABBY",
+                            min_level: 26,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_WINGULL",
+                            min_level: 26,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_PSYDUCK",
+                            min_level: 26,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_SLOWPOKE",
+                            min_level: 26,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_MARILL",
+                            min_level: 26,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_MACHOP",
+                            min_level: 26,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_POLIWAG",
+                            min_level: 27,
+                            max_level: 29,
+                        ),
+                        (
+                            species: "SPECIES_SHELLDER",
+                            min_level: 27,
+                            max_level: 29,
+                        ),
+                        (
+                            species: "SPECIES_HITMONCHAN",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_POLIWHIRL",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_MAKUHITA",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_POLIWRATH",
+                            min_level: 30,
+                            max_level: 30,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 25,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_WINGULL",
+                            min_level: 25,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 26,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_CORSOLA",
+                            min_level: 26,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_WAILMER",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_GOLDEEN",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_GOLDEEN",
+                            min_level: 15,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_SHELLDER",
+                            min_level: 15,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 15,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_CARVANHA",
+                            min_level: 25,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_STARYU",
+                            min_level: 25,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 25,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_SPHEAL",
+                            min_level: 26,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_WAILMER",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "les Dunes de silice (herbe = sable cristallin)",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 % (dockers)",
+                    "5 %",
+                    "5 %",
+                    "4 % « le Puncher »",
+                    "4 %",
+                    "1 %",
+                    "1 % « le Maître Punch »",
+                    "Surf (après le badge)",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "vieille canne 70 %",
+                    "vieille canne 30 %",
+                    "canne 60 %",
+                    "canne 20 %",
+                    "canne 20 %",
+                    "super canne 40 %",
+                    "40 %",
+                    "15 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "ReverseCity": [
+            (
+                land: Some((
+                    rate: 15,
+                    mons: [
+                        (
+                            species: "SPECIES_MEOWTH",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_RATTATA",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_WOBBUFFET",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_EKANS",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_ZUBAT",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_ARBOK",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_MR_MIME",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_JYNX",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_HITMONTOP",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_GENGAR",
+                            min_level: 41,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_DITTO",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_DITTO",
+                            min_level: 41,
+                            max_level: 41,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 35,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_STARYU",
+                            min_level: 35,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_SHELLDER",
+                            min_level: 37,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_SEADRA",
+                            min_level: 39,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_STARMIE",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 25,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_STARYU",
+                            min_level: 25,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_SHELLDER",
+                            min_level: 25,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 35,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_STARYU",
+                            min_level: 35,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_SHELLDER",
+                            min_level: 35,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_SEADRA",
+                            min_level: 39,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_STARMIE",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "carré d\'herbe bleue",
+                    "20 % — commun",
+                    "20 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "5 % — peu commun",
+                    "5 % — peu commun",
+                    "4 % — peu commun",
+                    "4 % — peu commun",
+                    "1 % — rare",
+                    "1 % — rare",
+                    "eau rouge des quais",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "Canne (2)",
+                    "Super Canne (3)",
+                    "Méga Canne (5)",
+                ],
+            ),
+        ],
+        "RouteS01": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_WURMPLE",
+                            min_level: 2,
+                            max_level: 4,
+                        ),
+                        (
+                            species: "SPECIES_SENTRET",
+                            min_level: 2,
+                            max_level: 4,
+                        ),
+                        (
+                            species: "SPECIES_WEEDLE",
+                            min_level: 2,
+                            max_level: 4,
+                        ),
+                        (
+                            species: "SPECIES_HOPPIP",
+                            min_level: 3,
+                            max_level: 4,
+                        ),
+                        (
+                            species: "SPECIES_ODDISH",
+                            min_level: 3,
+                            max_level: 4,
+                        ),
+                        (
+                            species: "SPECIES_SEEDOT",
+                            min_level: 3,
+                            max_level: 4,
+                        ),
+                        (
+                            species: "SPECIES_SUNKERN",
+                            min_level: 3,
+                            max_level: 5,
+                        ),
+                        (
+                            species: "SPECIES_WHISMUR",
+                            min_level: 3,
+                            max_level: 5,
+                        ),
+                        (
+                            species: "SPECIES_SKITTY",
+                            min_level: 3,
+                            max_level: 5,
+                        ),
+                        (
+                            species: "SPECIES_SPINARAK",
+                            min_level: 3,
+                            max_level: 5,
+                        ),
+                        (
+                            species: "SPECIES_MAREEP",
+                            min_level: 4,
+                            max_level: 5,
+                        ),
+                        (
+                            species: "SPECIES_PICHU",
+                            min_level: 4,
+                            max_level: 5,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 % Chenipotte",
+                    "20 % Fouinette",
+                    "10 % Aspicot",
+                    "10 % Granivol",
+                    "10 % Mystherbe",
+                    "10 % Grainipiot",
+                    "5 % Tournegrin",
+                    "5 % Chuchmur",
+                    "4 % Skitty",
+                    "4 % Mimigal",
+                    "1 % Wattouat",
+                    "1 % Pichu (remplace Emolga)",
+                ],
+            ),
+        ],
+        "RouteS02": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_VOLTORB",
+                            min_level: 10,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_MAGNEMITE",
+                            min_level: 10,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_DIGLETT",
+                            min_level: 10,
+                            max_level: 12,
+                        ),
+                        (
+                            species: "SPECIES_GEODUDE",
+                            min_level: 10,
+                            max_level: 12,
+                        ),
+                        (
+                            species: "SPECIES_MARILL",
+                            min_level: 11,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_ELEKID",
+                            min_level: 11,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_ARON",
+                            min_level: 11,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_PIKACHU",
+                            min_level: 11,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_ABRA",
+                            min_level: 11,
+                            max_level: 13,
+                        ),
+                        (
+                            species: "SPECIES_ELECTABUZZ",
+                            min_level: 13,
+                            max_level: 14,
+                        ),
+                        (
+                            species: "SPECIES_PORYGON",
+                            min_level: 13,
+                            max_level: 14,
+                        ),
+                        (
+                            species: "SPECIES_BELDUM",
+                            min_level: 13,
+                            max_level: 14,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 % Voltorbe",
+                    "20 % Magnéti (remplace Rotom)",
+                    "10 % Taupiqueur",
+                    "10 % Racaillou",
+                    "10 % Marill",
+                    "10 % Élekid (remplace Lixy)",
+                    "5 % Galekid",
+                    "5 % Pikachu",
+                    "4 % Abra",
+                    "4 % Élektek",
+                    "1 % Porygon",
+                    "1 % Terhal",
+                    "mer figée : pas de Surf avant le Ch4 ; pas de canne pour l\'instant",
+                ],
+            ),
+        ],
+        "RouteS03": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGNEMITE",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_VOLTORB",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_WHISMUR",
+                            min_level: 20,
+                            max_level: 22,
+                        ),
+                        (
+                            species: "SPECIES_RATTATA",
+                            min_level: 20,
+                            max_level: 22,
+                        ),
+                        (
+                            species: "SPECIES_ELECTRIKE",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_LOUDRED",
+                            min_level: 22,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_SPOINK",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_SHUPPET",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_DUSKULL",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_LAIRON",
+                            min_level: 23,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_ELECTRODE",
+                            min_level: 24,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_MEDITITE",
+                            min_level: 22,
+                            max_level: 24,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 % commun",
+                    "20 % commun",
+                    "10 % commun (l\'écho)",
+                    "10 % commun",
+                    "10 % commun",
+                    "10 % commun",
+                    "5 % peu commun",
+                    "5 % peu commun",
+                    "4 % peu commun",
+                    "4 % peu commun",
+                    "1 % peu commun",
+                    "1 % commun (rare ici)",
+                ],
+            ),
+        ],
+        "RouteS04": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_ZUBAT",
+                            min_level: 27,
+                            max_level: 29,
+                        ),
+                        (
+                            species: "SPECIES_VOLTORB",
+                            min_level: 27,
+                            max_level: 29,
+                        ),
+                        (
+                            species: "SPECIES_GEODUDE",
+                            min_level: 27,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_MAGNEMITE",
+                            min_level: 27,
+                            max_level: 29,
+                        ),
+                        (
+                            species: "SPECIES_SABLEYE",
+                            min_level: 28,
+                            max_level: 29,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_GRAVELER",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_ONIX",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_MAGNETON",
+                            min_level: 30,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_ELECTRODE",
+                            min_level: 30,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_MAKUHITA",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 25,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 25,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 25,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 27,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 27,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 30,
+                            max_level: 30,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 % (mange les cristaux)",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 % (échappé du canal)",
+                    "1 %",
+                    "canal de la galerie (pas de Surf, pêche seulement)",
+                    "canne : 70 %",
+                    "canne : 30 %",
+                    "canne : 60 %",
+                    "canne : 20 %",
+                    "canne : 20 %",
+                    "super canne 40 %",
+                    "40 %",
+                    "15 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "RouteS05": [
+            (
+                land: None,
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_TENTACRUEL",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_PELIPPER",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SEALEO",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_WAILORD",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_KRABBY",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_KRABBY",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_CORSOLA",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_KINGLER",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SEADRA",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_STARMIE",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SHARPEDO",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "vieille canne 70 %",
+                    "vieille canne 30 %",
+                    "canne 60 %",
+                    "canne 20 %",
+                    "canne 20 %",
+                    "super canne 40 %",
+                    "40 %",
+                    "15 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "RouteS05_Banc": [
+            (
+                land: None,
+                water: Some((
+                    rate: 6,
+                    mons: [
+                        (
+                            species: "SPECIES_CLAMPERL",
+                            min_level: 28,
+                            max_level: 32,
+                        ),
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 30,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_DRATINI",
+                            min_level: 28,
+                            max_level: 30,
+                        ),
+                        (
+                            species: "SPECIES_CLAMPERL",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_DRATINI",
+                            min_level: 30,
+                            max_level: 32,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_CLAMPERL",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_CLAMPERL",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_DRATINI",
+                            min_level: 20,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_DRATINI",
+                            min_level: 28,
+                            max_level: 32,
+                        ),
+                        (
+                            species: "SPECIES_CLAMPERL",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_DRATINI",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_DRAGONAIR",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_DRAGONAIR",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "vieille canne 70 %",
+                    "vieille canne 30 %",
+                    "canne 60 %",
+                    "canne 20 %",
+                    "canne 20 %",
+                    "super canne 40 %",
+                    "40 %",
+                    "15 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "RouteS05_Epave": [
+            (
+                land: Some((
+                    rate: 8,
+                    mons: [
+                        (
+                            species: "SPECIES_SHUPPET",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_ZUBAT",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_DUSKULL",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_KRABBY",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_VOLTORB",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SABLEYE",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_HAUNTER",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_BANETTE",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_KINGLER",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_DUSCLOPS",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_RELICANTH",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 % (électronique de bord)",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "RouteS05_Faille": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_ZUBAT",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_SHUPPET",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_DUSKULL",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_SABLEYE",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_MACHOP",
+                            min_level: 31,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_DROWZEE",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_KADABRA",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SKARMORY",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_HAUNTER",
+                            min_level: 33,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SKARMORY",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_CROBAT",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 30,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_ZUBAT",
+                            min_level: 30,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_TENTACRUEL",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                    "couloir d\'eau de l\'entrée",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "RouteS05_GrotteCorail": [
+            (
+                land: None,
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_SPHEAL",
+                            min_level: 30,
+                            max_level: 33,
+                        ),
+                        (
+                            species: "SPECIES_SEALEO",
+                            min_level: 32,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_CORSOLA",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SEALEO",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_WALREIN",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_CORSOLA",
+                            min_level: 5,
+                            max_level: 10,
+                        ),
+                        (
+                            species: "SPECIES_CORSOLA",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_HORSEA",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 20,
+                            max_level: 28,
+                        ),
+                        (
+                            species: "SPECIES_SEADRA",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_CORSOLA",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 30,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_SEADRA",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_KINGDRA",
+                            min_level: 34,
+                            max_level: 34,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "vieille canne 70 %",
+                    "vieille canne 30 %",
+                    "canne 60 %",
+                    "canne 20 %",
+                    "canne 20 %",
+                    "super canne 40 %",
+                    "40 %",
+                    "15 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "RouteS06": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_SPEAROW",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_MANKEY",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_MACHOP",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_PONYTA",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_GROWLITHE",
+                            min_level: 35,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_EKANS",
+                            min_level: 35,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_PRIMEAPE",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_SCYTHER",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_HITMONLEE",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_HITMONCHAN",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_ABSOL",
+                            min_level: 37,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_ARCANINE",
+                            min_level: 38,
+                            max_level: 38,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MACHOP",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_MANKEY",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_HITMONCHAN",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_MEDICHAM",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_FLYGON",
+                            min_level: 38,
+                            max_level: 38,
+                        ),
+                    ],
+                )),
+                fishing: None,
+                notes: [
+                    "20 % — commun",
+                    "20 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "5 % — peu commun",
+                    "5 % — peu commun",
+                    "4 % — peu commun",
+                    "4 % — peu commun",
+                    "1 % — rare",
+                    "1 % — rare",
+                    "rochers fissurés R1–R3 (après le Scanner de Faille)",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 % — remplace Lucario (Gen4)",
+                    "1 % — rare",
+                ],
+            ),
+        ],
+        "RouteS06_BoisSoupirs": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_ODDISH",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_BUTTERFREE",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_BULBASAUR",
+                            min_level: 34,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_CHARMANDER",
+                            min_level: 34,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_SQUIRTLE",
+                            min_level: 34,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_BEEDRILL",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_NINETALES",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_ALAKAZAM",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_VENUSAUR",
+                            min_level: 37,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_BLASTOISE",
+                            min_level: 37,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_CHARIZARD",
+                            min_level: 38,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_DRAGONITE",
+                            min_level: 38,
+                            max_level: 38,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_POLIWAG",
+                            min_level: 30,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 30,
+                            max_level: 35,
+                        ),
+                        (
+                            species: "SPECIES_POLIWHIRL",
+                            min_level: 35,
+                            max_level: 37,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 35,
+                            max_level: 37,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 37,
+                            max_level: 38,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_POLIWAG",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_POLIWAG",
+                            min_level: 25,
+                            max_level: 32,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 25,
+                            max_level: 32,
+                        ),
+                        (
+                            species: "SPECIES_POLIWHIRL",
+                            min_level: 28,
+                            max_level: 34,
+                        ),
+                        (
+                            species: "SPECIES_POLIWHIRL",
+                            min_level: 34,
+                            max_level: 37,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 34,
+                            max_level: 37,
+                        ),
+                        (
+                            species: "SPECIES_POLIWAG",
+                            min_level: 34,
+                            max_level: 36,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 36,
+                            max_level: 38,
+                        ),
+                        (
+                            species: "SPECIES_POLIWRATH",
+                            min_level: 38,
+                            max_level: 38,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "20 % — commun",
+                    "20 % — commun (remplace Chenipan)",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun (remplace Aspicot)",
+                    "5 % — peu commun",
+                    "5 % — peu commun",
+                    "4 % — peu commun",
+                    "4 % — peu commun",
+                    "1 % — peu commun (rare ici)",
+                    "1 % — rare",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "Canne (2)",
+                    "Super Canne (3)",
+                    "Méga Canne (5)",
+                ],
+            ),
+        ],
+        "RouteS07": [
+            (
+                land: Some((
+                    rate: 15,
+                    mons: [
+                        (
+                            species: "SPECIES_VOLTORB",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_UNOWN",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_KOFFING",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_GRIMER",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_ELECTRODE",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_SPINARAK",
+                            min_level: 39,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_PORYGON",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_GIRAFARIG",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_XATU",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_KADABRA",
+                            min_level: 40,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_HYPNO",
+                            min_level: 41,
+                            max_level: 41,
+                        ),
+                        (
+                            species: "SPECIES_GRUMPIG",
+                            min_level: 41,
+                            max_level: 41,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "îlots d\'herbes de cristal",
+                    "20 % — commun",
+                    "20 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun",
+                    "10 % — commun (Mimigal)",
+                    "5 % — peu commun",
+                    "5 % — peu commun",
+                    "4 % — peu commun",
+                    "4 % — peu commun",
+                    "1 % — peu commun",
+                    "1 % — peu commun",
+                ],
+            ),
+        ],
+        "RouteS08": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_GLOOM",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_FEAROW",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_NUZLEAF",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_RAPIDASH",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_MACHOKE",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_ARBOK",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_LAIRON",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_ARIADOS",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_SCYTHER",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_KIRLIA",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_FARFETCHD",
+                            min_level: 44,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_GARDEVOIR",
+                            min_level: 45,
+                            max_level: 45,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_MARILL",
+                            min_level: 41,
+                            max_level: 43,
+                        ),
+                        (
+                            species: "SPECIES_AZUMARILL",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_GOLDUCK",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_POLIWHIRL",
+                            min_level: 42,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_POLITOED",
+                            min_level: 44,
+                            max_level: 45,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_GOLDEEN",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_GOLDEEN",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_POLIWAG",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_SEAKING",
+                            min_level: 41,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_POLIWHIRL",
+                            min_level: 41,
+                            max_level: 44,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 42,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 43,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_DRATINI",
+                            min_level: 30,
+                            max_level: 35,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "20 % · Mystherbe → Ortide",
+                    "20 % · Piafabec → Rapasdepic",
+                    "10 % · Grainipiot → Pifeuil",
+                    "10 % · Ponyta → Galopa",
+                    "10 % · Machoc → Machopeur",
+                    "10 % · Abo → Arbok",
+                    "5 % · Galegon",
+                    "5 % · Migalos",
+                    "4 % · Insécateur",
+                    "4 % · Kirlia",
+                    "1 % · Canarticho",
+                    "1 % · Gardevoir (rare)",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "Vieille Canne 70 %",
+                    "Vieille Canne 30 %",
+                    "Super Canne 60 %",
+                    "Super Canne 20 %",
+                    "Super Canne 20 %",
+                    "Méga Canne 40 %",
+                    "Méga Canne 40 %",
+                    "Méga Canne 15 %",
+                    "Méga Canne 4 %",
+                    "Méga Canne 1 % (cadeau des chutes)",
+                ],
+            ),
+        ],
+        "RouteS09": [
+            (
+                land: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MIGHTYENA",
+                            min_level: 45,
+                            max_level: 46,
+                        ),
+                        (
+                            species: "SPECIES_MAGNETON",
+                            min_level: 45,
+                            max_level: 46,
+                        ),
+                        (
+                            species: "SPECIES_LINOONE",
+                            min_level: 45,
+                            max_level: 46,
+                        ),
+                        (
+                            species: "SPECIES_PELIPPER",
+                            min_level: 45,
+                            max_level: 46,
+                        ),
+                        (
+                            species: "SPECIES_MUK",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_ELECTRODE",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_WEEZING",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_GOLBAT",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_MANECTRIC",
+                            min_level: 46,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_HOUNDOOM",
+                            min_level: 46,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_ABSOL",
+                            min_level: 47,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_DITTO",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                    ],
+                )),
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 40,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_TENTACRUEL",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_PELIPPER",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_MANTINE",
+                            min_level: 46,
+                            max_level: 47,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: Some((
+                    rate: 30,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_TENTACOOL",
+                            min_level: 10,
+                            max_level: 20,
+                        ),
+                        (
+                            species: "SPECIES_BARBOACH",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_CORPHISH",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 30,
+                            max_level: 40,
+                        ),
+                        (
+                            species: "SPECIES_WHISCASH",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_CRAWDAUNT",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_SHARPEDO",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_GYARADOS",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_FEEBAS",
+                            min_level: 20,
+                            max_level: 25,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "herbes de la Berge",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 % (rare : « il sent le désastre »)",
+                    "1 % (rare : une ville de copies)",
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                    "Vieille Canne 70 %",
+                    "Vieille Canne 30 %",
+                    "Super Canne 60 %",
+                    "Super Canne 20 %",
+                    "Super Canne 20 %",
+                    "Méga Canne 40 %",
+                    "Méga Canne 40 %",
+                    "Méga Canne 15 %",
+                    "Méga Canne 4 %",
+                    "Méga Canne 1 % (clin d\'œil au MILOBELLUS de POUSSIN)",
+                ],
+            ),
+        ],
+        "RouteS09_Underwater": [
+            (
+                land: None,
+                water: Some((
+                    rate: 4,
+                    mons: [
+                        (
+                            species: "SPECIES_CLAMPERL",
+                            min_level: 40,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 40,
+                            max_level: 45,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_RELICANTH",
+                            min_level: 45,
+                            max_level: 47,
+                        ),
+                        (
+                            species: "SPECIES_GOREBYSS",
+                            min_level: 46,
+                            max_level: 47,
+                        ),
+                    ],
+                )),
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "60 %",
+                    "30 %",
+                    "5 %",
+                    "4 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "TourNebulaAscenseur": [
+            (
+                land: None,
+                water: None,
+                rock_smash: None,
+                fishing: None,
+            ),
+        ],
+        "TourNebula_1F": [
+            (
+                land: None,
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "l\'eau noire est un décor",
+                ],
+            ),
+        ],
+        "TourNebula_1F_Ruine": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_MUK",
+                            min_level: 65,
+                            max_level: 68,
+                        ),
+                        (
+                            species: "SPECIES_WEEZING",
+                            min_level: 65,
+                            max_level: 68,
+                        ),
+                        (
+                            species: "SPECIES_SPINDA",
+                            min_level: 65,
+                            max_level: 68,
+                        ),
+                        (
+                            species: "SPECIES_LUDICOLO",
+                            min_level: 66,
+                            max_level: 69,
+                        ),
+                        (
+                            species: "SPECIES_MILTANK",
+                            min_level: 66,
+                            max_level: 69,
+                        ),
+                        (
+                            species: "SPECIES_HARIYAMA",
+                            min_level: 66,
+                            max_level: 69,
+                        ),
+                        (
+                            species: "SPECIES_SHIFTRY",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_MAGCARGO",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_KANGASKHAN",
+                            min_level: 68,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_SLAKING",
+                            min_level: 68,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_CROBAT",
+                            min_level: 70,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_SABLEYE",
+                            min_level: 70,
+                            max_level: 72,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "la Cave de Mathias, fûts éventrés",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "TourNebula_2F": [
+            (
+                land: None,
+                water: None,
+                rock_smash: None,
+                fishing: None,
+            ),
+        ],
+        "TourNebula_3F": [
+            (
+                land: None,
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "la mer est virtuelle",
+                ],
+            ),
+        ],
+        "TourNebula_3F_Ruine": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_PELIPPER",
+                            min_level: 66,
+                            max_level: 69,
+                        ),
+                        (
+                            species: "SPECIES_SWELLOW",
+                            min_level: 66,
+                            max_level: 69,
+                        ),
+                        (
+                            species: "SPECIES_CROBAT",
+                            min_level: 66,
+                            max_level: 69,
+                        ),
+                        (
+                            species: "SPECIES_MANECTRIC",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_ALTARIA",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_SKARMORY",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_GLALIE",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_MAGNETON",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_DRAGONAIR",
+                            min_level: 69,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_ABSOL",
+                            min_level: 69,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_SALAMENCE",
+                            min_level: 71,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_AERODACTYL",
+                            min_level: 71,
+                            max_level: 72,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "l\'Horizon Virtuel, écrans crevés, vent du dehors",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "TourNebula_4F": [
+            (
+                land: None,
+                water: None,
+                rock_smash: None,
+                fishing: None,
+            ),
+        ],
+        "TourNebula_4F_Ruine": [
+            (
+                land: Some((
+                    rate: 10,
+                    mons: [
+                        (
+                            species: "SPECIES_BANETTE",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_DUSCLOPS",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_SABLEYE",
+                            min_level: 67,
+                            max_level: 70,
+                        ),
+                        (
+                            species: "SPECIES_CLAYDOL",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_GRUMPIG",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_CHIMECHO",
+                            min_level: 68,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_MR_MIME",
+                            min_level: 69,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_WOBBUFFET",
+                            min_level: 69,
+                            max_level: 71,
+                        ),
+                        (
+                            species: "SPECIES_GARDEVOIR",
+                            min_level: 70,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_XATU",
+                            min_level: 70,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_GENGAR",
+                            min_level: 72,
+                            max_level: 72,
+                        ),
+                        (
+                            species: "SPECIES_SHEDINJA",
+                            min_level: 72,
+                            max_level: 72,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "les Reflets Infinis, miroirs brisés",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+        "ViberCity": [
+            (
+                land: Some((
+                    rate: 15,
+                    mons: [
+                        (
+                            species: "SPECIES_PIKACHU",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_SKITTY",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_MEOWTH",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_GASTLY",
+                            min_level: 21,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_PLUSLE",
+                            min_level: 22,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_MINUN",
+                            min_level: 22,
+                            max_level: 23,
+                        ),
+                        (
+                            species: "SPECIES_MISDREAVUS",
+                            min_level: 22,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_KADABRA",
+                            min_level: 23,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_HAUNTER",
+                            min_level: 24,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_ELECTABUZZ",
+                            min_level: 24,
+                            max_level: 25,
+                        ),
+                        (
+                            species: "SPECIES_MAREEP",
+                            min_level: 22,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_GENGAR",
+                            min_level: 26,
+                            max_level: 26,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: Some((
+                    rate: 20,
+                    mons: [
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 10,
+                            max_level: 15,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 10,
+                            max_level: 15,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 20,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 20,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_MAGIKARP",
+                            min_level: 20,
+                            max_level: 24,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 24,
+                            max_level: 26,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 26,
+                            max_level: 26,
+                        ),
+                        (
+                            species: "SPECIES_CHINCHOU",
+                            min_level: 24,
+                            max_level: 26,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 26,
+                            max_level: 26,
+                        ),
+                        (
+                            species: "SPECIES_LANTURN",
+                            min_level: 26,
+                            max_level: 26,
+                        ),
+                    ],
+                )),
+                notes: [
+                    "Jardin des Néons (herbes phosphorescentes) + canal",
+                    "20 % commun",
+                    "20 % commun",
+                    "10 % commun",
+                    "10 % commun",
+                    "10 % commun",
+                    "10 % commun",
+                    "5 % peu commun",
+                    "5 % peu commun",
+                    "4 % peu commun",
+                    "4 % peu commun (remplace Lixy)",
+                    "1 % (clin d\'œil à GWADA)",
+                    "1 % RARE : ECTOPLASMA",
+                    "Surf : Ch.4",
+                    "vieille canne (2)",
+                    "super canne (3)",
+                    "méga canne (5)",
+                ],
+            ),
+        ],
+        "Zone404": [
+            (
+                land: Some((
+                    rate: 15,
+                    mons: [
+                        (
+                            species: "SPECIES_UNOWN",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_DITTO",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_PORYGON2",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_KECLEON",
+                            min_level: 75,
+                            max_level: 78,
+                        ),
+                        (
+                            species: "SPECIES_SMEARGLE",
+                            min_level: 76,
+                            max_level: 79,
+                        ),
+                        (
+                            species: "SPECIES_SPINDA",
+                            min_level: 76,
+                            max_level: 79,
+                        ),
+                        (
+                            species: "SPECIES_MAGNETON",
+                            min_level: 76,
+                            max_level: 79,
+                        ),
+                        (
+                            species: "SPECIES_SHEDINJA",
+                            min_level: 76,
+                            max_level: 79,
+                        ),
+                        (
+                            species: "SPECIES_CASTFORM",
+                            min_level: 77,
+                            max_level: 80,
+                        ),
+                        (
+                            species: "SPECIES_BANETTE",
+                            min_level: 77,
+                            max_level: 80,
+                        ),
+                        (
+                            species: "SPECIES_CHIMECHO",
+                            min_level: 78,
+                            max_level: 80,
+                        ),
+                        (
+                            species: "SPECIES_PORYGON",
+                            min_level: 78,
+                            max_level: 80,
+                        ),
+                    ],
+                )),
+                water: None,
+                rock_smash: None,
+                fishing: None,
+                notes: [
+                    "donjon glitché : un mélange de tous les décors",
+                    "20 %",
+                    "20 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "10 %",
+                    "5 %",
+                    "5 %",
+                    "4 %",
+                    "4 %",
+                    "1 %",
+                    "1 %",
+                ],
+            ),
+        ],
+    },
+)
