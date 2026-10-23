@@ -44,7 +44,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "mauville-gym-deactivate",
     "teach-hm-rock-smash",
     "checkpartymove-rock-smash",
-    "cable-car",
     "checkpartymove-rock-smash-south",
     "checkpartymove-rock-smash-rusturf",
     "petalburg-gym-doors",

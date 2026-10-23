@@ -70,17 +70,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// `Route112_CableCarStation_EventScript_RideCableCar`: `special CableCarWarp` (the warp
-    /// destination) and `special CableCar` (the ride scene) are unsupported, so the player stays
-    /// in the station. The bypass warps to the Mt. Chimney station's (6, 4), where
-    /// `VAR_CABLE_CAR_STATION_STATE` 1 (set by the script) plays the exit.
-    static CABLE_CAR_UP: Bypass = Bypass {
-        issue: "cable-car",
-        features: &["SPECIAL_CableCarWarp", "SPECIAL_CableCar"],
-        warp: Some((MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 4)),
-        ..Bypass::NONE
-    };
-
     /// Teaching HM06 needs the bag and the party menu (Milestone 9): the bypass writes Rock
     /// Smash over the lead's Mud-Slap, so `EventScript_RockSmash`'s `checkpartymove` finds it.
     static TEACH_ROCK_SMASH: Bypass = Bypass {
@@ -874,8 +863,9 @@ mod list {
         enter(MAP_FIERY_PATH, 26, 36, Down),
         enter(MAP_ROUTE112, 28, 27, Up),
         Step::Battle(BattlePlan::BestLearn),
+        // The attendant's ride (`CableCarWarp`, `CableCar`) lands in Mt. Chimney's station,
+        // whose `ON_FRAME` script walks the player out.
         talk(MAP_ROUTE112_CABLE_CAR_STATION, 1),
-        Step::Bypass(&CABLE_CAR_UP),
         Step::WaitScript,
         // ---- Mt. Chimney: Maxie at the meteorite machine ----
         enter(MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 11, Down),

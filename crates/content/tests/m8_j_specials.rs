@@ -435,6 +435,39 @@ fn native_specials_issue_their_requests_in_order() {
     ));
     assert_eq!(h.log.len(), 4);
     covered.insert("SPECIAL_ChooseStarter");
+    // The cable car (`CableCarWarp`, `CableCar`): `VAR_0x8004` picks the other station; the
+    // ride fades to black, waits 602 frames (`Task_CableCar`'s 570 and its fade out), then
+    // warps to (6, 4) with no warp id.
+    #[cfg(not(pkr_silice))]
+    for (down, map) in [
+        (0, MAP_MT_CHIMNEY_CABLE_CAR_STATION),
+        (1, MAP_ROUTE112_CABLE_CAR_STATION),
+    ] {
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, down);
+        run_special(&mut h, "SPECIAL_CableCarWarp");
+        assert_eq!(h.log, [Request::GetVar(VAR_0x8004)]);
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, down);
+        run_special(&mut h, "SPECIAL_CableCar");
+        assert_eq!(
+            h.log,
+            [
+                degraded("SPECIAL_CableCar"),
+                Request::GetVar(VAR_0x8004),
+                Request::Fade(Fade::ToBlack),
+                Request::Delay(602),
+                Request::Warp {
+                    map,
+                    warp: None,
+                    x: 6,
+                    y: 4
+                },
+            ]
+        );
+    }
+    covered.insert("SPECIAL_CableCarWarp");
+    covered.insert("SPECIAL_CableCar");
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
     // no random draw, as in Gen3; above 2 by parity.
     for (t3, s) in [(1, MOM), (2, DAD), (5, DAD), (6, MOM)] {

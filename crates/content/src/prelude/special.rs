@@ -44,10 +44,38 @@ const PLAYER_HOUSES_1F: [MapId; 2] = [
 #[cfg(pkr_silice)]
 const PLAYER_HOUSES_1F: [MapId; 2] = [MAP_BRICO_BOURG_PLAYER_HOUSE_1F; 2];
 
+/// The cable car's stations, `[up, down]`: where `CableCarWarp` sends a ride going up
+/// (`VAR_0x8004` = 0) or down.
+#[cfg(not(pkr_silice))]
+const CABLE_CAR_STATIONS: [MapId; 2] = [
+    MAP_MT_CHIMNEY_CABLE_CAR_STATION,
+    MAP_ROUTE112_CABLE_CAR_STATION,
+];
+/// Silice has no cable car: a ride warps nowhere (the host ignores a missing map).
+#[cfg(pkr_silice)]
+const CABLE_CAR_STATIONS: [MapId; 2] = [MapId(0xFFFF); 2];
+/// Both stations' arrival cell (`CableCarWarp`, `WARP_ID_NONE`).
+const CABLE_CAR_ARRIVAL: (i16, i16) = (6, 4);
+/// The ride between the fade to black and the warp (`cable_car.c`): `Task_CableCar` fades out
+/// at timer 570, and that fade (`BeginNormalPaletteFade(…, 3, 0, 16, …)`, 8 steps of 4 frames)
+/// takes 32 more.
+const CABLE_CAR_RIDE_FRAMES: u16 = 570 + 32;
+
 /// Reports `id` as run in a simplified way (its decomp name).
 async fn degraded(ctx: &Ctx, id: u16) {
     let name = name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?");
     ctx.report(Report::Degraded(name)).await;
+}
+
+/// Gen3 `CableCarWarp`'s destination map: Mt. Chimney's station going up (`VAR_0x8004` = 0),
+/// Route 112's going down.
+async fn cable_car_destination(ctx: &Ctx) -> MapId {
+    let [up, down] = CABLE_CAR_STATIONS;
+    if ctx.var(VAR_0x8004).await != 0 {
+        down
+    } else {
+        up
+    }
 }
 
 /// `special <id>` / `specialvar <var>, <id>` for the `Native` specials: logs the special's name,
@@ -81,6 +109,13 @@ async fn degraded(ctx: &Ctx, id: u16) {
 ///   male player, May's else) Mom, `VAR_TEMP_3` = 1, with no draw; else `VAR_TEMP_3` picks
 ///   (1 Mom, 2 Dad, above 2 by parity), and when unset Mom or Dad at random, kept in
 ///   `VAR_TEMP_3`; `STR_VAR_1` gets `gText_Mom` or `gText_Dad`.
+/// - `CableCarWarp` (`field_specials.c`): Gen3 sets `gWarpDestination` to the other station's
+///   (6, 4) by `VAR_0x8004` (0: up to Mt. Chimney); only the ride's end reads it, so this
+///   reads the var and `CableCar` warps there.
+/// - `CableCar` (`cable_car.c`), degraded: no ride scene. The field fades to black as Gen3's
+///   `CableCar` does, stays black for the ride's frames, then warps to `CableCarWarp`'s
+///   destination (`CB2_EndCableCar`'s `WarpIntoMap`); the warp's map load ends the script, as
+///   `CB2_LoadMap` does in Gen3 (the script's `waitstate` is never reached).
 /// - Degraded (reported), as if cancelled:
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
@@ -152,6 +187,17 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             ctx.buffer(0, BufferSrc::Std(s)).await;
         }
         id if id == SPECIAL_StartWallyTutorialBattle => degraded(ctx, id).await,
+        id if id == SPECIAL_CableCarWarp => {
+            cable_car_destination(ctx).await;
+        }
+        id if id == SPECIAL_CableCar => {
+            degraded(ctx, id).await;
+            let map = cable_car_destination(ctx).await;
+            ctx.fade(Fade::ToBlack).await;
+            ctx.delay(CABLE_CAR_RIDE_FRAMES).await;
+            let (x, y) = CABLE_CAR_ARRIVAL;
+            ctx.warp(map, None, x, y).await;
+        }
         id if id == SPECIAL_GetMomOrDadStringForTVMessage => {
             let [male_house, female_house] = PLAYER_HOUSES_1F;
             let house = if check_player_gender(ctx).await == MALE {

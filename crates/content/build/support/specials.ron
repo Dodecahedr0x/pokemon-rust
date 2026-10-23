@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 25 Native, 19 Ignore, 35 Default, 445 Unsupported.
+// Counts: 27 Native, 19 Ignore, 35 Default, 443 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -45,8 +45,8 @@
     "SPECIAL_BufferTrendyPhraseString": Unsupported,
     "SPECIAL_BufferUnionRoomPlayerName": Default(0), // no Union Room partner (no link)
     "SPECIAL_BufferVarsForIVRater": Unsupported,
-    "SPECIAL_CableCar": Unsupported,
-    "SPECIAL_CableCarWarp": Unsupported,
+    "SPECIAL_CableCar": Native, // degraded: no ride scene; fades to black, waits the ride's frames, warps to the other station
+    "SPECIAL_CableCarWarp": Native, // the destination by VAR_0x8004 (CableCar warps there: only the ride's end reads gWarpDestination)
     "SPECIAL_CableClubSaveGame": Unsupported,
     "SPECIAL_CalculatePlayerPartyCount": Native, // the party size (no eggs yet)
     "SPECIAL_CallApprenticeFunction": Unsupported,
