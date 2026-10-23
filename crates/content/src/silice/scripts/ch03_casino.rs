@@ -462,7 +462,7 @@ pub async fn ViberCity_Casino_EventScript_Solene(ctx: Ctx) {
 pub async fn ViberCity_Casino_B1F_OnTransition(ctx: Ctx) {
     ctx.set_flag(FLAG_SIL_HIDE_CASINO_B1F_ROMAIN, true).await;
     if ctx.flag(FLAG_SIL_CASINO_CHEF).await {
-        ctx.set_object_template_pos(LOCALID_CASINO_B1F_CROUPIER_CHEF, 6, 10)
+        ctx.set_object_template_pos(LOCALID_CASINO_B1F_CROUPIER_CHEF, CHEF_SEAT.0, CHEF_SEAT.1)
             .await;
     }
 }
@@ -480,14 +480,11 @@ pub async fn ViberCity_Casino_B1F_Sc01(ctx: Ctx) {
     ctx.release_all().await;
 }
 
-/// The head croupier steps aside, from (10, 9) to (6, 10).
-const CHEF_ASIDE: &[Step] = &[
-    walk(Dir::Down),
-    walk(Dir::Left),
-    walk(Dir::Left),
-    walk(Dir::Left),
-    walk(Dir::Left),
-];
+/// The head croupier steps aside from the passage (10, 9): one step down, then (the fade) behind
+/// the capsule on (6, 10). The built room has the capsule (8, 10) solid and the cells west of it
+/// walled in, so there is no walkable way there ("SIL2 Ch3 scripts as built").
+const CHEF_DOWN: &[Step] = &[walk(Dir::Down)];
+const CHEF_SEAT: (i16, i16) = (6, 10);
 
 /// The head croupier (10, 9), blocking the Porygon's room: his battle, then he steps aside
 /// (`FLAG_SIL_CASINO_CHEF`). Afterwards, his complaint.
@@ -501,7 +498,11 @@ pub async fn ViberCity_Casino_B1F_EventScript_CroupierChef(ctx: Ctx) {
     say(&ctx, Casino_B1F_Chef_T1).await;
     battle_trainer(&ctx, TRAINER_SIL_CROUPIER_CHEF_1, Casino_B1F_Chef_Defaite).await;
     say(&ctx, Casino_B1F_Chef_T2).await;
-    move_wait(&ctx, LOCALID_CASINO_B1F_CROUPIER_CHEF, CHEF_ASIDE).await;
+    move_wait(&ctx, LOCALID_CASINO_B1F_CROUPIER_CHEF, CHEF_DOWN).await;
+    ctx.fade(Fade::ToBlack).await;
+    ctx.set_object_pos(LOCALID_CASINO_B1F_CROUPIER_CHEF, CHEF_SEAT.0, CHEF_SEAT.1)
+        .await;
+    ctx.fade(Fade::FromBlack).await;
     ctx.set_flag(FLAG_SIL_CASINO_CHEF, true).await;
     ctx.release().await;
 }
