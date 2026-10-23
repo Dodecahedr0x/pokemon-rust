@@ -195,8 +195,33 @@ pub fn std_scripts(rom: &Rom) -> Result<Option<Vec<u32>>> {
 }
 
 /// The field scripts the game's C code starts (no map, object or std table points at them),
-/// by decomp label (Wave C): `GetInteractedWaterScript`'s `EventScript_UseSurf`.
-pub const FIELD_SCRIPTS: [&str; 1] = ["EventScript_UseSurf"];
+/// by decomp label: `GetInteractedWaterScript`'s `EventScript_UseSurf` (Wave C), then the
+/// Match Call registrations `TryStartStepCountScript` (`field_control_avatar.c`) starts
+/// ([`STEP_CALL_SCRIPTS`], Wave E).
+pub const FIELD_SCRIPTS: [&str; 6] = [
+    "EventScript_UseSurf",
+    "RustboroCity_Gym_EventScript_RegisterRoxanne",
+    "MauvilleCity_EventScript_RegisterWallyCall",
+    "Route119_EventScript_ScottWonAtFortreeGymCall",
+    "LittlerootTown_ProfessorBirchsLab_EventScript_ScottAboardSSTidalCall",
+    "MossdeepCity_SpaceCenter_2F_EventScript_RivalRayquazaCall",
+];
+
+/// [`FIELD_SCRIPTS`]`[1..]`'s signatures: the script opens with `lockall` then the named
+/// command, and its straight line (no jump followed) reaches `clearflag <flag>`, the flag
+/// whose `ShouldDo*Call` (`field_specials.c`) starts it: `FLAG_ENABLE_ROXANNE_FIRST_CALL`,
+/// `FLAG_ENABLE_FIRST_WALLY_POKENAV_CALL`, `FLAG_SCOTT_CALL_FORTREE_GYM`,
+/// `FLAG_SCOTT_CALL_BATTLE_FRONTIER`, `FLAG_DEFEATED_MAGMA_SPACE_CENTER`.
+pub const STEP_CALL_SCRIPTS: [(&str, u16); 5] = [
+    ("pokenavcall", 0x80),
+    ("pokenavcall", 0x88),
+    ("pokenavcall", 0x8A),
+    ("pokenavcall", 0x72),
+    ("checkplayergender", 0x75),
+];
+
+/// How far before its `clearflag` a [`STEP_CALL_SCRIPTS`] script may start.
+const STEP_CALL_REACH: u32 = 96;
 
 /// The positional root name of [`FIELD_SCRIPTS`]`[i]` (used without the decomp).
 pub fn field_root_name(i: usize) -> String {
@@ -224,10 +249,46 @@ pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
     let found: Vec<u32> = (rom.find_all(&surf).into_iter())
         .filter(|&at| matches!(crate::scripts::decode(rom, at), Ok(Some(_))))
         .collect();
-    Ok(vec![match found.as_slice() {
+    let mut out = vec![match found.as_slice() {
         [at] => Some(*at),
         _ => None,
-    }])
+    }];
+    for (second, flag) in STEP_CALL_SCRIPTS {
+        out.push(step_call_script(rom, op(second)?, flag)?);
+    }
+    Ok(out)
+}
+
+/// The one script that opens with `lockall; <second>` and reaches `clearflag flag` in a
+/// straight line ([`STEP_CALL_SCRIPTS`]), `None` when there is not exactly one.
+fn step_call_script(rom: &Rom, second: u8, flag: u16) -> Result<Option<u32>> {
+    let lockall = crate::scripts::opcode("lockall").context("lockall")?;
+    let mut clear = vec![crate::scripts::opcode("clearflag").context("clearflag")?];
+    clear.extend(flag.to_le_bytes());
+    let mut found = Vec::new();
+    for hit in rom.find_all(&clear) {
+        for start in hit.saturating_sub(STEP_CALL_REACH)..hit {
+            if rom.u8(start)? != lockall || rom.u8(start + 1)? != second {
+                continue;
+            }
+            let mut pc = start;
+            while pc < hit {
+                match crate::scripts::decode(rom, pc) {
+                    Ok(Some(i)) if !i.is_terminator() => pc += i.len,
+                    _ => break,
+                }
+            }
+            if pc == hit {
+                found.push(start);
+            }
+        }
+    }
+    found.sort();
+    found.dedup();
+    Ok(match found.as_slice() {
+        [at] => Some(*at),
+        _ => None,
+    })
 }
 
 /// Offset -> canonical name: the first name for each offset in `roots`, which must list the
@@ -238,6 +299,36 @@ pub fn canonical<'a>(roots: impl IntoIterator<Item = &'a (String, u32)>) -> BTre
         out.entry(*off).or_insert_with(|| name.clone());
     }
     out
+}
+
+#[cfg(test)]
+mod step_call_tests {
+    use super::*;
+
+    fn op(n: &str) -> u8 {
+        crate::scripts::opcode(n).unwrap()
+    }
+
+    /// `lockall; pokenavcall <text>; waitmessage; clearflag 0x80; releaseall; end` at 0x110,
+    /// after a decoy `clearflag 0x80` that no `lockall; pokenavcall` reaches.
+    #[test]
+    fn finds_the_registration_by_its_cleared_flag() {
+        let mut b = vec![0u8; 0x200];
+        b[0xAC..0xB0].copy_from_slice(b"BPEE");
+        b[0x100..0x103].copy_from_slice(&[op("clearflag"), 0x80, 0]);
+        let mut s = vec![op("lockall"), op("pokenavcall")];
+        s.extend((crate::ROM_BASE + 0x180).to_le_bytes());
+        s.extend([op("waitmessage"), op("clearflag"), 0x80, 0]);
+        s.extend([op("releaseall"), op("end")]);
+        b[0x110..0x110 + s.len()].copy_from_slice(&s);
+        let rom = Rom::from_bytes(b).unwrap();
+        let pokenavcall = op("pokenavcall");
+        assert_eq!(
+            step_call_script(&rom, pokenavcall, 0x80).unwrap(),
+            Some(0x110)
+        );
+        assert_eq!(step_call_script(&rom, pokenavcall, 0x88).unwrap(), None);
+    }
 }
 
 #[cfg(test)]

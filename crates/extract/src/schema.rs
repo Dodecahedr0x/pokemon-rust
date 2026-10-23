@@ -105,7 +105,9 @@ pub const FORMAT_VERSION: u32 = 5;
 /// - 7: Tasks K/PT add `tables/tmhm.ron` (`sTMHMMoves`, `gTMHMLearnsets`).
 /// - 8: Wave C (field moves) exports the field scripts the C code starts as roots
 ///   (`EventScript_UseSurf`: `scripts/Common_surf.ron`).
-pub const FORMAT_MINOR: u32 = 8;
+/// - 9: Wave E (step-count scripts) exports the Match Call registrations `TryStartStepCountScript`
+///   starts (`roots::STEP_CALL_SCRIPTS`), in their maps' modules. No file is added.
+pub const FORMAT_MINOR: u32 = 9;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
