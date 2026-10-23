@@ -15,6 +15,13 @@ pub const SHIP_KEYS: [Option<FlagId>; 4] = [
     Some(FLAG_HIDDEN_ITEM_ABANDONED_SHIP_RM_6_KEY),
 ];
 pub const MIRAGE_RND_H: Option<VarId> = Some(VAR_MIRAGE_RND_H);
+/// `SetMirageTowerVisibility`'s names: `VAR_MIRAGE_TOWER_STATE`, `FLAG_FORCE_MIRAGE_TOWER_VISIBLE`,
+/// `FLAG_MIRAGE_TOWER_VISIBLE`.
+pub const MIRAGE_TOWER: Option<(VarId, FlagId, FlagId)> = Some((
+    VAR_MIRAGE_TOWER_STATE,
+    FLAG_FORCE_MIRAGE_TOWER_VISIBLE,
+    FLAG_MIRAGE_TOWER_VISIBLE,
+));
 pub const HAS_MATCH_CALL: Option<FlagId> = Some(FLAG_HAS_MATCH_CALL);
 pub const PACIFIDLOG_TM_DAY: Option<VarId> = Some(VAR_PACIFIDLOG_TM_RECEIVED_DAY);
 pub const RUSTURF: Option<Rusturf> = Some(Rusturf {

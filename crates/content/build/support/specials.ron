@@ -417,7 +417,7 @@
     "SPECIAL_SetMatchCallRegisteredFlag": Ignore, // Match Call is M9: IsTrainerRegistered answers 0
     "SPECIAL_SetMauvilleOldManObjEventGfx": Unsupported,
     "SPECIAL_SetMewAboveGrass": Unsupported,
-    "SPECIAL_SetMirageTowerVisibility": Unsupported,
+    "SPECIAL_SetMirageTowerVisibility": Native, // Random() & 1 or FLAG_FORCE_MIRAGE_TOWER_VISIBLE; no pulse blend
     "SPECIAL_SetPacifidlogTMReceivedDay": Unsupported,
     "SPECIAL_SetPlayerGotFirstFans": Unsupported,
     "SPECIAL_SetPlayerSecretBase": Unsupported,

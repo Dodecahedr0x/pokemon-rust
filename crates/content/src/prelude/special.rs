@@ -536,6 +536,20 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             }
             return 0;
         }
+        id if id == SPECIAL_SetMirageTowerVisibility => {
+            // `mirage_tower.c` `SetMirageTowerVisibility`: hidden once the tower's event is
+            // over; else visible on `Random() & 1` or while forced. The pulse blend of the
+            // tower's palette (`TryStartMirageTowerPulseBlendEffect`) is not drawn.
+            let Some((state, force, visible)) = story::MIRAGE_TOWER else {
+                return not_in_game(ctx, id).await;
+            };
+            if ctx.var(state).await != 0 {
+                ctx.set_flag(visible, false).await;
+                return 0;
+            }
+            let shown = ctx.random(2).await == 1 || ctx.flag(force).await;
+            ctx.set_flag(visible, shown).await;
+        }
         id if id == SPECIAL_CheckRelicanthWailord => {
             // `braille_puzzles.c`: Wailord first, Relicanth last.
             if ctx.query(Query::PartySpecies(0)).await == mons::WAILORD.0 {
@@ -785,6 +799,7 @@ mod story {
     pub const BLACK_GLASSES: Option<FlagId> = None;
     pub const SHIP_KEYS: [Option<FlagId>; 4] = [None; 4];
     pub const MIRAGE_RND_H: Option<VarId> = None;
+    pub const MIRAGE_TOWER: Option<(VarId, FlagId, FlagId)> = None;
     pub const HAS_MATCH_CALL: Option<FlagId> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
