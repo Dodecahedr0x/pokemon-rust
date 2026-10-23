@@ -318,7 +318,7 @@
     warps: [
         (
             x: 25,
-            y: 26,
+            y: 25,
             elevation: 0,
             dest_map: "MangaSquare",
             dest_warp: 5,
@@ -405,15 +405,6 @@
             kind: Script(
                 facing: 0,
                 script: Some("RouteS06_EventScript_SignRocher"),
-            ),
-        ),
-        (
-            x: 4,
-            y: 19,
-            elevation: 0,
-            kind: Script(
-                facing: 0,
-                script: Some("RouteS06_EventScript_SignAutel"),
             ),
         ),
         (

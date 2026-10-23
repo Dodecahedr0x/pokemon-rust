@@ -1,0 +1,124 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   # 617/1/0 rust cliff
+//   o 687/1/3 boulder (the braises circle)
+//   . 633/0/3 ash ground
+//   v 625/0/3 ash ground at a cliff foot
+//   t 620/1/0 forest tree (2x2)
+//   T 619/1/0 forest tree (2x2)
+//   y 628/1/0 forest tree (2x2)
+//   Y 627/1/0 forest tree (2x2)
+//   , 671/0/3 ash ground, tuft
+//   g 530/0/3 ashy tall grass
+//   s 534/1/3 wooden sign
+//   x 565/1/3 synthetic brambles (Lame-Frequence)
+//   [ 384/0/1 water, north-west shore
+//   - 393/0/1 water, north shore
+//   ] 385/0/1 water, north-east shore
+//   ( 400/0/1 water, west shore
+//   ~ 368/0/1 water
+//   ) 402/0/1 water, east shore
+//   L 539/1/3 ledge (jump south)
+//   l 540/1/3 ledge (jump south)
+//   a 187/0/1 
+//   b 179/0/1 
+//   c 188/0/1 
+//   | 185/0/1 waterfall
+//   = 659/0/3 pontoon planks
+//   : 1/0/3 grass
+//   " 13/0/3 tall grass
+//   d 44/0/1 
+//   e 52/0/1 
+//   f 60/0/1 
+// Palier 3 (y 0-24): dry meadow, the stone portal north (x 18-21), the brambles (5-6, 13) over the
+//   shortcut ravine (x 5-6, ledge at y 25), the braises nook (x 29-35, y 4-9) behind the cracked
+//   rock (31, 10, an object), the pool (30-33, 22-24) on top of waterfall 3.
+// Palier 2 (y 30-55): the river, the west bank and its pontoon (9-12, 36), the west islet
+//   (7-10, 42-44), the Rocher du Poeme islet (24-27, 40-42), the east bank (31-36, 44-54).
+// Cliff band y 56-60: waterfall 2 (x 16-18, the 'paradoxal' one, drawn as a normal fall down
+//   into the pocket basin) and waterfall 1 (x 27-30, up from the lake).
+// Palier 1 (y 61-79): the lake, its banks, the pocket basin (14-20, 61-63) and recess (15-19,
+//   64-65). The south entrance (x 18-21, y 78-79) is forest until Reverse-City (Ch7) links.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "#################o....o#################",
+        "###vvvvvvvvvvvvvvo....ovvvvvvvvvvvvvv###",
+        "###tT.............................Tt.###",
+        "###yY,..gggggg..s..........,############",
+        "###.....gggggg..............#vvvvvvvv###",
+        "###.....gggggg..............#........###",
+        "###................ggggg....#..ooo...###",
+        "###................ggggg....#........###",
+        "###................ggggg....#........###",
+        "###...........,.............#........###",
+        "###.........................###.########",
+        "###.........................vvv.vvvvv###",
+        "###.....................gggggg.......###",
+        "#####xx#................gggggg.......###",
+        "#####..#................gggggg.......###",
+        "#####..#................gggggg....,..###",
+        "#####..#................gggggg.......###",
+        "#####..#...ggggggg...................###",
+        "#####..#...ggggggg...................###",
+        "#####..#...ggggggg...................###",
+        "#####..#...ggggggg..,................###",
+        "#####..#.....................#....#..###",
+        "#####..#.,...................#[--]#..###",
+        "#####..#.....................#(~~)#..###",
+        "#####..#.....................#(~~)#..###",
+        "#####Ll#######################abbc######",
+        "#####..#######################||||######",
+        "#####..#######################||||######",
+        "#####..#######################||||######",
+        "#####..#######################||||######",
+        "###vv..vv[--------------------~~~~--]###",
+        "###......(~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###......(~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###gg....(~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###gg....(~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###gg....(~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###gg....====(~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###gg....[---~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###......(~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###[-----~~~~~~~~~~~~~~~~~~~~~~~~~~~)###",
+        "###(~~~~~~~~~~~~~~~~~~~)::::(~~~~~~~)###",
+        "###(~~~~~~~~~~~~~~~~~~~):o::(~~~~~~~)###",
+        "###(~~)::::(~~~~~~~~~~~)::::(~~~~~~~)###",
+        "###(~~)::::(~~~~~~~~~~~~----~~~~~~~~)###",
+        "###(~~)::::(~~~~~~~~~~~~~~~~~~)......###",
+        "###(~~~----~~~~~~~~~~~~~~~~~~~)......###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)..ggg.###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)..ggg.###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)..ggg.###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)..ggg.###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)..ggg.###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)..ggg.###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)......###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)......###",
+        "###(~~~~~~~~~~~~~~~~~~~~~~~~~~)......###",
+        "###(~~~~~~~~~~~~abc~~~~~~~~abbc-----]###",
+        "################|||########||||#########",
+        "################|||########||||#########",
+        "################|||########||||#########",
+        "################|||########||||#########",
+        "################|||########||||#########",
+        "###\"\"\"[-----]#[-def-]#[----deef---]::###",
+        "###\"\"\"(~~~~~)#(~~~~~)#(~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~)#(~~~~~)#(~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~)##.....##(~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~)#v.....v#(~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~)#########(~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~~---------~~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~~~~~~~~~~~~~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~~~~~~~~~~~~~~~~~~~~~~~)::###",
+        "###\"\"\"(~~~~~~~~~~~~~~~~~~~~~~~~~~~)::###",
+        "###::::::::::::::::::::::::::::::::::###",
+        "###:Tt::::::::::::::::::\"\"\"\"\"\"\"\"\"\"\"::###",
+        "###:Yy::::::::::::::::::\"\"\"\"\"\"\"\"\"\"\"::###",
+        "###:::::::::::::::::::::\"\"\"\"\"\"\"\"\"\"\"::###",
+        "###:::::::::::::::::::::\"\"\"\"\"\"\"\"\"\"\"::###",
+        "###::::::::::::::s:::::::::::::::::::###",
+        "###::::::::::::::::::::::::::::::::::###",
+        "###tTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtT###",
+        "###yYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyY###",
+    ], legend: {'#': (metatile: 617, collision: 1, elevation: 0), 'o': (metatile: 687, collision: 1, elevation: 3), '.': (metatile: 633, collision: 0, elevation: 3), 'v': (metatile: 625, collision: 0, elevation: 3), 't': (metatile: 620, collision: 1, elevation: 0), 'T': (metatile: 619, collision: 1, elevation: 0), 'y': (metatile: 628, collision: 1, elevation: 0), 'Y': (metatile: 627, collision: 1, elevation: 0), ',': (metatile: 671, collision: 0, elevation: 3), 'g': (metatile: 530, collision: 0, elevation: 3), 's': (metatile: 534, collision: 1, elevation: 3), 'x': (metatile: 565, collision: 1, elevation: 3), '[': (metatile: 384, collision: 0, elevation: 1), '-': (metatile: 393, collision: 0, elevation: 1), ']': (metatile: 385, collision: 0, elevation: 1), '(': (metatile: 400, collision: 0, elevation: 1), '~': (metatile: 368, collision: 0, elevation: 1), ')': (metatile: 402, collision: 0, elevation: 1), 'L': (metatile: 539, collision: 1, elevation: 3), 'l': (metatile: 540, collision: 1, elevation: 3), 'a': (metatile: 187, collision: 0, elevation: 1), 'b': (metatile: 179, collision: 0, elevation: 1), 'c': (metatile: 188, collision: 0, elevation: 1), '|': (metatile: 185, collision: 0, elevation: 1), '=': (metatile: 659, collision: 0, elevation: 3), ':': (metatile: 1, collision: 0, elevation: 3), '"': (metatile: 13, collision: 0, elevation: 3), 'd': (metatile: 44, collision: 0, elevation: 1), 'e': (metatile: 52, collision: 0, elevation: 1), 'f': (metatile: 60, collision: 0, elevation: 1)}),
+]

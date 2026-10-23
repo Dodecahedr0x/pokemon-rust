@@ -1,0 +1,5 @@
+// Silice Ch8, MAP_EVALON_TOUR_SCRIBE_2F: la Salle des Lutrins (13 x 12), the 7 x 7 crate puzzle.
+// General + Facility (Emerald tilesets by name), as 1F; the copper slabs are Facility's marked
+// floor tile. The way up to 3F is a ceiling trapdoor: drawn shut (wall), opened by OnLoad.
+// Out-of-map border: the void.
+(name: "Evalon_TourScribe_2F", width: 13, height: 12, primary: "General", secondary: "Facility", fill: 513, fill_collision: 1, fill_elevation: 0, border: [1537, 1537, 1537, 1537])

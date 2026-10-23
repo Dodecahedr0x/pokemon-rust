@@ -1,0 +1,15 @@
+// Reachability findings accepted on purpose (lint-reach honours these; see "Reachability checker
+// as built" in docs/plans/2026-10-23-silice-content.md). The layout's airlock doors are closed:
+// door D (8, 22) opens from its panel (BoisEther_Gym_EventScript_PorteSas1), the valve's door
+// (7, 11-12) and the greenhouse's (7, 8-9) from the workbench and the zone-3 scene
+// (BoisEther_Gym_EventScript_Etabli, _Sas2; BoisEther_Gym_OnLoad once FLAG_SIL_GYM1_VALVE is set).
+[
+    AllowReach(subject: "object LOCALID_GYM1_MILO", reason: "zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "object LOCALID_GYM1_ROSE", reason: "zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "object LOCALID_GYM1_ITEM_SUPER_POTION", reason: "crate c1 in zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "bg 2", reason: "the workbench in zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "bg 3", reason: "the workbench in zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "bg 4", reason: "crate c2 in zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "bg 5", reason: "crate c3 in zone 2, behind airlock door D (8, 22), which its panel opens for a clean player"),
+    AllowReach(subject: "bg 6", reason: "the private greenhouse door in zone 4, behind the valve's and the greenhouse's airlock doors, which the workbench and the zone-3 scene open"),
+]

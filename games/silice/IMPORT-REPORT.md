@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 574
+- ids/flags: 592
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -210,6 +210,20 @@
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_MALLETTE
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_SBIRE_B
 - maps/BricoBourg_Labo.ron: FLAG_SIL_HIDE_LABO_CHIMISTE
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_ADRIEN
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_GWADA
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_SCRIBE
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_ROMAIN
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_SBIRE_1
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_SBIRE_2
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_SBIRE_3
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_PIGEON
+- maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_GARDE_SE
+- maps/Evalon_Citadelle.ron: FLAG_SIL_HIDE_GYM8_COFFRE_GAUCHE
+- maps/Evalon_Galeries.ron: FLAG_SIL_ITEM_EVALON_MINERAI
+- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU
+- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN
+- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA
 - maps/GrisEchec.ron: FLAG_SIL_HIDE_GRIS_GARDE
 - maps/GrisEchec.ron: FLAG_SIL_HIDE_GRIS_GWADA
 - maps/GrisEchec.ron: FLAG_SIL_HIDE_GRIS_GARDE_S3
@@ -260,6 +274,9 @@
 - maps/PortRessac_Gym.ron: FLAG_SIL_HIDE_PORT_GYM_GWADA
 - maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_GWADA
 - maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN
+- maps/ReverseCity.ron: FLAG_SIL_HIDE_REVERSE_ROMAIN
+- maps/ReverseCity.ron: FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL
+- maps/ReverseCity_Gym.ron: FLAG_SIL_HIDE_GYM07_PIXELS
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_ADRIEN
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_GWADA
 - maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_ROMAIN
@@ -268,6 +285,7 @@
 - maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A
 - maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B
 - maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR
+- maps/RouteS08.ron: FLAG_SIL_HIDE_S08_PIGEON
 - maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU
 - maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2
 - maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3

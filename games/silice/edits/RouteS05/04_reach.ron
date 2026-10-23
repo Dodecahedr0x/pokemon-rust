@@ -1,0 +1,7 @@
+// Reachability lint fixes (lint-reach).
+[
+    // GASTON stood on the sandbar's west edge (55, 38) facing the sea: a land trainer (elevation 3) does not
+    // see water cells (1), so his sight was empty. He stands at the bar's east end, (58, 38), still facing
+    // west, and sees the bar (55-57, 38), where a surfer lands.
+    Move(kind: Object, index: 5, x: 58, y: 38),
+]

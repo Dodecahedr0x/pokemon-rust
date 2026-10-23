@@ -1,0 +1,4 @@
+// Silice Ch7, MAP_REVERSE_CITY_GYM: le Palais des Paradoxes (14 x 37), the source's three rooms in one map.
+// Building + SootopolisGym (Emerald tilesets by name): Sootopolis Gym's ice floors, crystal pillars,
+// mirror-tiled hall and water-curtain panels (the mirror doors). Border: black, blocked.
+(name: "ReverseCity_Gym", width: 14, height: 37, primary: "Building", secondary: "SootopolisGym", fill: 586, fill_collision: 1, border: [538, 538, 538, 538])

@@ -1,0 +1,5 @@
+// Silice Ch8, MAP_EVALON_TOUR_SCRIBE (1F): the Scribe's round stone tower, ground floor (14 x 13).
+// General + Facility (Emerald tilesets by name): Mt Pyre's grey stone floors, buttressed walls,
+// stairs and lecterns. The iron-bound bookcases are pushable objects (Champ Magnetique; placeholder
+// boulder graphics). Out-of-map border: the void.
+(name: "Evalon_TourScribe", width: 14, height: 13, primary: "General", secondary: "Facility", fill: 513, fill_collision: 1, fill_elevation: 0, border: [1537, 1537, 1537, 1537])

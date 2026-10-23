@@ -174,7 +174,7 @@
             ),
         ),
         (
-            x: 11,
+            x: 12,
             y: 2,
             elevation: 0,
             kind: Script(

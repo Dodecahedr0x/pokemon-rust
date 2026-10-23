@@ -1,0 +1,47 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   A 528/1/0 wall, top-left
+//   B 531/1/0 wall top
+//   w 534/1/0 wall top over a shelf
+//   C 530/1/0 wall, top-right
+//   E 536/1/0 wall, left
+//   F 535/1/0 wall face
+//   1 547/1/0 shelf of hand-turned Balls
+//   2 548/1/0 shelf of hand-turned Balls
+//   5 563/1/0 herb jars
+//   6 564/1/0 herb jars
+//   G 538/1/0 wall, right
+//   i 544/0/3 floor under the wall, left
+//   a 559/1/0 counter
+//   j 543/0/3 floor under the wall
+//   3 555/1/0 shelf of hand-turned Balls
+//   4 556/1/0 shelf of hand-turned Balls
+//   7 571/1/0 herb jars
+//   8 572/1/0 herb jars
+//   k 546/0/3 floor under the wall, right
+//   e 581/0/3 behind the counter
+//   b 567/1/0 counter
+//   . 513/0/3 floor
+//   f 574/0/3 behind the counter
+//   c 575/1/0 counter
+//   g 582/1/0 counter end
+//   d 583/1/0 counter end
+//   p 558/1/0 berry crate
+//   q 557/1/0 berry crate
+//   r 566/1/0 berry crate
+//   s 565/1/0 berry crate
+//   # 1/1/0 outside
+//   M 6/0/3 entrance mat (arrow warp)
+//   N 7/0/3 entrance mat (arrow warp)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "ABBwwBBBBBC",
+        "EFF12F5656G",
+        "iaj34j7878k",
+        "eb.........",
+        "fc.........",
+        "gd..pq.pq..",
+        "....rs.rs..",
+        "...........",
+        "####MN#####",
+    ], legend: {'A': (metatile: 528, collision: 1, elevation: 0), 'B': (metatile: 531, collision: 1, elevation: 0), 'w': (metatile: 534, collision: 1, elevation: 0), 'C': (metatile: 530, collision: 1, elevation: 0), 'E': (metatile: 536, collision: 1, elevation: 0), 'F': (metatile: 535, collision: 1, elevation: 0), '1': (metatile: 547, collision: 1, elevation: 0), '2': (metatile: 548, collision: 1, elevation: 0), '5': (metatile: 563, collision: 1, elevation: 0), '6': (metatile: 564, collision: 1, elevation: 0), 'G': (metatile: 538, collision: 1, elevation: 0), 'i': (metatile: 544, collision: 0, elevation: 3), 'a': (metatile: 559, collision: 1, elevation: 0), 'j': (metatile: 543, collision: 0, elevation: 3), '3': (metatile: 555, collision: 1, elevation: 0), '4': (metatile: 556, collision: 1, elevation: 0), '7': (metatile: 571, collision: 1, elevation: 0), '8': (metatile: 572, collision: 1, elevation: 0), 'k': (metatile: 546, collision: 0, elevation: 3), 'e': (metatile: 581, collision: 0, elevation: 3), 'b': (metatile: 567, collision: 1, elevation: 0), '.': (metatile: 513, collision: 0, elevation: 3), 'f': (metatile: 574, collision: 0, elevation: 3), 'c': (metatile: 575, collision: 1, elevation: 0), 'g': (metatile: 582, collision: 1, elevation: 0), 'd': (metatile: 583, collision: 1, elevation: 0), 'p': (metatile: 558, collision: 1, elevation: 0), 'q': (metatile: 557, collision: 1, elevation: 0), 'r': (metatile: 566, collision: 1, elevation: 0), 's': (metatile: 565, collision: 1, elevation: 0), '#': (metatile: 1, collision: 1, elevation: 0), 'M': (metatile: 6, collision: 0, elevation: 3), 'N': (metatile: 7, collision: 0, elevation: 3)}),
+]

@@ -1,0 +1,4 @@
+// Allowances (behaviour warnings accepted on purpose).
+[
+    AllowCollision(cells: [(19, 10), (20, 10), (19, 11), (20, 11)], reason: "the upside-down fountain: decorative pond water in the square, not surfable"),
+]
