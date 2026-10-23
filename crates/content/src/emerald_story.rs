@@ -28,6 +28,8 @@ pub const DAILY_WILDS: VarId = VAR_DAILY_WILDS;
 pub const DAILY_PICKED_BERRIES: Option<VarId> = Some(VAR_DAILY_PICKED_BERRIES);
 pub const DAILY_PLANTED_BERRIES: Option<VarId> = Some(VAR_DAILY_PLANTED_BERRIES);
 pub const HAS_MATCH_CALL: Option<FlagId> = Some(FLAG_HAS_MATCH_CALL);
+/// `SetMauvilleOldManObjEventGfx`'s var and graphics (`VAR_OBJ_GFX_ID_0`, the bard).
+pub const MAUVILLE_OLD_MAN_GFX: Option<(VarId, u16)> = Some((VAR_OBJ_GFX_ID_0, OBJ_EVENT_GFX_BARD));
 /// The flag Mr. Stone's first Match Call text sets (the PokéNav tutorial's forced call).
 pub const MR_STONE_POKENAV: Option<FlagId> = Some(FLAG_ENABLE_MR_STONE_POKENAV);
 pub const PACIFIDLOG_TM_DAY: Option<VarId> = Some(VAR_PACIFIDLOG_TM_RECEIVED_DAY);

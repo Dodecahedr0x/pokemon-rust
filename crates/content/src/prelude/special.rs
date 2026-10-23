@@ -425,6 +425,36 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             };
             ctx.set_var(VAR_RESULT, result).await;
         }
+        id if id == SPECIAL_RockSmashWildEncounter => {
+            // `RockSmashWildEncounter` (`wild_encounter.c`): `gSpecialVar_Result`.
+            let started = ctx.rock_smash_encounter().await;
+            ctx.set_var(VAR_RESULT, started as u16).await;
+        }
+        id if id == SPECIAL_SetMauvilleOldManObjEventGfx => {
+            // `mauville_old_man.c`: every old man type shows the bard's sprite.
+            let Some((var, gfx)) = story::MAUVILLE_OLD_MAN_GFX else {
+                return not_in_game(ctx, id).await;
+            };
+            ctx.set_var(var, gfx).await;
+        }
+        id if id == SPECIAL_ShakeCamera => {
+            // `ShakeCamera` (`field_specials.c`): `Task_ShakeCamera` pans the camera by
+            // `VAR_0x8004` (vertical) / `VAR_0x8005` (horizontal), flipping it every
+            // `VAR_0x8007` frames, `VAR_0x8006` times, then `ScriptContext_Enable`. The frames are
+            // kept (a delay), the pan is not drawn (`Request::ScreenShake`).
+            degraded(ctx, id).await;
+            let vertical = ctx.var(VAR_0x8004).await as i16;
+            let horizontal = ctx.var(VAR_0x8005).await as i16;
+            let shakes = ctx.var(VAR_0x8006).await;
+            let delay = ctx.var(VAR_0x8007).await;
+            let frames = shakes.saturating_mul(delay);
+            let magnitude = vertical
+                .unsigned_abs()
+                .max(horizontal.unsigned_abs())
+                .min(255) as u8;
+            ctx.screen_shake(magnitude, frames).await;
+            ctx.delay(frames).await;
+        }
         id if id == SPECIAL_SetCB2WhiteOut => {
             // `SetCB2WhiteOut`: `CB2_WhiteOut` then `DoWhiteOut`; the script ends there.
             ctx.field_whiteout().await;
@@ -871,6 +901,7 @@ mod story {
     pub const DAILY_PLANTED_BERRIES: Option<VarId> = None;
     pub const HAS_MATCH_CALL: Option<FlagId> = None;
     pub const MR_STONE_POKENAV: Option<FlagId> = None;
+    pub const MAUVILLE_OLD_MAN_GFX: Option<(VarId, u16)> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
 }

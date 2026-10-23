@@ -140,7 +140,7 @@ impl Rec {
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(self.map),
-            Request::YesNo { .. } => Response::Bool(false),
+            Request::YesNo { .. } | Request::RockSmashEncounter => Response::Bool(false),
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
                 Response::Value(BattleOutcome::Won as u16)
@@ -772,6 +772,30 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
         ),
         ("SPECIAL_SetCB2WhiteOut", 1, vec![Request::FieldWhiteOut], 0),
         (
+            "SPECIAL_ShakeCamera",
+            1,
+            vec![
+                degraded("SPECIAL_ShakeCamera"),
+                Request::GetVar(VAR_0x8004),
+                Request::GetVar(VAR_0x8005),
+                Request::GetVar(VAR_0x8006),
+                Request::GetVar(VAR_0x8007),
+                Request::ScreenShake {
+                    magnitude: 0,
+                    frames: 0,
+                },
+                Request::Delay(0),
+            ],
+            0,
+        ),
+        // The recording host answers `false`: no battle.
+        (
+            "SPECIAL_RockSmashWildEncounter",
+            1,
+            vec![Request::RockSmashEncounter, set(VAR_RESULT, 0)],
+            0,
+        ),
+        (
             "SPECIAL_ScriptGetPokedexInfo",
             1,
             vec![
@@ -988,6 +1012,7 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
         "SPECIAL_IncrementDailyPickedBerries",
         "SPECIAL_IncrementDailyPlantedBerries",
         "SPECIAL_OpenPokenavForTutorial",
+        "SPECIAL_SetMauvilleOldManObjEventGfx",
     ];
     if cfg!(pkr_silice) {
         covered.extend(story);
@@ -1003,6 +1028,12 @@ fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
                     degraded("SPECIAL_OpenPokenavForTutorial"),
                     Request::SetFlag(FLAG_ENABLE_MR_STONE_POKENAV, true),
                 ],
+                0,
+            ),
+            (
+                "SPECIAL_SetMauvilleOldManObjEventGfx",
+                1,
+                vec![set(VAR_OBJ_GFX_ID_0, OBJ_EVENT_GFX_BARD)],
                 0,
             ),
             // Received on day 0, today is day 0: a week to wait.

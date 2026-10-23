@@ -360,7 +360,7 @@
     "SPECIAL_ResetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_RetrieveLotteryNumber": Unsupported,
     "SPECIAL_ReturnFromLinkRoom": Unsupported,
-    "SPECIAL_RockSmashWildEncounter": Unsupported,
+    "SPECIAL_RockSmashWildEncounter": Native, // Request::RockSmashEncounter (the map's rock smash table, then a field wild battle)
     "SPECIAL_RotatingGate_InitPuzzle": Unsupported,
     "SPECIAL_RotatingGate_InitPuzzleAndGraphics": Unsupported,
     "SPECIAL_RunUnionRoom": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
@@ -415,7 +415,7 @@
     "SPECIAL_SetLilycoveLadyGfx": Unsupported,
     "SPECIAL_SetLinkContestPlayerGfx": Unsupported,
     "SPECIAL_SetMatchCallRegisteredFlag": Ignore, // Match Call is M9: IsTrainerRegistered answers 0
-    "SPECIAL_SetMauvilleOldManObjEventGfx": Unsupported,
+    "SPECIAL_SetMauvilleOldManObjEventGfx": Native, // VAR_OBJ_GFX_ID_0 = OBJ_EVENT_GFX_BARD (every old man type uses the bard's sprite)
     "SPECIAL_SetMewAboveGrass": Unsupported,
     "SPECIAL_SetMirageTowerVisibility": Native, // Random() & 1 or FLAG_FORCE_MIRAGE_TOWER_VISIBLE; no pulse blend
     "SPECIAL_SetPacifidlogTMReceivedDay": Unsupported,
@@ -431,7 +431,7 @@
     "SPECIAL_SetTrainerFacingDirection": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_SetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_SetUnlockedPokedexFlags": Ignore, // GameCube link flags only
-    "SPECIAL_ShakeCamera": Unsupported,
+    "SPECIAL_ShakeCamera": Native, // degraded: Request::ScreenShake for Task_ShakeCamera's frames (VAR_0x8006 shakes every VAR_0x8007 frames), no camera pan yet
     "SPECIAL_ShouldContestLadyShowGoOnAir": Default(0), // the Lilycove ladies are M13: no Pokeblock was given
     "SPECIAL_ShouldDistributeEonTicket": Default(0), // no Mystery Gift
     "SPECIAL_ShouldDoBrailleRegicePuzzle": Unsupported,
