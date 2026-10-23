@@ -661,6 +661,93 @@ studio-map … stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force
 - The UI's Edit tab does not offer stamps, `AutoCollision` or the overlays yet. Its editors have no env.
 - The extract's own maps raise a few behaviour warnings, which is expected for heuristics. The fixture was repainted so that it raises none.
 
+#### SIL1 Task C, editor friction fixes as built
+
+These fixes answer the friction the Ch1 maps hit (see "Editor friction" in the Ch1 maps notes). The code is in `crates/studio/src/map_edit/` (`cli.rs`, `model.rs`, `overlay.rs`, `render.rs`, one `pub` in `behavior.rs`). The catalog and the test gating were left alone. Every change is backward compatible: existing edit scripts parse and build to the same bytes. A test rebuilds a copy of the committed `games/silice/edits` and compares it with the committed maps and layouts byte for byte.
+
+**Reference renders of Emerald maps.**
+- `studio-map render <Map> --extract [--events] [--collision] [--margin N] [--scale N] [--out FILE]` renders the extract's map `<Map>` (`<extracted>/maps/<Map>.ron`, loaded with `Doc::from_map_file`) against the build's catalog, so connected Emerald maps are drawn in the margin. The default output is `target/studio/maps/extract-<Map>.png`.
+- `studio-map dump <Map> [--extract] [--out FILE|-]` writes the metatile grid as text. It works on a games dir map, or on an extract map with `--extract`. The default output is `target/studio/maps/[extract-]<Map>.txt`, and `--out -` prints the grid. The format:
+
+  ```text
+  LittlerootTown: 20x20, General + Petalburg; metatile ids, * = solid
+  border (row-major 2x2): 468  469  476  477
+  y\x   0    1    2 ...
+    0 468* 469* 468* ...
+  ```
+
+- Both write only to the scratch dir by default. Extract renders and dumps are ROM-derived and are never committed (copying an extracted layout is also a `hygiene` error).
+- Without the extract (the stub world) `--extract` fails and says so.
+
+**Palette.**
+- `--range A..B` (B excluded) or `--range A..=B` keeps only those metatile ids. The secondary still starts on a new row. A range that holds none of the pair's metatiles is an error. The output lists the first metatile of each row, and the default file name gains `-A-B`.
+- `--labels` now draws each cell's id (left) and behaviour code (right) in a gutter band above the cell, so labels never cover the art. A column is at least as wide as a 4-digit id and a code, and columns and rows are separated by a gutter.
+- `--zoom N` (1..=8) scales the art, and `--scale N` scales the labels. The zoom defaults to the scale, so `--scale 1 --zoom 4` gives small labels over large art. Without labels the zoom alone sets the size.
+- `palette` also prints the pair's void metatiles: the cells drawn all black (`Palette::void_metatiles`).
+
+**`Object(local_id: N)`.** This is an optional field. When given, it must be in 1..64 and not used by another object of the map, or the op fails and changes nothing. Without it, the object gets the highest local id + 1, as before. An object added after an explicit id takes that id + 1 when it is the highest.
+
+**`ScriptsSet`.** `ScriptsSet(on_load: "Map_OnLoad")` sets only the fields it names and keeps the others. The fields are `on_load`, `on_transition`, `on_resume`, `on_return_to_field`, `on_dive_warp`, `on_frame` and `on_warp_into`.
+- A string field set to `""` clears it.
+- `on_frame` and `on_warp_into` replace their whole list.
+- A `ScriptsSet` with no field is an error, since a misspelled field would otherwise do nothing.
+- `Scripts(...)` is unchanged and still replaces the whole record.
+
+**`render --collision` and allowances.** A cell whose collision disagrees with the usual one is still framed yellow and marked `!`. When an `AllowCollision` of the map's edit scripts accepts it (by cell or by metatile), it is framed green and marked `+` instead. The command's legend line says so.
+
+**Building's metatile 1 (investigated).**
+- `Building`'s metatile 1 draws its bottom layer from the primary's tiles and palette 5. The secondary's tiles start at 512 and its palettes at 6, so no secondary can change it.
+- A test renders it with each of the build's secondaries (70 on the full extract) and finds it all black every time.
+- Pictures can mislead, though. Some secondaries also have a black metatile of their own. Emerald's `Lab` and `PokemonCenter` maps use 513 as their border, `GenericBuilding` maps use 513 (46) or 1 (27), and `BrendansMaysHouse` maps mostly use 543. Of Emerald's 267 maps on `Building`, 153 have border metatile 1 and 100 have 513; the rest use 515, 519, 520 or 543.
+- Rather than a warning or a hand-kept table, `palette` now prints the pair's void metatiles, computed from the render (for example `void (all-black) metatiles, for an interior's border: 1 513` for `Building` + `Lab`). Either id is a correct interior border.
+- The Ch1 report that metatile 1 "draws as floor" with `Lab` could not be reproduced in the editor's renders (the game's own field renderer). Out-of-map cells are solid in Gen3 whatever the border's collision bits.
+
+**CLI as built (changes only):**
+
+```text
+studio-map … render <Map> [--extract] [--out FILE] [--margin N] [--events] [--collision] [--scale N]
+studio-map … dump <Map> [--extract] [--out FILE|-]
+studio-map palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N] [--zoom N] [--range A..B | --range A..=B]
+```
+
+```ron
+[
+    Object(x: 4, y: 6, gfx: "OBJ_EVENT_GFX_WALLY", id: "LOCALID_BOIS_LOIC", local_id: 20),
+    ScriptsSet(on_load: "BricoBourg_OnLoad"),
+]
+```
+
+**Tests.**
+- Unit tests (`map_edit/tests.rs`):
+  - `objects_take_an_optional_local_id`: explicit ids, the next automatic id, and refusals for a duplicate, 0 or 64, which leave the document unchanged;
+  - `scripts_set_merges_into_the_map_scripts`: the merge, clearing with `""`, the lists, the empty-op error, and one undo step each;
+  - `allowed_mismatches_render_as_accepted`: yellow `!` against green `+`;
+  - `dump_prints_the_metatile_grid`;
+  - `metatile_ranges_parse`.
+- `tests/map_edit_tools.rs`:
+  - `extract_maps_render_and_dump`: Littleroot's size and grid, the file and stdout outputs, refused names, and the stub's error;
+  - `palette_ranges_zoom_and_gutter_labels`: sizes for range and zoom, labels in the gutter, and art pixels identical to the plain palette's;
+  - `building_metatile_1_is_void_with_every_secondary`;
+  - `local_ids_and_scripts_set_through_build`;
+  - `committed_silice_edits_rebuild_byte_identical`;
+  - `overlays_and_labels` updated for the gutter widths.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| clippy `-D warnings`, plain and with `game-native/window,studio/ui` | clean |
+| `cargo test -p studio`, real (env as in the brief) | 183 passed, 8 ignored |
+| `cargo test -p studio`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 183 passed, 8 ignored |
+| `cargo xtask studio --check` | 208 passed, 8 ignored |
+| `studio-map build` on the committed `games/silice/edits` | byte-identical (no file changed) |
+
+**Limitations.**
+- `dump` has no elevation and no raw blocks. `stamp-from` still reads only games dir maps, on purpose, because an extract stamp would be a copy.
+- `ScriptsSet` cannot append to `on_frame`; it replaces the list.
+- The void list is computed from the render and does not say which void Emerald prefers for a pair. `dump --extract` of a reference map shows its border.
+
 #### SIL1 Task B as built: the importer and the validator
 
 The code is in `xtask/src/silice/`: `mod.rs` (CLI, file writing), `md.rs` (chapter markdown), `names.rs` (constant words, families, map names), `maps.rs` (names in `maps/*.ron` and, later, the scene scripts), `import.rs`, `ids.rs` (allocation), `check.rs` and `schema.rs`. Outside it, the task touched one arm in `xtask/src/main.rs`, `regex` in `xtask/Cargo.toml`, `xtask/tests/silice_{import,check,games}.rs` (with `silice_common/`) and the synthetic fixtures in `xtask/tests/fixtures/silice/`, among them `ids.golden`.
