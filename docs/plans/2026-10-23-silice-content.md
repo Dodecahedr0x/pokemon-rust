@@ -14,7 +14,7 @@ These answer §5's open questions and override the draft where they differ.
 
 ## Status
 
-Planned 2026-10-23, after M8 Wave 1 merged. SIL1 Wave 0 waits for M8 Task L (it edits the content build); the studio map editor (SIL1 Task C, now the first task) starts in parallel with L.
+Planned 2026-10-23, after M8 Wave 1 merged. SIL1 Wave 0 waits for M8 Task L (it edits the content build); the studio map editor (SIL1 Task C, now the first task) starts in parallel with L. SIL1 Wave 0 is built (see "SIL1 Wave 0 as built" in §3.1).
 
 Status: draft for review. Work starts after Milestone 8 is fully merged (all of its "Done when"). This is preparation only.
 Sources: `/Users/dode/Documents/pokemon/pokemon-silice-notion-export/contenu-jeu/` (bible, chapitres 00–12, donnees, outils) and the engine repo at `/Users/dode/Documents/pokemon/pokemon-rust`.
@@ -230,6 +230,45 @@ SIL1 adds **no engine behaviour**. It is route-neutral for Emerald: only `BUILD_
 - Close-out: "As built", findings, README section.
 
 **SIL1 done when:** three flavours green; Prologue completed by the explorer from a new game; parity identical; no ROM-derived file under `games/`; validator clean or every exception listed with a reason; Emerald trees unchanged except the rehash.
+
+#### SIL1 Wave 0 as built: the contracts
+
+Commits: `refactor(extract): define the games dir formats once in extract::games`, `feat(content): add the Silice flavour (PKR_GAME=silice) …`, `test(content): run the Brendan's bedroom PC check on Emerald only`, `feat(shells): key the checkpoint store and explorer db by flavour, add the sil_ch0 act`, `chore(gba): lock syn …`. The contracts below are what Wave 1 builds on; change one only with the tasks that rely on it.
+
+**Flavour selection (all tasks).**
+- `content::Flavor { Stub, Emerald, Silice }` (`ALL`, `name()`: `stub`, `emerald`, `silice`) and `content::FLAVOR`. `content::STUB` is `FLAVOR == Flavor::Stub` and stays for code that only asks "is there a game".
+- `PKR_GAME` (build env, `rerun-if-env-changed`): unset, empty or `emerald` is Emerald; `silice` is Silice and sets `cfg(pkr_silice)` (declared in `check-cfg`; it applies to the lib, unit tests and `tests/*.rs`); anything else fails the build. `PKR_EXTRACTED_DIR=/nonexistent` still means Stub, whatever `PKR_GAME` says.
+- **Silice without a usable extract falls back to the stub** with a `cargo:warning` (chosen over failing, so a plain `cargo test` on a fresh clone with `PKR_GAME=silice` exported still works; the stub is what the rest of the workspace already handles). Silice needs the extract's base assets: tilesets, sprites, font, window, battle data.
+- `PKR_SILICE_DIR` overrides the games dir (default `games/silice`), for fixture dirs in Task A's tests.
+- The type is `content::Game`; `pub type Emerald = Game` stays one milestone. Under `cfg(pkr_silice)` `Game` is `content::silice::Game` (unit struct, `Game::for_shells()`); the Emerald `Game { start }` with `before_rescue`/`after_starter` and `new_game.rs` are `cfg(not(pkr_silice))`.
+
+**Digests.** `BUILD_ID` (`build/build_id.rs`) and `GLOBAL_DIGEST` (`codegen::sources_digest_for`) hash only the active flavour's sources, through the filters `codegen::{src_source, build_source, extract_source, games_source}`:
+- Stub and Emerald exclude `src/silice/`, `build/silice/` and `extract/src/games/`; so Emerald's `BUILD_ID` changed once in Wave 0 (the trees read `valid (rehash)`) and Silice work no longer moves it.
+- Silice excludes `src/overrides/` and `src/new_game.rs`, and the extract's `maps/` and `scripts/` from `BUILD_ID`; it adds `games/silice` minus `edits/`, `IMPORT-REPORT.md` and `check-exceptions.ron`. `GLOBAL_DIGEST` excludes `src/silice/scripts/` (those have per-script digests) and `games/silice/{maps,layouts}`.
+
+**Shared formats (Task A, C).** The games dir types are defined once in `extract::games` (`data.rs`: ids, text, trainers, encounters, items, refs; `maps.rs`: `GameMap`, `GameHeader`, `GameObject`, `GameWarp`, `GameConnection`, `MAP_DYNAMIC`, the warp-id helpers). `extract` is the one crate the content build (build-dep), xtask and studio all depend on, so it is shared rather than forked or `#[path]`-included. `crates/content/build/silice/schema.rs`, `xtask/src/silice/schema.rs` and `studio::map_edit::schema` re-export it; the studio keeps `to_ron`/`from_ron` and `header_from_extract` (it needs the studio's `names`). `extract::games::data::parse_texts` reads `text/fr.ron` in file order and rejects a repeated key (Task B's loader contract).
+
+**Ids (Task A, B, F).** `build/silice/ids.rs`: `ids/*.ron` are append-only with tombstones. `validate` rejects a name listed twice, a reused number, a number outside the file's range or in its reserved set, and a map entry without its map file. `get` and `live` refuse a tombstoned name. `check_golden` fails when a golden name changes number or disappears instead of being tombstoned (`tests/sil1_w0_contracts.rs` runs it against the committed files with Task B's `ids.golden`). The build emits constants only for live maps (`MapId`, `MAP_*` = `ids/maps.ron` number split as group `num >> 8`, map `num & 0xFF`), flags (`FlagId`), vars (`VarId`) and songs (`u16`); Task A adds the rest. Silice names resolve to the generator as `FLAG_0x…`/`VAR_0x…` hex names (`extract::names::Table::value` parses them); Gen3 names pass through.
+
+**Script registry (Task F, E).** `build/silice/registry.rs`:
+- `syn` scans `src/silice/scripts/*.rs` (sorted; the module is the file stem). A script is a top-level `pub async fn name(ctx: Ctx)`: one input, no return type, no generics; any other `pub async fn` there fails the build. A name defined in two files fails.
+- ScriptIds are assigned in **name order** over all files. The build emits, in the Emerald shape: `SCRIPT_COUNT`, `SCRIPT_NAMES` (sorted), `script_ids`, the `SCRIPTS` thunks, `script()`, and `SCRIPT_DIGESTS` (`(name, TreeHash of file name + source)`; a script's digest moves with its file). `scripts::DECOMP_NAMES` is `false`, `TRAINER_SCRIPTS` and `overrides::OVERRIDES` are empty. Script files are compiled as `content::scripts::<stem>` (`#[path]` modules); they `use crate::silice::prelude::*`.
+- **Unknown script rule.** Strict mode fails the build on a map naming a script no file defines. Wave 0 runs in the **allowlist mode**: `registry::ALLOW_UNWRITTEN = true` drops the reference (object, coord or bg script `None`, frame script removed), lists the names in `content::REPORT` and prints one `cargo:warning` (48 names today). `PKR_SILICE_STRICT_SCRIPTS=1` forces strict. **Task F flips `ALLOW_UNWRITTEN` to `false`** once Ch0's scripts are written.
+- `ch00_wave0.rs` holds one placeholder, `BricoBourg_PlayerHouse_2F_EventScript_Fenetre`; Task F replaces it. `xtask silice check`'s given-item rule now waits for scene scripts that name a `FLAG_` (a placeholder does not count).
+- `NEW_GAME_SCRIPT` runs `silice::new_game::new_game` (empty).
+
+**World (Task A, E).** `build/silice/mod.rs::world` builds the generator's `World` from `input::load_assets` (the extract without maps and the script IR) plus every `maps/*.ron` with its layout (`load.rs`, `merge.rs`; a map's `name` must equal its file stem). It keeps, of the extract's texts, only the Gen3 `gText_*` the prelude prints by label (`STD_TEXT_PREFIX`), drops the Emerald encounters and heal locations, and starts the new game at `START = ("BricoBourg_PlayerHouse_2F", 4, 3)`. Header numbers (music, weather, map type, name) are 0 in Wave 0. `silice::Game`: `respawn_default` 0, every heal location is the start, no whiteout script, no wild-set var; `PLAYER_HOUSES_1F` is Brico-Bourg's 1F twice.
+
+**Shells (Task D).** `Store::default_root(Flavor)` and `local_root(Flavor)` are `checkpoints/<flavor>/`; `Db::default_path(Flavor)`. `checkpoints/silice/nodes/.gitkeep` is committed; `status.ron` is not (every `checkpoints/*/status.ron` is git-ignored and `verify` rewrites it). The explorer has `Act::SilCh0` (`sil_ch0`, no goal yet), `Act::ALL` (3 acts), `Act::EMERALD` and `Act::SILICE`.
+
+**Gates as run.** Stub (`PKR_EXTRACTED_DIR=/nonexistent`) and Emerald `cargo test --workspace` green; `PKR_GAME=silice cargo test -p content -p engine` green; Emerald trees `valid (rehash)` (not accepted); `cargo xtask parity` identical; `cargo xtask rom` builds; fmt clean; clippy clean plain, with `--features game-native/window,studio/ui`, and `PKR_GAME=silice -p content -p engine`.
+
+**Wave 1 must do next.**
+- A: texts from `text/fr.ron` (it has the 2 duplicate ids `parse_texts` rejects: a ruling first), trainers, encounters, items, header names, music and weather, `LOCALID_*` constants, `MAP_*` constants of the other kinds, map limits; `text.rs` is the reader stub.
+- D: the shells, explorer goals and xtask commands compile and run under `PKR_GAME=silice` (they use Emerald constants today, so only `content` and `engine` build for Silice); `Db::open` still takes `stub: bool`; the `--game` flag.
+- E: `game.ron` (start, `SpecialIds`, respawn, cleared flags) replacing `START` and the Wave 0 `GameData` defaults; the new-game script.
+- F: the Ch0 scripts, `ALLOW_UNWRITTEN = false`, removing `ch00_wave0.rs`.
+- G: the font glyphs.
 
 #### SIL1 Task C as built: the studio map editor
 
