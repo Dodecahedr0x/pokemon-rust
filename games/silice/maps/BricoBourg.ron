@@ -172,6 +172,13 @@
             dest_map: "BricoBourg_FriendsHouse",
             dest_warp: 0,
         ),
+        (
+            x: 4,
+            y: 7,
+            elevation: 0,
+            dest_map: "BricoBourg_Labo",
+            dest_warp: 0,
+        ),
     ],
     coords: [
         (
@@ -318,7 +325,7 @@
         ),
     ],
     scripts: (
-        on_load: None,
+        on_load: Some("BricoBourg_OnLoad"),
         on_transition: Some("BricoBourg_OnTransition"),
         on_resume: None,
         on_return_to_field: None,

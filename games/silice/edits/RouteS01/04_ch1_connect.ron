@@ -1,0 +1,4 @@
+// Chapter 1: Bois-Ether to the north (MAP_BOIS_ETHER). Our exit x 7-10 meets its south exit x 12-15.
+[
+    Connect((dir: North, offset: -5, map: "BoisEther")),
+]

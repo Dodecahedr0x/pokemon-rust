@@ -1,0 +1,89 @@
+// Cells: ground plan, then the buildings over it.
+[
+    // Ground plan: T t forest, . grass, , tall grass, : forest path, * flowers, = Team Cocket cables
+    // (rail placeholder), p the secret grove's hedge, x synthetic brambles (8, 6), s signposts,
+    // h the market's high-tech pot (4, 14), b the Sector Beta barrier (33, 13-14).
+    // The east edge (x 35, y 12-15) stays forest until Route S2 (Ch2) exists: see the plan's as-built.
+    Ascii(x: 0, y: 0, rows: [
+        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
+        "tT.,,,,,.====.....................tT",
+        "Tt.,,,,,..............=====.......Tt",
+        "tT.,,,,,..........................tT",
+        "Tt.,,,,,..........................Tt",
+        "tT.pppppp...s.....................tT",
+        "Tt.p....x..**....:................Tt",
+        "tT.p....p..**....:................tT",
+        "Tt.pppppp..**.....................Tt",
+        "tT................................tT",
+        "Tt................................Tt",
+        "tT.............:::::..........s...tT",
+        "Tt.............::::::::::::::::::T:t",
+        "tT.............::::::::::::::::::b:T",
+        "Tt.*h*.***....::..............:::b:t",
+        "tT,,,,,,......::..............:::t:T",
+        "Tt,,,,,,......::..................Tt",
+        "tT,,,,,,......::..................tT",
+        "Tt,,,,,,......::..................Tt",
+        "tT,,,,,,......::..................tT",
+        "Tt,,,,,,...s..::..................Tt",
+        "tTtTtTtTtTtT::::tTtTtTtTtTtTtTtTtTtT",
+        "TtTtTtTtTtTt::::TtTtTtTtTtTtTtTtTtTt",
+        "tTtTtTtTtTtT::::tTtTtTtTtTtTtTtTtTtT",
+        "TtTtTtTtTtTt::::TtTtTtTtTtTtTtTtTtTt",
+        "tTtTtTtTtTtT::::tTtTtTtTtTtTtTtTtTtT",
+    ], legend: {'T': (metatile: 198, collision: 1), 't': (metatile: 199, collision: 1), '.': (metatile: 1, collision: 0), ',': (metatile: 13, collision: 0), '=': (metatile: 241, collision: 1), 'p': (metatile: 595, collision: 1), 's': (metatile: 27, collision: 1), 'x': (metatile: 619, collision: 1), '*': (metatile: 4, collision: 0), ':': (metatile: 609, collision: 0), 'b': (metatile: 6, collision: 1), 'h': (metatile: 605, collision: 1)}),
+    // LA GRASS-HOPPER, the hollow-tree gym: a 9-wide treehouse, x 13-21, y 1-5, door (17, 4).
+    Ascii(x: 13, y: 1, rows: [
+        "t(-----)T",
+        "122234445",
+        "677778889",
+        "6777D8889",
+        "accccfffg",
+    ], legend: {'t': (metatile: 199, collision: 1), '(': (metatile: 548, collision: 1), '-': (metatile: 549, collision: 1), ')': (metatile: 550, collision: 1), 'T': (metatile: 198, collision: 1), '1': (metatile: 555, collision: 1), '2': (metatile: 556, collision: 1), '3': (metatile: 557, collision: 1), '4': (metatile: 558, collision: 1), '5': (metatile: 559, collision: 1), '6': (metatile: 563, collision: 1), '7': (metatile: 564, collision: 1), '8': (metatile: 566, collision: 1), '9': (metatile: 567, collision: 1), 'D': (metatile: 565, collision: 0), 'a': (metatile: 571, collision: 0), 'c': (metatile: 572, collision: 0), 'f': (metatile: 574, collision: 0), 'g': (metatile: 575, collision: 0)}),
+    // Treehouse on stilts (decorative, door solid), x 21-25, y 5-10, ladder (23, 10). Its first
+    // cell (21, 5) keeps the Grass-Hopper deck's end (g).
+    Ascii(x: 21, y: 5, rows: [
+        "g(-).",
+        "12345",
+        "67d89",
+        "acefg",
+        "ijkjl",
+        "..L..",
+    ], legend: {'.': (metatile: 1, collision: 0), '(': (metatile: 548, collision: 1), '-': (metatile: 549, collision: 1), ')': (metatile: 550, collision: 1), '1': (metatile: 555, collision: 1), '2': (metatile: 556, collision: 1), '3': (metatile: 557, collision: 1), '4': (metatile: 558, collision: 1), '5': (metatile: 559, collision: 1), '6': (metatile: 563, collision: 1), '7': (metatile: 564, collision: 1), 'd': (metatile: 565, collision: 1), '8': (metatile: 566, collision: 1), '9': (metatile: 567, collision: 1), 'a': (metatile: 571, collision: 0), 'c': (metatile: 572, collision: 0), 'e': (metatile: 573, collision: 0), 'f': (metatile: 574, collision: 0), 'g': (metatile: 575, collision: 0), 'i': (metatile: 579, collision: 1), 'j': (metatile: 582, collision: 1), 'k': (metatile: 581, collision: 0), 'l': (metatile: 583, collision: 1), 'L': (metatile: 589, collision: 0)}),
+    // Treehouse on stilts (decorative, door solid), x 28-32, y 2-7, ladder (30, 7).
+    Ascii(x: 28, y: 2, rows: [
+        ".(-).",
+        "12345",
+        "67d89",
+        "acefg",
+        "ijkjl",
+        "..L..",
+    ], legend: {'.': (metatile: 1, collision: 0), '(': (metatile: 548, collision: 1), '-': (metatile: 549, collision: 1), ')': (metatile: 550, collision: 1), '1': (metatile: 555, collision: 1), '2': (metatile: 556, collision: 1), '3': (metatile: 557, collision: 1), '4': (metatile: 558, collision: 1), '5': (metatile: 559, collision: 1), '6': (metatile: 563, collision: 1), '7': (metatile: 564, collision: 1), 'd': (metatile: 565, collision: 1), '8': (metatile: 566, collision: 1), '9': (metatile: 567, collision: 1), 'a': (metatile: 571, collision: 0), 'c': (metatile: 572, collision: 0), 'e': (metatile: 573, collision: 0), 'f': (metatile: 574, collision: 0), 'g': (metatile: 575, collision: 0), 'i': (metatile: 579, collision: 1), 'j': (metatile: 582, collision: 1), 'k': (metatile: 581, collision: 0), 'l': (metatile: 583, collision: 1), 'L': (metatile: 589, collision: 0)}),
+    // L'HERBORISTE, a ground-level treehouse, x 3-7, y 10-13, door (5, 12).
+    Ascii(x: 3, y: 10, rows: [
+        ".(-).",
+        "12345",
+        "67D89",
+        "accfg",
+    ], legend: {'.': (metatile: 1, collision: 0), '(': (metatile: 548, collision: 1), '-': (metatile: 549, collision: 1), ')': (metatile: 550, collision: 1), '1': (metatile: 555, collision: 1), '2': (metatile: 556, collision: 1), '3': (metatile: 557, collision: 1), '4': (metatile: 558, collision: 1), '5': (metatile: 559, collision: 1), '6': (metatile: 563, collision: 1), '7': (metatile: 564, collision: 1), 'D': (metatile: 565, collision: 0), '8': (metatile: 566, collision: 1), '9': (metatile: 567, collision: 1), 'a': (metatile: 571, collision: 0), 'c': (metatile: 572, collision: 0), 'f': (metatile: 574, collision: 0), 'g': (metatile: 575, collision: 0)}),
+    // LE GRAND CHENE, x 16-18, y 8-10 (trunk (17, 10)).
+    Ascii(x: 16, y: 8, rows: [
+        "ABC",
+        "EFG",
+        "HIH",
+    ], legend: {'A': (metatile: 584, collision: 1), 'B': (metatile: 585, collision: 1), 'C': (metatile: 586, collision: 1), 'E': (metatile: 592, collision: 1), 'F': (metatile: 593, collision: 1), 'G': (metatile: 594, collision: 1), 'H': (metatile: 580, collision: 1), 'I': (metatile: 604, collision: 1)}),
+    // Pokemon Center, x 26-29, y 9-12, door (27, 12).
+    Ascii(x: 26, y: 9, rows: [
+        "abcd",
+        "efgh",
+        "ijkl",
+        "mnop",
+    ], legend: {'a': (metatile: 72, collision: 1), 'b': (metatile: 73, collision: 1), 'c': (metatile: 74, collision: 1), 'd': (metatile: 75, collision: 1), 'e': (metatile: 80, collision: 1), 'f': (metatile: 81, collision: 1), 'g': (metatile: 82, collision: 1), 'h': (metatile: 83, collision: 1), 'i': (metatile: 88, collision: 1), 'j': (metatile: 89, collision: 1), 'k': (metatile: 90, collision: 1), 'l': (metatile: 91, collision: 1), 'm': (metatile: 96, collision: 1), 'n': (metatile: 97, collision: 1), 'o': (metatile: 98, collision: 1), 'p': (metatile: 99, collision: 1)}),
+    // Mart, x 26-29, y 14-17, door (27, 17) (the source's (27, 16) would touch the Center).
+    Ascii(x: 26, y: 14, rows: [
+        "abbd",
+        "efgh",
+        "ijkl",
+        "mnop",
+    ], legend: {'a': (metatile: 40, collision: 0), 'b': (metatile: 41, collision: 0), 'd': (metatile: 43, collision: 0), 'e': (metatile: 48, collision: 1), 'f': (metatile: 49, collision: 1), 'g': (metatile: 50, collision: 1), 'h': (metatile: 51, collision: 1), 'i': (metatile: 56, collision: 1), 'j': (metatile: 57, collision: 1), 'k': (metatile: 58, collision: 1), 'l': (metatile: 59, collision: 1), 'm': (metatile: 96, collision: 1), 'n': (metatile: 65, collision: 1), 'o': (metatile: 66, collision: 1), 'p': (metatile: 67, collision: 1)}),
+]

@@ -86,6 +86,11 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_BAR_GWADA,
         FLAG_SIL_HIDE_BAR_ADRIEN,
         FLAG_SIL_HIDE_BAR_JULIEN,
+        // Ch1: shown until their scene (or a story step) hides them.
+        FLAG_SIL_HIDE_BOIS_ETHER_TECHNICIEN,
+        FLAG_SIL_HIDE_BOIS_ETHER_GARDE,
+        FLAG_SIL_HIDE_GYM1_LOIC,
+        FLAG_SIL_HIDE_LABO_CHIMISTE,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -95,6 +100,13 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_BAR_SBIRE_B,
         FLAG_SIL_HIDE_BAR_MALLETTE,
         FLAG_SIL_HIDE_BRICO_SBIRE,
+        // Ch1: Adrien at the meeting point, and Bois_Ether_Sc06's actors.
+        FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN,
+        FLAG_SIL_HIDE_BOIS_ETHER_GOGO,
+        FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN,
+        FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1,
+        FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2,
+        FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU,
     ] {
         assert!(w.flag(f), "{f:?}");
     }

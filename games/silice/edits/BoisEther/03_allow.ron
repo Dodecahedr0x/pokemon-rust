@@ -1,0 +1,6 @@
+// Behaviour warnings accepted on purpose (validate honours these; see the editor upgrades in
+// docs/plans/2026-10-23-silice-content.md).
+[
+    AllowCollision(metatiles: [241], reason: "Team Cocket's high-voltage cables use rail metatiles as a placeholder (as on Route S1) and are an obstacle by design; Emerald's rails are walkable"),
+    AllowCollision(cells: [(23, 7), (30, 4)], reason: "decorative treehouses with no interior: their doors are kept solid so they lead nowhere; Emerald's treehouse door is walkable because every one has a warp"),
+]
