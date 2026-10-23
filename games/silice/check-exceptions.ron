@@ -1518,12 +1518,6 @@
         ),
         (
             rule: "placement-map",
-            subject: "FLAG_SIL_ITEM_CASINO_COINS_FLOOR",
-            reason: "20 coins are not an item, so no hidden item can carry the flag: the map has a bg script ViberCity_Casino_EventScript_JetonsCaches at (14,3) that gives the coins and sets the flag; drop this entry once ch03 scripts name the flag",
-            ruling_needed: false,
-        ),
-        (
-            rule: "placement-map",
             subject: "FLAG_SIL_ARTHUR_BOUSSOLE_PRISE",
             reason: "a scene item, not a ball: the compass object (8,13) on TourNebula_3F is hidden by FLAG_SIL_HIDE_ARTHUR_BOUSSOLE and its script TourNebula_3F_Sc02 gives ITEM_SIL_BOUSSOLE_ARTHUR and sets this flag (ch10 Tour_3F_Sc02); drop this entry once ch10 scripts name the flag",
             ruling_needed: false,
