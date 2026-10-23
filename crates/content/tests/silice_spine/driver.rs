@@ -454,9 +454,16 @@ impl Run {
             if p == target {
                 return;
             }
-            let d = self.plan(p, target, avoid).unwrap_or_else(|| {
-                panic!("no way from {p:?} to {target:?} on {map:?}");
-            });
+            // A wandering NPC can close the only way for a while: wait for it (a few seconds).
+            let mut waited = 0;
+            let d = loop {
+                if let Some(d) = self.plan(p, target, avoid) {
+                    break d;
+                }
+                assert!(waited < 300, "no way from {p:?} to {target:?} on {map:?}");
+                self.step(Buttons::NONE);
+                waited += 1;
+            };
             let mut n = 0;
             while self.pos() == p && !self.busy() && n < 40 {
                 self.step(dir_button(d));
