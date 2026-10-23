@@ -87,6 +87,7 @@ impl Pokemon {
 
 impl BoxedMon {
     /// Feeds every field into `h`.
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         h.write_u16(self.species.0);
         h.write_u32(self.personality);

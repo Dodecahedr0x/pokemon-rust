@@ -121,6 +121,7 @@ impl Pokedex {
     }
 
     /// Feeds the digest into `h`, only when something is recorded.
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         if !self.is_empty() {
             h.write(&[0xA3]);

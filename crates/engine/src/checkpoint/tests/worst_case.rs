@@ -61,7 +61,7 @@ pub(super) fn worst_case(boxes: u8) -> Checkpoint {
         .collect();
     w.money = 999_999;
     w.str_vars = [vec![0xA1; 255], vec![0xA1; 255], vec![0xA1; 255]];
-    let mut objs = vec![w.objects.objs[0].clone()];
+    let mut objs = vec![w.objects.objs[0]];
     objs.extend((1..16).map(|i| object(i, (0x7FFF, 0x7FFF), None)));
     w.objects.objs = objs;
     w.options = Some(crate::options::Options {

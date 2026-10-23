@@ -63,6 +63,7 @@ impl ScreenFx {
     }
 
     /// Feeds the effects into `h`, only while one is active.
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         if !self.is_active() {
             return;

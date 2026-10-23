@@ -85,6 +85,7 @@ impl Default for Options {
 impl Options {
     /// Feeds the options into `h`, only when they differ from the defaults (so a world that
     /// never changed them keeps its hashes).
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         if *self != Options::default() {
             h.write(&[

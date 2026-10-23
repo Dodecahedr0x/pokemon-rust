@@ -156,6 +156,7 @@ impl ScreenKind {
 
     /// Feeds the kind and its arguments into `h` (a mart list by its length and address-free
     /// digest).
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         h.write(&[self.tag() as u8]);
         match *self {
@@ -336,6 +337,7 @@ impl ScreenState {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         match self {
             ScreenState::StartMenu(s) => s.hash(h),
@@ -403,6 +405,7 @@ impl ScreenStack {
     }
 
     /// Feeds the stack into `h`: nothing when empty.
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         if self.screens.is_empty() {
             return;
