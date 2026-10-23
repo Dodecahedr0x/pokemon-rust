@@ -21,6 +21,9 @@
         // The player's bedroom, as Emerald's HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F
         // (4, 2). Ch0: "the house is the heal point, set_respawn on the house at the start".
         (name: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE", map: "BricoBourg_PlayerHouse_2F", x: 4, y: 2),
+        // Ch2: Gris-Échec's Centre, in front of the nurse (as Emerald's whiteout lands inside the
+        // Centre). Set on entering it (GrisEchec_PokemonCenter_OnTransition).
+        (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec_PokemonCenter", x: 7, y: 4),
     ],
     respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
     // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.
