@@ -380,7 +380,11 @@ Policy:
 - `Cross` of Route 113 from Fallarbor timed out at (0,11) while Route 113's two beaten trainers walked up and down column 7; a `Goto` to (14,13) first gets through.
 - Route 111's rest stop: the planner's direct walk stalled at (21,12); `Goto`s to (28,11) and (29,17) first.
 
-**Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. `cargo xtask explore branch` on the extended spine: see the final report.
+**Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. Surf (HM03 in hand at the spine's end) is the next gap: no field Surf, and `checkpartymove` is stubbed.
+
+**Branches** (`cargo xtask explore branch` on the badge5 spine, fresh db): 1,277 branches from 60 origins, 8.75 M frames in 1.3 s; 783 rejoined, 64 diverged as expected, 62 diverged, 75 stranded, 234 aborted, 59 unplayable; 137 findings (62 divergences), 832 reports. The non-report findings:
+- Softlocks on entering any Battle Tent lobby (Slateport 0x0902, Fallarbor 0x0501, Verdanturf 0x0600, at (6,9)): the lobbies' `ON_FRAME` table runs `frontier_getstatus` (`SPECIAL_CallFrontierUtilFunc`, unsupported) while `VAR_TEMP_CHALLENGE_STATUS` is 0, so the script never sets it and reruns every frame. A content/engine gap (frontier utility functions), not the explorer's.
+- Divergences "did not rejoin" after `woods` (Route 104 (39,63)) and after `badge3` (Route 111 (21,12), Fiery Path (26,36)): a branch's walk leaves a state where the next spine step fails (`NoPath` on Route 104's `Cross`; the rest stop `Enter` stalling at Route 111 (21,12), where the spine itself needs two `Goto`s). Explorer-side (rejoin and planner), not engine.
 
 ### Wave C — new-game state parity
 
