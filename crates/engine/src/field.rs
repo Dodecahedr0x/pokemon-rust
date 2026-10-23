@@ -62,7 +62,7 @@ impl Rect {
     }
 
     fn contains(self, x: i16, y: i16) -> bool {
-        (self.x0..=self.x1).contains(&x) && (self.y0..=self.y1).contains(&y)
+        self.x0 <= x && x <= self.x1 && self.y0 <= y && y <= self.y1
     }
 }
 
@@ -325,10 +325,13 @@ impl Field {
         }
         let old = self.drawn;
         let mut cells = Vec::new();
-        for y in view.y0..=view.y1 {
-            for x in view.x0..=view.x1 {
-                if !old.is_some_and(|r| r.contains(x, y)) {
-                    cells.push((x, y));
+        // A camera still in the drawn view (most frames) brings no cell into view.
+        if old != Some(view) {
+            for y in view.y0..=view.y1 {
+                for x in view.x0..=view.x1 {
+                    if !old.is_some_and(|r| r.contains(x, y)) {
+                        cells.push((x, y));
+                    }
                 }
             }
         }
