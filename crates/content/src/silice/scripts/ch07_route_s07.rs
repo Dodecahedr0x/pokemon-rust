@@ -49,6 +49,9 @@ pub async fn RouteS07_EventScript_Bloc(ctx: Ctx) {
 /// Route_S07_Sc01, the first data wall: the route's on-frame entry at `VAR_SIL_STORY` 68
 /// (Chapter 6's end, Manga_Square_Sc03), as the player comes through the Grand Torii. Sets 70.
 pub async fn RouteS07_Sc01(ctx: Ctx) {
+    if story(&ctx).await != 68 {
+        return;
+    }
     ctx.lock_all().await;
     say(&ctx, Route_S07_Sc01_T1).await;
     set_story(&ctx, 70).await;

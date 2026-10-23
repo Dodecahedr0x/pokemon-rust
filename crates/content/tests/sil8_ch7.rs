@@ -11,7 +11,8 @@
 
 mod silice_spine;
 
-use silice_spine::{Run, ch07};
+use content::consts::*;
+use silice_spine::{Run, Step, ch07};
 
 /// Every frame of the path, at most.
 const FRAME_LIMIT: u64 = 160_000;
@@ -21,4 +22,24 @@ fn chapter_7_plays_from_route_s7_to_the_seventh_badge_and_route_s8() {
     let mut r = Run::starting_at(FRAME_LIMIT, ch07::start());
     r.play(&ch07::steps());
     ch07::check_end(&r);
+}
+
+/// Chapter 12's obligation on the lighthouse ("SIL6 Ch12 maps: review"): Thomas is shown at
+/// `VAR_SIL_STORY` 122 only, written both ways by `ReverseCity_Phare_OnTransition`.
+#[test]
+fn the_lighthouse_shows_thomas_at_story_122_only() {
+    let mut r = Run::starting_at(2_000, ch07::phare_at_122());
+    r.play(&[
+        Step::Settle,
+        Step::Check("thomas_122", |r| {
+            assert!(!r.w.flag(FLAG_SIL_HIDE_THOMAS_PHARE))
+        }),
+    ]);
+    let mut r = Run::starting_at(2_000, ch07::phare_at_123());
+    r.play(&[
+        Step::Settle,
+        Step::Check("thomas_123", |r| {
+            assert!(r.w.flag(FLAG_SIL_HIDE_THOMAS_PHARE))
+        }),
+    ]);
 }

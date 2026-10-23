@@ -18,16 +18,17 @@
 //! and the ice are plain floor, the Gogo–Romain double is two single battles, Reverse's battle
 //! is on the normal type chart, the vault's dial is one yes/no that dials the plaques' code.
 //!
-//! **The party** ([`PARTY`]): Chapter 5's end (TYPHLOSION 41, LAIRON 39, LANTURN 36, FLAAFFY
-//! 21) with Chapter 4's KADABRA, after Chapter 6 (Manga-Square's trainers at 40–46, Tak's six
-//! at 42–46, the lead trained to about 53): the KADABRA an ALAKAZAM (Chapter 5's Link Stone) and
-//! the lead again, the LAIRON an AGGRON (42), the FLAAFFY an AMPHAROS (30). No hook and no
+//! **The party** ([`PARTY`]): Chapter 6's start party (`ch06::PARTY` on the Ch6 branch: AMPHAROS
+//! 44, KADABRA 44, TYPHLOSION 42, AGGRON 42, WAILORD 40) after Chapter 6, which trains its lead,
+//! the AMPHAROS, to 55 for Tak (six at 42–46), and fights Manga-Square's trainers (40–46) with
+//! the bench: the AMPHAROS 55, the KADABRA an ALAKAZAM (Chapter 5's Link Stone) at 54, leading
+//! again as in Chapter 4, the TYPHLOSION and the AGGRON 47, the WAILORD 45. No hook and no
 //! [`Step::Train`]: the chapter's trainers (44–49) are the training, and the run heals at the
-//! Centre between the city's fights and before Reverse. Measured: every member at its level ±1
-//! wins (one at a time). With the TYPHLOSION leading (Chapter 5's order) the run is a coin flip:
-//! Gogo's Donphan (Ground, Liechi Berry) sweeps it in the no-heal double, and Reverse's
-//! Porygon2 (Leftovers) outlasts the team at some levels; a lower party (TYPHLOSION 48–50,
-//! AGGRON 46, LANTURN 44, AMPHAROS 40) loses at 50, its neighbours winning.
+//! Centre between the city's fights and before Reverse. Measured, one member at ±1 at a time:
+//! eight of the nine neighbours win; the TYPHLOSION at 46 loses to Reverse (Wobbuffet's Counter
+//! and Mirror Coat, Porygon2's Recover: the battle policy never switches). With the AMPHAROS
+//! leading (Chapter 6's order), Gogo's Donphan (Ground) sweeps it in the no-heal double. To be
+//! re-tuned once Chapter 6's end party is settled.
 
 use super::{Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
@@ -57,14 +58,49 @@ pub fn start() -> Start {
     }
 }
 
+/// The lighthouse's mat (6, 19) at `VAR_SIL_STORY` 122, Chapter 12's Thomas scene (`Reverse_City_PG_Sc04`):
+/// `ReverseCity_Phare_OnTransition` must show him.
+pub fn phare_at_122() -> Start {
+    Start {
+        map: PHARE,
+        x: 6,
+        y: 19,
+        facing: Dir::Up,
+        setup: |ctx| {
+            Box::pin(async move {
+                end_of_chapter_6(ctx.clone()).await;
+                ctx.set_var(VAR_SIL_STORY, 122).await;
+            })
+        },
+    }
+}
+
+/// The same at 123, Thomas's hide flag cleared as his scene left it: the transition must hide
+/// him again (the flag is written both ways).
+pub fn phare_at_123() -> Start {
+    Start {
+        map: PHARE,
+        x: 6,
+        y: 19,
+        facing: Dir::Up,
+        setup: |ctx| {
+            Box::pin(async move {
+                end_of_chapter_6(ctx.clone()).await;
+                ctx.set_var(VAR_SIL_STORY, 123).await;
+                ctx.set_flag(FLAG_SIL_HIDE_THOMAS_PHARE, false).await;
+            })
+        },
+    }
+}
+
 /// The start state's party (see the module docs): the ALAKAZAM leads, as the KADABRA did in
-/// Chapters 4 and 6.
+/// Chapter 4 (Chapter 6 led with the AMPHAROS).
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_ALAKAZAM, 50),
-    (SPECIES_TYPHLOSION, 53),
-    (SPECIES_AGGRON, 49),
-    (SPECIES_LANTURN, 46),
-    (SPECIES_AMPHAROS, 42),
+    (SPECIES_ALAKAZAM, 54),
+    (SPECIES_AMPHAROS, 55),
+    (SPECIES_TYPHLOSION, 47),
+    (SPECIES_AGGRON, 47),
+    (SPECIES_WAILORD, 45),
 ];
 
 /// Chapter 6's end state (`07-reverse-city.md`'s prerequisites), on top of Silice's new-game

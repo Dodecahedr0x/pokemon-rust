@@ -3381,7 +3381,7 @@ On the way, the run plays:
 
 The run takes about 121 000 frames (limit 160 000).
 
-The party is ALAKAZAM 50, TYPHLOSION 53, AGGRON 49, LANTURN 46, AMPHAROS 42. That is Chapter 5's end plus Chapter 4's KADABRA line (an ALAKAZAM via Ch5's Link Stone, leading as it did in Ch4 and Ch6), after Chapter 6.
+The party was ALAKAZAM 50, TYPHLOSION 53, AGGRON 49, LANTURN 46, AMPHAROS 42 (the review below re-based it on Chapter 6). That is Chapter 5's end plus Chapter 4's KADABRA line (an ALAKAZAM via Ch5's Link Stone, leading as it did in Ch4 and Ch6), after Chapter 6.
 
 Measured:
 - **Neighbour levels.** Each member at ±1, one at a time, wins.
@@ -3399,6 +3399,28 @@ Measured:
 8. **The heal cell** is (4, 21), the cell in front of the Centre. Is that right?
 9. **The controls invert from story 72** (from the welcome, Sc01). Before that, the player has not met the distortion. Or should they invert on the first entry?
 10. **The Gogo–Romain double** (two singles without a heal) is the hardest fight of the chapter for a realistic party. Should a nurse or a heal follow Gogo in the fallback?
+
+**Review (Ch7 scripts).** After merging master (the Silice route fix, the `.gitignore` tweak: already in). The review covered the source, softlocks and bypasses, the Ch12 obligations, the e2e party, code quality and `lint-reach`.
+- **Critical:** none.
+- **Important, fixed:**
+  - **The e2e party did not continue Chapter 6.** The Ch6 scripts (branch `worktree-agent-a208b9d71c23e4a85`, in review) start from AMPHAROS 44, KADABRA 44, TYPHLOSION 42, AGGRON 42, WAILORD 40, and train their lead, the AMPHAROS, to 55 for Tak. Ch7's party had no WAILORD, a LANTURN that Ch6 no longer carries, and the AMPHAROS at 42. It is now **ALAKAZAM 54, AMPHAROS 55, TYPHLOSION 47, AGGRON 47, WAILORD 45**: Ch6's party after Ch6 (the lead's 55 kept; the bench +5 from Manga-Square's trainers at 40–46 and Tak's six at 42–46; the KADABRA an ALAKAZAM at 54, leading again as in Ch4).
+    - Measured, one member at ±1 at a time: eight of the nine neighbours win. The TYPHLOSION at 46 loses to Reverse, whose Wobbuffet (Counter, Mirror Coat, Destiny Bond) and Porygon2 (Recover, Leftovers) punish a battle policy that never switches. Every loss in the search was Reverse, except AMPHAROS-led parties, which lose to Gogo's Donphan (Ground) in the no-heal double. The ALAKAZAM at 46 (no Ch7 growth over Ch6's KADABRA) loses on the lighthouse.
+    - **Assumption to re-check when Ch6 lands:** the bench's Ch6 growth (+5) and the ALAKAZAM's level (54). The coordinator will ask for a re-tune if Ch6's end party differs. The old party (still winning) was plausible only against Ch5's end.
+  - **The Ch12 obligation was untested.** `ReverseCity_Phare_OnTransition` was correct (Thomas shown at 122 only, `FLAG_SIL_HIDE_THOMAS_PHARE` written both ways), but nothing checked it. `sil8_ch7::the_lighthouse_shows_thomas_at_story_122_only` starts in the lighthouse at 122 (flag clear after the load) and at 123 with the flag cleared, as his scene leaves it (flag set again). Mutating 122 to 121 fails it.
+- **Minor, fixed:** `RouteS07_Sc01` is now guarded on story 68 in the function too (the map's `on_frame` already was), as every other Ch7 scene.
+- **Checked, no change:**
+  - **Source.** Every scene (Route Sc01–Sc02, City Sc01–Sc07, Gym Sc01–Sc02), all 17 trainers, the 17 §7 items, the Mart's 11 items and every text in the source's order. Story 68 → 70 → 71 → 72 → 73 → 74 → 75 → 76, each step set by the scene §8 names. The deviations listed above are each the source's own §9 fallback or a map constraint.
+  - **Bypasses** (`bypass`, the engine's model): `RouteS07_Sc02` and Technicien 2 (with `--field-moves`), `ReverseCity_Sc01` (from the south mats, objects hidden), `_Sc02` (to the square, the Palais door and the alley block), `_Sc07` (to the gate), `ReverseCity_Gym_Sc01`, Anna and Xela (from the hall and from the ice room's S mat), Nomis and Oscar: none can be walked round.
+  - **The silica blocks' temp flags.** The engine clears flags 1–0x1F (`Vars::clear_temp`, Gen3 `ClearTempFieldEventData`) on every warp load and connection crossing, before `OnTransition` and the object spawn; battles do not reload the map, so a broken block stays gone for the visit. A block cannot respawn under the player: loads put the player on warp arrivals, connection edges or the heal cell (4, 21), and no block sits on one. Leaving and re-entering cannot trap: the module (`FLAG_SIL_MODULE_ECLATE_ROC`) is permanent and needed to pass C1 at all, so a respawned block breaks again. The vault is the one case where the player comes out behind a respawned block (the alley); it breaks from the alley side (the e2e does it).
+  - **Inverted controls.** The fallback changes nothing in the engine, so nothing can stick. Latent, for when `set_input_inverted` lands: Route S7 and Route S8 have no `OnTransition` turning it off, so walking back to Route S7 at 72–73 would keep it on (see the questions).
+  - **The vault's yes/no.** "No" releases; a wrong code (fewer than four plaques read) shocks and releases; the plaques' flags are permanent, so the player can read the missing signs and dial again. Nothing is consumed.
+  - **Reverse's flash and Benou's walks.** Reverse is hidden behind the fade (the source's §9 fallback for him). Benou's Gym Sc02 path (8, 4)–(7, 4) is free: row 4 is reached only through Sc01's row 5, which fires first, so the player is on row 5 when Sc02 follows. Sc07's path (29, 4)–(25, 4) is walkable and below the coord row the player stands on. The on-frame replay at 74 starts in the hall, away from room 3.
+  - **Guards and locks.** Every coord and on-frame scene is guarded on its story value; every `lock`/`lock_all` is released on every path; a lost battle whites out and aborts the script (the gym's `!= Won` return is unreachable but harmless).
+  - **Code.** `bloc` is a removable object (Gen3's rock), not `Obstacle` (a permanent metatile repaint) nor Ch4's `push_object` (a moved object); it stays `pub(super)` in `ch07_route_s07.rs`. If Ch6's scripts add their own Éclate-Roc helper, the two should merge into the prelude. Fallbacks are reported once per use, by name; `set_input_inverted(false)` reports nothing (it is the engine's normal walking).
+  - **`lint-reach`:** the eight Ch7 maps 0 warnings (5 allowed); `--all` 110 maps, 0 warnings.
+- **Questions added:**
+  11. When the engine gains inverted controls, should Route S7 (and Route S8) get an `OnTransition` that turns them off, or should the inversion be tied to Reverse-City's map in the engine?
+  12. The e2e party is a guess at Chapter 6's end (above). Is a WAILORD on the team, and the AMPHAROS as Ch6's trained lead, the intended Ch7 party?
 
 #### SIL4 Ch8 maps as built (Évalon)
 
