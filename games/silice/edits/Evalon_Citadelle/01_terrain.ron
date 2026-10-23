@@ -1,37 +1,35 @@
-// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
-//   # 513/1/0 void
-//   W 551/1/0 wall top
-//   1 571/1/0 stairs up
-//   2 572/1/0 stairs up
-//   3 573/1/0 stairs up
-//   F 559/1/0 wall face
-//   4 579/1/0 stairs up
-//   5 580/0/3 stairs up (warp cell)
-//   6 581/1/0 stairs up
-//   u 702/0/3 floor under the wall
-//   r 519/1/0 rubble
-//   . 701/0/3 flagstones
-//   P 714/1/0 the Game Master's plaque
-//   n 565/0/3 rune
-//   t 568/1/0 pit edge
-//   y 570/1/0 pit edge
-//   l 576/1/0 pit
-//   L 578/1/0 pit
-//   v 585/1/0 pit edge
-//   Y 586/1/0 pit edge
-//   T 569/1/0 pit edge
-//   o 577/1/0 pit
-//   V 589/1/0 pit edge
-//   R 527/1/0 rubble
-//   q 543/1/0 fallen pillar
-//   x 566/0/3 skull slab (trap)
-//   e 564/0/3 sword slab (safe)
-//   M 546/0/3 exit mat (arrow warp)
-//   N 547/0/3 exit mat (arrow warp)
+// Cells, drawn in one grid, then SilEvalonCitadelle's stamps (games/silice/gfx/SilEvalonCitadelle.ron,
+// original art). Salle 1 (y 40-53): the slabs, sword (e) and shield (b) alternating on the safe way,
+// skulls (x) everywhere else. Salle 2 (y 29-37): the chasm (y 32-33) and its raised drawbridge (5,
+// 32-33: pit cells, lowered to SilEvalonCitadelle's `pont` by Evalon_Citadelle_OnLoad), the golems'
+// pressure plates (3, 34) and (7, 34). Salle 3 (y 18-26): the runes (n) between the pits. Salle 4
+// (y 11-15) and Salle 5 (y 2-8). Legend (char: metatile/collision/elevation, what):
+//   # 1/1/0 void (Building's black)
+//   . 512/0/3 flagstones
+//   1 523/1/0 pit, top-left
+//   2 524/1/0 pit, top
+//   3 525/1/0 pit, top-right
+//   4 526/1/0 pit, left
+//   5 527/1/0 pit
+//   6 528/1/0 pit, right
+//   7 529/1/0 pit, bottom-left
+//   8 530/1/0 pit, bottom
+//   9 531/1/0 pit, bottom-right
+//   F 514/1/0 wall face
+//   P 533/1/0 the Game Master's plaque
+//   W 513/1/0 wall top
+//   b 535/0/3 shield slab (safe)
+//   e 534/0/3 sword slab (safe)
+//   n 537/0/3 rune
+//   o 538/0/3 pressure plate (golem)
+//   q 540/1/0 broken column
+//   r 539/1/0 rubble
+//   u 532/0/3 flagstones in the wall's shadow
+//   x 536/0/3 skull slab (trap)
 [
     Ascii(x: 0, y: 0, rows: [
-        "#WWW123WWW#",
-        "#FFF456FFF#",
+        "#WWW...WWW#",
+        "#FFF...FFF#",
         "#uuur.ruuu#",
         "#.........#",
         "#.........#",
@@ -49,41 +47,65 @@
         "#WWWW.WWWW#",
         "#FFFF.FFFF#",
         "#uuuunuuuu#",
-        "#ty.n...ty#",
-        "#lL.n...lL#",
-        "#vY.n...vY#",
+        "#13.n...13#",
+        "#46.n...46#",
+        "#79.n...79#",
         "#...n.....#",
-        "#tTTyntTTy#",
-        "#looLnlooL#",
-        "#vVVYnvVVY#",
+        "#1223n1223#",
+        "#4556n4556#",
+        "#7889n7889#",
         "#P...n....#",
         "#WWWW.WWWW#",
         "#FFFF.FFFF#",
-        "#RRR...RRR#",
-        "#RR....RRR#",
-        "#RRq...RRR#",
-        "#tTTTTTTTy#",
-        "#vVVVVVVVY#",
-        "#..n...n..#",
+        "#rrr...rrr#",
+        "#rr....rrr#",
+        "#rrq...rrr#",
+        "#122222223#",
+        "#788888889#",
+        "#..o...o..#",
         "#.........#",
         "#.........#",
         "#P........#",
         "#WWWW.WWWW#",
         "#FFFF.FFFF#",
-        "#RRRu.uRRR#",
-        "#RxxxexxxR#",
-        "#RxxxnxxxR#",
-        "#RxxxexxxR#",
-        "#RxxxnenxR#",
-        "#RxxxxnexR#",
-        "#RenenenxR#",
-        "#RxexxxxxR#",
-        "#RxnenexxR#",
-        "#RxxxexxxR#",
+        "#rrru.urrr#",
+        "#rxxxexxxr#",
+        "#rxxxbxxxr#",
+        "#rxxxexxxr#",
+        "#rxxxbebxr#",
+        "#rxxxxbexr#",
+        "#rebebebxr#",
+        "#rxexxxxxr#",
+        "#rxbebexxr#",
+        "#rxxxexxxr#",
         "#P........#",
         "#.........#",
         "#.........#",
         "#.........#",
-        "#####MN####",
-    ], legend: {'#': (metatile: 513, collision: 1, elevation: 0), 'W': (metatile: 551, collision: 1, elevation: 0), '1': (metatile: 571, collision: 1, elevation: 0), '2': (metatile: 572, collision: 1, elevation: 0), '3': (metatile: 573, collision: 1, elevation: 0), 'F': (metatile: 559, collision: 1, elevation: 0), '4': (metatile: 579, collision: 1, elevation: 0), '5': (metatile: 580, collision: 0, elevation: 3), '6': (metatile: 581, collision: 1, elevation: 0), 'u': (metatile: 702, collision: 0, elevation: 3), 'r': (metatile: 519, collision: 1, elevation: 0), '.': (metatile: 701, collision: 0, elevation: 3), 'P': (metatile: 714, collision: 1, elevation: 0), 'n': (metatile: 565, collision: 0, elevation: 3), 't': (metatile: 568, collision: 1, elevation: 0), 'y': (metatile: 570, collision: 1, elevation: 0), 'l': (metatile: 576, collision: 1, elevation: 0), 'L': (metatile: 578, collision: 1, elevation: 0), 'v': (metatile: 585, collision: 1, elevation: 0), 'Y': (metatile: 586, collision: 1, elevation: 0), 'T': (metatile: 569, collision: 1, elevation: 0), 'o': (metatile: 577, collision: 1, elevation: 0), 'V': (metatile: 589, collision: 1, elevation: 0), 'R': (metatile: 527, collision: 1, elevation: 0), 'q': (metatile: 543, collision: 1, elevation: 0), 'x': (metatile: 566, collision: 0, elevation: 3), 'e': (metatile: 564, collision: 0, elevation: 3), 'M': (metatile: 546, collision: 0, elevation: 3), 'N': (metatile: 547, collision: 0, elevation: 3)}),
+        "#####..####",
+    ], legend: {'#': (metatile: 1, collision: 1, elevation: 0), '.': (metatile: 512, collision: 0, elevation: 3), '1': (metatile: 523, collision: 1, elevation: 0), '2': (metatile: 524, collision: 1, elevation: 0), '3': (metatile: 525, collision: 1, elevation: 0), '4': (metatile: 526, collision: 1, elevation: 0), '5': (metatile: 527, collision: 1, elevation: 0), '6': (metatile: 528, collision: 1, elevation: 0), '7': (metatile: 529, collision: 1, elevation: 0), '8': (metatile: 530, collision: 1, elevation: 0), '9': (metatile: 531, collision: 1, elevation: 0), 'F': (metatile: 514, collision: 1, elevation: 0), 'P': (metatile: 533, collision: 1, elevation: 0), 'W': (metatile: 513, collision: 1, elevation: 0), 'b': (metatile: 535, collision: 0, elevation: 3), 'e': (metatile: 534, collision: 0, elevation: 3), 'n': (metatile: 537, collision: 0, elevation: 3), 'o': (metatile: 538, collision: 0, elevation: 3), 'q': (metatile: 540, collision: 1, elevation: 0), 'r': (metatile: 539, collision: 1, elevation: 0), 'u': (metatile: 532, collision: 0, elevation: 3), 'x': (metatile: 536, collision: 0, elevation: 3)}),
+    // The stairs up to the throne room (4-6, 0-1), their step (5, 1) walkable (warp 2).
+    Stamp(x: 4, y: 0, name: "SilEvalonCitadelle_escalier"),
+    // The way out (5-6, 54): the open double door, south arrow warps (warps 0-1).
+    Stamp(x: 5, y: 54, name: "SilEvalonCitadelle_sortie"),
+    // Salle 5, the treasure room: the factions' banners, gold heaps by the stairs.
+    Stamp(x: 2, y: 0, name: "SilEvalonCitadelle_banniere_bleue"),
+    Stamp(x: 8, y: 0, name: "SilEvalonCitadelle_banniere_verte"),
+    Stamp(x: 1, y: 2, name: "SilEvalonCitadelle_tresor"),
+    Stamp(x: 9, y: 2, name: "SilEvalonCitadelle_tresor"),
+    // Salle 4: the Sphinge's door (5, 9-10), closed (Evalon_Citadelle_OnLoad opens it); her sphinx statues.
+    Stamp(x: 5, y: 9, name: "SilEvalonCitadelle_porte"),
+    Stamp(x: 2, y: 9, name: "SilEvalonCitadelle_torche"),
+    Stamp(x: 8, y: 9, name: "SilEvalonCitadelle_torche"),
+    Stamp(x: 2, y: 11, name: "SilEvalonCitadelle_statue_sphinge"),
+    Stamp(x: 8, y: 11, name: "SilEvalonCitadelle_statue_sphinge"),
+    // Salle 3, the Crypte: torches by its door.
+    Stamp(x: 3, y: 16, name: "SilEvalonCitadelle_torche"),
+    Stamp(x: 7, y: 16, name: "SilEvalonCitadelle_torche"),
+    // Salle 2: torches by the Crypte's door.
+    Stamp(x: 3, y: 27, name: "SilEvalonCitadelle_torche"),
+    Stamp(x: 7, y: 27, name: "SilEvalonCitadelle_torche"),
+    // Salle 1: torches by the Pont du Golem's door.
+    Stamp(x: 3, y: 38, name: "SilEvalonCitadelle_torche"),
+    Stamp(x: 7, y: 38, name: "SilEvalonCitadelle_torche"),
 ]

@@ -1,0 +1,12 @@
+(
+    primary: "Building",
+    secondary: "SilEvalonCitadelle",
+    width: 4,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1579, 1580, 1581, 1582),
+        (1583, 1584, 1585, 1586),
+        (1587, 1588, 1589, 1590),
+    ],
+)

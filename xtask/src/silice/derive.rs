@@ -17,6 +17,7 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
         "SilNebulaTourHall" => nebula_tour_hall(&gfx.join(name))?,
         "SilOwlys" => owlys(&gfx.join(name))?,
         "SilOwlysGym" => owlys_gym(&gfx.join(name))?,
+        "SilEvalonCitadelle" => evalon_citadelle(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -338,4 +339,112 @@ fn owlys_gym(g: &Path) -> Result<()> {
         }
     }
     save(g, "pilier_eteint", &off)
+}
+
+/// SilEvalonCitadelle: the flagstones in the wall's shadow, and the engraved slabs (sword,
+/// shield, skull, rune, the golems' pressure plate), all drawn on `dalles`.
+fn evalon_citadelle(c: &Path) -> Result<()> {
+    let dalles = load(c, "dalles")?;
+    let mut ombre = dalles.clone();
+    for y in 0..8 {
+        for x in 0..16 {
+            let p = get(&ombre, x, y);
+            // The light kept, in percent: darkest at the wall's foot.
+            let k = 40 + y * 7;
+            let f = |v: u8| (v as u32 * k / 100) as u8;
+            set(&mut ombre, x, y, [f(p[0]), f(p[1]), f(p[2])]);
+        }
+    }
+    save(c, "dalles_ombre", &ombre)?;
+    const EPEE: [&str; 10] = [
+        "....##....",
+        "....##....",
+        "....##....",
+        "....##....",
+        "....##....",
+        "..######..",
+        "....##....",
+        "....##....",
+        "...####...",
+        "....##....",
+    ];
+    const BOUCLIER: [&str; 10] = [
+        ".########.",
+        ".#......#.",
+        ".#..##..#.",
+        ".#..##..#.",
+        ".#.####.#.",
+        ".#..##..#.",
+        "..#.##.#..",
+        "..#....#..",
+        "...#..#...",
+        "....##....",
+    ];
+    const CRANE: [&str; 10] = [
+        "..######..",
+        ".########.",
+        "##########",
+        "##oo##oo##",
+        "##oo##oo##",
+        "##########",
+        ".####o###.",
+        "..######..",
+        "..#o##o#..",
+        "..######..",
+    ];
+    const RUNE: [&str; 10] = [
+        "....##....",
+        "...#..#...",
+        "..#....#..",
+        ".#..##..#.",
+        "#..#..#..#",
+        "#..#..#..#",
+        ".#..##..#.",
+        "..#....#..",
+        "...#..#...",
+        "....##....",
+    ];
+    // (feature, glyph, the slab's fill, the glyph's colour); `o` is a hole (the skull's eyes).
+    for (name, glyph, fill, col) in [
+        ("dalle_epee", EPEE, [80, 96, 124], [224, 232, 240]),
+        ("dalle_bouclier", BOUCLIER, [112, 96, 64], [240, 200, 72]),
+        ("dalle_crane", CRANE, [104, 36, 36], [236, 228, 204]),
+        ("rune", RUNE, [40, 44, 56], [96, 232, 248]),
+    ] {
+        let mut d = dalles.clone();
+        for y in 1..15 {
+            for x in 1..15 {
+                let edge = x == 1 || x == 14 || y == 1 || y == 14;
+                set(&mut d, x, y, if edge { [48, 48, 52] } else { fill });
+            }
+        }
+        for (gy, row) in glyph.iter().enumerate() {
+            for (gx, ch) in row.chars().enumerate() {
+                let (x, y) = (3 + gx as u32, 3 + gy as u32);
+                match ch {
+                    '#' => set(&mut d, x, y, col),
+                    'o' => set(&mut d, x, y, [24, 16, 16]),
+                    _ => {}
+                }
+            }
+        }
+        save(c, name, &d)?;
+    }
+    // A raised steel plate with four rivets.
+    let mut plate = dalles;
+    for y in 2..14 {
+        for x in 2..14 {
+            let rgb = if x == 2 || x == 13 || y == 13 {
+                [56, 60, 68]
+            } else if y == 2 || x == 3 || y == 3 {
+                [200, 208, 216]
+            } else if (x == 5 || x == 10) && (y == 5 || y == 10) {
+                [56, 60, 68]
+            } else {
+                [140, 148, 160]
+            };
+            set(&mut plate, x, y, rgb);
+        }
+    }
+    save(c, "plaque_pression", &plate)
 }
