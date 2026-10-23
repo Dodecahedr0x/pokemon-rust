@@ -1,0 +1,5 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(11, 27), (11, 3)], reason: "the warps are landings only: the vault elevator never goes down, and the crystal tube is boarded by SommetApex_Sc07"),
+    AllowReach(subject: "warp 1", reason: "the crystal tube's foot: a landing only (the tube is boarded by SommetApex_Sc07, and Trone_Zenith_Sc08_Lose wakes the player here)"),
+]
