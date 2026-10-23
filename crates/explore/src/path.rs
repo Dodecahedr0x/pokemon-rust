@@ -352,6 +352,21 @@ pub fn next_dir<G: GameData>(
         .or_else(|| grid.first_dir(from, to, false))
 }
 
+/// [`next_dir`] for a world that is not ours (the vanilla oracle's, read from RAM): the first
+/// step from `from` toward `to` on `map`, around the `occupied` cells.
+pub fn first_dir_on<G: GameData>(
+    game: &G,
+    map: MapId,
+    overrides: &[((i16, i16), u16)],
+    occupied: Vec<(i16, i16)>,
+    from: (i16, i16),
+    to: (i16, i16),
+) -> Option<Dir> {
+    let grid = Grid::new(game, map, overrides, occupied);
+    grid.first_dir(from, to, true)
+        .or_else(|| grid.first_dir(from, to, false))
+}
+
 /// The planner's view of the live world (objects re-read).
 pub(crate) fn live_grid<'a, G: GameData>(
     game: &'a G,

@@ -11,7 +11,6 @@
 //! - [`merge`]: the maps into the generator's `MapFile`s (names to numbers, headers,
 //!   `LOCALID_*`);
 //! - [`text`]: `text/fr.ron` and the Silice text encoder (with [`font`]'s glyphs);
-//! - [`gfx`]: the original tilesets and sprites (`tilesets/`, `sprites/`) over the extract's;
 //! - [`font`]: the authored glyphs (`font/*.ron`) merged into the extract's font (Task G);
 //! - [`game`]: `game.ron`: the new game, system ids and heal locations (Task E);
 //! - [`data`]: trainers, encounters, items and marts;
@@ -30,7 +29,6 @@ pub mod data;
 pub mod dispatch;
 pub mod font;
 pub mod game;
-pub mod gfx;
 pub mod ids;
 pub mod load;
 pub mod merge;
@@ -72,7 +70,6 @@ pub fn world(extracted: &Path, games: &Path, scripts: &Path, strict: bool) -> Re
         .collect::<Result<Vec<_>>>()?;
     resolver.finish()?;
     let mut w = crate::input::load_assets(extracted)?;
-    gfx::overlay(games, &mut w).context("original graphics")?;
     font::merge(&mut w.glyphs, &mut w.widths, &font::load(games)?).context("font")?;
     check_assets(&loaded, &w)?;
     resolver.check_claims()?;
@@ -218,7 +215,7 @@ fn check_assets(maps: &[load::MapIn], w: &World) -> Result<()> {
         let n = &m.map.name;
         for ts in [&m.layout.primary, &m.layout.secondary] {
             if !tilesets.contains(ts.as_str()) {
-                bad.push(format!("map {n}: tileset {ts} is not in the extract nor the games dir"));
+                bad.push(format!("map {n}: tileset {ts} is not in the extract"));
             }
         }
         for o in &m.map.objects {

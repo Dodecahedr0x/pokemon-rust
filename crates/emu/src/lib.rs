@@ -185,6 +185,9 @@ const _: () = {
     assert!(FLASH_SIZE == 64 * 1024);
 };
 
+/// The RTC time of a retail cartridge ([`Emu::open_retail`]): 2005-01-01 00:00:00 UTC, in ms.
+pub const RETAIL_RTC_MS: i64 = 1_104_537_600_000;
+
 /// Private scratch directory removed on drop (errors ignored).
 struct ScratchDir(PathBuf);
 
@@ -228,6 +231,18 @@ impl Emu {
     /// stock mGBA runs; setting it up front only makes [`Emu::save_data`] `FLASH_SIZE` bytes
     /// before the ROM touches the flash.
     pub fn open_with_save(rom: &Path, sav: Option<&[u8]>) -> Result<Self> {
+        Self::open_inner(rom, sav, true)
+    }
+
+    /// Opens a retail cartridge (the vanilla oracle's BPEE): like [`Emu::open`], but the save
+    /// type and the hardware come from libmgba's own override table for the game code (BPEE:
+    /// 128 KiB flash and an RTC), not our FLASH512 override, and the RTC is pinned to
+    /// [`RETAIL_RTC_MS`] so runs do not depend on the host clock.
+    pub fn open_retail(rom: &Path) -> Result<Self> {
+        Self::open_inner(rom, None, false)
+    }
+
+    fn open_inner(rom: &Path, sav: Option<&[u8]>, homebrew: bool) -> Result<Self> {
         if let Some(sav) = sav
             && sav.len() != FLASH_SIZE
         {
@@ -255,13 +270,19 @@ impl Emu {
             vba_bug_compat: false,
         };
         // SAFETY: the core is initialised and loaded; setOverride copies the struct, and the
-        // reset below applies it (`_GBACoreReset` -> `GBAOverrideApply`).
+        // reset below applies it (`_GBACoreReset` -> `GBAOverrideApply`). The RTC source is
+        // the core's generic one, read on every RTC access.
         unsafe {
             let raw = core.raw_ptr();
-            let set = (*raw)
-                .setOverride
-                .ok_or_else(|| anyhow!("no setOverride"))?;
-            set(raw, (&raw const flash).cast());
+            if homebrew {
+                let set = (*raw)
+                    .setOverride
+                    .ok_or_else(|| anyhow!("no setOverride"))?;
+                set(raw, (&raw const flash).cast());
+            } else {
+                (*raw).rtc.override_ = mgba_sys::RTC_FIXED;
+                (*raw).rtc.value = RETAIL_RTC_MS;
+            }
         }
         core.reset().map_err(|e| anyhow!("reset: {e:?}"))?;
         Ok(Self {
@@ -314,6 +335,47 @@ impl Emu {
         for (o, &p) in out.iter_mut().zip(self.core.video_buffer()) {
             *o = xbgr8_to_rgb555(p);
         }
+    }
+
+    /// `len` bytes of the GBA's address space from `addr`, through libmgba's `rawRead8` (a
+    /// view of the memory with no side effects: no open-bus or I/O register reads, no wait
+    /// states). Meant for RAM and ROM; sample between `run_frame` calls.
+    pub fn read_bytes(&mut self, addr: u32, len: usize) -> Vec<u8> {
+        let mut out = vec![0; len];
+        self.read_into(addr, &mut out);
+        out
+    }
+
+    /// [`Emu::read_bytes`] into `out`.
+    pub fn read_into(&mut self, addr: u32, out: &mut [u8]) {
+        // SAFETY: core is initialised; rawRead8 is a pure memory view (segment -1: current).
+        unsafe {
+            let raw = self.core.raw_ptr();
+            let read = (*raw).rawRead8.expect("rawRead8");
+            for (i, b) in out.iter_mut().enumerate() {
+                *b = read(raw, addr.wrapping_add(i as u32), -1) as u8;
+            }
+        }
+    }
+
+    pub fn read_u8(&mut self, addr: u32) -> u8 {
+        let mut b = [0; 1];
+        self.read_into(addr, &mut b);
+        b[0]
+    }
+
+    /// A little-endian u16 at `addr` (any alignment).
+    pub fn read_u16(&mut self, addr: u32) -> u16 {
+        let mut b = [0; 2];
+        self.read_into(addr, &mut b);
+        u16::from_le_bytes(b)
+    }
+
+    /// A little-endian u32 at `addr` (any alignment).
+    pub fn read_u32(&mut self, addr: u32) -> u32 {
+        let mut b = [0; 4];
+        self.read_into(addr, &mut b);
+        u32::from_le_bytes(b)
     }
 
     fn read16(&mut self, addr: u32) -> u16 {
@@ -708,6 +770,28 @@ mod tests {
             emu.save_data().unwrap() == sav,
             "save data differs from the injected image"
         );
+    }
+
+    #[test]
+    fn reads_see_the_cartridge_little_endian() {
+        let dir = ScratchDir::new().unwrap();
+        let mut emu = Emu::open(&dummy_rom(&dir)).unwrap();
+        const ROM: u32 = 0x0800_0000;
+        assert_eq!(emu.read_bytes(ROM, 4), [0, 0, 0, 0xEA]);
+        assert_eq!(emu.read_u8(ROM + 0xB2), 0x96);
+        assert_eq!(emu.read_u32(ROM), 0xEA00_0000);
+        assert_eq!(emu.read_u16(ROM + 2), 0xEA00);
+        // Unaligned, across the header byte at 0xB2.
+        assert_eq!(emu.read_u16(ROM + 0xB1), 0x9600);
+    }
+
+    #[test]
+    fn retail_open_pins_the_rtc() {
+        let dir = ScratchDir::new().unwrap();
+        let mut emu = Emu::open_retail(&dummy_rom(&dir)).unwrap();
+        // SAFETY: reading a plain field of the initialised core.
+        let rtc = unsafe { (*emu.core.raw_ptr()).rtc.value };
+        assert_eq!(rtc, RETAIL_RTC_MS);
     }
 
     #[test]
