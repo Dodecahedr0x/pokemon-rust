@@ -1043,6 +1043,10 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("UsedXToGetPumped", Key("STRINGID_PKMNUSEDXTOGETPUMPED")),
         ("UsingItemStatRose", Key("STRINGID_USINGITEMSTATOFPKMNROSE")),
         ("FledUsingIts", Key("STRINGID_PKMNFLEDUSINGITS")),
+        (
+            "HmMovesCantBeForgotten",
+            Key("STRINGID_HMMOVESCANTBEFORGOTTEN"),
+        ),
         // Post-Gen3: no Gen3 string.
         ("MegaReacting", Missing),
         ("MegaEvolved", Missing),

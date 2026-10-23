@@ -35,8 +35,13 @@ fn behavior_exactness() {
         // Never used by Gen3, even when mapped to `Blocked`.
         ("MB_UNUSED_04", true),
         ("MB_UNUSED_6F", true),
-        // Needs Surf.
-        ("MB_POND_WATER", false),
+        // Surfable water (Wave C); Waterfall, Dive and the currents' speed are missing.
+        ("MB_POND_WATER", true),
+        ("MB_OCEAN_WATER", true),
+        ("MB_WATERFALL", false),
+        ("MB_NO_SURFACING", false),
+        ("MB_EASTWARD_CURRENT", false),
+        ("MB_WATER_DOOR", false),
         // Directional walls (Task L).
         ("MB_IMPASSABLE_SOUTH", true),
         ("MB_IMPASSABLE_WEST_AND_EAST", true),

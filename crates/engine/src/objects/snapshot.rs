@@ -13,6 +13,12 @@ use crate::script::Speed;
 /// stored as `IdleSnap::Wait(SEQ_SNAP | n)`: no movement delay comes near (Gen3's longest is 192).
 const SEQ_SNAP: u16 = 0xFF00;
 
+/// `ObjectSnap` has no player-avatar field, so the surfing state (Wave C, Gen3
+/// `PLAYER_AVATAR_FLAG_SURFING`) is stored as the player's graphics: the player's `gfx` is
+/// always `None` live, and this id in a snapshot means "surfing" (Gen3 itself swaps the
+/// player's `graphicsId` for the surfing one). No schema change: snapshots on foot are unchanged.
+pub(crate) const SURFING_SNAP: crate::data::GfxId = crate::data::GfxId(0xFFFE);
+
 /// Checks an action from an untrusted snapshot against what `Object::begin` and `tick` can
 /// leave between frames, so stepping it cannot panic: `t` frames played (at least the first,
 /// and fewer than the action lasts), an offset back along `dir` that the action can have, and
@@ -73,7 +79,18 @@ impl Objects {
                 }
                 (RunState::Moving, ForcedState::Centered) => RunStateSnap::MovingCentered,
             },
-            objs: self.objs.iter().map(Object::snapshot).collect(),
+            objs: self
+                .objs
+                .iter()
+                .enumerate()
+                .map(|(i, o)| {
+                    let mut snap = o.snapshot();
+                    if i == 0 && self.surfing {
+                        snap.gfx = Some(SURFING_SNAP);
+                    }
+                    snap
+                })
+                .collect(),
         }
     }
 
@@ -96,8 +113,15 @@ impl Objects {
 
     /// `vram`, `uploaded` and `banks` start empty; the boot frame's `draw` refills them.
     pub(crate) fn from_snapshot(s: &ObjectsSnap) -> Objects {
+        let surfing = s.objs.first().is_some_and(|p| p.gfx == Some(SURFING_SNAP));
+        let mut objs: alloc::vec::Vec<Object> = s.objs.iter().map(Object::from_snapshot).collect();
+        if surfing {
+            objs[0].gfx = None;
+        }
         Objects {
-            objs: s.objs.iter().map(Object::from_snapshot).collect(),
+            surfing,
+            pushable: None,
+            objs,
             map: s.map,
             run_state: match s.run_state {
                 RunStateSnap::NotMoving

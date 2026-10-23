@@ -28,6 +28,7 @@ mod battle;
 pub(crate) mod caught;
 mod checkpoint;
 mod evolve;
+mod field_move;
 pub(crate) mod friendship;
 mod host;
 mod maps;
@@ -244,6 +245,8 @@ pub(crate) struct State {
     pub(crate) fx: ScreenFx,
     /// Running field effects and their arguments (Wave C; not snapshotted, not hashed).
     pub(in crate::world) field_effects: host::FieldEffects,
+    /// The running field-move effect (Wave C; hashed while it runs, never captured).
+    pub(in crate::world) field_move: Option<field_move::FieldMoveRun>,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
@@ -397,6 +400,7 @@ impl World {
                 registered_item: None,
                 fx: ScreenFx::default(),
                 field_effects: host::FieldEffects::default(),
+                field_move: None,
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -450,9 +454,11 @@ impl World {
             self.run_transition(game, f);
         } else if self.runner.is_running() {
             self.step_script(game, f);
-        } else {
+        } else if !self.s.field_move_busy() {
             player_updated = self.control(game, f);
         }
+        // Gen3 runs the field-move task after the script context and the field input.
+        self.s.field_move_tick();
         let s = &mut self.s;
         let ground = Ground {
             game,
@@ -585,6 +591,8 @@ impl World {
                         _ => None,
                     }
                 });
+                // Gen3 `GetInteractedWaterScript` after the bg events (Wave C): Surf.
+                let script = script.or_else(|| s.surf_prompt(game).map(|id| (id, None)));
                 if let Some((id, talked)) = script {
                     self.start_script(game, id, talked);
                     return false;
@@ -611,6 +619,12 @@ impl World {
         let s = &mut self.s;
         let can_run = map.allow_running && ids.flag_running.is_some_and(|fl| s.vars.flag(fl));
         let input = PlayerInput::from_buttons(s.input.held, can_run);
+        // Strength in use (Wave C): `TryPushBoulder`'s flag and graphics.
+        let pushable = game
+            .pushable_boulder()
+            .filter(|&(_, fl)| s.vars.flag(fl))
+            .map(|(g, _)| g);
+        s.objects.set_pushable(pushable);
         let ground = Ground {
             game,
             field: &s.field,
@@ -919,6 +933,10 @@ impl World {
             h.write_u16(item.0);
         }
         s.fx.hash(&mut h);
+        // Wave C: a field move's effect, while it runs.
+        if let Some(run) = &s.field_move {
+            run.hash(&mut h);
+        }
         h.finish()
     }
 }

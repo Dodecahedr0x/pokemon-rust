@@ -297,10 +297,32 @@ impl Engine for Real {
                     }
                 }
             }
-            Category::FieldMove => Answer::new(
-                Status::Missing,
-                "no field-move use in the engine (GameData::field_move_gate only; M10)",
-            ),
+            // Wave C field moves: the A-press scripts on the map (`EventScript_UseSurf`, the
+            // trees, rocks and boulders) and their field effects; using one from the party
+            // menu is M9's.
+            Category::FieldMove => match name {
+                "FIELD_MOVE_SURF" => Answer::new(
+                    Status::Native,
+                    "A on water: EventScript_UseSurf, FldEff_UseSurf, surfing, water encounters",
+                ),
+                "FIELD_MOVE_CUT" => Answer::new(
+                    Status::Native,
+                    "EventScript_CutTree: FLDEFF_USE_CUT_ON_TREE (party-menu Cut on grass: M9)",
+                ),
+                "FIELD_MOVE_STRENGTH" => Answer::new(
+                    Status::Native,
+                    "EventScript_StrengthBoulder, FLDEFF_USE_STRENGTH, boulder pushing",
+                ),
+                "FIELD_MOVE_ROCK_SMASH" => Answer::new(
+                    Status::Degraded,
+                    "EventScript_RockSmash, FLDEFF_USE_ROCK_SMASH; SPECIAL_RockSmashWildEncounter \
+                     unsupported",
+                ),
+                _ => Answer::new(
+                    Status::Missing,
+                    "no field use in the engine (GameData::field_move_gate only; M10)",
+                ),
+            },
             Category::Weather => {
                 if name == "WEATHER_NONE" {
                     Answer::new(Status::Native, "no weather")

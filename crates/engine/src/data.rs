@@ -325,6 +325,93 @@ pub enum Behavior {
     /// goes after them (index 20): its hash code is already 20 (`world::battle::behavior_code`),
     /// and `checkpoint::tests` pins it as the last variant. No committed checkpoint holds it yet.
     Floor(Floor),
+    /// Surfable water (Gen3 `TILE_FLAG_SURFABLE`; see [`Water`]). Not a wall: as in Gen3, a
+    /// player on foot cannot step onto it because water cells are elevation 1 and land cells
+    /// elevation 3 (`IsElevationMismatchAt`); a surfing player moves on it (Milestone 10's Surf,
+    /// pulled forward in Wave C).
+    ///
+    /// Appended after [`Behavior::Floor`] (postcard index 21, hash code 21).
+    Water(Water),
+}
+
+/// The raw Gen3 surfable behaviours behind [`Behavior::Water`], one variant each (the
+/// new-metatile check compares raw behaviours). Append-only (postcard).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub enum Water {
+    /// `MB_POND_WATER`: encounters; the pond background.
+    Pond,
+    /// `MB_INTERIOR_DEEP_WATER`: encounters, diveable.
+    InteriorDeep,
+    /// `MB_DEEP_WATER`: encounters, diveable.
+    Deep,
+    /// `MB_WATERFALL`: surfable, no encounters (climbing it is Waterfall's, not modelled).
+    Waterfall,
+    /// `MB_SOOTOPOLIS_DEEP_WATER`: no encounters, diveable.
+    SootopolisDeep,
+    /// `MB_OCEAN_WATER`: encounters.
+    Ocean,
+    /// `MB_NO_SURFACING` (underwater): no encounters.
+    NoSurfacing,
+    /// `MB_SEAWEED` (underwater): encounters.
+    Seaweed,
+    /// `MB_SEAWEED_NO_SURFACING` (underwater): encounters.
+    SeaweedNoSurfacing,
+    /// `MB_{EAST,WEST,NORTH,SOUTH}WARD_CURRENT`: pushes a surfing player towards `Dir`
+    /// (`ForcedMovement_Pushed*ByCurrent`).
+    Current(Dir),
+    /// `MB_UNUSED_6F`: surfable, nothing else.
+    Unused6F,
+}
+
+impl Water {
+    /// Gen3 `TILE_FLAG_HAS_ENCOUNTERS` (`MetatileBehavior_IsWaterWildEncounter`).
+    pub const fn has_encounters(self) -> bool {
+        matches!(
+            self,
+            Water::Pond
+                | Water::InteriorDeep
+                | Water::Deep
+                | Water::Ocean
+                | Water::Seaweed
+                | Water::SeaweedNoSurfacing
+        )
+    }
+
+    /// Gen3 `MetatileBehavior_IsSurfableFishableWater`: what Surf is used on (the A press) and
+    /// fishing rods cast into.
+    pub const fn fishable(self) -> bool {
+        matches!(
+            self,
+            Water::Pond
+                | Water::Ocean
+                | Water::InteriorDeep
+                | Water::Deep
+                | Water::SootopolisDeep
+                | Water::Current(_)
+        )
+    }
+
+    /// One byte per variant, for hashes.
+    pub const fn code(self) -> u8 {
+        match self {
+            Water::Pond => 0,
+            Water::InteriorDeep => 1,
+            Water::Deep => 2,
+            Water::Waterfall => 3,
+            Water::SootopolisDeep => 4,
+            Water::Ocean => 5,
+            Water::NoSurfacing => 6,
+            Water::Seaweed => 7,
+            Water::SeaweedNoSurfacing => 8,
+            Water::Unused6F => 9,
+            Water::Current(d) => 16 + d as u8,
+        }
+    }
+
+    /// Gen3 `MetatileBehavior_IsDeepOrOceanWater` (the water battle background).
+    pub const fn deep_or_ocean(self) -> bool {
+        matches!(self, Water::Ocean | Water::InteriorDeep | Water::Deep)
+    }
 }
 
 /// The raw Gen3 behaviours behind [`Behavior::Floor`], one variant each: Gen3's new-metatile
@@ -407,7 +494,19 @@ impl Behavior {
                 | Behavior::Slide(_)
                 | Behavior::MuddySlope
                 | Behavior::CrackedFloor
+                | Behavior::Water(Water::Current(_))
         )
+    }
+
+    /// Gen3 `MetatileBehavior_IsSurfableWaterOrUnderwater`.
+    pub const fn surfable(self) -> bool {
+        matches!(self, Behavior::Water(_))
+    }
+
+    /// Gen3 `MetatileBehavior_IsWaterWildEncounter`: surfing onto one draws the water-encounter
+    /// rolls (`wild::try_water_encounter`).
+    pub const fn water_encounter(self) -> bool {
+        matches!(self, Behavior::Water(w) if w.has_encounters())
     }
 
     /// Gen3 `MetatileBehavior_IsLandWildEncounter`: an encounter tile that is not water (tall
@@ -1205,6 +1304,12 @@ pub trait GameData {
         let _ = id;
         None
     }
+    /// Whether `m` is an HM move, which the learn-move pick refuses to forget (Gen3
+    /// `IsHMMove2`, `sHMMoves`).
+    fn is_hm_move(&self, m: MoveId) -> bool {
+        let _ = m;
+        false
+    }
     /// The move a TM or HM item teaches.
     fn tm_move(&self, id: ItemId) -> Option<MoveId> {
         let _ = id;
@@ -1270,6 +1375,46 @@ pub trait GameData {
     fn map_type(&self, map: MapId) -> MapType {
         let _ = map;
         MapType::Outdoor
+    }
+
+    // ---- Wave C: field moves (Milestone 10 pulled forward) ----
+
+    /// The script the field starts for field move `m` (Gen3 `GetInteractedWaterScript`'s
+    /// `EventScript_UseSurf` for [`FieldMove::Surf`], run when the player presses A facing
+    /// surfable water with the move's [`GameData::field_move_gate`] open). `None`: the move is
+    /// never offered from the field.
+    fn field_move_script(&self, m: FieldMove) -> Option<ScriptId> {
+        let _ = m;
+        None
+    }
+
+    /// The water table of header `wild_set` of `map` (Gen3 `waterMonsInfo`, 5 slots), as
+    /// [`GameData::wild_encounters`] for land.
+    fn water_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static mon::WaterEncounters> {
+        let _ = (map, wild_set);
+        None
+    }
+
+    /// The rock smash table of header `wild_set` of `map` (Gen3 `rockSmashMonsInfo`).
+    fn rock_smash_encounters(
+        &self,
+        map: MapId,
+        wild_set: u16,
+    ) -> Option<&'static mon::WaterEncounters> {
+        let _ = (map, wild_set);
+        None
+    }
+
+    /// Strength's boulders: their object graphics and the flag that lets the player push them
+    /// (Gen3 `OBJ_EVENT_GFX_PUSHABLE_BOULDER`, `FLAG_SYS_USE_STRENGTH`; `TryPushBoulder`).
+    fn pushable_boulder(&self) -> Option<(GfxId, FlagId)> {
+        None
+    }
+
+    /// The player's surfing sprite (Gen3 `PLAYER_AVATAR_STATE_SURFING`); `None` draws the
+    /// walking one.
+    fn player_surf_sprite(&self) -> Option<&'static SpriteData> {
+        None
     }
 }
 

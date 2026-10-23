@@ -194,6 +194,42 @@ pub fn std_scripts(rom: &Rom) -> Result<Option<Vec<u32>>> {
     }
 }
 
+/// The field scripts the game's C code starts (no map, object or std table points at them),
+/// by decomp label (Wave C): `GetInteractedWaterScript`'s `EventScript_UseSurf`.
+pub const FIELD_SCRIPTS: [&str; 1] = ["EventScript_UseSurf"];
+
+/// The positional root name of [`FIELD_SCRIPTS`]`[i]` (used without the decomp).
+pub fn field_root_name(i: usize) -> String {
+    format!("FieldScript{i}")
+}
+
+/// Gen3 `MOVE_SURF`.
+const MOVE_SURF: u16 = 57;
+/// Gen3 `PARTY_SIZE`, `VAR_RESULT`.
+const PARTY_SIZE: u16 = 6;
+const VAR_RESULT: u16 = 0x800D;
+
+/// The ROM file offset of each [`FIELD_SCRIPTS`] entry, `None` where it is not found (a
+/// synthetic ROM). Located by structure: `EventScript_UseSurf` opens with `checkpartymove
+/// MOVE_SURF; goto_if_eq VAR_RESULT, PARTY_SIZE, ...` (`compare_var_to_value` then `goto_if 1`),
+/// found once.
+pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
+    let op = |n: &str| crate::scripts::opcode(n).context(n.to_string());
+    let mut surf = vec![op("checkpartymove")?];
+    surf.extend(MOVE_SURF.to_le_bytes());
+    surf.push(op("compare_var_to_value")?);
+    surf.extend(VAR_RESULT.to_le_bytes());
+    surf.extend(PARTY_SIZE.to_le_bytes());
+    surf.extend([op("goto_if")?, 1]);
+    let found: Vec<u32> = (rom.find_all(&surf).into_iter())
+        .filter(|&at| matches!(crate::scripts::decode(rom, at), Ok(Some(_))))
+        .collect();
+    Ok(vec![match found.as_slice() {
+        [at] => Some(*at),
+        _ => None,
+    }])
+}
+
 /// Offset -> canonical name: the first name for each offset in `roots`, which must list the
 /// maps' [`named_roots`] concatenated in export (`manifest.maps`) order.
 pub fn canonical<'a>(roots: impl IntoIterator<Item = &'a (String, u32)>) -> BTreeMap<u32, String> {

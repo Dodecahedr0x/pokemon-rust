@@ -278,7 +278,14 @@ fn every_wild_header_is_compiled() {
         out.rs
             .contains(&format!("        {id:#X} => Some(&ENC_{id:X}_0),"))
     );
-    assert!(out.rs.contains(&format!("({id:#X}, 0) => Some((4, &[")));
+    // Water: a `WaterEncounters` static (Wave C); fishing: (rate, slots).
+    assert!(
+        out.rs
+            .contains(&format!("({id:#X}, 0) => Some(&WATER_{id:X}_0)"))
+    );
+    assert!(out.rs.contains(&format!(
+        "static WATER_{id:X}_0: WaterEncounters = WaterEncounters {{ rate: 4,"
+    )));
     assert!(out.rs.contains(&format!("({id:#X}, 1) => Some((30, &[")));
     // A land table without 12 slots is an error.
     w.battle.encounters.get_mut(stub::MAP_NAME).unwrap()[1]

@@ -332,6 +332,13 @@ pub struct ObjectsSnap {
     pub objs: Vec<ObjectSnap>,
 }
 
+impl ObjectsSnap {
+    /// Whether the player surfs (Wave C: a sentinel in the player's `gfx`).
+    pub fn player_surfing(&self) -> bool {
+        (self.objs.first()).is_some_and(|p| p.gfx == Some(crate::objects::SURFING_SNAP))
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum RunStateSnap {
     NotMoving,

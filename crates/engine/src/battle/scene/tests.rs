@@ -608,6 +608,33 @@ fn back_from_the_learn_move_menu_asks_to_stop_learning() {
     );
 }
 
+/// `Cmd_yesnoboxlearnmove`: picking an HM move to forget prints
+/// `STRINGID_HMMOVESCANTBEFORGOTTEN` and opens the pick again (`IsHMMove2`).
+#[test]
+fn hm_moves_cannot_be_forgotten() {
+    let mut r = Run::wild(&[starter()], &[foe(11)], 7);
+    r.game.hm = Some(MEGA_HIT);
+    r.load();
+    r.mash_until(|s| matches!(s.menu, Menu::LearnAsk { .. }));
+    r.frame(NONE);
+    r.frame(A);
+    assert!(matches!(r.scene.menu, Menu::LearnPick { .. }));
+    r.frame(NONE);
+    r.frame(A);
+    assert!(matches!(r.scene.menu, Menu::HmMsg { .. }));
+    assert_eq!(r.scene.last_msg, Some(Str::HmMovesCantBeForgotten));
+    r.mash_until_menu(|m| matches!(m, Menu::LearnPick { .. }));
+    assert_eq!(r.choices, [Choice::Move(0)]);
+    r.frame(NONE);
+    r.frame(Buttons::RIGHT);
+    r.frame(NONE);
+    r.frame(A);
+    assert_eq!(
+        r.choices,
+        [Choice::Move(0), Choice::LearnMove { forget: Some(1) }]
+    );
+}
+
 #[test]
 fn hp_drain_moves_the_numbers_with_the_bar() {
     let mut r = Run::wild(&[starter()], &[foe(3)], 1);

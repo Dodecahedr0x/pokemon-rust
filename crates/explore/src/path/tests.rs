@@ -224,7 +224,7 @@ fn ref_step<G: GameData>(
         return None;
     }
     let (ec, en) = (block_elevation(g.block(c)), block_elevation(g.block(n)));
-    if Some(n) != target && e != 0 && en != 0 && en != 15 && en != e {
+    if (Some(n) != target || g.walkable(n, false)) && e != 0 && en != 0 && en != 15 && en != e {
         return None;
     }
     let e2 = if ec == 15 || en == 15 { e } else { en };

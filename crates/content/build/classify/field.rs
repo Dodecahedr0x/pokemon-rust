@@ -3,23 +3,31 @@
 
 use extract::names;
 
-/// Behaviors that are never walkable for now: water that needs Surf.
+/// Surfable water (Gen3 `TILE_FLAG_SURFABLE`), as `Water(..)` variants: on foot the water's
+/// elevation blocks it, surfing walks it (Wave C).
+fn water(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "MB_POND_WATER" => "Pond",
+        "MB_INTERIOR_DEEP_WATER" => "InteriorDeep",
+        "MB_DEEP_WATER" => "Deep",
+        "MB_WATERFALL" => "Waterfall",
+        "MB_SOOTOPOLIS_DEEP_WATER" => "SootopolisDeep",
+        "MB_OCEAN_WATER" => "Ocean",
+        "MB_NO_SURFACING" => "NoSurfacing",
+        "MB_SEAWEED" => "Seaweed",
+        "MB_SEAWEED_NO_SURFACING" => "SeaweedNoSurfacing",
+        "MB_EASTWARD_CURRENT" => "Current(Dir::Right)",
+        "MB_WESTWARD_CURRENT" => "Current(Dir::Left)",
+        "MB_NORTHWARD_CURRENT" => "Current(Dir::Up)",
+        "MB_SOUTHWARD_CURRENT" => "Current(Dir::Down)",
+        "MB_UNUSED_6F" => "Unused6F",
+        _ => return None,
+    })
+}
+
+/// Behaviors that are never walkable for now.
 pub const BLOCKED: &[&str] = &[
-    "MB_POND_WATER",
-    "MB_INTERIOR_DEEP_WATER",
-    "MB_DEEP_WATER",
-    "MB_WATERFALL",
-    "MB_SOOTOPOLIS_DEEP_WATER",
-    "MB_OCEAN_WATER",
-    "MB_NO_SURFACING",
-    "MB_SEAWEED",
-    "MB_SEAWEED_NO_SURFACING",
-    "MB_EASTWARD_CURRENT",
-    "MB_WESTWARD_CURRENT",
-    "MB_NORTHWARD_CURRENT",
-    "MB_SOUTHWARD_CURRENT",
-    "MB_UNUSED_6F",
-    // Surfable warps (Gen3 `TILE_FLAG_SURFABLE`): unreachable without Surf.
+    // Surfable warps (Gen3 `TILE_FLAG_SURFABLE`): Dive's and the Seafloor Cavern's.
     "MB_WATER_DOOR",
     "MB_WATER_SOUTH_ARROW_WARP",
     "MB_SECRET_BASE_IMPASSABLE",
@@ -80,6 +88,9 @@ fn compass(s: &str) -> Option<&'static str> {
 pub fn behavior(name: &str) -> String {
     if BLOCKED.contains(&name) {
         return "Blocked".into();
+    }
+    if let Some(w) = water(name) {
+        return format!("Water(Water::{w})");
     }
     if WARPS.contains(&name) {
         // The arrival per kind (Gen3 `GetAdjustedInitialDirection`, `SetUpWarpExitTask`).
@@ -165,9 +176,9 @@ pub fn map_type(raw: u8, map_name: &str) -> &'static str {
 /// [`behavior`], and whether it is exact. Exact: plain ground (`MB_NORMAL`, unnamed bytes),
 /// tall grass and the other encounter floors (but ash grass), sand, mountain tops, ledges,
 /// doors, warps, arrow warps, counters, ice, walk and slide arrows, which the engine
-/// implements as Gen3 does. Every other named behavior is an approximation: its Gen3 effect
-/// (Surf, currents, bikes, puddles, hot springs, secret bases, …) is missing,
-/// so it is `Normal` or, for water, `Blocked`. The directional walls are exact, except the
+/// implements as Gen3 does, and surfable water (Wave C). Every other named behavior is an
+/// approximation: its Gen3 effect (Waterfall, Dive, bikes, puddles, hot springs, secret bases,
+/// …) is missing, so it is `Normal`, `Blocked` (water warps) or plain `Water`. The directional walls are exact, except the
 /// secret base's breakable door (walls only; breaking it is missing). The muddy slope is
 /// approximate (no Mach Bike climb, no metatile animation), and so are thin and cracked ice,
 /// cracked floors and their holes: the engine implements them, but they act only on maps whose
@@ -182,6 +193,12 @@ pub fn behavior_class(name: &str) -> (String, bool) {
             "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
             _ if name == "MB_SECRET_BASE_BREAKABLE_DOOR" => false,
             "MuddySlope" | "ThinIce" | "CrackedIce" | "CrackedFloor" | "CrackedFloorHole" => false,
+            // Waterfall climbing, Dive (the no-surfacing water) and the currents' 6-frame
+            // steps (walk_fast here) are missing.
+            "Water(Water::Waterfall)"
+            | "Water(Water::NoSurfacing)"
+            | "Water(Water::SeaweedNoSurfacing)" => false,
+            v if v.starts_with("Water(Water::Current") => false,
             // The ash pickup (the cell turns into plain grass) is missing.
             _ if name == "MB_ASHGRASS" => false,
             _ => true,

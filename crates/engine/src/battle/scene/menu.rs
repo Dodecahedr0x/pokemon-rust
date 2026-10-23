@@ -23,6 +23,11 @@ pub(super) enum Menu {
         party: u8,
         mov: MoveId,
     },
+    /// `HmMovesCantBeForgotten` prints, then the pick again.
+    HmMsg {
+        party: u8,
+        mov: MoveId,
+    },
     /// `StopLearningMove` prints.
     StopMsg {
         party: u8,
@@ -133,6 +138,19 @@ impl BattleScene {
                 None => {}
             },
             Menu::LearnPick { party, mov } => match w.move_result() {
+                // `Cmd_yesnoboxlearnmove` case 4: an HM move is never forgotten
+                // (`IsHMMove2`): the message, then the pick again (case 6, then 2).
+                Some(MoveChoice::Move(slot))
+                    if battle
+                        .party(Side::Player)
+                        .get(party as usize)
+                        .and_then(|p| p.moves.get(slot as usize).copied().flatten())
+                        .is_some_and(|m| game.is_hm_move(m)) =>
+                {
+                    let m = self.learn_msg(Str::HmMovesCantBeForgotten, party, mov);
+                    self.print(game, battle, &m, f);
+                    self.menu = Menu::HmMsg { party, mov };
+                }
                 Some(MoveChoice::Move(slot)) => {
                     self.menu = Menu::None;
                     return Some(Choice::LearnMove { forget: Some(slot) });
@@ -140,6 +158,13 @@ impl BattleScene {
                 Some(MoveChoice::Back) => self.stop_learning(game, battle, party, mov, f),
                 None => {}
             },
+            Menu::HmMsg { party, mov } => {
+                if let Some(p) = battle.party(Side::Player).get(party as usize) {
+                    let mon = view(game.battle(), p, party);
+                    w.learn_move_menu(game, &mon, mov, f);
+                }
+                self.menu = Menu::LearnPick { party, mov };
+            }
             Menu::StopMsg { party, mov } => {
                 w.yes_no(game, f);
                 self.menu = Menu::StopAsk { party, mov };

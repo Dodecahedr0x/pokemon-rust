@@ -25,6 +25,8 @@ pub struct Game {
     trainer: &'static TrainerData,
     /// `Str`s ending with a `\p` prompt.
     pub prompt_strs: &'static [Str],
+    /// The one HM move ([`GameData::is_hm_move`]), if any.
+    pub hm: Option<crate::data::MoveId>,
 }
 
 pub fn game() -> Game {
@@ -62,10 +64,14 @@ pub fn game() -> Game {
         gfx,
         trainer,
         prompt_strs: &[Str::PlayerWhiteout2],
+        hm: None,
     }
 }
 
 impl GameData for Game {
+    fn is_hm_move(&self, m: crate::data::MoveId) -> bool {
+        self.hm == Some(m)
+    }
     fn map(&self, _: MapId) -> &'static MapData {
         unimplemented!()
     }
