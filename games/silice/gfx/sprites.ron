@@ -49,5 +49,16 @@
             gfx_id: Some(0x120),
             prompt: "Yohan, a calm young chess grandmaster and Psychic-type gym leader: neat short black hair, a long black and white checkered coat over a black turtleneck, black trousers, white gloves, hands clasped behind the back.",
         ),
+        // Ch3 (Viber-City), ids 0x130..=0x13F.
+        (
+            name: "SIL_TAUBER",
+            gfx_id: Some(0x130),
+            prompt: "Tauber, a calm DJ and mechanic in his late twenties (half of the DJ duo of the Nocturne club): big black headphones around the neck, short dark blond hair, a navy blue mechanic's jumpsuit with rolled sleeves and a cyan neon stripe, a wrench in the back pocket, black boots.",
+        ),
+        (
+            name: "SIL_HOCSEAT",
+            gfx_id: Some(0x131),
+            prompt: "Hocseat, a hyperactive showman DJ in his late twenties (the other half of the DJ duo of the Nocturne club): spiky violet hair, small dark sunglasses on a light-skinned face, a bright violet jacket open over a black t-shirt with a yellow lightning bolt, black trousers, white sneakers, arms at his sides.",
+        ),
     ],
 )

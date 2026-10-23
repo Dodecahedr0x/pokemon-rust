@@ -1,4 +1,4 @@
-// Silice Ch3, MAP_VIBER_CITY: Viber-City, Secteur Gamma (40 x 32). General + Mauville (Emerald
-// tilesets by name: Mauville's pavement and buildings stand in for the neon city; the neons are
-// static). Out-of-map border: trees.
-(name: "ViberCity", width: 40, height: 32, primary: "General", secondary: "Mauville", fill: 1, border: [1492, 1493, 1500, 1501])
+// Silice Ch3, MAP_VIBER_CITY: Viber-City, Secteur Gamma (40 x 32). General (Emerald, by name) +
+// SilViberCity (original, games/silice/tilesets: the neon city, gfx/SilViberCity.ron).
+// Out-of-map border: SilViberCity's towers (2x2).
+(name: "ViberCity", width: 40, height: 32, primary: "General", secondary: "SilViberCity", fill: 35, border: [1541, 1542, 1543, 1544])

@@ -30,6 +30,7 @@ mod classify;
 mod codegen;
 #[allow(dead_code)]
 mod input;
+mod layouts;
 mod parity;
 mod scripts;
 mod silice;

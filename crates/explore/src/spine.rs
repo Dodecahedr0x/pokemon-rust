@@ -103,6 +103,15 @@ pub enum Step {
         y: i16,
         level: u8,
     },
+    /// [`Step::Train`] that also stops, short of `level`, once the lead is below half its HP
+    /// or its moves have fewer than [`TIRED_PP`] PP left: the spine heals, then trains again
+    /// (a level at 30+ on low-level grass is long enough to lose to recoil or Struggle).
+    TrainFresh {
+        map: MapId,
+        x: i16,
+        y: i16,
+        level: u8,
+    },
     /// Sticky from here on.
     Battle(BattlePlan),
     /// The yes/no answer (0 yes, 1 no) and the starter ball for the **next** playing step.
@@ -170,7 +179,8 @@ impl Step {
             | Step::Talk { map, .. }
             | Step::Use { map, .. }
             | Step::Grass { map, .. }
-            | Step::Train { map, .. } => Some(map),
+            | Step::Train { map, .. }
+            | Step::TrainFresh { map, .. } => Some(map),
             Step::Bypass(_) => None,
             _ => None,
         }
@@ -199,6 +209,9 @@ impl Step {
         )
     }
 }
+
+/// [`Step::TrainFresh`] stops below this many PP over the lead's four moves.
+pub const TIRED_PP: u32 = 20;
 
 /// The build's spine ([`content::FLAVOR`]).
 pub fn steps() -> &'static [Step] {
@@ -814,8 +827,11 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 } else {
                     let w = live.s.world();
                     Err(err(format!(
-                        "goal {name:?} not reached (frame {}, script {}, transition {})",
+                        "goal {name:?} not reached (frame {}, map {:?} at {:?}, script {}, \
+                         transition {})",
                         w.frame(),
+                        w.map(),
+                        w.objects().player().pos(),
                         w.script_running(),
                         w.transition_active()
                     )))
@@ -974,16 +990,16 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 }
             }
             Step::Grass { x, y, .. } => self.macro_(live, mk(MacroKind::Grass { x, y }))?,
-            Step::Train { x, y, level, .. } => {
+            Step::Train { x, y, level, .. } | Step::TrainFresh { x, y, level, .. } => {
+                let fresh = matches!(step, Step::TrainFresh { .. });
                 let fight = mk(MacroKind::Grass { x, y });
                 let (mut n, mut dry) = (0, 0);
-                while live
-                    .s
-                    .world()
-                    .party()
-                    .get(0)
-                    .is_some_and(|m| m.level < level)
-                {
+                while live.s.world().party().get(0).is_some_and(|m| {
+                    m.level < level
+                        && !(fresh
+                            && (m.hp * 2 < m.stats[0]
+                                || m.pp.iter().map(|&p| u32::from(p)).sum::<u32>() < TIRED_PP))
+                }) {
                     n += 1;
                     if n > TRAIN_BATTLES {
                         return Err(err(format!(

@@ -1,45 +1,79 @@
-// Cells: tree edges, the avenue, the Place Stroboscope, the streets, the neon sign and Mathieu's
-// stand, transformers, the Jardin des Neons (grass, canal), the east barrier, signs, then the
-// buildings as stamps.
+// Cells: the ground plan, then SilViberCity's buildings and props as stamps
+// (games/silice/gfx/SilViberCity.ron, original art).
+// Ground plan: - night street (General 35, flat dark), . sidewalk slabs, c cables on the sidewalk,
+// p q P Q the Place Stroboscope's light-up floor (2x2), T t Y y the towers (2x2, the city's edge),
+// L street lamps with loudspeakers (the foot; the lamp is stamped over it and the cell above), l broken ones (the Jardin des Neons), s signs, f the garden's
+// fence, g lawn (General 1), h phosphorescent tall grass, b the sector barrier (closed).
+// The connection strips stay on primary metatiles (the neighbours draw these cells with their own
+// secondary): the south belt (rows 26-31) seen from Route S3 is lawn, street, the sign S (General
+// 3), trees (! # % &) and the canal (General water 3 4 5 6); the east strip (x 33-39, rows 5-31)
+// seen from Route S4 is a wood around the street; the barrier stands at x 32, out of it.
 [
     Ascii(x: 0, y: 0, rows: [
-        "!#!#!#!$$$$$$#!#!#!#!#!#!$$$$$$#!#!#!#!#",
-        "%&$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$%&",
-        "!#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!#",
-        "%&$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$%&",
-        "!#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!#",
-        "%&(((((((()(((((((((((((((((((((((((((%&",
-        "!#((((((((((((((((((((((((((((()((((((!#",
-        "%&((((((((((((((((((((((((((((((((((((%&",
-        "!#$*+$$(($$$$*+*+$$$$$$$$$$$$$$$$(($$$!#",
-        "%&$,-$$(($$$$,-,-$$$$$$$$$$$$$$$$(($$$%&",
-        "!#$$$$$(($$((((((((((((((((((($$$(($$$!#",
-        "%&$$$$$(($$((((((((((((((((((($$$(($$$%&",
-        "!#$$$$$(($$(((((((((.((((((((($$$(($$$!#",
-        "%&$$$$$(($$((((((((((((((((((($$$(($$$%&",
-        "!#$$$$$(($$((((((((((((((((((($$$(($$$!#",
-        "%&(((((((((((((((((((((((((((((((((((/%&",
-        "!#(((((((((((((((((0(0(((((((((((((((/!#",
-        "%&$$$((($$$((((((((((((((((((($$$$$$$$%&",
-        "!#$$$((($$$((((((((((((((((((($$$$$$$$!#",
-        "%&$$$((($$$$$$$$$$$(((111(111111111111%&",
-        "!#$$$((($$$$$$$$$$$((($$$$22222$22222$!#",
-        "%&$$$((($$$$$$$$$$$((($$$$22222$22222$%&",
-        "!#$$$((($$$$$$$$$$$((($$$$22222$22222$!#",
-        "%&$$$$$$$$$$$$$$$$$((($)$$$$$$$$$$$$$$%&",
-        "!#$$$$$$$$$$$$$$$$$((($$$$2222$$$$$$$$!#",
-        "%&$$$$$$$$$$$$$$$$$((($$$$2222$$$$$$$$%&",
-        "!#$$$$$$$$$$$$$$$$$((($$$$2222$$$$$$$$!#",
-        "%&$$$$$$$$$$$$$$$$$((($$$$$$$$34444444%&",
-        "!#$$$$$$$$$$$$$$$$$$()$$$$$$$$56666666!#",
-        "%&$$$$$$$$$$$$$$$$$$($$$$$$$$$56666666%&",
-        "!#!#!#!#!#!#!#!#!#!#(#!#!#!#!#!#!#!#!#!#",
-        "%&%&%&%&%&%&%&%&%&%&(&%&%&%&%&%&%&%&%&%&",
-    ], legend: {'!': (metatile: 468, collision: 1), '#': (metatile: 469, collision: 1), '$': (metatile: 1, collision: 0), '%': (metatile: 476, collision: 1), '&': (metatile: 477, collision: 1), '(': (metatile: 94, collision: 0), ')': (metatile: 3, collision: 1), '*': (metatile: 638, collision: 1), '+': (metatile: 639, collision: 1), ',': (metatile: 646, collision: 1), '-': (metatile: 647, collision: 1), '.': (metatile: 631, collision: 1), '/': (metatile: 241, collision: 1), '0': (metatile: 630, collision: 1), '1': (metatile: 657, collision: 1), '2': (metatile: 13, collision: 0), '3': (metatile: 392, collision: 0, elevation: 1), '4': (metatile: 393, collision: 0, elevation: 1), '5': (metatile: 400, collision: 0, elevation: 1), '6': (metatile: 368, collision: 0, elevation: 1)}),
-    Stamp(x: 5, y: 11, name: "ViberCity_PokemonCenter"),
-    Stamp(x: 33, y: 11, name: "ViberCity_Mart"),
-    Stamp(x: 7, y: 0, name: "ViberCity_Station"),
-    Stamp(x: 25, y: 0, name: "ViberCity_Nocturne"),
-    Stamp(x: 17, y: 19, name: "ViberCity_Casino"),
-    Stamp(x: 5, y: 19, name: "ViberCity_House"),
+        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
+        "Yy....................................Yy",
+        "Tt..L..........L.......L..........L...Tt",
+        "Yy.........cccccccccccccc.............Yy",
+        "Tt....................................Tt",
+        "Yy--------s----------------------&%&%&%&",
+        "Tt-----------------------------s-#!#!#!#",
+        "Yy-------------------------------&%&%&%&",
+        "Tt...............................#!#!#!#",
+        "Yy...cccccccc.................L..&%&%&%&",
+        "Tt.........qpqpqpqpqpqpqpqpqpq...#!#!#!#",
+        "Yy.........QPQPQPQPQPQPQPQPQPQ...&%&%&%&",
+        "Tt.........qpqpqpqpqpqpqpqpqpq...#!#!#!#",
+        "Yy........LQPQPQPQPQPQPQPQPQPQ...&%&%&%&",
+        "Tt.........qpqpqpqpqpqpqpqpqpq...#!#!#!#",
+        "Yy------------------------------b-----%&",
+        "Tt------------------------------b-----!#",
+        "Yy.L.........................L...&%&%&%&",
+        "Tt...............................#!#!#!#",
+        "Yy......................ff.ffffff&%&%&%&",
+        "Tt....................ghhhghhhhhg#!#!#!#",
+        "Yy..........L.........ghhhghhhhhl&%&%&%&",
+        "Tt....................ghhhghhhhhg#!#!#!#",
+        "Yy.................---gsghhhhhggg&%&%&%&",
+        "Tt..L..............---lgghhhhhggg#!#!#!#",
+        "Yy.................---ggghhhhhggg&%&%&%&",
+        "Ttggggggggggggggggg---ggggggggggg#!#!#!#",
+        "Yyggggggggggggggggg---gggggggg34444444%&",
+        "Ttggggggggggggggggg--Sgggggggg56666666!#",
+        "Yyggggggggggggggggg---gggggggg56666666%&",
+        "TtTtTtTtT#!#!#!#!#!#-#!#!#!#!#!#!#!#!#!#",
+        "YyYyYyYyY&%&%&%&%&%&-&%&%&%&%&%&%&%&%&%&",
+    ], legend: {'.': (metatile: 512, collision: 0), 'p': (metatile: 513, collision: 0), 'q': (metatile: 514, collision: 0), 'P': (metatile: 515, collision: 0), 'Q': (metatile: 516, collision: 0), 'T': (metatile: 517, collision: 1), 't': (metatile: 518, collision: 1), 'Y': (metatile: 519, collision: 1), 'y': (metatile: 520, collision: 1), '-': (metatile: 35, collision: 0), 'g': (metatile: 1, collision: 0), 'h': (metatile: 659, collision: 0), 'f': (metatile: 658, collision: 1), 'l': (metatile: 657, collision: 1), 'L': (metatile: 664, collision: 1), 's': (metatile: 655, collision: 1), 'S': (metatile: 3, collision: 1), 'c': (metatile: 660, collision: 0), 'b': (metatile: 661, collision: 1), '!': (metatile: 468, collision: 1), '#': (metatile: 469, collision: 1), '%': (metatile: 476, collision: 1), '&': (metatile: 477, collision: 1), '3': (metatile: 392, collision: 0, elevation: 1), '4': (metatile: 393, collision: 0, elevation: 1), '5': (metatile: 400, collision: 0, elevation: 1), '6': (metatile: 368, collision: 0, elevation: 1)}),
+    // Station Lumiere, x 6-10, y 0-4, door (8, 4): squat, windowless, covered in cables.
+    Stamp(x: 6, y: 0, name: "SilViberCity_station"),
+    // Le Nocturne (the gym), x 26-30, y 0-4, door (28, 4); the dancers queue on its forecourt.
+    Stamp(x: 26, y: 0, name: "SilViberCity_nocturne"),
+    // Centre Pokemon, x 4-8, y 11-14, door (6, 14).
+    Stamp(x: 4, y: 11, name: "SilViberCity_centre"),
+    // Volt-Market, x 30-32, y 11-14, door (31, 14) (out of the strip Route S4 sees).
+    Stamp(x: 30, y: 11, name: "SilViberCity_volt_market"),
+    // The street dancer's house, x 5-7, y 19-22, door (6, 22).
+    Stamp(x: 5, y: 19, name: "SilViberCity_maison_danseur"),
+    // Casino Le Pixel d'Or, x 17-23, y 19-22, door (20, 22).
+    Stamp(x: 17, y: 19, name: "SilViberCity_casino"),
+    // The giant neon sign of the Place Stroboscope, x 19-21, y 11-12 (Viber_City_Sc02 at (20, 12)).
+    Stamp(x: 19, y: 11, name: "SilViberCity_enseigne"),
+    // The transformer alley, between the Station and the square.
+    Stamp(x: 3, y: 8, name: "SilViberCity_transfo"),
+    Stamp(x: 13, y: 8, name: "SilViberCity_transfo"),
+    Stamp(x: 15, y: 8, name: "SilViberCity_transfo"),
+    // Mathieu's street-food stand: the grill and the menu board on each side of him (20, 16).
+    Stamp(x: 19, y: 16, name: "SilViberCity_grill"),
+    Stamp(x: 21, y: 16, name: "SilViberCity_menu"),
+    // The street lamps, a loudspeaker on each (lampadaire_haut: the foot solid, the head over the
+    // cell above, drawn above the objects).
+    Stamp(x: 4, y: 1, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 15, y: 1, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 23, y: 1, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 34, y: 1, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 10, y: 12, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 30, y: 8, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 3, y: 16, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 29, y: 16, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 12, y: 20, name: "SilViberCity_lampadaire_haut"),
+    Stamp(x: 4, y: 23, name: "SilViberCity_lampadaire_haut"),
 ]

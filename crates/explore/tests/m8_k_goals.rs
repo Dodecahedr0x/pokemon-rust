@@ -104,8 +104,8 @@ fn act_constants_match_the_decomp_headers() {
         &inc.join("opponents.h"),
     ]);
     let constants = goals::constants();
-    // Act 1's 14, Act 2's 8, Act 3's 6 and Act 4's 6 (Task S).
-    assert_eq!(constants.len(), 34, "{constants:?}");
+    // Act 1's 14, Act 2's 8, Act 3's 6, Act 4's 6 and Act 5's 6 (Task S).
+    assert_eq!(constants.len(), 40, "{constants:?}");
     for (name, value) in constants {
         let want = if name.starts_with("MAP_") {
             map_constant(decomp, name).map(i64::from)

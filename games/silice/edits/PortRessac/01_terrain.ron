@@ -1,47 +1,51 @@
-// Cells (generated as one Ascii op). North: the cliff with the Tunnel de Verre's door (25, 3). The
-// plaza (rows 4-8): the Taverne (a Pokemon Center, door (4, 7)), the rusty distributor (8, 7), the
-// town sign (22, 5), the market stalls, the neon sign (34, 6), container stacks. The silica dunes
-// (x 1-17, rows 10-17: sand, tall grass) with the blue container's pocket (x 3-7, rows 13-16: the
-// container (6, 15) is pushed into (6, 14) to reach the Water Stone (4, 15)). The street (x 18-33),
-// the container wall (x 34-35) and Crow's alley (x 36-48, rows 11-16, its mouth (40-42, 17) on the
-// quay). The west containers (x 1-14, rows 18-19) with the four grunts' alcoves (13, 11, 9, 7; 19)
-// over the one-tile corridor (row 20) to the cargo pier. The quays (rows 18-20), the edge (row 21).
-// The cargo pier (x 2-3) and the gym pier (x 27-28) lead to docks (row 26) under the two hulls'
+// Cells (generated as one Ascii op), then SilPortRessac's stamps (games/silice/gfx/SilPortRessac.ron,
+// original art). North: the cliff with the Tunnel de Verre's glass door (25, 3). The plaza (rows 4-8):
+// the Taverne (an upturned hull, door (4, 7)), the rusty distributor (8, 7), the town sign (22, 5), the
+// two container market stalls, the RHUM DE SAM neon (34, 6), container stacks. The silica dunes
+// (x 1-17, rows 10-17: silica sand, dune grass = tall grass) with the blue container's pocket (x 3-7,
+// rows 13-16: the container (6, 15) is pushed into (6, 14) to reach the Water Stone (4, 15)). The
+// street (x 18-32), the container wall (x 33-34) and Crow's alley (x 35-47, rows 11-16, its mouth on the
+// quay). The west containers (x 1-14, rows 18-19) with the four grunts' alcoves (13, 11, 9, 7; 19) over
+// the one-tile corridor (row 20) to the cargo pier. The quay (rows 18-20) and its wooden edge (row 21).
+// The cargo pier (x 2-3) and the gym pier (x 27-28) lead to wooden docks (row 26) under the two ships'
 // boarding stairs (cargo (7, 25), Zenith-Grog (32, 25)); the gym sign (26, 20). The east jetty
-// (x 40-47, rows 21-23).
-// The hulls stand in a solid shoal (414, as round the Abandoned Ship on Route 108). The shallows
-// beside each boarding stair (873/875) are solid too, so a stair is reached only from the dock cell
-// below it (7, 26) or (32, 26), where the cargo's block and the gangway pirate stand guard. Open sea (water,
-// elevation 1, surfable from M10) everywhere else.
+// (x 40-47, rows 21-23), stone.
+// The ground is silica sand everywhere: General's pale speckled ground (265).
+// Route S5 (east, a connection) draws our east columns with ITS tilesets: x 42-49 hold primary
+// metatiles only (silica sand, the rock spur closing the alley's north side (rows 9-10) and the east
+// rock (x 48-49), the stone jetty), no SilPortRessac ones.
+// The ships stand in a solid shoal (414, as round the Abandoned Ship on Route 108), so a stair is
+// reached only from the dock cell below it (7, 26) or (32, 26), where the cargo's guard and the gangway
+// pirate stand guard. Open sea (water, elevation 1, surfable from M10) everywhere else.
 [
     Ascii(x: 0, y: 0, rows: [
         "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
         "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
         "fffffffffffffffffffffffffvffffffffffffffffffffffff",
         "bbbbbbbbbbbbbbbbbbbbbbbbbDbbbbbbbbbbbbbbbbbbbbbbbb",
-        "|..ABCE.....acdeg...........acdeg....RSST..RSSST.|",
-        "|..FGHI.....hijkl.....s.....hijkl....UVVW..UVVVW.|",
-        "|..JKLM.....moopq...........mrppq.s.....RST....%.|",
-        "|..NOPQ.$...........................$...UVW....$.|",
-        "|................................................|",
-        "|.................................RTRSSSSSSSSSSST|",
-        "|;;;;,,,,,,,,,,,,,................UWUVVVVVVVVVVVW|",
-        "|;;;;,,,,,,,,,,,,,..RSST..........RT...........%$|",
-        "|;;;;,,,,;;;;;;;;,..UVVW..........UW$%..........%|",
-        "|,,,,,%,,;;;;;;;;,......%$........RT.............|",
-        "|,,%$%,%,;;;;;;;;,..........RSST..UW.............|",
-        "|,,$,,,$,;;;;;;;;,..........UVVW..RT..%......$...|",
-        "|,,%$%,%,,,,,,,,,,................UW.............|",
-        "|,,,,,,,,,,,,,,,,,................RT$%$%...%$%$%$|",
-        "|RSSSSSSSSSSSST..................................|",
-        "|UVVVVV.V.V.V.W..................................|",
-        "|.........................s......................|",
-        "==..=======================..===========........==",
-        "__..}}1234}}_______________..}}1234}}___........__",
-        "~~..}567890}~~~~~~~~~~~~~~~..}567890}~~~........~~",
-        "~~..}!@#&*(}~~~~~~~~~~~~~~~..}!@#&*(}~~~========~~",
-        "~~..}}<X>}}}~~~~~~~~~~~~~~~..}}<X>}}}~~~________~~",
-        "~~.......}}}~~~~~~~~~~~~~~~.......}}}~~~~~~~~~~~~~",
+        "r...............................................er",
+        "r.....................s.........................er",
+        "r.................................s.............er",
+        "r.......k...........................k...........er",
+        "r...............................................er",
+        "r.........................................ffffffer",
+        "rgggg.....................................bbbbbber",
+        "rgggg...........................................er",
+        "rgggg....gggggggg...................uk..........er",
+        "r.....k..gggggggg.......ku......................er",
+        "r..kuk.k.gggggggg...............................er",
+        "r..u...u.gggggggg.....................k.........er",
+        "r..kuk.k........................................er",
+        "r................................uk.kuku........er",
+        "r...............................................er",
+        "r...............................................er",
+        "r.........................s.....................er",
+        "qqppqqqqqqqqqqqqqqqqqqqqqqqppqqqqqqqqqqqJKKKKKKL__",
+        "__pp}}}}}}}}_______________pp}}}}}}}}___JKKKKKKL__",
+        "~~pp}}}}}}}}~~~~~~~~~~~~~~~pp}}}}}}}}~~~JKKKKKKL~~",
+        "~~pp}}}}}}}}~~~~~~~~~~~~~~~pp}}}}}}}}~~~MNNNNNNO~~",
+        "~~pp}}}}}}}}~~~~~~~~~~~~~~~pp}}}}}}}}~~~________~~",
+        "~~ppppppp}}}~~~~~~~~~~~~~~~ppppppp}}}~~~~~~~~~~~~~",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
@@ -62,72 +66,58 @@
         'v': (metatile: 159, collision: 1),
         'b': (metatile: 145, collision: 1),
         'D': (metatile: 167, collision: 0),
-        '.': (metatile: 514, collision: 0),
-        '|': (metatile: 579, collision: 1),
+        '.': (metatile: 265, collision: 0),
+        'r': (metatile: 113, collision: 1),
+        'e': (metatile: 112, collision: 1),
         '~': (metatile: 368, collision: 0, elevation: 1),
         '_': (metatile: 393, collision: 0, elevation: 1),
-        '=': (metatile: 605, collision: 1),
-        ',': (metatile: 292, collision: 0),
-        ';': (metatile: 13, collision: 0),
-        's': (metatile: 3, collision: 1),
-        'A': (metatile: 72, collision: 1),
-        'B': (metatile: 73, collision: 1),
-        'C': (metatile: 74, collision: 1),
-        'E': (metatile: 75, collision: 1),
-        'F': (metatile: 80, collision: 1),
-        'G': (metatile: 81, collision: 1),
-        'H': (metatile: 82, collision: 1),
-        'I': (metatile: 83, collision: 1),
-        'J': (metatile: 88, collision: 1),
-        'K': (metatile: 89, collision: 1),
-        'L': (metatile: 90, collision: 1),
-        'M': (metatile: 91, collision: 1),
-        'N': (metatile: 96, collision: 1),
-        'O': (metatile: 97, collision: 1),
-        'P': (metatile: 98, collision: 1),
-        'Q': (metatile: 99, collision: 1),
-        'a': (metatile: 517, collision: 0),
-        'c': (metatile: 525, collision: 0),
-        'd': (metatile: 526, collision: 0),
-        'e': (metatile: 527, collision: 0),
-        'g': (metatile: 551, collision: 0),
-        'h': (metatile: 565, collision: 0),
-        'i': (metatile: 760, collision: 0),
-        'j': (metatile: 761, collision: 0),
-        'k': (metatile: 762, collision: 0),
-        'l': (metatile: 559, collision: 0),
-        'm': (metatile: 573, collision: 1),
-        'o': (metatile: 539, collision: 1),
-        'p': (metatile: 645, collision: 0),
-        'q': (metatile: 620, collision: 1),
-        'r': (metatile: 653, collision: 1),
-        'R': (metatile: 768, collision: 1),
-        'S': (metatile: 769, collision: 1),
-        'T': (metatile: 770, collision: 1),
-        'U': (metatile: 688, collision: 1),
-        'V': (metatile: 689, collision: 1),
-        'W': (metatile: 690, collision: 1),
-        '%': (metatile: 830, collision: 1),
-        '$': (metatile: 831, collision: 1),
-        '1': (metatile: 849, collision: 0),
-        '2': (metatile: 850, collision: 0),
-        '3': (metatile: 851, collision: 0),
-        '4': (metatile: 852, collision: 0),
-        '5': (metatile: 856, collision: 1),
-        '6': (metatile: 857, collision: 1),
-        '7': (metatile: 858, collision: 1),
-        '8': (metatile: 859, collision: 1),
-        '9': (metatile: 860, collision: 1),
-        '0': (metatile: 861, collision: 1),
-        '!': (metatile: 864, collision: 1),
-        '@': (metatile: 865, collision: 1),
-        '#': (metatile: 866, collision: 1),
-        '&': (metatile: 867, collision: 1),
-        '*': (metatile: 868, collision: 1),
-        '(': (metatile: 869, collision: 1),
         '}': (metatile: 414, collision: 1),
-        '<': (metatile: 873, collision: 1),
-        'X': (metatile: 874, collision: 0),
-        '>': (metatile: 875, collision: 1),
+        'J': (metatile: 434, collision: 0),
+        'K': (metatile: 435, collision: 0),
+        'L': (metatile: 436, collision: 0),
+        'M': (metatile: 442, collision: 1),
+        'N': (metatile: 443, collision: 1),
+        'O': (metatile: 444, collision: 1),
+        // SilPortRessac: dune grass (tall grass), crate, rum barrel, the quay's wooden edge, the piers' planks.
+        'g': (metatile: 656, collision: 0),
+        'k': (metatile: 608, collision: 1),
+        'u': (metatile: 609, collision: 1),
+        'q': (metatile: 657, collision: 1),
+        'p': (metatile: 658, collision: 0),
+        // The driftwood signs (town (22, 5), gym (26, 20)).
+        's': (metatile: 659, collision: 1),
     }),
+    // The tunnel's glass door, x 24-26, y 2-3, door (25, 3).
+    Stamp(x: 24, y: 2, name: "SilPortRessac_porte_tunnel"),
+    // The Taverne (an upturned hull), x 2-6, y 4-7, door (4, 7); the rusty distributor (8, 6-7).
+    Stamp(x: 2, y: 4, name: "SilPortRessac_taverne"),
+    Stamp(x: 8, y: 6, name: "SilPortRessac_distributeur"),
+    // The Place des Containers: two container stalls (x 12-16 and 28-32, y 4-6), the neon (34, 5-6),
+    // container stacks.
+    Stamp(x: 12, y: 4, name: "SilPortRessac_etal"),
+    Stamp(x: 28, y: 4, name: "SilPortRessac_etal_b"),
+    Stamp(x: 34, y: 5, name: "SilPortRessac_neon_rhum"),
+    // More RHUM DE SAM neons: by the Taverne (10, 4-5) and in the street (24, 16-17).
+    Stamp(x: 10, y: 4, name: "SilPortRessac_neon_rhum"),
+    Stamp(x: 24, y: 16, name: "SilPortRessac_neon_rhum"),
+    Stamp(x: 37, y: 4, name: "SilPortRessac_cont_bleu"),
+    Stamp(x: 40, y: 6, name: "SilPortRessac_cont_vert"),
+    // The alley's container walls: north (x 33-41, y 9-10) and west (x 33-34, y 11-16).
+    Stamp(x: 33, y: 9, name: "SilPortRessac_cont_vert"),
+    Stamp(x: 35, y: 9, name: "SilPortRessac_cont_rouille"),
+    Stamp(x: 38, y: 9, name: "SilPortRessac_cont_rouge"),
+    Stamp(x: 33, y: 11, name: "SilPortRessac_cont_vert"),
+    Stamp(x: 33, y: 13, name: "SilPortRessac_cont_vert"),
+    Stamp(x: 33, y: 15, name: "SilPortRessac_cont_vert"),
+    // Containers in the street.
+    Stamp(x: 19, y: 11, name: "SilPortRessac_cont_bleu"),
+    Stamp(x: 27, y: 14, name: "SilPortRessac_cont_rouge"),
+    // The west containers over the corridor (x 1-14, y 18-19), the alcoves at x 7, 9, 11, 13 (y 19).
+    Stamp(x: 1, y: 18, name: "SilPortRessac_cont_vert"),
+    Stamp(x: 3, y: 18, name: "SilPortRessac_cont_bleu"),
+    Stamp(x: 7, y: 18, name: "SilPortRessac_alcoves"),
+    // The Cocket cargo (x 5-9, y 22-25, stair (7, 25)) and the Zenith-Grog (x 30-34, y 22-25, stair
+    // (32, 25)), in their shoals. ch04_port.rs repaints x 4-11, y 22-26 as open sea once the cargo sails.
+    Stamp(x: 5, y: 22, name: "SilPortRessac_cargo"),
+    Stamp(x: 30, y: 22, name: "SilPortRessac_zenith_grog"),
 ]

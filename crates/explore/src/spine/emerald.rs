@@ -43,56 +43,9 @@ mod list {
         Step::Train { map, x, y, level }
     }
 
-    /// Blocker `briney-sail-camera`: Mr. Briney's yes, then `Route104_EventScript_SailToDewford`
-    /// (the boat and the player `applymovement` down Route 104 off the map's edge, through Route
-    /// 105 and 106, to Dewford) stop on a `RoundTrip` finding: the checkpoint taken mid-sail does
-    /// not restore ("camera far outside the map"). The bypass writes what the talk and the sail
-    /// leave and lands in Dewford.
-    static BRINEY_SAIL_TO_DEWFORD: Bypass = Bypass {
-        issue: "briney-sail-camera",
-        features: &["Route104_EventScript_SailToDewford"],
-        set: &[
-            FLAG_MR_BRINEY_SAILING_INTRO,
-            FLAG_HIDE_BRINEYS_HOUSE_MR_BRINEY,
-            FLAG_HIDE_BRINEYS_HOUSE_PEEKO,
-            FLAG_HIDE_RUSTBORO_CITY_RIVAL,
-            FLAG_HIDE_ROUTE_104_RIVAL,
-            FLAG_HIDE_ROUTE_104_MR_BRINEY,
-            FLAG_HIDE_ROUTE_104_MR_BRINEY_BOAT,
-            FLAG_ENABLE_NORMAN_MATCH_CALL,
-        ],
-        clear: &[
-            FLAG_HIDE_MR_BRINEY_DEWFORD_TOWN,
-            FLAG_HIDE_MR_BRINEY_BOAT_DEWFORD_TOWN,
-        ],
-        vars: &[
-            (VAR_BOARD_BRINEY_BOAT_STATE, 0),
-            (VAR_BRINEY_LOCATION, 1),
-            (VAR_RUSTBORO_CITY_STATE, 8),
-            (VAR_ROUTE104_STATE, 2),
-        ],
-        warp: Some((MAP_DEWFORD_TOWN, 11, 11)),
-        teach: &[],
-    };
-
-    /// `DewfordTown_EventScript_SailToSlateport`: the same scripted sail across map
-    /// connections, the same RoundTrip finding. The bypass writes what the sail leaves (Mr.
-    /// Briney and his boat moved to Route 109) and lands where the player steps off the boat.
-    static BRINEY_SAIL_TO_SLATEPORT: Bypass = Bypass {
-        issue: "briney-sail-camera-slateport",
-        features: &["DewfordTown_EventScript_SailToSlateport"],
-        set: &[
-            FLAG_HIDE_MR_BRINEY_DEWFORD_TOWN,
-            FLAG_HIDE_MR_BRINEY_BOAT_DEWFORD_TOWN,
-        ],
-        clear: &[
-            FLAG_HIDE_ROUTE_109_MR_BRINEY,
-            FLAG_HIDE_ROUTE_109_MR_BRINEY_BOAT,
-        ],
-        vars: &[],
-        warp: Some((MAP_ROUTE109, 21, 23)),
-        teach: &[],
-    };
+    const fn train_fresh(map: MapId, x: i16, y: i16, level: u8) -> Step {
+        Step::TrainFresh { map, x, y, level }
+    }
 
     /// Mauville's gym: its floor switches run `special MauvilleGymSetDefaultBarriers` and
     /// `MauvilleGymPressSwitch` (unsupported), which toggle every beam barrier; without them
@@ -615,9 +568,12 @@ mod list {
         },
         Step::Walk(Left),
         Step::Face(Up),
-        // Yes to Mr. Briney (`Choose(0)`, `Interact`): his script warps to Route 104's dock,
-        // whose frame script sails to Dewford. Blocked (`briney-sail-camera`).
-        Step::Bypass(&BRINEY_SAIL_TO_DEWFORD),
+        // Yes to Mr. Briney: his script warps to Route 104's dock, whose frame script sails
+        // down Route 104, 105 and 106 to Dewford (the camera follows the player across the
+        // connections).
+        Step::Choose(0),
+        Step::Interact,
+        Step::WaitScript,
         Step::Expect("dewford"),
         Step::Checkpoint("dewford"),
         // ---- Dewford: heal, then north to Granite Cave ----
@@ -657,13 +613,12 @@ mod list {
         enter(MAP_DEWFORD_TOWN, 2, 10, Up),
         use_(MAP_DEWFORD_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_DEWFORD_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
-        // Mr. Briney's multichoice: Slateport (1).
         // Mr. Briney on the dock (Talk gives NoPath on him, an explorer gap: stand west of
-        // him). His multichoice's Slateport (1) sails to Route 109. Blocked
-        // (`briney-sail-camera-slateport`).
+        // him). His multichoice's Slateport (1) sails to Route 109.
         goto(MAP_DEWFORD_TOWN, 11, 9),
         Step::Face(Right),
-        Step::Bypass(&BRINEY_SAIL_TO_SLATEPORT),
+        Step::Choose(1),
+        Step::Interact,
         cross(MAP_ROUTE109, 19, 0, Up),
         Step::Expect("slateport"),
         // ---- Slateport: heal, Dock at the shipyard (the grunts at the museum's door leave),
@@ -761,6 +716,14 @@ mod list {
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Level 32 on Route 110's north grass, healed in Mauville after (level 33 comes on the
+        // south grass below: the north grass whited out the lead at 32 on some RNG paths).
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train(MAP_ROUTE110, 5, 22, 32),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         talk(MAP_MAUVILLE_CITY, 6),
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
@@ -798,6 +761,70 @@ mod list {
         // Lavaridge, Flannery =================
         Step::Bypass(&MAUVILLE_GYM_DEACTIVATE),
         enter(MAP_MAUVILLE_CITY_GYM, 4, 20, Down),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Act 4 has long stretches without a Center (Route 111 to Route 113, the cable car to
+        // Mt. Chimney's admins): to level 36 (Swampert) on Route 110's north grass first, in
+        // rounds that stop at half HP or low PP, healed in Mauville after each (a round past
+        // 36 trains no more).
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train_fresh(MAP_ROUTE110, 5, 22, 36),
+        cross(MAP_ROUTE110, 15, 0, Up),
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
@@ -853,10 +880,12 @@ mod list {
         Step::Choose(crate::policy::YES_ONCE),
         talk(MAP_ROUTE111_OLD_LADYS_REST_STOP, 1),
         enter(MAP_ROUTE111_OLD_LADYS_REST_STOP, 3, 7, Down),
+        Step::Battle(BattlePlan::RunWild),
         cross(MAP_ROUTE111, 0, 29, Left),
         enter(MAP_ROUTE112, 22, 10, Up),
         enter(MAP_FIERY_PATH, 26, 36, Down),
         enter(MAP_ROUTE112, 28, 27, Up),
+        Step::Battle(BattlePlan::BestLearn),
         talk(MAP_ROUTE112_CABLE_CAR_STATION, 1),
         Step::Bypass(&CABLE_CAR_UP),
         Step::WaitScript,

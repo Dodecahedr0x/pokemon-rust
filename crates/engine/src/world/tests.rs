@@ -1131,7 +1131,9 @@ mod m9_s;
 mod m9_sm;
 mod m9_w;
 mod m9_wave0;
+// Wave C: one file per cluster.
 mod warp_exits;
+mod wavec_field;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).

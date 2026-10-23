@@ -25,6 +25,7 @@ The Q3 question (original art) is answered for tilesets and overworld objects: e
 - Cells: `.` walkable, `#` solid, `D` door (`MB_ANIMATED_DOOR`, solid as Emerald's: pushing up into it warps), or a `legend` entry (`'w': (behavior: "MB_POND_WATER", collision: 1)`).
 - Transparent art shows the `ground` primary metatile (grass is `1` in `General`). When the primary has no fitting floor (`Building` has none), give the spec a floor texture feature and set `under: Some("<texture>")` on the objects: their transparent pixels show that art, tiled from the top left. `over: [rows]` draws those rows above the objects (roof edges, arches the player walks under); other rows are under them.
 - **Connection seams:** a map connection draws and collides the neighbour's cells with *this* map's tilesets (Gen3 does the same). Within 7 cells of a connected edge, use primary metatiles unless both maps share the secondary; a walkable secondary cell on the edge itself is an error in `studio map build` (the player walks onto the wrong behaviour), and other secondary cells there raise a warning (wrong pictures).
+- **Derived features** (no prompt): art made from other features' art (a switched-off variant, a glowing slab, an object set on a floor crop). Write the derivation in `xtask/src/silice/derive.rs` (one function per tileset); `gen` runs it after prep, so it follows its sources. Never edit derived PNGs by hand or with a scratch script.
 - Palettes: the art's 8x8 tiles are clustered into 7 palettes of 15 colours. Many very different materials in one tileset cost colour accuracy; check the review picture.
 
 ### Prompts (what worked)
@@ -34,6 +35,13 @@ The Q3 question (original art) is answered for tilesets and overworld objects: e
 - The key colour is magenta. A feature with pink or purple in it (neon signs) uses `key: Some("00FF00")`; the prompt then asks for a green background.
 - Textures (`key: Some("none")`: gravel, water, soil) are stretched to the cells: say "only 16x16 pixels, chunky details".
 - Expect one or two re-generations per feature: tune the prompt in the spec, re-`gen` that feature only.
+- Prep drops magenta-like fringe pixels only under the magenta key: pink art keyed on green keeps its pink. Under magenta, ask for "light coral pink (#FF8CA0, never magenta)".
+
+### Limits met in wave 1
+
+- **512 tiles** per secondary tileset: a town of big buildings overflows (Gris-Échec's first spec needed 979). Keep buildings small (3-5 cells wide), reuse features, check the count `build` prints.
+- **Hygiene:** a 1x1 stamp whose metatile equals an extract 1x1 layout (Emerald has some at 513 and 524) fails `studio map hygiene`; order the features so a 1x1 solid feature does not land there.
+- **Seams** cost space near connected edges: keep landmarks 7+ cells away from them (see Tilesets).
 
 ### Sprites (objects)
 
@@ -56,4 +64,7 @@ The Q3 question (original art) is answered for tilesets and overworld objects: e
 - **SilBricoBourg** (Ch0, `BricoBourg`): tin-roof houses (player, Adrien), the Shaker (neon), the overgrown botany Labo (5x6), the open workshop, the roots flanking the north exit, the fountain, gravel, the canal (pond water, solid until Surf), dismantled bikes, the vegetable garden.
 - **SilBricoBourg on Route S1** (`RouteS01`): the dirt path, the cables, the roots grown over cables, small root clumps; the path stops two rows before the Bois-Éther seam.
 - **SilBoisEther** (Ch1, `BoisEther`): the Grass Hopper hollow tree, the Herboriste greenhouse, stilt and trunk houses, the great oak, glowing cables, ponds, market stalls; seams on General only. **SilBoisEtherGym** (`BoisEther_Gym`): the trunk's airlocks, workshop, spore grates and shower, the glass dome with the central pipe; objects stand on their floor with `under`.
-- **Sprites:** `MAGMA_MEMBER_M/F` are Team Cocket grunts; `SIL_ADRIEN` 0x100, `SIL_GWADA` 0x101, `SIL_MATHIEU` 0x102, `SIL_JULIEN` 0x103, `SIL_BENOU` 0x104, `SIL_LOIC` 0x105; every map object whose `LOCALID_` names the character uses them.
+- **SilGrisEchec** (Ch2, `GrisEchec`): circuit-board streets, concrete blocks with static screens, the Tour d'Observation, the arena's black cube, the Place des Pions, the closed factory; jammers and the static door derived. **SilGrisEchecGym** (the gym and the Chambre Sourde): chessboard, binary slabs, wall screens, foam (derived variants).
+- **SilViberCity** (Ch3, `ViberCity`): night streets, the cable-covered Station Lumière, the Nocturne (moon neon), the light-up square, the Casino Le Pixel d'Or, the Volt-Market, tall lamps with loudspeakers, phosphorescent grass; neon towers as the border. **SilViberCityGym**: the light-up dance floor, DJ booth, generator, speaker stacks, blue/yellow/violet lasers (closed 534+c, open 537+c).
+- **SilPortRessac** (Ch4, `PortRessac`): silica sand, the upturned-hull Taverne, container market stalls and stacks, rum neons, the rusty distributor, the glass arch of the Tunnel de Verre, the cargo and the Zenith-Grog at the quay. **SilPortRessacGym**: the Zenith-Grog's deck, quarterdeck, cabins, mast, helm (objects on the planks with `under`).
+- **Sprites:** `MAGMA_MEMBER_M/F` are Team Cocket grunts; `SIL_ADRIEN` 0x100, `SIL_GWADA` 0x101, `SIL_MATHIEU` 0x102, `SIL_JULIEN` 0x103, `SIL_BENOU` 0x104, `SIL_LOIC` 0x105, `SIL_YOHAN` 0x120, `SIL_TAUBER` 0x130, `SIL_HOCSEAT` 0x131; every map object whose `LOCALID_` names the character uses them.
