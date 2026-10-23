@@ -2,8 +2,7 @@
 // contenu-jeu/chapitres/04-port-ressac.md §4: the gangway, the main deck with the great mast, the
 // quarterdeck's stairs barred by a grille, the open hatch down to the hold, Samuel at the helm.
 // The deck is this tileset's own planks (`pont`, METATILE_PONT in ch04_gym.rs): the objects standing on
-// it (cabine, mat, grille, barre, tonneau) have the planks under their transparent pixels, filled in
-// after `gen` (their art is opaque; a re-prep must fill them again from `pont.png`).
+// it (cabine, mat, grille, barre, tonneau) have the planks under their transparent pixels (`under`).
 (
     name: "SilPortRessacGym",
     primary: "General",
@@ -59,27 +58,32 @@
         ),
         (
             name: "cabine",
+            under: Some("pont"),
             cells: ["###", "###", "#W#"],
             legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
             prompt: Some("A small wooden deckhouse over a ship's hatch: a dark brown plank roof with a rolled canvas on top, red-brown plank walls, an open dark doorway with a ladder going down exactly in the middle of the bottom edge, a hanging lantern."),
         ),
         (
             name: "mat",
+            under: Some("pont"),
             cells: ["#", "#", "#"],
             prompt: Some("The foot of a pirate ship's great mast seen from 3/4 above: a very thick tall round dark brown wooden mast filling half the width, an iron band around it, a big coil of rope and two small wooden pins at its base."),
         ),
         (
             name: "grille",
+            under: Some("pont"),
             cells: ["##"],
             prompt: Some("A low black iron grille gate with vertical bars and a heavy padlock in the middle, blocking a passage, seen from 3/4 above."),
         ),
         (
             name: "barre",
+            under: Some("pont"),
             cells: ["#"],
             prompt: Some("A ship's steering wheel on a short wooden stand, round dark wooden wheel with eight handles, seen from 3/4 above."),
         ),
         (
             name: "tonneau",
+            under: Some("pont"),
             cells: ["#"],
             prompt: Some("A dark wooden rum barrel standing upright, two iron hoops, seen from slightly above."),
         ),
