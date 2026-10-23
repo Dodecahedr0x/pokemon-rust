@@ -21,6 +21,7 @@
 use super::explorer::ExplorerState;
 use super::off_thread;
 use crate::explorer::CoverageGrid;
+use crate::map_picker::{PickerGroup, Toggles, normalize, picker_groups, picker_view};
 use crate::map_view::{
     CellLayers, MapEntry, MapRoute, Overlay, Placed, camera_cell, camera_rect, cell_at,
     click_target, coverage_paths, describe, layer_paths, map_list, overlay_cell, parse_map_request,
@@ -302,6 +303,12 @@ const CSS: &str = r#"
 .map-list ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
 .map-list button { width: 100%; text-align: left; background: none; border: 0; color: var(--fg); padding: 2px 6px; font: inherit; cursor: pointer; }
 .map-list button.active { background: var(--accent); color: #000; }
+.map-list ul ul { overflow: visible; padding-left: 14px; }
+.map-list .map-group-head { display: flex; gap: 4px; align-items: baseline; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
+.map-list .map-group-head[aria-disabled="true"] { cursor: default; }
+.map-list .map-caret { width: 10px; }
+.map-list .map-group-n { margin-left: auto; font-weight: 400; font-variant-numeric: tabular-nums; }
+.map-list .map-count { color: var(--muted); font-size: 0.85em; }
 .map-main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .map-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; color: var(--muted); }
 .map-toolbar button { background: var(--panel); color: var(--fg); border: 1px solid #333; font: inherit; cursor: pointer; }
@@ -519,38 +526,96 @@ pub fn Map(
     }
 }
 
-/// The map list and its filter.
+/// The map picker (M8 Task S, [`crate::map_picker`]): the maps by group, each group a header
+/// that toggles its list (the shown map's group is open), and a filter by name or constant
+/// that lists every match, grouped. Enter in the filter opens the first match; Escape clears
+/// it. Only listed maps are in the DOM (a collapsed group draws its header alone).
 #[component]
 fn MapList(shown: MapId, on_open: EventHandler<MapId>) -> Element {
-    let list = use_hook(|| Rc::new(map_list()));
+    let groups = use_hook(|| Rc::new(picker_groups()));
     let mut query = use_signal(String::new);
-    let q = query.read().to_lowercase();
-    let items: Vec<(MapId, &'static str)> = list
-        .iter()
-        .filter(|(_, n)| q.is_empty() || n.to_lowercase().contains(&q))
-        .copied()
-        .collect();
+    let mut toggles = use_signal(Toggles::default);
+    let view = picker_view(&groups, &query.read(), shown, &toggles.read());
+    let first = view.first;
+    let filtered = !normalize(&query.read()).is_empty();
+    let summary = if filtered {
+        format!("{} of {} maps", view.matching, map_count(&groups))
+    } else {
+        format!("{} maps, {} groups", view.matching, view.groups.len())
+    };
     rsx! {
         aside { class: "map-list",
             input {
-                placeholder: "Filter maps",
+                placeholder: "Filter: name or MAP_ constant",
+                "data-map-filter": "1",
                 value: "{query}",
                 oninput: move |e| query.set(e.value()),
+                onkeydown: move |e: KeyboardEvent| match e.key() {
+                    Key::Enter => {
+                        // Only under a filter (`first` is `None` without one).
+                        if let Some(m) = first {
+                            toggles.write().reveal(m);
+                            on_open.call(m);
+                        }
+                    }
+                    Key::Escape => query.set(String::new()),
+                    _ => {}
+                },
             }
+            span { class: "map-count", "data-map-count": "1", "{summary}" }
             ul {
-                for (id, name) in items {
-                    li { key: "{id.0}",
+                for g in view.groups {
+                    li { key: "g{g.group}", class: "map-group",
+                        // Under a filter every group is open: the header stays focusable but
+                        // does nothing (`aria-disabled`).
                         button {
-                            "data-map-item": id.0,
-                            class: if id == shown { "active" } else { "" },
-                            onclick: move |_| on_open.call(id),
-                            "{name}"
+                            id: "map-group-{g.group}",
+                            class: "map-group-head",
+                            "data-map-group": g.group,
+                            "aria-expanded": g.expanded,
+                            "aria-controls": "map-group-list-{g.group}",
+                            "aria-disabled": filtered,
+                            onclick: move |_| {
+                                if !filtered {
+                                    toggles.write().toggle(g.group, shown);
+                                }
+                            },
+                            span { class: "map-caret", if g.expanded { "▾" } else { "▸" } }
+                            "{g.label}"
+                            span { class: "map-group-n",
+                                if filtered { "{g.matching}/{g.total}" } else { "{g.total}" }
+                            }
+                        }
+                        if g.expanded {
+                            ul {
+                                id: "map-group-list-{g.group}",
+                                role: "group",
+                                "aria-labelledby": "map-group-{g.group}",
+                                for m in g.maps {
+                                    li { key: "{m.id.0}",
+                                        button {
+                                            "data-map-item": m.id.0,
+                                            class: if m.id == shown { "active" } else { "" },
+                                            title: m.constant.unwrap_or(m.name),
+                                            onclick: move |_| {
+                                                toggles.write().reveal(m.id);
+                                                on_open.call(m.id);
+                                            },
+                                            "{m.name}"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+fn map_count(groups: &[PickerGroup]) -> usize {
+    groups.iter().map(|g| g.maps.len()).sum()
 }
 
 /// The JS that scrolls the map view so image pixel `center` (at `zoom`) is in the middle.
@@ -810,14 +875,14 @@ mod tests {
         html.matches(needle).count()
     }
 
-    /// The map with the most overlays.
+    /// The sampled map with the most overlays (`content::samples::map_ids`: no test walks every
+    /// map, M8 Task S).
     fn busiest_map() -> MapId {
         let game = Emerald::for_shells();
-        map_list()
+        content::samples::map_ids()
             .into_iter()
-            .max_by_key(|&(id, _)| overlays(&game, id).len())
+            .max_by_key(|&id| overlays(&game, id).len())
             .unwrap()
-            .0
     }
 
     fn wait(mut done: impl FnMut() -> bool) {
@@ -829,7 +894,7 @@ mod tests {
     }
 
     #[test]
-    fn the_map_tab_lists_every_map_and_draws_its_overlays() {
+    fn the_map_tab_groups_every_map_and_draws_its_overlays() {
         let game = Emerald::for_shells();
         let map = busiest_map();
         let cache = MapCache::default();
@@ -848,7 +913,20 @@ mod tests {
         )
         .with_root_context(cache.clone());
         let html = render(&mut dom);
-        assert_eq!(count(&html, "data-map-item="), map_list().len(), "{html}");
+        // Every group is a header; only the shown map's group lists its maps.
+        let groups = picker_groups();
+        assert_eq!(count(&html, "data-map-group="), groups.len(), "{html}");
+        let open = (groups.iter())
+            .find(|g| g.group == crate::map_picker::group_of(map))
+            .unwrap();
+        assert_eq!(count(&html, "data-map-item="), open.maps.len(), "{html}");
+        assert_eq!(count(&html, "aria-expanded=true"), 1, "{html}");
+        assert!(html.contains(&format!("data-map-item={} class=\"active\"", map.0)));
+        assert!(html.contains(&format!(
+            "{} maps, {} groups",
+            map_list().len(),
+            groups.len()
+        )));
         assert_eq!(count(&html, "data-overlay="), n, "{html}");
         assert!(html.contains(&format!("src=\"/maps/{}.png\"", map.0)));
         let objects = entry

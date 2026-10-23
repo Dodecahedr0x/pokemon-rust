@@ -9,14 +9,14 @@ use studio::map_view::{
     layer_paths, map_list, overlays, parse_map_request, render_map, shown_map,
 };
 
-/// The map with the most overlays.
+/// The sampled map with the most overlays (`content::samples::map_ids`: no test walks every
+/// map, M8 Task S).
 fn busiest_map() -> MapId {
     let game = Emerald::for_shells();
-    map_list()
+    content::samples::map_ids()
         .into_iter()
-        .max_by_key(|&(id, _)| overlays(&game, id).len())
+        .max_by_key(|&id| overlays(&game, id).len())
         .unwrap()
-        .0
 }
 
 fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {

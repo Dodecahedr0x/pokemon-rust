@@ -1,13 +1,11 @@
 //! Task C: `NativePane` driven through the `Pane` methods (no thread, no window), over a
 //! layered store whose base is the committed tree and whose local root is a temp dir.
 
-use game_native::checkpoints::Materializer;
 use game_native::scenario::cached_route;
 use game_native::store::Store;
 use game_native::trace::Parent;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
 use studio::native::{EventKind, Inspector, NativeCmd, NativePane};
 use studio::pane::{Pane, RunMode};
 
@@ -22,41 +20,11 @@ fn temp_dir(tag: &str) -> PathBuf {
 fn pane(tag: &str) -> (NativePane, PathBuf, Store) {
     let local = temp_dir(tag);
     let store = Store::layered(Store::default_root(content::STUB), &local).unwrap();
-    let m = Arc::new(Mutex::new(Materializer::new(
-        content::Emerald::for_shells(),
-        8,
-    )));
-    (NativePane::new(store.clone(), m), local, store)
+    (NativePane::new(store.clone()), local, store)
 }
 
 fn status(p: &NativePane) -> Inspector {
     p.status()
-}
-
-#[test]
-fn a_poisoned_materializer_lock_is_recovered() {
-    let local = temp_dir("poison");
-    let store = Store::layered(Store::default_root(content::STUB), &local).unwrap();
-    let m = Arc::new(Mutex::new(Materializer::new(
-        content::Emerald::for_shells(),
-        8,
-    )));
-    let first = store.topo_order().unwrap()[0].meta.clone();
-    m.lock().unwrap().get(&store, first.id).unwrap();
-    // Another pane thread panics while holding the lock.
-    let m2 = m.clone();
-    let _ = std::thread::spawn(move || {
-        let _guard = m2.lock().unwrap();
-        panic!("a pane thread dies holding the lock");
-    })
-    .join();
-    assert!(m.is_poisoned());
-    let mut p = NativePane::new(store, m.clone());
-    p.handle(NativeCmd::Load(first.id));
-    let s = status(&p);
-    assert_eq!(s.frame, first.frame, "{}", s.last);
-    assert!(!m.is_poisoned());
-    let _ = std::fs::remove_dir_all(local);
 }
 
 #[test]

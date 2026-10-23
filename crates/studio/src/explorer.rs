@@ -1,7 +1,7 @@
 //! The Explorer tab's core (M7 Task S1, `docs/plans/2026-10-22-milestone-7-explorer.md`): the
 //! explorer db read-only ([`ExplorerModel`], [`CoverageGrid`]), the `explore` child process
-//! ([`ExplorerProc`]) and a finding as a NewGame trace to open in the native pane
-//! ([`finding_trace`], then `NativeCmd::OpenTrace`).
+//! ([`ExplorerProc`]) and a finding as a trace to open in the native pane ([`finding_trace`],
+//! then `NativeCmd::OpenTrace`): a NewGame trace, or one from a `--from` db's root node.
 //!
 //! Task S2 adds the tab's view logic, tested here so the UI stays thin: the run form
 //! ([`RunForm`], [`parse_budget`] …), the run slot the UI keeps ([`RunSlot`], [`RunState`]), a
@@ -15,7 +15,7 @@ use crate::native::NativeCmd;
 use crate::pane::RunMode;
 use crate::paths::StudioPaths;
 use anyhow::{Context, bail};
-use engine::checkpoint::{BuildHash, build_hash};
+use engine::checkpoint::{BuildHash, Checkpoint, build_hash};
 use engine::data::{GameData, MapId};
 use explore::config::Budget;
 use explore::db::{Db, DbStats, FindingRow};
@@ -133,8 +133,11 @@ impl CoverageGrid {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindingTrace {
     pub row: FindingRow,
-    /// The whole NewGame trace: the node's lineage inputs, then the tail.
+    /// The whole trace from the db's start: the node's lineage inputs, then the tail. Its
+    /// parent is a new game, or the root node of a `--from` db.
     pub trace: Trace,
+    /// The root node's state for a `--from` db (`None`: a new game).
+    pub base: Option<Checkpoint>,
     /// The frame to open it at (`NativeCmd::OpenTrace`).
     pub frames: u32,
     /// Found on another build than this one (`row.build != build_hash(game)`): the replay may
@@ -142,18 +145,23 @@ pub struct FindingTrace {
     pub stale: bool,
 }
 
-/// Finding `id` as a NewGame trace (hashes by replay with `content::Emerald::for_shells()`)
-/// and the frame to open it at: its last frame minus `before`, clamped to 0.
-/// `wire::finding_trace` with nothing cut: `NativeCmd::OpenTrace` stops at the frame itself, so
-/// the trace is replayed once here and once in the pane.
+/// Finding `id` as a trace from the db's start (hashes by replay with
+/// `content::Emerald::for_shells()`) and the frame to open it at: its last frame minus
+/// `before`, clamped to 0.
+///
+/// `wire::finding_trace_with_root` with nothing cut, keeping the root's state: a `--from` db's
+/// root is materialized here, on the caller's worker thread, by its own `Materializer`
+/// (`wire::db_root`) over the root store's disk cache, never by a pane's. `NativeCmd::OpenTrace`
+/// stops at the frame itself, so the trace is replayed once here and once in the pane.
 pub fn finding_trace(db: &Db, id: i64, before: u32) -> anyhow::Result<FindingTrace> {
     let game = content::Emerald::for_shells();
-    let (row, trace) = wire::finding_trace(&game, db, id, 0)?;
+    let (row, trace, root) = wire::finding_trace_with_root(&game, db, id, 0)?;
     let frames = trace.frames().saturating_sub(before);
     let stale = row.build != build_hash(&game);
     Ok(FindingTrace {
         row,
         trace,
+        base: root.map(|r| r.checkpoint.as_ref().clone()),
         frames,
         stale,
     })
@@ -754,6 +762,7 @@ pub fn open_finding_cmds(ft: FindingTrace) -> Vec<NativeCmd> {
         NativeCmd::OpenTrace {
             trace: ft.trace,
             frames: ft.frames,
+            base: ft.base.map(Box::new),
         },
     ];
     cmds.extend(note.map(NativeCmd::Note));
@@ -1210,6 +1219,7 @@ mod tests {
         let ft = FindingTrace {
             row: row(3, "open", 1),
             trace,
+            base: None,
             frames: 0,
             stale: true,
         };
