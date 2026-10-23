@@ -378,6 +378,40 @@ fn ink(c: &Canvas) -> Vec<i16> {
 }
 
 #[test]
+fn start_toggles_mega_evolution_when_available() {
+    let g = game();
+    let mut w = loaded(&g);
+    let p = player();
+    let hash = |w: &BattleWindows| {
+        let mut h = crate::hash::Fnv64::new();
+        w.hash(&mut h);
+        h.finish()
+    };
+    // Unavailable: START does nothing, nothing extra is hashed.
+    w.move_menu(&g, &p, &mut Frame::default());
+    let plain = (ink(&w.move_type), hash(&w));
+    tick(&mut w, &g, Buttons::START);
+    assert!(!w.mega_armed());
+    assert_eq!((ink(&w.move_type), hash(&w)), plain);
+    // Available: START arms it (the type window says so), again disarms it.
+    w.move_menu_mega(&g, &p, true, &mut Frame::default());
+    assert_ne!(hash(&w), plain.1);
+    tick(&mut w, &g, Buttons::START);
+    assert!(w.mega_armed());
+    assert_ne!(ink(&w.move_type), plain.0);
+    tick(&mut w, &g, Buttons::START);
+    assert!(!w.mega_armed());
+    assert_eq!(ink(&w.move_type), plain.0);
+    tick(&mut w, &g, Buttons::START);
+    tick(&mut w, &g, Buttons::A);
+    assert_eq!(w.move_result(), Some(MoveChoice::Move(0)));
+    assert!(w.mega_armed());
+    // The next menu without a Mega forgets it.
+    w.move_menu(&g, &p, &mut Frame::default());
+    assert!(!w.mega_armed());
+}
+
+#[test]
 fn move_cursor_respects_the_move_count_and_redraws_pp_and_type() {
     let g = game();
     let mut w = loaded(&g);

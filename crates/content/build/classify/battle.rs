@@ -68,6 +68,56 @@ pub fn extra_move_flags(id: &str) -> u8 {
     }
 }
 
+/// Whether trainer mons get their `heldItem` (`TrainerMon::item`). **Off for Emerald**: the
+/// recorded route (parity, checkpoints) was played without trainer items, and a trainer that
+/// holds a berry or a Quick Claw changes its battle. Turning it on is a later, deliberate
+/// Emerald route change (re-baseline the parity route and the checkpoint tree).
+pub const TRAINER_HELD_ITEMS: bool = false;
+
+/// `ITEM_*` name -> `HoldEffect` expression (`src/data/items.h` `holdEffect` /
+/// `holdEffectParam`, `sHoldEffectToType`), for the hold effects the engine models; `None`
+/// for any other item.
+pub fn hold_effect(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "ITEM_ORAN_BERRY" => "HoldEffect::RestoreHp(10)",
+        "ITEM_SITRUS_BERRY" => "HoldEffect::RestoreHp(30)",
+        "ITEM_BERRY_JUICE" => "HoldEffect::RestoreHp(20)",
+        "ITEM_CHERI_BERRY" => "HoldEffect::CurePar",
+        "ITEM_CHESTO_BERRY" => "HoldEffect::CureSlp",
+        "ITEM_PECHA_BERRY" => "HoldEffect::CurePsn",
+        "ITEM_RAWST_BERRY" => "HoldEffect::CureBrn",
+        "ITEM_ASPEAR_BERRY" => "HoldEffect::CureFrz",
+        "ITEM_PERSIM_BERRY" => "HoldEffect::CureConfusion",
+        "ITEM_LUM_BERRY" => "HoldEffect::CureStatus",
+        "ITEM_LEFTOVERS" => "HoldEffect::Leftovers",
+        "ITEM_CHOICE_BAND" => "HoldEffect::ChoiceBand",
+        "ITEM_QUICK_CLAW" => "HoldEffect::QuickClaw(20)",
+        "ITEM_KINGS_ROCK" => "HoldEffect::KingsRock(10)",
+        "ITEM_BRIGHT_POWDER" => "HoldEffect::EvasionUp(10)",
+        "ITEM_LAX_INCENSE" => "HoldEffect::EvasionUp(5)",
+        "ITEM_FOCUS_BAND" => "HoldEffect::FocusBand(10)",
+        "ITEM_SILVER_POWDER" => "HoldEffect::TypePower(Type::Bug, 10)",
+        "ITEM_METAL_COAT" => "HoldEffect::TypePower(Type::Steel, 10)",
+        "ITEM_SOFT_SAND" => "HoldEffect::TypePower(Type::Ground, 10)",
+        "ITEM_HARD_STONE" => "HoldEffect::TypePower(Type::Rock, 10)",
+        "ITEM_MIRACLE_SEED" => "HoldEffect::TypePower(Type::Grass, 10)",
+        "ITEM_BLACK_GLASSES" => "HoldEffect::TypePower(Type::Dark, 10)",
+        "ITEM_BLACK_BELT" => "HoldEffect::TypePower(Type::Fighting, 10)",
+        "ITEM_MAGNET" => "HoldEffect::TypePower(Type::Electric, 10)",
+        "ITEM_MYSTIC_WATER" => "HoldEffect::TypePower(Type::Water, 10)",
+        "ITEM_SEA_INCENSE" => "HoldEffect::TypePower(Type::Water, 5)",
+        "ITEM_SHARP_BEAK" => "HoldEffect::TypePower(Type::Flying, 10)",
+        "ITEM_POISON_BARB" => "HoldEffect::TypePower(Type::Poison, 10)",
+        "ITEM_NEVER_MELT_ICE" => "HoldEffect::TypePower(Type::Ice, 10)",
+        "ITEM_SPELL_TAG" => "HoldEffect::TypePower(Type::Ghost, 10)",
+        "ITEM_TWISTED_SPOON" => "HoldEffect::TypePower(Type::Psychic, 10)",
+        "ITEM_CHARCOAL" => "HoldEffect::TypePower(Type::Fire, 10)",
+        "ITEM_DRAGON_FANG" => "HoldEffect::TypePower(Type::Dragon, 10)",
+        "ITEM_SILK_SCARF" => "HoldEffect::TypePower(Type::Normal, 10)",
+        _ => return None,
+    })
+}
+
 /// `ABILITY_*` name -> `Ability` expression; the abilities the engine does not implement are
 /// `Ability::Other`.
 pub fn ability(name: &str) -> &'static str {
@@ -113,9 +163,53 @@ pub fn ability(name: &str) -> &'static str {
         "ABILITY_CLEAR_BODY" => "Ability::ClearBody",
         "ABILITY_LIQUID_OOZE" => "Ability::LiquidOoze",
         "ABILITY_NATURAL_CURE" => "Ability::NaturalCure",
+        // Silice engine: Gen3 abilities that Emerald species have, gated.
+        "ABILITY_DROUGHT" if GEN3_EXTRA_ABILITIES => "Ability::Drought",
+        "ABILITY_DRIZZLE" if GEN3_EXTRA_ABILITIES => "Ability::Drizzle",
+        "ABILITY_SAND_STREAM" if GEN3_EXTRA_ABILITIES => "Ability::SandStream",
+        "ABILITY_SPEED_BOOST" if GEN3_EXTRA_ABILITIES => "Ability::SpeedBoost",
+        "ABILITY_SHADOW_TAG" if SILICE_ABILITY_RULES => "Ability::ShadowTagGen4",
+        "ABILITY_SHADOW_TAG" if GEN3_EXTRA_ABILITIES => "Ability::ShadowTag",
+        "ABILITY_LEVITATE" if GEN3_EXTRA_ABILITIES => "Ability::Levitate",
+        "ABILITY_SHELL_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::ShellArmor",
+        "ABILITY_BATTLE_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::BattleArmor",
+        "ABILITY_SAND_VEIL" if GEN3_EXTRA_ABILITIES => "Ability::SandVeil",
+        // Gen3's Lightning Rod only redirects in doubles: nothing in singles (`Other`).
+        "ABILITY_LIGHTNING_ROD" if SILICE_ABILITY_RULES => "Ability::LightningRod",
+        // Post-Gen3 (no Emerald species has them).
+        "ABILITY_PRIMORDIAL_SEA" => "Ability::PrimordialSea",
+        "ABILITY_DESOLATE_LAND" => "Ability::DesolateLand",
+        "ABILITY_AERILATE" => "Ability::Aerilate",
+        "ABILITY_PIXILATE" => "Ability::Pixilate",
+        "ABILITY_REFRIGERATE" => "Ability::Refrigerate",
+        "ABILITY_TOUGH_CLAWS" => "Ability::ToughClaws",
+        "ABILITY_MAGIC_BOUNCE" => "Ability::MagicBounce",
+        "ABILITY_PARENTAL_BOND" => "Ability::ParentalBond",
+        "ABILITY_MOLD_BREAKER" => "Ability::MoldBreaker",
+        "ABILITY_TECHNICIAN" => "Ability::Technician",
+        "ABILITY_SKILL_LINK" => "Ability::SkillLink",
+        "ABILITY_SAND_FORCE" => "Ability::SandForce",
+        "ABILITY_SOLAR_POWER" => "Ability::SolarPower",
+        "ABILITY_FILTER" => "Ability::Filter",
+        "ABILITY_PRANKSTER" => "Ability::Prankster",
+        "ABILITY_STEADFAST" => "Ability::Steadfast",
         _ => "Ability::Other",
     }
 }
+
+/// Whether the Gen3 abilities the Silice engine added (Drought, Drizzle, Sand Stream, Speed
+/// Boost, Shadow Tag, Levitate, Shell / Battle Armor, Sand Veil) act for Emerald's
+/// species, with their Gen3 behaviour. **Off**: Torkoal, Tyranitar, Ninjask, Wobbuffet, the
+/// Levitate ghosts … would change the recorded route; turning it on is a later Emerald route
+/// change (re-baseline parity and the checkpoint tree). Gen3's Lightning Rod stays `Other`
+/// (a doubles redirect). Rain Dish is mapped as before: only these bring rain. Not modelled: Cloud Nine, Air Lock (weather suppression), Sand
+/// Veil's overworld encounter halving.
+pub const GEN3_EXTRA_ABILITIES: bool = false;
+
+/// The Silice game's later-generation rules for Gen3 abilities: Lightning Rod's Gen5 absorb,
+/// Shadow Tag's Gen4 exemption. **Off** for Emerald (not Gen3 behaviour); the Silice content
+/// turns it on.
+pub const SILICE_ABILITY_RULES: bool = false;
 
 /// The `Stat` of a `battle_move_effects.h` stat word.
 fn effect_stat(s: &str) -> Option<&'static str> {
@@ -226,6 +320,9 @@ pub enum StrSrc {
     /// `gAbilityNames` (`battle/types.ron` `ability_names`), by `Ability` (through
     /// [`ability`]); `Ability::Other` stands for many abilities and has no name (empty).
     AbilityNames,
+    /// No Gen3 string (the post-Gen3 messages of the Silice engine): empty for Emerald, left
+    /// out of `ALL_STRS`.
+    Missing,
 }
 
 /// Every `battle::Str` variant (as a `match` pattern) and its source. The build writes one
@@ -422,5 +519,62 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("PreventedFromWorking", Key("STRINGID_PREVENTEDFROMWORKING")),
         ("ItSuckedLiquidOoze", Key("STRINGID_ITSUCKEDLIQUIDOOZE")),
         ("PlayerGotMoney", Key("STRINGID_PLAYERGOTMONEY")),
+        // Silice engine: held items, weather, abilities.
+        (
+            "ItemRestoredHealth",
+            Key("STRINGID_PKMNSITEMRESTOREDHEALTH"),
+        ),
+        (
+            "ItemRestoredHpALittle",
+            Key("STRINGID_PKMNSITEMRESTOREDHPALITTLE"),
+        ),
+        (
+            "ItemCuredParalysis",
+            Key("STRINGID_PKMNSITEMCUREDPARALYSIS"),
+        ),
+        ("ItemCuredPoison", Key("STRINGID_PKMNSITEMCUREDPOISON")),
+        ("ItemHealedBurn", Key("STRINGID_PKMNSITEMHEALEDBURN")),
+        ("ItemDefrostedIt", Key("STRINGID_PKMNSITEMDEFROSTEDIT")),
+        ("ItemWokeIt", Key("STRINGID_PKMNSITEMWOKEIT")),
+        ("ItemSnappedOut", Key("STRINGID_PKMNSITEMSNAPPEDOUT")),
+        ("ItemCuredProblem", Key("STRINGID_PKMNSITEMCUREDPROBLEM")),
+        (
+            "ItemNormalizedStatus",
+            Key("STRINGID_PKMNSITEMNORMALIZEDSTATUS"),
+        ),
+        ("HungOnWithX", Key("STRINGID_PKMNHUNGONWITHX")),
+        ("IntensifiedSun", Key("STRINGID_PKMNSXINTENSIFIEDSUN")),
+        (
+            "WhippedUpSandstorm",
+            Key("STRINGID_PKMNSXWHIPPEDUPSANDSTORM"),
+        ),
+        ("MadeItRain", Key("STRINGID_PKMNMADEITRAIN")),
+        ("RainContinues", Key("STRINGID_RAINCONTINUES")),
+        ("SunlightStrong", Key("STRINGID_SUNLIGHTSTRONG")),
+        ("SandstormRages", Key("STRINGID_SANDSTORMRAGES")),
+        (
+            "BuffetedBySandstorm",
+            Key("STRINGID_PKMNBUFFETEDBYSANDSTORM"),
+        ),
+        ("RaisedSpeed", Key("STRINGID_PKMNRAISEDSPEED")),
+        ("MakesGroundMiss", Key("STRINGID_PKMNMAKESGROUNDMISS")),
+        (
+            "AbilityRestoredHp",
+            Key("STRINGID_PKMNSXRESTOREDHPALITTLE2"),
+        ),
+        // Post-Gen3: no Gen3 string.
+        ("MegaReacting", Missing),
+        ("MegaEvolved", Missing),
+        ("PrimalReversion", Missing),
+        ("HeavyRainBegan", Missing),
+        ("HarshSunBegan", Missing),
+        ("HeavyRainLifted", Missing),
+        ("HarshSunFaded", Missing),
+        ("FizzledInRain", Missing),
+        ("EvaporatedInSun", Missing),
+        ("BreaksTheMold", Missing),
+        ("BouncedBack", Missing),
+        ("MegaArmed", Missing),
+        ("SolarPowerHurt", Missing),
     ]
 };

@@ -291,6 +291,7 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
         b.battler_mut(a).v.unable = true;
         cancel_multi_turn(b, a);
         env.out.push(about_attacker(u, Str::PkmnFlinched));
+        super::later::steadfast(b, env, a);
         return Canceler::Skip;
     }
     // CANCELLER_CONFUSED: the counter drops first; then a 50% self-hit.
@@ -348,8 +349,9 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
 }
 
 /// `BattleScript_DoSelfConfusionDmg`: `CalculateBaseDamage(attacker, attacker, MOVE_POUND, 40
-/// power, Normal)` with `adjustnormaldamage2`'s random roll (no crit, no type), on the
-/// attacker. Recorded as move damage (`gBideDmg`), as Gen3's `datahpupdate`.
+/// power, Normal)` with `adjustnormaldamage2`'s random roll (no crit, no type) and the
+/// attacker's own Focus Band (the target is the attacker), on the attacker. Recorded as move
+/// damage (`gBideDmg`), as Gen3's `datahpupdate`.
 fn confusion_self_hit(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     let a = u.attacker;
     cancel_multi_turn(b, a);
@@ -358,12 +360,22 @@ fn confusion_self_hit(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         calc::base_damage(&f, &f, 40, Type::Normal, false),
         env.rng.random(),
     );
+    let (damage, hung) = b.focus_band(env, a, damage, Effectiveness::Normal);
     env.out.push(about_attacker(u, Str::PkmnHurtItself));
     env.out.push(BattleEvent::Hit {
         target: a,
         eff: Effectiveness::Normal,
     });
-    b.change_hp(env, a, damage);
+    let hp_dealt = b.change_hp(env, a, damage);
+    // resultmessage: MOVE_RESULT_FOE_HUNG_ON.
+    let r = HitResult {
+        damage,
+        hp_dealt,
+        crit: false,
+        eff: Effectiveness::Normal,
+        hung,
+    };
+    b.hung_on(env, &MoveUse { target: a, ..*u }, &r);
     b.try_faint(env, a);
 }
 
@@ -392,11 +404,15 @@ fn bide_release(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
     } else {
         Effectiveness::Normal
     };
+    // adjustsetdamage.
+    let stored = stored.saturating_mul(2).min(i32::MAX as u32) as i32;
+    let (damage, hung) = b.focus_band(env, u.target, stored, eff);
     let r = HitResult {
-        damage: stored.saturating_mul(2).min(i32::MAX as u32) as i32,
+        damage,
         hp_dealt: 0,
         crit: false,
         eff,
+        hung,
     };
     let r = b.deal(env, &u, r);
     b.try_faint(env, u.target);
@@ -416,6 +432,9 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
         let foe = side.other();
         // ENDTURN_ABILITIES.
         super::abilities::end_turn(b, env, side);
+        super::later::end_turn(b, env, side);
+        // ENDTURN_ITEMS1.
+        super::items::end_turn(b, env, side, true);
         // ENDTURN_LEECH_SEED: BattleScript_LeechSeedTurnDrain.
         let m = b.battler(side);
         if m.seeded && m.mon.hp != 0 && b.battler(foe).mon.hp != 0 {
@@ -467,6 +486,8 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
         m.charge = m.charge.saturating_sub(1);
         // ENDTURN_YAWN.
         yawn_turn(b, env, side);
+        // ENDTURN_ITEMS2.
+        super::items::end_turn(b, env, side, false);
     }
 }
 

@@ -92,7 +92,8 @@ impl BattleScene {
             },
             Menu::Action => match w.action_result() {
                 Some(Action::Fight) => {
-                    w.move_menu(game, battle.mon(Side::Player), f);
+                    let mega = battle.can_mega(Side::Player);
+                    w.move_menu_mega(game, battle.mon(Side::Player), mega, f);
                     self.menu = Menu::Move;
                 }
                 Some(Action::Run) => {
@@ -108,6 +109,9 @@ impl BattleScene {
             Menu::Move => match w.move_result() {
                 Some(MoveChoice::Move(slot)) => {
                     self.menu = Menu::None;
+                    if w.mega_armed() {
+                        return Some(Choice::Mega(slot));
+                    }
                     return Some(Choice::Move(slot));
                 }
                 Some(MoveChoice::Back) => {

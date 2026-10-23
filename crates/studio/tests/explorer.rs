@@ -1,20 +1,19 @@
 //! M7 Task S1: the Explorer core on temp dbs filled through the explore API (`ExplorerModel`,
 //! `CoverageGrid`, `finding_trace`), `NativeCmd::OpenTrace` against a straight replay, and the
-//! coverage overlay's heat buckets. Every db and store lives in a temp dir.
+//! coverage overlay's heat buckets. Every db and store lives in a temp dir. M8 Task S: a
+//! finding of a `--from` db opens from the db's root node.
 
 use content::Emerald;
 use engine::data::{GameData, MapId};
 use explore::config::{Budget, Config};
 use explore::testing::{FadeTrap, INJECTED_PANIC, PanicOnScript, WallAround};
 use explore::wire::Explore;
-use explore::{FindingKind, NodeStatus, findings};
+use explore::{FindingDraft, FindingKind, GenerationDelta, NodeStatus, findings};
 use game_native::Session;
-use game_native::checkpoints::Materializer;
 use game_native::store::{Status, Store};
 use game_native::trace::{Parent, Run, Trace};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
 use studio::explorer::{self, CoverageGrid, ExplorerModel, OPEN_BEFORE, sort_findings};
 use studio::map_view::{HEAT_CLASSES, coverage_paths, heat_bucket};
 use studio::native::{EventKind, NativeCmd, NativePane, open_trace};
@@ -75,8 +74,7 @@ fn fade_trapped(far: i16) -> FadeTrap<Emerald> {
 
 fn pane(local: &Path) -> (NativePane, Store) {
     let store = Store::layered(Store::default_root(content::STUB), local).unwrap();
-    let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 8)));
-    (NativePane::new(store.clone(), m), store)
+    (NativePane::new(store.clone()), store)
 }
 
 /// Frame and hash after the trace's first `frames` frames from a new game.
@@ -97,6 +95,7 @@ fn open_and_save(trace: &Trace, frames: u32, tag: &str) {
     p.handle(NativeCmd::OpenTrace {
         trace: trace.clone(),
         frames,
+        base: None,
     });
     let s = p.status();
     let (frame, hash) = straight(trace, frames);
@@ -251,6 +250,7 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
     p.handle(NativeCmd::OpenTrace {
         trace: trace.clone(),
         frames: u32::MAX,
+        base: None,
     });
     let s = p.status();
     assert_eq!((s.frame, s.hash), straight(&trace, trace.frames()));
@@ -260,6 +260,7 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
     p.handle(NativeCmd::OpenTrace {
         trace: other,
         frames: 10,
+        base: None,
     });
     let after = p.status();
     assert!(after.last.contains("failed"), "{}", after.last);
@@ -270,9 +271,169 @@ fn a_node_lineage_opens_at_frame_before_at_a_straight_replay_hash() {
     p.handle(NativeCmd::OpenTrace {
         trace: bent.clone(),
         frames: bent.hashes[0].0,
+        base: None,
     });
     assert!(p.status().last.contains("diverged"), "{}", p.status().last);
     let _ = std::fs::remove_dir_all(local);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// M8 Task S: a finding of a `--from` db is a trace whose parent is the db's root node. It opens
+/// in the native pane from the root's state (given by the explorer, or materialized by the
+/// pane's own materializer when not given), lands on a straight replay from that state, and a
+/// save from there is a valid node under the root.
+#[test]
+fn a_from_db_finding_opens_from_its_root_node() {
+    let dir = temp_dir("from");
+    let store = Store::layered(Store::default_root(content::STUB), dir.join("local")).unwrap();
+    // The shortest committed node below a new game.
+    let Some(root) = (store.nodes().unwrap().into_iter())
+        .filter(|n| n.trace.parent == Parent::NewGame)
+        .min_by_key(|n| (n.meta.frame, n.meta.id))
+    else {
+        println!("skipped: no committed nodes");
+        return;
+    };
+    let path = dir.join("explore.db");
+    let mut ex = match Explore::open_from(
+        Emerald::for_shells(),
+        &path,
+        Config::default(),
+        &store,
+        &root.meta.id.to_string(),
+    ) {
+        Ok(ex) => ex,
+        Err(e) => {
+            println!("skipped: {e:#}");
+            return;
+        }
+    };
+    // One finding on the root start: 90 idle frames.
+    const TAIL: u32 = 90;
+    let draft = FindingDraft {
+        kind: FindingKind::Softlock,
+        message: "test finding".into(),
+        location: None,
+        macro_: None,
+        tail: vec![Run {
+            keys: engine::Buttons::NONE,
+            frames: TAIL,
+        }],
+        map: root.meta.map,
+        pos: (0, 0),
+        script: None,
+        log: Vec::new(),
+    };
+    let total = u64::from(root.meta.frame + TAIL);
+    (ex.db.apply(&GenerationDelta {
+        generation: 1,
+        findings: vec![(draft, None, total)],
+        ..GenerationDelta::default()
+    }))
+    .unwrap();
+    let id = ex.db.findings().unwrap()[0].id;
+    drop(ex);
+
+    let db = explorer::open(&path).unwrap();
+    let ft = explorer::finding_trace(&db, id, 30).unwrap();
+    assert_eq!(ft.trace.parent, Parent::Checkpoint(root.meta.id));
+    assert_eq!(ft.trace.start_frame, root.meta.frame);
+    assert_eq!((ft.trace.frames(), ft.frames), (TAIL, TAIL - 30));
+    let base = ft.base.clone().expect("the root's state");
+    assert_eq!(base.header.frame, root.meta.frame);
+    // A straight replay from the root's state.
+    let mut s = Session::restore(Emerald::for_shells(), &base).unwrap();
+    for k in ft.trace.keys().take(ft.frames as usize) {
+        s.step(k);
+    }
+    let want = (s.world().frame(), s.world().hash());
+
+    // Given by the explorer, and materialized by the pane.
+    for given in [true, false] {
+        let local = temp_dir("from-pane");
+        let (mut p, pstore) = pane(&local);
+        let mut cmds = explorer::open_finding_cmds(ft.clone());
+        if !given {
+            for c in &mut cmds {
+                if let NativeCmd::OpenTrace { base, .. } = c {
+                    *base = None;
+                }
+            }
+        }
+        for c in cmds {
+            p.handle(c);
+        }
+        let st = p.status();
+        assert_eq!((st.frame, st.hash), want, "{}", st.last);
+        assert_eq!(st.parent, Parent::Checkpoint(root.meta.id));
+        assert_eq!(st.trace_frames, ft.frames);
+        assert!(!st.last.contains("failed"), "{}", st.last);
+        assert!(!st.last.contains("no parent here"), "{}", st.last);
+        assert_eq!(p.materialized(), usize::from(!given), "given: {given}");
+        if given {
+            // A save is a valid node under the root.
+            p.handle(NativeCmd::Save);
+            for _ in 0..3000 {
+                if p.status().saved.is_some() {
+                    break;
+                }
+                p.handle(NativeCmd::Step(1));
+                p.tick();
+            }
+            let saved = p.status().saved.expect("saved once capturable");
+            let node = pstore.find(&saved.to_string()).unwrap();
+            assert_eq!(node.trace.parent, Parent::Checkpoint(root.meta.id));
+            let verdicts = pstore
+                .verify(
+                    game_native::checkpoints::replayer(&Emerald::for_shells()),
+                    false,
+                )
+                .unwrap();
+            let v = verdicts.iter().find(|v| v.0 == saved).expect("verified");
+            assert_eq!(v.1, Status::Valid);
+        }
+        let _ = std::fs::remove_dir_all(local);
+    }
+    // A wrong parent state is refused; the pane keeps its session.
+    let local = temp_dir("from-wrong");
+    let (mut p, _) = pane(&local);
+    let mut wrong = base.clone();
+    wrong.header.frame += 1;
+    p.handle(NativeCmd::OpenTrace {
+        trace: ft.trace.clone(),
+        frames: 10,
+        base: Some(Box::new(wrong)),
+    });
+    let st = p.status();
+    assert!(st.last.contains("failed"), "{}", st.last);
+    assert_eq!((st.frame, st.parent), (0, Parent::NewGame));
+    let _ = std::fs::remove_dir_all(local);
+
+    // The db's root id names another state in the studio's store (the root came from another
+    // store): the trace opens from the given state, with a note that a save has no parent.
+    if let Some(other) = (store.nodes().unwrap().into_iter())
+        .find(|n| n.meta.id != root.meta.id && n.meta.digest != root.meta.digest)
+    {
+        let local = temp_dir("from-other");
+        let (mut p, _) = pane(&local);
+        let mut renamed = ft.trace.clone();
+        renamed.parent = Parent::Checkpoint(other.meta.id);
+        p.handle(NativeCmd::OpenTrace {
+            trace: renamed,
+            frames: ft.frames,
+            base: Some(Box::new(base.clone())),
+        });
+        let st = p.status();
+        assert_eq!((st.frame, st.hash), want, "{}", st.last);
+        assert!(
+            st.last.contains("another state") && st.last.contains("no parent here"),
+            "{}",
+            st.last
+        );
+        let _ = std::fs::remove_dir_all(local);
+    } else {
+        println!("skipped the other-state case: one committed node");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -290,7 +451,7 @@ fn a_panicking_replay_is_an_error_not_a_dead_pane() {
         hashes: Vec::new(),
         ..findings::repro_trace(&Emerald::for_shells(), &[], &[]).unwrap()
     };
-    let e = open_trace(game, empty, 0).err().expect("panics");
+    let e = open_trace(game, empty, None, 0).err().expect("panics");
     assert!(e.contains(INJECTED_PANIC), "{e}");
 }
 

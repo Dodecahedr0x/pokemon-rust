@@ -17,7 +17,7 @@
 //! the clock or the store's location, so writing the same node twice gives the same bytes.
 
 use crate::trace::{CheckpointId, HashMismatch, Parent, ReplayReport, TRACE_SCHEMA, Trace};
-use engine::checkpoint::{BuildHash, Checkpoint, SCHEMA, WorldSnapshot};
+use engine::checkpoint::{BuildHash, Checkpoint, SCHEMA, WorldSnapshot, schema_readable};
 use engine::data::MapId;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -788,7 +788,7 @@ impl Store {
 
     fn cached(path: &Path) -> Result<Option<Checkpoint>, StoreError> {
         match read_ron::<Checkpoint>(path) {
-            Ok(cp) => Ok((cp.header.schema == SCHEMA).then_some(cp)),
+            Ok(cp) => Ok(schema_readable(cp.header.schema).then_some(cp)),
             Err(StoreError::Parse { .. }) => Ok(None),
             Err(StoreError::Io(e))
                 if matches!(
@@ -870,7 +870,7 @@ impl Store {
     ///
     /// Each trace replays from its parent's state *of this run* (`None` for a new game):
     /// - a Broken parent (or a replayer error) makes the node Broken, without replaying it;
-    /// - `meta.schema != SCHEMA` is Stale;
+    /// - a `meta.schema` this build cannot read (`schema_readable`) is Stale;
     /// - a trace of another `TRACE_SCHEMA` is Broken, without replaying it;
     /// - an equal `state_digest` is Valid (its snapshot is cached), unless the node was recorded
     ///   on this build and the replay's world hash or periodic hashes differ from the recorded
@@ -927,7 +927,7 @@ impl Store {
                             ..node.trace.clone()
                         },
                     };
-                    let status = if node.meta.schema != SCHEMA {
+                    let status = if !schema_readable(node.meta.schema) {
                         Status::Stale {
                             schema: node.meta.schema,
                         }

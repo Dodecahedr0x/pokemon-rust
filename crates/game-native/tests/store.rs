@@ -182,6 +182,7 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
         money: 0,
         str_vars: Default::default(),
         warp_slots: Default::default(),
+        party_held: Vec::new(),
     };
     Checkpoint {
         header: Header {

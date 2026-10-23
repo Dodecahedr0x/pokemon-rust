@@ -7,6 +7,7 @@ pub mod explorer; // M7 Task S1
 pub mod frames; // Wave 0 spike
 pub mod keys; // Task G
 pub mod map_edit; // SIL1 Task C (the Silice plan)
+pub mod map_picker; // M8 Task S
 pub mod map_view; // Task E
 pub mod native; // Task C
 pub mod pane; // Wave 0 spike (the trait below is the contract)
