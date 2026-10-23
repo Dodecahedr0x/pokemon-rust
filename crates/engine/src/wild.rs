@@ -1,5 +1,5 @@
-//! Wild encounters, as Gen3 `wild_encounter.c` (land only: no water, rocks or fishing; no
-//! roamers or mass outbreaks, which only exist after the Elite Four).
+//! Wild encounters, as Gen3 `wild_encounter.c`: land, water (surfing, Wave C) and rock smash
+//! (no fishing; no roamers or mass outbreaks, which only exist after the Elite Four).
 //!
 //! Every `Random()` of the Gen3 path is one `rng.random()` here, in the same order. The lead is
 //! `gPlayerParty[0]` (fainted or not, as Gen3; the engine has no eggs, so Gen3's egg tests never
@@ -28,7 +28,9 @@
 //!   RNG draw in between (Gen3 `TryGenerateWildMon` → `CreateWildMon`).
 
 use crate::data::{Behavior, SpeciesId};
-use crate::mon::{Ability, BattleTables, HoldEffect, Ivs, LandEncounters, Pokemon, Type, WildMon};
+use crate::mon::{
+    Ability, BattleTables, HoldEffect, Ivs, LandEncounters, Pokemon, Type, WaterEncounters, WildMon,
+};
 use crate::rng::Rng;
 
 /// Gen3 `MAX_ENCOUNTER_RATE`: the odds denominator of `WildEncounterCheck`.
@@ -36,6 +38,18 @@ pub const MAX_ENCOUNTER_RATE: u32 = 2880;
 
 /// Cumulative `ENCOUNTER_CHANCE_LAND_MONS_SLOT_*` thresholds (20/20/10/10/10/10/5/5/4/4/1/1).
 const LAND_SLOT_THRESHOLDS: [u8; 12] = [20, 40, 50, 60, 70, 80, 85, 90, 94, 98, 99, 100];
+
+/// Cumulative `ENCOUNTER_CHANCE_WATER_MONS_SLOT_*` thresholds (60/30/5/4/1), also rock smash's.
+const WATER_SLOT_THRESHOLDS: [u8; 5] = [60, 90, 95, 99, 100];
+
+/// Gen3 `ChooseWildMonIndex_WaterRock` for one `Random()` value.
+pub fn water_slot(roll: u16) -> usize {
+    let r = (roll % 100) as u8;
+    WATER_SLOT_THRESHOLDS
+        .iter()
+        .position(|&t| r < t)
+        .unwrap_or(4)
+}
 
 /// Gen3 `ChooseWildMonIndex_Land` for one `Random()` value.
 pub fn land_slot(roll: u16) -> usize {
@@ -81,10 +95,18 @@ impl Lead {
 /// Gen3 `WildEncounterCheck`'s odds out of `MAX_ENCOUNTER_RATE` for a table's `rate` and the
 /// lead (no bike, flute or sandstorm: see the module doc). Integer steps as Gen3 (`u32`).
 pub fn encounter_rate(rate: u8, lead: Lead) -> u32 {
+    encounter_rate_with(rate, lead, false)
+}
+
+/// `WildEncounterCheck(rate, ignoreAbility)`: rock smash ignores the lead's ability.
+fn encounter_rate_with(rate: u8, lead: Lead, ignore_ability: bool) -> u32 {
     let mut r = rate as u32 * 16;
     // ApplyCleanseTagEncounterRateMod.
     if lead.cleanse_tag {
         r = r * 2 / 3;
+    }
+    if ignore_ability {
+        return r.min(MAX_ENCOUNTER_RATE);
     }
     match lead.ability {
         Ability::Stench | Ability::WhiteSmoke => r /= 2,
@@ -134,14 +156,25 @@ pub fn try_land_encounter_repel(
         return None;
     }
     let ability = lead.ability;
-    let slot = match ability_slot(table, ability, Ability::MagnetPull, Type::Steel, t, rng)
-        .or_else(|| ability_slot(table, ability, Ability::Static, Type::Electric, t, rng))
+    let mons = &table.mons[..];
+    let slot = match ability_slot(mons, ability, Ability::MagnetPull, Type::Steel, t, rng)
+        .or_else(|| ability_slot(mons, ability, Ability::Static, Type::Electric, t, rng))
     {
         Some(i) => i,
         None => land_slot(rng.random()),
     };
-    let mon = table.mons[slot];
-    let level = wild_level(&mon, ability, rng);
+    level_and_filters(&table.mons[slot], lead, rng, repel)
+}
+
+/// `TryGenerateWildMon` after the slot: the level, the repel, then Keen Eye / Intimidate.
+fn level_and_filters(
+    mon: &WildMon,
+    lead: Lead,
+    rng: &mut Rng,
+    repel: impl FnOnce(u8) -> bool,
+) -> Option<(SpeciesId, u8)> {
+    let ability = lead.ability;
+    let level = wild_level(mon, ability, rng);
     if repel(level) {
         return None;
     }
@@ -155,11 +188,57 @@ pub fn try_land_encounter_repel(
     Some((mon.species, level))
 }
 
+/// One surfing step (Gen3 `StandardWildEncounter`'s water branch): only on a
+/// [`Behavior::water_encounter`] cell; the new-metatile 60% gate, `WildEncounterCheck`, the slot
+/// (a Static lead picks an Electric slot half the time, else `ChooseWildMonIndex_WaterRock`),
+/// the level, the repel and Keen Eye / Intimidate, as on land. (Gen3 also takes the water
+/// branch on a bridge over water while surfing, `MetatileBehavior_IsBridgeOverWater`: bridges
+/// are not told apart here, so they roll nothing.)
+pub fn try_water_encounter(
+    table: &WaterEncounters,
+    prev: Behavior,
+    cur: Behavior,
+    lead: Lead,
+    t: &BattleTables,
+    rng: &mut Rng,
+    repel: impl FnOnce(u8) -> bool,
+) -> Option<(SpeciesId, u8)> {
+    if !cur.water_encounter() {
+        return None;
+    }
+    if prev != cur && rng.random() % 100 >= 60 {
+        return None;
+    }
+    if rng.random() as u32 % MAX_ENCOUNTER_RATE >= encounter_rate(table.rate, lead) {
+        return None;
+    }
+    let mons = &table.mons[..];
+    let slot = ability_slot(mons, lead.ability, Ability::Static, Type::Electric, t, rng)
+        .unwrap_or_else(|| water_slot(rng.random()));
+    level_and_filters(&table.mons[slot], lead, rng, repel)
+}
+
+/// Gen3 `RockSmashWildEncounter` after the header lookup: `WildEncounterCheck(rate, TRUE)` (no
+/// ability modifier), then `TryGenerateWildMon(…, WILD_AREA_ROCKS, …)`: the water/rock slot,
+/// the level, the repel and Keen Eye / Intimidate.
+pub fn try_rock_smash_encounter(
+    table: &WaterEncounters,
+    lead: Lead,
+    rng: &mut Rng,
+    repel: impl FnOnce(u8) -> bool,
+) -> Option<(SpeciesId, u8)> {
+    if rng.random() as u32 % MAX_ENCOUNTER_RATE >= encounter_rate_with(table.rate, lead, true) {
+        return None;
+    }
+    let slot = water_slot(rng.random());
+    level_and_filters(&table.mons[slot], lead, rng, repel)
+}
+
 /// Gen3 `TryGetAbilityInfluencedWildMonIndex(…, ty, want, …)`: a lead with `want` picks a slot
 /// of type `ty` half the time, uniformly, unless none or all are of that type. A lead without
 /// `want` draws nothing.
 fn ability_slot(
-    table: &LandEncounters,
+    mons: &[WildMon],
     ability: Ability,
     want: Ability,
     ty: Type,
@@ -171,13 +250,13 @@ fn ability_slot(
     }
     let mut valid = [0usize; 12];
     let mut count = 0;
-    for (i, m) in table.mons.iter().enumerate() {
+    for (i, m) in mons.iter().enumerate() {
         if t.species_info(m.species).types.contains(&ty) {
             valid[count] = i;
             count += 1;
         }
     }
-    if count == 0 || count == table.mons.len() {
+    if count == 0 || count == mons.len() {
         return None;
     }
     Some(valid[rng.random() as usize % count])

@@ -803,6 +803,14 @@ pub struct LandEncounters {
     pub mons: [WildMon; 12],
 }
 
+/// `gWildMonHeaders[].waterMonsInfo` and `rockSmashMonsInfo`: a rate and 5 slots (Gen3
+/// `WATER_WILD_COUNT`, `ROCK_WILD_COUNT`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct WaterEncounters {
+    pub rate: u8,
+    pub mons: [WildMon; 5],
+}
+
 /// All battle data tables.
 #[derive(Clone, Copy, Debug)]
 pub struct BattleTables {

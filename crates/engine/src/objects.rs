@@ -90,6 +90,9 @@ pub enum PlayerEvent {
     StepFinished { at: (i16, i16) },
     /// Walked into something: walks in place slowly (Gen3 `PlayerNotOnBikeCollide`).
     Bumped(Dir),
+    /// Pushed a boulder with Strength (Gen3 `COLLISION_PUSHED_BOULDER`): walks in place
+    /// slowly while the boulder moves.
+    PushedBoulder(Dir),
 }
 
 /// Result of a collision test (Gen3 `COLLISION_*` subset).
@@ -555,6 +558,15 @@ pub struct Objects {
     // ---- Wave C ----
     /// Virtual objects (`createvobject`; [`virtual_obj`]).
     virtuals: Vec<virtual_obj::VirtualObject>,
+    // ---- Wave C: field moves ----
+    /// Gen3 `PLAYER_AVATAR_FLAG_SURFING`: the player moves on water at `walk_fast`, and a step
+    /// onto land dismounts ([`Objects::update_player`]). Set by the Surf field effect
+    /// (`world/field_move.rs`). Hashed and snapshotted only while set.
+    surfing: bool,
+    /// The graphics of objects the player pushes with Strength, while it is in use (Gen3
+    /// `FLAG_SYS_USE_STRENGTH` and `OBJ_EVENT_GFX_PUSHABLE_BOULDER`). Set by the World before
+    /// each `update_player` from the flag: derived state, neither hashed nor snapshotted.
+    pushable: Option<GfxId>,
 }
 
 pub use virtual_obj::{VIRTUAL_MAX, VirtualObject};
@@ -578,7 +590,56 @@ impl Objects {
             approach: None,
             forced: ForcedState::Free,
             virtuals: Vec::new(),
+            surfing: false,
+            pushable: None,
         }
+    }
+
+    /// Whether the player surfs (Gen3 `PLAYER_AVATAR_FLAG_SURFING`).
+    pub fn surfing(&self) -> bool {
+        self.surfing
+    }
+
+    /// Sets or clears the surfing state (the Surf field effect, a warp's arrival).
+    pub fn set_surfing(&mut self, on: bool) {
+        self.surfing = on;
+    }
+
+    /// Sets the graphics the player pushes this frame ([`Objects::update_player`]'s Strength
+    /// push), or `None` while Strength is not in use.
+    pub fn set_pushable(&mut self, gfx: Option<GfxId>) {
+        self.pushable = gfx;
+    }
+
+    /// Gen3 `TryPushBoulder`: the player walks into a pushable object (`pushable`) whose
+    /// next cell on is free (`GetCollisionAtCoords == COLLISION_NONE` for the boulder, and not
+    /// `MetatileBehavior_IsNonAnimDoor`). Returns the boulder's slot.
+    fn boulder_ahead(&self, terrain: &impl Terrain, dir: Dir) -> Option<usize> {
+        let g = self.pushable?;
+        let p = &self.objs[0];
+        let (dx, dy) = dir.delta();
+        let (tx, ty) = (p.x + dx, p.y + dy);
+        let i = (self.objs.iter().enumerate().skip(1)).find_map(|(i, o)| {
+            ((o.x, o.y) == (tx, ty)
+                && o.gfx == Some(g)
+                && elevations_compatible(p.elevation, o.elevation))
+            .then_some(i)
+        })?;
+        let beyond = terrain.behavior(tx + dx, ty + dy);
+        (self.objs[i].is_settled()
+            && self.collision_at(terrain, i, dir) == Collision::None
+            && !matches!(beyond, Behavior::NonAnimDoor(_)))
+        .then_some(i)
+    }
+
+    /// The player starts a one-cell jump towards `dir` (Gen3 `GetJumpSpecialMovementAction`:
+    /// the Surf field effect's jump onto the water). Its end is no step (`update_player`'s
+    /// `StepFinished` is for keypad and forced steps); the caller waits for
+    /// [`Object::is_settled`].
+    pub fn jump_player(&mut self, dir: Dir) {
+        let o = &mut self.objs[0];
+        o.action = None;
+        o.begin(ActionKind::Jump(1), dir);
     }
 
     /// The current map.
@@ -923,6 +984,15 @@ impl Objects {
             .then_some((step, ledge))
     }
 
+    /// Gen3 `CanStopSurfing`: surfing, the land cell (x, y) is elevation 3 and no object
+    /// stands there at elevation 3 (`GetObjectEventIdByPosition(x, y, 3)`).
+    fn can_stop_surfing(&self, terrain: &impl Terrain, x: i16, y: i16) -> bool {
+        self.surfing
+            && block_elevation(terrain.block(x, y)) == 3
+            && !(self.objs.iter().skip(1))
+                .any(|o| (o.x, o.y) == (x, y) && elevations_compatible(o.elevation, 3))
+    }
+
     /// Player control for one frame, as Gen3 `PlayerStep`: forced movement
     /// ([`forced`]), else `MovePlayerNotOnBike`. Does nothing while the player runs a movement
     /// script (`update` plays it).
@@ -1014,11 +1084,31 @@ impl Objects {
                 dir,
             };
         }
-        if self.collision_at(terrain, 0, dir) != Collision::None {
+        let collision = self.collision_at(terrain, 0, dir);
+        if collision == Collision::ElevationMismatch && self.can_stop_surfing(terrain, tx, ty) {
+            // Gen3 `CanStopSurfing` / `CreateStopSurfingTask`: off the water, a jump special
+            // onto the land cell; the flag clears at once.
+            self.surfing = false;
+            self.objs[0].begin(ActionKind::Jump(1), dir);
+            return PlayerEvent::StepStarted { to: (tx, ty), dir };
+        }
+        if collision == Collision::Object
+            && let Some(i) = self.boulder_ahead(terrain, dir)
+        {
+            // Gen3 `COLLISION_PUSHED_BOULDER`, `Task_PushBoulder`: the player walks in place
+            // slowly while the boulder walks one cell on slowly.
+            self.objs[0].begin(ActionKind::InPlace(BUMP_FRAMES), dir);
+            self.objs[i].begin(ActionKind::Walk(Speed::Slow), dir);
+            return PlayerEvent::PushedBoulder(dir);
+        }
+        if collision != Collision::None {
             self.objs[0].begin(ActionKind::InPlace(BUMP_FRAMES), dir);
             return PlayerEvent::Bumped(dir);
         }
-        let kind = if input.b_held && input.can_run {
+        let kind = if self.surfing {
+            // Gen3 `PlayerNotOnBikeMoving`: surfing is `PlayerWalkFast`, whatever B does.
+            ActionKind::Walk(Speed::Fast)
+        } else if input.b_held && input.can_run {
             ActionKind::Run
         } else {
             ActionKind::Walk(Speed::Normal)
@@ -1122,6 +1212,10 @@ impl Objects {
         }
         h.write_u16(self.map.0);
         h.write(&[self.run_state as u8]);
+        // Wave C: only while surfing, so hashes on foot are unchanged.
+        if self.surfing {
+            h.write(&[0x5F]);
+        }
         // Milestone 8: written only while present, so hashes without them are unchanged.
         if !self.emotes.is_empty() {
             self.hash_emotes(h);

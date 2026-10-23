@@ -61,7 +61,7 @@ use crate::battle::BattleReport;
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
-use crate::data::{Behavior, Dir, Floor, GameData, MapId, MapType, PLAYER, SpeciesId};
+use crate::data::{Behavior, Dir, Floor, GameData, MapId, MapType, PLAYER, SpeciesId, Water};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{Ivs, Party, Pokemon};
@@ -164,6 +164,7 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
         Behavior::CrackedFloor => [18, 0],
         Behavior::CrackedFloorHole => [19, 0],
         Behavior::Floor(g) => [20, g as u8],
+        Behavior::Water(w) => [21, w.code()],
     }
 }
 
@@ -171,8 +172,9 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
 /// tall grass, long grass and sand (both kinds) first, then the map type (caves; buildings;
 /// underwater), then mountain tops, then Route 113, else plain.
 ///
-/// Not modelled: the water branches (the player never stands on water: no Surf yet; water
-/// behaviours are `Blocked`) and Gen3's `WEATHER_SANDSTORM` case (no field weather), so a
+/// Water (Wave C): pond in caves, water on ocean routes, else water on deep or ocean water and
+/// pond on the other surfable cells. Not modelled: the surfing-on-a-bridge branch (bridges are
+/// not told apart) and Gen3's `WEATHER_SANDSTORM` case (no field weather), so a
 /// desert battle off sand is plain.
 pub(crate) fn environment(b: Behavior, map: MapType) -> Environment {
     match b {
@@ -181,14 +183,24 @@ pub(crate) fn environment(b: Behavior, map: MapType) -> Environment {
         Behavior::Floor(Floor::Sand | Floor::DeepSand) => return Environment::Sand,
         _ => {}
     }
+    let water = match b {
+        Behavior::Water(w) => Some(w),
+        _ => None,
+    };
     match map {
         MapType::Underground if b == Behavior::Floor(Floor::IndoorEncounter) => {
             Environment::Building
         }
+        MapType::Underground if water.is_some() => Environment::Pond,
         MapType::Underground => Environment::Cave,
         MapType::Indoor => Environment::Building,
         MapType::Underwater => Environment::Underwater,
+        MapType::OceanRoute if water.is_some() => Environment::Water,
         MapType::OceanRoute => Environment::Plain,
+        MapType::Outdoor | MapType::OutdoorSand if water.is_some_and(Water::deep_or_ocean) => {
+            Environment::Water
+        }
+        MapType::Outdoor | MapType::OutdoorSand if water.is_some() => Environment::Pond,
         MapType::Outdoor | MapType::OutdoorSand if b == Behavior::Floor(Floor::MountainTop) => {
             Environment::Mountain
         }
@@ -358,33 +370,49 @@ impl State {
             .special_ids()
             .var_wild_set
             .map_or(0, |v| self.vars.var(v));
-        let found = match game.wild_encounters(map, wild_set) {
-            Some(table) if self.can_battle() => {
-                // `gPlayerParty[0]`, fainted or not.
-                let lead = self.party.get(0).copied();
-                let (vars, party, ids) = (&self.vars, &self.party, game.special_ids());
+        // `gPlayerParty[0]`, fainted or not.
+        let lead = self.party.get(0).copied();
+        let (vars, party, ids) = (&self.vars, &self.party, game.special_ids());
+        let lead_of = wild::Lead::of(lead.as_ref(), t, |i| game.hold_effect(i));
+        let repel = |level| wild::repel_blocks(level, vars, party, &ids);
+        let rolled = if !self.can_battle() {
+            None
+        } else if cur.water_encounter() {
+            // The water branch (Wave C: surfing).
+            game.water_encounters(map, wild_set).and_then(|table| {
+                wild::try_water_encounter(
+                    table,
+                    self.prev_behavior,
+                    cur,
+                    lead_of,
+                    t,
+                    &mut self.rng,
+                    repel,
+                )
+            })
+        } else {
+            game.wild_encounters(map, wild_set).and_then(|table| {
                 wild::try_land_encounter_repel(
                     table,
                     self.prev_behavior,
                     cur,
-                    wild::Lead::of(lead.as_ref(), t, |i| game.hold_effect(i)),
+                    lead_of,
                     t,
                     &mut self.rng,
-                    |level| wild::repel_blocks(level, vars, party, &ids),
+                    repel,
                 )
-                .map(|(species, level)| {
-                    wild::create_wild(
-                        t,
-                        species,
-                        level,
-                        lead.as_ref(),
-                        self.player_id,
-                        &mut self.rng,
-                    )
-                })
-            }
-            _ => None,
+            })
         };
+        let found = rolled.map(|(species, level)| {
+            wild::create_wild(
+                t,
+                species,
+                level,
+                lead.as_ref(),
+                self.player_id,
+                &mut self.rng,
+            )
+        });
         self.prev_behavior = cur;
         let Some(mon) = found else {
             return false;

@@ -88,7 +88,12 @@ impl<G: GameData> Host<'_, G> {
             }
             Request::Fade(_) => s.fader.is_done(),
             Request::WaitDoor => s.door == 0,
-            Request::WaitState => !s.transition.is_active() && s.fader.is_done() && s.door == 0,
+            Request::WaitState => {
+                !s.transition.is_active()
+                    && s.fader.is_done()
+                    && s.door == 0
+                    && !s.field_move_busy()
+            }
             // Never answered: the warp's map load ends the script (Gen3 `warp` returns TRUE
             // and `CB2_LoadMap` resets the script context).
             Request::Warp { .. } | Request::WarpHole(_) => false,
@@ -410,6 +415,10 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::SetMapLayout(_)
             | Request::CreateVirtualObject { .. }
             | Request::TurnVirtualObject { .. } => field::begin(self, r),
+            Request::FieldMoveEffect(m) => {
+                s.start_field_move(game, m);
+                UNIT
+            }
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)
