@@ -61,6 +61,7 @@ impl ScriptHost for Host {
             }
             Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
+            Request::CurrentMap => Response::Value(0),
             Request::YesNo => Response::Bool(self.yes),
             // The bag and money always succeed.
             Request::ItemAdd { .. }

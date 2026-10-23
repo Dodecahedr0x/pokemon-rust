@@ -105,6 +105,7 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 Some(Response::Pos(x, y))
             }
             Request::PlayerFacing => Some(Response::Value(s.objects.player().facing as u16)),
+            Request::CurrentMap => Some(Response::Value(s.field.map().0)),
             Request::Log(line) => {
                 s.log(line);
                 UNIT

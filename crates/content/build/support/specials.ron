@@ -202,7 +202,7 @@
     "SPECIAL_GetLinkPartnerNames": Unsupported,
     "SPECIAL_GetLotadSizeRecordInfo": Unsupported,
     "SPECIAL_GetMartEmployeeObjectEventId": Default(0), // called unconditionally after the questionnaire (questionnaire.inc); its result is only used for the Mystery Event/Gift phrases, which ShowEasyChatScreen never gives
-    "SPECIAL_GetMomOrDadStringForTVMessage": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet); VAR_TEMP_3 and the random draw as in Gen3
+    "SPECIAL_GetMomOrDadStringForTVMessage": Native, // STR_VAR_1 = gText_Mom/gText_Dad (tables/field_strings.ron); the player's house, VAR_TEMP_3 and the random draw as in Gen3
     "SPECIAL_GetMysteryGiftCardStat": Unsupported,
     "SPECIAL_GetNextActiveShowIfMassOutbreak": Default(255), // TV shows are not modelled: no active show
     "SPECIAL_GetNpcContestantLocalId": Unsupported,
@@ -212,7 +212,7 @@
     "SPECIAL_GetObjectEventLocalIdByFlag": Unsupported,
     "SPECIAL_GetPCBoxToSendMon": Native, // degraded: the new box, where Gen3 gives the old, full one (unreachable: ShouldShowBoxWasFullMessage is Default(0))
     "SPECIAL_GetPlayerAvatarBike": Unsupported,
-    "SPECIAL_GetPlayerBigGuyGirlString": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet)
+    "SPECIAL_GetPlayerBigGuyGirlString": Native, // STR_VAR_1 = gText_BigGuy/gText_BigGirl by gender (tables/field_strings.ron)
     "SPECIAL_GetPlayerFacingDirection": Unsupported,
     "SPECIAL_GetPlayerTrainerIdOnesDigit": Unsupported,
     "SPECIAL_GetPokeblockFeederInFront": Unsupported,
@@ -221,7 +221,7 @@
     "SPECIAL_GetQuizLadyState": Unsupported,
     "SPECIAL_GetRandomActiveShowIdx": Default(255), // TV shows are not modelled: no active show
     "SPECIAL_GetRecordedCyclingRoadResults": Unsupported,
-    "SPECIAL_GetRivalSonDaughterString": Native, // degraded: STR_VAR_1 is not written (no table of the C strings yet)
+    "SPECIAL_GetRivalSonDaughterString": Native, // STR_VAR_1 = gText_Daughter/gText_Son by gender (tables/field_strings.ron)
     "SPECIAL_GetSecretBaseNearbyMapName": Unsupported,
     "SPECIAL_GetSecretBaseOwnerAndState": Unsupported,
     "SPECIAL_GetSecretBaseTypeInFrontOfPlayer": Unsupported,

@@ -110,6 +110,8 @@ pub enum Request {
     PlayerPos,
     /// Answers `Value(dir as u16)` in `Dir` order.
     PlayerFacing,
+    /// Answers `Value` of the current map's id (Gen3 `gSaveBlock1Ptr->location`; Task L).
+    CurrentMap,
     Log(&'static str),
     // ---- text ----
     /// Starts printing a text in the dialogue window (opening it if needed); answers at once.
@@ -404,6 +406,7 @@ impl Request {
             // The report's text is not hashed (as a log line).
             Request::Report(r) => (53, matches!(r, Report::Degraded(_)) as u16, 0, 0, 0),
             Request::TrainerApproach { obj } => (54, obj as u16, 0, 0, 0),
+            Request::CurrentMap => (55, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -549,6 +552,11 @@ impl Ctx {
 
     pub fn player_facing(&self) -> Req<Dir> {
         self.req(Request::PlayerFacing, |r| Dir::ALL[r.value() as usize])
+    }
+
+    /// The map the player is on.
+    pub fn current_map(&self) -> Req<MapId> {
+        self.req(Request::CurrentMap, |r| MapId(r.value()))
     }
 
     pub fn log(&self, what: &'static str) -> Req<()> {
