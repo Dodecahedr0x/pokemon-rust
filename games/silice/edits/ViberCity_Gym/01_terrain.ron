@@ -1,22 +1,31 @@
-// Cells: the source's grid: walls, the DJ booth, the barriers (blue open, yellow and violet
-// closed), consoles, the entry mat.
+// Cells: the source's grid (§4.2) on SilViberCityGym (games/silice/gfx/SilViberCityGym.ron,
+// original art): a b c d the light-up dance floor (2x2), s the stage, M N the back wall (top,
+// bottom), w the low partitions, k the DJ consoles (A, B, C), the laser barriers drawn for the
+// blue track (OnLoad): V violet closed, J yellow closed, o blue open; ! the club's darkness and . the
+// entry mat (Building 1 and 6). Then the raised DJ booth, the generator and the loudspeakers.
 [
     Ascii(x: 0, y: 0, rows: [
-        "!###########!",
-        "!$$$$%&%$$$$!",
-        "!(((((((((((!",
-        "!(((((((((((!",
-        "!)*)*)*)*)*)!",
-        "!(((((((((((!",
-        "!+((((((((((!",
-        "!$$$$)*)$$$$!",
-        "!(((((!(((((!",
-        "!(((((!((+((!",
-        "!(((((#(((((!",
-        "!$,-$$$$$)*$!",
-        "!(((((((((((!",
-        "!(+(((((((((!",
-        "!(((((((((((!",
+        "!MMMMMMMMMMM!",
+        "!NNNNNNNNNNN!",
+        "!sssssssssss!",
+        "!sssssssssss!",
+        "!VVVVVVVVVVV!",
+        "!dcdcdcdcdcd!",
+        "!kababababab!",
+        "!wwwwJJJwwww!",
+        "!bababwbabab!",
+        "!dcdcdwdckcd!",
+        "!bababwbabab!",
+        "!woowwwwwVVw!",
+        "!bababababab!",
+        "!dkdcdcdcdcd!",
+        "!bababababab!",
         "!!!!!!.!!!!!!",
-    ], legend: {'!': (metatile: 1, collision: 1), '#': (metatile: 531, collision: 1), '$': (metatile: 526, collision: 1), '%': (metatile: 594, collision: 1), '&': (metatile: 595, collision: 1), '(': (metatile: 522, collision: 0), ')': (metatile: 553, collision: 1), '*': (metatile: 552, collision: 1), '+': (metatile: 536, collision: 1), ',': (metatile: 570, collision: 0), '-': (metatile: 571, collision: 0), '.': (metatile: 6, collision: 0)}),
+    ], legend: {'a': (metatile: 512, collision: 0), 'b': (metatile: 513, collision: 0), 'c': (metatile: 514, collision: 0), 'd': (metatile: 515, collision: 0), 's': (metatile: 516, collision: 0), 'M': (metatile: 517, collision: 1), 'N': (metatile: 518, collision: 1), 'w': (metatile: 529, collision: 1), 'k': (metatile: 533, collision: 1), 'V': (metatile: 536, collision: 1), 'J': (metatile: 535, collision: 1), 'o': (metatile: 537, collision: 0), '!': (metatile: 1, collision: 1), '.': (metatile: 6, collision: 0)}),
+    // The raised DJ booth (the source's ===), x 5-7, y 0-1.
+    Stamp(x: 5, y: 0, name: "SilViberCityGym_cabine"),
+    // The club's own generator ("le son ne s'arrête jamais"), x 9-10, y 0-1.
+    Stamp(x: 9, y: 0, name: "SilViberCityGym_groupe"),
+    // The loudspeaker stack splitting zone B, x 6, y 8-10.
+    Stamp(x: 6, y: 8, name: "SilViberCityGym_enceintes"),
 ]
