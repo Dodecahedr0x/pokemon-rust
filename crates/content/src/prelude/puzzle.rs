@@ -55,7 +55,10 @@ pub static SOOTOPOLIS_GYM_ICE: IcePuzzle = IcePuzzle {
 /// Gen3 `STEP_CB_CRACKED_FLOOR` (`CrackedFloorPerStepCallback`).
 pub static CRACKED_FLOOR: CrackedFloor = CrackedFloor {
     steps: Some(ICE_STEP_COUNT),
-    holes: &[(METATILE_CAVE_CRACKED_FLOOR, METATILE_CAVE_CRACKED_FLOOR_HOLE)],
+    holes: &[(
+        METATILE_CAVE_CRACKED_FLOOR,
+        METATILE_CAVE_CRACKED_FLOOR_HOLE,
+    )],
     hole: METATILE_SKY_PILLAR_CRACKED_FLOOR_HOLE,
 };
 

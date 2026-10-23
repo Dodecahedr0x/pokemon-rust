@@ -103,7 +103,9 @@ pub const FORMAT_VERSION: u32 = 5;
 /// - 6: Wave C (specials) adds `battle/dex.ron` and `battle/rematches.ron`, and exports the C-only
 ///   texts of `labels::C_TEXT_RUNS` (the Pokédex ratings).
 /// - 7: Tasks K/PT add `tables/tmhm.ron` (`sTMHMMoves`, `gTMHMLearnsets`).
-pub const FORMAT_MINOR: u32 = 7;
+/// - 8: Wave C (field moves) exports the field scripts the C code starts as roots
+///   (`EventScript_UseSurf`: `scripts/Common_surf.ron`).
+pub const FORMAT_MINOR: u32 = 8;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -128,6 +130,7 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (6, "battle/dex.ron"),
     (6, "battle/rematches.ron"),
     (7, "tables/tmhm.ron"),
+    (8, "scripts/Common_surf.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.

@@ -409,7 +409,7 @@ fn window_templates_match_the_decomp() {
     );
     let single = &party[party.find("sSinglePartyMenuWindowTemplate[]").unwrap()..];
     for (i, r) in party::SLOT_RECTS.iter().enumerate() {
-        let at = single.find(&format!("Party mon {}", i + 1)).unwrap();
+        let at = single.find(&format!("{{ // Party mon {}", i + 1)).unwrap();
         assert_eq!(field(&single[at..], "{"), tuple(*r), "slot {i}");
     }
 }
