@@ -258,7 +258,7 @@ impl ScriptHost for Host {
             Request::ChooseStarter(_) => Response::Value(self.choice),
             Request::GiveMon { .. } => Response::Value(0),
             Request::BattleWild { .. } => Response::Value(BattleOutcome::Won as u16),
-            Request::YesNo => Response::Bool(self.choice == 1),
+            Request::YesNo { .. } => Response::Bool(self.choice == 1),
             Request::ItemAdd { .. } | Request::ItemSpace { .. } => Response::Bool(self.fits),
             _ => Response::Unit,
         })
@@ -307,6 +307,7 @@ fn the_starter_choice_gives_game_ron_s_species() {
         assert!(h.log.contains(&Request::GiveMon {
             species: want,
             level: g.starter_level,
+            extra: None,
         }));
         assert_eq!(h.vars[&VAR_SIL_STARTER.0], i as u16);
         // No battle follows (unlike Emerald's `ChooseStarter` special).
@@ -324,6 +325,7 @@ fn the_starter_choice_gives_game_ron_s_species() {
     assert!(h.log.contains(&Request::GiveMon {
         species: SIL_STARTERS[0],
         level: g.starter_level,
+        extra: None,
     }));
 }
 
