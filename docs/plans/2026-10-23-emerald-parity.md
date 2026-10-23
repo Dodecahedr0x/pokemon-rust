@@ -524,3 +524,49 @@ Vanilla took 0 to 52% more frames per segment:
 **Branches** (`cargo xtask explore branch`): 1,598 branches from 73 origins, 10.7 M frames in 2.1 s; 861 rejoined, 237 diverged as expected, 61 diverged, 51 stranded, 308 aborted, 80 unplayable, no bug. The 61 divergences are the earlier segments' "did not rejoin" ones (woods, devon_goods, badge3, badge4); none from the new origins.
 
 **Not done.** The surf blob and the field-move pose and show-mon sprites are not drawn; using a field move from the party menu (M9); Waterfall, Dive and the currents' forced movement; the Route 119 bridge's surfing encounters; `SPECIAL_RockSmashWildEncounter`.
+
+### Re-baseline (as built)
+
+The bulk checkpoint re-baseline after Waves C/D and M9 K/PT, then green gates. Re-baselined on master `4ba8485` and again on `d52336e` (O2, M9 B).
+
+**What moved, and why.** One commit, found by bisection: master's Emerald tree verifies on `f6c75ec^` (all 9 nodes valid (rehash)) and diverges on `f6c75ec` (Wave C, new-game state parity). It diverges at c00001/c00005 from frame +60, c00006 is BROKEN (its trace ends while a script runs), and its children break with it. The stub tree bisects to the same commit. The new game now runs `NewGameInitData` and the skipped intro's flags. Money and the flags are hashed from the first frame, and the objects hidden from the start change which wanderers draw from the RNG, so the old inputs replay into other battles. Nothing after it (field effects, Surf, Match Call, abilities, move effects, M9 screens) is reached by the old traces before they break. The new nodes are recorded on the current build. On `d52336e` (M9 B's content changes the build id), every node is "valid (rehash)", and `spine --export` keeps the committed act1 chain unchanged.
+
+- **Stub (3 nodes).** The stub runs the same new game. Its end snapshots differ by money 3000 only (the stub has no Potion). The inputs and frames are unchanged, so the nodes are accepted.
+- **Emerald `route:*` (c00001–c00004).** Re-seeded with `checkpoints seed`; the scenario reaches every point, earlier: lab 5,002 → 4,570, after_wild 7,173 → 6,400, oldale_center 13,640 → 11,333, route103_after_may 19,184 → 17,019.
+- **Emerald Act 1: the spine replaces `act1:*`** (explorer-spine §2.4). `act1:*` (c00005–c00009) are dropped. `explore spine --export --label badge1` now exports a **chain**: each node starts from the one before (it was one new-game trace per label). The chain is promoted parents first: `spine:act1:lab` c00005 (frame 4,768), `oldale_center` c00006 (7,695), `may` c00007 (12,226), `pokedex` c00008 (16,158), `petalburg` c00009 (35,984), `woods` c00010 (62,561), `rustboro` c00011 (63,664), `badge1` c00012 (104,879). `game-native/tests/act1/trace.rs` reads this chain (8 labels), so the parity lanes replay the spine's Act 1. Every node verifies from a fresh copy of the nodes.
+- **Silice tree:** empty, nothing to do.
+
+**Lanes** (`cargo xtask gates`, `parity`, `parity --long` on the merge of `d52336e`):
+- **fmt, clippy, clippy-ui, test, test-stub, parity:** pass. **test-silice:** Silice spine tuning only (below).
+- **parity:** every route and `spine:act1:*` node resumes on the ROM (2,000 frames each, hashes and pictures identical). Hash at most 47 lines (gate 65); loop at most 154 lines (gate 217), at `spine:act1:pokedex`. The native Act 1 invariant restores 108 checkpoints; the largest is 1,011 bytes (budget 24,016).
+- **parity --long, `act1_long`:** frames 0–99,938 of 104,879 replay on the ROM from a new game. 99,906 hashes and 998 pictures are identical, with 32 late applies on a black screen (93 bulk events), in about 6 minutes. Hash 55 lines (gate 65), loop 164 lines (gate 217, margin 53). Heap 51,764 B, stack untouched 10,236 B. Per segment, the worst loop is 163 lines (to `pokedex`).
+- **Line gates:** no gate trips and no gate was moved. The only overrun is the `KNOWN_LATE` one.
+- **`KNOWN_LATE`: 81,769 (old trace) → 99,942, Roxanne's battle start on the spine trace.**
+  - `BattleStarted` comes at 99,940. The step to 99,941 is `Battle::start` with the first `NewTurn`'s gym-leader AI choice: 2.96 µs native against a 0.21 µs median, the act's most expensive battle step. On the GBA it overruns the frame, and the ROM reports the late apply at 99,942.
+  - On the old trace, the same start was at 80,366. It was late before `7134c3e` (223 lines), then on time at 212 lines, with a later step at 81,769 over the loop gate (225 lines).
+  - On this build (after Wave C's move effects, abilities and AI cases; not bisected) the start is late again. No capturable frame follows it before the act ends, so the long lane stops there, and `spine:act1:badge1`'s resume lane covers the end.
+  - **Not fixed:** a real fix would split the AI choice off the start step. That moves native timing and every hash after it (a re-record), so it is left for M9 with the other battle-cost findings.
+  - The lane now prints each late apply's cost marks.
+- **The tour:** 518 maps (107 gated), worst gated loop 163 lines, stretch 201 lines (4 stretch maps over budget, `KNOWN_OVER` as before), heap 36,244 B.
+
+**Fixed on the way.**
+- `emu::run_rom_from`: a black-screen late apply that steps over a picture frame skipped it instead of failing. The spine trace's late apply at 29,500 (a wild battle's load on Route 102) fell on a 100-frame picture.
+- The Silice spine driver chose a Disabled move forever (Ch2's Drowzee disables Ember). `engine::Battle::move_selectable` (Gen3 `CheckMoveLimitations`: PP, Disable, Torment, Taunt, Imprison) is now public, and the driver's `best_move` uses it. The explorer's `policy::first_damaging_slot` has the same blind spot; the Emerald spine never meets it.
+- `m8_e_blob_data` checks an unused effect slot (Transform is native since Wave C2b; master fixed it too).
+- `map_edit_tools::reach_tools_on_the_committed_silice_maps` runs on the Silice build only: the redrawn maps name the games dir's own tilesets.
+- `spine_real::SILICE_CH0_FRAMES` 21,821 → 21,813, bisected to `2fc4c16` (Brico-Bourg redrawn: the walks are 8 frames shorter).
+- Clippy (`xtask/src/silice/derive.rs`).
+- On `d52336e`:
+  - `vanilla::Live` did not compile against M9 B's `Step::UseItem`/`MacroKind::UseItem`; it now bails with "the bag's USE is not driven on BPEE yet".
+  - rustfmt.
+  - The tour's warp combo is L+R. With L+R+START, M9 B's content start menu opened on START before the shell's warp, so the tour stopped at its first map.
+
+**Left: test-silice, Silice spine tuning (not fixed here).**
+- `sil4_ch3`: a battle lost at frame 189,850 on map 112.
+- `sil5_ch4`: stuck at (7,26) going down into Port-Ressac's canal (`PortRessac` (7,27), metatile 0x170, elevation 1). Since Wave C's water collision, elevation-1 water blocks on foot, and the Ch4 spine walked across it. This is the author ruling "fishable but not surfable" canal (status hand-off).
+- `sil6_ch5`: a battle lost at 175,512 on map 52 (cave floors).
+- `sil7_ch6`: a battle lost at 307,646 on map 115.
+- `sil8_ch7`: out of frames on map 86 at (14,40).
+- `sil9_ch8`: the unfinished Ch8 spine: `route_s8_palier_1` is stuck at (6,71); the chapter has no way from (33,7) to (13,16) on map 88.
+
+`sil2_ch2` passes again (the Disable fix).

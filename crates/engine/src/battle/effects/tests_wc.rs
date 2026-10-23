@@ -164,6 +164,14 @@ fn selection_limits() {
     });
     assert!(starts(&l, "PkmnMoveWasDisabled"), "{l:?}");
     assert_eq!(r.b.battler(P).fx.disabled, Some(POUND));
+    // What a driver asks before choosing (`Battle::move_selectable`).
+    let t = crate::data::GameData::battle(&Game);
+    assert_eq!(
+        (0..4)
+            .map(|i| r.b.move_selectable(t, P, i))
+            .collect::<Vec<_>>(),
+        [false, true, false, false]
+    );
     let l = r.choose(Choice::Move(0));
     assert_eq!(l, ["PkmnMoveIsDisabled@P"]);
     assert_eq!(r.b.need, Need::Action);
@@ -175,6 +183,7 @@ fn selection_limits() {
         starts(l, "PkmnFellForTaunt")
     });
     assert!(starts(&l, "PkmnFellForTaunt"), "{l:?}");
+    assert!(!r.b.move_selectable(t, P, 0) && r.b.move_selectable(t, P, 1));
     assert_eq!(r.choose(Choice::Move(0)), ["PkmnCantUseMoveTaunt@P"]);
 
     // Torment: not the same move twice in a row.

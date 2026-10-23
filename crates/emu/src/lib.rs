@@ -714,13 +714,23 @@ pub fn run_rom_from(
         let counted = late_black_frames.len() as u32;
         late_black_frames.extend((counted..snap.late_black).map(|_| snap.frame));
         if snap.late != 0 {
+            // The marks so far (meaningful up to the late step): its cost when it is the worst.
             return Err(anyhow!(
-                "ROM applied a frame late by engine frame {}",
-                snap.frame
+                "ROM applied a frame late by engine frame {} (so far: step {} lines, loop {} \
+                 lines)",
+                snap.frame,
+                snap.step_lines_max,
+                snap.loop_lines_max
             ));
         }
         if snap.frame > have {
             hashes.push((snap.frame, snap.hash));
+        }
+        // A late apply on a black screen (allowed after a bulk step; the caller checks it) runs
+        // two engine frames in one emulator frame: the picture frames it steps over were never
+        // shown, so they are skipped rather than failing the run.
+        if snap.late_black > counted {
+            while next.next_if(|&&c| c < snap.frame).is_some() {}
         }
         if let Some(&&c) = next.peek() {
             if snap.frame > c {

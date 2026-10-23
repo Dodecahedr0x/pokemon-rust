@@ -2,7 +2,7 @@
 //! native mirror (`crates/emu/tests/tour.rs`, which includes this file through `#[path]`) run
 //! the same list and the same warps, so the ROM and native stay in step.
 //!
-//! The tour boots a new game, then each L+R+START warps to the next map of [`tour`]: the Act 1
+//! The tour boots a new game, then each L+R warps to the next map of [`tour`]: the Act 1
 //! maps, then one map per tileset family (primary and secondary pair) not seen yet (the
 //! gated part), then every other map (the stretch).
 
@@ -60,10 +60,11 @@ pub const ACT1_MAPS: [&str; 45] = [
     "RustboroCity_PokemonSchool",
 ];
 
-/// L and R held, and START newly pressed.
+/// L and R newly held together. Not START (the tour's combo until M9 B): since the content has
+/// a start menu, the field opens it on START before the shell's warp, which then refuses.
 pub fn combo_pressed(prev: Buttons, cur: Buttons) -> bool {
     const LR: Buttons = Buttons(Buttons::L.0 | Buttons::R.0);
-    cur.contains(LR) && cur.contains(Buttons::START) && !prev.contains(Buttons::START)
+    cur.contains(LR) && !prev.contains(LR)
 }
 
 /// The tour: `maps` (the game's maps, in content order) reordered as the module docs say, and

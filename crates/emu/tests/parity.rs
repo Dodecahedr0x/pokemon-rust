@@ -882,7 +882,7 @@ fn print_memory(what: &str, end: &DebugSnapshot) {
     );
 }
 
-/// Every `act1:*` node resumes on the ROM from its `.sav` and follows the act for
+/// Every `spine:act1:*` node resumes on the ROM from its `.sav` and follows the act for
 /// [`RESUME_FRAMES`] frames (the last node idles past the end of the act): the boot hash, every
 /// sampled hash and a picture every [`PICTURE_EVERY`] frames equal native's, no late frame, and
 /// the cost and memory gates hold (`check_costs`). Each node's native checkpoint reaches its
@@ -954,12 +954,17 @@ struct KnownLate {
 }
 
 const KNOWN_LATE: &[KnownLate] = &[KnownLate {
-    frame: 81_769,
-    cause: "a later step of Roxanne's battle (started at frame 80,366): on time, but the loop \
-            takes 225 lines (step 220; gate 217). Until master's engine fast paths (`7134c3e`) \
-            the battle start itself applied late at 80,366 (`Battle::start` and the first \
-            `NewTurn`'s gym-leader AI choice in one step, 223 lines); it now takes 212 \
-            (Findings for M9)",
+    frame: 99_942,
+    cause: "Roxanne's battle start on the spine trace (`BattleStarted` at frame 99,940; the \
+            step to 99,941, `Battle::start` with the first `NewTurn`'s gym-leader AI choice, is \
+            the act's most expensive battle step: 2.96 us native against a 0.21 us median). On \
+            the old `act1:*` trace the same start sat at 80,366: late before the engine fast \
+            paths (`7134c3e`, 223 lines), then 212 lines with a later step of the battle at \
+            81,769 over the loop gate (225 lines). On this build (after Wave C's move effects, \
+            abilities and AI cases; not bisected) the start overruns the frame again. No \
+            capturable frame follows \
+            it before the end of the act, so the long lane compares frames 0-99,938 and the \
+            `spine:act1:badge1` resume lane covers the end (Findings for M9)",
 }];
 
 /// Frames a ROM piece stops before a [`KnownLate`] frame: the late step runs two engine frames
@@ -1092,13 +1097,13 @@ fn act1_long_whole_trace_from_a_new_game() {
             // The exact frame: a late apply that moves (earlier or later) fails here too.
             Err(e) => {
                 let err = format!("{e:#}");
-                let want = format!("ROM applied a frame late by engine frame {}", k.frame);
+                let want = format!("ROM applied a frame late by engine frame {} ", k.frame);
                 assert!(
-                    err == want,
+                    err.starts_with(&want),
                     "KNOWN_LATE at frame {}: another failure ({err}): fix or update it",
                     k.frame
                 );
-                "late".to_string()
+                format!("late: {err}")
             }
             Ok(run) => {
                 let lines = run.end.loop_lines_max;
