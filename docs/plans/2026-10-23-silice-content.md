@@ -4517,6 +4517,92 @@ No prelude or driver change: the chapter only uses existing helpers.
   9. The source's Mega fallback has Absol hold a Scope Lens; `trainers.ron` gives the Absolite, which does nothing until form changes have data. Should Absol hold the Scope Lens until then?
   10. After a failed Lokhlass battle the object is removed and its flag cleared, so it may reappear as soon as its cell scrolls back into view, not only on the next load (the source's words). Acceptable, or should the coral cave get an `OnTransition`?
 
+#### SIL3 Ch6 scripts as built (Manga-Square)
+
+The Chapter 6 scripts, from `contenu-jeu/chapitres/06-manga-square.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the nurse and the shops). Every script name the nine Chapter 6 maps use is written, and the nine maps are strict.
+
+**Files.**
+- `ch06_route_s06.rs` claims `RouteS06` and `RouteS06_BoisSoupirs`.
+- `ch06_manga_square.rs` claims `MangaSquare`, `MangaSquare_PokemonCenter`, `MangaSquare_Mart` and `MangaSquare_Toiletteur` (the groomer is `MangaSquare_Sc04`).
+- `ch06_dojo.rs` claims `MangaSquare_Dojo` and `MangaSquare_Bibliotheque`.
+- `ch06_gym.rs` claims `MangaSquare_Gym`.
+- `ch12_stubs.rs` gains the Ch12 names on the two claimed maps that carry post-game content (the "SIL6 Ch12 maps: review" table): `MangaSquare_Bibliotheque_OnTransition`, `_PG_Sc02`, `_PG_Sc21`, `_PG_Sc30`, `_PG_Kimiko`, `_PG_Mathieu`, `_PG_Citoyen`; `RouteS06_BoisSoupirs_OnTransition`, `_PG_Sc05`, `_PG_Lib`, `_EventScript_Drone`, `_EventScript_HoOh`. Ch6 needs no transition script of its own on either map, so the stubs stay whole.
+
+No prelude or driver change. The chapter's helpers (`join_queue`, the `Fan` and `Samurai` tables, the quiz's `knows`) are private to their files.
+
+**Ids.**
+- Four script flags in the Ch6 block (1080–1099): `FLAG_SIL_GYM06_LU_Q1` (1080), `_Q2` (1081), `_Q3` (1082), `_Q5` (1083), the quiz's "read" flags (below). In `ids/flags.ron` and `ids.golden` (numeric order, after Ch5's 1060).
+- `HEAL_LOCATION_SIL_MANGA_SQUARE`, appended to `game.ron`: (15, 24) on `MangaSquare`, the cell in front of the Center's door (15, 23). `MangaSquare_PokemonCenter_OnTransition` sets it.
+- `check-exceptions.ron`: three `placement-map` entries for post-game gifts placed on maps Ch6 now claims (`FLAG_SIL_ITEM_PG_CONSEIL_GUERISONS`, `FLAG_SIL_TICKET_ESPACE`, `FLAG_SIL_TOURNOI_AMIS`), set by Ch12 scenes, as `FLAG_SIL_MAIL_SILAS`.
+
+**Map edits** (`06_ch6_scripts.ron` on four maps; `studio-map build` is byte-identical on a second run).
+- The five hidden items become signs running `hidden_item` (the SIL1 Task F fallback), each with its restore line: the Revive (`MangaSquare`, 22, 13), the Lax Incense (`RouteS06`, 17, 24), the Miracle Seed (`RouteS06_BoisSoupirs`, 6, 8), the Moon Stone (1, 18) and the Sun Stone (24, 18) in the Bibliothèque.
+- `bypass` found two holes, now closed with the same coord:
+  - `MangaSquare_Sc01` (61): arriving by the Monks' shortcut (1, 25), the exit walk lands on (1, 26) and the player walks east on (2, 26), never on the coord (2, 25). Without Sc01 the story stays at 61 and the Dojo's queue (62) never starts. Coords on (1, 26) and (2, 26).
+  - `MangaSquare_Bibliotheque_Sc01` (63): the reading area is entered across row 7 on (0–1, 7), (6–7, 7) and (12–15, 7); only the last four had the coord. Coords on the four others. The merge dropped `03_allow.ron`'s allowance for this finding (it now silences nothing).
+- `bypass` on every other gate: `RouteS06_Sc02`, `MangaSquare_Sc02` (controleur hidden), `_Sc03`, `MangaSquare_Gym_Sc01`: "no". `lint-reach` on the nine maps: 0 warnings, the two Ch6 infos.
+
+**Map scripts.**
+- `RouteS06_OnLoad` keeps the bamboo curtain (23, 26) open from `FLAG_SIL_ROUTE_S06_RACCOURCI`. `RouteS06_OnTransition` shows Adrien and the grunts at 55 and 60 (the elevator arrival is at 55, and Sc01, the on-frame entry, sets 60 after the objects spawn) and the randonneur from 61.
+- `MangaSquare_OnTransition`: Benou and Adrien (the end) hidden, shown by their scenes; the controleur hidden from 67; the courier from 64; the dawn tint is a fallback.
+- `MangaSquare_Dojo_OnTransition` moves the monk to (28, 5), facing left, from 64.
+- `MangaSquare_Gym_OnLoad` opens each door whose `FLAG_SIL_GYM06_PORTE_n` is set (General 265 on (10, 24 − 4n)).
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Route Sc01 | `RouteS06_Sc01`: on-frame, the signal moves | 55 → 60 |
+| Route Sc02 | `RouteS06_Sc02`: the Princesse, the two grunts (two single battles, Adrien's heal between), the curtain | 60 → 61 |
+| Bois Sc01 | `RouteS06_BoisSoupirs_Sc01`: the Pierre aux Vers (before/after 68) | |
+| Square Sc01 | `MangaSquare_Sc01`: under the toriis, Kimiko's stream | 61 → 62 |
+| Dojo Sc01 | `MangaSquare_Dojo_Sc01`: the queue's three fans in a row, Kimiko, TM08; Adrien leaves for the Bibliothèque | 62 → 63 |
+| Dojo Sc02–Sc04 | the disappointed fan (TM21 from 63), Kenta (sight 3, then the Black Belt), the cook (Nanab once, then the drinks) | |
+| Biblio Sc01 | `MangaSquare_Bibliotheque_Sc01`: both editions of the tale; Kimiko and the drones leave | 63 → 64 |
+| Gym Sc01 | `MangaSquare_Gym_Sc01`: the staring duel, ×2 | |
+| Gym Sc02 | `MangaSquare_Gym_Sc02`: the five desks; the fifth sets 65 | 64 → 65 |
+| Gym Sc03 | `MangaSquare_Gym_Sc03`: Tak, the badge, TM40, the Charizardite Y, sync 60, `LOG_06` | 65 → 66 |
+| Square Sc02 | `MangaSquare_Sc02`: Benou, the Scanner de Faille and the Méga-Liaison; the controleur steps aside | 66 → 67 |
+| Square Sc03 | `MangaSquare_Sc03`: Adrien's promise on the exit cell (37, 1) | 67 → 68 |
+| Toiletteur | `MangaSquare_Sc04`: the Peigne de Luxe | |
+
+**Re-derived movements.** The source's paths assume cells the maps do not have:
+- Route Sc02: the player walks from whichever stairs-top cell (12–15, 28) to (12, 26); Adrien steps down beside him; the grunts flee down the stairs (A round the player by x 11), Adrien goes east through the curtain.
+- Dojo Sc01: the player first joins (14, 9) along row 9 (one step up from row 10), so each fan steps in below him on (14, 10), faces up, fights, and leaves for row 8 by the cells right of the player. A fan already beaten (a whiteout on a later one) only leaves. Adrien then walks to the queue's head (17, 10) and the player to (18, 9); Adrien leaves past the ribbon's east end (19, 11). The fans' own scripts start the scene at 62 too (the source's trigger is Adrien).
+- Square Sc02/Sc03: the controleur steps 2 west along the torii's beam; Benou leaves north through (37, 0); Adrien comes up 5 cells from (37, 8).
+
+**Fallbacks** (each reported with `fallback()`):
+- `battle_multi`: the Princesse's multi battle with Adrien is the source's own fallback, two single battles with Adrien's onigiri heal (T5b) between.
+- `play_music`, `play_fanfare`, `play_se` (audio, M12). The source's invented SEs map to decomp ones: the servers' hum `SE_PC_ON`, the gong `SE_ARENA_TIMEUP1`, the shoji `SE_SLIDING_DOOR`, the rock `SE_M_ROCK_THROW`.
+- `dawn_tint`: the Secteur Zêta's dawn sky.
+- `show_book`: the tale in the message box (the source's own fallback).
+- `wait_input_or_timeout` and `set_battle_malus`: the samurai's yes/no "draw first?" (the source's own fallback): yes fights the `_HATIF` variant (+2 levels), no the normal one; either win marks the samurai beaten.
+- `multichoice`: see the quiz below.
+- `set_battle_weather` (petals; the source's fallback is none) and `mega_evolution` (Silice has no `form_changes` data yet: Charizard fights unevolved, as Ch2's Alakazam).
+- `show_sync`, `log_menu`: the gauge and the log read in the message box.
+- `add_friendship`: the groomer gives the Soothe Bell on the first service (`FLAG_SIL_MANGA_SQUARE_PEIGNE_GRATUIT`, the source's own fallback), then the compliment only, free.
+- `mart` (prelude): the Konbini, Shinobi-Gear and the cook's drinks greet and sell nothing.
+- `rock_smash`: with the Scanner, a cracked rock is removed with a sound; no wild Pokémon jumps out (the rock comes back on the next load).
+- `hidden item`: the five hidden items above.
+
+**The quiz** (`MangaSquare_Gym_Sc02`). The desk is the cell the player faces; its row picks the question (P1 bottom to P5 top). The source's `multichoice(Gym_Sc02_Q<n>_Choix)` has no option texts, and its own fallback (three yes/no, one per option) has none either. So the answer is the player's reading: right iff the question's source was read in town. Reading sets a flag: Livre 1 → `_LU_Q1`, Livre 2 → `_LU_Q2`, Livre 3 and Route S6's altar → `_LU_Q3`, the tale → `FLAG_SIL_CONTE_COQ_LU` (Q4), the Dojo's code scroll → `_LU_Q5`; the square's elder gives Q1 and Q2. A wrong answer drops the player at the entrance (10, 28); an open door's desk is silent.
+
+**Trainer lines.** The source writes no lines for Luna, Hoshi, Yumi, Gaston, Kotaro (Route S6) and Armand (Bois des Soupirs); `trainer()` needs an intro and a defeat. Each borrows the closest Ch6 line of its kind, listed in `ch06_route_s06.rs`'s module docs.
+
+**E2E** (`crates/content/tests/sil7_ch6.rs`, `silice_spine/ch06.rs`). From `ch06::start()` (Route S6 (13, 62), story 55, Chapter 5's end state, the respawn at Owlys), buttons only, no hook: the rescue, the arrival, the Center, the code scroll, the queue, three books and the tale, both samurai (yes: the hasty variants), the five desks, Ayame and Seiji (walked into), Tak, Benou, Adrien's promise. About 210 k frames to the promise check.
+- **The party:** AMPHAROS 44 (lead), KADABRA 44, TYPHLOSION 42, AGGRON 42, WAILORD 40. That is Ch4's start party after Ch4 and Ch5, plus a WAILORD from Route S5's sea (Ch5, wild at 34). The AMPHAROS leads: Electric is the answer to Owlys's birds and to four of Tak's six.
+- **Training** (Route S6's north meadow (5–6, 3), wild 34–38; heals at the Center): the lead to 45 before the Dojo, 46 before the gym, 55 before Tak. The run also heals after each gym fight (out through the Dojo; the doors stay open). Each of the three levels passes with its neighbours (±1, the others fixed).
+- **Tak is the run's risk.** With the KADABRA leading (Ch4's lead), Tak was lost at most lead levels from 48 to 57. With the AMPHAROS, some isolated levels still lose (50, and 54 with other upstream levels). The cause is the battle policy, not the trainer data: it never switches, and Tak's NINJASK uses Swords Dance then Baton Pass, so HITMONLEE and CHARIZARD arrive boosted and sweep a bench the lead has not trained. A change upstream (a level, a step) can tip him; widen the margin before treating a loss there as a script bug.
+
+**Author questions.**
+- The six borrowed trainer lines (above): write their own intros and defeats?
+- The quiz: write `Gym_Sc02_Q1_Choix` to `_Q5_Choix` (three options each), so that the yes/no fallback, or the multichoice, can be built? Until then the read flags decide.
+- The Toiletteur: the source charges 500 ₽ after the first time and raises friendship; the fallback gives a Soothe Bell. Keep the bell?
+- Kimiko on the Dojo stage has no line outside the signing; she says the square's stream line (`Manga_Square_Sc01_T2`). The Skitty and the disappointed fan before 63 have none (they turn to the player).
+- The heal cell (15, 24) in front of the Center; the respawn is set on entering it (as Ch2, Ch3, Ch5).
+- The rocks: should breaking one start a `rock_smash` encounter (§6 lists none for Route S6)?
+- Adrien's walk-up in Sc03 stops at (37, 3), one cell short of the player on (37, 1) (the source's `Walk(Up) x5` from (37, 8)).
+
 #### Silice engine: held items, Fairy, Mega/Primal, abilities (as built)
 Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d`). It is game-agnostic, and Emerald does not move: parity is identical (route loop 166 of 217, hash 46 of 65), and the four committed checkpoint nodes verify as `valid (rehash)`. Every new behaviour is gated on data Emerald lacks: an item with a hold effect, a form change, a weather or post-Gen3 ability, or the Fairy type.
 
