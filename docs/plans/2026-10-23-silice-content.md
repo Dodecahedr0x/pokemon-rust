@@ -1938,11 +1938,13 @@ No Gen 3 `FLAG_*`/`VAR_*` name is added to the prelude, so `SHARED_GEN3` does no
   - the Ch0 flags and the Mallette;
   - the badge, `MODULE_COUPE`, `LOG_01`, the ambush and the Labo hint;
   - starter 2 and gate 1;
-  - one FERALIGATR, level 50, so that the first-move policy wins.
+  - the starter's line as one FERALIGATR, level 42 (`ch02::STARTER_LEVEL`). This is a strength boost: the source means the player to meet Yohan (20–26) at about level 26. The runner battles on the first move only, and the level-up moveset puts Leer or Rage first below level 38; 38–46 put Water Gun first. Level 42 wins every battle with a margin (38 is the floor) and gains one level only. A run from 46 reaches 47, where Screech comes with four moves known, and stalls in that battle. A single starter at 20–37 loses, and party mixes at 22–26 (Aron, Magnemite, Elekid, Croconaw) lose or stall.
 
 **The e2e test.** `crates/content/tests/sil2_ch2.rs` has two tests, buttons only, with a limit of 300 000 frames:
-- the chain `ch00` → `ch01` → `from_ch01` → `ch02` from a new game, about 158 000 frames;
-- `ch02` alone from `start()`, about 61 000 frames.
+- the chain `ch00` → `ch01` → `from_ch01` → `ch02` from a new game, 157 528 frames (Ch2 starts at frame 94 622), about 1 s of test time;
+- `ch02` alone from `start()`, 62 038 frames, about 0.3 s.
+
+The timings are for the debug test profile (the engine is built at `opt-level` 2), so both fit the gate.
 
 Both assert the story at each step (17 → 20 → 21 → 22 → 23 → 24 → 25 → 26 → 27 → 28). They also assert:
 - the flags, `BADGE_02`, `MODULE_FORCE` and `LOG_02`;

@@ -14,8 +14,8 @@
 //! **Two ways in.** Chained: `ch00::steps()`, `ch01::steps()`, [`from_ch01`] (the Labo to Route
 //! S2's west entrance), then [`steps`], from a new game. Or the documented shortcut [`start`]: a
 //! new game moved to Route S2's west entrance (0, 3) with Chapter 1's end state set directly and
-//! one FERALIGATR, level 50 (Bite first), so that the runner's battle policy (always the first
-//! move) wins every battle. Either way the Centre heals twice on the way.
+//! the starter's line boosted ([`STARTER_LEVEL`], documented there). Either way the Centre heals
+//! twice on the way.
 
 use super::ch00::ROUTE_S01_SIGHT;
 use super::{Run, Start, Step, goto, goto_avoiding};
@@ -43,10 +43,20 @@ pub fn start() -> Start {
     }
 }
 
+/// The start state's one Pokémon: the starter's line (`VAR_SIL_STARTER` 2, TOTODILE) as
+/// FERALIGATR at level 42. **A strength boost:** the source means the player to meet Yohan
+/// (levels 20–26) at about level 26, but the runner battles on the first move only, and the
+/// level-up moveset puts Leer or Rage first on CROCONAW and FERALIGATR below level 38. Levels
+/// 38–46 put Water Gun first; 42 wins every Chapter 2 battle with a margin (38 is the floor) and
+/// gains one level only (a run from 46 reaches 47, where Screech is learnt with four moves
+/// known, and stalls in that battle). Measured alternatives: a single starter at 20–37 loses;
+/// party mixes at levels 22–26 (Aron, Magnemite, Elekid, Croconaw) lose or stall in a battle.
+pub const STARTER_LEVEL: u8 = 42;
+
 /// Chapter 1's end state (`02-gris-echec.md`'s prerequisites and Chapter 1's §8), on top of
 /// Silice's new-game script: the story at 17 (the Secteur Bêta barrier open), the sync at 10,
 /// the first badge, the Lame-Fréquence module, `LOG_01`, the ambush and the Labo hint; Chapter
-/// 0's Mallette, running shoes and starter (TOTODILE's line); the party.
+/// 0's Mallette, running shoes and starter (TOTODILE's line); the party ([`STARTER_LEVEL`]).
 async fn end_of_chapter_1(ctx: Ctx) {
     for f in [
         // Chapter 0.
@@ -75,7 +85,7 @@ async fn end_of_chapter_1(ctx: Ctx) {
     ctx.set_var(VAR_SIL_STARTER, 2).await;
     ctx.set_var(VAR_SIL_CH0_GATE, 1).await;
     ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
-    ctx.give_mon(SPECIES_FERALIGATR, 50).await;
+    ctx.give_mon(SPECIES_FERALIGATR, STARTER_LEVEL).await;
 }
 
 /// Route S2's trainers' sight lines (Hugo, René, Zoé, Gérard, the sbire, Anaïs), avoided: the

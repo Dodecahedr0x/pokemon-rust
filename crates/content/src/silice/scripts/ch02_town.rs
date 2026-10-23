@@ -436,7 +436,8 @@ pub async fn GrisEchec_Usine_OnLoad(ctx: Ctx) {
     repaint_obstacle(&ctx, &CAISSES).await;
 }
 
-/// J3's sbire, watching the only cell in front of the cable.
+/// J3's sbire (23, 5), facing right: he sees (24–25, 5), below the cable; row 4 reaches the
+/// cable out of his sight.
 pub async fn GrisEchec_Usine_EventScript_Sbire(ctx: Ctx) {
     if trainer(
         &ctx,

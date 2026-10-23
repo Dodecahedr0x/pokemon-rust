@@ -25,10 +25,10 @@
 //! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
-//! on: [`screen_shake`] (a fade out and in), [`play_se`] (nothing), [`mallette_call`] and
-//! [`end_call`] (nothing: the call's lines are plain messages), [`screen_flash`] (a fade out
-//! and in), [`battle_two_trainers`] (two
-//! single battles in a row), [`show_sync`] (the sync gauge: the scene's text says the value).
+//! on: [`screen_shake`] and [`screen_flash`] (a fade out and in), [`play_se`] (nothing),
+//! [`mallette_call`] and [`end_call`] (nothing: the call's lines are plain messages),
+//! [`battle_two_trainers`] (two single battles in a row), [`show_sync`] (the sync gauge: the
+//! scene's text says the value).
 //!
 //! The rest of the source's primitives are `Ctx` methods, called directly: `lock`, `lock_all`,
 //! `release`, `release_all`, `face_player`, `set_flag(f, true)` (`set_flag`) and
