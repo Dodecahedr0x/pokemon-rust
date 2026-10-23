@@ -2,13 +2,13 @@
 // Route S9 is General + Slateport and this town General + Fallarbor, and Gen3 draws a neighbour with
 // the current map's tilesets. The shepherd's path starts in the cliff at (48, 44): General's cave
 // mouth (167, MB_NON_ANIMATED_DOOR, walkable) is warp 7, to Route S9's warp 2 (its west entry);
-// arriving from Route S9, the player walks down to (48, 45). (49, 44-45) close the corner as cliff.
+// arriving from Route S9, the player walks down to (48, 45), General's grass (the seam stays
+// primary); (49, 44-45) keep the forest's trees.
 // Evalon_Sc10's row on the path, (42-43, 45), is walked round by row 44 and by the cliff gap at
 // (46-47, 43); two more Sc10 cells at (47, 44-45) cover every way onto the warp.
 [
     Paint(x: 48, y: 44, metatile: 167, collision: 0, elevation: 3),
-    Paint(x: 48, y: 45, metatile: 633, collision: 0, elevation: 3),
-    Rect(x: 49, y: 44, w: 1, h: 2, metatile: 617, collision: 1, elevation: 0),
+    Paint(x: 48, y: 45, metatile: 1, collision: 0, elevation: 3),
     Warp(x: 48, y: 44, dest_map: "RouteS09", dest_warp: 2),
     Coord(x: 47, y: 44, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),
     Coord(x: 47, y: 45, var: "VAR_SIL_STORY", value: 85, script: "Evalon_Sc10"),

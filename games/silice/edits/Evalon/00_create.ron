@@ -1,5 +1,5 @@
 // Silice Ch8, MAP_EVALON: le Bourg d'Evalon, the medieval village in the Vallee de la Resonance
-// (50 x 50, the source's size). General + Fallarbor (Emerald tilesets by name): Fallarbor's
-// rust-red terraced cliffs are the cirque's iron-ore walls, its timber-and-thatch houses the
-// village, its ash ground and orange lanes the paved streets. Border: the forest.
-(name: "Evalon", width: 50, height: 50, primary: "General", secondary: "Fallarbor", fill: 633, fill_collision: 0, fill_elevation: 3, border: [619, 620, 627, 628])
+// (50 x 50, the source's size). General (Emerald, by name) + SilEvalon (original, games/silice/gfx/
+// SilEvalon.ron): the cirque's dark red iron-ore walls, half-timbered houses, cobbled lanes, the
+// Citadelle at the top. Border: General's forest.
+(name: "Evalon", width: 50, height: 50, primary: "General", secondary: "SilEvalon", fill: 1, fill_collision: 0, fill_elevation: 3, border: [468, 469, 476, 477])
