@@ -2397,6 +2397,18 @@
             num: 1204,
         ),
         (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL_2",
+            num: 1205,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL_3",
+            num: 1206,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_EVEIL_4",
+            num: 1207,
+        ),
+        (
             name: "FLAG_SIL_HIDE_TOUR_REVENGE",
             num: 1250,
         ),

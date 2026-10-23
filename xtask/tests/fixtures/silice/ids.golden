@@ -1077,6 +1077,9 @@ flags FLAG_SIL_HIDE_NEBULA_ADRIEN 1201
 flags FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN 1202
 flags FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA 1203
 flags FLAG_SIL_S09_CABLES 1204
+flags FLAG_SIL_HIDE_NEBULA_EVEIL_2 1205
+flags FLAG_SIL_HIDE_NEBULA_EVEIL_3 1206
+flags FLAG_SIL_HIDE_NEBULA_EVEIL_4 1207
 # SIL5 Ch10-Ch11 maps: the Zenith night variant (the source's fallback-only map) and one hide flag per
 # scene actor (from 1250, the Ch10-Ch11 block).
 maps MAP_TRONE_ZENITH_NUIT 116

@@ -179,6 +179,12 @@
         // Bassin guard start visible.
         "FLAG_SIL_HIDE_NEBULA_MATHIEU",
         "FLAG_SIL_HIDE_NEBULA_ADRIEN",
+        // Ch11 on the Ch9 map: the four EVEIL NPCs on the Place (one flag each), shown only by Nebula_Sc13 and
+        // Elysium_E2.
+        "FLAG_SIL_HIDE_NEBULA_EVEIL",
+        "FLAG_SIL_HIDE_NEBULA_EVEIL_2",
+        "FLAG_SIL_HIDE_NEBULA_EVEIL_3",
+        "FLAG_SIL_HIDE_NEBULA_EVEIL_4",
         // Ch10-Ch11 (the Tower, the Apex, the Zenith; each map's OnTransition or scene owns them): Mathieu in
         // the Tower's cabin (the source's default), Revenge's statue (the source's default, cleared by
         // TourNebula_4F_Sc03), Julien by the Apex Console (shown by SommetApex_Sc05), the three friends on
