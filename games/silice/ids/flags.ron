@@ -2382,6 +2382,25 @@
             name: "FLAG_SIL_HIDE_OWLYS_SILO_CHEF",
             num: 1060,
         ),
+        // SIL3 Ch6 scripts (script-only, 1080-1099): the gym quiz's answers, read in the town
+        // (fallback for the multichoice: a desk's question is answered right iff its source was
+        // read; MangaSquare_Gym_Sc02). Q4's source is FLAG_SIL_CONTE_COQ_LU.
+        (
+            name: "FLAG_SIL_GYM06_LU_Q1",
+            num: 1080,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_LU_Q2",
+            num: 1081,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_LU_Q3",
+            num: 1082,
+        ),
+        (
+            name: "FLAG_SIL_GYM06_LU_Q5",
+            num: 1083,
+        ),
         // SIL6 Ch12 maps (1100-1179).
         (
             name: "FLAG_SIL_HIDE_NML_DRONE",

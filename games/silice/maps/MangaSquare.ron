@@ -266,6 +266,22 @@
             value: 67,
             script: Some("MangaSquare_Sc03"),
         ),
+        (
+            x: 1,
+            y: 26,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 61,
+            script: Some("MangaSquare_Sc01"),
+        ),
+        (
+            x: 2,
+            y: 26,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 61,
+            script: Some("MangaSquare_Sc01"),
+        ),
     ],
     bgs: [
         (
@@ -317,9 +333,9 @@
             x: 22,
             y: 13,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_REVIVE",
-                flag: "FLAG_SIL_ITEM_MANGA_SQUARE_REVIVE",
+            kind: Script(
+                facing: 0,
+                script: Some("MangaSquare_EventScript_HiddenRevive"),
             ),
         ),
     ],

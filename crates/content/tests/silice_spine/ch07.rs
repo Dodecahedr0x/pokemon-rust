@@ -18,17 +18,19 @@
 //! and the ice are plain floor, the Gogo–Romain double is two single battles, Reverse's battle
 //! is on the normal type chart, the vault's dial is one yes/no that dials the plaques' code.
 //!
-//! **The party** ([`PARTY`]): Chapter 6's start party (`ch06::PARTY` on the Ch6 branch: AMPHAROS
-//! 44, KADABRA 44, TYPHLOSION 42, AGGRON 42, WAILORD 40) after Chapter 6, which trains its lead,
-//! the AMPHAROS, to 55 for Tak (six at 42–46), and fights Manga-Square's trainers (40–46) with
-//! the bench: the AMPHAROS 55, the KADABRA an ALAKAZAM (Chapter 5's Link Stone) at 54, leading
-//! again as in Chapter 4, the TYPHLOSION and the AGGRON 47, the WAILORD 45. No hook and no
-//! [`Step::Train`]: the chapter's trainers (44–49) are the training, and the run heals at the
-//! Centre between the city's fights and before Reverse. Measured, one member at ±1 at a time:
-//! eight of the nine neighbours win; the TYPHLOSION at 46 loses to Reverse (Wobbuffet's Counter
-//! and Mirror Coat, Porygon2's Recover: the battle policy never switches). With the AMPHAROS
-//! leading (Chapter 6's order), Gogo's Donphan (Ground) sweeps it in the no-heal double. To be
-//! re-tuned once Chapter 6's end party is settled.
+//! **The party** ([`PARTY`]): Chapter 6's end (`ch06::PARTY` trained by `sil7_ch6`: AMPHAROS
+//! 53, the lead trained for Tak; KADABRA 45, TYPHLOSION 42, AGGRON 42, WAILORD 40 on the bench)
+//! with about five levels on each bench member for Manga-Square's trainers that a player fights
+//! with the bench and the spine walks round (Route S6's six, Kenta; 40–46): the KADABRA an
+//! ALAKAZAM (Chapter 5's Link Stone) at 50, leading again as in Chapter 4, the TYPHLOSION and the
+//! AGGRON 47, the WAILORD 45; the AMPHAROS stays at 53. No hook and no [`Step::Train`]: the
+//! chapter's trainers (44–49) are the training, and the run heals at the Centre between the
+//! city's fights and before Reverse. Measured, one member at ±1 at a time (the Ch6 review):
+//! eight of the ten neighbours win; the AMPHAROS at 52 loses to Reverse (Porygon2's Recover) and
+//! the TYPHLOSION at 46 to Gogo and Romain (the battle policy never switches). The AMPHAROS at
+//! 53–54 wins with the ALAKAZAM anywhere in 48–55; at 55–56 (the first measure, before Chapter 6
+//! settled on Tak at 53) several ALAKAZAM levels lose. With the AMPHAROS leading (Chapter 6's
+//! order), Gogo's Donphan (Ground) sweeps it in the no-heal double.
 
 use super::{Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
@@ -96,8 +98,8 @@ pub fn phare_at_123() -> Start {
 /// The start state's party (see the module docs): the ALAKAZAM leads, as the KADABRA did in
 /// Chapter 4 (Chapter 6 led with the AMPHAROS).
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_ALAKAZAM, 54),
-    (SPECIES_AMPHAROS, 55),
+    (SPECIES_ALAKAZAM, 50),
+    (SPECIES_AMPHAROS, 53),
     (SPECIES_TYPHLOSION, 47),
     (SPECIES_AGGRON, 47),
     (SPECIES_WAILORD, 45),
@@ -107,7 +109,7 @@ pub const PARTY: &[(SpeciesId, u8)] = &[
 /// script: Chapters 0–5 as `ch05`'s end, Chapter 6's badge, its Scanner de Faille
 /// (`FLAG_SIL_MODULE_ECLATE_ROC`, the silica blocks) and Mega modules and its log, the sync at
 /// 60, the story at 68 (Manga_Square_Sc03); the party ([`PARTY`]), a few potions, the respawn
-/// at Owlys (Manga-Square's is Chapter 6's).
+/// at Manga-Square's Centre (Chapter 6's last).
 async fn end_of_chapter_6(ctx: Ctx) {
     for f in [
         // Chapter 0.
@@ -152,7 +154,7 @@ async fn end_of_chapter_6(ctx: Ctx) {
     ctx.item_add(ItemId(ITEM_SUPER_POTION), 5).await;
     ctx.item_add(ItemId(ITEM_HYPER_POTION), 3).await;
     ctx.money_add(20000).await;
-    ctx.set_respawn(HEAL_LOCATION_SIL_OWLYS).await;
+    ctx.set_respawn(HEAL_LOCATION_SIL_MANGA_SQUARE).await;
     for &(species, level) in PARTY {
         ctx.give_mon(species, level).await;
     }

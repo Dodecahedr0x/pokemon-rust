@@ -1,4 +1,0 @@
-// Reachability findings accepted on purpose (lint-reach).
-[
-    AllowReach(subject: "coords VAR_SIL_STORY=63", reason: "Bibliotheque_Sc01 is also ADRIEN's own object script, so reaching him by the west aisles runs the scene too; it gates nothing, and the story waits at 63 until the player finds him"),
-]

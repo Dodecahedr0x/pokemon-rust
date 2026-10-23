@@ -406,6 +406,38 @@
             value: 120,
             script: Some("MangaSquare_Bibliotheque_PG_Sc02"),
         ),
+        (
+            x: 0,
+            y: 7,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 63,
+            script: Some("MangaSquare_Bibliotheque_Sc01"),
+        ),
+        (
+            x: 1,
+            y: 7,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 63,
+            script: Some("MangaSquare_Bibliotheque_Sc01"),
+        ),
+        (
+            x: 6,
+            y: 7,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 63,
+            script: Some("MangaSquare_Bibliotheque_Sc01"),
+        ),
+        (
+            x: 7,
+            y: 7,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 63,
+            script: Some("MangaSquare_Bibliotheque_Sc01"),
+        ),
     ],
     bgs: [
         (
@@ -484,18 +516,18 @@
             x: 1,
             y: 18,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_MOON_STONE",
-                flag: "FLAG_SIL_ITEM_BIBLIO_MOON_STONE",
+            kind: Script(
+                facing: 0,
+                script: Some("MangaSquare_Bibliotheque_EventScript_HiddenMoonStone"),
             ),
         ),
         (
             x: 24,
             y: 18,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_SUN_STONE",
-                flag: "FLAG_SIL_ITEM_BIBLIO_SUN_STONE",
+            kind: Script(
+                facing: 0,
+                script: Some("MangaSquare_Bibliotheque_EventScript_HiddenSunStone"),
             ),
         ),
     ],

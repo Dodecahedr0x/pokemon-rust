@@ -589,7 +589,10 @@ pub fn steps() -> Vec<Step> {
 /// mart's is the islet's: [`ilot_steps`]).
 pub fn check_end(r: &Run) {
     assert_eq!(r.w.map(), ROUTE_S06);
-    assert_eq!(r.w.var(VAR_SIL_STORY), 55);
+    // Chapter 5 leaves the story at 55 as the player comes up the elevator; Route S6's
+    // on-frame entry (Chapter 6's `RouteS06_Sc01`, the signal moves) plays on arrival and sets 60.
+    assert_eq!(r.w.var(VAR_SIL_STORY), 60);
+    assert!(r.has_text(Route_S06_Sc01_T1));
     assert!(r.w.flag(FLAG_SIL_BADGE_05));
     assert!(r.w.flag(FLAG_SIL_MODULE_VOL));
     assert!(r.w.flag(FLAG_SIL_LOG_05));

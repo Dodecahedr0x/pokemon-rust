@@ -420,9 +420,9 @@
             x: 17,
             y: 24,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_LAX_INCENSE",
-                flag: "FLAG_SIL_ITEM_ROUTE_S06_ENCENS",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS06_EventScript_HiddenEncens"),
             ),
         ),
     ],

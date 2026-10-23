@@ -45,6 +45,73 @@ pub async fn Owlys_GrotteEst_EventScript_Mew(_ctx: Ctx) {
     // fallback: Ch12 post-game scripts not written yet.
 }
 
+// ---- MangaSquare_Bibliotheque (claimed by ch06_dojo.rs) ----
+
+/// Ch12: shows the Council (Adrien, Gwada, Kimiko, Mathieu, the two citizens) from
+/// `VAR_SIL_STORY` 120, Gwada not at 127–129. Ch6 needs no transition script of its own here.
+pub async fn MangaSquare_Bibliotheque_OnTransition(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the Council stays hidden.
+}
+
+/// Ch12 `Manga_Square_PG_Sc02`, the Council's call: row 22 at `VAR_SIL_STORY` 120.
+pub async fn MangaSquare_Bibliotheque_PG_Sc02(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12 `Manga_Square_PG_Sc21`, the Council's Adrien (his object is hidden until then).
+pub async fn MangaSquare_Bibliotheque_PG_Sc21(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12 `Manga_Square_PG_Sc30`, the Council's Gwada (hidden until then).
+pub async fn MangaSquare_Bibliotheque_PG_Sc30(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: the Council's Kimiko (hidden until then).
+pub async fn MangaSquare_Bibliotheque_PG_Kimiko(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Mathieu at the Council's door (hidden until then).
+pub async fn MangaSquare_Bibliotheque_PG_Mathieu(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: the two citizens queuing for the Council (hidden until then).
+pub async fn MangaSquare_Bibliotheque_PG_Citoyen(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+// ---- RouteS06_BoisSoupirs (claimed by ch06_route_s06.rs) ----
+
+/// Ch12: shows Kimiko and her drone in the clearing from `VAR_SIL_STORY` 123 until
+/// `FLAG_SIL_VESTIGE_KIMIKO`. Ch6 needs no transition script of its own here.
+pub async fn RouteS06_BoisSoupirs_OnTransition(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the clearing's actors stay hidden.
+}
+
+/// Ch12 `Route_S06_PG_Sc05`, Kimiko's vestige: the coord (12, 19) at the secret path's end
+/// (`VAR_TEMP_1` 0, so it fires on every step; the scene checks its own condition).
+pub async fn RouteS06_BoisSoupirs_PG_Sc05(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet: the step does nothing.
+}
+
+/// Ch12 `Route_S06_PG_Lib`, the feather's stump (15, 21).
+pub async fn RouteS06_BoisSoupirs_PG_Lib(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Kimiko's drone in the clearing (hidden until then).
+pub async fn RouteS06_BoisSoupirs_EventScript_Drone(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
+/// Ch12: Ho-Oh (`PG_Legendaire`; hidden until its scene clears `FLAG_SIL_HIDE_HO_OH`).
+pub async fn RouteS06_BoisSoupirs_EventScript_HoOh(_ctx: Ctx) {
+    // fallback: Ch12 post-game scripts not written yet.
+}
+
 // ---- ReverseCity_Phare (claimed by ch07_phare.rs) ----
 // Ch7's `ReverseCity_Phare_OnTransition` already shows Thomas (`FLAG_SIL_HIDE_THOMAS_PHARE`) at
 // `VAR_SIL_STORY` 122 only.
