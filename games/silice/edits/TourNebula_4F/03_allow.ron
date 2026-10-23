@@ -1,0 +1,5 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(10, 23)], reason: "warp 0 is only the arrival point (the cabin warps here by script; the floor leaves by TourNebula_4F_Sc05 and _Sc06)"),
+    AllowReach(subject: "bg 0", reason: "the vault is behind the prism door, which TourNebula_4F_OnLoad opens once FLAG_SIL_REFLETS_PORTE_OUVERTE is set"),
+]

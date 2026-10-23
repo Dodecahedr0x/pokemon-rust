@@ -1,0 +1,7 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(11, 21)], reason: "warp 0 is only the arrival point (the cabin warps here by script)"),
+    AllowCollision(cells: [(16, 1)], reason: "the elevator door is closed until Mathias is beaten: TourNebula_1F_OnLoad opens it from story 101"),
+    AllowCollision(metatiles: [722], reason: "the black water is decor (the source: not surfable)"),
+    AllowReach(subject: "warp 1", reason: "the elevator door behind the counter: TourNebula_1F_OnLoad opens it from story 101, and the grille opens with TourNebula_1F_Sc02"),
+]

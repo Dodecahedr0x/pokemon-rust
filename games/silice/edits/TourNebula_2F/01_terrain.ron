@@ -1,0 +1,43 @@
+// Cells. North: Kimiko's stage o (8-15, 2-3) under the "EN DIRECT" board (10-12, 1); the "SORTIE ARTISTES"
+// door X (20, 1), solid until TourNebula_2F_OnLoad opens it from story 103 (collision 0). Row 4: the
+// holographic set, three segments of four (Y gold (6-9), P pink (10-13), V violet (14-17)), solid until
+// FLAG_SIL_STUDIO_DECOR_COUPE (TourNebula_2F_OnLoad: metatile 608, collision 0; TourNebula_2F_Sc03 cuts them
+// one by one with set_metatile). K: the spot consoles 1-3. b: the twelve chat screens in the side walls.
+// p/q: plants. D (10, 20): the elevator door, closed (a sign). The animated touch floor is a missing
+// mechanic (the source's fallback: a static floor).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "========================",
+        "|ccccccccc123cccccccXcc|",
+        "|^^^^^^^oooooooo^^^^^^^|",
+        "|.......oooooooo.......|",
+        "wwwwwwYYYYPPPPVVVVwwwwww",
+        "|...K.........K.....K..|",
+        "b.p..................p.b",
+        "|.q..................q.|",
+        "b......................b",
+        "|......................|",
+        "b......................b",
+        "|......................|",
+        "b......................b",
+        "|......................|",
+        "b......................b",
+        "|......................|",
+        "b......................b",
+        "|.p..................p.|",
+        "|.q..................q.|",
+        "|......................|",
+        "==========D=============",
+        "########################",
+    ], legend: {
+        '=': (metatile: 559, collision: 1, elevation: 0), '|': (metatile: 531, collision: 1, elevation: 0),
+        'c': (metatile: 529, collision: 1, elevation: 0), 'w': (metatile: 610, collision: 1, elevation: 0),
+        '1': (metatile: 572, collision: 1, elevation: 0), '2': (metatile: 573, collision: 1, elevation: 0), '3': (metatile: 574, collision: 1, elevation: 0),
+        'X': (metatile: 612, collision: 1, elevation: 3), 'D': (metatile: 612, collision: 1, elevation: 0),
+        '^': (metatile: 545, collision: 0, elevation: 3), '.': (metatile: 608, collision: 0, elevation: 3), 'o': (metatile: 625, collision: 0, elevation: 3),
+        'Y': (metatile: 668, collision: 1, elevation: 3), 'P': (metatile: 692, collision: 1, elevation: 3), 'V': (metatile: 644, collision: 1, elevation: 3),
+        'K': (metatile: 640, collision: 1, elevation: 0), 'b': (metatile: 581, collision: 1, elevation: 0),
+        'p': (metatile: 586, collision: 0, elevation: 3), 'q': (metatile: 594, collision: 1, elevation: 0),
+        '#': (metatile: 513, collision: 1, elevation: 0),
+    }),
+]

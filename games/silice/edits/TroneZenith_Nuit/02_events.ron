@@ -1,0 +1,17 @@
+// Header, map scripts, warps, objects, bg events. The same objects as TroneZenith (same local ids and
+// flags), so the scenes after the Rupture (Trone_Zenith_Sc09-Sc11) drive the same actors.
+[
+    // The true sky: WEATHER_NONE. Music: the source's MUS_SIL_VRAI_CIEL (a new song); placeholder MUS_END,
+    // the source's fallback.
+    Header((music: "MUS_END", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TroneZenith_Nuit_OnLoad: the broken prism on the diffuser (6-8, 5), METATILE_PRISME_BRISE (no tile
+    // yet). TroneZenith_Nuit_OnTransition: the friends' hide flags, as TroneZenith's.
+    ScriptsSet(on_load: "TroneZenith_Nuit_OnLoad", on_transition: "TroneZenith_Nuit_OnTransition"),
+    // Warp 0: the crystal tube's landing (7, 13), as TroneZenith's.
+    Warp(x: 7, y: 13, dest_map: "TroneZenith_Ascenseur", dest_warp: 2),
+    Object(x: 7, y: 3, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_ZENITH_NUIT_JULIEN", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "TroneZenith_Nuit_EventScript_Julien"),
+    Object(x: 6, y: 13, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_ZENITH_NUIT_MATHIEU", local_id: 2, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ZENITH_MATHIEU"),
+    Object(x: 7, y: 13, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ZENITH_NUIT_ADRIEN", local_id: 3, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ZENITH_ADRIEN"),
+    Object(x: 8, y: 13, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_ZENITH_NUIT_GWADA", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ZENITH_GWADA"),
+    Sign(x: 7, y: 5, script: "TroneZenith_Nuit_EventScript_Diffuseur"),
+]

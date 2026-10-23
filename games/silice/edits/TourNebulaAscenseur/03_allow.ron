@@ -1,0 +1,9 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(1, 6), (2, 6), (4, 6), (5, 6), (3, 5), (3, 6)], reason: "the warps are landings only: TourNebulaAscenseur_Sc00 warps away by script on every arrival"),
+    AllowReach(subject: "warp 1", reason: "a landing only (2F's exit arrives here); TourNebulaAscenseur_Sc00 warps away on every arrival, the cabin is never walked"),
+    AllowReach(subject: "warp 2", reason: "a landing only (3F's exit arrives here); TourNebulaAscenseur_Sc00 warps away on every arrival"),
+    AllowReach(subject: "warp 3", reason: "a landing only (4F's arrival names it); TourNebulaAscenseur_Sc00 warps away on every arrival"),
+    AllowReach(subject: "warp 4", reason: "a landing only (the Apex's arrival names it); TourNebulaAscenseur_Sc00 warps away on every arrival"),
+    AllowReach(subject: "warp 5", reason: "the hall's elevator landing (Ch9, MAP_DYNAMIC until the hall exists); TourNebulaAscenseur_Sc00 warps away on every arrival"),
+]

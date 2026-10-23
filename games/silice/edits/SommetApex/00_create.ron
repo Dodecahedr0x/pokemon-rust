@@ -1,0 +1,4 @@
+// Silice Ch11, MAP_SOMMET_APEX: the Apex, the Antenna's roof under the dome (24 x 30, the source's). Building +
+// Shop (the source's placeholder: Lilycove's department store rooftop, its fence, floor and vending machines;
+// Emerald tilesets by name). Border: the rooftop's sky (543), blocked: the fake sky's "pixels".
+(name: "SommetApex", width: 24, height: 30, primary: "Building", secondary: "Shop", fill: 586, border: [1567, 1567, 1567, 1567])
