@@ -124,7 +124,7 @@ fn ids_constants_follow_the_ids_files() {
 fn the_build_is_the_silice_flavour() {
     // `PKR_GAME=silice` never falls back to the stub silently (`build/main.rs`).
     assert_eq!(crate::FLAVOR, crate::Flavor::Silice);
-    assert!(!crate::STUB);
+    const { assert!(!crate::STUB) };
 }
 
 /// The shared `game_data_tables!` methods reach the Silice root: held items have their battle
