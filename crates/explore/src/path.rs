@@ -205,6 +205,16 @@ impl<'a, G: GameData> Grid<'a, G> {
         }
     }
 
+    /// This grid on map `id`'s layout `layout` (Gen3 `setmaplayoutindex`, the snapshot's
+    /// `map_layout`) instead of its own; `None`, or a layout the game does not have for the
+    /// map, keeps the map's own.
+    pub fn with_layout(mut self, id: MapId, layout: Option<u16>) -> Self {
+        if let Some(m) = layout.and_then(|l| self.game.map_layout(id, l)) {
+            self.map = m;
+        }
+        self
+    }
+
     /// This grid with the player's elevation (`ObjectSnap::elevation`, `Object::elevation`).
     pub fn with_elevation(mut self, elevation: u8) -> Self {
         self.elevation = Some(elevation);
@@ -252,7 +262,8 @@ impl<'a, G: GameData> Grid<'a, G> {
             .iter()
             .flat_map(|o| [o.pos, o.prev])
             .collect();
-        let grid = Grid::new(game, snap.field.map, &snap.field.overrides, occupied);
+        let grid = Grid::new(game, snap.field.map, &snap.field.overrides, occupied)
+            .with_layout(snap.field.map, snap.map_layout);
         match snap.objects.objs.first() {
             Some(p) => grid.with_elevation(p.current_elevation()),
             None => grid,
@@ -480,7 +491,9 @@ pub(crate) fn live_grid<'a, G: GameData>(
         .filter(|o| o.local_id != PLAYER)
         .flat_map(|o| [o.pos(), o.prev])
         .collect();
-    Grid::new(game, w.map(), overrides, occupied).with_elevation(w.objects().player().elevation)
+    Grid::new(game, w.map(), overrides, occupied)
+        .with_layout(w.map(), w.map_layout())
+        .with_elevation(w.objects().player().elevation)
 }
 
 #[cfg(test)]
