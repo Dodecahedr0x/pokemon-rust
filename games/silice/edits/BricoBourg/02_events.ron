@@ -1,0 +1,49 @@
+// Header, map scripts, warps, objects, coord and bg events, connection.
+[
+    Header((music: "MUS_LITTLEROOT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_TOWN", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // The on-transition script hides the day NPCs at night (VAR_SIL_STORY <= 2), the sbire outside
+    // Brico_Bourg_Sc01 and the friends outside VAR_SIL_STORY 3-4.
+    Scripts((on_load: None, on_transition: Some("BricoBourg_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: Noobody's house. Warp 1: Le Shaker. Warp 2: Adrien's family house.
+    // The Labo door (4, 7) has no warp: MAP_BRICO_BOURG_LABO is a Ch1 map (added with it).
+    Warp(x: 5, y: 14, dest_map: "BricoBourg_PlayerHouse_1F", dest_warp: 0),
+    Warp(x: 14, y: 13, dest_map: "BricoBourg_Bar", dest_warp: 0),
+    Warp(x: 16, y: 6, dest_map: "BricoBourg_FriendsHouse", dest_warp: 0),
+    // Objects in the source's order (local ids 1-9 = its obj numbers).
+    Object(x: 11, y: 10, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_BRICO_VIEUX", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BricoBourg_EventScript_Vieux"),
+    Object(x: 2, y: 13, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_BRICO_LINGE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BricoBourg_EventScript_Linge", flag: "FLAG_SIL_HIDE_BRICO_LINGE"),
+    Object(x: 7, y: 11, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_BRICO_GAMIN", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "BricoBourg_EventScript_Gamin", flag: "FLAG_SIL_HIDE_BRICO_GAMIN"),
+    Object(x: 18, y: 6, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_BRICO_PECHEUR", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BricoBourg_EventScript_Pecheur"),
+    Object(x: 7, y: 6, gfx: "OBJ_EVENT_GFX_POKEFAN_F", id: "LOCALID_BRICO_BRICOLEUSE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BricoBourg_EventScript_Bricoleuse", flag: "FLAG_SIL_HIDE_BRICO_BRICOLEUSE"),
+    Object(x: 18, y: 14, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_BRICO_SBIRE", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_BRICO_SBIRE"),
+    Object(x: 4, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_BRICO_MATHIEU", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_BRICO_MATHIEU"),
+    Object(x: 5, y: 16, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_BRICO_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Gwada", flag: "FLAG_SIL_HIDE_BRICO_GWADA"),
+    Object(x: 6, y: 16, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BRICO_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Adrien", flag: "FLAG_SIL_HIDE_BRICO_ADRIEN"),
+    // Brico_Bourg_Sc01: in front of the Shaker's door, VAR_SIL_STORY 1.
+    Coord(x: 14, y: 14, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_Sc01"),
+    // Brico_Bourg_Sc02 (then Sc03): in front of the house door, VAR_SIL_STORY 3.
+    Coord(x: 5, y: 15, var: "VAR_SIL_STORY", value: 3, script: "BricoBourg_Sc02"),
+    // Brico_Bourg_Sc04: the north exit (y 1, x 10-13), VAR_SIL_STORY 5.
+    Coord(x: 10, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
+    Coord(x: 11, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
+    Coord(x: 12, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
+    Coord(x: 13, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
+    // The guard before the starter (Brico_Bourg_Block_T1): VAR_SIL_STORY 1 at y 2, 2 at y 3; the roots
+    // at x 9 and 14 close both rows, so nothing walks around them.
+    Coord(x: 10, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 11, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 12, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 13, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 10, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 11, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 12, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 13, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
+    Sign(x: 10, y: 5, script: "BricoBourg_EventScript_SignVillage"),
+    Sign(x: 12, y: 13, script: "BricoBourg_EventScript_SignShaker"),
+    Sign(x: 6, y: 8, script: "BricoBourg_EventScript_SignLabo"),
+    Sign(x: 4, y: 8, script: "BricoBourg_EventScript_Ronces"),
+    // The hidden Potion behind the fountain (Cherch'Objet tutorial).
+    HiddenItem(x: 10, y: 8, item: "ITEM_POTION", flag: "FLAG_SIL_ITEM_BRICO_POTION"),
+    // Route S1 to the north: its exit x 7-10 meets ours x 10-13.
+    Connect((dir: North, offset: 3, map: "RouteS01")),
+]

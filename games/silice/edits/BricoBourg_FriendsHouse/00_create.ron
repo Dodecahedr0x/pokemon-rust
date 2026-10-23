@@ -1,0 +1,3 @@
+// Silice Ch0, MAP_BRICO_BOURG_FRIENDS_HOUSE: Adrien and Loic's family house (10 x 8).
+// Building + GenericBuilding (Emerald tilesets by name). Out-of-map border: the black block, blocked.
+(name: "BricoBourg_FriendsHouse", width: 10, height: 8, primary: "Building", secondary: "GenericBuilding", fill: 544, border: [1025, 1025, 1025, 1025])

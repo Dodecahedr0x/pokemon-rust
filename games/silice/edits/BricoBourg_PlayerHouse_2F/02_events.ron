@@ -1,0 +1,11 @@
+// Header, warps and bg events.
+[
+    Header((music: "MUS_LITTLEROOT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: stairs, to 1F's warp 2.
+    Warp(x: 7, y: 1, dest_map: "BricoBourg_PlayerHouse_1F", dest_warp: 2),
+    // Player_House_Sc02: trigger A the desk, trigger B the bed (VAR_SIL_STORY 2; the scene checks it).
+    Sign(x: 5, y: 2, script: "BricoBourg_PlayerHouse_2F_EventScript_Bureau"),
+    Sign(x: 1, y: 2, script: "BricoBourg_PlayerHouse_2F_EventScript_Lit"),
+    Sign(x: 6, y: 2, script: "BricoBourg_PlayerHouse_2F_EventScript_Pc"),
+    Sign(x: 3, y: 1, script: "BricoBourg_PlayerHouse_2F_EventScript_Fenetre"),
+]
