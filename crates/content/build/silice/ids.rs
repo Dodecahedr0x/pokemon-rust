@@ -4,16 +4,23 @@
 //! - **Append-only.** A name keeps its number forever; new names are appended after the highest
 //!   number. A removed name becomes a tombstone (`removed: true`) and keeps its number, which is
 //!   never handed out again. Saves and checkpoints hold numbers, so a renumbering would silently
-//!   break them: [`check_golden`] (`crates/content/tests/sil1_w0_ids.rs`, over
+//!   break them: [`check_golden`] (`crates/content/tests/sil1_w0_contracts.rs`, over
 //!   `xtask/tests/fixtures/silice/ids.golden`) fails on one.
-//! - **Valid files.** [`load`] fails on a duplicate name or number, a number outside
-//!   [`IdKind::range`] or [`IdKind::reserved`] (`MAP_DYNAMIC`), and a map entry without its map
-//!   file name.
+//! - **Moving an id.** The only way a name gets another number: its entry is tombstoned in
+//!   place and the name appended again, live, with a new number (and a line appended to the
+//!   golden). The old number stays taken by the tombstone. This is for a number that must not
+//!   be used, e.g. one that became [`IdKind::reserved`] (`VAR_SIL_EVALON_PARTENAIRE` left
+//!   `VAR_STARTER_MON`'s 0x4023, SIL1 Wave 0 review).
+//! - **Valid files.** [`load`] fails on a name live twice, or listed again before its tombstone;
+//!   a number used twice (a tombstone counts); a number outside [`IdKind::range`]; a live entry
+//!   on an [`IdKind::reserved`] number (`MAP_DYNAMIC`, and the Gen3 flags and vars the shared
+//!   code uses, `extract::games::SHARED_GEN3`); a live map entry without its map file name.
 //! - **Constants.** [`Ids::consts`] emits `content::consts` for the live (non-tombstone) maps
 //!   (`MAP_*: MapId`), flags (`FLAG_SIL_*: FlagId`), vars (`VAR_SIL_*: VarId`) and songs
 //!   (`MUS_SIL_*`/`SE_SIL_*: u16`). A tombstone has no constant, so code naming one fails to
 //!   compile. Trainers, items, species and moves get theirs with their data (Task A).
-//! - **References.** [`Ids::live`] resolves a name in data files: a tombstone is an error.
+//! - **References.** [`Ids::live`] resolves a name in data files: a name whose entries are all
+//!   tombstones is an error.
 
 use super::schema::{IdEntry, IdKind, IdsFile};
 use anyhow::{Context, Result, bail, ensure};
@@ -47,10 +54,17 @@ pub fn load(games: &Path) -> Result<Ids> {
 /// The rules of one ids file (see the module doc).
 pub fn validate(kind: IdKind, f: &IdsFile) -> Result<()> {
     let (lo, hi) = kind.range();
-    let mut names = BTreeSet::new();
+    // Name -> whether its last entry so far is live.
+    let mut names: BTreeMap<&str, bool> = BTreeMap::new();
     let mut nums = BTreeSet::new();
     for e in &f.ids {
-        ensure!(names.insert(&e.name), "{} is listed twice", e.name);
+        if let Some(live) = names.insert(&e.name, !e.removed) {
+            ensure!(
+                !live,
+                "{} is listed twice (an id moves by tombstoning its entry, then appending it)",
+                e.name
+            );
+        }
         ensure!(
             nums.insert(e.num),
             "{} reuses number {} (numbers are never reused, even by a tombstone)",
@@ -58,13 +72,20 @@ pub fn validate(kind: IdKind, f: &IdsFile) -> Result<()> {
             e.num
         );
         ensure!(
-            (lo..=hi).contains(&e.num) && !kind.reserved(e.num),
-            "{} = {:#X} is outside {lo:#X}..={hi:#X} or reserved",
+            (lo..=hi).contains(&e.num),
+            "{} = {:#X} is outside {lo:#X}..={hi:#X}",
             e.name,
             e.num
         );
         ensure!(
-            kind != IdKind::Maps || e.map.is_some(),
+            e.removed || !kind.reserved(e.num),
+            "{} = {:#X} is reserved (MAP_DYNAMIC, or a Gen3 flag or var the shared code uses: \
+             extract::games::SHARED_GEN3); tombstone it and append it again to move it",
+            e.name,
+            e.num
+        );
+        ensure!(
+            e.removed || kind != IdKind::Maps || e.map.is_some(),
             "{} has no map file name",
             e.name
         );
@@ -73,9 +94,16 @@ pub fn validate(kind: IdKind, f: &IdsFile) -> Result<()> {
 }
 
 impl Ids {
-    /// The entry named `name`, tombstone or not.
+    /// The entry named `name`: its live one, else its last tombstone.
     pub fn get(&self, kind: IdKind, name: &str) -> Option<&IdEntry> {
-        self.files.get(&kind)?.ids.iter().find(|e| e.name == name)
+        let mut found = None;
+        for e in self.files.get(&kind)?.ids.iter().filter(|e| e.name == name) {
+            if !e.removed {
+                return Some(e);
+            }
+            found = Some(e);
+        }
+        found
     }
 
     /// The number of `name` if the file lists it: an error for a tombstone.
@@ -89,13 +117,14 @@ impl Ids {
         }
     }
 
-    /// The map entry whose map file is `maps/<file>.ron`.
+    /// The map entry whose map file is `maps/<file>.ron` (its live one, if any).
     pub fn map_file(&self, file: &str) -> Option<&IdEntry> {
         self.files
             .get(&IdKind::Maps)?
             .ids
             .iter()
-            .find(|e| e.map.as_deref() == Some(file))
+            .filter(|e| e.map.as_deref() == Some(file))
+            .min_by_key(|e| e.removed)
     }
 
     /// Every entry, by kind, in file order.
@@ -124,7 +153,7 @@ impl Ids {
 
 /// Checks the append-only rule against a golden list (`# comment` lines, then one
 /// `<file> <name> <num>` per line, as `xtask/tests/fixtures/silice/ids.golden`): every golden
-/// name is still listed (a tombstone counts) with its number. Returns how many were checked.
+/// name is still listed with its number (live or a tombstone). Returns how many were checked.
 #[allow(dead_code)] // used by the tests
 pub fn check_golden(golden: &str, ids: &Ids) -> Result<usize> {
     let mut n = 0;
@@ -141,10 +170,16 @@ pub fn check_golden(golden: &str, ids: &Ids) -> Result<usize> {
             .into_iter()
             .find(|k| k.file() == file)
             .with_context(|| format!("golden line {l:?}: no ids file {file}"))?;
+        // The golden entry must still be there with its number: live, or a tombstone (a
+        // removed or moved id).
+        let kept = (ids.files.get(&kind).into_iter())
+            .flat_map(|f| &f.ids)
+            .any(|e| e.name == name && e.num == num);
         match ids.get(kind, name) {
-            Some(e) => ensure!(
-                e.num == num,
-                "ids/{file}.ron: {name} was {num}, now {}: ids are append-only, never renumbered",
+            _ if kept => {}
+            Some(e) => bail!(
+                "ids/{file}.ron: {name} was {num}, now {}: ids are append-only, never renumbered \
+                 (to move one, tombstone its entry and append it again)",
                 e.num
             ),
             None => bail!("ids/{file}.ron: {name} ({num}) is gone: tombstone it instead"),

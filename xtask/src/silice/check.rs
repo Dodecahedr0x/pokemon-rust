@@ -18,7 +18,7 @@
 //! | Rule | Level | What |
 //! |---|---|---|
 //! | `id-alloc` | error | an ids file with a duplicate name or number, or a number outside its range; a number two song files share |
-//! | `gen3-collision` | error | a Gen3 story flag or saved var the data uses whose number is inside the Silice block |
+//! | `gen3-collision` | error | a Gen3 story flag or saved var the data uses whose number is inside the Silice block; a live Silice flag or var on the number of one the shared code uses (`extract::games::SHARED_GEN3`) |
 //! | `id-removed` | error | a reference to a tombstone |
 //! | `id-undefined` | error | a Silice name (`*_SIL_*`, a form) missing from its ids file |
 //! | `id-unknown` | error | a Gen3 name (species, class, pic, AI) the decomp does not have |
@@ -524,6 +524,8 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             }
         }
     }
+    // A moved id (tombstoned, then appended again) is live, not removed.
+    dead.retain(|n| !live.values().any(|s| s.contains(n)));
     // Music and sounds share Gen3's song numbers: one file. Old split files are errors, and any
     // number two of the song files share is reported.
     {
@@ -732,6 +734,27 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                         "Gen3 number {v:#x} is inside the Silice block {lo:#x}..={hi:#x} of ids/{}.ron; used in {}",
                         kind.file(),
                         wh.iter().cloned().collect::<Vec<_>>().join(", ")
+                    ),
+                );
+            }
+        }
+        // The Gen3 flags and vars the shared code uses, whatever the data says: no live Silice
+        // id may take their numbers (`IdKind::reserved`).
+        let Some(f) = i.ids.get(&kind) else { continue };
+        for (k, n, v) in extract::games::shared_gen3() {
+            if k != kind {
+                continue;
+            }
+            for e in f.ids.iter().filter(|e| !e.removed && e.num == v) {
+                push(
+                    "gen3-collision",
+                    Error,
+                    &e.name,
+                    format!(
+                        "number {v:#x} of ids/{}.ron is {n}, which the shared code uses \
+                         (extract::games::SHARED_GEN3): `cargo xtask silice move {}`",
+                        kind.file(),
+                        e.name
                     ),
                 );
             }

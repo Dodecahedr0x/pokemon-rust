@@ -357,10 +357,55 @@ impl IdKind {
         }
     }
 
-    /// Numbers inside [`Self::range`] that are never handed out.
+    /// Numbers inside [`Self::range`] that are never handed out: `MAP_DYNAMIC` for maps; for
+    /// flags and vars, the numbers of [`SHARED_GEN3`] (the Gen3 flags and vars the shared code
+    /// reads or writes in every flavour). A tombstone may hold one (an id moved off it).
     pub fn reserved(self, num: u32) -> bool {
-        self == IdKind::Maps && num == 0x7F7F
+        match self {
+            IdKind::Maps => num == 0x7F7F,
+            IdKind::Flags | IdKind::Vars => shared_gen3().any(|(k, _, v)| k == self && v == num),
+            _ => false,
+        }
     }
+}
+
+/// The Gen3 flags and vars that the code every flavour shares reads or writes: the content
+/// crate root and its `SpecialIds`, the Gen3 prelude (`crates/content/src/prelude/`), the
+/// Silice root (`crates/content/src/silice/{mod,prelude,new_game}.rs`) and `samples.rs`. The
+/// Silice ids never take their numbers ([`IdKind::reserved`]): a Silice var on
+/// `VAR_STARTER_MON` would be overwritten by `choose_starter`. The list is derived from those
+/// sources: `crates/content/tests/sil1_w0_contracts.rs` scans them for every Gen3 `FLAG_*` and
+/// `VAR_*` name and fails when this list differs.
+pub const SHARED_GEN3: &[&str] = &[
+    "FLAG_NURSE_UNION_ROOM_REMINDER",
+    "FLAG_SYS_B_DASH",
+    "FLAG_SYS_CLOCK_SET",
+    "FLAG_SYS_CTRL_OBJ_DELETE",
+    "FLAG_SYS_ENC_DOWN_ITEM",
+    "FLAG_SYS_ENC_UP_ITEM",
+    "FLAG_SYS_USE_STRENGTH",
+    "VAR_ALTERING_CAVE_WILD_SET",
+    "VAR_BIRCH_STATE",
+    "VAR_DAYS",
+    "VAR_FACING",
+    "VAR_ITEM_ID",
+    "VAR_LAST_TALKED",
+    "VAR_PC_BOX_TO_SEND_MON",
+    "VAR_RESULT",
+    "VAR_STARTER_MON",
+    "VAR_TEMP_3",
+];
+
+/// [`SHARED_GEN3`] with each name's kind and Gen3 number (`crate::names`).
+pub fn shared_gen3() -> impl Iterator<Item = (IdKind, &'static str, u32)> {
+    SHARED_GEN3.iter().filter_map(|&n| {
+        let (kind, table) = if n.starts_with("FLAG_") {
+            (IdKind::Flags, &crate::names::FLAGS)
+        } else {
+            (IdKind::Vars, &crate::names::VARS)
+        };
+        Some((kind, n, table.value(n)?))
+    })
 }
 
 /// `ids/refs.ron`: what the chapters reference outside the imported RON blocks. It is the
@@ -448,6 +493,25 @@ pub fn parse_texts(text: &str) -> anyhow::Result<Vec<(String, String)>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_shared_gen3_names_are_reserved() {
+        assert_eq!(
+            shared_gen3().count(),
+            SHARED_GEN3.len(),
+            "every name is Gen3"
+        );
+        // VAR_STARTER_MON, VAR_PC_BOX_TO_SEND_MON, VAR_ALTERING_CAVE_WILD_SET, VAR_DAYS,
+        // VAR_BIRCH_STATE: inside the Silice var block.
+        for v in [0x4023, 0x4036, 0x403E, 0x4040, 0x4049] {
+            assert!(IdKind::Vars.reserved(v), "{v:#x}");
+            assert!(!IdKind::Flags.reserved(v), "{v:#x}");
+        }
+        assert!(!IdKind::Vars.reserved(0x4020));
+        assert!(IdKind::Flags.reserved(0x8C0), "FLAG_SYS_B_DASH");
+        assert!(IdKind::Maps.reserved(0x7F7F));
+        assert!(!IdKind::Items.reserved(0x4023));
+    }
 
     #[test]
     fn parse_texts_keeps_file_order_and_rejects_a_repeated_key() {
