@@ -52,7 +52,7 @@ fn the_dispatch_has_the_registry_shape() {
     assert!(data::SCRIPT_NAMES.windows(2).all(|w| w[0] < w[1]));
     let digests: Vec<&str> = data::SCRIPT_DIGESTS.iter().map(|d| d.0).collect();
     assert_eq!(digests, data::SCRIPT_NAMES);
-    const { assert!(data::SCRIPT_COUNT >= 1, "the Wave 0 placeholder script") };
+    const { assert!(data::SCRIPT_COUNT >= 1, "the Ch0 scripts") };
     const { assert!(!crate::scripts::DECOMP_NAMES) };
     assert!(crate::overrides::OVERRIDES.is_empty());
     assert!(crate::REPORT.contains("== scripts (build/silice/dispatch.rs) =="));
@@ -90,8 +90,9 @@ fn map_script_references_are_registered_scripts() {
             refs += 1;
         }
     }
-    // The placeholder script is the bedroom window's.
+    // The Ch0 maps are strict: every reference resolved (SIL1 Task F).
     assert!(refs >= 1);
+    assert!(!crate::REPORT.contains("  unwritten: "));
 }
 
 #[test]
