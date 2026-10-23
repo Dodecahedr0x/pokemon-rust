@@ -320,19 +320,20 @@ fn evolutions_and_trainer_money() {
 fn unimplemented_stat_effects_are_plain_unsupported() {
     let mut w = stub::world();
     let m = &mut w.battle.moves.moves[1];
-    m.effect = "EFFECT_TRANSFORM".into();
+    m.effect = "EFFECT_UNUSED_60".into();
     let id = m.id.clone();
     let out = battle::generate(&w.battle, &w).unwrap();
     let n = extract::names::MOVE_EFFECTS
-        .value("EFFECT_TRANSFORM")
+        .value("EFFECT_UNUSED_60")
         .unwrap();
     assert!(
         out.rs
             .contains(&format!("effect: MoveEffect::Unsupported({n})"))
     );
-    // Every stat change has words now (G1): Transform is unsupported only as unimplemented.
+    // Every stat change has words now (G1); since Wave C2b only the unused slots are
+    // unimplemented (Transform is native).
     assert!(out.report.contains(&format!(
-        "unsupported effect EFFECT_TRANSFORM (MoveEffect::Unsupported): {id}"
+        "unsupported effect EFFECT_UNUSED_60 (MoveEffect::Unsupported): {id}"
     )));
     assert!(!out.report.contains("unworded"));
 }
