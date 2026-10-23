@@ -101,9 +101,7 @@ impl Policy {
                     Some(OpenMenu::Move(c)) if opts.best_move => {
                         toward(c, best_selectable_slot(battle, t))
                     }
-                    Some(OpenMenu::Move(c)) => {
-                        toward(c, first_damaging_slot(battle.mon(Side::Player), t))
-                    }
+                    Some(OpenMenu::Move(c)) => toward(c, first_selectable_slot(battle, t)),
                     // Learn a stronger level-up move over the weakest known one.
                     Some(OpenMenu::LearnAsk(c))
                         if opts.learn
@@ -253,13 +251,26 @@ fn immune_by_ability(abilities: [Ability; 2], ty: Type) -> bool {
 /// reopen the move menu, so asking for it again would loop.
 fn best_selectable_slot(battle: &engine::battle::Battle, t: &BattleTables) -> u8 {
     let (me, foe) = (battle.mon(Side::Player), battle.mon(Side::Opponent));
-    let mut pp = me.pp;
+    let pp = selectable_pp(me.pp, |s| battle.move_selectable(t, Side::Player, s));
+    best_damaging_slot_of(me.species, &me.moves, &pp, foe.species, t)
+}
+
+/// [`first_damaging_slot`] over the moves the player may choose now (as
+/// [`best_selectable_slot`]): a Disabled, Tormented or Taunted first slot would loop the menu.
+fn first_selectable_slot(battle: &engine::battle::Battle, t: &BattleTables) -> u8 {
+    let me = battle.mon(Side::Player);
+    let pp = selectable_pp(me.pp, |s| battle.move_selectable(t, Side::Player, s));
+    first_damaging_slot_of(&me.moves, &pp, t)
+}
+
+/// `pp` with the slots `selectable` refuses at 0 (as if out of PP: never picked).
+fn selectable_pp(mut pp: [u8; 4], selectable: impl Fn(u8) -> bool) -> [u8; 4] {
     for (s, p) in pp.iter_mut().enumerate() {
-        if !battle.move_selectable(t, Side::Player, s as u8) {
+        if !selectable(s as u8) {
             *p = 0;
         }
     }
-    best_damaging_slot_of(me.species, &me.moves, &pp, foe.species, t)
+    pp
 }
 
 pub fn best_damaging_slot(me: &BattleMon, foe: &BattleMon, t: &BattleTables) -> u8 {
@@ -332,6 +343,30 @@ mod tests {
             [Ability::VoltAbsorb, Ability::Illuminate],
             Type::Electric
         ));
+    }
+
+    #[test]
+    fn first_slot_skips_a_refused_move() {
+        use engine::data::GameData;
+        let t = content::Emerald::default().battle();
+        let power = |p: bool| {
+            (1..t.moves.len())
+                .find(|&i| (t.moves[i].power > 0) == p)
+                .map(|i| MoveId(i as u16))
+        };
+        let (Some(hit), Some(status)) = (power(true), power(false)) else {
+            return; // no move table in this build
+        };
+        let moves = [Some(hit), Some(hit), Some(status), None];
+        let pp = [10, 10, 10, 0];
+        assert_eq!(first_damaging_slot_of(&moves, &pp, t), 0);
+        // Disabled slot 0: the other damaging slot, not a loop on the refused one.
+        let masked = selectable_pp(pp, |s| s != 0);
+        assert_eq!(masked, [0, 10, 10, 0]);
+        assert_eq!(first_damaging_slot_of(&moves, &masked, t), 1);
+        // Both damaging slots refused: the status move.
+        let masked = selectable_pp(pp, |s| s >= 2);
+        assert_eq!(first_damaging_slot_of(&moves, &masked, t), 2);
     }
 
     #[test]
