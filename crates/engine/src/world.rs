@@ -671,7 +671,15 @@ impl World {
                         // friendship step counter, then the repel counter (which may start
                         // its wear-off script), then `CheckStandardWildEncounter`.
                         friendship::on_step(s, game);
-                        if let Some(id) = crate::item_use::on_step(s, game) {
+                        let step = crate::data::StepCount {
+                            map: s.field.map(),
+                            cell: (x, y),
+                            vars: &mut s.vars,
+                            party: &mut s.party,
+                        };
+                        if let Some(id) = game.step_count_script(step) {
+                            self.start_script(game, id, None);
+                        } else if let Some(id) = crate::item_use::on_step(s, game) {
                             self.start_script(game, id, None);
                         } else {
                             let id = s.field.map();
