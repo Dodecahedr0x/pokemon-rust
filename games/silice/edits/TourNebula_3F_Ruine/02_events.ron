@@ -1,0 +1,15 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the elevator's landing (8, 11) (the source's warp(MAP_TOUR_NEBULA_3F_RUINE, 8, 11)),
+    // MAP_DYNAMIC until the elevator (Ch10) is on master.
+    Warp(x: 8, y: 11, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    // 1: the desk where Arthur's compass lay (Sc13: Composant B; it stays). 2: gas 07 at the corniche's
+    // neck. 3: Ex-Cocket Ludo on the corniche, facing its only free cell (1, 8). 4: the PP Up at the broken
+    // east walkway's end.
+    Object(x: 8, y: 2, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_RUINE3_PUPITRE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_3F_Ruine_PG_Sc13"),
+    Object(x: 1, y: 5, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_RUINE3_GAZ", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_3F_Ruine_EventScript_Gaz07", flag: "FLAG_SIL_HIDE_GAZ_07"),
+    Object(x: 2, y: 8, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_RUINE3_LUDO", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_3F_Ruine_EventScript_Ludo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_RUINE3_ITEM_PP_UP", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_3F_Ruine_EventScript_ItemPpUp", flag: "FLAG_SIL_ITEM_PG_RUINE3_PPUP"),
+    Sign(x: 8, y: 12, script: "TourNebula_3F_Ruine_EventScript_Ascenseur"),
+]

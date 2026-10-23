@@ -1,0 +1,36 @@
+// Cells. One room under the town: the blast door's teleporter (6, 1) in the north wall, the PC of the
+// original logs (1-2, 2) on the left, Benou's desk (5-7, 5) in the centre, shelves and machines, the exit
+// mats (6-7, 10).
+// Legend (char: metatile/collision/elevation, what):
+//   # 520/1/0 wall top
+//   = 522/1/0 wall face
+//   X 643/0/3 the teleporter behind the blast door (MB_NON_ANIMATED_DOOR, warp)
+//   . 514/0/3 floor
+//   P 666/1/3 PC
+//   B 556/1/0 shelf
+//   b 557/1/0 shelf
+//   C 564/1/0 shelf
+//   c 565/1/0 shelf
+//   d 561/1/3 desk
+//   e 578/1/3 desk
+//   m 532/1/3 machine
+//   n 533/1/3 machine
+//   o 540/1/3 machine
+//   p 541/1/3 machine
+//   M 518/0/3 exit mat (warp)
+//   N 519/0/3 exit mat (warp)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "#############",
+        "======X======",
+        ".PP......BbBb",
+        ".........CcCc",
+        ".............",
+        ".....ded.....",
+        ".............",
+        "..........mn.",
+        ".mn.......op.",
+        ".............",
+        "......MN.....",
+    ], legend: {'#': (metatile: 520, collision: 1, elevation: 0), '=': (metatile: 522, collision: 1, elevation: 0), 'X': (metatile: 643, collision: 0, elevation: 3), '.': (metatile: 514, collision: 0, elevation: 3), 'P': (metatile: 666, collision: 1, elevation: 3), 'B': (metatile: 556, collision: 1, elevation: 0), 'b': (metatile: 557, collision: 1, elevation: 0), 'C': (metatile: 564, collision: 1, elevation: 0), 'c': (metatile: 565, collision: 1, elevation: 0), 'd': (metatile: 561, collision: 1, elevation: 3), 'e': (metatile: 578, collision: 1, elevation: 3), 'm': (metatile: 532, collision: 1, elevation: 3), 'n': (metatile: 533, collision: 1, elevation: 3), 'o': (metatile: 540, collision: 1, elevation: 3), 'p': (metatile: 541, collision: 1, elevation: 3), 'M': (metatile: 518, collision: 0, elevation: 3), 'N': (metatile: 519, collision: 0, elevation: 3)}),
+]

@@ -129,10 +129,6 @@ fn drifting_game_breaks_the_round_trip_follow() {
 
 #[test]
 fn route_raises_nothing_with_the_default_config() {
-    // Emerald's route and idle new game; Silice's new game opens on a script that waits for A.
-    if content::FLAVOR == content::Flavor::Silice {
-        return;
-    }
     let rec = cached_route();
     let n = rec.keys.len();
     let cfg = DetectConfig {
@@ -176,10 +172,6 @@ fn trap_cell(game: &impl GameData) -> ((i16, i16), Buttons) {
 
 #[test]
 fn fade_trap_is_capturable_stuck() {
-    // Emerald's route and idle new game; Silice's new game opens on a script that waits for A.
-    if content::FLAVOR == content::Flavor::Silice {
-        return;
-    }
     let inner = Emerald::for_shells();
     let (at, toward) = trap_cell(&inner);
     let game = FadeTrap {
@@ -206,7 +198,8 @@ fn fade_trap_is_capturable_stuck() {
             if settled && w.objects().player().pos() != at && !w.script_running() {
                 toward
             } else {
-                Buttons::NONE
+                // A on an opening scene's messages (Silice's bar), nothing otherwise.
+                game_native::scenario::opening_key(w)
             }
         },
         &mut keys,
@@ -324,10 +317,6 @@ fn signatures_ignore_digits_and_follow_location() {
 
 #[test]
 fn a_load_mid_run_is_a_discontinuity_not_a_round_trip_break() {
-    // Emerald's route and idle new game; Silice's new game opens on a script that waits for A.
-    if content::FLAVOR == content::Flavor::Silice {
-        return;
-    }
     let cfg = DetectConfig {
         roundtrip_every: 16,
         follow: 60,
@@ -335,12 +324,9 @@ fn a_load_mid_run_is_a_discontinuity_not_a_round_trip_break() {
         ..quiet()
     };
     let mut s = Session::new(Emerald::for_shells());
-    let early = (0..600)
-        .find_map(|_| {
-            s.step(Buttons::NONE);
-            s.checkpoint().ok()
-        })
-        .expect("capturable");
+    // Through the opening scene (Silice's bar) to the first capturable frame.
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    let early = s.checkpoint().expect("capturable");
     let mut det = Detectors::<Emerald>::new(&cfg);
     for _ in 0..100 {
         s.step(Buttons::NONE);

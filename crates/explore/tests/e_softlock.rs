@@ -189,22 +189,17 @@ fn probe_bfs_depth_breadth_and_regions() {
 #[test]
 fn end_state_replays_a_trace_to_its_checkpoint() {
     use explore::findings::{end_state, repro_trace};
-    use game_native::trace::Run;
-    // 150 idle frames from a new game end capturable on Emerald and the stub; Silice's new game
-    // is still in its intro script (it waits for A), which no checkpoint captures.
-    if content::FLAVOR == content::Flavor::Silice {
-        return;
-    }
     let game = Emerald::for_shells();
-    let runs = [Run {
-        keys: Buttons::NONE,
-        frames: 150,
-    }];
-    let trace = repro_trace(&game, &[&runs[..]], &[]).unwrap();
+    // A new game through its opening scene (Silice's bar: A on its messages), then 150 idle
+    // frames.
     let mut s = Session::new(game);
+    let mut keys = game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    keys.extend([Buttons::NONE; 150]);
     for _ in 0..150 {
         s.step(Buttons::NONE);
     }
+    let runs = game_native::trace::rle(keys.iter().copied());
+    let trace = repro_trace(&game, &[&runs[..]], &[]).unwrap();
     assert_eq!(end_state(&game, &trace), Ok(s.checkpoint().unwrap()));
     let mut bad = trace.clone();
     bad.hashes[0].1 ^= 1;

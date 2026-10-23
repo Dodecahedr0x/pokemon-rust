@@ -87,20 +87,17 @@ fn rebuilt_differs_in_build_only() {
     assert_eq!(a.engine, b.engine);
     assert_eq!(b.content, inner.build_id() ^ 0x5A5A);
 
-    // Same behaviour: the route's hashes, frame by frame. Not on Silice: its boot route does not
-    // record on master yet (its intro script is being fixed in game-native).
-    if content::FLAVOR != content::Flavor::Silice {
-        let rec = cached_route();
-        let n = rec.keys.len().min(5000);
-        let mut s = Session::new(rebuilt);
-        for i in 0..n {
-            s.step(rec.keys[i]);
-            assert_eq!(s.world().hash(), rec.hashes[i], "frame {}", i + 1);
-        }
+    // Same behaviour: the route's hashes, frame by frame.
+    let rec = cached_route();
+    let n = rec.keys.len().min(5000);
+    let mut s = Session::new(rebuilt);
+    for i in 0..n {
+        s.step(rec.keys[i]);
+        assert_eq!(s.world().hash(), rec.hashes[i], "frame {}", i + 1);
     }
-    // Its checkpoints carry its build (the policy settles Silice's intro script).
-    let cp = explore::expand::new_game(rebuilt)
-        .checkpoint()
-        .expect("capturable");
+    // Its checkpoints carry its build (through the opening scene: Silice's bar).
+    let mut s = Session::new(rebuilt);
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    let cp = s.checkpoint().expect("capturable");
     assert_eq!(cp.header.build, b);
 }

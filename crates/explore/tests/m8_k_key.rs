@@ -8,13 +8,14 @@ use explore::key::{
     KEY_VERSION, default_key_config, key, key_items_digest, key_parts, place_region,
     templates_digest,
 };
+use game_native::Session;
 
-/// A new game settled by the policy (it answers Silice's intro script).
+/// The new game's first capturable state, through its opening scene (bounded: a new game that
+/// never becomes capturable fails here instead of hanging).
 fn snap() -> WorldSnapshot {
-    let s = explore::expand::new_game(Emerald::for_shells());
-    s.world()
-        .snapshot(s.game())
-        .expect("a settled new game is capturable")
+    let mut s = Session::new(Emerald::for_shells());
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    s.world().snapshot(s.game()).unwrap()
 }
 
 fn k(s: &WorldSnapshot) -> u64 {

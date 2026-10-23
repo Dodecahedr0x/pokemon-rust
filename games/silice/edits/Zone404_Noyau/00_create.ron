@@ -1,0 +1,3 @@
+// Silice Ch12, MAP_ZONE_404_NOYAU: the Core, a white empty room (11 x 11, the source's size). Building + Lab
+// (Emerald tilesets by name: Birch's lab floor).
+(name: "Zone404_Noyau", width: 11, height: 11, primary: "Building", secondary: "Lab", fill: 513, fill_collision: 1, fill_elevation: 0, border: [513, 513, 513, 513])

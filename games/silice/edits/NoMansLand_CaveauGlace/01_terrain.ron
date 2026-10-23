@@ -1,0 +1,37 @@
+// Cells. Room 1 (2-12, 11-17) from the mat (7, 18), two small ice patches; the gap (7, 10); room 2 (2-12,
+// 3-9), an ice field (3-11, 4-8) with boulders to slide against, the Glalitite at its far corner (12, 4).
+// The stone door (7, 2) with its three dots closes the niche (7, 1) where Regice sleeps.
+// Legend (char: metatile/collision/elevation, what):
+//   # 905/1/0 ice rock
+//   n 655/0/3 plain floor
+//   < 898/1/0 ice rock, west face
+//   . 897/0/3 cave floor (encounters)
+//   > 896/1/0 ice rock, east face
+//   i 909/0/3 ice (MB_ICE, slides)
+//   R 894/1/3 ice boulder
+//   r 893/1/3 ice boulder
+//   A 902/0/3 south arrow mat (warp)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "###############",
+        "#######n#######",
+        "#######n#######",
+        "#<...........>#",
+        "#<.iiiiiiRiin>#",
+        "#<.iriiiiiii.>#",
+        "#<.iiiiiRiii.>#",
+        "#<.iiiriiiRi.>#",
+        "#<.riiiiiiii.>#",
+        "#<...........>#",
+        "#<#####.#####>#",
+        "#<...........>#",
+        "#<..iii....R.>#",
+        "#<..iii......>#",
+        "#<.......iii.>#",
+        "#<.r.....iii.>#",
+        "#<...........>#",
+        "#<...........>#",
+        "#######A#######",
+        "###############",
+    ], legend: {'#': (metatile: 905, collision: 1, elevation: 0), 'n': (metatile: 655, collision: 0, elevation: 3), '<': (metatile: 898, collision: 1, elevation: 0), '.': (metatile: 897, collision: 0, elevation: 3), '>': (metatile: 896, collision: 1, elevation: 0), 'i': (metatile: 909, collision: 0, elevation: 3), 'R': (metatile: 894, collision: 1, elevation: 3), 'r': (metatile: 893, collision: 1, elevation: 3), 'A': (metatile: 902, collision: 0, elevation: 3)}),
+]

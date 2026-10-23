@@ -1,0 +1,3 @@
+// Silice Ch12, MAP_NO_MANS_LAND_CRATERE: the half-dead volcano (15 x 20, the source's size). General +
+// Lavaridge (Emerald tilesets by name: Jagged Pass's ash and rock).
+(name: "NoMansLand_Cratere", width: 15, height: 20, primary: "General", secondary: "Lavaridge", fill: 628, fill_collision: 1, fill_elevation: 0, border: [628, 628, 628, 628])

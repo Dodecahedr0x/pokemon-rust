@@ -20,10 +20,9 @@ use std::collections::BTreeSet;
 /// The new game's first capturable state, settled by the policy (it answers Silice's intro
 /// script).
 fn first_capturable() -> engine::checkpoint::WorldSnapshot {
-    let s = explore::expand::new_game(Emerald::for_shells());
-    s.world()
-        .snapshot(s.game())
-        .expect("a settled new game is capturable")
+    let mut s = Session::new(Emerald::for_shells());
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    s.world().snapshot(s.game()).unwrap()
 }
 
 #[test]
