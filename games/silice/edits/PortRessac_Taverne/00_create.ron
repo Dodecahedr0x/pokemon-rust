@@ -1,0 +1,6 @@
+// Silice Ch4, MAP_PORT_RESSAC_TAVERNE: the Taverne, Port-Ressac's Pokemon Center dressed as a pirate
+// tavern (16 x 11): the healing counter (north), the PC (north-east), the shop counter (north-west,
+// the clerk behind it), and the bar's tables and stools round the rug. Building + PokemonCenter
+// (Emerald tilesets by name): it is a Pokemon Center, and the PokemonCenter secondary carries both the
+// healing counter and the 2F's desk counter, used here as the shop counter. Border: black, blocked.
+(name: "PortRessac_Taverne", width: 16, height: 11, primary: "Building", secondary: "PokemonCenter", fill: 514, border: [1025, 1025, 1025, 1025])

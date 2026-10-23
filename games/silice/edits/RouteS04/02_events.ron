@@ -1,0 +1,54 @@
+// Header (dark: the Flash module lights it), Sc01 on arrival, the exit warp, Adrien and his
+// Magikarp, five trainers, the NPCs, the items, the signs and Julien's eight wall messages.
+[
+    // cave: 1 is Gen3's requires-flash (Granite Cave 1F has it).
+    Header((music: "MUS_PETALBURG_WOODS", region_map_section: "MAPSEC_NONE", cave: 1, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: true, allow_escaping: true, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Sc01: the dark (VAR_SIL_STORY 36 -> 40).
+    Scripts((on_load: None, on_transition: Some("RouteS04_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 36, script: "RouteS04_Sc01")], on_warp_into: [])),
+    // Warp 0: the east cave mouth, to Port-Ressac's tunnel door (its warp 0). The west mouth (5, 2)
+    // to Viber-City is solid, pending the Ch3 link.
+    Warp(x: 56, y: 2, dest_map: "PortRessac", dest_warp: 0),
+    // 1: Adrien sitting against the wall by the canal, facing the way in (Sc02, VAR_SIL_STORY 40).
+    Object(x: 28, y: 9, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_S04_ADRIEN", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS04_Sc02", flag: "FLAG_SIL_HIDE_ROUTE_S04_ADRIEN"),
+    // 2: his Magikarp in the canal (placeholder: Azurill).
+    Object(x: 28, y: 10, gfx: "OBJ_EVENT_GFX_AZURILL", id: "LOCALID_S04_MAGICARPE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS04_EventScript_Magicarpe", flag: "FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE"),
+    // 3: the worker in the hall (Route_S04_Npc_Ouvrier).
+    Object(x: 13, y: 12, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_S04_OUVRIER", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS04_EventScript_Ouvrier"),
+    // 4-5: the hall's two trainers: Montagnard Bernard, Guitariste Kevin (placeholder: Maniac).
+    Object(x: 9, y: 9, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_S04_BERNARD", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS04_EventScript_Bernard", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 14, y: 4, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_S04_KEVIN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS04_EventScript_Kevin", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    // 6-7: the gallery's two trainers: Kinesiste Luna (placeholder: Hex Maniac), the Cocket grunt.
+    Object(x: 21, y: 5, gfx: "OBJ_EVENT_GFX_HEX_MANIAC", id: "LOCALID_S04_LUNA", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS04_EventScript_Luna", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 34, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_S04_SBIRE", movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS04_EventScript_Sbire", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    // 8: the reveller walking home from Viber-City (Route_S04_Npc_Fetard).
+    Object(x: 38, y: 6, gfx: "OBJ_EVENT_GFX_BOY_3", id: "LOCALID_S04_FETARD", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS04_EventScript_Fetard"),
+    // 9: the ramp's trainer: Triathlete Roxane, watching the scree's first lane.
+    Object(x: 46, y: 4, gfx: "OBJ_EVENT_GFX_RUNNING_TRIATHLETE_F", id: "LOCALID_S04_ROXANE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS04_EventScript_Roxane", trainer_type: "TRAINER_TYPE_NORMAL", sight: 5),
+    // 10-13: the item balls: Super Repel behind the booth, Moon Stone at the canal's end, Hyper
+    // Potion in the scree, Escape Rope in the dead end.
+    Object(x: 4, y: 5, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S04_SUPER_REPOUSSE", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS04_EventScript_SuperRepousse", flag: "FLAG_SIL_ITEM_ROUTE_S04_SUPER_REPOUSSE"),
+    Object(x: 39, y: 11, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S04_PIERRE_LUNE", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS04_EventScript_PierreLune", flag: "FLAG_SIL_ITEM_ROUTE_S04_PIERRE_LUNE"),
+    Object(x: 51, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S04_HYPER_POTION", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS04_EventScript_HyperPotion", flag: "FLAG_SIL_ITEM_ROUTE_S04_HYPER_POTION"),
+    Object(x: 42, y: 16, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S04_CORDE", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS04_EventScript_Corde", flag: "FLAG_SIL_ITEM_ROUTE_S04_CORDE"),
+    // Sc02 by walking in: two tiles in front of Adrien, across the whole gallery (rows 5-9).
+    Coord(x: 26, y: 5, var: "VAR_SIL_STORY", value: 40, script: "RouteS04_Sc02"),
+    Coord(x: 26, y: 6, var: "VAR_SIL_STORY", value: 40, script: "RouteS04_Sc02"),
+    Coord(x: 26, y: 7, var: "VAR_SIL_STORY", value: 40, script: "RouteS04_Sc02"),
+    Coord(x: 26, y: 8, var: "VAR_SIL_STORY", value: 40, script: "RouteS04_Sc02"),
+    Coord(x: 26, y: 9, var: "VAR_SIL_STORY", value: 40, script: "RouteS04_Sc02"),
+    // The signs, on the wall faces: the entrance (A), the works (C).
+    Sign(x: 8, y: 2, script: "RouteS04_EventScript_SignEntree"),
+    Sign(x: 42, y: 2, script: "RouteS04_EventScript_SignChantier"),
+    // Julien's wall messages (Mur_Sombre until FLAG_SIL_ROUTE_S04_MURS): M1 in the hall, M2-M3 in
+    // the gallery, M4-M7 along the ramp, M8 (Route_S04_Sc03) by the exit.
+    Sign(x: 12, y: 2, script: "RouteS04_EventScript_MurM1"),
+    Sign(x: 24, y: 4, script: "RouteS04_EventScript_MurM2"),
+    Sign(x: 33, y: 4, script: "RouteS04_EventScript_MurM3"),
+    Sign(x: 45, y: 2, script: "RouteS04_EventScript_MurM4"),
+    Sign(x: 47, y: 2, script: "RouteS04_EventScript_MurM5"),
+    Sign(x: 50, y: 2, script: "RouteS04_EventScript_MurM6"),
+    Sign(x: 53, y: 2, script: "RouteS04_EventScript_MurM7"),
+    Sign(x: 58, y: 2, script: "RouteS04_Sc03"),
+    // The Ether under M6: the floor cell below the message.
+    HiddenItem(x: 50, y: 3, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S04_ETHER"),
+]
