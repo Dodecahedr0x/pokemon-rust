@@ -110,12 +110,23 @@ pub mod layout {
     // Battle script opcodes (`B_SCR_OP_*`).
     pub const B_SCR_OP_YESNOBOXLEARNMOVE: u8 = 0x5A;
     pub const B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE: u8 = 0x5B;
+    pub const B_SCR_OP_YESNOBOX: u8 = 0x67;
     // struct MonSummaryScreenData
     pub const PSS_NEW_MOVE: u32 = 0x40C4;
     pub const PSS_FIRST_MOVE_INDEX: u32 = 0x40C6;
     // struct PokenavResources
     pub const PN_MODE: u32 = 8;
     pub const POKENAV_MODE_FORCE_CALL_READY: u16 = 1;
+    // struct BagPosition
+    pub const BP_POCKET: u32 = 5;
+    pub const BP_CURSOR_POSITION: u32 = 8;
+    pub const BP_SCROLL_POSITION: u32 = 0x12;
+    /// `MENU_ACTION_BAG` (`start_menu.c`).
+    pub const MENU_ACTION_BAG: u8 = 2;
+    /// The bag's pocket (`*_POCKET`, 0-based) of each `SB1_POCKETS` entry.
+    pub const BAG_POCKET_OF_SB1: [u8; 5] = [0, 4, 1, 2, 3];
+    // struct PartyMenu
+    pub const PM_SLOT_ID: u32 = 9;
 }
 
 use layout::*;

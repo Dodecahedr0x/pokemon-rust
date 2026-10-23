@@ -125,6 +125,26 @@ symbols! {
     pokenav_resources = "gPokenavResources" @ 0x0203cf40,
     /// The summary screen's forget-a-move input.
     task_replace_move = "Task_HandleReplaceMoveInput" @ 0x081c174c,
+    /// `start_menu.c`'s input callback while the start menu takes input.
+    menu_callback = "gMenuCallback" @ 0x03005df4,
+    handle_start_menu_input = "HandleStartMenuInput" @ 0x0809fac4,
+    /// The start menu's cursor, its action count and its `MENU_ACTION_*` list (9 bytes).
+    start_menu_cursor_pos = "sStartMenuCursorPos" @ 0x0203760e,
+    num_start_menu_actions = "sNumStartMenuActions" @ 0x0203760f,
+    current_start_menu_actions = "sCurrentStartMenuActions" @ 0x02037610,
+    /// The bag's main callback and its list and context-menu input tasks.
+    cb2_bag_menu_run = "CB2_BagMenuRun" @ 0x081aad5c,
+    task_bag_menu_handle_input = "Task_BagMenu_HandleInput" @ 0x081abd28,
+    task_item_context_multiple_rows = "Task_ItemContext_MultipleRows" @ 0x081acc78,
+    task_item_context_single_row = "Task_ItemContext_SingleRow" @ 0x081acc04,
+    /// `struct BagPosition`: `pocket` at +5, `cursorPosition[5]` at +8, `scrollPosition[5]`
+    /// at +0x12.
+    bag_position = "gBagPosition" @ 0x0203ce58,
+    /// The party menu's main callback, its choose-a-mon input task and `struct PartyMenu`
+    /// (`slotId` at +9).
+    cb2_update_party_menu = "CB2_UpdatePartyMenu" @ 0x081b01b0,
+    task_handle_choose_mon_input = "Task_HandleChooseMonInput" @ 0x081b1370,
+    party_menu = "gPartyMenu" @ 0x0203cec8,
 }
 
 /// Every address of every name in a symbol listing: any line whose first token is a hex

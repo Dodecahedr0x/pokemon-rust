@@ -40,6 +40,9 @@ pub struct Live<'g, G: GameData> {
     pub rerolls: u32,
     /// What the last step played natively for a [`Step::Bypass`].
     pub note: Option<String>,
+    /// The last step was already behind vanilla (a script had taken the player through its
+    /// warp): boundary timing, the comparison waits for the next step ([`crate::oracle`]).
+    pub ahead: bool,
     /// Moves a bypass search may still try ([`SEARCH_MOVES`]).
     budget: u32,
 }
@@ -75,6 +78,7 @@ impl<'g, G: GameData> Live<'g, G> {
             opts: StepOpts::default(),
             rerolls: 0,
             note: None,
+            ahead: false,
             budget: 0,
         }
     }
@@ -117,6 +121,7 @@ impl<'g, G: GameData> Live<'g, G> {
         );
         self.rerolls = 0;
         self.note = None;
+        self.ahead = false;
         loop {
             let r = self.play_once(step);
             let lost = (self.v.outcomes[outcomes..].iter())
@@ -140,6 +145,18 @@ impl<'g, G: GameData> Live<'g, G> {
         if let Some(want) = step.map() {
             let want = self.resolve_map(want);
             let on = self.map()?;
+            // Vanilla's settle already ran the script our engine runs on the next step (a
+            // trigger, a scene walking the player through the door): the warp the step takes is
+            // already behind (boundary timing, not a parity gap).
+            if on != want && self.arrived(step, want, on) {
+                self.v.settle(MACRO_FRAMES)?;
+                self.ahead = true;
+                self.note = Some(format!(
+                    "already on {} (vanilla's script took the player there a step early)",
+                    map_name(on)
+                ));
+                return Ok(());
+            }
             ensure!(
                 on == want,
                 "on {} at {:?}, not {}",
@@ -274,8 +291,9 @@ impl<'g, G: GameData> Live<'g, G> {
                 }
             }
             Step::Bypass(b) => self.bypass(b, opts)?,
-            // M9 B's bag USE (`World::use_item` on our side): BPEE's bag is not driven yet.
-            Step::UseItem(u) => bail!("the bag's USE is not driven on BPEE yet ({u:?})"),
+            Step::UseItem(u) => {
+                (self.v).use_item(u.item.0, u.mon, u.forget, crate::drive::USE_ITEM_FRAMES)?
+            }
             Step::Grass { x, y, .. } => {
                 self.grass((x, y))?;
             }
@@ -315,6 +333,17 @@ impl<'g, G: GameData> Live<'g, G> {
         Ok(())
     }
 
+    /// Whether `step`, an `Enter`, `Cross` or `Exit` from map `from`, leads to map `on`.
+    fn arrived(&self, step: &Step, from: MapId, on: MapId) -> bool {
+        match *step {
+            Step::Enter { x, y, .. } => {
+                (self.game.map(from).warps.iter()).any(|w| (w.x, w.y) == (x, y) && w.dest_map == on)
+            }
+            Step::Cross { .. } => (self.game.map(from).connections.iter()).any(|c| c.map == on),
+            _ => false,
+        }
+    }
+
     /// Plays one macro (`explore::expand`'s rules) with its options.
     pub fn play_macro(&mut self, m: &Macro) -> Result<()> {
         self.answer(m.opts);
@@ -348,14 +377,14 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.hold(Buttons(keys), frames, MACRO_FRAMES)?
             }
             MacroKind::Step { dir } => self.v.walk_dir(dir, MACRO_FRAMES)?,
+            MacroKind::UseItem { item, mon, forget } => {
+                (self.v).use_item(item, mon, forget, crate::drive::USE_ITEM_FRAMES)?
+            }
             MacroKind::Push { dir } => {
                 if self.map()? == start {
                     self.v.push(dir, MACRO_FRAMES)?;
                 }
             }
-            MacroKind::UseItem { item, mon, forget } => bail!(
-                "the bag's USE is not driven on BPEE yet (item {item}, mon {mon}, forget {forget})"
-            ),
         }
         Ok(())
     }
@@ -623,6 +652,7 @@ impl<'g, G: GameData> Live<'g, G> {
     /// Walks to `to` on `map` (avoiding `avoid`): a battle or a script can interrupt the walk,
     /// which walks on.
     fn goto(&mut self, map: MapId, to: (i16, i16), avoid: &[(i16, i16)]) -> Result<()> {
+        let mut reached = false;
         for _ in 0..RETRIES {
             if self.cell()? == to {
                 break;
@@ -632,12 +662,19 @@ impl<'g, G: GameData> Live<'g, G> {
                 "left the map walking to {to:?} (on {})",
                 map_name(self.map()?)
             );
-            self.v
-                .walk_to_avoiding(self.game, to, avoid, MACRO_FRAMES)?;
+            if self
+                .v
+                .walk_to_avoiding(self.game, to, avoid, MACRO_FRAMES)?
+                == Walk::Reached
+            {
+                // On the target, or moved off it by the script it triggered.
+                reached = true;
+                break;
+            }
         }
         self.v.settle(MACRO_FRAMES)?;
         ensure!(
-            self.map()? == map && self.cell()? == to,
+            self.map()? == map && (reached || self.cell()? == to),
             "never reached {to:?} (at {:?} on {})",
             self.cell()?,
             map_name(self.map()?)
