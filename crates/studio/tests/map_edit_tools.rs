@@ -684,7 +684,13 @@ fn building_metatile_1_is_void_with_every_secondary() {
     use studio::map_edit::render::palette_of;
     let c = Catalog::from_content().unwrap();
     let secondaries = c.tileset_names(true);
-    assert!(secondaries.len() > 40, "{secondaries:?}");
+    // Silice's content ships the secondaries its maps use (34 today), Emerald all of them.
+    let least = if content::FLAVOR == content::Flavor::Silice {
+        30
+    } else {
+        40
+    };
+    assert!(secondaries.len() > least, "{secondaries:?}");
     for s in &secondaries {
         let pal = palette_of(&c, "Building", s, Some(1..=1)).unwrap();
         assert_eq!(pal.void_metatiles(), [1], "Building + {s}");

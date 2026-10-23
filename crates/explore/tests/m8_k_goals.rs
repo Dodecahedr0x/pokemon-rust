@@ -117,12 +117,8 @@ fn act_constants_match_the_decomp_headers() {
 
 fn settled(game: Emerald) -> WorldSnapshot {
     let mut s = Session::new(game);
-    loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            return snap;
-        }
-        s.step(engine::Buttons::NONE);
-    }
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    s.world().snapshot(s.game()).unwrap()
 }
 
 fn set_flag(s: &mut WorldSnapshot, f: u16) {
