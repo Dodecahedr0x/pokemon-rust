@@ -342,8 +342,8 @@ pub fn build(
                 reached = Reached::Reported;
             }
             let low = lowering.names.get(&name);
-            let story_blocking = blocking.contains(&(cat, name.as_str()))
-                || extra.bypassed.contains(&name);
+            let story_blocking =
+                blocking.contains(&(cat, name.as_str())) || extra.bypassed.contains(&name);
             entries.push(Entry {
                 category: cat,
                 status,

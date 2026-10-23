@@ -30,11 +30,12 @@ fn fixture(root: &Path) {
          \t.macro loadword d, v\n\t.byte SCR_OP_LOADWORD\n\t.endm\n\
          \t.macro callstd f\n\t.byte SCR_OP_CALLSTD\n\t.endm\n\
          \t.macro trainerbattle t, a\n\t.byte SCR_OP_TRAINERBATTLE\n\t.endm\n\
+         \t.macro addobject id, x, y\n\t.ifb \\x\n\t.byte SCR_OP_ADDOBJECT\n\t.else\n\t.byte SCR_OP_ADDOBJECTAT\n\t.endif\n\t.endm\n\
          \t@ A helper: no SCR_OP of its own.\n\
          \t.macro msgbox text:req, type=MSGBOX_DEFAULT\n\tloadword 0, \\text\n\tcallstd \\type\n\t.endm\n\
          \t.macro trainerbattle_single t, a\n\ttrainerbattle 0, \\t\n\t.endm\n",
     );
-    // `addobjectat` has a handler but no macro.
+    // `addobjectat` has a handler but no macro of its name (`addobject` emits it).
     w(
         "data/script_cmd_table.inc",
         "\tscript_cmd_table_entry SCR_OP_END            ScrCmd_end            @ 0x02\n\
@@ -347,7 +348,7 @@ fn one_entry_per_category_on_a_synthetic_decomp() {
 
     // Coverage and ranking.
     let cov = &l.coverage[&Category::Command];
-    assert_eq!((cov.total, cov.count(Status::Unsupported)), (10, 1));
+    assert_eq!((cov.total, cov.count(Status::Unsupported)), (11, 1));
     assert_eq!(l.entries[&Category::Command][0].name, "dofieldeffect");
     let ranked = l.ranked_gaps();
     assert_eq!(
@@ -361,7 +362,7 @@ fn one_entry_per_category_on_a_synthetic_decomp() {
     assert!(wave_c.iter().any(|e| e.name == "dofieldeffect"));
     assert!(!wave_c.iter().any(|e| e.name == "MB_POND_WATER"));
     let md = l.markdown();
-    assert!(md.contains("| script commands | 10 |"), "{md}");
+    assert!(md.contains("| script commands | 11 |"), "{md}");
     assert!(md.contains("`dofieldeffect`"));
     let ron = l.ron();
     assert!(ron.contains("dofieldeffect"));

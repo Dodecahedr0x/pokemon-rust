@@ -446,17 +446,11 @@ impl Decomp {
             .filter(|(_, m)| m.command)
             .map(|(n, _)| n.clone())
             .collect();
-        // Commands no macro emits (`ScrCmd_addobjectat`): by their handler's name.
-        let emitted: BTreeSet<&str> = event
-            .lines()
-            .filter_map(|l| l.trim().strip_prefix(".byte"))
-            .map(str::trim)
-            .filter(|o| o.starts_with("SCR_OP_"))
-            .collect();
+        // Handlers without a macro of their name (`ScrCmd_addobjectat`, emitted by
+        // `addobject` with a position): commands by their handler's name.
         for l in opt("data/script_cmd_table.inc", &mut d).lines() {
             let w: Vec<&str> = idents(l).collect();
-            if let ["script_cmd_table_entry", op, handler, ..] = w[..]
-                && !emitted.contains(op)
+            if let ["script_cmd_table_entry", _, handler, ..] = w[..]
                 && let Some(name) = handler.strip_prefix("ScrCmd_")
                 && !commands.iter().any(|c| c == name)
             {
