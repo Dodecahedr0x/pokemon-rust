@@ -7,7 +7,8 @@
 //! receives its `Ctx` by value and passes `&ctx`.
 //!
 //! **Story and state:** [`story`], [`set_story`] (`VAR_SIL_STORY`), [`defeated`] (a trainer's
-//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight),
+//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight) and
+//! [`post_battle`] (its line once beaten),
 //! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
 //! as a sign script, a fallback).
 //!
@@ -80,6 +81,13 @@ pub async fn trainer(
     trainer_battle(ctx, b).await
 }
 
+/// A beaten [`trainer`] talked to again: `text` as Gen3's `msgbox <PostBattle>, MSGBOX_AUTOCLOSE`
+/// (the trainer is locked and faces the player already). The sources write no post-battle lines:
+/// the scripts pass the defeat text.
+pub async fn post_battle(ctx: &Ctx, text: TextId) {
+    msgbox(ctx, text, MsgBox::Autoclose).await;
+}
+
 /// How [`gift`] tells the player.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Obtain {
@@ -121,7 +129,7 @@ pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
 // ---- module obstacles ----
 
 /// `METATILE_RONCES_COUPEES`: synthetic brambles once cut, General's grass (metatile 1), walkable.
-/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 8),
+/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 9),
 /// Bois-Éther (8, 6); "SIL2 Ch1 maps as built").
 pub const METATILE_RONCES_COUPEES: u16 = 1;
 
@@ -304,19 +312,13 @@ pub async fn show_sync(ctx: &Ctx, _percent: u16) {
 
 /// The source's `mart(MART_*)` (Gen3 `pokemart`): no shop screen before Milestone 9 (its
 /// Task J's `mart`), so the clerk greets and says goodbye on Gen3's own `gText_*` and nothing is
-/// sold. Reported. `items` is the stock the shop will sell, kept at the call site so that the
-/// swap to the real screen is one line.
-pub async fn mart(ctx: &Ctx, items: &'static [ItemId]) {
+/// sold. Reported. `_items` is the stock the shop will sell (unused until then), kept at the call
+/// site so that the swap to the real screen is one line.
+pub async fn mart(ctx: &Ctx, _items: &'static [ItemId]) {
     ctx.lock().await;
     ctx.face_player().await;
     say(ctx, gText_HowMayIServeYou).await;
     fallback(ctx, "mart").await;
-    ctx.log(if items.is_empty() {
-        "mart: empty stock"
-    } else {
-        "mart: stock not sold yet"
-    })
-    .await;
     say(ctx, gText_PleaseComeAgain).await;
     ctx.release().await;
 }

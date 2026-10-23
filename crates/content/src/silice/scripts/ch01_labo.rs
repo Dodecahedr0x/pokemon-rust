@@ -1,6 +1,6 @@
 //! Chapter 1, the Brico-Bourg Labo (`BricoBourg_Labo`, optional): `contenu-jeu/chapitres/
 //! 01-bois-ether.md` §2 and §3 Brico_Labo_Sc01. Reached after the badge, through the brambles
-//! (Brico-Bourg (4, 8)) that the Lame-Frequence cuts. `VAR_SIL_BRICO_LABO_STATE`: 0 never
+//! (Brico-Bourg (4, 9)) that the Lame-Frequence cuts. `VAR_SIL_BRICO_LABO_STATE`: 0 never
 //! entered, 1 entered, 2 the Chimiste beaten.
 
 use crate::silice::prelude::*;
@@ -52,7 +52,7 @@ pub async fn BricoBourg_Labo_EventScript_Sbire1(ctx: Ctx) {
     )
     .await
     {
-        msgbox(&ctx, Brico_Labo_Sbire1_Defeat, MsgBox::Autoclose).await;
+        post_battle(&ctx, Brico_Labo_Sbire1_Defeat).await;
     }
 }
 
@@ -67,7 +67,7 @@ pub async fn BricoBourg_Labo_EventScript_Sbire2(ctx: Ctx) {
     )
     .await
     {
-        msgbox(&ctx, Brico_Labo_Sbire2_Defeat, MsgBox::Autoclose).await;
+        post_battle(&ctx, Brico_Labo_Sbire2_Defeat).await;
     }
 }
 

@@ -113,10 +113,7 @@ pub async fn BoisEther_Gym_EventScript_Spores(ctx: Ctx) {
 pub async fn BoisEther_Gym_EventScript_PorteSas1(ctx: Ctx) {
     ctx.lock().await;
     if ctx.flag(FLAG_SIL_GYM1_CONTAMINE).await {
-        say(&ctx, Gym_Z1_Porte_Refus).await;
-        // The warp ends the script (the map loads): the flag first.
-        ctx.set_flag(FLAG_SIL_GYM1_CONTAMINE, false).await;
-        warp(&ctx, MAP_BOIS_ETHER_GYM, 7, 30).await;
+        back_to_shower(&ctx).await;
         return;
     }
     ctx.door(PORTE_D.0, PORTE_D.1, true).await;
@@ -125,6 +122,26 @@ pub async fn BoisEther_Gym_EventScript_PorteSas1(ctx: Ctx) {
         .await;
     say(&ctx, Gym_Z1_Porte_Ok).await;
     ctx.release().await;
+}
+
+/// Door D's cell (8, 22), once its panel opened it: a contaminated player who steps onto it
+/// (back from a grate) is sent to the shower, as by the panel. Fires on every step (`VAR_TEMP_1`
+/// stays 0); nothing when clean. Not in the source, whose door is only a panel: without it, an
+/// open door let a contaminated player through.
+pub async fn BoisEther_Gym_EventScript_PorteSas1Passage(ctx: Ctx) {
+    if !ctx.flag(FLAG_SIL_GYM1_CONTAMINE).await {
+        return;
+    }
+    ctx.lock().await;
+    back_to_shower(&ctx).await;
+}
+
+/// The refusal: the loudspeaker, clean again, and the warp to the shower (7, 30). The warp ends
+/// the script (the map loads, door D closed again): the flag is cleared first.
+async fn back_to_shower(ctx: &Ctx) {
+    say(ctx, Gym_Z1_Porte_Refus).await;
+    ctx.set_flag(FLAG_SIL_GYM1_CONTAMINE, false).await;
+    warp(ctx, MAP_BOIS_ETHER_GYM, 7, 30).await;
 }
 
 /// The poster (4, 22).
@@ -143,7 +160,7 @@ pub async fn BoisEther_Gym_EventScript_Iris(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Gym_Iris_Defeat).await;
+        post_battle(&ctx, Gym_Iris_Defeat).await;
     }
 }
 
@@ -158,15 +175,10 @@ pub async fn BoisEther_Gym_EventScript_Jules(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Gym_Jules_Defeat).await;
+        post_battle(&ctx, Gym_Jules_Defeat).await;
     }
 }
 
-/// A beaten trainer talked to again: the source writes no post-battle lines, the defeat text
-/// stands in (as Ch0's route trainers).
-async fn after_battle(ctx: &Ctx, text: TextId) {
-    msgbox(ctx, text, MsgBox::Autoclose).await;
-}
 
 // ---- zone 2, the workshop ----
 
@@ -182,7 +194,7 @@ pub async fn BoisEther_Gym_EventScript_Milo(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Gym_Milo_Defeat).await;
+        post_battle(&ctx, Gym_Milo_Defeat).await;
     }
     valve_piece(&ctx, TRAINER_SIL_APPRENTI_MILO, FLAG_SIL_GYM1_JOINT).await;
 }
@@ -199,7 +211,7 @@ pub async fn BoisEther_Gym_EventScript_Rose(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Gym_Rose_Defeat).await;
+        post_battle(&ctx, Gym_Rose_Defeat).await;
     }
     valve_piece(&ctx, TRAINER_SIL_BOTANISTE_ROSE, FLAG_SIL_GYM1_MANO).await;
 }
@@ -352,8 +364,8 @@ pub async fn BoisEther_Gym_Sc10(ctx: Ctx) {
     };
     move_wait(&ctx, LOCALID_GYM1_LOIC, out).await;
     hide(&ctx, LOCALID_GYM1_LOIC).await;
-    ctx.release().await;
     BoisEther_Gym_Sc12(ctx.clone()).await;
+    ctx.release().await;
 }
 
 /// Gym_Sc11, Benou installs the Lame-Frequence (called from Sc10): `FLAG_SIL_MODULE_COUPE`, and
