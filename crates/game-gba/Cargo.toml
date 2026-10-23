@@ -7,9 +7,16 @@ publish = false
 [workspace]
 
 [dependencies]
-agb = "0.25.0"
+# Without agb's `backtrace` and `testing` features: the shell has its own panic handler (it
+# writes `DebugRegion::panicked`).
+agb = { version = "0.25.0", default-features = false }
 engine = { path = "../engine", features = ["iwram"] }
 content = { path = "../content" }
+
+[features]
+# The map tour (Milestone 8 Task M): L+R+START warps to the next map (`src/tour_logic.rs`).
+# ROM-only, built by `cargo xtask parity --long` into target/game-tour.gba.
+tour = []
 
 [profile.dev]
 opt-level = 3

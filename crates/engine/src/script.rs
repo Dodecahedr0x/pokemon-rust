@@ -93,9 +93,6 @@ pub enum Report {
     Degraded(&'static str),
 }
 
-/// Gen3 `MULTI_B_PRESSED`: the multichoice answer when B cancels it.
-pub const MULTI_B_PRESSED: u16 = 127;
-
 /// Everything a script can ask of the world.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Request {
@@ -260,7 +257,7 @@ pub enum Request {
         src: BufferSrc,
     },
     /// Gen3 `multichoice`/`multichoicedefault`: answers `Value` (the index, or
-    /// [`MULTI_B_PRESSED`]).
+    /// `SpecialIds::multichoice_cancel`).
     Multichoice {
         list: u8,
         x: u8,
@@ -775,7 +772,7 @@ impl Ctx {
         self.req(Request::Buffer { slot, src }, unit)
     }
 
-    /// The chosen index, or [`MULTI_B_PRESSED`].
+    /// The chosen index, or `SpecialIds::multichoice_cancel`.
     pub fn multichoice(&self, list: u8, x: u8, y: u8, default: u8, cancel: bool) -> Req<u16> {
         self.req(
             Request::Multichoice {

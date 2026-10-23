@@ -76,8 +76,9 @@ fn remap_rustflags(gba_dir: &Path) -> Result<String> {
     ))
 }
 
-/// Build game-gba (its own workspace/toolchain) and fix it into target/game.gba.
-fn rom() -> Result<PathBuf> {
+/// Builds game-gba (its own workspace/toolchain) in release with `features` and fixes its ELF
+/// into `out`. Returns the ELF.
+fn build_gba(features: &[&str], out: &Path) -> Result<PathBuf> {
     let gba_dir = root().join("crates/game-gba");
     let mut build = Command::new("cargo");
     build.current_dir(&gba_dir);
@@ -89,16 +90,26 @@ fn rom() -> Result<PathBuf> {
         .arg(gba_dir.join("target"))
         .arg("--config")
         .arg(remap_rustflags(&gba_dir)?);
+    if !features.is_empty() {
+        build.args(["--features", &features.join(",")]);
+    }
     run(&mut build)?;
     let elf = gba_dir.join("target/thumbv4t-none-eabi/release/game-gba");
-    let out = root().join("target/game.gba");
     std::fs::create_dir_all(out.parent().unwrap())?;
     run(Command::new("agb-gbafix")
         .arg(&elf)
         .arg("-o")
-        .arg(&out)
+        .arg(out)
         .args(["-t", "PKRUST"]))?;
     println!("ROM: {}", out.display());
+    Ok(elf)
+}
+
+/// Build game-gba and fix it into target/game.gba, then report and gate its budgets.
+fn rom() -> Result<PathBuf> {
+    let gba_dir = root().join("crates/game-gba");
+    let out = root().join("target/game.gba");
+    let elf = build_gba(&[], &out)?;
     check_rom_size(&out)?;
     let content = if content::STUB {
         budget::Content::Stub
@@ -218,7 +229,15 @@ fn fresh_extract() -> Result<()> {
     Ok(())
 }
 
-fn parity() -> Result<()> {
+/// `cargo xtask parity [--long]`: the committed tree verified, the ROM built, then the parity
+/// lanes (`emu/tests/parity.rs`) and the studio's ROM pane. `--long` then builds the map tour
+/// ROM (`target/game-tour.gba`, `game-gba --features tour`) and runs `emu/tests/tour.rs`.
+fn parity(args: &[String]) -> Result<()> {
+    let long = match args {
+        [] => false,
+        [a] if a == "--long" => true,
+        _ => bail!("usage: cargo xtask parity [--long]"),
+    };
     fresh_extract()?;
     // Positional names (an extract without `PKR_DECOMP`) apply no override: the game would not
     // be the one the trees and the parity fixtures describe.
@@ -253,6 +272,29 @@ fn parity() -> Result<()> {
         "rom::tests::",
         "--",
         "--ignored",
+    ]))?;
+    if long {
+        tour()?;
+    }
+    Ok(())
+}
+
+/// The map tour (Milestone 8 Task M): builds `target/game-tour.gba` and runs its mGBA test,
+/// whose table also goes to `target/tour/report.txt`. The tour build shares game-gba's target
+/// dir (only the final link differs); `target/game.gba` stays the game's ROM.
+fn tour() -> Result<()> {
+    let out = root().join("target/game-tour.gba");
+    build_gba(&["tour"], &out)?;
+    check_rom_size(&out)?;
+    run(Command::new("cargo").current_dir(root()).args([
+        "test",
+        "-p",
+        "emu",
+        "--test",
+        "tour",
+        "--",
+        "--ignored",
+        "--nocapture",
     ]))
 }
 
@@ -384,7 +426,7 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("rom") => rom().map(|_| ()),
-        Some("parity") => parity(),
+        Some("parity") => parity(&args[1..]),
         Some("shot") => shot(),
         Some("extract") => extract(&args[1..]),
         Some("checkpoints") => checkpoints::main(&args[1..]),
