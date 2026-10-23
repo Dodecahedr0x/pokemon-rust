@@ -93,32 +93,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// The lead forgets Rock Smash for Muddy Water at level 39 (Route 112, under
-    /// `BattlePlan::BestLearn`): Gen3's learn menu refuses to forget an HM move (`IsHMMove2`,
-    /// `battle_script_commands.c`), the explorer's `policy::forget_slot` does not (no HM list
-    /// in the game data), so `checkpartymove` (now native) finds no Rock Smash and the rock
-    /// stays. The bypass steps past Route 111's rock from the north (it comes back on every
-    /// map load; the spine smashed it for real on the way up).
-    static ROUTE111_ROCK_SMASH_SOUTH: Bypass = Bypass {
-        issue: "rock-smash-forgotten-south",
-        features: &["IsHMMove2 in the explorer's learn policy"],
-        warp: Some((MAP_ROUTE111, 18, 102)),
-        ..Bypass::NONE
-    };
-
-    /// Rusturf Tunnel's boulder, for the same reason (`rock-smash-forgotten-south`): the
-    /// bypass does what smashing the first rock does (`removeobject` sets its hide flag,
-    /// `SPECIAL_TryUpdateRusturfTunnelState`, now native, sets the tunnel's state 4) and
-    /// reloads the tunnel, whose `ON_FRAME` table then plays Wanda's boyfriend's scene (HM04).
-    static RUSTURF_ROCK_SMASH: Bypass = Bypass {
-        issue: "rock-smash-forgotten-rusturf",
-        features: &["IsHMMove2 in the explorer's learn policy"],
-        set: &[FLAG_HIDE_RUSTURF_TUNNEL_ROCK_1],
-        vars: &[(VAR_RUSTURF_TUNNEL_STATE, 4)],
-        warp: Some((MAP_RUSTURF_TUNNEL, 25, 5)),
-        ..Bypass::NONE
-    };
-
     /// The Petalburg gym's room doors (`MB_PETALBURG_GYM_DOOR`) open through
     /// `SPECIAL_PetalburgGymUnlockRoomDoors` on load (`VAR_PETALBURG_GYM_STATE` 6, the doors of
     /// beaten rooms) and `SPECIAL_PetalburgGymSlideOpenRoomDoors` after a room's trainer:
@@ -922,9 +896,11 @@ mod list {
         // Route 112's ledges down to Route 111, south past the rock to Mauville.
         cross(MAP_LAVARIDGE_TOWN, 19, 10, Right),
         cross(MAP_ROUTE112, 39, 48, Right),
-        // The same rock from the north (blocked: `rock-smash-forgotten-south`).
+        // The same rock from the north (it comes back on every map load): smashed again, the
+        // lead keeping Rock Smash (HM moves are never forgotten, `IsHMMove2`).
         goto(MAP_ROUTE111, 18, 100),
-        Step::Bypass(&ROUTE111_ROCK_SMASH_SOUTH),
+        Step::Choose(0),
+        talk(MAP_ROUTE111, 15),
         cross(MAP_ROUTE111, 16, 139, Down),
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
@@ -934,9 +910,11 @@ mod list {
         cross(MAP_ROUTE117, 0, 10, Left),
         Step::Expect("verdanturf"),
         enter(MAP_VERDANTURF_TOWN, 8, 1, Up),
-        // The boulder between Wanda and her boyfriend (blocked: `rock-smash-forgotten-rusturf`).
+        // The boulder between Wanda and her boyfriend: smashed (`removeobject`,
+        // `SPECIAL_TryUpdateRusturfTunnelState`), then the tunnel's `ON_FRAME` scene (HM04).
         goto(MAP_RUSTURF_TUNNEL, 25, 5),
-        Step::Bypass(&RUSTURF_ROCK_SMASH),
+        Step::Choose(0),
+        talk(MAP_RUSTURF_TUNNEL, 2),
         Step::WaitScript,
         Step::Expect("hm_strength"),
         // ---- West out of the tunnel, Route 116, Rustboro (heal), Route 104, the woods,
