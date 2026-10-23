@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+// `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
+const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
+
 mod panic;
 mod save;
 mod save_logic;
