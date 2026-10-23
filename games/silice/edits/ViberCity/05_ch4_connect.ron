@@ -1,0 +1,8 @@
+// Chapter 4: Route S4 to the east (MAP_ROUTE_S04, the Tunnel de Verre). The trees at the east
+// street's end (38-39, 15-16) become street, and our y 15-16 meets the tunnel hall's west opening
+// (its rows 8-9). The barrier (37, 15-16) stays solid until ViberCity_OnLoad opens it
+// (FLAG_SIL_VIBER_BARRIERE_EST).
+[
+    Ascii(x: 38, y: 15, rows: ["::", "::"], legend: {':': (metatile: 94, collision: 0)}),
+    Connect((dir: East, offset: 7, map: "RouteS04")),
+]

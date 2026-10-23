@@ -1,0 +1,26 @@
+// Header, map scripts, warps, the movable barrels, Timothé, the explosive and loot barrels.
+[
+    Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_GYM")),
+    // The on-load script repaints a blown barrel as planks (General + InsideShip 525, collision 0) when
+    // FLAG_SIL_PORT_CALE_FUT_1 (7, 6) or FLAG_SIL_PORT_CALE_FUT_2 (8, 3) is set.
+    Scripts((on_load: Some("PortRessac_Gym_Cale_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the hatch mat S (5, 8), back up to the main deck's hatch (the gym's warp 2).
+    Warp(x: 5, y: 8, dest_map: "PortRessac_Gym", dest_warp: 2),
+    // Warp 1: the doorway E (8, 0), up to the quarterdeck (the gym's warp 3).
+    Warp(x: 8, y: 0, dest_map: "PortRessac_Gym", dest_warp: 3),
+    // The movable barrels A, D and B: Strength boulders (Champ Magnétique). Gen3 puts a boulder back
+    // on its template cell on every map load, which is the source's reset rule.
+    Object(x: 4, y: 3, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_CALE_FUT_A", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "PortRessac_Gym_Cale_EventScript_Fut"),
+    Object(x: 4, y: 4, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_CALE_FUT_D", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "PortRessac_Gym_Cale_EventScript_Fut"),
+    Object(x: 2, y: 6, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_CALE_FUT_B", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "PortRessac_Gym_Cale_EventScript_Fut"),
+    // The trap barrel T (6, 1): the source's fallback, Timothé visible with a one-tile sight.
+    Object(x: 6, y: 1, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_CALE_TIMOTHE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Gym_Cale_EventScript_Timothe", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1),
+    // The explosive barrels: n°1 (7, 6), VOLTORB 33, FLAG_SIL_PORT_CALE_FUT_1; n°2 (8, 3), ELECTRODE 34,
+    // FLAG_SIL_PORT_CALE_FUT_2. Each script checks its flag first (an empty cell after the blast).
+    Sign(x: 7, y: 6, script: "PortRessac_Gym_Cale_EventScript_Explosif1"),
+    Sign(x: 8, y: 3, script: "PortRessac_Gym_Cale_EventScript_Explosif2"),
+    // The loot barrels, searched once. A hidden item gives one: the source's Rhum Pirate x2 needs a
+    // script, or a second find.
+    HiddenItem(x: 1, y: 5, item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_PORT_CALE_HYPER_POTION"),
+    HiddenItem(x: 9, y: 5, item: "ITEM_SIL_RHUM_PIRATE", flag: "FLAG_SIL_ITEM_PORT_CALE_RHUM"),
+]
