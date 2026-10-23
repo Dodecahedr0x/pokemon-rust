@@ -1,0 +1,10 @@
+// Reachability lint fixes (lint-reach).
+[
+    // The violet tube (11, 1) sat above the reset lever R (11, 2), a crate, with walls on its other sides:
+    // no cell could read it. (The source's grid has the same clash; its text puts R at (10, 2), under the
+    // yellow tube.) R becomes a crate in the east wall, (12, 2), read from (11, 2), which is now floor: each
+    // tube is read from below, and R from its west.
+    Paint(x: 11, y: 2, metatile: 528, collision: 0),
+    Paint(x: 12, y: 2, metatile: 704, collision: 1),
+    Move(kind: Bg, index: 7, x: 12, y: 2),
+]

@@ -50,6 +50,10 @@
     Coord(x: 11, y: 28, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
     Coord(x: 6, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
     Coord(x: 9, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    // Door D's cell (8, 22), once its panel opened it: a contaminated player who steps onto it is
+    // sent back to the shower, as the panel does (SIL2 Ch1 scripts fix: an open door stayed open to
+    // a player who walked back onto a grate).
+    Coord(x: 8, y: 22, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_PorteSas1Passage"),
     // Zone 3: the chamber's centre. The scene sets VAR_TEMP_2 to 1, so it plays once per visit.
     Coord(x: 7, y: 10, var: "VAR_TEMP_2", value: 0, script: "BoisEther_Gym_EventScript_Sas2"),
     // Signs: the airlock door D (from either side), the poster, the workbench (front row), the

@@ -1,9 +1,10 @@
 //! Chapter 0, the Prologue, from a new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge
 //! (Route S1's north edge, (10, 2)): the bar (Bar_Sc01 to Sc04, with the exit guard while the
 //! Mallette is left behind), the night chase, the house (Player_House_Sc01 to Sc03), the morning
-//! (Brico_Bourg_Sc02 and Sc03: the starter and the gifts), the hidden Potion, the Labo's
-//! brambles (cut with Chapter 1's module, granted for one try), the north exit (Sc04), then
-//! Route S1: the first wild battle, the walker's berries, a trainer by sight, the items.
+//! (Brico_Bourg_Sc02 and Sc03: the starter, Cyndaquil, and the gifts), the hidden Potion, the
+//! Labo's brambles (their sign; [`labo_brambles_probe`] cuts them with a hook, in the Chapter 0
+//! test only), the north exit (Sc04), then Route S1: the first wild battle, the walker's
+//! berries, training in the tall grass ([`TRAINER_LEVEL`]), a trainer by sight, the items.
 
 use super::{Hook, Run, Step, goto, goto_avoiding};
 use content::consts::*;
@@ -26,16 +27,59 @@ pub const ROUTE_S01_SIGHT: &[(i16, i16)] = &[
     (11, 4),
 ];
 
+/// The starter's level before Route S1's trainers (levels 3–7, §5), after [`Step::Train`].
+pub const TRAINER_LEVEL: u8 = 8;
+
+/// Two tall-grass cells of Route S1's south meadow (x 8–13, y 26–30), out of every sight line.
+const GRASS: ((i16, i16), (i16, i16)) = ((10, 28), (10, 29));
+
+/// Maman's heal (Player_House: from the morning on), from Route S1 and back by its south edge.
+const HEAL: &[Step] = &[
+    goto_avoiding(ROUTE, 8, 39, ROUTE_S01_SIGHT),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto(TOWN, 5, 15),
+    Step::Enter {
+        dir: Dir::Up,
+        map: HOUSE_1F,
+    },
+    goto(HOUSE_1F, 3, 2),
+    Step::Interact(Dir::Left),
+    goto(HOUSE_1F, 4, 7),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto(TOWN, 11, 0),
+    Step::Enter {
+        dir: Dir::Up,
+        map: ROUTE,
+    },
+];
+
 const BAR: engine::data::MapId = MAP_BRICO_BOURG_BAR;
 const TOWN: engine::data::MapId = MAP_BRICO_BOURG;
 const HOUSE_1F: engine::data::MapId = MAP_BRICO_BOURG_PLAYER_HOUSE_1F;
 const HOUSE_2F: engine::data::MapId = MAP_BRICO_BOURG_PLAYER_HOUSE_2F;
 const ROUTE: engine::data::MapId = MAP_ROUTE_S01;
 
-/// Chapter 0's steps.
+/// Chapter 0's spine.
 pub fn steps() -> Vec<Step> {
+    spine(false)
+}
+
+/// Chapter 0's spine with its probe ([`labo_brambles_probe`], a test hook), for the Chapter 0
+/// test only: the chained runs (`sil2_ch1.rs`) play [`steps`], so that Chapter 1 cuts the
+/// brambles itself.
+pub fn steps_with_probes() -> Vec<Step> {
+    spine(true)
+}
+
+fn spine(probes: bool) -> Vec<Step> {
     use Dir::*;
-    vec![
+    let mut v = vec![
         // ---- the Shaker, the evening (story 0) ----
         Step::Check("bar_sc01", |r| {
             assert_eq!(r.w.map(), BAR);
@@ -167,6 +211,8 @@ pub fn steps() -> Vec<Step> {
             r.printed_in_order(&[Player_House_Sc03_T2, Player_House_Sc03_T3]);
         }),
         // ---- the morning: click, the call, the starter (Brico_Bourg_Sc02, Sc03) ----
+        // CYNDAQUIL, the middle ball: Chapter 1's leader is Grass/Poison (Ember from level 12).
+        Step::Choose(1),
         goto(HOUSE_1F, 4, 7),
         Step::Enter {
             dir: Down,
@@ -189,7 +235,7 @@ pub fn steps() -> Vec<Step> {
                 assert!(r.w.flag(f), "{f:?}");
             }
             let starter = r.w.var(VAR_SIL_STARTER);
-            assert_eq!(starter, 2);
+            assert_eq!(starter, 1);
             assert_eq!(r.w.party().len(), 1);
             assert_eq!(
                 r.w.party().get(0).unwrap().species,
@@ -228,41 +274,18 @@ pub fn steps() -> Vec<Step> {
         Step::Check("hidden_potion_once", |r| {
             assert_eq!(r.count(ITEM_POTION), 3)
         }),
-        // The Labo's brambles (4, 8): Ch0's sign; with Chapter 1's Lame-Frequence (granted for
-        // one try), cut by the generic obstacle, and still cut after a map load
-        // (BricoBourg_OnLoad). Chapter 1 enters the Labo through them.
-        goto(TOWN, 4, 9),
+        // The Labo's brambles (4, 9): Ch0's sign (Chapter 1 cuts them).
+        goto(TOWN, 4, 10),
         Step::Interact(Up),
         Step::Check("ronces_sign", |r| {
             assert!(r.has_text(Brico_Bourg_Sign_Ronces));
             assert!(!r.w.flag(FLAG_SIL_BRICO_LABO_RONCES_CUT));
         }),
-        Step::Hook(Hook::FlagDuring(
-            "BricoBourg_EventScript_Ronces",
-            FLAG_SIL_MODULE_COUPE,
-        )),
-        Step::Interact(Up),
-        Step::Check("ronces_cut", |r| {
-            assert!(r.w.flag(FLAG_SIL_BRICO_LABO_RONCES_CUT));
-            assert!(!r.w.flag(FLAG_SIL_MODULE_COUPE));
-            r.printed_in_order(&[Bois_Ether_Sc08_T2, Bois_Ether_Sc08_T3]);
-        }),
-        Step::Walk(Up),
-        Step::Check("ronces_walkable", |r| assert_eq!(r.pos(), (4, 8))),
-        goto(TOWN, 5, 15),
-        Step::Enter {
-            dir: Up,
-            map: HOUSE_1F,
-        },
-        goto(HOUSE_1F, 4, 7),
-        Step::Enter {
-            dir: Down,
-            map: TOWN,
-        },
-        goto(TOWN, 4, 9),
-        Step::Walk(Up),
-        Step::Check("ronces_still_cut", |r| assert_eq!(r.pos(), (4, 8))),
-        Step::Walk(Down),
+    ];
+    if probes {
+        v.extend(labo_brambles_probe());
+    }
+    v.extend([
         // The north exit: the signal (Brico_Bourg_Sc04), then Route S1.
         goto(TOWN, 11, 1),
         Step::Check("brico_sc04", |r| {
@@ -291,6 +314,16 @@ pub fn steps() -> Vec<Step> {
         }),
         Step::Interact(Left),
         Step::Check("oran_once", |r| assert_eq!(r.count(ITEM_ORAN_BERRY), 2)),
+        // Training in the south meadow (the wild levels 2–6 of §6), healed by Maman.
+        Step::Train {
+            a: GRASS.0,
+            b: GRASS.1,
+            level: TRAINER_LEVEL,
+            heal: HEAL,
+        },
+        Step::Check("trained", |r| {
+            assert!(r.w.party().get(0).unwrap().level >= TRAINER_LEVEL)
+        }),
         // Home to heal before the trainers (Maman, from the morning on), back by the south edge.
         goto_avoiding(ROUTE, 8, 39, ROUTE_S01_SIGHT),
         Step::Enter {
@@ -350,6 +383,42 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.w.var(VAR_SIL_STORY), 9);
             assert!(r.has_text(Route_S01_Sc02_T1));
         }),
+    ]);
+    v
+}
+
+/// The Labo's brambles cut early: with Chapter 1's Lame-Frequence granted for one try (a hook),
+/// the generic obstacle cuts them, and they stay cut after a map load (`BricoBourg_OnLoad`). From
+/// and back to (4, 10), in Brico-Bourg, below them.
+pub fn labo_brambles_probe() -> Vec<Step> {
+    use Dir::*;
+    vec![
+        Step::Hook(Hook::FlagDuring(
+            "BricoBourg_EventScript_Ronces",
+            FLAG_SIL_MODULE_COUPE,
+        )),
+        Step::Interact(Up),
+        Step::Check("ronces_cut", |r| {
+            assert!(r.w.flag(FLAG_SIL_BRICO_LABO_RONCES_CUT));
+            assert!(!r.w.flag(FLAG_SIL_MODULE_COUPE));
+            r.printed_in_order(&[Bois_Ether_Sc08_T2, Bois_Ether_Sc08_T3]);
+        }),
+        Step::Walk(Up),
+        Step::Check("ronces_walkable", |r| assert_eq!(r.pos(), (4, 9))),
+        goto(TOWN, 5, 15),
+        Step::Enter {
+            dir: Up,
+            map: HOUSE_1F,
+        },
+        goto(HOUSE_1F, 4, 7),
+        Step::Enter {
+            dir: Down,
+            map: TOWN,
+        },
+        goto(TOWN, 4, 10),
+        Step::Walk(Up),
+        Step::Check("ronces_still_cut", |r| assert_eq!(r.pos(), (4, 9))),
+        Step::Walk(Down),
     ]
 }
 

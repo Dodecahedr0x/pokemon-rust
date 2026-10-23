@@ -1,0 +1,15 @@
+// Chapter 7 link: the south exit to Reverse-City's Porte Eta-Nord (MAP_REVERSE_CITY). A warp, not a
+// connection: Reverse-City is General + Sootopolis and this route General + Fallarbor, and Gen3 draws a
+// neighbour with the current map's tilesets. A two-cell path (19-20, 78) cuts the forest edge down to
+// two mats (19-20, 79; Fallarbor 689/690, MB_SOUTH_ARROW_WARP): pushing south on one leads to
+// Reverse-City's warp 9, the gate door (27, 0). Reverse-City lands the player on warp 0, the left mat.
+// The trees beside the path (18 and 21, 78-79) stay solid, so the only way out of the path is north
+// onto Sc01's row (18-21, 77).
+[
+    Ascii(x: 19, y: 78, rows: [
+        "::",
+        "ab",
+    ], legend: {':': (metatile: 1, collision: 0, elevation: 3), 'a': (metatile: 689, collision: 0, elevation: 3), 'b': (metatile: 690, collision: 0, elevation: 3)}),
+    Warp(x: 19, y: 79, dest_map: "ReverseCity", dest_warp: 9),
+    Warp(x: 20, y: 79, dest_map: "ReverseCity", dest_warp: 9),
+]

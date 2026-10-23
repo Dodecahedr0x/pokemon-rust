@@ -1,20 +1,24 @@
 //! The runner of the spine's steps: `engine::World` over `content::Game`, wrapped in a
 //! `GameData` spy ([`Spy`]) that records every `text(id)` the world prints and applies the
 //! steps' test hooks. A planner walks the player (BFS on collision, behaviors, ledges and
-//! objects, as the explorer's `path.rs`); a settle loop presses A through scripts, messages,
-//! yes/no boxes (yes), the starter screen (the right ball) and battles (the first move).
+//! objects, as the explorer's `path.rs`); a settle loop presses A through scripts, messages and
+//! yes/no boxes (yes), takes the [`Step::Choose`] ball on the starter screen, and fights battles
+//! with [`best_move`] (the module docs of `silice_spine`).
 
 use super::{Hook, Step};
 use content::Game;
 use core::cell::RefCell;
 use engine::World;
-use engine::battle::BattleOutcome;
+use engine::battle::calc::type_effect;
+use engine::battle::scene::OpenMenu;
+use engine::battle::{Battle, BattleOutcome, Side};
 use engine::data::{
     Behavior, Dir, Emote, Evolution, FlagId, Font, FormChange, GameData, GfxId, ItemId, ItemInfo,
     MapData, MapId, NewGame, ScriptId, SpecialIds, SpeciesId, SpriteData, TextId, TrainerId,
     UiText, WindowGfx, block_collision,
 };
 use engine::input::Buttons;
+use engine::mon::{BattleTables, Status};
 use engine::script::{Ctx, Report, Script};
 use engine::world::Event;
 use std::collections::{BTreeSet, VecDeque};
@@ -198,8 +202,8 @@ pub struct Run {
     pub battles: Vec<BattleOutcome>,
     /// The fallbacks the scripts reported (`Report::Degraded`).
     pub degraded: BTreeSet<&'static str>,
-    /// Frames spent on the starter screen (the first ones move the hand right).
-    starter_frames: u32,
+    /// The index the next choice takes ([`Step::Choose`]; the starter screen's ball).
+    choice: u8,
 }
 
 impl Run {
@@ -226,7 +230,7 @@ impl Run {
             limit,
             battles: Vec::new(),
             degraded: BTreeSet::new(),
-            starter_frames: 0,
+            choice: 0,
         }
     }
 
@@ -243,6 +247,8 @@ impl Run {
                 Step::Enter { dir, map } => self.enter(dir, map),
                 Step::Interact(d) => self.interact(d),
                 Step::Walk(d) => self.step_toward(d),
+                Step::Choose(i) => self.choice = i,
+                Step::Train { a, b, level, heal } => self.train(a, b, level, heal),
                 Step::Settle => self.settle(),
                 Step::Hook(h) => {
                     let name = match h {
@@ -309,8 +315,8 @@ impl Run {
             || !w.objects().player().is_settled()
     }
 
-    /// Presses A every other frame while anything but the free field runs (scripts, messages,
-    /// yes/no on yes, the starter screen, battles on the first move), until the field has been
+    /// Presses keys every other frame while anything but the free field runs ([`Run::key`]:
+    /// scripts, messages, yes/no on yes, the starter screen, battles), until the field has been
     /// free for a few frames.
     fn settle(&mut self) {
         let mut quiet = 0;
@@ -318,14 +324,7 @@ impl Run {
         while quiet < 6 {
             if self.busy() {
                 quiet = 0;
-                // The starter screen: the right ball (TOTODILE, the sturdiest at level 5 for the
-                // route's battles on the first move), then A.
-                let press = if self.w.starter().is_some() && self.starter_frames < 120 {
-                    self.starter_frames += 1;
-                    Buttons::RIGHT
-                } else {
-                    Buttons::A
-                };
+                let press = self.key();
                 self.step(if i.is_multiple_of(2) {
                     press
                 } else {
@@ -339,6 +338,62 @@ impl Run {
         }
     }
 
+    /// The settle policy's next key: the starter screen moves to the [`Step::Choose`] ball then
+    /// confirms; a battle menu fights with [`best_move`], keeps the known moves when a new one
+    /// needs a slot (B), and stops learning (yes); everything else is A (text, yes/no on yes).
+    fn key(&self) -> Buttons {
+        if let Some(st) = self.w.starter() {
+            return match st.selection().cmp(&self.choice) {
+                core::cmp::Ordering::Less => Buttons::RIGHT,
+                core::cmp::Ordering::Greater => Buttons::LEFT,
+                core::cmp::Ordering::Equal => Buttons::A,
+            };
+        }
+        let Some((_, battle, scene)) = self.w.battle() else {
+            return Buttons::A;
+        };
+        match scene.open_menu() {
+            Some(OpenMenu::Action(c)) => toward(c, 0),
+            Some(OpenMenu::Move(c)) => toward(c, best_move(battle, Game.battle())),
+            Some(OpenMenu::LearnAsk(_) | OpenMenu::LearnPick(_)) => Buttons::B,
+            Some(OpenMenu::StopAsk(0)) => Buttons::A,
+            Some(OpenMenu::StopAsk(_)) => Buttons::UP,
+            None => Buttons::A,
+        }
+    }
+
+    /// [`Step::Train`]: from `a`, steps to `b` and back (encounters are settled on the way) until
+    /// the lead's level is `level`; first plays `heal` (then walks back to `a`) whenever the lead
+    /// is below half its HP or has a status.
+    fn train(&mut self, a: (i16, i16), b: (i16, i16), level: u8, heal: &[Step]) {
+        let map = self.w.map();
+        let towards = |from: (i16, i16), to: (i16, i16)| {
+            Dir::ALL
+                .into_iter()
+                .find(|d| {
+                    let (dx, dy) = d.delta();
+                    (from.0 + dx, from.1 + dy) == to
+                })
+                .expect("Train's cells are neighbours")
+        };
+        loop {
+            self.settle();
+            let lead = *self.w.party().get(0).expect("a party to train");
+            if lead.level >= level {
+                return;
+            }
+            if lead.hp * 2 < lead.stats[0] || lead.status != Status::None {
+                self.play(heal);
+                assert_eq!(self.w.map(), map, "Train's heal steps end on its map");
+            }
+            let p = self.pos();
+            if p != a && p != b {
+                self.walk_to(a, &[]);
+            }
+            let p = self.pos();
+            self.step_toward(towards(p, if p == a { b } else { a }));
+        }
+    }
     /// Turns the player toward `d` (a tap) without stepping.
     fn face(&mut self, d: Dir) {
         self.settle();
@@ -459,6 +514,63 @@ impl Run {
     }
 }
 
+/// The key that moves a 2x2 battle menu cursor from `c` toward `want` (column first, then row),
+/// or A once it is there (the explorer's `policy::toward`).
+fn toward(c: u8, want: u8) -> Buttons {
+    if c & 1 != want & 1 {
+        if want & 1 == 0 {
+            Buttons::LEFT
+        } else {
+            Buttons::RIGHT
+        }
+    } else if c & 2 != want & 2 {
+        if want & 2 == 0 {
+            Buttons::UP
+        } else {
+            Buttons::DOWN
+        }
+    } else {
+        Buttons::A
+    }
+}
+
+/// The battle policy's move slot: of the moves with PP, the best expected damage against the
+/// opponent (power × accuracy, ×1.5 for the same type, × Gen3's type chart against its types);
+/// the first such slot on a tie. With no damaging move, the first with PP; with none, slot 0
+/// (the engine uses Struggle).
+pub fn best_move(battle: &Battle, t: &BattleTables) -> u8 {
+    let me = battle.mon(Side::Player);
+    let foe = t.species_info(battle.mon(Side::Opponent).species).types;
+    let own = t.species_info(me.species).types;
+    let usable = |i: usize| me.moves[i].is_some() && me.pp[i] > 0;
+    let score = |i: usize| {
+        let m = t.move_info(me.moves[i].expect("usable"));
+        if m.power == 0 {
+            return 0;
+        }
+        let typed = type_effect(
+            t.type_chart,
+            t.foresight_split,
+            false,
+            m.ty,
+            foe,
+            m.power,
+            100,
+        );
+        let stab = if own.contains(&m.ty) { 3 } else { 2 };
+        let accuracy = if m.accuracy == 0 { 100 } else { m.accuracy };
+        i64::from(m.power) * i64::from(typed.damage) * stab * i64::from(accuracy)
+    };
+    let best = (0..4)
+        .filter(|&i| usable(i))
+        .map(|i| (score(i), i))
+        .filter(|&(s, _)| s > 0)
+        .max_by_key(|&(s, i)| (s, core::cmp::Reverse(i)));
+    best.map(|(_, i)| i)
+        .or_else(|| (0..4).find(|&i| usable(i)))
+        .unwrap_or(0) as u8
+}
+
 fn dir_button(d: Dir) -> Buttons {
     match d {
         Dir::Up => Buttons::UP,
@@ -469,10 +581,13 @@ fn dir_button(d: Dir) -> Buttons {
 }
 
 /// The planner's view of the current map: collision, behaviors (walls, ledges one way, warps
-/// as targets only, tall grass), the objects' cells.
+/// as targets only, tall grass), the objects' cells, and the cells scripts repainted
+/// (`setmetatile`: doors opened, brambles cut), as the explorer's `path::Grid`.
 struct Grid<'a> {
     game: &'a Spy,
     map: &'static MapData,
+    /// The field's `setmetatile` overrides, ascending (the world's snapshot).
+    overrides: Vec<((i16, i16), u16)>,
     occupied: BTreeSet<(i16, i16)>,
     avoid: &'a [(i16, i16)],
 }
@@ -483,9 +598,15 @@ impl<'a> Grid<'a> {
             .filter(|o| o.local_id != engine::data::PLAYER)
             .flat_map(|o| [o.pos(), o.prev])
             .collect();
+        // A settled field is capturable; otherwise the layout alone.
+        let overrides = w
+            .snapshot(game)
+            .map(|snap| snap.field.overrides)
+            .unwrap_or_default();
         Grid {
             game,
             map: game.map(w.map()),
+            overrides,
             occupied,
             avoid,
         }
@@ -495,10 +616,12 @@ impl<'a> Grid<'a> {
         engine::grid::in_bounds(self.map, x, y)
     }
 
-    /// The layout's block: `setmetatile` changes (doors opened, brambles cut) are not seen, so
-    /// the steps cross them with [`Step::Walk`].
+    /// The block at an in-bounds cell, the field's overrides first.
     fn block(&self, (x, y): (i16, i16)) -> u16 {
-        self.map.blocks[y as usize * self.map.width as usize + x as usize]
+        match self.overrides.binary_search_by_key(&(x, y), |&(c, _)| c) {
+            Ok(i) => self.overrides[i].1,
+            Err(_) => self.map.blocks[y as usize * self.map.width as usize + x as usize],
+        }
     }
 
     fn behavior(&self, c: (i16, i16)) -> Behavior {

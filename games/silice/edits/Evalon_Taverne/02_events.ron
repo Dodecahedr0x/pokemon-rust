@@ -1,0 +1,31 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RG_SEVII_123", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: set_respawn (HEAL_LOCATION_SIL_EVALON, to add in game.ron), and the friends' hide
+    // flags (shown at VAR_SIL_STORY 82-83 only; FLAG_SIL_HIDE_EVALON_AMIS hides them for good after Sc09).
+    Scripts((on_load: None, on_transition: Some("Evalon_Taverne_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the entrance mat, to Evalon's warp 0 (the Taverne's door).
+    Warp(x: 7, y: 11, dest_map: "Evalon", dest_warp: 0),
+    Warp(x: 8, y: 11, dest_map: "Evalon", dest_warp: 0),
+    // Warp 2: the stair up to the Pigeonnier (its warp 3); warp 3: the stair back down (warp 2).
+    Warp(x: 11, y: 1, dest_map: "Evalon_Taverne", dest_warp: 3),
+    Warp(x: 18, y: 1, dest_map: "Evalon_Taverne", dest_warp: 2),
+    // The innkeeper beside his counter (heal_party; Chevalier rank: he says the meal cures status too).
+    Object(x: 6, y: 4, gfx: "OBJ_EVENT_GFX_COOK", id: "LOCALID_EVALON_TAVERNE_AUBERGISTE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Taverne_EventScript_Aubergiste"),
+    Object(x: 10, y: 5, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_EVALON_TAVERNE_SERVEUSE", local_id: 2, movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 2, range_y: 1, script: "Evalon_Taverne_EventScript_Serveuse"),
+    // The roleplayer at the right-hand table, and the bard (his ballad at Paladin rank).
+    Object(x: 9, y: 7, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_EVALON_TAVERNE_ROLISTE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Taverne_EventScript_Roliste"),
+    Object(x: 13, y: 8, gfx: "OBJ_EVENT_GFX_ARTIST", id: "LOCALID_EVALON_TAVERNE_BARDE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Taverne_EventScript_Barde"),
+    // Sc02: the three friends round the left-hand table, each with a persistent hide flag.
+    Object(x: 2, y: 7, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_TAVERNE_MATHIEU", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_EVALON_TAVERNE_ADRIEN", local_id: 6, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN"),
+    Object(x: 5, y: 8, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_EVALON_TAVERNE_GWADA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Evalon_Sc02", flag: "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA"),
+    // The Pigeonnier: the pigeon-keeper (the PC by pigeon, and quest Q3).
+    Object(x: 19, y: 4, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_EVALON_TAVERNE_COLOMBOPHILE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Taverne_EventScript_Colombophile"),
+    // The keeper's register on the shelf: the PC fallback (the source's 'PC decore en registre').
+    Sign(x: 19, y: 1, script: "Evalon_Taverne_EventScript_Registre"),
+    Sign(x: 20, y: 1, script: "Evalon_Taverne_EventScript_Registre"),
+    // The rulebook shelf.
+    Sign(x: 2, y: 1, script: "Evalon_Taverne_EventScript_Regles"),
+    Sign(x: 3, y: 1, script: "Evalon_Taverne_EventScript_Regles"),
+]

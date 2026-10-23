@@ -1,0 +1,4 @@
+// Silice Ch7, MAP_ROUTE_S07: Route S7, le Pont de la Logique Brisee (30 x 72, the source's size, vertical,
+// south to north). Building + TrainerHill (Emerald tilesets by name): Trainer Hill's glass-and-steel
+// floors, columns and arrow floors (MB_SLIDE_*) over its black void, the data fog. Border: the void.
+(name: "RouteS07", width: 30, height: 72, primary: "Building", secondary: "TrainerHill", fill: 520, border: [520, 520, 520, 520], fill_collision: 1)

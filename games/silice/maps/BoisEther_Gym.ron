@@ -345,6 +345,14 @@
             script: Some("BoisEther_Gym_EventScript_Spores"),
         ),
         (
+            x: 8,
+            y: 22,
+            elevation: 3,
+            var: Some("VAR_TEMP_1"),
+            value: 0,
+            script: Some("BoisEther_Gym_EventScript_PorteSas1Passage"),
+        ),
+        (
             x: 7,
             y: 10,
             elevation: 3,
