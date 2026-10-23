@@ -469,18 +469,18 @@
             x: 29,
             y: 26,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_HYPER_POTION",
-                flag: "FLAG_SIL_ITEM_VIBER_HYPER_POTION",
+            kind: Script(
+                facing: 0,
+                script: Some("ViberCity_EventScript_HiddenHyperPotion"),
             ),
         ),
         (
             x: 13,
             y: 3,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_PP_UP",
-                flag: "FLAG_SIL_ITEM_VIBER_PP_UP",
+            kind: Script(
+                facing: 0,
+                script: Some("ViberCity_EventScript_HiddenPpUp"),
             ),
         ),
     ],
