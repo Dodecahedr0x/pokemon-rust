@@ -346,12 +346,18 @@ fn position_elevation_keeps_the_last_nonzero_one() {
     g.set(5, 2, 1 << BLOCK_COLLISION_SHIFT, Behavior::Normal);
     let mut o = player_at(5, 5, Dir::Up);
     o.update_player(&g, NONE);
-    assert_eq!((o.player().elevation, o.player().position_elevation()), (3, 3));
+    assert_eq!(
+        (o.player().elevation, o.player().position_elevation()),
+        (3, 3)
+    );
     for _ in 0..60 {
         o.update_player(&g, hold(Dir::Up));
     }
     assert_eq!(o.player().pos(), (5, 3));
-    assert_eq!((o.player().elevation, o.player().position_elevation()), (0, 3));
+    assert_eq!(
+        (o.player().elevation, o.player().position_elevation()),
+        (0, 3)
+    );
     // The checkpoint packs the pair and restores it; the usual equal pair packs as before.
     let p = o.player();
     assert_eq!(Object::unpack_elevation(p.packed_elevation()), (0, 3));

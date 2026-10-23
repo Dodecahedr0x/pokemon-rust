@@ -176,7 +176,8 @@ fn load_map_spread(
     // `ObjectEventUpdateElevation` takes the arrival cell's: `previousElevation` is that one
     // unless it is 0 or 15.
     let e = crate::data::block_elevation(s.field.block(game, x, y));
-    s.objects.reset_player_position_elevation(if e == 15 { 0 } else { e });
+    s.objects
+        .reset_player_position_elevation(if e == 15 { 0 } else { e });
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()
         .flatten()
