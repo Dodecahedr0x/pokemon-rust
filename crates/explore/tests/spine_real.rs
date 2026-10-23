@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, past `badge5` to HM03).
-const EMERALD_FRAMES: u64 = 809_111;
+const EMERALD_FRAMES: u64 = 807_082;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -44,7 +44,7 @@ const EMERALD_LABELS: &[&str] = &[
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
-const SPINE_BLOCKERS: &[&str] = &["teach-hm-rock-smash", "teach-hm-surf"];
+const SPINE_BLOCKERS: &[&str] = &["bag-use-hm06", "bag-use-hm03"];
 
 /// The Silice spine's frame count to the end of Chapter 0.
 const SILICE_CH0_FRAMES: u64 = 21_821;

@@ -17,7 +17,7 @@ use crate::model::{FindingDraft, Macro, MacroKind, Opts, StepResult, Stop};
 use crate::observe::StepObserver;
 use crate::sim::{Live, StepFail};
 use engine::checkpoint::{Checkpoint, WorldSnapshot};
-use engine::data::{Dir, FlagId, GameData, MapId, MoveId, ScriptId, VarId};
+use engine::data::{Dir, FlagId, GameData, ItemId, MapId, MoveId, ScriptId, VarId};
 use game_native::trace::Run;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -147,6 +147,19 @@ pub struct Bypass {
     /// `(slot, move)`: the lead learns `move` in move slot `slot`, full PP (what teaching an
     /// HM from the party menu would leave).
     pub teach: &'static [(u8, MoveId)],
+    /// An item used from the bag ([`UseItem`]): `World::use_item` stands for the bag's USE (the
+    /// bag screen is Milestone 9 Task B), then the party menu plays with inputs.
+    pub use_item: Option<UseItem>,
+}
+
+/// A TM / HM used from the bag on party slot `mon` (Gen3 `ItemUseOutOfBattle_TMHM` →
+/// `ItemUseCB_TMHM`): the party menu picks `mon` and, when its four slots are full, answers
+/// "forget a move?" yes and forgets move slot `forget` in the summary.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct UseItem {
+    pub item: ItemId,
+    pub mon: u8,
+    pub forget: u8,
 }
 
 impl std::fmt::Debug for Bypass {
@@ -165,6 +178,7 @@ impl Bypass {
         vars: &[],
         warp: None,
         teach: &[],
+        use_item: None,
     };
 }
 
@@ -1209,6 +1223,9 @@ fn bypass<G: GameData + Clone>(
     };
     let mut world = engine::world::World::restore(game, &cp)
         .map_err(|e| format!("bypass {}: restore {e:?}", b.issue))?;
+    if let Some(u) = b.use_item {
+        use_item(game, &mut world, u).map_err(|e| format!("bypass {}: {e}", b.issue))?;
+    }
     if let Some((map, x, y)) = b.warp {
         if !world.debug_warp(game, map, None, x, y) {
             return Err(format!(
@@ -1231,6 +1248,49 @@ fn bypass<G: GameData + Clone>(
     let end = (world.checkpoint(game)).map_err(|e| format!("bypass {}: {e:?}", b.issue))?;
     live.load_bypass(end)
         .map_err(|e| format!("bypass {}: {e}", b.issue))
+}
+
+/// Frames a [`UseItem`] may take at most (fades, the summary, the field's return).
+const USE_ITEM_FRAMES: u32 = 2_000;
+
+/// Plays [`UseItem`]: opens the party menu on the item and answers it with inputs (one press,
+/// one idle frame) until the field is back and capturable.
+fn use_item<G: GameData>(
+    game: &G,
+    world: &mut engine::world::World,
+    u: UseItem,
+) -> Result<(), String> {
+    use engine::Buttons;
+    use engine::ui::ScreenState;
+    use engine::ui::party::Prompt;
+    if !world.use_item(game, u.item) {
+        return Err(format!("item {} cannot be used here", u.item.0));
+    }
+    let mut press = true;
+    for _ in 0..USE_ITEM_FRAMES {
+        let top = world.screens().and_then(|s| s.top()).map(|(_, st)| st);
+        let keys = match top {
+            None if world.capturable().is_ok() => return Ok(()),
+            None => Buttons::NONE,
+            Some(ScreenState::Party(p)) => match p.prompt() {
+                Prompt::Slot { cursor } if cursor == u.mon => Buttons::A,
+                Prompt::Slot { .. } => Buttons::DOWN,
+                Prompt::Message => Buttons::A,
+                Prompt::YesNo { cursor: 0 } => Buttons::A,
+                Prompt::YesNo { .. } => Buttons::UP,
+                Prompt::Child => Buttons::NONE,
+                p => return Err(format!("party menu at {p:?}")),
+            },
+            Some(ScreenState::Summary(s)) if s.move_cursor == u.forget => Buttons::A,
+            Some(ScreenState::Summary(_)) => Buttons::DOWN,
+            Some(_) => return Err("another screen is open".into()),
+        };
+        world.step(game, if press { keys } else { Buttons::NONE });
+        press = !press;
+    }
+    Err(format!(
+        "the party menu never closed ({USE_ITEM_FRAMES} frames)"
+    ))
 }
 
 /// The first direction of a shortest path from `from` to `to` on `grid` that never enters an
