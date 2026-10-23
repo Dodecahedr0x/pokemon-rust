@@ -96,7 +96,8 @@ impl Policy {
     }
 
     /// Next intent while a script or the starter screen runs: A through text; yes/no -> A for
-    /// choice 0, B otherwise; starter -> move to ball `opts.choice % 3`, then A.
+    /// choice 0, B otherwise; a multichoice -> move to choice `opts.choice`, then A; starter ->
+    /// move to ball `opts.choice % 3`, then A.
     ///
     /// B on every yes/no when `choice != 0` can cycle on a script that re-asks until it gets a
     /// yes: the driver's `settle_frames`/`macro_frames` limits end such a macro (a `Timeout`).
@@ -107,6 +108,13 @@ impl Policy {
             match starter.selection().cmp(&want) {
                 std::cmp::Ordering::Less => Buttons::RIGHT,
                 std::cmp::Ordering::Greater => Buttons::LEFT,
+                std::cmp::Ordering::Equal => Buttons::A,
+            }
+        } else if let Some(m) = w.text().multichoice() {
+            // A script multichoice: move to choice `opts.choice`, then A.
+            match m.cursor().cmp(&opts.choice) {
+                std::cmp::Ordering::Less => Buttons::DOWN,
+                std::cmp::Ordering::Greater => Buttons::UP,
                 std::cmp::Ordering::Equal => Buttons::A,
             }
         } else if w.text().is_yes_no_active() {

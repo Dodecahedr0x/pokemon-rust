@@ -218,6 +218,23 @@ mod list {
         warp: Some((MAP_DEWFORD_TOWN, 11, 11)),
     };
 
+    /// `DewfordTown_EventScript_SailToSlateport`: the same scripted sail across map
+    /// connections, the same RoundTrip finding. The bypass writes what the sail leaves (Mr.
+    /// Briney and his boat moved to Route 109) and lands where the player steps off the boat.
+    static BRINEY_SAIL_TO_SLATEPORT: Bypass = Bypass {
+        issue: "briney-sail-camera-slateport",
+        set: &[
+            FLAG_HIDE_MR_BRINEY_DEWFORD_TOWN,
+            FLAG_HIDE_MR_BRINEY_BOAT_DEWFORD_TOWN,
+        ],
+        clear: &[
+            FLAG_HIDE_ROUTE_109_MR_BRINEY,
+            FLAG_HIDE_ROUTE_109_MR_BRINEY_BOAT,
+        ],
+        vars: &[],
+        warp: Some((MAP_ROUTE109, 21, 23)),
+    };
+
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
         // ---- Littleroot: the girl at the north exit sends the player to save Birch ----
@@ -649,5 +666,22 @@ mod list {
         Step::Expect("brawly_defeated"),
         Step::Expect("badge2"),
         Step::Checkpoint("badge2"),
+        // ================= Act 3: Slateport, the museum, Route 110, Mauville, Wattson =========
+        enter(MAP_DEWFORD_TOWN_GYM, 5, 27, Down),
+        enter(MAP_DEWFORD_TOWN, 2, 10, Up),
+        use_(MAP_DEWFORD_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_DEWFORD_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
+        // Mr. Briney's multichoice: Slateport (1).
+        // Mr. Briney on the dock (Talk gives NoPath on him, an explorer gap: stand west of
+        // him). His multichoice's Slateport (1) sails to Route 109. Blocked
+        // (`briney-sail-camera-slateport`).
+        goto(MAP_DEWFORD_TOWN, 11, 9),
+        Step::Face(Right),
+        Step::Bypass(&BRINEY_SAIL_TO_SLATEPORT),
+        // The planner ignores elevation (decision 16): up the beach's stairs (19,14) by hand.
+        goto(MAP_ROUTE109, 19, 15),
+        goto(MAP_ROUTE109, 19, 13),
+        cross(MAP_ROUTE109, 19, 0, Up),
+        Step::Expect("slateport"),
     ];
 }

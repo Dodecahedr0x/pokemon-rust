@@ -28,6 +28,9 @@ pub enum Act {
     Act1,
     /// Act 2: from Roxanne's badge to Brawly's (the spine's next act; Task S).
     Act2,
+    /// Act 3: from Brawly's badge to Wattson's: the boat to Slateport, Capt. Stern and the
+    /// museum, Route 110's rival, Mauville, the gym (Task S).
+    Act3,
     /// Silice's Prologue (SIL1): from the new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge.
     /// 10 goals (the spine's `Expect`s). The default act on Silice.
     SilCh0,
@@ -44,9 +47,9 @@ impl Default for Act {
 }
 
 impl Act {
-    pub const ALL: [Act; 4] = [Act::Slice, Act::Act1, Act::Act2, Act::SilCh0];
+    pub const ALL: [Act; 5] = [Act::Slice, Act::Act1, Act::Act2, Act::Act3, Act::SilCh0];
     /// The Emerald acts (and the stub's, which shares one list).
-    pub const EMERALD: [Act; 3] = [Act::Slice, Act::Act1, Act::Act2];
+    pub const EMERALD: [Act; 4] = [Act::Slice, Act::Act1, Act::Act2, Act::Act3];
     /// The Silice acts (`sil_ch1` and onwards come with their chapters).
     pub const SILICE: [Act; 1] = [Act::SilCh0];
 
@@ -56,6 +59,7 @@ impl Act {
             Act::Slice => "slice",
             Act::Act1 => "act1",
             Act::Act2 => "act2",
+            Act::Act3 => "act3",
             Act::SilCh0 => "sil_ch0",
         }
     }
@@ -265,6 +269,38 @@ mod emerald {
         },
     ];
 
+    /// Act 3: from Brawly's badge to Wattson's.
+    pub static ACT3: [Goal; 6] = [
+        Goal {
+            name: "slateport",
+            // `SlateportCity_OnTransition`.
+            reached: |s| flag(s, FLAG_VISITED_SLATEPORT_CITY),
+        },
+        Goal {
+            name: "devon_goods_delivered",
+            // `OceanicMuseum_2F_EventScript_CaptStern`, after the two Aqua grunts.
+            reached: |s| flag(s, FLAG_DELIVERED_DEVON_GOODS),
+        },
+        Goal {
+            name: "rival_route110",
+            // `Route110_EventScript_RivalTrigger*`: the battle and the Itemfinder.
+            reached: |s| var(s, VAR_ROUTE110_STATE) >= 1,
+        },
+        Goal {
+            name: "mauville",
+            // `MauvilleCity_OnTransition`.
+            reached: |s| flag(s, FLAG_VISITED_MAUVILLE_CITY),
+        },
+        Goal {
+            name: "wattson_defeated",
+            reached: |s| flag(s, FLAG_DEFEATED_MAUVILLE_GYM),
+        },
+        Goal {
+            name: "badge3",
+            reached: |s| flag(s, FLAG_BADGE03_GET),
+        },
+    ];
+
     /// The decomp constants the lists name, for the drift test.
     pub const CONSTANTS: &[(&str, u16)] = &[
         ("VAR_ROUTE101_STATE", VAR_ROUTE101_STATE.0),
@@ -297,6 +333,12 @@ mod emerald {
         ),
         ("FLAG_DEFEATED_DEWFORD_GYM", FLAG_DEFEATED_DEWFORD_GYM.0),
         ("FLAG_BADGE02_GET", FLAG_BADGE02_GET.0),
+        ("FLAG_VISITED_SLATEPORT_CITY", FLAG_VISITED_SLATEPORT_CITY.0),
+        ("FLAG_DELIVERED_DEVON_GOODS", FLAG_DELIVERED_DEVON_GOODS.0),
+        ("VAR_ROUTE110_STATE", VAR_ROUTE110_STATE.0),
+        ("FLAG_VISITED_MAUVILLE_CITY", FLAG_VISITED_MAUVILLE_CITY.0),
+        ("FLAG_DEFEATED_MAUVILLE_GYM", FLAG_DEFEATED_MAUVILLE_GYM.0),
+        ("FLAG_BADGE03_GET", FLAG_BADGE03_GET.0),
     ];
 
     /// `TRAINER_GRUNT_PETALBURG_WOODS`. The stub build's `content::consts` names no trainers
@@ -434,8 +476,10 @@ pub fn goals_of(act: Act) -> &'static [Goal] {
         Act::Act1 => &emerald::ACT1,
         #[cfg(not(pkr_silice))]
         Act::Act2 => &emerald::ACT2,
+        #[cfg(not(pkr_silice))]
+        Act::Act3 => &emerald::ACT3,
         #[cfg(pkr_silice)]
-        Act::Slice | Act::Act1 | Act::Act2 => &[],
+        Act::Slice | Act::Act1 | Act::Act2 | Act::Act3 => &[],
         Act::SilCh0 => silice::CH0,
     }
 }
