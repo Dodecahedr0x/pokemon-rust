@@ -1,6 +1,7 @@
 mod budget;
 mod checkpoints;
 mod explore;
+mod game;
 mod silice;
 mod studio;
 mod sweep;
@@ -102,6 +103,8 @@ fn rom() -> Result<PathBuf> {
     check_rom_size(&out)?;
     let content = if content::STUB {
         budget::Content::Stub
+    } else if content::FLAVOR == content::Flavor::Silice {
+        budget::Content::Silice
     } else if content::data::MAP_COUNT > extract::export::SLICE_MAPS.len() {
         budget::Content::Full
     } else {
@@ -223,7 +226,7 @@ fn parity() -> Result<()> {
     // Positional names (an extract without `PKR_DECOMP`) apply no override: the game would not
     // be the one the trees and the parity fixtures describe.
     ensure!(
-        content::STUB || content::scripts::DECOMP_NAMES,
+        content::FLAVOR != content::Flavor::Emerald || content::scripts::DECOMP_NAMES,
         "the script IR has positional names only (scripts/decomp_names = 0): set PKR_DECOMP and \
          re-run `cargo xtask extract` before `cargo xtask parity`"
     );
@@ -381,7 +384,11 @@ fn extract(args: &[String]) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // `--game <emerald|silice>`, anywhere (SIL1 Task D).
+    if let Some(code) = game::select(&mut args)? {
+        std::process::exit(code);
+    }
     match args.first().map(String::as_str) {
         Some("rom") => rom().map(|_| ()),
         Some("parity") => parity(),
@@ -393,7 +400,8 @@ fn main() -> Result<()> {
         Some("sweep") => sweep::main(&args[1..]),
         Some("silice") => silice::main(&args[1..]),
         _ => bail!(
-            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice>"
+            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice> \
+             [--game emerald|silice]"
         ),
     }
 }
