@@ -364,6 +364,13 @@
             dest_map: "ReverseCity_Coffre",
             dest_warp: 0,
         ),
+        (
+            x: 27,
+            y: 0,
+            elevation: 0,
+            dest_map: "RouteS08",
+            dest_warp: 0,
+        ),
     ],
     coords: [
         (

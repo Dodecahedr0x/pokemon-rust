@@ -255,7 +255,22 @@
             flag: None,
         ),
     ],
-    warps: [],
+    warps: [
+        (
+            x: 19,
+            y: 79,
+            elevation: 0,
+            dest_map: "ReverseCity",
+            dest_warp: 9,
+        ),
+        (
+            x: 20,
+            y: 79,
+            elevation: 0,
+            dest_map: "ReverseCity",
+            dest_warp: 9,
+        ),
+    ],
     coords: [
         (
             x: 18,

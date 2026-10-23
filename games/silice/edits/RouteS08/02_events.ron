@@ -28,7 +28,7 @@
     Object(x: 10, y: 5, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_S08_VIEUX_ROLISTE", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Npc3"),
     Object(x: 6, y: 20, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S08_ITEM_RARE_CANDY", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_ItemRareCandy", flag: "FLAG_SIL_ITEM_S08_RACCOURCI"),
     Object(x: 31, y: 10, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_S08_ROCHER", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Rocher"),
-    // Sc01: two rows inside the south entrance (x 18-21), for when Reverse-City links.
+    // Sc01: the row inside the south path from Reverse-City (x 18-21; see 05_ch7_link.ron).
     Coord(x: 18, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
     Coord(x: 19, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
     Coord(x: 20, y: 77, var: "VAR_SIL_STORY", value: 76, script: "RouteS08_Sc01"),
