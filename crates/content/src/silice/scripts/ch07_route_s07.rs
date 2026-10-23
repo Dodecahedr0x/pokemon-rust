@@ -20,9 +20,10 @@ pub const MAPS: &[&str] = &["RouteS07"];
 /// with the Mallette's module (`FLAG_SIL_MODULE_ECLATE_ROC`, Chapter 6's Scanner de Faille)
 /// instead of a party move: without the module, the route's block label
 /// (`Route_S07_Sign_Bloc`); with it, `Route_S07_Bloc_Scan` (yes/no), on yes
-/// `Route_S07_Bloc_Casse` and the block removed. As Gen3's rocks, the block has no flag: it is
-/// back on the next load (or when its cell scrolls back into view), and breaks again. Shared by
-/// Route S7's four blocks and Reverse-City's alley block.
+/// `Route_S07_Bloc_Casse` and the block removed. As Gen3's rocks, each block's flag is a temp
+/// flag (`FLAG_TEMP_11`.., the phase file `06_ch7_scripts.ron`): it stays gone while the player
+/// is on the map, is back on the next load, and breaks again. Shared by Route S7's four blocks
+/// and Reverse-City's alley block.
 pub(super) async fn bloc(ctx: &Ctx) {
     if !ctx.flag(FLAG_SIL_MODULE_ECLATE_ROC).await {
         msgbox(ctx, Route_S07_Sign_Bloc, MsgBox::Sign).await;

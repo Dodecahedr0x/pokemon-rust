@@ -222,7 +222,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("ReverseCity_EventScript_BlocRuelle"),
-            flag: None,
+            flag: Some("FLAG_TEMP_11"),
         ),
         (
             local_id: 15,

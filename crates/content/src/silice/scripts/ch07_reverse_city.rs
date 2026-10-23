@@ -393,7 +393,11 @@ pub async fn ReverseCity_EventScript_Poubelle(_ctx: Ctx) {}
 /// sachet's warning label.
 pub async fn ReverseCity_EventScript_ItemPoudreSilice(ctx: Ctx) {
     if find_item(&ctx, ITEM_SIL_POUDRE_SILICE, 1).await {
-        msgbox(&ctx, Poudre_Silice_Ramasse, MsgBox::Default).await;
+        // `find_item` has released: the label is read under its own lock (a box shown after
+        // the release would stay open).
+        ctx.lock().await;
+        say(&ctx, Poudre_Silice_Ramasse).await;
+        ctx.release().await;
     }
 }
 

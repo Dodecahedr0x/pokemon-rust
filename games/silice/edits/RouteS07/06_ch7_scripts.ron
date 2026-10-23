@@ -4,4 +4,12 @@
     // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
     // engine picks hidden items up: Replace(index: 4, event: Bg((x: 21, y: 32, elevation: 0, kind: HiddenItem(item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER")))).
     Replace(index: 4, event: Bg((x: 21, y: 32, elevation: 0, kind: Script(facing: 0, script: Some("RouteS07_EventScript_HiddenEther"))))),
+    // The silica blocks are Gen3's breakable rocks, and Gen3 gives each rock a temp flag
+    // (Route 111's FLAG_TEMP_11..): `removeobject` sets it, so a broken block stays gone while
+    // the player is on the map (and is back on the next load, the temp flags cleared). Without
+    // one, the view's spawn brings the block back on the next step (Gen3 TrySpawnObjectEvents).
+    Replace(index: 2, event: Object((local_id: 3, id: Some("LOCALID_ROUTE_S07_BLOC_C1"), gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", x: 14, y: 62, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("RouteS07_EventScript_Bloc"), flag: Some("FLAG_TEMP_11")))),
+    Replace(index: 4, event: Object((local_id: 5, id: Some("LOCALID_ROUTE_S07_BLOC_C2"), gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", x: 10, y: 52, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("RouteS07_EventScript_Bloc"), flag: Some("FLAG_TEMP_12")))),
+    Replace(index: 8, event: Object((local_id: 9, id: Some("LOCALID_ROUTE_S07_BLOC_PUZZLE"), gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", x: 12, y: 40, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("RouteS07_EventScript_Bloc"), flag: Some("FLAG_TEMP_13")))),
+    Replace(index: 14, event: Object((local_id: 15, id: Some("LOCALID_ROUTE_S07_BLOC_C3"), gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", x: 16, y: 9, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("RouteS07_EventScript_Bloc"), flag: Some("FLAG_TEMP_14")))),
 ]

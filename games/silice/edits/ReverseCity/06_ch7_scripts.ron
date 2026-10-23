@@ -12,4 +12,9 @@
     // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
     // engine picks hidden items up: Replace(index: 9, event: Bg((x: 26, y: 30, elevation: 0, kind: HiddenItem(item: "ITEM_SIL_POUDRE_SILICE", flag: "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2")))).
     Replace(index: 9, event: Bg((x: 26, y: 30, elevation: 0, kind: Script(facing: 0, script: Some("ReverseCity_EventScript_HiddenPoudreSilice"))))),
+    // The silica blocks are Gen3's breakable rocks, and Gen3 gives each rock a temp flag
+    // (Route 111's FLAG_TEMP_11..): `removeobject` sets it, so a broken block stays gone while
+    // the player is on the map (and is back on the next load, the temp flags cleared). Without
+    // one, the view's spawn brings the block back on the next step (Gen3 TrySpawnObjectEvents).
+    Replace(index: 13, event: Object((local_id: 14, id: Some("LOCALID_REVERSE_BLOC_RUELLE"), gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", x: 10, y: 6, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("ReverseCity_EventScript_BlocRuelle"), flag: Some("FLAG_TEMP_11")))),
 ]
