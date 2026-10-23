@@ -2,10 +2,10 @@
     meta: (
         id: 2,
         label: "route:after_wild",
-        schema: 2,
+        schema: 3,
         build: (
-            engine: 12946783700625945929,
-            content: 4323075990150322712,
+            engine: 1617382213109023687,
+            content: 3404996553217956901,
         ),
         frame: 7173,
         map: (16),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(1),
         build: (
-            engine: 12946783700625945929,
-            content: 4323075990150322712,
+            engine: 1617382213109023687,
+            content: 3404996553217956901,
         ),
         start_frame: 5002,
         inputs: [

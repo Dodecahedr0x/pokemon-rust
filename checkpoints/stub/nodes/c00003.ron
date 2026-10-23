@@ -2,10 +2,10 @@
     meta: (
         id: 3,
         label: "route:stub_end",
-        schema: 2,
+        schema: 3,
         build: (
-            engine: 12946783700625945929,
-            content: 10930910960670443905,
+            engine: 1617382213109023687,
+            content: 16585337314051632146,
         ),
         frame: 1547,
         map: (9),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: Checkpoint(2),
         build: (
-            engine: 12946783700625945929,
-            content: 10930910960670443905,
+            engine: 1617382213109023687,
+            content: 16585337314051632146,
         ),
         start_frame: 1211,
         inputs: [
