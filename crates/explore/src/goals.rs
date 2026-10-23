@@ -356,7 +356,7 @@ mod emerald {
     ];
 
     /// Act 5: from Flannery's badge to Norman's, then Surf (Wave C) onto Route 119.
-    pub static ACT5: [Goal; 9] = [
+    pub static ACT5: [Goal; 11] = [
         Goal {
             name: "go_goggles",
             // `LavaridgeTown_EventScript_RivalGiveGoGoggles`, on leaving the gym.
@@ -392,6 +392,16 @@ mod emerald {
         Goal {
             name: "route119",
             reached: |s| on(s, MAP_ROUTE119),
+        },
+        Goal {
+            name: "castform",
+            // `Route119_WeatherInstitute_2F_EventScript_ExplainCastform`, after Shelly.
+            reached: |s| flag(s, FLAG_RECEIVED_CASTFORM),
+        },
+        Goal {
+            name: "hm_fly",
+            // `Route119_EventScript_GiveFlyHM`, after the rival's battle.
+            reached: |s| flag(s, FLAG_RECEIVED_HM_FLY),
         },
         Goal {
             name: "fortree",

@@ -83,6 +83,31 @@ mod list {
         ..Bypass::NONE
     };
 
+    /// The Route 119 trainers' sight lines (`map.json` facing and range): the grass trainers
+    /// that copy the player (range 1, every side), Catherine, Jackson, Rachel, Phil, Hugh,
+    /// Takashi, Dayton, Yasu, Hideo and Fabian.
+    const ROUTE119_SIGHT: &[(i16, i16)] = &[
+        // Greg (12,123), Taylor (26,123), Donald (5,125), Brent (28,116), Doug (34,122),
+        // Kent (17,128).
+        (11, 123), (13, 123), (12, 122), (12, 124),
+        (25, 123), (27, 123), (26, 122), (26, 124),
+        (4, 125), (6, 125), (5, 124), (5, 126),
+        (27, 116), (29, 116), (28, 115), (28, 117),
+        (33, 122), (35, 122), (34, 121), (34, 123),
+        (16, 128), (18, 128), (17, 127), (17, 129),
+        // Catherine (35,83) down 2.
+        (35, 84), (35, 85),
+        // Jackson (7,74) down and right 3.
+        (7, 75), (7, 76), (7, 77), (8, 74), (9, 74), (10, 74),
+        // Rachel (8,68) up 5, Phil (8,63) down 5.
+        (8, 63), (8, 64), (8, 65), (8, 66), (8, 67), (8, 68),
+        // Hugh (10,50) right 3, Takashi (19,49) down 3, Dayton (16,52) right 3.
+        (11, 50), (12, 50), (13, 50),
+        (19, 50), (19, 51), (19, 52), (17, 52), (18, 52),
+        // Yasu (28,14) down 1, Hideo (29,6) down 3, Fabian (32,15) left 4.
+        (28, 15), (29, 7), (29, 8), (29, 9), (29, 15), (30, 15), (31, 15),
+    ];
+
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
         // ---- Littleroot: the girl at the north exit sends the player to save Birch ----
@@ -981,14 +1006,51 @@ mod list {
         cross(MAP_ROUTE118, 58, 0, Up),
         Step::Expect("route119"),
         Step::Checkpoint("route119"),
-        // North up Route 119 to Fortree.
-        goto(MAP_ROUTE119, 28, 98),
-        goto(MAP_ROUTE119, 28, 84),
-        goto(MAP_ROUTE119, 13, 84),
-        goto(MAP_ROUTE119, 10, 60),
-        goto(MAP_ROUTE119, 26, 40),
-        goto(MAP_ROUTE119, 30, 20),
+        // ---- Route 119: up the east bank, west over the long bridge, up the west bank to the
+        // Weather Institute, round every trainer's sight (alone at L44 the lead cannot battle
+        // them all without a heal); the wild battles run ----
+        Step::Battle(BattlePlan::RunWild),
+        Step::GotoAvoiding {
+            map: MAP_ROUTE119,
+            x: 6,
+            y: 33,
+            avoid: ROUTE119_SIGHT,
+        },
+        enter(MAP_ROUTE119, 6, 32, Up),
+        // The bed first (`Route119_WeatherInstitute_1F_EventScript_Bed`), west of Grunt 4's
+        // sight, then up past him.
+        Step::Battle(BattlePlan::Best),
+        goto(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3),
+        use_(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3, Left),
+        Step::WaitScript,
+        enter(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 17, 1, Up),
+        // 2F: the grunts by sight, then Shelly; Castform not nicknamed.
+        Step::Choose(1),
+        talk(MAP_ROUTE119_WEATHER_INSTITUTE_2F, 3),
+        Step::WaitScript,
+        Step::Expect("castform"),
+        Step::Checkpoint("castform"),
+        Step::Choose(0),
+        enter(MAP_ROUTE119_WEATHER_INSTITUTE_2F, 17, 1, Up),
+        goto(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3),
+        use_(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3, Left),
+        Step::WaitScript,
+        enter(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 9, 12, Down),
+        // ---- Over the river bridge, the rival at (25, 31) (HM02 Fly), north to Fortree ----
+        goto(MAP_ROUTE119, 26, 30),
+        Step::WaitScript,
+        Step::Expect("hm_fly"),
+        Step::Checkpoint("hm_fly"),
+        Step::Battle(BattlePlan::RunWild),
+        Step::GotoAvoiding {
+            map: MAP_ROUTE119,
+            x: 38,
+            y: 8,
+            avoid: ROUTE119_SIGHT,
+        },
         cross(MAP_ROUTE119, 39, 8, Right),
         Step::Expect("fortree"),
+        Step::Checkpoint("fortree"),
+        Step::Battle(BattlePlan::BestLearn),
     ];
 }
