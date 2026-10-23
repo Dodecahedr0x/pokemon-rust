@@ -31,6 +31,20 @@ struct Armed {
 pub struct Spy {
     texts: RefCell<Vec<TextId>>,
     hooks: RefCell<Vec<Armed>>,
+    start: Option<Start>,
+}
+
+/// A chapter's start state for a run that does not play the chapters before it
+/// ([`Run::starting_at`]): the new game's map, cell and facing, and a setup script run right
+/// after Silice's own new-game script (before the first map loads), which sets the vars, flags,
+/// bag and party the earlier chapters would have left.
+#[derive(Clone, Copy)]
+pub struct Start {
+    pub map: MapId,
+    pub x: i16,
+    pub y: i16,
+    pub facing: Dir,
+    pub setup: fn(Ctx) -> Script,
 }
 
 /// The `ScriptId` of script `name`.
@@ -77,6 +91,14 @@ impl GameData for Spy {
         Game.behavior(raw)
     }
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        if let Some(start) = self.start
+            && id == content::NEW_GAME_SCRIPT
+        {
+            return Box::pin(async move {
+                Game.script(id, ctx.clone()).await;
+                (start.setup)(ctx).await;
+            });
+        }
         let armed = {
             let mut hooks = self.hooks.borrow_mut();
             let i = hooks.iter().position(|h| h.script == id);
@@ -96,7 +118,17 @@ impl GameData for Spy {
         }
     }
     fn new_game(&self) -> NewGame {
-        Game.new_game()
+        let game = Game.new_game();
+        match self.start {
+            None => game,
+            Some(s) => NewGame {
+                map: s.map,
+                x: s.x,
+                y: s.y,
+                facing: s.facing,
+                ..game
+            },
+        }
     }
     fn build_id(&self) -> u64 {
         Game.build_id()
@@ -173,9 +205,19 @@ pub struct Run {
 impl Run {
     /// A new game, at most `limit` frames.
     pub fn new(limit: u64) -> Run {
+        Run::with_start(limit, None)
+    }
+
+    /// A new game that starts at a chapter's start state ([`Start`]), at most `limit` frames.
+    pub fn starting_at(limit: u64, start: Start) -> Run {
+        Run::with_start(limit, Some(start))
+    }
+
+    fn with_start(limit: u64, start: Option<Start>) -> Run {
         let g = Spy {
             texts: RefCell::new(Vec::new()),
             hooks: RefCell::new(Vec::new()),
+            start,
         };
         Run {
             w: World::new(&g),
