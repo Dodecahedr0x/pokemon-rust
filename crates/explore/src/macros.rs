@@ -197,7 +197,7 @@ struct State<'a, G: GameData> {
 impl<'a, G: GameData> State<'a, G> {
     fn new(game: &'a G, snap: &'a WorldSnapshot, reach: &'a Reach) -> Self {
         State {
-            grid: Grid::of_snapshot(game, snap).with_terrain(Some(reach.terrain().clone())),
+            grid: Grid::of_snapshot(game, snap),
             snap,
             reach,
         }
