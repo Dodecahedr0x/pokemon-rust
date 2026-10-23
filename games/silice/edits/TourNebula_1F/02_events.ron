@@ -1,0 +1,53 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    // Music: the source's new "Cave a futs" theme; placeholder MUS_MT_PYRE_EXTERIOR, the source's. The
+    // ground mist: Emerald's horizontal fog. No wild encounters (no wild table: the InsideShip floor's
+    // encounter behaviour never fires).
+    Header((music: "MUS_MT_PYRE_EXTERIOR", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_FOG_HORIZONTAL", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TourNebula_1F_OnLoad: opens the grille (10-14, 5) once FLAG_SIL_CAVE_GRILLE_OUVERTE is set (metatile
+    // 568, collision 0), and the elevator door (16, 1) from VAR_SIL_STORY 101 (collision 0).
+    ScriptsSet(on_load: "TourNebula_1F_OnLoad"),
+    // Warp 0: the arrival (11, 21), a landing (the cabin warps here by coordinates). Warp 1: the elevator
+    // door behind the counter (16, 1), to the cabin (TourNebulaAscenseur_Sc00 then climbs to 2F).
+    Warp(x: 11, y: 21, dest_map: "TourNebulaAscenseur", dest_warp: 0),
+    Warp(x: 16, y: 1, dest_map: "TourNebulaAscenseur", dest_warp: 0),
+    // Objects (the source's numbers). 1: Mathias, before his counter (TourNebula_1F_Sc04 at story 100; it
+    // plays _Sc05 from 101). 2: the cellar master (TourNebula_1F_Sc02). 3-4: the elites Gaston and Coralie
+    // (sight 4, facing the room). 5: the steward (the shop). 6: the Cocket guard (TourNebula_1F_Sc01's
+    // actor). 7: the waitress. 8: the Full Restore by the water. 9-10: the iron-bound barrels on the
+    // pontoons' north ends (Strength, pushed north from the pontoon).
+    Object(x: 12, y: 3, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_TOUR_1F_MATHIAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Sc04"),
+    Object(x: 16, y: 7, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_TOUR_1F_MAITRE_CHAI", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_1F_Sc02"),
+    Object(x: 3, y: 14, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_TOUR_1F_GASTON", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "TourNebula_1F_EventScript_Gaston", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 3, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_TOUR_1F_CORALIE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "TourNebula_1F_EventScript_Coralie", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 15, y: 14, gfx: "OBJ_EVENT_GFX_MART_EMPLOYEE", id: "LOCALID_TOUR_1F_INTENDANT", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_EventScript_Intendant"),
+    Object(x: 13, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_TOUR_1F_GARDE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_1F_EventScript_Garde"),
+    Object(x: 7, y: 17, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_TOUR_1F_SERVEUSE", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_EventScript_Serveuse"),
+    Object(x: 23, y: 13, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_TOUR_1F_ITEM_FULL_RESTORE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_EventScript_ItemFullRestore", flag: "FLAG_SIL_ITEM_TOUR_1F_FULL_RESTORE"),
+    Object(x: 7, y: 10, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR_1F_FUT_1", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_EventScript_FutCercle"),
+    Object(x: 17, y: 10, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_TOUR_1F_FUT_2", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_EventScript_FutCercle"),
+    // TourNebula_1F_Sc01 (the smell of the Cellar): the arrival's three ways off (the source's (11, 20) and
+    // the cells beside the arrival; the arrival itself fires no coord event). On VAR_TEMP_1 0; the script
+    // sets VAR_TEMP_1 to 1 and returns at once when FLAG_SIL_TOUR_1F_INTRO is set.
+    Coord(x: 11, y: 20, var: "VAR_TEMP_1", value: 0, script: "TourNebula_1F_Sc01"),
+    Coord(x: 10, y: 21, var: "VAR_TEMP_1", value: 0, script: "TourNebula_1F_Sc01"),
+    Coord(x: 12, y: 21, var: "VAR_TEMP_1", value: 0, script: "TourNebula_1F_Sc01"),
+    // TourNebula_1F_Sc03 (Evalon's Heart pulses): the row just past the opened grille (10-14, 4), the bar's
+    // only way in. On VAR_TEMP_2 0 (never written here); the script checks FLAG_SIL_CAVE_GRILLE_OUVERTE and
+    // FLAG_SIL_TOUR_COEUR_PULSE itself.
+    Coord(x: 10, y: 4, var: "VAR_TEMP_2", value: 0, script: "TourNebula_1F_Sc03"),
+    Coord(x: 11, y: 4, var: "VAR_TEMP_2", value: 0, script: "TourNebula_1F_Sc03"),
+    Coord(x: 12, y: 4, var: "VAR_TEMP_2", value: 0, script: "TourNebula_1F_Sc03"),
+    Coord(x: 13, y: 4, var: "VAR_TEMP_2", value: 0, script: "TourNebula_1F_Sc03"),
+    Coord(x: 14, y: 4, var: "VAR_TEMP_2", value: 0, script: "TourNebula_1F_Sc03"),
+    // The tasting barrels A, B, C (TourNebula_1F_Sc02, one entry per barrel).
+    Sign(x: 7, y: 7, script: "TourNebula_1F_Sc02_A"),
+    Sign(x: 10, y: 7, script: "TourNebula_1F_Sc02_B"),
+    Sign(x: 13, y: 7, script: "TourNebula_1F_Sc02_C"),
+    // The entrance sign, the pontoon's notice, and the closed elevator door D.
+    Sign(x: 10, y: 22, script: "TourNebula_1F_EventScript_Entree"),
+    Sign(x: 8, y: 12, script: "TourNebula_1F_EventScript_Ponton"),
+    Sign(x: 11, y: 22, script: "TourNebula_1F_EventScript_PorteVerrouillee"),
+    // The Max Elixir, behind the right-hand stack.
+    HiddenItem(x: 21, y: 9, item: "ITEM_MAX_ELIXIR", flag: "FLAG_SIL_ITEM_TOUR_1F_MAX_ELIXIR"),
+]

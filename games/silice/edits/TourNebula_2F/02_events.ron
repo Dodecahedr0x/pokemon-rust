@@ -1,0 +1,50 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    // Music: the source's new "En direct" theme; placeholder MUS_CONTEST_LOBBY, the source's.
+    Header((music: "MUS_CONTEST_LOBBY", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TourNebula_2F_OnLoad: cuts the holographic set (6-17, 4) once FLAG_SIL_STUDIO_DECOR_COUPE is set
+    // (metatile 608, collision 0), and opens the artists' exit (20, 1) from VAR_SIL_STORY 103.
+    ScriptsSet(on_load: "TourNebula_2F_OnLoad"),
+    // Warp 0: the arrival (10, 19), a landing. Warp 1: "SORTIE ARTISTES" (20, 1), to the cabin.
+    Warp(x: 10, y: 19, dest_map: "TourNebulaAscenseur", dest_warp: 1),
+    Warp(x: 20, y: 1, dest_map: "TourNebulaAscenseur", dest_warp: 1),
+    // Objects (the source's numbers). 1: Kimiko on her stage (TourNebula_2F_Sc04 at story 102; it plays
+    // _Sc05 from 103). 2-3: the elites Basile (cameraman) and Lou (make-up), sight 4 down the hall. 4: the
+    // stage manager. 5: the camera drone (TourNebula_2F_Sc01's actor). 6: the intern. 7: the Max Revive by a
+    // screen in the right corner.
+    Object(x: 11, y: 3, gfx: "OBJ_EVENT_GFX_LIZA", id: "LOCALID_TOUR_2F_KIMIKO", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_Sc04"),
+    Object(x: 5, y: 8, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_TOUR_2F_BASILE", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_EventScript_Basile", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 16, y: 8, gfx: "OBJ_EVENT_GFX_BEAUTY", id: "LOCALID_TOUR_2F_LOU", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_EventScript_Lou", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 11, y: 10, gfx: "OBJ_EVENT_GFX_REPORTER_F", id: "LOCALID_TOUR_2F_REGISSEUSE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_EventScript_Regisseuse"),
+    Object(x: 12, y: 17, gfx: "OBJ_EVENT_GFX_WINGULL", id: "LOCALID_TOUR_2F_DRONE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_EventScript_Drone"),
+    Object(x: 18, y: 14, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_TOUR_2F_STAGIAIRE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_2F_EventScript_Stagiaire"),
+    Object(x: 22, y: 10, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_TOUR_2F_ITEM_MAX_REVIVE", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_EventScript_ItemMaxRevive", flag: "FLAG_SIL_ITEM_TOUR_2F_MAX_REVIVE"),
+    // TourNebula_2F_Sc01 (live): the source's (10, 18) and the cells beside the arrival, its only ways off.
+    // On VAR_TEMP_1 0; the script sets VAR_TEMP_1 to 1 and returns at once when FLAG_SIL_TOUR_2F_INTRO is set.
+    Coord(x: 10, y: 18, var: "VAR_TEMP_1", value: 0, script: "TourNebula_2F_Sc01"),
+    Coord(x: 9, y: 19, var: "VAR_TEMP_1", value: 0, script: "TourNebula_2F_Sc01"),
+    Coord(x: 11, y: 19, var: "VAR_TEMP_1", value: 0, script: "TourNebula_2F_Sc01"),
+    // The spot consoles 1 (OR), 2 (ROSE), 3 (VIOLET): TourNebula_2F_Sc03, one entry per console.
+    Sign(x: 4, y: 5, script: "TourNebula_2F_Sc03_1"),
+    Sign(x: 14, y: 5, script: "TourNebula_2F_Sc03_2"),
+    Sign(x: 20, y: 5, script: "TourNebula_2F_Sc03_3"),
+    // The twelve chat screens (TourNebula_2F_Sc02, one comment each: the source's Tour_2F_Chat_01-12).
+    Sign(x: 0, y: 6, script: "TourNebula_2F_Sc02_01"),
+    Sign(x: 23, y: 6, script: "TourNebula_2F_Sc02_02"),
+    Sign(x: 0, y: 8, script: "TourNebula_2F_Sc02_03"),
+    Sign(x: 23, y: 8, script: "TourNebula_2F_Sc02_04"),
+    Sign(x: 0, y: 10, script: "TourNebula_2F_Sc02_05"),
+    Sign(x: 23, y: 10, script: "TourNebula_2F_Sc02_06"),
+    Sign(x: 0, y: 12, script: "TourNebula_2F_Sc02_07"),
+    Sign(x: 23, y: 12, script: "TourNebula_2F_Sc02_08"),
+    Sign(x: 0, y: 14, script: "TourNebula_2F_Sc02_09"),
+    Sign(x: 23, y: 14, script: "TourNebula_2F_Sc02_10"),
+    Sign(x: 0, y: 16, script: "TourNebula_2F_Sc02_11"),
+    Sign(x: 23, y: 16, script: "TourNebula_2F_Sc02_12"),
+    // The entrance sign, the logo's charter (the consoles' order), and the closed elevator door D.
+    Sign(x: 9, y: 20, script: "TourNebula_2F_EventScript_Entree"),
+    Sign(x: 11, y: 20, script: "TourNebula_2F_EventScript_Logo"),
+    Sign(x: 10, y: 20, script: "TourNebula_2F_EventScript_PorteVerrouillee"),
+    // The PP Up, under a camera on the left.
+    HiddenItem(x: 3, y: 11, item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_TOUR_2F_PP_UP"),
+]

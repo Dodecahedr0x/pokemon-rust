@@ -1,0 +1,4 @@
+// Silice Ch10, MAP_TOUR_NEBULA_2F: the Prismatic Studio (Pillar 2, Kimiko), 24 x 22 (the source's). Building
+// + Contest (Lilycove's contest hall: curtains, boards as chat screens, the coloured stage strips as the
+// holographic set; Emerald tilesets by name). Border: black, blocked.
+(name: "TourNebula_2F", width: 24, height: 22, primary: "Building", secondary: "Contest", fill: 608, border: [1537, 1537, 1537, 1537])

@@ -1,0 +1,4 @@
+// Silice Ch10, MAP_TOUR_NEBULA_4F: the Infinite Reflections (Pillar 4, Revenge), 22 x 26 (the source's).
+// Building + EliteFour (Glacia's room: the cold blue palette, its glass panels as mirrors, Emerald tilesets
+// by name). Border: black, blocked.
+(name: "TourNebula_4F", width: 22, height: 26, primary: "Building", secondary: "EliteFour", fill: 652, border: [1025, 1025, 1025, 1025])

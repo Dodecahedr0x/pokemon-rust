@@ -1,0 +1,56 @@
+// Cells. The roof's fence stands for the edge and the sky's pixels (P). North: the Crystal Elevator's tube
+// T/t (11-12, 1-2), two glass machines, dark until Sommet_Apex_Sc05 lights it (set_metatile,
+// METATILE_CRISTAL_ON: no tile yet); the Console K-L (10-13, 4) with the amps A (8, 4) and (17, 4); the
+// stage o (rows 5-8) with its rim ( ). Row 9 is closed (X: pylons and cables) except the stage's steps s
+// (10-13, 9), and row 18 except the catwalk (10-13, 18): each scene's coord row is the only way through.
+// The pocket (19-22, 9-10) holds the Max Revive, closed by the two metal crates (objects) on (19-20, 11).
+// D: the dishes. = | +: the catwalks (walkable). E-F (11-12, 28): the vault elevator's doors (solid).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "q----------------------Q",
+        "lhhhhhhhhhhTThhhhhhhhhhr",
+        "l.........=tt=.........r",
+        "l......................r",
+        "l.......A.KkkL...A.....r",
+        "l......(oooooooooo)....r",
+        "l.....(oooooooooooo)...r",
+        "l.....(oooooooooooo)..Sr",
+        "l......(oooooooooo)XXXXr",
+        "lXXXXXXXX(ssss)XXXX....r",
+        "l...........|.....X....r",
+        "l..D........|........XXr",
+        "l...........|..........r",
+        "l...........|..........r",
+        "l...........|.....D....r",
+        "l....=======+=====.....r",
+        "l....|.................r",
+        "l....|.................r",
+        "lXXXXXXXXX====XXXXXXXXXr",
+        "l....|.................r",
+        "l....+=====.....D......r",
+        "l..........|...........r",
+        "l..........|...........r",
+        "l..........|...........r",
+        "l..........|...........r",
+        "l..........+=====......r",
+        "l...............|......r",
+        "luuuuuuuuuuuuuuu|uuuuuur",
+        "z__________EF__________Z",
+        "abbbbbbbbbbbbbbbbbbbbbbc",
+    ], legend: {
+        'q': (metatile: 550, collision: 1, elevation: 0), 'Q': (metatile: 551, collision: 1, elevation: 0), '-': (metatile: 641, collision: 1, elevation: 0),
+        'l': (metatile: 566, collision: 1, elevation: 0), 'r': (metatile: 567, collision: 1, elevation: 0),
+        'z': (metatile: 582, collision: 1, elevation: 0), 'Z': (metatile: 583, collision: 1, elevation: 0), '_': (metatile: 611, collision: 1, elevation: 0),
+        'a': (metatile: 740, collision: 1, elevation: 0), 'b': (metatile: 741, collision: 1, elevation: 0), 'c': (metatile: 742, collision: 1, elevation: 0),
+        '.': (metatile: 586, collision: 0, elevation: 3), 'h': (metatile: 595, collision: 0, elevation: 3), 'u': (metatile: 603, collision: 0, elevation: 3),
+        '=': (metatile: 588, collision: 0, elevation: 3), '|': (metatile: 588, collision: 0, elevation: 3), '+': (metatile: 588, collision: 0, elevation: 3),
+        'T': (metatile: 623, collision: 1, elevation: 0), 't': (metatile: 631, collision: 1, elevation: 0),
+        'K': (metatile: 576, collision: 1, elevation: 0), 'k': (metatile: 577, collision: 1, elevation: 0), 'L': (metatile: 578, collision: 1, elevation: 0),
+        'A': (metatile: 563, collision: 1, elevation: 0),
+        '(': (metatile: 655, collision: 1, elevation: 0), ')': (metatile: 655, collision: 1, elevation: 0),
+        'o': (metatile: 625, collision: 0, elevation: 3), 's': (metatile: 584, collision: 0, elevation: 3),
+        'S': (metatile: 606, collision: 1, elevation: 0),
+        'X': (metatile: 565, collision: 1, elevation: 0), 'D': (metatile: 557, collision: 1, elevation: 0),
+        'E': (metatile: 598, collision: 1, elevation: 0), 'F': (metatile: 599, collision: 1, elevation: 0),
+    }),
+]

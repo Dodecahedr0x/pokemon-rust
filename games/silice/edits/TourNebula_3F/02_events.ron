@@ -1,0 +1,85 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    // Music: the source's new "Horizon virtuel" theme; placeholder MUS_UNDERWATER, the source's. It rains all
+    // the time (the source's Route 120 rain fallback): WEATHER_RAIN, so every battle here starts in rain.
+    Header((music: "MUS_UNDERWATER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_RAIN", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TourNebula_3F_OnLoad: opens the screen behind Arthur (12, 1) from VAR_SIL_STORY 105 (collision 0).
+    ScriptsSet(on_load: "TourNebula_3F_OnLoad"),
+    // Warp 0: the arrival (11, 15), a landing. Warp 1: the screen behind Arthur (12, 1), to the cabin (the
+    // source's (11, 1) would be behind Arthur himself, who stands on (11, 2)).
+    Warp(x: 11, y: 15, dest_map: "TourNebulaAscenseur", dest_warp: 2),
+    Warp(x: 12, y: 1, dest_map: "TourNebulaAscenseur", dest_warp: 2),
+    // Objects (the source's numbers). 1: Arthur at the helm (TourNebula_3F_Sc04 at story 104; it plays _Sc05
+    // from 105). 2-3: the elites Yann (sailor) and Maelle (lookout) on the quay, sight 4 along it. 4: the
+    // compass on the lectern (TourNebula_3F_Sc02; FLAG_SIL_HIDE_ARTHUR_BOUSSOLE, the source's). 5: the
+    // technician. 6: the Cocket cabin boy.
+    Object(x: 11, y: 2, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_TOUR_3F_ARTHUR", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_3F_Sc04"),
+    Object(x: 3, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_TOUR_3F_YANN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "TourNebula_3F_EventScript_Yann", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 16, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_TOUR_3F_MAELLE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_3F_EventScript_Maelle", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 8, y: 13, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_TOUR_3F_BOUSSOLE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_3F_Sc02", flag: "FLAG_SIL_HIDE_ARTHUR_BOUSSOLE"),
+    Object(x: 20, y: 15, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_TOUR_3F_TECHNICIEN", local_id: 5, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_3F_EventScript_Technicien"),
+    Object(x: 5, y: 15, gfx: "OBJ_EVENT_GFX_BOY_3", id: "LOCALID_TOUR_3F_MOUSSE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "TourNebula_3F_EventScript_Mousse"),
+    // TourNebula_3F_Sc01 (the Horizon): the arrival's three ways off (the source puts it on the arrival
+    // (11, 15), which fires no coord event). On VAR_TEMP_1 0; the script sets VAR_TEMP_1 to 1 and returns at
+    // once when FLAG_SIL_TOUR_3F_INTRO is set.
+    Coord(x: 11, y: 14, var: "VAR_TEMP_1", value: 0, script: "TourNebula_3F_Sc01"),
+    Coord(x: 10, y: 15, var: "VAR_TEMP_1", value: 0, script: "TourNebula_3F_Sc01"),
+    Coord(x: 12, y: 15, var: "VAR_TEMP_1", value: 0, script: "TourNebula_3F_Sc01"),
+    // TourNebula_3F_Sc03 (falling in, story 104): every sea cell next to the quay, the path or the platform
+    // (46 cells; "Plouf!", back to the quay (11, 14)). From 105 the sea is off: the cells stay walkable.
+    Coord(x: 8, y: 2, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 14, y: 2, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 8, y: 3, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 14, y: 3, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 9, y: 4, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 10, y: 4, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 15, y: 4, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 11, y: 5, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 12, y: 5, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 13, y: 5, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 15, y: 5, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 11, y: 6, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 12, y: 6, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 13, y: 6, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 15, y: 6, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 10, y: 7, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 15, y: 7, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 10, y: 8, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 12, y: 8, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 13, y: 8, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 14, y: 8, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 10, y: 9, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 12, y: 9, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 10, y: 10, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 12, y: 10, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 1, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 2, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 3, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 4, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 5, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 6, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 7, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 8, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 9, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 10, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 12, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 13, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 14, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 15, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 16, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 17, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 18, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 19, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 20, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 21, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    Coord(x: 22, y: 11, var: "VAR_SIL_STORY", value: 104, script: "TourNebula_3F_Sc03"),
+    // The origami boats (the bearings), the entrance sign, the screens' slogan, the closed elevator door D.
+    Sign(x: 3, y: 14, script: "TourNebula_3F_EventScript_Origami1"),
+    Sign(x: 10, y: 14, script: "TourNebula_3F_EventScript_Origami2"),
+    Sign(x: 18, y: 14, script: "TourNebula_3F_EventScript_Origami3"),
+    Sign(x: 10, y: 16, script: "TourNebula_3F_EventScript_Entree"),
+    Sign(x: 0, y: 13, script: "TourNebula_3F_EventScript_Ecrans"),
+    Sign(x: 11, y: 16, script: "TourNebula_3F_EventScript_PorteVerrouillee"),
+    // The Full Restore, at the quay's right end.
+    HiddenItem(x: 22, y: 13, item: "ITEM_FULL_RESTORE", flag: "FLAG_SIL_ITEM_TOUR_3F_FULL_RESTORE"),
+]

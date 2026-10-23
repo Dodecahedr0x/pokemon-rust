@@ -139,6 +139,13 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN,
         FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA,
         FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN,
+        // Ch10-Ch11: shown until a scene or a story step hides them.
+        FLAG_SIL_HIDE_TOUR_REVENGE,
+        FLAG_SIL_HIDE_ARTHUR_BOUSSOLE,
+        FLAG_SIL_HIDE_APEX_POUSSIN,
+        FLAG_SIL_HIDE_APEX_GOGO_ROMAIN,
+        FLAG_SIL_HIDE_APEX_ROMAIN,
+        FLAG_SIL_HIDE_TOUR_DRONE,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -232,6 +239,18 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         // Ch9: Nebula_Sc03's Mathieu on the bus shelter and Adrien at the loudspeaker.
         FLAG_SIL_HIDE_NEBULA_MATHIEU,
         FLAG_SIL_HIDE_NEBULA_ADRIEN,
+        // Ch10-Ch11: the cabin's Mathieu, Revenge's statue, Julien on the Apex, and the friends on the
+        // Zenith and in its cabin.
+        FLAG_SIL_HIDE_TOUR_MATHIEU,
+        FLAG_SIL_HIDE_REVENGE_STATUE,
+        FLAG_SIL_HIDE_APEX_JULIEN,
+        FLAG_SIL_HIDE_ZENITH_MATHIEU,
+        FLAG_SIL_HIDE_ZENITH_ADRIEN,
+        FLAG_SIL_HIDE_ZENITH_GWADA,
+        FLAG_SIL_HIDE_ZENITH_ASC_MATHIEU,
+        FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN,
+        FLAG_SIL_HIDE_ZENITH_ASC_GWADA,
+        FLAG_SIL_HIDE_ZENITH_ASC_JULIEN,
     ] {
         assert!(w.flag(f), "{f:?}");
     }
