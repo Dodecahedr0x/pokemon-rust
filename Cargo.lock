@@ -6035,6 +6035,7 @@ dependencies = [
  "game-native",
  "object",
  "png 0.17.16",
+ "regex",
  "ron",
  "rustc-demangle",
  "serde",

@@ -374,6 +374,162 @@ Example spec and edit script (the shape of the fixture's `FixtureTown`):
 - The header is edited only through the `Header` op, not in the UI.
 - The palette shows no metatile numbers. The CLI prints its layout: 8 per row, and the cell where the secondary starts.
 
+#### SIL1 Task B as built: the importer and the validator
+
+The code is in `xtask/src/silice/`: `mod.rs` (CLI, file writing), `md.rs` (chapter markdown), `names.rs` (constant words, families, map names), `maps.rs` (names in `maps/*.ron` and, later, the scene scripts), `import.rs`, `ids.rs` (allocation), `check.rs` and `schema.rs`. Outside it, the task touched one arm in `xtask/src/main.rs`, `regex` in `xtask/Cargo.toml`, `xtask/tests/silice_{import,check,games}.rs` (with `silice_common/`) and the synthetic fixtures in `xtask/tests/fixtures/silice/`, among them `ids.golden`.
+
+**Commands.**
+- `cargo xtask silice import <contenu-jeu> [--out games/silice] [--report FILE] [--maps DIR] [--force]` reads `chapitres/*.md` in name order. It is deterministic: two runs give byte-identical files, and a re-run over unchanged output writes nothing. Without `--force` it refuses, and writes nothing, if any existing file would change. Every ambiguity goes to the report, never into the data. The report defaults to `<out>/IMPORT-REPORT.md` and is committed: it is an output like the others, under the same `--force` rule, and the editor's hygiene only looks at `maps/` and `layouts/`. The import also reads `<out>/maps/*.ron` (`--maps DIR` to change it, `--maps /nonexistent` to skip it) and allocates the `FLAG_SIL_`, `VAR_SIL_`, `MUS_SIL_` and `SE_SIL_` names only the maps use.
+- `cargo xtask silice check [--games games/silice] [--extracted DIR] [--scripts DIR] [--allow RULE]...` exits 1 on errors and lists warnings. Its name sources are the decomp tables compiled into `extract::names` and `charmap::SOUNDS` (always), the extract when it has a `manifest.ron` (species, moves, items, heal locations, the FR font widths), and every name in `$PKR_DECOMP/include/constants/*.h` when `PKR_DECOMP` is set (the only source for `WEATHER_*` and the decomp's songs). A missing source skips its rules with a `note:` line, so the check runs without the extract. It reads `maps/*.ron` textually (object and bg flags, coord and frame-script vars, music, weather, warp `dest_map` and connection `map`, hidden items). `--scripts` (default `crates/content/src/silice/scripts/`) is the hook for the scene scripts: every constant-looking word in its `*.rs` files is checked like a reference. It is empty until the scripts exist.
+- `cargo xtask silice tombstone [--games DIR] NAME...` marks ids removed in whichever ids file holds them, keeping their numbers.
+
+**Formats (`schema.rs`, ready to move to `crates/content/build/silice/schema.rs`; it reuses `extract::schema`).**
+- `text/fr.ron` maps each id to its text in decomp `.string` syntax. Each text is written as a RON raw string, `r"..."` (with as many `#` as the text needs), so `\n`, `\p` and quotes read as in the source. A unit test checks that every text round-trips through `ron` unchanged. Body lines are joined raw; a line without `\n`, `\l` or `\p` is joined with a space and reported. A duplicate id with a different body is written twice, as a repeated key, so `check` can see it. The content stays as authored (the 2 duplicates are `ruling_needed` exceptions). **Loader contract:** the Wave 0 loader must read `text/fr.ron` entry by entry and reject a repeated key, since a map deserializer would keep one silently.
+- `text/speakers.ron` holds, per id, the chapter, the speaker and the parenthetical note. `check` requires its id set to equal `fr.ron`'s.
+- `battle/trainers.ron` holds the extract's `Trainer` fields plus `items` (the AI bag) and `notes` (the source's `//` comments). A comment goes to the entry it follows on the closing line, or on the next line when indented deeper than that entry; otherwise it goes to the next entry (`LOIC_1` and `YOHAN_1` carry their rematch notes). The party is `extract::schema::TrainerMon`, so held items are kept.
+- `battle/encounters.ron` follows the v5 shape: keyed by map name, a `Vec` of headers (land, water, rock smash, fishing, `notes`).
+- `items.ron` holds three kinds of record.
+  - The `ITEM_SIL_*` definitions: name, pocket, price, `clone_of`, effect and chapters.
+  - The §7 placements: flag, map, place, `pos`, name, item, quantity and method. `pos` is a note from the source's plans, which are not to scale. The maps under `maps/` are authoritative for positions.
+  - The marts:
+    - each has a label (no `**` or backticks), a map, a `condition` (the label's parenthetical when it names a `FLAG_`/`VAR_`), a `note` (prose between the label and the table, or the tail of an inline list), money or coins, and its stock;
+    - each stock entry has an item, a `u16` price, and an optional `condition` and `note` (the Condition and Note/Pourquoi columns);
+    - all prices are `u16`;
+    - inline stock is `(ITEM_X, price)`, with or without backticks;
+    - a bold paragraph that names an item but gives no stock is reported.
+- `ids/{flags,vars,trainers,items,species,moves,songs,maps}.ron` are `IdsFile { base, ids: [(name, num, map?, removed?)] }`.
+  - The ranges:
+    - flags run from 0x20 to 0x4FF and vars from 0x4020 to 0x40FF. On the first import, a file starts above every Gen3 story flag or var the data reuses, so flags start at 0x113, above `FLAG_RECEIVED_RUNNING_SHOES` (0x112). The report's "Id bases" says so;
+    - trainers run from 1 to 863;
+    - items, species and moves come after the decomp's last number;
+    - songs come after `SOUNDS`. Music and sounds share one file because Gen3 gives them one number space;
+    - maps start at 0 and skip 0x7F7F.
+  - Allocation is append-only. Names are numbered in name order on the first import, and later new names are appended after the highest number. A name the source drops stays, and is reported as stale. A tombstone (`removed: true`) is never renumbered.
+  - Each map entry carries its map file name (`MAP_BRICO_BOURG_PLAYER_HOUSE_1F` is `BricoBourg_PlayerHouse_1F`).
+  - The Ch0 maps' names were appended after the first allocation: 14 `FLAG_SIL_HIDE_*` and `VAR_SIL_CH0_GATE`. `FLAG_SIL_HIDE_BAR_SBIRES` is tombstoned, because the maps split it into `_SBIRE_A` and `_SBIRE_B`.
+  - `xtask/tests/silice_games.rs` checks that every (file, name, num) in `fixtures/silice/ids.golden` (951 ids) keeps its number. It also checks that `silice check` passes on the committed data without the extract.
+- `ids/refs.ron` holds every constant and text id the chapters use, with their chapters, and every dynamic reference with its expansion.
+- `check-exceptions.ron` holds `(rule, subject (with * globs), reason, ruling_needed)` entries.
+
+**What the import reads.**
+- Maps come from the constants in §2 and §4 headings, including numbered headings (`### 2.6 MAP_…`) and families (`MAP_X (1F), _X_2F`, `MAP_X, _2F, _3F`).
+- Texts come from the `[Id] SPEAKER (note)` headers in `text` fences, several per fence. A header counts only at the start or after a blank line. A `text` fence without a header is a pseudo-script.
+- Trainers come from the §5 `ron` fences and encounters from the §6 ones.
+- Items come from the §7 tables and the inline shops.
+- References come from everything outside data blocks. The scanner handles these shorthands:
+  - `X` / `_Y`, `, _Y` and `(+ _Y)`;
+  - ranges such as `X_1…4` and `` `X_01` … `_08` ``;
+  - placeholders such as `<n>` and `_NN`;
+  - `msgbox(A | B)` enumerations.
+- Dynamic text ids are expanded against the defined texts. Constant patterns are expanded only within Silice's own prefixes.
+- A macro call (`TRAINER_FLAG(…)`) and an elided id (`msgbox(…, Sign)`) are not references.
+- Tables the importer cannot type are listed in the report and not imported: prose shop stock, the ch03 Pokémon prize table, the ch08 and ch09 reward-rank tables, and multi-flag cells such as `FLAG_SIL_ECHANTILLON_1/2/3`.
+
+**Check rules.**
+
+| Rule | Level | Fires on |
+|---|---|---|
+| `id-alloc` | error | duplicate name or number in an ids file, a number outside the range or reserved, a number two song files share, or a legacy `ids/music.ron` or `ids/sounds.ron` |
+| `gen3-collision` | error | a Gen3 story flag (0x20–0x4FF) or saved var (0x4020–0x40FF) the data uses, numbered inside the Silice block of its ids file |
+| `id-undefined` / `id-removed` | error | a Silice name (from the chapters, maps or scripts) missing from its ids file, or a reference to a tombstone |
+| `id-unknown` | error | a Gen3 name (species, class, pic, AI) the decomp lacks; the base species of a form |
+| `sil-prefix` | error | an unknown FLAG/VAR/ITEM/MOVE/MUS/SE/WEATHER/HEAL_LOCATION/TRAINER name without `_SIL_` |
+| `map-undefined` | error | a `MAP_*`, encounter map, warp or connection target in neither `ids/maps.ron` nor `maps/`; a placement whose map cell is not a `MAP_` constant |
+| `placement-map` | error | a ball or hidden-item placement whose map exists in `maps/` but lacks its flag, or hides another item under it. Once scene scripts exist, it also fires when a given item's flag is in neither the map nor a script |
+| `trainer-undefined` / `trainer-duplicate` | error | a `TRAINER_SIL_*` that no trainer defines, or one defined twice |
+| `trainer-name` / `trainer-class-name` | error | more than 10 or 12 encoded bytes |
+| `trainer-items`, `party-size`, `party-moves`, `party-level` | error | more than 4 bag items; 0 or more than 6 mons; 0 or more than 4 moves; a level outside 1–100 |
+| `encounter-slots` / `encounter-level` | error | not 12/5/5/10 slots; levels outside 1–100 or min > max |
+| `fishing-unreachable` | warning | fishing slots of a rod (old 0–1, good 2–4, super 5–9) that no placement or mart gives |
+| `text-duplicate` / `text-missing` / `dynamic-unresolved` | error | a repeated id; an id printed but not defined; a placeholder the source does not enumerate |
+| `speakers-mismatch` | error | an id in only one of `text/fr.ron` and `text/speakers.ron` |
+| `text-charmap` | error | a character the FR charmap cannot encode; the run prints a histogram of the missing glyphs |
+| `text-width` | error | a line over 216 px (27 tiles), or 208 px for a defeat text (an id containing `_Defeat`), measured with the extract's FR widths. Worst cases are used: `{PLAYER}` and `{RIVAL}` as 7 of the widest capital, `{STR_VAR_n}` as 13, and an unencodable character as `W` |
+| `text-lines` | error | a box (between `\p`) with more than 2 lines, that is a second `\n` (`\l` scrolls) |
+| `invented-move` | warning | a `MOVE_SIL_*` (D-00, D-02b) |
+| `item-incomplete` / `item-name-length` / `item-name-clash` | warning | no name, pocket or base item; a name over 13 bytes (`ITEM_NAME_LENGTH` 14 with the terminator); a name equal to another item's, ignoring case and spaces |
+| `exception-unused` | warning | an exception that matches nothing |
+
+**Real import (committed under `games/silice/`, authored data only).**
+- 13 chapters and 1,923 texts, 2 of them duplicate ids with different bodies.
+- 238 trainers.
+- 39 encounter maps with 56 tables.
+- 69 `ITEM_SIL_*` definitions, 260 item placements and 13 marts.
+- 1,053 referenced constants and 1,075 referenced text ids.
+- 37 dynamic references, 4 of them unresolved.
+- The ids files hold:
+  - 490 flags (from 0x113, one of them a tombstone) and 20 vars;
+  - 238 trainers and 69 items;
+  - 5 species (the Mega forms the source names);
+  - 1 move;
+  - 13 songs;
+  - 115 maps.
+
+**Check on the real import.**
+- With the extract and `PKR_DECOMP`, the check finds 169 errors and 87 warnings. All 256 findings are listed in `check-exceptions.ron`, so the check exits 0. Of those entries, 249 carry `ruling_needed`. By rule:
+  - `text-charmap` 108;
+  - `item-incomplete` 55;
+  - `sil-prefix` 29;
+  - `item-name-length` 16;
+  - `fishing-unreachable` 11;
+  - `trainer-class-name` 10;
+  - `trainer-name` 8;
+  - `map-undefined` 7;
+  - `dynamic-unresolved` 4;
+  - `item-name-clash` 4;
+  - `text-duplicate` 2;
+  - `id-removed` 1;
+  - `invented-move` 1.
+- These rules find nothing:
+  - `gen3-collision`;
+  - `placement-map` on the six Ch0 maps;
+  - `text-width`, even with the worst cases (the widest line is 204 px);
+  - `text-lines`;
+  - `speakers-mismatch`.
+- Without the extract and the decomp, the check also exits 0. It reports 5 `exception-unused` warnings, because those exceptions' sources are missing: the 3 Gen3 name clashes and the 2 `WEATHER_*` names.
+
+**Open rulings (author).**
+- Glyphs, counted in texts: `—` 68, `_` 25, `[ ]` 12, `°` 15 (plus the trainer names `N°7` and `N°12`), `♥` 6 (R-11), `₽` 3, `○ ●` 2, and `♪`, `#`, `*`, `←`, `→` 1 each.
+- Names over the limits:
+  - 8 trainer names over 10 bytes, among them `TAUBER&HOCSEAT`, `LOULPIX & DORIS` and `CONTREMAÎTRE`;
+  - 10 class names over 12 bytes;
+  - 16 item names over 13 bytes, the 14-byte ones among them: `ITEM_SIL_BROCHETTE_NEON`, `ITEM_SIL_CARTE_PERFOREE` and `ITEM_SIL_PAIN_LEMBAS`.
+- Sounds and music:
+  - 13 invented `SE_*` and 2 invented `MUS_*` lack the SIL_ prefix;
+  - `MUS_MAUVILLE`, `MUS_MOSSDEEP` and `MUS_ROUTE111` are not decomp tracks;
+  - `MUS_RG_SEKAIKAN` should be `MUS_RG_NEW_GAME_INTRO`, `MUS_TEAM_AQUA_HIDEOUT` should be `MUS_AQUA_MAGMA_HIDEOUT`, and `SE_EXPLOSION` should be `SE_M_EXPLOSION`.
+- Weather, heal locations and pseudo-flags:
+  - `WEATHER_PETALS` and `WEATHER_CLOUDS`;
+  - `HEAL_LOCATION_{PORT_RESSAC,OWLYS,BRICO_BOURG}` without the SIL_ prefix;
+  - the pseudo-flags `FLAG_DAILY`, `FLAG_GEMME` and `FLAG_PREMIERE`.
+- Undefined maps:
+  - `MAP_ROUTE_SXX_ANTENNE`;
+  - `MAP_MANGA_SQUARE_HOUSE_1` and `MAP_MANGA_SQUARE_HOUSE_2`;
+  - `MAP_BRICO_BOURG_NIGHT` and `MAP_TRONE_ZENITH_NUIT`;
+  - `MAP_MANGA_SQUARE_GYM`, which ch06 §4 describes without a heading constant;
+  - the ch12 row that places the 8 Mega gems "in the gyms" with no `MAP_`.
+- ch00 still names `FLAG_SIL_HIDE_BAR_SBIRES`. Its scenes must set `FLAG_SIL_HIDE_BAR_SBIRE_A` and `_B`, which the maps use.
+- Unresolved dynamic references:
+  - `<Champion>_PG_Revanche_Deja`;
+  - `FLAG_SIL_ITEM_PG_GEM_LOIC … _LOULPIX`;
+  - `Gym_Sc02_Q<n>_Choix`, whose multichoice lists have no ids;
+  - `SPECIES_<NOM>`.
+- `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are each defined in both ch02 and ch09. The loader will reject them until one pair is renamed.
+- `MOVE_SIL_CODE_AQUA`.
+- The old-rod slots are never reachable.
+- Item names:
+  - `ITEM_SIL_POUDRE_CLAIRE` clashes with `ITEM_BRIGHT_POWDER`;
+  - `ITEM_SIL_ORBE_BLEU` and `ITEM_SIL_ORBE_ROUGE` clash with the Gen3 orbs;
+  - both Mewtwonites are named "Mewtwoïte X et Y".
+- Mega data: 55 items have no pocket or base item, the Mega stones among them, and only 5 `SPECIES_*_MEGA` forms are named for about 30 stones.
+- The AI item bags of Arthur (ch10), Crow, Benou and Julien (ch12) appear only in prose. The `items` field is empty for every trainer, so the bags must be entered by hand.
+
+**Gates.** All pass:
+- fmt;
+- clippy, plain and with `game-native/window,studio/ui`;
+- `cargo test --workspace` real (1,444 passed) and stub (1,432 passed). Both runs need `PKR_DECOMP`, since a worktree's relative default does not resolve;
+- `silice check` with and without the extract.
+
 #### SIL1 Ch0 maps as built (Task F, the map half)
 
 The six Chapter 0 maps are in `games/silice/{maps,layouts}/`. They were made with the studio map editor's CLI only (`cargo xtask studio map create` and `apply`). The edit scripts that make them are committed under `games/silice/edits/<Map>/`:
