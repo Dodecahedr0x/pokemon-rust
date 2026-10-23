@@ -841,7 +841,10 @@ pub fn switch(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
     let magnet = [USER, TARGET]
         .iter()
         .any(|&s| b.battler(s).ability == Ability::MagnetPull);
-    if me.v.escape_prevented || (magnet && me.types.contains(&Type::Steel)) {
+    if me.v.escape_prevented
+        || (magnet && me.types.contains(&Type::Steel))
+        || super::effects::shadow_tagged(b, USER)
+    {
         return None;
     }
     let party = &b.parties[USER as usize];

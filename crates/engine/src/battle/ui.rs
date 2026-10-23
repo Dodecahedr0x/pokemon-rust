@@ -195,6 +195,9 @@ pub struct BattleWindows {
     action_result: Option<Action>,
     move_result: Option<MoveChoice>,
     yes_no_result: Option<bool>,
+    /// The Mega Evolution toggle of the move menu (Silice): `None` when the mon cannot Mega
+    /// Evolve, else whether it is armed (START flips it).
+    mega: Option<bool>,
 }
 
 impl Default for BattleWindows {
@@ -230,6 +233,7 @@ impl BattleWindows {
             action_result: None,
             move_result: None,
             yes_no_result: None,
+            mega: None,
         }
     }
 
@@ -385,7 +389,25 @@ impl BattleWindows {
     /// "TYPE/type" of the move under the cursor. A move without PP stays selectable (the core
     /// answers `NoPPLeft`), as Gen3.
     pub fn move_menu(&mut self, game: &impl GameData, mon: &BattleMon, f: &mut Frame) {
+        self.move_menu_mega(game, mon, false, f);
+    }
+
+    /// [`Self::move_menu`] with the Mega Evolution toggle when `mega` (the mon may Mega Evolve
+    /// now): START arms or disarms it, and the type window says so while armed.
+    pub fn move_menu_mega(
+        &mut self,
+        game: &impl GameData,
+        mon: &BattleMon,
+        mega: bool,
+        f: &mut Frame,
+    ) {
+        self.mega = mega.then_some(false);
         self.open_moves(game, mon, None, f);
+    }
+
+    /// Whether the move was chosen with the Mega Evolution toggle armed.
+    pub fn mega_armed(&self) -> bool {
+        self.mega == Some(true)
     }
 
     /// The learn-move view: `mon`'s moves plus `new` as a fifth entry. `MoveChoice::Move(i)`
@@ -407,6 +429,9 @@ impl BattleWindows {
         learning: Option<MoveId>,
         f: &mut Frame,
     ) {
+        if learning.is_some() {
+            self.mega = None;
+        }
         self.draw_moves(game, mon, learning);
         self.enter_menu(Menu::Move, f);
         self.move_result = None;
@@ -489,11 +514,15 @@ impl BattleWindows {
             self.pp.redraw(font, &text, 2, 1, PP_COLORS);
         }
         let mut text = Vec::with_capacity(16);
-        push(&mut text, game.battle_text(Str::MoveInterfaceType));
-        if let Some(m) = self.cursor_move()
-            && let Some(info) = game.battle().moves.get(m.0 as usize)
-        {
-            push(&mut text, game.battle_text(Str::TypeName(info.ty)));
+        if self.mega == Some(true) {
+            push(&mut text, game.battle_text(Str::MegaArmed));
+        } else {
+            push(&mut text, game.battle_text(Str::MoveInterfaceType));
+            if let Some(m) = self.cursor_move()
+                && let Some(info) = game.battle().moves.get(m.0 as usize)
+            {
+                push(&mut text, game.battle_text(Str::TypeName(info.ty)));
+            }
         }
         text.push(EOS);
         self.move_type.redraw(font, &text, 0, 1, MENU_COLORS);
@@ -579,6 +608,11 @@ impl BattleWindows {
         } else if p.contains(Buttons::B) {
             self.move_result = Some(MoveChoice::Back);
             self.menu = Menu::None;
+            return;
+        } else if let (true, Some(armed)) = (p.contains(Buttons::START), self.mega) {
+            self.mega = Some(!armed);
+            self.draw_move_info(game, f);
+            self.put_rows(game, f);
             return;
         } else if p.contains(Buttons::LEFT) {
             match c {
@@ -850,6 +884,9 @@ impl BattleWindows {
             h.write(&[self.pp_cur[i], self.pp_max[i]]);
         }
         h.write_u16(self.learning.map_or(0xFFFF, |m| m.0));
+        if let Some(armed) = self.mega {
+            h.write(&[0xB0, armed as u8]);
+        }
         self.msg.hash(h);
     }
 }

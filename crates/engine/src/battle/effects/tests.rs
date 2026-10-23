@@ -720,6 +720,7 @@ pub(super) fn contact_hit() -> Option<crate::battle::core::HitResult> {
         hp_dealt: 5,
         crit: false,
         eff: crate::battle::Effectiveness::Normal,
+        hung: false,
     })
 }
 

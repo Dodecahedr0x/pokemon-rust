@@ -327,6 +327,7 @@ static TRAINER_DATA: crate::mon::TrainerData = crate::mon::TrainerData {
         level: 2,
         iv: 0,
         moves: None,
+        item: None,
     }],
 };
 

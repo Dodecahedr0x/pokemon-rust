@@ -904,3 +904,37 @@ fn the_encoded_checkpoint_fits_the_flash_slot() {
     std::println!("synthetic checkpoint: at most {max} bytes (limit {MAX_ENCODED})");
     assert!(max > 0 && max <= MAX_ENCODED);
 }
+
+#[test]
+fn held_items_round_trip_and_leave_a_party_without_them_alone() {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 5).await;
+        })
+    });
+    until_done(&mut w, 5);
+    let plain = w.checkpoint(&Game).unwrap();
+    assert!(plain.world.party_held.is_empty());
+    let hash = w.hash();
+    w.s.party.get_mut(0).unwrap().held = Some(crate::data::ItemId(139));
+    assert_ne!(w.hash(), hash, "a held item is hashed");
+    let cp = w.checkpoint(&Game).unwrap();
+    assert_eq!(
+        cp.world.party_held,
+        alloc::vec![Some(crate::data::ItemId(139))]
+    );
+    assert_ne!(
+        crate::checkpoint::state_digest(&cp.world),
+        crate::checkpoint::state_digest(&plain.world)
+    );
+    let r = round_trip(&w);
+    assert_eq!(
+        r.party().get(0).unwrap().held,
+        Some(crate::data::ItemId(139))
+    );
+    assert_eq!(r.hash(), w.hash());
+    let mut bad = cp.clone();
+    bad.world.party_held.push(None);
+    assert!(matches!(restore(&bad), Err(RestoreError::Invalid(_))));
+}

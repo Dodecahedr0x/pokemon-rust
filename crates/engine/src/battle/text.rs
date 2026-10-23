@@ -25,7 +25,9 @@
 //! nickname. The French ROM has " sauvage" / " ennemi" there, written after the name, so a tag
 //! that starts with a space is a suffix and any other tag a prefix ("Wild " in English).
 //!
-//! Codes outside the slice (items, link names, trainer lose/win texts, the
+//! `B_LAST_ITEM` names the `Buff::Item` in `msg.buffs[2]` (the held-item messages).
+//!
+//! Codes outside the slice (link names, trainer lose/win texts, the
 //! `*_PREFIX1..3` team tags, a second trainer) expand to nothing.
 
 use super::{Buff, Msg, Names, Side, Str};
@@ -51,6 +53,7 @@ const B_TXT_ACTIVE_NAME_WITH_PREFIX: u8 = 0x12;
 const B_TXT_SCR_ACTIVE_NAME_WITH_PREFIX: u8 = 0x13;
 const B_TXT_CURRENT_MOVE: u8 = 0x14;
 const B_TXT_LAST_MOVE: u8 = 0x15;
+const B_TXT_LAST_ITEM: u8 = 0x16;
 const B_TXT_LAST_ABILITY: u8 = 0x17;
 const B_TXT_EFF_ABILITY: u8 = 0x1B;
 const B_TXT_TRAINER1_CLASS: u8 = 0x1C;
@@ -114,6 +117,8 @@ fn placeholder(game: &impl GameData, code: u8, msg: &Msg, names: &Names, out: &m
         // puts in `buffs[2]` (`Buff::Text(Str::AbilityName(..))`; B_BUFF3 is unused by these
         // strings).
         B_TXT_LAST_ABILITY..=B_TXT_EFF_ABILITY => buff(game, &msg.buffs[2], names, out),
+        // `gLastUsedItem`: the item the core puts in `buffs[2]` (`Buff::Item`).
+        B_TXT_LAST_ITEM => buff(game, &msg.buffs[2], names, out),
         B_TXT_TRAINER1_CLASS => push(out, names.trainer_class),
         B_TXT_TRAINER1_NAME => push(out, names.trainer_name),
         B_TXT_PLAYER_NAME => push(out, names.player),
@@ -178,6 +183,11 @@ fn buff(game: &impl GameData, b: &Buff, names: &Names, out: &mut Vec<u8>) {
         Buff::Mon { side, party } => tagged(game, side, party_nick(side, party, names), names, out),
         Buff::MonNick { side, party } => push(out, party_nick(side, party, names)),
         Buff::Text(s) => push(out, game.battle_text(s)),
+        Buff::Item(i) => {
+            if let Some(info) = game.item(i) {
+                push(out, info.name);
+            }
+        }
     }
 }
 

@@ -18,6 +18,7 @@ fn mon(hp: u16) -> Pokemon {
         status: Status::None,
         hp,
         stats: [hp; 6],
+        held: None,
     }
 }
 

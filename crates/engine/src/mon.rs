@@ -3,7 +3,7 @@
 //!
 //! Formulas: `CreateMon`, `CalculateMonStats`, `MonGainEVs`, `gExperienceTables`, …
 
-use crate::data::{EvoMethod, Evolution, MoveId, SpeciesId};
+use crate::data::{EvoMethod, Evolution, ItemId, MoveId, SpeciesId};
 use crate::hash::Fnv64;
 use crate::rng::Rng;
 use crate::video::Tile;
@@ -34,10 +34,16 @@ pub enum Type {
     Ice,
     Dragon,
     Dark,
+    /// Not a Gen3 type: the Gen6 Fairy type, for content that uses it (Silice's Mega forms).
+    /// Its matchups are [`FAIRY_MATCHUPS`], which only such content appends to its chart, so a
+    /// Gen3 game never meets it. It sits after `Mystery`, so the Gen3 physical/special split by
+    /// type ([`Type::is_physical`]) makes it special, as later fan Gen3 hacks do.
+    Fairy,
 }
 
 impl Type {
-    /// Every type, in `TYPE_*` order (`Type::ALL[t as usize] == t`).
+    /// Every Gen3 type, in `TYPE_*` order (`Type::ALL[t as usize] == t`). [`Type::Fairy`] is
+    /// not in it (see [`Type::EVERY`]).
     pub const ALL: [Type; 18] = [
         Type::Normal,
         Type::Fighting,
@@ -59,12 +65,23 @@ impl Type {
         Type::Dark,
     ];
 
+    /// [`Type::ALL`] then [`Type::Fairy`] (`Type::EVERY[t as usize] == t`).
+    pub const EVERY: [Type; 19] = {
+        let mut all = [Type::Fairy; 19];
+        let mut i = 0;
+        while i < 18 {
+            all[i] = Type::ALL[i];
+            i += 1;
+        }
+        all
+    };
+
     /// Gen3 `IS_TYPE_PHYSICAL`: the types before `Mystery` use Atk/Def.
     pub const fn is_physical(self) -> bool {
         (self as u8) < Type::Mystery as u8
     }
 
-    /// The type of a Gen3 `TYPE_*` number.
+    /// The type of a Gen3 `TYPE_*` number (never [`Type::Fairy`]).
     pub const fn from_u8(v: u8) -> Option<Type> {
         if (v as usize) < Self::ALL.len() {
             Some(Self::ALL[v as usize])
@@ -216,6 +233,8 @@ pub enum Ability {
     InnerFocus,
     MagnetPull,
     Pickup,
+    /// Max HP / 16 at the end of the turn in rain (`ABILITYEFFECT_ENDTURN`; only the gated
+    /// abilities bring rain).
     RainDish,
     RockHead,
     ShedSkin,
@@ -233,6 +252,65 @@ pub enum Ability {
     ClearBody,
     LiquidOoze,
     NaturalCure,
+    // Silice engine (appended). Gen3 abilities whose Emerald holders the content leaves
+    // `Other` until a deliberate route change (`GEN3_EXTRA_ABILITIES` in the content build):
+    /// Sun at switch-in (`ABILITYEFFECT_ON_SWITCH_IN`, permanent).
+    Drought,
+    /// Rain at switch-in.
+    Drizzle,
+    /// Sandstorm at switch-in.
+    SandStream,
+    /// Speed +1 at the end of each turn but its first.
+    SpeedBoost,
+    /// The foe cannot run nor switch (Gen3: even a Shadow Tag foe; see [`Self::ShadowTagGen4`]).
+    ShadowTag,
+    /// Ground moves miss.
+    Levitate,
+    /// No critical hits against it.
+    ShellArmor,
+    BattleArmor,
+    /// Gen5: draws Electric moves, which it absorbs for Sp. Atk +1. Gen3's only redirects in
+    /// doubles (nothing in singles): the content maps it here only under its Silice switch.
+    LightningRod,
+    // Post-Gen3 abilities (Gen7 behaviour adapted to Gen3, see the Silice plan).
+    /// Heavy rain while it is out: Fire moves fail.
+    PrimordialSea,
+    /// Extremely harsh sun while it is out: Water moves fail.
+    DesolateLand,
+    /// Normal moves become Flying, x1.2.
+    Aerilate,
+    /// Normal moves become Fairy, x1.2.
+    Pixilate,
+    /// Normal moves become Ice, x1.2.
+    Refrigerate,
+    /// Contact moves x1.3.
+    ToughClaws,
+    /// Reflects `MAGIC_COAT_AFFECTED` moves.
+    MagicBounce,
+    /// A second hit at a quarter of the damage.
+    ParentalBond,
+    /// Ignores the target's breakable abilities.
+    MoldBreaker,
+    /// Moves of power 60 or less x1.5.
+    Technician,
+    /// Multi-hit moves hit 5 times.
+    SkillLink,
+    /// Rock / Ground / Steel moves x1.3 in a sandstorm; no sandstorm damage.
+    SandForce,
+    /// Sp. Atk x1.5 in the sun, losing 1/8 HP each turn.
+    SolarPower,
+    /// Super-effective damage x3/4.
+    Filter,
+    /// Status moves +1 priority (they fail against a Dark target).
+    Prankster,
+    /// Speed +1 when it flinches.
+    Steadfast,
+    // Gen3 (gated as the abilities above).
+    /// No sandstorm damage; the foe's accuracy x80/100 in a sandstorm.
+    SandVeil,
+    // Silice rules for Gen3 abilities (the content's Silice switch).
+    /// Shadow Tag with Gen4's exemption: a foe with Shadow Tag (Gen4) is not trapped.
+    ShadowTagGen4,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).
@@ -410,6 +488,97 @@ pub struct TypeMatchup {
     pub multiplier: u8,
 }
 
+const fn mu(attack: Type, defend: Type, multiplier: u8) -> TypeMatchup {
+    TypeMatchup {
+        attack,
+        defend,
+        multiplier,
+    }
+}
+
+/// The Gen6 Fairy matchups (attacking: x2 on Fighting / Dragon / Dark, x0.5 on Fire / Poison /
+/// Steel; defending: x0.5 from Fighting / Bug / Dark, x0 from Dragon, x2 from Poison / Steel),
+/// for content that has [`Type::Fairy`] to append to its chart before Foresight's entries. A
+/// Gen3 chart never contains them.
+pub const FAIRY_MATCHUPS: [TypeMatchup; 12] = [
+    mu(Type::Fairy, Type::Fighting, 20),
+    mu(Type::Fairy, Type::Dragon, 20),
+    mu(Type::Fairy, Type::Dark, 20),
+    mu(Type::Fairy, Type::Fire, 5),
+    mu(Type::Fairy, Type::Poison, 5),
+    mu(Type::Fairy, Type::Steel, 5),
+    mu(Type::Fighting, Type::Fairy, 5),
+    mu(Type::Bug, Type::Fairy, 5),
+    mu(Type::Dark, Type::Fairy, 5),
+    mu(Type::Dragon, Type::Fairy, 0),
+    mu(Type::Poison, Type::Fairy, 20),
+    mu(Type::Steel, Type::Fairy, 20),
+];
+
+/// The battle effect of a held item: Gen3 `HOLD_EFFECT_*` (`include/constants/hold_effects.h`)
+/// with its `holdEffectParam`, for the effects the engine models (`ItemBattleEffects`,
+/// `battle_util.c`). Content maps `gItems[]` to it (`GameData::hold_effect`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum HoldEffect {
+    /// `HOLD_EFFECT_RESTORE_HP` (Oran 10, Sitrus 30, Berry Juice 20): heals `param` HP once at
+    /// or below half HP.
+    RestoreHp(u8),
+    /// `HOLD_EFFECT_CURE_PAR` (Cheri).
+    CurePar,
+    /// `HOLD_EFFECT_CURE_SLP` (Chesto).
+    CureSlp,
+    /// `HOLD_EFFECT_CURE_PSN` (Pecha).
+    CurePsn,
+    /// `HOLD_EFFECT_CURE_BRN` (Rawst).
+    CureBrn,
+    /// `HOLD_EFFECT_CURE_FRZ` (Aspear).
+    CureFrz,
+    /// `HOLD_EFFECT_CURE_CONFUSION` (Persim).
+    CureConfusion,
+    /// `HOLD_EFFECT_CURE_STATUS` (Lum): any status, then confusion.
+    CureStatus,
+    /// `HOLD_EFFECT_LEFTOVERS`: max HP / 16 at the end of each turn.
+    Leftovers,
+    /// The `sHoldEffectToType` items (Charcoal, Mystic Water …): moves of the type get
+    /// `(100 + param)%` of the user's attacking stat.
+    TypePower(Type, u8),
+    /// `HOLD_EFFECT_CHOICE_BAND`: Attack x1.5 (the move lock is not modelled).
+    ChoiceBand,
+    /// `HOLD_EFFECT_QUICK_CLAW`: moves first when `gRandomTurnNumber < 0xFFFF * param / 100`.
+    QuickClaw(u8),
+    /// `HOLD_EFFECT_FLINCH` (King's Rock): `param`% flinch on a `KINGS_ROCK_AFFECTED` hit.
+    KingsRock(u8),
+    /// `HOLD_EFFECT_EVASION_UP` (BrightPowder 10, Lax Incense 5): the foe's accuracy x
+    /// `(100 - param)%`.
+    EvasionUp(u8),
+    /// `HOLD_EFFECT_FOCUS_BAND`: `param`% to survive a hit at 1 HP.
+    FocusBand(u8),
+}
+
+impl HoldEffect {
+    /// A stable hash code: tag and parameter.
+    pub const fn code(self) -> [u8; 2] {
+        use HoldEffect::*;
+        match self {
+            RestoreHp(p) => [1, p],
+            CurePar => [2, 0],
+            CureSlp => [3, 0],
+            CurePsn => [4, 0],
+            CureBrn => [5, 0],
+            CureFrz => [6, 0],
+            CureConfusion => [7, 0],
+            CureStatus => [8, 0],
+            Leftovers => [9, 0],
+            TypePower(t, p) => [10 + t as u8, p],
+            ChoiceBand => [40, 0],
+            QuickClaw(p) => [41, p],
+            KingsRock(p) => [42, p],
+            EvasionUp(p) => [43, p],
+            FocusBand(p) => [44, p],
+        }
+    }
+}
+
 /// A trainer front pic (or back pic frames, 64 tiles each).
 #[derive(Clone, Copy, Debug)]
 pub struct TrainerPic {
@@ -429,6 +598,10 @@ pub struct TrainerMon {
     pub iv: u8,
     /// Custom moveset, `None` for the level-up default.
     pub moves: Option<[Option<MoveId>; 4]>,
+    /// `gTrainers[].party[].heldItem`. Emerald content leaves it `None` (its build flag
+    /// `TRAINER_HELD_ITEMS`, see the Silice plan): content that sets it moves the battles of
+    /// the trainers that hold items.
+    pub item: Option<ItemId>,
 }
 
 /// One `gTrainers` entry.
@@ -518,6 +691,11 @@ pub struct Pokemon {
     pub hp: u16,
     /// `CalculateMonStats` cache; `stats[0]` = max HP.
     pub stats: [u16; 6],
+    /// `MON_DATA_HELD_ITEM`. Not in the derived serde form: the checkpoint carries it in
+    /// `WorldSnapshot::party_held` (schema 3), so a party without items encodes as schema 2.
+    /// Hashed only when `Some`.
+    #[serde(skip)]
+    pub held: Option<ItemId>,
 }
 
 /// `USE_RANDOM_IVS` / `fixedIV`.
@@ -627,6 +805,7 @@ impl Pokemon {
             status: Status::None,
             hp: 0,
             stats: [0; 6],
+            held: None,
         };
         p.give_initial_moveset(t);
         p.recalc_stats(t);
@@ -861,6 +1040,11 @@ impl Pokemon {
         h.write_u16(self.hp);
         for s in self.stats {
             h.write_u16(s);
+        }
+        // Only when set: a Gen3 party without items keeps its hashes.
+        if let Some(item) = self.held {
+            h.write(&[0xA1]);
+            h.write_u16(item.0);
         }
     }
 }
