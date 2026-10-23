@@ -5176,6 +5176,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "vanilla"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "content",
+ "emu",
+ "engine",
+ "explore",
+ "game-native",
+ "sha1_smol",
+]
+
+[[package]]
 name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"

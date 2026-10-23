@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "crates/parity", "xtask"]
+members = ["crates/engine", "crates/content", "crates/game-native", "crates/emu", "crates/extract", "crates/studio", "crates/explore", "crates/parity", "crates/vanilla", "xtask"]
 exclude = ["crates/game-gba"]
 
 [workspace.package]

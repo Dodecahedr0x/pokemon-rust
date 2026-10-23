@@ -26,6 +26,7 @@ pub mod observe;
 pub mod path;
 pub mod policy;
 pub mod runs;
+pub mod semantic;
 pub mod sim;
 pub mod softlock;
 pub mod spine;
