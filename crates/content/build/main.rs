@@ -199,7 +199,7 @@ fn main() {
     let parity = if silice.is_some() {
         String::new()
     } else {
-        scripts::parity(&world).unwrap_or_else(|e| panic!("the parity rows: {e:#}"))
+        parity::rows(&world).unwrap_or_else(|e| panic!("the parity rows: {e:#}"))
     };
     for (name, src) in [
         ("parity.tsv", &parity),

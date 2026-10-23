@@ -12,11 +12,24 @@
 //!
 //! Empty for the stub and Silice (no IR).
 
-use crate::scripts::Ir;
+use crate::input::World;
+use crate::scripts::{Ir, content_dir, scripted, support};
+use anyhow::Result;
 use extract::codegen::{Class, Stats, Support};
 use extract::schema::{IrArg, IrInsn};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+
+/// `parity.tsv` for `w`: empty for an authored game.
+pub fn rows(w: &World) -> Result<String> {
+    if w.authored.is_some() {
+        return Ok(String::new());
+    }
+    let s = scripted(w)?;
+    let support = support(&content_dir().join("build"))?;
+    let overrides = s.overrides.keys().cloned().collect();
+    Ok(emit(w.ir.as_ref(), &support, &overrides, &s.lowered.stats))
+}
 
 /// The `SPECIAL_*` name of a `special`/`specialvar` site.
 fn special_of(i: &IrInsn) -> Option<String> {
