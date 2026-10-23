@@ -1,0 +1,33 @@
+//! The map editor (SIL1 Task C, `docs/plans/2026-10-23-silice-content.md`): authors original
+//! maps for a games dir (`games/<game>/{maps,layouts}/<Name>.ron`), painting metatiles of the
+//! extract's tilesets referenced by name and placing events.
+//!
+//! - [`model`]: the document, the edit operations (also the edit script format) and undo/redo,
+//!   free of Dioxus and files.
+//! - [`schema`]: the games dir files, in one deterministic RON style.
+//! - [`games`]: loading and saving a games dir, and its hygiene check.
+//! - [`catalog`]: what a map may reference (tilesets, maps, graphics, scripts).
+//! - [`validate`]: errors and warnings against a catalog.
+//! - [`render`]: pictures of a map and of a metatile palette, drawn by the map view's renderer.
+//! - [`cli`]: the headless commands (`cargo xtask studio map …`).
+//! - [`session`]: the Edit tab's tools over an editor, free of Dioxus.
+//! - `ui` (feature `ui`): the studio's Edit tab.
+
+pub mod catalog;
+pub mod cli;
+pub mod games;
+pub mod model;
+pub mod render;
+pub mod schema;
+pub mod session;
+#[cfg(feature = "ui")]
+pub mod ui;
+pub mod validate;
+
+pub use catalog::Catalog;
+pub use games::GamesDir;
+pub use model::{Brush, Doc, Editor, Event, EventKind, NewMap, Op};
+pub use validate::{Issue, Severity, validate};
+
+#[cfg(test)]
+mod tests;
