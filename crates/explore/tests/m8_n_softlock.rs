@@ -56,8 +56,7 @@ fn probe(start: &Checkpoint, free_after: u32) -> (Trap, u32, u32) {
         next.world.frame += 600;
         Some((PLACE, map, next))
     };
-    let (trap, n) =
-        softlock::probe_waiting(start, PLACE, 1, 2, 8, 4, &mut expand_all, &mut wait);
+    let (trap, n) = softlock::probe_waiting(start, PLACE, 1, 2, 8, 4, &mut expand_all, &mut wait);
     (trap, n, waits.get())
 }
 

@@ -336,7 +336,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         let config_changed = db
             .last_run_config()?
             .is_some_and(|last| cfg.differs_from_ron(&last));
-        let (runner, eval) = load(&db, &cfg)?;
+        let (runner, eval) = load(&db, &cfg, root.as_ref())?;
         let mut cache = SnapCache::new(cfg.cache_capacity);
         cache.set_root(start);
         Ok(Explore {
@@ -361,7 +361,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         let (db, game, cfg) = (&mut self.db, &self.game, &self.cfg);
         let start = self.root.as_ref().map(|r| r.checkpoint.clone());
         let report = self.pool.install(|| revalidate_db(db, game, cfg, start))?;
-        let (runner, eval) = load(&self.db, &self.cfg)?;
+        let (runner, eval) = load(&self.db, &self.cfg, self.root.as_ref())?;
         self.runner = runner;
         self.eval = eval;
         self.cache.clear();
@@ -495,8 +495,9 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
     }
 }
 
-/// The runner and the evaluator from the db rows (without their inputs) and `key_hit`.
-fn load(db: &Db, cfg: &Config) -> anyhow::Result<(Runner, Evaluator)> {
+/// The runner and the evaluator from the db rows (without their inputs) and `key_hit`; a
+/// `--from` db's root jobs start from its root state's progress.
+fn load(db: &Db, cfg: &Config, root: Option<&Root>) -> anyhow::Result<(Runner, Evaluator)> {
     let rows = db.nodes_light()?;
     let keys: Vec<(AbstractKey, u32)> = rows
         .iter()
@@ -513,7 +514,11 @@ fn load(db: &Db, cfg: &Config) -> anyhow::Result<(Runner, Evaluator)> {
     };
     let mut runner = Runner::new(cfg.clone(), rows, next);
     runner.graph.add_key_hits(&db.key_hits()?);
-    Ok((runner, Evaluator::new(archive, cfg.clone())))
+    let mut eval = Evaluator::new(archive, cfg.clone());
+    eval.root_progress = root.map_or(0, |r| {
+        crate::goals::state_progress(cfg.act, &r.checkpoint.world)
+    });
+    Ok((runner, eval))
 }
 
 /// `rebuild::revalidate_from` the root's start with [`repair`] (on the caller's pool).
