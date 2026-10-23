@@ -401,10 +401,14 @@ Policy:
   - prints the frames per segment.
 - **`cargo xtask vanilla branches`** reruns the spine with a save state at every position. It then replays every `rejoined` and `diverged_expected` branch's action and macros on both games, from that position. It diffs the end states relative to the origin (deltas already present at the origin are left out), and stores each delta as a `Parity` finding.
 
-**Spine (badge 5 + HM03 spine, 465 positions).** Vanilla compared 448 positions in 429 s:
-- 6 vanilla steps failed and 271 Parity findings were stored;
-- frames: ours 744,022, vanilla 998,614, plus 15,680 for vanilla's intro up to the start;
-- **badge 1, badge 2 and badge 3 are reached on vanilla**, and every diff on the way is triaged below.
+**Spine (badge 5 + HM03 spine, 465 positions).** The last run (`--no-db`) compared **all 465 positions** in 712 s:
+- 4 vanilla steps failed (Meteor Falls `Goto`, Flannery's `Talk`, the Rusturf talk after Wanda's scene had already played, and Wally's house `Enter` from inside the Petalburg gym), and the run found 299 Parity deltas;
+- frames: ours 757,083, vanilla 1,040,909, plus 15,680 for vanilla's intro up to the start;
+- **badges 1, 2 and 3 are reached on vanilla**, and so are the Verdanturf/Rusturf scene (Wanda, HM04) and the trip back to Petalburg;
+- **badges 4 and 5 are not**: the Lavaridge geyser search and the Petalburg gym doors search both failed;
+- every diff on the way is triaged below.
+
+The earlier db run, which stopped at 447 in Rusturf, stored 271 Parity findings.
 
 Vanilla took 0 to 52% more frames per segment:
 - start, oldale_center, may: 36–45%;
@@ -417,7 +421,8 @@ Vanilla took 0 to 52% more frames per segment:
 - `rock-smash-forgotten-south`: reached by talking to the rock at (18,101).
 - `cable-car`: the native ride lands at (6,7) on `MAP_MT_CHIMNEY_CABLE_CAR_STATION`. Ours lands at (6,4) on the Route 112 station. Accepted on the map.
 - `lavaridge-gym-warps`: **not found**. A B1F geyser does not fire on a walk. The Flannery `Talk` then fails, so every diff from position 418 on is a consequence.
-- `rock-smash-forgotten-rusturf`: the first run accepted the player's own cell and never smashed the boulder, so vanilla stayed in Rusturf. Fixed: the bypass talks to the object next to it first.
+- `rock-smash-forgotten-rusturf`: in the first run, the bypass accepted the player's own cell and never smashed the boulder, so vanilla stayed in Rusturf. It now talks to the object next to it first. Vanilla then smashes the rock and plays Wanda's scene inside the bypass (HM04, the tunnel opened), one step earlier than ours, which is a boundary-timing difference. The spine's following `Talk` fails only because that scene is already over.
+- `petalburg-gym-doors`: **not found**. The room doors open after the room's trainer is beaten, and the search only talks to objects next to the target, so it never finds the trigger. Vanilla stays at (4,106), so Norman's badge and HM03 (458 to 464) are oracle consequences.
 
 **Spine diffs, triaged.**
 
@@ -434,7 +439,7 @@ Vanilla took 0 to 52% more frames per segment:
 | `party[0].exp` (13), `party[0].moves` slot 3 (38), `party[0].species` 284 vs 285 (332), HP buckets | expected (RNG) | Wild levels and the timing of level-ups and evolutions under `~lv`/`~hp` tolerance. |
 | `object 10`/`19` present in ours, absent in vanilla (46, 64) | expected | Gen3 spawns objects only around the camera (O1's tolerance note). |
 | Cable car (403): map, cell, `VAR_CABLE_CAR_STATION_STATE` | oracle | The native ride versus our bypass warp. Accepted on the map. |
-| Everything from 417 on (Flannery's badge, Go-Goggles, Rusturf, Strength) | oracle | The Lavaridge geyser search failed, so vanilla never fought Flannery. The first run also stalled in Rusturf; fixed after the run. |
+| Flannery's badge and Go-Goggles (417 to 423, carried on), Norman's badge and HM03 (457 to 464) | oracle | The Lavaridge geyser and the Petalburg gym doors searches failed, so vanilla never fought Flannery or Norman. |
 
 **Branches** (badge 5 spine db: 789 replayed, 58 more start past vanilla's last position): 568 equal, 119 with deltas, 102 vanilla failures; 788 Parity findings.
 - **Top deltas, by count:**
@@ -463,6 +468,7 @@ Vanilla took 0 to 52% more frames per segment:
 
 **Vanilla driver problems left:**
 - Lavaridge gym: the geyser warps do not fire on a walk.
+- Petalburg gym: the search has no move that opens the room doors (beating each room's trainer).
 - Meteor Falls: a scene blocks (14,18).
 - `Talk` blocked by trainers and wanderers.
 - The 0x0811A278 screen.
