@@ -190,10 +190,21 @@ fn branches_recover_rejoin_and_do_not_depend_on_the_job_count() {
     assert_eq!(one.len(), targets.len());
     assert_eq!(summary(&one), summary(&four));
     for r in &one {
+        assert!(r.findings.is_empty());
+        if r.outcome == Outcome::Aborted {
+            // Too little novelty past its target: no recovery.
+            assert_eq!(r.explored, Some(Explored::LowNovelty), "{r:?}");
+            assert_eq!((r.recover_frames, r.window_frames), (0, 0));
+            continue;
+        }
         assert_eq!(r.outcome, Outcome::Rejoined, "{r:?}");
         assert!(r.window_frames > 0, "the window ran");
-        assert!(r.findings.is_empty());
     }
+    let rejoined = one
+        .iter()
+        .filter(|r| r.outcome == Outcome::Rejoined)
+        .count() as u64;
+    assert!(rejoined > 0);
     assert!(one.iter().any(|r| r.gain.cells > 0), "new cells");
     // The dbs are the same too.
     let dir = tempfile::tempdir().unwrap();
@@ -202,7 +213,7 @@ fn branches_recover_rejoin_and_do_not_depend_on_the_job_count() {
     assert_eq!(a.content_digest().unwrap(), b.content_digest().unwrap());
     let st = a.stats().unwrap();
     assert_eq!(st.branches, one.len() as u64);
-    assert_eq!(st.outcomes["rejoined"], one.len() as u64);
+    assert_eq!(st.outcomes["rejoined"], rejoined);
     assert_eq!(st.positions, s.positions.len() as u64);
     assert!(st.cells > st.spine_cells, "{st:?}");
     // Branches round-trip: the action and kind parse back.
@@ -352,7 +363,9 @@ fn a_window_that_lands_elsewhere_is_an_unexpected_divergence() {
     for p in &mut s.positions[origin + 1..] {
         std::sync::Arc::make_mut(&mut p.end).world.respawn ^= 1;
     }
-    let c = cfg(2);
+    // Every branch recovers (none aborted for its novelty rate).
+    let mut c = cfg(2);
+    c.branch.min_novelty = 0;
     let targets: Vec<Target> = branch::targets(&game, &s, origin, &c);
     assert!(!targets.is_empty());
     let r = branch::run_all(&game, &s, &targets, &c);
