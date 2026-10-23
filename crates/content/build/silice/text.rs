@@ -31,25 +31,26 @@ pub fn read(path: &Path) -> Result<Vec<(String, String)>> {
 /// What an excepted unencodable character becomes.
 pub const PLACEHOLDER: char = '?';
 
-/// **The text-encoder hook (SIL1 Task G).** Silice's own glyphs: each `(character, byte)` is
-/// encoded as that byte (written `{0xNN}`, then the FR codec: what `font::encode` /
-/// `extract::games::font::encode_fr` do). Task G's `font.rs` merges its glyphs into `w`'s font
-/// in `world` (`font::merge`, after `load_assets`); when it lands, this body becomes the pairs
-/// of its table, e.g. `Ok(super::font::GLYPHS.iter().map(|g| (g.ch, g.code)).collect())`
-/// (`font::authored_glyph` per character). Every text, trainer, class and item name goes
-/// through [`Encoder`], so nothing else changes. Until then: none (plain `encode_lang`).
-pub fn glyph_codes(_games: &Path, _w: &mut World) -> Result<Vec<(char, u8)>> {
+/// **The text-encoder hook (SIL1 Task G).** Silice's own glyphs: each `(character, bytes)` is
+/// encoded as those bytes, one or more (e.g. a 2-byte `{EMOJI_HEART}`), each written `{0xNN}`
+/// before the FR codec runs (what `font::encode` / `extract::games::font::encode_fr` do). Task
+/// G's `font.rs` merges its glyphs into `w`'s font in `world` (`font::merge`, right after
+/// `load_assets`); when it lands, this body returns its table's pairs, e.g.
+/// `Ok(super::font::GLYPHS.iter().map(|&(c, b)| (c, b.to_vec())).collect())` for a
+/// `(char, &[u8])` slice (`(c, vec![b])` for one byte). Every text, trainer, class and item name
+/// goes through [`Encoder`], so nothing else changes. Until then: none (plain `encode_lang`).
+pub fn glyph_codes(_games: &Path, _w: &mut World) -> Result<Vec<(char, Vec<u8>)>> {
     Ok(Vec::new())
 }
 
 /// The Silice text encoder: the extract's codec for `lang`, plus `glyphs` ([`glyph_codes`]).
 pub struct Encoder {
     lang: Lang,
-    glyphs: Vec<(char, u8)>,
+    glyphs: Vec<(char, Vec<u8>)>,
 }
 
 impl Encoder {
-    pub fn new(lang: Lang, glyphs: Vec<(char, u8)>) -> Encoder {
+    pub fn new(lang: Lang, glyphs: Vec<(char, Vec<u8>)>) -> Encoder {
         Encoder { lang, glyphs }
     }
 
@@ -58,7 +59,11 @@ impl Encoder {
         let mut t = String::with_capacity(s.len());
         for c in s.chars() {
             match self.glyphs.iter().find(|g| g.0 == c) {
-                Some((_, b)) => t.push_str(&format!("{{0x{b:02X}}}")),
+                Some((_, bytes)) => {
+                    for b in bytes {
+                        t.push_str(&format!("{{0x{b:02X}}}"));
+                    }
+                }
                 None => t.push(c),
             }
         }

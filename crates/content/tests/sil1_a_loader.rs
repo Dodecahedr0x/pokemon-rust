@@ -625,7 +625,9 @@ fn an_incomplete_item_fails_unless_excepted() {
 
 #[test]
 fn maps_over_the_gen3_limits_fail() {
-    let cases: [(&str, fn(&mut GameMap), &str); 4] = [
+    /// (case, the edit, the expected message).
+    type LimitCase = (&'static str, fn(&mut GameMap), &'static str);
+    let cases: [LimitCase; 4] = [
         (
             "objects",
             |m| {
@@ -884,4 +886,19 @@ mod flavour {
         }
         assert!(checked > texts.len() / 2);
     }
+}
+
+/// The glyph hook's characters encode as their bytes, one or several, and count as encodable.
+#[test]
+fn hook_glyphs_encode_as_their_bytes() {
+    let (one, two) = ('\u{2192}', '\u{2665}');
+    let enc = silice::text::Encoder::new(
+        extract::text::Lang::Fr,
+        vec![(one, vec![0x37]), (two, vec![0xF9, 0xE7])],
+    );
+    assert_eq!(
+        enc.encode(&format!("{one}{two}")).unwrap(),
+        [0x37, 0xF9, 0xE7, 0xFF]
+    );
+    assert!(enc.bad_chars(&format!("{one}{two}")).is_empty());
 }
