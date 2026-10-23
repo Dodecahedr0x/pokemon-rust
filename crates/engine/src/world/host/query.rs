@@ -32,6 +32,15 @@ pub(super) fn answer<G: GameData>(h: &Host<'_, G>, q: Query) -> u16 {
             .party
             .get(slot as usize)
             .map_or(0, |m| m.evs.iter().map(|&e| e as u16).sum()),
+        Query::PartyFriendship(slot) => s
+            .party
+            .get(slot as usize)
+            .map_or(0, |m| m.friendship.into()),
+        Query::PartyHp(slot) => s.party.get(slot as usize).map_or(0, |m| m.hp),
+        Query::PartyPersonalityLow(slot) => s
+            .party
+            .get(slot as usize)
+            .map_or(0, |m| m.personality as u16),
         Query::PlayerIdLow => s.player_id as u16,
         Query::PocketNonEmpty(p) => s.bag.pocket(p).iter().any(|sl| sl.qty > 0) as u16,
     }

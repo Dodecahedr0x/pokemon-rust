@@ -60,6 +60,13 @@ fn party_reads() {
     assert_eq!(ask(&mut w, Query::PartyMoveSlot(EMBER)), 1);
     assert_eq!(ask(&mut w, Query::PartyEvTotal(1)), 265);
     assert_eq!(ask(&mut w, Query::PartyEvTotal(5)), 0);
+    w.s.party.get_mut(1).unwrap().friendship = 77;
+    w.s.party.get_mut(1).unwrap().hp = 9;
+    assert_eq!(ask(&mut w, Query::PartyFriendship(1)), 77);
+    assert_eq!(ask(&mut w, Query::PartyHp(1)), 9);
+    assert_eq!(ask(&mut w, Query::PartyHp(2)), 0);
+    w.s.party.get_mut(1).unwrap().personality = 0xABCD_1234;
+    assert_eq!(ask(&mut w, Query::PartyPersonalityLow(1)), 0x1234);
 }
 
 #[test]

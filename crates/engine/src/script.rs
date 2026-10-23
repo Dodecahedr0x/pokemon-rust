@@ -425,6 +425,12 @@ pub enum Query {
     PartyMoveSlot(MoveId),
     /// The EV total of party slot `slot` (Gen3 `GetMonEVCount`), 0 for an empty slot.
     PartyEvTotal(u8),
+    /// The friendship of party slot `slot` (Gen3 `MON_DATA_FRIENDSHIP`), 0 for an empty slot.
+    PartyFriendship(u8),
+    /// The current HP of party slot `slot` (Gen3 `MON_DATA_HP`), 0 for an empty slot.
+    PartyHp(u8),
+    /// The low half of party slot `slot`'s personality, 0 for an empty slot.
+    PartyPersonalityLow(u8),
     /// The low half of the player's trainer id (Gen3 `playerTrainerId[0] | [1] << 8`).
     PlayerIdLow,
     /// 1 when the bag's `pocket` holds an item (Gen3 `IsBagPocketNonEmpty`), else 0.
@@ -447,6 +453,9 @@ impl Query {
             Query::PartyEvTotal(slot) => (4, slot as u16, 0),
             Query::PlayerIdLow => (5, 0, 0),
             Query::PocketNonEmpty(p) => (6, p as u16, 0),
+            Query::PartyFriendship(slot) => (7, slot as u16, 0),
+            Query::PartyHp(slot) => (8, slot as u16, 0),
+            Query::PartyPersonalityLow(slot) => (9, slot as u16, 0),
         }
     }
 }
