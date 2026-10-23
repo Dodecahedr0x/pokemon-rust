@@ -67,6 +67,7 @@ pub fn imported() -> (tempfile::TempDir, PathBuf) {
     (tmp, games)
 }
 
+/// `check` on `games` with the fixture extract and no scene scripts.
 pub fn check(games: &Path, extra: &[&str]) -> Run {
     let ex = extracted();
     let mut args = vec![
@@ -75,6 +76,8 @@ pub fn check(games: &Path, extra: &[&str]) -> Run {
         games.to_str().unwrap(),
         "--extracted",
         ex.to_str().unwrap(),
+        "--scripts",
+        "/nonexistent",
     ];
     args.extend_from_slice(extra);
     xtask(&args)

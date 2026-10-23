@@ -136,3 +136,15 @@ The house uses `FLAG_SIL_ALPHA_LAMP_RED` / `_BLUE` for its lamps.
 |---|---|
 | `ITEM_POTION` | 300 |
 | `ITEM_SIL_LUCKY_CHARM` | 1 000 (late) |
+
+**Night stall** (after `VAR_SIL_ALPHA_STATE` is 2):
+
+Opens after the parade.
+
+| `ITEM_*` | Prix | Condition | Note |
+|---|---|---|---|
+| `ITEM_POTION` | 250 | `FLAG_SIL_ALPHA_DONE` | cheaper |
+
+**Corner seller** : (ITEM_POTION, 280), (`ITEM_ORAN_BERRY`, 80). Closes at dusk.
+
+**A rare find** : `ITEM_SIL_LUCKY_CHARM` is sold nowhere.

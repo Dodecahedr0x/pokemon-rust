@@ -188,6 +188,68 @@ fn text_rules() {
         "error[text-width] Beta_Sc01_Hello: line 1 is 222 px (max 216)",
     );
 
+    // An unencodable character still counts (as a widest capital): 37 x 6 = 222 px.
+    let (_tmp, g) = imported();
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number two.",
+        &"\u{2665}".repeat(37),
+    );
+    let out = fails_with(
+        &g,
+        "error[text-width] Alpha_Sign_2: line 1 is 222 px (max 216)",
+    );
+    assert!(out.contains("error[text-charmap] Alpha_Sign_2"), "{out}");
+
+    // `{STR_VAR_1}` counts as 13 widest capitals: 78 + 25 x 6 = 228 px.
+    let (_tmp, g) = imported();
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number two.",
+        &format!("{{STR_VAR_1}}{}", "W".repeat(25)),
+    );
+    fails_with(
+        &g,
+        "error[text-width] Alpha_Sign_2: line 1 is 228 px (max 216)",
+    );
+
+    // A defeat text (shown in the battle box) gets 208 px: 35 x 6 = 210 fails there only.
+    let (_tmp, g) = imported();
+    plant(&g, "text/fr.ron", "You beat me.", &"W".repeat(35));
+    plant(&g, "text/fr.ron", "Sign number two.", &"W".repeat(35));
+    let out = fails_with(
+        &g,
+        "error[text-width] Beta_Sc02_Defeat: line 1 is 210 px (max 208)",
+    );
+    assert!(!out.contains("Alpha_Sign_2"), "{out}");
+
+    // Two lines per box; `\l` scrolls, `\p` starts a new box.
+    let (_tmp, g) = imported();
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        r"One\nTwo\lThree\pFour\nFive",
+    );
+    plant(&g, "text/fr.ron", "Sign number two.", r"One\nTwo\nThree");
+    let out = fails_with(
+        &g,
+        "error[text-lines] Alpha_Sign_2: box 1 has 3 lines (max 2; use \\l to scroll)",
+    );
+    assert!(!out.contains("[text-lines] Alpha_Sign_1"), "{out}");
+
+    // `text/speakers.ron` and `text/fr.ron` must list the same ids.
+    let (_tmp, g) = imported();
+    plant(
+        &g,
+        "text/fr.ron",
+        "\n}",
+        "\n    \"Alpha_Extra\": r\"Extra.\",\n}",
+    );
+    fails_with(&g, "error[speakers-mismatch] Alpha_Extra");
+
     // An unresolved placeholder in the source.
     let tmp = tempfile::tempdir().unwrap();
     let src2 = tmp.path().join("src");
@@ -395,4 +457,90 @@ fn exceptions_and_allow() {
         "{}",
         r.out
     );
+}
+
+/// A map file in the authored maps' layout (one field per line).
+fn map(body: &str) -> String {
+    format!("(\n    music: \"MUS_SIL_ALPHA_THEME\",\n{body})\n")
+}
+
+#[test]
+fn map_rules() {
+    // A ball placement whose map exists but lacks its flag.
+    let (_tmp, g) = imported();
+    std::fs::create_dir_all(g.join("maps")).unwrap();
+    let rods = "    objects: [\n        (\n            flag: Some(\"FLAG_SIL_ITEM_ALPHA_RODS\"),\n        ),\n    ],\n";
+    std::fs::write(g.join("maps/AlphaTown.ron"), map(rods)).unwrap();
+    let out = fails_with(
+        &g,
+        "error[placement-map] FLAG_SIL_ITEM_ALPHA_POTION: Potion (ITEM_POTION) is placed in MAP_ALPHA_TOWN",
+    );
+    assert!(
+        !out.contains("placement-map] FLAG_SIL_ITEM_ALPHA_RODS"),
+        "{out}"
+    );
+
+    // The flag on a hidden item of another item.
+    let hidden = "    bg_events: [\n        (\n            kind: HiddenItem(\n                item: \"ITEM_ORAN_BERRY\",\n                flag: \"FLAG_SIL_ITEM_ALPHA_POTION\",\n            ),\n        ),\n    ],\n";
+    std::fs::write(
+        g.join("maps/AlphaTown.ron"),
+        map(&format!("{rods}{hidden}")),
+    )
+    .unwrap();
+    fails_with(
+        &g,
+        "error[placement-map] FLAG_SIL_ITEM_ALPHA_POTION: maps/AlphaTown.ron hides ITEM_ORAN_BERRY under this flag",
+    );
+
+    // Names in maps: undefined Silice ids, Gen3-looking names without _SIL_, unknown warp maps.
+    let (_tmp, g) = imported();
+    std::fs::create_dir_all(g.join("maps")).unwrap();
+    for (body, tag) in [
+        (
+            "    objects: [\n        (\n            flag: Some(\"FLAG_SIL_NOT_ALLOCATED\"),\n        ),\n    ],\n",
+            "error[id-undefined] FLAG_SIL_NOT_ALLOCATED",
+        ),
+        (
+            "    coord_events: [\n        (\n            var: \"VAR_MADE_UP\",\n        ),\n    ],\n",
+            "error[sil-prefix] VAR_MADE_UP",
+        ),
+        (
+            "    warps: [\n        (\n            dest_map: \"NowhereTown\",\n        ),\n    ],\n",
+            "error[map-undefined] NowhereTown",
+        ),
+    ] {
+        std::fs::write(g.join("maps/BetaCity.ron"), map(body)).unwrap();
+        fails_with(&g, tag);
+    }
+
+    // A placement whose map cell is not a MAP_ constant.
+    let (_tmp, g) = imported();
+    plant(
+        &g,
+        "items.ron",
+        "map: \"MAP_ALPHA_GYM\",",
+        "map: \"the gym\",",
+    );
+    fails_with(&g, "error[map-undefined] the gym");
+}
+
+#[test]
+fn id_file_rules() {
+    // A Gen3 story flag the data uses, numbered inside the Silice flag block.
+    let (_tmp, g) = imported();
+    plant(
+        &g,
+        "ids/refs.ron",
+        "\"FLAG_SIL_ALPHA_DONE\": [",
+        "\"FLAG_UNUSED_0x021\": [\n            \"01-alpha\",\n        ],\n        \"FLAG_SIL_ALPHA_DONE\": [",
+    );
+    fails_with(
+        &g,
+        "error[gen3-collision] FLAG_UNUSED_0x021: Gen3 number 0x21",
+    );
+
+    // The pre-merge music and sounds files are refused; songs share one number space.
+    let (_tmp, g) = imported();
+    std::fs::write(g.join("ids/music.ron"), read(&g, "ids/songs.ron")).unwrap();
+    fails_with(&g, "error[id-alloc] ids/music.ron");
 }

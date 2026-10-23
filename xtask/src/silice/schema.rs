@@ -20,10 +20,11 @@
 //!   items.ron                ItemsFile: the `ITEM_SIL_*` definitions, the item placements of the
 //!                            chapters' §7 tables, and the marts.
 //!   ids/<kind>.ron           IdsFile: append-only number allocation per kind (`flags`, `vars`,
-//!                            `trainers`, `items`, `species`, `moves`, `music`, `sounds`, `maps`).
+//!                            `trainers`, `items`, `species`, `moves`, `songs`, `maps`).
 //!   ids/refs.ron             RefsFile: what the chapters' scenes, maps and tables reference
 //!                            (import-time snapshot of the pseudo-scripts, until they are Rust).
 //!   check-exceptions.ron     ExceptionsFile: known issues `check` lists instead of failing on.
+//!   IMPORT-REPORT.md         The import's report: counts and every ambiguity (not loaded).
 //! ```
 //!
 //! **Id allocation (the Wave 0 contract).** Each `ids/<kind>.ron` lists `(name, num)` pairs in
@@ -33,10 +34,14 @@
 //! removed name becomes a tombstone (`removed: true`) and keeps its number forever, so saves and
 //! checkpoints stay valid. Bases and limits are in [`IdKind`].
 //!
-//! **Duplicate keys.** RON maps may repeat a key, and serde keeps the last value. The importer
-//! writes a text id defined twice in the source twice (in chapter order) so that the duplicate is
-//! visible in the canonical data; `check` reports it (rule `text-duplicate`) and the loader must
-//! refuse it until it is resolved.
+//! **Duplicate keys (loader contract).** RON maps may repeat a key, and serde keeps the last
+//! value silently. The importer writes a text id defined twice in the source twice (in chapter
+//! order) so that the duplicate is visible in the canonical data; `check` reports it (rule
+//! `text-duplicate`). The Wave 0 loader must read `text/fr.ron` entry by entry and **reject a
+//! repeated key** (it must not deserialize into a map directly), until the author resolves it.
+//!
+//! **Text strings.** `text/fr.ron` is written without RON's `\u{..}` escapes for non-ASCII:
+//! `é` stays `é`; only `"` and `\` are escaped, so `\\n` in the file is the decomp's `\n`.
 //!
 //! **Map names.** A map constant `MAP_<WORDS>` names the map file `maps/<Name>.ron` by the Emerald
 //! convention (`MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F` is `LittlerootTown_BrendansHouse_1F`): the
@@ -152,7 +157,7 @@ pub struct ItemDef {
     pub name: Option<String>,
     /// Bag pocket: `KeyItems` when the source calls it a key item, otherwise unset.
     pub pocket: Option<ItemPocket>,
-    /// Price from a mart table.
+    /// Price from a mart table with an item-name column.
     pub price: Option<u16>,
     /// The Gen3 item it is built on (`Base : ITEM_*`, `Objet Gen3 à cloner`).
     pub clone_of: Option<String>,
@@ -170,8 +175,11 @@ pub struct ItemPlacement {
     pub flag: Option<String>,
     /// `MAP_*`.
     pub map: String,
-    /// Where, as written; `pos` is its `(x,y)` when it gives exactly one.
+    /// Where, as written.
     pub place: String,
+    /// The `(x,y)` the place names, when it names exactly one: a note from the source's ASCII
+    /// plans, which are not to scale. The maps under `maps/` are authoritative for positions;
+    /// `check` only matches the flag and item there (rule `placement-map`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos: Option<(u16, u16)>,
     /// FR name as written, without the quantity.
@@ -205,6 +213,12 @@ pub struct Mart {
     pub label: String,
     /// The `MAP_*` the label names, if any.
     pub map: Option<String>,
+    /// When the shop is open, as written (a label parenthetical naming a flag or var).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condition: Option<String>,
+    /// The prose around the stock (before a table, after an inline list).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
     pub currency: Currency,
     pub stock: Vec<MartItem>,
 }
@@ -219,7 +233,14 @@ pub enum Currency {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MartItem {
     pub item: String,
-    pub price: u32,
+    /// Money or coins (the coin case holds 9,999); Gen3 prices are `u16` too.
+    pub price: u16,
+    /// A `Condition` column, as written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condition: Option<String>,
+    /// A `Note` (or `Pourquoi`) column, as written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// `ids/<kind>.ron`.
@@ -256,21 +277,21 @@ pub enum IdKind {
     Items,
     Species,
     Moves,
-    Music,
-    Sounds,
+    /// Music and sound effects: Gen3 numbers them in one table (`gSongTable`), so they share one
+    /// number space and one file.
+    Songs,
     Maps,
 }
 
 impl IdKind {
-    pub const ALL: [IdKind; 9] = [
+    pub const ALL: [IdKind; 8] = [
         IdKind::Flags,
         IdKind::Vars,
         IdKind::Trainers,
         IdKind::Items,
         IdKind::Species,
         IdKind::Moves,
-        IdKind::Music,
-        IdKind::Sounds,
+        IdKind::Songs,
         IdKind::Maps,
     ];
 
@@ -283,33 +304,34 @@ impl IdKind {
             IdKind::Items => "items",
             IdKind::Species => "species",
             IdKind::Moves => "moves",
-            IdKind::Music => "music",
-            IdKind::Sounds => "sounds",
+            IdKind::Songs => "songs",
             IdKind::Maps => "maps",
         }
     }
 
-    /// The prefix every Silice name of this kind has (`None` for maps and species forms, which
+    /// The prefixes a Silice name of this kind has (empty for maps and species forms, which
     /// follow the Gen3 naming: maps live in Silice's own namespace, forms are `SPECIES_<BASE>_MEGA`).
-    pub fn sil_prefix(self) -> Option<&'static str> {
+    pub fn sil_prefixes(self) -> &'static [&'static str] {
         match self {
-            IdKind::Flags => Some("FLAG_SIL_"),
-            IdKind::Vars => Some("VAR_SIL_"),
-            IdKind::Trainers => Some("TRAINER_SIL_"),
-            IdKind::Items => Some("ITEM_SIL_"),
-            IdKind::Moves => Some("MOVE_SIL_"),
-            IdKind::Music => Some("MUS_SIL_"),
-            IdKind::Sounds => Some("SE_SIL_"),
-            IdKind::Species | IdKind::Maps => None,
+            IdKind::Flags => &["FLAG_SIL_"],
+            IdKind::Vars => &["VAR_SIL_"],
+            IdKind::Trainers => &["TRAINER_SIL_"],
+            IdKind::Items => &["ITEM_SIL_"],
+            IdKind::Moves => &["MOVE_SIL_"],
+            IdKind::Songs => &["MUS_SIL_", "SE_SIL_"],
+            IdKind::Species | IdKind::Maps => &[],
         }
     }
 
     /// The first number, and the last one allowed.
     ///
     /// - flags: 0x20 (after the temp flags 0x00-0x1F) to 0x4FF (trainer flags start at 0x500);
-    /// - vars: 0x4020 (after the temp vars and `VAR_OBJ_GFX_ID_*`) to 0x40FF (the saved vars);
+    /// - vars: 0x4020 (after the temp vars and `VAR_OBJ_GFX_ID_*`) to 0x40FF (the saved vars).
+    ///   For flags and vars the first import raises the base above every Gen3 story flag or var
+    ///   the Silice data reuses (`FLAG_RECEIVED_RUNNING_SHOES` 0x112), so a reused Gen3 number is
+    ///   never inside the Silice block (rule `gen3-collision`);
     /// - trainers: 1 to 863, so `0x500 + id` stays in the trainer-flag range (0x500-0x85F);
-    /// - items, species, moves, music and sounds: after the last Gen3 number of the decomp table
+    /// - items, species, moves and songs (music and sounds): after the last Gen3 number of the decomp table
     ///   (`extract::names`, `charmap::SOUNDS`), up to 0xFFFF;
     /// - maps: 0 to 0xFEFF (0x7F7F `MAP_DYNAMIC` is skipped; 0xFF00-0xFFFF are reserved for
     ///   `MAP_UNDEFINED` and the studio's previews).
@@ -323,7 +345,7 @@ impl IdKind {
             IdKind::Items => (after(&extract::names::ITEMS), 0xFFFF),
             IdKind::Species => (after(&extract::names::SPECIES), 0xFFFF),
             IdKind::Moves => (after(&extract::names::MOVES), 0xFFFF),
-            IdKind::Music | IdKind::Sounds => {
+            IdKind::Songs => {
                 let last = extract::text::charmap::SOUNDS
                     .iter()
                     .map(|&(v, _)| v as u32)

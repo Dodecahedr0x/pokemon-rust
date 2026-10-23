@@ -287,8 +287,8 @@ mod tests {
             Word::Names(vec!["ITEM_SIL_STONE_X".into()])
         );
         assert_eq!(
-            classify("FLAG_SIL_HIDE_<ESPÈCE>"),
-            Word::Dynamic("FLAG_SIL_HIDE_<ESPÈCE>".into())
+            classify("FLAG_SIL_HIDE_<KIND\u{3a9}>"),
+            Word::Dynamic("FLAG_SIL_HIDE_<KIND\u{3a9}>".into())
         );
         assert_eq!(
             w,

@@ -15,6 +15,9 @@ You said no.
 
 [Beta_Sc01_Hello] {PLAYER}
 Hello, {PLAYER}!
+
+[Beta_Sc02_Defeat] GUIDE
+You beat me.
 ```
 
 ```text

@@ -2,13 +2,17 @@
 //! `games/silice/`, and the permanent checker of that data. Formats: [`schema`].
 //!
 //! ```text
-//! cargo xtask silice import <contenu-jeu> [--out DIR] [--force] [--report FILE]
-//! cargo xtask silice check [--games DIR] [--extracted DIR] [--allow RULE]...
+//! cargo xtask silice import <contenu-jeu> [--out DIR] [--force] [--report FILE] [--maps DIR]
+//! cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...
+//! cargo xtask silice tombstone [--games DIR] NAME...
 //! ```
+//!
+//! `tombstone` marks ids as removed in their `ids/*.ron` file (they keep their numbers).
 
 mod check;
 mod ids;
 mod import;
+mod maps;
 mod md;
 mod names;
 pub mod schema;
@@ -17,21 +21,24 @@ use anyhow::{Context, Result, bail};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-const USAGE: &str = "usage: cargo xtask silice import <contenu-jeu dir> [--out DIR] [--force] [--report FILE]\n       \
-     cargo xtask silice check [--games DIR] [--extracted DIR] [--allow RULE]...";
+const USAGE: &str = "usage: cargo xtask silice import <contenu-jeu dir> [--out DIR] [--force] [--report FILE] [--maps DIR]\n       \
+     cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...\n       \
+     cargo xtask silice tombstone [--games DIR] NAME...";
 
 pub fn main(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("import") => {
             let mut src = None;
             let mut out = crate::root().join("games/silice");
-            let mut report = crate::root().join("target/silice/import-report.md");
+            let mut report = None;
+            let mut maps = None;
             let mut force = false;
             let mut it = args[1..].iter();
             while let Some(a) = it.next() {
                 match a.as_str() {
                     "--out" => out = PathBuf::from(it.next().context(USAGE)?),
-                    "--report" => report = PathBuf::from(it.next().context(USAGE)?),
+                    "--report" => report = Some(PathBuf::from(it.next().context(USAGE)?)),
+                    "--maps" => maps = Some(PathBuf::from(it.next().context(USAGE)?)),
                     "--force" => force = true,
                     s if !s.starts_with('-') && src.is_none() => src = Some(PathBuf::from(s)),
                     _ => bail!(USAGE),
@@ -42,6 +49,7 @@ pub fn main(args: &[String]) -> Result<()> {
                 out,
                 force,
                 report,
+                maps,
             })
         }
         Some("check") => {
@@ -51,6 +59,7 @@ pub fn main(args: &[String]) -> Result<()> {
                     .map(PathBuf::from)
                     .unwrap_or_else(|| crate::root().join("content/extracted")),
                 decomp: std::env::var_os("PKR_DECOMP").map(PathBuf::from),
+                scripts: crate::root().join("crates/content/src/silice/scripts"),
                 allow: Vec::new(),
             };
             let mut it = args[1..].iter();
@@ -58,14 +67,58 @@ pub fn main(args: &[String]) -> Result<()> {
                 match a.as_str() {
                     "--games" => o.games = PathBuf::from(it.next().context(USAGE)?),
                     "--extracted" => o.extracted = PathBuf::from(it.next().context(USAGE)?),
+                    "--scripts" => o.scripts = PathBuf::from(it.next().context(USAGE)?),
                     "--allow" => o.allow.push(it.next().context(USAGE)?.clone()),
                     _ => bail!(USAGE),
                 }
             }
             check::run(&o)
         }
+        Some("tombstone") => {
+            let mut games = crate::root().join("games/silice");
+            let mut names = Vec::new();
+            let mut it = args[1..].iter();
+            while let Some(a) = it.next() {
+                match a.as_str() {
+                    "--games" => games = PathBuf::from(it.next().context(USAGE)?),
+                    s if !s.starts_with('-') => names.push(s.to_string()),
+                    _ => bail!(USAGE),
+                }
+            }
+            if names.is_empty() {
+                bail!(USAGE);
+            }
+            tombstone(&games, &names)
+        }
         _ => bail!(USAGE),
     }
+}
+
+/// Marks `names` removed in whichever `ids/*.ron` holds them.
+fn tombstone(games: &Path, names: &[String]) -> Result<()> {
+    let mut left: Vec<String> = names.to_vec();
+    let mut files = BTreeMap::new();
+    for k in schema::IdKind::ALL {
+        let rel = format!("ids/{}.ron", k.file());
+        let path = games.join(&rel);
+        if !path.exists() {
+            continue;
+        }
+        let mut f: schema::IdsFile = read_ron(&path)?;
+        let before = left.len();
+        left = ids::tombstone(&mut f, &left);
+        if left.len() != before {
+            files.insert(rel, extract::export::to_ron(&f)?);
+        }
+    }
+    if !left.is_empty() {
+        bail!("not in any ids file: {}", left.join(", "));
+    }
+    write_files(games, &files, true)?;
+    for n in names {
+        println!("tombstoned {n}");
+    }
+    Ok(())
 }
 
 pub(crate) fn read_ron<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {

@@ -306,6 +306,8 @@ pub fn ron_entries(body: &[(usize, String)]) -> Vec<RonEntry> {
     let mut wrapper = 0usize; // `[` / `{` around the entries
     let mut cur: Option<RonEntry> = None;
     let mut closed_line: Option<usize> = None;
+    let mut entry_indent = 0usize;
+    let indent = |l: &str| l.len() - l.trim_start().len();
     for (ln, l) in body {
         let chars: Vec<char> = l.chars().collect();
         let mut k = 0;
@@ -343,10 +345,15 @@ pub fn ron_entries(body: &[(usize, String)]) -> Vec<RonEntry> {
                 if !text.is_empty() {
                     match (&mut cur, closed_line) {
                         (Some(e), _) => e.comments.push(text),
-                        (None, Some(cl)) if cl == *ln => {
+                        // On the closing line, or right after it (no blank line) and indented
+                        // deeper than the entry: the previous entry's.
+                        (None, Some(cl))
+                            if cl == *ln || (cl + 1 == *ln && indent(l) > entry_indent) =>
+                        {
                             if let Some(e) = out.last_mut() {
                                 e.comments.push(text);
                             }
+                            closed_line = Some(*ln);
                         }
                         _ => pending.push(text),
                     }
@@ -363,6 +370,7 @@ pub fn ron_entries(body: &[(usize, String)]) -> Vec<RonEntry> {
                             comments: std::mem::take(&mut pending),
                             line: *ln,
                         });
+                        entry_indent = indent(l);
                     }
                     if let Some(e) = cur.as_mut() {
                         e.value.push(c);
@@ -378,6 +386,7 @@ pub fn ron_entries(body: &[(usize, String)]) -> Vec<RonEntry> {
                             comments: std::mem::take(&mut pending),
                             line: *ln,
                         });
+                        entry_indent = indent(l);
                     }
                     depth += 1;
                     cur.as_mut().unwrap().value.push(c);
@@ -461,6 +470,10 @@ mod tests {
         assert_eq!(e.len(), 2);
         assert_eq!(e[0].comments, vec!["head", "tail"]);
         assert_eq!(e[1].comments, vec!["lead", "in"]);
+        // A deeper-indented comment right after an entry belongs to it.
+        let t = ron_entries(&body("(a: 1),\n    // after a\n(b: 2),"));
+        assert_eq!(t[0].comments, vec!["after a"]);
+        assert!(t[1].comments.is_empty());
         assert!(e[0].value.contains("\"x // y\""));
         let k = ron_entries(&body(
             "\"MAP_A\": ( land: None ), // c\n\"MAP_B\": (\n x: 1,\n),",

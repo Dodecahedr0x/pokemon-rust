@@ -18,8 +18,16 @@ pub struct Options {
     pub src: PathBuf,
     pub out: PathBuf,
     pub force: bool,
-    pub report: PathBuf,
+    /// Where the report goes; `None` writes it as `<out>/IMPORT-REPORT.md` with the data (and
+    /// under the same `--force` rule).
+    pub report: Option<PathBuf>,
+    /// The authored maps whose flag, var and song names are allocated too; `None` is
+    /// `<out>/maps`.
+    pub maps: Option<PathBuf>,
 }
+
+/// The report's file name in the games dir.
+pub const REPORT: &str = "IMPORT-REPORT.md";
 
 /// The import report: named sections of lines, written in a fixed order.
 #[derive(Default)]
@@ -66,13 +74,23 @@ pub struct Source {
 pub fn run(o: &Options) -> Result<()> {
     let mut report = Report::default();
     let src = parse(&o.src, &mut report)?;
-    let (files, counts) = build(&src, &o.out, &mut report)?;
+    let maps_dir = o.maps.clone().unwrap_or_else(|| o.out.join("maps"));
+    let maps = super::maps::scan_dir(&maps_dir)?;
+    let (mut files, counts) = build(&src, &o.out, &maps, &mut report)?;
     let rendered = report.render(&counts);
-    if let Some(dir) = o.report.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    std::fs::write(&o.report, &rendered)
-        .with_context(|| format!("writing {}", o.report.display()))?;
+    let report_path = match &o.report {
+        Some(p) => {
+            if let Some(dir) = p.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            std::fs::write(p, &rendered).with_context(|| format!("writing {}", p.display()))?;
+            p.clone()
+        }
+        None => {
+            files.insert(REPORT.to_string(), rendered);
+            o.out.join(REPORT)
+        }
+    };
     let changed = write_files(&o.out, &files, o.force)?;
     for (k, v) in &counts {
         println!("{k}: {v}");
@@ -82,7 +100,7 @@ pub fn run(o: &Options) -> Result<()> {
         changed,
         files.len() - changed,
         o.out.display(),
-        o.report.display()
+        report_path.display()
     );
     Ok(())
 }
@@ -122,7 +140,8 @@ static BASE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)base[^:\n]{0,20}:\s*\**`?(ITEM_[A-Z0-9_]*[A-Z0-9])").unwrap()
 });
 static INLINE_MART: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"`(ITEM_[A-Z0-9_]*[A-Z0-9])`\s*,\s*([0-9][0-9 ]*[0-9]|[0-9])\s*\)").unwrap()
+    // `(`ITEM_X`, 200)` or `(ITEM_X, 200)`.
+    Regex::new(r"`?(ITEM_[A-Z0-9_]*[A-Z0-9])`?\s*,\s*([0-9][0-9 ]*[0-9]|[0-9])\s*\)").unwrap()
 });
 static TEXT_CALL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b(?:msgbox|show_text_on_black|show_book|show_log)\(([^,)]*)").unwrap()
@@ -511,23 +530,54 @@ fn price(cell: &str) -> Option<u32> {
         .ok()
 }
 
-/// The label of a table: the closest heading or bold line above it.
-fn label_above(c: &Chapter, line: usize, stop: usize) -> String {
+/// A mart label without markdown (`**`, backticks) or the trailing colon.
+fn mart_label(raw: &str) -> String {
+    clean(&raw.replace('`', ""))
+        .trim()
+        .trim_end_matches(':')
+        .trim()
+        .to_string()
+}
+
+/// The parenthetical of a label that names a flag or var: when the shop is open.
+fn mart_condition(label: &str) -> Option<String> {
+    static PAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\(([^()]*)\)").unwrap());
+    PAREN
+        .captures_iter(label)
+        .map(|c| c[1].trim().to_string())
+        .find(|p| p.contains("FLAG_") || p.contains("VAR_"))
+}
+
+/// The label of a table (the closest heading or bold line above it) and the prose between the
+/// label and the table.
+fn label_above(c: &Chapter, line: usize, stop: usize) -> (String, Option<String>) {
+    let mut prose: Vec<&str> = Vec::new();
     for i in (stop..line).rev() {
         let l = c.lines[i].trim();
         if l.starts_with('#') {
-            return l.trim_start_matches('#').trim().to_string();
+            prose.reverse();
+            return (mart_label(l.trim_start_matches('#')), note_of(&prose));
         }
         if l.starts_with("**") {
-            return l
-                .trim_matches('*')
-                .trim()
-                .trim_end_matches(':')
-                .trim()
-                .to_string();
+            prose.reverse();
+            return (mart_label(l), note_of(&prose));
+        }
+        if !l.is_empty() {
+            prose.push(l);
         }
     }
-    String::new()
+    (String::new(), None)
+}
+
+fn note_of(lines: &[&str]) -> Option<String> {
+    let n = clean(&lines.join(" ").replace('`', ""));
+    let n = n.trim().trim_end_matches(':').trim().to_string();
+    (!n.is_empty()).then_some(n)
+}
+
+/// A price that fits Gen3's `u16`.
+fn price16(cell: &str) -> Option<u16> {
+    price(cell).and_then(|p| u16::try_from(p).ok())
 }
 
 fn items_section(c: &Chapter, r: std::ops::Range<usize>, s: &mut Source, report: &mut Report) {
@@ -547,14 +597,26 @@ fn items_section(c: &Chapter, r: std::ops::Range<usize>, s: &mut Source, report:
         ) {
             placements(c, &t, [fc, mc, wc, nc, ic, hc], t.col("Note"), s, report);
         } else if let (Some(ic), Some((pc, currency))) = (item_col, price_col) {
-            let label = label_above(c, t.line, r.start);
+            let (label, note) = label_above(c, t.line, r.start);
+            let note_col = t.col("Note").or_else(|| t.col("Pourquoi"));
+            let cond_col = t.col("Condition");
+            let text = |row: &Vec<String>, k: Option<usize>| {
+                k.and_then(|k| row.get(k))
+                    .map(|x| clean(&x.replace('`', "")))
+                    .filter(|x| !x.is_empty())
+            };
             let mut stock = Vec::new();
             for (ln, row) in &t.rows {
                 match (
                     row.get(ic).and_then(|x| first_item(x)),
-                    row.get(pc).and_then(|x| price(x)),
+                    row.get(pc).and_then(|x| price16(x)),
                 ) {
-                    (Some(item), Some(p)) => stock.push(MartItem { item, price: p }),
+                    (Some(item), Some(p)) => stock.push(MartItem {
+                        item,
+                        price: p,
+                        condition: text(row, cond_col),
+                        note: text(row, note_col),
+                    }),
                     _ => report.add(
                         "Mart rows not imported",
                         format!("{}:{}: {}", c.stem, ln + 1, row.join(" | ")),
@@ -564,7 +626,9 @@ fn items_section(c: &Chapter, r: std::ops::Range<usize>, s: &mut Source, report:
             s.marts.push(Mart {
                 chapter: c.stem.clone(),
                 map: MAP_TOKEN.find(&label).map(|m| m.as_str().to_string()),
+                condition: mart_condition(&label),
                 label,
+                note,
                 currency,
                 stock,
             });
@@ -587,7 +651,8 @@ fn items_section(c: &Chapter, r: std::ops::Range<usize>, s: &mut Source, report:
             );
         }
     }
-    // Shops written inline: a bold label followed by `(`ITEM_X`, price)` pairs.
+    // Shops written inline: a bold label followed by `(ITEM_X, price)` pairs. A bold paragraph
+    // that names an item but gives no such pair is reported.
     let fenced = c.fenced_lines();
     let mut i = r.start;
     while i < r.end {
@@ -599,37 +664,41 @@ fn items_section(c: &Chapter, r: std::ops::Range<usize>, s: &mut Source, report:
                 && !c.lines[k].trim().is_empty()
                 && !c.lines[k].trim_start().starts_with('|')
             {
-                para.push_str(&c.lines[k]);
+                para.push_str(c.lines[k].trim());
                 para.push(' ');
                 k += 1;
             }
-            let stock: Vec<MartItem> = INLINE_MART
-                .captures_iter(&para)
+            let caps: Vec<_> = INLINE_MART.captures_iter(&para).collect();
+            let stock: Vec<MartItem> = caps
+                .iter()
                 .filter_map(|cap| {
                     Some(MartItem {
                         item: cap[1].to_string(),
-                        price: price(&cap[2])?,
+                        price: price16(&cap[2])?,
+                        condition: None,
+                        note: None,
                     })
                 })
                 .collect();
             if !stock.is_empty() {
-                let label = para
-                    .trim()
-                    .trim_start_matches("**")
-                    .split("**")
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .trim_end_matches(':')
-                    .trim()
-                    .to_string();
+                let rest = para.trim().trim_start_matches("**");
+                let label = mart_label(rest.split("**").next().unwrap_or(""));
+                let tail = &para[caps.last().unwrap().get(0).unwrap().end()..];
+                let tail = tail.trim_start_matches(['.', ',', ';', ' ']);
                 s.marts.push(Mart {
                     chapter: c.stem.clone(),
                     map: MAP_TOKEN.find(&label).map(|m| m.as_str().to_string()),
+                    condition: mart_condition(&label),
                     label,
+                    note: note_of(&[tail]),
                     currency: Currency::Money,
                     stock,
                 });
+            } else if ITEM.is_match(&para) {
+                report.add(
+                    "Bold paragraphs naming items without a mart",
+                    format!("{}:{}: {}", c.stem, i + 1, clean(&para)),
+                );
             }
             i = k.max(i + 1);
         } else {
@@ -1075,7 +1144,12 @@ pub type Files = BTreeMap<String, String>;
 pub type Counts = Vec<(String, usize)>;
 
 /// Allocation, files and counts.
-pub fn build(s: &Source, out: &Path, report: &mut Report) -> Result<(Files, Counts)> {
+pub fn build(
+    s: &Source,
+    out: &Path,
+    map_files: &[super::maps::MapRefs],
+    report: &mut Report,
+) -> Result<(Files, Counts)> {
     let mut files = BTreeMap::new();
     let maps: BTreeSet<String> = s.maps.keys().cloned().collect();
 
@@ -1152,8 +1226,53 @@ pub fn build(s: &Source, out: &Path, report: &mut Report) -> Result<(Files, Coun
     let mut want: BTreeMap<IdKind, BTreeMap<String, Option<String>>> = BTreeMap::new();
     want.insert(IdKind::Flags, of("FLAG_SIL_"));
     want.insert(IdKind::Vars, of("VAR_SIL_"));
-    want.insert(IdKind::Music, of("MUS_SIL_"));
-    want.insert(IdKind::Sounds, of("SE_SIL_"));
+    let mut songs = of("MUS_SIL_");
+    songs.extend(of("SE_SIL_"));
+    want.insert(IdKind::Songs, songs);
+    // Names the authored maps add (hide flags, gate vars, songs).
+    for m in map_files {
+        for (field, v) in &m.fields {
+            let kind = match field.as_str() {
+                "flag" if v.starts_with("FLAG_SIL_") => IdKind::Flags,
+                "var" if v.starts_with("VAR_SIL_") => IdKind::Vars,
+                "music" if v.starts_with("MUS_SIL_") || v.starts_with("SE_SIL_") => IdKind::Songs,
+                _ => continue,
+            };
+            let set = want.get_mut(&kind).unwrap();
+            if !set.contains_key(v) {
+                report.add(
+                    "Names only the maps use (allocated)",
+                    format!("maps/{}.ron: {v}", m.name),
+                );
+                set.insert(v.clone(), None);
+            }
+        }
+    }
+    // Gen3 story flags and vars the data reuses: the Silice block starts above them.
+    let gen3_used: BTreeSet<&str> = s
+        .refs
+        .constants
+        .keys()
+        .map(String::as_str)
+        .chain(
+            map_files
+                .iter()
+                .flat_map(|m| m.fields.iter().map(|(_, v)| v.as_str())),
+        )
+        .collect();
+    let floor = |kind: IdKind| -> Option<u32> {
+        let (table, (lo, hi)) = match kind {
+            IdKind::Flags => (&extract::names::FLAGS, kind.range()),
+            IdKind::Vars => (&extract::names::VARS, kind.range()),
+            _ => return None,
+        };
+        gen3_used
+            .iter()
+            .filter_map(|n| table.value(n))
+            .filter(|v| (lo..=hi).contains(v))
+            .max()
+            .map(|v| v + 1)
+    };
     let mut moves = of("MOVE_SIL_");
     for t in &s.trainers {
         for m in &t.party {
@@ -1256,7 +1375,17 @@ pub fn build(s: &Source, out: &Path, report: &mut Report) -> Result<(Files, Coun
         } else {
             None
         };
-        let (file, stale) = ids::allocate(*kind, existing.as_ref(), names)?;
+        let (file, stale) = ids::allocate(*kind, existing.as_ref(), names, floor(*kind))?;
+        if file.base > kind.range().0 {
+            report.add(
+                "Id bases",
+                format!(
+                    "ids/{}.ron starts at {:#x}, above the Gen3 numbers the data reuses",
+                    kind.file(),
+                    file.base
+                ),
+            );
+        }
         for n in stale {
             report.add(
                 "Ids no longer in the source (kept)",
@@ -1290,14 +1419,20 @@ pub fn build(s: &Source, out: &Path, report: &mut Report) -> Result<(Files, Coun
     Ok((files, counts))
 }
 
-/// `text/fr.ron` in the `to_ron` style of a `BTreeMap<String, String>`, but keeping repeated keys.
+/// `text/fr.ron`: a map in the `to_ron` layout, keeping repeated keys, each text a RON raw
+/// string (`r"..."`, or `r#"..."#` when it holds a `"`), so the file shows the decomp syntax as
+/// written (`\n`, `é`, `'`) without escapes. [`text_pairs`] reads it back exactly.
 pub fn text_ron(entries: &[(&str, &str)]) -> Result<String> {
     if entries.is_empty() {
         return Ok("{}\n".to_string());
     }
     let mut s = String::from("{\n");
     for (k, v) in entries {
-        let _ = writeln!(s, "    {}: {},", ron::to_string(k)?, ron::to_string(v)?);
+        let mut hashes = String::new();
+        while v.contains(&format!("\"{hashes}")) {
+            hashes.push('#');
+        }
+        let _ = writeln!(s, "    {}: r{hashes}\"{v}\"{hashes},", ron::to_string(k)?);
     }
     s.push_str("}\n");
     Ok(s)
@@ -1340,19 +1475,25 @@ mod tests {
     }
 
     #[test]
-    fn text_ron_matches_to_ron() {
-        let mut m = BTreeMap::new();
-        m.insert(
-            "A_T1".to_string(),
-            "Caf\u{e9} \u{ab}x\u{bb}\\n\"q\"\\p{PLAYER}".to_string(),
+    fn text_ron_round_trips() {
+        let e = [
+            ("A_T1", "Caf\u{e9} \u{ab}x\u{bb}\\n'q'\\p{PLAYER}"),
+            ("B", "say \"hi\" and \"#x"),
+            ("C", "back\\slash"),
+        ];
+        let s = text_ron(&e).unwrap();
+        assert!(
+            s.contains("\"A_T1\": r\"Caf\u{e9} \u{ab}x\u{bb}\\n'q'\\p{PLAYER}\","),
+            "{s}"
         );
-        m.insert("B".to_string(), "b".to_string());
-        let e: Vec<(&str, &str)> = m.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        assert_eq!(text_ron(&e).unwrap(), extract::export::to_ron(&m).unwrap());
-        let empty: BTreeMap<String, String> = BTreeMap::new();
-        assert_eq!(
-            text_ron(&[]).unwrap(),
-            extract::export::to_ron(&empty).unwrap()
-        );
+        assert!(s.contains("\"B\": r##\"say"), "{s}");
+        let back = text_pairs(&s).unwrap();
+        let back: Vec<(&str, &str)> = back.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        assert_eq!(back, e);
+        assert_eq!(text_ron(&back).unwrap(), s);
+        // A plain map reads it too.
+        let m: BTreeMap<String, String> = ron::from_str(&s).unwrap();
+        assert_eq!(m.len(), 3);
+        assert_eq!(text_ron(&[]).unwrap(), "{}\n");
     }
 }

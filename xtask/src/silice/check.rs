@@ -1,10 +1,15 @@
-//! `cargo xtask silice check [--games DIR] [--extracted DIR] [--allow RULE]...`: the permanent
-//! validator of `games/silice/` (plan §4). Exit 1 on errors; warnings are listed.
+//! `cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...`:
+//! the permanent validator of `games/silice/` (plan §4). Exit 1 on errors; warnings are listed.
+//!
+//! Inputs: the imported data (`text/`, `battle/`, `items.ron`, `ids/`), the authored maps
+//! (`maps/*.ron`: object and hidden-item flags, coord and frame-script vars, music, weather,
+//! warp and connection targets), and the scene scripts once they exist (`--scripts`, default
+//! `crates/content/src/silice/scripts/`, empty until then).
 //!
 //! Name tables: the decomp names compiled into `extract::names` and `charmap::SOUNDS` always;
 //! the extract (`content/extracted/`, or `PKR_EXTRACTED_DIR`) when it has a `manifest.ron`
 //! (species, moves, items and heal locations of the ROM, and the FR font widths for the width
-//! rule); every `#define` under `$PKR_DECOMP/include/constants/` when `PKR_DECOMP` is set (the
+//! rules); every `#define` under `$PKR_DECOMP/include/constants/` when `PKR_DECOMP` is set (the
 //! only source for `WEATHER_*`). A check whose source is missing is skipped with a note.
 //!
 //! Rules (`--allow RULE` or an entry of `check-exceptions.ron` turns a finding into a listed
@@ -12,12 +17,14 @@
 //!
 //! | Rule | Level | What |
 //! |---|---|---|
-//! | `id-alloc` | error | an ids file with a duplicate name or number, or a number outside its range |
+//! | `id-alloc` | error | an ids file with a duplicate name or number, or a number outside its range; a number two song files share |
+//! | `gen3-collision` | error | a Gen3 story flag or saved var the data uses whose number is inside the Silice block |
 //! | `id-removed` | error | a reference to a tombstone |
 //! | `id-undefined` | error | a Silice name (`*_SIL_*`, a form) missing from its ids file |
 //! | `id-unknown` | error | a Gen3 name (species, class, pic, AI) the decomp does not have |
 //! | `sil-prefix` | error | an unknown constant of a kind Silice may invent, or a registry name, without `_SIL_` |
-//! | `map-undefined` | error | a map neither in `ids/maps.ron` nor in `maps/` |
+//! | `map-undefined` | error | a map neither in `ids/maps.ron` nor in `maps/` (constants, warp and connection targets, placement maps) |
+//! | `placement-map` | error | a ball or hidden-item placement whose map exists but lacks its flag (or hides another item under it); a given item's flag once scene scripts exist, in neither the map nor a script |
 //! | `trainer-undefined` | error | a `TRAINER_SIL_*` no trainer defines |
 //! | `trainer-duplicate` | error | a trainer id defined twice |
 //! | `trainer-name` | error | a name over 10 bytes (`TRAINER_NAME_LENGTH`) |
@@ -31,16 +38,19 @@
 //! | `fishing-unreachable` | warning | fishing slots of a rod no item table gives |
 //! | `text-duplicate` | error | a text id defined twice |
 //! | `text-missing` | error | a text id the scenes print but `text/fr.ron` lacks |
+//! | `speakers-mismatch` | error | `text/speakers.ron` and `text/fr.ron` with different id sets |
 //! | `dynamic-unresolved` | error | a placeholder reference the source does not enumerate |
 //! | `text-charmap` | error | a character the FR charmap cannot encode |
-//! | `text-width` | error | a line wider than the 216 px message box (FR font, `{PLAYER}` as 7 widest capitals) |
+//! | `text-width` | error | a line wider than 216 px (208 px for a defeat text); see [`line_widths`] |
+//! | `text-lines` | error | a box (between `\p`) with more than 2 lines (a second `\n`) |
 //! | `invented-move` | warning | a `MOVE_SIL_*` (D-00/D-02b say Gen3 moves only) |
 //! | `item-incomplete` | warning | an `ITEM_SIL_*` without a name, pocket or base item |
-//! | `item-name-length` | warning | an item name over 14 bytes (`ITEM_NAME_LENGTH`) |
+//! | `item-name-length` | warning | an item name over 13 bytes (`ITEM_NAME_LENGTH` 14 with the terminator) |
 //! | `item-name-clash` | warning | an item name equal to another item's |
 //! | `exception-unused` | warning | an exception that matches nothing |
 
 use super::import::text_pairs;
+use super::maps::{self, MapRefs};
 use super::names;
 use super::read_ron;
 use super::schema::*;
@@ -53,6 +63,7 @@ pub struct Options {
     pub games: PathBuf,
     pub extracted: PathBuf,
     pub decomp: Option<PathBuf>,
+    pub scripts: PathBuf,
     pub allow: Vec<String>,
 }
 
@@ -70,21 +81,31 @@ pub struct Finding {
     pub message: String,
 }
 
-/// The message box width in pixels (`engine::text::MSG_WINDOW`, 27 tiles, text from x = 0).
+/// The field message box width in pixels (`engine::text::MSG_WINDOW`, 27 tiles, text from x = 0).
 pub const LINE_PX: u32 = 27 * 8;
-/// `PLAYER_NAME_LENGTH`.
+/// The battle message box (26 tiles): trainer defeat texts are printed there.
+pub const BATTLE_LINE_PX: u32 = 26 * 8;
+/// `PLAYER_NAME_LENGTH` (`{PLAYER}`, `{RIVAL}`).
 const PLAYER_LEN: u32 = 7;
+/// The longest a `{STR_VAR_n}` buffer is filled with in Gen3 scripts: an item name
+/// (`ITEM_NAME_LENGTH` 14 with the terminator). Pokémon (10) and move (12) names are shorter.
+const STR_VAR_LEN: u32 = 13;
 
 /// Everything a check reads.
 pub struct Inputs {
     pub texts: Vec<(String, String)>,
+    pub speakers: Option<SpeakersFile>,
     pub trainers: Option<TrainersFile>,
     pub encounters: Option<EncountersFile>,
     pub items: Option<ItemsFile>,
     pub ids: BTreeMap<IdKind, IdsFile>,
+    /// Old per-kind song files (`ids/music.ron`, `ids/sounds.ron`), which must not exist.
+    pub legacy_ids: BTreeMap<String, IdsFile>,
     pub refs: Option<RefsFile>,
-    /// Map file names under `maps/`.
-    pub map_files: BTreeSet<String>,
+    /// The authored maps under `maps/`.
+    pub maps: Vec<MapRefs>,
+    /// Scene scripts: file stem -> constants named.
+    pub scripts: BTreeMap<String, Vec<String>>,
     pub exceptions: ExceptionsFile,
     /// The extract's FR font widths.
     pub widths: Option<Vec<u8>>,
@@ -110,6 +131,7 @@ pub fn load(o: &Options) -> Result<Inputs> {
             Vec::new()
         }
     };
+    let speakers = opt("text/speakers.ron").map(|p| read_ron(&p)).transpose()?;
     let trainers = opt("battle/trainers.ron")
         .map(|p| read_ron(&p))
         .transpose()?;
@@ -124,16 +146,19 @@ pub fn load(o: &Options) -> Result<Inputs> {
             ids.insert(k, read_ron::<IdsFile>(&p)?);
         }
     }
-    let mut map_files = BTreeSet::new();
-    if let Ok(rd) = std::fs::read_dir(g.join("maps")) {
-        for e in rd.flatten() {
-            let p = e.path();
-            if p.extension().is_some_and(|x| x == "ron")
-                && let Some(s) = p.file_stem()
-            {
-                map_files.insert(s.to_string_lossy().to_string());
-            }
+    let mut legacy_ids = BTreeMap::new();
+    for f in ["music", "sounds"] {
+        if let Some(p) = opt(&format!("ids/{f}.ron")) {
+            legacy_ids.insert(f.to_string(), read_ron::<IdsFile>(&p)?);
         }
+    }
+    let maps = maps::scan_dir(&g.join("maps"))?;
+    let scripts = maps::scan_scripts(&o.scripts)?;
+    if scripts.is_empty() {
+        notes.push(format!(
+            "no scene scripts at {}: names checked from ids/refs.ron and maps/",
+            o.scripts.display()
+        ));
     }
     let exceptions = opt("check-exceptions.ron")
         .map(|p| read_ron(&p))
@@ -231,12 +256,15 @@ pub fn load(o: &Options) -> Result<Inputs> {
     };
     Ok(Inputs {
         texts,
+        speakers,
         trainers,
         encounters,
         items,
         ids,
+        legacy_ids,
         refs,
-        map_files,
+        maps,
+        scripts,
         exceptions,
         widths,
         extra_names,
@@ -359,7 +387,7 @@ fn sil_kind(name: &str) -> Option<IdKind> {
     }
     IdKind::ALL
         .into_iter()
-        .find(|k| k.sil_prefix().is_some_and(|p| name.starts_with(p)))
+        .find(|k| k.sil_prefixes().iter().any(|p| name.starts_with(p)))
 }
 
 fn is_form(name: &str) -> bool {
@@ -409,6 +437,24 @@ fn gen3_known(name: &str, i: &Inputs) -> Option<bool> {
     Some(known)
 }
 
+/// The Gen3 number of a story flag (0x20..0x500: not temp, not trainer or system) or a saved
+/// var (0x4020..0x4100: not temp, not special).
+fn gen3_story_number(name: &str) -> Option<(IdKind, u32)> {
+    if let Some(v) = extract::names::FLAGS.value(name)
+        && (0x20..0x500).contains(&v)
+        && !name.contains("_SIL_")
+    {
+        return Some((IdKind::Flags, v));
+    }
+    if let Some(v) = extract::names::VARS.value(name)
+        && (0x4020..0x4100).contains(&v)
+        && !name.contains("_SIL_")
+    {
+        return Some((IdKind::Vars, v));
+    }
+    None
+}
+
 /// Runs every rule.
 pub fn check(i: &Inputs) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -440,10 +486,13 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 continue;
             }
             live.entry(*k).or_default().insert(&e.name);
-            let wrong_prefix = match k.sil_prefix() {
-                Some(p) => !e.name.starts_with(p),
-                None if *k == IdKind::Species => !is_form(&e.name),
-                None => !e.name.starts_with("MAP_"),
+            let p = k.sil_prefixes();
+            let wrong_prefix = if !p.is_empty() {
+                !p.iter().any(|p| e.name.starts_with(p))
+            } else if *k == IdKind::Species {
+                !is_form(&e.name)
+            } else {
+                !e.name.starts_with("MAP_")
             };
             if wrong_prefix {
                 push(
@@ -475,6 +524,44 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             }
         }
     }
+    // Music and sounds share Gen3's song numbers: one file. Old split files are errors, and any
+    // number two of the song files share is reported.
+    {
+        let mut song_files: Vec<(String, &IdsFile)> = i
+            .legacy_ids
+            .iter()
+            .map(|(n, f)| (format!("ids/{n}.ron"), f))
+            .collect();
+        for (n, _) in &song_files {
+            push(
+                "id-alloc",
+                Error,
+                n,
+                "music and sounds share one number space: use ids/songs.ron".to_string(),
+            );
+        }
+        if let Some(f) = i.ids.get(&IdKind::Songs) {
+            song_files.push(("ids/songs.ron".to_string(), f));
+        }
+        let mut by_num: BTreeMap<u32, (&str, &str)> = BTreeMap::new();
+        for (file, f) in &song_files {
+            for e in &f.ids {
+                if let Some((of, on)) = by_num.get(&e.num)
+                    && of != file
+                {
+                    push(
+                        "id-alloc",
+                        Error,
+                        &e.name,
+                        format!("number {} in {file} is also {on} in {of}", e.num),
+                    );
+                }
+                by_num
+                    .entry(e.num)
+                    .or_insert((file.as_str(), e.name.as_str()));
+            }
+        }
+    }
     let maps_by_constant: BTreeMap<&str, &str> = i
         .ids
         .get(&IdKind::Maps)
@@ -486,12 +573,19 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 .collect()
         })
         .unwrap_or_default();
+    let map_files: BTreeMap<&str, &MapRefs> = i.maps.iter().map(|m| (m.name.as_str(), m)).collect();
     let map_names: BTreeSet<&str> = maps_by_constant
         .values()
         .copied()
-        .chain(i.map_files.iter().map(String::as_str))
+        .chain(map_files.keys().copied())
         .collect();
     let map_constants: BTreeSet<String> = maps_by_constant.keys().map(|s| s.to_string()).collect();
+    let map_of = |constant: &str| -> String {
+        maps_by_constant
+            .get(constant)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| names::map_name(constant, &map_constants))
+    };
     let trainer_ids: BTreeSet<&str> = i
         .trainers
         .iter()
@@ -511,6 +605,36 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             for c in ch {
                 add(n, c);
             }
+        }
+    }
+    for m in &i.maps {
+        let w = format!("maps/{}.ron", m.name);
+        for (field, v) in &m.fields {
+            match field.as_str() {
+                "flag" | "var" | "music" | "weather" => add(v, &w),
+                _ => {}
+            }
+        }
+        for (item, _) in &m.hidden {
+            add(item, &w);
+        }
+        for (field, target) in &m.fields {
+            if (field == "dest_map" || field == "map")
+                && target != "MAP_DYNAMIC"
+                && !map_names.contains(target.as_str())
+            {
+                push(
+                    "map-undefined",
+                    Error,
+                    target,
+                    format!("the {field} of {w}: no map file or ids/maps.ron entry"),
+                );
+            }
+        }
+    }
+    for (stem, words) in &i.scripts {
+        for n in words {
+            add(n, &format!("scripts/{stem}.rs"));
         }
     }
     if let Some(t) = &i.trainers {
@@ -563,6 +687,13 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             }
             if p.map.starts_with("MAP_") {
                 add(&p.map, &w);
+            } else {
+                push(
+                    "map-undefined",
+                    Error,
+                    &p.map,
+                    format!("{w}: the map cell is not a MAP_ constant ({})", p.name),
+                );
             }
             if let Some(x) = &p.item {
                 add(x, &w);
@@ -575,6 +706,34 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             }
             for s in &m.stock {
                 add(&s.item, &w);
+            }
+        }
+    }
+    // Gen3 story flags and saved vars inside the Silice block.
+    for kind in [IdKind::Flags, IdKind::Vars] {
+        let nums: Vec<u32> = i
+            .ids
+            .get(&kind)
+            .map(|f| f.ids.iter().map(|e| e.num).collect())
+            .unwrap_or_default();
+        let (Some(lo), Some(hi)) = (nums.iter().min(), nums.iter().max()) else {
+            continue;
+        };
+        for (n, wh) in &names {
+            if let Some((k, v)) = gen3_story_number(n)
+                && k == kind
+                && (*lo..=*hi).contains(&v)
+            {
+                push(
+                    "gen3-collision",
+                    Error,
+                    n,
+                    format!(
+                        "Gen3 number {v:#x} is inside the Silice block {lo:#x}..={hi:#x} of ids/{}.ron; used in {}",
+                        kind.file(),
+                        wh.iter().cloned().collect::<Vec<_>>().join(", ")
+                    ),
+                );
             }
         }
     }
@@ -652,6 +811,55 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
         }
     }
 
+    // Item placements against the authored maps (the maps are authoritative for positions; the
+    // flag must be there, and a hidden item with that flag must be the same item). Balls and
+    // hidden items are map objects; a given item's flag is set by a scene script, so it is looked
+    // for in the maps and the scripts, once scripts exist.
+    let script_names: BTreeSet<&str> = i.scripts.values().flatten().map(String::as_str).collect();
+    if let Some(it) = &i.items {
+        for p in &it.placements {
+            let Some(flag) = &p.flag else { continue };
+            if !p.map.starts_with("MAP_") {
+                continue;
+            }
+            let name = map_of(&p.map);
+            let Some(m) = map_files.get(name.as_str()) else {
+                continue;
+            };
+            let object = matches!(p.method, PlacementMethod::Ball | PlacementMethod::Hidden);
+            if !object && (i.scripts.is_empty() || script_names.contains(flag.as_str())) {
+                continue;
+            }
+            let hidden = m.hidden.iter().find(|(_, f)| f == flag);
+            if !m.values("flag").any(|f| f == flag) && !script_names.contains(flag.as_str()) {
+                push(
+                    "placement-map",
+                    Error,
+                    flag,
+                    format!(
+                        "{} ({}) is placed in {} ({}) but maps/{name}.ron (and no scene \
+                         script) has no such flag",
+                        p.name,
+                        p.item.as_deref().unwrap_or("no item"),
+                        p.map,
+                        p.chapter
+                    ),
+                );
+            } else if let (Some((hi, _)), Some(item)) = (hidden, &p.item)
+                && hi != item
+            {
+                push(
+                    "placement-map",
+                    Error,
+                    flag,
+                    format!(
+                        "maps/{name}.ron hides {hi} under this flag, the placement says {item}"
+                    ),
+                );
+            }
+        }
+    }
+
     // Texts.
     let mut seen = BTreeSet::new();
     let defined: BTreeSet<&str> = i.texts.iter().map(|(k, _)| k.as_str()).collect();
@@ -662,6 +870,25 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 Error,
                 k,
                 "defined more than once in text/fr.ron".to_string(),
+            );
+        }
+    }
+    if let Some(sp) = &i.speakers {
+        let spk: BTreeSet<&str> = sp.texts.iter().map(|t| t.id.as_str()).collect();
+        for k in defined.difference(&spk) {
+            push(
+                "speakers-mismatch",
+                Error,
+                k,
+                "in text/fr.ron but not in text/speakers.ron".to_string(),
+            );
+        }
+        for k in spk.difference(&defined) {
+            push(
+                "speakers-mismatch",
+                Error,
+                k,
+                "in text/speakers.ron but not in text/fr.ron".to_string(),
             );
         }
     }
@@ -700,14 +927,7 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
         }
     }
     let mut glyphs: BTreeMap<char, usize> = BTreeMap::new();
-    let player = i.widths.as_ref().map(|w| {
-        ('A'..='Z')
-            .filter_map(|c| extract::text::encode_lang(&c.to_string(), Lang::Fr).ok())
-            .map(|b| w.get(b[0] as usize).copied().unwrap_or(0) as u32)
-            .max()
-            .unwrap_or(0)
-            * PLAYER_LEN
-    });
+    let metrics = i.widths.as_ref().map(|w| Metrics::new(w));
     for (k, v) in &i.texts {
         let bad = bad_chars(v);
         if !bad.is_empty() {
@@ -726,18 +946,34 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                         .join(" ")
                 ),
             );
-            continue;
         }
-        if let (Some(w), Some(pw)) = (&i.widths, player)
-            && let Ok(bytes) = extract::text::encode_lang(v, Lang::Fr)
-        {
-            for (n, px) in line_widths(&bytes, w, pw).into_iter().enumerate() {
-                if px > LINE_PX {
+        // Measured even with unencodable characters: each counts as a widest capital.
+        let Ok(bytes) = extract::text::encode_lang(&substitute(v, &bad), Lang::Fr) else {
+            continue;
+        };
+        for (b, n) in box_lines(&bytes).into_iter().enumerate() {
+            if n > 2 {
+                push(
+                    "text-lines",
+                    Error,
+                    k,
+                    format!("box {} has {n} lines (max 2; use \\l to scroll)", b + 1),
+                );
+            }
+        }
+        if let Some(m) = &metrics {
+            let max = if is_defeat_text(k) {
+                BATTLE_LINE_PX
+            } else {
+                LINE_PX
+            };
+            for (n, px) in line_widths(&bytes, m).into_iter().enumerate() {
+                if px > max {
                     push(
                         "text-width",
                         Error,
                         k,
-                        format!("line {} is {px} px (max {LINE_PX})", n + 1),
+                        format!("line {} is {px} px (max {max})", n + 1),
                     );
                 }
             }
@@ -921,11 +1157,11 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             }
             if let Some(n) = &d.name {
                 match extract::text::encode_lang(n, Lang::Fr) {
-                    Ok(b) if b.len() - 1 > 14 => push(
+                    Ok(b) if b.len() - 1 > ITEM_NAME_MAX => push(
                         "item-name-length",
                         Warning,
                         &d.id,
-                        format!("{n:?} is {} bytes (max 14)", b.len() - 1),
+                        format!("{n:?} is {} bytes (max {ITEM_NAME_MAX})", b.len() - 1),
                     ),
                     Ok(_) => {}
                     Err(_) => push(
@@ -973,6 +1209,16 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
     out
 }
 
+/// `ITEM_NAME_LENGTH` (14) less the terminator.
+const ITEM_NAME_MAX: usize = 13;
+
+/// A trainer defeat text, shown in the battle message box: the id's last words say so
+/// (`Gym_Sc10_Defeat`, `Casino_Gaston_Defaite`).
+pub fn is_defeat_text(id: &str) -> bool {
+    let l = id.to_ascii_lowercase();
+    l.contains("_defeat") || l.contains("_defaite")
+}
+
 /// An item name for comparisons: uppercase letters and digits only (the ROM squeezes
 /// `POUDRE CLAIRE` into `POUDRECLAIRE`).
 fn name_key(name: &str) -> String {
@@ -1015,13 +1261,54 @@ pub fn bad_chars(text: &str) -> Vec<char> {
     out.into_iter().collect()
 }
 
-/// Pixel width of each line of encoded text (`\n`, `\l` and `\p` end a line), `{PLAYER}`
-/// counted as `player` pixels, other placeholders as nothing.
-pub fn line_widths(b: &[u8], widths: &[u8], player: u32) -> Vec<u32> {
+/// `text` with each character of `bad` replaced by `W`, a nominal glyph as wide as the widest
+/// capitals, so a line with a missing glyph is still measured.
+fn substitute(text: &str, bad: &[char]) -> String {
+    if bad.is_empty() {
+        return text.to_string();
+    }
+    text.chars()
+        .map(|c| if bad.contains(&c) { 'W' } else { c })
+        .collect()
+}
+
+/// Glyph widths plus the worst-case widths of the placeholders.
+pub struct Metrics<'a> {
+    widths: &'a [u8],
+    /// The widest capital A–Z.
+    widest: u32,
+}
+
+impl<'a> Metrics<'a> {
+    pub fn new(widths: &'a [u8]) -> Self {
+        let widest = ('A'..='Z')
+            .filter_map(|c| extract::text::encode_lang(&c.to_string(), Lang::Fr).ok())
+            .map(|b| widths.get(b[0] as usize).copied().unwrap_or(0) as u32)
+            .max()
+            .unwrap_or(0);
+        Metrics { widths, widest }
+    }
+
+    fn glyph(&self, g: usize) -> u32 {
+        self.widths.get(g).copied().unwrap_or(0) as u32
+    }
+
+    /// `{PLAYER}` and `{RIVAL}`: 7 widest capitals; `{STR_VAR_n}`: 13; others nothing.
+    fn placeholder(&self, code: u8) -> u32 {
+        match code {
+            0x01 | 0x06 => PLAYER_LEN * self.widest,
+            0x02..=0x04 => STR_VAR_LEN * self.widest,
+            _ => 0,
+        }
+    }
+}
+
+/// Pixel width of each line of encoded text (`\n`, `\l` and `\p` end a line), placeholders at
+/// their worst case ([`Metrics::placeholder`]).
+pub fn line_widths(b: &[u8], m: &Metrics) -> Vec<u32> {
     const EXT_ARGS: [usize; 0x19] = [
         0, 1, 1, 1, 3, 1, 1, 0, 1, 0, 0, 2, 1, 1, 1, 0, 2, 1, 1, 1, 1, 0, 0, 0, 0,
     ];
-    let w = |g: usize| widths.get(g).copied().unwrap_or(0) as u32;
     let mut out = Vec::new();
     let mut cur = 0;
     let mut i = 0;
@@ -1034,9 +1321,7 @@ pub fn line_widths(b: &[u8], widths: &[u8], player: u32) -> Vec<u32> {
                 i += 1;
             }
             0xFD => {
-                if b.get(i + 1) == Some(&0x01) {
-                    cur += player;
-                }
+                cur += m.placeholder(*b.get(i + 1).unwrap_or(&0));
                 i += 2;
             }
             0xFC => {
@@ -1048,16 +1333,41 @@ pub fn line_widths(b: &[u8], widths: &[u8], player: u32) -> Vec<u32> {
             }
             0xF7 | 0xF8 => i += 2,
             0xF9 => {
-                cur += w(0x100 | *b.get(i + 1).unwrap_or(&0) as usize);
+                cur += m.glyph(0x100 | *b.get(i + 1).unwrap_or(&0) as usize);
                 i += 2;
             }
             c => {
-                cur += w(c as usize);
+                cur += m.glyph(c as usize);
                 i += 1;
             }
         }
     }
     out.push(cur);
+    out
+}
+
+/// Lines per box: a box ends at `\p` (0xFB); `\n` (0xFE) starts the second line; `\l` (0xFA)
+/// scrolls, so it keeps the line count at 2.
+pub fn box_lines(b: &[u8]) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut lines = 1;
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            0xFF => break,
+            0xFB => {
+                out.push(lines);
+                lines = 1;
+            }
+            0xFE => lines += 1,
+            0xFA => lines = lines.max(2),
+            // Two-byte codes whose argument could look like a control byte.
+            0xFD | 0xF7 | 0xF8 | 0xF9 => i += 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    out.push(lines);
     out
 }
 
@@ -1078,8 +1388,17 @@ mod tests {
     #[test]
     fn widths() {
         let w = vec![5u8; 512];
-        let b = extract::text::encode_lang("AB\\nC{PLAYER}\\pD", Lang::Fr).unwrap();
-        assert_eq!(line_widths(&b, &w, 42), vec![10, 47, 5]);
+        let m = Metrics::new(&w);
+        let b = extract::text::encode_lang("AB\\nC{PLAYER}\\pD{STR_VAR_1}", Lang::Fr).unwrap();
+        assert_eq!(line_widths(&b, &m), vec![10, 5 + 35, 5 + 65]);
+    }
+
+    #[test]
+    fn lines_per_box() {
+        let enc = |s: &str| extract::text::encode_lang(s, Lang::Fr).unwrap();
+        assert_eq!(box_lines(&enc("a\\nb\\lc\\ld\\pe")), vec![2, 1]);
+        assert_eq!(box_lines(&enc("a\\nb\\nc")), vec![3]);
+        assert_eq!(box_lines(&enc("a\\nb\\lc\\nd")), vec![3]);
     }
 
     #[test]
@@ -1089,5 +1408,17 @@ mod tests {
             bad_chars("a\u{2014}b\u{2665}"),
             vec!['\u{2014}', '\u{2665}']
         );
+        assert_eq!(substitute("a\u{2014}b", &['\u{2014}']), "aWb");
+    }
+
+    #[test]
+    fn story_numbers() {
+        assert_eq!(
+            gen3_story_number("FLAG_RECEIVED_RUNNING_SHOES"),
+            Some((IdKind::Flags, 0x112))
+        );
+        assert_eq!(gen3_story_number("FLAG_SYS_POKEDEX_GET"), None);
+        assert_eq!(gen3_story_number("VAR_RESULT"), None);
+        assert_eq!(gen3_story_number("VAR_TEMP_1"), None);
     }
 }
