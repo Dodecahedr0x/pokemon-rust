@@ -1963,9 +1963,10 @@ mod list {
         talk(MAP_VICTORY_ROAD_1F, 5),
         Step::WaitScript,
         // A level on the cave floor, healed, before Wally: at 60 his Altaria's paralysis and
-        // Roselia's Giga Drain can win (they did once field poison moved the RNG).
+        // Roselia's Giga Drain can win (they did once field poison moved the RNG, and at 62
+        // once Steven's battles were fought, Wave F).
         Step::Battle(BattlePlan::BestLearn),
-        train_fresh(MAP_VICTORY_ROAD_1F, 39, 26, 62),
+        train_fresh(MAP_VICTORY_ROAD_1F, 39, 26, 63),
         Step::Battle(BattlePlan::RunWild),
         enter(MAP_VICTORY_ROAD_1F, 15, 40, Down),
         enter(MAP_EVER_GRANDE_CITY, 27, 48, Up),

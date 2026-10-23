@@ -5,7 +5,9 @@
 //!   positions at those step indices (`<dir>/pos-<i>.bin` and `.opts`);
 //! - `PKR_SPINE_DIR=<dir> PKR_SPINE_FROM=815 PKR_SPINE_TO=830 cargo test --release -p explore
 //!   --test spine_segment replay -- --ignored --nocapture` replays steps `FROM..TO` from the
-//!   saved position (`spine::run_from`; the build hash is not checked).
+//!   saved position (`spine::run_from`; the build hash is not checked), printing each step's
+//!   end and party; with `PKR_SPINE_TRACE=1` it also replays the inputs frame by frame and
+//!   prints each change of map, cell, battle or script.
 
 use content::Emerald;
 use explore::config::Config;
@@ -15,6 +17,41 @@ use std::sync::Arc;
 
 fn dir() -> PathBuf {
     PathBuf::from(std::env::var("PKR_SPINE_DIR").expect("PKR_SPINE_DIR"))
+}
+
+fn cp_for(from: usize) -> engine::checkpoint::Checkpoint {
+    let mut cp = engine::checkpoint::decode(
+        &std::fs::read(dir().join(format!("pos-{from}")).with_extension("bin")).unwrap(),
+    )
+    .expect("a checkpoint");
+    cp.header.build = engine::checkpoint::BuildHash {
+        engine: 0,
+        content: 0,
+    };
+    cp
+}
+
+/// Replays `inputs` from `cp`, printing each change of map, cell or battle.
+fn trace(game: &Emerald, cp: &engine::checkpoint::Checkpoint, inputs: &[game_native::trace::Run]) {
+    let mut w = engine::World::restore(game, cp).expect("restore");
+    let mut last = None;
+    let mut f = 0u64;
+    for r in inputs {
+        for _ in 0..r.frames {
+            w.step(game, r.keys);
+            f += 1;
+            let now = (
+                w.map(),
+                w.objects().player().pos(),
+                w.in_battle(),
+                w.script_running(),
+            );
+            if last != Some(now) {
+                println!("  trace {f} {:?} keys {:?}", now, r.keys);
+                last = Some(now);
+            }
+        }
+    }
 }
 
 fn num(var: &str) -> Option<usize> {
@@ -123,6 +160,9 @@ fn replay() {
     }
     for r in &s.reports {
         println!("report {r:?}");
+    }
+    if std::env::var("PKR_SPINE_TRACE").is_ok() {
+        trace(&game, &cp_for(from), &s.inputs);
     }
     if let Some(e) = &s.error {
         panic!("{e}");
