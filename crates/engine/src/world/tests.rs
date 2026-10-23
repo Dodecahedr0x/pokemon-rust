@@ -1108,6 +1108,7 @@ mod m8_f;
 mod m8_g;
 mod m8_h;
 mod m8_i;
+mod m8_m;
 
 std::thread_local! {
     /// `World::hash` calls made on this thread (each test runs on its own thread).

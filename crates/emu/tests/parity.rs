@@ -131,6 +131,8 @@ fn check_costs(what: &str, end: &DebugSnapshot) {
         "{what}: the shell loop took {} lines",
         end.loop_lines_max
     );
+    // Milestone 8 Task M: the heap and stack high-water marks and dropped events.
+    emu::check_memory(what, end).unwrap_or_else(|e| panic!("{e:#}"));
 }
 
 fn rom_path() -> PathBuf {
