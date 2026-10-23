@@ -8,10 +8,15 @@
 //!   pressure airlock, Loïc (Gym_Sc10 to Sc12: the badge, the Lame-Frequence, `LOG_01`);
 //! - the red sky (Sc06: Gogo then Romain), the secret grove (Sc08, the Evoluroc), the barrier
 //!   (Sc07);
-//! - the Labo: Brico_Labo_Sc01, both sbires, the items, the memo, the Chimiste.
+//! - the Labo: the Bricoleuse's hint, the brambles cut (Brico-Bourg (4, 9)), Brico_Labo_Sc01,
+//!   both sbires, the items, the memo, the Chimiste.
 //!
-//! The gym's trainers are levels 12 to 17 against a level 5–7 starter on the first move: a test
-//! hook ([`TRAINER`]) stands in for the training a player does between the chapters.
+//! The party is Chapter 0's starter (Cyndaquil, trained to level 8 on Route S1), trained again
+//! in Bois-Éther's west tall grass ([`Step::Train`], the wild levels 5–8 of §6) to
+//! [`GYM_LEVEL`] before the gym, the level a player brings to Loïc's ace (16, §4); the run heals
+//! at the Center before each part of the gym and at Maman's before the Labo's boss. Every
+//! battle is won by the battle policy (`silice_spine` docs), the trainers' exp included. One
+//! test hook, for the Labo's boss only: [`SECOND`].
 
 use super::ch00::ROUTE_S01_SIGHT;
 use super::{Hook, Run, Step, goto, goto_avoiding};
@@ -25,8 +30,88 @@ const MART: MapId = MAP_BOIS_ETHER_MART;
 const HERBORISTE: MapId = MAP_BOIS_ETHER_HERBORISTE;
 const LABO: MapId = MAP_BRICO_BOURG_LABO;
 
-/// The party's second Pokémon, joining before Bois_Ether_Sc01 (a test hook).
-pub const TRAINER: Hook = Hook::MonBefore("BoisEther_Sc01", SPECIES_RAYQUAZA, 62);
+/// The lead's level at the gym's door, after [`Step::Train`] (Loïc's team is 12–16, §4).
+pub const GYM_LEVEL: u8 = 16;
+
+/// The party's second Pokémon, for the Chimiste's battle only (a test hook, the chapter's one):
+/// a Mareep (Bois-Éther's wild list, §6) caught and trained to 12. Without it the run whites out
+/// on Koffing's Self-Destruct, a double KO (see the plan's "SIL2 Ch1 scripts as built").
+pub const SECOND: Hook =
+    Hook::MonBefore("BricoBourg_Labo_EventScript_Chimiste", SPECIES_MAREEP, 12);
+
+/// Two tall-grass cells of the west meadow (x 2–7, y 15–20), paced by [`Step::Train`].
+const GRASS: ((i16, i16), (i16, i16)) = ((6, 17), (6, 18));
+
+/// A heal at the Center, from anywhere in the village back to its door (27, 13).
+const HEAL: &[Step] = &[
+    goto(VILLAGE, 27, 13),
+    Step::Enter {
+        dir: Dir::Up,
+        map: CENTER,
+    },
+    goto(CENTER, 6, 4),
+    Step::Interact(Dir::Up),
+    goto(CENTER, 5, 6),
+    Step::Enter {
+        dir: Dir::Down,
+        map: VILLAGE,
+    },
+];
+
+/// From the gym (the hall, or zones 1 to 4 once door D is open): out, [`HEAL`], and back in to
+/// door D's front cell (8, 23), its panel opening it again (the map load closed it).
+const GYM_HEAL: &[Step] = &[
+    goto_avoiding(GYM, 7, 38, GRATES),
+    Step::Enter {
+        dir: Dir::Down,
+        map: VILLAGE,
+    },
+    goto(VILLAGE, 27, 13),
+    Step::Enter {
+        dir: Dir::Up,
+        map: CENTER,
+    },
+    goto(CENTER, 6, 4),
+    Step::Interact(Dir::Up),
+    goto(CENTER, 5, 6),
+    Step::Enter {
+        dir: Dir::Down,
+        map: VILLAGE,
+    },
+    goto(VILLAGE, 17, 5),
+    Step::Enter {
+        dir: Dir::Up,
+        map: GYM,
+    },
+    goto_avoiding(GYM, 8, 23, GRATES),
+    Step::Interact(Dir::Up),
+];
+
+/// From the Labo: out by the porch, Maman's heal (Player_House_1F), and back in.
+const LABO_HEAL: &[Step] = &[
+    goto(LABO, 6, 10),
+    Step::Enter {
+        dir: Dir::Down,
+        map: MAP_BRICO_BOURG,
+    },
+    goto(MAP_BRICO_BOURG, 5, 15),
+    Step::Enter {
+        dir: Dir::Up,
+        map: MAP_BRICO_BOURG_PLAYER_HOUSE_1F,
+    },
+    goto(MAP_BRICO_BOURG_PLAYER_HOUSE_1F, 3, 2),
+    Step::Interact(Dir::Left),
+    goto(MAP_BRICO_BOURG_PLAYER_HOUSE_1F, 4, 7),
+    Step::Enter {
+        dir: Dir::Down,
+        map: MAP_BRICO_BOURG,
+    },
+    goto(MAP_BRICO_BOURG, 4, 8),
+    Step::Enter {
+        dir: Dir::Up,
+        map: LABO,
+    },
+];
 
 /// The 20 active spore grates of the gym's zone 1.
 pub const GRATES: &[(i16, i16)] = &[
@@ -71,14 +156,15 @@ const LABO_SIGHT: &[(i16, i16)] = &[(2, 8), (3, 8), (4, 8), (5, 8)];
 /// Chapter 1's steps.
 pub fn steps() -> Vec<Step> {
     use Dir::*;
-    vec![
+    let mut v = vec![
         Step::Check("ch1_start", |r| {
             assert_eq!(r.w.map(), MAP_ROUTE_S01);
             assert_eq!(r.w.var(VAR_SIL_STORY), 9);
             assert!(!r.w.flag(FLAG_SIL_MODULE_COUPE));
             assert!(!r.w.flag(FLAG_SIL_BADGE_01));
+            assert_eq!(r.w.party().len(), 1);
+            assert_eq!(r.w.party().get(0).unwrap().species, SPECIES_CYNDAQUIL);
         }),
-        Step::Hook(TRAINER),
         // ---- arrival and the meeting (Sc01 to Sc03) ----
         Step::Enter {
             dir: Up,
@@ -88,7 +174,6 @@ pub fn steps() -> Vec<Step> {
         Step::Check("sc01", |r| {
             assert_eq!(r.w.var(VAR_SIL_STORY), 10);
             assert!(r.has_text(Bois_Ether_Sc01_T1));
-            assert_eq!(r.w.party().len(), 2);
         }),
         goto(VILLAGE, 17, 13),
         Step::Check("sc02_sc03", |r| {
@@ -206,6 +291,22 @@ pub fn steps() -> Vec<Step> {
             assert!(r.has_text(Bois_Ether_Sc08_T1));
             assert!(!r.w.flag(FLAG_SIL_BOIS_ETHER_RONCES_CUT));
         }),
+        // ---- training in the west meadow, then a heal ----
+        Step::Train {
+            a: GRASS.0,
+            b: GRASS.1,
+            level: GYM_LEVEL,
+            heal: HEAL,
+        },
+        Step::Check("trained", |r| {
+            let lead = r.w.party().get(0).unwrap();
+            assert!(lead.level >= GYM_LEVEL);
+            assert_eq!(lead.species, SPECIES_QUILAVA);
+            assert_eq!(r.w.party().len(), 1);
+        }),
+    ];
+    v.extend_from_slice(HEAL);
+    v.extend([
         // ---- the gym ----
         goto(VILLAGE, 17, 5),
         Step::Enter { dir: Up, map: GYM },
@@ -257,9 +358,20 @@ pub fn steps() -> Vec<Step> {
             assert!(!r.w.flag(FLAG_SIL_GYM1_CONTAMINE));
             assert!(r.has_text(Gym_Z1_Porte_Ok));
         }),
+        // Back onto a grate, then onto the open door D: sent back to the shower again.
+        Step::Walk(Down),
         Step::Walk(Up),
         Step::Walk(Up),
-        Step::Walk(Up),
+        Step::Check("porte_passage", |r| {
+            assert_eq!(r.pos(), (7, 30));
+            assert!(!r.w.flag(FLAG_SIL_GYM1_CONTAMINE));
+            assert_eq!(r.times(Gym_Z1_Porte_Refus), 2);
+        }),
+    ]);
+    // A heal after zone 1's battles; back at door D, opened again.
+    v.extend_from_slice(GYM_HEAL);
+    v.extend([
+        goto(GYM, 8, 20),
         Step::Check("zone_2", |r| assert_eq!(r.pos(), (8, 20))),
         // Zone 2: the workbench without the pieces; Paul; the crates.
         goto_avoiding(GYM, 5, 15, ZONE2_SIGHT),
@@ -308,21 +420,21 @@ pub fn steps() -> Vec<Step> {
             r.printed_in_order(&[Gym_Z2_Etabli_Ok, Gym_Z2_Valve]);
         }),
         // Zone 3, then the greenhouse.
-        goto(GYM, 7, 13),
-        Step::Walk(Up),
-        Step::Walk(Up),
+        goto(GYM, 7, 11),
         Step::Walk(Up),
         Step::Check("sas2", |r| {
             assert_eq!(r.pos(), (7, 10));
             r.printed_in_order(&[Gym_Z3_T1, Gym_Z3_T2]);
         }),
-        Step::Walk(Up),
-        Step::Walk(Up),
-        Step::Walk(Up),
-        Step::Check("serre", |r| assert_eq!(r.pos(), (7, 7))),
+        goto(GYM, 7, 7),
         goto(GYM, 12, 2),
         Step::Interact(Up),
         Step::Check("serre_privee", |r| assert!(r.has_text(Gym_Serre_Privee))),
+    ]);
+    // A heal before the leader: out through both airlocks (open, behind the player too) and
+    // back; the map load keeps them open (BoisEther_Gym_OnLoad) and closes door D.
+    v.extend_from_slice(GYM_HEAL);
+    v.extend([
         // Loïc (Gym_Sc10 to Sc12).
         goto(GYM, 7, 3),
         Step::Interact(Up),
@@ -353,20 +465,7 @@ pub fn steps() -> Vec<Step> {
                 Gym_Sc12_T4,
             ]);
         }),
-        // Back down through both airlocks and door D (open: the valve, then door D's panel).
-        goto(GYM, 7, 7),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Check("back_in_zone_2", |r| assert_eq!(r.pos(), (7, 13))),
-        goto(GYM, 8, 20),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Walk(Down),
-        Step::Check("back_in_zone_1", |r| assert_eq!(r.pos(), (8, 23))),
+        // Back down through both airlocks and door D, all open.
         goto_avoiding(GYM, 7, 30, GRATES),
         goto(GYM, 5, 36),
         Step::Interact(Up),
@@ -473,7 +572,16 @@ pub fn steps() -> Vec<Step> {
         Step::Check("bricoleuse_2", |r| {
             assert!(r.has_text(Brico_Bourg_Npc_Bricoleuse_2))
         }),
-        goto(MAP_BRICO_BOURG, 4, 8),
+        // The Labo's brambles (4, 9): Bois_Ether_Sc08's obstacle, cut with the module.
+        goto(MAP_BRICO_BOURG, 4, 10),
+        Step::Interact(Up),
+        Step::Check("labo_ronces", |r| {
+            assert!(r.w.flag(FLAG_SIL_BRICO_LABO_RONCES_CUT));
+            assert_eq!(r.times(Bois_Ether_Sc08_T3), 2);
+        }),
+        Step::Walk(Up),
+        Step::Walk(Up),
+        Step::Check("labo_porch", |r| assert_eq!(r.pos(), (4, 8))),
         Step::Enter { dir: Up, map: LABO },
         goto(LABO, 6, 10),
         Step::Check("labo_sc01", |r| {
@@ -511,15 +619,25 @@ pub fn steps() -> Vec<Step> {
             assert!(r.beaten(TRAINER_SIL_SBIRE_LABO_2));
             assert!(r.has_text(Brico_Labo_Sbire2_Intro));
         }),
+    ]);
+    // A heal before the boss: Maman, across the square, and back through the porch.
+    v.extend_from_slice(LABO_HEAL);
+    v.extend([
+        // The Chimiste's last Pokémon is a Koffing with Self-Destruct: against a one-Pokémon
+        // party, a double KO is Gen3's B_OUTCOME_DREW, a whiteout. A second Pokémon, as a
+        // player has caught by now, turns it into a win ([`SECOND`], the one test hook).
+        Step::Hook(SECOND),
         goto(LABO, 1, 1),
         Step::Interact(Right),
         Step::Check("chimiste", |r| {
             assert!(r.beaten(TRAINER_SIL_CHIMISTE_LABO));
+            assert_eq!(r.w.party().len(), 2);
             assert_eq!(r.w.var(VAR_SIL_BRICO_LABO_STATE), 2);
             assert!(r.w.flag(FLAG_SIL_HIDE_LABO_CHIMISTE));
             r.printed_in_order(&[Brico_Labo_Chimiste_Intro, Brico_Labo_Chimiste_Apres]);
         }),
-    ]
+    ]);
+    v
 }
 
 /// What the end of Chapter 1 asserts beyond its checkpoints: the end-of-chapter story step, no

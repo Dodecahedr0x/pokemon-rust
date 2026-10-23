@@ -5,21 +5,32 @@
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids
-//!   the `avoid` cells (trainers' sight lines, spore grates) and, when it can, tall grass. Cells
-//!   a script opened (`setmetatile`) are not planned through: [`Step::Walk`] crosses them.
+//!   the `avoid` cells (trainers' sight lines, spore grates) and, when it can, tall grass, on the
+//!   field as it is (cells a script repainted with `setmetatile`, such as an opened door, count).
 //! - [`Step::Enter`]: hold a direction until the map changes (a door, a mat, a connection), and
 //!   assert the new map.
 //! - [`Step::Interact`]: face a direction and press A (talk, read, pick up).
-//! - [`Step::Walk`]: one step (a bump into a scripted cell, or across an opened cell).
+//! - [`Step::Walk`]: one step (a bump into a scripted cell, a coord event stepped on).
+//! - [`Step::Choose`]: the index the next choice takes (the starter screen's ball); a player
+//!   decision, so it is spine data.
+//! - [`Step::Train`]: pace between two tall-grass cells until the lead Pokémon reaches a level,
+//!   playing the `heal` steps whenever it is below half its HP or has a status (the training a
+//!   player does between two story beats; the explorer's grind goal).
 //! - [`Step::Settle`]: wait for the field to be free.
 //! - [`Step::Hook`]: a test-only grant around one script's next run ([`Hook`]); the explorer
-//!   leaves these out, or replays them as its own setup.
+//!   leaves these out, or replays them as its own setup. A spine holds one only where a
+//!   buttons-only run cannot do without it (documented at the hook: [`ch01::SECOND`]); probes
+//!   that need one are separate lists ([`ch00::labo_brambles_probe`]).
 //! - [`Step::Check`]: a labelled checkpoint with its assertions; a natural place for the
 //!   explorer's `Checkpoint(label)`.
 //!
 //! Every step first settles: scripts run to their end, messages advance, yes/no boxes answer
-//! yes, the starter screen takes the right ball, and battles use the first move (the explorer's
-//! `WaitScript`, `Choose` and `Battle(policy)` are this settle policy, applied everywhere).
+//! yes, the starter screen takes the [`Step::Choose`] ball, and battles fight (the explorer's
+//! `WaitScript`, `Choose` and `Battle(policy)` are this settle policy, applied everywhere). The
+//! battle policy ([`driver::best_move`]): FIGHT, never RUN; the usable move with the best
+//! expected damage against the opponent's types (power, accuracy, same-type bonus, the type
+//! chart); new moves are learned into free slots only (B on "forget a move?"). Nothing is random
+//! outside the engine: the same steps give the same frames.
 
 #![allow(dead_code)]
 
@@ -46,6 +57,13 @@ pub enum Step {
     },
     Interact(Dir),
     Walk(Dir),
+    Choose(u8),
+    Train {
+        a: (i16, i16),
+        b: (i16, i16),
+        level: u8,
+        heal: &'static [Step],
+    },
     Settle,
     Hook(Hook),
     Check(&'static str, fn(&Run)),
@@ -55,7 +73,7 @@ pub enum Step {
 #[derive(Clone, Copy)]
 pub enum Hook {
     /// The flag is set before the script runs and cleared after it (a later chapter's unlock,
-    /// tried early).
+    /// tried early). The script must run to its end: a warp drops it before the clear.
     FlagDuring(&'static str, FlagId),
     /// A Pokémon of that species and level joins the party before the script runs.
     MonBefore(&'static str, SpeciesId, u8),
