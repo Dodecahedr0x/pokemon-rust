@@ -38,8 +38,9 @@ pub async fn RouteS06_OnLoad(ctx: Ctx) {
     .await;
 }
 
-/// The rescue's actors only at `VAR_SIL_STORY` 60 (Sc02 hides them for good); the randonneur by
-/// the cracked rocks from 61 (§2 "après VAR 61").
+/// The rescue's actors only at `VAR_SIL_STORY` 60 (Sc02 hides them for good), and at 55: the
+/// player comes up the elevator at 55 and Sc01, the on-frame entry, sets 60 after the objects
+/// have spawned. The randonneur by the cracked rocks from 61 (§2 "après VAR 61").
 pub async fn RouteS06_OnTransition(ctx: Ctx) {
     let s = story(&ctx).await;
     for f in [
@@ -47,7 +48,7 @@ pub async fn RouteS06_OnTransition(ctx: Ctx) {
         FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A,
         FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B,
     ] {
-        ctx.set_flag(f, s != 60).await;
+        ctx.set_flag(f, s != 55 && s != 60).await;
     }
     ctx.set_flag(FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR, s < 61)
         .await;
