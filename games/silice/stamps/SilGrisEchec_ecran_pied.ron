@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilGrisEchec",
+    width: 1,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (654),
+        (1679),
+    ],
+)

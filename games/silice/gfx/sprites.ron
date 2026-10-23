@@ -43,5 +43,11 @@
             gfx_id: Some(0x105),
             prompt: "Loic, a 23-year-old forest technician in light techwear: dark green waterproof jacket with purple straps, thick protective gloves, a filter mask hanging at the neck, short brown hair.",
         ),
+        // Ch2 (Gris-Échec), ids 0x120..=0x12F.
+        (
+            name: "SIL_YOHAN",
+            gfx_id: Some(0x120),
+            prompt: "Yohan, a calm young chess grandmaster and Psychic-type gym leader: neat short black hair, a long black and white checkered coat over a black turtleneck, black trousers, white gloves, hands clasped behind the back.",
+        ),
     ],
 )

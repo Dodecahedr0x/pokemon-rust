@@ -1,4 +1,5 @@
-// Cells: walls, foam blocks, the pad.
+// Cells: the foam walls (top, face), the void at the sides, the felt floor, the foam blocks, the pad;
+// the wall screen (the sign (4, 1)) set in the foam.
 [
     Ascii(x: 0, y: 0, rows: [
         "!!!!!!!!!",
@@ -8,5 +9,6 @@
         "$(%%%%%%$",
         "$%%%%%%%$",
         "$$$$$$$$$",
-    ], legend: {'!': (metatile: 526, collision: 1), '#': (metatile: 534, collision: 1), '$': (metatile: 520, collision: 1), '%': (metatile: 513, collision: 0), '&': (metatile: 3, collision: 1), '(': (metatile: 529, collision: 0)}),
+    ], legend: {'!': (metatile: 523, collision: 1), '#': (metatile: 524, collision: 1), '$': (metatile: 515, collision: 1), '%': (metatile: 522, collision: 0), '&': (metatile: 535, collision: 1), '(': (metatile: 534, collision: 0)}),
+    Paint(x: 4, y: 1, metatile: 530, collision: 1),
 ]

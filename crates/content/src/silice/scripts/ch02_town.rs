@@ -17,15 +17,23 @@ pub const MAPS: &[&str] = &[
 
 // ---- the town's cells ----
 
-/// The Tour d'Observation's door (21–22, 4): Rustboro's door metatile (the stamp's), and the
-/// wall above it standing in for the source's "crackling", shut door.
-const TOUR_DOOR: [(i16, i16); 2] = [(21, 4), (22, 4)];
-const METATILE_TOUR_DOOR: u16 = 693;
-const METATILE_TOUR_SHUT: u16 = 685;
-/// The Sector Gamma barrier: the source's (37, 1) is (39, 1) on the built town, a fence cell
-/// (764); open, the street's paving (699).
-const BARRIER: (i16, i16) = (39, 1);
-const METATILE_BARRIERE_OUVERTE: u16 = 699;
+/// The Tour d'Observation's double door (21–22, 4): SilGrisEchec's `tour` door cells, and its
+/// `tour_porte_brouillee` (the source's "crackling", shut door, the same cells in static).
+const TOUR_DOOR: [(i16, i16, u16, u16); 2] = [
+    (21, 4, METATILE_TOUR_DOOR_G, METATILE_TOUR_SHUT_G),
+    (22, 4, METATILE_TOUR_DOOR_D, METATILE_TOUR_SHUT_D),
+];
+const METATILE_TOUR_DOOR_G: u16 = 569;
+const METATILE_TOUR_DOOR_D: u16 = 570;
+const METATILE_TOUR_SHUT_G: u16 = 666;
+const METATILE_TOUR_SHUT_D: u16 = 667;
+/// The Sector Gamma barrier: the source's (37, 1) is (39, 3) on the built town (below Route
+/// S3's seam rows), SilGrisEchec's `barriere`; open, General's sidewalk (94).
+const BARRIER: (i16, i16) = (39, 3);
+const METATILE_BARRIERE_OUVERTE: u16 = 94;
+/// J1 on the annex roof (17, 4): SilGrisEchec's `j1`, switched off `j1_hs` once cut.
+const J1: (i16, i16) = (17, 4);
+const METATILE_BROUILLEUR_HS: u16 = 664;
 
 // ---- map scripts ----
 
@@ -42,12 +50,17 @@ pub async fn GrisEchec_OnTransition(ctx: Ctx) {
 }
 
 /// The Tour door shut until `FLAG_SIL_TOUR_OPEN`; the Gamma barrier open from
-/// `VAR_SIL_STORY` 28. The jammers keep their graphic once cut (see [`jammer`]).
+/// `VAR_SIL_STORY` 28; J1 switched off once cut (J2, in its bin, keeps its graphic; see
+/// [`jammer`]).
 pub async fn GrisEchec_OnLoad(ctx: Ctx) {
     if !ctx.flag(FLAG_SIL_TOUR_OPEN).await {
-        for (x, y) in TOUR_DOOR {
-            ctx.set_metatile(x, y, METATILE_TOUR_SHUT, true).await;
+        for (x, y, _, shut) in TOUR_DOOR {
+            ctx.set_metatile(x, y, shut, true).await;
         }
+    }
+    if ctx.flag(FLAG_SIL_GRIS_JAMMER_1).await {
+        let (x, y) = J1;
+        ctx.set_metatile(x, y, METATILE_BROUILLEUR_HS, true).await;
     }
     if story(&ctx).await >= 28 {
         let (x, y) = BARRIER;
@@ -87,8 +100,9 @@ async fn jammer(ctx: &Ctx, cut: FlagId) {
     }
     say(ctx, Gris_Echec_Sc02_T2).await;
     ctx.set_flag(cut, true).await;
-    // fallback: METATILE_BROUILLEUR_HS (no switched-off jammer graphic in General + Rustboro
-    // or BikeShop, "SIL2 Ch2–Ch3 maps as built"): the jammer cell keeps its graphic.
+    // fallback: METATILE_BROUILLEUR_HS only exists for J1 (SilGrisEchec's `j1_hs`, drawn by
+    // GrisEchec_EventScript_Brouilleur1); J2 in its bin and J3 (BikeShop's factory) keep their
+    // graphic.
     fallback(ctx, "jammer graphic").await;
     let n = ctx.var(VAR_SIL_GRIS_ECHEC_STATE).await + 1;
     ctx.set_var(VAR_SIL_GRIS_ECHEC_STATE, n).await;
@@ -104,6 +118,11 @@ async fn jammer(ctx: &Ctx, cut: FlagId) {
 /// J1, on the Mart annex roof (17, 4).
 pub async fn GrisEchec_EventScript_Brouilleur1(ctx: Ctx) {
     jammer(&ctx, FLAG_SIL_GRIS_JAMMER_1).await;
+    if ctx.flag(FLAG_SIL_GRIS_JAMMER_1).await {
+        let (x, y) = J1;
+        ctx.set_metatile(x, y, METATILE_BROUILLEUR_HS, true).await;
+        ctx.redraw_map().await;
+    }
 }
 
 /// J2, in the plaza bin (20, 14): the bin's line, the disguised sweeper's battle first while
@@ -126,8 +145,8 @@ pub async fn GrisEchec_EventScript_Brouilleur2(ctx: Ctx) {
 /// The cards the Tour door opens with ([`GrisEchec_Sc03`]).
 async fn open_tour(ctx: &Ctx) {
     ctx.set_flag(FLAG_SIL_TOUR_OPEN, true).await;
-    for (x, y) in TOUR_DOOR {
-        ctx.set_metatile(x, y, METATILE_TOUR_DOOR, false).await;
+    for (x, y, door, _) in TOUR_DOOR {
+        ctx.set_metatile(x, y, door, false).await;
     }
     ctx.redraw_map().await;
 }
