@@ -2757,8 +2757,9 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
   - `RouteS08/05_ch7_link.ron` cuts a two-cell path (19–20, 78) through the forest edge, down to two mats (19–20, 79), Fallarbor 689/690 (`MB_SOUTH_ARROW_WARP`). These are warps 0–1 to Reverse-City's warp 9. The trees beside the path stay solid, so the only way out is north onto `RouteS08_Sc01`'s coords (18–21, 77), which fire on `VAR_SIL_STORY` 76.
   - `bypass` from either mat to palier 1 says no. My own search from the mats, with Surf and Waterfall, reaches the north edge only across Sc01 and Sc02.
 
-**Pending link, left solid on purpose:**
-- **Évalon → Route S9 (Ch9).** The shepherd's path is the dead end at (42–45, 44–45), guarded by `LOCALID_EVALON_GARDE_SE` (hidden by `FLAG_SIL_HIDE_EVALON_GARDE_SE` from story 85). Ch9 must open the cliff and trees there and add the connection (or a warp). `Evalon_Sc10`'s coords at (42–43, 45) already fire on 85.
+**Link to Route S9 (made with Ch9):**
+- **Évalon → Route S9, as warps** (`Evalon/05_ch9_link.ron`). A connection would draw Route S9 (General + Slateport) with Évalon's tilesets. The dead end's east end (48, 44) is General's cave mouth (167, walkable `MB_NON_ANIMATED_DOOR`), warp 7 to Route S9's warp 2 at (0, 4); (48, 45) is opened and (49, 44–45) closed as cliff. Arriving from Route S9 walks the player down to (48, 45).
+- `Evalon_Sc10`'s row at (42–43, 45) could be walked round by row 44 and by the cliff gap (46–47, 43). Two more `Evalon_Sc10` coords at (47, 44–45), on 85, close it: `bypass` from the square to (48, 44) avoiding `Evalon_Sc10` says no. The guard `LOCALID_EVALON_GARDE_SE` and its flag are unchanged.
 
 **Hide flags.** Every story actor has its own persistent flag; no `FLAG_TEMP_*`.
 - **The source's own flags:** `FLAG_SIL_HIDE_EVALON_AMIS` (Mathieu on Évalon), `FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN` (Gogo), and `FLAG_SIL_EVALON_Q1_ROCHER` (the Galeries rock, which its script sets once broken).
@@ -2949,6 +2950,123 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
 4. **Unchecked rows.** The generator's `Ascii` grids are easy to get wrong by one column. The editor rejects rows of the wrong width only when they overflow; it could reject any `Ascii` row whose length differs from the first row.
 5. **Shell sandbox.** Shell loops and computed arguments are refused for `studio-map`, `sed` and `python3` alike, so every batch went through Python drivers in the scratch dir.
 6. **Time:** about 5 h for 12 maps, including 9 new tileset pairs.
+
+#### SIL4 Ch9 maps as built (Route S9 and Nébula)
+
+The 9 maps of Chapter 9 (la Prise d'Eau et Nébula) are in `games/silice/{maps,layouts}/`. They were made with the studio map editor only; their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where a warning is accepted). A scratch generator drew each grid as one `Ascii` op with a legend comment (char: metatile/collision/elevation, what). Nébula needs more than the ASCII pool's 94 symbols, so its legend also uses accented and Greek letters (the `Ascii` op takes any char). The chapter has no ASCII plans, so every layout was drafted from the text of `09-nebula.md`. Small pieces (under 10 × 10) of Emerald buildings are copied from the extract with a `frag` helper: Rustboro's Center, Mart, Devon block, grey towers and tan block; Slateport's Oceanic Museum front; the Aqua Hideout's machines; the Battle Tower lobby's elevator door. `hygiene`, with `games::copies` and the full extract, is clean.
+
+`cargo xtask studio map build` rebuilds all 89 Silice maps (after the Ch7 and Ch8 merges), and a second build gives byte-identical files. `validate` reports only unwritten scripts and the accepted warnings below. `PKR_GAME=silice cargo test -p content -p extract`, `cargo xtask silice check` (0 warnings) and `cargo test -p xtask --test silice_games` pass. `lint-reach` on the 9 maps: 0 warnings, 0 infos, 19 allowed (each `AllowReach` is listed below).
+
+**Maps.** Every Ch9 map id already existed in `ids/maps.ron` (39–44, 90–92); no new map id.
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS09 | 60 × 50 | General + Slateport | the source's size; Slateport's concrete quays make the Lac de Captage a reservoir whose lips are solid, open only at pontoons; General's deep water (334/335) for Dive |
+| RouteS09_Station | 22 × 16 | General + Facility | the Aqua Hideout's machine room: its machines are pumps A, B and C, railings, a glass partition |
+| RouteS09_Underwater | 60 × 76 | General + Underwater | the surface's 60 × 50 overlaid at the same cells (Dive and Emerge keep coordinates), and the conduit going on south under the dam |
+| Nebula | 60 × 60 | General + Rustboro | the source's size; a paved grid town of grey blocks, iron fences and lamps; Rustboro's Devon block is the Tower's base and Grande Porte |
+| Nebula_PokemonCenter | 12 × 8 | Building + PokemonCenter | the standard Silice Center (Owlys's cells) |
+| Nebula_Mart | 10 × 9 | Building + Shop | the Konbini's cells with one long shelf row |
+| Nebula_Gargote | 13 × 10 | Building + GenericBuilding | Pacifidlog's wood cabin: the stove and pot, the counter, three tables |
+| Nebula_TourHall_B1F | 20 × 16 | General + Facility | the Aqua Hideout's pool frame as the cuve, its machines as the pipes |
+| Nebula_TourHall | 24 × 16 | Building + BattleFrontier | the Battle Tower lobby: its elevator door is the crystal elevator |
+
+Headers: Route S9 `MUS_ABNORMAL_WEATHER` with `WEATHER_SHADE` (the source's overcast sky; `set_weather` is an engine need), the conduit `MUS_UNDERWATER` (`MAP_TYPE_UNDERWATER`, `WEATHER_UNDERWATER_BUBBLES`), Nébula `MUS_RG_SILPH`, the Gargote `MUS_LILYCOVE_MUSEUM`, the station, B1F and hall `MUS_AQUA_MAGMA_HIDEOUT`, the Center and Mart their usual songs. All are in the engine's song table.
+
+**Layout, briefly.**
+- **RouteS09.**
+  - Le Sentier du Berger (y 0–11): the way up to Évalon is a cave mouth (0, 4) (warp 2), then the 2-wide path (y 4–5) with `RouteS09_Sc01` across it at x 4, then the slope (x 7–15, y 2–11) with the last real tree (12–13, 3–4).
+  - La Berge (x 2–15, y 12–41): `RouteS09_Sc02` spans its whole width at y 14, before any water. Anselme's pontoon (x 16–20, y 22–23) is the only gap in the west quay lip. The two containers (Strength boulders at (4–5, 35)) close the nook with the Max Repel.
+  - Le Lac de Captage (x 17–57, y 8–41): deep water P1 (22–23, 12–13), P2 (34–37, 38–41, in front of the dam grille) and P3 (50–51, 27–28, under the station bank). The four swimmers and divers patrol on it.
+  - The station bank (x 49–57, y 12–24) is reached only by Surf at its pontoon (x 43–47, y 18–19). The security cables (47, 18–19; rail 241 drawn solid) bar it until `RouteS09_EventScript_Cables` sets `FLAG_SIL_S09_CABLES`; `RouteS09_OnLoad` repaints them as concrete. The station's door is (53–54, 17).
+  - Le Barrage-Grille (y 42–49): the quay lip, the dam wall and the grille (30–41, 43). Sign_3 is on the Berge at the dam (14, 41).
+- **RouteS09_Station.** The glass office (x 1–8, y 2–5; door gap (4, 6)): the cabinet (2, 2), a Strength boulder pushed east from (1, 2), hides the breaker on the wall (2, 1). The pumps A, B and C (x 3–4, 11–12, 17–18; y 8–11) are read from their foot row (y 11). A rail (11–12, 12) means pump B's foot is reached only along row 11, in Gérard's sight. The TM24 is in the office, the Elixir on pump C's catwalk.
+- **RouteS09_Underwater** (all floor `MB_NO_SURFACING` 681, except the emerge patches 534 at exactly the P1–P3 cells):
+  - the P1 cave (x 18–27, y 9–16), isolated, with the hidden Star Piece and Heart Scale;
+  - the P2 pool (x 31–40, y 35–44), joined to the P3 pocket (x 47–54, y 25–31) by a channel north of the currents (the return shortcut);
+  - the conduit, 6 wide: south (x 32–37, y 45–53) with current A (y 48–50), the bend east (y 54–59), south again (x 42–47, y 54–66) with current B (y 61–63), the Max Revive past B (45, 65);
+  - la Salle des Filtres (y 67–73): three corridors through the grille (x 32–33, 39–40, 46–47), only the middle one open; the Big Pearl in the west one;
+  - the way up (39–40, 74): south arrow warps (Underwater 548) to Nébula's quai.
+- **Nebula.**
+  - North: the Esplanade (y 10–14) and the Grande Porte block (x 24–34, y 2–10), its door (28–29, 10) locked (solid, with a sign). The four gate guards stand at y 12.
+  - East: le Bassin de Captage (x 44–57, y 3–21) behind an iron fence. Its only gate (44, 12) holds the Bassin guard. Deep water (50–52, 10–13). `Nebula_Sc03` is a sign on the fence either side of the gate (44, 11) and (44, 13).
+  - Centre: the giant screen block (x 26–34, y 16–21, its face (30, 21) a sign), the Manectite ball at its foot (33, 22), the Place de l'Écran with the crowd facing up, the Center (x 16–19, y 30–33, door (17, 33)) west and the Comptoir (x 41–44, y 30–33, door (42, 33)) east. The bus shelter (32–34, 37) and the loudspeaker post (24, 35).
+  - West: grey residential towers (doors solid), the Gargote (x 3–7, y 27–31, door (5, 31)) and the MAINTENANCE block (x 9–13, y 14–18), its door (11, 18) solid with a sign.
+  - The east avenue is a dead end closed by a barricade (x 52) and its sbire.
+  - South: le Quai des Eaux Grises (y 42–48) over the canal (y 49–56). The arrival (30, 52) is on the water; deep water (29–30, 54–55) dives back to the conduit. The broken drone (10, 45) hides the Revive (10, 44).
+- **Nebula_TourHall_B1F.** The cuve (water x 2–9, y 5–11; deep water 679 at (5–7, 9–11); the arrival (6, 10)) is left by Surf at the frame gap (10, 11). The rail row y 10 (x 11–18) splits the room: its only gap is (14–15, 10), in Sbire 1's sight from his niche (13, 10). Sbire 2 and the Max Elixir are off the way. The service stairs up are the Aqua door (17, 1).
+- **Nebula_TourHall.** The lobby (x 2–21, y 12–14) has the windows (west wall), the screen wall (north) and the empty reception (8–10, 13). The security corridor runs V1 (x 19–21, y 9–11; sas 1 at y 11, Sbire 3 in his niche (18, 12)), then H (x 11–18, y 9–10; sas 2 at x 14; Viktor (16, 8) facing down, Nadia (15, 11) facing up), then V2 (x 11–13, y 2–8; sas 3 at y 5; Kroll (14, 6) facing west). The elevator door is (12, 1), solid; `Nebula_TourHall_Sc02` is the coord row (11–13, 3). The laser barriers are counter metatile 669, drawn solid; `Nebula_TourHall_OnLoad` opens each sas from its trainers' flags.
+
+**Warps and links.**
+- RouteS09 0–1 ↔ RouteS09_Station 0–1 (the mat). RouteS09 2 ↔ Évalon 7 (below).
+- Nebula 0 ↔ Center, 1 ↔ Mart, 2 ↔ Gargote; Nebula 3 is the quai arrival (on water), the destination of RouteS09_Underwater's warps 0–1.
+- Nebula_TourHall 0–1 (the stairs mat) ↔ B1F 0 (the Aqua door). B1F 1 is the cuve arrival (on water), the destination of Nébula's Bassin dive.
+- **Dive.** RouteS09 `Connect(Dive)` ↔ RouteS09_Underwater `Connect(Emerge)`, offset 0: P1–P3 dive to the patches below, and the patches emerge to P1–P3. Nébula and B1F have no Dive connection; their `on_dive_warp` scripts pick the target by position (Gen3 `SetDiveWarp` runs `on_dive_warp` when the map has no Dive connection):
+  - `Nebula_OnDiveWarp`: from the Bassin (50–52, 10–13), `setdivewarp MAP_NEBULA_TOUR_HALL_B1F 6 10`; from the quai (29–30, 54–55), `setdivewarp MAP_ROUTE_S09_UNDERWATER 39 72` (the conduit's exit, all no-surfacing, so the player swims back north to P2 or P3);
+  - `Nebula_TourHall_B1F_OnDiveWarp`: from the cuve, `setdivewarp MAP_NEBULA 51 11` (the Bassin). This is the way back to the town after a defeat or before Ch10 (the Center is the respawn).
+- **Évalon → Route S9 (made after Ch8 merged), as warps.** A connection would draw each neighbour with the other's tilesets (General + Fallarbor against General + Slateport).
+  - `Evalon/05_ch9_link.ron` paints General's cave mouth (167, `MB_NON_ANIMATED_DOOR`, walkable) at the dead end's end (48, 44) as warp 7, to Route S9's warp 2, opens (48, 45) and closes (49, 44–45) as cliff. Arriving from Route S9 walks the player down to (48, 45).
+  - `Evalon_Sc10`'s row on the path, (42–43, 45), could be walked round by row 44 and by the cliff gap (46–47, 43) (`bypass` found both). Two more `Evalon_Sc10` coords at (47, 44–45), on 85, now cover every cell onto the warp: `bypass … --avoid coord:Evalon_Sc10` from the square to (48, 44) says no.
+  - Route S9's warp 2 is the cave mouth (0, 4); arriving walks the player to (0, 5), and the path east crosses `RouteS09_Sc01` (x 4) on 86, the value `Evalon_Sc10` leaves.
+- **Ch10 link (no warp).** `Nebula_TourHall_Sc02` warps to `MAP_TOUR_NEBULA_1F` from its script (the source's `warp(MAP_TOUR_NEBULA_1F, 10, 14)`). Later rides use the elevator sign, `Nebula_TourHall_EventScript_Ascenseur`, which Ch10 writes (its `Tour_Ascenseur` choice). Ch10's `HALL_ASCENSEUR_X/Y` are (12, 1); the cell in front is (12, 2).
+- **Ch11 coordinates.** `NEBULA_TOUR_EXIT_X/Y` = (28, 11), in front of the Grande Porte (the hall has no front door to the esplanade in Ch9). `NEBULA_PLACE_X/Y` = (30, 31). Nébula's local ids 40–43 are left for Ch11's EVEIL_1..4 (`FLAG_SIL_HIDE_NEBULA_EVEIL`, already allocated; Ch11 adds the objects and their `new_game_flags` entry).
+- **Ch12 link.** The MAINTENANCE door (11, 18) is solid; `MAP_BENOU_LAB`'s warp goes there in the post-game.
+
+**Objects and flags.** One persistent hide flag per object; no `FLAG_TEMP_*`.
+- **Source flags used:** `FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE` (Mathieu at the Gargote, the first actor), `FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN`, every `FLAG_SIL_ITEM_S09_*`, `_NEBULA_*` and `_TOUR_*` item flag of §7.
+- **New flags** (block 1200–1249, own commit `feat(silice): Ch9 map ids`, appended to `ids/flags.ron` and `ids.golden`; no importer run was needed):
+
+  | Num | Flag | Object | Start |
+  |---|---|---|---|
+  | 1200 | `FLAG_SIL_HIDE_NEBULA_MATHIEU` | Mathieu on the bus shelter (Nebula obj 1) | hidden; Nebula_Sc03 shows him |
+  | 1201 | `FLAG_SIL_HIDE_NEBULA_ADRIEN` | Adrien at the loudspeaker (Nebula obj 2) | hidden; Nebula_Sc03 shows him |
+  | 1202 | `FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN` | Adrien at the Gargote (obj 2) | shown; Nebula_Sc03 sets it |
+  | 1203 | `FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA` | Gwada at the Gargote (obj 3) | shown; Nebula_Sc03 sets it |
+  | 1204 | `FLAG_SIL_S09_CABLES` | the station's security cables (state, not an object) | clear |
+
+- **`new_game_flags`:** `_NEBULA_MATHIEU` and `_NEBULA_ADRIEN`. `game_tests.rs` asserts them set, and asserts `_NEBULA_AMIS_GARGOTE`, `_GARGOTE_ADRIEN`, `_GARGOTE_GWADA` and `_GARDE_BASSIN` clear.
+- **Local ids.** Nebula keeps the source's: Mathieu 1, Adrien 2, (3 free: Gwada is only on the screen), the Bassin guard 10, the gate guards 11–14, the drone 20, the crowd 30–39 (30–33 are Npc_1, 2, 5, 8; 34–39 share `Nebula_EventScript_Foule`). Npc_3, 4, 6, 7 are 4–7; the Manectite is 50. The Gargote keeps 1–4 (Mathieu, Adrien, Gwada, Fenouil). Objects without a source id are numbered from 1.
+- **Sprites (placeholders).** The drone is `CAMERAMAN` (no extracted drone or Magnemite sprite), the Cocket divers `SWIMMER_M/F`, the guards and sbires `MAGMA_MEMBER_M/F` (`POLICEMAN` is not extracted), Fenouil `WOMAN_5`.
+
+**Path search.** `chk.py` (scratch) runs 21 `reach`/`bypass` checks, all as expected:
+- Route S9: `Sc01` and `Sc02` cannot be walked round (from the Évalon warp; Sc02 also with Surf, to the pontoon's water); the station is unreachable without opening the cables and reachable with them; P2 is reached by Surf; the containers' ball is reached by pushing them.
+- Station: console B cannot be reached outside Gérard's sight; the breaker is read after the cabinet push.
+- Nébula: the quai arrival reaches the town by Surf; the Bassin is closed while its guard stands (`--hidden FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN` opens it); the Bassin's water does not join the canal.
+- B1F: Sbire 1 cannot be avoided, Sbire 2 can.
+- Hall: sas 1 is shut until opened; with the sas opened (`--open`), Sbire 3, Viktor, Nadia, Kroll and the elevator row cannot be walked round.
+
+The walk model treats `MB_NO_SURFACING` floor as blocked water and skips Dive, so the conduit was checked by my own search (`uwchk.py`, 14 checks): the exit is shut with both pumps on, with only A off and with only B off, and open with both off; each current's warning row cannot be walked round; P3 joins the P2 pool north of the currents; the P1 cave is isolated; every item, hidden item and porthole is reachable; the emerge patches are exactly P1–P3.
+
+**Accepted warnings.**
+- `validate`: `RouteS09` rail 241 drawn solid (`AllowCollision` by metatile: the cables and the grille); `RouteS09_Underwater` warps 0–1 on 548 (`MB_WATER_SOUTH_ARROW_WARP` is Gen3's `IsSouthArrowWarp`, but the engine classifies it as blocked water until Dive lands); `Nebula` warp 3 and `Nebula_TourHall_B1F` warp 1 on water (arrival points).
+- `lint-reach` (`AllowReach`): Route S9 warp 2 (the Évalon side and the station bank are joined by Surf past the cables) and the four swimmers (sight on the lake, by Surf); RouteS09_Underwater warp 1, its Max Revive and bg 0–5 (no-surfacing floor and Dive not modelled); B1F warp 1 and Nébula warp 3 (arrivals on water); the hall's Viktor, Nadia, Kroll and elevator sign (behind the sas that `OnLoad` opens).
+
+**Script contract (names placed, scripts unwritten).**
+- Map scripts: `RouteS09_OnLoad` (cables), `RouteS09_Station_OnLoad` (pump lights for `_POMPE_A/_B`), `RouteS09_Underwater_OnLoad` (currents A (32–37, 48–50) and B (42–47, 61–63) to floor 681, collision 0, per `_POMPE_A/_B`), `Nebula_OnTransition` (gate guards at the door from 95: `setobjectxyperm`), `Nebula_OnLoad` (optional: the screen as Gwada's broadcast while `FLAG_SIL_NEBULA_DIVERSION`), `Nebula_OnDiveWarp`, `Nebula_TourHall_B1F_OnDiveWarp`, `Nebula_TourHall_OnLoad` (sas 1 for Sbire 3, sas 2 for Viktor and Nadia, sas 3 for Kroll: floor 553, collision 0), `Nebula_PokemonCenter_OnTransition` (respawn).
+- Scenes: `RouteS09_Sc01` (coord, 86 → 90), `RouteS09_Sc02` (coord, 90 → 91), `RouteS09_Underwater_Sc04` (on-frame `VAR_TEMP_1` 0: sets `VAR_TEMP_1` 1; the first time, Route_S09_Sc04_T1 and `FLAG_SIL_S09_PREMIERE_PLONGEE`), `Nebula_Sc01` (on-frame 92 → 93), `Nebula_Gargote_Sc02` (on-frame 93 → 94; Mathieu walks down 2 to (6, 8)), `Nebula_Sc03` (the fence signs; 94 → 95, sets the four friends' and the guard's flags), `Nebula_TourHall_B1F_Sc04` (on-frame 95 → 96: the source's Nebula_Sc04 text after the dive), `Nebula_TourHall_Sc02` (coord 97 → 99, the elevator). Route_S09_Sc03 is the consoles' scripts (`RouteS09_Station_EventScript_PupitreA/_PupitreB/_PompeC/_Disjoncteur`); Tour_Hall_Sc01 is Kroll's after-battle script (97).
+- Events: `RouteS09_EventScript_{Refugie, Anselme, Technicienne, Marin, Oceane, Plongeur7, Plongeuse12, Conteneur, ItemUltraBall, ItemConteneurs, Sign1, Sign2, Sign3, Cables}`; `RouteS09_Station_EventScript_{Technicien, Agent, Armoire, ItemTM24, ItemElixir}`; `RouteS09_Underwater_EventScript_{Courant, Hublot, ItemMaxRevive}` (`Courant` fires from the cells in front of each current on `VAR_TEMP_2`/`VAR_TEMP_3` 0: while the pump runs, Route_S09_UW_Courant and a push back north); `Nebula_EventScript_{Mathieu, Adrien, Enfant, Employe, SbireBarricade, Livreur, GardeBassin, GardePorte, Drone, Npc1, Npc2, Npc5, Npc8, Foule, ItemManectite, EcranGeant, AvisRecherche, EcranSol, HautParleur, GrandePorte, PorteMaintenance, Barricade}`; `Nebula_PokemonCenter_EventScript_{Nurse, Dresseuse, Homme, Distributeur, Ecran}`; `Nebula_Mart_EventScript_{Clerk, Client}`; `Nebula_Gargote_EventScript_{Mathieu, Adrien, Gwada, Fenouil}`; `Nebula_TourHall_B1F_EventScript_{Sbire1, Sbire2, ItemMaxElixir}`; `Nebula_TourHall_EventScript_{Sbire3, Viktor, Nadia, Kroll, Vitre, Ecran, Accueil, Ascenseur}`.
+- Trainers on the maps: `TRAINER_SIL_S09_{ANSELME, MARIN, OCEANE, PLONGEUR_7, PLONGEUSE_12, TECHNICIEN}`, `TRAINER_SIL_TOUR_SBIRE_1/2/3`, `TRAINER_SIL_GARDE_COCKET_VIKTOR/NADIA`, `TRAINER_SIL_CHEF_SECURITE_KROLL`.
+
+**Source fixes and placements.**
+- Route_S09_Sc04's `warp(MAP_ROUTE_S09_UNDERWATER, 15, 2)` is replaced by native Dive at P2's own cells; the text moves to the underwater map's on-frame script.
+- Nebula_Sc04 (the dive in the Bassin) runs on B1F's on-frame at 95, after the dive warp, not before it: Gen3 has no hook between choosing Dive and warping.
+- The friends at the Gargote have one flag each; the source's single `FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE` stays on Mathieu.
+- Gwada (the source's obj 3 in Sc03) is only on the screen: Nébula's local id 3 is left free.
+- The B1F mandatory sbire stands in a niche beside the corridor, so he never blocks it after his battle; the hall's guards do the same.
+- The heal in the elevator, the camera pans, the halo under water, the per-map surf music and the periodic announcement are engine needs (§9 of the chapter); the maps do not depend on them.
+
+**Missing or later.**
+- Dive, Emerge and underwater movement (engine): the maps follow Gen3's behaviours (deep water 334/335 and 679, no-surfacing floor, emerge patches 534, water arrow warps 548).
+- Current tiles: Emerald's Underwater tileset has none; the currents are drawn solid (549) with a warning row. A pushing current needs the forced-movement work.
+- The Tower is not drawn north of the esplanade beyond the Grande Porte block; the hall has no front door (the Grande Porte stays shut in Ch9).
+- Sprites: the drone, the Cocket divers and guards, the robot nurse's grey palette.
+
+**Editor friction.**
+1. **Reach tools and water.** `reach`/`bypass`/`lint-reach` do not walk `MB_NO_SURFACING` floor nor Dive/Emerge, so an underwater map gets only "not reachable"; a `--underwater` mode (walk every non-solid cell) and Dive/Emerge edges would cover it.
+2. **Trainer sight on water.** `lint-reach` reports swimmers' sight as unreachable (lint does not surf); `reach --surf` shows it fine.
+3. **Tileset seams.** Every link between two chapters so far has had to be a warp because the tilesets differ; a validate check that flags a connection between different secondary tilesets would catch it at once.
+4. **Legend size.** One `Ascii` grid of a big town needs more than 94 symbols; the op accepts any char, but the convention could be stated.
+5. **Shell sandbox.** As before, every batch of `studio-map` calls went through Python drivers.
 
 #### SIL1 Task A as built: the authored-data loader
 
