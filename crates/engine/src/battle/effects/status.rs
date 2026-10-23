@@ -56,6 +56,7 @@ pub(super) fn cancel_multi_turn(b: &mut Battle, side: Side) {
     m.bide_turns = 0;
     m.v.uproar = 0;
     m.v.fury_cutter = 0;
+    super::mech::cancel_locks(b, side);
 }
 
 /// `UproarWakeUpCheck`: some battler is making an uproar and `side` is not Soundproof. The
@@ -84,6 +85,10 @@ pub(super) fn set_status(
     cause: Cause,
 ) -> bool {
     if cause.shield_dust(b, effect) || b.battler(effect).mon.hp == 0 {
+        return false;
+    }
+    // Safeguard blocks a secondary status silently (`SIDE_STATUS_SAFEGUARD`, effect ≤ 7).
+    if !cause.primary && cause.ability.is_none() && super::mech::safeguarded(b, effect) {
         return false;
     }
     let m = b.battler(effect);
@@ -174,6 +179,9 @@ pub(super) fn confuse(
     if cause.shield_dust(b, effect) || m.mon.hp == 0 || m.confusion > 0 {
         return false;
     }
+    if !cause.primary && cause.ability.is_none() && super::mech::safeguarded(b, effect) {
+        return false;
+    }
     b.battler_mut(effect).confusion = (env.rng.random() % 4) as u8 + 2;
     // BattleScript_MoveEffectConfusion: STRINGID_PKMNWASCONFUSED.
     env.out.push(BattleEvent::Msg(effect_msg(
@@ -235,6 +243,8 @@ fn status_icon(b: &Battle, env: &mut Env, side: Side) {
 /// `WasUnableToUseMove` reads set `Volatiles::unable`.
 pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
     let a = u.attacker;
+    // CANCELLER_FLAGS.
+    super::mech::canceler_flags(b, u);
     // CANCELLER_ASLEEP: an uproar wakes it (`UproarWakeUpCheck`); else the counter drops by
     // one (two with Early Bird) first.
     if let Status::Sleep(n) = b.battler(a).mon.status {
@@ -257,32 +267,44 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
                 Status::Sleep(n)
             };
             b.write_back(a);
+            // Snore and Sleep Talk go on (`gCurrentMove != MOVE_SNORE / MOVE_SLEEP_TALK`).
             if n > 0 {
-                // BattleScript_MoveUsedIsAsleep.
-                env.out.push(about_attacker(u, Str::PkmnFastAsleep));
-                return Canceler::Skip;
+                if !super::mech::sleep_usable(u) {
+                    // BattleScript_MoveUsedIsAsleep.
+                    env.out.push(about_attacker(u, Str::PkmnFastAsleep));
+                    return Canceler::Skip;
+                }
+            } else {
+                // BattleScript_MoveUsedWokeUp.
+                env.out.push(about_attacker(u, Str::PkmnWokeUp));
+                status_icon(b, env, a);
             }
-            // BattleScript_MoveUsedWokeUp.
-            env.out.push(about_attacker(u, Str::PkmnWokeUp));
-            status_icon(b, env, a);
         }
     }
     // CANCELLER_FROZEN: thaws when `Random() % 5 == 0`.
     if b.battler(a).mon.status == Status::Freeze {
         if !env.rng.random().is_multiple_of(5) {
-            env.out.push(about_attacker(u, Str::PkmnIsFrozen));
-            return Canceler::Skip;
+            // A thawing move (Flame Wheel, Sacred Fire) goes on: CANCELLER_THAW.
+            if u.info.effect != crate::mon::MoveEffect::ThawHit {
+                env.out.push(about_attacker(u, Str::PkmnIsFrozen));
+                return Canceler::Skip;
+            }
+        } else {
+            b.battler_mut(a).mon.status = Status::None;
+            b.write_back(a);
+            // BattleScript_MoveUsedUnfroze.
+            env.out.push(about_attacker(u, Str::PkmnWasDefrosted2));
+            status_icon(b, env, a);
         }
-        b.battler_mut(a).mon.status = Status::None;
-        b.write_back(a);
-        // BattleScript_MoveUsedUnfroze.
-        env.out.push(about_attacker(u, Str::PkmnWasDefrosted2));
-        status_icon(b, env, a);
     }
     // CANCELLER_TRUANT: BattleScript_MoveUsedLoafingAround.
     if b.battler(a).ability == Ability::Truant && b.battler(a).v.truant {
         cancel_multi_turn(b, a);
         env.out.push(about_attacker(u, Str::PkmnLoafing));
+        return Canceler::Skip;
+    }
+    // CANCELLER_RECHARGE.
+    if super::mech::canceler_recharge(b, env, u) {
         return Canceler::Skip;
     }
     // CANCELLER_FLINCH.
@@ -292,6 +314,10 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
         cancel_multi_turn(b, a);
         env.out.push(about_attacker(u, Str::PkmnFlinched));
         super::later::steadfast(b, env, a);
+        return Canceler::Skip;
+    }
+    // CANCELLER_DISABLED, CANCELLER_TAUNTED.
+    if super::mech::canceler_limits(b, env, u) {
         return Canceler::Skip;
     }
     // CANCELLER_CONFUSED: the counter drops first; then a 50% self-hit.
@@ -345,6 +371,8 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
         }
         return bide_release(b, env, u);
     }
+    // CANCELLER_THAW.
+    super::mech::canceler_thaw(b, env, u);
     Canceler::Use
 }
 
@@ -430,6 +458,8 @@ fn fraction(max_hp: u16, div: u16) -> i32 {
 pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
     for side in b.order {
         let foe = side.other();
+        // ENDTURN_INGRAIN.
+        super::mech::end_turn_ingrain(b, env, side);
         // ENDTURN_ABILITIES.
         super::abilities::end_turn(b, env, side);
         super::later::end_turn(b, env, side);
@@ -479,11 +509,17 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
             b.change_hp_passive(env, side, damage);
             b.try_faint(env, side);
         }
+        // ENDTURN_NIGHTMARES, ENDTURN_CURSE, ENDTURN_WRAP.
+        super::mech::end_turn_after_status(b, env, side);
         // ENDTURN_UPROAR.
         uproar_turn(b, env, side);
+        // ENDTURN_THRASH, ENDTURN_DISABLE, ENDTURN_ENCORE, ENDTURN_LOCK_ON.
+        super::mech::end_turn_timers(b, env, side);
         // ENDTURN_CHARGE.
         let m = b.battler_mut(side);
         m.charge = m.charge.saturating_sub(1);
+        // ENDTURN_TAUNT.
+        super::mech::end_turn_taunt(b, side);
         // ENDTURN_YAWN.
         yawn_turn(b, env, side);
         // ENDTURN_ITEMS2.

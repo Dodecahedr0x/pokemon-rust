@@ -51,13 +51,6 @@ const X0_25: i32 = 10;
 const X0_5: i32 = 20;
 const X4: i32 = 160;
 
-/// `sIgnoredPowerfulMoveEffects`, as raw `EFFECT_*` (none is implemented by the engine).
-const IGNORED_POWERFUL: [u8; 12] = [7, 8, 39, 75, 80, 145, 151, 161, 170, 182, 190, 204];
-/// `EFFECT_EXPLOSION`, `EFFECT_ALWAYS_HIT`, `EFFECT_PROTECT`, `EFFECT_SPECIAL_DEFENSE_UP`.
-const EFFECT_EXPLOSION: u8 = 7;
-const EFFECT_ALWAYS_HIT: u8 = 17;
-const EFFECT_PROTECT: u8 = 111;
-
 /// The opponent's action for this turn, chosen when the turn starts (Gen3 asks the opponent's
 /// controller during action selection, before the player's choice resolves). The core only
 /// asks when a move is usable; it maps `Choice::Run` to fleeing (`B_ACTION_RUN`) and
@@ -135,12 +128,11 @@ const TARGET: Side = Side::Player;
 impl<'a> Ai<'a> {
     /// `BattleAI_SetupAIData(ALL_MOVES_MASK)`.
     fn setup(b: &'a Battle, t: &'a BattleTables, rng: &'a mut Rng) -> Self {
-        let m = b.battler(USER);
         let mut score = [0; 4];
         let mut sim = [0; 4];
         for i in 0..4 {
-            // CheckMoveLimitations: no move or no PP.
-            score[i] = if m.mon.moves[i].is_some() && m.mon.pp[i] > 0 {
+            // CheckMoveLimitations: no move, no PP, Disable, Torment, Taunt.
+            score[i] = if !super::effects::slot_limited(b, t, USER, i) {
                 100
             } else {
                 0
@@ -294,7 +286,19 @@ impl<'a> Ai<'a> {
     }
 
     fn ignored_powerful(info: &MoveInfo) -> bool {
-        matches!(info.effect, MoveEffect::Unsupported(e) if IGNORED_POWERFUL.contains(&e))
+        // `sIgnoredPowerfulMoveEffects`.
+        matches!(
+            info.effect,
+            MoveEffect::Explosion
+                | MoveEffect::DreamEater
+                | MoveEffect::TwoTurn(_)
+                | MoveEffect::Recharge
+                | MoveEffect::SpitUp
+                | MoveEffect::FocusPunch
+                | MoveEffect::Superpower
+                | MoveEffect::Eruption
+                | MoveEffect::Overheat
+        )
     }
 
     /// `Cmd_get_how_powerful_move_is`: `None` = `MOVE_POWER_OTHER`, else whether `slot` is
@@ -398,7 +402,7 @@ impl<'a> Ai<'a> {
         // if_can_faint.
         if info.power >= 2 && self.b.battler(TARGET).mon.hp as i32 <= self.damage(slot, mov) {
             match info.effect {
-                MoveEffect::Unsupported(EFFECT_EXPLOSION) => {}
+                MoveEffect::Explosion => {}
                 MoveEffect::QuickAttack => self.add(slot, 6),
                 _ => self.add(slot, 4),
             }
@@ -429,7 +433,7 @@ impl<'a> Ai<'a> {
                 Stat::Evasion => self.cv_evasion_up(slot),
                 Stat::Hp => {}
             },
-            MoveEffect::Unsupported(EFFECT_ALWAYS_HIT) => self.cv_always_hit(slot),
+            MoveEffect::AlwaysHit => self.cv_always_hit(slot),
             MoveEffect::StatDown { stat, .. } => match stat {
                 Stat::Atk => self.cv_attack_down(slot, Stat::Atk, &PHYSICAL_TYPE_LIST),
                 Stat::SpAtk => self.cv_attack_down(slot, Stat::SpAtk, &SPECIAL_TYPE_LIST),
@@ -714,7 +718,7 @@ impl<'a> Ai<'a> {
                 MoveEffect::StatUp {
                     stat: Stat::SpDef,
                     stages: 1
-                } | MoveEffect::Unsupported(EFFECT_PROTECT)
+                } | MoveEffect::Protect
             )
         });
         if encouraged && !self.random_lt(60) {
@@ -786,13 +790,9 @@ const SPECIAL_TYPE_LIST: [Type; 8] = [
     Type::Dark,
 ];
 
-/// `AI_SetupFirstTurn_SetupEffectsToEncourage` beyond the engine's effects, as raw
-/// `EFFECT_*`: CONVERSION, LIGHT_SCREEN, REFLECT, SUBSTITUTE, MINIMIZE, CURSE, SWAGGER,
-/// TORMENT, FLATTER, WILL_O_WISP, INGRAIN, IMPRISON, TEETER_DANCE, CAMOUFLAGE, TICKLE,
-/// COSMIC_POWER, BULK_UP, CALM_MIND.
-const SETUP_UNSUPPORTED: [u8; 18] = [
-    30, 35, 65, 79, 108, 109, 118, 165, 166, 167, 181, 192, 199, 213, 205, 206, 208, 211,
-];
+/// `AI_SetupFirstTurn_SetupEffectsToEncourage` the engine leaves `Unsupported`, as raw
+/// `EFFECT_*`: SUBSTITUTE, IMPRISON.
+const SETUP_UNSUPPORTED: [u8; 2] = [79, 192];
 
 /// Whether `e` is in `AI_SetupFirstTurn_SetupEffectsToEncourage`: every stat up / down (1 or
 /// 2 stages), Focus Energy, Confuse, Poison, Paralyze, Leech Seed, Defense Curl, Yawn and
@@ -806,7 +806,22 @@ fn setup_effect(e: MoveEffect) -> bool {
         | MoveEffect::Status(StatusKind::Poison | StatusKind::Paralysis)
         | MoveEffect::LeechSeed
         | MoveEffect::DefenseCurl
-        | MoveEffect::Yawn => true,
+        | MoveEffect::Yawn
+        | MoveEffect::Status(StatusKind::Burn)
+        | MoveEffect::Conversion
+        | MoveEffect::LightScreen
+        | MoveEffect::Reflect
+        | MoveEffect::Minimize
+        | MoveEffect::Curse
+        | MoveEffect::Swagger
+        | MoveEffect::Torment
+        | MoveEffect::Flatter
+        | MoveEffect::Ingrain
+        | MoveEffect::TeeterDance
+        | MoveEffect::Camouflage
+        | MoveEffect::Tickle => true,
+        // COSMIC_POWER, BULK_UP, CALM_MIND (not DRAGON_DANCE).
+        MoveEffect::StatsUp(a, b) => (a, b) != (Stat::Atk, Stat::Speed),
         MoveEffect::Unsupported(n) => SETUP_UNSUPPORTED.contains(&n),
         _ => false,
     }
