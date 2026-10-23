@@ -450,6 +450,42 @@ pub fn reach<G: GameData>(game: &G, snap: &WorldSnapshot) -> Reach {
     }
 }
 
+/// [`reach`] around the map's objects that are not spawned yet as well (Gen3 spawns object
+/// events only near the camera): each template whose hide flag is clear and that is not among
+/// the snapshot's objects blocks its cell (its template position, moved by the snapshot's
+/// template deltas). A branch target behind a boulder or an NPC off camera is not reachable:
+/// the walk would find the object there and stall (`NoPath`).
+pub fn reach_all<G: GameData>(game: &G, snap: &WorldSnapshot) -> Reach {
+    let map = snap.field.map;
+    let spawned = |id: u8| (snap.objects.objs.iter()).any(|o| o.map == map && o.local_id == id);
+    let hidden = |f: Option<engine::data::FlagId>| {
+        f.is_some_and(|f| snap.vars.flags.binary_search(&f).is_ok())
+    };
+    let mut occupied: Vec<(i16, i16)> = snap.objects.objs[1..]
+        .iter()
+        .flat_map(|o| [o.pos, o.prev])
+        .collect();
+    for o in game.map(map).objects {
+        if spawned(o.local_id) || hidden(o.hide_flag) {
+            continue;
+        }
+        let moved =
+            (snap.templates.iter()).find_map(|t| (t.local_id == o.local_id).then_some(t.pos));
+        occupied.push(moved.flatten().unwrap_or((o.x, o.y)));
+    }
+    let mut grid = Grid::new(game, map, &snap.field.overrides, occupied);
+    if let Some(p) = snap.objects.objs.first() {
+        grid = grid.with_elevation(p.current_elevation());
+    }
+    let from = snap.objects.objs[0].pos;
+    Reach {
+        width: grid.map.width,
+        height: grid.map.height,
+        dist: grid.distances(from, false),
+        map,
+    }
+}
+
 /// The first step toward `to` from the live world (re-planned every frame; encounter tiles
 /// (`Behavior::land_encounter`: tall grass, cave floors, deep sand) only when there is no other way). `overrides` come from the macro's start snapshot.
 pub fn next_dir<G: GameData>(

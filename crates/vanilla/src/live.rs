@@ -258,6 +258,11 @@ impl<'g, G: GameData> Live<'g, G> {
                 self.v.settle(MACRO_FRAMES)?;
             }
             Step::Walk(dir) => self.v.walk_dir(dir, MACRO_FRAMES)?,
+            Step::Path { dirs, .. } => {
+                for &dir in dirs {
+                    self.v.walk_dir(dir, MACRO_FRAMES)?;
+                }
+            }
             Step::Exit { dir, to } => {
                 for _ in 0..RETRIES {
                     if self.map()? != start {
