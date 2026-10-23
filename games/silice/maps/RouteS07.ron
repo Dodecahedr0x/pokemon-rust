@@ -57,7 +57,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS07_EventScript_Bloc"),
-            flag: None,
+            flag: Some("FLAG_TEMP_11"),
         ),
         (
             local_id: 4,
@@ -87,7 +87,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS07_EventScript_Bloc"),
-            flag: None,
+            flag: Some("FLAG_TEMP_12"),
         ),
         (
             local_id: 6,
@@ -147,7 +147,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS07_EventScript_Bloc"),
-            flag: None,
+            flag: Some("FLAG_TEMP_13"),
         ),
         (
             local_id: 10,
@@ -237,7 +237,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS07_EventScript_Bloc"),
-            flag: None,
+            flag: Some("FLAG_TEMP_14"),
         ),
         (
             local_id: 16,
@@ -360,9 +360,9 @@
             x: 21,
             y: 32,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_ETHER",
-                flag: "FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS07_EventScript_HiddenEther"),
             ),
         ),
     ],

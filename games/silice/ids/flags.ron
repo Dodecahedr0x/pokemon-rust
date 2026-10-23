@@ -2481,6 +2481,25 @@
             name: "FLAG_SIL_RAYQUAZA_CAPTURE",
             num: 1123,
         ),
+        // SIL4 Ch7 scripts (script block 1180-1199): the four mirror signs' plaques read (the
+        // vault's multichoice fallback, ReverseCity_Coffre_Sc04: the code is known once all four
+        // are read).
+        (
+            name: "FLAG_SIL_REVERSE_PLAQUE_1",
+            num: 1180,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_PLAQUE_2",
+            num: 1181,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_PLAQUE_3",
+            num: 1182,
+        ),
+        (
+            name: "FLAG_SIL_REVERSE_PLAQUE_4",
+            num: 1183,
+        ),
         (
             name: "FLAG_SIL_HIDE_NEBULA_MATHIEU",
             num: 1200,
