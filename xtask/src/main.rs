@@ -230,8 +230,10 @@ fn fresh_extract() -> Result<()> {
 }
 
 /// `cargo xtask parity [--long]`: the committed tree verified, the ROM built, then the parity
-/// lanes (`emu/tests/parity.rs`) and the studio's ROM pane. `--long` then builds the map tour
-/// ROM (`target/game-tour.gba`, `game-gba --features tour`) and runs `emu/tests/tour.rs`.
+/// lanes (`emu/tests/parity.rs`, but `act1_long`), the native Act 1 invariant
+/// (`game-native/tests/act1.rs`) and the studio's ROM pane. `--long` then replays the whole Act 1
+/// trace on the ROM (`parity.rs`'s `act1_long`), builds the map tour ROM
+/// (`target/game-tour.gba`, `game-gba --features tour`) and runs `emu/tests/tour.rs`.
 fn parity(args: &[String]) -> Result<()> {
     let long = match args {
         [] => false,
@@ -261,6 +263,20 @@ fn parity(args: &[String]) -> Result<()> {
         "--",
         "--ignored",
         "--nocapture",
+        "--skip",
+        "act1_long",
+    ]))?;
+    // The checkpoint invariant along Act 1 (Milestone 8 Task P), native, in release.
+    run(Command::new("cargo").current_dir(root()).args([
+        "test",
+        "-p",
+        "game-native",
+        "--release",
+        "--test",
+        "act1",
+        "--",
+        "--ignored",
+        "--nocapture",
     ]))?;
     // The studio's ROM pane on the ROM just built (its `#[ignore]`d tests need `target/game.gba`).
     run(Command::new("cargo").current_dir(root()).args([
@@ -274,6 +290,18 @@ fn parity(args: &[String]) -> Result<()> {
         "--ignored",
     ]))?;
     if long {
+        // The whole Act 1 trace on the ROM from a new game (Milestone 8 Task P).
+        run(Command::new("cargo").current_dir(root()).args([
+            "test",
+            "-p",
+            "emu",
+            "--test",
+            "parity",
+            "act1_long",
+            "--",
+            "--ignored",
+            "--nocapture",
+        ]))?;
         tour()?;
     }
     Ok(())
