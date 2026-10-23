@@ -138,7 +138,7 @@ pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m:
         MacroKind::Talk { local_id } => st.talkable(local_id),
         MacroKind::Inspect { x, y, dir } => st.inspect_dirs((x, y)).any(|d| d == dir),
         MacroKind::Grass { x, y } => {
-            st.reach.dist(x, y).is_some() && st.grid.behavior((x, y)) == Behavior::TallGrass
+            st.reach.dist(x, y).is_some() && st.grid.behavior((x, y)).land_encounter()
         }
     }
 }
@@ -325,11 +325,12 @@ impl<'a, G: GameData> State<'a, G> {
         self.inspect_dirs(at).next()
     }
 
-    /// The nearest reachable tall-grass cell (row-major first on ties).
+    /// The nearest reachable encounter cell (`Behavior::land_encounter`: tall grass, cave floor,
+    /// deep sand; row-major first on ties).
     fn nearest_grass(&self) -> Option<(i16, i16)> {
         self.reach
             .cells()
-            .filter(|&c| self.grid.behavior(c) == Behavior::TallGrass)
+            .filter(|&c| self.grid.behavior(c).land_encounter())
             .min_by_key(|&(x, y)| (self.reach.dist(x, y), y, x))
     }
 

@@ -702,7 +702,8 @@ impl<G: GameData> Recorder<G> {
     }
 
     /// First direction of a shortest path from the player's cell to `to`.
-    /// The first step toward `to`, through tall grass only when there is no other way.
+    /// The first step toward `to`, through encounter tiles (`Behavior::land_encounter`) only when
+    /// there is no other way.
     fn next_dir(&self, to: (i16, i16)) -> Option<Dir> {
         self.path_dir(to, true).or_else(|| self.path_dir(to, false))
     }
@@ -721,7 +722,7 @@ impl<G: GameData> Recorder<G> {
 }
 
 /// The first step of a shortest walk on `map` from `from` to `to` (a door or warp only as the
-/// target), avoiding `occupied` cells, tall grass if `avoid_grass`, directional walls, and
+/// target), avoiding `occupied` cells, encounter tiles if `avoid_grass`, directional walls, and
 /// ledges except jumped down their way.
 fn first_dir<G: GameData>(
     game: &G,
@@ -743,7 +744,7 @@ fn first_dir<G: GameData>(
         block_collision(b) == 0
             && behavior != Behavior::Blocked
             && !behavior.enters_warp()
-            && !(avoid_grass && behavior == Behavior::TallGrass)
+            && !(avoid_grass && behavior.land_encounter())
     };
     let mut queue = VecDeque::new();
     if !in_bounds(map, from.0, from.1) || !in_bounds(map, to.0, to.1) {

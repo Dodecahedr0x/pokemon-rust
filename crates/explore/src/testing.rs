@@ -27,7 +27,8 @@ use std::sync::RwLock;
 /// `GameData` methods delegating to the field `$f` of `self`, one per name, for wrappers in
 /// tests and tools: `forward_game_data!(inner; map has_map … m8)`. `m8` stands for the
 /// Milestone 8 methods but `wild_encounters` (name it, or override it, separately: the engine
-/// reads it), plus the Silice battle methods (`hold_effect`, `form_changes`). Paths are absolute, so
+/// reads it), plus the Silice battle methods (`hold_effect`, `form_changes`) and `map_type`
+/// (the battle background). Paths are absolute, so
 /// the caller needs only the `engine` crate.
 #[macro_export]
 macro_rules! forward_game_data {
@@ -178,9 +179,14 @@ macro_rules! forward_game_data {
             self.$f.form_changes()
         }
     };
+    (@ $f:tt map_type) => {
+        fn map_type(&self, map: ::engine::data::MapId) -> ::engine::data::MapType {
+            self.$f.map_type(map)
+        }
+    };
     (@ $f:tt m8) => {
         $crate::forward_game_data!($f; item multichoice std_string trainer_flag_of emote
-                                   trainer_money evolutions hold_effect form_changes);
+                                   trainer_money evolutions hold_effect form_changes map_type);
     };
 }
 

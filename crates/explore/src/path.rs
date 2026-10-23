@@ -125,9 +125,7 @@ impl<'a, G: GameData> Grid<'a, G> {
     }
 
     pub fn walkable(&self, c: (i16, i16), avoid_grass: bool) -> bool {
-        self.open(c)
-            && !self.occupied(c)
-            && !(avoid_grass && self.behavior(c) == Behavior::TallGrass)
+        self.open(c) && !self.occupied(c) && !(avoid_grass && self.behavior(c).land_encounter())
     }
 
     /// Where a step from `c` toward `d` lands, if the planner allows it: a ledge toward `d` is
@@ -220,8 +218,8 @@ pub fn reach<G: GameData>(game: &G, snap: &WorldSnapshot) -> Reach {
     }
 }
 
-/// The first step toward `to` from the live world (re-planned every frame; tall grass only
-/// when there is no other way). `overrides` come from the macro's start snapshot.
+/// The first step toward `to` from the live world (re-planned every frame; encounter tiles
+/// (`Behavior::land_encounter`: tall grass, cave floors, deep sand) only when there is no other way). `overrides` come from the macro's start snapshot.
 pub fn next_dir<G: GameData>(
     game: &G,
     w: &World,
