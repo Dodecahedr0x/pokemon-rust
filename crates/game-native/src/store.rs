@@ -903,6 +903,9 @@ impl Store {
     /// of this run, and replays the node itself otherwise. A replay is a function of its start
     /// and its trace, so the outcome is `verify_nodes`'s: a chain whose snapshots are cached
     /// verifies in the time of its longest node.
+    ///
+    /// At most `jobs` threads (at least 1). Memory: every guessed start and every speculative
+    /// result is held until the pass ends, so O(nodes x a checkpoint) (a few KiB each).
     pub fn verify_nodes_par(
         &self,
         replay: impl Fn(Option<&Checkpoint>, &Trace) -> Result<Replayed, String> + Sync,
@@ -921,7 +924,9 @@ impl Store {
             match n.trace.parent {
                 Parent::NewGame => guesses.push((n, None)),
                 Parent::Checkpoint(p) => {
-                    if let Some(cp) = self.snapshot(p)?
+                    // An unreadable snapshot is no guess (the serial pass never reads one), so
+                    // a store `verify_nodes` verifies never fails here.
+                    if let Ok(Some(cp)) = self.snapshot(p)
                         && digests.get(&p) == Some(&digest(&cp.world))
                     {
                         guesses.push((n, Some(cp)));

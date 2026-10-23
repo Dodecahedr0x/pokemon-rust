@@ -1,5 +1,6 @@
-//! `cargo xtask gates [--jobs N] [--only a,b] [--skip a,b] [--list]` (explorer and gate speed
-//! work): the merge gates, run concurrently, with a pass or fail summary.
+//! `cargo xtask gates [--jobs N] [--test-jobs N] [--test-timeout SECS] [--only a,b] [--skip a,b]
+//! [--list]` (explorer and gate speed work): the merge gates, run concurrently, with a pass or
+//! fail summary.
 //!
 //! Each gate runs in a **lane**, and the lanes run concurrently (`--jobs` lanes at a time,
 //! default 3). A lane is a target dir, so that no two concurrent gates rebuild each other's
@@ -18,7 +19,9 @@
 //! parallelism; each binary still runs its own tests on threads, as `cargo test` does), then
 //! the doc tests. The binaries are the ones `cargo test` would run, run from their package's
 //! directory with `CARGO_MANIFEST_DIR` set as `cargo test` does; only their order and overlap
-//! differ (`cargo test` runs one binary at a time). A failing gate does not stop the others.
+//! differ (`cargo test` runs one binary at a time). A binary still running after
+//! `--test-timeout` seconds (default 900, 0: none) is killed and fails its gate. A failing gate
+//! does not stop the others.
 //! Logs go to `target/gates/<gate>.log`. Exit 1 when a gate fails.
 
 use anyhow::{Context, Result, bail};
@@ -29,8 +32,12 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-const USAGE: &str =
-    "usage: cargo xtask gates [--jobs N] [--test-jobs N] [--only a,b] [--skip a,b] [--list]";
+const USAGE: &str = "usage: cargo xtask gates [--jobs N] [--test-jobs N] [--test-timeout SECS] \
+     [--only a,b] [--skip a,b] [--list]";
+
+/// A test binary's default time limit, in seconds (`--test-timeout`, 0: none). The slowest
+/// binaries take about 1.5 min on a loaded machine; a hung one fails its gate after this.
+const DEFAULT_TEST_TIMEOUT: u64 = 900;
 
 /// How a gate runs.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -126,6 +133,8 @@ fn lane_target(lane: &str) -> Option<&'static str> {
 struct Opts {
     jobs: usize,
     test_jobs: usize,
+    /// A test binary's time limit (`None`: none).
+    test_timeout: Option<Duration>,
     gates: Vec<Gate>,
 }
 
@@ -136,6 +145,7 @@ fn parse(args: &[String]) -> Result<Option<Opts>> {
     let mut o = Opts {
         jobs: 3,
         test_jobs: quarter,
+        test_timeout: Some(Duration::from_secs(DEFAULT_TEST_TIMEOUT)),
         gates: GATES.to_vec(),
     };
     let names = |v: &str| -> Result<Vec<&'static str>> {
@@ -164,6 +174,10 @@ fn parse(args: &[String]) -> Result<Option<Opts>> {
             }
             "--jobs" => o.jobs = val()?.parse().context("--jobs")?,
             "--test-jobs" => o.test_jobs = val()?.parse().context("--test-jobs")?,
+            "--test-timeout" => {
+                let secs: u64 = val()?.parse().context("--test-timeout")?;
+                o.test_timeout = (secs > 0).then(|| Duration::from_secs(secs));
+            }
             "--only" => {
                 let keep = names(val()?)?;
                 o.gates.retain(|g| keep.contains(&g.name));
@@ -174,6 +188,9 @@ fn parse(args: &[String]) -> Result<Option<Opts>> {
             }
             _ => bail!("unexpected {a:?}\n{USAGE}"),
         }
+    }
+    if o.gates.is_empty() {
+        bail!("no gate left to run\n{USAGE}");
     }
     o.jobs = o.jobs.max(1);
     o.test_jobs = o.test_jobs.max(1);
@@ -221,7 +238,7 @@ pub fn main(args: &[String]) -> Result<()> {
                     for g in gates {
                         let t = Instant::now();
                         let log = logs.join(format!("{}.log", g.name));
-                        let r = run_gate(&root, lane, g, &log, o.test_jobs);
+                        let r = run_gate(&root, lane, g, &log, &o);
                         let (ok, note) = match r {
                             Ok(note) => (true, note),
                             Err(e) => (false, format!("{e:#}")),
@@ -267,10 +284,19 @@ pub fn main(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// A command for gate `g` in `lane`: its environment and target dir.
+/// A command for gate `g` in `lane`, run from the workspace root ([`gate_env`]).
 fn command(root: &Path, lane: &str, g: &Gate, program: &str) -> Command {
     let mut c = Command::new(program);
     c.current_dir(root);
+    gate_env(&mut c, root, lane, g);
+    c
+}
+
+/// Gate `g`'s environment in `lane`: its target dir, no inherited flavour selection, its own
+/// variables. The cargo commands and the test binaries get the same (a binary run by
+/// `cargo test` inherits cargo's environment), so a test that reads `PKR_GAME` or spawns cargo
+/// sees the flavour and the target dir its lane built.
+fn gate_env(c: &mut Command, root: &Path, lane: &str, g: &Gate) {
     // A lane's own target dir; the default lane's is `target/`, whatever the caller's.
     match lane_target(lane) {
         Some(t) => c.env("CARGO_TARGET_DIR", root.join(t)),
@@ -281,11 +307,15 @@ fn command(root: &Path, lane: &str, g: &Gate, program: &str) -> Command {
     for (k, v) in g.env {
         c.env(k, v);
     }
-    c
 }
 
 /// Runs `cmd` with stdout and stderr appended to `log`.
-fn logged(mut cmd: Command, log: &Path) -> Result<()> {
+fn logged(cmd: Command, log: &Path) -> Result<()> {
+    logged_within(cmd, log, None)
+}
+
+/// [`logged`], killed and failed after `limit` (a hung test must not hang the gates).
+fn logged_within(mut cmd: Command, log: &Path, limit: Option<Duration>) -> Result<()> {
     use std::io::Write;
     let mut f = std::fs::OpenOptions::new()
         .create(true)
@@ -293,18 +323,34 @@ fn logged(mut cmd: Command, log: &Path) -> Result<()> {
         .open(log)?;
     writeln!(f, "$ {cmd:?}")?;
     let out = f.try_clone()?;
-    let status = cmd
+    let mut child = cmd
         .stdout(Stdio::from(out))
         .stderr(Stdio::from(f))
-        .status()
+        .spawn()
         .with_context(|| format!("spawning {cmd:?}"))?;
+    let start = Instant::now();
+    let status = loop {
+        if let Some(s) = child.try_wait()? {
+            break s;
+        }
+        if limit.is_some_and(|l| start.elapsed() > l) {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!(
+                "timed out after {:.0} s: see {}",
+                start.elapsed().as_secs_f64(),
+                log.display()
+            );
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
     if !status.success() {
         bail!("{status}: see {}", log.display());
     }
     Ok(())
 }
 
-fn run_gate(root: &Path, lane: &str, g: &Gate, log: &Path, test_jobs: usize) -> Result<String> {
+fn run_gate(root: &Path, lane: &str, g: &Gate, log: &Path, o: &Opts) -> Result<String> {
     std::fs::write(log, "")?;
     match g.kind {
         Kind::Cmd(argv) => {
@@ -313,7 +359,7 @@ fn run_gate(root: &Path, lane: &str, g: &Gate, log: &Path, test_jobs: usize) -> 
             logged(c, log)?;
             Ok(String::new())
         }
-        Kind::Tests(args) => run_tests(root, lane, g, args, log, test_jobs),
+        Kind::Tests(args) => run_tests(root, lane, g, args, log, o.test_jobs, o.test_timeout),
     }
 }
 
@@ -333,6 +379,7 @@ fn run_tests(
     args: &[&str],
     log: &Path,
     jobs: usize,
+    timeout: Option<Duration>,
 ) -> Result<String> {
     // Build every test binary and list them (one line of JSON per artifact).
     let mut c = command(root, lane, g, "cargo");
@@ -384,14 +431,14 @@ fn run_tests(
                 while let Some(b) = bins.get(next.fetch_add(1, Ordering::Relaxed)) {
                     let t = Instant::now();
                     let mut c = Command::new(&b.exe);
+                    gate_env(&mut c, root, lane, g);
                     c.current_dir(&b.dir).env("CARGO_MANIFEST_DIR", &b.dir);
-                    for (k, v) in g.env {
-                        c.env(k, v);
-                    }
-                    let r = logged(c, &dir.join(format!("{}.log", b.name)));
+                    let r = logged_within(c, &dir.join(format!("{}.log", b.name)), timeout);
                     times.lock().unwrap().insert(b.name.clone(), t.elapsed());
-                    if r.is_err() {
-                        failed.lock().unwrap().push(b.name.clone());
+                    if let Err(e) = r {
+                        let late = format!("{e:#}").contains("timed out");
+                        let name = b.name.clone() + if late { " (timed out)" } else { "" };
+                        failed.lock().unwrap().push(name);
                     }
                 }
             });
@@ -448,4 +495,97 @@ fn test_bins(json: &str) -> Result<Vec<TestBin>> {
         bail!("cargo listed no test binaries");
     }
     Ok(bins)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsStr;
+
+    fn gate(name: &str) -> Gate {
+        *GATES.iter().find(|g| g.name == name).unwrap()
+    }
+
+    fn env(c: &Command) -> BTreeMap<&OsStr, Option<&OsStr>> {
+        c.get_envs().collect()
+    }
+
+    #[test]
+    fn a_failing_command_fails_its_gate_and_logs() {
+        let dir = std::env::temp_dir().join(format!("pkr-gates-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("g.log");
+        let mut c = Command::new("sh");
+        c.args(["-c", "echo boom; exit 3"]);
+        let e = logged(c, &log).unwrap_err();
+        assert!(format!("{e:#}").contains("3"), "{e:#}");
+        assert!(std::fs::read_to_string(&log).unwrap().contains("boom"));
+        let mut c = Command::new("sh");
+        c.args(["-c", "exit 0"]);
+        logged(c, &log).unwrap();
+        // A hung binary is killed and fails.
+        let mut c = Command::new("sleep");
+        c.arg("30");
+        let t = Instant::now();
+        let e = logged_within(c, &log, Some(Duration::from_millis(200))).unwrap_err();
+        assert!(format!("{e:#}").contains("timed out"), "{e:#}");
+        assert!(t.elapsed() < Duration::from_secs(10));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn test_binaries_get_their_lanes_environment() {
+        let root = Path::new("/r");
+        for (name, lane, target) in [
+            ("test", "main", None),
+            ("test-stub", "stub", Some("/r/target/stub")),
+            ("test-silice", "silice", Some("/r/target/silice")),
+        ] {
+            let g = gate(name);
+            assert_eq!(g.lane, lane);
+            let mut c = Command::new("bin");
+            gate_env(&mut c, root, lane, &g);
+            let e = env(&c);
+            assert_eq!(
+                e[OsStr::new("CARGO_TARGET_DIR")],
+                target.map(OsStr::new),
+                "{name}"
+            );
+            let game = g.env.iter().find(|(k, _)| *k == "PKR_GAME");
+            assert_eq!(
+                e[OsStr::new("PKR_GAME")],
+                game.map(|(_, v)| OsStr::new(v)),
+                "{name}"
+            );
+            assert_eq!(e[OsStr::new("PKR_XTASK_GAME")], None, "{name}");
+        }
+    }
+
+    #[test]
+    fn no_gate_passes_both_game_flags_and_an_empty_selection_is_refused() {
+        for g in GATES {
+            let (Kind::Cmd(argv) | Kind::Tests(argv)) = g.kind;
+            let games = argv.contains(&"--games");
+            let game = argv.contains(&"--game");
+            assert!(!(games && game), "{}", g.name);
+        }
+        let all = GATES.iter().map(|g| g.name).collect::<Vec<_>>().join(",");
+        assert!(parse(&["--skip".into(), all]).is_err());
+        assert!(parse(&["--only".into(), "nope".into()]).is_err());
+        let o = parse(&["--only".into(), "fmt".into()]).unwrap().unwrap();
+        assert_eq!(o.gates.len(), 1);
+    }
+
+    #[test]
+    fn test_binaries_are_read_from_cargos_json() {
+        let json = r#"{"reason":"compiler-artifact","profile":{"test":true},"executable":"/t/a-1","manifest_path":"/w/crates/a/Cargo.toml","target":{"name":"a","kind":["lib"]}}
+{"reason":"compiler-artifact","profile":{"test":false},"executable":null,"manifest_path":"/w/crates/a/Cargo.toml","target":{"name":"a","kind":["lib"]}}
+not json
+{"reason":"build-finished","success":true}"#;
+        let bins = test_bins(json).unwrap();
+        assert_eq!(bins.len(), 1);
+        assert_eq!(bins[0].name, "a-lib-a");
+        assert_eq!(bins[0].dir, Path::new("/w/crates/a"));
+        assert!(test_bins("").is_err());
+    }
 }
