@@ -748,6 +748,199 @@ studio-map palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N] [--
 - `ScriptsSet` cannot append to `on_frame`; it replaces the list.
 - The void list is computed from the render and does not say which void Emerald prefers for a pair. `dump --extract` of a reference map shows its border.
 
+#### Reachability checker as built
+
+The map editor can now tell whether the player can reach a cell, whether a scene's coord row or a trainer can be walked past, and which warps, items and signs no walk reaches. The code is in `crates/studio/src/map_edit/`:
+- `reach.rs`: the walk graph and trainer sight;
+- `reach_lint.rs`: the lint;
+- `reach_cli.rs`: the commands;
+- `overlay.rs`: `draw_reach` and `draw_sight`;
+- `model.rs`: the `AllowReach` op.
+
+Nothing in the engine or the maps changed.
+
+**Usage.**
+
+```text
+studio-map reach <Map> --from x,y [--surf] [--hidden F,..|all | --shown F,..] [--field-moves] [--open x,y;x,y]
+studio-map bypass <Map> --from x,y --to x,y [--avoid coord:<script|index> | trainer:<id> | cells:x,y;x,y]...
+           [--surf] [--hidden …|--shown …] [--field-moves] [--open …]
+studio-map lint-reach (<Map>... | --all)
+studio-map render <Map> --reach x,y [--surf] [--hidden …|--shown …] [--field-moves] [--open …] [--sight]
+```
+
+- **`reach`** prints:
+  - the reached cell count and the exits reached (warps, door warps, edges);
+  - the coord events stepped on, and each trainer's reachable sight cells;
+  - an ASCII grid: `S` start, `+` reached, `o` object, `#` solid, `~` water, `.` unreached.
+- **`bypass`** answers two questions with a witness path (`D R R U …`):
+  - `reachable: yes, N steps`;
+  - `bypass: yes, M steps: …`, or `bypass: no: every path crosses the avoided cells`.
+
+  `--avoid` can be repeated:
+  - `coord:` takes a script name or a coord index; every coord event with that script is avoided;
+  - `trainer:` takes a `LOCALID_*` and avoids its line of sight;
+  - `cells:` takes explicit cells.
+- **Object visibility.**
+  - With no flag, objects with a hide flag are present, as on a new game.
+  - `--hidden all` hides every object with a hide flag. `--hidden F,..` hides only the listed flags. `--shown F,..` hides every object with a hide flag except the listed ones.
+  - `--field-moves` clears the item balls, breakable rocks, cut trees and Strength boulders the player reaches.
+- **`--open x,y;…`** makes cells walkable, as a script's `setmetatile` would.
+- **`render --reach`** tints the reached cells green and frames the start in white. `--sight` tints the trainers' lines of sight orange. Both work only on games dir maps, not with `--extract`.
+- **`lint-reach`**:
+  - prints one finding per line, `Map: warning|info: subject: message`, in a stable order (map, then kind, then index);
+  - ends with `N maps: W warnings, I infos, A allowed`;
+  - never fails on findings.
+- **`AllowReach`** silences a finding. Put `AllowReach(subject: "warp 3", reason: "brambles cut by BricoBourg_Sc04")` in the map's `03_allow.ron`. The subject is the finding's subject as printed. An allowance that silences nothing is itself a warning.
+
+**Rules modelled (from the engine).** Each comes from `engine::objects` (`collision_at`, `sight_collision`, `update_elevation`), `engine::grid::neighbor`, `engine::flow::trigger` and `engine::world::sight`, with behaviours classified through the catalog's tilesets (`behavior::behavior`):
+- **Collision.** The collision bits block, and so do `Behavior::walled` sides. The border (outside the map) is solid.
+- **Elevation.**
+  - Gen3 `IsElevationMismatchAt`: a step is blocked when the player's elevation and the cell's are both nonzero, the cell is not 15, and they differ.
+  - The elevation becomes the cell's after a step, except on 15.
+  - Events (coords, bgs, objects) match at elevation 0 or when equal (`AreElevationsCompatible`).
+  - The facing elevation is 0 when the player stands at 0.
+- **Ledges** are one-way. The jump lands two cells ahead with no landing check, as the engine does.
+- **Water** needs `--surf`. Getting onto or off water ignores the elevation mismatch. While surfing, objects are matched at the cell's elevation, as `CanStopSurfing` does.
+- **Exits.**
+  - Warps are entered on any `enters_warp` cell, except the arrival cell.
+  - Arrow warps are pushed into (`TryArrowWarp`), and doors are entered by pushing up (`TryDoorWarp`).
+  - Connections are left at the map edge, onto the neighbour's cell, which must be passable.
+  - `MAP_DYNAMIC` warps count as the way back.
+- **Exit walk on arrival.**
+  - On a door, the player walks south.
+  - On a `NonAnimDoor(d)` or `Escalator(d)`, the player walks `d`.
+- **Objects** are obstacles at their home cell. Talking to one needs a reached cell in front of it at a compatible elevation.
+- **Signs and hidden items** need a reached cell they can be read from, in a facing their bg kind allows.
+- **Trainer sight** follows `sight_collision`. Sight stops at:
+  - collision;
+  - walls against the trainer's own cell;
+  - an elevation mismatch with the trainer;
+  - another object;
+  - the map edge.
+
+  Water does not block sight by its behaviour.
+- **One step rule.** Every per-behaviour step rule is in a single function, `Walk::step(node, cell, dir)`. Forced movement goes there when the engine gains it.
+
+**The lint model.** The lint is optimistic: it reports what can never work, not what a script might break.
+- Objects with a hide flag are absent. Objects without one block.
+- Item balls, rocks, cut trees and boulders are present until the player reaches a cell to use them from. They are cleared by a fixpoint.
+- **Arrival points (portals):**
+  - every warp that some warp arrives at, or that a `MAP_DYNAMIC` warp leads back to;
+  - each run of edge cells;
+  - the `game.ron` start and heal locations.
+- **The main area** is the largest group of arrival points that reach one another.
+- **Downgrades to info.** A games-dir-wide portal graph turns some in-map findings into info:
+  - "other maps lead to it": a portal unreachable within the map, but reached through other maps;
+  - "other maps lead back": an arrival area whose only way out is through other maps.
+- **Blocking objects.** When objects without a hide flag block the way, a 0-1 BFS names the fewest of them ("only past LOCALID_X (no hide flag)"). A Surf-only path is noted as "Surf reaches it".
+- **Coord rows.** Coord events are grouped by (var, value). A group is reported as walk-around (info) when every cell next to it is reachable without stepping on it. The note "an arrival lands on them, which fires no coord event" is added when an arrival point is on the row.
+- A full `--all` run takes about 1.2 s.
+
+**Gaps against the engine.**
+- **Scripts are not modelled:**
+  - no `setmetatile`, `setobjectxyperm`, story flags or trainer-defeated flags;
+  - so the lint is optimistic on hide flags and pessimistic on doors that a script opens. `--open` and `--hidden` let `reach` and `bypass` try a script's effect by hand.
+- **Moving objects.** Wanderers and walkers count only at their home cell.
+- **Strength boulders** are treated as removed once the player reaches them, not pushed.
+- **Surf is simplified:** there is no "can only start surfing from elevation 3" check, and dive and emerge are skipped.
+- **Forced movement** (ice, slides and walk arrows, cracked floors) is not modelled; another agent is adding it to the engine. It belongs in `Walk::step`.
+- **Connections.**
+  - The neighbour's objects are ignored at the edge.
+  - The neighbour's cell is classified with the neighbour's own tilesets.
+  - Trainer sight stops at the map edge.
+- **Coord rows** are judged by a heuristic: a row any of whose neighbouring cells is reached only by stepping on it counts as not walk-around.
+
+**Findings on the committed maps** (`lint-reach --all` on this branch's base, 40 maps: 43 warnings, 14 infos). These were triaged by reading the maps; no map was edited.
+
+1. **Real bugs: the exit walk lands on a solid cell.** On these warps, a cell with behaviour 167 (`MB_NON_ANIMATED_DOOR`, walk south) is used as an exit, but the cell south of it is solid. On arrival the player is stuck or walks into a wall. Fix: use a plain warp metatile, or open the cell below.
+   - BricoBourg warp 3, (4,7) → (4,8): brambles, which a script cuts;
+   - MangaSquare warp 5, (1,25) → (1,26);
+   - RouteS03 warp 1, (10,17) → (10,18);
+   - RouteS03_Depot warp 0, (7,13) → (7,14);
+   - RouteS06 warp 0, (25,26) → (25,27).
+2. **Real issues: content no walk can use.**
+   - **ViberCity_Gym LOCALID_NOCTURNE_ELIOTT**: the cell in front, (6,7), is solid, so the trainer's sight is empty. He can only be talked to.
+   - **RouteS06_BoisSoupirs heart scale** (9,12): it sits on a land notch reached only from water, and Gen3 cannot talk from water (elevation 1) to a land object (3).
+   - **ViberCity_StationLumiere bg 6** (`Tube` at (11,1)): fully walled, with no reading cell even past the foreman.
+3. **Gated by a script (expected; add an `AllowReach` with the script as the reason, or check the script opens it):**
+   - BoisEther east edge 12-15 and RouteS02 west edge 2-5: the barrier at BoisEther (33,13–14), opened by a script;
+   - BricoBourg warp 3: one-way past the brambles;
+   - BoisEther bg 7, hidden Évoluroc at (4,7): penned in by the brambles at (8,6);
+   - MangaSquare_Dojo warp 1: only past LOCALID_DOJO_MOINE, who has no hide flag and is moved by `setobjectxyperm`;
+   - ViberCity_Casino warp 2: the hidden stairs that Sc08 reveals;
+   - BoisEther_Gym:
+     - Milo's and Rose's sight, the super potion (2,15) and bg 2–7: behind the airlocks;
+   - MangaSquare_Gym:
+     - Ayame's and Seiji's sight and bg 1–4: behind the shoji doors that `on_load` sets;
+   - BricoBourg_Labo LOCALID_LABO_SBIRE_2: sight unreachable;
+   - cables that a script cuts:
+     - GrisEchec_Usine metal coat (3,4) and bg 1;
+     - RouteS02 magnet (40,2) and great ball (48,8);
+   - ViberCity_Gym bg 1 and 2: the consoles.
+4. **Past an object without a hide flag (check the object leaves, or give it a hide flag):**
+   - RouteS03 super potion (17,34): past ROGER;
+   - RouteS06 bg 3: past BONZE;
+   - ViberCity_Casino_B1F rare candy and bg 1: past CROUPIER_CHEF;
+   - ViberCity_StationLumiere bg 0–5 and 7: past CONTREMAITRE.
+5. **Through other maps (info):**
+   - RouteS03 warp 1 and RouteS06 warp 0: other maps lead to them (the bamboo curtain at RouteS06 (23,26) is solid, metatile 198).
+   - RouteS03's north edge (x 10) is a warning: its only way in is the broken Depot arrival (item 1).
+6. **Coord rows that can be walked around (info):**
+   - BoisEther Sc02 (2-31,13): the warp 3 arrival lands on the row;
+   - BoisEther Sc07 (32,12–15);
+   - GrisEchec Sc06 (34,11);
+   - MangaSquare Sc03 (37,1);
+   - MangaSquare_Bibliotheque Sc01 (12-15,7);
+   - RouteS02 Sc03 (48-49,6) and (51,6): a false positive, since (50,6) is Gwada, an object the lint counts as blocking;
+   - ViberCity Sc03 (27-30,6).
+
+   Each one is either a scene meant to be optional, or needs a wider row.
+7. The Ch0 maps are clean.
+
+**Header songs (`validate`).** `studio-map validate` now checks a games dir map's header music the way the content build does (`silice::merge::song`). A song is accepted when it is:
+- `MUS_NONE`;
+- a live name of `ids/songs.ron` (a tombstone is an error);
+- a Gen3 song of `extract::text::charmap::SOUNDS`.
+
+Anything else is an error. That catches pseudo-songs such as `MUS_ROUTE118` (0x7FFF) and names Gen3 lacks, such as `MUS_ROUTE134`. Extracted maps keep the prefix check, because Emerald's own Route 118 uses 0x7FFF. The committed maps on this branch's base all pass.
+
+**Tests.**
+- `map_edit/reach_tests.rs` has 15 tests on synthetic ASCII maps:
+  - `ledges_are_one_way`;
+  - `elevation_follows_gen3`: the 0 and 15 rules;
+  - `water_needs_surf`;
+  - `doors_warps_and_edges_are_exits`;
+  - `objects_block_unless_hidden`;
+  - `trainer_sight_stops_at_collision_objects_and_elevation`;
+  - `facings_follow_the_movement_name`;
+  - `bypass_found_and_not_found`;
+  - `trainer_sight_can_or_cannot_be_walked_past`;
+  - `field_moves_clear_what_the_player_reaches`;
+  - `talking_and_reading_need_a_reached_cell`;
+  - `lint_finds_the_known_bug_shapes`;
+  - `lint_reports_one_way_areas_and_surf`;
+  - `cells_text_merges_rows`;
+  - `allow_reach_parses_and_needs_a_reason`.
+- `map_edit/tests.rs`: `games_dir_header_music_is_checked_like_the_content_build`.
+- `tests/map_edit_tools.rs`: `reach_tools_on_the_committed_silice_maps` (real world only). It:
+  - prints `lint-reach --all` and checks that the output is stable;
+  - runs `reach BoisEther_Gym --from 7,30` and checks that Jules's sight has 3 reachable cells;
+  - checks a bypass of the spore coords that succeeds, and fails once Jules's sight is also avoided;
+  - checks that `render --reach --sight` differs from the plain render at the same size;
+  - checks the argument errors.
+- `committed_silice_edits_rebuild_byte_identical` now copies the games dir's stamps, which the Ch6 edits place. It failed before this change.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| clippy `-D warnings`, plain and `-p studio --features ui` | clean |
+| `cargo test -p studio`, real | 200 passed, 8 ignored |
+| `cargo test -p studio`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 200 passed, 8 ignored |
+| `cargo xtask studio --check` | 225 passed, 8 ignored |
+
 #### SIL1 Task B as built: the importer and the validator
 
 The code is in `xtask/src/silice/`: `mod.rs` (CLI, file writing), `md.rs` (chapter markdown), `names.rs` (constant words, families, map names), `maps.rs` (names in `maps/*.ron` and, later, the scene scripts), `import.rs`, `ids.rs` (allocation), `check.rs` and `schema.rs`. Outside it, the task touched one arm in `xtask/src/main.rs`, `regex` in `xtask/Cargo.toml`, `xtask/tests/silice_{import,check,games}.rs` (with `silice_common/`) and the synthetic fixtures in `xtask/tests/fixtures/silice/`, among them `ids.golden`.
@@ -1122,6 +1315,177 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 - Once a pair was known, a map took about 10–15 min for an interior, 30 min for the route and 45 min for the town, including the events and the visual check.
 - For the remaining maps: about 20 min per interior and 45 min per town, route or dungeon. Add about 30–45 min the first time each new tileset pair is used.
 - That is roughly 50–60 h for ~109 maps, or about half that with stamp ops, prefabs and labeled palettes.
+
+#### SIL1 Task F as built (scripts)
+
+The Chapter 0 scripts, from `contenu-jeu/chapitres/00-prologue.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id; nothing is a literal.
+
+**Files.**
+- `ch00_bar.rs` claims `BricoBourg_Bar`.
+- `ch00_houses.rs` claims `BricoBourg_PlayerHouse_1F`, `BricoBourg_PlayerHouse_2F` and `BricoBourg_FriendsHouse`.
+- `ch00_town.rs` claims `BricoBourg`.
+- `ch00_route_s01.rs` claims `RouteS01`.
+- `ch00_wave0.rs` is deleted. The build reports 53 scripts, 4 trainer scripts and 6 strict maps. The 56 unwritten names it drops all come from the unclaimed Ch1 maps.
+
+**Prelude additions (`src/silice/prelude.rs`).**
+- `trainer(ctx, obj, TRAINER_X, intro, defeat) -> bool` is a single `trainer_battle`. It returns true when the trainer was already beaten.
+- `hidden_item(ctx, flag, item)` is the hidden-item fallback (see below).
+- `cut_obstacle(ctx, (x, y), metatile, cut_flag, blocked_text)` is the source's generic Lame-Frequence obstacle (Ch1 `Bois_Ether_Sc08`). Without `FLAG_SIL_MODULE_COUPE`, it shows `blocked_text` as a sign. With it, it asks `Bois_Ether_Sc08_T2`; on yes it says `_T3`, repaints the cell walkable and sets the cut flag. Once the flag is set it does nothing. `repaint_if(ctx, flag, (x, y), metatile)` is its `on_load` half, and `METATILE_RONCES_COUPEES` (General 1) is the metatile. Ch1's `BoisEther_Sc08` and `_OnLoad` can reuse all three.
+
+**Scenes.**
+- **The bar.**
+  - **`BricoBourg_Bar_OnTransition`** sets the source's visibility rule:
+    - the friends are shown while story ≤ 1;
+    - Julien is shown at story 0;
+    - the Mallette object is shown at story 1 until it is taken;
+    - the sbires are always hidden outside Sc03.
+  - **Bar_Sc01** is the map's `on_frame` entry on `VAR_TEMP_1` 0. Its first statement sets `VAR_TEMP_1` to 1, so the entry stops matching on every path; the var resets on each map load. It runs at story 0 before `FLAG_SIL_INTRO_DONE`, uses `say` (locked), and sets the flag.
+    - The source's opening `fade(In)` is dropped.
+    - So is the player's turn: the new game starts facing Up, at the counter.
+  - **Bar_Sc02** is the three friends at their table: the line follows `VAR_LAST_TALKED`.
+  - **Bar_Sc03** is Julien. It plays the explosion, then the sbires enter and Julien flees. The sbires chase him and both are hidden. The Mallette appears and the story goes to 1.
+    - The paths avoid every cell the player can talk to Julien from.
+    - If the player stands at (12, 2), the player steps aside first.
+  - **Bar_Sc04** is the Mallette (yes/no). It calls `gift(FLAG_SIL_HAS_MALLETTE, ITEM_SIL_MALLETTE, 1, Quiet)` **before** `hide`, then says T3–T5.
+- **The town (`BricoBourg`).**
+  - **`BricoBourg_OnTransition`:**
+    - day NPCs are shown from story 3;
+    - the friends are shown at story 3–4;
+    - the sbire is hidden;
+    - the night tint is a fallback.
+  - **Brico_Bourg_Sc01** runs on the cells around the Shaker's door at story 1.
+    - Without the Mallette (a guard the source does not have), Mathieu's Bar_Sc04_T2 line sends the player back to the door, so story 1 cannot be left without the Mallette.
+    - Otherwise, once, `FLAG_SIL_BRICO_CHASE` is set: the sbire runs across, then is hidden.
+  - **Brico_Bourg_Sc02** is the map's on-frame entry at story 3, so it runs when the player leaves the house. The friends face the player, the click (a fallback shake and SE) plays, then `FLAG_SIL_MALLETTE_OPEN` and story 4 are set, and Sc03 is chained.
+  - **Brico_Bourg_Sc03:**
+    1. the call: the SE, `mallette_call` and `end_call`, all fallbacks;
+    2. `choose_starter` (`VAR_SIL_STARTER`);
+    3. `VAR_SIL_CH0_GATE` is set to 1;
+    4. the friends' gifts, each with a given-item flag: Potion ×2 (`FLAG_SIL_ITEM_PROLOGUE_POTIONS`) and Poké Ball ×5 (`FLAG_SIL_ITEM_PROLOGUE_BALLS`);
+    5. the friends walk off and are hidden;
+    6. `FLAG_SIL_MALLETTE_{MAP,DEX,CALLS}` are set, then story 5.
+  - **Brico_Bourg_Sc04** is the signal beep on the north edge at story 5, once (`FLAG_SIL_S01_SIGNAL_SEEN`).
+  - **`BricoBourg_OnLoad`** (added by the Ch1 maps' `04_ch1_labo.ron`; BricoBourg is strict, so it is written here): it repaints the brambles (4, 8) as `METATILE_RONCES_COUPEES` once `FLAG_SIL_BRICO_LABO_RONCES_CUT` is set. **`BricoBourg_EventScript_Ronces`** is the generic obstacle on that cell, with Ch0's `Brico_Bourg_Sign_Ronces` as its blocked text.
+  - **`BricoBourg_EventScript_BlockNorth`** (coords y 2, `VAR_SIL_CH0_GATE` 0): the north exit is closed before the starter. This is the gate's only reader in Ch0, as the source's §3 says.
+  - **Other events:** the signs, the ambient NPCs, the three friends, and the hidden Potion. Vieux says his `_Nuit` line (about the explosion) at story 1 and 2, and his day line at story 0, before the explosion.
+- **The houses.**
+  - **Player_House_Sc01** is the 1F's on-frame entry at story 1. Maman sees nothing; the story goes to 2.
+  - **Player_House_Sc02:**
+    - At story 2, the desk sets `FLAG_SIL_MALLETTE_TRIED` (T1, then T2).
+    - The bed says T3 before the desk. After the desk it asks T4; on yes: fade, heal, T5, story 3, fade back.
+  - **Player_House_Sc03:** the 2F voices are chained after the bed. On 1F, Maman (story ≥ 3) gives the running shoes once (`FLAG_SIL_RUNNING_SHOES`, a flag rather than an item) and heals. The house is Ch0's heal point.
+  - **Other events:** the TV, PC and window, and Adrien's family's house (mother, Skitty, poster).
+- **Route S1 (`RouteS01`).**
+  - **Route_S01_Sc01** is the first tall-grass row at story 5: `battle_wild(SPECIES_SENTRET, 3)`, then story 6.
+  - **Route_S01_Sc02** is the north edge (x 7–10, y 2). At story ≤ 8 it sets story 9, and Chapter 1 takes over at Bois-Éther.
+  - **The four trainers** (TÉO, NOAH, LILA, YANIS) use `trainer(...)`. Beaten, they repeat their defeat text.
+  - **Items:** the item balls use `find_item`; the hidden Antidote is a fallback; the walker gives two Oran Berries once after the first battle (`FLAG_SIL_ITEM_ROUTE_S01_ORAN`).
+  - **Signs and NPCs:** four signs and the technician.
+  - The land encounters are `battle/encounters.ron`'s, unchanged.
+
+**Fallbacks.** Each one is marked `// fallback:` with the engine feature it waits for. All of them go through the prelude's `fallback()` report.
+
+| Source | Now | Waits for |
+|---|---|---|
+| `screen_shake` (Bar_Sc03 explosion, Brico_Bourg_Sc02 click) | fade out and in | `Request::ScreenShake`, SIL2 Wave 0 (M9 plan) |
+| `play_se` (`SE_EXPLOSION` → decomp `SE_M_EXPLOSION`, `SE_CLICK`, `SE_RING` → `SE_POKENAV_CALL`) | no-op, reported | audio, M12 |
+| `set_time_tint(NUIT)` (`BricoBourg_OnTransition` at story ≤ 2) | nothing, reported | `Request::SetTint`, SIL2 Wave 0 (M9 plan). The night NPC variant (Vieux_Nuit) is flag/story-selected already |
+| `mallette_call` / `end_call` (Brico_Bourg_Sc03) | message boxes | the call window with a portrait (§1.1 P1: the M9 start-menu entry, then SIL2/SIL3 screens) |
+| hidden items (`BricoBourg` Potion, `RouteS01` Antidote) | a sign event running `hidden_item` (Gen3 obtain messages, once, behind the item's flag) | the engine has ignored `BgKind::HiddenItem` since M3, and no milestone owns it yet |
+
+The hidden-item fallback is the one map-event change this task made. It is a script-contract mismatch. In `edits/BricoBourg/02_events.ron` and `edits/RouteS01/02_events.ron`, the `HiddenItem(...)` op became `Sign(..., script: "<Map>_EventScript_Hidden<Item>")`; a comment holds the original line to restore. The maps were rebuilt with `cargo xtask studio map build`, which changed only those two bgs.
+
+**Strictness, per map (replaces `ALLOW_UNWRITTEN`).**
+- A script file claims its maps with `pub const MAPS: &[&str] = &[...]` (`build/silice/registry.rs`).
+- A claimed map is strict: every script name it uses must be defined in `src/silice/scripts/*.rs`, or the build fails and lists the names and maps.
+- A map no file claims runs in the allowlist mode: an unwritten name is dropped, listed in `content::REPORT` and warned. That covers Ch1–Ch12, so the chapter map agents can keep committing maps before their scripts.
+- `PKR_SILICE_STRICT_SCRIPTS=1` still makes every map strict.
+- The build fails in two more cases:
+  - two files claim the same map;
+  - a claimed map is not in `maps/`. This is checked after the asset checks, so a fixture games dir reports its tileset error first.
+- A chapter adopts the rule by adding `MAPS` to its module, as Ch0 does.
+- `build/main.rs` is in Emerald's BUILD_ID, so its warning text still says "the Wave 0 allowlist". It now means the unclaimed maps. Reword it with the next Emerald-side change.
+
+**Trainer scripts.**
+- A script whose first statement calls the prelude's `trainer(&ctx, LOCALID, TRAINER_X, ..)` is listed in `TRAINER_SCRIPTS` (kind single), resolved through `ids/trainers.ron`.
+- That table is what the engine's sight (`trainer_flag_of`, `trainer_battle_kind`) reads.
+- `dispatch.rs` emits it from `Registry::trainer_table`. The `generate` signature in `main.rs` is unchanged.
+- `silice::check_trainer_objects`: every trainer object (`trainer_type` other than `TRAINER_TYPE_NONE`) of a strict map must run a trainer script, or the build fails and lists the objects. Without this check, a `trainer(..)` call that is not the first statement would leave the trainer out of the table, and sight would silently ignore it.
+
+**Exceptions (`check-exceptions.ron`).**
+- `placement-map FLAG_SIL_MAIL_SILAS` (`ruling_needed: false`). It is the Ch12 post-game Porygon Egg, sent as Silas's PC mail in the player's room (Sc09, `give_egg`): a once-only gift, set by a Ch12 scene, not by the Ch0 scripts that now claim the room.
+- No other new findings. After the Ch1 merge, `silice check` is ok with 0 warnings.
+- `silice check`'s given-item rule (`placement-map`) now follows the per-map strictness. A §7 "Donné" item's flag must be in the map or a script only once a script file claims its map (`maps::scan_claims` reads `pub const MAPS`). Before, the rule applied as soon as any script named a flag, so the Ch1 maps, whose scenes are not written yet, failed it for five given items (Graine Miracle, Eau Fraîche, Poudre Soin, CT09, Mathieu's Super Potion).
+
+**Hidden items: why not an engine fix (M9 finding).** Gen3's behaviour is small. `GetInteractedBackgroundEventScript` skips a `BG_EVENT_HIDDEN_ITEM` whose flag (`FLAG_HIDDEN_ITEMS_START` + id) is set. Otherwise it puts the flag in `VAR_0x8004` and the item in `VAR_0x8005`, then runs `EventScript_HiddenItemScript`. Here that would mean three changes:
+- the A branch of `engine/src/world.rs`, which today maps `BgKind::HiddenItem` to `None`;
+- a `GameData` hook naming the hidden-item script;
+- each game's script behind that hook.
+
+Emerald's script is the decomp's `EventScript_HiddenItemScript`. Wiring it means changing the Emerald content (`content/src`, `build/`), which moves Emerald's `BUILD_ID`, and its hidden items then start giving items, which can move Emerald's route. A Silice-only hook, defaulting to `None`, would keep Emerald as it is. But it would still change the engine sources (and so every checkpoint's engine hash), and it would only half-fix a shared Gen3 behaviour. So the fallback stays. **M9 finding:** implement `BgKind::HiddenItem` in the engine for both games, as Gen3 does, accepting the Emerald `BUILD_ID` and route move in that milestone. Then turn the two `Sign` ops back into the `HiddenItem` ops kept in their comments and delete `hidden_item`.
+
+**Tests.**
+- `crates/content/tests/sil1_f_ch0.rs` (`cfg(pkr_silice)`) is the native end to end. It runs `engine::World` over `content::Game`, wrapped in a `GameData` spy that records each `text(id)`. The native shells do not build as Silice before Task D.
+  - Input is buttons only, from a new game:
+    1. the bar: Sc01, a friend, Julien;
+    2. leaving without the Mallette (the guard);
+    3. the Mallette, then the chase and the north block;
+    4. the house: Sc01, the bed before and after the desk, Maman's shoes;
+    5. the morning: Sc02, Sc03 and the starter (the right ball);
+    6. the hidden Potion, taken twice, so the second try gives nothing;
+    7. the Labo's brambles: first the Ch0 sign; then cut, with the test granting `FLAG_SIL_MODULE_COUPE` through the spy, because the world has no flag setter; then still walkable after a map load (`BricoBourg_OnLoad`);
+    8. Sc04;
+    9. Route S1: Sc01's battle, the berries (twice); home to Maman to heal; TÉO by sight (his trainer flag proves `TRAINER_SCRIPTS` and sight); the Antidote and both item balls; Sc02.
+  - It asserts:
+    - each story step from 0 to 9;
+    - `VAR_SIL_CH0_GATE`, `VAR_SIL_STARTER` and the party species;
+    - every Ch0 flag (hide flags, Mallette flags, given-item flags);
+    - the bag counts;
+    - each scene's texts by id, in order;
+    - the Mallette taken once (Bar_Sc04_T1 printed once after a second try);
+    - every fallback reported (`Report::Degraded`): `screen_shake`, `play_se`, `mallette_call`, `end_call`, `set_time_tint`, `hidden item`.
+  - It uses a BFS planner over collision, behaviors, ledges and objects, avoiding the trainers' sight lines. Settle presses A on scripts, yes/no boxes and battles.
+  - It runs in about 29k frames, within its 50k-frame limit, and takes a fraction of a second. It is deterministic: there is no wall clock or OS randomness, and the RNG and every input come from the run.
+- `sil1_w0_contracts.rs`: the allowlist test is replaced by four tests:
+  - every claimed map's names exist;
+  - an unknown name fails in a claimed map and is listed in an unclaimed one;
+  - a claimed map must exist and be claimed once. A map listed twice in one `MAPS`, a `static MAPS`, and a non-literal element each fail with their own message;
+  - trainer scripts are found by their first statement, and a trainer object without one fails `check_trainer_objects`.
+  - With the Ch1 maps merged, the committed maps' only unwritten names are in unclaimed maps. The forced-strict case counts them in its error.
+- `m8_d2_scripts.rs`: the Silice trainer table is now non-empty and agrees with `trainer_flag_of`.
+- `silice::tests` asserts that the six Ch0 maps are strict in `content::REPORT`. It asserted "no unwritten name" until the Ch1 maps arrived unclaimed.
+- `xtask/tests/silice_check.rs` `works_without_the_extract`: it now passes `--scripts /nonexistent`, as the shared `check` helper does. It had scanned the repo's scripts against the fixture import's ids, which the Ch0 flags fail.
+
+**Open author questions.**
+1. Lines outside the source's conditions reuse a nearby text:
+   - Crow after story 0 says Bar_Sc04_T5;
+   - the bar friends after story 0 say Bar_Sc04_T4 or Bar_Sc03_T6;
+   - Maman before story 3 says Player_House_Sc01_T1. At story 0, reached by leaving the bar before Julien, that line's boom and suitcase have not happened yet;
+   - the town friends say Brico_Bourg_Sc02_T1.
+
+   Write dedicated lines?
+2. The trainers have no post-battle lines; the defeat text is repeated. Write `_PostBattle` texts?
+3. The story-1 guard (leaving the bar without the Mallette) reuses Bar_Sc04_T2, Mathieu's "take it". Keep it, or write a line?
+4. Vieux shows his `_Nuit` line at story 1–2 (the source says 1) and his day line at 0. Is that the intended split?
+5. The desk and bed do nothing outside story 2. Write lines?
+6. The SE names: the source's `SE_EXPLOSION` and `SE_RING` are mapped to the decomp's `SE_M_EXPLOSION` and `SE_POKENAV_CALL`. Confirm, or name Silice sounds.
+7. From the source (§10):
+   - the player's long departure line is kept as narration;
+   - the Route S1 trainers reach level 6 against a level 5 starter. The e2e on the first-move policy needs the heal at home before TÉO; it picks TOTODILE.
+
+**Review fixes (after merging the Ch1 maps).**
+- Merge: `BricoBourg_OnLoad` is written (above). The rebuilt maps match the edits byte for byte.
+- Vieux's `_Nuit` line no longer plays at story 0, before the explosion.
+- `BricoBourg_Sc03` releases the field when its story-4 guard returns. It is chained inside Sc02's `lock_all`.
+- Registry: clearer `MAPS` errors (a duplicate in one file, `static`, a non-literal), and the trainer-object check.
+- `silice check`: the given-item rule follows the claims (above). `silice::tests` and `sil1_w0_contracts` allow the unclaimed Ch1 maps' unwritten names.
+- e2e: the brambles, the Mallette taken once, and the fallback reports.
+- Checked and kept:
+  - every on-frame entry leaves its value on every path (Bar_Sc01 sets `VAR_TEMP_1` first; Player_House_Sc01 and Brico_Bourg_Sc02 always set the story). Temp vars are cleared on both warps and connection crossings (`world/maps.rs`), as in Gen3;
+  - the story-1 guard moves the player back with a scripted step, which fires no coord event, and the bar's door stays open, so it cannot softlock;
+  - scripted walks ignore collision (Gen3 `applymovement`), so no `wait_move` can hang on a blocked path;
+  - Route S1's row y 30 is open only at x 8–13 (the Sc01 cells), and y 1 only at x 7–10 above Sc02's cells. So Sc02's single value 6 matches the source's "≤ 8" on every path, and a lost Sc01 battle aborts the script (whiteout) with the story at 5.
+- Left as is: in Bar_Sc03 the sbires vanish at (10, 3–4), short of the back door. Every way to the door passes a cell the player may stand on.
 
 #### SIL2 Ch1 maps as built (Bois-Éther)
 
@@ -1642,6 +2006,465 @@ Below, each map's names are given without the `<Map>_` prefix. Trainer objects c
 - Both Centres' `OnTransition` call `set_respawn`, which needs `HEAL_LOCATION_SIL_GRIS_ECHEC` and `HEAL_LOCATION_SIL_VIBER_CITY` in `game.ron`'s append-only `heal_locations`. They are left to the ch02/ch03 scripts so that the list is not appended by two branches at once.
 - `FLAG_SIL_DEPOT_MAGNET_ON` is a "temporary" flag in the source (cleared on leaving the Depot) but a plain flag in `ids/`. Gen3's boulder gate is `FLAG_SYS_USE_STRENGTH`, which `game.ron` already clears on map change: Depot_Sc01 should set that once the engine pushes boulders.
 - `items.ron` keeps the source's `pos` for the moved Iron (4, 6) and Great Ball (13, 8). The maps are authoritative, and the importer would rewrite a hand edit.
+
+#### SIL3 Ch6 maps as built (Manga-Square)
+
+The nine Chapter 6 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for the Dojo). Seven stamps cut from Emerald's Battle Frontier (`stamp-from --no-elevation`) are in `games/silice/stamps/ms_*.ron`:
+- `ms_pagoda`, the Battle Palace (11 × 7);
+- `ms_dojo`, the Battle Arena (9 × 9);
+- `ms_gate`, the Arena's gate, used for the four torii (7 × 5);
+- `ms_house_small` (3 × 4) and `ms_house_long` (6 × 4);
+- `ms_rock_pen`, a fenced boulder (5 × 3);
+- `ms_planter` (10 × 3).
+
+No other chapter's map was edited. `cargo xtask studio map build` rebuilds all 21 maps (40 after the merge of Ch2–Ch3) and writes the same bytes (checked against a copy of `maps/` and `layouts/`). `validate` reports no errors, `hygiene` (with `games::copies`) is clean, `PKR_GAME=silice cargo test -p content -p extract` passes, and so do `cargo xtask silice check` and `cargo test -p xtask --test silice_games`.
+
+**Names.** The chapter's map constants are `MAP_MANGA_SQUARE` and its `_BIBLIOTHEQUE`, `_DOJO`, `_GYM`, `_MART`, `_POKEMON_CENTER` and `_TOILETTEUR`, plus `MAP_ROUTE_S06` and `MAP_ROUTE_S06_BOIS_SOUPIRS`. The map names are the ones `ids/maps.ron` gives: `MangaSquare`, `MangaSquare_Bibliotheque`, `MangaSquare_Dojo`, `MangaSquare_Gym`, `MangaSquare_Mart`, `MangaSquare_PokemonCenter`, `MangaSquare_Toiletteur`, `RouteS06` and `RouteS06_BoisSoupirs`. Each layout has its map's name.
+- `MAP_MANGA_SQUARE_GYM` had no id: the importer reads map names from headings only, and ch06 names the gym in its §2 and §4 text. It was appended by hand as 115, and its `map-undefined` exception was removed.
+- `MAP_MANGA_SQUARE_HOUSE_1` and `_HOUSE_2` are named in §2 with no content. No map is drawn for them. Their houses stand in the Rue des Échoppes with solid doors and no warps: (3, 21) and (7, 21). Their `map-undefined` exceptions stay.
+- Other chapters' names: `MAP_OWLYS` (Ch5, south of Route S6) and `MAP_ROUTE_S07` (Ch7, through the Grand Torii). See the pending links below.
+
+**Sizes and tilesets** (Emerald tilesets by name; every layout is original):
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| MangaSquare | 44 × 38 (the source's size) | General + BattleFrontierOutsideEast | The Battle Frontier's east side has Emerald's only Japanese buildings: the Arena dojo, its gate (used as the torii) and the Palace pagoda (used as the library). It also has slim trees that read as bamboo, sand and paving. General adds the Center, the Mart, water and the forest. |
+| RouteS06 | 28 × 64 (the source's size) | General + Facility | Facility is the secondary of Mt. Pyre's exterior, Emerald's only mountain shrine path. It has terraces, stone stairs and stone markers, used here as lanterns and incense burners. Its weather is fog, as the source asks. |
+| RouteS06_BoisSoupirs | 24 × 20 (the source's size) | General + Fortree | Route 119/120's pair: a wooded pond with a wooden bridge. |
+| MangaSquare_Dojo | 30 × 22 (the source's size) | Building + BattleArena | Tatami floor, shoji walls with lattice, a training court used as the stage, a giant screen, bonsai and the back door. |
+| MangaSquare_Bibliotheque | 26 × 24 (the source's size) | Building + Lab | The only pair with tall bookshelves and server-like racks together. |
+| MangaSquare_PokemonCenter | 12 × 9 | Building + PokemonCenter | standard (Ch1's vocabulary, with one more row) |
+| MangaSquare_Mart | 10 × 9 | Building + Shop | standard (Ch1's vocabulary, with one more row) |
+| MangaSquare_Toiletteur | 10 × 9 | Building + PokemonFanClub | A small salon: a pink rug, armchairs and plants. |
+| MangaSquare_Gym | 22 × 30 (the source's size) | General + BattleFrontierOutsideEast | Same as the town: raked gravel (the Frontier's sand), paving, water and boulders. The Frontier's white fence makes the shoji walls, and the Arena's lattice door (657) makes the closed shoji doors. |
+
+Borders: the outdoor maps use General's 2 × 2 forest (468/469/476/477), and Route S6 uses Facility's rock (113). The interiors use black, blocked (1025).
+
+**Warnings and allowances.**
+- `validate`'s only Ch6 warnings are the 78 unwritten scripts (MangaSquare 21, RouteS06 29 with the on-frame Sc01, Bibliotheque 16, Dojo 15, Gym 14, BoisSoupirs 5, Center 3, Toiletteur 2, Mart 1).
+- `MangaSquare_Dojo/03_allow.ron` keeps the signing queue's ribbon (BattleArena 629, y 11) solid. In the Arena it is a walkable court line. Here it fences the queue.
+- Fixed instead of allowed:
+  - The ponds (General 368 in the town and the gym) are surfable water: collision 0, elevation 1, as in Emerald.
+  - The Bibliothèque's rack shadows (Lab 640) and the desk's left foot (546) are walkable, as in the Lab.
+  - Adrien's table and the archivist's counter first used Lab 575 and 573/574. Those are floor shadows, so the table became a Lab desk (538/539/546/547) and the counter became the partition's pieces (607/615).
+- `silice check` still warns about two unused exceptions that are not Ch6's: `sil-prefix` `WEATHER_CLOUDS` and `WEATHER_PETALS`. After the merge of Ch2–Ch3 it reports no warning.
+
+**New ids** (commit `feat(silice): ids for Ch6 maps`). The hide flags were allocated by `cargo xtask silice import … --out <scratch copy> --force` from the maps, after Ch1's 765–774. Only `ids/flags.ron` was copied back, because the import would also undo the provisional `Tour_Sbire{1,2}_Intro_Ch09` rename. All are appended to `xtask/tests/fixtures/silice/ids.golden`.
+- **Renumbered at the merge of master.** Ch2–Ch3 took 775–803 and Ch4 has 804 onwards in review (about 22 ids), so the Ch6 flags start at 830 and leave the gap to Ch4. `ids/flags.ron` and `ids.golden` were changed together; the golden keeps master's lines unchanged and appends the Ch6 block after them. Maps name flags only, so no map changed.
+- flags:
+  - 830 `FLAG_SIL_HIDE_BIBLIO_ADRIEN`;
+  - 831–832 `FLAG_SIL_HIDE_DOJO_DRONE_1`, `_2`;
+  - 833 `FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR`;
+  - 834 `FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR`;
+  - 835–836 `FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A`, `_B`.
+- map 115: `MAP_MANGA_SQUARE_GYM`.
+
+Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO_KIMIKO`, `_HIDE_MANGA_SQUARE_{ADRIEN_FIN, BENOU, CONTROLEUR}`, `_HIDE_ROUTE_S06_ADRIEN`, `_GYM06_PORTE_1`–`5`, `_ROUTE_S06_RACCOURCI` and the `FLAG_SIL_ITEM_*` flags. No `FLAG_TEMP_*` is used as a hide flag. The vars are `VAR_SIL_STORY` and, for the gym's every-step coord events, `VAR_TEMP_1`.
+
+**Events per map** (my coordinates).
+- **MangaSquare.**
+  - Header: `MUS_LILYCOVE`, town, `WEATHER_NONE`. The petals are missing (see below).
+  - `on_transition` `MangaSquare_OnTransition` sets the hide flags from `VAR_SIL_STORY` and `FLAG_SIL_BADGE_06`, and the dawn tint (which has no fallback yet).
+  - Warps:
+    - 0: the Bibliothèque, the pagoda's door (22, 7);
+    - 1: the Dojo (36, 16);
+    - 2: the Center (15, 23);
+    - 3: the Konbini (3, 14);
+    - 4: the Toiletteur (9, 14);
+    - 5: the Monks' shortcut (1, 25), to RouteS06's warp 0.
+  - Objects:
+
+    | Local id | Who | Cell | Gfx | Script | Hide flag |
+    |---|---|---|---|---|---|
+    | 1 | COSPLAYEUR | (10, 16) | BLACK_BELT | `_EventScript_Cosplayeur` | |
+    | 2 | PURISTE | (20, 9) | OLD_MAN | `_EventScript_Puriste` | |
+    | 3 | MÈRE | (12, 26) | WOMAN_3 | `_EventScript_Mere` | |
+    | 4 | ANCIEN | (19, 17) | MAN_5 | `_EventScript_Ancien` | |
+    | 5 | LIVREUR | (24, 9) | MAN_2 | `_EventScript_Livreur` | `_LIVREUR` (new) |
+    | 6 | GAMIN | (25, 17), wanders 2 | LITTLE_BOY | `_EventScript_Gamin` | |
+    | 21 | CONTRÔLEUR | (37, 1), under the Grand Torii | MAGMA_MEMBER_M | `_EventScript_Controleur` | `_CONTROLEUR` |
+    | 20 | BENOU | (37, 3) | DEVON_EMPLOYEE | none (Sc02) | `_BENOU` |
+    | 22 | ADRIEN | (37, 8) | SCHOOL_KID_M | none (Sc03) | `_ADRIEN_FIN` |
+
+    Local ids 20–22 are the source's obj numbers, set with `Object(local_id: …)`.
+  - Coord events:
+    - `MangaSquare_Sc01`, `VAR_SIL_STORY` 61, on (21–23, 33) under the Torii Sud, and on (2, 25), the first step off the shortcut (a warp arrival fires no coord event on its own cell);
+    - `_Sc02`, value 66, on (36–38, 6) in front of the Grand Torii;
+    - `_Sc03`, value 67, on (37, 1).
+  - Signs:
+    - the town sign (26, 34);
+    - the statue (22, 16);
+    - the Grand Torii sign (39, 6);
+    - the two screens (18, 13) and (26, 13).
+  - Hidden item: the Revive behind the dragon statue (22, 13).
+  - Connection: South to RouteS06, offset 9 (its x 12–14 meet our Torii Sud x 21–23).
+  - Terrain:
+    - the pagoda (x 17–27, y 1–7) is the Bibliothèque;
+    - the Dojo (x 32–40, y 10–18) sits between its two torii, (33, 20) and the Grand Torii (34, 1);
+    - the Place du Dragon has the fenced dragon boulder (20–24, 14–16);
+    - the Rue des Échoppes (west) has a street torii (3, 5), the Konbini, the Toiletteur and the two houses;
+    - the Center is at (14–17, 20–23);
+    - there is a pond (29–32, 3–5) and a flower planter (27–36, 26–28);
+    - the Torii Sud is at (19–25, 32–36), and the south exit at x 21–23.
+- **RouteS06.**
+  - Header: `MUS_ROUTE120`, `WEATHER_FOG_HORIZONTAL`, route.
+  - Map scripts:
+    - `on_load` `RouteS06_OnLoad` reopens the bamboo curtain (23, 26) once `FLAG_SIL_ROUTE_S06_RACCOURCI` is set;
+    - `on_transition` `RouteS06_OnTransition` sets the hide flags. The sbires and Adrien are hidden outside `VAR_SIL_STORY` 60, and the randonneur before 61;
+    - `on_frame` runs `RouteS06_Sc01` while `VAR_SIL_STORY` is 55, Ch5's last value (Owlys_Sc05). The scene sets 60, so it runs once.
+  - Warp 0: the shortcut tunnel (25, 26), to MangaSquare's warp 5.
+  - Objects:
+    1. Adrien (13, 25), hide flag `_ROUTE_S06_ADRIEN`;
+    2. Sbire A (MAGMA_MEMBER_M) at (12, 25), flag `_SBIRE_A`;
+    3. Sbire B (MAGMA_MEMBER_F) at (14, 25), flag `_SBIRE_B` (1–3 are the source's obj 1–3);
+    4. Luna (BEAUTY) at (6, 9), sight 4;
+    5. Hoshi (PSYCHIC_M) at (20, 13), sight 4;
+    6. Yumi (ARTIST) at (8, 36), sight 3;
+    7. Gaston (HIKER) at (12, 49), sight 4;
+    8. Kotaro (NINJA_BOY) at (20, 57), sight 3;
+    9. the Pèlerine (OLD_WOMAN) at (7, 26);
+    10. the Coureur (RUNNING_TRIATHLETE_M) at (16, 39), walking up and down;
+    11. the Bonze (OLD_MAN) at (4, 20);
+    12. the Randonneur (CAMPER) at (20, 41), flag `_RANDONNEUR`;
+    13. cracked rock R1 (BREAKABLE_ROCK) at (5, 57);
+    14. cracked rock R2 at (22, 41);
+    15. cracked rock R3 at (20, 19), in the one gap of the altar ledge's east wall. The rocks have no flag, as in Emerald. Each is smashed from the path: R1 from (6, 57), R2 from (21, 41), R3 from (19, 19);
+    16. item balls: the Hyper Potion (18, 60), the Ultra Ball (23, 2), and behind R1, R2 and R3 the PP Up (3, 56), the Max Ether (24, 40) and the Dragon Scale (23, 18).
+  - Coord events: `RouteS06_Sc02`, `VAR_SIL_STORY` 60, on (12–15, 28), the top of the plateau's stairs.
+  - Signs:
+    - the entrance (11, 60);
+    - the incense burner (16, 28);
+    - the rock sign (6, 56);
+    - the altar (4–5, 19).
+  - Hidden item: the Lax Incense (17, 24).
+  - Connections: North to MangaSquare, offset −9. West to RouteS06_BoisSoupirs, offset 25 (our y 33–35 meet its y 8–10).
+  - Warps 1–3 (added with the Ch5 maps): the elevator landing's south arrow mats (12–14, 63), to Owlys's warp 8.
+  - Terrain, south to north:
+    - the Lacets bas, with R1's niche (3–4, 56–57);
+    - the middle zone, with the west exit and R2's niche (23–24, 40–41);
+    - the Plateau de l'Encens, with lanterns, the curtain and the tunnel;
+    - the altar ledge, with R3's niche (21–24, 18–19);
+    - the Lacets hauts.
+
+    Four stone stairs join the terraces.
+- **RouteS06_BoisSoupirs.**
+  - Header: `MUS_PETALBURG_WOODS`, route, `WEATHER_NONE` (the petals are missing).
+  - Objects:
+    1. Armand (GENTLEMAN) on the bridge (11, 8), sight 3;
+    2. the Amoureux (MAN_3) at (7, 6);
+    3. the Heart Scale ball (9, 12), in a notch reached only from the water.
+  - Signs: `RouteS06_BoisSoupirs_Sc01`, the Pierre aux Vers (16–17, 12).
+  - Hidden item: the Miracle Seed (6, 8).
+  - Connection: East to RouteS06, offset −25.
+- **MangaSquare_Dojo.**
+  - Header: `MUS_CONTEST_LOBBY`, indoor.
+  - `on_transition` `MangaSquare_Dojo_OnTransition` moves the monk aside from `VAR_SIL_STORY` 64 (`setobjectxyperm` to (28, 5), facing left). The door's alcove (27–28, 3) is entered only through (27, 4), from (27, 5), so the monk must not stand on either.
+  - Warps:
+    - 0: the exit mat (4, 21), to MangaSquare's warp 1;
+    - 1: the back door (27, 2), to MangaSquare_Gym's warp 0. It is solid: pushing into it warps.
+  - Objects (local ids are the source's where it numbers them):
+    1. the Shinobi-Gear vendor (NINJA_BOY) at (3, 5);
+    2. the restauratrice (WOMAN_2) at (3, 11);
+    3. a cosplayer (GIRL_3) at (8, 13);
+    4. a cosplayer (SAILOR) at (10, 13);
+    5. Adrien (13, 10), `MangaSquare_Dojo_Sc01`, flag `_HIDE_DOJO_ADRIEN`;
+    6. Kevin (POKEFAN_M) at (15, 10);
+    7. Bruno (FAT_MAN) at (16, 10);
+    8. Diane (POKEFAN_F) at (17, 10);
+    9. Kimiko (LIZA) on the stage (21, 5), flag `_HIDE_DOJO_KIMIKO`;
+    10. drone 1 (WINGULL) at (19, 4), flag `_DRONE_1`;
+    11. drone 2 (WINGULL) at (24, 4), flag `_DRONE_2`;
+    12. the disappointed fan (MANIAC) at (6, 19), `_Sc02`;
+    13. the cook (COOK) at (8, 5), `_Sc04`;
+    14. Kenta (BLACK_BELT) on the training mat (13, 15), `_Sc03`, sight 3;
+    15. the monk (EXPERT_M) at (27, 4), guarding the back door.
+  - Sign: the code scroll (7, 2).
+- **MangaSquare_Bibliotheque.**
+  - Header: `MUS_LILYCOVE_MUSEUM`, indoor.
+  - Warps 0–1: the mat (12–13, 23), to MangaSquare's warp 0.
+  - Objects:
+    1. Adrien at his desk (13, 4), `MangaSquare_Bibliotheque_Sc01`, flag `_HIDE_BIBLIO_ADRIEN`;
+    2. the archiviste (OLD_WOMAN) behind the counter (17, 16);
+    3. the prestataire (SCIENTIST_1) in the Archives (20, 6);
+    4. the étudiant (BOY_1) at (7, 14).
+  - Coord events: `_Sc01`, `VAR_SIL_STORY` 63, on (12–15, 7), two cells from Adrien.
+  - Signs:
+    - the four lore books on the shelves' lower rows: Livre 1 (3, 8), 2 (9, 8), 3 (3, 12) and 4 (9, 12);
+    - the four terminals: (6, 9), (12, 9), (6, 13) and (12, 13).
+  - Hidden items (Bibliotheque_Sc02): the Moon Stone (1, 18) behind the west rack, the Sun Stone (24, 18) behind the east one.
+  - The Archives (x 17–25, y 2–7) are behind a partition with a door at x 19–20, y 8–9.
+- **MangaSquare_PokemonCenter.** Header `MUS_POKE_CENTER`. `on_transition` sets the respawn point. Warps 0–1: the mat (5–6, 8). Objects:
+  1. the nurse at (6, 2);
+  2. the fan (POKEFAN_M) at (4, 6).
+- **MangaSquare_Mart.** Header `MUS_POKE_MART`. Warps 0–1: the mat (4–5, 8). Object 1: the clerk at (1, 3).
+- **MangaSquare_Toiletteur.**
+  - Header: `MUS_LILYCOVE`, the town's music, as Slateport's Fan Club plays Slateport's.
+  - Warps 0–1: the mat (4–5, 8).
+  - Objects:
+    1. the groomer (WOMAN_5) at (5, 3), script `MangaSquare_Sc04` (the source's Manga_Square_Sc04 runs here);
+    2. a Skitty at (6, 5).
+- **MangaSquare_Gym.**
+  - Header: `MUS_GYM`, `MAP_TYPE_TOWN` (open air), `MAP_BATTLE_SCENE_GYM`.
+  - `on_load` `MangaSquare_Gym_OnLoad` opens each shoji door whose `FLAG_SIL_GYM06_PORTE_n` is set. P1 is (10, 20), P2 (10, 16), P3 (10, 12), P4 (10, 8) and P5 (10, 4).
+  - Warp 0: the south arrow (10, 29), to the Dojo's warp 1.
+  - Objects:
+    1. Tak (BRAWLY) at (10, 3), `_Sc03`;
+    2. Musashi (EXPERT_M) in the alley's east niche (11, 25), `_Sc01`;
+    3. Kojiro (EXPERT_M) in the west niche (9, 22), `_Sc01`;
+    4. Ayame (EXPERT_F) at (12, 10), facing left, sight 4;
+    5. Seiji (PSYCHIC_M) at (7, 6), sight 3;
+    6. the guide (MAN_2) at (8, 28).
+  - Coord events: `_Sc01` on (10, 25) and (10, 22), keyed on `VAR_TEMP_1` 0. The script returns once the samurai's trainer flag is set.
+  - A wrong quiz answer warps to the entrance cell (10, 28), one row above the arrow warp, so `ENTREE_X`, `ENTREE_Y` are 10, 28.
+  - Signs: `_Sc02` on the five desks (9, 21), (9, 17), (9, 13), (9, 9) and (9, 5). The script picks the riddle by the row.
+  - Terrain, south to north:
+    - the entrance row (y 28);
+    - the Allée des Regards, a one-cell alley at x 10 between hedges (y 21–27);
+    - P1;
+    - the carp pond, crossed by a paved causeway (x 9–11, y 17–19);
+    - P2;
+    - gravel with a rock;
+    - P3;
+    - the Kunoichi's corridor of slim trees;
+    - P4;
+    - Seiji's gravel;
+    - P5;
+    - the Champion's garden: two cherry trees (General's big tree) and the dragon boulder.
+
+**Metatiles for `set_metatile`.**
+- `METATILE_SHOJI_OUVERT` (gym doors): General 265, the paving, collision 0, at (10, y) for y in 4, 8, 12, 16 and 20.
+- `METATILE_BAMBOU_OUVERT`: the bamboo curtain on Route S6 (23, 26) is General 198, a tree trunk. It opens to General 1, the route's ground, collision 0.
+
+**Script contract** (names for `crates/content/src/silice/scripts/ch06_*.rs`, following the Ch0 rules):
+- MangaSquare:
+  - scenes: `MangaSquare_Sc01`, `_Sc02`, `_Sc03`, `_Sc04` (the Toiletteur's groomer);
+  - `_OnTransition`;
+  - `_EventScript_{Cosplayeur, Puriste, Mere, Ancien, Livreur, Gamin, Controleur, SignVille, SignStatue, SignGrandTorii, SignEcran}`.
+- RouteS06:
+  - scenes: `RouteS06_Sc01` (on-frame, `VAR_SIL_STORY` 55) and `RouteS06_Sc02`;
+  - `_OnLoad`, `_OnTransition`;
+  - `_EventScript_{Luna, Hoshi, Yumi, Gaston, Kotaro, Pelerine, Coureur, Bonze, Rochers, Rocher, ItemHyperPotion, ItemUltraBall, ItemPpUp, ItemMaxEther, ItemDragonScale, SignEntree, SignEncens, SignRocher, SignAutel}`.
+- RouteS06_BoisSoupirs: `RouteS06_BoisSoupirs_Sc01`, `_EventScript_{Armand, Amoureux, ItemHeartScale}`.
+- MangaSquare_Dojo:
+  - scenes: `_Sc01`–`_Sc04`;
+  - `_OnTransition`;
+  - `_EventScript_{ShinobiGear, Restauratrice, Cosplay1, Cosplay2, Kevin, Bruno, Diane, Kimiko, Moine, SignCode}`.
+- MangaSquare_Bibliotheque: `_Sc01`, `_EventScript_{Archiviste, Prestataire, Etudiant, Livre1, Livre2, Livre3, Livre4, Borne}`.
+- Hide flags the scenes own (no map script sets them):
+  - `MangaSquare_Dojo_Sc01` clears `FLAG_SIL_HIDE_BIBLIO_ADRIEN` as it sets `_HIDE_DOJO_ADRIEN`: Adrien moves to the Bibliothèque, where he stays (Manga_Square_Sc03_T4);
+  - `MangaSquare_Bibliotheque_Sc01` sets `_HIDE_DOJO_DRONE_1` and `_2` with `_HIDE_DOJO_KIMIKO` (§8: Kimiko and her drones leave together);
+  - `MangaSquare_Sc02` and `_Sc03` clear `_HIDE_MANGA_SQUARE_BENOU` and `_ADRIEN_FIN` with `show_object`, and set them again when the actor leaves.
+- MangaSquare_PokemonCenter: `_OnTransition`, `_EventScript_{Nurse, Fan}`.
+- MangaSquare_Mart: `_EventScript_Clerk`.
+- MangaSquare_Toiletteur: `_EventScript_Skitty` (the groomer is `MangaSquare_Sc04`).
+- MangaSquare_Gym: `_Sc01`, `_Sc02`, `_Sc03`, `_OnLoad`, `_EventScript_{Ayame, Seiji, Guide}`.
+
+**Pending links** (not made: other chapters' maps).
+- **MangaSquare north → `MAP_ROUTE_S07` (Ch7).** The Grand Torii's passage (x 36–38, y 1–5) ends at forest on row 0. Add `games/silice/edits/MangaSquare/05_ch7_connect.ron`:
+  - `Ascii(x: 37, y: 0, rows: [":"], legend: {':': (metatile: 265, collision: 0)})`;
+  - `Connect((dir: North, offset: 37 - X, map: "RouteS07"))`, where X is RouteS07's south-exit column;
+  - RouteS07 mirrors it with South, offset `X - 37`.
+
+  The controleur at (37, 1) blocks the way until Sc02.
+- **Houses 1 and 2.** When `MAP_MANGA_SQUARE_HOUSE_1`/`_2` get content, add warps on (3, 21) and (7, 21). Those doors are solid now.
+
+**Link to Owlys (made with the Ch5 maps): RouteS06 south → `MAP_OWLYS`, as a warp, not a connection.** Ch5's source makes the Pilgrims' Elevator a warp ("Ascenseur → MAP_ROUTE_S06"), and Owlys is a cavern with a rock border, so a seamless connection would show rock on both sides. `RouteS06/05_ch5_elevator.ron` draws three south arrow mats (General 36, collision 0) on (12–14, 63), the path's end, as warps 1–3 to Owlys's warp 8, the elevator (30, 3). The elevator lands on the middle mat (warp 2). Owlys's Watchers bar the elevator until the badge. See "SIL3 Ch5 maps as built".
+
+**Changes from the source.**
+- The town:
+  - The gym has no door on the town, as the source says: it is reached through the Dojo's back door.
+  - The Bibliothèque's door is the pagoda's (22, 7), not y 6.
+  - The shortcut arrives at (1, 25) in the west forest wall.
+- Route S6:
+  - The fog covers the whole route. The source wants the upper half only, which a header cannot say.
+  - The curtain and tunnel are at (23–25, 26), on the plateau's east side (the source says y ≈ 22).
+- The Dojo's back door is at (27, 2), behind the monk.
+- The gym:
+  - The source's wooden bridge over the pond is a paved causeway. The Frontier pair has no wooden bridge, and Fortree's would need another secondary.
+  - The samurai stand in niches either side of the alley, so the alley stays one cell wide.
+- The Bibliothèque's coord row is y 7, the first free row before Adrien's desk (y 5–6).
+
+**Missing graphics and mechanics.**
+- Graphics:
+  - petal weather (`WEATHER_PETALS`, which needs engine work) on the town and the Bois des Soupirs;
+  - torii (the Arena's gate stands in);
+  - bamboo (slim trees, and a tree trunk for the curtain);
+  - paper lanterns (Mt. Pyre's markers);
+  - a wooden bridge in the gym (paving);
+  - the library's dark wood and ladders (Lab's white shelves);
+  - Benou, Kimiko, Tak, the drones (WINGULL), the samurai, Kunoichi and Moine (Expert and Psychic placeholders);
+  - koto, taiko and flute music.
+- Mechanics:
+  - Rock Smash and `FLAG_SIL_MODULE_ECLATE_ROC` (the rocks are `BREAKABLE_ROCK` objects whose script tests the flag);
+  - the dawn tint;
+  - the samurai double battle (multi);
+  - `show_book`;
+  - the servers' hum (`play_se` `SE_SERVEURS`);
+  - add_friendship and money for the groomer;
+  - Mega Evolution (Charizardite Y).
+
+**Editor friction.**
+1. **`ascii_op` legends must not clash.** Big multi-cell objects (trees, boulders, fences) ran out of letters: a big tree's `F` hit the fence's `F`, and the Bibliothèque's `G`/`H` clashed. Unicode keys were refused or mis-aligned. A legend keyed by short names, or a `Place(x, y, metatiles: [[…]])` op, would avoid it.
+2. **No elevation in `Ascii` without a full triple.** My helper first wrote two-field legends. Water then kept the land's elevation 3, and `validate` flagged it only through collision. A warning for water at elevation ≠ 1 would catch it.
+3. **Metatile meaning is guessed from renders.** Lab 573–575 and 640 are floor shadows, not furniture: I learned it from the "walkable in 5 of 5" warnings after the first build. `palette` could mark metatiles whose extracted cells are always walkable.
+4. **The ids importer reads only headings.** `MAP_MANGA_SQUARE_GYM` had to be appended by hand. The import also rewrites `text/` (the Ch09 rename), so it must run on a scratch copy and only `ids/flags.ron` may come back.
+5. **Worktree guard.** Shell variables, `cd` before `git`, and multi-step pipelines are refused. Helper scripts went through `Write` and plain `python3 -I`.
+
+**Review fixes** (after the merge of Ch2–Ch3). A breadth-first search over the layouts (collision, elevation, ledges by behaviour, water without Surf, objects as obstacles) found four map bugs, and the review found two contract bugs:
+- **Critical: the Dojo's back door stayed shut.** The monk's step-aside cell (27, 5) is the only cell below (27, 4), the alcove's one entrance, so moving him there kept the gym unreachable. He now steps to (28, 5).
+- **Critical: R3 could never be smashed.** It stood at (22, 20), whose only neighbours were the cliff top (solid), the wall and the niche itself. The altar ledge's east wall now has one gap, (20, 19), and R3 fills it; (22, 20) is cliff. The Dragon Scale (23, 18) is behind it.
+- **Important: Manga_Square_Sc02 could be walked around.** The Grand Torii's beam (rows 1–2) was walkable and joined the passage to the pond's path on the west and the east path at x 41. A player could reach the controleur at (37, 1) with `VAR_SIL_STORY` 66 and never cross (36–38, 6), so Benou's scene never played. The beam's ends (34 and 40, y 1–2) are solid now; the passage is entered only across the three coord cells. The search confirms it, and that Sc01 (Torii Sud and the shortcut's exit) and Route_S06_Sc02 (the plateau's stairs) cannot be bypassed.
+- **Important: Ayame saw nothing.** At (14, 10), facing left, she faced the slim tree at (13, 9–11), so her sight was empty and she could only be talked to. She stands at (12, 10) now, on the tree's other side, and sees x 8–11 across the path.
+- **Important: Route_S06_Sc01 ran from `on_transition`.** An on-transition script cannot show a message. Ch5 ends at 55 (Owlys_Sc05, the end of its §8 table), so the scene is an on-frame script on 55, as Ch0's Brico_Bourg_Sc02.
+- **Important: no hide flag started set.** Ch0–Ch3 list in `game.ron`'s `new_game_flags` the actors hidden at story 0, and the source says Benou and Adrien (fin) are hidden "au début de la partie". Added: `FLAG_SIL_HIDE_ROUTE_S06_{ADRIEN, SBIRE_A, SBIRE_B, RANDONNEUR}`, `FLAG_SIL_HIDE_MANGA_SQUARE_{BENOU, ADRIEN_FIN, LIVREUR}` and `FLAG_SIL_HIDE_BIBLIO_ADRIEN` (without it Adrien would sit in the Bibliothèque before the signing). The Dojo's Adrien, Kimiko, the drones and the controleur start visible. `game_tests.rs` checks both groups.
+- Noted, not changed:
+  - Ayame and Seiji can be walked past (crossing y 10 away from x 8–11, or y 6 east of x 10). The source does not make them mandatory, unlike the samurai, whose one-cell alley the search confirms.
+  - The Dojo's ribbon fences only the queue's front: the stage can be reached around it. Nothing depends on it, since Dojo_Sc01 starts by talking to Adrien.
+  - The pagoda's top row (17–27, 1) is walkable but unreachable.
+#### SIL3 Ch4 maps as built (Port-Ressac)
+
+The six Chapter 4 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Port-Ressac and the Gym). The review added `ViberCity/05_ch4_connect.ron` (the Route S4 link) and the hidden-at-start flags in `game.ron`; the text was left alone.
+
+`cargo xtask studio map build` rebuilds all 37 Silice maps (after the Ch2–Ch3 merge) and writes the same bytes (checked with everything staged: no diff).
+
+**Names.** The chapter's `MAP_*` constants are `MAP_ROUTE_S04`, `MAP_PORT_RESSAC`, `_TAVERNE`, `_NAVIRE_COCKET`, `_GYM` and `_GYM_CALE`, with the names `ids/maps.ron` already gives (`RouteS04`, `PortRessac`, `PortRessac_Taverne`, `PortRessac_NavireCocket`, `PortRessac_Gym`, `PortRessac_Gym_Cale`). Its other names are `MAP_VIBER_CITY` (Ch3, linked by the review) and `MAP_ROUTE_S05` (Ch5, linked with the Ch5 maps, below). Each layout has its map's name.
+
+**Sizes and tilesets** (Emerald tilesets by name; every layout is original, and `hygiene`, which includes `games::copies` with the full extract, is clean):
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS04 | 60 × 20 (the source's size) | General + Cave | Granite Cave's pair: the dark cave the source cites, with rock walls, scree (514/515) and cave mouths (523–533). The canal is General's water 368 inside the cave, as in Shoal Cave at high tide. |
+| PortRessac | 50 × 40 (the source's size) | General + Slateport | Emerald's port town: quays and quay edges (605), sand (292), market stalls, crates, warehouse walls (stacked as containers), the Pokémon Center building (the Taverne). The same secondary has the Abandoned Ship's exterior hull with its boarding stairs (874), used for both ships. |
+| PortRessac_Taverne | 16 × 11 | Building + PokemonCenter | It is a Pokémon Center. The 2F's desk counter (717/719 over 725/727) is the shop counter. |
+| PortRessac_NavireCocket | 24 × 14 (the source's size) | General + Facility | The Abandoned Ship's grey deck, railings and stairs, plus the Aqua Hideout's machines (the processors) and wall terminals (green screens). |
+| PortRessac_Gym | 20 × 22 | General + Facility | The Abandoned Ship's deck: quarterdeck, raised front with stairs, deckhouses, a mast, the gangway. |
+| PortRessac_Gym_Cale | 11 × 9 (the source's size) | General + InsideShip | The S.S. Tidal's hold: plank floor and the white drums (639) as the barrels; the source's grid is kept cell for cell. |
+
+Borders: Port-Ressac is open sea (368, blocked), the Gym its decor sea (414), Route S4 solid rock, the interiors black, blocked.
+
+**Warnings and allowances.**
+- `validate` reports no errors. Its only warnings are the unwritten scripts (620 in all after the Ch2–Ch3 merge, of which 104 are Ch4's: Port-Ressac 44 (one per event naming a script, so the repeated coord cells count), Route S4 30, Gym 12, Cale 7, Taverne 6, Navire 5) and Ch3's accepted ViberCity (28, 6) coord pair. `registry::ALLOW_UNWRITTEN` drops them at build time.
+- `03_allow.ron`:
+  - Gym and Port-Ressac keep the Abandoned Ship's decor sea 414 solid round the hulls (Emerald keeps it round the Abandoned Ship too): the ships can only be boarded by their stairs;
+  - Route S4's allowance for its solid west cave mouth went with the mouth itself (the Viber-City link is a connection, below).
+- Validate warns on a hide flag shared by two objects, and no allowance exists for that. So every scene actor has its own hide flag, where the source shares one (`FLAG_SIL_HIDE_PORT_QUAIS_SBIRES` for the quay cleaning).
+- `cargo xtask silice check` passes. Every flag, var and item the maps name exists in `ids/` or in Gen3.
+
+**Ids allocated** (commit `feat(silice): ids for Ch4 maps`; the import run on a scratch copy, only `ids/flags.ron` and the report's ids lines taken, the 22 lines added to `ids.golden`): first 775–796; the Ch2–Ch3 maps took 775–803 on master first, so the merge of master renumbered ours to **804–825**, appended after master's last id (the golden stays append-only against master), the hide flags `FLAG_SIL_HIDE_PORT_` `CONTREMAITRE`, `DECOR_1`–`3`, `GYM_GWADA`, `MARIN_CLIENT`, `PASSANT_1`–`4`, `PIRATE_1`–`3`, `PIRATE_PASSERELLE`, `SAMUEL`, `SBIRE_1`–`4`, `TAVERNE_ADRIEN`, `TAVERNE_GWADA`, and `FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE`. No `FLAG_TEMP_*` is used. The source's `FLAG_SIL_HIDE_PORT_CARGO` (the cargo's guard) and `FLAG_SIL_HIDE_ROUTE_S04_ADRIEN` are used as they are. **`game.ron`** (added by the review, as Ch1 did): `new_game_flags` sets the hidden-at-start actors' flags: the four `PASSANT`s, `SAMUEL`, the three `PIRATE`s, the four `SBIRE`s, `CONTREMAITRE`, the three `DECOR`s, `GYM_GWADA`, `TAVERNE_GWADA` and `TAVERNE_ADRIEN`. Adrien and his Magikarp in the tunnel, the cargo's guard, Crow's client and the gangway pirate start visible. `game_tests.rs` checks both groups. The OnTransition scripts set them anyway.
+
+**Events per map** (my coordinates; the source's own coordinates are kept where it gives them: the Cale's grid, the lookout's (41, 18) and (44, 16)).
+
+- **RouteS04.**
+  - Header: `MUS_PETALBURG_WOODS`, `MAP_TYPE_UNDERGROUND`, `cave: 1` (requires Flash), as Granite Cave 1F.
+  - Map scripts: `on_frame` VAR_SIL_STORY 36 → `RouteS04_Sc01`; `on_transition` `RouteS04_OnTransition`.
+  - Warp 0: the east cave mouth (56, 2) → Port-Ressac warp 0. Connection: West ↔ ViberCity East (offsets −7 / 7): the hall's west opening (x 0–1, rows 8–9) meets Viber's east street (y 15–16).
+  - Objects: 1 Adrien (28, 9) facing west, `RouteS04_Sc02`, `FLAG_SIL_HIDE_ROUTE_S04_ADRIEN`; 2 his Magikarp (28, 10) in the canal, `_MAGICARPE`; 3 the worker (13, 12); 4 Bernard (9, 9) and 5 Kevin (14, 4) in the hall; 6 Luna (21, 5) and 7 the grunt (34, 9) in the gallery; 8 the reveller (38, 6); 9 Roxane (46, 4) on the ramp; 10–13 the balls: Super Repel (4, 5) behind the booth, Moon Stone (39, 11) at the canal's end, Hyper Potion (51, 12) in the scree, Escape Rope (42, 16) in the dead end. Trainer sights are 4 (Roxane 5).
+  - Coord events: `RouteS04_Sc02` on (26, 5–9), value 40: the whole gallery, two tiles before Adrien.
+  - Signs: the entrance (8, 2), the works (42, 2), M1 (12, 2), M2 (24, 4), M3 (33, 4), M4–M7 (45, 47, 50, 53; 2), M8 = `RouteS04_Sc03` (58, 2), all on wall faces. Hidden: the Ether (50, 3) under M6.
+- **PortRessac.**
+  - Header: `MUS_SLATEPORT`, `MAP_TYPE_CITY`, map name shown.
+  - Map scripts: `on_frame` 41 → `PortRessac_Sc01`; `on_transition` `PortRessac_OnTransition`; `on_load` `PortRessac_OnLoad` (the cargo's departure, below).
+  - Warps: 0 the tunnel door (25, 3) → RouteS04 0; 1 the Taverne (4, 7) → Taverne 0; 2 the cargo's stairs (7, 25) → Navire 0; 3 the Zenith-Grog's stairs (32, 25) → Gym 0.
+  - Objects (local ids 1–26 are the source's obj numbers; 1–4 are free in the source):
+
+    | Local id | Who | Cell | Gfx | Script | Hide flag |
+    |---|---|---|---|---|---|
+    | 1 | Docker | (20, 19) | MAN_3 | `_EventScript_Docker` | |
+    | 2 | Vieux marin | (13, 17) | OLD_MAN | `_EventScript_VieuxMarin` | |
+    | 3 | Fêtarde | (30, 8) | BEAUTY | `_EventScript_Fetarde` | |
+    | 4 | Enfant | (11, 10) | LITTLE_BOY | `_EventScript_Enfant` | |
+    | 5 | Crow | (44, 15) | GENTLEMAN | `PortRessac_Sc02` | |
+    | 6 | Marin client | (46, 16) | SAILOR | `_EventScript_MarinClient` | `_MARIN_CLIENT` |
+    | 7–10 | Passants | (47, 19), (47, 20), (43, 19), (47, 18) | MAGMA_MEMBER_M, SAILOR, SKITTY, SAILOR | none | `_PASSANT_1`–`4` |
+    | 11 | Cargo guard | (8, 26) | MAGMA_MEMBER_M | `_EventScript_GardeCargo` | `FLAG_SIL_HIDE_PORT_CARGO` |
+    | 12 | Gogo | (47, 22) | MAXIE | `_EventScript_Gogo` | |
+    | 13 | Romain | (46, 21), sways | ARCHIE | `_EventScript_Romain` | |
+    | 14 | Pirate passerelle | (32, 26) | SAILOR | `PortRessac_Sc04` | `_PIRATE_PASSERELLE` |
+    | 15 | Samuel | (32, 23), on deck | BRAWLY | none | `_SAMUEL` |
+    | 16–18 | Pirates | (17, 18), (35, 19), (38, 20), walk in place east | SAILOR | `_EventScript_Pirate` | `_PIRATE_1`–`3` |
+    | 19–22 | Quay grunts | alcoves (13, 11, 9, 7; 19), sight 1 | MAGMA_MEMBER_M/F | `_EventScript_Sbire1`–`4` | `_SBIRE_1`–`4` |
+    | 23 | Contremaître | (3, 20) | MAGMA_MEMBER_M | `_EventScript_Contremaitre` | `_CONTREMAITRE` |
+    | 24–26 | Decor grunts | (18, 18), (36, 19), (39, 20), walk in place west | MAGMA_MEMBER_M/F | `_EventScript_SbireDecor` | `_DECOR_1`–`3` |
+    | 27 | Grunt by the container | (8, 16) | MAGMA_MEMBER_M | `_EventScript_Sbire` | |
+    | 28 | Pêcheur | (24, 20) | FISHERMAN | `_EventScript_Pecheur` | |
+    | 29 | Blue container | (6, 15) | PUSHABLE_BOULDER | `_EventScript_Container` | |
+    | 30 | Great Ball | (14, 11) | item ball | `_EventScript_SuperBall` | `FLAG_SIL_ITEM_PORT_SUPER_BALL` |
+
+  - Coord events: `_EventScript_CargoBloque` (6, 26) at 42; `PortRessac_Sc03` (44, 21–23), (45, 21) and (47, 21) at 43; `PortRessac_Sc05` (5, 20) at 46; `_EventScript_PasserelleQuais` (31, 26) at 46; `PortRessac_Sc06` (42, 21–23) at 49.
+  - Signs: the town (22, 5), the neon (34, 6), the cargo (4, 19, stencilled on a container), the gym (26, 20), the distributor (8, 7). Hidden: the Water Stone (4, 15), the Pearl (16, 17).
+  - The quays: the four grunts stand in container alcoves over the one-tile corridor (row 20) between the containers and the water, so each sees the player pass and none blocks it once beaten (Gen3 trainers stay where they stand). The foreman closes the corridor's west end, before the cargo's pier.
+  - The boarding stairs (7, 25) and (32, 25) are north arrow warps (`MB_STAIRS_OUTSIDE_ABANDONED_SHIP`). The shallows beside them (873/875) are solid, so each stair is reached only from the dock cell below it.
+  - The blue container is pushed north from (6, 16) into the pocket (6, 14); the corridor west then leads to the Water Stone (4, 15).
+- **PortRessac_Taverne.**
+  - Header: `MUS_POKE_CENTER`, indoor. `on_transition` `PortRessac_Taverne_OnTransition`.
+  - Warps 0–1: the mat (7–8, 10) → Port-Ressac warp 1.
+  - Objects: 1 the nurse (9, 2), `_EventScript_Infirmiere`; 2 the clerk behind the shop counter (3, 2), `_EventScript_Vendeur`; 3 Gwada on a stool (6, 6), `PortRessac_Taverne_Sc01`, `_TAVERNE_GWADA`; 4 Adrien asleep (12, 6), `_EventScript_Adrien`, `_TAVERNE_ADRIEN`; 5 the regular (3, 7), `_EventScript_Pilier`.
+- **PortRessac_NavireCocket.**
+  - Header: `MUS_AQUA_MAGMA_HIDEOUT`, indoor.
+  - Warps 0–1: the gangway steps (3–4, 13), south arrows → Port-Ressac warp 2.
+  - Objects: 1 grunt Cargo_1 (2, 11) facing east, sight 4; 2 grunt Cargo_2 (9, 9) facing west at the stairs' foot, sight 2; 3 the PP Up (22, 6).
+  - Signs: the terminal (19–20, 1) → `PortRessac_NavireCocket_Sc01`. Hidden: the Lucky Punch in Crow's crate (7, 4).
+- **PortRessac_Gym.**
+  - Header: `MUS_GYM`, indoor, `MAP_BATTLE_SCENE_GYM`. `on_transition` `PortRessac_Gym_OnTransition`; `on_load` `PortRessac_Gym_OnLoad` (opens the grille from VAR_SIL_STORY 48).
+  - Warps: 0–1 the gangway's exit steps (9–10, 21) → Port-Ressac 3; 2 the hatch deckhouse (13, 13) → Cale 0; 3 the quarterdeck deckhouse (5, 4) → Cale 1.
+  - Objects: 1 Samuel at the helm (13, 3), `PortRessac_Gym_Sc01` (it runs Sc02); 2 the guide (5, 14); 3 Patrice (4, 17) facing east, sight 6 (the coupée's top row); 4 Jessy (16, 14) facing west, sight 3 (the hatch's front cell); 5 Gus (7, 5) facing west, sight 2, over the ladder's top; 9 Gwada (7, 15), `_GYM_GWADA` (local id 9 is the source's obj 9).
+  - Coord events: `PortRessac_Gym_Sc03` on the coupée's top (9–10, 18) at 48. Signs: the grille (9–10, 10), the roll notice (12, 13).
+  - The way: gangway → main deck (Patrice, Jessy) → the hatch (13, 13) → the hold's puzzle → its ladder → the quarterdeck (Gus) → Samuel. The grille bars the quarterdeck stairs from the deck until Samuel has been faced. A breadth-first search over the layout confirms that Patrice, Jessy, Gus and Timothé cannot be walked round.
+- **PortRessac_Gym_Cale.**
+  - Header: `MUS_GYM`, indoor, gym scene. `on_load` `PortRessac_Gym_Cale_OnLoad` (repaints an exploded barrel's cell as floor when `FLAG_SIL_PORT_CALE_FUT_1`/`_2` is set).
+  - Warps: 0 the hatch (5, 8) → Gym 2; 1 the ladder (8, 0) → Gym 3.
+  - Objects: the barrels A (4, 3), D (4, 4) and B (2, 6) as Strength boulders, `_EventScript_Fut`; Timothé (6, 1), sight 1.
+  - Signs: the explosive barrels n°1 (7, 6) and n°2 (8, 3). Hidden: Hyper Potion (1, 5), Rhum Pirate (9, 5).
+
+**Ch4 script contract** (the scripts the maps name; none is written yet).
+- **RouteS04.** `RouteS04_Sc01` (frame, 36 → 40). `RouteS04_Sc02` (Adrien's object and the gallery's coord column at 40: the scene, then `hide_object` Adrien and the Magikarp, which sets both hide flags, then 41). `RouteS04_Sc03` (M8). `RouteS04_OnTransition` (the dark state; keeps the Magikarp's flag equal to Adrien's). `_EventScript_MurM1`–`M7` (Mur_Sombre until `FLAG_SIL_ROUTE_S04_MURS`, then the message), `_SignEntree`, `_SignChantier`, `_Ouvrier`, `_Fetard`, `_Magicarpe`, the trainers `_Bernard` (MINEUR), `_Kevin` (TEUFEUR), `_Luna` (KINESISTE), `_Sbire` (SBIRE), `_Roxane` (COURSIERE), the balls `_SuperRepousse`, `_PierreLune`, `_HyperPotion`, `_Corde`.
+- **PortRessac.**
+  - `PortRessac_OnLoad`: when `FLAG_SIL_HIDE_PORT_CARGO` is set, repaint the cargo (hull, stairs, shoal and dock, x 4–11, rows 22–26) as open water 368 (elevation 1) and clear warp 2's stairs.
+  - `PortRessac_OnTransition`: set `_PASSANT_1`–`4` and `_SAMUEL` always (the scenes show them); `_MARIN_CLIENT` once `FLAG_SIL_PORT_CROW_GUET` is set; `_PIRATE_PASSERELLE` from 46; the pirates', grunts', foreman's and decor grunts' flags unless VAR_SIL_STORY is 46 (the source's `FLAG_SIL_HIDE_PORT_QUAIS_SBIRES` can stay the story flag Sc04 clears and Sc05 sets).
+  - `PortRessac_Sc01` (frame 41 → 42), `_Sc02` (Crow at 42; warps to (41, 18) and (44, 16); hides the client), `_Sc03` (the jetty's coords at 43), `_Sc04` (the gangway pirate at 45; Samuel at (32, 23) walks down 3 to (32, 26), facing the player at (31, 26); Samuel must stay on (32, 26) until the map reloads, or the player must be moved off (31, 26), because the player ends the scene standing on the gate's coord cell; the pirates' `Walk(Down) x2` must be re-derived from their duel cells), `_Sc05` (the coord (5, 20) at 46; at its end it moves Samuel next to the player before his "walk left 3", since his template is on the gym's deck), `_Sc06` (the coords at 49; returns at once when `FLAG_SIL_PORT_APPEL_JULIEN` is set, since a coord event repeats while its var matches).
+  - `_EventScript_CargoBloque` (Garde_Cargo_T1, the player steps back), `_PasserelleQuais` (a pirate's line: clear the quays first; the player steps back), `_GardeCargo` (T1, or T2 from `FLAG_SIL_PORT_GARDE_DORT`), `_Distributeur` (T1 and the Lemonade once with `FLAG_SIL_PORT_LIMONADE`, then T2 and the vending menu), `_Container` (Champ Magnétique, the Strength boulder behaviour), `_Pecheur` (the Good Rod with `FLAG_SIL_PORT_CANNE`), `_Sbire1`–`4` (TRAINER_SIL_PORT_SBIRE_1–4), `_Contremaitre` (his talk line; his battle is Sc05's), the ambient `_Docker`, `_VieuxMarin`, `_Fetarde`, `_Enfant`, `_MarinClient`, `_Gogo`, `_Romain`, `_Pirate`, `_SbireDecor`, `_Sbire`, the signs `_SignVille`, `_SignNeon`, `_SignCargo`, `_SignGym`, the ball `_SuperBall`. The ambient lines switch to `_Apres` from 47.
+- **PortRessac_Taverne.** `_OnTransition` (`_TAVERNE_GWADA` set outside VAR_SIL_STORY 42–47: the scene's range; the map section says 42–48, but at 48 Gwada is on the Zenith-Grog; `_TAVERNE_ADRIEN` set until `FLAG_SIL_ROUTE_S04_ADRIEN` and again from 49), `PortRessac_Taverne_Sc01`, `_Infirmiere` (heal, `set_respawn(HEAL_LOCATION_PORT_RESSAC)` the first time), `_Vendeur` (the §7 mart), `_Adrien`, `_Pilier`.
+- **PortRessac_NavireCocket.** `PortRessac_NavireCocket_Sc01` (the terminal, 44 → 45, LOG_04), `_EventScript_Sbire1`/`2` (TRAINER_SIL_PORT_CARGO_1/2), `_PpPlus`.
+- **PortRessac_Gym.** `_OnTransition` (sets `_GYM_GWADA`), `_OnLoad` (from VAR_SIL_STORY 48, `set_metatile` (9, 10) and (10, 10) to floor 552, collision 0), `PortRessac_Gym_Sc01` (the breathalyser, then Sc02, which ends by opening the grille the same way, since the player is still on the quarterdeck), `PortRessac_Gym_Sc03` (Gwada: show, walk down 2), `_EventScript_Guide`, `_Patrice`, `_Jessy`, `_Gus`, `_Grille`, `_SignRoulis`.
+- **PortRessac_Gym_Cale.** `_OnLoad`, `_EventScript_Fut` (the Strength barrels), `_Explosif1`/`2` (the wild battle, then `set_metatile` and the barrel's flag), `_Timothe`.
+
+**Link to Route S5 (made with the Ch5 maps).** `games/silice/edits/PortRessac/05_ch5_connect.ron` connects East to RouteS05 with offset 0: our east edge's open sea (column 49, rows 22–39; the jetty ends at x 47) meets Route S5's west sea at the same rows, by its entrance buoy (3, 26). Route S5 mirrors it (`West`, offset 0). Surf only (M10). See "SIL3 Ch5 maps as built".
+
+**Changes from the source.**
+- The cargo's guard stands beside the stairs, not on them; the block before the lookout is a coord event (6, 26) at 42.
+- Crow's crate is a hidden item, the method §7 gives; its own text (Port_Ressac_Navire_Caisse) cannot show with Gen3's hidden item.
+- The Cale's Rhum Pirate ×2 is one: `HiddenItem` has no quantity.
+- **Author ruling needed: the canal is surfable.** The source wants it fishable but not surfable. Gen3 has no such water: the rods and Surf use the same test (`IsPlayerFacingSurfableFishableWater`: a surfable-fishable behaviour, collision 0, an elevation mismatch, the player at elevation 3), and solid water allows neither. The canal is kept fishable (its §6 table has fishing slots). Surfing it is harmless: it is a dead-end strip whose banks are all gallery floor, its encounter table has no water slots, and Surf comes at VAR_SIL_STORY 48, long after Sc02's gate. Surf-proof water would need an engine rule (for example a map-level no-Surf flag).
+- One hide flag per actor, not the source's one shared flag (above).
+- Timothé stands visible next to his barrel (the source's fallback for a trainer hidden in an object).
+
+**Placeholders and what is missing.**
+- Graphics: Samuel BRAWLY, Gwada BOY_2, Crow GENTLEMAN, Gogo MAXIE, Romain ARCHIE, Cocket grunts MAGMA_MEMBER_M/F, pirates SAILOR, the guide MAN_2, Jessy EXPERT_F, Gus BLACK_BELT, Kevin (guitarist) MANIAC, Luna (psychic) HEX_MANIAC, the reveller BOY_3, the worker MAN_4, the Magikarp AZURILL (no MAGIKARP object), the blue container and the barrels PUSHABLE_BOULDER, the pirate nurse NURSE. The sleeping guard needs a second sprite (or a gfx swap).
+- Tiles: blue silica sand, the "RHUM DE SAM" neons, glass walls, real containers (warehouse walls stand in), ship-carcass houses, a grey cargo with red neons (both ships are the Abandoned Ship's hull), the Dome's wall line at sea, the slowed water animation.
+- Mechanics: darkness and the Flash module, Surf, Strength (Champ Magnétique), fishing (M10); the vending machine menu; `set_metatile` for the cargo's departure and the barrels; a field module run by a script (`use_field_module`).
+
+**Editor friction.**
+1. **A hide flag shared by several objects warns, with no allowance.** The source's shared `FLAG_SIL_HIDE_PORT_QUAIS_SBIRES` (8 actors) and one flag for the four passers-by became 18 flags. Suggest an `AllowSharedFlag(flag, reason)` op, or not warning when the objects are a scene's group.
+2. **No wall autotiling.** Route S4's walls (corners, faces, lips) and Port-Ressac's 50 × 40 grid were written by small Python generators in the scratch dir that print one `Ascii` op. Suggest a `Walls(floor: …, set: "cave")` op that picks each rock cell's piece from its floor neighbours.
+3. **Behaviours are still not shown.** General + Cave's 664–682, which look like water in Shoal Cave's low-tide room, are wet sand; only the render showed it. `palette --behaviors` or a behaviour overlay would have said so.
+4. **`import` rewrites the text too.** Run on a newer `contenu-jeu`, it also changes `text/fr.ron` and `speakers.ron` (other chapters' edits). I ran it on a scratch copy and took only the ids. Suggest `import --ids-only`.
+5. **Hidden items carry no quantity and no text.** See the Cale's ×2 and Crow's crate.
+6. **In the agent worktree, shell loops and variables in a command are still refused** (as in Ch1).
+7. The master merge mid-task (`Object(local_id)`, `ScriptsSet`, `render --extract`, `dump --extract`, `palette --range`) helped: `dump --extract` replaced my scratch grid script for Route 108, Route 116 and Shoal Cave, and Gwada has the source's local id 9.
+
+**Review fixes** (after merging master with the Ch2–Ch3 maps):
+- **The Zenith-Grog could be boarded before VAR_SIL_STORY 47 (critical).** Its stair is a north arrow warp, and the shallows (31, 25) and (33, 25) beside it were walkable, so the player went round the gangway pirate on (32, 26) and pressed up. Both ships' side shallows (873/875) are now solid. A breadth-first search from the tunnel door confirms (32, 25) is unreachable at 42–46 and the cargo's stair only through (6, 26).
+- **Leaving the gym after Samuel forced the hold backwards (important).** The grille had no opening, and from the ladder the barrels (reset on reload) bar row 3: only the Electrode barrel let the player down. `PortRessac_Gym_OnLoad` and the end of Sc02 now open the grille from 48.
+- **Sc03 could be skipped (important).** The quay opens onto the whole jetty, so stepping down at x 45–47 avoided the column at x 44 and left the story at 43 until the player crossed it. Coords (45, 21) and (47, 21) close the gap. Sc06 (optional, first time) keeps its column: at 49 the player can also surf from any pier.
+- **The gym's crew could be walked round (important, Ch1's convention).** Patrice and Jessy now watch the only cells into and across the deck (above).
+- **The Viber-City link is made.** Ch3 drew it as a connection from Viber's east street, not the source's warp from its south exit (Route S3 is there). The hall opens on rows 8–9 at the west edge; the old cave mouth (5, 2) is wall. Emerald has no outdoor ↔ cave connection, so the engine must apply Route S4's darkness (`cave: 1`) on a connection crossing too.
+- **Hide flags at the new game.** `game.ron` and `game_tests.rs`, as above.
+- **Kept, noted:** the source has the gangway pirate say the R-7 badge reminder at 48+; he is hidden from 46, and standing on (32, 26) again he would bar the rematch, so the gym guide alone says it. The fixed barrels are InsideShip's 639, `MB_TRASH_CAN`: Gen3 answers A on any of them with the trash-can text, which matches the source's empty-barrel line (Port_Ressac_Cale_Vide) once the loot is taken. Navire's two deck grunts can be walked round, as the source does not ask otherwise.
+
+**Time.** About 3 h:
+- 1 h learning five tileset pairs (Cave, Slateport with the ship hull, Facility, InsideShip, PokemonCenter) through reference renders and dumps;
+- 1.5 h drafting the six maps;
+- 0.5 h events, ids, gates and this write-up.
 
 #### SIL4 Ch8 maps as built (Évalon)
 
@@ -2246,6 +3069,276 @@ The charmap has other `EMOJI_*` symbols that could answer pending rulings with t
 ### 3.3 SIL3: Ch4–Ch6 (needs M10 Surf, Fly, Rock Smash and fishing; M11 held items and multi)
 New engine features: held items and the Mega and Primal framework (§3.4), `BattleSetup` (start status and stages), the battle-rule table, mid-battle lines, the book UI, petal weather.
 Content: `species_forms.ron` (Q5), Mega pics (Q3), Mallette Logs and Sync.
+
+#### SIL3 Ch5 maps as built (Owlys)
+
+The fourteen Chapter 5 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Route S5, Owlys and the gym's crypt). The first build touched no other chapter's map, `game.ron` or text; the review added the Port-Ressac and Route S6 links (`PortRessac/05_ch5_connect.ron`, `RouteS06/05_ch5_elevator.ron`) and the hidden-at-start flags in `game.ron`. `cargo xtask studio map build` rebuilds every map and writes the same bytes (checked after the commit: no diff).
+
+**Names.** The chapter's `MAP_*` constants map to the names `ids/maps.ron` already gives:
+
+| Constant | Map |
+|---|---|
+| `MAP_ROUTE_S05` | `RouteS05` |
+| `MAP_ROUTE_S05_BANC` | `RouteS05_Banc` |
+| `MAP_ROUTE_S05_EPAVE` | `RouteS05_Epave` |
+| `MAP_ROUTE_S05_GROTTE_CORAIL` | `RouteS05_GrotteCorail` |
+| `MAP_ROUTE_S05_FAILLE` | `RouteS05_Faille` |
+| `MAP_OWLYS` | `Owlys` |
+| `MAP_OWLYS_POKEMON_CENTER` | `Owlys_PokemonCenter` |
+| `MAP_OWLYS_MARCHE_GRIS` | `Owlys_MarcheGris` |
+| `MAP_OWLYS_ORPHELINAT` | `Owlys_Orphelinat` |
+| `MAP_OWLYS_GROTTE_EST` | `Owlys_GrotteEst` |
+| `MAP_OWLYS_ENTREPOT` | `Owlys_Entrepot` |
+| `MAP_OWLYS_ENTREPOT_B1F` | `Owlys_Entrepot_B1F` |
+| `MAP_OWLYS_GYM` | `Owlys_Gym` |
+| `MAP_OWLYS_GYM_B1F` | `Owlys_Gym_B1F` |
+
+None of these is a placeholder or a fallback name, so every name got a map. The chapter's other names belong elsewhere:
+- `MAP_PORT_RESSAC` is Ch4;
+- `MAP_ROUTE_S06` is Ch6;
+- `MAP_ROUTE_S05_ILE_DEBUG` is Ch12;
+- `HEAL_LOCATION_OWLYS` is a heal location, not a map.
+
+§1.2's count of 16 includes `MAP_PORT_RESSAC` and `MAP_ROUTE_S06`.
+
+**Sizes and tilesets.** These are Emerald tilesets by name. Every layout is original, and `hygiene` is clean; it includes `games::copies` against the full extract.
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS05 | 80 × 50 (the source's) | General + Pacifidlog | It is Route 134's pair, the sea of currents. It gives the current tiles (east 613/644, west 611, north 643), the sea rocks and shallows, Pacifidlog's log house on its raft (the islet's hut), and the big boulder whose cave serves as the wreck's hole. General adds the rocky islet and its cave mouth, and the mountain wall of the rift. |
+| RouteS05_Banc | 40 × 24 | General + Pacifidlog | It is the same sea, south of Route S5 (the bay and the beach). |
+| RouteS05_Epave | 30 × 20 (the source's) | General + InsideShip | The Abandoned Ship has cabins, bunks, a broken door, a flooded hold, and an encounter floor (568). |
+| RouteS05_GrotteCorail | 25 × 20 (the source's) | General + Cave | Seafloor Cavern's sea cave has sand, water and walls. |
+| RouteS05_Faille | 20 × 40 (the source's) | General + Cave | It is a vertical rift: a water corridor, then a winding ramp. |
+| Owlys | 60 × 50 (the source's) | General + Cave | The city is dug into a cavern: cave walls, the void (581) for the chasm, and Victory Road's planks for the walkways. General adds the Center's front. |
+| Owlys_PokemonCenter | 12 × 8 | Building + PokemonCenter | It reuses Ch1's Center cells (Silice's own). |
+| Owlys_MarcheGris | 16 × 12 | General + Facility | It is Mt Pyre's crypt (walls, floor, gravestones) with the hideouts' crates and sacks as stalls. |
+| Owlys_Orphelinat | 12 × 9 | Building + BrendansMaysHouse | It has the camp beds, the dark windows and a table, as Ch0's bedroom does. |
+| Owlys_GrotteEst | 40 × 25 (the source's) | General + Cave | The cave has a south ledge for the high ledge. |
+| Owlys_Entrepot | 30 × 20 (the source's) | General + Facility | Aqua Hideout's walls, crates, machines and tanks, and the stairs-door used as the freight lift. |
+| Owlys_Entrepot_B1F | 35 × 30 (the source's) | General + Facility | Mt Pyre's walls and floor. The floor is `MB_CAVE`, because the silo has land encounters. The maze is the hideouts' tanks and crates. |
+| Owlys_Gym | 30 × 50 | General + Cave | The islets sit over the void (581) and the bridges are planks (700). The trapdoors are holes (563, `MB_NON_ANIMATED_DOOR`). |
+| Owlys_Gym_B1F | 20 × 14 | General + Cave | A crypt, with a ladder (573) up. |
+
+Borders:
+- the caves use the cave rock mass (753);
+- the Facility maps and the wreck use black (513);
+- the house interiors use black, blocked (1025).
+
+Darkness (`cave: 1`) is set on the wreck, the silo B1F, the gym and its crypt. Owlys is "lightly dark" in the source (a dimmed palette, no Flash needed), so its `cave` is 0.
+
+**Warnings and allowances.**
+- `validate` reports no errors.
+- Its only warnings are the 87 unwritten Ch5 scripts, which give 106 warnings because coord rows repeat a name. `registry::ALLOW_UNWRITTEN` drops them at build time.
+- `RouteS05/03_allow.ron` keeps metatiles 625 and 633 solid. That is Pacifidlog's boulder, which Emerald walks on as a plateau; here it is the wreck's hull.
+- `Owlys/03_allow.ron` keeps the sanctuary door (30, 12) solid: it is locked until `Owlys_Sc04`. (The first build also kept the elevator (30, 3) solid until the Route S6 link; the review made the link, see the links below.)
+- `Owlys_Gym_B1F/03_allow.ron` accepts warp 1 on a floor cell. It is only the trapdoors' landing.
+- Fixed instead of allowed: the islet's log house (520–524, 528, 532) is walkable where Emerald walks behind it.
+- Fixed: Route S5 used `MUS_ROUTE134`, which does not exist. Route 134 plays `MUS_ROUTE119`, so S5 does too. The content build caught it; `validate` did not.
+- `cargo xtask silice check` passes, and `PKR_GAME=silice cargo test -p content -p extract` and `cargo test -p xtask` pass.
+
+**Hide flags (commit `feat(silice): ids for Ch5 maps`, then the review).** They take 16 flags, 861–876, in Ch5's block (860–899). They were appended by hand, append-only, to `ids/flags.ron` and `ids.golden`, after master's Ch4 (804–825) and Ch6 (830–836) entries, in numeric order. The import (`--force`, into a scratch copy) keeps them as they are and lists them in `IMPORT-REPORT.md`; only `ids/flags.ron` (identical) and the report were kept from its run. 860 is free: it was `_GARDE_ASCENSEUR_A` until the review gave Watcher A the source's flag, and the import keeps the gap. They are all `FLAG_SIL_HIDE_OWLYS_*`:
+- Owlys: `SBIRE_EST`, `MILO`, `SBIRE_RUELLE`, `MATHIEU_APRES`, `GARDE_ASCENSEUR_B`;
+- the East Cave: `GROTTE_EST_MATHIEU`, `GROTTE_EST_CONVOYEUR_A`, `GROTTE_EST_CONVOYEUR_B`, `GROTTE_EST_OWL_JUSTICE`, `GROTTE_EST_PLUME`;
+- the gym: `GYM_SKYCKER_MASQUE`, `GYM_SKYCKER_VISAGE`, `GYM_MATHIEU`;
+- the silo: `SILO_NOCTALI_1`, `SILO_NOCTALI_2`, `SILO_NOCTALI_3`.
+
+Existing flags used as hide flags:
+- `FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE`, from the source;
+- `FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR`, from the source, for Watcher A;
+- `FLAG_SIL_ROUTE_S05_LOKHLASS`, for Lokhlass.
+
+The source's single `FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR` would make two objects share a flag (`validate` warns). As Ch2–Ch3 did with `_STATION_SBIRES` and `_NOCTURNE_DANSEURS`, the source's flag stays on the first actor (Watcher A) and Watcher B gets `_GARDE_ASCENSEUR_B`. `Owlys_Gym_Sc01` sets both. (The first build gave each Watcher a new flag and left the source's unused.)
+
+Hidden at start, in `game.ron`'s `new_game_flags` (with a comment, as Ch1–Ch4): the eastern grunt, Mathieu after the badge, the East Cave's actors (Mathieu, both drivers, Owl-Justice, the Feather), Skycker's face, the gym's Mathieu and the three Umbreon (12 flags). Each map's `_OnTransition` still owns them from `VAR_SIL_STORY` and the flags. Mathieu on the square, Milo and the alley grunt, both Watchers, masked Skycker and Lokhlass start visible. `game_tests.rs` checks both groups.
+
+The Umbreon flags `FLAG_SIL_OWLYS_SILO_NOCTALI_n` mean "has guided" and cannot hide the objects, because the Umbreon are hidden before the scene too. Hence the separate hide flags. No `FLAG_TEMP_*` is used. Ch4 (804–829) and Ch6 (830–859) have their own blocks, so the merge renumbered nothing.
+
+**Warps** (the warp numbers the scripts and other chapters rely on).
+- RouteS05:
+  - 0: the wreck's hole (38, 19), to Epave 0;
+  - 1: the islet's cave (25, 34), to GrotteCorail 0;
+  - 2: the rift (75, 27), to Faille 0.
+- RouteS05_Faille:
+  - 0: the hole (9, 2), to RouteS05 2;
+  - 1–2: the iron door (9–10, 35), to Owlys 0.
+- Owlys:
+  - 0–1: the iron door (29–30, 45), to Faille 1;
+  - 2: the Center (15, 29);
+  - 3: the Gray Market (14, 39), a cave mouth standing in the south-west alley, entered from (14, 40);
+  - 4: the orphanage (12, 8);
+  - 5: the warehouse (47, 8);
+  - 6: the East Cave (54, 28);
+  - 7: the sanctuary (30, 12);
+  - 8: the Pilgrims' Elevator (30, 3), to RouteS06 2 (added by the review, see the links).
+- Each interior's warp 0 (and 1 for a mat) leads back. In the silo, 1F warp 2 (the lift (4, 1)) and B1F warp 0 (17, 1) link the two floors.
+- Owlys_Gym:
+  - 0: the exit (14, 47);
+  - 1–4: the trapdoors (23, 29), (14, 33), (9, 16) and (18, 16), to B1F 1.
+- Owlys_Gym_B1F:
+  - 0: the ladder (10, 2), to the gym's 0;
+  - 1: the landing (10, 8).
+- Connections: RouteS05 south, offset 20, to RouteS05_Banc (Banc has the reverse); RouteS05 west, offset 0, to PortRessac (Port-Ressac has the reverse; see the links).
+
+**Objects, by map** (local ids; the source's obj numbers are kept where it gives them, with `Object(local_id: N)`).
+- RouteS05:
+  1. the sailor (`RouteS05_Sc02`, gift then shop);
+  2. the fisherman (Super Rod);
+  3. Hugo, a trainer;
+  4. Inès, a trainer;
+  5. Yvon, a trainer;
+  6. Gaston, a trainer;
+  7. Coralie, a trainer;
+  8. the Hyper Potion ball;
+  9. the Max Repel ball.
+- RouteS05_Epave: 1 Fabrice; 2–3 the TM17 and Big Pearl balls.
+- RouteS05_GrotteCorail: 1 Lokhlass; 2–3 the Water Stone and TM18 balls.
+- RouteS05_Faille: 1 the Escape Rope ball.
+- Owlys:
+  1. Lanterne;
+  2. Mathieu (`Owlys_Sc02`);
+  3. the eastern grunt;
+  4. a vendor;
+  5. the kid;
+  6. Milo;
+  7. the alley grunt, trainer `Owlys_Sc03`;
+  8. the guard, by the iron door's road (31, 41);
+  9. the docker;
+  10. the poet;
+  11. a gossip;
+  12. Mathieu after the badge;
+  13. Watcher A, on the elevator's front cell (30, 4): he bars it until the badge;
+  14. Watcher B, beside him (29, 4);
+  15. the silo guard, a trainer;
+  16. the Escape Rope ball.
+- Owlys_GrotteEst:
+  1. Mathieu/Praugect;
+  2. Convoy driver A;
+  3. Convoy driver B;
+  4. Owl-Justice;
+  5. the Shaded Feather;
+  6. Lilith;
+  7. the Moon Stone ball;
+  8. the Escape Rope ball.
+- Owlys_Entrepot: 1–3 the grunts; 4 the Escape Rope ball.
+- Owlys_Entrepot_B1F: 1–3 the Umbreon; 4 the Silo Chief, a sight trainer (sight 2) at (27, 26) facing up at the reserve's only gap (27, 24).
+- Owlys_Gym:
+  1. Skycker, masked;
+  2. Skycker, face shown;
+  3. Mathieu;
+  4. Ariane (Watcher);
+  5. Morgane (Watcher);
+  6. Corvus (Watcher);
+  7. Nyx (Watcher);
+  8. the guide;
+  9. the Sharp Beak ball.
+- Owlys_Gym_B1F: 1 the Hyper Potion ball.
+- Interiors: the Center has the nurse, the shop clerk and a pilgrim. The Gray Market has the corrupt grunt, the lookout and the customer. The orphanage has the director and three children.
+
+**Script contract** (`<Map>_ScNN`, `<Map>_EventScript_<What>`, `<Map>_OnTransition`/`_OnLoad`). The source's names are renamed to the map names:
+
+| Source | Here |
+|---|---|
+| `Route_S05_Sc01` | `RouteS05_Sc01` |
+| `Route_S05_Sc02` | `RouteS05_Sc02` |
+| `Route_S05_Grotte_Sc01` | `RouteS05_GrotteCorail_Sc01` |
+| `Owlys_Grotte_Est_Sc01` | `Owlys_GrotteEst_Sc01` |
+| `Owlys_Entrepot_Sc01` | `Owlys_Entrepot_B1F_Sc01_1`, `_2`, `_3` (one per junction) |
+| `Owlys_Entrepot_Sc02` | `Owlys_Entrepot_B1F_Sc02` |
+
+The `Owlys_Sc01`–`Sc05` and `Owlys_Gym_Sc01` names are unchanged.
+
+Map scripts:
+- `RouteS05_Sc01`: on-frame, `VAR_SIL_STORY` 49.
+- `Owlys_Sc01`: on-frame, VAR 50.
+- `Owlys_Sc05`: on-frame, VAR 54.
+- `Owlys_OnLoad`: opens the sanctuary door once `FLAG_SIL_OWLYS_PORTE_GYM` is set (collision 0 on (30, 12)).
+- `Owlys_OnTransition`: sets the six Owlys hide flags from VAR and the flags.
+- `Owlys_PokemonCenter_OnTransition`: sets the respawn to `HEAL_LOCATION_OWLYS`.
+- `Owlys_Entrepot_B1F_OnTransition`: hides the three Umbreon.
+- `Owlys_Gym_OnLoad`: resets the bridges, as described below.
+- `Owlys_Gym_OnTransition`: sets the gym's hide flags.
+
+Coord events:
+- `Owlys_GrotteEst_Sc01` on row y 19 (x 2–12), VAR 52.
+- `Owlys_Entrepot_B1F_Sc01_1` on (16–18, 5), `_2` on (4–5, 13) and `_3` on (4–5, 21), all on `VAR_TEMP_1` 0, which always fires (Ch2–Ch3's temp-var idiom). Contract: no script on the silo B1F writes `VAR_TEMP_1`; each returns at once when its `FLAG_SIL_OWLYS_SILO_NOCTALI_n` is set.
+- `Owlys_Gym_EventScript_CourOk` on islet N's row (12–16, 24), `VAR_TEMP_1` 0. It sets `FLAG_SIL_OWLYS_GYM_COUR_OK`.
+
+The gym:
+- Its bridge cells are listed in `Owlys_Gym/02_events.ron`: p1–p5 and the six-cell walkway (14, 6–11). A posed bridge is 700, walkable; a raised one is 581, solid.
+- `Owlys_Gym_OnLoad` sets p1 posed and the others raised, unless `COUR_OK` is set, in which case all are posed. It draws the walkway once `FLAG_SIL_OWLYS_VEILLEUR_1`–`4` are all set.
+- The books are `Owlys_Gym_EventScript_LivreRouge`/`Bleu`/`Noir`.
+- The Watchers are `_Ariane`/`_Morgane`/`_Corvus`/`_Nyx`. Each sets its `FLAG_SIL_OWLYS_VEILLEUR_n`.
+- `Owlys_Gym_Sc01` is on Skycker, masked. `Owlys_Gym_EventScript_Skycker` is his line once his face is shown.
+
+The 87 names in all: the scene and map scripts above, plus one `_EventScript_` per NPC, trainer, item ball and sign. `validate`'s warnings list them.
+
+**Links (made by the review, after Ch4 and Ch6 reached master).**
+- **Route S5 west ↔ Port-Ressac (Ch4).** `RouteS05/02_events.ron` connects West to PortRessac with offset 0, and `PortRessac/05_ch5_connect.ron` connects East to RouteS05 with offset 0. Port-Ressac's open sea on its east edge (x 49, y 22–39; the jetty ends at x 47) meets Route S5's west sea (x 0) at the same rows, by the entrance buoy (3, 26). Surf only. Port-Ressac's rows 0–21 at x 49 are solid, so the rest of our west edge stays blocked.
+- **Owlys elevator ↔ Route S6 (Ch6): a warp.** Ch5's source lists the elevator among Owlys's warps ("Ascenseur → MAP_ROUTE_S06"); Ch6's says "connexion". A warp is kept: it is an elevator, and Owlys is a cavern with a rock border, so a connection would show rock on both sides.
+  - Owlys: the elevator hole (30, 3) is walkable (the first build's `Paint` and `AllowCollision` are gone) and is warp 8, to RouteS06's warp 2. Its sign moves to the rock right of it (31, 3).
+  - RouteS06: `RouteS06/05_ch5_elevator.ron` draws three south arrow mats (General 36) on (12–14, 63), the path's end, as warps 1–3 to Owlys's warp 8. The elevator lands on the middle mat.
+  - Gate: Watcher A stands on the elevator's front cell (30, 4) until `Owlys_Gym_Sc01` hides both Watchers. A path search confirms the elevator is unreachable with the Watchers shown and reachable once they are hidden. `RouteS06_Sc01` (on-frame at 55, Ch5's last value) runs on arrival.
+
+**Review fixes.** Every map was rendered with events and collision and searched for paths (Surf, ledges, the currents' push, directional walls, elevation, objects as obstacles, trainers' sight lines).
+- **Critical: the Gray Market could not be entered.** Its cave mouth sat on the alley's bottom wall (14, 41), with rock below and the mouth's own solid top above, so the door had no walkable neighbour (and a player arriving from the Market would be stuck on it). The mouth now stands in the alley at (14, 38–39), entered from (14, 40); warp 3 is (14, 39).
+- **Critical: the silo's Umbreon would have guided only once per visit.** The three junction coords are on `VAR_TEMP_1` 0 and each script set `VAR_TEMP_1` to 1, so junctions 2 and 3 could not fire after junction 1 without a reload. The contract is now Ch2–Ch3's: `VAR_TEMP_1` is never written on that map, and each script checks its own flag.
+- **Important: the Sablenite was unreachable.** Its hidden item (33, 25) was a wall cell with no floor neighbour. It is at (33, 27), the cracked tank behind the sacks, faced from (32, 27).
+- **Important: the reserve and the Sablenite could be reached without the Silo Chief.** He had no sight, and the reserve's 6-cell opening let the player walk past him; the source says he sees the player. Crates now close the reserve's north side except (27, 24), and he is a sight trainer at (27, 26) facing it. A path search with his sight line blocked finds no way in.
+- **Important: the elevator was not barred before the badge once opened.** The Watchers stood at (29, 4) and (31, 4), beside its front cell. Watcher A now stands on (30, 4) (see the links).
+- **Important: the iron door's guard stood in the rock** at (33, 43), with no walkable neighbour. He is at (31, 41).
+- **Consistency: the elevator Watchers' flags** follow Ch2–Ch3 (the source's flag on the first actor; see the hide flags). The Umbreon hide flags are kept: the source's `_NOCTALI_n` flags mean "has guided" and are clear before the scene, while the objects must be hidden. The renamed script names follow the `<Map>_ScNN` rule; `_Sc01_1`–`_3` are needed because one source scene plays at three junctions with three texts.
+- **Checked and kept:**
+  - The gym's bridge puzzle matches the source: from S with p1 posed, blue then black reaches N; red first strands the player on E, whose trapdoor (23, 29) is the only way out; C (no lectern) has its trapdoor (14, 33); every islet with a lectern can toggle back. N's coord row (12–16, 24) is the only way from p5 into the hall. The walkway reaches the platform once posed.
+  - The trapdoors land on B1F (10, 8); its ladder leads to the gym's entrance, where `OnLoad` resets the bridges (all posed once `COUR_OK`).
+  - The hall's Watchers (sight 2) do not see the hall's middle column, so they can be walked past, but the walkway needs all four `VEILLEUR` flags, so each must be fought (talked to). This is the source's "visible trainer" fallback.
+  - The East Cave's coord row y 19 spans the whole hall (x 2–12): `Owlys_GrotteEst_Sc01` cannot be bypassed at 52.
+  - Route S5's currents (x 44–72, y 5–10) push east to the Dome wall; the water around them leads back. The rift, the wreck's hole and the coral cave's mouth are reachable by Surf.
+  - The silo's three 1F grunts and the Route S5 and East Cave trainers can be walked past; they are optional, as in the source. The source's comment puts grunt 3 "in the dark of B1F" while its 1F layout lists three grunts; the 1F is kept.
+  - `games::copies` is clean (`hygiene`, with the full extract).
+
+**Missing mechanics and graphics.**
+- Darkness: `cave: 1` is set, but the engine draws no darkness and there is no Flash radius.
+- Missing light effects:
+  - Umbreon's moving light (source fallback: none);
+  - the metatiles shown only under the light (the trapdoors and the Sharp Beak; source fallback: always drawn).
+- The Watchers hidden in the pillars, who step out on sight, need a mechanic. They stand beside the pillars for now.
+- The statues' red eyes and the walkway descending have no tiles. The scripts' `set_metatile` and `screen_shake` will draw them with the placeholders.
+- The currents are drawn with their Gen3 behaviours (Route 134's); the engine does not move the player yet.
+- Fly from underground (Owlys is the Fly destination) needs the module.
+- `wild.rs` notes that cave land encounters may need a variant. The Faille, the East Cave and the silo B1F have `MB_CAVE` floors, and the wreck has `MB_INDOOR_ENCOUNTER`.
+- The duo battle in the East Cave is a multi battle with a partner. The source has a fallback.
+- Placeholder graphics:
+  - the milky silica water and the Owlys palette;
+  - the city's gothic buildings, owl statues and red neon (the city is caves and holes, the gargoyles are boulders);
+  - the rails and the dark crystal veins in the East Cave (none drawn: rocks);
+  - the wreck's hull (Pacifidlog's boulder);
+  - the lecterns (boulders).
+- Sprite placeholders:
+
+  | Who | Sprite |
+  |---|---|
+  | Lokhlass (no `LAPRAS` in the extract) | `AZUMARILL` |
+  | the Umbreon | `POOCHYENA` |
+  | Skycker, masked, and Owl-Justice | `SIDNEY` |
+  | Skycker, his face shown | `STEVEN` |
+  | Mathieu | `BLACK_BELT` |
+  | the Cocket grunts | `MAGMA_MEMBER_M`/`F` |
+  | the Silo Chief | `MAN_3` |
+  | the Feather | `ITEM_BALL` |
+
+- Music placeholders:
+  - Owlys, the East Cave: `MUS_FORTREE` (the source wants organ on electro bass);
+  - the silo: `MUS_AQUA_MAGMA_HIDEOUT`;
+  - the wreck and the coral cave: `MUS_ABANDONED_SHIP`;
+  - the Gray Market: `MUS_MT_PYRE`;
+  - the Faille: `MUS_NONE` (the source's "silence").
+
+**Editor friction.**
+- `validate` does not check header songs. A wrong `MUS_*` passes `validate` and `build`, and only fails the content build. Suggest checking songs as it checks scripts and flags.
+- Legend characters collide with the cave autotiler's piece characters. My `L` became a wall corner. A reserved set, or a warning on overlap, would help.
+- `MB_CRACKED_FLOOR_HOLE` (Cave 518) is not a warp for the engine. Gen3 drops through it with a fall, so the trapdoors use the hole 563 instead. `validate` caught it.
+- The `--extract` dump and render made picking Facility's metatiles quick. The palette's per-behaviour listing named the void and the warp tiles directly.
 
 ### 3.4 Engine contracts for the three decided mechanics (game-agnostic)
 - **Mega Evolution and Primal Reversion (SIL3).**

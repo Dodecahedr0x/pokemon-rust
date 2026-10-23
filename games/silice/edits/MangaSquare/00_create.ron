@@ -1,0 +1,5 @@
+// Silice Ch6, MAP_MANGA_SQUARE: Manga-Square, the City of the Rising Sun (44 x 38, the source's size).
+// General + BattleFrontierOutsideEast: the Battle Frontier east side has Emerald's only Japanese buildings
+// (the Battle Arena dojo, its gate, the Battle Palace pagoda), slim trees that read as bamboo, sand and paving.
+// Border: the 2x2 forest block. The layout is original; the buildings are stamps (games/silice/stamps/ms_*).
+(name: "MangaSquare", width: 44, height: 38, primary: "General", secondary: "BattleFrontierOutsideEast", fill: 265, border: [468, 469, 476, 477])

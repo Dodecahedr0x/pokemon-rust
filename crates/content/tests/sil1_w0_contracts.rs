@@ -4,8 +4,9 @@
 //!   (`xtask/tests/fixtures/silice/ids.golden`); a renumbering, a dropped name or a reused number
 //!   fails; tombstones keep their number and get no constant;
 //! - the script registry: which functions are scripts, name-order ids, unique names, file names;
-//! - an unknown script in a map fails when strict, and is dropped and listed in the Wave 0
-//!   allowlist mode;
+//! - an unknown script fails in a strict map (claimed by a script file's `MAPS`, or every map
+//!   when forced), and is dropped and listed in an unclaimed one (the allowlist mode); claims
+//!   and trainer scripts (SIL1 Task F);
 //! - the per-flavour source split of `BUILD_ID` and `GLOBAL_DIGEST`;
 //! - `text/fr.ron` read entry by entry, a repeated key failing.
 
@@ -347,59 +348,210 @@ fn committed_maps(strict: bool, reg: &Registry) -> (anyhow::Result<()>, Resolver
     for m in silice::load::load_maps(&games()).unwrap() {
         silice::merge::to_map_file(&m, &ids, &mut r).unwrap();
     }
-    (r.finish(), r)
+    (r.finish().and_then(|()| r.check_claims()), r)
+}
+
+/// The committed registry without one script file's scripts (and, if `keep_claims` is false,
+/// without its claims): the shape of a chapter whose maps are drafted before its scenes.
+fn without_module(reg: &Registry, module: &str, keep_claims: bool) -> Registry {
+    let mut r = reg.clone();
+    r.scripts.retain(|s| s.module != module);
+    r.modules.retain(|m| m.0 != module);
+    if !keep_claims {
+        r.claimed.retain(|_, m| m != module);
+    }
+    r
+}
+
+/// The Ch0 maps, claimed by the `ch00_*.rs` files.
+const CH0_MAPS: [&str; 6] = [
+    "BricoBourg",
+    "BricoBourg_Bar",
+    "BricoBourg_FriendsHouse",
+    "BricoBourg_PlayerHouse_1F",
+    "BricoBourg_PlayerHouse_2F",
+    "RouteS01",
+];
+
+#[test]
+fn the_committed_maps_are_claimed_and_every_script_they_name_exists() {
+    let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
+    let (strict, r) = committed_maps(false, &reg);
+    strict.unwrap();
+    // Only maps no file claims yet (chapters drafted before their scenes) name unwritten
+    // scripts.
+    for (n, maps) in &r.unwritten {
+        for m in maps {
+            assert!(!reg.claimed.contains_key(m), "{n} in claimed map {m}");
+        }
+    }
+    // The Ch0 maps are claimed by the ch00 files.
+    for n in CH0_MAPS {
+        let module = reg.claimed.get(n).unwrap_or_else(|| panic!("{n}"));
+        assert!(module.starts_with("ch00_"), "{n}: {module}");
+    }
 }
 
 #[test]
-fn an_unknown_script_fails_when_strict_and_is_listed_in_the_allowlist_mode() {
+fn an_unknown_script_fails_in_a_claimed_map_and_is_listed_in_an_unclaimed_one() {
     let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
-    let (allowed, r) = committed_maps(false, &reg);
+    // What the unclaimed maps already leave unwritten.
+    let (_, base) = committed_maps(false, &reg);
+    let base: Vec<&String> = base.unwritten.keys().collect();
+    let module = &reg.claimed["RouteS01"];
+    // Unclaimed (the allowlist mode): dropped and listed, the build goes on.
+    let draft = without_module(&reg, module, false);
+    let (allowed, r) = committed_maps(false, &draft);
     allowed.unwrap();
-    assert!(r.unwritten.len() > 1);
-    for s in &reg.scripts {
-        assert!(
-            !r.unwritten.contains_key(&s.name),
-            "{} is registered",
-            s.name
-        );
+    let gone: Vec<&String> = (reg.scripts.iter())
+        .filter(|s| &s.module == module)
+        .map(|s| &s.name)
+        .collect();
+    assert!(gone.len() > 1);
+    for n in &gone {
+        let maps = r.unwritten.get(*n).unwrap_or_else(|| panic!("{n}"));
+        assert!(maps.contains("RouteS01"), "{n}: {maps:?}");
     }
-    // Strict: one error after every map, naming every unknown script once, with its maps.
-    let (strict, _) = committed_maps(true, &reg);
-    let e = format!("{:#}", strict.unwrap_err());
-    assert!(
-        e.starts_with(&format!(
-            "{} scripts the maps name are not defined by any src/silice/scripts/*.rs: ",
-            r.unwritten.len()
-        )),
-        "{e}"
-    );
-    for (name, maps) in &r.unwritten {
-        assert_eq!(
-            e.matches(&format!("{name} (map ")).count(),
-            1,
-            "{name}: {e}"
+    for n in r.unwritten.keys() {
+        assert!(gone.contains(&n) || base.contains(&n), "{n} is registered");
+    }
+    // Forced strict (`PKR_SILICE_STRICT_SCRIPTS=1`, which also fails on the unclaimed maps'
+    // names), and claimed: one error after every map, naming every unknown script once, with
+    // its maps.
+    for (force, keep) in [(true, false), (false, true)] {
+        let (strict, _) = committed_maps(force, &without_module(&reg, module, keep));
+        let e = format!("{:#}", strict.unwrap_err());
+        let count = gone.len() + if force { base.len() } else { 0 };
+        assert!(
+            e.starts_with(&format!(
+                "{count} scripts the strict maps name are not defined by any src/silice/scripts/*.rs: "
+            )),
+            "{e}"
         );
-        for m in maps {
-            assert!(e.contains(m.as_str()), "{name} in {m}: {e}");
+        for n in &gone {
+            assert_eq!(e.matches(&format!("{n} (map ")).count(), 1, "{n}: {e}");
         }
     }
-    // With every name registered, the strict build passes.
-    let all = Registry {
-        scripts: (r
-            .unwritten
-            .keys()
-            .chain(reg.scripts.iter().map(|s| &s.name)))
-        .map(|n| registry::ScriptIn {
-            name: n.clone(),
-            module: "m".into(),
-            digest: 0,
-        })
-        .collect(),
-        modules: Vec::new(),
-    };
-    let (strict, r) = committed_maps(true, &all);
-    strict.unwrap();
-    assert!(r.unwritten.is_empty());
+}
+
+#[test]
+fn a_claimed_map_must_exist_and_be_claimed_once() {
+    let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
+    let mut r = reg.clone();
+    r.claimed.insert("NoSuchMap".into(), "ch00_town".into());
+    let (e, _) = committed_maps(false, &r);
+    let e = format!("{:#}", e.unwrap_err());
+    assert!(e.contains("NoSuchMap (scripts/ch00_town.rs)"), "{e}");
+    assert!(e.contains("are not in maps/"), "{e}");
+
+    let d = scratch("claims");
+    put(
+        &d,
+        "ch01_a.rs",
+        "pub const MAPS: &[&str] = &[\"A\", \"B\"];\npub async fn S(ctx: Ctx) {}\n",
+    );
+    let reg = registry::scan(&d).unwrap();
+    let claims: Vec<(&str, &str)> = (reg.claimed.iter())
+        .map(|(m, f)| (m.as_str(), f.as_str()))
+        .collect();
+    assert_eq!(claims, [("A", "ch01_a"), ("B", "ch01_a")]);
+    put(&d, "ch01_b.rs", "pub const MAPS: &[&str] = &[\"B\"];\n");
+    let e = format!("{:#}", registry::scan(&d).unwrap_err());
+    assert!(e.contains("map B is claimed by both"), "{e}");
+    put(
+        &d,
+        "ch01_b.rs",
+        "pub const MAPS: &[&str] = &[\"C\", \"C\"];\n",
+    );
+    let e = format!("{:#}", registry::scan(&d).unwrap_err());
+    assert!(e.contains("map C is listed twice in `MAPS`"), "{e}");
+    for (bad, why) in [
+        ("const MAPS: &[&str] = &[\"A\"];", "must be `pub`"),
+        (
+            "pub const MAPS: &[&str] = &[\"A\", NAME];",
+            "element 2 is not a string literal",
+        ),
+        (
+            "pub const MAPS: &[&str] = X;",
+            "expected an array of string literals",
+        ),
+        ("pub static MAPS: &[&str] = &[\"A\"];", "`static MAPS`"),
+    ] {
+        let e = format!("{:#}", registry::claimed_maps(bad).unwrap_err());
+        assert!(e.contains(why), "{bad}: {e}");
+    }
+    assert!(
+        registry::claimed_maps("pub const OTHER: u8 = 1;")
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn trainer_scripts_are_found_by_their_first_statement() {
+    let src = "\
+pub async fn T1(ctx: Ctx) {
+    if trainer(&ctx, LOCALID_A, TRAINER_SIL_A, I, D).await { say(&ctx, X).await; }
+}
+pub async fn T2(ctx: Ctx) {
+    let _ = trainer(&ctx, 2, TRAINER_SIL_B, I, D).await;
+}
+pub async fn T3(ctx: Ctx) {
+    trainer(&ctx, 3, TRAINER_SIL_C, I, D).await;
+}
+pub async fn NotFirst(ctx: Ctx) {
+    say(&ctx, X).await;
+    trainer(&ctx, 4, TRAINER_SIL_D, I, D).await;
+}
+pub async fn NotATrainer(ctx: Ctx) {
+    trainer(&ctx, 5, OTHER, I, D).await;
+}
+async fn Private(ctx: Ctx) {
+    trainer(&ctx, 6, TRAINER_SIL_E, I, D).await;
+}
+";
+    let t = registry::trainer_fns(src).unwrap();
+    let t: Vec<(&str, &str)> = t.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    assert_eq!(
+        t,
+        [
+            ("T1", "TRAINER_SIL_A"),
+            ("T2", "TRAINER_SIL_B"),
+            ("T3", "TRAINER_SIL_C")
+        ]
+    );
+    // Every trainer object of a strict map runs a trainer script, or the build fails.
+    let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
+    let ids = ids::load(&games()).unwrap();
+    let mut r = Resolver::new(&reg, false);
+    let maps: Vec<_> = (silice::load::load_maps(&games()).unwrap().iter())
+        .map(|m| silice::merge::to_map_file(m, &ids, &mut r).unwrap())
+        .collect();
+    silice::check_trainer_objects(&maps, &reg, &r).unwrap();
+    let mut no_teo = reg.clone();
+    no_teo
+        .trainers
+        .retain(|t| t.0 != "RouteS01_EventScript_Teo");
+    let e = format!(
+        "{:#}",
+        silice::check_trainer_objects(&maps, &no_teo, &r).unwrap_err()
+    );
+    assert!(e.starts_with("1 trainer objects of strict maps"), "{e}");
+    assert!(
+        e.contains("RouteS01 object 3 (3, 24): RouteS01_EventScript_Teo"),
+        "{e}"
+    );
+    // The committed route trainers.
+    let reg = registry::scan(&workspace().join("crates/content/src/silice/scripts")).unwrap();
+    let names: Vec<&str> = reg.trainers.iter().map(|t| t.1.as_str()).collect();
+    for t in [
+        "TRAINER_SIL_GAMIN_TEO",
+        "TRAINER_SIL_SCOUT_NOAH",
+        "TRAINER_SIL_FILLETTE_LILA",
+        "TRAINER_SIL_CAMPEUR_YANIS",
+    ] {
+        assert!(names.contains(&t), "{t}: {names:?}");
+    }
 }
 
 #[test]

@@ -15,14 +15,14 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 544
+- ids/flags: 589
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
 - ids/species: 5
 - ids/moves: 1
 - ids/songs: 13
-- ids/maps: 115
+- ids/maps: 116
 
 ## Bold paragraphs naming items without a mart
 
@@ -94,6 +94,7 @@
 ## Ids no longer in the source (kept)
 
 - ids/flags.ron: FLAG_SIL_HIDE_BAR_SBIRES is a tombstone but the source uses it
+- ids/maps.ron: MAP_MANGA_SQUARE_GYM
 
 ## Item definitions
 
@@ -232,10 +233,55 @@
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_GWADA
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_WATTOUAT
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_LAINERGIE
+- maps/MangaSquare.ron: FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR
+- maps/MangaSquare_Bibliotheque.ron: FLAG_SIL_HIDE_BIBLIO_ADRIEN
+- maps/MangaSquare_Dojo.ron: FLAG_SIL_HIDE_DOJO_DRONE_1
+- maps/MangaSquare_Dojo.ron: FLAG_SIL_HIDE_DOJO_DRONE_2
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_EST
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MILO
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_MARIN_CLIENT
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_4
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SAMUEL
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_4
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_CONTREMAITRE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_3
+- maps/PortRessac_Gym.ron: FLAG_SIL_HIDE_PORT_GYM_GWADA
+- maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_GWADA
+- maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_ADRIEN
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_GWADA
 - maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_ROMAIN
 - maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_SBIRE
+- maps/RouteS04.ron: FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE
+- maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A
+- maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B
+- maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR
 - maps/RouteS08.ron: FLAG_SIL_HIDE_S08_PIGEON
 - maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU
 - maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2

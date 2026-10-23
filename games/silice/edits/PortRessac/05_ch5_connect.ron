@@ -1,0 +1,5 @@
+// Chapter 5: the Sea of Wrecks to the east (MAP_ROUTE_S05). Our east edge's open sea (x 49, y 22-39) meets
+// Route S5's west sea at the same rows (offset 0). Surf only.
+[
+    Connect((dir: East, offset: 0, map: "RouteS05")),
+]

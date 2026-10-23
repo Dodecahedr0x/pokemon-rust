@@ -1,0 +1,11 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_MT_PYRE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mat, to Owlys's warp 3.
+    Warp(x: 7, y: 11, dest_map: "Owlys", dest_warp: 3),
+    Warp(x: 8, y: 11, dest_map: "Owlys", dest_warp: 3),
+    // Objects. 1: the corrupt grunt (the Gray Market's shop), at his stall. 2: the lookout. 3: the worried customer.
+    Object(x: 7, y: 5, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_MARCHE_VENDEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_MarcheGris_EventScript_Vendeur"),
+    Object(x: 6, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_MARCHE_GUETTEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_MarcheGris_EventScript_Guetteur"),
+    Object(x: 11, y: 6, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_MARCHE_CLIENTE", movement: "MOVEMENT_TYPE_FACE_UP", script: "Owlys_MarcheGris_EventScript_Cliente"),
+]

@@ -1,0 +1,26 @@
+// Cells, cell for cell the source's grid (ch04 §4): '#' lashed barrels (solid), '.' planks,
+// 'E' the way up to the quarterdeck (8, 0), a doorway; 'S' the hatch from the main deck (5, 8), a south exit mat,
+// '!' the explosive barrels n°2 (8, 3) and n°1 (7, 6) (solid until blown), '$' the loot barrels
+// (1, 5) and (9, 5). The movable barrels A (4, 3), D (4, 4), B (2, 6) and the trap barrel T (6, 1)
+// are objects on planks (02_events.ron).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "WWWWWWWWEWW",
+        "#.........#",
+        "#.........#",
+        "####.###!##",
+        "#.........#",
+        "#$.......$#",
+        "##.####!###",
+        "#.........#",
+        "#####S#####",
+    ], legend: {
+        'W': (metatile: 689, collision: 1),
+        '#': (metatile: 639, collision: 1),
+        '!': (metatile: 639, collision: 1),
+        '$': (metatile: 639, collision: 1),
+        '.': (metatile: 525, collision: 0),
+        'E': (metatile: 694, collision: 0),
+        'S': (metatile: 612, collision: 0),
+    }),
+]

@@ -1,0 +1,11 @@
+// Chapter 5: the Pilgrims' Elevator up from Owlys (MAP_OWLYS). The Ch5 source makes the elevator a warp
+// ("Ascenseur -> MAP_ROUTE_S06"), not a map connection: Owlys is a cavern with a rock border. The path's
+// south end (12-14, 62) gets a landing of three south arrow mats in the rock row (General 36, gravel);
+// pushing south on one rides the elevator down. Warps 1-3, to Owlys's warp 8 (the elevator (30, 3)), which
+// lands on the middle mat (warp 2). Owlys's Watchers bar the elevator until FLAG_SIL_BADGE_05.
+[
+    Ascii(x: 12, y: 63, rows: ["mmm"], legend: {'m': (metatile: 36, collision: 0)}),
+    Warp(x: 12, y: 63, dest_map: "Owlys", dest_warp: 8),
+    Warp(x: 13, y: 63, dest_map: "Owlys", dest_warp: 8),
+    Warp(x: 14, y: 63, dest_map: "Owlys", dest_warp: 8),
+]

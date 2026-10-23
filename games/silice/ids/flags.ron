@@ -2119,6 +2119,186 @@
             num: 803,
         ),
         (
+            name: "FLAG_SIL_HIDE_PORT_CONTREMAITRE",
+            num: 804,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_DECOR_1",
+            num: 805,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_DECOR_2",
+            num: 806,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_DECOR_3",
+            num: 807,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_GYM_GWADA",
+            num: 808,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_MARIN_CLIENT",
+            num: 809,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_1",
+            num: 810,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_2",
+            num: 811,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_3",
+            num: 812,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_4",
+            num: 813,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_1",
+            num: 814,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_2",
+            num: 815,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_3",
+            num: 816,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE",
+            num: 817,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SAMUEL",
+            num: 818,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_1",
+            num: 819,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_2",
+            num: 820,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_3",
+            num: 821,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_4",
+            num: 822,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN",
+            num: 823,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA",
+            num: 824,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE",
+            num: 825,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_ADRIEN",
+            num: 830,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_DRONE_1",
+            num: 831,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_DRONE_2",
+            num: 832,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR",
+            num: 833,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR",
+            num: 834,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A",
+            num: 835,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B",
+            num: 836,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B",
+            num: 861,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A",
+            num: 862,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B",
+            num: 863,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU",
+            num: 864,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE",
+            num: 865,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME",
+            num: 866,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU",
+            num: 867,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE",
+            num: 868,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE",
+            num: 869,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES",
+            num: 870,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_MILO",
+            num: 871,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SBIRE_EST",
+            num: 872,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE",
+            num: 873,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
+            num: 874,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
+            num: 875,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
+            num: 876,
+        ),
+        (
             name: "FLAG_SIL_HIDE_EVALON_ADRIEN",
             num: 940,
         ),

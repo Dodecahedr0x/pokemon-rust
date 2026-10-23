@@ -1,0 +1,28 @@
+// Cells.
+[
+    // Ground plan, autotiled walls (Seafloor Cavern's family). , sand, ~ deep water (Surf), - shallow
+    // water, . cave floor, o grey coral (boulders), x the exit (south arrow warp, framed by 600-602).
+    // The back beach (x 11-20, y 2-5) is reached only by surfing across the basin.
+    Ascii(x: 0, y: 0, rows: [
+        "#########################",
+        "##7^^^^9##7^^^^^^^^^^9###",
+        "##[,,,,]##[,,,,,,,,,,]###",
+        "##[,,,,]#7r,,,,,,,,,,l9##",
+        "##[,,,,]7r---------,,,]##",
+        "##[,,,,lr~~~~~~~~~~-,,]##",
+        "##[,,,,~~~~~~~~~~~~--,]##",
+        "##[,,,,~~~~~~~~~~~~~~J_##",
+        "##[,o,,~~~~~~~~~~~~~~]###",
+        "##[,,,,~~~~~~~~~~~~~~]###",
+        "##_L,,,~~~~~~~~~~~~~~]###",
+        "###[,,,~~~~~~~~~~~~~~]###",
+        "###[,,,~~~~~~~~~~~~~~]###",
+        "###[,,,,~~~~~~~~~~~~~]###",
+        "###_L,,,,~~~~~~~~~~~J_###",
+        "####[,,,,..o........]####",
+        "####__L,.........J___####",
+        "######_L.....x...]#######",
+        "#######_____FGH___#######",
+        "#########################",
+    ], legend: {',': (metatile: 292, collision: 0, elevation: 3), '~': (metatile: 368, collision: 0, elevation: 1), '-': (metatile: 414, collision: 0, elevation: 3), '.': (metatile: 513, collision: 0, elevation: 3), 'o': (metatile: 514, collision: 1, elevation: 3), 'x': (metatile: 572, collision: 0, elevation: 3), 'F': (metatile: 600, collision: 1, elevation: 0), 'G': (metatile: 601, collision: 1, elevation: 0), 'H': (metatile: 602, collision: 1, elevation: 0), '7': (metatile: 747, collision: 1, elevation: 0), '9': (metatile: 748, collision: 1, elevation: 0), '#': (metatile: 753, collision: 1, elevation: 0), '^': (metatile: 761, collision: 1, elevation: 0), 'l': (metatile: 761, collision: 1, elevation: 0), 'r': (metatile: 761, collision: 1, elevation: 0), ']': (metatile: 772, collision: 1, elevation: 0), '[': (metatile: 773, collision: 1, elevation: 0), 'J': (metatile: 912, collision: 1, elevation: 0), 'L': (metatile: 912, collision: 1, elevation: 0), '_': (metatile: 912, collision: 1, elevation: 0)}),
+]

@@ -1,0 +1,12 @@
+// Header, map scripts, warps, objects.
+[
+    Header((music: "MUS_POKE_CENTER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // MangaSquare_PokemonCenter_OnTransition sets the respawn point (set_respawn on the nurse).
+    Scripts((on_load: None, on_transition: Some("MangaSquare_PokemonCenter_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the mat, to Manga-Square's warp 2.
+    Warp(x: 5, y: 8, dest_map: "MangaSquare", dest_warp: 2),
+    Warp(x: 6, y: 8, dest_map: "MangaSquare", dest_warp: 2),
+    Object(x: 6, y: 2, gfx: "OBJ_EVENT_GFX_NURSE", id: "LOCALID_MANGA_SQUARE_PC_NURSE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_PokemonCenter_EventScript_Nurse"),
+    // The 214th fan (PC_Npc_Fan), by a table.
+    Object(x: 4, y: 6, gfx: "OBJ_EVENT_GFX_POKEFAN_M", id: "LOCALID_MANGA_SQUARE_PC_FAN", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_PokemonCenter_EventScript_Fan"),
+]

@@ -1,0 +1,4 @@
+// Silice Ch6, MAP_ROUTE_S06_BOIS_SOUPIRS: the Bois des Soupirs, a small wood around a pond (24 x 20, the source's size).
+// General + Fortree: Route 119/120's pair, Emerald's wooded routes with ponds and wooden bridges (Fortree has the
+// bridge the source puts on the pond). Border: the 2x2 forest block.
+(name: "RouteS06_BoisSoupirs", width: 24, height: 20, primary: "General", secondary: "Fortree", fill: 1, border: [468, 469, 476, 477])

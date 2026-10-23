@@ -1,0 +1,6 @@
+// Silice Ch5, MAP_OWLYS_ENTREPOT_B1F: the silo (35 x 30, the source's size), a dark map: a maze of silica
+// tanks. The freight lift (north) -> junction 1 (go west) -> junction 2 (go south) -> junction 3 (go east)
+// -> the reserve: the Silo Chief and Gogo and Romain's Poudre Claire. The Umbreon shows the way at each
+// junction. General + Facility (Emerald tilesets by name): Mt Pyre's crypt walls and floor (an encounter
+// floor), the hideouts' tanks, crates and sacks.
+(name: "Owlys_Entrepot_B1F", width: 35, height: 30, primary: "General", secondary: "Facility", fill: 513, fill_collision: 1, fill_elevation: 0, border: [513, 513, 513, 513])
