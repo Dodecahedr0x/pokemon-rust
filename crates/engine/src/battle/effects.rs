@@ -44,6 +44,7 @@ mod abilities;
 mod ball;
 mod items;
 mod later;
+mod mech;
 mod moves;
 mod status;
 #[cfg(test)]
@@ -54,6 +55,8 @@ mod tests_g;
 mod tests_s;
 #[cfg(test)]
 mod tests_w;
+#[cfg(test)]
+mod tests_wc;
 
 use super::core::{Action, Battle, Env, HitResult, MoveUse, msg};
 use super::{Buff, Msg, Side, Str};
@@ -63,6 +66,11 @@ pub(crate) use abilities::opposite_genders;
 #[allow(unused_imports)]
 pub(crate) use abilities::{damp, sticky_hold, suction_cups};
 pub(crate) use later::{break_mold, prankster_boost};
+pub(crate) use mech::{
+    BattlerFx, FieldFx, all_moves_unusable, before_turn, clear_bonds, crit_bonus, damage_extra,
+    destiny_bond, encored_slot, endured, hold_on, move_accuracy, protected, reads_first_turn,
+    record_damage, selection_block, slot_limited, spikes, sure_accuracy,
+};
 
 /// The result of `attackcanceler` (`AtkCanceler_UnableToUseMove`).
 #[derive(Clone, Copy, Debug)]
@@ -84,30 +92,59 @@ pub(crate) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
 
 /// `moveend`: defrost by a Fire move, Synchronize (target, then attacker) around the contact
 /// abilities and the status-curing abilities, then the items (cure berries, herbs, King's
-/// Rock, Shell Bell). `hit` is `None` for a miss or a status move.
+/// Rock, Shell Bell). `hit` is `None` for a miss or a status move. Wave C: `MOVEEND_RAGE`
+/// first, `MOVEEND_MIRROR_MOVE` last; a calling move's `moveend` runs for the move it called.
 pub(crate) fn after_move(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
+    let called = mech::called_use(b, env, u);
+    let u = called.as_ref().unwrap_or(u);
+    mech::move_end_first(b, env, u);
     abilities::move_end(b, env, u, hit);
     let last = b.multi_last.take();
     items::move_end(b, env, u, hit.or(last));
+    mech::move_end_last(b, u);
 }
 
 /// `attackcanceler`: the status checks in `AtkCanceler_UnableToUseMove` order (sleep, freeze,
 /// Truant, flinch, confusion, paralysis, infatuation, Bide), then the target's Soundproof
 /// (`ABILITYEFFECT_MOVES_BLOCK`).
+/// Wave C: a locked (Rollout, Thrash, the two-turn moves) or encored battler uses that move
+/// (`HandleAction_UseMove`), which then runs in the canceler's place.
 pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
-    match status::canceler(b, env, u) {
-        Canceler::Use => match later::before_move(b, env, u) {
+    let rerouted = mech::reroute(b, env, u);
+    let uu = rerouted.as_ref().unwrap_or(u);
+    mech::start_move(b, uu);
+    let c = match status::canceler(b, env, uu) {
+        Canceler::Use => match later::before_move(b, env, uu) {
             Some(c) => c,
-            None => abilities::moves_block(b, env, u),
+            None => abilities::moves_block(b, env, uu),
         },
+        c => c,
+    };
+    // Magic Coat (`Cmd_attackcanceler`, after `ABILITYEFFECT_MOVES_BLOCK`).
+    if let Canceler::Use = c
+        && let Some((back, hit)) = mech::bounce(b, env, uu)
+    {
+        return Canceler::Done(back, hit);
+    }
+    match c {
+        Canceler::Use if rerouted.is_some() => Canceler::Done(*uu, b.execute(env, uu)),
+        Canceler::Skip => {
+            mech::skipped(b);
+            Canceler::Skip
+        }
         c => c,
     }
 }
 
 /// `DoBattlerEndTurnEffects` for each battler in turn order: Leech Seed, poison, toxic, burn.
+/// Wave C: `TurnValuesCleanUp`, the side timers, Wish, Future Sight and Perish Song.
 pub(crate) fn end_turn(b: &mut Battle, env: &mut Env) {
+    mech::turn_passed(b);
+    mech::field_end_turn(b, env);
     later::field_end_turn(b, env);
     status::end_turn(b, env);
+    mech::wish_perish(b, env);
+    mech::turn_clean_up(b);
 }
 
 /// `ABILITYEFFECT_ON_SWITCH_IN` of `side`'s battler: the weather abilities, Mold Breaker,
@@ -181,7 +218,7 @@ pub(crate) fn blocks_stat_drop(
     side: Side,
     stat: Stat,
 ) -> bool {
-    abilities::blocks_stat_drop(b, env, u, side, stat)
+    mech::mist_blocks(b, env, u, side, true) || abilities::blocks_stat_drop(b, env, u, side, stat)
 }
 
 /// The player's Poké Ball (`Cmd_handleballthrow`), wild battles only: the core refuses
@@ -194,6 +231,9 @@ pub(crate) fn ball(b: &mut Battle, env: &mut Env) {
 /// Uproar's `gLockedMoves`), so it is not asked (`HandleTurnActionSelectionState` skips it).
 /// `None` when free.
 pub(crate) fn locked_action(b: &Battle, t: &BattleTables, side: Side) -> Option<Action> {
+    if let Some(a) = mech::locked_action(b, side) {
+        return Some(a);
+    }
     let m = b.battler(side);
     let effect = if m.bide_turns > 0 {
         MoveEffect::Bide
@@ -257,7 +297,7 @@ pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
             ability: Ability::MagnetPull,
         });
     }
-    if me.v.escape_prevented {
+    if me.v.escape_prevented || mech::trapped(b, side) {
         return Some(RunBlock::Forbidden(Str::CantEscape));
     }
     if b.is_first_battle() {
@@ -272,6 +312,7 @@ pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
 pub(crate) fn switch_block(b: &Battle, side: Side) -> bool {
     let (me, foe) = (b.battler(side), b.battler(side.other()));
     me.v.escape_prevented
+        || mech::trapped(b, side)
         || (foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel))
         || shadow_tagged(b, side)
         || arena_trapped(b, side)

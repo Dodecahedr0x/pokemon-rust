@@ -18,6 +18,8 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
         "SilOwlys" => owlys(&gfx.join(name))?,
         "SilOwlysGym" => owlys_gym(&gfx.join(name))?,
         "SilEvalonCitadelle" => evalon_citadelle(&gfx.join(name))?,
+        "SilRouteS06" => route_s06(&gfx.join(name))?,
+        "SilRouteS07" => route_s07(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -447,4 +449,412 @@ fn evalon_citadelle(c: &Path) -> Result<()> {
         }
     }
     save(c, "plaque_pression", &plate)
+}
+
+/// `top`'s opaque pixels pasted on `dst` at (`x0`, `y0`).
+fn paste(dst: &mut Rgba, top: &Rgba, x0: u32, y0: u32) {
+    for y in 0..top.h {
+        for x in 0..top.w {
+            let p = get(top, x, y);
+            if p[3] >= 128 {
+                set(dst, x0 + x, y0 + y, [p[0], p[1], p[2]]);
+            }
+        }
+    }
+}
+
+/// A transparent `w x h` picture.
+fn blank(w: u32, h: u32) -> Rgba {
+    Rgba {
+        w,
+        h,
+        px: vec![[0, 0, 0, 0]; (w * h) as usize],
+    }
+}
+
+/// Draws `rows` at (`x0`, `y0`): each character found in `ink` is painted its colour, the
+/// others are left alone.
+fn glyph(img: &mut Rgba, x0: u32, y0: u32, rows: &[&str], ink: &[(u8, [u8; 3])]) {
+    for (y, row) in rows.iter().enumerate() {
+        for (x, ch) in row.bytes().enumerate() {
+            if let Some((_, rgb)) = ink.iter().find(|(c, _)| *c == ch) {
+                set(img, x0 + x as u32, y0 + y as u32, *rgb);
+            }
+        }
+    }
+}
+
+/// SilRouteS06: the torii at the head of a staircase (`torii`, 4 cells wide over 2-wide stairs;
+/// `torii_grand`, 6 over 4): the prompted gate over the terrace wall's top two rows (lip and
+/// face) under its posts, the mossy steps between them. The Monks' shortcut's mouth
+/// (`passage`): a dark arch cut in the granite, a red paper charm over it.
+fn route_s06(t: &Path) -> Result<()> {
+    let (wall, steps) = (load(t, "falaise")?, load(t, "marches")?);
+    for (name, art) in [("torii", "torii_art"), ("torii_grand", "torii_grand_art")] {
+        let gate = load(t, art)?;
+        let last = gate.w - 16;
+        let mut bg = tile(&steps, gate.w, gate.h);
+        paste(&mut bg, &crop(&wall, 0, 0, 16, gate.h), 0, 0);
+        paste(&mut bg, &crop(&wall, 16, 0, 16, gate.h), last, 0);
+        save(t, name, &over(&bg, &gate))?;
+    }
+    let mut mouth = crop(&load(t, "roche")?, 0, 0, 16, 16);
+    const ARCH: [&str; 16] = [
+        "................",
+        "................",
+        "......oooo......",
+        "....oo####oo....",
+        "...o###rr###o...",
+        "..o####rr####o..",
+        "..o####rr####o..",
+        "..o#####r####o..",
+        "..o##########o..",
+        "..o##########o..",
+        "..o##########o..",
+        "..o##########o..",
+        "..o##########o..",
+        "..o##########o..",
+        "..o##########o..",
+        "..o##########o..",
+    ];
+    glyph(
+        &mut mouth,
+        0,
+        0,
+        &ARCH,
+        &[
+            (b'o', [88, 56, 64]),
+            (b'#', [16, 10, 14]),
+            (b'r', [216, 48, 40]),
+        ],
+    );
+    save(t, "passage", &mouth)
+}
+
+/// The logic arrow pointing north, 16x16: `#` the dark outline, `y` the yellow fill.
+const FLECHE_N: [&str; 16] = [
+    "................",
+    ".......##.......",
+    "......#yy#......",
+    ".....#yyyy#.....",
+    "....#yyyyyy#....",
+    "...#yyyyyyyy#...",
+    "..#yyyyyyyyyy#..",
+    "..####yyyy####..",
+    ".....#yyyy#.....",
+    ".....#yyyy#.....",
+    ".....#yyyy#.....",
+    ".....#yyyy#.....",
+    ".....#yyyy#.....",
+    ".....######.....",
+    "................",
+    "................",
+];
+
+/// SilRouteS07: the drawn features ([`route_s07_drawn`], the void first); the void's dawn-pink
+/// (S7-A, by Manga-Square), violet (S7-D) and negative (by Reverse-City's gate) variants; the
+/// logic arrows (yellow on the concrete deck: N, S, E, W); the reversal slab (a violet diamond
+/// on the glass walkway).
+fn route_s07(t: &Path) -> Result<()> {
+    route_s07_drawn(t)?;
+    let vide = load(t, "vide")?;
+    // Each variant maps the fog's brightness onto a ramp from its night colour to its digits'.
+    let (lo, hi) = (lum(get(&vide, 0, 0)), 205);
+    let ramp = |dark: [u8; 3], light: [u8; 3]| {
+        let mut out = vide.clone();
+        for p in out.px.iter_mut() {
+            let k = (lum(*p).clamp(lo, hi) - lo) * 256 / (hi - lo);
+            let mix = |a: u8, b: u8| ((a as u32 * (256 - k) + b as u32 * k) / 256) as u8;
+            *p = [
+                mix(dark[0], light[0]),
+                mix(dark[1], light[1]),
+                mix(dark[2], light[2]),
+                255,
+            ];
+        }
+        out
+    };
+    // Dawn: a dusky rose night, pink digits. Violet: dark purple, lavender digits. Negative (by
+    // Reverse-City): cyan's complement, crimson digits on near-black.
+    save(t, "vide_aube", &ramp([84, 40, 76], [252, 168, 212]))?;
+    save(t, "vide_violet", &ramp([36, 14, 60], [208, 152, 252]))?;
+    save(t, "vide_negatif", &ramp([22, 12, 16], [236, 72, 84]))?;
+    let deck = load(t, "beton")?;
+    let at = |x: u32, y: u32| FLECHE_N[y as usize].as_bytes()[x as usize];
+    for (name, turn) in [
+        ("fleche_n", 0),
+        ("fleche_s", 1),
+        ("fleche_e", 2),
+        ("fleche_o", 3),
+    ] {
+        let mut d = deck.clone();
+        for y in 0..16 {
+            for x in 0..16 {
+                let g = match turn {
+                    0 => at(x, y),
+                    1 => at(x, 15 - y),
+                    2 => at(y, 15 - x),
+                    _ => at(y, x),
+                };
+                match g {
+                    b'#' => set(&mut d, x, y, [40, 32, 16]),
+                    b'y' => set(&mut d, x, y, [248, 208, 48]),
+                    _ => {}
+                }
+            }
+        }
+        save(t, name, &d)?;
+    }
+    let mut slab = load(t, "verre")?;
+    for y in 0..16i32 {
+        for x in 0..16i32 {
+            let rgb = match (2 * x - 15).abs() + (2 * y - 15).abs() {
+                0..=5 => [208, 168, 248],
+                6..=19 => [144, 80, 208],
+                20..=23 => [48, 16, 64],
+                _ => continue,
+            };
+            set(&mut slab, x as u32, y as u32, rgb);
+        }
+    }
+    save(t, "retournement", &slab)
+}
+
+/// SilRouteS07's drawn features (no prompt): the glass walkway, the crystal grass, the screens,
+/// the Cocket barrier, the broken pylon, the Secteur Eta gate.
+fn route_s07_drawn(t: &Path) -> Result<()> {
+    // The data fog: an indigo night with four streams of falling blocky 0s and 1s (the lowest
+    // digit of each stream bright, the trail dimmer), a few violet specks; it wraps both ways.
+    let mut vide = blank(32, 32);
+    for y in 0..32 {
+        for x in 0..32 {
+            set(&mut vide, x, y, [16, 12, 40]);
+        }
+    }
+    for (x, y) in [(6, 2), (14, 29), (22, 13), (30, 21), (12, 9)] {
+        set(&mut vide, x, y, [64, 40, 120]);
+    }
+    const ZERO: [&str; 5] = ["###", "#.#", "#.#", "#.#", "###"];
+    const ONE: [&str; 5] = [".#.", "##.", ".#.", ".#.", "###"];
+    for (x0, y0, digits) in [
+        (1, 3, "1010"),
+        (9, 18, "011"),
+        (17, 8, "1101"),
+        (25, 24, "100"),
+    ] {
+        let n = digits.len();
+        for (i, d) in digits.bytes().enumerate() {
+            let rgb = match n - 1 - i {
+                0 => [120, 240, 248],
+                1 => [40, 112, 128],
+                _ => [30, 60, 88],
+            };
+            let g = if d == b'0' { ZERO } else { ONE };
+            for (gy, row) in g.iter().enumerate() {
+                for (gx, ch) in row.bytes().enumerate() {
+                    if ch == b'#' {
+                        let y = (y0 + 6 * i as u32 + gy as u32) % 32;
+                        set(&mut vide, x0 + gx as u32, y, rgb);
+                    }
+                }
+            }
+        }
+    }
+    save(t, "vide", &vide)?;
+
+    // The glass walkway: a pale cyan pane, its steel frame along the top and left edges, two
+    // reflection streaks, the abyss showing through in the bottom right corner.
+    let mut verre = blank(16, 16);
+    for y in 0..16 {
+        for x in 0..16 {
+            let rgb = if x == 0 || y == 0 {
+                [112, 120, 136]
+            } else if x + y >= 26 {
+                [56, 64, 120]
+            } else if (x + y == 9 && (3..=6).contains(&x)) || (x + y == 13 && (6..=9).contains(&x))
+            {
+                [240, 252, 252]
+            } else if x == 1 || y == 1 {
+                [200, 236, 240]
+            } else {
+                [160, 216, 228]
+            };
+            set(&mut verre, x, y, rgb);
+        }
+    }
+    save(t, "verre", &verre)?;
+
+    // Crystal grass: two rows of two translucent blue tufts on the dark steel.
+    let mut herbe = blank(16, 16);
+    for y in 0..16 {
+        for x in 0..16 {
+            set(&mut herbe, x, y, [64, 72, 92]);
+        }
+    }
+    const TUFT: [&str; 6] = [
+        "...o...", "..obo..", ".obhbo.", ".obbbo.", "obbobbo", "obo.obo",
+    ];
+    let ink = [
+        (b'o', [32, 48, 112]),
+        (b'b', [144, 200, 248]),
+        (b'h', [232, 248, 255]),
+    ];
+    for (x, y) in [(0, 1), (8, 1), (0, 9), (8, 9)] {
+        glyph(&mut herbe, x, y, &TUFT, &ink);
+    }
+    save(t, "herbe_cristal", &herbe)?;
+
+    // An information screen on a pole.
+    let mut ecran = blank(16, 16);
+    const ECRAN: [&str; 16] = [
+        "................",
+        ".oooooooooooooo.",
+        ".occcccccccccco.",
+        ".ocddddddddddco.",
+        ".ocdwwwwwddddco.",
+        ".ocdddddddyddco.",
+        ".ocdwwwddyyydco.",
+        ".ocdddddyyyyyco.",
+        ".ocddddddddddco.",
+        ".occcccccccccco.",
+        ".oooooooooooooo.",
+        "......oggo......",
+        "......oggo......",
+        ".....obbbbo.....",
+        "....obbbbbbo....",
+        "....oooooooo....",
+    ];
+    glyph(
+        &mut ecran,
+        0,
+        0,
+        &ECRAN,
+        &[
+            (b'o', [24, 24, 32]),
+            (b'c', [96, 224, 232]),
+            (b'd', [24, 32, 56]),
+            (b'w', [232, 240, 248]),
+            (b'y', [248, 208, 48]),
+            (b'g', [136, 144, 160]),
+            (b'b', [176, 172, 164]),
+        ],
+    );
+    save(t, "ecran", &ecran)?;
+
+    // Team Cocket's barrier: a striped plank on orange trestles, a red lamp on top.
+    let mut barriere = blank(16, 16);
+    const BARRIERE: [&str; 16] = [
+        "................",
+        "................",
+        ".......oo.......",
+        "......orro......",
+        "......orro......",
+        ".oooooooooooooo.",
+        ".oyyykkkyyykkko.",
+        ".oyykkkyyykkkyo.",
+        ".oykkkyyykkkyyo.",
+        ".oooooooooooooo.",
+        "...ap......pa...",
+        "...ap......pa...",
+        "..ap........pa..",
+        "..ap........pa..",
+        ".ap..........pa.",
+        ".oo..........oo.",
+    ];
+    glyph(
+        &mut barriere,
+        0,
+        0,
+        &BARRIERE,
+        &[
+            (b'o', [32, 24, 16]),
+            (b'r', [248, 48, 48]),
+            (b'y', [248, 208, 48]),
+            (b'k', [32, 32, 32]),
+            (b'a', [240, 128, 32]),
+            (b'p', [176, 80, 24]),
+        ],
+    );
+    save(t, "barriere", &barriere)?;
+
+    // A broken lattice pylon, three cells tall: two rails braced by crosses, a cyan signal
+    // light on top, two snapped cables, its foot bent apart.
+    let mut pylone = blank(16, 48);
+    let (rail, edge, brace) = ([144, 152, 168], [56, 64, 80], [112, 120, 136]);
+    for y in 4..48u32 {
+        let bend = y.saturating_sub(41);
+        let (l, r) = (5 - bend / 2, 10 + bend / 3);
+        set(&mut pylone, l - 1, y, edge);
+        set(&mut pylone, l, y, rail);
+        set(&mut pylone, r, y, rail);
+        set(&mut pylone, r + 1, y, edge);
+    }
+    for s in (4..40u32).step_by(8) {
+        for x in 5..=10 {
+            set(&mut pylone, x, s, edge);
+        }
+        for i in 1..8 {
+            set(&mut pylone, 6 + i / 2, s + i, brace);
+            set(&mut pylone, 9 - i / 2, s + i, brace);
+        }
+    }
+    for x in 4..=11 {
+        set(&mut pylone, x, 3, edge);
+    }
+    for y in 0..3 {
+        for x in 6..=9 {
+            set(
+                &mut pylone,
+                x,
+                y,
+                if y == 0 {
+                    [200, 248, 252]
+                } else {
+                    [96, 224, 232]
+                },
+            );
+        }
+    }
+    for i in 0..13 {
+        set(&mut pylone, 12 + i / 5, 8 + i, [40, 40, 48]);
+        set(&mut pylone, 3 - i / 5, 14 + i, [40, 40, 48]);
+    }
+    for (x, y) in [(5, 38), (6, 39), (5, 40), (10, 37), (9, 38)] {
+        set(&mut pylone, x, y, [24, 24, 28]);
+    }
+    save(t, "pylone", &pylone)?;
+
+    // The Secteur Eta gate, in Reverse-City's negative colours: a black steel frame edged in
+    // mint, a cobalt band with the crimson Cocket emblem, the violet-lit passage in the middle
+    // of the bottom row.
+    let mut porte = blank(48, 32);
+    for y in 2..32u32 {
+        for x in 1..47u32 {
+            let opening = (16..=31).contains(&x) && y >= 12;
+            let rgb = if x == 1 || x == 46 || y == 2 {
+                [120, 232, 184]
+            } else if (4..=9).contains(&y) && (3..=44).contains(&x) {
+                let d = (2 * x as i32 - 47).abs() + (2 * y as i32 - 13).abs();
+                if d <= 6 {
+                    [200, 32, 48]
+                } else if y == 4 {
+                    [96, 128, 240]
+                } else {
+                    [48, 80, 208]
+                }
+            } else if (y == 11 && (15..=32).contains(&x)) || ((x == 15 || x == 32) && y >= 11) {
+                [120, 232, 184]
+            } else if opening {
+                if y <= 13 { [72, 48, 120] } else { [36, 20, 60] }
+            } else if y >= 11 && (x == 9 || x == 38) {
+                [88, 176, 144]
+            } else if y >= 11 {
+                [52, 52, 64]
+            } else {
+                [24, 24, 30]
+            };
+            set(&mut porte, x, y, rgb);
+        }
+    }
+    save(t, "porte_eta", &porte)
 }

@@ -1,0 +1,12 @@
+(
+    primary: "Building",
+    secondary: "SilRouteS07",
+    width: 1,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1569),
+        (1570),
+        (1571),
+    ],
+)

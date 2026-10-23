@@ -471,7 +471,9 @@ fn seam(
     let (mut crossing, mut seen) = (Vec::new(), 0);
     for depth in 0..SEAM_DEPTH {
         for i in (0..len).filter(|&i| along(i as i32)) {
-            let Some((x, y)) = cell(depth, i) else { continue };
+            let Some((x, y)) = cell(depth, i) else {
+                continue;
+            };
             let b = d.blocks[y * w + x];
             if block_metatile(b) < METATILES_IN_PRIMARY {
                 continue;

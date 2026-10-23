@@ -355,6 +355,251 @@ pub enum Str {
     ButNothingHappened,
     /// `STRINGID_PKMNCHARGINGPOWER` (Charge).
     PkmnChargingPower,
+    // Wave C: move effects (`effects::wc`).
+    /// `STRINGID_PKMNREGAINEDHEALTH`.
+    PkmnRegainedHealth,
+    /// `STRINGID_PKMNHPFULL`.
+    PkmnHpFull,
+    /// `STRINGID_STATCHANGESGONE`.
+    StatChangesGone,
+    /// `STRINGID_PKMNWASNTAFFECTED`.
+    PkmnWasntAffected,
+    /// `STRINGID_PKMNDREAMEATEN`.
+    PkmnDreamEaten,
+    /// `STRINGID_COINSSCATTERED`.
+    CoinsScattered,
+    /// `STRINGID_PKMNCRASHED`.
+    PkmnCrashed,
+    /// `STRINGID_PKMNMUSTRECHARGE`.
+    PkmnMustRecharge,
+    /// `STRINGID_PKMNRAGEBUILDING`.
+    PkmnRageBuilding,
+    /// `STRINGID_PKMNFELLINTONIGHTMARE`.
+    PkmnFellIntoNightmare,
+    /// `STRINGID_PKMNLOCKEDINNIGHTMARE`.
+    PkmnLockedInNightmare,
+    /// `STRINGID_PKMNLAIDCURSE`.
+    PkmnLaidCurse,
+    /// `STRINGID_PKMNAFFLICTEDBYCURSE`.
+    PkmnAfflictedByCurse,
+    /// `STRINGID_PKMNPROTECTEDITSELF2`.
+    PkmnProtectedItself2,
+    /// `STRINGID_PKMNBRACEDITSELF`.
+    PkmnBracedItself,
+    /// `STRINGID_PKMNPROTECTEDITSELF`.
+    PkmnProtectedItself,
+    /// `STRINGID_PKMNENDUREDHIT`.
+    PkmnEnduredHit,
+    /// `STRINGID_SPIKESSCATTERED`.
+    SpikesScattered,
+    /// `STRINGID_PKMNHURTBYSPIKES`.
+    PkmnHurtBySpikes,
+    /// `STRINGID_FAINTINTHREE`.
+    FaintInThree,
+    /// `STRINGID_PKMNPERISHCOUNTFELL`.
+    PkmnPerishCountFell,
+    /// `STRINGID_STARTEDTORAIN`.
+    StartedToRain,
+    /// `STRINGID_SUNLIGHTGOTBRIGHT`.
+    SunlightGotBright,
+    /// `STRINGID_SANDSTORMBREWED`.
+    SandstormBrewed,
+    /// `STRINGID_STARTEDHAIL`.
+    StartedHail,
+    /// `STRINGID_RAINSTOPPED`.
+    RainStopped,
+    /// `STRINGID_SUNLIGHTFADED`.
+    SunlightFaded,
+    /// `STRINGID_SANDSTORMSUBSIDED`.
+    SandstormSubsided,
+    /// `STRINGID_HAILCONTINUES`.
+    HailContinues,
+    /// `STRINGID_HAILSTOPPED`.
+    HailStopped,
+    /// `STRINGID_PKMNPELTEDBYHAIL`.
+    PkmnPeltedByHail,
+    /// `STRINGID_PKMNRAISEDDEF`.
+    PkmnRaisedDef,
+    /// `STRINGID_PKMNRAISEDSPDEF`.
+    PkmnRaisedSpDef,
+    /// `STRINGID_PKMNCOVEREDBYVEIL`.
+    PkmnCoveredByVeil,
+    /// `STRINGID_PKMNSXWOREOFF`.
+    PkmnSXWoreOff,
+    /// `STRINGID_PKMNSAFEGUARDEXPIRED`.
+    PkmnSafeguardExpired,
+    /// `STRINGID_PKMNUSEDSAFEGUARD`.
+    PkmnUsedSafeguard,
+    /// `STRINGID_PKMNSHROUDEDINMIST`.
+    PkmnShroudedInMist,
+    /// `STRINGID_PKMNPROTECTEDBYMIST`.
+    PkmnProtectedByMist,
+    /// `STRINGID_PKMNWISHCAMETRUE`.
+    PkmnWishCameTrue,
+    /// `STRINGID_PKMNPLANTEDROOTS`.
+    PkmnPlantedRoots,
+    /// `STRINGID_PKMNABSORBEDNUTRIENTS`.
+    PkmnAbsorbedNutrients,
+    /// `STRINGID_PKMNANCHOREDITSELF`.
+    PkmnAnchoredItself,
+    /// `STRINGID_PKMNCENTERATTENTION`.
+    PkmnCenterAttention,
+    /// `STRINGID_PKMNSQUEEZEDBYBIND`.
+    PkmnSqueezedByBind,
+    /// `STRINGID_PKMNWRAPPEDBY`.
+    PkmnWrappedBy,
+    /// `STRINGID_PKMNTRAPPEDINVORTEX`.
+    PkmnTrappedInVortex,
+    /// `STRINGID_PKMNCLAMPED`.
+    PkmnClamped,
+    /// `STRINGID_PKMNTRAPPEDBYSANDTOMB`.
+    PkmnTrappedBySandTomb,
+    /// `STRINGID_PKMNHURTBY`.
+    PkmnHurtBy,
+    /// `STRINGID_PKMNFREEDFROM`.
+    PkmnFreedFrom,
+    /// `STRINGID_PKMNGOTFREE`.
+    PkmnGotFree,
+    /// `STRINGID_PKMNSHEDLEECHSEED`.
+    PkmnShedLeechSeed,
+    /// `STRINGID_PKMNBLEWAWAYSPIKES`.
+    PkmnBlewAwaySpikes,
+    /// `STRINGID_PKMNFATIGUECONFUSION`.
+    PkmnFatigueConfusion,
+    /// `STRINGID_PKMNTOOKAIM`.
+    PkmnTookAim,
+    /// `STRINGID_PKMNWASDRAGGEDOUT`.
+    PkmnWasDraggedOut,
+    /// `STRINGID_PKMNLOSTFOCUS`.
+    PkmnLostFocus,
+    /// `STRINGID_PKMNTIGHTENINGFOCUS`.
+    PkmnTighteningFocus,
+    /// `STRINGID_PKMNSTOCKPILED`.
+    PkmnStockpiled,
+    /// `STRINGID_PKMNCANTSTOCKPILE`.
+    PkmnCantStockpile,
+    /// `STRINGID_FAILEDTOSPITUP`.
+    FailedToSpitUp,
+    /// `STRINGID_FAILEDTOSWALLOW`.
+    FailedToSwallow,
+    /// `STRINGID_PKMNFORESAWATTACK`.
+    PkmnForesawAttack,
+    /// `STRINGID_PKMNCHOSEXASDESTINY`.
+    PkmnChoseXAsDestiny,
+    /// `STRINGID_PKMNTOOKATTACK`.
+    PkmnTookAttack,
+    /// `STRINGID_PKMNCUTHPMAXEDATTACK`.
+    PkmnCutHpMaxedAttack,
+    /// `STRINGID_PKMNCOPIEDSTATCHANGES`.
+    PkmnCopiedStatChanges,
+    /// `STRINGID_PKMNCHANGEDTYPE`.
+    PkmnChangedType,
+    /// `STRINGID_PKMNMOVEWASDISABLED`.
+    PkmnMoveWasDisabled,
+    /// `STRINGID_PKMNMOVEISDISABLED`.
+    PkmnMoveIsDisabled,
+    /// `STRINGID_PKMNMOVEDISABLEDNOMORE`.
+    PkmnMoveDisabledNoMore,
+    /// `STRINGID_PKMNGOTENCORE`.
+    PkmnGotEncore,
+    /// `STRINGID_PKMNENCOREENDED`.
+    PkmnEncoreEnded,
+    /// `STRINGID_PKMNSUBJECTEDTOTORMENT`.
+    PkmnSubjectedToTorment,
+    /// `STRINGID_PKMNCANTUSEMOVETORMENT`.
+    PkmnCantUseMoveTorment,
+    /// `STRINGID_PKMNFELLFORTAUNT`.
+    PkmnFellForTaunt,
+    /// `STRINGID_PKMNCANTUSEMOVETAUNT`.
+    PkmnCantUseMoveTaunt,
+    /// `STRINGID_PKMNREDUCEDPP`.
+    PkmnReducedPP,
+    /// `STRINGID_PKMNTRYINGTOTAKEFOE`.
+    PkmnTryingToTakeFoe,
+    /// `STRINGID_PKMNTOOKFOE`.
+    PkmnTookFoe,
+    /// `STRINGID_PKMNSTATUSNORMAL`.
+    PkmnStatusNormal,
+    /// `STRINGID_BELLCHIMED`.
+    BellChimed,
+    /// `STRINGID_SOOTHINGAROMA`.
+    SoothingAroma,
+    /// `STRINGID_SHAREDPAIN`.
+    SharedPain,
+    /// `STRINGID_PKMNSTOLEITEM`.
+    PkmnStoleItem,
+    /// `STRINGID_PKMNKNOCKEDOFF`.
+    PkmnKnockedOff,
+    /// `STRINGID_THEWALLSHATTERED`.
+    TheWallShattered,
+    /// `STRINGID_MAGNITUDESTRENGTH`.
+    MagnitudeStrength,
+    /// `STRINGID_PKMNWHIPPEDWHIRLWIND`.
+    PkmnWhippedWhirlwind,
+    /// `STRINGID_PKMNTOOKSUNLIGHT`.
+    PkmnTookSunlight,
+    /// `STRINGID_PKMNLOWEREDHEAD`.
+    PkmnLoweredHead,
+    /// `STRINGID_PKMNISGLOWING`.
+    PkmnIsGlowing,
+    /// `STRINGID_PKMNFLEWHIGH`.
+    PkmnFlewHigh,
+    /// `STRINGID_PKMNDUGHOLE`.
+    PkmnDugHole,
+    /// `STRINGID_PKMNHIDUNDERWATER`.
+    PkmnHidUnderwater,
+    /// `STRINGID_PKMNSPRANGUP`.
+    PkmnSprangUp,
+    /// `STRINGID_BUTNOEFFECT`.
+    ButNoEffect,
+    /// `STRINGID_ONEHITKO`.
+    OneHitKo,
+    /// `STRINGID_PKMNUNAFFECTED`.
+    PkmnUnaffected,
+    /// `STRINGID_MIRRORMOVEFAILED`.
+    MirrorMoveFailed,
+    /// `STRINGID_PKMNSLEPTHEALTHY`.
+    PkmnSleptHealthy,
+    /// `STRINGID_PKMNWENTTOSLEEP`.
+    PkmnWentToSleep,
+    /// `STRINGID_PKMNWASDEFROSTEDBY`.
+    PkmnWasDefrostedBy,
+    /// `STRINGID_PKMNALREADYASLEEP2`.
+    PkmnAlreadyAsleep2,
+    /// `STRINGID_PKMNSXBLOCKSY2`.
+    PkmnSXBlocksY2,
+    /// `STRINGID_STATSWONTINCREASE2`.
+    StatsWontIncrease2,
+    /// `STRINGID_STATSWONTDECREASE2`.
+    StatsWontDecrease2,
+    /// `STRINGID_PKMNHEALEDPARALYSIS`.
+    PkmnHealedParalysis,
+    /// `STRINGID_PKMNCOPIEDFOE`.
+    PkmnCopiedFoe,
+    /// `STRINGID_PKMNSWAPPEDABILITIES`.
+    PkmnSwappedAbilities,
+    /// `STRINGID_PKMNWANTSGRUDGE`.
+    PkmnWantsGrudge,
+    /// `STRINGID_PKMNLOSTPPGRUDGE`.
+    PkmnLostPPGrudge,
+    /// `STRINGID_PKMNSEALEDOPPONENTMOVE`.
+    PkmnSealedOpponentMove,
+    /// `STRINGID_PKMNCANTUSEMOVESEALED`.
+    PkmnCantUseMoveSealed,
+    /// `STRINGID_PKMNSHROUDEDITSELF`.
+    PkmnShroudedItself,
+    /// `STRINGID_PKMNMOVEBOUNCED`.
+    PkmnMoveBounced,
+    /// `STRINGID_PKMNSWITCHEDITEMS`.
+    PkmnSwitchedItems,
+    /// `STRINGID_PKMNOBTAINEDX`.
+    PkmnObtainedX,
+    /// `STRINGID_PKMNOBTAINEDX2`.
+    PkmnObtainedX2,
+    /// `STRINGID_PKMNOBTAINEDXYOBTAINEDZ`.
+    PkmnObtainedXYObtainedZ,
+    /// `STRINGID_PKMNANCHORSITSELFWITH`.
+    PkmnAnchorsItselfWith,
     // Task G.
     /// `STRINGID_PKMNFELLINLOVE`: Attract: the target (`B_DEF`).
     PkmnFellInLove,
@@ -650,6 +895,129 @@ impl Str {
             HitXTimes => 101,
             ButNothingHappened => 102,
             PkmnChargingPower => 103,
+            // Wave C move effects (from 300).
+            PkmnRegainedHealth => 300,
+            PkmnHpFull => 301,
+            StatChangesGone => 302,
+            PkmnWasntAffected => 303,
+            PkmnDreamEaten => 304,
+            CoinsScattered => 305,
+            PkmnCrashed => 306,
+            PkmnMustRecharge => 307,
+            PkmnRageBuilding => 308,
+            PkmnFellIntoNightmare => 309,
+            PkmnLockedInNightmare => 310,
+            PkmnLaidCurse => 311,
+            PkmnAfflictedByCurse => 312,
+            PkmnProtectedItself2 => 313,
+            PkmnBracedItself => 314,
+            PkmnProtectedItself => 315,
+            PkmnEnduredHit => 316,
+            SpikesScattered => 317,
+            PkmnHurtBySpikes => 318,
+            FaintInThree => 319,
+            PkmnPerishCountFell => 320,
+            StartedToRain => 321,
+            SunlightGotBright => 322,
+            SandstormBrewed => 323,
+            StartedHail => 324,
+            RainStopped => 325,
+            SunlightFaded => 326,
+            SandstormSubsided => 327,
+            HailContinues => 328,
+            HailStopped => 329,
+            PkmnPeltedByHail => 330,
+            PkmnRaisedDef => 331,
+            PkmnRaisedSpDef => 332,
+            PkmnCoveredByVeil => 333,
+            PkmnSXWoreOff => 334,
+            PkmnSafeguardExpired => 335,
+            PkmnUsedSafeguard => 336,
+            PkmnShroudedInMist => 337,
+            PkmnProtectedByMist => 338,
+            PkmnWishCameTrue => 339,
+            PkmnPlantedRoots => 340,
+            PkmnAbsorbedNutrients => 341,
+            PkmnAnchoredItself => 342,
+            PkmnCenterAttention => 343,
+            PkmnSqueezedByBind => 344,
+            PkmnWrappedBy => 345,
+            PkmnTrappedInVortex => 346,
+            PkmnClamped => 347,
+            PkmnTrappedBySandTomb => 348,
+            PkmnHurtBy => 349,
+            PkmnFreedFrom => 350,
+            PkmnGotFree => 351,
+            PkmnShedLeechSeed => 352,
+            PkmnBlewAwaySpikes => 353,
+            PkmnFatigueConfusion => 354,
+            PkmnTookAim => 355,
+            PkmnWasDraggedOut => 356,
+            PkmnLostFocus => 357,
+            PkmnTighteningFocus => 358,
+            PkmnStockpiled => 359,
+            PkmnCantStockpile => 360,
+            FailedToSpitUp => 361,
+            FailedToSwallow => 362,
+            PkmnForesawAttack => 363,
+            PkmnChoseXAsDestiny => 364,
+            PkmnTookAttack => 365,
+            PkmnCutHpMaxedAttack => 366,
+            PkmnCopiedStatChanges => 367,
+            PkmnChangedType => 368,
+            PkmnMoveWasDisabled => 369,
+            PkmnMoveIsDisabled => 370,
+            PkmnMoveDisabledNoMore => 371,
+            PkmnGotEncore => 372,
+            PkmnEncoreEnded => 373,
+            PkmnSubjectedToTorment => 374,
+            PkmnCantUseMoveTorment => 375,
+            PkmnFellForTaunt => 376,
+            PkmnCantUseMoveTaunt => 377,
+            PkmnReducedPP => 378,
+            PkmnTryingToTakeFoe => 379,
+            PkmnTookFoe => 380,
+            PkmnStatusNormal => 381,
+            BellChimed => 382,
+            SoothingAroma => 383,
+            SharedPain => 384,
+            PkmnStoleItem => 385,
+            PkmnKnockedOff => 386,
+            TheWallShattered => 387,
+            MagnitudeStrength => 388,
+            PkmnWhippedWhirlwind => 389,
+            PkmnTookSunlight => 390,
+            PkmnLoweredHead => 391,
+            PkmnIsGlowing => 392,
+            PkmnFlewHigh => 393,
+            PkmnDugHole => 394,
+            PkmnHidUnderwater => 395,
+            PkmnSprangUp => 396,
+            ButNoEffect => 397,
+            OneHitKo => 398,
+            PkmnUnaffected => 399,
+            MirrorMoveFailed => 400,
+            PkmnSleptHealthy => 401,
+            PkmnWentToSleep => 402,
+            PkmnWasDefrostedBy => 403,
+            PkmnAlreadyAsleep2 => 404,
+            PkmnSXBlocksY2 => 406,
+            StatsWontIncrease2 => 407,
+            StatsWontDecrease2 => 408,
+            PkmnHealedParalysis => 409,
+            PkmnCopiedFoe => 410,
+            PkmnSwappedAbilities => 411,
+            PkmnWantsGrudge => 412,
+            PkmnLostPPGrudge => 413,
+            PkmnSealedOpponentMove => 414,
+            PkmnCantUseMoveSealed => 415,
+            PkmnShroudedItself => 416,
+            PkmnMoveBounced => 417,
+            PkmnSwitchedItems => 418,
+            PkmnObtainedX => 419,
+            PkmnObtainedX2 => 420,
+            PkmnObtainedXYObtainedZ => 421,
+            PkmnAnchorsItselfWith => 422,
             AbilityName(a) => 104 << 8 | a as u16,
             // Task G.
             PkmnFellInLove => 105,

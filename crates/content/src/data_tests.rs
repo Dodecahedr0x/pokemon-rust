@@ -980,5 +980,10 @@ fn hole_warps_and_step_callbacks() {
     };
     assert_eq!((f.hole_for(0x22F), f.hole_for(0x22E)), (0x206, 0x237));
     assert_eq!(Emerald.step_callback(MAP_ROUTE101), None);
-    assert_eq!(Emerald.fall_script().is_some(), !STUB);
+    // The full import has `EventScript_FallDownHole`; the stub and the build-mode fixture
+    // (one map, a few scripts) have no Granite Cave and no fall script.
+    assert_eq!(
+        Emerald.fall_script().is_some(),
+        Emerald.has_map(MAP_GRANITE_CAVE_B1F)
+    );
 }

@@ -20,10 +20,10 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["RouteS06", "RouteS06_BoisSoupirs"];
 
-/// The bamboo curtain (23, 26), General 198 (a trunk) in the layout; open, the route's ground
-/// (General 1, walkable): `METATILE_BAMBOU_OUVERT` ("SIL3 Ch6 maps as built").
+/// The bamboo curtain (23, 26), SilRouteS06 `rideau` (579) in the layout; open, the path's mossy
+/// flagstones (SilRouteS06 `dalles`, 522, walkable): `METATILE_BAMBOU_OUVERT`.
 const RIDEAU: (i16, i16) = (23, 26);
-const METATILE_BAMBOU_OUVERT: u16 = 1;
+const METATILE_BAMBOU_OUVERT: u16 = 522;
 
 // ---- map scripts ----
 
