@@ -33,8 +33,8 @@ Emerald).
 What plays: the whole game's content is imported (518 maps, every script lowered to Rust), and
 **Act 1 plays end to end**, natively and on the GBA: from the new game below to Roxanne's badge
 (`FLAG_BADGE01_GET`), through Petalburg (Wally's tutorial), Route 104, Petalburg Woods and
-Rustboro's gym. The committed `act1:*` checkpoints prove it (see Checkpoints), and the ROM
-replays that route identically to native up to frame 80,362 of 85,307 (Roxanne's battle start
+Rustboro's gym. The committed `spine:act1:*` checkpoints prove it (see Checkpoints), and the ROM
+replays that route identically to native up to frame 99,938 of 104,879 (Roxanne's battle start
 is one late frame on the GBA; see Tests). Beyond Act 1 every map loads and idles without a
 panic, but features the later story needs (menus, field moves, double battles, …) are missing.
 
@@ -117,11 +117,13 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
 - `sav <id> [-o <path>]`: writes the node's flash image to `target/game.sav`, which mGBA loads
   with `target/game.gba`: the ROM boots at the node (hold B at boot to ignore a save)
 
-The Emerald tree holds the four `route:*` nodes (c00001–c00004) and the Act 1 chain, found by
-the explorer and promoted (no hand-authored segment): `act1:pokedex` (c00005, frame 19,313),
-`act1:petalburg` (c00006), `act1:woods` (c00007), `act1:rustboro` (c00008) and `act1:badge1`
-(c00009, frame 85,307, `FLAG_BADGE01_GET`). `cargo run -p game-native --features window --bin
-play -- --load act1:rustboro` starts at Rustboro.
+The Emerald tree holds the four `route:*` nodes (c00001–c00004) and the Act 1 chain, the
+explorer spine's checkpoints up to badge 1 (`explore spine --export --label badge1`, then
+promoted parents first; no hand-authored segment): `spine:act1:lab` (c00005, frame 4,768),
+`oldale_center` (c00006), `may` (c00007), `pokedex` (c00008), `petalburg` (c00009), `woods`
+(c00010), `rustboro` (c00011) and `spine:act1:badge1` (c00012, frame 104,879,
+`FLAG_BADGE01_GET`). `cargo run -p game-native --features window --bin play -- --load
+spine:act1:rustboro` starts at Rustboro.
 
 Ids are `c00012`, `12` or a label. `cargo test` verifies the committed tree of the current
 flavor (`crates/game-native/tests/checkpoint_tree.rs`), so an intended behaviour change needs
@@ -245,16 +247,16 @@ ARM code in IWRAM (`engine`'s `iwram` feature, enabled by `game-gba`), with the 
 plain bytewise FNV-1a. If the line gates trip, re-measure and justify the cost; don't just bump
 the gates.
 
-Act 1 (Milestone 8): `cargo xtask parity` also resumes the ROM from every `act1:*` node's
+Act 1 (Milestone 8): `cargo xtask parity` also resumes the ROM from every `spine:act1:*` node's
 `.sav` for 2,000 frames with identical hashes and a picture every 100 frames
-(`rom_resumes_from_act1_nodes`), and runs the native checkpoint invariant at 105 points of the
+(`rom_resumes_from_act1_nodes`), and runs the native checkpoint invariant at 108 points of the
 flattened Act 1 trace (`crates/game-native/tests/act1.rs`, release). `cargo xtask parity --long`
-adds `act1_long`, the whole Act 1 trace played on the ROM from a new game (about 15 min), and
+adds `act1_long`, the whole Act 1 trace played on the ROM from a new game (about 6 min), and
 the map tour (`emu/tests/tour.rs`: a `game-gba --features tour` ROM warps through all 518 maps,
 in lockstep with native, gating the frame budget on the 45 Act 1 maps and one map per tileset
 pair). Known failure, held by `KNOWN_LATE` in `parity.rs`: Roxanne's battle start is one late
-frame on the ROM (engine frame 80,366; the first turn's AI choice), after which the trace no
-longer drives the ROM, so the long lane compares frames 0–80,362 and the `act1:badge1` resume
+frame on the ROM (engine frame 99,942; the first turn's AI choice), after which the trace no
+longer drives the ROM, so the long lane compares frames 0–99,938 and the `spine:act1:badge1` resume
 lane covers the end; the entry fails once the cause is fixed. The tour lists its known
 overruns (Sidney's room's whole-view redraw) in `KNOWN_OVER`.
 
@@ -413,9 +415,11 @@ does not change the db (`explore digest`). See `docs/plans/2026-10-23-explorer-s
   in release) and prints its checkpoints and its coverage; `--trace` prints every step's end
   (map, cell, party, vars and flags changed). A failing step stops it with the step, the map
   and cell, the session state and the macros played. `--export` writes the checkpoints to the
-  local checkpoint store as `spine:<act>:<label>` (promote one with `cargo xtask checkpoints
-  promote <id> --label spine:act1:badge1`); the checkpoints shared with the committed
-  `<act>:<label>` nodes are compared (same map and goal progress).
+  local checkpoint store as `spine:<act>:<label>`, chained from a new game (`--label L`: the
+  chain up to L; checkpoints past a bypass cannot export). Promote them parents first with
+  `cargo xtask checkpoints promote <id> --label spine:act1:<label>`; a label already committed
+  with the same state is kept, with another state the export fails. The checkpoints shared
+  with committed `<act>:<label>` nodes are compared (same map and goal progress).
 - `branch [--from L] [--budget F] [--jobs N] [--every N] [--min-novelty N] [--max-steps N]
   [--limit N]`: plays the spine, then the branches from its checkpoints and every N-th step
   (`--from`: one checkpoint's segment), on N workers; prints the outcomes, the frames and the
