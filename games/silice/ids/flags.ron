@@ -2298,5 +2298,17 @@
             name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
             num: 876,
         ),
+        (
+            name: "FLAG_SIL_HIDE_GYM07_PIXELS",
+            num: 900,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL",
+            num: 901,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_REVERSE_ROMAIN",
+            num: 902,
+        ),
     ],
 )
