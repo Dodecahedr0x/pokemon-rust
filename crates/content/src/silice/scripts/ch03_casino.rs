@@ -100,6 +100,7 @@ pub async fn ViberCity_Casino_Sc02(ctx: Ctx) {
     }
     ctx.lock().await;
     ctx.face_player().await;
+    // fallback: multichoice (50 / 500 / cancel): one yes/no for 50 coins.
     fallback(&ctx, "multichoice").await;
     if ask(&ctx, Casino_Sc02_T1).await {
         if coins(&ctx).await > MAX_COINS - 50 {
@@ -262,6 +263,7 @@ pub async fn ViberCity_Casino_Sc05(ctx: Ctx) {
     if story(&ctx).await >= 34 {
         say(&ctx, Casino_Sc05_T6).await;
     }
+    // fallback: multichoice (the colour): a stake of 10 on blue.
     fallback(&ctx, "multichoice").await;
     if ask(&ctx, Casino_Sc05_T1).await {
         if !take_coins(&ctx, 10).await {
@@ -299,6 +301,7 @@ pub async fn ViberCity_Casino_Sc06(ctx: Ctx) {
         return;
     }
     ctx.lock().await;
+    // fallback: the slot machine screen: the source's random(16) table (see above).
     fallback(&ctx, "slot machine").await;
     if ask(&ctx, Casino_Sc06_T1).await {
         if !take_coins(&ctx, 1).await {
@@ -316,7 +319,7 @@ pub async fn ViberCity_Casino_Sc06(ctx: Ctx) {
                 say(&ctx, Casino_Sc06_T2).await;
             } else {
                 add_coins(&ctx, win).await;
-                ctx.set_var(VAR_TEMP_1, gained + win).await;
+                ctx.set_var(VAR_TEMP_1, gained.saturating_add(win)).await;
             }
         }
     }
@@ -335,6 +338,7 @@ pub async fn ViberCity_Casino_EventScript_JetonsCaches(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_ITEM_CASINO_COINS_FLOOR).await || !coin_case(&ctx).await {
         return;
     }
+    // fallback: gText_FoundXCoins has no Silice text: the coins are added silently.
     fallback(&ctx, "hidden coins message").await;
     add_coins(&ctx, 20).await;
     ctx.set_flag(FLAG_SIL_ITEM_CASINO_COINS_FLOOR, true).await;
@@ -353,6 +357,7 @@ pub async fn ViberCity_Casino_Sc07(ctx: Ctx) {
     ctx.lock().await;
     ctx.face_player().await;
     say(&ctx, Casino_Sc07_T1).await;
+    // fallback: multichoice (the prize menus): nothing is exchanged yet.
     fallback(&ctx, "multichoice").await;
     ctx.release().await;
 }
@@ -520,6 +525,13 @@ pub async fn ViberCity_Casino_B1F_Sc02(ctx: Ctx) {
     ctx.lock_all().await;
     say(&ctx, Casino_B1F_Sc02_T1).await;
     if !ask(&ctx, Casino_B1F_Sc02_T2).await {
+        ctx.release_all().await;
+        return;
+    }
+    // No PC: with a full party `give_mon` would drop the Porygon, and the state 3 below would
+    // close the capsule for good. Gen3's line, then the capsule waits (state 2).
+    if ctx.party_size().await >= 6 {
+        say(&ctx, gText_NoMoreRoomForPokemon).await;
         ctx.release_all().await;
         return;
     }

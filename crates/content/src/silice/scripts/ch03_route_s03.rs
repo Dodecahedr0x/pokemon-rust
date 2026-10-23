@@ -142,6 +142,9 @@ const DEPOT_FLOOR: [&str; 14] = [
     "###############",
 ];
 
+/// The first row of the south corridor (7, 10–12), between the rest area and the south portal.
+const SOUTH_CORRIDOR: i16 = 10;
+
 /// A block: its object, its home cell, its solved cell, its temp var.
 type Bloc = (u8, (i16, i16), (i16, i16), VarId);
 
@@ -223,7 +226,11 @@ pub async fn RouteS03_Depot_EventScript_Bloc(ctx: Ctx) {
     };
     let (x, y) = var_cell(ctx.var(var).await);
     let to = (x + dx, y + dy);
-    if depot_free(&ctx, to).await {
+    // Never down into the south corridor (rows 10–12): a block there walls off the south
+    // portal, the only way out of a botched layout (Depot_Panneau_T1's promise; the source's
+    // grid allows it, a softlock within one visit).
+    let corridor = dir == Dir::Down && to.1 >= SOUTH_CORRIDOR;
+    if !corridor && depot_free(&ctx, to).await {
         let path: &'static [Step] = match dir {
             Dir::Up => &PUSH_UP,
             Dir::Down => &PUSH_DOWN,

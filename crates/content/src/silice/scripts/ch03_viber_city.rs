@@ -197,8 +197,12 @@ const GARDE_OUT: &[Step] = &[walk(Dir::Left), walk(Dir::Left)];
 
 /// Viber_City_Sc04, PRAUGECT's diversion: the cells beside the Station's guard (7, 5), (9, 5)
 /// and (8, 6) at `VAR_SIL_STORY` 33. Mathieu (as PRAUGECT) lures the guard away with skewers;
-/// both leave (the stand stays empty until Sc05). The door is free.
+/// both leave (the stand stays empty until Sc05). The door is free. Once only: the guard's
+/// hide flag says it played (leaving the Station puts the player on (8, 5), past these cells).
 pub async fn ViberCity_Sc04(ctx: Ctx) {
+    if ctx.flag(FLAG_SIL_HIDE_STATION_GARDE).await {
+        return;
+    }
     ctx.lock_all().await;
     move_wait(&ctx, LOCALID_VIBER_GARDE_STATION, FACE_PLAYER).await;
     say(&ctx, Viber_City_Sc04_T1).await;
@@ -333,20 +337,21 @@ async fn open_barriere(ctx: &Ctx) {
 
 // ---- the cast ----
 
-/// Mathieu at his stand (repeatable): feeds the party once per visit (`FLAG_SIL_TMP_MATHIEU_HEAL`,
-/// cleared on every entry) with `Viber_City_Mathieu_T1`; afterwards, from the black-out on, his
-/// `_T2`, else `_T1` again without the heal.
+/// Mathieu at his stand (repeatable): `Viber_City_Mathieu_T1`, from the black-out on `_T2`
+/// (the source's "après le black-out"); he feeds the party once per visit
+/// (`FLAG_SIL_TMP_MATHIEU_HEAL`, cleared on every entry).
 pub async fn ViberCity_EventScript_Mathieu(ctx: Ctx) {
     ctx.lock().await;
     ctx.face_player().await;
+    let line = if story(&ctx).await >= 34 {
+        Viber_City_Mathieu_T2
+    } else {
+        Viber_City_Mathieu_T1
+    };
+    say(&ctx, line).await;
     if !ctx.flag(FLAG_SIL_TMP_MATHIEU_HEAL).await {
-        say(&ctx, Viber_City_Mathieu_T1).await;
         ctx.heal_party().await;
         ctx.set_flag(FLAG_SIL_TMP_MATHIEU_HEAL, true).await;
-    } else if story(&ctx).await >= 34 {
-        say(&ctx, Viber_City_Mathieu_T2).await;
-    } else {
-        say(&ctx, Viber_City_Mathieu_T1).await;
     }
     ctx.release().await;
 }

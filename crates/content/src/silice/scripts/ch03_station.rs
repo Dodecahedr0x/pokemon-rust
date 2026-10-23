@@ -200,6 +200,7 @@ async fn black_out(ctx: &Ctx) {
     ctx.fade(Fade::ToBlack).await;
     // fallback: stop_music and set_flash_level(2) on the city (§9): a long fade to black.
     fallback(ctx, "stop_music").await;
+    fallback(ctx, "set_flash_level").await;
     ctx.delay(60).await;
     ctx.set_flag(FLAG_SIL_VIBER_BLACKOUT, true).await;
     ctx.set_flag(FLAG_SIL_HIDE_STATION_SBIRES, true).await;

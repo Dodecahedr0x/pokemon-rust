@@ -160,11 +160,12 @@ pub async fn ViberCity_Gym_Sc02(ctx: Ctx) {
 
 // ---- the manager ----
 
-/// The manager at the entry (4, 14): the rules before the badge; after it, the Fresh Water once
-/// (`FLAG_SIL_ITEM_NOCTURNE_FRESH_WATER`, with Gen3's obtain messages: his line offers it), then
-/// his line again.
+/// The manager at the entry (4, 14): the rules (`Nocturne_Gerant_T1`); once after the badge,
+/// his `_T2` and the Fresh Water (`FLAG_SIL_ITEM_NOCTURNE_FRESH_WATER`, with Gen3's obtain
+/// messages: his line offers it); afterwards the rules again (T2 offers the water, so it is not
+/// repeated; an author question).
 pub async fn ViberCity_Gym_EventScript_Gerant(ctx: Ctx) {
-    if !ctx.flag(FLAG_SIL_BADGE_03).await {
+    if !ctx.flag(FLAG_SIL_BADGE_03).await || ctx.flag(FLAG_SIL_ITEM_NOCTURNE_FRESH_WATER).await {
         msgbox(&ctx, Nocturne_Gerant_T1, MsgBox::Npc).await;
         return;
     }
