@@ -2298,5 +2298,25 @@
             name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
             num: 876,
         ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_MATHIEU",
+            num: 1200,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_ADRIEN",
+            num: 1201,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN",
+            num: 1202,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA",
+            num: 1203,
+        ),
+        (
+            name: "FLAG_SIL_S09_CABLES",
+            num: 1204,
+        ),
     ],
 )
