@@ -1,8 +1,10 @@
 //! Task C: `NativePane` driven through the `Pane` methods (no thread, no window), over a
 //! layered store whose base is the committed tree and whose local root is a temp dir.
 
+#[cfg(not(pkr_silice))]
 use game_native::scenario::cached_route;
 use game_native::store::Store;
+#[cfg(not(pkr_silice))]
 use game_native::trace::Parent;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -83,6 +85,7 @@ fn rewind_delegates_to_controls() {
     let _ = std::fs::remove_dir_all(local);
 }
 
+#[cfg(not(pkr_silice))] // the Silice boot route stays on its map and never battles
 #[test]
 fn the_routes_first_map_change_or_battle_is_an_event() {
     // The extracted route changes map first; the stub route stays on its map and battles.
@@ -120,6 +123,7 @@ fn the_routes_first_map_change_or_battle_is_an_event() {
     let _ = std::fs::remove_dir_all(local);
 }
 
+#[cfg(not(pkr_silice))] // loads a committed node: Silice has none yet (SIL1 Wave 3)
 #[test]
 fn load_seek_and_save_into_the_local_store() {
     let (mut p, local, store) = pane("load");

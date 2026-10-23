@@ -1,5 +1,5 @@
 //! Milestone 5 Task G: the route's checkpoint nodes, the real replayer, `materialize`, and the
-//! committed tree of the current content flavor (`checkpoints/{stub|emerald}/nodes`), which
+//! committed tree of the current content flavor (`checkpoints/{stub|emerald|silice}/nodes`), which
 //! must verify Valid like the golden hashes: an intended behaviour change needs
 //! `cargo xtask checkpoints verify --accept`.
 
@@ -23,10 +23,10 @@ fn recording() -> &'static Recording {
 }
 
 fn expected_names() -> &'static [&'static str] {
-    if content::STUB {
-        &["stub_start", "stub_after_battle", "stub_end"]
-    } else {
-        &["lab", "after_wild", "oldale_center", "route103_after_may"]
+    match content::FLAVOR {
+        content::Flavor::Stub => &["stub_start", "stub_after_battle", "stub_end"],
+        content::Flavor::Emerald => &["lab", "after_wild", "oldale_center", "route103_after_may"],
+        content::Flavor::Silice => &["silice_start", "silice_idle", "silice_end"],
     }
 }
 
