@@ -13,7 +13,7 @@ pub static STEPS: &[Step] = &[];
 
 #[cfg(not(pkr_silice))]
 mod list {
-    use super::super::{BattlePlan, Bypass, Step, UseItem};
+    use super::super::{BattlePlan, Step, UseItem};
     use content::consts::*;
     use engine::data::Dir::{Down, Left, Right, Up};
 
@@ -64,32 +64,21 @@ mod list {
         Step::TrainFresh { map, x, y, level }
     }
 
-    /// HM06 from the bag on the lead (the bag screen is Task B: `World::use_item` stands for
-    /// its USE); the party menu teaches it with inputs, forgetting Mud-Slap (slot 2), so
-    /// `EventScript_RockSmash`'s `checkpartymove` finds it.
-    static USE_HM06: Bypass = Bypass {
-        issue: "bag-use-hm06",
-        features: &["bag: use a TM/HM"],
-        use_item: Some(UseItem {
-            item: ITEM_HM06,
-            mon: 0,
-            forget: 2,
-        }),
-        ..Bypass::NONE
-    };
+    /// HM06 from the bag on the lead (START → BAG → HM06 → USE): the party menu teaches it,
+    /// forgetting Mud-Slap (slot 2), so `EventScript_RockSmash`'s `checkpartymove` finds it.
+    const USE_HM06: Step = Step::UseItem(UseItem {
+        item: ITEM_HM06,
+        mon: 0,
+        forget: 2,
+    });
 
     /// HM03 from the bag on the lead, as [`USE_HM06`], forgetting Water Gun (slot 3), so
     /// `EventScript_UseSurf`'s `checkpartymove` finds it.
-    static USE_HM03: Bypass = Bypass {
-        issue: "bag-use-hm03",
-        features: &["bag: use a TM/HM"],
-        use_item: Some(UseItem {
-            item: ITEM_HM03,
-            mon: 0,
-            forget: 3,
-        }),
-        ..Bypass::NONE
-    };
+    const USE_HM03: Step = Step::UseItem(UseItem {
+        item: ITEM_HM03,
+        mon: 0,
+        forget: 3,
+    });
 
     /// The Route 119 trainers' sight lines (`map.json` facing and range): the grass trainers
     /// that copy the player (range 1, every side), Catherine, Jackson, Rachel, Phil, Hugh,
@@ -851,11 +840,11 @@ mod list {
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
-        // HM06 from the Rock Smash dude; teach it from the bag (`bag-use-hm06`).
+        // HM06 from the Rock Smash dude; teach it from the bag.
         enter(MAP_MAUVILLE_CITY, 32, 14, Up),
         talk(MAP_MAUVILLE_CITY_HOUSE1, 1),
         enter(MAP_MAUVILLE_CITY_HOUSE1, 3, 7, Down),
-        Step::Bypass(&USE_HM06),
+        USE_HM06,
         // ---- Route 111: smash the rock north of the Winstrates', on to Route 113 ----
         cross(MAP_MAUVILLE_CITY, 16, 0, Up),
         // The rock: `EventScript_RockSmash` (yes).
@@ -1031,8 +1020,8 @@ mod list {
         enter(MAP_PETALBURG_CITY, 7, 5, Up),
         Step::WaitScript,
         Step::Expect("hm_surf"),
-        // Teach it from the bag (`bag-use-hm03`).
-        Step::Bypass(&USE_HM03),
+        // Teach it from the bag.
+        USE_HM03,
         // ================= Act 6 (Wave C, M10's field moves): back east to Mauville by the
         // woods, Rustboro and the tunnel, then Surf across Route 118 to Route 119 =================
         enter(MAP_PETALBURG_CITY_WALLYS_HOUSE, 3, 7, Down),
