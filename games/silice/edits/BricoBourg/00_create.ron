@@ -1,0 +1,3 @@
+// Silice Ch0, MAP_BRICO_BOURG: Brico-Bourg, the home village (24 x 20, the source's suggested size).
+// General + Petalburg (Emerald tilesets by name). Border: the 2x2 forest block, like Emerald's towns.
+(name: "BricoBourg", width: 24, height: 20, primary: "General", secondary: "Petalburg", fill: 1, border: [468, 469, 476, 477])

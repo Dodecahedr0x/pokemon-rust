@@ -1,0 +1,12 @@
+// Cells: walls, furniture, door mat.
+[
+    // Back wall, two rows: kitchen on the left, stairs up to 2F at (8, 1).
+    Ascii(x: 0, y: 0, rows: ["aaaaaaaaaa", "bbbbbbbbbb"], legend: {'a': (metatile: 520, collision: 1), 'b': (metatile: 528, collision: 1)}),
+    Ascii(x: 0, y: 0, rows: ["abcde", "fghij"], legend: {'a': (metatile: 560, collision: 1), 'b': (metatile: 561, collision: 1), 'c': (metatile: 562, collision: 1), 'd': (metatile: 563, collision: 1), 'e': (metatile: 564, collision: 1), 'f': (metatile: 568, collision: 1), 'g': (metatile: 569, collision: 1), 'h': (metatile: 570, collision: 1), 'i': (metatile: 571, collision: 1), 'j': (metatile: 572, collision: 1)}),
+    Ascii(x: 8, y: 0, rows: ["a", "b"], legend: {'a': (metatile: 521, collision: 1), 'b': (metatile: 529, collision: 0)}),
+    // TV on its stand, dining rug with table and chairs, a clock and a plant.
+    Paint(x: 6, y: 2, metatile: 2, collision: 1),
+    Ascii(x: 1, y: 3, rows: ["abcdef", "ghijkl", "mnopqr"], legend: {'a': (metatile: 536, collision: 0), 'b': (metatile: 537, collision: 0), 'c': (metatile: 538, collision: 1), 'd': (metatile: 539, collision: 1), 'e': (metatile: 540, collision: 0), 'f': (metatile: 541, collision: 0), 'g': (metatile: 544, collision: 0), 'h': (metatile: 545, collision: 0), 'i': (metatile: 546, collision: 1), 'j': (metatile: 547, collision: 1), 'k': (metatile: 548, collision: 0), 'l': (metatile: 549, collision: 0), 'm': (metatile: 552, collision: 0), 'n': (metatile: 553, collision: 0), 'o': (metatile: 554, collision: 0), 'p': (metatile: 555, collision: 0), 'q': (metatile: 556, collision: 0), 'r': (metatile: 557, collision: 0)}),
+    // Door mat (exit to Brico-Bourg).
+    Ascii(x: 4, y: 7, rows: ["ab"], legend: {'a': (metatile: 514, collision: 0), 'b': (metatile: 515, collision: 0)}),
+]

@@ -1,0 +1,12 @@
+// Cells: walls, bed, desk and PC.
+[
+    // Back wall, two rows, with the window at (3, 1) and the stairs down at (7, 1).
+    Ascii(x: 0, y: 0, rows: ["aaaaaaaa", "bbbbbbbb"], legend: {'a': (metatile: 520, collision: 1), 'b': (metatile: 528, collision: 1)}),
+    Ascii(x: 3, y: 0, rows: ["a", "b"], legend: {'a': (metatile: 542, collision: 1), 'b': (metatile: 550, collision: 1)}),
+    Ascii(x: 7, y: 0, rows: ["a", "b"], legend: {'a': (metatile: 524, collision: 1), 'b': (metatile: 532, collision: 0)}),
+    // Bed (1, 2)-(1, 3), desk (5, 2) where the MALLETTE goes, PC (6, 2), boxes.
+    // Desk and PC are normal-behaviour metatiles (no PC or notebook behaviour): only the bg events act.
+    Ascii(x: 1, y: 2, rows: ["a", "b"], legend: {'a': (metatile: 644, collision: 1), 'b': (metatile: 652, collision: 1)}),
+    Ascii(x: 5, y: 2, rows: ["ab"], legend: {'a': (metatile: 590, collision: 1), 'b': (metatile: 601, collision: 1)}),
+    Ascii(x: 0, y: 5, rows: ["a", "b"], legend: {'a': (metatile: 616, collision: 1), 'b': (metatile: 624, collision: 1)}),
+]
