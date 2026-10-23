@@ -152,11 +152,12 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
                 None => ex.revalidate()?,
             };
             println!(
-                "revalidated in {:.1} s: {} valid, {} repaired, {} broken",
+                "revalidated in {:.1} s: {} valid, {} repaired, {} broken, {} kept without a replay",
                 t.elapsed().as_secs_f64(),
                 r.valid,
                 r.repaired,
-                r.broken
+                r.broken,
+                r.kept
             );
             Ok(())
         }
@@ -407,8 +408,8 @@ fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Res
     }
     if let Some(r) = ex.revalidated {
         println!(
-            "revalidated: {} valid, {} repaired, {} broken",
-            r.valid, r.repaired, r.broken
+            "revalidated: {} valid, {} repaired, {} broken, {} kept without a replay",
+            r.valid, r.repaired, r.broken, r.kept
         );
     }
     println!(
@@ -463,11 +464,13 @@ fn run(db_path: &Path, cfg: Config, asked: Asked, budget: Budget) -> anyhow::Res
         line(&ex.stats()?, ex.db.report_count()?, &sum);
     }
     println!(
-        "{} generations, {} nodes inserted, {} frames in {:.1} s; {} findings raised ({} \
-         report-only), {} slow frames, {} notes{}",
+        "{} generations, {} nodes inserted, {} frames ({} in {} softlock probes) in {:.1} s; {} \
+         findings raised ({} report-only), {} slow frames, {} notes{}",
         sum.generations,
         sum.nodes,
         sum.frames,
+        sum.probe_frames,
+        sum.probes,
         sum.wall.as_secs_f64(),
         sum.findings,
         sum.reports,

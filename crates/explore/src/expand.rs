@@ -287,6 +287,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             .world()
             .events_dropped()
             .wrapping_sub(self.dropped_start);
+        summary.events_dropped = dropped;
         if dropped > 0 {
             notes.push(format!("{dropped} engine events dropped (EVENTS_MAX)"));
         }

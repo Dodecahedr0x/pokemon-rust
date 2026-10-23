@@ -208,6 +208,16 @@ fn a_rebuilt_game_revalidates_every_node() {
     let before = explore(inner, &path, 0, 8);
     let rows = before.db.nodes().unwrap();
     drop(before);
+    // `Rebuilt` changes the build id but no content digest, so the incremental path would
+    // keep every node without a replay (Task N). Without the stored digests the open falls
+    // back to revalidating every node, which this test covers.
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute(
+        "DELETE FROM meta WHERE key = ?1",
+        [explore::incremental::META_KEY],
+    )
+    .unwrap();
+    drop(conn);
     let game = Rebuilt {
         inner,
         build_id: inner.build_id() ^ 0x5A5A,

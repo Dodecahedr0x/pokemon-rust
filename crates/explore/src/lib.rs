@@ -21,6 +21,7 @@ pub mod fitness; // Task B
 pub mod goals; // Task B
 pub mod graph; // Task D
 pub mod guard; // implemented (W0): panic capture
+pub mod incremental; // M8 Task N: incremental revalidation
 pub mod key; // Task B
 pub mod macros; // Task A
 pub mod model; // implemented (W0): shared data types

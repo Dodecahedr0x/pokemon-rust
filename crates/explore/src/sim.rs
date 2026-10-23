@@ -303,13 +303,14 @@ fn resumable(m: &Macro, pos: (i16, i16)) -> bool {
     }
 }
 
-/// A softlock probe's verdict, the start's place (`key::place_region`) and the frames it
-/// stepped.
+/// A softlock probe's verdict, the start's place (`key::place_region`), the frames it
+/// stepped and the re-probes it needed (`softlock::probe_waiting`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Probed {
     pub trap: Trap,
     pub place: u64,
     pub frames: u64,
+    pub reprobes: u32,
 }
 
 /// The softlock probe of `start` (`softlock::probe` with the start's place and its map's
@@ -324,8 +325,18 @@ pub struct Probed {
 /// it stays in the start's place (Task H: on Routes 101 and 102 every walk from a cell by the
 /// grass met an encounter after a step or two, so three macros never got out and the probe
 /// reported those cells as traps). Each resume runs under its own panic guard: a panic keeps
-/// the last good end state. Worst case, a probe expands `(1 + probe_resumes) x breadth`
-/// macros.
+/// the last good end state.
+///
+/// A trapped start whose map has an object that walks by itself is probed again after waits
+/// (Task N, `softlock::probe_waiting`: up to `cfg.detect.reprobes` waits of
+/// `cfg.detect.reprobe_wait_frames`), so an object that blocks the way out for a while is not
+/// a softlock. Worst case, one call expands `(1 + reprobes) x (1 + probe_resumes) x breadth`
+/// macros (1,600 by default) and steps `reprobes x reprobe_wait_frames` frames of waits.
+///
+/// A wait that ends in another place counts as a way out. A place includes the story flags
+/// and vars, so a script that loops while the player waits and changes a story var (an
+/// `on_frame` script, a timer) frees every trapped start of its map: such a softlock is
+/// missed (a false negative), never invented.
 pub fn trap<G: GameData + Clone>(
     game: &G,
     start: &Checkpoint,
@@ -340,12 +351,61 @@ pub fn trap<G: GameData + Clone>(
     let mut expand_all = |cp: &Checkpoint, remaining: u32| {
         expand_all(game, cp, remaining, (place, map), cfg, &mut frames)
     };
-    let trap = softlock::probe(start, place, exits, k, breadth, &mut expand_all);
+    let mut waited = 0u64;
+    let mut wait = |cp: &Checkpoint| wait_from(game, cp, cfg, &mut waited);
+    let (trap, reprobes) = softlock::probe_waiting(
+        start,
+        place,
+        exits,
+        k,
+        breadth,
+        cfg.detect.reprobes,
+        &mut expand_all,
+        &mut wait,
+    );
     Probed {
         trap,
         place,
-        frames,
+        frames: frames + waited,
+        reprobes,
     }
+}
+
+/// A [`MacroKind::Wait`] of `cfg.detect.reprobe_wait_frames` from `cp` (the policy resolves anything
+/// that starts), under a panic guard: (place, map, end state). Its frames count in `frames`.
+fn wait_from<G: GameData + Clone>(
+    game: &G,
+    cp: &Checkpoint,
+    cfg: &Config,
+    frames: &mut u64,
+) -> Option<(u64, MapId, Checkpoint)> {
+    let mut s = guard::catch(|| Session::restore(game.clone(), cp))
+        .ok()?
+        .ok()?;
+    let start = s.world().frame();
+    let wait = Macro {
+        kind: MacroKind::Wait {
+            frames: cfg.detect.reprobe_wait_frames,
+        },
+        opts: Opts::default(),
+    };
+    let ok = guard::catch(|| {
+        expand::expand(
+            &mut s,
+            &wait,
+            &mut Policy::new(),
+            &mut NoObserver,
+            &cfg.limits,
+        )
+        .is_ok()
+    });
+    *frames += u64::from(s.world().frame().wrapping_sub(start));
+    if ok != Ok(true) {
+        return None;
+    }
+    let end = s.checkpoint().ok()?;
+    let place = key::place_region(&key::key_parts(&end.world, &cfg.key));
+    Some((place, end.world.field.map, end))
 }
 
 /// The states one successful macro away from `cp`: (place, map, end state), the wait then

@@ -300,6 +300,17 @@ pub fn progress(act: Act, parent: u32, snap: &WorldSnapshot) -> u32 {
     p
 }
 
+/// The goals of `act` a state with no lineage has reached (the root of a `--from` db, Task N):
+/// one past the last goal it satisfies. A goal list is in story order, so a later goal implies
+/// the earlier ones, including the place goals ("on Route 103") a later state no longer
+/// satisfies; [`progress`] from 0 would stop at the first of those.
+pub fn state_progress(act: Act, snap: &WorldSnapshot) -> u32 {
+    goals_of(act)
+        .iter()
+        .rposition(|g| (g.reached)(snap))
+        .map_or(0, |i| i as u32 + 1)
+}
+
 /// The name of goal `i` (0-based) of the default act, if any. Act 1 begins with the slice's
 /// goals, so this also names a slice db's goals.
 pub fn name(i: u32) -> Option<&'static str> {

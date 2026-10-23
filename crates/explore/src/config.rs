@@ -83,9 +83,18 @@ pub struct DetectConfig {
     /// Expansions per probe.
     pub softlock_breadth: u32,
     /// How often the probe resumes a walk that a battle interrupted before its target (Task H;
-    /// 0 = never). Each resume can cost another full macro, so a probe's worst case is
+    /// 0 = never). Each resume can cost another full macro, so one probe's worst case is
     /// `(1 + probe_resumes) x softlock_breadth` expansions.
     pub probe_resumes: u32,
+    /// How often a start found trapped while an object of its map walks by itself is probed
+    /// again, each after a wait of `reprobe_wait_frames` (Task N; 0 = never). With the
+    /// re-probes, a softlock check's worst case is `(1 + reprobes) x (1 + probe_resumes) x
+    /// softlock_breadth` expansions (5 x 5 x 64 = 1,600 by default) plus `reprobes x
+    /// reprobe_wait_frames` frames of waits.
+    pub reprobes: u32,
+    /// Frames of each wait before a re-probe (the lab aide's corridor cleared after about
+    /// 1,100, so the default 4 x 600 covers it).
+    pub reprobe_wait_frames: u16,
     /// Report-only; 0 = off (the default in debug builds, 4000 in release). Left out of the
     /// config-change note ([`Config::differs_from_ron`]).
     pub slow_step_us: u32,
@@ -171,6 +180,8 @@ impl Default for DetectConfig {
             softlock_k_per_map: BTreeMap::new(),
             softlock_breadth: 64,
             probe_resumes: 4,
+            reprobes: 4,
+            reprobe_wait_frames: 600,
             slow_step_us: if cfg!(debug_assertions) { 0 } else { 4000 },
         }
     }

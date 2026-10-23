@@ -4,9 +4,7 @@
 use crate::config::{Config, Weights};
 use crate::goals;
 use crate::key;
-use crate::model::{
-    AbstractKey, Evaluate, Evaluation, Fitness, NodeRow, SeenKind, StepResult, Touch,
-};
+use crate::model::{AbstractKey, Evaluate, Evaluation, Fitness, NodeRow, SeenKind, StepResult};
 use engine::data::{FlagId, MapId, ScriptId, VarId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -139,11 +137,18 @@ impl Archive {
 pub struct Evaluator {
     pub archive: Archive,
     pub cfg: Config,
+    /// The progress the root job's steps start from: 0 for a new game, the root state's
+    /// `goals::state_progress` for a `--from` db (Task N).
+    pub root_progress: u32,
 }
 
 impl Evaluator {
     pub fn new(archive: Archive, cfg: Config) -> Evaluator {
-        Evaluator { archive, cfg }
+        Evaluator {
+            archive,
+            cfg,
+            root_progress: 0,
+        }
     }
 }
 
@@ -215,15 +220,11 @@ impl Evaluate for Evaluator {
         }
         nov.new_key = a.keys.insert(k);
 
-        let before = parent.map_or(0, |p| p.progress);
+        let before = parent.map_or(self.root_progress, |p| p.progress);
         let progress = goals::progress(self.cfg.act, before, snap);
         let fitness = score(&nov, progress - before, 0, &self.cfg.weights);
 
-        let touches = maps
-            .iter()
-            .map(|&m| Touch::Map(m))
-            .chain(scripts.iter().map(|&s| Touch::Script(s)))
-            .collect();
+        let touches = crate::incremental::touches(&step.summary, snap.field.map);
         Evaluation {
             key: k,
             progress,
