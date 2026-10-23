@@ -42,6 +42,7 @@ pub(super) fn hash_menu(m: Menu, h: &mut Fnv64) {
         Menu::StopMsg { party, mov } => (5, party, mov, 0),
         Menu::StopAsk { party, mov } => (6, party, mov, 0),
         Menu::Retry { party, mov, n } => (7, party, mov, n),
+        Menu::HmMsg { party, mov } => (8, party, mov, 0),
     };
     h.write(&[tag, party, n]);
     h.write_u16(mov.0);

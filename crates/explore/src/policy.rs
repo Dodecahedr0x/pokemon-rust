@@ -73,6 +73,17 @@ impl Policy {
     /// else the first move with pp > 0; else slot 0, where the engine uses Struggle), RUN from wild battles when `opts.run_wild` (never the first battle or a
     /// trainer), keep known moves (B on learn prompts), A through messages.
     pub fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons {
+        self.battle_with(w, t, opts, &|_| false)
+    }
+
+    /// [`Policy::battle`], never forgetting a move `is_hm` names (Gen3 refuses: `IsHMMove2`).
+    pub fn battle_with(
+        &mut self,
+        w: &World,
+        t: &BattleTables,
+        opts: Opts,
+        is_hm: &dyn Fn(MoveId) -> bool,
+    ) -> Buttons {
         let k = match w.battle() {
             None => Buttons::A,
             Some((_, battle, scene)) => {
@@ -96,12 +107,13 @@ impl Policy {
                     }
                     // Learn a stronger level-up move over the weakest known one.
                     Some(OpenMenu::LearnAsk(c))
-                        if opts.learn && forget_slot(battle.mon(Side::Player), t).is_some() =>
+                        if opts.learn
+                            && forget_slot(battle.mon(Side::Player), t, is_hm).is_some() =>
                     {
                         if c == 0 { Buttons::A } else { Buttons::UP }
                     }
                     Some(OpenMenu::LearnPick(c)) if opts.learn => {
-                        match forget_slot(battle.mon(Side::Player), t) {
+                        match forget_slot(battle.mon(Side::Player), t, is_hm) {
                             Some(_) if c > 3 => Buttons::LEFT,
                             Some(s) => toward(c, s),
                             None => Buttons::B,
@@ -191,14 +203,19 @@ fn move_worth(me: &BattleMon, mov: MoveId, t: &BattleTables) -> u32 {
 }
 
 /// The slot to forget for the level-up move `me` is learning (its learnset's first move at its
-/// level it does not know): the weakest known move ([`move_worth`]), when the new one is worth
-/// more; `None` keeps the known moves.
-pub fn forget_slot(me: &BattleMon, t: &BattleTables) -> Option<u8> {
+/// level it does not know): the weakest known move ([`move_worth`]) but HM moves (`is_hm`: Gen3's
+/// learn menu refuses them, `IsHMMove2`), when the new one is worth more; `None` keeps the known
+/// moves.
+pub fn forget_slot(me: &BattleMon, t: &BattleTables, is_hm: &dyn Fn(MoveId) -> bool) -> Option<u8> {
     let new = (t.species_info(me.species).learnset.iter())
         .find(|l| l.level == me.level && !me.moves.contains(&Some(l.mov)))?
         .mov;
     let (worth, slot) = (0..4)
-        .filter_map(|i| me.moves[i].map(|m| (move_worth(me, m, t), i as u8)))
+        .filter_map(|i| {
+            me.moves[i]
+                .filter(|&m| !is_hm(m))
+                .map(|m| (move_worth(me, m, t), i as u8))
+        })
         .min()?;
     (move_worth(me, new, t) > worth).then_some(slot)
 }

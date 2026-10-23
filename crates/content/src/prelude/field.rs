@@ -5,6 +5,7 @@
 //! start nothing, so a `waitfieldeffect` on them answers at once.
 
 use super::*;
+use engine::data::FieldMove;
 
 /// `include/constants/field_effects.h` ids of the effects scripts start.
 pub const FLDEFF_USE_CUT_ON_TREE: u16 = 2;
@@ -24,19 +25,15 @@ pub const FLDEFF_PCTURN_ON: u16 = 61;
 pub const FLDEFF_HALL_OF_FAME_RECORD: u16 = 62;
 pub const FLDEFF_DESTROY_DEOXYS_ROCK: u16 = 65;
 
-/// The effects reported, by id: the field moves are M10's, the secret bases M13's, and
-/// Deoxys's rock (an event island) moves and removes an object.
-const UNSUPPORTED: [(u16, &str); 12] = [
-    (FLDEFF_USE_CUT_ON_TREE, "FLDEFF_USE_CUT_ON_TREE"),
-    (FLDEFF_USE_SURF, "FLDEFF_USE_SURF"),
+/// The effects reported, by id: Waterfall's and Dive's are M10's, the secret bases M13's,
+/// and Deoxys's rock (an event island) moves and removes an object.
+const UNSUPPORTED: [(u16, &str); 8] = [
     (FLDEFF_USE_SECRET_POWER_CAVE, "FLDEFF_USE_SECRET_POWER_CAVE"),
     (FLDEFF_USE_SECRET_POWER_TREE, "FLDEFF_USE_SECRET_POWER_TREE"),
     (
         FLDEFF_USE_SECRET_POWER_SHRUB,
         "FLDEFF_USE_SECRET_POWER_SHRUB",
     ),
-    (FLDEFF_USE_ROCK_SMASH, "FLDEFF_USE_ROCK_SMASH"),
-    (FLDEFF_USE_STRENGTH, "FLDEFF_USE_STRENGTH"),
     (FLDEFF_USE_WATERFALL, "FLDEFF_USE_WATERFALL"),
     (FLDEFF_USE_DIVE, "FLDEFF_USE_DIVE"),
     (FLDEFF_SAND_PILLAR, "FLDEFF_SAND_PILLAR"),
@@ -83,6 +80,17 @@ pub fn field_effect_frames(id: u16, mons: u16) -> Option<u16> {
 /// Gen3 `dofieldeffect <id>`: starts the effect for its Gen3 length; an effect this engine does
 /// not model is reported with its decomp name (or `dofieldeffect` for an id no script names).
 pub async fn field_effect(ctx: &Ctx, id: u16) {
+    // The field moves the engine runs (Wave C, `Request::FieldMoveEffect`).
+    let field_move = match id {
+        FLDEFF_USE_SURF => Some(FieldMove::Surf),
+        FLDEFF_USE_CUT_ON_TREE => Some(FieldMove::Cut),
+        FLDEFF_USE_ROCK_SMASH => Some(FieldMove::RockSmash),
+        FLDEFF_USE_STRENGTH => Some(FieldMove::Strength),
+        _ => None,
+    };
+    if let Some(m) = field_move {
+        return ctx.field_move_effect(m).await;
+    }
     let mons = match id {
         FLDEFF_POKECENTER_HEAL | FLDEFF_HALL_OF_FAME_RECORD => ctx.party_size().await,
         _ => 0,

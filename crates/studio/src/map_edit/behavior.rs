@@ -94,6 +94,7 @@ impl MetatileBehavior {
             Behavior::Floor(f) if f.has_encounters() => 'E',
             Behavior::Ledge(_) => 'L',
             Behavior::Counter => 'C',
+            Behavior::Water(_) => 'S',
             Behavior::Blocked if self.is_water() => 'S',
             Behavior::Blocked => 'B',
             Behavior::Impassable(_) => 'I',
@@ -134,6 +135,7 @@ impl MetatileBehavior {
             Behavior::Floor(Floor::MountainTop) => "mountain top",
             Behavior::Ledge(_) => "ledge",
             Behavior::Counter => "counter",
+            Behavior::Water(_) => "water",
             Behavior::Blocked if self.is_water() => "water",
             Behavior::Blocked => "blocked",
             Behavior::Impassable(_) => "directional wall",
@@ -172,6 +174,7 @@ impl MetatileBehavior {
             | Behavior::CrackedFloor
             | Behavior::CrackedFloorHole => Some(0),
             Behavior::Ledge(_) => Some(1),
+            Behavior::Water(_) => Some(0),
             Behavior::Blocked if self.is_water() => Some(0),
             Behavior::Counter => Some(1),
             // Walkable cells whose sides block: either collision can be right.

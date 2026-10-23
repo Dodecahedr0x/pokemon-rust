@@ -42,7 +42,12 @@ impl World {
         if s.transition.is_active() {
             return Err(NotCapturable::Transition);
         }
-        if self.runner.is_running() || self.runner.active().is_some() || s.answer.is_some() {
+        // A field move's effect is the tail of the script that started it (Wave C).
+        if self.runner.is_running()
+            || self.runner.active().is_some()
+            || s.answer.is_some()
+            || s.field_move_busy()
+        {
             return Err(NotCapturable::Script);
         }
         if !s.text.is_pristine() {
@@ -236,6 +241,7 @@ impl World {
                 registered_item: w.registered_item,
                 fx: ScreenFx::default(),
                 field_effects: super::host::FieldEffects::default(),
+                field_move: None,
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,

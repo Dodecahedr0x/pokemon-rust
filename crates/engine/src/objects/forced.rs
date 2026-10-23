@@ -18,6 +18,7 @@
 //! | `ForcedWalk(d)` (`ForcedMovement_Walk*`) | `walk_normal` (16) | `d` | turns | plays |
 //! | `Slide(d)` (`ForcedMovement_Slide*`) | `walk_fast` | `d` | kept (`facingDirectionLocked`) | paused |
 //! | `MuddySlope` (`ForcedMovement_MuddySlope`) | `walk_fast` | south | kept | plays |
+//! | `Water(Current(d))` (`ForcedMovement_Pushed*ByCurrent`) | `walk_fast` (Gen3's is 6 frames) | `d` | turns | plays |
 //!
 //! Running does not apply (`B` only changes keypad steps). Gen3's `PLAYER_AVATAR_FLAG_CONTROLLABLE`
 //! ([`ForcedState::Held`]) holds forced movement off after a warp load until the player
@@ -35,7 +36,7 @@
 //!   and the muddy slope's metatile animation (`Task_MuddySlope`) is not drawn.
 
 use super::ActionKind;
-use crate::data::{Behavior, Dir};
+use crate::data::{Behavior, Dir, Water};
 use crate::script::Speed;
 
 /// The player's forced-movement state beside its run state. Both are set only on a forced
@@ -86,6 +87,8 @@ pub(super) const fn forced_step(b: Behavior, facing: Dir) -> Option<ForcedStep> 
         Behavior::ForcedWalk(d) => (d, Speed::Normal, false, false),
         Behavior::Slide(d) => (d, Speed::Fast, true, true),
         Behavior::MuddySlope => (Dir::Down, Speed::Fast, true, false),
+        // Gen3 `MOVE_SPEED_FAST_2` (6 frames); the engine's nearest step is `walk_fast` (8).
+        Behavior::Water(Water::Current(d)) => (d, Speed::Fast, false, false),
         _ => return None,
     };
     Some(ForcedStep {

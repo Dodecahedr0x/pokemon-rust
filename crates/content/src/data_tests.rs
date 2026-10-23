@@ -211,7 +211,15 @@ fn behaviors_follow_the_names_table() {
     );
     assert_eq!(Emerald.behavior(mb("MB_COUNTER")), Behavior::Counter);
     assert_eq!(Emerald.behavior(mb("MB_TALL_GRASS")), Behavior::TallGrass);
-    assert_eq!(Emerald.behavior(mb("MB_POND_WATER")), Behavior::Blocked);
+    assert_eq!(
+        Emerald.behavior(mb("MB_POND_WATER")),
+        Behavior::Water(engine::data::Water::Pond)
+    );
+    assert_eq!(
+        Emerald.behavior(mb("MB_EASTWARD_CURRENT")),
+        Behavior::Water(engine::data::Water::Current(Dir::Right))
+    );
+    assert_eq!(Emerald.behavior(mb("MB_WATER_DOOR")), Behavior::Blocked);
     assert_eq!(Emerald.behavior(mb("MB_NORMAL")), Behavior::Normal);
     // Forced movement (Gen3 `sForcedMovementTestFuncs`) and the per-step puzzles.
     assert_eq!(Emerald.behavior(mb("MB_ICE")), Behavior::Ice);
@@ -517,6 +525,12 @@ fn every_script_id_dispatches() {
         let finished = run(|ctx| Emerald.script(ScriptId(id as u16), ctx), &mut h);
         assert!(finished || !h.log.is_empty(), "{name}");
     }
+}
+
+/// Whether this is the hand-written fixture of `tests/build_modes.rs` (the stub world plus a
+/// two-module script IR): it has none of the game's standard scripts.
+fn fixture() -> bool {
+    data::SCRIPT_NAMES.contains(&"StubTown_EventScript_Obj1")
 }
 
 /// Only does something on the fixture of `tests/build_modes.rs`: its hand-written IR
@@ -960,6 +974,27 @@ fn the_map_sample_is_one_list() {
 
 #[path = "battle_tests.rs"]
 mod battle_tests;
+
+/// Gen3 `sHMMoves` (`IsHMMove2`) and the HM gates (`GetInteractedWaterScript`, the party
+/// menu's `SetUpFieldMove_*`), when the ROM data is in.
+#[test]
+fn hm_moves_and_field_move_gates() {
+    if STUB || fixture() {
+        return;
+    }
+    let (surf, rock_smash) = (data::HM_MOVES[2], data::HM_MOVES[5]);
+    assert_eq!((surf, rock_smash), (MoveId(57), MoveId(249)));
+    assert!(Emerald.is_hm_move(surf) && Emerald.is_hm_move(rock_smash));
+    assert!(!Emerald.is_hm_move(MoveId(1)));
+    assert_eq!(
+        Emerald.field_move_gate(FieldMove::Surf),
+        FieldMoveGate::PartyMove {
+            move_id: surf,
+            badge: Some(consts::FLAG_BADGE05_GET),
+        }
+    );
+    assert!(Emerald.field_move_script(FieldMove::Surf).is_some());
+}
 
 /// The maps' `on_resume` puzzles (`setstepcallback`, `setholewarp`) and the fall script.
 #[test]

@@ -82,12 +82,32 @@ const INTERACT_FRAMES: u32 = 4;
 /// What drives battles and scripts: the policy's intents (the driver applies the tap rule).
 pub trait Intents {
     fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons;
+    /// [`Intents::battle`], never forgetting a move `is_hm` names (HM moves).
+    fn battle_with(
+        &mut self,
+        w: &World,
+        t: &BattleTables,
+        opts: Opts,
+        is_hm: &dyn Fn(engine::data::MoveId) -> bool,
+    ) -> Buttons {
+        let _ = is_hm;
+        self.battle(w, t, opts)
+    }
     fn script(&mut self, w: &World, opts: Opts) -> Buttons;
 }
 
 impl Intents for Policy {
     fn battle(&mut self, w: &World, t: &BattleTables, opts: Opts) -> Buttons {
         Policy::battle(self, w, t, opts)
+    }
+    fn battle_with(
+        &mut self,
+        w: &World,
+        t: &BattleTables,
+        opts: Opts,
+        is_hm: &dyn Fn(engine::data::MoveId) -> bool,
+    ) -> Buttons {
+        Policy::battle_with(self, w, t, opts, is_hm)
     }
     fn script(&mut self, w: &World, opts: Opts) -> Buttons {
         Policy::script(self, w, opts)
@@ -537,7 +557,9 @@ impl<'a, G: GameData> Driver<'a, G> {
             }
             if w.in_battle() {
                 idle = 0;
-                let k = self.intents.battle(w, self.s.game().battle(), self.opts);
+                let game = self.s.game();
+                let k = (self.intents)
+                    .battle_with(w, game.battle(), self.opts, &|m| game.is_hm_move(m));
                 self.tap(k)?;
             } else if w.script_running() || w.starter().is_some() {
                 idle = 0;

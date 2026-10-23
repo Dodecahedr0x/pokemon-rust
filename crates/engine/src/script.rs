@@ -455,6 +455,12 @@ pub enum Request {
     ShowObjectAt(u8, MapId),
     /// Gen3 `hideobjectat`.
     HideObjectAt(u8, MapId),
+    // ---- Wave C: field moves (`world/field_move.rs`) ----
+    /// Gen3 `dofieldeffect FLDEFF_USE_SURF` / `USE_CUT_ON_TREE` / `USE_ROCK_SMASH` /
+    /// `USE_STRENGTH` (`FldEff_UseSurf`, `FldEff_UseCutOnTree`, ...): the field move's effect
+    /// starts (its pose and mon banner, timed; Surf then jumps the player onto the water).
+    /// Answers at once; `WaitState` waits for the effect's end (`ScriptContext_Enable`).
+    FieldMoveEffect(crate::data::FieldMove),
     // ---- Wave C: specials' reads (`world/host/query.rs`) ----
     /// A read of the world a special needs: answers `Value` at once.
     Query(Query),
@@ -735,6 +741,8 @@ impl Request {
             Request::WaitMoveAt(obj, map) => (148, obj as u16, map.0, 0, 0),
             Request::ShowObjectAt(obj, map) => (149, obj as u16, map.0, 0, 0),
             Request::HideObjectAt(obj, map) => (150, obj as u16, map.0, 0, 0),
+            // Wave C field moves: tags 160 and up.
+            Request::FieldMoveEffect(m) => (160, m as u16, 0, 0, 0),
             Request::Query(q) => {
                 let (k, a, b) = q.key();
                 (121, k, a, b, 0)
@@ -1104,6 +1112,11 @@ impl Ctx {
     /// Gen3 `dofieldeffect` (see [`Request::FieldEffect`]).
     pub fn field_effect(&self, id: u16, frames: u16) -> Req<()> {
         self.req(Request::FieldEffect { id, frames }, unit)
+    }
+
+    /// A field move's effect (see [`Request::FieldMoveEffect`]).
+    pub fn field_move_effect(&self, m: crate::data::FieldMove) -> Req<()> {
+        self.req(Request::FieldMoveEffect(m), unit)
     }
 
     /// Gen3 `waitfieldeffect` (see [`Request::WaitFieldEffect`]).

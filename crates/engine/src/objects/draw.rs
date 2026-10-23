@@ -34,7 +34,14 @@ impl Objects {
             if !o.visible {
                 continue;
             }
+            // Surfing (Wave C): the game's surfing sprite, its facing frames only (Gen3
+            // `sAnimTable_Surfing` faces the way the player moves); the surf blob under it is
+            // not drawn.
+            let surf = (i == 0 && self.surfing)
+                .then(|| game.player_surf_sprite())
+                .flatten();
             let sprite = match o.gfx {
+                None if surf.is_some() => surf.unwrap_or(game.player_sprite()),
                 None => game.player_sprite(),
                 Some(g) => match game.sprite(g) {
                     Some(s) => s,
@@ -54,7 +61,11 @@ impl Objects {
             if x <= -w || x >= SCREEN_W as i32 || y <= -h || y >= SCREEN_H as i32 {
                 continue;
             }
-            let (frame, hflip) = o.anim.frame(o.facing, sprite.frames.len());
+            let shown = match surf {
+                Some(_) => sprite.frames.len().min(3),
+                None => sprite.frames.len(),
+            };
+            let (frame, hflip) = o.anim.frame(o.facing, shown);
             let frame = frame.min(sprite.frames.len() - 1);
             let tiles = sprite.frames[frame];
             let Some(first) = self.vram_slot(i, ((w / 8) * (h / 8)) as u16) else {

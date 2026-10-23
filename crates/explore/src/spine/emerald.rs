@@ -22,6 +22,8 @@ mod list {
     /// Gen3's `MOVE_ROCK_SMASH` (`include/constants/moves.h`), named here because the stub
     /// build's `content::consts` has no Emerald moves (this local item shadows the glob import).
     const MOVE_ROCK_SMASH: engine::data::MoveId = engine::data::MoveId(249);
+    /// Gen3's `MOVE_SURF`, for the same reason.
+    const MOVE_SURF: engine::data::MoveId = engine::data::MoveId(57);
 
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
@@ -71,31 +73,81 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// The lead forgets Rock Smash for Muddy Water at level 39 (Route 112, under
-    /// `BattlePlan::BestLearn`): Gen3's learn menu refuses to forget an HM move (`IsHMMove2`,
-    /// `battle_script_commands.c`), the explorer's `policy::forget_slot` does not (no HM list
-    /// in the game data), so `checkpartymove` (now native) finds no Rock Smash and the rock
-    /// stays. The bypass steps past Route 111's rock from the north (it comes back on every
-    /// map load; the spine smashed it for real on the way up).
-    static ROUTE111_ROCK_SMASH_SOUTH: Bypass = Bypass {
-        issue: "rock-smash-forgotten-south",
-        features: &["IsHMMove2 in the explorer's learn policy"],
-        warp: Some((MAP_ROUTE111, 18, 102)),
+    /// Teaching HM03 needs the party menu, as HM06 (`teach-hm-rock-smash`): the bypass writes
+    /// Surf over the lead's Water Gun (slot 3), so `EventScript_UseSurf`'s `checkpartymove`
+    /// finds it.
+    static TEACH_SURF: Bypass = Bypass {
+        issue: "teach-hm-surf",
+        features: &["party menu: teach an HM"],
+        teach: &[(3, MOVE_SURF)],
         ..Bypass::NONE
     };
 
-    /// Rusturf Tunnel's boulder, for the same reason (`rock-smash-forgotten-south`): the
-    /// bypass does what smashing the first rock does (`removeobject` sets its hide flag,
-    /// `SPECIAL_TryUpdateRusturfTunnelState`, now native, sets the tunnel's state 4) and
-    /// reloads the tunnel, whose `ON_FRAME` table then plays Wanda's boyfriend's scene (HM04).
-    static RUSTURF_ROCK_SMASH: Bypass = Bypass {
-        issue: "rock-smash-forgotten-rusturf",
-        features: &["IsHMMove2 in the explorer's learn policy"],
-        set: &[FLAG_HIDE_RUSTURF_TUNNEL_ROCK_1],
-        vars: &[(VAR_RUSTURF_TUNNEL_STATE, 4)],
-        warp: Some((MAP_RUSTURF_TUNNEL, 25, 5)),
-        ..Bypass::NONE
-    };
+    /// The Route 119 trainers' sight lines (`map.json` facing and range): the grass trainers
+    /// that copy the player (range 1, every side), Catherine, Jackson, Rachel, Phil, Hugh,
+    /// Takashi, Dayton, Yasu, Hideo and Fabian.
+    const ROUTE119_SIGHT: &[(i16, i16)] = &[
+        // Greg (12,123), Taylor (26,123), Donald (5,125), Brent (28,116), Doug (34,122),
+        // Kent (17,128).
+        (11, 123),
+        (13, 123),
+        (12, 122),
+        (12, 124),
+        (25, 123),
+        (27, 123),
+        (26, 122),
+        (26, 124),
+        (4, 125),
+        (6, 125),
+        (5, 124),
+        (5, 126),
+        (27, 116),
+        (29, 116),
+        (28, 115),
+        (28, 117),
+        (33, 122),
+        (35, 122),
+        (34, 121),
+        (34, 123),
+        (16, 128),
+        (18, 128),
+        (17, 127),
+        (17, 129),
+        // Catherine (35,83) down 2.
+        (35, 84),
+        (35, 85),
+        // Jackson (7,74) down and right 3.
+        (7, 75),
+        (7, 76),
+        (7, 77),
+        (8, 74),
+        (9, 74),
+        (10, 74),
+        // Rachel (8,68) up 5, Phil (8,63) down 5.
+        (8, 63),
+        (8, 64),
+        (8, 65),
+        (8, 66),
+        (8, 67),
+        (8, 68),
+        // Hugh (10,50) right 3, Takashi (19,49) down 3, Dayton (16,52) right 3.
+        (11, 50),
+        (12, 50),
+        (13, 50),
+        (19, 50),
+        (19, 51),
+        (19, 52),
+        (17, 52),
+        (18, 52),
+        // Yasu (28,14) down 1, Hideo (29,6) down 3, Fabian (32,15) left 4.
+        (28, 15),
+        (29, 7),
+        (29, 8),
+        (29, 9),
+        (29, 15),
+        (30, 15),
+        (31, 15),
+    ];
 
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
@@ -910,9 +962,11 @@ mod list {
         // Route 112's ledges down to Route 111, south past the rock to Mauville.
         cross(MAP_LAVARIDGE_TOWN, 19, 10, Right),
         cross(MAP_ROUTE112, 39, 48, Right),
-        // The same rock from the north (blocked: `rock-smash-forgotten-south`).
+        // The same rock from the north (it comes back on every map load): smashed again, the
+        // lead keeping Rock Smash (HM moves are never forgotten, `IsHMMove2`).
         goto(MAP_ROUTE111, 18, 100),
-        Step::Bypass(&ROUTE111_ROCK_SMASH_SOUTH),
+        Step::Choose(0),
+        talk(MAP_ROUTE111, 15),
         cross(MAP_ROUTE111, 16, 139, Down),
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
@@ -925,9 +979,11 @@ mod list {
         cross(MAP_ROUTE117, 0, 10, Left),
         Step::Expect("verdanturf"),
         enter(MAP_VERDANTURF_TOWN, 8, 1, Up),
-        // The boulder between Wanda and her boyfriend (blocked: `rock-smash-forgotten-rusturf`).
+        // The boulder between Wanda and her boyfriend: smashed (`removeobject`,
+        // `SPECIAL_TryUpdateRusturfTunnelState`), then the tunnel's `ON_FRAME` scene (HM04).
         goto(MAP_RUSTURF_TUNNEL, 25, 5),
-        Step::Bypass(&RUSTURF_ROCK_SMASH),
+        Step::Choose(0),
+        talk(MAP_RUSTURF_TUNNEL, 2),
         Step::WaitScript,
         Step::Expect("hm_strength"),
         // ---- West out of the tunnel, Route 116, Rustboro (heal), Route 104, the woods,
@@ -967,5 +1023,94 @@ mod list {
         enter(MAP_PETALBURG_CITY, 7, 5, Up),
         Step::WaitScript,
         Step::Expect("hm_surf"),
+        // Teach it (blocked: `teach-hm-surf`).
+        Step::Bypass(&TEACH_SURF),
+        // ================= Act 6 (Wave C, M10's field moves): back east to Mauville by the
+        // woods, Rustboro and the tunnel, then Surf across Route 118 to Route 119 =================
+        enter(MAP_PETALBURG_CITY_WALLYS_HOUSE, 3, 7, Down),
+        cross(MAP_PETALBURG_CITY, 0, 13, Left),
+        enter(MAP_ROUTE104, 11, 38, Up),
+        enter(MAP_PETALBURG_WOODS, 15, 5, Up),
+        cross(MAP_ROUTE104, 19, 0, Up),
+        enter(MAP_RUSTBORO_CITY, 16, 38, Up),
+        use_(MAP_RUSTBORO_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_RUSTBORO_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_RUSTBORO_CITY, 39, 9, Right),
+        Step::GotoAvoiding {
+            map: MAP_ROUTE116,
+            x: 47,
+            y: 9,
+            avoid: &[(22, 13), (22, 14), (22, 15)],
+        },
+        enter(MAP_ROUTE116, 47, 8, Up),
+        // Through the tunnel, its rock smashed, to Verdanturf.
+        enter(MAP_RUSTURF_TUNNEL, 29, 16, Down),
+        cross(MAP_VERDANTURF_TOWN, 19, 9, Right),
+        cross(MAP_ROUTE117, 59, 8, Right),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Route 118: Surf across the river (`GetInteractedWaterScript`,
+        // `EventScript_UseSurf` yes, `FLDEFF_USE_SURF`), then off the water on its east bank ----
+        cross(MAP_MAUVILLE_CITY, 39, 8, Right),
+        Step::Choose(0),
+        use_(MAP_ROUTE118, 17, 9, Right),
+        Step::Expect("surfing"),
+        goto(MAP_ROUTE118, 27, 9),
+        Step::Walk(Right),
+        Step::Checkpoint("route118_east"),
+        // North onto Route 119.
+        cross(MAP_ROUTE118, 58, 0, Up),
+        Step::Expect("route119"),
+        Step::Checkpoint("route119"),
+        // ---- Route 119: up the east bank, west over the long bridge, up the west bank to the
+        // Weather Institute, round every trainer's sight (alone at L44 the lead cannot battle
+        // them all without a heal); the wild battles run ----
+        Step::Battle(BattlePlan::RunWild),
+        Step::GotoAvoiding {
+            map: MAP_ROUTE119,
+            x: 6,
+            y: 33,
+            avoid: ROUTE119_SIGHT,
+        },
+        enter(MAP_ROUTE119, 6, 32, Up),
+        // The bed first (`Route119_WeatherInstitute_1F_EventScript_Bed`), west of Grunt 4's
+        // sight, then up past him.
+        Step::Battle(BattlePlan::Best),
+        goto(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3),
+        use_(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3, Left),
+        Step::WaitScript,
+        enter(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 17, 1, Up),
+        // 2F: the grunts by sight, then Shelly; Castform not nicknamed.
+        Step::Choose(1),
+        talk(MAP_ROUTE119_WEATHER_INSTITUTE_2F, 3),
+        Step::WaitScript,
+        Step::Expect("castform"),
+        Step::Checkpoint("castform"),
+        Step::Choose(0),
+        enter(MAP_ROUTE119_WEATHER_INSTITUTE_2F, 17, 1, Up),
+        goto(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3),
+        use_(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 2, 3, Left),
+        Step::WaitScript,
+        enter(MAP_ROUTE119_WEATHER_INSTITUTE_1F, 9, 12, Down),
+        // ---- Over the river bridge, the rival at (25, 31) (HM02 Fly), north to Fortree ----
+        // Muddy Water, the first move: Take Down's 85% accuracy misses Grovyle twice here
+        // and its Leaf Blade (4x) wins.
+        Step::Battle(BattlePlan::Fight),
+        goto(MAP_ROUTE119, 26, 30),
+        Step::WaitScript,
+        Step::Expect("hm_fly"),
+        Step::Checkpoint("hm_fly"),
+        Step::Battle(BattlePlan::RunWild),
+        Step::GotoAvoiding {
+            map: MAP_ROUTE119,
+            x: 38,
+            y: 8,
+            avoid: ROUTE119_SIGHT,
+        },
+        cross(MAP_ROUTE119, 39, 8, Right),
+        Step::Expect("fortree"),
+        Step::Checkpoint("fortree"),
+        Step::Battle(BattlePlan::BestLearn),
     ];
 }
