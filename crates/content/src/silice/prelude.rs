@@ -13,7 +13,9 @@
 //! as a sign script, a fallback).
 //!
 //! **Module obstacles:** [`cut_obstacle`] (the generic Lame-Frequence obstacle) and
-//! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`].
+//! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`]; [`Obstacle`] with
+//! [`module_obstacle`] and [`repaint_obstacle`] (any module, several cells, the obstacle's own
+//! texts: Chapter 2's cables, server and crates).
 //!
 //! **Scenes:** [`say`] (a line inside a locked scene), [`ask`] (`msgbox(T, YesNo)` then
 //! `if yes_no`), [`walk`] and the other step builders, [`move_wait`] (`move_obj` then
@@ -24,9 +26,10 @@
 //! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
-//! on: [`screen_shake`] (a fade out and in), [`play_se`] (nothing), [`mallette_call`] and
-//! [`end_call`] (nothing: the call's lines are plain messages), [`battle_two_trainers`] (two
-//! single battles in a row), [`show_sync`] (the sync gauge: the scene's text says the value).
+//! on: [`screen_shake`] and [`screen_flash`] (a fade out and in), [`play_se`] (nothing),
+//! [`mallette_call`] and [`end_call`] (nothing: the call's lines are plain messages),
+//! [`battle_two_trainers`] (two single battles in a row), [`show_sync`] (the sync gauge: the
+//! scene's text says the value).
 //!
 //! The rest of the source's primitives are `Ctx` methods, called directly: `lock`, `lock_all`,
 //! `release`, `release_all`, `face_player`, `set_flag(f, true)` (`set_flag`) and
@@ -169,6 +172,62 @@ pub async fn repaint_if(ctx: &Ctx, flag: FlagId, (x, y): (i16, i16), metatile: u
     }
 }
 
+/// A module obstacle: cells that a Mallette module clears, once, for good (the source's
+/// `field_move` obstacles: the Lame-Fréquence's cables, the Champ Magnétique's blocks). The
+/// general form of [`cut_obstacle`]; see [`module_obstacle`] and [`repaint_obstacle`].
+#[derive(Clone, Copy, Debug)]
+pub struct Obstacle {
+    /// The module the obstacle needs (`FLAG_SIL_MODULE_*`).
+    pub module: FlagId,
+    /// Set once cleared; the map's `on_load` repaints from it.
+    pub done: FlagId,
+    /// The cells once cleared: (x, y, metatile, blocked).
+    pub paint: &'static [(i16, i16, u16, bool)],
+    /// Shown as a sign without the module.
+    pub blocked: TextId,
+    /// The question with the module (yes/no), or `None` when the module acts at once.
+    pub ask: Option<TextId>,
+    /// Said once the obstacle is cleared.
+    pub cleared: TextId,
+}
+
+/// [`Obstacle`] interacted with: nothing once `done`; without the module, `blocked` as a sign;
+/// else (locked) `ask` (on no, nothing), `cleared`, the cells repainted and redrawn, `done` set.
+/// Returns whether it was cleared now.
+pub async fn module_obstacle(ctx: &Ctx, o: &Obstacle) -> bool {
+    if ctx.flag(o.done).await {
+        return false;
+    }
+    if !ctx.flag(o.module).await {
+        msgbox(ctx, o.blocked, MsgBox::Sign).await;
+        return false;
+    }
+    ctx.lock().await;
+    if let Some(q) = o.ask
+        && !ask(ctx, q).await
+    {
+        ctx.release().await;
+        return false;
+    }
+    say(ctx, o.cleared).await;
+    for &(x, y, m, blocked) in o.paint {
+        ctx.set_metatile(x, y, m, blocked).await;
+    }
+    ctx.redraw_map().await;
+    ctx.set_flag(o.done, true).await;
+    ctx.release().await;
+    true
+}
+
+/// [`Obstacle`]'s `on_load` half: its cells repainted once `done` is set.
+pub async fn repaint_obstacle(ctx: &Ctx, o: &Obstacle) {
+    if ctx.flag(o.done).await {
+        for &(x, y, m, blocked) in o.paint {
+            ctx.set_metatile(x, y, m, blocked).await;
+        }
+    }
+}
+
 // ---- scenes ----
 
 /// One line of a locked scene: `msgbox(T, Default)`, and `msgbox(T, Npc)` inside a `lock_all`
@@ -265,6 +324,14 @@ pub async fn fallback(ctx: &Ctx, name: &'static str) {
 /// to black and back stands in (the Ch0 §9 fallback). Reported.
 pub async fn screen_shake(ctx: &Ctx, _magnitude: u8, _frames: u16) {
     fallback(ctx, "screen_shake").await;
+    ctx.fade(Fade::ToBlack).await;
+    ctx.fade(Fade::FromBlack).await;
+}
+
+/// `screen_flash(COLOR)`: no screen flash yet (`Request::ScreenFlash`, SIL2 Wave 0 in the M9
+/// plan); a fade to black and back stands in (the chapters' §9 fallback). Reported.
+pub async fn screen_flash(ctx: &Ctx) {
+    fallback(ctx, "screen_flash").await;
     ctx.fade(Fade::ToBlack).await;
     ctx.fade(Fade::FromBlack).await;
 }

@@ -24,6 +24,9 @@
         // Ch1: Bois-Éther's Pokémon Center ("set_respawn à l'entrée"). As Emerald's town heal
         // locations, the cell in front of its door (27, 12).
         (name: "HEAL_LOCATION_SIL_BOIS_ETHER", map: "BoisEther", x: 27, y: 13),
+        // Ch2: Gris-Échec's Centre, set on entering it (GrisEchec_PokemonCenter_OnTransition).
+        // As Ch1's, the cell in front of its door (5, 8).
+        (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec", x: 5, y: 9),
     ],
     respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
     // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.

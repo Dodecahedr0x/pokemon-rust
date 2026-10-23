@@ -2370,5 +2370,11 @@
             name: "FLAG_SIL_ITEM_EVALON_MINERAI",
             num: 954,
         ),
+        // SIL2 Ch2 scripts (script-only, 1050+): the Usine's cable, cut with the Coupe module
+        // (GrisEchec_Usine_EventScript_Cable).
+        (
+            name: "FLAG_SIL_USINE_CABLE_CUT",
+            num: 1050,
+        ),
     ],
 )
