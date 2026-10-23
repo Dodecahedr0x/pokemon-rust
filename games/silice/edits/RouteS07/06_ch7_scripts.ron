@@ -1,0 +1,7 @@
+// SIL4 Ch7 scripts: the map changes the Chapter 7 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch5): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 4, event: Bg((x: 21, y: 32, elevation: 0, kind: HiddenItem(item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER")))).
+    Replace(index: 4, event: Bg((x: 21, y: 32, elevation: 0, kind: Script(facing: 0, script: Some("RouteS07_EventScript_HiddenEther"))))),
+]

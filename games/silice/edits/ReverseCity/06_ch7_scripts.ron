@@ -1,0 +1,15 @@
+// SIL4 Ch7 scripts: the map changes the Chapter 7 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch5): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 7, event: Bg((x: 2, y: 22, elevation: 0, kind: HiddenItem(item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_REVERSE_PP_UP")))).
+    Replace(index: 7, event: Bg((x: 2, y: 22, elevation: 0, kind: Script(facing: 0, script: Some("ReverseCity_EventScript_HiddenPpUp"))))),
+    // The hidden-item fallback (as Ch0-Ch5): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 8, event: Bg((x: 24, y: 25, elevation: 0, kind: HiddenItem(item: "ITEM_HP_UP", flag: "FLAG_SIL_ITEM_REVERSE_HP_UP")))).
+    Replace(index: 8, event: Bg((x: 24, y: 25, elevation: 0, kind: Script(facing: 0, script: Some("ReverseCity_EventScript_HiddenHpUp"))))),
+    // The hidden-item fallback (as Ch0-Ch5): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 9, event: Bg((x: 26, y: 30, elevation: 0, kind: HiddenItem(item: "ITEM_SIL_POUDRE_SILICE", flag: "FLAG_SIL_ITEM_REVERSE_POUDRE_SILICE_2")))).
+    Replace(index: 9, event: Bg((x: 26, y: 30, elevation: 0, kind: Script(facing: 0, script: Some("ReverseCity_EventScript_HiddenPoudreSilice"))))),
+]
