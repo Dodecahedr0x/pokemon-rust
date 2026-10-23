@@ -66,8 +66,9 @@ fn panic_frame(game: &PanicOnScript<Emerald>, trace: &Trace) -> Option<u32> {
 fn panic_on_script_is_caught_and_reproduced() {
     let cfg = DetectConfig::default();
     let inner = Emerald::for_shells();
-    if content::STUB {
-        // No event scripts on the stub: the new-game script runs inside `World::new`.
+    if content::FLAVOR != content::Flavor::Emerald {
+        // No event script on the stub route or the Silice boot route: the new-game script runs
+        // inside `World::new`.
         let game = PanicOnScript {
             inner,
             script: NEW_GAME_SCRIPT,

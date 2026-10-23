@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+// `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
+const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
+
 mod panic;
 mod save;
 mod save_logic;
@@ -161,10 +164,11 @@ impl Costs {
 }
 
 /// The game the shell plays; the map tour starts after the starter (a party, so the trainers it
-/// meets can battle), as `cargo xtask sweep` does.
-#[cfg(not(feature = "tour"))]
+/// meets can battle), as `cargo xtask sweep` does. Silice has no such start (`cfg(pkr_silice)`,
+/// `build.rs`): its tour starts from its new game.
+#[cfg(any(not(feature = "tour"), pkr_silice))]
 const GAME: Emerald = Emerald::for_shells();
-#[cfg(feature = "tour")]
+#[cfg(all(feature = "tour", not(pkr_silice)))]
 const GAME: Emerald = Emerald::after_starter();
 
 #[agb::entry]

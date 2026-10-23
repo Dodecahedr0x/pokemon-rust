@@ -7,7 +7,9 @@
 //! Littleroot → Birch's rescue on Route 101 → the starter screen and the first battle → the
 //! lab → wild battles in Route 101's grass (a win, a run, a level-up) → Oldale's Pokémon
 //! Center → May's battle on Route 103 (about 19000 frames);
-//! in stub mode it walks around the built-in map and fights in its tall-grass cell. The ROM
+//! in stub mode it walks around the built-in map and fights in its tall-grass cell; on Silice
+//! (SIL1 Task D) it is the boot lane, a new game left idle 600 frames, and the other lanes are
+//! skipped ([`boot_lane_only`]). The ROM
 //! must be built from the same content as this test (xtask builds both from the same tree).
 //!
 //! The ROM may overrun a frame only on a black screen and only for bulk work (`Frame::bulk`):
@@ -151,7 +153,7 @@ fn rom_and_native_agree() {
     let picture_frames = rec.picture_frames(PICTURE_EVERY);
     println!(
         "{} route: {} frames, {} picture frames, moments {:?}",
-        if content::STUB { "stub" } else { "extracted" },
+        content::FLAVOR.name(),
         rec.frames(),
         picture_frames.len(),
         rec.moments
@@ -387,6 +389,17 @@ fn resume_nodes(rec: &Recording, native: &Native) -> Vec<(&'static str, u32)> {
     ]
 }
 
+/// Whether this build runs the boot lane only (Silice, SIL1 Task D: [`rom_and_native_agree`]
+/// on `scenario::SILICE_ROUTE`, a new game left idle). Its resume and save lanes need the
+/// `sil:*` nodes and a battle on the route (SIL1 Wave 3); `lane` is skipped with a note.
+fn boot_lane_only(lane: &str) -> bool {
+    let only = content::FLAVOR == content::Flavor::Silice;
+    if only {
+        println!("{lane} lane: skipped on Silice (boot lane only until SIL1 Wave 3)");
+    }
+    only
+}
+
 /// Frames a ROM run resumed from a checkpoint follows the route (at most).
 const RESUME_FRAMES: u32 = 2000;
 
@@ -407,6 +420,9 @@ fn resume_pictures(start: u32, end: u32) -> Vec<u32> {
 #[test]
 #[ignore = "needs target/game.gba; run `cargo xtask parity`"]
 fn rom_resumes_from_native_checkpoints() {
+    if boot_lane_only("resume") {
+        return;
+    }
     let rom = rom_path();
     let rec = recording();
     let keys = |f| rec.keys_at(f);
@@ -459,6 +475,9 @@ fn rom_save_restores_natively() {
     const SETTLE: u32 = 30;
     /// Engine frames the second ROM runs from the save.
     const AFTER: u32 = 300;
+    if boot_lane_only("save") {
+        return;
+    }
     let rom = rom_path();
     let rec = recording();
     let scan = native_run(|f| rec.keys_at(f), rec.frames(), &[], &[]);
@@ -526,6 +545,9 @@ fn rom_save_mid_battle_lands_on_the_first_capturable_frame() {
     /// Frames the pending save waits, at most, in this test (well within the shell's limit).
     const WAIT: u32 = 300;
     const _: () = assert!(WAIT < save_logic::SAVE_WAIT_FRAMES as u32);
+    if boot_lane_only("mid-battle save") {
+        return;
+    }
     let rom = rom_path();
     let rec = recording();
     let name = if content::STUB {
@@ -764,11 +786,14 @@ fn rom_trainer_sighting_fits_the_frame() {
     const APPROACH_FRAMES: u32 = 108;
     use engine::data::GameData;
     use engine::world::Event;
-    if content::STUB {
-        println!("trainer sighting: stub build, no Route 102");
+    if content::FLAVOR != content::Flavor::Emerald {
+        println!(
+            "trainer sighting: {} build, no Route 102",
+            content::FLAVOR.name()
+        );
         return;
     }
-    let base = content::Emerald::after_starter();
+    let base = game_native::scenario::after_starter().expect("Emerald's after-starter start");
     let route102 = *content::data::MAP_IDS
         .iter()
         .find(|&&m| base.map(m).name == "Route102")

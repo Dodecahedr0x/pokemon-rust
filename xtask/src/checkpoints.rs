@@ -1,8 +1,8 @@
 //! `cargo xtask checkpoints <list|verify|seed|label|rm|sav|promote>` (Milestone 5 Task G;
 //! `promote`: Milestone 8 Task K).
 //!
-//! The store is the committed tree, `checkpoints/{stub|emerald}` after the content flavor
-//! (`content::STUB`); `--root <dir>` overrides it. The personal saves of `play` and the studio
+//! The store is the committed tree, `checkpoints/{stub|emerald|silice}` after the content flavor
+//! (`content::FLAVOR`; `--game silice` picks Silice's); `--root <dir>` overrides it. The personal saves of `play` and the studio
 //! (`local/`, `$PKR_CHECKPOINTS`) are not part of it, except for `list --local` and
 //! `verify --local`, which open the local store layered over it (a local node may have a
 //! committed parent), and `promote`, which moves a verified local node into it.

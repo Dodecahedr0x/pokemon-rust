@@ -42,6 +42,18 @@ fn real() -> bool {
     !content::STUB
 }
 
+/// Whether the build's maps are the extract's (Emerald): the tests that render or edit
+/// Emerald maps by name. Silice has the extract's tilesets but its own maps.
+fn emerald() -> bool {
+    if content::FLAVOR != content::Flavor::Emerald {
+        eprintln!(
+            "skipped on the {} build (Emerald's maps)",
+            content::FLAVOR.name()
+        );
+    }
+    content::FLAVOR == content::Flavor::Emerald
+}
+
 /// The catalog's first primary and secondary tilesets and a few metatiles they define.
 fn tilesets(c: &Catalog) -> (String, String, Vec<u16>) {
     let p = c.tileset_names(false).remove(0);
@@ -232,7 +244,7 @@ fn check_extracted_maps(only: Option<&[engine::data::MapId]>) {
 /// tileset family).
 #[test]
 fn sample_extracted_maps_render_as_the_game() {
-    if real() {
+    if emerald() {
         check_extracted_maps(Some(&content::samples::map_ids()));
     }
 }
@@ -241,7 +253,7 @@ fn sample_extracted_maps_render_as_the_game() {
 #[test]
 #[ignore]
 fn every_extracted_map_renders_as_the_game() {
-    if real() {
+    if emerald() {
         check_extracted_maps(None);
     }
 }
@@ -306,7 +318,7 @@ fn an_edited_render_equals_a_direct_render() {
     assert!(edited.rgb555 != blank.rgb555, "the edits show");
     assert_eq!(edited.width, (17 + 4) * 16);
 
-    if !real() {
+    if !emerald() {
         return;
     }
     // Route 101 with a few cells repainted: the game's render with them as overrides.

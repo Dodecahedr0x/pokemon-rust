@@ -122,10 +122,10 @@ fn a_changed_script_replays_only_the_nodes_under_it() {
     let path = dir.path().join("n.db");
     explored(&path);
     let (before, script, stale, all) = {
-        let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::STUB).unwrap();
+        let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::FLAVOR).unwrap();
         let Some((s, stale)) = littleroot_script(&db) else {
-            // The stub world has no scripts.
-            if !content::STUB {
+            // The stub world has no scripts, Silice no Littleroot (Emerald only).
+            if content::FLAVOR == content::Flavor::Emerald {
                 panic!("no Littleroot script touched below the root");
             }
             return;
@@ -155,9 +155,9 @@ fn a_changed_std_script_reaches_the_nodes_of_its_callers() {
     let path = dir.path().join("n.db");
     explored(&path);
     let (caller, stale, all, std_script) = {
-        let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::STUB).unwrap();
+        let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::FLAVOR).unwrap();
         let Some((s, stale)) = littleroot_script(&db) else {
-            if !content::STUB {
+            if content::FLAVOR == content::Flavor::Emerald {
                 panic!("no Littleroot script touched below the root");
             }
             return;
@@ -188,7 +188,7 @@ fn global_engine_name_and_root_map_changes_revalidate_everything() {
     let path = dir.path().join("n.db");
     explored(&path);
     let all = {
-        let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::STUB).unwrap();
+        let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::FLAVOR).unwrap();
         checked(&db).len()
     };
     // The prelude and every non-generated content source are in GLOBAL_DIGEST.

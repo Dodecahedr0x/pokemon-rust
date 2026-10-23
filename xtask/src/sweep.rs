@@ -1,8 +1,8 @@
 //! `cargo xtask sweep` (Milestone 8 Task L): every map of the content build entered and idled,
 //! natively, in release.
 //!
-//! For every map (`content::data::MAP_IDS`), a new game ([`Emerald::after_starter`]: the
-//! story flags of the Milestone 3 start, one Pokémon) starts there through [`StartAt`], on the
+//! For every map (`content::data::MAP_IDS`), a new game (`game_native::scenario::after_starter`:
+//! the story flags of the Milestone 3 start, one Pokémon; on Silice its own new game) starts there through [`StartAt`], on the
 //! first warp's cell, else on the walkable cell nearest the centre. Then:
 //! - [`IDLE`] frames with no input, with no panic; when the World is not capturable then, up
 //!   to [`MASH`] frames mashing A (B while a yes/no question waits), until it is (Task N: so
@@ -184,7 +184,8 @@ fn verdict(w: &World) -> &'static str {
 }
 
 fn run_map(map: MapId) -> MapRun {
-    let base = Emerald::after_starter();
+    // Silice has no after-starter start: its new game (SIL1 Task E fills it).
+    let base = game_native::scenario::after_starter().unwrap_or_else(Emerald::for_shells);
     let start = start_cell(&base, map);
     let game = StartAt {
         inner: base,
@@ -314,7 +315,7 @@ fn run_map(map: MapId) -> MapRun {
 
 fn sweep() -> Result<()> {
     ensure!(
-        content::STUB || content::scripts::DECOMP_NAMES,
+        content::FLAVOR != content::Flavor::Emerald || content::scripts::DECOMP_NAMES,
         "the script IR has positional names only (scripts/decomp_names = 0): set PKR_DECOMP and \
          re-run `cargo xtask extract` before `cargo xtask sweep`"
     );

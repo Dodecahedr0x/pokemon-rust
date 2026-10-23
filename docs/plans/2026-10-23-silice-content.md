@@ -1430,6 +1430,95 @@ No new flags or vars are otherwise needed.
 - With a real extract, the committed dir loads with one constant per `LOCALID`, trainer, item and text.
 - Under `cfg(pkr_silice)`, every trainer's party and held items, the encounters, the items' prices and hold effects, `MARTS` and the texts are checked against the RON files.
 
+#### SIL1 Task D as built: flavour plumbing in the shells
+
+`PKR_GAME=silice` now builds and tests the whole workspace (game-native, game-gba, explore, studio, xtask), and every xtask command takes `--game`. Route-neutral for Emerald: only `BUILD_ID` moves (`build/main.rs` gained the metadata line), so the Emerald trees still read `valid (rehash)`, and `cargo xtask parity` is identical.
+
+Commits:
+- `feat(content): tell the shells the built flavour (links metadata, cfg(pkr_silice) in their build scripts)`
+- `feat(explore): per-flavour acts and a flavour-keyed db (Db::open takes a Flavor, refuses another flavour's db)`
+- `feat(shells): Silice boot route and lane, gate the Emerald-only shell code and tests by flavour`
+- `feat(xtask): --game emerald|silice for every command, provisional Silice ROM budget`
+- the merge of master (M8 Task M), then `fix(shells): gate Task M's after-starter tour and committed-node ROM test by flavour, re-measure the Silice ROM`
+
+**How the shells see the flavour.**
+- `content` declares `links = "pkr_content"`, and its build script prints `cargo::metadata=flavor=<stub|emerald|silice>` (the flavour actually built, so `PKR_GAME=silice` with an explicit `PKR_EXTRACTED_DIR=/nonexistent` is the stub).
+- `game-native`, `explore`, `studio`, `xtask` and `game-gba` each have a `build.rs` that `include!`s `crates/content/flavor_cfg.rs`: it reads `DEP_PKR_CONTENT_FLAVOR` and sets the crate's own `cfg(pkr_silice)`. Each of the five asserts in a `const` that the cfg agrees with `content::FLAVOR`, so a stale cfg cannot compile.
+- Staleness: cargo cannot watch a `DEP_*` variable with `rerun-if-env-changed`. The shell's script reruns because cargo fingerprints a build-script run with the runs of its `links` dependencies, so it reruns whenever `content`'s does (a `PKR_GAME` change among others). It prints `rerun-if-changed=build.rs` so that it does not rerun on every other file change. Checked by building Emerald, then Silice, then Emerald again: the `const` checks hold each time.
+- `emu` sees `content` only as a dev-dependency (no `DEP_*`), so its tests use runtime checks plus `game_native::scenario::after_starter()`.
+- Rule: Emerald-only code that names Hoenn constants or `Game::after_starter` is `cfg(not(pkr_silice))`. Everything else branches on `content::FLAVOR` at run time. `content::STUB` is left only where the question is "is there a game at all".
+
+**Gated or generic.**
+- `game_native::scenario`:
+  - `route()` matches on `FLAVOR`. `SILICE_ROUTE` is the boot lane: a new game left idle, with moments and nodes `silice_start` (frame 24), `silice_idle` (600) and `silice_end` (1500). The tail makes the last node's trace longer than a seek keyframe interval, so the seek, materialize and restore tests run on Silice too. No Silice node is committed.
+  - `after_starter() -> Option<Game>` is `Some(Game::after_starter())` on Emerald and the stub, `None` on Silice. The sweep, the tour test and the trainer-sighting lane use it.
+  - The Emerald route assertions moved to a `cfg(not(pkr_silice))` helper.
+- `game-gba`: the tour build plays `Game::for_shells()` on Silice (`cfg(any(not(feature = "tour"), pkr_silice))`).
+- `explore`:
+  - `goals::emerald` and `goals::constants` are `cfg(not(pkr_silice))`.
+  - `key::EXCLUDED_VARS` has a Silice list: `VAR_DAYS` and `VAR_OBJ_GFX_ID_0..F`, the shared Gen3 vars that are not story progress. Silice has no Emerald counters; their numbers may be Silice ids.
+  - **Acts per flavour.**
+    - `Act::of(flavor)` gives `EMERALD` for the stub and Emerald, `SILICE` for Silice. `Act::in_build` and `Act::parse_in_build` use it.
+    - `Act::default()` is `Act1` on Emerald and the stub, `SilCh0` on Silice.
+    - `goals_of` gives no goal for another flavour's act.
+    - `run --act`, a config file's `act` and a db's `meta.act` are refused when they belong to another flavour. The message names the flavour and the `--game` to use. `sil_ch0` goals stay empty until Wave 3.
+  - `Db::open(path, build, Flavor)` and `open_in_memory(build, Flavor)` record `Flavor::name()` in `meta.flavor`. Those names are the old `stub` and `emerald`, so dbs made before Task D open as before (`pre_task_d_dbs_still_open`). A db that records no flavour is refused with the `explore reset --yes` hint. A db made by another flavour is refused with `DbError::Flavor`, whose message names both flavours and says how to build the db's (`PKR_GAME=silice` / `--game silice`, `PKR_EXTRACTED_DIR=/nonexistent`, or `PKR_GAME` unset).
+- `studio`:
+  - `Catalog::from_content` pairs Silice's tilesets through `games/silice` layouts (`map_edit::catalog::silice_dir()`, which honours `PKR_SILICE_DIR`).
+  - The map picker's full-import check is Emerald's only.
+- xtask:
+  - The sweep starts on `after_starter()` or the new game.
+  - `parity` and `sweep` require decomp names on Emerald only.
+  - `rom` picks `budget::Content::Silice`.
+- **Tests.**
+  - Whole files that are Emerald's only and now `cfg(not(pkr_silice))`: `explore/tests/{b_goals, m8_k_goals}.rs`.
+  - Single Emerald-only tests that are `cfg(not(pkr_silice))`:
+    - in `explore/tests`, the `real_*` tests in `a_expand`, `h_tuning`'s Route 101 softlock, `b_key`'s after-starter and counter tests, and `f_policy`'s battle and starter tests;
+    - `game-native/tests/seek`'s battle seek;
+    - `studio/tests/native`'s route-event and committed-node tests, and `studio` `rom::tests::node_boots_restored_at_the_node_frame`.
+  - Runtime skips on non-Emerald: `e2e_real`, `m8_i_emote`, `e_panic`'s event-script branch, `b_fitness`'s story-flag check, the map editor's Emerald-map renders (`emerald()` in `studio/tests/map_edit.rs`), and the two-map check in `map_pixels`.
+  - `m8_k_db`'s 40% blob ratio is required on the stub and Emerald only. Silice measured 43%, and there it only has to beat the text codec.
+  - New: `explore/tests/sil1_d_flavor.rs` (acts per flavour, a foreign act refused before any db exists, every flavour pair of dbs refused) and the xtask `game` and `budget` unit tests.
+
+**`--game` (`xtask/src/game.rs`).**
+- `--game emerald|silice` is accepted anywhere on the command line, except after `studio map`, whose own `--game NAME` picks a games dir; there it goes before `studio`.
+- It covers every command: `rom`, `parity` (and `--long`), `sweep`, `checkpoints` (`checkpoints/silice/`), `studio`, `explore`, `shot`, and the budget, which is part of `rom`.
+- **When the running xtask is already that flavour,** it only sets `PKR_GAME` for the child cargo invocations. Silice sets it; Emerald unsets it, so that plain builds keep their fingerprints.
+- **Otherwise it re-runs itself** through `cargo run -p xtask` under the new `PKR_GAME`, once (`PKR_XTASK_GAME`). It fails with a clear message if the content still is not that flavour (Silice without an extract).
+- **Target dirs.** A flavour switch in one target dir rebuilds `content` and everything above it. So the Silice re-run builds in `target/silice` (unless `CARGO_TARGET_DIR` is set), and its child cargo invocations inherit that. The GBA build of a Silice xtask uses `crates/game-gba/target/silice`. Once each side is built, alternating `cargo xtask parity` and `cargo xtask parity --game silice` rebuilds nothing; `rom --game silice` takes about 2 s. A plain `PKR_GAME=silice cargo …` still shares `target/` with Emerald (pass `CARGO_TARGET_DIR=target/silice` to share the xtask's).
+- The re-run clears `PKR_XTASK_GAME` on start, so the commands' own child processes do not inherit it.
+
+**Silice ROM and budget.**
+- `cargo xtask rom --game silice` builds a 3,966,784-byte ROM (3,873 KiB) after the merges of Tasks M, E, N and G; it was 4,103,320 bytes before Task M and 3,965,600 bytes after it. IWRAM is 788 bytes and EWRAM 492 bytes, the shared gates.
+- After the merge of SIL1 Task A (the authored data), the ROM is 4,172,472 bytes (+205,688). `SILICE_ROM_MEASURED` records this figure.
+- `budget::SILICE_ROM_LIMIT` is 8 MiB, provisional; `SILICE_ROM_MEASURED` records the measurement and `check` prints the delta. **SIL1 Wave 2 re-baselines it.**
+- The tour ROM (`parity --game silice --long`) is 3,970,344 bytes (3,969,160 after Task M).
+
+**Boot lane.** `cargo xtask parity --game silice`:
+- `checkpoints/silice` verifies with 0 nodes;
+- `rom_and_native_agree` on `SILICE_ROUTE`: 1,500 hashes and 18 pictures identical, no late frame. Loop 68 lines (gate 217), hash 11 lines, on the Task E new game (the bar). `emu::check_memory`: heap max 27,096 B, stack untouched 11,716 B. 0 reports, 0 events dropped;
+- the probes pass;
+- the resume, save and mid-battle-save lanes print a skip (`boot_lane_only`), and so does the trainer-sighting lane;
+- the studio ROM pane's new-game tests pass (the spawned-pane test walks south on Silice: a customer stands west of the bar start);
+- `--long`: the Silice tour passes, 0 reports and 0 events dropped.
+
+`cargo xtask sweep --game silice`: 6/6 maps pass, with no panic, no round-trip failure and no dropped event.
+
+**Gates as run (after the merges of master with Tasks M, E, N and G).** Emerald parity: 19,176 hashes and 205 pictures identical, ROM 9,294,440 bytes. Task N's new explore tests take `content::FLAVOR` for `Db::open`, and their Emerald-only checks (Littleroot scripts, real trainers, Act 1 progress, Petalburg Woods warps) skip off Emerald.
+- **Stub** (`PKR_EXTRACTED_DIR=/nonexistent`): `cargo test --workspace` is green, and so is clippy `--all-targets`.
+- **Emerald:**
+  - `cargo test --workspace` is green;
+  - clippy is clean plain and with `--features game-native/window,studio/ui`;
+  - `cargo xtask parity` is identical (19,176 hashes and 205 pictures, every lane), and its ROM is 9,293,728 bytes;
+  - the trees read `valid (rehash)`, which was not accepted.
+- **Silice:** `PKR_GAME=silice cargo test --workspace` (the whole workspace) is green, and clippy is clean with `--all-targets` and with `--features game-native/window,studio/ui`. `parity --game silice [--long]`, `rom --game silice` and `checkpoints verify --game silice` pass as above.
+- fmt is clean.
+
+**Left for later tasks.**
+- Wave 3: the Silice goals (`goals::silice::CH0`), the `sil:*` nodes and their resume lanes. Ungate the tests above once Silice's new game has a party and the route has battles.
+- Task E: once the new game sets story flags, `b_fitness` can check them on Silice too.
+- The studio explorer pane names goals of the default act, not the db's `meta.act`. This predates Task D.
+
 #### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
 
 Commits:
