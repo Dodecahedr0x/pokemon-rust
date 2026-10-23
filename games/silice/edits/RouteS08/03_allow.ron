@@ -1,0 +1,11 @@
+// Reachability warnings accepted on purpose (lint-reach honours these; see the SIL4 Ch8 maps in
+// docs/plans/2026-10-23-silice-content.md).
+[
+    AllowReach(subject: "object LOCALID_S08_ITEM_ULTRA_BALL", reason: "palier 1 is reached from Reverse-City's link (pending until Ch7 merges) or by surfing down waterfall 1, forced movement the lint does not model"),
+    AllowReach(subject: "bg 0", reason: "Sign1 is on palier 1, at the pending Reverse-City entrance; also reached down waterfall 1 (forced movement, not modelled)"),
+    AllowReach(subject: "bg 2", reason: "the Cape branch is on palier 1, reached from the pending Reverse-City link or down waterfall 1 (forced movement, not modelled)"),
+    AllowReach(subject: "object LOCALID_S08_ITEM_TM_LASER_GLACE", reason: "the grotte-poche is reached by surfing down the paradoxical waterfall (forced movement, not modelled), as the source asks"),
+    AllowReach(subject: "object LOCALID_S08_ITEM_MAX_ETHER", reason: "palier 2 is reached up waterfall 1 from palier 1, down waterfall 3, or down the ravine's ledges once RouteS08_EventScript_Ronces cuts the brambles (5-6, 13); the islet then by Surf"),
+    AllowReach(subject: "bg 3", reason: "the Poème rock is on palier 2's east islet: Surf, after waterfall 1 or 3 or the ravine past the brambles that RouteS08_EventScript_Ronces cuts"),
+    AllowReach(subject: "object LOCALID_S08_ITEM_RARE_CANDY", reason: "behind the brambles (5-6, 13), which RouteS08_EventScript_Ronces cuts with the Lame-Fréquence (the source's shortcut item)"),
+]

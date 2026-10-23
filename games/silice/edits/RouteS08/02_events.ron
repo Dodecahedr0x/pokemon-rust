@@ -5,7 +5,9 @@
     Scripts((on_load: None, on_transition: Some("RouteS08_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Palier 1: the hiker, Gaston on the east bank, Nais swimming, the Ultra Ball.
     Object(x: 22, y: 74, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_S08_RANDONNEUR", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "RouteS08_EventScript_Npc1"),
-    Object(x: 35, y: 64, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_S08_GASTON", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS08_EventScript_Gaston", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // Gaston looks down the bank (35, 65-67): facing the lake, his sight would stop at once on the
+    // water's elevation 1.
+    Object(x: 35, y: 64, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_S08_GASTON", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_Gaston", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     Object(x: 14, y: 68, gfx: "OBJ_EVENT_GFX_SWIMMER_F", id: "LOCALID_S08_NAIS", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS08_EventScript_Nais", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4, elevation: 1),
     Object(x: 35, y: 69, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S08_ITEM_ULTRA_BALL", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS08_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_S08_ULTRA_BALL"),
     // Sc02's pigeon (obj 5 in the source), hidden outside the scene.

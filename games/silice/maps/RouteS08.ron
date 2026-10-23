@@ -36,7 +36,7 @@
             x: 35,
             y: 64,
             elevation: 3,
-            movement: "MOVEMENT_TYPE_FACE_LEFT",
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
             range_x: 0,
             range_y: 0,
             trainer_type: "TRAINER_TYPE_NORMAL",

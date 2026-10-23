@@ -16,7 +16,7 @@
     objects: [
         (
             local_id: 1,
-            id: Some("LOCALID_TAVERNE_AUBERGISTE"),
+            id: Some("LOCALID_EVALON_TAVERNE_AUBERGISTE"),
             gfx: "OBJ_EVENT_GFX_COOK",
             x: 6,
             y: 4,
@@ -31,7 +31,7 @@
         ),
         (
             local_id: 2,
-            id: Some("LOCALID_TAVERNE_SERVEUSE"),
+            id: Some("LOCALID_EVALON_TAVERNE_SERVEUSE"),
             gfx: "OBJ_EVENT_GFX_WOMAN_2",
             x: 10,
             y: 5,
@@ -46,7 +46,7 @@
         ),
         (
             local_id: 3,
-            id: Some("LOCALID_TAVERNE_ROLISTE"),
+            id: Some("LOCALID_EVALON_TAVERNE_ROLISTE"),
             gfx: "OBJ_EVENT_GFX_YOUNGSTER",
             x: 9,
             y: 7,
@@ -61,7 +61,7 @@
         ),
         (
             local_id: 4,
-            id: Some("LOCALID_TAVERNE_BARDE"),
+            id: Some("LOCALID_EVALON_TAVERNE_BARDE"),
             gfx: "OBJ_EVENT_GFX_ARTIST",
             x: 13,
             y: 8,
@@ -76,7 +76,7 @@
         ),
         (
             local_id: 5,
-            id: Some("LOCALID_TAVERNE_MATHIEU"),
+            id: Some("LOCALID_EVALON_TAVERNE_MATHIEU"),
             gfx: "OBJ_EVENT_GFX_BLACK_BELT",
             x: 2,
             y: 7,
@@ -87,11 +87,11 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("Evalon_Sc02"),
-            flag: Some("FLAG_SIL_HIDE_TAVERNE_MATHIEU"),
+            flag: Some("FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU"),
         ),
         (
             local_id: 6,
-            id: Some("LOCALID_TAVERNE_ADRIEN"),
+            id: Some("LOCALID_EVALON_TAVERNE_ADRIEN"),
             gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
             x: 5,
             y: 7,
@@ -102,11 +102,11 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("Evalon_Sc02"),
-            flag: Some("FLAG_SIL_HIDE_TAVERNE_ADRIEN"),
+            flag: Some("FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN"),
         ),
         (
             local_id: 7,
-            id: Some("LOCALID_TAVERNE_GWADA"),
+            id: Some("LOCALID_EVALON_TAVERNE_GWADA"),
             gfx: "OBJ_EVENT_GFX_BOY_2",
             x: 5,
             y: 8,
@@ -117,11 +117,11 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("Evalon_Sc02"),
-            flag: Some("FLAG_SIL_HIDE_TAVERNE_GWADA"),
+            flag: Some("FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA"),
         ),
         (
             local_id: 8,
-            id: Some("LOCALID_TAVERNE_COLOMBOPHILE"),
+            id: Some("LOCALID_EVALON_TAVERNE_COLOMBOPHILE"),
             gfx: "OBJ_EVENT_GFX_MAN_4",
             x: 19,
             y: 4,

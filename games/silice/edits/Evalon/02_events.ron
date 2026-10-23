@@ -17,21 +17,25 @@
     Warp(x: 25, y: 3, dest_map: "Evalon_Citadelle", dest_warp: 0),
     // Sc01's friends (shown at story 80-81 north of the square, and at 83 below the gate,
     // setobjectxyperm (24-26, 16)); hidden otherwise. Mathieu keeps the source's FLAG_SIL_HIDE_EVALON_AMIS.
-    Object(x: 24, y: 41, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_AMIS"),
+    // Sc01's walks (Mathieu Down x4, Adrien and Gwada Down x3) end on y 44 and 43, short of the
+    // trigger row y 45.
+    Object(x: 24, y: 40, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_AMIS"),
     Object(x: 23, y: 40, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_EVALON_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_ADRIEN"),
     Object(x: 26, y: 40, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_EVALON_GWADA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GWADA"),
     // The Scribe comes to Sc01 (shown at 80-81 only), then goes back to his tower.
     Object(x: 17, y: 44, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_EVALON_SCRIBE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SCRIBE"),
-    // The Porte du Fer: Bertrand and Iolanda flank the gate, Perceval stands in it (Sc04 when
-    // talked to; all three run Sc04). From 83 OnTransition moves them aside: (22, 12), (27, 12), (28, 10).
-    Object(x: 23, y: 14, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_BERTRAND", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
-    Object(x: 27, y: 14, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_EVALON_IOLANDA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
+    // The Porte du Fer: the three guards stand in the gate (x 24-26, y 13), Perceval in the middle,
+    // so that nobody passes before the Épreuve du Fer and Evalon_EpreuvesFinies (story 83); all three
+    // run Sc04. From 83 OnTransition moves them aside: (22, 12), (27, 12), (28, 10).
+    Object(x: 24, y: 13, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_EVALON_BERTRAND", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
+    Object(x: 26, y: 13, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_EVALON_IOLANDA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
     Object(x: 25, y: 13, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_EVALON_PERCEVAL", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Evalon_Sc04"),
-    // Sc07's invaders, out of the Galeries side of the yard (hidden outside the scene).
-    Object(x: 12, y: 10, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_GOGO", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN"),
+    // Sc07's invaders, out of the Galeries side of the yard (hidden outside the scene). None stands
+    // on the trigger row y 10, where the player is when the scene shows them.
+    Object(x: 12, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_GOGO", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN"),
     Object(x: 12, y: 11, gfx: "OBJ_EVENT_GFX_AQUA_MEMBER_M", id: "LOCALID_EVALON_ROMAIN", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_ROMAIN"),
     Object(x: 11, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_SBIRE_1", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_1"),
-    Object(x: 11, y: 10, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_EVALON_SBIRE_2", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_2"),
+    Object(x: 11, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_EVALON_SBIRE_2", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_2"),
     Object(x: 11, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_EVALON_SBIRE_3", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_EVALON_SBIRE_3"),
     // Ambient NPCs (Npc_1 to Npc_8; the child says Npc_1b from story 84).
     Object(x: 15, y: 34, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_EVALON_ENFANT", local_id: 15, movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "Evalon_EventScript_Enfant"),
@@ -111,7 +115,8 @@
     Sign(x: 44, y: 27, script: "Evalon_EventScript_Ronces"),
     Sign(x: 44, y: 28, script: "Evalon_EventScript_Ronces"),
     Sign(x: 44, y: 29, script: "Evalon_EventScript_Ronces"),
-    Sign(x: 19, y: 40, script: "Evalon_EventScript_Fontaine"),
+    // The fountain's basin is solid (18-20, 39-41): its sign is on the south rim, read from (19, 42).
+    Sign(x: 19, y: 41, script: "Evalon_EventScript_Fontaine"),
     // The Revive at the foot of the belfry.
     HiddenItem(x: 31, y: 15, item: "ITEM_REVIVE", flag: "FLAG_SIL_ITEM_EVALON_CACHE_1"),
     // Connection: South to Route S8 (its x 18-21 meet the portal x 23-26).

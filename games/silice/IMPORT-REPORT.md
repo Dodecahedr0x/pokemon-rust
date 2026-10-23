@@ -221,9 +221,9 @@
 - maps/Evalon.ron: FLAG_SIL_HIDE_EVALON_GARDE_SE
 - maps/Evalon_Citadelle.ron: FLAG_SIL_HIDE_GYM8_COFFRE_GAUCHE
 - maps/Evalon_Galeries.ron: FLAG_SIL_ITEM_EVALON_MINERAI
-- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_TAVERNE_MATHIEU
-- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_TAVERNE_ADRIEN
-- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_TAVERNE_GWADA
+- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU
+- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN
+- maps/Evalon_Taverne.ron: FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA
 - maps/GrisEchec.ron: FLAG_SIL_HIDE_GRIS_GARDE
 - maps/GrisEchec.ron: FLAG_SIL_HIDE_GRIS_GWADA
 - maps/GrisEchec.ron: FLAG_SIL_HIDE_GRIS_GARDE_S3

@@ -2343,15 +2343,15 @@
             num: 950,
         ),
         (
-            name: "FLAG_SIL_HIDE_TAVERNE_ADRIEN",
+            name: "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN",
             num: 951,
         ),
         (
-            name: "FLAG_SIL_HIDE_TAVERNE_GWADA",
+            name: "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA",
             num: 952,
         ),
         (
-            name: "FLAG_SIL_HIDE_TAVERNE_MATHIEU",
+            name: "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU",
             num: 953,
         ),
         (
