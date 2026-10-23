@@ -1617,6 +1617,18 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
   - `cargo xtask parity`: every lane passes, the Act 1 resume lanes and the native invariant included; the route is unchanged (19,184 frames, 19,176 hashes and 205 pictures identical, hash / step / loop 46 / 162 / 166).
   - `cargo xtask parity --long`: exit 0 in 12:16. The Act 1 lane is as above (80,362 of 85,307 frames on the ROM, `KNOWN_LATE` at 80,366). The tour is unchanged: 518 maps, 107 gated, Sidney's room the only gated overrun.
   - `cargo xtask checkpoints verify`: emerald c00001–c00009 and stub c00001–c00003 all `valid`.
+- **Review and merge with master** (SIL1 Tasks A, D and F, the M9 plan, the studio editor fixes, the Silice maps of Ch1–Ch6):
+  - **Flavour gating** (Task D's runtime pattern): `act1::trace::load` returns `None` off Emerald (it checked `content::STUB` only), and the three Act 1 tests print `act 1: <flavour> build, no act1 nodes` and pass. Under `PKR_GAME=silice` they compile and skip; `cargo xtask parity` on Silice runs them as no-ops.
+  - **`KNOWN_LATE` pinned exactly:** the check compares the whole error, `ROM applied a frame late by engine frame 80366`, instead of a substring. A late apply that moves earlier fails the run, one that moves later (or goes away) fails the "still happens" check. Either way the entry has to be updated or removed.
+  - **Rehash:** `chore(checkpoints): rehash after SIL1 A and D`. Emerald c00001–c00009 and stub c00001–c00003 were all `valid (rehash)` before `verify --accept`. Only the `content` build ids changed; no digest or world hash moved. Task F's and the Ch5 merges did not change Emerald's build again (all `valid`).
+  - **A master test fixed on the way:** `studio`'s `committed_silice_edits_rebuild_byte_identical` copied the committed edits but not the stamps they name (`GrisEchec_Immeuble`, …), so it failed on any build with an extract. It now copies `games/silice/stamps/*.ron` too.
+  - **Gates after the merge** (load averages 20–100):
+    - fmt; clippy `-D warnings`, plain (34 s) and with `--features game-native/window,studio/ui` (38 s).
+    - `cargo test --workspace`: Emerald **1626 passed, 0 failed, 24 ignored** (8:30); stub **1614 / 0 / 24** (6:32).
+    - `cargo xtask parity`: exit 0 in 11:39. The native Act 1 invariant runs in 0.8 s, but its release build adds about 3:20 (another release feature set beside the studio's).
+    - `cargo xtask parity --long`: exit 0 in 22:45. `act1_long` took 15:11, of which the whole-trace piece took 10:23; the numbers are unchanged (80,344 hashes and 803 pictures identical, 18 late applies while black for 55 bulk events, hash / step / loop 56 / 172 / 176, `KNOWN_LATE` 80,366 still there). The tour is unchanged.
+    - `cargo xtask checkpoints verify`: all `valid`.
+    - **Silice** (`CARGO_TARGET_DIR=target/silice PKR_GAME=silice`, `-p game-native -p emu -p xtask`): the Act 1 tests compile and skip. There are **29 failures, all from master**: 26 panic with `the route does not play natively: action 2 Checkpoint("silice_start") at frame 625: never capturable (Script)` (map 8 at (7, 4)), and the other three are `controls` tests that need a capturable Silice new game. Since Task F's Chapter 0 scripts, a script holds the Silice route's start. `explore`'s Silice tests fail the same way, and its `m8_k_key` hangs in debug. None of this is Task P's; it belongs to SIL1 (the Silice route and `sil:*` nodes).
 
 ### Findings for M9 (from Task P)
 1. **Late frame at Roxanne's battle start** (engine; breaks the gate `late == 0` on the long lane):
