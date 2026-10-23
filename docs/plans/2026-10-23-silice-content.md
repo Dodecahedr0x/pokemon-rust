@@ -1093,21 +1093,21 @@ Commits:
 - Switching flavours rebuilds `content` and everything above it in the shared `target/`.
 
 **Silice ROM and budget.**
-- `cargo xtask rom --game silice` builds a 3,965,600-byte ROM (3,872 KiB) after the merge of Task M; it was 4,103,320 bytes before the merge. IWRAM is 788 bytes and EWRAM 492 bytes, the shared gates.
+- `cargo xtask rom --game silice` builds a 3,966,784-byte ROM (3,873 KiB) after the merges of Tasks M, E, N and G; it was 4,103,320 bytes before Task M and 3,965,600 bytes after it. IWRAM is 788 bytes and EWRAM 492 bytes, the shared gates.
 - `budget::SILICE_ROM_LIMIT` is 8 MiB, provisional; `SILICE_ROM_MEASURED` records the measurement and `check` prints the delta. **SIL1 Wave 2 re-baselines it.**
-- The tour ROM (`parity --game silice --long`) is 3,969,160 bytes.
+- The tour ROM (`parity --game silice --long`) is 3,970,344 bytes (3,969,160 after Task M).
 
 **Boot lane.** `cargo xtask parity --game silice`:
 - `checkpoints/silice` verifies with 0 nodes;
-- `rom_and_native_agree` on `SILICE_ROUTE`: 1,500 hashes and 18 pictures identical, no late frame. Loop 37 lines (gate 217), hash 5 lines. `emu::check_memory`: heap max 33,396 B, stack untouched 11,760 B. 0 reports, 0 events dropped;
+- `rom_and_native_agree` on `SILICE_ROUTE`: 1,500 hashes and 18 pictures identical, no late frame. Loop 68 lines (gate 217), hash 11 lines, on the Task E new game (the bar). `emu::check_memory`: heap max 27,096 B, stack untouched 11,716 B. 0 reports, 0 events dropped;
 - the probes pass;
 - the resume, save and mid-battle-save lanes print a skip (`boot_lane_only`), and so does the trainer-sighting lane;
-- the studio ROM pane's new-game tests pass;
+- the studio ROM pane's new-game tests pass (the spawned-pane test walks south on Silice: a customer stands west of the bar start);
 - `--long`: the Silice tour passes, 0 reports and 0 events dropped.
 
 `cargo xtask sweep --game silice`: 6/6 maps pass, with no panic, no round-trip failure and no dropped event.
 
-**Gates as run (after the merge of master with Task M).**
+**Gates as run (after the merges of master with Tasks M, E, N and G).** Emerald parity: 19,176 hashes and 205 pictures identical, ROM 9,294,440 bytes. Task N's new explore tests take `content::FLAVOR` for `Db::open`, and their Emerald-only checks (Littleroot scripts, real trainers, Act 1 progress, Petalburg Woods warps) skip off Emerald.
 - **Stub** (`PKR_EXTRACTED_DIR=/nonexistent`): `cargo test --workspace` is green, and so is clippy `--all-targets`.
 - **Emerald:**
   - `cargo test --workspace` is green;
