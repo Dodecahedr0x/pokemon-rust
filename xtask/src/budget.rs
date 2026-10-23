@@ -1,12 +1,18 @@
 //! `xtask rom` memory budgets: the ROM size, the ELF's IWRAM and EWRAM statics, and the code and
 //! data by symbol prefix ([`sections`]).
 //!
-//! Interim gates for Milestone 8 Waves 1 and 2a (Task M re-baselines them):
-//! - on the slice extract: engine `.text` at most its Wave 0 baseline + 128 KiB; the content
-//!   sections and the ROM total are reported, not gated (Wave 1 grows them by design);
-//! - on a full import (more maps than `export::SLICE_MAPS`): the ROM at most 16 MiB;
-//! - on Silice (SIL1 Task D, provisional): the ROM at most [`SILICE_ROM_LIMIT`];
-//! - always: IWRAM and EWRAM over the slice baseline + [`GROWTH`].
+//! Gates (Milestone 8 Task M re-baselined them on the full import):
+//! - on a full import (more maps than `export::SLICE_MAPS`): the ROM at most 16 MiB (decision
+//!   Q4);
+//! - always: IWRAM and EWRAM statics at most the full-import [`BASELINE`] + [`GROWTH`] (2 KiB
+//!   and 16 KiB);
+//! - on the slice extract (fixtures): engine `.text` at most its Wave 0 baseline + 128 KiB; the
+//!   ROM is reported, not gated;
+//! - on Silice (SIL1 Task D, provisional until SIL1 Wave 2): the ROM at most
+//!   [`SILICE_ROM_LIMIT`].
+//!
+//! The heap and the IWRAM stack are gated at run time, on the debug region (`emu::HEAP_MAX`,
+//! `emu::STACK_UNTOUCHED_MIN`, by `cargo xtask parity`).
 
 use anyhow::{Context, Result, bail, ensure};
 use object::{Object, ObjectSection, ObjectSymbol, SymbolKind};
@@ -27,19 +33,23 @@ pub struct Budget {
 const IWRAM: core::ops::Range<u64> = 0x0300_0000..0x0300_8000;
 const EWRAM: core::ops::Range<u64> = 0x0200_0000..0x0204_0000;
 
-/// The slice baseline: Milestone 8 Wave 0 built by `cargo xtask rom` with the slice extract
-/// (content at opt-level "s"). To re-measure: on the commit to baseline, `cargo xtask extract`,
-/// then `cargo xtask rom`, and copy the printed sizes here. The build remaps the checkout,
-/// `CARGO_HOME` and sysroot paths (`remap_rustflags` in `main.rs`), so any checkout or worktree
-/// gives the same sizes.
+/// The full-import baseline: Milestone 8 Task M built by `cargo xtask rom` with every map
+/// extracted (`cargo xtask extract`, content at opt-level "s"). To re-measure: on the commit to
+/// baseline, `cargo xtask extract`, then `cargo xtask rom`, and copy the printed sizes here.
+/// The build remaps the checkout, `CARGO_HOME` and sysroot paths (`remap_rustflags` in
+/// `main.rs`), so any checkout or worktree gives the same sizes.
 ///
-/// The ROM is printed against it, not gated (module docs). History: Milestone 4 shipped
-/// 1875 KiB; Milestone 5 measured 1992712 bytes (IWRAM 596, EWRAM 460); Wave 0's opt-level "s"
-/// for `content` brought the ROM down to the value below (IWRAM had grown to 788 by then).
+/// The ROM is printed against it; its gate is [`FULL_ROM_LIMIT`] (module docs). History:
+/// Milestone 4 shipped 1875 KiB; Milestone 5 measured 1992712 bytes (IWRAM 596, EWRAM 460);
+/// Wave 0's slice build 1761240 (IWRAM 788, EWRAM 460); Task L's full import 9517904; Task M
+/// (debug region v3: EWRAM +16; agb's backtrace screen off; one box per script thunk)
+/// 9211952 (IWRAM 788, EWRAM 476); after the Task M review (master's Silice battle engine,
+/// Task S and SIL1 Wave 0 merged, the panic message printed, agb's IWRAM allocator linked by
+/// the stack probe: EWRAM +16) the values below.
 pub const BASELINE: Budget = Budget {
-    rom: 1_761_240,
+    rom: 9_293_736,
     iwram: 788,
-    ewram: 460,
+    ewram: 492,
 };
 
 /// Which content the ROM was built with.
@@ -204,7 +214,7 @@ pub fn check(b: &Budget, secs: &[(String, u64)], content: Content) -> Result<()>
             }
         }
         None => println!(
-            "ROM   {:>8} bytes  (slice baseline {}; not gated on the {content:?} content)",
+            "ROM   {:>8} bytes  (full-import baseline {}; not gated on the {content:?} content)",
             b.rom, BASELINE.rom
         ),
     }

@@ -344,7 +344,7 @@ impl World {
                 mode: Mode::Field,
                 answer: None,
                 player_name: player_name(ng.player_name),
-                bag: Bag::new(),
+                bag: Bag::new(game.special_ids().pocket_slots),
                 money: 0,
                 str_vars: StrVars::new(),
                 warp_slots: WarpSlots::default(),

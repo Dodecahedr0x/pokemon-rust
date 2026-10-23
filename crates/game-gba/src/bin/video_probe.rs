@@ -8,6 +8,9 @@
 
 extern crate alloc;
 
+#[path = "../panic.rs"]
+mod panic;
+
 #[allow(dead_code)]
 #[path = "../video.rs"]
 mod video;
