@@ -53,6 +53,11 @@ const NATIVE_CHOICE: &[(&str, u8)] = &[
 /// gym switches, Lavaridge's holes and geysers, Petalburg's room doors).
 const SEARCH_DEPTH: u32 = 5;
 
+/// Gen3 `MAP_TYPE_UNDERGROUND` and `MAP_TYPE_INDOOR`: the maps whose warps [`Live::bypass`]
+/// searches (a gym's holes and doors; not an outdoor map's houses).
+const MAP_TYPE_UNDERGROUND: u8 = 4;
+const MAP_TYPE_INDOOR: u8 = 8;
+
 /// Replays of a step whose battle vanilla lost ([`Live::play`]).
 pub const REROLLS: u32 = 6;
 
@@ -412,8 +417,11 @@ impl<'g, G: GameData> Live<'g, G> {
                     ""
                 }
             ));
+            // On the map but not on the cell (a ride's script left the player elsewhere on
+            // it, the bypass's cell is out of reach): the next steps go on from here.
+            let on = self.map()?;
             ensure!(
-                found,
+                found || on == m,
                 "{}: no way to {} ({x}, {y}) in {SEARCH_DEPTH} triggers or warps",
                 b.issue,
                 map_name(m)
@@ -453,6 +461,12 @@ impl<'g, G: GameData> Live<'g, G> {
         d == m || (self.game.map(d).warps.iter()).all(|w| w.dest_map == m || w.dest_map == d)
     }
 
+    /// Whether cell `c` of `map` is open terrain (objects aside).
+    fn walkable(&mut self, map: MapId, c: (i16, i16)) -> bool {
+        let overrides = self.v.overrides(self.game, map);
+        Planner::new(self.game, map, &overrides, Vec::new()).walkable(c)
+    }
+
     /// Whether `to` is reachable on `map` now (objects in the way).
     fn reachable(&mut self, map: MapId, to: (i16, i16)) -> Result<bool> {
         let me = self.cell()?;
@@ -475,6 +489,11 @@ impl<'g, G: GameData> Live<'g, G> {
         seen: &mut Vec<(MapId, (i16, i16))>,
     ) -> Result<bool> {
         let map = self.map()?;
+        if map == m && path.is_empty() && !self.walkable(m, to) {
+            // A cell no one walks onto (the cable car's seat): vanilla's own script placed
+            // the player on the map already.
+            return Ok(true);
+        }
         if map == m && self.reachable(m, to)? {
             // The walk re-plans from every cell (objects, elevation): it can still find no
             // way, and the search goes on from here.
@@ -493,22 +512,41 @@ impl<'g, G: GameData> Live<'g, G> {
             return Ok(false);
         }
         let data = self.game.map(map);
-        let mut cells: Vec<(i16, i16)> = (data.coords.iter()).map(|c| (c.x, c.y)).collect();
-        for w in data.warps {
-            if self.game.has_map(w.dest_map) && self.inside(w.dest_map, m) {
-                cells.push((w.x, w.y));
+        // Steps: the floor triggers; indoors (a gym), the warps staying in the building; and
+        // the objects next to the target (a rock to smash, a boulder), talked to (yes).
+        let mut moves: Vec<(Option<u8>, (i16, i16))> =
+            (data.coords.iter()).map(|c| (None, (c.x, c.y))).collect();
+        if matches!(data.map_type, MAP_TYPE_UNDERGROUND | MAP_TYPE_INDOOR) {
+            for w in data.warps {
+                if self.game.has_map(w.dest_map) && self.inside(w.dest_map, m) {
+                    moves.push((None, (w.x, w.y)));
+                }
             }
         }
-        cells.dedup();
-        for t in cells {
-            if self.cell()? == t || !self.reachable(map, t)? {
+        if map == m {
+            for o in (0..crate::state::layout::OBJECT_EVENTS).filter_map(|i| self.v.object_event(i))
+            {
+                let near = (o.cell.0 - to.0).abs() + (o.cell.1 - to.1).abs() <= 2;
+                if !o.is_player && o.visible && o.map == map && near {
+                    moves.push((Some(o.local_id), o.cell));
+                }
+            }
+        }
+        moves.dedup();
+        for (talk, t) in moves {
+            if talk.is_none() && (self.cell()? == t || !self.reachable(map, t)?) {
                 continue;
             }
             let state = self.v.emu.save_state()?;
             let (frames, battles, outcomes) =
                 (self.v.frames, self.v.battles.len(), self.v.outcomes.len());
-            let walked = self.v.walk_to(self.game, t, MACRO_FRAMES).is_ok()
-                && self.v.settle(MACRO_FRAMES).is_ok();
+            let walked = match talk {
+                Some(id) => self.talk(id).is_ok() && self.v.settle(MACRO_FRAMES).is_ok(),
+                None => {
+                    self.v.walk_to(self.game, t, MACRO_FRAMES).is_ok()
+                        && self.v.settle(MACRO_FRAMES).is_ok()
+                }
+            };
             let on = self.map()?;
             let landed = (on, self.cell()?);
             let ok = walked && self.inside(on, m) && (on == map || !seen.contains(&landed));
@@ -613,11 +651,7 @@ impl<'g, G: GameData> Live<'g, G> {
                     walked,
                     "talk: object {local_id} unspawned, no way next to its home"
                 );
-                ensure!(
-                    self.object(local_id)?.is_some(),
-                    "talk: no object {local_id} on {} at its home",
-                    map_name(map)
-                );
+                // A trainer's battle or a script can stop the walk: the next try walks on.
                 continue;
             };
             let overrides = self.v.overrides(self.game, map);

@@ -21,6 +21,9 @@ use explore::policy::{
     YES_ONCE, best_damaging_slot_of, first_damaging_slot_of, forget_slot_of, toward,
 };
 
+/// The HMs (`IsHMMove`): Cut, Fly, Surf, Strength, Flash, Rock Smash, Waterfall, Dive.
+const HM_MOVES: [u16; 8] = [15, 19, 57, 70, 148, 249, 127, 291];
+
 /// The key that moves a one-column list cursor from `c` to `want`, or A once it is there.
 fn vertical(c: u8, want: u8) -> Buttons {
     match c.cmp(&want) {
@@ -191,10 +194,11 @@ impl Vanilla {
             }
             _ => {
                 let instr = self.emu.read_u32(s.battlescript_curr_instr);
+                let learning = self.emu.read_u16(s.move_to_learn);
                 match self.emu.read_u8(instr) {
                     // Learn over the weakest known move when the new one is worth more
                     // (`Opts::learn`, our `policy::forget_slot`); else keep the known moves.
-                    B_SCR_OP_YESNOBOXLEARNMOVE if self.forget_slot().is_some() => {
+                    B_SCR_OP_YESNOBOXLEARNMOVE if self.forget_slot(learning).is_some() => {
                         if self.emu.read_u8(s.battle_communication + 1) == 0 {
                             Buttons::A
                         } else {
@@ -216,33 +220,32 @@ impl Vanilla {
     }
 
     /// The slot to forget for `gMoveToLearn` (`Opts::learn` only), from `gBattleMons[0]`.
-    fn forget_slot(&mut self) -> Option<u8> {
+    fn forget_slot(&mut self, new: u16) -> Option<u8> {
         if !self.answers.learn {
             return None;
         }
         let t = self.tables?;
-        let me = self.sym.battle_mons;
-        let species = SpeciesId(self.emu.read_u16(me + BM_SPECIES));
+        // The lead (`gPlayerParty[0]`: the learner in a single battle, and after an
+        // evolution); HMs cannot be forgotten in Gen3 (`IsHMMove`): never picked.
+        let lead = self.party().into_iter().next()?;
         let moves: [Option<MoveId>; 4] = std::array::from_fn(|i| {
-            let m = self.emu.read_u16(me + BM_MOVES + 2 * i as u32);
-            (m != 0).then_some(MoveId(m))
+            let m = lead.moves[i];
+            (m != 0 && !HM_MOVES.contains(&m)).then_some(MoveId(m))
         });
-        let new = MoveId(self.emu.read_u16(self.sym.move_to_learn));
-        forget_slot_of(species, &moves, new, t)
+        forget_slot_of(SpeciesId(lead.species), &moves, MoveId(new), t)
     }
 
-    /// The summary screen's forget-a-move cursor: toward [`Vanilla::forget_slot`], then A; B
-    /// (keep the known moves) without one.
+    /// The summary screen's forget-a-move cursor: toward [`Vanilla::forget_slot`] for the
+    /// screen's `newMove`, then A; B (keep the known moves) without one.
     fn replace_move_key(&mut self) -> Buttons {
-        let Some(slot) = self.forget_slot() else {
-            return Buttons::B;
-        };
         let pss = self.emu.read_u32(self.sym.mon_summary_screen);
-        if pss == 0
-            || self.emu.read_u16(pss + PSS_NEW_MOVE) != self.emu.read_u16(self.sym.move_to_learn)
-        {
+        if pss == 0 {
             return Buttons::NONE;
         }
+        let new = self.emu.read_u16(pss + PSS_NEW_MOVE);
+        let Some(slot) = self.forget_slot(new) else {
+            return Buttons::B;
+        };
         vertical(self.emu.read_u8(pss + PSS_FIRST_MOVE_INDEX), slot)
     }
 
