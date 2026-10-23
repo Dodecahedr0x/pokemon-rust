@@ -85,6 +85,7 @@ fn object(x: i16, y: i16, gfx: &str) -> Op {
         x,
         y,
         id: None,
+        local_id: None,
         gfx: gfx.into(),
         movement: "MOVEMENT_TYPE_FACE_DOWN".into(),
         range_x: 0,
@@ -495,6 +496,7 @@ fn validation_reports_bad_cells_and_references() {
         x: 1,
         y: 1,
         id: None,
+        local_id: None,
         gfx: "BOY".into(),
         movement: "MOVEMENT_TYPE_FACE_DOWN".into(),
         range_x: 0,
@@ -1010,6 +1012,7 @@ fn renumbered_named_objects_are_warned_about() {
         x: 1,
         y: 1,
         id: Some("LOCALID_GUIDE".into()),
+        local_id: None,
         gfx,
         movement: "MOVEMENT_TYPE_FACE_DOWN".into(),
         range_x: 0,
@@ -1473,4 +1476,203 @@ fn ascii_legends_take_any_char() {
         format!("{:#}", bad.unwrap_err()).contains("one character"),
         "a key is one character"
     );
+}
+
+/// `Object(local_id: N)` takes that id when it is free and in 1..64; without it, the highest
+/// + 1 as before.
+#[test]
+fn objects_take_an_optional_local_id() {
+    let ops: Vec<Op> = from_script_ron(
+        r#"[
+            Object(x: 0, y: 0, gfx: "OBJ_EVENT_GFX_A"),
+            Object(x: 1, y: 0, gfx: "OBJ_EVENT_GFX_A", id: "LOCALID_GUIDE", local_id: 20),
+            Object(x: 2, y: 0, gfx: "OBJ_EVENT_GFX_A"),
+            Object(x: 3, y: 0, gfx: "OBJ_EVENT_GFX_A", local_id: 5),
+        ]"#,
+    )
+    .unwrap();
+    let mut e = editor(6, 2);
+    e.apply_all(&ops).unwrap();
+    let ids: Vec<u8> = e.doc().map.objects.iter().map(|o| o.local_id).collect();
+    assert_eq!(ids, [1, 20, 21, 5]);
+    assert_eq!(e.doc().map.objects[1].id.as_deref(), Some("LOCALID_GUIDE"));
+    assert_eq!(errors(&validate(e.doc(), &catalog())), 0);
+    let start = e.doc().clone();
+    let with = |local_id: u8| {
+        let Op::Object {
+            x,
+            y,
+            gfx,
+            id,
+            movement,
+            range_x,
+            range_y,
+            script,
+            flag,
+            trainer_type,
+            sight,
+            elevation,
+            ..
+        } = object(4, 0, "OBJ_EVENT_GFX_A")
+        else {
+            unreachable!()
+        };
+        Op::Object {
+            x,
+            y,
+            gfx,
+            id,
+            local_id: Some(local_id),
+            movement,
+            range_x,
+            range_y,
+            script,
+            flag,
+            trainer_type,
+            sight,
+            elevation,
+        }
+    };
+    for (local_id, want) in [
+        (20, "local id 20 is already object 1's"),
+        (0, "outside 1..64"),
+        (64, "outside 1..64"),
+    ] {
+        let err = e.apply(&with(local_id)).unwrap_err();
+        assert!(format!("{err:#}").contains(want), "{err:#}");
+    }
+    assert_eq!(e.doc(), &start, "a refused object changes nothing");
+    e.apply(&with(63)).unwrap();
+    assert_eq!(e.doc().map.objects[4].local_id, 63);
+}
+
+/// `ScriptsSet` changes only the fields it names; `Scripts` still replaces the record.
+#[test]
+fn scripts_set_merges_into_the_map_scripts() {
+    let mut e = editor(2, 2);
+    let ops: Vec<Op> = from_script_ron(
+        r#"[
+            Scripts((on_load: None, on_transition: Some("Test_OnTransition"), on_resume: None,
+                on_return_to_field: None, on_dive_warp: None,
+                on_frame: [(var: "VAR_TEST", value: 1, script: "Test_Frame")], on_warp_into: [])),
+            ScriptsSet(on_load: "Test_OnLoad"),
+        ]"#,
+    )
+    .unwrap();
+    e.apply_all(&ops).unwrap();
+    let s = &e.doc().map.scripts;
+    assert_eq!(s.on_load.as_deref(), Some("Test_OnLoad"));
+    assert_eq!(s.on_transition.as_deref(), Some("Test_OnTransition"));
+    assert_eq!(s.on_frame.len(), 1);
+    let ops: Vec<Op> = from_script_ron(
+        r#"[
+            ScriptsSet(on_transition: "", on_resume: "Test_OnResume", on_frame: []),
+            ScriptsSet(on_warp_into: [(var: "VAR_TEST", value: 2, script: "Test_Warp")]),
+        ]"#,
+    )
+    .unwrap();
+    e.apply_all(&ops).unwrap();
+    assert_eq!(
+        e.doc().map.scripts,
+        MapScripts {
+            on_load: Some("Test_OnLoad".into()),
+            on_resume: Some("Test_OnResume".into()),
+            on_warp_into: vec![extract::schema::VarScript {
+                var: "VAR_TEST".into(),
+                value: 2,
+                script: "Test_Warp".into(),
+            }],
+            ..MapScripts::default()
+        }
+    );
+    let empty: Vec<Op> = from_script_ron("[ScriptsSet()]").unwrap();
+    let err = e.apply(&empty[0]).unwrap_err();
+    assert!(format!("{err:#}").contains("sets no field"), "{err:#}");
+    assert!(e.undo());
+    assert_eq!(e.doc().map.scripts.on_transition.as_deref(), None);
+    assert!(e.undo());
+    assert_eq!(
+        e.doc().map.scripts.on_transition.as_deref(),
+        Some("Test_OnTransition"),
+        "each ScriptsSet is one undo step"
+    );
+}
+
+/// `render --collision`: a mismatch is framed yellow and marked `!`, unless an allowance
+/// accepts it (framed green, marked `+`).
+#[test]
+fn allowed_mismatches_render_as_accepted() {
+    use super::overlay::{BLACK, GREEN, YELLOW, draw_collision};
+    let c = behavior_catalog();
+    let mut e = Editor::new(
+        Doc::new(&NewMap {
+            fill: 0,
+            ..spec(3, 1)
+        })
+        .unwrap(),
+    );
+    // Metatile 8 is solid in every extracted use: walkable cells mismatch.
+    for x in [0, 1] {
+        e.apply(&Op::Paint {
+            x,
+            y: 0,
+            metatile: Some(8),
+            collision: Some(0),
+            elevation: None,
+        })
+        .unwrap();
+    }
+    e.apply(&Op::AllowCollision {
+        cells: vec![(1, 0)],
+        metatiles: Vec::new(),
+        reason: "a gap in the hedge".into(),
+    })
+    .unwrap();
+    let mut img = crate::map_view::MapImage {
+        map: engine::data::MapId(0),
+        margin: 0,
+        width: 48,
+        height: 16,
+        rgb555: vec![1; 48 * 16],
+    };
+    draw_collision(&mut img, e.doc(), &c, 1);
+    let px = |x: usize, y: usize| img.rgb555[y * 48 + x];
+    assert_eq!(px(0, 0), YELLOW, "a mismatch");
+    assert_eq!(px(16, 0), GREEN, "an accepted mismatch");
+    assert_eq!(px(32, 0), 1, "no mismatch: untouched");
+    // The mark's first glyph row (y 9): `!` lights its middle pixel, `+` does not.
+    assert_eq!(px(3, 9), YELLOW);
+    assert_eq!(px(16 + 3, 9), BLACK);
+    assert_eq!(px(16 + 3, 10), GREEN, "the `+`'s stem");
+}
+
+/// `dump`: a header, then the metatile grid with `*` on solid cells.
+#[test]
+fn dump_prints_the_metatile_grid() {
+    let mut e = editor(3, 2);
+    e.apply(&Op::Paint {
+        x: 2,
+        y: 1,
+        metatile: Some(5),
+        collision: Some(1),
+        elevation: None,
+    })
+    .unwrap();
+    let text = super::cli::dump(e.doc());
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines[0], "Test: 3x2, P + S; metatile ids, * = solid");
+    assert_eq!(lines[2], "y\\x   0    1    2 ");
+    assert_eq!(lines[3], "  0   1    1    1 ");
+    assert_eq!(lines[4], "  1   1    1    5*");
+    assert_eq!(lines.len(), 5);
+}
+
+#[test]
+fn metatile_ranges_parse() {
+    use super::cli::metatile_range;
+    assert_eq!(metatile_range("512..640").unwrap(), 512..=639);
+    assert_eq!(metatile_range("0..=15").unwrap(), 0..=15);
+    for bad in ["5..5", "9..=3", "512", "a..b", "1..=x"] {
+        assert!(metatile_range(bad).is_err(), "{bad}");
+    }
 }

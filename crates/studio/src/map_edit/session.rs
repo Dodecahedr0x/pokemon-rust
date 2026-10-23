@@ -239,6 +239,7 @@ impl Session {
                 x,
                 y,
                 id: None,
+                local_id: None,
                 gfx: self.default_gfx.clone(),
                 movement: "MOVEMENT_TYPE_FACE_DOWN".into(),
                 range_x: 0,
