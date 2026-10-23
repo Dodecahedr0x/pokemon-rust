@@ -401,6 +401,20 @@ impl<'g, G: GameData> Live<'g, G> {
         let start = self.map()?;
         let from = self.v.frames;
         if self.inside(start, m) {
+            // A bypass writing state (a rock smashed, a boulder moved) next to where the
+            // player already stands: the native play is talking to what is there (yes).
+            if (!b.set.is_empty() || !b.vars.is_empty()) && self.cell()? == (x, y) {
+                let near: Vec<u8> = (0..crate::state::layout::OBJECT_EVENTS)
+                    .filter_map(|i| self.v.object_event(i))
+                    .filter(|o| !o.is_player && o.visible && o.map == m)
+                    .filter(|o| (o.cell.0 - x).abs() + (o.cell.1 - y).abs() == 1)
+                    .map(|o| o.local_id)
+                    .collect();
+                for id in near {
+                    self.answer(Opts { choice: 0, ..opts });
+                    self.talk(id)?;
+                }
+            }
             let mut path = Vec::new();
             let mut seen = Vec::new();
             let battles = self.v.battles.len();
