@@ -147,7 +147,7 @@ impl<'a, G: GameData> Grid<'a, G> {
         }
         let (dx, dy) = d.delta();
         let mut n = (c.0 + dx, c.1 + dy);
-        if !self.in_bounds(n) {
+        if !self.in_bounds(n) || Behavior::walled(self.behavior(c), self.behavior(n), d) {
             return None;
         }
         if let Behavior::Ledge(ld) = self.behavior(n) {

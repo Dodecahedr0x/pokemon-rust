@@ -750,6 +750,11 @@ impl<G: GameData> Recorder<G> {
                 if !in_bounds(map, n.0, n.1) {
                     continue;
                 }
+                let behavior =
+                    |(x, y): (i16, i16)| block_behavior(game, map, block_at(game, map, x, y));
+                if Behavior::walled(behavior(c), behavior(n), d) {
+                    continue;
+                }
                 if let Behavior::Ledge(ld) =
                     block_behavior(game, map, block_at(game, map, n.0, n.1))
                 {

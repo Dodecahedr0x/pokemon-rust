@@ -247,6 +247,40 @@ pub enum Behavior {
     /// Talking across it reaches the object one cell further (shop counters).
     Counter,
     TallGrass,
+    /// Walkable, but its [`Sides`] cannot be crossed, leaving or entering (Gen3
+    /// `MB_IMPASSABLE_*`, `MB_SECRET_BASE_BREAKABLE_DOOR`; see [`Behavior::walled`]).
+    Impassable(Sides),
+}
+
+/// Sides of a cell, one bit per [`Dir`] (`1 << dir as u8`): the payload of
+/// [`Behavior::Impassable`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Sides(pub u8);
+
+impl Sides {
+    pub const fn of(dirs: &[Dir]) -> Sides {
+        let mut bits = 0;
+        let mut i = 0;
+        while i < dirs.len() {
+            bits |= 1 << dirs[i] as u8;
+            i += 1;
+        }
+        Sides(bits)
+    }
+
+    pub const fn has(self, d: Dir) -> bool {
+        self.0 & (1 << d as u8) != 0
+    }
+}
+
+impl Behavior {
+    /// Gen3 `IsMetatileDirectionallyImpassable`: a step towards `d` from a cell with behavior
+    /// `from` into one with behavior `to` crosses a wall (`from`'s side `d`, or `to`'s side
+    /// opposite `d`).
+    pub const fn walled(from: Behavior, to: Behavior, d: Dir) -> bool {
+        matches!(from, Behavior::Impassable(s) if s.has(d))
+            || matches!(to, Behavior::Impassable(s) if s.has(d.opposite()))
+    }
 }
 
 /// Object graphics: fixed, or read from a var when the object spawns (`OBJ_EVENT_GFX_VAR_*`).
