@@ -70,6 +70,11 @@ impl fmt::Display for DbError {
                 "explore.db keys are of key version {found}, this build folds version {want} \
                  (explore dbs are caches: run `explore reset --yes`)"
             ),
+            DbError::Flavor { db, build } if db.is_empty() => write!(
+                f,
+                "explore.db records no content flavour, this build is the {build} content \
+                 (explore dbs are caches: run `explore reset --yes`)"
+            ),
             DbError::Flavor { db, build } => write!(
                 f,
                 "explore.db was made by the {db} content, this build is the {build} content \

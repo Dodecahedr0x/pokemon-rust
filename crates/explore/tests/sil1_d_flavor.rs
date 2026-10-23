@@ -116,3 +116,27 @@ fn a_db_opens_only_under_its_own_flavour() {
         }
     }
 }
+
+/// The dbs made before Task D (`meta.flavor` written as `stub` or `emerald` by the old
+/// `flavor_name`) still open under their flavour; a db that records none is refused with the
+/// reset hint.
+#[test]
+fn pre_task_d_dbs_still_open() {
+    let dir = tempfile::tempdir().unwrap();
+    for (old, flavor) in [("stub", Flavor::Stub), ("emerald", Flavor::Emerald)] {
+        let path = dir.path().join(format!("{old}.db"));
+        let (mut db, _) = Db::open(&path, B, Flavor::Silice).unwrap();
+        db.set_meta("flavor", old).unwrap();
+        drop(db);
+        let (_, st) = Db::open(&path, B, flavor).unwrap();
+        assert!(!st.fresh);
+    }
+    let path = dir.path().join("none.db");
+    let (mut db, _) = Db::open(&path, B, Flavor::Emerald).unwrap();
+    db.set_meta("flavor", "").unwrap();
+    drop(db);
+    let e = Db::open(&path, B, Flavor::Emerald)
+        .err()
+        .expect("no flavour");
+    assert!(e.to_string().contains("explore reset --yes"), "{e}");
+}
