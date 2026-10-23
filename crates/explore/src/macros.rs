@@ -156,7 +156,7 @@ pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m:
 /// The cell the player walks to before triggering warp `(x, y)` with `dir`: the warp cell
 /// itself for an arrow warp (push `dir` while standing on it), else the cell before it.
 pub fn enter_approach(behavior: Behavior, (x, y): (i16, i16), dir: Dir) -> (i16, i16) {
-    if behavior == Behavior::ArrowWarp(dir) {
+    if behavior.arrow_warp() == Some(dir) {
         (x, y)
     } else {
         let (dx, dy) = dir.delta();

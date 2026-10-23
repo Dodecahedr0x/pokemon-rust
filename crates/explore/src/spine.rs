@@ -118,6 +118,15 @@ pub enum Step {
         y: i16,
         level: u8,
     },
+    /// Pace on tall-grass or water cell (x, y) until a wild `species` (`SpeciesId`) joins the
+    /// party: a ball at it each turn ([`Opts::catch`], the battle scene's degraded BAG), every
+    /// other wild mon run from.
+    Catch {
+        map: MapId,
+        x: i16,
+        y: i16,
+        species: u16,
+    },
     /// Sticky from here on.
     Battle(BattlePlan),
     /// The yes/no answer (0 yes, 1 no) and the starter ball for the **next** playing step.
@@ -207,7 +216,8 @@ impl Step {
             | Step::Use { map, .. }
             | Step::Grass { map, .. }
             | Step::Train { map, .. }
-            | Step::TrainFresh { map, .. } => Some(map),
+            | Step::TrainFresh { map, .. }
+            | Step::Catch { map, .. } => Some(map),
             Step::Bypass(_) => None,
             _ => None,
         }
@@ -240,6 +250,9 @@ impl Step {
 
 /// [`Step::TrainFresh`] stops below this many PP over the lead's four moves.
 pub const TIRED_PP: u32 = 20;
+
+/// [`Step::Catch`] gives up after this many wild battles.
+pub const CATCH_BATTLES: u32 = 60;
 
 /// The build's spine ([`content::FLAVOR`]).
 pub fn steps() -> &'static [Step] {
@@ -525,7 +538,7 @@ impl SpineRun {
 
     /// Whether every step ran.
     pub fn complete(&self) -> bool {
-        self.error.is_none() && self.positions.len() == self.steps.len() + 1
+        self.error.is_none() && self.positions.last().is_some_and(|p| p.index == self.steps.len())
     }
 
     /// The [`Step::Bypass`] steps played: `(step index, issue)`, in order.
@@ -633,6 +646,80 @@ pub fn run<G: GameData + Clone + 'static>(
             break;
         }
         let prev = out.positions.last().expect("position 0");
+        let label = match step {
+            Step::Checkpoint(l) => Some(*l),
+            _ => None,
+        };
+        let segment = label.or(prev.segment);
+        out.positions.push(Position {
+            index: i + 1,
+            label,
+            segment,
+            frame: live.frames(),
+            end: live.last_end().expect("a step was played"),
+            opts: x.opts,
+        });
+    }
+    finish(out, live, cfg)
+}
+
+/// Plays `steps[from..]` from a saved position (`start`, `opts`: a [`Position`]'s end and
+/// options, e.g. one written by `spine_real`'s `spine_segment`): a spine segment without the
+/// steps before it. Its positions start at `from` (`positions[0].index == from`), so the
+/// whole-run helpers (`bypasses`, labels) count from there.
+pub fn run_from<G: GameData + Clone + 'static>(
+    game: &G,
+    steps: &'static [Step],
+    cfg: &Config,
+    from: usize,
+    start: Arc<Checkpoint>,
+    opts: StepOpts,
+) -> SpineRun {
+    let cfg = &play_config(cfg);
+    let mut make = detectors::<G>(cfg);
+    let mut out = SpineRun {
+        steps,
+        positions: Vec::new(),
+        inputs: Vec::new(),
+        frames: 0,
+        coverage: Coverage::default(),
+        spine_flags: BTreeSet::new(),
+        reports: Vec::new(),
+        notes: Vec::new(),
+        error: None,
+        played: Vec::new(),
+    };
+    let mut live = match Live::start(game, cfg, Some(start.clone()), &mut make) {
+        Ok(l) => l,
+        Err(stop) => {
+            out.error = Some(stop_error(from, "the saved position", stop));
+            return out;
+        }
+    };
+    let mut x = Exec::at(game, cfg, opts);
+    out.positions.push(Position {
+        index: from,
+        label: None,
+        segment: None,
+        frame: 0,
+        end: start,
+        opts,
+    });
+    for (i, step) in steps.iter().enumerate().skip(from) {
+        let played = live.res.steps.len();
+        let r = x.play(&mut live, step);
+        for st in &live.res.steps[played..] {
+            out.played.push((i, st.macro_));
+        }
+        if let Err(e) = r {
+            out.error = Some(SpineError {
+                step: i,
+                message: format!("{step:?}: {}", e.message),
+                finding: e.finding.map(|f| *f),
+            });
+            break;
+        }
+        let prev = out.positions.last().expect("the start");
         let label = match step {
             Step::Checkpoint(l) => Some(*l),
             _ => None,
@@ -872,6 +959,7 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             choice: self.opts.choice.take().unwrap_or(0),
             best_move: self.opts.best_move,
             learn: self.opts.learn,
+            catch: 0,
         };
         let start_map = live.s.world().map();
         let mk = |kind| Macro { kind, opts };
@@ -1083,6 +1171,49 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                             w.party().get(0).map(|m| (m.level, m.hp))
                         )));
                     }
+                }
+            }
+            Step::Catch { x, y, species, .. } => {
+                let pace = mk(MacroKind::Grass { x, y });
+                let pace = Macro {
+                    opts: Opts { catch: species, ..pace.opts },
+                    ..pace
+                };
+                let size = live.s.world().party().len();
+                let (mut n, mut dry) = (0, 0);
+                while live.s.world().party().len() == size {
+                    n += 1;
+                    let balls = (live.s.world().bag())
+                        .pocket(engine::data::Pocket::PokeBalls)
+                        .iter()
+                        .any(|b| b.qty > 0);
+                    if n > CATCH_BATTLES || !balls {
+                        return Err(err(format!(
+                            "no species {species} caught in {n} tries (balls left: {balls})"
+                        )));
+                    }
+                    match live.step_with(&pace, &mut crate::policy::Policy::new()) {
+                        Ok(()) => dry = 0,
+                        Err(StepFail::Skip(e @ crate::expand::ExpandError::NoEffect(_))) => {
+                            dry += 1;
+                            if dry > TRAIN_DRY {
+                                return Err(err(format!("{e:?} {dry} times in a row")));
+                            }
+                            live.rollback().map_err(|stop| {
+                                let (message, finding) = stop_text(stop);
+                                ExecError {
+                                    message,
+                                    finding: finding.map(Box::new),
+                                }
+                            })?;
+                            self.macro_(live, mk(MacroKind::Wait { frames: 31 }))?;
+                        }
+                        Err(e) => return Err(fail(live, e)),
+                    }
+                }
+                let got = live.s.world().party().get(size).map(|m| m.species.0);
+                if got != Some(species) {
+                    return Err(err(format!("caught species {got:?}, not {species}")));
                 }
             }
             Step::Battle(_)
@@ -1380,7 +1511,7 @@ fn first_dir_avoiding<G: GameData>(
     use engine::data::Behavior;
     type Node = ((i16, i16), u8);
     let step = |(c, e): Node, d: Dir, grass: bool| -> Option<Node> {
-        if grid.behavior(c) == Behavior::ArrowWarp(d) {
+        if grid.behavior(c).arrow_warp() == Some(d) {
             return None;
         }
         let (dx, dy) = d.delta();

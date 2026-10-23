@@ -206,6 +206,9 @@ macro_rules! forward_game_data {
     (@ $f:tt fall_script) => { fn fall_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.fall_script() } };
     (@ $f:tt step_count_script) => { fn step_count_script(&self, step: ::engine::data::StepCount<'_>) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.step_count_script(step) } };
     (@ $f:tt field_move_script) => { fn field_move_script(&self, m: ::engine::data::FieldMove) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.field_move_script(m) } };
+    (@ $f:tt waterfall_refused_script) => { fn waterfall_refused_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.waterfall_refused_script() } };
+    (@ $f:tt dive_emerge_script) => { fn dive_emerge_script(&self) -> ::core::option::Option<::engine::data::ScriptId> { self.$f.dive_emerge_script() } };
+    (@ $f:tt dive_warp) => { fn dive_warp(&self, map: ::engine::data::MapId, emerge: bool) -> ::core::option::Option<(::engine::data::MapId, ::core::option::Option<(i16, i16)>)> { self.$f.dive_warp(map, emerge) } };
     (@ $f:tt water_encounters) => { fn water_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.water_encounters(map, wild_set) } };
     (@ $f:tt rock_smash_encounters) => { fn rock_smash_encounters(&self, map: ::engine::data::MapId, wild_set: u16) -> ::core::option::Option<&'static ::engine::mon::WaterEncounters> { self.$f.rock_smash_encounters(map, wild_set) } };
     (@ $f:tt pushable_boulder) => { fn pushable_boulder(&self) -> ::core::option::Option<(::engine::data::GfxId, ::engine::data::FlagId)> { self.$f.pushable_boulder() } };
@@ -215,7 +218,7 @@ macro_rules! forward_game_data {
                                    trainer_money evolutions hold_effect form_changes map_type m9);
     };
     (@ $f:tt m9) => {
-        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script water_encounters rock_smash_encounters pushable_boulder player_surf_sprite);
+        $crate::forward_game_data!($f; map_layout trainer_battle_kind start_menu field_move_gate item_use item_description move_description is_hm_move tm_move can_learn_tm ui_gfx window_frame item_icon mon_icon in_game_trade nature_name step_callback hole_warp fall_script step_count_script field_move_script waterfall_refused_script dive_emerge_script dive_warp water_encounters rock_smash_encounters pushable_boulder player_surf_sprite);
     };
 }
 

@@ -206,6 +206,7 @@ impl<'g, G: GameData> Live<'g, G> {
             choice: self.opts.choice.take().unwrap_or(0),
             best_move: self.opts.best_move,
             learn: self.opts.learn,
+            catch: 0,
         };
         self.answer(opts);
         let start = self.map()?;

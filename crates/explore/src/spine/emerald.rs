@@ -26,6 +26,8 @@ mod list {
     const ITEM_HM04: engine::data::ItemId = engine::data::ItemId(342);
     /// Gen3's `ITEM_HM06`, for the same reason.
     const ITEM_HM06: engine::data::ItemId = engine::data::ItemId(344);
+    /// Gen3's `ITEM_HM08`, for the same reason.
+    const ITEM_HM08: engine::data::ItemId = engine::data::ItemId(346);
     /// Gen3's `ITEM_FULL_RESTORE`, for the same reason.
     const ITEM_FULL_RESTORE: engine::data::ItemId = engine::data::ItemId(19);
     /// Gen3's `ITEM_MAX_ELIXIR`, for the same reason.
@@ -146,24 +148,6 @@ mod list {
     /// From Slateport to Lilycove's Aqua Hideout.
     static FLY_LILYCOVE: Bypass = fly("fly-lilycove", MAP_LILYCOVE_CITY, 24, 15);
 
-    /// Lilycove's water door into the Aqua Hideout (`MB_WATER_DOOR` at (70, 5), surfing): the
-    /// engine's surf movement never takes its warp. The bypass lands past the hideout's pool
-    /// (whose surfing it skips) on 1F's first dry cell.
-    static WATER_DOOR_IN: Bypass = Bypass {
-        issue: "water-door-in",
-        features: &["MB_WATER_DOOR", "surfing onto a warp"],
-        warp: Some((MAP_AQUA_HIDEOUT_1F, 13, 12)),
-        ..Bypass::NONE
-    };
-    /// The way back: 1F's pool ends on the water warps (13, 27)/(14, 27) to Lilycove's water
-    /// door; the bypass lands on the shore Lilycove's Surf leaves from.
-    static WATER_DOOR_OUT: Bypass = Bypass {
-        issue: "water-door-out",
-        features: &["MB_WATER_DOOR", "surfing onto a warp"],
-        warp: Some((MAP_LILYCOVE_CITY, 63, 14)),
-        ..Bypass::NONE
-    };
-
     /// Mossdeep's gym: the trick-house statues block every way to Tate and Liza until the
     /// floor switches turn them (`MossdeepCity_Gym_EventScript_*FloorSwitch`: the rotating
     /// tile puzzle's commands are unsupported). The bypass lands in front of the twins, where
@@ -216,35 +200,16 @@ mod list {
     const MT57: [Step; 9] = mossdeep_train(57);
     const MT58: [Step; 9] = mossdeep_train(58);
 
-    /// Dive (`FIELD_MOVE_DIVE`, `FLDEFF_USE_DIVE`: the engine's field-move effects are Surf,
-    /// Cut, Rock Smash and Strength) from Route 128's deep water, Underwater Route 128's warp
-    /// (38, 26) and the surfacing in the cavern's entrance pool. The bypass lands on that pool
-    /// (surfing, as Gen3 leaves the player). HM08 is not taught either: Swampert keeps its moves.
-    static DIVE_SEAFLOOR: Bypass = Bypass {
-        issue: "dive-seafloor",
-        features: &[
-            "FIELD_MOVE_DIVE",
-            "FLDEFF_USE_DIVE",
-            "MB_DEEP_WATER",
-            "underwater maps",
-        ],
-        warp: Some((MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 17)),
-        ..Bypass::NONE
-    };
+    /// HM08 from the bag on the lead, as [`USE_HM06`]: its other three moves are HMs (Strength,
+    /// Rock Smash, Surf; Gen3 `CanReplaceMove`), so it forgets Earthquake (slot 1).
+    const USE_HM08: Step = Step::UseItem(UseItem {
+        item: ITEM_HM08,
+        mon: 0,
+        forget: 1,
+    });
 
-    /// Dive from Route 126's deep water, Underwater Route 126's tunnel (45, 65) to Underwater
-    /// Sootopolis, and the surfacing in the crater's lake, as [`DIVE_SEAFLOOR`].
-    static DIVE_SOOTOPOLIS: Bypass = Bypass {
-        issue: "dive-sootopolis",
-        features: &[
-            "FIELD_MOVE_DIVE",
-            "FLDEFF_USE_DIVE",
-            "MB_DEEP_WATER",
-            "underwater maps",
-        ],
-        warp: Some((MAP_SOOTOPOLIS_CITY, 31, 50)),
-        ..Bypass::NONE
-    };
+    /// B (Gen3 `TrySetupDiveEmergeScript`: on an underwater map, surface).
+    const PRESS_B: Step = Step::Press(engine::Buttons::B.0, 1);
 
     /// Sootopolis Gym 1F's thin ice (`MB_THIN_ICE`, `STEP_CB_SOOTOPOLIS_ICE`): a path over
     /// every cell of a room once, from the cell above its entrance to the one below its stairs.
@@ -316,21 +281,6 @@ mod list {
         ],
         clear: &[FLAG_SYS_WEATHER_CTRL, FLAG_LEGENDARIES_IN_SOOTOPOLIS],
         vars: &[(VAR_SKY_PILLAR_STATE, 2)],
-        ..Bypass::NONE
-    };
-
-    /// Dive out of Sootopolis's lake, Underwater Sootopolis's tunnel to Underwater Route 126,
-    /// and the surfacing on Route 126, as [`DIVE_SEAFLOOR`] (the bypass leaves the player
-    /// surfing on the dive spot's water).
-    static DIVE_OUT_SOOTOPOLIS: Bypass = Bypass {
-        issue: "dive-out-sootopolis",
-        features: &[
-            "FIELD_MOVE_DIVE",
-            "FLDEFF_USE_DIVE",
-            "MB_DEEP_WATER",
-            "underwater maps",
-        ],
-        warp: Some((MAP_ROUTE126, 45, 66)),
         ..Bypass::NONE
     };
 
@@ -1576,14 +1526,11 @@ mod list {
         Step::Walk(Down),
         Step::Walk(Down),
         use_(MAP_LILYCOVE_CITY, 63, 14, Right),
-        goto(MAP_LILYCOVE_CITY, 70, 6),
-        // The water door (`MB_WATER_DOOR`, (70, 5)) does not warp a surfer: `water-door-in`
-        // lands on the hideout's first dry cell past its pool. It warps from the shore: a
-        // warp keeps the engine's surfing state (Gen3's `GetInitialPlayerAvatarState` drops
-        // it on dry land), so the player gets off the water first.
-        goto(MAP_LILYCOVE_CITY, 64, 14),
-        Step::Walk(Left),
-        Step::Bypass(&WATER_DOOR_IN),
+        // The water door (`MB_WATER_DOOR`, (70, 5)) warps the surfer onto the hideout pool's
+        // south arrow warp (13, 27), still surfing; north across the pool to its shore.
+        enter(MAP_LILYCOVE_CITY, 70, 5, Up),
+        goto(MAP_AQUA_HIDEOUT_1F, 13, 13),
+        Step::Walk(Up),
         // ---- The Aqua Hideout: 1F, B1F's and B2F's warp pads to Matt ----
         enter(MAP_AQUA_HIDEOUT_1F, 22, 1, Up),
         enter(MAP_AQUA_HIDEOUT_B1F, 27, 4, Up),
@@ -1601,15 +1548,14 @@ mod list {
         Step::WaitScript,
         Step::Expect("aqua_submarine"),
         Step::Checkpoint("aqua_hideout"),
-        // ---- Out by B2F's east pad, back to the pool: the water door again (`water-door-out`)
+        // ---- Out by B2F's east pad, back across the pool: its arrow warp (13, 27) south
+        // to Lilycove's water door, surfing ----
         enter(MAP_AQUA_HIDEOUT_B2F, 32, 20, Up),
         enter(MAP_AQUA_HIDEOUT_B1F, 29, 1, Up),
-        goto(MAP_AQUA_HIDEOUT_1F, 13, 12),
-        Step::Bypass(&WATER_DOOR_OUT),
-        // ---- Route 124 east to Mossdeep ----
-        goto(MAP_LILYCOVE_CITY, 62, 14),
         Step::Choose(0),
-        use_(MAP_LILYCOVE_CITY, 63, 14, Right),
+        use_(MAP_AQUA_HIDEOUT_1F, 13, 12, Down),
+        enter(MAP_AQUA_HIDEOUT_1F, 13, 27, Down),
+        // ---- Route 124 east to Mossdeep ----
         cross(MAP_LILYCOVE_CITY, 79, 12, Right),
         cross(MAP_ROUTE124, 79, 50, Right),
         goto(MAP_MOSSDEEP_CITY, 9, 10),
@@ -1745,7 +1691,11 @@ mod list {
         Step::WaitScript,
         Step::Expect("hm_dive"),
         Step::Checkpoint("hm_dive"),
-        // ---- Act 8: Route 127, 128 south; Dive to the Seafloor Cavern (`dive-seafloor`) ----
+        USE_HM08,
+        // ---- Act 8: Route 127, 128 south; Dive to the Seafloor Cavern: down from Route 128's
+        // deep water (Gen3 `TrySetupDiveDownScript`, the dive connection keeps the cell),
+        // Underwater Route 128's tunnel (38, 26), up in the cavern's pool (its fixed dive warp,
+        // (10, 17)) ----
         enter(MAP_MOSSDEEP_CITY_STEVENS_HOUSE, 3, 7, Down),
         enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
         use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
@@ -1756,8 +1706,12 @@ mod list {
         use_(MAP_MOSSDEEP_CITY, 23, 30, Down),
         cross(MAP_MOSSDEEP_CITY, 30, 39, Down),
         cross(MAP_ROUTE127, 30, 79, Down),
-        goto(MAP_ROUTE128, 36, 24),
-        Step::Bypass(&DIVE_SEAFLOOR),
+        goto(MAP_ROUTE128, 38, 27),
+        Step::Choose(0),
+        Step::Interact,
+        enter(MAP_UNDERWATER_ROUTE128, 38, 26, Up),
+        Step::Choose(0),
+        PRESS_B,
         goto(MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 11),
         Step::Walk(Up),
         enter(MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 1, Up),
@@ -1820,7 +1774,8 @@ mod list {
         Step::Expect("kyogre_awakened"),
         Step::Checkpoint("seafloor_cavern"),
         // ---- Sootopolis: Surf off Route 128's islet, Route 127 north, Route 126 west; Dive
-        // into the crater (`dive-sootopolis`) ----
+        // under the crater's wall (Underwater Route 126's tunnel (45, 65)) and up in its lake
+        // (Underwater Sootopolis's fixed dive warp, (29, 53)) ----
         Step::Choose(0),
         use_(MAP_ROUTE128, 42, 22, Right),
         cross(MAP_ROUTE128, 30, 0, Up),
@@ -1830,8 +1785,17 @@ mod list {
         // its `Script_DoRayquazaScene` is unsupported and leaves the screen black, so
         // `legendaries-scene` writes the scene's end before the dive lands.
         Step::Bypass(&LEGENDARIES_SCENE),
-        Step::Bypass(&DIVE_SOOTOPOLIS),
+        Step::Choose(0),
+        Step::Interact,
+        enter(MAP_UNDERWATER_ROUTE126, 45, 65, Up),
+        Step::Choose(0),
+        PRESS_B,
         Step::Expect("sootopolis"),
+        // The lake is `LAYOUT_SOOTOPOLIS_CITY_LEGENDS_BATTLE` (`setmaplayoutindex`), which the
+        // planner does not read (`sky-pillar-layouts`): around the legendaries' rock
+        // ((27..35, 43..45)) by its east side.
+        goto(MAP_SOOTOPOLIS_CITY, 36, 46),
+        goto(MAP_SOOTOPOLIS_CITY, 36, 42),
         goto(MAP_SOOTOPOLIS_CITY, 23, 37),
         Step::Walk(Left),
         // Steven leads to the Cave of Origin; Wallace in B1F asks where Rayquaza is: Sky
@@ -1845,7 +1809,7 @@ mod list {
         Step::WaitScript,
         Step::Checkpoint("cave_of_origin"),
         // ---- Sky Pillar: back out of the cave, Surf off Sootopolis's shore and Dive out
-        // (`dive-out-sootopolis`), Routes 126-127-128-129 to Route 130; Route 131 and the
+        // (the lake's deep water, Underwater Sootopolis's tunnel), Routes 126-127-128-129 to Route 130; Route 131 and the
         // pillar are `sky-pillar-layouts` ----
         enter(MAP_CAVE_OF_ORIGIN_B1F, 9, 3, Up),
         enter(MAP_CAVE_OF_ORIGIN_1F, 11, 17, Down),
@@ -1853,7 +1817,12 @@ mod list {
         goto(MAP_SOOTOPOLIS_CITY, 22, 37),
         Step::Choose(0),
         use_(MAP_SOOTOPOLIS_CITY, 22, 37, Right),
-        Step::Bypass(&DIVE_OUT_SOOTOPOLIS),
+        goto(MAP_SOOTOPOLIS_CITY, 29, 54),
+        Step::Choose(0),
+        Step::Interact,
+        enter(MAP_UNDERWATER_SOOTOPOLIS_CITY, 9, 8, Down),
+        Step::Choose(0),
+        PRESS_B,
         cross(MAP_ROUTE126, 79, 40, Right),
         cross(MAP_ROUTE127, 30, 79, Down),
         // East of Route 128's reef (its west water is cut off from 127 and 129's south).
@@ -1862,7 +1831,11 @@ mod list {
         Step::Bypass(&SKY_PILLAR),
         Step::Expect("rayquaza_awakened"),
         Step::Bypass(&RAYQUAZA_SCENE),
-        Step::Bypass(&DIVE_SOOTOPOLIS),
+        Step::Choose(0),
+        Step::Interact,
+        enter(MAP_UNDERWATER_ROUTE126, 45, 65, Up),
+        Step::Choose(0),
+        PRESS_B,
         Step::Checkpoint("rayquaza_awakened"),
         // ---- HM07: Maxie and Archie leave, Wallace gives Waterfall ----
         goto(MAP_SOOTOPOLIS_CITY, 32, 37),
@@ -1938,7 +1911,12 @@ mod list {
         goto(MAP_SOOTOPOLIS_CITY, 34, 35),
         Step::Choose(0),
         use_(MAP_SOOTOPOLIS_CITY, 34, 35, Right),
-        Step::Bypass(&DIVE_OUT_SOOTOPOLIS),
+        goto(MAP_SOOTOPOLIS_CITY, 29, 54),
+        Step::Choose(0),
+        Step::Interact,
+        enter(MAP_UNDERWATER_SOOTOPOLIS_CITY, 9, 8, Down),
+        Step::Choose(0),
+        PRESS_B,
         cross(MAP_ROUTE126, 79, 40, Right),
         cross(MAP_ROUTE127, 30, 79, Down),
         cross(MAP_ROUTE128, 119, 30, Right),
@@ -1957,6 +1935,14 @@ mod list {
         // The Max Elixir east of the entrance: the lead's PP for Wallace.
         talk(MAP_VICTORY_ROAD_1F, 5),
         Step::WaitScript,
+        // Back out to the Center once 1F's trainers are beaten: the lead carries Dive where
+        // Earthquake was (HM08: its other moves are HMs), and Surf and Strength alone leave
+        // it too low for B1F.
+        enter(MAP_VICTORY_ROAD_1F, 15, 40, Down),
+        enter(MAP_EVER_GRANDE_CITY, 27, 48, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 41, Up),
         enter(MAP_VICTORY_ROAD_1F, 9, 14, Up),
         // B1F: Strength the boulder (4, 7) west and (9, 10) east, Rock Smash (18, 12), down
         // to B2F.

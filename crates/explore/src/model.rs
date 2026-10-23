@@ -25,6 +25,15 @@ pub struct Opts {
     /// one (the spine's `Battle(BestLearn)`); else keep the known moves.
     #[serde(default)]
     pub learn: bool,
+    /// A wild mon of this species (`SpeciesId`; 0 = none) is caught: BAG throws a ball each
+    /// turn while the bag has one (the battle scene's degraded bag); any other wild mon is run
+    /// from (the spine's `Catch`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub catch: u16,
+}
+
+fn is_zero(n: &u16) -> bool {
+    *n == 0
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
