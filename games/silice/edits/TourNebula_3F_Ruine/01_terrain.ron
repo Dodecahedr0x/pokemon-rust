@@ -1,0 +1,32 @@
+// Cells. Two islets of glass: the north one (5-11, 2-4) with the compass's desk, the south one (5-11, 9-11)
+// with the landing (8, 11). The centre walkway (8, 5-8) is broken at (8, 6-7), and so is the east one
+// (12-14, 3), whose end holds the PP Up. The detour is the corniche outside the screens (x 1, y 3-10, two
+// wide at y 7-10): from the landing west (3-4, 10), up the corniche past Ludo and gas 07 at its neck (1, 5),
+// then east (2-4, 3) to the north islet.
+// Legend (char: metatile/collision/elevation, what):
+//   A 760/1/0 wall top
+//   B 768/1/0 screen wall
+//   [ 699/1/0 burst screen, left
+//   ] 701/1/0 burst screen, right
+//   ~ 513/1/0 a hole in the glass (the void, solid)
+//   . 752/0/3 glass floor (encounters by the walk, as the source: rate 10)
+//   o 875/1/0 a pile of origami boats (decor, solid)
+//   c 752/0/3 the ledge outside the screens (the corniche)
+//   D 691/1/0 the elevator door, solid (its sign calls the hub)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "AAAAAAAAAAAAAAAAA",
+        "BBBBBBB[B]BBBBBBB",
+        "B~~~~.....o.~~~~B",
+        "Bc.............~B",
+        "Bc~~~.o.....~~~~B",
+        "Bc~~~~~~.~~~~~~~B",
+        "Bc~~~~~~~~~~~~~~B",
+        "Bcc~~~~~~~~~~~~~B",
+        "Bcc~~~~~.~~~~~~~B",
+        "Bcc~~.......~~~~B",
+        "Bcc...........~~B",
+        "B~~~~.....o.~~~~B",
+        "BBBBBBBBDBBBBBBBB",
+    ], legend: {'A': (metatile: 760, collision: 1, elevation: 0), 'B': (metatile: 768, collision: 1, elevation: 0), '[': (metatile: 699, collision: 1, elevation: 0), ']': (metatile: 701, collision: 1, elevation: 0), '~': (metatile: 513, collision: 1, elevation: 0), '.': (metatile: 752, collision: 0, elevation: 3), 'o': (metatile: 875, collision: 1, elevation: 0), 'c': (metatile: 752, collision: 0, elevation: 3), 'D': (metatile: 691, collision: 1, elevation: 0)}),
+]

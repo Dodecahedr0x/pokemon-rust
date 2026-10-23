@@ -1,0 +1,20 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_MT_CHIMNEY", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_VOLCANIC_ASH", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // NoMansLand_Cratere_OnTransition: from FLAG_SIL_LIBERATION_JULIEN sets FLAG_SIL_HIDE_CRATERE_ROCHER
+    // (the Heart's boulder goes). Moltres and Groudon follow the legendaries' contract (their hide flag
+    // cleared by their condition: Moltres from VAR_SIL_STORY 128, here in the OnTransition; Groudon by
+    // Nebula_PG_Sc03c).
+    Scripts((on_load: None, on_transition: Some("NoMansLand_Cratere_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the mat, back to the No Man's Land (its warp 1).
+    Warp(x: 7, y: 19, dest_map: "NoMansLand", dest_warp: 1),
+    // 1: Moltres on the ridge. 2: Groudon asleep in the Heart. 3: the boulder on the Heart's neck. 4: the
+    // Houndoominite on the ash ledge. 5: the cracked rock (the Scanner de Faille) over the hidden
+    // Aerodactylite.
+    Object(x: 7, y: 1, gfx: "OBJ_EVENT_GFX_WINGULL", id: "LOCALID_CRATERE_SULFURA", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Cratere_EventScript_Sulfura", flag: "FLAG_SIL_HIDE_MOLTRES"),
+    Object(x: 2, y: 8, gfx: "OBJ_EVENT_GFX_GROUDON_ASLEEP", id: "LOCALID_CRATERE_GROUDON", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Cratere_EventScript_Groudon", flag: "FLAG_SIL_HIDE_GROUDON"),
+    Object(x: 2, y: 12, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_CRATERE_ROCHER", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Cratere_EventScript_Rocher", flag: "FLAG_SIL_HIDE_CRATERE_ROCHER"),
+    Object(x: 12, y: 6, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_CRATERE_ITEM_HOUNDOOMINITE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Cratere_EventScript_ItemHoundoominite", flag: "FLAG_SIL_ITEM_PG_CRATERE_HOUNDOOMINITE"),
+    Object(x: 10, y: 15, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_CRATERE_ROCHER_FISSURE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Cratere_EventScript_RocherFissure"),
+    HiddenItem(x: 10, y: 15, item: "ITEM_SIL_AERODACTYLITE", flag: "FLAG_SIL_ITEM_PG_CRATERE_AERODACTYLITE"),
+]

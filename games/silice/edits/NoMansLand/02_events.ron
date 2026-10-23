@@ -1,0 +1,65 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ROUTE113", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // NoMansLand_OnLoad: from FLAG_SIL_LIBERATION_JULIEN, opens the bunker's trapdoor (31, 27) (metatile
+    // 609, collision 0); once FLAG_SIL_RELAIS_ETEINT is set, draws the relay's light (30, 27) off.
+    // NoMansLand_OnTransition: shows Suicune at 130, Latios from 128 (unless caught), the drone and the
+    // origami per the pardons.
+    Scripts((on_load: Some("NoMansLand_OnLoad"), on_transition: Some("NoMansLand_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-2: the Centrale's door, the Crater's mouth, the Ice Vault's mouth. Warp 3: the bunker's
+    // trapdoor (drawn over by rubble until NoMansLand_OnLoad opens it).
+    Warp(x: 13, y: 8, dest_map: "NoMansLand_Centrale", dest_warp: 0),
+    Warp(x: 46, y: 5, dest_map: "NoMansLand_Cratere", dest_warp: 0),
+    Warp(x: 53, y: 7, dest_map: "NoMansLand_CaveauGlace", dest_warp: 0),
+    Warp(x: 31, y: 27, dest_map: "NoMansLand_Relais_B1F", dest_warp: 0),
+    // Objects. 30: Poussin on a crate, facing the relay (Sc16b). 40-42: the three patches of dark soil
+    // (Sc17; each hidden by its FLAG_SIL_ECHANTILLON_n once taken). The rest from 1.
+    Object(x: 29, y: 29, gfx: "OBJ_EVENT_GFX_DRAKE", id: "LOCALID_NML_POUSSIN", local_id: 30, movement: "MOVEMENT_TYPE_FACE_UP", script: "NoMansLand_PG_Sc16b", flag: "FLAG_SIL_RELAIS_ETEINT"),
+    Object(x: 17, y: 26, gfx: "OBJ_EVENT_GFX_FOSSIL", id: "LOCALID_NML_TERRE_1", local_id: 40, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_PG_Sc17_1", flag: "FLAG_SIL_ECHANTILLON_1"),
+    Object(x: 11, y: 11, gfx: "OBJ_EVENT_GFX_FOSSIL", id: "LOCALID_NML_TERRE_2", local_id: 41, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_PG_Sc17_2", flag: "FLAG_SIL_ECHANTILLON_2"),
+    Object(x: 44, y: 7, gfx: "OBJ_EVENT_GFX_FOSSIL", id: "LOCALID_NML_TERRE_3", local_id: 42, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_PG_Sc17_3", flag: "FLAG_SIL_ECHANTILLON_3"),
+    // 1-2: gases 04 (to the Centrale) and 05 (to the Crater). 3-7: the trainers: Randonneur Marcel on the
+    // way to the Centrale, Top Dresseuse Aicha by the Oasis, Ex-Cocket Kevin before the relay, Chercheur
+    // Elias by the broken bridge, Garde Salome at the Crater's foot. 8: the steel beam (Strength) on the
+    // bridge. 9-10: cracked rocks (the Scanner de Faille). 11-13: the Tyranitarite in the relay's carcass,
+    // the Max Revive on the Oasis's north bank, the Latiosite (its item flag is set at the start, so it is
+    // hidden; Latios's capture clears it, the pickup sets it again). 14-15: Suicune on the Oasis's bank and
+    // Latios at the cliff's edge (both hidden at the start; their condition clears the flag, a capture sets
+    // it again). 16-17: the exiles' traces: Kimiko's mended drone at the Oasis and Arthur's paper boat by
+    // Latios (new hide flags, shown by NoMansLand_OnTransition).
+    Object(x: 24, y: 18, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_NML_GAZ_04", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Gaz04", flag: "FLAG_SIL_HIDE_GAZ_04"),
+    Object(x: 47, y: 18, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_NML_GAZ_05", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Gaz05", flag: "FLAG_SIL_HIDE_GAZ_05"),
+    Object(x: 21, y: 13, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_NML_MARCEL", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "NoMansLand_EventScript_Marcel", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 18, y: 33, gfx: "OBJ_EVENT_GFX_BEAUTY", id: "LOCALID_NML_AICHA", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", script: "NoMansLand_EventScript_Aicha", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 34, y: 33, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NML_KEVIN", local_id: 5, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "NoMansLand_EventScript_Kevin", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 33, y: 31, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_NML_ELIAS", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "NoMansLand_EventScript_Elias", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 44, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NML_SALOME", local_id: 7, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "NoMansLand_EventScript_Salome", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 37, y: 30, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_NML_POUTRE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Poutre"),
+    Object(x: 36, y: 51, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_NML_ROCHER_1", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Rocher"),
+    Object(x: 50, y: 12, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_NML_ROCHER_2", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Rocher"),
+    Object(x: 28, y: 27, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NML_ITEM_TYRANITARITE", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_ItemTyranitarite", flag: "FLAG_SIL_ITEM_PG_NML_TYRANITARITE"),
+    Object(x: 9, y: 23, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NML_ITEM_MAX_REVIVE", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_ItemMaxRevive", flag: "FLAG_SIL_ITEM_PG_NML_RAPPELMAX"),
+    Object(x: 53, y: 31, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NML_ITEM_LATIOSITE", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_ItemLatiosite", flag: "FLAG_SIL_ITEM_PG_NML_LATIOSITE"),
+    Object(x: 11, y: 26, gfx: "OBJ_EVENT_GFX_AZUMARILL", id: "LOCALID_NML_SUICUNE", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Suicune", flag: "FLAG_SIL_HIDE_SUICUNE"),
+    Object(x: 55, y: 30, gfx: "OBJ_EVENT_GFX_LATIOS", id: "LOCALID_NML_LATIOS", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Latios", flag: "FLAG_SIL_HIDE_LATIOS"),
+    Object(x: 6, y: 30, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_NML_DRONE", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_PG_Drone", flag: "FLAG_SIL_HIDE_NML_DRONE"),
+    Object(x: 54, y: 33, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NML_ORIGAMI", local_id: 17, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_PG_Origami", flag: "FLAG_SIL_HIDE_NML_ORIGAMI"),
+    // NoMansLand_PG_Sc16 on the corridor's row y 56, three cells past the exit (VAR_SIL_STORY 128; it
+    // returns at once once FLAG_SIL_PG_DEHORS_VU is set). NoMansLand_PG_Sc16b on row y 37, the only way into
+    // the hub (128; it returns once FLAG_SIL_RELAIS_ETEINT is set).
+    Coord(x: 28, y: 56, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16"),
+    Coord(x: 29, y: 56, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16"),
+    Coord(x: 30, y: 56, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16"),
+    Coord(x: 31, y: 56, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16"),
+    Coord(x: 28, y: 37, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16b"),
+    Coord(x: 29, y: 37, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16b"),
+    Coord(x: 30, y: 37, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16b"),
+    Coord(x: 31, y: 37, var: "VAR_SIL_STORY", value: 128, script: "NoMansLand_PG_Sc16b"),
+    // Signs: the relay's plaque ("SIEGE - LIAISON KANTO"), the plant's sign. The PP Max hidden under the cut
+    // highway's end (34, 46).
+    Sign(x: 29, y: 27, script: "NoMansLand_EventScript_Plaque"),
+    Sign(x: 12, y: 8, script: "NoMansLand_EventScript_PanneauCentrale"),
+    HiddenItem(x: 34, y: 46, item: "ITEM_PP_MAX", flag: "FLAG_SIL_ITEM_PG_NML_PPMAX"),
+    // South: the Breach (its exit (8-11, 0) meets this corridor (28-31, 59)).
+    Connect((dir: South, offset: 20, map: "Breche")),
+]

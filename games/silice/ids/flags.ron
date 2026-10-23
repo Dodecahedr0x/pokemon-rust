@@ -2370,5 +2370,25 @@
             name: "FLAG_SIL_ITEM_EVALON_MINERAI",
             num: 954,
         ),
+        (
+            name: "FLAG_SIL_HIDE_NML_DRONE",
+            num: 990,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NML_ORIGAMI",
+            num: 991,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CENTRALE_PORTE",
+            num: 992,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CAVEAU_PORTE",
+            num: 993,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CRATERE_ROCHER",
+            num: 994,
+        ),
     ],
 )

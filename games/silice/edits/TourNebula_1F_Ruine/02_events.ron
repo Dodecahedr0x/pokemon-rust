@@ -1,0 +1,22 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the elevator's landing (7, 13), where Tour_Nebula_PG_Ascenseur warps by coordinates (the
+    // source's warp(MAP_TOUR_NEBULA_1F_RUINE, 7, 13)). It is MAP_DYNAMIC until the elevator (Ch10) is on
+    // master; leaving is the door's sign.
+    Warp(x: 7, y: 13, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    // 1: Mathias by the toppled barrels (Sc12, part 1). 2: Composant A on the still (Sc12, part 2), gone
+    // once FLAG_SIL_COMPOSANT_1 is set. 3: gas 06. 4: Ex-Cocket Gus, between the barrels. 5-6: barrels B1
+    // and B2 (Strength). 7: Entei, asleep by the still's fire once Julien frees it (hidden until
+    // Nebula_PG_Sc03c clears FLAG_SIL_HIDE_ENTEI; a capture sets it again).
+    Object(x: 12, y: 11, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_RUINE1_MATHIAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_1F_Ruine_PG_Sc12"),
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_RUINE1_COMPOSANT", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_PG_Sc12_Composant", flag: "FLAG_SIL_COMPOSANT_1"),
+    Object(x: 7, y: 4, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_RUINE1_GAZ", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Gaz06", flag: "FLAG_SIL_HIDE_GAZ_06"),
+    Object(x: 4, y: 8, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_RUINE1_GUS", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Gus", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 10, y: 8, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_RUINE1_FUT_1", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Fut"),
+    Object(x: 7, y: 10, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_RUINE1_FUT_2", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Fut"),
+    Object(x: 6, y: 2, gfx: "OBJ_EVENT_GFX_POOCHYENA", id: "LOCALID_RUINE1_ENTEI", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Entei", flag: "FLAG_SIL_HIDE_ENTEI"),
+    // The Rhum Pirate hidden in the one intact barrel (12, 9), read from (12, 10). The elevator door's sign.
+    HiddenItem(x: 12, y: 9, item: "ITEM_SIL_RHUM_PIRATE", flag: "FLAG_SIL_ITEM_PG_RUINE1_RHUM"),
+    Sign(x: 7, y: 14, script: "TourNebula_1F_Ruine_EventScript_Ascenseur"),
+]

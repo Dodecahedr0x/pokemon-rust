@@ -1,0 +1,4 @@
+// Silice Ch12, MAP_TOUR_NEBULA_3F_RUINE: the Horizon Virtuel, its glass platform split and its screens burst
+// (17 x 13, the source's size). General + Facility, the Tower's 3F pair (Ch10): the Space Center's screen
+// walls and floor; the holes in the glass are the void (513, solid). Out-of-map border: the void.
+(name: "TourNebula_3F_Ruine", width: 17, height: 13, primary: "General", secondary: "Facility", fill: 752, fill_collision: 0, fill_elevation: 3, border: [1025, 1025, 1025, 1025])

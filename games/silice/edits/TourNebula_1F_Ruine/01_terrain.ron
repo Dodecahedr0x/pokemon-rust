@@ -1,0 +1,40 @@
+// Cells. The cellar is a barrel maze. The still (6-8, 1) closes the north chamber (5-9, 2-3), whose only way
+// in is the neck (7, 4), held by gas 06. The neck is reached only by the back aisle (7-10, 5) and (10, 6-7),
+// which opens on the centre aisle only through barrel B1 (10, 8), and the centre aisle (7-9, 8), (7, 9) only
+// through barrel B2 (7, 10). B2 is pushed east from (6, 10) into its niche (8, 10); then B1 is pushed east
+// from (9, 8) into its niche (11, 8): the source's two barrels to push before the centre aisle opens.
+// Neither barrel can be pushed any other way before that, so no push strands the player. The barrels are
+// Strength boulders (objects 5 and 6) and come back on reload.
+// Legend (char: metatile/collision/elevation, what):
+//   q 566/1/0 wall, top-left corner
+//   a 551/1/0 wall top
+//   Q 567/1/0 wall, top-right corner
+//   L 574/1/0 wall, left
+//   b 559/1/0 wall face
+//   c 565/1/0 the still (Mathias's alembic), solid
+//   R 575/1/0 wall, right
+//   f 610/1/0 barrel stack, solid
+//   s 571/0/3 floor in the wall's shadow
+//   . 568/0/3 plank floor (encounters)
+//   ^ 570/0/3 sticky floor, spilt rum (decor)
+//   o 609/0/3 loose staves (decor, walkable)
+//   D 555/1/0 the elevator door, solid (its sign calls the hub)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "qaaaaaaaaaaaaaQ",
+        "LbbbbbcccbbbbbR",
+        "LffffsssssffffR",
+        "Lffff.....ffffR",
+        "Lffffff.ffffffR",
+        "Lffffff....fffR",
+        "Lfffffffff.fffR",
+        "Lfffffffff.fffR",
+        "Lfff.ff.....ffR",
+        "L....^f.fffff.R",
+        "L.....o..f....R",
+        "L.^...fff..^..R",
+        "L.....^.....o.R",
+        "L.............R",
+        "LbbbbbbDbbbbbbR",
+    ], legend: {'q': (metatile: 566, collision: 1, elevation: 0), 'a': (metatile: 551, collision: 1, elevation: 0), 'Q': (metatile: 567, collision: 1, elevation: 0), 'L': (metatile: 574, collision: 1, elevation: 0), 'b': (metatile: 559, collision: 1, elevation: 0), 'c': (metatile: 565, collision: 1, elevation: 0), 'R': (metatile: 575, collision: 1, elevation: 0), 'f': (metatile: 610, collision: 1, elevation: 0), 's': (metatile: 571, collision: 0, elevation: 3), '.': (metatile: 568, collision: 0, elevation: 3), '^': (metatile: 570, collision: 0, elevation: 3), 'o': (metatile: 609, collision: 0, elevation: 3), 'D': (metatile: 555, collision: 1, elevation: 0)}),
+]
