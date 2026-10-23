@@ -213,13 +213,18 @@ fn dir_of(d: ConnectionDir) -> Option<&'static str> {
 /// Where a new game starts: outside the player's house in Littleroot (in front of the warp
 /// leading to `LittlerootTown_BrendansHouse_1F`), else the middle of the first map. An authored
 /// game's start is its own (`AuthoredIn::start`).
-fn new_game(w: &World) -> Result<(u16, i16, i16)> {
+fn new_game(w: &World) -> Result<(u16, i16, i16, &'static str)> {
     if let Some(s) = &w.authored {
-        let (name, x, y) = &s.start;
+        let (name, x, y, facing) = &s.start;
         let m = (w.maps.iter().find(|m| &m.name == name))
             .with_context(|| format!("the new game's map {name} is not loaded"))?;
-        return Ok((u16::from(m.group) << 8 | u16::from(m.num), *x, *y));
+        return Ok((u16::from(m.group) << 8 | u16::from(m.num), *x, *y, facing));
     }
+    new_game_cell(w).map(|(m, x, y)| (m, x, y, "Dir::Down"))
+}
+
+/// Emerald's (and the stub's) start cell; they face down.
+fn new_game_cell(w: &World) -> Result<(u16, i16, i16)> {
     if let Some(m) = w.maps.iter().find(|m| m.name == "LittlerootTown")
         && let Some(warp) = m
             .warps
@@ -245,7 +250,14 @@ fn new_game(w: &World) -> Result<(u16, i16, i16)> {
     ))
 }
 
-fn ui_texts(lang: Lang) -> Result<[(&'static str, Vec<u8>); 4]> {
+/// The player's default name: the authored game's, else Emerald's fixed SACHA.
+fn player_name(w: &World) -> &str {
+    w.authored
+        .as_ref()
+        .map_or("SACHA", |a| a.player_name.as_str())
+}
+
+fn ui_texts(lang: Lang, player_name: &str) -> Result<[(&'static str, Vec<u8>); 4]> {
     // Gen3 `gText_Yes`/`gText_No`, the default rival name (May: FLORA in French) and the
     // fixed player name.
     let (yes, no, rival) = match lang {
@@ -256,7 +268,7 @@ fn ui_texts(lang: Lang) -> Result<[(&'static str, Vec<u8>); 4]> {
         ("UI_YES", encode_lang(yes, lang)?),
         ("UI_NO", encode_lang(no, lang)?),
         ("UI_RIVAL_NAME", encode_lang(rival, lang)?),
-        ("PLAYER_NAME", encode_lang("SACHA", lang)?),
+        ("PLAYER_NAME", encode_lang(player_name, lang)?),
     ])
 }
 
@@ -593,7 +605,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// sha1 of the ROM the data was extracted from (empty for the stub).\npub const SOURCE_SHA1: &str = \"{}\";",
         w.sha1
     )?;
-    for (name, b) in ui_texts(w.lang)? {
+    for (name, b) in ui_texts(w.lang, player_name(w))? {
         writeln!(o, "pub static {name}: &[u8] = {};", bytes_lit(&b))?;
     }
 
@@ -610,10 +622,10 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         }
     }
     o.push_str("];\n");
-    let (map, x, y) = new_game(w)?;
+    let (map, x, y, facing) = new_game(w)?;
     writeln!(
         o,
-        "pub const NEW_GAME: (MapId, i16, i16) = (MapId({map:#X}), {x}, {y});"
+        "pub const NEW_GAME: (MapId, i16, i16, Dir) = (MapId({map:#X}), {x}, {y}, {facing});"
     )?;
 
     // ---- names for logs ----
@@ -647,6 +659,10 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         o,
         "/// The battle tables, items and other tables, texts, the behavior table, the prelude and\n/// every non-generated content source (`build/codegen.rs`, `global_digest`).\npub const GLOBAL_DIGEST: u64 = {global_digest:#018x};"
     )?;
+    // An authored game's own tables (`AuthoredIn::data_rs`).
+    if let Some(a) = &w.authored {
+        o.push_str(&a.data_rs);
+    }
     o.push_str(&blob.static_decl("data.bin"));
     writeln!(
         report,
@@ -981,11 +997,17 @@ pub fn global_digest(w: &World, sources: u64, battle_rs: &str, battle_bin: &[u8]
     h.file("font.widths", &w.widths);
     h.file("window", extract::export::to_ron(&w.window)?.as_bytes());
     h.file("window.tiles", &tiles(&w.window_tiles));
-    for (name, b) in ui_texts(w.lang)? {
+    for (name, b) in ui_texts(w.lang, player_name(w))? {
         h.file(name, &b);
     }
-    let (map, x, y) = new_game(w)?;
-    h.file("new_game", format!("{map} {x} {y}").as_bytes());
+    // Emerald's new game faces down: its digest input stays as it was before the facing.
+    let (map, x, y, facing) = new_game(w)?;
+    let facing = if facing == "Dir::Down" {
+        String::new()
+    } else {
+        format!(" {facing}")
+    };
+    h.file("new_game", format!("{map} {x} {y}{facing}").as_bytes());
     h.file("battle.rs", battle_rs.as_bytes());
     h.file("battle.bin", battle_bin);
     for (k, v) in &w.texts {

@@ -116,7 +116,7 @@ fn main() {
             ));
         }
         silice_scripts = Some(
-            silice::dispatch::generate(&s.registry, &s.unwritten)
+            silice::dispatch::generate(&s.registry, &s.unwritten, &s.report)
                 .unwrap_or_else(|e| panic!("generating the Silice scripts: {e:#}")),
         );
         s.world

@@ -172,8 +172,12 @@ fn get(m: &BTreeMap<&str, u16>, name: &str) -> Result<u16> {
         .with_context(|| format!("unknown {name}"))
 }
 
-/// Gen3 map number of a map name: an exported map, else the names table.
+/// Gen3 map number of a map name: an exported map, else the names table (an authored game's
+/// own numbers instead: `AuthoredIn::map_numbers`).
 fn map_number(w: &World, name: &str) -> Option<u16> {
+    if let Some(a) = &w.authored {
+        return a.map_numbers.get(name).copied();
+    }
     if let Some(m) = w.maps.iter().find(|m| m.name == name) {
         return Some(u16::from(m.group) << 8 | u16::from(m.num));
     }
@@ -245,6 +249,8 @@ struct Gen<'a> {
     trainer_ids: Vec<u16>,
     /// Trainers left out: no front pic, or an empty party.
     skipped_trainers: Vec<String>,
+    /// The flavour's battle switches (`AuthoredIn::rules`, else Emerald's).
+    rules: classify::Rules,
 }
 
 impl Gen<'_> {
@@ -305,7 +311,7 @@ impl Gen<'_> {
                 None => "None".into(),
             };
             let abilities = s.abilities.each_ref().map(|a| {
-                let v = classify::ability(a);
+                let v = classify::ability_with(a, self.rules);
                 if v == "Ability::Other" && a != "ABILITY_NONE" {
                     *self.unsupported_abilities.entry(a.clone()).or_default() += 1;
                 }
@@ -478,7 +484,7 @@ impl Gen<'_> {
                     None => "None".into(),
                 };
                 let item = match &m.item {
-                    Some(name) if classify::TRAINER_HELD_ITEMS && name != "ITEM_NONE" => {
+                    Some(name) if self.rules.trainer_held_items && name != "ITEM_NONE" => {
                         let v = names::ITEMS
                             .value(name)
                             .with_context(|| format!("{}: unknown item {name}", t.id))?;
@@ -536,6 +542,12 @@ impl Gen<'_> {
         for (v, name) in names::ITEMS.iter() {
             if let Some(e) = classify::hold_effect(name) {
                 writeln!(hold_arms, "        {v} => Some({e}), // {name}")?;
+            }
+        }
+        // An authored game's items take their base item's effect.
+        for (v, base) in self.w.authored.iter().flat_map(|a| &a.item_bases) {
+            if let Some(e) = classify::hold_effect(base) {
+                writeln!(hold_arms, "        {v} => Some({e}), // as {base}")?;
             }
         }
         writeln!(
@@ -759,7 +771,7 @@ impl Gen<'_> {
             "static STAT_NAMES: [&[u8]; 8] = [{}];",
             sn.join(", ")
         )?;
-        let named = named_abilities();
+        let named = named_abilities(self.rules);
         ensure!(
             b.types.ability_names.len() == names::ABILITIES.iter().count(),
             "{} ability names, expected one per ABILITY_*",
@@ -805,7 +817,7 @@ impl Gen<'_> {
                     all.extend((0..8).map(|i| format!("Str::StatName(Stat::ALL[{i}])")))
                 }
                 StrSrc::AbilityNames => all.extend(
-                    named_abilities()
+                    named_abilities(self.rules)
                         .iter()
                         .map(|(expr, _)| format!("Str::AbilityName({expr})")),
                 ),
@@ -936,8 +948,13 @@ impl Gen<'_> {
         for (n, i) in &self.move_no {
             consts.push((n.to_string(), "MoveId", format!("MoveId({i})")));
         }
+        // An authored game's trainers are named by its ids (`AuthoredIn::consts`, live ids
+        // only); of the list, only the Gen3 names (`TRAINER_NONE`).
+        let authored = self.w.authored.is_some();
         for (n, i) in &self.trainer_no {
-            consts.push((n.to_string(), "TrainerId", format!("TrainerId({i})")));
+            if !authored || names::TRAINERS.value(n).is_some() {
+                consts.push((n.to_string(), "TrainerId", format!("TrainerId({i})")));
+            }
         }
         for (v, n) in names::HEAL_LOCATIONS.iter() {
             consts.push((n.to_string(), "u8", format!("{v}")));
@@ -960,10 +977,11 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
             &names::MOVES,
             b.stub,
         )?,
+        // An authored game numbers its own trainers (`TRAINER_SIL_*`, by index).
         trainer_no: numbered(
             b.trainers.iter().map(|t| t.id.as_str()),
             &names::TRAINERS,
-            b.stub,
+            b.stub || w.authored.is_some(),
         )?,
         blob: BlobOut::new("BLOB"),
         o: String::from(
@@ -973,6 +991,10 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
         unsupported_abilities: BTreeMap::new(),
         trainer_ids: Vec::new(),
         skipped_trainers: Vec::new(),
+        rules: w
+            .authored
+            .as_ref()
+            .map_or(classify::Rules::EMERALD, |a| a.rules),
     };
     g.gen_species()?;
     g.gen_moves()?;
@@ -1042,12 +1064,12 @@ fn move_info(m: &Move, effect: &str, lang: Lang) -> Result<String> {
     ))
 }
 
-/// Every `Ability` with a name (all but `Ability::Other`) and its `ABILITY_*` value, in
-/// `ABILITY_*` order.
-fn named_abilities() -> Vec<(&'static str, u32)> {
+/// Every `Ability` with a name under `rules` (all but `Ability::Other`) and its `ABILITY_*`
+/// value, in `ABILITY_*` order.
+fn named_abilities(rules: classify::Rules) -> Vec<(&'static str, u32)> {
     names::ABILITIES
         .iter()
-        .map(|(v, n)| (classify::ability(n), v))
+        .map(|(v, n)| (classify::ability_with(n, rules), v))
         .filter(|(expr, _)| *expr != "Ability::Other")
         .collect()
 }
