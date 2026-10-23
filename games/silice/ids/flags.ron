@@ -2118,5 +2118,73 @@
             name: "FLAG_SIL_HIDE_VIBER_TAUBER",
             num: 803,
         ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_A",
+            num: 860,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B",
+            num: 861,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A",
+            num: 862,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B",
+            num: 863,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU",
+            num: 864,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE",
+            num: 865,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME",
+            num: 866,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU",
+            num: 867,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE",
+            num: 868,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE",
+            num: 869,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES",
+            num: 870,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_MILO",
+            num: 871,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SBIRE_EST",
+            num: 872,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE",
+            num: 873,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
+            num: 874,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
+            num: 875,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
+            num: 876,
+        ),
     ],
 )

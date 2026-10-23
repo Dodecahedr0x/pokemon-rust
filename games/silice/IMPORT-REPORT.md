@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 529
+- ids/flags: 546
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -218,6 +218,23 @@
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_GWADA
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_WATTOUAT
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_LAINERGIE
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_EST
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MILO
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_A
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_ADRIEN
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_GWADA
 - maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_ROMAIN
