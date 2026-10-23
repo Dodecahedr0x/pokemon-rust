@@ -235,6 +235,7 @@ impl World {
                 coins: w.coins,
                 registered_item: w.registered_item,
                 fx: ScreenFx::default(),
+                field_effects: super::host::FieldEffects::default(),
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,

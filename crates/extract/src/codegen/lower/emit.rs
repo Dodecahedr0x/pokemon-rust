@@ -770,6 +770,29 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.door({x}, {y}, {}).await;", op == "opendoor"));
             }
             ("waitdooranim", _) => out.push("ctx.wait_door().await;".to_string()),
+            // Wave C: field effects (`prelude::field`) and `copyobjectxytoperm`.
+            ("dofieldeffect" | "waitfieldeffect", [id]) => {
+                let Some(id) = u16_expr(id, true) else {
+                    return Ok(false);
+                };
+                out.push(if op == "dofieldeffect" {
+                    format!("field_effect(&ctx, {id}).await;")
+                } else {
+                    format!("ctx.wait_field_effect({id}).await;")
+                });
+            }
+            ("setfieldeffectargument", [n, v]) => {
+                let (Some(n), Some(v)) = (u8_lit(n), u16_expr(v, true)) else {
+                    return Ok(false);
+                };
+                out.push(format!("field_effect_arg(&ctx, {n}, {v}).await;"));
+            }
+            ("copyobjectxytoperm", [id]) => {
+                let Some(id) = local_id(id) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.copy_object_pos_to_template({id}).await;"));
+            }
             ("setwildbattle", [s, level, _item]) => {
                 let (Some(s), Some(level)) = (species_arg(s, false), u8_lit(level)) else {
                     return Ok(false);

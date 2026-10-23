@@ -9,9 +9,11 @@
 //! waits ([`fx`], R), party, money and coins ([`party`], R) and the save ([`save`], S). After
 //! Milestone 9 Wave 0 no task edits this file.
 
+pub(in crate::world) use field::FieldEffects;
 pub(in crate::world) use fx::whiteout_allowed;
 
 mod buffers;
+mod field;
 mod fx;
 mod items;
 mod menu;
@@ -88,6 +90,7 @@ impl<G: GameData> Host<'_, G> {
             Request::Warp { .. } | Request::WarpHole(_) => false,
             Request::Multichoice { .. } => menu::done(self, r),
             Request::TrainerApproach { .. } => trainer::done(self, r),
+            Request::WaitFieldEffect(_) => field::done(self, r),
             _ => true,
         }
     }
@@ -383,6 +386,10 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::AddFriendship { .. }
             | Request::PartyMonSpecies(_)
             | Request::InGameTrade { .. } => party::begin(self, r),
+            Request::FieldEffectArg { .. }
+            | Request::FieldEffect { .. }
+            | Request::WaitFieldEffect(_)
+            | Request::CopyObjectPosToTemplate(_) => field::begin(self, r),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

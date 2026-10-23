@@ -1248,6 +1248,10 @@ mod lowering {
                 vec![c("SPECIES_ZIGZAGOON"), Byte(2), c("ITEM_NONE")],
             ),
             i("dowildbattle", vec![]),
+            i("setfieldeffectargument", vec![Byte(0), v("VAR_RESULT")]),
+            i("dofieldeffect", vec![Half(25)]),
+            i("waitfieldeffect", vec![Half(25)]),
+            i("copyobjectxytoperm", vec![Half(2)]),
             i("goto_if", vec![Byte(5), s("N_Tail")]),
             i("gotostd_if", vec![Byte(0), c("STD_OBTAIN_ITEM")]),
             i("call", vec![s("N_Sub")]),
@@ -1358,6 +1362,10 @@ mod lowering {
             "ctx.set_metatile(3, 4, 513, true).await;",
             "ctx.door(ctx.var(VAR_0x8004).await as i16, 4, false).await;",
             "wild = Some((SPECIES_ZIGZAGOON, 2));",
+            "field_effect_arg(&ctx, 0, ctx.var(VAR_RESULT).await).await;",
+            "field_effect(&ctx, 25).await;",
+            "ctx.wait_field_effect(25).await;",
+            "ctx.copy_object_pos_to_template(2).await;",
             "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }",
             "return Flow::Continue;",
         ] {
@@ -1641,7 +1649,7 @@ mod lowering {
     }
 
     /// The `content::prelude` modules holding Wave 0's Milestone 8 helpers, copied as they are.
-    const M8_HELPER_MODULES: [&str; 4] = ["items", "menu", "text", "trainer"];
+    const M8_HELPER_MODULES: [&str; 5] = ["field", "items", "menu", "text", "trainer"];
 
     /// The Milestone 8 prelude over the engine: its types, and Wave 0's helper modules
     /// ([`M8_HELPER_MODULES`]) and `set_warp` (appended by `compile_lowered`).
@@ -1650,11 +1658,13 @@ pub use engine::battle::BattleOutcome;
 pub use engine::data::{ItemId, MoveId, ScriptId};
 pub use engine::script::{BufferSrc, Report, WarpSlot};
 
+mod field;
 mod items;
 mod menu;
 mod text;
 mod trainer;
 
+pub use field::*;
 pub use items::*;
 pub use menu::*;
 pub use text::*;

@@ -242,6 +242,8 @@ pub(crate) struct State {
     pub(crate) registered_item: Option<ItemId>,
     /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
     pub(crate) fx: ScreenFx,
+    /// Running field effects and their arguments (Wave C; not snapshotted, not hashed).
+    pub(in crate::world) field_effects: host::FieldEffects,
     // Tool-facing, neither hashed nor snapshotted:
     /// This step's events (cleared at the start of `step`, except the first step of a new
     /// world, which keeps `World::new`'s), at most [`EVENTS_MAX`].
@@ -394,6 +396,7 @@ impl World {
                 coins: 0,
                 registered_item: None,
                 fx: ScreenFx::default(),
+                field_effects: host::FieldEffects::default(),
                 events: Vec::with_capacity(EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -470,6 +473,7 @@ impl World {
         if s.door > 0 {
             s.door -= 1;
         }
+        s.field_effects.tick();
         draw_field(game, s, f);
     }
 

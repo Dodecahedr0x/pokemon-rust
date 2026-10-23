@@ -201,6 +201,10 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "waitdooranim",
     "setwildbattle",
     "dowildbattle",
+    "dofieldeffect",
+    "waitfieldeffect",
+    "setfieldeffectargument",
+    "copyobjectxytoperm",
 ];
 
 /// Commands after which execution never reaches the next instruction.

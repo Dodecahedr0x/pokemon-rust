@@ -399,6 +399,25 @@ pub enum Request {
     /// the cell they stand on. Never answered, as `Warp`; logged and answered at once when there
     /// is no such map.
     WarpHole(Option<MapId>),
+    // ---- Wave C: field effects and object commands (`world/host/field.rs`) ----
+    /// Gen3 `setfieldeffectargument`: `gFieldEffectArguments[n] = value` (n < 8).
+    FieldEffectArg {
+        n: u8,
+        value: i16,
+    },
+    /// Gen3 `dofieldeffect` (`FieldEffectStart`): field effect `id` is active for `frames`
+    /// frames (the content gives the Gen3 length of each effect; 0 starts nothing). Answers at
+    /// once, as Gen3 does.
+    FieldEffect {
+        id: u16,
+        frames: u16,
+    },
+    /// Gen3 `waitfieldeffect`: until field effect `id` is no longer active
+    /// (`FieldEffectActiveListContains`).
+    WaitFieldEffect(u16),
+    /// Gen3 `copyobjectxytoperm` (`TryOverrideTemplateCoordsForObjectEvent`): the object's
+    /// template takes its current cell for the rest of the map visit.
+    CopyObjectPosToTemplate(u8),
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -580,6 +599,11 @@ impl Request {
             Request::InGameTrade { slot, trade } => (71, slot as u16, trade as u16, 0, 0),
             // Tag 120: clear of the Milestone 9 requests' 56 and up.
             Request::WarpHole(map) => (120, map.map_or(0xFFFF, |m| m.0), 0, 0, 0),
+            // Wave C field effects and object commands: tags 140 and up.
+            Request::FieldEffectArg { n, value } => (140, n as u16, value as u16, 0, 0),
+            Request::FieldEffect { id, frames } => (141, id, frames, 0, 0),
+            Request::WaitFieldEffect(id) => (142, id, 0, 0, 0),
+            Request::CopyObjectPosToTemplate(obj) => (143, obj as u16, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -878,6 +902,26 @@ impl Ctx {
 
     pub fn set_object_template_pos(&self, obj: u8, x: i16, y: i16) -> Req<()> {
         self.req(Request::SetObjectTemplatePos { obj, x, y }, unit)
+    }
+
+    /// Gen3 `copyobjectxytoperm` (see [`Request::CopyObjectPosToTemplate`]).
+    pub fn copy_object_pos_to_template(&self, obj: u8) -> Req<()> {
+        self.req(Request::CopyObjectPosToTemplate(obj), unit)
+    }
+
+    /// Gen3 `setfieldeffectargument` (see [`Request::FieldEffectArg`]).
+    pub fn field_effect_arg(&self, n: u8, value: i16) -> Req<()> {
+        self.req(Request::FieldEffectArg { n, value }, unit)
+    }
+
+    /// Gen3 `dofieldeffect` (see [`Request::FieldEffect`]).
+    pub fn field_effect(&self, id: u16, frames: u16) -> Req<()> {
+        self.req(Request::FieldEffect { id, frames }, unit)
+    }
+
+    /// Gen3 `waitfieldeffect` (see [`Request::WaitFieldEffect`]).
+    pub fn wait_field_effect(&self, id: u16) -> Req<()> {
+        self.req(Request::WaitFieldEffect(id), unit)
     }
 
     pub fn door(&self, x: i16, y: i16, open: bool) -> Req<()> {
