@@ -1,0 +1,18 @@
+// Made with the Ch4 scripts.
+// - The two hidden items become signs running a script (the engine ignores BgKind::HiddenItem:
+//   the SIL1 Task F fallback). Restore with:
+//     HiddenItem(x: 4, y: 15, item: "ITEM_WATER_STONE", flag: "FLAG_SIL_ITEM_PORT_PIERRE_EAU"),
+//     HiddenItem(x: 16, y: 17, item: "ITEM_PEARL", flag: "FLAG_SIL_ITEM_PORT_PERLE"),
+// - A second on-frame entry: VAR_SIL_PORT_RESSAC_STATE 9 marks Samuel's battle as running
+//   (ch04_gym.rs). A loss whites out to the Taverne's door, and this entry plays the source's
+//   defeat branch (R-7) there.
+[
+    Delete(kind: Bg, index: 6),
+    Delete(kind: Bg, index: 5),
+    Sign(x: 4, y: 15, script: "PortRessac_EventScript_HiddenPierreEau"),
+    Sign(x: 16, y: 17, script: "PortRessac_EventScript_HiddenPerle"),
+    ScriptsSet(on_frame: [
+        (var: "VAR_SIL_STORY", value: 41, script: "PortRessac_Sc01"),
+        (var: "VAR_SIL_PORT_RESSAC_STATE", value: 9, script: "PortRessac_EventScript_SamuelPerdu"),
+    ]),
+]

@@ -635,18 +635,18 @@
             x: 4,
             y: 15,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_WATER_STONE",
-                flag: "FLAG_SIL_ITEM_PORT_PIERRE_EAU",
+            kind: Script(
+                facing: 0,
+                script: Some("PortRessac_EventScript_HiddenPierreEau"),
             ),
         ),
         (
             x: 16,
             y: 17,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_PEARL",
-                flag: "FLAG_SIL_ITEM_PORT_PERLE",
+            kind: Script(
+                facing: 0,
+                script: Some("PortRessac_EventScript_HiddenPerle"),
             ),
         ),
     ],
@@ -668,6 +668,11 @@
                 var: "VAR_SIL_STORY",
                 value: 41,
                 script: "PortRessac_Sc01",
+            ),
+            (
+                var: "VAR_SIL_PORT_RESSAC_STATE",
+                value: 9,
+                script: "PortRessac_EventScript_SamuelPerdu",
             ),
         ],
         on_warp_into: [],
