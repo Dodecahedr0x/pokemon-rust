@@ -108,7 +108,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Message(t) if !self.immediate => {
-                s.text.print(game, game.text(t), &s.player_name, self.f);
+                let vars = Some(&s.str_vars);
+                (s.text).print_vars(game, game.text(t), &s.player_name, vars, self.f);
                 UNIT
             }
             Request::CloseMessage => {
@@ -180,17 +181,12 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::SetMovementType { obj, movement } => {
-                if let Some(t) = s.template_mut(obj) {
-                    t.movement = movement;
-                }
+                s.edit_template(obj, |t| t.movement = movement);
                 s.objects.set_movement_type(obj, movement);
                 UNIT
             }
             Request::SetObjectTemplatePos { obj, x, y } => {
-                if let Some(t) = s.template_mut(obj) {
-                    t.x = x;
-                    t.y = y;
-                }
+                s.edit_template(obj, |t| (t.x, t.y) = (x, y));
                 UNIT
             }
             Request::Delay(0) => UNIT,

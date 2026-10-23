@@ -21,7 +21,7 @@
     "MOVEMENT_ACTION_JUMP_IN_PLACE_LEFT_RIGHT": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_RIGHT"]),// jump in place, ends facing the second direction
     "MOVEMENT_ACTION_JUMP_IN_PLACE_RIGHT_LEFT": As(["MOVEMENT_ACTION_JUMP_IN_PLACE_LEFT"]),// jump in place, ends facing the second direction
     "MOVEMENT_ACTION_FACE_ORIGINAL_DIRECTION": Skip,                // approximation: keeps the current facing instead of turning back to the template's
-    "MOVEMENT_ACTION_NURSE_JOY_BOW_DOWN": Delay(32),                // bow animation
+    "MOVEMENT_ACTION_NURSE_JOY_BOW_DOWN": Delay(48),                // bow animation (sAnim_NurseBow: 8+32+8 frames)
     "MOVEMENT_ACTION_ENABLE_JUMP_LANDING_GROUND_EFFECT": Skip,      // ground effect not drawn
     "MOVEMENT_ACTION_DISABLE_JUMP_LANDING_GROUND_EFFECT": Skip,     // ground effect not drawn
     "MOVEMENT_ACTION_DISABLE_ANIMATION": Skip,                      // animation only

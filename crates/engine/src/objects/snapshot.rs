@@ -8,6 +8,10 @@ use crate::checkpoint::{
 };
 use crate::script::Speed;
 
+/// `IdleSnap` has no variant for a walk sequence's index (`Idle::Seq`, Milestone 8), so it is
+/// stored as `IdleSnap::Wait(SEQ_SNAP | n)`: no movement delay comes near (Gen3's longest is 192).
+const SEQ_SNAP: u16 = 0xFF00;
+
 /// Checks an action from an untrusted snapshot against what `Object::begin` and `tick` can
 /// leave between frames, so stepping it cannot panic: `t` frames played (at least the first,
 /// and fewer than the action lasts), an offset back along `dir` that the action can have, and
@@ -62,8 +66,12 @@ impl Objects {
 
     /// Checks a snapshot from an untrusted source (forged, or another engine build) so that
     /// restoring and stepping it cannot panic: every action and animation is one the live
-    /// objects can be in between frames.
+    /// objects can be in between frames, and there are no more than Gen3's
+    /// `OBJECT_EVENTS_COUNT` objects (the player included).
     pub(crate) fn check_snapshot(s: &ObjectsSnap) -> Result<(), &'static str> {
+        if s.objs.len() > super::spawn::OBJECT_EVENTS_COUNT {
+            return Err("more objects than OBJECT_EVENTS_COUNT");
+        }
         for o in &s.objs {
             if let Some(a) = &o.action {
                 check_action(a)?;
@@ -84,15 +92,20 @@ impl Objects {
                 RunStateSnap::Moving => RunState::Moving,
             },
             banks: [None; 16],
+            emotes: alloc::vec::Vec::new(),
+            approach: None,
         }
     }
 
-    /// First object (local id) with a live movement script.
+    /// First object (local id) with a live movement script, else the one a trainer approach or
+    /// an emote bubble is about (neither is captured either).
     pub fn any_moves(&self) -> Option<u8> {
         self.objs
             .iter()
             .find(|o| o.moves.is_some())
             .map(|o| o.local_id)
+            .or_else(|| self.approaching())
+            .or_else(|| self.emotes.first().map(|e| e.local_id))
     }
 }
 
@@ -129,6 +142,7 @@ impl Object {
                 Idle::Start => IdleSnap::Start,
                 Idle::Wait(n) => IdleSnap::Wait(n),
                 Idle::Done => IdleSnap::Done,
+                Idle::Seq(n) => IdleSnap::Wait(SEQ_SNAP | n as u16),
             },
             anim: self.anim.snapshot(),
         }
@@ -145,6 +159,7 @@ impl Object {
             elevation: s.elevation,
             facing: s.facing,
             movement: s.movement,
+            code: super::movement_code(s.movement),
             home: s.home,
             range: s.range,
             visible: s.visible,
@@ -166,6 +181,7 @@ impl Object {
             moves: None,
             idle: match s.idle {
                 IdleSnap::Start => Idle::Start,
+                IdleSnap::Wait(n) if n & SEQ_SNAP == SEQ_SNAP => Idle::Seq(n as u8),
                 IdleSnap::Wait(n) => Idle::Wait(n),
                 IdleSnap::Done => Idle::Done,
             },

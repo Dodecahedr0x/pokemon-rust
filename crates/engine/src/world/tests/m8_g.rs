@@ -429,3 +429,40 @@ fn a_double_battle_runs_as_singles_and_is_reported() {
     g.mash(20_000, |w| !w.script_running());
     assert!(g.reports().is_empty());
 }
+
+#[test]
+fn the_battle_return_stays_black_while_the_field_uploads() {
+    // Milestone 8 Task F: the field is restored with its uploads spread over frames
+    // (`Field::restore_spread`); the screen stays black until the upload is done, then fades.
+    let mut g = G::new();
+    start(&mut g.w, |ctx| {
+        Box::pin(async move {
+            ctx.give_mon(WATER, 30).await;
+            ctx.battle_trainer(TRAINER, TextId(0)).await;
+        })
+    });
+    let mut restoring = 0;
+    for n in 0..20_000 {
+        if !g.w.script_running() {
+            break;
+        }
+        let keys = if n % 2 == 0 {
+            Buttons::A
+        } else {
+            Buttons::NONE
+        };
+        let f = g.w.step(&GGame, keys);
+        f.validate().unwrap();
+        match g.w.battle().map(|b| b.0) {
+            Some(Stage::Restoring) => {
+                restoring += 1;
+                assert_eq!(f.brightness, crate::flow::FADE_MAX, "black while uploading");
+                assert!(g.w.s.field.uploading());
+            }
+            Some(Stage::Returning) => assert!(!g.w.s.field.uploading()),
+            _ => {}
+        }
+    }
+    assert!(!g.w.script_running());
+    assert!(restoring > 0, "the upload is spread over frames");
+}

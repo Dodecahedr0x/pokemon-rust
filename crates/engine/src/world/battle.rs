@@ -109,8 +109,10 @@ pub enum Stage {
     Transition,
     Loading,
     Running,
-    /// The field is restored on this (black) frame.
+    /// The field is restored on this (black) frame, its uploads spread over the next frames.
     Leaving,
+    /// Black while the field's spread upload runs (one `set_camera` a frame).
+    Restoring,
     /// Black frames shown so far before the whiteout warp.
     Whiteout(u8),
     /// The field fades in.
@@ -126,6 +128,7 @@ impl Stage {
             Stage::Leaving => [3, 0],
             Stage::Whiteout(n) => [4, n],
             Stage::Returning => [5, 0],
+            Stage::Restoring => [6, 0],
         }
     }
 }
@@ -470,6 +473,16 @@ fn restore_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
     s.text.close(f);
 }
 
+/// [`restore_field`] with the tilesets and view uploaded over the next frames
+/// ([`crate::field::Field::restore_spread`]); the caller keeps the screen black while
+/// [`crate::field::Field::uploading`] (Milestone 8 Task F).
+fn restore_field_spread(s: &mut State, f: &mut Frame) {
+    f.bulk = true;
+    s.field.restore_spread();
+    s.objects.invalidate_vram();
+    s.text.close(f);
+}
+
 impl World {
     /// One frame of the starter screen. On a confirmed choice, answers `ChooseStarter` and runs
     /// the script on in the same frame, so the first battle's transition starts over the
@@ -573,10 +586,21 @@ impl World {
                 }
             }
             Stage::Leaving => {
-                restore_field(game, s, f);
+                // The fade from black starts black and only moves in `Returning`.
+                restore_field_spread(s, f);
                 s.fader.start(Fade::FromBlack);
                 draw_field(game, s, f);
-                run.stage = Stage::Returning;
+                run.stage = if s.field.uploading() {
+                    Stage::Restoring
+                } else {
+                    Stage::Returning
+                };
+            }
+            Stage::Restoring => {
+                draw_field(game, s, f);
+                if !s.field.uploading() {
+                    run.stage = Stage::Returning;
+                }
             }
             Stage::Whiteout(n) if n + 1 < WHITEOUT_FRAMES => {
                 f.brightness = FADE_MAX;

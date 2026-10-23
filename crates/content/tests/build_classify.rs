@@ -93,7 +93,7 @@ fn movement_types() {
     );
     assert_eq!(
         movement("MOVEMENT_TYPE_JOG_IN_PLACE_RIGHT"),
-        ("MovementType::WalkInPlace(Dir::Right)", false)
+        ("MovementType::JogInPlace(Dir::Right)", true)
     );
     assert_eq!(
         movement("MOVEMENT_TYPE_INVISIBLE"),
@@ -101,15 +101,18 @@ fn movement_types() {
     );
     assert_eq!(
         movement("MOVEMENT_TYPE_FACE_DOWN_AND_RIGHT"),
-        ("MovementType::LookAround", false)
+        (
+            "MovementType::FaceTwo(Dirs::two(Dir::Down, Dir::Right))",
+            true
+        )
     );
     assert_eq!(
         movement("MOVEMENT_TYPE_WALK_UP_AND_DOWN"),
-        ("MovementType::WanderVertical", false)
+        ("MovementType::WalkBackAndForth(Dir::Up)", true)
     );
     assert_eq!(
         movement("MOVEMENT_TYPE_WALK_LEFT_AND_RIGHT"),
-        ("MovementType::WanderHorizontal", false)
+        ("MovementType::WalkBackAndForth(Dir::Left)", true)
     );
     assert_eq!(
         movement("MOVEMENT_TYPE_BERRY_TREE_GROWTH"),

@@ -785,7 +785,20 @@ impl GameData for Game {
     fn new_game(&self) -> NewGame {
         unimplemented!()
     }
+    fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
+        (e == Emote::Exclamation).then_some(&EMOTE_SPRITE)
+    }
 }
+
+static E0: [Tile; 4] = [tile(30); 4];
+static EMOTE_PAL: [u16; 16] = [3; 16];
+/// 16x16, one frame.
+static EMOTE_SPRITE: SpriteData = SpriteData {
+    width: 16,
+    height: 16,
+    frames: &[&E0],
+    palette: &EMOTE_PAL,
+};
 
 fn camera_on(o: &Objects) -> (i32, i32) {
     let (x, y) = o.player().pixel_pos();
@@ -1098,3 +1111,5 @@ fn wander_vertical_picks_south_then_north_as_gen3() {
     let d = [Dir::Down, Dir::Up][(model.next_u32() >> 16) as usize & 1];
     assert_eq!(o.get(1).unwrap().facing, d);
 }
+
+mod m8_i;

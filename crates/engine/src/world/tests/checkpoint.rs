@@ -360,35 +360,39 @@ fn hold_until(l: &mut Live, keys: Buttons, max: u32, done: impl Fn(&World) -> bo
     panic!("not done after {max} frames, at {:?}", pos(&l.w));
 }
 
+/// Milestone 8 Task F: the cells a crossing keeps that the new map draws differently (the old
+/// map's border, its `setmetatile` overrides) are redrawn at the crossing, so its frame is
+/// capturable and restores to the same picture.
 #[test]
-fn a_crossing_blocks_capture_until_the_old_cells_leave_the_view() {
+fn a_crossing_frame_is_capturable_and_restores_the_same_picture() {
     let mut l = Live::started();
+    // An override on a town cell the route still shows after the crossing (M5 decision 15).
+    start(&mut l.w, |ctx| {
+        Box::pin(async move { ctx.set_metatile(4, 1, GRASS, false).await })
+    });
+    while l.w.script_running() {
+        l.step(Buttons::NONE);
+    }
     hold_until(&mut l, Buttons::UP, 200, |w| {
         pos(w) == (5, 0) && w.objects().player().is_settled()
     });
-    l.step(Buttons::UP);
+    let frame = l.step(Buttons::UP);
     assert_eq!(l.w.map(), ROUTE, "crossed as the step starts");
-    assert_eq!(l.w.capturable(), Err(NotCapturable::StaleView));
-    // Redrawn from the route, the view would differ: the town's border is still shown where
-    // the route has its own (and the cells left and right of the connection).
+    assert_eq!(l.w.capturable(), Ok(()));
+    assert_eq!(l.w.s.field.stale(), None);
+    // Redrawn from the route, the view is the same.
     let mut f = Frame::default();
     l.w.s.field.upload_all(&Game, &mut f);
     let mut redrawn = Screen::new();
     redrawn.apply(&f);
-    assert!(redrawn.visible() != l.screen.visible());
-    // Walking up the route, the cells drawn from the town scroll out of view.
-    let mut frames = 0;
-    let mut frame = Frame::default();
-    while l.w.capturable().is_err() {
-        assert_eq!(l.w.capturable(), Err(NotCapturable::StaleView));
-        frame = l.step(Buttons::UP);
-        frames += 1;
-        assert!(frames < 400, "still stale at {:?}", pos(&l.w));
-    }
-    assert_eq!(l.w.map(), ROUTE);
+    assert!(redrawn.visible() == l.screen.visible());
     let mut r = round_trip(&l.w);
     assert_same_picture(&l, &frame, &r.initial_frame());
-    lockstep(&mut r, &mut l.w, golden_inputs());
+    lockstep(
+        &mut r,
+        &mut l.w,
+        hold(Buttons::UP, 40).chain(golden_inputs()),
+    );
 }
 
 #[test]
@@ -529,9 +533,10 @@ fn entries(f: &Frame) -> usize {
 fn the_boot_frame_uploads_the_field_and_every_visible_object() {
     let mut l = Live::started();
     l.wander_and_override();
-    // Across the connection and up the route: the ring origin moves.
+    // Across the connection and up the route until the town's NPCs leave the view window (so
+    // every object left is on screen): the ring origin moves.
     hold_until(&mut l, Buttons::UP, 600, |w| {
-        w.map() == ROUTE && w.capturable().is_ok()
+        w.map() == ROUTE && pos(w).1 <= 5 && w.capturable().is_ok()
     });
     let live = l.step(Buttons::NONE);
     let w = &l.w;

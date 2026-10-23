@@ -29,6 +29,7 @@ mod checkpoint;
 mod host;
 mod maps;
 mod sight;
+mod templates;
 #[cfg(test)]
 mod tests;
 
@@ -162,8 +163,8 @@ pub(crate) struct State {
     fader: Fader,
     transition: Transition,
     /// The current map's object templates for this visit (scripts move them and change their
-    /// movement type).
-    templates: Vec<ObjectEvent>,
+    /// movement type), with their hash digest.
+    templates: templates::Templates,
     /// The object whose interaction started the running script (Gen3 `gSelectedObjectEvent`).
     selected: Option<u8>,
     /// Object of the last `Move` (Gen3 `sMovingNpcId`), for `WaitMove(0)`.
@@ -261,8 +262,9 @@ impl State {
         self.templates.iter().find(|t| t.local_id == local)
     }
 
-    fn template_mut(&mut self, local: u8) -> Option<&mut ObjectEvent> {
-        self.templates.iter_mut().find(|t| t.local_id == local)
+    /// Edits template `local` (if any) with `f`.
+    fn edit_template(&mut self, local: u8, f: impl FnOnce(&mut ObjectEvent)) {
+        self.templates.edit(local, f);
     }
 
     /// Gen3 `ClearTempFieldEventData`.
@@ -325,7 +327,7 @@ impl World {
                 vars: Vars::new(),
                 fader: Fader::new(),
                 transition: Transition::new(),
-                templates: Vec::new(),
+                templates: templates::Templates::default(),
                 selected: None,
                 last_mover: 0,
                 delay: 0,
@@ -388,6 +390,7 @@ impl World {
     /// One overworld frame (see the module docs for the order).
     fn step_field(&mut self, game: &impl GameData, f: &mut Frame) {
         let mut player_updated = false;
+        let cell = (self.s.field.map(), self.s.objects.player().pos());
         if self.s.transition.is_active() {
             self.run_transition(game, f);
         } else if self.runner.is_running() {
@@ -401,6 +404,12 @@ impl World {
             field: &s.field,
         };
         s.objects.update(&ground, &mut s.rng, player_updated);
+        // The player entered a cell this frame (a step starts, by input or by a script's
+        // movement, or a crossing or warp moved it): the view window follows (Gen3 spawns and
+        // despawns on each camera tile move, `CameraMove` at step start, cutscenes included).
+        if (s.field.map(), s.objects.player().pos()) != cell {
+            s.objects.view_moved(&s.templates, &s.vars);
+        }
         if !s.transition.is_active() {
             s.fader.update();
         }
@@ -529,13 +538,11 @@ impl World {
                     && let Some((to, shift)) = s.field.crossing(game, x, y)
                 {
                     cross_connection(game, s, f, to, shift);
-                    s.objects.view_moved(&s.templates, &s.vars);
                 }
             }
             // Step triggers fire in the frame the step finishes; Gen3 checks them on the next
             // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
-                s.objects.view_moved(&s.templates, &s.vars);
                 let elevation = s.objects.player().elevation;
                 if let Some(sighting) = sight::check(game, s) {
                     // Trainer sight first, as on every field-input frame (above).
@@ -706,13 +713,7 @@ impl World {
         self.runner.hash(&mut h);
         h.write(&[s.selected.map_or(0xFF, |x| x), s.last_mover, s.door]);
         h.write_u16(s.delay);
-        h.write_u32(s.templates.len() as u32);
-        for t in &s.templates {
-            h.write(&[t.local_id]);
-            h.write_u16(t.x as u16);
-            h.write_u16(t.y as u16);
-            h.write(&crate::objects::movement_code(t.movement));
-        }
+        s.templates.hash(&mut h);
         // Milestone 4.
         s.party.hash(&mut h);
         h.write(&[s.respawn, s.encounter_immunity]);
