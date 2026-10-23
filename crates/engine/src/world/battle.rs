@@ -337,6 +337,13 @@ impl State {
             (&raw mut (*p).started).write(false);
             run.assume_init()
         };
+        // Gen3 `IncrementDailyWildBattles` in every wild battle's setup.
+        if let BattleKind::Wild { .. } = kind
+            && let Some(v) = game.special_ids().var_daily_wilds
+        {
+            let n = self.vars.var(v).wrapping_add(1);
+            self.vars.set_var(v, n);
+        }
         self.event(super::Event::BattleStarted);
         if self.text.is_open() {
             self.text.close(f);

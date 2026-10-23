@@ -1201,6 +1201,21 @@ pub struct SpecialIds {
     /// Cleared when a mon goes to another box than `var_pc_box_to_send_mon` named (Gen3
     /// `FLAG_SHOWN_BOX_WAS_FULL_MESSAGE`).
     pub flag_shown_box_was_full: Option<FlagId>,
+    // ---- Parity waves ----
+    /// Counted up at every wild battle's start (Gen3 `IncrementDailyWildBattles`, `tv.c`, from
+    /// every `BattleSetup_Start*WildBattle` and `CB2_StartFirstBattle`: `VAR_DAILY_WILDS`).
+    pub var_daily_wilds: Option<VarId>,
+    /// Berry trees kept (Gen3 `BERRY_TREES_COUNT`, 128; [`crate::berry`]); 0: none.
+    pub berry_trees: u8,
+}
+
+/// What [`GameData::step_count_script`] reads and may change, after a finished player step.
+pub struct StepCount<'a> {
+    pub map: MapId,
+    /// The player's cell, where the step ended.
+    pub cell: (i16, i16),
+    pub vars: &'a mut crate::flow::Vars,
+    pub party: &'a mut mon::Party,
 }
 
 impl Default for SpecialIds {
@@ -1228,6 +1243,8 @@ impl Default for SpecialIds {
             var_mon_box_id: None,
             var_mon_box_pos: None,
             flag_shown_box_was_full: None,
+            var_daily_wilds: None,
+            berry_trees: 0,
         }
     }
 }
@@ -1445,6 +1462,16 @@ pub trait GameData {
     /// Run when a player step finishes on a [`Behavior::CrackedFloorHole`] cell (Gen3
     /// `EventScript_FallDownHole`, from `TryStartMiscWalkingScripts`).
     fn fall_script(&self) -> Option<ScriptId> {
+        None
+    }
+    /// Gen3 `TryStartStepCountScript`'s game checks (`field_control_avatar.c`), once per
+    /// finished player step that started no coord, warp or walking script, after the friendship
+    /// counter and before the repel counter: the game's step counters (poison, Match Call
+    /// registrations, …), which may change the vars and the party. Returns the script to start
+    /// (Gen3 `ScriptContext_SetupScript`), which then skips the repel counter and the wild
+    /// encounter of this step.
+    fn step_count_script(&self, step: StepCount<'_>) -> Option<ScriptId> {
+        let _ = step;
         None
     }
 

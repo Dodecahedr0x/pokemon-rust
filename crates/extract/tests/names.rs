@@ -516,6 +516,12 @@ fn generate(d: &Path) -> String {
             prefixed(d, &env, "include/constants/script_menu.h", "STDSTRING_"),
         ),
         (
+            "BERRY_TREES",
+            "`BERRY_TREE_*` berry tree ids from `include/constants/berry.h`.",
+            "BERRY_TREE_",
+            prefixed(d, &env, "include/constants/berry.h", "BERRY_TREE_"),
+        ),
+        (
             "MAP_SECTIONS",
             "`MAPSEC_*`: `src/data/region_map/region_map_sections.json` order, then `MAPSEC_NONE`.",
             "MAPSEC_",
@@ -546,6 +552,12 @@ fn generate(d: &Path) -> String {
         writeln!(out, "    {f:?},").unwrap();
     }
     out.push_str("];\n\n");
+    out.push_str("/// The trees `EventScript_ResetAllBerries` (`data/scripts/new_game.inc`, run by\n/// `NewGameInitData`) plants, in script order: `(BERRY_TREE_*, ITEM_*_BERRY)`, each at\n/// `BERRY_STAGE_BERRIES`.\n");
+    out.push_str("pub static RESET_ALL_BERRIES: &[(&str, &str)] = &[\n");
+    for (tree, item) in reset_all_berries(&read(d, "data/scripts/new_game.inc")) {
+        writeln!(out, "    ({tree:?}, {item:?}),").unwrap();
+    }
+    out.push_str("];\n\n");
     out.push_str("/// Byte offset of each `TILESETS` header from `gTileset_General` (the headers are not quite\n/// contiguous: two `Tileset` pointers sit among them).\n");
     out.push_str("pub static TILESET_HEADER_OFFSETS: &[u32] = &[\n");
     for (_, n, at) in &tileset_list {
@@ -558,6 +570,34 @@ fn generate(d: &Path) -> String {
 }
 
 type Entries = Vec<(i64, String)>;
+
+/// The `setberrytree TREE, ITEM_TO_BERRY(ITEM), BERRY_STAGE_BERRIES` lines of
+/// `EventScript_ResetAllBerries`, up to its `return`.
+fn reset_all_berries(src: &str) -> Vec<(String, String)> {
+    let mut lines = src.lines().map(str::trim);
+    assert!(
+        lines.any(|l| l == "EventScript_ResetAllBerries::"),
+        "no EventScript_ResetAllBerries"
+    );
+    let mut out = Vec::new();
+    for l in lines.take_while(|&l| l != "return") {
+        let Some(args) = l.strip_prefix("setberrytree") else {
+            assert!(l.is_empty() || l.starts_with('@'), "unexpected {l:?}");
+            continue;
+        };
+        let args: Vec<&str> = args.split(',').map(str::trim).collect();
+        let item = (args[1].strip_prefix("ITEM_TO_BERRY("))
+            .and_then(|s| s.strip_suffix(')'))
+            .unwrap_or_else(|| panic!("unexpected berry {l:?}"));
+        assert_eq!(args[2], "BERRY_STAGE_BERRIES", "{l}");
+        out.push((args[0].to_string(), item.to_string()));
+    }
+    assert!(
+        !out.is_empty(),
+        "EventScript_ResetAllBerries plants nothing"
+    );
+    out
+}
 
 /// The `setflag` operands of `EventScript_ResetAllMapFlags`, up to its `end` (its other
 /// command, `call EventScript_ResetAllBerries`, is berry trees, not flags).

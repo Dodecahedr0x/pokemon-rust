@@ -241,6 +241,8 @@ pub(crate) struct State {
     pub(crate) coins: u16,
     /// Gen3 `gSaveBlock1Ptr->registeredItem` (SELECT).
     pub(crate) registered_item: Option<ItemId>,
+    /// Wave E: Gen3 `berryTrees` (`SpecialIds::berry_trees` of them).
+    pub(crate) berry_trees: crate::berry::BerryTrees,
     /// Screen flash, shake and tint (not snapshotted: a save or capture needs it clear).
     pub(crate) fx: ScreenFx,
     /// Running field effects and their arguments (Wave C; not snapshotted, not hashed).
@@ -403,6 +405,7 @@ impl World {
                 ),
                 coins: 0,
                 registered_item: None,
+                berry_trees: crate::berry::BerryTrees::new(game.special_ids().berry_trees),
                 fx: ScreenFx::default(),
                 field_effects: host::FieldEffects::default(),
                 field_move: None,
@@ -671,7 +674,15 @@ impl World {
                         // friendship step counter, then the repel counter (which may start
                         // its wear-off script), then `CheckStandardWildEncounter`.
                         friendship::on_step(s, game);
-                        if let Some(id) = crate::item_use::on_step(s, game) {
+                        let step = crate::data::StepCount {
+                            map: s.field.map(),
+                            cell: (x, y),
+                            vars: &mut s.vars,
+                            party: &mut s.party,
+                        };
+                        if let Some(id) = game.step_count_script(step) {
+                            self.start_script(game, id, None);
+                        } else if let Some(id) = crate::item_use::on_step(s, game) {
                             self.start_script(game, id, None);
                         } else {
                             let id = s.field.map();
@@ -938,6 +949,7 @@ impl World {
             h.write(&[0xAA]);
             h.write_u16(item.0);
         }
+        s.berry_trees.hash(&mut h);
         s.fx.hash(&mut h);
         // Wave C: a field move's effect, while it runs.
         if let Some(run) = &s.field_move {

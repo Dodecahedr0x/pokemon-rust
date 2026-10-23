@@ -266,6 +266,7 @@ impl ScriptHost for Host {
                 Response::Value(0)
             }
             Request::PartySize => Response::Value(1),
+            Request::BerryTree(_) => Response::Berry(Default::default()),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(0),
             _ => Response::Unit,

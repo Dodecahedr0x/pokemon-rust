@@ -421,6 +421,11 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Query(q) => Some(Response::Value(query::answer(self, q))),
+            Request::BerryTree(id) => Some(Response::Berry(self.s.berry_trees.get(id))),
+            Request::SetBerryTree(id, tree) => {
+                self.s.berry_trees.set(id, tree);
+                UNIT
+            }
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

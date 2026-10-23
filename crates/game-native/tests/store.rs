@@ -188,6 +188,7 @@ fn checkpoint(frame: u32, state: u32, build: BuildHash) -> Checkpoint {
         pc: Default::default(),
         coins: 0,
         registered_item: None,
+        berry_trees: Vec::new(),
     };
     Checkpoint {
         header: Header {

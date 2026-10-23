@@ -21,6 +21,9 @@ pub const FILES: [&str; 5] = [
 /// The TM/HM file [`export_tmhm`] writes (format minor 7).
 pub const TMHM_FILE: &str = "tables/tmhm.ron";
 
+/// The berry file [`export_berries`] writes (format minor 9).
+pub const BERRIES_FILE: &str = "tables/berries.ron";
+
 /// Writes the item, multichoice, std-string, map-section and field-string tables, and records the table
 /// offsets in `provenance` (`tables/items` = `gItems`, …).
 pub fn export_tables(
@@ -54,5 +57,18 @@ pub fn export_tmhm(rom: &Rom, out: &mut Out, provenance: &mut BTreeMap<String, H
     out.ron(TMHM_FILE, &file)?;
     provenance.insert("tables/tmhm_moves".to_string(), Hex(moves));
     provenance.insert("tables/tmhm_learnsets".to_string(), Hex(learnsets));
+    Ok(())
+}
+
+/// `tables/berries.ron` ([`crate::berries::extract`]); the offset in `provenance` as
+/// `tables/berries` (`gBerries`).
+pub fn export_berries(
+    rom: &Rom,
+    out: &mut Out,
+    provenance: &mut BTreeMap<String, Hex>,
+) -> Result<()> {
+    let (file, base) = crate::berries::extract(rom)?;
+    out.ron(BERRIES_FILE, &file)?;
+    provenance.insert("tables/berries".to_string(), Hex(base));
     Ok(())
 }
