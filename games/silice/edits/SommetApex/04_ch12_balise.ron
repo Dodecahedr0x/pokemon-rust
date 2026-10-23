@@ -1,0 +1,40 @@
+// Chapter 12 (post-game): Poussin, the socle and Rayquaza.
+[
+    // Poussin back on his stage (source obj 7, SommetApex_PG_Sc16c, his daily rematch), on Ch11's Poussin's
+    // cell; FLAG_SIL_HIDE_APEX_POUSSIN_PG is set at the start (and by Sc01), cleared by NoMansLand_PG_Sc16b.
+    // The empty socle in the centre (11, 12), for the Purity Beacon (SommetApex_PG_Sc19;
+    // FLAG_SIL_HIDE_APEX_SOCLE set at the start, SommetApex_OnTransition clears it from 120). Rayquaza on
+    // the stage, hidden until SommetApex_PG_Sc32 shows it (FLAG_SIL_HIDE_RAYQUAZA; a capture sets it again).
+    Object(x: 11, y: 6, gfx: "OBJ_EVENT_GFX_DRAKE", id: "LOCALID_APEX_POUSSIN_PG", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_PG_Sc16c", flag: "FLAG_SIL_HIDE_APEX_POUSSIN_PG"),
+    Object(x: 11, y: 12, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_APEX_SOCLE", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Socle", flag: "FLAG_SIL_HIDE_APEX_SOCLE"),
+    Object(x: 11, y: 7, gfx: "OBJ_EVENT_GFX_RAYQUAZA_STILL", id: "LOCALID_APEX_RAYQUAZA", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Rayquaza", flag: "FLAG_SIL_HIDE_RAYQUAZA"),
+    // SommetApex_PG_Sc19 (VAR_SIL_STORY 129) on row y 16, four cells before the socle, wall to wall;
+    // SommetApex_PG_Sc32 (VAR_TEMP_1 0; the script checks VAR_SIL_STORY >= 130 and FLAG_SIL_HIDE_RAYQUAZA)
+    // on the socle's four neighbours.
+    Coord(x: 1, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 2, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 3, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 4, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 5, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 6, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 7, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 8, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 9, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 10, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 11, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 12, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 13, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 14, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 15, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 16, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 17, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 18, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 19, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 20, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 21, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 22, y: 16, var: "VAR_SIL_STORY", value: 129, script: "SommetApex_PG_Sc19"),
+    Coord(x: 11, y: 11, var: "VAR_TEMP_1", value: 0, script: "SommetApex_PG_Sc32"),
+    Coord(x: 10, y: 12, var: "VAR_TEMP_1", value: 0, script: "SommetApex_PG_Sc32"),
+    Coord(x: 12, y: 12, var: "VAR_TEMP_1", value: 0, script: "SommetApex_PG_Sc32"),
+    Coord(x: 11, y: 13, var: "VAR_TEMP_1", value: 0, script: "SommetApex_PG_Sc32"),
+]

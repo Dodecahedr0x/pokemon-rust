@@ -1,0 +1,18 @@
+// Chapter 12 (post-game): Kimiko in the clearing.
+[
+    // RouteS06_BoisSoupirs_OnTransition: from VAR_SIL_STORY 123 until FLAG_SIL_VESTIGE_KIMIKO, clears
+    // FLAG_SIL_HIDE_KIMIKO_BOIS and FLAG_SIL_HIDE_BOIS_SOUPIRS_DRONE (all three flags are set at the start).
+    ScriptsSet(on_transition: "RouteS06_BoisSoupirs_OnTransition"),
+    // Kimiko (source obj 20) sits before her broken drone; Adrien (21) is hidden and walks up 3 after the
+    // battle (RouteS06_BoisSoupirs_PG_Sc05). Ho-Oh (hidden until RouteS06_BoisSoupirs_PG_Lib clears
+    // FLAG_SIL_HIDE_HO_OH; a capture sets it again).
+    Object(x: 12, y: 21, gfx: "OBJ_EVENT_GFX_LIZA", id: "LOCALID_BOIS_SOUPIRS_KIMIKO", local_id: 20, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_KIMIKO_BOIS"),
+    Object(x: 14, y: 24, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BOIS_SOUPIRS_ADRIEN", local_id: 21, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_SOUPIRS_ADRIEN"),
+    Object(x: 11, y: 21, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_BOIS_SOUPIRS_DRONE", local_id: 22, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS06_BoisSoupirs_EventScript_Drone", flag: "FLAG_SIL_HIDE_BOIS_SOUPIRS_DRONE"),
+    Object(x: 10, y: 23, gfx: "OBJ_EVENT_GFX_HOOH", id: "LOCALID_BOIS_SOUPIRS_HO_OH", local_id: 23, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS06_BoisSoupirs_EventScript_HoOh", flag: "FLAG_SIL_HIDE_HO_OH"),
+    // RouteS06_BoisSoupirs_PG_Sc05 at the clearing's entrance (12, 19), the path's only cell (VAR_TEMP_1 0:
+    // the script checks VAR_SIL_STORY >= 123 and FLAG_SIL_VESTIGE_KIMIKO). Ho-Oh's feather on the stump
+    // (RouteS06_BoisSoupirs_PG_Lib).
+    Coord(x: 12, y: 19, var: "VAR_TEMP_1", value: 0, script: "RouteS06_BoisSoupirs_PG_Sc05"),
+    Sign(x: 15, y: 21, script: "RouteS06_BoisSoupirs_PG_Lib"),
+]

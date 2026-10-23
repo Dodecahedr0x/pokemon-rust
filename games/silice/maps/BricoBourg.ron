@@ -149,6 +149,21 @@
             script: Some("BricoBourg_EventScript_Adrien"),
             flag: Some("FLAG_SIL_HIDE_BRICO_ADRIEN"),
         ),
+        (
+            local_id: 20,
+            id: Some("LOCALID_BRICO_MAMAN"),
+            gfx: "OBJ_EVENT_GFX_MOM",
+            x: 5,
+            y: 14,
+            elevation: 3,
+            movement: "MOVEMENT_TYPE_FACE_DOWN",
+            range_x: 0,
+            range_y: 0,
+            trainer_type: "TRAINER_TYPE_NONE",
+            trainer_sight_or_berry_tree: 0,
+            script: None,
+            flag: Some("FLAG_SIL_HIDE_BRICO_MAMAN"),
+        ),
     ],
     warps: [
         (

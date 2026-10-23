@@ -1,0 +1,25 @@
+// Chapter 12 (post-game): the secret path and Adrien's clearing (the source: 'la clairiere ou Adrien ecrit
+// ses vers, au bout du sentier secret'). The map grows south by 6 rows (Resize, dx 0, dy 0: the east
+// connection does not move); the old border row (18-19) opens at (12, 18-19), a one-cell path through the
+// trees, to the clearing (8-16, 20-24); a stump (15, 21) holds Ho-Oh's feather.
+// Legend (char: metatile/collision/elevation, what):
+//   T 468/1/0 tree
+//   t 469/1/0 tree
+//   , 1/0/3 grass
+//   Y 476/1/0 tree
+//   y 477/1/0 tree
+//   * 4/0/3 flowers
+//   o 198/1/3 stump
+[
+    Resize(width: 24, height: 26, fill: 468, fill_collision: 1, fill_elevation: 0),
+    Ascii(x: 0, y: 18, rows: [
+        "TtTtTtTtTtTt,tTtTtTtTtTt",
+        "YyYyYyYyYyYy,yYyYyYyYyYy",
+        "TtTtTtTt*,,,,,,,,tTtTtTt",
+        "YyYyYyYy,*,,,,,o,yYyYyYy",
+        "TtTtTtTt,,,,,,,,,tTtTtTt",
+        "YyYyYyYy,,,,,,,,*yYyYyYy",
+        "TtTtTtTt,,*,,,,,,tTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyYy",
+    ], legend: {'T': (metatile: 468, collision: 1, elevation: 0), 't': (metatile: 469, collision: 1, elevation: 0), ',': (metatile: 1, collision: 0, elevation: 3), 'Y': (metatile: 476, collision: 1, elevation: 0), 'y': (metatile: 477, collision: 1, elevation: 0), '*': (metatile: 4, collision: 0, elevation: 3), 'o': (metatile: 198, collision: 1, elevation: 3)}),
+]
