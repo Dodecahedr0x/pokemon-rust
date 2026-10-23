@@ -1,0 +1,10 @@
+// Chapter 6 link: the Grand Torii exit to Manga-Square (MAP_MANGA_SQUARE). A warp, not a connection:
+// Manga-Square is General + BattleFrontierOutsideEast and this route Building + TrainerHill, and Gen3
+// draws a neighbour with the current map's tilesets. The south mats (Building 6/7, MB_SOUTH_ARROW_WARP)
+// open: pushing south on one leads to Manga-Square's warp 6, the Grand Torii's exit (37, 0). Manga-Square
+// lands the player on warp 2, the right mat.
+[
+    Ascii(x: 13, y: 71, rows: ["78"], legend: {'7': (metatile: 6, collision: 0), '8': (metatile: 7, collision: 0)}),
+    Warp(x: 13, y: 71, dest_map: "MangaSquare", dest_warp: 6),
+    Warp(x: 14, y: 71, dest_map: "MangaSquare", dest_warp: 6),
+]
