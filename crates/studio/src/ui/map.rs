@@ -21,7 +21,7 @@
 use super::explorer::ExplorerState;
 use super::off_thread;
 use crate::explorer::CoverageGrid;
-use crate::map_picker::{PickerGroup, normalize, picker_groups, picker_view};
+use crate::map_picker::{PickerGroup, Toggles, normalize, picker_groups, picker_view};
 use crate::map_view::{
     CellLayers, MapEntry, MapRoute, Overlay, Placed, camera_cell, camera_rect, cell_at,
     click_target, coverage_paths, describe, layer_paths, map_list, overlay_cell, parse_map_request,
@@ -32,7 +32,7 @@ use content::Emerald;
 use dioxus::prelude::*;
 use engine::data::MapId;
 use std::cell::Cell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -305,7 +305,7 @@ const CSS: &str = r#"
 .map-list button.active { background: var(--accent); color: #000; }
 .map-list ul ul { overflow: visible; padding-left: 14px; }
 .map-list .map-group-head { display: flex; gap: 4px; align-items: baseline; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
-.map-list .map-group-head:disabled { cursor: default; }
+.map-list .map-group-head[aria-disabled="true"] { cursor: default; }
 .map-list .map-caret { width: 10px; }
 .map-list .map-group-n { margin-left: auto; font-weight: 400; font-variant-numeric: tabular-nums; }
 .map-list .map-count { color: var(--muted); font-size: 0.85em; }
@@ -534,8 +534,8 @@ pub fn Map(
 fn MapList(shown: MapId, on_open: EventHandler<MapId>) -> Element {
     let groups = use_hook(|| Rc::new(picker_groups()));
     let mut query = use_signal(String::new);
-    let mut toggled = use_signal(BTreeSet::<u8>::new);
-    let view = picker_view(&groups, &query.read(), shown, &toggled.read());
+    let mut toggles = use_signal(Toggles::default);
+    let view = picker_view(&groups, &query.read(), shown, &toggles.read());
     let first = view.first;
     let filtered = !normalize(&query.read()).is_empty();
     let summary = if filtered {
@@ -552,7 +552,9 @@ fn MapList(shown: MapId, on_open: EventHandler<MapId>) -> Element {
                 oninput: move |e| query.set(e.value()),
                 onkeydown: move |e: KeyboardEvent| match e.key() {
                     Key::Enter => {
+                        // Only under a filter (`first` is `None` without one).
                         if let Some(m) = first {
+                            toggles.write().reveal(m);
                             on_open.call(m);
                         }
                     }
@@ -564,15 +566,18 @@ fn MapList(shown: MapId, on_open: EventHandler<MapId>) -> Element {
             ul {
                 for g in view.groups {
                     li { key: "g{g.group}", class: "map-group",
+                        // Under a filter every group is open: the header stays focusable but
+                        // does nothing (`aria-disabled`).
                         button {
+                            id: "map-group-{g.group}",
                             class: "map-group-head",
                             "data-map-group": g.group,
                             "aria-expanded": g.expanded,
-                            disabled: filtered,
+                            "aria-controls": "map-group-list-{g.group}",
+                            "aria-disabled": filtered,
                             onclick: move |_| {
-                                let mut t = toggled.write();
-                                if !t.remove(&g.group) {
-                                    t.insert(g.group);
+                                if !filtered {
+                                    toggles.write().toggle(g.group, shown);
                                 }
                             },
                             span { class: "map-caret", if g.expanded { "▾" } else { "▸" } }
@@ -583,13 +588,19 @@ fn MapList(shown: MapId, on_open: EventHandler<MapId>) -> Element {
                         }
                         if g.expanded {
                             ul {
+                                id: "map-group-list-{g.group}",
+                                role: "group",
+                                "aria-labelledby": "map-group-{g.group}",
                                 for m in g.maps {
                                     li { key: "{m.id.0}",
                                         button {
                                             "data-map-item": m.id.0,
                                             class: if m.id == shown { "active" } else { "" },
                                             title: m.constant.unwrap_or(m.name),
-                                            onclick: move |_| on_open.call(m.id),
+                                            onclick: move |_| {
+                                                toggles.write().reveal(m.id);
+                                                on_open.call(m.id);
+                                            },
                                             "{m.name}"
                                         }
                                     }
@@ -864,7 +875,6 @@ mod tests {
         html.matches(needle).count()
     }
 
-    /// The map with the most overlays.
     /// The sampled map with the most overlays (`content::samples::map_ids`: no test walks every
     /// map, M8 Task S).
     fn busiest_map() -> MapId {

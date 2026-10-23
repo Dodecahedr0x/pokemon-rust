@@ -14,13 +14,13 @@
 use crate::native::NativeCmd;
 use crate::pane::RunMode;
 use crate::paths::StudioPaths;
-use anyhow::{Context, anyhow, bail};
+use anyhow::{Context, bail};
 use engine::checkpoint::{BuildHash, Checkpoint, build_hash};
 use engine::data::{GameData, MapId};
 use explore::config::Budget;
 use explore::db::{Db, DbStats, FindingRow};
-use explore::{findings, goals, wire};
-use game_native::trace::{Run, Trace};
+use explore::{goals, wire};
+use game_native::trace::Trace;
 use std::cmp::Reverse;
 use std::fs::File;
 use std::io;
@@ -149,22 +149,13 @@ pub struct FindingTrace {
 /// `content::Emerald::for_shells()`) and the frame to open it at: its last frame minus
 /// `before`, clamped to 0.
 ///
-/// `wire::finding_trace` with nothing cut, keeping the root's state: a `--from` db's root is
-/// materialized here, on the caller's worker thread, by its own `Materializer`
+/// `wire::finding_trace_with_root` with nothing cut, keeping the root's state: a `--from` db's
+/// root is materialized here, on the caller's worker thread, by its own `Materializer`
 /// (`wire::db_root`) over the root store's disk cache, never by a pane's. `NativeCmd::OpenTrace`
 /// stops at the frame itself, so the trace is replayed once here and once in the pane.
 pub fn finding_trace(db: &Db, id: i64, before: u32) -> anyhow::Result<FindingTrace> {
     let game = content::Emerald::for_shells();
-    let root = wire::db_root(&game, db)?;
-    let row = db.finding(id)?.ok_or_else(|| anyhow!("no finding {id}"))?;
-    let lineage = match row.node {
-        Some(n) => db.lineage(n)?,
-        None => Vec::new(),
-    };
-    let runs: Vec<&[Run]> = lineage.iter().map(|n| n.inputs.as_slice()).collect();
-    let start = root.as_ref().map(|r| (r.id, r.checkpoint.as_ref()));
-    let trace = findings::repro_trace_from(&game, start, &runs, &row.tail)
-        .map_err(|(_, frame)| anyhow!("finding {id}: the replay panics early, at frame {frame}"))?;
+    let (row, trace, root) = wire::finding_trace_with_root(&game, db, id, 0)?;
     let frames = trace.frames().saturating_sub(before);
     let stale = row.build != build_hash(&game);
     Ok(FindingTrace {

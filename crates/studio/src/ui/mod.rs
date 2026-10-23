@@ -8,13 +8,14 @@
 //! from `after` (or with 204 after [`LONG_POLL`]), by the slot's waiter thread
 //! ([`FrameSlot::wait_then`]), never blocking the UI thread.
 //!
-//! The [`Studio`] context holds the paths, the layered store and the two pane threads (each
-//! with its own `Materializer` over the store's shared disk cache) (the native pane and the ROM pane), spawned once at launch. The
-//! [`Shell`] polls their statuses at about 15 Hz into signals ([`Live`]) and keeps the
-//! checkpoint tree ([`tree::TreeState`]) fresh. Store work, verifies and ROM builds run on
-//! worker threads ([`off_thread`]); the UI thread only sends commands and renders. The Explorer
-//! tab's `explore run` lives in the [`Studio`] too ([`Studio::explorer`]), and the shell polls
-//! the explorer db ([`explorer::use_explorer_state`]).
+//! The [`Studio`] context holds the paths, the layered store and the two pane threads (the
+//! native pane and the ROM pane, each with its own `Materializer` over the store's shared disk
+//! cache), spawned once at launch. The [`Shell`] polls their statuses at about 15 Hz into
+//! signals ([`Live`]) and keeps the checkpoint tree ([`tree::TreeState`]) fresh. Store work,
+//! verifies and ROM builds run on worker threads ([`off_thread`]); the UI thread only sends
+//! commands and renders. The Explorer tab's `explore run` lives in the [`Studio`] too
+//! ([`Studio::explorer`]), and the shell polls the explorer db
+//! ([`explorer::use_explorer_state`]).
 
 pub mod data;
 pub mod explorer;

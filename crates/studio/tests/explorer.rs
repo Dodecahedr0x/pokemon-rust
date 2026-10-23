@@ -368,6 +368,7 @@ fn a_from_db_finding_opens_from_its_root_node() {
         assert_eq!(st.parent, Parent::Checkpoint(root.meta.id));
         assert_eq!(st.trace_frames, ft.frames);
         assert!(!st.last.contains("failed"), "{}", st.last);
+        assert!(!st.last.contains("no parent here"), "{}", st.last);
         assert_eq!(p.materialized(), usize::from(!given), "given: {given}");
         if given {
             // A save is a valid node under the root.
@@ -407,6 +408,32 @@ fn a_from_db_finding_opens_from_its_root_node() {
     assert!(st.last.contains("failed"), "{}", st.last);
     assert_eq!((st.frame, st.parent), (0, Parent::NewGame));
     let _ = std::fs::remove_dir_all(local);
+
+    // The db's root id names another state in the studio's store (the root came from another
+    // store): the trace opens from the given state, with a note that a save has no parent.
+    if let Some(other) = (store.nodes().unwrap().into_iter())
+        .find(|n| n.meta.id != root.meta.id && n.meta.digest != root.meta.digest)
+    {
+        let local = temp_dir("from-other");
+        let (mut p, _) = pane(&local);
+        let mut renamed = ft.trace.clone();
+        renamed.parent = Parent::Checkpoint(other.meta.id);
+        p.handle(NativeCmd::OpenTrace {
+            trace: renamed,
+            frames: ft.frames,
+            base: Some(Box::new(base.clone())),
+        });
+        let st = p.status();
+        assert_eq!((st.frame, st.hash), want, "{}", st.last);
+        assert!(
+            st.last.contains("another state") && st.last.contains("no parent here"),
+            "{}",
+            st.last
+        );
+        let _ = std::fs::remove_dir_all(local);
+    } else {
+        println!("skipped the other-state case: one committed node");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -8,7 +8,7 @@
 //! thread (`World` is `!Send`).
 
 use crate::pane::{Pane, RunMode};
-use engine::checkpoint::{Checkpoint, NotCapturable};
+use engine::checkpoint::{Checkpoint, NotCapturable, state_digest};
 use engine::data::{GameData, MapId};
 use engine::{Buttons, World};
 use game_native::checkpoints::{Materializer, SeekPrep, SeekStart, Seeked, add_save};
@@ -361,12 +361,24 @@ impl NativePane {
             }
             (_, base) => base,
         };
-        if let Parent::Checkpoint(id) = trace.parent
-            && self.store.find(&id.to_string()).is_err()
-        {
-            notes.push(format!(
-                "{id} is not in the studio's store: a save has no parent here"
-            ));
+        // A save from here names `id` as its parent: the studio's store must hold that state
+        // (a `--from` db's root comes from the db's own store, whose ids may name other nodes
+        // here).
+        if let Parent::Checkpoint(id) = trace.parent {
+            match self.store.find(&id.to_string()) {
+                Err(_) => notes.push(format!(
+                    "{id} is not in the studio's store: a save has no parent here"
+                )),
+                Ok(node)
+                    if (base.as_ref())
+                        .is_some_and(|b| state_digest(&b.world) != node.meta.digest) =>
+                {
+                    notes.push(format!(
+                        "{id} is another state in the studio's store: a save has no parent here"
+                    ));
+                }
+                Ok(_) => {}
+            }
         }
         let seeked = open_trace(content::Emerald::for_shells(), trace, base, frames)?;
         let frames = seeked.recorder.frames();

@@ -334,7 +334,9 @@ impl RomPane {
             RomSource::NewGame => (None, None),
             RomSource::Node(id) => {
                 // It replays only what no cache holds.
-                let m = (self.materializer.get(&self.store, *id))
+                let m = self
+                    .materializer
+                    .get(&self.store, *id)
                     .map_err(|e| anyhow!("materialize {id}: {e}"))?;
                 self.diverged = m.diverged;
                 let sav = game_native::flash::encode_sav(&m.checkpoint)
