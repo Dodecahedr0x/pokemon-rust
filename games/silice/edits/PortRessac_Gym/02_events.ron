@@ -26,7 +26,7 @@
     Object(x: 7, y: 5, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GYM4_GUS", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Gym_EventScript_Gus", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     // 9 (the source's obj 9): Gwada l'Enjaillé, hidden until Sc03; he walks down 2 to (7, 17),
     // beside the coupée.
-    Object(x: 7, y: 15, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_GYM4_GWADA", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_PORT_GYM_GWADA"),
+    Object(x: 7, y: 15, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_GYM4_GWADA", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_PORT_GYM_GWADA"),
     // Sc03 on the top of the coupée (9-10, 18), the only way off the ship.
     Coord(x: 9, y: 18, var: "VAR_SIL_STORY", value: 48, script: "PortRessac_Gym_Sc03"),
     Coord(x: 10, y: 18, var: "VAR_SIL_STORY", value: 48, script: "PortRessac_Gym_Sc03"),

@@ -6,6 +6,7 @@
 //! cargo xtask silice check [--games DIR] [--extracted DIR] [--scripts DIR] [--allow RULE]...
 //! cargo xtask silice tombstone [--games DIR] NAME...
 //! cargo xtask silice move [--games DIR] NAME...
+//! cargo xtask silice gfx (prep|build) …   original tilesets from generated art ([`gfx`])
 //! ```
 //!
 //! `tombstone` marks ids as removed in their `ids/*.ron` file (they keep their numbers). `move`
@@ -14,6 +15,8 @@
 //! `xtask/tests/fixtures/silice/ids.golden`.
 
 mod check;
+pub mod gfx;
+mod sprites;
 mod ids;
 mod import;
 mod maps;
@@ -32,6 +35,7 @@ const USAGE: &str = "usage: cargo xtask silice import <contenu-jeu dir> [--out D
 
 pub fn main(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
+        Some("gfx") => gfx::main(&args[1..]),
         Some("import") => {
             let mut src = None;
             let mut out = crate::root().join("games/silice");

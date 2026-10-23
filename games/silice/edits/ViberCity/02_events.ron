@@ -33,15 +33,15 @@
     // player); Sc04's guard, when (8, 6) fired, walks Left, Down, Left x2; Sc05 places Adrien at
     // (4, 5) and the cart Mathieu (9) at (8, 8) before showing them, so they walk up to the player
     // at (8, 5).
-    Object(x: 20, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_VIBER_MATHIEU", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_VIBER_MATHIEU"),
-    Object(x: 21, y: 17, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_VIBER_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_Adrien", flag: "FLAG_SIL_HIDE_VIBER_ADRIEN"),
+    Object(x: 20, y: 16, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_VIBER_MATHIEU", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_VIBER_MATHIEU"),
+    Object(x: 21, y: 17, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_VIBER_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_Adrien", flag: "FLAG_SIL_HIDE_VIBER_ADRIEN"),
     Object(x: 28, y: 5, gfx: "OBJ_EVENT_GFX_GIRL_3", id: "LOCALID_VIBER_DANSEUR_1", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEURS"),
     Object(x: 27, y: 5, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_VIBER_DANSEUR_2", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2"),
     Object(x: 29, y: 5, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_VIBER_DANSEUR_3", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3"),
     Object(x: 30, y: 5, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_VIBER_DANSEUR_4", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Danseur", flag: "FLAG_SIL_HIDE_NOCTURNE_DANSEUR_4"),
     Object(x: 28, y: 4, gfx: "OBJ_EVENT_GFX_TATE", id: "LOCALID_VIBER_TAUBER", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_VIBER_TAUBER"),
     Object(x: 8, y: 5, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_VIBER_GARDE_STATION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_EventScript_GardeStation", flag: "FLAG_SIL_HIDE_STATION_GARDE"),
-    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_VIBER_MATHIEU_CHARIOT", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_VIBER_MATHIEU_CHARIOT", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT"),
     Object(x: 14, y: 11, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_VIBER_OUVRIERE", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj04"),
     Object(x: 25, y: 14, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_VIBER_PAPI", movement: "MOVEMENT_TYPE_WALK_IN_PLACE_DOWN", script: "ViberCity_EventScript_Pnj03"),
     // The other ambient NPCs (Pnj01, 02, 05, 06, 07), the east barrier's guard (PNJ 08), the items.

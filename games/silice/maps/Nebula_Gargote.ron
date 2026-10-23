@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_GARGOTE_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 6,
             y: 6,
             elevation: 3,
@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_GARGOTE_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 2,
             y: 7,
             elevation: 3,
@@ -47,7 +47,7 @@
         (
             local_id: 3,
             id: Some("LOCALID_GARGOTE_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 5,
             y: 7,
             elevation: 3,

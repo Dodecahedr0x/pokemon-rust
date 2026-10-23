@@ -9,9 +9,9 @@
     // 1-3: the friends (the source's obj 1-3), each with its own hide flag; Nebula_Sc03 sets all
     // three when they leave for the Grande Porte (the source's flag stays on Mathieu, the first actor).
     // Sc02 walks Mathieu down 2, to (6, 8) beside the mat.
-    Object(x: 6, y: 6, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GARGOTE_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_Gargote_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE"),
-    Object(x: 2, y: 7, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_GARGOTE_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Nebula_Gargote_EventScript_Adrien", flag: "FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN"),
-    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_GARGOTE_GWADA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_Gargote_EventScript_Gwada", flag: "FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA"),
+    Object(x: 6, y: 6, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_GARGOTE_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_Gargote_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE"),
+    Object(x: 2, y: 7, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_GARGOTE_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Nebula_Gargote_EventScript_Adrien", flag: "FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_SIL_GWADA", id: "LOCALID_GARGOTE_GWADA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_Gargote_EventScript_Gwada", flag: "FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA"),
     // 4: Mme Fenouil at the end of her counter (Fenouil_T1; the Leftovers after Sc02, FLAG_SIL_ITEM_NEBULA_RESTES).
     Object(x: 4, y: 4, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_GARGOTE_FENOUIL", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_Gargote_EventScript_Fenouil"),
 ]

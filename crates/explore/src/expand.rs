@@ -781,7 +781,8 @@ impl<'a, G: GameData> Driver<'a, G> {
             let p = w.objects().player();
             let approaches = macros::talk_approaches(&grid, o.pos());
             if let Some(&(_, d)) = approaches.iter().find(|(c, _)| *c == p.pos()) {
-                if p.is_settled() {
+                // A wandering object mid-step is not where its cell says: wait for it.
+                if p.is_settled() && o.is_settled() {
                     self.face_and_press(d, "talk")?;
                 } else {
                     self.press(Buttons::NONE)?;
