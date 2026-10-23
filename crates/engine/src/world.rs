@@ -165,8 +165,11 @@ pub(crate) struct State {
     /// The current map's object templates for this visit (scripts move them and change their
     /// movement type), with their hash digest.
     templates: templates::Templates,
-    /// The object whose interaction started the running script (Gen3 `gSelectedObjectEvent`).
-    selected: Option<u8>,
+    /// The object whose interaction started the running script (Gen3 `gSelectedObjectEvent`):
+    /// local id and map (the previous map's, for an NPC left in view by a crossing). Every
+    /// script start sets it and captures happen outside scripts, so checkpoints and the hash
+    /// keep the local id only (a restore puts it on the current map).
+    selected: Option<(u8, MapId)>,
     /// Object of the last `Move` (Gen3 `sMovingNpcId`), for `WaitMove(0)`.
     last_mover: u8,
     /// Frames left of a script `Delay`.
@@ -437,7 +440,7 @@ impl World {
         &mut self,
         game: &impl GameData,
         id: ScriptId,
-        talked: Option<(u8, Dir, bool)>,
+        talked: Option<(u8, Dir, MapId)>,
     ) {
         maps::set_talk_target(&mut self.s, &game.special_ids(), talked);
         self.s.event(Event::ScriptStarted(id));
@@ -502,7 +505,7 @@ impl World {
                             .find(|t| t.local_id == id)?
                             .script
                     };
-                    script.map(|sc| (sc, Some((id, facing, here))))
+                    script.map(|sc| (sc, Some((id, facing, m))))
                 });
                 let script = object_script.or_else(|| {
                     match interact_target(map, fx, fy, fe, facing, front, |_, _, _| None) {
@@ -716,7 +719,7 @@ impl World {
         s.fader.hash(&mut h);
         s.transition.hash(&mut h);
         self.runner.hash(&mut h);
-        h.write(&[s.selected.map_or(0xFF, |x| x), s.last_mover, s.door]);
+        h.write(&[s.selected.map_or(0xFF, |x| x.0), s.last_mover, s.door]);
         h.write_u16(s.delay);
         s.templates.hash(&mut h);
         // Milestone 4.

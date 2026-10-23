@@ -685,6 +685,47 @@ fn crossing_a_connection_switches_maps() {
     assert_eq!((w.map(), pos(&w)), (TOWN, (5, 0)), "and back");
 }
 
+/// Gen3 `GetObjectEventIdByPosition` does not filter by map: talking to an NPC of the previous
+/// map, still in view after a crossing, selects it, so `faceplayer` turns it (Task L).
+#[test]
+fn faceplayer_turns_a_previous_map_npc() {
+    let mut w = started();
+    walk(&mut w, Dir::Up, 5);
+    run(&mut w, Buttons::UP, 1);
+    assert_eq!(w.map(), ROUTE);
+    let old = w
+        .objects()
+        .iter()
+        .find(|o| o.map == TOWN && o.local_id != PLAYER)
+        .map(|o| o.local_id)
+        .expect("a town NPC still in view");
+    maps::set_talk_target(&mut w.s, &Game.special_ids(), Some((old, Dir::Up, TOWN)));
+    let facing = |w: &World| {
+        w.objects()
+            .iter()
+            .find(|o| o.map == TOWN && o.local_id == old)
+            .unwrap()
+            .facing
+    };
+    assert_ne!(facing(&w), Dir::Down);
+    let mut host_frame = Frame::default();
+    let mut runner = Runner::new();
+    runner.start(Box::pin({
+        let ctx = runner.ctx();
+        async move { ctx.face_player().await }
+    }));
+    let mut host = Host {
+        game: &Game,
+        s: &mut w.s,
+        f: &mut host_frame,
+        immediate: false,
+    };
+    runner.step(&mut host);
+    assert_eq!(facing(&w), Dir::Down, "the opposite of the player's facing");
+    // The hash and checkpoints keep the local id only (captures happen outside scripts).
+    assert_eq!(w.s.selected, Some((old, TOWN)));
+}
+
 #[test]
 fn missing_map_warps_are_ignored() {
     let mut w = started();

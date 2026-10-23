@@ -55,7 +55,9 @@ impl<G: GameData> Host<'_, G> {
             Request::WaitMessage => !s.text.is_printing(),
             Request::WaitButton => s.input.pressed.0 & (Buttons::A.0 | Buttons::B.0) != 0,
             Request::Lock | Request::LockAll => {
-                let selected_settled = s.selected.is_none_or(|id| s.objects.is_settled(id));
+                let selected_settled = s
+                    .selected
+                    .is_none_or(|(id, map)| s.objects.is_settled_on(id, map));
                 s.objects.is_settled(PLAYER) && selected_settled
             }
             Request::WaitMove(obj) => {
@@ -136,9 +138,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             }
             Request::FacePlayer => {
                 // Gen3 `faceplayer`: the opposite of the player's facing.
-                if let Some(id) = s.selected {
+                if let Some((id, map)) = s.selected {
                     let d = s.objects.player().facing.opposite();
-                    s.objects.face(id, d);
+                    s.objects.face_on(id, map, d);
                 }
                 UNIT
             }

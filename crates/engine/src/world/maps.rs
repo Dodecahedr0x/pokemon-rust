@@ -10,12 +10,14 @@ use crate::objects::Terrain;
 use crate::script::Runner;
 use crate::video::Frame;
 
-/// The talk target of a starting script. `talked` = (local id, player facing, whether the
-/// object belongs to the current map) for object interactions.
-pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u8, Dir, bool)>) {
-    // An NPC left over from the previous map is talked to, but not addressable by local id
-    // (`selected` names a current-map object), so `faceplayer` / `lock` skip it.
-    s.selected = talked.filter(|t| t.2).map(|t| t.0);
+/// The talk target of a starting script. `talked` = (local id, player facing, the object's
+/// map) for object interactions.
+pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u8, Dir, MapId)>) {
+    // Gen3 `GetObjectEventIdByPosition` does not filter by map: an NPC left over from the
+    // previous map after a crossing is selected too, so `faceplayer` / `lock` act on it
+    // (`gSelectedObjectEvent` is a slot). `VAR_LAST_TALKED` gets its local id, which scripts'
+    // `applymovement` resolve on the current map, as Gen3.
+    s.selected = talked.map(|t| (t.0, t.2));
     s.set_var_opt(ids.var_last_talked, talked.map_or(0, |t| t.0 as u16));
     if let Some((_, dir, _)) = talked {
         s.set_var_opt(ids.var_facing, dir as u16 + 1);

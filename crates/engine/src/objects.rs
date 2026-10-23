@@ -660,10 +660,19 @@ impl Objects {
 
     /// Turns an object at once (Gen3 `ObjectEventTurn`, `turnobject`).
     pub fn face(&mut self, local: u8, dir: Dir) {
-        self.with(local, |o| {
+        self.face_on(local, self.map, dir);
+    }
+
+    /// [`Objects::face`] for map `map`'s object `local` (the previous map's after a crossing).
+    pub fn face_on(&mut self, local: u8, map: MapId, dir: Dir) {
+        if let Some(o) = self
+            .objs
+            .iter_mut()
+            .find(|o| o.local_id == local && o.map == map)
+        {
             o.set_dir(dir);
             o.anim.turn();
-        });
+        }
     }
 
     /// Direction from `local` towards the player.
@@ -707,6 +716,14 @@ impl Objects {
     /// The object has no action in progress (true for unknown ids).
     pub fn is_settled(&self, local: u8) -> bool {
         self.get(local).is_none_or(Object::is_settled)
+    }
+
+    /// [`Objects::is_settled`] for map `map`'s object `local`.
+    pub fn is_settled_on(&self, local: u8, map: MapId) -> bool {
+        self.objs
+            .iter()
+            .find(|o| o.local_id == local && o.map == map)
+            .is_none_or(Object::is_settled)
     }
 
     /// Gives `local` a movement script. It starts once the current action has finished.

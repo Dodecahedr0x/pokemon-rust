@@ -195,6 +195,7 @@ impl World {
             .objects
             .sight_pending(sighting.obj, sighting.distance);
         let facing = self.s.objects.player().facing;
-        self.start_script(game, sighting.script, Some((sighting.obj, facing, true)));
+        let map = self.s.field.map();
+        self.start_script(game, sighting.script, Some((sighting.obj, facing, map)));
     }
 }
