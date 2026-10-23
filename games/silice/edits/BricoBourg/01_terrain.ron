@@ -1,7 +1,10 @@
 // Cells: ground plan, then the buildings stamped over it.
 [
     // Ground plan: T t Y y forest (2x2 pattern), . grass, * flowers, = gravel, { } [ ] ( ) canal (top, banks, end),
-    // r R roots, b synthetic brambles, s signpost.
+    // r R roots, b synthetic brambles, f fence, s signpost.
+    // The Labo door's front cell (4, 8) is a porch fenced at (3, 8) and (5, 8) and closed by the
+    // brambles (4, 9): the cell the door's exit walk lands on stays walkable (SIL2 Ch1 scripts fix;
+    // the brambles were on (4, 8), solid in the layout).
     Ascii(x: 0, y: 0, rows: [
         "TtTtTtTtTt.==.TtTtTtTtTt",
         "YyYyYyYyYy.==.YyYyYyYyYy",
@@ -11,8 +14,8 @@
         "Yy........s==..**..[]yYy",
         "Tt.........==......[]tTt",
         "Yy*........==......[]yYy",
-        "Tt..b.s.=====......[]tTt",
-        "Yy......=====......[]yYy",
+        "Tt.f.fs.=====......[]tTt",
+        "Yy..b...=====......[]yYy",
         "Tt......=====......[]tTt",
         "Yy**....=====......[]yYy",
         "Tt......=..........[]tTt",
@@ -23,7 +26,7 @@
         "Yy.................()yYy",
         "TtTtTtTtTtTtTtTtTtTtTtTt",
         "YyYyYyYyYyYyYyYyYyYyYyYy",
-    ], legend: {'.': (metatile: 1, collision: 0), '*': (metatile: 4, collision: 0), '=': (metatile: 523, collision: 0), '{': (metatile: 200, collision: 1), '}': (metatile: 202, collision: 1), '[': (metatile: 208, collision: 1), ']': (metatile: 210, collision: 1), '(': (metatile: 216, collision: 1), ')': (metatile: 218, collision: 1), 'r': (metatile: 14, collision: 1), 'R': (metatile: 22, collision: 1), 'b': (metatile: 514, collision: 1), 's': (metatile: 27, collision: 1), 'T': (metatile: 468, collision: 1), 't': (metatile: 469, collision: 1), 'Y': (metatile: 476, collision: 1), 'y': (metatile: 477, collision: 1)}),
+    ], legend: {'.': (metatile: 1, collision: 0), '*': (metatile: 4, collision: 0), '=': (metatile: 523, collision: 0), '{': (metatile: 200, collision: 1), '}': (metatile: 202, collision: 1), '[': (metatile: 208, collision: 1), ']': (metatile: 210, collision: 1), '(': (metatile: 216, collision: 1), ')': (metatile: 218, collision: 1), 'r': (metatile: 14, collision: 1), 'R': (metatile: 22, collision: 1), 'b': (metatile: 514, collision: 1), 'f': (metatile: 6, collision: 1), 's': (metatile: 27, collision: 1), 'T': (metatile: 468, collision: 1), 't': (metatile: 469, collision: 1), 'Y': (metatile: 476, collision: 1), 'y': (metatile: 477, collision: 1)}),
     // LABO (closed botany lab), x 3-6, y 2-7; its door (4, 7) is behind the brambles.
     // The door is solid (collision 1) until Chapter 1 gives it a warp: a closed, decorative door.
     Ascii(x: 3, y: 2, rows: ["abcd", "efgh", "ijkl", "mnop", "qrss", "tuvv"], legend: {'a': (metatile: 524, collision: 1), 'b': (metatile: 525, collision: 1), 'c': (metatile: 526, collision: 1), 'd': (metatile: 527, collision: 1), 'e': (metatile: 532, collision: 1), 'f': (metatile: 533, collision: 1), 'g': (metatile: 534, collision: 1), 'h': (metatile: 535, collision: 1), 'i': (metatile: 540, collision: 1), 'j': (metatile: 541, collision: 1), 'k': (metatile: 542, collision: 1), 'l': (metatile: 543, collision: 1), 'm': (metatile: 548, collision: 1), 'n': (metatile: 549, collision: 1), 'o': (metatile: 550, collision: 1), 'p': (metatile: 551, collision: 1), 'q': (metatile: 556, collision: 1), 'r': (metatile: 577, collision: 1), 's': (metatile: 558, collision: 1), 't': (metatile: 564, collision: 1), 'u': (metatile: 585, collision: 1), 'v': (metatile: 566, collision: 1)}),
