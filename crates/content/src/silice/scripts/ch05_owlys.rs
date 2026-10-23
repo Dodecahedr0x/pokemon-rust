@@ -16,10 +16,10 @@ pub const MAPS: &[&str] = &[
     "Owlys_Orphelinat",
 ];
 
-/// The sanctuary's door (30, 12): a cave hole (774), solid in the layout until the feather lock
-/// opens it ("SIL3 Ch5 maps as built").
+/// The sanctuary's door (30, 12): SilOwlys's `sanctuaire` door cell (559, a non-animated door),
+/// solid in the layout until the feather lock opens it ("SIL3 Ch5 maps as built").
 const PORTE_GYM: (i16, i16) = (30, 12);
-const METATILE_PORTE_GYM: u16 = 774;
+const METATILE_PORTE_GYM: u16 = 559;
 
 // ---- map scripts ----
 
@@ -190,7 +190,7 @@ pub async fn Owlys_Sc03(ctx: Ctx) {
 
 /// Owlys_Sc04, the feather lock on the sanctuary door (a sign on the door's cell): shut before
 /// the feather (`VAR_SIL_STORY` < 53); with it, the door opens once (`FLAG_SIL_OWLYS_PORTE_GYM`).
-/// The source's door animation (`door` / `wait_door`) is a cave hole without frames here: the
+/// The source's door animation (`door` / `wait_door`) is a non-animated door without frames here: the
 /// cell's collision is opened and the map redrawn.
 pub async fn Owlys_Sc04(ctx: Ctx) {
     if story(&ctx).await < 53 || !ctx.flag(FLAG_SIL_OWLYS_PLUME).await {

@@ -23,11 +23,11 @@ pub const MAPS: &[&str] = &[
     "ReverseCity_House1",
 ];
 
-/// The Porte Êta-Nord (27, 0): Sootopolis 545 (`MB_NON_ANIMATED_DOOR`), solid in the layout
-/// until Sc07 opens it; the same metatile, walkable, once open ("SIL4 Ch7 maps as built", the
-/// Ch8 link).
+/// The Porte Êta-Nord (27, 0): SilReverseCity's `porte_nord` shutter (626,
+/// `MB_NON_ANIMATED_DOOR`), solid in the layout until Sc07 opens it; then its open variant
+/// `porte_nord_ouverte` (634), walkable ("SIL4 Ch7 maps as built", the Ch8 link).
 const PORTE_NORD: (i16, i16) = (27, 0);
-const METATILE_PORTE_NORD: u16 = 545;
+const METATILE_PORTE_NORD: u16 = 634;
 
 /// The source's `set_input_inverted(on)` (R-2, §9): up/down and left/right swapped while
 /// walking, on Reverse-City's outside and in the Palais until Reverse is beaten, off in the

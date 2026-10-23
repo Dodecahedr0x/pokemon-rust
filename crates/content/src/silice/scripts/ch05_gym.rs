@@ -5,18 +5,24 @@
 //! `VAR_SIL_STORY` 53 → 54).
 //!
 //! **The bridges** ("SIL3 Ch5 maps as built"): five bridges between five islets, posed (planks,
-//! 700, walkable) or raised (the void, 581, solid). `FLAG_SIL_OWLYS_GYM_P1`–`_P5` hold their
-//! state; every load resets them (p1 posed, the others raised) until islet N is reached
-//! (`FLAG_SIL_OWLYS_GYM_COUR_OK`), then they all stay posed. The red, blue and black books each
-//! flip their bridges. The walkway to the platform comes down once the four Watchers are beaten.
+//! SilOwlysGym's `pont`, walkable) or raised (its `vide`, solid). `FLAG_SIL_OWLYS_GYM_P1`–`_P5`
+//! hold their state; every load resets them (p1 posed, the others raised) until islet N is
+//! reached (`FLAG_SIL_OWLYS_GYM_COUR_OK`), then they all stay posed. The red, blue and black
+//! books each flip their bridges. The walkway to the platform comes down once the four Watchers
+//! are beaten; each beaten Watcher puts its owl statue's red eyes out (`pilier_eteint`).
 
 use crate::silice::prelude::*;
 
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["Owlys_Gym", "Owlys_Gym_B1F"];
 
-const POSE: u16 = 700;
-const RELEVE: u16 = 581;
+/// SilOwlysGym (games/silice/gfx/SilOwlysGym.ron): `pont`, `vide`, and `pilier_eteint`'s two
+/// cells (the pillar's top row, the owl's eyes out).
+const POSE: u16 = 542;
+const RELEVE: u16 = 541;
+const METATILE_STATUE_ETEINTE: [u16; 2] = [553, 554];
+/// Each Watcher's pillar: its top-left cell (the owl statue's row), as `VEILLEURS`.
+const YEUX: [(i16, i16); 4] = [(7, 14), (20, 14), (7, 18), (20, 18)];
 
 /// The bridges' cells (the map's `02_events.ron` lists them).
 const P1: &[(i16, i16)] = &[
@@ -113,9 +119,18 @@ pub async fn Owlys_Gym_OnLoad(ctx: Ctx) {
     draw_bridges(&ctx).await;
     let watched = all_watchers_beaten(&ctx).await;
     paint(&ctx, PASSERELLE, watched).await;
-    if watched {
-        // fallback: the statues' red eyes put out (no eyes metatile in General + Cave).
-        fallback(&ctx, "statue eyes").await;
+    for (f, cell) in VEILLEURS.into_iter().zip(YEUX) {
+        if ctx.flag(f).await {
+            eyes_out(&ctx, cell).await;
+        }
+    }
+}
+
+/// The source's `set_metatile(X_YEUX_n, Y_YEUX_n, METATILE_STATUE_ETEINTE, true)`: the
+/// pillar's top row (two cells) with the owl's eyes out.
+async fn eyes_out(ctx: &Ctx, (x, y): (i16, i16)) {
+    for (dx, m) in METATILE_STATUE_ETEINTE.into_iter().enumerate() {
+        ctx.set_metatile(x + dx as i16, y, m, true).await;
     }
 }
 
@@ -207,8 +222,10 @@ async fn watcher_beaten(ctx: &Ctx, flag: FlagId) {
         return;
     }
     ctx.set_flag(flag, true).await;
-    // fallback: the statue's red eyes put out (`set_metatile`; no eyes metatile in the tilesets).
-    fallback(ctx, "statue eyes").await;
+    if let Some(i) = VEILLEURS.iter().position(|&f| f == flag) {
+        eyes_out(ctx, YEUX[i]).await;
+        ctx.redraw_map().await;
+    }
     if all_watchers_beaten(ctx).await {
         ctx.lock_all().await;
         say(ctx, Owlys_Gym_Passerelle).await;

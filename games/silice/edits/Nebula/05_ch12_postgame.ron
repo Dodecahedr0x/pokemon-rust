@@ -3,11 +3,11 @@
     // Nebula_PG_Sc10 (the sky splits) on the frame at VAR_SIL_STORY 126, beside Ch9's Nebula_Sc01 (kept:
     // ScriptsSet replaces the whole on_frame list).
     ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 92, script: "Nebula_Sc01"), (var: "VAR_SIL_STORY", value: 126, script: "Nebula_PG_Sc10")]),
-    // Warp 4: the MAINTENANCE door (11, 18), MAP_BENOU_LAB's way in. The door (543, MB_ANIMATED_DOOR) stays
+    // Warp 4: the MAINTENANCE door (11, 18), MAP_BENOU_LAB's way in. The door (SilNebula maintenance, 606, MB_ANIMATED_DOOR) stays
     // solid: Nebula_OnLoad sets its collision to 0 from VAR_SIL_STORY 126 (the source: closed until 126).
     // Its sign (bg 8) still reads the locked text before then.
     Warp(x: 11, y: 18, dest_map: "BenouLab", dest_warp: 0),
-    // Warps 5-6: the crack in the north wall (18-19, 3), MAP_BRECHE's way in. The wall (764) stays solid;
+    // Warps 5-6: the crack in the north wall (18-19, 3), MAP_BRECHE's way in. The wall (the towers' ground floor, SilNebula socle 517-518) stays solid;
     // Nebula_OnLoad draws the crack from VAR_SIL_STORY 126 (Nebula_PG_Sc10's set_metatile(NEBULA_MUR_NORD,
     // FISSURE), then on every load): General's cave mouth 167 (MB_NON_ANIMATED_DOOR), collision 0. Arriving
     // from the Breach walks the player south onto (18-19, 4).

@@ -203,6 +203,14 @@
     ],
     coords: [
         (
+            x: 20,
+            y: 33,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 61,
+            script: Some("MangaSquare_Sc01"),
+        ),
+        (
             x: 21,
             y: 33,
             elevation: 3,
@@ -220,6 +228,14 @@
         ),
         (
             x: 23,
+            y: 33,
+            elevation: 3,
+            var: Some("VAR_SIL_STORY"),
+            value: 61,
+            script: Some("MangaSquare_Sc01"),
+        ),
+        (
+            x: 24,
             y: 33,
             elevation: 3,
             var: Some("VAR_SIL_STORY"),
@@ -285,8 +301,8 @@
     ],
     bgs: [
         (
-            x: 26,
-            y: 34,
+            x: 25,
+            y: 33,
             elevation: 0,
             kind: Script(
                 facing: 0,

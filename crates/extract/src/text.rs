@@ -379,6 +379,11 @@ impl Rom {
     }
 }
 
+/// The length in bytes (terminator included) of the string at file offset `off`.
+pub fn string_len_at(rom: &Rom, off: u32) -> Result<usize> {
+    Ok(rom.string_and_len_at(off)?.1)
+}
+
 /// Decodes the string at `off` with the ROM's charmap and checks that re-encoding the text gives
 /// exactly the ROM bytes (terminator included). Returns the text.
 pub fn round_trip_at(rom: &Rom, off: u32) -> Result<String> {

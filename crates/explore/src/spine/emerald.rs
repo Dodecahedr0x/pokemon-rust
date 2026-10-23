@@ -19,6 +19,10 @@ mod list {
 
     use engine::data::{Dir, MapId};
 
+    /// Gen3's `MOVE_ROCK_SMASH` (`include/constants/moves.h`), named here because the stub
+    /// build's `content::consts` has no Emerald moves (this local item shadows the glob import).
+    const MOVE_ROCK_SMASH: engine::data::MoveId = engine::data::MoveId(249);
+
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
     }
@@ -43,32 +47,19 @@ mod list {
         Step::Train { map, x, y, level }
     }
 
+    /// A walk in Mauville's gym to (x, y) around the floor switches (`sMauvilleGymSwitchCoords`)
+    /// in `avoid`.
+    const fn gym_switch(x: i16, y: i16, avoid: &'static [(i16, i16)]) -> Step {
+        Step::GotoAvoiding {
+            map: MAP_MAUVILLE_CITY_GYM,
+            x,
+            y,
+            avoid,
+        }
+    }
     const fn train_fresh(map: MapId, x: i16, y: i16, level: u8) -> Step {
         Step::TrainFresh { map, x, y, level }
     }
-
-    /// Mauville's gym: its floor switches run `special MauvilleGymSetDefaultBarriers` and
-    /// `MauvilleGymPressSwitch` (unsupported), which toggle every beam barrier; without them
-    /// the barriers never move and Wattson's dais is walled off. The bypass stands the player
-    /// below Wattson (the gym's trainers are optional).
-    static MAUVILLE_GYM_BARRIERS: Bypass = Bypass {
-        issue: "mauville-gym-barriers",
-        features: &[
-            "SPECIAL_MauvilleGymSetDefaultBarriers",
-            "SPECIAL_MauvilleGymPressSwitch",
-        ],
-        warp: Some((MAP_MAUVILLE_CITY_GYM, 5, 3)),
-        ..Bypass::NONE
-    };
-
-    /// Mauville's gym after Wattson: `special MauvilleGymDeactivatePuzzle` (unsupported) should
-    /// open every barrier; the dais stays walled off. The bypass stands the player at the door.
-    static MAUVILLE_GYM_DEACTIVATE: Bypass = Bypass {
-        issue: "mauville-gym-deactivate",
-        features: &["SPECIAL_MauvilleGymDeactivatePuzzle"],
-        warp: Some((MAP_MAUVILLE_CITY_GYM, 4, 19)),
-        ..Bypass::NONE
-    };
 
     /// `Route112_CableCarStation_EventScript_RideCableCar`: `special CableCarWarp` (the warp
     /// destination) and `special CableCar` (the ride scene) are unsupported, so the player stays
@@ -102,31 +93,26 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// `EventScript_RockSmash`: `checkpartymove` is a `Default(6)` stub (no party mon ever
-    /// knows the move), so the rock says "It's a rugged rock". The bypass steps past it.
-    static ROUTE111_ROCK_SMASH: Bypass = Bypass {
-        issue: "checkpartymove-rock-smash",
-        features: &["checkpartymove"],
-        warp: Some((MAP_ROUTE111, 18, 100)),
-        ..Bypass::NONE
-    };
-
-    /// The same rock from the north (Route 111's rocks come back on every map load): the
-    /// bypass steps past it southward.
+    /// The lead forgets Rock Smash for Muddy Water at level 39 (Route 112, under
+    /// `BattlePlan::BestLearn`): Gen3's learn menu refuses to forget an HM move (`IsHMMove2`,
+    /// `battle_script_commands.c`), the explorer's `policy::forget_slot` does not (no HM list
+    /// in the game data), so `checkpartymove` (now native) finds no Rock Smash and the rock
+    /// stays. The bypass steps past Route 111's rock from the north (it comes back on every
+    /// map load; the spine smashed it for real on the way up).
     static ROUTE111_ROCK_SMASH_SOUTH: Bypass = Bypass {
-        issue: "checkpartymove-rock-smash-south",
-        features: &["checkpartymove"],
+        issue: "rock-smash-forgotten-south",
+        features: &["IsHMMove2 in the explorer's learn policy"],
         warp: Some((MAP_ROUTE111, 18, 102)),
         ..Bypass::NONE
     };
 
-    /// Rusturf Tunnel's boulder (`EventScript_RockSmash`, `checkpartymove` stubbed): the
+    /// Rusturf Tunnel's boulder, for the same reason (`rock-smash-forgotten-south`): the
     /// bypass does what smashing the first rock does (`removeobject` sets its hide flag,
-    /// `SPECIAL_TryUpdateRusturfTunnelState` sets the tunnel's state 4) and reloads the
-    /// tunnel, whose `ON_FRAME` table then plays Wanda's boyfriend's scene (HM04).
+    /// `SPECIAL_TryUpdateRusturfTunnelState`, now native, sets the tunnel's state 4) and
+    /// reloads the tunnel, whose `ON_FRAME` table then plays Wanda's boyfriend's scene (HM04).
     static RUSTURF_ROCK_SMASH: Bypass = Bypass {
-        issue: "checkpartymove-rock-smash-rusturf",
-        features: &["checkpartymove", "SPECIAL_TryUpdateRusturfTunnelState"],
+        issue: "rock-smash-forgotten-rusturf",
+        features: &["IsHMMove2 in the explorer's learn policy"],
         set: &[FLAG_HIDE_RUSTURF_TUNNEL_ROCK_1],
         vars: &[(VAR_RUSTURF_TUNNEL_STATE, 4)],
         warp: Some((MAP_RUSTURF_TUNNEL, 25, 5)),
@@ -751,15 +737,29 @@ mod list {
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
         enter(MAP_MAUVILLE_CITY, 8, 5, Up),
-        // The switches never open the barriers (`mauville-gym-barriers`).
-        Step::Bypass(&MAUVILLE_GYM_BARRIERS),
+        // The floor switches (`MauvilleGymSetDefaultBarriers` flips every beam), stepping on
+        // no other and round Kirk's and Vivian's sight lines (1,14), (1,15). The first (0,15)
+        // opens the way north, but Ben (5,10) spots the player at (3,10) and walks to (4,10),
+        // the only way on, where he stays (`OverrideTemplateCoordsForObjectEvent`). Out to
+        // heal: Mauville resets the puzzle (`MauvilleCity_OnTransition`), and from the default
+        // barriers the third switch (3,9) alone opens the way past him.
+        gym_switch(0, 15, &[(4, 12), (3, 9), (8, 9), (1, 14), (1, 15)]),
+        gym_switch(3, 10, &[(4, 12), (3, 9), (8, 9), (1, 14), (1, 15)]),
+        gym_switch(5, 19, &[(0, 15), (4, 12), (3, 9), (8, 9), (1, 14), (1, 15)]),
+        enter(MAP_MAUVILLE_CITY_GYM, 5, 20, Down),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_MAUVILLE_CITY, 8, 5, Up),
+        gym_switch(3, 9, &[(0, 15), (4, 12), (8, 9), (1, 14), (1, 15)]),
+        gym_switch(5, 3, &[(0, 15), (4, 12), (3, 9), (8, 9)]),
         talk(MAP_MAUVILLE_CITY_GYM, 1),
         Step::Expect("wattson_defeated"),
         Step::Expect("badge3"),
         Step::Checkpoint("badge3"),
         // ================= Act 4: Route 111 and 112, Fallarbor, Meteor Falls, Mt. Chimney,
         // Lavaridge, Flannery =================
-        Step::Bypass(&MAUVILLE_GYM_DEACTIVATE),
+        // Wattson's script deactivated the puzzle (`MauvilleGymDeactivatePuzzle`).
         enter(MAP_MAUVILLE_CITY_GYM, 4, 20, Down),
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
@@ -835,9 +835,9 @@ mod list {
         Step::Bypass(&TEACH_ROCK_SMASH),
         // ---- Route 111: smash the rock north of the Winstrates', on to Route 113 ----
         cross(MAP_MAUVILLE_CITY, 16, 0, Up),
-        // The rock (blocked: `checkpartymove-rock-smash`): try it, then step past.
+        // The rock: `EventScript_RockSmash` (yes).
+        Step::Choose(0),
         talk(MAP_ROUTE111, 15),
-        Step::Bypass(&ROUTE111_ROCK_SMASH),
         cross(MAP_ROUTE111, 0, 68, Left),
         // ---- Route 112: through the Fiery Path to its north part, back east onto Route 111
         // north of the desert, west to Route 113 and Fallarbor ----
@@ -922,6 +922,7 @@ mod list {
         // Route 112's ledges down to Route 111, south past the rock to Mauville.
         cross(MAP_LAVARIDGE_TOWN, 19, 10, Right),
         cross(MAP_ROUTE112, 39, 48, Right),
+        // The same rock from the north (blocked: `rock-smash-forgotten-south`).
         goto(MAP_ROUTE111, 18, 100),
         Step::Bypass(&ROUTE111_ROCK_SMASH_SOUTH),
         cross(MAP_ROUTE111, 16, 139, Down),
@@ -933,6 +934,7 @@ mod list {
         cross(MAP_ROUTE117, 0, 10, Left),
         Step::Expect("verdanturf"),
         enter(MAP_VERDANTURF_TOWN, 8, 1, Up),
+        // The boulder between Wanda and her boyfriend (blocked: `rock-smash-forgotten-rusturf`).
         goto(MAP_RUSTURF_TUNNEL, 25, 5),
         Step::Bypass(&RUSTURF_ROCK_SMASH),
         Step::WaitScript,

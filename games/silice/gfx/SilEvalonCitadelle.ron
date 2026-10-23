@@ -1,0 +1,168 @@
+// Le Donjon de la Coordination (Ch8, MAP_EVALON_CITADELLE and _2F): Loulpix and Doris' gym, a
+// tabletop campaign played in a stone dungeon. contenu-jeu/chapitres/08-evalon.md §4: the Salle des
+// Dalles (sword, shield and skull slabs), the Pont du Golem (a chasm, a raised drawbridge, two
+// pressure plates for the iron golems), the Crypte (runes between pits), the Sphinge's door, the
+// Salle du Trésor, and upstairs the Salle du Trône with the giant game table.
+// Both maps use this tileset on Building (the 1F moved from General + Pacifidlog to Building, as
+// the 2F): Building has no floor, so the spec has no ground; textures are opaque and every object
+// names the texture it stands on (`under`: the flagstones `dalles`, the wall `mur`).
+// Derived art (xtask/src/silice/derive.rs): the floor in the wall's shadow and the engraved slabs
+// (sword, shield, skull, rune, pressure plate) are drawn on `dalles`, so they match it exactly.
+// Script ids (ch08_gym.rs): the lowered drawbridge `pont` (5, 32-33) and the Sphinge's open door
+// `porte_ouverte` (5, 9-10). `fosse` (3x3) holds metatile 524: a 1x1 stamp there would equal an
+// extract layout (studio map hygiene).
+(
+    name: "SilEvalonCitadelle",
+    primary: "Building",
+    ground: None,
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald indoor style (Game Boy Advance), seen from the top-down three-quarter view of Pokemon games, a medieval fantasy dungeon. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing, no text.",
+    features: [
+        (
+            name: "dalles",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Dungeon floor texture seen from above, only 16x16 pixels, chunky details: exactly four square worn flagstones in a 2x2 grid, flat warm grey stone with a lighter top edge, dark grey joints between them, no cracks. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "mur",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("A medieval dungeon wall segment seen from the front, one tile wide and two tiles tall: the top quarter is the dark grey flat top of the wall with a light edge, below it exactly two rows of big warm grey-brown cut stone blocks with thick dark brown joints, each block with a lighter top edge, a dark shadow band at the bottom. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "escalier",
+            under: Some("mur"),
+            cells: ["###", "#W#"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("A stone staircase going up into a dungeon wall, seen from the front, wider than tall: in the middle third, grey stone steps rising into a dark arched opening at the top; on the left and right thirds, grey cut stone wall with an iron torch bracket."),
+        ),
+        (
+            name: "sortie",
+            cells: ["AA"],
+            key: Some("none"),
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+            prompt: Some("The open double oak door of a dungeon seen from above, twice as wide as tall, filling the whole canvas: two heavy oak door leaves swung open to the left and right edges, iron studs, between them bright daylight and grey cobblestones outside at the bottom edge."),
+        ),
+        (
+            name: "fosse",
+            cells: ["###", "###", "###"],
+            key: Some("none"),
+            prompt: Some("A square bottomless pit in a dungeon floor seen from above, filling the whole canvas: a rim of grey cut stones one sixth of the canvas wide all around the four edges, a thin dark grey inner edge, and the whole inside pitch black with a very dark blue tint. Symmetric, no other detail."),
+        ),
+        (
+            name: "dalles_ombre",
+            cells: ["."],
+        ),
+        (
+            name: "plaque",
+            under: Some("dalles"),
+            cells: ["#"],
+            prompt: Some("One single small bronze plaque on a short stone stand, seen from 3/4 above: a rectangular bronze plate engraved with a twenty-sided die symbol, no letters."),
+        ),
+        (
+            name: "dalle_epee",
+            cells: ["."],
+        ),
+        (
+            name: "dalle_bouclier",
+            cells: ["."],
+        ),
+        (
+            name: "dalle_crane",
+            cells: ["."],
+        ),
+        (
+            name: "rune",
+            cells: ["."],
+        ),
+        (
+            name: "plaque_pression",
+            cells: ["."],
+        ),
+        (
+            name: "eboulis",
+            under: Some("dalles"),
+            cells: ["#"],
+            prompt: Some("One single pile of fallen grey stone blocks and rubble seen from 3/4 above, three or four chunky broken cut stones heaped together."),
+        ),
+        (
+            name: "colonne",
+            under: Some("dalles"),
+            cells: ["#"],
+            prompt: Some("One single broken stone column seen from 3/4 above: a short thick round grey pillar with a jagged broken top and a square base, a little green moss."),
+        ),
+        (
+            name: "pont",
+            cells: [".", "."],
+            key: Some("none"),
+            prompt: Some("A lowered narrow wooden drawbridge seen from above, twice as tall as wide, filling the whole canvas: thick oak planks running from left to right stacked from top to bottom, a black iron chain along the left and right edges, pitch black void visible in a thin strip on both sides."),
+        ),
+        (
+            name: "porte",
+            under: Some("mur"),
+            cells: ["#", "#"],
+            prompt: Some("One single closed heavy dungeon door seen from the front, twice as tall as wide: an arched oak door with black iron bands and a big iron ring, a carved stone sphinx head above it. Only one door, nothing else."),
+        ),
+        (
+            name: "porte_ouverte",
+            under: Some("mur"),
+            cells: [".", "."],
+            prompt: Some("One single open dungeon doorway seen from the front, twice as tall as wide: an arched grey stone frame with a carved stone sphinx head above it, the door gone, inside grey flagstones leading through. Only one doorway, nothing else."),
+        ),
+        (
+            name: "torche",
+            under: Some("mur"),
+            cells: ["#", "#"],
+            prompt: Some("One single wall torch seen from the front, twice as tall as wide: a small black iron bracket holding a wooden torch with a bright orange and yellow flame, in the upper half; nothing in the lower half."),
+        ),
+        (
+            name: "banniere_bleue",
+            under: Some("mur"),
+            cells: ["#", "#"],
+            prompt: Some("One single long hanging royal blue cloth banner seen from the front, twice as tall as wide, hung from a wooden rod at the top, a small white sun emblem in the middle, a swallow-tailed bottom end."),
+        ),
+        (
+            name: "banniere_verte",
+            under: Some("mur"),
+            cells: ["#", "#"],
+            prompt: Some("One single long hanging forest green cloth banner seen from the front, twice as tall as wide, hung from a wooden rod at the top, a small yellow oak leaf emblem in the middle, a swallow-tailed bottom end."),
+        ),
+        (
+            name: "armure",
+            under: Some("dalles"),
+            cells: ["#", "#"],
+            prompt: Some("One single empty suit of knight's plate armour on a stand, seen from the front, twice as tall as wide: a grey steel helmet with a visor, breastplate, a long sword held point down in front, a small blue plume."),
+        ),
+        (
+            name: "table_jeu",
+            under: Some("dalles"),
+            cells: ["####", "####", "####"],
+            prompt: Some("A giant wooden role-playing game table seen from 3/4 above, wider than tall: a thick oak tabletop covered with a parchment map, a few big colourful dice (a red twenty-sided die, a blue cube die), small painted figurines of a knight and a dragon, a folded game master's screen at one end."),
+        ),
+        (
+            name: "tapis",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Carpet texture seen from above, only 16x16 pixels, chunky details: a plain deep royal blue woollen carpet with one tiny gold diamond in the middle. No border, no stripe. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "escalier_bas",
+            cells: ["AA"],
+            key: Some("none"),
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+            prompt: Some("A stone staircase going down seen from above, twice as wide as tall, filling the whole canvas: grey stone steps descending from the top edge towards a dark bottom edge, each step a little darker than the one above."),
+        ),
+        (
+            name: "tresor",
+            under: Some("dalles"),
+            cells: ["#"],
+            prompt: Some("One single heap of shiny gold coins with a golden goblet and a red gem, seen from 3/4 above."),
+        ),
+        (
+            name: "statue_sphinge",
+            under: Some("dalles"),
+            cells: ["#", "#"],
+            prompt: Some("One single small sandstone sphinx statue sitting on a square stone pedestal, seen from the front, twice as tall as wide: a lion's body with a woman's head wearing a striped headdress."),
+        ),
+    ],
+)

@@ -678,7 +678,6 @@ pub fn check_end(r: &Run) {
         "play_fanfare",
         "show_sync",
         "log_menu",
-        "statue eyes",
         "screen_shake",
         "moving light",
         "hidden item",

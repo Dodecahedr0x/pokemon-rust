@@ -26,11 +26,14 @@
     Object(x: 37, y: 1, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_MANGA_SQUARE_CONTROLEUR", local_id: 21, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_EventScript_Controleur", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR"),
     Object(x: 37, y: 3, gfx: "OBJ_EVENT_GFX_SIL_BENOU", id: "LOCALID_MANGA_SQUARE_BENOU", local_id: 20, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_BENOU"),
     Object(x: 37, y: 8, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_MANGA_SQUARE_ADRIEN", local_id: 22, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN"),
-    // Manga_Square_Sc01, VAR_SIL_STORY 61: under the Torii Sud (x 21-23, y 33), and at the shortcut's
+    // Manga_Square_Sc01, VAR_SIL_STORY 61: on the way up to the Torii Sud (x 21-23, y 33, the Torii in
+    // sight; x 20 and 24 close the strip's grass), and at the shortcut's
     // first step (2, 25) (a warp arrival fires no coord event on its own cell).
+    Coord(x: 20, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
     Coord(x: 21, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
     Coord(x: 22, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
     Coord(x: 23, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
+    Coord(x: 24, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
     Coord(x: 2, y: 25, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
     // Manga_Square_Sc02, VAR_SIL_STORY 66: the three cells in front of the Grand Torii (x 36-38, y 6).
     Coord(x: 36, y: 6, var: "VAR_SIL_STORY", value: 66, script: "MangaSquare_Sc02"),
@@ -38,7 +41,8 @@
     Coord(x: 38, y: 6, var: "VAR_SIL_STORY", value: 66, script: "MangaSquare_Sc02"),
     // Manga_Square_Sc03, VAR_SIL_STORY 67: the exit cell under the Grand Torii.
     Coord(x: 37, y: 1, var: "VAR_SIL_STORY", value: 67, script: "MangaSquare_Sc03"),
-    Sign(x: 26, y: 34, script: "MangaSquare_EventScript_SignVille"),
+    // The town sign stands by the way up from Route S6 (General's sign: the strip is primary).
+    Sign(x: 25, y: 33, script: "MangaSquare_EventScript_SignVille"),
     Sign(x: 22, y: 16, script: "MangaSquare_EventScript_SignStatue"),
     Sign(x: 39, y: 6, script: "MangaSquare_EventScript_SignGrandTorii"),
     Sign(x: 18, y: 13, script: "MangaSquare_EventScript_SignEcran"),

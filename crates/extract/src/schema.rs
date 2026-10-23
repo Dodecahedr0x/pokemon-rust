@@ -51,6 +51,9 @@
 //!   battle/evolutions.ron        EvolutionsFile (gEvolutionTable: SPECIES_* -> [(EVO_*, param,
 //!                                SPECIES_*)])
 //!   battle/trainer_money.ron     TrainerMoneyFile (gTrainerMoneyTable: TRAINER_CLASS_* -> value)
+//!   battle/dex.ron               DexFile (minor 6: the Hoenn Pokédex order, from
+//!                                sSpeciesToHoennPokedexNum)
+//!   battle/rematches.ron         RematchesFile (minor 6: gRematchTable)
 //! ```
 //!
 //! **Versions.** [`FORMAT_VERSION`] is the major version: an extract of another major builds the
@@ -96,7 +99,9 @@ pub const FORMAT_VERSION: u32 = 5;
 ///   their texts. No file is added, so [`MINOR_FILES`] has no minor-4 entry.
 /// - 5: Task L adds `tables/field_strings.ron` (the strings of `GetPlayerBigGuyGirlString`,
 ///   `GetRivalSonDaughterString` and `GetMomOrDadStringForTVMessage`).
-pub const FORMAT_MINOR: u32 = 5;
+/// - 6: Wave C (specials) adds `battle/dex.ron` and `battle/rematches.ron`, and exports the C-only
+///   texts of `labels::C_TEXT_RUNS` (the Pokédex ratings).
+pub const FORMAT_MINOR: u32 = 6;
 /// The files each minor added, as `(minor, path relative to the extracted dir)`: a merge that
 /// bumps [`FORMAT_MINOR`] appends its new files here, so the content build names the missing
 /// ones when an extract is older ([`missing_since`]). Only paths every extract has are listed:
@@ -118,6 +123,8 @@ pub const MINOR_FILES: &[(u32, &str)] = &[
     (3, "tables/std_strings.ron"),
     (3, "tables/map_sections.ron"),
     (5, "tables/field_strings.ron"),
+    (6, "battle/dex.ron"),
+    (6, "battle/rematches.ron"),
 ];
 
 /// The [`MINOR_FILES`] paths added after `minor` that `exists` reports missing.
@@ -590,6 +597,29 @@ pub struct WildMon {
 
 /// `battle/heal_locations.ron`: `HEAL_LOCATION_*` -> (map name, x, y) of `sHealLocations`.
 pub type HealLocationsFile = BTreeMap<String, (String, i16, i16)>;
+
+/// `battle/dex.ron` (minor 6): the Hoenn Pokédex, `SPECIES_*` in Hoenn order (`HOENN_DEX_TREECKO`
+/// first, `HOENN_DEX_COUNT` entries; Gen3 `sSpeciesToHoennPokedexNum`). Empty when the ROM has no
+/// such table (a synthetic ROM).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct DexFile {
+    pub hoenn: Vec<String>,
+}
+
+/// One `gRematchTable` entry: the trainer of each stage (`TRAINER_*`, `TRAINER_NONE` past the
+/// last) and the map (directory name) the rematch happens on.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Rematch {
+    pub trainers: Vec<String>,
+    pub map: String,
+}
+
+/// `battle/rematches.ron` (minor 6): `gRematchTable` in `REMATCH_*` order. Empty when the ROM has
+/// no such table (a synthetic ROM).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct RematchesFile {
+    pub rematches: Vec<Rematch>,
+}
 
 /// `battle/strings.ron`: `STRINGID_*` or `gText_*` name -> decomp `.string` syntax.
 pub type BattleStringsFile = BTreeMap<String, String>;

@@ -1,0 +1,190 @@
+// Évalon (Ch8, MAP_EVALON): the Bourg d'Évalon, the screenless village of role-players in the
+// Vallée de la Résonance. contenu-jeu/chapitres/08-evalon.md §2.2: a natural cirque of dark red
+// iron-ore walls, half-timbered oak houses with mossy tiled roofs, cobbled lanes, oil lamps, the
+// factions' pennants (blue: Ordre de l'Aube, green: Compagnie du Chêne), the water mill driving a
+// steam engine, the Taverne du Dé à Vingt Faces with its Pigeonnier, the Échoppe du Troc, the Forge,
+// the Tour du Scribe, the Maison des Anciens, the Galeries' mine mouth, the Porte du Fer under the
+// belfry and the fortified Citadelle at the top. No screen, no neon, no cable.
+// Footprints keep the map's doors (one cell each, bottom middle): the Taverne 3x4 (22, 26), the
+// Échoppe 3x3 (28, 26), the Forge 3x3 (32, 30), the Tour 3x5 (6, 20), the Anciens 5x3 (42, 22); the
+// Citadelle's gate (25, 3) and the Galeries' mouth (3, 12) are walkable doorways, as Fallarbor's were.
+// The buildings and props stand on the packed earth (`under: terre`). `pont` is the lowered
+// drawbridge (METATILE_PONT in ch08_evalon.rs). `falaise` comes first: a 1x1 stamp of metatile 513
+// or 524 would equal an extract layout (studio map hygiene).
+(
+    name: "SilEvalon",
+    primary: "General",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), medieval fantasy village. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing, no text.",
+    features: [
+        (
+            name: "falaise",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("Rock cliff texture seen from above, only 32x32 pixels, chunky details: dark red-brown iron ore rock, four or five big angular boulder facets in two shades of deep rust red with a dark maroon outline, one tiny rusty orange glint. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "falaise_bas",
+            cells: ["##"],
+            key: Some("none"),
+            prompt: Some("The foot of a dark red-brown iron ore rock cliff seen from the front, 32 pixels wide and 16 pixels tall, filling the whole canvas: big angular rust red rock facets with dark maroon outlines, exactly like a rocky cliff wall, and only along the very bottom edge a thin dark maroon shadow line. No ground, no sky. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "terre",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Packed earth village ground seen from above, only 16x16 pixels, chunky details: flat warm grey-beige soil with three small darker pebbles of two pixels. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "paves",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Cobblestone street texture seen from above, only 16x16 pixels, chunky details: exactly four rounded grey stone cobbles in a 2x2 grid, light grey tops with a darker grey lower edge, dark brown-grey joints between them. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "pont",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A lowered wooden drawbridge deck seen from above, only 16x16 pixels, chunky details: exactly three thick oak planks running from left to right, warm brown with a dark brown line between them, one black iron nail head on each plank end. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "citadelle",
+            under: Some("falaise"),
+            cells: ["#####", "#####", "##W##"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("The front of a small medieval stone fortress seen from the front, wider than tall: a grey stone keep with crenellated battlements, two round towers with pointed dark slate roofs on the left and right, a blue pennant and a green pennant on the towers, a tall arched gateway with an open dark entrance exactly in the middle of the bottom edge, one cell wide."),
+        ),
+        (
+            name: "tour_scribe",
+            under: Some("terre"),
+            cells: ["###", "###", "###", "###", "#D#"],
+            prompt: Some("A tall narrow round medieval scribe's tower, three storeys: grey stone walls, a pointed dark red tiled cone roof with green moss patches, three small arched windows stacked above each other, a large quill feather weather vane on the top, a wooden door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "taverne",
+            under: Some("terre"),
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A medieval half-timbered tavern seen from the front: dark oak beams in a cross pattern over white plaster walls, a steep dark red tiled roof with green moss patches and a stone chimney, a hanging wooden sign shaped like a big twenty-sided die, two warm yellow windows, an oak door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "pigeonnier",
+            under: Some("terre"),
+            cells: ["###", "###", "###"],
+            prompt: Some("A small square medieval dovecote seen from the front: half-timbered walls of dark oak beams and white plaster, a flat wooden roof with a low railing on which three white and grey pigeons sit, a row of small round pigeon holes under the roof, no door."),
+        ),
+        (
+            name: "echoppe",
+            under: Some("terre"),
+            cells: ["###", "###", "#D#"],
+            prompt: Some("A small medieval barter shop seen from the front: half-timbered walls of dark oak beams and white plaster, a dark red tiled roof with moss, a striped green and cream cloth awning over a wooden counter with baskets of apples and clay jars, a wooden door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "forge",
+            under: Some("terre"),
+            cells: ["###", "###", "#D#"],
+            prompt: Some("A small medieval blacksmith's forge seen from the front: thick grey stone walls, a dark slate roof with a big stone chimney puffing a grey smoke cloud, an orange glow in a side window, a horseshoe hung on the wall, a heavy wooden door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "anciens",
+            under: Some("terre"),
+            cells: ["#####", "#####", "##D##"],
+            prompt: Some("A long medieval council hall seen from the front, wider than tall: half-timbered walls of dark oak beams and white plaster on a grey stone base, a long steep dark red tiled roof with moss patches, a blue banner on the left of the door and a green banner on the right, two small windows, a large double oak door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison",
+            under: Some("terre"),
+            cells: ["###", "###", "###"],
+            prompt: Some("A small medieval half-timbered cottage seen from the front: dark oak beams in a cross pattern over white plaster walls, a steep dark red tiled roof with green moss patches, a small chimney on the right, one window with a flower box on the left, a closed wooden door in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison_m",
+            under: Some("terre"),
+            cells: ["###", "###", "###"],
+            mirror: Some("maison"),
+        ),
+        (
+            name: "fontaine",
+            under: Some("paves"),
+            cells: ["###", "###", "###"],
+            prompt: Some("A dry round medieval stone fountain seen from 3/4 above: a wide basin of grey cut stones, empty and dusty inside with a few dry leaves, a short stone column in the middle topped by a small stone fish whose mouth spouts no water."),
+        ),
+        (
+            name: "beffroi",
+            under: Some("terre"),
+            cells: ["##", "##", "##"],
+            prompt: Some("A tall narrow medieval wooden belfry tower seen from the front: a square tower of dark oak beams on a grey stone base, an open arched bell chamber near the top holding one large bronze bell, a small pointed dark red tiled roof on top."),
+        ),
+        (
+            name: "rempart",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A medieval stone rampart wall seen from the front, only 16x16 pixels, chunky details: the top quarter is a row of two square grey crenellations, below it big grey cut stone blocks with dark grey joints, a dark shadow line at the bottom. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "porte_fer",
+            under: Some("paves"),
+            cells: ["#...#"],
+            prompt: Some("A wide medieval iron gate in a stone wall seen from the front, five times wider than tall: on the far left and far right a square grey stone gate tower with a black iron band; in the middle three fifths, an open passage of grey cobblestones with the black iron spikes of a raised portcullis hanging only along the very top edge."),
+        ),
+        (
+            name: "galeries",
+            under: Some("falaise"),
+            cells: ["###", "#W#"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("The entrance of an old mine dug into dark red rock, seen from the front, wider than tall: a square timber frame of thick oak beams around a black opening exactly in the middle of the bottom edge, a pair of iron rails coming out of it, a small iron lantern hanging on the beam."),
+        ),
+        (
+            name: "moulin",
+            under: Some("terre"),
+            cells: ["###", "###", "###"],
+            prompt: Some("A small medieval water mill seen from the front, as wide as tall: on the left a big wooden water wheel with paddles touching blue water at the bottom left corner, in the middle a half-timbered mill house with a dark red tiled roof, on the right a small brass steam engine with a round boiler, a copper pipe and a thin chimney puffing white steam."),
+        ),
+        (
+            name: "pilier",
+            under: Some("terre"),
+            cells: ["#", "#"],
+            prompt: Some("One single tall square grey stone gate pillar seen from the front, twice as tall as wide, topped by a stone ball, a blue pennant hanging from an iron bracket on its side."),
+        ),
+        (
+            name: "pilier_m",
+            under: Some("terre"),
+            cells: ["#", "#"],
+            mirror: Some("pilier"),
+        ),
+        (
+            name: "lampion",
+            under: Some("terre"),
+            cells: ["#"],
+            prompt: Some("One single big medieval street lantern seen from the front, filling the whole height: a thick black iron post with a large square glass lantern on top glowing bright warm yellow with a small black iron cap. The lantern is as wide as half the picture."),
+        ),
+        (
+            name: "fanion_bleu",
+            under: Some("terre"),
+            cells: ["#"],
+            prompt: Some("One single tall wooden flagpole seen from the front, filling the whole height, with a big royal blue swallow-tailed banner hanging from its top and covering most of the picture's width, a white sun emblem on the banner."),
+        ),
+        (
+            name: "fanion_vert",
+            under: Some("terre"),
+            cells: ["#"],
+            prompt: Some("One single tall wooden flagpole seen from the front, filling the whole height, with a big forest green swallow-tailed banner hanging from its top and covering most of the picture's width, a yellow oak leaf emblem on the banner."),
+        ),
+        (
+            name: "panneau",
+            under: Some("terre"),
+            cells: ["#"],
+            prompt: Some("One single small medieval wooden signpost seen from the front: a rectangular oak board on one short post, two dark lines suggesting carved writing, no letters."),
+        ),
+        (
+            name: "tableau",
+            under: Some("terre"),
+            cells: ["#"],
+            prompt: Some("One single small medieval quest board seen from the front: a square wooden notice board on two short posts, three small cream parchment sheets pinned on it, no letters."),
+        ),
+        (
+            name: "ronces",
+            cells: ["#"],
+            prompt: Some("One single dense bush of wild thorny brambles seen from 3/4 above: dark green leaves, tangled brown thorny stems, three small dark red berries."),
+        ),
+    ],
+)

@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "SilEvalon",
+    width: 3,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1674, 1675, 1676),
+        (1677, 1678, 1679),
+        (1680, 1681, 1682),
+    ],
+)

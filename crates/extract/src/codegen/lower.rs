@@ -208,6 +208,9 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "setmaplayoutindex",
     "createvobject",
     "turnvobject",
+    // ---- Wave C ----
+    "checkpartymove",
+    "pokenavcall",
 ];
 
 /// Commands after which execution never reaches the next instruction.

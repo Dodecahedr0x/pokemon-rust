@@ -61,6 +61,8 @@ fn trainer_battle_single_follows_trainer_battle_inc() {
                 no_whiteout: false,
             },
             Request::SetFlag(FlagId(0x503), true),
+            // `RegisterTrainerInMatchCall`.
+            Request::GetFlag(consts::FLAG_HAS_MATCH_CALL),
             Request::ReleaseAll,
             Request::SetVar(consts::VAR_RESULT, 0),
         ]
@@ -100,6 +102,7 @@ fn trainer_battle_variants() {
                 no_whiteout: false,
             },
             Request::SetFlag(FlagId(0x507), true),
+            Request::GetFlag(consts::FLAG_HAS_MATCH_CALL),
             Request::SetVar(consts::VAR_RESULT, 1),
         ]
     );

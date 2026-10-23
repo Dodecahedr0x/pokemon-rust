@@ -228,8 +228,67 @@ pub fn transfer(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
         t.mismatches = w.mismatches;
     }
     resolve(&mut t, claims, decomp);
+    if let Some(d) = decomp {
+        c_text_runs(rom, d, &mut t)?;
+    }
     fallback(&mut t, &plain);
     Ok(t)
+}
+
+/// Texts only C code points to (Wave C), named and exported with the scripts' texts: each run is
+/// a script-reached text label and the `n` text labels that follow it in its decomp source. The
+/// `.string`s of one `.inc` are contiguous in the ROM, so the run's texts are decoded one after
+/// the other from the anchor's offset; the label after the run, when it is reached too, must
+/// start where the run ends. A run whose anchor this export does not reach is skipped.
+pub const C_TEXT_RUNS: &[(&str, usize)] = &[
+    // `GetPokedexRatingText` (`birch_pc.c`): `gBirchDexRatingText_LessThan10` …
+    // `_LessThan200`, `_DexCompleted` (`data/text/pokedex_rating.inc`).
+    ("gBirchDexRatingText_SoYouveSeenAndCaught", 22),
+];
+
+fn c_text_runs(rom: &Rom, d: &Decomp, t: &mut Transfer) -> Result<()> {
+    let by_name: BTreeMap<String, u32> = t
+        .names
+        .iter()
+        .map(|(&off, (n, _))| (n.clone(), off))
+        .collect();
+    for &(anchor, n) in C_TEXT_RUNS {
+        let (Some(&start), Some(li)) = (by_name.get(anchor), d.label_index(anchor)) else {
+            continue;
+        };
+        let file = d.labels[li].file;
+        let module = d.module_of(&d.labels[li]).to_string();
+        let mut off = start + crate::text::string_len_at(rom, start)? as u32;
+        for k in 1..=n {
+            let l = d
+                .labels
+                .get(li + k)
+                .filter(|l| l.file == file && l.kind == LabelKind::Text)
+                .with_context(|| format!("{anchor}: text label {k} after it"))?;
+            if let Some(&known) = by_name.get(&l.name) {
+                anyhow::ensure!(
+                    known == off,
+                    "{}: at {known:#x}, the run from {anchor} says {off:#x}",
+                    l.name
+                );
+            }
+            t.names.insert(off, (l.name.clone(), NameOrigin::Decomp));
+            t.kinds.insert(off, Kind::Text);
+            t.modules.insert(off, module.clone());
+            t.reached.texts.insert(off);
+            off += crate::text::string_len_at(rom, off)? as u32;
+        }
+        if let Some(next) = d.labels.get(li + n + 1)
+            && let Some(&known) = by_name.get(&next.name)
+        {
+            anyhow::ensure!(
+                known == off,
+                "{}: at {known:#x}, the run from {anchor} ends at {off:#x}",
+                next.name
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Each root of `m` with the label `map.json` (or `<Map>_MapScripts`) gives it.
