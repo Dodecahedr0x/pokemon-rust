@@ -151,7 +151,8 @@ fn candidates_are_deterministic_and_applicable() {
         | MacroKind::Press { .. }
         | MacroKind::Step { .. }
         | MacroKind::Push { .. }
-        | MacroKind::UseItem { .. } => 7,
+        | MacroKind::UseItem { .. }
+        | MacroKind::Fly { .. } => 7,
     };
     assert!(c1.windows(2).all(|w| rank(&w[0].kind) <= rank(&w[1].kind)));
     // The player's own cell is never a WalkTo; unreachable cells are not applicable.

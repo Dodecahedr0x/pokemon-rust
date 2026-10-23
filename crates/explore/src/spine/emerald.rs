@@ -19,6 +19,8 @@ mod list {
 
     use engine::data::{Dir, MapId};
 
+    /// Gen3's `ITEM_HM02`, for the same reason as [`ITEM_HM03`].
+    const ITEM_HM02: engine::data::ItemId = engine::data::ItemId(340);
     /// Gen3's `ITEM_HM03` (`include/constants/items.h`), named here because the stub build's
     /// `content::consts` has no Emerald items (this local item shadows the glob import).
     const ITEM_HM03: engine::data::ItemId = engine::data::ItemId(341);
@@ -118,24 +120,14 @@ mod list {
         forget: 2,
     });
 
-    /// Fly from the party menu (`FIELD_MOVE_FLY`, `FLDEFF_USE_FLY`, the region map): the
-    /// engine has neither the field move from the party menu (Milestone 10) nor a party that
-    /// could carry it (nothing in Swampert's or Castform's learnsets; catching is the bag in
-    /// battle, Milestone 9). The bypass lands where Gen3's Fly does, on the city's heal
-    /// location (`heal_locations.json`).
-    const fn fly(issue: &'static str, map: MapId, x: i16, y: i16) -> Bypass {
-        Bypass {
-            issue,
-            features: &[
-                "FIELD_MOVE_FLY",
-                "FLDEFF_USE_FLY",
-                "party menu: Fly",
-                "catching (a mon that learns Fly)",
-            ],
-            warp: Some((map, x, y)),
-            ..Bypass::NONE
-        }
-    }
+    /// HM02 from the bag on the Wingull (party slot 3, caught on Route 122), forgetting its
+    /// first move: Fly from the party menu then stands for the way back over Route 120's
+    /// one-way ledges and the hops between cities (Gen3 `SetUpFieldMove_Fly`).
+    const USE_HM02: Step = Step::UseItem(UseItem {
+        item: ITEM_HM02,
+        mon: 3,
+        forget: 0,
+    });
 
     /// HM04 from the bag on the lead, as [`USE_HM06`], for the Magma Hideout's boulders:
     /// forgetting Muddy Water (slot 0), which Surf outdoes, over Earthquake (slot 1, learned at
@@ -146,13 +138,10 @@ mod list {
         forget: 0,
     });
 
-    /// Route 120's ledges are one-way south: back from Mt. Pyre to the Jagged Pass by Fly.
-    static FLY_MAUVILLE: Bypass = fly("fly-mauville", MAP_MAUVILLE_CITY, 22, 6);
-    /// From the Jagged Pass (Groudon awake) to Slateport's harbor, where Archie takes the
-    /// submarine.
-    static FLY_SLATEPORT: Bypass = fly("fly-slateport", MAP_SLATEPORT_CITY, 19, 20);
-    /// From Slateport to Lilycove's Aqua Hideout.
-    static FLY_LILYCOVE: Bypass = fly("fly-lilycove", MAP_LILYCOVE_CITY, 24, 15);
+    /// The fly map's destinations (`GameData::fly_destination`, Gen3 `MAPSEC_*` order).
+    const FLY_SLATEPORT: u8 = 8;
+    const FLY_MAUVILLE: u8 = 9;
+    const FLY_LILYCOVE: u8 = 12;
 
     /// Mossdeep's gym: the trick-house statues block every way to Tate and Liza until the
     /// floor switches turn them (`MossdeepCity_Gym_EventScript_*FloorSwitch`: the rotating
@@ -1491,6 +1480,7 @@ mod list {
             y: 33,
             species: SPECIES_WINGULL,
         },
+        USE_HM02,
         cross(MAP_ROUTE122, 10, 0, Up),
         Step::Walk(Up),
         // The summit's grunts leave the lead weak: Lilycove's Center first.
@@ -1504,8 +1494,12 @@ mod list {
         enter(MAP_LILYCOVE_CITY, 24, 14, Up),
         use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
-        // Route 120 is one-way south (its ledges): the way back is Fly (`fly-mauville`).
-        Step::Bypass(&FLY_MAUVILLE),
+        // Route 120 is one-way south (its ledges): the way back is Fly.
+        Step::Fly {
+            mon: 3,
+            dest: FLY_MAUVILLE,
+            to: MAP_MAUVILLE_CITY,
+        },
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
@@ -1555,7 +1549,11 @@ mod list {
         Step::Walk(Down),
         enter(MAP_MAGMA_HIDEOUT_1F, 10, 34, Down),
         // ---- Slateport's harbor: Archie takes Stern's submarine ----
-        Step::Bypass(&FLY_SLATEPORT),
+        Step::Fly {
+            mon: 3,
+            dest: FLY_SLATEPORT,
+            to: MAP_SLATEPORT_CITY,
+        },
         enter(MAP_SLATEPORT_CITY, 19, 19, Up),
         use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
@@ -1567,7 +1565,11 @@ mod list {
         Step::Checkpoint("submarine_stolen"),
         // ---- Lilycove: Surf east to the Aqua Hideout's water door ----
         enter(MAP_SLATEPORT_CITY_HARBOR, 11, 14, Down),
-        Step::Bypass(&FLY_LILYCOVE),
+        Step::Fly {
+            mon: 3,
+            dest: FLY_LILYCOVE,
+            to: MAP_LILYCOVE_CITY,
+        },
         enter(MAP_LILYCOVE_CITY, 24, 14, Up),
         use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),

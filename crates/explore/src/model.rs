@@ -74,6 +74,10 @@ pub enum MacroKind {
     /// `forget` if a move must go (a TM or HM); then out of every screen to the field, and
     /// resolve. Reads the screens' state each frame (`engine::ui`). A spine step.
     UseItem { item: u16, mon: u8, forget: u8 },
+    /// From the settled field: START, POKéMON, party slot `mon`, its FLY, then the fly map's
+    /// cursor on destination `dest` (a `GameData::fly_destination` index) and A; through the
+    /// fly warp to the settled field, and resolve. A spine step.
+    Fly { mon: u8, dest: u8 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -333,6 +337,7 @@ mod tests {
                 mon: 0,
                 forget: 2,
             },
+            MacroKind::Fly { mon: 3, dest: 9 },
         ];
         for (i, kind) in all.into_iter().enumerate() {
             let m = Macro {

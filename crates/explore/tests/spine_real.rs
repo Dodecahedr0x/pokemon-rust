@@ -64,9 +64,6 @@ const EMERALD_LABELS: &[&str] = &[
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
 const SPINE_BLOCKERS: &[&str] = &[
-    "fly-mauville",
-    "fly-slateport",
-    "fly-lilycove",
     "mossdeep-gym-puzzle",
     "steven-multi",
     "legendaries-scene",

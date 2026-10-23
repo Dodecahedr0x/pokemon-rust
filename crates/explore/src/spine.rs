@@ -127,6 +127,10 @@ pub enum Step {
         y: i16,
         species: u16,
     },
+    /// Fly from the field: START → POKéMON → party slot `mon` → FLY → the fly map on
+    /// destination `dest` (`GameData::fly_destination`; Gen3 `CB2_OpenFlyMap` →
+    /// `SetFlyDestination`); the warp must land on map `to`.
+    Fly { mon: u8, dest: u8, to: MapId },
     /// Sticky from here on.
     Battle(BattlePlan),
     /// The yes/no answer (0 yes, 1 no) and the starter ball for the **next** playing step.
@@ -1101,6 +1105,17 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                     forget: u.forget,
                 }),
             )?,
+            Step::Fly { mon, dest, to } => {
+                self.macro_(live, mk(MacroKind::Fly { mon, dest }))?;
+                let to = self.resolve_map(to);
+                let on = live.s.world().map();
+                if on != to {
+                    return Err(err(format!(
+                        "flew to map {:#06x}, not {:#06x}",
+                        on.0, to.0
+                    )));
+                }
+            }
             // A few idle frames first: a map's frame script starts on the field's next frame.
             Step::WaitScript => self.macro_(
                 live,
