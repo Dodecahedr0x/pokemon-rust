@@ -1132,11 +1132,12 @@ The Chapter 0 scripts, from `contenu-jeu/chapitres/00-prologue.md`, in `crates/c
 - `ch00_houses.rs` claims `BricoBourg_PlayerHouse_1F`, `BricoBourg_PlayerHouse_2F` and `BricoBourg_FriendsHouse`.
 - `ch00_town.rs` claims `BricoBourg`.
 - `ch00_route_s01.rs` claims `RouteS01`.
-- `ch00_wave0.rs` is deleted. The build reports 52 scripts, 4 trainer scripts, 6 strict maps and 0 unwritten names.
+- `ch00_wave0.rs` is deleted. The build reports 53 scripts, 4 trainer scripts and 6 strict maps. The 56 unwritten names it drops all come from the unclaimed Ch1 maps.
 
 **Prelude additions (`src/silice/prelude.rs`).**
 - `trainer(ctx, obj, TRAINER_X, intro, defeat) -> bool` is a single `trainer_battle`. It returns true when the trainer was already beaten.
 - `hidden_item(ctx, flag, item)` is the hidden-item fallback (see below).
+- `cut_obstacle(ctx, (x, y), metatile, cut_flag, blocked_text)` is the source's generic Lame-Frequence obstacle (Ch1 `Bois_Ether_Sc08`). Without `FLAG_SIL_MODULE_COUPE`, it shows `blocked_text` as a sign. With it, it asks `Bois_Ether_Sc08_T2`; on yes it says `_T3`, repaints the cell walkable and sets the cut flag. Once the flag is set it does nothing. `repaint_if(ctx, flag, (x, y), metatile)` is its `on_load` half, and `METATILE_RONCES_COUPEES` (General 1) is the metatile. Ch1's `BoisEther_Sc08` and `_OnLoad` can reuse all three.
 
 **Scenes.**
 - **The bar.**
@@ -1171,8 +1172,9 @@ The Chapter 0 scripts, from `contenu-jeu/chapitres/00-prologue.md`, in `crates/c
     5. the friends walk off and are hidden;
     6. `FLAG_SIL_MALLETTE_{MAP,DEX,CALLS}` are set, then story 5.
   - **Brico_Bourg_Sc04** is the signal beep on the north edge at story 5, once (`FLAG_SIL_S01_SIGNAL_SEEN`).
+  - **`BricoBourg_OnLoad`** (added by the Ch1 maps' `04_ch1_labo.ron`; BricoBourg is strict, so it is written here): it repaints the brambles (4, 8) as `METATILE_RONCES_COUPEES` once `FLAG_SIL_BRICO_LABO_RONCES_CUT` is set. **`BricoBourg_EventScript_Ronces`** is the generic obstacle on that cell, with Ch0's `Brico_Bourg_Sign_Ronces` as its blocked text.
   - **`BricoBourg_EventScript_BlockNorth`** (coords y 2, `VAR_SIL_CH0_GATE` 0): the north exit is closed before the starter. This is the gate's only reader in Ch0, as the source's §3 says.
-  - **Other events:** the signs, the brambles (cut in Ch1), the ambient NPCs, the three friends, and the hidden Potion.
+  - **Other events:** the signs, the ambient NPCs, the three friends, and the hidden Potion. Vieux says his `_Nuit` line (about the explosion) at story 1 and 2, and his day line at story 0, before the explosion.
 - **The houses.**
   - **Player_House_Sc01** is the 1F's on-frame entry at story 1. Maman sees nothing; the story goes to 2.
   - **Player_House_Sc02:**
@@ -1215,10 +1217,19 @@ The hidden-item fallback is the one map-event change this task made. It is a scr
 - A script whose first statement calls the prelude's `trainer(&ctx, LOCALID, TRAINER_X, ..)` is listed in `TRAINER_SCRIPTS` (kind single), resolved through `ids/trainers.ron`.
 - That table is what the engine's sight (`trainer_flag_of`, `trainer_battle_kind`) reads.
 - `dispatch.rs` emits it from `Registry::trainer_table`. The `generate` signature in `main.rs` is unchanged.
+- `silice::check_trainer_objects`: every trainer object (`trainer_type` other than `TRAINER_TYPE_NONE`) of a strict map must run a trainer script, or the build fails and lists the objects. Without this check, a `trainer(..)` call that is not the first statement would leave the trainer out of the table, and sight would silently ignore it.
 
 **Exceptions (`check-exceptions.ron`).**
 - `placement-map FLAG_SIL_MAIL_SILAS` (`ruling_needed: false`). It is the Ch12 post-game Porygon Egg, sent as Silas's PC mail in the player's room (Sc09, `give_egg`): a once-only gift, set by a Ch12 scene, not by the Ch0 scripts that now claim the room.
-- No other new findings. `silice check` is ok, with the two older `exception-unused` warnings (WEATHER_CLOUDS and WEATHER_PETALS).
+- No other new findings. After the Ch1 merge, `silice check` is ok with 0 warnings.
+- `silice check`'s given-item rule (`placement-map`) now follows the per-map strictness. A §7 "Donné" item's flag must be in the map or a script only once a script file claims its map (`maps::scan_claims` reads `pub const MAPS`). Before, the rule applied as soon as any script named a flag, so the Ch1 maps, whose scenes are not written yet, failed it for five given items (Graine Miracle, Eau Fraîche, Poudre Soin, CT09, Mathieu's Super Potion).
+
+**Hidden items: why not an engine fix (M9 finding).** Gen3's behaviour is small. `GetInteractedBackgroundEventScript` skips a `BG_EVENT_HIDDEN_ITEM` whose flag (`FLAG_HIDDEN_ITEMS_START` + id) is set. Otherwise it puts the flag in `VAR_0x8004` and the item in `VAR_0x8005`, then runs `EventScript_HiddenItemScript`. Here that would mean three changes:
+- the A branch of `engine/src/world.rs`, which today maps `BgKind::HiddenItem` to `None`;
+- a `GameData` hook naming the hidden-item script;
+- each game's script behind that hook.
+
+Emerald's script is the decomp's `EventScript_HiddenItemScript`. Wiring it means changing the Emerald content (`content/src`, `build/`), which moves Emerald's `BUILD_ID`, and its hidden items then start giving items, which can move Emerald's route. A Silice-only hook, defaulting to `None`, would keep Emerald as it is. But it would still change the engine sources (and so every checkpoint's engine hash), and it would only half-fix a shared Gen3 behaviour. So the fallback stays. **M9 finding:** implement `BgKind::HiddenItem` in the engine for both games, as Gen3 does, accepting the Emerald `BUILD_ID` and route move in that milestone. Then turn the two `Sign` ops back into the `HiddenItem` ops kept in their comments and delete `hidden_item`.
 
 **Tests.**
 - `crates/content/tests/sil1_f_ch0.rs` (`cfg(pkr_silice)`) is the native end to end. It runs `engine::World` over `content::Game`, wrapped in a `GameData` spy that records each `text(id)`. The native shells do not build as Silice before Task D.
@@ -1229,41 +1240,59 @@ The hidden-item fallback is the one map-event change this task made. It is a scr
     4. the house: Sc01, the bed before and after the desk, Maman's shoes;
     5. the morning: Sc02, Sc03 and the starter (the right ball);
     6. the hidden Potion, taken twice, so the second try gives nothing;
-    7. Sc04;
-    8. Route S1: Sc01's battle, the berries (twice); home to Maman to heal; TÉO by sight (his trainer flag proves `TRAINER_SCRIPTS` and sight); the Antidote and both item balls; Sc02.
+    7. the Labo's brambles: first the Ch0 sign; then cut, with the test granting `FLAG_SIL_MODULE_COUPE` through the spy, because the world has no flag setter; then still walkable after a map load (`BricoBourg_OnLoad`);
+    8. Sc04;
+    9. Route S1: Sc01's battle, the berries (twice); home to Maman to heal; TÉO by sight (his trainer flag proves `TRAINER_SCRIPTS` and sight); the Antidote and both item balls; Sc02.
   - It asserts:
     - each story step from 0 to 9;
     - `VAR_SIL_CH0_GATE`, `VAR_SIL_STARTER` and the party species;
     - every Ch0 flag (hide flags, Mallette flags, given-item flags);
     - the bag counts;
-    - each scene's texts by id, in order.
+    - each scene's texts by id, in order;
+    - the Mallette taken once (Bar_Sc04_T1 printed once after a second try);
+    - every fallback reported (`Report::Degraded`): `screen_shake`, `play_se`, `mallette_call`, `end_call`, `set_time_tint`, `hidden item`.
   - It uses a BFS planner over collision, behaviors, ledges and objects, avoiding the trainers' sight lines. Settle presses A on scripts, yes/no boxes and battles.
-  - It runs within its 50k-frame limit.
+  - It runs in about 29k frames, within its 50k-frame limit, and takes a fraction of a second. It is deterministic: there is no wall clock or OS randomness, and the RNG and every input come from the run.
 - `sil1_w0_contracts.rs`: the allowlist test is replaced by four tests:
   - every claimed map's names exist;
   - an unknown name fails in a claimed map and is listed in an unclaimed one;
-  - a claimed map must exist and be claimed once;
-  - trainer scripts are found by their first statement.
+  - a claimed map must exist and be claimed once. A map listed twice in one `MAPS`, a `static MAPS`, and a non-literal element each fail with their own message;
+  - trainer scripts are found by their first statement, and a trainer object without one fails `check_trainer_objects`.
+  - With the Ch1 maps merged, the committed maps' only unwritten names are in unclaimed maps. The forced-strict case counts them in its error.
 - `m8_d2_scripts.rs`: the Silice trainer table is now non-empty and agrees with `trainer_flag_of`.
-- `silice::tests` asserts there is no unwritten name.
+- `silice::tests` asserts that the six Ch0 maps are strict in `content::REPORT`. It asserted "no unwritten name" until the Ch1 maps arrived unclaimed.
 - `xtask/tests/silice_check.rs` `works_without_the_extract`: it now passes `--scripts /nonexistent`, as the shared `check` helper does. It had scanned the repo's scripts against the fixture import's ids, which the Ch0 flags fail.
 
 **Open author questions.**
 1. Lines outside the source's conditions reuse a nearby text:
    - Crow after story 0 says Bar_Sc04_T5;
    - the bar friends after story 0 say Bar_Sc04_T4 or Bar_Sc03_T6;
-   - Maman before story 3 says Player_House_Sc01_T1;
+   - Maman before story 3 says Player_House_Sc01_T1. At story 0, reached by leaving the bar before Julien, that line's boom and suitcase have not happened yet;
    - the town friends say Brico_Bourg_Sc02_T1.
 
    Write dedicated lines?
 2. The trainers have no post-battle lines; the defeat text is repeated. Write `_PostBattle` texts?
 3. The story-1 guard (leaving the bar without the Mallette) reuses Bar_Sc04_T2, Mathieu's "take it". Keep it, or write a line?
-4. Vieux shows his `_Nuit` line at story ≤ 2. Is that the intended split?
+4. Vieux shows his `_Nuit` line at story 1–2 (the source says 1) and his day line at 0. Is that the intended split?
 5. The desk and bed do nothing outside story 2. Write lines?
 6. The SE names: the source's `SE_EXPLOSION` and `SE_RING` are mapped to the decomp's `SE_M_EXPLOSION` and `SE_POKENAV_CALL`. Confirm, or name Silice sounds.
 7. From the source (§10):
    - the player's long departure line is kept as narration;
    - the Route S1 trainers reach level 6 against a level 5 starter. The e2e on the first-move policy needs the heal at home before TÉO; it picks TOTODILE.
+
+**Review fixes (after merging the Ch1 maps).**
+- Merge: `BricoBourg_OnLoad` is written (above). The rebuilt maps match the edits byte for byte.
+- Vieux's `_Nuit` line no longer plays at story 0, before the explosion.
+- `BricoBourg_Sc03` releases the field when its story-4 guard returns. It is chained inside Sc02's `lock_all`.
+- Registry: clearer `MAPS` errors (a duplicate in one file, `static`, a non-literal), and the trainer-object check.
+- `silice check`: the given-item rule follows the claims (above). `silice::tests` and `sil1_w0_contracts` allow the unclaimed Ch1 maps' unwritten names.
+- e2e: the brambles, the Mallette taken once, and the fallback reports.
+- Checked and kept:
+  - every on-frame entry leaves its value on every path (Bar_Sc01 sets `VAR_TEMP_1` first; Player_House_Sc01 and Brico_Bourg_Sc02 always set the story). Temp vars are cleared on both warps and connection crossings (`world/maps.rs`), as in Gen3;
+  - the story-1 guard moves the player back with a scripted step, which fires no coord event, and the bar's door stays open, so it cannot softlock;
+  - scripted walks ignore collision (Gen3 `applymovement`), so no `wait_move` can hang on a blocked path;
+  - Route S1's row y 30 is open only at x 8–13 (the Sc01 cells), and y 1 only at x 7–10 above Sc02's cells. So Sc02's single value 6 matches the source's "≤ 8" on every path, and a lost Sc01 battle aborts the script (whiteout) with the story at 5.
+- Left as is: in Bar_Sc03 the sbires vanish at (10, 3–4), short of the back door. Every way to the door passes a cell the player may stand on.
 
 #### SIL2 Ch1 maps as built (Bois-Éther)
 
