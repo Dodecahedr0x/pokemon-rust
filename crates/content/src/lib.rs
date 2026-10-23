@@ -289,6 +289,14 @@ macro_rules! game_data_tables {
             $crate::data::map(id.0).unwrap_or(&$crate::data::MISSING_MAP)
         }
 
+        fn map_layout(
+            &self,
+            id: ::engine::data::MapId,
+            layout: u16,
+        ) -> Option<&'static ::engine::data::MapData> {
+            $crate::data::map_layout(id.0, layout)
+        }
+
         fn has_map(&self, id: ::engine::data::MapId) -> bool {
             $crate::has_map(id)
         }

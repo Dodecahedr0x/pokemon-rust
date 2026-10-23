@@ -496,12 +496,18 @@ impl<'a> Low<'a> {
                 let (Some(lid), Some(m)) = (local_id(id), self.movement_path(fx.module, m)) else {
                     return Ok(false);
                 };
-                if !at_here(id, at, fx.module) {
-                    return Ok(false);
+                // The player, on any map; another object, of the named map (the previous one
+                // after a crossing mid-script, Gen3 `ScriptMovement_StartObjectMovementScript`).
+                if is_player(id) {
+                    out.push(format!(
+                        "ctx.move_obj({lid}, &{m}).await; // applymovementat"
+                    ));
+                } else {
+                    let Some(at) = map_arg(at) else {
+                        return Ok(false);
+                    };
+                    out.push(format!("ctx.move_obj_at({lid}, {at}, &{m}).await;"));
                 }
-                out.push(format!(
-                    "ctx.move_obj({lid}, &{m}).await; // applymovementat"
-                ));
                 st.moved = true;
             }
             ("waitmovement", [id]) => {
@@ -511,13 +517,20 @@ impl<'a> Low<'a> {
                 out.push(line);
             }
             ("waitmovementat", [id, at]) => {
-                if !at_here(id, at, fx.module) {
-                    return Ok(false);
+                if is_player(id) {
+                    let Some(line) = self.wait_move(id, st) else {
+                        return Ok(false);
+                    };
+                    out.push(format!("{line} // waitmovementat"));
+                } else {
+                    let (Some(lid), Some(at)) = (local_id(id), map_arg(at)) else {
+                        return Ok(false);
+                    };
+                    if lid == "0" && !st.moved {
+                        self.stats.unresolved_waitmovement += 1;
+                    }
+                    out.push(format!("ctx.wait_move_at({lid}, {at}).await;"));
                 }
-                let Some(line) = self.wait_move(id, st) else {
-                    return Ok(false);
-                };
-                out.push(format!("{line} // waitmovementat"));
             }
             ("addobject" | "removeobject", [id]) => {
                 let Some(id) = local_id(id) else {
@@ -525,6 +538,15 @@ impl<'a> Low<'a> {
                 };
                 let f = if op == "addobject" { "add" } else { "remove" };
                 out.push(format!("ctx.{f}_object({id}).await;"));
+            }
+            ("showobjectat" | "hideobjectat", [id, at]) if !is_player(id) => {
+                // Gen3 `SetObjectInvisibility`: the named map's object (the previous map's after
+                // a crossing mid-script).
+                let (Some(lid), Some(at)) = (local_id(id), map_arg(at)) else {
+                    return Ok(false);
+                };
+                let f = &op[..op.len() - "objectat".len()];
+                out.push(format!("ctx.{f}_object_at({lid}, {at}).await;"));
             }
             ("addobjectat" | "removeobjectat" | "showobjectat" | "hideobjectat", [id, at]) => {
                 let Some(lid) = local_id(id) else {
@@ -787,6 +809,60 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.door({x}, {y}, {}).await;", op == "opendoor"));
             }
             ("waitdooranim", _) => out.push("ctx.wait_door().await;".to_string()),
+            // Wave C: field effects (`prelude::field`) and `copyobjectxytoperm`.
+            ("dofieldeffect" | "waitfieldeffect", [id]) => {
+                let Some(id) = u16_expr(id, true) else {
+                    return Ok(false);
+                };
+                out.push(if op == "dofieldeffect" {
+                    format!("field_effect(&ctx, {id}).await;")
+                } else {
+                    format!("ctx.wait_field_effect({id}).await;")
+                });
+            }
+            ("setfieldeffectargument", [n, v]) => {
+                let (Some(n), Some(v)) = (u8_lit(n), u16_expr(v, true)) else {
+                    return Ok(false);
+                };
+                out.push(format!("field_effect_arg(&ctx, {n}, {v}).await;"));
+            }
+            ("createvobject", [gfx, id, x, y, elevation, d]) => {
+                let (Some(gfx), Some(id), Some(x), Some(y), Some(elevation), Some(d)) = (
+                    u16_expr(gfx, false),
+                    u8_lit(id),
+                    coord(x),
+                    coord(y),
+                    u8_lit(elevation),
+                    u8_lit(d).and_then(dir),
+                ) else {
+                    return Ok(false);
+                };
+                out.push(format!(
+                    "ctx.create_virtual_object({gfx}, {id}, ({x}, {y}), {elevation}, {d}).await;"
+                ));
+            }
+            ("turnvobject", [id, d]) => {
+                let (Some(id), Some(d)) = (u8_lit(id), u8_lit(d).and_then(dir)) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.turn_virtual_object({id}, {d}).await;"));
+            }
+            ("setmaplayoutindex", [l]) => {
+                let Some(e) = u16_expr(l, true) else {
+                    return Ok(false);
+                };
+                let note = match l {
+                    Const { name, .. } => format!(" // {name}"),
+                    _ => String::new(),
+                };
+                out.push(format!("ctx.set_map_layout({e}).await;{note}"));
+            }
+            ("copyobjectxytoperm", [id]) => {
+                let Some(id) = local_id(id) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.copy_object_pos_to_template({id}).await;"));
+            }
             ("setwildbattle", [s, level, _item]) => {
                 let (Some(s), Some(level)) = (species_arg(s, false), u8_lit(level)) else {
                     return Ok(false);

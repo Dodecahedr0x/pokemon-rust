@@ -378,6 +378,7 @@ fn gen_cmd(args: &[String]) -> Result<()> {
         }
         write_rgba(&art_dir.join(format!("{}.png", f.name)), &m)?;
     }
+    super::derive::run(&name, &games.join("gfx"))?;
     if !missing.is_empty() {
         println!(
             "no raw picture (no prompt, or gen failed): {}",
@@ -665,7 +666,8 @@ pub fn prep_box(
             if let Some((&c, _)) = dark {
                 best = c;
             }
-            if key.is_some() && magenta(from555(best)) {
+            // Magenta fringes are dropped only under the magenta key (a green key keeps pink).
+            if key == Some([0xFF, 0x00, 0xFF]) && magenta(from555(best)) {
                 continue;
             }
             out.px[((oy + ty) * w + ox + tx) as usize] = from555(best);

@@ -118,11 +118,10 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| `new-game-map-flags` (78, after `badge1`) | new game; seen on Route 104 (17,50) | Briney's door is blocked by the Route 104 rival object ("enter: no warp"): its `FLAG_HIDE_*` was never set | `EventScript_ResetAllMapFlags` (`data/scripts/new_game.inc`): `content::new_game` sets 25 of its 159 flags; the bypass sets the 134 others that Act 1 left untouched | content (new game), Wave C |
-| `briney-sail-camera` (115) | Route104_MrBrineysHouse (9,6) to Route 104 (13,51) | RoundTrip finding: `restore failed: Invalid("camera far outside the map")` during the sail | `Route104_EventScript_SailToDewford`: `applymovement` of the boat and player across map connections, `showobjectat` on another map | engine (camera / checkpoint across connections), Wave C |
-| `briney-sail-camera-slateport` (151) | Dewford Town (11,9), Briney's multichoice: Slateport | the same RoundTrip finding | `DewfordTown_EventScript_SailToSlateport` (same pattern, lands on Route 109) | engine, same fix as `briney-sail-camera` |
 
-**Report-only findings along the spine** (it plays on; first site of each): `dofieldeffect` and `waitfieldeffect` (every Center heal); `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `copyobjectxytoperm` (Rustboro (30,11), Rusturf Tunnel (9,5)); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson).
+None left: Wave C removed every bypass (the last, `mauville-gym-barriers`, by the Mauville gym specials).
+
+**Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `pokenavcall` (Route 105, Dad's call during Mr. Briney's sail); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson).
 
 ## 3. As built
 
@@ -285,7 +284,7 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 - `#[ignore]` `vanilla/tests/boot.rs`: boots BPEE to the truck and prints the diff with our new game;
 - `#[ignore]` `vanilla/tests/intro.rs`: drives BPEE through the intro (out of the truck, Mom, the clock, May's house, meeting May) to **our new game's start**, then through Birch's rescue (Zigzagoon battle won with Pound) and the lab's starter (Mudkip, species 283, Pound and Growl). It diffs at both points: with `Emerald::default()` and with `Emerald::after_starter()`. It takes about 6 s in release.
 
-**What the diffs show.** Our new game starts outside Brendan's house with May met (`content::new_game`, `Start::BeforeRescue`). In the truck, the map, the cell, the four `VAR_LITTLEROOT_*` intro vars, the intro flags, the respawn and the objects therefore differ by design. At our start, after vanilla played the intro, **all `VAR_LITTLEROOT_*` vars, the map and the respawn agree**. After the starter, `VAR_BIRCH_LAB_STATE`, `VAR_ROUTE101_STATE`, `VAR_STARTER_MON`, the Littleroot vars, the party species and moves and the HP bucket agree too. What remains are parity gaps for Wave C, all in the new-game data:
+**What the diffs show.** Our new game starts outside Brendan's house with May met (`content::new_game`, `Start::BeforeRescue`). In the truck, the map, the cell, the four `VAR_LITTLEROOT_*` intro vars, the intro flags, the respawn and the objects therefore differ by design. At our start, after vanilla played the intro, **all `VAR_LITTLEROOT_*` vars, the map and the respawn agree**. After the starter, `VAR_BIRCH_LAB_STATE`, `VAR_ROUTE101_STATE`, `VAR_STARTER_MON`, the Littleroot vars, the party species and moves and the HP bucket agree too. What remained were parity gaps for Wave C, all in the new-game data (closed by Wave C "new-game state parity", below):
 
 1. **136 `FLAG_HIDE_*` flags** that `EventScript_ResetAllMapFlags` (`new_game.c` `NewGameInitData`) sets are clear in our new game. Examples: `FLAG_HIDE_ROUTE_104_RIVAL`, `FLAG_HIDE_PETALBURG_CITY_WALLY`, the Mr. Briney, Scott, Aqua and Magma, and Steven objects. `content::new_game` sets only the Littleroot subset, so these objects would be visible in our game where Emerald hides them. **Story-relevant: likely the largest single gap.**
 2. **`FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN`** is set in ours and clear in vanilla after the intro: the intro clears it, and our new game sets it.
@@ -360,3 +359,27 @@ Policy:
 - Level 31 is trained a level at a time, with a Center heal after each: one level uses up Tackle's PP or Take Down's recoil.
 
 **Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. `cargo xtask explore branch` on the extended spine: see the final report.
+
+### Wave C — new-game state parity
+
+**What is built.**
+- **`EventScript_ResetAllMapFlags` comes from the decomp.** `extract/tests/names.rs` reads its `setflag`s from `data/scripts/new_game.inc` into `names::RESET_ALL_MAP_FLAGS` (159 names, guarded by the drift test like the other decomp tables). The content build emits `consts::RESET_ALL_MAP_FLAGS: &[FlagId]`.
+- **`content::new_game` (Emerald only) runs `NewGameInitData`, then the skipped intro.**
+  - `NewGameInitData`: every `RESET_ALL_MAP_FLAGS` flag, `SetMoney(3000)`, `VAR_SEEDOT_SIZE_RECORD`/`VAR_LOTAD_SIZE_RECORD` = `DEFAULT_MAX_SIZE` (0x8000), and `NewGameInitPCItems` (a Potion in the PC).
+  - The male intro up to meeting May: `SetIntroFlagsMale`, the truck and the Vigoroths, `FLAG_SET_WALL_CLOCK`/`FLAG_SYS_CLOCK_SET`, `FLAG_SYS_TV_HOME`/`FLAG_SYS_TV_WATCH`, `FLAG_MET_RIVAL_MOM`, `FLAG_DECORATION_1..14`, May's 2F Poké Ball. It clears `FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN` and May's bedroom flag, as the intro does.
+  - `Start::AfterStarter` adds the rescue and the lab, clears `FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH` and `FLAG_HIDE_ROUTE_101_BOY`, and sets `VAR_DAILY_WILDS` 1 for the rescue's skipped battle.
+- **Engine:** `Request::PcItemAdd` (`Ctx::pc_item_add`, hash tag 100) and `PcStorage::add_item` (Gen3 `AddPCItem`: top up to 999, then the first free slot, all or nothing).
+- **Oracle:** `vanilla/tests/intro.rs` now asserts both diffs. At our new game's start only `cell` differs: we stand outside Brendan's house, and vanilla has just left May's. After the starter only the placement differs: map, cell, facing and the objects, because vanilla stands in the lab.
+- **Spine:** the `new-game-map-flags` bypass and its blocker row are gone. The objects now hidden from the start change which wanderers draw from the RNG, so the battles from Act 1 on play differently. Three spots then lost a battle, and the spine now steps around them:
+  - a heal at Oldale's Center before Route 102;
+  - `GotoAvoiding` past the Route 116 School Kid's sight (her Shroomish);
+  - one more level (33) on Route 110 before Wattson.
+  
+  `EMERALD_BADGE1_FRAMES` is now 104,335 and `EMERALD_FRAMES` is 455,512.
+
+**Not done.**
+- `addpcitem`/`checkpcitem` in scripts are still `Default(0)` (`commands.ron`). The request now exists for lowering them.
+- `EventScript_ResetAllBerries` (berry trees) is not run. The engine has no berry trees.
+- Options (`SetDefaultOptions`) are left as they are, because the engine's defaults are Gen3's (text speed MID).
+- The engine never counts `VAR_DAILY_WILDS` on a played wild battle.
+

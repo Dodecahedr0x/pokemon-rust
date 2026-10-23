@@ -111,6 +111,7 @@ impl Objects {
             banks: [None; 16],
             emotes: alloc::vec::Vec::new(),
             approach: None,
+            virtuals: alloc::vec::Vec::new(),
             forced: match s.run_state {
                 RunStateSnap::NotMoving | RunStateSnap::TurnDirection | RunStateSnap::Moving => {
                     ForcedState::Free

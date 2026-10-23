@@ -1,0 +1,145 @@
+// Viber-City (Ch3, MAP_VIBER_CITY): the neon city that dances until exhaustion.
+// contenu-jeu/chapitres/03-viber-city.md §2.3: towers covered in signs, blue, yellow and violet
+// neons, a loudspeaker on every street lamp, the Place Stroboscope's light-up dance floor, the
+// squat windowless Station Lumiere covered in cables, the Nocturne club, the Casino "Le Pixel
+// d'Or", the transformer alley, Mathieu's street-food stand, the Jardin des Neons (phosphorescent
+// tall grass, broken loudspeakers), the Cocket sector barrier to Route S4.
+// The night streets are General's flat dark metatile 35 (#403040), also the ground under the
+// features' transparent pixels. Footprints keep the doors in one cell: Station 5x5 (door (8, 4)),
+// Nocturne 5x5 (door (28, 4)), Centre 5x4 (door (6, 14)), Volt-Market 3x4 (door (31, 14)),
+// dancer's house 3x4 (door (6, 22)), Casino 7x4 (door (20, 22)): doors bottom middle.
+// The connection strips (south to Route S3, east to Route S4) stay on primary metatiles: the
+// neighbours draw this map's edge cells with their own secondary.
+(
+    name: "SilViberCity",
+    primary: "General",
+    ground: Some(35),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), at night in a neon city. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: dark purple-greys and navy for buildings, with a few bright flat neon accents in cyan blue, lemon yellow and violet.",
+    features: [
+        (
+            name: "dalle",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Night-time sidewalk paving: one square dark purple-grey paving slab (#4a3a52) with a thin darker grout line (#33283a) along its top and left edges, and one tiny cyan glint pixel. Almost flat, only 16x16 pixels."),
+        ),
+        (
+            name: "piste",
+            cells: ["..", ".."],
+            key: Some("none"),
+            prompt: Some("A light-up disco dance floor seen from straight above: a 2x2 checkerboard of four big square glowing floor panels, top-left cyan blue, top-right dark purple, bottom-left dark purple, bottom-right violet, separated by a thin black grid line; each lit panel has a lighter centre square. Flat colours, no reflections."),
+        ),
+        (
+            name: "tours",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("A dense block of dark navy apartment tower rooftops seen from above at night: two flat roofs side by side with a few small lit yellow windows on their front faces, one small cyan neon sign and one violet neon sign (no letters), a rooftop antenna. It must tile seamlessly left-right and top-bottom like a wall of towers."),
+        ),
+        (
+            name: "station",
+            cells: ["#####", "#####", "#####", "#####", "##D##"],
+            prompt: Some("The Station Lumiere: a squat, windowless, heavy concrete power station, dark grey-blue walls, a flat roof covered with thick black cables and two humming grey transformer boxes, bundles of cables running off the roof edges in every direction, a yellow-and-black hazard stripe along the base, a steel door exactly in the middle of the bottom edge with a small yellow lightning sign above it."),
+        ),
+        (
+            name: "nocturne",
+            cells: ["#####", "#####", "#####", "#####", "##D##"],
+            key: Some("00FF00"),
+            prompt: Some("Le Nocturne, a private night club: a black building with a flat roof, its front wall almost entirely taken by one huge SOLID filled bright hot-pink (#ff40c0) crescent moon shape (filled with flat pink, not an outline) and one big solid bright violet (#c040ff) music note next to it (no letters), thin cyan neon strips outlining the walls, no windows, a wide black double door with a short red carpet exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "centre",
+            cells: ["#####", "#####", "#####", "##D##"],
+            prompt: Some("A Pokemon Center for a neon city: a white and red building, the roof a flat dark red slab with a big white-and-red Poke Ball emblem on its front edge, white walls with a cyan neon strip, two wide windows, glass sliding double doors exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "volt_market",
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("The Volt-Market, a small convenience shop: a flat navy blue roof, a big yellow lightning bolt neon sign on the front (no letters), dark walls, a lit shop window, a glass door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison_danseur",
+            cells: ["###", "###", "###", "#D#"],
+            prompt: Some("A narrow town house of a street dancer: a dark purple sloped roof, light grey walls covered with colourful graffiti, a small cyan neon sign shaped like a sneaker (no letters), one small window, a door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "casino",
+            cells: ["#######", "#######", "#######", "###D###"],
+            key: Some("00FF00"),
+            prompt: Some("The casino Le Pixel d'Or: a wide flashy building, a gold roof edge lined with light bulbs, a dark violet facade with a huge golden square pixel coin emblem in the middle above the entrance, violet neon frames, two big neon symbols on the wall, a yellow lightning bolt on the left and a violet ghost on the right, red carpet steps up to a golden double door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "enseigne",
+            cells: ["###", "###"],
+            key: Some("00FF00"),
+            prompt: Some("A giant freestanding neon sign on two black steel legs in the middle of a square: a wide black panel framed in cyan neon with a big pink neon heart and a yellow neon sound wave inside it (no letters)."),
+        ),
+        (
+            name: "transfo",
+            cells: ["##", "##"],
+            prompt: Some("A bulky electrical transformer box: dark grey metal casing with cooling fins on its sides, a yellow lightning hazard sign, thick black cables coming out of its top, a small violet indicator light."),
+        ),
+        (
+            name: "grill",
+            cells: ["#"],
+            prompt: Some("A street-food grill cart filling the whole square, seen from the front: a big bright red box on two black wheels, a black grate on top with three skewers of bright cyan meat, a small white smoke puff. Bold, chunky shapes, few pixels."),
+        ),
+        (
+            name: "menu",
+            cells: ["#"],
+            key: Some("00FF00"),
+            prompt: Some("A street-food menu board filling the whole square: a black chalkboard on an A-frame stand with a thick bright hot-pink (#ff40c0) neon frame and a big white drawing of a skewer (no letters). Bold, chunky shapes."),
+        ),
+        (
+            name: "panneau",
+            cells: ["#"],
+            prompt: Some("A street sign filling the whole square: a wide bright cyan (#30d0ff) framed sign board, dark navy inside with three short white horizontal lines standing for text (no letters), on two short black legs. Bold, chunky shapes."),
+        ),
+        (
+            name: "lampadaire",
+            cells: ["#"],
+            prompt: Some("A street lamp post filling the whole height: a thick black post, on top a big bright lemon-yellow lamp head, and strapped to the middle of the post a big black loudspeaker box with a round grey speaker cone. Bold, chunky shapes, few pixels."),
+        ),
+        (
+            name: "lampadaire_casse",
+            cells: ["#"],
+            ground: Some(1),
+            prompt: Some("A broken street lamp post, bent and leaning, its lamp off and its black loudspeaker box hanging cracked from a wire, a few weeds at the base."),
+        ),
+        (
+            name: "grille",
+            cells: ["#"],
+            ground: Some(1),
+            prompt: Some("One section of a low black iron park fence seen from the front, the whole width, with a thin violet neon tube along its top rail. It must connect seamlessly left and right."),
+        ),
+        (
+            name: "herbe",
+            cells: ["g"],
+            ground: Some(1),
+            legend: {'g': (behavior: "MB_TALL_GRASS", collision: 0)},
+            prompt: Some("A tuft of tall phosphorescent grass: several thick blades of glowing cyan and teal grass, a few with violet tips, filling the whole square."),
+        ),
+        (
+            name: "cables",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Night-time sidewalk (flat dark purple-grey #4a3a52) with two thick black power cables with red stripes running straight across it from left to right. It must tile seamlessly left-right."),
+        ),
+        (
+            name: "barriere",
+            cells: ["#"],
+            prompt: Some("A closed security gate seen from the front: a short black metal post with a red warning light on each side and a bright red laser bar stretched across between them, a small red emblem of a cocktail glass on the post."),
+        ),
+        (
+            name: "barriere_ouverte",
+            cells: ["."],
+            prompt: Some("An open security gate seen from the front: a short black metal post on the left and one on the right, both with a green light, nothing between them."),
+        ),
+        (
+            // The tall street lamp (the 1x1 `lampadaire` reads too small): its head is drawn over
+            // the objects (the player walks behind it), its foot is solid.
+            name: "lampadaire_haut",
+            cells: [".", "#"],
+            over: [0],
+            prompt: Some("A tall city street lamp post, two tiles high: a thick black post, at the top a big bright lemon-yellow lamp head bending forward, halfway up a big black loudspeaker box with a round grey speaker cone strapped to the post, a small cyan light ring at the base. Bold, chunky shapes, few pixels."),
+        ),
+    ],
+)

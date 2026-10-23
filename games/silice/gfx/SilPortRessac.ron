@@ -1,0 +1,120 @@
+// Port-Ressac (Ch4, MAP_PORT_RESSAC): the "Tortuga de cristal". contenu-jeu/chapitres/04-port-ressac.md
+// §2: sand of bluish silica crystals (General's pale speckled ground 265, primary, so the seam with Route
+// S5 east stays primary), buildings made of upturned ship hulls and stacked containers, pink and green
+// "RHUM DE SAM" neons, the Cocket cargo and Samuel's Zenith-Grog at the quays, the glass tunnel's door.
+// Footprints keep the map's events: the Taverne 5x4 (door bottom middle, (4, 7)), the ships 5x4 (their
+// boarding stair bottom middle, (7, 25) and (32, 25)), the tunnel door 3x2 (door (25, 3)).
+(
+    name: "SilPortRessac",
+    primary: "General",
+    ground: Some(265),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing. Dusk harbour mood.",
+    features: [
+        (
+            name: "taverne",
+            cells: ["#####", "#####", "#####", "##D##"],
+            key: Some("00FF00"),
+            prompt: Some("A pirate tavern built from an old wooden ship hull turned upside down: the keel on top and the dark brown tarred hull planks curve down as the roof, three round portholes glowing warm yellow as windows, a wooden door exactly in the middle of the bottom edge, a big glowing neon sign shaped like a rum bottle above the door, in light coral pink (#FF8CA0, never magenta), no letters."),
+        ),
+        (
+            name: "distributeur",
+            cells: ["#", "#"],
+            prompt: Some("A rusty old drinks vending machine, tall and narrow: red paint flaking to orange rust, a small lit glass window showing three bottles, a coin slot, a dent from a kick."),
+        ),
+        (
+            name: "etal",
+            cells: ["#####", "#####", "#####"],
+            prompt: Some("A harbour market stall made from a shipping container cut open on its long side: teal corrugated steel walls and roof, a red and white striped awning, a wooden counter in front with fish, a crate of oranges and rum bottles, a thin glowing green neon tube along the roof edge (no letters)."),
+        ),
+        (
+            name: "etal_b",
+            cells: ["#####", "#####", "#####"],
+            mirror: Some("etal"),
+        ),
+        (
+            name: "neon_rhum",
+            cells: ["#", "#"],
+            key: Some("0000FF"),
+            prompt: Some("A tall thin metal signpost carrying a big glowing neon sign: a tilted rum bottle filled with light coral pink (#FF8CA0, never magenta) with a thick bright green neon outline, no letters, on a dark frame."),
+        ),
+        (
+            name: "cont_rouge",
+            cells: ["####", "####"],
+            prompt: Some("A single long shipping container lying on the ground in 3/4 top-down view: flat top, rust-red corrugated steel side with vertical ribs, a few rust streaks, door handles at the right end, no text."),
+        ),
+        (
+            name: "cont_bleu",
+            cells: ["####", "####"],
+            prompt: Some("A single long shipping container lying on the ground in 3/4 top-down view: flat top, deep blue corrugated steel side with vertical ribs, a white stencilled stripe, a few dents, no text."),
+        ),
+        (
+            name: "cont_vert",
+            cells: ["##", "##"],
+            prompt: Some("A short square shipping container seen from its door end in 3/4 top-down view: flat top, dark green corrugated steel, two closed doors with vertical locking bars, a little rust, no text."),
+        ),
+        (
+            name: "cont_rouille",
+            cells: ["###", "###"],
+            prompt: Some("A small old shipping container lying on the ground in 3/4 top-down view: flat top, orange-yellow corrugated steel side eaten by brown rust patches, no text."),
+        ),
+        (
+            name: "alcoves",
+            cells: ["########", ".#.#.#.#"],
+            prompt: Some("A wall of shipping containers seen from the front in 3/4 top-down view: the top half is one long grey-blue container lying across the whole width; the bottom half has four dark empty open container doorways, each exactly one eighth of the total width, starting at the left edge and alternating with closed grey container doors of the same width (open, closed, open, closed, open, closed, open, closed)."),
+        ),
+        (
+            name: "caisse",
+            cells: ["#"],
+            prompt: Some("A square wooden cargo crate with a burlap sack of glittering pale blue silica crystals on top."),
+        ),
+        (
+            name: "fut",
+            cells: ["#"],
+            prompt: Some("A dark wooden rum barrel standing upright, two iron hoops, seen from slightly above."),
+        ),
+        (
+            name: "cargo",
+            cells: ["#####", "#####", "#####", "##S##"],
+            ground: Some(414),
+            legend: {'S': (behavior: "MB_STAIRS_OUTSIDE_ABANDONED_SHIP", collision: 0)},
+            prompt: Some("A small industrial freighter of an evil team, side view from 3/4 above, bow pointing left: a dark grey steel hull with one red stripe, a white bridge tower at the right end, two stacked shipping containers (grey and red) on its deck, a narrow metal boarding stair coming straight down from the hull to the exact middle of the bottom edge."),
+        ),
+        (
+            name: "zenith_grog",
+            cells: ["#####", "#####", "#####", "##S##"],
+            ground: Some(414),
+            legend: {'S': (behavior: "MB_STAIRS_OUTSIDE_ABANDONED_SHIP", collision: 0)},
+            prompt: Some("A stubby wooden pirate ship, side view from 3/4 above, bow pointing left: a rounded dark brown hull with a yellow stripe and two little cannon ports, one mast with a furled black sail and a small flag showing a white bottle, two lanterns, a wooden gangway plank coming straight down from the hull to the exact middle of the bottom edge."),
+        ),
+        (
+            name: "porte_tunnel",
+            cells: ["###", "#W#"],
+            ground: Some(145),
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("The entrance of a tunnel dug into a brown rock cliff: a rounded arch framed with big translucent pale blue glass crystals, a dark black opening exactly in the middle of the bottom edge, a faint blue glow."),
+        ),
+        (
+            name: "dune_herbe",
+            cells: ["g"],
+            legend: {'g': (behavior: "MB_TALL_GRASS", collision: 0)},
+            prompt: Some("A dense tuft of tall pale teal dune grass, sharp upright blades with glinting white tips, filling the whole square."),
+        ),
+        (
+            name: "quai_bord",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The edge of a wooden harbour quay seen from above, tiling left to right: the top half is weathered grey-brown wooden planks running left to right, the bottom half is a dark brown vertical wooden face with one thick round piling, its foot in dark blue water along the bottom edge."),
+        ),
+        (
+            name: "ponton",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Weathered grey-brown wooden boardwalk planks running left to right: three planks with dark gaps between them and a few nail dots, seen from straight above."),
+        ),
+        (
+            name: "panneau",
+            cells: ["#"],
+            prompt: Some("A small signboard made of a piece of grey driftwood nailed on a short post, an old rope wrapped round the post, blank board with no letters."),
+        ),
+    ],
+)

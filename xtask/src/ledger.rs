@@ -194,7 +194,21 @@ impl Engine for Real {
     fn answer(&self, cat: Category, name: &str, d: &Decomp) -> Answer {
         let note = self.notes.get(name).cloned().unwrap_or_default();
         match cat {
-            Category::Command => self.class(self.support.commands.get(name), note),
+            Category::Command => {
+                // Macros that assemble to another command's opcode (`asm/macros/event.inc`):
+                // `hideplayer` is `hideobjectat LOCALID_PLAYER, 0`, so the IR never names them.
+                let op = match name {
+                    "hideplayer" => "hideobjectat",
+                    "showplayer" => "showobjectat",
+                    n => n,
+                };
+                let note = if op == name {
+                    note
+                } else {
+                    format!("the {op} opcode with LOCALID_PLAYER")
+                };
+                self.class(self.support.commands.get(op), note)
+            }
             Category::Special => {
                 if self.degraded_specials.contains(name) {
                     return Answer::new(Status::Degraded, note);

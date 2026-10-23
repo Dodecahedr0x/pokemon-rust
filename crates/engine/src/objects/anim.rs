@@ -106,6 +106,9 @@ impl Anim {
     /// frames show the facing frame (3+ frames) or frame 0; without the 18 run frames, running
     /// shows the walk frames.
     pub(super) fn frame(&self, facing: Dir, frames: usize) -> (usize, bool) {
+        if self.table == Table::Face {
+            return face_frame(facing, frames);
+        }
         let (d, hflip) = match facing {
             Dir::Down => (0, false),
             Dir::Up => (1, false),
@@ -172,4 +175,16 @@ impl Anim {
             timer: s.timer,
         }
     }
+}
+
+/// The standing frame of `facing` in a sheet of `frames` frames, and whether it is flipped
+/// (Gen3 `GetFaceDirectionAnimNum`: down, up, left; right is left flipped).
+pub(super) fn face_frame(facing: Dir, frames: usize) -> (usize, bool) {
+    let (d, hflip) = match facing {
+        Dir::Down => (0, false),
+        Dir::Up => (1, false),
+        Dir::Left => (2, false),
+        Dir::Right => (2, true),
+    };
+    if frames < 3 { (0, false) } else { (d, hflip) }
 }

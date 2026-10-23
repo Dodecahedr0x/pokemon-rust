@@ -261,6 +261,11 @@ pub(super) fn warp_id(a: &IrArg) -> Option<String> {
     })
 }
 
+/// Whether an object operand is the player (`LOCALID_PLAYER`), whom Gen3 finds on any map.
+pub(super) fn is_player(id: &IrArg) -> bool {
+    u16_lit(id) == Some(LOCALID_PLAYER)
+}
+
 /// Whether an `*at` command acts on the current map: always for the player (Gen3 finds the
 /// player on any map), else when its map operand is the module's map.
 pub(super) fn at_here(id: &IrArg, at: &IrArg, module: &str) -> bool {

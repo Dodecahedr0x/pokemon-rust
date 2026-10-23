@@ -15,6 +15,7 @@
 //! `xtask/tests/fixtures/silice/ids.golden`.
 
 mod check;
+mod derive;
 pub mod gfx;
 mod sprites;
 mod ids;

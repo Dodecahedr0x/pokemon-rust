@@ -30,8 +30,8 @@
     // Sc03 on the top of the coupée (9-10, 18), the only way off the ship.
     Coord(x: 9, y: 18, var: "VAR_SIL_STORY", value: 48, script: "PortRessac_Gym_Sc03"),
     Coord(x: 10, y: 18, var: "VAR_SIL_STORY", value: 48, script: "PortRessac_Gym_Sc03"),
-    // The grille barring the quarterdeck stairs, read from the deck (rail 617, collision 1; opened
-    // as floor 552 by _OnLoad and at the end of Sc02).
+    // The grille barring the quarterdeck stairs, read from the deck (solid; opened
+    // as the planks 512 by _OnLoad and at the end of Sc02).
     Sign(x: 9, y: 10, script: "PortRessac_Gym_EventScript_Grille"),
     Sign(x: 10, y: 10, script: "PortRessac_Gym_EventScript_Grille"),
     // The roll notice (Port_Ressac_Gym_Sign_Roulis), on the hatch deckhouse.
