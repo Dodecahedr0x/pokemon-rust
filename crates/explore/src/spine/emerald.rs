@@ -273,49 +273,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// Route 131 and the Sky Pillar: Route 131 (`LAYOUT_ROUTE131_SKY_PILLAR`) and every floor
-    /// (`LAYOUT_SKY_PILLAR_*_CLEAN`) are under a `setmaplayoutindex` layout, which the checkpoint
-    /// does not keep (`Field::from_snapshot`'s TODO(schema 5); `World::hash` leaves it out
-    /// too): the explorer's round trip diverges there (a restored world walks the map's own
-    /// layout), and the planner reads the map's own layout. The bypass writes what Wallace's
-    /// door scene (`SkyPillar_Outside_EventScript_WallaceScene`) and Rayquaza's waking
-    /// (`SkyPillar_Top_EventScript_AwakenRayquaza`) leave, and lands on Route 126's dive spot
-    /// (surfing), where the way back into Sootopolis starts.
-    static SKY_PILLAR: Bypass = Bypass {
-        issue: "sky-pillar-layouts",
-        features: &["setmaplayoutindex"],
-        set: &[
-            FLAG_LANDMARK_SKY_PILLAR,
-            FLAG_SYS_WEATHER_CTRL,
-            FLAG_HIDE_SKY_PILLAR_WALLACE,
-            FLAG_HIDE_SKY_PILLAR_TOP_RAYQUAZA,
-        ],
-        clear: &[FLAG_HIDE_SOOTOPOLIS_CITY_WALLACE],
-        vars: &[
-            (VAR_SOOTOPOLIS_CITY_STATE, 5),
-            (VAR_SKY_PILLAR_STATE, 1),
-            (VAR_SKY_PILLAR_RAYQUAZA_CRY_DONE, 1),
-        ],
-        warp: Some((MAP_ROUTE126, 45, 66)),
-        ..Bypass::NONE
-    };
-
-    /// Rayquaza parting Groudon and Kyogre on the dive back in
-    /// (`SootopolisCity_EventScript_RayquazaSceneFromDive`): `SPECIAL_Script_DoRayquazaScene`
-    /// again, as [`LEGENDARIES_SCENE`]. The bypass writes the scene's end.
-    static RAYQUAZA_SCENE: Bypass = Bypass {
-        issue: "rayquaza-scene",
-        features: &["SPECIAL_Script_DoRayquazaScene"],
-        set: &[
-            FLAG_HIDE_SOOTOPOLIS_CITY_GROUDON,
-            FLAG_HIDE_SOOTOPOLIS_CITY_KYOGRE,
-            FLAG_HIDE_SOOTOPOLIS_CITY_RAYQUAZA,
-        ],
-        clear: &[FLAG_SYS_WEATHER_CTRL, FLAG_LEGENDARIES_IN_SOOTOPOLIS],
-        vars: &[(VAR_SKY_PILLAR_STATE, 2)],
-        ..Bypass::NONE
-    };
-
     /// Dive out of Sootopolis's lake, Underwater Sootopolis's tunnel to Underwater Route 126,
     /// and the surfacing on Route 126, as [`DIVE_SEAFLOOR`] (the bypass leaves the player
     /// surfing on the dive spot's water).
@@ -328,16 +285,6 @@ mod list {
             "underwater maps",
         ],
         warp: Some((MAP_ROUTE126, 45, 66)),
-        ..Bypass::NONE
-    };
-
-    /// Sootopolis's Groudon/Kyogre scene: `SPECIAL_Script_DoRayquazaScene` (the fight's own
-    /// screen, which fades back in) is unsupported, so the field stays faded out. The bypass
-    /// writes the scene's end (`VAR_SOOTOPOLIS_CITY_STATE` 2).
-    static LEGENDARIES_SCENE: Bypass = Bypass {
-        issue: "legendaries-scene",
-        features: &["SPECIAL_Script_DoRayquazaScene"],
-        vars: &[(VAR_SOOTOPOLIS_CITY_STATE, 2)],
         ..Bypass::NONE
     };
 
@@ -1724,6 +1671,8 @@ mod list {
         enter(MAP_MOSSDEEP_CITY, 38, 9, Up),
         // The gym's floor switches turn its statues (`moverotatingtileobjects`, ...): from the
         // entrance (6, 35) to the twins, through every room.
+        // The gym's trainers with the first damaging move: Earthquake's PP stay for the twins.
+        Step::Battle(BattlePlan::Fight),
         // To the pad (1, 33) -> (20, 24).
         gym_path(&[Left, Left, Left, Up, Up, Up, Up, Left, Left, Down, Down]),
         // To the purple switch (23, 24). Clifford and Kathleen both see (22, 24): the engine
@@ -1764,12 +1713,18 @@ mod list {
         gym_path(&[Up, Up, Left, Left, Left, Down, Down, Right, Down]),
         // To the blue switch (8, 10).
         gym_path(&[Right, Down, Down, Right, Down]),
+        // Nate, on the way (one battle more than the way needs: without it the RNG the twins
+        // battle with makes them win).
+        gym_path(&[Up, Right]),
+        talk(MAP_MOSSDEEP_CITY_GYM, 17),
+        Step::WaitScript,
         // To the pad (11, 3) -> (11, 35).
-        gym_path(&[Up, Right, Right, Right, Up, Up, Up, Up, Up, Up]),
+        gym_path(&[Right, Right, Up, Up, Up, Up, Up, Up]),
         // To the pad (13, 32) -> (21, 10).
         gym_path(&[Right, Up, Right, Up, Up]),
         // To Tate.
         gym_path(&[Up, Right, Right, Up]),
+        Step::Battle(BattlePlan::BestLearn),
         talk(MAP_MOSSDEEP_CITY_GYM, 1),
         Step::WaitScript,
         Step::Expect("tate_liza_defeated"),
@@ -1894,11 +1849,10 @@ mod list {
         cross(MAP_ROUTE128, 30, 0, Up),
         cross(MAP_ROUTE127, 0, 40, Left),
         goto(MAP_ROUTE126, 45, 66),
-        // Groudon and Kyogre on arrival (`SootopolisCity_EventScript_LegendariesSceneFromDive`):
-        // its `Script_DoRayquazaScene` is unsupported and leaves the screen black, so
-        // `legendaries-scene` writes the scene's end before the dive lands.
-        Step::Bypass(&LEGENDARIES_SCENE),
         Step::Bypass(&DIVE_SOOTOPOLIS),
+        // Groudon and Kyogre on arrival (`SootopolisCity_EventScript_LegendariesSceneFromDive`,
+        // its fight screen `Script_DoRayquazaScene` degraded to a fade).
+        Step::WaitScript,
         Step::Expect("sootopolis"),
         goto(MAP_SOOTOPOLIS_CITY, 23, 37),
         Step::Walk(Left),
@@ -1913,8 +1867,8 @@ mod list {
         Step::WaitScript,
         Step::Checkpoint("cave_of_origin"),
         // ---- Sky Pillar: back out of the cave, Surf off Sootopolis's shore and Dive out
-        // (`dive-out-sootopolis`), Routes 126-127-128-129 to Route 130; Route 131 and the
-        // pillar are `sky-pillar-layouts` ----
+        // (`dive-out-sootopolis`), Routes 126-127-128-129-130 to Route 131's islet; up the
+        // pillar, Rayquaza wakes; back down and east to Route 126's dive spot ----
         enter(MAP_CAVE_OF_ORIGIN_B1F, 9, 3, Up),
         enter(MAP_CAVE_OF_ORIGIN_1F, 11, 17, Down),
         enter(MAP_CAVE_OF_ORIGIN_ENTRANCE, 9, 20, Down),
@@ -1927,10 +1881,55 @@ mod list {
         // East of Route 128's reef (its west water is cut off from 127 and 129's south).
         cross(MAP_ROUTE128, 40, 39, Down),
         cross(MAP_ROUTE129, 0, 23, Left),
-        Step::Bypass(&SKY_PILLAR),
+        // Route 131 under `LAYOUT_ROUTE131_SKY_PILLAR` (`setmaplayoutindex`): ashore below the
+        // pillar's cave.
+        cross(MAP_ROUTE130, 0, 24, Left),
+        enter(MAP_ROUTE131, 36, 6, Up),
+        enter(MAP_SKY_PILLAR_ENTRANCE, 14, 4, Down),
+        // Wallace opens the door (`SkyPillar_Outside_EventScript_WallaceScene`, on arrival).
+        Step::WaitScript,
+        enter(MAP_SKY_PILLAR_OUTSIDE, 14, 5, Up),
+        // The floors (`LAYOUT_SKY_PILLAR_*_CLEAN`): 4F's east half only leads down through its
+        // cracked floor (`CaveHole_CheckFallDownHole`) to 3F's middle, whose stairs reach 4F's
+        // west half and 5F's.
+        enter(MAP_SKY_PILLAR_1F, 10, 1, Up),
+        enter(MAP_SKY_PILLAR_2F, 3, 1, Up),
+        enter(MAP_SKY_PILLAR_3F, 11, 1, Up),
+        goto(MAP_SKY_PILLAR_4F, 5, 4),
+        Step::Walk(Right),
+        Step::WaitScript,
+        enter(MAP_SKY_PILLAR_3F, 7, 1, Up),
+        enter(MAP_SKY_PILLAR_4F, 3, 1, Up),
+        enter(MAP_SKY_PILLAR_5F, 10, 1, Up),
+        // Rayquaza wakes (`SkyPillar_Top_EventScript_AwakenRayquaza`, a coord event).
+        goto(MAP_SKY_PILLAR_TOP, 14, 9),
+        Step::WaitScript,
         Step::Expect("rayquaza_awakened"),
-        Step::Bypass(&RAYQUAZA_SCENE),
+        // Back down: 4F's west half drops through its cracked floor to 3F's west.
+        enter(MAP_SKY_PILLAR_TOP, 16, 14, Up),
+        enter(MAP_SKY_PILLAR_5F, 3, 1, Up),
+        goto(MAP_SKY_PILLAR_4F, 1, 2),
+        Step::Walk(Down),
+        Step::WaitScript,
+        enter(MAP_SKY_PILLAR_3F, 3, 1, Up),
+        enter(MAP_SKY_PILLAR_2F, 10, 1, Up),
+        enter(MAP_SKY_PILLAR_1F, 6, 13, Down),
+        enter(MAP_SKY_PILLAR_OUTSIDE, 17, 13, Up),
+        enter(MAP_SKY_PILLAR_ENTRANCE, 6, 16, Down),
+        // Surf back east to Route 126's dive spot.
+        Step::Choose(0),
+        use_(MAP_ROUTE131, 36, 8, Down),
+        cross(MAP_ROUTE131, 59, 24, Right),
+        cross(MAP_ROUTE130, 79, 23, Right),
+        cross(MAP_ROUTE129, 40, 0, Up),
+        cross(MAP_ROUTE128, 30, 0, Up),
+        cross(MAP_ROUTE127, 0, 40, Left),
+        goto(MAP_ROUTE126, 45, 66),
         Step::Bypass(&DIVE_SOOTOPOLIS),
+        // Rayquaza parts Groudon and Kyogre on arrival
+        // (`SootopolisCity_EventScript_RayquazaSceneFromDive`, `Script_DoRayquazaScene` degraded
+        // to a fade).
+        Step::WaitScript,
         Step::Checkpoint("rayquaza_awakened"),
         // ---- HM07: Maxie and Archie leave, Wallace gives Waterfall ----
         goto(MAP_SOOTOPOLIS_CITY, 32, 37),
