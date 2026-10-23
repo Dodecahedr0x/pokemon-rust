@@ -548,8 +548,8 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | Party switching, items and bag in the explorer policy and key (M7) | **Task D** (hooks, key) + **Task N** (policy, macros) |
 | `explore sweep` (M8 decision 13) | **Task D** |
 | Items sub-tab, water/fishing encounters, trainer lists, dynamic-warp and sight overlays (M8 S) | **Task T** |
-| `RoundTrip` "camera far outside the map" during Briney's boat (M8 N) | **Task F** |
-| PlannerDivergence on Route 115 (elevation, M8 N) | **M10** (elevation and bridges) |
+| `RoundTrip` "camera far outside the map" during Briney's boat (M8 N; P met it again at Route 104 (71, 189), off the Act 1 trace) | **Task F** |
+| PlannerDivergence on Route 115 (elevation, M8 N; P: (10, 63), (10, 64), (12, 61)) | **M10** (elevation and bridges) |
 | `UpdateEscapeWarp` needs the map type (M8 F, L) | **Task F** (map type, escape warp); Escape Rope **Task B** |
 | Pickup gives no item (M8 G) | **Task BM** |
 | `waitfanfare` as `waitmessage`, plural item names, `BufferTMHMMoveName` (M8 H) | **Task J** (names, TM move names); the fanfare hold waits for audio (**M12**) |
@@ -559,10 +559,21 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | Deduplicate the `StartAt` wrappers (M8 L follow-up 12) | **Task Q** |
 | Silice start facing hardcoded to Down (SIL1 E) | **Task C** |
 | Door animations, step timing, elevation priority, field poison (`TryFieldPoisonWhiteOut`) | **M10** |
-| Task P's "Findings for Milestone 9" | **Wave 0 Step 0** folds each into this table |
+| Late apply at Roxanne's battle start, engine frame 80,366 of the Act 1 trace (M8 P): `Battle::start` runs on the transition's first frame and the first `NewTurn` runs the gym leader's AI choice in the same step (223 lines). `KNOWN_LATE` in `emu/tests/parity.rs` cuts the long lane around it (the ROM does not replay 80,366–85,307) and checks it still happens | **Task BM** (owns `world/battle.rs` and the battle step): run the first turn's AI choice (or `start`) on a later transition frame, after checking Gen3's RNG order there; then remove the `KNOWN_LATE` entry. Task F's budget work does not cover it (a battle step, not a redraw) |
+| Explorer policy has no type-matchup or level term: a Torchic chain stalls at Roxanne; `Weights::balance` is 0 (M8 P) | **Task N** (a matchup/level term in the battle policy), or the act runner tries each starter; checked on Q's Emerald route |
+| Reached by P's explorer off the Act 1 trace, `Unsupported`: `pokemart` (Oldale, Petalburg, Rustboro) | **Task M** (mart) |
+| — `SPECIAL_BedroomPC` | **Task M** (PC; with `PlayerPC`, row above) |
+| — `SPECIAL_ShowPokedexRatingMessage` | **Task J** (the rating text; the Pokédex counts are Wave 0's) |
+| — `dofieldeffect` / `waitfieldeffect` (the Pokémon Center heal; also on the slice route) | **M10** (field effects) |
+| — `pokenavcall`, `copyobjectxytoperm` (Route 104) | `pokenavcall` **M13** (PokéNav); `copyobjectxytoperm` **Task J** (a plain object-template write) |
+| — `move effect 109` (`EFFECT_CURSE`) | **M11** (battle effects) |
+| Reached off the trace, `Degraded`: `SPECIAL_ChoosePartyMon` | **Task PT** (party menu, `PartyMode::Choose`) wired by **J** |
+| — `SPECIAL_ObjectEventInteractionGetBerryTreeData` | **M10** (berry trees, with the RTC) |
+| — `SPECIAL_ShowEasyChatScreen`, `SPECIAL_DoWaldaNamingScreen` | **M13** (Easy Chat; Walda's phrase) |
+| On the Act 1 trace itself, `Degraded` (the only three): `bufferitemnameplural`, `SPECIAL_StartWallyTutorialBattle`, `evolution scene` after Roxanne | plural names **Task J** (row above); Wally **M11** (row above); the scene **Task E** (it opens through `world/evolve.rs::after_battle`, which moves the Act 1 route from Roxanne's battle end: E re-accepts `act1:badge1`) |
 | `SaveMeta` gained the player name, Pokédex caught count and badges (Wave 0): an older slot fails agb's metadata check and boots as a new game (`boot::CORRUPT`) | **Task S** (the main menu shows the metadata; no migration: pre-M9 slots are debug saves) |
 
-**TODO (Wave 0 ran before M8 Task P merged; still true at the Wave 0 review, master `e83d8f6`):** Task P's "Findings for Milestone 9" are not on master yet. Fold each into the table above when P merges (owner task or later milestone; done if P fixed it): the Roxanne battle-start late frame, the explorer policy, and the Unsupported/Degraded list the Act 1 trace reaches. Then re-run the route-usage scan (`m9_route_scan` reads every committed node, so it picks up P's `act1:*` nodes with no change) and re-accept the `act1:*` nodes for the Pokédex digest.
+Task P's "Findings for Milestone 9" were folded in after P merged (Wave 0 merge prep, master `b5ce185`); P fixed none of them, so none is marked done.
 
 ---
 
@@ -622,27 +633,32 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 - **128 KiB not attempted.** M5 found that mGBA presents FLASH512 (Panasonic id) to a homebrew ROM and ignores agb's `FLASH1M_V` marker and the `.sav` size, so a 128 KiB layout would not boot in a stock mGBA; decision 5's fallback (fewer boxes on 64 KiB) applies. Revisit only with a cartridge-detection change in agb or our own flash driver.
 - **Screen budget.** No separate GBA spike: `ui::kit::UPLOAD_BYTES_PER_FRAME = SPREAD_TILES_BLACK × 32` (**16 KiB** on a black frame) and `UPLOAD_BYTES_VISIBLE = SPREAD_TILES_VISIBLE × 32` (**4 KiB** on a visible one), the per-frame tile budgets Task F measured on the GBA for warps (`field.rs`). A party menu's ~8 KiB of tiles plus maps and palettes therefore fits one black frame; Task K re-measures on the ROM with the first real screen and may lower them.
 - **Route-usage scan:** see below.
-- **Findings carried from M8:** Task P had not merged when Wave 0 ran; the carried table has a TODO to fold P's findings in.
+- **Findings carried from M8:** Task P's findings were folded in when P merged (before Wave 0 merged), each with an owner.
 
 ### Route-usage scan
-`crates/game-native/tests/m9_route_scan.rs` (`#[ignore]`d; `cargo test -p game-native --release --test m9_route_scan -- --ignored --nocapture`, with `PKR_DECOMP` for the static column). On master at Wave 0 the committed Emerald tree has only the four `route:*` nodes (the slice route up to `route103_after_may`, 19,184 frames), so both replays cover the same frames. **Re-run after M8 Task P merges** (its Act 1 nodes) and update this table.
+`crates/game-native/tests/m9_route_scan.rs` (`#[ignore]`d; `cargo test -p game-native --release --test m9_route_scan -- --ignored --nocapture`, with `PKR_DECOMP` for the static column). It replays the slice route and every committed node. First run on master at Wave 0 (four `route:*` nodes, the slice route itself); re-run at the merge prep after M8 Task P merged, when the Emerald tree has nine nodes: the four `route:*` (19,184 frames) and P's five `act1:*` from a new game to badge 1 (`act1:pokedex` → `act1:badge1`, 85,307 frames). The tree column below is that second run (104,491 frames).
 
-| Count | Slice route (19,184 frames) | Committed tree (4 nodes) |
+| Count | Slice route (19,184 frames) | Committed tree (9 nodes, 104,491 frames) |
 |---|---|---|
 | START / SELECT pressed on the idle field | 0 / 0 | 0 / 0 |
-| `pokemart` executed (report) / reachable from the started scripts (decomp, over-approximation) | 0 / 0 of 74 labels | same |
-| `special SaveGame` reachable | 0 of 2 | same |
-| `ChoosePartyMon` / `ChooseMonForMoveTutor` reachable | 0 of 11 / 0 of 3 | same |
-| `PlayerPC` / `ShowPokemonStorageSystemPC` reachable | 0 of 2 / 0 of 2 | same |
-| FADE_TO_WHITE / FROM_WHITE executed | 0 (Emerald's scripts have none: R and J's white fades are Silice-only) | same |
-| BAG / POKéMON chosen in battle | 0 (the route only fights or runs: `Action::Fight`, `Run`, `Mash`) | 0 (traces of the same route) |
-| Battles; trainer wins; with 2+ usable mons (shift prompt) | 8; 1; 0 | 8; 1; 0 |
-| Level evolutions due after a battle | 0 | 0 |
-| Field steps; with a poisoned party; with a Wurmple-line mon | 181; 0; 0 | 180; 0; 0 |
+| `pokemart` executed (report) / reachable from the started scripts (decomp, over-approximation) | 0 / 0 of 74 labels | 0 / 0 of 74 (49 scripts started, 1,866 labels reached statically) |
+| `special SaveGame` reachable | 0 of 2 | 0 of 2 |
+| `ChoosePartyMon` / `ChooseMonForMoveTutor` reachable | 0 of 11 / 0 of 3 | 0 of 11 / 0 of 3 |
+| `PlayerPC` / `ShowPokemonStorageSystemPC` reachable | 0 of 2 / 0 of 2 | 0 of 2 / 0 of 2 (the lab PC script runs: Birch's PC is a message, not `PlayerPC`) |
+| FADE_TO_WHITE / FROM_WHITE executed | 0 (Emerald's scripts have none: R and J's white fades are Silice-only) | 0 |
+| BAG / POKéMON chosen in battle | 0 (the route only fights or runs: `Action::Fight`, `Run`, `Mash`) | 0 (P's explorer policy has no item or switch action, carried to D/N) |
+| Battles; trainer wins; with 2+ usable mons (shift prompt) | 8; 1; 0 | 27; 13; 0 (never two usable mons at a trainer win) |
+| Level evolutions at a won battle's end (silent, `Degraded("evolution scene")`); still due after it | 0; 0 | 1 (after Roxanne, `act1:badge1`); 0 |
+| Field steps; with a poisoned party; with a Wurmple-line mon | 181; 0; 0 | 1,593; 0; 0 |
 | Screens opened | 0 | 0 |
-| Reports | `Unsupported(dofieldeffect)`, `Unsupported(waitfieldeffect)` (once each, M8) | same |
+| Reports | `Unsupported(dofieldeffect)`, `Unsupported(waitfieldeffect)` (once each, M8) | those two, plus `Degraded`: `bufferitemnameplural`, `SPECIAL_StartWallyTutorialBattle`, `evolution scene` (once each) |
 
-So on today's routes every M9 task is **route-neutral** except the Pokédex digest Wave 0 adds; K, SM, S, J, M, B, BM, PT and E change no route frame until a route presses START or reaches one of the sites above (Task Q's Emerald route and P's Act 1 trace decide that).
+So on the committed routes every M9 task is **route-neutral** except:
+- the Pokédex digest Wave 0 adds (one re-accept, Wave 0's own);
+- **Task E**, whose evolution scene opens after Roxanne on `act1:badge1` (from that battle's end on; E re-accepts the node);
+- **Task BM**, if it moves Roxanne's battle start off the transition's first frame (the carried `KNOWN_LATE`), from engine frame 80,366 on.
+
+K, SM, S, J, M, B and PT change no route frame until a route presses START or reaches one of the sites above (Task Q's Emerald route decides that). The off-trace reach of P's explorer (`pokemart`, `ChoosePartyMon`, `BedroomPC`) is listed in the carried table; it moves no committed node.
 
 ### Contracts changed versus this plan (and why)
 - **`world/save.rs::save_now(&World, game)`** takes the World, not `&mut State`: the capture code it reuses (`world/checkpoint.rs`) reads the runner and mode too. `World::save_snapshot(&self, game)` forwards to it.

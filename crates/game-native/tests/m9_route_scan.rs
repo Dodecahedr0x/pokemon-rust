@@ -36,7 +36,11 @@ struct Counts {
     battles: u32,
     trainer_wins: u32,
     trainer_wins_two_usable: u32,
+    /// Mons still at a level evolution after a won battle (none while the silent evolution
+    /// runs: it already evolved them; the scene's own count is `evolved`).
     evolutions_due: u32,
+    /// Level evolutions at a won battle's end (`Degraded("evolution scene")`, one per mon).
+    evolved: u32,
     steps: u32,
     poisoned_steps: u32,
     wurmple_steps: u32,
@@ -87,6 +91,9 @@ impl<'g, G: GameData> Scan<'g, G> {
         for &e in w.events() {
             match e {
                 Event::Report(r) => {
+                    if r == Report::Degraded("evolution scene") {
+                        c.evolved += 1;
+                    }
                     let k = match r {
                         Report::Unsupported(n) => format!("Unsupported({n})"),
                         Report::Degraded(n) => format!("Degraded({n})"),
@@ -166,8 +173,9 @@ fn print(title: &str, c: &Counts) {
         c.start_on_field, c.select_on_field
     );
     println!(
-        "trainer wins {} (with 2+ usable mons: {})  level evolutions due after a battle {}",
-        c.trainer_wins, c.trainer_wins_two_usable, c.evolutions_due
+        "trainer wins {} (with 2+ usable mons: {})  level evolutions at a battle's end {} \
+         (still due after it {})",
+        c.trainer_wins, c.trainer_wins_two_usable, c.evolved, c.evolutions_due
     );
     println!(
         "field steps {} (poisoned party {}, Wurmple line {})",
