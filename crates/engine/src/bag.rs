@@ -269,6 +269,25 @@ impl Bag {
         true
     }
 
+    /// Gen3 `CompactItemsInBagPocket` (the bag menu, when it opens): the non-empty slots move to
+    /// the front in their order; with `sort`, ordered by item id (`SortBerriesOrTMHMs`, the
+    /// TM/HM and berries pockets).
+    pub fn compact(&mut self, pocket: Pocket, sort: bool) {
+        let mut full: Vec<Slot> = (self.pocket(pocket).iter())
+            .filter(|s| s.qty > 0)
+            .copied()
+            .collect();
+        if sort {
+            full.sort_by_key(|s| s.item.0);
+        }
+        for i in 0..self.pocket_len(pocket) {
+            let s = full.get(i).copied().unwrap_or_default();
+            if self.pocket(pocket)[i] != s {
+                self.set_slot(pocket, i, s);
+            }
+        }
+    }
+
     /// The digest of every slot, recomputed from scratch (what `digest` tracks).
     fn full_digest(&self) -> u64 {
         (self.slots.iter().enumerate()).fold(0u64, |d, (i, &s)| d.wrapping_add(slot_term(i, s)))

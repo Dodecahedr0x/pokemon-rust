@@ -88,6 +88,9 @@ pub enum Step {
     Press(u16, u16),
     /// Press nothing for this many frames, resolve.
     Wait(u16),
+    /// Use an item from the bag: START → BAG → the item → USE, then the party menu
+    /// ([`UseItem`]: Gen3 `ItemUseOutOfBattle_TMHM` → `ItemUseCB_TMHM` for a TM or HM).
+    UseItem(UseItem),
     /// Idle a few frames ([`WAIT_SCRIPT_FRAMES`]: a frame script starts), then resolve
     /// whatever runs.
     WaitScript,
@@ -152,9 +155,10 @@ pub struct Bypass {
     pub use_item: Option<UseItem>,
 }
 
-/// A TM / HM used from the bag on party slot `mon` (Gen3 `ItemUseOutOfBattle_TMHM` →
-/// `ItemUseCB_TMHM`): the party menu picks `mon` and, when its four slots are full, answers
-/// "forget a move?" yes and forgets move slot `forget` in the summary.
+/// An item used from the bag on party slot `mon` ([`Step::UseItem`], Gen3
+/// `ItemUseOutOfBattle_TMHM` → `ItemUseCB_TMHM` for a TM or HM): the party menu picks `mon`
+/// and, when its four slots are full, answers "forget a move?" yes and forgets move slot
+/// `forget` in the summary.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct UseItem {
     pub item: ItemId,
@@ -984,6 +988,14 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 self.macro_(live, mk(MacroKind::Press { keys, frames }))?
             }
             Step::Wait(frames) => self.macro_(live, mk(MacroKind::Wait { frames }))?,
+            Step::UseItem(u) => self.macro_(
+                live,
+                mk(MacroKind::UseItem {
+                    item: u.item.0,
+                    mon: u.mon,
+                    forget: u.forget,
+                }),
+            )?,
             // A few idle frames first: a map's frame script starts on the field's next frame.
             Step::WaitScript => self.macro_(
                 live,

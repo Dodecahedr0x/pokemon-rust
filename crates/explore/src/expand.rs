@@ -78,6 +78,8 @@ pub const STALL_FRAMES: u32 = 64;
 pub const BLOCKED_FRAMES: u32 = 240;
 /// Frames after pressing A for the interaction's script to start.
 const INTERACT_FRAMES: u32 = 4;
+/// Frames a [`MacroKind::UseItem`] may take (fades, messages, the teach flow).
+const USE_ITEM_FRAMES: u32 = 4_000;
 
 /// What drives battles and scripts: the policy's intents (the driver applies the tap rule).
 pub trait Intents {
@@ -399,6 +401,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 | MacroKind::Push { .. }
                 | MacroKind::Interact
                 | MacroKind::Press { .. }
+                | MacroKind::UseItem { .. }
         ) {
             return Ok(());
         }
@@ -734,8 +737,127 @@ impl<'a, G: GameData> Driver<'a, G> {
                     self.press(keys)?;
                 }
             }
+            MacroKind::UseItem { item, mon, forget } => {
+                self.resolve()?;
+                self.use_item(engine::data::ItemId(item), mon, forget)?;
+            }
         }
         self.resolve()
+    }
+
+    /// [`MacroKind::UseItem`]: drives the start menu, the bag, the party menu and the summary
+    /// from their state, one tap at a time, until every screen is closed.
+    fn use_item(
+        &mut self,
+        item: engine::data::ItemId,
+        mon: u8,
+        forget: u8,
+    ) -> Result<(), ExpandError> {
+        use engine::ui::ScreenState;
+        use engine::ui::bag::{Action, POCKETS, Prompt as BagPrompt};
+        use engine::ui::party::Prompt;
+        let game = self.s.game();
+        let pocket = game.item(item).map(|i| i.pocket);
+        let Some(pocket) = pocket.filter(|_| self.w().bag().count(item) > 0) else {
+            return Err(ExpandError::NoEffect("use item: not in the bag"));
+        };
+        let want_pocket = POCKETS.iter().position(|&p| p == pocket).unwrap_or(0);
+        // The BAG entry among the start menu's shown entries.
+        let bag_entry = (game.start_menu().iter())
+            .filter(|e| e.shown_if.is_none_or(|f| self.w().flag(f)))
+            .position(|e| e.action == engine::data::StartAction::Bag)
+            .ok_or(ExpandError::NoEffect("use item: no BAG in the start menu"))?
+            as u8;
+        let mut opened = false;
+        let mut used = false;
+        for _ in 0..USE_ITEM_FRAMES {
+            let w = self.w();
+            let top = w.screens().and_then(|s| s.top()).map(|(_, st)| st);
+            let keys = match top {
+                None if opened => {
+                    if w.capturable().is_ok() {
+                        return if used {
+                            Ok(())
+                        } else {
+                            Err(ExpandError::NoEffect(
+                                "use item: the party menu never opened",
+                            ))
+                        };
+                    }
+                    Buttons::NONE
+                }
+                None => {
+                    if w.screens_open() == 0 && w.field_active() {
+                        Buttons::START
+                    } else {
+                        Buttons::NONE
+                    }
+                }
+                Some(ScreenState::StartMenu(m)) => {
+                    opened = true;
+                    match m.cursor() {
+                        _ if used => Buttons::B,
+                        Some(c) if c == bag_entry => Buttons::A,
+                        Some(_) => Buttons::DOWN,
+                        None => Buttons::NONE,
+                    }
+                }
+                Some(ScreenState::Bag(b)) => match b.prompt_in(w.bag()) {
+                    BagPrompt::List { .. } if used => Buttons::B,
+                    BagPrompt::List {
+                        pocket: p,
+                        selected,
+                        ..
+                    } => {
+                        let at = POCKETS.iter().position(|&q| q == p).unwrap_or(0);
+                        let index = (w.bag().pocket(pocket).iter())
+                            .filter(|s| s.qty > 0)
+                            .position(|s| s.item == item)
+                            .unwrap_or(0) as u16;
+                        if at < want_pocket {
+                            Buttons::RIGHT
+                        } else if at > want_pocket {
+                            Buttons::LEFT
+                        } else if selected < index {
+                            Buttons::DOWN
+                        } else if selected > index {
+                            Buttons::UP
+                        } else {
+                            Buttons::A
+                        }
+                    }
+                    BagPrompt::Context { cursor } => {
+                        match b.actions().iter().position(|&a| a == Action::Use) {
+                            Some(i) if i as u8 == cursor => Buttons::A,
+                            Some(_) => Buttons::DOWN,
+                            None => Buttons::B,
+                        }
+                    }
+                    BagPrompt::Message => Buttons::A,
+                    BagPrompt::YesNo { cursor: 0 } => Buttons::A,
+                    BagPrompt::YesNo { .. } => Buttons::UP,
+                    BagPrompt::Quantity { .. } => Buttons::B,
+                    BagPrompt::Child => Buttons::NONE,
+                },
+                Some(ScreenState::Party(p)) => {
+                    used = true;
+                    match p.prompt() {
+                        Prompt::Slot { cursor } if cursor == mon => Buttons::A,
+                        Prompt::Slot { .. } => Buttons::DOWN,
+                        Prompt::Message => Buttons::A,
+                        Prompt::YesNo { cursor: 0 } => Buttons::A,
+                        Prompt::YesNo { .. } => Buttons::UP,
+                        Prompt::Child => Buttons::NONE,
+                        _ => Buttons::B,
+                    }
+                }
+                Some(ScreenState::Summary(s)) if s.move_cursor == forget => Buttons::A,
+                Some(ScreenState::Summary(_)) => Buttons::DOWN,
+                Some(_) => Buttons::B,
+            };
+            self.tap(keys)?;
+        }
+        Err(ExpandError::Timeout("use item"))
     }
 
     /// Settled, turns in place to `d`: holds `d` until the player faces it (a tap turns

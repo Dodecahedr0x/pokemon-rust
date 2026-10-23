@@ -12,6 +12,9 @@
 //!   slot order, `sFieldMoves` order inside), SWITCH (when the party has two mons), ITEM
 //!   (GIVE / TAKE), CANCEL. SWITCH swaps two slots; TAKE puts the held item in the bag.
 //! - `Choose` (`ChoosePartyMon`, `PARTY_ACTION_CHOOSE_AND_CLOSE`): A answers the slot.
+//! - `UseItem(item)` on anything but a TM or HM (the bag's USE on medicine, Rare Candy, a
+//!   vitamin or a stone): `item_use::use_on_mon` on the slot chosen, one item used up, Gen3's
+//!   message, then the menu closes with the slot (`Cancel` when it had no effect).
 //! - `UseItem(tm)` (the bag's USE on a TM or HM, `ItemUseCB_TMHM`) and `MoveTutor(move)`
 //!   (`ChooseMonForMoveTutor`): Gen3's teach flow: not compatible / already knows, learned
 //!   into a free slot, else "delete a move?" → the summary's move pick (HM moves refused
@@ -651,10 +654,16 @@ impl PartyMenu {
                     self.teach(cx, slot, mv, item);
                     ScreenOut::Running
                 }
-                None => {
-                    cx.report(Report::Unsupported("item use"));
-                    ScreenOut::Done(ScreenResult::Cancel)
-                }
+                None => match self.mode {
+                    PartyMode::UseItem(item) => {
+                        self.use_item_on(cx, slot, item);
+                        ScreenOut::Running
+                    }
+                    _ => {
+                        cx.report(Report::Unsupported("item use"));
+                        ScreenOut::Done(ScreenResult::Cancel)
+                    }
+                },
             },
             PartyMode::Field | PartyMode::Battle { .. } => {
                 self.actions = self.actions_for(cx, slot);
@@ -663,6 +672,45 @@ impl PartyMenu {
                 self.set_hint(cx, UiText::PartyDoWhatWithMon);
                 self.relayout(cx);
                 ScreenOut::Running
+            }
+        }
+    }
+
+    /// Gen3 `ItemUseCB_Medicine` and friends (`item_use::use_on_mon`): the effect, one item
+    /// used up, the message; then the menu closes (back to the bag). No effect: "It won't have
+    /// any effect." and the item is kept.
+    fn use_item_on<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, slot: u8, item: ItemId) {
+        let game = cx.game;
+        let Some(mon) = cx.party.get_mut(slot as usize) else {
+            return;
+        };
+        let mut reports = Vec::new();
+        let used = crate::item_use::use_on_mon(game, mon, item, cx.rng, &mut reports);
+        let name = mon.nickname;
+        for r in reports {
+            cx.report(r);
+        }
+        match used {
+            None => self.show_msg(
+                cx,
+                UiText::ItemNoEffect,
+                None,
+                true,
+                Next::Close(ScreenResult::Cancel),
+            ),
+            Some(u) => {
+                if let Some(p) = game.item(item).map(|i| i.pocket) {
+                    cx.bag.remove(p, item, 1);
+                }
+                let v = vars(&name, &u.var2);
+                self.redraw_slots(cx);
+                self.show_msg(
+                    cx,
+                    u.text,
+                    Some(&v),
+                    true,
+                    Next::Close(ScreenResult::Value(slot as u16)),
+                );
             }
         }
     }

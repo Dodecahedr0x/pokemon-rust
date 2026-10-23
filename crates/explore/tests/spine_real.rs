@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 1_421_816;
+const EMERALD_FRAMES: u64 = 1_347_132;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -57,10 +57,7 @@ const EMERALD_LABELS: &[&str] = &[
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
 const SPINE_BLOCKERS: &[&str] = &[
-    "bag-use-hm06",
-    "bag-use-hm03",
     "fly-mauville",
-    "bag-use-hm04",
     "fly-slateport",
     "fly-lilycove",
     "water-door-in",

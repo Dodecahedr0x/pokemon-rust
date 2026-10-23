@@ -104,6 +104,27 @@ symbols! {
     handle_input_choose_action = "HandleInputChooseAction" @ 0x08057588,
     handle_input_choose_move = "HandleInputChooseMove" @ 0x08057bfc,
     handle_input_choose_target = "HandleInputChooseTarget" @ 0x08057824,
+    /// `struct BackupMapLayout { s32 width, height; u16 *map; }`: the live map grid, with the
+    /// `setmetatile` changes (the planner's overrides).
+    backup_map_layout = "gBackupMapLayout" @ 0x03005dc0,
+    /// The battle script's next command (`yesnoboxlearnmove` 0x5A, `yesnoboxstoplearningmove`
+    /// 0x5B: the learn-move prompts).
+    battlescript_curr_instr = "gBattlescriptCurrInstr" @ 0x02024214,
+    /// `gBattleCommunication[1]`: the battle yes/no box's cursor.
+    battle_communication = "gBattleCommunication" @ 0x02024332,
+    /// The level-up move a battle's learn prompt offers.
+    move_to_learn = "gMoveToLearn" @ 0x020244e2,
+    /// `struct MonSummaryScreenData *` (`pokemon_summary_screen.c`): `newMove` at +0x40C4,
+    /// `firstMoveIndex` (the forget-a-move cursor) at +0x40C6.
+    mon_summary_screen = "sMonSummaryScreen" @ 0x0203cf1c,
+    /// A Match Call on the field (the PokéNav window's text waits for A).
+    task_match_call = "ExecuteMatchCall" @ 0x081960e0,
+    /// The PokéNav's main callback.
+    cb2_pokenav = "CB2_Pokenav" @ 0x081c7400,
+    /// `struct PokenavResources *`: `mode` at +8.
+    pokenav_resources = "gPokenavResources" @ 0x0203cf40,
+    /// The summary screen's forget-a-move input.
+    task_replace_move = "Task_HandleReplaceMoveInput" @ 0x081c174c,
 }
 
 /// Every address of every name in a symbol listing: any line whose first token is a hex

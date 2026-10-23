@@ -66,22 +66,14 @@ mod list {
         Step::TrainFresh { map, x, y, level }
     }
 
-    /// HM06 from the bag on the lead (the bag screen is Task B: `World::use_item` stands for
-    /// its USE); the party menu teaches it with inputs, forgetting Mud-Slap (slot 2), so
-    /// `EventScript_RockSmash`'s `checkpartymove` finds it.
-    static USE_HM06: Bypass = Bypass {
-        issue: "bag-use-hm06",
-        features: &["bag: use a TM/HM"],
-        use_item: Some(UseItem {
-            item: ITEM_HM06,
-            mon: 0,
-            forget: 2,
-        }),
-        ..Bypass::NONE
-    };
+    /// HM06 from the bag on the lead (START → BAG → HM06 → USE): the party menu teaches it,
+    /// forgetting Mud-Slap (slot 2), so `EventScript_RockSmash`'s `checkpartymove` finds it.
+    const USE_HM06: Step = Step::UseItem(UseItem {
+        item: ITEM_HM06,
+        mon: 0,
+        forget: 2,
+    });
 
-    /// HM03 from the bag on the lead, as [`USE_HM06`], forgetting Water Gun (slot 3), so
-    /// `EventScript_UseSurf`'s `checkpartymove` finds it.
     /// Fly from the party menu (`FIELD_MOVE_FLY`, `FLDEFF_USE_FLY`, the region map): the
     /// engine has neither the field move from the party menu (Milestone 10) nor a party that
     /// could carry it (nothing in Swampert's or Castform's learnsets; catching is the bag in
@@ -103,16 +95,11 @@ mod list {
 
     /// HM04 from the bag on the lead, as [`USE_HM06`], forgetting Take Down (slot 1), for the
     /// Magma Hideout's boulders.
-    static USE_HM04: Bypass = Bypass {
-        issue: "bag-use-hm04",
-        features: &["bag: use a TM/HM"],
-        use_item: Some(UseItem {
-            item: ITEM_HM04,
-            mon: 0,
-            forget: 1,
-        }),
-        ..Bypass::NONE
-    };
+    const USE_HM04: Step = Step::UseItem(UseItem {
+        item: ITEM_HM04,
+        mon: 0,
+        forget: 1,
+    });
 
     /// Route 120's ledges are one-way south: back from Mt. Pyre to the Jagged Pass by Fly.
     static FLY_MAUVILLE: Bypass = fly("fly-mauville", MAP_MAUVILLE_CITY, 22, 6);
@@ -155,6 +142,21 @@ mod list {
         warp: Some((MAP_MOSSDEEP_CITY_GYM, 23, 8)),
         ..Bypass::NONE
     };
+
+    /// One training round on Route 120's grass by Fortree, healed at Fortree's Center.
+    const fn fortree_train(level: u8) -> [Step; 6] {
+        [
+            cross(MAP_FORTREE_CITY, 39, 8, Right),
+            train_fresh(MAP_ROUTE120, 24, 8, level),
+            cross(MAP_ROUTE120, 0, 8, Left),
+            enter(MAP_FORTREE_CITY, 5, 6, Up),
+            use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+            enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        ]
+    }
+    const FT47: [Step; 6] = fortree_train(47);
+    const FT48: [Step; 6] = fortree_train(48);
+    const FT49: [Step; 6] = fortree_train(49);
 
     /// One training round on the water west of Mossdeep: Surf from (10, 10), pace on (8, 10)
     /// to `level` (stopping at half HP or low PP), back ashore, healed at the Center.
@@ -209,16 +211,13 @@ mod list {
         ..Bypass::NONE
     };
 
-    static USE_HM03: Bypass = Bypass {
-        issue: "bag-use-hm03",
-        features: &["bag: use a TM/HM"],
-        use_item: Some(UseItem {
-            item: ITEM_HM03,
-            mon: 0,
-            forget: 3,
-        }),
-        ..Bypass::NONE
-    };
+    /// HM03 from the bag on the lead, as [`USE_HM06`], forgetting Water Gun (slot 3), so
+    /// `EventScript_UseSurf`'s `checkpartymove` finds it.
+    const USE_HM03: Step = Step::UseItem(UseItem {
+        item: ITEM_HM03,
+        mon: 0,
+        forget: 3,
+    });
 
     /// The Route 119 trainers' sight lines (`map.json` facing and range): the grass trainers
     /// that copy the player (range 1, every side), Catherine, Jackson, Rachel, Phil, Hugh,
@@ -980,11 +979,11 @@ mod list {
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
-        // HM06 from the Rock Smash dude; teach it from the bag (`bag-use-hm06`).
+        // HM06 from the Rock Smash dude; teach it from the bag.
         enter(MAP_MAUVILLE_CITY, 32, 14, Up),
         talk(MAP_MAUVILLE_CITY_HOUSE1, 1),
         enter(MAP_MAUVILLE_CITY_HOUSE1, 3, 7, Down),
-        Step::Bypass(&USE_HM06),
+        USE_HM06,
         // ---- Route 111: smash the rock north of the Winstrates', on to Route 113 ----
         cross(MAP_MAUVILLE_CITY, 16, 0, Up),
         // The rock: `EventScript_RockSmash` (yes).
@@ -1160,8 +1159,8 @@ mod list {
         enter(MAP_PETALBURG_CITY, 7, 5, Up),
         Step::WaitScript,
         Step::Expect("hm_surf"),
-        // Teach it from the bag (`bag-use-hm03`).
-        Step::Bypass(&USE_HM03),
+        // Teach it from the bag.
+        USE_HM03,
         // ================= Act 6 (Wave C, M10's field moves): back east to Mauville by the
         // woods, Rustboro and the tunnel, then Surf across Route 118 to Route 119 =================
         enter(MAP_PETALBURG_CITY_WALLYS_HOUSE, 3, 7, Down),
@@ -1269,6 +1268,25 @@ mod list {
         enter(MAP_FORTREE_CITY, 5, 6, Up),
         use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Winona's Altaria beat the lead at 46: rounds on Route 120's grass east of the city.
+        FT47[0],
+        FT47[1],
+        FT47[2],
+        FT47[3],
+        FT47[4],
+        FT47[5],
+        FT48[0],
+        FT48[1],
+        FT48[2],
+        FT48[3],
+        FT48[4],
+        FT48[5],
+        FT49[0],
+        FT49[1],
+        FT49[2],
+        FT49[3],
+        FT49[4],
+        FT49[5],
         // ---- Winona ----
         enter(MAP_FORTREE_CITY, 22, 11, Up),
         talk(MAP_FORTREE_CITY_GYM, 1),
@@ -1357,8 +1375,8 @@ mod list {
         enter(MAP_JAGGED_PASS, 16, 18, Up),
         // ---- The hideout: 1F, 2F 1R, 3F 1R, 4F down its arrow warps; Maxie wakes Groudon ----
         // Three boulders close the way north (`EventScript_StrengthBoulder`): Strength from
-        // the bag (`bag-use-hm04`), then (6, 23) west, up, and (5, 22) west.
-        Step::Bypass(&USE_HM04),
+        // the bag, then (6, 23) west, up, and (5, 22) west.
+        USE_HM04,
         Step::Choose(0),
         use_(MAP_MAGMA_HIDEOUT_1F, 7, 23, Left),
         // (A `Walk` into a boulder pushes it, then steps after it.)

@@ -100,6 +100,7 @@ pub fn kind_name(kind: FindingKind) -> &'static str {
         FindingKind::SlowFrame => "slow_frame",
         FindingKind::Unsupported => "unsupported",
         FindingKind::Divergence => "divergence",
+        FindingKind::Parity => "parity",
     }
 }
 
@@ -268,6 +269,9 @@ pub fn reproduce_from<G: GameData + Clone>(
 ) -> Result<(), String> {
     match want.kind {
         FindingKind::SlowFrame => return Err("slow frames are report-only".into()),
+        FindingKind::Parity => {
+            return Err("parity findings reproduce with `cargo xtask vanilla spine`".into());
+        }
         FindingKind::Softlock => {
             return Err("softlocks reproduce with findings::end_state + softlock::probe".into());
         }

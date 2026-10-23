@@ -321,6 +321,13 @@ macro_rules! game_data_tables {
         }
 
         fn text(&self, id: ::engine::data::TextId) -> &'static [u8] {
+            // The start menu's labels (`build/ui.rs`) sit past every script text.
+            if let Some(i) = id.0.checked_sub($crate::data::START_LABEL_BASE) {
+                return $crate::data::START_LABELS
+                    .get(i as usize)
+                    .copied()
+                    .unwrap_or(&[0xFF]);
+            }
             $crate::data::TEXTS
                 .get(id.0 as usize)
                 .copied()

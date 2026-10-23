@@ -54,6 +54,21 @@ pub struct Semantic {
     pub respawn: Option<MapId>,
     /// The visible objects of the current map but the player: local id -> cell.
     pub objects: BTreeMap<u8, (i16, i16)>,
+    /// The same objects' spawn cells (Gen3 `initialCoords`, our `Object::home`): what decides
+    /// whether Gen3 has an object spawned around the camera ([`in_spawn_view`]).
+    pub homes: BTreeMap<u8, (i16, i16)>,
+}
+
+/// Whether Gen3 keeps an object whose spawn cell is `home` spawned with the player on `player`,
+/// with a cell of margin: `TrySpawnObjectEvents` spawns the templates within x in
+/// [px - 9, px + 10] and y in [py - 7, py + 9] (`gSaveBlock1Ptr->pos` is the player's cell,
+/// the box is `pos - 2 ..= pos + MAP_OFFSET_W + 2` against `template + MAP_OFFSET`), and
+/// `RemoveObjectEventIfOutsideView` removes an object only once both its cell and its spawn
+/// cell are out of the same box. An object whose spawn cell is in the box is therefore present
+/// in Gen3 whatever path the camera took; one outside may or may not be.
+pub fn in_spawn_view(home: (i16, i16), player: (i16, i16)) -> bool {
+    let (dx, dy) = (home.0 - player.0, home.1 - player.1);
+    (-8..=9).contains(&dx) && (-6..=8).contains(&dy)
 }
 
 /// One party mon.
@@ -95,6 +110,12 @@ pub struct Tolerance {
     pub levels: bool,
     /// Object cells (default: presence only).
     pub object_cells: bool,
+    /// HP at all (as buckets or exact; default: yes). Cleared, like `levels`, past random
+    /// battles: the damage taken depends on the RNG.
+    pub hp: bool,
+    /// Objects only where Gen3's camera decides presence the same way for both games: the ids
+    /// whose spawn cell is [`in_spawn_view`] of both players (default: every object).
+    pub in_view: bool,
 }
 
 impl Default for Tolerance {
@@ -103,6 +124,8 @@ impl Default for Tolerance {
             exact_hp: false,
             levels: true,
             object_cells: false,
+            hp: true,
+            in_view: false,
         }
     }
 }
@@ -173,10 +196,9 @@ impl Semantic {
             }
         }
         let map = w.map();
-        let objects = (w.objects().iter().skip(1))
-            .filter(|o| o.map == map && o.visible)
-            .map(|o| (o.local_id, (o.x, o.y)))
-            .collect();
+        let visible = || (w.objects().iter().skip(1)).filter(|o| o.map == map && o.visible);
+        let objects = visible().map(|o| (o.local_id, (o.x, o.y))).collect();
+        let homes = visible().map(|o| (o.local_id, o.home)).collect();
         Semantic {
             map,
             cell: (player.x, player.y),
@@ -189,6 +211,7 @@ impl Semantic {
             money: w.money(),
             respawn: game.heal_location(w.respawn()).map(|(m, _, _)| m),
             objects,
+            homes,
         }
     }
 
@@ -272,10 +295,10 @@ pub fn diff(ours: &Semantic, vanilla: &Semantic, tol: Tolerance) -> Vec<Delta> {
             put(format!("party[{i}].level"), show(a.level), show(b.level));
             put(format!("party[{i}].exp"), show(a.exp), show(b.exp));
         }
-        if tol.exact_hp {
+        if tol.hp && tol.exact_hp {
             put(format!("party[{i}].hp"), show(a.hp), show(b.hp));
             put(format!("party[{i}].max_hp"), show(a.max_hp), show(b.max_hp));
-        } else {
+        } else if tol.hp {
             put(
                 format!("party[{i}].hp"),
                 show(a.hp_bucket()),
@@ -307,9 +330,20 @@ pub fn diff(ours: &Semantic, vanilla: &Semantic, tol: Tolerance) -> Vec<Delta> {
         ours.respawn.map_or("none".into(), map_name),
         vanilla.respawn.map_or("none".into(), map_name),
     );
-    let ids: BTreeSet<u8> = (ours.objects.keys().chain(vanilla.objects.keys()))
+    let mut ids: BTreeSet<u8> = (ours.objects.keys().chain(vanilla.objects.keys()))
         .copied()
         .collect();
+    if tol.in_view {
+        if ours.map != vanilla.map {
+            ids.clear();
+        }
+        ids.retain(|id| {
+            let home = (ours.homes.get(id).or(vanilla.homes.get(id)))
+                .or(ours.objects.get(id))
+                .or(vanilla.objects.get(id));
+            home.is_some_and(|&h| in_spawn_view(h, ours.cell) && in_spawn_view(h, vanilla.cell))
+        });
+    }
     for id in ids {
         let get = |m: &BTreeMap<u8, (i16, i16)>| match m.get(&id) {
             None => "absent".to_string(),
@@ -349,6 +383,7 @@ mod tests {
             badges: 0,
             respawn: Some(MapId(9)),
             objects: BTreeMap::from([(1, (3, 3))]),
+            homes: BTreeMap::from([(1, (3, 3))]),
         }
     }
 
@@ -404,6 +439,35 @@ mod tests {
             ..Tolerance::default()
         };
         assert!(diff(&base(), &lv, loose).is_empty());
+    }
+
+    #[test]
+    fn objects_compare_in_the_shared_view() {
+        let mut v = base();
+        v.objects.clear();
+        v.objects.insert(2, (40, 40));
+        v.homes = BTreeMap::from([(2, (40, 40))]);
+        let view = Tolerance {
+            in_view: true,
+            ..Tolerance::default()
+        };
+        // Object 2 spawns far from both players; object 1 near both: only 1 counts.
+        let d = diff(&base(), &v, view);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].field, "object 1");
+        assert_eq!(diff(&base(), &v, Tolerance::default()).len(), 2);
+        // The box: [px - 8, px + 9] x [py - 6, py + 8] (one cell inside Gen3's).
+        assert!(in_spawn_view((-3, 2), (5, 8)) && !in_spawn_view((-4, 8), (5, 8)));
+        assert!(in_spawn_view((14, 16), (5, 8)) && !in_spawn_view((15, 8), (5, 8)));
+        assert!(!in_spawn_view((5, 1), (5, 8)) && !in_spawn_view((5, 17), (5, 8)));
+        // No HP compare past random battles.
+        let mut h = base();
+        h.party[0].hp = 3;
+        let no_hp = Tolerance {
+            hp: false,
+            ..Tolerance::default()
+        };
+        assert!(diff(&base(), &h, no_hp).is_empty());
     }
 
     #[test]
