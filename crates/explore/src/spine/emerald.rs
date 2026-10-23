@@ -2052,6 +2052,7 @@ mod list {
         enter(MAP_VICTORY_ROAD_B2F, 19, 12, Up),
         // B1F's south room: smash (20, 25), push (20, 26) down, smash (21, 26).
         goto(MAP_VICTORY_ROAD_B1F, 19, 25),
+        Step::Wait(2),
         Step::Choose(0),
         use_(MAP_VICTORY_ROAD_B1F, 19, 25, Right),
         goto(MAP_VICTORY_ROAD_B1F, 20, 25),
