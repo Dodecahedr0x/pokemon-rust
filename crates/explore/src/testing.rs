@@ -16,8 +16,8 @@
 use engine::battle::{self, BattleGfx};
 use engine::data::{
     BLOCK_COLLISION_SHIFT, CoordEvent, Emote, Evolution, FlagId, GameData, ItemId, ItemInfo,
-    MapData, MapId, MapScripts, ObjectEvent, ScriptId, SpecialIds, SpeciesId, SpriteData,
-    TrainerId, VarId, WarpEvent,
+    MapData, MapId, MapScripts, ScriptId, SpecialIds, SpeciesId, SpriteData, TrainerId, VarId,
+    WarpEvent,
 };
 use engine::mon::{BattleTables, LandEncounters, TrainerData};
 use engine::script::{Ctx, Fade, Report, Script};
