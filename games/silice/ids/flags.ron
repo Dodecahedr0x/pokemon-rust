@@ -2002,5 +2002,93 @@
             name: "FLAG_SIL_HIDE_LABO_CHIMISTE",
             num: 774,
         ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_CONTREMAITRE",
+            num: 775,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_DECOR_1",
+            num: 776,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_DECOR_2",
+            num: 777,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_DECOR_3",
+            num: 778,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_GYM_GWADA",
+            num: 779,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_MARIN_CLIENT",
+            num: 780,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_1",
+            num: 781,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_2",
+            num: 782,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_3",
+            num: 783,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PASSANT_4",
+            num: 784,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_1",
+            num: 785,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_2",
+            num: 786,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_3",
+            num: 787,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE",
+            num: 788,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SAMUEL",
+            num: 789,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_1",
+            num: 790,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_2",
+            num: 791,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_3",
+            num: 792,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_SBIRE_4",
+            num: 793,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN",
+            num: 794,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA",
+            num: 795,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE",
+            num: 796,
+        ),
     ],
 )

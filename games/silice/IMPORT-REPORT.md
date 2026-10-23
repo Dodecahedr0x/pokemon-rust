@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 500
+- ids/flags: 522
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -209,6 +209,28 @@
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_MALLETTE
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_SBIRE_B
 - maps/BricoBourg_Labo.ron: FLAG_SIL_HIDE_LABO_CHIMISTE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_MARIN_CLIENT
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_4
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SAMUEL
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_4
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_CONTREMAITRE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_3
+- maps/PortRessac_Gym.ron: FLAG_SIL_HIDE_PORT_GYM_GWADA
+- maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_GWADA
+- maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN
+- maps/RouteS04.ron: FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE
 
 ## §7 tables not imported
 
