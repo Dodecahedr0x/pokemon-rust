@@ -3262,7 +3262,7 @@ Headers: Route S9 `MUS_ABNORMAL_WEATHER` with `WEATHER_SHADE` (the source's over
   - `Evalon_Sc10`'s row on the path, (42–43, 45), could be walked round by row 44 and by the cliff gap (46–47, 43) (`bypass` found both). Two more `Evalon_Sc10` coords at (47, 44–45), on 85, now cover every cell onto the warp: `bypass … --avoid coord:Evalon_Sc10` from the square to (48, 44) says no.
   - Route S9's warp 2 is the cave mouth (0, 4); arriving walks the player to (0, 5), and the path east crosses `RouteS09_Sc01` (x 4) on 86, the value `Evalon_Sc10` leaves.
 - **Ch10 link (no warp).** `Nebula_TourHall_Sc02` warps to `MAP_TOUR_NEBULA_1F` from its script (the source's `warp(MAP_TOUR_NEBULA_1F, 10, 14)`). Later rides use the elevator sign, `Nebula_TourHall_EventScript_Ascenseur`, which Ch10 writes (its `Tour_Ascenseur` choice). Ch10's `HALL_ASCENSEUR_X/Y` are (12, 1); the cell in front is (12, 2).
-- **Ch11 coordinates.** `NEBULA_TOUR_EXIT_X/Y` = (28, 11), in front of the Grande Porte (the hall has no front door to the esplanade in Ch9). `NEBULA_PLACE_X/Y` = (30, 31). Nébula's local ids 40–43 are left for Ch11's EVEIL_1..4 (`FLAG_SIL_HIDE_NEBULA_EVEIL`, already allocated; Ch11 adds the objects and their `new_game_flags` entry).
+- **Ch11 coordinates.** `NEBULA_TOUR_EXIT_X/Y` = (28, 11), in front of the Grande Porte (the hall has no front door to the esplanade in Ch9). `NEBULA_PLACE_X/Y` = (30, 31). Nébula's local ids 40–43 are Ch11's EVEIL_1..4, added in review (below).
 - **Ch12 link.** The MAINTENANCE door (11, 18) is solid; `MAP_BENOU_LAB`'s warp goes there in the post-game.
 
 **Objects and flags.** One persistent hide flag per object; no `FLAG_TEMP_*`.
@@ -3320,6 +3320,56 @@ The walk model treats `MB_NO_SURFACING` floor as blocked water and skips Dive, s
 3. **Tileset seams.** Every link between two chapters so far has had to be a warp because the tilesets differ; a validate check that flags a connection between different secondary tilesets would catch it at once.
 4. **Legend size.** One `Ascii` grid of a big town needs more than 94 symbols; the op accepts any char, but the convention could be stated.
 5. **Shell sandbox.** As before, every batch of `studio-map` calls went through Python drivers.
+
+**Review (SIL4 Ch9 maps review, after merging master: the Ch1 and Ch2 scripts, the Ch3–Ch6 reach fixes and the Ch10–Ch11 maps).** The merges kept both sides of `ids/flags.ron`, `ids.golden`, `game.ron` and `game_tests.rs`, with ids in numeric order (1050, 1200–1207, 1250–1260). The source was checked scene by scene, trainer by trainer and item by item: every scene trigger, all 12 trainers, the 7 item balls, the 8 hidden items, the 2 given items (scripts), the signs, screens, NPCs and warps of §2 are on the maps.
+
+1. **Important, fixed: seaweed could surface into walls.** Gen3 lets the player emerge on any underwater cell that is not `MB_NO_SURFACING` or `MB_SEAWEED_NO_SURFACING` (`MetatileBehavior_IsUnableToEmerge`), and the Emerge connection keeps the coordinates. The conduit's seaweed was 513 (`MB_SEAWEED`). Under the P2 pool, (31–33, 42–44) surfaced the player onto Route S9's quay lip, the dam grille and the trees. In the conduit, (42–43, 64–65) and (30–32, 67–68) surfaced the player outside Route S9's 60 × 50. Both are softlocks once Dive exists. `RouteS09_Underwater/04_review.ron` repaints every seaweed cell as 641 (`MB_SEAWEED_NO_SURFACING`). The P1 and P3 seaweed only surfaced onto lake water, but it is changed too. A scratch search over the layouts now finds the 534 patches as the only cells that emerge, each under a deep-water cell of Route S9, and every deep-water cell of Route S9 lands on a walkable cell below.
+2. **Important, engine contract: the conduit's exit can emerge out of bounds.** The arrow warps (39–40, 74) are 548 (`MB_WATER_SOUTH_ARROW_WARP`), which Gen3 also lets the player emerge from (Emerald's Underwater Sootopolis has the same cell, but in bounds). Here Emerge would land at Route S9 (39–40, 74), outside the map. No Gen3 warp metatile refuses Emerge, so the maps cannot fix it. **M10's Dive must refuse an Emerge whose target cell is outside the connected map or is not surfable water.** The same rule would also have caught item 1.
+3. **Important, contract: no script-warp fallback for Dive.** The engine has neither Surf nor Dive: water, `MB_NO_SURFACING` floor and the arrow warps 548 classify as `Blocked`. A fallback that warps by script into `RouteS09_Underwater` softlocks the player, who lands on blocked floor with no way out. A fallback that lands on Nébula's warp 3 (30, 52) or B1F's warp 1 (6, 10) softlocks without Surf. So Ch9 needs M10's Surf and Dive, and no fallback is defined (the source agrees: "Plongée (Dive) … indispensable"). If one is ever needed, it must skip the conduit and land on land cells: the quai (30, 47) and B1F's frame gap (10, 11).
+4. **Minor, script contract.**
+   - The hall's sas: `Nebula_TourHall_OnLoad` only redraws on map load. Each guard's after-battle script must also `setmetatile` its sas (floor 553, collision 0) and redraw the map. Kroll's must set 97. `OnLoad` should also set 97 when Kroll is beaten and the story is still 96, so that a lost var write cannot shut the elevator row for good.
+   - `RouteS09_Underwater`'s `Courant` coords (VAR_TEMP_2/3 = 0) fire on every pass, even once the pumps are off. An `on_transition` that sets VAR_TEMP_2 (VAR_TEMP_3) to 1 when `FLAG_SIL_S09_POMPE_A` (`_B`) is set silences them (temp vars are cleared before `on_transition`).
+   - `Nebula_OnTransition` places the gate guards at the Grande Porte from 95. It must keep (28, 11) and (29, 11) free, because Ch11 lands on (28, 11), and it must keep (30, 31) and its four neighbours free.
+   - The Center's heal location (`HEAL_LOCATION_SIL_NEBULA_POKEMON_CENTER`) is not in `game.ron` yet. Ch9's scripts add it with `Nebula_PokemonCenter_OnTransition`; it is the respawn for all of Ch10.
+5. **Checked, no change.**
+   - `lint-reach`: on the 9 maps and Évalon, 0 warnings, 2 infos (Évalon's, from Ch8) and 20 allowed. Every allowance was re-read:
+     - the swimmers and Route S9 warp 2 hold with `reach --surf`;
+     - the underwater ones were checked by my own search over the layout (collision 0 walkable, currents opened per pump): the exit is reached only with both pumps off; P3 joins P2; the P1 cave is isolated; the Max Revive, the Big Pearl and the three portholes are reachable; Nébula's quai dive (39, 72) leads back to P2 and P3;
+     - the hall's allowances hold with `reach --open` on the three sas.
+   - Sight:
+     - Gérard covers pump B's only foot cell;
+     - B1F's Sbire 1 covers the rail gap;
+     - Sbire 3, Viktor, Nadia and Kroll each cover the full width of their corridor, and no cell is in two guards' sight.
+   - Arrivals: the door, mat and cave arrivals walk onto walkable cells, and the water arrivals are surfable (deep water at B1F and the Bassin, so the player can dive back). B1F → Nébula (51, 11) is the way back.
+   - Hide flags and `new_game_flags` are as listed, with the EVEIL flags added (below). Songs and weather resolve in the build.
+6. **Ch10–Ch11 links (the Ch10–Ch11 maps merged into master during this review).**
+   - **Hall elevator.** There is no warp. The door (12, 1) is `MB_ANIMATED_DOOR`, solid, with bg 6 `Nebula_TourHall_EventScript_Ascenseur`, which Ch10 writes to warp by script to `TourNebulaAscenseur` (3, 6). `TourNebula_4F_Sc05` lands on (12, 2): floor 553, collision 0, elevation 3, with no object or event on it. The coord row is y 3, so the landing fires nothing, and the story is ≥ 108 by then anyway.
+   - **First ride.** `Nebula_TourHall_Sc02` is the coord row (11–13, 3) on story 97. Its target is open question 7.
+   - **Back to town from the hall** (Ch10's R-6: heal and shop before the point of no return). The hall has no front door. The way is the B1F stairs, Surf in the cuve, then Dive to the Bassin (51, 11), whose guard has been gone since 95. The way back is the Bassin dive → B1F → the hall → the door sign.
+   - **`NEBULA_TOUR_EXIT`** (28, 11), for `TroneZenith_Ascenseur_Sc12`: floor 699, walkable, nothing on it. It is in front of the Grande Porte (28–29, 10, solid, bg 4–5).
+   - **`NEBULA_PLACE`** (30, 31), for `Nebula_Sc13` and Elysium_E2: floor 699, walkable. It and its four neighbours are free. The paving screen bg 2 is at (30, 32), a walkable floor cell that is read, not a wall.
+   - **EVEIL_1..4.** The source (11-apex-zenith.md, Sc13 and E2) defines four NPCs: an old woman, a Cocket worker, a child and a passer-by. `Nebula/04_ch11_eveil.ron` adds them at local ids 40–43:
+     - `LOCALID_NEBULA_EVEIL_1..4` at (28, 33), (32, 33), (29, 35) and (31, 35), facing up;
+     - scripts `Nebula_EventScript_Eveil1..4`;
+     - sprites `OLD_WOMAN`, `MAGMA_MEMBER_M`, `YOUNGSTER`, `MAN_3`.
+
+     One hide flag per object, as at the Gargote and as `validate` asks. The source's `FLAG_SIL_HIDE_NEBULA_EVEIL` (403) stays on EVEIL_1. `FLAG_SIL_HIDE_NEBULA_EVEIL_2`, `_3` and `_4` are new (1205–1207). All four are in `new_game_flags`, and `game_tests.rs` asserts them set. Ch11's Sc13 and E2 clear the four flags, and Sc13 sets them again.
+   - **On-frame scripts.** Nébula's on-frame list holds only `Nebula_Sc01` (92). Ch11 adds its Sc13 (118) and E2 (`FLAG_SIL_FIN_ELYSIUM_EN_COURS`) entries in a later phase file that restates the whole `Scripts` op.
+7. **Questions for the author.**
+   - Weather: the source names `WEATHER_CLOUDS` for Route S9's "ciel couvert numérique"; the map uses `WEATHER_SHADE` (overcast, closer to the text). Keep it?
+   - The Center has no PC; the source mentions one. No Silice Center has one yet.
+   - Elevator heal (`heal_party` in Tour_Hall_Sc02): the source asks for a ruling with Ch10.
+   - Open question 7 (the first elevator ride).
+
+**Gates (after the merges and fixes).**
+- `cargo fmt --all --check` is clean.
+- `cargo xtask silice check` passes with 0 warnings, and `cargo test -p xtask --test silice_games` passes.
+- `cargo xtask studio map --game silice build` builds 98 maps. A rerun is byte-identical, and the committed maps match.
+- `validate` reports 98 maps with no errors. Its warnings are the accepted ones, plus `ViberCity` coord 10 on coord 2's cell, which is already on master.
+- `hygiene` is clean.
+- `lint-reach` on the Ch9 maps and Évalon gives 0 warnings; `--all` gives 0 warnings.
+- `CARGO_TARGET_DIR=target/silice PKR_GAME=silice cargo test -p content` passes.
+- `cargo test -p content -p xtask -p studio` passes except `studio` `map_edit_tools::reach_tools_on_the_committed_silice_maps`. That test fails on master too (its inputs are identical there): the Ch1 map fixes cut Jules's sight in `BoisEther_Gym` to 1 cell, and the test still expects 3. No Ch9 file is involved.
 
 #### SIL1 Task A as built: the authored-data loader
 
@@ -4285,6 +4335,7 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
 4. **Priority** (decides when SIL2 can start): should M9–M12 be reordered around Silice's needs, with Emerald story targets after Act 1 deferred, or does Silice follow the Emerald roadmap?
 5. **Mega forms** (blocks SIL3 data): canonical types and abilities (add a Fairy type and about 14 abilities newer than Gen3), or Gen3-adapted forms?
 6. **Duplicate text ids (SIL1 Task A, provisional):** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 and ch09, with different bodies. The ch09 ones are renamed `..._Ch09` (`text/fr.ron`, `text/speakers.ron`). Should we keep these names, pick others, or merge the texts? The rename is reversible: undo it, and the loader rejects the duplicate again.
+7. **Ch9 → Ch10 elevator (contradiction between chapters, found in the Ch9 maps review):** Ch9's `Tour_Hall_Sc02` sets `VAR_SIL_STORY` 99 and warps straight to `MAP_TOUR_NEBULA_1F` (10, 14), while Ch10 routes the first climb through the crystal cabin's first-climb scene, which sets 100. Proposed fix: the hall script warps to `TourNebulaAscenseur` (3, 6), and the cabin scene takes the player on to 1F. The maps need no change either way (the hall has no elevator warp; the warp is in the script).
 
 ### Critical files for implementation
 - /Users/dode/Documents/pokemon/pokemon-rust/crates/content/build/main.rs
