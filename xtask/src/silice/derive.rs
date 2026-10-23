@@ -12,6 +12,7 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
     match name {
         "SilGrisEchec" => gris_echec(&gfx.join(name))?,
         "SilGrisEchecGym" => gris_echec_gym(&gfx.join(name))?,
+        "SilNebulaTourHall" => nebula_tour_hall(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -181,4 +182,33 @@ fn gris_echec_gym(g: &Path) -> Result<()> {
         "bloc_mousse_sol",
         &over(&load(g, "mousse_sol")?, &load(g, "bloc_mousse")?),
     )
+}
+
+/// SilNebulaTourHall: the closed laser sas, three red beams over the corridor floor between black
+/// emitter studs: `laser_h` beams left to right, `laser_v` the same turned a quarter.
+fn nebula_tour_hall(t: &Path) -> Result<()> {
+    let floor = load(t, "couloir")?;
+    let mut h = floor.clone();
+    for y in [4, 8, 12] {
+        for x in 0..16 {
+            let c = if x < 2 || x > 13 {
+                [24, 24, 28]
+            } else {
+                [248, 56, 56]
+            };
+            set(&mut h, x, y, c);
+            if (2..14).contains(&x) {
+                set(&mut h, x, y - 1, [160, 24, 32]);
+            }
+        }
+    }
+    save(t, "laser_h", &h)?;
+    let mut v = floor.clone();
+    for y in 0..16 {
+        for x in 0..16 {
+            let p = get(&h, y, x);
+            set(&mut v, x, y, [p[0], p[1], p[2]]);
+        }
+    }
+    save(t, "laser_v", &v)
 }

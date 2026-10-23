@@ -1,0 +1,219 @@
+// Nébula (Ch9, MAP_NEBULA), the capital at the foot of the Tower: contenu-jeu/chapitres/09-nebula.md
+// §2.4. A vertical city of glass and steel towers, screens everywhere (facades, poles, the ground)
+// showing Kimiko, the anime idol (pink hair, cat ears); yellow Cocket barricades closing the
+// avenues; the crowd frozen before the giant screen of the Place de l'Écran; north, the Tower
+// (the Antenna) rising from an esplanade of black marble, its Grande Porte barred by a laser; east,
+// the fenced Bassin de Captage; south, the grey concrete Quai des Eaux Grises. Cold, administrative.
+// No ground: every object stands on its floor texture (`under`: the paving `dalle`, the black
+// marble `marbre` of the esplanade). Props are solid on all their cells (no `over` row: the
+// floor under them is opaque art). Tower blocks are tiling textures (`facades`, `socle` their ground
+// floor, `tour_verre` the Tower), so the 512-tile budget goes to the landmarks.
+// Doors: centre, comptoir, gargote 3x3 (door bottom middle), maintenance 3x2 (door bottom middle).
+// The water (the canal, the Bassin, their Dive cells) is General's (368, 334, 335): behaviours kept.
+(
+    name: "SilNebula",
+    primary: "General",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Cold administrative palette: steel blue-greys, black glass, white light, with only a few accents of bright pink (the idol on the screens) and Cocket yellow.",
+    features: [
+        // 512: the city paving.
+        (
+            name: "dalle",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("City street paving seen from straight above: flat cold blue-grey stone (#8a94a6), split into two wide rectangular slabs by one faint slightly darker joint line (#7a8496) across the middle, a faint joint along the top edge, no other detail. Very calm, almost flat, only 16x16 pixels."),
+        ),
+        // 513-516: glass and steel tower blocks (tiles both ways).
+        (
+            name: "facades",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("The facade of a tall glass and steel apartment tower seen from the front, tiling seamlessly left-right and top-bottom: a dark slate-blue steel wall (#3c4658) with exactly four big square windows in a 2 by 2 grid, each window a flat steel-blue glass pane (#6a8aa8) with a thin light reflection line, one of the four windows lit warm white; thick dark frames between them. Calm, flat, very few details."),
+        ),
+        // 517-518: the towers' ground floor (the bottom row of a block; tiles left-right).
+        (
+            name: "socle",
+            cells: ["##"],
+            key: Some("none"),
+            prompt: Some("The ground floor of a glass and steel tower seen from the front, tiling seamlessly left-right: a dark steel band on top, below it a row of tall dark tinted glass shop windows with thin steel mullions, a thin grey stone plinth along the bottom edge. No door, no text."),
+        ),
+        // 519-522: the Tower's black glass curtain wall (tiles both ways).
+        (
+            name: "tour_verre",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("The facade of a gigantic black glass skyscraper, tiling seamlessly left-right and top-bottom: almost black glass panels in a regular grid, thin silver steel mullions, one thin cyan light line running vertically, a faint lighter reflection on two panels. Flat, few details."),
+        ),
+        // 523-540: the Grande Porte at the Tower's foot, barred by a red laser (cells (2-3, 2) are
+        // the locked gate, Nebula's signs (28-29, 10)).
+        (
+            name: "grande_porte",
+            cells: ["######", "######", "######"],
+            key: Some("00FF00"),
+            under: Some("marbre"),
+            prompt: Some("The monumental main gate at the foot of a black glass skyscraper, 6 wide by 3 tall, seen from the front: a wide black marble porch with a thin gold frame, two black marble pillars at the sides each with a small security camera, a big closed gold metal double door in the middle of the bottom edge, three bright red horizontal laser beams stretched across the door between two black emitter posts, a red warning light above. No text."),
+        ),
+        // 541: the black marble of the Tower's esplanade.
+        (
+            name: "marbre",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Polished black marble floor slab seen from straight above: almost flat black (#22242c) with one thin dark grey vein crossing it diagonally and a thin grey joint line along its top and left edges. Only 16x16 pixels."),
+        ),
+        // 542-543: the grey concrete of the Quai des Eaux Grises, and its edge over the canal.
+        (
+            name: "beton",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Raw grey concrete quay ground seen from straight above: flat medium grey (#7c7c80) with two small darker stains and one thin crack. Only 16x16 pixels."),
+        ),
+        (
+            name: "bord_quai",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("The edge of a grey concrete canal quay seen from straight above, tiling left-right: flat medium grey concrete on the top three quarters with a painted yellow safety line, then a thick lighter grey concrete curb along the bottom edge. Only 16x16 pixels."),
+        ),
+        // 544-546: the screen set in the Place's paving (Nebula_Ecran_3, the sign at its middle).
+        (
+            name: "ecran_sol",
+            cells: ["..."],
+            key: Some("none"),
+            prompt: Some("A long flat video screen set into the ground, seen from straight above, filling the whole canvas (3 wide by 1 tall): a thick dark steel frame along all four edges, inside it a bright cyan-blue glowing screen with one thick white horizontal bar on the left half and one big bright pink heart on the right. Bold flat colours, chunky, only 48x16 pixels."),
+        ),
+        // 547-574: the giant screen of the Place de l'Écran (Kimiko-Live), sign at (3, 3).
+        (
+            name: "ecran_geant",
+            cells: ["#######", "#######", "#######", "#######"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A giant outdoor video screen 7 wide by 4 tall on a black steel frame, seen from the front: the screen fills almost the whole sprite and shows a cute anime idol girl with long bright pink hair and white cat ears, big eyes, making a heart shape with her hands, on a light blue background with a thick white band at the bottom; two short black steel legs at the bottom. No text, no letters."),
+        ),
+        // 575-583: the Pokemon Center, 584-592: the Comptoir Cocket, 593-601: the Gargote.
+        (
+            name: "centre",
+            cells: ["###", "###", "#D#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A small modern Pokemon Center 3 wide by 3 tall for a glass and steel capital: a flat red roof slab with a white and red Poke Ball emblem on its front edge, a white wall with a band of pale blue glass, glass sliding doors exactly in the middle of the bottom edge. No text."),
+        ),
+        (
+            name: "comptoir",
+            cells: ["###", "###", "#D#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A small cold corporate shop 3 wide by 3 tall: a flat black roof slab, a black steel facade with yellow and black hazard stripes along the roof edge, a big red cocktail glass emblem (no letters) above the entrance, a lit shop window, a glass door exactly in the middle of the bottom edge. No text."),
+        ),
+        (
+            name: "gargote",
+            cells: ["###", "###", "#D#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A tiny warm old-fashioned restaurant front 3 wide by 3 tall, seen from the front: a flat dark slate-blue wall on top, a wide red and white striped fabric awning across the middle, below it two warm orange lit windows on the left and right and a brown wooden door exactly in the middle of the bottom edge, a small green potted herb plant beside the door. Chunky, few details. No text."),
+        ),
+        // 602-607: the MAINTENANCE door (Benou's lab, locked until the post-game).
+        (
+            name: "maintenance",
+            cells: ["###", "#D#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A heavy steel maintenance door set in a grey concrete wall, 3 wide by 2 tall, seen from the front: a thick riveted dark steel door exactly in the middle of the bottom edge, a yellow and black hazard frame around it, a small red keypad light next to it, a few pipes along the wall top. No text."),
+        ),
+        // 608-610: the yellow Cocket barricade, the Bassin's fence (horizontal, vertical).
+        (
+            name: "barricade",
+            cells: ["#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A police-style road barricade filling the whole square, seen from the front: a wide bright yellow and black diagonal striped board on two short black legs, a small red warning light on top. Bold, chunky shapes, it connects seamlessly left and right."),
+        ),
+        (
+            name: "cloture_h",
+            cells: ["#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("One section of a tall security fence seen from the front, the whole width: grey steel posts at both edges, a tight grey chain-link mesh between them, a strand of barbed wire along the top. It connects seamlessly left and right."),
+        ),
+        (
+            name: "cloture_v",
+            cells: ["#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A tall security fence seen from above running straight from the top edge to the bottom edge through the middle of the square: a narrow vertical strip of grey chain-link mesh with grey steel posts, a strand of barbed wire along it. It connects seamlessly top and bottom."),
+        ),
+        // 611: the Bassin's gate, open (the guard stands on it).
+        (
+            name: "portail",
+            cells: ["."],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("An open fence gate seen from above: a grey steel gate post at the top edge and one at the bottom edge, the chain-link gate leaf swung open against the top post, empty in the middle. Chunky shapes."),
+        ),
+        // 612-613: a street lamp (white LED head, small screen on the post); 614-615 the same on marble.
+        (
+            name: "lampadaire",
+            cells: ["#", "#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A tall modern street lamp 1 wide by 2 tall: a thin dark steel pole, on top a flat white LED lamp head, and halfway up a small flat screen fixed to the pole showing a pink anime girl face. Bold, chunky shapes, few pixels."),
+        ),
+        (
+            name: "lampadaire_m",
+            cells: ["#", "#"],
+            mirror: Some("lampadaire"),
+            under: Some("marbre"),
+        ),
+        // 616-617: the screen on a pole with the wanted notice (Nebula_Ecran_2).
+        (
+            name: "poteau_avis",
+            cells: ["#", "#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A tall street screen on a single dark steel pole, 1 wide by 2 tall: a portrait screen at the top with a red frame showing a black silhouette of a person with a backpack carrying a black box, on white, a red bar under it; the pole standing straight down to the ground. No text."),
+        ),
+        // 618-619: the loudspeaker on a lamp post (Nebula_Annonce_T1).
+        (
+            name: "haut_parleur",
+            cells: ["#", "#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A tall dark steel lamp post 1 wide by 2 tall with two big grey horn loudspeakers strapped near its top pointing left and right, a small white lamp above them. Bold, chunky shapes."),
+        ),
+        // 620-621: a bench facing the screen; 622-627: the bus shelter (Mathieu's stage).
+        (
+            name: "banc",
+            cells: ["##"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A modern public bench 2 wide by 1 tall seen from behind in 3/4 top-down view: a long seat of dark grey steel slats with a backrest, two short black legs. Bold, chunky shapes."),
+        ),
+        (
+            name: "abribus",
+            cells: ["###", "###"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A modern bus shelter 3 wide by 2 tall in 3/4 top-down view: a flat steel-grey roof slab on top, pale blue glass side and back panels, a long bench inside, a lit advertising screen on the side showing a pink anime girl. Bold, chunky shapes, no text."),
+        ),
+        // 628: the broken drone lying on the quai.
+        (
+            name: "drone_casse",
+            cells: ["#"],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A crashed surveillance drone lying on the ground filling the square: a white quadcopter body with a cracked black camera lens, one of its four rotor arms broken off, a small red light. Chunky shapes."),
+        ),
+        // 629: a plastic flower planter (walkable bed; the hidden PP Up).
+        (
+            name: "bac",
+            cells: ["."],
+            key: Some("00FF00"),
+            under: Some("dalle"),
+            prompt: Some("A low square grey concrete planter seen from above, filling the square, holding identical fake plastic flowers in bright orange, lemon yellow and sky blue. Chunky."),
+        ),
+        // 630-633: a facade with a big Kimiko billboard screen (breaks the `facades` texture).
+        (
+            name: "facade_ecran",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("A glass and steel tower facade seen from the front completely covered by one big flat billboard screen with a thin black frame, the screen showing a cute anime idol girl with long bright pink hair and white cat ears waving, on a pale blue background. Flat, few details, no text."),
+        ),
+    ],
+)

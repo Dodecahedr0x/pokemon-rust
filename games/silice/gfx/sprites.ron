@@ -60,5 +60,11 @@
             gfx_id: Some(0x131),
             prompt: "Hocseat, a hyperactive showman DJ in his late twenties (the other half of the DJ duo of the Nocturne club): spiky violet hair, small dark sunglasses on a light-skinned face, a bright violet jacket open over a black t-shirt with a yellow lightning bolt, black trousers, white sneakers, arms at his sides.",
         ),
+        // Ch9 (Nébula), ids 0x190..=0x19F.
+        (
+            name: "SIL_DRONE",
+            gfx_id: Some(0x190),
+            prompt: "A small hovering surveillance drone (not a person), floating high above the ground with a small dark shadow under it: a compact white and steel-grey quadcopter body with four little black rotors, a round black camera lens with a red light, and a tiny flat screen on its belly showing a pink heart.",
+        ),
     ],
 )

@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "SilNebula",
+    width: 3,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1599, 1600, 1601),
+        (1602, 1603, 1604),
+        (1605, 1606, 1607),
+    ],
+)
