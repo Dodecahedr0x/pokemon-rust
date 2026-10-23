@@ -158,6 +158,43 @@ mod list {
         ..Bypass::NONE
     };
 
+    /// The same rock from the north (Route 111's rocks come back on every map load): the
+    /// bypass steps past it southward.
+    static ROUTE111_ROCK_SMASH_SOUTH: Bypass = Bypass {
+        issue: "checkpartymove-rock-smash-south",
+        features: &["checkpartymove"],
+        warp: Some((MAP_ROUTE111, 18, 102)),
+        ..Bypass::NONE
+    };
+
+    /// Rusturf Tunnel's boulder (`EventScript_RockSmash`, `checkpartymove` stubbed): the
+    /// bypass does what smashing the first rock does (`removeobject` sets its hide flag,
+    /// `SPECIAL_TryUpdateRusturfTunnelState` sets the tunnel's state 4) and reloads the
+    /// tunnel, whose `ON_FRAME` table then plays Wanda's boyfriend's scene (HM04).
+    static RUSTURF_ROCK_SMASH: Bypass = Bypass {
+        issue: "checkpartymove-rock-smash-rusturf",
+        features: &["checkpartymove", "SPECIAL_TryUpdateRusturfTunnelState"],
+        set: &[FLAG_HIDE_RUSTURF_TUNNEL_ROCK_1],
+        vars: &[(VAR_RUSTURF_TUNNEL_STATE, 4)],
+        warp: Some((MAP_RUSTURF_TUNNEL, 25, 5)),
+        ..Bypass::NONE
+    };
+
+    /// The Petalburg gym's room doors (`MB_PETALBURG_GYM_DOOR`) open through
+    /// `SPECIAL_PetalburgGymUnlockRoomDoors` on load (`VAR_PETALBURG_GYM_STATE` 6, the doors of
+    /// beaten rooms) and `SPECIAL_PetalburgGymSlideOpenRoomDoors` after a room's trainer:
+    /// unsupported, so pressing into the entrance room's door (1, 105) does nothing. The bypass
+    /// lands in Norman's room, the end of the (1, 105), (1, 79), (7, 40), (7, 14) chain.
+    static PETALBURG_GYM_DOORS: Bypass = Bypass {
+        issue: "petalburg-gym-doors",
+        features: &[
+            "SPECIAL_PetalburgGymUnlockRoomDoors",
+            "SPECIAL_PetalburgGymSlideOpenRoomDoors",
+        ],
+        warp: Some((MAP_PETALBURG_CITY_GYM, 4, 5)),
+        ..Bypass::NONE
+    };
+
     pub static STEPS: &[Step] = &[
         Step::Battle(BattlePlan::Best),
         // ---- Littleroot: the girl at the north exit sends the player to save Birch ----
@@ -845,5 +882,59 @@ mod list {
         Step::Expect("flannery_defeated"),
         Step::Expect("badge4"),
         Step::Checkpoint("badge4"),
+        // ================= Act 5: the Go-Goggles, back to Mauville, Verdanturf, Rusturf
+        // Tunnel, Rustboro, Petalburg Woods, Norman =================
+        enter(MAP_LAVARIDGE_TOWN_GYM_1F, 13, 18, Down),
+        Step::WaitScript,
+        Step::Expect("go_goggles"),
+        enter(MAP_LAVARIDGE_TOWN, 9, 6, Up),
+        use_(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LAVARIDGE_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
+        // Route 112's ledges down to Route 111, south past the rock to Mauville.
+        cross(MAP_LAVARIDGE_TOWN, 19, 10, Right),
+        cross(MAP_ROUTE112, 39, 48, Right),
+        goto(MAP_ROUTE111, 18, 100),
+        Step::Bypass(&ROUTE111_ROCK_SMASH_SOUTH),
+        cross(MAP_ROUTE111, 16, 139, Down),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Route 117 west to Verdanturf, the tunnel to Wanda.
+        cross(MAP_MAUVILLE_CITY, 0, 9, Left),
+        cross(MAP_ROUTE117, 0, 10, Left),
+        Step::Expect("verdanturf"),
+        enter(MAP_VERDANTURF_TOWN, 8, 1, Up),
+        goto(MAP_RUSTURF_TUNNEL, 25, 5),
+        Step::Bypass(&RUSTURF_ROCK_SMASH),
+        Step::WaitScript,
+        Step::Expect("hm_strength"),
+        // ---- West out of the tunnel, Route 116, Rustboro (heal), Route 104, the woods,
+        // Petalburg ----
+        enter(MAP_RUSTURF_TUNNEL, 4, 10, Down),
+        cross(MAP_ROUTE116, 0, 9, Left),
+        enter(MAP_RUSTBORO_CITY, 16, 38, Up),
+        use_(MAP_RUSTBORO_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_RUSTBORO_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_RUSTBORO_CITY, 19, 59, Down),
+        enter(MAP_ROUTE104, 11, 30, Down),
+        enter(MAP_PETALBURG_WOODS, 17, 38, Down),
+        cross(MAP_ROUTE104, 39, 63, Right),
+        enter(MAP_PETALBURG_CITY, 20, 16, Up),
+        use_(MAP_PETALBURG_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_PETALBURG_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Norman ----
+        // The rooms chain through doors warping within the gym: the entrance room's (1, 105),
+        // then (1, 79), (7, 40) and (7, 14) to Norman's. The doors stay shut
+        // (`petalburg-gym-doors`).
+        enter(MAP_PETALBURG_CITY, 15, 8, Up),
+        Step::Bypass(&PETALBURG_GYM_DOORS),
+        talk(MAP_PETALBURG_CITY_GYM, 1),
+        Step::Expect("norman_defeated"),
+        Step::Expect("badge5"),
+        Step::Checkpoint("badge5"),
+        // Wally's father gives HM03 in his house (`VAR_PETALBURG_CITY_STATE` 4).
+        enter(MAP_PETALBURG_CITY, 7, 5, Up),
+        Step::WaitScript,
+        Step::Expect("hm_surf"),
     ];
 }

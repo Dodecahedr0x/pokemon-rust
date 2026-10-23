@@ -837,18 +837,33 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 self.goto_avoiding(live, start_map, (x, y), avoid, opts)?
             }
             Step::Enter { x, y, dir, .. } => {
+                let warp = (self.game.map(start_map).warps.iter()).find(|w| (w.x, w.y) == (x, y));
+                // A warp to another cell of the same map (the Petalburg gym's doors): done
+                // once the player stands on its destination.
+                let same_map_dest = warp
+                    .filter(|w| w.dest_map == start_map)
+                    .and_then(|w| self.game.map(start_map).warps.get(w.dest_warp as usize))
+                    .map(|d| (d.x, d.y));
                 for _ in 0..RETRIES {
-                    if live.s.world().map() != start_map {
+                    if live.s.world().map() != start_map
+                        || same_map_dest
+                            .is_some_and(|d| live.s.world().objects().player().pos() == d)
+                    {
                         break;
                     }
                     self.macro_(live, mk(MacroKind::Enter { x, y, dir }))?;
                 }
-                let want = (self.game.map(start_map).warps.iter())
-                    .find(|w| (w.x, w.y) == (x, y))
-                    .map(|w| w.dest_map)
-                    .filter(|&m| self.game.has_map(m));
+                let want = warp.map(|w| w.dest_map).filter(|&m| self.game.has_map(m));
                 let on = live.s.world().map();
-                if want.is_some_and(|m| m != on) || (want.is_none() && on == start_map) {
+                if let Some(d) = same_map_dest {
+                    let at = live.s.world().objects().player().pos();
+                    if on != start_map || at != d {
+                        return Err(err(format!(
+                            "entered ({x}, {y}) but at {at:?} on {:#06x}, not {d:?}",
+                            on.0
+                        )));
+                    }
+                } else if want.is_some_and(|m| m != on) || (want.is_none() && on == start_map) {
                     return Err(err(format!(
                         "entered ({x}, {y}) but on map {:#06x}, not {want:?}",
                         on.0
