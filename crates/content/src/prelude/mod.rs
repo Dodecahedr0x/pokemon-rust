@@ -42,18 +42,6 @@ pub async fn check_player_gender(_ctx: &Ctx) -> u16 {
     0
 }
 
-/// A script command the engine does not implement (`what` is its macro name): logged.
-pub async fn unsupported(ctx: &Ctx, what: &'static str) {
-    ctx.log("unsupported script command:").await;
-    ctx.log(what).await;
-}
-
-/// A command or special the script lowering classed `Unsupported` (its decomp name): logged
-/// and reported as a `World` event; the script continues.
-pub async fn report(ctx: &Ctx, what: &'static str) {
-    ctx.report(Report::Unsupported(what)).await;
-}
-
 /// Gen3 `setdynamicwarp` / `setescapewarp`: one request; the host stores it (Task F).
 pub async fn set_warp(ctx: &Ctx, slot: WarpSlot, map: u16, warp: Option<u8>, x: i16, y: i16) {
     ctx.set_warp(slot, MapId(map), warp, x, y).await;

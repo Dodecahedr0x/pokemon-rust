@@ -24,7 +24,7 @@ mod build_id;
 #[allow(dead_code)]
 #[path = "../../engine/build_support.rs"]
 mod build_support;
-// `idents_with_prefix` and `without_line_comments` are for the script lowering (Task D2).
+// `idents_with_prefix` and `without_line_comments` are used by `tests/build_classify.rs` only.
 #[allow(dead_code)]
 mod classify;
 mod codegen;

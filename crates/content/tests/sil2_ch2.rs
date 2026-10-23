@@ -27,6 +27,7 @@ fn chapters_0_to_2_chain_from_a_new_game_to_the_open_gamma_barrier() {
     r.play(&ch02::from_ch01());
     r.play(&ch02::steps());
     ch02::check_end(&r);
+    eprintln!("frames {}", r.frame);
 }
 
 #[test]
@@ -34,4 +35,5 @@ fn chapter_2_plays_from_its_start_state_to_the_open_gamma_barrier() {
     let mut r = Run::starting_at(FRAME_LIMIT, ch02::start());
     r.play(&ch02::steps());
     ch02::check_end(&r);
+    eprintln!("frames {}", r.frame);
 }

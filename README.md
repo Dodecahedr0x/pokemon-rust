@@ -10,17 +10,32 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 
 ## Commands
 - `cargo test --workspace`: unit tests plus ROM-backed tests that need both ROMs and the decomp (see Tests)
-- `cargo xtask rom`: build `target/game.gba` (fails if it exceeds the 32 MiB GBA limit)
-- `cargo xtask parity`: play the scripted route on the ROM (in mGBA) and natively; the World hash
-  must match on every frame and the picture at every picture frame
-- `cargo xtask shot`: play the same route and write ROM and native PNGs of each named moment to
+- `cargo xtask rom`: build `target/game.gba` and check its memory budgets (see Tests)
+- `cargo xtask parity [--long]`: verify the committed checkpoint tree, then play the scripted
+  route and every Act 1 node on the ROM (in mGBA) and natively; the World hash must match on
+  every frame and the picture at every picture frame. `--long` also replays the whole Act 1
+  trace on the ROM and tours every map (see Tests)
+- `cargo xtask checkpoints <command>`: list, verify, seed and promote checkpoint nodes (see Checkpoints)
+- `cargo xtask shot`: play the scripted route and write ROM and native PNGs of each named moment to
   `target/shots/<moment>-{rom,native}.png`
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
-- `cargo xtask studio`: run the studio desktop app (release; see Tests for its gates)
+- `cargo xtask studio [--check | --smoke [secs] | map <args>]`: the studio desktop app (see Studio)
 - `cargo xtask explore <command>`: the headless explorer (see Explorer)
 - `cargo xtask sweep [--studio | --repro]`: enter and idle every map natively (see Tests)
+- `cargo xtask silice <import|check|tombstone|move>`: the Silice importer and data checker (see Silice)
+
+Every xtask command takes `--game emerald|silice` (default: the inherited `PKR_GAME`, else
+Emerald).
 
 ## Play
+What plays: the whole game's content is imported (518 maps, every script lowered to Rust), and
+**Act 1 plays end to end**, natively and on the GBA: from the new game below to Roxanne's badge
+(`FLAG_BADGE01_GET`), through Petalburg (Wally's tutorial), Route 104, Petalburg Woods and
+Rustboro's gym. The committed `act1:*` checkpoints prove it (see Checkpoints), and the ROM
+replays that route identically to native up to frame 80,362 of 85,307 (Roxanne's battle start
+is one late frame on the GBA; see Tests). Beyond Act 1 every map loads and idles without a
+panic, but features the later story needs (menus, field moves, double battles, …) are missing.
+
 1. Extract your ROM (see Extract), then `cargo xtask rom`.
 2. Open `target/game.gba` in any GBA emulator (mGBA, …) or on a flash cart. Or play natively:
    `cargo run -p game-native --features window --bin play` (arrows, X = A, Z = B, A = L,
@@ -33,26 +48,29 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
    the frame, the node the session started from and the last action.
 
 A new game starts in Littleroot Town outside Brendan's house, after meeting May and before
-Birch's rescue (`crates/content/src/new_game.rs` lists the story vars and flags). Go north to
-Route 101: Birch is chased by a Zigzagoon, his bag gives the starter screen (Left/Right to pick
-a ball, A to choose, then yes/no) and the first battle follows. Then his lab, wild battles in the
-tall grass of Routes 101 and 103, healing at Oldale's Pokémon Center, and May's battle on Route 103.
-Littleroot, Route 101, Oldale, Route 103 and their interiors are walkable; doors, doormats,
-connections, NPCs, signs and French dialogue work.
+Birch's rescue (`crates/content/src/new_game.rs` lists the story vars and flags; the real intro
+needs the menus of Milestone 9). Go north to Route 101: Birch is chased by a Zigzagoon, his bag
+gives the starter screen (Left/Right to pick a ball, A to choose, then yes/no) and the first
+battle follows. Then his lab, May's battle on Route 103, the Pokédex, Petalburg, and on to
+Rustboro. Doors, ladders, step-on warps, connections, NPCs (spawned
+in a view window as in Gen3), signs, trainer sight, items and money (no bag screen), multichoice
+menus and French dialogue work.
 
 Battles: the D-pad moves the cursor and A confirms in the action menu (ATTAQUE, SAC, POKéMON,
 FUITE) and the move menu (B goes back); A or B advances messages; when a move is to be learned,
 the yes/no box and the move list work as in Gen3 (B in the list gives up learning). Losing
 whites out to the last Pokémon Center (or home), with the party healed.
 
-Known simplifications: singles only; no bag, party screen or Poké Balls (SAC and POKéMON return
-to the menu, and the next usable Pokémon is sent out by itself); one battle background (grass or
-plain); move animations are a lunge, the hit blink and the healthbox shake; no trainer sight
-(trainers battle when spoken to); no sound, running shoes or start menu; parties and encounter
-rolls are drawn when the battle is requested, before its transition (Gen3 draws some after it);
-a script battle without a Pokémon that can fight is skipped and answers `Won` (Gen3 would start
-it and lose); a starter screen that a script answers without a battle fades back to the field
-with the script already resumed (Emerald's always battles).
+Known simplifications: singles only (a double trainer fights singles against the same party);
+no bag, party screen or Poké Balls (SAC and POKéMON return to the menu, and the next usable
+Pokémon is sent out by itself); no Mart, PC, start menu or in-game save (the shells save
+checkpoints); evolution happens silently after a battle (no scene); Wally's tutorial battle is
+skipped; one battle background (grass or plain); move animations are a lunge, the hit blink and
+the healthbox shake; about a third of the move effects and half the abilities (including all of the
+Act 1 route); no sound, running shoes, field moves or weather; parties and encounter rolls are drawn
+when the battle is requested, before its transition (Gen3 draws some after it). Every script
+command and special is classified: one the engine lacks raises a `Report` event and continues
+with a documented default (the build's `content::REPORT` lists them).
 
 Without an extracted dir everything builds against a small built-in map (stub mode,
 `cfg(pkr_stub)`; force it with `PKR_EXTRACTED_DIR=/nonexistent`). There the shells and parity
@@ -90,9 +108,18 @@ bit-identical to the run that was never interrupted. Natively they live in a tre
 - `seed`: records the parity route and writes its `route:<name>` nodes (replacing the earlier
   `route:` nodes, never others): `lab`, `after_wild`, `oldale_center`, `route103_after_may`
   (stub: `stub_start`, `stub_after_battle`, `stub_end`)
+- `promote <local id> --label <text>`: moves a local node (for example one the explorer
+  exported with `explore export --to-store`) into the committed tree, after replaying it from
+  its parent on this build; the only way into the committed tree besides `seed`
 - `label <id> <text>`, `rm <id>` (refused for a node with children)
 - `sav <id> [-o <path>]`: writes the node's flash image to `target/game.sav`, which mGBA loads
   with `target/game.gba`: the ROM boots at the node (hold B at boot to ignore a save)
+
+The Emerald tree holds the four `route:*` nodes (c00001–c00004) and the Act 1 chain, found by
+the explorer and promoted (no hand-authored segment): `act1:pokedex` (c00005, frame 19,313),
+`act1:petalburg` (c00006), `act1:woods` (c00007), `act1:rustboro` (c00008) and `act1:badge1`
+(c00009, frame 85,307, `FLAG_BADGE01_GET`). `cargo run -p game-native --features window --bin
+play -- --load act1:rustboro` starts at Rustboro.
 
 Ids are `c00012`, `12` or a label. `cargo test` verifies the committed tree of the current
 flavor (`crates/game-native/tests/checkpoint_tree.rs`), so an intended behaviour change needs
@@ -131,8 +158,11 @@ the explorer it starts writes `target/explore/`.
   Remove (with a confirmation; refused for a node with children). Committed nodes change only
   through `cargo xtask checkpoints`. The tree refreshes after a save or an edit, and when a
   `nodes/` directory changes on disk.
-- **Map** and **Data**: the read-only map view with its overlays, and the species, moves,
-  trainers, encounters and texts tables. The map's "coverage" layer shades each cell the
+- **Map** and **Data**: the map view with its overlays (a picker lists the 518 maps by map
+  group, filtered by name or `MAP_` constant), and the species, moves, trainers, encounters and
+  texts tables. `cargo xtask studio map <command>` is the headless map editor for authored
+  games (`list`, `create`, `apply`, `build`, `validate`, `render`, …; see
+  `crates/studio/src/map_edit/cli.rs`). The map's "coverage" layer shades each cell the
   explorer stood on by its hits (1, 2-9, 10-99, 100+, as `explore coverage` prints them),
   read from the explorer db for the shown map, and again every couple of seconds while the db
   changes (a run from the studio or from `cargo xtask explore run`).
@@ -179,8 +209,8 @@ must be explained: steps doing bulk work set `Frame::bulk` (a map load for a war
 a whole-view field redraw such as a script teleport, the starter screen's load, a battle's load
 and the field's restore after it), every late-black frame must follow such a step within the
 display lag (`scenario::DISPLAY_LAG`), and there are at most as many as bulk events (runs of
-bulk steps, `Recording::bulk_events`; about warps + 2 × battles + starters + teleports, 21 of 22
-on the extracted route).
+bulk steps, `Recording::bulk_events`; about warps + 2 × battles + starters + teleports; 8 late
+applies for 22 bulk events on the extracted route).
 
 Checkpoints are held to one invariant: a capturable World, encoded, decoded and restored, has
 the same hash, picture and future as the World that was never interrupted.
@@ -199,12 +229,30 @@ stub) are written as `.sav` images, and the ROM must boot them (`boot == RESTORE
 equal to native; and a ROM save by the L+R+SELECT combo must decode to the ROM's hash, restore
 natively to native's, equal `game_native::flash::encode_sav` byte for byte, and boot a second
 ROM that matches native for 300 frames (each restore point's map is checked: the lab, then
-Oldale's Pokémon Center). The ROM's costs are gated on the route: `World::hash` at
-most 65 scanlines (`hash_lines_max`, 63 measured) and the whole loop body at most 217 of the 228
-lines (`loop_lines_max`, 214–215 measured). The hash is buffered 256 bytes at a time and folded by
+Oldale's Pokémon Center). The ROM's costs are gated on every lane: `World::hash` at
+most 65 scanlines (`hash_lines_max`; 46 on the route, 56 at worst on Act 1) and the whole loop
+body at most 217 of the 228 lines (`loop_lines_max`; 166 on the route, 176 at worst on Act 1),
+and the debug region's memory marks: heap high-water at most 160 KiB (`emu::HEAP_MAX`; about
+48 KiB measured), at least 1 KiB of IWRAM stack never touched, no dropped events and no panic.
+The hash is buffered 256 bytes at a time and folded by
 ARM code in IWRAM (`engine`'s `iwram` feature, enabled by `game-gba`), with the same bytes as the
 plain bytewise FNV-1a. If the line gates trip, re-measure and justify the cost; don't just bump
-the gates. Parity then runs the studio ROM pane's `#[ignore]`d tests on the ROM it built
+the gates.
+
+Act 1 (Milestone 8): `cargo xtask parity` also resumes the ROM from every `act1:*` node's
+`.sav` for 2,000 frames with identical hashes and a picture every 100 frames
+(`rom_resumes_from_act1_nodes`), and runs the native checkpoint invariant at 105 points of the
+flattened Act 1 trace (`crates/game-native/tests/act1.rs`, release). `cargo xtask parity --long`
+adds `act1_long`, the whole Act 1 trace played on the ROM from a new game (about 15 min), and
+the map tour (`emu/tests/tour.rs`: a `game-gba --features tour` ROM warps through all 518 maps,
+in lockstep with native, gating the frame budget on the 45 Act 1 maps and one map per tileset
+pair). Known failure, held by `KNOWN_LATE` in `parity.rs`: Roxanne's battle start is one late
+frame on the ROM (engine frame 80,366; the first turn's AI choice), after which the trace no
+longer drives the ROM, so the long lane compares frames 0–80,362 and the `act1:badge1` resume
+lane covers the end; the entry fails once the cause is fixed. The tour lists its known
+overruns (Sidney's room's whole-view redraw) in `KNOWN_OVER`.
+
+Parity then runs the studio ROM pane's `#[ignore]`d tests on the ROM it built
 (`cargo test -p studio --release --lib rom::tests:: -- --ignored`). Seeding
 (`cargo xtask checkpoints seed`, run by hand
 after an intended route or behaviour change, never by the tests) records the parity route and
@@ -214,28 +262,30 @@ only, never snapshots or other ROM-derived data, and verify `Valid` in `cargo te
 golden hashes: an intended behaviour change needs `cargo xtask checkpoints verify --accept`.
 
 `cargo xtask rom` prints the ROM size, the ELF's IWRAM and EWRAM statics and the code and data
-by symbol prefix (`xtask/src/budget.rs`). Until Milestone 8 Task M re-baselines them, it fails
-when IWRAM or EWRAM grows past the slice baseline (IWRAM 788, EWRAM 460) by 2 KiB or 16 KiB,
-when engine `.text` on the slice extract grows past its baseline (205448 bytes) by 128 KiB, or
-when a full import's ROM exceeds 16 MiB; the slice and stub ROM sizes are reported only. The build remaps the checkout, `CARGO_HOME` and sysroot
+by symbol prefix (`xtask/src/budget.rs`). It fails when a full import's ROM exceeds 16 MiB
+(about 9.3 MB today), when IWRAM or EWRAM statics grow past the full-import baseline (IWRAM
+788, EWRAM 492) by 2 KiB or 16 KiB, or when engine `.text` on the slice extract grows past its
+baseline (205448 bytes) by 128 KiB; the slice and stub ROM sizes are reported only, and the
+Silice ROM has its own provisional limit. The build remaps the checkout, `CARGO_HOME` and sysroot
 paths (`--remap-path-prefix`), so the ROM does not depend on where the repository lives.
 
 `cargo xtask sweep` (`xtask/src/sweep.rs`, release, native) starts a new game on every map of
 the content build (the first warp's cell, else the walkable cell nearest the centre) and idles
-600 frames: no panic, then, when the World is capturable, a checkpoint round trip with an equal
-hash and 60 frames shadowed, and a render. Maps that end uncapturable are listed with a verdict
-(an entry cutscene or question waiting for input, a facility script looping on unsupported
-specials); `Report` events are counted per op and special, and the build report is appended.
-The report goes to `target/sweep/report.txt`; it fails on a panic, a round-trip or shadow
-mismatch, or dropped events. On the full import: 460 of 518 maps end capturable, 58 are listed,
-0 panics, 0 round-trip failures. `--studio` runs the studio's `#[ignore]`d whole-game tests (map
+600 frames (then mashes A for up to 3,000 frames if the map is not capturable): no panic,
+then, when the World is capturable, a checkpoint round trip with an equal hash and 60 frames
+shadowed, and a render. Maps that end uncapturable are listed with a verdict (a cutscene still
+waiting, a facility script looping on unsupported specials); `Report` events are counted per op
+and special, and the build report is appended. The report goes to `target/sweep/report.txt`; it
+fails on a panic, a round-trip or shadow mismatch, or dropped events. On the full import: 490
+of 518 maps pass, 24 are checked on the map a cutscene warped to, 4 are not capturable, 0
+panics, 0 round-trip failures. `--studio` runs the studio's `#[ignore]`d whole-game tests (map
 pixels, views, data views and the map editor on every map) in release; `--repro` builds `content`
 twice with a clean `$OUT_DIR` and fails on any byte of difference. In `cargo test` the studio's
 map tests use `content::samples::map_ids()` (the slice plus a few maps per tileset family).
 
 `crates/engine/src/world/tests/goldens.rs` pins World hashes on a synthetic game, one constant
-per scenario (`golden_hashes`): `GOLDEN_WALK` (`0x66f39427d1ed0a8f` after `World::new` and
-`0x0818a37264360e30` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
+per scenario (`golden_hashes`): `GOLDEN_WALK` (`0xa6063af74c9c3e21` after `World::new` and
+`0x2d6a1f1f392d3f76` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
 `GOLDEN_CROSSING`, `GOLDEN_SCRIPT`, `GOLDEN_WILD_BATTLE`, `GOLDEN_TRAINER`, `GOLDEN_SCREEN`
 (START and SELECT on the idle field) and `GOLDEN_SAVE` (a script's save dialog). They change
 whenever the hashed state, its order or the frame logic changes; update them only for an
@@ -283,27 +333,30 @@ the closing webview never acknowledged).
    - `manifest.ron`: format, game code, language, ROM sha1, the exported maps, tilesets and
      sprites, the ROM offset of everything read (`provenance`), sha1 of every other file
    - `maps/<Map>.ron`: header, layout (tileset names, blocks one map row per line), objects,
-     warps, coord and bg events, connections and map scripts. Script references use the root
-     names of `schema.rs` (`LittlerootTown_Obj1`, `Route101_Coord0`, `OldaleTown_OnTransition`).
-     Every map by default (518; `--maps slice` gives Littleroot Town, Routes 101–103, Oldale
-     Town, and the Littleroot and Oldale interiors)
+     warps, coord and bg events, connections and map scripts. Script references use decomp
+     labels (`LittlerootTown_EventScript_Twin`), transferred from the decomp's `.inc` sources
+     onto the FR bytecode (`PKR_DECOMP`; without it, positional names such as
+     `LittlerootTown_Obj1` and a warning). Every map by default (518; `--maps slice` gives
+     Littleroot Town, Routes 101–103, Oldale Town, and the Littleroot and Oldale interiors)
    - `layouts/<Layout>.ron`: every layout (418), including those only `setmaplayoutindex` uses
    - `tilesets/<Name>.png` + `.ron`: tiles (with the tileset's first palette), palettes,
      metatiles and attributes
    - `sprites/<Gfx>.png` + `.ron`: overworld sprites the maps use (also through
-     `VAR_OBJ_GFX_ID_*`), plus Brendan and May
+     `VAR_OBJ_GFX_ID_*`), plus Brendan and May; `sprites/field_effects/`: the emote bubbles
    - `font/latin_normal.png` + `.ron`, `font/latin_small.png` + `.ron`: the Latin fonts and
      their glyph widths
    - `window/message_box.png` + `.ron`: the dialogue window frame, its palette and text colors
    - `previews/<Map>.png`: map renders (with `--previews`)
-   - `text/<lang>.ron`: every text the scripts use, keyed `<Script>_T<n>`, re-encoding to its
-     exact ROM bytes
-   - `scripts/<Map>.rs` + `scripts/legacy_index.ron`: the map's event scripts as generated async Rust
-     (compiled into `content` by its build script), and the root name to function index
+   - `text/<lang>.ron`: every text the scripts use, keyed by its decomp label, re-encoding to
+     its exact ROM bytes
+   - `scripts/<Module>.ron` + `scripts/index.ron`: the script IR, a decoded listing of every
+     reachable event script per decomp source file (a map, or `Common_<stem>`), and the name
+     index. The content build lowers it to async Rust in `$OUT_DIR` (see below)
    - `battle/*.ron`: battle data. `species.ron` (stats, types, abilities, learnsets, FR names),
      `moves.ron`, `types.ron` (type chart, type and ability names), `trainers.ron` (every
-     trainer and party), `encounters.ron` (every wild table of the exported maps),
-     `heal_locations.ron`, `strings.ron` (the French battle strings in decomp `.string` syntax)
+     trainer and party), `encounters.ron` (every wild header of the exported maps: land,
+     water, rock smash, fishing), `evolutions.ron`, `trainer_money.ron`, `heal_locations.ron`,
+     `strings.ron` (the French battle strings in decomp `.string` syntax)
    - `battle/gfx/<name>.png` + `.ron`: the battle interface (text box and its tilemap, the two
      healthboxes, HP and EXP bars, status icons, misc, the ball)
    - `battle/env/<Env>.png` + `.ron`: the 10 battle backgrounds (tiles, tilemap, palettes)
@@ -337,14 +390,23 @@ identifier tables live in `crates/extract/src/names/generated.rs`, checked again
 `cargo xtask explore <command>` runs the headless explorer (`crates/explore`, release; put
 `--debug` first for a debug build). It plays the native game from a new game, grows a tree of
 input-only nodes (macro-actions such as walk to a cell, enter a warp, cross a connection, talk,
-inspect, fight in tall grass) in a SQLite db, scores them by novelty and progress along the
-slice's goals, and records bugs with a trace that reproduces them from a new game: game panics,
-softlocks (trapped on a map with exits), checkpoint round-trip breaks, a field that is idle but
-never capturable, and planner/engine disagreements. Results depend only on the seed, the config
-and the build: neither the thread count nor stopping and resuming changes the db
-(`explore digest`).
+inspect, fight in tall grass) in a SQLite db, scores them by novelty and progress along an
+act's goals (state predicates: `--act act1` by default, the 15 goals from the rescue to
+`FLAG_BADGE01_GET`; `slice` keeps the first 7), and records bugs with a trace that reproduces
+them from the db's root: game panics, softlocks (trapped on a map with exits), checkpoint
+round-trip breaks, a field that is idle but never capturable, and planner/engine
+disagreements. `Report` events (unsupported or degraded features) are listed apart as
+report-only findings. Results depend only on the seed, the config and the build: neither the
+thread count nor stopping and resuming changes the db (`explore digest`).
 
-- `run [--generations N | --secs N | --nodes N | --frames N] [--threads N] [--seed S]`: explores
+The Act 1 route was found in segments: `run --from <node>` roots a fresh db at a checkpoint
+node, `export --to-store <node> --label L` writes the node reaching the next goal into the local
+store, `cargo xtask checkpoints verify --local` checks it and `cargo xtask checkpoints promote`
+commits it. On a new build, `revalidate` replays only the nodes whose scripts or maps changed
+(per-script and per-map content digests) and keeps the rest.
+
+- `run [--generations N | --secs N | --nodes N | --frames N] [--threads N] [--seed S]
+  [--from <id|label>] [--act slice|act1|sil_ch0]`: explores
   (default 10 generations), one line per 10 generations (nodes, nodes/s, frames/s, goals, maps,
   cells, findings). `cargo xtask explore run --secs 600` is a ten-minute run; a db resumes where
   it stopped, with its own seed. On a new build every node is first replayed (and re-expanded
@@ -353,11 +415,13 @@ and the build: neither the thread count nor stopping and resuming changes the db
     and runs about 10% slower).
   - Each goal this run reaches first prints a line `goal i/n (name) first reached in generation
     G at T s` (G counts the db's generations from 1, T is this run's wall time).
-- `status`, `findings [--all]`, `show <id>`: the db's totals and the findings (kind, map, cell,
-  hits, message; `show` adds the Rust location, macro, script and log).
-- `repro <id>`: replays the finding from a new game; exits 0 iff it reproduces.
-- `export <id> [--before N] [--out <path>]`: the finding as a NewGame trace (RON), ending N
-  frames before it, in `target/explore/<flavor>/repro/` by default.
+- `status`, `findings [--all] [--bugs]`, `show <id>`: the db's totals and the findings (kind,
+  map, cell, hits, message; `--bugs` leaves out the report-only ones; `show` adds the Rust
+  location, macro, script and log).
+- `repro <id>`: replays the finding from the db's root; exits 0 iff it reproduces.
+- `export <id> [--before N] [--out <path>]`: the finding as a trace (RON) from the db's root,
+  ending N frames before it, in `target/explore/<flavor>/repro/` by default.
+- `export --to-store <node> [--label L]`: the node as a local checkpoint node (see above).
 - `coverage <map>`: an ASCII grid of the cells stood on (map id or name, e.g. `LittlerootTown`).
   Its last line ends with `N of the M cells reachable from them (P%)`: M counts the walkable
   cells (terrain only, no objects) that a walk from a cell stood on can reach, N those stood on.
@@ -369,9 +433,31 @@ file with the fields of `explore::config::Config` to change (e.g. `(key: (cell_s
 `PKR_EXTRACTED_DIR=/nonexistent cargo xtask explore run --generations 50` explores the stub world.
 The db holds ROM-derived states: never commit it or the exported traces.
 
+## Silice
+Pokémon Silice is a second game on the same engine: authored French content
+(`docs/plans/2026-10-23-silice-content.md`) in `games/silice/` (maps, layouts, texts, ids,
+`game.ron`) and `crates/content/src/silice/` (scripts), built over the extract's base assets
+(tilesets, sprites, battle data). Build it with `PKR_GAME=silice` (needs `content/extracted/`),
+or pass `--game silice` to any xtask command, which builds in `target/silice` so the Emerald
+build is kept:
+
+- `cargo xtask --game silice rom`, `parity`, `explore run --act sil_ch0`, `studio`: as for
+  Emerald, on Silice (its parity lane is a new game left idle; it has no committed nodes yet).
+- `PKR_GAME=silice cargo run -p game-native --features window --bin play`: play it natively.
+- `cargo xtask silice check`: validates `games/silice` (ids, flags and vars, warp and
+  connection targets, texts, scripts) against the extract and the decomp; `cargo xtask studio
+  map …` edits its maps.
+
+State: the maps of Chapters 0–9 and the scripts of Chapters 0–2 are in; the later chapters'
+scripts and mechanics need Milestones 9–11. Known failure: since the Chapter 0 scripts, a
+script holds the Silice new game's start, so the Silice-flavour `game-native`, `emu` and `xtask`
+tests that need a capturable start fail (being fixed separately).
+
 ## Layout
 - `crates/engine`: game-agnostic `no_std` core
-- `crates/content`: the game (data and scripts)
+- `crates/content`: the game (data and scripts): Emerald from the extract, or Silice
+- `crates/studio`: the desktop studio and the headless map editor
+- `games/silice`: Silice's authored data
 - `crates/game-gba`: GBA shell (separate workspace, thumbv4t target)
 - `crates/game-native`: host shell (software renderer)
 - `crates/emu`: embedded mGBA
