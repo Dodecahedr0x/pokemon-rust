@@ -98,11 +98,13 @@ fn render_map_matches_the_live_session() {
     let connected = content::data::MAP_IDS
         .iter()
         .any(|&m| !game.map(m).connections.is_empty());
-    if content::data::MAP_COUNT < 2 || !connected {
+    // Silice's boot route idles on its start map (SIL1 Task D).
+    if content::data::MAP_COUNT < 2 || !connected || content::FLAVOR == content::Flavor::Silice {
         println!(
-            "skipped: the 2-map and connection-in-view checks need a content build with 2 maps \
-             and a connection (this one has {} maps)",
-            content::data::MAP_COUNT
+            "skipped: the 2-map and connection-in-view checks need a route over 2 maps and a \
+             connection (this build has {} maps; {} route)",
+            content::data::MAP_COUNT,
+            content::FLAVOR.name()
         );
         return;
     }

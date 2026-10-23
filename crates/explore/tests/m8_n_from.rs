@@ -38,7 +38,7 @@ fn state_progress_counts_up_to_the_last_goal_reached() {
             goals::progress(act, 0, &snap)
         );
         // A state whose last goal is a flag, past place goals it does not satisfy.
-        if content::STUB || act != Act::Act1 {
+        if content::FLAVOR != content::Flavor::Emerald || act != Act::Act1 {
             continue;
         }
         let mut late = snap.clone();

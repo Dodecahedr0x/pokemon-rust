@@ -1,6 +1,7 @@
 mod budget;
 mod checkpoints;
 mod explore;
+mod game;
 mod silice;
 mod studio;
 mod sweep;
@@ -76,6 +77,21 @@ fn remap_rustflags(gba_dir: &Path) -> Result<String> {
     ))
 }
 
+/// game-gba's target dir: `crates/game-gba/target`, and `target/silice` in it for Silice, so
+/// that switching flavours (`--game`) does not rebuild the other flavour's content and shell.
+fn gba_target() -> PathBuf {
+    let target = root().join("crates/game-gba/target");
+    match content::FLAVOR {
+        content::Flavor::Silice => target.join("silice"),
+        content::Flavor::Stub | content::Flavor::Emerald => target,
+    }
+}
+
+/// A release binary of game-gba ([`gba_target`]).
+fn gba_bin(name: &str) -> PathBuf {
+    gba_target().join("thumbv4t-none-eabi/release").join(name)
+}
+
 /// Builds game-gba (its own workspace/toolchain) in release with `features` and fixes its ELF
 /// into `out`. Returns the ELF.
 fn build_gba(features: &[&str], out: &Path) -> Result<PathBuf> {
@@ -87,14 +103,14 @@ fn build_gba(features: &[&str], out: &Path) -> Result<PathBuf> {
     }
     build
         .args(["build", "--release", "--target-dir"])
-        .arg(gba_dir.join("target"))
+        .arg(gba_target())
         .arg("--config")
         .arg(remap_rustflags(&gba_dir)?);
     if !features.is_empty() {
         build.args(["--features", &features.join(",")]);
     }
     run(&mut build)?;
-    let elf = gba_dir.join("target/thumbv4t-none-eabi/release/game-gba");
+    let elf = gba_bin("game-gba");
     std::fs::create_dir_all(out.parent().unwrap())?;
     run(Command::new("agb-gbafix")
         .arg(&elf)
@@ -107,12 +123,13 @@ fn build_gba(features: &[&str], out: &Path) -> Result<PathBuf> {
 
 /// Build game-gba and fix it into target/game.gba, then report and gate its budgets.
 fn rom() -> Result<PathBuf> {
-    let gba_dir = root().join("crates/game-gba");
     let out = root().join("target/game.gba");
     let elf = build_gba(&[], &out)?;
     check_rom_size(&out)?;
     let content = if content::STUB {
         budget::Content::Stub
+    } else if content::FLAVOR == content::Flavor::Silice {
+        budget::Content::Silice
     } else if content::data::MAP_COUNT > extract::export::SLICE_MAPS.len() {
         budget::Content::Full
     } else {
@@ -126,7 +143,7 @@ fn rom() -> Result<PathBuf> {
     // The video probe (crates/game-gba/src/bin/video_probe.rs), compared by the parity test.
     let probe = root().join("target/video-probe.gba");
     run(Command::new("agb-gbafix")
-        .arg(gba_dir.join("target/thumbv4t-none-eabi/release/video_probe"))
+        .arg(gba_bin("video_probe"))
         .arg("-o")
         .arg(&probe)
         .args(["-t", "PKRPROBE"]))?;
@@ -134,7 +151,7 @@ fn rom() -> Result<PathBuf> {
     // cost, read by the parity test.
     let battle_probe = root().join("target/battle-probe.gba");
     run(Command::new("agb-gbafix")
-        .arg(gba_dir.join("target/thumbv4t-none-eabi/release/battle_probe"))
+        .arg(gba_bin("battle_probe"))
         .arg("-o")
         .arg(&battle_probe)
         .args(["-t", "PKRBPROBE"]))?;
@@ -242,7 +259,7 @@ fn parity(args: &[String]) -> Result<()> {
     // Positional names (an extract without `PKR_DECOMP`) apply no override: the game would not
     // be the one the trees and the parity fixtures describe.
     ensure!(
-        content::STUB || content::scripts::DECOMP_NAMES,
+        content::FLAVOR != content::Flavor::Emerald || content::scripts::DECOMP_NAMES,
         "the script IR has positional names only (scripts/decomp_names = 0): set PKR_DECOMP and \
          re-run `cargo xtask extract` before `cargo xtask parity`"
     );
@@ -423,7 +440,11 @@ fn extract(args: &[String]) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // `--game <emerald|silice>`, anywhere (SIL1 Task D).
+    if let Some(code) = game::select(&mut args)? {
+        std::process::exit(code);
+    }
     match args.first().map(String::as_str) {
         Some("rom") => rom().map(|_| ()),
         Some("parity") => parity(&args[1..]),
@@ -435,7 +456,8 @@ fn main() -> Result<()> {
         Some("sweep") => sweep::main(&args[1..]),
         Some("silice") => silice::main(&args[1..]),
         _ => bail!(
-            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice>"
+            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice> \
+             [--game emerald|silice]"
         ),
     }
 }

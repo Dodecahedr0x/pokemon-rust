@@ -873,13 +873,51 @@ pub const STUB_ROUTE: &[Action] = &[
     Action::Checkpoint("stub_end"),
 ];
 
-/// The route for the current content build.
+/// Frames [`SILICE_ROUTE`] idles from a new game.
+pub const SILICE_IDLE: u32 = 600;
+
+/// The Silice boot lane (SIL1 Task D): a new game left idle, named `silice_idle` after
+/// [`SILICE_IDLE`] frames. It idles on to a third checkpoint node whose trace spans more than a
+/// seek keyframe interval ([`crate::checkpoints::KEYFRAME_EVERY`]), so the tools' tests can
+/// replay and seek on Silice too; no node is committed. The Silice lanes along its story
+/// (`sil:*` nodes) come with SIL1 Wave 3.
+pub const SILICE_ROUTE: &[Action] = &[
+    Action::Wait(24),
+    Action::Shot("silice_start"),
+    Action::Checkpoint("silice_start"),
+    Action::Wait(SILICE_IDLE - 24),
+    Action::Shot("silice_idle"),
+    Action::Checkpoint("silice_idle"),
+    Action::Wait(SILICE_TAIL),
+    Action::Shot("silice_end"),
+    Action::Checkpoint("silice_end"),
+];
+
+/// Frames [`SILICE_ROUTE`] idles after `silice_idle`.
+pub const SILICE_TAIL: u32 = crate::checkpoints::KEYFRAME_EVERY * 3 / 2;
+
+/// The route for the current content build ([`content::FLAVOR`]).
 pub fn route() -> &'static [Action] {
-    if content::STUB {
-        STUB_ROUTE
-    } else {
-        EMERALD_ROUTE
+    match content::FLAVOR {
+        content::Flavor::Stub => STUB_ROUTE,
+        content::Flavor::Emerald => EMERALD_ROUTE,
+        content::Flavor::Silice => SILICE_ROUTE,
     }
+}
+
+/// The new game with a Pokémon that the tools start from (the sweep, the tests that need a
+/// party): `content::Game::after_starter` on Emerald and the stub; `None` on Silice, whose new
+/// game has no such start (SIL1 Task D: Emerald-only, for the crates that cannot see
+/// `cfg(pkr_silice)`).
+#[cfg(not(pkr_silice))]
+pub fn after_starter() -> Option<content::Game> {
+    Some(content::Game::after_starter())
+}
+
+/// [`after_starter`] on Silice.
+#[cfg(pkr_silice)]
+pub fn after_starter() -> Option<content::Game> {
+    None
 }
 
 /// Records [`route`] on `content::Emerald::for_shells()` (a new game before the rescue).
@@ -942,7 +980,24 @@ mod tests {
                 }
             );
             assert!(w.party().get(0).unwrap().exp > 135);
+        } else if content::FLAVOR == content::Flavor::Silice {
+            assert_eq!(names, ["silice_start", "silice_idle", "silice_end"]);
+            let frames: Vec<u32> = rec.moments.iter().map(|m| m.frame).collect();
+            assert_eq!(frames, [24, SILICE_IDLE, SILICE_IDLE + SILICE_TAIL]);
+            assert_eq!(rec.nodes.iter().map(|n| n.1).collect::<Vec<_>>(), frames);
+            assert_eq!(rec.frames(), SILICE_IDLE + SILICE_TAIL);
+            assert_eq!(rec.battles, 0);
+            assert!(maps.iter().all(|&m| m == maps[0]), "{maps:?}");
         } else {
+            #[cfg(not(pkr_silice))]
+            emerald_route(rec, w, &names, &maps);
+        }
+    }
+
+    /// [`the_route_records`] on Emerald.
+    #[cfg(not(pkr_silice))]
+    fn emerald_route(rec: &Recording, w: &World, names: &[&str], maps: &[u16]) {
+        {
             use content::consts::*;
             assert_eq!(
                 names,

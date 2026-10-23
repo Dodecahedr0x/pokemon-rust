@@ -85,6 +85,14 @@ pub fn extracted_dir() -> PathBuf {
     )
 }
 
+/// The games dir the Silice content build read: `PKR_SILICE_DIR` (relative to the workspace),
+/// else `games/silice`.
+pub fn silice_dir() -> PathBuf {
+    let workspace = crate::paths::StudioPaths::detect().workspace;
+    std::env::var_os("PKR_SILICE_DIR")
+        .map_or_else(|| workspace.join("games/silice"), |d| workspace.join(d))
+}
+
 fn connection_dir(d: Dir) -> ConnectionDir {
     match d {
         Dir::Down => ConnectionDir::South,
@@ -131,6 +139,19 @@ impl Catalog {
         }
         let dir = extracted_dir();
         let mut seen = BTreeSet::new();
+        if content::FLAVOR == content::Flavor::Silice {
+            // The build's maps are the games dir's: their layouts name the tilesets.
+            let games = GamesDir::new(silice_dir());
+            for (id, name) in crate::map_view::map_list() {
+                let layout = games.load_layout(&games.load_map(name)?.layout)?;
+                let m = game.map(id);
+                c.add_tileset(&layout.primary, m.primary, false);
+                c.add_tileset(&layout.secondary, m.secondary, true);
+                c.count_uses(&layout, &mut seen);
+            }
+            c.gfx = read_gfx(&dir).unwrap_or_default();
+            return Ok(c);
+        }
         for (id, name) in crate::map_view::map_list() {
             let path = dir.join("maps").join(format!("{name}.ron"));
             let text = std::fs::read_to_string(&path)
