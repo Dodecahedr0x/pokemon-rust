@@ -748,6 +748,199 @@ studio-map palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N] [--
 - `ScriptsSet` cannot append to `on_frame`; it replaces the list.
 - The void list is computed from the render and does not say which void Emerald prefers for a pair. `dump --extract` of a reference map shows its border.
 
+#### Reachability checker as built
+
+The map editor can now tell whether the player can reach a cell, whether a scene's coord row or a trainer can be walked past, and which warps, items and signs no walk reaches. The code is in `crates/studio/src/map_edit/`:
+- `reach.rs`: the walk graph and trainer sight;
+- `reach_lint.rs`: the lint;
+- `reach_cli.rs`: the commands;
+- `overlay.rs`: `draw_reach` and `draw_sight`;
+- `model.rs`: the `AllowReach` op.
+
+Nothing in the engine or the maps changed.
+
+**Usage.**
+
+```text
+studio-map reach <Map> --from x,y [--surf] [--hidden F,..|all | --shown F,..] [--field-moves] [--open x,y;x,y]
+studio-map bypass <Map> --from x,y --to x,y [--avoid coord:<script|index> | trainer:<id> | cells:x,y;x,y]...
+           [--surf] [--hidden …|--shown …] [--field-moves] [--open …]
+studio-map lint-reach (<Map>... | --all)
+studio-map render <Map> --reach x,y [--surf] [--hidden …|--shown …] [--field-moves] [--open …] [--sight]
+```
+
+- **`reach`** prints:
+  - the reached cell count and the exits reached (warps, door warps, edges);
+  - the coord events stepped on, and each trainer's reachable sight cells;
+  - an ASCII grid: `S` start, `+` reached, `o` object, `#` solid, `~` water, `.` unreached.
+- **`bypass`** answers two questions with a witness path (`D R R U …`):
+  - `reachable: yes, N steps`;
+  - `bypass: yes, M steps: …`, or `bypass: no: every path crosses the avoided cells`.
+
+  `--avoid` can be repeated:
+  - `coord:` takes a script name or a coord index; every coord event with that script is avoided;
+  - `trainer:` takes a `LOCALID_*` and avoids its line of sight;
+  - `cells:` takes explicit cells.
+- **Object visibility.**
+  - With no flag, objects with a hide flag are present, as on a new game.
+  - `--hidden all` hides every object with a hide flag. `--hidden F,..` hides only the listed flags. `--shown F,..` hides every object with a hide flag except the listed ones.
+  - `--field-moves` clears the item balls, breakable rocks, cut trees and Strength boulders the player reaches.
+- **`--open x,y;…`** makes cells walkable, as a script's `setmetatile` would.
+- **`render --reach`** tints the reached cells green and frames the start in white. `--sight` tints the trainers' lines of sight orange. Both work only on games dir maps, not with `--extract`.
+- **`lint-reach`**:
+  - prints one finding per line, `Map: warning|info: subject: message`, in a stable order (map, then kind, then index);
+  - ends with `N maps: W warnings, I infos, A allowed`;
+  - never fails on findings.
+- **`AllowReach`** silences a finding. Put `AllowReach(subject: "warp 3", reason: "brambles cut by BricoBourg_Sc04")` in the map's `03_allow.ron`. The subject is the finding's subject as printed. An allowance that silences nothing is itself a warning.
+
+**Rules modelled (from the engine).** Each comes from `engine::objects` (`collision_at`, `sight_collision`, `update_elevation`), `engine::grid::neighbor`, `engine::flow::trigger` and `engine::world::sight`, with behaviours classified through the catalog's tilesets (`behavior::behavior`):
+- **Collision.** The collision bits block, and so do `Behavior::walled` sides. The border (outside the map) is solid.
+- **Elevation.**
+  - Gen3 `IsElevationMismatchAt`: a step is blocked when the player's elevation and the cell's are both nonzero, the cell is not 15, and they differ.
+  - The elevation becomes the cell's after a step, except on 15.
+  - Events (coords, bgs, objects) match at elevation 0 or when equal (`AreElevationsCompatible`).
+  - The facing elevation is 0 when the player stands at 0.
+- **Ledges** are one-way. The jump lands two cells ahead with no landing check, as the engine does.
+- **Water** needs `--surf`. Getting onto or off water ignores the elevation mismatch. While surfing, objects are matched at the cell's elevation, as `CanStopSurfing` does.
+- **Exits.**
+  - Warps are entered on any `enters_warp` cell, except the arrival cell.
+  - Arrow warps are pushed into (`TryArrowWarp`), and doors are entered by pushing up (`TryDoorWarp`).
+  - Connections are left at the map edge, onto the neighbour's cell, which must be passable.
+  - `MAP_DYNAMIC` warps count as the way back.
+- **Exit walk on arrival.**
+  - On a door, the player walks south.
+  - On a `NonAnimDoor(d)` or `Escalator(d)`, the player walks `d`.
+- **Objects** are obstacles at their home cell. Talking to one needs a reached cell in front of it at a compatible elevation.
+- **Signs and hidden items** need a reached cell they can be read from, in a facing their bg kind allows.
+- **Trainer sight** follows `sight_collision`. Sight stops at:
+  - collision;
+  - walls against the trainer's own cell;
+  - an elevation mismatch with the trainer;
+  - another object;
+  - the map edge.
+
+  Water does not block sight by its behaviour.
+- **One step rule.** Every per-behaviour step rule is in a single function, `Walk::step(node, cell, dir)`. Forced movement goes there when the engine gains it.
+
+**The lint model.** The lint is optimistic: it reports what can never work, not what a script might break.
+- Objects with a hide flag are absent. Objects without one block.
+- Item balls, rocks, cut trees and boulders are present until the player reaches a cell to use them from. They are cleared by a fixpoint.
+- **Arrival points (portals):**
+  - every warp that some warp arrives at, or that a `MAP_DYNAMIC` warp leads back to;
+  - each run of edge cells;
+  - the `game.ron` start and heal locations.
+- **The main area** is the largest group of arrival points that reach one another.
+- **Downgrades to info.** A games-dir-wide portal graph turns some in-map findings into info:
+  - "other maps lead to it": a portal unreachable within the map, but reached through other maps;
+  - "other maps lead back": an arrival area whose only way out is through other maps.
+- **Blocking objects.** When objects without a hide flag block the way, a 0-1 BFS names the fewest of them ("only past LOCALID_X (no hide flag)"). A Surf-only path is noted as "Surf reaches it".
+- **Coord rows.** Coord events are grouped by (var, value). A group is reported as walk-around (info) when every cell next to it is reachable without stepping on it. The note "an arrival lands on them, which fires no coord event" is added when an arrival point is on the row.
+- A full `--all` run takes about 1.2 s.
+
+**Gaps against the engine.**
+- **Scripts are not modelled:**
+  - no `setmetatile`, `setobjectxyperm`, story flags or trainer-defeated flags;
+  - so the lint is optimistic on hide flags and pessimistic on doors that a script opens. `--open` and `--hidden` let `reach` and `bypass` try a script's effect by hand.
+- **Moving objects.** Wanderers and walkers count only at their home cell.
+- **Strength boulders** are treated as removed once the player reaches them, not pushed.
+- **Surf is simplified:** there is no "can only start surfing from elevation 3" check, and dive and emerge are skipped.
+- **Forced movement** (ice, slides and walk arrows, cracked floors) is not modelled; another agent is adding it to the engine. It belongs in `Walk::step`.
+- **Connections.**
+  - The neighbour's objects are ignored at the edge.
+  - The neighbour's cell is classified with the neighbour's own tilesets.
+  - Trainer sight stops at the map edge.
+- **Coord rows** are judged by a heuristic: a row any of whose neighbouring cells is reached only by stepping on it counts as not walk-around.
+
+**Findings on the committed maps** (`lint-reach --all` on this branch's base, 40 maps: 43 warnings, 14 infos). These were triaged by reading the maps; no map was edited.
+
+1. **Real bugs: the exit walk lands on a solid cell.** On these warps, a cell with behaviour 167 (`MB_NON_ANIMATED_DOOR`, walk south) is used as an exit, but the cell south of it is solid. On arrival the player is stuck or walks into a wall. Fix: use a plain warp metatile, or open the cell below.
+   - BricoBourg warp 3, (4,7) → (4,8): brambles, which a script cuts;
+   - MangaSquare warp 5, (1,25) → (1,26);
+   - RouteS03 warp 1, (10,17) → (10,18);
+   - RouteS03_Depot warp 0, (7,13) → (7,14);
+   - RouteS06 warp 0, (25,26) → (25,27).
+2. **Real issues: content no walk can use.**
+   - **ViberCity_Gym LOCALID_NOCTURNE_ELIOTT**: the cell in front, (6,7), is solid, so the trainer's sight is empty. He can only be talked to.
+   - **RouteS06_BoisSoupirs heart scale** (9,12): it sits on a land notch reached only from water, and Gen3 cannot talk from water (elevation 1) to a land object (3).
+   - **ViberCity_StationLumiere bg 6** (`Tube` at (11,1)): fully walled, with no reading cell even past the foreman.
+3. **Gated by a script (expected; add an `AllowReach` with the script as the reason, or check the script opens it):**
+   - BoisEther east edge 12-15 and RouteS02 west edge 2-5: the barrier at BoisEther (33,13–14), opened by a script;
+   - BricoBourg warp 3: one-way past the brambles;
+   - BoisEther bg 7, hidden Évoluroc at (4,7): penned in by the brambles at (8,6);
+   - MangaSquare_Dojo warp 1: only past LOCALID_DOJO_MOINE, who has no hide flag and is moved by `setobjectxyperm`;
+   - ViberCity_Casino warp 2: the hidden stairs that Sc08 reveals;
+   - BoisEther_Gym:
+     - Milo's and Rose's sight, the super potion (2,15) and bg 2–7: behind the airlocks;
+   - MangaSquare_Gym:
+     - Ayame's and Seiji's sight and bg 1–4: behind the shoji doors that `on_load` sets;
+   - BricoBourg_Labo LOCALID_LABO_SBIRE_2: sight unreachable;
+   - cables that a script cuts:
+     - GrisEchec_Usine metal coat (3,4) and bg 1;
+     - RouteS02 magnet (40,2) and great ball (48,8);
+   - ViberCity_Gym bg 1 and 2: the consoles.
+4. **Past an object without a hide flag (check the object leaves, or give it a hide flag):**
+   - RouteS03 super potion (17,34): past ROGER;
+   - RouteS06 bg 3: past BONZE;
+   - ViberCity_Casino_B1F rare candy and bg 1: past CROUPIER_CHEF;
+   - ViberCity_StationLumiere bg 0–5 and 7: past CONTREMAITRE.
+5. **Through other maps (info):**
+   - RouteS03 warp 1 and RouteS06 warp 0: other maps lead to them (the bamboo curtain at RouteS06 (23,26) is solid, metatile 198).
+   - RouteS03's north edge (x 10) is a warning: its only way in is the broken Depot arrival (item 1).
+6. **Coord rows that can be walked around (info):**
+   - BoisEther Sc02 (2-31,13): the warp 3 arrival lands on the row;
+   - BoisEther Sc07 (32,12–15);
+   - GrisEchec Sc06 (34,11);
+   - MangaSquare Sc03 (37,1);
+   - MangaSquare_Bibliotheque Sc01 (12-15,7);
+   - RouteS02 Sc03 (48-49,6) and (51,6): a false positive, since (50,6) is Gwada, an object the lint counts as blocking;
+   - ViberCity Sc03 (27-30,6).
+
+   Each one is either a scene meant to be optional, or needs a wider row.
+7. The Ch0 maps are clean.
+
+**Header songs (`validate`).** `studio-map validate` now checks a games dir map's header music the way the content build does (`silice::merge::song`). A song is accepted when it is:
+- `MUS_NONE`;
+- a live name of `ids/songs.ron` (a tombstone is an error);
+- a Gen3 song of `extract::text::charmap::SOUNDS`.
+
+Anything else is an error. That catches pseudo-songs such as `MUS_ROUTE118` (0x7FFF) and names Gen3 lacks, such as `MUS_ROUTE134`. Extracted maps keep the prefix check, because Emerald's own Route 118 uses 0x7FFF. The committed maps on this branch's base all pass.
+
+**Tests.**
+- `map_edit/reach_tests.rs` has 15 tests on synthetic ASCII maps:
+  - `ledges_are_one_way`;
+  - `elevation_follows_gen3`: the 0 and 15 rules;
+  - `water_needs_surf`;
+  - `doors_warps_and_edges_are_exits`;
+  - `objects_block_unless_hidden`;
+  - `trainer_sight_stops_at_collision_objects_and_elevation`;
+  - `facings_follow_the_movement_name`;
+  - `bypass_found_and_not_found`;
+  - `trainer_sight_can_or_cannot_be_walked_past`;
+  - `field_moves_clear_what_the_player_reaches`;
+  - `talking_and_reading_need_a_reached_cell`;
+  - `lint_finds_the_known_bug_shapes`;
+  - `lint_reports_one_way_areas_and_surf`;
+  - `cells_text_merges_rows`;
+  - `allow_reach_parses_and_needs_a_reason`.
+- `map_edit/tests.rs`: `games_dir_header_music_is_checked_like_the_content_build`.
+- `tests/map_edit_tools.rs`: `reach_tools_on_the_committed_silice_maps` (real world only). It:
+  - prints `lint-reach --all` and checks that the output is stable;
+  - runs `reach BoisEther_Gym --from 7,30` and checks that Jules's sight has 3 reachable cells;
+  - checks a bypass of the spore coords that succeeds, and fails once Jules's sight is also avoided;
+  - checks that `render --reach --sight` differs from the plain render at the same size;
+  - checks the argument errors.
+- `committed_silice_edits_rebuild_byte_identical` now copies the games dir's stamps, which the Ch6 edits place. It failed before this change.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| clippy `-D warnings`, plain and `-p studio --features ui` | clean |
+| `cargo test -p studio`, real | 200 passed, 8 ignored |
+| `cargo test -p studio`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 200 passed, 8 ignored |
+| `cargo xtask studio --check` | 225 passed, 8 ignored |
+
 #### SIL1 Task B as built: the importer and the validator
 
 The code is in `xtask/src/silice/`: `mod.rs` (CLI, file writing), `md.rs` (chapter markdown), `names.rs` (constant words, families, map names), `maps.rs` (names in `maps/*.ron` and, later, the scene scripts), `import.rs`, `ids.rs` (allocation), `check.rs` and `schema.rs`. Outside it, the task touched one arm in `xtask/src/main.rs`, `regex` in `xtask/Cargo.toml`, `xtask/tests/silice_{import,check,games}.rs` (with `silice_common/`) and the synthetic fixtures in `xtask/tests/fixtures/silice/`, among them `ids.golden`.
