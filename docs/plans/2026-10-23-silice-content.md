@@ -1984,6 +1984,132 @@ Bag counts are lower bounds, because the chain arrives with Ch1's items. The gif
 8. The heal location is (5, 9) on `GrisEchec`, in front of the Centre door, as Ch1's.
 9. Gwada's paths (Route Sc03 out along row 5; Gym Sc11 stopping below e7) and the robot's approach are re-derived from the maps.
 
+#### SIL3 Ch4 scripts as built (Port-Ressac)
+
+The Chapter 4 scripts, from `contenu-jeu/chapitres/04-port-ressac.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the nurse). Each script the Ch4 maps name exists, and each trainer starts with `trainer()`.
+
+**Files.**
+- `ch04_route_s04.rs` claims `RouteS04` (the Tunnel de Verre).
+- `ch04_port.rs` claims `PortRessac`. It also holds the push helper `push_object` (`pub(super)`, not a script), which the hold reuses.
+- `ch04_buildings.rs` claims `PortRessac_Taverne` and `PortRessac_NavireCocket`.
+- `ch04_gym.rs` claims `PortRessac_Gym` and `PortRessac_Gym_Cale`.
+
+Nothing was added to `prelude.rs` or to the engine. Chapter-local helpers stay private in their files.
+
+**Map scripts.**
+- `RouteS04_OnTransition`: the Magicarpe's hide flag follows Adrien's, and it reports `dark_map`.
+- `PortRessac_OnTransition` hides the lookout's four passers-by and Samuel on every load. The client is hidden once the lookout is done. The gangway pirate is hidden from 46. The cleaning's eleven actors (the pirates, the quay grunts, the foreman, the decor grunts) are shown at 46 only, with one hide flag each.
+- `PortRessac_OnLoad` paints the sea over the cargo's berth (x 4–11, y 22–26, metatile 368) once `FLAG_SIL_HIDE_PORT_CARGO` is set.
+- The `PortRessac` header gets two on-frame entries in `06_ch4_scripts.ron`:
+  - `VAR_SIL_STORY` 41 runs `PortRessac_Sc01`, the arrival;
+  - `VAR_SIL_PORT_RESSAC_STATE` 9 runs `PortRessac_EventScript_SamuelPerdu`, Samuel's defeat branch.
+- `PortRessac_Taverne_OnTransition`: Gwada is shown at story 42–47, and Adrien from his tunnel scene until 49.
+- `PortRessac_Gym_OnLoad` opens the grille (9–10, 10) from 48. `PortRessac_Gym_OnTransition` hides Gwada.
+- `PortRessac_Gym_Cale_OnLoad` repaints the blown explosive barrels as floor (525).
+- The Taverne's nurse sets the respawn to the new `HEAL_LOCATION_SIL_PORT_RESSAC` = (4, 8) on `PortRessac`, the cell in front of the Taverne door. It is appended to `game.ron` after Ch2's Gris-Échec entry.
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Route Sc01 | `RouteS04_Sc01`, on-frame on entry | 36 → 40 |
+| Route Sc02 | `RouteS04_Sc02`, the coords x 26, y 5–9 (or talking to the Magicarpe). Adrien, the module, the walls light up (`FLAG_SIL_ROUTE_S04_MURS`), the fade, then Adrien and the Magicarpe leave | 40 → 41 |
+| Route Sc03 | `RouteS04_Sc03`, M8 (58, 2). Before the walls light up, `Mur_Sombre`; after, T1 once (`FLAG_SIL_ROUTE_S04_M8`). M1–M7 share the `wall()` helper | — |
+| Port Sc01 | `PortRessac_Sc01`, on-frame | 41 → 42 |
+| Port Sc02 | `PortRessac_Sc02`, Crow (44, 15). The player is placed at the alley's corner (41, 18). Four passers-by each get a "whistle?" (`VAR_SIL_PORT_RESSAC_STATE` counts the right calls); a missed patrol fights (`GUET_1`, `GUET_2`). Then TM31, the Star Piece for 4 of 4, the guard asleep and the client gone | 42 → 43 |
+| Port Sc03 | `PortRessac_Sc03`, the jetty coords (or talking to Gogo or Romain). The Vieux Patch | 43 → 44 |
+| Navire Sc01 | `PortRessac_NavireCocket_Sc01`, the terminal (19–20, 1). `LOG_04` | 44 → 45 |
+| Port Sc04 | `PortRessac_Sc04`, the gangway pirate. Samuel comes down to the dock and stays there until the map reloads. His crew and the quay cast appear | 45 → 46 |
+| Port Sc05 | `PortRessac_Sc05`, the coord (5, 20) (or talking to the foreman). The `CONTREMAITRE` battle, the crew gone, the cargo sails (the sea painted over), Samuel's thanks | 46 → 47 |
+| Gym Sc01 | `PortRessac_Gym_Sc01`, Samuel at the helm (13, 3). The rematch prompt after a loss. The breath test once (four shots; a Persim Berry, or `FLAG_SIL_PORT_GYM_CONFUS`). Then Sc02 | — |
+| Gym Sc02 | private, chained. `SAMUEL_1`, the badge, TM01, the Hydro-Propulseur (unless a loss gave it), the Millésime Sam, `VAR_SIL_SYNC` 40, the grille opens | → 48 |
+| Gym Sc03 | `PortRessac_Gym_Sc03`, the coupée (9–10, 18). Gwada, the Millésime heal (if held and accepted), `GWADA_2`, the Dragon Scale | 48 → 49 |
+| Port Sc06 | `PortRessac_Sc06`, the east jetty coords at 49. Julien's call, once (`FLAG_SIL_PORT_APPEL_JULIEN`) | — |
+
+**Mechanics.**
+- **Pushing with Champ Magnétique** (`push_object`). Pressing A on a pushable object moves it one cell in the direction the player faces, if the cell is free. Its position is kept in a `VAR_TEMP_*` as `y*64+x+1`, so it goes back to its template cell on every map load, as Emerald's Strength boulders do. Without `FLAG_SIL_MODULE_FORCE`, it shows Ch3's `Depot_Bloc_T1`. The first push of each visit shows `Depot_Bloc_T2` (`VAR_TEMP_4`).
+  - The port's container (6, 15) moves within its sand pocket, which opens the way to the Water Stone.
+  - The hold's barrels A (4, 3), D (4, 4) and B (2, 6) can move onto the source grid's planks, but never onto Timothé's cell.
+- **The hold.** The barrels go back to their places on every load, so the explosive barrels are the way back. Blowing one up starts a wild battle (Voltorb 33, Electrode 34) and turns its cell into floor for good. This lets the player return to the hatch from the ladder side.
+- **Samuel's loss (R-7).**
+  - Before the battle, Sc02 sets the respawn to the Taverne and `VAR_SIL_PORT_RESSAC_STATE` 9.
+  - A loss whites out there. The port's on-frame entry then plays the defeat branch: `Perdu`, 2000 money, a heal, the Hydro-Propulseur on the first loss, `FLAG_SIL_SAMUEL_PERDU`, and story at least 48.
+  - The guide and the gangway pirate say `Rappel_Badge` while `SAMUEL_PERDU` is set and `BADGE_04` is not.
+- **Crow's scene-internal warps** are done by moving the player behind a fade (`reposition`). A real warp would end the script.
+
+**Map edits** (`games/silice/edits/<Map>/06_ch4_scripts.ron`).
+- The hidden items become `Sign`s running a script; each original op is kept in a comment:
+  - `RouteS04`: the Ether;
+  - `PortRessac`: the Water Stone and the Pearl;
+  - `PortRessac_NavireCocket`: Crow's crate, which also shows its own text;
+  - `PortRessac_Gym_Cale`: both loot barrels, which give the source's quantities and texts.
+- `PortRessac` also gets the two on-frame entries listed above.
+- `cargo xtask studio map --game silice build` writes the same bytes as the committed maps.
+
+**Reachability.** `lint-reach` on the six Ch4 maps reports 0 warnings and 2 infos, with the existing allowance (1), so no new `AllowReach` was needed. The two infos:
+- the port's east edge, which Surf reaches;
+- the quarterdeck's ladder, which other maps lead to.
+
+**Fallbacks** (each `// fallback:` in the code and reported through `fallback()`).
+
+| Fallback | Where | What runs instead |
+|---|---|---|
+| `dark_map` | Route S4 | the tunnel is lit; the walls' texts still follow `FLAG_SIL_ROUTE_S04_MURS` |
+| `use_field_module` | Route Sc02 | the walls light up by script |
+| `strength` | the container, the hold's barrels | push on A (above) |
+| `battle_continue_on_loss` | Samuel | the whiteout plus the on-frame defeat branch (above) |
+| `take_money_percent`, `take_heal_items` | Samuel's defeat | a fixed 2000 (the source's figure); no items taken |
+| `battle_start_status` | Samuel after a failed breath test | nothing: the lead is not confused |
+| `battle_terrain` | Samuel (the roll) | nothing |
+| `battle_start_stats` | Gwada (the rum) | nothing |
+| `play_fanfare` | the badge | nothing |
+| `log_menu` | the cargo's terminal | `LOG_04`'s text is shown |
+| `screen_flash` | the explosive barrels | a fade out and in |
+| `vending_machine` | the drinks machine | a Limonade once, then its text |
+| `mart` | the Taverne's clerk | Ch1's frame, with the stock (four variants by badge and rum) kept at the call site |
+| `hidden item` | six hidden items | a sign and `hidden_item` |
+| `screen_shake`, `play_se`, `mallette_call`, `end_call`, `show_sync` | as Ch0–Ch2 | as Ch0–Ch2 |
+
+The sound effects use the decomp names `SE_SIFFLET` = `SE_M_GRASSWHISTLE`, the call = `SE_POKENAV_CALL`, and the push = `SE_M_STRENGTH`.
+
+**Ids.** No new flag or var. Every flag, var, trainer and item the scripts use was allocated by the Ch4 maps and data, so `ids.golden` is unchanged. The scripts use `VAR_SIL_PORT_RESSAC_STATE` by name, so its move to 16439 (M9 Wave 0) needs no change here.
+
+**The spine.**
+- `silice_spine/ch04.rs` has `start()`, a `Run::starting_at` state (Chapter 3 is not chained yet), `steps()` and `check_end`. The test is `sil5_ch4.rs`.
+- The start state is Chapter 3's end:
+  - story 36, sync 30, three badges, the Coupe, Force and Flash modules, `LOG_01`–`LOG_03`;
+  - placed on Route S4's west edge.
+- The party is KADABRA 32, FLAAFFY 30, QUILAVA 33 and LAIRON 32. It is Chapter 2's end party (QUILAVA 26, MAREEP 12, ARON 30) after a realistic Chapter 3, plus an ABRA from Route S2.
+  - The KADABRA leads because `Step::Train` trains only the lead.
+  - The battle policy uses no items, never switches, and learns moves only into free slots. With that policy, a QUILAVA lead loses to Samuel's six Pokémon even at level 43 (tried).
+- The run:
+  - the tunnel, fighting the trainers whose sight crosses the path;
+  - the whole port story;
+  - training in the dunes to 36 before the cleaning and to 38 before the gym;
+  - a heal at the Taverne after each quay grunt and after each gym fight. To heal mid-gym, the player leaves by the gangway and comes back through the blown barrels.
+- It ends with the lead at 42 and asserts every chapter fallback on the path.
+
+**Questions for the author.**
+1. **Reused lines.** The source has no line of its own for:
+   - the client sailor, the gangway pirate (`Npc_Pirate_Passerelle`), the duel pirates and the decor grunts;
+   - Gogo and Romain after Sc03 (`Sc03_T6`, `Sc03_T1`);
+   - Crow outside 42 (`Sc02_T6`);
+   - the closed grille (`Gym_Guide`);
+   - the terminal before and after the log (`Navire_Sc01_T1`, `Log04`);
+   - Samuel after the badge (`Sc02_T3b`);
+   - the gate onto the quays during the cleaning (`Sc04_T6`).
+
+   Should these get their own lines?
+2. **Champ Magnétique.** Is pushing with A acceptable until Strength exists, or should the push wait for M10?
+3. **Samuel's defeat (R-7).** The defeat branch plays at the Taverne door after the whiteout. The source's fallback, a pirate at the door, has no object on the map. Is this placement right?
+4. **The duel pirates.** The cleaning's pirates appear directly at their duel cells. The source's walk down from the deck has no room on the built quays. Is that acceptable?
+5. **The Taverne heal location** is (4, 8), in front of the door. Is that the right cell?
+6. **Sound effects.** Are the mappings above right?
+7. **The cargo's berth.** Once the cargo has sailed, its berth becomes sea (368), but the dock keeps its elevation. Should the berth stay sea, or become a usable surf spot?
+8. **Surf in the canal.** Is the canal between the quays meant to be surfable after the badge?
+9. **Samuel's team.** `progression.md` gives Samuel 5 Pokémon; `trainers.ron` has 6, with a Black Belt, Charcoal and a Sitrus Berry. Five, or six?
+10. **The respawn.** The heal location is set by talking to the nurse ("à la première visite"), not by entering the Taverne, as Ch2's is. Is that right?
+
 #### SIL2 Ch2–Ch3 maps as built
 
 The 19 maps of Chapter 2 (Gris-Échec) and Chapter 3 (Viber-City) are in `games/silice/{maps,layouts}/`. As in Ch0, they were made with the studio map editor only. Their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where needed), and the building stamps are under `games/silice/stamps/`.
