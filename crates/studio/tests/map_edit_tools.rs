@@ -764,14 +764,13 @@ fn committed_silice_edits_rebuild_byte_identical() {
             put(&to, &std::fs::read_to_string(&f).unwrap());
         }
     }
-    // Edit scripts may place committed stamps.
+    // The stamps the edits place.
     if let Ok(stamps) = std::fs::read_dir(committed.stamps_dir()) {
-        for s in stamps {
-            let s = s.unwrap().path();
-            put(
-                &g.stamps_dir().join(s.file_name().unwrap()),
-                &std::fs::read_to_string(&s).unwrap(),
-            );
+        for f in stamps {
+            let f = f.unwrap().path();
+            let to = g.stamps_dir().join(f.file_name().unwrap());
+            std::fs::create_dir_all(g.stamps_dir()).unwrap();
+            std::fs::copy(&f, &to).unwrap();
         }
     }
     run(&["--games", g.root.to_str().unwrap(), "build"]).unwrap();
@@ -799,5 +798,90 @@ fn committed_silice_edits_rebuild_byte_identical() {
     for ((p, a), (_, b)) in built.iter().zip(&want) {
         assert!(a == b, "{p} differs from the committed file");
     }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `lint-reach --all` on the committed Silice maps: records the current findings (printed; the
+/// triage list is in the Silice plan, "Reachability checker as built") without failing on
+/// them, and checks the output is stable. `reach`, `bypass` and `render --reach` run on the
+/// first gym, whose review the bypass reproduces.
+#[test]
+fn reach_tools_on_the_committed_silice_maps() {
+    if !real() {
+        return;
+    }
+    let ws = studio::paths::StudioPaths::detect().workspace;
+    let g = ws.join("games/silice");
+    let g = g.to_str().unwrap();
+    let out = run(&["--games", g, "lint-reach", "--all"]).unwrap();
+    println!("{out}");
+    let last = out.lines().last().unwrap();
+    assert!(
+        last.contains(" maps: ") && last.contains(" warnings, "),
+        "{last}"
+    );
+    assert_eq!(out, run(&["--games", g, "lint-reach", "--all"]).unwrap());
+    for line in out.lines().filter(|l| *l != last) {
+        assert!(
+            line.contains(": warning: ") || line.contains(": info: "),
+            "{line}"
+        );
+    }
+
+    let r = run(&["--games", g, "reach", "BoisEther_Gym", "--from", "7,30"]).unwrap();
+    assert!(r.contains("cells reachable"), "{r}");
+    assert!(r.contains("LOCALID_GYM1_JULES: sees 3 cells"), "{r}");
+    // The review's claim: with the spore grates avoided, every path from the shower to the
+    // door's front cell crosses Jules's line of sight.
+    let base = [
+        "--games",
+        g,
+        "bypass",
+        "BoisEther_Gym",
+        "--from",
+        "7,30",
+        "--to",
+        "8,23",
+        "--avoid",
+        "coord:BoisEther_Gym_EventScript_Spores",
+    ];
+    let b = run(&base).unwrap();
+    assert!(b.contains("bypass: yes"), "{b}");
+    let mut jules = base.to_vec();
+    jules.extend(["--avoid", "trainer:LOCALID_GYM1_JULES"]);
+    let b = run(&jules).unwrap();
+    assert!(b.contains("bypass: no"), "{b}");
+
+    let dir = temp_dir("reach");
+    let png = dir.join("gym.png");
+    let r = run(&[
+        "--games",
+        g,
+        "render",
+        "BoisEther_Gym",
+        "--reach",
+        "7,30",
+        "--sight",
+        "--out",
+        png.to_str().unwrap(),
+    ])
+    .unwrap();
+    assert!(r.contains("reach: ") && r.contains("sight: "), "{r}");
+    let plain = dir.join("plain.png");
+    run(&[
+        "--games",
+        g,
+        "render",
+        "BoisEther_Gym",
+        "--scale",
+        "2",
+        "--out",
+        plain.to_str().unwrap(),
+    ])
+    .unwrap();
+    assert_eq!(png_size(&png), png_size(&plain));
+    assert_ne!(std::fs::read(&png).unwrap(), std::fs::read(&plain).unwrap());
+    assert!(run(&["--games", g, "render", "BoisEther_Gym", "--reach", "7"]).is_err());
+    assert!(run(&["--games", g, "reach", "BoisEther_Gym"]).is_err());
     let _ = std::fs::remove_dir_all(dir);
 }
