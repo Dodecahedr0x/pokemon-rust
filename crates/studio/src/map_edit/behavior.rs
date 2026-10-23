@@ -282,7 +282,7 @@ pub fn collision_mismatches(d: &Doc, c: &Catalog) -> Vec<(i32, i32, u8, Usual)> 
 }
 
 /// Which allowance (index) covers cell (x, y) holding `metatile`.
-fn allowed(allow: &[Allowance], x: i32, y: i32, metatile: u16) -> Option<usize> {
+pub fn allowed(allow: &[Allowance], x: i32, y: i32, metatile: u16) -> Option<usize> {
     allow
         .iter()
         .position(|a| a.cells.contains(&(x, y)) || a.metatiles.contains(&metatile))
