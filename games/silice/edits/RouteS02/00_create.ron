@@ -1,4 +1,4 @@
 // Silice Ch2, MAP_ROUTE_S02: Route S2, le Corridor des Cables (56 x 22, horizontal), from
-// Bois-Ether (west, Ch1) to Gris-Echec (east). General + Mauville (Emerald tilesets by name):
+// Bois-Ether (west, Ch1) to Gris-Echec (east). General (Emerald, by name) + SilRoutesS2S3 (original):
 // grass corridors between the containment cables, a cliff path over a still sea.
-(name: "RouteS02", width: 56, height: 22, primary: "General", secondary: "Mauville", fill: 1, border: [468, 469, 476, 477])
+(name: "RouteS02", width: 56, height: 22, primary: "General", secondary: "SilRoutesS2S3", fill: 1, border: [468, 469, 476, 477])

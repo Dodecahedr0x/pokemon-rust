@@ -1,0 +1,134 @@
+// Routes S2 and S3 (Ch2-3), one shared secondary on General.
+// Route S2, le Corridor des Cables (contenu-jeu/chapitres/02-gris-echec.md, MAP_ROUTE_S02): a
+// coastal route where the containment cables, huge black conduits two cells wide, come out of the
+// ground and plunge into a sea as still and smooth as glass below a cliff; thin security cables
+// (Lame-Frequence) between them, the humming main transformer, a server block.
+// Route S3, le Goulet de l'Echo (03-viber-city.md, MAP_ROUTE_S03): a narrow defile between the
+// Emerald-style mountain walls (General, as the source asks), Cocket cables strung on the walls,
+// the ground packed by the trucks (General's pale grey 94, as the seams and Gris-Echec's
+// sidewalks, with tyre ruts), the wall of Cocket containers and the depot's two portals.
+// Derived art (xtask/src/silice/derive.rs): the cable pieces are cut from one generated cable, so
+// they join; the portals are cut into the container art; the server rack, the ruts and the wall
+// cables are drawn there. The seams stay General (rows 0-6 and 43-49 of Route S3, x 0-6 and 49-55
+// of Route S2).
+(
+    name: "SilRoutesS2S3",
+    primary: "General",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing.",
+    features: [
+        (
+            name: "transfo",
+            cells: ["##", "##", "##"],
+            prompt: Some("The main power transformer of a high-voltage line, seen from the front and a little from above: a tall dark grey steel cabinet with cooling fins on both sides, three white ceramic insulators with copper caps on its flat top, a yellow triangular warning sign with a black lightning bolt on its front (no letters), thick black cables leaving its base."),
+        ),
+        (
+            name: "pylone",
+            cells: ["##", "##"],
+            prompt: Some("A small high-voltage switching post: two short grey steel poles side by side with white ceramic insulators on top, black wires sagging between them, a yellow-and-black hazard stripe band around their feet."),
+        ),
+        (
+            name: "containers",
+            cells: ["##", "##"],
+            ground: Some(94),
+            prompt: Some("A dark steel-grey corrugated shipping container seen from the front and above: its flat roof is the top half of the picture, its ribbed side is the bottom half, a bold red cocktail-glass emblem painted on the side (no letters). It fills the whole picture edge to edge, so that several placed side by side make one long wall."),
+        ),
+        (
+            name: "containers_b",
+            cells: ["##", "##"],
+            ground: Some(94),
+            prompt: Some("A rusty orange-red corrugated shipping container seen from the front and above: its flat roof is the top half of the picture, its ribbed side is the bottom half, a black cocktail-glass emblem painted on the side (no letters). It fills the whole picture edge to edge, so that several placed side by side make one long wall."),
+        ),
+        (
+            // Never stamped: the source of the cable pieces below.
+            name: "cable_ref",
+            cells: ["##", "##", "##", "##"],
+            prompt: Some("Seen from straight above: one giant black rubber power conduit lying on the ground, as wide as two thirds of the picture, running straight from top to bottom. At the top it comes out of a low mound of dark brown earth, at the bottom it dives back into a low mound of dark brown earth. A few dark grey ribs around the conduit, one thin dull red stripe along it."),
+        ),
+        (
+            name: "cable",
+            cells: ["##"],
+        ),
+        (
+            name: "cable_sortie",
+            cells: ["##"],
+        ),
+        (
+            name: "cable_entree",
+            cells: ["##"],
+        ),
+        (
+            name: "cable_falaise",
+            cells: ["##"],
+            ground: Some(124),
+        ),
+        (
+            name: "mer",
+            cells: ["w"],
+            key: Some("none"),
+            legend: {'w': (behavior: "MB_OCEAN_WATER", collision: 0)},
+            prompt: Some("A perfectly still, glassy sea seen from above, only 16x16 pixels, chunky details: flat deep slate blue (#3c5a8c) with two short thin pale grey-blue horizontal glint lines, no waves, no foam, no ripples. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "cable_mer",
+            cells: ["##"],
+            under: Some("mer"),
+        ),
+        (
+            name: "cable_secu",
+            cells: ["#"],
+            align: Some("center"),
+            prompt: Some("Three thin taut safety cables striped yellow and black, stretched horizontally across the whole width between two short grey metal stakes, a small red tag hanging from the middle one."),
+        ),
+        (
+            // The server block (48, 10), pushed onto (47, 10) with the Champ Magnetique
+            // (METATILE_SERVEUR): a black rack drawn on the transformer's steel.
+            name: "serveur",
+            cells: ["#"],
+        ),
+        (
+            // Route S3's ground is General 94 (as its seams); a truck's tyre rut over it.
+            name: "traces",
+            cells: ["."],
+            ground: Some(94),
+        ),
+        (
+            // Cocket cables strung along the defile's walls: on the rock behind the west wall's
+            // edge (General 113: 112's rock is its top layer, lost under the art), down the east
+            // wall's face (General 115).
+            name: "paroi_cables",
+            cells: ["#"],
+            ground: Some(113),
+        ),
+        (
+            name: "paroi_cables_d",
+            cells: ["#"],
+            ground: Some(115),
+        ),
+        (
+            name: "portail_nord",
+            cells: ["A"],
+            ground: Some(94),
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+        ),
+        (
+            name: "portail_sud",
+            cells: ["D"],
+            ground: Some(94),
+        ),
+        (
+            // The steel wire fence around the transformer: the security cables gone grey.
+            name: "grillage",
+            cells: ["#"],
+        ),
+        (
+            // The containers as the wall stacks them, edge to edge (the art's corners filled).
+            name: "containers_mur",
+            cells: ["##", "##"],
+        ),
+        (
+            name: "containers_mur_b",
+            cells: ["##", "##"],
+        ),
+    ],
+)

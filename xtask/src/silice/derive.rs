@@ -18,6 +18,7 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
         "SilOwlys" => owlys(&gfx.join(name))?,
         "SilOwlysGym" => owlys_gym(&gfx.join(name))?,
         "SilEvalonCitadelle" => evalon_citadelle(&gfx.join(name))?,
+        "SilRoutesS2S3" => routes_s2s3(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -447,4 +448,225 @@ fn evalon_citadelle(c: &Path) -> Result<()> {
         }
     }
     save(c, "plaque_pression", &plate)
+}
+
+/// SilRoutesS2S3: the containment cable's pieces, all cut from `cable_ref` so they join: a
+/// straight segment that tiles (the conduit's cross-section, repeated, with two ribs), the 16 rows
+/// above the conduit's first straight row (out of the ground), the 16 rows from its last one (back
+/// into the ground), the segment down the cliff, and the segment sinking into the still sea (a
+/// waterline, its dark reflection, then the sea under it). The server rack on the transformer's
+/// steel, a tyre rut and the wall cables (over General's gravel and walls). The depot's portals are
+/// cut into the `containers` cells they stand in.
+fn routes_s2s3(t: &Path) -> Result<()> {
+    // The generated conduit is a third of its picture: doubled across (its middle 16 columns),
+    // it is two cells wide as the source wants.
+    let src = load(t, "cable_ref")?;
+    let r = Rgba {
+        w: 32,
+        h: src.h,
+        px: (0..src.h)
+            .flat_map(|y| (0..32).map(move |x| (x, y)))
+            .map(|(x, y)| get(&src, src.w / 2 - 8 + x / 2, y))
+            .collect(),
+    };
+    let width = |y: u32| (0..r.w).filter(|&x| get(&r, x, y)[3] >= 128).count();
+    // The conduit's width: the most common row width in the middle half.
+    let mut counts = [0u32; 65];
+    for y in r.h / 4..r.h * 3 / 4 {
+        counts[width(y).min(64)] += 1;
+    }
+    let w = (1..65).max_by_key(|&i| counts[i]).unwrap_or(16);
+    let near = |y: u32| width(y).abs_diff(w) <= 2;
+    let top = (0..r.h).find(|&y| near(y)).unwrap_or(16);
+    let bot = (0..r.h).rev().find(|&y| near(y)).unwrap_or(r.h - 17);
+    save(
+        t,
+        "cable_sortie",
+        &crop(&r, 0, top.saturating_sub(15), 32, 16),
+    )?;
+    save(t, "cable_entree", &crop(&r, 0, bot.min(r.h - 16), 32, 16))?;
+    let row = (top + bot) / 2;
+    let mut seg = Rgba {
+        w: 32,
+        h: 16,
+        px: vec![[0; 4]; 32 * 16],
+    };
+    let opaque = |x: u32| get(&r, x, row)[3] >= 128;
+    for y in 0..16 {
+        for x in (0..32).filter(|&x| opaque(x)) {
+            let p = get(&r, x, row);
+            // The outline columns stay; the ribs darken the body.
+            let edge = x == 0 || x == 31 || !opaque(x - 1) || !opaque(x + 1);
+            let k = if (y == 3 || y == 11) && !edge {
+                55
+            } else {
+                100
+            };
+            let f = |v: u8| (v as u32 * k / 100) as u8;
+            set(&mut seg, x, y, [f(p[0]), f(p[1]), f(p[2])]);
+        }
+    }
+    save(t, "cable", &seg)?;
+    save(t, "cable_falaise", &seg)?;
+    let body: Vec<u32> = (0..32).filter(|&x| opaque(x)).collect();
+    let (l, rt) = (body[0], body[body.len() - 1]);
+    let mut mer = seg.clone();
+    for p in mer.px[9 * 32..].iter_mut() {
+        *p = [0; 4];
+    }
+    for x in l.saturating_sub(2)..=(rt + 2).min(31) {
+        set(&mut mer, x, 9, [168, 192, 216]);
+    }
+    for x in (l + 2)..=rt.saturating_sub(2) {
+        set(&mut mer, x, 11, [36, 52, 84]);
+        set(&mut mer, x, 13, [36, 52, 84]);
+    }
+    save(t, "cable_mer", &mer)?;
+    // The server block: a black rack (slots, green and blue lights) on the transformer's steel.
+    let tr = load(t, "transfo")?;
+    let mut srv = crop(&tr, tr.w / 2 - 8, tr.h / 2 - 8, 16, 16);
+    for y in 0..16 {
+        for x in 0..16 {
+            let rgb = if x == 0 || x == 15 || y == 15 {
+                [12, 12, 16]
+            } else if y == 0 {
+                [70, 74, 84]
+            } else if y % 3 == 1 && (2..14).contains(&x) {
+                match x {
+                    3 => [96, 240, 128],
+                    5 => [96, 176, 248],
+                    _ => [58, 62, 72],
+                }
+            } else {
+                [28, 30, 36]
+            };
+            set(&mut srv, x, y, rgb);
+        }
+    }
+    save(t, "serveur", &srv)?;
+    // A tyre rut down the gravel: a grey band with a ladder tread (transparent around it).
+    let mut rut = Rgba {
+        w: 16,
+        h: 16,
+        px: vec![[0; 4]; 256],
+    };
+    for y in 0..16 {
+        for x in 3..13 {
+            let tread = (5..11).contains(&x) && y % 4 < 2;
+            let rgb = match (x, tread) {
+                (3 | 12, _) => [168, 172, 176],
+                (_, true) => [96, 98, 104],
+                _ => [136, 140, 146],
+            };
+            set(&mut rut, x, y, rgb);
+        }
+    }
+    save(t, "traces", &rut)?;
+    // Two Cocket cables down a wall (the cable's black, a red band), a steel clamp on each.
+    let mut wall = Rgba {
+        w: 16,
+        h: 16,
+        px: vec![[0; 4]; 256],
+    };
+    for y in 0..16 {
+        for (x, rgb) in [
+            (5, [44, 46, 52]),
+            (6, [20, 20, 24]),
+            (10, [44, 46, 52]),
+            (11, [20, 20, 24]),
+        ] {
+            let band = y == 12 || (y == 4 && x > 8);
+            set(&mut wall, x, y, if band { [200, 52, 48] } else { rgb });
+        }
+    }
+    for (x, y) in [(4, 8), (7, 8), (9, 1), (12, 1)] {
+        set(&mut wall, x, y, [168, 168, 176]);
+        set(&mut wall, x, y + 1, [72, 72, 80]);
+    }
+    save(t, "paroi_cables", &wall)?;
+    save(t, "paroi_cables_d", &wall)?;
+    // The steel wire fence: the security cables with their yellow (and the tag's red) gone grey.
+    let mut fence = load(t, "cable_secu")?;
+    for p in fence.px.iter_mut().filter(|p| p[3] >= 128) {
+        let (hi, lo) = (p[0].max(p[1]).max(p[2]), p[0].min(p[1]).min(p[2]));
+        if hi - lo > 60 {
+            let v = (lum(*p) * 3 / 4 + 40).min(255) as u8;
+            *p = [v, v, v.saturating_add(8), 255];
+        }
+    }
+    save(t, "grillage", &fence)?;
+    // The wall's containers edge to edge: each column's transparent pixels take the nearest
+    // opaque pixel's colour below (above for the bottom rows).
+    for (from, to) in [
+        ("containers", "containers_mur"),
+        ("containers_b", "containers_mur_b"),
+    ] {
+        let mut m = load(t, from)?;
+        let src = m.clone();
+        for x in 0..m.w {
+            for y in 0..m.h {
+                if get(&src, x, y)[3] >= 128 {
+                    continue;
+                }
+                let below = (y..m.h).find(|&j| get(&src, x, j)[3] >= 128);
+                let above = (0..y).rev().find(|&j| get(&src, x, j)[3] >= 128);
+                if let Some(j) = below.or(above) {
+                    let p = get(&src, x, j);
+                    set(&mut m, x, y, [p[0], p[1], p[2]]);
+                }
+            }
+        }
+        // Columns with no opaque pixel take their row's nearest one.
+        let cols = m.clone();
+        for y in 0..m.h {
+            for x in 0..m.w {
+                if get(&cols, x, y)[3] >= 128 {
+                    continue;
+                }
+                let near = (0..m.w)
+                    .filter(|&i| get(&cols, i, y)[3] >= 128)
+                    .min_by_key(|&i| i.abs_diff(x));
+                if let Some(i) = near {
+                    let p = get(&cols, i, y);
+                    set(&mut m, x, y, [p[0], p[1], p[2]]);
+                }
+            }
+        }
+        save(t, to, &m)?;
+    }
+    let c = load(t, "containers_mur")?;
+    // The south portal: an open doorway in the container's side.
+    let mut sud = crop(&c, 16, 16, 16, 16);
+    for y in 4..16 {
+        for x in 3..13 {
+            let frame = x == 3 || x == 12 || y == 4;
+            set(
+                &mut sud,
+                x,
+                y,
+                if frame { [40, 40, 48] } else { [14, 14, 22] },
+            );
+        }
+    }
+    save(t, "portail_sud", &sud)?;
+    // The north portal: a hatch striped yellow and black in the roof, a chevron pointing down.
+    let mut nord = crop(&c, 16, 0, 16, 16);
+    for y in 3..13 {
+        for x in 3..13 {
+            let frame = x == 3 || x == 12 || y == 3 || y == 12;
+            let rgb = if !frame {
+                [20, 20, 28]
+            } else if (x + y) / 2 % 2 == 0 {
+                [240, 200, 40]
+            } else {
+                [24, 24, 24]
+            };
+            set(&mut nord, x, y, rgb);
+        }
+    }
+    for i in 0..3 {
+        set(&mut nord, 5 + i, 6 + i, [240, 200, 40]);
+        set(&mut nord, 10 - i, 6 + i, [240, 200, 40]);
+    }
+    save(t, "portail_nord", &nord)
 }

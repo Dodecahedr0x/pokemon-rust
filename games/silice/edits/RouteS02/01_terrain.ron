@@ -3,29 +3,37 @@
 // transformer, the server block (48, 10), the cliff path (y 14) and the sea. The west entrance
 // (0, 2-5) is open to Bois-Ether's east corridor (its y 12-15): four rows, one more than the
 // source's y 3-5, so the cut keeps whole 2x2 trees above and below.
+// SilRoutesS2S3 (games/silice/gfx/SilRoutesS2S3.ron): the containment cables, black conduits two
+// cells wide (C c a straight run, O o out of the ground, I i back into it, F f down the cliff,
+// M m into the sea), the security cables (e), the main transformer (1-6, x 34-35) and its
+// high-voltage post (7-0, x 36-37), the transformer's wire fence (h), the server block (Q), the
+// still glassy sea (W). The server pocket's walls (=, x 48-49) are General's rail (x 49 is in
+// Gris-Echec's seam); the cliff, the forest and the grass stay General.
+// The seams stay General: x 0-6 of rows 0-15 (Bois-Ether sees them) and x 49-55 (Gris-Echec),
+// where the sea is General's (Gris-Echec's west edge has the same water).
 [
     Ascii(x: 0, y: 0, rows: [
-        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
-        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyXxYyYTtTYyYyYyYyYyYyYy",
-        "..,,,,,,..||..,,,,....||..,,,,.||.Vv..e...=...||.,,,,,.t",
-        "..........||..,,,,........,,,,...s....=====...||.,,,,,..",
-        "..........||..............,,,,.||.............||........",
-        "..,,,,....ee.......,,,||..,,,,.||....,,,,.....||........",
-        "T.s,,,....||.......,,,||.......||....,,,,.....||....TtTt",
-        "Y..,,,,...||.s.....,,,||.......||.............||=...YyYy",
-        "T.........||..........||...,,,,||.............||.=..TtTt",
-        "Y.........||..........||...,,,,ee....,,,,.....||.=..YyYy",
-        "T...,,,...||..........||...,,,,||....,,,,.....||Q......t",
-        "Y...,,,........,,,,...||.......||....,,,,..............y",
-        "T...,,,........,,,,...||.......||......................t",
-        "Y.........||...,,,,...||...s...||.............||.......y",
-        "Y.........||..........||.......||.............||.......y",
-        "abbbbbbbbb||bbbbbbbbbb||bbbbbbb||bbbbbbbbbbbbb||bbbbbbbz",
-        "~~~~~~~~~~||~~~~~~~~~~||~~~~~~~||~~~~~~~~~~~~~||~~~~~~~~",
-        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
-    ], legend: {',': (metatile: 13, collision: 0), '.': (metatile: 1, collision: 0), '=': (metatile: 241, collision: 1), 'Q': (metatile: 631, collision: 1), 'T': (metatile: 468, collision: 1), 'V': (metatile: 646, collision: 1), 'X': (metatile: 638, collision: 1), 'Y': (metatile: 476, collision: 1), 'a': (metatile: 123, collision: 1), 'b': (metatile: 124, collision: 1), 'e': (metatile: 241, collision: 1), 's': (metatile: 3, collision: 1), 't': (metatile: 469, collision: 1), 'v': (metatile: 647, collision: 1), 'w': (metatile: 368, collision: 0, elevation: 1), 'x': (metatile: 639, collision: 1), 'y': (metatile: 477, collision: 1), 'z': (metatile: 125, collision: 1), '|': (metatile: 704, collision: 1), '~': (metatile: 393, collision: 0, elevation: 1)}),
+        "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt1278TtTtTtTtTtTtTtTtTt",
+        "YyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYyYy3490YTtTYyYyYyYyYyYyYy",
+        "..,,,,,,..Cc..,,,,....Ii..,,,,.Ii.56..e...h...Cc.,,,,,.t",
+        "..........Cc..,,,,........,,,,...s....hhhhh...Cc.,,,,,..",
+        "..........Ii..............,,,,.Oo.............Cc........",
+        "..,,,,....ee.......,,,Oo..,,,,.Cc....,,,,.....Cc........",
+        "T.s,,,....Oo.......,,,Cc.......Cc....,,,,.....Cc....TtTt",
+        "Y..,,,,...Cc.s.....,,,Cc.......Cc.............Cc=...YyYy",
+        "T.........Cc..........Cc...,,,,Ii.............Cc.=..TtTt",
+        "Y.........Cc..........Cc...,,,,ee....,,,,.....Cc.=..YyYy",
+        "T...,,,...Ii..........Cc...,,,,Oo....,,,,.....IiQ......t",
+        "Y...,,,........,,,,...Cc.......Cc....,,,,..............y",
+        "T...,,,........,,,,...Cc.......Cc......................t",
+        "Y.........Oo...,,,,...Cc...s...Cc.............Oo.......y",
+        "Y.........Cc..........Cc.......Cc.............Cc.......y",
+        "abbbbbbbbbFfbbbbbbbbbbFfbbbbbbbFfbbbbbbbbbbbbbFfbbbbbbbz",
+        "WWWWWWWWWWMmWWWWWWWWWWMmWWWWWWWMmWWWWWWWWWWWWWMmW~~~~~~~",
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWwwwwwww",
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWwwwwwww",
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWwwwwwww",
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWwwwwwww",
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWwwwwwww",
+    ], legend: {',': (metatile: 13, collision: 0), '.': (metatile: 1, collision: 0), '=': (metatile: 241, collision: 1), 'h': (metatile: 556, collision: 1), 'Q': (metatile: 550, collision: 1), 'T': (metatile: 468, collision: 1), 'Y': (metatile: 476, collision: 1), 'a': (metatile: 123, collision: 1), 'b': (metatile: 124, collision: 1), 'e': (metatile: 549, collision: 1), 's': (metatile: 3, collision: 1), 't': (metatile: 469, collision: 1), 'w': (metatile: 368, collision: 0, elevation: 1), 'y': (metatile: 477, collision: 1), 'z': (metatile: 125, collision: 1), '~': (metatile: 393, collision: 0, elevation: 1), 'W': (metatile: 546, collision: 0, elevation: 1), 'C': (metatile: 538, collision: 1), 'c': (metatile: 539, collision: 1), 'O': (metatile: 540, collision: 1), 'o': (metatile: 541, collision: 1), 'I': (metatile: 542, collision: 1), 'i': (metatile: 543, collision: 1), 'F': (metatile: 544, collision: 1), 'f': (metatile: 545, collision: 1), 'M': (metatile: 547, collision: 1), 'm': (metatile: 548, collision: 1), '1': (metatile: 512, collision: 1), '2': (metatile: 513, collision: 1), '3': (metatile: 514, collision: 1), '4': (metatile: 515, collision: 1), '5': (metatile: 516, collision: 1), '6': (metatile: 517, collision: 1), '7': (metatile: 518, collision: 1), '8': (metatile: 519, collision: 1), '9': (metatile: 520, collision: 1), '0': (metatile: 521, collision: 1)}),
 ]
