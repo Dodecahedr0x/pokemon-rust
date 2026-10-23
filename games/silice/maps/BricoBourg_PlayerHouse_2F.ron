@@ -44,6 +44,15 @@
             ),
         ),
         (
+            x: 1,
+            y: 3,
+            elevation: 0,
+            kind: Script(
+                facing: 0,
+                script: Some("BricoBourg_PlayerHouse_2F_EventScript_Lit"),
+            ),
+        ),
+        (
             x: 6,
             y: 2,
             elevation: 0,

@@ -3,7 +3,9 @@
     Header((music: "MUS_LITTLEROOT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_TOWN", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // The on-transition script hides the day NPCs at night (VAR_SIL_STORY <= 2), the sbire outside
     // Brico_Bourg_Sc01 and the friends outside VAR_SIL_STORY 3-4.
-    Scripts((on_load: None, on_transition: Some("BricoBourg_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Brico_Bourg_Sc02 (then Sc03) runs on arrival while VAR_SIL_STORY is 3, i.e. right out of the
+    // house door: a coord event there would not fire on the scripted exit step. Sc03 sets 5.
+    Scripts((on_load: None, on_transition: Some("BricoBourg_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 3, script: "BricoBourg_Sc02")], on_warp_into: [])),
     // Warp 0: Noobody's house. Warp 1: Le Shaker. Warp 2: Adrien's family house.
     // The Labo door (4, 7) has no warp: MAP_BRICO_BOURG_LABO is a Ch1 map (added with it).
     Warp(x: 5, y: 14, dest_map: "BricoBourg_PlayerHouse_1F", dest_warp: 0),
@@ -19,25 +21,22 @@
     Object(x: 4, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_BRICO_MATHIEU", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_BRICO_MATHIEU"),
     Object(x: 5, y: 16, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_BRICO_GWADA", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Gwada", flag: "FLAG_SIL_HIDE_BRICO_GWADA"),
     Object(x: 6, y: 16, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BRICO_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_EventScript_Adrien", flag: "FLAG_SIL_HIDE_BRICO_ADRIEN"),
-    // Brico_Bourg_Sc01: in front of the Shaker's door, VAR_SIL_STORY 1.
-    Coord(x: 14, y: 14, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_Sc01"),
-    // Brico_Bourg_Sc02 (then Sc03): in front of the house door, VAR_SIL_STORY 3.
-    Coord(x: 5, y: 15, var: "VAR_SIL_STORY", value: 3, script: "BricoBourg_Sc02"),
+    // Brico_Bourg_Sc01, VAR_SIL_STORY 1: the three cells around (14, 14), the Shaker's exit cell (the
+    // scripted exit step onto (14, 14) itself fires no coord event). The scene checks FLAG_SIL_BRICO_CHASE.
+    Coord(x: 13, y: 14, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_Sc01"),
+    Coord(x: 15, y: 14, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_Sc01"),
+    Coord(x: 14, y: 15, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_Sc01"),
     // Brico_Bourg_Sc04: the north exit (y 1, x 10-13), VAR_SIL_STORY 5.
     Coord(x: 10, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
     Coord(x: 11, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
     Coord(x: 12, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
     Coord(x: 13, y: 1, var: "VAR_SIL_STORY", value: 5, script: "BricoBourg_Sc04"),
-    // The guard before the starter (Brico_Bourg_Block_T1): VAR_SIL_STORY 1 at y 2, 2 at y 3; the roots
-    // at x 9 and 14 close both rows, so nothing walks around them.
-    Coord(x: 10, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 11, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 12, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 13, y: 2, var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 10, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 11, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 12, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
-    Coord(x: 13, y: 3, var: "VAR_SIL_STORY", value: 2, script: "BricoBourg_EventScript_BlockNorth"),
+    // The guard before the starter (Brico_Bourg_Block_T1): VAR_SIL_CH0_GATE 0 on (10-13, 2); Sc03 sets
+    // the gate to 1 when the starter is chosen. The roots at x 9 and 14 close the row.
+    Coord(x: 10, y: 2, var: "VAR_SIL_CH0_GATE", value: 0, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 11, y: 2, var: "VAR_SIL_CH0_GATE", value: 0, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 12, y: 2, var: "VAR_SIL_CH0_GATE", value: 0, script: "BricoBourg_EventScript_BlockNorth"),
+    Coord(x: 13, y: 2, var: "VAR_SIL_CH0_GATE", value: 0, script: "BricoBourg_EventScript_BlockNorth"),
     Sign(x: 10, y: 5, script: "BricoBourg_EventScript_SignVillage"),
     Sign(x: 12, y: 13, script: "BricoBourg_EventScript_SignShaker"),
     Sign(x: 6, y: 8, script: "BricoBourg_EventScript_SignLabo"),

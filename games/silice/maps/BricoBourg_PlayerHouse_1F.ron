@@ -53,16 +53,7 @@
             dest_warp: 0,
         ),
     ],
-    coords: [
-        (
-            x: 4,
-            y: 6,
-            elevation: 3,
-            var: Some("VAR_SIL_STORY"),
-            value: 1,
-            script: Some("BricoBourg_PlayerHouse_1F_Sc01"),
-        ),
-    ],
+    coords: [],
     bgs: [
         (
             x: 6,
@@ -81,7 +72,13 @@
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,
-        on_frame: [],
+        on_frame: [
+            (
+                var: "VAR_SIL_STORY",
+                value: 1,
+                script: "BricoBourg_PlayerHouse_1F_Sc01",
+            ),
+        ],
         on_warp_into: [],
     ),
 )

@@ -11,7 +11,7 @@
     Paint(x: 6, y: 4, metatile: 622, collision: 0),
     Paint(x: 7, y: 4, metatile: 622, collision: 0),
     Paint(x: 9, y: 4, metatile: 622, collision: 0),
-    // Julien's table at (13, 3); banquettes and an armchair in the lounge; plants by the entrance.
+    // Julien's table at (13, 3), where the Mallette lies; banquettes and an armchair in the lounge; plants by the entrance.
     Paint(x: 13, y: 3, metatile: 714, collision: 1),
     Ascii(x: 1, y: 6, rows: ["ab"], legend: {'a': (metatile: 696, collision: 1), 'b': (metatile: 697, collision: 1)}),
     Ascii(x: 10, y: 6, rows: ["ab"], legend: {'a': (metatile: 696, collision: 1), 'b': (metatile: 697, collision: 1)}),

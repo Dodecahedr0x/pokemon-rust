@@ -1,9 +1,10 @@
 // Header, map scripts, warps and objects.
 [
     Header((music: "MUS_SLATEPORT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
-    // Bar_Sc01 runs on arrival at a new game (VAR_SIL_STORY 0; the scene checks FLAG_SIL_INTRO_DONE).
+    // Bar_Sc01 runs on arrival (VAR_TEMP_1 is 0 on every map load); it checks VAR_SIL_STORY 0 and
+    // FLAG_SIL_INTRO_DONE, and sets VAR_TEMP_1 to 1 on every path so it runs once.
     // The on-transition script hides the friends, Julien, the Mallette and the sbires per VAR_SIL_STORY.
-    Scripts((on_load: None, on_transition: Some("BricoBourg_Bar_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 0, script: "BricoBourg_Bar_Sc01")], on_warp_into: [])),
+    Scripts((on_load: None, on_transition: Some("BricoBourg_Bar_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_TEMP_1", value: 0, script: "BricoBourg_Bar_Sc01")], on_warp_into: [])),
     // Warps 0-1: the entrance mat, to Brico-Bourg's warp 1 (the Shaker's door).
     Warp(x: 6, y: 9, dest_map: "BricoBourg", dest_warp: 1),
     Warp(x: 7, y: 9, dest_map: "BricoBourg", dest_warp: 1),
@@ -16,6 +17,6 @@
     Object(x: 3, y: 7, gfx: "OBJ_EVENT_GFX_WOMAN_4", id: "LOCALID_BAR_CLIENTE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BricoBourg_Bar_EventScript_Cliente"),
     Object(x: 12, y: 6, gfx: "OBJ_EVENT_GFX_FAT_MAN", id: "LOCALID_BAR_CLIENT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BricoBourg_Bar_EventScript_Client"),
     Object(x: 6, y: 9, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_BAR_SBIRE_A", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BAR_SBIRE_A"),
-    Object(x: 12, y: 4, gfx: "OBJ_EVENT_GFX_BIRCHS_BAG", id: "LOCALID_BAR_MALLETTE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BricoBourg_Bar_Sc04", flag: "FLAG_SIL_HIDE_BAR_MALLETTE"),
+    Object(x: 13, y: 3, gfx: "OBJ_EVENT_GFX_BIRCHS_BAG", id: "LOCALID_BAR_MALLETTE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BricoBourg_Bar_Sc04", flag: "FLAG_SIL_HIDE_BAR_MALLETTE"),
     Object(x: 7, y: 9, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_BAR_SBIRE_B", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BAR_SBIRE_B"),
 ]

@@ -409,12 +409,12 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 - An event that *is* a scene names the scene's function as `<Map>_ScNN`, where `<Map>` is the map's CamelCase name. For example, the source's `Bar_Sc03` is `BricoBourg_Bar_Sc03`, and `Player_House_Sc01` is `BricoBourg_PlayerHouse_1F_Sc01` (the 1F is where it runs).
 - Every other event script is `<Map>_EventScript_<What>`, with `<What>` taken from the source's text id (`Brico_Bourg_Npc_Vieux` becomes `BricoBourg_EventScript_Vieux`).
 - Map scripts are `<Map>_OnTransition`.
-- `validate` lists them all as "not in the build (yet)" until the scripts exist: 69 warnings.
+- `validate` lists them all as "not in the build (yet)" until the scripts exist: 68 warnings.
 
 **Events per map** (my coordinates; local ids follow the source's obj numbers where it gives them).
 
 - **BricoBourg.**
-  - Header: `MUS_LITTLEROOT`, `WEATHER_NONE` (the source says none), `MAP_TYPE_TOWN`. `on_transition` is `BricoBourg_OnTransition`.
+  - Header: `MUS_LITTLEROOT`, `WEATHER_NONE` (the source says none), `MAP_TYPE_TOWN`. `on_transition` is `BricoBourg_OnTransition`. `on_frame` runs `BricoBourg_Sc02` while `VAR_SIL_STORY` is 3, so it fires as the player steps out of the house door (Sc02 chains into Sc03, which sets 5).
   - Warps:
     - 0: the player's house door (5, 14) to 1F warp 0;
     - 1: the Shaker's door (14, 13) to the Bar's warp 0;
@@ -434,10 +434,9 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
     | 9 | ADRIEN | (6, 16) | SCHOOL_KID_M | `FLAG_SIL_HIDE_BRICO_ADRIEN` |
 
   - Coord events:
-    - `BricoBourg_Sc01` at (14, 14), `VAR_SIL_STORY` 1;
-    - `BricoBourg_Sc02` at (5, 15), value 3;
+    - `BricoBourg_Sc01` on the three cells around the Shaker's exit cell (14, 14): (13, 14), (15, 14) and (14, 15), `VAR_SIL_STORY` 1. The scene checks `FLAG_SIL_BRICO_CHASE`;
     - `BricoBourg_Sc04` on (10–13, 1), value 5;
-    - the north guard `BricoBourg_EventScript_BlockNorth` on (10–13, 2) for value 1 and on (10–13, 3) for value 2. Roots at x 9 and 14 close both rows.
+    - the north guard `BricoBourg_EventScript_BlockNorth` on (10–13, 2), keyed on a dedicated gate var: `VAR_SIL_CH0_GATE` 0. **Brico_Bourg_Sc03 must set `VAR_SIL_CH0_GATE` to 1 when the starter is chosen**; the ids import must allocate the var. Roots at x 9 and 14 close the row.
   - Signs:
     - the village sign (10, 5);
     - the Shaker sign (12, 13);
@@ -449,7 +448,7 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 - **BricoBourg_Bar.**
   - Header: `MUS_SLATEPORT` (the source's own placeholder for the jazz track), indoor.
   - Map scripts:
-    - `on_frame` runs `BricoBourg_Bar_Sc01` when `VAR_SIL_STORY` is 0;
+    - `on_frame` runs `BricoBourg_Bar_Sc01` when `VAR_TEMP_1` is 0 (temp vars are 0 on every map load). **Sc01 must set `VAR_TEMP_1` to 1 on every path**, including when `VAR_SIL_STORY` is not 0 or `FLAG_SIL_INTRO_DONE` is set;
     - `on_transition` is `BricoBourg_Bar_OnTransition`.
   - Warps 0 and 1: the mat (6–7, 9) to BricoBourg's warp 1.
   - Objects:
@@ -464,7 +463,7 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
     | 6 | CLIENTE | (3, 7) | WOMAN_4 | `_EventScript_Cliente` | none |
     | 7 | CLIENT | (12, 6) | FAT_MAN | `_EventScript_Client` | none |
     | 8 | SBIRE_A | (6, 9) | NINJA_BOY | none | `FLAG_SIL_HIDE_BAR_SBIRE_A` |
-    | 9 | MALLETTE | (12, 4) | BIRCHS_BAG | `_Sc04` | `FLAG_SIL_HIDE_BAR_MALLETTE` |
+    | 9 | MALLETTE | (13, 3), on Julien's table (a blocked cell) | BIRCHS_BAG | `_Sc04` | `FLAG_SIL_HIDE_BAR_MALLETTE` |
     | 10 | SBIRE_B | (7, 9) | NINJA_BOY | none | `FLAG_SIL_HIDE_BAR_SBIRE_B` |
 
   - The back door is drawn at (12, 1) with no warp (the source calls it inactive for the player).
@@ -475,14 +474,15 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
     - 0 and 1: the mat (4–5, 7) to BricoBourg's warp 0;
     - 2: the stairs (8, 1) to 2F warp 0.
   - Object 1: MAMAN (MOM) at (2, 2) in the kitchen, script `_EventScript_Maman` (Player_House_Sc03).
-  - Coord event: `BricoBourg_PlayerHouse_1F_Sc01` at (4, 6), value 1.
+  - Map script: `on_frame` runs `BricoBourg_PlayerHouse_1F_Sc01` while `VAR_SIL_STORY` is 1 (the scene sets 2). A coord event could be walked around.
   - Sign: the TV (6, 2).
 
 - **BricoBourg_PlayerHouse_2F.**
   - Warp 0: the stairs (7, 1) to 1F warp 2.
   - Signs:
-    - the desk (5, 2), `_EventScript_Bureau`, and the bed (1, 2), `_EventScript_Lit`: Player_House_Sc02's triggers A and B;
-    - the PC (6, 2);
+    - the desk (5, 2), `_EventScript_Bureau`, and the bed (1, 2) and (1, 3), `_EventScript_Lit`: Player_House_Sc02's triggers A and B;
+    - the PC (6, 2).
+    - The desk (BrendansMaysHouse 590) and PC (601) are normal-behaviour metatiles, so only the bg events act on them (the tileset's PC and notebook metatiles have their own behaviours);
     - the window (3, 1).
 
 - **BricoBourg_FriendsHouse.**
@@ -513,21 +513,21 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
   - Signs: entrance (4, 34), grass (16, 28), trainers (14, 16), cables (6, 3).
   - The hidden Antidote is at (4, 22), at the foot of a root, with `FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE`.
   - Connection: South to BricoBourg, offset −3.
-  - Ledge (jump south) on x 2–13 at y 10; the way up is x 14–17. The tutorial grass is x 8–13, y 26–30. The pond is x 4–8, y 16–18.
+  - Ledge (jump south, General 213/214 with collision 1 as in Emerald) on x 2–13 at y 10; the way up is x 14–17. The tutorial grass is x 8–13, y 26–30. The pond is x 4–8, y 16–18.
 
 **Coordinate changes from the ASCII plans (§4 item 12).**
 - **BricoBourg** is drawn at its suggested 24 × 20, not the plan's 25 × 14.
   - Buildings: the Labo is at x 3–6, y 2–7, with its door at (4, 7) (source (5, 3)) and the brambles at (4, 8) (source (5, 4)). Adrien's house moved to the north-east, door (16, 6) (source (6, 7)). The Shaker's door is (14, 13) (source (15, 10)). The player's door is (5, 14) (source (6, 13), on the border row).
-  - Coord events and NPCs: Sc01 is at (14, 14) (source (15, 11)) and Sc02 at (5, 15) (source (6, 14)). The friends stand at (4–6, 16). The old man is at (11, 10) (source (13, 9)). The fountain is at (9–10, 9–10) (source (12, 9)).
+  - Coord events and NPCs: Sc01's cells surround (14, 14) (source (15, 11)); Sc02 is an on-frame script instead of the source's coord at (6, 14). The friends stand at (4–6, 16). Linge is at (2, 13) (source (4, 12)), Gamin at (7, 11) (source (9, 8)), Bricoleuse at (7, 6) (source (8, 3)), the sbire starts at (18, 14) (source (11, 9)), and the village sign is at (10, 5) (source P1 near (4, 8)). The old man is at (11, 10) (source (13, 9)). The fountain is at (9–10, 9–10) (source (12, 9)).
   - The canal is at x 19–20, y 2–17 (source y 3–18).
   - The hidden Potion is at (10, 8) (source (13, 8), still behind the fountain).
   - The north exit stays at x 10–13.
 - **The Bar** keeps its 14 × 10.
   - The two-row back wall puts the counter at y 3 (source y 1); Crow stays at (3, 2).
-  - The friends sit on stools at y 4 (source y 3). Julien keeps (12, 3), and the Mallette is at (12, 4).
+  - The friends sit on stools at y 4 (source y 3). Julien keeps (12, 3), and the Mallette lies on his table at (13, 3) (source (12, 4)).
   - The back door is (12, 1) (source (13, 1)). The clients are at (3, 7) and (12, 6) (source (3, 6) and (10, 6)). The mat stays at (6–7, 9).
-  - The scenes' walking paths (Bar_Sc03's sbires and Julien, Brico_Bourg_Sc01's sbire) must be re-derived in Rust. For Sc01, the sbire at (18, 14) walks left 2, then up 6 along x 16, which is kept free.
-- **1F** keeps its size, stairs (8, 1), door (4, 7) and coord (4, 6). **2F** keeps bed (1, 2), desk (5, 2) and PC (6, 2).
+  - The scenes' walking paths (Bar_Sc03's sbires and Julien, Brico_Bourg_Sc01's sbire, Brico_Bourg_Sc03's friends) must be re-derived in Rust. For Sc01, the sbire at (18, 14) walks left 2, then up 6 along x 16, which is kept free.
+- **1F** keeps its size, stairs (8, 1) and door (4, 7); the source's coord (4, 6) became an on-frame script. **2F** keeps bed (1, 2), desk (5, 2) and PC (6, 2).
 - **RouteS01** keeps the source's coordinates for every trainer, item, sign, NPC and both exits.
   - The ledge spans x 2–13 rather than the plan's 4–15.
   - Trees close x 2–7 and 14–17 at y 30–31, so `Route_S01_Sc01`'s row is the only way north.
@@ -552,11 +552,13 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 
 - **Brambles:** a bush metatile (Petalburg 514) with collision and a bg script. The source wants a tile obstacle cut with `set_metatile`, not a cuttable-tree object.
 - **Cables:** horizontal rail metatiles, as a placeholder.
+- **Water:** the Brico-Bourg canal and the Route S1 pond use General's 200–218, which have the `PUDDLE` behaviour (walkable splash), blocked by collision 1. Ch1's Surf and fishing will need real water metatiles (`POND_WATER`/`OCEAN_WATER`) there.
 - **Hide flags:** visibility by `VAR_SIL_STORY` uses one hide flag per object, set by the `_OnTransition` scripts. Each object gets its own flag, so the validator's shared-flag warning does not fire. The source's single `FLAG_SIL_HIDE_BAR_SBIRES` is split into `_SBIRE_A` and `_SBIRE_B`. Every `FLAG_SIL_HIDE_*` flag here is new (the source has only `FLAG_SIL_HIDE_BAR_SBIRES`): the ids import must allocate them. New-game init should set the sbires' flags, `FLAG_SIL_HIDE_BAR_MALLETTE` and `FLAG_SIL_HIDE_BRICO_{SBIRE,MATHIEU,GWADA,ADRIEN}`.
-- **Coord events match one value**, so two source conditions are narrowed:
+- **Coord events match one value**, so two source conditions are reshaped:
   - `Route_S01_Sc02` ("≤ 8") fires on 6. Sc01's row, which sets 6, is the only way to y 2.
-  - The Brico-Bourg guard ("< 5") covers 1 and 2. The player is not outside at 0 (the bar), and 3–4 chain at the house door. If the bar lets the player out at 0, the bar must block that.
-- **Bar_Sc01 runs `on_frame` while `VAR_SIL_STORY` is 0.** The scene must stop it from running again (Gen3 re-runs an on-frame script while its var matches). It can do that with a temp var, or Task A can map this to a one-shot hook.
+  - The Brico-Bourg guard ("< 5") is keyed on `VAR_SIL_CH0_GATE` 0, which Brico_Bourg_Sc03 sets to 1 with the starter, so it covers every story value before the starter, including leaving the bar at 0.
+- **Coord events do not fire on a door's scripted exit step** (it skips the step-finished check). Scenes that start as the player leaves a door are on-frame scripts (Brico_Bourg_Sc02, Player_House_Sc01) or coord events on the cells around the exit cell (Brico_Bourg_Sc01).
+- **On-frame scripts must change their own var.** Gen3 re-runs one while its var matches: Bar_Sc01 is keyed on `VAR_TEMP_1` and sets it to 1; Brico_Bourg_Sc02 (via Sc03) and Player_House_Sc01 move `VAR_SIL_STORY` on.
 - **Exits to unbuilt maps are left out:**
   - the Labo door warp (`MAP_BRICO_BOURG_LABO`, Ch1);
   - Route S1's north connection (`MAP_BOIS_ETHER`, Ch1);

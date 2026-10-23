@@ -138,8 +138,8 @@
             local_id: 9,
             id: Some("LOCALID_BAR_MALLETTE"),
             gfx: "OBJ_EVENT_GFX_BIRCHS_BAG",
-            x: 12,
-            y: 4,
+            x: 13,
+            y: 3,
             elevation: 3,
             movement: "MOVEMENT_TYPE_FACE_DOWN",
             range_x: 0,
@@ -192,7 +192,7 @@
         on_dive_warp: None,
         on_frame: [
             (
-                var: "VAR_SIL_STORY",
+                var: "VAR_TEMP_1",
                 value: 0,
                 script: "BricoBourg_Bar_Sc01",
             ),
