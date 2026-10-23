@@ -743,6 +743,11 @@
             offset: 5,
             map: "RouteS01",
         ),
+        (
+            dir: East,
+            offset: 10,
+            map: "RouteS02",
+        ),
     ],
     scripts: (
         on_load: Some("BoisEther_OnLoad"),

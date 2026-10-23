@@ -1,0 +1,12 @@
+// Cells: walls, the TV corner, a shelf, the table and chairs, plants, the mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#$$%$$$&",
+        "()**+***,",
+        "-.//////0",
+        "112345111",
+        "112675111",
+        "111111111",
+        "8119:111;",
+    ], legend: {'!': (metatile: 646, collision: 1), '#': (metatile: 647, collision: 1), '$': (metatile: 517, collision: 1), '%': (metatile: 518, collision: 1), '&': (metatile: 560, collision: 1), '(': (metatile: 654, collision: 1), ')': (metatile: 655, collision: 1), '*': (metatile: 525, collision: 1), '+': (metatile: 526, collision: 1), ',': (metatile: 542, collision: 1), '-': (metatile: 662, collision: 0), '.': (metatile: 663, collision: 0), '/': (metatile: 548, collision: 0), '0': (metatile: 568, collision: 0), '1': (metatile: 547, collision: 0), '2': (metatile: 555, collision: 0), '3': (metatile: 586, collision: 1), '4': (metatile: 587, collision: 1), '5': (metatile: 556, collision: 0), '6': (metatile: 594, collision: 1), '7': (metatile: 595, collision: 1), '8': (metatile: 665, collision: 1), '9': (metatile: 520, collision: 0), ':': (metatile: 521, collision: 0), ';': (metatile: 554, collision: 1)}),
+]

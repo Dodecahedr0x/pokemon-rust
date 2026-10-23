@@ -1,0 +1,3 @@
+// Silice Ch3, MAP_VIBER_CITY_HOUSE_1: the street dancer's house (9 x 7). Building +
+// GenericBuilding (Emerald tilesets by name). Out-of-map border: black, blocked.
+(name: "ViberCity_House1", width: 9, height: 7, primary: "Building", secondary: "GenericBuilding", fill: 547, border: [1025, 1025, 1025, 1025])

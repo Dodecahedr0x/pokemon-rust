@@ -1,0 +1,32 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Depot_Sc02 sets the three hide flags below (Gogo keeps the source's
+    // FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN; Romain and the sbire have their own). They start clear: the
+    // depot is out of reach before VAR_SIL_STORY 30. OnTransition: from VAR_SIL_STORY 31 it puts
+    // the server blocks in the solved layout (setobjectxyperm A1 (8, 6), B1 (7, 3), B2 (8, 2)), or a
+    // player coming back from Viber-City could not cross to the south portal: A1 at (7, 11) only
+    // goes down, and stops on (7, 12) before the portal.
+    Scripts((on_load: None, on_transition: Some("RouteS03_Depot_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the south portal, to Route S3's warp 0. Warp 1: the north portal, to its warp 1.
+    Warp(x: 7, y: 13, dest_map: "RouteS03", dest_warp: 0),
+    Warp(x: 7, y: 0, dest_map: "RouteS03", dest_warp: 1),
+    // Objects 1-3: the server blocks A1, B1, B2 (no flag: they reset on every load). 4-6: Gogo,
+    // Romain and the sbire carrying a crate (Depot_Sc02).
+    Object(x: 7, y: 11, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_DEPOT_BLOC_A1", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_Depot_EventScript_Bloc"),
+    Object(x: 7, y: 4, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_DEPOT_BLOC_B1", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_Depot_EventScript_Bloc"),
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_DEPOT_BLOC_B2", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_Depot_EventScript_Bloc"),
+    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_DEPOT_GOGO", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN"),
+    Object(x: 9, y: 7, gfx: "OBJ_EVENT_GFX_AQUA_MEMBER_M", id: "LOCALID_DEPOT_ROMAIN", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_DEPOT_ROMAIN"),
+    Object(x: 4, y: 8, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_DEPOT_SBIRE", movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_DEPOT_SBIRE"),
+    // The Metal Coat on the rest area's west table (its flag is set at new game, in game.ron, until
+    // Depot_Sc02 clears it, so it shows after the scene); the Great Ball in the area's corner (the source's
+    // (13, 8) is a container, so (11, 8)).
+    Object(x: 3, y: 6, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_DEPOT_ITEM_METAL_COAT", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_Depot_EventScript_ItemMetalCoat", flag: "FLAG_SIL_ITEM_DEPOT_METAL_COAT"),
+    Object(x: 11, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_DEPOT_ITEM_GREAT_BALL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_Depot_EventScript_ItemGreatBall", flag: "FLAG_SIL_ITEM_DEPOT_GREAT_BALL"),
+    // Depot_Sc02: (7, 10), the only way into the rest area, VAR_SIL_STORY 30.
+    Coord(x: 7, y: 10, var: "VAR_SIL_STORY", value: 30, script: "RouteS03_Depot_Sc02"),
+    // Depot_Panneau_T1 by the south portal (read from (7, 12)); _T2 by the dock (read from (9, 3)).
+    Sign(x: 6, y: 12, script: "RouteS03_Depot_EventScript_Panneau1"),
+    Sign(x: 8, y: 3, script: "RouteS03_Depot_EventScript_Panneau2"),
+]

@@ -1,0 +1,10 @@
+// Header, warps, objects and bg events.
+[
+    Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the pad, to the arena's warp 2 (Salle 2's side pad).
+    Warp(x: 1, y: 4, dest_map: "GrisEchec_Gym", dest_warp: 2),
+    Object(x: 5, y: 4, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_GYM2_MELOMANE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "GrisEchec_Gym_Sourde_EventScript_Melomane", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // The chest (Grelot Zen): an item ball stands in for it.
+    Object(x: 7, y: 3, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GYM2_COFFRE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_Gym_Sourde_EventScript_Coffre", flag: "FLAG_SIL_ITEM_GYM2_SOOTHE_BELL"),
+    Sign(x: 4, y: 1, script: "GrisEchec_Gym_Sourde_EventScript_Panneau"),
+]

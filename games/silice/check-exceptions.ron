@@ -1515,5 +1515,11 @@
             reason: "name \"TAUBER&HOCS\" is 11 bytes (max 10); TRAINER_NAME_LENGTH is 10 (shorten, or a double battle with two trainers)",
             ruling_needed: true,
         ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_ITEM_CASINO_COINS_FLOOR",
+            reason: "20 coins are not an item, so no hidden item can carry the flag: the map has a bg script ViberCity_Casino_EventScript_JetonsCaches at (14,3) that gives the coins and sets the flag; drop this entry once ch03 scripts name the flag",
+            ruling_needed: false,
+        ),
     ],
 )
