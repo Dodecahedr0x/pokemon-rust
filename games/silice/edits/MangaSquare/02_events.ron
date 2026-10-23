@@ -1,0 +1,51 @@
+// Header, map scripts, warps, objects, coord and bg events, connection.
+[
+    Header((music: "MUS_LILYCOVE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_CITY", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // The on-transition script sets the hide flags from VAR_SIL_STORY and FLAG_SIL_BADGE_06 (livreur from 64,
+    // controleur until Manga_Square_Sc02) and the dawn tint (fallback: nothing).
+    Scripts((on_load: None, on_transition: Some("MangaSquare_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the Bibliotheque. 1: the Dojo. 2: the Pokemon Center. 3: the Konbini. 4: the Toiletteur.
+    // 5: the Monks' shortcut, from and to Route S6 (its warp 0, behind the bamboo curtain).
+    // The two houses (MAP_MANGA_SQUARE_HOUSE_1 and _2) have no content: their doors (3, 21) and (7, 21)
+    // are solid and have no warp.
+    Warp(x: 22, y: 7, dest_map: "MangaSquare_Bibliotheque", dest_warp: 0),
+    Warp(x: 36, y: 16, dest_map: "MangaSquare_Dojo", dest_warp: 0),
+    Warp(x: 15, y: 23, dest_map: "MangaSquare_PokemonCenter", dest_warp: 0),
+    Warp(x: 3, y: 14, dest_map: "MangaSquare_Mart", dest_warp: 0),
+    Warp(x: 9, y: 14, dest_map: "MangaSquare_Toiletteur", dest_warp: 0),
+    Warp(x: 1, y: 25, dest_map: "RouteS06", dest_warp: 0),
+    // Ambient NPCs (section 2), then the scene actors. The source numbers Benou 20, the controleur 21 and
+    // Adrien 22; here they are 8, 7 and 9: scripts use the LOCALID_ names.
+    Object(x: 10, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_MANGA_SQUARE_COSPLAYEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_EventScript_Cosplayeur"),
+    Object(x: 20, y: 9, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_MANGA_SQUARE_PURISTE", movement: "MOVEMENT_TYPE_FACE_UP", script: "MangaSquare_EventScript_Puriste"),
+    Object(x: 12, y: 26, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_MANGA_SQUARE_MERE", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "MangaSquare_EventScript_Mere"),
+    Object(x: 19, y: 17, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_MANGA_SQUARE_ANCIEN", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_EventScript_Ancien"),
+    Object(x: 24, y: 9, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_MANGA_SQUARE_LIVREUR", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_EventScript_Livreur", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR"),
+    Object(x: 25, y: 17, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_MANGA_SQUARE_GAMIN", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 2, range_y: 2, script: "MangaSquare_EventScript_Gamin"),
+    // The controleur blocks the one-cell way north of the Grand Torii (37, 0) until Manga_Square_Sc02.
+    // BENOU, the controleur and ADRIEN keep the source's obj numbers 20, 21 and 22.
+    Object(x: 37, y: 1, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_MANGA_SQUARE_CONTROLEUR", local_id: 21, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_EventScript_Controleur", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR"),
+    Object(x: 37, y: 3, gfx: "OBJ_EVENT_GFX_DEVON_EMPLOYEE", id: "LOCALID_MANGA_SQUARE_BENOU", local_id: 20, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_BENOU"),
+    Object(x: 37, y: 8, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_MANGA_SQUARE_ADRIEN", local_id: 22, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN"),
+    // Manga_Square_Sc01, VAR_SIL_STORY 61: under the Torii Sud (x 21-23, y 33), and at the shortcut's
+    // first step (2, 25) (a warp arrival fires no coord event on its own cell).
+    Coord(x: 21, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
+    Coord(x: 22, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
+    Coord(x: 23, y: 33, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
+    Coord(x: 2, y: 25, var: "VAR_SIL_STORY", value: 61, script: "MangaSquare_Sc01"),
+    // Manga_Square_Sc02, VAR_SIL_STORY 66: the three cells in front of the Grand Torii (x 36-38, y 6).
+    Coord(x: 36, y: 6, var: "VAR_SIL_STORY", value: 66, script: "MangaSquare_Sc02"),
+    Coord(x: 37, y: 6, var: "VAR_SIL_STORY", value: 66, script: "MangaSquare_Sc02"),
+    Coord(x: 38, y: 6, var: "VAR_SIL_STORY", value: 66, script: "MangaSquare_Sc02"),
+    // Manga_Square_Sc03, VAR_SIL_STORY 67: the exit cell under the Grand Torii.
+    Coord(x: 37, y: 1, var: "VAR_SIL_STORY", value: 67, script: "MangaSquare_Sc03"),
+    Sign(x: 26, y: 34, script: "MangaSquare_EventScript_SignVille"),
+    Sign(x: 22, y: 16, script: "MangaSquare_EventScript_SignStatue"),
+    Sign(x: 39, y: 6, script: "MangaSquare_EventScript_SignGrandTorii"),
+    Sign(x: 18, y: 13, script: "MangaSquare_EventScript_SignEcran"),
+    Sign(x: 26, y: 13, script: "MangaSquare_EventScript_SignEcran"),
+    // The hidden Revive behind the dragon statue.
+    HiddenItem(x: 22, y: 13, item: "ITEM_REVIVE", flag: "FLAG_SIL_ITEM_MANGA_SQUARE_REVIVE"),
+    // Route S6 to the south: its exit x 12-14 meets our Torii Sud x 21-23.
+    Connect((dir: South, offset: 9, map: "RouteS06")),
+]

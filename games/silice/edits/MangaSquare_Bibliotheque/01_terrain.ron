@@ -1,0 +1,32 @@
+// Cells: the wall, the Archives room and its partition, the shelves, terminals, racks, counter, mat.
+[
+    // . floor, W w wall, | J j P p the Archives' partition (door x 19-20), R r q server racks (q their shadow), k K n N a
+    // desk (the contractor's, Adrien's), B C D E bookshelves, 4 terminals, G H parchment racks, P p (again) the
+    // archivist's counter, z plants, < > the exit mat.
+    Ascii(x: 0, y: 0, rows: [
+        "WWWWWWWWWWWWWWWWWWWWWWWWWW",
+        "wwwwwwwwwwwwwwwwwwwwwwwwww",
+        ".BCBCBCBCBCBC...|.R.R.R.R.",
+        ".DEDEDEDEDEDE...|.r.r.r.r.",
+        "................|.q.q.q.q.",
+        ".............kK.|.........",
+        ".............nN.|....kK...",
+        "..BCBC..BCBC....|....nN...",
+        "..DEDE..DEDE....JPP..PPPPP",
+        "......4.....4...jpp..ppppp",
+        "..........................",
+        "..BCBC..BCBC..............",
+        "..DEDE..DEDE..............",
+        "......4.....4.............",
+        "..........................",
+        "..BCBC..BCBC..............",
+        "..DEDE..DEDE..............",
+        "................PPPP......",
+        "................pppp......",
+        ".GH....................GH.",
+        "..........................",
+        "..........................",
+        "z........................z",
+        "............<>............",
+    ], legend: {'.': (metatile: 514, collision: 0), '4': (metatile: 4, collision: 1), '<': (metatile: 518, collision: 0), '>': (metatile: 519, collision: 0), 'B': (metatile: 556, collision: 1), 'C': (metatile: 557, collision: 1), 'D': (metatile: 564, collision: 1), 'E': (metatile: 565, collision: 1), 'G': (metatile: 544, collision: 1), 'H': (metatile: 545, collision: 1), 'J': (metatile: 619, collision: 1), 'K': (metatile: 539, collision: 1), 'N': (metatile: 547, collision: 1), 'P': (metatile: 607, collision: 1), 'R': (metatile: 624, collision: 1), 'W': (metatile: 520, collision: 1), 'j': (metatile: 627, collision: 1), 'k': (metatile: 538, collision: 1), 'n': (metatile: 546, collision: 0), 'p': (metatile: 615, collision: 1), 'q': (metatile: 640, collision: 0), 'r': (metatile: 632, collision: 1), 'w': (metatile: 522, collision: 1), 'z': (metatile: 558, collision: 1), '|': (metatile: 619, collision: 1)}),
+]

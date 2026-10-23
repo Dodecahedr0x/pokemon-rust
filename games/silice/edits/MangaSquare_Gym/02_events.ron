@@ -1,0 +1,30 @@
+// Header, map scripts, warp, objects, coord and bg events.
+[
+    Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_TOWN", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_GYM")),
+    // on_load: each shoji door whose FLAG_SIL_GYM06_PORTE_n is set opens (setmetatile (10, y) to the
+    // paving, 265, passable); P1 is y 20, P5 y 4.
+    Scripts((on_load: Some("MangaSquare_Gym_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warp 0: the exit arrow (south) to the Dojo's back door, its warp 1.
+    Warp(x: 10, y: 29, dest_map: "MangaSquare_Dojo", dest_warp: 1),
+    // Champion TAK before the dragon statue (Gym_Sc03).
+    Object(x: 10, y: 3, gfx: "OBJ_EVENT_GFX_BRAWLY", id: "LOCALID_GYM06_TAK", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Gym_Sc03"),
+    // The two samurai of the Allee des Regards (Gym_Sc01, the double battle): Musashi in the east niche,
+    // Kojiro in the west one.
+    Object(x: 11, y: 25, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM06_MUSASHI", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Gym_Sc01"),
+    Object(x: 9, y: 22, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM06_KOJIRO", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Gym_Sc01"),
+    // The Kunoichi AYAME (between P4 and P3) and the Moine SEIJI (between P5 and P4).
+    Object(x: 14, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_GYM06_AYAME", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Gym_EventScript_Ayame", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 7, y: 6, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_GYM06_SEIJI", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Gym_EventScript_Seiji", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 8, y: 28, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_GYM06_GUIDE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Gym_EventScript_Guide"),
+    // Gym_Sc01: walking up the alley between the samurai starts the double battle (the script returns
+    // when the samurai's trainer flag is set).
+    Coord(x: 10, y: 25, var: "VAR_TEMP_1", value: 0, script: "MangaSquare_Gym_Sc01"),
+    Coord(x: 10, y: 22, var: "VAR_TEMP_1", value: 0, script: "MangaSquare_Gym_Sc01"),
+    // Gym_Sc02: the five desks (pupitres), each read from below or beside; the script picks the riddle by
+    // the door (y 21 P1 ... y 5 P5).
+    Sign(x: 9, y: 21, script: "MangaSquare_Gym_Sc02"),
+    Sign(x: 9, y: 17, script: "MangaSquare_Gym_Sc02"),
+    Sign(x: 9, y: 13, script: "MangaSquare_Gym_Sc02"),
+    Sign(x: 9, y: 9, script: "MangaSquare_Gym_Sc02"),
+    Sign(x: 9, y: 5, script: "MangaSquare_Gym_Sc02"),
+]

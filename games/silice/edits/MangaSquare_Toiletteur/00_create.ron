@@ -1,0 +1,4 @@
+// Silice Ch6, MAP_MANGA_SQUARE_TOILETTEUR: the "Kawaii Grooming" salon (10 x 9).
+// Building + PokemonFanClub: Slateport's Fan Club, Emerald's friendship parlour (pink rug, armchairs as
+// cushions, shelves). Border: black, blocked.
+(name: "MangaSquare_Toiletteur", width: 10, height: 9, primary: "Building", secondary: "PokemonFanClub", fill: 513, border: [1025, 1025, 1025, 1025])
