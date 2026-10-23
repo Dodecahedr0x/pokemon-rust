@@ -21,6 +21,8 @@ Until now, parity meant ROM == native (`emu/tests/parity.rs`), never "behaves li
 
 ## 1. Tasks
 
+**Working rule (user, 2026-10-23):** every agent goes as far as it can. It records issues as it meets them and keeps going, with clearly marked and logged fallbacks, instead of stopping at the first problem. The issues are then fixed in bulk.
+
 The rules are M8's and M9's: own worktree, TDD, `feat(<crate>): …` commits, no attribution lines, reviewed then merged with `--no-ff`. Worktrees need `PKR_ROM_FR`, `PKR_ROM_US` and `PKR_DECOMP`. **Nothing ROM-derived is committed:** decomp *names* and counts are fine, while RAM dumps, pictures and `.sav` files are not. The oracle runs only when `PKR_ROM_US` is set, and is skipped otherwise.
 
 ### Wave A (parallel)
@@ -61,10 +63,10 @@ The rules are M8's and M9's: own worktree, TDD, `feat(<crate>): …` commits, no
    - Route 110 (May), Mauville, Wattson (badge 3);
    - then as far as it plays.
 2. Use `Train` and Center heals, as Act 1 does. New goals go in a new act per badge (`act2`, `act3`, …), checked against the decomp's names (`m8_k_goals`).
-3. **A step the engine cannot play is not worked around.** The spine stops there, and the task records the blocker in this doc's "Spine blockers" table: step, map, cell, the expansion error or report, and the decomp feature. Each blocker is a ledger entry tagged `story-blocking`. Workarounds for *explorer* gaps (the planner, the policy) are fine. Workarounds for *engine* gaps are not.
+3. **Go as far as possible; record, bypass, continue (user, 2026-10-23).** When the engine cannot play a step, the task records it in the "Spine blockers" table: step, map, cell, the expansion error or report, the decomp feature, and the owner. It then continues past it with an explicit `Step::Bypass { issue, .. }`. The bypass sets the flags, vars, warp or party state that the missing feature would have produced. It lives on the explorer side only, never as an engine change. Bypasses are printed by `explore spine`, and the test asserts that the bypass list equals the blocker list, so fixing a gap means deleting its bypass. The aim is the whole story through the League. The gaps are fixed **in bulk** afterwards (Wave C).
 4. `spine_reaches_badge1` stays. Add `spine_reaches_<last checkpoint>`.
 
-**Done when:** the spine runs to its last playable checkpoint with no bug finding, and every blocker past it is in the table.
+**Done when:** the spine runs as far into the story as bypasses allow, with every bypass matching a recorded blocker.
 
 #### Task O1 — vanilla oracle foundation (owns `crates/vanilla` (new, host-only, depends on `emu`) and the `emu` RAM-read API)
 
