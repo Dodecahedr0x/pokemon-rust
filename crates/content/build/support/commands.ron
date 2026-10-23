@@ -148,7 +148,7 @@
     "buffernumberstring": Native,
     "bufferstdstring": Native,
     "bufferstring": Native,
-    "pokemart": Unsupported,
+    "pokemart": Native, // `mart(&ctx, &<list>)` when the extract names the list (minor 10), else reported
     "pokemartdecoration": Unsupported,
     "pokemartdecoration2": Unsupported,
     "playslotmachine": Unsupported,

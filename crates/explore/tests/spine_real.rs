@@ -69,14 +69,12 @@ const SPINE_BLOCKERS: &[&str] = &[
     "fly-lilycove",
     "water-door-in",
     "water-door-out",
-    "steven-multi",
     "dive-seafloor",
     "dive-sootopolis",
     "dive-out-sootopolis",
     "dive-sootopolis",
     "dive-out-sootopolis",
     "waterfall-ever-grande",
-    "league-mart",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew

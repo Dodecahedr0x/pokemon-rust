@@ -9,6 +9,7 @@
 //! it out first, so the script never waits on a black screen.
 
 use super::*;
+use engine::script::PartyStash;
 
 /// Gen3 `PARTY_NOTHING_CHOSEN` (`include/constants/party_menu.h`).
 const PARTY_NOTHING_CHOSEN: u16 = 0xFF;
@@ -134,6 +135,13 @@ const FRONTIER_UTIL_FUNCS: [&str; 23] = [
 const FRONTIER_UTIL_FUNC_GET_STATUS: u16 = 0;
 const FRONTIER_UTIL_FUNC_GET_DATA: u16 = 1;
 const FRONTIER_UTIL_FUNC_SET_DATA: u16 = 2;
+const FRONTIER_UTIL_FUNC_SAVE_PARTY: u16 = 6;
+/// Gen3 `FACILITY_MULTI_OR_EREADER` (the frontier facility var of Steven's multi battle).
+const FACILITY_MULTI_OR_EREADER: u16 = 9;
+/// Gen3 `MULTI_PARTY_SIZE` (`PARTY_SIZE / 2`).
+const MULTI_PARTY_SIZE: u8 = 3;
+/// Gen3 `SPECIAL_BATTLE_STEVEN` (`DoSpecialTrainerBattle`'s `VAR_0x8004`).
+const SPECIAL_BATTLE_STEVEN: u16 = 8;
 /// `GetChallengeStatus` with `frontier.challengeStatus` 0 (no challenge in progress).
 const CHALLENGE_STATUS_NONE: u16 = 0xFF;
 
@@ -144,6 +152,10 @@ const CHALLENGE_STATUS_NONE: u16 = 0xFF;
 ///   var stayed 0).
 /// - `GET_DATA` (`GetFrontierData`): `VAR_RESULT` = 0, a new save's value (degraded);
 ///   `SET_DATA` stores nothing (degraded).
+/// - `SAVE_PARTY` (`SaveSelectedParty`, Wave F): the chosen mons back to their backup slots
+///   (`PartyStash::SaveSelected`: the order the choose-half menu answered stands for
+///   `frontier.selectedPartyMons`, which `frontier_set FRONTIER_DATA_SELECTED_MON_ORDER` copies
+///   from it).
 /// - The others report `Unsupported` with their `FRONTIER_UTIL_FUNC_*` name.
 async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
     match ctx.var(VAR_0x8004).await {
@@ -156,6 +168,7 @@ async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
             ctx.set_var(VAR_RESULT, 0).await;
         }
         FRONTIER_UTIL_FUNC_SET_DATA => degraded(ctx, id).await,
+        FRONTIER_UTIL_FUNC_SAVE_PARTY => ctx.party_stash(PartyStash::SaveSelected).await,
         f => {
             let name = FRONTIER_UTIL_FUNCS
                 .get(usize::from(f))
@@ -164,6 +177,29 @@ async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
             ctx.report(Report::Unsupported(name)).await;
         }
     }
+}
+
+/// Gen3 `DoSpecialTrainerBattle` (`battle_tower.c`): `SPECIAL_BATTLE_STEVEN` only (see
+/// [`special`]); the outcome, also in `VAR_RESULT`.
+async fn do_special_trainer_battle(ctx: &Ctx, id: u16) -> u16 {
+    let foes = story::STEVEN_MULTI_FOES;
+    let (SPECIAL_BATTLE_STEVEN, Some(foes)) = (ctx.var(VAR_0x8004).await, foes) else {
+        ctx.report(Report::Unsupported("SPECIAL_DoSpecialTrainerBattle"))
+            .await;
+        return 0;
+    };
+    degraded(ctx, id).await;
+    let mut outcome = BattleOutcome::Won;
+    for (trainer, defeat) in foes {
+        let defeat = text_named(defeat).unwrap_or(TextId(0));
+        outcome = ctx.battle_trainer(trainer, defeat).await;
+        if outcome != BattleOutcome::Won {
+            break;
+        }
+    }
+    let v = outcome as u16;
+    ctx.set_var(VAR_RESULT, v).await;
+    v
 }
 
 /// Reports `id` as run in a simplified way (its decomp name).
@@ -236,6 +272,19 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   player lands where the credits' soft reset and CONTINUE would: the CONTINUE warp
 ///   (`SetContinueGameWarpToHealLocation`, the player's 2F room by gender). The warp's map load
 ///   ends the script, as the reset does.
+/// - Wave F, Steven's multi battle (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`):
+///   - `SavePlayerParty`, `LoadPlayerParty`, `ReducePlayerPartyToSelectedMons`: the engine's
+///     [`PartyStash`] (`load_save.c`, `script_pokemon_util.c`);
+///   - `ChooseHalfPartyForBattle` (`script_pokemon_util.c`): the frontier facility var =
+///     `FACILITY_MULTI_OR_EREADER`, the choose-half party menu (`MULTI_PARTY_SIZE` 3, at least
+///     1), `VAR_RESULT` = whether a mon was chosen (`CB2_ReturnFromChooseHalfParty`); the
+///     field fades back in (`CB2_ReturnToFieldContinueScriptPlayMapMusic`);
+///   - `DoSpecialTrainerBattle` (`battle_tower.c`) with `VAR_0x8004` = `SPECIAL_BATTLE_STEVEN`,
+///     degraded (no double battles): the chosen party fights Maxie, then (won) Tabitha, as
+///     single battles without Steven; `VAR_RESULT` = the outcome
+///     (`HandleSpecialTrainerBattleEnd`). A loss whites out at once (the engine restores the
+///     party first, as the script's `frontier_saveparty` and `LoadPlayerParty` would before
+///     `SetCB2WhiteOut`). The other battle types report `Unsupported`.
 /// - Degraded (reported), as if cancelled:
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
@@ -323,6 +372,28 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             }
         }
         id if id == SPECIAL_CallFrontierUtilFunc => call_frontier_util_func(ctx, id).await,
+        // ---- Wave F: Steven's multi battle ----
+        id if id == SPECIAL_SavePlayerParty => ctx.party_stash(PartyStash::Save).await,
+        id if id == SPECIAL_LoadPlayerParty => ctx.party_stash(PartyStash::Load).await,
+        id if id == SPECIAL_ReducePlayerPartyToSelectedMons => {
+            ctx.party_stash(PartyStash::Reduce).await
+        }
+        id if id == SPECIAL_ChooseHalfPartyForBattle => {
+            if let Some(v) = story::FRONTIER_FACILITY {
+                ctx.set_var(v, FACILITY_MULTI_OR_EREADER).await;
+            }
+            let mode = PartyMode::ChooseHalf {
+                max: MULTI_PARTY_SIZE,
+                min: 1,
+            };
+            let chosen = ctx.choose_party_mon(mode).await;
+            ctx.set_var(VAR_RESULT, chosen).await;
+            ctx.fade(Fade::FromBlack).await;
+            return chosen;
+        }
+        id if id == SPECIAL_DoSpecialTrainerBattle => {
+            return do_special_trainer_battle(ctx, id).await;
+        }
         id if id == SPECIAL_CableCarWarp => {
             cable_car_destination(ctx).await;
         }
@@ -877,6 +948,8 @@ mod story {
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;
     pub const GAME_CLEAR: Option<GameClear> = None;
+    pub const FRONTIER_FACILITY: Option<VarId> = None;
+    pub const STEVEN_MULTI_FOES: Option<[(TrainerId, &str); 2]> = None;
 }
 
 /// `GameClear`'s names: `FLAG_SYS_GAME_CLEAR` and the CONTINUE warp's heal locations, the male

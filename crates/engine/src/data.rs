@@ -920,6 +920,26 @@ pub enum UiText {
     ItemStatIncreased,
     /// `gText_MovesPPIncreased`.
     ItemPpIncreased,
+    // ---- Added by Wave F (the party menu's choose-half mode; `strings.c` names) ----
+    /// `gText_Enter` (`MENU_ENTER`).
+    PartyEnter,
+    /// `gText_NoEntry` (`MENU_NO_ENTRY`).
+    PartyNoEntry,
+    /// `gMenuText_Confirm` (the CONFIRM button).
+    PartyConfirm,
+    /// `gText_Able3` (a mon that may enter).
+    PartyAble3,
+    /// `gText_First_PM`, `gText_Second_PM`, `gText_Third_PM`, `gText_Fourth`: the entry order.
+    PartyFirst,
+    PartySecond,
+    PartyThird,
+    PartyFourth,
+    /// `gText_NoMoreThanVar1Pkmn`: `{STR_VAR_1}` the count.
+    PartyNoMoreThan,
+    /// `gText_NoPokemonForBattle`.
+    PartyNoMonForBattle,
+    /// `gText_CancelBattle`.
+    PartyCancelBattle,
 }
 
 /// One start-menu entry (Gen3 `sStartMenuItems`), in display order (Milestone 9).
@@ -1396,6 +1416,12 @@ pub trait GameData {
     fn item_use(&self, id: ItemId) -> ItemUse {
         let _ = id;
         ItemUse::None
+    }
+    /// The mart's purchase bonus `(item, at least, gift)`: buying at least that many of `item`
+    /// at once adds one `gift` (Gen3 `Task_ReturnToItemListAfterItemPurchase`: 10 Poké Balls,
+    /// a Premier Ball). `None`: no bonus.
+    fn mart_bonus(&self) -> Option<(ItemId, u16, ItemId)> {
+        None
     }
     /// Gen3-encoded, 0xFF-terminated item description (`gItems[].description`).
     fn item_description(&self, id: ItemId) -> Option<&'static [u8]> {
