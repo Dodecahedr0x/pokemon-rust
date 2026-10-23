@@ -141,6 +141,25 @@
         "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
         "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
         "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
+        // Ch8 Évalon (each map's OnTransition owns them from VAR_SIL_STORY): Route_S08_Sc02's pigeon
+        // (80); Évalon's friends (Evalon_Sc01 at 80–81, Evalon_Sc07 at 83; Mathieu keeps the
+        // source's FLAG_SIL_HIDE_EVALON_AMIS, which Evalon_Sc09 sets for good), the Scribe (80–81),
+        // and Evalon_Sc07's Gogo, Romain and three sbires (the source sets
+        // FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN by default); the friends at the Taverne (82–83).
+        // Plume-d'Argent, the south-east path's guard and the gym's trapped chest start visible.
+        "FLAG_SIL_HIDE_S08_PIGEON",
+        "FLAG_SIL_HIDE_EVALON_AMIS",
+        "FLAG_SIL_HIDE_EVALON_ADRIEN",
+        "FLAG_SIL_HIDE_EVALON_GWADA",
+        "FLAG_SIL_HIDE_EVALON_SCRIBE",
+        "FLAG_SIL_HIDE_EVALON_GOGO_ROMAIN",
+        "FLAG_SIL_HIDE_EVALON_ROMAIN",
+        "FLAG_SIL_HIDE_EVALON_SBIRE_1",
+        "FLAG_SIL_HIDE_EVALON_SBIRE_2",
+        "FLAG_SIL_HIDE_EVALON_SBIRE_3",
+        "FLAG_SIL_HIDE_EVALON_TAVERNE_MATHIEU",
+        "FLAG_SIL_HIDE_EVALON_TAVERNE_ADRIEN",
+        "FLAG_SIL_HIDE_EVALON_TAVERNE_GWADA",
     ],
     new_game_vars: [],
 )
