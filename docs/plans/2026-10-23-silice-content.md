@@ -374,6 +374,150 @@ Example spec and edit script (the shape of the fixture's `FixtureTown`):
 - The header is edited only through the `Header` op, not in the UI.
 - The palette shows no metatile numbers. The CLI prints its layout: 8 per row, and the cell where the secondary starts.
 
+#### SIL1 Task C, editor upgrades as built
+
+These upgrades answer the friction the first six Silice maps hit: no metatile numbers or behaviours in the pictures, invisible collision mistakes, buildings typed as throwaway `Ascii` letters, three passes for linked maps, one `cargo run` per call, and confusing case clashes. The code is in `crates/studio/src/map_edit/`: new modules `behavior.rs`, `overlay.rs`, `stamp.rs`, `resources.rs` and `batch.rs`. The tests are in `map_edit/tests.rs`, `tests/map_edit.rs` and the new `tests/map_edit_tools.rs`.
+
+**Games dir layout.** The editor now owns four dirs:
+
+```text
+games/<game>/maps/<Name>.ron       GameMap (unchanged)
+games/<game>/layouts/<Name>.ron    Layout (unchanged)
+games/<game>/stamps/<name>.ron     Stamp: a small cell grid (below)
+games/<game>/edits/<Map>/<phase>_<what>.ron
+                                   the map's create spec (<what> = create) and edit scripts
+```
+
+**Stamp format (`stamp.rs`).** A stamp is canonical RON, written by `stamp-from` or by hand:
+
+```ron
+(
+    primary: "General",
+    secondary: "Petalburg",
+    width: 2,
+    height: 1,
+    elevation: true,
+    blocks: [
+        (13313, 13314),
+    ],
+)
+```
+
+- `blocks` holds raw blocks, as a layout does: `metatile | collision << 10 | elevation << 12`.
+- With `elevation: false`, stamping keeps the map's elevations, and the blocks' elevation bits are 0.
+- A stamp is keyed to its tilesets. The map's primary tileset must be the stamp's. Its secondary must match too, but only when the stamp uses secondary metatiles (512 and up).
+
+**Edit script additions (`model.rs`).**
+- `Stamp(x: 5, y: 4, name: "House")` paints `stamps/House.ron` with its top-left at (x, y). The stamp must fit in the map, and its tilesets are checked as above.
+- `AutoCollision()` or `AutoCollision(rect: (x: 0, y: 0, w: 10, h: 4))` sets collision from the usual-collision heuristic below. It changes only cells whose walkability disagrees with the usual collision, to 0 or 1, so a deliberate collision of 2 or 3 on a solid cell stays.
+- `Ascii` legends accept any character as a key. Write it as a RON char, such as `'#'`, `'"'`, `' '` or `'é'`, with the escapes `'\''` and `'\\'`. A one-character string such as `"\""` also works.
+  - Inside the rows, escape `"` and `\` (`"\"\\"`), or use raw strings (`r#"..."#`).
+  - A key of more than one character is an error.
+- `Stamp` and `AutoCollision` read outside the document through `model::Env`. The CLI and `build` pass `resources::Resources`, which holds the games dir and the catalog. An `Editor` without an env refuses both ops with "needs a games dir". The UI does not use them.
+
+**Behaviours and usual collision (`behavior.rs`, heuristics, documented there).**
+- **Behaviour.** A metatile's behaviour is the `MB_*` byte of its tileset's attributes, the same `attr & 0xFF` the game reads. It is named through `extract::names` and classified by the build's `GameData::behavior`.
+- **Codes.** One letter per behaviour class:
+  - `D` door;
+  - `W` warp cell (a plain door, stairs or ladder);
+  - `A` arrow warp (a warp mat or exit);
+  - `G` tall grass;
+  - `L` ledge;
+  - `C` counter;
+  - `S` water (`*WATER*` names);
+  - `B` another blocked behaviour.
+  Normal metatiles have no code.
+- **Usual collision of a cell.** The first rule that applies wins:
+  1. **The extract's verdict.** If the extracted maps use the metatile (with the same tileset) in at least `MIN_USES` = 3 cells:
+     - all walkable gives 0;
+     - all solid (collision 1..=3) gives 1;
+     - mixed gives no usual collision (water at map edges, for example).
+     The counts are taken at run time from the extracted map files that `Catalog::from_content` already reads (`Catalog::collision_uses`). Nothing is committed.
+  2. **The behaviour.**
+     - Tall grass, ledges and water are walkable.
+     - Counters are solid.
+     - Warp cells and arrow warps are walkable when a warp event is on the cell, and have no usual collision without one.
+     - Doors have none: Emerald has doors with warps both walkable and solid, because the door opens when the player pushes against it.
+  3. Otherwise, none.
+- **Validation warnings** (never errors):
+  - a cell walkable against a solid usual collision, or the reverse (the message gives the reason: "in all N extracted cells using it", or "as a water metatile (MB_OCEAN_WATER)");
+  - a walkable door, warp-cell or arrow-warp metatile without a warp event;
+  - a warp event on a metatile that triggers no warp.
+- **Tuning.** On the 15-map extract, these warnings fire for only a few cells (edge water and a ledge end, used once or twice) and one Route 103 warp. To fix the fixture's warps, its warp cells were repainted with metatile 167 (`MB_NON_ANIMATED_DOOR`).
+
+**Pictures (`overlay.rs`).** Text uses a built-in 3x5 bitmap font: digits, the code letters and `!`. A picture with labels or an overlay is scaled 2x unless `--scale N` (1..=8) says otherwise.
+- **`palette --labels`** draws each metatile id at the top-left of its cell and the behaviour code at the bottom-right. It prints the legend: each code, then its metatiles grouped by `MB_*` name.
+- **`render --events`** frames each event's cell and labels it:
+  - objects in yellow, with their local id;
+  - warps in magenta (`W<index>`);
+  - coord events in cyan (`C<index>`);
+  - signs in green (`S<bg index>`);
+  - hidden items in orange (`H<bg index>`).
+  Labels stack when several events share a cell.
+- **`render --collision`** tints solid cells red and draws each cell's behaviour code. Cells whose collision disagrees with the usual one are outlined in yellow and marked `!`.
+- A render without these flags is unchanged, byte for byte.
+
+**Batch mode (`batch.rs`): `studio-map … build [<edits dir>]`.** The edits dir defaults to `<games>/edits`.
+- **Order.** In one process, the build runs:
+  1. every create, in map-name order;
+  2. every script, sorted by phase number, then map name, then file name;
+  3. one validation of the whole games dir (plus the orphan-layout listing).
+- **Equivalence.** This is exactly `create` for each create spec in that order, then `apply` for each script in that order. Each step reads the map and its layout as the previous steps left them (in memory) and writes both back, so the bytes are identical. A test checks this against the step-by-step CLI.
+- **Rebuilds.** A map with a create file is rebuilt from scratch: its saved map file is ignored, and so is its layout unless the spec shares one. Running `build` again on a populated dir gives the same files. A map dir without a create file edits the saved map in place.
+- **Links.** Links are checked only by the final validation, so mutually linked maps need one pass and show no transient errors.
+- **Failures.** These stop the build before anything is written:
+  - a failing op (named by file and op index);
+  - a create that does not validate, or whose `name` is not its dir;
+  - a stray file (anything but `<digits>_<what>.ron`);
+  - a second create for a map;
+  - map dirs whose names differ only in case.
+  Errors from the final validation fail the command after writing, as `apply` saves drafts.
+
+**Hygiene (`games::hygiene`, and the new `studio-map … hygiene` command, which exits 1 on any problem).**
+- `stamps/*.ron` must be canonical `Stamp` RON, as maps and layouts are.
+- `edits/` may hold only `<Map>/<phase>_<what>.ron` files that parse: as a `NewMap` for `create`, and as a list of `Op` otherwise.
+- **Copies.** `games::copies` checks stamps as it checks layouts: a stamp equal to an extracted layout, or holding a 10x10 square of one with at least 12 distinct metatiles, is flagged. A stamp smaller than 10x10 cannot be flagged on its own. A map it is stamped on is flagged if the result copies an extracted square.
+
+**Case collisions.**
+- `GamesDir::{new_doc, create, save, load_map, load_layout, load_stamp, save_stamp}` refuse a name that differs from a saved map, layout or stamp only in case, on every OS: "map Routeone differs from map RouteOne only in case (one file on a case-insensitive file system): use RouteOne, or another name".
+- `validate` and `build` report saved maps whose names differ only in case as errors (possible on case-sensitive file systems).
+
+**CLI as built:**
+
+```text
+studio-map [--games DIR | --game NAME] list
+studio-map … create <spec.ron>
+studio-map … apply <Map> <script.ron> [--dry-run]
+studio-map … build [<edits dir>]                     # default <games>/edits
+studio-map … validate [<Map>...]
+studio-map … hygiene                                 # exit 1 on any problem
+studio-map … render <Map> [--out FILE] [--margin N] [--events] [--collision] [--scale N]
+studio-map palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N]
+studio-map … stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force]
+```
+
+**Speed.**
+- **Measured.** With the bin already built, one `cargo run` of `studio-map` costs about 0.55 s, and the bin alone about 0.03 s. A `build` of 6 linked 30x20 maps (6 creates and 12 scripts) runs in about 0.06 s, or 0.6 s through `cargo run`.
+- **Step by step.** The same work takes 19 `cargo run` calls, about 10 s when nothing recompiles.
+- **Reported.** The ~40 s reported for 25 calls included rebuilds.
+- **Estimate.** A rebuild is about 15x faster when warm, and about 60x against the reported figure. It is also one call instead of about 25, and needs no create, terrain and events passes.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| clippy `-D warnings`, plain and with `game-native/window,studio/ui` | clean |
+| `cargo test --workspace`, real (env as in the brief) | 1416 passed, 14 ignored |
+| `cargo test --workspace`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 1404 passed, 14 ignored |
+| `cargo xtask studio --check` | 192 passed |
+
+**Limitations.**
+- The usual-collision statistics come from the extract the build has: the M7 slice, 15 maps. Most metatiles therefore fall back to their behaviour. The full import (M8 Task L) will sharpen them with no code change.
+- The labelled palette of a full tileset pair is tall (`General` + `Petalburg` is 256x2624 at scale 2). Viewers downscale it, so crop it or read it at `--scale 1` for an overview.
+- The UI's Edit tab does not offer stamps, `AutoCollision` or the overlays yet. Its editors have no env.
+- The extract's own maps raise a few behaviour warnings, which is expected for heuristics. The fixture was repainted so that it raises none.
+
 ### 3.2 SIL2: Ch1–Ch3 (needs M9 mart, menus and save, and M10 Cut, Strength and Flash)
 **Wave 0 engine contracts** (each new piece of state hashed and snapshotted once, with a SCHEMA bump):
 - `GameData::field_move_enabled`: the module flags gate field moves;
