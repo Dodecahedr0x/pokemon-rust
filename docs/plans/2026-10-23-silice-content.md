@@ -1487,6 +1487,11 @@ Emerald's script is the decomp's `EventScript_HiddenItemScript`. Wiring it means
   - Route S1's row y 30 is open only at x 8–13 (the Sc01 cells), and y 1 only at x 7–10 above Sc02's cells. So Sc02's single value 6 matches the source's "≤ 8" on every path, and a lost Sc01 battle aborts the script (whiteout) with the story at 5.
 - Left as is: in Bar_Sc03 the sbires vanish at (10, 3–4), short of the back door. Every way to the door passes a cell the player may stand on.
 
+**Silice route after the Ch0 scripts.** The new game now opens inside Bar_Sc01, an on-frame script whose messages wait on A. Left idle, it is never capturable (`NotCapturable::Script` on the bar, (7, 4)), so `SILICE_ROUTE`'s `silice_start` (frame 24) failed and every test on `cached_route` panicked (26 in `game-native`, `emu` and `xtask`), along with the tests that settle a new game by pressing nothing (3 in `controls`, 36 `explore` tests in 8 binaries, `studio`'s `rewind_delegates_to_controls`), and the unbounded loops of `m8_k_key` and `m8_n_from` hung.
+- `scenario::SILICE_ROUTE` mashes through the intro (`Action::Mash`) before `silice_start`, now at frame 1,363 on the bar. `silice_idle` and `silice_end` follow `SILICE_IDLE` (600) and `SILICE_TAIL` frames later. No Silice node is committed, so nothing is re-recorded.
+- `scenario::opening_key` presses A every other frame while a script shows a message, and nothing otherwise, so Emerald and the stub, which never show a message before the field, get the same inputs as before. `scenario::to_field` steps a new game with it to the first capturable frame, within `NEW_GAME_FRAMES` (6,000). Past that, it errs with the map, the cell and the reason, so it never loops forever. The `controls` tests use it, and so do the six explorer test helpers that looped without a bound (`m8_k_key`, `m8_n_from`, `m8_k_goals`, `b_goals`, `h_tuning`, `e2e_stub`): the hang guard. The explorer's own code is unchanged; its root already settles scripts through its policy. The bounded explorer helpers that press nothing still fail fast on Silice ("never settles"), and the spine-and-branch explorer redesign replaces them.
+- Unrelated, found by the same Silice run: `studio`'s `building_metatile_1_is_void_with_every_secondary` wanted more than 40 secondary tilesets. Silice ships the 34 its maps use, so its floor is now 30.
+
 #### SIL2 Ch1 maps as built (Bois-Éther)
 
 The six Chapter 1 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Bois-Éther). Two Ch0 maps gain a phase-4 script each:
@@ -3780,7 +3785,7 @@ Commits:
 
 **Gated or generic.**
 - `game_native::scenario`:
-  - `route()` matches on `FLAVOR`. `SILICE_ROUTE` is the boot lane: a new game left idle, with moments and nodes `silice_start` (frame 24), `silice_idle` (600) and `silice_end` (1500). The tail makes the last node's trace longer than a seek keyframe interval, so the seek, materialize and restore tests run on Silice too. No Silice node is committed.
+  - `route()` matches on `FLAVOR`. `SILICE_ROUTE` is the boot lane: a new game left idle, with moments and nodes `silice_start` (frame 24), `silice_idle` (600) and `silice_end` (1500); since the Ch0 scripts it mashes through the bar's intro first (see "Silice route after the Ch0 scripts" under Task F). The tail makes the last node's trace longer than a seek keyframe interval, so the seek, materialize and restore tests run on Silice too. No Silice node is committed.
   - `after_starter() -> Option<Game>` is `Some(Game::after_starter())` on Emerald and the stub, `None` on Silice. The sweep, the tour test and the trainer-sighting lane use it.
   - The Emerald route assertions moved to a `cfg(not(pkr_silice))` helper.
 - `game-gba`: the tour build plays `Game::for_shells()` on Silice (`cfg(any(not(feature = "tour"), pkr_silice))`).

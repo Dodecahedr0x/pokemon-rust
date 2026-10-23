@@ -43,12 +43,8 @@ fn digest<G>(ex: &Explore<G>) -> u64 {
 fn reachable() -> BTreeSet<(i16, i16)> {
     let game = Emerald::for_shells();
     let mut s = Session::new(game);
-    let snap = loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            break snap;
-        }
-        s.step(engine::Buttons::NONE);
-    };
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    let snap = s.world().snapshot(s.game()).unwrap();
     path::reach(&game, &snap).cells().collect()
 }
 

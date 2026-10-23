@@ -122,9 +122,7 @@ fn goal_names_follow_the_story_order() {
 
 fn settle(game: Emerald) -> engine::checkpoint::WorldSnapshot {
     let mut s = Session::new(game);
-    while s.world().capturable().is_err() {
-        s.step(engine::input::Buttons::NONE);
-    }
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
     s.world().snapshot(s.game()).unwrap()
 }
 

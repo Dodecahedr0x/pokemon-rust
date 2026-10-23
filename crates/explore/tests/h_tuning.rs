@@ -20,12 +20,8 @@ use std::collections::BTreeSet;
 /// The new game's first capturable state (stub).
 fn first_capturable() -> engine::checkpoint::WorldSnapshot {
     let mut s = Session::new(Emerald::for_shells());
-    loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            return snap;
-        }
-        s.step(engine::Buttons::NONE);
-    }
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    s.world().snapshot(s.game()).unwrap()
 }
 
 #[test]

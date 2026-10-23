@@ -390,8 +390,9 @@ fn resume_nodes(rec: &Recording, native: &Native) -> Vec<(&'static str, u32)> {
 }
 
 /// Whether this build runs the boot lane only (Silice, SIL1 Task D: [`rom_and_native_agree`]
-/// on `scenario::SILICE_ROUTE`, a new game left idle). Its resume and save lanes need the
-/// `sil:*` nodes and a battle on the route (SIL1 Wave 3); `lane` is skipped with a note.
+/// on `scenario::SILICE_ROUTE`, a new game played through its intro, then idle). Its resume
+/// and save lanes need the `sil:*` nodes and a battle on the route (SIL1 Wave 3); `lane` is
+/// skipped with a note.
 fn boot_lane_only(lane: &str) -> bool {
     let only = content::FLAVOR == content::Flavor::Silice;
     if only {

@@ -263,26 +263,29 @@ impl<G: GameData> Controls<G> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scenario::cached_route;
+    use crate::scenario::{NEW_GAME_FRAMES, cached_route, opening_key};
 
     fn game() -> content::Emerald {
         content::Emerald::for_shells()
     }
 
-    /// Steps `c` until the world is capturable (pressing nothing).
+    /// Steps `c` until the world is capturable, through the new game's opening scene
+    /// ([`opening_key`]: nothing pressed on Emerald and the stub).
     fn settle(c: &mut Controls<content::Emerald>) {
-        for _ in 0..2000 {
+        for _ in 0..NEW_GAME_FRAMES {
             if c.session().world().capturable().is_ok() {
                 return;
             }
-            assert_eq!(c.step(Buttons::NONE), None);
+            let k = opening_key(c.session().world());
+            assert_eq!(c.step(k), None);
         }
-        panic!("never capturable");
+        panic!("never capturable: {:?}", c.session().world().capturable());
     }
 
     #[test]
     fn ring_holds_one_capturable_entry_every_60_frames_up_to_64() {
         let mut c = Controls::new(game());
+        settle(&mut c);
         for _ in 0..(RING_LEN as u32 + 10) * RING_EVERY {
             c.step(Buttons::NONE);
         }
@@ -304,8 +307,9 @@ mod tests {
         assert!(c.pending());
         assert!(c.title().contains("saving…"), "{}", c.title());
         let mut req = None;
-        for _ in 0..2000 {
-            if let Some(r) = c.step(Buttons::NONE) {
+        for _ in 0..NEW_GAME_FRAMES {
+            let k = opening_key(c.session().world());
+            if let Some(r) = c.step(k) {
                 req = Some(r);
                 break;
             }
