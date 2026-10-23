@@ -63,7 +63,7 @@
             local_id: 4,
             id: Some("LOCALID_GYM06_AYAME"),
             gfx: "OBJ_EVENT_GFX_EXPERT_F",
-            x: 14,
+            x: 12,
             y: 10,
             elevation: 3,
             movement: "MOVEMENT_TYPE_FACE_LEFT",

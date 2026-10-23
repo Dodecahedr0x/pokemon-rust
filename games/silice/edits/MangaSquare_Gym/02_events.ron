@@ -12,8 +12,9 @@
     // Kojiro in the west one.
     Object(x: 11, y: 25, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM06_MUSASHI", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Gym_Sc01"),
     Object(x: 9, y: 22, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_GYM06_KOJIRO", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Gym_Sc01"),
-    // The Kunoichi AYAME (between P4 and P3) and the Moine SEIJI (between P5 and P4).
-    Object(x: 14, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_GYM06_AYAME", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Gym_EventScript_Ayame", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    // The Kunoichi AYAME (between P4 and P3), at the foot of the slim tree (13, 9-11) she jumps from, her
+    // sight across the path (x 8-11); and the Moine SEIJI (between P5 and P4).
+    Object(x: 12, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_GYM06_AYAME", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "MangaSquare_Gym_EventScript_Ayame", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
     Object(x: 7, y: 6, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_GYM06_SEIJI", local_id: 5, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "MangaSquare_Gym_EventScript_Seiji", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     Object(x: 8, y: 28, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_GYM06_GUIDE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Gym_EventScript_Guide"),
     // Gym_Sc01: walking up the alley between the samurai starts the double battle (the script returns

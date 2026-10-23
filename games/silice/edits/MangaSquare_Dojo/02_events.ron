@@ -1,7 +1,8 @@
 // Header, map scripts, warps, objects, bg event. Local ids 5-13 are the source's obj numbers.
 [
     Header((music: "MUS_CONTEST_LOBBY", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
-    // on_transition: from VAR_SIL_STORY 64 the monk stands aside (setobjectxyperm to (27, 5)); the hide
+    // on_transition: from VAR_SIL_STORY 64 the monk stands aside (setobjectxyperm to (28, 5), facing left:
+    // (27, 5) would still block (27, 4), the only cell in front of the door's alcove); the hide
     // flags of Adrien, Kimiko and the drones are set by the scenes.
     Scripts((on_load: None, on_transition: Some("MangaSquare_Dojo_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warp 0: the exit mat, to Manga-Square's warp 1. Warp 1: the back door (a shoji, solid: pushing up
@@ -28,7 +29,7 @@
     Object(x: 8, y: 5, gfx: "OBJ_EVENT_GFX_COOK", id: "LOCALID_DOJO_CUISINIER", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Dojo_Sc04"),
     // Manga_Square_Dojo_Sc03: KENTA on the training mat.
     Object(x: 13, y: 15, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_DOJO_KENTA", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Dojo_Sc03", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
-    // The gate monk: (27, 4) is the only way to the back door until VAR_SIL_STORY 64.
+    // The gate monk: (27, 4) is the only way to the back door (reached from (27, 5)) until VAR_SIL_STORY 64.
     Object(x: 27, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_DOJO_MOINE", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_Dojo_EventScript_Moine"),
     Sign(x: 7, y: 2, script: "MangaSquare_Dojo_EventScript_SignCode"),
 ]

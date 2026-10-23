@@ -54,6 +54,10 @@
     Stamp(x: 34, y: 1, name: "ms_gate"),
     Rect(x: 34, y: 3, w: 2, h: 3, collision: 1),
     Rect(x: 39, y: 3, w: 2, h: 3, collision: 1),
+    // The beam's ends (x 34 and 40, y 1-2) are solid too, so the passage is entered only from y 6, across
+    // Manga_Square_Sc02's three cells (rows 1-2 would otherwise join it to the pond and the east path).
+    Rect(x: 34, y: 1, w: 1, h: 2, collision: 1),
+    Rect(x: 40, y: 1, w: 1, h: 2, collision: 1),
     // Street torii (Rue des Echoppes), x 3-9, y 5-9; passage x 5-7.
     Stamp(x: 3, y: 5, name: "ms_gate"),
     Rect(x: 3, y: 7, w: 2, h: 3, collision: 1),
