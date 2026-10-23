@@ -31,9 +31,9 @@
 //!   Cups are helpers for Explosion / Self-Destruct, Thief / Covet / Trick and Roar / Whirlwind.
 //!   The absorbing abilities (`ABILITYEFFECT_ABSORBING`) act in `Battle::hit` and the status
 //!   moves only; Wonder Guard in `Battle::deal`.
-//! - Substitute, Safeguard, Mist, Minimize (Astonish never doubles), Destiny Bond, the
-//!   `pause` commands. Items: the Choice Band's move lock; the held-item animation
-//!   (`B_ANIM_HELD_ITEM_EFFECT`) has no event; `HandleFaintedMonActions`' item check
+//! - The `pause` commands; the substitute doll and Transform's new sprite have no event.
+//!   Items: the Choice Band's move lock; the held-item animation (`B_ANIM_HELD_ITEM_EFFECT`)
+//!   has no event; `HandleFaintedMonActions`' item check
 //!   (`ItemBattleEffects(ITEMEFFECT_NORMAL, 0, TRUE)` after a faint) is skipped.
 //! - `statusanimation` / `status2animation` (no event; `StatusIcon` updates the healthbox).
 //! - The toxic counter is not reset on a switch.
@@ -57,6 +57,8 @@ mod tests_s;
 mod tests_w;
 #[cfg(test)]
 mod tests_wc;
+#[cfg(test)]
+mod tests_wd;
 
 use super::core::{Action, Battle, Env, HitResult, MoveUse, msg};
 use super::{Buff, Msg, Side, Str};
@@ -67,9 +69,10 @@ pub(crate) use abilities::opposite_genders;
 pub(crate) use abilities::{damp, sticky_hold, suction_cups};
 pub(crate) use later::{break_mold, prankster_boost};
 pub(crate) use mech::{
-    BattlerFx, FieldFx, all_moves_unusable, before_turn, clear_bonds, crit_bonus, damage_extra,
-    destiny_bond, encored_slot, endured, hold_on, move_accuracy, protected, reads_first_turn,
-    record_damage, selection_block, slot_limited, spikes, sure_accuracy,
+    BattlerFx, FieldFx, all_moves_unusable, baton_pass_in, before_turn, clear_bonds, crit_bonus,
+    damage_extra, destiny_bond, encored_slot, endured, hold_on, move_accuracy, protected,
+    reads_first_turn, record_damage, selection_block, slot_limited, spikes, sub_blocks_secondary,
+    sub_takes, subbed, sure_accuracy, wish_perish, wish_perish_pending,
 };
 
 /// The result of `attackcanceler` (`AtkCanceler_UnableToUseMove`).
@@ -120,9 +123,9 @@ pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Cancele
         },
         c => c,
     };
-    // Magic Coat (`Cmd_attackcanceler`, after `ABILITYEFFECT_MOVES_BLOCK`).
+    // Magic Coat, then Snatch (`Cmd_attackcanceler`, after `ABILITYEFFECT_MOVES_BLOCK`).
     if let Canceler::Use = c
-        && let Some((back, hit)) = mech::bounce(b, env, uu)
+        && let Some((back, hit)) = mech::bounce(b, env, uu).or_else(|| mech::steal(b, env, uu))
     {
         return Canceler::Done(back, hit);
     }
@@ -137,13 +140,13 @@ pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Cancele
 }
 
 /// `DoBattlerEndTurnEffects` for each battler in turn order: Leech Seed, poison, toxic, burn.
-/// Wave C: `TurnValuesCleanUp`, the side timers, Wish, Future Sight and Perish Song.
+/// Wave C: `TurnValuesCleanUp`, the side timers, Wish. Future Sight and Perish Song come after
+/// the faints are handled ([`wish_perish`], `Step::WishPerish`).
 pub(crate) fn end_turn(b: &mut Battle, env: &mut Env) {
     mech::turn_passed(b);
     mech::field_end_turn(b, env);
     later::field_end_turn(b, env);
     status::end_turn(b, env);
-    mech::wish_perish(b, env);
     mech::turn_clean_up(b);
 }
 

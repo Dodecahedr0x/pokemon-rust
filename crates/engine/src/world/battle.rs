@@ -513,10 +513,11 @@ pub(super) fn report(s: &mut State, r: Report) {
 }
 
 /// After a win (Gen3 `getmoneyreward` and `TryEvolvePokemon`): the prize money
-/// (`AddMoney`, capped at `SpecialIds::max_money`), then each mon that gained a level evolves if a level
+/// and Pay Day's coins (`AddMoney`, capped at `SpecialIds::max_money`), then each mon that gained a level evolves if a level
 /// evolution is reached, without the scene (`Report::Degraded("evolution scene")`).
 fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
-    if let Some(money) = battle.prize() {
+    // `getmoneyreward`, then Pay Day's `givepaydaymoney` (Wave D).
+    for money in [battle.prize(), battle.pay_day()].into_iter().flatten() {
         let max = game.special_ids().max_money;
         if max == 0 && money > 0 {
             report(s, Report::Degraded(super::host::NO_MONEY));

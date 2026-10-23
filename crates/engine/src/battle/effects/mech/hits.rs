@@ -7,9 +7,10 @@ use super::{
 };
 use crate::battle::calc;
 use crate::battle::core::{Battle, Env, HitResult, MoveUse, Secondary};
-use crate::battle::{BattleEvent, BattleReport, Buff, Effectiveness, Environment, Side, Str};
+use crate::battle::{BattleEvent, Buff, Effectiveness, Environment, Side, Str};
 use crate::mon::{
-    Ability, MoveEffect, SemiKind, Stat, Status, StatusKind, TrapKind, TwoTurnKind, Type,
+    Ability, HoldEffect, MoveEffect, SemiKind, Stat, Status, StatusKind, TrapKind, TwoTurnKind,
+    Type,
 };
 
 fn result(damage: i32, eff: Effectiveness, hung: bool) -> HitResult {
@@ -102,6 +103,8 @@ pub(super) fn plain(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
         E::Overheat => certain(overheat),
         E::KnockOff => chance(knock_off),
         E::Thief => chance(thief),
+        // `jumpifstatus2 BS_TARGET, STATUS2_SUBSTITUTE, BattleScript_EffectHit`.
+        E::SmellingSalt if t.fx.substitute => None,
         E::SmellingSalt => {
             if t.mon.status == Status::Paralysis {
                 u.multiplier = 2;
@@ -327,12 +330,12 @@ fn all_stats_up(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     }
 }
 
-/// `MOVE_EFFECT_PAYDAY`: "Coins scattered everywhere!" (the money is not paid).
+/// `MOVE_EFFECT_PAYDAY`: the player's attacker adds level x 5 to `gPaydayMoney` (0xFFFF on
+/// overflow), paid after a win; "Coins scattered everywhere!".
 fn pay_day(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     if u.attacker == Side::Player {
-        let _ = b;
-        env.out
-            .push(BattleEvent::Report(BattleReport::Degraded("pay day money")));
+        let level = b.battler(u.attacker).mon.level as u16;
+        b.fx.pay_day = b.fx.pay_day.saturating_add(level * 5);
     }
     say(env, u, Str::CoinsScattered, u.attacker);
 }
@@ -397,23 +400,28 @@ fn knock_off(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     );
 }
 
-/// `MOVE_EFFECT_STEAL_ITEM`: the player's mon only (an opponent never steals), without an
-/// item of its own and not knocked off; the target loses its item.
+/// `MOVE_EFFECT_STEAL_ITEM`: the player's mon only (an opponent never steals), not knocked
+/// off; Sticky Hold; then without an item of its own, and not Mail nor the Enigma Berry; the
+/// target loses its item.
 fn thief(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     let (a, t) = (u.attacker, u.target);
     if a == Side::Opponent {
         return;
     }
     let am = *b.battler(a);
-    if b.fx.knocked_off[a as usize] & (1 << am.mon.party) != 0 || am.x.item.is_some() {
+    if b.fx.knocked_off[a as usize] & (1 << am.mon.party) != 0 {
         return;
     }
     let tm = *b.battler(t);
+    if tm.x.item.is_some() && abilities::sticky_hold(b, t) {
+        super::ability_blocks(env, u, Str::PkmnSXMadeYIneffective, Ability::StickyHold);
+        return;
+    }
+    // Not with an item of its own, nor Mail or the Enigma Berry (`HoldEffect::NoSwap`).
     let Some(item) = tm.x.item else {
         return;
     };
-    if abilities::sticky_hold(b, t) {
-        super::ability_blocks(env, u, Str::PkmnSXMadeYIneffective, Ability::StickyHold);
+    if am.x.item.is_some() || tm.x.hold == Some(HoldEffect::NoSwap) {
         return;
     }
     let hold = tm.x.hold;
@@ -694,7 +702,8 @@ pub(super) fn triple_kick(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<
 /// `BattleScript_EffectDreamEater`: only on a sleeping target; half the HP dealt heals the
 /// attacker.
 pub(super) fn dream_eater(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
-    if !matches!(b.battler(u.target).mon.status, Status::Sleep(_)) {
+    // BattleScript_DreamEaterNoEffect also behind a substitute.
+    if super::sub::subbed(b, u) || !matches!(b.battler(u.target).mon.status, Status::Sleep(_)) {
         b.attack_string(env, u);
         b.no_effect = true;
         say(env, u, Str::PkmnWasntAffected, u.target);
@@ -858,6 +867,7 @@ pub(super) fn counter(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitR
     let dealt = match rec {
         Some((d, src)) if src != u.attacker && b.battler(src).mon.hp > 0 && d > 0 => d,
         _ => {
+            super::copy::no_pressure(b);
             b.attack_string(env, u);
             b.fail(env, u);
             return None;

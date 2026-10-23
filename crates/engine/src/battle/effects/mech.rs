@@ -19,23 +19,28 @@
 //!   Me only prints its message.
 //! - Surf's double damage on a diving target is keyed on `MOVE_SURF` in Gen3 (not an effect):
 //!   not modelled. Whirlpool's is (its trapping kind).
-//! - Future Sight and Perish Song run before the end-of-turn faints are handled (Gen3:
-//!   `HandleWishPerishSongOnTurnEnd` after `HandleFaintedMonActions`).
-//! - Pay Day prints its message; the money is not paid (reported `Degraded`).
-//! - Mail and the Enigma Berry are not refused by Thief / Trick.
 //! - A battler locked into a move it reached through another move (Metronome → Fly) uses it
 //!   without the canceler's Soundproof / primal-weather checks being run again.
-//! - The trainer AI's re-choice after a refused move (Disable, Taunt, Torment) draws its own
-//!   rolls again (`Battle::new_turn`).
-//! - `protectUses` stops at 3 (Gen3 reads past `sProtectSuccessRates`).
+//! - `protectUses` past 23 (beyond `sMovesForbiddenToCopy`, which Gen3 reads after
+//!   `sProtectSuccessRates`) gets a rate of 0.
 //! - Counter / Mirror Coat / Revenge read the damage records of [`Records`], which are not
-//!   hashed (as `multi_last`): they are reset before the next action choice.
+//!   hashed (as `multi_last`): they are reset before the next action choice. Sketch and
+//!   Conversion 2 read `gLastPrintedMoves` / `gLastLandedMoves` there too, and Recycle
+//!   [`FieldFx::used_item`].
+//!
+//! Wave D ([`sub`], [`copy`]): Substitute, Baton Pass, Transform, Mimic, Sketch, Recycle,
+//! Conversion 2, Snatch, Beat Up. Their deviations: the substitute doll and Transform's sprite
+//! have no event; the opponent's Baton Pass sends its first usable mon (as a faint); the
+//! player's `moveend` for Baton Pass runs before the switch-in (nothing in it reads the
+//! battler); Conversion 2's draw one entry past `gTypeEffectiveness` matches nothing.
 
 mod calls;
 mod cond;
+mod copy;
 mod field;
 mod hits;
 mod more;
+mod sub;
 mod turns;
 
 use super::status;
@@ -45,17 +50,23 @@ use crate::data::MoveId;
 use crate::hash::Fnv64;
 use crate::mon::{MoveEffect, SemiKind, Stat};
 
+pub(super) use copy::{record_used_item, steal};
 pub(super) use field::mist_blocks;
+#[cfg(test)]
+pub(super) use field::protect_rate;
 pub(super) use more::{bounce, grudge, imprisoned};
+pub(super) use sub::sub_end;
+pub(crate) use sub::{baton_pass_in, sub_absorbed, sub_blocks_secondary, sub_takes, subbed};
 pub(crate) use turns::{
     all_moves_unusable, before_turn, clear_bonds, destiny_bond, encored_slot, locked_action,
-    reads_first_turn, record_damage, selection_block, slot_limited, spikes,
+    reads_first_turn, record_damage, selection_block, slot_limited, spikes, wish_perish,
+    wish_perish_pending,
 };
 pub(super) use turns::{
     called_use, canceler_flags, canceler_limits, canceler_recharge, canceler_thaw,
     end_turn_after_status, end_turn_ingrain, end_turn_taunt, end_turn_timers, move_end_first,
     move_end_last, physical_of, reroute, safeguarded, skipped, sleep_usable, start_move, trapped,
-    turn_clean_up, turn_passed, via_sleep_talk, wish_perish,
+    turn_clean_up, turn_passed, via_sleep_talk,
 };
 
 /// Wave C's per-battler state (`gDisableStructs`, `gProtectStructs` and the `STATUS2` /
@@ -120,6 +131,17 @@ pub(crate) struct BattlerFx {
     pub imprison: bool,
     /// `gProtectStructs.bounceMove` (Magic Coat, this turn).
     pub bounce: bool,
+    /// `STATUS2_SUBSTITUTE` and `gDisableStructs.substituteHP` (Wave D).
+    pub substitute: bool,
+    pub sub_hp: u8,
+    /// `STATUS2_TRANSFORMED`.
+    pub transformed: bool,
+    /// `gDisableStructs.mimickedMoves`: a bit per move slot (its PP is not written back).
+    pub mimicked: u8,
+    /// `gProtectStructs.stealMove` (Snatch, this turn).
+    pub snatch: bool,
+    /// Baton Pass waits for the player's choice of the mon it passes to (`openpartyscreen`).
+    pub baton: bool,
     /// Bookkeeping later moves read (not hashed).
     pub rec: Records,
 }
@@ -133,6 +155,12 @@ pub(crate) struct Records {
     pub physical: Option<(u16, Side)>,
     pub special: Option<(u16, Side)>,
     pub last_taken: Option<MoveId>,
+    /// `gLastPrintedMoves`: the chosen move whose attack string this battler printed (Sketch).
+    pub printed: Option<MoveId>,
+    /// `gLastLandedMoves` / `gLastHitByType`: the last move that landed on this battler, any
+    /// power, and its type (Conversion 2).
+    pub landed: Option<MoveId>,
+    pub hit_type: Option<crate::mon::Type>,
 }
 
 impl BattlerFx {
@@ -177,6 +205,19 @@ impl BattlerFx {
             self.minimized as u8,
             self.grudge as u8 | (self.imprison as u8) << 1 | (self.bounce as u8) << 2,
         ]);
+        // Wave D: a tagged block only while any is set, so other battles hash as before.
+        let wd = [
+            self.substitute as u8
+                | (self.transformed as u8) << 1
+                | (self.snatch as u8) << 2
+                | (self.baton as u8) << 3,
+            self.sub_hp,
+            self.mimicked,
+        ];
+        if wd != [0; 3] {
+            h.write(&[0xD1]);
+            h.write(&wd);
+        }
     }
 }
 
@@ -216,10 +257,17 @@ pub(crate) struct Current {
     /// `gCurrentMove` and `gChosenMovePos` (Grudge).
     pub mov: MoveId,
     pub slot: Option<u8>,
+    /// `HITMARKER_ATTACKSTRING_PRINTED` (`gLastPrintedMoves`, Wave D).
+    pub printed: bool,
+    /// `gChosenMove = MOVE_UNAVAILABLE` (Transform, Mimic, Sketch): no last move, nothing
+    /// printed nor landed.
+    pub unavailable: bool,
+    /// `gSpecialStatuses.ppNotAffectedByPressure`.
+    pub no_pressure: bool,
 }
 
 /// Wave C's side and field state (`gSideTimers`, `gWishFutureKnock`), by `Side as usize`.
-/// Hashed (without `cur`) only when set.
+/// Hashed (without `cur` and `used_item`) only when set.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) struct FieldFx {
     pub reflect: [Option<Timer>; 2],
@@ -236,13 +284,22 @@ pub(crate) struct FieldFx {
     pub future: [Option<Future>; 2],
     /// `weatherDuration` of a move's weather (0: none, or an ability's permanent weather).
     pub weather_turns: u8,
+    /// `gPaydayMoney` (Wave D).
+    pub pay_day: u16,
+    /// `gBattleStruct->usedHeldItems` by battler position, with the item's hold effect
+    /// (Recycle). Not hashed.
+    pub used_item: [Option<(crate::data::ItemId, Option<crate::mon::HoldEffect>)>; 2],
     pub cur: Option<Current>,
 }
 
 impl FieldFx {
     /// Whether the hashed part is set.
     pub fn is_set(&self) -> bool {
-        FieldFx { cur: None, ..*self } != FieldFx::default()
+        FieldFx {
+            cur: None,
+            used_item: [None; 2],
+            ..*self
+        } != FieldFx::default()
     }
 
     pub fn hash(&self, h: &mut Fnv64) {
@@ -274,6 +331,12 @@ impl FieldFx {
             }
         }
         h.write(&[self.weather_turns]);
+        // Wave D: a tagged block only while set. `used_item` is not hashed (as [`Records`]):
+        // every consumed berry sets it, and only Recycle reads it.
+        if self.pay_day != 0 {
+            h.write(&[0xD2]);
+            h.write_u16(self.pay_day);
+        }
     }
 }
 
@@ -404,7 +467,13 @@ pub(crate) fn hold_on(
     };
     let hp = d.mon.hp;
     let holds = banded || d.fx.endured || u.info.effect == MoveEffect::FalseSwipe;
-    if holds && eff != crate::battle::Effectiveness::NoEffect && hp > 0 && hp as i32 <= damage {
+    // Not behind a substitute (`STATUS2_SUBSTITUTE`, read before the HP check).
+    if holds
+        && !d.fx.substitute
+        && eff != crate::battle::Effectiveness::NoEffect
+        && hp > 0
+        && hp as i32 <= damage
+    {
         (hp as i32 - 1, banded || d.fx.endured)
     } else {
         (damage, false)
@@ -570,6 +639,39 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
             more::apply(b, env, u);
             None
         }
+        E::Substitute => {
+            sub::substitute(b, env, u);
+            None
+        }
+        E::BatonPass => {
+            sub::baton_pass(b, env, u);
+            None
+        }
+        E::Transform => {
+            copy::transform(b, env, u);
+            None
+        }
+        E::Mimic => {
+            copy::mimic(b, env, u);
+            None
+        }
+        E::Sketch => {
+            copy::sketch(b, env, u);
+            None
+        }
+        E::Recycle => {
+            copy::recycle(b, env, u);
+            None
+        }
+        E::Conversion2 => {
+            copy::conversion_2(b, env, u);
+            None
+        }
+        E::Snatch => {
+            copy::snatch(b, env, u);
+            None
+        }
+        E::BeatUp => copy::beat_up(b, env, u),
         E::Metronome => calls::metronome(b, env, u),
         E::MirrorMove => calls::mirror_move(b, env, u),
         E::SleepTalk => calls::sleep_talk(b, env, u),

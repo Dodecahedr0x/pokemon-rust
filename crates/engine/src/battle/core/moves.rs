@@ -98,15 +98,16 @@ impl Battle {
         let landed = match effects::before_move(self, env, &u) {
             effects::Canceler::Use => {
                 let hit = self.execute(env, &u);
-                self.battler_mut(side).last_move = Some(mov);
+                self.set_last_move(side, &u, mov);
                 effects::after_move(self, env, &u, hit);
                 self.landed(&u)
             }
-            // The canceler ran the move itself (Bide's release): `moveend` still runs.
-            effects::Canceler::Done(u, hit) => {
-                self.battler_mut(side).last_move = Some(mov);
-                effects::after_move(self, env, &u, hit);
-                self.landed(&u)
+            // The canceler ran the move itself (Bide's release, Magic Coat, Snatch): `moveend`
+            // still runs, for that script's attacker.
+            effects::Canceler::Done(done, hit) => {
+                self.set_last_move(done.attacker, &u, mov);
+                effects::after_move(self, env, &done, hit);
+                self.landed(&done)
             }
             effects::Canceler::Skip => None,
         };
@@ -115,8 +116,21 @@ impl Battle {
         {
             self.battler_mut(side).ability = ability;
         }
-        self.battler_mut(u.target).last_landed = landed;
+        // MOVEEND_UPDATE_LAST_MOVES skips Baton Pass.
+        if u.info.effect != MoveEffect::BatonPass {
+            self.battler_mut(u.target).last_landed = landed;
+        }
         self.sync = None;
+    }
+
+    /// `MOVEEND_UPDATE_LAST_MOVES`' `gLastMoves`: not for Baton Pass (its user left);
+    /// `MOVE_UNAVAILABLE` after Transform, Mimic and Sketch.
+    fn set_last_move(&mut self, side: Side, u: &MoveUse, mov: MoveId) {
+        if u.info.effect == MoveEffect::BatonPass {
+            return;
+        }
+        let unavailable = self.fx.cur.is_some_and(|c| c.unavailable);
+        self.battler_mut(side).last_move = (!unavailable).then_some(mov);
     }
 
     /// `gLastLandedMoves[target]` after `u` (see [`super::Battler::last_landed`]): the move
@@ -258,6 +272,9 @@ impl Battle {
         }
         env.out
             .push(BattleEvent::Msg(u.msg(Str::UsedMove, u.attacker)));
+        if let Some(c) = &mut self.fx.cur {
+            c.printed = true;
+        }
         if let Some(s) = u.slot {
             let cost = 1 + self.pressure(u) as u8;
             let pp = &mut self.battler_mut(u.attacker).mon.pp[s as usize];
@@ -268,8 +285,12 @@ impl Battle {
 
     /// `Cmd_ppreduce`'s Pressure: the foe's Pressure costs one more PP for the moves that
     /// target its side (`MOVE_TARGET_BOTH`, `_OPPONENTS_FIELD`, `_FOES_AND_ALLY`), or that
-    /// target it (another battler).
+    /// target it (another battler); any HP, as Gen3. Not under `ppNotAffectedByPressure`
+    /// (Snatch, Magic Coat, a failed Counter / Mirror Coat, Spikes at 3 layers).
     fn pressure(&self, u: &MoveUse) -> bool {
+        if self.fx.cur.is_some_and(|c| c.no_pressure) {
+            return false;
+        }
         let foe = match u.info.target {
             MoveTarget::BothFoes | MoveTarget::OpponentsField | MoveTarget::FoesAndAlly => {
                 u.attacker.other()
@@ -277,8 +298,7 @@ impl Battle {
             _ if u.target != u.attacker => u.target,
             _ => return false,
         };
-        let f = self.battler(foe);
-        f.ability == Ability::Pressure && f.mon.hp > 0
+        self.battler(foe).ability == Ability::Pressure
     }
 
     /// `Cmd_accuracycheck` with `ACC_CURR_MOVE`: one roll. Under Foresight the target's
@@ -518,7 +538,12 @@ impl Battle {
             _ => false,
         };
         let hp = d.mon.hp;
-        if banded && eff != Effectiveness::NoEffect && hp > 0 && hp as i32 <= damage {
+        if banded
+            && !d.fx.substitute
+            && eff != Effectiveness::NoEffect
+            && hp > 0
+            && hp as i32 <= damage
+        {
             (hp as i32 - 1, true)
         } else {
             (damage, false)
@@ -642,8 +667,14 @@ impl Battle {
         secondary: Option<Secondary>,
     ) {
         let no_effect = r.eff == Effectiveness::NoEffect;
+        // SetMoveEffect: nothing on a target behind a substitute (the roll is still drawn).
+        let blocked = effects::sub_blocks_secondary(self, u);
         match secondary {
-            Some(s) if s.certain && !no_effect => (s.apply)(self, env, u, r),
+            Some(s) if s.certain && !no_effect => {
+                if !blocked {
+                    (s.apply)(self, env, u, r)
+                }
+            }
             _ => {
                 let roll = env.rng.random();
                 // Cmd_seteffectwithchance: Serene Grace doubles the chance.
@@ -654,6 +685,7 @@ impl Battle {
                 if let Some(s) = secondary
                     && !no_effect
                     && roll % 100 < chance
+                    && !blocked
                 {
                     (s.apply)(self, env, u, r);
                 }
@@ -665,6 +697,10 @@ impl Battle {
     /// (to max). Returns the HP lost (`gHpDealt`). Damage is added to the battler's `gBideDmg`
     /// (`bide_damage`); residual end-of-turn damage uses [`Battle::change_hp_passive`].
     pub(crate) fn change_hp(&mut self, env: &mut Env, side: Side, damage: i32) -> u16 {
+        // A substitute takes move damage instead (Wave D).
+        if let Some(dealt) = effects::sub_takes(self, env, side, damage) {
+            return dealt;
+        }
         if damage > 0 {
             let b = self.battler_mut(side);
             b.bide_damage = b.bide_damage.saturating_add(damage as u32);
@@ -813,9 +849,15 @@ impl Battle {
         }
     }
 
-    /// `BattleScript_EffectStatDown` (no Substitute nor Mist in the engine; Clear Body and
-    /// Keen Eye in `effects::abilities::blocks_stat_drop`).
+    /// `BattleScript_EffectStatDown`: a target behind a substitute fails before the accuracy
+    /// check (`BattleScript_FailedFromAtkString`); Mist, Clear Body and Keen Eye in
+    /// `effects::blocks_stat_drop`.
     pub(crate) fn stat_down_move(&mut self, env: &mut Env, u: &MoveUse, stat: Stat, stages: u8) {
+        if effects::subbed(self, u) {
+            self.attack_string(env, u);
+            self.fail(env, u);
+            return;
+        }
         if !self.accuracy(env, u) {
             self.missed(env, u);
             return;
@@ -846,8 +888,7 @@ impl Battle {
 /// The type an -ate ability gives Normal moves.
 /// Whether Parental Bond doubles a move of `effect` (Gen7 exclusions the engine can name):
 /// not the multi-strike moves, Uproar, Explosion / Self-Destruct, the two-turn and
-/// semi-invulnerable moves, Twineedle, Triple Kick, Rollout / Ice Ball, Endeavor, nor Beat Up
-/// (`EFFECT_BEAT_UP` = 154, unsupported).
+/// semi-invulnerable moves, Twineedle, Triple Kick, Rollout / Ice Ball, Endeavor, nor Beat Up.
 pub(crate) fn parental_bond_applies(effect: MoveEffect) -> bool {
     !matches!(
         effect,
@@ -861,7 +902,7 @@ pub(crate) fn parental_bond_applies(effect: MoveEffect) -> bool {
             | MoveEffect::TripleKick
             | MoveEffect::Rollout
             | MoveEffect::Endeavor
-            | MoveEffect::Unsupported(154)
+            | MoveEffect::BeatUp
     )
 }
 

@@ -265,6 +265,7 @@ fn defrost(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
         && t.mon.hp != 0
         && u.attacker != u.target
         && r.hp_dealt > 0
+        && !super::mech::sub_absorbed(b, u.target)
         && r.eff != Effectiveness::NoEffect
         && u.ty == Type::Fire
     {
@@ -340,6 +341,7 @@ fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>)
         || owner == u.attacker
         || b.battler(u.attacker).mon.hp == 0
         || r.hp_dealt == 0
+        || super::mech::sub_absorbed(b, u.target)
         || !u.info.flags.has(MoveFlags::MAKES_CONTACT)
     {
         return;
@@ -389,6 +391,7 @@ fn color_change(b: &mut Battle, env: &mut Env, u: &MoveUse, r: HitResult) {
         || u.mov == env.t.struggle
         || u.info.power == 0
         || r.hp_dealt == 0
+        || super::mech::sub_absorbed(b, u.target)
         || t.types.contains(&u.ty)
         || t.mon.hp == 0
     {
@@ -522,9 +525,11 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
 /// (nothing at -6), with `STRINGID_PKMNCUTSATTACKWITH`.
 pub(super) fn intimidate(b: &mut Battle, env: &mut Env, side: Side) {
     let foe = side.other();
+    // `jumpifstatus2 BS_TARGET, STATUS2_SUBSTITUTE`: a substitute (Baton Pass) is skipped.
     if b.battler(side).ability != Ability::Intimidate
         || b.battler(side).mon.hp == 0
         || b.battler(foe).mon.hp == 0
+        || b.battler(foe).fx.substitute
     {
         return;
     }

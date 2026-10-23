@@ -474,6 +474,9 @@ pub(crate) enum Step {
     /// The pending Mega Evolutions before the first move action (Silice; queued only when
     /// one is pending).
     Megas,
+    /// `HandleWishPerishSongOnTurnEnd` from a state (queued only when something is pending),
+    /// after `HandleFaintedMonActions`.
+    WishPerish(u8),
 }
 
 impl Step {
@@ -507,6 +510,7 @@ impl Step {
             Step::EndTurn => h.write(&[8]),
             Step::SwitchOut { side, party } => h.write(&[9, side as u8, party]),
             Step::Megas => h.write(&[10]),
+            Step::WishPerish(i) => h.write(&[11, i]),
         }
     }
 }
@@ -777,9 +781,15 @@ impl Battle {
             }
             (Need::Switch, Choice::Switch(i)) if self.can_switch_to(Side::Player, i) => {
                 self.need = Need::Busy;
-                self.switch_in(env, Side::Player, i);
-                // BattleScript_FaintedMonSendOutNew ends with `cancelallactions`.
-                self.actions = [None; 2];
+                if self.battler(Side::Player).fx.baton {
+                    // BattleScript_EffectBatonPass after `openpartyscreen`: the turn goes on.
+                    self.switch_out(env, Side::Player);
+                    self.switch_in(env, Side::Player, i);
+                } else {
+                    self.switch_in(env, Side::Player, i);
+                    // BattleScript_FaintedMonSendOutNew ends with `cancelallactions`.
+                    self.actions = [None; 2];
+                }
             }
             (Need::LearnMove { party, mov }, Choice::LearnMove { forget }) => {
                 self.need = Need::Busy;
@@ -893,6 +903,12 @@ impl Battle {
             .any(|b| b.ability == partner && b.mon.hp > 0)
     }
 
+    /// `gPaydayMoney` x `moneyMultiplier` (`Cmd_givepaydaymoney`), paid on a win.
+    pub fn pay_day(&self) -> Option<u32> {
+        let m = self.fx.pay_day as u32;
+        (m != 0).then(|| if self.x.double_prize { m * 2 } else { m })
+    }
+
     pub fn prize(&self) -> Option<u32> {
         self.prize
             .map(|m| if self.x.double_prize { m * 2 } else { m })
@@ -935,7 +951,12 @@ impl Battle {
         if let Some(p) = self.parties[side as usize].get_mut(b.mon.party as usize) {
             p.hp = b.mon.hp;
             p.status = b.mon.status;
-            p.pp = b.mon.pp;
+            // MOVE_IS_PERMANENT: not a transformed battler's PP, nor a Mimic'd slot's.
+            for i in 0..4 {
+                if !b.fx.transformed && b.fx.mimicked & (1 << i) == 0 {
+                    p.pp[i] = b.mon.pp[i];
+                }
+            }
         }
     }
 
@@ -987,6 +1008,13 @@ impl Battle {
                 self.switch_in(env, side, party);
             }
             Step::Megas => self.mega_evolutions(env),
+            Step::WishPerish(state) => {
+                // Each future attack or perish count, then its faints (`BattleTurnPassed`).
+                if let Some(next) = super::effects::wish_perish(self, env, state) {
+                    self.steps.push_front(Step::WishPerish(next));
+                    self.steps.push_front(Step::Fainted);
+                }
+            }
             Step::EndTurn => {
                 // HandleEndTurn_ContinueBattle + BattleTurnPassed.
                 for b in &mut self.battlers {
@@ -1000,6 +1028,9 @@ impl Battle {
                 self.x.mega_pending = [false; 2];
                 self.turn = self.turn.saturating_add(1);
                 self.steps.push_front(Step::NewTurn);
+                if super::effects::wish_perish_pending(self) {
+                    self.steps.push_front(Step::WishPerish(0));
+                }
                 self.steps.push_front(Step::Fainted);
             }
         }
@@ -1050,7 +1081,8 @@ impl Battle {
                 )));
             }
             // TrySetCantSelectMoveBattleScript refuses a disabled, tormented or taunted move:
-            // the action is chosen again.
+            // the action is chosen again, and Gen3's OpponentHandleChooseMove runs
+            // BattleAI_SetupAIData + BattleAI_ChooseMoveOrAction again (new rolls), as here.
             let mut choice = super::ai::choose(self, env.t, env.rng);
             for _ in 0..64 {
                 match choice {
@@ -1355,12 +1387,18 @@ impl Battle {
     ) {
         self.stamp(env);
         self.write_back(side);
-        let left = self.battler(side).ability;
+        let old = *self.battler(side);
         self.battlers[side as usize] = self.battler_for(env.t, side, i);
         // A primal weather ends when its source leaves.
-        super::effects::left_field(self, env, left);
-        // SwitchInClearSetData: the foe's escape prevention and infatuation by this battler.
-        self.clear_bonds(side);
+        super::effects::left_field(self, env, old.ability);
+        if old.fx.baton {
+            // Baton Pass: the passed state, and what it held on the foe (Wave D).
+            super::effects::baton_pass_in(self, &old, side);
+        } else {
+            // SwitchInClearSetData: the foe's escape prevention and infatuation by this
+            // battler.
+            self.clear_bonds(side);
+        }
         // `switchineffects`: a Truant mon sent out mid-battle starts with the counter set (the
         // end of the turn clears it before its next move).
         if self.battler(side).ability == Ability::Truant {
@@ -1811,6 +1849,15 @@ impl Battle {
             | BattleOutcome::MonTeleported => {}
         }
         if outcome == BattleOutcome::Won {
+            // BattleScript_PayDayMoneyAndPickUpItems: `givepaydaymoney` (the caller adds it),
+            // then `pickup`.
+            if let Some(money) = self.pay_day() {
+                env.out.push(BattleEvent::Msg(Msg {
+                    buffs: [Buff::Number(money), Buff::None, Buff::None],
+                    wait: LONG,
+                    ..about(Str::PlayerPickedUpMoney, p)
+                }));
+            }
             self.pickup(env);
         }
         env.out.push(BattleEvent::End(outcome));

@@ -42,6 +42,8 @@ fn item_msg(b: &Battle, id: Str, side: Side) -> Msg {
 
 /// `removeitem`: the battler and its party mon lose their item.
 fn consume(b: &mut Battle, side: Side) {
+    // `usedHeldItems` (Recycle).
+    super::mech::record_used_item(b, side);
     let party = b.battler(side).mon.party as usize;
     let m = b.battler_mut(side);
     m.x.item = None;
@@ -372,7 +374,12 @@ fn kings_rock(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>
     let Some(HoldEffect::KingsRock(p)) = b.battler(u.attacker).x.hold else {
         return;
     };
-    if r.damage == 0 || r.eff == Effectiveness::NoEffect || r.hp_dealt == 0 {
+    // TARGET_TURN_DAMAGED: not a hit on a substitute.
+    if r.damage == 0
+        || r.eff == Effectiveness::NoEffect
+        || r.hp_dealt == 0
+        || super::mech::sub_absorbed(b, u.target)
+    {
         return;
     }
     if env.rng.random() % 100 >= p as u16

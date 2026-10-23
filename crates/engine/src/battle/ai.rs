@@ -790,13 +790,9 @@ const SPECIAL_TYPE_LIST: [Type; 8] = [
     Type::Dark,
 ];
 
-/// `AI_SetupFirstTurn_SetupEffectsToEncourage` the engine leaves `Unsupported`, as raw
-/// `EFFECT_*`: SUBSTITUTE, IMPRISON.
-const SETUP_UNSUPPORTED: [u8; 2] = [79, 192];
-
 /// Whether `e` is in `AI_SetupFirstTurn_SetupEffectsToEncourage`: every stat up / down (1 or
-/// 2 stages), Focus Energy, Confuse, Poison, Paralyze, Leech Seed, Defense Curl, Yawn and
-/// [`SETUP_UNSUPPORTED`] (not Sleep nor Toxic).
+/// 2 stages), Focus Energy, Confuse, Poison, Paralyze, Leech Seed, Defense Curl, Yawn,
+/// Substitute and Imprison (not Sleep nor Toxic).
 fn setup_effect(e: MoveEffect) -> bool {
     match e {
         MoveEffect::StatUp { .. }
@@ -819,10 +815,11 @@ fn setup_effect(e: MoveEffect) -> bool {
         | MoveEffect::Ingrain
         | MoveEffect::TeeterDance
         | MoveEffect::Camouflage
-        | MoveEffect::Tickle => true,
+        | MoveEffect::Tickle
+        | MoveEffect::Substitute
+        | MoveEffect::Imprison => true,
         // COSMIC_POWER, BULK_UP, CALM_MIND (not DRAGON_DANCE).
         MoveEffect::StatsUp(a, b) => (a, b) != (Stat::Atk, Stat::Speed),
-        MoveEffect::Unsupported(n) => SETUP_UNSUPPORTED.contains(&n),
         _ => false,
     }
 }

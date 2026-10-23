@@ -42,6 +42,9 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         E::Spikes => {
             // `trysetspikes BattleScript_FailedFromAtkString`.
             let foe = a.other() as usize;
+            if b.fx.spikes[foe] >= 3 {
+                super::copy::no_pressure(b);
+            }
             b.attack_string(env, u);
             if b.fx.spikes[foe] >= 3 {
                 b.fail(env, u);
@@ -166,7 +169,7 @@ fn protect(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         b.battler_mut(a).fx.protect_uses = 0;
     }
     let last_turn = b.order[1] == a;
-    let rate = [0xFFFFu16, 0x7FFF, 0x3FFF, 0x1FFF][b.battler(a).fx.protect_uses.min(3) as usize];
+    let rate = protect_rate(env.t, b.battler(a).fx.protect_uses);
     if rate >= env.rng.random() && !last_turn {
         let fx = &mut b.battler_mut(a).fx;
         let id = if u.info.effect == MoveEffect::Protect {
@@ -182,6 +185,49 @@ fn protect(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     } else {
         b.battler_mut(a).fx.protect_uses = 0;
         b.fail(env, u);
+    }
+}
+
+/// `sProtectSuccessRates[protectUses]`. Past its 4 rates Gen3 reads on into the next table,
+/// `sMovesForbiddenToCopy` (move ids, named here by effect: the n-th move with it in id
+/// order); past that one (`protectUses` 24 and up, after 20 more successes) the ROM data is
+/// not modelled and the rate is 0.
+pub(in crate::battle::effects) fn protect_rate(t: &crate::mon::BattleTables, uses: u8) -> u16 {
+    use MoveEffect as E;
+    const RATES: [u16; 4] = [0xFFFF, 0x7FFF, 0x3FFF, 0x1FFF];
+    if let Some(&r) = RATES.get(uses as usize) {
+        return r;
+    }
+    let nth = |e: MoveEffect, n: usize| {
+        t.moves
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.effect == e)
+            .nth(n)
+            .map_or(0, |(i, _)| i as u16)
+    };
+    match uses - 4 {
+        0 => nth(E::Metronome, 0),
+        1 => t.struggle.0,
+        2 => nth(E::Sketch, 0),
+        3 => nth(E::Mimic, 0),
+        4 => 0xFFFE,
+        5 => nth(E::Counter, 0),
+        6 => nth(E::MirrorCoat, 0),
+        7 => nth(E::Protect, 0),
+        8 => nth(E::Protect, 1),
+        9 => nth(E::Endure, 0),
+        10 => nth(E::DestinyBond, 0),
+        11 => nth(E::SleepTalk, 0),
+        12 => nth(E::Thief, 0),
+        13 => nth(E::FollowMe, 0),
+        14 => nth(E::Snatch, 0),
+        15 => nth(E::HelpingHand, 0),
+        16 => nth(E::Thief, 1),
+        17 => nth(E::Trick, 0),
+        18 => nth(E::FocusPunch, 0),
+        19 => 0xFFFF,
+        _ => 0,
     }
 }
 

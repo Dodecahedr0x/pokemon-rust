@@ -227,13 +227,19 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
             ..u.msg_long(id, u.target)
         }))
     };
+    // `jumpifstatus2 BS_TARGET, STATUS2_SUBSTITUTE, BattleScript_ButItFailed`: first for Sleep
+    // and Will-O-Wisp, after Immunity / Limber for the poisons and Paralyze.
+    let failed = || Some(BattleEvent::Msg(u.msg_long(Str::ButItFailed, u.attacker)));
+    let sub = super::mech::subbed(b, u);
     let refusal = match kind {
+        StatusKind::Sleep | StatusKind::Burn if sub => failed(),
         StatusKind::Poison | StatusKind::Toxic if t.ability == Ability::Immunity => {
             ability_msg(Str::PkmnPreventsPoisoningWith)
         }
         StatusKind::Paralysis if t.ability == Ability::Limber => {
             ability_msg(Str::PkmnPreventsParalysisWith)
         }
+        _ if sub => failed(),
         StatusKind::Sleep if matches!(status, Status::Sleep(_)) => {
             target_msg(Str::PkmnAlreadyAsleep)
         }
@@ -318,6 +324,10 @@ fn confuse_move(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         }));
         return;
     }
+    if super::mech::subbed(b, u) {
+        b.fail(env, u);
+        return;
+    }
     if b.battler(u.target).confusion > 0 {
         env.out.push(BattleEvent::Msg(
             u.msg_long(Str::PkmnAlreadyConfused, u.target),
@@ -372,6 +382,10 @@ fn absorb(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
 /// target "evaded the attack", a Grass target is not affected.
 fn leech_seed(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
+    if super::mech::subbed(b, u) {
+        b.fail(env, u);
+        return;
+    }
     let hit = b.accuracy(env, u);
     let t = b.battler(u.target);
     let id = if !hit || t.seeded {
@@ -524,6 +538,7 @@ pub(super) fn multi_hit_with(
         // after each hit.
         abilities::move_end(b, env, u, Some(r));
         super::items::move_end(b, env, u, Some(r));
+        super::mech::sub_end(b);
     }
     let r = last.unwrap_or(HitResult {
         damage: 0,
@@ -602,7 +617,7 @@ fn attract(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 /// (`NO_ACC_CALC`); "But it failed!" when the target already cannot escape.
 fn mean_look(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
-    if b.battler(u.target).v.escape_prevented {
+    if b.battler(u.target).v.escape_prevented || super::mech::subbed(b, u) {
         b.fail(env, u);
         return;
     }
@@ -716,7 +731,8 @@ fn yawn(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         ));
         return;
     }
-    if status::uproar_keeps_awake(b, u.target).is_some()
+    if super::mech::subbed(b, u)
+        || status::uproar_keeps_awake(b, u.target).is_some()
         || t.v.yawn > 0
         || t.mon.status != Status::None
     {

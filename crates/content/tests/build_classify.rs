@@ -253,7 +253,11 @@ fn move_effects_by_name() {
     assert_eq!(e("EFFECT_ATTRACT").as_deref(), Some("MoveEffect::Attract"));
     assert_eq!(e("EFFECT_LOW_KICK").as_deref(), Some("MoveEffect::LowKick"));
     assert_eq!(e("EFFECT_ROLLOUT").as_deref(), Some("MoveEffect::Rollout"));
-    assert_eq!(e("EFFECT_TRANSFORM"), None);
+    assert_eq!(
+        e("EFFECT_TRANSFORM").as_deref(),
+        Some("MoveEffect::Transform")
+    );
+    assert_eq!(e("EFFECT_UNUSED_60"), None);
     assert_eq!(e("HIT"), None);
     // The mapped names are real `EFFECT_*`s.
     let mapped = extract::names::MOVE_EFFECTS

@@ -157,6 +157,9 @@ pub(in crate::battle::effects) fn start_move(b: &mut Battle, u: &MoveUse) {
         called: None,
         mov: u.mov,
         slot: u.slot,
+        printed: false,
+        unavailable: false,
+        no_pressure: false,
     });
 }
 
@@ -236,6 +239,10 @@ pub(in crate::battle::effects) fn canceler_thaw(b: &mut Battle, env: &mut Env, u
 
 /// The canceler skipped the move.
 pub(in crate::battle::effects) fn skipped(b: &mut Battle) {
+    // MOVEEND_UPDATE_LAST_MOVES without HITMARKER_OBEYS: MOVE_UNAVAILABLE lands.
+    if let Some(c) = b.fx.cur {
+        b.battler_mut(c.target).fx.rec.landed = None;
+    }
     b.fx.cur = None;
 }
 
@@ -326,6 +333,23 @@ pub(in crate::battle::effects) fn move_end_first(b: &mut Battle, env: &mut Env, 
 /// `MOVEEND_MIRROR_MOVE` (`lastTakenMove`), then the move's bookkeeping ends.
 pub(in crate::battle::effects) fn move_end_last(b: &mut Battle, u: &MoveUse) {
     let t = u.target;
+    super::sub::sub_end(b);
+    // MOVEEND_UPDATE_LAST_MOVES: `gLastPrintedMoves` (the chosen move), and, but for Baton
+    // Pass, `gLastLandedMoves` / `gLastHitByType` of the target (Wave D).
+    if let Some(c) = b.fx.cur {
+        let moved = if c.unavailable { None } else { Some(c.mov) };
+        if c.printed {
+            b.battler_mut(u.attacker).fx.rec.printed = moved;
+        }
+        if u.info.effect != MoveEffect::BatonPass {
+            let landed = moved.is_some() && !b.no_effect;
+            let rec = &mut b.battler_mut(t).fx.rec;
+            rec.landed = landed.then_some(u.mov);
+            if landed {
+                rec.hit_type = Some(u.ty);
+            }
+        }
+    }
     if u.info.flags.has(MoveFlags::MIRROR_MOVE_AFFECTED)
         && u.attacker != t
         && b.battler(t).mon.hp > 0
@@ -401,6 +425,7 @@ pub(in crate::battle::effects) fn turn_clean_up(b: &mut Battle) {
         fx.rec.special = None;
         fx.recharge = fx.recharge.saturating_sub(1);
         fx.bounce = false;
+        fx.snatch = false;
     }
 }
 
@@ -509,10 +534,21 @@ pub(in crate::battle::effects) fn end_turn_taunt(b: &mut Battle, side: Side) {
     fx.taunt = fx.taunt.saturating_sub(1);
 }
 
-/// `HandleWishPerishSongOnTurnEnd`: the future attacks (battler index order), then the perish
-/// counts (turn order).
-pub(in crate::battle::effects) fn wish_perish(b: &mut Battle, env: &mut Env) {
-    for side in [Side::Player, Side::Opponent] {
+/// Whether `HandleWishPerishSongOnTurnEnd` has anything to do (a future attack or a perish
+/// count pending).
+pub(crate) fn wish_perish_pending(b: &Battle) -> bool {
+    b.fx.future.iter().any(Option::is_some) || b.battlers.iter().any(|m| m.fx.perish.is_some())
+}
+
+/// One event of `HandleWishPerishSongOnTurnEnd` from `state` (0..2: the future attacks by
+/// battler index; 2..4: the perish counts in turn order). The state to go on from after an
+/// event, whose faints are handled first (`BattleTurnPassed` runs `HandleFaintedMonActions`
+/// again before it); `None` when done.
+pub(crate) fn wish_perish(b: &mut Battle, env: &mut Env, state: u8) -> Option<u8> {
+    let mut i = state;
+    while i < 2 {
+        let side = [Side::Player, Side::Opponent][i as usize];
+        i += 1;
         let s = side as usize;
         let Some(mut f) = b.fx.future[s] else {
             continue;
@@ -527,8 +563,11 @@ pub(in crate::battle::effects) fn wish_perish(b: &mut Battle, env: &mut Env) {
             continue;
         }
         future_attack(b, env, side, f);
+        return Some(i);
     }
-    for side in b.order {
+    while i < 4 {
+        let side = b.order[(i - 2) as usize];
+        i += 1;
         let m = b.battler(side);
         let Some(n) = m.fx.perish else {
             continue;
@@ -547,7 +586,9 @@ pub(in crate::battle::effects) fn wish_perish(b: &mut Battle, env: &mut Env) {
             tell(env, Str::PkmnPerishCountFell, side, buffs);
             b.battler_mut(side).fx.perish = Some(n - 1);
         }
+        return Some(i);
     }
+    None
 }
 
 /// `BattleScript_MonTookFutureAttack`: the move's accuracy, `adjustnormaldamage2` (the random
@@ -583,5 +624,6 @@ fn future_attack(b: &mut Battle, env: &mut Env, side: Side, f: super::Future) {
     };
     b.deal_with(env, &u, r, false);
     b.try_faint(env, side);
+    super::sub::sub_end(b);
     b.fx.cur = None;
 }

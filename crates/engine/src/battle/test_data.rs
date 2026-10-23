@@ -152,6 +152,20 @@ pub const GRUDGE: MoveId = MoveId(102);
 pub const IMPRISON: MoveId = MoveId(103);
 pub const MAGIC_COAT: MoveId = MoveId(104);
 pub const TRICK: MoveId = MoveId(105);
+// Wave D (Gen3 data of the namesakes, PP 10).
+pub const SUBSTITUTE: MoveId = MoveId(106);
+pub const BATON_PASS: MoveId = MoveId(107);
+pub const TRANSFORM: MoveId = MoveId(108);
+pub const MIMIC: MoveId = MoveId(109);
+pub const SKETCH: MoveId = MoveId(110);
+pub const RECYCLE: MoveId = MoveId(111);
+pub const CONVERSION_2: MoveId = MoveId(112);
+pub const SNATCH: MoveId = MoveId(113);
+pub const BEAT_UP: MoveId = MoveId(114);
+pub const PAY_DAY: MoveId = MoveId(115);
+pub const THIEF: MoveId = MoveId(116);
+/// Swords Dance with its Gen3 `FLAG_SNATCH_AFFECTED`.
+pub const SNATCH_DANCE: MoveId = MoveId(117);
 
 // ---- species (SpeciesId = index) ----
 /// Water, Torrent (Mudkip-like).
@@ -296,7 +310,7 @@ const fn e2(
     }
 }
 
-pub static MOVES: [MoveInfo; 106] = [
+pub static MOVES: [MoveInfo; 118] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0, Selected, 0),
     MoveInfo {
         flags: MoveFlags(MoveFlags::MAKES_CONTACT),
@@ -957,6 +971,70 @@ pub static MOVES: [MoveInfo; 106] = [
         100,
         Selected,
         MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    wc(
+        MoveEffect::Substitute,
+        0,
+        Type::Normal,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
+    ),
+    wc(MoveEffect::BatonPass, 0, Type::Normal, 0, User, 0),
+    wc(MoveEffect::Transform, 0, Type::Normal, 0, Selected, 0),
+    wc(MoveEffect::Mimic, 0, Type::Normal, 100, Selected, 0),
+    MoveInfo {
+        pp: 1,
+        ..wc(MoveEffect::Sketch, 0, Type::Normal, 0, Selected, 0)
+    },
+    wc(MoveEffect::Recycle, 0, Type::Normal, 100, User, 0),
+    wc(MoveEffect::Conversion2, 0, Type::Normal, 100, Selected, 0),
+    MoveInfo {
+        priority: 4,
+        ..wc(MoveEffect::Snatch, 0, Type::Dark, 0, User, 0)
+    },
+    wc(
+        MoveEffect::BeatUp,
+        10,
+        Type::Dark,
+        100,
+        Selected,
+        MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+    ),
+    MoveInfo {
+        effect_chance: 100,
+        ..wc(
+            MoveEffect::PayDay,
+            40,
+            Type::Normal,
+            100,
+            Selected,
+            MoveFlags::PROTECT_AFFECTED | MoveFlags::MIRROR_MOVE_AFFECTED,
+        )
+    },
+    MoveInfo {
+        effect_chance: 100,
+        ..wc(
+            MoveEffect::Thief,
+            40,
+            Type::Dark,
+            100,
+            Selected,
+            MoveFlags::MAKES_CONTACT
+                | MoveFlags::PROTECT_AFFECTED
+                | MoveFlags::MIRROR_MOVE_AFFECTED,
+        )
+    },
+    wc(
+        MoveEffect::StatUp {
+            stat: Stat::Atk,
+            stages: 2,
+        },
+        0,
+        Type::Normal,
+        0,
+        User,
+        MoveFlags::SNATCH_AFFECTED,
     ),
 ];
 
