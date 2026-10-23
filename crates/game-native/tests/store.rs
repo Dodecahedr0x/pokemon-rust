@@ -856,18 +856,23 @@ fn local_root_is_below_the_committed_tree_unless_overridden() {
     if std::env::var_os("PKR_CHECKPOINTS").is_some() {
         return;
     }
-    for stub in [true, false] {
+    for flavor in content::Flavor::ALL {
         assert_eq!(
-            Store::local_root(stub),
-            Store::default_root(stub).join("local")
+            Store::local_root(flavor),
+            Store::default_root(flavor).join("local")
         );
     }
 }
 
 #[test]
 fn default_root_is_per_flavor() {
-    for (stub, dir) in [(true, "stub"), (false, "emerald")] {
-        let r = Store::default_root(stub);
+    use content::Flavor;
+    for (flavor, dir) in [
+        (Flavor::Stub, "stub"),
+        (Flavor::Emerald, "emerald"),
+        (Flavor::Silice, "silice"),
+    ] {
+        let r = Store::default_root(flavor);
         assert!(r.ends_with(Path::new("checkpoints").join(dir)), "{r:?}");
         assert!(
             r.parent()
@@ -877,6 +882,9 @@ fn default_root_is_per_flavor() {
                 .join("Cargo.toml")
                 .is_file()
         );
+        // Every flavour's tree is committed (`checkpoints/silice/` holds no node yet).
+        assert!(r.is_dir(), "{r:?}");
+        Store::open(&r).unwrap();
     }
 }
 

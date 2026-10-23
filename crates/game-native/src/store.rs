@@ -470,23 +470,22 @@ fn write_new(path: &Path, text: &str) -> io::Result<()> {
 }
 
 impl Store {
-    /// The committed tree: `<workspace>/checkpoints/{stub|emerald}`.
-    pub fn default_root(stub: bool) -> PathBuf {
+    /// The committed tree of `flavor`: `<workspace>/checkpoints/{stub|emerald|silice}`
+    /// (`content::Flavor::name`; the shells pass `content::FLAVOR`).
+    pub fn default_root(flavor: content::Flavor) -> PathBuf {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
             .expect("crates/game-native is two levels below the workspace");
-        workspace
-            .join("checkpoints")
-            .join(if stub { "stub" } else { "emerald" })
+        workspace.join("checkpoints").join(flavor.name())
     }
 
     /// Where personal saves go (the `play` bin): `$PKR_CHECKPOINTS`, else
     /// `<default_root>/local` (git-ignored).
-    pub fn local_root(stub: bool) -> PathBuf {
+    pub fn local_root(flavor: content::Flavor) -> PathBuf {
         match std::env::var_os("PKR_CHECKPOINTS").filter(|d| !d.is_empty()) {
             Some(dir) => dir.into(),
-            None => Self::default_root(stub).join("local"),
+            None => Self::default_root(flavor).join("local"),
         }
     }
 

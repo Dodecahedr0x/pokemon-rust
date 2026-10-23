@@ -74,7 +74,7 @@ fn fade_trapped(far: i16) -> FadeTrap<Emerald> {
 }
 
 fn pane(local: &Path) -> (NativePane, Store) {
-    let store = Store::layered(Store::default_root(content::STUB), local).unwrap();
+    let store = Store::layered(Store::default_root(content::FLAVOR), local).unwrap();
     let m = Arc::new(Mutex::new(Materializer::new(Emerald::for_shells(), 8)));
     (NativePane::new(store.clone(), m), store)
 }

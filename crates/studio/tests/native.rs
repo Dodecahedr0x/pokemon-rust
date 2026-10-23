@@ -21,7 +21,7 @@ fn temp_dir(tag: &str) -> PathBuf {
 
 fn pane(tag: &str) -> (NativePane, PathBuf, Store) {
     let local = temp_dir(tag);
-    let store = Store::layered(Store::default_root(content::STUB), &local).unwrap();
+    let store = Store::layered(Store::default_root(content::FLAVOR), &local).unwrap();
     let m = Arc::new(Mutex::new(Materializer::new(
         content::Emerald::for_shells(),
         8,
@@ -36,7 +36,7 @@ fn status(p: &NativePane) -> Inspector {
 #[test]
 fn a_poisoned_materializer_lock_is_recovered() {
     let local = temp_dir("poison");
-    let store = Store::layered(Store::default_root(content::STUB), &local).unwrap();
+    let store = Store::layered(Store::default_root(content::FLAVOR), &local).unwrap();
     let m = Arc::new(Mutex::new(Materializer::new(
         content::Emerald::for_shells(),
         8,

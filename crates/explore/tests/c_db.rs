@@ -320,13 +320,15 @@ fn read_only_while_a_writer_holds_the_db() {
 
 #[test]
 fn default_path_is_under_target_explore() {
-    let p = Db::default_path(true);
+    use content::Flavor;
+    let p = Db::default_path(Flavor::Stub);
     assert!(
         p.ends_with("target/explore/stub/explore.db"),
         "{}",
         p.display()
     );
-    assert!(Db::default_path(false).ends_with("target/explore/emerald/explore.db"));
+    assert!(Db::default_path(Flavor::Emerald).ends_with("target/explore/emerald/explore.db"));
+    assert!(Db::default_path(Flavor::Silice).ends_with("target/explore/silice/explore.db"));
 }
 
 #[test]

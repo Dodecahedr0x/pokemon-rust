@@ -42,14 +42,14 @@ pub fn main(args: &[String]) -> Result<()> {
             dir
         }
         Some(_) => bail!(USAGE),
-        None => Store::default_root(content::STUB),
+        None => Store::default_root(content::FLAVOR),
     };
     // Replaying needs the real content: a stale extract would replay the stub world.
     if matches!(args.first(), Some(&("verify" | "seed" | "sav"))) {
         crate::fresh_extract()?;
     }
     // `--local`: the local store over the committed tree (or `--root`), which stays read-only.
-    let local = || Store::layered(&root, Store::local_root(content::STUB));
+    let local = || Store::layered(&root, Store::local_root(content::FLAVOR));
     match args[..] {
         ["list"] => list(&Store::open(&root)?),
         ["list", "--local"] => list(&local()?),
@@ -75,7 +75,7 @@ pub fn main(args: &[String]) -> Result<()> {
             Ok(())
         }
         ["promote", id, "--label", label] | ["promote", "--label", label, id] => {
-            let local = Store::local_root(content::STUB);
+            let local = Store::local_root(content::FLAVOR);
             let new = promote(&root, &local, id, label)?;
             println!(
                 "{id} -> {new} {label:?} in {}: commit it (and `cargo xtask checkpoints verify`)",

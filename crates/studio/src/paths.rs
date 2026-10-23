@@ -11,12 +11,12 @@ pub struct StudioPaths {
     /// `target/studio/`: the ROM pane's exported saves (`rom-<unix ms>.sav`) and a smoke run's
     /// `smoke-sample.txt`.
     pub scratch: PathBuf,
-    /// The committed tree: `Store::default_root(content::STUB)`.
+    /// The committed tree: `Store::default_root(content::FLAVOR)`.
     pub shared: PathBuf,
     /// The personal, git-ignored store: `<shared>/local`.
     pub local: PathBuf,
-    /// The explorer's db (M7 Wave 2b): `explore::db::Db::default_path(content::STUB)`, i.e.
-    /// `target/explore/{stub|emerald}/explore.db`. The studio only reads it; the `explore`
+    /// The explorer's db (M7 Wave 2b): `explore::db::Db::default_path(content::FLAVOR)`, i.e.
+    /// `target/explore/<flavor>/explore.db`. The studio only reads it; the `explore`
     /// process it starts writes it.
     pub explore_db: PathBuf,
     /// The `explore` process's output when the studio starts it: `<scratch>/explore.log`.
@@ -31,8 +31,8 @@ impl StudioPaths {
             .expect("crates/studio is two levels below the workspace")
             .to_path_buf();
         let target = workspace.join("target");
-        let shared = Store::default_root(content::STUB);
-        let local = Store::local_root(content::STUB);
+        let shared = Store::default_root(content::FLAVOR);
+        let local = Store::local_root(content::FLAVOR);
         StudioPaths {
             rom: target.join("game.gba"),
             scratch: target.join("studio"),
@@ -40,7 +40,7 @@ impl StudioPaths {
             workspace,
             shared,
             local,
-            explore_db: explore::db::Db::default_path(content::STUB),
+            explore_db: explore::db::Db::default_path(content::FLAVOR),
         }
     }
 }
@@ -114,7 +114,7 @@ mod tests {
         assert!(p.scratch.starts_with(p.workspace.join("target")));
         if std::env::var_os("PKR_CHECKPOINTS").is_none() {
             assert!(p.local.starts_with(&p.shared));
-            let flavor = if content::STUB { "stub" } else { "emerald" };
+            let flavor = content::FLAVOR.name();
             assert_eq!(p.shared, p.workspace.join("checkpoints").join(flavor));
         }
     }
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn the_explore_db_is_under_target_explore() {
         let p = StudioPaths::detect();
-        let flavor = if content::STUB { "stub" } else { "emerald" };
+        let flavor = content::FLAVOR.name();
         let want = p.workspace.join("target/explore").join(flavor);
         assert_eq!(p.explore_db, want.join("explore.db"));
         assert_eq!(p.explore_log, p.scratch.join("explore.log"));
