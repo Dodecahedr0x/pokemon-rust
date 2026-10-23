@@ -1,4 +1,4 @@
 // Silice Ch1, MAP_BOIS_ETHER: Bois-Ether, the forest town of Sector Alpha (36 x 26, the source's size).
-// General + Fortree (Emerald tilesets by name): Fortree's treehouses on stilts, dense canopy and big
-// trees are the source's "houses in the trunks or on stilts between the roots". Border: the forest.
-(name: "BoisEther", width: 36, height: 26, primary: "General", secondary: "Fortree", fill: 1, border: [198, 199, 199, 198])
+// General + SilBoisEther (original, games/silice/tilesets): the Grass-Hopper hollow tree, houses on stilts
+// and in trunks, the Great Oak, the glowing cables, the market. Border: General's 2x2 forest block.
+(name: "BoisEther", width: 36, height: 26, primary: "General", secondary: "SilBoisEther", fill: 1, border: [468, 469, 476, 477])
