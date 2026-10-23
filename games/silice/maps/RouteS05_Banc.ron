@@ -21,9 +21,9 @@
             x: 20,
             y: 20,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_ULTRA_BALL",
-                flag: "FLAG_SIL_ITEM_ROUTE_S05_BANC_ULTRA_BALL",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS05_Banc_EventScript_HiddenUltraBall"),
             ),
         ),
     ],

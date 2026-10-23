@@ -566,7 +566,7 @@ fn branch_cmd(
         targets.len(),
         origins.len(),
         plan.as_secs_f64(),
-        crate::pool::threads(cfg.jobs),
+        crate::workers::threads_or_default(cfg.jobs),
         cfg.branch.budget_frames
     );
     let seen_before = db.stats()?.seen.values().sum::<u64>();
@@ -578,7 +578,7 @@ fn branch_cmd(
         started: now_text(),
         command: "branch".into(),
         config: cfg.to_ron(),
-        threads: crate::pool::threads(cfg.jobs) as u32,
+        threads: crate::workers::threads_or_default(cfg.jobs) as u32,
         branches: results.len() as u64,
         frames,
         wall_ms: wall.as_millis() as u64,

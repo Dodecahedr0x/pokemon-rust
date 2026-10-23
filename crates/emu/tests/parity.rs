@@ -868,3 +868,234 @@ fn rom_trainer_sighting_fits_the_frame() {
     );
     check_costs("trainer sighting", &run.end);
 }
+
+/// The committed Act 1 chain (Milestone 8 Task P), flattened from a new game.
+#[path = "../../game-native/tests/act1/trace.rs"]
+mod act1;
+
+/// Prints the memory marks [`check_costs`] gates.
+fn print_memory(what: &str, end: &DebugSnapshot) {
+    println!(
+        "{what}: heap_max {} B, stack untouched {} B, events dropped {}, reports {}",
+        end.heap_max, end.stack_min, end.events_dropped, end.reports
+    );
+}
+
+/// Every `act1:*` node resumes on the ROM from its `.sav` and follows the act for
+/// [`RESUME_FRAMES`] frames (the last node idles past the end of the act): the boot hash, every
+/// sampled hash and a picture every [`PICTURE_EVERY`] frames equal native's, no late frame, and
+/// the cost and memory gates hold (`check_costs`). Each node's native checkpoint reaches its
+/// committed digest.
+#[test]
+#[ignore = "needs target/game.gba; run `cargo xtask parity`"]
+fn rom_resumes_from_act1_nodes() {
+    let Some(act) = act1::load() else {
+        println!("act 1: {} build, no act1 nodes", content::FLAVOR.name());
+        return;
+    };
+    let keys = |f| act.keys_at(f);
+    let runs: Vec<(u32, u32)> = (act.nodes.iter())
+        .map(|&(_, f)| (f, f + RESUME_FRAMES))
+        .collect();
+    let pictures: Vec<u32> = (runs.iter())
+        .flat_map(|&(f, end)| resume_pictures(f, end))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let at: Vec<u32> = runs.iter().map(|r| r.0).collect();
+    let end = runs.iter().map(|r| r.1).max().unwrap();
+    let native = native_run(keys, end, &pictures, &at);
+    let store =
+        game_native::store::Store::open(game_native::store::Store::default_root(content::FLAVOR))
+            .unwrap();
+    let index = store.index().unwrap();
+    let build = build_hash(&content::Emerald::for_shells());
+    for (&(ref label, f), &(_, end)) in act.nodes.iter().zip(&runs) {
+        let what = format!("{label} (frame {f})");
+        let cp = &native.checkpoints[&f];
+        assert_eq!(
+            engine::checkpoint::state_digest(&cp.world),
+            index.labelled(label).unwrap().meta.digest,
+            "{what}: native state against the committed node"
+        );
+        let sav = flash::encode_sav(cp).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let run = run_rom_from(
+            &rom_path(),
+            Some(&sav),
+            Some(f),
+            keys,
+            end,
+            &resume_pictures(f, end),
+        )
+        .unwrap_or_else(|e| panic!("{what}: ROM run failed: {e:#}"));
+        assert_eq!(run.boot.boot, boot::RESTORED, "{what}: boot code");
+        assert_eq!(run.boot.build, build, "{what}: ROM build");
+        assert_eq!(
+            run.boot.hash, native.hashes[f as usize],
+            "{what}: boot hash"
+        );
+        compare_run(&what, &run, &native, keys);
+        print_memory(&what, &run.end);
+        check_costs(&what, &run.end);
+    }
+}
+
+/// A late apply on a visible frame known on the Act 1 trace, with its cause. A late apply
+/// shifts the ROM's input sampling (it consumes another frame's keys from then on), so a replay
+/// cannot go on past it: the long lane stops [`LATE_MARGIN`] frames before `frame` and resumes
+/// on the ROM at the first capturable frame after it (from native's checkpoint). Each entry is
+/// checked to still happen; remove it once fixed.
+struct KnownLate {
+    /// The engine frame the ROM reports the late apply at.
+    frame: u32,
+    cause: &'static str,
+}
+
+const KNOWN_LATE: &[KnownLate] = &[KnownLate {
+    frame: 80_366,
+    cause: "Roxanne's battle start: `Battle::start` runs on the transition's first frame and its \
+            first `NewTurn` runs the opponent's AI choice (gym leader AI flags) in the same step, \
+            223 lines (Findings for M9)",
+}];
+
+/// Frames a ROM piece stops before a [`KnownLate`] frame: the late step runs two engine frames
+/// in one emulator frame, so the ROM reaches `frame` straight from `frame - 2`.
+const LATE_MARGIN: u32 = 4;
+
+/// The ROM runs `(start, end)` covering `from..=to`, cut around the [`KNOWN_LATE`] frames in it:
+/// each piece ends [`LATE_MARGIN`] frames before a known late apply, and the next starts at the
+/// first capturable frame after it (none if the act is not capturable again by `to`).
+fn act1_pieces(native_capturable: &[bool], from: u32, to: u32) -> Vec<(u32, u32)> {
+    let mut pieces = Vec::new();
+    let mut start = Some(from);
+    for k in KNOWN_LATE
+        .iter()
+        .filter(|k| k.frame > from && k.frame <= to)
+    {
+        let Some(s) = start else { break };
+        if s < k.frame - LATE_MARGIN {
+            pieces.push((s, k.frame - LATE_MARGIN));
+        }
+        start = (k.frame..to).find(|&n| native_capturable[n as usize]);
+    }
+    if let Some(s) = start
+        && s < to
+    {
+        pieces.push((s, to));
+    }
+    pieces
+}
+
+/// `cargo xtask parity --long` (Milestone 8 Task P): the whole Act 1 trace on the ROM from a
+/// new game, every hash and a picture every [`PICTURE_EVERY`] frames compared with native, no
+/// late frame, black-screen late applies only after bulk steps (at most one per bulk event),
+/// and the cost and memory gates, except around [`KNOWN_LATE`] (the run stops before each and
+/// resumes from native's checkpoint at the next capturable frame; each is checked to still
+/// happen). Then each segment again on its own (the first from a new game, the others from their
+/// parent node's `.sav`), for the worst lines and memory marks of each. The plain
+/// `cargo xtask parity` skips it.
+#[test]
+#[ignore = "needs target/game.gba; run `cargo xtask parity --long`"]
+fn act1_long_whole_trace_from_a_new_game() {
+    let Some(act) = act1::load() else {
+        println!("act 1: {} build, no act1 nodes", content::FLAVOR.name());
+        return;
+    };
+    let keys = |f| act.keys_at(f);
+    let end = act.frames();
+    let pictures: Vec<u32> = (1..=end / PICTURE_EVERY)
+        .map(|i| i * PICTURE_EVERY)
+        .collect();
+    let capturable = native_run(keys, end, &[], &[]).capturable;
+    let whole = act1_pieces(&capturable, 0, end);
+    let segments: Vec<(String, Vec<(u32, u32)>)> = (act.nodes.iter().enumerate())
+        .map(|(i, (label, to))| {
+            let from = if i == 0 { 0 } else { act.nodes[i - 1].1 };
+            (
+                format!("act 1 segment to {label}"),
+                act1_pieces(&capturable, from, *to),
+            )
+        })
+        .collect();
+    let starts: BTreeSet<u32> = (whole.iter().chain(segments.iter().flat_map(|s| &s.1)))
+        .map(|p| p.0)
+        .filter(|&s| s > 0)
+        .collect();
+    let starts: Vec<u32> = starts.into_iter().collect();
+    let native = native_run(keys, end, &pictures, &starts);
+    let build = build_hash(&content::Emerald::for_shells());
+    let piece = |what: &str, (from, to): (u32, u32)| {
+        let what = format!("{what} (frames {from}..={to})");
+        let sav = (from > 0).then(|| {
+            flash::encode_sav(&native.checkpoints[&from]).unwrap_or_else(|e| panic!("{what}: {e}"))
+        });
+        let pics: Vec<u32> = (pictures.iter().copied())
+            .filter(|&c| c > from && c <= to)
+            .collect();
+        let t = std::time::Instant::now();
+        let run = run_rom_from(&rom_path(), sav.as_deref(), Some(from), keys, to, &pics)
+            .unwrap_or_else(|e| panic!("{what}: ROM run failed: {e:#}"));
+        assert_eq!(
+            run.boot.boot,
+            if from == 0 {
+                boot::NEW_GAME
+            } else {
+                boot::RESTORED
+            },
+            "{what}: boot code"
+        );
+        assert_eq!(run.boot.build, build, "{what}: ROM build");
+        assert_eq!(run.consumed.len() as u32, to - from, "{what}: steps run");
+        compare_run(&what, &run, &native, keys);
+        println!(
+            "{what}: {} frames in {:.1} s",
+            to - from,
+            t.elapsed().as_secs_f64()
+        );
+        print_memory(&what, &run.end);
+        check_costs(&what, &run.end);
+        run
+    };
+    // Bulk events: runs of consecutive bulk steps.
+    let bulk_events = native.bulk.windows(2).filter(|w| w[1] != w[0] + 1).count()
+        + usize::from(!native.bulk.is_empty());
+    let mut late_black = 0;
+    for &p in &whole {
+        late_black += piece("act 1", p).late_black;
+    }
+    assert!(
+        late_black as usize <= bulk_events,
+        "act 1: {late_black} late applies on a black screen for {bulk_events} bulk events"
+    );
+    let replayed: u32 = whole.iter().map(|p| p.1 - p.0).sum();
+    println!("act 1: {replayed} of {end} frames replayed on the ROM, {bulk_events} bulk events");
+    for (what, pieces) in &segments {
+        for &p in pieces {
+            piece(what, p);
+        }
+    }
+    // Each known late apply still happens: from the piece before it, one frame further.
+    for k in KNOWN_LATE {
+        let &(from, _) = whole
+            .iter()
+            .chain(segments.iter().flat_map(|s| &s.1))
+            .filter(|p| p.1 + LATE_MARGIN == k.frame)
+            .min_by_key(|p| p.1 - p.0)
+            .expect("a piece ends before each known late apply");
+        let sav = (from > 0).then(|| flash::encode_sav(&native.checkpoints[&from]).unwrap());
+        let err = run_rom_from(&rom_path(), sav.as_deref(), Some(from), keys, k.frame, &[])
+            .err()
+            .map(|e| format!("{e:#}"));
+        // The exact frame: a late apply that moves (earlier or later) fails here too.
+        let want = format!("ROM applied a frame late by engine frame {}", k.frame);
+        assert!(
+            err.as_deref() == Some(want.as_str()),
+            "KNOWN_LATE at frame {} no longer happens ({err:?}): remove it",
+            k.frame
+        );
+        println!(
+            "known late apply at frame {} (still happens): {}",
+            k.frame, k.cause
+        );
+    }
+}

@@ -1,0 +1,12 @@
+// Made with the Ch4 scripts. The two loot barrels become signs running a script: the engine
+// ignores BgKind::HiddenItem (the SIL1 Task F fallback), and the signs give the source's texts
+// (Port_Ressac_Cale_Butin, then Port_Ressac_Cale_Vide) and the Rhum Pirate's quantity (x2).
+// Restore with:
+//     HiddenItem(x: 1, y: 5, item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_PORT_CALE_HYPER_POTION"),
+//     HiddenItem(x: 9, y: 5, item: "ITEM_SIL_RHUM_PIRATE", flag: "FLAG_SIL_ITEM_PORT_CALE_RHUM"),
+[
+    Delete(kind: Bg, index: 3),
+    Delete(kind: Bg, index: 2),
+    Sign(x: 1, y: 5, script: "PortRessac_Gym_Cale_EventScript_ButinHyperPotion"),
+    Sign(x: 9, y: 5, script: "PortRessac_Gym_Cale_EventScript_ButinRhum"),
+]

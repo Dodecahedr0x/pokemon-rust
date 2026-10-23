@@ -115,18 +115,18 @@
             x: 1,
             y: 5,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_HYPER_POTION",
-                flag: "FLAG_SIL_ITEM_PORT_CALE_HYPER_POTION",
+            kind: Script(
+                facing: 0,
+                script: Some("PortRessac_Gym_Cale_EventScript_ButinHyperPotion"),
             ),
         ),
         (
             x: 9,
             y: 5,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_SIL_RHUM_PIRATE",
-                flag: "FLAG_SIL_ITEM_PORT_CALE_RHUM",
+            kind: Script(
+                facing: 0,
+                script: Some("PortRessac_Gym_Cale_EventScript_ButinRhum"),
             ),
         ),
     ],

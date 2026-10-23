@@ -12,7 +12,7 @@ use std::path::Path;
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    /// Worker threads for branches; 0 = rayon's default (the CPU count).
+    /// Worker threads for branches; 0 = `workers::default_threads` (three quarters of the CPUs).
     pub jobs: usize,
     pub weights: Weights,
     pub key: KeyConfig,

@@ -155,14 +155,20 @@ impl Vars {
 impl Vars {
     /// Set flags and non-zero vars, ascending.
     pub fn snapshot(&self) -> crate::checkpoint::VarsSnap {
-        let flags = (1..FLAG_COUNT)
-            .map(FlagId)
-            .filter(|&f| self.flag(f))
+        // Byte by byte: most of the 16,384 flags are clear (flag 0 never reads set).
+        let flags = (self.flags.iter().enumerate())
+            .filter(|&(_, &b)| b != 0)
+            .flat_map(|(i, &b)| {
+                (0..8u16)
+                    .filter(move |bit| b & (1 << bit) != 0)
+                    .map(move |bit| FlagId(i as u16 * 8 + bit))
+            })
+            .filter(|f| f.0 != 0)
             .collect();
         let ids = (VARS_START..VARS_END).chain(SPECIAL_VARS_START..SPECIAL_VARS_END);
-        let vars = ids
-            .map(|v| (VarId(v), self.var(VarId(v))))
-            .filter(|&(_, x)| x != 0)
+        let vars = (ids.zip(self.vars.iter()))
+            .filter(|&(_, &x)| x != 0)
+            .map(|(v, &x)| (VarId(v), x))
             .collect();
         crate::checkpoint::VarsSnap { flags, vars }
     }

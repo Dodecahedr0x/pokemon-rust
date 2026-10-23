@@ -1419,7 +1419,6 @@ dependencies = [
  "explore",
  "extract",
  "game-native",
- "rayon",
  "ron",
  "rusqlite",
  "serde",
@@ -6040,6 +6039,7 @@ dependencies = [
  "ron",
  "rustc-demangle",
  "serde",
+ "serde_json",
  "tempfile",
 ]
 

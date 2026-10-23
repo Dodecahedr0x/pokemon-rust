@@ -25,7 +25,6 @@ pub mod model;
 pub mod observe;
 pub mod path;
 pub mod policy;
-pub mod pool;
 pub mod runs;
 pub mod sim;
 pub mod softlock;
@@ -34,5 +33,6 @@ pub mod store;
 #[cfg(feature = "testing")]
 #[doc(hidden)]
 pub mod testing; // fault-injection GameData wrappers
+pub mod workers; // deterministic worker pool
 
 pub use model::*;

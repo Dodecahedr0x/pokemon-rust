@@ -27,6 +27,15 @@
         // Ch2: Gris-Échec's Centre, set on entering it (GrisEchec_PokemonCenter_OnTransition).
         // As Ch1's, the cell in front of its door (5, 8).
         (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec", x: 5, y: 9),
+        // Ch4: the Taverne, Port-Ressac's Center (its nurse sets it, "à la première visite").
+        // The cell in front of its door (4, 7).
+        (name: "HEAL_LOCATION_SIL_PORT_RESSAC", map: "PortRessac", x: 4, y: 8),
+        // Ch3: Viber-City's Pokémon Center ("set_respawn à l'entrée"), the cell in front of its
+        // door (6, 14).
+        (name: "HEAL_LOCATION_SIL_VIBER_CITY", map: "ViberCity", x: 6, y: 15),
+        // Ch5: Owlys's Centre (the source's HEAL_LOCATION_OWLYS, also Sustentation's destination),
+        // set on entering it (Owlys_PokemonCenter_OnTransition). The cell in front of its door (15, 29).
+        (name: "HEAL_LOCATION_SIL_OWLYS", map: "Owlys", x: 15, y: 30),
     ],
     respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
     // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.

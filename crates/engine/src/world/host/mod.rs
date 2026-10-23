@@ -3,7 +3,7 @@
 //!
 //! Milestone 8 requests are routed to one file per owner: items and money ([`items`], Task H),
 //! multichoice ([`menu`], H), string buffers ([`buffers`], H), the trainer approach
-//! ([`trainer`], I) and warp slots ([`warps`], F). Their Wave 0 bodies answer safe defaults.
+//! ([`trainer`], I) and warp slots ([`warps`], F).
 
 mod buffers;
 mod items;

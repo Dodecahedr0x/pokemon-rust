@@ -701,3 +701,11 @@ fn advances_saturate() {
     run_page(&mut tb, &g);
     assert_eq!(tb.printer.y, i16::MAX);
 }
+
+#[test]
+fn the_pristine_digest_is_a_new_text_box_hash() {
+    let mut h = Fnv64::new();
+    TextBox::new().hash(&mut h);
+    assert_eq!(TextBox::pristine_digest(), h.finish());
+    assert!(TextBox::new().is_pristine());
+}

@@ -211,7 +211,7 @@ pub struct RunArgs {
     pub kind: RunKind,
     /// A branch's frame budget; `None` = the config's.
     pub budget: Option<u32>,
-    /// Branch workers; `None` = the explorer's default (rayon's thread count).
+    /// Branch workers; `None` = the explorer's default (`explore::workers::default_threads`).
     pub jobs: Option<usize>,
     /// Branch from this checkpoint's segment only; `None` = every origin.
     pub from: Option<String>,

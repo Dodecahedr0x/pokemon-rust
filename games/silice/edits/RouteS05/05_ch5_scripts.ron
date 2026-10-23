@@ -1,0 +1,7 @@
+// SIL3 Ch5 scripts: the map changes the Chapter 5 scripts need.
+[
+    // The hidden-item fallback (as Ch0-Ch2): the engine ignores BgKind::HiddenItem (the M9 finding of
+    // "SIL1 Task F as built"), so the hidden item is a sign running hidden_item. To restore once the
+    // engine picks hidden items up: Replace(index: 2, event: Bg((x: 43, y: 22, elevation: 0, kind: HiddenItem(item: "ITEM_HEART_SCALE", flag: "FLAG_SIL_ITEM_ROUTE_S05_ECAILLE_COEUR")))).
+    Replace(index: 2, event: Bg((x: 43, y: 22, elevation: 0, kind: Script(facing: 0, script: Some("RouteS05_EventScript_HiddenHeartScale"))))),
+]

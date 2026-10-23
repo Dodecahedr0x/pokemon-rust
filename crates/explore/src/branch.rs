@@ -12,7 +12,7 @@ use crate::key;
 use crate::macros;
 use crate::model::{FindingDraft, FindingKind, Macro, MacroKind, Opts, Stop};
 use crate::path;
-use crate::pool;
+use crate::workers;
 use crate::sim::{self, Live, StepFail};
 use crate::softlock::Trap;
 use crate::spine::{Coverage, Exec, Gain, Position, Progress, SpineRun, Step, StepOpts};
@@ -389,7 +389,7 @@ pub fn run_all<G: GameData + Clone + Send + Sync + 'static>(
     targets: &[Target],
     cfg: &Config,
 ) -> Vec<BranchResult> {
-    pool::run_ordered(cfg.jobs, targets, |t| run(game, spine, t, cfg))
+    workers::run_ordered(targets, cfg.jobs, |t| run(game, spine, t, cfg))
 }
 
 /// One branch from its origin: explore, then recover and verify (§3.3).

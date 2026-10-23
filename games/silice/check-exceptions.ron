@@ -592,6 +592,18 @@
             ruling_needed: false,
         ),
         (
+            rule: "placement-map",
+            subject: "FLAG_SIL_CLE_DEBUG",
+            reason: "post-game: the Debug Key and the Kangaskhanite are placed in the East Cave by ch12, behind its own flag; the Ch5 scripts that now claim Owlys_GrotteEst (SIL3 Ch5 scripts) do not give them, and the Ch12 scenes or map edits will",
+            ruling_needed: false,
+        ),
+        (
+            rule: "placement-map",
+            subject: "FLAG_SIL_VESTIGE_ARTHUR",
+            reason: "post-game: Arthur's Compass is placed in the wreck by ch12, behind its own flag; the Ch5 scripts that now claim RouteS05_Epave (SIL3 Ch5 scripts) do not give it, and the Ch12 scenes or map edits will",
+            ruling_needed: false,
+        ),
+        (
             rule: "sil-prefix",
             subject: "FLAG_DAILY",
             reason: "a pseudo-flag in ch12 (daily rematch); needs a real FLAG_SIL_* or a daily-reset mechanism",
@@ -1503,12 +1515,6 @@
             subject: "TRAINER_SIL_TAUBER_HOCSEAT_9",
             reason: "name \"TAUBER&HOCS\" is 11 bytes (max 10); TRAINER_NAME_LENGTH is 10 (shorten, or a double battle with two trainers)",
             ruling_needed: true,
-        ),
-        (
-            rule: "placement-map",
-            subject: "FLAG_SIL_ITEM_CASINO_COINS_FLOOR",
-            reason: "20 coins are not an item, so no hidden item can carry the flag: the map has a bg script ViberCity_Casino_EventScript_JetonsCaches at (14,3) that gives the coins and sets the flag; drop this entry once ch03 scripts name the flag",
-            ruling_needed: false,
         ),
         (
             rule: "placement-map",

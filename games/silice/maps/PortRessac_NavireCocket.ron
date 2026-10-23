@@ -100,9 +100,9 @@
             x: 7,
             y: 4,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_LUCKY_PUNCH",
-                flag: "FLAG_SIL_ITEM_PORT_NAVIRE_POING_CHANCE",
+            kind: Script(
+                facing: 0,
+                script: Some("PortRessac_NavireCocket_EventScript_CaisseCorbeau"),
             ),
         ),
     ],

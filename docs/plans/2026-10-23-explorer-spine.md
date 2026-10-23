@@ -110,7 +110,7 @@ From the origin's checkpoint, on a fresh session, with the detectors on:
 
 ### 3.4 Parallelism and determinism
 - Branches are independent. Each has its own session restored from its origin's `Arc<Checkpoint>`; `World` is `!Send`, so it is built on the worker thread.
-- They run on a rayon pool of `--jobs` threads (`pool::run_ordered`; it uses the speed-up agent's helper if that lands). `par_iter().map().collect()` keeps the input order.
+- They run on `--jobs` threads (`workers::run_ordered`, the speed-up work's pool; 0 = three quarters of the CPUs), which returns the results in input order.
 - The results are merged into the db in target order, so the first branch in spine order gets the first-finder credit in `seen`. Nothing depends on the thread count or the host time (slow frames are report-only, as before). `branches_recover_rejoin_and_do_not_depend_on_the_job_count` checks the results and the db digest with `--jobs 1` and `--jobs 4`.
 
 ### 3.5 Findings and repro

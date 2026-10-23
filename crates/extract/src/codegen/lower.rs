@@ -51,7 +51,7 @@
 //! `crate::data::{Flow, script_ids}` for the dispatch (the content crate `include!`s it in
 //! `content::data`).
 //! - `modules[<Module>]` is the body of `pub mod <Module> { use crate::prelude::*; <body> }`
-//!   inside `crate::scripts`, wrapped with the same `#[allow(…)]` as the legacy files. It starts
+//!   inside `crate::scripts`, wrapped in `#[allow(…)]` for generated code. It starts
 //!   with `use crate::data::Flow;` when it has functions, then `pub async fn <Name>(ctx: Ctx) ->
 //!   Flow` per function (each tail-call group's loop after its leader) and
 //!   `pub static <Movement>: [Step; N]` per movement.
@@ -59,7 +59,7 @@
 //!   sorted by name; the index is the `ScriptId`), `script_ids::<Name>`, the `SCRIPTS` thunk
 //!   table and `script(id, ctx)`. It boxes with `alloc::boxed::Box` (the crate has
 //!   `extern crate alloc`) and imports nothing.
-//! - The prelude provides, besides the legacy contract (`msgbox`, `MsgBox`, `callstd`,
+//! - The prelude provides, besides the M3–M7 helpers (`msgbox`, `MsgBox`, `callstd`,
 //!   `special`, `check_player_gender`, `trainer_flag`, `Ordering`, `Box`, the `Ctx` types and
 //!   every constant): `Report`, `ItemId`, `MoveId`, `BufferSrc`, `WarpSlot`, `TrainerBattle`,
 //!   `trainer_battle` (returning `bool`), `give_item`, `find_item`, `check_item`, `money_add`,
