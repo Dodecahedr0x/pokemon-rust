@@ -255,6 +255,12 @@ Wave 0 makes no feature work. It does five things:
   pub async fn give_item(ctx: &Ctx, item: u16, qty: u16) -> bool;   // Std_ObtainItem
   pub async fn find_item(ctx: &Ctx, item: u16, qty: u16) -> bool;   // Std_FindItem
   pub async fn check_item(ctx: &Ctx, item: u16, qty: u16) -> bool;
+  // added by Task H (D2 lowers the item commands to these; each sets VAR_RESULT as Gen3 does
+  // and applies Gen3's `(u8)` quantity cast):
+  pub async fn add_item(ctx: &Ctx, item: u16, qty: u16) -> bool;         // additem
+  pub async fn remove_item(ctx: &Ctx, item: u16, qty: u16) -> bool;      // removeitem
+  pub async fn check_item_space(ctx: &Ctx, item: u16, qty: u16) -> bool; // checkitemspace
+  pub async fn check_item_type(ctx: &Ctx, item: u16) -> u16;             // checkitemtype (POCKET_*)
   pub async fn money_add(ctx: &Ctx, n: u32); pub async fn money_remove(ctx: &Ctx, n: u32);
   pub async fn money_check(ctx: &Ctx, n: u32) -> bool;
   // text.rs (H)
@@ -580,6 +586,17 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
 8. **Not in F:** door animation graphics, elevation-based OBJ priority on bridges, and the one-frame-early step triggers. These are documented as M10 (Act 1 does not need them).
 9. **Route delta:** items 1, 2 and 7 change frame timing on warps and the hashed object set, so the slice route changes. The report carries the route delta; master refreshes per the rules, citing the M4 finding.
 
+**Task F as built.**
+- **Item 1 (warp loads):** `Field::enter_spread` uploads one tileset's worth of tiles (`SPREAD_TILES_BLACK`, 512) per black frame, then the palettes and the view `SPREAD_ROWS` (3) rows per frame. The fade-in waits on black (`TransitionStep::Loading`, `Transition::update_loading`), so a warp is about 5 frames longer. Warp-load `late_black` is 0 on the route.
+- **Item 2 (crossings into other tilesets):** the differing tilesets go `SPREAD_TILES_VISIBLE` (128) tiles per frame, then their palettes, then the view is redrawn by rows. A crossing during a spread restarts the tilesets still uploading. Deviation: for those few frames the rows not yet redrawn show old entries over the new tiles (Gen3 uploads the secondary at once and keeps old entries until they scroll out).
+- **`draw_cells`** builds entries in tilemap order and allocates each run once (no sort, no growing pushes): a row of cells costs about a third as much on the GBA. Route 104 `loop_lines_max` 227 → 112, Rustboro 158 → 88, Petalburg walking into Route 104 (other secondary) 114, all with `late` 0.
+- **Item 3 (stale view), deviation from the plan:** instead of recording the stale rect, a crossing redraws the kept cells whose metatile differs from what the new map draws there (only off the seam of a mirrored connection pair: `grid::{Seam, seam}`), so the view is always the current map's. `FieldSnap.stale` is always `None` (a restore rejects `Some`); `Field::view_stale`/`stale` remain and always report none. `NotCapturable::StaleView` now means a spread upload is in progress (`Field::uploading`). Visual deviation: Gen3 keeps the old map's border on screen until it scrolls out.
+- **Item 4 (warps):** `SetWarp` fills `warp_slots.dynamic`/`escape`; only a warp to `grid::MAP_DYNAMIC` (`MapId(0x7F7F)`, the schema's sentinel) reads the dynamic slot, and is ignored while it is unset. Warps to any other map the game lacks are ignored. Deferred: Gen3 `SetupWarp`'s implicit `SetDynamicWarp` (taking a warp whose destination warp is itself dynamic stores the warp taken) and `UpdateEscapeWarp` (needs the map type).
+- **Item 5 (directional `MB_IMPASSABLE_*`): deferred to Task L.** It needs `Behavior` variants in `data.rs`, their classification in content, and the collision check in `objects.rs`, none of which F owns.
+- **Item 6 (old-map objects): deferred to Task L.** `selected` must carry the map (Gen3 `GetObjectEventIdByPosition` does not filter by map), which touches `world.rs` and `world/host/mod.rs`.
+- **Item 7 (view spawning):** the Gen3 window (x−9..x+10, y−7..y+9), `OBJECT_EVENTS_COUNT` 16 with the player, no respawn of a live (local id, map), removal when both cell and home are out of view, crossings keep every object. The window moves whenever the player enters a cell, at step start, scripted moves included (Gen3 `CameraMove`). Restore refuses more than 16 objects. Deviation (RNG order): the object list is compacted (despawn removes, spawn appends) where Gen3 reuses the first free slot, so after a despawn and a spawn wanderers can draw from the RNG in a different order than Gen3.
+- **For G:** `Field::restore_spread` is the spread battle return; hold black until `!uploading()`.
+
 ### Task G — engine: battle breadth for Act 1 (G1, the gate) and beyond (G2, stretch)
 
 **Owns:** `crates/engine/src/battle/{effects/*, core.rs, core/*, calc.rs, ai.rs, text.rs, mod.rs}`, `crates/engine/src/world/battle.rs`, `crates/engine/src/mon.rs` (evolution only), `crates/content/build/classify/battle.rs` (`ability`, `move_effect`, `effect_stat`, `STRS`, `UNWORDED_STAT_EFFECTS`), `crates/engine/src/world/tests/m8_g.rs`, and their tests. Route-changing.
@@ -650,7 +667,7 @@ D1 is tested on **hand-written IR** only; it does not touch the content build, s
    - `SetUnlockedPokedexFlags`, `ShowMapNamePopup`, `DoPCTurnOnEffect`/`Off`, `TurnOnTVScreen`/`Off`: `Ignore`.
    - `ShouldTryRematchBattle`, `IsTrainerRegistered`: `Default(0)`.
    - `StartWallyTutorialBattle`: `Degraded`, no battle; the script continues (Petalburg).
-   - `SaveGame`: `Ignore` (saving is a shell action until M9).
+   - `SaveGame`: `Default(0)` (saving is a shell action until M9; every caller of `Common_EventScript_SaveGame` reads `VAR_RESULT` and backs out on 0, "not saved").
    - `PlayerPC`/`BedroomPC`: `Unsupported` (M9); the script must not softlock (tested).
 3. **`callstd`:** every `STD_*` is routed (msgbox kinds, `STD_OBTAIN_ITEM`/`STD_FIND_ITEM` to Task H's helpers, `STD_REGISTER_MATCH_CALL` `Ignore`, …).
 4. **Tests:** each `Native` special against a synthetic `Ctx` run (requests issued, in order); the Act 1 set is fully classified; no `Unsupported` special is reachable on the Act 1 maps without a reason.
@@ -726,6 +743,58 @@ Route-changing (it is the first of the ordered merges): the slice's scripts now 
 5. **Tests:**
    - `build_modes.rs`-style fixture dirs: an unclassified op fails, an override replaces, an unknown override fails;
    - the slice's parity route replays with identical ROM/native hashes on the new names; the route delta (D1 semantics) is stated in the report and refreshed on master per the rules.
+
+**Task D2 as built.**
+- **Build (`build/scripts.rs`):**
+  - `read_ir` (from `input::load`; `World.ir` replaces the legacy index) reads `scripts/index.ron`, the modules it names and the `scripts/decomp_names` provenance.
+  - `support` reads `build/support/*.ron` and sets `Support::item_helpers` when `src/prelude/items.rs` defines `pub async fn add_item(` (Task H's helpers; see below).
+  - `lower_ir` lowers once per extracted dir and process (cached: the data generator's `ScriptId`s and `generate` share it).
+  - It writes `$OUT_DIR/scripts/<Module>.rs` and `scripts.rs` (`DECOMP_NAMES`, one `pub mod` per module, plus `TRAINER_SCRIPTS: [(ScriptId, trainer, kind)]` sorted by id, and `trainer_script(id)`). It also writes `dispatch.rs` (the lowering's dispatch plus `SCRIPT_DIGESTS`), `overrides.rs` and `report.txt` (sites per class, unsupported sites per op or special, stale `specialvar` sites per special, decomp-name %, movement actions with no step, end in callee, overrides, trainer scripts), with one `cargo::warning` summary line.
+  - **Stale `specialvar` check:** a `specialvar` whose special is Unsupported leaves its destination (`VAR_RESULT`) holding an old value that the script then branches on. The build counts these sites (`Stats::stale_specialvars`) and lists them in `report.txt` and the warning line. It does not fail the build, because Task J's table classifies most of them. Slice: 17 sites over 11 specials. Full import: 234 sites over 92 specials, counted from the IR.
+  - `cargo xtask parity` refuses a real build whose IR has positional names only (`content::scripts::DECOMP_NAMES` false), because then no override applies. Sweep (Task L) should do the same.
+  - The stub lowers an empty IR.
+- **Overrides:**
+  - `src/overrides/mod.rs` is gone. `content::overrides` is inline in `lib.rs` and `include!`s `$OUT_DIR/overrides.rs`: one `#[path = "<abs>"] mod <Name>; pub use <Name>::<Name>;` per applied override, plus `OVERRIDES`. The reason: `tests/m8_e_overrides.rs` allows no non-identifier string literal under `src/overrides/`.
+  - Overrides apply only to an IR named from the decomp, since override names are decomp labels. Positional names (no `PKR_DECOMP`) apply none and warn, and no IR applies none. An override naming no script of a decomp-named IR fails the build.
+  - The worked example is `OldaleTown_PokemonCenter_1F_EventScript_Nurse`: the call to `Common_EventScript_PkmnCenterNurse` is spelled out as a `match` on its `Flow` (end in callee). The callee returns on its goodbye, healed, Pokérus and Gold Card decline paths. Only its fall-through `end`s stop the script.
+- **Trainer table:** `GameData::trainer_flag_of` (`0x500 + trainer`) and the new defaulted `GameData::trainer_battle_kind(script) -> Option<u8>` (decomp `TRAINER_BATTLE_*` numbering, from arg 0 of the script's first `trainerbattle`). The rows come from the IR, not from the emitted code: one row per function that starts with `trainerbattle`, even when its block holds a second battle, and even when the function is reported or overridden. Slice: 13 trainer scripts.
+- **Extract (format 5.4):**
+  - The legacy generator, the `.rs` export, `legacy_index.ron`, `LegacyScriptIndex` and `prelude/legacy.rs` are deleted.
+  - `text/<lang>.ron` is keyed by the IR's final names, and map files name scripts by them (`LittlerootTown_EventScript_Twin`, not `LittlerootTown_Obj1`).
+  - The std scripts (`gStdScripts`, located by `roots::std_scripts`) are extra roots, so their texts (`gText_ObtainedTheItem`, `gText_PutItemInPocket`, `gText_PlayerFoundOneItem`, `gText_TooBadBagIsFull`, …) are built for `text_named`. With decomp names they take their source module (`Common_obtain_item`, `Common_std_msgbox`, …); with positional names they fall into `Common_std_scripts`.
+- **Lowering fix-ups:**
+  - With `item_helpers`, `additem`/`removeitem`/`checkitemspace`/`checkitem`/`checkitemtype`, `STD_OBTAIN_ITEM`, `multichoice`/`multichoicedefault` and `checkmoney` call the helpers bare, since H's helpers write `VAR_RESULT` themselves. Without the flag, the Wave 0 forms are wrapped in `ctx.set_var(VAR_RESULT, …)`. `STD_FIND_ITEM` is always bare. `checkitemtype` is Native (`VAR_RESULT = 0` before H). **Task H deletes the flag and the Wave 0 branches.**
+  - `setobjectmovementtype` emits the `MOVEMENT_TYPE_*` constant. Content defines every one from `classify::movement`, the single mapping shared with object templates (Task I's exact mapping plugs in there).
+  - The IR's `unknown` pseudo-op is no unclassified command.
+  - A literal `buffernumberstring` operand is typed (`Number(10)`).
+  - `TRAINER_BATTLE_KINDS` is public.
+- **Specials:**
+  - The nurse's specials default as Gen3 does before the postgame: `CountPlayerTrainerStars` 0, `IsPokerusInParty` 0, `PlayerNotAtTrainerHillEntrance` 1, `BufferUnionRoomPlayerName` 0. As Unsupported they left `VAR_RESULT` stale, and after "yes" (1) the nurse explained Pokérus.
+  - `ScriptGetPokedexInfo` defaults to 0 (no Pokédex rating yet). As Unsupported it left `VAR_RESULT` stale, and Birch fell into the National Dex rating.
+- **Movements:** `NURSE_JOY_BOW_DOWN` is `Delay(48)`, the length of Gen3 `sAnim_NurseBow` (8 + 32 + 8 frames).
+- **Numbers:**
+  - Slice: 383 functions, 321 texts, 166 movements; sites Native 4088, Ignore 118, Default 14, Unsupported 136; end in callee 10; unresolved `waitmovement` 2; stale `specialvar` 17 sites over 11 specials.
+  - ROM 3,581,304 B (E: 3,481,496); IWRAM 788, EWRAM 460 unchanged.
+  - Parity identical: route 19,128 frames; hash 63 / step 210 / loop 214; `loop_lines_max` 215 (before_may), within 217.
+  - Full import (518 maps): 4,584 functions, 5,509 texts, 978 movements; Native 47,664, Ignore 1,180, Default 137, Unsupported 2,510 (the earlier build's 135 and 2,512, with `ScriptGetPokedexInfo`'s two sites moved; not rebuilt); end in callee 93; stale `specialvar` 234 sites over 92 specials.
+  - **Native debug build of `content` on the full import (loaded machine): 33–36 s, 4.5–4.7 GB peak RSS with `profile.dev.package.content.debug = "line-tables-only"` (added to the workspace `Cargo.toml`); 36 s and 5.2–5.4 GB without. Over the 30 s / 4 GB gate.**
+  - `-Z time-passes` (clean): type check 15.7 s / +2.0 GB (13.8 s of it in `coherence_checking`, where the async bodies' opaque types are revealed), borrowck 3.7 s, codegen 4.9 s, peak about 4.6 GB.
+  - Ruled out: the closure thunk table (empty table: same type check), incremental (`CARGO_INCREMENTAL=0`: same), `codegen-units = 16` (worse: 4.8 GB).
+  - **Left to L.** The D2 reviewer measured these fixes on the full import:
+
+    | Change | Peak RSS | Total |
+    |---|---|---|
+    | (a) Body sharing: one shared `async fn` per normalized body shape, each script a plain `fn` returning `impl Future` (3,069 of 4,590 scripts share a shape) | 3.53 GB | 20.1 s |
+    | (b) (a), plus the `Ctx` methods as named `Req` futures and a non-generic boxed `run` thunk | 3.38 GB | 16.8 s |
+    | (c) An op-list interpreter for straight-line fire-and-forget runs | | about 0.4 ms saved per await |
+
+    (a) alone closes the 4 GB / 30 s gate. It changes the lowering's output contract: shape normalization, parameterized bodies, and the digests and goldens that follow from them. That is more than a review fix, so D2 leaves it to L.
+- **Route delta (trees not refreshed; master re-seeds per the rules):**
+  - c00001 `lab` DIVERGED from frame +780, with the same inputs and the same end state (lab still at 4856; c00002 replays valid). The script request stream changed: the legacy `special()` issued a `Log` per special and `unsupported()` two, while Ignore now emits nothing and Unsupported one `Report`. The runner hash covers `issued`.
+  - c00002 `after_wild`: valid (rehash).
+  - c00003 `oldale_center` BROKEN: the nurse takes 46 frames longer. `NURSE_JOY_BOW_DOWN` was `Step::Delay(0)` (unsupported) and is now `Step::Delay(48)`. The node moves 11,571 → 11,617.
+  - c00004 `route103_after_may`: broken parent; 19,082 → 19,128.
+  - `explore/tests/h_tuning.rs` passes. The `route101_grass` fixture had stopped leaving the lab, and the cause was not `bufferleadmonspeciesname`: the Buffer host is still a no-op before H. The cause was `specialvar VAR_RESULT, ScriptGetPokedexInfo`, which as Unsupported left `VAR_RESULT` stale, so Birch took the National Dex rating at frame 5194. With `Default(0)` the fixture replays as recorded.
 
 ### Task L — full import, end to end, and `cargo xtask sweep`
 
@@ -1189,6 +1258,19 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
 - **Contract additions:** `scripts::{op_name, opcode, is_terminator_op}`; `export::scripts::{build_ir, Ir, ir_summary, decomp_dir}`; `labels::{transfer, Transfer, Kind, MapInput, …}` (`NameOrigin` re-exported from `schema`; `Transfer.root_kinds`); `ScriptIndex.movements` (movement name to module, `#[serde(default)]`).
 - **Without the decomp:** a missing or unreadable `PKR_DECOMP` warns and exports positional names; the manifest provenance key `scripts/decomp_names` is 1 when decomp names were used, else 0. A label inside a decoded command warns and is skipped. `serde_json` is a regular dependency of `extract` (decomp `map.json`).
 - **Outside B's files:** `extract/tests/export.rs` (Task A's) lists the IR files in its expected tree; `schema.rs` bumps `FORMAT_MINOR`, documents `text/ir_<lang>.ron` and adds `ScriptIndex.movements`; `export.rs` passes the provenance map to `export_scripts`. The decomp is loaded once per process (cache keyed by dir); `tests/export.rs` takes about 53 s in debug (46 s without `PKR_DECOMP`), the rest is `Decomp::load` and the transfer in an unoptimised build.
+
+## Task H as built
+- **Commits:** `dbace9a`, `e808cad`, `38292c1` (bag, money, buffers, expansion, multichoice, prelude); after review: `1cc85e6`, `417bd54`, `fbffcaf`.
+- **Contract additions:** engine `Bag::has`, `bag::slot_capacity`, `TextBox::{print_vars, start_multichoice, multichoice, multichoice_result, take_multichoice_result, is_multichoice_active}`, `text::{expand_vars, EXPANDED_MAX}`, `menu::{Multichoice, GLYPHS_PER_FRAME}`; prelude `add_item`, `remove_item`, `check_item_space`, `check_item_type` (listed under the content contracts), `text_named`, `item_pocket` (in `prelude/mod.rs`, so `items.rs` names nothing at the crate root and the lowering's compile check builds it against two stubs), `pocket_number`, `pocket_std_string`, `STDSTRING_*` (no generated consts exist for them). `commands.ron`: `checkitemtype` is `Native` (lowered to `check_item_type`).
+- **Multichoice window:** at Gen3's `CreateWindowFromRect(left, top, ..)` offset, `(left + 1, top + 1)` after `ScriptMenu_AdjustLeftCoordFromWidth` (`multichoicedefault 20, 8, MULTI_YESNO` opens at 21, 9, as `YES_NO_WINDOW`); the list is cut so the bottom frame row stays on screen (`top` capped at 16). The frame is the dialogue frame the yes/no box uses, not Gen3's standard window frame.
+- **Per-frame cost (GBA, scratch build not committed: per-frame lines in the debug slots, `bufferleadmonspeciesname` and a five-choice multichoice at the lab's `OnFrame0`):**
+  - one whole 20-glyph choice a frame (first version): opening frame 195 lines (191 step), then 151–153 a choice; route max 214, `loop_lines_max` 214;
+  - whole 34-glyph and 60-glyph choices (a full 28-tile row holds about 50 glyphs): late frames. So `draw_next` now draws at most `GLYPHS_PER_FRAME` = 12 glyphs a frame (6 on the opening frame, which also lays out and measures every choice): opening 187 lines, then 97–134 a frame; no late frame; route max 214;
+  - `{STR_VAR_n}` expansion runs once when a message starts (at most 1,000 bytes); the parity route's `before_may` step went from 210 to 211 lines, route loop unchanged at 215.
+- **Route delta (when D2 lowers `buffer*`):** the lab's `OnFrame0` (`bufferleadmonspeciesname`) makes `OnFrame0_T0`/`_T1` print the starter's name (about 4 frames a glyph), shifting emerald c00001 (frame 4856) through c00004 and the route tree; refresh them deliberately at integration. Stub tree and `GOLDEN_*` unchanged. On master's legacy lowering H is route-neutral (parity identical, checkpoints "valid (rehash)").
+- **Visible differences:** `waitfanfare` becomes `waitmessage` (Gen3 holds the message for the fanfare: 160 frames, 220 for a TM/HM); plural item names print singular (reported for Poké Balls and berries); `BufferTMHMMoveName` reported; the std scripts' scratch vars (`VAR_0x8004`/`5`/`7`/`8`) are not written; `POCKET_NONE` goes on where Gen3's `switch` ends the script; lists too long for the screen or canvas are cut; expansion nests 3 deep.
+- **Outside H's files:** one line in `world/host/mod.rs` (`print_vars`), one assertion in `world/tests.rs` (the two new reports), `world/checkpoint.rs` `MAX_MONEY` is `pub(super)` (shared with `host/items.rs`), the `checkitemtype` arm in `extract/src/codegen/lower{,/emit}.rs` and `extract/tests/codegen.rs` (with the stub `text_named`/`item_pocket`).
+- **Needed from others:** the content build wiring `tables/{items,multichoice,std_strings}.ron` into `GameData::{item, multichoice, std_string}` (until then `give_item` and friends report); D2 the decomp-labelled `gText_*` texts and the lowering to the helpers above; J `callstd STD_OBTAIN_ITEM`/`STD_FIND_ITEM` to `give_item`/`find_item`.
 
 ## Task I as built
 - **Sight** (`world/sight.rs`): Gen3 `CheckForTrainersWantingBattle` for `TRAINER_TYPE_NORMAL` and `_BURIED` (type 2 is skipped as in Gen3), S/N/W/E distance order, `CheckPathBetweenTrainerAndPlayer` (cells between free ignoring the wander range, the player's cell exactly an object collision), the flag from `GameData::trainer_flag_of`. A second trainer seeing at once is `Degraded("double sight")`. Differences from Gen3, documented there: no directionally impassable or out-of-map test on the path, and the scan walks the current map's templates instead of the active object slots.

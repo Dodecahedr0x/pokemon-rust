@@ -13,6 +13,7 @@ mod emote;
 mod movement;
 mod snapshot;
 mod spawn;
+pub use spawn::OBJECT_EVENTS_COUNT;
 #[cfg(test)]
 mod tests;
 

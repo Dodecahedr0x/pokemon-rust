@@ -5,6 +5,7 @@
 use super::{Event, State, WALK, World, camera_for, run_immediate};
 use crate::data::{Dir, GameData, MapData, MapId, PLAYER, SpecialIds};
 use crate::flow::{TransitionStep, on_warp_into};
+use crate::grid::MAP_DYNAMIC;
 use crate::objects::Terrain;
 use crate::script::Runner;
 use crate::video::Frame;
@@ -22,20 +23,28 @@ pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u
 }
 
 impl World {
-    /// Starts a warp through `map.warps[i]`; a warp to a map the game lacks is logged and ignored.
+    /// Starts a warp through `map.warps[i]`. A warp to [`MAP_DYNAMIC`] goes to the dynamic slot
+    /// (`SetWarpDestinationToDynamicWarp`), and is logged and ignored while that is unset or
+    /// names a map the game lacks; a warp to any other map the game lacks is logged and
+    /// ignored. Deferred (Milestone 8 Task F): Gen3 `SetupWarp`'s implicit `SetDynamicWarp`
+    /// (taking a warp whose destination warp is itself dynamic stores the warp taken) and
+    /// `UpdateEscapeWarp` (needs the map type).
     pub(super) fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
         let w = &map.warps[i];
-        if !game.has_map(w.dest_map) {
-            self.s.log("warp to a missing map ignored");
-            return;
-        }
+        let dynamic = w.dest_map == MAP_DYNAMIC;
+        let (dest, warp, x, y) = match self.s.warp_slots.dynamic {
+            Some(d) if dynamic && game.has_map(d.map) => (d.map, d.warp, d.x, d.y),
+            _ if !dynamic && game.has_map(w.dest_map) => (w.dest_map, Some(w.dest_warp), -1, -1),
+            _ => {
+                self.s.log("warp to a missing map ignored");
+                return;
+            }
+        };
         let s = &mut self.s;
         if door {
-            s.transition
-                .start_door(game, w.dest_map, Some(w.dest_warp), -1, -1);
+            s.transition.start_door(game, dest, warp, x, y);
         } else {
-            s.transition
-                .start(game, w.dest_map, Some(w.dest_warp), -1, -1);
+            s.transition.start(game, dest, warp, x, y);
         }
         s.objects.freeze_all();
     }
@@ -43,7 +52,8 @@ impl World {
     pub(super) fn run_transition(&mut self, game: &impl GameData, f: &mut Frame) {
         let s = &mut self.s;
         let moving = !s.objects.moves_done(PLAYER) || !s.objects.player().is_settled();
-        match s.transition.update(&mut s.fader, moving) {
+        let loading = s.field.uploading();
+        match s.transition.update_loading(&mut s.fader, moving, loading) {
             TransitionStep::Walk(d) => s.objects.start_moves(PLAYER, &WALK[d as usize]),
             TransitionStep::Load(map, x, y) => {
                 // Gen3 `CB2_LoadMap` restarts the script context: a script that warped ends
@@ -54,14 +64,17 @@ impl World {
                 if s.text.is_open() {
                     s.text.close(f);
                 }
-                load_map(game, s, f, map, x, y);
+                load_map_spread(game, s, f, map, x, y, true);
                 let b = s.ground(game).behavior(x, y);
                 let facing = s.transition.arrive(b);
                 s.objects.face(PLAYER, facing);
                 s.objects.freeze_all();
             }
             TransitionStep::Done => s.objects.unfreeze_all(),
-            TransitionStep::Walking | TransitionStep::FadingOut | TransitionStep::FadingIn => {}
+            TransitionStep::Walking
+            | TransitionStep::FadingOut
+            | TransitionStep::Loading
+            | TransitionStep::FadingIn => {}
         }
         if s.transition.player_hidden() {
             s.objects.hide(PLAYER);
@@ -81,6 +94,21 @@ pub(super) fn load_map(
     x: i16,
     y: i16,
 ) {
+    load_map_spread(game, s, f, id, x, y, false);
+}
+
+/// [`load_map`]; with `spread`, the field's tilesets and view are uploaded over the next
+/// frames ([`crate::field::Field::enter_spread`]) while the screen stays black, instead of
+/// all in this frame (Milestone 8 Task F).
+fn load_map_spread(
+    game: &impl GameData,
+    s: &mut State,
+    f: &mut Frame,
+    id: MapId,
+    x: i16,
+    y: i16,
+    spread: bool,
+) {
     f.bulk = true;
     let map = game.map(id);
     s.event(Event::MapEntered(id));
@@ -93,8 +121,12 @@ pub(super) fn load_map(
     if let Some(script) = map.scripts.on_transition {
         run_immediate(game, s, f, script);
     }
-    s.field
-        .enter(game, id, camera_for((x as i32 * 16, y as i32 * 16)), f);
+    let camera = camera_for((x as i32 * 16, y as i32 * 16));
+    if spread {
+        s.field.enter_spread(id, camera);
+    } else {
+        s.field.enter(game, id, camera, f);
+    }
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()
         .flatten()

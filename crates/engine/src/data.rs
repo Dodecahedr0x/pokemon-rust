@@ -556,6 +556,12 @@ pub trait GameData {
         let _ = script;
         None
     }
+    /// The `TRAINER_BATTLE_*` kind (`include/constants/battle_setup.h` numbering) of a trainer
+    /// object's script, the `trainerbattle` it starts with (Milestone 8 Task D2).
+    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
+        let _ = script;
+        None
+    }
     fn emote(&self, e: Emote) -> Option<&'static SpriteData> {
         let _ = e;
         None

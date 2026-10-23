@@ -67,12 +67,18 @@ pub(super) fn two_usable(s: &State) -> bool {
     s.party.iter().filter(|m| m.hp != 0).count() >= 2
 }
 
-/// Whether trainer script `script` battles as a double (Gen3 reads the `trainerbattle` type,
-/// `scriptPtr[1]`). `GameData` cannot say yet (see the Task I report), so every trainer counts
-/// as single.
+/// Gen3 `CheckTrainer`'s double test (trainer_see.c:279): `TRAINER_BATTLE_DOUBLE` (4),
+/// `_CONTINUE_SCRIPT_DOUBLE` (6) and `_REMATCH_DOUBLE` (7). `_CONTINUE_SCRIPT_DOUBLE_NO_MUSIC` (8)
+/// is not in it: such a trainer sees a player with one usable mon, then its talk path
+/// (`EventScript_TryDoDoubleTrainerBattle`, content's `trainer_battle`) refuses the battle.
+pub(super) const fn is_double_kind(kind: u8) -> bool {
+    matches!(kind, 4 | 6 | 7)
+}
+
+/// Whether trainer script `script` battles as a double for sight (Gen3 reads the
+/// `trainerbattle` type, `scriptPtr[1]`; here [`GameData::trainer_battle_kind`]).
 pub(super) fn is_double(game: &impl GameData, script: ScriptId) -> bool {
-    let _ = (game, script);
-    false
+    game.trainer_battle_kind(script).is_some_and(is_double_kind)
 }
 
 /// The trainer that sees the player now, if any.

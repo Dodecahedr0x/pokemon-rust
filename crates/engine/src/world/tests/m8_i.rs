@@ -103,6 +103,15 @@ impl GameData for Arena {
     fn heal_location(&self, id: u8) -> Option<(MapId, i16, i16)> {
         Game.heal_location(id)
     }
+    /// Trainer 1 battles single (`TRAINER_BATTLE_SINGLE`), trainer 2 double
+    /// (`TRAINER_BATTLE_DOUBLE`).
+    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
+        match script {
+            TRAINER_1_SCRIPT => Some(0),
+            TRAINER_2_SCRIPT => Some(4),
+            _ => None,
+        }
+    }
     fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
         match script {
             TRAINER_1_SCRIPT => Some(FLAG_TRAINER_1),
@@ -226,6 +235,25 @@ fn the_template_digest_follows_edits() {
     w.s.templates.edit(1, |t| (t.x, t.y) = (2, 8));
     w.s.templates.edit(2, |t| (t.x, t.y) = (8, 3));
     assert_ne!(w.hash(), before);
+}
+
+/// Gen3 `CheckTrainer` (trainer_see.c:279): `DOUBLE`, `REMATCH_DOUBLE` and
+/// `CONTINUE_SCRIPT_DOUBLE` need two usable mons to see; `CONTINUE_SCRIPT_DOUBLE_NO_MUSIC` (8) is
+/// not in Gen3's test.
+#[test]
+fn sight_reads_the_trainerbattle_kind() {
+    let doubles: Vec<u8> = (0..=12).filter(|&k| sight::is_double_kind(k)).collect();
+    assert_eq!(doubles, [4, 6, 7]);
+    assert!(sight::is_double(&Arena, TRAINER_2_SCRIPT));
+    assert!(!sight::is_double(&Arena, TRAINER_1_SCRIPT));
+    assert!(!sight::is_double(&Arena, ScriptId(1)), "no trainerbattle");
+    // Trainer 2 (double) looks up column 2 from (2, 8): one mon is not enough.
+    let mut w = arena(1);
+    w.s.objects.set_pos(PLAYER, 2, 6);
+    assert_eq!(sight::check(&Arena, &w.s), None);
+    let mut w = arena(2);
+    w.s.objects.set_pos(PLAYER, 2, 6);
+    assert_eq!(sight::check(&Arena, &w.s).map(|s| s.obj), Some(2));
 }
 
 #[test]

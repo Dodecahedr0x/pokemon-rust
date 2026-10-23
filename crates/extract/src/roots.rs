@@ -136,6 +136,64 @@ pub fn named_roots(rom: &Rom, header: &MapHeader, map: &str) -> Result<Vec<(Stri
     Ok(out)
 }
 
+/// The `gStdScripts` labels (`data/event_scripts.s`), by `STD_*`/`MSGBOX_*` index.
+pub const STD_SCRIPTS: [&str; 11] = [
+    "Std_ObtainItem",
+    "Std_FindItem",
+    "Std_MsgboxNPC",
+    "Std_MsgboxSign",
+    "Std_MsgboxDefault",
+    "Std_MsgboxYesNo",
+    "Std_MsgboxAutoclose",
+    "Std_ObtainDecoration",
+    "Std_RegisteredInMatchCall",
+    "Std_MsgboxGetPoints",
+    "Std_MsgboxPokenav",
+];
+
+/// The positional root name of `gStdScripts[i]` (used without the decomp).
+pub fn std_root_name(i: usize) -> String {
+    format!("StdScript{i}")
+}
+
+/// The ROM file offset of every `gStdScripts` entry, in [`STD_SCRIPTS`] order (Milestone 8 Task
+/// D2: the native std scripts' texts, `gText_ObtainedTheItem` and friends, are named and
+/// exported through them). Located by structure: `Std_MsgboxNPC` (`lock; faceplayer; message
+/// NULL; waitmessage; waitbuttonpress; release; return`) is entry 2 of a table of 11 ROM
+/// pointers, each to a decodable script. `None` when no such table is found (a synthetic ROM).
+pub fn std_scripts(rom: &Rom) -> Result<Option<Vec<u32>>> {
+    let op = |n: &str| crate::scripts::opcode(n).context(n.to_string());
+    let mut npc = vec![op("lock")?, op("faceplayer")?, op("message")?, 0, 0, 0, 0];
+    for n in ["waitmessage", "waitbuttonpress", "release", "return"] {
+        npc.push(op(n)?);
+    }
+    let mut found = Vec::new();
+    for at in rom.find_all(&npc) {
+        for p in rom.pointers_to(at) {
+            let Some(start) = p.checked_sub(8) else {
+                continue;
+            };
+            let entries: Option<Vec<u32>> = (0..STD_SCRIPTS.len() as u32)
+                .map(|i| rom.ptr(start + 4 * i).ok().flatten())
+                .collect();
+            let Some(entries) = entries else { continue };
+            if entries
+                .iter()
+                .all(|&e| matches!(crate::scripts::decode(rom, e), Ok(Some(_))))
+            {
+                found.push(entries);
+            }
+        }
+    }
+    found.sort();
+    found.dedup();
+    match found.len() {
+        0 => Ok(None),
+        1 => Ok(found.pop()),
+        n => bail!("{n} candidate gStdScripts tables"),
+    }
+}
+
 /// Offset -> canonical name: the first name for each offset in `roots`, which must list the
 /// maps' [`named_roots`] concatenated in export (`manifest.maps`) order.
 pub fn canonical<'a>(roots: impl IntoIterator<Item = &'a (String, u32)>) -> BTreeMap<u32, String> {

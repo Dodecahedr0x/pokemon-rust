@@ -15,7 +15,7 @@ const GOLDEN_WALK: (u64, u64) = (0x66f3_9427_d1ed_0a8f, 0x0818_a372_6436_0e30);
 /// Into the house through its door and back out over the doormat.
 const GOLDEN_WARP: u64 = 0x779c_8acf_63d1_6570;
 /// North across the connection to the route and back.
-const GOLDEN_CROSSING: u64 = 0xc2b0_b5dc_632d_bb70;
+const GOLDEN_CROSSING: u64 = 0x3623_1d46_54bc_c46e;
 /// Talking to the NPC through its whole script.
 const GOLDEN_SCRIPT: u64 = 0x0fab_8f3d_8206_46d3;
 /// A grass encounter on the route, fought to the end.

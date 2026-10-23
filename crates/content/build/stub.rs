@@ -224,7 +224,7 @@ pub fn world() -> World {
             })
             .collect(),
         texts: BTreeMap::new(),
-        index: None,
+        ir: None,
         sha1: String::new(),
         dir: None,
         battle: battle(),

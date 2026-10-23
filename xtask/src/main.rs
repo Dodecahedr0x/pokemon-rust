@@ -4,7 +4,7 @@ mod explore;
 mod studio;
 mod sweep;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -211,6 +211,13 @@ fn fresh_extract() -> Result<()> {
 
 fn parity() -> Result<()> {
     fresh_extract()?;
+    // Positional names (an extract without `PKR_DECOMP`) apply no override: the game would not
+    // be the one the trees and the parity fixtures describe.
+    ensure!(
+        content::STUB || content::scripts::DECOMP_NAMES,
+        "the script IR has positional names only (scripts/decomp_names = 0): set PKR_DECOMP and \
+         re-run `cargo xtask extract` before `cargo xtask parity`"
+    );
     // The committed tree must replay to its nodes before the ROM is compared against native.
     checkpoints::verify(
         &game_native::store::Store::default_root(content::STUB),

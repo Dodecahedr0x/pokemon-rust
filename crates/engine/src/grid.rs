@@ -1,6 +1,10 @@
 //! Block lookup around a map: its own blocks, then connected neighbors, then the border.
 
-use crate::data::{BLOCK_COLLISION_SHIFT, Dir, GameData, MapData, MapId};
+use crate::data::{BLOCK_COLLISION_SHIFT, Connection, Dir, GameData, MapData, MapId};
+
+/// Gen3 `MAP_DYNAMIC` (group and number 0x7F): the warp target that is not a map but the
+/// destination `setdynamicwarp` stored (the content schema exports it as this id).
+pub const MAP_DYNAMIC: MapId = MapId(0x7F7F);
 
 /// Where a cell outside `map` lands in a connected neighbor.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -43,6 +47,67 @@ pub fn neighbor(game: &impl GameData, map: &MapData, x: i16, y: i16) -> Option<N
                 y: ny,
             })
         })
+}
+
+/// The cell shift (`new = old + shift`) of crossing from `map` through its connection `c`.
+fn connection_shift(game: &impl GameData, map: &MapData, c: &Connection) -> (i16, i16) {
+    let n = game.map(c.map);
+    match c.dir {
+        Dir::Down => (-c.offset, -(map.height as i16)),
+        Dir::Up => (-c.offset, n.height as i16),
+        Dir::Left => (n.width as i16, -c.offset),
+        Dir::Right => (-(map.width as i16), -c.offset),
+    }
+}
+
+/// Where both maps of a connection crossing see the same blocks, in the old map's coordinates
+/// (half-open ranges): the cells whose coordinate along the connection is in `along` and across
+/// it in `across`. On those cells each map's own blocks, seen from the other through the
+/// connection, are the blocks the other draws there.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Seam {
+    /// The connection is north or south (along = x, across = y), else east or west.
+    pub vertical: bool,
+    pub along: (i16, i16),
+    pub across: (i16, i16),
+}
+
+/// The [`Seam`] of crossing from `from` into `to` by `shift` ([`neighbor`] coordinates), if the
+/// two connections mirror each other exactly: `from`'s only connection in that direction leads
+/// to `to`, and `to`'s only connection in the opposite direction leads back at the opposite
+/// offset. Without a mirror, `None` (compare every cell).
+pub fn seam(game: &impl GameData, from: MapId, to: MapId, shift: (i16, i16)) -> Option<Seam> {
+    let (o, n) = (game.map(from), game.map(to));
+    let only = |m: &'static MapData, dir: Dir| {
+        let mut it = m.connections.iter().filter(move |c| c.dir == dir);
+        it.next().filter(|_| it.next().is_none())
+    };
+    let c =
+        (o.connections.iter()).find(|c| c.map == to && connection_shift(game, o, c) == shift)?;
+    let there = only(o, c.dir)?;
+    let back = only(n, c.dir.opposite())?;
+    if !core::ptr::eq(there, c) || back.map != from || back.offset != -c.offset {
+        return None;
+    }
+    let (ow, oh, nw, nh) = (
+        o.width as i16,
+        o.height as i16,
+        n.width as i16,
+        n.height as i16,
+    );
+    let (sx, sy) = shift;
+    Some(match c.dir {
+        Dir::Up | Dir::Down => Seam {
+            vertical: true,
+            along: ((-sx).max(0), ow.min(nw - sx)),
+            across: ((-sy).min(0), oh.max(nh - sy)),
+        },
+        Dir::Left | Dir::Right => Seam {
+            vertical: false,
+            along: ((-sy).max(0), oh.min(nh - sy)),
+            across: ((-sx).min(0), ow.max(nw - sx)),
+        },
+    })
 }
 
 /// The block at (x, y), which may lie outside `map`. Border blocks come back with full collision,

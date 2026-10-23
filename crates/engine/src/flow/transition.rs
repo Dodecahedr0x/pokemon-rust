@@ -9,6 +9,8 @@
 //! - `Load(map, x, y)`: load `map` (field, objects, temp vars, `on_transition` / `on_load` map
 //!   scripts) with the player on (x, y), then call [`Transition::arrive`] with the live behavior
 //!   of that cell and face the player the way it returns. Returned once, on a black screen.
+//! - `Loading`: nothing; the loaded map is still uploading over frames (see
+//!   [`Transition::update_loading`]) and the screen stays black.
 //! - `Done`: the player has control again.
 //!
 //! Integration notes:
@@ -33,6 +35,8 @@ pub enum TransitionStep {
     Walking,
     FadingOut,
     Load(MapId, i16, i16),
+    /// The loaded map is still uploading; the screen stays black.
+    Loading,
     FadingIn,
     Done,
 }
@@ -146,6 +150,18 @@ impl Transition {
 
     /// Runs one frame. `player_moving` is whether the player is still in the middle of a step.
     pub fn update(&mut self, fader: &mut Fader, player_moving: bool) -> TransitionStep {
+        self.update_loading(fader, player_moving, false)
+    }
+
+    /// [`Transition::update`] while the loaded map may still be uploading (`loading`, Milestone 8
+    /// Task F): the fade-in waits on the black screen until it is done ([`TransitionStep::Loading`]),
+    /// as Gen3 `LoadMapInStepsLocal` finishes before `FieldCB_DefaultWarpExit` fades in.
+    pub fn update_loading(
+        &mut self,
+        fader: &mut Fader,
+        player_moving: bool,
+        loading: bool,
+    ) -> TransitionStep {
         loop {
             match self.stage {
                 Stage::Idle => return TransitionStep::Done,
@@ -178,6 +194,7 @@ impl Transition {
                     self.stage = Stage::FadeIn(false);
                     return TransitionStep::Load(self.map, self.x, self.y);
                 }
+                Stage::FadeIn(false) if loading => return TransitionStep::Loading,
                 Stage::FadeIn(false) => {
                     fader.start(Fade::FromBlack);
                     self.stage = Stage::FadeIn(true);

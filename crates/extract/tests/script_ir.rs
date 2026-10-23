@@ -1,6 +1,6 @@
 //! The script IR (M8 Task B): built for every map on both ROMs, it covers exactly the
 //! instructions today's walk decodes, every name it uses resolves, and it round-trips through
-//! RON; the export writes it next to the legacy output.
+//! RON; the export writes it and no Rust (Task D2).
 use extract::export::scripts::{Ir, build_ir};
 use extract::export::{self, ExportOptions, to_ron};
 use extract::inc::Decomp;
@@ -48,6 +48,8 @@ fn walk(rom: &Rom, maps: &[MapInput]) -> (BTreeSet<u32>, usize) {
                 .map(|(_, o)| o),
         );
     }
+    // The std scripts are roots too (Task D2).
+    offs.extend(roots::std_scripts(rom).unwrap().unwrap());
     let scan = scripts::walk(rom, &offs).unwrap();
     (scan.visited, scan.unknown.len())
 }
@@ -190,12 +192,12 @@ fn without_the_decomp_the_ir_is_positional() {
 }
 
 #[test]
-fn export_writes_the_ir_beside_the_legacy_scripts() {
+fn export_writes_the_ir_and_no_rust() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("export-script-ir");
     let _ = std::fs::remove_dir_all(&dir);
     let m: Manifest = export::export(&fixtures::fr(), &dir, &ExportOptions::slice(false)).unwrap();
     let index: ScriptIndex = export::read_ron(&dir.join("scripts/index.ron")).unwrap();
-    let texts: TextFile = export::read_ron(&dir.join("text/ir_fr.ron")).unwrap();
+    let texts: TextFile = export::read_ron(&dir.join("text/fr.ron")).unwrap();
     assert!(index.scripts.len() > 300 && texts.len() > 300);
     for module in index
         .scripts
@@ -207,10 +209,38 @@ fn export_writes_the_ir_beside_the_legacy_scripts() {
         assert_eq!(&f.module, module);
         assert!(m.files.contains_key(&format!("scripts/{module}.ron")));
     }
-    // The legacy output is still there.
-    assert!(dir.join("scripts/legacy_index.ron").exists());
-    assert!(dir.join("text/fr.ron").exists());
-    assert!(dir.join("scripts/LittlerootTown.rs").exists());
+    // Task D2: no Rust, no legacy index, no second text file.
+    assert!(
+        !m.files.keys().any(|f| f.ends_with(".rs")),
+        "{:?}",
+        m.files.keys()
+    );
+    assert!(!dir.join("scripts/legacy_index.ron").exists());
+    assert!(!dir.join("text/ir_fr.ron").exists());
+    // The map files name their scripts by the IR's names.
+    for map in export::SLICE_MAPS {
+        let f = export::read_map(&dir, map).unwrap();
+        let refs = f
+            .objects
+            .iter()
+            .filter_map(|o| o.script.as_ref())
+            .chain(f.coords.iter().filter_map(|c| c.script.as_ref()));
+        for s in refs {
+            assert!(index.scripts.contains_key(s), "{map}: {s}");
+        }
+    }
+    // The std scripts are in the IR, with the texts the native std helpers print.
+    for s in extract::roots::STD_SCRIPTS {
+        assert!(index.scripts.contains_key(s), "{s}");
+    }
+    for t in [
+        "gText_ObtainedTheItem",
+        "gText_PutItemInPocket",
+        "gText_PlayerFoundOneItem",
+        "gText_TooBadBagIsFull",
+    ] {
+        assert!(texts.contains_key(t), "{t}");
+    }
     assert_eq!(m.format_minor, extract::schema::FORMAT_MINOR);
     // The files a stale extract is told it lacks are ones every extract writes.
     assert!(!extract::schema::MINOR_FILES.is_empty());

@@ -66,8 +66,12 @@ impl Objects {
 
     /// Checks a snapshot from an untrusted source (forged, or another engine build) so that
     /// restoring and stepping it cannot panic: every action and animation is one the live
-    /// objects can be in between frames.
+    /// objects can be in between frames, and there are no more than Gen3's
+    /// `OBJECT_EVENTS_COUNT` objects (the player included).
     pub(crate) fn check_snapshot(s: &ObjectsSnap) -> Result<(), &'static str> {
+        if s.objs.len() > super::spawn::OBJECT_EVENTS_COUNT {
+            return Err("more objects than OBJECT_EVENTS_COUNT");
+        }
         for o in &s.objs {
             if let Some(a) = &o.action {
                 check_action(a)?;
