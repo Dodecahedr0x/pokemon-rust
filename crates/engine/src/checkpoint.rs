@@ -233,6 +233,11 @@ pub enum RunStateSnap {
     // never while `Moving`. Appended: snapshots without them encode as before.
     NotMovingHeld,
     TurnDirectionHeld,
+    // Gen3 `T_TILE_CENTER` on a forced-movement cell (`Objects::at_forced_tile_center`): the
+    // frame after a step ended there. Appended as well.
+    NotMovingCentered,
+    TurnDirectionCentered,
+    MovingCentered,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]

@@ -508,6 +508,9 @@ fn enum_variant_indices_are_pinned() {
             RunStateSnap::Moving,
             RunStateSnap::NotMovingHeld,
             RunStateSnap::TurnDirectionHeld,
+            RunStateSnap::NotMovingCentered,
+            RunStateSnap::TurnDirectionCentered,
+            RunStateSnap::MovingCentered,
         ],
         |v| match v {
             RunStateSnap::NotMoving => 0,
@@ -515,6 +518,9 @@ fn enum_variant_indices_are_pinned() {
             RunStateSnap::Moving => 2,
             RunStateSnap::NotMovingHeld => 3,
             RunStateSnap::TurnDirectionHeld => 4,
+            RunStateSnap::NotMovingCentered => 5,
+            RunStateSnap::TurnDirectionCentered => 6,
+            RunStateSnap::MovingCentered => 7,
         },
     );
     check(

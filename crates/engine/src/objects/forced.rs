@@ -20,8 +20,13 @@
 //! | `MuddySlope` (`ForcedMovement_MuddySlope`) | `walk_fast` | south | kept | plays |
 //!
 //! Running does not apply (`B` only changes keypad steps). Gen3's `PLAYER_AVATAR_FLAG_CONTROLLABLE`
-//! ([`super::Objects::hold`]) holds forced movement off after a warp load until the player
+//! ([`ForcedState::Held`]) holds forced movement off after a warp load until the player
 //! first moves.
+//!
+//! Gen3's `T_TILE_CENTER` ([`ForcedState::Centered`]) is the frame after a step ended, until
+//! the next `PlayerStep` clears the finished step; on a forced cell `FieldGetPlayerInput` reads
+//! no input on it. A bump (walk in place) is not a step: pushing into an obstacle from a forced
+//! cell reads input (Gen3 `T_NOT_MOVING`), so A talks and doors open.
 //!
 //! Differences from Gen3:
 //! - `Ice` slips the way the player faces; Gen3 uses `movementDirection`, which differs only
@@ -32,6 +37,34 @@
 use super::ActionKind;
 use crate::data::{Behavior, Dir};
 use crate::script::Speed;
+
+/// The player's forced-movement state beside its run state. Both are set only on a forced
+/// cell, so they are hashed and snapshotted only when set (`Objects::hash`, the appended
+/// `RunStateSnap` variants), and never together: a hold lifts when the player's run state is
+/// `MOVING`, which every step the player takes from a hold starts with.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum ForcedState {
+    Free,
+    /// Gen3 `PLAYER_AVATAR_FLAG_CONTROLLABLE`: forced movement is held off until the run state
+    /// is `MOVING` (`PlayerAllowForcedMovementIfMovingSameDirection`). Gen3 sets it on every
+    /// warp load (`InitPlayerAvatar`); here [`super::Objects::hold_forced`] sets it only when
+    /// the player arrives on a forced-movement cell, so it is never set on maps without one.
+    /// Never set while the run state is `MOVING`.
+    Held,
+    /// Gen3 `T_TILE_CENTER` on a forced cell: a player step ended there on the last frame
+    /// `update_player` ran, and none started since.
+    Centered,
+}
+
+impl ForcedState {
+    /// The next `PlayerStep` (or anything that moves the player otherwise) ends the tile
+    /// center.
+    pub(super) fn end_center(&mut self) {
+        if *self == ForcedState::Centered {
+            *self = ForcedState::Free;
+        }
+    }
+}
 
 /// One forced step.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

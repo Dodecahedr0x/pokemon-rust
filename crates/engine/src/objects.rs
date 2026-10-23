@@ -11,6 +11,7 @@ mod approach;
 mod draw;
 mod emote;
 mod forced;
+use forced::ForcedState;
 mod movement;
 mod snapshot;
 mod spawn;
@@ -547,12 +548,9 @@ pub struct Objects {
     /// A trainer that saw the player and walks up (Gen3 `TrainerSeeFuncList`).
     approach: Option<Approach>,
     // ---- forced movement ----
-    /// Gen3 `PLAYER_AVATAR_FLAG_CONTROLLABLE`: forced movement is held off until the player
-    /// first moves (`PlayerAllowForcedMovementIfMovingSameDirection`). Gen3 sets it on every
-    /// warp load (`InitPlayerAvatar`); here [`Objects::hold_forced`] sets it only when the
-    /// player arrives on a forced-movement cell, the only place it matters, so it is never set
-    /// on maps without one. Never set while `run_state` is `Moving`.
-    hold: bool,
+    /// [`ForcedState::Held`] (Gen3 `PLAYER_AVATAR_FLAG_CONTROLLABLE`) or
+    /// [`ForcedState::Centered`] (Gen3 `T_TILE_CENTER` on a forced cell); see [`ForcedState`].
+    forced: ForcedState,
 }
 
 impl Default for Objects {
@@ -572,7 +570,7 @@ impl Objects {
             banks: [None; 16],
             emotes: Vec::new(),
             approach: None,
-            hold: false,
+            forced: ForcedState::Free,
         }
     }
 
@@ -664,6 +662,7 @@ impl Objects {
         });
         if local == PLAYER {
             self.run_state = RunState::NotMoving;
+            self.forced.end_center();
         }
     }
 
@@ -841,12 +840,16 @@ impl Objects {
     /// `PLAYER_AVATAR_FLAG_CONTROLLABLE`, see `hold`): the World calls it after a warp load with
     /// whether the player stands on a forced-movement cell.
     pub fn hold_forced(&mut self, on_forced_cell: bool) {
-        self.hold = on_forced_cell;
+        self.forced = if on_forced_cell {
+            ForcedState::Held
+        } else {
+            ForcedState::Free
+        };
     }
 
     /// Whether forced movement is held off ([`Objects::hold_forced`]).
     pub fn forced_held(&self) -> bool {
-        self.hold
+        self.forced == ForcedState::Held
     }
 
     /// Frames the player's walk or run step has played (1 on the frame it starts), while one
@@ -859,19 +862,21 @@ impl Objects {
     }
 
     /// Whether the player is at a step's end on a forced-movement cell (Gen3
-    /// `T_TILE_CENTER` with `MetatileBehavior_IsForcedMovementTile`): settled after moving, so
-    /// `FieldGetPlayerInput` reads no A, START or held direction this frame.
+    /// `T_TILE_CENTER` with `MetatileBehavior_IsForcedMovementTile`): the frame after a step
+    /// ended there, before the next one starts, so `FieldGetPlayerInput` reads no A, START or
+    /// held direction this frame. Bumping into an obstacle from such a cell is not a step
+    /// (Gen3 `T_NOT_MOVING`): input is read.
     pub fn at_forced_tile_center(&self, terrain: &impl Terrain) -> bool {
         let p = &self.objs[0];
-        p.is_settled()
-            && self.run_state == RunState::Moving
+        self.forced == ForcedState::Centered
+            && p.is_settled()
             && terrain.behavior(p.x, p.y).is_forced_tile()
     }
 
     /// The forced step the player takes this frame, if one applies and is free: Gen3
     /// `TryDoMetatileBehaviorForcedMovement` up to the collision test (see [`forced`]).
     fn forced_step(&self, terrain: &impl Terrain) -> Option<(forced::ForcedStep, bool)> {
-        if self.hold {
+        if self.forced == ForcedState::Held {
             return None;
         }
         let p = &self.objs[0];
@@ -890,6 +895,8 @@ impl Objects {
         // Player control runs only when no script does: an approach left over by a trainer
         // script that ended without one is dropped.
         self.cancel_approach();
+        // Gen3 `T_TILE_CENTER` ends with this `PlayerStep` (it clears the finished step).
+        self.forced.end_center();
         if self.objs[0].moves.is_some() {
             return PlayerEvent::Idle;
         }
@@ -910,8 +917,8 @@ impl Objects {
                 Some(_) => RunState::Moving,
             };
             // `PlayerAllowForcedMovementIfMovingSameDirection`.
-            if self.run_state == RunState::Moving {
-                self.hold = false;
+            if self.run_state == RunState::Moving && self.forced == ForcedState::Held {
+                self.forced = ForcedState::Free;
             }
         }
         if let Some(a) = p.action {
@@ -922,9 +929,12 @@ impl Objects {
                 ActionKind::Walk(_) | ActionKind::Run | ActionKind::Jump(1..)
             );
             return if done && stepped {
-                PlayerEvent::StepFinished {
-                    at: self.objs[0].pos(),
+                let (x, y) = self.objs[0].pos();
+                // Gen3 `T_TILE_CENTER`, next frame: kept only where it matters.
+                if self.forced == ForcedState::Free && terrain.behavior(x, y).is_forced_tile() {
+                    self.forced = ForcedState::Centered;
                 }
+                PlayerEvent::StepFinished { at: (x, y) }
             } else {
                 PlayerEvent::Idle
             };
@@ -988,6 +998,10 @@ impl Objects {
     /// Then other maps' objects outside the view are despawned.
     pub fn update(&mut self, terrain: &impl Terrain, rng: &mut Rng, player_updated: bool) {
         let skip_player = player_updated && self.objs[0].moves.is_none();
+        // A movement script's step replaces the finished one (Gen3 `ScriptMovement` clears it).
+        if self.objs[0].moves.is_some() {
+            self.forced.end_center();
+        }
         for i in 0..self.objs.len() {
             if i == 0 && skip_player {
                 continue;
@@ -1078,9 +1092,11 @@ impl Objects {
             self.hash_emotes(h);
         }
         self.hash_approach(h);
-        // Forced movement: only while held, so hashes without it are unchanged.
-        if self.hold {
-            h.write(&[0xF0]);
+        // Forced movement: only while set, so hashes without it are unchanged.
+        match self.forced {
+            ForcedState::Free => {}
+            ForcedState::Held => h.write(&[0xF0]),
+            ForcedState::Centered => h.write(&[0xF1]),
         }
     }
 }

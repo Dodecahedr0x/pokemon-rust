@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::checkpoint::Checkpoint;
+use crate::script::Request;
 use crate::world::puzzle::{FLOOR_BREAKS, ICE_CRACKS, NOTICED};
 
 // Metatile k has raw behavior k (`Rink::behavior`).
@@ -22,18 +23,20 @@ const CRACKED: u16 = 8;
 const BROKEN: u16 = 9;
 const CFLOOR: u16 = 10;
 const HOLE: u16 = 11;
+const WP: u16 = 12;
 
 static RINK_TS: Tileset = Tileset {
     tiles: &TILES,
     palettes: &[[0x1234; 16]; 16],
-    metatiles: &[[0; 8]; 12],
-    attributes: &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    metatiles: &[[0; 8]; 13],
+    attributes: &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
 };
 
 const RINK: MapId = MapId(0);
 const GYM: MapId = MapId(1);
 const CAVE: MapId = MapId(2);
 const BELOW: MapId = MapId(3);
+const LANE: MapId = MapId(4);
 
 const VAR_ICE: VarId = VarId(0x4021);
 const VAR_ROW: VarId = VarId(0x4022);
@@ -76,6 +79,59 @@ static CAVE_BLOCKS: [u16; 24] = [
 
 static BELOW_BLOCKS: [u16; 24] = [FL; 24];
 
+/// 10x8, walls around, three ice lanes from (2, y) to (7, y) between floors:
+/// - row 2: a trainer on (6, 1) looks down at (6, 2), one cell;
+/// - row 4: an NPC with a script stands on (6, 4);
+/// - row 6: the lane ends on a warp (4, 6) to the map below.
+#[rustfmt::skip]
+static LANE_BLOCKS: [u16; 80] = [
+    WL, WL,  WL,  WL,  WL,  WL,  WL,  WL,  WL,  WL,
+    WL, FL,  FL,  FL,  FL,  FL,  FL,  FL,  FL,  WL,
+    WL, FL,  ICE, ICE, ICE, ICE, ICE, ICE, FL,  WL,
+    WL, FL,  FL,  FL,  FL,  FL,  FL,  FL,  FL,  WL,
+    WL, FL,  ICE, ICE, ICE, ICE, ICE, ICE, FL,  WL,
+    WL, FL,  FL,  FL,  FL,  FL,  FL,  FL,  FL,  WL,
+    WL, FL,  ICE, ICE, WP,  FL,  FL,  FL,  FL,  WL,
+    WL, WL,  WL,  WL,  WL,  WL,  WL,  WL,  WL,  WL,
+];
+
+const TRAINER_SCRIPT: ScriptId = ScriptId(2);
+const TALK_SCRIPT: ScriptId = ScriptId(3);
+const LOCK_SCRIPT: ScriptId = ScriptId(4);
+const FLAG_TRAINER: FlagId = FlagId(0x501);
+const FLAG_TALKED: FlagId = FlagId(0x502);
+
+const fn lane_trainer() -> ObjectEvent {
+    let mut o = obj(1, 6, 1, TRAINER_SCRIPT.0, None);
+    o.movement = MovementType::Face(Dir::Down);
+    o.trainer_type = super::super::sight::TRAINER_TYPE_NORMAL;
+    o.trainer_sight = 1;
+    o
+}
+
+static LANE_MAP: MapData = MapData {
+    objects: &[lane_trainer(), obj(2, 6, 4, TALK_SCRIPT.0, None)],
+    warps: &[WarpEvent {
+        x: 4,
+        y: 6,
+        elevation: 0,
+        dest_map: BELOW,
+        dest_warp: 0,
+    }],
+    ..map("lane", 10, 8, &LANE_BLOCKS)
+};
+
+static BELOW_MAP: MapData = MapData {
+    warps: &[WarpEvent {
+        x: 2,
+        y: 2,
+        elevation: 0,
+        dest_map: LANE,
+        dest_warp: 0,
+    }],
+    ..map("below", 6, 4, &BELOW_BLOCKS)
+};
+
 const fn map(name: &'static str, w: u16, h: u16, blocks: &'static [u16]) -> MapData {
     MapData {
         name,
@@ -95,11 +151,12 @@ const fn map(name: &'static str, w: u16, h: u16, blocks: &'static [u16]) -> MapD
     }
 }
 
-static RINK_MAPS: [MapData; 4] = [
-    map("rink", 10, 8, &RINK_BLOCKS),
-    map("gym", 6, 4, &GYM_BLOCKS),
-    map("cave", 6, 4, &CAVE_BLOCKS),
-    map("below", 6, 4, &BELOW_BLOCKS),
+static RINK_MAPS: [&MapData; 5] = [
+    &map("rink", 10, 8, &RINK_BLOCKS),
+    &map("gym", 6, 4, &GYM_BLOCKS),
+    &map("cave", 6, 4, &CAVE_BLOCKS),
+    &BELOW_MAP,
+    &LANE_MAP,
 ];
 
 static GYM_PUZZLE: IcePuzzle = IcePuzzle {
@@ -129,12 +186,31 @@ async fn fall(ctx: Ctx) {
 
 const FALL: ScriptId = ScriptId(1);
 
+/// A trainer's script up to its battle: the approach, then beaten.
+async fn trainer(ctx: Ctx) {
+    ctx.request(Request::TrainerApproach { obj: 1 }).await;
+    ctx.set_flag(FLAG_TRAINER, true).await;
+    ctx.release_all().await;
+}
+
+async fn talk(ctx: Ctx) {
+    ctx.set_flag(FLAG_TALKED, true).await;
+    ctx.release_all().await;
+}
+
+/// Locks everything for 30 frames.
+async fn lock(ctx: Ctx) {
+    ctx.lock_all().await;
+    ctx.delay(30).await;
+    ctx.release_all().await;
+}
+
 /// The test [`Game`]'s graphics, with the maps above, running allowed, and the puzzles.
 struct Rink;
 
 impl GameData for Rink {
     fn map(&self, id: MapId) -> &'static MapData {
-        &RINK_MAPS[id.0 as usize]
+        RINK_MAPS[id.0 as usize]
     }
     fn has_map(&self, id: MapId) -> bool {
         (id.0 as usize) < RINK_MAPS.len()
@@ -175,12 +251,16 @@ impl GameData for Rink {
             CRACKED => Behavior::CrackedIce,
             CFLOOR => Behavior::CrackedFloor,
             HOLE => Behavior::CrackedFloorHole,
+            WP => Behavior::Warp,
             _ => Behavior::Normal,
         }
     }
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         match id {
             FALL => Box::pin(fall(ctx)),
+            TRAINER_SCRIPT => Box::pin(trainer(ctx)),
+            TALK_SCRIPT => Box::pin(talk(ctx)),
+            LOCK_SCRIPT => Box::pin(lock(ctx)),
             _ => Box::pin(async {}),
         }
     }
@@ -207,6 +287,9 @@ impl GameData for Rink {
     }
     fn fall_script(&self) -> Option<ScriptId> {
         Some(FALL)
+    }
+    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+        (script == TRAINER_SCRIPT).then_some(FLAG_TRAINER)
     }
 }
 
@@ -563,4 +646,164 @@ fn stepping_on_a_hole_falls_to_the_map_below() {
     assert_eq!(w.var(VAR_ICE), 0);
     let (_, _) = run_to(&mut w, Buttons::NONE, (3, 2));
     assert_eq!(w.map(), BELOW);
+}
+
+// ---- review: obstacles, warps, sight and scripts during a slide ----
+
+fn lane() -> World {
+    let mut w = rink();
+    w.debug_warp(&Rink, LANE, None, 1, 3);
+    for _ in 0..80 {
+        step(&mut w, Buttons::NONE);
+    }
+    assert_eq!((w.map(), pos(&w)), (LANE, (1, 3)));
+    w
+}
+
+/// An NPC is an obstacle like a wall (`CheckForPlayerAvatarCollision`): the slide stops on the
+/// ice cell before it and the NPC stays put.
+#[test]
+fn a_slide_stops_before_an_npc() {
+    let mut w = lane();
+    place(&mut w, (1, 4), Dir::Right);
+    let (_, cells) = run_to(&mut w, Buttons::RIGHT, (5, 4));
+    assert_eq!(cells, [(2, 4), (3, 4), (4, 4), (5, 4)]);
+    assert_eq!(w.objects().get(2).unwrap().pos(), (6, 4));
+}
+
+/// Stopped on ice against an NPC (or a door), pushing on bumps (Gen3 `T_NOT_MOVING`, a
+/// stationary walk-in-place): field input is read again, so A talks and a door would open.
+/// Only the frame after a step that ends on a forced cell (`T_TILE_CENTER`) reads none.
+#[test]
+fn pushing_into_an_npc_from_ice_still_reads_a() {
+    let mut w = lane();
+    place(&mut w, (1, 4), Dir::Right);
+    let _ = run_to(&mut w, Buttons::RIGHT, (5, 4));
+    for k in 0..120 {
+        let a = if k % 3 == 0 {
+            Buttons::A
+        } else {
+            Buttons::NONE
+        };
+        step(&mut w, Buttons::RIGHT | a);
+        if w.flag(FLAG_TALKED) {
+            break;
+        }
+    }
+    assert!(
+        w.flag(FLAG_TALKED),
+        "A never talked to the NPC from the ice"
+    );
+    assert_eq!(pos(&w), (5, 4));
+}
+
+/// `T_TILE_CENTER` lasts the one frame after the step's end: the slide stops on (4, 2) before
+/// the wall, that frame reads no input, the next one does (no direction held: `T_NOT_MOVING`).
+#[test]
+fn the_tile_center_lasts_one_frame() {
+    let mut w = rink();
+    place(&mut w, (1, 2), Dir::Right);
+    let _ = run_to(&mut w, Buttons::RIGHT, (4, 2));
+    assert!(w.objects().at_forced_tile_center(&w.s.ground(&Rink)));
+    // It is captured: a restore reads no input on that frame either.
+    let r = World::restore(&Rink, &w.checkpoint(&Rink).unwrap()).unwrap();
+    assert!(r.objects().at_forced_tile_center(&r.s.ground(&Rink)));
+    assert_eq!(r.hash(), w.hash());
+    step(&mut w, Buttons::NONE);
+    assert!(!w.objects().at_forced_tile_center(&w.s.ground(&Rink)));
+}
+
+/// A slide onto a warp cell takes the warp at the step's end: the warp cell is not a forced
+/// cell, so the step triggers run (Gen3 `tookStep`, `MOVING` from the forced step).
+#[test]
+fn a_slide_onto_a_warp_takes_it() {
+    let mut w = lane();
+    place(&mut w, (1, 6), Dir::Right);
+    step(&mut w, Buttons::RIGHT);
+    for _ in 0..120 {
+        step(&mut w, Buttons::NONE);
+        if w.map() == BELOW {
+            break;
+        }
+    }
+    assert_eq!(w.map(), BELOW);
+    for _ in 0..60 {
+        step(&mut w, Buttons::NONE);
+    }
+    assert_eq!(pos(&w), (2, 2));
+}
+
+/// A trainer sees the player mid-slide (`CheckForTrainersWantingBattle` runs on every
+/// field-input frame): the step in progress ends, no forced step starts while its script runs,
+/// and the approach turns the player to the trainer (trainer_see.c:526, `movementDirection`
+/// too), so once it ends the slip north is blocked by the trainer; the keypad then slides the
+/// player on.
+#[test]
+fn a_trainer_sees_the_player_mid_slide() {
+    let mut w = lane();
+    place(&mut w, (1, 2), Dir::Right);
+    step(&mut w, Buttons::RIGHT);
+    let mut seen_at = None;
+    for _ in 0..200 {
+        step(&mut w, Buttons::NONE);
+        if w.script_running() {
+            let p = w.objects().player();
+            seen_at.get_or_insert(p.pos());
+            if p.is_settled() {
+                assert_eq!(p.pos(), (6, 2), "no forced step under the trainer's script");
+            }
+        } else if w.flag(FLAG_TRAINER) {
+            break;
+        }
+    }
+    assert_eq!(seen_at, Some((6, 2)));
+    assert!(w.flag(FLAG_TRAINER));
+    for _ in 0..30 {
+        step(&mut w, Buttons::NONE);
+    }
+    assert_eq!((pos(&w), w.objects().player().facing), ((6, 2), Dir::Up));
+    step(&mut w, Buttons::RIGHT);
+    let (_, cells) = run_to(&mut w, Buttons::RIGHT, (8, 2));
+    assert_eq!(cells, [(7, 2), (8, 2)]);
+}
+
+/// A script that locks the player on ice holds the slide until it ends (player control, and so
+/// forced movement, runs only without a script).
+#[test]
+fn a_locking_script_holds_the_slide() {
+    let mut w = rink();
+    place(&mut w, (3, 6), Dir::Right);
+    // Off the arrival hold of `rink`'s new game (`place` does not lift it, as `setobjectxy`).
+    w.s.objects.hold_forced(false);
+    let ctx = w.runner.ctx();
+    w.runner.start(Rink.script(LOCK_SCRIPT, ctx));
+    for _ in 0..25 {
+        step(&mut w, Buttons::RIGHT);
+        assert_eq!(pos(&w), (3, 6));
+    }
+    let (_, cells) = run_to(&mut w, Buttons::NONE, (8, 6));
+    assert_eq!(cells, [(4, 6), (5, 6), (6, 6), (7, 6), (8, 6)]);
+}
+
+/// The per-step puzzles keep no state of their own (timed by the player's step frame): a
+/// capture between the step's notice and the ice cracking restores to the same frames.
+#[test]
+fn thin_ice_round_trips_through_a_checkpoint_mid_step() {
+    let mut w = gym();
+    w.s.vars.set_var(VAR_ICE, 1);
+    place(&mut w, (1, 1), Dir::Right);
+    for _ in 0..NOTICED + 1 {
+        step(&mut w, Buttons::RIGHT);
+    }
+    assert_eq!((w.var(VAR_ICE), metatile(&w, 2, 1)), (2, THIN));
+    let mut r = World::restore(&Rink, &w.checkpoint(&Rink).unwrap()).unwrap();
+    assert_eq!(r.hash(), w.hash());
+    for i in 0..20 {
+        step(&mut w, Buttons::NONE);
+        r.step(&Rink, Buttons::NONE).validate().unwrap();
+        assert_eq!(r.hash(), w.hash(), "frame {i}");
+        assert_eq!(metatile(&r, 2, 1), metatile(&w, 2, 1), "frame {i}");
+    }
+    assert_eq!((r.var(VAR_ICE), metatile(&r, 2, 1)), (2, CRACKED));
+    assert_eq!(r.var(VAR_ROW), 0b001);
 }
