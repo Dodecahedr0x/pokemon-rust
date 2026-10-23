@@ -245,7 +245,7 @@ impl<'a, G: GameData> Grid<'a, G> {
     /// (doors, objects' cells).
     fn landable(&self, t: &Terrain, avoid_grass: bool, target: Option<(i16, i16)>) -> Vec<bool> {
         let mut ok: Vec<bool> = (t.open.iter().zip(&t.behavior))
-            .map(|(&open, &b)| open && !(avoid_grass && b == Behavior::TallGrass))
+            .map(|(&open, &b)| open && !(avoid_grass && b.land_encounter()))
             .collect();
         for &c in &self.occupied {
             if self.in_bounds(c) {

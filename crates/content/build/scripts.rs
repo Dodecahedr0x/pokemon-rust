@@ -73,7 +73,7 @@ pub fn read_ir(dir: &Path, manifest: &Manifest) -> Result<Option<Ir>> {
 }
 
 /// The content crate (`crates/content`).
-fn content_dir() -> PathBuf {
+pub fn content_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
@@ -212,7 +212,7 @@ fn battle_kind(a: &IrArg) -> Option<u8> {
 
 /// The lowering of `w`, computed once per extracted dir and process: [`scripts`] (the data
 /// generator's `ScriptId`s) and [`generate`] share it.
-fn scripted(w: &World) -> Result<Arc<Scripted>> {
+pub fn scripted(w: &World) -> Result<Arc<Scripted>> {
     type Cache = Mutex<BTreeMap<Option<PathBuf>, Arc<Scripted>>>;
     static CACHE: OnceLock<Cache> = OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
