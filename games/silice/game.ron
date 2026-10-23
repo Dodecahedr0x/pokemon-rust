@@ -3,8 +3,10 @@
 (
     // Ch0 Bar_Sc01 opens the game in the Shaker: the source puts the player on the free stool in
     // front of the counter ((7, 8) in its plan); the built bar has its stools at y 4, between
-    // GWADA (6, 4) and ADRIEN (9, 4). Facing down: the shared new game always faces down.
-    start: (map: "BricoBourg_Bar", x: 7, y: 4, facing: Down),
+    // GWADA (6, 4) and ADRIEN (9, 4), facing the counter (up).
+    start: (map: "BricoBourg_Bar", x: 7, y: 4, facing: Up),
+    // bible/personnages.md: the hero's default name (renamable).
+    player_name: "NOOBODY",
     // Ch0 Player_House_Sc03: MAMAN gives the running shoes as a flag, not an item.
     running_flag: "FLAG_SIL_RUNNING_SHOES",
     // Gen3 ClearTempFieldEventData, minus the Union Room nurse reminder (no Union Room).

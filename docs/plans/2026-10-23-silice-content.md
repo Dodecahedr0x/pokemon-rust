@@ -1277,6 +1277,66 @@ No new flags or vars are otherwise needed.
 - 1 h drafting the six maps;
 - 0.5 h events, gates and this write-up.
 
+#### SIL1 Task A as built: the authored-data loader
+
+`build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
+
+**What loads (real data).** 6 maps, 1923 texts, 238 trainers, 39 encounter maps, 69 items and 13 marts. The first line of `content::REPORT`'s data part gives these counts; the line after it lists every placeholder and cut.
+
+**Modules.**
+- `text.rs`: reads `text/fr.ron` with `parse_texts`, which fails on a repeated id. The `Encoder` runs the extract codec (FR, with « » from `FR_OVERLAY`) plus the glyph hook `text::glyph_codes() -> Vec<(char, Vec<u8>)>` (G's `font::GLYPHS`). A hook char is written as its bytes, one `{0xNN}` each (one byte, or two for a `{EMOJI_HEART}`); this equals Task G's `font::encode`. Text constants are `TextId`s named after the `fr.ron` ids. The Gen3 `gText_*` texts stay, and a collision with them fails.
+- `data.rs`:
+  - **Trainers** (`battle/trainers.ron`): party, levels, IVs and custom moves (1–4, padded with `MOVE_NONE`), plus held items, AI flags, class and pic. Only the pics in use are compiled, and they must be in the extract. Trainers are numbered by `ids/trainers.ron`; a tombstone or gap is an empty `TRAINER_SIL_NONE_<n>` with a report line. `TRAINER_SIL_*` are `TrainerId`s. The Emerald trainer table goes, except `TRAINER_NONE`.
+  - **Encounters** (`battle/encounters.ron`): `wild_encounters`, keyed by Silice map (numbered by `ids/maps.ron`), with slot counts 12/5/5/10.
+  - **Items** (`items.ron`): each `ITEM_SIL_*` sits at its `ids/items.ron` number, after Gen3's. It has a name, a price, and a pocket that falls back to the base item's pocket. Its hold effect comes from `clone_of` (`AuthoredIn::item_bases`). Key items get importance 1. `ITEM_SIL_*` are `u16`.
+  - **Marts**: `content::data::MARTS: [Mart { map, coins, stock: &[(item, price)] }]`.
+- `load.rs`: checks the Gen3 map limits. Any breach is a build error:
+  - 64 objects, with local ids 1–63, unique;
+  - unique, prefixed `LOCALID_*` names;
+  - 255 warps, coord events and bg events each;
+  - `MAX_MAP_DATA_SIZE`, the block count, and a 2x2 border;
+  - events in bounds, with elevation ≤ 15;
+  - each warp's `dest_warp` within the destination map's warps.
+  
+  It also loads `check-exceptions.ron` (`Exceptions::find(rule, subject)`, with globs).
+- `merge.rs::header`: resolves the header names:
+  - `MUS_*`/`SE_*` through `ids/songs.ron`, then the Gen3 sounds;
+  - `MAPSEC_*` through the Gen3 names (`MAPSEC_NONE` stays);
+  - `WEATHER_*`, `MAP_TYPE_*` and `MAP_BATTLE_SCENE_*` through `extract::games`'s tables, which moved there from the studio.
+  
+  An unknown name fails. `localid_consts` emits each `LOCALID_*` as `u8` (the local id).
+- `mod.rs::world`: the build checks that every tileset and object sprite is in the extract. An unknown tileset fails.
+- **Battle rules.** `classify::Rules` turns on the trainer held items, the Gen3 extra abilities and the Silice ability rules per flavour. Silice turns on all three, and Emerald's output is unchanged.
+
+**Placeholders and cuts.** Each needs an exception in `check-exceptions.ron` and gets a report line. Without the exception, the build fails.
+- `text-charmap`: an unencodable char becomes `?`. About 108 texts are hit, by — ° _ [ ] ♥ ₽ ●○ ♪ # * ←→, many of which G's glyphs will cover.
+- `trainer-name` (10 bytes) and `trainer-class-name` (12 bytes): 2 trainer names get `?`, and the names below are truncated.
+- `item-name-length` (13 bytes) and `item-incomplete`: a missing name becomes the id's words, and a missing pocket becomes Items.
+- 34 truncations in all, among them trainer names such as TAUBER&HOC and CONTREMAÎT, class names such as TOP DRESSEUS, and item names such as Mewtwoïte X e.
+
+**Form changes.** None are emitted. Five form species are named (the Mega Alakazam, Charizard X/Y, Gyarados and Steelix), but none has battle data and no `items.ron` stone maps to a form. Both are needed: the forms' base stats, types and abilities, and each stone's `(base species, form)`.
+
+**After the merge with Tasks E and G.**
+- `text::glyph_codes()` returns G's `font::GLYPHS`: ♥ as `{EMOJI_HEART}` (F9 E7), · as 0xAF. The encoder rejects Japanese characters, as `font::encode` does.
+- `world` runs E's `game::load`/`game::check` after the map limits, and G's `font::merge` right after `load_assets`.
+- From E's review:
+  - `data::NEW_GAME` is now `(MapId, i16, i16, Dir)`, and `game_data_tables!` reads it.
+  - `game.ron` has a `player_name`, the bible's NOOBODY, 1 to 7 characters. It is passed through `AuthoredIn::player_name` to `data::PLAYER_NAME`.
+  - The start faces up, onto the bar counter, and the Down-only check is gone.
+- Emerald keeps `Dir::Down` and SACHA, and its `new_game` digest input is unchanged.
+
+**Texts renamed (provisional, reversible).** The ch09 `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are now `Tour_Sbire1_Intro_Ch09` and `Tour_Sbire2_Intro_Ch09`, in `text/fr.ron` and `text/speakers.ron`. The `text-duplicate` exceptions now name those ids and keep `ruling_needed`. `silice check` flags a `<id>_ChNN` whose `<id>` exists, so the rename stays visible. See open question 6.
+
+**Tests.**
+- `crates/content/tests/sil1_a_loader.rs` builds a fixture extract (the stub world plus one trainer pic and the item table) and fixture games dirs. It checks every data kind, a byte-identical rebuild, and these failures:
+  - an unknown tileset or script;
+  - a repeated text id;
+  - a charmap error, a name over its limit and an incomplete item, each with and without its exception;
+  - the four map-limit kinds and an unknown song.
+- A nested `cargo check` with `PKR_SILICE_DIR` fails on a fixture with an unknown tileset.
+- With a real extract, the committed dir loads with one constant per `LOCALID`, trainer, item and text.
+- Under `cfg(pkr_silice)`, every trainer's party and held items, the encounters, the items' prices and hold effects, `MARTS` and the texts are checked against the RON files.
+
 #### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
 
 Commits:
@@ -1687,6 +1747,7 @@ Sequencing: SIL1 can run in parallel with M9 (its files are disjoint except the 
 3. **Original assets** (blocks SIL3 visuals and SIL5 music; SIL1 uses placeholders): will you supply original trainer pics (about 102), Mega and Primal pics (36), new tilesets and the 13 MUS_SIL_* tracks? Nothing ripped from any game can be committed. Or do Emerald placeholders stay indefinitely?
 4. **Priority** (decides when SIL2 can start): should M9–M12 be reordered around Silice's needs, with Emerald story targets after Act 1 deferred, or does Silice follow the Emerald roadmap?
 5. **Mega forms** (blocks SIL3 data): canonical types and abilities (add a Fairy type and about 14 abilities newer than Gen3), or Gen3-adapted forms?
+6. **Duplicate text ids (SIL1 Task A, provisional):** `Tour_Sbire1_Intro` and `Tour_Sbire2_Intro` are defined in both ch02 and ch09, with different bodies. The ch09 ones are renamed `..._Ch09` (`text/fr.ron`, `text/speakers.ron`). Should we keep these names, pick others, or merge the texts? The rename is reversible: undo it, and the loader rejects the duplicate again.
 
 ### Critical files for implementation
 - /Users/dode/Documents/pokemon/pokemon-rust/crates/content/build/main.rs
