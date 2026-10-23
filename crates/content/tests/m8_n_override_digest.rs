@@ -12,12 +12,12 @@ mod battle_load;
 #[path = "../build/blob_data.rs"]
 #[allow(dead_code)]
 mod blob_data;
-#[path = "../../engine/build_support.rs"]
-#[allow(dead_code)]
-mod build_support;
 #[path = "../build/build_id.rs"]
 #[allow(dead_code)]
 mod build_id;
+#[path = "../../engine/build_support.rs"]
+#[allow(dead_code)]
+mod build_support;
 #[path = "../build/classify/mod.rs"]
 #[allow(dead_code)]
 mod classify;
@@ -55,7 +55,11 @@ fn an_override_edit_is_not_a_global_change() {
     put("src/overrides/M_Callee.rs", "2");
     put("src/overrides/M_New.rs", "3");
     assert_eq!(codegen::sources_digest(&tmp).unwrap(), base);
-    assert_ne!(build_id::build_id(&tmp, None).unwrap(), id, "the build id covers it");
+    assert_ne!(
+        build_id::build_id(&tmp, None).unwrap(),
+        id,
+        "the build id covers it"
+    );
     put("src/overrides/mod.rs", "m");
     assert_ne!(codegen::sources_digest(&tmp).unwrap(), base);
     std::fs::remove_file(tmp.join("src/overrides/mod.rs")).unwrap();

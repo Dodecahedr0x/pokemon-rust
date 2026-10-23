@@ -69,10 +69,8 @@ impl TouchLog {
     pub fn after(&mut self, w: &World) {
         for &e in w.events() {
             match e {
-                Event::MapEntered(m) => {
-                    if self.summary.maps.last() != Some(&m) {
-                        self.summary.maps.push(m);
-                    }
+                Event::MapEntered(m) if self.summary.maps.last() != Some(&m) => {
+                    self.summary.maps.push(m);
                 }
                 Event::ScriptStarted(s) => {
                     self.summary.scripts.insert(s);
