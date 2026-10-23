@@ -1,0 +1,20 @@
+// Review fix: TourNebula_2F_Sc04 hides the camera drone after Kimiko's battle (the source's
+// hide_object(DRONE)). Without a flag it came back on the next load; FLAG_SIL_HIDE_TOUR_DRONE keeps it
+// hidden (visible on a new game).
+[
+    Replace(index: 4, event: Object((
+        local_id: 5,
+        id: Some("LOCALID_TOUR_2F_DRONE"),
+        gfx: "OBJ_EVENT_GFX_WINGULL",
+        x: 12,
+        y: 17,
+        elevation: 3,
+        movement: "MOVEMENT_TYPE_FACE_DOWN",
+        range_x: 0,
+        range_y: 0,
+        trainer_type: "TRAINER_TYPE_NONE",
+        trainer_sight_or_berry_tree: 0,
+        script: Some("TourNebula_2F_EventScript_Drone"),
+        flag: Some("FLAG_SIL_HIDE_TOUR_DRONE"),
+    ))),
+]

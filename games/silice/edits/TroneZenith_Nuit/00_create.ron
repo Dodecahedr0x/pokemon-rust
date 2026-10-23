@@ -1,0 +1,4 @@
+// Silice Ch11, MAP_TRONE_ZENITH_NUIT: the Zenith Throne after the Rupture, the source's fallback for the
+// "true night" palette (two map variants and a warp through black). It shares TroneZenith's layout; its
+// OnLoad draws the broken prism.
+(name: "TroneZenith_Nuit", layout: "TroneZenith", shared_layout: true)

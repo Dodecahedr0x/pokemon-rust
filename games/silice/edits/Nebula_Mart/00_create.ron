@@ -1,0 +1,3 @@
+// Silice Ch9, MAP_NEBULA_MART: le Comptoir Cocket, the end-game shop (10 x 9).
+// Building + Shop (Emerald tilesets by name). Border: black, blocked.
+(name: "Nebula_Mart", width: 10, height: 9, primary: "Building", secondary: "Shop", fill: 513, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

@@ -1,0 +1,13 @@
+// Chapter 11 link: the four EVEIL NPCs of Nebula_Sc13 (le reveil des gens, story 118) and Elysium_E2
+// (the same objects, frozen), local ids 40-43 as kept for them. The source defines four: an old woman,
+// a Cocket worker, a child and a passer-by (Sc13_T1..T4). One hide flag per object, as at the Gargote: the source's
+// FLAG_SIL_HIDE_NEBULA_EVEIL stays on EVEIL_1, and FLAG_SIL_HIDE_NEBULA_EVEIL_2..4 (1205-1207) hide the
+// others. All four are set at the start (game.ron's new_game_flags); Sc13 and E2 clear them, Sc13 sets
+// them again. They stand on the Place around NEBULA_PLACE (30, 31), which stays free, as do its
+// four neighbours, and look up.
+[
+    Object(x: 28, y: 33, gfx: "OBJ_EVENT_GFX_OLD_WOMAN", id: "LOCALID_NEBULA_EVEIL_1", local_id: 40, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Eveil1", flag: "FLAG_SIL_HIDE_NEBULA_EVEIL"),
+    Object(x: 32, y: 33, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_EVEIL_2", local_id: 41, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Eveil2", flag: "FLAG_SIL_HIDE_NEBULA_EVEIL_2"),
+    Object(x: 29, y: 35, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_NEBULA_EVEIL_3", local_id: 42, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Eveil3", flag: "FLAG_SIL_HIDE_NEBULA_EVEIL_3"),
+    Object(x: 31, y: 35, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_NEBULA_EVEIL_4", local_id: 43, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Eveil4", flag: "FLAG_SIL_HIDE_NEBULA_EVEIL_4"),
+]

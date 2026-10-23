@@ -418,18 +418,18 @@
             x: 36,
             y: 12,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_ETHER",
-                flag: "FLAG_SIL_ITEM_ROUTE_S02_ETHER",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS02_EventScript_HiddenEther"),
             ),
         ),
         (
             x: 52,
             y: 12,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_THUNDER_STONE",
-                flag: "FLAG_SIL_ITEM_ROUTE_S02_THUNDER_STONE",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS02_EventScript_HiddenThunderStone"),
             ),
         ),
     ],

@@ -1,0 +1,70 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    // Music: the source's MUS_SIL_APEX_SOLO (Poussin's riff, a new song); fallback MUS_ENCOUNTER_ELITE_FOUR, the
+    // source's. Weather: WEATHER_SHADE (overcast, windy); the later fog and drought are set by the scenes.
+    // MAP_TYPE_INDOOR: the roof is under the dome, and nothing flies away from the point of no return.
+    Header((music: "MUS_ENCOUNTER_ELITE_FOUR", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_SHADE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // SommetApex_Sc01 (the riff in the wind): on-frame at story 109, the arrival from the Tower (it sets
+    // 110). SommetApex_OnLoad: lights the crystal tube (11-12, 1-2) from story 113 (METATILE_CRISTAL_ON).
+    // SommetApex_OnTransition: the hide flags (Poussin from 112's end, Julien always hidden on load) and
+    // the weather and palette from the story (FLAG_SIL_ELYSIUM_ACTIF).
+    ScriptsSet(on_load: "SommetApex_OnLoad", on_transition: "SommetApex_OnTransition", on_frame: [(var: "VAR_SIL_STORY", value: 109, script: "SommetApex_Sc01")]),
+    // Warp 0: the vault elevator's arrival (11, 27), in front of its doors (a landing: TourNebulaAscenseur_Sc04
+    // warps here by coordinates; the elevator never goes down, see the doors' sign). Warp 1: the crystal
+    // tube's foot (11, 3), a landing: the cabin's way back, and Trone_Zenith_Sc08_Lose's wake-up cell (the
+    // source's (11, 3)).
+    Warp(x: 11, y: 27, dest_map: "TourNebulaAscenseur", dest_warp: 4),
+    Warp(x: 11, y: 3, dest_map: "TroneZenith_Ascenseur", dest_warp: 0),
+    // Objects (the source's numbers). 1: Poussin on the stage. 2: Julien, the Messiah, by the Console,
+    // hidden until Sommet_Apex_Sc05 shows him. 3-4: Gogo and Romain; the source's FLAG_SIL_HIDE_APEX_GOGO_ROMAIN
+    // stays on Gogo and Romain gets his own (one flag per object). 5-7: the elites Marc and Sophie and the
+    // roadie Kevin, sight trainers. 8-9: the Full Restore and the Max Revive (in the pocket). 10-11: the
+    // metal crates (Strength, "Champ Magnetique"; FLAG_SIL_MODULE_FORCE, and the Mallette, see their script).
+    Object(x: 11, y: 6, gfx: "OBJ_EVENT_GFX_DRAKE", id: "LOCALID_APEX_POUSSIN", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Poussin", flag: "FLAG_SIL_HIDE_APEX_POUSSIN"),
+    Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_APEX_JULIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_APEX_JULIEN"),
+    Object(x: 8, y: 17, gfx: "OBJ_EVENT_GFX_MAXIE", id: "LOCALID_APEX_GOGO", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Gogo", flag: "FLAG_SIL_HIDE_APEX_GOGO_ROMAIN"),
+    Object(x: 9, y: 17, gfx: "OBJ_EVENT_GFX_ARCHIE", id: "LOCALID_APEX_ROMAIN", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Romain", flag: "FLAG_SIL_HIDE_APEX_ROMAIN"),
+    Object(x: 17, y: 22, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_APEX_MARC", local_id: 5, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "SommetApex_EventScript_Marc", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 3, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_APEX_SOPHIE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "SommetApex_EventScript_Sophie", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 8, y: 13, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_APEX_KEVIN", local_id: 7, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "SommetApex_EventScript_Kevin", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 2, y: 23, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_APEX_ITEM_FULL_RESTORE", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_ItemFullRestore", flag: "FLAG_SIL_ITEM_APEX_FULL_RESTORE"),
+    Object(x: 21, y: 9, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_APEX_ITEM_MAX_REVIVE", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_ItemMaxRevive", flag: "FLAG_SIL_ITEM_APEX_MAX_REVIVE"),
+    Object(x: 19, y: 11, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_APEX_CAISSE_1", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Caisse"),
+    Object(x: 20, y: 11, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_APEX_CAISSE_2", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "SommetApex_EventScript_Caisse"),
+    // SommetApex_Sc02 (Gogo and Romain, story 110): the catwalk (10-13, 18), row 18's only gap.
+    Coord(x: 10, y: 18, var: "VAR_SIL_STORY", value: 110, script: "SommetApex_Sc02"),
+    Coord(x: 11, y: 18, var: "VAR_SIL_STORY", value: 110, script: "SommetApex_Sc02"),
+    Coord(x: 12, y: 18, var: "VAR_SIL_STORY", value: 110, script: "SommetApex_Sc02"),
+    Coord(x: 13, y: 18, var: "VAR_SIL_STORY", value: 110, script: "SommetApex_Sc02"),
+    // SommetApex_Sc03 (Poussin's solo, story 111): the stage's steps (10-13, 9), row 9's only gap.
+    Coord(x: 10, y: 9, var: "VAR_SIL_STORY", value: 111, script: "SommetApex_Sc03"),
+    Coord(x: 11, y: 9, var: "VAR_SIL_STORY", value: 111, script: "SommetApex_Sc03"),
+    Coord(x: 12, y: 9, var: "VAR_SIL_STORY", value: 111, script: "SommetApex_Sc03"),
+    Coord(x: 13, y: 9, var: "VAR_SIL_STORY", value: 111, script: "SommetApex_Sc03"),
+    // SommetApex_Sc05, trigger B (story 112): the row under the steps (10-13, 10), stepped on when coming
+    // down from the stage. Trigger A is the Console (its signs).
+    Coord(x: 10, y: 10, var: "VAR_SIL_STORY", value: 112, script: "SommetApex_Sc05"),
+    Coord(x: 11, y: 10, var: "VAR_SIL_STORY", value: 112, script: "SommetApex_Sc05"),
+    Coord(x: 12, y: 10, var: "VAR_SIL_STORY", value: 112, script: "SommetApex_Sc05"),
+    Coord(x: 13, y: 10, var: "VAR_SIL_STORY", value: 112, script: "SommetApex_Sc05"),
+    // The Console (Sc05's trigger A at 112; its text otherwise), the crystal tube (SommetApex_Sc07: the ascent
+    // at 114 and 115; Sign_Cristal_Off before), the amps, the service elevator, the sky's pixels, the vault
+    // elevator's doors (Sign_Ascenseur_Bloque) and the maintenance panel.
+    Sign(x: 10, y: 4, script: "SommetApex_Sc05"),
+    Sign(x: 11, y: 4, script: "SommetApex_Sc05"),
+    Sign(x: 12, y: 4, script: "SommetApex_Sc05"),
+    Sign(x: 13, y: 4, script: "SommetApex_Sc05"),
+    Sign(x: 11, y: 2, script: "SommetApex_Sc07"),
+    Sign(x: 12, y: 2, script: "SommetApex_Sc07"),
+    Sign(x: 8, y: 4, script: "SommetApex_EventScript_Ampli"),
+    Sign(x: 17, y: 4, script: "SommetApex_EventScript_Ampli"),
+    Sign(x: 22, y: 7, script: "SommetApex_EventScript_Service"),
+    Sign(x: 5, y: 0, script: "SommetApex_EventScript_Ciel"),
+    Sign(x: 18, y: 0, script: "SommetApex_EventScript_Ciel"),
+    Sign(x: 11, y: 28, script: "SommetApex_EventScript_AscenseurBloque"),
+    Sign(x: 12, y: 28, script: "SommetApex_EventScript_AscenseurBloque"),
+    Sign(x: 19, y: 28, script: "SommetApex_EventScript_Maintenance"),
+    // Hidden: the PP Max behind the west amp's side (3, 4), the Max Elixir at the east dish's foot (17, 14).
+    HiddenItem(x: 3, y: 4, item: "ITEM_PP_MAX", flag: "FLAG_SIL_ITEM_APEX_HIDDEN_PP_MAX"),
+    HiddenItem(x: 17, y: 14, item: "ITEM_MAX_ELIXIR", flag: "FLAG_SIL_ITEM_APEX_HIDDEN_ELIXIR"),
+]
