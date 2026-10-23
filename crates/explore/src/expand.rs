@@ -12,7 +12,7 @@ use crate::guard::{self, Panicked};
 use crate::macros;
 use crate::model::{FindingKind, Macro, MacroKind, Opts, SimSummary};
 use crate::observe::{Flag, NoObserver, StepObserver};
-use crate::path::{self, live_grid};
+use crate::path::{self, Grid, Terrain, live_grid};
 use crate::policy::Policy;
 use engine::data::{Behavior, Dir, GameData, MapId, ScriptId};
 use engine::mon::BattleTables;
@@ -20,6 +20,8 @@ use engine::script::Report;
 use engine::world::Event;
 use engine::{Buttons, World};
 use game_native::Session;
+use std::cell::RefCell;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -195,6 +197,16 @@ impl Stall {
     }
 }
 
+/// A [`Driver::next_dir`] question: everything its answer depends on besides the map's
+/// terrain (which the map and the driver's overrides fix).
+#[derive(PartialEq, Eq)]
+struct DirQuery {
+    map: MapId,
+    from: (i16, i16),
+    to: (i16, i16),
+    occupied: Vec<(i16, i16)>,
+}
+
 /// How a walk ended.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Walk {
@@ -223,6 +235,14 @@ struct Driver<'a, G: GameData> {
     last: Buttons,
     /// The start snapshot's `setmetatile` overrides, valid until the map first changes.
     overrides: Vec<((i16, i16), u16)>,
+    /// The planner's terrain of the live map with `overrides` (a pure function of them), built
+    /// by the first [`Driver::grid`] and dropped with the overrides on a map change.
+    terrain: RefCell<Option<Arc<Terrain>>>,
+    /// The last [`Driver::next_dir`] question and its answer (a pure function of the question:
+    /// a walk asks the same one on every frame of a step).
+    dir_memo: Option<(DirQuery, Option<Dir>)>,
+    /// The start's snapshot (`None`: not capturable), for [`Driver::plan`].
+    start: Option<engine::checkpoint::WorldSnapshot>,
     slow: Vec<Flag>,
     notes: Vec<String>,
     map: MapId,
@@ -244,9 +264,10 @@ impl<'a, G: GameData> Driver<'a, G> {
     ) -> Self {
         let w = s.world();
         let (map, log_start, dropped_start) = (w.map(), w.log().count(), w.events_dropped());
-        let overrides = w
-            .snapshot(s.game())
-            .map(|snap| snap.field.overrides)
+        let start = w.snapshot(s.game()).ok();
+        let overrides = start
+            .as_ref()
+            .map(|snap| snap.field.overrides.clone())
             .unwrap_or_default();
         Driver {
             s,
@@ -263,6 +284,9 @@ impl<'a, G: GameData> Driver<'a, G> {
             ended: None,
             last: Buttons::NONE,
             overrides,
+            terrain: RefCell::new(None),
+            dir_memo: None,
+            start,
             slow: Vec::new(),
             notes: Vec::new(),
             map,
@@ -313,15 +337,54 @@ impl<'a, G: GameData> Driver<'a, G> {
         &self.overrides
     }
 
+    /// The planner's view of the live world ([`live_grid`]), with the cached terrain table.
+    fn grid(&self) -> Grid<'_, G> {
+        let cached = self.terrain.borrow().clone();
+        let grid = live_grid(self.s.game(), self.w(), self.overrides()).with_terrain(cached);
+        let t = grid.terrain().clone();
+        *self.terrain.borrow_mut() = Some(t);
+        grid
+    }
+
+    /// The first step toward `to` from the live world (re-planned every frame; tall grass only
+    /// when there is no other way), as `path::next_dir`.
+    fn next_dir(&mut self, to: (i16, i16)) -> Option<Dir> {
+        let (q, dir) = {
+            let grid = self.grid();
+            let from = self.w().objects().player().pos();
+            let q = DirQuery {
+                map: self.w().map(),
+                from,
+                to,
+                occupied: grid.occupied_cells().to_vec(),
+            };
+            if let Some((k, d)) = &self.dir_memo
+                && *k == q
+            {
+                return *d;
+            }
+            let d = grid
+                .first_dir(from, to, true)
+                .or_else(|| grid.first_dir(from, to, false));
+            (q, d)
+        };
+        self.dir_memo = Some((q, dir));
+        dir
+    }
+
     /// Up-front planning: `NoPath` when `m` is not applicable to a capturable start.
     fn plan(&mut self, m: &Macro) -> Result<(), ExpandError> {
         if matches!(m.kind, MacroKind::Settle | MacroKind::Wait { .. }) {
+            self.start = None;
             return Ok(());
         }
-        let Ok(snap) = self.w().snapshot(self.s.game()) else {
+        // Nothing has stepped since `Driver::new` took it.
+        let Some(snap) = self.start.take() else {
             return Ok(());
         };
         let reach = path::reach(self.s.game(), &snap);
+        // Same map and overrides as the live grid's until the map changes.
+        *self.terrain.get_mut() = Some(reach.terrain().clone());
         if macros::applicable(self.s.game(), &snap, &reach, m) {
             Ok(())
         } else {
@@ -382,6 +445,8 @@ impl<'a, G: GameData> Driver<'a, G> {
         if map != self.map {
             self.map = map;
             self.overrides.clear();
+            self.terrain.get_mut().take();
+            self.dir_memo = None;
         }
         sum.cells.insert((map, pos.0, pos.1));
         let mut started = false;
@@ -495,7 +560,7 @@ impl<'a, G: GameData> Driver<'a, G> {
                 self.press(Buttons::NONE)?;
                 continue;
             }
-            let dir = path::next_dir(self.s.game(), self.w(), self.overrides(), to);
+            let dir = self.next_dir(to);
             self.step_toward(&mut stall, dir, to)?;
         }
     }
@@ -531,7 +596,7 @@ impl<'a, G: GameData> Driver<'a, G> {
     /// right now.
     fn ahead_walkable(&self, d: Dir) -> Option<(i16, i16)> {
         let w = self.w();
-        let grid = live_grid(self.s.game(), w, self.overrides());
+        let grid = self.grid();
         let (dx, dy) = d.delta();
         let p = w.objects().player().pos();
         let mut ahead = (p.0 + dx, p.1 + dy);
@@ -595,7 +660,7 @@ impl<'a, G: GameData> Driver<'a, G> {
     }
 
     fn enter(&mut self, at: (i16, i16), dir: Dir) -> Result<(), ExpandError> {
-        let grid = live_grid(self.s.game(), self.w(), self.overrides());
+        let grid = self.grid();
         let approach = macros::enter_approach(grid.behavior(at), at, dir);
         if self.walk_to(approach)? == Walk::Interrupted {
             return Ok(());
@@ -637,7 +702,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             let Some(o) = w.objects().get(local_id) else {
                 return Err(ExpandError::NoEffect("talk: object gone"));
             };
-            let grid = live_grid(self.s.game(), w, self.overrides());
+            let grid = self.grid();
             let p = w.objects().player();
             let approaches = macros::talk_approaches(&grid, o.pos());
             if let Some(&(_, d)) = approaches.iter().find(|(c, _)| *c == p.pos()) {
@@ -665,7 +730,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             return Ok(());
         }
         let other = {
-            let grid = live_grid(self.s.game(), self.w(), self.overrides());
+            let grid = self.grid();
             Dir::ALL.into_iter().find_map(|d| {
                 let (dx, dy) = d.delta();
                 let c = (at.0 + dx, at.1 + dy);
@@ -685,7 +750,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             if p.pos() == to && p.is_settled() {
                 to = if to == at { other } else { at };
             }
-            let dir = path::next_dir(self.s.game(), self.w(), self.overrides(), to);
+            let dir = self.next_dir(to);
             self.press(dir.map_or(Buttons::NONE, dir_key))?;
         }
         Ok(())

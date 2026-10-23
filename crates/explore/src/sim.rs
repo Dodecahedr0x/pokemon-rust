@@ -166,15 +166,12 @@ impl<G: GameData + Clone> Sim<'_, G> {
     /// cover every cell, not only the block centres.
     fn random_step(&mut self, mut live: Live<G>, seed: u64) -> Result<Live<G>, Stop> {
         let s = &live.0;
-        let snap = s
-            .world()
-            .snapshot(s.game())
-            .map_err(|e| Stop::Pruned(format!("not capturable: {e:?}")))?;
         let start = s
             .checkpoint()
             .map_err(|e| Stop::Pruned(format!("not capturable: {e:?}")))?;
-        let reach = path::reach(self.game, &snap);
-        let mut cands = macros::candidates_with(self.game, &snap, &reach, self.cfg.key.cell_shift);
+        let snap = &start.world;
+        let reach = path::reach(self.game, snap);
+        let mut cands = macros::candidates_with(self.game, snap, &reach, self.cfg.key.cell_shift);
         let mut rng = Rng64(seed);
         let mut last = String::from("no candidate");
         for _ in 0..RANDOM_TRIES {
@@ -184,7 +181,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
             let mut m = cands.remove(rng.below(cands.len() as u64) as usize);
             if let MacroKind::WalkTo { x, y } = m.kind {
                 let mates =
-                    macros::block_mates(self.game, &snap, &reach, self.cfg.key.cell_shift, (x, y));
+                    macros::block_mates(self.game, snap, &reach, self.cfg.key.cell_shift, (x, y));
                 if !mates.is_empty() {
                     let (x, y) = mates[rng.below(mates.len() as u64) as usize];
                     m.kind = MacroKind::WalkTo { x, y };
