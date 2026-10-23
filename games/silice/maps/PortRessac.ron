@@ -650,7 +650,13 @@
             ),
         ),
     ],
-    connections: [],
+    connections: [
+        (
+            dir: East,
+            offset: 0,
+            map: "RouteS05",
+        ),
+    ],
     scripts: (
         on_load: Some("PortRessac_OnLoad"),
         on_transition: Some("PortRessac_OnTransition"),

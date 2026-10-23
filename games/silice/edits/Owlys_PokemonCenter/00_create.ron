@@ -1,0 +1,4 @@
+// Silice Ch5, MAP_OWLYS_POKEMON_CENTER: Owlys's Center (12 x 8), the standard Silice Center (the cells of
+// Bois-Ether's) with the shop counter on the left. Building + PokemonCenter (Emerald tilesets by name).
+// Out-of-map border: black, blocked.
+(name: "Owlys_PokemonCenter", width: 12, height: 8, primary: "Building", secondary: "PokemonCenter", fill: 514, border: [1025, 1025, 1025, 1025])

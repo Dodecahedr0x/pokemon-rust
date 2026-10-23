@@ -1,0 +1,8 @@
+// Silice Ch5, MAP_OWLYS: Owlys, the City under the Abyss (60 x 50, the source's size): a city dug into a
+// huge cavern. North: the Pilgrims' Elevator, the orphanage, the Owl Sanctuary (gym) and the Plume-Noire
+// warehouse. Middle: the chasm, crossed by the central isthmus and two walkways (west to the Ruelle des
+// Gargouilles, east to a lookout). South: the Place des Gargouilles, the Center, the Gray Market, the
+// convoy road to the East Cave, and the iron door from the Sea Rift.
+// General + Cave (Emerald tilesets by name): the cavern walls, the void (581, black) and Victory Road's
+// plank walkways; General adds the Pokemon Center.
+(name: "Owlys", width: 60, height: 50, primary: "General", secondary: "Cave", fill: 753, border: [753, 753, 753, 753])
