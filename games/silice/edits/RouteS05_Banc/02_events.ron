@@ -1,0 +1,7 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ROUTE119", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_SHADE", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    HiddenItem(x: 20, y: 20, item: "ITEM_ULTRA_BALL", flag: "FLAG_SIL_ITEM_ROUTE_S05_BANC_ULTRA_BALL"),
+    // Connection: north to Route S5 (its x 20-59).
+    Connect((dir: North, offset: -20, map: "RouteS05")),
+]

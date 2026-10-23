@@ -1676,3 +1676,44 @@ fn metatile_ranges_parse() {
         assert!(metatile_range(bad).is_err(), "{bad}");
     }
 }
+
+#[test]
+fn games_dir_header_music_is_checked_like_the_content_build() {
+    let mut e = editor(2, 2);
+    let mut c = catalog();
+    c.games = Some(super::games::GamesDir::new("unused"));
+    c.songs.insert("MUS_SIL_LIVE".into(), true);
+    c.songs.insert("MUS_SIL_GONE".into(), false);
+    let errors_with = |e: &mut Editor, c: &Catalog, music: &str| {
+        e.apply(&Op::Header(GameHeader {
+            music: music.into(),
+            ..GameHeader::new_map()
+        }))
+        .unwrap();
+        (validate(e.doc(), c).iter())
+            .filter(|i| i.severity == Severity::Error)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+    };
+    for ok in ["MUS_NONE", "MUS_SIL_LIVE", "MUS_ROUTE110", "MUS_ROUTE119"] {
+        assert_eq!(errors_with(&mut e, &c, ok), Vec::<String>::new(), "{ok}");
+    }
+    // A pseudo-song (0x7FFF), a name Gen3 lacks, a tombstone, a typo.
+    for bad in [
+        "MUS_ROUTE118",
+        "MUS_ROUTE134",
+        "MUS_SIL_GONE",
+        "MUS_SIL_LIVEE",
+    ] {
+        let errs = errors_with(&mut e, &c, bad);
+        assert_eq!(errs.len(), 1, "{bad}: {errs:?}");
+        assert!(errs[0].contains(bad), "{errs:?}");
+    }
+    // Extracted (non games dir) maps keep the prefix check: Gen3's own Route 118 uses 0x7FFF.
+    c.games = None;
+    assert_eq!(
+        errors_with(&mut e, &c, "MUS_ROUTE118"),
+        Vec::<String>::new()
+    );
+    assert_eq!(errors_with(&mut e, &c, "ROUTE118").len(), 1);
+}

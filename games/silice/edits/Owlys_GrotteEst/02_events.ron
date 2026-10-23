@@ -1,0 +1,34 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_FORTREE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: true, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the exit, to Owlys's warp 6.
+    Warp(x: 6, y: 22, dest_map: "Owlys", dest_warp: 6),
+    // Objects 1-5: the duo scene's actors (the source's numbers). 1: Mathieu (Praugect) waits in the hall.
+    // 2-3: the two convoy drivers, in the gallery's mouth; they walk two cells left. 4: Owl-Justice on the
+    // high ledge (hidden). 5: the Shaded Feather on the ground (hidden; Owlys_GrotteEst_Sc01 shows it).
+    Object(x: 6, y: 17, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GROTTE_EST_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU"),
+    Object(x: 13, y: 14, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_GROTTE_EST_CONVOYEUR_A", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A"),
+    Object(x: 13, y: 15, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_GROTTE_EST_CONVOYEUR_B", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B"),
+    Object(x: 8, y: 6, gfx: "OBJ_EVENT_GFX_SIDNEY", id: "LOCALID_GROTTE_EST_OWL_JUSTICE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE"),
+    Object(x: 8, y: 13, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GROTTE_EST_PLUME", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_GrotteEst_EventScript_Plume", flag: "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME"),
+    // 6: Lilith, the Hex Maniac of the gallery. 7-8: the item balls (Moon Stone on a crystal vein, Escape Rope).
+    Object(x: 25, y: 13, gfx: "OBJ_EVENT_GFX_HEX_MANIAC", id: "LOCALID_GROTTE_EST_LILITH", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Owlys_GrotteEst_EventScript_Lilith", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 21, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GROTTE_EST_ITEM_MOON_STONE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_GrotteEst_EventScript_ItemPierreLune", flag: "FLAG_SIL_ITEM_OWLYS_GROTTE_PIERRE_LUNE"),
+    Object(x: 34, y: 15, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GROTTE_EST_ITEM_ESCAPE_ROPE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_GrotteEst_EventScript_ItemCorde", flag: "FLAG_SIL_ITEM_OWLYS_GROTTE_CORDE"),
+    // Owlys_GrotteEst_Sc01 (the source's Owlys_Grotte_Est_Sc01): the whole row y 19, three cells in from
+    // the exit, while VAR_SIL_STORY is 52 (the scene sets 53).
+    Coord(x: 2, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 3, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 4, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 5, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 6, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 7, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 8, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 9, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 10, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 11, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    Coord(x: 12, y: 19, var: "VAR_SIL_STORY", value: 52, script: "Owlys_GrotteEst_Sc01"),
+    // The sabotaged convoy (an overturned cart, the note signed O.J.). The Ultra Ball is hidden in another cart.
+    Sign(x: 35, y: 18, script: "Owlys_GrotteEst_EventScript_Convoi"),
+    HiddenItem(x: 37, y: 21, item: "ITEM_ULTRA_BALL", flag: "FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL"),
+]

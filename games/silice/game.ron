@@ -21,9 +21,12 @@
         // The player's bedroom, as Emerald's HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F
         // (4, 2). Ch0: "the house is the heal point, set_respawn on the house at the start".
         (name: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE", map: "BricoBourg_PlayerHouse_2F", x: 4, y: 2),
-        // Ch2: Gris-Échec's Centre, in front of the nurse (as Emerald's whiteout lands inside the
-        // Centre). Set on entering it (GrisEchec_PokemonCenter_OnTransition).
-        (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec_PokemonCenter", x: 7, y: 4),
+        // Ch1: Bois-Éther's Pokémon Center ("set_respawn à l'entrée"). As Emerald's town heal
+        // locations, the cell in front of its door (27, 12).
+        (name: "HEAL_LOCATION_SIL_BOIS_ETHER", map: "BoisEther", x: 27, y: 13),
+        // Ch2: Gris-Échec's Centre, set on entering it (GrisEchec_PokemonCenter_OnTransition).
+        // As Ch1's, the cell in front of its door (5, 8).
+        (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec", x: 5, y: 9),
     ],
     respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
     // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.
@@ -125,6 +128,25 @@
         "FLAG_SIL_HIDE_PORT_GYM_GWADA",
         "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA",
         "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN",
+        // Ch5 Owlys (each map's OnTransition owns them from VAR_SIL_STORY and the flags): the grunt
+        // crossing the square (Owlys_Sc02 only), Mathieu on the square after the badge (from 55), the
+        // East Cave's duo-scene actors (Mathieu and both drivers at 52, Owl-Justice and the Shaded
+        // Feather shown by Owlys_GrotteEst_Sc01 only), Skycker's face and the gym's Mathieu
+        // (Owlys_Gym_Sc01), and the silo's three Umbreon (Owlys_Entrepot_B1F_Sc01_1-3). Mathieu on the
+        // square, Milo and the alley grunt, the elevator's two Watchers, masked Skycker and Lokhlass
+        // start visible.
+        "FLAG_SIL_HIDE_OWLYS_SBIRE_EST",
+        "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE",
+        "FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME",
+        "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE",
+        "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
+        "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
     ],
     new_game_vars: [],
 )

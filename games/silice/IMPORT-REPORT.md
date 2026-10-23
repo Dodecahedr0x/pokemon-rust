@@ -15,14 +15,14 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 551
+- ids/flags: 574
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
 - ids/species: 5
 - ids/moves: 1
 - ids/songs: 13
-- ids/maps: 115
+- ids/maps: 116
 
 ## Bold paragraphs naming items without a mart
 
@@ -94,6 +94,7 @@
 ## Ids no longer in the source (kept)
 
 - ids/flags.ron: FLAG_SIL_HIDE_BAR_SBIRES is a tombstone but the source uses it
+- ids/maps.ron: MAP_MANGA_SQUARE_GYM
 
 ## Item definitions
 
@@ -218,26 +219,26 @@
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_GWADA
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_WATTOUAT
 - maps/GrisEchec_Gym.ron: FLAG_SIL_HIDE_GYM2_LAINERGIE
-- maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_ADRIEN
-- maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_GWADA
-- maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_ROMAIN
-- maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_SBIRE
-- maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU
-- maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2
-- maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3
-- maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_4
-- maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_TAUBER
-- maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT
-- maps/ViberCity_Casino.ron: FLAG_SIL_HIDE_CASINO_GOGO
-- maps/ViberCity_Casino.ron: FLAG_SIL_HIDE_CASINO_ROMAIN
-- maps/ViberCity_Casino_B1F.ron: FLAG_SIL_HIDE_CASINO_B1F_ROMAIN
-- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ01
-- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ02
-- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ03
-- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ04
-- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ05
-- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ06
-- maps/ViberCity_StationLumiere.ron: FLAG_SIL_HIDE_STATION_SBIRE_2
+- maps/MangaSquare.ron: FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR
+- maps/MangaSquare_Bibliotheque.ron: FLAG_SIL_HIDE_BIBLIO_ADRIEN
+- maps/MangaSquare_Dojo.ron: FLAG_SIL_HIDE_DOJO_DRONE_1
+- maps/MangaSquare_Dojo.ron: FLAG_SIL_HIDE_DOJO_DRONE_2
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_EST
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MILO
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_SBIRE_RUELLE
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES
+- maps/Owlys.ron: FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_OWL_JUSTICE
+- maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_PLUME
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE
+- maps/Owlys_Gym.ron: FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU
 - maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_MARIN_CLIENT
 - maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_1
 - maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_2
@@ -259,7 +260,30 @@
 - maps/PortRessac_Gym.ron: FLAG_SIL_HIDE_PORT_GYM_GWADA
 - maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_GWADA
 - maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN
+- maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_ADRIEN
+- maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_GWADA
+- maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_ROMAIN
+- maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_SBIRE
 - maps/RouteS04.ron: FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE
+- maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A
+- maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B
+- maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR
+- maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU
+- maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2
+- maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3
+- maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_4
+- maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_TAUBER
+- maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU_CHARIOT
+- maps/ViberCity_Casino.ron: FLAG_SIL_HIDE_CASINO_GOGO
+- maps/ViberCity_Casino.ron: FLAG_SIL_HIDE_CASINO_ROMAIN
+- maps/ViberCity_Casino_B1F.ron: FLAG_SIL_HIDE_CASINO_B1F_ROMAIN
+- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ01
+- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ02
+- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ03
+- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ04
+- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ05
+- maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ06
+- maps/ViberCity_StationLumiere.ron: FLAG_SIL_HIDE_STATION_SBIRE_2
 
 ## §7 tables not imported
 

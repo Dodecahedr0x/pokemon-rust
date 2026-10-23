@@ -33,7 +33,23 @@
 //!                                          scale), --scale the labels
 //!   stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force]
 //!                                          saves a region of a map as stamps/<name>.ron
+//!   reach <Map> --from x,y [--surf] [--hidden F,..|all | --shown F,..] [--field-moves]
+//!         [--open x,y;x,y]                 the cells, exits, coord events and trainer sight
+//!                                          the player reaches from a cell (`reach`)
+//!   bypass <Map> --from x,y --to x,y [--avoid coord:<script|index> | trainer:<id> |
+//!          cells:x,y;x,y]... [--surf] [--hidden …|--shown …] [--field-moves] [--open …]
+//!                                          whether the goal is reached without stepping on
+//!                                          the avoided cells, with a witness path
+//!   lint-reach (<Map>... | --all)          unreachable warps, edges and items, empty trainer
+//!                                          sight, triggers that can be walked around
+//!                                          (`reach_lint`; never fails on findings)
 //! ```
+//!
+//! `render` also takes `--reach x,y` (reached cells tinted green; with `--surf`, `--hidden`,
+//! `--shown`, `--field-moves`, `--open`) and `--sight` (trainers' lines of sight tinted orange).
+//! `--hidden all` hides every object with a hide flag, `--shown F,..` every one but those;
+//! `--field-moves` clears the item balls, breakable rocks, cut trees and boulders the player
+//! reaches; `--open` makes cells walkable, as a script's `setmetatile` would.
 //!
 //! The games dir defaults to `games/silice` (`--game` picks `games/<NAME>`). Pictures and dumps
 //! go to the git-ignored scratch dir unless `--out` says otherwise; they are never committed
@@ -45,13 +61,14 @@ use super::catalog::{Catalog, extracted_dir};
 use super::games::{DEFAULT_GAME, GamesDir, check_name, hygiene};
 use super::model::{Doc, Editor, NewMap, Op};
 use super::overlay;
+use super::reach_cli::{self, ReachFlags, point};
 use super::render::{palette_of, render, write_png};
 use super::resources::Resources;
 use super::schema::from_script_ron;
 use super::stamp::Stamp;
 use super::validate::{Issue, errors, id_changes, validate};
 use crate::paths::StudioPaths;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use engine::data::{block_collision, block_metatile};
 use std::fmt::Write as _;
 use std::ops::RangeInclusive;
@@ -64,7 +81,13 @@ pub const USAGE: &str = "usage: studio-map [--games DIR | --game NAME] \
      dump <Map> [--extract] [--out FILE|-] | \
      palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N] [--zoom N] \
      [--range A..B | --range A..=B] | \
-     stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force])\n\
+     stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force] | \
+     reach <Map> --from x,y [--surf] [--hidden F,..|all | --shown F,..] [--field-moves] \
+     [--open x,y;x,y] | \
+     bypass <Map> --from x,y --to x,y [--avoid coord:<script|index>|trainer:<id>|cells:x,y;x,y]... \
+     [--surf] [--hidden …|--shown …] [--field-moves] [--open …] | lint-reach (<Map>... | --all))\n\
+     render also takes --reach x,y [--surf] [--hidden …|--shown …] [--field-moves] [--open …] \
+     and --sight.\n\
      apply and build save edited maps even when they still have validation errors (drafts); \
      validate fails on them.";
 
@@ -86,6 +109,7 @@ struct Picture {
     labels: bool,
     extract: bool,
     range: Option<RangeInclusive<u16>>,
+    reach: ReachFlags,
 }
 
 /// The command whose flags [`picture_flags`] reads.
@@ -136,6 +160,21 @@ fn picture_flags(mut f: &[String], kind: Kind) -> Result<Picture> {
             }
             [k, t @ ..] if k == "--events" && render => (p.events, f) = (true, t),
             [k, t @ ..] if k == "--collision" && render => (p.collision, f) = (true, t),
+            [k, v, t @ ..] if k == "--reach" && render => (p.reach.from, f) = (Some(point(v)?), t),
+            [k, ..]
+                if render
+                    && [
+                        "--surf",
+                        "--hidden",
+                        "--shown",
+                        "--field-moves",
+                        "--sight",
+                        "--open",
+                    ]
+                    .contains(&k.as_str()) =>
+            {
+                f = p.reach.take(f)?.context(USAGE)?;
+            }
             [k, t @ ..] if k == "--labels" && palette => (p.labels, f) = (true, t),
             [k, v, t @ ..] if k == "--zoom" && palette => (p.zoom, f) = (Some(factor(k, v)?), t),
             [k, v, t @ ..] if k == "--range" && palette => {
@@ -354,7 +393,11 @@ pub fn run(args: &[String]) -> Result<String> {
                 .out
                 .unwrap_or_else(|| scratch.join(format!("{prefix}{map}.png")));
             let margin = p.margin.unwrap_or(RENDER_MARGIN);
-            let overlays = p.events || p.collision;
+            let overlays = p.events || p.collision || p.reach.from.is_some() || p.reach.sight;
+            ensure!(
+                !(p.extract && (p.reach.from.is_some() || p.reach.sight)),
+                "--reach and --sight draw games dir maps only"
+            );
             let s = p.scale.unwrap_or(if overlays { OVERLAY_SCALE } else { 1 });
             let (doc, catalog) = match p.extract {
                 true => (extracted_doc(map)?, Catalog::from_content()?),
@@ -366,6 +409,14 @@ pub fn run(args: &[String]) -> Result<String> {
             }
             if p.collision {
                 overlay::draw_collision(&mut img, &doc, &catalog, s);
+            }
+            if p.reach.sight {
+                let cells = reach_cli::sight_cells(&catalog, &doc, &p.reach)?;
+                overlay::draw_sight(&mut img, &cells, s);
+            }
+            if let Some(from) = p.reach.from {
+                let cells = reach_cli::reached_cells(&games, &catalog, &doc, &p.reach)?;
+                overlay::draw_reach(&mut img, &cells, from, s);
             }
             if p.events {
                 overlay::draw_events(&mut img, &doc, s);
@@ -384,6 +435,15 @@ pub fn run(args: &[String]) -> Result<String> {
                     "events: objects yellow (local id), warps magenta (W<i>), coords cyan \
                      (C<i>), signs green (S<i>), hidden items orange (H<i>)"
                 )?;
+            }
+            if p.reach.from.is_some() {
+                writeln!(
+                    out,
+                    "reach: reachable cells green, the start framed white (`reach` lists them)"
+                )?;
+            }
+            if p.reach.sight {
+                writeln!(out, "sight: trainers' lines of sight orange")?;
             }
             if p.collision {
                 writeln!(
@@ -483,6 +543,22 @@ pub fn run(args: &[String]) -> Result<String> {
                 games.stamp_path(name).display()
             )?;
         }
+        [cmd, map, flags @ ..] if cmd == "reach" || cmd == "bypass" => {
+            let mut r = ReachFlags::default();
+            let mut f = flags;
+            while !f.is_empty() {
+                f = r.take(f)?.context(USAGE)?;
+            }
+            ensure!(!r.sight, "{USAGE}");
+            out = match cmd.as_str() {
+                "reach" => {
+                    ensure!(r.to.is_none() && r.avoid.is_empty(), "{USAGE}");
+                    reach_cli::reach(&games, map, &r)?
+                }
+                _ => reach_cli::bypass(&games, map, &r)?,
+            };
+        }
+        [cmd, maps @ ..] if cmd == "lint-reach" => out = reach_cli::lint_reach(&games, maps)?,
         _ => bail!(USAGE),
     }
     Ok(out)
