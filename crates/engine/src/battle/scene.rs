@@ -97,8 +97,8 @@ use super::gfx::{
 };
 use super::ui::BattleWindows;
 use super::{
-    Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleSetup, Choice,
-    EMPTY_GFX, Environment, Msg, MsgWait, Names, Side, Str, text,
+    Battle, BattleEvent, BattleGfx, BattleKind, BattleMon, BattleOutcome, BattleReport,
+    BattleSetup, Choice, Environment, Msg, MsgWait, Names, Side, Str, text,
 };
 use crate::checkpoint::PlayerName;
 use crate::data::{GameData, SpeciesId};
@@ -213,10 +213,18 @@ pub enum OpenMenu {
     StopAsk(u8),
 }
 
+/// The most reports a scene keeps until `take_reports` (the rest are dropped).
+pub const MAX_REPORTS: usize = 32;
+
+/// `parts` is `None` until the first load step.
+const LOADED: &str = "the scene's parts exist from the first load step";
+
 /// Plays a battle's events and turns input into [`Choice`]s. See the module docs.
 pub struct BattleScene {
     kind: BattleKind,
-    parts: Parts,
+    /// Built by the first [`BattleScene::load`] step (with the game's graphics), so that
+    /// [`BattleScene::new`] is cheap on the battle's start frame.
+    parts: Option<Parts>,
     /// `Some(step)` while loading.
     loading: Option<u8>,
     /// The scene's copy of both parties (index = `Side`), as of the playback.
@@ -233,6 +241,8 @@ pub struct BattleScene {
     hp_pending: [bool; 2],
     exp_pending: bool,
     queue: VecDeque<BattleEvent>,
+    /// Reports set aside by `push` (capped, not hashed), until `take_reports`.
+    reports: Vec<BattleReport>,
     play: Play,
     menu: Menu,
     /// The kind of the last `Msg` event printed (scripted input and debugging only: not
@@ -276,7 +286,7 @@ impl BattleScene {
         fader.start(Fade::FromBlack);
         BattleScene {
             kind: setup.kind,
-            parts: Parts::new(&EMPTY_GFX, setup.environment),
+            parts: None,
             loading: Some(0),
             parties: [Party::default(), Party::default()],
             out: [0; 2],
@@ -286,6 +296,7 @@ impl BattleScene {
             hp_pending: [false; 2],
             exp_pending: false,
             queue: VecDeque::new(),
+            reports: Vec::new(),
             play: Play::Idle,
             menu: Menu::None,
             last_msg: None,
@@ -310,10 +321,12 @@ impl BattleScene {
         f.objs.clear();
         let gfx = game.battle_gfx();
         let t = game.battle();
-        let p = &mut self.parts;
+        if step == 0 {
+            self.parts = Some(Parts::new(gfx, battle.setup().environment));
+        }
+        let p = self.parts.as_mut().expect(LOADED);
         let next = match step {
             0 => {
-                *p = Parts::new(gfx, battle.setup().environment);
                 self.parties = [
                     battle.party(Side::Player).clone(),
                     battle.party(Side::Opponent).clone(),
@@ -349,7 +362,8 @@ impl BattleScene {
                 for side in [Side::Opponent, Side::Player] {
                     let mon = self.mon(side);
                     let pic = (mon.species, mon.is_shiny());
-                    self.parts.mons[side as usize].load(game, pic.0, pic.1, f);
+                    self.parts.as_mut().expect(LOADED).mons[side as usize]
+                        .load(game, pic.0, pic.1, f);
                     self.pics[side as usize] = Some(pic);
                 }
                 5
@@ -371,10 +385,10 @@ impl BattleScene {
                 };
                 let s = side as usize;
                 let mon = view(t, self.mon(side), self.out[s]);
-                self.parts.boxes[s].load(&mon, f);
-                self.parts.bars[s].set(mon.hp, mon.max_hp, f);
+                self.parts.as_mut().expect(LOADED).boxes[s].load(&mon, f);
+                self.parts.as_mut().expect(LOADED).bars[s].set(mon.hp, mon.max_hp, f);
                 if side == Side::Player {
-                    self.parts.exp.invalidate();
+                    self.parts.as_mut().expect(LOADED).exp.invalidate();
                     self.set_exp(t, f);
                 }
                 self.box_slot[s] = Some(self.out[s]);
@@ -390,9 +404,23 @@ impl BattleScene {
         false
     }
 
-    /// Queues events (drains `events`).
+    /// Queues events (drains `events`); reports go aside (see [`BattleScene::take_reports`]).
     pub fn push(&mut self, events: &mut Vec<BattleEvent>) {
-        self.queue.extend(events.drain(..));
+        for e in events.drain(..) {
+            match e {
+                BattleEvent::Report(r) => {
+                    if self.reports.len() < MAX_REPORTS {
+                        self.reports.push(r);
+                    }
+                }
+                e => self.queue.push_back(e),
+            }
+        }
+    }
+
+    /// The reports pushed since the last call (at most [`MAX_REPORTS`]).
+    pub fn take_reports(&mut self) -> Vec<BattleReport> {
+        core::mem::take(&mut self.reports)
     }
 
     /// One frame of playback and menus. `Some` is the player's answer to `battle.need()`:
@@ -418,7 +446,7 @@ impl BattleScene {
         }
         // Input and the BG windows, then the components with fixed OBJ tile costs (Task E's
         // order), the scene logic (budgeted bar redraws), and the budgeted uploads last.
-        let p = &mut self.parts;
+        let p = self.parts.as_mut().expect(LOADED);
         p.windows.update(game, input, f);
         for b in &mut p.bars {
             b.update(f);
@@ -431,7 +459,7 @@ impl BattleScene {
             t.update(f);
         }
         let choice = self.advance(game, battle, f);
-        let p = &mut self.parts;
+        let p = self.parts.as_mut().expect(LOADED);
         for b in &mut p.boxes {
             b.update(f);
         }
@@ -482,7 +510,7 @@ impl BattleScene {
     /// The menu waiting for the player's input, with its cursor (for scripted input and
     /// debugging; not state).
     pub fn open_menu(&self) -> Option<OpenMenu> {
-        let cursor = self.parts.windows.menu_cursor()?;
+        let cursor = self.parts.as_ref()?.windows.menu_cursor()?;
         Some(match self.menu {
             Menu::Action => OpenMenu::Action(cursor),
             Menu::Move => OpenMenu::Move(cursor),
@@ -510,22 +538,27 @@ impl BattleScene {
     /// Feeds every piece of state into `h` (cheap enough for every frame).
     #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
-        let p = &self.parts;
-        p.bg.hash(h);
-        p.windows.hash(h);
-        for m in &p.mons {
-            m.hash(h);
+        match &self.parts {
+            None => h.write(&[0]),
+            Some(p) => {
+                h.write(&[1]);
+                p.bg.hash(h);
+                p.windows.hash(h);
+                for m in &p.mons {
+                    m.hash(h);
+                }
+                for t in &p.trainers {
+                    t.hash(h);
+                }
+                for b in &p.boxes {
+                    b.hash(h);
+                }
+                for b in &p.bars {
+                    b.hash(h);
+                }
+                p.exp.hash(h);
+            }
         }
-        for t in &p.trainers {
-            t.hash(h);
-        }
-        for b in &p.boxes {
-            b.hash(h);
-        }
-        for b in &p.bars {
-            b.hash(h);
-        }
-        p.exp.hash(h);
         h.write(&[
             self.loading.unwrap_or(0xFF),
             self.out[0],
@@ -571,7 +604,7 @@ impl BattleScene {
 
     /// Everything idle: no sprite, box or bar animation, no pending upload.
     fn anims_busy(&self) -> bool {
-        let p = &self.parts;
+        let p = self.parts.as_ref().expect(LOADED);
         p.mons.iter().any(MonSprite::busy)
             || p.trainers.iter().any(TrainerSprite::busy)
             || p.boxes.iter().any(Healthbox::busy)
@@ -594,7 +627,7 @@ impl BattleScene {
         }
         let idle = self.play == Play::Idle
             && self.queue.is_empty()
-            && !self.parts.windows.is_printing()
+            && !self.parts.as_ref().expect(LOADED).windows.is_printing()
             && !self.anims_busy()
             && self.fader.is_done();
         if idle {
@@ -612,7 +645,7 @@ impl BattleScene {
             if self.hp_pending[s] && gfx::obj_tiles_left(f) >= BAR_SET_TILES {
                 let mon = self.mon(side);
                 let (hp, max) = (mon.hp, mon.stats[0]);
-                self.parts.bars[s].set(hp, max, f);
+                self.parts.as_mut().expect(LOADED).bars[s].set(hp, max, f);
                 self.hp_pending[s] = false;
             }
         }
@@ -628,14 +661,18 @@ impl BattleScene {
         let growth = t.species_info(mon.species).growth;
         let (level, exp) = (mon.level, mon.exp);
         let next = exp_for_level(growth, level.saturating_add(1).min(crate::mon::MAX_LEVEL));
-        self.parts
-            .exp
-            .set(level, exp_for_level(growth, level), next, exp, f);
+        self.parts.as_mut().expect(LOADED).exp.set(
+            level,
+            exp_for_level(growth, level),
+            next,
+            exp,
+            f,
+        );
     }
 
     /// One frame of the current event; true when it is over.
     fn tick(&mut self, game: &impl GameData, f: &mut Frame) -> bool {
-        let p = &mut self.parts;
+        let p = self.parts.as_mut().expect(LOADED);
         match self.play {
             Play::Idle => true,
             Play::Msg => !p.windows.is_printing(),
@@ -729,7 +766,7 @@ impl BattleScene {
     /// Starts playing `e`.
     fn start(&mut self, game: &impl GameData, battle: &Battle, e: BattleEvent, f: &mut Frame) {
         let t = game.battle();
-        let p = &mut self.parts;
+        let p = self.parts.as_mut().expect(LOADED);
         self.play = match e {
             BattleEvent::Msg(m) => {
                 self.print(game, battle, &m, f);
@@ -828,7 +865,7 @@ impl BattleScene {
             BattleEvent::LevelUp { party, .. } => {
                 if party == self.out[0] && self.box_slot[0] == Some(party) {
                     let mon = view(t, self.mon(Side::Player), party);
-                    self.parts.boxes[0].set_mon(&mon);
+                    self.parts.as_mut().expect(LOADED).boxes[0].set_mon(&mon);
                     self.hp_pending[0] = true;
                     Play::Bars
                 } else {
@@ -847,6 +884,8 @@ impl BattleScene {
                 self.fader.start(Fade::ToBlack);
                 Play::Ending
             }
+            // `push` never queues one.
+            BattleEvent::Report(_) => Play::Idle,
         };
     }
 
@@ -861,14 +900,14 @@ impl BattleScene {
             self.pic_load[s] = Some(pic);
         }
         if self.box_slot[s] != Some(party) {
-            self.parts.boxes[s].set_mon(&view(t, &mon, party));
+            self.parts.as_mut().expect(LOADED).boxes[s].set_mon(&view(t, &mon, party));
             self.box_slot[s] = Some(party);
             self.hp_pending[s] = true;
             if side == Side::Player {
                 self.exp_pending = true;
             }
         }
-        let back = &mut self.parts.trainers[0];
+        let back = &mut self.parts.as_mut().expect(LOADED).trainers[0];
         let wait = if side == Side::Player && back.visible() {
             // PlayerHandleIntroTrainerBallThrow + Task_StartSendOutAnim.
             back.slide_out();
@@ -887,7 +926,11 @@ impl BattleScene {
             MsgWait::Button if ends_with_prompt(&text) => MsgWait::Frames(0),
             w => w,
         };
-        self.parts.windows.print(game, text, wait, f);
+        self.parts
+            .as_mut()
+            .expect(LOADED)
+            .windows
+            .print(game, text, wait, f);
     }
 }
 

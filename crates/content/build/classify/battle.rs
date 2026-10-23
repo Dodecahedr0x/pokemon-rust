@@ -42,6 +42,32 @@ pub fn move_flag(name: &str) -> Option<u8> {
     })
 }
 
+/// `MoveFlags::SOUND` (1 << 6, not a Gen3 move flag): the moves of `sSoundMovesTable`
+/// (battle_util.c), which Soundproof blocks.
+pub const SOUND_MOVES: [&str; 10] = [
+    "MOVE_GROWL",
+    "MOVE_ROAR",
+    "MOVE_SING",
+    "MOVE_SUPERSONIC",
+    "MOVE_SCREECH",
+    "MOVE_SNORE",
+    "MOVE_UPROAR",
+    "MOVE_METAL_SOUND",
+    "MOVE_GRASS_WHISTLE",
+    "MOVE_HYPER_VOICE",
+];
+pub const SOUND_FLAG: u8 = 1 << 6;
+
+/// The `MoveFlags` bits of move `id` (`MOVE_*`) that are not Gen3 move flags (OR them into the
+/// `move_flag` bits): [`SOUND_FLAG`] for the moves of [`SOUND_MOVES`].
+pub fn extra_move_flags(id: &str) -> u8 {
+    if SOUND_MOVES.contains(&id) {
+        SOUND_FLAG
+    } else {
+        0
+    }
+}
+
 /// `ABILITY_*` name -> `Ability` expression; the abilities the engine does not implement are
 /// `Ability::Other`.
 pub fn ability(name: &str) -> &'static str {
@@ -61,6 +87,32 @@ pub fn ability(name: &str) -> &'static str {
         "ABILITY_INTIMIDATE" => "Ability::Intimidate",
         "ABILITY_STATIC" => "Ability::Static",
         "ABILITY_POISON_POINT" => "Ability::PoisonPoint",
+        // Task G.
+        "ABILITY_CHLOROPHYLL" => "Ability::Chlorophyll",
+        "ABILITY_COMPOUND_EYES" => "Ability::CompoundEyes",
+        "ABILITY_CUTE_CHARM" => "Ability::CuteCharm",
+        "ABILITY_EARLY_BIRD" => "Ability::EarlyBird",
+        "ABILITY_HUGE_POWER" => "Ability::HugePower",
+        "ABILITY_INNER_FOCUS" => "Ability::InnerFocus",
+        "ABILITY_MAGNET_PULL" => "Ability::MagnetPull",
+        "ABILITY_PICKUP" => "Ability::Pickup",
+        "ABILITY_RAIN_DISH" => "Ability::RainDish",
+        "ABILITY_ROCK_HEAD" => "Ability::RockHead",
+        "ABILITY_SHED_SKIN" => "Ability::ShedSkin",
+        "ABILITY_SOUNDPROOF" => "Ability::Soundproof",
+        "ABILITY_STURDY" => "Ability::Sturdy",
+        "ABILITY_SWIFT_SWIM" => "Ability::SwiftSwim",
+        "ABILITY_THICK_FAT" => "Ability::ThickFat",
+        "ABILITY_TRUANT" => "Ability::Truant",
+        "ABILITY_OBLIVIOUS" => "Ability::Oblivious",
+        "ABILITY_INSOMNIA" => "Ability::Insomnia",
+        "ABILITY_VITAL_SPIRIT" => "Ability::VitalSpirit",
+        "ABILITY_HUSTLE" => "Ability::Hustle",
+        "ABILITY_MARVEL_SCALE" => "Ability::MarvelScale",
+        "ABILITY_PURE_POWER" => "Ability::PurePower",
+        "ABILITY_CLEAR_BODY" => "Ability::ClearBody",
+        "ABILITY_LIQUID_OOZE" => "Ability::LiquidOoze",
+        "ABILITY_NATURAL_CURE" => "Ability::NaturalCure",
         _ => "Ability::Other",
     }
 }
@@ -126,6 +178,18 @@ pub fn move_effect(name: &str) -> Option<String> {
             "SONICBOOM" => "MoveEffect::SonicBoom",
             "VITAL_THROW" => "MoveEffect::VitalThrow",
             "CHARGE" => "MoveEffect::Charge",
+            "ATTRACT" => "MoveEffect::Attract",
+            "MEAN_LOOK" => "MoveEffect::MeanLook",
+            "MUD_SPORT" => "MoveEffect::MudSport",
+            "WATER_SPORT" => "MoveEffect::WaterSport",
+            "TELEPORT" => "MoveEffect::Teleport",
+            "UPROAR" => "MoveEffect::Uproar",
+            "YAWN" => "MoveEffect::Yawn",
+            "DOUBLE_HIT" => "MoveEffect::DoubleHit",
+            "FORESIGHT" => "MoveEffect::Foresight",
+            "FURY_CUTTER" => "MoveEffect::FuryCutter",
+            "PURSUIT" => "MoveEffect::Pursuit",
+            "LOW_KICK" => "MoveEffect::LowKick",
             _ => return None,
         }
         .to_string(),
@@ -310,15 +374,53 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("ButNothingHappened", Key("STRINGID_BUTNOTHINGHAPPENED")),
         ("PkmnChargingPower", Key("STRINGID_PKMNCHARGINGPOWER")),
         ("AbilityName(a)", AbilityNames),
+        // Task G.
+        ("PkmnFellInLove", Key("STRINGID_PKMNFELLINLOVE")),
+        ("PkmnInLove", Key("STRINGID_PKMNINLOVE")),
+        (
+            "PkmnImmobilizedByLove",
+            Key("STRINGID_PKMNIMMOBILIZEDBYLOVE"),
+        ),
+        (
+            "PkmnPreventsRomanceWith",
+            Key("STRINGID_PKMNPREVENTSROMANCEWITH"),
+        ),
+        ("PkmnSXInfatuatedY", Key("STRINGID_PKMNSXINFATUATEDY")),
+        ("TargetCantEscapeNow", Key("STRINGID_TARGETCANTESCAPENOW")),
+        ("PreventsEscape", Key("STRINGID_PREVENTSESCAPE")),
+        ("ElectricityWeakened", Key("STRINGID_ELECTRICITYWEAKENED")),
+        ("FireWeakened", Key("STRINGID_FIREWEAKENED")),
+        ("PkmnFledFromBattle", Key("STRINGID_PKMNFLEDFROMBATTLE")),
+        (
+            "PkmnSXMadeItIneffective",
+            Key("STRINGID_PKMNSXMADEITINEFFECTIVE"),
+        ),
+        ("PkmnCausedUproar", Key("STRINGID_PKMNCAUSEDUPROAR")),
+        ("PkmnMakingUproar", Key("STRINGID_PKMNMAKINGUPROAR")),
+        ("PkmnCalmedDown", Key("STRINGID_PKMNCALMEDDOWN")),
+        ("PkmnWokeUpInUproar", Key("STRINGID_PKMNWOKEUPINUPROAR")),
+        (
+            "PkmnCantSleepInUproar",
+            Key("STRINGID_PKMNCANTSLEEPINUPROAR2"),
+        ),
+        ("UproarKeptPkmnAwake", Key("STRINGID_UPROARKEPTPKMNAWAKE")),
+        ("PkmnStayedAwakeUsing", Key("STRINGID_PKMNSTAYEDAWAKEUSING")),
+        ("PkmnWasMadeDrowsy", Key("STRINGID_PKMNWASMADEDROWSY")),
+        ("PkmnIdentified", Key("STRINGID_PKMNIDENTIFIED")),
+        ("PkmnLoafing", Key("STRINGID_PKMNLOAFING")),
+        ("PkmnSXCuredYProblem", Key("STRINGID_PKMNSXCUREDYPROBLEM")),
+        (
+            "PkmnSXPreventsFlinching",
+            Key("STRINGID_PKMNSXPREVENTSFLINCHING"),
+        ),
+        ("PkmnSXBlocksY", Key("STRINGID_PKMNSXBLOCKSY")),
+        ("PkmnProtectedBy", Key("STRINGID_PKMNPROTECTEDBY")),
+        (
+            "PkmnPreventsStatLossWith",
+            Key("STRINGID_PKMNPREVENTSSTATLOSSWITH"),
+        ),
+        ("PreventedFromWorking", Key("STRINGID_PREVENTEDFROMWORKING")),
+        ("ItSuckedLiquidOoze", Key("STRINGID_ITSUCKEDLIQUIDOOZE")),
+        ("PlayerGotMoney", Key("STRINGID_PLAYERGOTMONEY")),
     ]
 };
-
-/// Effects whose stat message the engine's one-`Str`-per-battler wording cannot say: the user's
-/// own stats fall (`EFFECT_SUPERPOWER`, `EFFECT_OVERHEAT`) or the target's rise
-/// (`EFFECT_SWAGGER`, `EFFECT_FLATTER`). See [`STRS`] (`AttackerStatChanged`).
-pub const UNWORDED_STAT_EFFECTS: [&str; 4] = [
-    "EFFECT_SUPERPOWER",
-    "EFFECT_OVERHEAT",
-    "EFFECT_SWAGGER",
-    "EFFECT_FLATTER",
-];

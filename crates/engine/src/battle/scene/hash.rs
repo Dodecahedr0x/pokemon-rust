@@ -128,5 +128,7 @@ pub(super) fn hash_event(e: &BattleEvent, h: &mut Fnv64) {
         BattleEvent::LevelUp { party, level } => h.write(&[14, party, level]),
         BattleEvent::Ball { shakes, caught } => h.write(&[15, shakes, caught as u8]),
         BattleEvent::End(o) => h.write(&[16, o as u8]),
+        // Never queued (`BattleScene::push` sets reports aside).
+        BattleEvent::Report(_) => {}
     }
 }

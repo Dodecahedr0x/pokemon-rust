@@ -815,7 +815,9 @@ mod extracted {
             return;
         }
         assert_eq!(field, 0x2dad_729f_bec3_4fe9);
-        assert_eq!(battle, 0x0f9d_09db_0c67_77b7);
+        // Task G1 changed the battle data on purpose: the abilities it implements (no longer
+        // `Ability::Other`) and `SpeciesInfo::weight` (Low Kick). Was 0x0f9d_09db_0c67_77b7.
+        assert_eq!(battle, 0x36df_8eb5_5517_e48f);
     }
 
     #[test]

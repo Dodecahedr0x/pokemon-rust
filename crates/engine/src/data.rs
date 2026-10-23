@@ -566,7 +566,10 @@ pub trait GameData {
         let _ = e;
         None
     }
-    /// Gen3 `gTrainerMoneyTable` value for the trainer's class (`GetTrainerMoneyToGive`).
+    /// Gen3 `gTrainerMoneyTable` value for the trainer's class (`GetTrainerMoneyToGive`). For a
+    /// class the table does not list, content returns the table's terminator value (Gen3's
+    /// `{0xFF, 5}` entry, `battle_main.c:531`, which the lookup loop stops on), so every known
+    /// trainer pays; `None` only when the game has no money data.
     fn trainer_money(&self, id: TrainerId) -> Option<u8> {
         let _ = id;
         None

@@ -307,7 +307,7 @@ fn evolutions_and_trainer_money() {
 }
 
 #[test]
-fn unworded_stat_effects_degrade_and_are_reported() {
+fn unimplemented_stat_effects_are_plain_unsupported() {
     let mut w = stub::world();
     let m = &mut w.battle.moves.moves[1];
     m.effect = "EFFECT_SWAGGER".into();
@@ -320,9 +320,11 @@ fn unworded_stat_effects_degrade_and_are_reported() {
         out.rs
             .contains(&format!("effect: MoveEffect::Unsupported({n})"))
     );
+    // Every stat change has words now (G1): Swagger is unsupported only as unimplemented.
     assert!(out.report.contains(&format!(
-        "unworded stat effect, degraded to MoveEffect::Unsupported: {id} (EFFECT_SWAGGER)"
+        "unsupported effect EFFECT_SWAGGER (MoveEffect::Unsupported): {id}"
     )));
+    assert!(!out.report.contains("unworded"));
 }
 
 #[test]

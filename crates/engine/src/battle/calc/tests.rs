@@ -296,3 +296,76 @@ fn effective_speed_quarters_paralysis() {
     f.status = Status::Paralysis;
     assert_eq!(effective_speed(&f), 3);
 }
+
+#[test]
+fn power_and_defense_abilities_golden() {
+    // CalculateBaseDamage, in its order: Huge Power ×2 attack first (13 → 26):
+    // 26*35*4 = 3640 / 6 = 606 / 50 = 12 + 2.
+    let mut a = mudkip();
+    a.ability = Ability::HugePower;
+    assert_eq!(base_damage(&a, &zigzagoon(), 35, Type::Normal, false), 14);
+    a.ability = Ability::PurePower;
+    assert_eq!(base_damage(&a, &zigzagoon(), 35, Type::Normal, false), 14);
+    // Hustle ×150/100 attack (13 → 19): 19*35*4 = 2660 / 6 = 443 / 50 = 8 + 2.
+    a.ability = Ability::Hustle;
+    assert_eq!(base_damage(&a, &zigzagoon(), 35, Type::Normal, false), 10);
+    // Thick Fat (defender) halves the special attack for Fire and Ice (13 → 6):
+    // 6*40*4 = 960 / 5 = 192 / 50 = 3 + 2; 13*40*4 = 2080 / 5 = 416 / 50 = 8 + 2.
+    let torchic = fighter(5, [20, 12, 9, 10, 13, 10], [Type::Fire; 2]);
+    let mut fat = zigzagoon();
+    fat.ability = Ability::ThickFat;
+    assert_eq!(base_damage(&torchic, &fat, 40, Type::Fire, false), 5);
+    assert_eq!(base_damage(&torchic, &fat, 40, Type::Ice, false), 5);
+    assert_eq!(base_damage(&torchic, &fat, 40, Type::Water, false), 10);
+    // Marvel Scale ×150/100 defense with a status (6 → 9): 1820 / 9 = 202 / 50 = 4 + 2.
+    let mut scale = zigzagoon();
+    scale.ability = Ability::MarvelScale;
+    assert_eq!(base_damage(&mudkip(), &scale, 35, Type::Normal, false), 8);
+    scale.status = Status::Poison;
+    assert_eq!(base_damage(&mudkip(), &scale, 35, Type::Normal, false), 6);
+}
+
+#[test]
+fn sports_halve_power_before_the_pinch_abilities() {
+    // Mud Sport: Electric power / 2 (40 → 20): SpA 9: 9*20*4 = 720 / 5 = 144 / 50 = 2 + 2.
+    let a = mudkip();
+    let mud = Field {
+        mud_sport: true,
+        water_sport: false,
+    };
+    let water = Field {
+        mud_sport: false,
+        water_sport: true,
+    };
+    let z = zigzagoon();
+    assert_eq!(base_damage(&a, &z, 40, Type::Electric, false), 7);
+    assert_eq!(base_damage_in(&a, &z, 40, Type::Electric, false, mud), 4);
+    assert_eq!(base_damage_in(&a, &z, 40, Type::Fire, false, mud), 7);
+    // Water Sport: Fire power / 2, before Blaze's ×150/100 at low HP: 43 / 2 = 21 → 31
+    // (the other order gives 64 / 2 = 32). SpA 100: 100*31*4 = 12400 / 5 = 2480 / 50 = 49 + 2.
+    let mut b = fighter(5, [20, 13, 10, 9, 100, 10], [Type::Water; 2]);
+    b.ability = Ability::Blaze;
+    b.hp = 1;
+    assert_eq!(base_damage_in(&b, &z, 43, Type::Fire, false, water), 51);
+    // Not Electric: 100*43*4 = 17200 / 5 = 3440 / 50 = 68 + 2.
+    assert_eq!(base_damage_in(&b, &z, 43, Type::Electric, false, water), 70);
+}
+
+#[test]
+fn accuracy_abilities() {
+    // Compound Eyes ×130/100 after the stage ratio: 70 → 91.
+    assert!(accuracy_hits_by(70, 0, 0, Ability::CompoundEyes, false, 90));
+    assert!(!accuracy_hits_by(
+        70,
+        0,
+        0,
+        Ability::CompoundEyes,
+        false,
+        91
+    ));
+    // Hustle ×80/100 on physical moves only: 100 → 80.
+    assert!(accuracy_hits_by(100, 0, 0, Ability::Hustle, true, 79));
+    assert!(!accuracy_hits_by(100, 0, 0, Ability::Hustle, true, 80));
+    assert!(accuracy_hits_by(100, 0, 0, Ability::Hustle, false, 99));
+    assert!(!accuracy_hits_by(70, 0, 0, Ability::None, false, 70));
+}

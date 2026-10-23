@@ -110,7 +110,8 @@ const fn continues(k: u8) -> bool {
 ///   (`HasEnoughMonsForDoubleBattle`) `EventScript_NotEnoughMonsForDoubleBattle`: the
 ///   `not_enough` text, `waitbuttonpress`, `release; end` (false). With two or more the battle
 ///   runs as a single battle against the same party (no double battles before Milestone 11),
-///   reported `Degraded("double battle")` (decision Q3).
+///   which the engine reports as `Degraded("double battle")` when it creates the battle
+///   (decision Q3; every trainer battle, scripted or by sight).
 /// - 5 `REMATCH`, 7 `REMATCH_DOUBLE`: `EventScript_TryDo(Double)RematchBattle`. Unless
 ///   `IsTrainerReadyForRematch` (never: no Match Call yet), `gotopostbattlescript` (true).
 /// - 10 `SET_TRAINER_A`, 11 `SET_TRAINER_B`: only load operands and return a NULL script: the
@@ -174,9 +175,6 @@ pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
             ctx.release().await;
             return false;
         }
-    }
-    if is_double(b.kind) {
-        ctx.report(Report::Degraded("double battle")).await;
     }
     // `EventScript_ShowTrainerIntroMsg`.
     if let Some(intro) = b.intro {

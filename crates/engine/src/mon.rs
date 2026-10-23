@@ -3,7 +3,7 @@
 //!
 //! Formulas: `CreateMon`, `CalculateMonStats`, `MonGainEVs`, `gExperienceTables`, …
 
-use crate::data::{MoveId, SpeciesId};
+use crate::data::{EvoMethod, Evolution, MoveId, SpeciesId};
 use crate::hash::Fnv64;
 use crate::rng::Rng;
 use crate::video::Tile;
@@ -205,6 +205,34 @@ pub enum Ability {
     Static,
     PoisonPoint,
     Other,
+    // Task G (appended: the discriminants above are hashed and coded in `Str::AbilityName`).
+    // Abilities without an effect in the engine's battles (no weather, no items after battle)
+    // are named so Trace and the messages that name an ability print them.
+    Chlorophyll,
+    CompoundEyes,
+    CuteCharm,
+    EarlyBird,
+    HugePower,
+    InnerFocus,
+    MagnetPull,
+    Pickup,
+    RainDish,
+    RockHead,
+    ShedSkin,
+    Soundproof,
+    Sturdy,
+    SwiftSwim,
+    ThickFat,
+    Truant,
+    Oblivious,
+    Insomnia,
+    VitalSpirit,
+    Hustle,
+    MarvelScale,
+    PurePower,
+    ClearBody,
+    LiquidOoze,
+    NaturalCure,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).
@@ -252,6 +280,31 @@ pub enum MoveEffect {
     VitalThrow,
     /// `EFFECT_CHARGE`: doubles the user's Electric damage until the end of the next turn.
     Charge,
+    // Task G.
+    /// `EFFECT_ATTRACT`.
+    Attract,
+    /// `EFFECT_MEAN_LOOK` (Mean Look, Block, Spider Web).
+    MeanLook,
+    /// `EFFECT_MUD_SPORT`: Electric power halved while the user is out.
+    MudSport,
+    /// `EFFECT_WATER_SPORT`: Fire power halved while the user is out.
+    WaterSport,
+    /// `EFFECT_TELEPORT`: flees a wild battle.
+    Teleport,
+    /// `EFFECT_UPROAR`: 2–5 locked turns; nobody sleeps meanwhile.
+    Uproar,
+    /// `EFFECT_YAWN`: the target falls asleep at the end of the next turn.
+    Yawn,
+    /// `EFFECT_DOUBLE_HIT` (Double Kick): two hits.
+    DoubleHit,
+    /// `EFFECT_FORESIGHT`.
+    Foresight,
+    /// `EFFECT_FURY_CUTTER`: power doubles with each consecutive hit (up to 5).
+    FuryCutter,
+    /// `EFFECT_PURSUIT`: a hit, doubled and first against a foe switching out.
+    Pursuit,
+    /// `EFFECT_LOW_KICK`: power from the target's weight.
+    LowKick,
     /// Raw `EFFECT_*` number: logged; acts as `Hit` if power > 0, else "But it failed!".
     Unsupported(u8),
 }
@@ -280,6 +333,8 @@ impl MoveFlags {
     pub const SNATCH_AFFECTED: u8 = 1 << 3;
     pub const MIRROR_MOVE_AFFECTED: u8 = 1 << 4;
     pub const KINGS_ROCK_AFFECTED: u8 = 1 << 5;
+    /// Not a Gen3 flag: the move is in `sSoundMovesTable` (blocked by Soundproof).
+    pub const SOUND: u8 = 1 << 6;
 
     pub const fn has(self, flag: u8) -> bool {
         self.0 & flag != 0
@@ -324,6 +379,9 @@ pub struct SpeciesInfo {
     pub growth: GrowthRate,
     pub abilities: [Ability; 2],
     pub learnset: &'static [LevelUpMove],
+    /// Pokédex weight in hectograms (`GetPokedexHeightWeight`, Low Kick); 0 when the content
+    /// does not carry it yet.
+    pub weight: u16,
     /// `None` for species the build left out.
     pub gfx: Option<&'static MonGfx>,
 }
@@ -479,6 +537,20 @@ pub enum Learn {
     Full,
 }
 
+/// `GetSpeciesName` into a nickname: up to `POKEMON_NAME_LENGTH` characters, then EOS.
+fn species_nickname(info: &SpeciesInfo) -> [u8; NAME_LEN] {
+    let mut nickname = [0xFF; NAME_LEN];
+    let name = info
+        .name
+        .iter()
+        .take(NAME_LEN - 1)
+        .take_while(|&&c| c != 0xFF);
+    for (d, &c) in nickname.iter_mut().zip(name) {
+        *d = c;
+    }
+    nickname
+}
+
 /// Gen3 `MAX_LEVEL`.
 pub const MAX_LEVEL: u8 = 100;
 /// Gen3 `USE_RANDOM_IVS`: `Ivs::Fixed` values from here on draw random IVs, as `CreateBoxMon`.
@@ -532,16 +604,7 @@ impl Pokemon {
                 [f(a, 0), f(a, 1), f(a, 2), f(b, 0), f(b, 1), f(b, 2)]
             }
         };
-        // GetSpeciesName: up to POKEMON_NAME_LENGTH characters, then EOS.
-        let mut nickname = [0xFF; NAME_LEN];
-        let name = info
-            .name
-            .iter()
-            .take(NAME_LEN - 1)
-            .take_while(|&&c| c != 0xFF);
-        for (d, &c) in nickname.iter_mut().zip(name) {
-            *d = c;
-        }
+        let nickname = species_nickname(info);
         let ability_slot = if info.abilities[1] != Ability::None {
             (personality & 1) as u8
         } else {
@@ -671,6 +734,37 @@ impl Pokemon {
         } else if cur != 0 {
             self.hp = (cur + new_max - old_max).max(1) as u16;
         }
+    }
+
+    /// Gen3 `GetEvolutionTargetSpecies(mon, EVO_MODE_NORMAL, ..)` over `evos` (the species'
+    /// `gEvolutionTable` row), level methods only: the last entry whose level is reached wins,
+    /// as Gen3's loop. Friendship, item and trade methods never match here (M9). The content
+    /// contract's `Level` may fold several Gen3 level methods (the stat and personality
+    /// variants, such as Wurmple's and Tyrogue's): the second value is true when more than one
+    /// level entry matched, a choice the contract cannot make as Gen3 does (the caller reports
+    /// it). Whatever a `Level` entry stands for, it is taken at its level, as `EVO_LEVEL`.
+    pub fn evolution_target(&self, evos: &[Evolution]) -> Option<(SpeciesId, bool)> {
+        let mut found = None;
+        let mut matches = 0;
+        for e in evos {
+            if e.method == EvoMethod::Level && e.param <= self.level as u16 {
+                found = Some(e.target);
+                matches += 1;
+            }
+        }
+        found.map(|t| (t, matches > 1))
+    }
+
+    /// The species change of Gen3 `EvolutionScene`, without the scene: `EvolutionRenameMon`
+    /// (a nickname equal to the old species name becomes the new one), then
+    /// `CalculateMonStats` (the current HP moves with the max HP). The new species' moves at
+    /// this level are not learned (the scene's `MonTryLearningNewMove`, M9).
+    pub fn evolve(&mut self, t: &BattleTables, target: SpeciesId) {
+        if self.nickname == species_nickname(t.species_info(self.species)) {
+            self.nickname = species_nickname(t.species_info(target));
+        }
+        self.species = target;
+        self.recalc_stats(t);
     }
 
     /// Restores HP, PP (with `pp_bonuses`) and status (Gen3 `HealPlayerParty`, one mon).

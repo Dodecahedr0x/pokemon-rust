@@ -1,14 +1,21 @@
 //! Abilities: `moveend`'s defrost, Synchronize and contact abilities
-//! (`ABILITYEFFECT_ON_DAMAGE`), Intimidate and Trace on switch-in, Keen Eye.
+//! (`ABILITYEFFECT_ON_DAMAGE`: Effect Spore, Static, Poison Point, Cute Charm), Intimidate
+//! and Trace on switch-in, Keen Eye, Soundproof (`ABILITYEFFECT_MOVES_BLOCK`), the end-turn
+//! abilities (Shed Skin, Truant), Clear Body (stat drops, Intimidate).
 //!
-//! Shield Dust is in [`super::status`] (`SetMoveEffect`) and [`super::moves`] (secondary stat
-//! drops); Guts is in `calc::base_damage`. Pickup, the weather abilities and Early Bird have no
-//! effect in the slice (no items after battle, no weather, Early Bird is `Ability::Other`).
+//! Elsewhere: Shield Dust and Inner Focus in [`super::status`] (`SetMoveEffect`) and
+//! [`super::moves`] (secondary stat drops); Insomnia / Vital Spirit / Early Bird / Truant's
+//! canceler in [`super::status`]; Oblivious in Attract; Magnet Pull in `effects::run_block`;
+//! Rock Head in the core's recoil; Natural Cure in the core's switch-out; Liquid Ooze in
+//! Absorb and Leech Seed; Huge Power, Pure Power, Hustle, Guts, Thick Fat and Marvel
+//! Scale in `calc::base_damage_in`; Compound Eyes and Hustle in `calc::accuracy_hits_by`.
+//! Pickup, Rain Dish, Swift Swim and Chlorophyll have no effect in the engine's battles (no
+//! items after battle, no weather).
 
 use super::status::{self, Cause};
 use crate::battle::core::{Battle, Env, HitResult, LONG, MoveUse, msg};
-use crate::battle::{BattleEvent, Buff, Effectiveness, Msg, Side, Str};
-use crate::mon::{Ability, MoveFlags, Stat, Status, StatusKind, Type};
+use crate::battle::{BattleEvent, BattleReport, Buff, Effectiveness, Msg, Side, Str};
+use crate::mon::{Ability, Gender, MoveFlags, Stat, Status, StatusKind, Type};
 
 /// `Cmd_moveend` cases `MOVEEND_DEFROST` … `MOVEEND_SYNCHRONIZE_ATTACKER`.
 pub(super) fn move_end(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
@@ -61,16 +68,29 @@ fn synchronize(b: &mut Battle, env: &mut Env, u: &MoveUse, owner: Side, to: Side
     status::set_status(b, env, u, to, kind, cause);
 }
 
+/// `Cmd_moveend` from `MOVEEND_ON_DAMAGE_ABILITIES` to `MOVEEND_SYNCHRONIZE_ATTACKER`
+/// (`BattleScript_PursuitDmgOnSwitchOut`'s `moveendfromto`).
+pub(super) fn move_end_from_on_damage(
+    b: &mut Battle,
+    env: &mut Env,
+    u: &MoveUse,
+    hit: Option<HitResult>,
+) {
+    on_damage(b, env, u, hit);
+    synchronize(b, env, u, u.attacker, u.target);
+}
+
 /// `ABILITYEFFECT_ON_DAMAGE` of the target's ability on a contact move that damaged it: Effect
 /// Spore (10%: sleep, poison or paralysis), Static and Poison Point (1/3) on the attacker, as a
-/// secondary ability effect (`BattleScript_ApplySecondaryEffect`).
+/// secondary ability effect (`BattleScript_ApplySecondaryEffect`); Cute Charm (1/3)
+/// infatuates it.
 fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
     let Some(r) = hit else { return };
     let owner = u.target;
     let ability = b.battler(owner).ability;
     if !matches!(
         ability,
-        Ability::EffectSpore | Ability::Static | Ability::PoisonPoint
+        Ability::EffectSpore | Ability::Static | Ability::PoisonPoint | Ability::CuteCharm
     ) {
         return;
     }
@@ -100,6 +120,10 @@ fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>)
         }
         Ability::Static if env.rng.random().is_multiple_of(3) => StatusKind::Paralysis,
         Ability::PoisonPoint if env.rng.random().is_multiple_of(3) => StatusKind::Poison,
+        Ability::CuteCharm => {
+            cute_charm(b, env, u);
+            return;
+        }
         _ => return,
     };
     let cause = Cause {
@@ -107,6 +131,103 @@ fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>)
         ability: Some((owner, ability)),
     };
     status::set_status(b, env, u, u.attacker, kind, cause);
+}
+
+/// Cute Charm (the target's, on a damaging contact move): `Random() % 3 == 0`, then a
+/// non-Oblivious attacker of the other gender (neither genderless) that is not infatuated yet
+/// falls in love with the target (`BattleScript_CuteCharmActivates`).
+fn cute_charm(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    if b.battler(u.target).mon.hp == 0 || !env.rng.random().is_multiple_of(3) {
+        return;
+    }
+    let (a, t) = (b.battler(u.attacker), b.battler(u.target));
+    if a.ability == Ability::Oblivious
+        || !opposite_genders(a.mon.gender, t.mon.gender)
+        || a.v.infatuated
+    {
+        return;
+    }
+    b.battler_mut(u.attacker).v.infatuated = true;
+    env.out.push(BattleEvent::Msg(Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(Ability::CuteCharm)),
+        ],
+        ..u.msg_long(Str::PkmnSXInfatuatedY, u.target)
+    }));
+}
+
+/// Two battlers that can fall for each other: different genders, neither genderless.
+pub(crate) fn opposite_genders(x: Gender, y: Gender) -> bool {
+    x != y && x != Gender::Genderless && y != Gender::Genderless
+}
+
+/// `ABILITYEFFECT_MOVES_BLOCK`: the target's Soundproof stops a sound move
+/// (`BattleScript_SoundproofProtected`: the attack string and PP, unless the move is locked
+/// in, then "X's SOUNDPROOF blocks Y!").
+pub(super) fn moves_block(b: &mut Battle, env: &mut Env, u: &MoveUse) -> super::Canceler {
+    if b.battler(u.target).ability != Ability::Soundproof || !u.info.flags.has(MoveFlags::SOUND) {
+        return super::Canceler::Use;
+    }
+    if b.battler(u.attacker).v.uproar > 0 {
+        env.out
+            .push(BattleEvent::Msg(u.msg(Str::UsedMove, u.attacker)));
+    } else {
+        b.attack_string(env, u);
+    }
+    env.out.push(BattleEvent::Msg(Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(Ability::Soundproof)),
+        ],
+        ..u.msg_long(Str::PkmnSXBlocksY, u.target)
+    }));
+    super::Canceler::Done(*u, None)
+}
+
+/// `ABILITYEFFECT_ENDTURN` for a battler with HP: Shed Skin cures its status when
+/// `Random() % 3 == 0` (`BattleScript_ShedSkinActivates`; `B_BUFF1` would name the status
+/// with Gen3's `gStatusConditionString_*Jpn`, which the engine does not have: empty);
+/// Truant flips its counter.
+pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
+    let m = b.battler(side);
+    if m.mon.hp == 0 {
+        return;
+    }
+    match m.ability {
+        Ability::ShedSkin if m.mon.status != Status::None => {
+            if !env.rng.random().is_multiple_of(3) {
+                return;
+            }
+            b.battler_mut(side).mon.status = Status::None;
+            b.write_back(side);
+            env.out.push(BattleEvent::Msg(Msg {
+                buffs: [
+                    Buff::None,
+                    Buff::None,
+                    Buff::Text(Str::AbilityName(Ability::ShedSkin)),
+                ],
+                wait: LONG,
+                ..msg(Str::PkmnSXCuredYProblem, side, side.other(), side)
+            }));
+            // The message's {B_BUFF1} is the status name (`gStatusConditionString_*`), which
+            // the engine does not carry: it prints empty.
+            env.out.push(BattleEvent::Report(BattleReport::Degraded(
+                "shed skin status name",
+            )));
+            env.out.push(BattleEvent::StatusIcon {
+                side,
+                status: Status::None,
+            });
+        }
+        Ability::Truant => {
+            let v = &mut b.battler_mut(side).v;
+            v.truant = !v.truant;
+        }
+        _ => {}
+    }
 }
 
 /// `ABILITYEFFECT_INTIMIDATE1` → `BattleScript_IntimidateActivates`: the foe's Attack -1
@@ -117,6 +238,19 @@ pub(super) fn intimidate(b: &mut Battle, env: &mut Env, side: Side) {
         || b.battler(side).mon.hp == 0
         || b.battler(foe).mon.hp == 0
     {
+        return;
+    }
+    // BattleScript_IntimidatePrevented, before `statbuffchange`.
+    if b.battler(foe).ability == Ability::ClearBody {
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::Text(Str::AbilityName(Ability::Intimidate)),
+                Buff::None,
+                Buff::Text(Str::AbilityName(Ability::ClearBody)),
+            ],
+            wait: LONG,
+            ..msg(Str::PreventedFromWorking, side, foe, side)
+        }));
         return;
     }
     if !b.change_stage(foe, Stat::Atk, -1) {
@@ -162,8 +296,9 @@ pub(super) fn trace(b: &mut Battle, env: &mut Env, side: Side) {
     }));
 }
 
-/// `ChangeStatBuffs` with `STAT_CHANGE_ALLOW_PTR` (a status move's drop): Keen Eye keeps its
-/// accuracy (`BattleScript_AbilityNoSpecificStatLoss`). True when blocked.
+/// `ChangeStatBuffs` with `STAT_CHANGE_ALLOW_PTR` (a status move's drop): Clear Body keeps
+/// every stat (`BattleScript_AbilityNoStatLoss`), Keen Eye its accuracy
+/// (`BattleScript_AbilityNoSpecificStatLoss`). True when blocked.
 pub(super) fn blocks_stat_drop(
     b: &mut Battle,
     env: &mut Env,
@@ -171,6 +306,17 @@ pub(super) fn blocks_stat_drop(
     side: Side,
     stat: Stat,
 ) -> bool {
+    if b.battler(side).ability == Ability::ClearBody {
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::None,
+                Buff::None,
+                Buff::Text(Str::AbilityName(Ability::ClearBody)),
+            ],
+            ..u.msg_long(Str::PkmnPreventsStatLossWith, side)
+        }));
+        return true;
+    }
     if b.battler(side).ability == Ability::KeenEye && stat == Stat::Accuracy {
         env.out.push(BattleEvent::Msg(Msg {
             buffs: [
@@ -185,9 +331,11 @@ pub(super) fn blocks_stat_drop(
     false
 }
 
-/// `ChangeStatBuffs` without `STAT_CHANGE_ALLOW_PTR` (a hit's secondary drop): Keen Eye
-/// (accuracy) and Shield Dust block it silently.
+/// `ChangeStatBuffs` without `STAT_CHANGE_ALLOW_PTR` (a hit's secondary drop): Clear Body,
+/// Keen Eye (accuracy) and Shield Dust block it silently.
 pub(super) fn blocks_secondary_drop(b: &Battle, side: Side, stat: Stat) -> bool {
     let a = b.battler(side).ability;
-    (a == Ability::KeenEye && stat == Stat::Accuracy) || a == Ability::ShieldDust
+    (a == Ability::KeenEye && stat == Stat::Accuracy)
+        || a == Ability::ShieldDust
+        || a == Ability::ClearBody
 }

@@ -9,27 +9,33 @@
 //!   uses `AI_SCRIPT_FIRST_BATTLE` alone; trainers use `Battle::trainer_ai`.
 //! - Trainer battles first ask [`switch`] (`AI_TrySwitchOrUseItem`, before the move scores).
 //! - Implemented scripts (every `Random()` of the implemented branches is drawn in order):
-//!   - `AI_CheckBadMove` (bit 0): the type immunity of damaging moves and the branches of the
-//!     engine's effects (sleep, stat ups/downs at the cap, Keen Eye, Bide / Sonic Boom, poison
-//!     and toxic, paralysis, Focus Energy, confusion (-5), Leech Seed, Defense Curl);
+//!   - `AI_CheckBadMove` (bit 0): the type immunity of damaging moves, Soundproof, and the
+//!     branches of the engine's effects (sleep with Insomnia / Vital Spirit, stat ups/downs at
+//!     the cap, Keen Eye, Bide / Sonic Boom, poison and toxic, paralysis, Focus Energy,
+//!     confusion (-5), Leech Seed, Defense Curl, Mean Look, Foresight, Attract, Teleport, the
+//!     sports);
 //!   - `AI_TryToFaint` (bit 1): exact;
 //!   - `AI_CheckViability` (bit 2): Sleep, Absorb, the stat up/down scripts, Swift's
-//!     `AI_CV_AlwaysHit`, Bide, Toxic / Leech Seed, Confuse, Poison, Paralyze, Vital Throw;
+//!     `AI_CV_AlwaysHit`, Bide, Toxic / Leech Seed, Confuse, Poison, Paralyze, Vital Throw,
+//!     `AI_CV_SpeedDownFromChance`, `AI_CV_Trap`, `AI_CV_Foresight` (as built, without
+//!     `BUGFIX`), the sports;
 //!   - `AI_SetupFirstTurn` (bit 3): exact;
 //!   - `AI_FirstBattle` (bit 31): flee at ≤ 20% target HP → `Choice::Run`.
 //! - Not modelled: the other flag bits (`RISKY`, `PREFER_POWER_EXTREMES`, … — their scripts'
 //!   rolls are not drawn; no slice trainer uses them), abilities outside `mon::Ability`
-//!   (Soundproof, Volt Absorb, Levitate, Wonder Guard, Clear Body, Hyper Cutter, Insomnia, Own
-//!   Tempo, Limber, Natural Cure …), the target's revealed moves (`BATTLE_HISTORY->usedMoves`:
-//!   Dream Eater / Nightmare checks see none) and `AI_CV_SpeedDownFromChance` (it names
-//!   moves). The four rolls of `BattleAI_HandleItemUseBeforeAISetup` at battle setup are drawn
-//!   by `Battle::new`.
+//!   (Volt Absorb, Levitate, Wonder Guard, Hyper Cutter, Own Tempo, Limber …), the target's revealed moves (`BATTLE_HISTORY->usedMoves`: Dream Eater /
+//!   Nightmare checks see none) and `AI_CV_Pursuit` (it reads `isFirstTurn`, which the engine
+//!   does not keep; its roll is not drawn). The four rolls of
+//!   `BattleAI_HandleItemUseBeforeAISetup` at battle setup are drawn by `Battle::new`.
 
 use super::calc;
 use super::core::Battle;
+use super::effects::opposite_genders;
 use super::{Choice, Effectiveness, Side};
 use crate::data::MoveId;
-use crate::mon::{Ability, BattleTables, MoveEffect, MoveInfo, Stat, Status, StatusKind, Type};
+use crate::mon::{
+    Ability, BattleTables, MoveEffect, MoveFlags, MoveInfo, Stat, Status, StatusKind, Type,
+};
 use crate::rng::Rng;
 
 /// `AI_SCRIPT_*` bits.
@@ -265,7 +271,7 @@ impl<'a> Ai<'a> {
         let info = self.info(mov);
         let (user, target) = (self.b.battler(USER), self.b.battler(TARGET));
         let (a, d) = (user.fighter(), target.fighter());
-        let mut dmg = calc::base_damage(&a, &d, info.power, info.ty, false);
+        let mut dmg = calc::base_damage_in(&a, &d, info.power, info.ty, false, self.b.field());
         if user.charge > 0 && info.ty == Type::Electric {
             dmg *= 2;
         }
@@ -316,14 +322,29 @@ impl<'a> Ai<'a> {
         }
         let info = self.info(mov);
         let target = self.b.battler(TARGET);
+        let user = self.b.battler(USER);
+        // AI_CheckBadMove_CheckSoundproof names Growl, Roar, Sing, Supersonic, Screech, Snore,
+        // Uproar, Metal Sound and Grass Whistle: every sound move but Hyper Voice, the only
+        // one with `EFFECT_HIT`.
+        if target.ability == Ability::Soundproof
+            && info.flags.has(MoveFlags::SOUND)
+            && info.effect != MoveEffect::Hit
+        {
+            self.add(slot, -10);
+            return;
+        }
         let statused = target.mon.status != Status::None;
         let bad = match info.effect {
-            MoveEffect::Status(StatusKind::Sleep) => statused,
+            MoveEffect::Status(StatusKind::Sleep) => {
+                matches!(target.ability, Ability::Insomnia | Ability::VitalSpirit) || statused
+            }
             MoveEffect::StatUp { stat, .. } => self.stage(USER, stat) == 12,
             MoveEffect::DefenseCurl => self.stage(USER, Stat::Def) == 12,
             MoveEffect::StatDown { stat, .. } => {
+                // CheckIfAbilityBlocksStatChange: Clear Body.
                 self.stage(TARGET, stat) == 0
                     || (stat == Stat::Accuracy && target.ability == Ability::KeenEye)
+                    || target.ability == Ability::ClearBody
             }
             // AI_CBM_HighRiskForDamage.
             MoveEffect::Bide | MoveEffect::SonicBoom => self.effectiveness(mov) == X0,
@@ -342,6 +363,16 @@ impl<'a> Ai<'a> {
                 false
             }
             MoveEffect::LeechSeed => target.seeded || self.has_type(TARGET, Type::Grass),
+            MoveEffect::MeanLook => target.v.escape_prevented,
+            MoveEffect::Foresight => target.foresight,
+            MoveEffect::Attract => {
+                target.v.infatuated
+                    || target.ability == Ability::Oblivious
+                    || !opposite_genders(user.mon.gender, target.mon.gender)
+            }
+            MoveEffect::Teleport => true,
+            MoveEffect::MudSport => user.v.mud_sport,
+            MoveEffect::WaterSport => user.v.water_sport,
             _ => false,
         };
         if bad {
@@ -427,7 +458,50 @@ impl<'a> Ai<'a> {
                 }
             }
             MoveEffect::VitalThrow => self.cv_vital_throw(slot),
+            // AI_CV_SpeedDownFromChance names Icy Wind, Rock Tomb and Mud Shot: the only
+            // `EFFECT_SPEED_DOWN_HIT` moves with a 100% chance.
+            MoveEffect::StatDownHit(Stat::Speed) if info.effect_chance == 100 => {
+                self.cv_speed_down(slot)
+            }
+            // AI_CV_Trap.
+            MoveEffect::MeanLook => {
+                let t = self.b.battler(TARGET);
+                if (matches!(t.mon.status, Status::Toxic(_)) || t.v.infatuated)
+                    && !self.random_lt(128)
+                {
+                    self.add(slot, 1);
+                }
+            }
+            MoveEffect::Foresight => self.cv_foresight(slot),
+            MoveEffect::MudSport => self.cv_sport(slot, Type::Electric),
+            MoveEffect::WaterSport => self.cv_sport(slot, Type::Fire),
             _ => {}
+        }
+    }
+
+    /// `AI_CV_Foresight` as built (no `BUGFIX`): the user's Ghost type and evasion, not the
+    /// target's.
+    fn cv_foresight(&mut self, slot: usize) {
+        if self.has_type(USER, Type::Ghost) {
+            if self.random_lt(80) {
+                return;
+            }
+        } else if self.stage(USER, Stat::Evasion) <= 8 {
+            self.add(slot, -2);
+            return;
+        }
+        if !self.random_lt(80) {
+            self.add(slot, 2);
+        }
+    }
+
+    /// `AI_CV_MudSport` / `AI_CV_WaterSport`: +1 against a target of `ty` while the user has
+    /// at least half its HP, else -1.
+    fn cv_sport(&mut self, slot: usize, ty: Type) {
+        if self.hp(USER) >= 50 && self.has_type(TARGET, ty) {
+            self.add(slot, 1);
+        } else {
+            self.add(slot, -1);
         }
     }
 
@@ -714,14 +788,14 @@ const SPECIAL_TYPE_LIST: [Type; 8] = [
 
 /// `AI_SetupFirstTurn_SetupEffectsToEncourage` beyond the engine's effects, as raw
 /// `EFFECT_*`: CONVERSION, LIGHT_SCREEN, REFLECT, SUBSTITUTE, MINIMIZE, CURSE, SWAGGER,
-/// TORMENT, FLATTER, WILL_O_WISP, INGRAIN, YAWN, IMPRISON, TEETER_DANCE, CAMOUFLAGE, TICKLE,
+/// TORMENT, FLATTER, WILL_O_WISP, INGRAIN, IMPRISON, TEETER_DANCE, CAMOUFLAGE, TICKLE,
 /// COSMIC_POWER, BULK_UP, CALM_MIND.
-const SETUP_UNSUPPORTED: [u8; 19] = [
-    30, 35, 65, 79, 108, 109, 118, 165, 166, 167, 181, 187, 192, 199, 213, 205, 206, 208, 211,
+const SETUP_UNSUPPORTED: [u8; 18] = [
+    30, 35, 65, 79, 108, 109, 118, 165, 166, 167, 181, 192, 199, 213, 205, 206, 208, 211,
 ];
 
 /// Whether `e` is in `AI_SetupFirstTurn_SetupEffectsToEncourage`: every stat up / down (1 or
-/// 2 stages), Focus Energy, Confuse, Poison, Paralyze, Leech Seed, Defense Curl and
+/// 2 stages), Focus Energy, Confuse, Poison, Paralyze, Leech Seed, Defense Curl, Yawn and
 /// [`SETUP_UNSUPPORTED`] (not Sleep nor Toxic).
 fn setup_effect(e: MoveEffect) -> bool {
     match e {
@@ -731,7 +805,8 @@ fn setup_effect(e: MoveEffect) -> bool {
         | MoveEffect::Confuse
         | MoveEffect::Status(StatusKind::Poison | StatusKind::Paralysis)
         | MoveEffect::LeechSeed
-        | MoveEffect::DefenseCurl => true,
+        | MoveEffect::DefenseCurl
+        | MoveEffect::Yawn => true,
         MoveEffect::Unsupported(n) => SETUP_UNSUPPORTED.contains(&n),
         _ => false,
     }
@@ -740,13 +815,16 @@ fn setup_effect(e: MoveEffect) -> bool {
 /// `AI_TrySwitchOrUseItem` for the opponent (`battle_ai_switch_items.c`): the party slot to
 /// switch to, or `None` to choose a move. Trainer battles only. `ShouldSwitch` as the engine
 /// can reach it, drawing every `Random()` Gen3 draws there:
-/// - no trapping (Wrap, Mean Look, Ingrain, Shadow Tag, Arena Trap, Magnet Pull) in the engine;
+/// - trapped (Mean Look's `STATUS2_ESCAPE_PREVENTION`, Magnet Pull on the field and a Steel
+///   user): no switch, no draw (Wrap, Ingrain, Shadow Tag, Arena Trap are not in the engine);
 /// - nothing to do without another mon that can fight (`availableToSwitch == 0`);
 /// - `ShouldSwitchIfPerishSong` / `ShouldSwitchIfWonderGuard`: no Perish Song nor Wonder Guard;
 /// - `FindMonThatAbsorbsOpponentsMove`: `HasSuperEffectiveMoveAgainstOpponents(TRUE) &&
 ///   Random() % 3 != 0` is drawn; the rest needs Flash Fire / Water Absorb / Volt Absorb in the
 ///   party (`Ability::Other` for the engine, assumed absent: no draw);
-/// - `ShouldSwitchIfNaturalCure`: Natural Cure is `Ability::Other` (not modelled);
+/// - `ShouldSwitchIfNaturalCure` is not modelled: an asleep Natural Cure trainer mon at half
+///   HP or more would draw `Random() & 1` there and switch through
+///   `GetMostSuitableMonToSwitchInto` (no Act 1 trainer mon has Natural Cure);
 /// - `HasSuperEffectiveMoveAgainstOpponents(FALSE)` (`Random() % 10 != 0` per super effective
 ///   move) and `AreStatsRaised` keep the mon in;
 /// - `FindMonWithFlagsAndSuperEffective(DOESNT_AFFECT_FOE, 2)`, then `(NOT_VERY_EFFECTIVE, 3)`.
@@ -758,6 +836,14 @@ pub fn switch(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
         return None;
     }
     let me = b.battler(USER);
+    // STATUS2_ESCAPE_PREVENTION; `ABILITY_ON_FIELD2(ABILITY_MAGNET_PULL)` (any battler, the
+    // user included, fainted or not) with a Steel user.
+    let magnet = [USER, TARGET]
+        .iter()
+        .any(|&s| b.battler(s).ability == Ability::MagnetPull);
+    if me.v.escape_prevented || (magnet && me.types.contains(&Type::Steel)) {
+        return None;
+    }
     let party = &b.parties[USER as usize];
     let others = |i: usize, p: &crate::mon::Pokemon| i != me.mon.party as usize && p.hp > 0;
     if !party.iter().enumerate().any(|(i, p)| others(i, p)) {

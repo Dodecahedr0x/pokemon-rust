@@ -60,6 +60,7 @@ fn species(name: &'static [u8], gfx: Option<&'static MonGfx>) -> SpeciesInfo {
         growth: GrowthRate::MediumFast,
         abilities: [Ability::None; 2],
         learnset: &[],
+        weight: 0,
         gfx,
     }
 }

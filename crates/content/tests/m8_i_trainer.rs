@@ -162,7 +162,7 @@ fn no_intro_battles_without_checks_and_continues() {
 }
 
 #[test]
-fn doubles_need_two_usable_mons_and_report_the_single_battle() {
+fn doubles_need_two_usable_mons_then_run_as_singles() {
     for k in [
         kind::DOUBLE,
         kind::CONTINUE_SCRIPT_DOUBLE,
@@ -178,9 +178,9 @@ fn doubles_need_two_usable_mons_and_report_the_single_battle() {
         ]);
         assert_eq!((cont, log), (false, want), "kind {k}");
         let (_, log) = run(battle(k), TALKED_TWO, false);
-        assert_eq!(
-            log[4],
-            Request::Report(Report::Degraded("double battle")),
+        // The engine reports the single battle when it creates it, not the script.
+        assert!(
+            !log.contains(&Request::Report(Report::Degraded("double battle"))),
             "kind {k}"
         );
         assert!(log.contains(&fight()), "kind {k}");

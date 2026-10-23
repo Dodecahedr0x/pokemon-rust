@@ -85,8 +85,12 @@ pub enum BattleOutcome {
     /// player is defeated, so the overworld (Task J) treats it as a whiteout like `Lost`.
     Drew = 3,
     Ran = 4,
+    /// Teleport by the player's mon (`B_OUTCOME_PLAYER_TELEPORTED`).
+    PlayerTeleported = 5,
     MonFled = 6,
     Caught = 7,
+    /// Teleport by the wild mon (`B_OUTCOME_MON_TELEPORTED`).
+    MonTeleported = 10,
 }
 
 impl BattleOutcome {
@@ -97,8 +101,10 @@ impl BattleOutcome {
             2 => BattleOutcome::Lost,
             3 => BattleOutcome::Drew,
             4 => BattleOutcome::Ran,
+            5 => BattleOutcome::PlayerTeleported,
             6 => BattleOutcome::MonFled,
             7 => BattleOutcome::Caught,
+            10 => BattleOutcome::MonTeleported,
             _ => return None,
         })
     }
@@ -337,6 +343,66 @@ pub enum Str {
     ButNothingHappened,
     /// `STRINGID_PKMNCHARGINGPOWER` (Charge).
     PkmnChargingPower,
+    // Task G.
+    /// `STRINGID_PKMNFELLINLOVE`: Attract: the target (`B_DEF`).
+    PkmnFellInLove,
+    /// `STRINGID_PKMNINLOVE`: the attacker (`B_ATK`) and the battler it loves (`B_SCR_ACTIVE` = `active`).
+    PkmnInLove,
+    /// `STRINGID_PKMNIMMOBILIZEDBYLOVE`: the attacker.
+    PkmnImmobilizedByLove,
+    /// `STRINGID_PKMNPREVENTSROMANCEWITH`: Oblivious: the target and its ability.
+    PkmnPreventsRomanceWith,
+    /// `STRINGID_PKMNSXINFATUATEDY`: Cute Charm: the target, its ability, the attacker.
+    PkmnSXInfatuatedY,
+    /// `STRINGID_TARGETCANTESCAPENOW`: Mean Look: the target.
+    TargetCantEscapeNow,
+    /// `STRINGID_PREVENTSESCAPE`: Magnet Pull: its owner (`active`) and ability.
+    PreventsEscape,
+    /// `STRINGID_ELECTRICITYWEAKENED`: Mud Sport.
+    ElectricityWeakened,
+    /// `STRINGID_FIREWEAKENED`: Water Sport.
+    FireWeakened,
+    /// `STRINGID_PKMNFLEDFROMBATTLE`: Teleport: the attacker.
+    PkmnFledFromBattle,
+    /// `STRINGID_PKMNSXMADEITINEFFECTIVE`: an ability's owner (`active`) and ability.
+    PkmnSXMadeItIneffective,
+    /// `STRINGID_PKMNCAUSEDUPROAR`: the attacker.
+    PkmnCausedUproar,
+    /// `STRINGID_PKMNMAKINGUPROAR`: the attacker.
+    PkmnMakingUproar,
+    /// `STRINGID_PKMNCALMEDDOWN`: the attacker.
+    PkmnCalmedDown,
+    /// `STRINGID_PKMNWOKEUPINUPROAR`: the attacker.
+    PkmnWokeUpInUproar,
+    /// `STRINGID_PKMNCANTSLEEPINUPROAR2`: the target.
+    PkmnCantSleepInUproar,
+    /// `STRINGID_UPROARKEPTPKMNAWAKE`: the target.
+    UproarKeptPkmnAwake,
+    /// `STRINGID_PKMNSTAYEDAWAKEUSING`: the target and its ability.
+    PkmnStayedAwakeUsing,
+    /// `STRINGID_PKMNWASMADEDROWSY`: the attacker and the target.
+    PkmnWasMadeDrowsy,
+    /// `STRINGID_PKMNIDENTIFIED`: Foresight: the attacker and the target.
+    PkmnIdentified,
+    /// `STRINGID_PKMNLOAFING`: Truant: the attacker.
+    PkmnLoafing,
+    /// `STRINGID_PKMNSXCUREDYPROBLEM`: Shed Skin: its owner (`active`), ability, `B_BUFF1` = the status name.
+    PkmnSXCuredYProblem,
+    /// `STRINGID_PKMNSXPREVENTSFLINCHING`: Inner Focus: the target and its ability.
+    PkmnSXPreventsFlinching,
+    /// `STRINGID_PKMNSXBLOCKSY`: Soundproof: the target, its ability, the move.
+    PkmnSXBlocksY,
+    /// `STRINGID_PKMNPROTECTEDBY`: Sturdy: the target and its ability.
+    PkmnProtectedBy,
+    /// `STRINGID_PKMNPREVENTSSTATLOSSWITH`: Clear Body: its owner (`active`) and ability.
+    PkmnPreventsStatLossWith,
+    /// `STRINGID_PREVENTEDFROMWORKING`: Clear Body against Intimidate: the defender and its
+    /// ability, the Intimidate user (`active`), `B_BUFF1` = "Intimidate".
+    PreventedFromWorking,
+    /// `STRINGID_ITSUCKEDLIQUIDOOZE`: Liquid Ooze (Absorb, Leech Seed).
+    ItSuckedLiquidOoze,
+    /// STRINGID_PLAYERGOTMONEY (buffer 1: the money).
+    PlayerGotMoney,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -458,8 +524,49 @@ impl Str {
             ButNothingHappened => 102,
             PkmnChargingPower => 103,
             AbilityName(a) => 104 << 8 | a as u16,
+            // Task G.
+            PkmnFellInLove => 105,
+            PkmnInLove => 106,
+            PkmnImmobilizedByLove => 107,
+            PkmnPreventsRomanceWith => 108,
+            PkmnSXInfatuatedY => 109,
+            TargetCantEscapeNow => 110,
+            PreventsEscape => 111,
+            ElectricityWeakened => 112,
+            FireWeakened => 113,
+            PkmnFledFromBattle => 114,
+            PkmnSXMadeItIneffective => 115,
+            PkmnCausedUproar => 116,
+            PkmnMakingUproar => 117,
+            PkmnCalmedDown => 118,
+            PkmnWokeUpInUproar => 119,
+            PkmnCantSleepInUproar => 120,
+            UproarKeptPkmnAwake => 121,
+            PkmnStayedAwakeUsing => 122,
+            PkmnWasMadeDrowsy => 123,
+            PkmnIdentified => 124,
+            PkmnLoafing => 125,
+            PkmnSXCuredYProblem => 126,
+            PkmnSXPreventsFlinching => 127,
+            PkmnSXBlocksY => 128,
+            PkmnProtectedBy => 129,
+            PkmnPreventsStatLossWith => 130,
+            PreventedFromWorking => 131,
+            ItSuckedLiquidOoze => 132,
+            PlayerGotMoney => 133,
         }
     }
+}
+
+/// What the engine did not do as the game does, for the host to log (not presentation: the
+/// scene keeps these aside, see [`BattleScene::take_reports`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BattleReport {
+    /// A move effect the engine does not implement (the raw effect number); the move fell back
+    /// to a plain hit or "But it failed!".
+    UnsupportedEffect(u8),
+    /// A behaviour approximated for lack of data or support (what, in a few words).
+    Degraded(&'static str),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -518,6 +625,8 @@ pub enum BattleEvent {
         caught: bool,
     },
     End(BattleOutcome),
+    /// Not presentation: [`BattleScene::push`] sets it aside.
+    Report(BattleReport),
 }
 
 /// What presentation reads of a battler (Gen3 `struct BattlePokemon` subset). The core keeps

@@ -196,7 +196,9 @@ fn move_effects_by_name() {
         e("EFFECT_MULTI_HIT").as_deref(),
         Some("MoveEffect::MultiHit")
     );
-    assert_eq!(e("EFFECT_ATTRACT"), None);
+    assert_eq!(e("EFFECT_ATTRACT").as_deref(), Some("MoveEffect::Attract"));
+    assert_eq!(e("EFFECT_LOW_KICK").as_deref(), Some("MoveEffect::LowKick"));
+    assert_eq!(e("EFFECT_ROLLOUT"), None);
     assert_eq!(e("HIT"), None);
     // The mapped names are real `EFFECT_*`s.
     let mapped = extract::names::MOVE_EFFECTS
@@ -218,9 +220,40 @@ fn battle_enums_by_name() {
     }
     for (v, n) in extract::names::MOVE_FLAGS.iter() {
         assert_eq!(move_flag(n).map(u32::from), Some(v), "{n}");
+        assert_ne!(u32::from(SOUND_FLAG), v, "{n}");
     }
     assert_eq!(ability("ABILITY_TORRENT"), "Ability::Torrent");
-    assert_eq!(ability("ABILITY_PICKUP"), "Ability::Other");
+    assert_eq!(ability("ABILITY_PICKUP"), "Ability::Pickup");
+    assert_eq!(ability("ABILITY_CLEAR_BODY"), "Ability::ClearBody");
+    assert_eq!(ability("ABILITY_WHITE_SMOKE"), "Ability::Other");
+}
+
+#[test]
+fn extra_flags_mark_the_sound_moves() {
+    assert_eq!(extra_move_flags("MOVE_GROWL"), SOUND_FLAG);
+    assert_eq!(extra_move_flags("MOVE_HYPER_VOICE"), SOUND_FLAG);
+    assert_eq!(extra_move_flags("MOVE_TACKLE"), 0);
+    assert_eq!(extra_move_flags("GROWL"), 0);
+}
+
+/// `SOUND_MOVES` is `sSoundMovesTable` (battle_util.c), in order (skipped without
+/// `PKR_DECOMP`).
+#[test]
+fn sound_moves_match_the_decomp() {
+    let Ok(dir) = std::env::var("PKR_DECOMP") else {
+        return;
+    };
+    let src =
+        std::fs::read_to_string(std::path::Path::new(&dir).join("src/battle_util.c")).unwrap();
+    let start = src.find("sSoundMovesTable[] =").expect("sSoundMovesTable");
+    let body = &src[start..];
+    let body = &body[body.find('{').unwrap() + 1..body.find('}').unwrap()];
+    let table: Vec<&str> = body
+        .split(',')
+        .map(str::trim)
+        .filter(|n| !n.is_empty() && *n != "SOUND_MOVES_END")
+        .collect();
+    assert_eq!(table, SOUND_MOVES);
 }
 
 #[test]

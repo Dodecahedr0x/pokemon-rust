@@ -141,6 +141,7 @@ pub fn game(mon: Option<&'static MonGfx>) -> Game {
         growth: GrowthRate::MediumFast,
         abilities: [Ability::None; 2],
         learnset: &[],
+        weight: 0,
         gfx: None,
     };
     let species = leak(vec![info, SpeciesInfo { gfx: mon, ..info }]);

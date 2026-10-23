@@ -7,10 +7,17 @@
 //!    `BattleTransition_StartOnField`): objects frozen for a grass encounter only (Gen3
 //!    `DoStandardWildBattle`; scripted battles leave that to the script), the field (or, for
 //!    the first battle, the starter screen: `CB2_GiveStarter` → `CB2_StartFirstBattle`) keeps
-//!    being drawn under [`BattleTransition`], which ends black.
+//!    being drawn under [`BattleTransition`], which ends black. The battle's start
+//!    ([`Battle::start`]: the intro events, the first turn and the trainer AI's choice) runs on
+//!    the transition's first frame, not on the frame that started the battle (Gen3 sets the
+//!    battle up in `CB2_InitBattle`, after the transition): only video is drawn in between, so
+//!    the start frame stays under the line budget. The RNG order stays the same unless an
+//!    unfrozen object draws on the start frame (see the deviations).
 //! 2. **Loading**: [`BattleScene::load`] chunks, one per black frame (`CB2_InitBattle`).
 //! 3. **Running**: [`BattleScene::step`] each frame until [`BattleScene::finished`] (the scene
-//!    fades to black after `End`). The player's party is written back.
+//!    fades to black after `End`). The player's party is written back; on a win the prize
+//!    money is added (Gen3 `getmoneyreward`, `AddMoney`) and the mons that gained a level
+//!    evolve (`TryEvolvePokemon`, level methods only, without the scene: reported).
 //! 4. **Leaving** (`CB2_ReturnToField*`): on one black frame the field is restored (tilesets,
 //!    palettes and BG controls re-uploaded, the view redrawn, object sprite caches dropped, the
 //!    field text box rebuilt), then **Returning**: the field fades in
@@ -19,14 +26,23 @@
 //!    encounter's objects unfrozen).
 //! 5. **Whiteout** instead of Leaving when the player lost (`Lost` or `Drew`, Gen3
 //!    `IsPlayerDefeated`), except in the first battle (`CB2_EndFirstBattle` always returns to its
-//!    script): Gen3 `CB2_WhiteOut`, simplified: 120 black frames, then the script is aborted, the
-//!    party healed and the player put on the respawn heal location (`setrespawn`) while black,
-//!    facing down; then Returning. No money loss and no Mom / nurse script.
+//!    script): Gen3 `CB2_WhiteOut`: 120 black frames, then `DoWhiteOut`: the running script
+//!    is aborted, `SpecialIds::script_whiteout` runs at once (`EventScript_WhiteOut`), the
+//!    money is halved, the party healed and the player put on the respawn heal location
+//!    (`setrespawn`) while black, facing down; then Returning. Emerald prints no nurse line.
+//!
+//! The battle's [`BattleReport`](crate::battle::BattleReport)s become
+//! [`Event::Report`](super::Event::Report)s (and log lines) each frame.
 //!
 //! Deviations from Gen3 (documented):
 //! - The opponent party and `Battle::new`'s draws happen when the battle starts, before the
 //!   transition (Gen3 creates trainer parties and the scripted wild mon in `CB2_InitBattle`,
 //!   after it). The order of draws within them is Gen3's.
+//! - The start frame runs `Battle::new`, then the objects' update, and `Battle::start` (the
+//!   first turn's and the AI's draws) one frame later. An idle object left unfrozen on the
+//!   start frame (a scripted battle whose script did not `lock` it) that draws then takes its
+//!   value between the two; in Gen3 every battle setup draw comes after the transition, after
+//!   any such object draws.
 //! - The field text box is closed when a battle starts: `trainerbattle`'s intro message stays
 //!   open into the battle in Gen3 and disappears under the transition, which overwrites BG0.
 //! - The environment is `Grass` on a tall-grass cell and `Plain` elsewhere
@@ -40,15 +56,16 @@
 //!   already resumed (see `World::step_starter`).
 
 use super::{Ground, State, World, draw_field, load_map};
+use crate::battle::BattleReport;
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
-use crate::data::{Behavior, Dir, GameData, MapId, PLAYER, SpeciesId};
+use crate::data::{Behavior, Dir, EvoMethod, GameData, MapId, PLAYER, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{Ivs, Party, Pokemon};
 use crate::objects::Terrain;
-use crate::script::Fade;
+use crate::script::{Fade, Report};
 use crate::starter::StarterChoice;
 use crate::video::Frame;
 use crate::wild;
@@ -92,8 +109,10 @@ pub enum Stage {
     Transition,
     Loading,
     Running,
-    /// The field is restored on this (black) frame.
+    /// The field is restored on this (black) frame, its uploads spread over the next frames.
     Leaving,
+    /// Black while the field's spread upload runs (one `set_camera` a frame).
+    Restoring,
     /// Black frames shown so far before the whiteout warp.
     Whiteout(u8),
     /// The field fades in.
@@ -109,6 +128,7 @@ impl Stage {
             Stage::Leaving => [3, 0],
             Stage::Whiteout(n) => [4, n],
             Stage::Returning => [5, 0],
+            Stage::Restoring => [6, 0],
         }
     }
 }
@@ -124,6 +144,8 @@ pub(crate) struct BattleRun {
     pub outcome: Option<BattleOutcome>,
     /// The player whited out (no answer to the script, objects unfrozen).
     pub whiteout: bool,
+    /// [`Battle::start`] ran (on the transition's first frame).
+    pub started: bool,
 }
 
 /// Feeds a behavior into a hash.
@@ -159,6 +181,7 @@ impl Mode {
                     run.origin as u8,
                     run.outcome.map_or(0, |o| o as u8),
                     run.whiteout as u8,
+                    run.started as u8,
                 ]);
                 run.transition.hash(h);
                 run.battle.hash(h);
@@ -245,6 +268,7 @@ impl State {
                                       backdrop: _,
                                       outcome: _,
                                       whiteout: _,
+                                      started: _,
                                   }| {};
         // SAFETY: `p` points to the allocation of an uninitialised `BattleRun`. Each field is
         // written exactly once through a raw field pointer before `assume_init`, and only the
@@ -254,13 +278,18 @@ impl State {
         let battle = unsafe {
             let b = &raw mut (*p).battle;
             b.write(Battle::new(game, setup, &self.party, &mut self.rng));
-            &mut *b
+            &*b
         };
-        let mut events = Vec::new();
-        battle.start(game, &mut self.rng, &mut events);
+        if let BattleKind::Trainer { trainer, .. } = battle.setup().kind
+            && game.trainer(trainer).is_some_and(|t| t.double)
+        {
+            // A double battle runs as singles against the same party (decision Q3). The one
+            // place this is reported, for every trainer battle (scripted or by sight).
+            report(self, Report::Degraded("double battle"));
+        }
         let scene = BattleScene::new(battle.setup(), self.player_name);
         // SAFETY: as above; this writes every remaining field.
-        let mut run = unsafe {
+        let run = unsafe {
             (&raw mut (*p).scene).write(scene);
             (&raw mut (*p).stage).write(Stage::Transition);
             (&raw mut (*p).origin).write(origin);
@@ -268,9 +297,9 @@ impl State {
             (&raw mut (*p).backdrop).write(None);
             (&raw mut (*p).outcome).write(None);
             (&raw mut (*p).whiteout).write(false);
+            (&raw mut (*p).started).write(false);
             run.assume_init()
         };
-        run.scene.push(&mut events);
         self.event(super::Event::BattleStarted);
         if self.text.is_open() {
             self.text.close(f);
@@ -349,12 +378,107 @@ impl State {
     }
 }
 
+/// "move effect NNN" for each raw `EFFECT_*` number, built at compile time: the
+/// [`Report::Unsupported`] text of an unsupported battle effect (logs hold `&'static str`).
+const EFFECT_LINE: usize = 15;
+static EFFECT_LINES: [u8; 256 * EFFECT_LINE] = {
+    let prefix = b"move effect ";
+    let mut out = [0u8; 256 * EFFECT_LINE];
+    let mut n = 0;
+    while n < 256 {
+        let at = n * EFFECT_LINE;
+        let mut i = 0;
+        while i < prefix.len() {
+            out[at + i] = prefix[i];
+            i += 1;
+        }
+        out[at + 12] = b'0' + (n / 100) as u8;
+        out[at + 13] = b'0' + (n / 10 % 10) as u8;
+        out[at + 14] = b'0' + (n % 10) as u8;
+        n += 1;
+    }
+    out
+};
+
+/// [`EFFECT_LINES`]' line for effect `n`.
+fn effect_line(n: u8) -> &'static str {
+    let at = n as usize * EFFECT_LINE;
+    core::str::from_utf8(&EFFECT_LINES[at..at + EFFECT_LINE]).unwrap_or("move effect")
+}
+
+/// The scene's battle reports as world [`Report`]s: an event and a log line each.
+fn drain_reports(s: &mut State, scene: &mut BattleScene) {
+    for r in scene.take_reports() {
+        let r = match r {
+            BattleReport::UnsupportedEffect(n) => Report::Unsupported(effect_line(n)),
+            BattleReport::Degraded(what) => Report::Degraded(what),
+        };
+        report(s, r);
+    }
+}
+
+/// A world report: its log line and its event.
+fn report(s: &mut State, r: Report) {
+    s.log(match r {
+        Report::Unsupported(what) | Report::Degraded(what) => what,
+    });
+    s.event(super::Event::Report(r));
+}
+
+/// After a win (Gen3 `getmoneyreward` and `TryEvolvePokemon`): the prize money
+/// (`AddMoney`, capped at `MAX_MONEY`), then each mon that gained a level evolves if a level
+/// evolution is reached, without the scene (`Report::Degraded("evolution scene")`).
+fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
+    if let Some(money) = battle.prize() {
+        s.money = s
+            .money
+            .saturating_add(money)
+            .min(super::checkpoint::MAX_MONEY);
+    }
+    let t = game.battle();
+    for i in 0..6 {
+        if battle.leveled_up() & (1 << i) == 0 {
+            continue;
+        }
+        let Some(mon) = s.party.get_mut(i) else {
+            continue;
+        };
+        let evos = game.evolutions(mon.species);
+        let target = mon.evolution_target(evos);
+        if evos.iter().any(|e| e.method == EvoMethod::Friendship) {
+            // EVO_FRIENDSHIP* (`friendship >= 220`) is not evaluated (M9).
+            report(s, Report::Degraded("friendship evolution"));
+        }
+        let Some((target, ambiguous)) = target else {
+            continue;
+        };
+        let Some(mon) = s.party.get_mut(i) else {
+            continue;
+        };
+        mon.evolve(t, target);
+        if ambiguous {
+            report(s, Report::Degraded("evolution branch"));
+        }
+        report(s, Report::Degraded("evolution scene"));
+    }
+}
+
 /// Re-uploads the field after a battle or the starter screen owned the screen (black frame):
 /// tilesets, palettes and BG controls (the view is redrawn at the frame's camera update), the
 /// object sprite caches dropped, and a new field text box (BG0 off and cleared).
 fn restore_field(game: &impl GameData, s: &mut State, f: &mut Frame) {
     f.bulk = true;
     s.field.restore(game, f);
+    s.objects.invalidate_vram();
+    s.text.close(f);
+}
+
+/// [`restore_field`] with the tilesets and view uploaded over the next frames
+/// ([`crate::field::Field::restore_spread`]); the caller keeps the screen black while
+/// [`crate::field::Field::uploading`] (Milestone 8 Task F).
+fn restore_field_spread(s: &mut State, f: &mut Frame) {
+    f.bulk = true;
+    s.field.restore_spread();
     s.objects.invalidate_vram();
     s.text.close(f);
 }
@@ -414,6 +538,12 @@ impl World {
         let s = &mut self.s;
         match run.stage {
             Stage::Transition => {
+                if !run.started {
+                    let mut events = Vec::new();
+                    run.battle.start(game, &mut s.rng, &mut events);
+                    run.scene.push(&mut events);
+                    run.started = true;
+                }
                 match &mut run.backdrop {
                     Some(starter) => {
                         starter.update(game, &Input::default(), f);
@@ -437,6 +567,9 @@ impl World {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
                     s.party = run.battle.party(Side::Player).clone();
+                    if outcome == BattleOutcome::Won {
+                        after_win(game, s, &run.battle);
+                    }
                     if run.battle.caught_without_room().is_some() {
                         s.log("caught a mon with a full party (no PC): released");
                     }
@@ -453,10 +586,21 @@ impl World {
                 }
             }
             Stage::Leaving => {
-                restore_field(game, s, f);
+                // The fade from black starts black and only moves in `Returning`.
+                restore_field_spread(s, f);
                 s.fader.start(Fade::FromBlack);
                 draw_field(game, s, f);
-                run.stage = Stage::Returning;
+                run.stage = if s.field.uploading() {
+                    Stage::Restoring
+                } else {
+                    Stage::Returning
+                };
+            }
+            Stage::Restoring => {
+                draw_field(game, s, f);
+                if !s.field.uploading() {
+                    run.stage = Stage::Returning;
+                }
             }
             Stage::Whiteout(n) if n + 1 < WHITEOUT_FRAMES => {
                 f.brightness = FADE_MAX;
@@ -486,19 +630,27 @@ impl World {
                     }
                     // `RestartWildEncounterImmunitySteps` (also done at the battle start).
                     s.encounter_immunity = 0;
+                    drain_reports(s, &mut run.scene);
                     s.mode = Mode::Field;
                     return;
                 }
             }
         }
+        drain_reports(&mut self.s, &mut run.scene);
         self.s.mode = Mode::Battle(run);
     }
 
-    /// Gen3 `CB2_WhiteOut` → `DoWhiteOut`, simplified: the script context is reset, the party
-    /// healed, and the respawn heal location loaded (black frame), the player facing down.
+    /// Gen3 `CB2_WhiteOut` → `DoWhiteOut`: the script context is reset, `EventScript_WhiteOut`
+    /// runs at once (`RunScriptImmediately`), the money is halved, the party healed, and the
+    /// respawn heal location loaded (black frame), the player facing down.
+    /// `Overworld_ResetStateAfterWhiteOut`'s flag and weather resets are not modelled.
     fn whiteout(&mut self, game: &impl GameData, f: &mut Frame) {
         self.runner.abort();
         let s = &mut self.s;
+        if let Some(id) = game.special_ids().script_whiteout {
+            super::run_immediate(game, s, f, id);
+        }
+        s.money /= 2;
         s.selected = None;
         s.last_mover = 0;
         s.answer = None;
