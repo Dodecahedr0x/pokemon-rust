@@ -279,13 +279,8 @@ mod tests {
     /// A capturable state (the LRU never looks inside).
     fn cp() -> Arc<Checkpoint> {
         let mut s = Session::new(content::Emerald::for_shells());
-        for _ in 0..3000 {
-            if let Ok(cp) = s.checkpoint() {
-                return Arc::new(cp);
-            }
-            s.step(engine::Buttons::NONE);
-        }
-        panic!("no capturable frame")
+        game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+        Arc::new(s.checkpoint().unwrap())
     }
 
     #[test]

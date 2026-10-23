@@ -3,7 +3,6 @@
 //! has an object that walks by itself is probed again after waits.
 
 use content::Emerald;
-use engine::Buttons;
 use engine::checkpoint::Checkpoint;
 use engine::data::{Dir, MapId, MovementType};
 use explore::softlock::{self, Trap, walkers, walks};
@@ -13,13 +12,8 @@ use std::cell::Cell;
 /// A capturable new-game state.
 fn start() -> Checkpoint {
     let mut s = Session::new(Emerald::for_shells());
-    for _ in 0..3000 {
-        if let Ok(cp) = s.checkpoint() {
-            return cp;
-        }
-        s.step(Buttons::NONE);
-    }
-    panic!("no capturable frame")
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    s.checkpoint().unwrap()
 }
 
 /// `cp` with one object besides the player, moving as `m`.

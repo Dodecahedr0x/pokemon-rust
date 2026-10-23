@@ -3,7 +3,6 @@
 use content::Emerald;
 use engine::checkpoint::BuildHash;
 use engine::data::{MapId, ScriptId};
-use engine::input::Buttons;
 use explore::config::{Config, Weights};
 use explore::fitness::{Archive, Evaluator, Novelty, score, selection_score};
 use explore::key;
@@ -17,8 +16,14 @@ fn root_step() -> StepResult {
     let mut summary = SimSummary::default();
     let mut frames = 0;
     while s.world().capturable().is_err() {
-        assert!(frames < 2000, "a new game never settles");
-        s.step(Buttons::NONE);
+        assert!(
+            frames < game_native::scenario::NEW_GAME_FRAMES,
+            "a new game never settles: {:?}",
+            s.world().capturable()
+        );
+        // Through the opening scene (Silice's bar intro waits on A; nothing on Emerald).
+        let k = game_native::scenario::opening_key(s.world());
+        s.step(k);
         frames += 1;
         let w = s.world();
         if summary.maps.last() != Some(&w.map()) {

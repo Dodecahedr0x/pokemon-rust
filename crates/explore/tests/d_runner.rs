@@ -22,13 +22,8 @@ fn base() -> &'static Checkpoint {
     static BASE: OnceLock<Checkpoint> = OnceLock::new();
     BASE.get_or_init(|| {
         let mut s = Session::new(Emerald::for_shells());
-        for _ in 0..20_000 {
-            if let Ok(cp) = s.checkpoint() {
-                return cp;
-            }
-            s.step(Buttons::NONE);
-        }
-        panic!("a new game never became capturable");
+        game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+        s.checkpoint().unwrap()
     })
 }
 
