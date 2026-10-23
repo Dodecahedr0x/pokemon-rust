@@ -8,7 +8,7 @@ explore.db
 explore.db-*
 .DS_Store
 .claude/worktrees/
-content/extracted/
+content/extracted
 content/.extracted.tmp/
 content/.extracted.old/
 checkpoints/*/snapshots/
