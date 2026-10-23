@@ -232,7 +232,7 @@ pub async fn GrisEchec_EventScript_Balayeur(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Gris_Echec_Balayeur_Defeat).await;
+        post_battle(&ctx, Gris_Echec_Balayeur_Defeat).await;
     }
 }
 
@@ -247,14 +247,10 @@ pub async fn GrisEchec_EventScript_SbireToit(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Gris_Echec_Toit_Defeat).await;
+        post_battle(&ctx, Gris_Echec_Toit_Defeat).await;
     }
 }
 
-/// A beaten trainer talked to again: the defeat text (the source has no post-battle lines).
-async fn after_battle(ctx: &Ctx, text: TextId) {
-    msgbox(ctx, text, MsgBox::Autoclose).await;
-}
 
 // ---- the townsfolk (the embargo) ----
 
@@ -448,7 +444,7 @@ pub async fn GrisEchec_Usine_EventScript_Sbire(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Usine_Sbire_Defeat).await;
+        post_battle(&ctx, Usine_Sbire_Defeat).await;
     }
 }
 

@@ -439,7 +439,7 @@ pub async fn GrisEchec_Gym_Sourde_EventScript_Melomane(ctx: Ctx) {
     )
     .await;
     if beaten {
-        msgbox(&ctx, Gym2_Melomane_Defeat, MsgBox::Autoclose).await;
+        post_battle(&ctx, Gym2_Melomane_Defeat).await;
     } else {
         // fallback: the deaf room's rule, sound moves fail for both sides (`sSoundMovesTable`,
         // §9): no battle rule yet (SIL3's battle-rule table). The source's own fallback: the

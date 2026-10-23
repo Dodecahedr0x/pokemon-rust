@@ -166,7 +166,7 @@ pub async fn RouteS02_EventScript_Hugo(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S02_Hugo_Defeat).await;
+        post_battle(&ctx, Route_S02_Hugo_Defeat).await;
     }
 }
 
@@ -181,7 +181,7 @@ pub async fn RouteS02_EventScript_Rene(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S02_Rene_Defeat).await;
+        post_battle(&ctx, Route_S02_Rene_Defeat).await;
     }
 }
 
@@ -196,7 +196,7 @@ pub async fn RouteS02_EventScript_Zoe(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S02_Zoe_Defeat).await;
+        post_battle(&ctx, Route_S02_Zoe_Defeat).await;
     }
 }
 
@@ -211,7 +211,7 @@ pub async fn RouteS02_EventScript_Gerard(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S02_Gerard_Defeat).await;
+        post_battle(&ctx, Route_S02_Gerard_Defeat).await;
     }
 }
 
@@ -226,7 +226,7 @@ pub async fn RouteS02_EventScript_Sbire(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S02_Sbire_Defeat).await;
+        post_battle(&ctx, Route_S02_Sbire_Defeat).await;
     }
 }
 
@@ -241,15 +241,10 @@ pub async fn RouteS02_EventScript_Anais(ctx: Ctx) {
     )
     .await
     {
-        after_battle(&ctx, Route_S02_Anais_Defeat).await;
+        post_battle(&ctx, Route_S02_Anais_Defeat).await;
     }
 }
 
-/// A beaten trainer talked to again. The source writes no post-battle lines: the defeat text
-/// stands in, as in Chapter 0.
-async fn after_battle(ctx: &Ctx, text: TextId) {
-    msgbox(ctx, text, MsgBox::Autoclose).await;
-}
 
 // ---- ambient NPCs ----
 

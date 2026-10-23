@@ -1860,7 +1860,7 @@ The Chapter 2 scripts, from `contenu-jeu/chapitres/02-gris-echec.md`, in `crates
 - `ch02_tour.rs` claims `GrisEchec_TourObservation` and `GrisEchec_TourObservation_Top`.
 - `ch02_gym.rs` claims `GrisEchec_Gym` and `GrisEchec_Gym_Sourde`.
 
-**Prelude additions (`src/silice/prelude.rs`, generic).** Chapter 2 uses Chapter 1's `battle_trainer`, `show_sync`, `mart` and `pokecenter_nurse`. It adds:
+**Prelude additions (`src/silice/prelude.rs`, generic).** Chapter 2 uses Chapter 1's `battle_trainer`, `post_battle`, `show_sync`, `mart` and `pokecenter_nurse`. It adds:
 - `Obstacle` with `module_obstacle` and `repaint_obstacle`: the general form of `cut_obstacle`. It takes any module flag, several cells (metatile and collision each), the obstacle's own blocked, ask and cleared texts, and redraws the map. Route S2's three cables and its server, and the Usine's cable and crates, are `Obstacle`s.
 - `screen_flash(ctx)`: the `screen_flash` fallback, a fade out and in.
 
@@ -1934,28 +1934,35 @@ No Gen 3 `FLAG_*`/`VAR_*` name is added to the prelude, so `SHARED_GEN3` does no
 
 **Ids.** One new flag, `FLAG_SIL_USINE_CABLE_CUT` = 1050, the first of Ch2's script-only block (1050+), is in `ids/flags.ron` and `ids.golden`. Everything else was allocated by the Ch2 maps. The heal location is appended to `game.ron`.
 
-**The spine.** `crates/content/tests/silice_spine/ch02.rs` uses Ch1's vocabulary unchanged.
+**The spine.** `crates/content/tests/silice_spine/ch02.rs` uses Ch1's vocabulary (`Step::Train`, `Hook::MonBefore`) and the shared battle policy.
 - `ch02::steps()` covers:
   - Route S2: Sc01, the Agent, Adrien, cable C cut and crossed, the Technicien, Gwada;
-  - the town: Sc01, J1 with the roof sbire by sight, J2 with the sweeper, J3 in the Usine along row 4 out of the sbire's sight, the guard, a heal;
-  - the Tour: both sbires by sight, Duval;
+  - the town: Sc01, J1 with the roof sbire by sight, J2 with the sweeper, J3 in the Usine along row 4 out of the sbire's sight, the guard;
+  - training on Route S2's east grass (50, 2–3), the wild levels 10–14, to `TOUR_LEVEL` 26, healed at the Centre (`ROUTE_HEAL`), then a heal;
+  - the Tour: both sbires by sight, a heal, the hook `THIRD`, Duval;
   - a heal and Sc05;
-  - the arena: both screens; one wrong tile (the robot, back to the hall); the key as single `Walk`s; the terminal; the Chambre Sourde (Mélomane, sign, chest); `Goto` the King (the pieces fight on the way); Sc10–Sc12;
+  - the arena: both screens; one wrong tile (the robot, back to the hall); the key (`S1_KEY`, single `Walk`s); the terminal; the Chambre Sourde (Mélomane, sign, chest); up the e column to e6, its three watchers fought;
+  - out to the Centre and back in through the key again; e7, the King's square: Sc10–Sc12;
   - out down Salle 1's middle column; Sc06;
   - the Usine's crates and the Metal Coat.
+- **The party.** Ch1 leaves a QUILAVA at 22 and its hooked MAREEP at 12. The battle policy learns new moves into free slots only, so the Quilava keeps Tackle, Leer, Smokescreen and Ember. One test hook, `ch02::THIRD`: an ARON (Route S2's list) trained to 30 joins before Duval. This is a strength boost over the source's player at about 26. Measured without it:
+  - the Quilava at 26 loses to Duval's NOSEPASS (Ember resisted, Rock Throw super effective);
+  - at 29 (122 000 frames of training) it beats Duval but loses to Yohan's ALAKAZAM (Calm Mind, Recover), even after a heal;
+  - a hooked MARILL (20, 24) loses to Duval's KOFFING;
+  - an ARON at 25–28 beats Yohan on the chained run only, because the start state's Quilava is weaker.
 - `ch02::from_ch01()` leads from Ch1's last step (the Labo) to Route S2 (0, 3), through the open Secteur Bêta barrier.
 - `ch02::start()` is the documented shortcut, a `driver::Start`. The driver gains `Start { map, x, y, facing, setup }` and `Run::starting_at`. The new game is moved there, and `setup` runs after Silice's new-game script to set Ch1's end state:
   - story 17 and sync 10;
   - the Ch0 flags and the Mallette;
   - the badge, `MODULE_COUPE`, `LOG_01`, the ambush and the Labo hint;
-  - starter 2 and gate 1;
-  - the starter's line as one FERALIGATR, level 42 (`ch02::STARTER_LEVEL`). This is a strength boost: the source means the player to meet Yohan (20–26) at about level 26. The runner battles on the first move only, and the level-up moveset puts Leer or Rage first below level 38; 38–46 put Water Gun first. Level 42 wins every battle with a margin (38 is the floor) and gains one level only. A run from 46 reaches 47, where Screech comes with four moves known, and stalls in that battle. A single starter at 20–37 loses, and party mixes at 22–26 (Aron, Magnemite, Elekid, Croconaw) lose or stall.
+  - starter 1 (CYNDAQUIL, Ch0's `Step::Choose`) and gate 1;
+  - Ch1's end party: a QUILAVA at 22 (`ch02::START_LEVEL`) and a MAREEP at 12. `give_mon` fills the level-up moveset, so this Quilava knows Quick Attack where the trained one knows Tackle.
 
-**The e2e test.** `crates/content/tests/sil2_ch2.rs` has two tests, buttons only, with a limit of 300 000 frames:
-- the chain `ch00` → `ch01` → `from_ch01` → `ch02` from a new game, 157 528 frames (Ch2 starts at frame 94 622), about 1 s of test time;
-- `ch02` alone from `start()`, 62 038 frames, about 0.3 s.
+**The e2e test.** `crates/content/tests/sil2_ch2.rs` has two tests, buttons only, with a limit of 450 000 frames:
+- the chain `ch00` → `ch01` → `from_ch01` → `ch02` from a new game: 348 251 frames, Ch2 from frame 220 996, about 5 s of test time;
+- `ch02` alone from `start()`: 148 529 frames, about 0.7 s.
 
-The timings are for the debug test profile (the engine is built at `opt-level` 2), so both fit the gate.
+The timings are for the debug test profile (the engine is built at `opt-level` 2), so both fit the gate. Ch2's training is about 46 000 frames of each run.
 
 Both assert the story at each step (17 → 20 → 21 → 22 → 23 → 24 → 25 → 26 → 27 → 28). They also assert:
 - the flags, `BADGE_02`, `MODULE_FORCE` and `LOG_02`;

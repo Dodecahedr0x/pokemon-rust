@@ -14,11 +14,16 @@
 //! **Two ways in.** Chained: `ch00::steps()`, `ch01::steps()`, [`from_ch01`] (the Labo to Route
 //! S2's west entrance), then [`steps`], from a new game. Or the documented shortcut [`start`]: a
 //! new game moved to Route S2's west entrance (0, 3) with Chapter 1's end state set directly and
-//! the starter's line boosted ([`STARTER_LEVEL`], documented there). Either way the Centre heals
-//! twice on the way.
+//! Chapter 1's end party ([`START_LEVEL`]).
+//!
+//! **The party.** Either way the run trains the lead on Route S2's east grass to [`TOUR_LEVEL`]
+//! once the town is reached, heals at the Centre before the Tour, before Duval and before Yohan
+//! (out of the arena and back in through Salle 1), and gets one hooked third Pokémon before
+//! Duval ([`THIRD`], documented there). Every battle is won by the battle policy
+//! (`silice_spine` docs).
 
 use super::ch00::ROUTE_S01_SIGHT;
-use super::{Run, Start, Step, goto, goto_avoiding};
+use super::{Hook, Run, Start, Step, goto, goto_avoiding};
 use content::consts::*;
 use engine::data::{Dir, ItemId, MapId};
 use engine::script::Ctx;
@@ -43,20 +48,17 @@ pub fn start() -> Start {
     }
 }
 
-/// The start state's one Pokémon: the starter's line (`VAR_SIL_STARTER` 2, TOTODILE) as
-/// FERALIGATR at level 42. **A strength boost:** the source means the player to meet Yohan
-/// (levels 20–26) at about level 26, but the runner battles on the first move only, and the
-/// level-up moveset puts Leer or Rage first on CROCONAW and FERALIGATR below level 38. Levels
-/// 38–46 put Water Gun first; 42 wins every Chapter 2 battle with a margin (38 is the floor) and
-/// gains one level only (a run from 46 reaches 47, where Screech is learnt with four moves
-/// known, and stalls in that battle). Measured alternatives: a single starter at 20–37 loses;
-/// party mixes at levels 22–26 (Aron, Magnemite, Elekid, Croconaw) lose or stall in a battle.
-pub const STARTER_LEVEL: u8 = 42;
+/// The start state's party: Chapter 1's end party as the chained run leaves it (`ch01`'s
+/// trained starter and its [`ch01::SECOND`]), CYNDAQUIL's line (`VAR_SIL_STARTER` 1, the
+/// `Step::Choose` of `ch00`) as a QUILAVA at [`START_LEVEL`] and a MAREEP at 12. One difference:
+/// `give_mon` fills the level-up moveset, so this Quilava knows Quick Attack where the trained
+/// one, which only learns into free slots, still knows Tackle.
+pub const START_LEVEL: u8 = 22;
 
 /// Chapter 1's end state (`02-gris-echec.md`'s prerequisites and Chapter 1's §8), on top of
 /// Silice's new-game script: the story at 17 (the Secteur Bêta barrier open), the sync at 10,
 /// the first badge, the Lame-Fréquence module, `LOG_01`, the ambush and the Labo hint; Chapter
-/// 0's Mallette, running shoes and starter (TOTODILE's line); the party ([`STARTER_LEVEL`]).
+/// 0's Mallette, running shoes and starter (CYNDAQUIL's line); the party ([`START_LEVEL`]).
 async fn end_of_chapter_1(ctx: Ctx) {
     for f in [
         // Chapter 0.
@@ -82,10 +84,11 @@ async fn end_of_chapter_1(ctx: Ctx) {
     }
     ctx.set_var(VAR_SIL_STORY, 17).await;
     ctx.set_var(VAR_SIL_SYNC, 10).await;
-    ctx.set_var(VAR_SIL_STARTER, 2).await;
+    ctx.set_var(VAR_SIL_STARTER, 1).await;
     ctx.set_var(VAR_SIL_CH0_GATE, 1).await;
     ctx.item_add(ItemId(ITEM_SIL_MALLETTE), 1).await;
-    ctx.give_mon(SPECIES_FERALIGATR, STARTER_LEVEL).await;
+    ctx.give_mon(SPECIES_QUILAVA, START_LEVEL).await;
+    ctx.give_mon(SPECIES_MAREEP, 12).await;
 }
 
 /// Route S2's trainers' sight lines (Hugo, René, Zoé, Gérard, the sbire, Anaïs), avoided: the
@@ -279,8 +282,28 @@ pub fn steps() -> Vec<Step> {
             assert!(r.w.flag(FLAG_SIL_TOUR_OPEN));
             r.printed_in_order(&[Gris_Echec_Sc03_T1, Gris_Echec_Sc03_T2]);
         }),
+        // ---- training on Route S2's east grass, healed at the Centre ----
+        goto(TOWN, 0, 11),
+        Step::Enter {
+            dir: Left,
+            map: ROUTE,
+        },
+        Step::Train {
+            a: GRASS.0,
+            b: GRASS.1,
+            level: TOUR_LEVEL,
+            heal: ROUTE_HEAL,
+        },
+        Step::Check("trained", |r| {
+            assert!(r.w.party().get(0).unwrap().level >= TOUR_LEVEL);
+        }),
+        goto(ROUTE, 55, 4),
+        Step::Enter {
+            dir: Right,
+            map: TOWN,
+        },
     ];
-    s.extend(heal());
+    s.extend_from_slice(HEAL);
     s.extend([
         // ---- the Tour d'Observation ----
         goto(TOWN, 21, 5),
@@ -293,7 +316,20 @@ pub fn steps() -> Vec<Step> {
         Step::Check("tour_sbire_2", |r| {
             assert!(r.beaten(TRAINER_SIL_SBIRE_TOUR_2))
         }),
+        // Down to the Centre and back up before Duval.
+        goto(TOUR, 5, 8),
+        Step::Enter {
+            dir: Down,
+            map: TOWN,
+        },
+    ]);
+    s.extend_from_slice(HEAL);
+    s.extend([
+        goto(TOWN, 21, 5),
+        Step::Enter { dir: Up, map: TOUR },
+        goto(TOUR, 5, 2),
         Step::Enter { dir: Up, map: TOP },
+        Step::Hook(THIRD),
         // Duval (Tour_Sc01): the battle, the Carte Perforée, story 25.
         goto(TOP, 5, 3),
         Step::Interact(Up),
@@ -312,7 +348,7 @@ pub fn steps() -> Vec<Step> {
             map: TOWN,
         },
     ]);
-    s.extend(heal());
+    s.extend_from_slice(HEAL);
     s.extend([
         // The guard steps aside (Gris_Echec_Sc05).
         goto(TOWN, 34, 11),
@@ -342,28 +378,10 @@ pub fn steps() -> Vec<Step> {
             assert_eq!(r.pos(), (7, 38));
             r.printed_in_order(&[Gym2_S1_Erreur, Gym2_Robot_Intro]);
         }),
-        // The key, bottom-up 1 0 1 1 0 0 1 0 (x 8 is 1, x 6 is 0; x 7 crosses between rows).
-        Step::Walk(Up),
-        Step::Walk(Right),
-        Step::Walk(Left),
-        Step::Walk(Up),
-        Step::Walk(Left),
-        Step::Walk(Right),
-        Step::Walk(Up),
-        Step::Walk(Right),
-        Step::Walk(Up),
-        Step::Walk(Left),
-        Step::Walk(Up),
-        Step::Walk(Left),
-        Step::Walk(Up),
-        Step::Walk(Right),
-        Step::Walk(Up),
-        Step::Walk(Right),
-        Step::Walk(Left),
-        Step::Walk(Up),
-        Step::Walk(Left),
-        Step::Walk(Right),
-        Step::Walk(Up),
+        // The key, bottom-up ([`S1_KEY`]).
+    ]);
+    s.extend_from_slice(S1_KEY);
+    s.extend([
         Step::Check("salle_1", |r| {
             assert_eq!(r.pos(), (7, 29));
             assert_eq!(r.w.var(VAR_TEMP_2), 8);
@@ -401,7 +419,37 @@ pub fn steps() -> Vec<Step> {
             dir: Left,
             map: GYM,
         },
-        // ---- Salle 3: across the board to the King ----
+        // ---- Salle 3: up the e column, its three watchers fought (e2, e4, e6) ----
+        goto(GYM, 7, 15),
+        Step::Check("pieces", |r| {
+            // The Fou watches every path; at least two pieces fought.
+            assert!(r.beaten(TRAINER_SIL_ECHEC_FOU));
+            let pieces = [
+                TRAINER_SIL_ECHEC_PION_1,
+                TRAINER_SIL_ECHEC_PION_2,
+                TRAINER_SIL_ECHEC_CAVALIER,
+                TRAINER_SIL_ECHEC_FOU,
+                TRAINER_SIL_ECHEC_TOUR,
+            ];
+            assert!(pieces.iter().filter(|t| r.beaten(**t)).count() >= 2);
+            assert!(!r.w.flag(FLAG_SIL_BADGE_02));
+        }),
+        // Out to the Centre before Yohan, and back: the key again (the map load cleared it).
+        goto_avoiding(GYM, 7, 44, S1_TILES),
+        Step::Enter {
+            dir: Down,
+            map: TOWN,
+        },
+    ]);
+    s.extend_from_slice(HEAL);
+    s.extend([
+        goto(TOWN, 34, 10),
+        Step::Enter { dir: Up, map: GYM },
+        goto(GYM, 7, 38),
+    ]);
+    s.extend_from_slice(S1_KEY);
+    s.extend([
+        // ---- Yohan: the King's square e7 ----
         goto(GYM, 7, 14),
         Step::Check("gym2_sc10", |r| {
             assert!(r.beaten(TRAINER_SIL_YOHAN_1));
@@ -416,16 +464,6 @@ pub fn steps() -> Vec<Step> {
                 Gym2_Sc10_T5,
                 Gym2_Sc10_T6,
             ]);
-            // The Fou watches every path; at least two pieces fought.
-            assert!(r.beaten(TRAINER_SIL_ECHEC_FOU));
-            let pieces = [
-                TRAINER_SIL_ECHEC_PION_1,
-                TRAINER_SIL_ECHEC_PION_2,
-                TRAINER_SIL_ECHEC_CAVALIER,
-                TRAINER_SIL_ECHEC_FOU,
-                TRAINER_SIL_ECHEC_TOUR,
-            ];
-            assert!(pieces.iter().filter(|t| r.beaten(**t)).count() >= 2);
         }),
         Step::Check("gym2_sc11_sc12", |r| {
             assert!(r.w.flag(FLAG_SIL_MODULE_FORCE));
@@ -523,28 +561,98 @@ pub fn from_ch01() -> Vec<Step> {
     ]
 }
 
+/// Salle 1's key from the hall's top (7, 38) to the doorway (7, 29): bottom-up 1 0 1 1 0 0 1 0
+/// (x 8 is 1, x 6 is 0; x 7 crosses between rows).
+const S1_KEY: &[Step] = &[
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Right),
+    Step::Walk(Dir::Left),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Left),
+    Step::Walk(Dir::Right),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Right),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Left),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Left),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Right),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Right),
+    Step::Walk(Dir::Left),
+    Step::Walk(Dir::Up),
+    Step::Walk(Dir::Left),
+    Step::Walk(Dir::Right),
+    Step::Walk(Dir::Up),
+];
+
 /// The Centre's nurse, from the town and back.
-fn heal() -> [Step; 7] {
-    use Dir::*;
-    [
-        goto(TOWN, 5, 9),
-        Step::Enter {
-            dir: Up,
-            map: CENTER,
-        },
-        goto(CENTER, 7, 4),
-        Step::Interact(Up),
-        Step::Check("centre", |r| {
-            assert!(r.healed());
-            assert!(r.has_text(gText_RestoredPkmnToFullHealth));
-        }),
-        goto(CENTER, 6, 7),
-        Step::Enter {
-            dir: Down,
-            map: TOWN,
-        },
-    ]
-}
+const HEAL: &[Step] = &[
+    goto(TOWN, 5, 9),
+    Step::Enter {
+        dir: Dir::Up,
+        map: CENTER,
+    },
+    goto(CENTER, 7, 4),
+    Step::Interact(Dir::Up),
+    Step::Check("centre", |r| {
+        assert!(r.healed());
+        assert!(r.has_text(gText_RestoredPkmnToFullHealth));
+    }),
+    goto(CENTER, 6, 7),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+];
+
+/// [`HEAL`] from Route S2 (its east exit, into the town's west entrance) and back, for
+/// [`Step::Train`].
+const ROUTE_HEAL: &[Step] = &[
+    goto(ROUTE, 55, 4),
+    Step::Enter {
+        dir: Dir::Right,
+        map: TOWN,
+    },
+    goto(TOWN, 5, 9),
+    Step::Enter {
+        dir: Dir::Up,
+        map: CENTER,
+    },
+    goto(CENTER, 7, 4),
+    Step::Interact(Dir::Up),
+    goto(CENTER, 6, 7),
+    Step::Enter {
+        dir: Dir::Down,
+        map: TOWN,
+    },
+    goto(TOWN, 0, 11),
+    Step::Enter {
+        dir: Dir::Left,
+        map: ROUTE,
+    },
+];
+
+/// Two tall-grass cells of Route S2's east patch (x 49–53, y 2–3), by the town, paced by
+/// [`Step::Train`] (the wild levels 10–14 of §6).
+const GRASS: ((i16, i16), (i16, i16)) = ((50, 3), (50, 2));
+
+/// The lead's level before the Tour, after [`Step::Train`]: Duval's team is 21 (§5), the
+/// arena's 20–26 (§4, Yohan's ace 26).
+pub const TOUR_LEVEL: u8 = 26;
+
+/// The party's third Pokémon, from Duval's battle on (a test hook, the chapter's one): an ARON
+/// (Route S2's wild list, §6) caught and trained to 30. **A strength boost** over the source's
+/// player at about 26: the battle policy learns new moves into free slots only, so the trained
+/// starter keeps Tackle, Leer, Smokescreen and Ember. Ember is resisted by Duval's NOSEPASS
+/// (whose Rock Throw is super effective), and Yohan's ALAKAZAM (26, Calm Mind and Recover)
+/// outlasts it. Aron's Metal Claw is super effective on Nosepass, and Steel resists Psychic.
+/// Measured: without the hook the starter loses to Duval at 26, and at 29 (122 000 frames of
+/// training) beats him but loses to Alakazam at 31 even after a heal; a hooked MARILL (20, 24)
+/// loses to Duval's KOFFING; an Aron at 25–28 beats Yohan on the chained run only (the start
+/// state's Quilava is weaker), at 30 on both with half its HP left.
+pub const THIRD: Hook = Hook::MonBefore("GrisEchec_TourObservation_Top_Sc01", SPECIES_ARON, 30);
 
 /// What the end of Chapter 2 asserts beyond its checkpoints: the story, the bag, no dropped
 /// event, and every Chapter 2 fallback reported.

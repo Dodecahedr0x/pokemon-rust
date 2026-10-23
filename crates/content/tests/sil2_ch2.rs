@@ -5,7 +5,9 @@
 //! Chapters 0 and 1, and from Chapter 1's end state set directly at Route S2's west entrance
 //! (`ch02::start`, documented there). The checkpoints assert the story steps, flags, the badge,
 //! the bag and the scene texts by text id, never a French literal; the end asserts every
-//! Chapter 2 fallback was reported.
+//! Chapter 2 fallback was reported. The party trains on Route S2 and takes one hooked Pokémon
+//! before Duval (`ch02::TOUR_LEVEL`, `ch02::THIRD`). About 348 000 frames chained (Chapter 2
+//! from frame 221 000) and 149 000 from the start state.
 
 #![cfg(pkr_silice)]
 
@@ -13,8 +15,8 @@ mod silice_spine;
 
 use silice_spine::{Run, ch00, ch01, ch02};
 
-/// Every frame of the chained run, at most.
-const FRAME_LIMIT: u64 = 300_000;
+/// Every frame of a run, at most (the training is a third of Chapter 2).
+const FRAME_LIMIT: u64 = 450_000;
 
 #[test]
 fn chapters_0_to_2_chain_from_a_new_game_to_the_open_gamma_barrier() {

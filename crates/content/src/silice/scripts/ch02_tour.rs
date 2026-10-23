@@ -21,7 +21,7 @@ pub async fn GrisEchec_TourObservation_EventScript_Sbire1(ctx: Ctx) {
     )
     .await
     {
-        msgbox(&ctx, Tour_Sbire1_Defeat, MsgBox::Autoclose).await;
+        post_battle(&ctx, Tour_Sbire1_Defeat).await;
     }
 }
 
@@ -36,7 +36,7 @@ pub async fn GrisEchec_TourObservation_EventScript_Sbire2(ctx: Ctx) {
     )
     .await
     {
-        msgbox(&ctx, Tour_Sbire2_Defeat, MsgBox::Autoclose).await;
+        post_battle(&ctx, Tour_Sbire2_Defeat).await;
     }
 }
 
