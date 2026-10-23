@@ -224,7 +224,15 @@ fn ref_step<G: GameData>(
         return None;
     }
     let (ec, en) = (block_elevation(g.block(c)), block_elevation(g.block(n)));
-    if (Some(n) != target || g.walkable(n, false)) && e != 0 && en != 0 && en != 15 && en != e {
+    let water = |c| matches!(g.behavior(c), Behavior::Water(_));
+    let off_the_water = en == 3 && water(c) && !water(n);
+    if (Some(n) != target || g.walkable(n, false))
+        && e != 0
+        && en != 0
+        && en != 15
+        && en != e
+        && !off_the_water
+    {
         return None;
     }
     let e2 = if ec == 15 || en == 15 { e } else { en };
@@ -382,4 +390,21 @@ fn the_terrain_table_answers_as_the_per_edge_rules_on_the_game_maps() {
         let overrides = [((w / 4, h / 3), 0u16)];
         assert_same_answers(&game, map, &overrides, occupied);
     }
+}
+
+#[test]
+fn a_surfer_gets_off_the_water_onto_elevation_3_land() {
+    // Route 131's Sky Pillar islet (elevation 3) in its water (elevation 1), no shore between
+    // (Gen3 `CanStopSurfing`). Emerald only.
+    if content::FLAVOR != content::Flavor::Emerald {
+        return;
+    }
+    let game = Emerald::for_shells();
+    let route131 = content::consts::MAP_ROUTE131;
+    // `LAYOUT_ROUTE131_SKY_PILLAR` (`gMapLayouts` number 0x13F), which the islet is on.
+    let g = Grid::new(&game, route131, &[], Vec::new()).with_layout(route131, Some(0x13F));
+    assert_eq!(g.first_dir((36, 9), (36, 7), false), Some(Dir::Up));
+    // Not the other way: getting on the water takes Surf.
+    let w = game.map(route131).width as usize;
+    assert_eq!(g.distances((36, 8), false)[9 * w + 36], u16::MAX);
 }

@@ -169,7 +169,7 @@
     "SPECIAL_GabbyAndTyGetBattleNum": Default(0), // Gabby and Ty (TV) are M13: no interview yet
     "SPECIAL_GabbyAndTyGetLastBattleTrivia": Default(1), // Gabby and Ty (TV) are M13: the initial data (battleTookMoreThanOneTurn2 unset)
     "SPECIAL_GabbyAndTyGetLastQuote": Default(0), // Gabby and Ty (TV) are M13: no quote (EC_EMPTY_WORD)
-    "SPECIAL_GameClear": Unsupported,
+    "SPECIAL_GameClear": Native, // degraded: no Hall of Fame screen, credits or save; heals, FLAG_SYS_GAME_CLEAR, then the reset's CONTINUE warp to the player's room
     "SPECIAL_GenerateContestRand": Unsupported,
     "SPECIAL_GenerateGiddyLine": Unsupported,
     "SPECIAL_GetAbnormalWeatherMapNameAndType": Default(0), // abnormal weather (Kyogre/Groudon roaming weather) is M10
@@ -378,7 +378,7 @@
     "SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial": Native, // degraded: no start menu, the PokeNav entry
     "SPECIAL_Script_BufferContestLadyCategoryAndMonName": Unsupported,
     "SPECIAL_Script_ClearHeldMovement": Unsupported,
-    "SPECIAL_Script_DoRayquazaScene": Unsupported,
+    "SPECIAL_Script_DoRayquazaScene": Native, // degraded: no scene; the black screen for its frames, then the field fades back in
     "SPECIAL_Script_DoesFavorLadyLikeItem": Default(0), // the Lilycove ladies are M13
     "SPECIAL_Script_FacePlayer": Unsupported,
     "SPECIAL_Script_FadeOutMapMusic": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
@@ -400,7 +400,7 @@
     "SPECIAL_SetBattledOwnerFromResult": Unsupported,
     "SPECIAL_SetCB2WhiteOut": Unsupported, // unreachable in Act 1: only the field poison whiteout runs it (TryFieldPoisonWhiteOut is Default(0): FLDPSN_NONE)
     "SPECIAL_SetCableClubWarp": Unsupported, // link play: no link cable or adapter (unreachable: SaveGame answers "not saved", IsWirelessAdapterConnected 0)
-    "SPECIAL_SetChampionSaveWarp": Unsupported,
+    "SPECIAL_SetChampionSaveWarp": Ignore, // the CONTINUE warp, which the engine does not keep (GameClear warps as the CONTINUE after its reset would)
     "SPECIAL_SetContestCategoryStringVarForInterview": Unsupported,
     "SPECIAL_SetContestLadyGivenPokeblock": Unsupported,
     "SPECIAL_SetContestTrainerGfxIds": Unsupported,

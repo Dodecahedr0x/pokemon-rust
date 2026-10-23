@@ -106,3 +106,22 @@ pub async fn set_sootopolis_gym_cracked_ice(ctx: &Ctx) {
         }
     }
 }
+
+/// Gen3 `METATILE_MossdeepGym_YellowArrow_Right` and
+/// `METATILE_TrickHousePuzzle_Arrow_YellowOnWhite_Right`: the rotating tile puzzles' first
+/// arrow (`rotating_tile_puzzle.c`'s `puzzleTileStart`).
+pub const METATILE_MOSSDEEP_GYM_YELLOW_ARROW_RIGHT: u16 = 0x250;
+pub const METATILE_TRICK_HOUSE_YELLOW_ARROW_RIGHT: u16 = 0x298;
+
+/// Gen3 `initrotatingtilepuzzle isTrickHouse` (`InitRotatingTilePuzzle`): the puzzle's arrows
+/// start at Mossdeep's or the Trick House's first; either way no cell below Mossdeep's first
+/// is a puzzle tile (`MoveRotatingTileObjects` compares with it for both).
+pub async fn rotating_tile_puzzle(ctx: &Ctx, is_trick_house: u16) {
+    let start = if is_trick_house != 0 {
+        METATILE_TRICK_HOUSE_YELLOW_ARROW_RIGHT
+    } else {
+        METATILE_MOSSDEEP_GYM_YELLOW_ARROW_RIGHT
+    };
+    ctx.rotating_tiles_init(start, METATILE_MOSSDEEP_GYM_YELLOW_ARROW_RIGHT)
+        .await;
+}

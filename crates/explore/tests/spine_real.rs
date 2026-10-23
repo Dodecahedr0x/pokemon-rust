@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 2_976_669;
+const EMERALD_FRAMES: u64 = 3_010_626;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -69,17 +69,12 @@ const SPINE_BLOCKERS: &[&str] = &[
     "fly-lilycove",
     "water-door-in",
     "water-door-out",
-    "mossdeep-gym-puzzle",
     "dive-seafloor",
-    "legendaries-scene",
     "dive-sootopolis",
     "dive-out-sootopolis",
-    "sky-pillar-layouts",
-    "rayquaza-scene",
     "dive-sootopolis",
     "dive-out-sootopolis",
     "waterfall-ever-grande",
-    "game-clear",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew

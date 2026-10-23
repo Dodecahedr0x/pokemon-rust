@@ -126,6 +126,7 @@ impl World {
             berry_trees: (s.berry_trees.entries())
                 .map(|(id, tree)| crate::checkpoint::BerryTreeSnap { id, tree })
                 .collect(),
+            map_layout: s.field.layout(),
         }
     }
 
@@ -173,7 +174,7 @@ impl World {
         if w.party.len() > PARTY_SIZE {
             return Err(RestoreError::PartyTooLarge);
         }
-        Field::check_snapshot(game, &w.field).map_err(RestoreError::Invalid)?;
+        Field::check_snapshot(game, &w.field, w.map_layout).map_err(RestoreError::Invalid)?;
         Objects::check_snapshot(&w.objects).map_err(RestoreError::Invalid)?;
         if !w.party_held.is_empty() && w.party_held.len() != w.party.len() {
             return Err(RestoreError::Invalid("party_held differs from the party"));
@@ -219,7 +220,7 @@ impl World {
             s: State {
                 rng,
                 input: Input::from_snapshot(w.input),
-                field: Field::from_snapshot(&w.field),
+                field: Field::from_snapshot(&w.field, w.map_layout),
                 objects: Objects::from_snapshot(&w.objects),
                 text: TextBox::new(),
                 vars: Vars::from_snapshot(&w.vars),
@@ -228,6 +229,7 @@ impl World {
                 templates: super::templates::Templates::new(templates),
                 selected: w.selected.map(|id| (id, w.field.map)),
                 last_mover: w.last_mover,
+                keep_templates: false,
                 delay: w.delay,
                 door: w.door,
                 log: Log::new(),
@@ -254,6 +256,7 @@ impl World {
                 berry_trees,
                 fx: ScreenFx::default(),
                 field_effects: super::host::FieldEffects::default(),
+                rotating_tiles: None,
                 field_move: None,
                 stash: super::host::Stash::default(),
                 events: Vec::with_capacity(super::EVENTS_MAX),

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::hash::Fnv64;
+use crate::checkpoint::RestoreError;
 use crate::script::Request;
 
 #[test]
@@ -205,8 +206,11 @@ impl GameData for LGame {
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
         match id {
             HOUSE_TRANSITION => Box::pin(async move {
-                if ctx.var(VAR_HOUSE).await == 1 {
-                    ctx.set_map_layout(HOUSE_ALT_LAYOUT).await;
+                match ctx.var(VAR_HOUSE).await {
+                    1 => ctx.set_map_layout(HOUSE_ALT_LAYOUT).await,
+                    // A layout the game has no variant of for the house (one equal to its own).
+                    2 => ctx.set_map_layout(HOUSE_ALT_LAYOUT + 1).await,
+                    _ => {}
                 }
             }),
             _ => Game.script(id, ctx),
@@ -260,6 +264,50 @@ fn set_map_layout_in_on_transition_loads_the_variant_until_the_next_map() {
     w.s.vars.set_var(VAR_HOUSE, 0);
     warp_l(&mut w, TOWN);
     assert_eq!(w.s.field.layout(), None);
+}
+
+/// Wave F (checkpoint schema 6): a capture on a map under a layout override keeps it, the
+/// restored world walks the variant and hashes the same, and the hash tells the override apart.
+#[test]
+fn a_layout_override_survives_a_checkpoint_and_is_hashed() {
+    let mut w = World::new(&LGame);
+    run_l(&mut w, 16);
+    w.s.vars.set_var(VAR_HOUSE, 1);
+    warp_l(&mut w, HOUSE);
+    run_l(&mut w, 30);
+    let cp = w.checkpoint(&LGame).expect("capturable");
+    assert_eq!(cp.world.map_layout, Some(HOUSE_ALT_LAYOUT));
+    let back = World::restore(&LGame, &cp).expect("restores");
+    assert_eq!(back.s.field.layout(), Some(HOUSE_ALT_LAYOUT));
+    assert_eq!(back.s.field.block(&LGame, 1, 1), ALT_BLOCK);
+    assert_eq!(back.hash(), w.hash());
+    // The same world on the house's own layout hashes differently.
+    let mut own = cp.clone();
+    own.world.map_layout = None;
+    own.header.build.engine ^= 1; // another build: the header's hash is not checked
+    let own = World::restore(&LGame, &own).expect("restores");
+    assert_ne!(own.hash(), w.hash());
+    // A layout the map does not have is refused.
+    let mut bad = cp;
+    bad.world.map_layout = Some(HOUSE_ALT_LAYOUT + 1);
+    assert!(matches!(
+        World::restore(&LGame, &bad),
+        Err(RestoreError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_layout_the_map_has_no_variant_of_is_no_override() {
+    let mut w = World::new(&LGame);
+    run_l(&mut w, 16);
+    w.s.vars.set_var(VAR_HOUSE, 2);
+    warp_l(&mut w, HOUSE);
+    run_l(&mut w, 30);
+    assert_eq!(w.s.field.layout(), None, "drawn with its own layout");
+    let cp = w.checkpoint(&LGame).expect("capturable");
+    assert_eq!(cp.world.map_layout, None);
+    let back = World::restore(&LGame, &cp).expect("restores");
+    assert_eq!(back.hash(), w.hash());
 }
 
 #[test]
