@@ -1,0 +1,12 @@
+(
+    primary: "General",
+    secondary: "SilMangaSquareGym",
+    width: 1,
+    height: 3,
+    elevation: false,
+    blocks: [
+        (1556),
+        (1557),
+        (1558),
+    ],
+)
