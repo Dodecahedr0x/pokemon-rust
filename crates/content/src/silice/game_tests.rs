@@ -125,6 +125,11 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B,
         FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE,
         FLAG_SIL_ROUTE_S05_LOKHLASS,
+        // Ch9: the Gargote's friends and the Bassin guard, until Nebula_Sc03.
+        FLAG_SIL_HIDE_NEBULA_AMIS_GARGOTE,
+        FLAG_SIL_HIDE_NEBULA_GARGOTE_ADRIEN,
+        FLAG_SIL_HIDE_NEBULA_GARGOTE_GWADA,
+        FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -197,6 +202,9 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1,
         FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2,
         FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3,
+        // Ch9: Nebula_Sc03's Mathieu on the bus shelter and Adrien at the loudspeaker.
+        FLAG_SIL_HIDE_NEBULA_MATHIEU,
+        FLAG_SIL_HIDE_NEBULA_ADRIEN,
     ] {
         assert!(w.flag(f), "{f:?}");
     }

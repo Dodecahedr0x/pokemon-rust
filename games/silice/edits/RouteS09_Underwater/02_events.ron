@@ -1,0 +1,40 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_UNDERWATER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_UNDERWATER_BUBBLES", map_type: "MAP_TYPE_UNDERWATER", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: current A (32-37, 48-50) drawn as calm floor once FLAG_SIL_S09_POMPE_A is set, current B
+    // (42-47, 61-63) once FLAG_SIL_S09_POMPE_B is. On-frame VAR_TEMP_1 0: RouteS09_Underwater_Sc04 sets
+    // VAR_TEMP_1 1 and, the first time (FLAG_SIL_S09_PREMIERE_PLONGEE clear), shows Route_S09_Sc04_T1 and
+    // sets the flag. No light radius (engine need: halo).
+    Scripts((on_load: Some("RouteS09_Underwater_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_TEMP_1", value: 0, script: "RouteS09_Underwater_Sc04")], on_warp_into: [])),
+    // Warps 0-1: the way up at the conduit's end (south arrow warps), to Nebula's warp 3, the
+    // quai. Nebula's quai deep water dives back here (setdivewarp 39 72).
+    Warp(x: 39, y: 74, dest_map: "Nebula", dest_warp: 3),
+    Warp(x: 40, y: 74, dest_map: "Nebula", dest_warp: 3),
+    // The cells in front of each current, from the north (VAR_TEMP_2 / VAR_TEMP_3 are never written, so they
+    // always fire): while the pump runs, Route_S09_UW_Courant and a push back north; nothing once it is off.
+    Coord(x: 32, y: 47, var: "VAR_TEMP_2", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 33, y: 47, var: "VAR_TEMP_2", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 34, y: 47, var: "VAR_TEMP_2", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 35, y: 47, var: "VAR_TEMP_2", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 36, y: 47, var: "VAR_TEMP_2", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 37, y: 47, var: "VAR_TEMP_2", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 42, y: 60, var: "VAR_TEMP_3", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 43, y: 60, var: "VAR_TEMP_3", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 44, y: 60, var: "VAR_TEMP_3", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 45, y: 60, var: "VAR_TEMP_3", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 46, y: 60, var: "VAR_TEMP_3", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    Coord(x: 47, y: 60, var: "VAR_TEMP_3", value: 0, script: "RouteS09_Underwater_EventScript_Courant"),
+    // 1: Max Revive past current B, the puzzle's reward.
+    Object(x: 45, y: 65, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S09_UW_ITEM_MAX_REVIVE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_Underwater_EventScript_ItemMaxRevive", flag: "FLAG_SIL_ITEM_S09_UW_4"),
+    // bg 0-2: the portholes (Route_S09_UW_Hublot).
+    Sign(x: 31, y: 46, script: "RouteS09_Underwater_EventScript_Hublot"),
+    Sign(x: 38, y: 52, script: "RouteS09_Underwater_EventScript_Hublot"),
+    Sign(x: 48, y: 56, script: "RouteS09_Underwater_EventScript_Hublot"),
+    // bg 3: Big Pearl in the sand of the west filter corridor.
+    HiddenItem(x: 32, y: 71, item: "ITEM_BIG_PEARL", flag: "FLAG_SIL_ITEM_S09_UW_1"),
+    // bg 4-5: the P1 cave: Star Piece and Heart Scale.
+    HiddenItem(x: 19, y: 10, item: "ITEM_STAR_PIECE", flag: "FLAG_SIL_ITEM_S09_UW_2"),
+    HiddenItem(x: 26, y: 15, item: "ITEM_HEART_SCALE", flag: "FLAG_SIL_ITEM_S09_UW_3"),
+    // Emerge: from the light patches, to RouteS09 at the same cells.
+    Connect((dir: Emerge, offset: 0, map: "RouteS09")),
+]

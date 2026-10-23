@@ -1,0 +1,56 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABNORMAL_WEATHER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_SHADE", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: the security cables (47, 18-19) drawn cut (concrete) once FLAG_SIL_S09_CABLES is set.
+    Scripts((on_load: Some("RouteS09_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the station's door, to RouteS09_Station's warp 0.
+    Warp(x: 53, y: 17, dest_map: "RouteS09_Station", dest_warp: 0),
+    Warp(x: 54, y: 17, dest_map: "RouteS09_Station", dest_warp: 0),
+    // Route_S09_Sc01 (le signal revient) at VAR_SIL_STORY 86 (Evalon_Sc10 leaves 86), 4 tiles in from the
+    // west edge, across the whole 2-wide path; it sets 90.
+    Coord(x: 4, y: 4, var: "VAR_SIL_STORY", value: 86, script: "RouteS09_Sc01"),
+    Coord(x: 4, y: 5, var: "VAR_SIL_STORY", value: 86, script: "RouteS09_Sc01"),
+    // Route_S09_Sc02 (l'appel de Julien) at 90, across the whole Berge (x 2-15) before the pontoon; it sets 91.
+    Coord(x: 2, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 3, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 4, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 5, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 6, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 7, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 8, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 9, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 10, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 11, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 12, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 13, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 14, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    Coord(x: 15, y: 14, var: "VAR_SIL_STORY", value: 90, script: "RouteS09_Sc02"),
+    // 1: the refugee on the path (Npc_1). 2: Anselme on his pontoon. 3: the technician on her break
+    // in front of the station (Npc_3).
+    Object(x: 9, y: 7, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_ROUTE_S09_REFUGIE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS09_EventScript_Refugie"),
+    Object(x: 19, y: 22, gfx: "OBJ_EVENT_GFX_FISHERMAN", id: "LOCALID_ROUTE_S09_ANSELME", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS09_EventScript_Anselme", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 52, y: 21, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_ROUTE_S09_TECHNICIENNE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS09_EventScript_Technicienne"),
+    // 4-7: the two swimmers and the two Cocket divers (surface patrol by the buoys).
+    Object(x: 27, y: 17, gfx: "OBJ_EVENT_GFX_SWIMMER_M", id: "LOCALID_ROUTE_S09_MARIN", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_EventScript_Marin", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 41, y: 13, gfx: "OBJ_EVENT_GFX_SWIMMER_F", id: "LOCALID_ROUTE_S09_OCEANE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS09_EventScript_Oceane", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 26, y: 31, gfx: "OBJ_EVENT_GFX_SWIMMER_M", id: "LOCALID_ROUTE_S09_PLONGEUR_7", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS09_EventScript_Plongeur7", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 44, y: 33, gfx: "OBJ_EVENT_GFX_SWIMMER_F", id: "LOCALID_ROUTE_S09_PLONGEUSE_12", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_EventScript_Plongeuse12", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    // 8-9: the two containers (Champ Magnetique; placeholder: Strength boulders), pushed south into the nook.
+    Object(x: 4, y: 35, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_ROUTE_S09_CONTENEUR_1", local_id: 8, movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS09_EventScript_Conteneur"),
+    Object(x: 5, y: 35, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_ROUTE_S09_CONTENEUR_2", local_id: 9, movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS09_EventScript_Conteneur"),
+    // 10: Ultra Ball on the path. 11: Max Repel behind the containers.
+    Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S09_ITEM_ULTRA_BALL", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_S09_ULTRA_BALL"),
+    Object(x: 2, y: 40, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S09_ITEM_CONTENEURS", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_EventScript_ItemConteneurs", flag: "FLAG_SIL_ITEM_S09_CONTENEURS"),
+    // bg 0-2: Sign_1 (the route), Sign_2 (cooling water), Sign_3 (the dam).
+    Sign(x: 7, y: 6, script: "RouteS09_EventScript_Sign1"),
+    Sign(x: 14, y: 20, script: "RouteS09_EventScript_Sign2"),
+    Sign(x: 14, y: 41, script: "RouteS09_EventScript_Sign3"),
+    // bg 3-4: the security cables (Lame-Frequence): set FLAG_SIL_S09_CABLES, setmetatile.
+    Sign(x: 47, y: 18, script: "RouteS09_EventScript_Cables"),
+    Sign(x: 47, y: 19, script: "RouteS09_EventScript_Cables"),
+    // bg 5: hidden Full Restore at the foot of the last tree.
+    HiddenItem(x: 13, y: 5, item: "ITEM_FULL_RESTORE", flag: "FLAG_SIL_ITEM_S09_CACHE_1"),
+    // Dive: P1, P2 and P3 lead to RouteS09_Underwater at the same cells (its emerge patches).
+    // West edge (0, 4-5): Evalon's SE exit, to connect once Ch8's Evalon is merged (see the plan).
+    Connect((dir: Dive, offset: 0, map: "RouteS09_Underwater")),
+]

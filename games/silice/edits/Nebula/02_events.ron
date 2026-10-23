@@ -1,0 +1,82 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RG_SILPH", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_CITY", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: the friends', the Bassin guard's and the gate guards' places from VAR_SIL_STORY (the
+    // gate guards stand at the door from 95 on: setobjectxyperm). OnLoad: the giant screen drawn as Gwada's
+    // broadcast while FLAG_SIL_NEBULA_DIVERSION is set (optional). On-frame at VAR_SIL_STORY 92: Nebula_Sc01,
+    // the arrival on the quai (it sets 93). OnDiveWarp (no Dive connection): from the Bassin's deep water
+    // (50-52, 10-13), setdivewarp MAP_NEBULA_TOUR_HALL_B1F 6 10 (Nebula_Sc04's text is B1F's on-frame at 95);
+    // from the quai's deep water (29-30, 54-55), setdivewarp MAP_ROUTE_S09_UNDERWATER 39 72 (the conduit's exit).
+    Scripts((on_load: Some("Nebula_OnLoad"), on_transition: Some("Nebula_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: Some("Nebula_OnDiveWarp"), on_frame: [(var: "VAR_SIL_STORY", value: 92, script: "Nebula_Sc01")], on_warp_into: [])),
+    // Warp 0: the Center's door. 1: the Comptoir's. 2: the Gargote's.
+    Warp(x: 17, y: 33, dest_map: "Nebula_PokemonCenter", dest_warp: 0),
+    Warp(x: 42, y: 33, dest_map: "Nebula_Mart", dest_warp: 0),
+    Warp(x: 5, y: 31, dest_map: "Nebula_Gargote", dest_warp: 0),
+    // Warp 3: the quai arrival, on the canal (the player surfs): RouteS09_Underwater's south exit
+    // (its warp 0) leads here. It is an arrival point only (a water cell is no warp metatile).
+    Warp(x: 30, y: 52, dest_map: "RouteS09_Underwater", dest_warp: 0),
+    // 1: Mathieu on the bus shelter (32-34, 37), 2: Adrien at the loudspeaker (24, 35); both hidden until
+    // Nebula_Sc03 shows them (new flags, set at the start). 3 is Gwada, who is only on the screen
+    // (set_metatile), so local id 3 is left free.
+    Object(x: 33, y: 37, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_NEBULA_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_NEBULA_MATHIEU"),
+    Object(x: 25, y: 35, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_NEBULA_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_Adrien", flag: "FLAG_SIL_HIDE_NEBULA_ADRIEN"),
+    // 4-7: Npc_3 the child looking at the sky (quai), Npc_4 the office worker, Npc_6 the sbire at the east
+    // barricade, Npc_7 the delivery boy on his bike (quai).
+    Object(x: 44, y: 47, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_NEBULA_ENFANT", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Enfant"),
+    Object(x: 40, y: 37, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_NEBULA_EMPLOYE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Employe"),
+    Object(x: 51, y: 28, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_SBIRE_BARRICADE", local_id: 6, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_SbireBarricade"),
+    Object(x: 20, y: 46, gfx: "OBJ_EVENT_GFX_CYCLING_TRIATHLETE_M", id: "LOCALID_NEBULA_LIVREUR", local_id: 7, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Nebula_EventScript_Livreur"),
+    // 10: the Bassin guard, on the gate (the only way in); Nebula_Sc03 walks him off and sets his flag.
+    // 11-14: the Grande Porte guards (no flag; Sc03 walks them to the door).
+    Object(x: 44, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_GARDE_BASSIN", local_id: 10, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_GardeBassin", flag: "FLAG_SIL_HIDE_NEBULA_GARDE_BASSIN"),
+    Object(x: 25, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_GARDE_PORTE_1", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
+    Object(x: 27, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NEBULA_GARDE_PORTE_2", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
+    Object(x: 31, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_GARDE_PORTE_3", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
+    Object(x: 33, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NEBULA_GARDE_PORTE_4", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
+    // 20: the drone (placeholder sprite: the cameraman) that films the screens; Sc01 flies it 6 west.
+    Object(x: 36, y: 46, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_NEBULA_DRONE", local_id: 20, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_Drone"),
+    // 30-39: the crowd (the source's obj 30-39), all facing the screen; Sc03 turns them up.
+    // 30: the man before the screen (Npc_1, Npc_1b from 95).
+    Object(x: 28, y: 25, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_NEBULA_NPC1", local_id: 30, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Npc1"),
+    // 31: the woman at the wanted poster (Npc_2).
+    Object(x: 22, y: 30, gfx: "OBJ_EVENT_GFX_WOMAN_2", id: "LOCALID_NEBULA_NPC2", local_id: 31, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Npc2"),
+    // 32: the old man (Npc_5, Npc_5b from 95).
+    Object(x: 33, y: 26, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_NEBULA_NPC5", local_id: 32, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Npc5"),
+    // 33: the teenager with headphones (Npc_8).
+    Object(x: 31, y: 28, gfx: "OBJ_EVENT_GFX_GIRL_3", id: "LOCALID_NEBULA_NPC8", local_id: 33, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Npc8"),
+    // 34-39: the rest of the crowd (one shared line).
+    Object(x: 26, y: 27, gfx: "OBJ_EVENT_GFX_WOMAN_1", id: "LOCALID_NEBULA_FOULE_1", local_id: 34, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Foule"),
+    Object(x: 29, y: 27, gfx: "OBJ_EVENT_GFX_MAN_1", id: "LOCALID_NEBULA_FOULE_2", local_id: 35, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Foule"),
+    Object(x: 35, y: 28, gfx: "OBJ_EVENT_GFX_POKEFAN_M", id: "LOCALID_NEBULA_FOULE_3", local_id: 36, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Foule"),
+    Object(x: 27, y: 30, gfx: "OBJ_EVENT_GFX_WOMAN_4", id: "LOCALID_NEBULA_FOULE_4", local_id: 37, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Foule"),
+    Object(x: 30, y: 25, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_NEBULA_FOULE_5", local_id: 38, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Foule"),
+    Object(x: 33, y: 30, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_NEBULA_FOULE_6", local_id: 39, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Foule"),
+    // 50: the broken projector crate at the screen's foot: ITEM_SIL_MANECTITE (Nebula_Manectite).
+    // 40-43 are left for Ch11's EVEIL_1..4.
+    Object(x: 33, y: 22, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_NEBULA_ITEM_MANECTITE", local_id: 50, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_ItemManectite", flag: "FLAG_SIL_ITEM_NEBULA_MANECTITE"),
+    // bg 0: the giant screen (Nebula_Ecran_1), read from the Place.
+    Sign(x: 30, y: 21, script: "Nebula_EventScript_EcranGeant"),
+    // bg 1: the wanted poster on a lamp post (Nebula_Ecran_2).
+    Sign(x: 22, y: 29, script: "Nebula_EventScript_AvisRecherche"),
+    // bg 2: the screen set in the Place's paving (Nebula_Ecran_3).
+    Sign(x: 30, y: 32, script: "Nebula_EventScript_EcranSol"),
+    // bg 3: the loudspeaker on a lamp post (Nebula_Annonce_T1).
+    Sign(x: 24, y: 35, script: "Nebula_EventScript_HautParleur"),
+    // bg 4-5: the Grande Porte, locked (laser barrier).
+    Sign(x: 28, y: 10, script: "Nebula_EventScript_GrandePorte"),
+    Sign(x: 29, y: 10, script: "Nebula_EventScript_GrandePorte"),
+    // bg 6-7: the Bassin fence either side of the gate: Nebula_Sc03 at VAR_SIL_STORY 94
+    // (give the signal), a plain line otherwise.
+    Sign(x: 44, y: 11, script: "Nebula_Sc03"),
+    Sign(x: 44, y: 13, script: "Nebula_Sc03"),
+    // bg 8: the MAINTENANCE door, locked ('ACCES RESERVE - B.'); MAP_BENOU_LAB's door in the post-game (Ch12).
+    Sign(x: 11, y: 18, script: "Nebula_EventScript_PorteMaintenance"),
+    // bg 9: the east barricade (no module opens a watched wall).
+    Sign(x: 52, y: 31, script: "Nebula_EventScript_Barricade"),
+    // bg 10: the north-west barricade.
+    Sign(x: 14, y: 9, script: "Nebula_EventScript_Barricade"),
+    // bg 11: hidden PP Up in the plastic flower bed.
+    HiddenItem(x: 20, y: 38, item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_NEBULA_CACHE_1"),
+    // bg 12: hidden Revive behind the broken drone (10, 45).
+    HiddenItem(x: 10, y: 44, item: "ITEM_REVIVE", flag: "FLAG_SIL_ITEM_NEBULA_CACHE_2"),
+]

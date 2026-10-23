@@ -141,6 +141,11 @@
         "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1",
         "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2",
         "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
+        // Ch9 Nébula: Mathieu on the bus shelter and Adrien at the loudspeaker, shown by Nebula_Sc03
+        // only. The Gargote's friends (one flag each, set by Nebula_Sc03), Mme Fenouil and the
+        // Bassin guard start visible.
+        "FLAG_SIL_HIDE_NEBULA_MATHIEU",
+        "FLAG_SIL_HIDE_NEBULA_ADRIEN",
     ],
     new_game_vars: [],
 )

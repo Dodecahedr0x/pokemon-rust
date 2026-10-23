@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_NEBULA_TOUR_HALL: the Tower's hall (24 x 16). Building + BattleFrontier (Emerald
+// tilesets by name): the Battle Tower lobby's tiles, its elevator door as the crystal elevator.
+// Border: black, blocked.
+(name: "Nebula_TourHall", width: 24, height: 16, primary: "Building", secondary: "BattleFrontier", fill: 521, fill_collision: 1, fill_elevation: 0, border: [1537, 1537, 1537, 1537])

@@ -1,0 +1,7 @@
+// Behaviour and reachability warnings accepted on purpose.
+[
+    AllowReach(subject: "object LOCALID_TOUR_HALL_VIKTOR", reason: "behind the laser sas that Nebula_TourHall_OnLoad opens per beaten guard; checked with reach --open"),
+    AllowReach(subject: "object LOCALID_TOUR_HALL_NADIA", reason: "behind the laser sas that Nebula_TourHall_OnLoad opens per beaten guard; checked with reach --open"),
+    AllowReach(subject: "object LOCALID_TOUR_HALL_KROLL", reason: "behind the laser sas that Nebula_TourHall_OnLoad opens per beaten guard; checked with reach --open"),
+    AllowReach(subject: "bg 6", reason: "behind the laser sas that Nebula_TourHall_OnLoad opens per beaten guard; checked with reach --open"),
+]

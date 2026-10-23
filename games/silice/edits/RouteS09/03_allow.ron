@@ -1,0 +1,17 @@
+// Behaviour and reachability warnings accepted on purpose.
+[
+    AllowReach(subject: "object LOCALID_ROUTE_S09_ANSELME", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_MARIN", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_OCEANE", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_PLONGEUR_7", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_PLONGEUSE_12", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_CONTENEUR_1", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_CONTENEUR_2", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_ITEM_ULTRA_BALL", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "object LOCALID_ROUTE_S09_ITEM_CONTENEURS", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "bg 0", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "bg 1", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "bg 2", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowReach(subject: "bg 5", reason: "west of the security cables: the Berge and the lake are reached from the Evalon edge (connection pending, Ch8) and by Surf; checked with reach and bypass"),
+    AllowCollision(metatiles: [241], reason: "the rail drawn solid: the security cables (47, 18-19, opened by RouteS09_OnLoad) and the dam grille (30-41, 43)"),
+]
