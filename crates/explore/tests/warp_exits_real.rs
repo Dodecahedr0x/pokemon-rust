@@ -1,6 +1,6 @@
 //! Warp exits on real content: Petalburg Woods' north exit leads onto Route 104's
 //! `MB_DEEP_SOUTH_WARP` cells, which Gen3 leaves facing and walking north (the cell south of
-//! them is solid). Returns at once on the stub.
+//! them is solid). Returns at once on the stub and on Silice (Emerald maps only).
 
 use content::Emerald;
 use engine::data::{Dir, GameData, MapId, NewGame, ScriptId, block_collision};
@@ -59,7 +59,7 @@ fn go(game: &InWoods, w: &mut World, keys: Buttons, to: (MapId, (i16, i16))) {
 
 #[test]
 fn walking_north_out_of_petalburg_woods_lands_on_route_104_and_goes_on_north() {
-    if content::STUB {
+    if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
     let inner = Emerald::for_shells();

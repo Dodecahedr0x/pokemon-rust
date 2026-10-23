@@ -118,6 +118,7 @@ fn temp_special_and_ignored_vars_do_not_count() {
     assert_ne!((k, r), base);
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn party_levels_within_a_bucket_keep_the_key() {
     // The after-starter new game has a party in both flavors.
@@ -172,6 +173,7 @@ fn the_fold_is_stable() {
     assert_eq!(place_region(&parts), 0xfe1d_f57c_ca2a_8de8);
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn default_config_keys_ignore_step_counters() {
     if content::STUB {

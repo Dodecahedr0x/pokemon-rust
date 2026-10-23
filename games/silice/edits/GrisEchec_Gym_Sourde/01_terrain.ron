@@ -1,0 +1,12 @@
+// Cells: walls, foam blocks, the pad.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!!!!!!!!!",
+        "#########",
+        "$%&%%%&%$",
+        "$%%%%%%%$",
+        "$(%%%%%%$",
+        "$%%%%%%%$",
+        "$$$$$$$$$",
+    ], legend: {'!': (metatile: 526, collision: 1), '#': (metatile: 534, collision: 1), '$': (metatile: 520, collision: 1), '%': (metatile: 513, collision: 0), '&': (metatile: 3, collision: 1), '(': (metatile: 529, collision: 0)}),
+]

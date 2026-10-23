@@ -244,6 +244,23 @@ impl Palette {
         (self.metatiles.get((y * self.cols as i32 + x) as usize)).and_then(|m| *m)
     }
 
+    /// The metatiles drawn all black: the pair's "void" metatiles, for the out-of-map border
+    /// of an interior (Gen3 draws them black whatever is around).
+    pub fn void_metatiles(&self) -> Vec<u16> {
+        let cols = self.cols as usize;
+        let w = self.image.width;
+        (self.metatiles.iter().enumerate())
+            .filter_map(|(i, m)| {
+                let (x, y) = ((i % cols) * 16, (i / cols) * 16);
+                let black = (0..16).all(|py| {
+                    let row = (y + py) * w + x;
+                    self.image.rgb555[row..row + 16].iter().all(|&c| c == 0)
+                });
+                (*m).filter(|_| black)
+            })
+            .collect()
+    }
+
     /// The palette cell of `metatile`.
     pub fn cell_of(&self, metatile: u16) -> Option<(i32, i32)> {
         let i = self.metatiles.iter().position(|m| *m == Some(metatile))? as i32;
@@ -253,14 +270,35 @@ impl Palette {
 
 /// The palette of `primary` + `secondary`, drawn as a map of their metatiles.
 pub fn palette(c: &Catalog, primary: &str, secondary: &str) -> Result<Palette> {
+    palette_of(c, primary, secondary, None)
+}
+
+/// [`palette`] limited to the metatiles in `range` (inclusive; the secondary's still start on
+/// a new row). Fails when the range holds none of the pair's metatiles.
+pub fn palette_of(
+    c: &Catalog,
+    primary: &str,
+    secondary: &str,
+    range: Option<std::ops::RangeInclusive<u16>>,
+) -> Result<Palette> {
     let (p, s) = c
         .metatile_ranges(primary, secondary)
         .with_context(|| format!("unknown tilesets {primary:?} / {secondary:?}"))?;
+    let keep = |m: &u16| range.as_ref().is_none_or(|r| r.contains(m));
+    let (p, s): (Vec<u16>, Vec<u16>) = (p.filter(keep).collect(), s.filter(keep).collect());
+    if let Some(r) = &range {
+        anyhow::ensure!(
+            !p.is_empty() || !s.is_empty(),
+            "no metatile of {primary} + {secondary} in {}..={}",
+            r.start(),
+            r.end()
+        );
+    }
     let cols = PALETTE_COLS as usize;
     let pad = |n: usize| n.div_ceil(cols) * cols;
-    let mut metatiles: Vec<Option<u16>> = p.clone().map(Some).collect();
+    let mut metatiles: Vec<Option<u16>> = p.iter().copied().map(Some).collect();
     metatiles.resize(pad(metatiles.len()), None);
-    metatiles.extend(s.clone().map(Some));
+    metatiles.extend(s.iter().copied().map(Some));
     metatiles.resize(pad(metatiles.len()).max(cols), None);
     let rows = (metatiles.len() / cols) as u16;
     let d = Doc {

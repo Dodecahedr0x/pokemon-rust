@@ -1,0 +1,30 @@
+// Cells: walls, the reserve behind the crates (12-13, 2-4), the belts, the jammer alcove (J3 at
+// (26, 4) behind the cable (25, 4)), generators, puddles, the entrance mat (14-15, 23).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!############################$",
+        "%&&&&&&&&&&&&&&&&&&&&&&&&&&&&(",
+        "%)**********+,****-.-.-.-.***(",
+        "%/0000000000+,000012121212333(",
+        "%/0000000000+,000000000004555(",
+        "%&&&&&&&&&&&&&000000000000&&&(",
+        "%/000000000000000000000000000(",
+        "%/0-.-.-.-.-.-.-.000000000000(",
+        "%/012121212121212000000000000(",
+        "%/000000000000067000670000000(",
+        "%/000000000000089000890000000(",
+        "%/000000000::00;<000;<0000000(",
+        "%/0000000000:0000000000000000(",
+        "%/000000000000000000000::0000(",
+        "%/000000000000000000000000000(",
+        "%/0000000000000000000+0000000(",
+        "%/000000:00000000000000000000(",
+        "%/000000000000000000000000000(",
+        "%/00000000000000000000000++00(",
+        "%/0++000000000000000000000+00(",
+        "%/0+0000000000000000000000000(",
+        "%/000000000000000000000000000(",
+        "=>???????????????????????????@",
+        "A&&&&&&&&&&&&&BC&&&&&&&&&&&&&D",
+    ], legend: {'!': (metatile: 616, collision: 1), '#': (metatile: 543, collision: 1), '$': (metatile: 618, collision: 1), '%': (metatile: 624, collision: 1), '&': (metatile: 551, collision: 1), '(': (metatile: 626, collision: 1), ')': (metatile: 629, collision: 0), '*': (metatile: 559, collision: 0), '+': (metatile: 704, collision: 1), ',': (metatile: 705, collision: 1), '-': (metatile: 675, collision: 1), '.': (metatile: 676, collision: 1), '/': (metatile: 637, collision: 0), '0': (metatile: 528, collision: 0), '1': (metatile: 683, collision: 1), '2': (metatile: 684, collision: 1), '3': (metatile: 726, collision: 1), '4': (metatile: 241, collision: 1), '5': (metatile: 727, collision: 1), '6': (metatile: 724, collision: 1), '7': (metatile: 725, collision: 1), '8': (metatile: 732, collision: 1), '9': (metatile: 733, collision: 1), ':': (metatile: 574, collision: 0), ';': (metatile: 740, collision: 1), '<': (metatile: 741, collision: 1), '=': (metatile: 632, collision: 1), '>': (metatile: 633, collision: 0), '?': (metatile: 567, collision: 0), '@': (metatile: 634, collision: 1), 'A': (metatile: 640, collision: 1), 'B': (metatile: 536, collision: 0), 'C': (metatile: 544, collision: 0), 'D': (metatile: 642, collision: 1)}),
+]

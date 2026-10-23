@@ -80,7 +80,7 @@ impl Fixture {
     /// A db at the old build with `rows` (a finding, an old-build snapshot of node 3), reopened
     /// at the current build with every node marked stale.
     fn db(&self, path: &Path, rows: Vec<NodeRow>) -> Db {
-        let (mut db, st) = Db::open(path, self.old, content::STUB).unwrap();
+        let (mut db, st) = Db::open(path, self.old, content::FLAVOR).unwrap();
         assert!(st.fresh);
         let mut snap = self.built[2].cp.clone();
         snap.header.build = self.old;
@@ -107,7 +107,7 @@ impl Fixture {
         })
         .unwrap();
         drop(db);
-        let (mut db, st) = Db::open(path, self.now, content::STUB).unwrap();
+        let (mut db, st) = Db::open(path, self.now, content::FLAVOR).unwrap();
         assert!(st.build_changed);
         db.mark_all_stale().unwrap();
         db
@@ -206,7 +206,7 @@ fn an_unchanged_game_revalidates_every_node() {
     assert!(db.snapshot(3, f.now).unwrap().is_some());
     assert!(db.snapshot(2, f.now).unwrap().is_none());
     drop(db);
-    let (_, st) = Db::open(&path, f.now, content::STUB).unwrap();
+    let (_, st) = Db::open(&path, f.now, content::FLAVOR).unwrap();
     assert!(!st.build_changed);
 }
 

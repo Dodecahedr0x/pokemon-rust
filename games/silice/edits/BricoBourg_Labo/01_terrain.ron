@@ -1,0 +1,17 @@
+// Cells: walls, the still, the jar shelves, turntables, the crate cordon (y 4), strobes, a machine, the mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "#wwwwWwwwwWww#",
+        "#..ij.abij.ef#",
+        "#..kl.cdkl.gh#",
+        "#...mn..mn...#",
+        "#.qrqrqrqrqr.#",
+        "#............#",
+        "#...4.5.4....#",
+        "#.....ij.....#",
+        "#.....kl..uvx#",
+        "#.........yzA#",
+        "#s...........#",
+        "#t####MN######",
+    ], legend: {'#': (metatile: 513, collision: 1), 'w': (metatile: 520, collision: 1), 'W': (metatile: 521, collision: 1), '.': (metatile: 514, collision: 0), 'i': (metatile: 548, collision: 1), 'j': (metatile: 549, collision: 1), 'a': (metatile: 620, collision: 1), 'b': (metatile: 621, collision: 1), 'e': (metatile: 530, collision: 1), 'f': (metatile: 531, collision: 1), 'k': (metatile: 556, collision: 1), 'l': (metatile: 557, collision: 1), 'c': (metatile: 628, collision: 1), 'd': (metatile: 629, collision: 1), 'g': (metatile: 538, collision: 1), 'h': (metatile: 539, collision: 1), 'm': (metatile: 592, collision: 1), 'n': (metatile: 593, collision: 1), 'q': (metatile: 553, collision: 1), 'r': (metatile: 561, collision: 1), '4': (metatile: 4, collision: 1), '5': (metatile: 5, collision: 1), 'u': (metatile: 532, collision: 1), 'v': (metatile: 533, collision: 1), 'x': (metatile: 534, collision: 1), 'y': (metatile: 540, collision: 1), 'z': (metatile: 541, collision: 1), 'A': (metatile: 542, collision: 1), 's': (metatile: 572, collision: 1), 't': (metatile: 580, collision: 1), 'M': (metatile: 518, collision: 0), 'N': (metatile: 519, collision: 0)}),
+]

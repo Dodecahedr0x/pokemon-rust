@@ -14,7 +14,7 @@ fn setup() -> (Emerald, Db, Vec<u64>, Vec<engine::checkpoint::Checkpoint>) {
     let game = Emerald::for_shells();
     let built = build_lineage(&game, &[Buttons::RIGHT, Buttons::DOWN]);
     let rows = lineage_rows(&built, build_hash(&game));
-    let (mut db, _) = Db::open_in_memory(build_hash(&game), content::STUB).unwrap();
+    let (mut db, _) = Db::open_in_memory(build_hash(&game), content::FLAVOR).unwrap();
     db.apply(&GenerationDelta {
         nodes: rows.clone(),
         ..Default::default()

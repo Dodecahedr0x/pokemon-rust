@@ -64,8 +64,9 @@ const KNOWN_OVER: &[KnownOver] = &[KnownOver {
             frame; the Elite Four rooms are off the Act 1 route",
 }];
 
+/// After the starter, as the tour ROM (`game-gba --features tour`); Silice's new game there.
 fn game() -> content::Emerald {
-    content::Emerald::after_starter()
+    game_native::scenario::after_starter().unwrap_or_else(content::Emerald::for_shells)
 }
 
 /// The decomp folder names `content/build/support/act1_maps.ron` lists.
@@ -102,7 +103,7 @@ fn the_tour_visits_every_map_once_gated_first() {
     for &m in maps.iter() {
         assert!(list[..gated].iter().any(|&t| family(t) == family(m)));
     }
-    if !content::STUB {
+    if content::FLAVOR == content::Flavor::Emerald {
         let names: Vec<&str> = list[..ACT1_MAPS.len()]
             .iter()
             .map(|&m| g.map(m).name)

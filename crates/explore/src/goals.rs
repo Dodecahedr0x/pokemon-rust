@@ -18,17 +18,27 @@ pub struct Goal {
 }
 
 /// Which goal list a db explores (`meta.act`, `Config::act`, `run --act`).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Serialize, Deserialize)]
+/// The acts are per flavour ([`Act::of`]): a build explores only its own ([`Act::in_build`]).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub enum Act {
     /// The Milestone 7 slice: from the new game to May beaten on Route 103 (7 goals).
     Slice,
     /// Act 1: the slice, then Petalburg, Wally's tutorial, Petalburg Woods and Rustboro, to
-    /// Roxanne's badge (15 goals; decision Q1).
-    #[default]
+    /// Roxanne's badge (15 goals; decision Q1). The default act on Emerald and the stub.
     Act1,
     /// Silice's Prologue (SIL1): from the new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge.
-    /// Wave 0 stub: no goal yet (SIL1 Wave 3 fills [`silice::CH0`]).
+    /// No goal yet (SIL1 Wave 3 fills `silice::CH0`). The default act on Silice.
     SilCh0,
+}
+
+/// The build's default act: Act 1 on Emerald and the stub, the Prologue on Silice.
+impl Default for Act {
+    fn default() -> Act {
+        match content::FLAVOR {
+            content::Flavor::Stub | content::Flavor::Emerald => Act::Act1,
+            content::Flavor::Silice => Act::SilCh0,
+        }
+    }
 }
 
 impl Act {
@@ -47,8 +57,45 @@ impl Act {
         }
     }
 
+    /// Any act by name, whatever the build ([`Act::in_build`] says whether this build has it).
     pub fn parse(s: &str) -> Option<Act> {
         Act::ALL.into_iter().find(|a| a.name() == s)
+    }
+
+    /// The acts of `flavor`: [`Act::EMERALD`] for Emerald and the stub (which shares one goal
+    /// list for both), [`Act::SILICE`] for Silice.
+    pub const fn of(flavor: content::Flavor) -> &'static [Act] {
+        match flavor {
+            content::Flavor::Stub | content::Flavor::Emerald => &Act::EMERALD,
+            content::Flavor::Silice => &Act::SILICE,
+        }
+    }
+
+    /// Whether this build ([`content::FLAVOR`]) has the act: an act of another flavour has no
+    /// goals here, and the CLI and a db's `meta.act` refuse it.
+    pub fn in_build(self) -> bool {
+        Act::of(content::FLAVOR).contains(&self)
+    }
+
+    /// [`Act::parse`] limited to this build's acts, with the error the CLI prints.
+    pub fn parse_in_build(s: &str) -> Result<Act, String> {
+        let names = |acts: &[Act]| acts.iter().map(|a| a.name()).collect::<Vec<_>>().join(", ");
+        let own = names(Act::of(content::FLAVOR));
+        match Act::parse(s) {
+            Some(a) if a.in_build() => Ok(a),
+            Some(a) => Err(format!(
+                "act {:?} is not an act of this build (the {} content, acts: {own}); build \
+                 with {} to explore it",
+                a.name(),
+                content::FLAVOR.name(),
+                if Act::SILICE.contains(&a) {
+                    "PKR_GAME=silice (`--game silice`)"
+                } else {
+                    "PKR_GAME=emerald (`--game emerald`)"
+                }
+            )),
+            None => Err(format!("unknown act {s:?} (this build's acts: {own})")),
+        }
     }
 }
 
@@ -75,6 +122,7 @@ fn pos(snap: &WorldSnapshot) -> (i16, i16) {
     snap.objects.objs.first().map_or((0, 0), |p| p.pos)
 }
 
+#[cfg(not(pkr_silice))]
 mod emerald {
     use super::{Goal, flag, on, var};
     use content::consts::*;
@@ -265,13 +313,21 @@ mod silice {
     pub static CH0: [Goal; 0] = [];
 }
 
-/// `act`'s goals in story order (`content::STUB` picks the stub list).
+/// `act`'s goals in story order: the stub list on the stub, none for an act of another flavour
+/// ([`Act::in_build`]).
 pub fn goals_of(act: Act) -> &'static [Goal] {
-    match (content::STUB, act) {
-        (true, _) => &stub::GOALS,
-        (false, Act::Slice) => &emerald::SLICE,
-        (false, Act::Act1) => &emerald::ACT1,
-        (false, Act::SilCh0) => &silice::CH0,
+    if !act.in_build() {
+        return &[];
+    }
+    match act {
+        _ if content::STUB => &stub::GOALS,
+        #[cfg(not(pkr_silice))]
+        Act::Slice => &emerald::SLICE,
+        #[cfg(not(pkr_silice))]
+        Act::Act1 => &emerald::ACT1,
+        #[cfg(pkr_silice)]
+        Act::Slice | Act::Act1 => &[],
+        Act::SilCh0 => &silice::CH0,
     }
 }
 
@@ -281,6 +337,7 @@ pub fn goals() -> &'static [Goal] {
 }
 
 /// The `(name, value)` of every decomp constant the Emerald lists name (the drift test).
+#[cfg(not(pkr_silice))]
 pub fn constants() -> Vec<(&'static str, u16)> {
     let mut c = emerald::CONSTANTS.to_vec();
     c.push(("TRAINER_GRUNT_PETALBURG_WOODS", emerald::woods_grunt().0));

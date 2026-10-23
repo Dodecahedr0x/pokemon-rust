@@ -5,6 +5,7 @@
 //!   leaves the start's region (real flavor: Route 101 by the tall grass, after the lab).
 
 use content::Emerald;
+#[cfg(not(pkr_silice))]
 use content::consts::MAP_ROUTE101;
 use engine::data::GameData;
 use explore::config::{Config, KeyConfig};
@@ -74,6 +75,7 @@ fn block_mates_are_the_reachable_cells_of_the_target_block() {
 /// then `cargo xtask explore export <id> --db target/explore/r0.db --out target/explore/f.ron`
 /// and copy the trace's `inputs` runs (joined by spaces, nothing else) into the fixture, and
 /// update the position asserted below.
+#[cfg(not(pkr_silice))]
 fn route101_grass() -> engine::checkpoint::Checkpoint {
     let text = include_str!("fixtures/route101_grass.runs");
     let runs = explore::runs::from_text(text).unwrap();
@@ -88,6 +90,7 @@ fn route101_grass() -> engine::checkpoint::Checkpoint {
     s.checkpoint().expect("the node's end state is capturable")
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn route101_grass_is_not_a_softlock() {
     if content::STUB {

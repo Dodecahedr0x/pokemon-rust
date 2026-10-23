@@ -1,0 +1,9 @@
+// Header, warps, objects.
+[
+    Header((music: "MUS_FORTREE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mat, to Bois-Ether's warp 3.
+    Warp(x: 3, y: 6, dest_map: "BoisEther", dest_warp: 3),
+    Warp(x: 4, y: 6, dest_map: "BoisEther", dest_warp: 3),
+    // The herbalist behind the counter: Bois_Ether_Sc05 (gift, then the shop).
+    Object(x: 0, y: 4, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_HERBORISTE", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BoisEther_Herboriste_Sc05"),
+]

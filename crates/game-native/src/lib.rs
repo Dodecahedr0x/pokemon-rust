@@ -15,6 +15,9 @@ pub use engine::video::{SCREEN_H, SCREEN_W};
 use engine::{Buttons, World};
 pub use ppu::Ppu;
 
+// `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
+const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
+
 /// A native game instance: World + game data + PPU + last frame.
 ///
 /// Every step applies its frame's commands to the PPU; the picture is only drawn when
