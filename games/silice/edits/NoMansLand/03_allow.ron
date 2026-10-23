@@ -1,0 +1,5 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(31, 27)], reason: "the bunker's trapdoor is drawn over by rubble until NoMansLand_OnLoad opens it (FLAG_SIL_LIBERATION_JULIEN)"),
+    AllowReach(subject: "warp 3", reason: "the bunker's trapdoor (31, 27): rubble until NoMansLand_OnLoad opens it from FLAG_SIL_LIBERATION_JULIEN"),
+]

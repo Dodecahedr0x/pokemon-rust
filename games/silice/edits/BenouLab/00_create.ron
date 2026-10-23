@@ -1,0 +1,3 @@
+// Silice Ch12, MAP_BENOU_LAB: Benou's basement lab in Nebula, behind the MAINTENANCE door (13 x 11, the
+// source's size). Building + Lab (Emerald tilesets by name: Birch's lab).
+(name: "BenouLab", width: 13, height: 11, primary: "Building", secondary: "Lab", fill: 513, fill_collision: 1, fill_elevation: 0, border: [513, 513, 513, 513])

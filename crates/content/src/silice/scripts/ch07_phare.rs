@@ -13,9 +13,13 @@ pub const MAPS: &[&str] = &["ReverseCity_Phare", "ReverseCity_Coffre"];
 // ---- the lighthouse ----
 
 /// Normal controls (an interior, as the source lists the Phare). The dark ramp and the lamp's
-/// black light are not drawn.
+/// black light are not drawn. Chapter 12's Thomas waits at the top at `VAR_SIL_STORY` 122 only
+/// (`FLAG_SIL_HIDE_THOMAS_PHARE` written both ways, so his scene's exit holds at 123: the plan's
+/// "SIL6 Ch12 maps: review").
 pub async fn ReverseCity_Phare_OnTransition(ctx: Ctx) {
     set_input_inverted(&ctx, false).await;
+    let thomas = story(&ctx).await == 122;
+    ctx.set_flag(FLAG_SIL_HIDE_THOMAS_PHARE, !thomas).await;
     // fallback: the dark map and its light (`cave: 1` and the Surcharge Optique module, as
     // Chapter 4's tunnel): the ramp is drawn lit.
     fallback(&ctx, "dark_map").await;

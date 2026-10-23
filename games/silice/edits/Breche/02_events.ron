@@ -1,0 +1,30 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABNORMAL_WEATHER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_FOG_HORIZONTAL", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mats (9-10, 39), the way back to Nebula: the crack in its north wall (Nebula warps 5-6,
+    // Nebula/05_ch12_postgame.ron).
+    Warp(x: 9, y: 39, dest_map: "Nebula", dest_warp: 5),
+    Warp(x: 10, y: 39, dest_map: "Nebula", dest_warp: 6),
+    // 1: Thomas at the camp (Breche_PG_Sc10b, the heal; PG_Lib_Thomas). 2: the Council's guard and his
+    // supplies (the shop, Breche_PG_Shop). 3-5: gases 01-03. 6: Ex-Cocket Davy (first third). 7: Ex-Cocket
+    // Nora, facing the only cell before gas 01 (9, 27). 8: Garde Bastien at the camp's entrance, facing its
+    // only cell (9, 24). 9: Chercheuse Olga after the camp. 10-11: the Hyper Balls (under a shard) and the
+    // Max Elixir (past gas 02). 12: Articuno on the glass overhang (hidden until Breche_PG_Sc10b's
+    // liberation clears FLAG_SIL_HIDE_ARTICUNO; a capture sets it again).
+    Object(x: 7, y: 19, gfx: "OBJ_EVENT_GFX_WALLACE", id: "LOCALID_BRECHE_THOMAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_PG_Sc10b"),
+    Object(x: 12, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BRECHE_GARDE_SHOP", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_PG_Shop"),
+    Object(x: 9, y: 26, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_BRECHE_GAZ_01", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_Gaz01", flag: "FLAG_SIL_HIDE_GAZ_01"),
+    Object(x: 9, y: 16, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_BRECHE_GAZ_02", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_Gaz02", flag: "FLAG_SIL_HIDE_GAZ_02"),
+    Object(x: 9, y: 7, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_BRECHE_GAZ_03", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_Gaz03", flag: "FLAG_SIL_HIDE_GAZ_03"),
+    Object(x: 4, y: 31, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BRECHE_DAVY", local_id: 6, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Breche_EventScript_Davy", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 11, y: 27, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_BRECHE_NORA", local_id: 7, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Breche_EventScript_Nora", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 11, y: 24, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BRECHE_BASTIEN", local_id: 8, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Breche_EventScript_Bastien", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 14, y: 14, gfx: "OBJ_EVENT_GFX_SCIENTIST_2", id: "LOCALID_BRECHE_OLGA", local_id: 9, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Breche_EventScript_Olga", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 14, y: 29, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_BRECHE_ITEM_ULTRA_BALL", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_PG_BRECHE_1"),
+    Object(x: 4, y: 9, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_BRECHE_ITEM_MAX_ELIXIR", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_ItemMaxElixir", flag: "FLAG_SIL_ITEM_PG_BRECHE_2"),
+    Object(x: 15, y: 2, gfx: "OBJ_EVENT_GFX_WINGULL", id: "LOCALID_BRECHE_ARTIKODIN", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_Artikodin", flag: "FLAG_SIL_HIDE_ARTICUNO"),
+    // The Rare Candy against the west wall (4, 28).
+    HiddenItem(x: 4, y: 28, item: "ITEM_RARE_CANDY", flag: "FLAG_SIL_ITEM_PG_BRECHE_3"),
+    // North: the No Man's Land. The exit (8-11, 0) meets its south exit (28-31, 59).
+    Connect((dir: North, offset: -20, map: "NoMansLand")),
+]

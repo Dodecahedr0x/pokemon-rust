@@ -1,0 +1,3 @@
+// Silice Ch12, MAP_NO_MANS_LAND_CENTRALE: the dead power plant (20 x 15, the source's size). General +
+// BikeShop (Emerald tilesets by name: New Mauville's generators, walls and barriers).
+(name: "NoMansLand_Centrale", width: 20, height: 15, primary: "General", secondary: "BikeShop", fill: 520, fill_collision: 1, fill_elevation: 0, border: [520, 520, 520, 520])

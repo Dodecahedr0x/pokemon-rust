@@ -2382,6 +2382,105 @@
             name: "FLAG_SIL_HIDE_OWLYS_SILO_CHEF",
             num: 1060,
         ),
+        // SIL6 Ch12 maps (1100-1179).
+        (
+            name: "FLAG_SIL_HIDE_NML_DRONE",
+            num: 1100,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NML_ORIGAMI",
+            num: 1101,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CENTRALE_PORTE",
+            num: 1102,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CAVEAU_PORTE",
+            num: 1103,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_CRATERE_ROCHER",
+            num: 1104,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_JULIEN",
+            num: 1105,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_MATHIEU",
+            num: 1106,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_THOMAS",
+            num: 1107,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_TYRANITAR",
+            num: 1108,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_CROBAT",
+            num: 1109,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_GARDE_1",
+            num: 1110,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_GARDE_2",
+            num: 1111,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_PG_ADRIEN",
+            num: 1112,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_PG_GWADA",
+            num: 1113,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_PG_KIMIKO",
+            num: 1114,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_PG_MATHIEU",
+            num: 1115,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_PG_CITOYEN_1",
+            num: 1116,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_PG_CITOYEN_2",
+            num: 1117,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_SOUPIRS_ADRIEN",
+            num: 1118,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BOIS_SOUPIRS_DRONE",
+            num: 1119,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_BRICO_MAMAN",
+            num: 1120,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_SOCLE",
+            num: 1121,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_TOUR_2F_GWADA",
+            num: 1122,
+        ),
+        // SIL6 Ch12 maps review: Rayquaza's capture. Its object is a scene prop (FLAG_SIL_HIDE_RAYQUAZA is
+        // set except while SommetApex_PG_Sc32 runs), so the hide flag cannot also mean "caught".
+        (
+            name: "FLAG_SIL_RAYQUAZA_CAPTURE",
+            num: 1123,
+        ),
         // SIL4 Ch7 scripts (script block 1180-1199): the four mirror signs' plaques read (the
         // vault's multichoice fallback, ReverseCity_Coffre_Sc04: the code is known once all four
         // are read).

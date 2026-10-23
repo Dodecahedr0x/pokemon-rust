@@ -1,0 +1,38 @@
+// Cells. The turbine hall (1-18, 6-13) with four generators (2-3, 6-7, 12-13, 16-17 on rows 7-8); three
+// still have a switch panel (A at (2, 8), B at (12, 8), C at (16, 8), each read from the cell below), the
+// fourth (6-7) is dead. The control room (1-18, 2-4) behind its wall (row 5), whose doorway (9, 5) is held
+// by the blast door. The way out: the mat (9, 13).
+// Legend (char: metatile/collision/elevation, what):
+//   < 624/1/0 west wall
+//   ^ 543/1/0 wall top
+//   > 626/1/0 east wall
+//   = 551/1/0 wall face
+//   _ 559/0/3 floor under a wall
+//   . 528/0/3 floor
+//   x 704/1/3 fallen machinery (solid)
+//   y 705/1/3 fallen machinery (solid)
+//   G 665/1/0 generator (2x2, top)
+//   g 666/1/0 generator (2x2, top)
+//   H 673/1/0 generator (2x2, base; the switch panel)
+//   h 674/1/0 generator (2x2, base)
+//   v 567/0/3 floor, south edge
+//   A 536/0/3 south arrow mat (warp)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "<^^^^^^^^^^^^^^^^^^>",
+        "<==================>",
+        "<__________________>",
+        "<.xy............xy.>",
+        "<..................>",
+        "<========.=========>",
+        "<__________________>",
+        "<.Gg..Gg....Gg..Gg.>",
+        "<.Hh..Hh....Hh..Hh.>",
+        "<..................>",
+        "<..................>",
+        "<..............xy..>",
+        "<..................>",
+        "<vvvvvvvvAvvvvvvvvv>",
+        "<==================>",
+    ], legend: {'<': (metatile: 624, collision: 1, elevation: 0), '^': (metatile: 543, collision: 1, elevation: 0), '>': (metatile: 626, collision: 1, elevation: 0), '=': (metatile: 551, collision: 1, elevation: 0), '_': (metatile: 559, collision: 0, elevation: 3), '.': (metatile: 528, collision: 0, elevation: 3), 'x': (metatile: 704, collision: 1, elevation: 3), 'y': (metatile: 705, collision: 1, elevation: 3), 'G': (metatile: 665, collision: 1, elevation: 0), 'g': (metatile: 666, collision: 1, elevation: 0), 'H': (metatile: 673, collision: 1, elevation: 0), 'h': (metatile: 674, collision: 1, elevation: 0), 'v': (metatile: 567, collision: 0, elevation: 3), 'A': (metatile: 536, collision: 0, elevation: 3)}),
+]

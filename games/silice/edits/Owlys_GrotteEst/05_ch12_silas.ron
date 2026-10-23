@@ -1,0 +1,15 @@
+// Chapter 12 (post-game): Silas at the Point Zero.
+[
+    // FLAG_SIL_HIDE_SILAS_GROTTE is set at the start; Owlys_GrotteEst_OnTransition clears it from
+    // VAR_SIL_STORY 123 until FLAG_SIL_VESTIGE_SILAS.
+    ScriptsSet(on_transition: "Owlys_GrotteEst_OnTransition"),
+    // Silas (source obj 9) before his machine (10, Owlys_GrotteEst_EventScript_Machine: after 130, with
+    // FLAG_SIL_VESTIGE_SILAS, Owlys_GrotteEst_PG_Lib's post-it shows Mew). Mew is hidden until then
+    // (FLAG_SIL_HIDE_MEW; a capture sets it again).
+    Object(x: 33, y: 5, gfx: "OBJ_EVENT_GFX_SCIENTIST_2", id: "LOCALID_GROTTE_EST_SILAS", local_id: 9, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_SILAS_GROTTE"),
+    Object(x: 33, y: 4, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_GROTTE_EST_MACHINE", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_GrotteEst_EventScript_Machine"),
+    Object(x: 35, y: 7, gfx: "OBJ_EVENT_GFX_MEW", id: "LOCALID_GROTTE_EST_MEW", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_GrotteEst_EventScript_Mew", flag: "FLAG_SIL_HIDE_MEW"),
+    // Owlys_GrotteEst_PG_Sc07 at the room's entrance (33, 9), its only cell (VAR_TEMP_1 0: the script checks
+    // VAR_SIL_STORY >= 123 and FLAG_SIL_VESTIGE_SILAS).
+    Coord(x: 33, y: 9, var: "VAR_TEMP_1", value: 0, script: "Owlys_GrotteEst_PG_Sc07"),
+]

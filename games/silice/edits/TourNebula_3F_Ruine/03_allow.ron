@@ -1,0 +1,4 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(8, 11)], reason: "warp 0 is only the elevator's landing: Tour_Nebula_PG_Ascenseur warps here by coordinates"),
+]

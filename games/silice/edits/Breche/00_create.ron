@@ -1,0 +1,5 @@
+// Silice Ch12, MAP_BRECHE: the Breach, a crack in the Dome's wall as tall as a building (20 x 40, the
+// source's size, vertical). General + Fallarbor (Emerald tilesets by name): Route 113's ash, its grey tall
+// grass and rust cliffs; the boulders are the glass shards. South to Nebula (Ch9), north to the No Man's
+// Land (a connection, same pair).
+(name: "Breche", width: 20, height: 40, primary: "General", secondary: "Fallarbor", fill: 617, fill_collision: 1, fill_elevation: 0, border: [617, 617, 617, 617])

@@ -1,0 +1,9 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(16, 10), (29, 10), (3, 23), (16, 23), (29, 23)], reason: "fragments 2-6 arrivals: landings of the missing tiles, on plain floor"),
+    AllowReach(subject: "warp 1", reason: "fragment 2's arrival, a landing of the previous fragment's right missing tile (the walk model does not follow warps within a map)"),
+    AllowReach(subject: "warp 2", reason: "fragment 3's arrival, a landing of the previous fragment's right missing tile (the walk model does not follow warps within a map)"),
+    AllowReach(subject: "warp 3", reason: "fragment 4's arrival, a landing of the previous fragment's right missing tile (the walk model does not follow warps within a map)"),
+    AllowReach(subject: "warp 4", reason: "fragment 5's arrival, a landing of the previous fragment's right missing tile (the walk model does not follow warps within a map)"),
+    AllowReach(subject: "warp 5", reason: "fragment 6's arrival, a landing of the previous fragment's right missing tile (the walk model does not follow warps within a map)"),
+]
