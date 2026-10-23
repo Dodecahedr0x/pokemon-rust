@@ -1,0 +1,45 @@
+// The new game and the system ids (SIL1 Task E; format: extract::games::GameFile, loaded by
+// crates/content/build/silice/game.rs). Hand-written: `cargo xtask silice import` never writes it.
+(
+    // Ch0 Bar_Sc01 opens the game in the Shaker: the source puts the player on the free stool in
+    // front of the counter ((7, 8) in its plan); the built bar has its stools at y 4, between
+    // GWADA (6, 4) and ADRIEN (9, 4). Facing down: the shared new game always faces down.
+    start: (map: "BricoBourg_Bar", x: 7, y: 4, facing: Down),
+    // Ch0 Player_House_Sc03: MAMAN gives the running shoes as a flag, not an item.
+    running_flag: "FLAG_SIL_RUNNING_SHOES",
+    // Gen3 ClearTempFieldEventData, minus the Union Room nurse reminder (no Union Room).
+    cleared_on_map_change: [
+        "FLAG_SYS_ENC_UP_ITEM",
+        "FLAG_SYS_ENC_DOWN_ITEM",
+        "FLAG_SYS_USE_STRENGTH",
+        "FLAG_SYS_CTRL_OBJ_DELETE",
+    ],
+    // Append-only: a heal location's number is its index plus one.
+    heal_locations: [
+        // The player's bedroom, as Emerald's HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F
+        // (4, 2). Ch0: "the house is the heal point, set_respawn on the house at the start".
+        (name: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE", map: "BricoBourg_PlayerHouse_2F", x: 4, y: 2),
+    ],
+    respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
+    // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.
+    starters: ["SPECIES_CHIKORITA", "SPECIES_CYNDAQUIL", "SPECIES_TOTODILE"],
+    starter_level: 5,
+    // Objects hidden at VAR_SIL_STORY 0 (night, in the bar).
+    new_game_flags: [
+        // Shown by a scene (Bar_Sc03 shows the sbires and the Mallette; Brico_Bourg_Sc01 the
+        // sbire), never by the map's own scripts.
+        "FLAG_SIL_HIDE_BAR_SBIRE_A",
+        "FLAG_SIL_HIDE_BAR_SBIRE_B",
+        "FLAG_SIL_HIDE_BAR_MALLETTE",
+        "FLAG_SIL_HIDE_BRICO_SBIRE",
+        // The friends wait in front of the house at VAR_SIL_STORY 3 and 4 only.
+        "FLAG_SIL_HIDE_BRICO_MATHIEU",
+        "FLAG_SIL_HIDE_BRICO_GWADA",
+        "FLAG_SIL_HIDE_BRICO_ADRIEN",
+        // The day NPCs (VAR_SIL_STORY 3 and up): BricoBourg_OnTransition clears them by day.
+        "FLAG_SIL_HIDE_BRICO_LINGE",
+        "FLAG_SIL_HIDE_BRICO_GAMIN",
+        "FLAG_SIL_HIDE_BRICO_BRICOLEUSE",
+    ],
+    new_game_vars: [],
+)
