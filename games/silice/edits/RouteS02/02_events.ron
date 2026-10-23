@@ -1,17 +1,24 @@
 // Header, map scripts, objects, coord and bg events, connection.
 [
     Header((music: "MUS_ROUTE110", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
-    // OnTransition: the hide flags below. OnLoad: the security cables drawn cut per
+    // OnTransition: the hide flags below (it owns them, from VAR_SIL_STORY). OnLoad: the security cables drawn cut per
     // FLAG_SIL_ROUTE_S02_CABLE_1/_2/_3 and the server block (48, 10) drawn moved per
     // FLAG_SIL_ROUTE_S02_SERVER_MOVED.
     Scripts((on_load: Some("RouteS02_OnLoad"), on_transition: Some("RouteS02_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Objects 1-5: the source's obj 1-5. The Promeneur moves from (6, 8) (Rene's cell in the
-    // trainer table) to the cliff edge (4, 13), his Skitty beside him. Adrien (temp flag 1) and
-    // Gwada (temp flag 2) show only while VAR_SIL_STORY is 20 or 21.
+    // trainer table) to the cliff edge (4, 13), his Skitty beside him.
+    // Adrien and Gwada start hidden (game.ron). OnTransition shows Gwada at VAR_SIL_STORY 17-21 and
+    // Adrien at 17-21, and later while FLAG_SIL_ITEM_ADRIEN_CH2 is clear (the source keeps him
+    // available if Sc03 ran at 20). Route_S02_Sc01 runs at 17 on this map and sets 20 with no
+    // reload, so OnTransition must already show them at 17. RouteS02_Sc02 is keyed on
+    // !FLAG_SIL_ITEM_ADRIEN_CH2 rather than on VAR_SIL_STORY 20, and sets 21 only when the story is
+    // 20. Sc03 hides Gwada (set_flag + remove the object) as he leaves; his walk must be re-derived:
+    // the source's Walk(Left) x2 runs into a player on (48-49, 6) and Walk(Right) x6 crosses the
+    // trees at (52-55, 6) (up to (48, 5), then east along y 5).
     Object(x: 34, y: 6, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_ROUTE_S02_TECHNICIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Technicien"),
     Object(x: 16, y: 10, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_ROUTE_S02_AGENT", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Agent"),
-    Object(x: 24, y: 14, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ROUTE_S02_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_Sc02", flag: "FLAG_TEMP_1"),
-    Object(x: 50, y: 6, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_ROUTE_S02_GWADA", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Gwada", flag: "FLAG_TEMP_2"),
+    Object(x: 24, y: 14, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ROUTE_S02_ADRIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_Sc02", flag: "FLAG_SIL_HIDE_ROUTE_S02_ADRIEN"),
+    Object(x: 50, y: 6, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_ROUTE_S02_GWADA", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Gwada", flag: "FLAG_SIL_HIDE_ROUTE_S02_GWADA"),
     Object(x: 4, y: 13, gfx: "OBJ_EVENT_GFX_MAN_1", id: "LOCALID_ROUTE_S02_PROMENEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Promeneur"),
     Object(x: 5, y: 13, gfx: "OBJ_EVENT_GFX_SKITTY", id: "LOCALID_ROUTE_S02_SKITTY", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Skitty"),
     // The trainers (T1-T6), then the item balls.
@@ -21,8 +28,8 @@
     Object(x: 24, y: 4, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_ROUTE_S02_GERARD", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Gerard", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     Object(x: 42, y: 8, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_ROUTE_S02_SBIRE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS02_EventScript_Sbire", trainer_type: "TRAINER_TYPE_NORMAL", sight: 5),
     Object(x: 44, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_ROUTE_S02_ANAIS", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_Anais", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
-    // The X Speed moves from (11, 12) (cable A's gap) to (13, 12) so the gap stays open.
-    Object(x: 13, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_X_SPEED", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemXSpeed", flag: "FLAG_SIL_ITEM_ROUTE_S02_X_SPEED"),
+    // The X Speed stays on the source's (11, 12), in cable A's gap: (10-11, 11) and (10, 12) stay open.
+    Object(x: 11, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_X_SPEED", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemXSpeed", flag: "FLAG_SIL_ITEM_ROUTE_S02_X_SPEED"),
     Object(x: 40, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_MAGNET", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemMagnet", flag: "FLAG_SIL_ITEM_ROUTE_S02_MAGNET"),
     Object(x: 48, y: 8, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S02_ITEM_GREAT_BALL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS02_EventScript_ItemGreatBall", flag: "FLAG_SIL_ITEM_ROUTE_S02_GREAT_BALL"),
     // Route_S02_Sc01: the west entrance (x 1, y 2-5: the source's y 3-5 plus the fourth row of

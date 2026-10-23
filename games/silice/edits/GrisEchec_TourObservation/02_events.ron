@@ -5,9 +5,11 @@
     Warp(x: 5, y: 9, dest_map: "GrisEchec", dest_warp: 2),
     Warp(x: 6, y: 9, dest_map: "GrisEchec", dest_warp: 3),
     Warp(x: 5, y: 1, dest_map: "GrisEchec_TourObservation_Top", dest_warp: 0),
-    // The two sbires (trainer table): tour 1 at the gate, tour 2 before the lift.
-    Object(x: 5, y: 7, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_TOUR_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_TourObservation_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
-    Object(x: 5, y: 3, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_TOUR_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "GrisEchec_TourObservation_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // The two sbires (trainer table): tour 1 at the gate, tour 2 before the lift. Both face right
+    // (the source says down) so that each watches the only cells through: tour 1 the gate's
+    // approach (5-6, 7), tour 2 the lift's approach (5-6, 2).
+    Object(x: 4, y: 7, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_TOUR_SBIRE_1", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_TourObservation_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 4, y: 2, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_TOUR_SBIRE_2", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "GrisEchec_TourObservation_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     // Tour_Ecran: the surveillance screens (read from the stools' row).
     Sign(x: 1, y: 4, script: "GrisEchec_TourObservation_EventScript_Ecran"),
     Sign(x: 2, y: 4, script: "GrisEchec_TourObservation_EventScript_Ecran"),

@@ -57,7 +57,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS02_Sc02"),
-            flag: Some("FLAG_TEMP_1"),
+            flag: Some("FLAG_SIL_HIDE_ROUTE_S02_ADRIEN"),
         ),
         (
             local_id: 4,
@@ -72,7 +72,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: Some("RouteS02_EventScript_Gwada"),
-            flag: Some("FLAG_TEMP_2"),
+            flag: Some("FLAG_SIL_HIDE_ROUTE_S02_GWADA"),
         ),
         (
             local_id: 5,
@@ -198,7 +198,7 @@
             local_id: 13,
             id: Some("LOCALID_ROUTE_S02_ITEM_X_SPEED"),
             gfx: "OBJ_EVENT_GFX_ITEM_BALL",
-            x: 13,
+            x: 11,
             y: 12,
             elevation: 3,
             movement: "MOVEMENT_TYPE_FACE_DOWN",

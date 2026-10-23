@@ -53,4 +53,6 @@
     Paint(x: 20, y: 14, metatile: 555, collision: 1),
     // The Sector Gamma barrier (37, 1) in the source: a fence cell at (39, 1), opened by Gris_Echec_Sc06.
     Paint(x: 39, y: 1, metatile: 764, collision: 1),
+    // The south-east block is a second Cube with no interior: its door (34, 30) becomes wall.
+    Paint(x: 34, y: 30, metatile: 541, collision: 1),
 ]

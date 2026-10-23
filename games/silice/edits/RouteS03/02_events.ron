@@ -14,7 +14,7 @@
     Object(x: 8, y: 31, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_ROUTE_S03_SACHA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS03_EventScript_Sacha", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
     Object(x: 13, y: 27, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_ROUTE_S03_MARCO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS03_EventScript_Marco", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     Object(x: 5, y: 24, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_ROUTE_S03_INES", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS03_EventScript_Ines", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
-    Object(x: 8, y: 10, gfx: "OBJ_EVENT_GFX_EXPERT_F", id: "LOCALID_ROUTE_S03_NOE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_Noe", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 8, y: 10, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_ROUTE_S03_NOE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_Noe", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     Object(x: 17, y: 34, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S03_ITEM_SUPER_POTION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_ItemSuperPotion", flag: "FLAG_SIL_ITEM_S03_SUPER_POTION"),
     Object(x: 5, y: 36, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S03_ITEM_HARD_STONE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_ItemHardStone", flag: "FLAG_SIL_ITEM_S03_HARD_STONE"),
     Object(x: 13, y: 13, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S03_ITEM_SUPER_REPEL", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS03_EventScript_ItemSuperRepel", flag: "FLAG_SIL_ITEM_S03_SUPER_REPEL"),

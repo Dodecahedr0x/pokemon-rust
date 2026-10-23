@@ -72,7 +72,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: None,
-            flag: Some("FLAG_TEMP_1"),
+            flag: Some("FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN"),
         ),
         (
             local_id: 5,
@@ -87,7 +87,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: None,
-            flag: Some("FLAG_TEMP_2"),
+            flag: Some("FLAG_SIL_HIDE_DEPOT_ROMAIN"),
         ),
         (
             local_id: 6,
@@ -102,7 +102,7 @@
             trainer_type: "TRAINER_TYPE_NONE",
             trainer_sight_or_berry_tree: 0,
             script: None,
-            flag: Some("FLAG_TEMP_3"),
+            flag: Some("FLAG_SIL_HIDE_DEPOT_SBIRE"),
         ),
         (
             local_id: 7,

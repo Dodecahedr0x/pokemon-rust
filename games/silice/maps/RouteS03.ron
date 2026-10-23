@@ -137,7 +137,7 @@
         (
             local_id: 9,
             id: Some("LOCALID_ROUTE_S03_NOE"),
-            gfx: "OBJ_EVENT_GFX_EXPERT_F",
+            gfx: "OBJ_EVENT_GFX_PSYCHIC_M",
             x: 8,
             y: 10,
             elevation: 3,

@@ -2,8 +2,9 @@
 [
     Header((music: "MUS_GAME_CORNER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // OnLoad: the stairs (18, 1) drawn as the exit mat once VAR_SIL_CASINO_STATE >= 2 (Casino_Sc08).
-    // OnTransition: FLAG_TEMP_1-2 hide Gogo and Romain unless VAR_SIL_STORY >= 32 and the casino
-    // state is still 0.
+    // OnTransition owns the hide flags of Gogo and Romain: shown from VAR_SIL_STORY 32 while
+    // VAR_SIL_CASINO_STATE < 3 (they stay after Casino_Sc03 with their repeatable lines; at 3
+    // Romain is downstairs, B1F_Sc02). Both start hidden (game.ron).
     Scripts((on_load: Some("ViberCity_Casino_OnLoad"), on_transition: Some("ViberCity_Casino_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warps 0-1: the entrance mat, to Viber-City's warp 4. Warp 2: the hidden stairs (18, 1), to
     // the basement. The stairs cell becomes a south arrow mat (the game corner set has no
@@ -11,8 +12,9 @@
     Warp(x: 9, y: 10, dest_map: "ViberCity", dest_warp: 4),
     Warp(x: 10, y: 10, dest_map: "ViberCity", dest_warp: 4),
     Warp(x: 18, y: 1, dest_map: "ViberCity_Casino_B1F", dest_warp: 0),
-    Object(x: 3, y: 1, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_CASINO_GOGO", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_TEMP_1"),
-    Object(x: 5, y: 1, gfx: "OBJ_EVENT_GFX_AQUA_MEMBER_M", id: "LOCALID_CASINO_ROMAIN", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_TEMP_2"),
+    // Gogo plays the violet machine (2, 1) on his left.
+    Object(x: 3, y: 1, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_CASINO_GOGO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_Casino_EventScript_Gogo", flag: "FLAG_SIL_HIDE_CASINO_GOGO"),
+    Object(x: 5, y: 1, gfx: "OBJ_EVENT_GFX_AQUA_MEMBER_M", id: "LOCALID_CASINO_ROMAIN", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_Casino_EventScript_Romain", flag: "FLAG_SIL_HIDE_CASINO_ROMAIN"),
     Object(x: 10, y: 1, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_CASINO_CROUPIERE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_Sc05"),
     Object(x: 9, y: 4, gfx: "OBJ_EVENT_GFX_GENTLEMAN", id: "LOCALID_CASINO_FERNAND", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_EventScript_Fernand", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
     Object(x: 9, y: 6, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_CASINO_DEX", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_Sc04"),
@@ -24,11 +26,12 @@
     Object(x: 2, y: 9, gfx: "OBJ_EVENT_GFX_MAN_1", id: "LOCALID_CASINO_VENDEUR", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "ViberCity_Casino_Sc01"),
     Object(x: 13, y: 9, gfx: "OBJ_EVENT_GFX_LASS", id: "LOCALID_CASINO_SOLENE", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_Casino_EventScript_Solene", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
     // Ambient: Pnj01 at his machine, Pnj02 the old lady, Pnj03 the waiter, Pnj04 the guard by
-    // the poster.
+    // the poster, on (18, 2) below the stairs: (17, 1), the only cell to read the poster from, is
+    // reached through (16, 1), which he must not block.
     Object(x: 15, y: 3, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_CASINO_PNJ01", movement: "MOVEMENT_TYPE_FACE_UP", script: "ViberCity_Casino_EventScript_Pnj01"),
     Object(x: 4, y: 5, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_CASINO_PNJ02", movement: "MOVEMENT_TYPE_FACE_UP", script: "ViberCity_Casino_EventScript_Pnj02"),
     Object(x: 7, y: 9, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_CASINO_PNJ03", movement: "MOVEMENT_TYPE_WANDER_LEFT_AND_RIGHT", range_x: 1, range_y: 0, script: "ViberCity_Casino_EventScript_Pnj03"),
-    Object(x: 16, y: 1, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_CASINO_PNJ04", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "ViberCity_Casino_EventScript_Pnj04"),
+    Object(x: 18, y: 2, gfx: "OBJ_EVENT_GFX_NINJA_BOY", id: "LOCALID_CASINO_PNJ04", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "ViberCity_Casino_EventScript_Pnj04"),
     // Casino_Sc03: two cells before Gogo, VAR_SIL_CASINO_STATE 0 (the script checks the story).
     Coord(x: 3, y: 3, var: "VAR_SIL_CASINO_STATE", value: 0, script: "ViberCity_Casino_Sc03"),
     // Casino_Sc06: the slot machines, read from the row below; Casino_Sc05: the roulette table;

@@ -70,7 +70,7 @@
             range_x: 0,
             range_y: 0,
             trainer_type: "TRAINER_TYPE_NORMAL",
-            trainer_sight_or_berry_tree: 4,
+            trainer_sight_or_berry_tree: 3,
             script: Some("ViberCity_Gym_EventScript_Hugo"),
             flag: None,
         ),
