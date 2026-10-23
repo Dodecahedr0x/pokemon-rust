@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_ROUTE_S09_STATION: la Station de Pompage (22 x 16). General + Facility (Emerald
+// tilesets by name): the Aqua Hideout's machine-room pieces, its machines as pumps A, B and C,
+// railings for the catwalks and the glass office. Border: black, blocked.
+(name: "RouteS09_Station", width: 22, height: 16, primary: "General", secondary: "Facility", fill: 552, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

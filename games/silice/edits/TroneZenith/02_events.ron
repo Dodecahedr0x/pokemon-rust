@@ -1,0 +1,33 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    // Before the fight: the "Zenith gold" palette (a missing mechanic, set_palette) and WEATHER_DROUGHT.
+    // Music: the source's MUS_SIL_ELYSIUM (a new song); placeholder MUS_SEALED_CHAMBER, the source's
+    // fallback for the same melody in the crystal cabin. After the Rupture (Trone_Zenith_Sc09) the source's
+    // fallback is the night variant TroneZenith_Nuit: the scene warps there by coordinates, to the same cell.
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_DROUGHT", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TroneZenith_OnTransition: hides the three friends (FLAG_SIL_HIDE_ZENITH_*) outside their scene.
+    ScriptsSet(on_transition: "TroneZenith_OnTransition"),
+    // Warp 0: the crystal tube's arrival (7, 13), a landing (Sommet_Apex_Sc07 and the cabin's scene warp
+    // here by coordinates; the Elysium ending's E5 arrives at (7, 8)).
+    Warp(x: 7, y: 13, dest_map: "TroneZenith_Ascenseur", dest_warp: 1),
+    // Object 1: Julien / Cocorico, his back to the player (faces up), no hide flag (always here). 2-4:
+    // Mathieu, Adrien, Gwada (the source's obj numbers), hidden until Trone_Zenith_Sc11 shows them: they run
+    // up from the tube. One flag each (the source has none).
+    Object(x: 7, y: 3, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_ZENITH_JULIEN", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "TroneZenith_EventScript_Julien"),
+    Object(x: 6, y: 13, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_ZENITH_MATHIEU", local_id: 2, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ZENITH_MATHIEU"),
+    Object(x: 7, y: 13, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ZENITH_ADRIEN", local_id: 3, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ZENITH_ADRIEN"),
+    Object(x: 8, y: 13, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_ZENITH_GWADA", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ZENITH_GWADA"),
+    // Trone_Zenith_Sc08 (Cocorico, story 115): the whole walkable row y 8 (3-11; the source's 4-10 leaves
+    // (3, 8) and (11, 8) open), the platform's only way north.
+    Coord(x: 3, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 4, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 5, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 6, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 7, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 8, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 9, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 10, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    Coord(x: 11, y: 8, var: "VAR_SIL_STORY", value: 115, script: "TroneZenith_Sc08"),
+    // The ELYSIUM diffuser (a prism on its pedestal).
+    Sign(x: 7, y: 5, script: "TroneZenith_EventScript_Diffuseur"),
+]

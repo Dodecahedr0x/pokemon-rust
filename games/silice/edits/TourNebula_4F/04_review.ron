@@ -1,0 +1,7 @@
+// Review fix: the source's rule 3 (one false mirror leads to prism p3). p3 (5, 12) was also readable from
+// the corridor below it, (5, 13), so the false mirror (6, 11) led nowhere new. (5, 13) becomes a mirror:
+// p3 is now read only from its pocket (5, 11), behind the false mirror. The corridor's two halves stay
+// connected through (3, 12) and (7, 12).
+[
+    Paint(x: 5, y: 13, metatile: 653, collision: 1, elevation: 0),
+]

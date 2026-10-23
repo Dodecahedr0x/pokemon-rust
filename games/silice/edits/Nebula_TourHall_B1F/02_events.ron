@@ -1,0 +1,17 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // On-frame at VAR_SIL_STORY 95: Nebula_TourHall_B1F_Sc04 (Nebula_Sc04_T1, the dive; it sets 96).
+    // OnDiveWarp: from the cuve's deep water back up to the Bassin (setdivewarp MAP_NEBULA 51 11).
+    Scripts((on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: Some("Nebula_TourHall_B1F_OnDiveWarp"), on_frame: [(var: "VAR_SIL_STORY", value: 95, script: "Nebula_TourHall_B1F_Sc04")], on_warp_into: [])),
+    // Warp 0: the service stairs, to the hall's warp 0. Warp 1: the cuve arrival (6, 10),
+    // on deep water; Nebula's Bassin dive lands here (an arrival point only).
+    Warp(x: 17, y: 1, dest_map: "Nebula_TourHall", dest_warp: 0),
+    Warp(x: 6, y: 10, dest_map: "Nebula_TourHall_B1F", dest_warp: 1),
+    // 1: Sbire 1 (TRAINER_SIL_TOUR_SBIRE_1) in his niche, his sight on the gap (14-15, 10): on the way.
+    // 2: Sbire 2 (TRAINER_SIL_TOUR_SBIRE_2) by the Max Elixir, off the way.
+    Object(x: 13, y: 10, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_TOUR_B1F_SBIRE_1", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Nebula_TourHall_B1F_EventScript_Sbire1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 17, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_TOUR_B1F_SBIRE_2", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_TourHall_B1F_EventScript_Sbire2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // 3: Max Elixir.
+    Object(x: 18, y: 14, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_TOUR_B1F_ITEM_MAX_ELIXIR", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_TourHall_B1F_EventScript_ItemMaxElixir", flag: "FLAG_SIL_ITEM_TOUR_B1F_ELIXIR"),
+]

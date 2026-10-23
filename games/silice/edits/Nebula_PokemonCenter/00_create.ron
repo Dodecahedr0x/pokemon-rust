@@ -1,0 +1,4 @@
+// Silice Ch9, MAP_NEBULA_POKEMON_CENTER: le dernier Centre (12 x 8), the standard Silice Center
+// cells (Owlys's), with the vending machine on the left counter and a Kimiko screen on the right
+// wall. Building + PokemonCenter (Emerald tilesets by name). Out-of-map border: black, blocked.
+(name: "Nebula_PokemonCenter", width: 12, height: 8, primary: "Building", secondary: "PokemonCenter", fill: 514, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

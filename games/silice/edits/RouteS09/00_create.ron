@@ -1,0 +1,5 @@
+// Silice Ch9, MAP_ROUTE_S09: la Prise d'Eau (60 x 50, the source's size).
+// General + Slateport (Emerald tilesets by name): the shepherd's path comes down from Evalon onto
+// Slateport's concrete quays: the Lac de Captage is a reservoir with solid quay lips, open only at
+// the pontoons. Border: trees.
+(name: "RouteS09", width: 60, height: 50, primary: "General", secondary: "Slateport", fill: 1, fill_collision: 0, fill_elevation: 3, border: [468, 469, 476, 477])

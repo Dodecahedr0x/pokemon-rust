@@ -1,0 +1,35 @@
+// Cells. The walls are the 360-degree screens (the Space Center's windows). Arthur's platform (9-13, 2-3);
+// the screen behind him X (12, 1) opens on the elevator, solid until TourNebula_3F_OnLoad opens it from
+// story 105 (collision 0). The virtual sea is one metatile (414) everywhere, so the hidden path does not
+// show: w the 14 path cells (the origamis' bearings from (11, 11): north 4, east 3, north 3, west 3, then
+// the helm (11, 3)), f the sea cells next to the path, the platform or the quay (walkable: each holds
+// TourNebula_3F_Sc03's fall coord), ~ the rest of the sea (solid: no step reaches it without a fall first).
+// The quay (rows 12-15), the origami boats o (3, 14), (10, 14), (18, 14), the elevator door D (11, 16),
+// closed (a sign).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "AAAAAAAAAAAAAAAAAAAAAAAA",
+        "BBBBBBBBBBB[X]BBBBBBBBBB",
+        "B~~~~~~~f.....f~~~~~~~~B",
+        "B~~~~~~~f.....f~~~~~~~~B",
+        "B~~~~~~~~ffwwwwf~~~~~~~B",
+        "B~~~~~~~~~~fffwf~~~~~~~B",
+        "B~~~~~~~~~~fffwf~~~~~~~B",
+        "B~~~~~~~~~fwwwwf~~~~~~~B",
+        "B~~~~~~~~~fwfff~~~~~~~~B",
+        "B~~~~~~~~~fwf~~~~~~~~~~B",
+        "B~~~~~~~~~fwf~~~~~~~~~~B",
+        "BffffffffffwfffffffffffB",
+        "B......................B",
+        "B......................B",
+        "B..o......o.......o....B",
+        "B......................B",
+        "BBBBBBBBBBBDBBBBBBBBBBBB",
+    ], legend: {
+        'A': (metatile: 760, collision: 1, elevation: 0), 'B': (metatile: 768, collision: 1, elevation: 0),
+        '[': (metatile: 699, collision: 1, elevation: 0), 'X': (metatile: 700, collision: 1, elevation: 3), ']': (metatile: 701, collision: 1, elevation: 0),
+        '.': (metatile: 752, collision: 0, elevation: 3),
+        'w': (metatile: 414, collision: 0, elevation: 3), 'f': (metatile: 414, collision: 0, elevation: 3), '~': (metatile: 414, collision: 1, elevation: 0),
+        'o': (metatile: 875, collision: 1, elevation: 0), 'D': (metatile: 691, collision: 1, elevation: 0),
+    }),
+]
