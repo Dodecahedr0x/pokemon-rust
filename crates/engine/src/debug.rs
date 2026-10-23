@@ -12,6 +12,7 @@
 pub const MAGIC: [u8; 8] = *b"PKRDBG03";
 pub const INPUT_RING: usize = 64;
 pub const OFF_FRAME: u32 = 8;
+pub const OFF_SCAN_PASSES: u32 = 12;
 pub const OFF_HASH: u32 = 16;
 pub const OFF_INPUTS: u32 = 24;
 pub const OFF_LATE: u32 = 152;
@@ -71,7 +72,10 @@ pub struct DebugRegion {
     pub magic: [u8; 8],
     /// Number of engine steps completed.
     pub frame: u32,
-    pub _pad: u32,
+    /// v3 (Milestone 8 Task M; v2's padding): complete scan passes of the memory watch (a
+    /// stack pass then a heap pass, see `heap_max` and `stack_min`), wrapping. Marks read
+    /// after this grew twice since a step include everything that step wrote.
+    pub scan_passes: u32,
     /// `World::hash()` after step `frame`.
     pub hash: u64,
     /// Input consumed by step `f` lives at `input_slot(f)`.
@@ -118,8 +122,8 @@ pub struct DebugRegion {
     pub reports: u16,
     /// `World::events_dropped()` (saturates at `u16::MAX`).
     pub events_dropped: u16,
-    /// IWRAM stack bytes never touched since boot: from the end of the IWRAM statics to the
-    /// lowest word written. The shell paints the free stack at boot and scans it in each frame's
+    /// IWRAM stack bytes never touched since boot: from agb's IWRAM heap tip at boot (the end
+    /// of the IWRAM statics) to the lowest word written. The shell paints the free stack at boot and scans it in each frame's
     /// slack.
     pub stack_min: u16,
     /// The line of the panic location (saturates at `u16::MAX`) once the ROM panicked, else 0.
@@ -128,6 +132,7 @@ pub struct DebugRegion {
 
 const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, frame) == OFF_FRAME as usize);
+    assert!(core::mem::offset_of!(DebugRegion, scan_passes) == OFF_SCAN_PASSES as usize);
     assert!(core::mem::offset_of!(DebugRegion, hash) == OFF_HASH as usize);
     assert!(core::mem::offset_of!(DebugRegion, inputs) == OFF_INPUTS as usize);
     assert!(core::mem::offset_of!(DebugRegion, late) == OFF_LATE as usize);
@@ -158,7 +163,7 @@ impl DebugRegion {
         Self {
             magic: MAGIC,
             frame: 0,
-            _pad: 0,
+            scan_passes: 0,
             hash: 0,
             inputs: [0; INPUT_RING],
             late: 0,

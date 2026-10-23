@@ -15,6 +15,9 @@
 
 extern crate alloc;
 
+#[path = "../panic.rs"]
+mod panic;
+
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use engine::battle::{Battle, BattleKind, BattleSetup, Choice, Environment, Str};

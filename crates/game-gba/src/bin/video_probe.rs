@@ -8,6 +8,9 @@
 
 extern crate alloc;
 
+#[path = "../panic.rs"]
+mod panic;
+
 #[allow(dead_code)]
 #[path = "../video.rs"]
 mod video;
@@ -37,19 +40,6 @@ fn publish(frame: u32, late: u32) {
     unsafe {
         (&raw mut (*d).late).write_volatile(late);
         (&raw mut (*d).frame).write_volatile(frame);
-    }
-}
-
-/// The panic location's line in the debug region, then halt (as the game's handler).
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    let line = info
-        .location()
-        .map_or(u16::MAX, |l| l.line().clamp(1, u16::MAX as u32) as u16);
-    let d = core::ptr::addr_of_mut!(PKR_DEBUG);
-    unsafe { (&raw mut (*d).panicked).write_volatile(line) };
-    loop {
-        agb::halt();
     }
 }
 

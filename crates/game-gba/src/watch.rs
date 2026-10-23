@@ -5,7 +5,12 @@
 //! cannot be counted through a wrapper. Both are measured by painting instead: at boot, before
 //! the World exists, the free heap (above agb's bump tip, up to the end of EWRAM) and the free
 //! IWRAM stack (from the end of the IWRAM statics up to just below the stack pointer) are
-//! filled with [`PATTERN`]. A word that no longer holds it was written since boot. Each frame,
+//! filled with [`PATTERN`]. agb also keeps an IWRAM heap (`agb::InternalAllocator`, a bump
+//! allocator from the end of the IWRAM statics upward, used only by agb's dynamic sprites,
+//! which the shell does not use): the stack paint starts above its tip, found by a probe
+//! allocation as for EWRAM. An IWRAM allocation made after the paint lands above that tip,
+//! inside the painted range, and counts as stack written: the stack mark is then the IWRAM
+//! left between the two, which is what the gate needs. A word that no longer holds it was written since boot. Each frame,
 //! in the slack after the loop body, [`Watch::scan`] walks the painted words until a deadline
 //! and moves the marks:
 //! - the heap mark is the highest EWRAM word ever written (agb's block allocator bumps its tip
@@ -17,7 +22,7 @@
 //! the memory by at most one pass; a written word never reads as painted again, so nothing is
 //! missed, only reported later.
 
-use core::alloc::Layout;
+use core::alloc::{Allocator, Layout};
 
 /// What painted memory holds. Unlikely as data (not 0, not all ones, not a small integer or a
 /// ROM/RAM pointer).
@@ -56,6 +61,8 @@ pub struct Watch {
     stack_cursor: usize,
     /// Whether the heap pass runs (else the stack pass).
     heap_turn: bool,
+    /// Complete passes (a stack pass then a heap pass), wrapping.
+    passes: u32,
 }
 
 fn read(addr: usize) -> u32 {
@@ -75,10 +82,25 @@ unsafe fn fill(start: usize, end: usize) {
     }
 }
 
-/// Paints the free stack below the current stack pointer; returns the painted range.
+/// The tip of agb's IWRAM heap: the end of a probe allocation (freed at once), at least the
+/// end of the IWRAM statics.
+fn iwram_heap_tip() -> usize {
+    let statics = (core::ptr::addr_of!(__iwram_end) as usize + 3) & !3;
+    let layout = Layout::from_size_align(4, 4).expect("probe layout");
+    let Ok(probe) = agb::InternalAllocator.allocate(layout) else {
+        return statics;
+    };
+    let tip = (probe.as_ptr() as *mut u8 as usize + 4 + 3) & !3;
+    // SAFETY: allocated above with `layout` by the same allocator.
+    unsafe { agb::InternalAllocator.deallocate(probe.cast(), layout) };
+    tip.max(statics)
+}
+
+/// Paints the free stack below the current stack pointer, above agb's IWRAM heap tip;
+/// returns the painted range.
 #[inline(never)]
 fn paint_stack() -> (usize, usize) {
-    let base = (core::ptr::addr_of!(__iwram_end) as usize + 3) & !3;
+    let base = iwram_heap_tip();
     let sp: usize;
     // SAFETY: reads the stack pointer.
     unsafe { core::arch::asm!("mov {}, sp", out(reg) sp, options(nomem, nostack)) };
@@ -87,8 +109,7 @@ fn paint_stack() -> (usize, usize) {
     // SAFETY: IME is the interrupt master enable register; restored below.
     let ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(0) };
-    // SAFETY: between the IWRAM statics and the stack pointer nothing is live (the program
-    // uses no IWRAM heap).
+    // SAFETY: between the IWRAM heap tip and the stack pointer nothing is live.
     unsafe { fill(base, top) };
     unsafe { IME.write_volatile(ime) };
     (base, top)
@@ -117,6 +138,7 @@ impl Watch {
             stack_low: stack_top,
             stack_cursor: stack_base,
             heap_turn: false,
+            passes: 0,
         }
     }
 
@@ -125,7 +147,12 @@ impl Watch {
         (self.heap_top - self.heap_base) as u32
     }
 
-    /// Stack bytes never written, from the end of the IWRAM statics.
+    /// Complete passes so far (`DebugRegion::scan_passes`).
+    pub fn passes(&self) -> u32 {
+        self.passes
+    }
+
+    /// Stack bytes never written, from agb's IWRAM heap tip at boot.
     pub fn stack_min(&self) -> u16 {
         (self.stack_low - self.stack_base).min(u16::MAX as usize) as u16
     }
@@ -147,6 +174,7 @@ impl Watch {
                 if self.heap_cursor >= EWRAM_END {
                     self.heap_cursor = self.heap_top;
                     self.heap_turn = false;
+                    self.passes = self.passes.wrapping_add(1);
                 }
             } else {
                 let end = (self.stack_cursor + 4 * CHUNK).min(self.stack_low);

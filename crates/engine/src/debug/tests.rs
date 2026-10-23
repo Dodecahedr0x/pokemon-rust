@@ -5,6 +5,7 @@ use core::mem::{offset_of, size_of};
 fn layout_is_stable() {
     assert_eq!(offset_of!(DebugRegion, magic), 0);
     assert_eq!(offset_of!(DebugRegion, frame), OFF_FRAME as usize);
+    assert_eq!(offset_of!(DebugRegion, scan_passes), 12);
     assert_eq!(offset_of!(DebugRegion, hash), OFF_HASH as usize);
     assert_eq!(offset_of!(DebugRegion, inputs), OFF_INPUTS as usize);
     assert_eq!(offset_of!(DebugRegion, late), OFF_LATE as usize);

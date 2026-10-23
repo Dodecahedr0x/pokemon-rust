@@ -1,8 +1,11 @@
 #![no_std]
 #![no_main]
+// `watch.rs` probes agb's IWRAM heap through `agb::InternalAllocator`.
+#![feature(allocator_api)]
 
 extern crate alloc;
 
+mod panic;
 mod save;
 mod save_logic;
 #[cfg(feature = "tour")]
@@ -60,20 +63,6 @@ fn ticks(start: u16, now: u16) -> u32 {
     now.wrapping_sub(start) as u32
 }
 
-/// The panic location's line in the debug region, then halt (agb's own handler, with its
-/// backtrace screen, is off: `default-features = false`).
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    let line = info
-        .location()
-        .map_or(u16::MAX, |l| l.line().clamp(1, u16::MAX as u32) as u16);
-    let d = core::ptr::addr_of_mut!(PKR_DEBUG);
-    unsafe { (&raw mut (*d).panicked).write_volatile(line) };
-    loop {
-        agb::halt();
-    }
-}
-
 /// Publishes step `world.frame()` (frame last = commit). Returns the scanlines `World::hash`
 /// took.
 fn publish_debug(world: &World, keys: Buttons, late: u32, late_black: u32) -> u32 {
@@ -121,6 +110,7 @@ fn publish_watch(watch: &Watch) {
     unsafe {
         (&raw mut (*d).heap_max).write_volatile(watch.heap_max());
         (&raw mut (*d).stack_min).write_volatile(watch.stack_min());
+        (&raw mut (*d).scan_passes).write_volatile(watch.passes());
     }
 }
 

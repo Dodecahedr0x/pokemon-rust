@@ -8,7 +8,8 @@ use engine::debug::{
     INPUT_RING, MAGIC, NO_SCRIPT, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE,
     OFF_EVENTS_DROPPED, OFF_FRAME, OFF_HASH, OFF_HASH_LINES_MAX, OFF_HEAP_MAX, OFF_INPUTS,
     OFF_LAST_SCRIPT, OFF_LATE, OFF_LATE_BLACK, OFF_LOOP_LINES_MAX, OFF_MAP, OFF_PANICKED,
-    OFF_REPORTS, OFF_SAVE_STATUS, OFF_SAVES, OFF_STACK_MIN, OFF_STEP_LINES_MAX, SIZE,
+    OFF_REPORTS, OFF_SAVE_STATUS, OFF_SAVES, OFF_SCAN_PASSES, OFF_STACK_MIN, OFF_STEP_LINES_MAX,
+    SIZE,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -66,6 +67,8 @@ pub struct DebugSnapshot {
     pub stack_min: u16,
     /// The panic location's line once the ROM panicked, else 0.
     pub panicked: u16,
+    /// Complete scan passes of the ROM's memory watch (`DebugRegion::scan_passes`, wrapping).
+    pub scan_passes: u32,
 }
 
 /// A zeroed region (frame 0, no script, map 0), for tests that build snapshots.
@@ -91,6 +94,7 @@ impl Default for DebugSnapshot {
             events_dropped: 0,
             stack_min: 0,
             panicked: 0,
+            scan_passes: 0,
         }
     }
 }
@@ -102,6 +106,7 @@ const _: () = {
     assert!(OFF_HEAP_MAX == 200 && OFF_LAST_SCRIPT == 204 && OFF_MAP == 206);
     assert!(OFF_REPORTS == 208 && OFF_EVENTS_DROPPED == 210 && OFF_STACK_MIN == 212);
     assert!(OFF_PANICKED == 214 && OFF_PANICKED as usize + 2 == SIZE);
+    assert!(OFF_FRAME == 8 && OFF_SCAN_PASSES == 12);
     assert!(OFF_BUILD_ENGINE == 160 && OFF_BUILD_CONTENT == 168);
     assert!(OFF_BOOT == 176 && OFF_SAVES == 180 && OFF_SAVE_STATUS == 184);
     assert!(OFF_HASH_LINES_MAX == 188 && OFF_STEP_LINES_MAX == 192);
@@ -374,7 +379,35 @@ impl Emu {
             events_dropped: self.read16(base + OFF_EVENTS_DROPPED),
             stack_min: self.read16(base + OFF_STACK_MIN),
             panicked: self.read16(base + OFF_PANICKED),
+            scan_passes: self.read32(base + OFF_SCAN_PASSES),
         })
+    }
+
+    /// Runs frames without input until the ROM's memory watch completed two scan passes after
+    /// `from` (the pass under way at `from` may have started before its last step; the next one
+    /// starts after it), within `max_frames` emulator frames. Returns the region then: its
+    /// `heap_max` and `stack_min` include everything written up to `from`'s step. The ROM
+    /// keeps stepping its World meanwhile (idle).
+    pub fn settle(&mut self, from: &DebugSnapshot, max_frames: u32) -> Result<DebugSnapshot> {
+        for _ in 0..max_frames {
+            self.run_frame(Buttons::NONE)?;
+            let s = self
+                .debug()
+                .ok_or_else(|| anyhow!("debug region vanished"))?;
+            if s.panicked != 0 {
+                return Err(anyhow!(
+                    "ROM panicked (line {}) while settling, engine frame {}",
+                    s.panicked,
+                    s.frame
+                ));
+            }
+            if s.scan_passes.wrapping_sub(from.scan_passes) >= 2 {
+                return Ok(s);
+            }
+        }
+        Err(anyhow!(
+            "the ROM's memory watch did not complete two passes in {max_frames} frames"
+        ))
     }
 
     /// Boot until the debug region is visible.
@@ -434,7 +467,8 @@ pub struct RomRun {
     /// The debug region once the ROM published its boot state (frame `start`, its hash, and
     /// the `build` and `boot` fields).
     pub boot: DebugSnapshot,
-    /// The debug region at the end (`saves`, `save_status`, the scanline maxima).
+    /// The debug region at the end (`saves`, `save_status`, the scanline maxima), with the
+    /// memory marks (`heap_max`, `stack_min`, `scan_passes`) of [`Emu::settle`] after it.
     pub end: DebugSnapshot,
     /// The cartridge flash at the end ([`Emu::save_data`]).
     pub save: Vec<u8>,
@@ -449,6 +483,9 @@ pub fn run_rom(
 ) -> Result<RomRun> {
     run_rom_from(rom, None, Some(0), keys, total, picture_frames)
 }
+
+/// Emulator frames [`Emu::settle`] may take at the end of a run (a pass takes a few frames).
+pub const SETTLE_FRAMES: u32 = 600;
 
 /// Emulator frames [`run_rom_from`] waits for the ROM to publish its boot state.
 const BOOT_FRAMES: u32 = 120;
@@ -574,6 +611,12 @@ pub fn run_rom_from(
             return Err(anyhow!("ROM stopped advancing at frame {}", snap.frame));
         }
     }
+    let save = emu.save_data()?;
+    // The marks once the watch scanned everything the last step wrote.
+    let settled = emu.settle(&snap, SETTLE_FRAMES)?;
+    snap.heap_max = settled.heap_max;
+    snap.stack_min = settled.stack_min;
+    snap.scan_passes = settled.scan_passes;
     Ok(RomRun {
         start,
         consumed,
@@ -583,7 +626,7 @@ pub fn run_rom_from(
         late_black: snap.late_black,
         late_black_frames,
         boot,
-        save: emu.save_data()?,
+        save,
         end: snap,
     })
 }
