@@ -25,10 +25,7 @@ const METATILE_PORTE_GYM: u16 = 774;
 
 /// The sanctuary door open once `FLAG_SIL_OWLYS_PORTE_GYM` is set.
 pub async fn Owlys_OnLoad(ctx: Ctx) {
-    if ctx.flag(FLAG_SIL_OWLYS_PORTE_GYM).await {
-        let (x, y) = PORTE_GYM;
-        ctx.set_metatile(x, y, METATILE_PORTE_GYM, false).await;
-    }
+    repaint_if(&ctx, FLAG_SIL_OWLYS_PORTE_GYM, PORTE_GYM, METATILE_PORTE_GYM).await;
 }
 
 /// Object visibility ("SIL3 Ch5 maps as built", the six Owlys hide flags):

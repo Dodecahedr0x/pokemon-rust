@@ -15,8 +15,10 @@
 //!
 //! **Surf.** The engine has no Surf yet (M10), and Route S5 is a sea: the chapter's first
 //! scenes (the islet's sailor and fisherman) are reached from their own start state ([`ilot`],
-//! story 49), and the main path starts on the rift's quay ([`start`]), past the water. The
-//! sea's trainers, the wreck, the coral cave (Lokhlass) and the Banc are not played.
+//! story 49), and the main path starts on the rift's quay ([`start`]), past the water. Both
+//! are **temporary start states**: once Surf lands, the chapter starts from Chapter 4's end on
+//! Port-Ressac's jetty and plays the sea (its trainers, the wreck, the coral cave's Lokhlass,
+//! the Banc), which is not played now.
 //!
 //! **The party** ([`end_of_chapter_4`]): Chapter 2's end (QUILAVA 26, MAREEP 12, ARON 30) plus
 //! about 4–5 levels a chapter for Chapters 3 and 4 (QUILAVA 35, LAIRON 38, FLAAFFY 21). There
@@ -42,7 +44,8 @@ const SILO_B1F: MapId = MAP_OWLYS_ENTREPOT_B1F;
 const ROUTE_S06: MapId = MAP_ROUTE_S06;
 
 /// The main path's start: the rift's natural quay (9, 13), across the rift's water from Route
-/// S5's entrance (9, 2), facing south, story 50 (Route S5's first wake played on the islet; [`ilot`] plays it).
+/// S5's entrance (9, 2), facing south, story 50 (Route S5's first wake, which [`ilot`] plays).
+/// Temporary, until Surf (M10): the rift's water is the only way here.
 pub fn start() -> Start {
     Start {
         map: FAILLE,

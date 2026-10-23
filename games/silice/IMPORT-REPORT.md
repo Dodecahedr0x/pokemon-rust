@@ -246,6 +246,7 @@
 - maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_1
 - maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_2
 - maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3
+- maps/Owlys_Entrepot_B1F.ron: FLAG_SIL_HIDE_OWLYS_SILO_CHEF
 - maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_MATHIEU
 - maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_A
 - maps/Owlys_GrotteEst.ron: FLAG_SIL_HIDE_OWLYS_GROTTE_EST_CONVOYEUR_B

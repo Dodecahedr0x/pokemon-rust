@@ -72,7 +72,7 @@
             trainer_type: "TRAINER_TYPE_NORMAL",
             trainer_sight_or_berry_tree: 2,
             script: Some("Owlys_Entrepot_B1F_Sc02"),
-            flag: Some("FLAG_SIL_OWLYS_SILO_DECIDE"),
+            flag: Some("FLAG_SIL_HIDE_OWLYS_SILO_CHEF"),
         ),
     ],
     warps: [

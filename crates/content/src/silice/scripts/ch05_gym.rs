@@ -315,8 +315,8 @@ pub async fn Owlys_Gym_Sc01(ctx: Ctx) {
     say(&ctx, Owlys_Gym_Sc01_T1).await;
     // fallback: Mega Evolution (no form change in the data yet, "Silice engine: held items,
     // Fairy, Mega/Primal, abilities (as built)"): Absol battles unevolved and
-    // Owlys_Gym_Sc01_Mega is not shown; the source's custom night battle background is the
-    // cave's.
+    // Owlys_Gym_Sc01_Mega is not shown. The source's custom night battle background is the
+    // engine's plain one (`World::environment` knows tall grass and plain only).
     fallback(&ctx, "mega_evolution").await;
     if battle_trainer(&ctx, TRAINER_SIL_SKYCKER_1, Owlys_Gym_Sc01_Defeat).await
         != BattleOutcome::Won

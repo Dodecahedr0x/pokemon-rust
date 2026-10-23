@@ -151,10 +151,11 @@ const SACS: &[(i16, i16)] = &[(29, 25), (30, 25), (31, 25), (29, 26), (30, 26), 
 const METATILE_SOL_SILO: u16 = 742;
 
 /// Owlys_Entrepot_Sc02, the Silo Chief (27, 26), a sight trainer facing the reserve's only gap:
-/// his intro and battle, then he leaves (for good: his hide flag is `FLAG_SIL_OWLYS_SILO_DECIDE`,
-/// `edits/Owlys_Entrepot_B1F/05_ch5_scripts.ron`, which this hide sets first), the sacks and Romain's dictaphone, and the choice: empty the sacks into the canal
-/// (`FLAG_SIL_OWLYS_SILO_VIDE`, read by Chapter 7; the sacks' cells become floor) or leave
-/// them. `FLAG_SIL_OWLYS_SILO_DECIDE` either way.
+/// his intro and battle, then he leaves (for good: his hide flag is
+/// `FLAG_SIL_HIDE_OWLYS_SILO_CHEF`, `edits/Owlys_Entrepot_B1F/05_ch5_scripts.ron`), the sacks and
+/// Romain's dictaphone, and the choice: empty the sacks into the canal (`FLAG_SIL_OWLYS_SILO_VIDE`,
+/// read by Chapter 7; the sacks' cells become floor) or leave them. `FLAG_SIL_OWLYS_SILO_DECIDE`
+/// either way.
 pub async fn Owlys_Entrepot_B1F_Sc02(ctx: Ctx) {
     if trainer(
         &ctx,
@@ -179,9 +180,7 @@ pub async fn Owlys_Entrepot_B1F_Sc02(ctx: Ctx) {
     say(&ctx, Owlys_Entrepot_Sc02_T4).await;
     if ask(&ctx, Owlys_Entrepot_Sc02_T5).await {
         ctx.set_flag(FLAG_SIL_OWLYS_SILO_VIDE, true).await;
-        for &(x, y) in SACS {
-            ctx.set_metatile(x, y, METATILE_SOL_SILO, false).await;
-        }
+        empty_sacks(&ctx).await;
         ctx.redraw_map().await;
         // The source's troubled water in the canal has no tile here.
         say(&ctx, Owlys_Entrepot_Sc02_T6).await;
@@ -196,9 +195,14 @@ pub async fn Owlys_Entrepot_B1F_Sc02(ctx: Ctx) {
 /// `edits/Owlys_Entrepot_B1F/05_ch5_scripts.ron`.
 pub async fn Owlys_Entrepot_B1F_OnLoad(ctx: Ctx) {
     if ctx.flag(FLAG_SIL_OWLYS_SILO_VIDE).await {
-        for &(x, y) in SACS {
-            ctx.set_metatile(x, y, METATILE_SOL_SILO, false).await;
-        }
+        empty_sacks(&ctx).await;
+    }
+}
+
+/// The sacks' cells as the reserve's floor (walkable).
+async fn empty_sacks(ctx: &Ctx) {
+    for &(x, y) in SACS {
+        ctx.set_metatile(x, y, METATILE_SOL_SILO, false).await;
     }
 }
 
