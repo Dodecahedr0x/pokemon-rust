@@ -2246,9 +2246,13 @@ mod list {
         enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 1, Up),
         enter(MAP_EVER_GRANDE_CITY_HALL5, 5, 2, Up),
         Step::WaitScript,
+        // Sidney's dark types with the first damaging move (Strength): Earthquake's 10 PP do
+        // not last past Phoebe, and Glacia's ice types (Sheer Cold) beat Strength alone.
+        Step::Battle(BattlePlan::Fight),
         talk(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM, 1),
         Step::WaitScript,
         Step::Expect("sidney_defeated"),
+        Step::Battle(BattlePlan::BestLearn),
         FULL_RESTORE,
         enter(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM, 6, 2, Up),
         enter(MAP_EVER_GRANDE_CITY_HALL1, 5, 2, Up),
