@@ -164,6 +164,19 @@ const fn mismatch(carried: u8, cell: u8) -> bool {
     carried != 0 && cell != 0 && cell != 15 && cell != carried
 }
 
+impl Terrain {
+    /// [`mismatch`] for the step from cell `c` onto cell `n`, but for Gen3 `CanStopSurfing`
+    /// (`CheckForPlayerAvatarCollision`): from water onto land of elevation 3 the player gets
+    /// off the water (a player on water is surfing; objects are the occupancy's business).
+    fn refuses(&self, carried: u8, c: usize, n: usize) -> bool {
+        let en = self.elevation[n];
+        mismatch(carried, en)
+            && !(en == 3
+                && matches!(self.behavior[c], Behavior::Water(_))
+                && !matches!(self.behavior[n], Behavior::Water(_)))
+    }
+}
+
 /// The player's elevation after a step from a cell at `from` to one at `to` (Gen3
 /// `ObjectEventUpdateElevation`: a 15 on either side keeps it).
 const fn carry(carried: u8, from: u8, to: u8) -> u8 {
@@ -322,7 +335,7 @@ impl<'a, G: GameData> Grid<'a, G> {
         }
         let t = self.terrain();
         let (ec, en) = (t.elevation[self.index(c)], t.elevation[self.index(n)]);
-        (!mismatch(carried, en)).then(|| carry(carried, ec, en))
+        (!t.refuses(carried, self.index(c), self.index(n))).then(|| carry(carried, ec, en))
     }
 
     pub fn walkable(&self, c: (i16, i16), avoid_grass: bool) -> bool {
@@ -368,7 +381,7 @@ impl<'a, G: GameData> Grid<'a, G> {
                     continue;
                 }
                 let en = t.elevation[n as usize];
-                if mismatch(e, en) {
+                if t.refuses(e, c as usize, n as usize) {
                     continue;
                 }
                 let e2 = carry(e, t.elevation[c as usize], en);
@@ -407,7 +420,7 @@ impl<'a, G: GameData> Grid<'a, G> {
                 return None;
             }
             let en = t.elevation[n as usize];
-            if !(n == goal && destination) && mismatch(e, en) {
+            if !(n == goal && destination) && t.refuses(e, c as usize, n as usize) {
                 return None;
             }
             Some(carry(e, t.elevation[c as usize], en))
