@@ -125,6 +125,10 @@ pub enum Step {
 pub struct Bypass {
     /// The blocker's id in the plan's "Spine blockers" table.
     pub issue: &'static str,
+    /// The decomp features the engine lacks there (script commands, specials, scripts): the
+    /// parity ledger reads these literals (`parity::story::bypassed`), so keep them right
+    /// after `issue`.
+    pub features: &'static [&'static str],
     pub set: &'static [FlagId],
     pub clear: &'static [FlagId],
     /// `(var, value)`; 0 clears.
@@ -143,6 +147,7 @@ impl Bypass {
     /// No change, for `..Bypass::NONE`.
     pub const NONE: Bypass = Bypass {
         issue: "",
+        features: &[],
         set: &[],
         clear: &[],
         vars: &[],

@@ -49,6 +49,7 @@ mod list {
     /// others that Act 1 left untouched, once, at the start of Act 2.
     static RESET_ALL_MAP_FLAGS: Bypass = Bypass {
         issue: "new-game-map-flags",
+        features: &["EventScript_ResetAllMapFlags"],
         set: &[
             FLAG_HIDE_CONTEST_POKE_BALL,
             FLAG_HIDE_ROUTE_111_VICTORIA_WINSTRATE,
@@ -195,6 +196,7 @@ mod list {
     /// leave and lands in Dewford.
     static BRINEY_SAIL_TO_DEWFORD: Bypass = Bypass {
         issue: "briney-sail-camera",
+        features: &["Route104_EventScript_SailToDewford"],
         set: &[
             FLAG_MR_BRINEY_SAILING_INTRO,
             FLAG_HIDE_BRINEYS_HOUSE_MR_BRINEY,
@@ -223,6 +225,7 @@ mod list {
     /// Briney and his boat moved to Route 109) and lands where the player steps off the boat.
     static BRINEY_SAIL_TO_SLATEPORT: Bypass = Bypass {
         issue: "briney-sail-camera-slateport",
+        features: &["DewfordTown_EventScript_SailToSlateport"],
         set: &[
             FLAG_HIDE_MR_BRINEY_DEWFORD_TOWN,
             FLAG_HIDE_MR_BRINEY_BOAT_DEWFORD_TOWN,
@@ -241,6 +244,10 @@ mod list {
     /// below Wattson (the gym's trainers are optional).
     static MAUVILLE_GYM_BARRIERS: Bypass = Bypass {
         issue: "mauville-gym-barriers",
+        features: &[
+            "SPECIAL_MauvilleGymSetDefaultBarriers",
+            "SPECIAL_MauvilleGymPressSwitch",
+        ],
         warp: Some((MAP_MAUVILLE_CITY_GYM, 5, 3)),
         ..Bypass::NONE
     };
