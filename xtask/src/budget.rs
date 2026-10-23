@@ -66,12 +66,13 @@ pub enum Content {
 }
 
 /// The Silice ROM limit, provisional (SIL1 Task D): Task D's Silice ROM (the Wave 0 maps, no
-/// scene written) measured [`SILICE_ROM_MEASURED`]; the limit, about twice that, leaves room for
+/// scene written) measured [`SILICE_ROM_MEASURED`]; the limit, about twice Task D's, leaves room for
 /// SIL1 Wave 1's content until Wave 2 re-baselines it on the Prologue. IWRAM and EWRAM keep the
 /// shared gates (Task D measured the slice baseline's 788 and 460 bytes).
 pub const SILICE_ROM_LIMIT: u64 = 8 << 20;
-/// The Silice ROM size `cargo xtask rom --game silice` measured at SIL1 Task D.
-pub const SILICE_ROM_MEASURED: u64 = 3_966_784;
+/// The Silice ROM size `cargo xtask rom --game silice` measured at SIL1 Task D, with Task A's
+/// authored data (3,966,784 bytes before it: Task A added 205,688).
+pub const SILICE_ROM_MEASURED: u64 = 4_172_472;
 
 /// Engine `.text` of the Wave 0 slice build (`cargo xtask rom`, `engine` row of [`sections`]).
 pub const ENGINE_TEXT_BASELINE: u64 = 205_448;
