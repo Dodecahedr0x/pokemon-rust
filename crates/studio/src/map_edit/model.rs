@@ -5,13 +5,18 @@
 use super::schema::{
     GameConnection, GameHeader, GameMap, GameObject, GameWarp, MAP_DYNAMIC, WARP_ID_DYNAMIC,
 };
+use super::stamp::Stamp;
 use anyhow::{Result, bail, ensure};
-use engine::data::{BLOCK_COLLISION_SHIFT, BLOCK_ELEVATION_SHIFT, BLOCK_METATILE_MASK};
+use engine::data::{
+    BLOCK_COLLISION_SHIFT, BLOCK_ELEVATION_SHIFT, BLOCK_METATILE_MASK, block_collision,
+    block_elevation,
+};
 use extract::schema::{
     Bg, BgKind, ConnectionDir, Coord, Layout, MapFile, MapScripts, from_rows, to_rows,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 /// Undo steps kept.
 pub const UNDO_LIMIT: usize = 256;
@@ -39,6 +44,20 @@ pub struct Doc {
     pub border: [u16; 4],
     /// `width * height` raw blocks, row-major.
     pub blocks: Vec<u16>,
+    /// Behaviour warnings accepted on purpose (`AllowCollision` ops). Not saved with the map:
+    /// they live in its edit scripts, which `GamesDir::load` reads them from.
+    pub allow: Vec<Allowance>,
+}
+
+/// Cells or metatiles whose behaviour warnings (`behavior::issues`) are accepted, and why.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Allowance {
+    #[serde(default)]
+    pub cells: Vec<(i32, i32)>,
+    #[serde(default)]
+    pub metatiles: Vec<u16>,
+    pub reason: String,
 }
 
 /// What a new map starts with (`cargo xtask studio map create <spec.ron>`).
@@ -156,6 +175,7 @@ impl Doc {
             secondary: spec.secondary.clone(),
             border,
             blocks: vec![fill; spec.width as usize * spec.height as usize],
+            allow: Vec::new(),
         })
     }
 
@@ -188,6 +208,7 @@ impl Doc {
             secondary: layout.secondary,
             border,
             blocks,
+            allow: Vec::new(),
         })
     }
 
@@ -488,10 +509,15 @@ pub enum Op {
     },
     /// Rows of characters from (x, y), each character painted with its legend brush (every
     /// character must be in the legend). For drafting from an ASCII plan.
+    ///
+    /// Any character is a key, written as a RON char (`'#'`, `'"'`, `' '`, `'é'`; escapes
+    /// `'\''` and `'\\'`) or a one-character string (`"\""`). In the rows, `"` and `\` are
+    /// escaped (`"\"\\"`), or the rows are raw strings (`r#"say "hi""#`).
     Ascii {
         x: i32,
         y: i32,
         rows: Vec<String>,
+        #[serde(deserialize_with = "legend")]
         legend: BTreeMap<char, Brush>,
     },
     /// Copies a `w x h` block of raw cells to the editor's clipboard (not an undo step).
@@ -505,6 +531,30 @@ pub enum Op {
     Paste {
         x: i32,
         y: i32,
+    },
+    /// Paints stamp `name` (`stamps/<name>.ron` of the games dir, [`super::stamp`]) with its
+    /// top-left at (x, y). It must fit in the map, and its tilesets must be the map's.
+    Stamp {
+        x: i32,
+        y: i32,
+        name: String,
+    },
+    /// Sets the collision of each cell (in `rect`, or the whole map) whose metatile has a usual
+    /// collision ([`super::behavior::usual_collision`]: the extract's clear verdict, else its
+    /// behaviour) and disagrees with it (walkable against solid); other cells keep theirs.
+    AutoCollision {
+        #[serde(default)]
+        rect: Option<Area>,
+    },
+    /// Accepts the behaviour warnings of `cells` and of cells holding `metatiles`, for
+    /// `reason` (required). Changes no cell; `validate` honours it, reading it from the map's
+    /// edit scripts. An allowance that silences nothing is a warning.
+    AllowCollision {
+        #[serde(default)]
+        cells: Vec<(i32, i32)>,
+        #[serde(default)]
+        metatiles: Vec<u16>,
+        reason: String,
     },
     /// The 2x2 border (a list of 4 raw blocks, row-major).
     Border {
@@ -631,6 +681,56 @@ pub enum Op {
     Redo,
 }
 
+/// A rectangle of cells.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Area {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+/// What the ops that read outside the document need: stamps (from a games dir) and usual
+/// collisions (from a catalog). [`super::resources::Resources`] is the games dir's.
+pub trait Env: Send + Sync + std::fmt::Debug {
+    fn stamp(&self, name: &str) -> Result<Stamp>;
+    /// The usual collision of every cell of `d` (0 walkable, 1 solid), row-major.
+    fn usual_collisions(&self, d: &Doc) -> Vec<Option<u8>>;
+}
+
+/// An `Ascii` legend key: a char or a one-character string.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct LegendKey(char);
+
+impl<'de> Deserialize<'de> for LegendKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<LegendKey, D::Error> {
+        struct V;
+        impl serde::de::Visitor<'_> for V {
+            type Value = LegendKey;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("one character ('x' or \"x\")")
+            }
+            fn visit_char<E: serde::de::Error>(self, c: char) -> Result<LegendKey, E> {
+                Ok(LegendKey(c))
+            }
+            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<LegendKey, E> {
+                let mut it = s.chars();
+                match (it.next(), it.next()) {
+                    (Some(c), None) => Ok(LegendKey(c)),
+                    _ => Err(E::custom(format!("legend key {s:?} is not one character"))),
+                }
+            }
+        }
+        d.deserialize_any(V)
+    }
+}
+
+fn legend<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<char, Brush>, D::Error> {
+    let m = BTreeMap::<LegendKey, Brush>::deserialize(d)?;
+    Ok(m.into_iter().map(|(k, v)| (k.0, v)).collect())
+}
+
 fn face_down() -> String {
     "MOVEMENT_TYPE_FACE_DOWN".into()
 }
@@ -668,6 +768,8 @@ pub struct Editor {
     stroke: Option<Doc>,
     /// The document as last saved (`None`: never saved).
     saved: Option<Doc>,
+    /// Stamps and usual collisions (`Stamp` and `AutoCollision` fail without).
+    env: Option<Arc<dyn Env>>,
 }
 
 impl Editor {
@@ -680,7 +782,18 @@ impl Editor {
             redo: Vec::new(),
             clip: None,
             stroke: None,
+            env: None,
         }
+    }
+
+    /// With stamps and usual collisions (for `Stamp` and `AutoCollision`).
+    pub fn with_env(mut self, env: Arc<dyn Env>) -> Editor {
+        self.env = Some(env);
+        self
+    }
+
+    pub fn set_env(&mut self, env: Option<Arc<dyn Env>>) {
+        self.env = env;
     }
 
     /// Editing a document no file holds yet (dirty until saved).
@@ -739,7 +852,7 @@ impl Editor {
             _ => {}
         }
         let mut next = self.doc.clone();
-        apply_op(&mut next, op, self.clip.as_ref())?;
+        apply_op(&mut next, op, self.clip.as_ref(), self.env.as_deref())?;
         self.commit(next);
         Ok(())
     }
@@ -833,7 +946,8 @@ fn check_event_pos(d: &Doc, x: i16, y: i16) -> Result<()> {
 }
 
 /// Applies `op` to `d` (not `Undo`, `Redo` or `Copy`, which are the editor's).
-fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
+fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) -> Result<()> {
+    let need_env = || env.ok_or_else(|| anyhow::anyhow!("{op:?} needs a games dir"));
     match op {
         Op::Paint {
             x,
@@ -908,6 +1022,71 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>) -> Result<()> {
                         );
                     }
                 }
+            }
+        }
+        Op::Stamp { x, y, name } => {
+            let st = need_env()?.stamp(name)?;
+            let cells = st.cells()?;
+            st.check_tilesets(d)?;
+            rect_fits(d, *x, *y, st.width as i32, st.height as i32)?;
+            let w = st.width as i32;
+            for (i, &b) in cells.iter().enumerate() {
+                let (cx, cy) = (x + i as i32 % w, y + i as i32 / w);
+                let old = d.block(cx, cy).unwrap_or_default();
+                let el = match st.elevation {
+                    true => block_elevation(b),
+                    false => block_elevation(old),
+                };
+                d.set(
+                    cx,
+                    cy,
+                    block(b & BLOCK_METATILE_MASK, block_collision(b), el),
+                );
+            }
+        }
+        Op::AutoCollision { rect } => {
+            let env = need_env()?;
+            let a = rect.unwrap_or(Area {
+                x: 0,
+                y: 0,
+                w: d.width as i32,
+                h: d.height as i32,
+            });
+            rect_fits(d, a.x, a.y, a.w, a.h)?;
+            let usual = env.usual_collisions(d);
+            for cy in a.y..a.y + a.h {
+                for cx in a.x..a.x + a.w {
+                    let b = d.block(cx, cy).unwrap_or_default();
+                    let i = cy as usize * d.width as usize + cx as usize;
+                    if let Some(c) = usual.get(i).copied().flatten()
+                        && (block_collision(b) == 0) != (c == 0)
+                    {
+                        let (mt, el) = (b & BLOCK_METATILE_MASK, block_elevation(b));
+                        d.set(cx, cy, block(mt, c, el));
+                    }
+                }
+            }
+        }
+        Op::AllowCollision {
+            cells,
+            metatiles,
+            reason,
+        } => {
+            let a = &Allowance {
+                cells: cells.clone(),
+                metatiles: metatiles.clone(),
+                reason: reason.clone(),
+            };
+            ensure!(!a.reason.trim().is_empty(), "an allowance needs a reason");
+            ensure!(
+                !a.cells.is_empty() || !a.metatiles.is_empty(),
+                "an allowance lists cells or metatiles"
+            );
+            for &(x, y) in &a.cells {
+                d.need(x as i64, y as i64)?;
+            }
+            if !d.allow.contains(a) {
+                d.allow.push(a.clone());
             }
         }
         Op::Border { blocks } => d.border = border4(blocks)?,

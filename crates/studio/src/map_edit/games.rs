@@ -1,7 +1,8 @@
 //! A games dir (`games/<game>/`): where edited maps are saved, as committed RON.
 
-use super::model::{Doc, NewMap};
-use super::schema::{GameMap, from_ron, to_ron};
+use super::model::{Allowance, Doc, NewMap, Op};
+use super::schema::{GameMap, from_ron, from_script_ron, to_ron};
+use super::stamp::Stamp;
 use anyhow::{Context, Result, bail, ensure};
 use engine::data::BLOCK_METATILE_MASK;
 use extract::schema::{Layout, LayoutFile, MapFile, from_rows};
@@ -46,6 +47,43 @@ impl GamesDir {
         self.root.join("layouts")
     }
 
+    pub fn stamps_dir(&self) -> PathBuf {
+        self.root.join("stamps")
+    }
+
+    pub fn edits_dir(&self) -> PathBuf {
+        self.root.join("edits")
+    }
+
+    pub fn stamp_path(&self, name: &str) -> PathBuf {
+        self.stamps_dir().join(format!("{name}.ron"))
+    }
+
+    /// The saved stamps' names, sorted.
+    pub fn stamp_names(&self) -> Result<Vec<String>> {
+        ron_stems(&self.stamps_dir())
+    }
+
+    pub fn load_stamp(&self, name: &str) -> Result<Stamp> {
+        check_name(name)?;
+        self.check_case(NameKind::Stamp, name)?;
+        read(&self.stamp_path(name)).with_context(|| format!("stamp {name}"))
+    }
+
+    /// Writes `stamps/<name>.ron`; refuses to replace a saved stamp unless `replace`.
+    pub fn save_stamp(&self, name: &str, stamp: &Stamp, replace: bool) -> Result<()> {
+        check_name(name)?;
+        self.check_case(NameKind::Stamp, name)?;
+        stamp.cells()?;
+        let p = self.stamp_path(name);
+        ensure!(
+            replace || !p.exists(),
+            "{} exists (--force replaces it)",
+            p.display()
+        );
+        write(&p, &to_ron(stamp)?)
+    }
+
     pub fn map_path(&self, name: &str) -> PathBuf {
         self.maps_dir().join(format!("{name}.ron"))
     }
@@ -68,7 +106,65 @@ impl GamesDir {
         self.map_path(name).is_file()
     }
 
+    /// Refuses `name` when another saved map, layout or stamp (`kind`) has the same name but
+    /// for case: on a case-insensitive file system (macOS, Windows) both are one file.
+    pub fn check_case(&self, kind: NameKind, name: &str) -> Result<()> {
+        let names = match kind {
+            NameKind::Map => self.map_names()?,
+            NameKind::Layout => self.layout_names()?,
+            NameKind::Stamp => self.stamp_names()?,
+        };
+        refuse_case_clash(kind, &names, name)
+    }
+
+    /// The allowances (`Op::AllowCollision`) of `map`'s edit scripts
+    /// (`edits/<map>/<phase>_*.ron`, in build order); scripts that do not parse are skipped
+    /// (`hygiene` reports them).
+    pub fn allowances(&self, map: &str) -> Vec<Allowance> {
+        let dir = self.edits_dir().join(map);
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            return Vec::new();
+        };
+        let mut files: Vec<(u32, PathBuf)> = rd
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter_map(|p| {
+                let name = p.file_name()?.to_str()?.to_string();
+                let (phase, what) = super::batch::split_name(&name)?;
+                (what != super::batch::CREATE).then_some((phase, p))
+            })
+            .collect();
+        files.sort();
+        let mut out = Vec::new();
+        for (_, p) in files {
+            let Ok(ops) = std::fs::read_to_string(&p)
+                .map_err(anyhow::Error::from)
+                .and_then(|t| from_script_ron::<Vec<Op>>(&t))
+            else {
+                continue;
+            };
+            for op in ops {
+                if let Op::AllowCollision {
+                    cells,
+                    metatiles,
+                    reason,
+                } = op
+                {
+                    let a = Allowance {
+                        cells,
+                        metatiles,
+                        reason,
+                    };
+                    if !out.contains(&a) {
+                        out.push(a);
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn load_map(&self, name: &str) -> Result<GameMap> {
+        self.check_case(NameKind::Map, name)?;
         let p = self.map_path(name);
         let map: GameMap = read(&p)?;
         ensure!(
@@ -81,13 +177,17 @@ impl GamesDir {
     }
 
     pub fn load_layout(&self, name: &str) -> Result<Layout> {
+        self.check_case(NameKind::Layout, name)?;
         read(&self.layout_path(name))
     }
 
+    /// A saved map, with the allowances of its edit scripts.
     pub fn load(&self, name: &str) -> Result<Doc> {
         let map = self.load_map(name)?;
         let layout = self.load_layout(&map.layout)?;
-        Doc::from_parts(map, layout)
+        let mut doc = Doc::from_parts(map, layout)?;
+        doc.allow = self.allowances(name);
+        Ok(doc)
     }
 
     /// A new map's document, refused when `maps/<name>.ron` exists. With `shared_layout` it
@@ -97,6 +197,8 @@ impl GamesDir {
         let layout = spec.layout_name();
         check_name(&spec.name)?;
         check_name(&layout)?;
+        self.check_case(NameKind::Map, &spec.name)?;
+        self.check_case(NameKind::Layout, &layout)?;
         ensure!(
             !self.exists(&spec.name),
             "{} exists",
@@ -122,6 +224,8 @@ impl GamesDir {
     pub fn save(&self, doc: &Doc) -> Result<()> {
         check_name(&doc.map.name)?;
         check_name(&doc.map.layout)?;
+        self.check_case(NameKind::Map, &doc.map.name)?;
+        self.check_case(NameKind::Layout, &doc.map.layout)?;
         write(&self.layout_path(&doc.map.layout), &to_ron(&doc.layout())?)?;
         write(&self.map_path(&doc.map.name), &to_ron(&doc.map)?)
     }
@@ -131,6 +235,8 @@ impl GamesDir {
     pub fn create(&self, doc: &Doc) -> Result<()> {
         check_name(&doc.map.name)?;
         check_name(&doc.map.layout)?;
+        self.check_case(NameKind::Map, &doc.map.name)?;
+        self.check_case(NameKind::Layout, &doc.map.layout)?;
         if self.exists(&doc.map.name) {
             bail!("{} exists", self.map_path(&doc.map.name).display());
         }
@@ -158,7 +264,56 @@ impl GamesDir {
     }
 }
 
-fn ron_stems(dir: &Path) -> Result<Vec<String>> {
+/// What a name names (case clash messages).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameKind {
+    Map,
+    Layout,
+    Stamp,
+}
+
+impl std::fmt::Display for NameKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(match self {
+            NameKind::Map => "map",
+            NameKind::Layout => "layout",
+            NameKind::Stamp => "stamp",
+        })
+    }
+}
+
+/// Refuses `name` when one of `names` equals it but for case.
+pub fn refuse_case_clash(kind: NameKind, names: &[String], name: &str) -> Result<()> {
+    if let Some(other) = case_clash(names, name) {
+        bail!(
+            "{kind} {name} differs from {kind} {other} only in case (one file on a \
+             case-insensitive file system): use {other}, or another name"
+        );
+    }
+    Ok(())
+}
+
+/// A name of `names` equal to `name` but for ASCII case.
+pub fn case_clash<'a>(names: &'a [String], name: &str) -> Option<&'a String> {
+    names
+        .iter()
+        .find(|n| n.as_str() != name && n.eq_ignore_ascii_case(name))
+}
+
+/// Pairs of `names` that differ only in case (possible on a case-sensitive file system).
+pub fn case_clashes(names: &[String]) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for (i, a) in names.iter().enumerate() {
+        for b in &names[i + 1..] {
+            if a.eq_ignore_ascii_case(b) {
+                out.push((a.clone(), b.clone()));
+            }
+        }
+    }
+    out
+}
+
+pub(crate) fn ron_stems(dir: &Path) -> Result<Vec<String>> {
     if !dir.is_dir() {
         return Ok(Vec::new());
     }
@@ -180,7 +335,7 @@ fn read<T: serde::de::DeserializeOwned>(p: &Path) -> Result<T> {
     from_ron(&text).with_context(|| format!("parsing {}", p.display()))
 }
 
-fn write(p: &Path, text: &str) -> Result<()> {
+pub(crate) fn write(p: &Path, text: &str) -> Result<()> {
     if std::fs::read_to_string(p).is_ok_and(|old| old == text) {
         return Ok(());
     }
@@ -193,15 +348,29 @@ fn write(p: &Path, text: &str) -> Result<()> {
         .with_context(|| format!("renaming {} to {}", tmp.display(), p.display()))
 }
 
-/// Problems with what a games dir holds for the editor: anything but `maps/*.ron` and
-/// `layouts/*.ron` under those two dirs, and any file that is not its schema's canonical RON
-/// (re-serialized byte for byte), so the files hold nothing but names, raw block indices and
-/// event data: no tiles, palettes or metatile graphics. When the extract is present
-/// ([`super::catalog::extracted_dir`]), also every layout copied from an extracted one
-/// ([`copies`]). Other top-level entries are not the editor's and are not looked at.
+/// Problems with what a games dir holds for the editor:
+/// - in `maps/`, `layouts/` and `stamps/`: anything but `*.ron` files in their schema's
+///   canonical RON (re-serialized byte for byte), so the files hold nothing but names, raw
+///   block indices and event data: no tiles, palettes or metatile graphics;
+/// - in `edits/`: anything but `<Map>/<phase>_<what>.ron` files that parse as a create spec
+///   or an edit script (`batch`);
+/// - when the extract is present ([`super::catalog::extracted_dir`]), every layout or stamp
+///   copied from an extracted map ([`copies`]).
+///
+/// Other top-level entries are not the editor's and are not looked at.
 pub fn hygiene(games: &GamesDir) -> Result<Vec<String>> {
+    #[derive(Clone, Copy)]
+    enum Kind {
+        Map,
+        Layout,
+        Stamp,
+    }
     let mut bad = Vec::new();
-    for (dir, is_map) in [(games.maps_dir(), true), (games.layouts_dir(), false)] {
+    for (dir, kind) in [
+        (games.maps_dir(), Kind::Map),
+        (games.layouts_dir(), Kind::Layout),
+        (games.stamps_dir(), Kind::Stamp),
+    ] {
         if !dir.is_dir() {
             continue;
         }
@@ -216,10 +385,13 @@ pub fn hygiene(games: &GamesDir) -> Result<Vec<String>> {
                 bad.push(format!("{}: not UTF-8 text", p.display()));
                 continue;
             };
-            let again = if is_map {
-                from_ron::<GameMap>(&text).and_then(|m| to_ron(&m))
-            } else {
-                from_ron::<Layout>(&text).and_then(|l| to_ron(&l))
+            let again = match kind {
+                Kind::Map => from_ron::<GameMap>(&text).and_then(|m| to_ron(&m)),
+                Kind::Layout => from_ron::<Layout>(&text).and_then(|l| to_ron(&l)),
+                Kind::Stamp => from_ron::<Stamp>(&text).and_then(|s| {
+                    s.cells()?;
+                    to_ron(&s)
+                }),
             };
             match again {
                 Ok(again) if again == text => {}
@@ -227,6 +399,9 @@ pub fn hygiene(games: &GamesDir) -> Result<Vec<String>> {
                 Err(e) => bad.push(format!("{}: {e:#}", p.display())),
             }
         }
+    }
+    if games.edits_dir().is_dir() {
+        bad.extend(super::batch::check_edits(&games.edits_dir()));
     }
     let extracted = super::catalog::extracted_dir();
     if extracted.join("maps").is_dir() {
@@ -252,11 +427,15 @@ struct Grid {
 
 impl Grid {
     fn new(name: String, l: &Layout) -> Grid {
+        Grid::from_rows(name, l.width, l.height, &l.blocks)
+    }
+
+    fn from_rows(name: String, w: u16, h: u16, rows: &[extract::schema::Row]) -> Grid {
         Grid {
             name,
-            w: l.width as usize,
-            h: l.height as usize,
-            cells: (from_rows(&l.blocks).iter())
+            w: w as usize,
+            h: h as usize,
+            cells: (from_rows(rows).iter())
                 .map(|b| b & BLOCK_METATILE_MASK)
                 .collect(),
         }
@@ -307,9 +486,10 @@ fn extracted_grids(extracted: &Path) -> Result<Vec<Grid>> {
     Ok(grids)
 }
 
-/// Every games dir layout whose metatiles equal an extracted layout's, or that holds a
-/// [`COPY_WINDOW`]-square of one (with at least [`COPY_MIN_DISTINCT`] metatiles): authored maps
-/// may use the extract's tilesets, not its maps.
+/// Every games dir layout or stamp whose metatiles equal an extracted layout's, or that holds
+/// a [`COPY_WINDOW`]-square of one (with at least [`COPY_MIN_DISTINCT`] metatiles): authored
+/// maps may use the extract's tilesets, not its maps. (A stamp smaller than the square is never
+/// flagged by itself; a map it is stamped on is, if the result copies an extracted square.)
 pub fn copies(games: &GamesDir, extracted: &Path) -> Result<Vec<String>> {
     let theirs = extracted_grids(extracted)?;
     let mut index = HashMap::<u64, Vec<(usize, usize, usize)>>::new();
@@ -321,12 +501,24 @@ pub fn copies(games: &GamesDir, extracted: &Path) -> Result<Vec<String>> {
         }
     }
     let mut bad = Vec::new();
+    let mut ours = Vec::new();
     for name in games.layout_names()? {
         let Ok(l) = games.load_layout(&name) else {
             continue; // `hygiene` reports it
         };
-        let ours = Grid::new(name.clone(), &l);
-        let path = games.layout_path(&name);
+        ours.push((games.layout_path(&name), Grid::new(name, &l)));
+    }
+    for name in games.stamp_names()? {
+        let Ok(s) = games.load_stamp(&name) else {
+            continue;
+        };
+        if s.cells().is_err() {
+            continue; // `hygiene` reports it
+        }
+        let g = Grid::from_rows(name.clone(), s.width, s.height, &s.blocks);
+        ours.push((games.stamp_path(&name), g));
+    }
+    for (path, ours) in ours {
         if let Some(t) = (theirs.iter()).find(|t| t.w == ours.w && t.cells == ours.cells) {
             bad.push(format!(
                 "{}: the blocks of extracted {}",
