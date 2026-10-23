@@ -5,13 +5,20 @@
 //! - [`state`]: [`State`] (map, cell, flags, vars, party, bag, money, objects, badges,
 //!   respawn) and [`Mode`] (what the game waits for), and `State::semantic` for the shared
 //!   `explore::semantic::Semantic`;
-//! - [`boot`]: power-on to the first control in the truck, from RAM.
+//! - [`boot`]: power-on to the first control in the truck, from RAM;
+//! - [`drive`]: settling, walking and the battle policy, from RAM; [`intro`]: the truck to
+//!   our new game's start;
+//! - [`live`]: the spine's steps and the branches' macros on BPEE (Task O2);
+//! - [`oracle`]: both spines side by side, the diffs, the `Parity` findings, the branches.
 //!
 //! Nothing ROM-derived is committed: the ROM comes from `PKR_ROM_US` at run time and is
 //! checked against [`BPEE_SHA1`] (the decomp's `rom.sha1`).
 
 pub mod boot;
 pub mod drive;
+pub mod intro;
+pub mod live;
+pub mod oracle;
 pub mod state;
 pub mod sym;
 

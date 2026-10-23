@@ -60,6 +60,11 @@ pub enum MacroKind {
     /// Hold `dir` until the map changes (a door, a mat or a connection from the current
     /// cell), then resolve. A spine step.
     Push { dir: Dir },
+    /// From the settled field: START, BAG, `item` (an `ItemId`), USE, through the bag's
+    /// messages and questions (yes), then the party menu on slot `mon`, forgetting move slot
+    /// `forget` if a move must go (a TM or HM); then out of every screen to the field, and
+    /// resolve. Reads the screens' state each frame (`engine::ui`). A spine step.
+    UseItem { item: u16, mon: u8, forget: u8 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -170,13 +175,17 @@ pub enum FindingKind {
     /// A branch that changed no progress state could not rejoin the spine: its recovery or the
     /// spine's verification window failed, or the progress state differs after it.
     Divergence,
+    /// The vanilla oracle (BPEE in mGBA, `cargo xtask vanilla`) disagrees with our engine on a
+    /// story field at a spine step boundary or a branch's end, outside the RNG tolerances
+    /// (`explore::oracle`): report-only, one per (segment, step kind, field, map).
+    Parity,
 }
 
 impl FindingKind {
     /// Whether rows of this kind are reports, not bugs: they never stop a job, and progress
     /// and `explore findings --bugs` count them apart. (`SlowFrame`s never become rows.)
     pub fn report_only(self) -> bool {
-        matches!(self, FindingKind::Unsupported)
+        matches!(self, FindingKind::Unsupported | FindingKind::Parity)
     }
 }
 
@@ -309,6 +318,11 @@ mod tests {
             MacroKind::Press {
                 keys: 0x0101,
                 frames: 9,
+            },
+            MacroKind::UseItem {
+                item: 344,
+                mon: 0,
+                forget: 2,
             },
         ];
         for (i, kind) in all.into_iter().enumerate() {

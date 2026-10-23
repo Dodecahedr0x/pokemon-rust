@@ -252,7 +252,7 @@ pub struct DbStats {
     pub spine_cells: u64,
 }
 
-const FINDING_KINDS: [FindingKind; 8] = [
+const FINDING_KINDS: [FindingKind; 9] = [
     FindingKind::Panic,
     FindingKind::Softlock,
     FindingKind::RoundTrip,
@@ -261,6 +261,7 @@ const FINDING_KINDS: [FindingKind; 8] = [
     FindingKind::SlowFrame,
     FindingKind::Unsupported,
     FindingKind::Divergence,
+    FindingKind::Parity,
 ];
 
 fn kind_str(k: FindingKind) -> String {
@@ -756,6 +757,36 @@ impl Db {
                     },
                 )?;
             }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Stores the vanilla oracle's `Parity` findings (one transaction): `(origin, draft)` with
+    /// `origin` the spine position the diff was taken at (its inputs from a new game are the
+    /// repro on our side), and `branch` the branch row the diff ended, if any.
+    pub fn put_parity(
+        &mut self,
+        spine: &SpineRun,
+        findings: &[(usize, Option<i64>, FindingDraft)],
+        run: i64,
+    ) -> Result<(), DbError> {
+        let build = self.build;
+        let tx = self.conn.transaction()?;
+        for (origin, branch, f) in findings {
+            let frame = spine.positions.get(*origin).map_or(0, |p| p.frame);
+            let prefix = runs::split_at(&spine.inputs, frame).0;
+            put_finding(
+                &tx,
+                build,
+                run,
+                &NewFinding {
+                    draft: f,
+                    branch: *branch,
+                    origin: Some(*origin as u32),
+                    prefix: &prefix,
+                },
+            )?;
         }
         tx.commit()?;
         Ok(())

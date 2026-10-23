@@ -56,6 +56,7 @@ pub mod layout {
     pub const OE_LOCAL_ID: u32 = 0x08;
     pub const OE_MAP_NUM: u32 = 0x09;
     pub const OE_MAP_GROUP: u32 = 0x0A;
+    pub const OE_INITIAL_COORDS: u32 = 0x0C;
     pub const OE_CURRENT_COORDS: u32 = 0x10;
     pub const OE_FACING: u32 = 0x18; // low nibble: DIR_SOUTH 1, NORTH 2, WEST 3, EAST 4
     /// `MAP_OFFSET`: object coordinates count the 7-cell border.
@@ -87,6 +88,7 @@ pub mod layout {
     pub const BATTLE_MON_SIZE: u32 = 88;
     pub const BM_SPECIES: u32 = 0;
     pub const BM_MOVES: u32 = 12;
+    pub const BM_PP: u32 = 36;
     pub const BM_HP: u32 = 40;
     pub const BM_LEVEL: u32 = 42;
     pub const BM_MAX_HP: u32 = 44;
@@ -99,6 +101,21 @@ pub mod layout {
     pub const NS_CURRENT_PAGE: u32 = 0x1E22;
     pub const NS_CURSOR_SPRITE_ID: u32 = 0x1E23;
     pub const EWRAM: std::ops::Range<u32> = 0x0200_0000..0x0204_0000;
+    // gBattleTypeFlags
+    pub const BATTLE_TYPE_TRAINER: u32 = 1 << 3;
+    pub const BATTLE_TYPE_FIRST_BATTLE: u32 = 1 << 4;
+    // gBattleOutcome
+    pub const B_OUTCOME_LOST: u8 = 2;
+    pub const B_OUTCOME_DREW: u8 = 3;
+    // Battle script opcodes (`B_SCR_OP_*`).
+    pub const B_SCR_OP_YESNOBOXLEARNMOVE: u8 = 0x5A;
+    pub const B_SCR_OP_YESNOBOXSTOPLEARNINGMOVE: u8 = 0x5B;
+    // struct MonSummaryScreenData
+    pub const PSS_NEW_MOVE: u32 = 0x40C4;
+    pub const PSS_FIRST_MOVE_INDEX: u32 = 0x40C6;
+    // struct PokenavResources
+    pub const PN_MODE: u32 = 8;
+    pub const POKENAV_MODE_FORCE_CALL_READY: u16 = 1;
 }
 
 use layout::*;
@@ -155,6 +172,8 @@ pub struct Object {
     pub gfx: u8,
     pub movement_type: u8,
     pub cell: (i16, i16),
+    /// The spawn cell (`initialCoords`).
+    pub home: (i16, i16),
     pub facing: Dir,
     pub visible: bool,
     pub is_player: bool,
@@ -252,6 +271,23 @@ pub struct Vanilla {
     /// The starter [`Vanilla::settle`] picks on Birch's screen (`sStarterMon` index: 0 Treecko,
     /// 1 Torchic, 2 Mudkip). Mudkip by default, as our engine's `Start::AfterStarter`.
     pub starter: u8,
+    /// How [`Vanilla::settle`] answers (`explore::Opts`: yes/no, battles).
+    pub answers: explore::Opts,
+    /// The map [`Vanilla::answers`]' yes/no `choice` holds on: once a warp took the player
+    /// elsewhere, yes/no is answered YES (the choice was for the interaction that warped; our
+    /// engine's macro ends at that warp, before the next map's frame script asks).
+    pub answers_map: Option<MapId>,
+    /// Yes/no boxes opened since the answers were set (`policy::YES_ONCE`).
+    pub yes_nos: u32,
+    /// Our battle tables, for the move choice (`policy::first_damaging_slot_of`,
+    /// `best_damaging_slot_of`); without them the first move is used.
+    pub tables: Option<&'static engine::mon::BattleTables>,
+    /// `gBattleTypeFlags` of every battle [`Vanilla::settle`] has seen start, in order.
+    pub battles: Vec<u32>,
+    /// `gBattleOutcome` of every battle [`Vanilla::settle`] has seen end (`B_OUTCOME_*`).
+    pub outcomes: Vec<u8>,
+    /// Print every mode change [`Vanilla::settle`] sees (`PKR_VANILLA_TRACE`).
+    pub trace: bool,
 }
 
 impl Vanilla {
@@ -261,6 +297,13 @@ impl Vanilla {
             sym,
             frames: 0,
             starter: 2,
+            answers: explore::Opts::default(),
+            answers_map: None,
+            yes_nos: 0,
+            tables: None,
+            battles: Vec::new(),
+            outcomes: Vec::new(),
+            trace: std::env::var_os("PKR_VANILLA_TRACE").is_some(),
         }
     }
 
@@ -365,6 +408,9 @@ impl Vanilla {
             if tasks.contains(&s.task_multichoice) {
                 return Mode::Multichoice;
             }
+            if tasks.contains(&s.task_match_call) {
+                return Mode::Message;
+            }
             if self.fade_active() {
                 return Mode::Transition;
             }
@@ -448,10 +494,53 @@ impl Vanilla {
                 s16(OE_CURRENT_COORDS) - MAP_OFFSET,
                 s16(OE_CURRENT_COORDS + 2) - MAP_OFFSET,
             ),
+            home: (
+                s16(OE_INITIAL_COORDS) - MAP_OFFSET,
+                s16(OE_INITIAL_COORDS + 2) - MAP_OFFSET,
+            ),
             facing: dir(o[OE_FACING as usize]),
             visible: o[1] & 0x20 == 0,
             is_player: o[2] & 1 != 0,
         })
+    }
+
+    /// Writes `mov` with `pp` into move slot `slot` of the lead (`gPlayerParty[0]`'s
+    /// encrypted Attacks substruct, and its checksum): what teaching a TM or HM from the party
+    /// menu leaves, which the oracle does not drive (a `Bypass` with `teach`).
+    pub fn teach(&mut self, slot: u8, mov: u16, pp: u8) {
+        let addr = self.sym.player_party;
+        let mut raw = self.emu.read_bytes(addr, MON_SIZE as usize);
+        let u32_at = |b: &[u8], i: usize| u32::from_le_bytes(b[i..i + 4].try_into().unwrap());
+        let personality = u32_at(&raw, MON_PERSONALITY);
+        let key = personality ^ u32_at(&raw, MON_OT_ID);
+        let mut secure = [0u8; 48];
+        for (i, w) in secure.chunks_mut(4).enumerate() {
+            w.copy_from_slice(&(u32_at(&raw, MON_SECURE + 4 * i) ^ key).to_le_bytes());
+        }
+        let [_, a, _, _] = substruct_positions(personality).map(|p| 12 * p);
+        let s = usize::from(slot.min(3));
+        secure[a + 2 * s..a + 2 * s + 2].copy_from_slice(&mov.to_le_bytes());
+        secure[a + 8 + s] = pp;
+        let sum = (0..24).fold(0u16, |acc, i| {
+            acc.wrapping_add(u16::from_le_bytes([secure[2 * i], secure[2 * i + 1]]))
+        });
+        raw[MON_CHECKSUM..MON_CHECKSUM + 2].copy_from_slice(&sum.to_le_bytes());
+        for (i, w) in secure.chunks(4).enumerate() {
+            let v = u32::from_le_bytes(w.try_into().unwrap()) ^ key;
+            raw[MON_SECURE + 4 * i..MON_SECURE + 4 * i + 4].copy_from_slice(&v.to_le_bytes());
+        }
+        self.emu.write_bytes(addr, &raw);
+    }
+
+    /// Sets every party mon's HP to its max (the unencrypted party fields): the oracle's
+    /// alignment after battles our side never fought.
+    pub fn heal_party(&mut self) {
+        let n = u32::from(self.emu.read_u8(self.sym.player_party_count)).min(6);
+        for i in 0..n {
+            let at = self.sym.player_party + i * MON_SIZE;
+            let max = self.emu.read_u16(at + MON_MAX_HP as u32);
+            self.emu.write_bytes(at + MON_HP as u32, &max.to_le_bytes());
+        }
     }
 
     /// The live party (`gPlayerParty`, not the save block's copy).
@@ -567,6 +656,10 @@ impl State {
             objects: (self.objects.iter())
                 .filter(|o| !o.is_player && o.visible && o.map == self.map)
                 .map(|o| (o.local_id, o.cell))
+                .collect(),
+            homes: (self.objects.iter())
+                .filter(|o| !o.is_player && o.visible && o.map == self.map)
+                .map(|o| (o.local_id, o.home))
                 .collect(),
         }
     }

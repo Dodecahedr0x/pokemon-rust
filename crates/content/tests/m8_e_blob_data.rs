@@ -330,8 +330,7 @@ fn unimplemented_stat_effects_are_plain_unsupported() {
         out.rs
             .contains(&format!("effect: MoveEffect::Unsupported({n})"))
     );
-    // Every stat change has words now (G1); since Wave C2b only the unused slots are
-    // unimplemented (Transform is native).
+    // Every stat change has words now (G1): an unused slot is unsupported only as unimplemented.
     assert!(out.report.contains(&format!(
         "unsupported effect EFFECT_UNUSED_60 (MoveEffect::Unsupported): {id}"
     )));

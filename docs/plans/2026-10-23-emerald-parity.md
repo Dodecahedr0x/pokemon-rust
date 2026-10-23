@@ -118,8 +118,8 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| `bag-use-hm06` (357) | Mauville City (32,15), after HM06 | no bag screen: `World::use_item(HM06)` stands for the bag's USE (no input); the party menu then teaches Rock Smash with inputs (lead, "forget a move?" yes, Mud-Slap in the summary) | bag: use a TM/HM (`ItemUseOutOfBattle_TMHM`, `item_use.c`) | Milestone 9 Task B (bag) |
-| `bag-use-hm03` (492) | Petalburg City, Wally's house (2,4), after HM03 | as `bag-use-hm06`: the party menu teaches Surf over Water Gun (slot 3) | bag: use a TM/HM | Milestone 9 Task B (bag) |
+
+None today: the last two (`bag-use-hm06`, `bag-use-hm03`) went with Milestone 9 Task B's bag; the spine teaches Rock Smash and Surf through START → BAG → the HM → USE → the party menu (`Step::UseItem`).
 
 **Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); move effects 208 (Brawly's gym), 176 (Route 110 wild), 158 (Route 113) and 043 (Route 112); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility` (Route 111 (16,139)); `FLDEFF_USE_ROCK_SMASH` and `SPECIAL_RockSmashWildEncounter` (Route 111 (18,102)); `SPECIAL_CableCar` (degraded: the ride is a fade and Gen3's 602 frames, Route 112's station). Surf works (Wave C field moves): the spine surfs Route 118 and walks Route 119 to Fortree; the next gap is Fortree's gym, behind the Kecleon that only the Devon Scope (Route 120, Steven) reveals.
 
@@ -390,6 +390,99 @@ Policy:
 - **Spine:** the Lavaridge gym through its holes and geysers (eight `Enter`s); the cable car by talking to the attendant; Petalburg's doors through their signs (`Use` + `Choose(0)`), beating the room trainers on the way; a `Goto` on Route 117 before its `Cross` (the old path drew a Lydia battle that whited out).
 
 **Not done.** The cable car's ride scene (`cable_car.c`) and the Battle Tent challenges themselves; the ash, Fortree/Pacifidlog bridges and truck step callbacks; the explorer's planner still treats cracked floors as plain floor.
+
+### Task O2 — the vanilla spine and branches (branch `worktree-agent-a3d3b14cc3c791e54`)
+
+**What is built.**
+- **`vanilla::Live`** expands `spine::Step`s and branch macros on BPEE, all from RAM:
+  - walks plan with our planner over our map data, with the objects from RAM (`walk_to`);
+  - messages are answered with A; yes/no and multichoice follow `Opts::choice`. The multichoice cursor is `sMenu.cursorPos`. When the same script asks the same multichoice again, the next item is picked (the Rustboro school tutorial). `YES_ONCE` answers yes to the first yes/no only;
+  - battles use the first damaging move, `Best` or `BestLearn`, read from `gBattleMons` and the cursors. A lost battle is rerolled from a save state. The learn prompt (0x5A) and the summary screen's forget cursor (`sMonSummaryScreen`, newMove at +0x40C4, cursor at +0x40C6) follow `policy::forget_slot_of` on the lead, and never forget an HM (Gen3 `IsHMMove2`);
+  - `Train` and `TrainFresh` run until the lead's level holds; `TrainFresh` also stops at half HP or under 20 PP. `WaitFor` polls the object in RAM;
+  - `Talk` tries every approach, doors last. For an object Gen3 has not spawned (off camera), it first walks to the sides of the object's template cell. Match Call (`ExecuteMatchCall`) counts as a message. The PokéNav tutorial (`CB2_Pokenav`, mode `FORCE_CALL_READY`) is passed with A, and DOWN every 48 taps;
+  - **`Bypass` steps are played natively.** With no warp, nothing is played. A trip to another map (the Briney sails, the cable car) is played with the scripted answer in `NATIVE_CHOICE`. A target inside the same building (a gym) is found by a DFS over save states: it steps on floor triggers and indoor warps, and talks to the objects next to the target. The DFS goes at most 5 deep and tries at most 150 moves, nearest first. A teach bypass writes the move into vanilla's lead (`Vanilla::teach`: the Attacks substruct, re-encrypted with its checksum, through the new `Emu::write_bytes`). After search battles that our bypass warps past, the party is healed (`heal_party`).
+- **`cargo xtask vanilla spine`** (`vanilla::oracle::run_spine`):
+  - boots BPEE, plays the intro and aligns it on our position 0, then plays both spines step by step;
+  - prints the `Semantic` diff at every boundary, with the deltas new at that boundary, the frames, any vanilla failure and the bypass note;
+  - stores each new delta as a `FindingKind::Parity` finding, signed on the step and the field (`--no-db` skips the db);
+  - stops after 4 failed vanilla steps in a row;
+  - prints the frames per segment.
+- **`cargo xtask vanilla branches`** reruns the spine with a save state at every position. It then replays every `rejoined` and `diverged_expected` branch's action and macros on both games, from that position. It diffs the end states relative to the origin (deltas already present at the origin are left out), and stores each delta as a `Parity` finding.
+
+**Spine (badge 5 + HM03 spine, 465 positions).** The last run (`--no-db`) compared **all 465 positions** in 712 s:
+- 4 vanilla steps failed (Meteor Falls `Goto`, Flannery's `Talk`, the Rusturf talk after Wanda's scene had already played, and Wally's house `Enter` from inside the Petalburg gym), and the run found 299 Parity deltas;
+- frames: ours 757,083, vanilla 1,040,909, plus 15,680 for vanilla's intro up to the start;
+- **badges 1, 2 and 3 are reached on vanilla**, and so are the Verdanturf/Rusturf scene (Wanda, HM04) and the trip back to Petalburg;
+- **badges 4 and 5 are not**: the Lavaridge geyser search and the Petalburg gym doors search both failed;
+- every diff on the way is triaged below.
+
+The earlier db run, which stopped at 447 in Rusturf, stored 271 Parity findings.
+
+Vanilla took 0 to 52% more frames per segment:
+- start, oldale_center, may: 36–45%;
+- petalburg, rustboro, badge1, devon_goods, dewford: 35–52% (Gen3's walk speed and text, a parity gap only if we choose to count frames);
+- lab, pokedex, woods, badge4: about equal.
+
+**Bypasses played natively on vanilla:**
+- `mauville-gym-barriers` (before Wave C4 played it): the search found the switches at (4,12), (3,9) … (8,9). Vanilla then lost to Wattson at 40 HP after the gym trainers, which is what `heal_party` is for.
+- `teach-hm`: written into the lead.
+- `rock-smash-forgotten-south`: reached by talking to the rock at (18,101).
+- `cable-car`: the native ride lands at (6,7) on `MAP_MT_CHIMNEY_CABLE_CAR_STATION`. Ours lands at (6,4) on the Route 112 station. Accepted on the map.
+- `lavaridge-gym-warps`: **not found**. A B1F geyser does not fire on a walk. The Flannery `Talk` then fails, so every diff from position 418 on is a consequence.
+- `rock-smash-forgotten-rusturf`: in the first run, the bypass accepted the player's own cell and never smashed the boulder, so vanilla stayed in Rusturf. It now talks to the object next to it first. Vanilla then smashes the rock and plays Wanda's scene inside the bypass (HM04, the tunnel opened), one step earlier than ours, which is a boundary-timing difference. The spine's following `Talk` fails only because that scene is already over.
+- `petalburg-gym-doors`: **not found**. The room doors open after the room's trainer is beaten, and the search only talks to objects next to the target, so it never finds the trigger. Vanilla stays at (4,106), so Norman's badge and HM03 (458 to 464) are oracle consequences.
+
+**Spine diffs, triaged.**
+
+| Diff (positions) | Class | Feature / cause |
+|---|---|---|
+| `VAR_DAILY_WILDS` ours 0 at every boundary, vanilla counting up (6 → 274) | **engine gap** | `IncrementDailyWildBattles` (`battle_setup.c`, every wild battle start) is never called by our engine. `content::new_game` sets 1 only for the skipped rescue. |
+| Party: ours forgot Rock Smash (249) for Muddy Water (330) at 384; vanilla kept it | **engine/explorer gap** | Gen3 `IsHMMove2` refuses to forget an HM; our learn prompt and `policy::forget_slot` allow it. The spine's `rock-smash-forgotten-*` bypasses exist only because of this. |
+| `FLAG_ENABLE_ROXANNE_FIRST_CALL` set / `FLAG_ENABLE_ROXANNE_MATCH_CALL` clear (182); the same for Wally (`FIRST_WALLY_POKENAV_CALL` vs `WALLY_MATCH_CALL`, 262) | **engine gap** | The step-count calls in `TryStartStepCountScript` (`field_control_avatar.c`). `ShouldDoRoxanneCall` and `ShouldDoWallyCall` (`field_specials.c`) fire after 250 steps on a town or route while the first-call flag is set. They start `RustboroCity_Gym_EventScript_RegisterRoxanne` (and Wally's equivalent), which swaps the flags. Ours runs only the friendship step counter there. |
+| `FLAG_REGISTERED_TRENT`, `_LYDIA`, `_ISAAC`, `_KAREN` (363, 437, 445) | expected (RNG) | The trainers registered after a battle depend on which trainers saw the player (walks and wanderers differ). Follows from trainer-flag differences (below). |
+| Trainer flags 0x75B, 0x768, 0x6DC, 0x7EA/0x7EB, 0x6D8, 0x71A/0x721, 0x618/0x769/0x777, 0x647, 0x64E, 0x773 | expected (RNG) | `TRAINER_FLAGS_START` + trainer id: a different trainer battled on the way, depending on positions and wanderers. Money follows: ±64 to 1,044, and up to 2,640 after the Flannery failure. |
+| `FLAG_MIRAGE_TOWER_VISIBLE` (396) | **engine gap** | `SPECIAL_SetMirageTowerVisibility` (`field_specials.c`, from the Route 111 on-load script) is `Unsupported`. |
+| Boundary timing: `VAR_BIRCH_LAB_STATE` (6), the Pokédex flags and Poké Balls (27), Petalburg gym Wally (45), PokéNav/Devon flags (99), Rustboro Match Call/Route 104 (105), the Briney sail (119), Scott (174) | expected | Vanilla's `settle` runs the next frame/trigger script inside the step, while ours stops at the step's own end. The state matches at the next boundary that has no pending script. |
+| Cell/facing ±1 after `Train`/`TrainFresh` (139–344), on talks (8, 164, 252, 356), on Meteor Falls `Goto` (380) | expected / oracle | Grass walks end on the encounter cell. A talk approach picks another side. At 380 vanilla stopped at (13,18) because a scene blocks the cell. |
+| `party[0].exp` (13), `party[0].moves` slot 3 (38), `party[0].species` 284 vs 285 (332), HP buckets | expected (RNG) | Wild levels and the timing of level-ups and evolutions under `~lv`/`~hp` tolerance. |
+| `object 10`/`19` present in ours, absent in vanilla (46, 64) | expected | Gen3 spawns objects only around the camera (O1's tolerance note). |
+| Cable car (403): map, cell, `VAR_CABLE_CAR_STATION_STATE` | oracle | The native ride versus our bypass warp. Accepted on the map. |
+| Flannery's badge and Go-Goggles (417 to 423, carried on), Norman's badge and HM03 (457 to 464) | oracle | The Lavaridge geyser and the Petalburg gym doors searches failed, so vanilla never fought Flannery or Norman. |
+
+**Branches** (badge 5 spine db: 789 replayed, 58 more start past vanilla's last position): 568 equal, 119 with deltas, 102 vanilla failures; 788 Parity findings.
+- **Top deltas, by count:**
+  - cell 184, facing 100, map 54: mostly the vanilla failures;
+  - `VAR_DAILY_WILDS` 129: the engine gap above;
+  - money 108: RNG trainers;
+  - party HP 34: RNG;
+  - `FLAG_RECEIVED_TM_BULLET_SEED`/`TM09` 30: origin 64, where vanilla's talk to object 17 failed;
+  - `FLAG_LANDMARK_TRICK_HOUSE` 17: origin 232, where vanilla found no path to the Trick House door (`Route110_TrickHouseEntrance` sets it);
+  - `VAR_DAILY_PICKED_BERRIES` + `ITEM_ORAN_BERRY` 14;
+  - `FLAG_0x5E8`/`0x7BD` 10;
+  - `FLAG_MOVE_TUTOR_TAUGHT_ROLLOUT` 6;
+  - `FLAG_LANDMARK_TUNNELERS_REST_HOUSE`, `FLAG_LANDMARK_FLOWER_SHOP`, `ITEM_OLD_ROD`: a few each, all on branches where vanilla failed.
+- **One engine gap among the branch deltas: berry trees.** Vanilla picks Oran Berries on Route 102/104; ours finds the soil empty. The berry-tree specials (`IncrementDailyPickedBerries`, `ObjectEventInteractionGetBerryTreeData` and the rest of `berry.c`) are `Unsupported`, and the trees start without the map's initial berries.
+- **Vanilla failures (oracle):**
+  - `Talk` "never next to object 17" (30) and "object 8" (24): trainers and wanderers block every approach;
+  - `walk_to` no path on Route 110 (16), in Birch's lab (12,8) (7), and once on map 7436;
+  - about 14 `Screen` stalls on callback2 0x0811A278 (to identify; not a field screen the driver knows).
+
+**Wave C gap list** (engine; none fixed here):
+1. `VAR_DAILY_WILDS`: `IncrementDailyWildBattles` on every wild battle start.
+2. HM forgetting: Gen3 `IsHMMove2` in the learn-move prompt and in `policy::forget_slot`. Fixing it removes the spine's `rock-smash-forgotten-*` bypasses.
+3. Berry trees: the initial berries and the `berry.c` specials (`VAR_DAILY_PICKED_BERRIES`).
+4. The step-count scripts of `TryStartStepCountScript`, with the registration scripts they start: `ShouldDoRoxanneCall`, `ShouldDoWallyCall`, `ShouldDoScottFortreeCall`, `ShouldDoScottBattleFrontierCall`, `ShouldDoRivalRayquazaCall` and `ShouldDoBrailleRegicePuzzle`.
+5. `SetMirageTowerVisibility`.
+
+**Vanilla driver problems left:**
+- Lavaridge gym: the geyser warps do not fire on a walk.
+- Petalburg gym: the search has no move that opens the room doors (beating each room's trainer).
+- Meteor Falls: a scene blocks (14,18).
+- `Talk` blocked by trainers and wanderers.
+- The 0x0811A278 screen.
+- `walk_to` has no `setmetatile` overrides from RAM.
+
+**Checkpoints and goldens:** unchanged. No engine change. In `explore`, `policy::forget_slot_of` is a refactor with the same behaviour. `emu::write_bytes` is new and used only by the oracle.
 
 ### Wave C — new-game state parity
 

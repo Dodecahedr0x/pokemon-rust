@@ -4,9 +4,9 @@
 //! The entries are `GameData::start_menu`, filtered by `shown_if` (Gen3
 //! `BuildNormalStartMenu`), in a framed window at (22, 1), 7 tiles wide and two rows per entry
 //! (`AddStartMenuWindow`). Up/down move with wrap, A runs the entry, B and START close.
-//! POKéMON opens the party menu (and the menu shows again when it closes, Gen3
-//! `CB2_ReturnToFieldWithOpenMenu`); EXIT closes; a game-defined `Script` entry closes the
-//! menu and runs its script. Not yet: POKéDEX, BAG, the trainer card, SAVE and OPTION report
+//! POKéMON opens the party menu and BAG the bag (and the menu shows again when they close,
+//! Gen3 `CB2_ReturnToFieldWithOpenMenu`); EXIT closes; a game-defined `Script` entry closes the
+//! menu and runs its script. Not yet: POKéDEX, the trainer card, SAVE and OPTION report
 //! `Unsupported` and keep the menu open.
 //!
 //! Deviations: the cursor starts on the first entry at every opening (Gen3 keeps
@@ -35,6 +35,11 @@ pub struct StartMenu {
 impl StartMenu {
     pub fn new() -> Self {
         StartMenu::default()
+    }
+
+    /// The cursor's entry (among the shown entries), once drawn.
+    pub fn cursor(&self) -> Option<u8> {
+        self.cursor.map(|c| c.pos)
     }
 }
 
@@ -80,12 +85,15 @@ impl Screen for StartMenu {
                         self.gfx.0 = None;
                         ScreenOut::Push(ScreenKind::Party(PartyMode::Field))
                     }
+                    Some(StartAction::Bag) => {
+                        self.gfx.0 = None;
+                        ScreenOut::Push(ScreenKind::Bag(super::BagMode::Field))
+                    }
                     Some(StartAction::Exit) | None => ScreenOut::Done(ScreenResult::Cancel),
                     Some(StartAction::Script(id)) => ScreenOut::RunScript(id),
                     Some(a) => {
                         cx.report(Report::Unsupported(match a {
                             StartAction::Pokedex => "pokedex",
-                            StartAction::Bag => "bag",
                             StartAction::PlayerCard => "trainer card",
                             StartAction::Save => "save dialog",
                             _ => "options",

@@ -277,10 +277,7 @@ impl Engine for Real {
                         "content::data::ITEM_USE is empty and the bag is the Wave 0 stub (M9 C, B)",
                     )
                 } else {
-                    Answer {
-                        status: None,
-                        note: "ITEM_USE is filled: per-function answers not derived yet".into(),
-                    }
+                    item_field_use(name)
                 }
             }
             Category::ItemBattleUse => {
@@ -465,6 +462,31 @@ pub fn main(args: &[String]) -> Result<()> {
         out.join("ledger.{md,ron}").display()
     );
     Ok(())
+}
+
+/// Task B's field bag (`ui/bag.rs`, `item_use.rs`) per Gen3 `ItemUseOutOfBattle_*` function.
+fn item_field_use(name: &str) -> Answer {
+    match name.trim_start_matches("ItemUseOutOfBattle_") {
+        "CannotUse" | "Repel" | "TMHM" | "Medicine" | "EvolutionStone" => {
+            Answer::new(Status::Native, "item_use.rs / ui/bag.rs (M9 B)")
+        }
+        "PPRecovery" | "PPUp" => Answer::new(
+            Status::Degraded,
+            "Ether / PP Up apply to the first move (no move choice yet)",
+        ),
+        "RareCandy" => Answer::new(
+            Status::Degraded,
+            "Rare Candy: no move-replace prompt and no evolution scene",
+        ),
+        "EscapeRope" => Answer::new(
+            Status::Degraded,
+            "Escape Rope warps to the escape slot (no UpdateEscapeWarp)",
+        ),
+        "Bike" | "Rod" | "Itemfinder" | "CoinCase" | "PokeblockCase" => {
+            Answer::new(Status::Missing, "reported Unsupported (M10)")
+        }
+        _ => Answer::new(Status::Missing, "reported Unsupported by the bag"),
+    }
 }
 
 #[cfg(test)]
