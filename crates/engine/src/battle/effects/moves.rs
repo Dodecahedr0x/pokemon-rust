@@ -356,12 +356,14 @@ fn sonic_boom(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
     } else {
         Effectiveness::Normal
     };
+    // adjustsetdamage.
+    let (damage, hung) = b.focus_band(env, u.target, 20, eff);
     let r = HitResult {
-        damage: 20,
+        damage,
         hp_dealt: 0,
         crit: false,
         eff,
-        hung: false,
+        hung,
     };
     let r = b.deal(env, u, r);
     b.secondary(env, u, &r, None);
@@ -407,8 +409,13 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
             break;
         }
         if b.immune(env, u) {
-            // `jumpifmovehadnoeffect` after `typecalc`: the crit roll only.
-            if !b.is_first_battle() {
+            // `jumpifmovehadnoeffect` after `typecalc`: the crit roll only (none in a first
+            // battle nor against Shell / Battle Armor, as `critcalc`).
+            let armor = matches!(
+                b.battler(u.target).ability,
+                Ability::ShellArmor | Ability::BattleArmor
+            );
+            if !b.is_first_battle() && !armor {
                 env.rng.random();
             }
             b.battler_mut(u.attacker).v.unable = true;
@@ -435,7 +442,10 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
         b.hung_on(env, u, &r);
         hits += 1;
         last = Some(r);
+        // `moveendto MOVEEND_NEXT_TARGET`: the abilities, the item effects and King's Rock
+        // after each hit.
         abilities::move_end(b, env, u, Some(r));
+        super::items::move_end(b, env, u, Some(r));
     }
     let r = last.unwrap_or(HitResult {
         damage: 0,
@@ -463,6 +473,9 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
     }
     b.secondary(env, u, &r, None);
     b.try_faint(env, u.target);
+    // The script's last `moveendfrom MOVEEND_IMMUNITY_ABILITIES` rolls King's Rock again on
+    // the last hit's damage ([`super::after_move`]).
+    b.multi_last = last.filter(|r| r.damage > 0);
 }
 
 /// A message naming `ability` (`B_*_ABILITY` = `buffs[2]`) about `active`, waiting long.

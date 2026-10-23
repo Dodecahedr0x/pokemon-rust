@@ -450,6 +450,9 @@ pub(crate) enum Step {
     EndTurn,
     /// The rest of `BattleScript_ActionSwitch` after a Pursuit hit (and its exp).
     SwitchOut { side: Side, party: u8 },
+    /// The pending Mega Evolutions before the first move action (Silice; queued only when
+    /// one is pending).
+    Megas,
 }
 
 impl Step {
@@ -477,6 +480,7 @@ impl Step {
             Step::Learn { party, level, next } => h.write(&[7, party, level, next]),
             Step::EndTurn => h.write(&[8]),
             Step::SwitchOut { side, party } => h.write(&[9, side as u8, party]),
+            Step::Megas => h.write(&[10]),
         }
     }
 }
@@ -515,6 +519,9 @@ pub struct Battle {
     /// `gMoveResultFlags & MOVE_RESULT_NO_EFFECT` of the move being used: set by
     /// [`Battle::missed`] (miss or type immunity) and [`Battle::fail`].
     pub(crate) no_effect: bool,
+    /// The last hit of a multi-hit move, for its final `moveend`'s King's Rock (set by the
+    /// move, taken by `after_move`: always `None` between steps, so not hashed).
+    pub(crate) multi_last: Option<HitResult>,
     /// `GetTrainerMoneyToGive` for a trainer battle (`None` in a wild battle or when the game
     /// gives no money table entry): paid by the caller on a win.
     pub(crate) prize: Option<u32>,
@@ -627,6 +634,7 @@ impl Battle {
             sync: None,
             caught_without_room: None,
             no_effect: false,
+            multi_last: None,
             prize,
             leveled_up: 0,
             x,
@@ -922,6 +930,7 @@ impl Battle {
                 self.switch_out(env, side);
                 self.switch_in(env, side, party);
             }
+            Step::Megas => self.mega_evolutions(env),
             Step::EndTurn => {
                 // HandleEndTurn_ContinueBattle + BattleTurnPassed.
                 for b in &mut self.battlers {
@@ -931,7 +940,6 @@ impl Battle {
                 // TurnValuesCleanUp(FALSE): this turn's gProtectStructs, `isFirstTurn`.
                 for b in &mut self.battlers {
                     b.v.unable = false;
-                    b.x.first_turn = b.x.first_turn.saturating_sub(1);
                 }
                 self.x.mega_pending = [false; 2];
                 self.turn = self.turn.saturating_add(1);
@@ -946,6 +954,12 @@ impl Battle {
     /// A battler locked into a move (`STATUS2_MULTIPLETURNS`, Bide) is not asked: neither the
     /// AI nor the player chooses, and the turn starts at once when the player is locked.
     fn new_turn(&mut self, env: &mut Env) {
+        // TurnValuesCleanUp(FALSE) right before HandleTurnActionSelectionState: at the end of
+        // TryDoEventsBeforeFirstTurn, and in BattleTurnPassed after HandleFaintedMonActions
+        // (so a replacement sent in at the end of a turn counts that turn).
+        for b in &mut self.battlers {
+            b.x.first_turn = b.x.first_turn.saturating_sub(1);
+        }
         self.random_turn = env.rng.random();
         let o = self.battler(Side::Opponent);
         let action = if let Some(a) = super::effects::locked_action(self, env.t, Side::Opponent) {
@@ -957,6 +971,9 @@ impl Battle {
             // (and before the all-moves-unusable check of B_ACTION_USE_MOVE).
             Action::Switch(i)
         } else if o.all_moves_unusable() {
+            if self.is_trainer() && self.can_mega(Side::Opponent) {
+                self.x.mega_pending[Side::Opponent as usize] = true;
+            }
             Action::Struggle
         } else {
             if self.is_trainer()
@@ -996,19 +1013,25 @@ impl Battle {
         }
     }
 
-    /// Both actions are chosen: Mega Evolutions first (Gen7: in speed order, then the turn
-    /// is ordered with the new speeds), then the turn order (`SetActionsAndBattlersTurnOrder`).
+    /// Both actions are chosen: the turn order (`SetActionsAndBattlersTurnOrder`).
+    /// A pending Mega Evolution happens after the switches, items and running and before the
+    /// first move action (expansion `TryDoGimmicksBeforeMoves`); when both actions are moves,
+    /// the turn is then ordered with the new speeds.
     fn queue_turn(&mut self, env: &mut Env) {
-        self.mega_evolutions(env);
+        let moves = |a: Option<Action>| matches!(a, Some(Action::Move(_) | Action::Struggle));
+        let pending = self.x.mega_pending != [false; 2];
+        if pending && self.actions.iter().all(|&a| moves(a)) {
+            self.mega_evolutions(env);
+        }
         let [first, second] = self.turn_order(env);
         self.order = [first, second];
-        self.steps.extend([
-            Step::Act(first),
-            Step::Fainted,
-            Step::Act(second),
-            Step::Fainted,
-            Step::EndTurn,
-        ]);
+        self.steps.push_back(Step::Act(first));
+        self.steps.push_back(Step::Fainted);
+        if pending && !moves(self.actions[first as usize]) {
+            self.steps.push_back(Step::Megas);
+        }
+        self.steps
+            .extend([Step::Act(second), Step::Fainted, Step::EndTurn]);
     }
 
     /// The player's choice at `Need::Action`, or `None` when it does not start the turn
@@ -1019,7 +1042,7 @@ impl Battle {
         match c {
             Choice::Mega(slot) => {
                 let a = self.player_action(env, Choice::Move(slot))?;
-                if matches!(a, Action::Move(_)) && self.can_mega(p) {
+                if matches!(a, Action::Move(_) | Action::Struggle) && self.can_mega(p) {
                     self.x.mega_pending[p as usize] = true;
                 }
                 Some(a)
@@ -1093,19 +1116,10 @@ impl Battle {
     /// below `0xFFFF * param / 100`: `UINT_MAX`); a speed tie draws `Random() & 1` (only on a
     /// tie). Prankster adds 1 to a status move's priority.
     pub(crate) fn strike_order(&mut self, env: &mut Env, ignore_moves: bool) -> [Side; 2] {
-        let weather = self.weather();
         let random_turn = self.random_turn as u32;
-        let speed = |s: Side| {
-            let b = self.battler(s);
-            let doubled = match b.ability {
-                Ability::SwiftSwim => weather.rain(),
-                Ability::Chlorophyll => weather.sun(),
-                _ => false,
-            };
-            match b.x.hold {
-                Some(HoldEffect::QuickClaw(p)) if random_turn < 0xFFFF * p as u32 / 100 => u32::MAX,
-                _ => calc::effective_speed_x(&b.fighter(), if doubled { 2 } else { 1 }),
-            }
+        let speed = |s: Side| match self.battler(s).x.hold {
+            Some(HoldEffect::QuickClaw(p)) if random_turn < 0xFFFF * p as u32 / 100 => u32::MAX,
+            _ => self.full_speed(s),
         };
         let (s1, s2) = (speed(Side::Player), speed(Side::Opponent));
         let priority = |s: Side| -> i8 {
@@ -1132,6 +1146,19 @@ impl Battle {
         } else {
             [Side::Player, Side::Opponent]
         }
+    }
+
+    /// A battler's speed with Swift Swim / Chlorophyll (`speedMultiplierBattler`), stages
+    /// and paralysis.
+    pub(crate) fn full_speed(&self, s: Side) -> u32 {
+        let weather = self.weather();
+        let b = self.battler(s);
+        let doubled = match b.ability {
+            Ability::SwiftSwim => weather.rain(),
+            Ability::Chlorophyll => weather.sun(),
+            _ => false,
+        };
+        calc::effective_speed_x(&b.fighter(), if doubled { 2 } else { 1 })
     }
 
     fn act(&mut self, env: &mut Env, side: Side) {

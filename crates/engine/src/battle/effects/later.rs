@@ -115,7 +115,7 @@ pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
             || m.types
                 .iter()
                 .any(|t| matches!(t, Type::Rock | Type::Ground | Type::Steel))
-            || m.ability == Ability::SandForce
+            || matches!(m.ability, Ability::SandForce | Ability::SandVeil)
         {
             continue;
         }
@@ -130,8 +130,9 @@ pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
 }
 
 /// `ENDTURN_ABILITIES` for `side` (with HP): Speed Boost (+1 Speed below +6, not on the turn
-/// it came in: `isFirstTurn != 2`; `BattleScript_SpeedBoostActivates`) and Solar Power (Gen4:
-/// max HP / 8 in the sun, silently).
+/// it came in: `isFirstTurn != 2`; `BattleScript_SpeedBoostActivates`), Rain Dish (max HP / 16
+/// in rain below max HP, `BattleScript_RainDishActivates`) and Solar Power (Gen4: max HP / 8
+/// in the sun, with [`Str::SolarPowerHurt`]).
 pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
     let m = *b.battler(side);
     if m.mon.hp == 0 {
@@ -143,8 +144,22 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
             env.out
                 .push(ability_about(Str::RaisedSpeed, side, Ability::SpeedBoost));
         }
+        Ability::RainDish if b.x.weather.rain() && m.mon.hp < m.mon.max_hp => {
+            let heal = (m.mon.max_hp / 16).max(1).min(m.mon.max_hp - m.mon.hp);
+            env.out.push(ability_about(
+                Str::AbilityRestoredHp,
+                side,
+                Ability::RainDish,
+            ));
+            b.change_hp_passive(env, side, -(heal as i32));
+        }
         Ability::SolarPower if b.x.weather.sun() => {
             let damage = (m.mon.max_hp / 8).max(1) as i32;
+            env.out.push(ability_about(
+                Str::SolarPowerHurt,
+                side,
+                Ability::SolarPower,
+            ));
             b.change_hp_passive(env, side, damage);
             b.try_faint(env, side);
         }

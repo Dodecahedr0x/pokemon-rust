@@ -6,8 +6,10 @@
 //!   also need the change's `enable_flag` (the World's flags, [`Battle::enable_player_forms`]);
 //!   trainers ignore it. Wild mons never Mega Evolve (they may Primal Revert).
 //! - Mega Evolution is chosen with the move (`Choice::Mega`, the AI at its first chance) and
-//!   happens before the turn's actions, faster battler first, so the new speed orders the turn
-//!   (Gen7). One per side per battle.
+//!   happens after the switches, items and running and before the first move action
+//!   (expansion `TryDoGimmicksBeforeMoves`), faster battler first, so the new speed orders
+//!   the moves (Gen7). One per side per battle. Simplified: a Pursuit on a switching foe
+//!   strikes before the Mega.
 //! - Primal Reversion happens when the holder enters the field (and at the battle's start, in
 //!   speed order), before its switch-in abilities, and does not use the side's Mega.
 //! - The change recomputes the battler's stats from the form's base stats (HP kept), takes the
@@ -58,14 +60,13 @@ impl Battle {
             && self.x.forms[s][slot as usize].is_some_and(|f| f.kind == FormKind::Mega)
     }
 
-    /// The pending Mega Evolutions, faster battler first (a tie: the player first).
+    /// The pending Mega Evolutions, faster battler first (full speed: Swift Swim and
+    /// Chlorophyll count; a tie: the player first).
     pub(crate) fn mega_evolutions(&mut self, env: &mut Env) {
         if self.x.mega_pending == [false; 2] {
             return;
         }
-        let speed =
-            |b: &Battle, s: Side| crate::battle::calc::effective_speed(&b.battler(s).fighter());
-        let order = if speed(self, Side::Opponent) > speed(self, Side::Player) {
+        let order = if self.full_speed(Side::Opponent) > self.full_speed(Side::Player) {
             [Side::Opponent, Side::Player]
         } else {
             [Side::Player, Side::Opponent]

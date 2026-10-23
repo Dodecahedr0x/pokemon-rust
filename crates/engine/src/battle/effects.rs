@@ -80,7 +80,8 @@ pub(crate) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
 /// abilities (Effect Spore, Static, Poison Point). `hit` is `None` for a miss or a status move.
 pub(crate) fn after_move(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
     abilities::move_end(b, env, u, hit);
-    items::move_end(b, env, u, hit);
+    let last = b.multi_last.take();
+    items::move_end(b, env, u, hit.or(last));
 }
 
 /// `attackcanceler`: the status checks in `AtkCanceler_UnableToUseMove` order (sleep, freeze,
@@ -205,7 +206,7 @@ pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
     if shadow_tagged(b, side) {
         return Some(RunBlock::Ability {
             owner: side.other(),
-            ability: Ability::ShadowTag,
+            ability: foe.ability,
         });
     }
     if foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel) {
@@ -233,10 +234,13 @@ pub(crate) fn switch_block(b: &Battle, side: Side) -> bool {
         || shadow_tagged(b, side)
 }
 
-/// Shadow Tag (Gen4): the foe's traps `side` unless it has Shadow Tag too.
+/// The foe's Shadow Tag traps `side` (Gen3: always; Gen4: unless it has Shadow Tag too).
 pub(crate) fn shadow_tagged(b: &Battle, side: Side) -> bool {
-    b.battler(side.other()).ability == Ability::ShadowTag
-        && b.battler(side).ability != Ability::ShadowTag
+    match b.battler(side.other()).ability {
+        Ability::ShadowTag => true,
+        Ability::ShadowTagGen4 => b.battler(side).ability != Ability::ShadowTagGen4,
+        _ => false,
+    }
 }
 
 /// `jumpifnopursuitswitchdmg` + `BattleScript_PursuitDmgOnSwitchOut` when `side` switches out

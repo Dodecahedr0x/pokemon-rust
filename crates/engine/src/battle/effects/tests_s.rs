@@ -41,6 +41,9 @@ const BIG_HIT: MoveId = MoveId(13);
 const ROCK_HIT: MoveId = MoveId(14);
 const STUN: MoveId = MoveId(15);
 const HEAVY_HIT: MoveId = MoveId(16);
+const SONIC: MoveId = MoveId(17);
+/// `EFFECT_EXPLOSION` (unsupported: a plain hit here, which Parental Bond skips).
+const EXPLODE: MoveId = MoveId(18);
 
 const fn mv(effect: MoveEffect, power: u8, ty: Type, accuracy: u8, flags: u8) -> MoveInfo {
     MoveInfo {
@@ -59,7 +62,7 @@ const fn mv(effect: MoveEffect, power: u8, ty: Type, accuracy: u8, flags: u8) ->
 
 const CONTACT_KR: u8 = MoveFlags::MAKES_CONTACT | MoveFlags::KINGS_ROCK_AFFECTED;
 
-static MOVES: [MoveInfo; 17] = [
+static MOVES: [MoveInfo; 19] = [
     mv(MoveEffect::Hit, 0, Type::Normal, 0, 0),
     mv(MoveEffect::Hit, 40, Type::Normal, 100, CONTACT_KR),
     mv(
@@ -116,6 +119,8 @@ static MOVES: [MoveInfo; 17] = [
         100,
         MoveFlags::MAKES_CONTACT,
     ),
+    mv(MoveEffect::SonicBoom, 1, Type::Normal, 100, 0),
+    mv(MoveEffect::Unsupported(7), 20, Type::Normal, 100, 0),
 ];
 
 // ---- species ----
@@ -135,6 +140,11 @@ const DRAGON: SpeciesId = SpeciesId(10);
 const DARK: SpeciesId = SpeciesId(11);
 const STEEL: SpeciesId = SpeciesId(13);
 const SUN_PRIMAL: SpeciesId = SpeciesId(14);
+const SPEEDY: SpeciesId = SpeciesId(15);
+/// Electric, no ability; Mega Evolves into [`MEGA_INTIM`] with [`MEGA_STONE_2`].
+const MEGA_BASE_2: SpeciesId = SpeciesId(16);
+/// Electric, Intimidate.
+const MEGA_INTIM: SpeciesId = SpeciesId(17);
 
 const fn sp(base: [u8; 6], ty: Type, ability: Ability) -> SpeciesInfo {
     SpeciesInfo {
@@ -156,7 +166,7 @@ const fn sp(base: [u8; 6], ty: Type, ability: Ability) -> SpeciesInfo {
 
 const B: [u8; 6] = [50; 6];
 
-static SPECIES: [SpeciesInfo; 15] = [
+static SPECIES: [SpeciesInfo; 18] = [
     sp(B, Type::Normal, Ability::None),
     sp(B, Type::Normal, Ability::None),
     sp(B, Type::Fairy, Ability::None),
@@ -176,6 +186,9 @@ static SPECIES: [SpeciesInfo; 15] = [
     sp(B, Type::Rock, Ability::None),
     sp(B, Type::Steel, Ability::None),
     sp(B, Type::Ground, Ability::DesolateLand),
+    sp(B, Type::Normal, Ability::SpeedBoost),
+    sp(B, Type::Electric, Ability::None),
+    sp(B, Type::Electric, Ability::Intimidate),
 ];
 
 const fn tm(attack: Type, defend: Type, multiplier: u8) -> TypeMatchup {
@@ -230,10 +243,11 @@ const RAWST: ItemId = ItemId(16);
 const ASPEAR: ItemId = ItemId(17);
 const CHESTO: ItemId = ItemId(18);
 const RED_ORB_SUN: ItemId = ItemId(19);
+const MEGA_STONE_2: ItemId = ItemId(20);
 
 const MEGA_RING: FlagId = FlagId(0x900);
 
-static FORMS: [FormChange; 3] = [
+static FORMS: [FormChange; 4] = [
     FormChange {
         base: MEGA_BASE,
         item: MEGA_STONE,
@@ -254,6 +268,13 @@ static FORMS: [FormChange; 3] = [
         form: SUN_PRIMAL,
         kind: FormKind::Primal,
         enable_flag: None,
+    },
+    FormChange {
+        base: MEGA_BASE_2,
+        item: MEGA_STONE_2,
+        form: MEGA_INTIM,
+        kind: FormKind::Mega,
+        enable_flag: Some(MEGA_RING),
     },
 ];
 
@@ -685,6 +706,7 @@ fn brightpowder_lowers_the_foes_accuracy() {
         0,
         Ability::None,
         true,
+        false,
         None,
         95
     ));
@@ -694,6 +716,7 @@ fn brightpowder_lowers_the_foes_accuracy() {
         0,
         Ability::None,
         true,
+        false,
         hold,
         95
     ));
@@ -703,6 +726,7 @@ fn brightpowder_lowers_the_foes_accuracy() {
         0,
         Ability::None,
         true,
+        false,
         hold,
         89
     ));
@@ -730,6 +754,50 @@ fn focus_band_rolls_after_the_damage_roll_and_hangs_on() {
     let (rng, l) = r.use_move(seed, P, 0);
     assert_eq!(rng, draws(seed, 5));
     assert!(!starts(&l, "HungOnWithX"));
+}
+
+#[test]
+fn focus_band_holds_on_set_damage_and_a_confusion_self_hit() {
+    // adjustsetdamage (Sonic Boom): accuracy, the Focus Band roll, the secondary roll.
+    let seed = seed_where(|s| nth(s, 1) % 100 < 10);
+    let mut r = Run::wild(
+        m(PLAIN, 90, &[SONIC]),
+        holding(m(PLAIN, 10, &[SPLASH]), FOCUS_BAND),
+    );
+    r.b.battler_mut(O).mon.hp = 20;
+    let (rng, l) = r.use_move(seed, P, 0);
+    assert_eq!(rng, draws(seed, 3));
+    assert_eq!(r.b.battler(O).mon.hp, 1);
+    assert!(has(&l, "HungOnWithX@O Item(ItemId(12)) ~64"), "{l:?}");
+    // adjustnormaldamage2 on the attacker (its own band): the 50% roll, the damage roll,
+    // the band.
+    let seed = seed_where(|s| nth(s, 0) & 1 == 0 && nth(s, 2) % 100 < 10);
+    let mut r = Run::wild(
+        holding(m(PLAIN, 90, &[TACKLE]), FOCUS_BAND),
+        m(PLAIN, 10, &[SPLASH]),
+    );
+    r.b.battler_mut(P).confusion = 3;
+    r.b.battler_mut(P).mon.hp = 1;
+    let (rng, l) = r.use_move(seed, P, 0);
+    assert_eq!(rng, draws(seed, 3));
+    assert!(has(&l, "PkmnHurtItself@P ~64"), "{l:?}");
+    assert!(has(&l, "HungOnWithX@P Item(ItemId(12)) ~64"), "{l:?}");
+    assert_eq!(r.b.battler(P).mon.hp, 1);
+}
+
+#[test]
+fn kings_rock_rolls_on_every_hit_of_a_multi_hit_move_and_after() {
+    // `moveendto MOVEEND_NEXT_TARGET` after each hit, then the script's last `moveendfrom`.
+    let draws_with = |item: Option<ItemId>| {
+        let mut p = m(PLAIN, 90, &[MULTI]);
+        p.held = item;
+        let mut r = Run::wild(p, m(PLAIN, 10, &[SPLASH]));
+        r.b.battler_mut(P).ability = Ability::SkillLink;
+        let (rng, l) = r.use_move(1, P, 0);
+        assert!(has(&l, "HitXTimes@P 5 ~64"), "{l:?}");
+        (0..64).find(|&n| draws(1, n) == rng).expect("draw count")
+    };
+    assert_eq!(draws_with(Some(KINGS_ROCK)), draws_with(None) + 5 + 1);
 }
 
 #[test]
@@ -854,6 +922,48 @@ fn both_sides_mega_evolve_faster_first() {
         pos(&l, "MegaReacting@O") < pos(&l, "MegaReacting@P"),
         "{l:?}"
     );
+}
+
+#[test]
+fn megas_order_by_full_speed() {
+    // Swift Swim in rain doubles the slower player's speed: it Mega Evolves first.
+    let mut r = Run::new(trainer(), &[mega_mon(40)], &[mega_mon(60)], true, 7);
+    r.b.battler_mut(P).ability = Ability::SwiftSwim;
+    r.b.x.weather = Weather::Rain;
+    let l = r.choose(Choice::Mega(0));
+    assert!(
+        pos(&l, "MegaReacting@P") < pos(&l, "MegaReacting@O"),
+        "{l:?}"
+    );
+}
+
+#[test]
+fn a_mega_comes_after_a_switch_and_before_the_moves() {
+    // TryDoGimmicksBeforeMoves: the player's switch first, then the trainer's Mega, whose
+    // Intimidate hits the mon that just came in, then its move.
+    let party = [m(PLAIN, 50, &[SPLASH]), m(PLAIN, 50, &[SPLASH])];
+    let foe = holding(m(MEGA_BASE_2, 10, &[SPLASH]), MEGA_STONE_2);
+    let mut r = Run::new(trainer(), &party, &[foe], false, 7);
+    let l = r.choose(Choice::Switch(1));
+    let sent = pos(&l, "SendOut P1");
+    let mega = pos(&l, "MegaReacting@O");
+    let cut = pos(&l, "PkmnCutsAttackWith@O AbilityName(Intimidate) ~64");
+    let used = pos(&l, "UsedMove@O");
+    assert!(sent < mega && mega < cut && cut < used, "{l:?}");
+    let b = r.b.battler(P);
+    assert_eq!((b.mon.party, b.stages[Stat::Atk as usize]), (1, -1));
+    assert_eq!(r.b.battler(O).mon.species, MEGA_INTIM);
+}
+
+#[test]
+fn a_mon_without_pp_may_mega_evolve_and_struggle() {
+    let mut p = mega_mon(50);
+    p.pp = [0; 4];
+    let mut r = Run::new(trainer(), &[p], &[m(PLAIN, 10, &[SPLASH])], true, 7);
+    let l = r.choose(Choice::Mega(0));
+    assert!(starts(&l, "MegaReacting@P"), "{l:?}");
+    assert_eq!(r.b.battler(P).mon.species, MEGA_FORM);
+    assert!(has(&l, &format!("UsedMove@P move:{}", STRUGGLE.0)), "{l:?}");
 }
 
 #[test]
@@ -987,12 +1097,10 @@ fn swift_swim_doubles_speed_in_rain() {
 }
 
 #[test]
-fn speed_boost_waits_for_the_first_turn() {
-    let mut r = Run::wild(m(PLAIN, 90, &[SPLASH]), m(PLAIN, 10, &[SPLASH]));
-    r.b.battler_mut(P).ability = Ability::SpeedBoost;
-    r.b.battler_mut(P).x.first_turn = 2;
-    let l = r.choose(Choice::Move(0));
-    assert!(!starts(&l, "RaisedSpeed"), "{l:?}");
+fn speed_boost_acts_at_the_end_of_a_leads_first_turn() {
+    // isFirstTurn: 2 on entry, decremented at the end of TryDoEventsBeforeFirstTurn.
+    let mut r = Run::wild(m(SPEEDY, 90, &[SPLASH]), m(PLAIN, 10, &[SPLASH]));
+    assert_eq!(r.b.battler(P).x.first_turn, 1);
     let l = r.choose(Choice::Move(0));
     assert!(has(&l, "StatAnim P true"));
     assert!(
@@ -1003,11 +1111,85 @@ fn speed_boost_waits_for_the_first_turn() {
 }
 
 #[test]
+fn speed_boost_waits_for_the_first_turn_of_a_switch_in() {
+    // Sent in during the turn: no boost at its end.
+    let party = [m(PLAIN, 90, &[SPLASH]), m(SPEEDY, 90, &[SPLASH])];
+    let kind = BattleKind::Wild {
+        first_battle: false,
+    };
+    let mut r = Run::new(kind, &party, &[m(PLAIN, 10, &[SPLASH])], false, 7);
+    let l = r.choose(Choice::Switch(1));
+    assert!(!starts(&l, "RaisedSpeed"), "{l:?}");
+    let l = r.choose(Choice::Move(0));
+    assert!(starts(&l, "RaisedSpeed@P"), "{l:?}");
+}
+
+#[test]
+fn speed_boost_counts_the_turn_of_a_replacement_after_the_end_turn_faint() {
+    // BattleTurnPassed: HandleFaintedMonActions sends the replacement in, then
+    // TurnValuesCleanUp(FALSE) decrements its isFirstTurn: it boosts at the next turn's end.
+    let mut lead = m(PLAIN, 90, &[SPLASH]);
+    lead.hp = 1;
+    let party = [lead, m(SPEEDY, 90, &[SPLASH])];
+    let kind = BattleKind::Wild {
+        first_battle: false,
+    };
+    let mut r = Run::new(kind, &party, &[m(SANDY, 10, &[SPLASH])], false, 7);
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "BuffetedBySandstorm@P ~64"), "{l:?}");
+    assert_eq!(r.b.battler(P).mon.hp, 0);
+    r.choose(Choice::Switch(1));
+    assert_eq!(r.b.battler(P).x.first_turn, 1);
+    let l = r.choose(Choice::Move(0));
+    assert!(
+        has(&l, "RaisedSpeed@P AbilityName(SpeedBoost) ~64"),
+        "{l:?}"
+    );
+}
+
+#[test]
 fn solar_power_costs_an_eighth_in_the_sun() {
     let mut r = Run::wild(m(SUNNY, 90, &[SPLASH]), m(PLAIN, 10, &[SPLASH]));
     r.b.battler_mut(P).ability = Ability::SolarPower;
     let l = r.choose(Choice::Move(0));
-    assert!(has(&l, "Hp P 100->88"), "{l:?}");
+    let hurt = pos(&l, "SolarPowerHurt@P AbilityName(SolarPower) ~64");
+    assert_eq!(l[hurt + 1], "Hp P 100->88", "{l:?}");
+}
+
+#[test]
+fn rain_dish_heals_in_rain() {
+    let mut r = Run::wild(m(DRIZZLER, 90, &[SPLASH]), m(PLAIN, 10, &[SPLASH]));
+    r.b.battler_mut(O).ability = Ability::RainDish;
+    r.b.battler_mut(O).mon.hp = 50;
+    let l = r.choose(Choice::Move(0));
+    let healed = pos(&l, "AbilityRestoredHp@O AbilityName(RainDish) ~64");
+    assert_eq!(l[healed + 1], "Hp O 50->56", "{l:?}");
+    // Not at full HP.
+    let l = r.choose(Choice::Move(0));
+    assert!(has(&l, "AbilityRestoredHp@O AbilityName(RainDish) ~64"));
+    r.b.battler_mut(O).mon.hp = 100;
+    let l = r.choose(Choice::Move(0));
+    assert!(!starts(&l, "AbilityRestoredHp"), "{l:?}");
+}
+
+#[test]
+fn sand_veil_in_a_sandstorm() {
+    // Cmd_weatherdamage skips it; Cmd_accuracycheck: ×80/100 after Compound Eyes.
+    let mut r = Run::wild(m(SANDY, 90, &[SPLASH]), m(PLAIN, 10, &[SPLASH]));
+    r.b.battler_mut(O).ability = Ability::SandVeil;
+    let l = r.choose(Choice::Move(0));
+    assert!(!starts(&l, "BuffetedBySandstorm"), "{l:?}");
+    let hits = |veil, roll| calc::accuracy_hits_x(100, 0, 0, Ability::None, true, veil, None, roll);
+    assert!(hits(false, 85) && !hits(true, 85) && hits(true, 79));
+    // The core passes it only in a sandstorm.
+    let seed = seed_where(|s| nth(s, 0) % 100 >= 80);
+    let mut r = Run::wild(m(SANDY, 90, &[TACKLE]), m(PLAIN, 10, &[SPLASH]));
+    r.b.battler_mut(O).ability = Ability::SandVeil;
+    let (_, l) = r.use_move(seed, P, 0);
+    assert!(starts(&l, "AttackMissed"), "{l:?}");
+    r.b.x.weather = Weather::None;
+    let (_, l) = r.use_move(seed, P, 0);
+    assert!(starts(&l, "Hp O"), "{l:?}");
 }
 
 #[test]
@@ -1041,6 +1223,18 @@ fn shell_armor_skips_the_crit_roll() {
         let (rng, _) = r.use_move(1, P, 0);
         assert_eq!(rng, draws(1, 3));
     }
+}
+
+#[test]
+fn shell_armor_skips_the_crit_roll_of_an_immune_multi_hit() {
+    let mut r = Run::wild(m(PLAIN, 90, &[MULTI]), m(PLAIN, 10, &[SPLASH]));
+    r.b.battler_mut(O).types = [Type::Ghost; 2];
+    let (plain, l) = r.use_move(1, P, 0);
+    assert!(has(&l, "ItDoesntAffect@O ~64"), "{l:?}");
+    r.b.battler_mut(O).ability = Ability::ShellArmor;
+    let (armored, _) = r.use_move(1, P, 0);
+    let n = |rng| (0..32).find(|&n| draws(1, n) == rng).expect("draw count");
+    assert_eq!(n(armored) + 1, n(plain));
 }
 
 /// The damage of `mov` by the player with `ability` against the foe, on a non-crit seed.
@@ -1111,6 +1305,12 @@ fn parental_bond_hits_twice() {
     let hits: Vec<_> = l.iter().filter(|x| x.starts_with("Hp O")).collect();
     assert_eq!(hits.len(), 2, "{l:?}");
     assert!(has(&l, "HitXTimes@P 2 ~64"), "{l:?}");
+    // Not Explosion / Self-Destruct (among the Gen7 exclusions).
+    let mut r = Run::wild(m(PLAIN, 90, &[EXPLODE]), m(PLAIN, 10, &[SPLASH]));
+    r.b.battler_mut(P).ability = Ability::ParentalBond;
+    let (_, l) = r.use_move(1, P, 0);
+    let hits: Vec<_> = l.iter().filter(|x| x.starts_with("Hp O")).collect();
+    assert_eq!(hits.len(), 1, "{l:?}");
 }
 
 #[test]
@@ -1201,6 +1401,18 @@ fn shadow_tag_traps_the_foe() {
         })
     );
     assert!(super::switch_block(&r.b, P));
+    // Gen3: a Shadow Tag foe traps a Shadow Tag battler too; Gen4 exempts it.
     r.b.battler_mut(P).ability = Ability::ShadowTag;
+    assert!(super::switch_block(&r.b, P));
+    r.b.battler_mut(O).ability = Ability::ShadowTagGen4;
+    assert!(super::switch_block(&r.b, P));
+    assert_eq!(
+        super::run_block(&r.b, P),
+        Some(super::RunBlock::Ability {
+            owner: O,
+            ability: Ability::ShadowTagGen4
+        })
+    );
+    r.b.battler_mut(P).ability = Ability::ShadowTagGen4;
     assert!(!super::switch_block(&r.b, P));
 }

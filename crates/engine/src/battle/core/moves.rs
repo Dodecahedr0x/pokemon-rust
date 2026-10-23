@@ -199,8 +199,8 @@ impl Battle {
     }
 
     /// `BattleScript_EffectHit`: accuracy, damage, secondary effect, faint. `None` on a miss.
-    /// Parental Bond (Silice, Gen7): a second hit at a quarter of its damage, then "Hit 2
-    /// times!", before the secondary effect.
+    /// Parental Bond (Silice, Gen7 25%): a second hit at a quarter of its damage, then "Hit 2
+    /// times!", before the secondary effect ([`parental_bond_applies`]).
     pub(crate) fn hit(
         &mut self,
         env: &mut Env,
@@ -217,6 +217,7 @@ impl Battle {
         let mut r = self.deal(env, u, r);
         if self.battler(u.attacker).ability == Ability::ParentalBond
             && u.mov != env.t.struggle
+            && parental_bond_applies(u.info.effect)
             && r.eff != Effectiveness::NoEffect
             && self.battler(u.target).mon.hp > 0
             && self.battler(u.attacker).mon.hp > 0
@@ -274,6 +275,7 @@ impl Battle {
             eva,
             a.ability,
             u.ty.is_physical(),
+            d.ability == Ability::SandVeil && self.weather() == super::Weather::Sand,
             d.x.hold,
             env.rng.random(),
         )
@@ -413,22 +415,37 @@ impl Battle {
             }
         }
         damage = calc::random_damage(damage, env.rng.random());
-        // Cmd_adjustnormaldamage: the Focus Band roll (drawn whenever the target holds one),
-        // then the HP check.
-        let banded = match d.hold {
-            Some(HoldEffect::FocusBand(p)) => env.rng.random() % 100 < p as u16,
-            _ => false,
-        };
-        let hung = banded && eff != Effectiveness::NoEffect && d.hp > 0 && d.hp as i32 <= damage;
-        if hung {
-            damage = d.hp as i32 - 1;
-        }
+        let hung;
+        (damage, hung) = self.focus_band(env, u.target, damage, eff);
         HitResult {
             damage,
             hp_dealt: 0,
             crit,
             eff,
             hung,
+        }
+    }
+
+    /// The Focus Band of `adjustnormaldamage` / `adjustnormaldamage2` / `adjustsetdamage`:
+    /// the roll (drawn whenever `target` holds one), then the HP check. The damage (HP - 1
+    /// when the target hangs on) and whether it did.
+    pub(crate) fn focus_band(
+        &self,
+        env: &mut Env,
+        target: Side,
+        damage: i32,
+        eff: Effectiveness,
+    ) -> (i32, bool) {
+        let d = self.battler(target);
+        let banded = match d.x.hold {
+            Some(HoldEffect::FocusBand(p)) => env.rng.random() % 100 < p as u16,
+            _ => false,
+        };
+        let hp = d.mon.hp;
+        if banded && eff != Effectiveness::NoEffect && hp > 0 && hp as i32 <= damage {
+            (hp as i32 - 1, true)
+        } else {
+            (damage, false)
         }
     }
 
@@ -696,6 +713,21 @@ impl Battle {
 }
 
 /// The type an -ate ability gives Normal moves.
+/// Whether Parental Bond doubles a move of `effect` (Gen7 exclusions the engine can name):
+/// not the multi-strike moves, Uproar, nor (by their Gen3 `EFFECT_*` numbers) Explosion /
+/// Self-Destruct (7), the two-turn moves (Razor Wind 39, Sky Attack 75, Skull Bash 145, Solar
+/// Beam 151, Fly / Dig / Dive / Bounce 155), Twineedle (77), Triple Kick (104), Rollout / Ice
+/// Ball (117), Beat Up (154) and Endeavor (189).
+pub(crate) fn parental_bond_applies(effect: MoveEffect) -> bool {
+    !matches!(
+        effect,
+        MoveEffect::MultiHit
+            | MoveEffect::DoubleHit
+            | MoveEffect::Uproar
+            | MoveEffect::Unsupported(7 | 39 | 75 | 77 | 104 | 117 | 145 | 151 | 154 | 155 | 189)
+    )
+}
+
 pub(crate) fn ate_type(a: Ability) -> Option<Type> {
     match a {
         Ability::Aerilate => Some(Type::Flying),

@@ -992,7 +992,7 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
 }
 
 /// `engine::mon::FAIRY_MATCHUPS.len()` (the build script does not link the engine).
-const fn engine_fairy_len() -> usize {
+pub(crate) const fn engine_fairy_len() -> usize {
     12
 }
 

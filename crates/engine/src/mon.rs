@@ -233,6 +233,8 @@ pub enum Ability {
     InnerFocus,
     MagnetPull,
     Pickup,
+    /// Max HP / 16 at the end of the turn in rain (`ABILITYEFFECT_ENDTURN`; only the gated
+    /// abilities bring rain).
     RainDish,
     RockHead,
     ShedSkin,
@@ -260,15 +262,15 @@ pub enum Ability {
     SandStream,
     /// Speed +1 at the end of each turn but its first.
     SpeedBoost,
-    /// The foe cannot run nor switch.
+    /// The foe cannot run nor switch (Gen3: even a Shadow Tag foe; see [`Self::ShadowTagGen4`]).
     ShadowTag,
     /// Ground moves miss.
     Levitate,
     /// No critical hits against it.
     ShellArmor,
     BattleArmor,
-    /// Gen5: draws Electric moves, which it absorbs for Sp. Atk +1 (Gen3 only redirects in
-    /// doubles; Silice reworks it).
+    /// Gen5: draws Electric moves, which it absorbs for Sp. Atk +1. Gen3's only redirects in
+    /// doubles (nothing in singles): the content maps it here only under its Silice switch.
     LightningRod,
     // Post-Gen3 abilities (Gen7 behaviour adapted to Gen3, see the Silice plan).
     /// Heavy rain while it is out: Fire moves fail.
@@ -303,6 +305,12 @@ pub enum Ability {
     Prankster,
     /// Speed +1 when it flinches.
     Steadfast,
+    // Gen3 (gated as the abilities above).
+    /// No sandstorm damage; the foe's accuracy x80/100 in a sandstorm.
+    SandVeil,
+    // Silice rules for Gen3 abilities (the content's Silice switch).
+    /// Shadow Tag with Gen4's exemption: a foe with Shadow Tag (Gen4) is not trapped.
+    ShadowTagGen4,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).

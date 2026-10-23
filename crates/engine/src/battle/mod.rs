@@ -479,6 +479,8 @@ pub enum Str {
     BouncedBack,
     /// The fight menu's Mega Evolution mark (in the TYPE window while the toggle is on).
     MegaArmed,
+    /// Solar Power's HP loss in the sun (`active`, ability).
+    SolarPowerHurt,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -664,6 +666,7 @@ impl Str {
             BreaksTheMold => 164,
             BouncedBack => 165,
             MegaArmed => 166,
+            SolarPowerHurt => 167,
         }
     }
 }

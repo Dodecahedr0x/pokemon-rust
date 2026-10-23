@@ -386,18 +386,21 @@ pub fn accuracy_hits_by(
     roll: u16,
 ) -> bool {
     accuracy_hits_x(
-        move_acc, acc_stage, eva_stage, ability, physical, None, roll,
+        move_acc, acc_stage, eva_stage, ability, physical, false, None, roll,
     )
 }
 
-/// [`accuracy_hits_by`] with the target's held item: `HOLD_EFFECT_EVASION_UP` (BrightPowder,
-/// Lax Incense) ×`(100 - param)`/100 after the abilities.
+/// [`accuracy_hits_by`] with the target's side: `sand_veil` (its Sand Veil in a sandstorm,
+/// ×80/100 between Compound Eyes and Hustle) and its held item (`HOLD_EFFECT_EVASION_UP`,
+/// BrightPowder / Lax Incense, ×`(100 - param)`/100 after the abilities).
+#[allow(clippy::too_many_arguments)]
 pub fn accuracy_hits_x(
     move_acc: u8,
     acc_stage: i8,
     eva_stage: i8,
     ability: Ability,
     physical: bool,
+    sand_veil: bool,
     target_hold: Option<HoldEffect>,
     roll: u16,
 ) -> bool {
@@ -406,6 +409,9 @@ pub fn accuracy_hits_x(
     let mut calc = (num * move_acc as u16) / den;
     if ability == Ability::CompoundEyes {
         calc = (calc as u32 * 130 / 100) as u16;
+    }
+    if sand_veil {
+        calc = (calc as u32 * 80 / 100) as u16;
     }
     if ability == Ability::Hustle && physical {
         calc = (calc as u32 * 80 / 100) as u16;

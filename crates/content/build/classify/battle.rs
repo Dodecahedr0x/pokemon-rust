@@ -168,11 +168,14 @@ pub fn ability(name: &str) -> &'static str {
         "ABILITY_DRIZZLE" if GEN3_EXTRA_ABILITIES => "Ability::Drizzle",
         "ABILITY_SAND_STREAM" if GEN3_EXTRA_ABILITIES => "Ability::SandStream",
         "ABILITY_SPEED_BOOST" if GEN3_EXTRA_ABILITIES => "Ability::SpeedBoost",
+        "ABILITY_SHADOW_TAG" if SILICE_ABILITY_RULES => "Ability::ShadowTagGen4",
         "ABILITY_SHADOW_TAG" if GEN3_EXTRA_ABILITIES => "Ability::ShadowTag",
         "ABILITY_LEVITATE" if GEN3_EXTRA_ABILITIES => "Ability::Levitate",
         "ABILITY_SHELL_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::ShellArmor",
         "ABILITY_BATTLE_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::BattleArmor",
-        "ABILITY_LIGHTNING_ROD" if GEN3_EXTRA_ABILITIES => "Ability::LightningRod",
+        "ABILITY_SAND_VEIL" if GEN3_EXTRA_ABILITIES => "Ability::SandVeil",
+        // Gen3's Lightning Rod only redirects in doubles: nothing in singles (`Other`).
+        "ABILITY_LIGHTNING_ROD" if SILICE_ABILITY_RULES => "Ability::LightningRod",
         // Post-Gen3 (no Emerald species has them).
         "ABILITY_PRIMORDIAL_SEA" => "Ability::PrimordialSea",
         "ABILITY_DESOLATE_LAND" => "Ability::DesolateLand",
@@ -195,11 +198,18 @@ pub fn ability(name: &str) -> &'static str {
 }
 
 /// Whether the Gen3 abilities the Silice engine added (Drought, Drizzle, Sand Stream, Speed
-/// Boost, Shadow Tag, Levitate, Shell / Battle Armor, Lightning Rod) act for Emerald's species.
-/// **Off**: Torkoal, Tyranitar, Ninjask, Wobbuffet, the Levitate ghosts … would change the
-/// recorded route; turning it on is a later Emerald route change (re-baseline parity and the
-/// checkpoint tree). Note Lightning Rod is the Gen5 absorb, not Gen3's doubles redirect.
+/// Boost, Shadow Tag, Levitate, Shell / Battle Armor, Sand Veil) act for Emerald's
+/// species, with their Gen3 behaviour. **Off**: Torkoal, Tyranitar, Ninjask, Wobbuffet, the
+/// Levitate ghosts … would change the recorded route; turning it on is a later Emerald route
+/// change (re-baseline parity and the checkpoint tree). Gen3's Lightning Rod stays `Other`
+/// (a doubles redirect). Rain Dish is mapped as before: only these bring rain. Not modelled: Cloud Nine, Air Lock (weather suppression), Sand
+/// Veil's overworld encounter halving.
 pub const GEN3_EXTRA_ABILITIES: bool = false;
+
+/// The Silice game's later-generation rules for Gen3 abilities: Lightning Rod's Gen5 absorb,
+/// Shadow Tag's Gen4 exemption. **Off** for Emerald (not Gen3 behaviour); the Silice content
+/// turns it on.
+pub const SILICE_ABILITY_RULES: bool = false;
 
 /// The `Stat` of a `battle_move_effects.h` stat word.
 fn effect_stat(s: &str) -> Option<&'static str> {
@@ -565,5 +575,6 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("BreaksTheMold", Missing),
         ("BouncedBack", Missing),
         ("MegaArmed", Missing),
+        ("SolarPowerHurt", Missing),
     ]
 };
