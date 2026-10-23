@@ -79,7 +79,7 @@ fn gen1() -> GenerationDelta {
 fn open_creates_dirs_and_is_idempotent() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("a/b/explore.db");
-    let (db, st) = Db::open(&path, B1, true).unwrap();
+    let (db, st) = Db::open(&path, B1, content::Flavor::Stub).unwrap();
     assert!(st.fresh && !st.build_changed);
     assert_eq!(db.meta("schema").unwrap(), Some(SCHEMA_VERSION.to_string()));
     assert_eq!(db.meta("flavor").unwrap().as_deref(), Some("stub"));
@@ -88,9 +88,9 @@ fn open_creates_dirs_and_is_idempotent() {
     assert_eq!(db.meta("generation").unwrap(), None);
     assert_eq!(db.stats().unwrap().generation, 0);
     drop(db);
-    let (_, st) = Db::open(&path, B1, true).unwrap();
+    let (_, st) = Db::open(&path, B1, content::Flavor::Stub).unwrap();
     assert!(!st.fresh && !st.build_changed);
-    let (db, st) = Db::open(&path, B2, true).unwrap();
+    let (db, st) = Db::open(&path, B2, content::Flavor::Stub).unwrap();
     assert!(!st.fresh && st.build_changed);
     // Opening does not move the recorded build.
     assert_eq!(db.meta_build().unwrap(), Some(B1));
@@ -101,15 +101,26 @@ fn open_creates_dirs_and_is_idempotent() {
 fn flavor_and_schema_mismatches() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("explore.db");
-    let (mut db, _) = Db::open(&path, B1, true).unwrap();
-    drop(Db::open(&path, B1, true).unwrap());
+    let (mut db, _) = Db::open(&path, B1, content::Flavor::Stub).unwrap();
+    drop(Db::open(&path, B1, content::Flavor::Stub).unwrap());
     assert!(matches!(
-        Db::open(&path, B1, false),
+        Db::open(&path, B1, content::Flavor::Emerald),
         Err(DbError::Flavor { db, build }) if db == "stub" && build == "emerald"
     ));
+    // Silice too (SIL1 Task D), with a message naming both flavours and how to build the db's.
+    let e = Db::open(&path, B1, content::Flavor::Silice)
+        .err()
+        .expect("a Silice build refuses a stub db");
+    let msg = e.to_string();
+    assert!(
+        msg.contains("made by the stub content")
+            && msg.contains("this build is the silice content")
+            && msg.contains("PKR_EXTRACTED_DIR=/nonexistent"),
+        "{msg}"
+    );
     db.set_meta("schema", "99").unwrap();
     assert!(matches!(
-        Db::open(&path, B1, true),
+        Db::open(&path, B1, content::Flavor::Stub),
         Err(DbError::Schema {
             found: 99,
             want: SCHEMA_VERSION
@@ -123,7 +134,7 @@ fn flavor_and_schema_mismatches() {
 
 #[test]
 fn apply_round_trip() {
-    let (mut db, _) = Db::open_in_memory(B1, false).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Emerald).unwrap();
     let d = gen1();
     db.apply(&d).unwrap();
     assert_eq!(db.nodes().unwrap(), d.nodes);
@@ -177,7 +188,7 @@ fn apply_round_trip() {
 
 #[test]
 fn merged_before_the_live_key_insert() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     db.apply(&gen1()).unwrap();
     // Same key as node 2 without the merge: the live-key index refuses, nothing is applied.
     let mut n4 = row(4, Some(1), 20, B1);
@@ -203,7 +214,7 @@ fn merged_before_the_live_key_insert() {
 
 #[test]
 fn upserts_count_hits() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     db.apply(&gen1()).unwrap();
     // The same finding (digits differ in the message, same location) and sightings again.
     let d = GenerationDelta {
@@ -248,7 +259,7 @@ fn upserts_count_hits() {
 
 #[test]
 fn content_digest_ignores_run_rows() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     let empty = db.content_digest().unwrap();
     db.apply(&gen1()).unwrap();
     let a = db.content_digest().unwrap();
@@ -266,7 +277,7 @@ fn content_digest_ignores_run_rows() {
     db.set_meta("seed", "1").unwrap();
     assert_eq!(db.content_digest().unwrap(), a);
     // A second db with the same content has the same digest.
-    let (mut db2, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db2, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     db2.apply(&gen1()).unwrap();
     assert_eq!(db2.content_digest().unwrap(), a);
     db2.apply(&GenerationDelta {
@@ -280,7 +291,7 @@ fn content_digest_ignores_run_rows() {
 
 #[test]
 fn status_updates_and_mark_all_stale() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     db.apply(&gen1()).unwrap();
     assert_eq!(db.mark_all_stale().unwrap(), 3);
     assert_eq!(db.stats().unwrap().stale, 3);
@@ -302,7 +313,7 @@ fn status_updates_and_mark_all_stale() {
 fn read_only_while_a_writer_holds_the_db() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("explore.db");
-    let (mut w, _) = Db::open(&path, B1, false).unwrap();
+    let (mut w, _) = Db::open(&path, B1, content::Flavor::Emerald).unwrap();
     w.apply(&gen1()).unwrap();
     let mut r = Db::open_read_only(&path).unwrap();
     assert_eq!(r.build(), B1);
@@ -333,7 +344,7 @@ fn default_path_is_under_target_explore() {
 
 #[test]
 fn a_forward_merged_into_inside_one_delta() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     // Node 2 is inserted already merged into node 3, which comes later in the same delta.
     let mut n2 = row(2, Some(1), 20, B1);
     n2.status = NodeStatus::Merged;
@@ -359,7 +370,7 @@ fn a_forward_merged_into_inside_one_delta() {
 
 #[test]
 fn a_root_finding_has_no_node() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     // The root job failed: no node, the tail starts from a new game.
     db.apply(&GenerationDelta {
         generation: 1,
@@ -377,7 +388,7 @@ fn a_root_finding_has_no_node() {
 
 #[test]
 fn unknown_ids_in_merged_or_expanded_are_errors() {
-    let (mut db, _) = Db::open_in_memory(B1, true).unwrap();
+    let (mut db, _) = Db::open_in_memory(B1, content::Flavor::Stub).unwrap();
     db.apply(&gen1()).unwrap();
     let digest = db.content_digest().unwrap();
     for d in [
@@ -411,7 +422,7 @@ fn a_mismatched_db_is_refused_before_any_change() {
         .unwrap();
     }
     assert!(matches!(
-        Db::open(&path, B1, true),
+        Db::open(&path, B1, content::Flavor::Stub),
         Err(DbError::Schema { found: 1, .. })
     ));
     let conn = rusqlite::Connection::open(&path).unwrap();

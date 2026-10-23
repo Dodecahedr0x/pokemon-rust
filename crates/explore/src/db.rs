@@ -1,4 +1,4 @@
-//! The SQLite store, `target/explore/{stub|emerald}/explore.db` (Task C; the DDL and the
+//! The SQLite store, `target/explore/{stub|emerald|silice}/explore.db` (Task C; the DDL and the
 //! connection setup are Wave 0).
 
 use crate::model::{
@@ -70,12 +70,17 @@ impl fmt::Display for DbError {
                 "explore.db keys are of key version {found}, this build folds version {want} \
                  (explore dbs are caches: run `explore reset --yes`)"
             ),
-            DbError::Flavor { db, build } => {
-                write!(
-                    f,
-                    "explore.db is for the {db} content, this build is {build}"
-                )
-            }
+            DbError::Flavor { db, build } => write!(
+                f,
+                "explore.db was made by the {db} content, this build is the {build} content \
+                 (each flavour has its own db, `target/explore/<flavour>/explore.db`: pass this \
+                 build's with --db, or build the {db} flavour{})",
+                match db.as_str() {
+                    "silice" => " with PKR_GAME=silice (`cargo xtask explore --game silice`)",
+                    "stub" => " with PKR_EXTRACTED_DIR=/nonexistent",
+                    _ => " with PKR_GAME unset (`cargo xtask explore --game emerald`)",
+                }
+            ),
             DbError::Codec(e) => write!(f, "explore.db codec: {e}"),
         }
     }
@@ -122,10 +127,6 @@ const NODE_COLS_LIGHT: &str = "id, parent, depth, macro, x'', frames, total_fram
 const FINDING_COLS: &str = "id, signature, kind, node, macro, tail, total_frame, map, x, y, \
      message, location, script, log, build_engine, build_content, status, hits, \
      first_generation, last_generation";
-
-fn flavor_name(stub: bool) -> &'static str {
-    if stub { "stub" } else { "emerald" }
-}
 
 fn status_str(s: NodeStatus) -> &'static str {
     match s {
@@ -284,27 +285,39 @@ impl Db {
             .join("explore.db")
     }
 
-    /// Opens (creating the parent dirs and the schema) the db for `build` and the `stub` or
-    /// emerald flavor. A fresh db gets `meta` schema, flavor and build; `generation`
+    /// Opens (creating the parent dirs and the schema) the db for `build` and `flavor` (the
+    /// shells pass `content::FLAVOR`); a db of another flavour is refused
+    /// ([`DbError::Flavor`]). A fresh db gets `meta` schema, flavor (`Flavor::name`) and build; `generation`
     /// appears with the first `apply` (the caller records `seed` with `set_meta`). `build_changed` is reported, never acted on.
-    pub fn open(path: &Path, build: BuildHash, stub: bool) -> Result<(Db, OpenState), DbError> {
+    pub fn open(
+        path: &Path,
+        build: BuildHash,
+        flavor: content::Flavor,
+    ) -> Result<(Db, OpenState), DbError> {
         if let Some(dir) = path.parent()
             && !dir.as_os_str().is_empty()
         {
             std::fs::create_dir_all(dir)
                 .map_err(|e| DbError::Codec(format!("creating {}: {e}", dir.display())))?;
         }
-        Self::init(Connection::open(path)?, build, stub)
+        Self::init(Connection::open(path)?, build, flavor)
     }
 
     /// An in-memory db, as [`Db::open`] (tests).
-    pub fn open_in_memory(build: BuildHash, stub: bool) -> Result<(Db, OpenState), DbError> {
-        Self::init(Connection::open_in_memory()?, build, stub)
+    pub fn open_in_memory(
+        build: BuildHash,
+        flavor: content::Flavor,
+    ) -> Result<(Db, OpenState), DbError> {
+        Self::init(Connection::open_in_memory()?, build, flavor)
     }
 
-    fn init(conn: Connection, build: BuildHash, stub: bool) -> Result<(Db, OpenState), DbError> {
+    fn init(
+        conn: Connection,
+        build: BuildHash,
+        flavor: content::Flavor,
+    ) -> Result<(Db, OpenState), DbError> {
         conn.busy_timeout(BUSY_TIMEOUT)?;
-        let flavor = flavor_name(stub);
+        let flavor = flavor.name();
         // Refuse another schema or flavor before touching the file (no DDL, no WAL switch).
         let has_meta: bool = conn.query_row(
             "SELECT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'meta')",

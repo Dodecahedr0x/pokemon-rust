@@ -332,7 +332,7 @@ fn an_interrupted_revalidation_resumes_on_open() {
     let (mut db, _) = explore::db::Db::open(
         &path,
         engine::checkpoint::build_hash(&Emerald::for_shells()),
-        true,
+        content::Flavor::Stub,
     )
     .unwrap();
     assert!(db.mark_all_stale().unwrap() > 0);

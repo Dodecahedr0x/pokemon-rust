@@ -1,5 +1,7 @@
 //! Milestone 8 Task K: the Act 1 goals are state predicates on decomp constants. The constants
 //! are checked against the decomp's headers (`PKR_DECOMP`), the predicates on edited states.
+//! Emerald's lists only: not built on Silice (`cfg(pkr_silice)`, SIL1 Task D).
+#![cfg(not(pkr_silice))]
 
 use content::Emerald;
 use engine::checkpoint::WorldSnapshot;

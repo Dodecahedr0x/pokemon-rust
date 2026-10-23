@@ -1,0 +1,118 @@
+//! SIL1 Task D: the explorer is per flavour. Each build explores its own acts (an act of another
+//! flavour is refused and has no goals), and a db made by one flavour is refused by the others.
+//! Runs on every flavour.
+
+use content::Flavor;
+use engine::checkpoint::BuildHash;
+use explore::config::Config;
+use explore::db::{Db, DbError};
+use explore::goals::{self, Act};
+use explore::wire::Explore;
+
+const B: BuildHash = BuildHash {
+    engine: 1,
+    content: 2,
+};
+
+#[test]
+fn each_build_explores_its_own_acts() {
+    let own = Act::of(content::FLAVOR);
+    assert!(!own.is_empty());
+    assert!(
+        own.contains(&Act::default()),
+        "the default act is the build's"
+    );
+    assert_eq!(
+        Act::default(),
+        match content::FLAVOR {
+            Flavor::Stub | Flavor::Emerald => Act::Act1,
+            Flavor::Silice => Act::SilCh0,
+        }
+    );
+    // Every act is one flavour's: Emerald's and the stub's are the same list, Silice's another.
+    for act in Act::ALL {
+        assert_ne!(
+            Act::EMERALD.contains(&act),
+            Act::SILICE.contains(&act),
+            "{act:?}"
+        );
+        assert_eq!(
+            Act::of(Flavor::Stub).contains(&act),
+            Act::EMERALD.contains(&act)
+        );
+        assert_eq!(
+            Act::of(Flavor::Emerald).contains(&act),
+            Act::EMERALD.contains(&act)
+        );
+        assert_eq!(
+            Act::of(Flavor::Silice).contains(&act),
+            Act::SILICE.contains(&act)
+        );
+        assert_eq!(act.in_build(), own.contains(&act));
+        if act.in_build() {
+            assert_eq!(Act::parse_in_build(act.name()), Ok(act));
+        } else {
+            let e = Act::parse_in_build(act.name()).expect_err("another flavour's act");
+            assert!(
+                e.contains(act.name()) && e.contains(content::FLAVOR.name()),
+                "{e}"
+            );
+            assert!(goals::goals_of(act).is_empty(), "{act:?} has no goals here");
+        }
+    }
+    assert!(Act::parse_in_build("act2").is_err());
+    // SIL1 Wave 3 fills the Prologue's goals.
+    assert!(goals::goals_of(Act::SilCh0).is_empty());
+}
+
+#[test]
+fn explore_refuses_an_act_of_another_flavour() {
+    let foreign = Act::ALL
+        .into_iter()
+        .find(|a| !a.in_build())
+        .expect("another flavour has an act");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("explore.db");
+    let cfg = Config {
+        act: foreign,
+        ..Config::default()
+    };
+    let e = Explore::open(content::Emerald::for_shells(), &path, cfg)
+        .err()
+        .expect("refused");
+    assert!(format!("{e:#}").contains(foreign.name()), "{e:#}");
+    assert!(!path.exists(), "no db is made for a refused act");
+}
+
+#[test]
+fn a_db_opens_only_under_its_own_flavour() {
+    let dir = tempfile::tempdir().unwrap();
+    for made in Flavor::ALL {
+        let path = dir.path().join(format!("{}.db", made.name()));
+        let (db, st) = Db::open(&path, B, made).unwrap();
+        assert!(st.fresh);
+        assert_eq!(db.meta("flavor").unwrap().as_deref(), Some(made.name()));
+        drop(db);
+        for build in Flavor::ALL {
+            match Db::open(&path, B, build) {
+                Ok((_, st)) => {
+                    assert_eq!(build, made);
+                    assert!(!st.fresh);
+                }
+                Err(e) => {
+                    assert_ne!(build, made);
+                    assert!(
+                        matches!(&e, DbError::Flavor { db, build: b }
+                            if db == made.name() && b == build.name()),
+                        "{e}"
+                    );
+                    let msg = e.to_string();
+                    assert!(
+                        msg.contains(made.name()) && msg.contains(build.name()),
+                        "{msg}"
+                    );
+                }
+            }
+        }
+    }
+}
