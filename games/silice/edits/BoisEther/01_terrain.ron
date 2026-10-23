@@ -40,9 +40,10 @@
         "6777D8889",
         "accccfffg",
     ], legend: {'t': (metatile: 199, collision: 1), '(': (metatile: 548, collision: 1), '-': (metatile: 549, collision: 1), ')': (metatile: 550, collision: 1), 'T': (metatile: 198, collision: 1), '1': (metatile: 555, collision: 1), '2': (metatile: 556, collision: 1), '3': (metatile: 557, collision: 1), '4': (metatile: 558, collision: 1), '5': (metatile: 559, collision: 1), '6': (metatile: 563, collision: 1), '7': (metatile: 564, collision: 1), '8': (metatile: 566, collision: 1), '9': (metatile: 567, collision: 1), 'D': (metatile: 565, collision: 0), 'a': (metatile: 571, collision: 0), 'c': (metatile: 572, collision: 0), 'f': (metatile: 574, collision: 0), 'g': (metatile: 575, collision: 0)}),
-    // Treehouse on stilts (decorative, door solid), x 21-25, y 5-10, ladder (23, 10).
+    // Treehouse on stilts (decorative, door solid), x 21-25, y 5-10, ladder (23, 10). Its first
+    // cell (21, 5) keeps the Grass-Hopper deck's end (g).
     Ascii(x: 21, y: 5, rows: [
-        ".(-).",
+        "g(-).",
         "12345",
         "67d89",
         "acefg",

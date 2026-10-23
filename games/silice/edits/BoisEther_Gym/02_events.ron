@@ -2,7 +2,7 @@
 [
     Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // BoisEther_Gym_OnLoad opens the doors already opened: the airlock doors (7, 8-9) and (7, 11-12)
-    // once FLAG_SIL_GYM1_VALVE is set. BoisEther_Gym_OnTransition hides Loic (FLAG_TEMP_11) once
+    // once FLAG_SIL_GYM1_VALVE is set. BoisEther_Gym_OnTransition hides Loic (FLAG_SIL_HIDE_GYM1_LOIC) once
     // FLAG_SIL_BADGE_01 is set.
     Scripts((on_load: Some("BoisEther_Gym_OnLoad"), on_transition: Some("BoisEther_Gym_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warps 0-1: the entrance mat, to Bois-Ether's warp 0 (the gym door).
@@ -16,7 +16,7 @@
     Object(x: 11, y: 18, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_GYM1_PAUL", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Paul"),
     // Crate c1 (the blue one): its Super Potion as an item object.
     Object(x: 2, y: 15, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_GYM1_ITEM_SUPER_POTION", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_EventScript_CaissePotion", flag: "FLAG_SIL_ITEM_GYM1_SUPER_POTION"),
-    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_WALLY", id: "LOCALID_GYM1_LOIC", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_Sc10", flag: "FLAG_TEMP_11"),
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_WALLY", id: "LOCALID_GYM1_LOIC", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_Sc10", flag: "FLAG_SIL_HIDE_GYM1_LOIC"),
     // Gym_Sc01: one step in from the mat, VAR_SIL_STORY 12.
     Coord(x: 6, y: 38, var: "VAR_SIL_STORY", value: 12, script: "BoisEther_Gym_Sc01"),
     Coord(x: 7, y: 38, var: "VAR_SIL_STORY", value: 12, script: "BoisEther_Gym_Sc01"),
