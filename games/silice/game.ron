@@ -82,6 +82,32 @@
         "FLAG_SIL_HIDE_CASINO_ROMAIN",
         "FLAG_SIL_HIDE_CASINO_B1F_ROMAIN",
         "FLAG_SIL_ITEM_DEPOT_METAL_COAT",
+        // Ch4 Port-Ressac (the OnTransition scripts own them from VAR_SIL_STORY): Crow's four
+        // passers-by and Samuel on the quay, shown by Port_Ressac_Sc02, _Sc04 and _Sc05 only; the
+        // quay fight (the three pirates, the four sbires, the foreman, the three decor sbires) at
+        // VAR_SIL_STORY 46 only; Gwada at the Taverne (42–47) and on the Zenith-Grog (Gym_Sc03);
+        // Adrien asleep at the Taverne once FLAG_SIL_ROUTE_S04_ADRIEN is set. Adrien and his
+        // Magikarp in the tunnel, the cargo and its guard, Crow's client and the gangway pirate
+        // start visible.
+        "FLAG_SIL_HIDE_PORT_PASSANT_1",
+        "FLAG_SIL_HIDE_PORT_PASSANT_2",
+        "FLAG_SIL_HIDE_PORT_PASSANT_3",
+        "FLAG_SIL_HIDE_PORT_PASSANT_4",
+        "FLAG_SIL_HIDE_PORT_SAMUEL",
+        "FLAG_SIL_HIDE_PORT_PIRATE_1",
+        "FLAG_SIL_HIDE_PORT_PIRATE_2",
+        "FLAG_SIL_HIDE_PORT_PIRATE_3",
+        "FLAG_SIL_HIDE_PORT_SBIRE_1",
+        "FLAG_SIL_HIDE_PORT_SBIRE_2",
+        "FLAG_SIL_HIDE_PORT_SBIRE_3",
+        "FLAG_SIL_HIDE_PORT_SBIRE_4",
+        "FLAG_SIL_HIDE_PORT_CONTREMAITRE",
+        "FLAG_SIL_HIDE_PORT_DECOR_1",
+        "FLAG_SIL_HIDE_PORT_DECOR_2",
+        "FLAG_SIL_HIDE_PORT_DECOR_3",
+        "FLAG_SIL_HIDE_PORT_GYM_GWADA",
+        "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA",
+        "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN",
     ],
     new_game_vars: [],
 )
