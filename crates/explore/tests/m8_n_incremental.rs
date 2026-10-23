@@ -124,7 +124,10 @@ fn a_changed_script_replays_only_the_nodes_under_it() {
     let (before, script, stale, all) = {
         let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::STUB).unwrap();
         let Some((s, stale)) = littleroot_script(&db) else {
-            assert!(content::STUB, "no Littleroot script touched below the root");
+            // The stub world has no scripts.
+            if !content::STUB {
+                panic!("no Littleroot script touched below the root");
+            }
             return;
         };
         (db.content_digest().unwrap(), s, stale, checked(&db).len())
@@ -154,7 +157,9 @@ fn a_changed_std_script_reaches_the_nodes_of_its_callers() {
     let (caller, stale, all, std_script) = {
         let (db, _) = Db::open(&path, build_hash(&Emerald::for_shells()), content::STUB).unwrap();
         let Some((s, stale)) = littleroot_script(&db) else {
-            assert!(content::STUB);
+            if !content::STUB {
+                panic!("no Littleroot script touched below the root");
+            }
             return;
         };
         let std_script = content::data::SCRIPT_NAMES
