@@ -551,7 +551,11 @@ impl SpineRun {
 
     /// Whether every step ran.
     pub fn complete(&self) -> bool {
-        self.error.is_none() && self.positions.last().is_some_and(|p| p.index == self.steps.len())
+        self.error.is_none()
+            && self
+                .positions
+                .last()
+                .is_some_and(|p| p.index == self.steps.len())
     }
 
     /// The [`Step::Bypass`] steps played: `(step index, issue)`, in order.
@@ -1095,10 +1099,7 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 let to = self.resolve_map(to);
                 let on = live.s.world().map();
                 if on != to {
-                    return Err(err(format!(
-                        "flew to map {:#06x}, not {:#06x}",
-                        on.0, to.0
-                    )));
+                    return Err(err(format!("flew to map {:#06x}, not {:#06x}", on.0, to.0)));
                 }
             }
             // A few idle frames first: a map's frame script starts on the field's next frame.
@@ -1178,7 +1179,10 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             Step::Catch { x, y, species, .. } => {
                 let pace = mk(MacroKind::Grass { x, y });
                 let pace = Macro {
-                    opts: Opts { catch: species, ..pace.opts },
+                    opts: Opts {
+                        catch: species,
+                        ..pace.opts
+                    },
                     ..pace
                 };
                 let size = live.s.world().party().len();

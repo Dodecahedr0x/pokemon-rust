@@ -245,8 +245,7 @@ fn hold(w: &mut World, keys: Buttons, frames: u32) {
 /// Holds `keys` until the player stands still on `to` with control, then releases a frame.
 fn go(w: &mut World, keys: Buttons, to: (MapId, (i16, i16))) -> u32 {
     for n in 0..600 {
-        if (w.map(), pos(w)) == to && w.objects().player().is_settled() && !w.transition_active()
-        {
+        if (w.map(), pos(w)) == to && w.objects().player().is_settled() && !w.transition_active() {
             hold(w, Buttons::NONE, 1);
             return n;
         }

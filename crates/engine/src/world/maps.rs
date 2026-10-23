@@ -34,6 +34,7 @@ impl World {
     /// type, which `MapData` does not carry; the escape slot only serves Escape Rope and Dig,
     /// which the engine lacks).
     pub(super) fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
+        self.s.keep_templates = false;
         let w = &map.warps[i];
         let dynamic = w.dest_map == MAP_DYNAMIC;
         let (dest, warp, x, y) = match self.s.warp_slots.dynamic {
@@ -64,6 +65,14 @@ impl World {
             s.transition.start(game, dest, warp, x, y);
         }
         s.objects.freeze_all();
+    }
+
+    /// [`World::start_warp`] from a [`crate::data::Behavior::PadWarp`] cell (Gen3
+    /// `DoMossdeepGymWarp`): the map's object templates stay as scripts left them
+    /// (`SKIP_OBJECT_EVENT_LOAD`; the objects respawn from them) when it lands on the same map.
+    pub(super) fn start_pad_warp(&mut self, game: &impl GameData, map: &MapData, i: usize) {
+        self.start_warp(game, map, i, false);
+        self.s.keep_templates = self.s.transition.is_active();
     }
 
     /// A debug warp, outside the game's rules (the GBA map tour, `game-gba --features tour`,
@@ -109,7 +118,10 @@ impl World {
                 let warped_facing = s.objects.player().facing;
                 let was_surfing = s.objects.surfing();
                 let was_underwater = game.map_type(s.field.map()) == MapType::Underwater;
-                load_map_spread(game, s, f, map, x, y, true);
+                // Gen3 `LoadMapFromWarp`: no `LoadObjEventTemplatesFromHeader` under
+                // `SKIP_OBJECT_EVENT_LOAD` (the flag is cleared by the exit's field callback).
+                let keep = core::mem::take(&mut s.keep_templates) && map == s.field.map();
+                load_map_spread(game, s, f, map, x, y, true, keep);
                 let b = s.ground(game).behavior(x, y);
                 // Gen3 `GetAdjustedInitialTransitionFlags`: underwater on an underwater map,
                 // else surfing on a surfable cell, else on foot.
@@ -145,12 +157,14 @@ pub(super) fn load_map(
     x: i16,
     y: i16,
 ) {
-    load_map_spread(game, s, f, id, x, y, false);
+    load_map_spread(game, s, f, id, x, y, false, false);
 }
 
 /// [`load_map`]; with `spread`, the field's tilesets and view are uploaded over the next
 /// frames ([`crate::field::Field::enter_spread`]) while the screen stays black, instead of
-/// all in this frame (Milestone 8 Task F).
+/// all in this frame (Milestone 8 Task F). With `keep_templates`, the object templates of
+/// this same map stay (Gen3 `SKIP_OBJECT_EVENT_LOAD`, [`World::start_pad_warp`]).
+#[allow(clippy::too_many_arguments)]
 fn load_map_spread(
     game: &impl GameData,
     s: &mut State,
@@ -159,13 +173,16 @@ fn load_map_spread(
     x: i16,
     y: i16,
     spread: bool,
+    keep_templates: bool,
 ) {
     f.bulk = true;
     let map = game.map(id);
     s.event(Event::MapEntered(id));
     s.clear_temp(&game.special_ids());
     s.encounter_immunity = 0; // `RestartWildEncounterImmunitySteps`
-    s.templates = super::templates::Templates::new(map.objects.to_vec());
+    if !keep_templates {
+        s.templates = super::templates::Templates::new(map.objects.to_vec());
+    }
     s.objects.enter_map(id, None);
     s.objects.set_pos(PLAYER, x, y);
     // Gen3 `LoadCurrentMapData`: the map's own layout, unless `on_transition` sets another.
@@ -174,6 +191,7 @@ fn load_map_spread(
     if let Some(script) = map.scripts.on_transition {
         run_immediate(game, s, f, script);
     }
+    s.field.settle_next_layout(game, id);
     let camera = camera_for((x as i32 * 16, y as i32 * 16));
     if spread {
         s.field.enter_spread(id, camera);
@@ -222,6 +240,7 @@ pub(super) fn cross_connection(
     if let Some(script) = map.scripts.on_transition {
         run_immediate(game, s, f, script);
     }
+    s.field.settle_next_layout(game, to);
     s.field.switch_map_enter(game, to, shift, f);
     for script in [map.scripts.on_load, map.scripts.on_resume]
         .into_iter()

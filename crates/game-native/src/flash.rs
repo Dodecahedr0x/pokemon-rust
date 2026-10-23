@@ -206,6 +206,7 @@ mod tests {
                 coins: 0,
                 registered_item: None,
                 berry_trees: Vec::new(),
+                map_layout: None,
             },
         }
     }

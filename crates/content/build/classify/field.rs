@@ -98,6 +98,8 @@ pub fn behavior(name: &str) -> String {
             "MB_DEEP_SOUTH_WARP" => "NonAnimDoor(Dir::Up)",
             "MB_LADDER" => "Ladder",
             "MB_UP_ESCALATOR" | "MB_DOWN_ESCALATOR" => "Escalator(Dir::Right)",
+            // `DoMossdeepGymWarp`: the object templates stay (`SKIP_OBJECT_EVENT_LOAD`).
+            "MB_MOSSDEEP_GYM_WARP" => "PadWarp",
             _ => "Warp",
         }
         .into();

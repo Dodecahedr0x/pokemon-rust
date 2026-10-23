@@ -97,8 +97,8 @@ impl Policy {
                     }
                 );
                 // `opts.catch`: balls at that species while there are any, else run.
-                let target = opts.catch != 0
-                    && battle.mon(Side::Opponent).species == SpeciesId(opts.catch);
+                let target =
+                    opts.catch != 0 && battle.mon(Side::Opponent).species == SpeciesId(opts.catch);
                 let throw = wild && target && scene.can_throw();
                 let run = wild && !throw && (opts.run_wild || opts.catch != 0);
                 match scene.open_menu() {

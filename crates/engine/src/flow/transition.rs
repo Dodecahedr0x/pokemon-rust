@@ -129,7 +129,12 @@ impl Transition {
     /// [`arrive`](Self::arrive) where `swapped` says the player went from surfing to
     /// underwater or back (a dive): then the facing is kept wherever no door or arrow warp
     /// decides it (Gen3 `GetAdjustedInitialDirection`'s transition-flags case).
-    pub fn arrive_swapping(&mut self, behavior: Behavior, warped_facing: Dir, swapped: bool) -> Dir {
+    pub fn arrive_swapping(
+        &mut self,
+        behavior: Behavior,
+        warped_facing: Dir,
+        swapped: bool,
+    ) -> Dir {
         let (facing, walk, hidden) = match behavior {
             Behavior::Door => (Dir::Down, true, true),
             Behavior::NonAnimDoor(d) => (d, true, true),

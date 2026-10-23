@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 2_976_669;
+const EMERALD_FRAMES: u64 = 3_025_632;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -63,15 +63,7 @@ const EMERALD_LABELS: &[&str] = &[
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
-const SPINE_BLOCKERS: &[&str] = &[
-    "mossdeep-gym-puzzle",
-    "legendaries-scene",
-    "sootopolis-layout",
-    "sootopolis-layout",
-    "sky-pillar-layouts",
-    "rayquaza-scene",
-    "game-clear",
-];
+const SPINE_BLOCKERS: &[&str] = &[];
 
 /// The Silice spine's frame count to the end of Chapter 0 (21,821 until `2fc4c16` redrew
 /// Brico-Bourg on its own tileset: the walks are 8 frames shorter).
@@ -218,7 +210,10 @@ fn spine_segment() {
         return;
     }
     let var = |k: &str| std::env::var(k).ok();
-    let from: usize = var("PKR_SPINE_FROM").expect("PKR_SPINE_FROM").parse().unwrap();
+    let from: usize = var("PKR_SPINE_FROM")
+        .expect("PKR_SPINE_FROM")
+        .parse()
+        .unwrap();
     let save = var("PKR_SPINE_SAVE").expect("PKR_SPINE_SAVE");
     let steps = spine::steps();
     // `PKR_SPINE_LIST=1`: the steps with their indices, and nothing else.
@@ -228,7 +223,9 @@ fn spine_segment() {
         }
         return;
     }
-    let to = var("PKR_SPINE_TO").map_or(steps.len(), |t| t.parse::<usize>().unwrap().min(steps.len()));
+    let to = var("PKR_SPINE_TO").map_or(steps.len(), |t| {
+        t.parse::<usize>().unwrap().min(steps.len())
+    });
     let game = Emerald::for_shells();
     let mut cfg = Config::default();
     // `PKR_SPINE_ROUNDTRIP=0`: no round-trip detector (a stretch across a known checkpoint gap).
@@ -302,7 +299,14 @@ fn spine_segment() {
     {
         let (at, path) = base.split_once(':').expect("<step>:<save>");
         let (cp, opts) = load(path);
-        write(&run_at(&game, &steps[..from], &cfg, at.parse().unwrap(), cp, opts));
+        write(&run_at(
+            &game,
+            &steps[..from],
+            &cfg,
+            at.parse().unwrap(),
+            cp,
+            opts,
+        ));
     }
     if !std::path::Path::new(&save).exists() {
         // `PKR_SPINE_HEAL_AT=<step>,<step>,...`: a red spine's workaround (outside the game's
@@ -310,13 +314,24 @@ fn spine_segment() {
         let heals: Vec<usize> = var("PKR_SPINE_HEAL_AT")
             .map(|h| h.split(',').map(|n| n.parse().unwrap()).collect())
             .unwrap_or_default();
-        let mut s = spine::run(&game, &steps[..heals.first().copied().unwrap_or(from)], &cfg);
+        let mut s = spine::run(
+            &game,
+            &steps[..heals.first().copied().unwrap_or(from)],
+            &cfg,
+        );
         for (k, &h) in heals.iter().enumerate() {
             assert!(s.complete(), "{:?}", s.error);
             let p = s.positions.last().unwrap();
             let cp = heal(&p.end);
             let next = heals.get(k + 1).copied().unwrap_or(from);
-            s = run_at(&game, &steps[..next], &cfg, h, std::sync::Arc::new(cp), p.opts);
+            s = run_at(
+                &game,
+                &steps[..next],
+                &cfg,
+                h,
+                std::sync::Arc::new(cp),
+                p.opts,
+            );
         }
         write(&s);
     }
@@ -325,7 +340,11 @@ fn spine_segment() {
     let mut at = from;
     for h in var("PKR_SPINE_SEG_HEAL")
         .filter(|h| !h.is_empty())
-        .map(|h| h.split(',').map(|n| n.parse::<usize>().unwrap()).collect::<Vec<_>>())
+        .map(|h| {
+            h.split(',')
+                .map(|n| n.parse::<usize>().unwrap())
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default()
     {
         let s = run_at(&game, &steps[..h], &cfg, at, cp, opts);
@@ -347,7 +366,10 @@ fn spine_segment() {
         s.labels(),
     );
     for m in &last.end.world.party {
-        println!("party {:?} lv {} hp {} moves {:?}", m.species, m.level, m.hp, m.moves);
+        println!(
+            "party {:?} lv {} hp {} moves {:?}",
+            m.species, m.level, m.hp, m.moves
+        );
     }
     for r in s.reports.iter().take(40) {
         println!("report: {r:?}");

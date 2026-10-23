@@ -213,6 +213,11 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     // ---- Wave C ----
     "checkpartymove",
     "pokenavcall",
+    // ---- Wave F ----
+    "initrotatingtilepuzzle",
+    "moverotatingtileobjects",
+    "turnrotatingtileobjects",
+    "freerotatingtilepuzzle",
 ];
 
 /// Commands after which execution never reaches the next instruction.

@@ -951,8 +951,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             .map(|(i, _)| i)
             .collect();
         let want = (listed.iter().position(|&i| i == dest))
-            .ok_or(ExpandError::NoEffect("fly: destination not visited"))?
-            as u8;
+            .ok_or(ExpandError::NoEffect("fly: destination not visited"))? as u8;
         let party_entry = (game.start_menu().iter())
             .filter(|e| e.shown_if.is_none_or(|f| w.flag(f)))
             .position(|e| e.action == engine::data::StartAction::Party)
@@ -990,13 +989,11 @@ impl<'a, G: GameData> Driver<'a, G> {
                 Some(ScreenState::Party(p)) => match p.prompt() {
                     Prompt::Slot { cursor } if cursor == mon => Buttons::A,
                     Prompt::Slot { .. } => Buttons::DOWN,
-                    Prompt::Actions { .. } => {
-                        match p.actions().iter().position(|&a| a == fly) {
-                            Some(i) if Some(i as u8) == p.action_cursor() => Buttons::A,
-                            Some(_) => Buttons::DOWN,
-                            None => return Err(ExpandError::NoEffect("fly: no FLY")),
-                        }
-                    }
+                    Prompt::Actions { .. } => match p.actions().iter().position(|&a| a == fly) {
+                        Some(i) if Some(i as u8) == p.action_cursor() => Buttons::A,
+                        Some(_) => Buttons::DOWN,
+                        None => return Err(ExpandError::NoEffect("fly: no FLY")),
+                    },
                     Prompt::Message => Buttons::A,
                     Prompt::Child => Buttons::NONE,
                     _ => Buttons::B,

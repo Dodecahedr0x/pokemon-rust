@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 113 Native, 44 Ignore, 13 Default, 57 Unsupported.
+// Counts: 117 Native, 44 Ignore, 13 Default, 53 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -225,10 +225,10 @@
     "setworldmapflag": Ignore,                      // ScrCmd_nop1 in Emerald
     "warpspinenter": Native,
     "setmonmetlocation": Unsupported,
-    "moverotatingtileobjects": Unsupported,
-    "turnrotatingtileobjects": Unsupported,
-    "initrotatingtilepuzzle": Unsupported,
-    "freerotatingtilepuzzle": Unsupported,
+    "moverotatingtileobjects": Native, // Wave F: rotating_tile_puzzle.c (Mossdeep gym, Trick House room 7)
+    "turnrotatingtileobjects": Native, // Wave F: rotating_tile_puzzle.c (Mossdeep gym, Trick House room 7)
+    "initrotatingtilepuzzle": Native, // Wave F: rotating_tile_puzzle.c (Mossdeep gym, Trick House room 7)
+    "freerotatingtilepuzzle": Native, // Wave F: rotating_tile_puzzle.c (Mossdeep gym, Trick House room 7)
     "warpmossdeepgym": Native,
     "selectapproachingtrainer": Unsupported,
     "lockfortrainer": Unsupported,

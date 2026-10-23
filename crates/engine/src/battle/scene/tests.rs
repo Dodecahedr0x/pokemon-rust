@@ -336,12 +336,7 @@ fn bag_throws_the_first_ball() {
             },
             true,
         ),
-        (
-            BattleKind::Wild {
-                first_battle: true,
-            },
-            false,
-        ),
+        (BattleKind::Wild { first_battle: true }, false),
     ] {
         let mut r = Run::new(kind, &[starter()], &[foe(3)], 2);
         r.scene.set_balls(ball, 2);

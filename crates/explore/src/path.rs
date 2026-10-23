@@ -164,6 +164,19 @@ const fn mismatch(carried: u8, cell: u8) -> bool {
     carried != 0 && cell != 0 && cell != 15 && cell != carried
 }
 
+impl Terrain {
+    /// [`mismatch`] for the step from cell `c` onto cell `n`, but for Gen3 `CanStopSurfing`
+    /// (`CheckForPlayerAvatarCollision`): from water onto land of elevation 3 the player gets
+    /// off the water (a player on water is surfing; objects are the occupancy's business).
+    fn refuses(&self, carried: u8, c: usize, n: usize) -> bool {
+        let en = self.elevation[n];
+        mismatch(carried, en)
+            && !(en == 3
+                && matches!(self.behavior[c], Behavior::Water(_))
+                && !matches!(self.behavior[n], Behavior::Water(_)))
+    }
+}
+
 /// The player's elevation after a step from a cell at `from` to one at `to` (Gen3
 /// `ObjectEventUpdateElevation`: a 15 on either side keeps it).
 const fn carry(carried: u8, from: u8, to: u8) -> u8 {
@@ -203,6 +216,16 @@ impl<'a, G: GameData> Grid<'a, G> {
             elevation: None,
             terrain: OnceCell::new(),
         }
+    }
+
+    /// This grid on map `id`'s layout `layout` (Gen3 `setmaplayoutindex`, the snapshot's
+    /// `map_layout`) instead of its own; `None`, or a layout the game does not have for the
+    /// map, keeps the map's own.
+    pub fn with_layout(mut self, id: MapId, layout: Option<u16>) -> Self {
+        if let Some(m) = layout.and_then(|l| self.game.map_layout(id, l)) {
+            self.map = m;
+        }
+        self
     }
 
     /// This grid with the player's elevation (`ObjectSnap::elevation`, `Object::elevation`).
@@ -252,7 +275,8 @@ impl<'a, G: GameData> Grid<'a, G> {
             .iter()
             .flat_map(|o| [o.pos, o.prev])
             .collect();
-        let grid = Grid::new(game, snap.field.map, &snap.field.overrides, occupied);
+        let grid = Grid::new(game, snap.field.map, &snap.field.overrides, occupied)
+            .with_layout(snap.field.map, snap.map_layout);
         match snap.objects.objs.first() {
             Some(p) => grid.with_elevation(p.current_elevation()),
             None => grid,
@@ -311,7 +335,7 @@ impl<'a, G: GameData> Grid<'a, G> {
         }
         let t = self.terrain();
         let (ec, en) = (t.elevation[self.index(c)], t.elevation[self.index(n)]);
-        (!mismatch(carried, en)).then(|| carry(carried, ec, en))
+        (!t.refuses(carried, self.index(c), self.index(n))).then(|| carry(carried, ec, en))
     }
 
     pub fn walkable(&self, c: (i16, i16), avoid_grass: bool) -> bool {
@@ -357,7 +381,7 @@ impl<'a, G: GameData> Grid<'a, G> {
                     continue;
                 }
                 let en = t.elevation[n as usize];
-                if mismatch(e, en) {
+                if t.refuses(e, c as usize, n as usize) {
                     continue;
                 }
                 let e2 = carry(e, t.elevation[c as usize], en);
@@ -396,7 +420,7 @@ impl<'a, G: GameData> Grid<'a, G> {
                 return None;
             }
             let en = t.elevation[n as usize];
-            if !(n == goal && destination) && mismatch(e, en) {
+            if !(n == goal && destination) && t.refuses(e, c as usize, n as usize) {
                 return None;
             }
             Some(carry(e, t.elevation[c as usize], en))
@@ -516,7 +540,9 @@ pub(crate) fn live_grid<'a, G: GameData>(
         .filter(|o| o.local_id != PLAYER)
         .flat_map(|o| [o.pos(), o.prev])
         .collect();
-    Grid::new(game, w.map(), overrides, occupied).with_elevation(w.objects().player().elevation)
+    Grid::new(game, w.map(), overrides, occupied)
+        .with_layout(w.map(), w.map_layout())
+        .with_elevation(w.objects().player().elevation)
 }
 
 #[cfg(test)]

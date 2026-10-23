@@ -332,8 +332,13 @@ impl BattleScene {
 
     /// Whether BAG throws a ball: a wild battle (not the first one) with a ball left.
     pub fn can_throw(&self) -> bool {
-        matches!(self.kind, BattleKind::Wild { first_battle: false, .. })
-            && self.balls.is_some_and(|(_, n)| n > self.thrown)
+        matches!(
+            self.kind,
+            BattleKind::Wild {
+                first_battle: false,
+                ..
+            }
+        ) && self.balls.is_some_and(|(_, n)| n > self.thrown)
     }
 
     /// Uploads one chunk while the screen is black (the frame is set black); true once

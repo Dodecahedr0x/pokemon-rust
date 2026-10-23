@@ -283,8 +283,9 @@ pub fn field_scripts(rom: &Rom) -> Result<Vec<Option<u32>>> {
 /// - `EventScript_UseDive`, then `EventScript_UseDiveUnderwater` (decomp order).
 fn water_scripts(rom: &Rom, waterfall: &[u32], dive: &[u32]) -> Result<[Option<u32>; 4]> {
     let lockall = crate::scripts::opcode("lockall").context("lockall")?;
-    let opened =
-        |at: u32| -> Result<Option<u32>> { Ok((at > 0 && rom.u8(at - 1)? == lockall).then(|| at - 1)) };
+    let opened = |at: u32| -> Result<Option<u32>> {
+        Ok((at > 0 && rom.u8(at - 1)? == lockall).then(|| at - 1))
+    };
     let mut out = [None; 4];
     if let [at] = waterfall
         && let Some(start) = opened(*at)?

@@ -588,7 +588,10 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
             };
             let to = map_id(&c.map_id)?;
             if c.map.is_some() && exported.contains(&to) {
-                writeln!(dive_arms, "        ({id:#X}, {emerge}) => Some(MapId({to:#X})),")?;
+                writeln!(
+                    dive_arms,
+                    "        ({id:#X}, {emerge}) => Some(MapId({to:#X})),"
+                )?;
             }
         }
     }
@@ -746,9 +749,15 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     // Waterfall's and Dive's (`GetInteractedWaterScript`, `TrySetupDive*Script`; Wave F).
     for (konst, name) in [
         ("SCRIPT_USE_WATERFALL", "EventScript_UseWaterfall"),
-        ("SCRIPT_CANNOT_USE_WATERFALL", "EventScript_CannotUseWaterfall"),
+        (
+            "SCRIPT_CANNOT_USE_WATERFALL",
+            "EventScript_CannotUseWaterfall",
+        ),
         ("SCRIPT_USE_DIVE", "EventScript_UseDive"),
-        ("SCRIPT_USE_DIVE_UNDERWATER", "EventScript_UseDiveUnderwater"),
+        (
+            "SCRIPT_USE_DIVE_UNDERWATER",
+            "EventScript_UseDiveUnderwater",
+        ),
     ] {
         let at = s.names.iter().position(|n| n == name);
         writeln!(
