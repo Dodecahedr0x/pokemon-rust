@@ -21,15 +21,16 @@ use serde::{Deserialize, Serialize};
 
 /// Snapshot schema. Bump on any change to a DTO below (the golden-bytes test fails otherwise).
 /// Schema 3 appends [`WorldSnapshot::party_held`]; schema 4 appends the Milestone 9 state
-/// (options, Pokédex, PC, coins, registered item).
-pub const SCHEMA: u16 = 4;
+/// (options, Pokédex, PC, coins, registered item); schema 5 appends the berry trees (Wave E).
+pub const SCHEMA: u16 = 5;
 /// The oldest schema [`decode`] still reads (see [`schema_readable`]).
 pub const OLDEST_READABLE: u16 = 2;
 
 /// Whether this build reads checkpoints (and trusts tree nodes) of schema `s`. Schema 2 is
-/// schema 3 without held items, and schema 3 is schema 4 without the Milestone 9 state:
-/// [`decode`] reads the missing fields as a new game's, and [`state_digest`] of such a
-/// snapshot is its older digest, so recorded nodes stay valid.
+/// schema 3 without held items, schema 3 is schema 4 without the Milestone 9 state, and schema
+/// 4 is schema 5 without berry trees: [`decode`] reads the missing fields as empty (a new
+/// game's for the M9 state), and [`state_digest`] of such a snapshot is its older digest, so
+/// recorded nodes stay valid.
 pub const fn schema_readable(s: u16) -> bool {
     s >= OLDEST_READABLE && s <= SCHEMA
 }
@@ -201,6 +202,18 @@ pub struct WorldSnapshot {
     pub coins: u16,
     #[serde(default)]
     pub registered_item: Option<ItemId>,
+    // Schema 5 (Wave E). Empty, it encodes as one 0 byte, which `decode` adds to an older
+    // checkpoint and `state_digest` leaves out.
+    /// The non-blank berry trees, ascending by id.
+    #[serde(default, deserialize_with = "seq")]
+    pub berry_trees: Vec<BerryTreeSnap>,
+}
+
+/// One non-blank berry tree.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct BerryTreeSnap {
+    pub id: u8,
+    pub tree: crate::berry::BerryTree,
 }
 
 /// The postcard bytes of the schema 4 fields at a new game's values: `options` `None`, two
@@ -574,12 +587,16 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
     let bytes = if schema < SCHEMA {
         // Schema 2 lacks the trailing `party_held` (an empty one is a 0 length byte), and
         // schemas 2 and 3 lack the Milestone 9 fields (a new game's are `M9_DEFAULT_TAIL`).
-        let mut v = Vec::with_capacity(bytes.len() + 1 + M9_DEFAULT_TAIL.len());
+        // Schema 4 lacks the berry trees (none is a 0 length byte).
+        let mut v = Vec::with_capacity(bytes.len() + 2 + M9_DEFAULT_TAIL.len());
         v.extend_from_slice(bytes);
         if schema < 3 {
             v.push(0);
         }
-        v.extend_from_slice(&M9_DEFAULT_TAIL);
+        if schema < 4 {
+            v.extend_from_slice(&M9_DEFAULT_TAIL);
+        }
+        v.push(0);
         upgraded = v;
         &upgraded[..]
     } else {
@@ -596,15 +613,18 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
 /// The header (build, frame, world hash) is not part of it. Trailing fields at their older
-/// schema's defaults are left out: the Milestone 9 fields at a new game's values
-/// ([`M9_DEFAULT_TAIL`]) and then an empty `party_held` (its single 0 byte), so such a snapshot
-/// keeps its schema 3 (or schema 2) digest.
+/// schema's defaults are left out: no berry trees (their single 0 byte), then the Milestone 9
+/// fields at a new game's values ([`M9_DEFAULT_TAIL`]), then an empty `party_held` (its single 0
+/// byte), so such a snapshot keeps its schema 4, 3 (or 2) digest.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
     let mut drop = 0;
-    if w.m9_is_default() {
-        drop = M9_DEFAULT_TAIL.len();
-        if w.party_held.is_empty() {
-            drop += 1;
+    if w.berry_trees.is_empty() {
+        drop = 1;
+        if w.m9_is_default() {
+            drop += M9_DEFAULT_TAIL.len();
+            if w.party_held.is_empty() {
+                drop += 1;
+            }
         }
     }
     let flavor = DigestFlavor {
@@ -616,7 +636,7 @@ pub fn state_digest(w: &WorldSnapshot) -> u64 {
     postcard::serialize_with_flavor(w, flavor).expect("postcard encoding of a snapshot")
 }
 
-const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 1;
+const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 2;
 
 /// A postcard output that hashes the bytes instead of storing them, `drop` bytes behind so
 /// that the last `drop` can be left out.

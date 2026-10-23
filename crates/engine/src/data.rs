@@ -1205,6 +1205,8 @@ pub struct SpecialIds {
     /// Counted up at every wild battle's start (Gen3 `IncrementDailyWildBattles`, `tv.c`, from
     /// every `BattleSetup_Start*WildBattle` and `CB2_StartFirstBattle`: `VAR_DAILY_WILDS`).
     pub var_daily_wilds: Option<VarId>,
+    /// Berry trees kept (Gen3 `BERRY_TREES_COUNT`, 128; [`crate::berry`]); 0: none.
+    pub berry_trees: u8,
 }
 
 /// What [`GameData::step_count_script`] reads and may change, after a finished player step.
@@ -1242,6 +1244,7 @@ impl Default for SpecialIds {
             var_mon_box_pos: None,
             flag_shown_box_was_full: None,
             var_daily_wilds: None,
+            berry_trees: 0,
         }
     }
 }
