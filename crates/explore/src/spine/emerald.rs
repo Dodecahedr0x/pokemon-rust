@@ -847,6 +847,22 @@ mod list {
         cross(MAP_ROUTE111, 0, 29, Left),
         enter(MAP_ROUTE112, 22, 10, Up),
         enter(MAP_FIERY_PATH, 26, 36, Down),
+        // Route 111's and 112's trainers leave the lead hurt (a Static Electrike's paralysis,
+        // Muddy Water's PP spent), short for Maxie's Camerupt and its Magnitude: back through
+        // the Fiery Path to the rest stop (Route 111's south has its rocks back, Mauville is
+        // out of reach), then down again.
+        enter(MAP_ROUTE112, 11, 36, Up),
+        enter(MAP_FIERY_PATH, 26, 4, Down),
+        cross(MAP_ROUTE112, 39, 9, Right),
+        goto(MAP_ROUTE111, 28, 11),
+        goto(MAP_ROUTE111, 29, 17),
+        enter(MAP_ROUTE111, 26, 18, Up),
+        Step::Choose(crate::policy::YES_ONCE),
+        talk(MAP_ROUTE111_OLD_LADYS_REST_STOP, 1),
+        enter(MAP_ROUTE111_OLD_LADYS_REST_STOP, 3, 7, Down),
+        cross(MAP_ROUTE111, 0, 29, Left),
+        enter(MAP_ROUTE112, 22, 10, Up),
+        enter(MAP_FIERY_PATH, 26, 36, Down),
         enter(MAP_ROUTE112, 28, 27, Up),
         Step::Battle(BattlePlan::BestLearn),
         // The attendant's ride (`CableCarWarp`, `CableCar`) lands in Mt. Chimney's station,
