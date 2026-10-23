@@ -53,17 +53,22 @@ pub enum Committable {
     NodesOnly,
     /// Git-ignored: may hold ROM-derived data (snapshots, statuses, renders, `.sav`).
     Never,
+    /// Authored content, committed: the map editor's `games/<game>/{maps,layouts}/*.ron`
+    /// (names, metatile indices and event data only; `map_edit::games::hygiene`).
+    Authored,
 }
 
 /// Every directory (or file) the studio may write to: the local store, the scratch dir and
-/// `target/explore` (through the `explore` process it starts), all git-ignored. The committed
-/// tree is the layered store's read-only base.
+/// `target/explore` (through the `explore` process it starts), all git-ignored; and the games
+/// dirs the map editor saves to (SIL1 Task C). The committed tree is the layered store's
+/// read-only base.
 pub fn write_locations(p: &StudioPaths) -> Vec<(PathBuf, Committable)> {
     ["nodes", "snapshots", "status.ron"]
         .map(|f| p.local.join(f))
         .into_iter()
         .chain([p.scratch.clone(), explore_dir(p)])
         .map(|d| (d, Committable::Never))
+        .chain([(p.workspace.join("games"), Committable::Authored)])
         .collect()
 }
 
@@ -124,11 +129,17 @@ mod tests {
     }
 
     #[test]
-    fn the_studio_writes_only_the_local_store_scratch_and_explore() {
+    fn the_studio_writes_only_the_local_store_scratch_explore_and_games() {
         let p = StudioPaths::detect();
         let w = write_locations(&p);
-        assert!(w.iter().all(|(_, c)| *c == Committable::Never));
-        let dirs: Vec<_> = w.into_iter().map(|(d, _)| d).collect();
+        let (authored, never): (Vec<_>, Vec<_>) = w
+            .into_iter()
+            .partition(|(_, c)| *c == Committable::Authored);
+        assert_eq!(
+            authored,
+            [(p.workspace.join("games"), Committable::Authored)]
+        );
+        let dirs: Vec<_> = never.into_iter().map(|(d, _)| d).collect();
         assert_eq!(
             dirs,
             [
@@ -153,6 +164,19 @@ mod tests {
                     Some(ignored) => assert!(ignored, "{} is not git-ignored", dir.display()),
                     None => return, // no git here
                 }
+            }
+        }
+    }
+
+    /// The games dirs are committed, not ignored.
+    #[test]
+    fn authored_locations_are_not_git_ignored() {
+        let p = StudioPaths::detect();
+        for (dir, c) in write_locations(&p) {
+            if c == Committable::Authored
+                && let Some(ignored) = check_ignore(&p.workspace, &dir.join("silice/maps/X.ron"))
+            {
+                assert!(!ignored, "{} is git-ignored", dir.display());
             }
         }
     }

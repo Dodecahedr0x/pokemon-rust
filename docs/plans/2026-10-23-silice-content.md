@@ -148,7 +148,7 @@ Silice maps, flags and trainers are appended into the Emerald build, with number
 games/silice/                      committed, original only (no ROM-derived bytes)
   game.ron                         start map and cell, facing, player name, starters, respawn default,
                                    SpecialIds roles (running-shoes flag, flags cleared on map change)
-  ids/{maps,flags,vars,trainers,items,species,moves}.ron
+  ids/{maps,layouts,flags,vars,trainers,items,species,moves}.ron
                                    append-only allocation: name -> number (stable saves and checkpoints)
   maps/<Name>.ron                  extract MapFile schema; scripts referenced by Rust fn name
   layouts/<Name>.ron               extract Layout schema; primary/secondary = extracted tileset names
@@ -230,6 +230,149 @@ SIL1 adds **no engine behaviour**. It is route-neutral for Emerald: only `BUILD_
 - Close-out: "As built", findings, README section.
 
 **SIL1 done when:** three flavours green; Prologue completed by the explorer from a new game; parity identical; no ROM-derived file under `games/`; validator clean or every exception listed with a reason; Emerald trees unchanged except the rehash.
+
+#### SIL1 Task C as built: the studio map editor
+
+Pulled forward and built first, in parallel with M8 Task L, then revised after review (I1 to I8 below). The code is in `crates/studio/src/map_edit/`. Outside that directory, the task touched:
+- `crates/studio/src/{lib.rs, bin/studio_map.rs, paths.rs, ui/mod.rs}`;
+- `crates/studio/Cargo.toml`, which gains `ron`, `serde` and the `studio-map` bin;
+- `xtask/src/studio.rs`;
+- new tests in `crates/studio/tests/map_edit.rs` and the fixture in `crates/studio/tests/fixtures/games/fixture/`.
+
+**Files (the contract SIL1 Task A loads).** A games dir is `games/<game>/`; the editor defaults to `games/silice`.
+- `layouts/<Name>.ron` uses `extract::schema::Layout` exactly: size, tileset names, a 2x2 border, and raw blocks (`metatile | collision << 10 | elevation << 12`).
+- `maps/<Name>.ron` uses `map_edit::schema::GameMap { name, layout, header, objects, warps, coords, bgs, connections, scripts }`. It is the extract's `MapFile` with these differences:
+  - `layout` is a layout name, not an inline `Layout`, so maps may share a layout;
+  - there is no `group`/`num` (Silice ids come from `ids/maps.ron`; layout ids from `ids/layouts.ron`);
+  - `header` is a `GameHeader` that names its constants instead of the extract's numbers: `music: "MUS_*"`, `region_map_section: "MAPSEC_*"`, `weather: "WEATHER_*"`, `map_type: "MAP_TYPE_*"`, `battle_scene: "MAP_BATTLE_SCENE_*"` (the extract's `battle_type`); `cave` and the four flags stay as they are. A new map gets `MUS_NONE`, `MAPSEC_NONE`, `WEATHER_NONE`, `MAP_TYPE_NONE`, `MAP_BATTLE_SCENE_NORMAL`, cycling and running allowed, name shown. Imported Emerald headers are named through `map_edit::names` (from `include/constants/*.h`; an unnamed value is `<PREFIX>0x<HEX>`);
+  - `objects` are `GameObject`s: the extract's `Object` plus `id: Option<String>`, a `LOCALID_*` name;
+  - warps and connections name their target map only: `GameWarp { x, y, elevation, dest_map, dest_warp }` and `GameConnection { dir, offset, map }`. `dest_map: "MAP_DYNAMIC"` with `dest_warp: 127` is Gen3's dynamic warp.
+- `coords`, `bgs` and `scripts` keep the extract's types.
+- Both files are written with `extract::export::to_ron`, the extract's RON style. A save rewrites only the files whose bytes change, each through a temporary file and a rename. A load followed by a save is byte-identical.
+
+**Notes for Task A (the loader mirrors `GameMap`, `GameHeader`, `GameObject`, `GameWarp` and `GameConnection` in `crates/content/build/silice/schema.rs`; the content build cannot depend on the studio).**
+- Resolve the header names against the decomp constants plus Silice's own (`MUS_SIL_*`…); fail on an unknown name.
+- Object `local_id`s are stable and authored: a new object gets the highest id + 1 and a deletion leaves a gap, so the loader must not renumber. Emit `LOCALID_*` constants from the `id` names, per map, with the `local_id` as value. Scripts refer to objects by those constants only. Gen3 looks templates up by local id, so gaps are fine.
+- Warp targets: a map of the same games dir, or `MAP_DYNAMIC` (0x7F7F) with warp 127. A Silice map never targets an Emerald map. A connection targets a map of the same games dir.
+- Reserved map numbers: 0x7F7F is `MAP_DYNAMIC`, 0xFFFF is `MAP_UNDEFINED`, and the studio uses 0xFFFE (`render::PREVIEW`, the edited map) and 0xFF00..0xFFFD (`render::NEIGHBOR + i`, connected games dir maps in a preview). `ids/maps.ron` must not hand these out.
+- The limits the editor checks are the ones the loader should enforce too: at most 64 objects with local ids 1..63; `(width + 15) * (height + 14) <= 10240` (`MAX_MAP_DATA_SIZE`); at most 255 warps, coord events and bg events; elevations up to 15.
+
+**Model (`model.rs`, no Dioxus).**
+- `Doc` holds the `GameMap`, the size, the tileset names, the border and flat blocks. Its constructors are `Doc::new(&NewMap)`, `from_parts(map, layout)` and `from_map_file(&extract MapFile)`. `from_map_file` keeps every warp so indices do not shift: a dynamic one becomes `MAP_DYNAMIC`, one to a map the extract lacks `UNEXPORTED_<group>_<num>` (a validation error until the full import exports it).
+- `NewMap { name, layout?, shared_layout, width, height, primary, secondary, fill, fill_collision = 0, fill_elevation = 3, border? }`. The fill parts are range-checked like a brush; the size must satisfy `MAX_MAP_DATA_SIZE`. `GamesDir::new_doc` refuses a name whose map exists, and a layout name whose layout exists unless `shared_layout: true`, which loads the saved layout (size, tilesets, border and blocks; the other fields are then ignored).
+- `Editor` applies `Op`s, each as one undo step, with a 256-step limit. `begin_stroke`/`end_stroke` group a pencil drag into one step. It has a clipboard. `is_dirty()` compares the document with the saved one, so undoing back to it clears it. `Editor::unsaved` starts a new map that no file holds yet.
+- `Op` is also the edit-script format, a RON list parsed with `implicit_some`, so options take bare values. The ops:
+  - cells: `Paint`, `Rect`, `Fill` (flood fill over equal raw blocks, 4-connected), `Ascii` (rows plus a legend of brushes, for drafting from the chapters' plans), `Copy`, `Paste` (clipped at the edges), `Border`, `Resize { width, height, fill, fill_collision = 0, fill_elevation = 3, dx = 0, dy = 0 }`. Resize moves old cell (x, y) to (x + dx, y + dy), and with it the events and the connection offsets along their edge (north and south by dx, east and west by dy); new cells get the fill like a new map; events left outside are validation errors;
+  - map properties: `Tilesets`, `Header(GameHeader)`, `Scripts`;
+  - events: `Object` (with an optional `id`), `Warp`, `Coord`, `Sign`, `HiddenItem`, `Move`, `Replace` (stores the event as given, ids included), `Delete`;
+  - connections: `Connect`, `SetConnection`, `Disconnect`;
+  - history: `Undo`, `Redo`.
+- Cell ops take optional `metatile`, `collision` and `elevation`. Each part that is set replaces that part of the block. Every part is range-checked, and rectangles and ASCII rows are bounds-checked in 64-bit arithmetic, so no input panics.
+- A failing op leaves the document and the history unchanged.
+
+**Catalog and validation (`catalog.rs`, `validate.rs`).**
+- Tilesets are the build's own `&'static Tileset`s. They are paired with their extract names through the extracted map files, since every compiled tileset is used by some map. On the stub world the tilesets are `StubPrimary` and `StubSecondary`.
+- Maps: `Catalog::for_games` has only the games dir's own maps (a `MapRef` with size, warp destinations and connections), so warps and connections can target nothing else (plus `MAP_DYNAMIC`). `Catalog::from_content` has the build's maps, for imported Emerald maps. Object graphics come from the manifest's sprites. Script names come from `content::data::SCRIPT_NAMES`.
+- Errors:
+  - unknown tilesets, or a tileset in the wrong slot;
+  - metatiles outside `0..primary` and `512..512+secondary`, in cells and in the border;
+  - a size over `MAX_MAP_DATA_SIZE`; more than 64 objects; more than 255 warps, coord events or bg events;
+  - events out of bounds; elevations over 15;
+  - header names without their prefix;
+  - object local ids outside 1..63 or duplicated, `id`s that are not `LOCALID_*` or are duplicated, graphics (`OBJ_EVENT_GFX_*`, extracted when a sprite list exists), `MOVEMENT_TYPE_*`, trainer type and `FLAG_*`;
+  - warp destinations and their warp index (the map itself counts); a `MAP_DYNAMIC` warp whose index is not 127;
+  - `VAR_*`, sign facing, hidden item `ITEM_*` and `FLAG_*`, and secret bases;
+  - connections to unknown maps or to the map itself.
+- Warnings:
+  - script names the build does not have;
+  - a warp whose destination has no warp back to this map;
+  - two warps or coord events on one cell;
+  - two objects with one hide flag, two hidden items with one flag;
+  - a second connection in one direction;
+  - a connection the neighbor does not mirror (opposite direction, negated offset; dive and emerge pair without offsets);
+  - a neighbor placed entirely off the edge it connects to;
+  - `validate::id_changes(saved, edited)`: a named object whose local id changed (scripts and checkpoints use the number). The CLI's `apply` and the UI list them.
+
+**Renders (`render.rs`).** `map_view::render_map` draws the map through `Preview`, a `GameData` that serves a leaked `MapData` at `PREVIEW` (`MapId(0xFFFE)`) and delegates everything else to the build.
+- One base `MapData` is cached per (size, tilesets, border, connections), and the cells that differ from it are drawn as `setmetatile` overrides. This bounds the leaks.
+- Connections are drawn in the margin: to the build's maps by id, and to games dir maps (loaded from `Catalog::games`) as leaked `MapData`s, one per layout contents, served at `NEIGHBOR + i` (0xFF00 + the connection's index).
+- The palette is the tileset pair drawn as an 8-wide map of its metatiles. The primary's metatiles come first, and the secondary's start on a new row.
+
+**Hygiene (`games::hygiene`).** A games dir may hold only canonical `maps/*.ron` and `layouts/*.ron`. When the extract is present, `games::copies` also flags a layout whose metatiles equal an extracted layout's (collision and elevation ignored), or that holds a 10x10 square of one with at least 12 distinct metatiles (uniform fills and plain patterns match everywhere and are not flagged). Authored maps may use the extract's tilesets, not its maps.
+
+**CLI.** The command is `cargo xtask studio map …`. It runs the `studio-map` bin with `cargo run` from the workspace root, so relative paths are relative to the workspace. `--game` takes a name (letters, digits and `_`).
+
+```text
+studio-map [--games DIR | --game NAME] list
+studio-map … create <spec.ron>                       # NewMap; never replaces a map, nor a layout unless shared
+studio-map … apply <Map> <script.ron> [--dry-run]   # saves even a draft with errors (listed); nothing if an op fails
+studio-map … validate [<Map>...]                    # exit 1 on errors; goes on past unreadable maps; lists orphan layouts
+studio-map … render <Map> [--out FILE] [--margin N] # default target/studio/maps/<Map>.png (git-ignored)
+studio-map palette <Primary> <Secondary> [--out FILE]
+```
+
+Example spec and edit script (the shape of the fixture's `FixtureTown`):
+
+```ron
+(name: "FixtureTown", width: 8, height: 6, primary: "General", secondary: "Petalburg", fill: 1, border: [468, 469, 476, 477])
+```
+```ron
+[
+    Rect(x: 0, y: 0, w: 8, h: 1, metatile: 468, collision: 1),
+    Ascii(x: 0, y: 1, rows: ["T......T", "T......T"], legend: {'T': (metatile: 468, collision: 1), '.': (metatile: 1)}),
+    Fill(x: 1, y: 4, metatile: 13),
+    Object(x: 2, y: 2, id: "LOCALID_FIXTURE_BOY", gfx: "OBJ_EVENT_GFX_BOY_1", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "FixtureTown_EventScript_Boy"),
+    Object(x: 5, y: 3, gfx: "OBJ_EVENT_GFX_YOUNGSTER", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3, script: "FixtureTown_EventScript_Trainer", flag: "FLAG_HIDE_FIXTURE_TRAINER"),
+    Warp(x: 4, y: 5, dest_map: "FixtureRoute", dest_warp: 0),
+    Warp(x: 7, y: 5, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    Coord(x: 4, y: 4, var: "VAR_FIXTURE_STATE", value: 0, script: "FixtureTown_EventScript_Trigger"),
+    Sign(x: 6, y: 1, script: "FixtureTown_EventScript_Sign"),
+    HiddenItem(x: 1, y: 5, item: "ITEM_POTION", flag: "FLAG_HIDDEN_ITEM_FIXTURE_POTION"),
+    Connect((dir: North, offset: 0, map: "FixtureRoute")),
+    Header((music: "MUS_LITTLEROOT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_SUNNY", map_type: "MAP_TYPE_TOWN", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+]
+```
+
+**UI (feature `ui`): the studio's Edit tab.**
+- `session.rs` holds the tools and overlay shapes as a Dioxus-free core: pencil, rect, fill, picker, select (a drag moves the event), and placing an object, warp, coord or sign. A paint mode chooses whether the brush writes the metatile, the collision or the elevation.
+- `ui.rs` is thin: a map list and a new-map form, the toolbar, Undo, Redo and Save, and zoom. The layer toggles are metatiles, collision, elevation and events.
+- Opening another map (or creating one) while the open map has unsaved changes is refused with a message and a "Discard changes" button. Create goes through `GamesDir::new_doc` (no existing map or layout), and the first Save of a new map through `GamesDir::create`.
+- The map picture and the palette are served by an `edit` asset handler from `EditImages`, which `ui/mod.rs` registers. An SVG layer draws the overlays and takes the mouse.
+- Clicking the palette picks a metatile.
+- The inspector edits the selected event as RON (Apply, Delete). The connections are edited as a RON list, applied as one undo step.
+- The issue list (validation and `id_changes`) updates on every change.
+
+**Write locations.** `paths::write_locations` gains `<workspace>/games` as `Committable::Authored`, and a test checks that it is not git-ignored.
+
+**Tests.**
+- Unit tests in `map_edit/tests.rs`, `session.rs` and `names.rs`: paint, rect, fill (and that it does not cross diagonals), ASCII, copy and paste, strokes, undo and redo and the 256-step cap, dirty tracking against the saved state, Resize growing and shrinking (kept cells, fill, shifted events and offsets, events left outside), the Border, Tilesets, Header and Scripts ops, event CRUD with stable local ids, out-of-range and overflowing input as errors, `MAP_DYNAMIC`, the game limits and link warnings, `id_changes`, the byte-identical round trip and edit-script parsing.
+- `tests/map_edit.rs`:
+  - sample extracted maps (the M7 slice's 15 plus a few later ones the build has; TODO for M8 Task L: `content::samples::map_ids()`) load into the editor without errors and render pixel-identical to the game's `render_map`; an `#[ignore]` variant checks every map; extracted warps keep their indices;
+  - an edited map renders equal to a direct `MapData` render, on both worlds; on the real extract, Route 101 with painted cells also equals the game's render with those cells as overrides;
+  - the fixture (`FixtureTown` and `FixtureRoute`, which warp and connect to each other only) round-trips byte for byte, validates with only unwritten-script warnings, rejects an Emerald warp target, and draws its connected games dir neighbor;
+  - a CLI session gives identical bytes in two dirs, keeps local ids, warns on a renumbered named object, and rejects a bad `--game`;
+  - new maps share a layout only when asked (CLI and API), and a refused create writes nothing;
+  - a failing script writes nothing; `validate` fails on errors, goes on past a map whose layout is missing and lists orphan layouts;
+  - the hygiene check: planted PNG, extra-field and reformatted files are flagged; a copied Route 101 layout (collision repainted) and a pasted 10x10 square of it are flagged, a uniform fill is not.
+- ssr tests render the Edit tab empty and with the fixture open.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --check` | clean |
+| clippy, plain and with `game-native/window,studio/ui` | clean |
+| `cargo test --workspace`, real | 1404 passed, 14 ignored |
+| `cargo test --workspace`, stub | 1392 passed, 14 ignored |
+| `cargo xtask studio --check` | 180 passed |
+
+**Limitations.**
+- The UI was not driven by hand in a window; only its ssr renders and its core are tested.
+- Renders leak one `MapData` per distinct (size, tilesets, border, connections), and one per distinct connected games dir layout.
+- Dive and emerge connections are not drawn.
+- Flags, vars, items and movement types are checked by prefix only, until `ids/*.ron` exist (Task A).
+- The header is edited only through the `Header` op, not in the UI.
+- The palette shows no metatile numbers. The CLI prints its layout: 8 per row, and the cell where the secondary starts.
 
 ### 3.2 SIL2: Ch1–Ch3 (needs M9 mart, menus and save, and M10 Cut, Strength and Flash)
 **Wave 0 engine contracts** (each new piece of state hashed and snapshotted once, with a SCHEMA bump):
