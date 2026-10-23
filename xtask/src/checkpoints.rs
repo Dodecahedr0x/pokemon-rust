@@ -265,7 +265,7 @@ fn promote(committed: &Path, local: &Path, id: &str, label: &str) -> Result<Chec
 /// an error unless it is of this checkpoint schema and reaches its recorded digest.
 fn replay_on_this_build(store: &Store, node: &Node) -> Result<engine::checkpoint::Checkpoint> {
     let id = node.meta.id;
-    if node.meta.schema != engine::checkpoint::SCHEMA {
+    if !engine::checkpoint::schema_readable(node.meta.schema) {
         bail!(
             "{id} is stale (checkpoint schema {}): `cargo xtask checkpoints verify --local` it \
              first",
@@ -483,7 +483,8 @@ mod tests {
         };
         // `status.ron` still says Valid (it has no build): the replay decides.
         let valid = |s: &Store| s.statuses().unwrap()[&CheckpointId(10_001)] == Status::Valid;
-        edit(&|n| n.meta.schema -= 1);
+        // A schema older than the oldest readable one (schema 2 still reads as 3).
+        edit(&|n| n.meta.schema = engine::checkpoint::OLDEST_READABLE - 1);
         assert!(valid(&Store::layered(&base, &local).unwrap()));
         let e = promote(&base, &local, "c10001", "x").unwrap_err();
         assert!(e.to_string().contains("stale"), "{e}");

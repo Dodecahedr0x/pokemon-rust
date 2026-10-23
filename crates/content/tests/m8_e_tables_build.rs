@@ -40,6 +40,15 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// The build script cannot link the engine: its copy of the Fairy matchup count must match.
+#[test]
+fn the_build_fairy_count_matches_the_engine() {
+    assert_eq!(
+        battle::engine_fairy_len(),
+        engine::mon::FAIRY_MATCHUPS.len()
+    );
+}
+
 fn put(dir: &Path, rel: &str, s: &str) {
     let p = dir.join(rel);
     std::fs::create_dir_all(p.parent().unwrap()).unwrap();

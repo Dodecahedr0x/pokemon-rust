@@ -804,6 +804,7 @@ pub fn mon(species: SpeciesId, level: u8, stats: [u16; 6], moves: &[MoveId]) -> 
         status: Status::None,
         hp: stats[0],
         stats,
+        held: None,
     }
 }
 
