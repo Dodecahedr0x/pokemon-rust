@@ -42,20 +42,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// The Hall of Fame (`EverGrandeCity_HallOfFame_EventScript_EnterHallOfFame`): its walk and
-    /// `FLDEFF_HALL_OF_FAME_RECORD` play, but `special GameClear` (the Hall of Fame screen, the
-    /// credits, the save and the reset; `post_battle_event_funcs.c`) does not, which leaves the
-    /// screen faded out and the world never capturable again. So the whole room is bypassed on
-    /// arrival: `SetGameClearFlags`' `FLAG_IS_CHAMPION`, `GameClear`'s `FLAG_SYS_GAME_CLEAR`,
-    /// and the continue warp (`HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F`).
-    static HALL_OF_FAME: Bypass = Bypass {
-        issue: "game-clear",
-        features: &["SPECIAL_GameClear"],
-        set: &[FLAG_IS_CHAMPION, FLAG_SYS_GAME_CLEAR],
-        warp: Some((MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F, 4, 2)),
-        ..Bypass::NONE
-    };
-
     /// A Full Restore from the bag on the lead, between two Elite Four rooms.
     const FULL_RESTORE: Step = Step::UseItem(UseItem {
         item: ITEM_FULL_RESTORE,
@@ -2310,7 +2296,10 @@ mod list {
         enter(MAP_EVER_GRANDE_CITY_HALL4, 5, 2, Up),
         Step::WaitScript,
         Step::Expect("wallace_defeated"),
-        Step::Bypass(&HALL_OF_FAME),
+        // The Hall of Fame (`EverGrandeCity_HallOfFame_EventScript_EnterHallOfFame`, on
+        // arrival): the walk, the record, `SetGameClearFlags`, then `special GameClear`, its
+        // screens degraded to a black wait, lands in the player's room.
+        Step::WaitScript,
         Step::Expect("champion"),
         Step::Expect("hall_of_fame"),
         Step::Checkpoint("hall_of_fame"),
