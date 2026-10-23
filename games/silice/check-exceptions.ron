@@ -597,6 +597,12 @@
             ruling_needed: true,
         ),
         (
+            rule: "placement-map",
+            subject: "FLAG_SIL_MAIL_SILAS",
+            reason: "a once-only gift, not an item: Silas's PC mail in the player's room gives the Porygon Egg in the post-game (ch12 Sc09, give_egg); the flag is set by that Ch12 scene script, not by the Ch0 map scripts that now claim BricoBourg_PlayerHouse_2F (SIL1 Task F)",
+            ruling_needed: false,
+        ),
+        (
             rule: "sil-prefix",
             subject: "FLAG_DAILY",
             reason: "a pseudo-flag in ch12 (daily rematch); needs a real FLAG_SIL_* or a daily-reset mechanism",
