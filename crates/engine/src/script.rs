@@ -393,6 +393,11 @@ pub enum Request {
         slot: u8,
         trade: u8,
     },
+    /// Gen3 `AddPCItem` (`addpcitem`, `NewGameInitPCItems`): answers `Bool` (whether it fit).
+    PcItemAdd {
+        item: ItemId,
+        qty: u16,
+    },
     // ---- forced movement ----
     /// Gen3 `warphole`: drops the player to `map` (`None`: the current map's
     /// [`GameData::hole_warp`](crate::data::GameData::hole_warp), Gen3 `MAP_UNDEFINED`), onto
@@ -578,6 +583,8 @@ impl Request {
             Request::AddFriendship { slot, n } => (69, slot as u16, n as u8 as u16, 0, 0),
             Request::PartyMonSpecies(slot) => (70, slot as u16, 0, 0, 0),
             Request::InGameTrade { slot, trade } => (71, slot as u16, trade as u16, 0, 0),
+            // Tag 100: clear of the tags other requests take in sequence.
+            Request::PcItemAdd { item, qty } => (100, item.0, qty, 0, 0),
             // Tag 120: clear of the Milestone 9 requests' 56 and up.
             Request::WarpHole(map) => (120, map.map_or(0xFFFF, |m| m.0), 0, 0, 0),
         };
@@ -1166,6 +1173,11 @@ impl Ctx {
     /// Gen3 `CreateInGameTradePokemon`.
     pub fn in_game_trade(&self, slot: u8, trade: u8) -> Req<()> {
         self.req(Request::InGameTrade { slot, trade }, unit)
+    }
+
+    /// Gen3 `AddPCItem`: whether it fit in the PC's item storage.
+    pub fn pc_item_add(&self, item: ItemId, qty: u16) -> Req<bool> {
+        self.req(Request::PcItemAdd { item, qty }, Response::bool)
     }
 }
 

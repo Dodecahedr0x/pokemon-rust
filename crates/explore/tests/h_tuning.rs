@@ -61,9 +61,11 @@ fn block_mates_are_the_reachable_cells_of_the_target_block() {
 
 /// The state of the first Route 101 softlock the slice run raised (before the probe resumed
 /// walks): after the lab, next to the tall grass at (19, 9). `fixtures/route101_grass.runs`
-/// holds only the button runs from a new game (no state, no hashes), 16,057 frames
-/// (regenerated after Milestone 8 Task G1, whose spread battle return and trainer prize
-/// message shifted the route timing the Task F one relied on).
+/// holds only the button runs from a new game (no state, no hashes), 10,223 frames: the
+/// spine's inputs to `lab`, out of the lab, two wild battles on Route 101's grass at (13, 6),
+/// then back to (19, 9). It was regenerated after the Wave C new game: the `ResetAllMapFlags`
+/// objects change the RNG draws, and the battles pick a state where the false positive
+/// (below, without resumes) still shows.
 ///
 /// To regenerate it (for example after a content or engine change moves that state): get a
 /// NewGame trace that ends on Route 101's tall grass after the lab, e.g. a branch finding from
