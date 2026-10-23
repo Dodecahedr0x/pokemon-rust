@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, past `badge5` to HM03).
-const EMERALD_FRAMES: u64 = 757_099;
+const EMERALD_FRAMES: u64 = 769_586;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -41,11 +41,8 @@ const EMERALD_LABELS: &[&str] = &[
 /// deleting its bypass (and its line here).
 const SPINE_BLOCKERS: &[&str] = &[
     "teach-hm-rock-smash",
-    "cable-car",
-    "lavaridge-gym-warps",
     "rock-smash-forgotten-south",
     "rock-smash-forgotten-rusturf",
-    "petalburg-gym-doors",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.

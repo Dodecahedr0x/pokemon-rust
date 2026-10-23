@@ -189,7 +189,13 @@ pub struct Object {
     pub y: i16,
     /// Cell being left while a step plays; equals (x, y) otherwise.
     pub prev: (i16, i16),
+    /// Gen3 `currentElevation`: collisions and object overlaps.
     pub elevation: u8,
+    /// Gen3 `previousElevation`: the last elevation other than 0 and 15, which the field's
+    /// position checks read (`PlayerGetElevation`: warps, coord and bg events), so a hole on
+    /// an elevation-0 cell still matches its warp's elevation. Read with
+    /// [`Object::position_elevation`].
+    prev_elevation: u8,
     pub facing: Dir,
     /// Read with [`Object::movement`]; changed only through [`Objects::set_movement_type`]
     /// (`code` caches its hash bytes).
@@ -254,6 +260,7 @@ impl Object {
             y,
             prev: (x, y),
             elevation: 0,
+            prev_elevation: 0,
             facing: initial_facing(movement),
             movement,
             code: movement_code(movement),
@@ -278,6 +285,7 @@ impl Object {
         };
         let mut o = Self::new(ev.local_id, map, Some(gfx), ev.x, ev.y, ev.movement);
         o.elevation = ev.elevation;
+        o.prev_elevation = ev.elevation;
         o.range = ev.range;
         o
     }
@@ -422,6 +430,35 @@ impl Object {
         let prev = block_elevation(terrain.block(self.prev.0, self.prev.1));
         if cur != 15 && prev != 15 {
             self.elevation = cur;
+            if cur != 0 {
+                self.prev_elevation = cur;
+            }
+        }
+    }
+
+    /// The elevation of the object's position for event matching (Gen3 `PlayerGetElevation`,
+    /// `previousElevation`).
+    pub const fn position_elevation(&self) -> u8 {
+        self.prev_elevation
+    }
+
+    /// `elevation` with `prev_elevation` packed into the high nibble (`prev + 1`) when they
+    /// differ (it is then at most 14): the checkpoint's `ObjectSnap::elevation`, unchanged
+    /// for the usual equal pair.
+    pub(crate) const fn packed_elevation(&self) -> u8 {
+        if self.prev_elevation == self.elevation {
+            self.elevation
+        } else {
+            self.elevation | ((self.prev_elevation + 1) << 4)
+        }
+    }
+
+    /// Inverse of [`Object::packed_elevation`]: `(elevation, prev_elevation)`.
+    pub(crate) const fn unpack_elevation(b: u8) -> (u8, u8) {
+        let e = b & 0x0F;
+        match b >> 4 {
+            0 => (e, e),
+            p => (e, p - 1),
         }
     }
 
@@ -434,6 +471,11 @@ impl Object {
         h.write_u16(self.prev.0 as u16);
         h.write_u16(self.prev.1 as u16);
         h.write(&[self.elevation, self.facing as u8]);
+        // Only where it decides an event match (standing on an elevation-0 cell), so the
+        // usual hashes are unchanged.
+        if self.elevation == 0 && self.prev_elevation != 0 {
+            h.write(&[0xE0 | self.prev_elevation]);
+        }
         h.write(&self.code);
         h.write_u16(self.home.0 as u16);
         h.write_u16(self.home.1 as u16);
@@ -589,6 +631,12 @@ impl Objects {
     fn set_map(&mut self, id: MapId) {
         self.map = id;
         self.objs[0].map = id;
+    }
+
+    /// Sets the player's `previousElevation` on a warp load (the arrival cell's, see
+    /// `world::maps::load_map`).
+    pub fn reset_player_position_elevation(&mut self, e: u8) {
+        self.objs[0].prev_elevation = e;
     }
 
     /// Despawns an object of the current map (Gen3 `removeobject`). The player cannot be

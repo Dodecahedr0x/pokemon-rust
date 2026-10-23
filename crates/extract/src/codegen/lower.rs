@@ -131,6 +131,7 @@ pub const NATIVE_COMMANDS: &[&str] = &[
     "warp",
     "warpsilent",
     "warpdoor",
+    "warphole",
     "warpteleport",
     "warpspinenter",
     "warpmossdeepgym",
