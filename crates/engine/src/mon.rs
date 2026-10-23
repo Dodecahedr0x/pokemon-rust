@@ -1515,6 +1515,13 @@ pub struct Party {
 }
 
 impl Party {
+    /// Swaps slots `a` and `b` (Gen3 `SwitchPartyMon`); nothing if either is empty.
+    pub fn swap(&mut self, a: usize, b: usize) {
+        if a < PARTY_SIZE && b < PARTY_SIZE && self.mons[a].is_some() && self.mons[b].is_some() {
+            self.mons.swap(a, b);
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.mons.iter().take_while(|m| m.is_some()).count()
     }

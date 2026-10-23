@@ -31,6 +31,34 @@ pub const UPLOAD_BYTES_PER_FRAME: usize = crate::field::SPREAD_TILES_BLACK as us
 /// the field's `SPREAD_TILES_VISIBLE` (128 tiles, 4 KiB), a few lines of vblank.
 pub const UPLOAD_BYTES_VISIBLE: usize = crate::field::SPREAD_TILES_VISIBLE as usize * 32;
 
+/// VRAM bytes `f` copies so far (tiles, tilemaps, palettes); a map fill is a `CpuFastFill`
+/// with no source data and is not counted.
+pub fn frame_bytes(f: &crate::video::Frame) -> usize {
+    use crate::video::Cmd;
+    f.cmds
+        .iter()
+        .map(|c| match c {
+            Cmd::BgPalette { .. } | Cmd::ObjPalette { .. } => 32,
+            Cmd::BgTiles { tiles, .. } | Cmd::ObjTiles { tiles, .. } => tiles.len() * 32,
+            Cmd::BgTile { .. } | Cmd::ObjTile { .. } => 32,
+            Cmd::MapEntries { entries, .. } => entries.len() * 2,
+            Cmd::MapFill { .. } | Cmd::Bg { .. } => 0,
+        })
+        .sum()
+}
+
+/// What is left of `f`'s upload budget ([`UPLOAD_BYTES_PER_FRAME`] on a black or bulk frame,
+/// else [`UPLOAD_BYTES_VISIBLE`]): screens flush their changed tiles within it and the rest
+/// on the next frames (a full redraw while visible shows over a few frames).
+pub fn frame_budget(f: &crate::video::Frame) -> usize {
+    let cap = if f.is_black() || f.bulk {
+        UPLOAD_BYTES_PER_FRAME
+    } else {
+        UPLOAD_BYTES_VISIBLE
+    };
+    cap.saturating_sub(frame_bytes(f))
+}
+
 /// Frames of a screen fade (Gen3 `BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK)`
 /// as the engine's `Fader` runs it: one level a frame).
 pub const FADE_FRAMES: u8 = 16;
@@ -39,6 +67,47 @@ pub const FADE_FRAMES: u8 = 16;
 /// than owning the whole screen.
 pub const fn is_overlay(kind: ScreenKind) -> bool {
     matches!(kind, ScreenKind::StartMenu | ScreenKind::SaveDialog)
+}
+
+/// A screen's drawing state (canvases, the composed map), rebuilt from the screen's own state
+/// whenever it is missing: on the first frame, after a child screen took the screen (the
+/// screen drops it when it pushes), and in a clone. Not state: never hashed, always equal.
+pub struct Gfx<T>(pub Option<alloc::boxed::Box<T>>);
+
+impl<T> Gfx<T> {
+    pub const fn none() -> Self {
+        Gfx(None)
+    }
+}
+
+impl<T> Default for Gfx<T> {
+    fn default() -> Self {
+        Gfx(None)
+    }
+}
+
+impl<T> Clone for Gfx<T> {
+    fn clone(&self) -> Self {
+        Gfx(None)
+    }
+}
+
+impl<T> PartialEq for Gfx<T> {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl<T> Eq for Gfx<T> {}
+
+impl<T> core::fmt::Debug for Gfx<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "Gfx(drawn)"
+        } else {
+            "Gfx(none)"
+        })
+    }
 }
 
 /// Where the hosting is between two screens (`world/screens.rs`).

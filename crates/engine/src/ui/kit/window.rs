@@ -215,6 +215,11 @@ impl Panel {
     pub fn flush(&mut self, f: &mut Frame) {
         self.canvas.flush(f);
     }
+
+    /// Uploads the changed tiles while `budget` lasts ([`super::frame_budget`]).
+    pub fn flush_within(&mut self, f: &mut Frame, budget: &mut usize) {
+        self.canvas.flush_within(f, budget);
+    }
 }
 
 /// BG0's map for the visible rows, composed from panels and uploaded whole.
@@ -255,7 +260,7 @@ impl MapBuf {
     /// right, 6 BL, 7 bottom, 8 BR; Gen3's `gUserFrames` tile order).
     fn frame_entry(&self, pos: u16) -> u16 {
         match self.frame {
-            FrameKind::User => USER_FRAME_TILE + pos | (USER_FRAME_PALETTE as u16) << 12,
+            FrameKind::User => (USER_FRAME_TILE + pos) | ((USER_FRAME_PALETTE as u16) << 12),
             FrameKind::Dialogue => {
                 let (tile, vflip) = match pos {
                     0 => (DLG_CORNER, false),
@@ -274,14 +279,18 @@ impl MapBuf {
 
     /// Puts `p`'s canvas (and frame, one tile around it) on the map.
     pub fn put(&mut self, p: &Panel) {
-        let w = p.window();
+        self.put_window(p.window(), p.framed);
+    }
+
+    /// Puts window `w`'s canvas tiles (and a frame around them) on the map.
+    pub fn put_window(&mut self, w: Window, framed: bool) {
         let (l, t, ww, hh) = (
             w.left() as i16,
             w.top() as i16,
             w.width() as i16,
             w.height() as i16,
         );
-        if p.framed {
+        if framed {
             self.set(l - 1, t - 1, self.frame_entry(0));
             self.set(l + ww, t - 1, self.frame_entry(2));
             self.set(l - 1, t + hh, self.frame_entry(6));
@@ -325,6 +334,14 @@ impl TileAlloc {
     pub const fn full() -> Self {
         TileAlloc {
             next: FULL_BASE,
+            end: FULL_END,
+        }
+    }
+
+    /// From tile `base` to the end of the full-screen range.
+    pub const fn at(base: u16) -> Self {
+        TileAlloc {
+            next: base,
             end: FULL_END,
         }
     }

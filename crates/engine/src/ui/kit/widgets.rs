@@ -145,14 +145,30 @@ impl Message {
         !self.printer.is_printing() && !self.wait_press
     }
 
+    pub fn flush_within(&mut self, f: &mut Frame, budget: &mut usize) {
+        self.printer.flush_within(f, budget);
+    }
+
     pub fn flush(&mut self, f: &mut Frame) {
         self.printer.flush(f);
+    }
+
+    /// Uploads the whole canvas on the next flush (after another screen used the tiles).
+    pub fn touch(&mut self) {
+        self.printer.touch();
+    }
+
+    /// Hides the message (its window leaves the map; the printer keeps its text).
+    pub fn hide(&mut self) {
+        self.shown = false;
+        self.wait_press = false;
     }
 
     pub fn window(&self) -> Window {
         self.panel_window
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         self.printer.hash(h);
         h.write(&[self.wait_press as u8, self.shown as u8]);
@@ -209,39 +225,34 @@ impl YesNo {
         None
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         h.write(&[self.cursor]);
     }
 }
 
-/// Gen3 `sMoneyBoxWindowTemplate`: (1, 1), 10 x 2 tiles (`DrawMoneyBox`, with
-/// `PrintMoneyAmountInMoneyBox`'s 6 digits right-aligned after the currency).
-pub const MONEY_BOX_RECT: (u8, u8, u8, u8) = (1, 1, 10, 2);
-/// Gen3 `sCoinsWindowTemplate` (`ShowCoinsWindow`): (1, 1), 8 x 2 tiles, 4 digits.
-pub const COIN_BOX_RECT: (u8, u8, u8, u8) = (1, 1, 8, 2);
-
-/// The money box (`DrawMoneyBox`). Deviation: the currency sign is printed before the amount
-/// (Gen3 FR's `gText_PokedollarVar1` order is a text of its own, not extracted).
-pub fn money_box(game: &impl GameData, tiles: &mut TileAlloc, money: u32) -> Panel {
-    let (l, t, w, h) = MONEY_BOX_RECT;
-    let mut p = tiles.panel(game, l, t, w, h, true);
+/// The money box (Gen3 `DrawMoneyBox(amount, x, y)`: a framed 10 x 2 window at (x + 1, y + 1);
+/// `PrintMoneyAmountInMoneyBox`: the amount left-aligned on 6 digits padded with spaces in
+/// front, then the currency). Deviation: the currency sign follows the amount as `¥`
+/// (Gen3 prints `gText_PokedollarVar1`, a language text not extracted).
+pub fn money_box(game: &impl GameData, tiles: &mut TileAlloc, money: u32, x: u8, y: u8) -> Panel {
+    let mut p = tiles.panel(game, x + 1, y + 1, 10, 2, true);
     let mut s = Vec::with_capacity(10);
-    s.push(CHAR_CURRENCY);
     push_number(&mut s, money, 6, true);
+    s.push(CHAR_CURRENCY);
     s.push(EOS);
-    // `PrintMoneyAmount`: right-aligned in the window (x 64 - width, here a fixed column).
-    p.text(game, &s, 16, 1);
+    p.text(game, &s, 0, 1);
     p
 }
 
-/// The coin box (`PrintCoinsString`).
-pub fn coin_box(game: &impl GameData, tiles: &mut TileAlloc, coins: u16) -> Panel {
-    let (l, t, w, h) = COIN_BOX_RECT;
-    let mut p = tiles.panel(game, l, t, w, h, true);
+/// The coin box (Gen3 `ShowCoinsWindow(coins, x, y)`: a framed 8 x 2 window at (x, y),
+/// `PrintCoinsString`'s 4 digits).
+pub fn coin_box(game: &impl GameData, tiles: &mut TileAlloc, coins: u16, x: u8, y: u8) -> Panel {
+    let mut p = tiles.panel(game, x, y, 8, 2, true);
     let mut s = Vec::with_capacity(8);
     push_number(&mut s, coins as u32, 4, true);
     s.push(EOS);
-    p.text(game, &s, 16, 1);
+    p.text(game, &s, 0, 1);
     p
 }
 
@@ -294,6 +305,7 @@ impl Quantity {
         s
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
         h.write_u16(self.value);
         h.write_u16(self.max);
@@ -303,7 +315,7 @@ impl Quantity {
 /// The max a quantity selector allows: what the bag holds, the money buys, or the bag can
 /// take, at most 99 (Gen3 `MAX_BAG_ITEM_CAPACITY`).
 pub fn quantity_max(have: u32, price: u32, money: u32, cap: u32) -> u16 {
-    let afford = if price == 0 { cap } else { money / price };
+    let afford = money.checked_div(price).unwrap_or(cap);
     have.min(afford).min(cap).min(99) as u16
 }
 
@@ -328,41 +340,5 @@ pub fn grey(game: &impl GameData) -> Colors {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn numbers_align_as_gen3() {
-        let mut v = Vec::new();
-        push_number(&mut v, 7, 3, true);
-        assert_eq!(v, [CHAR_SPACE, CHAR_SPACE, CHAR_0 + 7]);
-        v.clear();
-        push_number(&mut v, 1234, 3, false);
-        // Gen3 keeps the low `n` digits.
-        assert_eq!(v, [CHAR_0 + 2, CHAR_0 + 3, CHAR_0 + 4]);
-        v.clear();
-        push_number(&mut v, 0, 2, false);
-        assert_eq!(v, [CHAR_0]);
-    }
-
-    #[test]
-    fn quantity_wraps_up_down_and_clamps_left_right() {
-        let mut q = Quantity::new(15);
-        assert!(q.input(Buttons::DOWN));
-        assert_eq!(q.value, 15);
-        assert!(q.input(Buttons::UP));
-        assert_eq!(q.value, 1);
-        assert!(q.input(Buttons::RIGHT));
-        assert_eq!(q.value, 11);
-        assert!(q.input(Buttons::RIGHT));
-        assert_eq!(q.value, 15);
-        assert!(!q.input(Buttons::RIGHT));
-        assert!(q.input(Buttons::LEFT));
-        assert_eq!(q.value, 5);
-        assert!(q.input(Buttons::LEFT));
-        assert_eq!(q.value, 1);
-        assert_eq!(quantity_max(5, 200, 1000, 99), 5);
-        assert_eq!(quantity_max(999, 200, 1000, 99), 5);
-        assert_eq!(quantity_max(999, 0, 0, 120), 99);
-    }
-}
+#[path = "widgets_tests.rs"]
+mod tests;

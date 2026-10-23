@@ -150,6 +150,11 @@ impl Canvas {
         ((t[y % 8] >> ((x % 8) * 4)) & 0xF) as u8
     }
 
+    /// Marks every tile for upload (the canvas' VRAM was overwritten: a screen over it).
+    pub fn touch(&mut self) {
+        self.dirty.fill(true);
+    }
+
     pub fn fill(&mut self, c: u8) {
         self.memo = None;
         self.tiles.fill([fill_word(c); 8]);
@@ -337,6 +342,25 @@ impl Canvas {
     }
 
     /// Uploads the dirty tiles (`Cmd::BgTile`) and clears their flags.
+    /// Uploads the changed tiles while `budget` (bytes) lasts; the rest stay changed for the
+    /// next frame.
+    pub fn flush_within(&mut self, f: &mut Frame, budget: &mut usize) {
+        for (i, d) in self.dirty.iter_mut().enumerate() {
+            if *d {
+                if *budget < 32 {
+                    return;
+                }
+                *budget -= 32;
+                *d = false;
+                f.cmds.push(Cmd::BgTile {
+                    char_block: self.char_block,
+                    index: self.win.base + i as u16,
+                    tile: self.tiles[i],
+                });
+            }
+        }
+    }
+
     pub fn flush(&mut self, f: &mut Frame) {
         for (i, d) in self.dirty.iter_mut().enumerate() {
             if core::mem::take(d) {
@@ -592,6 +616,11 @@ impl Printer {
     }
 
     /// True while a message is being printed, including its `\p`/`\l`/pause waits.
+    /// [`Canvas::touch`] on the printer's canvas.
+    pub fn touch(&mut self) {
+        self.canvas.touch();
+    }
+
     pub fn is_printing(&self) -> bool {
         self.state != State::Idle
     }
@@ -599,6 +628,11 @@ impl Printer {
     /// Uploads the canvas tiles changed since the last flush.
     pub fn flush(&mut self, f: &mut Frame) {
         self.canvas.flush(f);
+    }
+
+    /// [`Canvas::flush_within`].
+    pub fn flush_within(&mut self, f: &mut Frame, budget: &mut usize) {
+        self.canvas.flush_within(f, budget);
     }
 
     /// Feeds the printer state into `h`: delay, speed-up, colors, state, position, text length

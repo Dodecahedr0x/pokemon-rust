@@ -735,6 +735,35 @@ pub enum UiText {
     EvolutionWhat,
     EvolutionCongrats,
     EvolutionStopped,
+    // ---- Added by Task K/PT (the party menu's teach flow and messages; `strings.c` names) ----
+    /// `gText_DoWhatWithPokemon`.
+    PartyDoWhatWithMon,
+    /// `gText_TeachWhichPokemon`.
+    PartyTeachWhichMon,
+    /// `gText_Learned` (the TM descriptor of a mon that knows the move).
+    PartyLearned,
+    /// `gText_PkmnLearnedMove3`: `{STR_VAR_1}` the mon, `{STR_VAR_2}` the move.
+    PartyLearnedMove,
+    /// `gText_PkmnCantLearnMove`.
+    PartyCantLearnMove,
+    /// `gText_PkmnAlreadyKnows`.
+    PartyAlreadyKnows,
+    /// `gText_PkmnNeedsToReplaceMove`.
+    PartyNeedsToReplaceMove,
+    /// `gText_WhichMoveToForget`.
+    PartyWhichMoveToForget,
+    /// `gText_12PoofForgotMove`: `{STR_VAR_2}` the forgotten move.
+    PartyForgotMove,
+    /// `gText_StopLearningMove2`.
+    PartyStopLearningMove,
+    /// `gText_MoveNotLearned`.
+    PartyMoveNotLearned,
+    /// `gText_PkmnNotHolding`.
+    PartyNotHolding,
+    /// `gText_ReceivedItemFromPkmn`: `{STR_VAR_1}` the mon, `{STR_VAR_2}` the item.
+    PartyReceivedItemFromMon,
+    /// `gText_HMMovesCantBeForgotten2`.
+    SummaryHmCantForget,
 }
 
 /// One start-menu entry (Gen3 `sStartMenuItems`), in display order (Milestone 9).
@@ -1204,6 +1233,12 @@ pub trait GameData {
     fn move_description(&self, id: MoveId) -> Option<&'static [u8]> {
         let _ = id;
         None
+    }
+    /// Whether `m` is an HM move, which the learn-move pick refuses to forget (Gen3
+    /// `IsHMMove2`, `sHMMoves`).
+    fn is_hm_move(&self, m: MoveId) -> bool {
+        let _ = m;
+        false
     }
     /// The move a TM or HM item teaches.
     fn tm_move(&self, id: ItemId) -> Option<MoveId> {
