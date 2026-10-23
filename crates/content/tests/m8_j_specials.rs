@@ -115,7 +115,7 @@ impl Rec {
             Request::PartySize => Response::Value(self.party),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(self.map),
-            Request::YesNo => Response::Bool(false),
+            Request::YesNo { .. } => Response::Bool(false),
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
                 Response::Value(BattleOutcome::Won as u16)
@@ -621,7 +621,7 @@ fn msgbox_kinds_follow_std_msgbox() {
             vec![
                 Request::Message(t),
                 Request::WaitMessage,
-                Request::YesNo,
+                Request::YesNo { default_no: false },
                 set(VAR_RESULT, 0),
             ],
         ),

@@ -550,18 +550,38 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | Party switching, items and bag in the explorer policy and key (M7) | **Task D** (hooks, key) + **Task N** (policy, macros) |
 | `explore sweep` (M8 decision 13) | **Task D** |
 | Items sub-tab, water/fishing encounters, trainer lists, dynamic-warp and sight overlays (M8 S) | **Task T** |
-| `RoundTrip` "camera far outside the map" during Briney's boat (M8 N) | **Task F** |
-| PlannerDivergence on Route 115 (elevation, M8 N) | **M10** (elevation and bridges) |
+| `RoundTrip` "camera far outside the map" during Briney's boat (M8 N; P met it again at Route 104 (71, 189), off the Act 1 trace) | **Task F** |
+| PlannerDivergence on Route 115 (elevation, M8 N; P: (10, 63), (10, 64), (12, 61)) | **M10** (elevation and bridges) |
 | `UpdateEscapeWarp` needs the map type (M8 F, L) | **Task F** (map type, escape warp); Escape Rope **Task B** |
 | Pickup gives no item (M8 G) | **Task BM** |
 | `waitfanfare` as `waitmessage`, plural item names, `BufferTMHMMoveName` (M8 H) | **Task J** (names, TM move names); the fanfare hold waits for audio (**M12**) |
 | `StartWallyTutorialBattle` degraded (M8 J) | **M11** |
 | `TRAINER_HELD_ITEMS`, `GEN3_EXTRA_ABILITIES` Emerald switches off (Silice engine) | **M11** (they move the Emerald route and need the unmodelled effects) |
 | Sight frame count vs vanilla Emerald (M8 L, carried to P) | **Task V** if P did not close it |
-| Deduplicate the `StartAt` wrappers (M8 L follow-up 12) | **Task Q** |
+| Deduplicate the `StartAt` wrappers (M8 L follow-up 12; close-out 7: also the two start-cell rules, `sweep::start_cell` and `tour_logic::landing`, and the three `script_name` helpers) | **Task Q** |
+| `explore`'s `testing` feature linked into xtask only for `forward_game_data!` (M8 close-out 8) | **Task Q** (moves the macro and the shared `StartAt` out of `testing`) |
+| Test gaps (M8 close-out 9): G1 Act 1 party end to end and Roxanne's AI flags; F crossing vs full upload and `VAR_LAST_TALKED` for a previous-map NPC; A string round trips vs ROM bytes; N a real override edit; J the Act 1 specials test without `PKR_DECOMP`; M memory gates on the probe lanes; E recursive overrides hygiene | G1 **Task BM**; F **Task F**; J **Task J**; M **Task Q** (with the screen tour's gates); A, N, E **M10** or whoever next edits those areas |
+| As-built gaps: M8 C, D1, J have no section (M8 close-out 10) | Written when those areas change (J: **Task J**'s as-built) |
+| Gen3-wide constants in the engine: caps 99/999, `MAP_DYNAMIC`, `sight.rs` trainer kinds, `CHAR_0`, `OBJECT_EVENTS_COUNT` (M8 close-out 12) | Into `SpecialIds` when a second game needs other values (not M9: Silice keeps Gen3's) |
+| `battle::encounters(id)` still generated (first header only); `Objects::spawn_map`/`enter_connected` public for tests; `#[allow(unused_imports)]` in `battle/core.rs` (M8 close-out 13) | **Task T** (water and fishing views use `wild_encounters`, then drop `encounters`); the other two **Task Q** |
+| Studio smoke 50 fps gate to re-measure on an idle machine (M8 close-out 14) | **Task T** |
 | Silice start facing hardcoded to Down (SIL1 E) | **Task C** |
 | Door animations, step timing, elevation priority, field poison (`TryFieldPoisonWhiteOut`) | **M10** |
-| Task P's "Findings for Milestone 9" | **Wave 0 Step 0** folds each into this table |
+| Late apply at Roxanne's battle start, engine frame 80,366 of the Act 1 trace (M8 P): `Battle::start` runs on the transition's first frame and the first `NewTurn` runs the gym leader's AI choice in the same step (223 lines). `KNOWN_LATE` in `emu/tests/parity.rs` cuts the long lane around it (the ROM does not replay 80,366–85,307) and checks it still happens | **Task BM** (owns `world/battle.rs` and the battle step): run the first turn's AI choice (or `start`) on a later transition frame, after checking Gen3's RNG order there; then remove the `KNOWN_LATE` entry. Task F's budget work does not cover it (a battle step, not a redraw) |
+| Explorer policy has no type-matchup or level term: a Torchic chain stalls at Roxanne; `Weights::balance` is 0 (M8 P) | **Task N** (a matchup/level term in the battle policy), or the act runner tries each starter; checked on Q's Emerald route |
+| Reached by P's explorer off the Act 1 trace, `Unsupported`: `pokemart` (Oldale, Petalburg, Rustboro) | **Task M** (mart) |
+| — `SPECIAL_BedroomPC` | **Task M** (PC; with `PlayerPC`, row above) |
+| — `SPECIAL_ShowPokedexRatingMessage` | **Task J** (the rating text; the Pokédex counts are Wave 0's) |
+| — `dofieldeffect` / `waitfieldeffect` (the Pokémon Center heal; also on the slice route) | **M10** (field effects) |
+| — `pokenavcall`, `copyobjectxytoperm` (Route 104) | `pokenavcall` **M13** (PokéNav); `copyobjectxytoperm` **Task J** (a plain object-template write) |
+| — `move effect 109` (`EFFECT_CURSE`) | **M11** (battle effects) |
+| Reached off the trace, `Degraded`: `SPECIAL_ChoosePartyMon` | **Task PT** (party menu, `PartyMode::Choose`) wired by **J** |
+| — `SPECIAL_ObjectEventInteractionGetBerryTreeData` | **M10** (berry trees, with the RTC) |
+| — `SPECIAL_ShowEasyChatScreen`, `SPECIAL_DoWaldaNamingScreen` | **M13** (Easy Chat; Walda's phrase) |
+| On the Act 1 trace itself, `Degraded` (the only three): `bufferitemnameplural`, `SPECIAL_StartWallyTutorialBattle`, `evolution scene` after Roxanne | plural names **Task J** (row above); Wally **M11** (row above); the scene **Task E** (it opens through `world/evolve.rs::after_battle`, which moves the Act 1 route from Roxanne's battle end: E re-accepts `act1:badge1`) |
+| `SaveMeta` gained the player name, Pokédex caught count and badges (Wave 0): an older slot fails agb's metadata check and boots as a new game (`boot::CORRUPT`) | **Task S** (the main menu shows the metadata; no migration: pre-M9 slots are debug saves) |
+
+Task P's "Findings for Milestone 9" (P findings 1–5) and the M8 close-out's "Findings carried to Milestone 9" (6–14; 6 is the `DrawWholeMapView` row, 11 is M11's G2 breadth) were folded in at the Wave 0 merge prep (master `64dbb4c`); none was fixed in M8, so none is marked done.
 
 ---
 
@@ -614,7 +634,74 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 ---
 
 ## Wave 0 as built
-*(filled by Wave 0.)*
+
+### Step 0 numbers
+- **Save size.** The worst-case save (`engine` `checkpoint/tests/worst_case.rs`: six party mons and every boxed mon at their widest varints, every flag and var set, every bag pocket full at 99, PC items full, the longest names, every M9 field non-default) encodes to **9,748 bytes + 1,950 per full PC box**: 0 boxes 9,748, 7 boxes 23,399, 14 boxes 37,049.
+- **Flash capacity.** agb's one-slot layout on 64 KiB accepts **24,528 bytes** for every repeated write (`game-native` `flash::tests::slot_capacity_holds_max_encoded`, a binary search over three successive writes; the ghost copy halves the chip). So **`MAX_ENCODED = 24,016`** (capacity − 512) and **Emerald `pc_boxes = 7`** (14 does not fit: 37,049 bytes). Silice uses the same constant (`content` `PC_BOXES`).
+- **128 KiB not attempted.** M5 found that mGBA presents FLASH512 (Panasonic id) to a homebrew ROM and ignores agb's `FLASH1M_V` marker and the `.sav` size, so a 128 KiB layout would not boot in a stock mGBA; decision 5's fallback (fewer boxes on 64 KiB) applies. Revisit only with a cartridge-detection change in agb or our own flash driver.
+- **Screen budget.** No separate GBA spike: `ui::kit::UPLOAD_BYTES_PER_FRAME = SPREAD_TILES_BLACK × 32` (**16 KiB** on a black frame) and `UPLOAD_BYTES_VISIBLE = SPREAD_TILES_VISIBLE × 32` (**4 KiB** on a visible one), the per-frame tile budgets Task F measured on the GBA for warps (`field.rs`). A party menu's ~8 KiB of tiles plus maps and palettes therefore fits one black frame; Task K re-measures on the ROM with the first real screen and may lower them.
+- **Route-usage scan:** see below.
+- **Findings carried from M8:** Task P's findings were folded in when P merged (before Wave 0 merged), each with an owner.
+
+### Route-usage scan
+`crates/game-native/tests/m9_route_scan.rs` (`#[ignore]`d; `cargo test -p game-native --release --test m9_route_scan -- --ignored --nocapture`, with `PKR_DECOMP` for the static column). It replays the slice route and every committed node. First run on master at Wave 0 (four `route:*` nodes, the slice route itself); re-run at the merge prep after M8 Task P merged, when the Emerald tree has nine nodes: the four `route:*` (19,184 frames) and P's five `act1:*` from a new game to badge 1 (`act1:pokedex` → `act1:badge1`, 85,307 frames). The tree column below is that second run (104,491 frames).
+
+| Count | Slice route (19,184 frames) | Committed tree (9 nodes, 104,491 frames) |
+|---|---|---|
+| START / SELECT pressed on the idle field | 0 / 0 | 0 / 0 |
+| `pokemart` executed (report) / reachable from the started scripts (decomp, over-approximation) | 0 / 0 of 74 labels | 0 / 0 of 74 (49 scripts started, 1,866 labels reached statically) |
+| `special SaveGame` reachable | 0 of 2 | 0 of 2 |
+| `ChoosePartyMon` / `ChooseMonForMoveTutor` reachable | 0 of 11 / 0 of 3 | 0 of 11 / 0 of 3 |
+| `PlayerPC` / `ShowPokemonStorageSystemPC` reachable | 0 of 2 / 0 of 2 | 0 of 2 / 0 of 2 (the lab PC script runs: Birch's PC is a message, not `PlayerPC`) |
+| FADE_TO_WHITE / FROM_WHITE executed | 0 (Emerald's scripts have none: R and J's white fades are Silice-only) | 0 |
+| BAG / POKéMON chosen in battle | 0 (the route only fights or runs: `Action::Fight`, `Run`, `Mash`) | 0 (P's explorer policy has no item or switch action, carried to D/N) |
+| Battles; trainer wins; with 2+ usable mons (shift prompt) | 8; 1; 0 | 27; 13; 0 (never two usable mons at a trainer win) |
+| Level evolutions at a won battle's end (silent, `Degraded("evolution scene")`); still due after it | 0; 0 | 1 (after Roxanne, `act1:badge1`); 0 |
+| Field steps; with a poisoned party; with a Wurmple-line mon | 181; 0; 0 | 1,593; 0; 0 |
+| Screens opened | 0 | 0 |
+| Reports | `Unsupported(dofieldeffect)`, `Unsupported(waitfieldeffect)` (once each, M8) | those two, plus `Degraded`: `bufferitemnameplural`, `SPECIAL_StartWallyTutorialBattle`, `evolution scene` (once each) |
+
+So on the committed routes every M9 task is **route-neutral** except:
+- the Pokédex digest Wave 0 adds (one re-accept, Wave 0's own);
+- **Task E**, whose evolution scene opens after Roxanne on `act1:badge1` (from that battle's end on; E re-accepts the node);
+- **Task BM**, if it moves Roxanne's battle start off the transition's first frame (the carried `KNOWN_LATE`), from engine frame 80,366 on.
+
+K, SM, S, J, M, B and PT change no route frame until a route presses START or reaches one of the sites above (Task Q's Emerald route decides that). The off-trace reach of P's explorer (`pokemart`, `ChoosePartyMon`, `BedroomPC`) is listed in the carried table; it moves no committed node.
+
+### Contracts changed versus this plan (and why)
+- **`world/save.rs::save_now(&World, game)`** takes the World, not `&mut State`: the capture code it reuses (`world/checkpoint.rs`) reads the runner and mode too. `World::save_snapshot(&self, game)` forwards to it.
+- **`ScreenCx` input** is `ScreenInput { held, pressed }` rather than a bare `Buttons`, so screens see edges the same way the field does.
+- **`Pokedex`** is indexed by internal species id (the game's `SpeciesId`), not national number: the engine has no national-dex table, and Silice's species are not national. The numbering only matters for the Pokédex screen (M10+), which can map it.
+- **`Options::sound`** defaults to MONO (Gen3 `OPTIONS_SOUND_MONO` is 0).
+- **Friendship hook** is `friendship::on_event(&mut Pokemon, FriendshipEvent, hold: Option<HoldEffect>, &BattleTables, &mut Rng)`: the battle core has the hold effect and its tables at those sites, not a `GameData`.
+- **`repel_blocks(level, vars, party, ids)`** takes the pieces it reads instead of `&State` (the wild code is called from the battle module with a split borrow), and `wild::try_land_encounter_repel` was added to thread it through.
+- **`whiteout_allowed(Option<&Request>)`** takes the waiting request (the runner's `waiting_on()`), since the battle module sees the request, not a `BattleTrainerReq` struct.
+- **START/SELECT hooks** run in Gen3 `ProcessPlayerFieldInput` order: after the A interaction and the door warp checks, not before them (the plan's "before the A checks" contradicted the decomp).
+- **`Choice::Item { item, party }`** (the party slot a Potion targets) instead of `Choice::Item(ItemId)`.
+- **`SaveMeta` grew** (name, Pokédex caught, badges): pre-M9 slots fail agb's metadata check and boot as a new game (carried to Task S).
+- **Checkpoint schema 4 compatibility**: the M9 fields at their defaults encode as 8 trailing zero bytes (`M9_DEFAULT_TAIL`); `decode` of schema 2/3 appends them, and `state_digest` drops them when `m9_is_default()`, so every recorded node keeps its digest.
+- **Silice gets `start_menu`** through the shared `game_data_tables!` macro (Emerald's Gen3 list) until Task C gives it its own.
+- **`World::screens()`** accessor (the stack, for tests and the debug region) beside `screens_open()`.
+
+### Contracts added by the Wave 0 review
+Each closes a gap that would have made a Wave 1 or 2 task edit a file it does not own.
+- **`ScreenCx`** gains `rng: &mut Rng` (Task E's `on_event` from B's vitamins and Rare Candy), `vars: &mut Vars` (was read-only: B's Repel writes `VAR_REPEL_STEP_COUNT`, M's PC writes `VAR_PC_BOX_TO_SEND_MON`), `map: MapId` and `frame: u32` (S's save info window: location and play time).
+- **`ScreenStack`** carries the waiting results, hashed with it: `saved: Option<bool>` (the World's answer to `ScreenOut::Save`, given once next frame; S's `save_failed` turns it to `false`), `child: Option<ScreenResult>` (a closed screen's result for the one below), and `host: ui::kit::Hosting` (Task K's fade, VRAM-handover and waiting-request state, defined in K's `ui/kit/mod.rs`, so K changes neither `ui/mod.rs` nor `world/mode.rs`). `world/screens.rs` fills `saved` and `child` and raises `Event::Saved { ok }` on `ScreenOut::Save`.
+- **`ScreenOut::UseOnField(ItemId)`** and the hook **`item_use::use_on_field(&mut State, game, item) -> Option<ScriptId>`** (Gen3 `SetUpItemUseOnFieldCallback`): the bag closes, the field comes back, then the item's field use (B's Escape Rope; M10's bikes, rods, Itemfinder). `ScreenOut::RunScript` now raises `Event::ScreenClosed` (it raised nothing: the stack was already out of the mode) and draws the field.
+- **`PartyMode::Battle`** documents that BM hosts the party menu inside the battle with the battle's party in battle order (Gen3 `gBattlePartyCurrentOrder`): the active mon is slot 0, so PT needs no battle state.
+- **Post-battle evolution hook** `world/evolve.rs::after_battle(game, &mut State, &Battle) -> bool`, called by `world/battle.rs` when a won battle leaves, over the black screen, before the field is restored (Gen3 `FreeResetData_ReturnToOvOrDoEvolutions` → `TryEvolvePokemon`). `true` means E opened the evolution scene (`world/screens.rs::open`): the battle ends there (`end_battle`: the objects, the script's answer and the encounter immunity as before) and K's host restores the field when the last screen closes. Wave 0 answers `false` (the silent evolution stays in `after_win`). Without it E would have edited `world/battle.rs` (BM's) to show a scene.
+- **`World::snapshot_unchecked`** (`world/checkpoint.rs`): the snapshot without the capture checks, which `snapshot` now wraps. Task S's `save_now` saves mid-script (`special SaveGame`) or under the save dialog, which `capture` refuses; it normalises this DTO instead of editing F's file.
+- **White fades:** `Fader::is_white()` (R's `flow/fade.rs`, `false` in Wave 0), copied into `Frame::lighten` by `draw_field`; `fx::apply` takes `&mut ScreenFx` (R advances the effects there). `host/mod.rs` routes the polling (`resume`) of the effect and party requests to `host/fx.rs` and `host/party.rs` (they went to the generic `done`), so R's `WaitInputOrTimeout`, flash and shake can wait.
+- **Button mode:** `World::step` calls `Input::update_mode(keys, options.button_mode)` (SM's `flow/input.rs`; Wave 0 ignores the mode), the place Gen3 `ReadKeys` maps L to A.
+- **`SpecialIds`** gains `var_pc_box_to_send_mon`, `var_mon_box_id`, `var_mon_box_pos` and `flag_shown_box_was_full` (Gen3 `CopyMonToPC`), filled for both roots; `SHARED_GEN3` reserves `VAR_MON_BOX_ID`, `VAR_MON_BOX_POS` and `FLAG_SHOWN_BOX_WAS_FULL_MESSAGE` (no Silice id held them).
+- **Schema 3 RON snapshots** (the stores' snapshot caches) read too: the schema 4 fields are `#[serde(default)]`, as `party_held` was in schema 3.
+- **Notes for the owners:** the text speeds keep the engine's frames-per-glyph model (Gen3's printer takes one frame more per glyph at each speed; M3 chose 4 for MID), so SLOW 8 and FAST 1; Gen3's battle messages read the text speed too (`battle_message.c`), which BM wires; Task S's 24 KiB worst-case encode is a heap allocation on the GBA, to count against `heap_max`.
+
+### State change
+- `SCHEMA` 4; the new state is hashed only away from its default except the Pokédex digest (`0xA3`, once non-empty), so the routes move from their first battle start. Engine goldens: `GOLDEN_WILD_BATTLE` and `GOLDEN_TRAINER` moved; `GOLDEN_SCREEN` and `GOLDEN_SAVE` pinned; the rest unchanged.
+- `cargo xtask checkpoints verify --accept` (`chore(checkpoints): M9 Wave 0 state`, the last commit): Emerald's four `route:*` nodes diverged from `route:lab` +1500 (the starter's Pokédex entry; the rest follow their parent), the stub's three from `route:stub_start` +24 (its new game gives a mon); frames, inputs and maps unchanged, only hashes and digests moved. Silice's tree is empty. Re-done after the Wave 0 review on the merged tree (master `582e508`), and again at the merge prep on master `64dbb4c` (after M8 Task P, the M8 close-out and the explorer and gate speed-ups) (M8 Task P's five `act1:*` nodes added): the `route:*` and stub divergence points are unchanged, and `act1:pokedex` diverges from +2700 (its first Pokédex entry, the starter in Birch's rescue, which P's explorer reaches later than the slice route), the other `act1:*` nodes only because their parent did. With Pokédex recording switched off (a scratch build) every node of both trees, the `act1:*` ones included, verifies `valid (rehash)`, so the Pokédex digest is the only route change; frames, inputs and maps of every node are unchanged.
+- `cargo xtask parity` after the accept: ROM and native agree on the whole route (19,184 frames, 19,176 hashes and 205 pictures identical, no late frames); worst route lines hash 46 (gate 65), loop 172 (gate 217, margin 45), `heap_max` 47,412 B; save/resume, mid-battle save and native-checkpoint lanes identical; the ROM save is 431 checkpoint bytes.
+- Silice: its two vars on Gen3 numbers the shared code now names (`VAR_SIL_CASINO_STATE` on `VAR_REPEL_STEP_COUNT`, `VAR_SIL_PORT_RESSAC_STATE` on `VAR_FRIENDSHIP_STEP_COUNTER`) moved with `cargo xtask silice move` (tombstones kept, `ids.golden` appended); `SHARED_GEN3` lists the new names.
 
 ## Findings for Milestone 10
 *(filled at close-out.)*
@@ -626,7 +713,8 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | File or glob | Owner |
 |---|---|
 | `engine/src/{data.rs, script.rs, checkpoint.rs, world.rs, world/mode.rs, world/host/mod.rs, ui/mod.rs, video.rs, mon.rs, lib.rs, debug.rs}`, `world/tests.rs` (mod lines), `world/tests/goldens.rs`; `emu/src/lib.rs`; `extract/src/{schema.rs, lib.rs}`; `content/src/prelude/mod.rs`, `content/build/main.rs` | Wave 0 (then only `chore(checkpoints)` commits for goldens; `schema.rs` see below) |
-| Wave 0's hook and split edits in files a later task owns: `world/battle.rs`, `battle/core.rs`, `wild.rs`, `mon/*`, `text.rs`, `game-gba/src/{main,save_logic}.rs`, `game-native/src/{lib,store,controls}.rs`, `content/src/lib.rs`, `content/build/{codegen,blob_data}.rs`, `extract/src/export.rs`, `xtask/src/main.rs` | Wave 0 first (merged before any task starts), then the owner below |
+| Wave 0's hook and split edits in files a later task owns: `world/battle.rs`, `world/checkpoint.rs`, `battle/core.rs`, `wild.rs`, `mon/*`, `text.rs`, `flow/{fade,input}.rs`, `fx.rs`, `item_use.rs`, `ui/kit/mod.rs`, `game-gba/src/{main,save_logic}.rs`, `game-native/src/{lib,store,controls}.rs`, `content/src/lib.rs`, `content/build/{codegen,blob_data}.rs`, `extract/src/export.rs`, `xtask/src/main.rs` | Wave 0 first (merged before any task starts), then the owner below |
+| `extract/src/games/data.rs` (`SHARED_GEN3`) | Wave 0; a task whose shared code names a new Gen3 flag or var appends it there (the `sil1_w0_contracts` test fails otherwise) and lists it in its report |
 | `engine/src/ui/kit/**`, `world/screens.rs`, `world/host/screens.rs`, `text.rs`, `text/printer.rs`, `menu.rs` (after Wave 0's text-speed and yes/no edits) | K |
 | `engine/src/world/save.rs`, `ui/save.rs`, `ui/main_menu.rs`, `world/host/save.rs`; `game-gba/src/{save,save_logic,main}.rs`; `game-native/src/{flash,lib}.rs`; `emu/tests/save_logic.rs` | S |
 | `engine/src/fx.rs`, `flow/fade.rs`, `world/host/{fx,party}.rs`; `content/src/silice/prelude.rs` | R |
@@ -634,7 +722,7 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | `engine/src/field.rs`, `field/*`, `flow/transition.rs`, `world/maps.rs`, `world/checkpoint.rs`; `content/build/classify/field.rs` | F |
 | `content/build/support/{specials,commands}.ron`, `content/src/prelude/{special,std,mart,party}.rs`; `extract/src/codegen/lower/{emit,operands}.rs` | J |
 | `extract/src/{ui_gfx.rs, export/ui.rs}` | X1 |
-| `extract/src/{ui_text.rs, tables.rs, export/tables.rs}`, `export/scripts.rs` (lists), `labels.rs` (lists) | X2 |
+| `extract/src/{ui_text.rs, tables.rs, export/tables.rs}`, `export/scripts.rs` (lists), `labels.rs` (lists), `scripts.rs` (the `pokemart` operand) | X2 |
 | `content/build/{ui.rs, classify/items.rs}`, `codegen.rs` + `blob_data.rs` (new tables), `content/src/lib.rs` (tables, `gen3_special_ids`), `content/src/silice/mod.rs`, `games/silice/game.ron`, `extract/src/games/game.rs` | C |
 | `studio/**` except `map_edit/**` | T |
 | `explore/**` | D (Wave 1), then N (Wave 3) |

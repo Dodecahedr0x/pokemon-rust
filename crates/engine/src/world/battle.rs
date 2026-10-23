@@ -55,12 +55,13 @@
 //! - A starter screen answered without a battle fades back to the field with the script
 //!   already resumed (see `World::step_starter`).
 
+use super::mode::Mode;
 use super::{Ground, State, World, draw_field, load_map};
 use crate::battle::BattleReport;
 use crate::battle::scene::BattleScene;
 use crate::battle::transition::BattleTransition;
 use crate::battle::{Battle, BattleKind, BattleOutcome, BattleSetup, Environment, Side};
-use crate::data::{Behavior, Dir, EvoMethod, GameData, MapId, PLAYER, SpeciesId};
+use crate::data::{Behavior, Dir, GameData, MapId, PLAYER, SpeciesId};
 use crate::flow::{FADE_MAX, Fader, Input};
 use crate::hash::Fnv64;
 use crate::mon::{Ivs, Party, Pokemon};
@@ -77,15 +78,6 @@ use alloc::vec::Vec;
 pub const ENCOUNTER_IMMUNITY_STEPS: u8 = 4;
 /// Gen3 `CB2_WhiteOut`: `++gMain.state >= 120` black frames before the map loads.
 pub const WHITEOUT_FRAMES: u8 = 120;
-
-/// What owns the screen.
-pub(crate) enum Mode {
-    /// The overworld (field, objects, text box, scripts).
-    Field,
-    /// `special ChooseStarter`, until a starter is confirmed.
-    Starter(Box<StarterRun>),
-    Battle(Box<BattleRun>),
-}
 
 pub(crate) struct StarterRun {
     pub choice: StarterChoice,
@@ -166,37 +158,24 @@ pub(super) fn behavior_code(b: Behavior) -> [u8; 2] {
     }
 }
 
-impl Mode {
+impl BattleRun {
+    /// The run's part of `Mode::hash` (after the mode tag).
     pub(super) fn hash(&self, h: &mut Fnv64) {
-        match self {
-            Mode::Field => h.write(&[0]),
-            Mode::Starter(run) => {
+        h.write(&self.stage.code());
+        h.write(&[
+            self.origin as u8,
+            self.outcome.map_or(0, |o| o as u8),
+            self.whiteout as u8,
+            self.started as u8,
+        ]);
+        self.transition.hash(h);
+        self.battle.hash(h);
+        self.scene.hash(h);
+        match &self.backdrop {
+            None => h.write(&[0]),
+            Some(s) => {
                 h.write(&[1]);
-                run.choice.hash(h);
-                match &run.leaving {
-                    None => h.write(&[0xFF]),
-                    Some(fader) => fader.hash(h),
-                }
-            }
-            Mode::Battle(run) => {
-                h.write(&[2]);
-                h.write(&run.stage.code());
-                h.write(&[
-                    run.origin as u8,
-                    run.outcome.map_or(0, |o| o as u8),
-                    run.whiteout as u8,
-                    run.started as u8,
-                ]);
-                run.transition.hash(h);
-                run.battle.hash(h);
-                run.scene.hash(h);
-                match &run.backdrop {
-                    None => h.write(&[0]),
-                    Some(s) => {
-                        h.write(&[1]);
-                        s.hash(h);
-                    }
-                }
+                s.hash(h);
             }
         }
     }
@@ -345,13 +324,15 @@ impl State {
             Some(table) if self.can_battle() => {
                 // `gPlayerParty[0]`, fainted or not.
                 let lead = self.party.get(0).copied();
-                wild::try_land_encounter(
+                let (vars, party, ids) = (&self.vars, &self.party, game.special_ids());
+                wild::try_land_encounter_repel(
                     table,
                     self.prev_behavior,
                     cur,
                     lead.as_ref(),
                     t,
                     &mut self.rng,
+                    |level| wild::repel_blocks(level, vars, party, &ids),
                 )
                 .map(|(species, level)| {
                     wild::create_wild(
@@ -425,8 +406,40 @@ fn drain_reports(s: &mut State, scene: &mut BattleScene) {
     }
 }
 
+/// The species of the opponent's battler (its party mon's: a battle form, such as a Mega
+/// Evolution, is seen as its base species).
+fn opponent_species(battle: &Battle) -> Option<SpeciesId> {
+    let slot = battle.mon(Side::Opponent).party;
+    battle
+        .party(Side::Opponent)
+        .get(slot as usize)
+        .map(|p| p.species)
+}
+
+/// Sets the Pokédex seen flag of the opponent out (Milestone 9 Wave 0).
+fn see_opponent(s: &mut State, battle: &Battle) {
+    if let Some(species) = opponent_species(battle) {
+        s.pokedex.set(crate::pokedex::DexFlag::Seen, species);
+    }
+}
+
+/// The battle hands the frame back (to the field, or to the evolution scenes): the objects a
+/// field battle froze move again, a script's battle request gets its answer, and the encounter
+/// immunity restarts.
+fn end_battle(s: &mut State, run: &mut BattleRun) {
+    if run.origin == Origin::Field || run.whiteout {
+        s.objects.unfreeze_all();
+    }
+    if run.origin == Origin::Script && !run.whiteout {
+        s.answer = run.outcome.map(|o| o as u16);
+    }
+    // `RestartWildEncounterImmunitySteps` (also done at the battle start).
+    s.encounter_immunity = 0;
+    drain_reports(s, &mut run.scene);
+}
+
 /// A world report: its log line and its event.
-fn report(s: &mut State, r: Report) {
+pub(super) fn report(s: &mut State, r: Report) {
     s.log(match r {
         Report::Unsupported(what) | Report::Degraded(what) => what,
     });
@@ -444,32 +457,7 @@ fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
         }
         s.money = s.money.saturating_add(money).min(max);
     }
-    let t = game.battle();
-    for i in 0..6 {
-        if battle.leveled_up() & (1 << i) == 0 {
-            continue;
-        }
-        let Some(mon) = s.party.get_mut(i) else {
-            continue;
-        };
-        let evos = game.evolutions(mon.species);
-        let target = mon.evolution_target(evos);
-        if evos.iter().any(|e| e.method == EvoMethod::Friendship) {
-            // EVO_FRIENDSHIP* (`friendship >= 220`) is not evaluated (M9).
-            report(s, Report::Degraded("friendship evolution"));
-        }
-        let Some((target, ambiguous)) = target else {
-            continue;
-        };
-        let Some(mon) = s.party.get_mut(i) else {
-            continue;
-        };
-        mon.evolve(t, target);
-        if ambiguous {
-            report(s, Report::Degraded("evolution branch"));
-        }
-        report(s, Report::Degraded("evolution scene"));
-    }
+    super::evolve::after_win(game, s, battle);
 }
 
 /// Re-uploads the field after a battle or the starter screen owned the screen (black frame):
@@ -552,6 +540,8 @@ impl World {
                     run.battle.start(game, &mut s.rng, &mut events);
                     run.scene.push(&mut events);
                     run.started = true;
+                    // Gen3 `HandleSetPokedexFlag(.., FLAG_SET_SEEN, ..)` at the battle intro.
+                    see_opponent(s, &run.battle);
                 }
                 match &mut run.backdrop {
                     Some(starter) => {
@@ -572,6 +562,9 @@ impl World {
             Stage::Running => {
                 run.scene
                     .step(game, &mut run.battle, &mut s.rng, &s.input, f);
+                // Each opponent switched in (Gen3 `Cmd_switchindataupdate`'s seen flag): the
+                // opponent out this frame, which every switch-in is for at least one frame.
+                see_opponent(s, &run.battle);
                 if let Some(outcome) = run.scene.finished() {
                     run.outcome = Some(outcome);
                     s.event(super::Event::BattleEnded(outcome));
@@ -579,15 +572,25 @@ impl World {
                     if outcome == BattleOutcome::Won {
                         after_win(game, s, &run.battle);
                     }
-                    if run.battle.caught_without_room().is_some() {
-                        s.log("caught a mon with a full party (no PC): released");
+                    if outcome == BattleOutcome::Caught
+                        && let Some(species) = opponent_species(&run.battle)
+                    {
+                        // Gen3 `Cmd_trysetcaughtmondexflags`.
+                        s.pokedex.set_caught(species);
+                    }
+                    if let Some(&mon) = run.battle.caught_without_room() {
+                        // Gen3 `GiveMonToPlayer` → `SendMonToPC` (Task M).
+                        if super::caught::place_mon(game, s, mon) == super::caught::Placed::NoRoom {
+                            s.log("caught a mon with a full party (no PC): released");
+                        }
                     }
                     let first = matches!(
                         run.battle.setup().kind,
                         BattleKind::Wild { first_battle: true }
                     );
                     let lost = matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew);
-                    run.stage = if lost && !first {
+                    let whiteout = super::host::whiteout_allowed(self.runner.waiting_on());
+                    run.stage = if lost && !first && whiteout {
                         Stage::Whiteout(0)
                     } else {
                         Stage::Leaving
@@ -595,6 +598,15 @@ impl World {
                 }
             }
             Stage::Leaving => {
+                // Gen3 `FreeResetData_ReturnToOvOrDoEvolutions`: after a win with a level-up,
+                // the evolution scenes run over the black screen before the field comes back
+                // (Task E opens them; their host restores the field when the last closes).
+                if run.outcome == Some(BattleOutcome::Won)
+                    && super::evolve::after_battle(game, s, &run.battle)
+                {
+                    end_battle(s, &mut run);
+                    return;
+                }
                 // The fade from black starts black and only moves in `Returning`.
                 restore_field_spread(s, f);
                 s.fader.start(Fade::FromBlack);
@@ -631,15 +643,7 @@ impl World {
                 s.fader.update();
                 draw_field(game, s, f);
                 if s.fader.is_done() {
-                    if run.origin == Origin::Field || run.whiteout {
-                        s.objects.unfreeze_all();
-                    }
-                    if run.origin == Origin::Script && !run.whiteout {
-                        s.answer = run.outcome.map(|o| o as u16);
-                    }
-                    // `RestartWildEncounterImmunitySteps` (also done at the battle start).
-                    s.encounter_immunity = 0;
-                    drain_reports(s, &mut run.scene);
+                    end_battle(s, &mut run);
                     s.mode = Mode::Field;
                     return;
                 }

@@ -6,6 +6,7 @@ mod gates;
 mod silice;
 mod studio;
 mod sweep;
+mod vanilla;
 
 use anyhow::{Context, Result, bail, ensure};
 use std::path::{Path, PathBuf};
@@ -520,9 +521,10 @@ fn main() -> Result<()> {
         Some("explore") => explore::main(&args[1..]),
         Some("sweep") => sweep::main(&args[1..]),
         Some("silice") => silice::main(&args[1..]),
+        Some("vanilla") => vanilla::main(&args[1..]),
         Some("gates") => gates::main(&args[1..]),
         _ => bail!(
-            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice|gates> \
+            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice|vanilla|gates> \
              [--game emerald|silice]"
         ),
     }

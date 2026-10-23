@@ -69,6 +69,7 @@ pub mod battle {
 pub mod data {
     include!(concat!(env!("OUT_DIR"), "/data.rs"));
     include!(concat!(env!("OUT_DIR"), "/dispatch.rs"));
+    include!(concat!(env!("OUT_DIR"), "/ui.rs"));
 }
 
 /// Generated scripts, one module per map file (`include!`d from the extracted dir).
@@ -234,8 +235,39 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         max_money: MAX_MONEY,
         multichoice_cancel: MULTI_B_PRESSED,
         pocket_slots: POCKET_SLOTS,
+        // Milestone 9.
+        pc_boxes: PC_BOXES,
+        pc_item_slots: PC_ITEM_SLOTS,
+        max_coins: MAX_COINS,
+        flag_badges: [
+            Some(consts::FLAG_BADGE01_GET),
+            Some(consts::FLAG_BADGE02_GET),
+            Some(consts::FLAG_BADGE03_GET),
+            Some(consts::FLAG_BADGE04_GET),
+            Some(consts::FLAG_BADGE05_GET),
+            Some(consts::FLAG_BADGE06_GET),
+            Some(consts::FLAG_BADGE07_GET),
+            Some(consts::FLAG_BADGE08_GET),
+        ],
+        var_repel_steps: Some(consts::VAR_REPEL_STEP_COUNT),
+        var_friendship_steps: Some(consts::VAR_FRIENDSHIP_STEP_COUNTER),
+        script_repel_wore_off: data::SCRIPT_REPEL_WORE_OFF,
+        flag_pokedex: Some(consts::FLAG_SYS_POKEDEX_GET),
+        var_pc_box_to_send_mon: Some(consts::VAR_PC_BOX_TO_SEND_MON),
+        var_mon_box_id: Some(consts::VAR_MON_BOX_ID),
+        var_mon_box_pos: Some(consts::VAR_MON_BOX_POS),
+        flag_shown_box_was_full: Some(consts::FLAG_SHOWN_BOX_WAS_FULL_MESSAGE),
     }
 }
+
+/// PC boxes kept. Gen3 `TOTAL_BOXES_COUNT` is 14; Milestone 9 decision 5 keeps the most that
+/// the 64 KiB flash slot holds full: the worst-case save is 9,748 bytes plus 1,950 per full box
+/// against `MAX_ENCODED` 24,016, so 7.
+pub const PC_BOXES: u8 = 7;
+/// Gen3 `PC_ITEMS_COUNT`.
+pub const PC_ITEM_SLOTS: u8 = 50;
+/// Gen3 `MAX_COINS`.
+pub const MAX_COINS: u16 = 9999;
 
 /// The [`GameData`](engine::data::GameData) methods every flavour answers from its generated
 /// tables (`data`, `battle`, `scripts`), defined once so the flavours cannot drift: a new
@@ -285,7 +317,91 @@ macro_rules! game_data_tables {
                 ::engine::data::UiText::Yes => $crate::data::UI_YES,
                 ::engine::data::UiText::No => $crate::data::UI_NO,
                 ::engine::data::UiText::RivalName => $crate::data::UI_RIVAL_NAME,
+                // Milestone 9 screen texts (Tasks X2 and C): empty until extracted.
+                _ => &[0xFF],
             }
+        }
+
+        // ---- Milestone 9 (tables from `build/ui.rs`, empty until Task C) ----
+
+        fn start_menu(&self) -> &'static [::engine::data::StartItem] {
+            $crate::data::START_MENU
+        }
+
+        fn item_use(&self, id: ::engine::data::ItemId) -> ::engine::data::ItemUse {
+            $crate::data::ITEM_USE
+                .get(id.0 as usize)
+                .copied()
+                .unwrap_or(::engine::data::ItemUse::None)
+        }
+
+        fn item_description(&self, id: ::engine::data::ItemId) -> Option<&'static [u8]> {
+            $crate::data::ITEM_DESCRIPTIONS
+                .get(id.0 as usize)
+                .copied()
+                .flatten()
+        }
+
+        fn move_description(&self, id: ::engine::data::MoveId) -> Option<&'static [u8]> {
+            $crate::data::MOVE_DESCRIPTIONS
+                .get(id.0 as usize)
+                .copied()
+                .flatten()
+        }
+
+        fn tm_move(&self, id: ::engine::data::ItemId) -> Option<::engine::data::MoveId> {
+            let tms = $crate::data::TM_MOVES;
+            let i = tms.binary_search_by_key(&id.0, |&(item, _)| item).ok()?;
+            Some(::engine::data::MoveId(tms[i].1))
+        }
+
+        fn can_learn_tm(
+            &self,
+            species: ::engine::data::SpeciesId,
+            tm: ::engine::data::ItemId,
+        ) -> bool {
+            let tms = $crate::data::TM_MOVES;
+            let Ok(bit) = tms.binary_search_by_key(&tm.0, |&(item, _)| item) else {
+                return false;
+            };
+            let compat = $crate::data::TM_COMPAT;
+            compat
+                .binary_search_by_key(&species.0, |&(s, _)| s)
+                .is_ok_and(|i| bit < 64 && compat[i].1 & (1 << bit) != 0)
+        }
+
+        fn ui_gfx(&self, g: ::engine::data::UiGfx) -> Option<&'static ::engine::data::UiPicture> {
+            $crate::data::UI_GFX
+                .iter()
+                .find(|(k, _)| *k == g)
+                .map(|(_, p)| p)
+        }
+
+        fn window_frame(&self, n: u8) -> Option<&'static ::engine::data::WindowGfx> {
+            $crate::data::WINDOW_FRAMES.get(n as usize)
+        }
+
+        fn item_icon(&self, id: ::engine::data::ItemId) -> Option<&'static ::engine::data::Icon> {
+            let icons = $crate::data::ITEM_ICONS;
+            let i = icons.binary_search_by_key(&id.0, |&(k, _)| k).ok()?;
+            Some(&icons[i].1)
+        }
+
+        fn mon_icon(
+            &self,
+            species: ::engine::data::SpeciesId,
+        ) -> Option<&'static ::engine::data::Icon> {
+            let icons = $crate::data::MON_ICONS;
+            let i = icons.binary_search_by_key(&species.0, |&(k, _)| k).ok()?;
+            Some(&icons[i].1)
+        }
+
+        fn in_game_trade(&self, n: u8) -> Option<&'static ::engine::data::InGameTrade> {
+            $crate::data::IN_GAME_TRADES.get(n as usize)
+        }
+
+        fn nature_name(&self, n: u8) -> Option<&'static [u8]> {
+            $crate::data::NATURE_NAMES.get(n as usize).copied()
         }
 
         fn behavior(&self, raw: u8) -> ::engine::data::Behavior {

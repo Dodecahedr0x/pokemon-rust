@@ -79,6 +79,8 @@ fn publish_debug(world: &World, keys: Buttons, late: u32, late_black: u32) -> u3
         (&raw mut (*d).last_script).write_volatile(script);
         (&raw mut (*d).map).write_volatile(world.map().0);
         (&raw mut (*d).events_dropped).write_volatile(dropped);
+        // Milestone 9: `late_saving` stays 0 until Task S writes saves in the field.
+        (&raw mut (*d).screens).write_volatile(world.screens_open().min(u16::MAX as usize) as u16);
         (&raw mut (*d).inputs[input_slot(world.frame())]).write_volatile(keys.0);
         (&raw mut (*d).hash).write_volatile(hash);
         (&raw mut (*d).late).write_volatile(late);

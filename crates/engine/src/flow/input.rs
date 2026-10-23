@@ -25,6 +25,14 @@ impl Input {
         *self = Self::new(self.held, cur);
     }
 
+    /// [`Input::update`] under the button-mode option (Gen3 `ReadKeys`: with L=A, L also
+    /// presses A, in the field and every menu). `World::step` calls it every frame (Milestone 9
+    /// Wave 0); Task SM implements the L=A mapping. Wave 0: [`Input::update`], whatever the mode.
+    pub fn update_mode(&mut self, cur: Buttons, mode: crate::options::ButtonMode) {
+        let _ = mode;
+        self.update(cur);
+    }
+
     pub const fn is_pressed(&self, b: Buttons) -> bool {
         self.pressed.contains(b)
     }

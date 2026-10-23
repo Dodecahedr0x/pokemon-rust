@@ -479,7 +479,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         };
         writeln!(
             o,
-            "pub static M_{n}: MapData = MapData {{ name: \"{n}\", width: {}, height: {}, blocks: {blocks}, border: {}, primary: &TS_{}, secondary: &TS_{}, objects: &[{objects}], warps: &[{warps}], coords: &[{coords}], bgs: &[{bgs}], connections: &[{conns}], scripts: MapScripts {{ on_load: {}, on_transition: {}, on_resume: {}, on_return_to_field: {}, on_frame: {}, on_warp_into: {} }}, allow_running: {} }};",
+            "pub static M_{n}: MapData = MapData {{ name: \"{n}\", width: {}, height: {}, blocks: {blocks}, border: {}, primary: &TS_{}, secondary: &TS_{}, objects: &[{objects}], warps: &[{warps}], coords: &[{coords}], bgs: &[{bgs}], connections: &[{conns}], scripts: MapScripts {{ on_load: {}, on_transition: {}, on_resume: {}, on_return_to_field: {}, on_frame: {}, on_warp_into: {} }}, allow_running: {}, map_type: {} }};",
             l.width,
             l.height,
             u16s_lit(&border),
@@ -491,7 +491,8 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
             opt_sid(&ms.on_return_to_field)?,
             var_scripts(&ms.on_frame)?,
             var_scripts(&ms.on_warp_into)?,
-            m.header.allow_running
+            m.header.allow_running,
+            m.header.map_type
         )?;
         writeln!(
             map_arms,
@@ -501,7 +502,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     }
     writeln!(
         o,
-        "/// What `GameData::map` returns for a map that was not exported: 0x0 cells, no events.\npub static MISSING_MAP: MapData = MapData {{ name: \"MISSING\", width: 0, height: 0, blocks: &[], border: [0; 4], primary: &EMPTY_TS, secondary: &EMPTY_TS, objects: &[], warps: &[], coords: &[], bgs: &[], connections: &[], scripts: MapScripts {{ on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_frame: &[], on_warp_into: &[] }}, allow_running: false }};"
+        "/// What `GameData::map` returns for a map that was not exported: 0x0 cells, no events.\npub static MISSING_MAP: MapData = MapData {{ name: \"MISSING\", width: 0, height: 0, blocks: &[], border: [0; 4], primary: &EMPTY_TS, secondary: &EMPTY_TS, objects: &[], warps: &[], coords: &[], bgs: &[], connections: &[], scripts: MapScripts {{ on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_frame: &[], on_warp_into: &[] }}, allow_running: false, map_type: 0 }};"
     )?;
     writeln!(
         o,
@@ -647,6 +648,12 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         o,
         "/// `EventScript_WhiteOut`, when the scripts have it (decomp names, Task D2).\npub const SCRIPT_WHITEOUT: Option<ScriptId> = {};",
         whiteout.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    )?;
+    let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
+    writeln!(
+        o,
+        "/// `EventScript_RepelWoreOff`, when the scripts have it (Milestone 9).\npub const SCRIPT_REPEL_WORE_OFF: Option<ScriptId> = {};",
+        repel.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
 
     // ---- digests (the explorer's incremental revalidation) ----

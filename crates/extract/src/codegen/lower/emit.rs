@@ -1072,7 +1072,8 @@ pub(super) fn arg_str(a: &IrArg) -> String {
         | IrArg::Script(s)
         | IrArg::Text(s)
         | IrArg::Movement(s)
-        | IrArg::Braille(s) => s.clone(),
+        | IrArg::Braille(s)
+        | IrArg::Items(s) => s.clone(),
         IrArg::Const { name, .. } => name.clone(),
     }
 }

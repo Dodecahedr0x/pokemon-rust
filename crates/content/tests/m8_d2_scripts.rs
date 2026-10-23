@@ -74,6 +74,7 @@ fn fixture(name: &str, labels: Vec<IrLabel>, decomp_names: bool) -> PathBuf {
         source: None,
         labels,
         movements: vec![],
+        lists: vec![],
     };
     let mut index = ScriptIndex::default();
     for l in &file.labels {
@@ -257,7 +258,7 @@ impl ScriptHost for Host {
     fn begin(&mut self, r: &Request) -> Option<Response> {
         self.log.push(r.clone());
         Some(match r {
-            Request::GetFlag(_) | Request::YesNo => Response::Bool(false),
+            Request::GetFlag(_) | Request::YesNo { .. } => Response::Bool(false),
             Request::GetVar(_) | Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PartySize => Response::Value(1),
             Request::PlayerPos => Response::Pos(0, 0),

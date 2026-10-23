@@ -28,9 +28,11 @@ impl Fader {
     /// `ToBlack` fades from the current level; `FromBlack` first snaps to black, as Gen3
     /// `FillPalBufferBlack` before `FADE_FROM_BLACK`.
     pub fn start(&mut self, fade: Fade) {
+        // Milestone 9 Wave 0: the white fades run as the black ones until Task R lightens
+        // them (`Frame::lighten`); no Emerald script issues them before Task J.
         match fade {
-            Fade::ToBlack => self.target = FADE_MAX,
-            Fade::FromBlack => {
+            Fade::ToBlack | Fade::ToWhite => self.target = FADE_MAX,
+            Fade::FromBlack | Fade::FromWhite => {
                 self.level = FADE_MAX;
                 self.target = 0;
             }
@@ -45,6 +47,13 @@ impl Fader {
             self.level -= 1;
         }
         self.level
+    }
+
+    /// Whether the level brightens towards white (`Frame::lighten`) rather than darkens: a
+    /// `ToWhite` / `FromWhite` fade (Task R). `draw_field` copies it into the frame. Wave 0:
+    /// never (the white fades run as black ones).
+    pub const fn is_white(&self) -> bool {
+        false
     }
 
     pub const fn level(&self) -> u8 {

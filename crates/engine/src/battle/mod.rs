@@ -122,6 +122,12 @@ pub enum Choice {
     Switch(u8),
     Run,
     Ball,
+    /// An item from the bag on the active mon or the given party slot (Milestone 9 Task BM,
+    /// `core/items.rs`; refused until then).
+    Item {
+        item: crate::data::ItemId,
+        party: u8,
+    },
     /// `None`: do not learn the new move.
     LearnMove {
         forget: Option<u8>,

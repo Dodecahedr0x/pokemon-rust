@@ -33,6 +33,9 @@ pub struct Session<G: GameData> {
     ppu: Ppu,
     frame: Frame,
     fb: Vec<u16>,
+    /// The in-game save of the last step that raised `Event::Saved { ok: true }` (Milestone 9),
+    /// until [`Session::take_save`] takes it.
+    save: Option<Checkpoint>,
     /// `fb` shows `frame`.
     drawn: bool,
 }
@@ -73,6 +76,7 @@ impl<G: GameData> Session<G> {
             frame: Frame::default(),
             fb: vec![0; SCREEN_W * SCREEN_H],
             drawn: false,
+            save: None,
         };
         s.reset();
         s
@@ -91,6 +95,18 @@ impl<G: GameData> Session<G> {
         self.frame = self.world.step(&self.game, keys);
         self.ppu.apply(&self.frame);
         self.drawn = false;
+        if (self.world.events().iter())
+            .any(|e| matches!(e, engine::world::Event::Saved { ok: true }))
+        {
+            self.save = self.world.save_snapshot(&self.game).ok();
+        }
+    }
+
+    /// The in-game save the last `Event::Saved { ok: true }` asked the shell to persist (Gen3
+    /// `TrySavingData`), once. The window build writes it to `saves/<flavor>/game.sav`
+    /// (Milestone 9 Task S).
+    pub fn take_save(&mut self) -> Option<Checkpoint> {
+        self.save.take()
     }
 
     pub fn game(&self) -> &G {

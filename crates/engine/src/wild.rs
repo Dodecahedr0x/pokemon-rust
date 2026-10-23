@@ -55,6 +55,21 @@ pub fn try_land_encounter(
     t: &BattleTables,
     rng: &mut Rng,
 ) -> Option<(SpeciesId, u8)> {
+    try_land_encounter_repel(table, prev, cur, lead, t, rng, |_| false)
+}
+
+/// [`try_land_encounter`] with Gen3's repel check (`IsWildLevelAllowedByRepel`, between the
+/// level and the Keen Eye filter, as `TryGenerateWildMon`): `repel(level)` true drops the
+/// encounter. The World passes [`repel_blocks`].
+pub fn try_land_encounter_repel(
+    table: &LandEncounters,
+    prev: Behavior,
+    cur: Behavior,
+    lead: Option<&Pokemon>,
+    t: &BattleTables,
+    rng: &mut Rng,
+    repel: impl FnOnce(u8) -> bool,
+) -> Option<(SpeciesId, u8)> {
     if cur != Behavior::TallGrass {
         return None;
     }
@@ -74,6 +89,9 @@ pub fn try_land_encounter(
     };
     let mon = table.mons[slot];
     let level = wild_level(&mon, rng);
+    if repel(level) {
+        return None;
+    }
     if let Some(lead) = lead
         && matches!(ability, Ability::KeenEye | Ability::Intimidate)
         && lead.level > 5
@@ -147,6 +165,19 @@ pub fn create_wild(
         }
     };
     Pokemon::new(t, species, level, Ivs::Random, personality, ot_id, rng)
+}
+
+/// Gen3 `IsWildLevelAllowedByRepel`, negated: a repel is active (`SpecialIds::var_repel_steps`
+/// non-zero) and the wild `level` is below the first healthy party mon's (Milestone 9 Task B).
+/// Wave 0: never blocks.
+pub(crate) fn repel_blocks(
+    level: u8,
+    vars: &crate::flow::Vars,
+    party: &crate::mon::Party,
+    ids: &crate::data::SpecialIds,
+) -> bool {
+    let _ = (level, vars, party, ids);
+    false
 }
 
 #[cfg(test)]

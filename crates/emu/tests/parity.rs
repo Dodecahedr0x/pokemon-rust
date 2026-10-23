@@ -941,11 +941,12 @@ fn rom_resumes_from_act1_nodes() {
     }
 }
 
-/// A late apply on a visible frame known on the Act 1 trace, with its cause. A late apply
-/// shifts the ROM's input sampling (it consumes another frame's keys from then on), so a replay
-/// cannot go on past it: the long lane stops [`LATE_MARGIN`] frames before `frame` and resumes
-/// on the ROM at the first capturable frame after it (from native's checkpoint). Each entry is
-/// checked to still happen; remove it once fixed.
+/// A visible frame known on the Act 1 trace to apply late, or to stay on time but over
+/// [`LOOP_LINES_MAX`], with its cause. A late apply shifts the ROM's input sampling (it consumes
+/// another frame's keys from then on), so a replay cannot go on past it; an overrun would fail
+/// the cost gate. Either way the long lane stops [`LATE_MARGIN`] frames before `frame` and
+/// resumes on the ROM at the first capturable frame after it (from native's checkpoint). Each
+/// entry is checked to still be late or over the gate; remove it once it fits.
 struct KnownLate {
     /// The engine frame the ROM reports the late apply at.
     frame: u32,
@@ -953,10 +954,12 @@ struct KnownLate {
 }
 
 const KNOWN_LATE: &[KnownLate] = &[KnownLate {
-    frame: 80_366,
-    cause: "Roxanne's battle start: `Battle::start` runs on the transition's first frame and its \
-            first `NewTurn` runs the opponent's AI choice (gym leader AI flags) in the same step, \
-            223 lines (Findings for M9)",
+    frame: 81_769,
+    cause: "a later step of Roxanne's battle (started at frame 80,366): on time, but the loop \
+            takes 225 lines (step 220; gate 217). Until master's engine fast paths (`7134c3e`) \
+            the battle start itself applied late at 80,366 (`Battle::start` and the first \
+            `NewTurn`'s gym-leader AI choice in one step, 223 lines); it now takes 212 \
+            (Findings for M9)",
 }];
 
 /// Frames a ROM piece stops before a [`KnownLate`] frame: the late step runs two engine frames
@@ -1075,7 +1078,8 @@ fn act1_long_whole_trace_from_a_new_game() {
             piece(what, p);
         }
     }
-    // Each known late apply still happens: from the piece before it, one frame further.
+    // Each known late apply is still late or over the loop gate: from the piece before it,
+    // one frame further.
     for k in KNOWN_LATE {
         let &(from, _) = whole
             .iter()
@@ -1084,18 +1088,31 @@ fn act1_long_whole_trace_from_a_new_game() {
             .min_by_key(|p| p.1 - p.0)
             .expect("a piece ends before each known late apply");
         let sav = (from > 0).then(|| flash::encode_sav(&native.checkpoints[&from]).unwrap());
-        let err = run_rom_from(&rom_path(), sav.as_deref(), Some(from), keys, k.frame, &[])
-            .err()
-            .map(|e| format!("{e:#}"));
-        // The exact frame: a late apply that moves (earlier or later) fails here too.
-        let want = format!("ROM applied a frame late by engine frame {}", k.frame);
-        assert!(
-            err.as_deref() == Some(want.as_str()),
-            "KNOWN_LATE at frame {} no longer happens ({err:?}): remove it",
-            k.frame
-        );
+        let how = match run_rom_from(&rom_path(), sav.as_deref(), Some(from), keys, k.frame, &[]) {
+            // The exact frame: a late apply that moves (earlier or later) fails here too.
+            Err(e) => {
+                let err = format!("{e:#}");
+                let want = format!("ROM applied a frame late by engine frame {}", k.frame);
+                assert!(
+                    err == want,
+                    "KNOWN_LATE at frame {}: another failure ({err}): fix or update it",
+                    k.frame
+                );
+                "late".to_string()
+            }
+            Ok(run) => {
+                let lines = run.end.loop_lines_max;
+                assert!(
+                    lines > LOOP_LINES_MAX,
+                    "KNOWN_LATE at frame {} is on time and within the loop gate ({lines} lines): \
+                     remove it",
+                    k.frame
+                );
+                format!("on time, loop {lines} lines (gate {LOOP_LINES_MAX})")
+            }
+        };
         println!(
-            "known late apply at frame {} (still happens): {}",
+            "known late apply at frame {} (still {how}): {}",
             k.frame, k.cause
         );
     }

@@ -55,6 +55,7 @@
 //! Gen3 battle without items, forms or weather abilities draws and hashes as before.
 
 mod forms;
+mod items;
 mod moves;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -1090,6 +1091,7 @@ impl Battle {
             // BattleScript_TrainerBallBlock ("The TRAINER blocked the BALL!"), using the turn.
             Choice::Ball if self.is_trainer() => None,
             Choice::Ball => Some(Action::Ball),
+            Choice::Item { item, party } => items::choose(self, env, item, party),
             Choice::Switch(_) | Choice::LearnMove { .. } => None,
         }
     }
@@ -1439,6 +1441,12 @@ impl Battle {
             return;
         }
         self.leveled_up |= 1 << party;
+        // Gen3 `AdjustFriendship(.., FRIENDSHIP_EVENT_GROW_LEVEL)` on the level-up (Task E).
+        let hold = self.x.holds[side as usize][party as usize];
+        if let Some(m) = self.parties[side as usize].get_mut(party as usize) {
+            use crate::world::friendship::{FriendshipEvent, on_event};
+            on_event(m, FriendshipEvent::GrowLevel, hold, env.t, env.rng);
+        }
         // Update the battle mon after the level-up (when it is out and standing).
         let b = &mut self.battlers[side as usize];
         if b.mon.party == party && b.mon.hp > 0 {

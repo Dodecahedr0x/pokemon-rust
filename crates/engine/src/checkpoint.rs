@@ -13,26 +13,32 @@ use crate::data::{
 };
 use crate::hash::Fnv64;
 use crate::input::Buttons;
-use crate::mon::Pokemon;
+use crate::mon::{BoxedMon, Pokemon};
+use crate::options::Options;
 use crate::script::Speed;
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 /// Snapshot schema. Bump on any change to a DTO below (the golden-bytes test fails otherwise).
-/// Schema 3 appends [`WorldSnapshot::party_held`].
-pub const SCHEMA: u16 = 3;
+/// Schema 3 appends [`WorldSnapshot::party_held`]; schema 4 appends the Milestone 9 state
+/// (options, Pokédex, PC, coins, registered item).
+pub const SCHEMA: u16 = 4;
 /// The oldest schema [`decode`] still reads (see [`schema_readable`]).
 pub const OLDEST_READABLE: u16 = 2;
 
 /// Whether this build reads checkpoints (and trusts tree nodes) of schema `s`. Schema 2 is
-/// schema 3 without held items: [`decode`] reads it as an empty [`WorldSnapshot::party_held`],
-/// and [`state_digest`] of such a snapshot is its schema-2 digest, so recorded nodes stay
-/// valid.
+/// schema 3 without held items, and schema 3 is schema 4 without the Milestone 9 state:
+/// [`decode`] reads the missing fields as a new game's, and [`state_digest`] of such a
+/// snapshot is its older digest, so recorded nodes stay valid.
 pub const fn schema_readable(s: u16) -> bool {
     s >= OLDEST_READABLE && s <= SCHEMA
 }
 /// Largest postcard checkpoint the GBA flash slot accepts (route max is reported by the tests).
-pub const MAX_ENCODED: usize = 8 * 1024;
+/// Milestone 9 Step 0: agb's one-slot layout on 64 KiB holds 24,528 bytes for every later save
+/// (`game-native` `flash::tests::slot_capacity_holds_max_encoded`); this keeps 512 bytes under
+/// it. The worst-case save (`checkpoint/tests/worst_case.rs`) is 9,748 bytes plus 1,950 per
+/// full PC box, so 7 boxes fit (decision 5: Emerald's `pc_boxes`).
+pub const MAX_ENCODED: usize = 24_528 - 512;
 /// agb_save layout, shared by game-gba and game-native::flash (byte-identical images).
 pub const FLASH_MAGIC: [u8; 32] = *b"pokemon-rust checkpoint flash v1";
 pub const FLASH_SLOTS: usize = 1;
@@ -99,16 +105,44 @@ pub struct SaveMeta {
     pub build: BuildHash,
     pub frame: u32,
     pub map: MapId,
+    // Milestone 9: the main menu's CONTINUE window (Gen3 `main_menu.c`), with `frame` as the
+    // play time. A slot written before Milestone 9 has none of these: agb reads its metadata
+    // as corrupt, and the shells start a new game (`boot::CORRUPT`).
+    pub name: PlayerName,
+    /// Species caught (Gen3 `GetNationalPokedexCount(FLAG_GET_CAUGHT)`).
+    pub dex_caught: u16,
+    /// Badges owned (`SpecialIds::flag_badges` set); 0 from [`SaveMeta::of`].
+    pub badges: u8,
 }
 
 impl SaveMeta {
-    /// The metadata a flash slot holding `cp` carries (`game-gba` and `game-native::flash`).
+    /// The metadata a flash slot holding `cp` carries (`game-gba` and `game-native::flash`),
+    /// without the badges (they need the game's flags: [`Checkpoint::save_meta`]).
     pub fn of(cp: &Checkpoint) -> Self {
         Self {
             schema: cp.header.schema,
             build: cp.header.build,
             frame: cp.header.frame,
             map: cp.world.field.map,
+            name: cp.world.player_name,
+            dex_caught: (cp.world.pokedex.caught.iter())
+                .map(|b| b.count_ones() as u16)
+                .sum(),
+            badges: 0,
+        }
+    }
+}
+
+impl Checkpoint {
+    /// [`SaveMeta::of`] with the badges of `ids` (Milestone 9 Task S writes slots with it).
+    pub fn save_meta(&self, ids: &crate::data::SpecialIds) -> SaveMeta {
+        let flags = &self.world.vars.flags;
+        let badges = (ids.flag_badges.iter().flatten())
+            .filter(|f| flags.binary_search(f).is_ok())
+            .count() as u8;
+        SaveMeta {
+            badges,
+            ..SaveMeta::of(self)
         }
     }
 }
@@ -153,6 +187,79 @@ pub struct WorldSnapshot {
     /// The party's held items (`Pokemon::held`, by party slot); empty when no mon holds one.
     #[serde(default, deserialize_with = "seq")]
     pub party_held: Vec<Option<ItemId>>,
+    // Schema 4 (Milestone 9). At a new game's values they encode as [`M9_DEFAULT_TAIL`], which
+    // `decode` adds to an older checkpoint and `state_digest` leaves out. `serde(default)` reads
+    // an older RON snapshot (the stores' caches) the same way.
+    /// `None` at Gen3's defaults.
+    #[serde(default)]
+    pub options: Option<Options>,
+    #[serde(default)]
+    pub pokedex: PokedexSnap,
+    #[serde(default)]
+    pub pc: PcSnap,
+    #[serde(default)]
+    pub coins: u16,
+    #[serde(default)]
+    pub registered_item: Option<ItemId>,
+}
+
+/// The postcard bytes of the schema 4 fields at a new game's values: `options` `None`, two
+/// empty Pokédex bitsets, an empty PC (no items, no mons, box 0), 0 coins, no registered item.
+pub const M9_DEFAULT_TAIL: [u8; 8] = [0; 8];
+
+impl WorldSnapshot {
+    /// Whether the schema 4 fields are a new game's (they then encode as [`M9_DEFAULT_TAIL`]).
+    pub fn m9_is_default(&self) -> bool {
+        self.options.is_none()
+            && self.pokedex == PokedexSnap::default()
+            && self.pc == PcSnap::default()
+            && self.coins == 0
+            && self.registered_item.is_none()
+    }
+}
+
+/// `Pokedex` as its two bitsets (bit `n` = species id `n`), without trailing zero bytes.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct PokedexSnap {
+    #[serde(deserialize_with = "seq")]
+    pub seen: Vec<u8>,
+    #[serde(deserialize_with = "seq")]
+    pub caught: Vec<u8>,
+}
+
+/// `PcStorage`'s non-empty item slots and box slots, ascending, and the current box.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct PcSnap {
+    #[serde(deserialize_with = "seq")]
+    pub items: Vec<PcItemSnap>,
+    #[serde(deserialize_with = "seq")]
+    pub mons: Vec<PcMonSnap>,
+    pub current_box: u8,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct PcItemSnap {
+    pub index: u8,
+    pub item: ItemId,
+    pub qty: u16,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct PcMonSnap {
+    pub pc_box: u8,
+    pub slot: u8,
+    pub mon: BoxedMon,
+}
+
+/// Why the in-game save ([`crate::World::save_snapshot`]) did not produce a checkpoint.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SaveError {
+    /// Not implemented yet (Milestone 9 Wave 0's stub).
+    Unsupported,
+    /// The normalised world still could not be captured.
+    NotCapturable(NotCapturable),
+    /// Larger than [`MAX_ENCODED`].
+    TooLarge(usize),
 }
 
 /// The bag's non-empty slots, in pocket then slot order.
@@ -330,6 +437,8 @@ pub struct TransitionSnap {
 pub enum NotCapturable {
     Starter,
     Battle,
+    /// A screen is open (Milestone 9: the in-game save captures a normalised copy instead).
+    Screen,
     Transition,
     Script,
     TextBox,
@@ -437,11 +546,15 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         return Err(CodecError::Schema { found: schema });
     }
     let upgraded;
-    let bytes = if schema < 3 {
-        // Schema 2 lacks the trailing `party_held`: an empty one is a 0 length byte.
-        let mut v = Vec::with_capacity(bytes.len() + 1);
+    let bytes = if schema < SCHEMA {
+        // Schema 2 lacks the trailing `party_held` (an empty one is a 0 length byte), and
+        // schemas 2 and 3 lack the Milestone 9 fields (a new game's are `M9_DEFAULT_TAIL`).
+        let mut v = Vec::with_capacity(bytes.len() + 1 + M9_DEFAULT_TAIL.len());
         v.extend_from_slice(bytes);
-        v.push(0);
+        if schema < 3 {
+            v.push(0);
+        }
+        v.extend_from_slice(&M9_DEFAULT_TAIL);
         upgraded = v;
         &upgraded[..]
     } else {
@@ -457,31 +570,51 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
 }
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
-/// The header (build, frame, world hash) is not part of it. An empty `party_held` (its single
-/// trailing 0 byte) is left out, so a snapshot without held items keeps its schema-2 digest.
+/// The header (build, frame, world hash) is not part of it. Trailing fields at their older
+/// schema's defaults are left out: the Milestone 9 fields at a new game's values
+/// ([`M9_DEFAULT_TAIL`]) and then an empty `party_held` (its single 0 byte), so such a snapshot
+/// keeps its schema 3 (or schema 2) digest.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
+    let mut drop = 0;
+    if w.m9_is_default() {
+        drop = M9_DEFAULT_TAIL.len();
+        if w.party_held.is_empty() {
+            drop += 1;
+        }
+    }
     let flavor = DigestFlavor {
         h: Fnv64::new(),
-        last: None,
-        drop_last: w.party_held.is_empty(),
+        pending: [0; DIGEST_DROP_MAX],
+        n: 0,
+        drop,
     };
     postcard::serialize_with_flavor(w, flavor).expect("postcard encoding of a snapshot")
 }
 
-/// A postcard output that hashes the bytes instead of storing them, one byte behind so that
-/// the last one can be left out.
+const DIGEST_DROP_MAX: usize = M9_DEFAULT_TAIL.len() + 1;
+
+/// A postcard output that hashes the bytes instead of storing them, `drop` bytes behind so
+/// that the last `drop` can be left out.
 struct DigestFlavor {
     h: Fnv64,
-    last: Option<u8>,
-    drop_last: bool,
+    pending: [u8; DIGEST_DROP_MAX],
+    n: usize,
+    drop: usize,
 }
 
 impl postcard::ser_flavors::Flavor for DigestFlavor {
     type Output = u64;
 
     fn try_push(&mut self, data: u8) -> postcard::Result<()> {
-        if let Some(b) = self.last.replace(data) {
-            self.h.write(&[b]);
+        if self.drop == 0 {
+            self.h.write(&[data]);
+        } else if self.n < self.drop {
+            self.pending[self.n] = data;
+            self.n += 1;
+        } else {
+            self.h.write(&[self.pending[0]]);
+            self.pending.copy_within(1..self.drop, 0);
+            self.pending[self.drop - 1] = data;
         }
         Ok(())
     }
@@ -493,10 +626,8 @@ impl postcard::ser_flavors::Flavor for DigestFlavor {
         Ok(())
     }
 
-    fn finalize(mut self) -> postcard::Result<u64> {
-        if let Some(b) = self.last.filter(|_| !self.drop_last) {
-            self.h.write(&[b]);
-        }
+    fn finalize(self) -> postcard::Result<u64> {
+        // The pending bytes are the dropped tail (a snapshot is always longer than it).
         Ok(self.h.finish())
     }
 }

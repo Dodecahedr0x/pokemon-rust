@@ -428,6 +428,11 @@ impl Printer {
         &self.canvas
     }
 
+    /// Frames per drawn glyph from the next glyph on (the text speed option).
+    pub fn set_frames_per_char(&mut self, n: u8) {
+        self.frames_per_char = n.max(1);
+    }
+
     /// Sets the colors and fills the canvas with their background; stops printing.
     pub fn clear(&mut self, colors: Colors) {
         self.pen = Pen::new(colors);

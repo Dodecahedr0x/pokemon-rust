@@ -43,6 +43,7 @@ mod lowering {
             source: None,
             labels,
             movements,
+            lists: Vec::new(),
         }
     }
 

@@ -21,6 +21,9 @@ fn meta(schema: u16) -> SaveMeta {
         build: BuildHash::default(),
         frame: 42,
         map: MapId(0),
+        name: [0xFF; 8],
+        dex_caught: 0,
+        badges: 0,
     }
 }
 

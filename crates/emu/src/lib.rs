@@ -7,9 +7,9 @@ use engine::data::{MapId, ScriptId};
 use engine::debug::{
     INPUT_RING, MAGIC, NO_SCRIPT, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE,
     OFF_EVENTS_DROPPED, OFF_FRAME, OFF_HASH, OFF_HASH_LINES_MAX, OFF_HEAP_MAX, OFF_INPUTS,
-    OFF_LAST_SCRIPT, OFF_LATE, OFF_LATE_BLACK, OFF_LOOP_LINES_MAX, OFF_MAP, OFF_PANICKED,
-    OFF_REPORTS, OFF_SAVE_STATUS, OFF_SAVES, OFF_SCAN_PASSES, OFF_STACK_MIN, OFF_STEP_LINES_MAX,
-    SIZE,
+    OFF_LAST_SCRIPT, OFF_LATE, OFF_LATE_BLACK, OFF_LATE_SAVING, OFF_LOOP_LINES_MAX, OFF_MAP,
+    OFF_PANICKED, OFF_REPORTS, OFF_SAVE_STATUS, OFF_SAVES, OFF_SCAN_PASSES, OFF_SCREENS,
+    OFF_STACK_MIN, OFF_STEP_LINES_MAX, SIZE,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -69,6 +69,10 @@ pub struct DebugSnapshot {
     pub panicked: u16,
     /// Complete scan passes of the ROM's memory watch (`DebugRegion::scan_passes`, wrapping).
     pub scan_passes: u32,
+    /// Frames over budget while the shell wrote an in-game save (Milestone 9; not `late`).
+    pub late_saving: u32,
+    /// Screens open (`World::screens_open`) at the last step (Milestone 9).
+    pub screens: u16,
 }
 
 /// A zeroed region (frame 0, no script, map 0), for tests that build snapshots.
@@ -95,17 +99,20 @@ impl Default for DebugSnapshot {
             stack_min: 0,
             panicked: 0,
             scan_passes: 0,
+            late_saving: 0,
+            screens: 0,
         }
     }
 }
 
-// `Emu::debug` reads the v3 fields at engine's offsets: inside the region, the u64s on 8-byte
+// `Emu::debug` reads the v4 fields at engine's offsets: inside the region, the u64s on 8-byte
 // boundaries (read as two 32-bit halves), the u32s on 4-byte and the u16s on 2-byte ones.
 const _: () = {
-    assert!(SIZE == 216 && MAGIC[7] == b'3');
+    assert!(SIZE == 224 && MAGIC[7] == b'4');
     assert!(OFF_HEAP_MAX == 200 && OFF_LAST_SCRIPT == 204 && OFF_MAP == 206);
     assert!(OFF_REPORTS == 208 && OFF_EVENTS_DROPPED == 210 && OFF_STACK_MIN == 212);
-    assert!(OFF_PANICKED == 214 && OFF_PANICKED as usize + 2 == SIZE);
+    assert!(OFF_PANICKED == 214 && OFF_LATE_SAVING == 216 && OFF_SCREENS == 220);
+    assert!(OFF_SCREENS as usize + 4 == SIZE);
     assert!(OFF_FRAME == 8 && OFF_SCAN_PASSES == 12);
     assert!(OFF_BUILD_ENGINE == 160 && OFF_BUILD_CONTENT == 168);
     assert!(OFF_BOOT == 176 && OFF_SAVES == 180 && OFF_SAVE_STATUS == 184);
@@ -380,6 +387,8 @@ impl Emu {
             stack_min: self.read16(base + OFF_STACK_MIN),
             panicked: self.read16(base + OFF_PANICKED),
             scan_passes: self.read32(base + OFF_SCAN_PASSES),
+            late_saving: self.read32(base + OFF_LATE_SAVING),
+            screens: self.read16(base + OFF_SCREENS),
         })
     }
 

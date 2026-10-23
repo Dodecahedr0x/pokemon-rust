@@ -396,6 +396,7 @@ impl Fake {
             name: m.name,
             width: m.width,
             height: m.height,
+            map_type: m.map_type,
             blocks: m.blocks,
             border: m.border,
             primary: m.primary,

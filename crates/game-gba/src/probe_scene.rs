@@ -234,6 +234,7 @@ impl GameData for ProbeGame {
             UiText::Yes => &[0xD3, 0xBF, 0xCD, 0xFF],
             UiText::No => &[0xC8, 0xC9, 0xFF],
             UiText::RivalName => &[0xFF],
+            _ => &[0xFF],
         }
     }
     fn behavior(&self, _: u8) -> Behavior {

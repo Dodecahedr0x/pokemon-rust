@@ -182,6 +182,7 @@ static MAPS: [MapData; 4] = [
             ..NO_SCRIPTS
         },
         allow_running: true,
+        map_type: 0,
     },
     MapData {
         name: "house",
@@ -218,6 +219,7 @@ static MAPS: [MapData; 4] = [
             ..NO_SCRIPTS
         },
         allow_running: false,
+        map_type: 0,
     },
     MapData {
         name: "route",
@@ -241,6 +243,7 @@ static MAPS: [MapData; 4] = [
             ..NO_SCRIPTS
         },
         allow_running: true,
+        map_type: 0,
     },
     MapData {
         name: "dynamic room",
@@ -263,6 +266,7 @@ static MAPS: [MapData; 4] = [
         connections: &[],
         scripts: NO_SCRIPTS,
         allow_running: false,
+        map_type: 0,
     },
 ];
 
@@ -405,6 +409,7 @@ impl GameData for Game {
             connections: &[],
             scripts: NO_SCRIPTS,
             allow_running: false,
+            map_type: 0,
         };
         MAPS.get(id.0 as usize).unwrap_or(&MISSING)
     }
@@ -420,6 +425,7 @@ impl GameData for Game {
             max_money: MAX_MONEY,
             multichoice_cancel: MULTI_B_PRESSED,
             pocket_slots: POCKET_SLOTS,
+            ..SpecialIds::default()
         }
     }
     fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
@@ -1110,6 +1116,19 @@ mod m8_g;
 mod m8_h;
 mod m8_i;
 mod m8_m;
+// Milestone 9: one file per task.
+mod m9_b;
+mod m9_bm;
+mod m9_e;
+mod m9_f;
+mod m9_k;
+mod m9_m;
+mod m9_pt;
+mod m9_r;
+mod m9_s;
+mod m9_sm;
+mod m9_w;
+mod m9_wave0;
 mod warp_exits;
 
 std::thread_local! {

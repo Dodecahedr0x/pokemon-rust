@@ -149,6 +149,7 @@ impl GameData for Game {
             UiText::Yes => &[1, 0xFF],
             UiText::No => &[2, 0xFF],
             UiText::RivalName => &[0xFF],
+            _ => &[0xFF],
         }
     }
     fn behavior(&self, _: u8) -> Behavior {

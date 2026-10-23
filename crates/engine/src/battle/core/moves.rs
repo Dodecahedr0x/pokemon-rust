@@ -592,7 +592,17 @@ impl Battle {
         b.charge = 0;
         b.bide_damage = 0;
         b.v = super::Volatiles::default();
-        let (party, ability) = (b.mon.party, b.ability);
+        let (party, ability, level) = (b.mon.party, b.ability, b.mon.level);
+        if side == Side::Player {
+            // Gen3 `Cmd_tryfaintmon` → `AdjustFriendshipOnBattleFaint` (Task E).
+            use crate::world::friendship::{FriendshipEvent, on_event};
+            let foe_level = self.battler(Side::Opponent).mon.level;
+            let event = FriendshipEvent::battle_faint(foe_level, level);
+            let hold = self.x.holds[side as usize][party as usize];
+            if let Some(m) = self.parties[side as usize].get_mut(party as usize) {
+                on_event(m, event, hold, env.t, env.rng);
+            }
+        }
         self.clear_bonds(side);
         env.out.push(BattleEvent::Faint { side });
         // STRINGID_PKMNFAINTED names the target battler; B_BUFF1 also carries the party slot,

@@ -10,6 +10,7 @@ use crate::data::{
     Dir, FlagId, ItemId, MapId, MoveId, MovementType, SpeciesId, TextId, TrainerId, VarId,
 };
 use crate::hash::Fnv64;
+pub use crate::ui::{PartyMode, PcMode};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
@@ -52,6 +53,48 @@ pub enum Step {
 pub enum Fade {
     ToBlack,
     FromBlack,
+    // ---- Milestone 9 (Task R: Gen3 `FADE_TO_WHITE` / `FADE_FROM_WHITE`) ----
+    ToWhite,
+    FromWhite,
+}
+
+/// What `givemon` sets beyond the species and level (Milestone 9, SIL2's `give_mon_with`;
+/// Task R applies it): the moves (replacing the level-up set), the held item, the OT and the
+/// nickname.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct GiveMonExtra {
+    pub moves: Option<[MoveId; 4]>,
+    pub item: Option<ItemId>,
+    /// Gen3-encoded OT name (0xFF-terminated) and OT id.
+    pub ot: Option<(&'static [u8], u32)>,
+    pub nickname: Option<TextId>,
+}
+
+impl GiveMonExtra {
+    /// A stable digest of every field (the request hash).
+    pub fn digest(&self) -> u64 {
+        let mut h = Fnv64::new();
+        match self.moves {
+            None => h.write(&[0]),
+            Some(ms) => {
+                h.write(&[1]);
+                for m in ms {
+                    h.write_u16(m.0);
+                }
+            }
+        }
+        h.write_u16(self.item.map_or(0xFFFF, |i| i.0));
+        match self.ot {
+            None => h.write(&[0]),
+            Some((name, id)) => {
+                h.write(&[1]);
+                h.write(name);
+                h.write_u32(id);
+            }
+        }
+        h.write_u16(self.nickname.map_or(0xFFFF, |t| t.0));
+        h.finish()
+    }
 }
 
 /// What a `buffer*` command writes into a string var (Gen3 `gStringVar1..3`).
@@ -118,8 +161,12 @@ pub enum Request {
     /// Until A or B is pressed.
     WaitButton,
     CloseMessage,
-    /// Shows a yes/no menu; answers `Bool(true)` for yes, `false` for no or B.
-    YesNo,
+    /// Shows a yes/no menu; answers `Bool(true)` for yes, `false` for no or B. The cursor
+    /// starts on No when `default_no` (Milestone 9; Gen3 `DisplayYesNoMenuDefaultNo`), on Yes
+    /// otherwise (every Emerald `yesnobox`).
+    YesNo {
+        default_no: bool,
+    },
     // ---- objects (local ids; `data::PLAYER` is the player) ----
     /// Freezes the player and the object being talked to.
     Lock,
@@ -198,10 +245,11 @@ pub enum Request {
     WaitState,
     // ---- party and battle (Milestone 4) ----
     /// Gen3 `givemon`: answers `Value` = `MON_GIVEN_TO_PARTY` (0), `_PC` (1) or
-    /// `MON_CANT_GIVE` (2).
+    /// `MON_CANT_GIVE` (2). `extra` (Milestone 9) sets moves, item, OT and nickname.
     GiveMon {
         species: SpeciesId,
         level: u8,
+        extra: Option<&'static GiveMonExtra>,
     },
     /// Gen3 `getpartysize`: answers `Value`.
     PartySize,
@@ -216,9 +264,12 @@ pub enum Request {
     /// A trainer battle; `defeat` is shown when the player wins. Answers
     /// `Value(BattleOutcome as u16)` once the field is back. A battle that whites out never
     /// answers: the World aborts the runner.
+    /// `no_whiteout` (Milestone 9, a game rule Emerald never sets): a loss answers `Lost`
+    /// instead of whiting out.
     BattleTrainer {
         trainer: TrainerId,
         defeat: TextId,
+        no_whiteout: bool,
     },
     /// Gen3 `special ChooseStarter`: answers `Value(index 0..3)`.
     ChooseStarter([SpeciesId; 3]),
@@ -280,7 +331,72 @@ pub enum Request {
     TrainerApproach {
         obj: u8,
     },
+    // ---- Milestone 9: screens (`world/host/screens.rs`, Task K) ----
+    /// Gen3 `pokemart`: the shop with these items; answers `Unit` once it closes.
+    Mart {
+        items: &'static [ItemId],
+    },
+    /// `special ChoosePartyMon` / `ChooseMonForMoveTutor`: answers `Value` = the slot, or
+    /// [`PARTY_NOTHING_CHOSEN`].
+    ChoosePartyMon(PartyMode),
+    /// `special PlayerPC`, `BedroomPC`, `ShowPokemonStorageSystemPC`: answers `Unit`.
+    PlayerPc(PcMode),
+    /// `special SaveGame` (Gen3 `SaveGame`: the dialog, then whether it saved): answers `Bool`.
+    SaveDialog,
+    /// The evolution scene (Silice `play_evolution`): answers `Bool` (evolved).
+    Evolve {
+        slot: u8,
+        into: SpeciesId,
+        can_cancel: bool,
+    },
+    // ---- Milestone 9: screen effects (`world/host/fx.rs`, Task R) ----
+    /// The whole screen in `color` (BGR555) for `frames`, then back.
+    ScreenFlash {
+        color: u16,
+        frames: u16,
+    },
+    /// The camera shakes by ±`magnitude` pixels for `frames`.
+    ScreenShake {
+        magnitude: u8,
+        frames: u16,
+    },
+    /// Blends BG palette `banks` and OBJ `obj_banks` (bit masks) towards `color` by
+    /// `amount`/16 over `frames`; amount 0 clears the tint.
+    SetTint {
+        banks: u16,
+        obj_banks: u16,
+        color: u16,
+        amount: u8,
+        frames: u16,
+    },
+    /// Until A or B, or `frames` frames: answers `Bool` (true when A or B came first).
+    WaitInputOrTimeout(u16),
+    // ---- Milestone 9: party and money (`world/host/party.rs`, Task R) ----
+    /// Answers `Word` (the money).
+    MoneyGet,
+    /// Answers `Value` (the coins).
+    CoinsGet,
+    /// Answers `Bool` (whether they fit under `SpecialIds::max_coins`).
+    CoinsAdd(u16),
+    /// Answers `Bool` (whether the player had that many).
+    CoinsRemove(u16),
+    /// Changes party slot `slot`'s friendship by `n` (slot 0xFF: every mon), clamped.
+    AddFriendship {
+        slot: u8,
+        n: i8,
+    },
+    /// Gen3 `ScriptGetPartyMonSpecies`: answers `Value` (0 for an empty slot).
+    PartyMonSpecies(u8),
+    /// Gen3 `CreateInGameTradePokemon` into party slot `slot` from `GameData::in_game_trade`
+    /// entry `trade`: answers `Unit`.
+    InGameTrade {
+        slot: u8,
+        trade: u8,
+    },
 }
+
+/// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
+pub const PARTY_NOTHING_CHOSEN: u16 = 0xFF;
 
 impl Request {
     /// Feeds the request's kind and arguments into `h` (a movement script by its length and
@@ -300,7 +416,7 @@ impl Request {
             Request::WaitMessage => (9, 0, 0, 0, 0),
             Request::WaitButton => (10, 0, 0, 0, 0),
             Request::CloseMessage => (11, 0, 0, 0, 0),
-            Request::YesNo => (12, 0, 0, 0, 0),
+            Request::YesNo { default_no } => (12, default_no as u16, 0, 0, 0),
             Request::Lock => (13, 0, 0, 0, 0),
             Request::LockAll => (14, 0, 0, 0, 0),
             Request::Release => (15, 0, 0, 0, 0),
@@ -343,7 +459,7 @@ impl Request {
             Request::Door { x, y, open } => (33, i(x), i(y), open as u16, 0),
             Request::WaitDoor => (34, 0, 0, 0, 0),
             Request::WaitState => (35, 0, 0, 0, 0),
-            Request::GiveMon { species, level } => (36, species.0, level as u16, 0, 0),
+            Request::GiveMon { species, level, .. } => (36, species.0, level as u16, 0, 0),
             Request::PartySize => (37, 0, 0, 0, 0),
             Request::HealParty => (38, 0, 0, 0, 0),
             Request::BattleWild {
@@ -351,7 +467,9 @@ impl Request {
                 level,
                 first_battle,
             } => (39, species.0, level as u16, first_battle as u16, 0),
-            Request::BattleTrainer { trainer, defeat } => (40, trainer.0, defeat.0, 0, 0),
+            Request::BattleTrainer {
+                trainer, defeat, ..
+            } => (40, trainer.0, defeat.0, 0, 0),
             Request::ChooseStarter([a, b, c]) => (41, a.0, b.0, c.0, 0),
             Request::SetRespawn(id) => (42, id as u16, 0, 0, 0),
             Request::ItemAdd { item, qty } => (43, item.0, qty, 0, 0),
@@ -404,10 +522,75 @@ impl Request {
             Request::Report(r) => (53, matches!(r, Report::Degraded(_)) as u16, 0, 0, 0),
             Request::TrainerApproach { obj } => (54, obj as u16, 0, 0, 0),
             Request::CurrentMap => (55, 0, 0, 0, 0),
+            // ---- Milestone 9 ----
+            Request::Mart { items } => {
+                let mut dh = Fnv64::new();
+                for i in items {
+                    dh.write_u16(i.0);
+                }
+                let d = dh.finish();
+                (
+                    56,
+                    items.len() as u16,
+                    d as u16,
+                    (d >> 16) as u16,
+                    (d >> 32) as u16,
+                )
+            }
+            Request::ChoosePartyMon(m) => {
+                let (kind, v) = match m {
+                    PartyMode::Field => (0, 0),
+                    PartyMode::Choose => (1, 0),
+                    PartyMode::MoveTutor(m) => (2, m.0),
+                    PartyMode::UseItem(i) => (3, i.0),
+                    PartyMode::GiveItem(i) => (4, i.0),
+                    PartyMode::Battle { forced } => (5, forced as u16),
+                };
+                (57, kind, v, 0, 0)
+            }
+            Request::PlayerPc(m) => (58, m as u16, 0, 0, 0),
+            Request::SaveDialog => (59, 0, 0, 0, 0),
+            Request::Evolve {
+                slot,
+                into,
+                can_cancel,
+            } => (60, slot as u16, into.0, can_cancel as u16, 0),
+            Request::ScreenFlash { color, frames } => (61, color, frames, 0, 0),
+            Request::ScreenShake { magnitude, frames } => (62, magnitude as u16, frames, 0, 0),
+            Request::SetTint {
+                banks,
+                obj_banks,
+                color,
+                frames,
+                ..
+            } => (63, banks, obj_banks, color, frames),
+            Request::WaitInputOrTimeout(n) => (64, n, 0, 0, 0),
+            Request::MoneyGet => (65, 0, 0, 0, 0),
+            Request::CoinsGet => (66, 0, 0, 0, 0),
+            Request::CoinsAdd(n) => (67, n, 0, 0, 0),
+            Request::CoinsRemove(n) => (68, n, 0, 0, 0),
+            Request::AddFriendship { slot, n } => (69, slot as u16, n as u8 as u16, 0, 0),
+            Request::PartyMonSpecies(slot) => (70, slot as u16, 0, 0, 0),
+            Request::InGameTrade { slot, trade } => (71, slot as u16, trade as u16, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
             h.write_u16(v);
+        }
+        // Milestone 9: fields hashed only when not at their default, so the M8 shapes keep
+        // their bytes.
+        match *self {
+            Request::GiveMon {
+                extra: Some(extra), ..
+            } => {
+                h.write(&[0xA7]);
+                h.write(&extra.digest().to_le_bytes());
+            }
+            Request::BattleTrainer {
+                no_whiteout: true, ..
+            } => h.write(&[0xA8]),
+            Request::SetTint { amount, .. } => h.write(&[amount]),
+            _ => {}
         }
     }
 }
@@ -418,6 +601,8 @@ pub enum Response {
     Bool(bool),
     Value(u16),
     Pos(i16, i16),
+    /// Milestone 9 (`MoneyGet`).
+    Word(u32),
 }
 
 impl Response {
@@ -432,6 +617,13 @@ impl Response {
         match self {
             Response::Value(v) => v,
             r => panic!("expected Value, got {r:?}"),
+        }
+    }
+
+    fn word(self) -> u32 {
+        match self {
+            Response::Word(v) => v,
+            r => panic!("expected Word, got {r:?}"),
         }
     }
 }
@@ -584,7 +776,7 @@ impl Ctx {
     }
 
     pub fn yes_no(&self) -> Req<bool> {
-        self.req(Request::YesNo, Response::bool)
+        self.req(Request::YesNo { default_no: false }, Response::bool)
     }
 
     pub fn lock(&self) -> Req<()> {
@@ -689,7 +881,14 @@ impl Ctx {
 
     /// Gen3 `givemon`: `MON_GIVEN_TO_PARTY` (0), `MON_GIVEN_TO_PC` (1) or `MON_CANT_GIVE` (2).
     pub fn give_mon(&self, species: SpeciesId, level: u8) -> Req<u16> {
-        self.req(Request::GiveMon { species, level }, Response::value)
+        self.req(
+            Request::GiveMon {
+                species,
+                level,
+                extra: None,
+            },
+            Response::value,
+        )
     }
 
     pub fn party_size(&self) -> Req<u16> {
@@ -717,7 +916,14 @@ impl Ctx {
     }
 
     pub fn battle_trainer(&self, trainer: TrainerId, defeat: TextId) -> Req<BattleOutcome> {
-        self.req(Request::BattleTrainer { trainer, defeat }, outcome)
+        self.req(
+            Request::BattleTrainer {
+                trainer,
+                defeat,
+                no_whiteout: false,
+            },
+            outcome,
+        )
     }
 
     /// The index (0..3) of the chosen species.
@@ -812,6 +1018,141 @@ impl Ctx {
 
     pub fn trainer_approach(&self, obj: u8) -> Req<()> {
         self.req(Request::TrainerApproach { obj }, unit)
+    }
+
+    // ---- Milestone 9 ----
+
+    /// A yes/no menu whose cursor starts on No (Gen3 `DisplayYesNoMenuDefaultNo`).
+    pub fn yes_no_default_no(&self) -> Req<bool> {
+        self.req(Request::YesNo { default_no: true }, Response::bool)
+    }
+
+    /// Gen3 `givemon` with moves, item, OT or nickname.
+    pub fn give_mon_with(
+        &self,
+        species: SpeciesId,
+        level: u8,
+        extra: &'static GiveMonExtra,
+    ) -> Req<u16> {
+        self.req(
+            Request::GiveMon {
+                species,
+                level,
+                extra: Some(extra),
+            },
+            Response::value,
+        )
+    }
+
+    /// A trainer battle whose loss answers `Lost` instead of whiting out.
+    pub fn battle_trainer_no_whiteout(
+        &self,
+        trainer: TrainerId,
+        defeat: TextId,
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleTrainer {
+                trainer,
+                defeat,
+                no_whiteout: true,
+            },
+            outcome,
+        )
+    }
+
+    /// Gen3 `pokemart`.
+    pub fn mart(&self, items: &'static [ItemId]) -> Req<()> {
+        self.req(Request::Mart { items }, unit)
+    }
+
+    /// The chosen party slot, or [`PARTY_NOTHING_CHOSEN`].
+    pub fn choose_party_mon(&self, mode: PartyMode) -> Req<u16> {
+        self.req(Request::ChoosePartyMon(mode), Response::value)
+    }
+
+    pub fn player_pc(&self, mode: PcMode) -> Req<()> {
+        self.req(Request::PlayerPc(mode), unit)
+    }
+
+    /// The save dialog: whether the game was saved.
+    pub fn save_dialog(&self) -> Req<bool> {
+        self.req(Request::SaveDialog, Response::bool)
+    }
+
+    /// The evolution scene: whether the mon evolved.
+    pub fn evolve(&self, slot: u8, into: SpeciesId, can_cancel: bool) -> Req<bool> {
+        self.req(
+            Request::Evolve {
+                slot,
+                into,
+                can_cancel,
+            },
+            Response::bool,
+        )
+    }
+
+    pub fn screen_flash(&self, color: u16, frames: u16) -> Req<()> {
+        self.req(Request::ScreenFlash { color, frames }, unit)
+    }
+
+    pub fn screen_shake(&self, magnitude: u8, frames: u16) -> Req<()> {
+        self.req(Request::ScreenShake { magnitude, frames }, unit)
+    }
+
+    pub fn set_tint(
+        &self,
+        banks: u16,
+        obj_banks: u16,
+        color: u16,
+        amount: u8,
+        frames: u16,
+    ) -> Req<()> {
+        self.req(
+            Request::SetTint {
+                banks,
+                obj_banks,
+                color,
+                amount,
+                frames,
+            },
+            unit,
+        )
+    }
+
+    /// Whether A or B came before `frames` frames passed.
+    pub fn wait_input_or_timeout(&self, frames: u16) -> Req<bool> {
+        self.req(Request::WaitInputOrTimeout(frames), Response::bool)
+    }
+
+    pub fn money_get(&self) -> Req<u32> {
+        self.req(Request::MoneyGet, Response::word)
+    }
+
+    pub fn coins_get(&self) -> Req<u16> {
+        self.req(Request::CoinsGet, Response::value)
+    }
+
+    pub fn coins_add(&self, n: u16) -> Req<bool> {
+        self.req(Request::CoinsAdd(n), Response::bool)
+    }
+
+    pub fn coins_remove(&self, n: u16) -> Req<bool> {
+        self.req(Request::CoinsRemove(n), Response::bool)
+    }
+
+    /// Slot `0xFF`: every party mon.
+    pub fn add_friendship(&self, slot: u8, n: i8) -> Req<()> {
+        self.req(Request::AddFriendship { slot, n }, unit)
+    }
+
+    /// Gen3 `ScriptGetPartyMonSpecies` (0 for an empty slot).
+    pub fn party_mon_species(&self, slot: u8) -> Req<u16> {
+        self.req(Request::PartyMonSpecies(slot), Response::value)
+    }
+
+    /// Gen3 `CreateInGameTradePokemon`.
+    pub fn in_game_trade(&self, slot: u8, trade: u8) -> Req<()> {
+        self.req(Request::InGameTrade { slot, trade }, unit)
     }
 }
 

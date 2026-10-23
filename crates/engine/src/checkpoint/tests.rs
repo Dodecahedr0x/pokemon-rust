@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 #[path = "../../build_support.rs"]
 mod build_support;
 
+mod worst_case;
+
 const TOWN: MapId = MapId(3);
 
 fn object(local_id: u8, pos: (i16, i16), action: Option<ActionSnap>) -> ObjectSnap {
@@ -173,6 +175,29 @@ fn sample() -> Checkpoint {
             escape: None,
         },
         party_held: vec![Some(ItemId(139))],
+        options: Some(crate::options::Options {
+            text_speed: crate::options::TextSpeed::Fast,
+            ..Default::default()
+        }),
+        pokedex: PokedexSnap {
+            seen: vec![0x02, 0x00, 0x80],
+            caught: vec![0x02],
+        },
+        pc: PcSnap {
+            items: vec![PcItemSnap {
+                index: 0,
+                item: ItemId(13),
+                qty: 999,
+            }],
+            mons: vec![PcMonSnap {
+                pc_box: 1,
+                slot: 29,
+                mon: mon().to_boxed(),
+            }],
+            current_box: 1,
+        },
+        coins: 9999,
+        registered_item: Some(ItemId(259)),
     };
     Checkpoint {
         header: Header {
@@ -197,7 +222,7 @@ fn hex(bytes: &[u8]) -> String {
 /// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
 /// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
-    "03ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
+    "04ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
     "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a81040101031e",
     "01030202ff03000a0c0a0e030000000a0c010201000001000101040007000201",
     "0101030203010710061006030002100601020100000001110000000102011006",
@@ -205,10 +230,13 @@ const GOLDEN_POSTCARD: &str = concat!(
     "018202f8acd191018de0b75dd4d4cec9caffffffffffff058701010203040506",
     "0000000000000121012d000023280000004600010213140c0b0a090802020000",
     "0200000d030102830201b81702bbbc0020a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
-    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a101030008010001018b01",
+    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a101030008010001018b010102010000",
+    "000003020080010201000de70701011d8202f8acd191018de0b75dd4d4cec9ca",
+    "ffffffffffff8701c198c862000000000000212d00002328000000460000018f",
+    "4e018302",
 );
 const GOLDEN_RON: &str = concat!(
-    "(header:(schema:3,build:(engine:81985529216486895,content:42),frame:1234,",
+    "(header:(schema:4,build:(engine:81985529216486895,content:42),frame:1234,",
     "world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,input:(held:(64),",
     "pressed:(0)),runner_issued:9,player_name:(187,188,189,255,255,255,255,255),",
     "player_id:195948557,field:(map:(3),camera:(-16,32),drawn:Some((-1,-2,15,11)),ring:(3,4),",
@@ -231,7 +259,13 @@ const GOLDEN_RON: &str = concat!(
     "(pocket:KeyItems,index:2,item:(259),qty:1)]),money:3000,str_vars:([187,188],[],[161,161,",
     "161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,",
     "161,161,161,161,161,161,161,161]),warp_slots:(dynamic:Some((map:(3),warp:None,x:4,",
-    "y:-1)),escape:None),party_held:[Some((139))]))",
+    "y:-1)),escape:None),party_held:[Some((139))],options:Some((text_speed:Fast,",
+    "battle_scene:true,battle_style:Shift,sound:Mono,button_mode:Normal,frame:0)),",
+    "pokedex:(seen:[2,0,128],caught:[2]),pc:(items:[(index:0,item:(13),qty:999)],",
+    "mons:[(pc_box:1,slot:29,mon:(species:(258),personality:305419896,ot_id:195948557,",
+    "nickname:(212,212,206,201,202,255,255,255,255,255,255),exp:135,ivs:206703681,",
+    "evs:(0,0,0,0,0,0),moves:(33,45,0,0),pp:(35,40,0,0),pp_bonuses:0,friendship:70,",
+    "ability_slot:0,held:None))],current_box:1),coins:9999,registered_item:Some((259))))",
 );
 
 #[test]
@@ -240,7 +274,23 @@ fn golden_postcard_bytes() {
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
     assert_eq!(encoded_len(&sample()), bytes.len());
-    assert_eq!(SCHEMA, 3);
+    assert_eq!(SCHEMA, 4);
+}
+
+/// The CONTINUE window's data: the name, the species caught, the badges among the set flags.
+#[test]
+fn save_meta_counts_caught_and_badges() {
+    let cp = sample();
+    let m = SaveMeta::of(&cp);
+    assert_eq!(
+        (m.name, m.dex_caught, m.badges),
+        (cp.world.player_name, 1, 0)
+    );
+    let mut ids = crate::data::SpecialIds::default();
+    ids.flag_badges[0] = Some(FlagId(0x200));
+    ids.flag_badges[1] = Some(FlagId(0x201));
+    let m = cp.save_meta(&ids);
+    assert_eq!((m.dex_caught, m.badges, m.frame), (1, 1, 1234));
 }
 
 #[test]
@@ -250,6 +300,19 @@ fn golden_ron() {
         ron, GOLDEN_RON,
         "DTO, serde-name or ron-format change (no SCHEMA bump if the postcard golden holds)"
     );
+}
+
+/// A schema 3 RON snapshot (a store's cache) has none of the Milestone 9 fields: it reads as a
+/// new game's.
+#[test]
+fn schema_3_ron_reads_without_m9_fields() {
+    let mut cp = sample_m9_default();
+    let ron = ron::to_string(&cp).unwrap();
+    let start = ron.find(",options:").unwrap();
+    let v3 = format!("{}))", &ron[..start]).replacen("schema:4", "schema:3", 1);
+    let back: Checkpoint = ron::from_str(&v3).unwrap();
+    cp.header.schema = 3;
+    assert_eq!(back, cp);
 }
 
 #[test]
@@ -269,7 +332,7 @@ fn encoding_starts_with_the_schema() {
 #[test]
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
-    for old_or_new in [1, 4] {
+    for old_or_new in [1, 5] {
         cp.header.schema = old_or_new;
         assert_eq!(
             decode(&encode(&cp)),
@@ -277,37 +340,73 @@ fn another_schema_is_refused_before_decoding() {
         );
     }
     // Only the schema is read: a newer layout behind it does not matter.
-    let mut bytes = postcard::to_allocvec(&4u16).unwrap();
+    let mut bytes = postcard::to_allocvec(&5u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 4 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 5 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
     assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
 }
 
-/// A schema-2 checkpoint is a schema-3 one without held items, minus the trailing empty
-/// `party_held`: it decodes (as schema 3), and its digest is the schema-2 bytes' digest.
-#[test]
-fn schema_2_reads_as_3_without_held_items() {
+/// `sample()` with the schema 4 fields at a new game's values.
+fn sample_m9_default() -> Checkpoint {
     let mut cp = sample();
+    cp.world.options = None;
+    cp.world.pokedex = PokedexSnap::default();
+    cp.world.pc = PcSnap::default();
+    cp.world.coins = 0;
+    cp.world.registered_item = None;
+    assert!(cp.world.m9_is_default());
+    cp
+}
+
+/// A schema-2 checkpoint is a schema-4 one without held items and Milestone 9 state, minus
+/// the trailing empty `party_held` and `M9_DEFAULT_TAIL`: it decodes (as schema 4), and its
+/// digest is the schema-2 bytes' digest.
+#[test]
+fn schema_2_reads_as_4_without_held_items() {
+    let mut cp = sample_m9_default();
     cp.world.party_held.clear();
-    let v3 = encode(&cp);
-    assert_eq!(v3.last(), Some(&0));
-    let mut v2 = v3[..v3.len() - 1].to_vec();
-    assert_eq!(v2[0], 3);
+    let v4 = encode(&cp);
+    let tail = 1 + M9_DEFAULT_TAIL.len();
+    assert!(v4[v4.len() - tail..].iter().all(|&b| b == 0));
+    let mut v2 = v4[..v4.len() - tail].to_vec();
+    assert_eq!(v2[0], 4);
     v2[0] = 2;
     assert_eq!(decode(&v2), Ok(cp.clone()));
     let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&world[..world.len() - 1]);
+    h.write(&world[..world.len() - tail]);
     assert_eq!(state_digest(&cp.world), h.finish());
-    // With held items the whole encoding counts.
-    let held = sample().world;
+    assert!(schema_readable(2) && schema_readable(3) && schema_readable(4));
+    assert!(!schema_readable(1) && !schema_readable(5));
+}
+
+/// A schema-3 checkpoint is a schema-4 one minus `M9_DEFAULT_TAIL`: it decodes (as schema 4)
+/// and keeps its schema-3 digest; any Milestone 9 state makes the whole encoding count.
+#[test]
+fn schema_3_reads_as_4_without_m9_state() {
+    let cp = sample_m9_default();
+    let v4 = encode(&cp);
+    let tail = M9_DEFAULT_TAIL.len();
+    assert_eq!(&v4[v4.len() - tail..], &M9_DEFAULT_TAIL);
+    let mut v3 = v4[..v4.len() - tail].to_vec();
+    v3[0] = 3;
+    assert_eq!(decode(&v3), Ok(cp.clone()));
+    let world = postcard::to_allocvec(&cp.world).unwrap();
     let mut h = Fnv64::new();
-    h.write(&postcard::to_allocvec(&held).unwrap());
-    assert_eq!(state_digest(&held), h.finish());
-    assert!(schema_readable(2) && schema_readable(3));
-    assert!(!schema_readable(1) && !schema_readable(4));
+    h.write(&world[..world.len() - tail]);
+    assert_eq!(state_digest(&cp.world), h.finish());
+    // With held items or Milestone 9 state the whole encoding counts.
+    for w in [sample().world, {
+        let mut w = sample_m9_default().world;
+        w.coins = 1;
+        w
+    }] {
+        let mut h = Fnv64::new();
+        h.write(&postcard::to_allocvec(&w).unwrap());
+        assert_eq!(state_digest(&w), h.finish());
+    }
 }
 
 #[test]
@@ -330,7 +429,7 @@ fn encode_checked_rejects_past_the_flash_budget() {
     let cp = sample();
     assert_eq!(encode_checked(&cp), Ok(encode(&cp)));
     let mut big = cp;
-    big.world.vars.flags = (0..5000).map(FlagId).collect();
+    big.world.vars.flags = (0..20000).map(FlagId).collect();
     let len = encode(&big).len();
     assert_eq!(encoded_len(&big), len);
     assert!(len > MAX_ENCODED);
@@ -363,9 +462,9 @@ fn state_digest_is_stable_and_semantic() {
 fn decode_refuses_more_than_the_flash_budget() {
     let bytes = vec![0; MAX_ENCODED + 1];
     assert_eq!(decode(&bytes), Err(CodecError::TooLarge(MAX_ENCODED + 1)));
-    // Even a valid checkpoint (5000 flags) is refused unread.
+    // Even a valid checkpoint (20000 flags) is refused unread.
     let mut big = sample();
-    big.world.vars.flags = (0..5000).map(FlagId).collect();
+    big.world.vars.flags = (0..20000).map(FlagId).collect();
     let bytes = encode(&big);
     assert_eq!(decode(&bytes), Err(CodecError::TooLarge(bytes.len())));
 }
@@ -444,6 +543,7 @@ fn a_forged_length_cannot_preallocate() {
         &w.str_vars,
         w.warp_slots,
         &w.party_held,
+        (&w.options, &w.pokedex, &w.pc, w.coins, w.registered_item),
     ))
     .unwrap();
     let party_at = bytes.len() - after.len() - 1;

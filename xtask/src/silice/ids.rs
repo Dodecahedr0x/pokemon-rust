@@ -246,14 +246,18 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(f.ids[3].num, 0x4024, "the allocator skips 0x4023");
+        assert_eq!(
+            f.ids.iter().map(|e| e.num).collect::<Vec<_>>(),
+            [0x4020, 0x4022, 0x4024, 0x4025],
+            "the allocator skips 0x4021 (VAR_REPEL_STEP_COUNT) and 0x4023 (VAR_STARTER_MON)"
+        );
         f.ids[3].num = 0x4023;
         let p = problems(IdKind::Vars, &f);
         assert_eq!(p.len(), 1, "{p:?}");
         assert!(p[0].1.contains("reserved"), "{p:?}");
         assert_eq!(
             relocate(IdKind::Vars, &mut f, "VAR_SIL_D").unwrap(),
-            (0x4023, 0x4024)
+            (0x4023, 0x4025)
         );
         assert!(f.ids[3].removed && f.ids[3].num == 0x4023);
         assert_eq!(
@@ -264,7 +268,7 @@ mod tests {
         // A second live entry is listed twice; tombstoning reaches the live one.
         let mut g = f.clone();
         g.ids.push(g.ids[4].clone());
-        g.ids[5].num = 0x4025;
+        g.ids[5].num = 0x4026;
         assert_eq!(problems(IdKind::Vars, &g).len(), 1);
         assert!(tombstone(&mut f, &["VAR_SIL_D".into()]).is_empty());
         assert!(f.ids[4].removed);

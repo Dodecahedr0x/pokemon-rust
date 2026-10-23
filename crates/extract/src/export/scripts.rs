@@ -208,6 +208,7 @@ pub fn build_ir(rom: &Rom, decomp: Option<&Decomp>, maps: &[MapInput]) -> Result
                 source,
                 labels: labels.into_iter().map(|(_, l)| l).collect(),
                 movements: movements.into_iter().map(|(_, l)| l).collect(),
+                lists: Vec::new(),
             },
         );
     }

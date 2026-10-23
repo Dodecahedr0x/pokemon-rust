@@ -457,6 +457,12 @@ impl TextBox {
 
     /// Shows the yes/no menu (Gen3 `DisplayYesNoMenuDefaultYes`), cursor on yes.
     pub fn start_yes_no(&mut self, game: &impl GameData, f: &mut Frame) {
+        self.start_yes_no_from(game, false, f);
+    }
+
+    /// Shows the yes/no menu with the cursor on no when `default_no` (Gen3
+    /// `DisplayYesNoMenuDefaultNo`), else on yes (Milestone 9 Wave 0).
+    pub fn start_yes_no_from(&mut self, game: &impl GameData, default_no: bool, f: &mut Frame) {
         let w = game.window();
         let pen = Pen::new(Colors::of(w));
         self.enable_bg(w, f);
@@ -472,10 +478,18 @@ impl TextBox {
             TEXT_Y + LINE_HEIGHT,
             &pen,
         );
-        self.yes_no_cursor = Some(0);
+        let pos = default_no as u8;
+        self.yes_no_cursor = Some(pos);
         self.yes_no_result = None;
-        self.draw_cursor(font, &pen, 0);
+        self.draw_cursor(font, &pen, pos);
         self.yes_no.flush(f);
+    }
+
+    /// Sets the printing speed of the next messages (Gen3 `GetPlayerTextSpeedDelay`; Milestone 9
+    /// Wave 0). The World passes `Options::text_speed` when a message starts; MID is the
+    /// engine's speed before options existed ([`FRAMES_PER_CHAR`]).
+    pub fn set_speed(&mut self, speed: crate::options::TextSpeed) {
+        self.printer.set_frames_per_char(speed.frames_per_char());
     }
 
     fn draw_cursor(&mut self, font: &Font, pen: &Pen, pos: u8) {

@@ -478,6 +478,11 @@ impl<'a, G: GameData> Driver<'a, G> {
                         });
                     }
                 }
+                // Milestone 9 screens, saves and evolutions: not summarized yet.
+                Event::ScreenOpened(_)
+                | Event::ScreenClosed
+                | Event::Saved { .. }
+                | Event::Evolved(_) => {}
             }
         }
         if started {

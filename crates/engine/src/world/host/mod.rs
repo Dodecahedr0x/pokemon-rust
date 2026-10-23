@@ -4,14 +4,25 @@
 //! Milestone 8 requests are routed to one file per owner: items and money ([`items`], Task H),
 //! multichoice ([`menu`], H), string buffers ([`buffers`], H), the trainer approach
 //! ([`trainer`], I) and warp slots ([`warps`], F).
+//!
+//! Milestone 9 requests go the same way: screens ([`screens`], Task K), effects and timed
+//! waits ([`fx`], R), party, money and coins ([`party`], R) and the save ([`save`], S). After
+//! Milestone 9 Wave 0 no task edits this file.
+
+pub(in crate::world) use fx::whiteout_allowed;
 
 mod buffers;
+mod fx;
 mod items;
 mod menu;
+mod party;
+mod save;
+mod screens;
 mod trainer;
 mod warps;
 
-use super::battle::{Mode, Origin, StarterRun};
+use super::battle::{Origin, StarterRun};
+use super::mode::Mode;
 use super::{DOOR_FRAMES, Event, State};
 use crate::Buttons;
 use crate::battle::{BattleKind, BattleOutcome};
@@ -25,9 +36,6 @@ use alloc::boxed::Box;
 
 /// Block bits `setmetatile` keeps (Gen3 `MapGridSetMetatileIdAt` keeps the elevation).
 const ELEVATION_MASK: u16 = 0xF000;
-/// Gen3 `MON_GIVEN_TO_PARTY` / `MON_CANT_GIVE` (`givemon` results).
-const MON_GIVEN_TO_PARTY: u16 = 0;
-const MON_CANT_GIVE: u16 = 2;
 /// Gen3 `MAPGRID_COLLISION_MASK`.
 const COLLISION_MASK: u16 = 3 << BLOCK_COLLISION_SHIFT;
 
@@ -115,6 +123,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 UNIT
             }
             Request::Message(t) if !self.immediate => {
+                // Gen3 `GetPlayerTextSpeedDelay`: the option, read when the message starts.
+                s.text.set_speed(s.options.text_speed);
                 let vars = Some(&s.str_vars);
                 (s.text).print_vars(game, game.text(t), &s.player_name, vars, self.f);
                 UNIT
@@ -125,9 +135,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 }
                 UNIT
             }
-            Request::YesNo if self.immediate => Some(Response::Bool(false)),
-            Request::YesNo => {
-                s.text.start_yes_no(game, self.f);
+            Request::YesNo { .. } if self.immediate => Some(Response::Bool(false)),
+            Request::YesNo { default_no } => {
+                s.text.start_yes_no_from(game, default_no, self.f);
                 None
             }
             Request::Lock | Request::LockAll => {
@@ -251,17 +261,13 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 self.wait(r)
             }
             // ---- party and battle (Milestone 4) ----
-            Request::GiveMon { species, level } => {
-                // Gen3 `ScriptGiveMon`: the party, else the PC (none yet).
-                let mon = s.create_mon(game, species, level);
-                Some(Response::Value(match s.party.push(mon) {
-                    Ok(_) => MON_GIVEN_TO_PARTY,
-                    Err(_) => {
-                        s.log("givemon: party full and no PC");
-                        MON_CANT_GIVE
-                    }
-                }))
-            }
+            Request::GiveMon {
+                species,
+                level,
+                extra,
+            } => Some(Response::Value(party::give_mon(
+                self, species, level, extra,
+            ))),
             Request::PartySize => Some(Response::Value(s.party.len() as u16)),
             Request::HealParty => {
                 s.party.heal(game.battle());
@@ -306,7 +312,9 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.start_battle(game, kind, opponents, Origin::Script, self.f);
                 None
             }
-            Request::BattleTrainer { trainer, defeat } => {
+            Request::BattleTrainer {
+                trainer, defeat, ..
+            } => {
                 let opponents = game
                     .trainer(trainer)
                     .map(|t| create_trainer_party(game.battle(), t, &mut s.rng))
@@ -336,6 +344,23 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             Request::Multichoice { .. } => menu::begin(self, r),
             Request::SetWarp { .. } => warps::begin(self, r),
             Request::TrainerApproach { .. } => trainer::begin(self, r),
+            // ---- Milestone 9 ----
+            Request::Mart { .. }
+            | Request::ChoosePartyMon(_)
+            | Request::PlayerPc(_)
+            | Request::SaveDialog
+            | Request::Evolve { .. } => screens::begin(self, r),
+            Request::ScreenFlash { .. }
+            | Request::ScreenShake { .. }
+            | Request::SetTint { .. }
+            | Request::WaitInputOrTimeout(_) => fx::begin(self, r),
+            Request::MoneyGet
+            | Request::CoinsGet
+            | Request::CoinsAdd(_)
+            | Request::CoinsRemove(_)
+            | Request::AddFriendship { .. }
+            | Request::PartyMonSpecies(_)
+            | Request::InGameTrade { .. } => party::begin(self, r),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)
@@ -358,7 +383,32 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
         if let Request::Multichoice { .. } = r {
             return menu::resume(self, r);
         }
-        if let Request::YesNo = r {
+        if let Request::Mart { .. }
+        | Request::ChoosePartyMon(_)
+        | Request::PlayerPc(_)
+        | Request::SaveDialog
+        | Request::Evolve { .. } = r
+        {
+            return screens::resume(self, r);
+        }
+        if let Request::ScreenFlash { .. }
+        | Request::ScreenShake { .. }
+        | Request::SetTint { .. }
+        | Request::WaitInputOrTimeout(_) = r
+        {
+            return fx::resume(self, r);
+        }
+        if let Request::MoneyGet
+        | Request::CoinsGet
+        | Request::CoinsAdd(_)
+        | Request::CoinsRemove(_)
+        | Request::AddFriendship { .. }
+        | Request::PartyMonSpecies(_)
+        | Request::InGameTrade { .. } = r
+        {
+            return party::resume(self, r);
+        }
+        if let Request::YesNo { .. } = r {
             let t = &self.s.text;
             return match t.yes_no_result() {
                 Some(yes) if !t.is_yes_no_active() => Some(Response::Bool(yes)),

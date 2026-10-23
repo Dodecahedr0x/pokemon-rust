@@ -26,6 +26,7 @@ use std::path::{Path, PathBuf};
 
 pub mod scripts;
 pub mod tables;
+pub mod ui;
 
 pub use scripts::ScriptInput;
 
@@ -416,6 +417,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     battle_gfx::export(rom, &mut o, &mut provenance)?;
 
     tables::export_tables(rom, &mut o, &mut provenance)?;
+    ui::export_ui(rom, &mut o, &mut provenance)?;
 
     let manifest = Manifest {
         format: schema::FORMAT_VERSION,

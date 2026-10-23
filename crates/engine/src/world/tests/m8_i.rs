@@ -41,6 +41,7 @@ static ARENA: MapData = MapData {
     connections: &[],
     scripts: NO_SCRIPTS,
     allow_running: true,
+    map_type: 0,
 };
 
 /// The trainers' script: `TrainerApproach` (as content's `trainer_battle`), then a battle.
@@ -263,6 +264,7 @@ fn walled_arena(block: u16) -> WalledArena {
         connections: &[],
         scripts: NO_SCRIPTS,
         allow_running: ARENA.allow_running,
+        map_type: ARENA.map_type,
     })))
 }
 

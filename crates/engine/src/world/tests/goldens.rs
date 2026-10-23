@@ -19,9 +19,13 @@ const GOLDEN_CROSSING: u64 = 0x0e29_9c5c_dc99_2190;
 /// Talking to the NPC through its whole script.
 const GOLDEN_SCRIPT: u64 = 0x725f_3659_70f0_84a5;
 /// A grass encounter on the route, fought to the end.
-const GOLDEN_WILD_BATTLE: u64 = 0x1635_f323_c6af_52f3;
+const GOLDEN_WILD_BATTLE: u64 = 0xe8a2_b57f_6141_6b03;
 /// A scripted trainer battle, fought to the end.
-const GOLDEN_TRAINER: u64 = 0x7dfc_ba2d_39c5_b299;
+const GOLDEN_TRAINER: u64 = 0x8219_1acc_6865_5331;
+/// START and SELECT on the idle field (Milestone 9; Tasks K and SM move it).
+const GOLDEN_SCREEN: u64 = 0xc5c6_a95e_c6c4_4077;
+/// A script's save dialog (Milestone 9; Task S moves it).
+const GOLDEN_SAVE: u64 = 0x358b_cd45_142b_ea49;
 
 fn walk_scenario() -> (u64, u64) {
     let mut w = World::new(&Game);
@@ -99,6 +103,29 @@ fn trainer_scenario() -> u64 {
     w.hash()
 }
 
+/// START, then SELECT, on the idle field (Milestone 9: the start menu; Wave 0 opens nothing).
+fn screen_scenario() -> u64 {
+    let mut w = started();
+    tap(&mut w, Buttons::START, 10);
+    tap(&mut w, Buttons::SELECT, 10);
+    assert_eq!(w.screens_open(), 0);
+    w.hash()
+}
+
+/// A script's save dialog (`special SaveGame`; Wave 0 answers "not saved" at once).
+fn save_scenario() -> u64 {
+    let mut w = started();
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            let saved = ctx.save_dialog().await;
+            ctx.set_var(VAR_RESULT, saved as u16 + 10).await;
+        })
+    });
+    until_done(&mut w, 600);
+    assert_eq!(w.var(VAR_RESULT), 10);
+    w.hash()
+}
+
 #[test]
 fn golden_hashes() {
     let got = [
@@ -113,6 +140,8 @@ fn golden_hashes() {
             GOLDEN_WILD_BATTLE,
         ),
         ("GOLDEN_TRAINER", trainer_scenario(), GOLDEN_TRAINER),
+        ("GOLDEN_SCREEN", screen_scenario(), GOLDEN_SCREEN),
+        ("GOLDEN_SAVE", save_scenario(), GOLDEN_SAVE),
     ];
     let wrong: Vec<String> = (got.iter())
         .filter(|(_, have, want)| have != want)

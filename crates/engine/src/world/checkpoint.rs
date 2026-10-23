@@ -11,11 +11,15 @@ use crate::checkpoint::{
     Checkpoint, Header, NotCapturable, RestoreError, SCHEMA, TemplateDelta, WarpDestSnap,
     WarpSlotsSnap, WorldSnapshot, build_hash,
 };
+use crate::checkpoint::{PcItemSnap, PcMonSnap, PcSnap, PokedexSnap};
 use crate::data::{GameData, Gfx, ObjectEvent, PLAYER};
 use crate::field::Field;
 use crate::flow::{Fader, Input, Transition, Vars};
+use crate::fx::ScreenFx;
 use crate::mon::{PARTY_SIZE, Party, Pokemon};
 use crate::objects::Objects;
+use crate::pc::{BOX_SLOTS, PcStorage};
+use crate::pokedex::{DexFlag, Pokedex};
 use crate::rng::Rng;
 use crate::script::Runner;
 use crate::str_vars::StrVars;
@@ -33,6 +37,7 @@ impl World {
             Mode::Field => {}
             Mode::Starter(_) => return Err(NotCapturable::Starter),
             Mode::Battle(_) => return Err(NotCapturable::Battle),
+            Mode::Screens(_) => return Err(NotCapturable::Screen),
         }
         if s.transition.is_active() {
             return Err(NotCapturable::Transition);
@@ -43,7 +48,8 @@ impl World {
         if !s.text.is_pristine() {
             return Err(NotCapturable::TextBox);
         }
-        if !s.fader.is_done() || s.fader.level() != 0 {
+        // Screen effects are not snapshotted (Milestone 9).
+        if !s.fader.is_done() || s.fader.level() != 0 || s.fx.is_active() {
             return Err(NotCapturable::Fade);
         }
         if let Some(id) = s.objects.any_moves() {
@@ -62,8 +68,16 @@ impl World {
     /// templates, which the snapshot stores as deltas.
     pub fn snapshot(&self, game: &impl GameData) -> Result<WorldSnapshot, NotCapturable> {
         self.capturable()?;
+        Ok(self.snapshot_unchecked(game))
+    }
+
+    /// The state as [`World::snapshot`] writes it, without the capture checks (Milestone 9: the
+    /// in-game save, `world/save.rs`, snapshots mid-script or with a screen open and normalises
+    /// the DTO to field idle before it captures). What the DTO cannot hold is dropped: the
+    /// runner's future (only its `issued` count stays), the mode, the text box, screen effects.
+    pub(super) fn snapshot_unchecked(&self, game: &impl GameData) -> WorldSnapshot {
         let s = &self.s;
-        Ok(WorldSnapshot {
+        WorldSnapshot {
             frame: self.frame,
             rng: s.rng.state(),
             input: s.input.snapshot(),
@@ -96,7 +110,15 @@ impl World {
             } else {
                 Vec::new()
             },
-        })
+            options: (s.options != Default::default()).then_some(s.options),
+            pokedex: PokedexSnap {
+                seen: s.pokedex.raw(DexFlag::Seen).to_vec(),
+                caught: s.pokedex.raw(DexFlag::Caught).to_vec(),
+            },
+            pc: pc_snap(&s.pc),
+            coins: s.coins,
+            registered_item: s.registered_item,
+        }
     }
 
     /// [`World::snapshot`] with its header (schema, build, frame, hash). The capture predicate
@@ -167,6 +189,13 @@ impl World {
         if w.money > ids.max_money {
             return Err(RestoreError::Invalid("money over the game's max_money"));
         }
+        let pokedex =
+            Pokedex::from_raw(&w.pokedex.seen, &w.pokedex.caught).map_err(RestoreError::Invalid)?;
+        let pc =
+            pc_from_snap(&w.pc, ids.pc_item_slots, ids.pc_boxes).map_err(RestoreError::Invalid)?;
+        if w.coins > ids.max_coins {
+            return Err(RestoreError::Invalid("coins over the game's max_coins"));
+        }
         let mut world = World {
             frame: w.frame,
             runner: Runner::restore_idle(w.runner_issued),
@@ -200,6 +229,12 @@ impl World {
                     dynamic: w.warp_slots.dynamic.map(warp_dest),
                     escape: w.warp_slots.escape.map(warp_dest),
                 },
+                options: w.options.unwrap_or_default(),
+                pokedex,
+                pc,
+                coins: w.coins,
+                registered_item: w.registered_item,
+                fx: ScreenFx::default(),
                 events: Vec::with_capacity(super::EVENTS_MAX),
                 events_dropped: 0,
                 last_script: None,
@@ -237,6 +272,67 @@ impl World {
         f.lighten = false;
         f
     }
+}
+
+/// The PC's non-empty item and box slots, ascending.
+fn pc_snap(pc: &PcStorage) -> PcSnap {
+    let items = (pc.item_entries())
+        .map(|(index, item, qty)| PcItemSnap { index, item, qty })
+        .collect();
+    let mut mons = Vec::new();
+    for (b, slots) in pc.boxes().iter().enumerate() {
+        for (slot, m) in slots.iter().enumerate() {
+            if let Some(mon) = *m {
+                mons.push(PcMonSnap {
+                    pc_box: b as u8,
+                    slot: slot as u8,
+                    mon,
+                });
+            }
+        }
+    }
+    PcSnap {
+        items,
+        mons,
+        current_box: pc.current_box(),
+    }
+}
+
+/// The PC of a snapshot: slots in range and strictly ascending (as [`pc_snap`] writes them),
+/// quantities Gen3 allows.
+fn pc_from_snap(p: &PcSnap, item_slots: u8, boxes: u8) -> Result<PcStorage, &'static str> {
+    let mut pc = PcStorage::new(item_slots, boxes);
+    let mut prev = None;
+    for it in &p.items {
+        if it.index >= item_slots || prev.is_some_and(|i| i >= it.index) {
+            return Err("pc item slot out of range or out of order");
+        }
+        if !PcStorage::qty_valid(it.qty) {
+            return Err("pc item quantity out of range");
+        }
+        prev = Some(it.index);
+        pc.set_item(
+            it.index as usize,
+            crate::bag::Slot {
+                item: it.item,
+                qty: it.qty,
+            },
+        );
+    }
+    let mut prev = None;
+    for m in &p.mons {
+        let at = (m.pc_box, m.slot);
+        if m.pc_box >= boxes || m.slot as usize >= BOX_SLOTS || prev.is_some_and(|p| p >= at) {
+            return Err("pc box slot out of range or out of order");
+        }
+        prev = Some(at);
+        pc.set_mon(m.pc_box as usize, m.slot as usize, Some(m.mon));
+    }
+    if p.current_box != 0 && p.current_box >= boxes {
+        return Err("pc current box out of range");
+    }
+    pc.set_current_box(p.current_box);
+    Ok(pc)
 }
 
 fn warp_dest_snap(d: WarpDest) -> WarpDestSnap {

@@ -723,6 +723,7 @@ static MAP: MapData = MapData {
         on_warp_into: &[],
     },
     allow_running: true,
+    map_type: 0,
 };
 
 #[test]
