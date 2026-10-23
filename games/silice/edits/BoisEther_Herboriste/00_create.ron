@@ -1,0 +1,4 @@
+// Silice Ch1, MAP_BOIS_ETHER_HERBORISTE: the herbalist's tiny greenhouse shop (8 x 7, the source's size).
+// Building + PrettyPetalFlowerShop (Emerald tilesets by name): Emerald's only plant shop, with a
+// wooden counter, potted plants on the wall and flower beds. Out-of-map border: black, blocked.
+(name: "BoisEther_Herboriste", width: 8, height: 7, primary: "Building", secondary: "PrettyPetalFlowerShop", fill: 513, border: [1025, 1025, 1025, 1025])

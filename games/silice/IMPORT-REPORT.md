@@ -15,8 +15,8 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 490
-- ids/vars: 20
+- ids/flags: 500
+- ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
 - ids/species: 5
@@ -184,6 +184,15 @@
 
 ## Names only the maps use (allocated)
 
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_TECHNICIEN
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_GARDE
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_ADRIEN
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_GOGO
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_ROMAIN
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_1
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_SBIRE_2
+- maps/BoisEther.ron: FLAG_SIL_HIDE_BOIS_ETHER_MATHIEU
+- maps/BoisEther_Gym.ron: FLAG_SIL_HIDE_GYM1_LOIC
 - maps/BricoBourg.ron: FLAG_SIL_HIDE_BRICO_LINGE
 - maps/BricoBourg.ron: FLAG_SIL_HIDE_BRICO_GAMIN
 - maps/BricoBourg.ron: FLAG_SIL_HIDE_BRICO_BRICOLEUSE
@@ -199,6 +208,7 @@
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_SBIRE_A
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_MALLETTE
 - maps/BricoBourg_Bar.ron: FLAG_SIL_HIDE_BAR_SBIRE_B
+- maps/BricoBourg_Labo.ron: FLAG_SIL_HIDE_LABO_CHIMISTE
 
 ## §7 tables not imported
 

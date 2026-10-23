@@ -1,0 +1,4 @@
+// Silice Ch1, MAP_BOIS_ETHER: Bois-Ether, the forest town of Sector Alpha (36 x 26, the source's size).
+// General + Fortree (Emerald tilesets by name): Fortree's treehouses on stilts, dense canopy and big
+// trees are the source's "houses in the trunks or on stilts between the roots". Border: the forest.
+(name: "BoisEther", width: 36, height: 26, primary: "General", secondary: "Fortree", fill: 1, border: [198, 199, 199, 198])
