@@ -1380,9 +1380,8 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
     - the script or map name lists differ;
     - the root map changed.
   - `revalidate` and fresh dbs write the digests.
-  - Measured on a copy of Act 1 segment 1 (762,343 rows), with `PetalburgCity_EventScript_Gentleman` touched: **11.4 s, 4,600 replayed, 757,743 kept, 0 repaired, 0 broken, 747 MB max RSS** (587 MB peak footprint).
-  - A full revalidation of the same db: **106.7 s, 254,847 valid, 1.23 GB max RSS** (950 MB peak footprint).
-  - Tests: `m8_n_incremental.rs`. `e2e_stub`'s rebuilt-game test drops the digests to keep covering the full path.
+  - First measurement (before the review), on a copy of Act 1 segment 1 (762,343 rows): **simulated**, not a real edit. The copy's stored digests were this build's with `PetalburgCity_EventScript_Gentleman`'s digest flipped and its content build id faked (`reval_meta.py fake`), so only that one script counted as changed: 11.4 s, 4,600 replayed, 757,743 kept, 747 MB max RSS. A full revalidation of that db on an unchanged build: 106.7 s, 254,847 valid, 1.23 GB max RSS. Both are superseded by the review measurements below.
+  - Tests: `m8_n_incremental.rs`, `m8_n_touches.rs`. `e2e_stub`'s rebuilt-game test drops the digests to keep covering the full path.
 - **Cross ends one cell in (item 2):** already done by Task L (`e72e558`, `real_crossing_spread_is_waited_out` ends at (10, 19) with no notes). No change.
 - **Probe cost:**
   - The run summary now reports the probe frames and the number of probes.
@@ -1420,7 +1419,7 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
     - Route 104's warps 2 and 3 at (10, 30) and (11, 30) are `MB_DEEP_SOUTH_WARP`, which the classifier maps to `Warp`.
     - `flow/transition.rs` faces the player down and walks down out of Petalburg Woods, into collision at (10, 31). The only move re-enters the woods.
     - Gen3 `GetAdjustedInitialDirection` faces north, and the exit task walks in the facing direction.
-    - **Rustboro is unreachable natively on master.**
+    - **Rustboro was unreachable natively on master** until the Gen3 warp-behaviour fix (a separate engine task, merged after this run: `Behavior::{NonAnimDoor, Ladder, Escalator}`, `enters_warp()`). The scratch patch below was not committed; Task P promotes the Act 1 nodes on the fixed engine.
   - Verification on a scratch build, with the engine patch (deep south warp faces up, and the exit walks the facing direction): from c10001, Rustboro at 2.3 s, then `roxanne_defeated` and badge 1 at 8.3 s (generation 32). The badge state is at frame 88,838 from a new game, map 0x0B03.
     - The patch belongs to Task M or the engine owner; it is not committed here.
     - The exported c10002 (`act1:rustboro`) and c10003 (`act1:badge1`) are valid only on that scratch build. They are kept outside the repository.
@@ -1433,19 +1432,31 @@ M7's final "Findings for Milestone 8" (items 1–18) all appear in "Findings fol
   - Maps that are not capturable after 600 idle frames are mashed for up to 3,000 frames (A on alternate frames, B on a yes/no), then the capture is retried.
   - Each verdict names the last script started and whether the map changed.
   - Facility scripts that restart `_EventScript_GetChallengeStatus` on most frames are listed as known defects.
-  - Result after the merge: **514/518 passed (48 after mashing)**, 0 panics, 0 round-trip failures, events dropped on 0 maps.
+  - Result (after the review's headline fix): **passed 490/518 (34 after mashing); checked on another map 24** (the tent maps and the Champion's room, whose cutscene or answer warps away before the checks); 0 panics, 0 round-trip failures, events dropped on 0 maps; not capturable 4 (known defects included when not capturable: none are). Before the review the headline counted the 24 as passes (514/518, 48 after mashing).
     - Capturable after mashing: the 24 secret bases (2 frames), the Fallarbor, Verdanturf and Slateport tent corridors and rooms (they leave for the lobby or battle room), Lilycove Museum 2F (1,627 frames), and the Champion's room (2,502 frames, the map changes to Brendan's house 2F).
     - Not capturable (4): DevonCorp 3F (WaitMessage, `MeetPresident`), the Hall of Fame (Fade, `EnterHallOfFame`), the Battle Dome corridor and pre-battle room (WaitMessage).
     - Other spinning scripts (4): Battle Pyramid squares (`BattlePyramid_TrainerBattle`).
     - Known defects (19): facility lobbies and rooms spinning on `GetChallengeStatus`, for example 300 starts in 600 frames.
-- **Gates (merged tree):**
+- **Review fixes (verdict "fix first"):** commits `6be0d0f`, `a9cb026`, `c0fef08`, `c90e645`, `337d1bc`, `189d26c`, and the merges of master (SIL1 Wave 0; Task M and the warp-behaviour fix).
+  1. **Touches after a replay or repair:** the revalidation records what each checked node now touches (`incremental::TouchLog` on the replay's `World::events()`; a repair's from its expansion summary, `rebuild::Repaired::touches`) and replaces the node's `node_touch` rows in the level's transaction (`Db::set_status_and_snapshots`). Tests: a full replay leaves every touch row as the expansions wrote it; a repaired node whose new path starts a script no node touched gets that touch, and a later change to that script replays it and its subtree.
+  2. **Trainer sight:** `incremental::mark` adds, for each changed script, every map where an object runs it with a nonzero `trainer_type` (`sighting_maps`). Test with `testing::TrainerOn` (one more trainer on a map some nodes are under): without it the script change selects no node, with it every valid node under that map.
+  3. **Overrides and `GLOBAL_DIGEST`:** `codegen::sources_digest_for` leaves out `src/overrides/<Name>.rs` (`mod.rs` stays in); `BUILD_ID` still covers every override. Tests: `content/tests/m8_n_override_digest.rs` (an override edit or a new override leaves the sources digest, moves `BUILD_ID`; `mod.rs` or the prelude moves it), `extract/tests/codegen.rs::lower_an_override_edit_changes_its_script_and_its_callers_only` (exactly `M_Callee` and its caller `M_Root`); the SIL1 contract test now uses `new_game.rs` as its Emerald-only global source and checks that an override moves `BUILD_ID` only. Parity and the checkpoints still pass on the new `BUILD_ID`.
+     - **Real override edit, measured:** a full revalidation of a copy of segment 1 on this build first (it wrote the digests), then a one-line comment added to `src/overrides/OldaleTown_PokemonCenter_1F_EventScript_Nurse.rs`, a release rebuild, and `explore revalidate` (the edit was reverted, never committed): **15.9 s, 19,170 replayed (the 720 nodes that started the nurse script and their subtrees, as counted from `node_touch` beforehand), 743,173 kept, 0 repaired, 0 broken, 624 MB max RSS** (523 MB peak footprint).
+  4. **Dropped events:** `SimSummary::events_dropped`; a step whose events were dropped (`EVENTS_MAX`) records `Touch::EventsDropped` (`node_touch` kind 2), and `mark` puts such a node under any script or map change. Test: a node with the sentinel and its subtree are marked by an unrelated script change, and not without it.
+  5. **Memory gate:** the metric is max RSS (`/usr/bin/time -l`, "maximum resident set size") of `explore revalidate`, gate 1 GB at the M7 scale. At 476,000 rows (segment 1 truncated to its first 476,000 ids; the 54,599 nodes merged into a deleted node re-merged into their key's live node, or took the key), full revalidation on this build: **37.9 s, 476,000 valid, 562 MB max RSS (370 MB peak footprint): passes**. The whole segment 1 (762,343 rows): 122.8 s, 762,343 valid, 835 MB max RSS (673 MB peak footprint).
+  6. **Sweep headline:** a map whose checks ran on the map a cutscene or answer warped to is "checked on another map", counted apart from the passes; a known defect that is not capturable counts as not capturable too.
+  7. **Sweep wording:** the `SPIN_STARTS` doc (starts over the whole run, idle and mashed frames) and "still waits on a message after mashing".
+  8. **Probe docs and config:** `DetectConfig::{reprobes, reprobe_wait_frames}` (4, 600) replace the `sim` constants; a softlock check's worst case is `(1 + reprobes) x (1 + probe_resumes) x softlock_breadth` = 1,600 expansions plus 2,400 frames of waits; a script that loops during a wait and changes a story var frees the start (a missed softlock, never an invented one), documented on `sim::trap`.
+  9. **Map digest test:** a changed map and its connected neighbour (both digests, as a layout edit of the neighbour gives) replay exactly the nodes under either and keep the rest (`m8_n_touches.rs`).
+- **Gates (after the review, master merged):**
   - `fmt` clean; clippy `-D warnings` clean, plain and with `game-native/window,studio/ui`.
-  - `cargo test --workspace`: real **1537 passed, 0 failed, 20 ignored (5:55)**; stub **1525 / 0 / 20 (4:15)**.
+  - `cargo test --workspace`: real **1572 passed, 0 failed, 21 ignored (8:11)**; stub **1560 / 0 / 21 (6:59)**.
   - `cargo xtask sweep`: as above.
-  - `cargo xtask parity`: 19,184 frames, 19,176 hashes and 205 pictures identical, hash 45 lines; unchanged from master.
+  - `cargo xtask parity`: 19,184 frames, 19,176 hashes and 205 pictures identical, no late frames, route hash 46 / step 162 / loop 166 lines (master's lane numbers after Task M).
   - Explore `--generations 50`:
-    - real `0x9c2b2055505bbe4b` on 8 and 1 threads: 3,627 nodes, 1,999 valid, 3,079,918 frames (222,512 in 328 probes), goals 6/15, 0 bug findings;
-    - stub `0x98a5eee8a8db2421` on 8 and 1 threads: 270 nodes, 2,447,155 frames, 0 findings.
+    - real `0x4d0dd1b81e18d490` on 8 and 1 threads: 3,627 nodes, 1,999 valid, 3,079,918 frames (222,512 in 328 probes), goals 6/15, 0 bug findings;
+    - stub `0x1b23cba734fa9203` on 8 and 1 threads: 270 nodes, 2,447,155 frames, 0 findings.
+  - Before the review (first merge): real 1537 / 0 / 20, stub 1525 / 0 / 20; explore real `0x9c2b2055505bbe4b`, stub `0x98a5eee8a8db2421`.
 
 ## Task M as built
 
