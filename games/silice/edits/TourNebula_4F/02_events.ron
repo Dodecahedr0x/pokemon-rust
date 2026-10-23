@@ -1,0 +1,51 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    // Music: the source's new "Reflets infinis" theme (a slow, dark remix of Reverse-City's); placeholder
+    // MUS_TRICK_HOUSE, the source's own. The 2 s of silence on entry needs play_music (a script).
+    Header((music: "MUS_TRICK_HOUSE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // TourNebula_4F_OnLoad: opens the prism door (11, 4) once FLAG_SIL_REFLETS_PORTE_OUVERTE is set
+    // (metatile 652, collision 0). TourNebula_4F_OnTransition: hides Revenge and shows his statue from
+    // VAR_SIL_STORY >= 107 (FLAG_SIL_HIDE_TOUR_REVENGE set, FLAG_SIL_HIDE_REVENGE_STATUE cleared).
+    ScriptsSet(on_load: "TourNebula_4F_OnLoad", on_transition: "TourNebula_4F_OnTransition"),
+    // Warp 0: the arrival (10, 23), a landing (the cabin's TourNebulaAscenseur_Sc00 warps here by
+    // coordinates). The floor has no exit warp: the door D is TourNebula_4F_Sc05 (down to the hall, R-6)
+    // and the vault V is TourNebula_4F_Sc06 (save, then board for the Apex, by script).
+    Warp(x: 10, y: 23, dest_map: "TourNebulaAscenseur", dest_warp: 3),
+    // Object 1: Revenge, his back turned (faces up), before the red prism. 4: his glass statue on the same
+    // cell (hidden until TourNebula_4F_Sc03; the source's obj numbers). 2-3: the elites Echo and Mira, at
+    // two dead ends, each watching a corridor (sight 4). 5: the Full Restore, at the bottom dead end.
+    Object(x: 11, y: 2, gfx: "OBJ_EVENT_GFX_WALLACE", id: "LOCALID_TOUR_4F_REVENGE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_UP", script: "TourNebula_4F_EventScript_Revenge", flag: "FLAG_SIL_HIDE_TOUR_REVENGE"),
+    Object(x: 13, y: 9, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_TOUR_4F_ECHO", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_4F_EventScript_Echo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 3, y: 7, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_TOUR_4F_MIRA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "TourNebula_4F_EventScript_Mira", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 11, y: 2, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_TOUR_4F_REVENGE_STATUE", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", script: "TourNebula_4F_Sc04", flag: "FLAG_SIL_HIDE_REVENGE_STATUE"),
+    Object(x: 9, y: 21, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_TOUR_4F_ITEM_FULL_RESTORE", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_EventScript_ItemFullRestore", flag: "FLAG_SIL_ITEM_TOUR_4F_FULL_RESTORE"),
+    // TourNebula_4F_Sc01 (the cold): the hall's two cells beside the arrival, the only steps off it (the
+    // arrival itself fires no coord event). On VAR_TEMP_1 0; the script sets VAR_TEMP_1 to 1 and returns
+    // at once when FLAG_SIL_TOUR_4F_INTRO is set.
+    Coord(x: 9, y: 23, var: "VAR_TEMP_1", value: 0, script: "TourNebula_4F_Sc01"),
+    Coord(x: 11, y: 23, var: "VAR_TEMP_1", value: 0, script: "TourNebula_4F_Sc01"),
+    // TourNebula_4F_Sc03 (Revenge): the opened prism door, the chamber's only way in (story 106).
+    Coord(x: 11, y: 4, var: "VAR_SIL_STORY", value: 106, script: "TourNebula_4F_Sc03"),
+    // TourNebula_4F_Sc06 (the threshold: save, then board): the row under the vault (story 108), and the
+    // vault itself.
+    Coord(x: 10, y: 1, var: "VAR_SIL_STORY", value: 108, script: "TourNebula_4F_Sc06"),
+    Coord(x: 11, y: 1, var: "VAR_SIL_STORY", value: 108, script: "TourNebula_4F_Sc06"),
+    Coord(x: 12, y: 1, var: "VAR_SIL_STORY", value: 108, script: "TourNebula_4F_Sc06"),
+    Sign(x: 11, y: 0, script: "TourNebula_4F_Sc06"),
+    // The elevator door D: TourNebula_4F_Sc05 (from story 108, down to Nebula's hall; before, locked).
+    Sign(x: 10, y: 24, script: "TourNebula_4F_Sc05"),
+    // The three prisms (TourNebula_4F_Sc02, one entry per prism; each text names the arrow painted before
+    // it): p1 (2, 19), p2 (12, 13), p3 (5, 12).
+    Sign(x: 2, y: 19, script: "TourNebula_4F_Sc02_1"),
+    Sign(x: 12, y: 13, script: "TourNebula_4F_Sc02_2"),
+    Sign(x: 5, y: 12, script: "TourNebula_4F_Sc02_3"),
+    // The entrance sign, a mirror by the arrival, and the four false mirrors.
+    Sign(x: 9, y: 22, script: "TourNebula_4F_EventScript_Entree"),
+    Sign(x: 11, y: 22, script: "TourNebula_4F_EventScript_Miroir"),
+    Sign(x: 1, y: 10, script: "TourNebula_4F_EventScript_FauxMiroir"),
+    Sign(x: 3, y: 14, script: "TourNebula_4F_EventScript_FauxMiroir"),
+    Sign(x: 18, y: 19, script: "TourNebula_4F_EventScript_FauxMiroir"),
+    Sign(x: 6, y: 11, script: "TourNebula_4F_EventScript_FauxMiroir"),
+    // The Max Revive, in the right-hand pocket behind the false mirror (18, 19).
+    HiddenItem(x: 17, y: 19, item: "ITEM_MAX_REVIVE", flag: "FLAG_SIL_ITEM_TOUR_4F_MAX_REVIVE"),
+]

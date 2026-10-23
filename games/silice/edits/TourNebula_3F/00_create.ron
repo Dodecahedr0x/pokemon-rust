@@ -1,0 +1,5 @@
+// Silice Ch10, MAP_TOUR_NEBULA_3F: the Virtual Horizon (Pillar 3, Arthur), 24 x 17: the source's drawn
+// layout (17 rows; its "24 x 24" heading does not match it, and its coordinates follow the drawing).
+// General + Facility (the Space Center's screens and floor; General's shallow water as the virtual sea;
+// Emerald tilesets by name). Border: black, blocked.
+(name: "TourNebula_3F", width: 24, height: 17, primary: "General", secondary: "Facility", fill: 414, border: [1025, 1025, 1025, 1025])

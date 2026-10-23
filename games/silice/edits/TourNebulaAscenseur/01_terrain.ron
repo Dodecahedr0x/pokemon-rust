@@ -1,0 +1,20 @@
+// Cells. The back wall is a wide window (Nebula seen from the cabin; the scrolling background is a missing
+// mechanic, the window is the source's fixed-image fallback). The floor is the metal grid.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "1222223",
+        "4555556",
+        "7888889",
+        "abbbbbc",
+        "deeeeef",
+        "deeeeef",
+        "deeeeef",
+        "deeeeef",
+    ], legend: {
+        '1': (metatile: 808, collision: 1, elevation: 0), '2': (metatile: 810, collision: 1, elevation: 0), '3': (metatile: 812, collision: 1, elevation: 0),
+        '4': (metatile: 816, collision: 1, elevation: 0), '5': (metatile: 817, collision: 1, elevation: 0), '6': (metatile: 820, collision: 1, elevation: 0),
+        '7': (metatile: 824, collision: 1, elevation: 0), '8': (metatile: 825, collision: 1, elevation: 0), '9': (metatile: 828, collision: 1, elevation: 0),
+        'a': (metatile: 604, collision: 0, elevation: 3), 'b': (metatile: 605, collision: 0, elevation: 3), 'c': (metatile: 606, collision: 0, elevation: 3),
+        'd': (metatile: 612, collision: 0, elevation: 3), 'e': (metatile: 613, collision: 0, elevation: 3), 'f': (metatile: 614, collision: 0, elevation: 3),
+    }),
+]

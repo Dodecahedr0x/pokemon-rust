@@ -581,5 +581,10 @@
             num: 115,
             map: Some("MangaSquare_Gym"),
         ),
+        (
+            name: "MAP_TRONE_ZENITH_NUIT",
+            num: 116,
+            map: Some("TroneZenith_Nuit"),
+        ),
     ],
 )

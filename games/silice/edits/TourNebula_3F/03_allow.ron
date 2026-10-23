@@ -1,0 +1,8 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(11, 15)], reason: "warp 0 is only the arrival point (the cabin warps here by script)"),
+    AllowCollision(cells: [(12, 1)], reason: "the screen behind Arthur is closed until he is beaten: TourNebula_3F_OnLoad opens it from story 105"),
+    AllowCollision(metatiles: [414], reason: "the virtual sea: the sea cells no step reaches without falling first are solid, so the hidden path does not show"),
+    AllowReach(subject: "warp 1", reason: "the screen behind Arthur, across the hidden path: TourNebula_3F_OnLoad opens it from story 105"),
+    AllowReach(subject: "coords VAR_SIL_STORY=104", reason: "the falls are traps, not a gate: TourNebula_3F_Sc03 fires on any step off the hidden path"),
+]
