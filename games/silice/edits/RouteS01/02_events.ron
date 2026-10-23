@@ -1,0 +1,34 @@
+// Header, objects (trainers with sight), coord and bg events, connection.
+[
+    Header((music: "MUS_ROUTE101", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_SUNNY", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Objects 1-2: the source's ambient NPCs (obj 1-2), then the trainers, then the item balls.
+    Object(x: 6, y: 32, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_ROUTE_S01_PROMENEUSE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS01_EventScript_Promeneuse"),
+    Object(x: 9, y: 3, gfx: "OBJ_EVENT_GFX_SCIENTIST_1", id: "LOCALID_ROUTE_S01_TECHNICIEN", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS01_EventScript_Technicien"),
+    Object(x: 3, y: 24, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_ROUTE_S01_TEO", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS01_EventScript_Teo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 12, y: 18, gfx: "OBJ_EVENT_GFX_BUG_CATCHER", id: "LOCALID_ROUTE_S01_NOAH", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS01_EventScript_Noah", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 3, y: 12, gfx: "OBJ_EVENT_GFX_LASS", id: "LOCALID_ROUTE_S01_LILA", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS01_EventScript_Lila", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 12, y: 4, gfx: "OBJ_EVENT_GFX_BOY_1", id: "LOCALID_ROUTE_S01_YANIS", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS01_EventScript_Yanis", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 14, y: 6, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S01_ITEM_POKE_BALL", script: "RouteS01_EventScript_ItemPokeBall", flag: "FLAG_SIL_ITEM_ROUTE_S01_POKE_BALL"),
+    Object(x: 14, y: 22, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S01_ITEM_POTION", script: "RouteS01_EventScript_ItemPotion", flag: "FLAG_SIL_ITEM_ROUTE_S01_POTION"),
+    // Route_S01_Sc01: the first tall grass row (x 8-13, y 30), VAR_SIL_STORY 5 (the starter chosen).
+    Coord(x: 8, y: 30, var: "VAR_SIL_STORY", value: 5, script: "RouteS01_Sc01"),
+    Coord(x: 9, y: 30, var: "VAR_SIL_STORY", value: 5, script: "RouteS01_Sc01"),
+    Coord(x: 10, y: 30, var: "VAR_SIL_STORY", value: 5, script: "RouteS01_Sc01"),
+    Coord(x: 11, y: 30, var: "VAR_SIL_STORY", value: 5, script: "RouteS01_Sc01"),
+    Coord(x: 12, y: 30, var: "VAR_SIL_STORY", value: 5, script: "RouteS01_Sc01"),
+    Coord(x: 13, y: 30, var: "VAR_SIL_STORY", value: 5, script: "RouteS01_Sc01"),
+    // Route_S01_Sc02: the north edge (x 7-10, y 2). The source says VAR_SIL_STORY <= 8; a coord
+    // event matches one value, and the only way here passes Sc01's row, which sets 6.
+    Coord(x: 7, y: 2, var: "VAR_SIL_STORY", value: 6, script: "RouteS01_Sc02"),
+    Coord(x: 8, y: 2, var: "VAR_SIL_STORY", value: 6, script: "RouteS01_Sc02"),
+    Coord(x: 9, y: 2, var: "VAR_SIL_STORY", value: 6, script: "RouteS01_Sc02"),
+    Coord(x: 10, y: 2, var: "VAR_SIL_STORY", value: 6, script: "RouteS01_Sc02"),
+    Sign(x: 4, y: 34, script: "RouteS01_EventScript_SignEntree"),
+    Sign(x: 16, y: 28, script: "RouteS01_EventScript_SignHerbes"),
+    Sign(x: 14, y: 16, script: "RouteS01_EventScript_SignDresseurs"),
+    Sign(x: 6, y: 3, script: "RouteS01_EventScript_SignCables"),
+    HiddenItem(x: 4, y: 22, item: "ITEM_ANTIDOTE", flag: "FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE"),
+    // Brico-Bourg to the south: our exit x 7-10 meets its x 10-13. The north connection to
+    // MAP_BOIS_ETHER (Ch1) is added with that map.
+    Connect((dir: South, offset: -3, map: "BricoBourg")),
+]

@@ -523,6 +523,213 @@ studio-map … stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force
 - The UI's Edit tab does not offer stamps, `AutoCollision` or the overlays yet. Its editors have no env.
 - The extract's own maps raise a few behaviour warnings, which is expected for heuristics. The fixture was repainted so that it raises none.
 
+#### SIL1 Ch0 maps as built (Task F, the map half)
+
+The six Chapter 0 maps are in `games/silice/{maps,layouts}/`. They were made with the studio map editor's CLI only (`cargo xtask studio map create` and `apply`). The edit scripts that make them are committed under `games/silice/edits/<Map>/`:
+- `00_create.ron`: the `NewMap` spec;
+- `01_terrain.ron`: the cells;
+- `02_events.ron`: the header, map scripts, warps, objects, coord and bg events, and the connection.
+
+`games::hygiene` (now also `studio-map … hygiene`) checks `edits/` too: only `<Map>/<phase>_<what>.ron` files that parse as a create spec or an edit script (see the editor upgrades above). It was run on `games/silice` with the extract present (so including `games::copies`) and is clean.
+
+To rebuild, run one command: `cargo xtask studio map build` (`studio-map build`, which reads `games/silice/edits` by default). It recreates the six maps from their edits in one process and writes the same bytes as the earlier create-then-apply passes; nothing needs deleting first.
+
+Steps 2 and 3 are separate passes because warps and connections are validated against the other maps. A rebuild gives byte-identical files.
+
+**Names.** The plan's names and the source's `MAP_*` constants in CamelCase agree: `BricoBourg`, `BricoBourg_Bar`, `BricoBourg_PlayerHouse_1F`, `BricoBourg_PlayerHouse_2F`, `BricoBourg_FriendsHouse`, `RouteS01`. Each layout has its map's name.
+
+**Sizes and tilesets** (Emerald tilesets by name; every layout is original):
+
+| Map | Size | Tilesets | Border |
+|---|---|---|---|
+| BricoBourg | 24 × 20 (the source's suggested size) | General + Petalburg | forest 2×2 |
+| BricoBourg_Bar | 14 × 10 | Building + Shop | black, blocked |
+| BricoBourg_PlayerHouse_1F | 10 × 8 | Building + BrendansMaysHouse | black, blocked |
+| BricoBourg_PlayerHouse_2F | 8 × 7 | Building + BrendansMaysHouse | black, blocked |
+| BricoBourg_FriendsHouse | 10 × 8 | Building + GenericBuilding | black, blocked |
+| RouteS01 | 20 × 40 | General + Petalburg | forest 2×2 |
+
+The extract has no route secondary other than Petalburg (the M7 slice has 8 tilesets). Route S1 should get a route secondary once the full import has one.
+
+**Script names (the contract for `crates/content/src/silice/scripts/ch00_*.rs`).**
+- An event that *is* a scene names the scene's function as `<Map>_ScNN`, where `<Map>` is the map's CamelCase name. For example, the source's `Bar_Sc03` is `BricoBourg_Bar_Sc03`, and `Player_House_Sc01` is `BricoBourg_PlayerHouse_1F_Sc01` (the 1F is where it runs).
+- Every other event script is `<Map>_EventScript_<What>`, with `<What>` taken from the source's text id (`Brico_Bourg_Npc_Vieux` becomes `BricoBourg_EventScript_Vieux`).
+- Map scripts are `<Map>_OnTransition`.
+- `validate` lists them all as "not in the build (yet)" until the scripts exist: 68 warnings.
+
+**Events per map** (my coordinates; local ids follow the source's obj numbers where it gives them).
+
+- **BricoBourg.**
+  - Header: `MUS_LITTLEROOT`, `WEATHER_NONE` (the source says none), `MAP_TYPE_TOWN`. `on_transition` is `BricoBourg_OnTransition`. `on_frame` runs `BricoBourg_Sc02` while `VAR_SIL_STORY` is 3, so it fires as the player steps out of the house door (Sc02 chains into Sc03, which sets 5).
+  - Warps:
+    - 0: the player's house door (5, 14) to 1F warp 0;
+    - 1: the Shaker's door (14, 13) to the Bar's warp 0;
+    - 2: Adrien's house door (16, 6) to FriendsHouse warp 0.
+  - Objects:
+
+    | Local id | Who | Cell | Gfx | Hide flag |
+    |---|---|---|---|---|
+    | 1 | VIEUX | (11, 10) | MAN_5 | none |
+    | 2 | LINGE | (2, 13) | WOMAN_2 | `FLAG_SIL_HIDE_BRICO_LINGE` |
+    | 3 | GAMIN | (7, 11), wanders 1 | LITTLE_BOY | `FLAG_SIL_HIDE_BRICO_GAMIN` |
+    | 4 | PECHEUR | (18, 6) | FISHERMAN | none |
+    | 5 | BRICOLEUSE | (7, 6) | POKEFAN_F | `FLAG_SIL_HIDE_BRICO_BRICOLEUSE` |
+    | 6 | SBIRE | (18, 14) | NINJA_BOY | `FLAG_SIL_HIDE_BRICO_SBIRE` |
+    | 7 | MATHIEU | (4, 16) | BLACK_BELT | `FLAG_SIL_HIDE_BRICO_MATHIEU` |
+    | 8 | GWADA | (5, 16) | BOY_2 | `FLAG_SIL_HIDE_BRICO_GWADA` |
+    | 9 | ADRIEN | (6, 16) | SCHOOL_KID_M | `FLAG_SIL_HIDE_BRICO_ADRIEN` |
+
+  - Coord events:
+    - `BricoBourg_Sc01` on the three cells around the Shaker's exit cell (14, 14): (13, 14), (15, 14) and (14, 15), `VAR_SIL_STORY` 1. The scene checks `FLAG_SIL_BRICO_CHASE`;
+    - `BricoBourg_Sc04` on (10–13, 1), value 5;
+    - the north guard `BricoBourg_EventScript_BlockNorth` on (10–13, 2), keyed on a dedicated gate var: `VAR_SIL_CH0_GATE` 0. **Brico_Bourg_Sc03 must set `VAR_SIL_CH0_GATE` to 1 when the starter is chosen**; the ids import must allocate the var. Roots at x 9 and 14 close the row.
+  - Signs:
+    - the village sign (10, 5);
+    - the Shaker sign (12, 13);
+    - the Labo sign (6, 8);
+    - `BricoBourg_EventScript_Ronces` on the brambles (4, 8).
+  - The hidden Potion is at (10, 8), behind the fountain, with `FLAG_SIL_ITEM_BRICO_POTION`.
+  - Connection: North to RouteS01, offset 3.
+
+- **BricoBourg_Bar.**
+  - Header: `MUS_SLATEPORT` (the source's own placeholder for the jazz track), indoor.
+  - Map scripts:
+    - `on_frame` runs `BricoBourg_Bar_Sc01` when `VAR_TEMP_1` is 0 (temp vars are 0 on every map load). **Sc01 must set `VAR_TEMP_1` to 1 on every path**, including when `VAR_SIL_STORY` is not 0 or `FLAG_SIL_INTRO_DONE` is set;
+    - `on_transition` is `BricoBourg_Bar_OnTransition`.
+  - Warps 0 and 1: the mat (6–7, 9) to BricoBourg's warp 1.
+  - Objects:
+
+    | Local id | Who | Cell | Gfx | Script | Hide flag |
+    |---|---|---|---|---|---|
+    | 1 | CROW | (3, 2), behind the counter | GENTLEMAN | `_EventScript_Crow` | none |
+    | 2 | MATHIEU | (3, 4), on a stool | BLACK_BELT | `_Sc02` | `FLAG_SIL_HIDE_BAR_MATHIEU` |
+    | 3 | GWADA | (6, 4) | BOY_2 | `_Sc02` | `FLAG_SIL_HIDE_BAR_GWADA` |
+    | 4 | ADRIEN | (9, 4) | SCHOOL_KID_M | `_Sc02` | `FLAG_SIL_HIDE_BAR_ADRIEN` |
+    | 5 | JULIEN | (12, 3) | MANIAC | `_Sc03` | `FLAG_SIL_HIDE_BAR_JULIEN` |
+    | 6 | CLIENTE | (3, 7) | WOMAN_4 | `_EventScript_Cliente` | none |
+    | 7 | CLIENT | (12, 6) | FAT_MAN | `_EventScript_Client` | none |
+    | 8 | SBIRE_A | (6, 9) | NINJA_BOY | none | `FLAG_SIL_HIDE_BAR_SBIRE_A` |
+    | 9 | MALLETTE | (13, 3), on Julien's table (a blocked cell) | BIRCHS_BAG | `_Sc04` | `FLAG_SIL_HIDE_BAR_MALLETTE` |
+    | 10 | SBIRE_B | (7, 9) | NINJA_BOY | none | `FLAG_SIL_HIDE_BAR_SBIRE_B` |
+
+  - The back door is drawn at (12, 1) with no warp (the source calls it inactive for the player).
+
+- **BricoBourg_PlayerHouse_1F.**
+  - Header: `MUS_LITTLEROOT`, indoor.
+  - Warps:
+    - 0 and 1: the mat (4–5, 7) to BricoBourg's warp 0;
+    - 2: the stairs (8, 1) to 2F warp 0.
+  - Object 1: MAMAN (MOM) at (2, 2) in the kitchen, script `_EventScript_Maman` (Player_House_Sc03).
+  - Map script: `on_frame` runs `BricoBourg_PlayerHouse_1F_Sc01` while `VAR_SIL_STORY` is 1 (the scene sets 2). A coord event could be walked around.
+  - Sign: the TV (6, 2).
+
+- **BricoBourg_PlayerHouse_2F.**
+  - Warp 0: the stairs (7, 1) to 1F warp 2.
+  - Signs:
+    - the desk (5, 2), `_EventScript_Bureau`, and the bed (1, 2) and (1, 3), `_EventScript_Lit`: Player_House_Sc02's triggers A and B;
+    - the PC (6, 2).
+    - The desk (BrendansMaysHouse 590) and PC (601) are normal-behaviour metatiles, so only the bg events act on them (the tileset's PC and notebook metatiles have their own behaviours);
+    - the window (3, 1).
+
+- **BricoBourg_FriendsHouse.**
+  - Warps 0 and 1: the mat (4–5, 7) to BricoBourg's warp 2.
+  - Objects:
+    - 1: the mother (WOMAN_5) at the stove (2, 2);
+    - 2: the Skitty at (7, 5), asleep on a cushion.
+  - Sign: the film poster (6, 1).
+
+- **RouteS01.**
+  - Header: `MUS_ROUTE101`, `WEATHER_SUNNY`, `MAP_TYPE_ROUTE`.
+  - Objects:
+
+    | Local id | Who | Cell | Gfx | Trainer |
+    |---|---|---|---|---|
+    | 1 | PROMENEUSE | (6, 32) | WOMAN_5 | |
+    | 2 | TECHNICIEN | (9, 3) | SCIENTIST_1 | |
+    | 3 | TEO | (3, 24), faces right | YOUNGSTER | sight 3 |
+    | 4 | NOAH | (12, 18), faces down | BUG_CATCHER | sight 3 |
+    | 5 | LILA | (3, 12), faces right | LASS | sight 3 |
+    | 6 | YANIS | (12, 4), faces left | BOY_1 | sight 4; can be passed on the east, x 13–15 |
+    | 7 | ITEM_POKE_BALL | (14, 6) | item ball | flag `FLAG_SIL_ITEM_ROUTE_S01_POKE_BALL` |
+    | 8 | ITEM_POTION | (14, 22) | item ball | flag `FLAG_SIL_ITEM_ROUTE_S01_POTION` |
+
+  - Coord events:
+    - `RouteS01_Sc01` on (8–13, 30), value 5;
+    - `RouteS01_Sc02` on (7–10, 2), value 6.
+  - Signs: entrance (4, 34), grass (16, 28), trainers (14, 16), cables (6, 3).
+  - The hidden Antidote is at (4, 22), at the foot of a root, with `FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE`.
+  - Connection: South to BricoBourg, offset −3.
+  - Ledge (jump south, General 213/214 with collision 1 as in Emerald) on x 2–13 at y 10; the way up is x 14–17. The tutorial grass is x 8–13, y 26–30. The pond is x 4–8, y 16–18.
+
+**Coordinate changes from the ASCII plans (§4 item 12).**
+- **BricoBourg** is drawn at its suggested 24 × 20, not the plan's 25 × 14.
+  - Buildings: the Labo is at x 3–6, y 2–7, with its door at (4, 7) (source (5, 3)) and the brambles at (4, 8) (source (5, 4)). Adrien's house moved to the north-east, door (16, 6) (source (6, 7)). The Shaker's door is (14, 13) (source (15, 10)). The player's door is (5, 14) (source (6, 13), on the border row).
+  - Coord events and NPCs: Sc01's cells surround (14, 14) (source (15, 11)); Sc02 is an on-frame script instead of the source's coord at (6, 14). The friends stand at (4–6, 16). Linge is at (2, 13) (source (4, 12)), Gamin at (7, 11) (source (9, 8)), Bricoleuse at (7, 6) (source (8, 3)), the sbire starts at (18, 14) (source (11, 9)), and the village sign is at (10, 5) (source P1 near (4, 8)). The old man is at (11, 10) (source (13, 9)). The fountain is at (9–10, 9–10) (source (12, 9)).
+  - The canal is at x 19–20, y 2–17 (source y 3–18).
+  - The hidden Potion is at (10, 8) (source (13, 8), still behind the fountain).
+  - The north exit stays at x 10–13.
+- **The Bar** keeps its 14 × 10.
+  - The two-row back wall puts the counter at y 3 (source y 1); Crow stays at (3, 2).
+  - The friends sit on stools at y 4 (source y 3). Julien keeps (12, 3), and the Mallette lies on his table at (13, 3) (source (12, 4)).
+  - The back door is (12, 1) (source (13, 1)). The clients are at (3, 7) and (12, 6) (source (3, 6) and (10, 6)). The mat stays at (6–7, 9).
+  - The scenes' walking paths (Bar_Sc03's sbires and Julien, Brico_Bourg_Sc01's sbire, Brico_Bourg_Sc03's friends) must be re-derived in Rust. For Sc01, the sbire at (18, 14) walks left 2, then up 6 along x 16, which is kept free.
+- **1F** keeps its size, stairs (8, 1) and door (4, 7); the source's coord (4, 6) became an on-frame script. **2F** keeps bed (1, 2), desk (5, 2) and PC (6, 2).
+- **RouteS01** keeps the source's coordinates for every trainer, item, sign, NPC and both exits.
+  - The ledge spans x 2–13 rather than the plan's 4–15.
+  - Trees close x 2–7 and 14–17 at y 30–31, so `Route_S01_Sc01`'s row is the only way north.
+
+**Deviations and placeholders.**
+- **Music:** every Ch0 track the maps name is a valid decomp `MUS_*`, so no music placeholder was needed. "Slow" or night versions cannot be expressed in a header.
+- **Map section:** `MAPSEC_NONE` everywhere, with `show_map_name: false` so no empty popup appears, until `MAPSEC_SIL_*` exist.
+- **Graphics** are limited to the extract's 46 sprites. Placeholders:
+
+  | Character | Placeholder gfx |
+  |---|---|
+  | Crow | GENTLEMAN |
+  | Mathieu | BLACK_BELT |
+  | Gwada | BOY_2 |
+  | Adrien | SCHOOL_KID_M |
+  | Julien | MANIAC |
+  | Team Cocket sbires | NINJA_BOY |
+  | The Mallette | BIRCHS_BAG |
+  | Skitty | ZIGZAGOON_1 |
+  | Campeur Yanis | BOY_1 |
+  | Old man | MAN_5 |
+
+- **Brambles:** a bush metatile (Petalburg 514) with collision and a bg script. The source wants a tile obstacle cut with `set_metatile`, not a cuttable-tree object.
+- **Cables:** horizontal rail metatiles, as a placeholder.
+- **Water:** the Brico-Bourg canal and the Route S1 pond use General's 200–218, which have the `PUDDLE` behaviour (walkable splash), blocked by collision 1. Ch1's Surf and fishing will need real water metatiles (`POND_WATER`/`OCEAN_WATER`) there.
+- **Hide flags:** visibility by `VAR_SIL_STORY` uses one hide flag per object, set by the `_OnTransition` scripts. Each object gets its own flag, so the validator's shared-flag warning does not fire. The source's single `FLAG_SIL_HIDE_BAR_SBIRES` is split into `_SBIRE_A` and `_SBIRE_B`. Every `FLAG_SIL_HIDE_*` flag here is new (the source has only `FLAG_SIL_HIDE_BAR_SBIRES`): the ids import must allocate them. New-game init should set the sbires' flags, `FLAG_SIL_HIDE_BAR_MALLETTE` and `FLAG_SIL_HIDE_BRICO_{SBIRE,MATHIEU,GWADA,ADRIEN}`.
+- **Coord events match one value**, so two source conditions are reshaped:
+  - `Route_S01_Sc02` ("≤ 8") fires on 6. Sc01's row, which sets 6, is the only way to y 2.
+  - The Brico-Bourg guard ("< 5") is keyed on `VAR_SIL_CH0_GATE` 0, which Brico_Bourg_Sc03 sets to 1 with the starter, so it covers every story value before the starter, including leaving the bar at 0.
+- **Coord events do not fire on a door's scripted exit step** (it skips the step-finished check). Scenes that start as the player leaves a door are on-frame scripts (Brico_Bourg_Sc02, Player_House_Sc01) or coord events on the cells around the exit cell (Brico_Bourg_Sc01).
+- **On-frame scripts must change their own var.** Gen3 re-runs one while its var matches: Bar_Sc01 is keyed on `VAR_TEMP_1` and sets it to 1; Brico_Bourg_Sc02 (via Sc03) and Player_House_Sc01 move `VAR_SIL_STORY` on.
+- **Exits to unbuilt maps are left out:**
+  - the Labo door warp (`MAP_BRICO_BOURG_LABO`, Ch1);
+  - Route S1's north connection (`MAP_BOIS_ETHER`, Ch1);
+  - the Bar's back door.
+- **Not in map files:** encounters (`battle/encounters.ron`), the player's start cell (`game.ron`; the source's (7, 8) is inside my bar's lounge), and the night tint (fallback: nothing).
+
+**Editor friction (for the remaining ~109 maps).**
+1. **Palette.** The palette has no metatile numbers. I cropped it and labeled each cell with its id using a throwaway script. Suggest `palette --labels` and a zoom.
+2. **Metatile behaviors** (door, tall grass, ledge, water, warp mat) are not shown anywhere. I read them from the extract's tileset attributes. Suggest `palette --behaviors`, or a behavior overlay.
+3. **Collision is per cell, not per metatile.** Every stamp must set it, and a wall left walkable is silent. Suggest a warning for walls and trees with collision 0 (by behavior or by majority use in the extract), or a default collision per metatile.
+4. **No stamp or prefab op.** A building is an `Ascii` op with throwaway letters. A `Stamp { x, y, rows: [[u16]], collision }` op and a shared prefab file per tileset pair (house, lab, fountain, tree block…) would make the scripts readable and reusable. I generated the scripts with a small scratch helper.
+5. **Ascii rows are RON strings,** so `"` cannot be a legend character. This needs a doc note.
+6. **Warps and connections are validated against the other maps,** so a set of maps that link to each other needs the create, then terrain, then events passes. The first pass prints errors that the later passes fix. A batch command (`build <edits dir>`) would hide this.
+7. **Renders show no events.** Objects, warps and triggers cannot be checked by eye. Suggest `render --events`.
+8. **No CLI command for `games::hygiene` or `copies`.** I ran them with a throwaway test. Suggest adding them to `validate` or as their own command.
+9. **Each CLI call is a `cargo run`.** A full rebuild is about 25 calls and about 40 s. Batching would help.
+10. **The extract's sprite list is the M7 slice's 46.** Many Silice NPCs need placeholders (no camper, old man, Skitty or grunt). Revisit them once the full import exports every sprite.
+11. **macOS paths are case-insensitive:** maps `T1` and `t1` collide with a confusing "names the map" error.
+
+**Time.**
+- The whole task took about 3 h. About 1.5 h went to learning four tileset pairs (palettes, behaviors, test stamps) and setting up the tooling.
+- Once a pair was known, a map took about 10–15 min for an interior, 30 min for the route and 45 min for the town, including the events and the visual check.
+- For the remaining maps: about 20 min per interior and 45 min per town, route or dungeon. Add about 30–45 min the first time each new tileset pair is used.
+- That is roughly 50–60 h for ~109 maps, or about half that with stamp ops, prefabs and labeled palettes.
+
 ### 3.2 SIL2: Ch1–Ch3 (needs M9 mart, menus and save, and M10 Cut, Strength and Flash)
 **Wave 0 engine contracts** (each new piece of state hashed and snapshotted once, with a SCHEMA bump):
 - `GameData::field_move_enabled`: the module flags gate field moves;
