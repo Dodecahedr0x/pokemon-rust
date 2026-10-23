@@ -1,0 +1,19 @@
+// Made with the Ch6 scripts (Manga_Square_Bibliotheque_Sc02).
+// - The two hidden stones become signs running a script (the engine ignores
+//   BgKind::HiddenItem: the SIL1 Task F fallback). Restore with:
+//     HiddenItem(x: 1, y: 18, item: "ITEM_MOON_STONE", flag: "FLAG_SIL_ITEM_BIBLIO_MOON_STONE"),
+//     HiddenItem(x: 24, y: 18, item: "ITEM_SUN_STONE", flag: "FLAG_SIL_ITEM_BIBLIO_SUN_STONE"),
+// - Manga_Square_Bibliotheque_Sc01 (bypass): the reading area north of the shelves (rows 2-6) is
+//   entered across row 7 on (0-1, 7), (6-7, 7) and (12-15, 7); only the last four had the coord,
+//   so the player could reach Adrien's desk by the west aisles. The four others get the same
+//   coord (VAR_SIL_STORY 63).
+[
+    Coord(x: 0, y: 7, var: "VAR_SIL_STORY", value: 63, script: "MangaSquare_Bibliotheque_Sc01"),
+    Coord(x: 1, y: 7, var: "VAR_SIL_STORY", value: 63, script: "MangaSquare_Bibliotheque_Sc01"),
+    Coord(x: 6, y: 7, var: "VAR_SIL_STORY", value: 63, script: "MangaSquare_Bibliotheque_Sc01"),
+    Coord(x: 7, y: 7, var: "VAR_SIL_STORY", value: 63, script: "MangaSquare_Bibliotheque_Sc01"),
+    Delete(kind: Bg, index: 9),
+    Delete(kind: Bg, index: 8),
+    Sign(x: 1, y: 18, script: "MangaSquare_Bibliotheque_EventScript_HiddenMoonStone"),
+    Sign(x: 24, y: 18, script: "MangaSquare_Bibliotheque_EventScript_HiddenSunStone"),
+]
