@@ -4609,6 +4609,8 @@ dependencies = [
  "futures-channel",
  "game-native",
  "png 0.18.1",
+ "ron",
+ "serde",
  "tokio",
 ]
 

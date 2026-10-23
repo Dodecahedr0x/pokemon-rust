@@ -479,6 +479,9 @@ fn App() -> Element {
     // The Map tab's pictures and sprites (`/maps/…`), from the cache it shares (Task H).
     let maps = use_context_provider(map::MapCache::default);
     use_asset_handler("maps", map::serve(maps));
+    // The Edit tab's map and palette pictures (`/edit/…`, SIL1 Task C).
+    let edits = use_context_provider(crate::map_edit::ui::EditImages::default);
+    use_asset_handler("edit", crate::map_edit::ui::serve(edits));
     // The context never changes, so these hooks run on every render or on none.
     if let Some(smoke) = try_use_context::<Smoke>() {
         let stats = smoke.stats.clone();
@@ -510,14 +513,16 @@ pub enum Tab {
     Map,
     Data,
     Explorer,
+    Edit,
 }
 
-const TABS: [(Tab, &str); 5] = [
+const TABS: [(Tab, &str); 6] = [
     (Tab::Play, "Play"),
     (Tab::Checkpoints, "Checkpoints"),
     (Tab::Map, "Map"),
     (Tab::Data, "Data"),
     (Tab::Explorer, "Explorer"),
+    (Tab::Edit, "Edit"),
 ];
 
 /// Focuses a play pane (its `data-focus` wrapper) once the Play tab is drawn.
@@ -607,6 +612,14 @@ pub fn Shell(#[props(default)] start: Tab) -> Element {
                 Tab::Map => rsx! { LiveMap {} },
                 Tab::Data => rsx! { data::Data {} },
                 Tab::Explorer => rsx! { explorer::Explorer {} },
+                Tab::Edit => rsx! {
+                    crate::map_edit::ui::Edit {
+                        games: crate::map_edit::GamesDir::for_game(
+                            &studio.paths.workspace,
+                            crate::map_edit::games::DEFAULT_GAME,
+                        ),
+                    }
+                },
             }
         }
     }
@@ -694,7 +707,7 @@ mod tests {
     fn the_shell_renders_without_a_display() {
         let local = temp_root("shell");
         let html = render(test_studio(&local), Tab::Play);
-        for label in ["Play", "Checkpoints", "Map", "Data", "Explorer"] {
+        for label in ["Play", "Checkpoints", "Map", "Data", "Explorer", "Edit"] {
             assert!(
                 html.contains(&format!(">{label}<")),
                 "{label} tab in {html}"
@@ -722,12 +735,13 @@ mod tests {
     #[test]
     fn the_map_data_and_explorer_tabs_render_in_the_shell() {
         let local = temp_root("tabs");
-        for tab in [Tab::Map, Tab::Data, Tab::Explorer] {
+        for tab in [Tab::Map, Tab::Data, Tab::Explorer, Tab::Edit] {
             let html = render(test_studio(&local), tab);
             assert!(html.contains("class=\"active\">"), "{tab:?}: {html}");
             match tab {
                 Tab::Map => assert!(html.contains(">coverage<"), "{html}"),
                 Tab::Explorer => assert!(html.contains(">Start<"), "{html}"),
+                Tab::Edit => assert!(html.contains(">New map<"), "{html}"),
                 _ => {}
             }
         }

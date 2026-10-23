@@ -16,6 +16,8 @@
 //!   never acknowledged; it is harmless.
 //! - `--check` runs the display-free `ui` gates the workspace gates skip: `cargo test -p studio
 //!   --features ui` and its clippy.
+//! - `map <args>` runs the headless map editor (`studio-map`): `list`, `create`, `apply`,
+//!   `validate`, `render`, `palette` over a games dir (`studio::map_edit::cli`).
 
 use crate::{root, run};
 use anyhow::{Context, Result, bail};
@@ -30,7 +32,11 @@ const MIN_FPS: f64 = 50.0;
 const DEFAULT_SMOKE_SECS: u32 = 10;
 /// How long past `secs` a smoke run may take (window start-up and shutdown) before it is killed.
 const SMOKE_GRACE_SECS: u64 = 60;
-const USAGE: &str = "usage: cargo xtask studio [--smoke [secs] | --check]";
+const USAGE: &str = "usage: cargo xtask studio [--smoke [secs] | --check | map <args>]";
+
+/// `cargo xtask studio map <args>`: the headless map editor (SIL1 Task C), a debug build (the
+/// game crates are optimized in dev builds); `studio::map_edit::cli` lists its commands.
+const MAP: [&str; 7] = ["run", "-q", "-p", "studio", "--bin", "studio-map", "--"];
 
 fn cargo(args: &[&str]) -> Command {
     let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
@@ -43,6 +49,7 @@ const UI: [&str; 4] = ["-p", "studio", "--features", "ui"];
 pub fn main(args: &[String]) -> Result<()> {
     match args {
         [] => run(cargo(&["run", "--release"]).args(UI)),
+        [cmd, rest @ ..] if cmd == "map" => run(cargo(&MAP).args(rest)),
         [flag] if flag == "--check" => {
             run(cargo(&["test"]).args(UI))?;
             run(cargo(&["clippy", "--all-targets"])
