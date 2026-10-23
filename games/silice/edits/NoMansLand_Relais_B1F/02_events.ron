@@ -1,0 +1,10 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_SEALED_CHAMBER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the ladder, back up to the Relais's trapdoor (the No Man's Land's warp 3).
+    Warp(x: 5, y: 9, dest_map: "NoMansLand", dest_warp: 3),
+    // 1: Regirock (hidden until Nebula_PG_Sc03c clears FLAG_SIL_HIDE_REGIROCK; a capture sets it again).
+    Object(x: 6, y: 4, gfx: "OBJ_EVENT_GFX_REGIROCK", id: "LOCALID_RELAIS_REGIROCK", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Relais_B1F_EventScript_Regirock", flag: "FLAG_SIL_HIDE_REGIROCK"),
+    // The braille wall.
+    Sign(x: 5, y: 2, script: "NoMansLand_Relais_B1F_EventScript_Braille"),
+]

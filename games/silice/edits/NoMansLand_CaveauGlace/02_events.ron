@@ -1,0 +1,12 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_CAVE_OF_ORIGIN", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the mat, back to the No Man's Land (its warp 2).
+    Warp(x: 7, y: 18, dest_map: "NoMansLand", dest_warp: 2),
+    // 1: Regice in the niche (hidden until the door opens: the door's script, with FLAG_SIL_ECHANTILLON_1..3
+    // all set, sets FLAG_SIL_HIDE_CAVEAU_PORTE and clears FLAG_SIL_HIDE_REGICE; a capture sets it again). 2:
+    // the stone door. 3: the Glalitite.
+    Object(x: 7, y: 1, gfx: "OBJ_EVENT_GFX_REGICE", id: "LOCALID_CAVEAU_REGICE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_CaveauGlace_EventScript_Regice", flag: "FLAG_SIL_HIDE_REGICE"),
+    Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_CAVEAU_PORTE", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_CaveauGlace_EventScript_Porte", flag: "FLAG_SIL_HIDE_CAVEAU_PORTE"),
+    Object(x: 12, y: 4, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_CAVEAU_ITEM_GLALITITE", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_CaveauGlace_EventScript_ItemGlalitite", flag: "FLAG_SIL_ITEM_PG_CAVEAU_GLALITITE"),
+]

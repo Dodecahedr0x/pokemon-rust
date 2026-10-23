@@ -1,0 +1,3 @@
+// Silice Ch12, MAP_NO_MANS_LAND_RELAIS_B1F: the bunker under the Relais (12 x 12, the source's size), a back
+// wall covered in braille. General + Cave (Emerald tilesets by name: Island Cave's braille room).
+(name: "NoMansLand_Relais_B1F", width: 12, height: 12, primary: "General", secondary: "Cave", fill: 729, fill_collision: 1, fill_elevation: 0, border: [729, 729, 729, 729])

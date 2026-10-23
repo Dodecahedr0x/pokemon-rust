@@ -1,0 +1,28 @@
+// Cells. A small mirror maze. The hall (row 13) leads up the west column, round the maze and to the corridor
+// (7, 3-4), whose gas 08 guards the prism's chamber (5-9, 1-2). Three cracked mirrors are breakable rocks
+// (objects, the Scanner de Faille): 1 at (10, 11) and 3 at (1, 10) cut the way short, 2 at (12, 3) opens the
+// Timer Balls' pocket (11, 3). The statue of glass is gone; black shards lie where it stood.
+// Legend (char: metatile/collision/elevation, what):
+//   m 653/1/0 a mirror still standing (wall)
+//   . 652/0/3 floor
+//   - 626/0/3 black shards (decor, walkable)
+//   D 837/1/0 the elevator door, solid (its sign calls the hub)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "mmmmmmmmmmmmmmm",
+        "mmmmm.....mmmmm",
+        "mmmmm..-..mmmmm",
+        "mmmmmmm.mmm...m",
+        "mmmmmmm.mmmmm.m",
+        "m.....m.......m",
+        "m.mmm.m.mmmmm.m",
+        "m.m.....m....mm",
+        "m.m.mmm.m.m.m.m",
+        "m...m...m.m...m",
+        "m.m.m.mmm.mmmmm",
+        "m...m.....-...m",
+        "m.mmmmmmmmmmm.m",
+        "m-............m",
+        "mmmmmmmDmmmmmmm",
+    ], legend: {'m': (metatile: 653, collision: 1, elevation: 0), '.': (metatile: 652, collision: 0, elevation: 3), '-': (metatile: 626, collision: 0, elevation: 3), 'D': (metatile: 837, collision: 1, elevation: 0)}),
+]

@@ -1,0 +1,6 @@
+// Behaviour warnings and reach findings accepted on purpose (validate and lint-reach honour these).
+[
+    AllowCollision(cells: [(11, 18), (18, 3), (19, 3)], reason: "the MAINTENANCE door (warp 4) is locked until Nebula_OnLoad opens it at 126; the Breach's crack (warps 5-6) is wall until Nebula_OnLoad draws it at 126"),
+    AllowReach(subject: "warp 5", reason: "the Breach's crack, wall until Nebula_OnLoad draws it from VAR_SIL_STORY 126"),
+    AllowReach(subject: "warp 6", reason: "the Breach's crack, wall until Nebula_OnLoad draws it from VAR_SIL_STORY 126"),
+]
