@@ -11,8 +11,8 @@
 
 use crate::hash::Fnv64;
 use alloc::vec;
-use core::cell::Cell;
 use alloc::vec::Vec;
+use core::cell::Cell;
 
 /// One tree (Gen3 `struct BerryTree`). A blank tree (`berry` 0, every field 0) has no berry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]

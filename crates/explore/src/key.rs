@@ -65,11 +65,13 @@ pub fn story_flag(f: FlagId, cfg: &KeyConfig) -> bool {
 
 /// Saved vars that never take part in a key: the Emerald step and day counters, the random
 /// vars and the object graphics vars `VAR_OBJ_GFX_ID_0..F` (scripts set them to pick a sprite,
-/// for a scene or a rival; not story progress) (from `content::consts`). Empty on the stub
-/// world; Silice has its own list.
+/// for a scene or a rival; not story progress) (from `content::consts`). On the stub world,
+/// only the counters its walks and wild battles tick (`UpdatePoisonStepCounter` every step,
+/// `VAR_DAILY_WILDS`; its story vars are the ids above them); Silice has its own list.
 #[cfg(not(pkr_silice))]
 pub static EXCLUDED_VARS: &[VarId] = if content::STUB {
-    &[]
+    use content::consts::*;
+    &[VAR_POISON_STEP_COUNTER, VAR_DAILY_WILDS]
 } else {
     use content::consts::*;
     &[
@@ -311,7 +313,7 @@ mod tests {
     #[test]
     fn content_counters_are_always_excluded() {
         assert_eq!(default_key_config(), KeyConfig::default());
-        assert_eq!(EXCLUDED_VARS.is_empty(), content::STUB);
+        assert_eq!(EXCLUDED_VARS.len() == 2, content::STUB);
         let cfg = KeyConfig::default();
         for v in EXCLUDED_VARS {
             assert!((TEMP_VARS_END..VARS_END).contains(&v.0));
