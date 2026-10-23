@@ -2469,6 +2469,12 @@
             name: "FLAG_SIL_HIDE_TOUR_2F_GWADA",
             num: 1122,
         ),
+        // SIL6 Ch12 maps review: Rayquaza's capture. Its object is a scene prop (FLAG_SIL_HIDE_RAYQUAZA is
+        // set except while SommetApex_PG_Sc32 runs), so the hide flag cannot also mean "caught".
+        (
+            name: "FLAG_SIL_RAYQUAZA_CAPTURE",
+            num: 1123,
+        ),
         (
             name: "FLAG_SIL_HIDE_NEBULA_MATHIEU",
             num: 1200,

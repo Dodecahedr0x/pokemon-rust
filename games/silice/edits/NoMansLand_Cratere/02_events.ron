@@ -2,9 +2,9 @@
 [
     Header((music: "MUS_MT_CHIMNEY", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_VOLCANIC_ASH", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // NoMansLand_Cratere_OnTransition: from FLAG_SIL_LIBERATION_JULIEN sets FLAG_SIL_HIDE_CRATERE_ROCHER
-    // (the Heart's boulder goes). Moltres and Groudon follow the legendaries' contract (their hide flag
-    // cleared by their condition: Moltres from VAR_SIL_STORY 128, here in the OnTransition; Groudon by
-    // Nebula_PG_Sc03c).
+    // (the Heart's boulder goes). Moltres and Groudon follow the legendaries' contract: their hide flag is
+    // cleared once, by a one-shot scene (Moltres by Tour_Nebula_2F_PG_Sc15, which sets 128; Groudon by
+    // Nebula_PG_Sc03c), never by this OnTransition, which would show them again after a capture.
     Scripts((on_load: None, on_transition: Some("NoMansLand_Cratere_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warp 0: the mat, back to the No Man's Land (its warp 1).
     Warp(x: 7, y: 19, dest_map: "NoMansLand", dest_warp: 1),

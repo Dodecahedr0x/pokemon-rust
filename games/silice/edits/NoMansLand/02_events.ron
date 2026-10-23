@@ -3,8 +3,9 @@
     Header((music: "MUS_ROUTE113", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // NoMansLand_OnLoad: from FLAG_SIL_LIBERATION_JULIEN, opens the bunker's trapdoor (31, 27) (metatile
     // 609, collision 0); once FLAG_SIL_RELAIS_ETEINT is set, draws the relay's light (30, 27) off.
-    // NoMansLand_OnTransition: shows Suicune at 130, Latios from 128 (unless caught), the drone and the
-    // origami per the pardons.
+    // NoMansLand_OnTransition: shows the drone and the origami per the pardons. Suicune and Latios are not
+    // its business: their hide flags are cleared once by the scenes that set 130 and 128 (the plan's SIL6
+    // review, the legendaries' clear points).
     Scripts((on_load: Some("NoMansLand_OnLoad"), on_transition: Some("NoMansLand_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
     // Warps 0-2: the Centrale's door, the Crater's mouth, the Ice Vault's mouth. Warp 3: the bunker's
     // trapdoor (drawn over by rubble until NoMansLand_OnLoad opens it).
@@ -24,8 +25,8 @@
     // bridge. 9-10: cracked rocks (the Scanner de Faille). 11-13: the Tyranitarite in the relay's carcass,
     // the Max Revive on the Oasis's north bank, the Latiosite (its item flag is set at the start, so it is
     // hidden; Latios's capture clears it, the pickup sets it again). 14-15: Suicune on the Oasis's bank and
-    // Latios at the cliff's edge (both hidden at the start; their condition clears the flag, a capture sets
-    // it again). 16-17: the exiles' traces: Kimiko's mended drone at the Oasis and Arthur's paper boat by
+    // Latios at the cliff's edge (both hidden at the start; the one-shot scene of their story step clears
+    // the flag, a capture sets it again). 16-17: the exiles' traces: Kimiko's mended drone at the Oasis and Arthur's paper boat by
     // Latios (new hide flags, shown by NoMansLand_OnTransition).
     Object(x: 24, y: 18, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_NML_GAZ_04", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Gaz04", flag: "FLAG_SIL_HIDE_GAZ_04"),
     Object(x: 47, y: 18, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_NML_GAZ_05", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_EventScript_Gaz05", flag: "FLAG_SIL_HIDE_GAZ_05"),
