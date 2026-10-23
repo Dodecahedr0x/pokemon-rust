@@ -44,7 +44,14 @@ fn behavior_exactness() {
         ("MB_SECRET_BASE_BREAKABLE_DOOR", false),
         // Slides the player.
         ("MB_ICE", false),
-        ("MB_LONG_GRASS", false),
+        // Encounter floors and the battle background's grounds (off-grass encounters); the
+        // ash pickup is missing.
+        ("MB_LONG_GRASS", true),
+        ("MB_CAVE", true),
+        ("MB_DEEP_SAND", true),
+        ("MB_SAND", true),
+        ("MB_MOUNTAIN_TOP", true),
+        ("MB_ASHGRASS", false),
     ] {
         assert_eq!(behavior_class(name).1, exact, "{name}");
     }

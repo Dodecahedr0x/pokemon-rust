@@ -115,14 +115,41 @@ pub fn behavior(name: &str) -> String {
         "MB_SHOAL_CAVE_ENTRANCE" => "ArrowWarp(Dir::Down)",
         "MB_COUNTER" => "Counter",
         "MB_TALL_GRASS" => "TallGrass",
+        // The other land-encounter tiles (Gen3 `TILE_FLAG_HAS_ENCOUNTERS`, not surfable), one
+        // `Floor` each (the new-metatile check compares raw behaviours), and the plain grounds
+        // the battle background reads (`BattleSetup_GetEnvironmentId`).
+        "MB_LONG_GRASS" => "Floor(Floor::LongGrass)",
+        "MB_UNUSED_05" => "Floor(Floor::Unused05)",
+        "MB_DEEP_SAND" => "Floor(Floor::DeepSand)",
+        "MB_CAVE" => "Floor(Floor::Cave)",
+        "MB_INDOOR_ENCOUNTER" => "Floor(Floor::IndoorEncounter)",
+        "MB_ASHGRASS" => "Floor(Floor::AshGrass)",
+        "MB_FOOTPRINTS" => "Floor(Floor::Footprints)",
+        "MB_SAND" => "Floor(Floor::Sand)",
+        "MB_MOUNTAIN_TOP" => "Floor(Floor::MountainTop)",
         _ => "Normal",
     }
     .into()
 }
 
+/// `MapType` variant name for a raw Gen3 `MAP_TYPE_*` byte and the map's name, as the battle
+/// background reads it (`BattleSetup_GetEnvironmentId`): Route 113 (`MAP_ROUTE113`, by name)
+/// fights on sand off its grass.
+pub fn map_type(raw: u8, map_name: &str) -> &'static str {
+    match raw {
+        4 => "Underground",
+        5 => "Underwater",
+        6 => "OceanRoute",
+        8 | 9 => "Indoor",
+        // MAP_TYPE_NONE, TOWN, CITY, ROUTE, UNKNOWN.
+        _ if map_name == "Route113" => "OutdoorSand",
+        _ => "Outdoor",
+    }
+}
+
 /// [`behavior`], and whether it is exact. Exact: plain ground (`MB_NORMAL`, unnamed bytes),
-/// tall grass, ledges, doors, warps, arrow warps and counters, which the engine implements as
-/// Gen3 does. Every other named behavior is an approximation: its Gen3 effect (Surf, currents,
+/// tall grass and the other encounter floors (but ash grass), sand, mountain tops, ledges, doors,
+/// warps, arrow warps and counters, which the engine implements as Gen3 does. Every other named behavior is an approximation: its Gen3 effect (Surf, currents,
 /// directional blocking, ice, sand, bikes, puddles, hot springs, secret bases, …) is missing,
 /// so it is `Normal` or, for water, `Blocked`. The directional walls are exact, except the
 /// secret base's breakable door (walls only; breaking it is missing). The build lists the
@@ -135,6 +162,8 @@ pub fn behavior_class(name: &str) -> (String, bool) {
             "Blocked" => false,
             "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
             _ if name == "MB_SECRET_BASE_BREAKABLE_DOOR" => false,
+            // The ash pickup (the cell turns into plain grass) is missing.
+            _ if name == "MB_ASHGRASS" => false,
             _ => true,
         };
     (v, exact)

@@ -10,6 +10,28 @@ use classify::*;
 fn behaviors_by_name() {
     assert_eq!(behavior("MB_NORMAL"), "Normal");
     assert_eq!(behavior("MB_TALL_GRASS"), "TallGrass");
+    // Off-grass encounters: one `Floor` per raw encounter behaviour.
+    for (mb, floor) in [
+        ("MB_LONG_GRASS", "LongGrass"),
+        ("MB_UNUSED_05", "Unused05"),
+        ("MB_DEEP_SAND", "DeepSand"),
+        ("MB_CAVE", "Cave"),
+        ("MB_INDOOR_ENCOUNTER", "IndoorEncounter"),
+        ("MB_ASHGRASS", "AshGrass"),
+        ("MB_FOOTPRINTS", "Footprints"),
+        ("MB_SAND", "Sand"),
+        ("MB_MOUNTAIN_TOP", "MountainTop"),
+    ] {
+        assert_eq!(behavior(mb), format!("Floor(Floor::{floor})"));
+    }
+    assert_eq!(map_type(4, "GraniteCave_1F"), "Underground");
+    assert_eq!(map_type(8, "RustboroCity_Gym"), "Indoor");
+    assert_eq!(map_type(9, "SecretBase"), "Indoor");
+    assert_eq!(map_type(5, "Underwater_Route124"), "Underwater");
+    assert_eq!(map_type(6, "Route131"), "OceanRoute");
+    assert_eq!(map_type(3, "Route113"), "OutdoorSand");
+    assert_eq!(map_type(3, "Route111"), "Outdoor");
+    assert_eq!(map_type(1, "LittlerootTown"), "Outdoor");
     assert_eq!(behavior("MB_JUMP_EAST"), "Ledge(Dir::Right)");
     assert_eq!(behavior("MB_JUMP_WEST"), "Ledge(Dir::Left)");
     assert_eq!(behavior("MB_JUMP_NORTH"), "Ledge(Dir::Up)");
