@@ -40,6 +40,9 @@ pub struct Live<'g, G: GameData> {
     pub rerolls: u32,
     /// What the last step played natively for a [`Step::Bypass`].
     pub note: Option<String>,
+    /// The last step was already behind vanilla (a script had taken the player through its
+    /// warp): boundary timing, the comparison waits for the next step ([`crate::oracle`]).
+    pub ahead: bool,
     /// Moves a bypass search may still try ([`SEARCH_MOVES`]).
     budget: u32,
 }
@@ -75,6 +78,7 @@ impl<'g, G: GameData> Live<'g, G> {
             opts: StepOpts::default(),
             rerolls: 0,
             note: None,
+            ahead: false,
             budget: 0,
         }
     }
@@ -117,6 +121,7 @@ impl<'g, G: GameData> Live<'g, G> {
         );
         self.rerolls = 0;
         self.note = None;
+        self.ahead = false;
         loop {
             let r = self.play_once(step);
             let lost = (self.v.outcomes[outcomes..].iter())
@@ -145,6 +150,7 @@ impl<'g, G: GameData> Live<'g, G> {
             // already behind (boundary timing, not a parity gap).
             if on != want && self.arrived(step, want, on) {
                 self.v.settle(MACRO_FRAMES)?;
+                self.ahead = true;
                 self.note = Some(format!(
                     "already on {} (vanilla's script took the player there a step early)",
                     map_name(on)

@@ -318,7 +318,7 @@ fn summary(ours: &spine::SpineRun, run: &OracleRun, wall: f64) {
     }
     let noise: usize = run.rows.iter().map(|r| r.noise.len()).sum();
     println!(
-        "  Parity findings (deltas lasting past the next playing step; {noise} row-deltas of \
+        "  Parity findings (deltas lasting past the next moving step; {noise} row-deltas of \
          RNG/timing noise left out):"
     );
     for (i, f) in &run.log.findings {

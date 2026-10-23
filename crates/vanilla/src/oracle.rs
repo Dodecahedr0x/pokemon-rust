@@ -37,7 +37,7 @@ pub struct Row {
     /// Every delta under the tolerance at this boundary, but the [`Row::noise`].
     pub deltas: Vec<Delta>,
     /// The fields not already differing at the boundary before. They become findings when
-    /// they still hold at the next playing step's boundary ([`run_spine_range`]).
+    /// they still hold after the next step that moves the player ([`run_spine_range`]).
     pub new: Vec<Delta>,
     /// Deltas that follow from vanilla's RNG or timing ([`split_noise`]): never findings.
     pub noise: Vec<Delta>,
@@ -128,6 +128,56 @@ pub fn split_noise(
     })
 }
 
+/// Splits `deltas` into (parity deltas, noise) once levels are RNG-dependent (`tol.levels`
+/// off: a random wild battle was fought): the lead's species when one evolves into the other
+/// (an evolution reached at another battle), and its moves when every differing slot holds a
+/// level-up move of either species or nothing (a move learnt at another level-up).
+pub fn split_leveling<G: GameData>(
+    game: &G,
+    ours: &Semantic,
+    theirs: &Semantic,
+    deltas: Vec<Delta>,
+    tol: Tolerance,
+) -> (Vec<Delta>, Vec<Delta>) {
+    use engine::data::SpeciesId;
+    if tol.levels {
+        return (deltas, Vec::new());
+    }
+    let t = game.battle();
+    let learns = |sp: u16, m: u16| {
+        m == 0
+            || (usize::from(sp) < t.species.len()
+                && (t.species_info(SpeciesId(sp)).learnset.iter()).any(|l| l.mov.0 == m))
+    };
+    let evolves = |a: u16, b: u16| {
+        (game.evolutions(SpeciesId(a)).iter()).any(|e| e.target.0 == b)
+            || (game.evolutions(SpeciesId(b)).iter()).any(|e| e.target.0 == a)
+    };
+    deltas.into_iter().partition(|d| {
+        let Some(i) = (d.field.strip_prefix("party["))
+            .and_then(|r| r.split(']').next())
+            .and_then(|n| n.parse::<usize>().ok())
+        else {
+            return true;
+        };
+        let (Some(a), Some(b)) = (ours.party.get(i), theirs.party.get(i)) else {
+            return true;
+        };
+        let noise = if d.field.ends_with(".species") {
+            evolves(a.species, b.species)
+        } else if d.field.ends_with(".moves") {
+            (a.moves.iter().zip(&b.moves)).all(|(&x, &y)| {
+                x == y
+                    || ((learns(a.species, x) || learns(b.species, x))
+                        && (learns(a.species, y) || learns(b.species, y)))
+            })
+        } else {
+            false
+        };
+        !noise
+    })
+}
+
 /// The deltas of `a` whose field still differs in `b`: with the same values for the player's
 /// place (a walk ending elsewhere is realigned by the next walk), with any values for the rest
 /// (a counter only one game counts goes on counting).
@@ -142,7 +192,8 @@ fn kept(a: &[Delta], b: &[Delta]) -> Vec<Delta> {
         .collect()
 }
 
-/// A boundary whose deltas wait for the next playing step's boundary to become findings.
+/// A boundary whose deltas wait for the next boundary of a step that moves the player
+/// ([`run_spine_range`]) to become findings.
 struct Pending {
     at: usize,
     segment: Option<&'static str>,
@@ -153,9 +204,19 @@ struct Pending {
 }
 
 impl Pending {
-    fn record(self, log: &mut ParityLog, still: Option<&[Delta]>) {
+    /// Records the deltas that still hold in `still` (`None`: all of them), the player's
+    /// place against `place` (the last boundary before the moving step: where a scene left the
+    /// player, before the next walk moves them on).
+    fn record(self, log: &mut ParityLog, still: Option<(&[Delta], &[Delta])>) {
         let d = match still {
-            Some(next) => kept(&self.deltas, next),
+            Some((next, place)) => {
+                let is_place = |d: &Delta| matches!(d.field.as_str(), "map" | "cell" | "facing");
+                let (p, rest): (Vec<Delta>, Vec<Delta>) =
+                    self.deltas.iter().cloned().partition(is_place);
+                let mut d = kept(&rest, next);
+                d.extend(kept(&p, place));
+                d
+            }
             None => self.deltas,
         };
         log.record(
@@ -305,12 +366,14 @@ pub fn run_spine_range<G: GameData>(
     };
     let mut h = resume.history;
     let trainers = out.trainers.clone();
-    // A boundary's deltas are findings only when they still hold at the next playing step's
-    // boundary: vanilla's settle runs a trigger or frame script the step ends next to, which
+    // A boundary's deltas are findings only when they still hold at the boundary after the next
+    // moving step (not a wait): vanilla's settle runs a trigger or frame script the step ends next to, which
     // ours runs as the next step (boundary timing), and a walk or a talk can end a cell apart
     // where the next step realigns them.
-    let mut pending: Option<Pending> = None;
+    let mut pending: Vec<Pending> = Vec::new();
     let mut prev_fields: BTreeSet<String> = BTreeSet::new();
+    let mut prev_exp: Option<u32> = None;
+    let mut talked = false;
     let mut failed = 0;
     let mut battles = live.v.battles.len();
     let to = resume.to.map_or(spine.positions.len(), |t| {
@@ -332,23 +395,67 @@ pub fn run_spine_range<G: GameData>(
         if error.is_some() {
             let _ = live.v.settle(crate::live::MACRO_FRAMES);
         }
+        let fought = live.v.battles.len() > battles;
         update(&mut h, &mut live.v, battles);
         battles = live.v.battles.len();
         let p = &spine.positions[i];
         let ours = ours_at(game, spine, i)?;
+        // Our lead gained exp in a step vanilla fought nothing: our engine met a wild mon
+        // vanilla did not (its RNG), so levels are RNG-dependent from here on.
+        let ours_exp = ours.party.first().map(|m| m.exp);
+        if !fought && step.is_some() && ours_exp > prev_exp && prev_exp.is_some() {
+            h.random_battle = true;
+        }
+        prev_exp = ours_exp;
         let theirs = live.v.state()?.semantic();
         let tol = tolerance(h);
         let (deltas, noise) = split_noise(&ours, &theirs, diff(&ours, &theirs, tol), &trainers);
+        let (deltas, leveling) = split_leveling(game, &ours, &theirs, deltas, tol);
+        let mut noise: Vec<Delta> = noise.into_iter().chain(leveling).collect();
+        // A talk approached from another side (the object or the way to it differed): the
+        // player's cell and facing next to it are the driver's choice, not the game's, until
+        // a step moves the player on (the scene's waits after the talk keep them).
+        let (dx, dy) = (ours.cell.0 - theirs.cell.0, ours.cell.1 - theirs.cell.1);
+        let near = ours.map == theirs.map && dx.abs() + dy.abs() <= 2;
+        talked = match step {
+            Some(Step::Talk { .. }) => near,
+            Some(s) if !s.plays() => talked,
+            Some(Step::WaitScript | Step::Wait(_) | Step::WaitFor { .. }) => talked && near,
+            _ => false,
+        };
+        let deltas = if talked {
+            let (place, rest): (Vec<Delta>, Vec<Delta>) =
+                (deltas.into_iter()).partition(|d| matches!(d.field.as_str(), "cell" | "facing"));
+            noise.extend(place);
+            rest
+        } else {
+            deltas
+        };
         let new: Vec<Delta> = (deltas.iter())
             .filter(|d| !prev_fields.contains(&d.field))
             .cloned()
             .collect();
         prev_fields = deltas.iter().map(|d| d.field.clone()).collect();
         if step.is_none_or(|s| s.plays()) {
-            if let Some(p) = pending.take() {
-                p.record(&mut out.log, Some(&deltas));
+            // A step that only waits (a scene our engine plays over several `WaitScript`s,
+            // vanilla's settle in one) does not settle the boundaries before it: they wait for
+            // the next step that moves the player.
+            let waits = live.ahead
+                || matches!(
+                    step,
+                    Some(Step::WaitScript | Step::Wait(_) | Step::WaitFor { .. })
+                );
+            if !waits {
+                // Waits since the first pending boundary: the place after them, else now.
+                let place = match pending.as_slice() {
+                    [_, .., last] => last.deltas.clone(),
+                    _ => deltas.clone(),
+                };
+                for p in pending.drain(..) {
+                    p.record(&mut out.log, Some((&deltas, &place)));
+                }
             }
-            pending = Some(Pending {
+            pending.push(Pending {
                 at: i,
                 segment: p.segment,
                 step,
@@ -387,7 +494,7 @@ pub fn run_spine_range<G: GameData>(
             break;
         }
     }
-    if let Some(p) = pending.take() {
+    for p in pending.drain(..) {
         p.record(&mut out.log, None);
     }
     Ok(out)
@@ -504,6 +611,7 @@ pub fn branch<G: GameData + Clone + 'static>(
         diff(&ours_sem, &theirs, tol),
         &oracle.trainers,
     );
+    let (deltas, _leveling) = split_leveling(game, &ours_sem, &theirs, deltas, tol);
     let deltas: Vec<Delta> = deltas
         .into_iter()
         .filter(|d| !at_origin.contains(d))
@@ -600,7 +708,7 @@ mod tests {
             pos: (0, 0),
             deltas: vec![d("var A"), d("var B")],
         };
-        p.record(&mut log, Some(&[d("var B")]));
+        p.record(&mut log, Some((&[d("var B")], &[])));
         assert_eq!(log.findings.len(), 1);
         assert!(log.findings[0].1.message.contains("var B"));
         assert_eq!(log.findings[0].0, 3);

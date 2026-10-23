@@ -484,6 +484,40 @@ Vanilla took 0 to 52% more frames per segment:
 
 **Checkpoints and goldens:** unchanged. No engine change. In `explore`, `policy::forget_slot_of` is a refactor with the same behaviour. `emu::write_bytes` is new and used only by the oracle.
 
+#### Wave E — the vanilla driver through Fortree
+
+`cargo xtask vanilla spine --no-db` now plays **all 550 steps to Fortree with 0 failed vanilla steps**, in about 290 s (was 712 s for 465 positions): ours 809,595 frames, vanilla 1,190,666 (+15,680 to the start), 2 lost battles rerolled.
+
+**Driver changes** (`crates/vanilla`, no engine change):
+- `Step::UseItem` / `MacroKind::UseItem` are played (`Vanilla::use_item`): START, the start menu's cursor to BAG (`sCurrentStartMenuActions`, `sStartMenuCursorPos`), the bag's pocket and list position (`gBagPosition`, the pocket's slot order from the save block), USE (`Task_ItemContext_*`, `sMenu`), the party menu's `gPartyMenu.slotId`, the summary's forget cursor, YES through the prompts, then B out of the bag and the start menu. HM06 and HM03 are taught natively. The symbols are pret's `symbols` branch listing (it matches the committed table).
+- In battle: "Will you change Pokémon?" (`yesnobox`, trainer battles) is answered NO and "Use next Pokémon?" YES; the party menu's choose-mon picks the first mon that can fight. The Route 119 rival battle used to loop in the party menu ("already in battle").
+- A `Goto` whose target is a trigger counts as reached when the scene moves the player off it (Meteor Falls' Magma scene).
+- An `Enter`/`Cross` whose destination vanilla's settle already reached (Norman's win runs the Wally's house scene) is done, and noted.
+- The holes, geysers and door signs are ordinary `Enter`/`Use` steps now; the bypass DFS is no longer used by the spine.
+- **Speed:** no scanline rendering (`Emu::set_frameskip`; `PKR_VANILLA_RENDER` keeps it); `--cache DIR`, `--from N` and `--to N` replay one stretch from saved positions in seconds.
+
+**Noise kept out of the findings** (`vanilla::oracle`):
+- **Boundary timing.** A delta becomes a finding only if it still holds after the next step that moves the player. Waits (`WaitScript`, `Wait`, `WaitFor`) and steps vanilla had already played extend the window, and the player's place is checked at the last wait.
+- **RNG trainers.** When the games beat different trainers whose sight depends on the RNG or the timing (their movement type turns or walks), those flags, money, `FLAG_REGISTERED_*` and the lead's exp, level and HP are noise. Fixed-facing trainers stay findings.
+- **Levels.** Once a random battle was fought in either game (ours gains exp in a step where vanilla fought nothing), these are noise: evolution timing (species A vs its evolution) and move-slot differences between level-up moves.
+- **Talk approaches.** The cell and facing next to the object after a `Talk` (and its scene's waits) are noise.
+- **One finding per field.** `ParityLog` reports a field that keeps differing once, even as its values move (`VAR_DAILY_WILDS` counting).
+
+**The Parity findings (14) of the last run, by root cause:**
+
+| Position | Delta | Root cause |
+|---|---|---|
+| 6 | `VAR_DAILY_WILDS` 0 / counting | engine gap: `IncrementDailyWildBattles` (`battle_setup.c`) |
+| 105 | `FLAG_ENABLE_MR_STONE_POKENAV` clear / set | engine gap: the PokéNav tutorial's call to Mr. Stone sets it (`pokenav_match_call_data.c`, `MatchCall_Text_MrStone1`'s flag to set) |
+| 182, 262 | Roxanne and Wally `FIRST_CALL` set / `MATCH_CALL` clear | engine gap: the step-count scripts (`TryStartStepCountScript`, `ShouldDoRoxanneCall`, `ShouldDoWallyCall`) |
+| 365, 447 | `FLAG_MIRAGE_TOWER_VISIBLE` | engine gap: `SetMirageTowerVisibility` |
+| 380 | cell (14,18) / (13,18) at Meteor Falls | **likely engine gap**: the scene's `MeteorFalls_1F_1R_Movement_PushPlayerOutOfWay` (`lock_facing_direction`, `walk_left`) leaves our player on (14,18) |
+| 429, 430 | `FLAG_0x5C9` (Cole), `0x788` (Gerald), `0x5CB` (Axle) clear / set | **likely engine gap**: Lavaridge gym's `TRAINER_TYPE_BURIED` trainers (sight 1) fight vanilla on the same `Enter` walks, but not ours |
+| 486 | facing Down / Right after Norman | boundary timing: vanilla's settle played the Wally's house HM03 scene inside the talk. The facing after that scene differs (to check) |
+| 515 | object 2 present / absent (Route 118) | camera presence (O1's tolerance note) |
+
+**Left:** the branch replays (`vanilla branches`) use the same noise rules but were not rerun here (no explore db in the worktree).
+
 ### Wave C — new-game state parity
 
 **What is built.**
