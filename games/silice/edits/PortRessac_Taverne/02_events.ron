@@ -1,0 +1,21 @@
+// Header, the mat warps, the nurse, the clerk, Gwada at the bar, Adrien asleep, the regular.
+[
+    Header((music: "MUS_POKE_CENTER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: false, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // The on-transition script shows Gwada while VAR_SIL_STORY is 42-48 and Adrien from
+    // FLAG_SIL_ROUTE_S04_ADRIEN to the end of the chapter (their two hide flags), and sets the
+    // respawn (HEAL_LOCATION_PORT_RESSAC) on the nurse's first talk.
+    Scripts((on_load: None, on_transition: Some("PortRessac_Taverne_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the mat, to the Taverne's door on Port-Ressac (its warp 1).
+    Warp(x: 7, y: 10, dest_map: "PortRessac", dest_warp: 1),
+    Warp(x: 8, y: 10, dest_map: "PortRessac", dest_warp: 1),
+    // 1: the nurse in her pirate scarf (Port_Ressac_Taverne_Infirmiere, then the heal).
+    Object(x: 9, y: 2, gfx: "OBJ_EVENT_GFX_NURSE", id: "LOCALID_TAVERNE_INFIRMIERE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Taverne_EventScript_Infirmiere"),
+    // 2: the bar's clerk behind the shop counter (the §7 shop).
+    Object(x: 3, y: 2, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_TAVERNE_VENDEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "PortRessac_Taverne_EventScript_Vendeur"),
+    // 3: Gwada on a bar stool (Port_Ressac_Taverne_Sc01), shown while VAR_SIL_STORY is 42-48.
+    Object(x: 6, y: 6, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_TAVERNE_GWADA", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "PortRessac_Taverne_Sc01", flag: "FLAG_SIL_HIDE_PORT_TAVERNE_GWADA"),
+    // 4: Adrien asleep, head on the table (Port_Ressac_Taverne_Adrien).
+    Object(x: 12, y: 6, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_TAVERNE_ADRIEN", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Taverne_EventScript_Adrien", flag: "FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN"),
+    // 5: the regular (Port_Ressac_Taverne_Pilier).
+    Object(x: 3, y: 7, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_TAVERNE_PILIER", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "PortRessac_Taverne_EventScript_Pilier"),
+]

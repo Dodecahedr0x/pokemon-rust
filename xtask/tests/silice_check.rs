@@ -39,6 +39,8 @@ fn works_without_the_extract() {
         g.to_str().unwrap(),
         "--extracted",
         "/nonexistent",
+        "--scripts",
+        "/nonexistent",
     ]);
     assert!(r.ok, "{}", r.out);
     assert!(
@@ -53,6 +55,8 @@ fn works_without_the_extract() {
         "--games",
         g.to_str().unwrap(),
         "--extracted",
+        "/nonexistent",
+        "--scripts",
         "/nonexistent",
     ]);
     assert!(r.ok, "{}", r.out);

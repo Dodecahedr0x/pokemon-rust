@@ -319,10 +319,11 @@ fn m8_d2_the_worked_example_override_runs() {
 fn m8_d2_trainer_table_answers_trainer_flag_of() {
     let game = content::Emerald::for_shells();
     let rows = &content::scripts::TRAINER_SCRIPTS;
-    if content::FLAVOR != content::Flavor::Emerald {
+    if content::FLAVOR == content::Flavor::Stub {
         assert!(rows.is_empty());
         return;
     }
+    // Silice: the Route S1 trainers' scripts (SIL1 Task F, `build/silice/registry.rs`).
     assert!(!rows.is_empty());
     assert!(rows.windows(2).all(|w| w[0].0 < w[1].0));
     for &(id, trainer, kind) in rows.iter() {
@@ -332,6 +333,9 @@ fn m8_d2_trainer_table_answers_trainer_flag_of() {
         );
         assert_eq!(game.trainer_battle_kind(ScriptId(id)), Some(kind));
         assert!(kind <= 12);
+    }
+    if content::FLAVOR != content::Flavor::Emerald {
+        return;
     }
     let kid = script_id("LittlerootTown_EventScript_Twin").unwrap();
     assert_eq!(game.trainer_flag_of(kid), None);

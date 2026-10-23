@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 529
+- ids/flags: 551
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -238,6 +238,28 @@
 - maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ05
 - maps/ViberCity_PokemonCenter.ron: FLAG_SIL_HIDE_VIBER_PC_PNJ06
 - maps/ViberCity_StationLumiere.ron: FLAG_SIL_HIDE_STATION_SBIRE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_MARIN_CLIENT
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PASSANT_4
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_PASSERELLE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SAMUEL
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_PIRATE_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_3
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_SBIRE_4
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_CONTREMAITRE
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_1
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_2
+- maps/PortRessac.ron: FLAG_SIL_HIDE_PORT_DECOR_3
+- maps/PortRessac_Gym.ron: FLAG_SIL_HIDE_PORT_GYM_GWADA
+- maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_GWADA
+- maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN
+- maps/RouteS04.ron: FLAG_SIL_HIDE_ROUTE_S04_MAGICARPE
 
 ## §7 tables not imported
 
