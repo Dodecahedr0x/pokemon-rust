@@ -1096,3 +1096,8 @@ flags FLAG_SIL_HIDE_ZENITH_ASC_GWADA 1258
 flags FLAG_SIL_HIDE_ZENITH_ASC_JULIEN 1259
 # SIL5 Ch10-Ch11 maps review: the 2F camera drone, which TourNebula_2F_Sc04 hides.
 flags FLAG_SIL_HIDE_TOUR_DRONE 1260
+# SIL4 Ch7 scripts (script block 1180-1199): the mirror signs' plaques read (the vault's code).
+flags FLAG_SIL_REVERSE_PLAQUE_1 1180
+flags FLAG_SIL_REVERSE_PLAQUE_2 1181
+flags FLAG_SIL_REVERSE_PLAQUE_3 1182
+flags FLAG_SIL_REVERSE_PLAQUE_4 1183
