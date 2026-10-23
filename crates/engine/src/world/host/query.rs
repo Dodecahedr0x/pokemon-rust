@@ -3,7 +3,7 @@
 //! Every query answers at once and changes nothing.
 
 use super::Host;
-use crate::data::GameData;
+use crate::data::{GameData, block_metatile};
 use crate::pokedex::DexFlag;
 use crate::script::{PARTY_SIZE, Query};
 
@@ -43,5 +43,6 @@ pub(super) fn answer<G: GameData>(h: &Host<'_, G>, q: Query) -> u16 {
             .map_or(0, |m| m.personality as u16),
         Query::PlayerIdLow => s.player_id as u16,
         Query::PocketNonEmpty(p) => s.bag.pocket(p).iter().any(|sl| sl.qty > 0) as u16,
+        Query::Metatile { x, y } => block_metatile(s.field.block(h.game, x, y)),
     }
 }

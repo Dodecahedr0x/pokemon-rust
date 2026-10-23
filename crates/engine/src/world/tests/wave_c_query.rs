@@ -79,3 +79,17 @@ fn player_id_and_pockets() {
     assert_eq!(ask(&mut w, Query::PocketNonEmpty(Pocket::Berries)), 1);
     assert_eq!(ask(&mut w, Query::PocketNonEmpty(Pocket::Items)), 0);
 }
+
+#[test]
+fn metatile_reads_the_map_with_setmetatile_changes() {
+    let mut w = started();
+    let before = ask(&mut w, Query::Metatile { x: 1, y: 1 });
+    let want = (before + 1) & crate::data::BLOCK_METATILE_MASK;
+    start(&mut w, move |ctx| {
+        Box::pin(async move {
+            ctx.set_metatile(1, 1, want, true).await;
+        })
+    });
+    until_done(&mut w, 3);
+    assert_eq!(ask(&mut w, Query::Metatile { x: 1, y: 1 }), want);
+}

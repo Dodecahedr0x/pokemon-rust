@@ -435,6 +435,9 @@ pub enum Query {
     PlayerIdLow,
     /// 1 when the bag's `pocket` holds an item (Gen3 `IsBagPocketNonEmpty`), else 0.
     PocketNonEmpty(crate::data::Pocket),
+    /// The metatile of cell (`x`, `y`) of the current map, with `setmetatile`'s changes (Gen3
+    /// `MapGridGetMetatileIdAt`).
+    Metatile { x: i16, y: i16 },
 }
 
 impl Query {
@@ -456,6 +459,7 @@ impl Query {
             Query::PartyFriendship(slot) => (7, slot as u16, 0),
             Query::PartyHp(slot) => (8, slot as u16, 0),
             Query::PartyPersonalityLow(slot) => (9, slot as u16, 0),
+            Query::Metatile { x, y } => (10, x as u16, y as u16),
         }
     }
 }
