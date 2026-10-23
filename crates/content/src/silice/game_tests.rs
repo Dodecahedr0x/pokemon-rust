@@ -105,6 +105,12 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_STATION_SBIRES,
         FLAG_SIL_HIDE_STATION_SBIRE_2,
         FLAG_SIL_VIBER_BARRIERE_EST,
+        // Ch6: shown until a scene hides them.
+        FLAG_SIL_HIDE_DOJO_ADRIEN,
+        FLAG_SIL_HIDE_DOJO_KIMIKO,
+        FLAG_SIL_HIDE_DOJO_DRONE_1,
+        FLAG_SIL_HIDE_DOJO_DRONE_2,
+        FLAG_SIL_HIDE_MANGA_SQUARE_CONTROLEUR,
     ] {
         assert!(!w.flag(f), "{f:?}");
     }
@@ -140,6 +146,16 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_CASINO_ROMAIN,
         FLAG_SIL_HIDE_CASINO_B1F_ROMAIN,
         FLAG_SIL_ITEM_DEPOT_METAL_COAT,
+        // Ch6: Route_S06_Sc02's actors, the randonneur, Benou and Adrien at the Grand Torii, the
+        // delivery man, and Adrien in the Bibliothèque.
+        FLAG_SIL_HIDE_ROUTE_S06_ADRIEN,
+        FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A,
+        FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B,
+        FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR,
+        FLAG_SIL_HIDE_MANGA_SQUARE_BENOU,
+        FLAG_SIL_HIDE_MANGA_SQUARE_ADRIEN_FIN,
+        FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR,
+        FLAG_SIL_HIDE_BIBLIO_ADRIEN,
     ] {
         assert!(w.flag(f), "{f:?}");
     }
