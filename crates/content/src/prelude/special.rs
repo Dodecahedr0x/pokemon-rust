@@ -96,6 +96,68 @@ async fn petalburg_gym_set_doors(ctx: &Ctx, room: u16, metatile: u16) {
     ctx.redraw_map().await;
 }
 
+/// Gen3 `FRONTIER_UTIL_FUNC_*` (`include/constants/frontier_util.h`), `CallFrontierUtilFunc`'s
+/// `VAR_0x8004`, by name (index = value).
+const FRONTIER_UTIL_FUNCS: [&str; 23] = [
+    "FRONTIER_UTIL_FUNC_GET_STATUS",
+    "FRONTIER_UTIL_FUNC_GET_DATA",
+    "FRONTIER_UTIL_FUNC_SET_DATA",
+    "FRONTIER_UTIL_FUNC_SET_PARTY_ORDER",
+    "FRONTIER_UTIL_FUNC_SOFT_RESET",
+    "FRONTIER_UTIL_FUNC_SET_TRAINERS",
+    "FRONTIER_UTIL_FUNC_SAVE_PARTY",
+    "FRONTIER_UTIL_FUNC_RESULTS_WINDOW",
+    "FRONTIER_UTIL_FUNC_CHECK_AIR_TV_SHOW",
+    "FRONTIER_UTIL_FUNC_GET_BRAIN_STATUS",
+    "FRONTIER_UTIL_FUNC_IS_BRAIN",
+    "FRONTIER_UTIL_FUNC_GIVE_BATTLE_POINTS",
+    "FRONTIER_UTIL_FUNC_GET_FACILITY_SYMBOLS",
+    "FRONTIER_UTIL_FUNC_GIVE_FACILITY_SYMBOL",
+    "FRONTIER_UTIL_FUNC_CHECK_BATTLE_TYPE",
+    "FRONTIER_UTIL_FUNC_CHECK_INELIGIBLE",
+    "FRONTIER_UTIL_FUNC_CHECK_VISIT_TRAINER",
+    "FRONTIER_UTIL_FUNC_INCREMENT_STREAK",
+    "FRONTIER_UTIL_FUNC_RESTORE_HELD_ITEMS",
+    "FRONTIER_UTIL_FUNC_SAVE_BATTLE",
+    "FRONTIER_UTIL_FUNC_BUFFER_TRAINER_NAME",
+    "FRONTIER_UTIL_FUNC_RESET_SKETCH_MOVES",
+    "FRONTIER_UTIL_FUNC_SET_BRAIN_OBJECT",
+];
+const FRONTIER_UTIL_FUNC_GET_STATUS: u16 = 0;
+const FRONTIER_UTIL_FUNC_GET_DATA: u16 = 1;
+const FRONTIER_UTIL_FUNC_SET_DATA: u16 = 2;
+/// `GetChallengeStatus` with `frontier.challengeStatus` 0 (no challenge in progress).
+const CHALLENGE_STATUS_NONE: u16 = 0xFF;
+
+/// Gen3 `CallFrontierUtilFunc` (`frontier_util.c`), with no Battle Frontier or Battle Tent save
+/// data yet (Milestone 13): no challenge ever starts, so `frontier.challengeStatus` is 0.
+/// - `GET_STATUS` (`GetChallengeStatus`): `VAR_TEMP_CHALLENGE_STATUS` = 0xFF, exact: a lobby's
+///   `ON_FRAME` table then has no match (it reran `frontier_getstatus` every frame while the
+///   var stayed 0).
+/// - `GET_DATA` (`GetFrontierData`): `VAR_RESULT` = 0, a new save's value (degraded);
+///   `SET_DATA` stores nothing (degraded).
+/// - The others report `Unsupported` with their `FRONTIER_UTIL_FUNC_*` name.
+async fn call_frontier_util_func(ctx: &Ctx, id: u16) {
+    match ctx.var(VAR_0x8004).await {
+        FRONTIER_UTIL_FUNC_GET_STATUS => {
+            ctx.set_var(VAR_TEMP_CHALLENGE_STATUS, CHALLENGE_STATUS_NONE)
+                .await;
+        }
+        FRONTIER_UTIL_FUNC_GET_DATA => {
+            degraded(ctx, id).await;
+            ctx.set_var(VAR_RESULT, 0).await;
+        }
+        FRONTIER_UTIL_FUNC_SET_DATA => degraded(ctx, id).await,
+        f => {
+            let name = FRONTIER_UTIL_FUNCS
+                .get(usize::from(f))
+                .copied()
+                .unwrap_or("FRONTIER_UTIL_FUNC_?");
+            ctx.report(Report::Unsupported(name)).await;
+        }
+    }
+}
+
 /// Reports `id` as run in a simplified way (its decomp name).
 async fn degraded(ctx: &Ctx, id: u16) {
     let name = name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?");
@@ -155,6 +217,7 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   `VAR_0x8004`'s doors show the open frame at once, or slide through the five frames (2
 ///   frames apart, `Task_PetalburgGymSlideOpenRoomDoors`; the script's `waitstate` then
 ///   passes). The unlock sound is not modelled.
+/// - `CallFrontierUtilFunc`: see [`call_frontier_util_func`].
 /// - Degraded (reported), as if cancelled:
 ///   - `StartWallyTutorialBattle`: no battle; the script goes on as after Wally's catch;
 ///   - `ChoosePartyMon`: `VAR_0x8004` = `PARTY_NOTHING_CHOSEN`;
@@ -239,6 +302,7 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
                 petalburg_gym_set_doors(ctx, room, frame).await;
             }
         }
+        id if id == SPECIAL_CallFrontierUtilFunc => call_frontier_util_func(ctx, id).await,
         id if id == SPECIAL_CableCarWarp => {
             cable_car_destination(ctx).await;
         }

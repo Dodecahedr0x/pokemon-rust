@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 29 Native, 19 Ignore, 35 Default, 441 Unsupported.
+// Counts: 30 Native, 19 Ignore, 35 Default, 440 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -58,7 +58,7 @@
     "SPECIAL_CallBattlePyramidFunction": Unsupported,
     "SPECIAL_CallBattleTowerFunc": Unsupported,
     "SPECIAL_CallFallarborTentFunction": Unsupported,
-    "SPECIAL_CallFrontierUtilFunc": Unsupported,
+    "SPECIAL_CallFrontierUtilFunc": Native, // no frontier data (M13): GET_STATUS answers "no challenge" (0xFF), GET_DATA 0, SET_DATA stores nothing, the others report
     "SPECIAL_CallSlateportTentFunction": Unsupported,
     "SPECIAL_CallTrainerHillFunction": Unsupported,
     "SPECIAL_CallVerdanturfTentFunction": Unsupported,

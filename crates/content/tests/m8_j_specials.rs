@@ -466,6 +466,70 @@ fn native_specials_issue_their_requests_in_order() {
             ]
         );
     }
+    // `CallFrontierUtilFunc` with no frontier data: `GET_STATUS` answers no challenge (0xFF:
+    // a Battle Tent lobby's `ON_FRAME` table then stops), `GET_DATA` 0, the others report.
+    for (func, want) in [
+        (0, vec![set(VAR_TEMP_CHALLENGE_STATUS, 0xFF)]),
+        (
+            1,
+            vec![degraded("SPECIAL_CallFrontierUtilFunc"), set(VAR_RESULT, 0)],
+        ),
+        (2, vec![degraded("SPECIAL_CallFrontierUtilFunc")]),
+        (
+            7,
+            vec![Request::Report(Report::Unsupported(
+                "FRONTIER_UTIL_FUNC_RESULTS_WINDOW",
+            ))],
+        ),
+    ] {
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, func);
+        run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+        let mut log = vec![Request::GetVar(VAR_0x8004)];
+        log.extend(want);
+        assert_eq!(h.log, log, "func {func}");
+    }
+    covered.insert("SPECIAL_CallFrontierUtilFunc");
+    // The Petalburg gym's doors (`PetalburgGymSetDoorMetatiles`): room 2's two doors, both
+    // halves impassable, the open frame (0x21C) at once, or the five frames 2 frames apart.
+    let doors = |frame: u16| {
+        let mut v = Vec::new();
+        for x in [1, 7] {
+            v.push(Request::SetMetatile {
+                x,
+                y: 78,
+                metatile: frame,
+                blocked: true,
+            });
+            v.push(Request::SetMetatile {
+                x,
+                y: 79,
+                metatile: frame + 8,
+                blocked: true,
+            });
+        }
+        v.push(Request::RedrawMap);
+        v
+    };
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 2);
+    run_special(&mut h, "SPECIAL_PetalburgGymUnlockRoomDoors");
+    let mut want = vec![Request::GetVar(VAR_0x8004)];
+    want.extend(doors(0x21C));
+    assert_eq!(h.log, want);
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 2);
+    run_special(&mut h, "SPECIAL_PetalburgGymSlideOpenRoomDoors");
+    let mut want = vec![Request::GetVar(VAR_0x8004)];
+    for frame in 0x218..=0x21C {
+        if frame > 0x218 {
+            want.push(Request::Delay(2));
+        }
+        want.extend(doors(frame));
+    }
+    assert_eq!(h.log, want);
+    covered.insert("SPECIAL_PetalburgGymUnlockRoomDoors");
+    covered.insert("SPECIAL_PetalburgGymSlideOpenRoomDoors");
     covered.insert("SPECIAL_CableCarWarp");
     covered.insert("SPECIAL_CableCar");
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
