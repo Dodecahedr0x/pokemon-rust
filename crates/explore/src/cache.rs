@@ -175,8 +175,18 @@ pub(crate) fn replay_node<G: GameData>(
     s: &mut Session<G>,
     n: &NodeRow,
 ) -> Result<Checkpoint, ReachError> {
+    replay_node_observed(s, n, &mut |_| {})
+}
+
+/// [`replay_node`], calling `after` on the world after each frame.
+pub(crate) fn replay_node_observed<G: GameData>(
+    s: &mut Session<G>,
+    n: &NodeRow,
+    after: &mut dyn FnMut(&engine::World),
+) -> Result<Checkpoint, ReachError> {
     for k in runs::keys(&n.inputs) {
         s.step(k);
+        after(s.world());
     }
     let diverged = |got| ReachError::Diverged {
         node: n.id,

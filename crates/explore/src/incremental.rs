@@ -17,13 +17,93 @@
 //! other valid or merged node (and its db snapshot) to the new build without a replay. Merged
 //! nodes under a change keep their old build, so the revalidation replays them as before. When
 //! the start map of the db's root (a new game's, or the `--from` node's) changed, every node
-//! is under it: everything is revalidated.
+//! is under it: everything is revalidated. A changed trainer script also changes the maps
+//! whose trainers run it (sight reads it unstarted), and a node whose engine events were
+//! dropped is under any change.
+//!
+//! The touches stay true after a revalidation: every node it checks (replayed or repaired)
+//! gets the touches of that replay or repair ([`TouchLog`], `Db::set_status_and_snapshots`).
 
 use crate::db::{Db, DbError};
-use crate::model::{NodeId, NodeStatus, Touch};
+use crate::model::{NodeId, NodeStatus, SimSummary, Touch};
+use engine::World;
 use engine::checkpoint::{BuildHash, ENGINE_SRC_HASH};
-use engine::data::{MapId, ScriptId};
+use engine::data::{GameData, MapId, ScriptId};
+use engine::world::Event;
 use std::collections::{BTreeMap, BTreeSet};
+
+/// A step's `node_touch` rows: the maps it entered or ended on, the scripts it started, and
+/// [`Touch::EventsDropped`] when engine events were dropped (the lists may be incomplete).
+pub fn touches(summary: &SimSummary, end_map: MapId) -> Vec<Touch> {
+    let maps: BTreeSet<MapId> = summary.maps.iter().copied().chain([end_map]).collect();
+    let mut t: Vec<Touch> = maps
+        .into_iter()
+        .map(Touch::Map)
+        .chain(summary.scripts.iter().map(|&s| Touch::Script(s)))
+        .collect();
+    if summary.events_dropped > 0 {
+        t.push(Touch::EventsDropped);
+    }
+    t
+}
+
+/// The touches of a replay, frame by frame (`World::events()`), as [`touches`] gives them for
+/// an expansion: the revalidation rewrites a checked node's `node_touch` with them.
+pub struct TouchLog {
+    summary: SimSummary,
+    dropped_start: u32,
+    dropped_end: u32,
+}
+
+impl TouchLog {
+    /// Before the first frame of the replay, on its start world.
+    pub fn new(w: &World) -> TouchLog {
+        TouchLog {
+            summary: SimSummary::default(),
+            dropped_start: w.events_dropped(),
+            dropped_end: w.events_dropped(),
+        }
+    }
+
+    /// After each frame.
+    pub fn after(&mut self, w: &World) {
+        for &e in w.events() {
+            match e {
+                Event::MapEntered(m) => {
+                    if self.summary.maps.last() != Some(&m) {
+                        self.summary.maps.push(m);
+                    }
+                }
+                Event::ScriptStarted(s) => {
+                    self.summary.scripts.insert(s);
+                }
+                _ => {}
+            }
+        }
+        self.dropped_end = w.events_dropped();
+    }
+
+    /// The touches, with the map the replay ended on.
+    pub fn finish(mut self, end_map: MapId) -> Vec<Touch> {
+        self.summary.events_dropped = self.dropped_end.wrapping_sub(self.dropped_start);
+        touches(&self.summary, end_map)
+    }
+}
+
+/// Per script, the maps with an object that runs it and has a `trainer_type`: trainer sight
+/// (`engine::world::sight`) reads the script's trainer and battle kind on those maps without
+/// starting it, so a node there may depend on the script while touching only the map.
+pub fn sighting_maps<G: GameData>(game: &G, maps: &[MapId]) -> BTreeMap<ScriptId, BTreeSet<MapId>> {
+    let mut out: BTreeMap<ScriptId, BTreeSet<MapId>> = BTreeMap::new();
+    for &m in maps {
+        for o in game.map(m).objects {
+            if let (Some(s), true) = (o.script, o.trainer_type != 0) {
+                out.entry(s).or_default().insert(m);
+            }
+        }
+    }
+    out
+}
 
 /// The `meta` key of a db's [`Digests`].
 pub const META_KEY: &str = "digests";
@@ -156,8 +236,14 @@ pub struct Marked {
 /// under a changed script or map and moves the others to `build` (see the module doc).
 /// `root_map` is the map the db's root starts on. `None` (nothing written) when the db has no
 /// digests, or [`changes`] says everything must be revalidated: the caller marks all stale.
-pub fn mark(
+///
+/// Besides the nodes that started a changed script or entered or ended on a changed map:
+/// - a changed trainer script changes every map where an object runs it with a
+///   `trainer_type` ([`sighting_maps`]: sight reads it without starting it);
+/// - a node whose events were dropped ([`Touch::EventsDropped`]) is under any change.
+pub fn mark<G: GameData>(
     db: &mut Db,
+    game: &G,
     new: &Digests,
     build: BuildHash,
     root_map: MapId,
@@ -165,9 +251,18 @@ pub fn mark(
     let Some(old) = db.meta(META_KEY)?.and_then(|t| Digests::decode(&t)) else {
         return Ok(None);
     };
-    let Some(changed) = changes(&old, new) else {
+    let Some(mut changed) = changes(&old, new) else {
         return Ok(None);
     };
+    if !changed.scripts.is_empty() {
+        let ids: Vec<MapId> = new.maps.iter().map(|m| m.0).collect();
+        let sight = sighting_maps(game, &ids);
+        for s in &changed.scripts {
+            changed
+                .maps
+                .extend(sight.get(s).into_iter().flatten().copied());
+        }
+    }
     if changed.maps.contains(&root_map) {
         return Ok(None);
     }
@@ -177,6 +272,9 @@ pub fn mark(
     }
     for &m in &changed.maps {
         touched.extend(db.touching(Touch::Map(m))?);
+    }
+    if !changed.scripts.is_empty() || !changed.maps.is_empty() {
+        touched.extend(db.touching(Touch::EventsDropped)?);
     }
     // Down the tree, parents first (a parent is always inserted before its children).
     let rows = db.nodes_light()?;

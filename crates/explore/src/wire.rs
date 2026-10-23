@@ -320,7 +320,8 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             let root_map = root
                 .as_ref()
                 .map_or(game.new_game().map, |r| r.checkpoint.world.field.map);
-            match incremental::mark(&mut db, &Digests::current(), build_hash(&game), root_map)? {
+            let digests = Digests::current();
+            match incremental::mark(&mut db, &game, &digests, build_hash(&game), root_map)? {
                 Some(m) => kept = m.kept,
                 None => {
                     db.mark_all_stale()?;
@@ -538,13 +539,13 @@ fn revalidate_db<G: GameData + Clone + Send + Sync>(
 /// The revalidation repair: re-expands `m` from `start` (a new game for `None`, the root's
 /// `Settle`) with the policy and no detectors. A repaired node keeps its `progress` and
 /// fitness (`rebuild` as built; re-scoring would need the expansion's summary along the whole
-/// lineage).
+/// lineage). Its touches are the expansion's (`incremental::touches`).
 pub fn repair<G: GameData + Clone>(
     game: &G,
     start: Option<&Checkpoint>,
     m: &Macro,
     cfg: &Config,
-) -> Option<(Vec<Run>, Checkpoint)> {
+) -> Option<rebuild::Repaired> {
     let game = game.clone();
     let mut s = match start {
         None => Session::new(game),
@@ -552,7 +553,12 @@ pub fn repair<G: GameData + Clone>(
     };
     let ex = expand::expand(&mut s, m, &mut Policy::new(), &mut NoObserver, &cfg.limits).ok()?;
     let end = s.checkpoint().ok()?;
-    Some((rle(ex.keys), end))
+    let touches = incremental::touches(&ex.summary, end.world.field.map);
+    Some(rebuild::Repaired {
+        inputs: rle(ex.keys),
+        end,
+        touches,
+    })
 }
 
 fn spent(budget: Budget, sum: &RunSummary, elapsed: Duration) -> bool {

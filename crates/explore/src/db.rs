@@ -197,6 +197,7 @@ fn touch_cols(t: &Touch) -> (i64, i64) {
     match t {
         Touch::Map(m) => (0, i64::from(m.0)),
         Touch::Script(s) => (1, i64::from(s.0)),
+        Touch::EventsDropped => (2, 0),
     }
 }
 
@@ -804,17 +805,19 @@ impl Db {
         }
         let inputs: Vec<(NodeId, &[Run])> =
             rows.iter().map(|n| (n.id, n.inputs.as_slice())).collect();
-        self.set_status_and_snapshots(rows, &inputs, &[])
+        self.set_status_and_snapshots(rows, &inputs, &[], &[])
     }
 
     /// [`Db::set_status`] without the rows' inputs (light rows), the new inputs of the
-    /// `inputs` nodes (repaired ones), and [`Db::put_snapshot`]s, in one transaction (a
-    /// revalidated level).
+    /// `inputs` nodes (repaired ones), [`Db::put_snapshot`]s, and the new `node_touch` rows of
+    /// the `touches` nodes (each node's old rows are replaced: the replay or repair is what
+    /// the node now touches), in one transaction (a revalidated level).
     pub fn set_status_and_snapshots(
         &mut self,
         rows: &[NodeRow],
         inputs: &[(NodeId, &[Run])],
         snapshots: &[(NodeId, &Checkpoint)],
+        touches: &[(NodeId, &[Touch])],
     ) -> Result<(), DbError> {
         let tx = self.conn.transaction()?;
         tx.pragma_update(None, "defer_foreign_keys", "ON")?;
@@ -858,6 +861,16 @@ impl Db {
             }
             for (id, cp) in snapshots {
                 put_snapshot(&tx, *id, cp)?;
+            }
+            let mut del = tx.prepare("DELETE FROM node_touch WHERE node = ?1")?;
+            let mut ins = tx
+                .prepare("INSERT OR IGNORE INTO node_touch (node, kind, id) VALUES (?1, ?2, ?3)")?;
+            for (id, ts) in touches {
+                del.execute([id])?;
+                for t in ts.iter() {
+                    let (k, x) = touch_cols(t);
+                    ins.execute(params![id, k, x])?;
+                }
             }
         }
         tx.commit()?;

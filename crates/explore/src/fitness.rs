@@ -4,9 +4,7 @@
 use crate::config::{Config, Weights};
 use crate::goals;
 use crate::key;
-use crate::model::{
-    AbstractKey, Evaluate, Evaluation, Fitness, NodeRow, SeenKind, StepResult, Touch,
-};
+use crate::model::{AbstractKey, Evaluate, Evaluation, Fitness, NodeRow, SeenKind, StepResult};
 use engine::data::{FlagId, MapId, ScriptId, VarId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -226,11 +224,7 @@ impl Evaluate for Evaluator {
         let progress = goals::progress(self.cfg.act, before, snap);
         let fitness = score(&nov, progress - before, 0, &self.cfg.weights);
 
-        let touches = maps
-            .iter()
-            .map(|&m| Touch::Map(m))
-            .chain(scripts.iter().map(|&s| Touch::Script(s)))
-            .collect();
+        let touches = crate::incremental::touches(&step.summary, snap.field.map);
         Evaluation {
             key: k,
             progress,

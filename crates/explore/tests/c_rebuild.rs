@@ -13,11 +13,11 @@ use engine::Buttons;
 use engine::checkpoint::{BuildHash, Checkpoint, WorldSnapshot, build_hash, state_digest};
 use explore::config::Config;
 use explore::db::Db;
-use explore::rebuild::{RevalidateReport, revalidate, revalidate_with_key};
+use explore::rebuild::{Repaired, RevalidateReport, revalidate, revalidate_with_key};
 use explore::{
     AbstractKey, FindingDraft, FindingKind, GenerationDelta, Macro, NodeRow, NodeStatus,
 };
-use game_native::trace::{Run, rle};
+use game_native::trace::rle;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -118,7 +118,7 @@ impl Fixture {
         &'a self,
         calls: &'a AtomicU32,
         fail: &'a [Macro],
-    ) -> impl Fn(Option<&Checkpoint>, &Macro) -> Option<(Vec<Run>, Checkpoint)> + Sync + 'a {
+    ) -> impl Fn(Option<&Checkpoint>, &Macro) -> Option<Repaired> + Sync + 'a {
         move |start, m| {
             calls.fetch_add(1, Ordering::Relaxed);
             if fail.contains(m) {
@@ -130,10 +130,11 @@ impl Fixture {
             if let (Some(s), Some(p)) = (start, self.rows[i].parent) {
                 assert_eq!(state_digest(&s.world), self.rows[p as usize - 1].digest);
             }
-            Some((
-                rle(self.built[i].keys.iter().copied()),
-                self.built[i].cp.clone(),
-            ))
+            Some(Repaired {
+                inputs: rle(self.built[i].keys.iter().copied()),
+                end: self.built[i].cp.clone(),
+                touches: Vec::new(),
+            })
         }
     }
 
