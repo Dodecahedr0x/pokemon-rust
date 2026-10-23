@@ -248,16 +248,16 @@
             x: 37,
             y: 21,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_ULTRA_BALL",
-                flag: "FLAG_SIL_ITEM_OWLYS_GROTTE_HYPER_BALL",
+            kind: Script(
+                facing: 0,
+                script: Some("Owlys_GrotteEst_EventScript_HiddenUltraBall"),
             ),
         ),
     ],
     connections: [],
     scripts: (
         on_load: None,
-        on_transition: None,
+        on_transition: Some("Owlys_GrotteEst_OnTransition"),
         on_resume: None,
         on_return_to_field: None,
         on_dive_warp: None,

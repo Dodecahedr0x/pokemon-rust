@@ -124,6 +124,7 @@ fn the_new_game_sets_game_ron_s_flags_and_nothing_else_of_the_story() {
         FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR,
         FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B,
         FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE,
+        FLAG_SIL_HIDE_OWLYS_SILO_CHEF,
         FLAG_SIL_ROUTE_S05_LOKHLASS,
         // Ch7: shown until a scene hides them.
         FLAG_SIL_HIDE_REVERSE_GOGO_ROMAIN,
