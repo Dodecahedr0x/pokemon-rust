@@ -8,6 +8,7 @@
         (
             name: "VAR_SIL_CASINO_STATE",
             num: 16417,
+            removed: true,
         ),
         (
             name: "VAR_SIL_COINS",
@@ -45,6 +46,7 @@
         (
             name: "VAR_SIL_PORT_RESSAC_STATE",
             num: 16426,
+            removed: true,
         ),
         (
             name: "VAR_SIL_STARTER",
@@ -85,6 +87,14 @@
         (
             name: "VAR_SIL_EVALON_PARTENAIRE",
             num: 16436,
+        ),
+        (
+            name: "VAR_SIL_CASINO_STATE",
+            num: 16437,
+        ),
+        (
+            name: "VAR_SIL_PORT_RESSAC_STATE",
+            num: 16439,
         ),
     ],
 )
