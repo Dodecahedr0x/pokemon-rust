@@ -563,11 +563,6 @@
         ),
         (
             rule: "map-undefined",
-            subject: "MAP_MANGA_SQUARE_GYM",
-            reason: "the gym is described in ch06 §4 but no heading names the constant; add it to a heading",
-        ),
-        (
-            rule: "map-undefined",
             subject: "MAP_MANGA_SQUARE_HOUSE_1",
             reason: "named in ch06 §2 text, no heading or content",
             ruling_needed: true,

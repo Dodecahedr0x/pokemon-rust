@@ -2002,5 +2002,33 @@
             name: "FLAG_SIL_HIDE_LABO_CHIMISTE",
             num: 774,
         ),
+        (
+            name: "FLAG_SIL_HIDE_BIBLIO_ADRIEN",
+            num: 775,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_DRONE_1",
+            num: 776,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_DOJO_DRONE_2",
+            num: 777,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR",
+            num: 778,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR",
+            num: 779,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A",
+            num: 780,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B",
+            num: 781,
+        ),
     ],
 )
