@@ -1036,6 +1036,232 @@ The extract has no route secondary other than Petalburg (the M7 slice has 8 tile
 - For the remaining maps: about 20 min per interior and 45 min per town, route or dungeon. Add about 30–45 min the first time each new tileset pair is used.
 - That is roughly 50–60 h for ~109 maps, or about half that with stamp ops, prefabs and labeled palettes.
 
+#### SIL2 Ch2–Ch3 maps as built
+
+The 19 maps of Chapter 2 (Gris-Échec) and Chapter 3 (Viber-City) are in `games/silice/{maps,layouts}/`. As in Ch0, they were made with the studio map editor only. Their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, and `03_allow` where needed), and the building stamps are under `games/silice/stamps/`.
+
+`cargo xtask studio map build` rebuilds all 25 Silice maps (Ch0 included). A second build gives byte-identical files. `validate` reports only unwritten scripts. `hygiene` is clean, run with the full extract present, so `games::copies` is included.
+
+**Maps.** 9 for Ch2 and 10 for Ch3. §1.2 counts 11 and 12 because it also counts referenced maps:
+- Ch2 references `BOIS_ETHER` (Ch1) and `ROUTE_S03`;
+- Ch3 references `GRIS_ECHEC` and `ROUTE_S04` (Ch4).
+
+The placeholder names `MAP_ROUTE_S02_ANTENNE` and `MAP_ROUTE_S03_ANTENNE` (ch12's `MAP_ROUTE_S0x_ANTENNE` expansion) have no map.
+
+Every tileset pair is an Emerald pair by name, and every layout is original. Buildings are stamps of small Emerald pieces (each under 10 × 10), placed in new arrangements.
+
+| Map | Size | Tilesets | Why this pair |
+|---|---|---|---|
+| RouteS02 | 56 × 22 | General + Mauville | the Route 110 coast: cliff, still sea; Mauville's logs stand in for the containment cables |
+| GrisEchec | 40 × 32 | General + Rustboro | gray concrete blocks, paving, iron fences |
+| GrisEchec_PokemonCenter | 13 × 9 | Building + PokemonCenter | standard Centre (counter between the two corners, no escalator) |
+| GrisEchec_Mart | 12 × 8 | Building + Shop | standard Mart; the fridges are the source's drinks machine |
+| GrisEchec_TourObservation | 12 × 10 | General + Facility | the Space Centre set: window wall, screens, railing, stairs as the lift |
+| GrisEchec_TourObservation_Top | 10 × 8 | General + Facility | the same, the glass room |
+| GrisEchec_Usine | 30 × 24 | General + BikeShop | the New Mauville set: generators, crates, benches as belts |
+| GrisEchec_Gym | 15 × 46 | Building + MossdeepGym | gray checker floor, black void, coloured panels (board, binary tiles), warp pad |
+| GrisEchec_Gym_Sourde | 9 × 7 | Building + MossdeepGym | the same |
+| RouteS03 | 20 × 50 | General + Mauville | the Route 111 north rock: a sand canyon |
+| RouteS03_Depot | 15 × 14 | General + Mauville | Mauville pavement between stacked gray boxes (containers) |
+| ViberCity | 40 × 32 | General + Mauville | Mauville's pavement and buildings; the neons are static |
+| ViberCity_PokemonCenter | 13 × 9 | Building + PokemonCenter | as Gris-Échec's, with two benches and more stools |
+| ViberCity_Mart | 12 × 8 | Building + Shop | as Gris-Échec's, with the shelves one row higher |
+| ViberCity_House1 | 9 × 7 | Building + GenericBuilding | a small house |
+| ViberCity_StationLumiere | 16 × 12 | General + BikeShop | New Mauville's power-plant look |
+| ViberCity_Gym | 13 × 16 | Building + MauvilleGym | the electric barriers (closed and open metatiles) |
+| ViberCity_Casino | 20 × 11 | Building + MauvilleGameCorner | slots, counters, red carpet |
+| ViberCity_Casino_B1F | 16 × 12 | General + Facility | the Aqua Hideout set: metal floor, racks |
+
+The two Centres and the two Marts have their own layouts, not a shared one. They differ slightly, and a shared layout would make two edit dirs write the same file.
+
+**Connections (all mutual):**
+- RouteS02 East ↔ GrisEchec West (offsets −7 / 7). The route's exit at y 3–5 meets the town's at y 10–12.
+- GrisEchec North ↔ RouteS03 South (offsets 29 / −29). The town's corridor at x 38–39 meets the canyon at x 9–10.
+- RouteS03 North ↔ ViberCity South (offsets −10 / 10). The canyon's exit at x 10 meets Viber's one-cell ramp at x 20.
+
+**Pending links, left solid on purpose:**
+- **Ch1 → Ch2.** RouteS02's west entrance (0, 3–5) is still forest.
+  - Ch1 must paint it walkable and add `Connect((dir: West, offset: -9, map: "BoisEther"))` to `RouteS02/02_events.ron`, plus the matching East connection on BoisEther (offset 9).
+  - BoisEther's east exit is x 35, y 12–15, so S2's y 3–5 meets its y 12–14 (y 15 meets forest).
+- **Ch3 → Ch4.** Viber-City's east street (y 15–16) ends at a rail barrier (37, 15–16, AllowCollision), with trees at x 38–39.
+  - Ch4 must clear the trees at (38–39, 15–16) and add `Connect((dir: East, offset: …, map: "RouteS04"))` on both maps.
+  - `ViberCity_OnLoad` draws the barrier open once `FLAG_SIL_VIBER_BARRIERE_EST` is set.
+
+**Warnings and allowances.** Every behaviour warning is fixed or accepted in `03_allow.ron` with a reason:
+- **RouteS02:** the security cables c1–c3 and the walls of the Aimant and server pockets are rail metatile 241 kept solid. 241 is walkable in all 23 of its Emerald uses. `RouteS02_OnLoad` redraws a cable walkable once it is cut.
+- **GrisEchec:**
+  - the Mart annex ladder is an iron fence (Rustboro has no ladder), so it is walkable;
+  - the annex roof is walkable, so the J1 sbire stands on it;
+  - the roof's top edge is solid, so the ladder is the only way up.
+- **GrisEchec_Usine:** the cable before J3 (rail 241) is solid.
+- **GrisEchec_Gym:** the invisible maze walls are floor 513 with collision 1.
+- **ViberCity:** the Route S4 barrier (rail 241) is solid.
+- **ViberCity_Casino:** the hidden-stairs warp (18, 1) sits on a wall cell until `Casino_Sc08`. Then `OnLoad` draws exit mat 518 there.
+
+**Source fixes.** Each one is noted in the edit scripts.
+- **RouteS02:**
+  - c1 (9, 6) and c2 (27, 9) sit on cables A and C, at (10–11, 5) and (31–32, 9);
+  - the X Speed moves from the cable gap (11, 12) to (13, 12);
+  - the Promeneur shares René's cell (6, 8), so he moves to the cliff (4, 13) with his Skitty at (5, 13);
+  - the cables run down into the sea, so the cliff path does not bypass the corridors;
+  - every way north crosses rows y 7 then y 6 of x 48–51, so Sc03's "VAR 21, or 20 if Adrien was skipped" becomes row 7 = 20 and row 6 = 21.
+- **GrisEchec:**
+  - the Iron moves from (4, 6), inside the Centre's stamp, to (6, 4) behind it;
+  - Sc06 fires at (34, 11), since a door's exit step fires no coord event.
+- **GrisEchec_Gym:**
+  - **Salle 1.** The source's x 7 transition lets a player walk straight up and skip every bit. Each bit tile is a coord event, all on `VAR_TEMP_3`, which is never set on this map, so they always fire:
+    - wrong tiles → `S1Erreur`;
+    - right tiles → `S1Bit`, which counts in `VAR_TEMP_2`;
+    - the doorway (7, 29) → `S1Fin`, which checks that the count is 8.
+  - **Salle 2.** The terminal moves from the entry cell (7, 28) to a console at (6, 28).
+  - **Salle 3.** Every watched square has one coord event, keyed on `VAR_TEMP_3` 0. Its script name lists the watchers in the source's priority order: `VueP1`, `VueP2`, `VueC`, `VueF`, `VueT`, `VueCF`, `VueFT`, `VueRoi`, `VueCFRoi`.
+- **RouteS03_Depot:** the Great Ball moves from (13, 8), a container, to (11, 8).
+- **ViberCity:**
+  - Sc04's guard stands on (8, 5), so the coords are the cells beside him;
+  - Sc06 ("two cells out of the Nocturne") collides with Sc03's (28, 6), so it is the row y 7, x 24–32.
+- **ViberCity_StationLumiere:** the notice desk N (7, 10) blocks the entry, so it moves to (9, 10).
+- **ViberCity_Casino:**
+  - the grid draws S at (17, 1), but the text and Sc08's `set_metatile` say (18, 1), and (18, 1) is used;
+  - the counter clerks stand behind the counters (3, 7) and (16, 7), and the player talks across from row 9.
+
+**Hide flags without new ids.** Objects whose visibility depends on the story use the existing `FLAG_SIL_HIDE_*`, one object each:
+- `HIDE_VIBER_ADRIEN`;
+- `HIDE_STATION_GARDE`;
+- `HIDE_STATION_SBIRES` (sbire 1);
+- `HIDE_NOCTURNE_DANSEURS` (dancer 1).
+
+Every other object uses a `FLAG_TEMP_n`. The map's `_OnTransition` sets these flags, and Gen3 clears them on each map load. Item flags double as hide flags only where the source wants it: the Depot's Metal Coat stays hidden until `Depot_Sc02` clears its flag.
+
+**Ids wanted (not added; Task A owns `ids/`):** none are required. Optional permanent flags that would replace temp flags:
+- `FLAG_SIL_HIDE_DEPOT_GOGO_ROMAIN` exists, but Romain and the depot sbire need their own;
+- one flag per Viber dancer 2–4 and the Station's sbire 2.
+
+**Script contracts.** All names stay unwritten under `registry::ALLOW_UNWRITTEN`. They follow the Ch0 convention:
+- `<Map>_ScNN` for a source scene;
+- `<Map>_EventScript_<What>` for other events;
+- `<Map>_OnLoad` and `<Map>_OnTransition` for map scripts.
+
+Below, each map's names are given without the `<Map>_` prefix. Trainer objects carry their battle in `EventScript_<Name>`.
+- **`ch02_*.rs` (95 names):**
+  - RouteS02:
+    - scenes and map scripts: `Sc01`, `Sc02` (Adrien), `Sc03` (coords), `OnLoad`, `OnTransition`;
+    - NPCs: `EventScript_Technicien`, `EventScript_Agent`, `EventScript_Gwada`, `EventScript_Promeneur`, `EventScript_Skitty`;
+    - trainers: `EventScript_Hugo`, `EventScript_Rene`, `EventScript_Zoe`, `EventScript_Gerard`, `EventScript_Sbire`, `EventScript_Anais`;
+    - items: `EventScript_ItemXSpeed`, `EventScript_ItemMagnet`, `EventScript_ItemGreatBall`;
+    - signs: `EventScript_SignEntree`, `EventScript_SignCable`, `EventScript_SignTransfo`, `EventScript_SignFalaise`;
+    - obstacles: `EventScript_Cable1`, `EventScript_Cable2`, `EventScript_Cable3`, `EventScript_Serveur`.
+  - GrisEchec:
+    - scenes and map scripts: `Sc01`, `Sc03` (the guard: Sc03 and Sc05), `Sc06`, `OnLoad`, `OnTransition`;
+    - NPCs: `EventScript_Echecs`, `EventScript_Pressee`, `EventScript_Reparateur`, `EventScript_Etudiante`, `EventScript_Ouvrier`, `EventScript_Enfant`, `EventScript_Gwada`, `EventScript_Lainergie`, `EventScript_GardeS3`;
+    - trainers: `EventScript_Balayeur`, `EventScript_SbireToit`;
+    - jammers: `EventScript_Brouilleur1`, `EventScript_Brouilleur2` (Sc02 with n = 1 and 2);
+    - signs: `EventScript_SignVille`, `EventScript_SignArene`, `EventScript_SignTour`, `EventScript_SignUsine`.
+  - GrisEchec_PokemonCenter: `OnTransition`, `EventScript_Nurse`, `EventScript_Npc`.
+  - GrisEchec_Mart: `EventScript_Clerk`, `EventScript_Npc`, `EventScript_Distributeur`.
+  - GrisEchec_TourObservation: `EventScript_Sbire1`, `EventScript_Sbire2`, `EventScript_Ecran`.
+  - GrisEchec_TourObservation_Top: `Sc01` (Duval), `EventScript_Console`.
+  - GrisEchec_Usine: `OnLoad`, `EventScript_Sbire`, `EventScript_Cable`, `EventScript_Brouilleur3`, `EventScript_Caisses`, `EventScript_ItemEther`, `EventScript_ItemMetalCoat`, `EventScript_ItemSuperRepel`.
+  - GrisEchec_Gym:
+    - scenes and map scripts: `OnTransition`, `Sc10` (Yohan; Sc11 and Sc12 chain from it);
+    - hall: `EventScript_Conseiller`, `EventScript_EcranHall`, `EventScript_EcranS1`;
+    - Salle 1: `EventScript_S1Erreur`, `EventScript_S1Bit`, `EventScript_S1Fin`;
+    - Salle 2: `EventScript_Terminal`;
+    - Salle 3, the pieces: `EventScript_Pion1`, `EventScript_Pion2`, `EventScript_Cavalier`, `EventScript_Fou`, `EventScript_Tour`;
+    - Salle 3, the watched squares: `EventScript_VueP1`, `EventScript_VueP2`, `EventScript_VueC`, `EventScript_VueF`, `EventScript_VueT`, `EventScript_VueCF`, `EventScript_VueFT`, `EventScript_VueRoi`, `EventScript_VueCFRoi`;
+    - Salle 3, the screen: `EventScript_EcranEchiquier`.
+  - GrisEchec_Gym_Sourde: `EventScript_Melomane`, `EventScript_Coffre`, `EventScript_Panneau`.
+- **`ch03_*.rs` (111 names):**
+  - RouteS03:
+    - scenes: `Sc01`;
+    - NPCs: `EventScript_Pnj01`, `EventScript_Pnj02`, `EventScript_Pnj03`;
+    - trainers: `EventScript_Sbire`, `EventScript_Roger`, `EventScript_Sacha`, `EventScript_Marco`, `EventScript_Ines`, `EventScript_Noe`;
+    - items: `EventScript_ItemSuperPotion`, `EventScript_ItemHardStone`, `EventScript_ItemSuperRepel`;
+    - signs: `EventScript_Panneau1`, `EventScript_Panneau2`.
+  - RouteS03_Depot:
+    - scenes and map scripts: `OnTransition`, `Sc02`;
+    - the blocks: `EventScript_Bloc` (Depot_Sc01, all three blocks);
+    - items: `EventScript_ItemMetalCoat`, `EventScript_ItemGreatBall`;
+    - signs: `EventScript_Panneau1`, `EventScript_Panneau2`.
+  - ViberCity:
+    - scenes and map scripts: `OnLoad`, `OnTransition`, `Sc01`, `Sc02` (the neon sign), `Sc03`, `Sc04`, `Sc05` (on_frame on `VAR_TEMP_1` 0; it must set `VAR_TEMP_1`), `Sc06`;
+    - NPCs: `EventScript_Mathieu`, `EventScript_Adrien`, `EventScript_Danseur`, `EventScript_GardeStation`, `EventScript_Pnj01`, `EventScript_Pnj02`, `EventScript_Pnj03`, `EventScript_Pnj04`, `EventScript_Pnj05`, `EventScript_Pnj06`, `EventScript_Pnj07`, `EventScript_GardeBarriere`;
+    - items: `EventScript_ItemRevive`;
+    - signs: `EventScript_Panneau1`, `EventScript_Panneau2`, `EventScript_Panneau3`, `EventScript_Panneau4`.
+  - ViberCity_PokemonCenter: `OnTransition`, `EventScript_Nurse`, `EventScript_Pnj01`, `EventScript_Pnj02`, `EventScript_Couverture`.
+  - ViberCity_Mart: `EventScript_Clerk`, `EventScript_Pnj01`.
+  - ViberCity_House1: `EventScript_Danseur`.
+  - ViberCity_StationLumiere:
+    - scenes and map scripts: `OnLoad`, `OnTransition`, `Sc01` (the foreman);
+    - trainers: `EventScript_Sbire1`, `EventScript_Sbire2`, `EventScript_Technicienne`;
+    - the fuse room: `EventScript_Levier1`, `EventScript_Levier2`, `EventScript_Levier3`, `EventScript_Levier4`, `EventScript_LevierR`, `EventScript_Tube`, `EventScript_SortieFusibles`;
+    - decor: `EventScript_Note`, `EventScript_Transfo`;
+    - items: `EventScript_ItemElixir`.
+  - ViberCity_Gym:
+    - scenes and map scripts: `OnLoad`, `Sc02` (Tauber and Hocseat, the coord and talking);
+    - consoles: `EventScript_ConsoleA`, `EventScript_ConsoleB`, `EventScript_ConsoleC`;
+    - trainers: `EventScript_Lena`, `EventScript_Hugo`, `EventScript_Nina`, `EventScript_Eliott`;
+    - NPCs: `EventScript_Gerant`;
+    - items: `EventScript_ItemMagnet`.
+  - ViberCity_Casino:
+    - scenes and map scripts: `OnLoad`, `OnTransition`, `Sc01`–`Sc08` (Sc06 on every slot machine cell);
+    - trainers: `EventScript_Fernand`, `EventScript_Gaston`, `EventScript_Solene`;
+    - NPCs: `EventScript_Pnj01`, `EventScript_Pnj02`, `EventScript_Pnj03`, `EventScript_Pnj04`;
+    - decor: `EventScript_MachineViolette`, `EventScript_JetonsCaches` (the hidden coins are a bg script; there is no coin item).
+  - ViberCity_Casino_B1F:
+    - scenes and map scripts: `OnTransition`, `Sc01` (the terminal), `Sc02` (the capsule);
+    - trainers: `EventScript_Sbire1`, `EventScript_Sbire2`, `EventScript_Sbire3`, `EventScript_CroupierChef`;
+    - items: `EventScript_ItemSilk`, `EventScript_ItemUltraBall`, `EventScript_ItemRareCandy`.
+
+**Missing graphics and mechanics (static fallbacks in place):**
+- **Neons:** Viber-City's 3-phase neons, the dance floor and the Nocturne's lit floor are static. The source wants tile animation.
+- **Casino:** no neon, Electric or Ghost symbols, and no poster metatile (the poster is a wall cell). The game corner set has no stairs, so the hidden stairs are a south arrow mat: the player steps on it, then presses down.
+- **Nocturne barriers:** all three colours use the same Mauville beam (closed 552/553, open 570/571). The colours exist only in the scripts.
+- **Missing objects:**
+  - containment cables use Mauville logs, security cables use rail 241, and containers use gray boxes;
+  - the Usine's conveyor belts are benches, and its oil puddles are a floor-dot metatile (574);
+  - jammers, levers, tubes and consoles are cabinets, machines or pole bases;
+  - there is no truck on Route S3;
+  - the Mart annex ladder is an iron fence.
+- **Sprites.** Placeholders from the extract:
+
+  | Character | Placeholder gfx |
+  |---|---|
+  | sbires | NINJA_BOY |
+  | Gogo | MAGMA_MEMBER_M |
+  | Romain | AQUA_MEMBER_M |
+  | Yohan | PSYCHIC_M |
+  | Tauber, Hocseat | TATE, LIZA |
+  | the robot | MOVING_BOX |
+  | Wattouat, Lainergie | PIKACHU |
+  | the depot blocks | PUSHABLE_BOULDER |
+  | Pions | YOUNGSTER |
+  | Cavalier | BLACK_BELT |
+  | Fou | GENTLEMAN |
+  | Tour | EXPERT_M |
+  | Mélomane, DJ, Monsieur Dex | MANIAC |
+  | Nina | HEX_MANIAC |
+  | Guitariste Sacha | MAN_5 |
+  | Ranger Inès | WOMAN_3 |
+  | Kinésistes | EXPERT_F |
+- **Mechanics left to scripts or the engine:**
+  - **Champ Magnétique:** the server block, the crates and the depot blocks;
+  - **Lame-Fréquence:** the cables and jammers, done by `set_metatile` in `OnLoad` per flag;
+  - the invisible maze's light-up;
+  - the Chambre Sourde's sound rule;
+  - the Mallette and the follower Pokémon (two objects moved together);
+  - **wild encounters:** they live in `battle/encounters.ron`. The Usine's "dark zones" use plain floor; whether the BikeShop floor carries the land-encounter attribute is unchecked.
+
+**Editor friction (new since Ch0):**
+1. Arrow-warp exits must be found per tileset (`palette --labels` lists them: General + Facility 518/519, BikeShop 536/544, GameCorner 518/519, MossdeepGym 6/7). Some sets have none, which explains the Casino stairs above.
+2. The sandbox refuses `studio-map` calls with shell loops or variables, so every batch of renders went through a small Python driver.
+3. Interiors are drawn from small Emerald pieces through a scratch generator that emits `Ascii` ops with auto-assigned legend characters. A `Cells` op (rows of raw blocks), or a stamp per piece, would remove the throwaway legends.
+4. A coord event matches one value, so "≥ N" conditions need an always-zero temp var and a script check. A `Coord` with a "fires always" flag, or a value range, would make this explicit.
+5. The validator warns when two objects share a hide flag. That pushes toward temp flags, which is fine but makes `OnTransition` mandatory on many maps.
+6. **Time:** about 6 h for 19 maps, including learning 7 new tileset pairs.
+
+**Check exception.** `games/silice/check-exceptions.ron` gains one `placement-map` entry for `FLAG_SIL_ITEM_CASINO_COINS_FLOOR`. The 20 floor coins are a `Hidden` placement with no item, so they are a bg script (`ViberCity_Casino_EventScript_JetonsCaches`, (14, 3)), not a hidden item. Drop the entry once the ch03 scripts name the flag.
+
+
 #### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
 
 Commits:
