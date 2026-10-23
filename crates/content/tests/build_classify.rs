@@ -19,7 +19,14 @@ fn behaviors_by_name() {
     assert_eq!(behavior("MB_PETALBURG_GYM_DOOR"), "Normal");
     assert_eq!(behavior("MB_BRIDGE_OVER_OCEAN"), "Warp");
     assert_eq!(behavior("MB_DEEP_SOUTH_WARP"), "NonAnimDoor(Dir::Up)");
-    assert_eq!(behavior("MB_CRACKED_FLOOR_HOLE"), "Normal");
+    assert_eq!(behavior("MB_CRACKED_FLOOR_HOLE"), "CrackedFloorHole");
+    assert_eq!(behavior("MB_CRACKED_FLOOR"), "CrackedFloor");
+    assert_eq!(behavior("MB_ICE"), "Ice");
+    assert_eq!(behavior("MB_THIN_ICE"), "ThinIce");
+    assert_eq!(behavior("MB_CRACKED_ICE"), "CrackedIce");
+    assert_eq!(behavior("MB_MUDDY_SLOPE"), "MuddySlope");
+    assert_eq!(behavior("MB_WALK_EAST"), "ForcedWalk(Dir::Right)");
+    assert_eq!(behavior("MB_SLIDE_NORTH"), "Slide(Dir::Up)");
     assert_eq!(behavior("MB_BATTLE_PYRAMID_WARP"), "Normal");
     assert_eq!(behavior("MB_WATER_DOOR"), "Blocked");
     assert_eq!(behavior("MB_WATER_SOUTH_ARROW_WARP"), "Blocked");

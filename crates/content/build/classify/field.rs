@@ -98,6 +98,13 @@ pub fn behavior(name: &str) -> String {
     if let Some(d) = name.strip_prefix("MB_JUMP_").and_then(compass) {
         return format!("Ledge({d})");
     }
+    // Forced movement (Gen3 `sForcedMovementTestFuncs`).
+    if let Some(d) = name.strip_prefix("MB_WALK_").and_then(compass) {
+        return format!("ForcedWalk({d})");
+    }
+    if let Some(d) = name.strip_prefix("MB_SLIDE_").and_then(compass) {
+        return format!("Slide({d})");
+    }
     if let Some(d) = name
         .strip_suffix("_ARROW_WARP")
         .and_then(|n| n.strip_prefix("MB_"))
@@ -114,6 +121,14 @@ pub fn behavior(name: &str) -> String {
         "MB_STAIRS_OUTSIDE_ABANDONED_SHIP" => "ArrowWarp(Dir::Up)",
         "MB_SHOAL_CAVE_ENTRANCE" => "ArrowWarp(Dir::Down)",
         "MB_COUNTER" => "Counter",
+        // Both `ForcedMovement_Slip`.
+        "MB_ICE" | "MB_TRICK_HOUSE_PUZZLE_8_FLOOR" => "Ice",
+        "MB_MUDDY_SLOPE" => "MuddySlope",
+        // Read by the map's per-step callback (`GameData::step_callback`) and the hole trigger.
+        "MB_THIN_ICE" => "ThinIce",
+        "MB_CRACKED_ICE" => "CrackedIce",
+        "MB_CRACKED_FLOOR" => "CrackedFloor",
+        "MB_CRACKED_FLOOR_HOLE" => "CrackedFloorHole",
         "MB_TALL_GRASS" => "TallGrass",
         _ => "Normal",
     }
@@ -121,11 +136,14 @@ pub fn behavior(name: &str) -> String {
 }
 
 /// [`behavior`], and whether it is exact. Exact: plain ground (`MB_NORMAL`, unnamed bytes),
-/// tall grass, ledges, doors, warps, arrow warps and counters, which the engine implements as
-/// Gen3 does. Every other named behavior is an approximation: its Gen3 effect (Surf, currents,
-/// directional blocking, ice, sand, bikes, puddles, hot springs, secret bases, …) is missing,
+/// tall grass, ledges, doors, warps, arrow warps, counters, ice, walk and slide arrows, which
+/// the engine implements as Gen3 does. Every other named behavior is an approximation: its
+/// Gen3 effect (Surf, currents, sand, bikes, puddles, hot springs, secret bases, …) is missing,
 /// so it is `Normal` or, for water, `Blocked`. The directional walls are exact, except the
-/// secret base's breakable door (walls only; breaking it is missing). The build lists the
+/// secret base's breakable door (walls only; breaking it is missing). The muddy slope is
+/// approximate (no Mach Bike climb, no metatile animation), and so are thin and cracked ice,
+/// cracked floors and their holes: the engine implements them, but they act only on maps whose
+/// per-step callback, hole warp and fall script content answers. The build lists the
 /// approximations in `content::REPORT`.
 pub fn behavior_class(name: &str) -> (String, bool) {
     let v = behavior(name);
@@ -135,6 +153,7 @@ pub fn behavior_class(name: &str) -> (String, bool) {
             "Blocked" => false,
             "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
             _ if name == "MB_SECRET_BASE_BREAKABLE_DOOR" => false,
+            "MuddySlope" | "ThinIce" | "CrackedIce" | "CrackedFloor" | "CrackedFloorHole" => false,
             _ => true,
         };
     (v, exact)
