@@ -275,11 +275,27 @@ fn battle_enums_by_name() {
     assert_eq!(ability("ABILITY_TORRENT"), "Ability::Torrent");
     assert_eq!(ability("ABILITY_PICKUP"), "Ability::Pickup");
     assert_eq!(ability("ABILITY_CLEAR_BODY"), "Ability::ClearBody");
-    assert_eq!(ability("ABILITY_WHITE_SMOKE"), "Ability::Other");
-    // The Gen3 abilities the Silice engine adds stay off for Emerald's species; the post-Gen3
-    // ones (no Emerald species) are mapped.
-    assert_eq!(ability("ABILITY_DRIZZLE"), "Ability::Other");
-    assert_eq!(ability("ABILITY_LEVITATE"), "Ability::Other");
+    assert_eq!(ability("ABILITY_WHITE_SMOKE"), "Ability::WhiteSmoke");
+    // Every Gen3 ability acts for Emerald's species (Wave C), with its Gen3 behaviour; the
+    // post-Gen3 ones (no Emerald species) are mapped.
+    assert_eq!(ability("ABILITY_DRIZZLE"), "Ability::Drizzle");
+    assert_eq!(ability("ABILITY_LEVITATE"), "Ability::Levitate");
+    assert_eq!(ability("ABILITY_SAND_VEIL"), "Ability::SandVeilGen3");
+    assert_eq!(
+        ability("ABILITY_LIGHTNING_ROD"),
+        "Ability::LightningRodGen3"
+    );
+    assert_eq!(
+        ability_with("ABILITY_LIGHTNING_ROD", Rules::SILICE),
+        "Ability::LightningRod"
+    );
+    assert_eq!(
+        ability_with("ABILITY_SAND_VEIL", Rules::SILICE),
+        "Ability::SandVeil"
+    );
+    for (_, n) in extract::names::ABILITIES.iter() {
+        assert_ne!(ability(n), "Ability::Other", "{n}");
+    }
     assert_eq!(ability("ABILITY_PIXILATE"), "Ability::Pixilate");
     assert_eq!(ability("ABILITY_PRIMORDIAL_SEA"), "Ability::PrimordialSea");
 }

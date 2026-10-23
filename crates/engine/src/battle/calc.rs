@@ -128,10 +128,14 @@ pub enum DamageWeather {
     Sand,
 }
 
-/// What [`base_damage_x`] reads beyond [`base_damage_in`] (the Silice engine): the weather.
+/// What [`base_damage_x`] reads beyond [`base_damage_in`]: the weather, the attacker's Flash
+/// Fire boost (`RESOURCE_FLAG_FLASH_FIRE`) and whether its Plus / Minus has its partner on
+/// the field (`ABILITY_ON_FIELD2`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Extra {
     pub weather: DamageWeather,
+    pub flash_fire: bool,
+    pub plus_minus: bool,
 }
 
 /// [`base_damage_x`] with a Gen3 `u8` power and no weather.
@@ -150,6 +154,10 @@ pub fn base_damage_in(
 /// its order:
 /// - Huge Power / Pure Power ×2 attack; the `sHoldEffectToType` item of the move's type
 ///   `(100 + param)%` of the attacking stat of the type's side, Choice Band ×150/100 attack;
+///   Soul Dew ×150/100 special attack and defense, Deep Sea Tooth / Light Ball ×2 special
+///   attack, Deep Sea Scale ×2 special defense, Metal Powder ×2 defense, Thick Club ×2 attack;
+///   Plus / Minus ×150/100 special attack (after Hustle); Flash Fire ×15/10 Fire damage
+///   (after the weather);
 ///   Solar Power ×150/100 special attack in the sun (Silice); the defender's Thick Fat halves the special attack
 ///   for Fire and Ice; Hustle and Guts (any status) ×150/100 attack; the defender's Marvel
 ///   Scale (any status) ×150/100 defense (u16 stats, as Gen3).
@@ -174,6 +182,7 @@ pub fn base_damage_x(
     let mut attack = a.stat(Stat::Atk);
     let mut defense = d.stat(Stat::Def);
     let mut sp_attack = a.stat(Stat::SpAtk);
+    let mut sp_defense = d.stat(Stat::SpDef);
     if matches!(a.ability, Ability::HugePower | Ability::PurePower) {
         attack = attack.wrapping_mul(2);
     }
@@ -188,6 +197,21 @@ pub fn base_damage_x(
         Some(HoldEffect::ChoiceBand) => attack = (150 * attack as u32 / 100) as u16,
         _ => {}
     }
+    // The species items (the fighters' holds are already filtered by species).
+    match a.hold {
+        Some(HoldEffect::SoulDew(..)) => sp_attack = (150 * sp_attack as u32 / 100) as u16,
+        Some(HoldEffect::DeepSeaTooth(_) | HoldEffect::LightBall(_)) => {
+            sp_attack = sp_attack.wrapping_mul(2)
+        }
+        Some(HoldEffect::ThickClub(..)) => attack = attack.wrapping_mul(2),
+        _ => {}
+    }
+    match d.hold {
+        Some(HoldEffect::SoulDew(..)) => sp_defense = (150 * sp_defense as u32 / 100) as u16,
+        Some(HoldEffect::DeepSeaScale(_)) => sp_defense = sp_defense.wrapping_mul(2),
+        Some(HoldEffect::MetalPowder(_)) => defense = defense.wrapping_mul(2),
+        _ => {}
+    }
     if a.ability == Ability::SolarPower && x.weather == DamageWeather::Sun {
         sp_attack = (150 * sp_attack as u32 / 100) as u16;
     }
@@ -196,6 +220,9 @@ pub fn base_damage_x(
     }
     if a.ability == Ability::Hustle {
         attack = (150 * attack as u32 / 100) as u16;
+    }
+    if x.plus_minus && matches!(a.ability, Ability::Plus | Ability::Minus) {
+        sp_attack = (150 * sp_attack as u32 / 100) as u16;
     }
     if a.ability == Ability::Guts && a.status != Status::None {
         attack = (150 * attack as u32 / 100) as u16;
@@ -256,7 +283,7 @@ pub fn base_damage_x(
         damage = core(
             sp_attack as u32,
             a.stage(Stat::SpAtk),
-            d.stat(Stat::SpDef) as u32,
+            sp_defense as u32,
             d.stage(Stat::SpDef),
         );
         match (x.weather, ty) {
@@ -265,6 +292,9 @@ pub fn base_damage_x(
                 damage = 15 * damage / 10
             }
             _ => {}
+        }
+        if x.flash_fire && ty == Type::Fire {
+            damage = 15 * damage / 10;
         }
     }
     damage + 2
@@ -361,6 +391,16 @@ pub fn random_damage(damage: i32, roll: u16) -> i32 {
 /// Gen3 `Cmd_critcalc`'s stage: Focus Energy +2 (no items or high-crit effects modelled).
 pub fn crit_chance_stage(focus_energy: bool) -> u8 {
     if focus_energy { 2 } else { 0 }
+}
+
+/// `Cmd_critcalc`'s held-item stages: Scope Lens +1, Lucky Punch / Stick +2 (the hold is
+/// already filtered by species).
+pub fn crit_item_stage(hold: Option<HoldEffect>) -> u8 {
+    match hold {
+        Some(HoldEffect::ScopeLens) => 1,
+        Some(HoldEffect::SpeciesCrit(_)) => 2,
+        _ => 0,
+    }
 }
 
 /// Gen3 `Cmd_critcalc`: a crit when `roll % sCriticalHitChance[stage] == 0`. The caller draws
@@ -519,6 +559,9 @@ pub fn effective_speed(f: &Fighter) -> u32 {
 pub fn effective_speed_x(f: &Fighter, multiplier: u32) -> u32 {
     let (num, den) = ratio(&STAT_STAGE_RATIOS, f.stage(Stat::Speed));
     let mut s = f.stat(Stat::Speed) as u32 * multiplier * num as u32 / den as u32;
+    if f.hold == Some(HoldEffect::MachoBrace) {
+        s /= 2;
+    }
     if f.status == Status::Paralysis {
         s /= 4;
     }

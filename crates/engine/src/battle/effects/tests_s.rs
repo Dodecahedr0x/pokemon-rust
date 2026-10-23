@@ -1073,7 +1073,10 @@ fn rain_and_sun_change_fire_and_water_damage() {
     let r = Run::wild(m(PLAIN, 90, &[SPLASH]), m(PLAIN, 10, &[SPLASH]));
     let (a, d) = (r.b.battler(P).fighter(), r.b.battler(O).fighter());
     let dmg = |a: &calc::Fighter, ty, weather| {
-        let x = calc::Extra { weather };
+        let x = calc::Extra {
+            weather,
+            ..Default::default()
+        };
         calc::base_damage_x(a, &d, 80, ty, false, calc::Field::default(), x)
     };
     use calc::DamageWeather::{None as Clear, Rain, Sun};
