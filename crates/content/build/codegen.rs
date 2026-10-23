@@ -705,6 +705,12 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// `EventScript_WhiteOut`, when the scripts have it (decomp names, Task D2).\npub const SCRIPT_WHITEOUT: Option<ScriptId> = {};",
         whiteout.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
+    let fall = s.names.iter().position(|n| n == "EventScript_FallDownHole");
+    writeln!(
+        o,
+        "/// `EventScript_FallDownHole`, when the scripts have it (`GameData::fall_script`).\npub const SCRIPT_FALL_DOWN_HOLE: Option<ScriptId> = {};",
+        fall.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    )?;
     let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
     writeln!(
         o,

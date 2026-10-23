@@ -328,6 +328,40 @@ fn elevation_mismatch_blocks_except_0_and_15() {
     assert_eq!(o.collision(&g, PLAYER, Dir::Right), Collision::None);
 }
 
+/// Gen3 `ObjectEventUpdateElevation`: on an elevation-0 cell `currentElevation` is 0 but
+/// `previousElevation` (what the warp, coord and bg checks read, `PlayerGetElevation`) keeps
+/// the last other one: the Lavaridge gym's holes are elevation-0 cells with elevation-3
+/// warps.
+#[test]
+fn position_elevation_keeps_the_last_nonzero_one() {
+    let mut g = Grid::open();
+    let elev = |e: u16| e << BLOCK_ELEVATION_SHIFT;
+    for x in 0..W {
+        for y in 0..W {
+            g.set(x, y, elev(3), Behavior::Normal);
+        }
+    }
+    g.set(5, 4, elev(0), Behavior::Normal);
+    g.set(5, 3, elev(0), Behavior::Normal);
+    g.set(5, 2, 1 << BLOCK_COLLISION_SHIFT, Behavior::Normal);
+    let mut o = player_at(5, 5, Dir::Up);
+    o.update_player(&g, NONE);
+    assert_eq!((o.player().elevation, o.player().position_elevation()), (3, 3));
+    for _ in 0..60 {
+        o.update_player(&g, hold(Dir::Up));
+    }
+    assert_eq!(o.player().pos(), (5, 3));
+    assert_eq!((o.player().elevation, o.player().position_elevation()), (0, 3));
+    // The checkpoint packs the pair and restores it; the usual equal pair packs as before.
+    let p = o.player();
+    assert_eq!(Object::unpack_elevation(p.packed_elevation()), (0, 3));
+    let q = player_at(5, 5, Dir::Up);
+    assert_eq!(q.player().packed_elevation(), 0);
+    assert_eq!(Object::unpack_elevation(3), (3, 3));
+    o.reset_player_position_elevation(0);
+    assert_eq!(o.player().position_elevation(), 0);
+}
+
 #[test]
 fn ledge_jumps_two_cells() {
     let mut g = Grid::open();

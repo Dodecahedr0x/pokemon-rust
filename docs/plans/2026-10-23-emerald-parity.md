@@ -118,14 +118,11 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| `teach-hm-rock-smash` (358) | Mauville City (32,15), after HM06 | the spine has no way to teach an HM: no bag or party menu; the bypass writes Rock Smash over the lead's slot 2 | party menu: teach a TM/HM (`ItemUseOutOfBattle_TMHM`, `party_menu.c`) | engine UI (bag, party menu), Milestone 9 |
-| `cable-car` (404) | Route112_CableCarStation (6,4) | the ride never starts: the attendant's script sets `VAR_CABLE_CAR_STATION_STATE` 1 and the player stays in the station | `SPECIAL_CableCarWarp` (sets the warp to the Mt. Chimney station's (6,4)), `SPECIAL_CableCar` (the ride scene, `cable_car.c`) | engine specials, Wave C |
-| `lavaridge-gym-warps` (417) | LavaridgeTown_Gym_1F (8,9) | "enter: no warp": the gym's holes and geysers do not warp; Flannery's platform is reached only through them (1F (8,9), B1F (8,6), 1F (10,6), B1F (12,12)) | `MB_LAVARIDGE_GYM_1F_WARP`, `MB_LAVARIDGE_GYM_B1F_WARP` (`field_control_avatar.c` Lavaridge warp checks, `FLDEFF_LAVARIDGE_GYM_WARP` / `FLDEFF_POP_OUT_OF_ASH`) | engine (field), Wave C |
-| `rock-smash-forgotten-south` (431) | Route 111 (18,100), the rock from the north (smashed for real on the way up; it comes back on every map load) | the rock says it is rugged: the lead forgot Rock Smash for Muddy Water at level 39 (Route 112, `BattlePlan::BestLearn`); `checkpartymove` (native) finds no Rock Smash | Gen3's learn menu refuses to forget an HM move (`IsHMMove2`, `battle_script_commands.c`); the explorer's `policy::forget_slot` does not, and the game data has no HM list | explorer (learn policy) or engine (learn menu) |
-| `rock-smash-forgotten-rusturf` (441) | Rusturf Tunnel (25,5) | the boulder between Wanda and her boyfriend, for the same reason; the bypass sets `FLAG_HIDE_RUSTURF_TUNNEL_ROCK_1` and `VAR_RUSTURF_TUNNEL_STATE` 4 (what `removeobject` and `SPECIAL_TryUpdateRusturfTunnelState`, now native, do), and the tunnel's `ON_FRAME` scene then plays and gives HM04 | as `rock-smash-forgotten-south` | as `rock-smash-forgotten-south` |
-| `petalburg-gym-doors` (457) | PetalburgCity_Gym (1,106) | pressing Up into the entrance room's door (1,105) does nothing (`NoPath` on the next try): the doors open through `SPECIAL_PetalburgGymUnlockRoomDoors` (reported unsupported on load) and `SPECIAL_PetalburgGymSlideOpenRoomDoors`; Norman's room is at the end of the (1,105), (1,79), (7,40), (7,14) door chain | `SPECIAL_PetalburgGymUnlockRoomDoors`, `SPECIAL_PetalburgGymSlideOpenRoomDoors` (`MB_PETALBURG_GYM_DOOR`) | engine specials, Wave C |
+| `teach-hm-rock-smash` (357) | Mauville City (32,15), after HM06 | the spine has no way to teach an HM: no bag or party menu; the bypass writes Rock Smash over the lead's slot 2 | party menu: teach a TM/HM (`ItemUseOutOfBattle_TMHM`, `party_menu.c`) | engine UI (bag, party menu), Milestone 9 |
+| `rock-smash-forgotten-south` (436) | Route 111 (18,100), the rock from the north (smashed for real on the way up; it comes back on every map load) | the rock says it is rugged: the lead forgot Rock Smash for Muddy Water at level 39 (Route 112, `BattlePlan::BestLearn`); `checkpartymove` (native) finds no Rock Smash | Gen3's learn menu refuses to forget an HM move (`IsHMMove2`, `battle_script_commands.c`); the explorer's `policy::forget_slot` does not, and the game data has no HM list | explorer (learn policy) or engine (learn menu) |
+| `rock-smash-forgotten-rusturf` (447) | Rusturf Tunnel (25,5) | the boulder between Wanda and her boyfriend, for the same reason; the bypass sets `FLAG_HIDE_RUSTURF_TUNNEL_ROCK_1` and `VAR_RUSTURF_TUNNEL_STATE` 4 (what `removeobject` and `SPECIAL_TryUpdateRusturfTunnelState`, now native, do), and the tunnel's `ON_FRAME` scene then plays and gives HM04 | as `rock-smash-forgotten-south` | as `rock-smash-forgotten-south` |
 
-**Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `pokenavcall` (Route 105, Dad's call during Mr. Briney's sail); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 208 (Brawly's gym), 176 (Route 110 wild) and 199 (Norman); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson, also a bypass); `SPECIAL_SetMirageTowerVisibility` and `SPECIAL_GabbyAndTyGetBattleNum` (Route 111 (16,139)); `SPECIAL_CableCarWarp`, `SPECIAL_CableCar` and `SPECIAL_PetalburgGymUnlockRoomDoors` (also bypasses). The next blocker past HM03 is Surf (no field Surf, and `checkpartymove`): every later route crosses water.
+**Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); move effects 208 (Brawly's gym), 176 (Route 110 wild), 158 (Route 113) and 043 (Route 112); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility` (Route 111 (16,139)); `FLDEFF_USE_ROCK_SMASH` and `SPECIAL_RockSmashWildEncounter` (Route 111 (18,102)); `SPECIAL_CableCar` (degraded: the ride is a fade and Gen3's 602 frames, Route 112's station). The next blocker past HM03 is Surf: every later route crosses water.
 
 ## 3. As built
 
@@ -321,13 +318,13 @@ A name defined several times (`sMenu`, `HandleInputChooseAction`) keeps the tabl
 |---|---|---|---|
 | `devon_goods` | 95 | 121,108 | Rusturf Tunnel (13,5): the grunt beaten |
 | `mr_stone` | 102 | 127,941 | Devon Corp 3F: the PokéNav |
-| `dewford` | 122 | 139,854 | Mr. Briney's sail (played since Wave C1) |
-| `steven` | 136 | 148,587 | Granite Cave, Steven's room |
-| `badge2` | 149 | 223,211 | Brawly |
-| `museum` | 172 | 245,282 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
-| `badge3` | 281 | 463,977 | Wattson, after `mauville-gym-barriers` |
-| `badge4` | 413 | 681,941 | Flannery, after `cable-car` and `lavaridge-gym-warps` |
-| `badge5` | 453 | 724,993 | Norman, after `petalburg-gym-doors`; HM03 at step 456 |
+| `dewford` | 122 | 140,604 | Mr. Briney's sail (played since Wave C1) |
+| `steven` | 136 | 149,337 | Granite Cave, Steven's room |
+| `badge2` | 149 | 223,961 | Brawly |
+| `museum` | 172 | 246,032 | Oceanic Museum 2F: the Devon Goods delivered, the Aqua grunts beaten |
+| `badge3` | 290 | 469,807 | Wattson (the gym barriers played since Wave C4) |
+| `badge4` | 427 | 717,601 | Flannery: the cable car and the gym's holes and geysers played since Wave C (spine warps) |
+| `badge5` | 475 | 768,029 | Norman, through the door signs (Randall, Parker, Jody beaten); HM03 at step 478 |
 
 **Goals.** Four new acts:
 - `act2` (8 goals, from `goods_stolen` to `badge2`);
@@ -380,8 +377,20 @@ Policy:
 **Not covered.** Past the first bypass the inputs do not reproduce from a new game; a branch's origin checkpoint does. Surf (HM03 in hand at the spine's end) is the next gap: no field Surf, and `checkpartymove` is stubbed.
 
 **Branches** (`cargo xtask explore branch` on the badge5 spine, fresh db): 1,277 branches from 60 origins, 8.75 M frames in 1.3 s; 783 rejoined, 64 diverged as expected, 62 diverged, 75 stranded, 234 aborted, 59 unplayable; 137 findings (62 divergences), 832 reports. The non-report findings:
-- Softlocks on entering any Battle Tent lobby (Slateport 0x0902, Fallarbor 0x0501, Verdanturf 0x0600, at (6,9)): the lobbies' `ON_FRAME` table runs `frontier_getstatus` (`SPECIAL_CallFrontierUtilFunc`, unsupported) while `VAR_TEMP_CHALLENGE_STATUS` is 0, so the script never sets it and reruns every frame. A content/engine gap (frontier utility functions), not the explorer's.
+- Softlocks on entering any Battle Tent lobby (Slateport 0x0902, Fallarbor 0x0501, Verdanturf 0x0600, at (6,9)): the lobbies' `ON_FRAME` table runs `frontier_getstatus` (`SPECIAL_CallFrontierUtilFunc`, unsupported) while `VAR_TEMP_CHALLENGE_STATUS` is 0, so the script never sets it and reruns every frame. A content/engine gap (frontier utility functions), not the explorer's. Fixed in Wave C (spine warps): `GET_STATUS` sets `VAR_TEMP_CHALLENGE_STATUS` to `CHALLENGE_STATUS_NONE` (0xFF), exact with no challenge saved.
 - Divergences "did not rejoin" after `woods` (Route 104 (39,63)) and after `badge3` (Route 111 (21,12), Fiery Path (26,36)): a branch's walk leaves a state where the next spine step fails (`NoPath` on Route 104's `Cross`; the rest stop `Enter` stalling at Route 111 (21,12), where the spine itself needs two `Goto`s). Explorer-side (rejoin and planner), not engine.
+
+### Wave C — spine warps, doors and field controls
+
+**Spine.** 478 steps and 769,586 frames (`EMERALD_FRAMES`); `badge1` unchanged (step 81, frame 104,879). The `cable-car`, `lavaridge-gym-warps` and `petalburg-gym-doors` bypasses are gone; three remain (§2).
+
+**What is built.**
+- **Engine: Gen3 `previousElevation`.** `Object::prev_elevation` keeps the last elevation that was not 0 or 15 (`ObjectEventUpdateElevation`), and warp/coord/bg matching uses it (`PlayerGetElevation`); a map load resets it from the arrival cell. The Lavaridge gym's holes are elevation-0 cells under elevation-3 warps, so "enter: no warp" was this, not the behaviours. The snapshot's elevation byte packs `elevation | (prev + 1) << 4` when they differ (`ObjectSnap::current_elevation`); the hash adds `0xE0 | prev` only when the elevation is 0 and the previous one is not.
+- **Specials (content):** `CableCarWarp` (the station from `VAR_0x8004`, (6,4)), `CableCar` (degraded: fade to black, 602 frames, the warp), `PetalburgGymUnlockRoomDoors` and `PetalburgGymSlideOpenRoomDoors` (`sPetalburgGymSlidingDoorMetatiles`, both door halves impassable, 2 frames per slide frame), `CallFrontierUtilFunc` (`GET_STATUS` exact with no challenge; `GET_DATA` degraded to 0; `SET_DATA` degraded; the rest report their `FRONTIER_UTIL_FUNC_*` name), `SetSootopolisGymCrackedIceMetatiles`.
+- **Holes and step callbacks:** `warphole` lowers to `Ctx::warp_hole` (MAP_UNDEFINED: `None`, the map's hole warp); `setholewarp` and `setstepcallback` are `Ignore` because `GameData::hole_warp`/`step_callback` answer per map (`prelude::puzzle`: Granite Cave B1F, Mirage Tower 2F/3F, Mt. Pyre 2F, Sky Pillar 2F/4F cracked floors; the Sootopolis gym's ice with `sSootopolisGymIceRowVars`); `fall_script` is `EventScript_FallDownHole`.
+- **Spine:** the Lavaridge gym through its holes and geysers (eight `Enter`s); the cable car by talking to the attendant; Petalburg's doors through their signs (`Use` + `Choose(0)`), beating the room trainers on the way; a `Goto` on Route 117 before its `Cross` (the old path drew a Lydia battle that whited out).
+
+**Not done.** The cable car's ride scene (`cable_car.c`) and the Battle Tent challenges themselves; the ash, Fortree/Pacifidlog bridges and truck step callbacks; the explorer's planner still treats cracked floors as plain floor.
 
 ### Wave C — new-game state parity
 

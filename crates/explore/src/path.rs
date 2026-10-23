@@ -254,7 +254,7 @@ impl<'a, G: GameData> Grid<'a, G> {
             .collect();
         let grid = Grid::new(game, snap.field.map, &snap.field.overrides, occupied);
         match snap.objects.objs.first() {
-            Some(p) => grid.with_elevation(p.elevation),
+            Some(p) => grid.with_elevation(p.current_elevation()),
             None => grid,
         }
     }

@@ -13,7 +13,7 @@
 // The 483 specials named by a `special`/`specialvar` line of the decomp (`data/**/*.inc` and
 // `data/*.s`, `data/specials.inc` excluded) are classified; the other 41 are Unsupported.
 //
-// Counts: 59 Native, 19 Ignore, 83 Default, 363 Unsupported.
+// Counts: 65 Native, 19 Ignore, 83 Default, 357 Unsupported.
 {
     "SPECIAL_AccessHallOfFamePC": Unsupported, // post-game; unreachable: ScriptMenu_CreatePCMultichoice answers B
     "SPECIAL_Bag_ChooseBerry": Native, // degraded: no bag screen, nothing chosen; fades back in
@@ -45,8 +45,8 @@
     "SPECIAL_BufferTrendyPhraseString": Unsupported,
     "SPECIAL_BufferUnionRoomPlayerName": Default(0), // no Union Room partner (no link)
     "SPECIAL_BufferVarsForIVRater": Unsupported,
-    "SPECIAL_CableCar": Unsupported,
-    "SPECIAL_CableCarWarp": Unsupported,
+    "SPECIAL_CableCar": Native, // degraded: no ride scene; fades to black, waits the ride's frames, warps to the other station
+    "SPECIAL_CableCarWarp": Native, // the destination by VAR_0x8004 (CableCar warps there: only the ride's end reads gWarpDestination)
     "SPECIAL_CableClubSaveGame": Unsupported,
     "SPECIAL_CalculatePlayerPartyCount": Native, // the party size (no eggs yet)
     "SPECIAL_CallApprenticeFunction": Unsupported,
@@ -58,7 +58,7 @@
     "SPECIAL_CallBattlePyramidFunction": Unsupported,
     "SPECIAL_CallBattleTowerFunc": Unsupported,
     "SPECIAL_CallFallarborTentFunction": Unsupported,
-    "SPECIAL_CallFrontierUtilFunc": Unsupported,
+    "SPECIAL_CallFrontierUtilFunc": Native, // no frontier data (M13): GET_STATUS answers "no challenge" (0xFF), GET_DATA 0, SET_DATA stores nothing, the others report
     "SPECIAL_CallSlateportTentFunction": Unsupported,
     "SPECIAL_CallTrainerHillFunction": Unsupported,
     "SPECIAL_CallVerdanturfTentFunction": Unsupported,
@@ -325,8 +325,8 @@
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,
     "SPECIAL_OpenPokenavForTutorial": Ignore, // no PokeNav screen (M9): the script goes on as after closing it
     "SPECIAL_Overworld_PlaySpecialMapMusic": Unsupported,
-    "SPECIAL_PetalburgGymSlideOpenRoomDoors": Unsupported, // Norman's gym rooms open after badge 4
-    "SPECIAL_PetalburgGymUnlockRoomDoors": Unsupported, // Norman's gym rooms open after badge 4
+    "SPECIAL_PetalburgGymSlideOpenRoomDoors": Native, // room VAR_0x8004's doors slide open (5 metatile frames, 2 frames apart)
+    "SPECIAL_PetalburgGymUnlockRoomDoors": Native, // room VAR_0x8004's doors show the open frame
     "SPECIAL_PickLotteryCornerTicket": Unsupported,
     "SPECIAL_PlayBardSong": Unsupported,
     "SPECIAL_PlayRoulette": Unsupported,
@@ -427,7 +427,7 @@
     "SPECIAL_SetRoute123Weather": Unsupported,
     "SPECIAL_SetSSTidalFlag": Unsupported,
     "SPECIAL_SetSecretBaseOwnerGfxId": Unsupported,
-    "SPECIAL_SetSootopolisGymCrackedIceMetatiles": Unsupported,
+    "SPECIAL_SetSootopolisGymCrackedIceMetatiles": Native, // the cracked ice the row vars remember (prelude::puzzle)
     "SPECIAL_SetTrainerFacingDirection": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_SetTrickHouseNuggetFlag": Unsupported,
     "SPECIAL_SetUnlockedPokedexFlags": Ignore, // GameCube link flags only

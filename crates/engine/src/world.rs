@@ -533,7 +533,8 @@ impl World {
         // Gen3 `FieldGetPlayerInput`: at a step's end on a forced-movement cell, no A and no
         // held direction (arrow warps, doors) this frame.
         if p.is_settled() && !p.frozen && !s.objects.at_forced_tile_center(&s.ground(game)) {
-            let ((x, y), facing, elevation) = (p.pos(), p.facing, p.elevation);
+            // Gen3 `GetPlayerPosition` / `GetInFrontOfPlayerPosition`: `PlayerGetElevation`.
+            let ((x, y), facing, elevation) = (p.pos(), p.facing, p.position_elevation());
             let pushing = s.input.dpad() == Some(facing);
             let here = s.field.block(game, x, y);
             if pushing
@@ -626,7 +627,7 @@ impl World {
             // Step triggers fire in the frame the step finishes; Gen3 checks them on the next
             // frame's field input (`ProcessPlayerFieldInput`, after `on_frame`), one frame later.
             PlayerEvent::StepFinished { at: (x, y) } => {
-                let elevation = s.objects.player().elevation;
+                let elevation = s.objects.player().position_elevation();
                 let b = block_behavior(game, map, s.field.block(game, x, y));
                 if let Some(sighting) = sight::check(game, s) {
                     // Trainer sight first, as on every field-input frame (above).

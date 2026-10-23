@@ -960,3 +960,25 @@ fn the_map_sample_is_one_list() {
 
 #[path = "battle_tests.rs"]
 mod battle_tests;
+
+/// The maps' `on_resume` puzzles (`setstepcallback`, `setholewarp`) and the fall script.
+#[test]
+fn hole_warps_and_step_callbacks() {
+    use consts::*;
+    assert_eq!(
+        Emerald.hole_warp(MAP_GRANITE_CAVE_B1F),
+        Some(MAP_GRANITE_CAVE_B2F)
+    );
+    assert_eq!(Emerald.hole_warp(MAP_SKY_PILLAR_4F), Some(MAP_SKY_PILLAR_3F));
+    assert_eq!(Emerald.hole_warp(MAP_ROUTE101), None);
+    assert!(matches!(
+        Emerald.step_callback(MAP_SOOTOPOLIS_CITY_GYM_1F),
+        Some(StepCallback::Ice(_))
+    ));
+    let Some(StepCallback::CrackedFloor(f)) = Emerald.step_callback(MAP_MT_PYRE_2F) else {
+        panic!("Mt. Pyre 2F has cracked floors");
+    };
+    assert_eq!((f.hole_for(0x22F), f.hole_for(0x22E)), (0x206, 0x237));
+    assert_eq!(Emerald.step_callback(MAP_ROUTE101), None);
+    assert_eq!(Emerald.fall_script().is_some(), !STUB);
+}

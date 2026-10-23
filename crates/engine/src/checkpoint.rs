@@ -355,6 +355,8 @@ pub struct ObjectSnap {
     pub gfx: Option<GfxId>,
     pub pos: (i16, i16),
     pub prev: (i16, i16),
+    /// Gen3 `currentElevation` in the low nibble; when `previousElevation` differs, it is
+    /// packed as `prev + 1` in the high nibble (read with [`ObjectSnap::current_elevation`]).
     pub elevation: u8,
     pub facing: Dir,
     pub movement: MovementType,
@@ -367,6 +369,13 @@ pub struct ObjectSnap {
     pub action: Option<ActionSnap>,
     pub idle: IdleSnap,
     pub anim: AnimSnap,
+}
+
+impl ObjectSnap {
+    /// Gen3 `currentElevation` (the low nibble of [`ObjectSnap::elevation`]).
+    pub const fn current_elevation(&self) -> u8 {
+        self.elevation & 0x0F
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]

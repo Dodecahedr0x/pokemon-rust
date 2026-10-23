@@ -459,6 +459,122 @@ fn native_specials_issue_their_requests_in_order() {
     ));
     assert_eq!(h.log.len(), 4);
     covered.insert("SPECIAL_ChooseStarter");
+    // The cable car (`CableCarWarp`, `CableCar`): `VAR_0x8004` picks the other station; the
+    // ride fades to black, waits 602 frames (`Task_CableCar`'s 570 and its fade out), then
+    // warps to (6, 4) with no warp id.
+    #[cfg(not(pkr_silice))]
+    for (down, map) in [
+        (0, MAP_MT_CHIMNEY_CABLE_CAR_STATION),
+        (1, MAP_ROUTE112_CABLE_CAR_STATION),
+    ] {
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, down);
+        run_special(&mut h, "SPECIAL_CableCarWarp");
+        assert_eq!(h.log, [Request::GetVar(VAR_0x8004)]);
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, down);
+        run_special(&mut h, "SPECIAL_CableCar");
+        assert_eq!(
+            h.log,
+            [
+                degraded("SPECIAL_CableCar"),
+                Request::GetVar(VAR_0x8004),
+                Request::Fade(Fade::ToBlack),
+                Request::Delay(602),
+                Request::Warp {
+                    map,
+                    warp: None,
+                    x: 6,
+                    y: 4
+                },
+            ]
+        );
+    }
+    // `CallFrontierUtilFunc` with no frontier data: `GET_STATUS` answers no challenge (0xFF:
+    // a Battle Tent lobby's `ON_FRAME` table then stops), `GET_DATA` 0, the others report.
+    for (func, want) in [
+        (0, vec![set(VAR_TEMP_CHALLENGE_STATUS, 0xFF)]),
+        (
+            1,
+            vec![degraded("SPECIAL_CallFrontierUtilFunc"), set(VAR_RESULT, 0)],
+        ),
+        (2, vec![degraded("SPECIAL_CallFrontierUtilFunc")]),
+        (
+            7,
+            vec![Request::Report(Report::Unsupported(
+                "FRONTIER_UTIL_FUNC_RESULTS_WINDOW",
+            ))],
+        ),
+    ] {
+        let mut h = Rec::default();
+        h.vars.insert(VAR_0x8004.0, func);
+        run_special(&mut h, "SPECIAL_CallFrontierUtilFunc");
+        let mut log = vec![Request::GetVar(VAR_0x8004)];
+        log.extend(want);
+        assert_eq!(h.log, log, "func {func}");
+    }
+    covered.insert("SPECIAL_CallFrontierUtilFunc");
+    // The Petalburg gym's doors (`PetalburgGymSetDoorMetatiles`): room 2's two doors, both
+    // halves impassable, the open frame (0x21C) at once, or the five frames 2 frames apart.
+    let doors = |frame: u16| {
+        let mut v = Vec::new();
+        for x in [1, 7] {
+            v.push(Request::SetMetatile {
+                x,
+                y: 78,
+                metatile: frame,
+                blocked: true,
+            });
+            v.push(Request::SetMetatile {
+                x,
+                y: 79,
+                metatile: frame + 8,
+                blocked: true,
+            });
+        }
+        v.push(Request::RedrawMap);
+        v
+    };
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 2);
+    run_special(&mut h, "SPECIAL_PetalburgGymUnlockRoomDoors");
+    let mut want = vec![Request::GetVar(VAR_0x8004)];
+    want.extend(doors(0x21C));
+    assert_eq!(h.log, want);
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 2);
+    run_special(&mut h, "SPECIAL_PetalburgGymSlideOpenRoomDoors");
+    let mut want = vec![Request::GetVar(VAR_0x8004)];
+    for frame in 0x218..=0x21C {
+        if frame > 0x218 {
+            want.push(Request::Delay(2));
+        }
+        want.extend(doors(frame));
+    }
+    assert_eq!(h.log, want);
+    covered.insert("SPECIAL_PetalburgGymUnlockRoomDoors");
+    covered.insert("SPECIAL_PetalburgGymSlideOpenRoomDoors");
+    // `SetSootopolisGymCrackedIceMetatiles`: VAR_TEMP_1 (row 6) bits 0 and 10 are columns 3
+    // and 13; the other row vars (all read, in row order) are clear.
+    let mut h = Rec::default();
+    h.vars.insert(0x4001, 1 | 1 << 10);
+    run_special(&mut h, "SPECIAL_SetSootopolisGymCrackedIceMetatiles");
+    let mut want = vec![Request::GetVar(VarId(0x4001))];
+    for x in [3, 13] {
+        want.push(Request::SetMetatile {
+            x,
+            y: 6,
+            metatile: 0x20E,
+            blocked: false,
+        });
+    }
+    for v in [0x4002, 0x4003, 0x4004, 0x4005, 0x4006, 0x4007, 0x4008, 0x4009, 0x400A] {
+        want.push(Request::GetVar(VarId(v)));
+    }
+    assert_eq!(h.log, want);
+    covered.insert("SPECIAL_SetSootopolisGymCrackedIceMetatiles");
+    covered.insert("SPECIAL_CableCarWarp");
+    covered.insert("SPECIAL_CableCar");
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
     // no random draw, as in Gen3; above 2 by parity.
     for (t3, s) in [(1, MOM), (2, DAD), (5, DAD), (6, MOM)] {
