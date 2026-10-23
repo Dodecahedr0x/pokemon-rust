@@ -714,12 +714,18 @@ impl engine::data::GameData for StartAt {
 
 /// Milestone 8 review I-3: trainer sight on the real build. A new game starts on Route 102
 /// at (35, 17), two cells east of Calvin's line (local id 2 on (33, 14), facing down, sight 3);
-/// holding left walks the player into it. The ROM, booted from a native checkpoint of that start, plays the steps, the
-/// sighting, the `!` and the approach with native's hashes, within the frame gates. Prints the
-/// sighting frame (relative to the first step's input) and the approach's length.
+/// holding left walks the player into it. The ROM, booted from a native checkpoint of that
+/// start, plays the steps, the sighting, the `!` and the approach with native's hashes, within
+/// the frame gates. The sighting frame (relative to the first step's input) and the approach's
+/// length are pinned (`SIGHTED_AFTER`, `APPROACH_FRAMES`): they are native's, which the ROM
+/// matches hash for hash; comparing them with Gen3's own counts is carried to Task P.
 #[test]
 #[ignore = "needs target/game.gba; run `cargo xtask parity`"]
 fn rom_trainer_sighting_fits_the_frame() {
+    /// Frames from the first held input to the sighting (the trainer script's start).
+    const SIGHTED_AFTER: u32 = 26;
+    /// Frames from the sighting until Calvin stands settled beside the player.
+    const APPROACH_FRAMES: u32 = 108;
     use engine::data::GameData;
     use engine::world::Event;
     if content::STUB {
@@ -784,6 +790,8 @@ fn rom_trainer_sighting_fits_the_frame() {
     }
     let sighted = sighted.expect("Calvin saw the player");
     let arrived = settled.expect("Calvin walked up to the player");
+    assert_eq!(sighted - start, SIGHTED_AFTER, "sighting frame");
+    assert_eq!(arrived - sighted, APPROACH_FRAMES, "approach length");
     let sav = flash::encode_sav(&cp).expect("sav");
     let run = run_rom_from(&rom_path(), Some(&sav), Some(start), keys, end, &[]).expect("ROM run");
     assert_eq!(run.boot.boot, boot::RESTORED);

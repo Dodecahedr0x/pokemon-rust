@@ -708,72 +708,83 @@ impl<G: GameData> Recorder<G> {
     }
 
     fn path_dir(&self, to: (i16, i16), avoid_grass: bool) -> Option<Dir> {
-        let game = self.s.game();
         let w = self.world();
-        let map = game.map(w.map());
-        let from = w.objects().player().pos();
-        let (mw, mh) = (map.width as i16, map.height as i16);
-        let idx = |(x, y): (i16, i16)| y as usize * mw as usize + x as usize;
         let occupied: Vec<(i16, i16)> = w
             .objects()
             .iter()
             .filter(|o| o.local_id != PLAYER)
             .flat_map(|o| [o.pos(), o.prev])
             .collect();
-        let walkable = |c: (i16, i16)| {
-            if !in_bounds(map, c.0, c.1) || occupied.contains(&c) {
-                return false;
-            }
-            let b = block_at(game, map, c.0, c.1);
-            let behavior = block_behavior(game, map, b);
-            block_collision(b) == 0
-                && !matches!(
-                    behavior,
-                    Behavior::Blocked | Behavior::Door | Behavior::Warp
-                )
-                && !(avoid_grass && behavior == Behavior::TallGrass)
-        };
-        let mut queue = VecDeque::new();
-        if !in_bounds(map, from.0, from.1) || !in_bounds(map, to.0, to.1) {
-            return None;
-        }
-        queue.push_back((from, None::<Dir>));
-        let mut seen = vec![false; (mw * mh) as usize];
-        seen[idx(from)] = true;
-        while let Some((c, d0)) = queue.pop_front() {
-            if c == to {
-                return d0;
-            }
-            for d in DIRS {
-                let (dx, dy) = d.delta();
-                let mut n = (c.0 + dx, c.1 + dy);
-                if !in_bounds(map, n.0, n.1) {
-                    continue;
-                }
-                let behavior =
-                    |(x, y): (i16, i16)| block_behavior(game, map, block_at(game, map, x, y));
-                if Behavior::walled(behavior(c), behavior(n), d) {
-                    continue;
-                }
-                if let Behavior::Ledge(ld) =
-                    block_behavior(game, map, block_at(game, map, n.0, n.1))
-                {
-                    if ld != d {
-                        continue;
-                    }
-                    n = (n.0 + dx, n.1 + dy);
-                } else if !walkable(n) && n != to {
-                    continue;
-                }
-                if !in_bounds(map, n.0, n.1) || seen[idx(n)] || (n != to && !walkable(n)) {
-                    continue;
-                }
-                seen[idx(n)] = true;
-                queue.push_back((n, Some(d0.unwrap_or(d))));
-            }
-        }
-        None
+        let from = w.objects().player().pos();
+        first_dir(self.s.game(), w.map(), from, to, &occupied, avoid_grass)
     }
+}
+
+/// The first step of a shortest walk on `map` from `from` to `to` (a door or warp only as the
+/// target), avoiding `occupied` cells, tall grass if `avoid_grass`, directional walls, and
+/// ledges except jumped down their way.
+fn first_dir<G: GameData>(
+    game: &G,
+    map: MapId,
+    from: (i16, i16),
+    to: (i16, i16),
+    occupied: &[(i16, i16)],
+    avoid_grass: bool,
+) -> Option<Dir> {
+    let map = game.map(map);
+    let (mw, mh) = (map.width as i16, map.height as i16);
+    let idx = |(x, y): (i16, i16)| y as usize * mw as usize + x as usize;
+    let walkable = |c: (i16, i16)| {
+        if !in_bounds(map, c.0, c.1) || occupied.contains(&c) {
+            return false;
+        }
+        let b = block_at(game, map, c.0, c.1);
+        let behavior = block_behavior(game, map, b);
+        block_collision(b) == 0
+            && !matches!(
+                behavior,
+                Behavior::Blocked | Behavior::Door | Behavior::Warp
+            )
+            && !(avoid_grass && behavior == Behavior::TallGrass)
+    };
+    let mut queue = VecDeque::new();
+    if !in_bounds(map, from.0, from.1) || !in_bounds(map, to.0, to.1) {
+        return None;
+    }
+    queue.push_back((from, None::<Dir>));
+    let mut seen = vec![false; (mw * mh) as usize];
+    seen[idx(from)] = true;
+    while let Some((c, d0)) = queue.pop_front() {
+        if c == to {
+            return d0;
+        }
+        for d in DIRS {
+            let (dx, dy) = d.delta();
+            let mut n = (c.0 + dx, c.1 + dy);
+            if !in_bounds(map, n.0, n.1) {
+                continue;
+            }
+            let behavior =
+                |(x, y): (i16, i16)| block_behavior(game, map, block_at(game, map, x, y));
+            if Behavior::walled(behavior(c), behavior(n), d) {
+                continue;
+            }
+            if let Behavior::Ledge(ld) = block_behavior(game, map, block_at(game, map, n.0, n.1)) {
+                if ld != d {
+                    continue;
+                }
+                n = (n.0 + dx, n.1 + dy);
+            } else if !walkable(n) && n != to {
+                continue;
+            }
+            if !in_bounds(map, n.0, n.1) || seen[idx(n)] || (n != to && !walkable(n)) {
+                continue;
+            }
+            seen[idx(n)] = true;
+            queue.push_back((n, Some(d0.unwrap_or(d))));
+        }
+    }
+    None
 }
 
 /// The parity route on the extracted maps, from a new game before Birch's rescue.
@@ -1042,5 +1053,91 @@ mod tests {
         let c = rec.picture_frames(150);
         assert!(c.windows(2).all(|w| w[0] < w[1]));
         assert!(c.iter().all(|&f| (1..=rec.frames()).contains(&f)));
+    }
+
+    /// A 2x3 synthetic map whose metatile `i` has raw behavior `i`: 1 is walled on its east
+    /// side (Gen3 `MB_IMPASSABLE_EAST`), everything else is normal.
+    struct Walled(&'static engine::data::MapData);
+
+    impl GameData for Walled {
+        fn map(&self, _: MapId) -> &'static engine::data::MapData {
+            self.0
+        }
+        fn sprite(&self, gfx: engine::data::GfxId) -> Option<&'static engine::data::SpriteData> {
+            content::Emerald::for_shells().sprite(gfx)
+        }
+        fn player_sprite(&self) -> &'static engine::data::SpriteData {
+            content::Emerald::for_shells().player_sprite()
+        }
+        fn font(&self) -> &'static engine::data::Font {
+            content::Emerald::for_shells().font()
+        }
+        fn window(&self) -> &'static engine::data::WindowGfx {
+            content::Emerald::for_shells().window()
+        }
+        fn text(&self, id: engine::data::TextId) -> &'static [u8] {
+            content::Emerald::for_shells().text(id)
+        }
+        fn ui_text(&self, t: engine::data::UiText) -> &'static [u8] {
+            content::Emerald::for_shells().ui_text(t)
+        }
+        fn behavior(&self, raw: u8) -> Behavior {
+            match raw {
+                1 => Behavior::Impassable(engine::data::Sides::of(&[Dir::Right])),
+                _ => Behavior::Normal,
+            }
+        }
+        fn script(
+            &self,
+            id: engine::data::ScriptId,
+            ctx: engine::script::Ctx,
+        ) -> engine::script::Script {
+            content::Emerald::for_shells().script(id, ctx)
+        }
+        fn new_game(&self) -> engine::data::NewGame {
+            content::Emerald::for_shells().new_game()
+        }
+    }
+
+    /// The route's walks go round a directional wall, and through the walled cell's open sides.
+    #[test]
+    fn walks_go_round_directional_walls() {
+        use engine::data::{MapData, MapScripts, Tileset};
+        let ts: &'static Tileset = Box::leak(Box::new(Tileset {
+            tiles: &[],
+            palettes: &[],
+            metatiles: &[],
+            attributes: &[0, 1],
+        }));
+        let game = Walled(Box::leak(Box::new(MapData {
+            name: "Walled",
+            width: 2,
+            height: 3,
+            blocks: &[0, 0, 1, 0, 0, 0],
+            border: [0; 4],
+            primary: ts,
+            secondary: ts,
+            objects: &[],
+            warps: &[],
+            coords: &[],
+            bgs: &[],
+            connections: &[],
+            scripts: MapScripts::default(),
+            allow_running: false,
+        })));
+        let dir = |from, to| first_dir(&game, MapId(0), from, to, &[], false);
+        // East out of the walled cell, and west into it, cross the wall: round by row 0 or 2.
+        let round = [Some(Dir::Up), Some(Dir::Down)];
+        assert!(round.contains(&dir((0, 1), (1, 1))));
+        assert!(round.contains(&dir((1, 1), (0, 1))));
+        // Its other sides are open.
+        assert_eq!(dir((0, 0), (0, 1)), Some(Dir::Down));
+        assert_eq!(dir((0, 2), (0, 1)), Some(Dir::Up));
+        // Blocked both ways round, there is no walk.
+        let occupied = [(0, 0), (1, 0), (0, 2), (1, 2)];
+        assert_eq!(
+            first_dir(&game, MapId(0), (0, 1), (1, 1), &occupied, false),
+            None
+        );
     }
 }
