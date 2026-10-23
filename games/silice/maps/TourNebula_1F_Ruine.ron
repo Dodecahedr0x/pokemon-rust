@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_RUINE1_MATHIAS"),
-            gfx: "OBJ_EVENT_GFX_SAILOR",
+            gfx: "OBJ_EVENT_GFX_MAN_5",
             x: 12,
             y: 11,
             elevation: 3,

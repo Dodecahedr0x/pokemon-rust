@@ -9,7 +9,7 @@
     // once FLAG_SIL_COMPOSANT_1 is set. 3: gas 06. 4: Ex-Cocket Gus, between the barrels. 5-6: barrels B1
     // and B2 (Strength). 7: Entei, asleep by the still's fire once Julien frees it (hidden until
     // Nebula_PG_Sc03c clears FLAG_SIL_HIDE_ENTEI; a capture sets it again).
-    Object(x: 12, y: 11, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_RUINE1_MATHIAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_1F_Ruine_PG_Sc12"),
+    Object(x: 12, y: 11, gfx: "OBJ_EVENT_GFX_MAN_5", id: "LOCALID_RUINE1_MATHIAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_1F_Ruine_PG_Sc12"),
     Object(x: 7, y: 2, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_RUINE1_COMPOSANT", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_PG_Sc12_Composant", flag: "FLAG_SIL_COMPOSANT_1"),
     Object(x: 7, y: 4, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_RUINE1_GAZ", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Gaz06", flag: "FLAG_SIL_HIDE_GAZ_06"),
     Object(x: 4, y: 8, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_RUINE1_GUS", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_1F_Ruine_EventScript_Gus", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),

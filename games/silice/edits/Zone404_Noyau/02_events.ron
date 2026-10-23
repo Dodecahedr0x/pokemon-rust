@@ -1,0 +1,22 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_NONE", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the mat, back to fragment 6's arrival (Zone404 warp 5).
+    Warp(x: 5, y: 9, dest_map: "Zone404", dest_warp: 5),
+    // 1: the Clone (the player's sprite, dark palette), hidden by FLAG_SIL_CLONE_BATTU. 2: Mewtwo
+    // (Zone_404_PG_Sc26b), hidden until Zone_404_PG_Sc26 clears FLAG_SIL_HIDE_MEWTWO; a capture sets it
+    // again.
+    Object(x: 5, y: 3, gfx: "OBJ_EVENT_GFX_BRENDAN_NORMAL", id: "LOCALID_NOYAU_CLONE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_CLONE_BATTU"),
+    Object(x: 5, y: 2, gfx: "OBJ_EVENT_GFX_KIRLIA", id: "LOCALID_NOYAU_MEWTWO", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Zone404_Noyau_PG_Sc26b", flag: "FLAG_SIL_HIDE_MEWTWO"),
+    // Zone404_Noyau_PG_Sc26 on the row y 6 (VAR_TEMP_1 0; it returns at once once FLAG_SIL_CLONE_BATTU is
+    // set).
+    Coord(x: 1, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 2, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 3, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 4, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 5, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 6, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 7, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 8, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+    Coord(x: 9, y: 6, var: "VAR_TEMP_1", value: 0, script: "Zone404_Noyau_PG_Sc26"),
+]

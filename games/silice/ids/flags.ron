@@ -2390,6 +2390,34 @@
             name: "FLAG_SIL_HIDE_CRATERE_ROCHER",
             num: 994,
         ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_JULIEN",
+            num: 995,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_MATHIEU",
+            num: 996,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_THOMAS",
+            num: 997,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_TYRANITAR",
+            num: 998,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_CROBAT",
+            num: 999,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_GARDE_1",
+            num: 1000,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_NEBULA_PG_GARDE_2",
+            num: 1001,
+        ),
         // SIL2 Ch2 scripts (script-only, 1050+): the Usine's cable, cut with the Coupe module
         // (GrisEchec_Usine_EventScript_Cable).
         (

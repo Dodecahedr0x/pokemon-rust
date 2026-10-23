@@ -1,17 +1,17 @@
 // Header, map scripts, warps, objects, coord and bg events, connections.
 [
     Header((music: "MUS_ABNORMAL_WEATHER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_FOG_HORIZONTAL", map_type: "MAP_TYPE_ROUTE", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
-    // Warps 0-1: the mats (9-10, 39), the way back to Nebula. MAP_DYNAMIC until Nebula (Ch9) is on master:
-    // the pending link puts the crack in Nebula's north wall as a warp to warp 0 (see the plan).
-    Warp(x: 9, y: 39, dest_map: "MAP_DYNAMIC", dest_warp: 127),
-    Warp(x: 10, y: 39, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    // Warps 0-1: the mats (9-10, 39), the way back to Nebula: the crack in its north wall (Nebula warps 5-6,
+    // Nebula/05_ch12_postgame.ron).
+    Warp(x: 9, y: 39, dest_map: "Nebula", dest_warp: 5),
+    Warp(x: 10, y: 39, dest_map: "Nebula", dest_warp: 6),
     // 1: Thomas at the camp (Breche_PG_Sc10b, the heal; PG_Lib_Thomas). 2: the Council's guard and his
     // supplies (the shop, Breche_PG_Shop). 3-5: gases 01-03. 6: Ex-Cocket Davy (first third). 7: Ex-Cocket
     // Nora, facing the only cell before gas 01 (9, 27). 8: Garde Bastien at the camp's entrance, facing its
     // only cell (9, 24). 9: Chercheuse Olga after the camp. 10-11: the Hyper Balls (under a shard) and the
     // Max Elixir (past gas 02). 12: Articuno on the glass overhang (hidden until Breche_PG_Sc10b's
     // liberation clears FLAG_SIL_HIDE_ARTICUNO; a capture sets it again).
-    Object(x: 7, y: 19, gfx: "OBJ_EVENT_GFX_BRENDAN_NORMAL", id: "LOCALID_BRECHE_THOMAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_PG_Sc10b"),
+    Object(x: 7, y: 19, gfx: "OBJ_EVENT_GFX_WALLACE", id: "LOCALID_BRECHE_THOMAS", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_PG_Sc10b"),
     Object(x: 12, y: 19, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_BRECHE_GARDE_SHOP", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_PG_Shop"),
     Object(x: 9, y: 26, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_BRECHE_GAZ_01", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_Gaz01", flag: "FLAG_SIL_HIDE_GAZ_01"),
     Object(x: 9, y: 16, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_BRECHE_GAZ_02", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Breche_EventScript_Gaz02", flag: "FLAG_SIL_HIDE_GAZ_02"),

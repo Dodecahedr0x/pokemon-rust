@@ -1,0 +1,58 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_RG_ROCKET_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: fragment 1's mat (2, 10), back to the lab's teleporter (BenouLab warp 2); also fragment 1's
+    // start. Warps 1-5: the arrivals of fragments 2-6 (2, 9), landings only (MAP_DYNAMIC). Then three per
+    // fragment, the missing tiles: the right one to the next fragment's arrival, the two others back to this
+    // fragment's arrival (Zone_404_PG_Sc25's table). Fragment 6's slab 20 goes to the Core.
+    Warp(x: 3, y: 11, dest_map: "BenouLab", dest_warp: 2),
+    Warp(x: 16, y: 10, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    Warp(x: 29, y: 10, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    Warp(x: 3, y: 23, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    Warp(x: 16, y: 23, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    Warp(x: 29, y: 23, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    // Fragment 1: E goes on, N and W go back.
+    Warp(x: 11, y: 6, dest_map: "Zone404", dest_warp: 1),
+    Warp(x: 7, y: 2, dest_map: "Zone404", dest_warp: 0),
+    Warp(x: 2, y: 6, dest_map: "Zone404", dest_warp: 0),
+    // Fragment 2: NE goes on, N and S go back.
+    Warp(x: 24, y: 2, dest_map: "Zone404", dest_warp: 2),
+    Warp(x: 20, y: 2, dest_map: "Zone404", dest_warp: 1),
+    Warp(x: 20, y: 10, dest_map: "Zone404", dest_warp: 1),
+    // Fragment 3: S goes on, E and W go back.
+    Warp(x: 33, y: 10, dest_map: "Zone404", dest_warp: 3),
+    Warp(x: 37, y: 6, dest_map: "Zone404", dest_warp: 2),
+    Warp(x: 28, y: 6, dest_map: "Zone404", dest_warp: 2),
+    // Fragment 4: W goes on, N and E go back.
+    Warp(x: 2, y: 19, dest_map: "Zone404", dest_warp: 4),
+    Warp(x: 7, y: 15, dest_map: "Zone404", dest_warp: 3),
+    Warp(x: 11, y: 19, dest_map: "Zone404", dest_warp: 3),
+    // Fragment 5: W goes on, E and S go back.
+    Warp(x: 15, y: 19, dest_map: "Zone404", dest_warp: 5),
+    Warp(x: 24, y: 19, dest_map: "Zone404", dest_warp: 4),
+    Warp(x: 20, y: 23, dest_map: "Zone404", dest_warp: 4),
+    // Fragment 6: the slabs 1 and 12 go back, 20 goes to the Core.
+    Warp(x: 30, y: 16, dest_map: "Zone404", dest_warp: 5),
+    Warp(x: 33, y: 16, dest_map: "Zone404", dest_warp: 5),
+    Warp(x: 36, y: 16, dest_map: "Zone404_Noyau", dest_warp: 0),
+    // The four 'DONNEE ?' trainers (fragments 2, 3, 5, 6): GOGO?, ROMAIN?, POUSSIN?, ?????. Then the items:
+    // the PP Max (fragment 4), the Rare Candy (6), the Link Stone (3).
+    Object(x: 22, y: 5, gfx: "OBJ_EVENT_GFX_MAXIE", id: "LOCALID_ZONE404_GOGO", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Zone404_EventScript_Gogo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 29, y: 5, gfx: "OBJ_EVENT_GFX_ARCHIE", id: "LOCALID_ZONE404_ROMAIN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Zone404_EventScript_Romain", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 19, y: 16, gfx: "OBJ_EVENT_GFX_DRAKE", id: "LOCALID_ZONE404_POUSSIN", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Zone404_EventScript_Poussin", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 33, y: 21, gfx: "OBJ_EVENT_GFX_PSYCHIC_M", id: "LOCALID_ZONE404_INCONNU", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Zone404_EventScript_Inconnu", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 10, y: 23, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ZONE404_ITEM_PP_MAX", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Zone404_EventScript_ItemPPMax", flag: "FLAG_SIL_ITEM_PG_ZONE404_1"),
+    Object(x: 37, y: 24, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ZONE404_ITEM_RARE_CANDY", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Zone404_EventScript_ItemRareCandy", flag: "FLAG_SIL_ITEM_PG_ZONE404_2"),
+    Object(x: 37, y: 11, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ZONE404_ITEM_PIERRE_LIEN", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Zone404_EventScript_ItemPierreLien", flag: "FLAG_SIL_ITEM_PG_ZONE404_3"),
+    // The fragments' hint signs (Zone_404_PG_P1..P6) on the ring's tree (3, 11) of each fragment, read
+    // facing down from (3, 10), and fragment 6's three numbered stones.
+    Sign(x: 4, y: 12, script: "Zone404_PG_P1"),
+    Sign(x: 17, y: 12, script: "Zone404_PG_P2"),
+    Sign(x: 30, y: 12, script: "Zone404_PG_P3"),
+    Sign(x: 4, y: 25, script: "Zone404_PG_P4"),
+    Sign(x: 17, y: 25, script: "Zone404_PG_P5"),
+    Sign(x: 30, y: 25, script: "Zone404_PG_P6"),
+    Sign(x: 31, y: 16, script: "Zone404_EventScript_Dalle1"),
+    Sign(x: 34, y: 16, script: "Zone404_EventScript_Dalle12"),
+    Sign(x: 37, y: 16, script: "Zone404_EventScript_Dalle20"),
+]
