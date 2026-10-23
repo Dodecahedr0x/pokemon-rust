@@ -80,6 +80,9 @@ pub enum Step {
     Face(Dir),
     /// One step toward `dir` (a bump into a scripted cell, or across a cell a script opened).
     Walk(Dir),
+    /// A [`Step::Walk`] per direction, in order, on `map`: a route written out where a
+    /// shortest path will not do (thin ice that must be crossed once per cell).
+    Path { map: MapId, dirs: &'static [Dir] },
     /// Hold `dir` from the current cell until the map changes; the new map must be `to`.
     Exit { dir: Dir, to: MapId },
     /// Press A on what is ahead, resolve.
@@ -153,6 +156,10 @@ pub struct Bypass {
     /// An item used from the bag ([`UseItem`]): `World::use_item` stands for the bag's USE (the
     /// bag screen is Milestone 9 Task B), then the party menu plays with inputs.
     pub use_item: Option<UseItem>,
+    /// `(item, qty)` bought at a PokÃ© Mart (the mart screen is Milestone 9 Task M): each added
+    /// to its pocket (an owned stack first, else the first free slot), its price times `qty`
+    /// taken from the money (refused when the money falls short, as the mart would).
+    pub buy: &'static [(ItemId, u16)],
 }
 
 /// An item used from the bag on party slot `mon` ([`Step::UseItem`], Gen3
@@ -183,6 +190,7 @@ impl Bypass {
         warp: None,
         teach: &[],
         use_item: None,
+        buy: &[],
     };
 }
 
@@ -192,6 +200,7 @@ impl Step {
         match *self {
             Step::Goto { map, .. }
             | Step::GotoAvoiding { map, .. }
+            | Step::Path { map, .. }
             | Step::Enter { map, .. }
             | Step::Cross { map, .. }
             | Step::Talk { map, .. }
@@ -210,6 +219,7 @@ impl Step {
             self,
             Step::Face(_)
                 | Step::Walk(_)
+                | Step::Path { .. }
                 | Step::Exit { .. }
                 | Step::Interact
                 | Step::Press(..)
@@ -968,6 +978,11 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             }
             Step::Interact => self.macro_(live, mk(MacroKind::Interact))?,
             Step::Walk(dir) => self.macro_(live, mk(MacroKind::Step { dir }))?,
+            Step::Path { dirs, .. } => {
+                for &dir in dirs {
+                    self.macro_(live, mk(MacroKind::Step { dir }))?;
+                }
+            }
             Step::Exit { dir, to } => {
                 for _ in 0..RETRIES {
                     if live.s.world().map() != start_map {
@@ -1229,6 +1244,13 @@ fn bypass<G: GameData + Clone>(
     } else if !b.teach.is_empty() {
         return Err(format!("bypass {}: no lead to teach", b.issue));
     }
+    for &(item, qty) in b.buy {
+        let info =
+            (game.item(item)).ok_or_else(|| format!("bypass {}: no item {}", b.issue, item.0))?;
+        let w = &mut cp.world;
+        buy(&mut w.bag, &mut w.money, item, info, qty)
+            .map_err(|e| format!("bypass {}: {e}", b.issue))?;
+    }
     cp.header.build = engine::checkpoint::BuildHash {
         engine: 0,
         content: 0,
@@ -1260,6 +1282,46 @@ fn bypass<G: GameData + Clone>(
     let end = (world.checkpoint(game)).map_err(|e| format!("bypass {}: {e:?}", b.issue))?;
     live.load_bypass(end)
         .map_err(|e| format!("bypass {}: {e}", b.issue))
+}
+
+/// [`Bypass::buy`] on a checkpoint's bag and money: `qty` of `item` at `info.price` each, onto
+/// an owned stack of it, else into its pocket's first free slot.
+pub fn buy(
+    bag: &mut engine::checkpoint::BagSnap,
+    money: &mut u32,
+    item: ItemId,
+    info: &engine::data::ItemInfo,
+    qty: u16,
+) -> Result<(), String> {
+    let cost = u32::from(info.price) * u32::from(qty);
+    *money = (money.checked_sub(cost)).ok_or_else(|| {
+        format!(
+            "{qty} of item {} cost {cost}, short of money ({money})",
+            item.0
+        )
+    })?;
+    let slots = &mut bag.slots;
+    if let Some(s) = (slots.iter_mut()).find(|s| s.pocket == info.pocket && s.item == item) {
+        s.qty += qty;
+        return Ok(());
+    }
+    let taken = |i: u8| {
+        slots
+            .iter()
+            .any(|s| s.pocket == info.pocket && s.index == i)
+    };
+    let index = (0..=u8::MAX)
+        .find(|&i| !taken(i))
+        .ok_or("the pocket is full")?;
+    let at = slots.partition_point(|s| (s.pocket as u8, s.index) < (info.pocket as u8, index));
+    let slot = engine::checkpoint::BagSlotSnap {
+        pocket: info.pocket,
+        index,
+        item,
+        qty,
+    };
+    slots.insert(at, slot);
+    Ok(())
 }
 
 /// Frames a [`UseItem`] may take at most (fades, the summary, the field's return).
@@ -1369,4 +1431,60 @@ fn first_dir_avoiding<G: GameData>(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod buy_tests {
+    use super::buy;
+    use engine::checkpoint::{BagSlotSnap, BagSnap};
+    use engine::data::{ItemId, ItemInfo, Pocket};
+
+    const POTION: ItemInfo = ItemInfo {
+        name: b"POTION",
+        pocket: Pocket::Items,
+        price: 300,
+        key: false,
+    };
+
+    fn slot(pocket: Pocket, index: u8, item: u16, qty: u16) -> BagSlotSnap {
+        BagSlotSnap {
+            pocket,
+            index,
+            item: ItemId(item),
+            qty,
+        }
+    }
+
+    #[test]
+    fn buying_stacks_or_takes_the_first_free_slot_and_pays() {
+        let mut bag = BagSnap {
+            slots: vec![
+                slot(Pocket::Items, 0, 7, 1),
+                slot(Pocket::Items, 2, 8, 1),
+                slot(Pocket::KeyItems, 0, 9, 1),
+            ],
+        };
+        let mut money = 1000;
+        buy(&mut bag, &mut money, ItemId(13), &POTION, 2).unwrap();
+        assert_eq!(money, 400);
+        assert_eq!(
+            bag.slots[1],
+            slot(Pocket::Items, 1, 13, 2),
+            "{:?}",
+            bag.slots
+        );
+        buy(&mut bag, &mut money, ItemId(13), &POTION, 1).unwrap();
+        assert_eq!(money, 100);
+        assert_eq!(bag.slots[1], slot(Pocket::Items, 1, 13, 3));
+        assert_eq!(bag.slots.len(), 4);
+    }
+
+    #[test]
+    fn buying_refuses_short_money_and_changes_nothing() {
+        let mut bag = BagSnap { slots: vec![] };
+        let mut money = 500;
+        let e = buy(&mut bag, &mut money, ItemId(13), &POTION, 2).unwrap_err();
+        assert!(e.contains("short of money"), "{e}");
+        assert_eq!((money, bag.slots.len()), (500, 0));
+    }
 }

@@ -193,6 +193,8 @@ fn selection_limits() {
     });
     assert!(starts(&l, "PkmnSubjectedToTorment"), "{l:?}");
     r.choose(Choice::Move(0));
+    assert!(!r.b.move_selectable(t, P, 0), "Pound, used last");
+    assert!(r.b.move_selectable(t, P, 1));
     assert_eq!(r.choose(Choice::Move(0)), ["PkmnCantUseMoveTorment@P"]);
 
     // Encore: the encored move is used whatever the choice.

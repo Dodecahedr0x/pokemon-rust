@@ -145,7 +145,10 @@ pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m:
         MacroKind::Talk { local_id } => st.talkable(local_id),
         MacroKind::Inspect { x, y, dir } => st.inspect_dirs((x, y)).any(|d| d == dir),
         MacroKind::Grass { x, y } => {
-            st.reach.dist(x, y).is_some() && st.grid.behavior((x, y)).land_encounter()
+            // Water encounters too: a surfer reaches water cells (the elevation rule keeps
+            // them out of a walker's reach).
+            let b = st.grid.behavior((x, y));
+            st.reach.dist(x, y).is_some() && (b.land_encounter() || b.water_encounter())
         }
     }
 }

@@ -118,8 +118,20 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
+| `fly-mauville` (628), `fly-slateport` (669), `fly-lilycove` (678) | Route 120 → Mauville (22,6); Jagged Pass → Slateport (19,20); Slateport → Lilycove (24,15) | no field Fly; nothing in the party could learn it | `FIELD_MOVE_FLY`, `FLDEFF_USE_FLY`, the region map | Milestone 10 (field moves from the party menu) |
+| `water-door-in` (690), `water-door-out` (708) | Lilycove (70,5) ↔ Aqua Hideout 1F (13,12) | the surf movement never takes the water door's warp | `MB_WATER_DOOR` (surfing onto a warp) | engine field (Wave C field moves) |
+| `mossdeep-gym-puzzle` (797) | Mossdeep Gym (23,8) | the statues never turn: the floor switches' commands are unsupported | `initrotatingtilepuzzle`, `moverotatingtileobjects`, `turnrotatingtileobjects`, `freerotatingtilepuzzle` | engine scripts |
+| `steven-multi` (826) | Space Center 2F (1,7) | the multi battle's specials are unsupported; the script goes on as if won and the objects stay frozen (every branch from step 824 is a `PlannerDivergence` at (1,7)) | `SPECIAL_ChooseHalfPartyForBattle`, `SPECIAL_ReducePlayerPartyToSelectedMons`, `SPECIAL_DoSpecialTrainerBattle`, `FRONTIER_UTIL_FUNC_SAVE_PARTY` | battle (multi battles) |
+| `dive-seafloor` (845), `dive-sootopolis` (906, 932), `dive-out-sootopolis` (924, 980) | Route 128 → Seafloor Cavern (10,17); Route 126 ↔ Sootopolis (31,50) / Route 126 (45,66) | no field Dive, no underwater maps | `FIELD_MOVE_DIVE`, `FLDEFF_USE_DIVE`, `MB_DEEP_WATER`, underwater maps | Milestone 10 |
+| `legendaries-scene` (905), `rayquaza-scene` (931) | Sootopolis | the scene's own screen is unsupported: the field stays faded out | `SPECIAL_Script_DoRayquazaScene` | content/engine specials |
+| `sky-pillar-layouts` (929) | Route 131, Sky Pillar 1F–top | `NoPath` (the planner reads the map's own layout), then "RoundTrip: shadow diverged" (the checkpoint and `World::hash` leave the override out: `Field::from_snapshot`'s TODO(schema 5)) | `setmaplayoutindex` (`LAYOUT_ROUTE131_SKY_PILLAR`, `LAYOUT_SKY_PILLAR_*_CLEAN`) | engine checkpoint (schema 5) + explorer planner |
+| `waterfall-ever-grande` (985) | Ever Grande (20,68) → (20,59) | no field Waterfall | `FIELD_MOVE_WATERFALL`, `FLDEFF_USE_WATERFALL`, `MB_WATERFALL` | Milestone 10 |
+| `league-mart` (1216) | League 1F (the clerk at (16,2)) | the mart screen is a stub; the bypass buys 10 Full Restores at the mart's price (`Bypass::buy`) | `pokemart` | Milestone 9 Task M |
+| `game-clear` (1252) | Hall of Fame (7,16) → Brendan's room (4,2) | after the walk and `FLDEFF_HALL_OF_FAME_RECORD`, `special GameClear` (Hall of Fame screen, credits, save, reset) is unsupported: the field stays faded out and is never capturable again, so the whole room is bypassed on arrival (`FLAG_IS_CHAMPION`, `FLAG_SYS_GAME_CLEAR`, the continue warp) | `SPECIAL_GameClear` | engine (Hall of Fame screen, credits) |
 
-None today: the last two (`bag-use-hm06`, `bag-use-hm03`) went with Milestone 9 Task B's bag; the spine teaches Rock Smash and Surf through START → BAG → the HM → USE → the party menu (`Step::UseItem`).
+The bag-use rows (`bag-use-hm06`, `bag-use-hm03`) went with Milestone 9 Task B's bag; the spine teaches Rock Smash, Surf and Strength through START → BAG → the HM → USE → the party menu (`Step::UseItem`), and drinks Full Restores and the Max Elixir the same way.
+
+**Engine gap behind `sky-pillar-layouts`, worth its own task:** a `setmaplayoutindex` override is not in the checkpoint nor in `World::hash`, so any restore on an override map (Route 131, every Sky Pillar floor, Sootopolis in `VAR_SOOTOPOLIS_CITY_STATE` 1–5) walks the map's own layout. Sootopolis passed by luck (its overrides change no cell the spine walks).
 
 **Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); move effects 208 (Brawly's gym), 176 (Route 110 wild), 158 (Route 113) and 043 (Route 112); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility` (Route 111 (16,139)); `FLDEFF_USE_ROCK_SMASH` and `SPECIAL_RockSmashWildEncounter` (Route 111 (18,102)); `SPECIAL_CableCar` (degraded: the ride is a fade and Gen3's 602 frames, Route 112's station). Surf works (Wave C field moves): the spine surfs Route 118 and walks Route 119 to Fortree; the next gap is Fortree's gym, behind the Kecleon that only the Devon Scope (Route 120, Steven) reveals.
 
@@ -378,6 +390,31 @@ Policy:
 **Branches** (`cargo xtask explore branch` on the badge5 spine, fresh db): 1,277 branches from 60 origins, 8.75 M frames in 1.3 s; 783 rejoined, 64 diverged as expected, 62 diverged, 75 stranded, 234 aborted, 59 unplayable; 137 findings (62 divergences), 832 reports. The non-report findings:
 - Softlocks on entering any Battle Tent lobby (Slateport 0x0902, Fallarbor 0x0501, Verdanturf 0x0600, at (6,9)): the lobbies' `ON_FRAME` table runs `frontier_getstatus` (`SPECIAL_CallFrontierUtilFunc`, unsupported) while `VAR_TEMP_CHALLENGE_STATUS` is 0, so the script never sets it and reruns every frame. A content/engine gap (frontier utility functions), not the explorer's. Fixed in Wave C (spine warps): `GET_STATUS` sets `VAR_TEMP_CHALLENGE_STATUS` to `CHALLENGE_STATUS_NONE` (0xFF), exact with no challenge saved.
 - Divergences "did not rejoin" after `woods` (Route 104 (39,63)) and after `badge3` (Route 111 (21,12), Fiery Path (26,36)): a branch's walk leaves a state where the next spine step fails (`NoPath` on Route 104's `Cross`; the rest stop `Enter` stalling at Route 111 (21,12), where the spine itself needs two `Goto`s). Explorer-side (rejoin and planner), not engine.
+
+### Task S2 — the spine from Fortree to the Hall of Fame (branch `worktree-agent-a57efdb12e72163ac`)
+
+The spine plays to `hall_of_fame` (1,256 steps, 2,850,424 frames, 2.1 s), with 18 bypasses (the rows of section 2). Goals: Act 6 to the League (`ever_grande`, the four Elite Four, `wallace_defeated`, `champion`, `hall_of_fame`). Act 1 is unchanged (badge1 at frame 104,879).
+
+- **`Step::Path`**: raw steps in order, where a shortest path will not do: Sootopolis Gym's thin ice (every cell of a room once, Gen3's `VAR_ICE_STEP_COUNT` thresholds) and the Victory Road B2F waterfall surfed down.
+- **`Bypass::buy`** (`spine::buy`, unit-tested): items into the checkpoint's bag at their price, refused short of money.
+- **Policy**: `best_selectable_slot` skips the moves the battle refuses (`engine::battle::Battle::move_selectable`: Torment, Disable, Taunt, Imprison). Sidney's Shiftry's Torment otherwise looped the move menu to a macro timeout. No frame changes before that.
+- **HM04** forgets Muddy Water (Surf outdoes it), not Earthquake: the lead's only non-Water attack for the League. Frames move from badge4 on.
+- **The League** is a lone Swampert with 3 HMs, no switching and no items in battle: 55 PP for 26 foes and their Full Restores. It trains to 96 on Victory Road's last cave (30 `TrainFresh` rounds healed at the League's counter, about 1.4 M frames), drinks a Full Restore after each Elite Four room, and the Max Elixir (picked up on Victory Road 1F (40,26)) before Wallace. At 63, Sidney won; at 80 Glacia; at 90 Wallace (Gyarados).
+- Explorer notes: Route 128's west and Route 129's south are cut off by reefs (crossings at (40,39) and (0,23)); talking while surfing needs landing first; Victory Road's 1F exit (39,5) is a south arrow warp (`Enter` with `Down`); the League's door guards need talking to first; Juan's gym is left by falling through the ice to B1F.
+
+**Branch triage** (fresh db, 2,751 branches from 170 origins, 18.4 M frames in 4.5 s; 1,562 rejoined, 257 diverged as expected, 134 diverged, 104 stranded, 584 aborted, 10 bug, 100 unplayable):
+- The 10 bug branches are all from step 824, Space Center 2F (1,7): `PlannerDivergence`, held toward a walkable cell without moving. The multi battle left the objects frozen (`steven-multi`, engine). Not the explorer's.
+- "Did not rejoin" divergences come in two kinds, both explorer-side:
+  - **The branch sets a flag the spine never does** (`after step N: flag …`): a trainer the walk crossed (flags in the trainer range 0x500–0x85F: devon_goods 0x618, badge6 0x57f/0x695, aqua_hideout 0x6c2, seafloor_cavern 0x6c5, badge3 0x6d7) or another side flag (badge6 0x168/0x173). The story did not change. Fix: the rejoin should treat trainer and item flags as expected divergences.
+  - **The next spine step fails from where the branch left the player.**
+    - Route 104 `Cross` `NoPath` (woods).
+    - Route 111's rest-stop `Enter` stalling at (21,12) (badge3; the spine itself needs two `Goto`s there).
+    - Route 119's `Use` at (1,80) never reached (badge4).
+    - Mossdeep's Space Center `Enter` (badge7).
+    - Seafloor Cavern's `Enter`/`Use` (hm_dive).
+
+    Fix: planner/rejoin.
+- The Route 111 round-trip finding (origin 448) did not come back on this spine. The remaining round-trip risk is the layout override above (engine).
 
 ### Wave C — spine warps, doors and field controls
 

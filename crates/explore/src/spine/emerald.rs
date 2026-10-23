@@ -13,7 +13,7 @@ pub static STEPS: &[Step] = &[];
 
 #[cfg(not(pkr_silice))]
 mod list {
-    use super::super::{BattlePlan, Step, UseItem};
+    use super::super::{BattlePlan, Bypass, Step, UseItem};
     use content::consts::*;
     use engine::data::Dir::{Down, Left, Right, Up};
 
@@ -22,8 +22,46 @@ mod list {
     /// Gen3's `ITEM_HM03` (`include/constants/items.h`), named here because the stub build's
     /// `content::consts` has no Emerald items (this local item shadows the glob import).
     const ITEM_HM03: engine::data::ItemId = engine::data::ItemId(341);
+    /// Gen3's `ITEM_HM04`, for the same reason.
+    const ITEM_HM04: engine::data::ItemId = engine::data::ItemId(342);
     /// Gen3's `ITEM_HM06`, for the same reason.
     const ITEM_HM06: engine::data::ItemId = engine::data::ItemId(344);
+    /// Gen3's `ITEM_FULL_RESTORE`, for the same reason.
+    const ITEM_FULL_RESTORE: engine::data::ItemId = engine::data::ItemId(19);
+    /// Gen3's `ITEM_MAX_ELIXIR`, for the same reason.
+    const ITEM_MAX_ELIXIR: engine::data::ItemId = engine::data::ItemId(37);
+
+    /// The League's Poké Mart (`EverGrandeCity_PokemonLeague_1F_EventScript_Clerk`'s
+    /// `pokemart`): the mart screen is a stub (Milestone 9 Task M), so the Full Restores the
+    /// lead drinks between the Elite Four's rooms (the policy uses no items in battle, and the
+    /// rooms have no nurse) are bought here, at the mart's price.
+    static LEAGUE_MART: Bypass = Bypass {
+        issue: "league-mart",
+        features: &["pokemart"],
+        buy: &[(ITEM_FULL_RESTORE, 10)],
+        ..Bypass::NONE
+    };
+
+    /// The Hall of Fame (`EverGrandeCity_HallOfFame_EventScript_EnterHallOfFame`): its walk and
+    /// `FLDEFF_HALL_OF_FAME_RECORD` play, but `special GameClear` (the Hall of Fame screen, the
+    /// credits, the save and the reset; `post_battle_event_funcs.c`) does not, which leaves the
+    /// screen faded out and the world never capturable again. So the whole room is bypassed on
+    /// arrival: `SetGameClearFlags`' `FLAG_IS_CHAMPION`, `GameClear`'s `FLAG_SYS_GAME_CLEAR`,
+    /// and the continue warp (`HEAL_LOCATION_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F`).
+    static HALL_OF_FAME: Bypass = Bypass {
+        issue: "game-clear",
+        features: &["SPECIAL_GameClear"],
+        set: &[FLAG_IS_CHAMPION, FLAG_SYS_GAME_CLEAR],
+        warp: Some((MAP_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F, 4, 2)),
+        ..Bypass::NONE
+    };
+
+    /// A Full Restore from the bag on the lead, between two Elite Four rooms.
+    const FULL_RESTORE: Step = Step::UseItem(UseItem {
+        item: ITEM_FULL_RESTORE,
+        mon: 0,
+        forget: 0,
+    });
 
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
@@ -71,6 +109,256 @@ mod list {
         mon: 0,
         forget: 2,
     });
+
+    /// Fly from the party menu (`FIELD_MOVE_FLY`, `FLDEFF_USE_FLY`, the region map): the
+    /// engine has neither the field move from the party menu (Milestone 10) nor a party that
+    /// could carry it (nothing in Swampert's or Castform's learnsets; catching is the bag in
+    /// battle, Milestone 9). The bypass lands where Gen3's Fly does, on the city's heal
+    /// location (`heal_locations.json`).
+    const fn fly(issue: &'static str, map: MapId, x: i16, y: i16) -> Bypass {
+        Bypass {
+            issue,
+            features: &[
+                "FIELD_MOVE_FLY",
+                "FLDEFF_USE_FLY",
+                "party menu: Fly",
+                "catching (a mon that learns Fly)",
+            ],
+            warp: Some((map, x, y)),
+            ..Bypass::NONE
+        }
+    }
+
+    /// HM04 from the bag on the lead, as [`USE_HM06`], for the Magma Hideout's boulders:
+    /// forgetting Muddy Water (slot 0), which Surf outdoes, over Earthquake (slot 1, learned at
+    /// 52 over Take Down), the lead's one non-Water attack for the League.
+    const USE_HM04: Step = Step::UseItem(UseItem {
+        item: ITEM_HM04,
+        mon: 0,
+        forget: 0,
+    });
+
+    /// Route 120's ledges are one-way south: back from Mt. Pyre to the Jagged Pass by Fly.
+    static FLY_MAUVILLE: Bypass = fly("fly-mauville", MAP_MAUVILLE_CITY, 22, 6);
+    /// From the Jagged Pass (Groudon awake) to Slateport's harbor, where Archie takes the
+    /// submarine.
+    static FLY_SLATEPORT: Bypass = fly("fly-slateport", MAP_SLATEPORT_CITY, 19, 20);
+    /// From Slateport to Lilycove's Aqua Hideout.
+    static FLY_LILYCOVE: Bypass = fly("fly-lilycove", MAP_LILYCOVE_CITY, 24, 15);
+
+    /// Lilycove's water door into the Aqua Hideout (`MB_WATER_DOOR` at (70, 5), surfing): the
+    /// engine's surf movement never takes its warp. The bypass lands past the hideout's pool
+    /// (whose surfing it skips) on 1F's first dry cell.
+    static WATER_DOOR_IN: Bypass = Bypass {
+        issue: "water-door-in",
+        features: &["MB_WATER_DOOR", "surfing onto a warp"],
+        warp: Some((MAP_AQUA_HIDEOUT_1F, 13, 12)),
+        ..Bypass::NONE
+    };
+    /// The way back: 1F's pool ends on the water warps (13, 27)/(14, 27) to Lilycove's water
+    /// door; the bypass lands on the shore Lilycove's Surf leaves from.
+    static WATER_DOOR_OUT: Bypass = Bypass {
+        issue: "water-door-out",
+        features: &["MB_WATER_DOOR", "surfing onto a warp"],
+        warp: Some((MAP_LILYCOVE_CITY, 63, 14)),
+        ..Bypass::NONE
+    };
+
+    /// Mossdeep's gym: the trick-house statues block every way to Tate and Liza until the
+    /// floor switches turn them (`MossdeepCity_Gym_EventScript_*FloorSwitch`: the rotating
+    /// tile puzzle's commands are unsupported). The bypass lands in front of the twins, where
+    /// the gym's warp pads end.
+    static MOSSDEEP_GYM_PUZZLE: Bypass = Bypass {
+        issue: "mossdeep-gym-puzzle",
+        features: &[
+            "initrotatingtilepuzzle",
+            "moverotatingtileobjects",
+            "turnrotatingtileobjects",
+            "freerotatingtilepuzzle",
+        ],
+        warp: Some((MAP_MOSSDEEP_CITY_GYM, 23, 8)),
+        ..Bypass::NONE
+    };
+
+    /// One training round on Route 120's grass by Fortree, healed at Fortree's Center.
+    const fn fortree_train(level: u8) -> [Step; 6] {
+        [
+            cross(MAP_FORTREE_CITY, 39, 8, Right),
+            train_fresh(MAP_ROUTE120, 24, 8, level),
+            cross(MAP_ROUTE120, 0, 8, Left),
+            enter(MAP_FORTREE_CITY, 5, 6, Up),
+            use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+            enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        ]
+    }
+    const FT47: [Step; 6] = fortree_train(47);
+    const FT48: [Step; 6] = fortree_train(48);
+    const FT49: [Step; 6] = fortree_train(49);
+
+    /// One training round on the water west of Mossdeep: Surf from (10, 10), pace on (8, 10)
+    /// to `level` (stopping at half HP or low PP), back ashore, healed at the Center.
+    const fn mossdeep_train(level: u8) -> [Step; 9] {
+        [
+            goto(MAP_MOSSDEEP_CITY, 10, 10),
+            Step::Choose(0),
+            use_(MAP_MOSSDEEP_CITY, 10, 10, Left),
+            train_fresh(MAP_MOSSDEEP_CITY, 8, 10, level),
+            goto(MAP_MOSSDEEP_CITY, 9, 10),
+            Step::Walk(Right),
+            enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+            use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+            enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        ]
+    }
+    // Rounds to these levels (a round stops short at half HP; one past its level is cheap).
+    const MT53: [Step; 9] = mossdeep_train(53);
+    const MT55: [Step; 9] = mossdeep_train(55);
+    const MT57: [Step; 9] = mossdeep_train(57);
+    const MT58: [Step; 9] = mossdeep_train(58);
+
+    /// Dive (`FIELD_MOVE_DIVE`, `FLDEFF_USE_DIVE`: the engine's field-move effects are Surf,
+    /// Cut, Rock Smash and Strength) from Route 128's deep water, Underwater Route 128's warp
+    /// (38, 26) and the surfacing in the cavern's entrance pool. The bypass lands on that pool
+    /// (surfing, as Gen3 leaves the player). HM08 is not taught either: Swampert keeps its moves.
+    static DIVE_SEAFLOOR: Bypass = Bypass {
+        issue: "dive-seafloor",
+        features: &[
+            "FIELD_MOVE_DIVE",
+            "FLDEFF_USE_DIVE",
+            "MB_DEEP_WATER",
+            "underwater maps",
+        ],
+        warp: Some((MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 17)),
+        ..Bypass::NONE
+    };
+
+    /// Dive from Route 126's deep water, Underwater Route 126's tunnel (45, 65) to Underwater
+    /// Sootopolis, and the surfacing in the crater's lake, as [`DIVE_SEAFLOOR`].
+    static DIVE_SOOTOPOLIS: Bypass = Bypass {
+        issue: "dive-sootopolis",
+        features: &[
+            "FIELD_MOVE_DIVE",
+            "FLDEFF_USE_DIVE",
+            "MB_DEEP_WATER",
+            "underwater maps",
+        ],
+        warp: Some((MAP_SOOTOPOLIS_CITY, 31, 50)),
+        ..Bypass::NONE
+    };
+
+    /// Sootopolis Gym 1F's thin ice (`MB_THIN_ICE`, `STEP_CB_SOOTOPOLIS_ICE`): a path over
+    /// every cell of a room once, from the cell above its entrance to the one below its stairs.
+    /// Room 1: (8, 19) to (8, 17).
+    const GYM_ICE_1: &[Dir] = &[Left, Up, Right, Right, Up, Left];
+    /// Room 2: (8, 14) to (8, 12).
+    const GYM_ICE_2: &[Dir] = &[
+        Right, Right, Right, Up, Up, Left, Left, Down, Left, Left, Down, Left, Left, Up, Up, Right,
+        Right, Right,
+    ];
+    /// Room 3: (8, 9) to (8, 6).
+    const GYM_ICE_3: &[Dir] = &[
+        Left, Left, Up, Left, Down, Left, Left, Up, Up, Up, Right, Down, Right, Right, Up, Right,
+        Down, Right, Down, Right, Down, Right, Up, Up, Right, Down, Right, Down, Right, Up, Up, Up,
+        Left, Left, Left, Left, Left,
+    ];
+
+    /// Waterfall up to Ever Grande (`FIELD_MOVE_WATERFALL`, `FLDEFF_USE_WATERFALL`: no field
+    /// effect but Surf, Cut, Rock Smash and Strength): from the foot of the falls (20, 68) to
+    /// the water above them (20, 59), surfing. HM07 is not taught (as HM08).
+    static WATERFALL_EVER_GRANDE: Bypass = Bypass {
+        issue: "waterfall-ever-grande",
+        features: &[
+            "FIELD_MOVE_WATERFALL",
+            "FLDEFF_USE_WATERFALL",
+            "MB_WATERFALL",
+        ],
+        warp: Some((MAP_EVER_GRANDE_CITY, 20, 59)),
+        ..Bypass::NONE
+    };
+
+    /// Route 131 and the Sky Pillar: Route 131 (`LAYOUT_ROUTE131_SKY_PILLAR`) and every floor
+    /// (`LAYOUT_SKY_PILLAR_*_CLEAN`) are under a `setmaplayoutindex` layout, which the checkpoint
+    /// does not keep (`Field::from_snapshot`'s TODO(schema 5); `World::hash` leaves it out
+    /// too): the explorer's round trip diverges there (a restored world walks the map's own
+    /// layout), and the planner reads the map's own layout. The bypass writes what Wallace's
+    /// door scene (`SkyPillar_Outside_EventScript_WallaceScene`) and Rayquaza's waking
+    /// (`SkyPillar_Top_EventScript_AwakenRayquaza`) leave, and lands on Route 126's dive spot
+    /// (surfing), where the way back into Sootopolis starts.
+    static SKY_PILLAR: Bypass = Bypass {
+        issue: "sky-pillar-layouts",
+        features: &["setmaplayoutindex"],
+        set: &[
+            FLAG_LANDMARK_SKY_PILLAR,
+            FLAG_SYS_WEATHER_CTRL,
+            FLAG_HIDE_SKY_PILLAR_WALLACE,
+            FLAG_HIDE_SKY_PILLAR_TOP_RAYQUAZA,
+        ],
+        clear: &[FLAG_HIDE_SOOTOPOLIS_CITY_WALLACE],
+        vars: &[
+            (VAR_SOOTOPOLIS_CITY_STATE, 5),
+            (VAR_SKY_PILLAR_STATE, 1),
+            (VAR_SKY_PILLAR_RAYQUAZA_CRY_DONE, 1),
+        ],
+        warp: Some((MAP_ROUTE126, 45, 66)),
+        ..Bypass::NONE
+    };
+
+    /// Rayquaza parting Groudon and Kyogre on the dive back in
+    /// (`SootopolisCity_EventScript_RayquazaSceneFromDive`): `SPECIAL_Script_DoRayquazaScene`
+    /// again, as [`LEGENDARIES_SCENE`]. The bypass writes the scene's end.
+    static RAYQUAZA_SCENE: Bypass = Bypass {
+        issue: "rayquaza-scene",
+        features: &["SPECIAL_Script_DoRayquazaScene"],
+        set: &[
+            FLAG_HIDE_SOOTOPOLIS_CITY_GROUDON,
+            FLAG_HIDE_SOOTOPOLIS_CITY_KYOGRE,
+            FLAG_HIDE_SOOTOPOLIS_CITY_RAYQUAZA,
+        ],
+        clear: &[FLAG_SYS_WEATHER_CTRL, FLAG_LEGENDARIES_IN_SOOTOPOLIS],
+        vars: &[(VAR_SKY_PILLAR_STATE, 2)],
+        ..Bypass::NONE
+    };
+
+    /// Dive out of Sootopolis's lake, Underwater Sootopolis's tunnel to Underwater Route 126,
+    /// and the surfacing on Route 126, as [`DIVE_SEAFLOOR`] (the bypass leaves the player
+    /// surfing on the dive spot's water).
+    static DIVE_OUT_SOOTOPOLIS: Bypass = Bypass {
+        issue: "dive-out-sootopolis",
+        features: &[
+            "FIELD_MOVE_DIVE",
+            "FLDEFF_USE_DIVE",
+            "MB_DEEP_WATER",
+            "underwater maps",
+        ],
+        warp: Some((MAP_ROUTE126, 45, 66)),
+        ..Bypass::NONE
+    };
+
+    /// Sootopolis's Groudon/Kyogre scene: `SPECIAL_Script_DoRayquazaScene` (the fight's own
+    /// screen, which fades back in) is unsupported, so the field stays faded out. The bypass
+    /// writes the scene's end (`VAR_SOOTOPOLIS_CITY_STATE` 2).
+    static LEGENDARIES_SCENE: Bypass = Bypass {
+        issue: "legendaries-scene",
+        features: &["SPECIAL_Script_DoRayquazaScene"],
+        vars: &[(VAR_SOOTOPOLIS_CITY_STATE, 2)],
+        ..Bypass::NONE
+    };
+
+    /// Steven's multi battle against Maxie and Tabitha
+    /// (`MossdeepCity_SpaceCenter_2F_EventScript_ChoosePartyForMultiBattle`): its specials are
+    /// unsupported, the script goes on as if won, and the objects stay frozen (Gen3 reloads the
+    /// field after the battle). The bypass warps onto the player's cell, which reloads it.
+    static STEVEN_MULTI: Bypass = Bypass {
+        issue: "steven-multi",
+        features: &[
+            "SPECIAL_ChooseHalfPartyForBattle",
+            "SPECIAL_ReducePlayerPartyToSelectedMons",
+            "SPECIAL_DoSpecialTrainerBattle",
+            "FRONTIER_UTIL_FUNC_SAVE_PARTY",
+        ],
+        warp: Some((MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 1, 7)),
+        ..Bypass::NONE
+    };
 
     /// HM03 from the bag on the lead, as [`USE_HM06`], forgetting Water Gun (slot 3), so
     /// `EventScript_UseSurf`'s `checkpartymove` finds it.
@@ -1122,5 +1410,844 @@ mod list {
         Step::Expect("fortree"),
         Step::Checkpoint("fortree"),
         Step::Battle(BattlePlan::BestLearn),
+        // ================= Act 6: Steven's Devon Scope on Route 120, Winona =================
+        enter(MAP_FORTREE_CITY, 5, 6, Up),
+        use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_FORTREE_CITY, 39, 8, Right),
+        // Steven on the bridge (`Route120_EventScript_Steven`: ready, yes), the Kecleon.
+        Step::Choose(0),
+        talk(MAP_ROUTE120, 31),
+        Step::Expect("devon_scope"),
+        Step::Checkpoint("devon_scope"),
+        // ---- Back to Fortree: the Devon Scope shows the Kecleon before the gym (yes) ----
+        cross(MAP_ROUTE120, 0, 8, Left),
+        // `Talk` finds no path to the invisible Kecleon at the foot of the
+        // walkway ladder that leads down to the gym: `Use` from the ladder.
+        Step::Choose(0),
+        use_(MAP_FORTREE_CITY, 25, 7, Down),
+        Step::Expect("kecleon_fled"),
+        enter(MAP_FORTREE_CITY, 5, 6, Up),
+        use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Winona's Altaria beat the lead at 46: rounds on Route 120's grass east of the city.
+        FT47[0],
+        FT47[1],
+        FT47[2],
+        FT47[3],
+        FT47[4],
+        FT47[5],
+        FT48[0],
+        FT48[1],
+        FT48[2],
+        FT48[3],
+        FT48[4],
+        FT48[5],
+        FT49[0],
+        FT49[1],
+        FT49[2],
+        FT49[3],
+        FT49[4],
+        FT49[5],
+        // ---- Winona ----
+        enter(MAP_FORTREE_CITY, 22, 11, Up),
+        talk(MAP_FORTREE_CITY_GYM, 1),
+        Step::Expect("winona_defeated"),
+        Step::Expect("badge6"),
+        Step::Checkpoint("badge6"),
+        // ================= Act 7: Route 120 south, Route 121, Lilycove; Mt. Pyre =================
+        enter(MAP_FORTREE_CITY_GYM, 15, 24, Down),
+        enter(MAP_FORTREE_CITY, 5, 6, Up),
+        use_(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_FORTREE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_FORTREE_CITY, 39, 8, Right),
+        cross(MAP_ROUTE120, 39, 89, Right),
+        // Aqua's grunts block the way east until the player steps on their trigger
+        // (`Route121_EventScript_AquaGruntsMoveOut`, x 25).
+        goto(MAP_ROUTE121, 25, 6),
+        Step::WaitScript,
+        cross(MAP_ROUTE121, 79, 6, Right),
+        Step::Expect("lilycove"),
+        Step::Checkpoint("lilycove"),
+        enter(MAP_LILYCOVE_CITY, 24, 14, Up),
+        use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Back west to Route 121's pier, Surf south over Route 122 to Mt. Pyre ----
+        cross(MAP_LILYCOVE_CITY, 0, 16, Left),
+        // Round the twins Kate and Joy's sight (a double battle, below).
+        Step::GotoAvoiding {
+            map: MAP_ROUTE121,
+            x: 30,
+            y: 18,
+            avoid: &[(39, 10), (40, 10)],
+        },
+        Step::Choose(0),
+        use_(MAP_ROUTE121, 30, 18, Down),
+        cross(MAP_ROUTE121, 30, 19, Down),
+        // Off the water onto Mt. Pyre's island (the planner surfs water only).
+        goto(MAP_ROUTE122, 22, 32),
+        Step::Walk(Up),
+        enter(MAP_ROUTE122, 22, 29, Up),
+        enter(MAP_MT_PYRE_1F, 3, 6, Down),
+        enter(MAP_MT_PYRE_EXTERIOR, 19, 10, Up),
+        // The summit: Aqua's grunts by sight, then Archie takes the orb
+        // (`MtPyre_Summit_EventScript_TeamAquaTrigger*`) and the old lady gives the Magma Emblem.
+        goto(MAP_MT_PYRE_SUMMIT, 23, 7),
+        Step::WaitScript,
+        Step::Expect("magma_emblem"),
+        Step::Checkpoint("magma_emblem"),
+        // ---- The Magma Hideout, on the Jagged Pass: back by Surf to Route 121 and
+        // Lilycove (a heal), Fly to Mauville, Route 111, the cable car to Mt. Chimney, down
+        // the pass ----
+        enter(MAP_MT_PYRE_SUMMIT, 23, 31, Down),
+        enter(MAP_MT_PYRE_EXTERIOR, 10, 42, Up),
+        enter(MAP_MT_PYRE_1F, 17, 18, Down),
+        Step::Choose(0),
+        use_(MAP_ROUTE122, 22, 31, Down),
+        cross(MAP_ROUTE122, 10, 0, Up),
+        Step::Walk(Up),
+        // The summit's grunts leave the lead weak: Lilycove's Center first.
+        Step::GotoAvoiding {
+            map: MAP_ROUTE121,
+            x: 78,
+            y: 6,
+            avoid: &[(39, 10), (40, 10)],
+        },
+        cross(MAP_ROUTE121, 79, 6, Right),
+        enter(MAP_LILYCOVE_CITY, 24, 14, Up),
+        use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Route 120 is one-way south (its ledges): the way back is Fly (`fly-mauville`).
+        Step::Bypass(&FLY_MAUVILLE),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 16, 0, Up),
+        Step::Choose(0),
+        talk(MAP_ROUTE111, 15),
+        cross(MAP_ROUTE111, 0, 68, Left),
+        enter(MAP_ROUTE112, 28, 27, Up),
+        talk(MAP_ROUTE112_CABLE_CAR_STATION, 1),
+        Step::WaitScript,
+        enter(MAP_MT_CHIMNEY_CABLE_CAR_STATION, 6, 11, Down),
+        enter(MAP_MT_CHIMNEY, 20, 41, Down),
+        // The emblem opens the hideout (`JaggedPass_EventScript_OpenMagmaHideout`).
+        goto(MAP_JAGGED_PASS, 14, 15),
+        Step::WaitScript,
+        enter(MAP_JAGGED_PASS, 16, 18, Up),
+        // ---- The hideout: 1F, 2F 1R, 3F 1R, 4F down its arrow warps; Maxie wakes Groudon ----
+        // Three boulders close the way north (`EventScript_StrengthBoulder`): Strength from
+        // the bag, then (6, 23) west, up, and (5, 22) west.
+        USE_HM04,
+        Step::Choose(0),
+        use_(MAP_MAGMA_HIDEOUT_1F, 7, 23, Left),
+        // (A `Walk` into a boulder pushes it, then steps after it.)
+        Step::Walk(Left),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        Step::Walk(Up),
+        enter(MAP_MAGMA_HIDEOUT_1F, 25, 34, Down),
+        enter(MAP_MAGMA_HIDEOUT_2F_1R, 17, 33, Down),
+        enter(MAP_MAGMA_HIDEOUT_3F_1R, 7, 21, Down),
+        talk(MAP_MAGMA_HIDEOUT_4F, 6),
+        Step::WaitScript,
+        Step::Expect("groudon_awakened"),
+        Step::Checkpoint("magma_hideout"),
+        // ---- Out the way in: 4F, 3F, 2F, 1F (the boulders again, from the north: (5, 22)
+        // down, (7, 22) east), the Jagged Pass; the wild battles run (a Geodude's
+        // Self-Destruct finished the hurt lead) ----
+        Step::Battle(BattlePlan::RunWild),
+        enter(MAP_MAGMA_HIDEOUT_4F, 46, 7, Up),
+        enter(MAP_MAGMA_HIDEOUT_3F_1R, 23, 3, Up),
+        enter(MAP_MAGMA_HIDEOUT_2F_1R, 8, 2, Up),
+        Step::Choose(0),
+        use_(MAP_MAGMA_HIDEOUT_1F, 5, 21, Down),
+        Step::Walk(Down),
+        Step::Walk(Right),
+        Step::Walk(Right),
+        Step::Walk(Down),
+        enter(MAP_MAGMA_HIDEOUT_1F, 10, 34, Down),
+        // ---- Slateport's harbor: Archie takes Stern's submarine ----
+        Step::Bypass(&FLY_SLATEPORT),
+        enter(MAP_SLATEPORT_CITY, 19, 19, Up),
+        use_(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SLATEPORT_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Capt. Stern's interview in front of the harbor (`SlateportCity_EventScript_CaptStern`)
+        // ends with a warp into it.
+        use_(MAP_SLATEPORT_CITY, 27, 13, Right),
+        goto(MAP_SLATEPORT_CITY_HARBOR, 8, 13),
+        Step::WaitScript,
+        Step::Checkpoint("submarine_stolen"),
+        // ---- Lilycove: Surf east to the Aqua Hideout's water door ----
+        enter(MAP_SLATEPORT_CITY_HARBOR, 11, 14, Down),
+        Step::Bypass(&FLY_LILYCOVE),
+        enter(MAP_LILYCOVE_CITY, 24, 14, Up),
+        use_(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_LILYCOVE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        Step::Choose(0),
+        goto(MAP_LILYCOVE_CITY, 50, 8),
+        Step::Walk(Down),
+        Step::Walk(Down),
+        use_(MAP_LILYCOVE_CITY, 63, 14, Right),
+        goto(MAP_LILYCOVE_CITY, 70, 6),
+        // The water door (`MB_WATER_DOOR`, (70, 5)) does not warp a surfer: `water-door-in`
+        // lands on the hideout's first dry cell past its pool. It warps from the shore: a
+        // warp keeps the engine's surfing state (Gen3's `GetInitialPlayerAvatarState` drops
+        // it on dry land), so the player gets off the water first.
+        goto(MAP_LILYCOVE_CITY, 64, 14),
+        Step::Walk(Left),
+        Step::Bypass(&WATER_DOOR_IN),
+        // ---- The Aqua Hideout: 1F, B1F's and B2F's warp pads to Matt ----
+        enter(MAP_AQUA_HIDEOUT_1F, 22, 1, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 27, 4, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 32, 19, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 18, 1, Up),
+        enter(MAP_AQUA_HIDEOUT_B2F, 31, 8, Up),
+        enter(MAP_AQUA_HIDEOUT_B2F, 3, 3, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 12, 1, Up),
+        enter(MAP_AQUA_HIDEOUT_B2F, 8, 8, Up),
+        // Matt notices the player on (28, 17) (`AquaHideout_B2F_EventScript_MattNoticePlayer`).
+        goto(MAP_AQUA_HIDEOUT_B2F, 28, 17),
+        Step::WaitScript,
+        // (`Talk` finds no path to him: an explorer gap, the same as Stern's.)
+        use_(MAP_AQUA_HIDEOUT_B2F, 24, 19, Left),
+        Step::WaitScript,
+        Step::Expect("aqua_submarine"),
+        Step::Checkpoint("aqua_hideout"),
+        // ---- Out by B2F's east pad, back to the pool: the water door again (`water-door-out`)
+        enter(MAP_AQUA_HIDEOUT_B2F, 32, 20, Up),
+        enter(MAP_AQUA_HIDEOUT_B1F, 29, 1, Up),
+        goto(MAP_AQUA_HIDEOUT_1F, 13, 12),
+        Step::Bypass(&WATER_DOOR_OUT),
+        // ---- Route 124 east to Mossdeep ----
+        goto(MAP_LILYCOVE_CITY, 62, 14),
+        Step::Choose(0),
+        use_(MAP_LILYCOVE_CITY, 63, 14, Right),
+        cross(MAP_LILYCOVE_CITY, 79, 12, Right),
+        cross(MAP_ROUTE124, 79, 50, Right),
+        goto(MAP_MOSSDEEP_CITY, 9, 10),
+        Step::Walk(Right),
+        // `MossdeepCity_EventScript_VisitedMossdeep` (coord events) sets the visited flag.
+        goto(MAP_MOSSDEEP_CITY, 25, 25),
+        Step::WaitScript,
+        Step::Expect("mossdeep"),
+        enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+        use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        Step::Checkpoint("mossdeep"),
+        // Tate and Liza's four (the double degrades to singles: `Degraded("double battle")`)
+        // beat the lead alone at 52 (Solrock's SolarBeam in the sun): it trains on the water
+        // west of the city, in rounds healed at the Center (fighting the wild battles again).
+        Step::Battle(BattlePlan::BestLearn),
+        MT53[0],
+        MT53[1],
+        MT53[2],
+        MT53[3],
+        MT53[4],
+        MT53[5],
+        MT53[6],
+        MT53[7],
+        MT53[8],
+        MT53[0],
+        MT53[1],
+        MT53[2],
+        MT53[3],
+        MT53[4],
+        MT53[5],
+        MT53[6],
+        MT53[7],
+        MT53[8],
+        MT55[0],
+        MT55[1],
+        MT55[2],
+        MT55[3],
+        MT55[4],
+        MT55[5],
+        MT55[6],
+        MT55[7],
+        MT55[8],
+        MT55[0],
+        MT55[1],
+        MT55[2],
+        MT55[3],
+        MT55[4],
+        MT55[5],
+        MT55[6],
+        MT55[7],
+        MT55[8],
+        MT57[0],
+        MT57[1],
+        MT57[2],
+        MT57[3],
+        MT57[4],
+        MT57[5],
+        MT57[6],
+        MT57[7],
+        MT57[8],
+        MT57[0],
+        MT57[1],
+        MT57[2],
+        MT57[3],
+        MT57[4],
+        MT57[5],
+        MT57[6],
+        MT57[7],
+        MT57[8],
+        MT58[0],
+        MT58[1],
+        MT58[2],
+        MT58[3],
+        MT58[4],
+        MT58[5],
+        MT58[6],
+        MT58[7],
+        MT58[8],
+        MT58[0],
+        MT58[1],
+        MT58[2],
+        MT58[3],
+        MT58[4],
+        MT58[5],
+        MT58[6],
+        MT58[7],
+        MT58[8],
+        enter(MAP_MOSSDEEP_CITY, 38, 9, Up),
+        // The gym's statues move with its floor switches (`initrotatingtilepuzzle`, ...):
+        // `mossdeep-gym-puzzle` lands in front of the twins.
+        Step::Bypass(&MOSSDEEP_GYM_PUZZLE),
+        talk(MAP_MOSSDEEP_CITY_GYM, 1),
+        Step::WaitScript,
+        Step::Expect("tate_liza_defeated"),
+        Step::Expect("badge7"),
+        Step::Checkpoint("badge7"),
+        // ---- The Space Center: out of the gym by its exit pad (21, 6), Maxie's men go in ----
+        goto(MAP_MOSSDEEP_CITY_GYM, 21, 7),
+        Step::Walk(Up),
+        Step::WaitScript,
+        enter(MAP_MOSSDEEP_CITY_GYM, 7, 35, Down),
+        enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+        use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        goto(MAP_MOSSDEEP_CITY, 41, 22),
+        Step::WaitScript,
+        enter(MAP_MOSSDEEP_CITY, 64, 15, Up),
+        // The stair grunt; a grunt's sight interrupts the first walk to him.
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 9),
+        Step::WaitScript,
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 9),
+        Step::WaitScript,
+        // 2F: three grunts in a row ("take us on?" yes), then Steven.
+        Step::Choose(0),
+        enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 13, 1, Up),
+        Step::WaitScript,
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 4),
+        Step::WaitScript,
+        Step::Choose(0),
+        talk(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 4),
+        Step::WaitScript,
+        Step::Expect("space_center"),
+        // The multi battle with Steven is unsupported (reported, skipped as won); the scene's
+        // `lockall` then never ends (Gen3's battle return reloads the field): `steven-multi`
+        // reloads the room.
+        Step::Bypass(&STEVEN_MULTI),
+        Step::Checkpoint("space_center"),
+        // ---- Steven's house: HM08 (`MossdeepCity_StevensHouse_EventScript_StevenGivesDive`)
+        enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_2F, 13, 1, Up),
+        enter(MAP_MOSSDEEP_CITY_SPACE_CENTER_1F, 7, 9, Down),
+        enter(MAP_MOSSDEEP_CITY, 19, 10, Up),
+        Step::WaitScript,
+        Step::Expect("hm_dive"),
+        Step::Checkpoint("hm_dive"),
+        // ---- Act 8: Route 127, 128 south; Dive to the Seafloor Cavern (`dive-seafloor`) ----
+        enter(MAP_MOSSDEEP_CITY_STEVENS_HOUSE, 3, 7, Down),
+        enter(MAP_MOSSDEEP_CITY, 28, 16, Up),
+        use_(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MOSSDEEP_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        Step::Battle(BattlePlan::RunWild),
+        goto(MAP_MOSSDEEP_CITY, 23, 30),
+        Step::Choose(0),
+        use_(MAP_MOSSDEEP_CITY, 23, 30, Down),
+        cross(MAP_MOSSDEEP_CITY, 30, 39, Down),
+        cross(MAP_ROUTE127, 30, 79, Down),
+        goto(MAP_ROUTE128, 36, 24),
+        Step::Bypass(&DIVE_SEAFLOOR),
+        goto(MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 11),
+        Step::Walk(Up),
+        enter(MAP_SEAFLOOR_CAVERN_ENTRANCE, 10, 1, Up),
+        // ---- The cavern: Room 1, 2, 7, 3 (Shelly), 8, 9 (Archie wakes Kyogre) ----
+        // Room 1: smash (5, 10), push (5, 11) down and (12, 11) east.
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM1, 4, 10, Right),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM1, 5, 10, Down),
+        Step::Walk(Down),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM1, 11, 11),
+        Step::Walk(Right),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM1, 6, 2, Up),
+        // Room 2: smash (8, 7), push (4, 5) up thrice, smash (9, 3), push (10, 3) east twice.
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM2, 9, 7, Left),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM2, 4, 6, Up),
+        Step::Walk(Up),
+        Step::Walk(Up),
+        Step::Walk(Up),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM2, 8, 3, Right),
+        Step::Walk(Right),
+        Step::Walk(Right),
+        Step::Walk(Right),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM2, 11, 1, Up),
+        // Room 7: Surf across its pool of currents (the planner does not model them: a step
+        // onto (4, 18) slides west to (3, 18), then the still column 2 north).
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM7, 3, 19, Right),
+        Step::Walk(Up),
+        Step::Wait(60),
+        Step::Walk(Left),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM7, 2, 4),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM7, 4, 4),
+        Step::Walk(Up),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM7, 5, 1, Up),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM3, 8, 1, Up),
+        // Room 8's boulder block (a search's solution).
+        goto(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 8),
+        Step::Choose(0),
+        use_(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 8, Up),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM8, 4, 6),
+        Step::Walk(Right),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        Step::Walk(Up),
+        goto(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 5),
+        Step::Walk(Right),
+        Step::Walk(Up),
+        Step::Walk(Left),
+        enter(MAP_SEAFLOOR_CAVERN_ROOM8, 5, 2, Up),
+        // Archie's scene (coord (17, 42)) ends with a warp up to Route 128.
+        goto(MAP_SEAFLOOR_CAVERN_ROOM9, 16, 42),
+        Step::Walk(Right),
+        Step::WaitScript,
+        Step::Expect("kyogre_awakened"),
+        Step::Checkpoint("seafloor_cavern"),
+        // ---- Sootopolis: Surf off Route 128's islet, Route 127 north, Route 126 west; Dive
+        // into the crater (`dive-sootopolis`) ----
+        Step::Choose(0),
+        use_(MAP_ROUTE128, 42, 22, Right),
+        cross(MAP_ROUTE128, 30, 0, Up),
+        cross(MAP_ROUTE127, 0, 40, Left),
+        goto(MAP_ROUTE126, 45, 66),
+        // Groudon and Kyogre on arrival (`SootopolisCity_EventScript_LegendariesSceneFromDive`):
+        // its `Script_DoRayquazaScene` is unsupported and leaves the screen black, so
+        // `legendaries-scene` writes the scene's end before the dive lands.
+        Step::Bypass(&LEGENDARIES_SCENE),
+        Step::Bypass(&DIVE_SOOTOPOLIS),
+        Step::Expect("sootopolis"),
+        goto(MAP_SOOTOPOLIS_CITY, 23, 37),
+        Step::Walk(Left),
+        // Steven leads to the Cave of Origin; Wallace in B1F asks where Rayquaza is: Sky
+        // Pillar (the multichoice's third answer).
+        talk(MAP_SOOTOPOLIS_CITY, 7),
+        Step::WaitScript,
+        enter(MAP_CAVE_OF_ORIGIN_ENTRANCE, 9, 5, Up),
+        enter(MAP_CAVE_OF_ORIGIN_1F, 14, 5, Up),
+        Step::Choose(2),
+        talk(MAP_CAVE_OF_ORIGIN_B1F, 1),
+        Step::WaitScript,
+        Step::Checkpoint("cave_of_origin"),
+        // ---- Sky Pillar: back out of the cave, Surf off Sootopolis's shore and Dive out
+        // (`dive-out-sootopolis`), Routes 126-127-128-129 to Route 130; Route 131 and the
+        // pillar are `sky-pillar-layouts` ----
+        enter(MAP_CAVE_OF_ORIGIN_B1F, 9, 3, Up),
+        enter(MAP_CAVE_OF_ORIGIN_1F, 11, 17, Down),
+        enter(MAP_CAVE_OF_ORIGIN_ENTRANCE, 9, 20, Down),
+        goto(MAP_SOOTOPOLIS_CITY, 22, 37),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 22, 37, Right),
+        Step::Bypass(&DIVE_OUT_SOOTOPOLIS),
+        cross(MAP_ROUTE126, 79, 40, Right),
+        cross(MAP_ROUTE127, 30, 79, Down),
+        // East of Route 128's reef (its west water is cut off from 127 and 129's south).
+        cross(MAP_ROUTE128, 40, 39, Down),
+        cross(MAP_ROUTE129, 0, 23, Left),
+        Step::Bypass(&SKY_PILLAR),
+        Step::Expect("rayquaza_awakened"),
+        Step::Bypass(&RAYQUAZA_SCENE),
+        Step::Bypass(&DIVE_SOOTOPOLIS),
+        Step::Checkpoint("rayquaza_awakened"),
+        // ---- HM07: Maxie and Archie leave, Wallace gives Waterfall ----
+        goto(MAP_SOOTOPOLIS_CITY, 32, 37),
+        Step::Walk(Up),
+        talk(MAP_SOOTOPOLIS_CITY, 16),
+        Step::WaitScript,
+        talk(MAP_SOOTOPOLIS_CITY, 17),
+        Step::WaitScript,
+        talk(MAP_SOOTOPOLIS_CITY, 18),
+        Step::WaitScript,
+        Step::Expect("hm_waterfall"),
+        Step::Checkpoint("hm_waterfall"),
+        // ---- Juan: the gym's three thin-ice rooms, each crossed once per cell (a second
+        // step falls through to B1F); each room's last cell opens its stairs ----
+        // Healed first (the Center across the lake, by Surf).
+        goto(MAP_SOOTOPOLIS_CITY, 34, 35),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 34, 35, Right),
+        goto(MAP_SOOTOPOLIS_CITY, 39, 37),
+        Step::Walk(Right),
+        enter(MAP_SOOTOPOLIS_CITY, 43, 31, Up),
+        use_(MAP_SOOTOPOLIS_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SOOTOPOLIS_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        goto(MAP_SOOTOPOLIS_CITY, 40, 37),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 40, 37, Left),
+        goto(MAP_SOOTOPOLIS_CITY, 35, 35),
+        Step::Walk(Left),
+        enter(MAP_SOOTOPOLIS_CITY, 31, 32, Up),
+        goto(MAP_SOOTOPOLIS_CITY_GYM_1F, 8, 20),
+        Step::Walk(Up),
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: GYM_ICE_1,
+        },
+        Step::WaitScript,
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Up, Up, Up],
+        },
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: GYM_ICE_2,
+        },
+        Step::WaitScript,
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Up, Up, Up],
+        },
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: GYM_ICE_3,
+        },
+        Step::WaitScript,
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Up, Up, Up],
+        },
+        talk(MAP_SOOTOPOLIS_CITY_GYM_1F, 1),
+        Step::WaitScript,
+        Step::Expect("juan_defeated"),
+        Step::Expect("badge8"),
+        Step::Checkpoint("badge8"),
+        // ---- Ever Grande: out of the gym, Surf and Dive out of the crater, Routes 126-127-128
+        // east; up the waterfall (`waterfall-ever-grande`) ----
+        // Back down onto the broken ice: a fall to B1F, whose ladder leads to the entrance.
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Down, Down, Down],
+        },
+        enter(MAP_SOOTOPOLIS_CITY_GYM_B1F, 11, 22, Right),
+        enter(MAP_SOOTOPOLIS_CITY_GYM_1F, 8, 25, Down),
+        goto(MAP_SOOTOPOLIS_CITY, 34, 35),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 34, 35, Right),
+        Step::Bypass(&DIVE_OUT_SOOTOPOLIS),
+        cross(MAP_ROUTE126, 79, 40, Right),
+        cross(MAP_ROUTE127, 30, 79, Down),
+        cross(MAP_ROUTE128, 119, 30, Right),
+        goto(MAP_EVER_GRANDE_CITY, 20, 68),
+        Step::Bypass(&WATERFALL_EVER_GRANDE),
+        Step::Walk(Up),
+        Step::Expect("ever_grande"),
+        goto(MAP_EVER_GRANDE_CITY, 20, 56),
+        Step::Walk(Up),
+        Step::Checkpoint("ever_grande"),
+        // ---- Victory Road (healed first: the PP the routes since Juan spent) ----
+        enter(MAP_EVER_GRANDE_CITY, 27, 48, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 41, Up),
+        // The Max Elixir east of the entrance: the lead's PP for Wallace.
+        talk(MAP_VICTORY_ROAD_1F, 5),
+        Step::WaitScript,
+        enter(MAP_VICTORY_ROAD_1F, 9, 14, Up),
+        // B1F: Strength the boulder (4, 7) west and (9, 10) east, Rock Smash (18, 12), down
+        // to B2F.
+        goto(MAP_VICTORY_ROAD_B1F, 5, 7),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 5, 7, Left),
+        Step::Walk(Left),
+        goto(MAP_VICTORY_ROAD_B1F, 8, 10),
+        Step::Walk(Right),
+        goto(MAP_VICTORY_ROAD_B1F, 17, 12),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 17, 12, Right),
+        enter(MAP_VICTORY_ROAD_B1F, 30, 25, Up),
+        // B2F: Surf the east pool north, round the west, Surf down the falls (9, 11) and east
+        // to the ladder (19, 12).
+        goto(MAP_VICTORY_ROAD_B2F, 34, 17),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B2F, 34, 17, Up),
+        goto(MAP_VICTORY_ROAD_B2F, 34, 14),
+        Step::Walk(Up),
+        goto(MAP_VICTORY_ROAD_B2F, 6, 10),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B2F, 6, 10, Right),
+        Step::Path {
+            map: MAP_VICTORY_ROAD_B2F,
+            dirs: &[Right, Right, Down, Down, Down, Down],
+        },
+        goto(MAP_VICTORY_ROAD_B2F, 19, 14),
+        Step::Walk(Up),
+        enter(MAP_VICTORY_ROAD_B2F, 19, 12, Up),
+        // B1F's south room: smash (20, 25), push (20, 26) down, smash (21, 26).
+        goto(MAP_VICTORY_ROAD_B1F, 19, 25),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 19, 25, Right),
+        goto(MAP_VICTORY_ROAD_B1F, 20, 25),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 20, 25, Down),
+        Step::Walk(Down),
+        Step::Choose(0),
+        use_(MAP_VICTORY_ROAD_B1F, 20, 26, Right),
+        enter(MAP_VICTORY_ROAD_B1F, 20, 21, Left),
+        goto(MAP_VICTORY_ROAD_1F, 33, 28),
+        goto(MAP_VICTORY_ROAD_1F, 36, 25),
+        // North over the bridge's east cell (Quincy stands on (32, 17)).
+        goto(MAP_VICTORY_ROAD_1F, 33, 19),
+        goto(MAP_VICTORY_ROAD_1F, 33, 16),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        Step::Checkpoint("victory_road"),
+        // ---- Training for the League on Victory Road's last cave (level-40 wild mons), healed
+        // at the League's counter: the lead fights the Elite Four and Wallace alone, with its
+        // one non-HM attack (Earthquake) and no items ----
+        Step::Battle(BattlePlan::BestLearn),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 11, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 27, Up),
+        train_fresh(MAP_VICTORY_ROAD_1F, 35, 4, 96),
+        enter(MAP_VICTORY_ROAD_1F, 39, 5, Down),
+        enter(MAP_EVER_GRANDE_CITY, 18, 5, Up),
+        use_(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3, 4, Up),
+        // ---- The League: past the badge guards; each Elite Four room walks the player in,
+        // then the trainer's talk is the battle ----
+        Step::Bypass(&LEAGUE_MART),
+        talk(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 3),
+        Step::WaitScript,
+        enter(MAP_EVER_GRANDE_CITY_POKEMON_LEAGUE_1F, 9, 1, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL5, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("sidney_defeated"),
+        FULL_RESTORE,
+        enter(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM, 6, 2, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL1, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_PHOEBES_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("phoebe_defeated"),
+        FULL_RESTORE,
+        enter(MAP_EVER_GRANDE_CITY_PHOEBES_ROOM, 6, 2, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL2, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_GLACIAS_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("glacia_defeated"),
+        FULL_RESTORE,
+        enter(MAP_EVER_GRANDE_CITY_GLACIAS_ROOM, 6, 2, Up),
+        enter(MAP_EVER_GRANDE_CITY_HALL3, 5, 2, Up),
+        Step::WaitScript,
+        talk(MAP_EVER_GRANDE_CITY_DRAKES_ROOM, 1),
+        Step::WaitScript,
+        Step::Expect("drake_defeated"),
+        FULL_RESTORE,
+        // The Max Elixir from Victory Road: four rooms leave the lead's PP near empty.
+        Step::UseItem(UseItem {
+            item: ITEM_MAX_ELIXIR,
+            mon: 0,
+            forget: 0,
+        }),
+        enter(MAP_EVER_GRANDE_CITY_DRAKES_ROOM, 6, 2, Up),
+        // Wallace's room plays itself: the walk in, the battle, the walk to the Hall of Fame.
+        enter(MAP_EVER_GRANDE_CITY_HALL4, 5, 2, Up),
+        Step::WaitScript,
+        Step::Expect("wallace_defeated"),
+        Step::Bypass(&HALL_OF_FAME),
+        Step::Expect("champion"),
+        Step::Expect("hall_of_fame"),
+        Step::Checkpoint("hall_of_fame"),
     ];
 }
