@@ -71,7 +71,7 @@ pub enum Content {
 /// shared gates (Task D measured the slice baseline's 788 and 460 bytes).
 pub const SILICE_ROM_LIMIT: u64 = 8 << 20;
 /// The Silice ROM size `cargo xtask rom --game silice` measured at SIL1 Task D.
-pub const SILICE_ROM_MEASURED: u64 = 4_103_320;
+pub const SILICE_ROM_MEASURED: u64 = 3_965_600;
 
 /// Engine `.text` of the Wave 0 slice build (`cargo xtask rom`, `engine` row of [`sections`]).
 pub const ENGINE_TEXT_BASELINE: u64 = 205_448;
@@ -301,7 +301,7 @@ mod tests {
         assert!(check(&at(SILICE_ROM_LIMIT + 1), &secs(0), Content::Silice).is_err());
         // Engine `.text` is gated on the slice only.
         let engine = secs(ENGINE_TEXT_BASELINE + ENGINE_TEXT_GROWTH + 1);
-        check(&BASELINE, &engine, Content::Silice).unwrap();
+        check(&at(SILICE_ROM_MEASURED), &engine, Content::Silice).unwrap();
     }
 
     #[test]

@@ -860,6 +860,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
+    #[cfg(not(pkr_silice))] // boots a committed node: Silice has none yet (SIL1 Wave 3)
     #[test]
     #[ignore = "needs target/game.gba (cargo xtask rom)"]
     /// Runs on the committed tree layered under a temp local root: the committed tree is never
