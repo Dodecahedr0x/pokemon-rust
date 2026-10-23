@@ -4,8 +4,8 @@
 // flower pots plugged into power strips, hanging tools), up to a greenhouse under a small glass
 // dome ("a dome in the Dome") where potted plants feed a big central pipe.
 // The primary (Building) has no floor metatile, so this spec has no ground: textures are opaque,
-// and the objects' art is composited after prep over the texture it stands on (`sol`, `sol_serre`,
-// the wall `mur`, the glass wall `verriere`), so that no cell keeps a transparent pixel.
+// and each object names the texture it stands on (`under`: `sol`, `sol_serre`, the wall `mur`,
+// the glass wall `verriere`), so that no cell keeps a transparent pixel.
 // The airlock doors are two cells (top, bottom), closed and open variants (ch01_gym.rs).
 // `mur` comes before `bois`: a 1x1 stamp of metatile 513 would equal the extract's
 // Route104_Prototype layout (studio map hygiene).
@@ -35,11 +35,13 @@
         ),
         (
             name: "porte_sas",
+            under: Some("mur"),
             cells: ["#", "#"],
             prompt: Some("One single closed airlock door seen from the front, twice as tall as wide: a grey steel hatch with a rounded top, one round blue porthole window, yellow and black warning stripes at its foot, a small red lamp on top. Only one door, nothing else."),
         ),
         (
             name: "porte_sas_ouverte",
+            under: Some("mur"),
             cells: [".", "."],
             prompt: Some("One single open airlock doorway seen from the front, twice as tall as wide: a grey steel frame with a rounded top, the hatch gone, inside a dark passage with a light honey-coloured wooden floor at the bottom, a small green lamp on top. Only one doorway, nothing else."),
         ),
@@ -51,11 +53,13 @@
         ),
         (
             name: "tuyau_central",
+            under: Some("verriere"),
             cells: ["###", "###"],
             prompt: Some("One single thick vertical copper pipe seen from the front, running straight from the top edge of the picture to the bottom edge, in the middle: two bolted copper rings and a round white pressure gauge on it, and on each side two thin horizontal transparent tubes with green liquid going from the pipe out to the left and right edges. Nothing else."),
         ),
         (
             name: "porte_privee",
+            under: Some("verriere"),
             cells: ["#", "#"],
             prompt: Some("One single small closed wooden door seen from the front, twice as tall as wide: green painted planks, a round brass handle, a small red plaque with no letters, green ivy leaves on its frame. Only one door, nothing else."),
         ),
@@ -91,41 +95,49 @@
         ),
         (
             name: "etabli",
+            under: Some("sol"),
             cells: ["#####", "#####"],
             prompt: Some("A long wooden workbench seen from the top-down three-quarter view, much wider than tall: a blue blueprint pinned on the wall behind it, a vice clamp, scattered tools, a few copper pipe parts on the worktop, sturdy wooden legs."),
         ),
         (
             name: "caisse_bleue",
+            under: Some("sol"),
             cells: ["#"],
             prompt: Some("A small closed blue metal toolbox crate seen from the top-down three-quarter view, with a handle on its lid."),
         ),
         (
             name: "caisse_rouge",
+            under: Some("sol"),
             cells: ["#"],
             prompt: Some("A small closed red metal toolbox crate seen from the top-down three-quarter view, with a handle on its lid."),
         ),
         (
             name: "caisse",
+            under: Some("sol"),
             cells: ["#"],
             prompt: Some("A small closed yellow metal toolbox crate seen from the top-down three-quarter view, with a handle on its lid."),
         ),
         (
             name: "etau",
+            under: Some("sol"),
             cells: ["##"],
             prompt: Some("A heavy grey steel bench vice bolted on a small wooden stand, seen from the top-down three-quarter view, wider than tall."),
         ),
         (
             name: "pot_multiprise",
+            under: Some("sol"),
             cells: ["#"],
             prompt: Some("A terracotta flower pot with a green leafy plant, a black cable running from the pot to a white power strip with a red switch at its foot."),
         ),
         (
             name: "plante_tube",
+            under: Some("sol_serre"),
             cells: ["#"],
             prompt: Some("A potted fern in a round clay pot, a thin transparent tube with green liquid coming out of the soil and rising up out of the picture."),
         ),
         (
             name: "statue",
+            under: Some("sol"),
             cells: ["#", "#"],
             prompt: Some("A small gym statue seen from the front, taller than wide: two slim copper columns on a stone pedestal with a green fern growing between them."),
         ),

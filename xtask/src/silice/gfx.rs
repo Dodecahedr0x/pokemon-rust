@@ -111,7 +111,10 @@ pub struct Feature {
     pub align: Option<String>,
     /// The art of another feature (same size), mirrored left to right, instead of a prompt.
     #[serde(default)]
-    pub mirror: Option<String>,
+    pub mirror: Option<String>,    /// Another feature's art (a texture, tiled from the top left) under this one's transparent
+    /// pixels, for a secondary floor the primary has no metatile for (`Building` has no floor).
+    #[serde(default)]
+    pub under: Option<String>,
 }
 
 impl Feature {
@@ -754,6 +757,17 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
         }
         let path = games.join(format!("gfx/{name}/{}.png", f.name));
         let art = read_rgba(&path)?;
+        let under = match &f.under {
+            Some(u) => {
+                ensure!(
+                    spec.features.iter().any(|g| &g.name == u),
+                    "feature {}: under {u:?} is not a feature",
+                    f.name
+                );
+                Some(read_rgba(&games.join(format!("gfx/{name}/{u}.png")))?)
+            }
+            None => None,
+        };
         ensure!(
             art.w == 16 * w as u32 && art.h == 16 * h as u32,
             "{}: {}x{} px, the cells want {}x{}",
@@ -769,7 +783,10 @@ pub fn build(games: &Path, extracted: &Path, name: &str) -> Result<()> {
                     core::array::from_fn(|i| {
                         let x = (cx * 16 + t % 2 * 8 + i % 8) as u32;
                         let y = (cy * 16 + t / 2 * 8 + i / 8) as u32;
-                        let c = art.at(x, y);
+                        let c = match &under {
+                            Some(u) if art.at(x, y)[3] < 128 => u.at(x % u.w, y % u.h),
+                            _ => art.at(x, y),
+                        };
                         (c[3] >= 128).then(|| rgb555(c))
                     })
                 });
