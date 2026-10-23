@@ -3314,6 +3314,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "parity"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ron",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6034,6 +6046,7 @@ dependencies = [
  "extract",
  "game-native",
  "object",
+ "parity",
  "png 0.17.16",
  "regex",
  "ron",

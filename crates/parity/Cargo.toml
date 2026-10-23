@@ -1,0 +1,18 @@
+[package]
+name = "parity"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+# Host-only: the Emerald feature-parity ledger (`cargo xtask ledger`,
+# docs/plans/2026-10-23-emerald-parity.md Task L). It reads the decomp, the explorer db and the
+# sweep report; the engine's answers come from its caller (`xtask/src/ledger.rs`).
+[dependencies]
+anyhow.workspace = true
+rusqlite.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ron = "0.8"
+
+[dev-dependencies]
+tempfile = "3.27"
