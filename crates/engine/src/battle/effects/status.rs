@@ -291,6 +291,7 @@ pub(super) fn canceler(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
         b.battler_mut(a).v.unable = true;
         cancel_multi_turn(b, a);
         env.out.push(about_attacker(u, Str::PkmnFlinched));
+        super::later::steadfast(b, env, a);
         return Canceler::Skip;
     }
     // CANCELLER_CONFUSED: the counter drops first; then a 50% self-hit.
@@ -397,6 +398,7 @@ fn bide_release(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
         hp_dealt: 0,
         crit: false,
         eff,
+        hung: false,
     };
     let r = b.deal(env, &u, r);
     b.try_faint(env, u.target);
@@ -416,6 +418,9 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
         let foe = side.other();
         // ENDTURN_ABILITIES.
         super::abilities::end_turn(b, env, side);
+        super::later::end_turn(b, env, side);
+        // ENDTURN_ITEMS1.
+        super::items::end_turn(b, env, side, true);
         // ENDTURN_LEECH_SEED: BattleScript_LeechSeedTurnDrain.
         let m = b.battler(side);
         if m.seeded && m.mon.hp != 0 && b.battler(foe).mon.hp != 0 {
@@ -467,6 +472,8 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env) {
         m.charge = m.charge.saturating_sub(1);
         // ENDTURN_YAWN.
         yawn_turn(b, env, side);
+        // ENDTURN_ITEMS2.
+        super::items::end_turn(b, env, side, false);
     }
 }
 

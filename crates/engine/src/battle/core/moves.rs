@@ -12,7 +12,7 @@ use super::{Action, Battle, Env, LONG, msg};
 use crate::battle::calc;
 use crate::battle::{BattleEvent, BattleReport, Buff, Effectiveness, Msg, Side, Str};
 use crate::data::MoveId;
-use crate::mon::{MoveEffect, MoveInfo, MoveTarget, Stat, Type};
+use crate::mon::{Ability, HoldEffect, MoveEffect, MoveFlags, MoveInfo, MoveTarget, Stat, Type};
 
 /// The move being used (Gen3 `gCurrentMove`, `gBattlerAttacker`, `gBattlerTarget`).
 #[derive(Clone, Copy, Debug)]
@@ -28,6 +28,11 @@ pub(crate) struct MoveUse {
     pub ty: Type,
     /// `gBattleScripting.dmgMultiplier`: 1, or 2 for Pursuit on a switching foe.
     pub multiplier: u8,
+    /// `HITMARKER_ATTACKSTRING_PRINTED | HITMARKER_NO_PPDEDUCT`: the attack string was printed
+    /// and the PP paid already (a move bounced back by Magic Bounce).
+    pub printed: bool,
+    /// Parental Bond's second hit: a quarter of the damage (before the random roll).
+    pub quarter: bool,
 }
 
 impl MoveUse {
@@ -57,6 +62,8 @@ pub(crate) struct HitResult {
     pub hp_dealt: u16,
     pub crit: bool,
     pub eff: Effectiveness,
+    /// `MOVE_RESULT_FOE_HUNG_ON`: the target's Focus Band left it at 1 HP.
+    pub hung: bool,
 }
 
 /// A hit's secondary effect (`setmoveeffect` + `seteffectwithchance`): `certain` effects
@@ -82,6 +89,8 @@ impl Battle {
         let u = self.move_use(env, side, mov, slot);
         self.sync = None;
         self.no_effect = false;
+        // Mold Breaker: the target's breakable ability is off for the move (restored below).
+        let broken = effects::break_mold(self, &u);
         // MOVEEND_UPDATE_LAST_MOVES: a move cancelled before `HITMARKER_OBEYS` (sleep,
         // paralysis, flinch, confusion…) leaves MOVE_UNAVAILABLE on its target.
         let landed = match effects::before_move(self, env, &u) {
@@ -99,6 +108,11 @@ impl Battle {
             }
             effects::Canceler::Skip => None,
         };
+        if let Some((side, party, ability)) = broken
+            && self.battler(side).mon.party == party
+        {
+            self.battler_mut(side).ability = ability;
+        }
         self.battler_mut(u.target).last_landed = landed;
         self.sync = None;
     }
@@ -124,6 +138,11 @@ impl Battle {
             MoveTarget::User | MoveTarget::UserOrSelected => attacker,
             _ => attacker.other(),
         };
+        // Aerilate / Pixilate / Refrigerate: Normal moves take the ability's type (Gen7).
+        let ty = match (info.ty, ate_type(self.battler(attacker).ability)) {
+            (Type::Normal, Some(t)) if mov != env.t.struggle => t,
+            (t, _) => t,
+        };
         MoveUse {
             attacker,
             target,
@@ -131,8 +150,10 @@ impl Battle {
             slot,
             info,
             power: info.power,
-            ty: info.ty,
+            ty,
             multiplier: 1,
+            printed: false,
+            quarter: false,
         }
     }
 
@@ -178,6 +199,8 @@ impl Battle {
     }
 
     /// `BattleScript_EffectHit`: accuracy, damage, secondary effect, faint. `None` on a miss.
+    /// Parental Bond (Silice, Gen7): a second hit at a quarter of its damage, then "Hit 2
+    /// times!", before the secondary effect.
     pub(crate) fn hit(
         &mut self,
         env: &mut Env,
@@ -191,7 +214,28 @@ impl Battle {
         }
         self.attack_string(env, u);
         let r = self.damage(env, u);
-        let r = self.deal(env, u, r);
+        let mut r = self.deal(env, u, r);
+        if self.battler(u.attacker).ability == Ability::ParentalBond
+            && u.mov != env.t.struggle
+            && r.eff != Effectiveness::NoEffect
+            && self.battler(u.target).mon.hp > 0
+            && self.battler(u.attacker).mon.hp > 0
+        {
+            let u2 = MoveUse {
+                quarter: true,
+                ..*u
+            };
+            let r2 = self.damage(env, &u2);
+            let r2 = self.deal(env, &u2, r2);
+            env.out.push(BattleEvent::Msg(Msg {
+                buffs: [Buff::Number(2), Buff::None, Buff::None],
+                ..u.msg_long(Str::HitXTimes, u.attacker)
+            }));
+            r = HitResult {
+                hp_dealt: r.hp_dealt + r2.hp_dealt,
+                ..r2
+            };
+        }
         self.secondary(env, u, &r, secondary);
         self.try_faint(env, u.target);
         Some(r)
@@ -200,6 +244,9 @@ impl Battle {
     /// `attackstring` + `ppreduce`: "X used Y!" and one PP (none for Struggle). Call once per
     /// move.
     pub(crate) fn attack_string(&mut self, env: &mut Env, u: &MoveUse) {
+        if u.printed {
+            return;
+        }
         env.out
             .push(BattleEvent::Msg(u.msg(Str::UsedMove, u.attacker)));
         if let Some(s) = u.slot {
@@ -221,14 +268,29 @@ impl Battle {
             d.stages[Stat::Evasion as usize]
         };
         let acc = a.stages[Stat::Accuracy as usize];
-        calc::accuracy_hits_by(
+        calc::accuracy_hits_x(
             u.info.accuracy,
             acc,
             eva,
             a.ability,
             u.ty.is_physical(),
+            d.x.hold,
             env.rng.random(),
         )
+    }
+
+    /// The weather, as moves and abilities see it.
+    pub(crate) fn weather(&self) -> super::Weather {
+        self.x.weather
+    }
+
+    /// Gen3 `CheckWonderGuardAndLevitate` / `Cmd_typecalc`: a Ground move with power against a
+    /// Levitate target "misses" (`B_MSG_GROUND_MISS`).
+    pub(crate) fn levitates(&self, env: &Env, u: &MoveUse) -> bool {
+        u.ty == Type::Ground
+            && u.power > 0
+            && u.mov != env.t.struggle
+            && self.battler(u.target).ability == Ability::Levitate
     }
 
     /// `ABILITYEFFECT_FIELD_SPORT`: Mud Sport / Water Sport on any battler.
@@ -252,7 +314,10 @@ impl Battle {
     /// attack missed!".
     pub(crate) fn miss_message(&mut self, env: &mut Env, u: &MoveUse) {
         self.no_effect = true;
-        let m = if u.power > 0 && u.mov != env.t.struggle && self.immune(env, u) {
+        let m = if self.levitates(env, u) {
+            self.battler_mut(u.attacker).v.unable = true;
+            levitate_msg(u)
+        } else if u.power > 0 && u.mov != env.t.struggle && self.immune(env, u) {
             self.battler_mut(u.attacker).v.unable = true;
             u.msg_long(Str::ItDoesntAffect, u.target)
         } else {
@@ -268,8 +333,11 @@ impl Battle {
             .push(BattleEvent::Msg(u.msg_long(Str::ButItFailed, u.attacker)));
     }
 
-    /// Whether the chart gives the move's type no effect on the target.
+    /// Whether the chart gives the move's type no effect on the target (or Levitate).
     pub(crate) fn immune(&self, env: &Env, u: &MoveUse) -> bool {
+        if self.levitates(env, u) {
+            return true;
+        }
         let d = self.battler(u.target);
         let r = calc::type_effect(
             env.t.type_chart,
@@ -283,20 +351,34 @@ impl Battle {
         r.eff == Effectiveness::NoEffect
     }
 
-    /// `critcalc` (no roll in a first battle), `damagecalc`, `typecalc` (skipped for Struggle)
-    /// and `adjustnormaldamage` (one roll). `hp_dealt` is 0 until [`Battle::deal`].
+    /// `critcalc` (no roll in a first battle nor against Shell / Battle Armor), `damagecalc`,
+    /// `typecalc` (skipped for Struggle) and `adjustnormaldamage` (its damage roll, then the
+    /// target's Focus Band roll). `hp_dealt` is 0 until [`Battle::deal`].
     pub(crate) fn damage(&mut self, env: &mut Env, u: &MoveUse) -> HitResult {
         let (a, d) = (
             self.battler(u.attacker).fighter(),
             self.battler(u.target).fighter(),
         );
-        let crit = !self.is_first_battle() && {
-            let stage = calc::crit_chance_stage(self.battler(u.attacker).focus_energy);
-            calc::is_crit(stage, env.rng.random())
+        let crit = !self.is_first_battle()
+            && !matches!(d.ability, Ability::ShellArmor | Ability::BattleArmor)
+            && {
+                let stage = calc::crit_chance_stage(self.battler(u.attacker).focus_energy);
+                calc::is_crit(stage, env.rng.random())
+            };
+        let weather = match self.weather() {
+            w if w.rain() => calc::DamageWeather::Rain,
+            w if w.sun() => calc::DamageWeather::Sun,
+            super::Weather::Sand => calc::DamageWeather::Sand,
+            _ => calc::DamageWeather::None,
         };
-        let mut damage = calc::base_damage_in(&a, &d, u.power, u.ty, crit, self.field())
+        let power = self.power_with_abilities(env, u, weather);
+        let x = calc::Extra { weather };
+        let mut damage = calc::base_damage_x(&a, &d, power, u.ty, crit, self.field(), x)
             * if crit { 2 } else { 1 }
             * u.multiplier as i32;
+        if u.quarter {
+            damage = (damage / 4).max(1);
+        }
         // Cmd_damagecalc: STATUS3_CHARGED_UP doubles the move's damage when its base type
         // (`gBattleMoves[gCurrentMove].type`) is Electric.
         if self.battler(u.attacker).charge > 0 && u.info.ty == Type::Electric {
@@ -318,26 +400,73 @@ impl Battle {
             );
             damage = r.damage;
             eff = r.eff;
+            if self.levitates(env, u) {
+                eff = Effectiveness::NoEffect;
+            }
+            // Filter (Gen7): super-effective damage x3/4.
+            if eff == Effectiveness::Super && d.ability == Ability::Filter {
+                damage = damage * 3 / 4;
+            }
             if eff == Effectiveness::NoEffect {
                 // `gProtectStructs.targetNotAffected` (`WasUnableToUseMove`).
                 self.battler_mut(u.attacker).v.unable = true;
             }
         }
         damage = calc::random_damage(damage, env.rng.random());
+        // Cmd_adjustnormaldamage: the Focus Band roll (drawn whenever the target holds one),
+        // then the HP check.
+        let banded = match d.hold {
+            Some(HoldEffect::FocusBand(p)) => env.rng.random() % 100 < p as u16,
+            _ => false,
+        };
+        let hung = banded && eff != Effectiveness::NoEffect && d.hp > 0 && d.hp as i32 <= damage;
+        if hung {
+            damage = d.hp as i32 - 1;
+        }
         HitResult {
             damage,
             hp_dealt: 0,
             crit,
             eff,
+            hung,
         }
+    }
+
+    /// The move's power with the attacker's power abilities (Silice; Gen7 modifiers as integer
+    /// steps): Technician x1.5 at 60 or less, the -ate abilities x1.2 on the Normal moves they
+    /// converted, Tough Claws x1.3 on contact, Sand Force x1.3 on Rock / Ground / Steel in a
+    /// sandstorm.
+    fn power_with_abilities(&self, env: &Env, u: &MoveUse, weather: calc::DamageWeather) -> u32 {
+        let mut power = u.power as u32;
+        match self.battler(u.attacker).ability {
+            Ability::Technician if power <= 60 => power = power * 3 / 2,
+            a if ate_type(a).is_some() && u.info.ty == Type::Normal && u.mov != env.t.struggle => {
+                power = power * 6 / 5
+            }
+            Ability::ToughClaws if u.info.flags.has(MoveFlags::MAKES_CONTACT) => {
+                power = power * 13 / 10
+            }
+            Ability::SandForce
+                if weather == calc::DamageWeather::Sand
+                    && matches!(u.ty, Type::Rock | Type::Ground | Type::Steel) =>
+            {
+                power = power * 13 / 10
+            }
+            _ => {}
+        }
+        power
     }
 
     /// The hit's animations, HP drop and messages (`attackanimation` … `resultmessage`).
     /// Nothing but "It doesn't affect…" when the type has no effect.
     pub(crate) fn deal(&mut self, env: &mut Env, u: &MoveUse, mut r: HitResult) -> HitResult {
         if r.eff == Effectiveness::NoEffect {
-            env.out
-                .push(BattleEvent::Msg(u.msg_long(Str::ItDoesntAffect, u.target)));
+            let m = if self.levitates(env, u) {
+                levitate_msg(u)
+            } else {
+                u.msg_long(Str::ItDoesntAffect, u.target)
+            };
+            env.out.push(BattleEvent::Msg(m));
             return r;
         }
         env.out.push(BattleEvent::MoveAnim {
@@ -361,7 +490,20 @@ impl Battle {
         if let Some(id) = result {
             env.out.push(BattleEvent::Msg(u.msg_long(id, u.target)));
         }
+        self.hung_on(env, u, &r);
         r
+    }
+
+    /// `resultmessage`'s `MOVE_RESULT_FOE_HUNG_ON`: `BattleScript_HangedOnMsg`.
+    pub(crate) fn hung_on(&mut self, env: &mut Env, u: &MoveUse, r: &HitResult) {
+        if !r.hung {
+            return;
+        }
+        let item = self.battler(u.target).x.item;
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [Buff::None, Buff::None, item.map_or(Buff::None, Buff::Item)],
+            ..u.msg_long(Str::HungOnWithX, u.target)
+        }));
     }
 
     /// `seteffectwithchance`: a certain effect applies without a roll; otherwise one roll is
@@ -433,7 +575,7 @@ impl Battle {
         b.charge = 0;
         b.bide_damage = 0;
         b.v = super::Volatiles::default();
-        let party = b.mon.party;
+        let (party, ability) = (b.mon.party, b.ability);
         self.clear_bonds(side);
         env.out.push(BattleEvent::Faint { side });
         // STRINGID_PKMNFAINTED names the target battler; B_BUFF1 also carries the party slot,
@@ -442,6 +584,7 @@ impl Battle {
             buffs: [Buff::Mon { side, party }, Buff::None, Buff::None],
             ..msg(Str::PkmnFainted, side, side, side)
         }));
+        effects::left_field(self, env, ability);
         true
     }
 
@@ -549,6 +692,28 @@ impl Battle {
                 ..u.msg_long(Str::StatWontDecrease, side)
             }));
         }
+    }
+}
+
+/// The type an -ate ability gives Normal moves.
+pub(crate) fn ate_type(a: Ability) -> Option<Type> {
+    match a {
+        Ability::Aerilate => Some(Type::Flying),
+        Ability::Pixilate => Some(Type::Fairy),
+        Ability::Refrigerate => Some(Type::Ice),
+        _ => None,
+    }
+}
+
+/// `B_MSG_GROUND_MISS`: "Z makes GROUND moves miss with Levitate!".
+fn levitate_msg(u: &MoveUse) -> Msg {
+    Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(Ability::Levitate)),
+        ],
+        ..u.msg_long(Str::MakesGroundMiss, u.target)
     }
 }
 

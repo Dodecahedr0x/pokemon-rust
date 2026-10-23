@@ -22,7 +22,7 @@ pub mod ui;
 #[cfg(test)]
 pub(crate) mod test_data;
 
-use crate::data::{Font, MoveId, SpeciesId, TextId, TrainerId};
+use crate::data::{Font, ItemId, MoveId, SpeciesId, TextId, TrainerId};
 use crate::mon::{Ability, Gender, NAME_LEN, Party, Stat, Status, TrainerPic, Type};
 use crate::video::Tile;
 
@@ -115,6 +115,9 @@ impl BattleOutcome {
 pub enum Choice {
     /// Move slot 0..4.
     Move(u8),
+    /// Move slot 0..4, Mega Evolving first (the fight menu's toggle; refused like `Move` when
+    /// the battler cannot, then it is a plain `Move`).
+    Mega(u8),
     /// Party slot.
     Switch(u8),
     Run,
@@ -174,6 +177,9 @@ pub enum Buff {
         party: u8,
     },
     Text(Str),
+    /// `B_LAST_ITEM` (`gLastUsedItem`): an item name, from `GameData::item`. The core puts it
+    /// in `buffs[2]`, which `{B_LAST_ITEM}` expands.
+    Item(ItemId),
 }
 
 /// A battle message: a [`Str`] plus the context its placeholders read.
@@ -403,6 +409,76 @@ pub enum Str {
     ItSuckedLiquidOoze,
     /// STRINGID_PLAYERGOTMONEY (buffer 1: the money).
     PlayerGotMoney,
+    // ---- Silice engine: held items (`buffs[2]` = `Buff::Item`), weather, abilities ----
+    /// `STRINGID_PKMNSITEMRESTOREDHEALTH`: an HP berry (`active` = its holder).
+    ItemRestoredHealth,
+    /// `STRINGID_PKMNSITEMRESTOREDHPALITTLE`: Leftovers.
+    ItemRestoredHpALittle,
+    /// `STRINGID_PKMNSITEMCUREDPARALYSIS`.
+    ItemCuredParalysis,
+    /// `STRINGID_PKMNSITEMCUREDPOISON`.
+    ItemCuredPoison,
+    /// `STRINGID_PKMNSITEMHEALEDBURN`.
+    ItemHealedBurn,
+    /// `STRINGID_PKMNSITEMDEFROSTEDIT`.
+    ItemDefrostedIt,
+    /// `STRINGID_PKMNSITEMWOKEIT`.
+    ItemWokeIt,
+    /// `STRINGID_PKMNSITEMSNAPPEDOUT`: confusion cured.
+    ItemSnappedOut,
+    /// `STRINGID_PKMNSITEMCUREDPROBLEM` (`B_BUFF1`: the status name, left empty as Shed Skin's).
+    ItemCuredProblem,
+    /// `STRINGID_PKMNSITEMNORMALIZEDSTATUS`: Lum on several problems.
+    ItemNormalizedStatus,
+    /// `STRINGID_PKMNHUNGONWITHX`: Focus Band (the target).
+    HungOnWithX,
+    /// `STRINGID_PKMNSXINTENSIFIEDSUN`: Drought (`active` and `buffs[2]` its ability).
+    IntensifiedSun,
+    /// `STRINGID_PKMNSXWHIPPEDUPSANDSTORM`: Sand Stream.
+    WhippedUpSandstorm,
+    /// `STRINGID_PKMNMADEITRAIN`: Drizzle.
+    MadeItRain,
+    /// `STRINGID_RAINCONTINUES`.
+    RainContinues,
+    /// `STRINGID_SUNLIGHTSTRONG`.
+    SunlightStrong,
+    /// `STRINGID_SANDSTORMRAGES`.
+    SandstormRages,
+    /// `STRINGID_PKMNBUFFETEDBYSANDSTORM`.
+    BuffetedBySandstorm,
+    /// `STRINGID_PKMNRAISEDSPEED`: Speed Boost, Steadfast (`active`, its ability).
+    RaisedSpeed,
+    /// `STRINGID_PKMNMAKESGROUNDMISS`: Levitate (the target and its ability).
+    MakesGroundMiss,
+    /// `STRINGID_PKMNSXRESTOREDHPALITTLE2`: Rain Dish.
+    AbilityRestoredHp,
+    // Post-Gen3 messages: no Gen3 string (Emerald content leaves them empty; a game with the
+    // features supplies them).
+    /// Mega Evolution, first message: `active` the mon, `buffs` = [`Mon`, `Species`(form),
+    /// `Item`(stone)].
+    MegaReacting,
+    /// Mega Evolution done (same buffers).
+    MegaEvolved,
+    /// Primal Reversion (same buffers, the orb).
+    PrimalReversion,
+    /// Primordial Sea: a heavy rain began (`active`, ability).
+    HeavyRainBegan,
+    /// Desolate Land: the sunlight turned extremely harsh.
+    HarshSunBegan,
+    /// The heavy rain lifted (its source left).
+    HeavyRainLifted,
+    /// The extremely harsh sunlight faded.
+    HarshSunFaded,
+    /// A Fire move fizzled out in the heavy rain (the attacker).
+    FizzledInRain,
+    /// A Water move evaporated in the harsh sunlight.
+    EvaporatedInSun,
+    /// Mold Breaker on entry (`active`, ability).
+    BreaksTheMold,
+    /// Magic Bounce: the move bounced back (`active` its owner, ability; `mov`).
+    BouncedBack,
+    /// The fight menu's Mega Evolution mark (in the TYPE window while the toggle is on).
+    MegaArmed,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -554,6 +630,40 @@ impl Str {
             PreventedFromWorking => 131,
             ItSuckedLiquidOoze => 132,
             PlayerGotMoney => 133,
+            // Silice engine.
+            ItemRestoredHealth => 134,
+            ItemRestoredHpALittle => 135,
+            ItemCuredParalysis => 136,
+            ItemCuredPoison => 137,
+            ItemHealedBurn => 138,
+            ItemDefrostedIt => 139,
+            ItemWokeIt => 140,
+            ItemSnappedOut => 141,
+            ItemCuredProblem => 142,
+            ItemNormalizedStatus => 143,
+            HungOnWithX => 144,
+            IntensifiedSun => 145,
+            WhippedUpSandstorm => 146,
+            MadeItRain => 147,
+            RainContinues => 148,
+            SunlightStrong => 149,
+            SandstormRages => 150,
+            BuffetedBySandstorm => 151,
+            RaisedSpeed => 152,
+            MakesGroundMiss => 153,
+            AbilityRestoredHp => 154,
+            MegaReacting => 155,
+            MegaEvolved => 156,
+            PrimalReversion => 157,
+            HeavyRainBegan => 158,
+            HarshSunBegan => 159,
+            HeavyRainLifted => 160,
+            HarshSunFaded => 161,
+            FizzledInRain => 162,
+            EvaporatedInSun => 163,
+            BreaksTheMold => 164,
+            BouncedBack => 165,
+            MegaArmed => 166,
         }
     }
 }
@@ -627,6 +737,13 @@ pub enum BattleEvent {
     End(BattleOutcome),
     /// Not presentation: [`BattleScene::push`] sets it aside.
     Report(BattleReport),
+    /// The battler on `side` (party slot `party`) changed form for the rest of the battle
+    /// (Mega Evolution, Primal Reversion): its pic becomes `species`'.
+    FormChange {
+        side: Side,
+        party: u8,
+        species: SpeciesId,
+    },
 }
 
 /// What presentation reads of a battler (Gen3 `struct BattlePokemon` subset). The core keeps

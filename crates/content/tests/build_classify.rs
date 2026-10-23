@@ -211,7 +211,8 @@ fn move_effects_by_name() {
 #[test]
 fn battle_enums_by_name() {
     assert_eq!(type_variant("TYPE_DARK"), Some("Type::Dark"));
-    assert_eq!(type_variant("TYPE_FAIRY"), None);
+    // Silice content's Fairy (Emerald has no `TYPE_FAIRY`).
+    assert_eq!(type_variant("TYPE_FAIRY"), Some("Type::Fairy"));
     for (_, n) in extract::names::GROWTH_RATES.iter() {
         assert!(growth(n).is_some(), "{n}");
     }
@@ -226,6 +227,12 @@ fn battle_enums_by_name() {
     assert_eq!(ability("ABILITY_PICKUP"), "Ability::Pickup");
     assert_eq!(ability("ABILITY_CLEAR_BODY"), "Ability::ClearBody");
     assert_eq!(ability("ABILITY_WHITE_SMOKE"), "Ability::Other");
+    // The Gen3 abilities the Silice engine adds stay off for Emerald's species; the post-Gen3
+    // ones (no Emerald species) are mapped.
+    assert_eq!(ability("ABILITY_DRIZZLE"), "Ability::Other");
+    assert_eq!(ability("ABILITY_LEVITATE"), "Ability::Other");
+    assert_eq!(ability("ABILITY_PIXILATE"), "Ability::Pixilate");
+    assert_eq!(ability("ABILITY_PRIMORDIAL_SEA"), "Ability::PrimordialSea");
 }
 
 #[test]
@@ -270,7 +277,11 @@ fn every_str_source_names_an_exported_string() {
                 assert!(ids(key), "{pat}: {key}");
                 assert!(code.starts_with("{B_"), "{pat}");
             }
-            StrSrc::UsedMove | StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => {}
+            StrSrc::UsedMove
+            | StrSrc::TypeNames
+            | StrSrc::StatNames
+            | StrSrc::AbilityNames
+            | StrSrc::Missing => {}
         }
     }
 }

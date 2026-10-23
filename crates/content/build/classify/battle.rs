@@ -163,9 +163,43 @@ pub fn ability(name: &str) -> &'static str {
         "ABILITY_CLEAR_BODY" => "Ability::ClearBody",
         "ABILITY_LIQUID_OOZE" => "Ability::LiquidOoze",
         "ABILITY_NATURAL_CURE" => "Ability::NaturalCure",
+        // Silice engine: Gen3 abilities that Emerald species have, gated.
+        "ABILITY_DROUGHT" if GEN3_EXTRA_ABILITIES => "Ability::Drought",
+        "ABILITY_DRIZZLE" if GEN3_EXTRA_ABILITIES => "Ability::Drizzle",
+        "ABILITY_SAND_STREAM" if GEN3_EXTRA_ABILITIES => "Ability::SandStream",
+        "ABILITY_SPEED_BOOST" if GEN3_EXTRA_ABILITIES => "Ability::SpeedBoost",
+        "ABILITY_SHADOW_TAG" if GEN3_EXTRA_ABILITIES => "Ability::ShadowTag",
+        "ABILITY_LEVITATE" if GEN3_EXTRA_ABILITIES => "Ability::Levitate",
+        "ABILITY_SHELL_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::ShellArmor",
+        "ABILITY_BATTLE_ARMOR" if GEN3_EXTRA_ABILITIES => "Ability::BattleArmor",
+        "ABILITY_LIGHTNING_ROD" if GEN3_EXTRA_ABILITIES => "Ability::LightningRod",
+        // Post-Gen3 (no Emerald species has them).
+        "ABILITY_PRIMORDIAL_SEA" => "Ability::PrimordialSea",
+        "ABILITY_DESOLATE_LAND" => "Ability::DesolateLand",
+        "ABILITY_AERILATE" => "Ability::Aerilate",
+        "ABILITY_PIXILATE" => "Ability::Pixilate",
+        "ABILITY_REFRIGERATE" => "Ability::Refrigerate",
+        "ABILITY_TOUGH_CLAWS" => "Ability::ToughClaws",
+        "ABILITY_MAGIC_BOUNCE" => "Ability::MagicBounce",
+        "ABILITY_PARENTAL_BOND" => "Ability::ParentalBond",
+        "ABILITY_MOLD_BREAKER" => "Ability::MoldBreaker",
+        "ABILITY_TECHNICIAN" => "Ability::Technician",
+        "ABILITY_SKILL_LINK" => "Ability::SkillLink",
+        "ABILITY_SAND_FORCE" => "Ability::SandForce",
+        "ABILITY_SOLAR_POWER" => "Ability::SolarPower",
+        "ABILITY_FILTER" => "Ability::Filter",
+        "ABILITY_PRANKSTER" => "Ability::Prankster",
+        "ABILITY_STEADFAST" => "Ability::Steadfast",
         _ => "Ability::Other",
     }
 }
+
+/// Whether the Gen3 abilities the Silice engine added (Drought, Drizzle, Sand Stream, Speed
+/// Boost, Shadow Tag, Levitate, Shell / Battle Armor, Lightning Rod) act for Emerald's species.
+/// **Off**: Torkoal, Tyranitar, Ninjask, Wobbuffet, the Levitate ghosts … would change the
+/// recorded route; turning it on is a later Emerald route change (re-baseline parity and the
+/// checkpoint tree). Note Lightning Rod is the Gen5 absorb, not Gen3's doubles redirect.
+pub const GEN3_EXTRA_ABILITIES: bool = false;
 
 /// The `Stat` of a `battle_move_effects.h` stat word.
 fn effect_stat(s: &str) -> Option<&'static str> {
@@ -276,6 +310,9 @@ pub enum StrSrc {
     /// `gAbilityNames` (`battle/types.ron` `ability_names`), by `Ability` (through
     /// [`ability`]); `Ability::Other` stands for many abilities and has no name (empty).
     AbilityNames,
+    /// No Gen3 string (the post-Gen3 messages of the Silice engine): empty for Emerald, left
+    /// out of `ALL_STRS`.
+    Missing,
 }
 
 /// Every `battle::Str` variant (as a `match` pattern) and its source. The build writes one
@@ -472,5 +509,61 @@ pub const STRS: &[(&str, StrSrc)] = {
         ("PreventedFromWorking", Key("STRINGID_PREVENTEDFROMWORKING")),
         ("ItSuckedLiquidOoze", Key("STRINGID_ITSUCKEDLIQUIDOOZE")),
         ("PlayerGotMoney", Key("STRINGID_PLAYERGOTMONEY")),
+        // Silice engine: held items, weather, abilities.
+        (
+            "ItemRestoredHealth",
+            Key("STRINGID_PKMNSITEMRESTOREDHEALTH"),
+        ),
+        (
+            "ItemRestoredHpALittle",
+            Key("STRINGID_PKMNSITEMRESTOREDHPALITTLE"),
+        ),
+        (
+            "ItemCuredParalysis",
+            Key("STRINGID_PKMNSITEMCUREDPARALYSIS"),
+        ),
+        ("ItemCuredPoison", Key("STRINGID_PKMNSITEMCUREDPOISON")),
+        ("ItemHealedBurn", Key("STRINGID_PKMNSITEMHEALEDBURN")),
+        ("ItemDefrostedIt", Key("STRINGID_PKMNSITEMDEFROSTEDIT")),
+        ("ItemWokeIt", Key("STRINGID_PKMNSITEMWOKEIT")),
+        ("ItemSnappedOut", Key("STRINGID_PKMNSITEMSNAPPEDOUT")),
+        ("ItemCuredProblem", Key("STRINGID_PKMNSITEMCUREDPROBLEM")),
+        (
+            "ItemNormalizedStatus",
+            Key("STRINGID_PKMNSITEMNORMALIZEDSTATUS"),
+        ),
+        ("HungOnWithX", Key("STRINGID_PKMNHUNGONWITHX")),
+        ("IntensifiedSun", Key("STRINGID_PKMNSXINTENSIFIEDSUN")),
+        (
+            "WhippedUpSandstorm",
+            Key("STRINGID_PKMNSXWHIPPEDUPSANDSTORM"),
+        ),
+        ("MadeItRain", Key("STRINGID_PKMNMADEITRAIN")),
+        ("RainContinues", Key("STRINGID_RAINCONTINUES")),
+        ("SunlightStrong", Key("STRINGID_SUNLIGHTSTRONG")),
+        ("SandstormRages", Key("STRINGID_SANDSTORMRAGES")),
+        (
+            "BuffetedBySandstorm",
+            Key("STRINGID_PKMNBUFFETEDBYSANDSTORM"),
+        ),
+        ("RaisedSpeed", Key("STRINGID_PKMNRAISEDSPEED")),
+        ("MakesGroundMiss", Key("STRINGID_PKMNMAKESGROUNDMISS")),
+        (
+            "AbilityRestoredHp",
+            Key("STRINGID_PKMNSXRESTOREDHPALITTLE2"),
+        ),
+        // Post-Gen3: no Gen3 string.
+        ("MegaReacting", Missing),
+        ("MegaEvolved", Missing),
+        ("PrimalReversion", Missing),
+        ("HeavyRainBegan", Missing),
+        ("HarshSunBegan", Missing),
+        ("HeavyRainLifted", Missing),
+        ("HarshSunFaded", Missing),
+        ("FizzledInRain", Missing),
+        ("EvaporatedInSun", Missing),
+        ("BreaksTheMold", Missing),
+        ("BouncedBack", Missing),
+        ("MegaArmed", Missing),
     ]
 };

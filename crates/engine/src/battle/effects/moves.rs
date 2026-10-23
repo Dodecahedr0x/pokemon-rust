@@ -361,6 +361,7 @@ fn sonic_boom(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
         hp_dealt: 0,
         crit: false,
         eff,
+        hung: false,
     };
     let r = b.deal(env, u, r);
     b.secondary(env, u, &r, None);
@@ -381,6 +382,9 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
         return;
     }
     b.attack_string(env, u);
+    // Skill Link (Silice, Gen4+): always 5 hits, no roll.
+    let skill_link = b.battler(u.attacker).ability == crate::mon::Ability::SkillLink;
+    let fixed = fixed.or(skill_link.then_some(5));
     let count = fixed.unwrap_or_else(|| {
         let count = env.rng.random() & 3;
         if count > 1 {
@@ -413,6 +417,7 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
                 hp_dealt: 0,
                 crit: false,
                 eff: Effectiveness::NoEffect,
+                hung: false,
             });
             break;
         }
@@ -427,6 +432,7 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
             env.out
                 .push(BattleEvent::Msg(u.msg_long(Str::CriticalHit, u.attacker)));
         }
+        b.hung_on(env, u, &r);
         hits += 1;
         last = Some(r);
         abilities::move_end(b, env, u, Some(r));
@@ -436,6 +442,7 @@ fn multi_hit(b: &mut Battle, env: &mut Env, u: &MoveUse, fixed: Option<u16>) {
         hp_dealt: 0,
         crit: false,
         eff: Effectiveness::Normal,
+        hung: false,
     });
     if strings {
         let result = match r.eff {

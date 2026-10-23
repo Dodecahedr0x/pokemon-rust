@@ -250,6 +250,59 @@ pub enum Ability {
     ClearBody,
     LiquidOoze,
     NaturalCure,
+    // Silice engine (appended). Gen3 abilities whose Emerald holders the content leaves
+    // `Other` until a deliberate route change (`GEN3_EXTRA_ABILITIES` in the content build):
+    /// Sun at switch-in (`ABILITYEFFECT_ON_SWITCH_IN`, permanent).
+    Drought,
+    /// Rain at switch-in.
+    Drizzle,
+    /// Sandstorm at switch-in.
+    SandStream,
+    /// Speed +1 at the end of each turn but its first.
+    SpeedBoost,
+    /// The foe cannot run nor switch.
+    ShadowTag,
+    /// Ground moves miss.
+    Levitate,
+    /// No critical hits against it.
+    ShellArmor,
+    BattleArmor,
+    /// Gen5: draws Electric moves, which it absorbs for Sp. Atk +1 (Gen3 only redirects in
+    /// doubles; Silice reworks it).
+    LightningRod,
+    // Post-Gen3 abilities (Gen7 behaviour adapted to Gen3, see the Silice plan).
+    /// Heavy rain while it is out: Fire moves fail.
+    PrimordialSea,
+    /// Extremely harsh sun while it is out: Water moves fail.
+    DesolateLand,
+    /// Normal moves become Flying, x1.2.
+    Aerilate,
+    /// Normal moves become Fairy, x1.2.
+    Pixilate,
+    /// Normal moves become Ice, x1.2.
+    Refrigerate,
+    /// Contact moves x1.3.
+    ToughClaws,
+    /// Reflects `MAGIC_COAT_AFFECTED` moves.
+    MagicBounce,
+    /// A second hit at a quarter of the damage.
+    ParentalBond,
+    /// Ignores the target's breakable abilities.
+    MoldBreaker,
+    /// Moves of power 60 or less x1.5.
+    Technician,
+    /// Multi-hit moves hit 5 times.
+    SkillLink,
+    /// Rock / Ground / Steel moves x1.3 in a sandstorm; no sandstorm damage.
+    SandForce,
+    /// Sp. Atk x1.5 in the sun, losing 1/8 HP each turn.
+    SolarPower,
+    /// Super-effective damage x3/4.
+    Filter,
+    /// Status moves +1 priority (they fail against a Dark target).
+    Prankster,
+    /// Speed +1 when it flinches.
+    Steadfast,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).
@@ -492,6 +545,30 @@ pub enum HoldEffect {
     EvasionUp(u8),
     /// `HOLD_EFFECT_FOCUS_BAND`: `param`% to survive a hit at 1 HP.
     FocusBand(u8),
+}
+
+impl HoldEffect {
+    /// A stable hash code: tag and parameter.
+    pub const fn code(self) -> [u8; 2] {
+        use HoldEffect::*;
+        match self {
+            RestoreHp(p) => [1, p],
+            CurePar => [2, 0],
+            CureSlp => [3, 0],
+            CurePsn => [4, 0],
+            CureBrn => [5, 0],
+            CureFrz => [6, 0],
+            CureConfusion => [7, 0],
+            CureStatus => [8, 0],
+            Leftovers => [9, 0],
+            TypePower(t, p) => [10 + t as u8, p],
+            ChoiceBand => [40, 0],
+            QuickClaw(p) => [41, p],
+            KingsRock(p) => [42, p],
+            EvasionUp(p) => [43, p],
+            FocusBand(p) => [44, p],
+        }
+    }
 }
 
 /// A trainer front pic (or back pic frames, 64 tiles each).

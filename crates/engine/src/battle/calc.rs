@@ -7,7 +7,7 @@
 //! `ModulateDmgByType`), then [`random_damage`] (`ApplyRandomDmgMultiplier`).
 
 use super::Effectiveness;
-use crate::mon::{Ability, Stat, Status, Type, TypeMatchup};
+use crate::mon::{Ability, HoldEffect, Stat, Status, Type, TypeMatchup};
 
 /// Gen3 `gStatStageRatios` (`pokemon.c`): numerator / denominator by stage -6..=6.
 pub const STAT_STAGE_RATIOS: [(u16, u16); 13] = [
@@ -66,6 +66,8 @@ pub struct Fighter {
     pub types: [Type; 2],
     pub ability: Ability,
     pub status: Status,
+    /// The held item's effect (`None`: no item, or one without a modelled effect).
+    pub hold: Option<HoldEffect>,
 }
 
 impl Fighter {
@@ -116,18 +118,23 @@ pub fn base_damage(a: &Fighter, d: &Fighter, power: u8, ty: Type, crit: bool) ->
     base_damage_in(a, d, power, ty, crit, Field::default())
 }
 
-/// Gen3 `CalculateBaseDamage` (`pokemon.c`) for a single battle without items, badges,
-/// weather or screens, in its order:
-/// - Huge Power / Pure Power ×2 attack; the defender's Thick Fat halves the special attack
-///   for Fire and Ice; Hustle and Guts (any status) ×150/100 attack; the defender's Marvel
-///   Scale (any status) ×150/100 defense (u16 stats, as Gen3).
-/// - Mud Sport / Water Sport halve Electric / Fire power, then Overgrow / Blaze / Torrent /
-///   Swarm ×150/100 power for their type at HP ≤ max / 3.
-/// - A crit ignores the attacker's attack drops and the defender's defense boosts.
-/// - Physical: burn halves (not with Guts), minimum 1. Special has no minimum (as Gen3).
-/// - `Mystery` skips both branches, so it returns the bare `+ 2`.
-///
-/// The defender's divisor is clamped to 1 (Gen3 divides by zero at -6 on a 1-point stat).
+/// The weather `CalculateBaseDamage` reads (`gBattleWeather` with `WEATHER_HAS_EFFECT2`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum DamageWeather {
+    #[default]
+    None,
+    Rain,
+    Sun,
+    Sand,
+}
+
+/// What [`base_damage_x`] reads beyond [`base_damage_in`] (the Silice engine): the weather.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Extra {
+    pub weather: DamageWeather,
+}
+
+/// [`base_damage_x`] with a Gen3 `u8` power and no weather.
 pub fn base_damage_in(
     a: &Fighter,
     d: &Fighter,
@@ -136,11 +143,53 @@ pub fn base_damage_in(
     crit: bool,
     field: Field,
 ) -> i32 {
+    base_damage_x(a, d, power as u32, ty, crit, field, Extra::default())
+}
+
+/// Gen3 `CalculateBaseDamage` (`pokemon.c`) for a single battle without badges or screens, in
+/// its order:
+/// - Huge Power / Pure Power ×2 attack; the `sHoldEffectToType` item of the move's type
+///   `(100 + param)%` of the attacking stat of the type's side, Choice Band ×150/100 attack;
+///   Solar Power ×150/100 special attack in the sun (Silice); the defender's Thick Fat halves the special attack
+///   for Fire and Ice; Hustle and Guts (any status) ×150/100 attack; the defender's Marvel
+///   Scale (any status) ×150/100 defense (u16 stats, as Gen3).
+/// - Mud Sport / Water Sport halve Electric / Fire power, then Overgrow / Blaze / Torrent /
+///   Swarm ×150/100 power for their type at HP ≤ max / 3.
+/// - A crit ignores the attacker's attack drops and the defender's defense boosts.
+/// - Physical: burn halves (not with Guts), minimum 1. Special has no minimum (as Gen3).
+/// - `power` may exceed 255 (the Silice power-raising abilities).
+/// - Special: rain halves Fire and ×15/10 Water, sun the reverse (`WEATHER_HAS_EFFECT2`).
+/// - `Mystery` skips both branches, so it returns the bare `+ 2`.
+///
+/// The defender's divisor is clamped to 1 (Gen3 divides by zero at -6 on a 1-point stat).
+pub fn base_damage_x(
+    a: &Fighter,
+    d: &Fighter,
+    power: u32,
+    ty: Type,
+    crit: bool,
+    field: Field,
+    x: Extra,
+) -> i32 {
     let mut attack = a.stat(Stat::Atk);
     let mut defense = d.stat(Stat::Def);
     let mut sp_attack = a.stat(Stat::SpAtk);
     if matches!(a.ability, Ability::HugePower | Ability::PurePower) {
         attack = attack.wrapping_mul(2);
+    }
+    match a.hold {
+        Some(HoldEffect::TypePower(t, p)) if t == ty => {
+            if ty.is_physical() {
+                attack = (attack as u32 * (p as u32 + 100) / 100) as u16;
+            } else {
+                sp_attack = (sp_attack as u32 * (p as u32 + 100) / 100) as u16;
+            }
+        }
+        Some(HoldEffect::ChoiceBand) => attack = (150 * attack as u32 / 100) as u16,
+        _ => {}
+    }
+    if a.ability == Ability::SolarPower && x.weather == DamageWeather::Sun {
+        sp_attack = (150 * sp_attack as u32 / 100) as u16;
     }
     if d.ability == Ability::ThickFat && matches!(ty, Type::Fire | Type::Ice) {
         sp_attack /= 2;
@@ -154,7 +203,7 @@ pub fn base_damage_in(
     if d.ability == Ability::MarvelScale && d.status != Status::None {
         defense = (150 * defense as u32 / 100) as u16;
     }
-    let mut power = power as u32;
+    let mut power = power;
     if (ty == Type::Electric && field.mud_sport) || (ty == Type::Fire && field.water_sport) {
         power /= 2;
     }
@@ -210,6 +259,13 @@ pub fn base_damage_in(
             d.stat(Stat::SpDef) as u32,
             d.stage(Stat::SpDef),
         );
+        match (x.weather, ty) {
+            (DamageWeather::Rain, Type::Fire) | (DamageWeather::Sun, Type::Water) => damage /= 2,
+            (DamageWeather::Rain, Type::Water) | (DamageWeather::Sun, Type::Fire) => {
+                damage = 15 * damage / 10
+            }
+            _ => {}
+        }
     }
     damage + 2
 }
@@ -329,6 +385,22 @@ pub fn accuracy_hits_by(
     physical: bool,
     roll: u16,
 ) -> bool {
+    accuracy_hits_x(
+        move_acc, acc_stage, eva_stage, ability, physical, None, roll,
+    )
+}
+
+/// [`accuracy_hits_by`] with the target's held item: `HOLD_EFFECT_EVASION_UP` (BrightPowder,
+/// Lax Incense) ×`(100 - param)`/100 after the abilities.
+pub fn accuracy_hits_x(
+    move_acc: u8,
+    acc_stage: i8,
+    eva_stage: i8,
+    ability: Ability,
+    physical: bool,
+    target_hold: Option<HoldEffect>,
+    roll: u16,
+) -> bool {
     let buff = (acc_stage - eva_stage).clamp(MIN_STAGE, MAX_STAGE);
     let (num, den) = ratio(&ACCURACY_STAGE_RATIOS, buff);
     let mut calc = (num * move_acc as u16) / den;
@@ -337,6 +409,9 @@ pub fn accuracy_hits_by(
     }
     if ability == Ability::Hustle && physical {
         calc = (calc as u32 * 80 / 100) as u16;
+    }
+    if let Some(HoldEffect::EvasionUp(p)) = target_hold {
+        calc = (calc as u32 * (100 - p as u32) / 100) as u16;
     }
     roll % 100 < calc
 }
@@ -430,7 +505,14 @@ pub fn isqrt(n: u32) -> u32 {
 
 /// Gen3 `GetWhoStrikesFirst` speed: `speed × stage ratio`, quartered when paralysed.
 pub fn effective_speed(f: &Fighter) -> u32 {
-    let mut s = apply_stage(f.stat(Stat::Speed), f.stage(Stat::Speed));
+    effective_speed_x(f, 1)
+}
+
+/// [`effective_speed`] with Gen3's `speedMultiplierBattler` (2 for Swift Swim in rain,
+/// Chlorophyll in sun): `(speed × multiplier) × stage ratio`.
+pub fn effective_speed_x(f: &Fighter, multiplier: u32) -> u32 {
+    let (num, den) = ratio(&STAT_STAGE_RATIOS, f.stage(Stat::Speed));
+    let mut s = f.stat(Stat::Speed) as u32 * multiplier * num as u32 / den as u32;
     if f.status == Status::Paralysis {
         s /= 4;
     }

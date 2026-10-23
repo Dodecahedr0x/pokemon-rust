@@ -45,8 +45,16 @@
 //! - Friendship changes (fainting, level ups, `AdjustFriendship` at the battle's end).
 //! - The `STRINGID_ENEMYABOUTTOSWITCHPKMN` "Will you change Pokémon?" prompt when a trainer
 //!   sends its next mon (skipped, per the milestone's decision 4).
-//! - Held items (`SetWildMonHeldItem` keeps only its `Random()`), badge boosts, Quick Claw.
+//! - Wild held items (`SetWildMonHeldItem` keeps only its `Random()`), badge boosts.
+//!
+//! # Silice engine (items, weather, forms)
+//! A battler carries its party mon's held item and its `GameData::hold_effect`
+//! ([`BattlerExt`], hashed only when set); Quick Claw is in [`Battle::strike_order`], the other
+//! items in `effects::items`, `calc` and `Battle::damage`. [`BattleExt`] (hashed only when set)
+//! holds the weather and the form changes ([`forms`]: Mega Evolution, Primal Reversion). A
+//! Gen3 battle without items, forms or weather abilities draws and hashes as before.
 
+mod forms;
 mod moves;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -56,9 +64,11 @@ use super::{
     BattleEvent, BattleKind, BattleMon, BattleOutcome, BattleReport, BattleSetup, Buff, Choice,
     Msg, MsgWait, Need, Side, Str,
 };
-use crate::data::{GameData, MoveId, SpeciesId};
+use crate::data::{FlagId, FormChange, GameData, ItemId, MoveId, SpeciesId};
 use crate::hash::Fnv64;
-use crate::mon::{Ability, BattleTables, Learn, PARTY_SIZE, Party, Pokemon, StatusKind, Type};
+use crate::mon::{
+    Ability, BattleTables, HoldEffect, Learn, PARTY_SIZE, Party, Pokemon, StatusKind, Type,
+};
 use crate::rng::Rng;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
@@ -133,6 +143,29 @@ pub(crate) struct Battler {
     pub fainted: bool,
     /// Task G's volatile state (hashed only when set, see [`Volatiles`]).
     pub v: Volatiles,
+    /// The Silice engine's state (hashed only when set, see [`BattlerExt`]).
+    pub x: BattlerExt,
+}
+
+/// A battler's held item and the Silice engine's per-battler state. All default for a Gen3
+/// battle without items or the new abilities, so it is hashed only when set.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) struct BattlerExt {
+    /// `gBattleMons[].item`.
+    pub item: Option<ItemId>,
+    /// `GetBattlerHoldEffect` of `item` (`GameData::hold_effect`).
+    pub hold: Option<HoldEffect>,
+    /// `gDisableStructs.isFirstTurn` for Speed Boost: 2 on entry, decremented when a turn
+    /// passes (set only for a Speed Boost battler, so other battles hash as before).
+    pub first_turn: u8,
+}
+
+impl BattlerExt {
+    fn hash(&self, h: &mut Fnv64) {
+        h.write_u16(self.item.map_or(0xFFFF, |i| i.0));
+        h.write(&self.hold.map_or([0xFF, 0], HoldEffect::code));
+        h.write(&[self.first_turn]);
+    }
 }
 
 /// Task G's `STATUS2` / `STATUS3` / `gDisableStructs` / `gProtectStructs` bits of a battler.
@@ -212,6 +245,10 @@ impl Battler {
             last_landed: None,
             fainted: false,
             v: Volatiles::default(),
+            x: BattlerExt {
+                item: p.held,
+                ..BattlerExt::default()
+            },
         }
     }
 
@@ -226,6 +263,7 @@ impl Battler {
             types: self.types,
             ability: self.ability,
             status: self.mon.status,
+            hold: self.x.hold,
         }
     }
 
@@ -275,6 +313,85 @@ impl Battler {
             h.write(&[0xA7]);
             self.v.hash(h);
         }
+        if self.x != BattlerExt::default() {
+            h.write(&[0xA8]);
+            self.x.hash(h);
+        }
+    }
+}
+
+/// Gen3 `gBattleWeather` (the engine's subset), plus the Gen6 primal weathers.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) enum Weather {
+    #[default]
+    None,
+    /// `B_WEATHER_RAIN_PERMANENT` (Drizzle).
+    Rain,
+    /// `B_WEATHER_SUN_PERMANENT` (Drought).
+    Sun,
+    /// `B_WEATHER_SANDSTORM_PERMANENT` (Sand Stream).
+    Sand,
+    /// Primordial Sea: rain, and Fire moves fail. Ends when no battler has the ability.
+    HeavyRain,
+    /// Desolate Land: sun, and Water moves fail.
+    HarshSun,
+}
+
+impl Weather {
+    pub fn rain(self) -> bool {
+        matches!(self, Weather::Rain | Weather::HeavyRain)
+    }
+
+    pub fn sun(self) -> bool {
+        matches!(self, Weather::Sun | Weather::HarshSun)
+    }
+
+    pub fn primal(self) -> bool {
+        matches!(self, Weather::HeavyRain | Weather::HarshSun)
+    }
+}
+
+/// The Silice engine's battle state: held-item effects and form changes by party slot, the
+/// Mega Evolution bookkeeping and the weather. Default for a Gen3 battle without items, forms
+/// or weather abilities, so it is hashed only when set.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub(crate) struct BattleExt {
+    /// `GameData::hold_effect` of each party mon's item (`[side][party slot]`).
+    pub holds: [[Option<HoldEffect>; PARTY_SIZE]; 2],
+    /// The form change each party mon may undergo (its species and held item match one of
+    /// `GameData::form_changes`; the player's also need their `enable_flag`).
+    pub forms: [[Option<FormChange>; PARTY_SIZE]; 2],
+    /// Party slots in their battle form (a bit each): kept until the battle ends.
+    pub formed: [u8; 2],
+    /// One Mega Evolution per side per battle.
+    pub mega_used: [bool; 2],
+    /// Mega Evolution chosen for this turn (the player's toggle, the AI's choice).
+    pub mega_pending: [bool; 2],
+    pub weather: Weather,
+}
+
+impl BattleExt {
+    fn hash(&self, h: &mut Fnv64) {
+        for side in 0..2 {
+            for slot in 0..PARTY_SIZE {
+                h.write(&self.holds[side][slot].map_or([0xFF, 0], HoldEffect::code));
+                match self.forms[side][slot] {
+                    None => h.write(&[0xFF]),
+                    Some(f) => {
+                        h.write(&[f.kind as u8]);
+                        h.write_u16(f.base.0);
+                        h.write_u16(f.item.0);
+                        h.write_u16(f.form.0);
+                    }
+                }
+            }
+            h.write(&[
+                self.formed[side],
+                self.mega_used[side] as u8,
+                self.mega_pending[side] as u8,
+            ]);
+        }
+        h.write(&[self.weather as u8]);
     }
 }
 
@@ -403,6 +520,8 @@ pub struct Battle {
     pub(crate) prize: Option<u32>,
     /// `gLeveledUpInBattle`: player party slots that gained a level (evolution candidates).
     pub(crate) leveled_up: u8,
+    /// The Silice engine's state (hashed only when set, see [`BattleExt`]).
+    pub(crate) x: BattleExt,
 }
 
 /// Gen3 `GetTrainerMoneyToGive` (`moneyMultiplier` 1: no Amulet Coin without held items):
@@ -481,7 +600,17 @@ impl Battle {
             rng.random();
         }
         let random_turn = rng.random();
-        Battle {
+        let x = BattleExt {
+            holds: [&parties[0], &parties[1]].map(|p| {
+                core::array::from_fn(|i| {
+                    p.get(i)
+                        .and_then(|m| m.held)
+                        .and_then(|it| game.hold_effect(it))
+                })
+            }),
+            ..BattleExt::default()
+        };
+        let mut b = Battle {
             sent_in: 1 << battlers[0].mon.party,
             setup,
             parties,
@@ -500,7 +629,55 @@ impl Battle {
             no_effect: false,
             prize,
             leveled_up: 0,
+            x,
+        };
+        b.find_forms(game, Side::Player, |_| false);
+        b.find_forms(game, Side::Opponent, |_| false);
+        for side in [Side::Player, Side::Opponent] {
+            let party = b.battler(side).mon.party;
+            b.battlers[side as usize] = b.battler_for(t, side, party);
         }
+        b
+    }
+
+    /// Lets the player's mons change form when their `FormChange::enable_flag` is set
+    /// (`is_set`, the World's flags; the Mega Ring). Call before [`Battle::start`]: a
+    /// battle without it only allows the form changes without a flag.
+    pub fn enable_player_forms(&mut self, game: &impl GameData, is_set: impl Fn(FlagId) -> bool) {
+        self.find_forms(game, Side::Player, is_set);
+    }
+
+    /// The `Battler` for party slot `i` of `side`: `CopyMonToBattleMon`, with its battle form
+    /// (stats, types and ability of the form species) and its hold effect.
+    pub(crate) fn battler_for(&self, t: &BattleTables, side: Side, i: u8) -> Battler {
+        let p = *self.parties[side as usize]
+            .get(i as usize)
+            .expect("a battler's party slot");
+        let mut b = match self.form_of(side, i) {
+            Some(form) => {
+                let mut q = Pokemon { species: form, ..p };
+                q.recalc_stats(t);
+                // The form keeps the mon's HP and max HP (Gen6: a form change never changes
+                // the HP stat).
+                q.stats[0] = p.stats[0];
+                q.hp = p.hp;
+                Battler::new(t, &q, i)
+            }
+            None => Battler::new(t, &p, i),
+        };
+        b.x.hold = self.x.holds[side as usize][i as usize];
+        if b.ability == Ability::SpeedBoost {
+            b.x.first_turn = 2;
+        }
+        b
+    }
+
+    /// The battle form of party slot `i` of `side`, once it changed.
+    pub(crate) fn form_of(&self, side: Side, i: u8) -> Option<SpeciesId> {
+        if self.x.formed[side as usize] & (1 << i) == 0 {
+            return None;
+        }
+        self.x.forms[side as usize][i as usize].map(|f| f.form)
     }
 
     /// Pushes the intro events (wild or trainer) and runs to the first `Need::Action`.
@@ -649,6 +826,10 @@ impl Battle {
             p.hash(h);
         }
         h.write(&[self.leveled_up]);
+        if self.x != BattleExt::default() {
+            h.write(&[0xA9]);
+            self.x.hash(h);
+        }
     }
 
     /// The prize money of a trainer battle (Gen3 `getmoneyreward`), paid on a win; `None` in a
@@ -715,8 +896,13 @@ impl Battle {
         match step {
             Step::FirstTurn => {
                 // TryDoEventsBeforeFirstTurn: the battlers sorted by speed (a tie draws a roll),
-                // then the switch-in abilities.
-                self.strike_order(env, true);
+                // then `ABILITYEFFECT_ON_SWITCH_IN` for each in that order (Primal Reversion
+                // first, Gen6; the weather abilities), then Intimidate and Trace.
+                let order = self.strike_order(env, true);
+                for side in order {
+                    self.primal_reversion(env, side);
+                    super::effects::on_switch_in(self, env, side);
+                }
                 super::effects::first_turn(self, env);
                 self.steps.push_front(Step::NewTurn);
             }
@@ -742,10 +928,12 @@ impl Battle {
                     b.flinched = false;
                 }
                 super::effects::end_turn(self, env);
-                // TurnValuesCleanUp(FALSE): this turn's gProtectStructs.
+                // TurnValuesCleanUp(FALSE): this turn's gProtectStructs, `isFirstTurn`.
                 for b in &mut self.battlers {
                     b.v.unable = false;
+                    b.x.first_turn = b.x.first_turn.saturating_sub(1);
                 }
+                self.x.mega_pending = [false; 2];
                 self.turn = self.turn.saturating_add(1);
                 self.steps.push_front(Step::NewTurn);
                 self.steps.push_front(Step::Fainted);
@@ -786,7 +974,13 @@ impl Battle {
                 )));
             }
             match super::ai::choose(self, env.t, env.rng) {
-                Choice::Move(s) if (s as usize) < 4 && o.mon.pp[s as usize] > 0 => Action::Move(s),
+                Choice::Move(s) if (s as usize) < 4 && o.mon.pp[s as usize] > 0 => {
+                    // A trainer Mega Evolves at the first opportunity (with a move).
+                    if self.is_trainer() && self.can_mega(Side::Opponent) {
+                        self.x.mega_pending[Side::Opponent as usize] = true;
+                    }
+                    Action::Move(s)
+                }
                 Choice::Switch(i) if self.can_switch_to(Side::Opponent, i) => Action::Switch(i),
                 Choice::Run => Action::Run,
                 _ => Action::Struggle,
@@ -802,8 +996,10 @@ impl Battle {
         }
     }
 
-    /// Both actions are chosen: orders the turn (`SetActionsAndBattlersTurnOrder`).
+    /// Both actions are chosen: Mega Evolutions first (Gen7: in speed order, then the turn
+    /// is ordered with the new speeds), then the turn order (`SetActionsAndBattlersTurnOrder`).
     fn queue_turn(&mut self, env: &mut Env) {
+        self.mega_evolutions(env);
         let [first, second] = self.turn_order(env);
         self.order = [first, second];
         self.steps.extend([
@@ -821,6 +1017,13 @@ impl Battle {
         let p = Side::Player;
         let b = self.battler(p);
         match c {
+            Choice::Mega(slot) => {
+                let a = self.player_action(env, Choice::Move(slot))?;
+                if matches!(a, Action::Move(_)) && self.can_mega(p) {
+                    self.x.mega_pending[p as usize] = true;
+                }
+                Some(a)
+            }
             Choice::Move(slot) => {
                 let slot = slot as usize;
                 if slot >= 4 || b.mon.moves[slot].is_none() {
@@ -886,9 +1089,24 @@ impl Battle {
     }
 
     /// Gen3 `GetWhoStrikesFirst(player, opponent, ignoreChosenMoves)`: priority, then speed
-    /// with stages and paralysis; a speed tie draws `Random() & 1` (only on a tie).
+    /// with Swift Swim / Chlorophyll, stages and paralysis, and Quick Claw (`gRandomTurnNumber`
+    /// below `0xFFFF * param / 100`: `UINT_MAX`); a speed tie draws `Random() & 1` (only on a
+    /// tie). Prankster adds 1 to a status move's priority.
     pub(crate) fn strike_order(&mut self, env: &mut Env, ignore_moves: bool) -> [Side; 2] {
-        let speed = |s: Side| calc::effective_speed(&self.battler(s).fighter());
+        let weather = self.weather();
+        let random_turn = self.random_turn as u32;
+        let speed = |s: Side| {
+            let b = self.battler(s);
+            let doubled = match b.ability {
+                Ability::SwiftSwim => weather.rain(),
+                Ability::Chlorophyll => weather.sun(),
+                _ => false,
+            };
+            match b.x.hold {
+                Some(HoldEffect::QuickClaw(p)) if random_turn < 0xFFFF * p as u32 / 100 => u32::MAX,
+                _ => calc::effective_speed_x(&b.fighter(), if doubled { 2 } else { 1 }),
+            }
+        };
         let (s1, s2) = (speed(Side::Player), speed(Side::Opponent));
         let priority = |s: Side| -> i8 {
             let b = self.battler(s);
@@ -898,7 +1116,10 @@ impl Battle {
                 Some(Action::Struggle) => Some(env.t.struggle),
                 _ => None,
             };
-            mov.map_or(0, |m| env.t.move_info(m).priority)
+            mov.map_or(0, |m| {
+                let info = env.t.move_info(m);
+                info.priority + super::effects::prankster_boost(b.ability, info) as i8
+            })
         };
         let (p1, p2) = (priority(Side::Player), priority(Side::Opponent));
         let opponent_first = if (p1 != 0 || p2 != 0) && p1 != p2 {
@@ -1010,10 +1231,10 @@ impl Battle {
     pub(crate) fn switch_in(&mut self, env: &mut Env, side: Side, i: u8) {
         self.stamp(env);
         self.write_back(side);
-        let p = *self.parties[side as usize]
-            .get(i as usize)
-            .expect("switch to a party slot");
-        self.battlers[side as usize] = Battler::new(env.t, &p, i);
+        let left = self.battler(side).ability;
+        self.battlers[side as usize] = self.battler_for(env.t, side, i);
+        // A primal weather ends when its source leaves.
+        super::effects::left_field(self, env, left);
         // SwitchInClearSetData: the foe's escape prevention and infatuation by this battler.
         self.clear_bonds(side);
         // `switchineffects`: a Truant mon sent out mid-battle starts with the counter set (the
@@ -1029,6 +1250,9 @@ impl Battle {
             Side::Opponent => self.sent_in = 1 << player_party,
         }
         self.send_out_events(env, side, false);
+        // Primal Reversion on entry (Gen6), then the switch-in abilities.
+        self.primal_reversion(env, side);
+        super::effects::on_switch_in(self, env, side);
         super::effects::switch_in(self, env, side);
     }
 
@@ -1195,6 +1419,11 @@ impl Battle {
             b.mon.hp = p.hp;
             b.mon.max_hp = p.stats[0];
             b.stats = p.stats;
+            if self.form_of(side, party).is_some() {
+                // A battle form's stats come from the form's base stats.
+                let f = self.battler_for(env.t, side, party);
+                self.battlers[side as usize].stats = f.stats;
+            }
         }
         env.out.push(BattleEvent::LevelUp {
             party,

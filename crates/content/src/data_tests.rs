@@ -751,7 +751,11 @@ mod extracted {
             write!(b, "{:?}", t.species_info(*s)).unwrap();
         }
         for tr in SLICE_TRAINERS {
-            write!(b, "{:?}", Emerald.trainer(*tr)).unwrap();
+            // `TrainerMon::item` (Silice held items) is `None` for every Emerald trainer mon
+            // (`classify::TRAINER_HELD_ITEMS` is off): left out, the digest stays the Wave 0
+            // build's.
+            let s = alloc::format!("{:?}", Emerald.trainer(*tr));
+            write!(b, "{}", s.replace(", item: None", "")).unwrap();
         }
         let g = Emerald.battle_gfx();
         write!(

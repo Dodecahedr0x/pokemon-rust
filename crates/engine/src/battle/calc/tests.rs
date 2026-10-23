@@ -11,6 +11,7 @@ fn fighter(level: u8, stats: [u16; 6], types: [Type; 2]) -> Fighter {
         types,
         ability: Ability::None,
         status: Status::None,
+        hold: None,
     }
 }
 
