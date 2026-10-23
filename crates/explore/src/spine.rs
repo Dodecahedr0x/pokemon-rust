@@ -1158,7 +1158,7 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
 
     /// [`Step::GotoAvoiding`]: a `Step` macro per cell, toward the first direction of a
     /// shortest path around `avoid` (re-planned from wherever each step left the player).
-    fn goto_avoiding(
+    pub(crate) fn goto_avoiding(
         &self,
         live: &mut Live<'_, '_, G>,
         map: MapId,
