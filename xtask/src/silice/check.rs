@@ -36,7 +36,7 @@
 //! | `encounter-slots` | error | a table without 12 (land), 5 (water, rock smash) or 10 (fishing) slots |
 //! | `encounter-level` | error | a slot outside 1..=100 or with min over max |
 //! | `fishing-unreachable` | warning | fishing slots of a rod no item table gives |
-//! | `text-duplicate` | error | a text id defined twice |
+//! | `text-duplicate` | error | a text id defined twice; or `<id>_ChNN` next to `<id>`, the provisional rename of a duplicate that still waits for a ruling |
 //! | `text-missing` | error | a text id the scenes print but `text/fr.ron` lacks |
 //! | `speakers-mismatch` | error | `text/speakers.ron` and `text/fr.ron` with different id sets |
 //! | `dynamic-unresolved` | error | a placeholder reference the source does not enumerate |
@@ -895,6 +895,22 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 Error,
                 k,
                 "defined more than once in text/fr.ron".to_string(),
+            );
+        }
+    }
+    // A duplicate renamed provisionally (`<id>_ChNN` for the later chapter's, so the loader
+    // accepts the file) still waits for the author's ruling.
+    for k in &defined {
+        if let Some((base, ch)) = k.rsplit_once("_Ch")
+            && ch.len() == 2
+            && ch.bytes().all(|b| b.is_ascii_digit())
+            && defined.contains(base)
+        {
+            push(
+                "text-duplicate",
+                Error,
+                k,
+                format!("provisional rename of the duplicate id {base}"),
             );
         }
     }

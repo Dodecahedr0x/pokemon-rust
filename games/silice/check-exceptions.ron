@@ -1415,14 +1415,14 @@
         ),
         (
             rule: "text-duplicate",
-            subject: "Tour_Sbire1_Intro",
-            reason: "defined in ch02 and ch09 with different bodies; rename one pair",
+            subject: "Tour_Sbire1_Intro_Ch09",
+            reason: "defined in ch02 and ch09 with different bodies; the ch09 one is renamed Tour_Sbire1_Intro_Ch09 provisionally (SIL1 Task A, reversible) so the loader accepts text/fr.ron: confirm or pick the names",
             ruling_needed: true,
         ),
         (
             rule: "text-duplicate",
-            subject: "Tour_Sbire2_Intro",
-            reason: "defined in ch02 and ch09 with different bodies; rename one pair",
+            subject: "Tour_Sbire2_Intro_Ch09",
+            reason: "defined in ch02 and ch09 with different bodies; the ch09 one is renamed Tour_Sbire2_Intro_Ch09 provisionally (SIL1 Task A, reversible) so the loader accepts text/fr.ron: confirm or pick the names",
             ruling_needed: true,
         ),
         (
