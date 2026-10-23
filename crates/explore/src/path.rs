@@ -117,6 +117,11 @@ impl Terrain {
                     if Behavior::walled(behavior[i], behavior[n], d) {
                         return NO_STEP;
                     }
+                    // A muddy slope slides the player back down off the Mach Bike (Gen3
+                    // `MB_MUDDY_SLOPE`): only a step down onto it gets anywhere.
+                    if behavior[n] == Behavior::MuddySlope && d != Dir::Down {
+                        return NO_STEP;
+                    }
                     if let Behavior::Ledge(ld) = behavior[n] {
                         if ld != d {
                             return NO_STEP;

@@ -17,7 +17,7 @@ use crate::model::{FindingDraft, Macro, MacroKind, Opts, StepResult, Stop};
 use crate::observe::StepObserver;
 use crate::sim::{Live, StepFail};
 use engine::checkpoint::{Checkpoint, WorldSnapshot};
-use engine::data::{Dir, FlagId, GameData, MapId, ScriptId};
+use engine::data::{Dir, FlagId, GameData, MapId, ScriptId, VarId};
 use game_native::trace::Run;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -88,6 +88,9 @@ pub enum Step {
     /// Idle a few frames ([`WAIT_SCRIPT_FRAMES`]: a frame script starts), then resolve
     /// whatever runs.
     WaitScript,
+    /// Idle until object `local_id` stands on (x, y) (a wandering object's timing; at most
+    /// [`WAIT_FOR_FRAMES`]).
+    WaitFor { local_id: u8, x: i16, y: i16 },
     /// Pace on tall-grass cell (x, y) until a wild battle starts; the battle per [`BattlePlan`].
     Grass { map: MapId, x: i16, y: i16 },
     /// [`Step::Grass`] (fighting) until the lead's level is at least `level`.
@@ -101,10 +104,47 @@ pub enum Step {
     Battle(BattlePlan),
     /// The yes/no answer (0 yes, 1 no) and the starter ball for the **next** playing step.
     Choose(u8),
-    /// The named goal of the config's act holds now.
+    /// The named goal holds now: one of the config's act, else of the build's later acts (the
+    /// spine runs on past its act's end).
     Expect(&'static str),
     /// Labels the current position (a branch origin, an exported node).
     Checkpoint(&'static str),
+    /// Steps over an engine gap (`docs/plans/2026-10-23-emerald-parity.md` §2, "Spine
+    /// blockers"): writes the state the missing feature would have produced, so the spine goes
+    /// on and later gaps get recorded too. Explorer-side only; fixing the gap deletes the step.
+    Bypass(&'static Bypass),
+}
+
+/// What a [`Step::Bypass`] writes: flags, vars and a warp, outside the game's rules. It plays
+/// no input, so a finding past the spine's first bypass does not reproduce from a new game
+/// (its origin checkpoint does).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Bypass {
+    /// The blocker's id in the plan's "Spine blockers" table.
+    pub issue: &'static str,
+    pub set: &'static [FlagId],
+    pub clear: &'static [FlagId],
+    /// `(var, value)`; 0 clears.
+    pub vars: &'static [(VarId, u16)],
+    /// `(map, x, y)`: a debug warp onto that cell (`World::debug_warp`), waited out.
+    pub warp: Option<(MapId, i16, i16)>,
+}
+
+impl std::fmt::Debug for Bypass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.issue)
+    }
+}
+
+impl Bypass {
+    /// No change, for `..Bypass::NONE`.
+    pub const NONE: Bypass = Bypass {
+        issue: "",
+        set: &[],
+        clear: &[],
+        vars: &[],
+        warp: None,
+    };
 }
 
 impl Step {
@@ -119,6 +159,7 @@ impl Step {
             | Step::Use { map, .. }
             | Step::Grass { map, .. }
             | Step::Train { map, .. } => Some(map),
+            Step::Bypass(_) => None,
             _ => None,
         }
     }
@@ -134,6 +175,7 @@ impl Step {
                 | Step::Press(..)
                 | Step::Wait(_)
                 | Step::WaitScript
+                | Step::WaitFor { .. }
         )
     }
 
@@ -431,6 +473,23 @@ impl SpineRun {
         self.error.is_none() && self.positions.len() == self.steps.len() + 1
     }
 
+    /// The [`Step::Bypass`] steps played: `(step index, issue)`, in order.
+    pub fn bypasses(&self) -> Vec<(usize, &'static str)> {
+        (self.steps.iter().enumerate())
+            .take(self.positions.len().saturating_sub(1))
+            .filter_map(|(i, s)| match s {
+                Step::Bypass(b) => Some((i, b.issue)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The frame of the first bypass played: inputs reproduce the spine only before it.
+    pub fn first_bypass_frame(&self) -> Option<u64> {
+        let (i, _) = *self.bypasses().first()?;
+        Some(self.positions[i + 1].frame)
+    }
+
     /// The progress state at position `i`.
     pub fn progress<G: GameData>(&self, game: &G, i: usize, cfg: &KeyConfig) -> Progress {
         Progress::of(game, &self.positions[i].end.world, &self.spine_flags, cfg)
@@ -450,10 +509,16 @@ pub fn detectors<G: GameData + Clone + 'static>(
 /// `WaitScript`). Branch budgets are checked between macros, so this bounds one macro only.
 pub const PLAY_MACRO_FRAMES: u32 = 12_000;
 
-/// `cfg` with [`PLAY_MACRO_FRAMES`] (spine and branch sessions).
+/// The pacing frame cap of a `Grass` macro in spine and branch sessions, at least: a cave's
+/// encounter rate (Granite Cave's 10, a 5.5% roll per step) can go 150 steps dry, and a dry
+/// `Train` retry replays the same rolls (the RNG does not advance on idle frames).
+pub const PLAY_GRASS_FRAMES: u32 = 9_600;
+
+/// `cfg` with [`PLAY_MACRO_FRAMES`] and [`PLAY_GRASS_FRAMES`] (spine and branch sessions).
 pub fn play_config(cfg: &Config) -> Config {
     let mut c = cfg.clone();
     c.limits.macro_frames = c.limits.macro_frames.max(PLAY_MACRO_FRAMES);
+    c.limits.grass_frames = c.limits.grass_frames.max(PLAY_GRASS_FRAMES);
     c
 }
 
@@ -645,6 +710,9 @@ pub const RETRIES: u32 = 12;
 /// Idle frames a `WaitScript` step waits before resolving.
 pub const WAIT_SCRIPT_FRAMES: u16 = 60;
 
+/// Frames a `WaitFor` step idles at most.
+pub const WAIT_FOR_FRAMES: u32 = 1_200;
+
 /// Times a `Train` step's pacing may find no encounter.
 pub const TRAIN_DRY: u32 = 8;
 
@@ -711,9 +779,9 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 return Ok(());
             }
             Step::Checkpoint(_) => return Ok(()),
+            Step::Bypass(b) => return bypass(self.game, live, b).map_err(err),
             Step::Expect(name) => {
-                let goal = (goals::goals_of(self.cfg.act).iter())
-                    .find(|g| g.name == name)
+                let goal = goals::find(self.cfg.act, name)
                     .ok_or_else(|| err(format!("no goal {name:?} in {:?}", self.cfg.act)))?;
                 let snap = live
                     .s
@@ -778,7 +846,17 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                     )));
                 }
             }
-            Step::Talk { local_id, .. } => self.macro_(live, mk(MacroKind::Talk { local_id }))?,
+            // A wild battle on the way (a cave floor) ends the macro before the talk: again.
+            Step::Talk { local_id, .. } => {
+                for _ in 0..RETRIES {
+                    self.macro_(live, mk(MacroKind::Talk { local_id }))?;
+                    let s = &live.res.steps.last().expect("a step").summary;
+                    let wild_only = !s.battles.is_empty() && s.battles.iter().all(|b| b.kind == 0);
+                    if !(wild_only && s.scripts.is_empty()) {
+                        break;
+                    }
+                }
+            }
             Step::Use { x, y, dir, .. } => {
                 self.goto(live, start_map, x, y, Opts { choice: 0, ..opts })?;
                 if live.s.world().objects().player().facing != dir {
@@ -820,6 +898,18 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                     frames: WAIT_SCRIPT_FRAMES,
                 }),
             )?,
+            Step::WaitFor { local_id, x, y } => {
+                let mut n = 0;
+                while (live.s.world().objects().get(local_id)).is_none_or(|o| o.pos() != (x, y)) {
+                    n += 1;
+                    if n > WAIT_FOR_FRAMES {
+                        return Err(err(format!(
+                            "object {local_id} never on ({x}, {y}) in {WAIT_FOR_FRAMES} frames"
+                        )));
+                    }
+                    self.macro_(live, mk(MacroKind::Wait { frames: 1 }))?;
+                }
+            }
             Step::Grass { x, y, .. } => self.macro_(live, mk(MacroKind::Grass { x, y }))?,
             Step::Train { x, y, level, .. } => {
                 let fight = mk(MacroKind::Grass { x, y });
@@ -838,12 +928,18 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                         )));
                     }
                     match live.step_with(&fight, &mut crate::policy::Policy::new()) {
-                        Ok(()) => {}
+                        Ok(()) => dry = 0,
                         // No encounter: idle a little (another random state) and pace again.
                         Err(StepFail::Skip(e @ crate::expand::ExpandError::NoEffect(_))) => {
                             dry += 1;
                             if dry > TRAIN_DRY {
-                                return Err(err(format!("{e:?} {dry} times")));
+                                let w = live.s.world();
+                                return Err(err(format!(
+                                    "{e:?} {dry} times in a row (after {n} tries; at {:?}, lead \
+                                     {:?})",
+                                    w.objects().player().pos(),
+                                    w.party().get(0).map(|m| (m.level, m.hp))
+                                )));
                             }
                             live.rollback().map_err(|stop| {
                                 let (message, finding) = stop_text(stop);
@@ -869,7 +965,11 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                     }
                 }
             }
-            Step::Battle(_) | Step::Choose(_) | Step::Expect(_) | Step::Checkpoint(_) => {
+            Step::Battle(_)
+            | Step::Choose(_)
+            | Step::Expect(_)
+            | Step::Checkpoint(_)
+            | Step::Bypass(_) => {
                 unreachable!("handled above")
             }
         }
@@ -894,18 +994,42 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 break;
             }
             if live.s.world().map() != map {
-                return Err(err(format!("left the map walking to ({x}, {y})")));
+                let w = live.s.world();
+                return Err(err(format!(
+                    "left the map walking to ({x}, {y}): on {:#06x} at {:?}, lead {:?}",
+                    w.map().0,
+                    w.objects().player().pos(),
+                    w.party().get(0).map(|m| (m.level, m.hp))
+                )));
             }
-            self.macro_(
-                live,
-                Macro {
-                    kind: MacroKind::WalkTo { x, y },
-                    opts,
-                },
-            )?;
+            let walk = Macro {
+                kind: MacroKind::WalkTo { x, y },
+                opts,
+            };
+            match live.step_with(&walk, &mut crate::policy::Policy::new()) {
+                Ok(()) => {}
+                // A wandering object on the way (or on the cell): let it move on.
+                Err(StepFail::Skip(crate::expand::ExpandError::NoPath)) => {
+                    live.rollback().map_err(|stop| {
+                        let (message, finding) = stop_text(stop);
+                        ExecError {
+                            message,
+                            finding: finding.map(Box::new),
+                        }
+                    })?;
+                    self.macro_(live, Macro::of(MacroKind::Wait { frames: 16 }))?;
+                }
+                Err(e) => return Err(fail(live, e)),
+            }
         }
         if live.s.world().map() != map || live.s.world().objects().player().pos() != (x, y) {
-            return Err(err(format!("never reached ({x}, {y})")));
+            let w = live.s.world();
+            return Err(err(format!(
+                "never reached ({x}, {y}): on {:#06x} at {:?}, lead {:?}",
+                w.map().0,
+                w.objects().player().pos(),
+                w.party().get(0).map(|m| (m.level, m.hp))
+            )));
         }
         Ok(())
     }
@@ -956,6 +1080,69 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
         live.step_with(&m, &mut crate::policy::Policy::new())
             .map_err(|e| fail(live, e))
     }
+}
+
+/// Frames a bypass's warp may take at most.
+const BYPASS_WARP_FRAMES: u32 = 1_200;
+
+/// Plays [`Step::Bypass`]: writes its flags and vars into the current state, restores it
+/// (another build header, so the hash is not checked against the edited state), warps if asked
+/// and waits the warp out, then loads the result into the session as a step with no input.
+fn bypass<G: GameData + Clone>(
+    game: &G,
+    live: &mut Live<'_, '_, G>,
+    b: &Bypass,
+) -> Result<(), String> {
+    let mut cp = (live.s.checkpoint()).map_err(|e| format!("bypass {}: {e:?}", b.issue))?;
+    let v = &mut cp.world.vars;
+    for &f in b.set {
+        if let Err(i) = v.flags.binary_search(&f) {
+            v.flags.insert(i, f);
+        }
+    }
+    for f in b.clear {
+        if let Ok(i) = v.flags.binary_search(f) {
+            v.flags.remove(i);
+        }
+    }
+    for &(var, value) in b.vars {
+        match (v.vars.binary_search_by_key(&var, |&(k, _)| k), value) {
+            (Ok(i), 0) => {
+                v.vars.remove(i);
+            }
+            (Ok(i), _) => v.vars[i].1 = value,
+            (Err(_), 0) => {}
+            (Err(i), _) => v.vars.insert(i, (var, value)),
+        }
+    }
+    cp.header.build = engine::checkpoint::BuildHash {
+        engine: 0,
+        content: 0,
+    };
+    let mut world = engine::world::World::restore(game, &cp)
+        .map_err(|e| format!("bypass {}: restore {e:?}", b.issue))?;
+    if let Some((map, x, y)) = b.warp {
+        if !world.debug_warp(game, map, None, x, y) {
+            return Err(format!(
+                "bypass {}: warp to {:#06x} refused",
+                b.issue, map.0
+            ));
+        }
+        let mut n = 0;
+        loop {
+            world.step(game, engine::Buttons::NONE);
+            n += 1;
+            if world.map() == map && !world.transition_active() && world.capturable().is_ok() {
+                break;
+            }
+            if n > BYPASS_WARP_FRAMES {
+                return Err(format!("bypass {}: the warp never settled", b.issue));
+            }
+        }
+    }
+    let end = (world.checkpoint(game)).map_err(|e| format!("bypass {}: {e:?}", b.issue))?;
+    live.load_bypass(end)
+        .map_err(|e| format!("bypass {}: {e}", b.issue))
 }
 
 /// The first direction of a shortest path from `from` to `to` on `grid` that never enters an
