@@ -42,6 +42,9 @@
         // Ch7: Reverse-City's Centre (set_respawn on entering it, ReverseCity_PokemonCenter_OnTransition),
         // the cell in front of its door (4, 20).
         (name: "HEAL_LOCATION_SIL_REVERSE_CITY", map: "ReverseCity", x: 4, y: 21),
+        // Ch8: the Taverne du Dé à Vingt Faces, Évalon's Center (its innkeeper heals, "set_respawn"
+        // on entering it: Evalon_Taverne_OnTransition). The cell in front of its door (22, 26).
+        (name: "HEAL_LOCATION_SIL_EVALON", map: "Evalon", x: 22, y: 27),
     ],
     respawn: "HEAL_LOCATION_SIL_BRICO_BOURG_PLAYER_HOUSE",
     // Ch0 Brico_Bourg_Sc03 (D-18): index 0, 1, 2 is VAR_SIL_STARTER's value. Level 5.

@@ -5,8 +5,9 @@
 //! [`ch01::steps`], [`ch02::steps`]) and map each step onto its own. A chapter can also start from its documented
 //! start state ([`driver::Start`], e.g. [`ch02::start`]) instead of the chapters before it;
 //! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) only does so for now ([`ch04::start`]), as do
-//! Chapter 5 (`sil6_ch5.rs`), Chapter 6 (`sil7_ch6.rs`, [`ch06::start`]) and Chapter 7
-//! (`sil8_ch7.rs`, [`ch07::start`]).
+//! Chapter 5 (`sil6_ch5.rs`), Chapter 6 (`sil7_ch6.rs`, [`ch06::start`]), Chapter 7
+//! (`sil8_ch7.rs`, [`ch07::start`]) and Chapter 8 (`sil9_ch8.rs`, [`ch08::start`] and
+//! [`ch08::route_start`]).
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids
@@ -59,6 +60,7 @@ pub mod ch04;
 pub mod ch05;
 pub mod ch06;
 pub mod ch07;
+pub mod ch08;
 pub mod driver;
 
 use engine::data::{Dir, FlagId, MapId, SpeciesId};

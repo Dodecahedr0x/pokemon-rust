@@ -2519,6 +2519,29 @@
             name: "FLAG_SIL_REVERSE_PLAQUE_4",
             num: 1183,
         ),
+        // SIL4 Ch8 scripts (script block 1184-1199): the Tower's bookcases left in their niches, the
+        // 2F trapdoor, the Citadelle's golem bridge and the Sphinge passed (the maps' note names
+        // the last three), the Anciens' PP Max at the Legende rank (the source gives it no flag).
+        (
+            name: "FLAG_SIL_EVALON_TOUR_RAYONNAGES",
+            num: 1184,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_TOUR_TRAPPE",
+            num: 1185,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_GYM_PONT",
+            num: 1186,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_GYM_SPHINGE_PASSE",
+            num: 1187,
+        ),
+        (
+            name: "FLAG_SIL_EVALON_PP_MAX",
+            num: 1188,
+        ),
         (
             name: "FLAG_SIL_HIDE_NEBULA_MATHIEU",
             num: 1200,

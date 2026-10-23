@@ -1,0 +1,8 @@
+// SIL4 Ch8 scripts: the map changes the Chapter 8 scripts need.
+[
+    // The Champ Magnétique fallback (as Ch3-Ch4's blocks): the engine pushes no boulder, so an A press
+    // on an iron golem runs Evalon_Citadelle_EventScript_Golem, which moves it one cell the way the
+    // player faces, inside salle 2. The objects as 02_events.ron places them, plus the script.
+    Replace(index: 3, event: Object((local_id: 4, id: Some("LOCALID_GYM8_GOLEM_GAUCHE"), gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", x: 3, y: 36, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("Evalon_Citadelle_EventScript_Golem"), flag: None))),
+    Replace(index: 4, event: Object((local_id: 5, id: Some("LOCALID_GYM8_GOLEM_DROITE"), gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", x: 7, y: 36, elevation: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", range_x: 0, range_y: 0, trainer_type: "TRAINER_TYPE_NONE", trainer_sight_or_berry_tree: 0, script: Some("Evalon_Citadelle_EventScript_Golem"), flag: None))),
+]

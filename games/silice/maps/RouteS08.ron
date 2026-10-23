@@ -405,9 +405,9 @@
             x: 33,
             y: 6,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_HYPER_POTION",
-                flag: "FLAG_SIL_ITEM_S08_CACHE_1",
+            kind: Script(
+                facing: 0,
+                script: Some("RouteS08_EventScript_HiddenHyperPotion"),
             ),
         ),
     ],

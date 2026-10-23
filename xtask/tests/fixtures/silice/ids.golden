@@ -1135,6 +1135,13 @@ flags FLAG_SIL_REVERSE_PLAQUE_1 1180
 flags FLAG_SIL_REVERSE_PLAQUE_2 1181
 flags FLAG_SIL_REVERSE_PLAQUE_3 1182
 flags FLAG_SIL_REVERSE_PLAQUE_4 1183
+# SIL4 Ch8 scripts (script block 1184-1199): the Tower's bookcases and trapdoor, the Citadelle's
+# golem bridge and Sphinge, the Anciens' PP Max.
+flags FLAG_SIL_EVALON_TOUR_RAYONNAGES 1184
+flags FLAG_SIL_EVALON_TOUR_TRAPPE 1185
+flags FLAG_SIL_EVALON_GYM_PONT 1186
+flags FLAG_SIL_EVALON_GYM_SPHINGE_PASSE 1187
+flags FLAG_SIL_EVALON_PP_MAX 1188
 # M9 Wave 0: the shared SpecialIds name VAR_REPEL_STEP_COUNT (0x4021) and
 # VAR_FRIENDSHIP_STEP_COUNTER (0x402A), now reserved: VAR_SIL_CASINO_STATE (16417) and
 # VAR_SIL_PORT_RESSAC_STATE (16426) moved (`cargo xtask silice move`), their old numbers are
