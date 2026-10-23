@@ -678,9 +678,6 @@ mod list {
         goto(MAP_DEWFORD_TOWN, 11, 9),
         Step::Face(Right),
         Step::Bypass(&BRINEY_SAIL_TO_SLATEPORT),
-        // The planner ignores elevation (decision 16): up the beach's stairs (19,14) by hand.
-        goto(MAP_ROUTE109, 19, 15),
-        goto(MAP_ROUTE109, 19, 13),
         cross(MAP_ROUTE109, 19, 0, Up),
         Step::Expect("slateport"),
     ];

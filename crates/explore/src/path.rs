@@ -1,15 +1,20 @@
 //! Pathfinding on collision data, `setmetatile` overrides and object positions (Task A).
 //!
 //! Rules (shared by [`reach`] and [`next_dir`]), as the scenario driver's
-//! (`game_native::scenario`), elevation ignored (decision 16):
+//! (`game_native::scenario`), elevation approximated (decision 16, revised by Task S):
 //! - a cell is walkable when it is in the map, its block (with overrides) has collision 0, its
 //!   behavior is not `Blocked`, `Door` or `Warp` (warp cells are targets, never passages) and no
 //!   object other than the player stands on it or is leaving it (`pos`, `prev`);
-//! - a `Ledge(d)` cell is only jumped over toward `d`, landing two cells further.
+//! - a `Ledge(d)` cell is only jumped over toward `d`, landing two cells further;
+//! - a step between two cells of different elevations is refused unless either is 0 or 15
+//!   (Gen3 `IsElevationMismatchAt` with the player's elevation taken as its cell's: a bridge's
+//!   15 keeps the elevation the player came with, which the planner does not track).
 
 use engine::World;
 use engine::checkpoint::WorldSnapshot;
-use engine::data::{Behavior, Dir, GameData, MapData, MapId, PLAYER, block_collision};
+use engine::data::{
+    Behavior, Dir, GameData, MapData, MapId, PLAYER, block_collision, block_elevation,
+};
 use engine::flow::block_behavior;
 use engine::grid::in_bounds;
 use std::cell::OnceCell;
@@ -17,7 +22,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 /// Walkable cells reachable from the player, from a capturable snapshot (collision bits with
-/// `FieldSnap.overrides`, ledges one-way, objects' pos and prev occupied; elevation ignored).
+/// `FieldSnap.overrides`, ledges one-way, objects' pos and prev occupied; elevation as the module docs).
 pub struct Reach {
     width: u16,
     height: u16,
@@ -95,10 +100,12 @@ impl Terrain {
         let cell = |i: usize| ((i % w) as i16, (i / w) as i16);
         let mut behavior = Vec::with_capacity(w * h);
         let mut open = Vec::with_capacity(w * h);
+        let mut elevation = Vec::with_capacity(w * h);
         for i in 0..w * h {
             let block = block_of(map, overrides, cell(i));
             let b = block_behavior(game, map, block);
             behavior.push(b);
+            elevation.push(block_elevation(block));
             open.push(block_collision(block) == 0 && b != Behavior::Blocked && !b.enters_warp());
         }
         let index = |(x, y): (i16, i16)| in_bounds(map, x, y).then(|| y as usize * w + x as usize);
@@ -115,6 +122,10 @@ impl Terrain {
                         return NO_STEP;
                     };
                     if Behavior::walled(behavior[i], behavior[n], d) {
+                        return NO_STEP;
+                    }
+                    let (a, b) = (elevation[i], elevation[n]);
+                    if a != b && !matches!(a, 0 | 15) && !matches!(b, 0 | 15) {
                         return NO_STEP;
                     }
                     // A muddy slope slides the player back down off the Mach Bike (Gen3
