@@ -5,7 +5,9 @@
 //! The ROM boots a new game after the starter; each L+R+START warps it to the next map
 //! (`tour_logic::Tour`). The test sends the combo when the native mirror is ready for a warp
 //! (field, no transition; in a battle it presses A every other frame until the field is back),
-//! then idles [`IDLE`] frames. The mirror steps with the inputs the ROM consumed (its input
+//! then idles [`IDLE`] frames. On gated maps it first walks (`Walk`): [`WALK_STEPS`] steps
+//! out and back in each direction whose cells are free (collision 0, no object template), once
+//! the field is idle after the warp. The mirror steps with the inputs the ROM consumed (its input
 //! ring), applies the same warp, and its hash must equal the ROM's at every sample.
 //!
 //! Per map (from the frame its warp was accepted to the next one), the ROM must show:
@@ -32,17 +34,35 @@ use tour_logic::{ACT1_MAPS, Tour, tour};
 
 /// Frames the tour stays on a map, from the step that accepted its warp.
 const IDLE: u32 = 240;
+/// Steps out (and back) in each free direction on a gated map.
+const WALK_STEPS: i16 = 4;
+/// Frames one leg of the walk may take before it is given up (a ledge, water, an NPC in the
+/// way): an outward leg turns back, a leg back ends the walk.
+const LEG_MAX: u32 = 90;
+/// Frames after the warp by which the walk must have started (map scripts may hold the field).
+const WALK_START_MAX: u32 = IDLE;
 /// Frames the controller waits for the mirror to be ready for a warp (a battle to end).
 const READY_MAX: u32 = 8000;
 /// The shell loop's gate, as `parity.rs`'s `LOOP_LINES_MAX`.
 const LOOP_LINES_MAX: u32 = 217;
-/// Gated maps over budget, with the cause.
-const KNOWN_OVER: &[(&str, &str)] = &[(
-    "EverGrandeCity_SidneysRoom",
-    "one late apply: the door closing behind the player (`PokemonLeague_EliteFour_EventScript_\
-     CloseDoor`) ends in `special DrawWholeMapView`, a whole-view redraw on a visible frame; \
-     the Elite Four rooms are off the Act 1 route",
-)];
+/// A gated map over budget for a recorded cause.
+struct KnownOver {
+    map: &'static str,
+    /// The frames (from the warp) of the late applies the cause explains; any other overrun
+    /// (another late apply, a stray black overrun, the loop over its gate) fails the test.
+    late_at: &'static [u32],
+    cause: &'static str,
+}
+
+/// Gated maps over budget, with the cause. An entry whose map is back within budget fails the
+/// test (remove it).
+const KNOWN_OVER: &[KnownOver] = &[KnownOver {
+    map: "EverGrandeCity_SidneysRoom",
+    late_at: &[138],
+    cause: "the door closing behind the player (`PokemonLeague_EliteFour_EventScript_\
+            CloseDoor`) ends in `special DrawWholeMapView`, a whole-view redraw on a visible \
+            frame; the Elite Four rooms are off the Act 1 route",
+}];
 
 fn game() -> content::Emerald {
     content::Emerald::after_starter()
@@ -139,6 +159,8 @@ struct Stop {
     /// The ROM's maxima for the stop (the last sample before the next warp).
     hash_lines: u32,
     loop_lines: u32,
+    /// The walk's (legs walked, legs planned), gated stops only.
+    walk: (usize, usize),
 }
 
 impl Stop {
@@ -157,6 +179,111 @@ impl Stop {
             out.push(format!("loop {} lines", self.loop_lines));
         }
         out
+    }
+}
+
+/// The walk on a gated stop: legs out to [`WALK_STEPS`] cells and back, per free direction.
+#[derive(Default)]
+struct Walk {
+    plan: Option<Plan>,
+    done: bool,
+}
+
+struct Plan {
+    map: MapId,
+    /// (held key, target cell) per leg.
+    legs: Vec<(Buttons, (i16, i16))>,
+    leg: usize,
+    /// Legs that reached their target.
+    walked: usize,
+    /// The frame the current leg began.
+    since: u32,
+}
+
+impl Walk {
+    /// (legs that reached their target, legs planned).
+    fn progress(&self) -> (usize, usize) {
+        self.plan
+            .as_ref()
+            .map_or((0, 0), |p| (p.walked, p.legs.len()))
+    }
+
+    /// The keys for the ROM's next step while walking; `None` once the walk is over (done,
+    /// given up, or interrupted: another map, a script, a battle, a transition).
+    fn keys(&mut self, g: &impl GameData, world: &World, f: u32, from: u32) -> Option<Buttons> {
+        if self.done {
+            return None;
+        }
+        let idle = world.field_active() && !world.transition_active() && !world.script_running();
+        let p = world.objects().player();
+        let at = (p.x, p.y);
+        let still = p.is_settled() && p.prev == at;
+        let Some(plan) = &mut self.plan else {
+            if f > from + WALK_START_MAX {
+                self.done = true;
+                return None;
+            }
+            if !(idle && still) {
+                return Some(Buttons::NONE);
+            }
+            let map = world.map();
+            let m = g.map(map);
+            let (w, h) = (i32::from(m.width), i32::from(m.height));
+            let free = |x: i16, y: i16| {
+                let (x, y) = (i32::from(x), i32::from(y));
+                (0..w).contains(&x)
+                    && (0..h).contains(&y)
+                    && engine::data::block_collision(m.blocks[(y * w + x) as usize]) == 0
+                    && !(m.objects.iter()).any(|o| (i32::from(o.x), i32::from(o.y)) == (x, y))
+            };
+            let mut legs = Vec::new();
+            for (out, back, (dx, dy)) in [
+                (Buttons::UP, Buttons::DOWN, (0, -1)),
+                (Buttons::DOWN, Buttons::UP, (0, 1)),
+                (Buttons::LEFT, Buttons::RIGHT, (-1, 0)),
+                (Buttons::RIGHT, Buttons::LEFT, (1, 0)),
+            ] {
+                if (1..=WALK_STEPS).all(|i| free(at.0 + dx * i, at.1 + dy * i)) {
+                    legs.push((out, (at.0 + dx * WALK_STEPS, at.1 + dy * WALK_STEPS)));
+                    legs.push((back, at));
+                }
+            }
+            if legs.is_empty() {
+                self.done = true;
+                return None;
+            }
+            self.plan = Some(Plan {
+                map,
+                legs,
+                leg: 0,
+                walked: 0,
+                since: f,
+            });
+            return Some(Buttons::NONE);
+        };
+        if world.map() != plan.map || !idle {
+            self.done = true;
+            return None;
+        }
+        let (key, target) = plan.legs[plan.leg];
+        let arrived = at == target && still;
+        let timed_out = f - plan.since > LEG_MAX;
+        if arrived || timed_out {
+            if timed_out && !arrived && plan.leg % 2 == 1 {
+                // Not back at the origin: the next legs would start elsewhere.
+                self.done = true;
+                return None;
+            }
+            plan.walked += usize::from(arrived);
+            plan.leg += 1;
+            plan.since = f;
+            if plan.leg == plan.legs.len() {
+                self.done = true;
+                return None;
+            }
+            return Some(plan.legs[plan.leg].0);
+        }
+        Some(key)
     }
 }
 
@@ -194,6 +321,7 @@ fn every_tour_map_fits_the_frame() {
         .unwrap_or(usize::MAX);
     let mut stops: Vec<Stop> = Vec::new();
     let mut phase = Phase::Ready { since: 0 };
+    let mut walk = Walk::default();
     let mut prev = Buttons::NONE;
     let mut last: Option<DebugSnapshot> = None;
     let (mut late, mut late_black) = (0u32, 0u32);
@@ -202,14 +330,23 @@ fn every_tour_map_fits_the_frame() {
         // The controller: keys for the ROM's next step, from the mirror at the ROM's frame.
         let keys = match phase {
             Phase::Idle => {
-                let from = stops.last().map_or(0, |s| s.from);
-                if f >= from + IDLE {
+                let (from, gated) = stops.last().map_or((0, false), |s| (s.from, s.gated));
+                let walking = if gated {
+                    walk.keys(&g, &world, f, from)
+                } else {
+                    None
+                };
+                if let Some(k) = walking {
+                    k
+                } else if f >= from + IDLE {
                     if stops.len() == list.len().min(limit) {
                         break;
                     }
                     phase = Phase::Ready { since: f };
+                    Buttons::NONE
+                } else {
+                    Buttons::NONE
                 }
-                Buttons::NONE
             }
             Phase::Ready { .. } => Buttons::NONE,
         };
@@ -283,10 +420,13 @@ fn every_tour_map_fits_the_frame() {
                     stray_black: Vec::new(),
                     hash_lines: 0,
                     loop_lines: 0,
+                    walk: (0, 0),
                 });
                 phase = Phase::Idle;
+                walk = Walk::default();
             }
             if let Some(s) = stops.last_mut() {
+                s.walk = walk.progress();
                 s.battle |= world.in_battle();
                 s.landed = world.map();
             }
@@ -326,6 +466,10 @@ fn every_tour_map_fits_the_frame() {
         s.hash_lines = l.hash_lines_max;
         s.loop_lines = l.loop_lines_max;
     }
+    // The memory marks once the watch scanned everything the last step wrote.
+    let settled = emu.settle(&snap, emu::SETTLE_FRAMES).unwrap();
+    snap.heap_max = settled.heap_max;
+    snap.stack_min = settled.stack_min;
 
     let mut report = String::new();
     let _ = writeln!(
@@ -353,6 +497,15 @@ fn every_tour_map_fits_the_frame() {
                 "; battle"
             });
         }
+        if s.gated {
+            let _ = write!(
+                notes,
+                "{}walk {}/{} legs",
+                if notes.is_empty() { "" } else { "; " },
+                s.walk.0,
+                s.walk.1
+            );
+        }
         if s.landed != s.map {
             let _ = write!(
                 notes,
@@ -370,14 +523,32 @@ fn every_tour_map_fits_the_frame() {
             s.late,
             s.late_black
         );
-        if !over.is_empty() {
-            if s.gated {
-                if !KNOWN_OVER.iter().any(|(n, _)| *n == name) {
+        let known = KNOWN_OVER.iter().find(|k| k.map == name);
+        if s.gated {
+            match known {
+                None if !over.is_empty() => {
                     failures.push(format!("{name}: {}", over.join("; ")));
                 }
-            } else {
-                stretch_over += 1;
+                None => {}
+                Some(_) if over.is_empty() => {
+                    failures.push(format!("{name}: within budget, remove it from KNOWN_OVER"))
+                }
+                Some(k) => {
+                    let explained = s.late_at == k.late_at
+                        && s.stray_black.is_empty()
+                        && s.loop_lines <= LOOP_LINES_MAX;
+                    if !explained {
+                        failures.push(format!(
+                            "{name}: {} (KNOWN_OVER explains only late at +{:?}: {})",
+                            over.join("; "),
+                            k.late_at,
+                            k.cause
+                        ));
+                    }
+                }
             }
+        } else if !over.is_empty() {
+            stretch_over += 1;
         }
     }
     let worst = |gate: bool| {
@@ -388,6 +559,14 @@ fn every_tour_map_fits_the_frame() {
             .max()
             .unwrap_or(0)
     };
+    let walked = |f: fn(&(usize, usize)) -> usize| stops.iter().map(|s| f(&s.walk)).sum::<usize>();
+    let _ = writeln!(
+        report,
+        "walk on gated maps: {} of {} legs planned reached their target, on {} maps",
+        walked(|w| w.0),
+        walked(|w| w.1),
+        stops.iter().filter(|s| s.walk.0 > 0).count()
+    );
     let _ = writeln!(
         report,
         "worst loop: gated {} lines, stretch {} lines; stretch maps over budget: {stretch_over}; \
