@@ -2643,6 +2643,18 @@ The importer numbered them 804–806; they were renumbered by hand.
   - The deviations are justified: the source's S7-D motif has no orthogonal path (its "x=2 (y4) → x=1 (y3)" step is diagonal, and from (1, 2) both (1, 1) and (2, 2) are closed); Pascal's move keeps him on the short path; `MUS_ROUTE118` is Gen3's 0x7FFF pseudo-song, so `MUS_ROUTE119` (its eastern half's theme) is the nearest real one.
   - Script contracts: Benou's walks in Gym_Sc02 and Reverse_City_Sc07 collide with the pixels and the player as written (see the contract above).
 
+**Reachability checker** (after the second merge of master). `lint-reach` on the 8 Ch7 maps and Manga-Square gives no Ch7 warning left:
+- `ReverseCity_Gym/03_allow.ron` allows, with reasons, warps 2–4 (reached only by the mirror doors' scripted `warp()`) and the doors' `VAR_TEMP_1` coords (a choice, not a gate);
+- `MangaSquare/05_ch7_link.ron` allows Sc03's walk-around info: only warp 6's exit walk lands on (37, 1), and Route S7 is reached only after Sc03 sets 68;
+- the one remaining warning, MangaSquare warp 5's exit walk onto solid (1, 26), is Ch6's, listed in "Reachability checker as built", and not changed here.
+
+`bypass` (the engine's model: no slides, no ice) proves:
+- Route S7: from the south mats to the gate, every path crosses `RouteS07_Sc02` and Technicien 2's sight, and none exists past C1 without `--field-moves`. Pascal can be walked past (by puzzle (2, 2)–(2, 1)), as noted above;
+- Reverse-City: `ReverseCity_Sc01`, `_Sc02` and `_Sc07` cannot be avoided; the vault door is reached once the alley block breaks;
+- the gym: Anna and Xela on the way from the hall to the doors, Nomis and `ReverseCity_Gym_Sc01` from room 3's arrival to Reverse;
+- the Phare: Oscar, from the mat to the lamp;
+- Manga-Square: with the controleur hidden, `MangaSquare_Sc03` cannot be avoided on the way to the exit (37, 0).
+
 #### SIL1 Task A as built: the authored-data loader
 
 `build/silice/` loads all of `games/silice` into the generator's `World`. The generator sees Silice only through `input::AuthoredIn`, which gained `map_numbers`, `item_bases`, `rules` and `data_rs`.
