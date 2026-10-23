@@ -1,0 +1,29 @@
+// Made with the Ch4 scripts.
+// - The two hidden items become signs running a script (the engine ignores BgKind::HiddenItem:
+//   the SIL1 Task F fallback). Restore with:
+//     HiddenItem(x: 4, y: 15, item: "ITEM_WATER_STONE", flag: "FLAG_SIL_ITEM_PORT_PIERRE_EAU"),
+//     HiddenItem(x: 16, y: 17, item: "ITEM_PEARL", flag: "FLAG_SIL_ITEM_PORT_PERLE"),
+// - Sc06 (Julien's call, review): the jetty is entered from the quay along all of row 21
+//   (x 40-47), so the maps' column at x 42 (rows 21-23) could be walked round: (43, 21) and on
+//   east to the jetty's end never crossed it. Row 21 gets the same coord on every other cell
+//   but Romain's (46, 21) (an object; the Sc03 coords at 43 share three of these cells, and a
+//   coord fires on its var's value only).
+// - A second on-frame entry: VAR_SIL_PORT_RESSAC_STATE 9 marks Samuel's battle as running
+//   (ch04_gym.rs). A loss whites out to the Taverne's door, and this entry plays the source's
+//   defeat branch (R-7) there.
+[
+    Delete(kind: Bg, index: 6),
+    Delete(kind: Bg, index: 5),
+    Sign(x: 4, y: 15, script: "PortRessac_EventScript_HiddenPierreEau"),
+    Sign(x: 16, y: 17, script: "PortRessac_EventScript_HiddenPerle"),
+    Coord(x: 40, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 41, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 43, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 44, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 45, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    Coord(x: 47, y: 21, var: "VAR_SIL_STORY", value: 49, script: "PortRessac_Sc06"),
+    ScriptsSet(on_frame: [
+        (var: "VAR_SIL_STORY", value: 41, script: "PortRessac_Sc01"),
+        (var: "VAR_SIL_PORT_RESSAC_STATE", value: 9, script: "PortRessac_EventScript_SamuelPerdu"),
+    ]),
+]
