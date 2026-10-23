@@ -2,10 +2,10 @@
 //! flavor (stub or extracted).
 
 use content::Emerald;
-use engine::checkpoint::{Checkpoint, state_digest};
+use engine::checkpoint::{Checkpoint, NotCapturable, state_digest};
 use engine::data::{
     BLOCK_ELEVATION_SHIFT, Behavior, Dir, GameData, MapData, MapId, MapScripts, ObjectEvent,
-    ScriptId,
+    ScriptId, Tileset,
 };
 use engine::mon::LandEncounters;
 use engine::script::{Ctx, Script};
@@ -362,17 +362,25 @@ impl Fake {
 
     /// `map` with its blocks and objects replaced (leaked: tests only).
     fn patched(map: MapId, blocks: Vec<u16>, objects: Vec<ObjectEvent>) -> Fake {
+        Fake::patched_with(map, |m| {
+            m.blocks = Box::leak(blocks.into_boxed_slice());
+            m.objects = Box::leak(objects.into_boxed_slice());
+        })
+    }
+
+    /// `map` as `patch` leaves a copy of it (leaked: tests only).
+    fn patched_with(map: MapId, patch: impl FnOnce(&mut MapData)) -> Fake {
         let g = Emerald::for_shells();
         let m = g.map(map);
-        let data: &'static MapData = Box::leak(Box::new(MapData {
+        let mut data = MapData {
             name: m.name,
             width: m.width,
             height: m.height,
-            blocks: Box::leak(blocks.into_boxed_slice()),
+            blocks: m.blocks,
             border: m.border,
             primary: m.primary,
             secondary: m.secondary,
-            objects: Box::leak(objects.into_boxed_slice()),
+            objects: m.objects,
             warps: m.warps,
             coords: m.coords,
             bgs: m.bgs,
@@ -386,9 +394,10 @@ impl Fake {
                 on_warp_into: m.scripts.on_warp_into,
             },
             allow_running: m.allow_running,
-        }));
+        };
+        patch(&mut data);
         Fake {
-            patch: Some((map, data)),
+            patch: Some((map, Box::leak(Box::new(data)))),
             ..Fake::new()
         }
     }
@@ -502,6 +511,14 @@ fn real_route_moments() {
     use content::consts::*;
     let game = Emerald::for_shells();
     let start = root(&game);
+    let bag_script = script_id("Route101_EventScript_BirchsBag");
+    let bag = game
+        .map(MAP_ROUTE101)
+        .objects
+        .iter()
+        .find(|o| o.script == Some(bag_script))
+        .expect("Birch's bag")
+        .local_id;
     let r = run(
         &game,
         &job(
@@ -514,37 +531,50 @@ fn real_route_moments() {
                     y: 0,
                     dir: Dir::Up,
                 }),
+                m(MacroKind::Talk { local_id: bag }),
             ]),
         ),
     );
     assert!(r.stop.is_none(), "{:?}", r.stop);
-    assert_eq!(r.steps.len(), 3);
+    assert_eq!(r.steps.len(), 4);
     assert_eq!(player(&r.steps[0].end), (11, 2));
     // The girl stops the player: the coord script runs, and the node ends after it.
     let coord2 = script_id("LittlerootTown_EventScript_GoSaveBirchTrigger");
     assert!(r.steps[1].summary.scripts.contains(&coord2));
     assert!(!r.steps[0].summary.scripts.contains(&coord2));
     assert_eq!(r.steps[1].end.world.field.map, MAP_LITTLEROOT_TOWN);
-    // North into Route 101, where Birch's chase starts. The rescue keeps the player near the
-    // crossing, so the view stays stale (not capturable) until the driver talks to the only
-    // scripted object in reach, Birch's bag: the starter screen, the first battle and the warp
-    // to the lab follow, and the node ends there.
+    // North into Route 101: the rescue's trigger at the route's south edge starts Birch's
+    // chase, which walks the player back up the route. Since Milestone 8 Task F a crossing
+    // redraws the view as the new map's, so the field is capturable as soon as the scene
+    // releases the player, and the node ends there, on the route, without a starter.
     let cross = &r.steps[2];
-    assert_eq!(cross.summary.maps.first(), Some(&MAP_ROUTE101));
+    assert_eq!(cross.summary.maps, [MAP_ROUTE101]);
+    let rescue = script_id("Route101_EventScript_StartBirchRescue");
     assert!(
-        cross
-            .summary
-            .scripts
-            .contains(&script_id("Route101_EventScript_StartBirchRescue")),
+        cross.summary.scripts.contains(&rescue),
         "{:?}",
         cross.summary.scripts
     );
+    assert_eq!(cross.end.world.field.map, MAP_ROUTE101);
+    assert!(cross.end.world.party.is_empty());
+    assert!(cross.summary.battles.is_empty());
+    // Birch's bag: the starter screen, the first battle and the warp to the lab follow, and
+    // the node ends in the lab.
+    let talk = &r.steps[3];
+    assert_eq!(talk.macro_.kind, MacroKind::Talk { local_id: bag });
+    assert!(
+        talk.summary
+            .scripts
+            .contains(&script_id("Route101_EventScript_BirchsBag")),
+        "{:?}",
+        talk.summary.scripts
+    );
     assert_eq!(
-        cross.end.world.field.map,
+        talk.end.world.field.map,
         MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB
     );
-    assert_eq!(cross.end.world.party.len(), 1, "the starter");
-    let b = &cross.summary.battles;
+    assert_eq!(talk.end.world.party.len(), 1, "the starter");
+    let b = &talk.summary.battles;
     assert_eq!(b.len(), 1, "{b:?}");
     assert_eq!(b[0].kind, 1, "the first battle");
     check_steps(&game, Some(&start), &r);
@@ -681,63 +711,71 @@ fn real_enter_a_house() {
 }
 
 #[test]
-fn real_stale_view_tries_each_object_once() {
+fn real_crossing_spread_is_waited_out() {
     if content::STUB {
         return;
     }
     use content::consts::*;
-    // The first always-present scripted object of Route 101 (one that only shows text) is
-    // moved next to where the rescue's triggers push the player back, so it is the nearest:
-    // talking to it leaves the view stale, and the driver moves on to Birch's bag.
-    let base = Emerald::for_shells().map(MAP_ROUTE101);
-    let mut objects = base.objects.to_vec();
-    let text = objects
-        .iter_mut()
-        .filter(|o| o.script.is_some() && o.hide_flag.is_none())
-        .min_by_key(|o| o.local_id)
-        .expect("a text-only object");
-    (text.x, text.y) = (8, 15);
-    let text_id = text.local_id;
-    let game = Fake::patched(MAP_ROUTE101, base.blocks.to_vec(), objects);
-    let mut s = Session::new(game);
-    let mut policy = Policy::new();
-    for kind in [
-        MacroKind::Settle,
-        MacroKind::WalkTo { x: 11, y: 2 },
-        MacroKind::WalkTo { x: 11, y: 1 },
-    ] {
-        expand::expand_with(
-            &mut s,
-            &m(kind),
-            &mut policy,
-            &mut NoObserver,
-            &Limits::default(),
-        )
-        .unwrap_or_else(|e| panic!("{kind:?}: {:?}", e.0));
-    }
+    // Since Milestone 8 Task F a crossing redraws the view as the new map's, and capture is
+    // refused only while a crossing into other tilesets spreads its upload over frames
+    // (`NotCapturable::StaleView`). Route 101 gets its own copy of its secondary tileset
+    // (tileset identity is pointer identity: the same tiles and behaviors, but the crossing
+    // from Littleroot uploads it), and no coord events, so that no rescue scene owns the
+    // frames after the crossing.
+    let game = Fake::patched_with(MAP_ROUTE101, |m| {
+        let t = m.secondary;
+        m.secondary = Box::leak(Box::new(Tileset {
+            tiles: t.tiles,
+            palettes: t.palettes,
+            metatiles: t.metatiles,
+            attributes: t.attributes,
+        }));
+        m.coords = &[];
+    });
     let cross = m(MacroKind::Cross {
         x: 10,
         y: 0,
         dir: Dir::Up,
     });
-    let ex = expand::expand_with(
-        &mut s,
-        &cross,
-        &mut policy,
-        &mut NoObserver,
-        &Limits::default(),
-    )
-    .unwrap_or_else(|e| panic!("{:?}", e.0));
-    assert_eq!(
-        s.world().map(),
-        MAP_LITTLEROOT_TOWN_PROFESSOR_BIRCHS_LAB,
-        "{:?}",
-        ex.notes
+    let r = run(
+        &game,
+        &job(
+            None,
+            Plan::Given(vec![
+                m(MacroKind::WalkTo { x: 11, y: 2 }),
+                m(MacroKind::WalkTo { x: 11, y: 1 }),
+                cross,
+            ]),
+        ),
     );
-    assert_eq!(ex.notes.len(), 2, "{:?}", ex.notes);
-    assert!(
-        ex.notes[0].ends_with(&format!("object {text_id}")),
-        "{:?}",
-        ex.notes
-    );
+    assert!(r.stop.is_none(), "{:?}", r.stop);
+    let [.., before, after] = &r.steps[..] else {
+        panic!("{}", r.steps.len())
+    };
+    assert_eq!(after.macro_, cross);
+    // By hand from the step's start: north until the map changes, then nothing. Capture is
+    // refused for several frames, then allowed again without any input.
+    let mut s = Session::restore(game, &before.end).unwrap();
+    for _ in 0..240 {
+        if s.world().map() == MAP_ROUTE101 {
+            break;
+        }
+        s.step(Buttons::UP);
+    }
+    assert_eq!(s.world().map(), MAP_ROUTE101);
+    let mut refused = 0;
+    for _ in 0..64 {
+        if s.world().capturable() == Err(NotCapturable::StaleView) {
+            refused += 1;
+        }
+        s.step(Buttons::NONE);
+    }
+    assert!(refused > 1, "the upload spans frames ({refused})");
+    assert_eq!(s.world().capturable(), Ok(()));
+    // The driver waits it out the same way: the node ends on the route's first cell,
+    // capturable, without walking on or talking to any object.
+    assert_eq!(after.end.world.field.map, MAP_ROUTE101);
+    assert_eq!(player(&after.end), (10, 19));
+    assert!(r.notes.is_empty(), "{:?}", r.notes);
+    check_steps(&game, None, &r);
 }
