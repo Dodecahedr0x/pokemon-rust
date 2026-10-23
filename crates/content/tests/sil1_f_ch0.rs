@@ -17,7 +17,7 @@
 
 use content::Game;
 use content::consts::*;
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use engine::World;
 use engine::battle::BattleOutcome;
 use engine::data::{
@@ -26,7 +26,7 @@ use engine::data::{
     UiText, WindowGfx, block_collision,
 };
 use engine::input::Buttons;
-use engine::script::{Ctx, Script};
+use engine::script::{Ctx, Report, Script};
 use engine::world::Event;
 use std::collections::{BTreeSet, VecDeque};
 
@@ -34,6 +34,17 @@ use std::collections::{BTreeSet, VecDeque};
 
 struct Spy {
     texts: RefCell<Vec<TextId>>,
+    /// Chapter 1's Lame-Frequence, granted from the test: the brambles' script then runs with
+    /// `FLAG_SIL_MODULE_COUPE` set (the world has no flag setter).
+    module: Cell<bool>,
+}
+
+/// The `ScriptId` of script `name`.
+fn script_id(name: &str) -> ScriptId {
+    let i = (content::data::SCRIPT_NAMES.iter())
+        .position(|n| *n == name)
+        .unwrap_or_else(|| panic!("no script {name}"));
+    ScriptId(i as u16)
 }
 
 impl GameData for Spy {
@@ -72,6 +83,12 @@ impl GameData for Spy {
         Game.behavior(raw)
     }
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        if self.module.get() && id == script_id("BricoBourg_EventScript_Ronces") {
+            return Box::pin(async move {
+                ctx.set_flag(FLAG_SIL_MODULE_COUPE, true).await;
+                Game.script(id, ctx).await;
+            });
+        }
         Game.script(id, ctx)
     }
     fn new_game(&self) -> NewGame {
@@ -144,6 +161,8 @@ struct Run {
     g: Spy,
     frame: u64,
     battles: Vec<BattleOutcome>,
+    /// The fallbacks the scripts reported (`Report::Degraded`).
+    degraded: BTreeSet<&'static str>,
     /// Frames spent on the starter screen (the first ones move the hand right).
     starter_frames: u32,
 }
@@ -152,12 +171,14 @@ impl Run {
     fn new() -> Run {
         let g = Spy {
             texts: RefCell::new(Vec::new()),
+            module: Cell::new(false),
         };
         Run {
             w: World::new(&g),
             g,
             frame: 0,
             battles: Vec::new(),
+            degraded: BTreeSet::new(),
             starter_frames: 0,
         }
     }
@@ -166,6 +187,9 @@ impl Run {
         self.w.step(&self.g, keys);
         self.frame += 1;
         for e in self.w.events() {
+            if let Event::Report(Report::Degraded(name)) = e {
+                self.degraded.insert(*name);
+            }
             if let Event::BattleEnded(o) = e {
                 assert!(
                     !matches!(o, BattleOutcome::Lost | BattleOutcome::Drew),
@@ -217,7 +241,11 @@ impl Run {
                 } else {
                     Buttons::A
                 };
-                self.step(if i.is_multiple_of(2) { press } else { Buttons::NONE });
+                self.step(if i.is_multiple_of(2) {
+                    press
+                } else {
+                    Buttons::NONE
+                });
             } else {
                 quiet += 1;
                 self.step(Buttons::NONE);
@@ -310,6 +338,11 @@ impl Run {
 
     fn has_text(&self, t: TextId) -> bool {
         self.g.texts.borrow().contains(&t)
+    }
+
+    /// How many times `t` was printed (repeats in a row count once).
+    fn times(&self, t: TextId) -> usize {
+        self.g.texts.borrow().iter().filter(|x| **x == t).count()
     }
 }
 
@@ -494,6 +527,9 @@ fn chapter_0_plays_from_a_new_game_to_the_bois_ether_edge() {
     assert_eq!(r.w.bag().count(ItemId(ITEM_SIL_MALLETTE)), 1);
     assert_printed_in_order(&r, &[Bar_Sc04_T1, Bar_Sc04_T3, Bar_Sc04_T4, Bar_Sc04_T5]);
     // Taken once: the object is gone and the scene does not run again.
+    r.interact(Dir::Up);
+    assert_eq!(r.times(Bar_Sc04_T1), 1);
+    assert_eq!(r.w.bag().count(ItemId(ITEM_SIL_MALLETTE)), 1);
     r.walk_to((7, 9), &[]);
     r.enter(Dir::Down, MAP_BRICO_BOURG);
 
@@ -609,6 +645,28 @@ fn chapter_0_plays_from_a_new_game_to_the_bois_ether_edge() {
     r.interact(Dir::Down);
     assert_eq!(r.w.bag().count(ItemId(ITEM_POTION)), 3);
 
+    // The Labo's brambles (4, 8): Ch0's sign; with Chapter 1's Lame-Frequence, cut (the
+    // generic obstacle), and still cut after a map load (BricoBourg_OnLoad).
+    r.walk_to((4, 9), &[]);
+    r.interact(Dir::Up);
+    assert!(r.has_text(Brico_Bourg_Sign_Ronces));
+    assert!(!r.w.flag(FLAG_SIL_BRICO_LABO_RONCES_CUT));
+    r.g.module.set(true);
+    r.interact(Dir::Up);
+    r.g.module.set(false);
+    assert!(r.w.flag(FLAG_SIL_BRICO_LABO_RONCES_CUT));
+    assert_printed_in_order(&r, &[Bois_Ether_Sc08_T2, Bois_Ether_Sc08_T3]);
+    r.step_toward(Dir::Up);
+    assert_eq!(r.pos(), (4, 8));
+    r.walk_to((5, 15), &[]);
+    r.enter(Dir::Up, MAP_BRICO_BOURG_PLAYER_HOUSE_1F);
+    r.walk_to((4, 7), &[]);
+    r.enter(Dir::Down, MAP_BRICO_BOURG);
+    r.walk_to((4, 9), &[]);
+    r.step_toward(Dir::Up);
+    assert_eq!(r.pos(), (4, 8));
+    r.step_toward(Dir::Down);
+
     // The north exit: the signal (Brico_Bourg_Sc04), then Route S1.
     r.walk_to((11, 1), &[]);
     assert!(r.w.flag(FLAG_SIL_S01_SIGNAL_SEEN));
@@ -675,6 +733,16 @@ fn chapter_0_plays_from_a_new_game_to_the_bois_ether_edge() {
     assert_eq!(r.w.var(VAR_SIL_STORY), 9);
     assert!(r.has_text(Route_S01_Sc02_T1));
 
-    // Nothing unwritten ran, and the fallbacks reported themselves.
+    // No event was dropped, and the fallbacks reported themselves.
     assert_eq!(r.w.events_dropped(), 0);
+    for name in [
+        "screen_shake",
+        "play_se",
+        "mallette_call",
+        "end_call",
+        "set_time_tint",
+        "hidden item",
+    ] {
+        assert!(r.degraded.contains(name), "{name}: {:?}", r.degraded);
+    }
 }

@@ -90,9 +90,20 @@ fn map_script_references_are_registered_scripts() {
             refs += 1;
         }
     }
-    // The Ch0 maps are strict: every reference resolved (SIL1 Task F).
+    // The Ch0 maps are strict (claimed by the `ch00_*.rs` files, SIL1 Task F): an unwritten
+    // name there fails the build; only the unclaimed maps' names are dropped and listed.
     assert!(refs >= 1);
-    assert!(!crate::REPORT.contains("  unwritten: "));
+    for (map, module) in [
+        ("BricoBourg", "ch00_town"),
+        ("BricoBourg_Bar", "ch00_bar"),
+        ("BricoBourg_FriendsHouse", "ch00_houses"),
+        ("BricoBourg_PlayerHouse_1F", "ch00_houses"),
+        ("BricoBourg_PlayerHouse_2F", "ch00_houses"),
+        ("RouteS01", "ch00_route_s01"),
+    ] {
+        let line = format!("  strict: {map} (scripts/{module}.rs)");
+        assert!(crate::REPORT.contains(&line), "{line}");
+    }
 }
 
 #[test]
