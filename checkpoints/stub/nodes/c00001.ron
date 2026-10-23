@@ -4,8 +4,8 @@
         label: "route:stub_start",
         schema: 2,
         build: (
-            engine: 6768954502727659444,
-            content: 1719758135201683822,
+            engine: 12946783700625945929,
+            content: 10930910960670443905,
         ),
         frame: 24,
         map: (9),
@@ -16,8 +16,8 @@
         schema: 2,
         parent: NewGame,
         build: (
-            engine: 6768954502727659444,
-            content: 1719758135201683822,
+            engine: 12946783700625945929,
+            content: 10930910960670443905,
         ),
         start_frame: 0,
         inputs: [

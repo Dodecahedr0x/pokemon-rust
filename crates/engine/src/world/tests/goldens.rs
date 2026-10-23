@@ -19,9 +19,9 @@ const GOLDEN_CROSSING: u64 = 0x0e29_9c5c_dc99_2190;
 /// Talking to the NPC through its whole script.
 const GOLDEN_SCRIPT: u64 = 0x725f_3659_70f0_84a5;
 /// A grass encounter on the route, fought to the end.
-const GOLDEN_WILD_BATTLE: u64 = 0xbc95_2822_9ad3_cd5f;
+const GOLDEN_WILD_BATTLE: u64 = 0x1635_f323_c6af_52f3;
 /// A scripted trainer battle, fought to the end.
-const GOLDEN_TRAINER: u64 = 0x2c20_8618_81c2_c3c5;
+const GOLDEN_TRAINER: u64 = 0x7dfc_ba2d_39c5_b299;
 
 fn walk_scenario() -> (u64, u64) {
     let mut w = World::new(&Game);
