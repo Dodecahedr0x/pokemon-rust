@@ -2336,6 +2336,7 @@ Borders: Port-Ressac is open sea (368, blocked), the Gym its decor sea (414), Ro
 - Under `cfg(pkr_silice)`, every trainer's party and held items, the encounters, the items' prices and hold effects, `MARTS` and the texts are checked against the RON files.
 
 #### SIL1 Task D as built: flavour plumbing in the shells
+> **Since the spine rework (2026-10-23, `2026-10-23-explorer-spine.md`):** `explore spine` and `explore branch` refuse another flavour's `--act` as `run` did. `sil_ch0` has 10 goals, the Expects of the Silice spine (`crates/explore/src/spine/silice.rs`), which plays Chapter 0 to `VAR_SIL_STORY` 9 in 21,821 frames (`spine_reaches_ch0_end`). It mirrors `sil1_f_ch0.rs` step for step, around the Route S1 trainers' sight lines (`Step::GotoAvoiding`), without the guard detours and the test-only brambles grant.
 
 `PKR_GAME=silice` now builds and tests the whole workspace (game-native, game-gba, explore, studio, xtask), and every xtask command takes `--game`. Route-neutral for Emerald: only `BUILD_ID` moves (`build/main.rs` gained the metadata line), so the Emerald trees still read `valid (rehash)`, and `cargo xtask parity` is identical.
 
@@ -2422,7 +2423,7 @@ Commits:
 **Left for later tasks.**
 - Wave 3: the Silice goals (`goals::silice::CH0`), the `sil:*` nodes and their resume lanes. Ungate the tests above once Silice's new game has a party and the route has battles.
 - Task E: once the new game sets story flags, `b_fitness` can check them on Silice too.
-- The studio explorer pane names goals of the default act, not the db's `meta.act`. This predates Task D.
+- The studio explorer pane names goals of the default act, not the db's `meta.act`. This predates Task D. (Gone with the spine rework: the pane shows the spine's checkpoints.)
 
 #### SIL1 Task E as built: `game.ron`, the Silice root, the new game and the prelude
 

@@ -1,5 +1,7 @@
 # Milestone 7 — Explorer v0 Implementation Plan
 
+> **Superseded (2026-10-23):** the evolutionary search below (generations, selection, the node tree, revalidation) is replaced by the spine-and-branch explorer (`2026-10-23-explorer-spine.md`): one authored main path per flavour, and branches off it that recover to it. The play half (macros, planner, policy, detectors, softlock probe, findings, repro) stays.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (parallel waves) to implement this plan.
 
 **Goal:** a headless, persistent, evolutionary **explorer** (`crates/explore`, a library plus the `explore` bin, driven by `cargo xtask explore`). It plays the game natively from a new game. It grows a tree of input-only nodes in `explore.db` (SQLite) and reports bugs, each with a reproducing trace:

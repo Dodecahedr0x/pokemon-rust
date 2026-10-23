@@ -286,7 +286,7 @@ M8's rules apply unchanged ("Rules for every task" in `2026-10-22-milestone-8-sc
   - `heap_max` stays under 160 KiB on every lane; a screen allocates once on open.
 - **Hash and checkpoint discipline** (as M8):
   - **Route-neutral tasks** (K, X1, X2, C, S, R, J, T, D, and the Wave 2 screens, each unless Step 0's scan says otherwise) verify `valid` or `valid (rehash)` on the three trees **without `--accept`**; their `BUILD_ID` refreshes are batched into one `chore(checkpoints)` per wave.
-  - **Route-changing tasks** merge one at a time: **F → E → BM**, then any task whose check moved. They never commit tree or golden refreshes; each report has a **route delta**; master re-accepts after each merge in a reviewed `chore(checkpoints): <task> <cause>` commit. A changed `act1:*` node is re-found with the explorer `--from` the last valid node where possible (M8 rule), else re-accepted with the cause.
+  - **Route-changing tasks** merge one at a time: **F → E → BM**, then any task whose check moved. They never commit tree or golden refreshes; each report has a **route delta**; master re-accepts after each merge in a reviewed `chore(checkpoints): <task> <cause>` commit. A changed `act1:*` node is re-accepted with the cause, or replaced by the spine's node of the same label (`explore spine --export`, then `checkpoints promote`).
   - Every engine or content merge moves Emerald's `BUILD_ID`; Silice-only files (`src/silice/`, `build/silice/`, `games/silice/`, `extract/src/games/`) move only Silice's.
 - **Gen3 is the spec** for Emerald behaviour (`start_menu.c`, `party_menu.c`, `pokemon_summary_screen.c`, `item_menu.c`, `item_use.c`, `shop.c`, `player_pc.c`, `pokemon_storage_system.c` logic, `option_menu.c`, `main_menu.c`, `evolution_scene.c`, `pokemon.c`, `battle_*`). Window geometry and timings are tested against decomp constants read through `PKR_DECOMP` (as the names drift tests); each deviation is listed in the task's report and in the module doc.
 - **Ownership:** only touch your task's files plus your test files. Describe any other change you need in your report; if a signature is missing from Wave 0, add it in your own file and list it.
@@ -386,12 +386,14 @@ M8's rules apply unchanged ("Rules for every task" in `2026-10-22-milestone-8-sc
 3. **Gates:** M6/M8 studio gates; `cargo xtask studio --smoke` on the full import.
 - **Done when:** the four deferred views render on the fixed map sample and their tests pass with the UI feature.
 
-### Task D — explorer: `explore sweep`, schema v4, policy hooks
+### Task D — explorer: spine and branches, schema v4, policy hooks
 **Owns:** `crates/explore/**`. Route-neutral (tools only).
-1. **`explore sweep`** (M8 decision 13): every map rooted at L's `StartAt`, 10 generations each, findings triaged in a report; an `explore` subcommand, release-only (no xtask change).
-2. **Schema v4:** `Macro::code` widens the kind to 5 bits (room for M9's menu macros), `meta.key_version` 4 with the money bucket and the bag's non-key pockets digest (coarse, so stacks of Potions do not split keys); an older db is refused with "run `explore reset`".
-3. **Policy hooks** for Task N: `Policy::choose_switch` and `Policy::choose_item` with today's behaviour (no switch, no item), so N only fills bodies.
-- **Done when:** the sweep runs on 518 maps with a triaged report and the 50-generation digests are thread-count independent.
+
+**Redesigned (user decision, 2026-10-23; `2026-10-23-explorer-spine.md`).** The evolutionary explorer is gone. Testing follows one authored main path per flavour (the **spine**: committed `spine::Step` lists, Emerald to badge 1, Silice's Chapter 0) and **branches** off it toward what the spine never touched, each recovering to the spine and verifying a short window, or aborted by its frame budget or a low novelty rate.
+1. **`explore sweep` is folded into `explore branch`**, which covers every map the spine reaches (and every target off it). `cargo xtask sweep` stays the every-map `StartAt` sweep.
+2. **Schema v4** is the spine schema: `spine`, `position`, `branch`, `seen`, `coverage`, `finding`, `run`. An older db is refused with "run `explore reset --yes`". `Macro::code` is gone with the node tree (macros are stored as RON text).
+3. **Policy hooks** for Task N: still to add (`Policy::choose_switch`, `Policy::choose_item`), with today's behaviour. The spine's `Battle(Best)` already picks the move of the best expected damage.
+- **Done when:** `spine_reaches_badge1` and `spine_reaches_ch0_end` pass with their frame counts (Emerald 109,853; Silice 21,821), branch runs are identical across `--jobs`, and the studio's Explorer tab shows the spine and the branches. **Done** by the spine rework.
 
 ---
 
@@ -455,12 +457,12 @@ M8's rules apply unchanged ("Rules for every task" in `2026-10-22-milestone-8-sc
 - **Done when:** every lane above passes, the tour has no overrun, and the three trees verify `Valid`.
 
 ### Task N — explorer: menus, switching and items
-**Owns:** `crates/explore/**` (after D merged). Route: produces the re-found `act1:*` nodes for Q.
-1. **Policy:** battle switching (to the best type matchup when the active mon would faint or is resisted) and item use (Potion below a third of HP, the best ball once the wild mon is below half), the shift prompt answered by policy (M7 finding).
-2. **Macros:** `Heal` (walk to a nurse, talk, resolve), `Buy { item, qty }` (enter a mart, buy), `UseItem { item, slot }` from the start menu, `Deposit` when the party is full; expanded to inputs by reading the screen state (no blind input sequences).
-3. **Goals:** Emerald Act 1 unchanged; `sil_ch1` goals scaffolded from `VAR_SIL_STORY` 10–17 (filled when SIL2's maps land).
-4. **Act 1 re-run:** within N's M8 budget (≤ 4 h, ≤ 45 min per segment), from new game to badge 1 with the new policy; exported for Q.
-- **Done when:** the Act 1 goals are reached within budget with the shift prompt on, and the db's key version is 4.
+**Owns:** `crates/explore/**` (after D merged). Route-neutral: the spine replaces the re-found `act1:*` nodes (below).
+1. **Policy:** battle switching (to the best type matchup when the active mon would faint or is resisted) and item use (Potion below a third of HP, the best ball once the wild mon is below half), the shift prompt answered by policy (M7 finding). They fill the Task D hooks; `Battle(plan)` gains `Items` and `Switch`.
+2. **Spine steps and branch targets:** `Heal` (walk to a nurse, talk, resolve), `Buy { item, qty }` (enter a mart, buy), `UseItem { item, slot }` from the start menu, `Deposit` when the party is full; macros expanded by reading the screen state (no blind input sequences). As spine steps they replace the spine's `Train` detours where a Potion does; as branch targets, the menus become things the branches try off the spine.
+3. **Goals:** Emerald Act 1 unchanged; `sil_ch1` goals and the Silice Chapter 1 spine from the content tests' `silice_spine::ch01` (the step list SIL2 wrote; `GotoAvoiding`, `Exit`, `Walk`, `Use` and `WaitScript` cover its vocabulary).
+4. **Act 1 with menus:** the Emerald spine plays to badge 1 with the shift prompt on and the new policy, and grows past it as M9 lands; `explore branch` from every checkpoint has no bug and no unexpected divergence (or each is triaged). If Task Q prefers spine nodes to re-found `act1:*` nodes, `explore spine --export` writes `spine:act1:*` for promotion in Q's `chore(checkpoints)` commit.
+- **Done when:** `spine_reaches_badge1` passes with the shift prompt on, and a full `explore branch` is triaged.
 
 ### Task V (stretch) — vanilla reference lanes
 **Owns:** `xtask/src/vanilla.rs`, `crates/emu/tests/m9_v_*.rs`.
