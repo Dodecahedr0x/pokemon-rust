@@ -211,9 +211,480 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             degraded(ctx, id).await;
             ctx.set_var(VAR_RESULT, START_MENU_POKENAV).await;
         }
+        // ---- Wave C: specials that read the player's state (`Request::Query`) ----
+        id if id == SPECIAL_ScriptGetPokedexInfo => {
+            // `birch_pc.c`: the Hoenn counts for VAR_0x8004 0, else the National ones.
+            let among: &'static [SpeciesId] = if ctx.var(VAR_0x8004).await == 0 {
+                &crate::battle::HOENN_DEX
+            } else {
+                &[]
+            };
+            let seen = dex_count(ctx, false, among).await;
+            let caught = dex_count(ctx, true, among).await;
+            ctx.set_var(VAR_0x8005, seen).await;
+            ctx.set_var(VAR_0x8006, caught).await;
+            return national_dex_enabled(ctx).await as u16;
+        }
+        id if id == SPECIAL_HasAllHoennMons => return has_all_hoenn_mons(ctx).await as u16,
+        id if id == SPECIAL_ShowPokedexRatingMessage => {
+            // `ShowPokedexRatingMessage` (`birch_pc.c`): `ShowFieldMessage`, no wait.
+            let count = ctx.var(VAR_0x8004).await;
+            let name = pokedex_rating_text(ctx, count).await;
+            show_text_named(ctx, id, name).await;
+        }
+        id if id == SPECIAL_EnableNationalPokedex => {
+            // `event_data.c`; `nationalMagic` goes with the var and the flag, the Pokédex
+            // screen's mode and order are not kept.
+            ctx.set_var(VAR_NATIONAL_DEX, NATIONAL_DEX_MAGIC_VAR).await;
+            ctx.set_flag(FLAG_SYS_NATIONAL_DEX, true).await;
+        }
+        id if id == SPECIAL_CountPlayerTrainerStars => {
+            // `trainer_card.c`: `GAME_STAT_ENTERED_HOF` (set with `FLAG_SYS_GAME_CLEAR` by
+            // `GameClear`), the Hoenn dex, the four museum paintings (no contests: 0), and
+            // every frontier symbol.
+            let mut stars = ctx.flag(FLAG_SYS_GAME_CLEAR).await as u16;
+            stars += has_all_hoenn_mons(ctx).await as u16;
+            return stars + has_all_frontier_symbols(ctx).await as u16;
+        }
+        id if id == SPECIAL_ShouldTryRematchBattle || id == SPECIAL_IsTrainerReadyForRematch => {
+            // Lowered to `special_vs` after a `trainerbattle`; here the opponent is unknown.
+            degraded(ctx, id).await;
+        }
+        id if id == SPECIAL_IsTrainerRegistered => {
+            // `field_specials.c`: `GetRematchIdxByTrainerIdx(VAR_0x8004)`.
+            let trainer = ctx.var(VAR_0x8004).await;
+            if let Some(i) = rematch_index(trainer) {
+                return ctx.flag(registered_flag(i)).await as u16;
+            }
+        }
+        id if id == SPECIAL_GetPlayerFacingDirection => {
+            // Gen3 `DIR_SOUTH` 1, `DIR_NORTH` 2, `DIR_WEST` 3, `DIR_EAST` 4.
+            return match ctx.player_facing().await {
+                Dir::Down => 1,
+                Dir::Up => 2,
+                Dir::Left => 3,
+                Dir::Right => 4,
+            };
+        }
+        id if id == SPECIAL_StorePlayerCoordsInVars => {
+            let (x, y) = ctx.player_pos().await;
+            ctx.set_var(VAR_0x8004, x as u16).await;
+            ctx.set_var(VAR_0x8005, y as u16).await;
+        }
+        id if id == SPECIAL_GetPlayerTrainerIdOnesDigit => {
+            return ctx.query(Query::PlayerIdLow).await % 10;
+        }
+        id if id == SPECIAL_IsStarterInParty => {
+            // `GetStarterPokemon`: an out-of-range choice is the first starter.
+            let starters = crate::battle::STARTERS;
+            let v = usize::from(ctx.var(VAR_STARTER_MON).await);
+            let starter = starters.get(v).unwrap_or(&starters[0]).0;
+            let n = ctx.party_size().await;
+            for slot in 0..n as u8 {
+                if ctx.query(Query::PartySpecies(slot)).await == starter {
+                    return 1;
+                }
+            }
+            return 0;
+        }
+        id if id == SPECIAL_TryUpdateRusturfTunnelState => {
+            let Some(t) = story::RUSTURF else {
+                return not_in_game(ctx, id).await;
+            };
+            if !ctx.flag(t.opened).await && ctx.current_map().await == t.map {
+                for (flag, state) in t.rocks {
+                    if ctx.flag(flag).await {
+                        ctx.set_var(t.state, state).await;
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        }
+        id if id == SPECIAL_FoundBlackGlasses => {
+            let Some(flag) = story::BLACK_GLASSES else {
+                return not_in_game(ctx, id).await;
+            };
+            return ctx.flag(flag).await as u16;
+        }
+        id if id == SPECIAL_FoundAbandonedShipRoom1Key
+            || id == SPECIAL_FoundAbandonedShipRoom2Key
+            || id == SPECIAL_FoundAbandonedShipRoom4Key
+            || id == SPECIAL_FoundAbandonedShipRoom6Key =>
+        {
+            let room = match id {
+                id if id == SPECIAL_FoundAbandonedShipRoom1Key => 0,
+                id if id == SPECIAL_FoundAbandonedShipRoom2Key => 1,
+                id if id == SPECIAL_FoundAbandonedShipRoom4Key => 2,
+                _ => 3,
+            };
+            let Some(flag) = story::SHIP_KEYS[room] else {
+                return not_in_game(ctx, id).await;
+            };
+            ctx.set_var(VAR_0x8004, flag.0).await;
+            return ctx.flag(flag).await as u16;
+        }
+        id if id == SPECIAL_PlayerHasBerries => {
+            return ctx
+                .query(Query::PocketNonEmpty(engine::data::Pocket::Berries))
+                .await;
+        }
+        id if id == SPECIAL_Special_AreLeadMonEVsMaxedOut => {
+            let lead = lead_mon_index(ctx).await;
+            return (ctx.query(Query::PartyEvTotal(lead)).await >= MAX_TOTAL_EVS) as u16;
+        }
+        id if id == SPECIAL_GetLeadMonFriendshipScore => {
+            // `FRIENDSHIP_NONE` 0 … `FRIENDSHIP_MAX` 6.
+            let lead = lead_mon_index(ctx).await;
+            let f = ctx.query(Query::PartyFriendship(lead)).await;
+            return match f {
+                255 => 6,
+                200.. => 5,
+                150.. => 4,
+                100.. => 3,
+                50.. => 2,
+                1.. => 1,
+                0 => 0,
+            };
+        }
+        id if id == SPECIAL_GetBattleOutcome => {
+            // Lowered to the function's `dowildbattle` outcome; here no battle of this script
+            // ran (the battle specials are unsupported).
+            degraded(ctx, id).await;
+        }
+        id if id == SPECIAL_ScriptGetPartyMonSpecies => {
+            let slot = ctx.var(VAR_0x8004).await;
+            return ctx.query(Query::PartySpecies(slot as u8)).await;
+        }
+        id if id == SPECIAL_IsMirageIslandPresent => {
+            // `time_events.c`: `GetMirageRnd() >> 16` is the high mirage var.
+            let Some(var) = story::MIRAGE_RND_H else {
+                return not_in_game(ctx, id).await;
+            };
+            let rnd = ctx.var(var).await;
+            for slot in 0..PARTY_SIZE as u8 {
+                if ctx.query(Query::PartySpecies(slot)).await != 0
+                    && ctx.query(Query::PartyPersonalityLow(slot)).await == rnd
+                {
+                    return 1;
+                }
+            }
+            return 0;
+        }
+        id if id == SPECIAL_CheckRelicanthWailord => {
+            // `braille_puzzles.c`: Wailord first, Relicanth last.
+            if ctx.query(Query::PartySpecies(0)).await == mons::WAILORD.0 {
+                let last = ctx.party_size().await.saturating_sub(1) as u8;
+                return (ctx.query(Query::PartySpecies(last)).await == mons::RELICANTH.0) as u16;
+            }
+            return 0;
+        }
+        id if id == SPECIAL_CountPartyAliveNonEggMons => {
+            // `egg_hatch.c`: the PC's non-egg mons plus the party's alive ones; the PC's are
+            // not queried.
+            degraded(ctx, id).await;
+            return party_alive_except(ctx, PARTY_SIZE).await;
+        }
+        id if id == SPECIAL_CountPartyAliveNonEggMons_IgnoreVar0x8004Slot => {
+            let except = ctx.var(VAR_0x8004).await;
+            return party_alive_except(ctx, except).await;
+        }
+        id if id == SPECIAL_GetSelectedMonNicknameAndSpecies => {
+            // `daycare.c`: the party menu's selection (`GetCursorSelectionMonId`), which
+            // `ChoosePartyMon` leaves in VAR_0x8004.
+            let slot = ctx.var(VAR_0x8004).await as u8;
+            ctx.buffer(0, BufferSrc::PartyNick(slot)).await;
+            return ctx.query(Query::PartySpecies(slot)).await;
+        }
+        id if id == SPECIAL_IsEnoughForCostInVar0x8005 => {
+            let cost = ctx.var(VAR_0x8005).await;
+            return ctx.money_check(cost.into()).await as u16;
+        }
+        id if id == SPECIAL_GetDaysUntilPacifidlogTMAvailable => {
+            // `field_specials.c` on day 0 (`gLocalTime.days`; no RTC, the clock is M10).
+            let Some(var) = story::PACIFIDLOG_TM_DAY else {
+                return not_in_game(ctx, id).await;
+            };
+            let received = i32::from(ctx.var(var).await);
+            let elapsed = RTC_DAYS - received;
+            return if elapsed >= 7 {
+                0
+            } else {
+                (7 - elapsed) as u16
+            };
+        }
+        id if id == SPECIAL_GiveLeadMonEffortRibbon => {
+            // `GAME_STAT_RECEIVED_RIBBONS` and the ribbon itself are not kept.
+            degraded(ctx, id).await;
+            ctx.set_flag(FLAG_SYS_RIBBON_GET, true).await;
+        }
         // Not a `Native` special: the lowering never passes one (it reports the `Unsupported`
         // ones itself); a hand-written call is only logged.
         _ => {}
     }
     0
+}
+
+/// `special_vs` (Wave C): the specials of `OPPONENT_SPECIALS` (extract's lowering) after a
+/// `trainerbattle` against `trainer` (Gen3 `gTrainerBattleOpponent_A`), `battle_setup.c`:
+/// - `ShouldTryRematchBattle`: `IsFirstTrainerIdReadyForRematch` (its `trainerRematches`
+///   entry) or `WasSecondRematchWon` (the trainer of its second stage beaten);
+/// - `IsTrainerReadyForRematch`: `trainerRematches` of its rematch entry (any stage).
+///
+/// `trainerRematches` is never set: Gen3 sets it from five badges on, by the rematch step
+/// counter (`TryUpdateRandomTrainerRematches`) and Match Call, which the engine has not. Past
+/// five badges, for a registered trainer, the answer is reported `Degraded`.
+pub async fn special_vs(ctx: &Ctx, id: u16, trainer: TrainerId) -> u16 {
+    ctx.log(name_of(&crate::data::SPECIAL_NAMES, id).unwrap_or("SPECIAL_?"))
+        .await;
+    let first = id == SPECIAL_ShouldTryRematchBattle;
+    let entry = if first {
+        rematch_index(trainer.0)
+    } else {
+        rematch_index_any(trainer.0)
+    };
+    let Some(i) = entry else {
+        return 0;
+    };
+    if ctx.flag(registered_flag(i)).await && five_badges(ctx).await {
+        degraded(ctx, id).await;
+    }
+    if !first {
+        return 0;
+    }
+    let second = crate::battle::REMATCHES[usize::from(i)][1];
+    ctx.flag(trainer_flag(TrainerId(second))).await as u16
+}
+
+/// Gen3 `checkpartymove` (`ScrCmd_checkpartymove`): `VAR_RESULT` = the first party slot whose
+/// mon knows `m` and `VAR_0x8004` = its species, else `VAR_RESULT` = `PARTY_SIZE`.
+pub async fn check_party_move(ctx: &Ctx, m: MoveId) {
+    let slot = ctx.query(Query::PartyMoveSlot(m)).await;
+    ctx.set_var(VAR_RESULT, slot).await;
+    if slot < PARTY_SIZE {
+        let species = ctx.query(Query::PartySpecies(slot as u8)).await;
+        ctx.set_var(VAR_0x8004, species).await;
+    }
+}
+
+/// Gen3 `PARTY_SIZE`.
+const PARTY_SIZE: u16 = engine::script::PARTY_SIZE;
+/// Gen3 `MAX_TOTAL_EVS`.
+const MAX_TOTAL_EVS: u16 = 510;
+/// Gen3 `NUM_FRONTIER_FACILITIES`.
+const NUM_FRONTIER_FACILITIES: u16 = 7;
+/// What `EnableNationalPokedex` writes to `VAR_NATIONAL_DEX` (and `IsNationalPokedexEnabled`
+/// checks).
+const NATIONAL_DEX_MAGIC_VAR: u16 = 0x302;
+/// Gen3 `TRAINER_REGISTERED_FLAGS_START` (`include/constants/flags.h`): flag `+ i` is set when
+/// the trainer of `gRematchTable[i]` is registered in Match Call.
+pub const TRAINER_REGISTERED_FLAGS_START: u16 = 0x15C;
+/// The engine's day (`gLocalTime.days`): no RTC before Milestone 10.
+const RTC_DAYS: i32 = 0;
+/// The Emerald story's flags, vars and maps that the specials name (`crate::emerald_story`); a
+/// game without them (Silice) has `None`, and the special reports itself degraded.
+#[cfg(not(pkr_silice))]
+use crate::emerald_story as story;
+#[cfg(pkr_silice)]
+mod story {
+    use super::*;
+    pub const BLACK_GLASSES: Option<FlagId> = None;
+    pub const SHIP_KEYS: [Option<FlagId>; 4] = [None; 4];
+    pub const MIRAGE_RND_H: Option<VarId> = None;
+    pub const HAS_MATCH_CALL: Option<FlagId> = None;
+    pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
+    pub const RUSTURF: Option<Rusturf> = None;
+}
+
+/// `TryUpdateRusturfTunnelState`'s names: the tunnel's map, its opened flag, its two rocks'
+/// flags with the state each sets, and the state var.
+pub struct Rusturf {
+    pub opened: FlagId,
+    pub map: MapId,
+    pub rocks: [(FlagId, u16); 2],
+    pub state: VarId,
+}
+
+/// The Match Call flag, which `RegisterTrainerInMatchCall` reads after each won trainer battle
+/// (`None`: the game has no Match Call).
+pub const MATCH_CALL_FLAG: Option<FlagId> = story::HAS_MATCH_CALL;
+
+/// Gen3 `RegisterTrainerInMatchCall` (battle_setup.c, after a won trainer battle): with
+/// the Match Call flag, `GetTrainerMatchCallFlag(trainer)` is set.
+pub async fn register_in_match_call(ctx: &Ctx, trainer: TrainerId) {
+    if let Some(match_call) = MATCH_CALL_FLAG
+        && ctx.flag(match_call).await
+        && let Some(i) = rematch_index(trainer.0)
+    {
+        ctx.set_flag(registered_flag(i), true).await;
+    }
+}
+
+/// The flag registering `gRematchTable[i]`'s trainer.
+pub const fn registered_flag(i: u8) -> FlagId {
+    FlagId(TRAINER_REGISTERED_FLAGS_START + i as u16)
+}
+
+/// Gen3 `FirstBattleTrainerIdToRematchTableId` (and `GetRematchIdxByTrainerIdx`): the entry
+/// whose first stage is `trainer`.
+pub fn rematch_index(trainer: u16) -> Option<u8> {
+    (crate::battle::REMATCHES.iter())
+        .position(|r| r[0] == trainer)
+        .map(|i| i as u8)
+}
+
+/// Gen3 `TrainerIdToRematchTableId`: the entry with `trainer` at any stage (up to its first
+/// `TRAINER_NONE`).
+fn rematch_index_any(trainer: u16) -> Option<u8> {
+    (crate::battle::REMATCHES.iter())
+        .position(|r| r.iter().take_while(|&&t| t != 0).any(|&t| t == trainer))
+        .map(|i| i as u8)
+}
+
+/// Gen3 `HasAtLeastFiveBadges`.
+async fn five_badges(ctx: &Ctx) -> bool {
+    let mut n = 0;
+    for f in [
+        FLAG_BADGE01_GET,
+        FLAG_BADGE02_GET,
+        FLAG_BADGE03_GET,
+        FLAG_BADGE04_GET,
+        FLAG_BADGE05_GET,
+        FLAG_BADGE06_GET,
+        FLAG_BADGE07_GET,
+        FLAG_BADGE08_GET,
+    ] {
+        n += ctx.flag(f).await as u8;
+    }
+    n >= 5
+}
+
+async fn dex_count(ctx: &Ctx, caught: bool, among: &'static [SpeciesId]) -> u16 {
+    ctx.query(Query::DexCount { caught, among }).await
+}
+
+/// Gen3 `IsNationalPokedexEnabled` (`nationalMagic` is written with the var).
+async fn national_dex_enabled(ctx: &Ctx) -> bool {
+    ctx.var(VAR_NATIONAL_DEX).await == NATIONAL_DEX_MAGIC_VAR
+        && ctx.flag(FLAG_SYS_NATIONAL_DEX).await
+}
+
+/// Gen3 `HasAllHoennMons` (`pokedex.c`): every Hoenn species but the last two (Jirachi,
+/// Deoxys) caught.
+async fn has_all_hoenn_mons(ctx: &Ctx) -> bool {
+    let dex = &crate::battle::HOENN_DEX;
+    let among = &dex[..dex.len().saturating_sub(2)];
+    dex_count(ctx, true, among).await as usize == among.len() && !among.is_empty()
+}
+
+/// Gen3 `HasAllFrontierSymbols` (`trainer_card.c`): stops at the first missing symbol.
+async fn has_all_frontier_symbols(ctx: &Ctx) -> bool {
+    for i in 0..NUM_FRONTIER_FACILITIES {
+        if !ctx.flag(FlagId(FLAG_SYS_TOWER_SILVER.0 + 2 * i)).await
+            || !ctx.flag(FlagId(FLAG_SYS_TOWER_GOLD.0 + 2 * i)).await
+        {
+            return false;
+        }
+    }
+    true
+}
+
+static JIRACHI: [SpeciesId; 1] = [mons::JIRACHI];
+static DEOXYS: [SpeciesId; 1] = [mons::DEOXYS];
+
+/// The species the specials name; without battle data (`cfg(pkr_stub_battle)`) no species has
+/// them.
+#[cfg(not(pkr_stub_battle))]
+mod mons {
+    use super::*;
+    pub const WAILORD: SpeciesId = SPECIES_WAILORD;
+    pub const RELICANTH: SpeciesId = SPECIES_RELICANTH;
+    pub const JIRACHI: SpeciesId = SPECIES_JIRACHI;
+    pub const DEOXYS: SpeciesId = SPECIES_DEOXYS;
+}
+#[cfg(pkr_stub_battle)]
+mod mons {
+    use super::SpeciesId;
+    pub const WAILORD: SpeciesId = SpeciesId(u16::MAX);
+    pub const RELICANTH: SpeciesId = SpeciesId(u16::MAX);
+    pub const JIRACHI: SpeciesId = SpeciesId(u16::MAX);
+    pub const DEOXYS: SpeciesId = SpeciesId(u16::MAX);
+}
+
+/// The labels of Gen3 `GetPokedexRatingText`'s texts by tens: `gBirchDexRatingText_LessThan10`
+/// … `_LessThan200`.
+const RATING_TEXTS: [&str; 20] = [
+    "gBirchDexRatingText_LessThan10",
+    "gBirchDexRatingText_LessThan20",
+    "gBirchDexRatingText_LessThan30",
+    "gBirchDexRatingText_LessThan40",
+    "gBirchDexRatingText_LessThan50",
+    "gBirchDexRatingText_LessThan60",
+    "gBirchDexRatingText_LessThan70",
+    "gBirchDexRatingText_LessThan80",
+    "gBirchDexRatingText_LessThan90",
+    "gBirchDexRatingText_LessThan100",
+    "gBirchDexRatingText_LessThan110",
+    "gBirchDexRatingText_LessThan120",
+    "gBirchDexRatingText_LessThan130",
+    "gBirchDexRatingText_LessThan140",
+    "gBirchDexRatingText_LessThan150",
+    "gBirchDexRatingText_LessThan160",
+    "gBirchDexRatingText_LessThan170",
+    "gBirchDexRatingText_LessThan180",
+    "gBirchDexRatingText_LessThan190",
+    "gBirchDexRatingText_LessThan200",
+];
+const DEX_COMPLETED: &str = "gBirchDexRatingText_DexCompleted";
+
+/// Gen3 `GetPokedexRatingText` (`birch_pc.c`) for `count` Hoenn mons caught.
+pub async fn pokedex_rating_text(ctx: &Ctx, count: u16) -> &'static str {
+    const HOENN_DEX_COUNT: u16 = 202;
+    if count < 200 {
+        return RATING_TEXTS[usize::from(count / 10)];
+    }
+    let jirachi = dex_count(ctx, true, &JIRACHI).await != 0;
+    let deoxys = dex_count(ctx, true, &DEOXYS).await != 0;
+    match count {
+        200 if jirachi || deoxys => RATING_TEXTS[19],
+        200 => DEX_COMPLETED,
+        c if c == HOENN_DEX_COUNT - 1 && jirachi && deoxys => RATING_TEXTS[19],
+        c if c == HOENN_DEX_COUNT - 1 || c == HOENN_DEX_COUNT => DEX_COMPLETED,
+        _ => RATING_TEXTS[0],
+    }
+}
+
+/// The message `name` (a text of extract's `C_TEXT_RUNS`); a build without it (the stub, a
+/// game that dropped it) reports `id` degraded.
+async fn show_text_named(ctx: &Ctx, id: u16, name: &str) {
+    match text_named(name) {
+        Some(t) => ctx.message(t).await,
+        None => degraded(ctx, id).await,
+    }
+}
+
+/// A special naming a flag or var of the Emerald story that this game does not have.
+async fn not_in_game(ctx: &Ctx, id: u16) -> u16 {
+    degraded(ctx, id).await;
+    0
+}
+
+/// Gen3 `GetLeadMonIndex`: the first party mon (no eggs yet), 0 for an empty party.
+async fn lead_mon_index(ctx: &Ctx) -> u8 {
+    let _ = ctx;
+    0
+}
+
+/// Gen3 `CountPartyAliveNonEggMonsExcept`: the party's mons with HP, but slot `except`.
+async fn party_alive_except(ctx: &Ctx, except: u16) -> u16 {
+    let mut n = 0;
+    for slot in 0..PARTY_SIZE {
+        if slot != except
+            && ctx.query(Query::PartySpecies(slot as u8)).await != 0
+            && ctx.query(Query::PartyHp(slot as u8)).await != 0
+        {
+            n += 1;
+        }
+    }
+    n
 }

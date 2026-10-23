@@ -8,7 +8,9 @@ use content::consts::*;
 use content::prelude::{MsgBox, callstd, msgbox, special};
 use engine::battle::BattleOutcome;
 use engine::data::{FlagId, ItemId, TextId, VarId};
-use engine::script::{BufferSrc, Ctx, Fade, Report, Request, Response, Runner, Script, ScriptHost};
+use engine::script::{
+    BufferSrc, Ctx, Fade, Query, Report, Request, Response, Runner, Script, ScriptHost,
+};
 use extract::codegen::Class;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -83,6 +85,8 @@ struct Rec {
     rand: u16,
     /// The answer to `CurrentMap`.
     map: u16,
+    /// The answers to `Query` (0 for the others).
+    queries: Vec<(Query, u16)>,
 }
 
 impl Rec {
@@ -110,6 +114,11 @@ impl Rec {
                 Response::Unit
             }
             Request::Random(_) => Response::Value(self.rand),
+            Request::Query(q) => Response::Value(
+                (self.queries.iter())
+                    .find(|&&(k, _)| k == q)
+                    .map_or(0, |&(_, v)| v),
+            ),
             Request::PlayerFacing | Request::ChooseStarter(_) => Response::Value(0),
             Request::GiveMon { .. } => Response::Value(0),
             Request::PartySize => Response::Value(self.party),
@@ -414,6 +423,7 @@ fn native_specials_issue_their_requests_in_order() {
         ),
     ];
     let mut covered = BTreeSet::new();
+    let cases = [cases, wave_c_cases(&mut covered)].concat();
     for (name, party, want, result) in cases {
         let mut h = Rec::with_party(party);
         assert_eq!(run_special(&mut h, name), result, "{name} result");
@@ -486,6 +496,366 @@ fn native_specials_issue_their_requests_in_order() {
     }
 }
 
+type Case = (&'static str, u16, Vec<Request>, u16);
+
+fn q(query: Query) -> Request {
+    Request::Query(query)
+}
+
+/// Wave C's `Native` specials on a one-mon party whose queries answer 0; the specials naming
+/// an Emerald-only flag or var are covered by `every_native_special_has_an_arm` in Silice.
+fn wave_c_cases(covered: &mut BTreeSet<&'static str>) -> Vec<Case> {
+    let hoenn: &'static [_] = &content::battle::HOENN_DEX;
+    let caught_hoenn = q(Query::DexCount {
+        caught: true,
+        among: &hoenn[..hoenn.len().saturating_sub(2)],
+    });
+    let rating = match content::prelude::text_named("gBirchDexRatingText_LessThan10") {
+        Some(t) => Request::Message(t),
+        None => degraded("SPECIAL_ShowPokedexRatingMessage"),
+    };
+    let species = |s| q(Query::PartySpecies(s));
+    let mut cases: Vec<Case> = vec![
+        (
+            "SPECIAL_ScriptGetPokedexInfo",
+            1,
+            vec![
+                Request::GetVar(VAR_0x8004),
+                q(Query::DexCount {
+                    caught: false,
+                    among: hoenn,
+                }),
+                q(Query::DexCount {
+                    caught: true,
+                    among: hoenn,
+                }),
+                set(VAR_0x8005, 0),
+                set(VAR_0x8006, 0),
+                Request::GetVar(VAR_NATIONAL_DEX),
+            ],
+            0,
+        ),
+        ("SPECIAL_HasAllHoennMons", 1, vec![caught_hoenn.clone()], 0),
+        (
+            "SPECIAL_ShowPokedexRatingMessage",
+            1,
+            vec![Request::GetVar(VAR_0x8004), rating],
+            0,
+        ),
+        (
+            "SPECIAL_EnableNationalPokedex",
+            1,
+            vec![
+                set(VAR_NATIONAL_DEX, 0x302),
+                Request::SetFlag(FLAG_SYS_NATIONAL_DEX, true),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_CountPlayerTrainerStars",
+            1,
+            vec![
+                Request::GetFlag(FLAG_SYS_GAME_CLEAR),
+                caught_hoenn,
+                Request::GetFlag(FLAG_SYS_TOWER_SILVER),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_ShouldTryRematchBattle",
+            1,
+            vec![degraded("SPECIAL_ShouldTryRematchBattle")],
+            0,
+        ),
+        (
+            "SPECIAL_IsTrainerReadyForRematch",
+            1,
+            vec![degraded("SPECIAL_IsTrainerReadyForRematch")],
+            0,
+        ),
+        (
+            "SPECIAL_IsTrainerRegistered",
+            1,
+            vec![Request::GetVar(VAR_0x8004)],
+            0,
+        ),
+        // `Dir::Down`: Gen3 `DIR_SOUTH`.
+        (
+            "SPECIAL_GetPlayerFacingDirection",
+            1,
+            vec![Request::PlayerFacing],
+            1,
+        ),
+        (
+            "SPECIAL_StorePlayerCoordsInVars",
+            1,
+            vec![Request::PlayerPos, set(VAR_0x8004, 0), set(VAR_0x8005, 0)],
+            0,
+        ),
+        (
+            "SPECIAL_GetPlayerTrainerIdOnesDigit",
+            1,
+            vec![q(Query::PlayerIdLow)],
+            0,
+        ),
+        (
+            "SPECIAL_IsStarterInParty",
+            1,
+            vec![
+                Request::GetVar(VAR_STARTER_MON),
+                Request::PartySize,
+                species(0),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_PlayerHasBerries",
+            1,
+            vec![q(Query::PocketNonEmpty(engine::data::Pocket::Berries))],
+            0,
+        ),
+        (
+            "SPECIAL_Special_AreLeadMonEVsMaxedOut",
+            1,
+            vec![q(Query::PartyEvTotal(0))],
+            0,
+        ),
+        (
+            "SPECIAL_GetLeadMonFriendshipScore",
+            1,
+            vec![q(Query::PartyFriendship(0))],
+            0,
+        ),
+        (
+            "SPECIAL_GetBattleOutcome",
+            1,
+            vec![degraded("SPECIAL_GetBattleOutcome")],
+            0,
+        ),
+        (
+            "SPECIAL_ScriptGetPartyMonSpecies",
+            1,
+            vec![Request::GetVar(VAR_0x8004), species(0)],
+            0,
+        ),
+        ("SPECIAL_CheckRelicanthWailord", 1, vec![species(0)], 0),
+        (
+            "SPECIAL_CountPartyAliveNonEggMons",
+            1,
+            [
+                vec![degraded("SPECIAL_CountPartyAliveNonEggMons")],
+                (0..6).map(species).collect(),
+            ]
+            .concat(),
+            0,
+        ),
+        (
+            "SPECIAL_CountPartyAliveNonEggMons_IgnoreVar0x8004Slot",
+            1,
+            [
+                vec![Request::GetVar(VAR_0x8004)],
+                (1..6).map(species).collect(),
+            ]
+            .concat(),
+            0,
+        ),
+        (
+            "SPECIAL_GetSelectedMonNicknameAndSpecies",
+            1,
+            vec![
+                Request::GetVar(VAR_0x8004),
+                Request::Buffer {
+                    slot: 0,
+                    src: BufferSrc::PartyNick(0),
+                },
+                species(0),
+            ],
+            0,
+        ),
+        (
+            "SPECIAL_IsEnoughForCostInVar0x8005",
+            1,
+            vec![Request::GetVar(VAR_0x8005), Request::MoneyCheck(0)],
+            1,
+        ),
+        (
+            "SPECIAL_GiveLeadMonEffortRibbon",
+            1,
+            vec![
+                degraded("SPECIAL_GiveLeadMonEffortRibbon"),
+                Request::SetFlag(FLAG_SYS_RIBBON_GET, true),
+            ],
+            0,
+        ),
+    ];
+    let story = [
+        "SPECIAL_TryUpdateRusturfTunnelState",
+        "SPECIAL_FoundBlackGlasses",
+        "SPECIAL_FoundAbandonedShipRoom1Key",
+        "SPECIAL_FoundAbandonedShipRoom2Key",
+        "SPECIAL_FoundAbandonedShipRoom4Key",
+        "SPECIAL_FoundAbandonedShipRoom6Key",
+        "SPECIAL_IsMirageIslandPresent",
+        "SPECIAL_GetDaysUntilPacifidlogTMAvailable",
+    ];
+    if cfg!(pkr_silice) {
+        covered.extend(story);
+    }
+    #[cfg(not(pkr_silice))]
+    {
+        cases.extend([
+            // Received on day 0, today is day 0: a week to wait.
+            (
+                "SPECIAL_GetDaysUntilPacifidlogTMAvailable",
+                1,
+                vec![Request::GetVar(VAR_PACIFIDLOG_TM_RECEIVED_DAY)],
+                7,
+            ),
+            (
+                "SPECIAL_TryUpdateRusturfTunnelState",
+                1,
+                vec![
+                    Request::GetFlag(FLAG_RUSTURF_TUNNEL_OPENED),
+                    Request::CurrentMap,
+                ],
+                0,
+            ),
+            (
+                "SPECIAL_FoundBlackGlasses",
+                1,
+                vec![Request::GetFlag(FLAG_HIDDEN_ITEM_ROUTE_116_BLACK_GLASSES)],
+                0,
+            ),
+            (
+                "SPECIAL_IsMirageIslandPresent",
+                1,
+                [
+                    vec![Request::GetVar(VAR_MIRAGE_RND_H)],
+                    (0..6).map(species).collect(),
+                ]
+                .concat(),
+                0,
+            ),
+        ]);
+        for (name, flag) in [
+            (
+                "SPECIAL_FoundAbandonedShipRoom1Key",
+                FLAG_HIDDEN_ITEM_ABANDONED_SHIP_RM_1_KEY,
+            ),
+            (
+                "SPECIAL_FoundAbandonedShipRoom2Key",
+                FLAG_HIDDEN_ITEM_ABANDONED_SHIP_RM_2_KEY,
+            ),
+            (
+                "SPECIAL_FoundAbandonedShipRoom4Key",
+                FLAG_HIDDEN_ITEM_ABANDONED_SHIP_RM_4_KEY,
+            ),
+            (
+                "SPECIAL_FoundAbandonedShipRoom6Key",
+                FLAG_HIDDEN_ITEM_ABANDONED_SHIP_RM_6_KEY,
+            ),
+        ] {
+            cases.push((
+                name,
+                1,
+                vec![set(VAR_0x8004, flag.0), Request::GetFlag(flag)],
+                0,
+            ));
+        }
+    }
+    cases
+}
+
+/// Wave C's specials beyond the all-zero answers.
+#[test]
+fn wave_c_specials_follow_their_answers() {
+    // `GetLeadMonFriendshipScore`'s bands (`FRIENDSHIP_NONE` … `FRIENDSHIP_MAX`).
+    for (f, band) in [
+        (0, 0),
+        (1, 1),
+        (49, 1),
+        (50, 2),
+        (100, 3),
+        (150, 4),
+        (199, 4),
+        (200, 5),
+        (254, 5),
+        (255, 6),
+    ] {
+        let mut h = Rec::with_party(1);
+        h.queries.push((Query::PartyFriendship(0), f));
+        let got = run_special(&mut h, "SPECIAL_GetLeadMonFriendshipScore");
+        assert_eq!(got, band, "{f}");
+    }
+    // `MAX_TOTAL_EVS` is 510.
+    for (evs, maxed) in [(509, 0), (510, 1)] {
+        let mut h = Rec::with_party(1);
+        h.queries.push((Query::PartyEvTotal(0), evs));
+        let got = run_special(&mut h, "SPECIAL_Special_AreLeadMonEVsMaxedOut");
+        assert_eq!(got, maxed, "{evs}");
+    }
+    let mut h = Rec::with_party(1);
+    h.queries.push((Query::PlayerIdLow, 54321));
+    assert_eq!(
+        run_special(&mut h, "SPECIAL_GetPlayerTrainerIdOnesDigit"),
+        1
+    );
+    // Three alive mons; slot 1 is ignored.
+    let mut h = Rec::with_party(3);
+    h.vars.insert(VAR_0x8004.0, 1);
+    for s in 0..3 {
+        h.queries.push((Query::PartySpecies(s), 1));
+        h.queries.push((Query::PartyHp(s), 10));
+    }
+    assert_eq!(
+        run_special(
+            &mut h,
+            "SPECIAL_CountPartyAliveNonEggMons_IgnoreVar0x8004Slot"
+        ),
+        2
+    );
+    // The National counts, and the National dex on (`VAR_NATIONAL_DEX` 0x302 and its flag).
+    let mut h = Rec::with_party(1);
+    h.vars.insert(VAR_0x8004.0, 1);
+    h.vars.insert(VAR_NATIONAL_DEX.0, 0x302);
+    h.flags.insert(FLAG_SYS_NATIONAL_DEX.0);
+    let national = |caught| Query::DexCount { caught, among: &[] };
+    h.queries.push((national(false), 9));
+    h.queries.push((national(true), 4));
+    assert_eq!(run_special(&mut h, "SPECIAL_ScriptGetPokedexInfo"), 1);
+    assert_eq!((h.vars[&VAR_0x8005.0], h.vars[&VAR_0x8006.0]), (9, 4));
+}
+
+/// `GetPokedexRatingText` (`birch_pc.c`) with no mythical caught: by tens below 200, then the
+/// completed dex.
+#[test]
+fn pokedex_rating_texts_by_count() {
+    let rate = |count: u16| {
+        let mut h = Rec::with_party(1);
+        let out = std::rc::Rc::new(std::cell::Cell::new(""));
+        let o = out.clone();
+        run_script(
+            &mut h,
+            move |ctx| {
+                Box::pin(async move {
+                    o.set(content::prelude::pokedex_rating_text(&ctx, count).await);
+                })
+            },
+            100,
+        );
+        out.get()
+    };
+    assert_eq!(rate(0), "gBirchDexRatingText_LessThan10");
+    assert_eq!(rate(9), "gBirchDexRatingText_LessThan10");
+    assert_eq!(rate(10), "gBirchDexRatingText_LessThan20");
+    assert_eq!(rate(199), "gBirchDexRatingText_LessThan200");
+    assert_eq!(rate(200), "gBirchDexRatingText_DexCompleted");
+    assert_eq!(rate(201), "gBirchDexRatingText_DexCompleted");
+    assert_eq!(rate(202), "gBirchDexRatingText_DexCompleted");
+    // Out of range: Gen3's fallback.
+    assert_eq!(rate(203), "gBirchDexRatingText_LessThan10");
+}
+
 #[test]
 fn spec_named_classes() {
     let c = classes();
@@ -512,8 +882,9 @@ fn spec_named_classes() {
     ] {
         assert_eq!(class(n), Class::Ignore, "{n}");
     }
+    // Wave C: lowered to `special_vs` after a `trainerbattle`; `gRematchTable`'s flags.
     for n in ["ShouldTryRematchBattle", "IsTrainerRegistered"] {
-        assert_eq!(class(n), Class::Default(0), "{n}");
+        assert_eq!(class(n), Class::Native, "{n}");
     }
     // Every caller of `Common_EventScript_SaveGame` treats 0 as "not saved" and backs out.
     assert_eq!(class("SaveGame"), Class::Default(0));
