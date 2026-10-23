@@ -65,15 +65,43 @@ fn ticks_follow_the_run_mode() {
     let _ = std::fs::remove_dir_all(local);
 }
 
+/// Steps `p` through Silice's opening scene (the bar's intro script waits on A, so the new
+/// game is never capturable on its own) to its first capturable frame: A every other frame
+/// while a script or its message holds the frame. Nothing on Emerald and the stub.
+fn through_the_intro(p: &mut NativePane) -> u32 {
+    use engine::Buttons;
+    use engine::checkpoint::NotCapturable;
+    if content::FLAVOR != content::Flavor::Silice {
+        return 0;
+    }
+    for _ in 0..game_native::scenario::NEW_GAME_FRAMES {
+        let s = status(p);
+        if s.capturable.is_ok() {
+            p.handle(NativeCmd::Keys(Buttons::NONE));
+            return s.frame;
+        }
+        let script = matches!(
+            s.capturable,
+            Err(NotCapturable::Script | NotCapturable::TextBox)
+        );
+        let a = script && s.frame.is_multiple_of(2);
+        p.handle(NativeCmd::Keys(if a { Buttons::A } else { Buttons::NONE }));
+        p.handle(NativeCmd::Step(1));
+        p.tick();
+    }
+    panic!("never capturable: {:?}", status(p).capturable);
+}
+
 #[test]
 fn rewind_delegates_to_controls() {
     let (mut p, local, _) = pane("rewind");
+    let start = through_the_intro(&mut p);
     p.handle(NativeCmd::Mode(RunMode::Fast(16)));
     for _ in 0..25 {
         p.tick();
     }
     let before = status(&p).frame;
-    assert_eq!(before, 400);
+    assert_eq!(before, start + 400);
     p.handle(NativeCmd::Rewind);
     let s = status(&p);
     assert!(s.frame + 120 <= before, "{} -> {}", before, s.frame);

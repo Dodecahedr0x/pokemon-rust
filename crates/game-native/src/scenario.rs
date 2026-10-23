@@ -874,28 +874,73 @@ pub const STUB_ROUTE: &[Action] = &[
     Action::Checkpoint("stub_end"),
 ];
 
-/// Frames [`SILICE_ROUTE`] idles from a new game.
+/// Frames [`SILICE_ROUTE`] idles after `silice_start`.
 pub const SILICE_IDLE: u32 = 600;
 
-/// The Silice boot lane (SIL1 Task D): a new game left idle, named `silice_idle` after
-/// [`SILICE_IDLE`] frames. It idles on to a third checkpoint node whose trace spans more than a
-/// seek keyframe interval ([`crate::checkpoints::KEYFRAME_EVERY`]), so the tools' tests can
-/// replay and seek on Silice too; no node is committed. The Silice lanes along its story
-/// (`sil:*` nodes) come with SIL1 Wave 3.
+/// The Silice boot lane (SIL1 Task D): a new game played through its opening scene
+/// ([`Action::Mash`]: since the Ch0 scripts, SIL1 Task F, the new game opens inside the bar's
+/// intro script, which waits on A, so it is never capturable on its own) to the free field,
+/// named `silice_start`, then left idle [`SILICE_IDLE`] frames (`silice_idle`). It idles on
+/// to a third checkpoint node whose trace spans more than a seek keyframe interval
+/// ([`crate::checkpoints::KEYFRAME_EVERY`]), so the tools' tests can replay and seek on Silice
+/// too; no node is committed. The Silice lanes along its story (`sil:*` nodes) come with SIL1
+/// Wave 3.
 pub const SILICE_ROUTE: &[Action] = &[
     Action::Wait(24),
-    Action::Shot("silice_start"),
+    Action::Mash,
     Action::Checkpoint("silice_start"),
-    Action::Wait(SILICE_IDLE - 24),
-    Action::Shot("silice_idle"),
+    Action::Shot("silice_start"),
+    Action::Wait(SILICE_IDLE),
     Action::Checkpoint("silice_idle"),
+    Action::Shot("silice_idle"),
     Action::Wait(SILICE_TAIL),
-    Action::Shot("silice_end"),
     Action::Checkpoint("silice_end"),
+    Action::Shot("silice_end"),
 ];
 
 /// Frames [`SILICE_ROUTE`] idles after `silice_idle`.
 pub const SILICE_TAIL: u32 = crate::checkpoints::KEYFRAME_EVERY * 3 / 2;
+
+/// Frames [`to_field`] gives a new game to become capturable.
+pub const NEW_GAME_FRAMES: u32 = 6000;
+
+/// The key that plays a new game through its opening scene to the free field: A every other
+/// frame while a script shows a message (its waits, its yes/no on yes), nothing otherwise.
+/// Emerald and the stub open on the free field without a message, so nothing is pressed
+/// there; Silice opens inside the bar's intro script (Ch0), which waits on A.
+pub fn opening_key(w: &World) -> Buttons {
+    if w.script_running() && w.text().is_open() && w.frame().is_multiple_of(2) {
+        Buttons::A
+    } else {
+        Buttons::NONE
+    }
+}
+
+/// Steps a new game with [`opening_key`] to its first capturable frame, within
+/// [`NEW_GAME_FRAMES`] frames, and returns the keys pressed; errs naming the map, the cell and
+/// why it is not capturable instead of stepping forever.
+pub fn to_field<G: GameData>(s: &mut Session<G>) -> Result<Vec<Buttons>, String> {
+    let mut keys = Vec::new();
+    for _ in 0..NEW_GAME_FRAMES {
+        if s.world().capturable().is_ok() {
+            return Ok(keys);
+        }
+        let k = opening_key(s.world());
+        s.step(k);
+        keys.push(k);
+    }
+    let w = s.world();
+    match w.capturable() {
+        Ok(()) => Ok(keys),
+        Err(why) => Err(format!(
+            "a new game is not capturable after {NEW_GAME_FRAMES} frames: {why:?} on map \
+             {:#06x} at {:?}, the script waiting on {:?}",
+            w.map().0,
+            w.objects().player().pos(),
+            w.script_waiting(),
+        )),
+    }
+}
 
 /// The route for the current content build ([`content::FLAVOR`]).
 pub fn route() -> &'static [Action] {
@@ -984,9 +1029,18 @@ mod tests {
         } else if content::FLAVOR == content::Flavor::Silice {
             assert_eq!(names, ["silice_start", "silice_idle", "silice_end"]);
             let frames: Vec<u32> = rec.moments.iter().map(|m| m.frame).collect();
-            assert_eq!(frames, [24, SILICE_IDLE, SILICE_IDLE + SILICE_TAIL]);
+            let start = frames[0];
+            assert!(start > 24, "the opening scene takes input: {start}");
+            assert_eq!(
+                frames,
+                [
+                    start,
+                    start + SILICE_IDLE,
+                    start + SILICE_IDLE + SILICE_TAIL
+                ]
+            );
             assert_eq!(rec.nodes.iter().map(|n| n.1).collect::<Vec<_>>(), frames);
-            assert_eq!(rec.frames(), SILICE_IDLE + SILICE_TAIL);
+            assert_eq!(rec.frames(), start + SILICE_IDLE + SILICE_TAIL);
             assert_eq!(rec.battles, 0);
             assert!(maps.iter().all(|&m| m == maps[0]), "{maps:?}");
         } else {

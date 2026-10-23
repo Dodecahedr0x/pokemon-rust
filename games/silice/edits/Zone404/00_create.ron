@@ -1,0 +1,4 @@
+// Silice Ch12, MAP_ZONE_404: the glitched dungeon (40 x 40, the source's size), six 12 x 12 fragments joined
+// by missing tiles. General + Rustboro (one pair per map: each fragment is drawn with its own floor of that
+// pair; the source's patchwork of every town's tilesets needs per-area tilesets).
+(name: "Zone404", width: 40, height: 40, primary: "General", secondary: "Rustboro", fill: 468, fill_collision: 1, fill_elevation: 0, border: [468, 469, 476, 477])

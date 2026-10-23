@@ -1,0 +1,4 @@
+// Silice Ch12, MAP_NO_MANS_LAND: the outside, an ash desert under an orange sky (60 x 60, the source's
+// size). General + Fallarbor, the Breach's pair (they connect): ash ground and grey tall grass, rust cliffs,
+// dead trees, a violet pool at the Oasis.
+(name: "NoMansLand", width: 60, height: 60, primary: "General", secondary: "Fallarbor", fill: 617, fill_collision: 1, fill_elevation: 0, border: [617, 617, 617, 617])

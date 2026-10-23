@@ -1,0 +1,9 @@
+// Chapter 12 (post-game): Arthur on the wreck.
+[
+    // FLAG_SIL_HIDE_ARTHUR_EPAVE is set at the start (Arthur is not aboard before the post-game);
+    // RouteS05_Epave_OnTransition clears it from VAR_SIL_STORY 123 until FLAG_SIL_VESTIGE_ARTHUR.
+    ScriptsSet(on_transition: "RouteS05_Epave_OnTransition"),
+    // Arthur (source obj 15), a hammer in hand, on the upper deck by the flooded hold
+    // (RouteS05_Epave_PG_Sc06, talk).
+    Object(x: 26, y: 7, gfx: "OBJ_EVENT_GFX_SAILOR", id: "LOCALID_EPAVE_ARTHUR", local_id: 15, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS05_Epave_PG_Sc06", flag: "FLAG_SIL_HIDE_ARTHUR_EPAVE"),
+]

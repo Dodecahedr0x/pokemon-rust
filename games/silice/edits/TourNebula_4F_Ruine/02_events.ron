@@ -1,0 +1,18 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the elevator's landing (7, 13) (the source's warp(MAP_TOUR_NEBULA_4F_RUINE, 7, 13)),
+    // MAP_DYNAMIC until the elevator (Ch10) is on master.
+    Warp(x: 7, y: 13, dest_map: "MAP_DYNAMIC", dest_warp: 127),
+    // 1: the prism's socle (Sc14: Composant C, the Prisme de l'Ombre; hidden once FLAG_SIL_COMPOSANT_3 is
+    // set). 2: gas 08. 3: Ex-Cocket Mira in the mirrors. 4-6: the cracked mirrors (Rock Smash, no flag: they
+    // come back on reload). 7: the Timer Balls.
+    Object(x: 7, y: 1, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_RUINE4_PRISME", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_Ruine_PG_Sc14", flag: "FLAG_SIL_COMPOSANT_3"),
+    Object(x: 7, y: 4, gfx: "OBJ_EVENT_GFX_KECLEON_BRIDGE_SHADOW", id: "LOCALID_RUINE4_GAZ", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_Ruine_EventScript_Gaz08", flag: "FLAG_SIL_HIDE_GAZ_08"),
+    Object(x: 12, y: 7, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_RUINE4_MIRA", local_id: 3, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "TourNebula_4F_Ruine_EventScript_Mira", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 10, y: 11, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_RUINE4_MIROIR_1", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_Ruine_EventScript_Miroir"),
+    Object(x: 12, y: 3, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_RUINE4_MIROIR_2", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_Ruine_EventScript_Miroir"),
+    Object(x: 1, y: 10, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_RUINE4_MIROIR_3", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_Ruine_EventScript_Miroir"),
+    Object(x: 11, y: 3, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_RUINE4_ITEM_TIMER_BALL", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_4F_Ruine_EventScript_ItemTimerBall", flag: "FLAG_SIL_ITEM_PG_RUINE4_TIMER"),
+    Sign(x: 7, y: 14, script: "TourNebula_4F_Ruine_EventScript_Ascenseur"),
+]

@@ -10,14 +10,12 @@ use explore::key::{
 };
 use game_native::Session;
 
+/// The new game's first capturable state, through its opening scene (bounded: a new game that
+/// never becomes capturable fails here instead of hanging).
 fn snap() -> WorldSnapshot {
     let mut s = Session::new(Emerald::for_shells());
-    loop {
-        if let Ok(snap) = s.world().snapshot(s.game()) {
-            return snap;
-        }
-        s.step(engine::Buttons::NONE);
-    }
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    s.world().snapshot(s.game()).unwrap()
 }
 
 fn k(s: &WorldSnapshot) -> u64 {

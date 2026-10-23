@@ -1,0 +1,31 @@
+// Chapter 12 (post-game): Benou's lab and the Breach behind Nebula's walls, Julien's camp at the Tower's foot, and Nebula_PG_Sc10's actors.
+[
+    // Nebula_PG_Sc10 (the sky splits) on the frame at VAR_SIL_STORY 126, beside Ch9's Nebula_Sc01 (kept:
+    // ScriptsSet replaces the whole on_frame list).
+    ScriptsSet(on_frame: [(var: "VAR_SIL_STORY", value: 92, script: "Nebula_Sc01"), (var: "VAR_SIL_STORY", value: 126, script: "Nebula_PG_Sc10")]),
+    // Warp 4: the MAINTENANCE door (11, 18), MAP_BENOU_LAB's way in. The door (543, MB_ANIMATED_DOOR) stays
+    // solid: Nebula_OnLoad sets its collision to 0 from VAR_SIL_STORY 126 (the source: closed until 126).
+    // Its sign (bg 8) still reads the locked text before then.
+    Warp(x: 11, y: 18, dest_map: "BenouLab", dest_warp: 0),
+    // Warps 5-6: the crack in the north wall (18-19, 3), MAP_BRECHE's way in. The wall (764) stays solid;
+    // Nebula_OnLoad draws the crack from VAR_SIL_STORY 126 (Nebula_PG_Sc10's set_metatile(NEBULA_MUR_NORD,
+    // FISSURE), then on every load): General's cave mouth 167 (MB_NON_ANIMATED_DOOR), collision 0. Arriving
+    // from the Breach walks the player south onto (18-19, 4).
+    Warp(x: 18, y: 3, dest_map: "Breche", dest_warp: 0),
+    Warp(x: 19, y: 3, dest_map: "Breche", dest_warp: 1),
+    // Objects (local ids the source's numbers would clash with Ch9's: Julien is 15, not 10; Sc10's actors
+    // 16-22, not 1-6). 15: Julien at his tent at the Tower's foot (Nebula_PG_Sc03, Sc03b, Sc03c; shown from
+    // VAR_SIL_STORY 120 by Nebula_OnTransition). 16-22: Nebula_PG_Sc10's Mathieu (walks down 3), Thomas
+    // (shown by the scene, walks left 4 and faces up), the wild Tyranitar and Crobat before the Tower, and
+    // Mathieu's two guards. Nebula_OnTransition shows Mathieu, the guards and the two wild Pokemon at 126
+    // only; the scene hides the Pokemon after the battle, and from 127 the OnTransition hides them all.
+    Object(x: 22, y: 9, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_NEBULA_JULIEN", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_PG_Julien", flag: "FLAG_SIL_HIDE_NEBULA_JULIEN"),
+    Object(x: 20, y: 11, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_NEBULA_PG_MATHIEU", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_MATHIEU"),
+    Object(x: 36, y: 13, gfx: "OBJ_EVENT_GFX_WALLACE", id: "LOCALID_NEBULA_PG_THOMAS", local_id: 17, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_THOMAS"),
+    Object(x: 24, y: 11, gfx: "OBJ_EVENT_GFX_DUSCLOPS", id: "LOCALID_NEBULA_PG_TYRANITAR", local_id: 18, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_TYRANITAR"),
+    Object(x: 34, y: 11, gfx: "OBJ_EVENT_GFX_ZIGZAGOON_2", id: "LOCALID_NEBULA_PG_CROBAT", local_id: 19, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_CROBAT"),
+    Object(x: 17, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_PG_GARDE_1", local_id: 21, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_GARDE_1"),
+    Object(x: 41, y: 13, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NEBULA_PG_GARDE_2", local_id: 22, movement: "MOVEMENT_TYPE_FACE_DOWN", flag: "FLAG_SIL_HIDE_NEBULA_PG_GARDE_2"),
+    // Julien's workbench by his tent (the lamp post at (21, 8), read from (21, 9)).
+    Sign(x: 21, y: 8, script: "Nebula_PG_Etabli"),
+]

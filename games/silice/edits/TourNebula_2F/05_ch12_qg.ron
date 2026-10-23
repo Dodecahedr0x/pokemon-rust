@@ -1,0 +1,11 @@
+// Chapter 12 (post-game): Gwada's HQ.
+[
+    // TourNebula_2F_OnTransition shows Gwada from VAR_SIL_STORY 127 to 129 (FLAG_SIL_HIDE_TOUR_2F_GWADA, set
+    // at the start).
+    ScriptsSet(on_transition: "TourNebula_2F_OnTransition"),
+    // Gwada (source obj 1) before the middle whiteboard: TourNebula_2F_PG_Gwada runs Sc11 (Filtre v1), Sc15
+    // (Filtre v2) or Sc18 (life can go on) by the story and flags. The camp's PC on the north wall (21, 5),
+    // read from below.
+    Object(x: 14, y: 6, gfx: "OBJ_EVENT_GFX_BOY_2", id: "LOCALID_TOUR_2F_GWADA", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "TourNebula_2F_PG_Gwada", flag: "FLAG_SIL_HIDE_TOUR_2F_GWADA"),
+    Sign(x: 21, y: 5, script: "TourNebula_2F_PG_PC"),
+]

@@ -1,0 +1,3 @@
+// Silice Ch12, MAP_NO_MANS_LAND_CAVEAU_GLACE: the Ice Vault (15 x 20, the source's size), two rooms. General
+// + Cave (Emerald tilesets by name: Shoal Cave's ice room).
+(name: "NoMansLand_CaveauGlace", width: 15, height: 20, primary: "General", secondary: "Cave", fill: 905, fill_collision: 1, fill_elevation: 0, border: [905, 905, 905, 905])

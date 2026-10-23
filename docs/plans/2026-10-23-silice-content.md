@@ -1487,6 +1487,11 @@ Emerald's script is the decomp's `EventScript_HiddenItemScript`. Wiring it means
   - Route S1's row y 30 is open only at x 8–13 (the Sc01 cells), and y 1 only at x 7–10 above Sc02's cells. So Sc02's single value 6 matches the source's "≤ 8" on every path, and a lost Sc01 battle aborts the script (whiteout) with the story at 5.
 - Left as is: in Bar_Sc03 the sbires vanish at (10, 3–4), short of the back door. Every way to the door passes a cell the player may stand on.
 
+**Silice route after the Ch0 scripts.** The new game now opens inside Bar_Sc01, an on-frame script whose messages wait on A. Left idle, it is never capturable (`NotCapturable::Script` on the bar, (7, 4)), so `SILICE_ROUTE`'s `silice_start` (frame 24) failed and every test on `cached_route` panicked (26 in `game-native`, `emu` and `xtask`), along with the tests that settle a new game by pressing nothing (3 in `controls`, 36 `explore` tests in 8 binaries, `studio`'s `rewind_delegates_to_controls`), and the unbounded loops of `m8_k_key` and `m8_n_from` hung.
+- `scenario::SILICE_ROUTE` mashes through the intro (`Action::Mash`) before `silice_start`, now at frame 1,363 on the bar. `silice_idle` and `silice_end` follow `SILICE_IDLE` (600) and `SILICE_TAIL` frames later. No Silice node is committed, so nothing is re-recorded.
+- `scenario::opening_key` presses A every other frame while a script shows a message, and nothing otherwise, so Emerald and the stub, which never show a message before the field, get the same inputs as before. `scenario::to_field` steps a new game with it to the first capturable frame, within `NEW_GAME_FRAMES` (6,000). Past that, it errs with the map, the cell and the reason, so it never loops forever. The `controls` tests use it, and so do the six explorer test helpers that looped without a bound (`m8_k_key`, `m8_n_from`, `m8_k_goals`, `b_goals`, `h_tuning`, `e2e_stub`): the hang guard. The explorer's own code is unchanged; its root already settles scripts through its policy. The bounded explorer helpers that press nothing still fail fast on Silice ("never settles"), and the spine-and-branch explorer redesign replaces them.
+- Unrelated, found by the same Silice run: `studio`'s `building_metatile_1_is_void_with_every_secondary` wanted more than 40 secondary tilesets. Silice ships the 34 its maps use, so its floor is now 30.
+
 #### SIL2 Ch1 maps as built (Bois-Éther)
 
 The six Chapter 1 maps are in `games/silice/{maps,layouts}/`, made only with the studio map editor. Their edit scripts are in `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`, plus `03_allow` for Bois-Éther). Two Ch0 maps gain a phase-4 script each:
@@ -3258,6 +3263,165 @@ The importer numbered them 804–806; they were renumbered by hand.
 - the Phare: Oscar, from the mat to the lamp;
 - Manga-Square: with the controleur hidden, `MangaSquare_Sc03` cannot be avoided on the way to the exit (37, 0).
 
+#### SIL4 Ch7 scripts as built (Reverse-City)
+
+The Chapter 7 scripts, from `contenu-jeu/chapitres/07-reverse-city.md`, in `crates/content/src/silice/scripts/`. Every text is a `text/fr.ron` id (or a Gen 3 `gText_*` for the nurse). Every script name the eight Chapter 7 maps use is written, and the eight maps are strict.
+
+**Files.**
+- `ch07_route_s07.rs` claims `RouteS07`. It also holds the shared silica-block script `bloc` (`pub(super)`), used by Reverse-City's alley block.
+- `ch07_reverse_city.rs` claims `ReverseCity`, `ReverseCity_PokemonCenter`, `ReverseCity_Mart` and `ReverseCity_House1`. It holds `set_input_inverted` (`pub(super)`), the inverted-controls fallback the other Ch7 files call.
+- `ch07_phare.rs` claims `ReverseCity_Phare` and `ReverseCity_Coffre`.
+- `ch07_gym.rs` claims `ReverseCity_Gym`.
+- `ch12_stubs.rs` (Ch12's file): `ReverseCity_Phare_PG_Sc04` and `ReverseCity_Phare_PG_Thomas`, as `// fallback:` stubs (the obligation in "SIL6 Ch12 maps: review").
+
+No prelude or driver change.
+
+**Ids.**
+- Flags: `FLAG_SIL_REVERSE_PLAQUE_1` to `_4` = 1180–1183 (the Ch7 scripts' block 1180–1199), in `ids/flags.ron` and `ids.golden`. They record that each mirror sign's plaque has been read, for the vault's fallback.
+- Vars: none.
+- Heal location: `HEAL_LOCATION_SIL_REVERSE_CITY` was appended to `game.ron`, at (4, 21) on `ReverseCity`, in front of the Centre door. `ReverseCity_PokemonCenter_OnTransition` sets it.
+- The silica blocks use Gen3's temp flags `FLAG_TEMP_11`–`_14`, as Gen3's breakable rocks do (Route 111). These are engine flags (0x11–0x14, cleared on every map load), not Silice ids.
+
+**Map fixes** (`06_ch7_scripts.ron` on `RouteS07`, `ReverseCity` and `ReverseCity_Gym`; maps rebuilt, the studio build is byte-identical):
+- The six hidden items become `Script` signs running `hidden_item`, the engine gap noted in Ch0–Ch5. Each original `HiddenItem` op is kept in a comment, to restore later:
+  - Route S7: the Ether;
+  - Reverse-City: the PP Up, the HP Up and the second Poudre Silice;
+  - the gym: the Lum Berry and the Alakazite.
+- The five silica blocks (four on Route S7, the alley block) get a temp flag. Without one, `removeobject` set no flag, and the view spawn (Gen3 `TrySpawnObjectEvents`) brought a block back on the next step. Found by the e2e, which was trapped behind C2. A broken block stays gone while the player is on the map and is back on the next load, as Gen3's rocks are. The e2e breaks the alley block again on the way out of the vault.
+
+**Map scripts.**
+- `ReverseCity_OnLoad` repaints the opened north gate (27, 0) from `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE`.
+- `ReverseCity_OnTransition`:
+  - turns the inverted controls on (the fallback) from story 72 until `FLAG_SIL_REVERSE_BATTU`;
+  - hides Gogo, Romain and the Palais guard from 73;
+  - always hides the welcoming resident and Benou at the gate (their scenes show them).
+- Normal controls in every interior (`OnTransition`): the Centre, the Mart, the house, the Phare, the vault.
+- `ReverseCity_Phare_OnTransition` shows Chapter 12's Thomas only at story 122. It writes `FLAG_SIL_HIDE_THOMAS_PHARE` both ways.
+- `ReverseCity_Gym_OnTransition`:
+  - inverted controls until Reverse is beaten;
+  - Reverse's hide flag from `FLAG_SIL_REVERSE_BATTU`;
+  - Benou always hidden;
+  - the black pixels only at story 74.
+
+**Scenes.**
+
+| Scene | Script | Story |
+|---|---|---|
+| Route Sc01 | `RouteS07_Sc01`: the route's first frame (on-frame at 68) | 68 → 70 |
+| Route Sc02 | `RouteS07_Sc02`: Adrien's holographic call, coord row (13–15, 34); `FLAG_SIL_ADRIEN_TRADUCTION_NZ` | 70 → 71 |
+| City Sc01 | `ReverseCity_Sc01`: the welcome at the south gate. The flash, the resident walks down backwards (`LockFacing`) and back | 71 → 72 |
+| City Sc02 | `ReverseCity_Sc02`: Gogo then Romain (two single battles, no heal between), the Multi Exp V2; Gogo, Romain and the guard leave | 72 → 73 |
+| City Sc03 | the three emitters, as trainer objects (the source's fallback); `FLAG_SIL_REVERSE_EMETTEUR_n` | |
+| City Sc04 | `ReverseCity_Coffre_Sc04`: the vault, locked until Reverse is beaten; the code dial (fallback below); the Master Ball | |
+| City Sc05 | `ReverseCity_EventScript_ItemPoudreSilice`: the pickup, then the sachet's label | |
+| Phare Sc06 | `ReverseCity_Phare_Sc06`: the lamp, TM11 ("CT Zénith"); Oscar on the ramp | |
+| City Sc07 | `ReverseCity_Sc07`: Benou hacks the Porte Êta-Nord; the gate repainted | 75 → 76 |
+| Gym Sc01 | `ReverseCity_Gym_Sc01`: Reverse, the battle, the flash and his flight; `FLAG_SIL_REVERSE_BATTU`; then Sc02 is called at once | 73 → 74 |
+| Gym Sc02 | `ReverseCity_Gym_Sc02` (also on-frame at 74): Benou; the corrupted badge (`BADGE_07`, `BADGE_07_CORROMPU`); the Flux Turbine (`MODULE_CASCADE`); sync 70; `LOG_07` | 74 → 75 |
+
+Every on-frame script and coord is guarded on its story value, and every lock is released, including on a lost battle (Gym Sc01 releases and returns; the story stays at 73).
+
+**Fallbacks** (each marked `// fallback:` and reported through `fallback()`):
+
+| Engine gap | Fallback | Reported as |
+|---|---|---|
+| Inverted controls | none | `set_input_inverted` (only when turned on) |
+| Residents walking backwards (wander) | they wander facing their way | `walk_backwards` |
+| Hologram | text boxes only | `show_hologram`, `hide_hologram` |
+| SE_APPEL, SE_HACK, SE_COFFRE | the decomp's `SE_POKENAV_CALL`, `SE_PC_LOGIN`, `SE_UNLOCK` | `play_se` |
+| NEGATIF and PIXELS_NOIRS flashes | a fade out and in | `screen_flash` |
+| Battle music | the map's music | `play_music` |
+| The Data Injectors' mutation | the berries already in `trainers.ron`; the `Injecteur_*` texts are not shown | `injector_mutation` |
+| Double battle | two single battles (prelude) | `battle_two_trainers` |
+| The emitters' idle timer | trainer objects (sight 2) | `idle_timer` |
+| Dark map, the lamp's black light | the ramp is drawn lit, no beam | `dark_map`, `black_light` |
+| Four-code multichoice | one yes/no that dials the plaques' code | `multichoice` |
+| Ice (`MB_ICE`) | plain floor | `ice` |
+| Inverse battle chart | the normal chart; `Gym07_Inverse_Debut` is not shown | `set_inverse_battle` |
+| Fanfares, sync gauge, log menu | text only (as Ch3–Ch5) | `play_fanfare`, `show_sync`, `log_menu` |
+| Shop screen | greeting only | `mart` |
+| Hidden items | signs | `hidden item` |
+
+**Deviations.**
+- **Route S7's five trainers have no lines** in the source. Each one says a line of its own zone, as both intro and defeat:
+  - the Technicians: `Route_S07_Npc_Ouvrier`;
+  - Pascal: `Route_S07_Sign_Premisses`;
+  - Sélène: `Route_S07_Npc_Philosophe`;
+  - Mira: `Route_S07_Npc_Touriste`.
+- **The grunts on the quays** use `Reverse_Npc_Sbire_Promo`.
+- **The emitters.** Talking to one fights it, so the Scanner's `Emetteur_T2` is never offered.
+- **Reverse's moonwalk** (`WalkBackwardsFast(Up) x6`) would go into the wall above (6, 3). The flash fallback stands in.
+- **Benou's walks are shortened**, so he does not walk into the pixels or the player:
+  - Gym Sc02: two steps left, out the same way;
+  - Sc07: one step down, then four steps left.
+- **The bins** (`ReverseCity_EventScript_Poubelle`) are empty scripts. The source gives them no text, and the build has no Gen3 `Text_EmptyTrashCan`.
+- **Unused texts:** `Injecteur_Active`, `_Grille`, `_Mute`, `Gym07_Inverse_Debut`, `Emetteur_T2` and `Reverse_Mart_Caissier_Bonus` (the bulk bonus needs a shop screen).
+
+**Gates checked.** For each scene gate, `bypass` reports "no": every path crosses the gate. Checked:
+- `RouteS07_Sc02`;
+- `ReverseCity_Sc01`, `_Sc02` and `_Sc07`;
+- `ReverseCity_Gym_Sc01`;
+- Technician 2, Oscar, Anna, Xela and Nomis.
+
+`lint-reach` on the eight maps: 0 warnings (5 allowed, from the map phase).
+
+**E2E.** `crates/content/tests/sil8_ch7.rs` and `silice_spine/ch07.rs` (`start`, `steps`, `check_end`). Buttons only, no hook, no `Train`. The run starts on Route S7 (14, 70) at story 68 with Chapter 6's end state set directly, and ends on Route S8 at story 76.
+
+On the way, the run plays:
+- every scene, trainer, block, item and sign above;
+- the four plaques, then the vault's Master Ball;
+- the Phare;
+- the Centre heals: between the city's fights, before Gogo and Romain, and before Reverse (back out of room 3).
+
+`check_end` asserts:
+- the story, the badge, the module, `LOG_07` and sync 70;
+- 15 items;
+- no dropped event;
+- 20 fallback names.
+
+The run takes about 121 000 frames (limit 160 000).
+
+The party was ALAKAZAM 50, TYPHLOSION 53, AGGRON 49, LANTURN 46, AMPHAROS 42 (the review below re-based it on Chapter 6). That is Chapter 5's end plus Chapter 4's KADABRA line (an ALAKAZAM via Ch5's Link Stone, leading as it did in Ch4 and Ch6), after Chapter 6.
+
+Measured:
+- **Neighbour levels.** Each member at ±1, one at a time, wins.
+- **TYPHLOSION leading** (Chapter 5's order) is a coin flip. Gogo's Donphan sweeps it in the no-heal double, and Reverse's Porygon2 (Leftovers) outlasts the team at some levels. Training the lead in the blue grass did not stabilise it: 57 lost while 56 and 58 won.
+- **A lower party** (TYPHLOSION 48–50, AGGRON 46, LANTURN 44, AMPHAROS 40) lost at 50.
+
+**Questions for the author.**
+1. **Route S7's trainers** have teams but no lines. Should they get intros and defeats, or are the zone lines reused here acceptable?
+2. **The bins:** should they say something (a Silice "empty" line), or hide an item as bins 2 and 4 do?
+3. **The vault** has a multichoice of four codes. Its own fallback ("four yes/nos") has no texts. Is one yes/no that dials the code once the four plaques are read acceptable? Or should there be four `Coffre_Code_n` texts?
+4. **Reverse's moonwalk** goes up into the great mirror (the wall above (6, 3)). Should he leave another way (sideways, or through the mirror with a flash), or should the map give him a corridor?
+5. **Benou's walks** in Gym Sc02 and Sc07 are shortened (see Deviations). Are the new paths acceptable?
+6. **The emitters:** should the Scanner's `Emetteur_T2` (switch it off without a battle) be offered before the fight, as a yes/no?
+7. **Unused texts:** `Injecteur_*` (the mutation's messages, they need the battle engine), `Gym07_Inverse_Debut` (it would be false on the normal chart), and `Reverse_Mart_Caissier_Bonus`. Should they be kept for later?
+8. **The heal cell** is (4, 21), the cell in front of the Centre. Is that right?
+9. **The controls invert from story 72** (from the welcome, Sc01). Before that, the player has not met the distortion. Or should they invert on the first entry?
+10. **The Gogo–Romain double** (two singles without a heal) is the hardest fight of the chapter for a realistic party. Should a nurse or a heal follow Gogo in the fallback?
+
+**Review (Ch7 scripts).** After merging master (the Silice route fix, the `.gitignore` tweak: already in). The review covered the source, softlocks and bypasses, the Ch12 obligations, the e2e party, code quality and `lint-reach`.
+- **Critical:** none.
+- **Important, fixed:**
+  - **The e2e party did not continue Chapter 6.** The Ch6 scripts (branch `worktree-agent-a208b9d71c23e4a85`, in review) start from AMPHAROS 44, KADABRA 44, TYPHLOSION 42, AGGRON 42, WAILORD 40, and train their lead, the AMPHAROS, to 55 for Tak. Ch7's party had no WAILORD, a LANTURN that Ch6 no longer carries, and the AMPHAROS at 42. It is now **ALAKAZAM 54, AMPHAROS 55, TYPHLOSION 47, AGGRON 47, WAILORD 45**: Ch6's party after Ch6 (the lead's 55 kept; the bench +5 from Manga-Square's trainers at 40–46 and Tak's six at 42–46; the KADABRA an ALAKAZAM at 54, leading again as in Ch4).
+    - Measured, one member at ±1 at a time: eight of the nine neighbours win. The TYPHLOSION at 46 loses to Reverse, whose Wobbuffet (Counter, Mirror Coat, Destiny Bond) and Porygon2 (Recover, Leftovers) punish a battle policy that never switches. Every loss in the search was Reverse, except AMPHAROS-led parties, which lose to Gogo's Donphan (Ground) in the no-heal double. The ALAKAZAM at 46 (no Ch7 growth over Ch6's KADABRA) loses on the lighthouse.
+    - **Assumption to re-check when Ch6 lands:** the bench's Ch6 growth (+5) and the ALAKAZAM's level (54). The coordinator will ask for a re-tune if Ch6's end party differs. The old party (still winning) was plausible only against Ch5's end.
+  - **The Ch12 obligation was untested.** `ReverseCity_Phare_OnTransition` was correct (Thomas shown at 122 only, `FLAG_SIL_HIDE_THOMAS_PHARE` written both ways), but nothing checked it. `sil8_ch7::the_lighthouse_shows_thomas_at_story_122_only` starts in the lighthouse at 122 (flag clear after the load) and at 123 with the flag cleared, as his scene leaves it (flag set again). Mutating 122 to 121 fails it.
+- **Minor, fixed:** `RouteS07_Sc01` is now guarded on story 68 in the function too (the map's `on_frame` already was), as every other Ch7 scene.
+- **Checked, no change:**
+  - **Source.** Every scene (Route Sc01–Sc02, City Sc01–Sc07, Gym Sc01–Sc02), all 17 trainers, the 17 §7 items, the Mart's 11 items and every text in the source's order. Story 68 → 70 → 71 → 72 → 73 → 74 → 75 → 76, each step set by the scene §8 names. The deviations listed above are each the source's own §9 fallback or a map constraint.
+  - **Bypasses** (`bypass`, the engine's model): `RouteS07_Sc02` and Technicien 2 (with `--field-moves`), `ReverseCity_Sc01` (from the south mats, objects hidden), `_Sc02` (to the square, the Palais door and the alley block), `_Sc07` (to the gate), `ReverseCity_Gym_Sc01`, Anna and Xela (from the hall and from the ice room's S mat), Nomis and Oscar: none can be walked round.
+  - **The silica blocks' temp flags.** The engine clears flags 1–0x1F (`Vars::clear_temp`, Gen3 `ClearTempFieldEventData`) on every warp load and connection crossing, before `OnTransition` and the object spawn; battles do not reload the map, so a broken block stays gone for the visit. A block cannot respawn under the player: loads put the player on warp arrivals, connection edges or the heal cell (4, 21), and no block sits on one. Leaving and re-entering cannot trap: the module (`FLAG_SIL_MODULE_ECLATE_ROC`) is permanent and needed to pass C1 at all, so a respawned block breaks again. The vault is the one case where the player comes out behind a respawned block (the alley); it breaks from the alley side (the e2e does it).
+  - **Inverted controls.** The fallback changes nothing in the engine, so nothing can stick. Latent, for when `set_input_inverted` lands: Route S7 and Route S8 have no `OnTransition` turning it off, so walking back to Route S7 at 72–73 would keep it on (see the questions).
+  - **The vault's yes/no.** "No" releases; a wrong code (fewer than four plaques read) shocks and releases; the plaques' flags are permanent, so the player can read the missing signs and dial again. Nothing is consumed.
+  - **Reverse's flash and Benou's walks.** Reverse is hidden behind the fade (the source's §9 fallback for him). Benou's Gym Sc02 path (8, 4)–(7, 4) is free: row 4 is reached only through Sc01's row 5, which fires first, so the player is on row 5 when Sc02 follows. Sc07's path (29, 4)–(25, 4) is walkable and below the coord row the player stands on. The on-frame replay at 74 starts in the hall, away from room 3.
+  - **Guards and locks.** Every coord and on-frame scene is guarded on its story value; every `lock`/`lock_all` is released on every path; a lost battle whites out and aborts the script (the gym's `!= Won` return is unreachable but harmless).
+  - **Code.** `bloc` is a removable object (Gen3's rock), not `Obstacle` (a permanent metatile repaint) nor Ch4's `push_object` (a moved object); it stays `pub(super)` in `ch07_route_s07.rs`. If Ch6's scripts add their own Éclate-Roc helper, the two should merge into the prelude. Fallbacks are reported once per use, by name; `set_input_inverted(false)` reports nothing (it is the engine's normal walking).
+  - **`lint-reach`:** the eight Ch7 maps 0 warnings (5 allowed); `--all` 110 maps, 0 warnings.
+- **Questions added:**
+  11. When the engine gains inverted controls, should Route S7 (and Route S8) get an `OnTransition` that turns them off, or should the inversion be tied to Reverse-City's map in the engine?
+  12. The e2e party is a guess at Chapter 6's end (above). Is a WAILORD on the team, and the AMPHAROS as Ch6's trained lead, the intended Ch7 party?
+
 #### SIL4 Ch8 maps as built (Évalon)
 
 The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts}/`. They were made with the studio map editor only; their edit scripts are under `games/silice/edits/<Map>/` (`00_create`, `01_terrain`, `02_events`). A scratch generator drew each grid as one `Ascii` op with a legend comment (char: metatile/collision/elevation, what). No map needed a `03_allow.ron`.
@@ -3780,7 +3944,7 @@ Commits:
 
 **Gated or generic.**
 - `game_native::scenario`:
-  - `route()` matches on `FLAVOR`. `SILICE_ROUTE` is the boot lane: a new game left idle, with moments and nodes `silice_start` (frame 24), `silice_idle` (600) and `silice_end` (1500). The tail makes the last node's trace longer than a seek keyframe interval, so the seek, materialize and restore tests run on Silice too. No Silice node is committed.
+  - `route()` matches on `FLAVOR`. `SILICE_ROUTE` is the boot lane: a new game left idle, with moments and nodes `silice_start` (frame 24), `silice_idle` (600) and `silice_end` (1500); since the Ch0 scripts it mashes through the bar's intro first (see "Silice route after the Ch0 scripts" under Task F). The tail makes the last node's trace longer than a seek keyframe interval, so the seek, materialize and restore tests run on Silice too. No Silice node is committed.
   - `after_starter() -> Option<Game>` is `Some(Game::after_starter())` on Emerald and the stub, `None` on Silice. The sweep, the tour test and the trainer-sighting lane use it.
   - The Emerald route assertions moved to a `cfg(not(pkr_silice))` helper.
 - `game-gba`: the tour build plays `Game::for_shells()` on Silice (`cfg(any(not(feature = "tour"), pkr_silice))`).
@@ -4747,6 +4911,172 @@ The branch was merged with master (the Ch8 maps, the Ch3–Ch6 reach fixes, the 
 | `lint-reach --all` | 89 maps: 5 warnings (GrisEchec_Usine, RouteS02: master's), 35 infos, 78 allowed; none on the nine maps |
 | `PKR_GAME=silice cargo test -p content` | all passed |
 | `cargo test -p content -p xtask` | 243 passed, 0 failed |
+
+#### SIL6 Ch12 maps as built (the post-game)
+
+Made only with the studio map editor, from `chapitres/12-post-game.md`. The edit scripts are in `games/silice/edits/<Map>/` and use Emerald tilesets by name. The build is byte-identical on a second run. Ch9 and Ch10–Ch11 reached master during this work, so the links to Nébula are real warps, not pending.
+
+**New maps (12 of the 19 Ch12-owned ones; all ids already existed in `ids/maps.ron`).**
+
+| Map | Size | Tilesets | What |
+|---|---|---|---|
+| `TourNebula_1F_Ruine` | 15 × 15 | General + InsideShip | Mathias's cellar: two barrels to push (Strength) open the middle aisle, gas 06 before the still, Composant A |
+| `TourNebula_3F_Ruine` | 17 × 13 | General + Facility | islets, two broken walkways, the ledge with gas 07 and Ludo, the lectern (Composant B) |
+| `TourNebula_4F_Ruine` | 15 × 15 | Building + EliteFour | mirror maze, three cracked mirrors (Rock Smash), gas 08, the prism's socle (Composant C) |
+| `Breche` | 20 × 40 | General + Fallarbor | the glass corridor: gases 01–03 each on a one-cell neck, Thomas's camp, Articuno's overhang |
+| `NoMansLand` | 60 × 60 | General + Fallarbor | five zones round the Relais; gases 04–05; the steel beam on the broken bridge |
+| `NoMansLand_Centrale` | 20 × 15 | General + BikeShop | turbine hall, three switch panels, the control room behind a blast door (Zapdos) |
+| `NoMansLand_CaveauGlace` | 15 × 20 | General + Cave | two rooms, Shoal Cave's ice (909), the stone door and Regice's niche |
+| `NoMansLand_Cratere` | 15 × 20 | General + Lavaridge | the slope, the ash ledge, Moltres's ridge, the Heart of the Crater (Groudon) behind a boulder |
+| `NoMansLand_Relais_B1F` | 12 × 12 | General + Cave | Island Cave's braille wall, overturned lockers, Regirock |
+| `BenouLab` | 13 × 11 | Building + Lab | Benou's desk, the logs PC, the blast door on the Zone 404 teleporter |
+| `Zone404` | 40 × 40 | General + Rustboro | six 12 × 12 fragments, three missing tiles each (General 167), four "DONNEE ?" trainers |
+| `Zone404_Noyau` | 11 × 11 | Building + Lab | the white room, the Clone and Mewtwo |
+
+`Breche` and `NoMansLand` are joined by a connection (Breche north, offset -20; NoMansLand south, offset 20), which is why both use General + Fallarbor.
+
+**Edits to earlier chapters' maps (own files, `NN_ch12_*.ron`).**
+- `Nebula/05_ch12_postgame.ron`, `06_ch12_allow.ron`: warp 4 on the MAINTENANCE door (11, 18) to `BenouLab`; warps 5–6 on the north wall (18–19, 3) to `Breche` (the crack); Julien (local 15) at the Tower's foot and his workbench sign; `Nebula_PG_Sc10`'s Mathieu, Thomas, Tyranitar, Crobat and two guards (16–19, 21–22); `Nebula_PG_Sc10` added to `on_frame` at 126 (`ScriptsSet` keeps Ch9's `Nebula_Sc01`). The door and the crack stay solid until `Nebula_OnLoad` opens them from 126 (`AllowCollision`, `AllowReach`).
+- `MangaSquare_Bibliotheque/05_ch12_conseil.ron`: the Council (Adrien, Gwada, Kimiko at the table; Mathieu at the door; two queuing citizens) and `_PG_Sc02` on row 22, wall to wall.
+- `ReverseCity_Phare/04_ch12_thomas.ron`: Thomas at the top, `_PG_Sc04` on (12, 8), the only cell into the top room.
+- `RouteS05_Epave/04_ch12_arthur.ron`: Arthur (15) on the upper deck.
+- `RouteS06_BoisSoupirs/05_ch12_clairiere.ron`, `06_ch12_kimiko.ron`: the map grows from 20 to 26 rows (`Resize`, dx 0, dy 0: the east connection does not move); a one-cell secret path (12, 18–19) leads to the clearing (8–16, 20–24) with Kimiko (20), Adrien (21), her drone, Ho-Oh and the feather's stump; `_PG_Sc05` on (12, 19).
+- `Owlys_GrotteEst/04_ch12_point_zero.ron`, `05_ch12_silas.ron`: the Point Zéro room (30–36, 4–8) through (33, 9–10); Silas (9), the machine (10), Mew; `_PG_Sc07` on (33, 9).
+- `BricoBourg/05_ch12_postgame.ron`: Maman on the house door (hidden).
+- `SommetApex/04_ch12_balise.ron`: Poussin PG on Ch11's Poussin's cell, the socle (11, 12), Rayquaza on the stage; `_PG_Sc19` on row 16 wall to wall, `_PG_Sc32` on the socle's four neighbours.
+- `TourNebula_2F/05_ch12_qg.ron`: Gwada (10) and the camp's PC sign.
+
+**Ids.** No new map id. 23 new flags in Ch12's block 1100–1179 (1100–1122), appended to `ids/flags.ron` (after 1050) and `ids.golden`: `FLAG_SIL_HIDE_NML_DRONE`, `_NML_ORIGAMI`, `_CENTRALE_PORTE`, `_CAVEAU_PORTE`, `_CRATERE_ROCHER`, `_NEBULA_JULIEN`, `_NEBULA_PG_MATHIEU`, `_PG_THOMAS`, `_PG_TYRANITAR`, `_PG_CROBAT`, `_PG_GARDE_1`, `_PG_GARDE_2`, `_BIBLIO_PG_ADRIEN`, `_GWADA`, `_KIMIKO`, `_MATHIEU`, `_CITOYEN_1`, `_CITOYEN_2`, `_BOIS_SOUPIRS_ADRIEN`, `_BOIS_SOUPIRS_DRONE`, `_BRICO_MAMAN`, `_APEX_SOCLE`, `_TOUR_2F_GWADA`. The block first given (1450–1549) is past the last flag (0x4FF = 1279). Everything else uses the source's flags (gases, legendaries, items, `COMPOSANT_n`, `ECHANTILLON_n`, `ZONE404_OUVERTE`, `CLONE_BATTU`, the Vestiges' hide flags).
+
+**`game.ron`.** Set at the start (and asserted in `game_tests.rs`): the 13 legendaries placed on maps (Articuno, Zapdos, Moltres, Mewtwo, Mew, Entei, Suicune, Ho-Oh, Regirock, Regice, Latios, Groudon, Rayquaza), `FLAG_SIL_ITEM_PG_NML_LATIOSITE`, and the 25 post-game actors above plus `THOMAS_PHARE`, `ARTHUR_EPAVE`, `KIMIKO_BOIS`, `SILAS_GROTTE`, `APEX_POUSSIN_PG`. Asserted clear: gases 01–08, the three puzzle doors, `ZONE404_OUVERTE`, `CLONE_BATTU`.
+
+**Script contract (names on the maps; no script written).** The source's names keep `_PG_` and take the map's name: `Tour_Nebula_1F_Ruine_PG_Sc12` → `TourNebula_1F_Ruine_PG_Sc12`, `No_Mans_Land_PG_Sc16` → `NoMansLand_PG_Sc16`, `Zone_404_PG_P1` → `Zone404_PG_P1`, and so on.
+- Scenes: `TourNebula_1F_Ruine_PG_Sc12`, `_3F_Ruine_PG_Sc13`, `_4F_Ruine_PG_Sc14` (objects 1); `Breche_PG_Sc10b` (Thomas), `Breche_PG_Shop`; `NoMansLand_PG_Sc16` (coords row 56, 128), `_PG_Sc16b` (row 37, 128; also Poussin, local 30), `_PG_Sc17_1..3` (soil patches 40–42), `_PG_Drone`, `_PG_Origami`; `Nebula_PG_Sc10` (on_frame 126), `Nebula_PG_Julien` (runs Sc03, Sc03b, Sc03c), `Nebula_PG_Etabli`; `BenouLab_PG_Sc23` (Benou), `_PG_Sc24` (PC sign); `Zone404_PG_P1..P6` (signs), `Zone404_Noyau_PG_Sc26` (coords row 6, `VAR_TEMP_1` 0), `_PG_Sc26b` (Mewtwo); `MangaSquare_Bibliotheque_PG_Sc02` (row 22, 120), `_PG_Sc21`, `_PG_Sc30`, `_PG_Kimiko`, `_PG_Mathieu`, `_PG_Citoyen`; `ReverseCity_Phare_PG_Sc04` (122), `_PG_Thomas`; `RouteS05_Epave_PG_Sc06`; `RouteS06_BoisSoupirs_PG_Sc05` (`VAR_TEMP_1` 0), `_PG_Lib`; `Owlys_GrotteEst_PG_Sc07` (`VAR_TEMP_1` 0); `SommetApex_PG_Sc16c`, `_PG_Sc19` (row 16, 129), `_PG_Sc32` (`VAR_TEMP_1` 0); `TourNebula_2F_PG_Gwada` (Sc11, Sc15, Sc18), `_PG_PC`.
+- Coords whose source condition is a range or a flag use `VAR_TEMP_1` 0, and the script checks the condition.
+- Events: `<Map>_EventScript_GazNN` (the gases, through `PG_Gaz`), each trainer's `<Map>_EventScript_<Name>`, each item's `<Map>_EventScript_Item<Item>`, the legendaries' `<Map>_EventScript_<Species>`, `TourNebula_*_Ruine_EventScript_Ascenseur` (the ruins' south door, calls the hub), the Centrale's `InterrupteurA..C`, `Porte`, `Panneau`; the Caveau's `Porte`; the Crater's `Rocher`, `RocherFissure`; the NML's `Poutre`, `Rocher`, `Plaque`, `PanneauCentrale`; BenouLab's `Porte`, `Tableau`, `PanneauPorte`; Zone404's four trainers and `Dalle1/12/20`; the Bois's `Drone`, `HoOh`; the Grotte's `Machine`, `Mew`; the Apex's `Socle`, `Rayquaza`.
+- Map scripts: `NoMansLand_OnLoad` (the trapdoor (31, 27) to 609, collision 0, from `FLAG_SIL_LIBERATION_JULIEN`), `NoMansLand_OnTransition` (the drone and the origami; not Suicune or Latios, see the review's clear points), `NoMansLand_Cratere_OnTransition` (the Heart's boulder from `LIBERATION_JULIEN`; not Moltres), `Nebula_OnLoad` (the MAINTENANCE door's collision and the crack (18–19, 3) to 167 from 126), `Nebula_OnTransition` (Julien from 120, Sc10's cast at 126 only), and the `OnTransition` of the Bibliothèque, the Épave, the Bois, the Grotte Est, the Apex and the 2F for their actors.
+- The legendaries: the hide flag is set at the start, cleared once by a one-shot scene, and set again by a capture. The source's flag means "caught", which would show them before their condition. Which scene clears which flag, and Rayquaza's own capture flag, are in "SIL6 Ch12 maps: review" below (an `OnTransition` that clears a legendary's flag from a condition shows it again after its capture).
+- The Latiosite: its item flag is set at the start; Latios's capture clears it.
+
+**Links.**
+- Real: Nebula 4 ↔ BenouLab 0–1; Nebula 5–6 ↔ Breche 0–1; Breche ↔ NoMansLand (connection); NoMansLand 0–3 ↔ Centrale, Cratère, Caveau, Relais_B1F; BenouLab 2 ↔ Zone404 0; Zone404's slab 20 → Noyau 0, Noyau 0 → Zone404 5.
+- By script, as Ch10's cabin: the ruins' warp 0 is a landing (`MAP_DYNAMIC`) and their south door calls `Tour_Nebula_PG_Ascenseur`, which warps by coordinates (1F (7, 13), 3F (8, 11), 4F (7, 13)). `lint-reach` reports "nothing leads here" (info) on the three ruins.
+
+**Checks.** `reach`/`bypass`: each ruin's chamber is shut by its gas (and 1F's by the two pushes); Ludo cannot be walked round; the Breach's three gases leave the north unreachable, and Nora's and Bastien's sight cannot be avoided; `NoMansLand_PG_Sc16` and `_Sc16b` cannot be walked round; gases 04 and 05 shut the Centrale's and the Crater's ways; the beam shuts the east; the Heart of the Crater is behind its boulder; every Ch12 coord on earlier maps (Bibliothèque, Phare, Bois, Grotte Est, Apex) cannot be walked round. `lint-reach` on all Ch12 maps and the edited maps: 0 warnings.
+
+**Missing engine features.** Ice sliding is not modelled by the walk model (the Caveau's ice is walkable to it). The Zone 404's patchwork needs per-area tilesets (one pair per map). The palette "détruite", the fog and the sky follow §9 and are not map settings.
+
+**Deviations.**
+- Local ids: Nebula's Julien is 15 (the source's 10 is Ch9's Bassin guard) and Sc10's cast is 16–22 (not 1–6).
+- The Bibliothèque's Sc02 row is the first row past the mat (row 22), the source's "two cells after the door" counting the mat.
+- The Bois des Soupirs had no secret path: the map was grown by 6 rows for it.
+- Placeholder sprites: Zapdos `PIKACHU`, Moltres and Articuno `WINGULL`, Suicune `AZUMARILL`, Entei `POOCHYENA`, Tyranitar `DUSCLOPS`, Crobat `ZIGZAGOON_2`, Mewtwo `KIRLIA`, the Clone `BRENDAN_NORMAL`, Thomas `WALLACE` (as Ch10), "?????" `PSYCHIC_M`, the soil patches `FOSSIL`, doors and lecterns `TRICK_HOUSE_STATUE`, the gases `KECLEON_BRIDGE_SHADOW`.
+
+**Not done (left for a follow-up).**
+- Optional maps: `BricoBourg_Bar_Lounge` (and the Shaker's bookcase), `RouteS05_IleDebug` (and Route S5's blinking tile), `RouteS08_GrotteStele` (and Route S8's waterfall warp), the three `RouteS0x_Antenne` (and their route doors), `SommetApex_TempleNuages`. Seven maps in five groups; the review below gives each one's spec.
+- BricoBourg's `BricoBourg_PG_Sc01` (`on_frame` 119) and `_PG_Sc20` (coords (4, 15), (6, 15), (5, 16) at 130): BricoBourg is a strict map (Ch0's scripts claim it), so the content build refuses names without scripts. They go in with their scripts.
+- The eight Fragments de Code (hidden objects in existing maps), Tak and the statue at Manga-Square (Sc32a), Celebi, Raikou, Registeel, Latias, Lugia, Kyogre and Jirachi, the Horde roaming Nébula from 127 to 129, the TV sheet at Brico-Bourg (no TV is drawn on Ch0's map).
+
+**Editor friction.**
+1. `dump --out` and `render --out` write relative to the worktree, so a relative path lands outside the scratch directory.
+2. A studio build without `PKR_EXTRACTED_DIR` builds the stub world: every tileset is then "unknown".
+3. `ScriptsSet(on_frame: …)` replaces the whole list, so adding one entry means copying the others.
+4. `lint-reach` warns on every non-animated-door warp whose south cell is solid, even when nothing arrives there (the Zone 404's missing tiles).
+5. Intra-map warps are not followed by the walk model, so each fragment's arrival needs an `AllowReach`.
+
+#### SIL6 Ch12 maps: review
+
+The branch was merged with master twice: first the Ch3 and Ch4 scripts and the M8 close-out (no conflict), then, during the review, the Ch5 scripts and the Ch4 and Ch5 e2e re-tunes (conflicts in `ids/flags.ron` and `ids.golden`, both sides kept in numeric order: Ch5's 1060, then Ch12's 1100–1123). The maps were checked against `12-post-game.md` (§1 legendaries table, §2 maps, §3 scenes' triggers, actors and warps, §5 trainers, §7 items, §8 flags), and with `reach`, `bypass` and `lint-reach` run by hand. No map changed: `studio map build` writes the committed bytes.
+
+**Findings and fixes.**
+- Critical, fixed: **the Ch5 scripts' claims broke the Silice build.** `ch05_route_s05.rs` claims `RouteS05_Epave` and `ch05_grotte_est.rs` claims `Owlys_GrotteEst`, which makes them strict, and Ch12 had put five names on them that no script defined. After the merge the content build failed: "5 scripts the strict maps name are not defined": `RouteS05_Epave_OnTransition`, `RouteS05_Epave_PG_Sc06`, `Owlys_GrotteEst_PG_Sc07`, `Owlys_GrotteEst_EventScript_Machine` and `Owlys_GrotteEst_EventScript_Mew`. Fixed: **`crates/content/src/silice/scripts/ch12_stubs.rs`** defines them as `// fallback:` stubs that do nothing (each actor they serve starts hidden; the Point Zéro coord and the machine are silent before the post-game). The file claims no map, and names no item flag: `silice check`'s `placement-map` reads a flag named in a script as given, so a stub mentioning `FLAG_SIL_VESTIGE_ARTHUR` turned Ch5's exception for it into an unused-exception warning. Ch5's own `Owlys_GrotteEst_OnTransition` (the duo scene) is the one the map names; Ch12 extends it later for Silas.
+- No gate is broken. Every gate holds. The ruins' chambers sit behind their gases (and 1F's behind both barrels); Ludo and Nora cannot be walked past; the Breach's three gases each hold a one-cell neck; `NoMansLand_PG_Sc16` (row 56) and `_Sc16b` (row 37) cannot be walked round, and Sc16b fires before any soil sample can be reached (the Oasis, the Centrale and the Falaise are all past the hub); gases 04 and 05 shut the Centrale's and the Crater's ways; every Ch12 coord on an earlier map is the only way in.
+- Important, fixed: **the legendaries' hide flags were not consistent.** With the inverted meaning (set at the start, cleared to show, set by a capture), a flag cleared from a condition in an `OnTransition` comes back after the capture. The as-built contract had exactly that for Moltres (`NoMansLand_Cratere_OnTransition`), Suicune and Latios (`NoMansLand_OnTransition`). Rayquaza is worse: `SommetApex_PG_Sc32` shows it for the scene only and hides it whether or not it is caught, so its hide flag is set both before and after a capture, and the source's condition ("`FLAG_SIL_HIDE_RAYQUAZA` non posé") can never hold. Fixed: the clear points below (doc and the edit scripts' comments, no map change), and **`FLAG_SIL_RAYQUAZA_CAPTURE` (1123, appended; `ids.golden`)**, which Sc32 sets on a capture and checks before playing.
+- Important, fixed (doc): **the plan said 13 new maps; there are 12**, and the 6 left are 7 maps (the three antennas are three maps). The list below is precise.
+- Important, documented: **strict-map obligations.** Every Ch12 name on an earlier map must exist as a script once that map is claimed, or the content build fails. Before the Ch5 merge, master's only claim among the edited maps was Ch0's `BricoBourg`, where Ch12 adds no script name (Maman has none); the Ch5 claims are the Critical above. The per-chapter list is below.
+- Minor:
+  - `ids.golden` had the 1100–1104 block before 1050 (a merge artefact); it is now after it, in numeric order.
+  - The ruins' warp 0 comments say "MAP_DYNAMIC until the elevator (Ch10) is on master". Ch10 is on master; the landing stays `MAP_DYNAMIC` anyway, since the hub warps by coordinates.
+  - The Breach's comment calls the first-third ball "the Hyper Balls": it is `ITEM_ULTRA_BALL` (the FR name), as §7 has it.
+  - Maman (BricoBourg, local 20) stands on the house's door warp (5, 14). `BricoBourg_PG_Sc20` must hide her again at its end (or move her), or the house is shut after the final scene.
+  - Ch11's Poussin (SommetApex local 1) and the post-game Poussin (local 12) share (11, 6). Ch11's `Sommet_Apex_Sc04` sets `FLAG_SIL_HIDE_APEX_POUSSIN`, so they are never shown together.
+  - The steel beam (NoMansLand (37, 30)) blocks the bridge rather than filling a gap: the engine cannot fill a hole. Pushed east it rolls to (54, 30) at most (Latios's cell stops it), so the bridge opens and nothing strands the player.
+
+**Checked and correct.**
+- The 1F barrel puzzle: B2 (7, 10) can only be pushed east into (8, 10), then B1 (10, 8) only east into (11, 8); no push strands the player.
+- The Ice Vault: a slide simulation (Gen3 ice: slide until blocked, stop on the first non-ice cell) from the mat finds no cell the player cannot leave, and the door (7, 3) and the Glalitite's cells are reached; the ice is decor (the floor ring reaches everything), which the source allows ("sol glissant", no puzzle).
+- The Crater's boulder is not a field-move boulder: boulders here are pushed by their own scripts (`ch03_route_s03.rs`'s `Bloc`), so `NoMansLand_Cratere_EventScript_Rocher` must only say it does not move (see below).
+- Every `AllowReach` and `AllowCollision` was re-read: the ruins' landings, the Zone 404's fragment arrivals (intra-map warps), Nebula's door and crack (opened by `Nebula_OnLoad`), the bunker's trapdoor, the bunker's rock metatile. Each is a landing or a cell a script opens; there are none to drop.
+- `RouteS06_BoisSoupirs` grew south only (`Resize`, rows 20–25): every Ch6 coordinate is unchanged, the east connection keeps offset −25 and RouteS06's west connection offset 25 (its y 33–35 still meet our y 8–10); the six new rows on RouteS06's side are trees (x 23 solid), so the clearing is not reachable from RouteS06. The old border rows (18–19) changed elevation 3 → 0 on solid trees only, and (12, 18–19) opened. `lint-reach` on both maps: 0 warnings and two infos, both Ch6's (the Heart Scale needs Surf; RouteS06 warp 0 is reached through other maps).
+- Local ids do not clash on any edited map (Nebula 15–19, 21–22 skip Ch9's 20; Bibliothèque 10–15; Phare and Épave 15; Bois 20–23; Grotte Est 9–11; Apex 12–14; 2F 10). No Ch12 object, coord or sign sits on an earlier event's cell except the two noted above.
+- `new_game_flags`: the 39 set flags (13 legendaries, the Latiosite, 25 actors) and the 13 asserted clear (gases 01–08, the three puzzle doors, `ZONE404_OUVERTE`, `CLONE_BATTU`) match `game.ron` and `game_tests.rs`.
+- Ids are append-only (`silice_games`).
+
+**The legendaries' clear points (for the Ch12 scripts).** A legendary's hide flag is cleared **once**, by the scene or event that unlocks it, never from a condition re-read on every load; its capture (`PG_Legendaire`) sets it again; defeating or fleeing leaves it shown.
+
+| Legendary | Cleared by | Guard against a second clear |
+|---|---|---|
+| Entei, Regirock, Groudon | `Nebula_PG_Sc03c` (sets `FLAG_SIL_LIBERATION_JULIEN`) | the scene runs only while `LIBERATION_JULIEN` is clear |
+| Articuno | `Breche_PG_Sc10b`'s `PG_Lib_Thomas` branch (≥ 130) | runs only while `FLAG_SIL_LIBERATION_ARTIKODIN` is clear |
+| Moltres, Latios | `Tour_Nebula_2F_PG_Sc15` (sets 128) | one-shot story step |
+| Suicune; Mew if `FLAG_SIL_VESTIGE_SILAS`; Ho-Oh if `FLAG_SIL_VESTIGE_KIMIKO` | `SommetApex_PG_Sc19` (sets 130) | one-shot story step (the Vestiges end by 126, so both are known at 130) |
+| Zapdos | the third switch, which also sets `FLAG_SIL_HIDE_CENTRALE_PORTE` | the switches do nothing once the door flag is set |
+| Regice | `NoMansLand_CaveauGlace_EventScript_Porte` (sets `FLAG_SIL_HIDE_CAVEAU_PORTE`) | does nothing once the door flag is set |
+| Mewtwo | `Zone404_Noyau_PG_Sc26` on the Clone's defeat (sets `FLAG_SIL_CLONE_BATTU`) | Sc26 returns once `CLONE_BATTU` is set |
+| Rayquaza | never: a scene prop. `SommetApex_PG_Sc32` clears, shows, battles and sets it again; a capture also sets `FLAG_SIL_RAYQUAZA_CAPTURE` | Sc32 runs only at ≥ 130 with `FLAG_SIL_RAYQUAZA_CAPTURE` clear |
+
+The source's other reads of "caught" become: `PG_Lib_Kimiko`'s sign (the stump) shows its text while Ho-Oh's object is shown (`!FLAG_SIL_HIDE_HO_OH`); `PG_Lib_Silas` on the machine is text only; the Latiosite ball's flag is cleared by Latios's capture (the ball then appears, as §7 wants). The actors' `OnTransition`s, unlike the legendaries, write their flag both ways from a closed range (for example Thomas at the Phare: shown only at 122, so `Reverse_City_PG_Sc04`'s exit is not undone at 123).
+
+**Strict-map obligations: the Ch12 names each later script agent must at least stub.** When a chapter's script file claims a map (`pub const MAPS`), every name below that sits on it must exist in the same change, or the content build fails. Add each one to **`scripts/ch12_stubs.rs`** as a `// fallback:` stub, `pub async fn <Name>(_ctx: Ctx) { // fallback: … }`, as the Ch5 ones are: it does nothing, so a coord that fires before the post-game stays silent (do not call `fallback()` there, it would report on every step). Ch12's scripts later move them to their own files. A map script the claiming chapter already owns (an `OnTransition` or `OnLoad` the map names before Ch12) is that chapter's: write it, and Ch12 adds its branch later. Objects without a script (`script: None`) need nothing; none of these objects is a trainer.
+
+| Claimed by | Map | Ch12 names on it |
+|---|---|---|
+| Ch0 (on master) | `BricoBourg` | none today. Ch12's scripts must add `BricoBourg_PG_Sc01` (`on_frame` 119, kept beside `BricoBourg_Sc02`) and `BricoBourg_PG_Sc20` (coords (4, 15), (6, 15), (5, 16) at 130) **in the same change as their scripts**. `BricoBourg_OnTransition` (Ch0's) gains nothing; Sc20 shows Maman. |
+| Ch0 (on master) | `BricoBourg_Bar`, `RouteS01` | none today. The Lounge's bookcase (Sc22) and Celebi (`FLAG_SIL_HIDE_CELEBI`, Route S1's root) go in with their scripts. |
+| Ch2 / Ch3 (on master) | `RouteS02`, `RouteS03` | none today. The antenna doors (both), Raikou (`FLAG_SIL_HIDE_RAIKOU`, Route S3's north dead end) go in with their scripts. |
+| Ch5 (on master, done here) | `RouteS05_Epave` | `RouteS05_Epave_OnTransition` (Arthur from 123 until `FLAG_SIL_VESTIGE_ARTHUR`), `RouteS05_Epave_PG_Sc06`: stubbed in `ch12_stubs.rs` |
+| Ch5 (on master, done here) | `Owlys_GrotteEst` | `Owlys_GrotteEst_PG_Sc07` (coord, `VAR_TEMP_1` 0), `Owlys_GrotteEst_EventScript_Machine`, `Owlys_GrotteEst_EventScript_Mew`: stubbed in `ch12_stubs.rs`. Ch5's `Owlys_GrotteEst_OnTransition` must later also show Silas from 123 until `FLAG_SIL_VESTIGE_SILAS` (Ch12's change). |
+| Ch5 (on master) | `RouteS05`, `RouteS05_GrotteCorail` | none today (the blinking tile and Lugia go in with their scripts) |
+| Ch6 (in progress) | `MangaSquare_Bibliotheque` | `MangaSquare_Bibliotheque_OnTransition` (the Council from 120; Gwada not at 127–129), `MangaSquare_Bibliotheque_PG_Sc02` (row 22 at 120), `_PG_Sc21` (Adrien), `_PG_Sc30` (Gwada), `_PG_Kimiko`, `_PG_Mathieu`, `_PG_Citoyen` |
+| Ch6 | `RouteS06_BoisSoupirs` | `RouteS06_BoisSoupirs_OnTransition` (Kimiko and the drone from 123 until `FLAG_SIL_VESTIGE_KIMIKO`), `RouteS06_BoisSoupirs_PG_Sc05` (coord, `VAR_TEMP_1` 0), `_PG_Lib` (the stump), `_EventScript_Drone`, `_EventScript_HoOh` |
+| Ch7 | `ReverseCity_Phare` | `ReverseCity_Phare_PG_Sc04` (coord at 122), `ReverseCity_Phare_PG_Thomas`. Ch7's own `ReverseCity_Phare_OnTransition` must also show Thomas at 122 only (clear `FLAG_SIL_HIDE_THOMAS_PHARE` at 122, set it otherwise). |
+| Ch9 | `Nebula` | `Nebula_PG_Sc10` (`on_frame` 126), `Nebula_PG_Julien`, `Nebula_PG_Etabli`. Ch9's own `Nebula_OnLoad` must also open the MAINTENANCE door (11, 18) (collision 0) and draw the crack (18–19, 3) as metatile 167, collision 0, from 126; `Nebula_OnTransition` must also show Julien from 120 and Sc10's cast (Mathieu, the guards, Tyranitar, Crobat) at 126 only. |
+| Ch10–Ch11 | `TourNebula_2F` | `TourNebula_2F_OnTransition` (Gwada at 127–129; beside Ch10's `TourNebula_2F_OnLoad`), `TourNebula_2F_PG_Gwada`, `TourNebula_2F_PG_PC` |
+| Ch10–Ch11 | `SommetApex` | `SommetApex_PG_Sc16c` (Poussin), `SommetApex_PG_Sc19` (row 16 at 129), `SommetApex_PG_Sc32` (coords, `VAR_TEMP_1` 0), `SommetApex_EventScript_Socle`, `SommetApex_EventScript_Rayquaza`. Ch11's own `SommetApex_OnTransition` must also clear `FLAG_SIL_HIDE_APEX_SOCLE` from 120. |
+| Ch8 | `Evalon`, `Evalon_Citadelle` | none today (Latias and Registeel go in with their scripts) |
+| Ch9 | `RouteS09_Underwater` | none today (Kyogre) |
+
+The Ch12 script file(s) will claim the 12 new maps; besides the names listed in "as built", they must then: turn each `HiddenItem` on them (1F's Rhum Pirate, the Breach's Rare Candy, the No Man's Land's PP Max, the Crater's Aerodactylite) into a `Sign` with `<Map>_EventScript_Hidden<Item>` while the engine ignores `BgKind::HiddenItem` (Ch0's rule); push the barrels (`TourNebula_1F_Ruine_EventScript_Fut`, east only) and the beam (`NoMansLand_EventScript_Poutre`) as `RouteS03_Depot_EventScript_Bloc` does; never move the Crater's boulder (`NoMansLand_Cratere_EventScript_Rocher` is text; `NoMansLand_Cratere_OnTransition` sets `FLAG_SIL_HIDE_CRATERE_ROCHER` from `LIBERATION_JULIEN`); and include `TourNebula_1F_Ruine_PG_Sc12_Composant` (the Composant A ball, missing from the as-built list).
+
+**The 7 optional maps not built (5 groups), for a follow-up.** Each id is already in `ids/maps.ron`.
+
+| Map (`ids/maps.ron`) | Source | Size | Way in | Content |
+|---|---|---|---|---|
+| `BricoBourg_Bar_Lounge` (`MAP_BRICO_BOURG_BAR_LOUNGE`) | §2, Sc22 | 11 × 9 | the Shaker's bookcase, 3 cells right of the counter, slides from `FLAG_SIL_POSTGAME` (`BricoBourg_Bar` is strict: Ch0) | stairs top-left, L counter right with Crow, a round table in the centre; `FLAG_SIL_CROW_RECOMPENSE` (Shell Bell) |
+| `RouteS05_IleDebug` (`MAP_ROUTE_S05_ILE_DEBUG`) | §2, Sc27 | 9 × 9 | a blinking sea tile on Route S5 (Surf), `set_metatile` and `warp(…, 4, 8)` with `FLAG_SIL_CLE_DEBUG_INSTALLEE` | a black-and-green checkerboard islet; Deoxys in the centre (`FLAG_SIL_HIDE_DEOXYS`); hidden Starf Berry in the north-east corner (`FLAG_SIL_ITEM_PG_ILE_STARF`) |
+| `RouteS08_GrotteStele` (`MAP_ROUTE_S08_GROTTE_STELE`) | §2, Sc28 | 9 × 13 | behind Route S8's great waterfall (Waterfall, the Turbine à Flux) | a stele at the back (obj 1, the "Dominant" appears before it); `FLAG_SIL_FORME_ORIGINELLE` |
+| `RouteS02_Antenne`, `RouteS03_Antenne`, `RouteS07_Antenne` | §2, §4.3 | 9 × 9 each, two floors | a door on Route S2, S3 (both strict on master) and S7 | ground floor: receptionist (obj 1) and a heal PC; an elevator; the top room (arrival (4, 6)) where three trainers enter by the north door (`TRAINER_SIL_ANTENNE_{ALPHA,GAMMA,ETA}_1..3`) |
+| `SommetApex_TempleNuages` (`MAP_SOMMET_APEX_TEMPLE_NUAGES`) | §2, Sc31 | not given; arrival (5, 18), so at least 19 rows | the cabin's TOIT button with `FLAG_SIL_TICKET_ESPACE` (by script) | a white temple on a sea of clouds, 20 steps up to an altar; Jirachi asleep on it (`FLAG_SIL_HIDE_JIRACHI`); always night |
+
+The "two floors" of an antenna may be one 9 × 9 map with both rooms, or a second map; the second would need a new id (append-only), which is the author's call.
+
+**Questions for the author.**
+1. Rayquaza: Sc32 hides it after a lost or fled battle ("il revient au prochain passage"), so it is never a standing object. Keep that, or leave it on the stage after a failed battle like the other legendaries?
+2. The steel beam: the engine cannot fill a broken bridge, so the beam blocks the bridge and is pushed off it. Acceptable, or should the bridge's gap be a cell a script repaints once the beam is pushed?
+3. The antennas' two floors: one map each, or a second map per antenna (three new ids)?
+
+**Gates** (after the merge and the fixes):
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| `cargo xtask silice check` | ok, 0 warnings |
+| `cargo test -p xtask --test silice_games` | 2 passed |
+| `studio map --game silice build` | 110 maps, no errors; a second run changes no byte; the committed maps match |
+| `validate`, `hygiene` | 110 maps, no errors (the warnings are unwritten scripts and earlier chapters' accepted ones; none on a Ch12 map or edit); clean |
+| `lint-reach --all` | 110 maps: 0 warnings, 51 infos, 111 allowed |
+| `PKR_GAME=silice cargo test -p content` | all passed (158), `sil5_ch4` included now that master re-tuned it; clippy `-D warnings` clean |
+| `cargo test -p content -p xtask -p studio` | 447 passed, 0 failed, 8 ignored |
 
 ## 4. Contradictions and errors in `contenu-jeu` that block conversion
 

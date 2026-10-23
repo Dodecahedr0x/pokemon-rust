@@ -1,0 +1,19 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_ABANDONED_SHIP", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: true, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warp 0: the mat, back to the No Man's Land (its warp 0).
+    Warp(x: 9, y: 13, dest_map: "NoMansLand", dest_warp: 0),
+    // 1: Zapdos in the control room (hidden until the switches open it: the blast door's script clears
+    // FLAG_SIL_HIDE_ZAPDOS; a capture sets it again). 2: the blast door on the control room's doorway, shown
+    // until the three switches are thrown in the order the sparks tell (FLAG_SIL_CENTRALE_A, _B, _C; the
+    // third sets FLAG_SIL_HIDE_CENTRALE_PORTE). 3: the Zinc in a locker.
+    Object(x: 9, y: 3, gfx: "OBJ_EVENT_GFX_PIKACHU", id: "LOCALID_CENTRALE_ELECTHOR", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Centrale_EventScript_Electhor", flag: "FLAG_SIL_HIDE_ZAPDOS"),
+    Object(x: 9, y: 5, gfx: "OBJ_EVENT_GFX_TRICK_HOUSE_STATUE", id: "LOCALID_CENTRALE_PORTE", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Centrale_EventScript_Porte", flag: "FLAG_SIL_HIDE_CENTRALE_PORTE"),
+    Object(x: 17, y: 12, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_CENTRALE_ITEM_ZINC", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "NoMansLand_Centrale_EventScript_ItemZinc", flag: "FLAG_SIL_ITEM_PG_CENTRALE_ZINC"),
+    // The three switch panels (read from below) and the sparks' sign on the hall's north wall, which tells
+    // their order.
+    Sign(x: 2, y: 8, script: "NoMansLand_Centrale_EventScript_InterrupteurA"),
+    Sign(x: 12, y: 8, script: "NoMansLand_Centrale_EventScript_InterrupteurB"),
+    Sign(x: 16, y: 8, script: "NoMansLand_Centrale_EventScript_InterrupteurC"),
+    Sign(x: 11, y: 5, script: "NoMansLand_Centrale_EventScript_Panneau"),
+]
