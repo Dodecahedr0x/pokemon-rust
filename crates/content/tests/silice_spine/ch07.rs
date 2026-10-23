@@ -303,7 +303,11 @@ pub fn steps() -> Vec<Step> {
         Step::Walk(Up),
         Step::Check("reverse_sc01", |r| {
             assert_eq!(r.w.var(VAR_SIL_STORY), 72);
-            assert!(r.degraded.contains("set_input_inverted"), "{:?}", r.degraded);
+            assert!(
+                r.degraded.contains("set_input_inverted"),
+                "{:?}",
+                r.degraded
+            );
             r.printed_in_order(&[
                 Reverse_City_Sc01_T1,
                 Reverse_City_Sc01_T2,
