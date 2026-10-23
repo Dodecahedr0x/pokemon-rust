@@ -2043,10 +2043,10 @@ Nothing was added to `prelude.rs` or to the engine. Chapter-local helpers stay p
   - `PortRessac`: the Water Stone and the Pearl;
   - `PortRessac_NavireCocket`: Crow's crate, which also shows its own text;
   - `PortRessac_Gym_Cale`: both loot barrels, which give the source's quantities and texts.
-- `PortRessac` also gets the two on-frame entries listed above.
+- `PortRessac` also gets the two on-frame entries listed above, and (review) six more `PortRessac_Sc06` coords at 49 on the jetty's row 21: (40, 41, 43, 44, 45, 47; 21). Romain stands on (46, 21); (42, 21) already had one.
 - `cargo xtask studio map --game silice build` writes the same bytes as the committed maps.
 
-**Reachability.** `lint-reach` on the six Ch4 maps reports 0 warnings and 2 infos, with the existing allowance (1), so no new `AllowReach` was needed. The two infos:
+**Reachability.** `lint-reach` on the six Ch4 maps reports 0 warnings and 2 infos, and no allowance: the review closed the jetty's row 21 with Sc06's coords (below), so the maps' `coords VAR_SIL_STORY=49` allowance went. The two infos:
 - the port's east edge, which Surf reaches;
 - the quarterdeck's ladder, which other maps lead to.
 
@@ -2076,6 +2076,9 @@ The sound effects use the decomp names `SE_SIFFLET` = `SE_M_GRASSWHISTLE`, the c
 
 **The spine.**
 - `silice_spine/ch04.rs` has `start()`, a `Run::starting_at` state (Chapter 3 is not chained yet), `steps()` and `check_end`. The test is `sil5_ch4.rs`.
+- (Review) `sil5_ch4.rs` has a second test, the R-7 defeat branch. It has two runs from `samuel_first_loss()` and `samuel_rematch()`, at the helm (13, 4) with a MAGIKARP at 5, and `Run::allow_losses` set (a new opt-in field of `driver.rs`; the battle policy is unchanged).
+  - The first loss: the breath test (failed), the whiteout to (4, 8) on the port, and the branch. The test checks story 48, `SAMUEL_PERDU`, `MODULE_SURF`, no badge, confusion cleared, and money 6000 / 2 − 2000. Off the door and back, the branch does not play again.
+  - The rematch (story 49): the prompt, no breath test, `Perdu2`, and the story stays 49.
 - The start state is Chapter 3's end:
   - story 36, sync 30, three badges, the Coupe, Force and Flash modules, `LOG_01`–`LOG_03`;
   - placed on Route S4's west edge.
@@ -2107,8 +2110,39 @@ The sound effects use the decomp names `SE_SIFFLET` = `SE_M_GRASSWHISTLE`, the c
 6. **Sound effects.** Are the mappings above right?
 7. **The cargo's berth.** Once the cargo has sailed, its berth becomes sea (368), but the dock keeps its elevation. Should the berth stay sea, or become a usable surf spot?
 8. **Surf in the canal.** Is the canal between the quays meant to be surfable after the badge?
-9. **Samuel's team.** `progression.md` gives Samuel 5 Pokémon; `trainers.ron` has 6, with a Black Belt, Charcoal and a Sitrus Berry. Five, or six?
-10. **The respawn.** The heal location is set by talking to the nurse ("à la première visite"), not by entering the Taverne, as Ch2's is. Is that right?
+9. **The respawn.** The heal location is set by talking to the nurse ("à la première visite"), not by entering the Taverne, as Ch2's is. Is that right?
+
+**Review (Ch4 scripts).** The review covered the source, softlocks, the strict maps, the e2e party and lint-reach, after merging master (the Ch10–11 maps).
+- Fixed (Important):
+  - **Julien's call could be skipped.** Sc06's coords were the column (42, 21–23). The jetty is entered from the quay along all of row 21, so the shortest walk to the jetty's end, down at (43, 21), never crossed it (`bypass` showed it). The maps had allowed this as "an optional hint". `06_ch4_scripts.ron` now closes row 21, and the allowance is removed.
+  - **The rematch started confused.** A whiteout aborts Gym_Sc02 before the source's `clear_flag(FLAG_SIL_PORT_GYM_CONFUS)`. After a failed breath test and a loss, the rematch would still report `battle_start_status`. The source says a rematch goes "directement au combat sans confusion". `PortRessac_EventScript_SamuelPerdu` now clears the flag.
+  - **The R-7 defeat branch was untested.** It is now tested (above): it plays once after each whiteout and is re-entrant.
+  - **A wrong speaker.** The quay pirates (16–18) said `Sc04_T6`, which is Samuel's own line, with his name. They now only turn to the player, as Ch2's Technicien does after his gift.
+- Fixed (Minor):
+  - Gwada's rum: with a full bag, `FLAG_SIL_PORT_GWADA_RHUM` (which the shop reads) is no longer set, so the gift waits for the next talk.
+  - The explosive barrels use the prelude's `screen_flash`, not their own fade.
+  - The `QUAY_CAST_FLAGS` const copy was dropped.
+  - `screen_flash` was added to the spine's fallback list.
+- Checked, no change:
+  - **Source.** Every scene, all 20 trainers and the §7 items are scripted, in the source's text order. The story runs 36 → 40 → … → 49 as in §8.
+  - **Samuel's team.** It is not an import error. `trainers.ron` matches the chapter's own `dresseurs.ron` block: six Pokémon at 33–38, the Black Belt, Charcoal and Sitrus Berry, iv 150. §10 "Écarts" chooses six over `progression.md`'s five on purpose.
+  - **The hold.** A breadth-first search over the 11 × 9 grid covered every barrel position, both explosive barrels' states, both entries and Timothé's cell, about 2.7 M states. No state is stuck: every one reaches the hatch or the ladder. Battles do not reload the map, so pushed barrels and their temp vars stay in step.
+  - **The container.** It has only two positions, (6, 15) and (6, 14), so it cannot trap the player.
+  - **The other coord gates.** `bypass` shows that none can be walked round: CargoBloque, PasserelleQuais, Sc03, Sc05, Route Sc02 and Gym Sc03.
+  - **Guards.** Every on-frame entry and coord is guarded by its var, or by a flag where it repeats. Every lock is released on every path; a battle's whiteout aborts the script.
+  - **Strict maps.** All six maps are strict, and every trainer object runs a `trainer()` script, so the build's `check_trainer_objects` passes.
+  - **The R-7 double toll.** The whiteout halves the money, then Samuel takes 2000. This is the source's own fallback (§9: "tout noir normal … un PIRATE … joue la branche défaite (malus …)").
+  - **Code quality.** `push_object` stays `pub(super)` in `ch04_port.rs`. Its repeatable, reset-on-load push is not Ch2's one-shot `Obstacle`, and moving it to the prelude would bring Gen 3 temp vars into it. `post_battle` and `battle_trainer` are the prelude's.
+- **The e2e party (diagnosis only; the coordinator gave the policy fix to the Ch3 review).**
+  - Is the party plausible? It is a fair continuation of Ch2's end. It averages 32, under Ch3's cap of 34. The KADABRA has a closer source than the doc said: Viber-City's own grass (Ch3) has one at 23–24. The FLAAFFY's +18 levels on the bench are generous.
+  - Is the battle policy the cause? Not `best_move`, which weighs the type chart, STAB and accuracy. The cause is learning. `give_mon` fills the last four level-up moves, and B on "forget a move?" means none is ever replaced. At the end of the run:
+    - the KADABRA at 42 has Psybeam, Reflect, Recover and Future Sight (no Psychic);
+    - the AMPHAROS at 31 has Growl, ThunderShock, Thunder Wave and Cotton Spore;
+    - the QUILAVA's best move is Flame Wheel.
+  - So the lead needs 42 against an ace at 38 because of this, not because the trainer data is too hard. After the Ch3 policy fix merges, the party and the training levels (36, 38) should be tuned down.
+- **Questions added.**
+  - The source wants the gangway pirate to give `Rappel_Badge` after a loss, but its own Sc04 hides him for good from 46. Should he come back from 47?
+  - The decor grunts' `Npc_Sbire` ("ce container…") and the closed grille's `Gym_Guide` are reused lines that only half fit.
 
 #### SIL2 Ch2–Ch3 maps as built
 
