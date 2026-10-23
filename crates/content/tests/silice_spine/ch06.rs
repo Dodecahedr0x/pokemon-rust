@@ -173,18 +173,20 @@ pub fn start() -> Start {
     }
 }
 
-/// The start state's party: Chapter 4's start party (`ch04::PARTY`: KADABRA 32, FLAAFFY 30,
-/// QUILAVA 33, LAIRON 32) after a realistic Chapter 4 (Samuel's ace at 38) and Chapter 5
-/// (Owlys's trainers at 35–39, the gym's Flying and Dark types): the FLAAFFY an AMPHAROS that
-/// now leads (Electric for Owlys's birds, and for Tak's Lapras, Scyther, Ninjask and
-/// Charizard), the KADABRA, the QUILAVA a TYPHLOSION, the LAIRON an AGGRON, and a WAILORD
-/// caught surfing Route S5 (Chapter 5's sea: wild WAILORD at 34). The lead is the one
-/// [`Step::Train`] raises.
+/// The start state's party, from the chapters before (none is chained into the spine): Chapter
+/// 4's end (`sil5_ch4`: KADABRA 42, TYPHLOSION 42) and Chapter 5's end (`sil6_ch5`: TYPHLOSION
+/// 41, LAIRON 39, LANTURN 36 from its hook, FLAAFFY 21), evened out by a player who uses the
+/// whole team: the KADABRA 44, the TYPHLOSION 42, the LAIRON an AGGRON at 42, a WAILORD at 40
+/// caught surfing Route S5 (Chapter 5's sea, wild WAILORD at 34; the spine cannot surf there, so
+/// Chapter 5's hook gives a LANTURN instead), and the MAREEP line, never trained by a spine
+/// (MAREEP 12 in Chapter 4, FLAAFFY 21 in Chapter 5), an AMPHAROS at 44 that now leads (Electric
+/// for Tak's Lapras, Scyther, Ninjask and Charizard). The lead is the one [`Step::Train`] raises.
 ///
-/// With the KADABRA leading (Chapter 4's lead), Tak was lost at every lead level from 48 to 57
-/// but one in two: the battle policy never switches, and his NINJASK Baton-Passes Swords Dance
-/// to HITMONLEE and CHARIZARD, which sweep the bench (see the plan's "SIL3 Ch6 scripts as
-/// built").
+/// The run ends with AMPHAROS 53, KADABRA 45, TYPHLOSION 42, AGGRON 42, WAILORD 40; Chapter 7's
+/// start (`ch07::PARTY`) adds about five levels to each bench member for Manga-Square's trainers
+/// the spine walks round. Other leads were measured against Tak with Chapter 5's end as the
+/// bench (the plan's Ch6 review): an ALAKAZAM wins one level in two from 50 to 56, a TYPHLOSION
+/// (Ember, Flame Wheel, Swift) loses at every level from 46 to 54.
 pub const PARTY: &[(SpeciesId, u8)] = &[
     (SPECIES_AMPHAROS, 44),
     (SPECIES_KADABRA, 44),
@@ -248,9 +250,11 @@ pub const LEVEL_DOJO: u8 = 45;
 /// The level the lead trains to before the gym (the samurai's hasty variants at 43–44).
 pub const LEVEL_GYM: u8 = 46;
 /// The level the lead trains to before Tak (six Pokémon, 42–46), once the doors are open. The
-/// three levels pass with each one's neighbours (±1, the others fixed); Tak stays the run's
-/// risk (his Baton Pass), so a change upstream can tip him.
-pub const LEVEL_TAK: u8 = 55;
+/// three levels pass with each one's neighbours (±1, the others fixed), and so does each
+/// [`PARTY`] level but the WAILORD's 39. 55 also passes with every neighbour; 50–52 win about
+/// one run in two. Tak stays the run's risk (his NINJASK Baton-Passes Swords Dance to HITMONLEE
+/// and CHARIZARD, and the battle policy never switches), so a change upstream can tip him.
+pub const LEVEL_TAK: u8 = 53;
 
 /// Chapter 6's steps.
 pub fn steps() -> Vec<Step> {

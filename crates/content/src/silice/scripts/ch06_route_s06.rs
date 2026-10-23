@@ -155,7 +155,11 @@ pub async fn RouteS06_Sc02(ctx: Ctx) {
     // fallback: battle_multi(SBIRE_S06_1, SBIRE_S06_2, partner ADRIEN_1) (M11's multi): the
     // source's own fallback, two single battles, Adrien's heal (T5b) between them.
     fallback(&ctx, "battle_multi").await;
-    battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_1, Route_S06_Sc02_D1).await;
+    // A loss to grunt B whites out and the scene replays at 60: grunt A stays beaten, as the
+    // Dojo's queue fans.
+    if !defeated(&ctx, TRAINER_SIL_SBIRE_S06_1).await {
+        battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_1, Route_S06_Sc02_D1).await;
+    }
     say(&ctx, Route_S06_Sc02_T5b).await;
     ctx.heal_party().await;
     battle_trainer(&ctx, TRAINER_SIL_SBIRE_S06_2, Route_S06_Sc02_D2).await;
