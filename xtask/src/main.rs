@@ -250,6 +250,11 @@ fn fresh_extract() -> Result<()> {
 /// `cargo xtask parity [--long]`: the committed tree verified, the ROM built, then the parity
 /// lanes (`emu/tests/parity.rs`) and the studio's ROM pane. `--long` then builds the map tour
 /// ROM (`target/game-tour.gba`, `game-gba --features tour`) and runs `emu/tests/tour.rs`.
+///
+/// Steps that do not depend on each other run at once: the tree's verification, the ROM build
+/// and the two test builds; then the parity lanes, the studio's ROM pane and (`--long`) the
+/// tour ROM's build; then the tour test. The studio output and the test builds' output are
+/// held and printed in one piece each, so they do not interleave with the parity lanes'.
 fn parity(args: &[String]) -> Result<()> {
     let long = match args {
         [] => false,
@@ -264,56 +269,91 @@ fn parity(args: &[String]) -> Result<()> {
         "the script IR has positional names only (scripts/decomp_names = 0): set PKR_DECOMP and \
          re-run `cargo xtask extract` before `cargo xtask parity`"
     );
-    // The committed tree must replay to its nodes before the ROM is compared against native.
-    checkpoints::verify(
-        &game_native::store::Store::default_root(content::FLAVOR),
-        false,
-    )?;
-    rom()?;
-    run(Command::new("cargo").current_dir(root()).args([
-        "test",
-        "-p",
-        "emu",
-        "--test",
-        "parity",
-        "--",
-        "--ignored",
-        "--nocapture",
-    ]))?;
+    let parity_test = |no_run: bool| {
+        let mut c = Command::new("cargo");
+        c.current_dir(root())
+            .args(["test", "-p", "emu", "--test", "parity"]);
+        if no_run {
+            c.arg("--no-run");
+        } else {
+            c.args(["--", "--ignored", "--nocapture"]);
+        }
+        c
+    };
     // The studio's ROM pane on the ROM just built (its `#[ignore]`d tests need `target/game.gba`).
-    run(Command::new("cargo").current_dir(root()).args([
-        "test",
-        "-p",
-        "studio",
-        "--release",
-        "--lib",
-        "rom::tests::",
-        "--",
-        "--ignored",
-    ]))?;
-    if long {
-        tour()?;
+    let studio_test = |no_run: bool| {
+        let mut c = Command::new("cargo");
+        c.current_dir(root())
+            .args(["test", "-p", "studio", "--release", "--lib"]);
+        if no_run {
+            c.arg("--no-run");
+        } else {
+            c.args(["rom::tests::", "--", "--ignored"]);
+        }
+        c
+    };
+    std::thread::scope(|s| -> Result<()> {
+        let rom = s.spawn(rom);
+        let builds = [
+            s.spawn(|| held(&mut parity_test(true))),
+            s.spawn(|| held(&mut studio_test(true))),
+        ];
+        // The committed tree must replay to its nodes before the ROM is compared against
+        // native.
+        let verified = checkpoints::verify(
+            &game_native::store::Store::default_root(content::FLAVOR),
+            false,
+        );
+        let rom = rom.join().unwrap();
+        let builds = builds.map(|b| b.join().unwrap());
+        verified?;
+        rom?;
+        for b in builds {
+            b?;
+        }
+        let studio = s.spawn(|| held(&mut studio_test(false)));
+        let tour = long.then(|| s.spawn(tour_rom));
+        let lanes = run(&mut parity_test(false));
+        let studio = studio.join().unwrap();
+        let tour = tour.map(|t| t.join().unwrap());
+        lanes?;
+        studio?;
+        if let Some(tour) = tour {
+            tour?;
+            run(Command::new("cargo").current_dir(root()).args([
+                "test",
+                "-p",
+                "emu",
+                "--test",
+                "tour",
+                "--",
+                "--ignored",
+                "--nocapture",
+            ]))?;
+        }
+        Ok(())
+    })
+}
+
+/// [`run`] with the output held, then printed in one piece (on failure too).
+fn held(cmd: &mut Command) -> Result<()> {
+    use std::io::Write;
+    let out = cmd.output().with_context(|| format!("spawning {cmd:?}"))?;
+    let mut lock = std::io::stdout().lock();
+    lock.write_all(&out.stdout)?;
+    lock.write_all(&out.stderr)?;
+    if !out.status.success() {
+        bail!("{cmd:?} failed: {}", out.status);
     }
     Ok(())
 }
 
-/// The map tour (Milestone 8 Task M): builds `target/game-tour.gba` and runs its mGBA test,
-/// whose table also goes to `target/tour/report.txt`. The tour build shares game-gba's target
-/// dir (only the final link differs); `target/game.gba` stays the game's ROM.
-fn tour() -> Result<()> {
+/// The map tour's ROM (Milestone 8 Task M), `target/game-tour.gba`. The tour build shares
+/// game-gba's target dir (only the final link differs); `target/game.gba` stays the game's ROM.
+fn tour_rom() -> Result<()> {
     let out = root().join("target/game-tour.gba");
     build_gba(&["tour"], &out)?;
-    check_rom_size(&out)?;
-    run(Command::new("cargo").current_dir(root()).args([
-        "test",
-        "-p",
-        "emu",
-        "--test",
-        "tour",
-        "--",
-        "--ignored",
-        "--nocapture",
-    ]))
+    check_rom_size(&out)
 }
 
 /// `--maps` operand: `all` (every `names::MAPS` entry), `slice` (`export::SLICE_MAPS`) or a
