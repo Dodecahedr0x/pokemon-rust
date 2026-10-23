@@ -863,6 +863,57 @@ pub enum UiText {
     PartyReceivedItemFromMon,
     /// `gText_HMMovesCantBeForgotten2`.
     SummaryHmCantForget,
+    // ---- Added by Task B (the bag and item use; `strings.c` names) ----
+    /// `gText_CloseBag`: the list's last entry.
+    BagCloseBag,
+    /// `gText_Var1CantBeHeld`: `{STR_VAR_1}` the item.
+    BagCantBeHeld,
+    /// `gText_ConfirmTossItems`: `{STR_VAR_1}` the item, `{STR_VAR_2}` the quantity.
+    BagConfirmToss,
+    /// `gText_MenuDeselect` (REGISTER on the registered item).
+    BagDeselect,
+    /// `gText_BootedUpTM`.
+    BagBootedUpTm,
+    /// `gText_BootedUpHM`.
+    BagBootedUpHm,
+    /// `gText_TMHMContainedVar1`: `{STR_VAR_1}` the move.
+    BagTmContains,
+    /// `gText_HowManyToSell`: `{STR_VAR_2}` the item.
+    BagSellHowMany,
+    /// `gText_ICanPayVar1`: `{STR_VAR_1}` the price.
+    BagSellOffer,
+    /// `gText_TurnedOverVar1ForVar2`: `{STR_VAR_2}` the item, `{STR_VAR_1}` the price.
+    BagSold,
+    /// `gText_CantBuyKeyItem`: `{STR_VAR_2}` the item.
+    BagCantBuy,
+    /// `gText_PlayerUsedVar2`: `{STR_VAR_2}` the item.
+    ItemUsed,
+    /// `gText_RepelEffectsLingered`.
+    ItemRepelLingers,
+    /// `gText_WontHaveEffect`.
+    ItemNoEffect,
+    /// `gText_PkmnHPRestoredByVar2`: `{STR_VAR_1}` the mon, `{STR_VAR_2}` the HP.
+    ItemHpRestored,
+    /// `gText_PkmnCuredOfPoison`.
+    ItemCuredPoison,
+    /// `gText_PkmnWokeUp2`.
+    ItemWokeUp,
+    /// `gText_PkmnBurnHealed`.
+    ItemBurnHealed,
+    /// `gText_PkmnThawedOut`.
+    ItemThawed,
+    /// `gText_PkmnCuredOfParalysis`.
+    ItemCuredParalysis,
+    /// `gText_PkmnBecameHealthy`.
+    ItemBecameHealthy,
+    /// `gText_PPWasRestored`.
+    ItemPpRestored,
+    /// `gText_PkmnElevatedToLvVar2`: `{STR_VAR_1}` the mon, `{STR_VAR_2}` the level.
+    ItemElevatedToLevel,
+    /// `gText_PkmnBaseVar2StatIncreased`: `{STR_VAR_1}` the mon, `{STR_VAR_2}` the stat.
+    ItemStatIncreased,
+    /// `gText_MovesPPIncreased`.
+    ItemPpIncreased,
 }
 
 /// One start-menu entry (Gen3 `sStartMenuItems`), in display order (Milestone 9).

@@ -335,6 +335,11 @@ impl State {
         self.log.push(line);
     }
 
+    /// A report from outside the world modules (`item_use`): its log line and its event.
+    pub(crate) fn report(&mut self, r: crate::script::Report) {
+        battle::report(self, r);
+    }
+
     /// Records an [`Event`] for this frame (dropped and counted past [`EVENTS_MAX`]).
     fn event(&mut self, e: Event) {
         if let Event::ScriptStarted(id) = e {

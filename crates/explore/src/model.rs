@@ -60,6 +60,11 @@ pub enum MacroKind {
     /// Hold `dir` until the map changes (a door, a mat or a connection from the current
     /// cell), then resolve. A spine step.
     Push { dir: Dir },
+    /// From the settled field: START, BAG, `item` (an `ItemId`), USE, through the bag's
+    /// messages and questions (yes), then the party menu on slot `mon`, forgetting move slot
+    /// `forget` if a move must go (a TM or HM); then out of every screen to the field, and
+    /// resolve. Reads the screens' state each frame (`engine::ui`). A spine step.
+    UseItem { item: u16, mon: u8, forget: u8 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -313,6 +318,11 @@ mod tests {
             MacroKind::Press {
                 keys: 0x0101,
                 frames: 9,
+            },
+            MacroKind::UseItem {
+                item: 344,
+                mon: 0,
+                forget: 2,
             },
         ];
         for (i, kind) in all.into_iter().enumerate() {

@@ -118,8 +118,8 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| `bag-use-hm06` (357) | Mauville City (32,15), after HM06 | no bag screen: `World::use_item(HM06)` stands for the bag's USE (no input); the party menu then teaches Rock Smash with inputs (lead, "forget a move?" yes, Mud-Slap in the summary) | bag: use a TM/HM (`ItemUseOutOfBattle_TMHM`, `item_use.c`) | Milestone 9 Task B (bag) |
-| `bag-use-hm03` (492) | Petalburg City, Wally's house (2,4), after HM03 | as `bag-use-hm06`: the party menu teaches Surf over Water Gun (slot 3) | bag: use a TM/HM | Milestone 9 Task B (bag) |
+
+None today: the last two (`bag-use-hm06`, `bag-use-hm03`) went with Milestone 9 Task B's bag; the spine teaches Rock Smash and Surf through START → BAG → the HM → USE → the party menu (`Step::UseItem`).
 
 **Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); move effects 208 (Brawly's gym), 176 (Route 110 wild), 158 (Route 113) and 043 (Route 112); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_SetMirageTowerVisibility` (Route 111 (16,139)); `FLDEFF_USE_ROCK_SMASH` and `SPECIAL_RockSmashWildEncounter` (Route 111 (18,102)); `SPECIAL_CableCar` (degraded: the ride is a fade and Gen3's 602 frames, Route 112's station). Surf works (Wave C field moves): the spine surfs Route 118 and walks Route 119 to Fortree; the next gap is Fortree's gym, behind the Kecleon that only the Devon Scope (Route 120, Steven) reveals.
 

@@ -12,9 +12,9 @@
 //!   `DOWN_ITEM`: no field item use) and Sand Veil (/2 in a sandstorm: no field weather).
 //! - The slot: a Magnet Pull lead, then a Static lead, picks a Steel, then an Electric, slot half
 //!   the time (`TryGetAbilityInfluencedWildMonIndex`).
-//! - The filters after the level: the Repel (`IsWildLevelAllowedByRepel`) is not modelled (no
-//!   field item use sets `VAR_REPEL_STEP_COUNT`), and draws nothing in Gen3 either; then Keen
-//!   Eye / Intimidate skip weak encounters half the time (`IsAbilityAllowingEncounter`).
+//! - The filters after the level: the Repel (`IsWildLevelAllowedByRepel`, [`repel_blocks`]),
+//!   which draws nothing; then Keen Eye / Intimidate skip weak encounters half the time
+//!   (`IsAbilityAllowingEncounter`).
 //! - The level (`ChooseWildMonLevel`): a Hustle, Vital Spirit or Pressure lead gets the
 //!   table's top level half the time.
 //!
@@ -315,15 +315,20 @@ pub fn create_wild(
 
 /// Gen3 `IsWildLevelAllowedByRepel`, negated: a repel is active (`SpecialIds::var_repel_steps`
 /// non-zero) and the wild `level` is below the first healthy party mon's (Milestone 9 Task B).
-/// Wave 0: never blocks.
+/// No healthy mon blocks too (Gen3's loop falls through to `FALSE`).
 pub(crate) fn repel_blocks(
     level: u8,
     vars: &crate::flow::Vars,
     party: &crate::mon::Party,
     ids: &crate::data::SpecialIds,
 ) -> bool {
-    let _ = (level, vars, party, ids);
-    false
+    if ids.var_repel_steps.is_none_or(|v| vars.var(v) == 0) {
+        return false;
+    }
+    party
+        .iter()
+        .find(|m| m.hp > 0)
+        .is_none_or(|m| level < m.level)
 }
 
 #[cfg(test)]
