@@ -1061,6 +1061,13 @@ pub trait GameData {
     fn has_map(&self, id: MapId) -> bool {
         self.map(id).width > 0
     }
+    /// Map `id` with layout `layout` instead of its own (Gen3 `setmaplayoutindex`, a
+    /// `gMapLayouts` number): its header and events with that layout's size, blocks, border and
+    /// tilesets. `None` when the game has no such variant: the map keeps its own layout.
+    fn map_layout(&self, id: MapId, layout: u16) -> Option<&'static MapData> {
+        let _ = (id, layout);
+        None
+    }
     /// Special vars and flags the engine reads or writes.
     fn special_ids(&self) -> SpecialIds {
         SpecialIds::default()

@@ -28,6 +28,10 @@ impl Field {
             overrides: s.overrides.iter().copied().collect(),
             ring: s.ring,
             spread: None,
+            // TODO(schema 5): the layout override is not in the checkpoint DTO yet; a restore
+            // draws the map's own layout.
+            layout: None,
+            next_layout: None,
         }
     }
 
@@ -78,7 +82,7 @@ impl Field {
                 },
             });
         }
-        let m = game.map(self.map);
+        let m = self.data(game);
         upload_primary(m.primary, f);
         upload_secondary(m.secondary, f);
         if let Some(r) = self.drawn {

@@ -10,10 +10,10 @@ use explore::spine::{self, SpineRun};
 
 /// The spine's frame count when it was recorded: a change means the spine plays differently
 /// (an engine or content change on its path), worth a look before updating it.
-const EMERALD_BADGE1_FRAMES: u64 = 104_335;
+const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last checkpoint, [`EMERALD_LABELS`]'s last).
-const EMERALD_FRAMES: u64 = 455_962;
+const EMERALD_FRAMES: u64 = 465_001;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -37,11 +37,7 @@ const EMERALD_LABELS: &[&str] = &[
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
 /// "Spine blockers" table of `docs/plans/2026-10-23-emerald-parity.md`. Fixing a gap means
 /// deleting its bypass (and its line here).
-const SPINE_BLOCKERS: &[&str] = &[
-    "briney-sail-camera",
-    "briney-sail-camera-slateport",
-    "mauville-gym-barriers",
-];
+const SPINE_BLOCKERS: &[&str] = &["mauville-gym-barriers"];
 
 /// The Silice spine's frame count to the end of Chapter 0.
 const SILICE_CH0_FRAMES: u64 = 21_821;

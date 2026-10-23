@@ -118,11 +118,9 @@ Each row is one `Step::Bypass` of `explore/src/spine/emerald.rs` (its `issue`); 
 
 | issue (step) | map (cell) | error / report | decomp feature | owner |
 |---|---|---|---|---|
-| `briney-sail-camera` (115) | Route104_MrBrineysHouse (9,6) to Route 104 (13,51) | RoundTrip finding: `restore failed: Invalid("camera far outside the map")` during the sail | `Route104_EventScript_SailToDewford`: `applymovement` of the boat and player across map connections, `showobjectat` on another map | engine (camera / checkpoint across connections), Wave C |
-| `briney-sail-camera-slateport` (151) | Dewford Town (11,9), Briney's multichoice: Slateport | the same RoundTrip finding | `DewfordTown_EventScript_SailToSlateport` (same pattern, lands on Route 109) | engine, same fix as `briney-sail-camera` |
 | `mauville-gym-barriers` (245) | MauvilleCity_Gym (4,20) | Wattson unreachable: the floor switches' trigger runs but no barrier moves (`NoPath` to Wattson) | `SPECIAL_MauvilleGymSetDefaultBarriers`, `SPECIAL_MauvilleGymPressSwitch` (unsupported; they toggle every beam metatile) | engine specials, Wave C |
 
-**Report-only findings along the spine** (it plays on; first site of each): `dofieldeffect` and `waitfieldeffect` (every Center heal); `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `copyobjectxytoperm` (Rustboro (30,11), Rusturf Tunnel (9,5)); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson).
+**Report-only findings along the spine** (it plays on; first site of each): `bufferitemnameplural` (degraded, Birch's lab); `SPECIAL_StartWallyTutorialBattle` (degraded, Petalburg); the evolution scene (degraded); `pokenavcall` (Route 105, Dad's call during Mr. Briney's sail); `SPECIAL_ScriptMenu_CreateStartMenuForPokenavTutorial` (degraded, Rustboro (11,17)); `setholewarp` (Granite Cave B1F (4,21)); move effects 087 (Brawly's gym), 176 (Route 110 wild) and 007 (Wattson); `SPECIAL_UpdateCyclingRoadState` (Route 110 (17,99)); `ai pursuit viability` (degraded, Route 110 rival); `SPECIAL_SetMauvilleOldManObjEventGfx` (Mauville Center); `SPECIAL_MauvilleGymDeactivatePuzzle` (after Wattson).
 
 ## 3. As built
 

@@ -89,6 +89,12 @@ pub struct Field {
     /// An upload spread over frames, in progress ([`Field::enter_spread`], a crossing into
     /// other tilesets).
     spread: Option<Spread>,
+    /// The current map's layout override (Gen3 `setmaplayoutindex`; `None`: its own).
+    layout: Option<u16>,
+    /// The layout the next map entered takes ([`Field::set_next_layout`]): Gen3's
+    /// `mapLayoutId`, reset to the header's by `LoadCurrentMapData` and set by the new map's
+    /// `on_transition` script before `InitMap` loads it.
+    next_layout: Option<u16>,
 }
 
 /// Tiles a spread upload sends per frame while the screen is black (a warp load: one whole
@@ -152,7 +158,28 @@ impl Field {
             overrides: BTreeMap::new(),
             ring: (0, 0),
             spread: None,
+            layout: None,
+            next_layout: None,
         }
+    }
+
+    /// The current map's data, with its layout override if any.
+    pub fn data(&self, game: &impl GameData) -> &'static MapData {
+        Self::data_of(game, self.map, self.layout)
+    }
+
+    fn data_of(game: &impl GameData, map: MapId, layout: Option<u16>) -> &'static MapData {
+        (layout.and_then(|l| game.map_layout(map, l))).unwrap_or_else(|| game.map(map))
+    }
+
+    /// Sets the layout of the next map entered (`None`: its own; Gen3 `setmaplayoutindex`).
+    pub fn set_next_layout(&mut self, layout: Option<u16>) {
+        self.next_layout = layout;
+    }
+
+    /// The current map's layout override.
+    pub fn layout(&self) -> Option<u16> {
+        self.layout
     }
 
     /// Whether an upload spread over frames is still in progress: the view is not all drawn
@@ -193,7 +220,7 @@ impl Field {
         self.enter_spread(map, camera_px);
         self.spread = None;
         field_controls(f);
-        let m = game.map(map);
+        let m = self.data(game);
         upload_primary(m.primary, f);
         upload_secondary(m.secondary, f);
     }
@@ -204,6 +231,7 @@ impl Field {
     /// rows a frame. Nothing is drawn before. [`Field::uploading`] until done.
     pub fn enter_spread(&mut self, map: MapId, camera_px: (i32, i32)) {
         self.map = map;
+        self.layout = self.next_layout;
         self.overrides.clear();
         self.camera_px = camera_px;
         self.drawn = None;
@@ -224,7 +252,7 @@ impl Field {
         if s.rows.is_some() {
             return s;
         }
-        let m = game.map(self.map);
+        let m = self.data(game);
         if s.controls {
             field_controls(f);
             s.controls = false;
@@ -276,7 +304,10 @@ impl Field {
             self.ring,
             core::mem::take(&mut self.overrides),
         );
+        // The map keeps its layout; a pending one still waits for the next map.
+        let next = core::mem::replace(&mut self.next_layout, self.layout);
         self.enter(game, self.map, camera, f);
+        self.next_layout = next;
         self.ring = ring;
         self.overrides = overrides;
     }
@@ -290,7 +321,9 @@ impl Field {
             self.ring,
             core::mem::take(&mut self.overrides),
         );
+        let next = core::mem::replace(&mut self.next_layout, self.layout);
         self.enter_spread(self.map, camera);
+        self.next_layout = next;
         self.ring = ring;
         self.overrides = overrides;
     }
@@ -361,7 +394,7 @@ impl Field {
     pub fn block(&self, game: &impl GameData, x: i16, y: i16) -> u16 {
         match self.overrides.get(&(x, y)) {
             Some(&b) => b,
-            None => grid::block_at(game, game.map(self.map), x, y),
+            None => grid::block_at(game, self.data(game), x, y),
         }
     }
 
@@ -370,7 +403,7 @@ impl Field {
     /// map are ignored. Overrides last until the next `load` or
     /// `switch_map`.
     pub fn set_block(&mut self, game: &impl GameData, x: i16, y: i16, block: u16, f: &mut Frame) {
-        if !grid::in_bounds(game.map(self.map), x, y) {
+        if !grid::in_bounds(self.data(game), x, y) {
             return;
         }
         self.overrides.insert((x, y), block);
@@ -382,7 +415,7 @@ impl Field {
     /// The connected map and the shift (`new = old + shift`, in cells) for a cell (x, y) just
     /// outside the current map, if a connection covers it. Feed both to [`Field::switch_map`].
     pub fn crossing(&self, game: &impl GameData, x: i16, y: i16) -> Option<(MapId, (i16, i16))> {
-        let n = grid::neighbor(game, game.map(self.map), x, y)?;
+        let n = grid::neighbor(game, self.data(game), x, y)?;
         Some((n.map, (n.x - x, n.y - y)))
     }
 
@@ -413,7 +446,7 @@ impl Field {
         shift: (i16, i16),
         f: &mut Frame,
     ) {
-        let (old, new) = (game.map(self.map), game.map(to));
+        let (old, new) = (self.data(game), Self::data_of(game, to, self.next_layout));
         let primary = !core::ptr::eq(old.primary, new.primary);
         let secondary = !core::ptr::eq(old.secondary, new.secondary);
         // Without a spread (which redraws the whole view), the kept cells that differ.
@@ -442,6 +475,7 @@ impl Field {
             });
         }
         self.map = to;
+        self.layout = self.next_layout;
         self.overrides.clear();
         self.camera_px.0 += shift.0 as i32 * 16;
         self.camera_px.1 += shift.1 as i32 * 16;
@@ -502,6 +536,8 @@ impl Field {
         if let Some(s) = &self.spread {
             s.hash(h);
         }
+        // Not the layout override (Wave C): checkpoints do not keep it yet (schema 5), so a
+        // restore must hash the same.
     }
 
     fn set_scroll(&self, f: &mut Frame) {
@@ -525,7 +561,7 @@ impl Field {
         shift: (i16, i16),
         kept: Rect,
     ) -> Vec<(i16, i16)> {
-        let new = game.map(to);
+        let new = Self::data_of(game, to, self.next_layout);
         let mut differ = Vec::new();
         let mut check = |x: i16, y: i16| {
             let (nx, ny) = (x + shift.0, y + shift.1);
@@ -572,7 +608,7 @@ impl Field {
         if cells.is_empty() {
             return;
         }
-        let map = game.map(self.map);
+        let map = self.data(game);
         // (tilemap position, entry per BG), in tilemap order within each run of cells on one
         // row (the callers give rows left to right): the cells' top tilemap row, then their
         // bottom one. No sort: on the GBA, sorting and growing vectors cost most of a draw.

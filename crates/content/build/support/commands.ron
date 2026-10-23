@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 102 Native, 42 Ignore, 14 Default, 69 Unsupported.
+// Counts: 109 Native, 42 Ignore, 14 Default, 62 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -114,7 +114,7 @@
     "settrainerflag": Native,
     "cleartrainerflag": Native,
     "setobjectxyperm": Native,
-    "copyobjectxytoperm": Unsupported,
+    "copyobjectxytoperm": Native,
     "setobjectmovementtype": Native,
     "waitmessage": Native,
     "message": Native,
@@ -170,9 +170,9 @@
     "setflashlevel": Ignore,                        // darkness (Flash) is not drawn
     "animateflash": Ignore,                         // darkness (Flash) is not drawn
     "messageautoscroll": Native,
-    "dofieldeffect": Unsupported,
-    "setfieldeffectargument": Unsupported,
-    "waitfieldeffect": Unsupported,
+    "dofieldeffect": Native,
+    "setfieldeffectargument": Native,
+    "waitfieldeffect": Native,
     "setrespawn": Native,
     "checkplayergender": Native,
     "playmoncry": Ignore,                           // audio (no sound until M12)
@@ -181,11 +181,11 @@
     "setweather": Ignore,                           // weather is not drawn
     "doweather": Ignore,                            // weather is not drawn
     "setstepcallback": Ignore,                      // per-step field effects (ash, ice, footprints) are not modelled
-    "setmaplayoutindex": Unsupported,
+    "setmaplayoutindex": Native,
     "setobjectsubpriority": Ignore,                 // sprite draw order only
     "resetobjectsubpriority": Ignore,               // sprite draw order only
-    "createvobject": Unsupported,
-    "turnvobject": Unsupported,
+    "createvobject": Native,
+    "turnvobject": Native,
     "opendoor": Native,
     "closedoor": Native,
     "waitdooranim": Native,

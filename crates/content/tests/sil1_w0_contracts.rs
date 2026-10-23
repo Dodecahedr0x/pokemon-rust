@@ -35,6 +35,9 @@ mod codegen;
 #[path = "../build/input.rs"]
 mod input;
 #[allow(dead_code)]
+#[path = "../build/layouts.rs"]
+mod layouts;
+#[allow(dead_code)]
 #[path = "../build/scripts.rs"]
 mod scripts;
 #[allow(dead_code)]

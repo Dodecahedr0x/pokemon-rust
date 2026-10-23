@@ -36,7 +36,11 @@ impl Objects {
     /// map's templates spawn afterwards ([`Objects::spawn_templates`]), once map scripts ran.
     pub(crate) fn enter_map(&mut self, id: MapId, shift: Option<(i16, i16)>) {
         match shift {
-            None => self.objs.truncate(1),
+            None => {
+                self.objs.truncate(1);
+                // Gen3 resets every sprite on a warp load.
+                self.virtuals.clear();
+            }
             Some((dx, dy)) => self.shift(dx, dy),
         }
         self.set_map(id);
