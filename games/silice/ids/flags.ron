@@ -2298,5 +2298,45 @@
             name: "FLAG_SIL_HIDE_OWLYS_SILO_NOCTALI_3",
             num: 876,
         ),
+        (
+            name: "FLAG_SIL_HIDE_TOUR_REVENGE",
+            num: 1250,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_JULIEN",
+            num: 1251,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_APEX_ROMAIN",
+            num: 1252,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_MATHIEU",
+            num: 1253,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ADRIEN",
+            num: 1254,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_GWADA",
+            num: 1255,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_MATHIEU",
+            num: 1256,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN",
+            num: 1257,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_GWADA",
+            num: 1258,
+        ),
+        (
+            name: "FLAG_SIL_HIDE_ZENITH_ASC_JULIEN",
+            num: 1259,
+        ),
     ],
 )

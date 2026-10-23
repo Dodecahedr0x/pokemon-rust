@@ -15,14 +15,14 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 574
+- ids/flags: 584
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
 - ids/species: 5
 - ids/moves: 1
 - ids/songs: 13
-- ids/maps: 116
+- ids/maps: 117
 
 ## Bold paragraphs naming items without a mart
 
@@ -95,6 +95,7 @@
 
 - ids/flags.ron: FLAG_SIL_HIDE_BAR_SBIRES is a tombstone but the source uses it
 - ids/maps.ron: MAP_MANGA_SQUARE_GYM
+- ids/maps.ron: MAP_TRONE_ZENITH_NUIT
 
 ## Item definitions
 
@@ -268,6 +269,16 @@
 - maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A
 - maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B
 - maps/RouteS06.ron: FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR
+- maps/SommetApex.ron: FLAG_SIL_HIDE_APEX_JULIEN
+- maps/SommetApex.ron: FLAG_SIL_HIDE_APEX_ROMAIN
+- maps/TourNebula_4F.ron: FLAG_SIL_HIDE_TOUR_REVENGE
+- maps/TroneZenith.ron: FLAG_SIL_HIDE_ZENITH_MATHIEU
+- maps/TroneZenith.ron: FLAG_SIL_HIDE_ZENITH_ADRIEN
+- maps/TroneZenith.ron: FLAG_SIL_HIDE_ZENITH_GWADA
+- maps/TroneZenith_Ascenseur.ron: FLAG_SIL_HIDE_ZENITH_ASC_MATHIEU
+- maps/TroneZenith_Ascenseur.ron: FLAG_SIL_HIDE_ZENITH_ASC_ADRIEN
+- maps/TroneZenith_Ascenseur.ron: FLAG_SIL_HIDE_ZENITH_ASC_GWADA
+- maps/TroneZenith_Ascenseur.ron: FLAG_SIL_HIDE_ZENITH_ASC_JULIEN
 - maps/ViberCity.ron: FLAG_SIL_HIDE_VIBER_MATHIEU
 - maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_2
 - maps/ViberCity.ron: FLAG_SIL_HIDE_NOCTURNE_DANSEUR_3
