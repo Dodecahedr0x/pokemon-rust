@@ -26,15 +26,15 @@ fn committed_data_passes_check_without_the_extract() {
 
 #[test]
 fn committed_ids_keep_their_numbers() {
-    // (file, name) -> num, from the committed ids files.
+    // (file, name) -> every num it has had (a moved id: its tombstone and its live entry).
     let re = regex::Regex::new(r#"name: "([^"]+)",\s*num: (\d+),"#).unwrap();
-    let mut now: BTreeMap<(String, String), u32> = BTreeMap::new();
+    let mut now: BTreeMap<(String, String), Vec<u32>> = BTreeMap::new();
     for e in std::fs::read_dir(games().join("ids")).unwrap() {
         let p = e.unwrap().path();
         let file = p.file_stem().unwrap().to_string_lossy().to_string();
         let text = std::fs::read_to_string(&p).unwrap();
         for c in re.captures_iter(&text) {
-            now.insert((file.clone(), c[1].to_string()), c[2].parse().unwrap());
+            (now.entry((file.clone(), c[1].to_string())).or_default()).push(c[2].parse().unwrap());
         }
     }
     let golden = std::fs::read_to_string(fixtures().join("ids.golden")).unwrap();
@@ -47,7 +47,10 @@ fn committed_ids_keep_their_numbers() {
         let (file, name, num) = (w.next().unwrap(), w.next().unwrap(), w.next().unwrap());
         let num: u32 = num.parse().unwrap();
         match now.get(&(file.to_string(), name.to_string())) {
-            Some(&got) => assert_eq!(got, num, "ids/{file}.ron: {name} was {num}, now {got}"),
+            Some(got) => assert!(
+                got.contains(&num),
+                "ids/{file}.ron: {name} was {num}, now {got:?}"
+            ),
             None => panic!(
                 "ids/{file}.ron: {name} ({num}) is gone; ids are append-only (tombstone instead)"
             ),

@@ -19,7 +19,7 @@ fn temp_dir(tag: &str) -> PathBuf {
 
 fn pane(tag: &str) -> (NativePane, PathBuf, Store) {
     let local = temp_dir(tag);
-    let store = Store::layered(Store::default_root(content::STUB), &local).unwrap();
+    let store = Store::layered(Store::default_root(content::FLAVOR), &local).unwrap();
     (NativePane::new(store.clone()), local, store)
 }
 

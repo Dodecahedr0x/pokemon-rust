@@ -565,7 +565,8 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let rom = dir.join("game.gba");
         std::fs::write(&rom, b"not a rom").unwrap();
-        let store = Store::layered(Store::default_root(content::STUB), dir.join("local")).unwrap();
+        let store =
+            Store::layered(Store::default_root(content::FLAVOR), dir.join("local")).unwrap();
         let Some(node) = store.nodes().unwrap().into_iter().next() else {
             println!("skipped: no committed nodes");
             return;
@@ -769,7 +770,7 @@ mod tests {
     fn rom_pane(tag: &str) -> (RomPane, PathBuf) {
         let scratch = temp(tag);
         let store =
-            Store::layered(Store::default_root(content::STUB), scratch.join("local")).unwrap();
+            Store::layered(Store::default_root(content::FLAVOR), scratch.join("local")).unwrap();
         (
             RomPane::new(workspace().join("target/game.gba"), scratch.clone(), store),
             scratch,
@@ -865,7 +866,7 @@ mod tests {
     fn node_boots_restored_at_the_node_frame() {
         let (mut p, scratch) = rom_pane("rom-node");
         // The committed tree's git-ignored files: names and modification times.
-        let base = Store::default_root(content::STUB);
+        let base = Store::default_root(content::FLAVOR);
         let written = || {
             let mut files: Vec<_> = std::fs::read_dir(base.join("snapshots"))
                 .into_iter()

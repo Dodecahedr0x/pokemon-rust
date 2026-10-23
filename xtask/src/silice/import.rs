@@ -1396,6 +1396,7 @@ pub fn build(
             .ids
             .iter()
             .filter(|e| e.removed && names.contains_key(&e.name))
+            .filter(|e| !file.ids.iter().any(|x| !x.removed && x.name == e.name))
         {
             report.add(
                 "Ids no longer in the source (kept)",

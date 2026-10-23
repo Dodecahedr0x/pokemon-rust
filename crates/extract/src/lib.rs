@@ -7,6 +7,7 @@ pub mod codegen;
 pub mod export;
 pub mod fixtures;
 pub mod font;
+pub mod games;
 pub mod gfx;
 pub mod inc;
 pub mod labels;

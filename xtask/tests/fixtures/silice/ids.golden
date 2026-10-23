@@ -1,5 +1,6 @@
-# (file, name, num) of every id in games/silice/ids at the time of the first import.
-# silice_games.rs asserts each still has its number (append-only). Regenerate only to add.
+# (file, name, num) of every id in games/silice/ids at the time of the first import, then the
+# ids appended since (a moved id has both lines). silice_games.rs and the content build test
+# sil1_w0_contracts.rs assert each still has its number (append-only). Regenerate only to add.
 flags FLAG_SIL_ADRIEN_TRADUCTION_NZ 275
 flags FLAG_SIL_ANTENNE_ALPHA 276
 flags FLAG_SIL_ANTENNE_ETA 277
@@ -951,3 +952,7 @@ vars VAR_SIL_TOUR_PRISME_2 16432
 vars VAR_SIL_TOUR_PRISME_3 16433
 vars VAR_SIL_TOUR_STUDIO_STATE 16434
 vars VAR_SIL_CH0_GATE 16435
+# SIL1 Wave 0 review: VAR_SIL_EVALON_PARTENAIRE was on 16419 (0x4023), VAR_STARTER_MON, which
+# the shared prelude writes (choose_starter): moved (`cargo xtask silice move`), 16419 is its
+# tombstone.
+vars VAR_SIL_EVALON_PARTENAIRE 16436
