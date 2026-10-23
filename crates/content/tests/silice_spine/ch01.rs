@@ -36,6 +36,11 @@ pub const GYM_LEVEL: u8 = 16;
 /// The party's second Pokémon, for the Chimiste's battle only (a test hook, the chapter's one):
 /// a Mareep (Bois-Éther's wild list, §6) caught and trained to 12. Without it the run whites out
 /// on Koffing's Self-Destruct, a double KO (see the plan's "SIL2 Ch1 scripts as built").
+/// Re-measured with the learn policy (the starter has Quick Attack from 21): still lost without
+/// the hook (Koffing left at 19 of 41 HP); a MAREEP at 5 (its catch level, untrained) passes
+/// Chapter 1 and the chained runs, but the start states (which mirror the chain's party) then
+/// lose Chapter 2 to Yohan's Alakazam, so 12 stays. A [`GYM_LEVEL`] of 15 passes Chapter 1
+/// and loses the chained Chapter 2; 14 loses Chapter 1.
 pub const SECOND: Hook =
     Hook::MonBefore("BricoBourg_Labo_EventScript_Chimiste", SPECIES_MAREEP, 12);
 

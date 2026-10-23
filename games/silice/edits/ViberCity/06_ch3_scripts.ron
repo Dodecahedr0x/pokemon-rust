@@ -1,0 +1,10 @@
+// Chapter 3 scripts (SIL2 Ch3 scripts as built).
+[
+    // The hidden-item fallback (as Ch0 and Ch1): the engine ignores BgKind::HiddenItem, so the two
+    // hidden items are signs running a script that gives the item once, behind its flag (the PP Up
+    // only after the black-out, §7). To restore once the engine picks hidden items up:
+    //   HiddenItem(x: 29, y: 26, item: "ITEM_HYPER_POTION", flag: "FLAG_SIL_ITEM_VIBER_HYPER_POTION"),
+    //   HiddenItem(x: 13, y: 3, item: "ITEM_PP_UP", flag: "FLAG_SIL_ITEM_VIBER_PP_UP"),
+    Replace(index: 5, event: Bg((x: 29, y: 26, elevation: 0, kind: Script(facing: 0, script: Some("ViberCity_EventScript_HiddenHyperPotion"))))),
+    Replace(index: 6, event: Bg((x: 13, y: 3, elevation: 0, kind: Script(facing: 0, script: Some("ViberCity_EventScript_HiddenPpUp"))))),
+]

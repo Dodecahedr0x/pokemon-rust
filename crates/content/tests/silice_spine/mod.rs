@@ -29,17 +29,30 @@
 //!
 //! Every step first settles: scripts run to their end, messages advance, yes/no boxes answer
 //! yes, the starter screen takes the [`Step::Choose`] ball, and battles fight (the explorer's
-//! `WaitScript`, `Choose` and `Battle(policy)` are this settle policy, applied everywhere). The
-//! battle policy ([`driver::best_move`]): FIGHT, never RUN; the usable move with the best
-//! expected damage against the opponent's types (power, accuracy, same-type bonus, the type
-//! chart); new moves are learned into free slots only (B on "forget a move?"). Nothing is random
-//! outside the engine: the same steps give the same frames.
+//! `WaitScript`, `Choose` and `Battle(policy)` are this settle policy, applied everywhere).
+//!
+//! **The battle policy** (deterministic, from the battle's state only):
+//! - FIGHT, never RUN, no bag: the usable move with the best expected damage against the
+//!   opponent's types ([`driver::best_move`]: power × accuracy, ×1.5 for the same type, × Gen3's
+//!   type chart; the lowest slot on a tie).
+//! - A new move with a free slot is learned (the engine's own). With four moves known, "forget a
+//!   move?" ([`driver::learn_slot`]): the weakest damaging move (power × accuracy, ×1.5 for the
+//!   same type; the lowest slot on a tie) is forgotten for the new one when the new one is worth
+//!   more; otherwise B (keep the moves). Moves without power (Leer, Calm Mind) are never
+//!   forgotten nor learned this way. No move is reserved for the scripts: Silice's field
+//!   abilities (Cut, Strength, Flash) are the Mallette's modules, flags, not moves.
+//! - No voluntary switch: the battle scene has no party screen (POKéMON redraws the action
+//!   menu), and after a faint the engine sends out the first usable Pokémon.
+//!
+//! Nothing is random outside the engine: the same steps give the same frames. `SPINE_DEBUG=1`
+//! logs every battle's outcome and both parties (for tuning training levels and hooks).
 
 #![allow(dead_code)]
 
 pub mod ch00;
 pub mod ch01;
 pub mod ch02;
+pub mod ch03;
 pub mod ch04;
 pub mod driver;
 

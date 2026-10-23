@@ -50,9 +50,9 @@ pub fn start() -> Start {
 
 /// The start state's party: Chapter 1's end party as the chained run leaves it (`ch01`'s
 /// trained starter and its [`ch01::SECOND`]), CYNDAQUIL's line (`VAR_SIL_STARTER` 1, the
-/// `Step::Choose` of `ch00`) as a QUILAVA at [`START_LEVEL`] and a MAREEP at 12. One difference:
-/// `give_mon` fills the level-up moveset, so this Quilava knows Quick Attack where the trained
-/// one, which only learns into free slots, still knows Tackle.
+/// `Step::Choose` of `ch00`) as a QUILAVA at [`START_LEVEL`] and a MAREEP at 12. `give_mon`
+/// fills the level-up moveset: Leer, Smokescreen, Ember, Quick Attack, the trained one's four
+/// (it forgot Tackle for Quick Attack at 21, the learn policy) in another order.
 pub const START_LEVEL: u8 = 22;
 
 /// Chapter 1's end state (`02-gris-echec.md`'s prerequisites and Chapter 1's §8), on top of
@@ -644,14 +644,15 @@ pub const TOUR_LEVEL: u8 = 26;
 
 /// The party's third Pokémon, from Duval's battle on (a test hook, the chapter's one): an ARON
 /// (Route S2's wild list, §6) caught and trained to 30. **A strength boost** over the source's
-/// player at about 26: the battle policy learns new moves into free slots only, so the trained
-/// starter keeps Tackle, Leer, Smokescreen and Ember. Ember is resisted by Duval's NOSEPASS
-/// (whose Rock Throw is super effective), and Yohan's ALAKAZAM (26, Calm Mind and Recover)
-/// outlasts it. Aron's Metal Claw is super effective on Nosepass, and Steel resists Psychic.
-/// Measured: without the hook the starter loses to Duval at 26, and at 29 (122 000 frames of
-/// training) beats him but loses to Alakazam at 31 even after a heal; a hooked MARILL (20, 24)
-/// loses to Duval's KOFFING; an Aron at 25–28 beats Yohan on the chained run only (the start
-/// state's Quilava is weaker), at 30 on both with half its HP left.
+/// player at about 26: the trained starter knows Quick Attack, Leer, Smokescreen and Ember
+/// (Flame Wheel comes at 31). Ember is resisted by Duval's NOSEPASS (whose Rock Throw is super
+/// effective), and Yohan's ALAKAZAM (26, Calm Mind and Recover) outlasts it. Aron's Metal Claw
+/// is super effective on Nosepass, and Steel resists Psychic. Measured before the learn policy:
+/// without the hook the starter loses to Duval at 26, and at 29 (122 000 frames of training)
+/// beats him but loses to Alakazam at 31 even after a heal; a hooked MARILL (20, 24) loses to
+/// Duval's KOFFING; an Aron at 25–28 beats Yohan on the chained run only. With the learn
+/// policy: an Aron at 26 or 28 still loses to Alakazam on the start state; a [`TOUR_LEVEL`] of
+/// 24 passes Chapter 2 but the chained Chapter 3 then loses a battle.
 pub const THIRD: Hook = Hook::MonBefore("GrisEchec_TourObservation_Top_Sc01", SPECIES_ARON, 30);
 
 /// What the end of Chapter 2 asserts beyond its checkpoints: the story, the bag, no dropped

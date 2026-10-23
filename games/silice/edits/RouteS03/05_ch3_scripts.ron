@@ -1,0 +1,10 @@
+// Chapter 3 scripts (SIL2 Ch3 scripts as built).
+[
+    // The hidden-item fallback (as Ch0 and Ch1): the engine ignores BgKind::HiddenItem, so the two
+    // hidden items are signs running a script that gives the item once, behind its flag. To restore
+    // once the engine picks hidden items up:
+    //   HiddenItem(x: 5, y: 22, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_S03_ETHER"),
+    //   HiddenItem(x: 8, y: 15, item: "ITEM_NUGGET", flag: "FLAG_SIL_ITEM_S03_NUGGET"),
+    Replace(index: 2, event: Bg((x: 5, y: 22, elevation: 0, kind: Script(facing: 0, script: Some("RouteS03_EventScript_HiddenEther"))))),
+    Replace(index: 3, event: Bg((x: 8, y: 15, elevation: 0, kind: Script(facing: 0, script: Some("RouteS03_EventScript_HiddenNugget"))))),
+]
