@@ -279,6 +279,10 @@ impl State {
         let battle = unsafe {
             let b = &raw mut (*p).battle;
             b.write(Battle::new(game, setup, &self.party, &mut self.rng));
+            // The player's form changes need their flag (the Mega Ring). Their state lives in
+            // the `Battle`, so the field guard above is unchanged. Emerald has no form changes:
+            // this returns at once.
+            (*b).enable_player_forms(game, |f| self.vars.flag(f));
             &*b
         };
         if let BattleKind::Trainer { trainer, .. } = battle.setup().kind

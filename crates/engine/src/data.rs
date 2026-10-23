@@ -616,6 +616,43 @@ pub trait GameData {
         let _ = species;
         &[]
     }
+
+    // ---- Silice battle engine ----
+
+    /// The battle effect of a held item (`gItems[].holdEffect` / `holdEffectParam`); `None`
+    /// for an item with no effect the engine models.
+    fn hold_effect(&self, id: ItemId) -> Option<mon::HoldEffect> {
+        let _ = id;
+        None
+    }
+    /// The in-battle form changes (Mega Evolution, Primal Reversion), in any order. A game
+    /// without them (Emerald) returns the default, empty.
+    fn form_changes(&self) -> &'static [FormChange] {
+        &[]
+    }
+}
+
+/// How a [`FormChange`] triggers.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FormKind {
+    /// Mega Evolution: chosen by the trainer before the turn's moves, at most once per side
+    /// per battle.
+    Mega,
+    /// Primal Reversion: automatic when the holder enters the field; free.
+    Primal,
+}
+
+/// A battle-only form: `base` holding `item` becomes `form` (a species of `BattleTables`, its
+/// stats, types and ability), until the battle ends.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct FormChange {
+    pub base: SpeciesId,
+    pub item: ItemId,
+    pub form: SpeciesId,
+    pub kind: FormKind,
+    /// The flag that must be set for the player's mons to change (the Mega Ring); `None`:
+    /// always. Trainers ignore it.
+    pub enable_flag: Option<FlagId>,
 }
 
 #[cfg(test)]

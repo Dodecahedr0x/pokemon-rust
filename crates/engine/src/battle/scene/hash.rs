@@ -27,6 +27,7 @@ pub(super) fn hash_play(p: Play, h: &mut Fnv64) {
         Play::Bars => [8, 0, 0, 0],
         Play::Defeated(b) => [9, b as u8, 0, 0],
         Play::Ending => [10, 0, 0, 0],
+        Play::Form(side) => [11, side as u8, 0, 0],
     };
     h.write(&bytes);
 }
@@ -73,6 +74,10 @@ fn hash_buff(b: &Buff, h: &mut Fnv64) {
         Buff::Text(s) => {
             h.write(&[8]);
             str_code(s, h);
+        }
+        Buff::Item(i) => {
+            h.write(&[9]);
+            h.write_u16(i.0);
         }
     }
 }
@@ -128,6 +133,14 @@ pub(super) fn hash_event(e: &BattleEvent, h: &mut Fnv64) {
         BattleEvent::LevelUp { party, level } => h.write(&[14, party, level]),
         BattleEvent::Ball { shakes, caught } => h.write(&[15, shakes, caught as u8]),
         BattleEvent::End(o) => h.write(&[16, o as u8]),
+        BattleEvent::FormChange {
+            side,
+            party,
+            species,
+        } => {
+            h.write(&[17, side as u8, party]);
+            h.write_u16(species.0);
+        }
         // Never queued (`BattleScene::push` sets reports aside).
         BattleEvent::Report(_) => {}
     }

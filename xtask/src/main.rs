@@ -130,6 +130,14 @@ fn rom() -> Result<PathBuf> {
         .arg("-o")
         .arg(&probe)
         .args(["-t", "PKRPROBE"]))?;
+    // The battle probe (crates/game-gba/src/bin/battle_probe.rs): the Mega Evolution turn's
+    // cost, read by the parity test.
+    let battle_probe = root().join("target/battle-probe.gba");
+    run(Command::new("agb-gbafix")
+        .arg(gba_dir.join("target/thumbv4t-none-eabi/release/battle_probe"))
+        .arg("-o")
+        .arg(&battle_probe)
+        .args(["-t", "PKRBPROBE"]))?;
     Ok(out)
 }
 

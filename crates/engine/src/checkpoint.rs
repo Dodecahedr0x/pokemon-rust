@@ -19,7 +19,18 @@ use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 /// Snapshot schema. Bump on any change to a DTO below (the golden-bytes test fails otherwise).
-pub const SCHEMA: u16 = 2;
+/// Schema 3 appends [`WorldSnapshot::party_held`].
+pub const SCHEMA: u16 = 3;
+/// The oldest schema [`decode`] still reads (see [`schema_readable`]).
+pub const OLDEST_READABLE: u16 = 2;
+
+/// Whether this build reads checkpoints (and trusts tree nodes) of schema `s`. Schema 2 is
+/// schema 3 without held items: [`decode`] reads it as an empty [`WorldSnapshot::party_held`],
+/// and [`state_digest`] of such a snapshot is its schema-2 digest, so recorded nodes stay
+/// valid.
+pub const fn schema_readable(s: u16) -> bool {
+    s >= OLDEST_READABLE && s <= SCHEMA
+}
 /// Largest postcard checkpoint the GBA flash slot accepts (route max is reported by the tests).
 pub const MAX_ENCODED: usize = 8 * 1024;
 /// agb_save layout, shared by game-gba and game-native::flash (byte-identical images).
@@ -137,6 +148,11 @@ pub struct WorldSnapshot {
     #[serde(deserialize_with = "str_vars")]
     pub str_vars: [Vec<u8>; 3],
     pub warp_slots: WarpSlotsSnap,
+    // Schema 3 (Silice engine). Keep it last: an empty list is one trailing 0 byte, which
+    // `decode` adds to a schema-2 checkpoint and `state_digest` leaves out.
+    /// The party's held items (`Pokemon::held`, by party slot); empty when no mon holds one.
+    #[serde(default, deserialize_with = "seq")]
+    pub party_held: Vec<Option<ItemId>>,
 }
 
 /// The bag's non-empty slots, in pocket then slot order.
@@ -416,40 +432,71 @@ pub fn decode(bytes: &[u8]) -> Result<Checkpoint, CodecError> {
         return Err(CodecError::TooLarge(bytes.len()));
     }
     let (schema, _) = postcard::take_from_bytes::<u16>(bytes).map_err(|_| CodecError::Postcard)?;
-    if schema != SCHEMA {
+    if !schema_readable(schema) {
         return Err(CodecError::Schema { found: schema });
     }
+    let upgraded;
+    let bytes = if schema < 3 {
+        // Schema 2 lacks the trailing `party_held`: an empty one is a 0 length byte.
+        let mut v = Vec::with_capacity(bytes.len() + 1);
+        v.extend_from_slice(bytes);
+        v.push(0);
+        upgraded = v;
+        &upgraded[..]
+    } else {
+        bytes
+    };
     match postcard::take_from_bytes::<Checkpoint>(bytes) {
-        Ok((cp, [])) => Ok(cp),
+        Ok((mut cp, [])) => {
+            cp.header.schema = SCHEMA;
+            Ok(cp)
+        }
         _ => Err(CodecError::Postcard),
     }
 }
 
 /// Semantic identity of a snapshot: Fnv64 over its postcard bytes (the tree's "content hash").
-/// The header (build, frame, world hash) is not part of it.
+/// The header (build, frame, world hash) is not part of it. An empty `party_held` (its single
+/// trailing 0 byte) is left out, so a snapshot without held items keeps its schema-2 digest.
 pub fn state_digest(w: &WorldSnapshot) -> u64 {
-    postcard::serialize_with_flavor(w, DigestFlavor(Fnv64::new()))
-        .expect("postcard encoding of a snapshot")
+    let flavor = DigestFlavor {
+        h: Fnv64::new(),
+        last: None,
+        drop_last: w.party_held.is_empty(),
+    };
+    postcard::serialize_with_flavor(w, flavor).expect("postcard encoding of a snapshot")
 }
 
-/// A postcard output that hashes the bytes instead of storing them.
-struct DigestFlavor(Fnv64);
+/// A postcard output that hashes the bytes instead of storing them, one byte behind so that
+/// the last one can be left out.
+struct DigestFlavor {
+    h: Fnv64,
+    last: Option<u8>,
+    drop_last: bool,
+}
 
 impl postcard::ser_flavors::Flavor for DigestFlavor {
     type Output = u64;
 
     fn try_push(&mut self, data: u8) -> postcard::Result<()> {
-        self.0.write(&[data]);
+        if let Some(b) = self.last.replace(data) {
+            self.h.write(&[b]);
+        }
         Ok(())
     }
 
     fn try_extend(&mut self, data: &[u8]) -> postcard::Result<()> {
-        self.0.write(data);
+        for &b in data {
+            self.try_push(b)?;
+        }
         Ok(())
     }
 
-    fn finalize(self) -> postcard::Result<u64> {
-        Ok(self.0.finish())
+    fn finalize(mut self) -> postcard::Result<u64> {
+        if let Some(b) = self.last.filter(|_| !self.drop_last) {
+            self.h.write(&[b]);
+        }
+        Ok(self.h.finish())
     }
 }
 

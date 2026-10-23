@@ -26,7 +26,7 @@ use std::sync::RwLock;
 /// `GameData` methods delegating to the field `$f` of `self`, one per name, for wrappers in
 /// tests and tools: `forward_game_data!(inner; map has_map … m8)`. `m8` stands for the
 /// Milestone 8 methods but `wild_encounters` (name it, or override it, separately: the engine
-/// reads it). Paths are absolute, so
+/// reads it), plus the Silice battle methods (`hold_effect`, `form_changes`). Paths are absolute, so
 /// the caller needs only the `engine` crate.
 #[macro_export]
 macro_rules! forward_game_data {
@@ -164,9 +164,22 @@ macro_rules! forward_game_data {
             self.$f.evolutions(species)
         }
     };
+    (@ $f:tt hold_effect) => {
+        fn hold_effect(
+            &self,
+            id: ::engine::data::ItemId,
+        ) -> ::core::option::Option<::engine::mon::HoldEffect> {
+            self.$f.hold_effect(id)
+        }
+    };
+    (@ $f:tt form_changes) => {
+        fn form_changes(&self) -> &'static [::engine::data::FormChange] {
+            self.$f.form_changes()
+        }
+    };
     (@ $f:tt m8) => {
         $crate::forward_game_data!($f; item multichoice std_string trainer_flag_of emote
-                                   trainer_money evolutions);
+                                   trainer_money evolutions hold_effect form_changes);
     };
 }
 
@@ -439,6 +452,12 @@ pub fn same_answers(a: &impl GameData, b: &impl GameData) -> Result<(), String> 
         if a.evolutions(SpeciesId(i)) != b.evolutions(SpeciesId(i)) {
             return differ(format!("evolutions({i})"));
         }
+        if a.hold_effect(ItemId(i)) != b.hold_effect(ItemId(i)) {
+            return differ(format!("hold_effect({i})"));
+        }
+    }
+    if a.form_changes() != b.form_changes() {
+        return differ("form_changes()".into());
     }
     for i in 0..=u8::MAX {
         if a.heal_location(i) != b.heal_location(i) {
@@ -577,7 +596,21 @@ impl<G: GameData> GameData for Answers<G> {
     fn evolutions(&self, species: SpeciesId) -> &'static [Evolution] {
         if species == SpeciesId(8) { &EVOS } else { &[] }
     }
+    fn hold_effect(&self, id: ItemId) -> Option<engine::mon::HoldEffect> {
+        (id == ItemId(0x106)).then_some(engine::mon::HoldEffect::Leftovers)
+    }
+    fn form_changes(&self) -> &'static [engine::data::FormChange] {
+        &FORMS
+    }
 }
+
+static FORMS: [engine::data::FormChange; 1] = [engine::data::FormChange {
+    base: SpeciesId(3),
+    item: ItemId(0x107),
+    form: SpeciesId(4),
+    kind: engine::data::FormKind::Mega,
+    enable_flag: None,
+}];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Patch {

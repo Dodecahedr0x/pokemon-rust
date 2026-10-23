@@ -157,6 +157,8 @@ enum Play {
     Defeated(bool),
     /// Fading out after `End`.
     Ending,
+    /// Until a form change's pic is loaded.
+    Form(Side),
 }
 
 /// The visual components of one battle.
@@ -728,6 +730,7 @@ impl BattleScene {
                 self.pics[s] = None;
                 true
             }
+            Play::Form(side) => self.pic_load[side as usize].is_none(),
             Play::Hp(side) => {
                 let s = side as usize;
                 p.boxes[s].set_hp(p.bars[s].value());
@@ -883,6 +886,27 @@ impl BattleScene {
                 self.outcome = Some(o);
                 self.fader.start(Fade::ToBlack);
                 Play::Ending
+            }
+            // Mega Evolution / Primal Reversion: the shown mon takes the form's pic (the scene's
+            // party copy only; the battle's party keeps its species).
+            BattleEvent::FormChange {
+                side,
+                party,
+                species,
+            } => {
+                let s = side as usize;
+                let Some(m) = self.parties[s].get_mut(party as usize) else {
+                    return;
+                };
+                m.species = species;
+                let pic = (species, m.is_shiny());
+                if party == self.out[s] && self.pics[s] != Some(pic) {
+                    self.pics[s] = None;
+                    self.pic_load[s] = Some(pic);
+                    Play::Form(side)
+                } else {
+                    Play::Idle
+                }
             }
             // `push` never queues one.
             BattleEvent::Report(_) => Play::Idle,

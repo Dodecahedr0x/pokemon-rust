@@ -223,6 +223,7 @@ fn str_text(b: &BattleIn, src: StrSrc) -> Result<String> {
             t.replace(code, "{B_BUFF1}")
         }
         StrSrc::TypeNames | StrSrc::StatNames | StrSrc::AbilityNames => bail!("indexed source"),
+        StrSrc::Missing => bail!("no Gen3 string"),
     })
 }
 
@@ -377,9 +378,27 @@ impl Gen<'_> {
             b.moves.moves.len()
         )?;
 
+        // Fairy (`Type::Fairy`, Silice): its Gen6 matchups go before Foresight's entries, only
+        // when the content uses the type and its chart does not list it (never for Emerald).
+        const FAIRY: &str = "TYPE_FAIRY";
+        let uses_fairy = b.species.iter().any(|s| s.types.iter().any(|t| t == FAIRY))
+            || b.moves.moves.iter().any(|m| m.ty == FAIRY);
+        let charted = b
+            .types
+            .chart
+            .iter()
+            .any(|(a, d, _)| a == FAIRY || d == FAIRY);
+        let fairy = uses_fairy && !charted;
+        let mut foresight_split = b.types.foresight_split;
         let mut chart = String::new();
-        for (a, d, x) in &b.types.chart {
+        let mut len = b.types.chart.len();
+        for (i, (a, d, x)) in b.types.chart.iter().enumerate() {
             ensure!(matches!(x, 0 | 5 | 20), "type chart multiplier {x}");
+            if fairy && i == b.types.foresight_split {
+                for k in 0..engine_fairy_len() {
+                    write!(chart, "FAIRY_MATCHUPS[{k}],")?;
+                }
+            }
             write!(
                 chart,
                 "TypeMatchup {{ attack: {}, defend: {}, multiplier: {x} }},",
@@ -387,10 +406,18 @@ impl Gen<'_> {
                 ty(d)?
             )?;
         }
+        if fairy {
+            if b.types.foresight_split >= b.types.chart.len() {
+                for k in 0..engine_fairy_len() {
+                    write!(chart, "FAIRY_MATCHUPS[{k}],")?;
+                }
+            }
+            foresight_split += engine_fairy_len();
+            len += engine_fairy_len();
+        }
         writeln!(
             self.o,
-            "pub static CHART: [TypeMatchup; {}] = [{chart}];",
-            b.types.chart.len()
+            "pub static CHART: [TypeMatchup; {len}] = [{chart}];"
         )?;
         ensure!(
             b.moves.nature_power.len() == 10,
@@ -406,7 +433,7 @@ impl Gen<'_> {
         writeln!(
             self.o,
             "pub static TABLES: BattleTables = BattleTables {{ species: &SPECIES, moves: &MOVES, type_chart: &CHART, foresight_split: {}, struggle: {}, nature_power: [{}] }};",
-            b.types.foresight_split,
+            foresight_split,
             self.move_id(&b.struggle)?,
             np.join(", ")
         )?;
@@ -450,9 +477,18 @@ impl Gen<'_> {
                     }
                     None => "None".into(),
                 };
+                let item = match &m.item {
+                    Some(name) if classify::TRAINER_HELD_ITEMS && name != "ITEM_NONE" => {
+                        let v = names::ITEMS
+                            .value(name)
+                            .with_context(|| format!("{}: unknown item {name}", t.id))?;
+                        format!("Some(ItemId({v}))")
+                    }
+                    _ => "None".into(),
+                };
                 write!(
                     party,
-                    "TrainerMon {{ species: {}, level: {}, iv: {}, moves: {moves} }},",
+                    "TrainerMon {{ species: {}, level: {}, iv: {}, moves: {moves}, item: {item} }},",
                     self.species_id(&m.species)?,
                     m.level,
                     m.iv
@@ -496,6 +532,16 @@ impl Gen<'_> {
 
         self.gen_encounters()?;
         self.gen_evolutions_and_money()?;
+        let mut hold_arms = String::new();
+        for (v, name) in names::ITEMS.iter() {
+            if let Some(e) = classify::hold_effect(name) {
+                writeln!(hold_arms, "        {v} => Some({e}), // {name}")?;
+            }
+        }
+        writeln!(
+            self.o,
+            "/// The modelled `holdEffect` of item `id` (`ITEM_*`).\npub fn hold_effect(id: u16) -> Option<HoldEffect> {{\n    match id {{\n{hold_arms}        _ => None,\n    }}\n}}"
+        )?;
         let mut heal_arms = String::new();
         for (name, (map, x, y)) in &b.heal {
             let id = names::HEAL_LOCATIONS
@@ -664,12 +710,17 @@ impl Gen<'_> {
         for (pat, src) in classify::STRS {
             match src {
                 StrSrc::TypeNames => {
-                    writeln!(arms, "        Str::{pat} => TYPE_NAMES[t as usize],")?
+                    // `Type::Fairy` (19th) has no Gen3 name.
+                    writeln!(
+                        arms,
+                        "        Str::{pat} => TYPE_NAMES.get(t as usize).copied().unwrap_or(b\"\\xFF\"),"
+                    )?
                 }
                 StrSrc::StatNames => {
                     writeln!(arms, "        Str::{pat} => STAT_NAMES[s as usize],")?
                 }
                 StrSrc::AbilityNames => writeln!(arms, "        Str::{pat} => ability_name(a),")?,
+                StrSrc::Missing => writeln!(arms, "        Str::{pat} => b\"\\xFF\",")?,
                 _ => {
                     let t = str_text(b, *src).with_context(|| format!("Str::{pat}"))?;
                     writeln!(
@@ -737,7 +788,7 @@ impl Gen<'_> {
         }
         writeln!(
             self.o,
-            "/// `gAbilityNames` by `Ability` (`Ability::Other` has no name).\nfn ability_name(a: Ability) -> &'static [u8] {{\n    match a {{\n{ability_arms}        Ability::Other => b\"\\xFF\",\n    }}\n}}"
+            "/// `gAbilityNames` by `Ability` (`Ability::Other` and the abilities the content does not\n/// map have no name).\n#[allow(unreachable_patterns)]\nfn ability_name(a: Ability) -> &'static [u8] {{\n    match a {{\n{ability_arms}        _ => b\"\\xFF\",\n    }}\n}}"
         )?;
         writeln!(
             self.o,
@@ -749,6 +800,7 @@ impl Gen<'_> {
                 StrSrc::TypeNames => {
                     all.extend((0..18).map(|i| format!("Str::TypeName(Type::ALL[{i}])")))
                 }
+                StrSrc::Missing => {}
                 StrSrc::StatNames => {
                     all.extend((0..8).map(|i| format!("Str::StatName(Stat::ALL[{i}])")))
                 }
@@ -937,6 +989,11 @@ pub fn generate(b: &BattleIn, w: &World) -> Result<Out> {
         consts,
         report,
     })
+}
+
+/// `engine::mon::FAIRY_MATCHUPS.len()` (the build script does not link the engine).
+pub(crate) const fn engine_fairy_len() -> usize {
+    12
 }
 
 /// `EVO_*` -> `EvoMethod` expression (Gen3 `EVO_*` folded; the exact kind waits for Milestone 9).
