@@ -315,7 +315,16 @@ impl<'a, G: GameData> Driver<'a, G> {
 
     /// Up-front planning: `NoPath` when `m` is not applicable to a capturable start.
     fn plan(&mut self, m: &Macro) -> Result<(), ExpandError> {
-        if matches!(m.kind, MacroKind::Settle | MacroKind::Wait { .. }) {
+        if matches!(
+            m.kind,
+            MacroKind::Settle
+                | MacroKind::Wait { .. }
+                | MacroKind::Face { .. }
+                | MacroKind::Step { .. }
+                | MacroKind::Push { .. }
+                | MacroKind::Interact
+                | MacroKind::Press { .. }
+        ) {
             return Ok(());
         }
         let Ok(snap) = self.w().snapshot(self.s.game()) else {
@@ -422,6 +431,9 @@ impl<'a, G: GameData> Driver<'a, G> {
             self.ended = None;
             if self.battle.is_none() {
                 self.battle = BattleTracker::start(w);
+                if self.battle.is_some() {
+                    sum.battle_maps.push(map);
+                }
             }
         } else if w.in_battle() {
             if let Some(t) = &mut self.battle {
@@ -590,8 +602,77 @@ impl<'a, G: GameData> Driver<'a, G> {
                     self.press(Buttons::NONE)?;
                 }
             }
+            MacroKind::Face { dir } => self.face(dir)?,
+            MacroKind::Step { dir } => {
+                self.resolve()?;
+                let at = self.w().objects().player().pos();
+                let mut n = 0;
+                while self.w().objects().player().pos() == at && !self.interrupted() {
+                    n += 1;
+                    if n > self.limits.enter_frames {
+                        return Err(ExpandError::NoEffect("step: never moved"));
+                    }
+                    self.press(dir_key(dir))?;
+                }
+                self.press(Buttons::NONE)?;
+            }
+            MacroKind::Push { dir } => {
+                self.resolve()?;
+                let from = self.w().map();
+                let mut n = 0;
+                while self.w().map() == from && !self.interrupted() {
+                    n += 1;
+                    if n > self.limits.enter_frames {
+                        return Err(ExpandError::NoEffect("push: the map never changed"));
+                    }
+                    self.press(dir_key(dir))?;
+                }
+            }
+            MacroKind::Interact => {
+                self.resolve()?;
+                if self.last != Buttons::NONE {
+                    self.press(Buttons::NONE)?;
+                }
+                self.press(Buttons::A)?;
+                for _ in 0..INTERACT_FRAMES {
+                    if self.interrupted() {
+                        break;
+                    }
+                    self.press(Buttons::NONE)?;
+                }
+                if !self.interrupted() {
+                    return Err(ExpandError::NoEffect("interact"));
+                }
+            }
+            MacroKind::Press { keys, frames } => {
+                let keys = Buttons(keys);
+                for _ in 0..frames {
+                    self.press(keys)?;
+                }
+            }
         }
         self.resolve()
+    }
+
+    /// Settled, turns in place to `d`: holds `d` until the player faces it (a tap turns
+    /// without stepping), then releases. Moving off the cell is `NoEffect`.
+    fn face(&mut self, d: Dir) -> Result<(), ExpandError> {
+        self.resolve()?;
+        let at = self.w().objects().player().pos();
+        let mut n = 0;
+        while self.w().objects().player().facing != d {
+            n += 1;
+            if n > self.limits.enter_frames {
+                return Err(ExpandError::NoEffect("face: never turned"));
+            }
+            self.press(dir_key(d))?;
+        }
+        self.press(Buttons::NONE)?;
+        self.resolve()?;
+        if self.w().objects().player().pos() != at {
+            return Err(ExpandError::NoEffect("face: moved while turning"));
+        }
+        Ok(())
     }
 
     fn enter(&mut self, at: (i16, i16), dir: Dir) -> Result<(), ExpandError> {

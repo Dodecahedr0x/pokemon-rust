@@ -1,46 +1,38 @@
-//! Explorer v0 (Milestone 7): a headless, persistent, evolutionary explorer of the native game.
+//! The explorer: an authored main path per flavour (the **spine**) plus **branches** off it
+//! toward what the spine never touched, each recovering to the spine or aborted when it takes
+//! too long for too little novelty. See `docs/plans/2026-10-23-explorer-spine.md`.
 //!
-//! It grows a tree of input-only nodes (macro-actions expanded to inputs) in `explore.db`,
-//! scores them by novelty and story progress, and reports bugs with a reproducing trace. See
-//! `docs/plans/2026-10-22-milestone-7-explorer.md`.
-//!
-//! Implemented in Wave 0: `model`, `config`, `runs`, `guard`, `observe` and the
-//! `db` DDL. Wave 1: A `macros`/`path`/`expand`/`sim`, B `key`/`fitness`/`goals`,
-//! C `db`/`cache`/`rebuild`, D `graph`/`select`/`mutate`/`runner`,
-//! E `detect`/`softlock`/`findings`/`testing`, F `policy`/`balance`. Wave 2: G `wire`/`cli`.
+//! The play layer is Milestone 7's: macro-actions expanded to inputs by the planner and the
+//! policy (`macros`, `path`, `expand`, `policy`), the detectors (`detect`, `softlock`), findings
+//! and repro (`findings`). `spine` and `branch` drive it; `db` stores runs (schema v4).
 
 // `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
 const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
 
-pub mod balance; // Task F
-pub mod cache; // Task C
-pub mod cli; // Task G (Wave 2)
-pub mod config; // implemented (W0): Config + defaults + RON load
-pub mod db; // Task C (+ schema.sql, implemented W0)
-pub mod detect; // Task E
-pub mod expand; // Task A
-pub mod findings; // Task E
-pub mod fitness; // Task B
-pub mod goals; // Task B
-pub mod graph; // Task D
-pub mod guard; // implemented (W0): panic capture
-pub mod incremental; // M8 Task N: incremental revalidation
-pub mod key; // Task B
-pub mod macros; // Task A
-pub mod model; // implemented (W0): shared data types
-pub mod mutate; // Task D
-pub mod observe; // implemented (W0): StepObserver + NoObserver
-pub mod path; // Task A
-pub mod policy; // Task F
-pub mod rebuild; // Task C
-pub mod runner; // Task D
-pub mod runs; // implemented (W0): run text codec; M8 K: the blob codec
-pub mod select; // Task D
-pub mod sim; // Task A
-pub mod softlock; // Task E
+pub mod balance;
+pub mod branch;
+pub mod cli;
+pub mod config;
+pub mod db;
+pub mod detect;
+pub mod expand;
+pub mod findings;
+pub mod goals;
+pub mod guard;
+pub mod key;
+pub mod macros;
+pub mod model;
+pub mod observe;
+pub mod path;
+pub mod policy;
+pub mod pool;
+pub mod runs;
+pub mod sim;
+pub mod softlock;
+pub mod spine;
+pub mod store;
 #[cfg(feature = "testing")]
 #[doc(hidden)]
-pub mod testing; // Task E: fault-injection GameData wrappers
-pub mod wire; // Task G (Wave 2): Evaluate/sim/db glue
+pub mod testing; // fault-injection GameData wrappers
 
 pub use model::*;

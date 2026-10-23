@@ -1,15 +1,11 @@
-//! Shared data types (Wave 0 contract): nodes, jobs, results, findings and the generation
-//! delta. Data only, no logic.
+//! Shared data types: macros, jobs, results and findings. Data only, no logic.
 
-use engine::checkpoint::{BuildHash, Checkpoint};
+use engine::checkpoint::Checkpoint;
 use engine::data::{Dir, MapId, ScriptId};
 use game_native::trace::Run;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::sync::Arc;
-
-/// SQLite rowid of a node; assigned by the runner in merge order (deterministic). 1 = root.
-pub type NodeId = i64;
 
 /// Menu and battle choices a macro applies to whatever it triggers.
 #[derive(
@@ -20,6 +16,10 @@ pub struct Opts {
     pub run_wild: bool,
     /// 0 = yes / first option, 1 = no / second, 2 = third (starter ball index).
     pub choice: u8,
+    /// Fight with the move of the best expected damage (power, STAB, type matchups) instead
+    /// of the first damaging one (the spine's `Battle(Best)`).
+    #[serde(default)]
+    pub best_move: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -39,9 +39,22 @@ pub enum MacroKind {
     Inspect { x: i16, y: i16, dir: Dir },
     /// Pace between tall-grass cell (x, y) and a walkable neighbour until a battle starts.
     Grass { x: i16, y: i16 },
-    /// Press nothing for `frames` frames, then settle (Task G: the softlock probe's wait, so
-    /// that wandering objects can free a way; never a search candidate).
+    /// Press nothing for `frames` frames, then settle (the softlock probe's wait, so that
+    /// wandering objects can free a way; never a search candidate).
     Wait { frames: u16 },
+    /// Turn in place to `dir` (a one-frame tap), then settle. A spine step (never a
+    /// candidate).
+    Face { dir: Dir },
+    /// Press A once on whatever is ahead, then resolve what starts. A spine step.
+    Interact,
+    /// Hold `keys` (`engine::Buttons` bits) for `frames` frames, then resolve. A spine step.
+    Press { keys: u16, frames: u16 },
+    /// Hold `dir` until the player leaves its cell (one step; a bump into a scripted cell
+    /// starts its script), then resolve. A spine step.
+    Step { dir: Dir },
+    /// Hold `dir` until the map changes (a door, a mat or a connection from the current
+    /// cell), then resolve. A spine step.
+    Push { dir: Dir },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -51,75 +64,22 @@ pub struct Macro {
 }
 
 impl Macro {
-    /// The macro packed in an integer (schema v3 `node.macro`): bits 0-2 the kind, 3 the
-    /// `run_wild` option, 4-11 the `choice` option, 12-13 the direction, 16-31 x (a `Talk`'s
-    /// local id, a `Wait`'s frames) and 32-47 y, as their u16 bit patterns.
-    pub fn code(&self) -> i64 {
-        let (tag, x, y, dir) = match self.kind {
-            MacroKind::Settle => (0, 0, 0, Dir::Down),
-            MacroKind::WalkTo { x, y } => (1, x as u16, y as u16, Dir::Down),
-            MacroKind::Enter { x, y, dir } => (2, x as u16, y as u16, dir),
-            MacroKind::Cross { x, y, dir } => (3, x as u16, y as u16, dir),
-            MacroKind::Talk { local_id } => (4, u16::from(local_id), 0, Dir::Down),
-            MacroKind::Inspect { x, y, dir } => (5, x as u16, y as u16, dir),
-            MacroKind::Grass { x, y } => (6, x as u16, y as u16, Dir::Down),
-            MacroKind::Wait { frames } => (7, frames, 0, Dir::Down),
-        };
-        let dir = Dir::ALL.iter().position(|&d| d == dir).unwrap_or(0) as i64;
-        tag | i64::from(self.opts.run_wild) << 3
-            | i64::from(self.opts.choice) << 4
-            | dir << 12
-            | i64::from(x) << 16
-            | i64::from(y) << 32
+    /// `kind` with the default options.
+    pub fn of(kind: MacroKind) -> Macro {
+        Macro {
+            kind,
+            opts: Opts::default(),
+        }
     }
 
-    /// [`Macro::code`] back (`None` for a code no macro has).
-    pub fn from_code(c: i64) -> Option<Macro> {
-        if c < 0 || c >> 48 != 0 || c & (0b11 << 14) != 0 {
-            return None;
-        }
-        let x = (c >> 16) as u16;
-        let y = (c >> 32) as u16;
-        let dir = Dir::ALL[(c >> 12 & 3) as usize];
-        let kind = match c & 7 {
-            0 => MacroKind::Settle,
-            1 => MacroKind::WalkTo {
-                x: x as i16,
-                y: y as i16,
-            },
-            2 => MacroKind::Enter {
-                x: x as i16,
-                y: y as i16,
-                dir,
-            },
-            3 => MacroKind::Cross {
-                x: x as i16,
-                y: y as i16,
-                dir,
-            },
-            4 => MacroKind::Talk {
-                local_id: u8::try_from(x).ok()?,
-            },
-            5 => MacroKind::Inspect {
-                x: x as i16,
-                y: y as i16,
-                dir,
-            },
-            6 => MacroKind::Grass {
-                x: x as i16,
-                y: y as i16,
-            },
-            _ => MacroKind::Wait { frames: x },
-        };
-        let m = Macro {
-            kind,
-            opts: Opts {
-                run_wild: c >> 3 & 1 == 1,
-                choice: (c >> 4) as u8,
-            },
-        };
-        // Bits a kind does not use must be clear.
-        (m.code() == c).then_some(m)
+    /// The macro as RON text (the db's `macro` columns).
+    pub fn to_text(&self) -> String {
+        ron::to_string(self).expect("a macro serializes")
+    }
+
+    /// [`Macro::to_text`] back.
+    pub fn from_text(s: &str) -> Option<Macro> {
+        ron::from_str(s).ok()
     }
 }
 
@@ -157,55 +117,6 @@ pub struct PartyBucket {
     pub fainted: u8,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub struct Fitness {
-    pub novelty: i64,
-    pub progress: i64,
-    pub bug: i64,
-    pub balance: i64,
-    pub total: i64,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum NodeStatus {
-    Valid,
-    Stale,
-    Merged,
-    Broken,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct NodeRow {
-    pub id: NodeId,
-    pub parent: Option<NodeId>,
-    pub depth: u32,
-    pub macro_: Macro,
-    /// From the parent's end state (the db's root start for the root: a new game, or the
-    /// `--from` checkpoint) to this node's end state. Empty in the runner's graph and in
-    /// [`Db::nodes_light`](crate::db::Db::nodes_light) rows (schema v3: inputs are not
-    /// resident); `Db::node`, `Db::nodes` and `Db::lineage` load them.
-    pub inputs: Vec<Run>,
-    pub frames: u32,
-    /// Frames from the root start (a new game, or the `--from` checkpoint).
-    pub total_frames: u64,
-    /// `World::frame` at the end.
-    pub end_frame: u32,
-    pub key: AbstractKey,
-    /// `state_digest` of the end snapshot.
-    pub digest: u64,
-    pub world_hash: u64,
-    pub map: MapId,
-    pub pos: (i16, i16),
-    /// Goals reached along the lineage.
-    pub progress: u32,
-    pub fitness: Fitness,
-    pub generation: u32,
-    pub expanded: u32,
-    pub status: NodeStatus,
-    pub merged_into: Option<NodeId>,
-    pub build: BuildHash,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BattleSummary {
     /// 0 wild, 1 first battle, 2 trainer.
@@ -230,6 +141,8 @@ pub struct SimSummary {
     /// Started (`Event::ScriptStarted`).
     pub scripts: BTreeSet<ScriptId>,
     pub battles: Vec<BattleSummary>,
+    /// The maps a battle started on, in order (one per `battles` entry).
+    pub battle_maps: Vec<MapId>,
     /// `World::log().count()` delta.
     pub log_lines: u32,
     /// `World::events_dropped` delta (`EVENTS_MAX`): `maps` and `scripts` may be incomplete.
@@ -249,6 +162,9 @@ pub enum FindingKind {
     /// A script's `Request::Report` (an unsupported or degraded command or special):
     /// report-only, one per (report, map) (`findings::report_message`).
     Unsupported,
+    /// A branch that changed no progress state could not rejoin the spine: its recovery or the
+    /// spine's verification window failed, or the progress state differs after it.
+    Divergence,
 }
 
 impl FindingKind {
@@ -267,7 +183,7 @@ pub struct FindingDraft {
     /// Rust `file:line:col` of a panic.
     pub location: Option<String>,
     pub macro_: Option<Macro>,
-    /// Inputs from the job's parent end state to the frame the finding was seen (inclusive).
+    /// Inputs from the job's start state to the frame the finding was seen (inclusive).
     pub tail: Vec<Run>,
     pub map: MapId,
     pub pos: (i16, i16),
@@ -276,42 +192,45 @@ pub struct FindingDraft {
     pub log: Vec<&'static str>,
 }
 
-/// What a node's step touched (`node_touch`; incremental revalidation, Task N).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum Touch {
-    Map(MapId),
-    Script(ScriptId),
-    /// Engine events were dropped past `EVENTS_MAX` during the step, so its maps and scripts
-    /// may be incomplete: any content change revalidates the node (`incremental::mark`).
-    EventsDropped,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+/// Novelty kinds (the db's `seen.kind`).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum SeenKind {
     Flag = 0,
     VarValue = 1,
     Map = 2,
     Script = 3,
+    /// `(map << 32) | (x as u16) << 16 | y as u16`.
+    Cell = 4,
+}
+
+impl SeenKind {
+    pub const ALL: [SeenKind; 5] = [
+        SeenKind::Flag,
+        SeenKind::VarValue,
+        SeenKind::Map,
+        SeenKind::Script,
+        SeenKind::Cell,
+    ];
+
+    /// The db number back.
+    pub fn from_i64(n: i64) -> Option<SeenKind> {
+        SeenKind::ALL.into_iter().find(|k| *k as i64 == n)
+    }
 }
 
 /// What a job does from its start state.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Plan {
-    /// Pick `len` macros at random among the state's candidates (seeded), in sequence.
-    Random { len: u8, seed: u64 },
-    /// Run these macros in sequence (opts flips, re-expansion).
+    /// Run these macros in sequence.
     Given(Vec<Macro>),
-    /// Softlock probe: bounded BFS over macros (Task E's `softlock::probe`).
+    /// Softlock probe: bounded BFS over macros (`softlock::probe`).
     Softlock { k: u32, breadth: u32 },
 }
 
 #[derive(Clone, Debug)]
 pub struct Job {
     pub index: u32,
-    /// `None` = from the db's root start (a new game, or the `--from` node): the root job.
-    pub parent: Option<NodeId>,
-    /// The start state: the parent's end, the `--from` checkpoint for a root job, or `None`:
-    /// a new game (`World::new`).
+    /// The start state, or `None`: a new game (`World::new`).
     pub start: Option<Arc<Checkpoint>>,
     pub plan: Plan,
 }
@@ -323,8 +242,7 @@ pub struct StepResult {
     /// Capturable end state.
     pub end: Arc<Checkpoint>,
     pub summary: SimSummary,
-    /// The job stopped on a finding right after this step (its last): the merge adds the bug
-    /// weight to the node (Task G).
+    /// The job stopped on a finding right after this step (its last).
     pub bug: bool,
 }
 
@@ -340,11 +258,10 @@ pub enum Stop {
 #[derive(Clone, Debug)]
 pub struct JobResult {
     pub index: u32,
-    pub parent: Option<NodeId>,
-    /// Each becomes a candidate node, chained.
+    /// Each a step from the previous one's end.
     pub steps: Vec<StepResult>,
     pub stop: Option<Stop>,
-    /// Frames the job stepped beyond its steps' inputs: softlock probe expansions (Task G).
+    /// Frames the job stepped beyond its steps' inputs: softlock probe expansions.
     pub probe_frames: u64,
     /// Report-only slow frames (`Expanded::slow`) of the job's steps.
     pub slow_frames: u32,
@@ -353,59 +270,6 @@ pub struct JobResult {
     /// Report-only `Unsupported` findings (`Expanded::reports`), one per signature, tails from
     /// the job's start; they never stop the job.
     pub reports: Vec<FindingDraft>,
-}
-
-/// The merge's output: one SQLite transaction.
-#[derive(Clone, Debug, Default)]
-pub struct GenerationDelta {
-    pub generation: u32,
-    /// (old, new): old -> Merged, applied before inserts.
-    pub merged: Vec<(NodeId, NodeId)>,
-    /// `expanded += n`.
-    pub expanded: Vec<(NodeId, u32)>,
-    /// `key_hit.hits += n` (schema v3): duplicates that left no row, per key, key order.
-    pub key_hits: Vec<(AbstractKey, u32)>,
-    pub nodes: Vec<NodeRow>,
-    pub snapshots: Vec<(NodeId, Arc<Checkpoint>)>,
-    pub touches: Vec<(NodeId, Touch)>,
-    /// First sightings; existing ones get `hits += 1`.
-    pub seen: Vec<(SeenKind, i64, NodeId)>,
-    pub cells: Vec<(MapId, i16, i16, NodeId)>,
-    pub battles: Vec<(NodeId, BattleSummary)>,
-    /// (finding, the node whose end state the tail starts at (`None` = the root start: the root
-    /// job failed), total frame).
-    pub findings: Vec<(FindingDraft, Option<NodeId>, u64)>,
-    pub stats: GenStats,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub struct GenStats {
-    pub jobs: u32,
-    pub steps: u32,
-    pub inserted: u32,
-    pub duplicates: u32,
-    pub pruned: u32,
-    pub frames: u64,
-    /// Softlock probe frames (not in `frames`, which counts node and finding inputs).
-    pub probe_frames: u64,
-    /// Report-only slow frames.
-    pub slow_frames: u32,
-    /// Driver notes (`JobResult::notes`).
-    pub notes: u32,
-}
-
-/// The scorer the runner merges with (Task B implements it; tests use fakes).
-pub trait Evaluate {
-    fn evaluate(&mut self, parent: Option<&NodeRow>, step: &StepResult) -> Evaluation;
-}
-
-#[derive(Clone, Debug)]
-pub struct Evaluation {
-    pub key: AbstractKey,
-    pub progress: u32,
-    pub fitness: Fitness,
-    pub seen: Vec<(SeenKind, i64)>,
-    pub touches: Vec<Touch>,
 }
 
 #[cfg(test)]
@@ -435,6 +299,12 @@ mod tests {
             },
             MacroKind::Grass { x: 12, y: 3 },
             MacroKind::Wait { frames: 300 },
+            MacroKind::Face { dir: Dir::Down },
+            MacroKind::Interact,
+            MacroKind::Press {
+                keys: 0x0101,
+                frames: 9,
+            },
         ];
         for (i, kind) in all.into_iter().enumerate() {
             let m = Macro {
@@ -442,61 +312,21 @@ mod tests {
                 opts: Opts {
                     run_wild: i % 2 == 0,
                     choice: i as u8 % 3,
+                    ..Opts::default()
                 },
             };
-            let text = ron::to_string(&m).unwrap();
-            assert_eq!(ron::from_str::<Macro>(&text).unwrap(), m, "{text}");
-            assert_eq!(Macro::from_code(m.code()), Some(m), "{m:?}");
+            assert_eq!(Macro::from_text(&m.to_text()), Some(m), "{m:?}");
         }
-    }
-
-    #[test]
-    fn macro_codes_round_trip_at_the_extremes() {
-        for kind in [
-            MacroKind::WalkTo {
-                x: i16::MIN,
-                y: i16::MAX,
-            },
-            MacroKind::Enter {
-                x: -1,
-                y: -1,
-                dir: Dir::Right,
-            },
-            MacroKind::Talk { local_id: 255 },
-            MacroKind::Wait { frames: u16::MAX },
-        ] {
-            let m = Macro {
-                kind,
-                opts: Opts {
-                    run_wild: true,
-                    choice: 255,
-                },
-            };
-            assert_eq!(Macro::from_code(m.code()), Some(m), "{m:?}");
-        }
-        // Unused bits, negative codes and a Talk id above u8 are refused.
-        let settle = Macro {
-            kind: MacroKind::Settle,
-            opts: Opts::default(),
-        };
-        assert_eq!(settle.code(), 0);
-        for bad in [-1, 1 << 48, 1 << 14, 1 << 16, 4 | 256 << 16] {
-            assert_eq!(Macro::from_code(bad), None, "{bad:#x}");
-        }
+        assert_eq!(Macro::from_text("nonsense"), None);
     }
 
     #[test]
     fn seen_kinds_have_their_db_numbers() {
-        assert_eq!(
-            [
-                SeenKind::Flag,
-                SeenKind::VarValue,
-                SeenKind::Map,
-                SeenKind::Script
-            ]
-            .map(|k| k as i64),
-            [0, 1, 2, 3]
-        );
+        assert_eq!(SeenKind::ALL.map(|k| k as i64), [0, 1, 2, 3, 4]);
+        for k in SeenKind::ALL {
+            assert_eq!(SeenKind::from_i64(k as i64), Some(k));
+        }
+        assert_eq!(SeenKind::from_i64(5), None);
     }
 
     #[test]
@@ -505,11 +335,10 @@ mod tests {
             Opts::default(),
             Opts {
                 run_wild: false,
-                choice: 0
+                choice: 0,
+                ..Opts::default()
             }
         );
-        assert_eq!(Fitness::default().total, 0);
         assert_eq!(PartyBucket::default().species, [0; 6]);
-        assert!(GenerationDelta::default().nodes.is_empty());
     }
 }

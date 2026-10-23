@@ -27,7 +27,7 @@ pub enum Act {
     /// Roxanne's badge (15 goals; decision Q1). The default act on Emerald and the stub.
     Act1,
     /// Silice's Prologue (SIL1): from the new game to `VAR_SIL_STORY` 9 at the Bois-Éther edge.
-    /// No goal yet (SIL1 Wave 3 fills `silice::CH0`). The default act on Silice.
+    /// 10 goals (the spine's `Expect`s). The default act on Silice.
     SilCh0,
 }
 
@@ -303,14 +303,64 @@ mod stub {
     ];
 }
 
-/// Silice's goal lists (SIL1). Wave 0: the act exists, its goals come in Wave 3
-/// (`FLAG_SIL_INTRO_DONE`, `VAR_SIL_STORY ≥ 1`, the Mallette, the starter, Route S1,
-/// `VAR_SIL_STORY ≥ 9`), named through `content::consts` of the Silice build.
+/// Silice's goal lists (SIL1), named through `content::consts` of the Silice build (none
+/// elsewhere: the act is not in those builds).
 mod silice {
     use super::Goal;
 
-    /// The Prologue's goals: none yet.
-    pub static CH0: [Goal; 0] = [];
+    /// The Prologue's goals, in story order: the bar (the intro, Julien's explosion, the
+    /// Mallette), the night chase, home, the night, the starter, Route S1 and its first wild
+    /// battle, then `VAR_SIL_STORY` 9 at the Bois-Éther edge.
+    #[cfg(pkr_silice)]
+    pub static CH0: &[Goal] = {
+        use super::{flag, on, var};
+        use content::consts::*;
+        &[
+            Goal {
+                name: "intro_done",
+                reached: |s| flag(s, FLAG_SIL_INTRO_DONE),
+            },
+            Goal {
+                name: "explosion",
+                reached: |s| var(s, VAR_SIL_STORY) >= 1,
+            },
+            Goal {
+                name: "mallette",
+                reached: |s| flag(s, FLAG_SIL_HAS_MALLETTE),
+            },
+            Goal {
+                name: "chase",
+                reached: |s| flag(s, FLAG_SIL_BRICO_CHASE),
+            },
+            Goal {
+                name: "home",
+                reached: |s| var(s, VAR_SIL_STORY) >= 2,
+            },
+            Goal {
+                name: "night",
+                reached: |s| var(s, VAR_SIL_STORY) >= 3,
+            },
+            Goal {
+                name: "starter",
+                reached: |s| var(s, VAR_SIL_STORY) >= 5 && !s.party.is_empty(),
+            },
+            Goal {
+                name: "route_s1",
+                reached: |s| on(s, MAP_ROUTE_S01),
+            },
+            Goal {
+                name: "first_battle",
+                reached: |s| var(s, VAR_SIL_STORY) >= 6,
+            },
+            Goal {
+                name: "bois_ether_edge",
+                reached: |s| var(s, VAR_SIL_STORY) >= 9,
+            },
+        ]
+    };
+
+    #[cfg(not(pkr_silice))]
+    pub static CH0: &[Goal] = &[];
 }
 
 /// `act`'s goals in story order: the stub list on the stub, none for an act of another flavour
@@ -327,7 +377,7 @@ pub fn goals_of(act: Act) -> &'static [Goal] {
         Act::Act1 => &emerald::ACT1,
         #[cfg(pkr_silice)]
         Act::Slice | Act::Act1 => &[],
-        Act::SilCh0 => &silice::CH0,
+        Act::SilCh0 => silice::CH0,
     }
 }
 

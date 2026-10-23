@@ -161,7 +161,7 @@ fn the_policy_wins_the_route_battles_and_runs_from_wild_ones() {
         for run_wild in [false, true] {
             let opts = Opts {
                 run_wild,
-                choice: 0,
+                ..Opts::default()
             };
             let mut d = Driver::at(rec, start);
             let b = d.fight(opts);
@@ -303,8 +303,8 @@ fn the_starter_screen_takes_the_chosen_ball() {
         let mut d = Driver::at(rec, at);
         assert!(d.w().starter().is_some());
         let opts = Opts {
-            run_wild: false,
             choice,
+            ..Opts::default()
         };
         let mut p = Policy::new();
         let mut chosen = None;

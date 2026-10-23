@@ -99,6 +99,7 @@ pub fn kind_name(kind: FindingKind) -> &'static str {
         FindingKind::PlannerDivergence => "planner_divergence",
         FindingKind::SlowFrame => "slow_frame",
         FindingKind::Unsupported => "unsupported",
+        FindingKind::Divergence => "divergence",
     }
 }
 

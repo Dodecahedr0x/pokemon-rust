@@ -7,17 +7,20 @@ use content::Emerald;
 use engine::data::{GameData, MapId, ScriptId};
 use engine::script::{Ctx, Report, Script};
 use explore::FindingKind;
-use explore::config::{Budget, Config, Limits};
+use explore::branch;
+use explore::cli::reproduce;
+use explore::config::{Config, Limits};
+use explore::db::{Db, RunRow};
 use explore::expand;
 use explore::findings::{self, signature, signature_of};
 use explore::model::{FindingDraft, Macro, MacroKind, Opts};
 use explore::observe::NoObserver;
 use explore::policy::Policy;
+use explore::spine::{self, SpineRun, Step};
 use explore::testing::{
     Answers, DRIFT_CALLS, Drifting, FADE_TRAP_SCRIPT, FadeTrap, GrassPocket, INJECTED_REPORT,
     PanicOnScript, Rebuilt, Reporting, WallAround, same_answers,
 };
-use explore::wire::{self, Explore};
 use game_native::Session;
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -139,24 +142,45 @@ fn stuck_and_round_trip_signatures_carry_the_last_script() {
     );
 }
 
-fn config(threads: usize) -> Config {
-    Config {
-        threads,
-        batch: 0,
-        ..Config::default()
-    }
-}
+/// A short spine: the settled new game, a wait, a checkpoint.
+static SHORT: &[Step] = &[
+    Step::Checkpoint("start"),
+    Step::Wait(30),
+    Step::Checkpoint("end"),
+];
 
-/// `generations` generations of `game` on a fresh db at `path`.
+/// The [`SHORT`] spine of `game` and the branches from its checkpoints (on `jobs` workers),
+/// stored in a fresh db at `path`.
 fn explore<G: GameData + Clone + Send + Sync + 'static>(
-    game: G,
+    game: &G,
     path: &Path,
-    threads: usize,
-    generations: u32,
-) -> Explore<G> {
-    let mut ex = Explore::open(game, path, config(threads)).unwrap();
-    ex.run(Budget::Generations(generations), |_| {}).unwrap();
-    ex
+    jobs: usize,
+) -> (SpineRun, Db) {
+    let cfg = Config {
+        jobs,
+        ..Config::default()
+    };
+    let s = spine::run(game, SHORT, &cfg);
+    assert!(s.complete(), "{:?}", s.error);
+    let origins = branch::origins(&s, &cfg.branch, None);
+    let targets = branch::all_targets(game, &s, &origins, &cfg);
+    let results = branch::run_all(game, &s, &targets, &cfg);
+    let (mut db, _) =
+        Db::open(path, engine::checkpoint::build_hash(game), content::FLAVOR).unwrap();
+    let run = db
+        .record_run(&RunRow {
+            started: "test".into(),
+            command: "branch".into(),
+            config: cfg.to_ron(),
+            threads: 1,
+            branches: results.len() as u64,
+            frames: 0,
+            wall_ms: 0,
+        })
+        .unwrap();
+    db.put_spine(&s, 0, run).unwrap();
+    db.put_branches(&s, &results, run).unwrap();
+    (s, db)
 }
 
 #[test]
@@ -165,15 +189,15 @@ fn unsupported_findings_come_from_script_reports_and_reproduce() {
     let game = Reporting {
         inner: Emerald::for_shells(),
     };
-    let ex = explore(game, &dir.path().join("t2.db"), 2, 2);
-    let fs: Vec<_> = ex
-        .db
+    let cfg = Config::default();
+    let (_, db) = explore(&game, &dir.path().join("t2.db"), 2);
+    let fs: Vec<_> = db
         .findings()
         .unwrap()
         .into_iter()
         .filter(|f| f.kind == FindingKind::Unsupported)
         .collect();
-    assert!(ex.db.report_count().unwrap() >= fs.len() as u64);
+    assert!(db.report_count().unwrap() >= fs.len() as u64);
     // The lowered scripts report their own unsupported commands too (Task D2); the injected
     // report is the one this test follows.
     let injected = format!("unsupported: {INJECTED_REPORT}");
@@ -182,24 +206,18 @@ fn unsupported_findings_come_from_script_reports_and_reproduce() {
     let mut maps = BTreeSet::new();
     for f in &fs {
         assert!(maps.insert(f.map), "one finding per map: {fs:?}");
-        wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
+        reproduce(&game, &db, f.id, &cfg)
             .unwrap()
             .unwrap_or_else(|e| panic!("{f:?}: {e}"));
         // Not on the inner game, which reports nothing.
-        assert!(
-            wire::reproduce(&game.inner, &ex.db, f.id, &ex.cfg)
-                .unwrap()
-                .is_err()
-        );
+        assert!(reproduce(&game.inner, &db, f.id, &cfg).unwrap().is_err());
     }
-    // The run goes on: report-only findings never stop a job.
-    assert!(ex.stats().unwrap().nodes > 1);
+    // The spine goes on: report-only findings never stop it.
+    let st = db.stats().unwrap();
+    assert_eq!(st.spine_done, st.spine_steps);
     // And they are deterministic like the rest of the db.
-    let one = explore(game, &dir.path().join("t1.db"), 1, 2);
-    assert_eq!(
-        one.db.content_digest().unwrap(),
-        ex.db.content_digest().unwrap()
-    );
+    let (_, one) = explore(&game, &dir.path().join("t1.db"), 1);
+    assert_eq!(one.content_digest().unwrap(), db.content_digest().unwrap());
 }
 
 /// The new game's script reports [`NAMES`] (more than `expand::MAX_REPORTS`) on its first
@@ -312,20 +330,19 @@ fn a_fade_trap_is_a_capturable_stuck_finding_signed_with_its_script() {
         map: inner.new_game().map,
         at: trap_cell(&inner),
     };
-    let ex = explore(game, &dir.path().join("explore.db"), 2, 3);
-    let fs = ex.db.findings().unwrap();
+    let cfg = Config::default();
+    let (_, db) = explore(&game, &dir.path().join("explore.db"), 2);
+    let fs = db.findings().unwrap();
     let f = fs
         .iter()
         .find(|f| f.kind == FindingKind::CapturableStuck)
         .unwrap_or_else(|| panic!("a CapturableStuck row: {fs:?}"));
     assert_eq!(f.script, Some(FADE_TRAP_SCRIPT));
-    wire::reproduce(&game, &ex.db, f.id, &ex.cfg)
-        .unwrap()
-        .unwrap();
+    reproduce(&game, &db, f.id, &cfg).unwrap().unwrap();
     // The same row without its script is another signature: it does not reproduce.
-    let (row, trace) = wire::finding_trace(&game, &ex.db, f.id, 0).unwrap();
-    let mut want = wire::draft_of(&row);
-    findings::reproduce(&game, &trace, &want, &ex.cfg.detect).unwrap();
+    let trace = findings::repro_trace(&game, &[], &f.inputs).unwrap();
+    let mut want = f.draft();
+    findings::reproduce(&game, &trace, &want, &cfg.detect).unwrap();
     want.script = None;
-    assert!(findings::reproduce(&game, &trace, &want, &ex.cfg.detect).is_err());
+    assert!(findings::reproduce(&game, &trace, &want, &cfg.detect).is_err());
 }

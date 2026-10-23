@@ -40,10 +40,21 @@ fn no_obs<G: GameData + 'static>() -> impl FnMut() -> Box<dyn StepObserver<G>> {
 fn job(start: Option<Arc<Checkpoint>>, plan: Plan) -> Job {
     Job {
         index: 0,
-        parent: start.as_ref().map(|_| 1),
         start,
         plan,
     }
+}
+
+/// Two of the start's candidates, picked by `seed` (the evolutionary explorer's random plans,
+/// gone with it: these tests only need some plan of real candidates).
+fn picked(game: &Emerald, start: &Checkpoint, seed: u64) -> Plan {
+    let c = candidates(game, &start.world, &reach(game, &start.world));
+    assert!(!c.is_empty());
+    let n = c.len() as u64;
+    Plan::Given(vec![
+        c[(seed % n) as usize],
+        c[((seed * 7 + 3) % n) as usize],
+    ])
 }
 
 fn run<G: GameData + Clone + 'static>(game: &G, j: &Job) -> JobResult {
@@ -134,6 +145,12 @@ fn candidates_are_deterministic_and_applicable() {
         MacroKind::Grass { .. } => 4,
         MacroKind::WalkTo { .. } => 5,
         MacroKind::Settle | MacroKind::Wait { .. } => 6,
+        // Spine steps, never candidates.
+        MacroKind::Face { .. }
+        | MacroKind::Interact
+        | MacroKind::Press { .. }
+        | MacroKind::Step { .. }
+        | MacroKind::Push { .. } => 7,
     };
     assert!(c1.windows(2).all(|w| rank(&w[0].kind) <= rank(&w[1].kind)));
     // The player's own cell is never a WalkTo; unreachable cells are not applicable.
@@ -255,6 +272,7 @@ fn stub_walk_grass_and_determinism() {
                 opts: Opts {
                     run_wild: true,
                     choice: 0,
+                    ..Opts::default()
                 },
             }]),
         ),
@@ -265,11 +283,11 @@ fn stub_walk_grass_and_determinism() {
 }
 
 #[test]
-fn random_plans_are_deterministic_and_replay() {
+fn given_plans_are_deterministic_and_replay() {
     let game = Emerald::for_shells();
     let start = root(&game);
     for seed in [1u64, 2, 3] {
-        let j = job(Some(start.clone()), Plan::Random { len: 2, seed });
+        let j = job(Some(start.clone()), picked(&game, &start, seed));
         let a = run(&game, &j);
         let b = run(&game, &j);
         assert!(!a.steps.is_empty(), "seed {seed}: {:?}", a.stop);
@@ -607,7 +625,7 @@ fn slow_frames_never_end_a_job() {
         ..DetectConfig::default()
     };
     for seed in [1u64, 2] {
-        let j = job(Some(start.clone()), Plan::Random { len: 2, seed });
+        let j = job(Some(start.clone()), picked(&game, &start, seed));
         let plain = run(&game, &j);
         let mut detectors =
             || -> Box<dyn StepObserver<Emerald>> { Box::new(Detectors::<Emerald>::new(&slow)) };

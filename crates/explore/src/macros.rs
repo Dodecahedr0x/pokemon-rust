@@ -119,12 +119,18 @@ pub fn block_mates<G: GameData>(
         .collect()
 }
 
-/// Whether `m` is still applicable to `snap` (mutations replaying a sibling's macro).
+/// Whether `m` is applicable to `snap` (the driver's up-front check).
 pub fn applicable<G: GameData>(game: &G, snap: &WorldSnapshot, reach: &Reach, m: &Macro) -> bool {
     let st = State::new(game, snap, reach);
     let map = st.grid.map;
     match m.kind {
-        MacroKind::Settle | MacroKind::Wait { .. } => true,
+        MacroKind::Settle
+        | MacroKind::Wait { .. }
+        | MacroKind::Face { .. }
+        | MacroKind::Step { .. }
+        | MacroKind::Push { .. }
+        | MacroKind::Interact
+        | MacroKind::Press { .. } => true,
         MacroKind::WalkTo { x, y } => st.walk_target((x, y)),
         MacroKind::Enter { x, y, dir } => {
             map.warps.iter().any(|w| (w.x, w.y) == (x, y))

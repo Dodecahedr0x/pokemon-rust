@@ -1,9 +1,10 @@
-//! One job on a fresh session (Task A).
+//! Playing macros on a live session: [`Live`] (the spine's and the branches' player) and
+//! [`simulate`] (one job of given macros, or a softlock probe), plus the softlock probe
+//! [`trap`].
 
 use crate::config::Config;
 use crate::expand::{self, ExpandError, Expanded, Intents};
 use crate::findings;
-use crate::graph::Rng64;
 use crate::guard::{self, Panicked};
 use crate::key;
 use crate::macros;
@@ -18,11 +19,11 @@ use crate::softlock::{self, Trap};
 use engine::checkpoint::Checkpoint;
 use engine::data::{GameData, MapId, ScriptId};
 use game_native::Session;
-use game_native::trace::rle;
+use game_native::trace::{Run, rle};
 use std::sync::Arc;
 
-/// Candidates tried per `Plan::Random` step before the job is pruned.
-pub const RANDOM_TRIES: usize = 8;
+/// Makes the observer of a fresh session (the detectors, or nothing).
+pub type MakeObserver<'a, G> = dyn FnMut() -> Box<dyn StepObserver<G>> + 'a;
 
 /// Runs one job on a fresh session built on this thread. `Plan::Softlock` probes the start
 /// state with [`trap`] (no step: `Stop::NotTrapped` or a `Softlock` finding).
@@ -30,7 +31,7 @@ pub fn simulate<G: GameData + Clone>(
     game: &G,
     job: &Job,
     cfg: &Config,
-    obs: &mut dyn FnMut() -> Box<dyn StepObserver<G>>,
+    obs: &mut MakeObserver<'_, G>,
 ) -> JobResult {
     simulate_with(game, job, cfg, obs, &mut Policy::new())
 }
@@ -40,183 +41,201 @@ pub fn simulate_with<G: GameData + Clone>(
     game: &G,
     job: &Job,
     cfg: &Config,
-    obs: &mut dyn FnMut() -> Box<dyn StepObserver<G>>,
+    obs: &mut MakeObserver<'_, G>,
     intents: &mut dyn Intents,
 ) -> JobResult {
-    let mut sim = Sim {
-        game,
-        cfg,
-        obs,
-        intents,
-        res: JobResult {
-            index: job.index,
-            parent: job.parent,
-            steps: Vec::new(),
-            stop: None,
-            probe_frames: 0,
-            slow_frames: 0,
-            notes: Vec::new(),
-            reports: Vec::new(),
-        },
-        last_script: None,
-    };
-    if let Err(stop) = sim.run(job) {
-        // The bug weight goes to the step the finding follows (`StepResult::bug`).
-        if let (Stop::Finding(_), Some(last)) = (&stop, sim.res.steps.last_mut()) {
-            last.bug = true;
+    let ms = match &job.plan {
+        &Plan::Softlock { k, breadth } => {
+            let mut res = empty_result(job.index);
+            res.stop = Some(match job.start.as_deref() {
+                None => Stop::Pruned("softlock probe without a start state".into()),
+                Some(start) => {
+                    let probed = trap(game, start, k, breadth, cfg);
+                    res.probe_frames = probed.frames;
+                    match probed.trap {
+                        Trap::Trapped { reached } => {
+                            Stop::Finding(softlock_finding(start, probed.place, k, reached))
+                        }
+                        _ => Stop::NotTrapped,
+                    }
+                }
+            });
+            return res;
         }
-        sim.res.stop = Some(stop);
+        Plan::Given(ms) => ms,
+    };
+    let mut live = match Live::start(game, cfg, job.start.clone(), obs) {
+        Ok(l) => l,
+        Err(stop) => {
+            let mut res = empty_result(job.index);
+            res.stop = Some(stop);
+            return res;
+        }
+    };
+    live.res.index = job.index;
+    // A new game is not capturable: settle it first (its own step).
+    if job.start.is_none() && ms.first().map(|m| m.kind) != Some(MacroKind::Settle) {
+        let settle = Macro::of(MacroKind::Settle);
+        if let Err(e) = live.step_with(&settle, intents) {
+            live.stop_on(&settle, e);
+            return live.finish();
+        }
     }
-    sim.res
+    for m in ms {
+        if let Err(e) = live.step_with(m, intents) {
+            live.stop_on(m, e);
+            break;
+        }
+    }
+    live.finish()
 }
 
-struct Sim<'a, G: GameData + Clone> {
+fn empty_result(index: u32) -> JobResult {
+    JobResult {
+        index,
+        steps: Vec::new(),
+        stop: None,
+        probe_frames: 0,
+        slow_frames: 0,
+        notes: Vec::new(),
+        reports: Vec::new(),
+    }
+}
+
+/// Why [`Live::step`] failed.
+#[derive(Clone, Debug)]
+pub enum StepFail {
+    /// The macro does not apply here or had no effect (`NoPath`/`NoEffect`): the session is
+    /// mid-expansion; [`Live::rollback`] to go on from the last step's end.
+    Skip(ExpandError),
+    /// A finding or a prune (a timeout, an end that is not capturable), now the job's stop
+    /// (`JobResult::stop`).
+    Stop,
+}
+
+/// A session at a start state (a checkpoint, or a new game) playing macros one after the other,
+/// each a [`StepResult`], with the observer, the reports and the findings of [`simulate`]'s
+/// jobs. Built on the thread that uses it (`World` is `!Send`).
+pub struct Live<'a, 'o, G: GameData + Clone> {
     game: &'a G,
     cfg: &'a Config,
-    obs: &'a mut dyn FnMut() -> Box<dyn StepObserver<G>>,
-    intents: &'a mut dyn Intents,
-    res: JobResult,
-    /// The last script started over the job's steps (see `findings` on `script`).
+    obs_make: &'o mut MakeObserver<'o, G>,
+    /// The start state (`None`: a new game).
+    pub start: Option<Arc<Checkpoint>>,
+    pub s: Session<G>,
+    obs: Box<dyn StepObserver<G>>,
+    pub res: JobResult,
+    /// The last script started over the steps (see `findings` on `script`).
     last_script: Option<ScriptId>,
+    /// The options [`Live::step`] applies to every macro (the spine's sticky `Choose` and
+    /// `Battle` steps).
+    pub opts: Opts,
 }
 
-type Live<G> = (Session<G>, Box<dyn StepObserver<G>>);
-
-impl<G: GameData + Clone> Sim<'_, G> {
-    fn session(&mut self, start: Option<&Checkpoint>) -> Result<Live<G>, Stop> {
-        let game = self.game.clone();
-        // A panic while building the world is a finding on the start map (the new game's for `World::new`, as `findings::reproduce` expects).
-        // The tail is the job's steps so far (empty for the job's own start), as `finding`.
-        let tail = rle(self.res.steps.iter().flat_map(|st| runs::keys(&st.inputs)));
-        let panicked = |p: Panicked, map: MapId, pos: (i16, i16)| {
-            Stop::Finding(FindingDraft {
-                kind: FindingKind::Panic,
-                message: p.message,
-                location: p.location,
-                macro_: None,
-                tail,
-                map,
-                pos,
-                script: None,
-                log: Vec::new(),
-            })
-        };
-        let s = match start {
-            Some(cp) => {
-                let at = (cp.world.field.map, cp.world.objects.objs[0].pos);
-                guard::catch(|| Session::restore(game, cp))
-                    .map_err(|p| panicked(p, at.0, at.1))?
-                    .map_err(|e| Stop::Pruned(format!("restore failed: {e:?}")))?
-            }
-            None => guard::catch(|| Session::new(game)).map_err(|p| {
-                let ng = self.game.new_game();
-                panicked(p, ng.map, (ng.x, ng.y))
-            })?,
-        };
-        Ok((s, (self.obs)()))
-    }
-
-    fn run(&mut self, job: &Job) -> Result<(), Stop> {
-        if let Plan::Softlock { k, breadth } = job.plan {
-            let Some(start) = job.start.as_deref() else {
-                return Err(Stop::Pruned("softlock probe without a start state".into()));
-            };
-            let probed = trap(self.game, start, k, breadth, self.cfg);
-            self.res.probe_frames = probed.frames;
-            return Err(match probed.trap {
-                Trap::Trapped { reached } => {
-                    Stop::Finding(softlock_finding(start, probed.place, k, reached))
-                }
-                _ => Stop::NotTrapped,
-            });
-        }
-        let mut live = self.session(job.start.as_deref())?;
-        let first = match &job.plan {
-            Plan::Given(ms) => ms.first().map(|m| m.kind),
-            _ => None,
-        };
-        // A new game is not capturable: settle it first (its own step, like the root).
-        if job.start.is_none() && first != Some(MacroKind::Settle) {
-            let settle = Macro {
-                kind: MacroKind::Settle,
-                opts: Opts::default(),
-            };
-            self.step(&mut live, &settle)?;
-        }
-        match &job.plan {
-            Plan::Given(ms) => {
-                for m in ms {
-                    self.step(&mut live, m)?;
-                }
-                Ok(())
-            }
-            &Plan::Random { len, seed } => {
-                for i in 0..len {
-                    live = self.random_step(live, seed ^ u64::from(i))?;
-                }
-                Ok(())
-            }
-            Plan::Softlock { .. } => unreachable!("handled above"),
-        }
-    }
-
-    /// Picks among the candidates with `Rng64(seed)`; a `NoPath`/`NoEffect` candidate is
-    /// skipped (the session restored) up to [`RANDOM_TRIES`] tries. A block `WalkTo` walks to
-    /// a cell of its block drawn from the same RNG (`macros::block_mates`), so the walks
-    /// cover every cell, not only the block centres.
-    fn random_step(&mut self, mut live: Live<G>, seed: u64) -> Result<Live<G>, Stop> {
-        let s = &live.0;
-        let snap = s
-            .world()
-            .snapshot(s.game())
-            .map_err(|e| Stop::Pruned(format!("not capturable: {e:?}")))?;
-        let start = s
-            .checkpoint()
-            .map_err(|e| Stop::Pruned(format!("not capturable: {e:?}")))?;
-        let reach = path::reach(self.game, &snap);
-        let mut cands = macros::candidates_with(self.game, &snap, &reach, self.cfg.key.cell_shift);
-        let mut rng = Rng64(seed);
-        let mut last = String::from("no candidate");
-        for _ in 0..RANDOM_TRIES {
-            if cands.is_empty() {
-                break;
-            }
-            let mut m = cands.remove(rng.below(cands.len() as u64) as usize);
-            if let MacroKind::WalkTo { x, y } = m.kind {
-                let mates =
-                    macros::block_mates(self.game, &snap, &reach, self.cfg.key.cell_shift, (x, y));
-                if !mates.is_empty() {
-                    let (x, y) = mates[rng.below(mates.len() as u64) as usize];
-                    m.kind = MacroKind::WalkTo { x, y };
-                }
-            }
-            match self.try_step(&mut live, &m) {
-                Ok(()) => return Ok(live),
-                Err(Ok(e)) => {
-                    last = format!("{m:?}: {e:?}");
-                    live = self.session(Some(&start))?;
-                }
-                Err(Err(stop)) => return Err(stop),
-            }
-        }
-        Err(Stop::Pruned(last))
-    }
-
-    /// Expands `m`; every failure stops the job.
-    fn step(&mut self, live: &mut Live<G>, m: &Macro) -> Result<(), Stop> {
-        self.try_step(live, m).map_err(|e| match e {
-            Ok(e) => Stop::Pruned(format!("{m:?}: {e:?}")),
-            Err(stop) => stop,
+impl<'a, 'o, G: GameData + Clone> Live<'a, 'o, G> {
+    /// A session at `start` (a new game for `None`) with a fresh observer. A panic while
+    /// building the world is a `Panic` stop on the start map (the new game's for `World::new`).
+    pub fn start(
+        game: &'a G,
+        cfg: &'a Config,
+        start: Option<Arc<Checkpoint>>,
+        obs_make: &'o mut MakeObserver<'o, G>,
+    ) -> Result<Self, Stop> {
+        let s = session(game, start.as_deref(), &[])?;
+        let obs = obs_make();
+        Ok(Live {
+            game,
+            cfg,
+            obs_make,
+            start,
+            s,
+            obs,
+            res: empty_result(0),
+            last_script: None,
+            opts: Opts::default(),
         })
+    }
+
+    /// The end state of the last step (or the start; `None`: a new game not stepped yet).
+    pub fn last_end(&self) -> Option<Arc<Checkpoint>> {
+        self.res
+            .steps
+            .last()
+            .map(|st| st.end.clone())
+            .or_else(|| self.start.clone())
+    }
+
+    /// Frames of the steps so far.
+    pub fn frames(&self) -> u64 {
+        self.res
+            .steps
+            .iter()
+            .map(|st| u64::from(st.summary.frames))
+            .sum()
+    }
+
+    /// Every input from the start, the steps' in order.
+    pub fn inputs(&self) -> Vec<Run> {
+        rle(self.res.steps.iter().flat_map(|st| runs::keys(&st.inputs)))
+    }
+
+    /// Back to the last step's end (or the start) on a fresh session and observer, after a
+    /// [`StepFail::Skip`].
+    pub fn rollback(&mut self) -> Result<(), Stop> {
+        let tail = self.inputs();
+        let at = self.last_end();
+        self.s = session(self.game, at.as_deref(), &tail)?;
+        self.obs = (self.obs_make)();
+        Ok(())
+    }
+
+    /// Plays `m`'s kind with [`Live::opts`] and the policy.
+    pub fn step(&mut self, m: &Macro) -> Result<(), StepFail> {
+        let m = Macro {
+            kind: m.kind,
+            opts: self.opts,
+        };
+        self.step_with(&m, &mut Policy::new())
+    }
+
+    /// Plays `m` as given (its own options) with `intents`. On `StepFail::Stop` the job's stop
+    /// is set (a finding marks the last step `bug`).
+    pub fn step_with(&mut self, m: &Macro, intents: &mut dyn Intents) -> Result<(), StepFail> {
+        match self.try_step(m, intents) {
+            Ok(()) => Ok(()),
+            Err(Ok(e)) => Err(StepFail::Skip(e)),
+            Err(Err(stop)) => {
+                if let (Stop::Finding(_), Some(last)) = (&stop, self.res.steps.last_mut()) {
+                    last.bug = true;
+                }
+                self.res.stop = Some(stop);
+                Err(StepFail::Stop)
+            }
+        }
+    }
+
+    /// Records a skipped `m` as the job's stop (a prune), as [`simulate`] does.
+    pub fn stop_on(&mut self, m: &Macro, e: StepFail) {
+        if let StepFail::Skip(e) = e {
+            self.res.stop = Some(Stop::Pruned(format!("{m:?}: {e:?}")));
+        }
+    }
+
+    /// The result so far (the steps, the stop, the reports).
+    pub fn finish(self) -> JobResult {
+        self.res
     }
 
     /// Expands `m` into a step. `Err(Ok(e))`: a skippable `NoPath`/`NoEffect`; `Err(Err(_))`:
     /// the job stops (a finding, or a prune).
-    fn try_step(&mut self, live: &mut Live<G>, m: &Macro) -> Result<(), Result<ExpandError, Stop>> {
-        let (s, obs) = live;
-        let r = expand::expand_with(s, m, self.intents, obs.as_mut(), &self.cfg.limits);
+    fn try_step(
+        &mut self,
+        m: &Macro,
+        intents: &mut dyn Intents,
+    ) -> Result<(), Result<ExpandError, Stop>> {
+        let r = expand::expand_with(&mut self.s, m, intents, self.obs.as_mut(), &self.cfg.limits);
         // Every expansion starts at the end of the job's steps, so a report's tail is valid
-        // even when the expansion fails and the session is restored.
+        // even when the expansion fails and the session is rolled back.
         let ex = match &r {
             Ok(ex) | Err((_, ex)) => ex,
         };
@@ -235,7 +254,8 @@ impl<G: GameData + Clone> Sim<'_, G> {
         match r {
             Ok(ex) => {
                 self.last_script = ex.last_script.or(self.last_script);
-                let end = s
+                let end = self
+                    .s
                     .checkpoint()
                     .map_err(|e| Err(Stop::Pruned(format!("{m:?}: ended {e:?}"))))?;
                 self.res.slow_frames += ex.slow.len() as u32;
@@ -254,7 +274,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 Err(Err(Stop::Pruned(format!("{m:?}: timeout ({t})"))))
             }
             Err((ExpandError::Panicked(p), ex)) => Err(Err(Stop::Finding(finding(
-                s,
+                &self.s,
                 &self.res.steps,
                 m,
                 (FindingKind::Panic, p.message, p.location),
@@ -262,7 +282,7 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 self.last_script,
             )))),
             Err((ExpandError::Flagged(f), ex)) => Err(Err(Stop::Finding(finding(
-                s,
+                &self.s,
                 &self.res.steps,
                 m,
                 (f.kind, f.message, None),
@@ -270,6 +290,42 @@ impl<G: GameData + Clone> Sim<'_, G> {
                 self.last_script,
             )))),
         }
+    }
+}
+
+/// A session at `start` (a new game for `None`) under the guard. A panic is a `Panic` stop on
+/// the start map (the new game's for `World::new`, as `findings::reproduce` expects), whose
+/// tail is `tail` (the inputs that led to this start within the job).
+fn session<G: GameData + Clone>(
+    game: &G,
+    start: Option<&Checkpoint>,
+    tail: &[Run],
+) -> Result<Session<G>, Stop> {
+    let panicked = |p: Panicked, map: MapId, pos: (i16, i16)| {
+        Stop::Finding(FindingDraft {
+            kind: FindingKind::Panic,
+            message: p.message,
+            location: p.location,
+            macro_: None,
+            tail: tail.to_vec(),
+            map,
+            pos,
+            script: None,
+            log: Vec::new(),
+        })
+    };
+    let g = game.clone();
+    match start {
+        Some(cp) => {
+            let at = (cp.world.field.map, cp.world.objects.objs[0].pos);
+            guard::catch(|| Session::restore(g, cp))
+                .map_err(|p| panicked(p, at.0, at.1))?
+                .map_err(|e| Stop::Pruned(format!("restore failed: {e:?}")))
+        }
+        None => guard::catch(|| Session::new(g)).map_err(|p| {
+            let ng = game.new_game();
+            panicked(p, ng.map, (ng.x, ng.y))
+        }),
     }
 }
 
@@ -497,7 +553,7 @@ fn expand_all<G: GameData + Clone>(
 }
 
 /// The `Softlock` finding of a trapped start state: an empty tail (the node itself).
-fn softlock_finding(start: &Checkpoint, place: u64, k: u32, reached: u32) -> FindingDraft {
+pub fn softlock_finding(start: &Checkpoint, place: u64, k: u32, reached: u32) -> FindingDraft {
     let map = start.world.field.map;
     FindingDraft {
         kind: FindingKind::Softlock,
