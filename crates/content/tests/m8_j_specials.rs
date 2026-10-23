@@ -660,7 +660,7 @@ fn is_bedroom_pc(r: &Request) -> bool {
 /// them (no fade, warp or door before `waitstate`), so the real host completes it at once too.
 #[test]
 fn bedroom_pc_does_not_softlock() {
-    if content::STUB {
+    if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
     let mut found = 0;
