@@ -434,8 +434,8 @@ impl World {
         }
     }
 
-    /// Starts script `id`. `talked` = (local id, player facing, whether the object belongs to
-    /// the current map) for object interactions.
+    /// Starts script `id`. `talked` = (local id, player facing, the object's map: the
+    /// previous map's after a crossing) for object interactions.
     fn start_script(
         &mut self,
         game: &impl GameData,

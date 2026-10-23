@@ -4,7 +4,7 @@
 
 use super::catalog::Catalog;
 use super::model::Doc;
-use super::schema::{MAP_DYNAMIC, WARP_ID_DYNAMIC, dynamic_warp_id};
+use super::schema::{MAP_DYNAMIC, WARP_ID_DYNAMIC, WARP_ID_SECRET_BASE, dynamic_warp_id};
 use engine::data::block_metatile;
 use extract::schema::{BgKind, ConnectionDir};
 use std::collections::{BTreeMap, BTreeSet};
@@ -314,7 +314,11 @@ fn warps_and_coords(d: &Doc, c: &Catalog, o: &mut Out) {
             if !dynamic_warp_id(w.dest_warp) {
                 o.error(
                     &at,
-                    format!("a {MAP_DYNAMIC} warp has dest_warp {WARP_ID_DYNAMIC}"),
+                    format!(
+                        "a {MAP_DYNAMIC} warp has dest_warp {WARP_ID_DYNAMIC} \
+                         or {WARP_ID_SECRET_BASE} (got {})",
+                        w.dest_warp
+                    ),
                 );
             }
             continue;

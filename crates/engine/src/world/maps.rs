@@ -45,8 +45,11 @@ impl World {
             }
         };
         let s = &mut self.s;
-        let back = game.map(w.dest_map).warps.get(w.dest_warp as usize);
-        if !dynamic && back.is_some_and(|b| b.dest_map == MAP_DYNAMIC) {
+        // `MAP_DYNAMIC` names no map: only a static destination is looked up.
+        if !dynamic
+            && (game.map(w.dest_map).warps.get(w.dest_warp as usize))
+                .is_some_and(|b| b.dest_map == MAP_DYNAMIC)
+        {
             let p = s.objects.player();
             s.warp_slots.dynamic = Some(super::WarpDest {
                 map: s.field.map(),

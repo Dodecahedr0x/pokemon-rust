@@ -874,8 +874,10 @@ fn dynamic_warps_take_warp_127() {
     d.map.warps[0].dest_warp = 3;
     assert_eq!(
         texts(&d),
-        ["error: warp 0: a MAP_DYNAMIC warp has dest_warp 127"]
+        ["error: warp 0: a MAP_DYNAMIC warp has dest_warp 127 or 126 (got 3)"]
     );
+    let err = e.apply(&warp(1, 1, MAP_DYNAMIC, 3)).unwrap_err().to_string();
+    assert!(err.contains("127 or 126 (got 3)"), "{err}");
 }
 
 #[test]
