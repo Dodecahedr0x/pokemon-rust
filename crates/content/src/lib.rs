@@ -342,6 +342,10 @@ impl GameData for Game {
         battle::evolutions(species.0)
     }
 
+    fn hold_effect(&self, id: ItemId) -> Option<engine::mon::HoldEffect> {
+        battle::hold_effect(id.0)
+    }
+
     fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
         let (trainer, _) = scripts::trainer_script(script.0)?;
         Some(prelude::trainer_flag(TrainerId(trainer)))

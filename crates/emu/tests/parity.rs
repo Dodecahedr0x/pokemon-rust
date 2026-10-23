@@ -688,6 +688,40 @@ fn video_probe_matches_native() {
     println!("video probe: {compared} frames identical");
 }
 
+/// The battle probe ROM (`crates/game-gba/src/bin/battle_probe.rs`): the core turn that carries
+/// a Mega Evolution (Silice), timed on the GBA against the same turn without it. The whole
+/// turn runs in the frame that answers the move menu, so it must leave room in the 217-line
+/// loop budget; the probe has no scene nor field (the real frame adds the battle scene's
+/// update, the send-out pic reload is spread over the next frames).
+#[test]
+#[ignore = "needs target/battle-probe.gba; run `cargo xtask parity`"]
+fn battle_probe_mega_turn() {
+    let rom = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/battle-probe.gba");
+    let mut emu = Emu::open(&rom).unwrap_or_else(|e| panic!("open battle probe: {e:#}"));
+    let mut snap = emu
+        .boot(120)
+        .unwrap_or_else(|e| panic!("boot battle probe: {e:#}"));
+    for _ in 0..120 {
+        if snap.frame == 1 {
+            break;
+        }
+        emu.run_frame(Buttons::NONE).unwrap();
+        snap = emu.debug().expect("debug region");
+    }
+    assert_eq!(snap.frame, 1, "the battle probe never finished");
+    let (plain, mega) = (snap.hash >> 32, snap.hash & 0xFFFF_FFFF);
+    println!(
+        "battle probe: turn {plain} cycles ({} lines), with Mega Evolution {mega} cycles ({} \
+         lines, +{}); forms at battle start +{} lines",
+        snap.hash_lines_max,
+        snap.step_lines_max,
+        snap.step_lines_max - snap.hash_lines_max,
+        snap.loop_lines_max
+    );
+    assert!(mega > plain);
+    assert!(snap.step_lines_max < LOOP_LINES_MAX);
+}
+
 /// A new game ([`content::Emerald::after_starter`]) that starts on `(map, x, y)`.
 #[derive(Clone, Copy)]
 struct StartAt {

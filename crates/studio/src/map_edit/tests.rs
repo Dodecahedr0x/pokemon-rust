@@ -1,12 +1,15 @@
 //! Model unit tests: no files, no build data (a made-up catalog).
 
+use super::behavior::{Usual, behavior, usual_collision, usual_collisions};
 use super::catalog::{Catalog, MapRef};
-use super::model::{Brush, Doc, Editor, Event, EventKind, NewMap, Op, UNDO_LIMIT, block};
+use super::model::{Brush, Doc, Editor, Env, Event, EventKind, NewMap, Op, UNDO_LIMIT, block};
 use super::schema::{GameConnection, GameHeader, MAP_DYNAMIC, from_ron, from_script_ron, to_ron};
+use super::stamp::Stamp;
 use super::validate::{Severity, errors, id_changes, validate};
 use engine::data::Tileset;
 use extract::schema::{BgKind, ConnectionDir, MapScripts};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 fn tileset(metatiles: usize) -> &'static Tileset {
     Box::leak(Box::new(Tileset {
@@ -1036,4 +1039,438 @@ fn renumbered_named_objects_are_warned_about() {
     );
     e.undo();
     assert!(id_changes(e.saved().unwrap(), e.doc()).is_empty());
+}
+
+fn mb(name: &str) -> u16 {
+    extract::names::METATILE_BEHAVIORS.value(name).unwrap() as u16
+}
+
+/// [`catalog`] with behaviours on `P`: 0 normal, 1 door, 2 tall grass, 3 counter, 4 pond
+/// water, 5 ledge, 6 arrow warp, 7 non-animated door, 8 and 9 normal. The extract uses 8 solid
+/// in 5 cells and 9 walkable in 4; 0 both ways.
+fn behavior_catalog() -> Catalog {
+    let mut c = catalog();
+    let attrs: Vec<u16> = [
+        "MB_NORMAL",
+        "MB_ANIMATED_DOOR",
+        "MB_TALL_GRASS",
+        "MB_COUNTER",
+        "MB_POND_WATER",
+        "MB_JUMP_SOUTH",
+        "MB_SOUTH_ARROW_WARP",
+        "MB_NON_ANIMATED_DOOR",
+        "MB_NORMAL",
+        "MB_NORMAL",
+    ]
+    .iter()
+    .map(|n| mb(n))
+    .collect();
+    let t = Box::leak(Box::new(Tileset {
+        tiles: &[],
+        palettes: &[],
+        metatiles: Box::leak(vec![[0u16; 8]; 10].into_boxed_slice()),
+        attributes: Box::leak(attrs.into_boxed_slice()),
+    }));
+    c.add_tileset("P", t, false);
+    c.collision_uses.insert(("P".into(), 8), [0, 5]);
+    c.collision_uses.insert(("P".into(), 9), [20, 1]);
+    c.collision_uses.insert(("P".into(), 0), [7, 2]);
+    c
+}
+
+#[derive(Debug, Default)]
+struct TestEnv {
+    catalog: Catalog,
+    stamps: BTreeMap<String, Stamp>,
+}
+
+impl Env for TestEnv {
+    fn stamp(&self, name: &str) -> anyhow::Result<Stamp> {
+        self.stamps
+            .get(name)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("no stamp {name}"))
+    }
+    fn usual_collisions(&self, d: &Doc) -> Vec<Option<u8>> {
+        usual_collisions(&self.catalog, d)
+            .into_iter()
+            .map(|u| u.map(|u| u.0))
+            .collect()
+    }
+}
+
+#[test]
+fn directional_walls_have_a_code_and_no_usual_collision() {
+    use engine::data::{Behavior, Dir, Sides};
+    let b = super::behavior::MetatileBehavior {
+        raw: mb("MB_IMPASSABLE_EAST") as u8,
+        name: "MB_IMPASSABLE_EAST".into(),
+        class: Behavior::Impassable(Sides::of(&[Dir::Right])),
+    };
+    assert_eq!(b.code(), Some('I'));
+    assert_eq!(b.what(), "directional wall");
+    assert_eq!((b.collision(false), b.collision(true)), (None, None));
+    assert!(!b.triggers_warp());
+}
+
+#[test]
+fn behaviours_have_codes_and_usual_collisions() {
+    let c = behavior_catalog();
+    let code = |m| behavior(&c, "P", "S", m).unwrap().code();
+    assert_eq!(
+        (0..10).map(code).collect::<Vec<_>>(),
+        [
+            None,
+            Some('D'),
+            Some('G'),
+            Some('C'),
+            Some('S'),
+            Some('L'),
+            Some('A'),
+            Some('W'),
+            None,
+            None
+        ]
+    );
+    assert_eq!(behavior(&c, "P", "S", 10), None, "outside the tileset");
+    let usual = |warp| {
+        (0..10)
+            .map(|m| usual_collision(&c, "P", "S", m, warp).map(|u| u.0))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        usual(false),
+        [
+            None,
+            None,
+            Some(0),
+            Some(1),
+            Some(0),
+            Some(1),
+            None,
+            None,
+            Some(1),
+            Some(0)
+        ],
+        "0 is used both ways: no usual collision; doors without a warp have none"
+    );
+    let with_warp = usual(true);
+    assert_eq!(
+        [with_warp[1], with_warp[6], with_warp[7]],
+        [None, Some(0), Some(0)],
+        "arrow warps and warp cells with a warp are walkable; doors either"
+    );
+    assert_eq!(
+        usual_collision(&c, "P", "S", 8, false).unwrap().1,
+        Usual::Extract { agree: 5, n: 5 }
+    );
+}
+
+/// A walkable cell on a metatile the extract always has solid, a solid door, a door without
+/// a warp and a warp on a plain metatile are warned about (never errors).
+#[test]
+fn validation_warns_on_collision_against_behaviour() {
+    let c = behavior_catalog();
+    let mut e = Editor::new(
+        Doc::new(&NewMap {
+            fill: 0,
+            ..spec(8, 2)
+        })
+        .unwrap(),
+    );
+    for (x, m, col) in [
+        (0, 8, 0),
+        (1, 9, 1),
+        (2, 1, 0),
+        (3, 7, 1),
+        (4, 3, 0),
+        (5, 2, 0),
+    ] {
+        e.apply(&Op::Paint {
+            x,
+            y: 0,
+            metatile: Some(m),
+            collision: Some(col),
+            elevation: None,
+        })
+        .unwrap();
+    }
+    e.apply(&warp(3, 0, "Test", 1)).unwrap();
+    e.apply(&warp(6, 1, "Test", 0)).unwrap();
+    let issues = validate(e.doc(), &c);
+    assert_eq!(errors(&issues), 0, "{issues:#?}");
+    let all: Vec<String> = issues.iter().map(|i| i.to_string()).collect();
+    for want in [
+        "warning: cell (0, 0): walkable, but metatile 8 is solid in 5 of 5 extracted cells using \
+         it (AutoCollision sets it)",
+        "warning: cell (1, 0): solid (collision 1), but metatile 9 is walkable in 20 of 21 \
+         extracted cells using it (AutoCollision sets it)",
+        "warning: cell (3, 0): solid (collision 1), but metatile 7 is walkable as a warp \
+         metatile (MB_NON_ANIMATED_DOOR) with a warp (AutoCollision sets it)",
+        "warning: cell (4, 0): walkable, but metatile 3 is solid as a counter metatile \
+         (MB_COUNTER) (AutoCollision sets it)",
+        "warning: cell (2, 0): walkable door metatile 1 (MB_ANIMATED_DOOR) has no warp event \
+         (a decorative door is solid)",
+        "warning: warp 1: on metatile 0 (MB_NORMAL), which triggers no warp (a door, warp or \
+         arrow-warp metatile does; fine if it is only an arrival point)",
+    ] {
+        assert!(all.iter().any(|i| i == want), "{want}\n{all:#?}");
+    }
+    assert_eq!(all.len(), 6, "{all:#?}");
+}
+
+#[test]
+fn auto_collision_follows_usual_collisions() {
+    let env = Arc::new(TestEnv {
+        catalog: behavior_catalog(),
+        ..TestEnv::default()
+    });
+    let mut e = Editor::new(
+        Doc::new(&NewMap {
+            fill: 0,
+            ..spec(10, 2)
+        })
+        .unwrap(),
+    );
+    assert!(
+        format!(
+            "{:#}",
+            e.apply(&Op::AutoCollision { rect: None }).unwrap_err()
+        )
+        .contains("needs a games dir")
+    );
+    let mut e = e.with_env(env);
+    for m in 0..10u16 {
+        for y in 0..2 {
+            e.apply(&Op::Paint {
+                x: m as i32,
+                y,
+                metatile: Some(m),
+                collision: Some(if m == 0 { 2 } else { 3 * (m % 2) as u8 }),
+                elevation: Some(5),
+            })
+            .unwrap();
+        }
+    }
+    e.apply(&warp(7, 0, "Test", 0)).unwrap();
+    let ops: Vec<Op> = from_script_ron("[AutoCollision(rect: (x: 0, y: 0, w: 10, h: 1))]").unwrap();
+    e.apply_all(&ops).unwrap();
+    let col = |e: &Editor, y| {
+        (0..10)
+            .map(|x| e.doc().block(x, y).unwrap() >> 10 & 3)
+            .collect::<Vec<_>>()
+    };
+    // 0 has no usual collision; solid stays 3 where solid is usual (3); the warp cell (7)
+    // with a warp is walkable, without one (row 1) it is left alone, and so are doors (1).
+    assert_eq!(col(&e, 0), [2, 3, 0, 3, 0, 3, 0, 0, 1, 0]);
+    assert_eq!(
+        col(&e, 1),
+        [2, 3, 0, 3, 0, 3, 0, 3, 0, 3],
+        "outside the rect"
+    );
+    assert!(
+        (0..10).all(|x| e.doc().block(x, 0).unwrap() >> 12 == 5),
+        "elevations stay"
+    );
+    e.apply_all(&from_script_ron::<Vec<Op>>("[AutoCollision()]").unwrap())
+        .unwrap();
+    assert_eq!(col(&e, 1), [2, 3, 0, 3, 0, 3, 0, 3, 1, 0]);
+    let doc = e.doc().clone();
+    assert!(
+        validate(&doc, &behavior_catalog())
+            .iter()
+            .all(|i| !i.message.contains("AutoCollision")),
+        "nothing left to set"
+    );
+}
+
+#[test]
+fn stamps_paint_cells_of_their_tilesets() {
+    let d = Doc::new(&spec(6, 4)).unwrap();
+    let mut src = Editor::new(d.clone());
+    src.apply(&Op::Rect {
+        x: 1,
+        y: 1,
+        w: 2,
+        h: 2,
+        metatile: Some(512 + 2),
+        collision: Some(1),
+        elevation: Some(7),
+    })
+    .unwrap();
+    src.apply(&paint(2, 2, 9)).unwrap();
+    let st = Stamp::capture(src.doc(), 1, 1, 2, 2, true).unwrap();
+    assert_eq!((st.width, st.height, st.uses_secondary()), (2, 2, true));
+    assert!(
+        Stamp::capture(src.doc(), 5, 3, 2, 1, true).is_err(),
+        "outside"
+    );
+    let flat = Stamp::capture(src.doc(), 1, 1, 2, 2, false).unwrap();
+    let mut stamps = BTreeMap::new();
+    stamps.insert("House".to_string(), st.clone());
+    stamps.insert("Flat".to_string(), flat);
+    let mut other = st.clone();
+    other.secondary = "S2".into();
+    stamps.insert("Other".to_string(), other.clone());
+    let mut prim_only = Stamp::capture(&d, 0, 0, 1, 1, true).unwrap();
+    prim_only.secondary = "S2".into();
+    stamps.insert("PrimOnly".to_string(), prim_only);
+    let env = Arc::new(TestEnv {
+        stamps,
+        ..TestEnv::default()
+    });
+    let mut e = Editor::new(d).with_env(env);
+    e.apply(&Op::Stamp {
+        x: 4,
+        y: 2,
+        name: "House".into(),
+    })
+    .unwrap();
+    assert_eq!(e.doc().block(4, 2), Some(block(514, 1, 7)));
+    assert_eq!(e.doc().block(5, 3), Some(block(9, 1, 7)));
+    e.apply(&Op::Stamp {
+        x: 0,
+        y: 0,
+        name: "Flat".into(),
+    })
+    .unwrap();
+    assert_eq!(
+        e.doc().block(0, 0),
+        Some(block(514, 1, 3)),
+        "the map's elevation"
+    );
+    let mut other_primary = st.clone();
+    other_primary.primary = "P2".into();
+    let env2 = Arc::new(TestEnv {
+        stamps: BTreeMap::from([("Elsewhere".to_string(), other_primary)]),
+        ..TestEnv::default()
+    });
+    let mut e2 = Editor::new(Doc::new(&spec(6, 4)).unwrap()).with_env(env2);
+    let err = e2
+        .apply(&Op::Stamp {
+            x: 0,
+            y: 0,
+            name: "Elsewhere".into(),
+        })
+        .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("the stamp is for primary tileset \"P2\", the map uses \"P\""),
+        "{err:#}"
+    );
+    for (x, name, want) in [
+        (5, "House", "outside"),
+        (0, "Other", "secondary tileset \"S2\""),
+        (0, "Missing", "no stamp Missing"),
+    ] {
+        let err = e
+            .apply(&Op::Stamp {
+                x,
+                y: 0,
+                name: name.into(),
+            })
+            .unwrap_err();
+        assert!(format!("{err:#}").contains(want), "{name}: {err:#}");
+    }
+    e.apply(&Op::Stamp {
+        x: 0,
+        y: 0,
+        name: "PrimOnly".into(),
+    })
+    .unwrap();
+    assert_eq!(
+        to_ron(&st).unwrap(),
+        "(\n    primary: \"P\",\n    secondary: \"S\",\n    width: 2,\n    height: 2,\n    \
+         elevation: true,\n    blocks: [\n        (30210, 30210),\n        (30210, 29705),\n    \
+         ],\n)\n"
+    );
+}
+
+/// `AllowCollision` silences the behaviour warnings of listed cells or metatiles; one that
+/// silences nothing is a warning; a reason and something to allow are required.
+#[test]
+fn allowances_silence_accepted_behaviour_warnings() {
+    let c = behavior_catalog();
+    let mut e = Editor::new(
+        Doc::new(&NewMap {
+            fill: 0,
+            ..spec(4, 1)
+        })
+        .unwrap(),
+    );
+    for (x, m) in [(0, 8), (1, 8), (2, 1)] {
+        e.apply(&Op::Paint {
+            x,
+            y: 0,
+            metatile: Some(m),
+            collision: Some(0),
+            elevation: None,
+        })
+        .unwrap();
+    }
+    let behaviour = |d: &Doc| {
+        validate(d, &c)
+            .into_iter()
+            .filter(|i| i.at.starts_with("cell") || i.at.starts_with("allowance"))
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(behaviour(e.doc()).len(), 3);
+    let ops: Vec<Op> = from_script_ron(
+        r#"[
+            AllowCollision(cells: [(2, 0)], reason: "the door opens in a later chapter"),
+            AllowCollision(metatiles: [8], reason: "a walkable variant on purpose"),
+        ]"#,
+    )
+    .unwrap();
+    e.apply_all(&ops).unwrap();
+    assert_eq!(behaviour(e.doc()), Vec::<String>::new());
+    e.apply(&Op::AllowCollision {
+        cells: vec![(3, 0)],
+        metatiles: Vec::new(),
+        reason: "stale".into(),
+    })
+    .unwrap();
+    assert_eq!(
+        behaviour(e.doc()),
+        ["warning: allowance 2: \"stale\" silences no warning (remove it)"]
+    );
+    for (cells, metatiles, reason, want) in [
+        (vec![(0, 0)], vec![], " ", "a reason"),
+        (vec![], vec![], "why", "cells or metatiles"),
+        (vec![(9, 0)], vec![], "why", "outside"),
+    ] {
+        let err = e
+            .apply(&Op::AllowCollision {
+                cells,
+                metatiles,
+                reason: reason.into(),
+            })
+            .unwrap_err();
+        assert!(format!("{err:#}").contains(want), "{err:#}");
+    }
+}
+
+/// Any character is a legend key: quotes, backslashes, spaces and non-ASCII, as RON char
+/// literals (`'"'`, `'\''`, `'\\'`) or one-character strings (`"\""`).
+#[test]
+fn ascii_legends_take_any_char() {
+    let ops: Vec<Op> = from_script_ron(
+        r#"[Ascii(x: 0, y: 0, rows: ["\"'\\ é"], legend: {
+            '"': (metatile: 2), '\'': (metatile: 3), '\\': (metatile: 4), ' ': (metatile: 5),
+            "é": (metatile: 6),
+        })]"#,
+    )
+    .unwrap();
+    let mut e = editor(5, 1);
+    e.apply_all(&ops).unwrap();
+    assert_eq!(
+        (0..5).map(|x| mt(&e, x, 0)).collect::<Vec<_>>(),
+        [2, 3, 4, 5, 6]
+    );
+    let bad: anyhow::Result<Vec<Op>> =
+        from_script_ron(r#"[Ascii(x: 0, y: 0, rows: ["a"], legend: {"ab": (metatile: 2)})]"#);
+    assert!(
+        format!("{:#}", bad.unwrap_err()).contains("one character"),
+        "a key is one character"
+    );
 }

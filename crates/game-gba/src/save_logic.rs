@@ -3,7 +3,7 @@
 //! which includes this file through `#[path]`.
 
 use engine::Buttons;
-use engine::checkpoint::{SCHEMA, SaveMeta};
+use engine::checkpoint::{SaveMeta, schema_readable};
 use engine::debug::boot;
 
 /// Frames a combo waits for a capturable World before giving up (`debug::save::TIMEOUT`).
@@ -42,7 +42,7 @@ pub fn boot_choice(slot: SlotSeen, held_at_boot: Buttons) -> BootChoice {
     match slot {
         SlotSeen::Empty => BootChoice::NewGame(boot::NEW_GAME),
         SlotSeen::Corrupted => BootChoice::NewGame(boot::CORRUPT),
-        SlotSeen::Valid(m) if m.schema != SCHEMA => BootChoice::NewGame(boot::REJECTED),
+        SlotSeen::Valid(m) if !schema_readable(m.schema) => BootChoice::NewGame(boot::REJECTED),
         SlotSeen::Valid(_) => BootChoice::Restore,
     }
 }

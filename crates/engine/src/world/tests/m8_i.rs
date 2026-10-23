@@ -232,6 +232,12 @@ impl GameData for WalledArena {
     fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
         Arena.trainer_flag_of(script)
     }
+    fn hold_effect(&self, id: crate::data::ItemId) -> Option<crate::mon::HoldEffect> {
+        Arena.hold_effect(id)
+    }
+    fn form_changes(&self) -> &'static [crate::data::FormChange] {
+        Arena.form_changes()
+    }
 }
 
 fn walled_arena(block: u16) -> WalledArena {

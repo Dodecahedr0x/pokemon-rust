@@ -89,6 +89,7 @@ pub fn type_variant(name: &str) -> Option<&'static str> {
         "TYPE_ICE" => "Type::Ice",
         "TYPE_DRAGON" => "Type::Dragon",
         "TYPE_DARK" => "Type::Dark",
+        "TYPE_FAIRY" => "Type::Fairy",
         _ => return None,
     })
 }

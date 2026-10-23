@@ -1,0 +1,7 @@
+// Behaviour warnings accepted on purpose (validate honours these; see the editor upgrades in
+// docs/plans/2026-10-23-silice-content.md).
+[
+    AllowCollision(cells: [(14, 9)], reason: "Le Shaker's roof ridge is kept solid: Emerald lets the player walk behind a roof's top row; here it only blocks one cell above the roof"),
+    AllowCollision(metatiles: [268], reason: "the vegetable garden is walkable by design (the player walks between the rows); Emerald only uses this soil metatile in solid beds"),
+    AllowCollision(metatiles: [200, 202, 208, 210, 216, 218], reason: "the canal is drawn with General's puddle metatiles (walkable splash in Emerald) and kept solid as decorative water; Ch1's Surf and fishing need real water metatiles there"),
+]

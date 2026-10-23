@@ -1097,6 +1097,12 @@ mod tests {
         fn new_game(&self) -> engine::data::NewGame {
             content::Emerald::for_shells().new_game()
         }
+        fn hold_effect(&self, id: engine::data::ItemId) -> Option<engine::mon::HoldEffect> {
+            content::Emerald::for_shells().hold_effect(id)
+        }
+        fn form_changes(&self) -> &'static [engine::data::FormChange] {
+            content::Emerald::for_shells().form_changes()
+        }
     }
 
     /// The route's walks go round a directional wall, and through the walled cell's open sides.

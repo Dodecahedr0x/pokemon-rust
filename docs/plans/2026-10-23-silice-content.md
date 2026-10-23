@@ -413,6 +413,161 @@ Example spec and edit script (the shape of the fixture's `FixtureTown`):
 - The header is edited only through the `Header` op, not in the UI.
 - The palette shows no metatile numbers. The CLI prints its layout: 8 per row, and the cell where the secondary starts.
 
+#### SIL1 Task C, editor upgrades as built
+
+These upgrades answer the friction the first six Silice maps hit: no metatile numbers or behaviours in the pictures, invisible collision mistakes, buildings typed as throwaway `Ascii` letters, three passes for linked maps, one `cargo run` per call, and confusing case clashes. The code is in `crates/studio/src/map_edit/`: new modules `behavior.rs`, `overlay.rs`, `stamp.rs`, `resources.rs` and `batch.rs`. The tests are in `map_edit/tests.rs`, `tests/map_edit.rs` and the new `tests/map_edit_tools.rs`.
+
+**Games dir layout.** The editor now owns four dirs:
+
+```text
+games/<game>/maps/<Name>.ron       GameMap (unchanged)
+games/<game>/layouts/<Name>.ron    Layout (unchanged)
+games/<game>/stamps/<name>.ron     Stamp: a small cell grid (below)
+games/<game>/edits/<Map>/<phase>_<what>.ron
+                                   the map's create spec (<what> = create) and edit scripts
+```
+
+**Stamp format (`stamp.rs`).** A stamp is canonical RON, written by `stamp-from` or by hand:
+
+```ron
+(
+    primary: "General",
+    secondary: "Petalburg",
+    width: 2,
+    height: 1,
+    elevation: true,
+    blocks: [
+        (13313, 13314),
+    ],
+)
+```
+
+- `blocks` holds raw blocks, as a layout does: `metatile | collision << 10 | elevation << 12`.
+- With `elevation: false`, stamping keeps the map's elevations, and the blocks' elevation bits are 0.
+- A stamp is keyed to its tilesets. The map's primary tileset must be the stamp's. Its secondary must match too, but only when the stamp uses secondary metatiles (512 and up).
+
+**Edit script additions (`model.rs`).**
+- `AllowCollision(cells: [...], metatiles: [...], reason: "...")` accepts behaviour warnings on purpose (see Allowances below).
+- `Stamp(x: 5, y: 4, name: "House")` paints `stamps/House.ron` with its top-left at (x, y). The stamp must fit in the map, and its tilesets are checked as above.
+- `AutoCollision()` or `AutoCollision(rect: (x: 0, y: 0, w: 10, h: 4))` sets collision from the usual-collision heuristic below. It changes only cells whose walkability disagrees with the usual collision, to 0 or 1, so a deliberate collision of 2 or 3 on a solid cell stays.
+- `Ascii` legends accept any character as a key. Write it as a RON char, such as `'#'`, `'"'`, `' '` or `'é'`, with the escapes `'\''` and `'\\'`. A one-character string such as `"\""` also works.
+  - Inside the rows, escape `"` and `\` (`"\"\\"`), or use raw strings (`r#"..."#`).
+  - A key of more than one character is an error.
+- `Stamp` and `AutoCollision` read outside the document through `model::Env`. The CLI and `build` pass `resources::Resources`, which holds the games dir and the catalog. An `Editor` without an env refuses both ops with "needs a games dir". The UI does not use them.
+
+**Behaviours and usual collision (`behavior.rs`, heuristics, documented there).**
+- **Behaviour.** A metatile's behaviour is the `MB_*` byte of its tileset's attributes, the same `attr & 0xFF` the game reads. It is named through `extract::names` and classified by the build's `GameData::behavior`.
+- **Codes.** One letter per behaviour class:
+  - `D` door;
+  - `W` warp cell (a plain door, stairs or ladder);
+  - `A` arrow warp (a warp mat or exit);
+  - `G` tall grass;
+  - `L` ledge (solid; jumped from the uphill side);
+  - `C` counter;
+  - `S` water (`*WATER*` names);
+  - `B` another blocked behaviour (currents, water doors);
+  - `I` directional wall (`MB_IMPASSABLE_*`, M8 Task L): walkable, but some sides cannot be crossed. It has no usual collision of its own.
+  Normal metatiles have no code.
+- **Usual collision of a cell.** The first rule that applies wins:
+  1. **The extract's verdict.** If the extracted maps use the metatile (with the same tileset) in at least `MIN_USES` = 5 cells:
+     - at least `MIN_AGREEMENT` = 95% walkable gives 0;
+     - at least 95% solid (collision 1..=3) gives 1;
+     - anything less clear gives no usual collision (water at map edges, for example).
+     The counts are taken at run time from the extracted map files that `Catalog::from_content` already reads (`Catalog::collision_uses`). Extracted map files inline their layout, so maps sharing a layout are deduplicated by its contents and counted once. Nothing is committed.
+  2. **The behaviour.**
+     - Tall grass and water are walkable.
+     - Ledges and counters are solid. Gen3 jumps a ledge before it checks collision, and all 1,054 Emerald ledge cells are solid.
+     - Warp cells and arrow warps are walkable when a warp event is on the cell, and have no usual collision without one.
+     - Doors have none: Emerald has doors with warps both walkable and solid, because the door opens when the player pushes against it.
+  3. Otherwise, none.
+- **Validation warnings** (never errors):
+  - a cell walkable against a solid usual collision, or the reverse (the message gives the reason: "in K of N extracted cells using it", or "as a water metatile (MB_OCEAN_WATER)");
+  - a walkable door, warp-cell or arrow-warp metatile without a warp event;
+  - a warp event on a metatile that triggers no warp ("fine if it is only an arrival point");
+  - an allowance that silences nothing.
+- **Allowances.** `AllowCollision(cells: [(4, 7)], metatiles: [584], reason: "...")` accepts the behaviour warnings of the listed cells, and of every cell holding a listed metatile. Either list may be omitted, but not both, and the reason is required.
+  - It changes no cell and is not saved in the map file: it lives in the map's edit scripts, where `GamesDir::load` (and so `validate`, `build` and `apply`) reads it.
+  - Keep each reason honest (why the cell is right as it is). An allowance that silences nothing is itself a warning, so stale ones surface.
+- **Tuning.** On the 15-map extract, these warnings fire for only a few cells (edge water used once or twice) and one Route 103 warp. The full 518-map extract (now the default) has statistics for many more metatiles, so more Silice cells warn (see Ch0 maps as built). With the full extract the fixture also warns (FixtureTown (3, 3)), so its test accepts behaviour warnings. To fix the fixture's warps, its warp cells were repainted with metatile 167 (`MB_NON_ANIMATED_DOOR`).
+
+**Pictures (`overlay.rs`).** Text uses a built-in 3x5 bitmap font: digits, the code letters and `!`. A picture with labels or an overlay is scaled 2x unless `--scale N` (1..=8) says otherwise.
+- **`palette --labels`** draws each metatile id at the top-left of its cell and the behaviour code at the bottom-right. It prints the legend: each code, then its metatiles grouped by `MB_*` name.
+- **`render --events`** frames each event's cell and labels it:
+  - objects in yellow, with their local id;
+  - warps in magenta (`W<index>`);
+  - coord events in cyan (`C<index>`);
+  - signs in green (`S<bg index>`);
+  - hidden items in orange (`H<bg index>`).
+  Labels stack when several events share a cell.
+- **`render --collision`** tints solid cells red and draws each cell's behaviour code. Cells whose collision disagrees with the usual one are outlined in yellow and marked `!`.
+- A render without these flags is unchanged, byte for byte.
+
+**Batch mode (`batch.rs`): `studio-map … build [<edits dir>]`.** The edits dir defaults to `<games>/edits`.
+- **Order.** In one process, the build runs:
+  1. every create, in map-name order;
+  2. every script, sorted by phase number, then map name, then file name;
+  3. one validation of the whole games dir (plus the orphan-layout listing).
+- **Equivalence.** This is exactly `create` for each create spec in that order, then `apply` for each script in that order. Each step reads the map and its layout as the previous steps left them (in memory) and writes both back, so the bytes are identical. A test checks this against the step-by-step CLI.
+- **Rebuilds.** A map with a create file is rebuilt from scratch: its saved map file is ignored, and so is its layout unless the spec shares one. Running `build` again on a populated dir gives the same files. A map dir without a create file edits the saved map in place.
+- **Links.** Links are checked only by the final validation, so mutually linked maps need one pass and show no transient errors.
+- **Failures.** These stop the build before anything is written:
+  - a failing op (named by file and op index);
+  - a create that does not validate, or whose `name` is not its dir;
+  - a stray file (anything but `<digits>_<what>.ron`);
+  - a second create for a map;
+  - map dirs whose names differ only in case.
+  Errors from the final validation fail the command after writing, as `apply` saves drafts.
+
+**Hygiene (`games::hygiene`, and the new `studio-map … hygiene` command, which exits 1 on any problem).**
+- `stamps/*.ron` must be canonical `Stamp` RON, as maps and layouts are, with blocks that match the stamp's size. This is checked with or without the extract.
+- `edits/` may hold only `<Map>/<phase>_<what>.ron` files that parse: as a `NewMap` for `create`, and as a list of `Op` otherwise. Dot entries (`.DS_Store`…) are skipped there, by `hygiene` and by `build`.
+- **Copies.** `games::copies` checks stamps as it checks layouts: a stamp equal to an extracted layout, or holding a 10x10 square of one with at least 12 distinct metatiles, is flagged. A stamp smaller than 10x10 cannot be flagged on its own. A map it is stamped on is flagged if the result copies an extracted square.
+
+**Case collisions.**
+- `GamesDir::{new_doc, create, save, load_map, load_layout, load_stamp, save_stamp}` refuse a name that differs from a saved map, layout or stamp only in case, on every OS: "map Routeone differs from map RouteOne only in case (one file on a case-insensitive file system): use RouteOne, or another name".
+- `validate` and `build` report saved maps whose names differ only in case as errors (possible on case-sensitive file systems).
+
+**CLI as built:**
+
+```text
+studio-map [--games DIR | --game NAME] list
+studio-map … create <spec.ron>
+studio-map … apply <Map> <script.ron> [--dry-run]
+studio-map … build [<edits dir>]                     # default <games>/edits
+studio-map … validate [<Map>...]
+studio-map … hygiene                                 # exit 1 on any problem
+studio-map … render <Map> [--out FILE] [--margin N] [--events] [--collision] [--scale N]
+studio-map palette <Primary> <Secondary> [--out FILE] [--labels] [--scale N]
+studio-map … stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force]
+```
+
+**Speed.**
+- **Measured.** With the bin already built, one `cargo run` of `studio-map` costs about 0.55 s, and the bin alone about 0.03 s. A `build` of 6 linked 30x20 maps (6 creates and 12 scripts) runs in about 0.06 s, or 0.6 s through `cargo run`.
+- **Step by step.** The same work takes 19 `cargo run` calls, about 10 s when nothing recompiles.
+- **Reported.** The ~40 s reported for 25 calls included rebuilds.
+- **Estimate.** A rebuild is about 15x faster when warm, and about 60x against the reported figure. It is also one call instead of about 25, and needs no create, terrain and events passes.
+
+**Gates:**
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | clean |
+| clippy `-D warnings`, plain and with `game-native/window,studio/ui` | clean |
+| `cargo test --workspace`, real (env as in the brief) | 1416 passed, 14 ignored |
+| `cargo test --workspace`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 1404 passed, 14 ignored |
+| `cargo xtask studio --check` | 192 passed |
+| after the review fixes and the master merge: `cargo test -p studio`, real and stub | 168 passed, 4 ignored each |
+| after the review fixes: `cargo xtask studio --check` | 193 passed |
+| after merging M8 Task L (full 518-map extract, `Impassable` code `I`): `cargo test -p studio`, real and stub | 169 passed, 8 ignored each |
+| same: `cargo xtask studio --check` | 194 passed, 8 ignored |
+| same: `studio-map --game silice validate` / `hygiene` | only unwritten-script warnings / clean |
+
+**Limitations.**
+- The usual-collision statistics come from the extract the build has. With the M7 slice (15 maps) most metatiles fell back to their behaviour; the full 518-map extract (M8 Task L, now the default) sharpened them with no code change.
+- The labelled palette of a full tileset pair is tall (`General` + `Petalburg` is 256x2624 at scale 2). Viewers downscale it, so crop it or read it at `--scale 1` for an overview.
+- The UI's Edit tab does not offer stamps, `AutoCollision` or the overlays yet. Its editors have no env.
+- The extract's own maps raise a few behaviour warnings, which is expected for heuristics. The fixture was repainted so that it raises none.
+
 #### SIL1 Task B as built: the importer and the validator
 
 The code is in `xtask/src/silice/`: `mod.rs` (CLI, file writing), `md.rs` (chapter markdown), `names.rs` (constant words, families, map names), `maps.rs` (names in `maps/*.ron` and, later, the scene scripts), `import.rs`, `ids.rs` (allocation), `check.rs` and `schema.rs`. Outside it, the task touched one arm in `xtask/src/main.rs`, `regex` in `xtask/Cargo.toml`, `xtask/tests/silice_{import,check,games}.rs` (with `silice_common/`) and the synthetic fixtures in `xtask/tests/fixtures/silice/`, among them `ids.golden`.
@@ -576,12 +731,21 @@ The six Chapter 0 maps are in `games/silice/{maps,layouts}/`. They were made wit
 - `01_terrain.ron`: the cells;
 - `02_events.ron`: the header, map scripts, warps, objects, coord and bg events, and the connection.
 
-`games::hygiene` looks only at `maps/` and `layouts/`, so `edits/` is allowed. It was run on `games/silice` with the extract present (so including `games::copies`) and is clean.
+`games::hygiene` (now also `studio-map … hygiene`) checks `edits/` too: only `<Map>/<phase>_<what>.ron` files that parse as a create spec or an edit script (see the editor upgrades above). It was run on `games/silice` with the extract present (so including `games::copies`) and is clean.
 
-To rebuild, delete the six maps and layouts, then:
-1. `create` every map;
-2. `apply` every `01_terrain.ron`;
-3. `apply` every `02_events.ron`.
+To rebuild, run one command: `cargo xtask studio map build` (`studio-map build`, which reads `games/silice/edits` by default). It recreates the six maps from their edits in one process and writes the same bytes as the earlier create-then-apply passes; nothing needs deleting first.
+
+Behaviour warnings (after the editor upgrades, re-checked on the full 518-map extract): `validate` on `games/silice` reports only unwritten scripts.
+- Fixed in the terrain scripts:
+  - the Labo door at BricoBourg (4, 7) is solid (collision 1) until Chapter 1 gives it a warp;
+  - the two house doors (metatile 33) at BricoBourg (16, 6) and (5, 14) are solid, as in all 13 Emerald uses. Pushing up into a solid door warps (`door_warp`);
+  - the potted plants' top cells in BricoBourg_FriendsHouse (metatile 656) are walkable, as in all 5 Emerald uses; their bottom cells stay solid.
+- `03_allow.ron` in `BricoBourg` and `RouteS01` accepts the rest with reasons:
+  - the canal and the pond (General 200–218) are kept solid: these are puddle metatiles, walkable in Emerald, used as decorative water (see Water below);
+  - the cables (rail metatile 241) are kept solid on purpose;
+  - the vegetable garden's centre soil (metatile 268) is walkable on purpose, though Emerald's uses are solid;
+  - Le Shaker's roof ridge cell (14, 9) is kept solid.
+- The small-tree tops allowance (metatile 14) was removed: on the full extract metatile 14 raises no warning, so it silenced nothing.
 
 Steps 2 and 3 are separate passes because warps and connections are validated against the other maps. A rebuild gives byte-identical files.
 
@@ -815,6 +979,95 @@ Content: `species_forms.ron` (Q5), Mega pics (Q3), Mallette Logs and Sync.
   - The explorer's planner (`crates/explore/src/path/**`) applies the same map when expanding `WalkTo`. Raw inputs stay as traces, so parity is unaffected.
   - Accessibility toggle in Options (M9 menu).
   - An idle-frame counter is readable by scripts for the confusion emitters.
+
+#### Silice engine: held items, Fairy, Mega/Primal, abilities (as built)
+Engine side of the three SIL3 battle features, ahead of SIL3 (branch of `db07b1d`). It is game-agnostic, and Emerald does not move: parity is identical (route loop 166 of 217, hash 46 of 65), and the four committed checkpoint nodes verify as `valid (rehash)`. Every new behaviour is gated on data Emerald lacks: an item with a hold effect, a form change, a weather or post-Gen3 ability, or the Fairy type.
+
+- **Held items.**
+  - Data and hashing:
+    - `Pokemon.held: Option<ItemId>` is hashed only when `Some` (tag 0xA1 + id).
+    - `TrainerMon.item` is copied into `held` with no draw.
+    - `GameData::hold_effect(ItemId) -> Option<HoldEffect>`.
+    - The Emerald content generates `battle::hold_effect` from item names (`classify::hold_effect`).
+  - Checkpoint `SCHEMA` 3 adds a trailing `party_held`. Schema 2 still reads: `decode` appends the empty field, and `state_digest` hashes an empty `party_held` as schema 2 did. `schema_readable` covers 2..=3, so the old nodes verify as rehash.
+  - In battle:
+    - `BattlerExt { item, hold, first_turn }` is hashed with tag 0xA8, only when set.
+    - `BattleExt { holds, forms, formed, mega_used, mega_pending, weather }` is hashed with tag 0xA9, only when set.
+  - Hold effects (`battle_util.c` `ItemBattleEffects`, `hold_effects.h`), all done and tested in `effects/tests_s.rs`:
+    - **Oran / Sitrus** (`RESTORE_HP`): at `ENDTURN_ITEMS1` only, at or below half HP. Message, then HP, then `removeitem`.
+    - **Cheri, Chesto, Pecha, Rawst, Aspear, Persim, Lum**: at `ITEMS1`, at `ITEMS2`, and at `MOVEEND_ITEM_EFFECTS_ALL`, which loops until no berry acts. Lum gives `CURED_PROBLEM` or `NORMALIZED_STATUS`, and always `CURED_PROBLEM` at move end. Its status name is empty (the Jpn buffer, as Shed Skin).
+    - **Leftovers**: max HP / 16, `ITEMS1` only.
+    - **Type-boost items**: `(100+param)%` of the type's attacking stat, applied after Huge Power.
+    - **Choice Band**: Attack ×1.5. The move lock is not modelled.
+    - **Quick Claw**: `gRandomTurnNumber < 0xFFFF*param/100` gives `UINT_MAX` speed, with no draw of its own.
+    - **King's Rock**: `MOVEEND_KINGSROCK_SHELLBELL`. `Random()%100` is drawn only after damage, then the flag check, then the target's HP. It flinches through `SetMoveEffect(FALSE)`. A multi-hit move runs the item effects and King's Rock after each hit (`moveendto MOVEEND_NEXT_TARGET`) and once more on the last hit after its loop, as Gen3.
+    - **BrightPowder / Lax Incense**: accuracy ×`(100-param)/100`, after Compound Eyes and Hustle.
+    - **Focus Band** (`Battle::focus_band`): `Random()%100` right after the damage roll, drawn whenever the item is held. The "hung on" message comes after the result message. The same roll runs in `adjustsetdamage` (Sonic Boom, Bide's release) and in `adjustnormaldamage2` for the confusion self-hit, where the attacker is the target (its own band).
+  - Not modelled:
+    - Shell Bell, White Herb, Mental Herb, the stat berries and the species items.
+    - The held-item animation.
+    - `HandleFaintedMonActions`' item check.
+  - Consumption clears the battler's item, its hold, `x.holds` and the party mon's `held`, so the party loses the berry, as in Gen3.
+  - **Emerald switch:** `classify::TRAINER_HELD_ITEMS` stays **off**. Turning it on gives Emerald's trainers their `gTrainers` items, which changes the route (berry heals, Quick Claw order, Focus Band draws). That is a later Emerald route change: re-baseline parity and `checkpoints verify --accept`. It would also be **inaccurate** until the effects listed as not modelled are: the Choice Band lock, Shell Bell, the herbs, the stat berries, Amulet Coin and `HandleFaintedMonActions`' item check (Emerald trainers hold several of these).
+- **Fairy.**
+  - `Type::Fairy` (18) sits after Mystery, so the Gen3 split by type makes it **special**. This is documented on `Type::Fairy`.
+  - `FAIRY_MATCHUPS` holds the 12 Gen6 entries. The content build appends them before the Foresight split only when the content uses Fairy, so Emerald's chart is byte-identical. Tested in `fairy_has_the_gen6_matchups_and_is_special`; the build script's copy of the count (`engine_fairy_len`, it cannot link the engine) is checked against `FAIRY_MATCHUPS.len()` by `the_build_fairy_count_matches_the_engine`.
+- **Mega / Primal** (`battle/core/forms.rs`).
+  - Data: `GameData::form_changes() -> &[FormChange { base, item, form, kind: Mega|Primal, enable_flag }]`. Form species are ordinary entries of `BattleTables.species`.
+  - Setup:
+    - `Battle::new` finds each held-item change. Trainers ignore the flag.
+    - The World calls `Battle::enable_player_forms(game, |f| flag set)` before `start`.
+    - The form state lives in `Battle::x`, not in `BattleRun`, so the `BattleRun` field guard is unchanged. This deviates from the plan's "hashed in `BattleRun`" on purpose: it is hashed through `Battle::hash`.
+  - Player trigger: in the move menu, START toggles Mega Evolution when `Battle::can_mega(Player)`. While armed, the type window shows `Str::MegaArmed`. A move chosen armed is `Choice::Mega(slot)`.
+  - The AI arms Mega Evolution with its first move when the battle is a trainer battle and the mon can Mega Evolve. Wild mons never Mega Evolve.
+  - Order (expansion `TryDoGimmicksBeforeMoves`): Mega Evolutions happen after the switches, items and running and before the first move action, faster battler first by full speed (Swift Swim and Chlorophyll count; ties go to the player). When both sides use a move, the turn is then ordered with the new speeds (Gen7); when one side switches, the Mega's switch-in abilities (Intimidate) hit the mon that just came in (`Step::Megas`, queued only when a Mega is pending). Simplified: a Pursuit on a switching foe strikes before the Mega. One Mega per side per battle. A mon with no PP left may still Mega Evolve (then Struggle), for the player and the AI.
+  - Primal Reversion happens at the battle start (in speed order) and on each switch-in, before the switch-in abilities. It does not use the side's Mega.
+  - The change takes the form's stats (HP stat and HP kept), types and ability, keeps the battle state, and runs the new ability's switch-in effects. The form lasts through switches. The party species is never changed, so the party is "restored" by construction.
+  - Messages through `battle_text`: `MegaReacting`, `MegaEvolved`, `PrimalReversion`, the primal weathers', `BreaksTheMold`, `BouncedBack` and `MegaArmed`. They are `StrSrc::Missing` (empty) in Emerald.
+  - Event `FormChange { side, party, species }`: the scene reloads the pic (`Play::Form`).
+  - **Frame cost** (`crates/game-gba/src/bin/battle_probe.rs`, read by `parity.rs` `battle_probe_mega_turn`, synthetic battle on the GBA):
+    - A turn costs 25 lines (30,762 cycles); with the Mega Evolution, **33 lines (39,683 cycles): +8 lines**. After the review fixes and the M8 Task L merge: 28 lines (33,866 cycles), with the Mega 35 lines (42,918 cycles): +7 lines.
+    - Finding the forms at battle start (34 changes) costs +2 lines.
+    - The scene's pic reload is spread over frames, as a send-out's.
+- **Abilities.** All have a test in `effects/tests_s.rs`.
+  - The weather (`effects/later.rs`):
+    - Drizzle, Drought and Sand Stream give a permanent weather, as in Gen3. Each turn prints "Rain continues…", "The sunlight is strong." or "The sandstorm rages."
+    - Sandstorm damage is max HP / 16 in turn order. Rock, Ground, Steel, Sand Veil and Sand Force are immune.
+    - **Rain Dish**: max HP / 16 at the end of the turn in rain (`STRINGID_PKMNSXRESTOREDHPALITTLE2`). **Sand Veil**: no sand damage, and the foe's accuracy ×80/100 in sand (after Compound Eyes, before Hustle).
+    - Not modelled: **Cloud Nine** and **Air Lock** (weather suppression); Sand Veil's overworld encounter halving.
+    - Rain and sun change Fire and Water damage in the special branch. Swift Swim and Chlorophyll double speed.
+    - **Primordial Sea / Desolate Land**: heavy rain or harsh sun, which only the other primal weather replaces. Damaging Fire or Water moves fail after their attack string. The weather ends when no battler with the ability is left (switch-out or faint).
+  - Done:
+    - **Aerilate, Pixilate, Refrigerate** (Normal moves change type, ×1.2). **Content decision:** under the Gen3 split by type, the new type decides the category, so a converted Normal physical move becomes special (Mega Glalie's and Mega Altaria's Return use Sp. Atk); Gen4+ games keep it physical.
+    - **Tough Claws** ×1.3 on contact.
+    - **Magic Bounce** reflects `MAGIC_COAT_AFFECTED` moves: the bounced move costs no PP and is not bounced again.
+    - **Parental Bond** (Gen7 25%): a second hit at a quarter of the damage, then "Hit 2 times!". Not for the multi-strike moves, Uproar, Explosion / Self-Destruct, the two-turn moves, Rollout / Ice Ball, Beat Up and Endeavor (the Gen7 exclusions the engine can name).
+    - **Mold Breaker** turns off the target's breakable ability for the move and announces itself on entry.
+    - **Technician** ×1.5 at power 60 or less.
+    - **Skill Link**: always 5 hits.
+    - **Sand Force** ×1.3 on Rock, Ground and Steel moves in sand, and is immune to sand damage.
+    - **Solar Power**: Sp. Atk ×1.5 in sun, and loses 1/8 HP each turn with `Str::SolarPowerHurt` (`Missing` in Emerald).
+    - **Filter**: super-effective damage ×3/4.
+    - **Prankster**: +1 priority for status moves, which fail against a Dark target.
+    - **Steadfast**: Speed +1 on a flinch.
+    - **Speed Boost** (Gen3 `isFirstTurn`: 2 on entry, decremented by `TurnValuesCleanUp(FALSE)` at the end of `TryDoEventsBeforeFirstTurn` and in `BattleTurnPassed` after the fainted replacements, so a lead boosts at the end of turn 1 and an end-of-turn replacement at the end of the next turn).
+    - **Shadow Tag** (Gen3: traps every foe; `Ability::ShadowTagGen4` adds Gen4's exemption of a Shadow Tag foe).
+    - **Levitate** (Gen3 `MAKESGROUNDMISS`, accuracy still drawn).
+    - **Shell Armor / Battle Armor** (no crit roll).
+    - **Lightning Rod** (the Gen5 absorb: Sp. Atk +1). Gen3's only redirects in doubles, so it does nothing in singles: Emerald's maps to `Other`.
+  - Silice's stones also need Trace, Thick Fat, Huge/Pure Power, Intimidate, Insomnia and Swift Swim, which were already there.
+  - **Deferred** (no Silice stone needs them; canonical Megas only):
+    - Adaptability (Lucario, Beedrill), Mega Launcher (Blastoise), Strong Jaw (Sharpedo), Sheer Force (Camerupt), No Guard (Pidgeot) and Scrappy (Lopunny): new damage or accuracy rules.
+    - Snow Warning (Abomasnow): needs hail.
+    - Delta Stream (Rayquaza): needs strong winds and Dragon Ascent.
+    - Healer (Audino): doubles only.
+  - **Emerald switch:** `classify::GEN3_EXTRA_ABILITIES` stays **off**. Emerald's Drizzle, Drought, Sand Stream, Speed Boost, Shadow Tag, Levitate, Shell/Battle Armor and Sand Veil species keep `Ability::Other`. Turning it on gives them their Gen3 behaviour; it changes Emerald battles (Torkoal, Tyranitar, Ninjask, Wobbuffet, the Levitate ghosts…) and is a later Emerald route change. Rain Dish keeps its earlier name-only mapping (only these abilities bring rain).
+  - **Silice switch:** `classify::SILICE_ABILITY_RULES` (off for Emerald) maps Lightning Rod to the Gen5 absorb and Shadow Tag to `ShadowTagGen4`. These are not Gen3 behaviour, so they stay out of `GEN3_EXTRA_ABILITIES`; the Silice content turns the switch on.
+- **Build.**
+  - ROM and `.text` against `db07b1d` (Emerald FR, full content): ROM 3,658,784 → 3,683,904 B (+25,120); engine `.text` 244,194 → 258,698 B (+14,504; 77,822 B left under its limit); all `.text` +17,344; `.rodata` +7,776; IWRAM and EWRAM +0.
+  - After the review fixes, on top of master with M8 Task L (the full 518-map import, so the ROM is 9,545,968 B and not comparable): engine `.text` 259,754 B (+1,056 over the number above, merge included); IWRAM and EWRAM +0.
+  - The battle probe ROM (`target/battle-probe.gba`) is built by `cargo xtask rom` and read by `cargo xtask parity`.
+  - The Wave 0 battle digest test leaves out `TrainerMon::item` (all `None`), so its value is unchanged.
 
 ### 3.5 SIL4 to SIL6 (roadmap)
 - **SIL4, Ch7–Ch9.** Reverse mechanics (§3.4); ice, arrow and rotation tiles, Waterfall and Dive (M10); underwater currents; camera pan; multi battles (M11); the foe's back sprite; optional true follower.

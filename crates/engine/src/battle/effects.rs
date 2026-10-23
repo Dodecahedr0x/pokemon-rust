@@ -12,18 +12,28 @@
 //! - [`abilities`]: `moveend`'s Synchronize, contact abilities (Cute Charm included) and
 //!   defrost; Intimidate and Trace on switch-in; Keen Eye; Soundproof; Shed Skin and Truant at
 //!   the end of the turn.
-//! - [`run_block`]: `IsRunningFromBattleImpossible` (Run Away, Magnet Pull, Mean Look).
+//! - [`run_block`]: `IsRunningFromBattleImpossible` (Run Away, Magnet Pull, Mean Look, Shadow
+//!   Tag).
 //! - [`ball`]: `Cmd_handleballthrow` for a Poké Ball.
+//! - [`items`] (Silice): the held items' end-of-turn and `moveend` effects (berries,
+//!   Leftovers, King's Rock).
+//! - [`later`] (Silice): the weather, its abilities, and the post-Gen3 abilities (Mold Breaker,
+//!   Magic Bounce, Prankster, Lightning Rod, Steadfast, Speed Boost, Solar Power …).
 //!
 //! # Not modelled
 //! - Abilities outside `mon::Ability` (`Ability::Other`): Immunity, Limber, Own Tempo, White
-//!   Smoke, Hyper Cutter, Water Veil, Wonder Guard, Levitate … act as no ability. Pickup,
-//!   Rain Dish, Swift Swim and Chlorophyll have no effect (no items after battle, no
-//!   weather). Sturdy only matters against OHKO moves, which the engine does not have yet
-//!   (G2). Shed Skin's message leaves the status name empty (Gen3 buffers a
-//!   `gStatusConditionString_*Jpn` string the content does not extract).
-//! - Substitute, Safeguard, Mist, Minimize (Astonish never doubles), Destiny Bond, held items
-//!   (Focus Band, King's Rock, Quick Claw), the `pause` commands.
+//!   Smoke, Hyper Cutter, Water Veil, Wonder Guard … act as no ability. Pickup and Rain Dish
+//!   have no effect. Emerald's species keep Drizzle, Drought, Sand Stream, Speed Boost, Shadow
+//!   Tag, Levitate, Shell / Battle Armor and Lightning Rod as `Other` too
+//!   (`classify::GEN3_EXTRA_ABILITIES` is off), so Emerald has no weather. Sturdy only matters
+//!   against OHKO moves, which the engine does not have yet (G2). Shed Skin's and Lum Berry's
+//!   messages leave the status name empty (Gen3 buffers a `gStatusConditionString_*Jpn`
+//!   string the content does not extract).
+//! - Substitute, Safeguard, Mist, Minimize (Astonish never doubles), Destiny Bond, the
+//!   `pause` commands. Items: the Choice Band's move lock, Shell Bell, White Herb, Mental
+//!   Herb, the stat berries, Soul Dew and the species items; the held-item animation
+//!   (`B_ANIM_HELD_ITEM_EFFECT`) has no event; `HandleFaintedMonActions`' item check
+//!   (`ItemBattleEffects(ITEMEFFECT_NORMAL, 0, TRUE)` after a faint) is skipped.
 //! - `statusanimation` / `status2animation` (no event; `StatusIcon` updates the healthbox).
 //! - The toxic counter is not reset on a switch.
 //! - Catching: `STRINGID_PLAYERUSEDITEM` (no item names), the Pokédex and nickname prompts, the
@@ -31,17 +41,22 @@
 
 mod abilities;
 mod ball;
+mod items;
+mod later;
 mod moves;
 mod status;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_g;
+#[cfg(test)]
+mod tests_s;
 
 use super::core::{Action, Battle, Env, HitResult, MoveUse, msg};
 use super::{Buff, Msg, Side, Str};
 use crate::mon::{Ability, BattleTables, MoveEffect, Stat, Type};
 pub(crate) use abilities::opposite_genders;
+pub(crate) use later::{break_mold, prankster_boost};
 
 /// The result of `attackcanceler` (`AtkCanceler_UnableToUseMove`).
 #[derive(Clone, Copy, Debug)]
@@ -65,6 +80,8 @@ pub(crate) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitRes
 /// abilities (Effect Spore, Static, Poison Point). `hit` is `None` for a miss or a status move.
 pub(crate) fn after_move(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
     abilities::move_end(b, env, u, hit);
+    let last = b.multi_last.take();
+    items::move_end(b, env, u, hit.or(last));
 }
 
 /// `attackcanceler`: the status checks in `AtkCanceler_UnableToUseMove` order (sleep, freeze,
@@ -72,14 +89,28 @@ pub(crate) fn after_move(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option
 /// (`ABILITYEFFECT_MOVES_BLOCK`).
 pub(crate) fn before_move(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Canceler {
     match status::canceler(b, env, u) {
-        Canceler::Use => abilities::moves_block(b, env, u),
+        Canceler::Use => match later::before_move(b, env, u) {
+            Some(c) => c,
+            None => abilities::moves_block(b, env, u),
+        },
         c => c,
     }
 }
 
 /// `DoBattlerEndTurnEffects` for each battler in turn order: Leech Seed, poison, toxic, burn.
 pub(crate) fn end_turn(b: &mut Battle, env: &mut Env) {
+    later::field_end_turn(b, env);
     status::end_turn(b, env);
+}
+
+/// `ABILITYEFFECT_ON_SWITCH_IN` of `side`'s battler: the weather abilities, Mold Breaker.
+pub(crate) fn on_switch_in(b: &mut Battle, env: &mut Env, side: Side) {
+    later::on_switch_in(b, env, side);
+}
+
+/// A battler with `ability` left the field: a primal weather may end.
+pub(crate) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
+    later::left_field(b, env, ability);
 }
 
 /// `TryDoEventsBeforeFirstTurn`'s switch-in abilities: `ABILITYEFFECT_INTIMIDATE1` then
@@ -172,6 +203,12 @@ pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
     if me.ability == Ability::RunAway {
         return None;
     }
+    if shadow_tagged(b, side) {
+        return Some(RunBlock::Ability {
+            owner: side.other(),
+            ability: foe.ability,
+        });
+    }
     if foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel) {
         return Some(RunBlock::Ability {
             owner: side.other(),
@@ -192,7 +229,18 @@ pub(crate) fn run_block(b: &Battle, side: Side) -> Option<RunBlock> {
 /// does not help, and the first battle does not forbid it.
 pub(crate) fn switch_block(b: &Battle, side: Side) -> bool {
     let (me, foe) = (b.battler(side), b.battler(side.other()));
-    me.v.escape_prevented || (foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel))
+    me.v.escape_prevented
+        || (foe.ability == Ability::MagnetPull && me.types.contains(&Type::Steel))
+        || shadow_tagged(b, side)
+}
+
+/// The foe's Shadow Tag traps `side` (Gen3: always; Gen4: unless it has Shadow Tag too).
+pub(crate) fn shadow_tagged(b: &Battle, side: Side) -> bool {
+    match b.battler(side.other()).ability {
+        Ability::ShadowTag => true,
+        Ability::ShadowTagGen4 => b.battler(side).ability != Ability::ShadowTagGen4,
+        _ => false,
+    }
 }
 
 /// `jumpifnopursuitswitchdmg` + `BattleScript_PursuitDmgOnSwitchOut` when `side` switches out

@@ -8,9 +8,9 @@
 //! canceler in [`super::status`]; Oblivious in Attract; Magnet Pull in `effects::run_block`;
 //! Rock Head in the core's recoil; Natural Cure in the core's switch-out; Liquid Ooze in
 //! Absorb and Leech Seed; Huge Power, Pure Power, Hustle, Guts, Thick Fat and Marvel
-//! Scale in `calc::base_damage_in`; Compound Eyes and Hustle in `calc::accuracy_hits_by`.
-//! Pickup, Rain Dish, Swift Swim and Chlorophyll have no effect in the engine's battles (no
-//! items after battle, no weather).
+//! Scale in `calc::base_damage_x`; Compound Eyes and Hustle in `calc::accuracy_hits_x`;
+//! Swift Swim and Chlorophyll in `Battle::strike_order`; the weather and post-Gen3 abilities
+//! in [`super::later`]. Pickup and Rain Dish have no effect.
 
 use super::status::{self, Cause};
 use crate::battle::core::{Battle, Env, HitResult, LONG, MoveUse, msg};

@@ -101,7 +101,7 @@ fn the_fixture_round_trips_byte_for_byte() {
 }
 
 /// The fixture has no errors and no one-way links: its only warnings are its unwritten
-/// scripts.
+/// scripts and behaviour heuristics (which depend on how much of the extract is present).
 #[test]
 fn the_fixture_validates_against_the_extract() {
     if !real() {
@@ -118,9 +118,8 @@ fn the_fixture_validates_against_the_extract() {
         let issues = validate(&games.load(name).unwrap(), &c);
         assert_eq!(errors(&issues), 0, "{name}: {issues:#?}");
         assert!(
-            issues
-                .iter()
-                .all(|i| i.severity == Severity::Warning && i.message.contains("script")),
+            issues.iter().all(|i| i.severity == Severity::Warning
+                && (i.message.contains("script") || i.message.contains("metatile"))),
             "{name}: {issues:#?}"
         );
     }
@@ -562,6 +561,43 @@ fn new_maps_share_layouts_only_when_asked() {
         })
         .unwrap_err();
     assert!(format!("{e:#}").contains("Missing"), "{e:#}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Names that differ only in case are one file on macOS: they are refused with a clear error
+/// on every OS.
+#[test]
+fn names_differing_only_in_case_are_refused() {
+    let c = Catalog::from_content().unwrap();
+    let (p, s, mts) = tilesets(&c);
+    let dir = temp_dir("case");
+    let games = GamesDir::new(dir.join("games"));
+    let doc = |name: &str| Doc::new(&new_map(name, 4, 4, &p, &s, mts[0])).unwrap();
+    games.create(&doc("RouteOne")).unwrap();
+    for name in ["Routeone", "ROUTEONE"] {
+        let want = format!("{name} differs from map RouteOne only in case");
+        let e = format!(
+            "{:#}",
+            games
+                .new_doc(&new_map(name, 4, 4, &p, &s, mts[0]))
+                .unwrap_err()
+        );
+        assert!(e.contains(&want), "{e}");
+        let e = format!("{:#}", games.create(&doc(name)).unwrap_err());
+        assert!(e.contains(&want), "{e}");
+        let e = format!("{:#}", games.save(&doc(name)).unwrap_err());
+        assert!(e.contains(&want), "{e}");
+        let e = format!("{:#}", games.load(name).unwrap_err());
+        assert!(e.contains(&want), "{e}");
+    }
+    let mut other = doc("Other");
+    other.map.layout = "ROUTEONE".into();
+    let e = format!("{:#}", games.create(&other).unwrap_err());
+    assert!(
+        e.contains("layout ROUTEONE differs from layout RouteOne only in case"),
+        "{e}"
+    );
+    assert_eq!(games.map_names().unwrap(), ["RouteOne"]);
     let _ = std::fs::remove_dir_all(dir);
 }
 

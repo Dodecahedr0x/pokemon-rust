@@ -199,6 +199,7 @@ mod tests {
                 money: 0,
                 str_vars: Default::default(),
                 warp_slots: Default::default(),
+                party_held: Vec::new(),
             },
         }
     }
