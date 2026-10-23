@@ -11,6 +11,7 @@
 
 use crate::hash::Fnv64;
 use alloc::vec;
+use core::cell::Cell;
 use alloc::vec::Vec;
 
 /// One tree (Gen3 `struct BerryTree`). A blank tree (`berry` 0, every field 0) has no berry.
@@ -48,16 +49,29 @@ impl BerryTree {
 }
 
 /// Every tree of the game, by Gen3 tree id.
-#[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct BerryTrees {
     trees: Vec<BerryTree>,
+    /// The trees' digest for [`BerryTrees::hash`] (`Some(None)`: all blank), cleared by
+    /// [`BerryTrees::set`]: the world hash runs every frame, and on the GBA hashing ~90 trees
+    /// byte by byte cost about 4 scanlines over the `World::hash` gate.
+    digest: Cell<Option<Option<u64>>>,
 }
+
+impl PartialEq for BerryTrees {
+    fn eq(&self, other: &Self) -> bool {
+        self.trees == other.trees
+    }
+}
+
+impl Eq for BerryTrees {}
 
 impl BerryTrees {
     /// `count` blank trees (`SpecialIds::berry_trees`).
     pub fn new(count: u8) -> Self {
         BerryTrees {
             trees: vec![BerryTree::default(); count as usize],
+            digest: Cell::new(None),
         }
     }
 
@@ -70,6 +84,7 @@ impl BerryTrees {
     pub fn set(&mut self, id: u8, tree: BerryTree) {
         if let Some(t) = self.trees.get_mut(id as usize) {
             *t = tree;
+            self.digest.set(None);
         }
     }
 
@@ -81,10 +96,23 @@ impl BerryTrees {
     }
 
     /// Writes nothing while every tree is blank (so worlds without trees keep their hashes).
+    #[allow(clippy::should_implement_trait)]
     pub fn hash(&self, h: &mut Fnv64) {
-        for (id, t) in self.entries() {
-            h.write(&[0xB7, id]);
-            t.hash(h);
+        let digest = self.digest.get().unwrap_or_else(|| {
+            let mut d = Fnv64::new();
+            let mut any = false;
+            for (id, t) in self.entries() {
+                any = true;
+                d.write(&[0xB7, id]);
+                t.hash(&mut d);
+            }
+            let digest = any.then(|| d.finish());
+            self.digest.set(Some(digest));
+            digest
+        });
+        if let Some(d) = digest {
+            h.write(&[0xB7]);
+            h.write(&d.to_le_bytes());
         }
     }
 
