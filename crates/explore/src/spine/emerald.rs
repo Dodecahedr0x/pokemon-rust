@@ -209,6 +209,80 @@ mod list {
         ..Bypass::NONE
     };
 
+    /// Sootopolis Gym 1F's thin ice (`MB_THIN_ICE`, `STEP_CB_SOOTOPOLIS_ICE`): a path over
+    /// every cell of a room once, from the cell above its entrance to the one below its stairs.
+    /// Room 1: (8, 19) to (8, 17).
+    const GYM_ICE_1: &[Dir] = &[Left, Up, Right, Right, Up, Left];
+    /// Room 2: (8, 14) to (8, 12).
+    const GYM_ICE_2: &[Dir] = &[
+        Right, Right, Right, Up, Up, Left, Left, Down, Left, Left, Down, Left, Left, Up, Up, Right,
+        Right, Right,
+    ];
+    /// Room 3: (8, 9) to (8, 6).
+    const GYM_ICE_3: &[Dir] = &[
+        Left, Left, Up, Left, Down, Left, Left, Up, Up, Up, Right, Down, Right, Right, Up, Right,
+        Down, Right, Down, Right, Down, Right, Up, Up, Right, Down, Right, Down, Right, Up, Up, Up,
+        Left, Left, Left, Left, Left,
+    ];
+
+    /// Route 131 and the Sky Pillar: Route 131 (`LAYOUT_ROUTE131_SKY_PILLAR`) and every floor
+    /// (`LAYOUT_SKY_PILLAR_*_CLEAN`) are under a `setmaplayoutindex` layout, which the checkpoint
+    /// does not keep (`Field::from_snapshot`'s TODO(schema 5); `World::hash` leaves it out
+    /// too): the explorer's round trip diverges there (a restored world walks the map's own
+    /// layout), and the planner reads the map's own layout. The bypass writes what Wallace's
+    /// door scene (`SkyPillar_Outside_EventScript_WallaceScene`) and Rayquaza's waking
+    /// (`SkyPillar_Top_EventScript_AwakenRayquaza`) leave, and lands on Route 126's dive spot
+    /// (surfing), where the way back into Sootopolis starts.
+    static SKY_PILLAR: Bypass = Bypass {
+        issue: "sky-pillar-layouts",
+        features: &["setmaplayoutindex"],
+        set: &[
+            FLAG_LANDMARK_SKY_PILLAR,
+            FLAG_SYS_WEATHER_CTRL,
+            FLAG_HIDE_SKY_PILLAR_WALLACE,
+            FLAG_HIDE_SKY_PILLAR_TOP_RAYQUAZA,
+        ],
+        clear: &[FLAG_HIDE_SOOTOPOLIS_CITY_WALLACE],
+        vars: &[
+            (VAR_SOOTOPOLIS_CITY_STATE, 5),
+            (VAR_SKY_PILLAR_STATE, 1),
+            (VAR_SKY_PILLAR_RAYQUAZA_CRY_DONE, 1),
+        ],
+        warp: Some((MAP_ROUTE126, 45, 66)),
+        ..Bypass::NONE
+    };
+
+    /// Rayquaza parting Groudon and Kyogre on the dive back in
+    /// (`SootopolisCity_EventScript_RayquazaSceneFromDive`): `SPECIAL_Script_DoRayquazaScene`
+    /// again, as [`LEGENDARIES_SCENE`]. The bypass writes the scene's end.
+    static RAYQUAZA_SCENE: Bypass = Bypass {
+        issue: "rayquaza-scene",
+        features: &["SPECIAL_Script_DoRayquazaScene"],
+        set: &[
+            FLAG_HIDE_SOOTOPOLIS_CITY_GROUDON,
+            FLAG_HIDE_SOOTOPOLIS_CITY_KYOGRE,
+            FLAG_HIDE_SOOTOPOLIS_CITY_RAYQUAZA,
+        ],
+        clear: &[FLAG_SYS_WEATHER_CTRL, FLAG_LEGENDARIES_IN_SOOTOPOLIS],
+        vars: &[(VAR_SKY_PILLAR_STATE, 2)],
+        ..Bypass::NONE
+    };
+
+    /// Dive out of Sootopolis's lake, Underwater Sootopolis's tunnel to Underwater Route 126,
+    /// and the surfacing on Route 126, as [`DIVE_SEAFLOOR`] (the bypass leaves the player
+    /// surfing on the dive spot's water).
+    static DIVE_OUT_SOOTOPOLIS: Bypass = Bypass {
+        issue: "dive-out-sootopolis",
+        features: &[
+            "FIELD_MOVE_DIVE",
+            "FLDEFF_USE_DIVE",
+            "MB_DEEP_WATER",
+            "underwater maps",
+        ],
+        warp: Some((MAP_ROUTE126, 45, 66)),
+        ..Bypass::NONE
+    };
+
     /// Sootopolis's Groudon/Kyogre scene: `SPECIAL_Script_DoRayquazaScene` (the fight's own
     /// screen, which fades back in) is unsupported, so the field stays faded out. The bypass
     /// writes the scene's end (`VAR_SOOTOPOLIS_CITY_STATE` 2).
@@ -1719,5 +1793,87 @@ mod list {
         talk(MAP_CAVE_OF_ORIGIN_B1F, 1),
         Step::WaitScript,
         Step::Checkpoint("cave_of_origin"),
+        // ---- Sky Pillar: back out of the cave, Surf off Sootopolis's shore and Dive out
+        // (`dive-out-sootopolis`), Routes 126-127-128-129 to Route 130; Route 131 and the
+        // pillar are `sky-pillar-layouts` ----
+        enter(MAP_CAVE_OF_ORIGIN_B1F, 9, 3, Up),
+        enter(MAP_CAVE_OF_ORIGIN_1F, 11, 17, Down),
+        enter(MAP_CAVE_OF_ORIGIN_ENTRANCE, 9, 20, Down),
+        goto(MAP_SOOTOPOLIS_CITY, 22, 37),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 22, 37, Right),
+        Step::Bypass(&DIVE_OUT_SOOTOPOLIS),
+        cross(MAP_ROUTE126, 79, 40, Right),
+        cross(MAP_ROUTE127, 30, 79, Down),
+        // East of Route 128's reef (its west water is cut off from 127 and 129's south).
+        cross(MAP_ROUTE128, 40, 39, Down),
+        cross(MAP_ROUTE129, 0, 23, Left),
+        Step::Bypass(&SKY_PILLAR),
+        Step::Expect("rayquaza_awakened"),
+        Step::Bypass(&RAYQUAZA_SCENE),
+        Step::Bypass(&DIVE_SOOTOPOLIS),
+        Step::Checkpoint("rayquaza_awakened"),
+        // ---- HM07: Maxie and Archie leave, Wallace gives Waterfall ----
+        goto(MAP_SOOTOPOLIS_CITY, 32, 37),
+        Step::Walk(Up),
+        talk(MAP_SOOTOPOLIS_CITY, 16),
+        Step::WaitScript,
+        talk(MAP_SOOTOPOLIS_CITY, 17),
+        Step::WaitScript,
+        talk(MAP_SOOTOPOLIS_CITY, 18),
+        Step::WaitScript,
+        Step::Expect("hm_waterfall"),
+        Step::Checkpoint("hm_waterfall"),
+        // ---- Juan: the gym's three thin-ice rooms, each crossed once per cell (a second
+        // step falls through to B1F); each room's last cell opens its stairs ----
+        // Healed first (the Center across the lake, by Surf).
+        goto(MAP_SOOTOPOLIS_CITY, 34, 35),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 34, 35, Right),
+        goto(MAP_SOOTOPOLIS_CITY, 39, 37),
+        Step::Walk(Right),
+        enter(MAP_SOOTOPOLIS_CITY, 43, 31, Up),
+        use_(MAP_SOOTOPOLIS_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_SOOTOPOLIS_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        goto(MAP_SOOTOPOLIS_CITY, 40, 37),
+        Step::Choose(0),
+        use_(MAP_SOOTOPOLIS_CITY, 40, 37, Left),
+        goto(MAP_SOOTOPOLIS_CITY, 35, 35),
+        Step::Walk(Left),
+        enter(MAP_SOOTOPOLIS_CITY, 31, 32, Up),
+        goto(MAP_SOOTOPOLIS_CITY_GYM_1F, 8, 20),
+        Step::Walk(Up),
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: GYM_ICE_1,
+        },
+        Step::WaitScript,
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Up, Up, Up],
+        },
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: GYM_ICE_2,
+        },
+        Step::WaitScript,
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Up, Up, Up],
+        },
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: GYM_ICE_3,
+        },
+        Step::WaitScript,
+        Step::Path {
+            map: MAP_SOOTOPOLIS_CITY_GYM_1F,
+            dirs: &[Up, Up, Up],
+        },
+        talk(MAP_SOOTOPOLIS_CITY_GYM_1F, 1),
+        Step::WaitScript,
+        Step::Expect("juan_defeated"),
+        Step::Expect("badge8"),
+        Step::Checkpoint("badge8"),
     ];
 }

@@ -80,6 +80,9 @@ pub enum Step {
     Face(Dir),
     /// One step toward `dir` (a bump into a scripted cell, or across a cell a script opened).
     Walk(Dir),
+    /// A [`Step::Walk`] per direction, in order, on `map`: a route written out where a
+    /// shortest path will not do (thin ice that must be crossed once per cell).
+    Path { map: MapId, dirs: &'static [Dir] },
     /// Hold `dir` from the current cell until the map changes; the new map must be `to`.
     Exit { dir: Dir, to: MapId },
     /// Press A on what is ahead, resolve.
@@ -192,6 +195,7 @@ impl Step {
         match *self {
             Step::Goto { map, .. }
             | Step::GotoAvoiding { map, .. }
+            | Step::Path { map, .. }
             | Step::Enter { map, .. }
             | Step::Cross { map, .. }
             | Step::Talk { map, .. }
@@ -210,6 +214,7 @@ impl Step {
             self,
             Step::Face(_)
                 | Step::Walk(_)
+                | Step::Path { .. }
                 | Step::Exit { .. }
                 | Step::Interact
                 | Step::Press(..)
@@ -968,6 +973,11 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
             }
             Step::Interact => self.macro_(live, mk(MacroKind::Interact))?,
             Step::Walk(dir) => self.macro_(live, mk(MacroKind::Step { dir }))?,
+            Step::Path { dirs, .. } => {
+                for &dir in dirs {
+                    self.macro_(live, mk(MacroKind::Step { dir }))?;
+                }
+            }
             Step::Exit { dir, to } => {
                 for _ in 0..RETRIES {
                     if live.s.world().map() != start_map {

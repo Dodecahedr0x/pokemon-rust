@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_879;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 1_358_067;
+const EMERALD_FRAMES: u64 = 1_387_262;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -52,6 +52,9 @@ const EMERALD_LABELS: &[&str] = &[
     "hm_dive",
     "seafloor_cavern",
     "cave_of_origin",
+    "rayquaza_awakened",
+    "hm_waterfall",
+    "badge8",
 ];
 
 /// The engine gaps the Emerald spine steps over with `Step::Bypass`, in spine order: the
@@ -67,6 +70,10 @@ const SPINE_BLOCKERS: &[&str] = &[
     "steven-multi",
     "dive-seafloor",
     "legendaries-scene",
+    "dive-sootopolis",
+    "dive-out-sootopolis",
+    "sky-pillar-layouts",
+    "rayquaza-scene",
     "dive-sootopolis",
 ];
 
@@ -116,7 +123,7 @@ fn spine_reaches_badge1() {
 }
 
 #[test]
-fn spine_reaches_cave_of_origin() {
+fn spine_reaches_badge8() {
     if content::FLAVOR != content::Flavor::Emerald {
         return;
     }
