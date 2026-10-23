@@ -556,6 +556,14 @@ pub enum Op {
         metatiles: Vec<u16>,
         reason: String,
     },
+    /// Accepts the `lint-reach` finding whose subject is `subject` (`warp 3`, `object
+    /// LOCALID_X`, `coords VAR_X=1`…; `super::reach_lint`), for `reason` (required). Changes
+    /// nothing in the map; `lint-reach` reads it from the map's edit scripts. An allowance that
+    /// silences nothing is a finding.
+    AllowReach {
+        subject: String,
+        reason: String,
+    },
     /// The 2x2 border (a list of 4 raw blocks, row-major).
     Border {
         blocks: Vec<u16>,
@@ -1113,6 +1121,13 @@ fn apply_op(d: &mut Doc, op: &Op, clip: Option<&Clip>, env: Option<&dyn Env>) ->
             if !d.allow.contains(a) {
                 d.allow.push(a.clone());
             }
+        }
+        Op::AllowReach { subject, reason } => {
+            ensure!(!reason.trim().is_empty(), "an allowance needs a reason");
+            ensure!(
+                !subject.trim().is_empty(),
+                "an allowance names a finding's subject"
+            );
         }
         Op::Border { blocks } => d.border = border4(blocks)?,
         Op::Resize {

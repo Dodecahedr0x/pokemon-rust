@@ -121,6 +121,26 @@ fn opposite(d: ConnectionDir) -> ConnectionDir {
 }
 
 /// Every problem of `d`, errors first, each group in map order.
+/// Why the content build rejects the header song `name` of a games dir map (its
+/// `silice::merge::song`): `MUS_NONE`, a live name of `ids/songs.ron`, else a Gen3 song
+/// (`extract::text::charmap::SOUNDS`; Gen3's pseudo-songs such as `MUS_ROUTE118`, 0x7FFF, are
+/// not songs).
+pub fn song_error(c: &Catalog, name: &str) -> Option<String> {
+    if name == "MUS_NONE" {
+        return None;
+    }
+    match c.songs.get(name) {
+        Some(true) => None,
+        Some(false) => Some(format!(
+            "music {name} is removed (a tombstone in ids/songs.ron)"
+        )),
+        None if extract::text::charmap::SOUNDS.iter().any(|s| s.1 == name) => None,
+        None => Some(format!(
+            "unknown music {name:?} (neither ids/songs.ron nor a Gen3 song)"
+        )),
+    }
+}
+
 pub fn validate(d: &Doc, c: &Catalog) -> Vec<Issue> {
     let mut o = Out(Vec::new());
     let m = &d.map;
@@ -149,8 +169,11 @@ pub fn validate(d: &Doc, c: &Catalog) -> Vec<Issue> {
     tilesets(d, c, &mut o);
     // Header.
     let h = &m.header;
+    match c.games.is_some().then(|| song_error(c, &h.music)).flatten() {
+        Some(e) => o.error("header", e),
+        None => o.prefixed("header", "music", &h.music, "MUS_"),
+    }
     for (what, v, prefix) in [
-        ("music", &h.music, "MUS_"),
         ("map section", &h.region_map_section, "MAPSEC_"),
         ("weather", &h.weather, "WEATHER_"),
         ("map type", &h.map_type, "MAP_TYPE_"),

@@ -71,6 +71,10 @@ pub struct Catalog {
     /// id as in a block): `[walkable, solid]` cell counts (`behavior::usual_collision`). Empty
     /// on the stub world.
     pub collision_uses: BTreeMap<(String, u16), [u32; 2]>,
+    /// The games dir's own songs (`ids/songs.ron`), name to whether it is live (`false`: a
+    /// tombstone). Header music is checked against them and Gen3's songs, as the content
+    /// build's `silice::merge::song`.
+    pub songs: BTreeMap<String, bool>,
 }
 
 /// The extracted dir the content build read: `PKR_EXTRACTED_DIR`, else `content/extracted`.
@@ -195,6 +199,15 @@ impl Catalog {
                     connections: map.connections.clone(),
                 },
             );
+        }
+        self.songs.clear();
+        let path = games.root.join("ids/songs.ron");
+        if path.exists() {
+            let f: extract::games::data::IdsFile = extract::export::read_ron(&path)?;
+            for e in f.ids {
+                // The live entry wins over a tombstone of the same name.
+                *self.songs.entry(e.name).or_default() |= !e.removed;
+            }
         }
         self.games = Some(games.clone());
         Ok(())
