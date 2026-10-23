@@ -459,6 +459,17 @@ impl World {
             field: &s.field,
         };
         s.objects.update(&ground, &mut s.rng, player_updated);
+        // A script's movement walked the player across the map's edge (Wave C): Gen3
+        // `CameraMove` follows the player's sprite and loads the connected map as the step
+        // starts (`LoadMapFromCameraTransition`), cutscenes included (Mr. Briney's sails).
+        if !player_updated && !s.transition.is_active() {
+            let (x, y) = s.objects.player().pos();
+            if !crate::grid::in_bounds(s.field.data(game), x, y)
+                && let Some((to, shift)) = s.field.crossing(game, x, y)
+            {
+                cross_connection(game, s, f, to, shift);
+            }
+        }
         // Gen3's per-step callback task (the map's ice puzzle or cracked floors).
         puzzle::step(game, s, f);
         // The player entered a cell this frame (a step starts, by input or by a script's

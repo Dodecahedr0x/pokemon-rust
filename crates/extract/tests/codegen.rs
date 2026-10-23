@@ -1350,7 +1350,9 @@ mod lowering {
             "    check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await;",
             "check_item_type(&ctx, ITEM_POTION).await;",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
-            "ctx.move_obj(2, &N_Movement_Walk).await; // applymovementat",
+            "ctx.move_obj_at(2, MAP_LITTLEROOT_TOWN, &N_Movement_Walk).await;",
+            "ctx.wait_move_at(2, MAP_LITTLEROOT_TOWN).await;",
+            "ctx.hide_object_at(2, MAP_LITTLEROOT_TOWN).await;",
             "ctx.remove_object(ctx.var(VAR_LAST_TALKED).await as u8).await;",
             "ctx.show_object(PLAYER).await; // showobjectat",
             // The constant name: content maps it once (`classify::movement`).

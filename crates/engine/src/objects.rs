@@ -602,9 +602,18 @@ impl Objects {
 
     /// Index of the current map's object `local` (the player for `PLAYER`).
     fn index(&self, local: u8) -> Option<usize> {
+        self.index_on(local, self.map)
+    }
+
+    /// Index of map `map`'s object `local` (the player for `PLAYER`, whatever `map`: Gen3
+    /// `GetObjectEventIdByLocalIdAndMap`).
+    fn index_on(&self, local: u8, map: MapId) -> Option<usize> {
+        if local == PLAYER {
+            return Some(0);
+        }
         self.objs
             .iter()
-            .position(|o| o.local_id == local && o.map == self.map)
+            .position(|o| o.local_id == local && o.map == map)
     }
 
     /// The slot of the current map's object `local`, for [`Objects::in_slot`] and
@@ -713,6 +722,14 @@ impl Objects {
         self.with(local, |o| o.visible = false);
     }
 
+    /// [`Objects::show`] / [`Objects::hide`] for map `map`'s object (Gen3
+    /// `SetObjectInvisibility`).
+    pub fn set_visible_on(&mut self, local: u8, map: MapId, visible: bool) {
+        if let Some(i) = self.index_on(local, map) {
+            self.objs[i].visible = visible;
+        }
+    }
+
     pub fn set_movement_type(&mut self, local: u8, movement: MovementType) {
         self.with(local, |o| {
             o.movement = movement;
@@ -752,18 +769,29 @@ impl Objects {
 
     /// Gives `local` a movement script. It starts once the current action has finished.
     pub fn start_moves(&mut self, local: u8, steps: &'static [Step]) {
-        self.with(local, |o| {
-            o.moves = Some(Moves {
+        self.start_moves_on(local, self.map, steps);
+    }
+
+    /// [`Objects::start_moves`] for map `map`'s object (Gen3 `applymovementat`).
+    pub fn start_moves_on(&mut self, local: u8, map: MapId, steps: &'static [Step]) {
+        if let Some(i) = self.index_on(local, map) {
+            self.objs[i].moves = Some(Moves {
                 steps,
                 digest: crate::script::steps_digest(steps),
                 next: 0,
-            })
-        });
+            });
+        }
     }
 
     /// The movement script has finished (true for unknown ids, as Gen3 `waitmovement`).
     pub fn moves_done(&self, local: u8) -> bool {
-        self.get(local).is_none_or(|o| o.moves.is_none())
+        self.moves_done_on(local, self.map)
+    }
+
+    /// [`Objects::moves_done`] for map `map`'s object (Gen3 `waitmovementat`).
+    pub fn moves_done_on(&self, local: u8, map: MapId) -> bool {
+        self.index_on(local, map)
+            .is_none_or(|i| self.objs[i].moves.is_none())
     }
 
     /// Collision for object `i` taking one step towards `dir` (Gen3 `GetCollisionAtCoords`).

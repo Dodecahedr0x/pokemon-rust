@@ -437,6 +437,19 @@ pub enum Request {
         id: u8,
         dir: Dir,
     },
+    /// Gen3 `applymovementat`: [`Request::Move`] for map `map`'s object `obj`, which may be
+    /// another map's after a crossing (Mr. Briney's boat, sailing across Route 105).
+    MoveAt {
+        obj: u8,
+        map: MapId,
+        steps: &'static [Step],
+    },
+    /// Gen3 `waitmovementat`: [`Request::WaitMove`] for map `map`'s object.
+    WaitMoveAt(u8, MapId),
+    /// Gen3 `showobjectat` (`SetObjectInvisibility` of map `map`'s object).
+    ShowObjectAt(u8, MapId),
+    /// Gen3 `hideobjectat`.
+    HideObjectAt(u8, MapId),
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -639,6 +652,19 @@ impl Request {
                 i(y),
             ),
             Request::TurnVirtualObject { id, dir } => (146, id as u16, dir as u16, 0, 0),
+            Request::MoveAt { obj, map, steps } => {
+                let d = steps_digest(steps);
+                (
+                    147,
+                    obj as u16 | (steps.len() as u16) << 8,
+                    map.0,
+                    d as u16,
+                    (d >> 16) as u16,
+                )
+            }
+            Request::WaitMoveAt(obj, map) => (148, obj as u16, map.0, 0, 0),
+            Request::ShowObjectAt(obj, map) => (149, obj as u16, map.0, 0, 0),
+            Request::HideObjectAt(obj, map) => (150, obj as u16, map.0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -872,6 +898,26 @@ impl Ctx {
 
     pub fn wait_move(&self, obj: u8) -> Req<()> {
         self.req(Request::WaitMove(obj), unit)
+    }
+
+    /// Gen3 `applymovementat` (see [`Request::MoveAt`]).
+    pub fn move_obj_at(&self, obj: u8, map: MapId, steps: &'static [Step]) -> Req<()> {
+        self.req(Request::MoveAt { obj, map, steps }, unit)
+    }
+
+    /// Gen3 `waitmovementat` (see [`Request::WaitMoveAt`]).
+    pub fn wait_move_at(&self, obj: u8, map: MapId) -> Req<()> {
+        self.req(Request::WaitMoveAt(obj, map), unit)
+    }
+
+    /// Gen3 `showobjectat` (see [`Request::ShowObjectAt`]).
+    pub fn show_object_at(&self, obj: u8, map: MapId) -> Req<()> {
+        self.req(Request::ShowObjectAt(obj, map), unit)
+    }
+
+    /// Gen3 `hideobjectat` (see [`Request::HideObjectAt`]).
+    pub fn hide_object_at(&self, obj: u8, map: MapId) -> Req<()> {
+        self.req(Request::HideObjectAt(obj, map), unit)
     }
 
     pub fn set_object_pos(&self, obj: u8, x: i16, y: i16) -> Req<()> {

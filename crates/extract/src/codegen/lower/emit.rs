@@ -493,12 +493,18 @@ impl<'a> Low<'a> {
                 let (Some(lid), Some(m)) = (local_id(id), self.movement_path(fx.module, m)) else {
                     return Ok(false);
                 };
-                if !at_here(id, at, fx.module) {
-                    return Ok(false);
+                // The player, on any map; another object, of the named map (the previous one
+                // after a crossing mid-script, Gen3 `ScriptMovement_StartObjectMovementScript`).
+                if is_player(id) {
+                    out.push(format!(
+                        "ctx.move_obj({lid}, &{m}).await; // applymovementat"
+                    ));
+                } else {
+                    let Some(at) = map_arg(at) else {
+                        return Ok(false);
+                    };
+                    out.push(format!("ctx.move_obj_at({lid}, {at}, &{m}).await;"));
                 }
-                out.push(format!(
-                    "ctx.move_obj({lid}, &{m}).await; // applymovementat"
-                ));
                 st.moved = true;
             }
             ("waitmovement", [id]) => {
@@ -508,13 +514,20 @@ impl<'a> Low<'a> {
                 out.push(line);
             }
             ("waitmovementat", [id, at]) => {
-                if !at_here(id, at, fx.module) {
-                    return Ok(false);
+                if is_player(id) {
+                    let Some(line) = self.wait_move(id, st) else {
+                        return Ok(false);
+                    };
+                    out.push(format!("{line} // waitmovementat"));
+                } else {
+                    let (Some(lid), Some(at)) = (local_id(id), map_arg(at)) else {
+                        return Ok(false);
+                    };
+                    if lid == "0" && !st.moved {
+                        self.stats.unresolved_waitmovement += 1;
+                    }
+                    out.push(format!("ctx.wait_move_at({lid}, {at}).await;"));
                 }
-                let Some(line) = self.wait_move(id, st) else {
-                    return Ok(false);
-                };
-                out.push(format!("{line} // waitmovementat"));
             }
             ("addobject" | "removeobject", [id]) => {
                 let Some(id) = local_id(id) else {
@@ -522,6 +535,15 @@ impl<'a> Low<'a> {
                 };
                 let f = if op == "addobject" { "add" } else { "remove" };
                 out.push(format!("ctx.{f}_object({id}).await;"));
+            }
+            ("showobjectat" | "hideobjectat", [id, at]) if !is_player(id) => {
+                // Gen3 `SetObjectInvisibility`: the named map's object (the previous map's after
+                // a crossing mid-script).
+                let (Some(lid), Some(at)) = (local_id(id), map_arg(at)) else {
+                    return Ok(false);
+                };
+                let f = &op[..op.len() - "objectat".len()];
+                out.push(format!("ctx.{f}_object_at({lid}, {at}).await;"));
             }
             ("addobjectat" | "removeobjectat" | "showobjectat" | "hideobjectat", [id, at]) => {
                 let Some(lid) = local_id(id) else {

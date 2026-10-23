@@ -301,3 +301,77 @@ fn virtual_objects_are_drawn_turned_and_gone_after_a_warp() {
     run(&mut w, Buttons::NONE, 120);
     assert!(w.objects().virtuals().is_empty());
 }
+
+/// Gen3 `applymovementat` / `waitmovementat` / `hideobjectat` name the object's map: after a
+/// crossing they reach the previous map's object, which the plain forms (the current map's)
+/// do not (Mr. Briney's boat on Route 105 is Route 104's).
+#[test]
+fn at_forms_reach_the_previous_maps_object() {
+    static LEFT: [Step; 1] = [Step::Walk(Dir::Left, Speed::Normal)];
+    let mut w = started();
+    walk(&mut w, Dir::Up, 5);
+    run(&mut w, Buttons::UP, 1);
+    run(&mut w, Buttons::NONE, 16);
+    assert_eq!(w.map(), ROUTE);
+    let npc = |w: &World, id: u8| {
+        w.objects()
+            .iter()
+            .find(|o| o.map == TOWN && o.local_id == id)
+            .map(|o| (o.pos(), o.visible))
+    };
+    let id = (w.objects().iter())
+        .find(|o| o.map == TOWN && o.local_id != PLAYER)
+        .unwrap()
+        .local_id;
+    let ((x, y), _) = npc(&w, id).unwrap();
+    start(&mut w, move |ctx| {
+        Box::pin(async move {
+            // The plain forms look on the route: nothing moves, nothing to wait for.
+            ctx.move_obj(id, &LEFT).await;
+            ctx.wait_move(id).await;
+            ctx.move_obj_at(id, TOWN, &LEFT).await;
+            ctx.wait_move_at(id, TOWN).await;
+            ctx.hide_object_at(id, TOWN).await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    until_done(&mut w, 60);
+    assert!(w.flag(FLAG_DONE));
+    assert_eq!(npc(&w, id), Some(((x - 1, y), false)));
+}
+
+/// Gen3 `CameraMove`: the camera follows the player's sprite, so a scripted walk across a map
+/// edge switches maps (`LoadMapFromCameraTransition`) as an input step does (Mr. Briney's
+/// sails, `Route104_EventScript_SailToDewford`), and the state after it restores.
+#[test]
+fn a_scripted_walk_across_a_connection_switches_maps() {
+    static UP: [Step; 8] = [Step::Walk(Dir::Up, Speed::Normal); 8];
+    let mut w = started();
+    walk(&mut w, Dir::Up, 3);
+    assert_eq!((w.map(), pos(&w)), (TOWN, (5, 2)));
+    start(&mut w, |ctx| {
+        Box::pin(async move {
+            ctx.move_obj(PLAYER, &UP).await;
+            // The route's `on_transition` waits on its object 1, which Gen3 keeps as the last
+            // mover (`sMovingNpcId`): wait on the player by id.
+            ctx.wait_move(PLAYER).await;
+            ctx.set_flag(FLAG_DONE, true).await;
+        })
+    });
+    let mut crossed = false;
+    for _ in 0..400 {
+        run(&mut w, Buttons::NONE, 1);
+        if w.map() == ROUTE && !crossed {
+            crossed = true;
+            assert_eq!(pos(&w), (5, 9), "switched as the step starts");
+        }
+        if w.flag(FLAG_DONE) {
+            break;
+        }
+    }
+    assert!(crossed && w.flag(FLAG_DONE));
+    assert_eq!((w.map(), pos(&w)), (ROUTE, (5, 4)));
+    run(&mut w, Buttons::NONE, 2);
+    let cp = w.checkpoint(&Game).expect("capturable after the walk");
+    World::restore(&Game, &cp).expect("restores");
+}

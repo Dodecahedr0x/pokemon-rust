@@ -78,6 +78,10 @@ impl<G: GameData> Host<'_, G> {
                 let id = self.mover(obj);
                 self.s.objects.moves_done(id)
             }
+            Request::WaitMoveAt(obj, map) => {
+                let id = self.mover(obj);
+                self.s.objects.moves_done_on(id, map)
+            }
             Request::Delay(_) => {
                 s.delay = s.delay.saturating_sub(1);
                 s.delay == 0
@@ -279,11 +283,23 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.door = DOOR_FRAMES;
                 UNIT
             }
-            Request::WaitMove(obj) => {
+            Request::WaitMove(obj) | Request::WaitMoveAt(obj, _) => {
                 if obj != 0 {
                     s.last_mover = obj;
                 }
                 self.wait(r)
+            }
+            // Gen3 `applymovementat` / `showobjectat` / `hideobjectat`: the object of the named
+            // map, which a crossing may have made the previous one.
+            Request::MoveAt { obj, map, steps } => {
+                s.objects.start_moves_on(obj, map, steps);
+                s.last_mover = obj;
+                UNIT
+            }
+            Request::ShowObjectAt(obj, map) | Request::HideObjectAt(obj, map) => {
+                let visible = matches!(r, Request::ShowObjectAt(..));
+                s.objects.set_visible_on(obj, map, visible);
+                UNIT
             }
             // ---- party and battle (Milestone 4) ----
             Request::GiveMon {
