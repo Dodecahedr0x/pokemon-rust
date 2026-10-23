@@ -23,7 +23,9 @@
 //! - an integer literal in a known argument position ([`literal_type`]).
 //!
 //! Comments are dropped from shared bodies; references to items of the function's own module
-//! are made absolute so the body compiles in [`SHAPES`].
+//! are made absolute so the body compiles in [`SHAPES`]. A function with an operand in a
+//! pattern position (a match arm's pattern: the rest of its line holds `=>`) is not shared: a
+//! parameter there would be a binding that matches anything.
 
 use super::*;
 
@@ -193,6 +195,8 @@ fn shape_of(module: &str, body: &str, names: &Names) -> Option<(Shape, Vec<Strin
             None
         };
         match param {
+            // In a pattern, `p0` would bind instead of compare: keep the function unshared.
+            Some(_) if body[i..].lines().next().is_some_and(|l| l.contains("=>")) => return None,
             Some(ty) => {
                 let arg = if ty.starts_with('&') {
                     format!("&{tok}")
@@ -300,4 +304,42 @@ pub(super) fn share(
         module.insert_str(0, &format!("use {DATA}::Flow;\n"));
     }
     Ok(module)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names() -> Names<'static> {
+        Names {
+            texts: BTreeSet::from(["T_Text"]),
+            movements: BTreeMap::new(),
+            items: BTreeMap::new(),
+        }
+    }
+
+    /// Operands become parameters in expressions, but a function with one in a match arm's
+    /// pattern (alone, in an or-pattern or a tuple) is not shared.
+    #[test]
+    fn operands_in_patterns_are_not_shared() {
+        let n = names();
+        let expr = "    ctx.message(T_Text).await;\n    ctx.set_flag(FLAG_A, true).await;\n";
+        let (shape, args) = shape_of("M", expr, &n).expect("shared");
+        assert_eq!(shape.params, ["TextId", "FlagId"]);
+        assert_eq!(args, ["T_Text", "FLAG_A"]);
+        for arm in [
+            "        MAP_A => return Flow::End,\n",
+            "        MAP_A | MAP_B => return Flow::End,\n",
+            "        (MAP_A, _) => return Flow::End,\n",
+        ] {
+            let body = format!(
+                "    ctx.message(T_Text).await;\n    match (ctx.current_map().await, 0) {{\n{arm}        _ => {{}}\n    }}\n"
+            );
+            assert!(shape_of("M", &body, &n).is_none(), "{arm}");
+        }
+        // After the arrow, an operand is an expression again.
+        let body = "    match ctx.var(VAR_A).await {\n        0 => ctx.message(T_Text).await,\n        _ => {}\n    }\n";
+        let (shape, _) = shape_of("M", body, &n).expect("shared");
+        assert_eq!(shape.params, ["VarId", "TextId"]);
+    }
 }
