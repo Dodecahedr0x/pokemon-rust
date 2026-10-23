@@ -40,7 +40,8 @@
 //! | `text-missing` | error | a text id the scenes print but `text/fr.ron` lacks |
 //! | `speakers-mismatch` | error | `text/speakers.ron` and `text/fr.ron` with different id sets |
 //! | `dynamic-unresolved` | error | a placeholder reference the source does not enumerate |
-//! | `text-charmap` | error | a character the FR charmap cannot encode |
+//! | `font-glyph` | error | an authored glyph (`font/*.ron`, `extract::games::font`) that does not parse, has no code, is missing for a code, or breaks the extract's widths (a redrawn code keeps its width) |
+//! | `text-charmap` | error | a character neither the FR charmap nor an authored glyph encodes (each needs a ruling: a new glyph or a rewording) |
 //! | `text-width` | error | a line wider than 216 px (208 px for a defeat text); see [`line_widths`] |
 //! | `text-lines` | error | a box (between `\p`) with more than 2 lines (a second `\n`) |
 //! | `invented-move` | warning | a `MOVE_SIL_*` (D-00/D-02b say Gen3 moves only) |
@@ -55,6 +56,7 @@ use super::names;
 use super::read_ron;
 use super::schema::*;
 use anyhow::{Result, bail};
+use extract::games::font as glyphs;
 use extract::text::Lang;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -107,8 +109,10 @@ pub struct Inputs {
     /// Scene scripts: file stem -> constants named.
     pub scripts: BTreeMap<String, Vec<String>>,
     pub exceptions: ExceptionsFile,
-    /// The extract's FR font widths.
+    /// The extract's FR font widths, with the authored glyphs' widths at their codes.
     pub widths: Option<Vec<u8>>,
+    /// `font-glyph` findings: what is wrong with `font/*.ron`.
+    pub glyph_problems: Vec<String>,
     /// Gen3 names known from the extract and the decomp, on top of the compiled tables.
     pub extra_names: BTreeSet<String>,
     /// Gen3 item names (as [`name_key`]) from the extract.
@@ -165,6 +169,28 @@ pub fn load(o: &Options) -> Result<Inputs> {
         .transpose()?
         .unwrap_or_default();
 
+    let font_dir = g.join("font");
+    let mut glyph_problems = Vec::new();
+    let authored = match glyphs::load_dir(&font_dir) {
+        Ok(v) => v,
+        Err(e) => {
+            glyph_problems.push(format!("{e:#}"));
+            Vec::new()
+        }
+    };
+    if font_dir.exists() {
+        for &(c, b) in glyphs::CODES {
+            // Only when the files loaded: a load error already names the broken file.
+            if glyph_problems.is_empty() && !authored.iter().any(|g| g.ch == c) {
+                glyph_problems.push(format!("no glyph file draws {c:?} ({b:02X?})"));
+            }
+        }
+    } else {
+        notes.push(format!(
+            "no {}: the authored glyphs encode, drawn with the extract's glyphs",
+            font_dir.display()
+        ));
+    }
     let mut widths = None;
     let mut extra_names = BTreeSet::new();
     let mut gen3_item_names = BTreeMap::new();
@@ -177,7 +203,14 @@ pub fn load(o: &Options) -> Result<Inputs> {
     if x.join("manifest.ron").exists() {
         let f = x.join("font/latin_normal.ron");
         if f.exists() {
-            widths = Some(read_ron::<extract::schema::FontFile>(&f)?.widths);
+            let mut w = read_ron::<extract::schema::FontFile>(&f)?.widths;
+            glyph_problems.extend(glyphs::problems(&authored, &|_| None, &w));
+            for g in &authored {
+                if let Some(slot) = w.get_mut(usize::from(g.index)) {
+                    *slot = g.width;
+                }
+            }
+            widths = Some(w);
         } else {
             notes.push(format!("{} missing: text-width skipped", f.display()));
         }
@@ -272,6 +305,7 @@ pub fn load(o: &Options) -> Result<Inputs> {
         scripts,
         exceptions,
         widths,
+        glyph_problems,
         extra_names,
         gen3_item_names,
         decomp,
@@ -472,6 +506,10 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
         })
     };
     use Level::{Error, Warning};
+
+    for p in &i.glyph_problems {
+        push("font-glyph", Error, "font", p.clone());
+    }
 
     // Registries.
     let mut live: BTreeMap<IdKind, BTreeSet<&str>> = BTreeMap::new();
@@ -969,7 +1007,7 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 Error,
                 k,
                 format!(
-                    "not in the FR charmap: {}",
+                    "no glyph (FR charmap or font/): {}",
                     bad.iter()
                         .map(|c| format!("{c:?}"))
                         .collect::<Vec<_>>()
@@ -978,7 +1016,7 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
             );
         }
         // Measured even with unencodable characters: each counts as a widest capital.
-        let Ok(bytes) = extract::text::encode_lang(&substitute(v, &bad), Lang::Fr) else {
+        let Ok(bytes) = glyphs::encode_fr(&substitute(v, &bad)) else {
             continue;
         };
         for (b, n) in box_lines(&bytes).into_iter().enumerate() {
@@ -1012,7 +1050,7 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
     if !glyphs.is_empty() {
         let list: Vec<String> = glyphs.iter().map(|(c, n)| format!("{c:?} x{n}")).collect();
         println!(
-            "glyphs missing from the FR charmap (texts using them): {}",
+            "glyphs in neither the FR charmap nor font/ (texts using them): {}",
             list.join(", ")
         );
     }
@@ -1029,7 +1067,7 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 ("trainer-name", "name", &tr.name, 10),
                 ("trainer-class-name", "class name", &tr.class_name, 12),
             ] {
-                match extract::text::encode_lang(text, Lang::Fr) {
+                match glyphs::encode_fr(text) {
                     Ok(b) if b.len() - 1 > max => push(
                         rule,
                         Error,
@@ -1186,7 +1224,7 @@ pub fn check(i: &Inputs) -> Vec<Finding> {
                 );
             }
             if let Some(n) = &d.name {
-                match extract::text::encode_lang(n, Lang::Fr) {
+                match glyphs::encode_fr(n) {
                     Ok(b) if b.len() - 1 > ITEM_NAME_MAX => push(
                         "item-name-length",
                         Warning,
@@ -1260,7 +1298,7 @@ fn name_key(name: &str) -> String {
 
 /// Characters of `text` the FR charmap cannot encode (escapes and `{...}` codes skipped).
 pub fn bad_chars(text: &str) -> Vec<char> {
-    if extract::text::encode_lang(text, Lang::Fr).is_ok() {
+    if glyphs::encode_fr(text).is_ok() {
         return Vec::new();
     }
     let mut out = BTreeSet::new();
@@ -1278,7 +1316,7 @@ pub fn bad_chars(text: &str) -> Vec<char> {
                 }
             }
             c => {
-                if extract::text::encode_lang(&c.to_string(), Lang::Fr).is_err() {
+                if glyphs::encode_fr(&c.to_string()).is_err() {
                     out.insert(c);
                 }
             }
@@ -1434,9 +1472,10 @@ mod tests {
     #[test]
     fn charmap() {
         assert!(bad_chars("Plain text\\n{PLAYER}").is_empty());
+        // The authored glyphs (`font/*.ron`) encode; the em dash and the degree sign do not.
         assert_eq!(
-            bad_chars("a\u{2014}b\u{2665}"),
-            vec!['\u{2014}', '\u{2665}']
+            bad_chars("a\u{2014}b\u{2665}\u{B7}\u{B0}"),
+            vec!['\u{B0}', '\u{2014}']
         );
         assert_eq!(substitute("a\u{2014}b", &['\u{2014}']), "aWb");
     }

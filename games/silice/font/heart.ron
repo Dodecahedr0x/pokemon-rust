@@ -1,0 +1,28 @@
+// The heart (R-11), drawn by hand for Silice. It redraws Gen3's `{EMOJI_HEART}` glyph (F9 E7,
+// glyph 0x1E7) at the extract's width (8); see `extract::games::font`.
+// 7 x 9 foreground on rows 3 to 11, ending on the font's baseline: rounded single-pixel lobe
+// tops, a notch two rows deep, straight sides, then a three-step taper to a one-pixel point.
+// Shadow one pixel right and down. `.` background, `#` foreground, `s` shadow.
+(
+    char: '♥',
+    width: 8,
+    on_baseline: true,
+    rows: [
+        "........",
+        "........",
+        "........",
+        ".#s..#s.",
+        "###s###s",
+        "#######s",
+        "#######s",
+        "#######s",
+        "s#####ss",
+        ".#####s.",
+        ".s###ss.",
+        "..s#ss..",
+        "...ss...",
+        "........",
+        "........",
+        "........",
+    ],
+)
