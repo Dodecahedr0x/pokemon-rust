@@ -158,7 +158,9 @@ fn run(w: &mut World, keys: Buttons, frames: u32) {
         let f = w.step(&G, keys);
         f.validate().unwrap();
         assert!(
-            f.is_black() || f.bulk || crate::ui::kit::frame_bytes(&f) <= crate::ui::kit::UPLOAD_BYTES_VISIBLE,
+            f.is_black()
+                || f.bulk
+                || crate::ui::kit::frame_bytes(&f) <= crate::ui::kit::UPLOAD_BYTES_VISIBLE,
             "a visible frame over budget"
         );
     }
@@ -224,12 +226,14 @@ fn until(w: &mut World, done: impl Fn(&World) -> bool) {
 
 fn bag_on_top(w: &World) -> bool {
     matches!(top(w), Some(ScreenState::Bag(_)))
-        && w.screens().is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
+        && w.screens()
+            .is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
 }
 
 fn party_on_top(w: &World) -> bool {
     matches!(top(w), Some(ScreenState::Party(_)))
-        && w.screens().is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
+        && w.screens()
+            .is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
 }
 
 /// Opens the bag in `mode` directly and lets it fade in.
@@ -274,7 +278,11 @@ fn pick(w: &mut World, item: ItemId) {
 
 /// From the context menu, chooses `a`.
 fn act(w: &mut World, a: Action) {
-    let i = bag(w).actions().iter().position(|&x| x == a).expect("action listed");
+    let i = bag(w)
+        .actions()
+        .iter()
+        .position(|&x| x == a)
+        .expect("action listed");
     loop {
         let Prompt::Context { cursor } = prompt(w) else {
             panic!("no context menu: {:?}", prompt(w));
@@ -320,7 +328,9 @@ fn use_on_lead(w: &mut World, item: ItemId) {
 fn start_bag_opens_the_bag_and_closing_it_shows_the_start_menu_again() {
     let mut w = world();
     tap(&mut w, Buttons::START);
-    until(&mut w, |w| matches!(top(w), Some(ScreenState::StartMenu(_))));
+    until(&mut w, |w| {
+        matches!(top(w), Some(ScreenState::StartMenu(_)))
+    });
     tap(&mut w, Buttons::A);
     until(&mut w, bag_on_top);
     assert_eq!(bag(&w).mode, BagMode::Field);
@@ -335,7 +345,8 @@ fn start_bag_opens_the_bag_and_closing_it_shows_the_start_menu_again() {
     tap(&mut w, Buttons::B);
     until(&mut w, |w| {
         matches!(top(w), Some(ScreenState::StartMenu(_)))
-            && w.screens().is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
+            && w.screens()
+                .is_some_and(|s| s.host.phase == crate::ui::kit::Phase::Running)
     });
     tap(&mut w, Buttons::B);
     until(&mut w, |w| w.screens_open() == 0);
@@ -353,7 +364,10 @@ fn opening_compacts_pockets_sorts_tms_and_pockets_switch_in_gen3_order() {
     assert_eq!(w.s.bag.pocket(Pocket::Items)[0].qty, 0);
     open_bag(&mut w, BagMode::Field);
     assert_eq!(w.s.bag.pocket(Pocket::Items)[0].item, ANTIDOTE);
-    let tms: Vec<_> = w.s.bag.pocket(Pocket::TmHm)[..2].iter().map(|s| s.item).collect();
+    let tms: Vec<_> = w.s.bag.pocket(Pocket::TmHm)[..2]
+        .iter()
+        .map(|s| s.item)
+        .collect();
     assert_eq!(tms, [TM, HM]);
     let mut seen = Vec::new();
     for _ in 0..6 {
@@ -385,7 +399,10 @@ fn pocket_context_menus_follow_gen3() {
     add(&mut w, TM, 1);
     open_bag(&mut w, BagMode::Field);
     for (item, want) in [
-        (POTION, &[Action::Use, Action::Give, Action::Toss, Action::Cancel][..]),
+        (
+            POTION,
+            &[Action::Use, Action::Give, Action::Toss, Action::Cancel][..],
+        ),
         (POKE_BALL, &[Action::Give, Action::Toss, Action::Cancel]),
         (TM, &[Action::Use, Action::Give, Action::Cancel]),
         (BIKE, &[Action::Use, Action::Register, Action::Cancel]),
@@ -424,7 +441,10 @@ fn status_heals_revive_full_restore_rare_candy_and_vitamins() {
     assert!(crate::item_use::use_on_mon(&G, &mut mon, ANTIDOTE, &mut rng, &mut reports).is_none());
     mon.status = Status::Toxic(2);
     let u = crate::item_use::use_on_mon(&G, &mut mon, ANTIDOTE, &mut rng, &mut reports).unwrap();
-    assert_eq!((mon.status, u.text), (Status::None, UiText::ItemCuredPoison));
+    assert_eq!(
+        (mon.status, u.text),
+        (Status::None, UiText::ItemCuredPoison)
+    );
     // Full Restore: HP and status.
     mon.hp = 1;
     mon.status = Status::Burn;
@@ -542,7 +562,9 @@ fn a_tm_boots_up_asks_and_teaches_through_the_party_menu() {
     open_bag(&mut w, BagMode::Field);
     pick(&mut w, TM);
     act(&mut w, Action::Use);
-    through(&mut w, |w| bag_on_top(w) && matches!(prompt(w), Prompt::YesNo { .. }));
+    through(&mut w, |w| {
+        bag_on_top(w) && matches!(prompt(w), Prompt::YesNo { .. })
+    });
     tap(&mut w, Buttons::A);
     until(&mut w, party_on_top);
     assert_eq!(party(&w).mode, crate::ui::PartyMode::UseItem(TM));

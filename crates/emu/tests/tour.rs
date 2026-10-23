@@ -2,7 +2,7 @@
 //! `target/game-tour.gba`, built by `cargo xtask parity --long`) driven in mGBA through every
 //! map of `tour_logic::tour`, with a native World mirroring it in lockstep.
 //!
-//! The ROM boots a new game after the starter; each L+R+START warps it to the next map
+//! The ROM boots a new game after the starter; each L+R warps it to the next map
 //! (`tour_logic::Tour`). The test sends the combo when the native mirror is ready for a warp
 //! (field, no transition; in a battle it presses A every other frame until the field is back),
 //! then idles [`IDLE`] frames. On gated maps it first walks (`Walk`): [`WALK_STEPS`] steps
@@ -360,8 +360,9 @@ fn every_tour_map_fits_the_frame() {
                     g.map(list[stops.len()]).name
                 );
                 let ready = world.field_active() && !world.transition_active();
-                if ready && !prev.contains(Buttons::START) {
-                    Buttons(Buttons::L.0 | Buttons::R.0 | Buttons::START.0)
+                const LR: Buttons = Buttons(Buttons::L.0 | Buttons::R.0);
+                if ready && !prev.contains(LR) {
+                    LR
                 } else if world.in_battle() && f % 2 == 0 {
                     Buttons::A
                 } else {

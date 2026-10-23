@@ -320,7 +320,8 @@ impl BagMenu {
         let msg_base = tiles.take(w, h);
         debug_assert_eq!(msg_base, msg_tiles_base());
         let popup_base = tiles.take(POPUP_TILES.0, POPUP_TILES.1);
-        let money = (self.mode == BagMode::Sell).then(|| money_box(game, &mut tiles, *cx.money, 0, 0));
+        let money =
+            (self.mode == BagMode::Sell).then(|| money_box(game, &mut tiles, *cx.money, 0, 0));
         Render {
             pocket,
             list,
@@ -367,7 +368,11 @@ impl BagMenu {
                     p.text(game, &name, CURSOR_W, y);
                     let hm = mv.is_some_and(|m| game.is_hm_move(m));
                     if self.pocket() != Pocket::KeyItems && !hm && mv.is_none() {
-                        let digits = if self.pocket() == Pocket::Berries { 3 } else { 2 };
+                        let digits = if self.pocket() == Pocket::Berries {
+                            3
+                        } else {
+                            2
+                        };
                         let mut q = Vec::with_capacity(6);
                         q.push(super::kit::widgets::CHAR_TIMES);
                         push_number(&mut q, s.qty as u32, digits, true);
@@ -445,8 +450,11 @@ impl BagMenu {
                     n * 2,
                     true,
                 );
-                let labels: Vec<&[u8]> =
-                    self.actions.iter().map(|a| action_label(game, *a)).collect();
+                let labels: Vec<&[u8]> = self
+                    .actions
+                    .iter()
+                    .map(|a| action_label(game, *a))
+                    .collect();
                 draw_menu(game, &mut p, &labels, c.pos);
                 Some(p)
             }
@@ -692,8 +700,7 @@ impl BagMenu {
                 ScreenOut::Running
             }
             FieldUse::OnField => {
-                let underground =
-                    game.map(cx.map).map_type == crate::data::map_type::UNDERGROUND;
+                let underground = game.map(cx.map).map_type == crate::data::map_type::UNDERGROUND;
                 if underground {
                     ScreenOut::UseOnField(item)
                 } else {
@@ -717,7 +724,12 @@ impl BagMenu {
 
     fn ask_toss<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>) {
         let v = vars(item_name(cx.game, self.item), &number(self.qty as u32, 2));
-        self.show_msg(cx, UiText::BagConfirmToss, Some(&v), Next::Ask(Question::Toss));
+        self.show_msg(
+            cx,
+            UiText::BagConfirmToss,
+            Some(&v),
+            Next::Ask(Question::Toss),
+        );
     }
 
     fn after_msg<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, next: Next) -> ScreenOut {
@@ -733,7 +745,12 @@ impl BagMenu {
                         .map_or(&[EOS][..], |i| i.name)
                 });
                 let v = vars(name, &[EOS]);
-                self.show_msg(cx, UiText::BagTmContains, Some(&v), Next::Ask(Question::Teach));
+                self.show_msg(
+                    cx,
+                    UiText::BagTmContains,
+                    Some(&v),
+                    Next::Ask(Question::Teach),
+                );
             }
             Next::Ask(q) => {
                 self.st = St::Ask { q, cursor: 0 };
@@ -748,7 +765,12 @@ impl BagMenu {
         ScreenOut::Running
     }
 
-    fn answer<G: GameData>(&mut self, cx: &mut ScreenCx<'_, G>, q: Question, yes: bool) -> ScreenOut {
+    fn answer<G: GameData>(
+        &mut self,
+        cx: &mut ScreenCx<'_, G>,
+        q: Question,
+        yes: bool,
+    ) -> ScreenOut {
         let game = cx.game;
         let item = self.item;
         let name = item_name(game, item);
@@ -787,7 +809,8 @@ impl BagMenu {
                 if let Some(r) = self.gfx.0.as_deref_mut()
                     && r.money.is_some()
                 {
-                    let mut tiles = TileAlloc::at(r.money.as_ref().map_or(0, |p| p.window().base()));
+                    let mut tiles =
+                        TileAlloc::at(r.money.as_ref().map_or(0, |p| p.window().base()));
                     r.money = Some(money_box(game, &mut tiles, *cx.money, 0, 0));
                 }
                 ScreenOut::Running
@@ -802,7 +825,12 @@ impl BagMenu {
             BagMode::Sell => {
                 let price = sell_price(cx.game, self.item) * n as u32;
                 let v = vars(&number(price, 6), &[EOS]);
-                self.show_msg(cx, UiText::BagSellOffer, Some(&v), Next::Ask(Question::Sell));
+                self.show_msg(
+                    cx,
+                    UiText::BagSellOffer,
+                    Some(&v),
+                    Next::Ask(Question::Sell),
+                );
             }
             _ => self.ask_toss(cx),
         }
@@ -883,7 +911,11 @@ impl Screen for BagMenu {
                 self.st = St::Context(c);
                 match r {
                     MenuInput::Chosen(i) => {
-                        let a = self.actions.get(i as usize).copied().unwrap_or(Action::Cancel);
+                        let a = self
+                            .actions
+                            .get(i as usize)
+                            .copied()
+                            .unwrap_or(Action::Cancel);
                         self.action(cx, a)
                     }
                     MenuInput::Cancel => {

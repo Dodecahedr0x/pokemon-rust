@@ -274,6 +274,8 @@ impl<'g, G: GameData> Live<'g, G> {
                 }
             }
             Step::Bypass(b) => self.bypass(b, opts)?,
+            // M9 B's bag USE (`World::use_item` on our side): BPEE's bag is not driven yet.
+            Step::UseItem(u) => bail!("the bag's USE is not driven on BPEE yet ({u:?})"),
             Step::Grass { x, y, .. } => {
                 self.grass((x, y))?;
             }
@@ -351,6 +353,9 @@ impl<'g, G: GameData> Live<'g, G> {
                     self.v.push(dir, MACRO_FRAMES)?;
                 }
             }
+            MacroKind::UseItem { item, mon, forget } => bail!(
+                "the bag's USE is not driven on BPEE yet (item {item}, mon {mon}, forget {forget})"
+            ),
         }
         Ok(())
     }

@@ -57,6 +57,7 @@ A `Checkpoint(label)` step names a spine position. `explore spine --export` writ
 - Replacing them would rewrite five committed traces and their parity lanes (`act1.rs`, `parity.rs`). Their frames would differ, so this would be churn for no gain in coverage.
 - Instead, `explore spine` checks the shared points. For each spine label `L` that the committed tree also has as `act1:L`, both states must be **progress-equivalent**: the same map, and the same goal progress on the act's list (`goals::state_progress`). The explorer's chain and the spine take different detours, so their digests differ by design.
 - If M9 Task Q prefers spine nodes over re-finding `act1:*`, it promotes `spine:act1:*` and drops `act1:*` in its own `chore(checkpoints)` commit.
+- **Done in the re-baseline after Waves C/D** (`2026-10-23-emerald-parity.md`, "Re-baseline (as built)"): the new-game parity change broke `act1:*`, so they were dropped and `spine:act1:lab` … `spine:act1:badge1` (c00005–c00012) promoted in their place. `spine --export` now chains the nodes (each from the one before) so that they promote in order and the parity lanes read one chain.
 
 `cargo xtask checkpoints verify` is untouched: the spine writes nothing to the committed tree.
 

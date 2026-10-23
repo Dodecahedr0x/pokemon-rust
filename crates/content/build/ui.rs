@@ -115,7 +115,12 @@ fn tmhm(world: &World) -> (String, String) {
 /// left out (no engine action yet). The labels are `MULTI_FORCED_START_MENU`'s (the player's
 /// is empty there: Gen3 prints the player's name). Without that list: no start menu.
 fn start_menu(world: &World) -> (String, String) {
-    let Some(list) = world.tables.multichoice.lists.get("MULTI_FORCED_START_MENU") else {
+    let Some(list) = world
+        .tables
+        .multichoice
+        .lists
+        .get("MULTI_FORCED_START_MENU")
+    else {
         return (String::new(), String::new());
     };
     let flag = |n: &str| {

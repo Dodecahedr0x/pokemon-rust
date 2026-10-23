@@ -29,7 +29,8 @@ usage: explore <command> [--db <path>] [--config <path>]
                               plays the flavour's spine from a new game: positions, frames,
                               coverage; compares its checkpoints with the committed <act>:<label>
                               nodes; --export writes them to the local checkpoint store as
-                              spine:<act>:<label> (promote with `cargo xtask checkpoints promote`);
+                              spine:<act>:<label>, chained (--label L: the chain up to L; promote
+                              parents first with `cargo xtask checkpoints promote`);
                               --trace: every step's end (map, cell, frame, vars and flags changed)
   branch [--from L] [--budget F] [--jobs N] [--every N] [--min-novelty N] [--max-steps N]
          [--limit N]

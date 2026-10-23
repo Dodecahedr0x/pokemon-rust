@@ -822,6 +822,12 @@ fn reach_tools_on_the_committed_silice_maps() {
     if !real() {
         return;
     }
+    // Since the Silice redraws (SilBoisEther, SilBoisEtherGym, …) the maps name the games dir's
+    // own tilesets, which only the Silice build has.
+    if content::FLAVOR != content::Flavor::Silice {
+        eprintln!("skipped: needs the Silice build");
+        return;
+    }
     let ws = studio::paths::StudioPaths::detect().workspace;
     let g = ws.join("games/silice");
     let g = g.to_str().unwrap();
