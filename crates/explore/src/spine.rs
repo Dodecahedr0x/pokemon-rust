@@ -670,14 +670,16 @@ fn finish<G: GameData + Clone>(mut out: SpineRun, live: Live<'_, '_, G>, cfg: &C
 }
 
 /// The story flags set at the last position, clear at the first, and never cleared once set
-/// along the positions (on-load toggles such as hide flags are left out).
+/// along the positions (on-load toggles such as hide flags are left out), side flags
+/// ([`key::side_flag`]: trainers, items, Match Call, daily) left out: a branch that beats a
+/// trainer or picks up an item before the spine does is not off the story.
 fn spine_flags(positions: &[Position], cfg: &KeyConfig) -> BTreeSet<u16> {
     let (Some(first), Some(last)) = (positions.first(), positions.last()) else {
         return BTreeSet::new();
     };
     let set = |p: &Position, f: FlagId| p.end.world.vars.flags.binary_search(&f).is_ok();
     (last.end.world.vars.flags.iter())
-        .filter(|&&f| key::story_flag(f, cfg) && !set(first, f))
+        .filter(|&&f| key::story_flag(f, cfg) && !key::side_flag(f.0) && !set(first, f))
         .filter(|&&f| {
             let mut seen = false;
             positions.iter().all(|p| {

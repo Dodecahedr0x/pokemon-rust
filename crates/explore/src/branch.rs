@@ -525,7 +525,14 @@ pub fn run<G: GameData + Clone + 'static>(
             &cfg.key,
         );
         let at = spine.progress(game, target.origin, &cfg.key);
-        (now != at).then(|| now.diff(&at))
+        let ahead = side_flags_ahead(
+            spine,
+            target.origin,
+            &live.last_end().expect("a step").world,
+        );
+        let mut what: Vec<String> = (now != at).then(|| now.diff(&at)).into_iter().collect();
+        what.extend(ahead.iter().take(4).map(|f| format!("side flag {f:#x}")));
+        (!what.is_empty()).then(|| what.join(", "))
     };
     // ---- recover ----
     let rec_from = live.frames();
@@ -639,6 +646,21 @@ pub fn run<G: GameData + Clone + 'static>(
         });
     }
     r
+}
+
+/// The side flags ([`key::side_flag`]) set in `w` but not at position `origin` that the spine
+/// sets later: a trainer the spine fights later beaten early, an item it picks up taken
+/// first. They do not keep a branch from rejoining, but a window step that needed them clear
+/// (talking to that trainer) failing is expected.
+fn side_flags_ahead(spine: &SpineRun, origin: usize, w: &WorldSnapshot) -> Vec<u16> {
+    let (Some(at), Some(last)) = (spine.positions.get(origin), spine.positions.last()) else {
+        return Vec::new();
+    };
+    let set = |s: &WorldSnapshot, f: engine::data::FlagId| s.vars.flags.binary_search(&f).is_ok();
+    (w.vars.flags.iter())
+        .filter(|&&f| key::side_flag(f.0) && !set(&at.end.world, f) && set(&last.end.world, f))
+        .map(|f| f.0)
+        .collect()
 }
 
 /// A `Divergence` finding's message: the origin's segment, the target and what diverged
