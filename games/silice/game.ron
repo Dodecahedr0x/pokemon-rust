@@ -36,6 +36,9 @@
         // Ch5: Owlys's Centre (the source's HEAL_LOCATION_OWLYS, also Sustentation's destination),
         // set on entering it (Owlys_PokemonCenter_OnTransition). The cell in front of its door (15, 29).
         (name: "HEAL_LOCATION_SIL_OWLYS", map: "Owlys", x: 15, y: 30),
+        // Ch7: Reverse-City's Centre (set_respawn on entering it, ReverseCity_PokemonCenter_OnTransition),
+        // the cell in front of its door (4, 20).
+        (name: "HEAL_LOCATION_SIL_REVERSE_CITY", map: "ReverseCity", x: 4, y: 21),
         // Ch8: the Taverne du Dé à Vingt Faces, Évalon's Center (its innkeeper heals, "set_respawn"
         // on entering it: Evalon_Taverne_OnTransition). The cell in front of its door (22, 26).
         (name: "HEAL_LOCATION_SIL_EVALON", map: "Evalon", x: 22, y: 27),
