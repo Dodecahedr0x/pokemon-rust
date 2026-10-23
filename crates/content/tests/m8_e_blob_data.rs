@@ -310,19 +310,19 @@ fn evolutions_and_trainer_money() {
 fn unimplemented_stat_effects_are_plain_unsupported() {
     let mut w = stub::world();
     let m = &mut w.battle.moves.moves[1];
-    m.effect = "EFFECT_SWAGGER".into();
+    m.effect = "EFFECT_TRANSFORM".into();
     let id = m.id.clone();
     let out = battle::generate(&w.battle, &w).unwrap();
     let n = extract::names::MOVE_EFFECTS
-        .value("EFFECT_SWAGGER")
+        .value("EFFECT_TRANSFORM")
         .unwrap();
     assert!(
         out.rs
             .contains(&format!("effect: MoveEffect::Unsupported({n})"))
     );
-    // Every stat change has words now (G1): Swagger is unsupported only as unimplemented.
+    // Every stat change has words now (G1): Transform is unsupported only as unimplemented.
     assert!(out.report.contains(&format!(
-        "unsupported effect EFFECT_SWAGGER (MoveEffect::Unsupported): {id}"
+        "unsupported effect EFFECT_TRANSFORM (MoveEffect::Unsupported): {id}"
     )));
     assert!(!out.report.contains("unworded"));
 }

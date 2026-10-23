@@ -361,7 +361,7 @@ impl Gen<'_> {
         let b = self.b;
         let mut moves = String::new();
         for m in &b.moves.moves {
-            let effect = match classify::move_effect(&m.effect) {
+            let effect = match classify::move_effect_for(&m.effect, &m.id) {
                 Some(e) => e,
                 None => {
                     let n = names::MOVE_EFFECTS
