@@ -2233,15 +2233,15 @@ The sound effects use the decomp names `SE_SIFFLET` = `SE_M_GRASSWHISTLE`, the c
 - The start state is Chapter 3's end:
   - story 36, sync 30, three badges, the Coupe, Force and Flash modules, `LOG_01`–`LOG_03`;
   - placed on Route S4's west edge.
-- The party is KADABRA 32, FLAAFFY 30, QUILAVA 33 and LAIRON 32. It is Chapter 2's end party (QUILAVA 26, MAREEP 12, ARON 30) after a realistic Chapter 3, plus an ABRA from Route S2.
+- The party (re-tuned after the learn policy, below) is KADABRA 24, TYPHLOSION 39, MAREEP 12, ARON 30, PORYGON 25 and DUGTRIO 26: Chapter 3's end party as `sil4_ch3`'s runs leave it, plus a KADABRA caught in Viber-City's grass (23–24) and never used.
   - The KADABRA leads because `Step::Train` trains only the lead.
-  - The battle policy uses no items, never switches, and learns moves only into free slots. With that policy, a QUILAVA lead loses to Samuel's six Pokémon even at level 43 (tried).
+  - The battle policy uses no items and never switches; it learns with `driver::learn_slot` (the Ch3 review).
 - The run:
   - the tunnel, fighting the trainers whose sight crosses the path;
   - the whole port story;
-  - training in the dunes to 36 before the cleaning and to 38 before the gym;
+  - training in the dunes to 36 (`CLEANING_LEVEL`) before the cleaning and to 37 (`GYM_LEVEL`) before the gym;
   - a heal at the Taverne after each quay grunt and after each gym fight. To heal mid-gym, the player leaves by the gangway and comes back through the blown barrels.
-- It ends with the lead at 42 and asserts every chapter fallback on the path.
+- It ends with the KADABRA at 42 and asserts every chapter fallback on the path.
 
 **Questions for the author.**
 1. **Reused lines.** The source has no line of its own for:
@@ -2294,6 +2294,24 @@ The sound effects use the decomp names `SE_SIFFLET` = `SE_M_GRASSWHISTLE`, the c
 - **Questions added.**
   - The source wants the gangway pirate to give `Rappel_Badge` after a loss, but its own Sc04 hides him for good from 46. Should he come back from 47?
   - The decor grunts' `Npc_Sbire` ("ce container…") and the closed grille's `Gym_Guide` are reused lines that only half fit.
+
+**Re-tuning after the learn policy (Ch4).** After the Ch3 merge (`driver::learn_slot`), the main test lost at frame 239 369 on the Zenith-Grog's deck: Gwada on the coupée (FLAAFFY 35, HORSEA 35, WAILORD 37), fought right after Samuel with no heal. The party (KADABRA 41 with Psychic, AMPHAROS 31, QUILAVA 35, LAIRON 32) all fainted; the WAILORD kept 34 of 103 HP. Samuel himself had been beaten.
+
+| | Before | After |
+|---|---|---|
+| Party | KADABRA 32, FLAAFFY 30, QUILAVA 33, LAIRON 32 | KADABRA 24, TYPHLOSION 39, MAREEP 12, ARON 30, PORYGON 25, DUGTRIO 26 |
+| Training | 36 before the cleaning, 38 before the gym | 36, then 37 (the cleaning already brings the KADABRA to 37, so the second training is a floor) |
+| Lead at the end | KADABRA 42 | KADABRA 42 |
+| Frames | 600 000 limit | 323 617 (limit 450 000) |
+
+The new party is Chapter 3's real end state: both `sil4_ch3` runs end with TYPHLOSION 39 (Flame Wheel, Leer, Smokescreen, Ember), MAREEP 12, ARON 30 (31 from the start state), PORYGON 25 and the DUGTRIO 26 hook. The KADABRA is the one addition, at its catch level.
+
+Measured (every outcome is the whole run; a level is kept only when both of its neighbours also win, since outcomes swing on the RNG):
+- **A TYPHLOSION lead** (Ch3's party, no KADABRA): with no training, lost to Samuel at 44. Trained before the gym, it lost to Samuel at 47, 49 and 51, with Flame Wheel, Ember and Swift (Swift replaces Quick Attack at 45). From 49 on, HARIYAMA, MACHOKE and MEDICHAM were left at full HP. The KADABRA stays the lead.
+- **The KADABRA's start level**, with training 36 and 37: 23, 24, 25 and 28 win.
+- **The cleaning level**, with a gym level of 37: 35, 36 and 37 win. 34 (with a gym level of 36) lost to the hold's VOLTORB 33, fought right after Timothé, before the heal. No first training (the KADABRA at 24 through the cleaning; the TYPHLOSION wins the quay) won at gym levels 36, 37 and 38, but lost to Samuel when there was no training at all.
+- **The gym level**, with a cleaning level of 36: 36, 37 and 38 win.
+- **The bench**: TYPHLOSION 38, 39 and 40 win; ARON 30 and 31 win.
 
 #### SIL2 Ch2–Ch3 maps as built
 

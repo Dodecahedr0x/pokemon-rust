@@ -7,7 +7,8 @@
 //!   explosive barrels (the shortcut back for a heal), Gus, Samuel (Gym Sc01–Sc02), Gwada on
 //!   the coupée (Sc03); Julien's call on the jetty (Sc06).
 //!
-//! **The party.** The lead trains in the port's dunes before the cleaning and before the gym;
+//! **The party.** Chapter 3's end party and a KADABRA lead ([`PARTY`]). The lead trains in the
+//! port's dunes to [`CLEANING_LEVEL`] before the cleaning and to [`GYM_LEVEL`] before the gym;
 //! the run heals at the Taverne between the quay grunts and between the gym's fights (out by
 //! the gangway, back through the blown barrels). Every battle is won by the battle policy.
 
@@ -60,24 +61,32 @@ pub fn start() -> Start {
     }
 }
 
-/// The start state's party: Chapter 2's end party (`ch02`: QUILAVA 26, MAREEP 12, ARON 30) after
-/// a realistic Chapter 3 (Chapter 3's strongest trainers are at 34): the QUILAVA at 33, the
-/// MAREEP brought up to a FLAAFFY, the ARON evolved at 32, and one more, a KADABRA: Chapter 3's
-/// own Viber-City grass has one at 23–24 (`rencontres.ron`, 5 %; Route S2's ABRA at 11–13 is
-/// the other way in). The KADABRA leads: the player's answer to a Fighting gym, and the one
-/// [`Step::Train`] raises (it trains the lead). The FLAAFFY comes second for Samuel's
-/// POLIWRATH.
+/// The start state's party: Chapter 3's end party as its runs (`sil4_ch3`, both ways in) leave
+/// it, the TYPHLOSION 39, MAREEP 12, ARON 30, the Casino's PORYGON 25 and the leaders' DUGTRIO 26
+/// (`ch03::FIFTH`), and one more, a KADABRA at 24: Chapter 3's own Viber-City grass has one at
+/// 23–24 (`rencontres.ron`, 5 %), caught and never used. The KADABRA leads: the player's answer
+/// to a Fighting gym, and the one [`Step::Train`] raises (it trains the lead) to
+/// [`CLEANING_LEVEL`], where it has learnt Psychic (36).
 ///
-/// The lead ends at 42 against Samuel's ace at 38 because of the battle policy, not the
-/// trainer data: `give_mon` fills the last four level-up moves and the policy never replaces
-/// one, so the KADABRA still fights with Psybeam at 42 (never Psychic, 36), and the FLAAFFY
-/// (an AMPHAROS from 30) with ThunderShock. See the plan's Ch4 review.
+/// A TYPHLOSION lead loses to Samuel with the learn policy too, at a lead of 44, 47, 49 and 51
+/// (it fights with Flame Wheel, Ember and Swift; Hariyama, Machoke, Medicham and Poliwrath are
+/// left standing). See the plan's Ch4 section for the measures.
 pub const PARTY: &[(SpeciesId, u8)] = &[
-    (SPECIES_KADABRA, 32),
-    (SPECIES_FLAAFFY, 30),
-    (SPECIES_QUILAVA, 33),
-    (SPECIES_LAIRON, 32),
+    (SPECIES_KADABRA, 24),
+    (SPECIES_TYPHLOSION, 39),
+    (SPECIES_MAREEP, 12),
+    (SPECIES_ARON, 30),
+    (SPECIES_PORYGON, 25),
+    (SPECIES_DUGTRIO, 26),
 ];
+
+/// The lead's level before the quay cleaning (its grunts and the foreman). 35, 36 and 37 win;
+/// 34 (with a gym level of 36) loses in the hold.
+pub const CLEANING_LEVEL: u8 = 36;
+
+/// The lead's level before the Zenith-Grog (Samuel's six are 33–38, then Gwada's three, 35–37,
+/// without a heal). The cleaning already brings the KADABRA to 37; 36, 37 and 38 win.
+pub const GYM_LEVEL: u8 = 37;
 
 /// Chapter 3's end state (`04-port-ressac.md`'s prerequisites), on top of Silice's new-game
 /// script: the story at 36, the sync at 30, three badges, the Lame-Fréquence, Champ Magnétique
@@ -375,10 +384,10 @@ pub fn steps() -> Vec<Step> {
             Step::Train {
                 a: (11, 12),
                 b: (12, 12),
-                level: 36,
+                level: CLEANING_LEVEL,
                 heal: HEAL,
             },
-            Step::Check("trained_36", |r| {
+            Step::Check("trained_cleaning", |r| {
                 eprintln!("party before the cleaning: {:?}", party(r));
             }),
         ][..],
@@ -415,7 +424,7 @@ pub fn steps() -> Vec<Step> {
             Step::Train {
                 a: (11, 12),
                 b: (12, 12),
-                level: 38,
+                level: GYM_LEVEL,
                 heal: HEAL,
             },
             Step::Check("trained", |r| {
