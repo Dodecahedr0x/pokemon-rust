@@ -9,11 +9,15 @@
 //!   the maps with an entry cutscene or question reach the checks below). A map still not
 //!   capturable is listed with its verdict, its last script and whether the map changed; the
 //!   scripts that loop on a facility's challenge status are listed as known defects
-//!   ([`KNOWN_LOOPS`]);
+//!   ([`KNOWN_SPIN`]; one that is not capturable also counts as not capturable);
 //! - when capturable: a checkpoint round trip (postcard within the flash budget, decoded equal),
 //!   restored with an equal hash, then [`SHADOW`] frames stepped beside the live session with
 //!   equal hashes;
 //! - a render of the last frame (the PPU panics on a command or object it rejects).
+//!
+//! A map passes when these checks ran on it without a failure. When a cutscene or an answer
+//! warped the player away first, the checks ran on the other map: "checked on another map",
+//! counted apart from the passes.
 //!
 //! `Report` events are aggregated per op or special (sites are maps), and the build's
 //! classification report (`content::REPORT`) is appended. Everything goes to
@@ -45,8 +49,9 @@ const IDLE: u32 = 600;
 const MASH: u32 = 3000;
 /// Frames a restored session runs beside the live one.
 const SHADOW: u32 = 60;
-/// A script started at least this often over the idle frames spins (restarts every few
-/// frames): a map script whose condition never changes.
+/// A script started at least this often over a map's whole run (the idle frames, then any
+/// mashed ones) spins: once every 4 frames over the idle frames alone, so restarting every few
+/// frames (a map script whose condition never changes).
 const SPIN_STARTS: u32 = IDLE / 4;
 /// The suffix of the facility scripts known to spin (known defects, not verdicts): a
 /// facility lobby's `OnFrame` table runs `<Lobby>_EventScript_GetChallengeStatus` while the
@@ -166,7 +171,7 @@ fn script_name(id: Option<engine::data::ScriptId>) -> String {
 fn verdict(w: &World) -> &'static str {
     use engine::script::Request;
     match w.script_waiting() {
-        Some(Request::WaitMessage) => "a message never finishes printing, even mashed",
+        Some(Request::WaitMessage) => "still waits on a message after mashing",
         Some(Request::WaitButton | Request::YesNo | Request::Multichoice { .. }) => {
             "still waits for the player after mashing"
         }
@@ -355,10 +360,8 @@ fn sweep() -> Result<()> {
     let panics: Vec<&MapRun> = runs.iter().filter(|r| r.panic.is_some()).collect();
     let trips: Vec<&MapRun> = runs.iter().filter(|r| r.round_trip.is_some()).collect();
     let dropped: Vec<&MapRun> = runs.iter().filter(|r| r.events_dropped > 0).collect();
-    let stuck: Vec<&MapRun> = runs
-        .iter()
-        .filter(|r| r.not_capturable.is_some() && !r.known_loop())
-        .collect();
+    // Known defects that are not capturable stay counted here (and are listed as known).
+    let stuck: Vec<&MapRun> = runs.iter().filter(|r| r.not_capturable.is_some()).collect();
     let known: Vec<&MapRun> = runs.iter().filter(|r| r.known_loop()).collect();
     let spins: Vec<&MapRun> = runs
         .iter()
@@ -368,14 +371,23 @@ fn sweep() -> Result<()> {
         .iter()
         .filter(|r| r.mashed.is_some() && r.not_capturable.is_none() && !r.known_loop())
         .collect();
+    // Checked without a failure: on the map itself (passed), or on the map a cutscene or an
+    // answer warped to (checked on another map, counted apart).
+    let clean = |r: &&MapRun| {
+        r.panic.is_none()
+            && r.round_trip.is_none()
+            && r.events_dropped == 0
+            && r.not_capturable.is_none()
+    };
     let passed = runs
         .iter()
-        .filter(|r| {
-            r.panic.is_none()
-                && r.round_trip.is_none()
-                && r.events_dropped == 0
-                && r.not_capturable.is_none()
-        })
+        .filter(clean)
+        .filter(|r| r.end_map == r.map)
+        .count();
+    let elsewhere = runs
+        .iter()
+        .filter(clean)
+        .filter(|r| r.end_map != r.map)
         .count();
     writeln!(
         out,
@@ -386,10 +398,11 @@ fn sweep() -> Result<()> {
     )?;
     writeln!(
         out,
-        "passed {passed}/{} ({} after mashing); panics {}; round-trip failures {}; events \
-         dropped on {} maps; not capturable {}; other spinning scripts {}; known defects {}",
+        "passed {passed}/{} ({} after mashing); checked on another map {elsewhere}; panics {}; \
+         round-trip failures {}; events dropped on {} maps; not capturable {}; other spinning \
+         scripts {}; known defects {}",
         runs.len(),
-        mashed.len(),
+        mashed.iter().filter(|r| r.end_map == r.map).count(),
         panics.len(),
         trips.len(),
         dropped.len(),
