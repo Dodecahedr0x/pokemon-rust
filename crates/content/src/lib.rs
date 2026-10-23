@@ -28,6 +28,8 @@ pub mod blob;
 mod emerald_story;
 #[cfg(not(pkr_silice))]
 mod new_game;
+#[cfg(not(pkr_silice))]
+mod step_count;
 /// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
 /// does, replaced by hand. The build digests each override's source into the script's
 /// `SCRIPT_DIGESTS` entry, and fails on an override naming no script of the IR.
@@ -264,6 +266,7 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         var_mon_box_id: Some(consts::VAR_MON_BOX_ID),
         var_mon_box_pos: Some(consts::VAR_MON_BOX_POS),
         flag_shown_box_was_full: Some(consts::FLAG_SHOWN_BOX_WAS_FULL_MESSAGE),
+        var_daily_wilds: None,
     }
 }
 
@@ -555,6 +558,7 @@ impl GameData for Game {
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
             // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
             script_whiteout: data::SCRIPT_WHITEOUT,
+            var_daily_wilds: Some(consts::VAR_DAILY_WILDS),
             ..gen3_special_ids()
         }
     }
@@ -624,6 +628,10 @@ impl GameData for Game {
 
     fn fall_script(&self) -> Option<ScriptId> {
         data::SCRIPT_FALL_DOWN_HOLE
+    }
+
+    fn step_count_script(&self, step: engine::data::StepCount<'_>) -> Option<ScriptId> {
+        step_count::step_count_script(self, step)
     }
 }
 

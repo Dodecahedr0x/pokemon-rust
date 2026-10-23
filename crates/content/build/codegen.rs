@@ -734,6 +734,26 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         "/// `EventScript_FallDownHole`, when the scripts have it (`GameData::fall_script`).\npub const SCRIPT_FALL_DOWN_HOLE: Option<ScriptId> = {};",
         fall.map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
     )?;
+    // `TryStartStepCountScript`'s Match Call registrations, in `extract::roots::FIELD_SCRIPTS`
+    // order (Wave E).
+    let calls = [
+        "RustboroCity_Gym_EventScript_RegisterRoxanne",
+        "MauvilleCity_EventScript_RegisterWallyCall",
+        "Route119_EventScript_ScottWonAtFortreeGymCall",
+        "LittlerootTown_ProfessorBirchsLab_EventScript_ScottAboardSSTidalCall",
+        "MossdeepCity_SpaceCenter_2F_EventScript_RivalRayquazaCall",
+    ]
+    .map(|name| {
+        s.names
+            .iter()
+            .position(|n| n == name)
+            .map_or("None".into(), |i| format!("Some(ScriptId({i}))"))
+    });
+    writeln!(
+        o,
+        "/// The step-count Match Call registrations (Roxanne, Wally, Scott at Fortree, Scott's SS Tidal\n/// call, the rival's Rayquaza call), when the scripts have them (Wave E).\npub const SCRIPT_STEP_CALLS: [Option<ScriptId>; 5] = [{}];",
+        calls.join(", ")
+    )?;
     let repel = s.names.iter().position(|n| n == "EventScript_RepelWoreOff");
     writeln!(
         o,
