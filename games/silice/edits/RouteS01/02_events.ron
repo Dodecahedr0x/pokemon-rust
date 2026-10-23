@@ -27,7 +27,12 @@
     Sign(x: 16, y: 28, script: "RouteS01_EventScript_SignHerbes"),
     Sign(x: 14, y: 16, script: "RouteS01_EventScript_SignDresseurs"),
     Sign(x: 6, y: 3, script: "RouteS01_EventScript_SignCables"),
-    HiddenItem(x: 4, y: 22, item: "ITEM_ANTIDOTE", flag: "FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE"),
+    // The hidden Antidote at the foot of a root. Fallback (SIL1 Task F): a sign script that
+    // gives it once behind FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE, because the engine does not pick up
+    // hidden items yet. Back to
+    // HiddenItem(x: 4, y: 22, item: "ITEM_ANTIDOTE", flag: "FLAG_SIL_ITEM_ROUTE_S01_ANTIDOTE")
+    // once it does.
+    Sign(x: 4, y: 22, script: "RouteS01_EventScript_HiddenAntidote"),
     // Brico-Bourg to the south: our exit x 7-10 meets its x 10-13. The north connection to
     // MAP_BOIS_ETHER (Ch1) is added with that map.
     Connect((dir: South, offset: -3, map: "BricoBourg")),
