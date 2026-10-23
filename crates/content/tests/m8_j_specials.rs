@@ -229,8 +229,12 @@ fn every_native_special_has_an_arm() {
         if class != Class::Native {
             continue;
         }
+        // `DoSpecialTrainerBattle` runs `SPECIAL_BATTLE_STEVEN` only (the facilities report),
+        // and Silice has no Steven multi battle (`story::STEVEN_MULTI_FOES` is `None`).
+        if cfg!(pkr_silice) && name == "SPECIAL_DoSpecialTrainerBattle" {
+            continue;
+        }
         let mut h = Rec::with_party(1);
-        // `DoSpecialTrainerBattle` runs `SPECIAL_BATTLE_STEVEN` only (the facilities report).
         if name == "SPECIAL_DoSpecialTrainerBattle" {
             h.vars.insert(VAR_0x8004.0, 8);
         }
@@ -716,15 +720,14 @@ fn native_specials_issue_their_requests_in_order() {
     }
     let mut h = Rec::default();
     assert_eq!(run_special(&mut h, "SPECIAL_ChooseHalfPartyForBattle"), 1);
-    assert_eq!(
-        h.log,
-        [
-            set(VarId(0x40CF), 9),
-            Request::ChoosePartyMon(PartyMode::ChooseHalf { max: 3, min: 1 }),
-            set(VAR_RESULT, 1),
-            Request::Fade(Fade::FromBlack),
-        ]
-    );
+    // `VAR_FRONTIER_FACILITY` 9 through the story module (Silice has none).
+    let facility = (!cfg!(pkr_silice)).then(|| set(VarId(0x40CF), 9));
+    let rest = [
+        Request::ChoosePartyMon(PartyMode::ChooseHalf { max: 3, min: 1 }),
+        set(VAR_RESULT, 1),
+        Request::Fade(Fade::FromBlack),
+    ];
+    assert_eq!(h.log, facility.into_iter().chain(rest).collect::<Vec<_>>());
     covered.insert("SPECIAL_ChooseHalfPartyForBattle");
     let mut h = Rec::default();
     h.vars.insert(VAR_0x8004.0, 8);

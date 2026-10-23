@@ -533,8 +533,8 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
         id if id == SPECIAL_OpenPokenavForTutorial => {
             // `OpenPokenavForTutorial` (`pokenav.c`, `POKENAV_MODE_FORCE_CALL_READY`): the
             // tutorial forces the call to Mr. Stone, whose first text
-            // (`sMrStoneTextScripts[0]`, `pokenav_match_call_data.c`) sets
-            // `FLAG_ENABLE_MR_STONE_POKENAV`. No PokéNav screen: the flag only.
+            // (`sMrStoneTextScripts[0]`, `pokenav_match_call_data.c`) sets the flavour's
+            // `story::MR_STONE_POKENAV`. No PokéNav screen: the flag only.
             degraded(ctx, id).await;
             let Some(flag) = story::MR_STONE_POKENAV else {
                 return not_in_game(ctx, id).await;
