@@ -516,6 +516,8 @@ studio-map … stamp-from <Map> <x> <y> <w> <h> <name> [--no-elevation] [--force
 | `cargo test --workspace`, real (env as in the brief) | 1416 passed, 14 ignored |
 | `cargo test --workspace`, stub (`PKR_EXTRACTED_DIR=/nonexistent`) | 1404 passed, 14 ignored |
 | `cargo xtask studio --check` | 192 passed |
+| after the review fixes and the master merge: `cargo test -p studio`, real and stub | 168 passed, 4 ignored each |
+| after the review fixes: `cargo xtask studio --check` | 193 passed |
 
 **Limitations.**
 - The usual-collision statistics come from the extract the build has: the M7 slice, 15 maps. Most metatiles therefore fall back to their behaviour. The full import (M8 Task L) will sharpen them with no code change.
@@ -533,6 +535,12 @@ The six Chapter 0 maps are in `games/silice/{maps,layouts}/`. They were made wit
 `games::hygiene` (now also `studio-map … hygiene`) checks `edits/` too: only `<Map>/<phase>_<what>.ron` files that parse as a create spec or an edit script (see the editor upgrades above). It was run on `games/silice` with the extract present (so including `games::copies`) and is clean.
 
 To rebuild, run one command: `cargo xtask studio map build` (`studio-map build`, which reads `games/silice/edits` by default). It recreates the six maps from their edits in one process and writes the same bytes as the earlier create-then-apply passes; nothing needs deleting first.
+
+Behaviour warnings (after the editor upgrades): `validate` on `games/silice` reports only unwritten scripts.
+- The Labo door at BricoBourg (4, 7) is solid (collision 1) until Chapter 1 gives it a warp.
+- `03_allow.ron` in `BricoBourg` and `RouteS01` accepts the rest with reasons:
+  - small-tree tops (metatile 14) are kept solid, where Emerald lets the player pass behind them;
+  - Le Shaker's roof ridge cell (14, 9) is kept solid.
 
 Steps 2 and 3 are separate passes because warps and connections are validated against the other maps. A rebuild gives byte-identical files.
 
