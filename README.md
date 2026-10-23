@@ -186,7 +186,9 @@ Checkpoints are held to one invariant: a capturable World, encoded, decoded and 
 the same hash, picture and future as the World that was never interrupted.
 `crates/game-native/tests/checkpoint_route.rs` (plain `cargo test`) checks it natively at about
 100 capturable frames of the route plus each named moment: the postcard checkpoint fits the
-8 KiB flash budget (`MAX_ENCODED`; the route's largest is about 800 bytes) and round-trips, as
+flash budget (`MAX_ENCODED`, 24,016 bytes: the 64 KiB one-slot capacity minus 512; the route's
+largest is about 800 bytes, and `engine::checkpoint` `worst_case_save_fits_max_encoded` pins the
+worst-case save with 7 full PC boxes under it) and round-trips, as
 does its RON form; the restored session matches the live one on restore, then hash every frame
 and picture at +1, +2, +60 and +120 frames; three points (the first, the middle, and the last
 at least 120 frames before the end) follow the route to its end.
@@ -234,9 +236,16 @@ map tests use `content::samples::map_ids()` (the slice plus a few maps per tiles
 `crates/engine/src/world/tests/goldens.rs` pins World hashes on a synthetic game, one constant
 per scenario (`golden_hashes`): `GOLDEN_WALK` (`0x66f39427d1ed0a8f` after `World::new` and
 `0x0818a37264360e30` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
-`GOLDEN_CROSSING`, `GOLDEN_SCRIPT`, `GOLDEN_WILD_BATTLE` and `GOLDEN_TRAINER`. They change
+`GOLDEN_CROSSING`, `GOLDEN_SCRIPT`, `GOLDEN_WILD_BATTLE`, `GOLDEN_TRAINER`, `GOLDEN_SCREEN`
+(START and SELECT on the idle field) and `GOLDEN_SAVE` (a script's save dialog). They change
 whenever the hashed state, its order or the frame logic changes; update them only for an
 intended change (a change that moves one scenario updates only its constant).
+
+`crates/game-native/tests/m9_route_scan.rs` (`#[ignore]`d; `cargo test -p game-native --release
+--test m9_route_scan -- --ignored --nocapture`) prints what Milestone 9 can change on the parity
+route and the committed checkpoint tree: START/SELECT on the idle field, reports, the decomp
+specials reachable from the scripts started, poisoned or Wurmple-line steps, evolutions due and
+trainer wins with two usable mons.
 
 Defaults are relative to this checkout's root (so `../emerald.gba` sits next to it). Set the variables to point elsewhere, e.g.
 `PKR_ROM_US=~/roms/emerald.gba cargo test --workspace`. `cargo test -p extract --lib` runs only

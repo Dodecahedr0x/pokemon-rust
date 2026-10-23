@@ -560,6 +560,9 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | Silice start facing hardcoded to Down (SIL1 E) | **Task C** |
 | Door animations, step timing, elevation priority, field poison (`TryFieldPoisonWhiteOut`) | **M10** |
 | Task P's "Findings for Milestone 9" | **Wave 0 Step 0** folds each into this table |
+| `SaveMeta` gained the player name, Pokédex caught count and badges (Wave 0): an older slot fails agb's metadata check and boots as a new game (`boot::CORRUPT`) | **Task S** (the main menu shows the metadata; no migration: pre-M9 slots are debug saves) |
+
+**TODO (Wave 0 ran before M8 Task P merged):** Task P's "Findings for Milestone 9" are not on master yet. Fold each into the table above when P merges (owner task or later milestone; done if P fixed it), and re-run the route-usage scan (`m9_route_scan`) on the tree with P's Act 1 nodes.
 
 ---
 
@@ -612,7 +615,55 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 ---
 
 ## Wave 0 as built
-*(filled by Wave 0.)*
+
+### Step 0 numbers
+- **Save size.** The worst-case save (`engine` `checkpoint/tests/worst_case.rs`: six party mons and every boxed mon at their widest varints, every flag and var set, every bag pocket full at 99, PC items full, the longest names, every M9 field non-default) encodes to **9,748 bytes + 1,950 per full PC box**: 0 boxes 9,748, 7 boxes 23,399, 14 boxes 37,049.
+- **Flash capacity.** agb's one-slot layout on 64 KiB accepts **24,528 bytes** for every repeated write (`game-native` `flash::tests::slot_capacity_holds_max_encoded`, a binary search over three successive writes; the ghost copy halves the chip). So **`MAX_ENCODED = 24,016`** (capacity − 512) and **Emerald `pc_boxes = 7`** (14 does not fit: 37,049 bytes). Silice uses the same constant (`content` `PC_BOXES`).
+- **128 KiB not attempted.** M5 found that mGBA presents FLASH512 (Panasonic id) to a homebrew ROM and ignores agb's `FLASH1M_V` marker and the `.sav` size, so a 128 KiB layout would not boot in a stock mGBA; decision 5's fallback (fewer boxes on 64 KiB) applies. Revisit only with a cartridge-detection change in agb or our own flash driver.
+- **Screen budget.** No separate GBA spike: `ui::kit::UPLOAD_BYTES_PER_FRAME = SPREAD_TILES_BLACK × 32` (**16 KiB** on a black frame) and `UPLOAD_BYTES_VISIBLE = SPREAD_TILES_VISIBLE × 32` (**4 KiB** on a visible one), the per-frame tile budgets Task F measured on the GBA for warps (`field.rs`). A party menu's ~8 KiB of tiles plus maps and palettes therefore fits one black frame; Task K re-measures on the ROM with the first real screen and may lower them.
+- **Route-usage scan:** see below.
+- **Findings carried from M8:** Task P had not merged when Wave 0 ran; the carried table has a TODO to fold P's findings in.
+
+### Route-usage scan
+`crates/game-native/tests/m9_route_scan.rs` (`#[ignore]`d; `cargo test -p game-native --release --test m9_route_scan -- --ignored --nocapture`, with `PKR_DECOMP` for the static column). On master at Wave 0 the committed Emerald tree has only the four `route:*` nodes (the slice route up to `route103_after_may`, 19,184 frames), so both replays cover the same frames. **Re-run after M8 Task P merges** (its Act 1 nodes) and update this table.
+
+| Count | Slice route (19,184 frames) | Committed tree (4 nodes) |
+|---|---|---|
+| START / SELECT pressed on the idle field | 0 / 0 | 0 / 0 |
+| `pokemart` executed (report) / reachable from the started scripts (decomp, over-approximation) | 0 / 0 of 74 labels | same |
+| `special SaveGame` reachable | 0 of 2 | same |
+| `ChoosePartyMon` / `ChooseMonForMoveTutor` reachable | 0 of 11 / 0 of 3 | same |
+| `PlayerPC` / `ShowPokemonStorageSystemPC` reachable | 0 of 2 / 0 of 2 | same |
+| FADE_TO_WHITE / FROM_WHITE executed | 0 (Emerald's scripts have none: R and J's white fades are Silice-only) | same |
+| BAG / POKéMON chosen in battle | 0 (the route only fights or runs: `Action::Fight`, `Run`, `Mash`) | 0 (traces of the same route) |
+| Battles; trainer wins; with 2+ usable mons (shift prompt) | 8; 1; 0 | 8; 1; 0 |
+| Level evolutions due after a battle | 0 | 0 |
+| Field steps; with a poisoned party; with a Wurmple-line mon | 181; 0; 0 | 180; 0; 0 |
+| Screens opened | 0 | 0 |
+| Reports | `Unsupported(dofieldeffect)`, `Unsupported(waitfieldeffect)` (once each, M8) | same |
+
+So on today's routes every M9 task is **route-neutral** except the Pokédex digest Wave 0 adds; K, SM, S, J, M, B, BM, PT and E change no route frame until a route presses START or reaches one of the sites above (Task Q's Emerald route and P's Act 1 trace decide that).
+
+### Contracts changed versus this plan (and why)
+- **`world/save.rs::save_now(&World, game)`** takes the World, not `&mut State`: the capture code it reuses (`world/checkpoint.rs`) reads the runner and mode too. `World::save_snapshot(&self, game)` forwards to it.
+- **`ScreenCx` input** is `ScreenInput { held, pressed }` rather than a bare `Buttons`, so screens see edges the same way the field does.
+- **`Pokedex`** is indexed by internal species id (the game's `SpeciesId`), not national number: the engine has no national-dex table, and Silice's species are not national. The numbering only matters for the Pokédex screen (M10+), which can map it.
+- **`Options::sound`** defaults to MONO (Gen3 `OPTIONS_SOUND_MONO` is 0).
+- **Friendship hook** is `friendship::on_event(&mut Pokemon, FriendshipEvent, hold: Option<HoldEffect>, &BattleTables, &mut Rng)`: the battle core has the hold effect and its tables at those sites, not a `GameData`.
+- **`repel_blocks(level, vars, party, ids)`** takes the pieces it reads instead of `&State` (the wild code is called from the battle module with a split borrow), and `wild::try_land_encounter_repel` was added to thread it through.
+- **`whiteout_allowed(Option<&Request>)`** takes the waiting request (the runner's `waiting_on()`), since the battle module sees the request, not a `BattleTrainerReq` struct.
+- **START/SELECT hooks** run in Gen3 `ProcessPlayerFieldInput` order: after the A interaction and the door warp checks, not before them (the plan's "before the A checks" contradicted the decomp).
+- **`Choice::Item { item, party }`** (the party slot a Potion targets) instead of `Choice::Item(ItemId)`.
+- **`SaveMeta` grew** (name, Pokédex caught, badges): pre-M9 slots fail agb's metadata check and boot as a new game (carried to Task S).
+- **Checkpoint schema 4 compatibility**: the M9 fields at their defaults encode as 8 trailing zero bytes (`M9_DEFAULT_TAIL`); `decode` of schema 2/3 appends them, and `state_digest` drops them when `m9_is_default()`, so every recorded node keeps its digest.
+- **Silice gets `start_menu`** through the shared `game_data_tables!` macro (Emerald's Gen3 list) until Task C gives it its own.
+- **`World::screens()`** accessor (the stack, for tests and the debug region) beside `screens_open()`.
+
+### State change
+- `SCHEMA` 4; the new state is hashed only away from its default except the Pokédex digest (`0xA3`, once non-empty), so the routes move from their first battle start. Engine goldens: `GOLDEN_WILD_BATTLE` and `GOLDEN_TRAINER` moved; `GOLDEN_SCREEN` and `GOLDEN_SAVE` pinned; the rest unchanged.
+- `cargo xtask checkpoints verify --accept` (`chore(checkpoints): M9 Wave 0 state`, the last commit): Emerald's four `route:*` nodes diverged from `route:lab` +1500 (the starter's Pokédex entry; the rest follow their parent), the stub's three from `route:stub_start` +24 (its new game gives a mon); frames, inputs and maps unchanged, only hashes and digests moved. Silice's tree is empty.
+- `cargo xtask parity` after the accept: ROM and native agree on the whole route (19,184 frames, 19,176 hashes and 205 pictures identical, no late frames); worst route lines hash 46 (gate 65), loop 172 (gate 217, margin 45), `heap_max` 47,412 B; save/resume, mid-battle save and native-checkpoint lanes identical; the ROM save is 431 checkpoint bytes.
+- Silice: its two vars on Gen3 numbers the shared code now names (`VAR_SIL_CASINO_STATE` on `VAR_REPEL_STEP_COUNT`, `VAR_SIL_PORT_RESSAC_STATE` on `VAR_FRIENDSHIP_STEP_COUNTER`) moved with `cargo xtask silice move` (tombstones kept, `ids.golden` appended); `SHARED_GEN3` lists the new names.
 
 ## Findings for Milestone 10
 *(filled at close-out.)*
