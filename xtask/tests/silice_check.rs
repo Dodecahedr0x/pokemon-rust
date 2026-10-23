@@ -295,22 +295,33 @@ fn set_width(g: &Path, name: &str, width: usize) {
     std::fs::write(&p, ron::to_string(&f).unwrap()).unwrap();
 }
 
+/// The committed glyphs at the fixture extract's widths (every glyph 6 px).
+fn fit_fixture(g: &Path) {
+    set_width(g, "middle_dot", 6);
+    set_width(g, "heart", 6);
+}
+
 #[test]
 fn authored_glyph_rules() {
     let heart = char::from_u32(0x2665).unwrap();
     let dot = char::from_u32(0xB7).unwrap();
-    // The redrawn middle dot keeps the extract's width (6 in the fixture, 3 in the FR font).
+    // A redrawn glyph keeps the extract's width (6 in the fixture; 3 and 8 in the FR font).
     let (_tmp, g) = imported();
     with_glyphs(&g);
-    fails_with(
+    let out = fails_with(
         &g,
         "error[font-glyph] font: glyph middle_dot: width 3 but the extract draws 0xAF 6 wide",
     );
+    assert!(
+        out.contains("glyph heart: width 8 but the extract draws 0x1E7 6 wide"),
+        "{out}"
+    );
 
-    // Both encode; the heart is measured at its authored width (8): 27 fit in 216 px.
+    // Both encode; the heart (`{EMOJI_HEART}`, F9 E7) is measured at glyph 0x1E7's width
+    // (6 here): 36 fit in 216 px, 37 make 222.
     let (_tmp, g) = imported();
     with_glyphs(&g);
-    set_width(&g, "middle_dot", 6);
+    fit_fixture(&g);
     plant(
         &g,
         "text/fr.ron",
@@ -321,23 +332,51 @@ fn authored_glyph_rules() {
         &g,
         "text/fr.ron",
         "Sign number two.",
-        &heart.to_string().repeat(27),
+        &heart.to_string().repeat(36),
     );
     let r = check(&g, &[]);
     assert!(r.ok, "{}", r.out);
     assert!(!r.out.contains("text-charmap"), "{}", r.out);
     assert!(!r.out.contains("font-glyph"), "{}", r.out);
     let row = |n: usize| heart.to_string().repeat(n);
-    plant(&g, "text/fr.ron", &row(27), &row(28));
+    plant(&g, "text/fr.ron", &row(36), &row(37));
     fails_with(
         &g,
-        "error[text-width] Alpha_Sign_2: line 1 is 224 px (max 216)",
+        "error[text-width] Alpha_Sign_2: line 1 is 222 px (max 216)",
     );
+
+    // In a name a heart costs 2 bytes: 5 hearts are a 10-byte trainer name, 6 are too long.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    plant(
+        &g,
+        "battle/trainers.ron",
+        "name: \"ONE\",",
+        &format!("name: \"{}\",", row(5)),
+    );
+    let r = check(&g, &[]);
+    assert!(r.ok, "{}", r.out);
+    plant(&g, "battle/trainers.ron", &row(5), &row(6));
+    fails_with(&g, "error[trainer-name] TRAINER_SIL_ALPHA_ONE: name");
+
+    // Kana encode in Gen3's charmap (on the reserved bytes among others) but not in Silice.
+    let (_tmp, g) = imported();
+    with_glyphs(&g);
+    fit_fixture(&g);
+    let kana = char::from_u32(0x30AC).unwrap();
+    plant(
+        &g,
+        "text/fr.ron",
+        "Sign number one.",
+        &format!("Sign {kana}."),
+    );
+    fails_with(&g, "error[text-charmap] Alpha_Sign_1");
 
     // The other missing glyphs still need a ruling.
     let (_tmp, g) = imported();
     with_glyphs(&g);
-    set_width(&g, "middle_dot", 6);
+    fit_fixture(&g);
     plant(
         &g,
         "text/fr.ron",
@@ -352,11 +391,11 @@ fn authored_glyph_rules() {
     // A code without its glyph, and a glyph without a code.
     let (_tmp, g) = imported();
     with_glyphs(&g);
-    set_width(&g, "middle_dot", 6);
+    fit_fixture(&g);
     std::fs::remove_file(g.join("font/heart.ron")).unwrap();
     fails_with(
         &g,
-        "error[font-glyph] font: no glyph file draws '\u{2665}' (code 0x37)",
+        "error[font-glyph] font: no glyph file draws '\u{2665}' ([F9, E7])",
     );
     let (_tmp, g) = imported();
     with_glyphs(&g);
@@ -369,7 +408,7 @@ fn authored_glyph_rules() {
     assert!(r.ok, "{}", r.out);
     assert!(
         r.out
-            .contains("the authored glyphs encode but nothing draws them"),
+            .contains("the authored glyphs encode, drawn with the extract's glyphs"),
         "{}",
         r.out
     );

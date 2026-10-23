@@ -1,7 +1,9 @@
-//! Authored font glyphs (SIL1 Task G, R-11): `games/<game>/font/*.ron`, one original glyph per
-//! file, drawn on the Gen3 Latin font's 16x16 cell. The content build merges them into the
+//! Authored font glyphs (SIL1 Task G, R-11): `games/<game>/font/*.ron`, one glyph per file,
+//! drawn by hand on the Gen3 Latin font's 16x16 cell. The content build merges them into the
 //! extract's normal font (`crates/content/build/silice/font.rs`); `cargo xtask silice check`
 //! reads them for the charmap and width rules (`font-glyph`, `text-charmap`, `text-width`).
+//! The drawings must be original: `crates/content/tests/sil1_g_font.rs` checks that none
+//! repeats the foreground of an extracted glyph.
 //!
 //! **Format.** A file is a [`GlyphFile`]:
 //!
@@ -21,20 +23,25 @@
 //! values 0, 1 and 2 of the `.latfont` encoding (`crate::font`). Columns past `width` are
 //! background. The last row must be blank: the printer draws 15 rows (`GLYPH_HEIGHT`).
 //!
-//! **Codes.** [`CODES`] gives each authored glyph its byte, append-only like the ids (a code is
-//! never reused for another character). A character Gen3's charmap already has keeps its code
-//! (the glyph then redraws it, at the extract's width). A new character takes a code of
-//! [`RESERVED`]: bytes with no Western character in `charmap.txt` and a blank glyph in the FR
-//! font, so neither the encoder nor the font used them. Texts reach the code through
-//! [`encode_fr`], which writes each authored character as the decomp escape `{0xNN}` before
-//! [`encode_lang`].
+//! **Codes.** [`CODES`] gives each authored character its byte sequence, append-only like the
+//! ids. A sequence is one byte (glyph `b`) or `0xF9 x` (`EXTRA_SYMBOL`, glyph `0x100 + x`), see
+//! [`glyph_index`].
+//! - A character Gen3 can already encode keeps its sequence, and the authored glyph redraws
+//!   that glyph at the extract's width: `·` is 0xAF, `♥` is `{EMOJI_HEART}` (`F9 E7`, glyph
+//!   0x1E7).
+//! - A character Gen3 cannot encode would take a byte of [`RESERVED`]: no Western character in
+//!   `charmap.txt` (only kana share these bytes, and [`encode_fr`] rejects kana) and a blank
+//!   glyph in the FR font. None does yet; `—`, `°` and the others wait for author rulings.
+//!
+//! Texts reach the sequences through [`encode_fr`], which writes each authored character as the
+//! decomp escape `{0xNN ...}` before [`encode_lang`].
 //!
 //! **Metrics** ([`problems`]), checked against the extract's normal font: the cell is 16x16
 //! (`.latfont`); the baseline is the lowest foreground row of `A` (0xBB); a glyph never inks
-//! below it (no descenders), and an `on_baseline` glyph ends on it; a redrawn code keeps the
-//! extract's width; a reserved code is blank in the extract.
+//! below it (no descenders), and an `on_baseline` glyph ends on it; a redrawn glyph keeps the
+//! extract's width; a reserved glyph is blank (no foreground or shadow) in the extract.
 
-use crate::text::charmap::CHARS;
+use crate::text::charmap::{CHARS, CONSTANTS, DECODE_CHARS};
 use crate::text::{Lang, encode_lang};
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -49,27 +56,47 @@ pub const LATFONT_BYTES: usize = 64;
 /// Rows the text printer draws per glyph (`gCurGlyph.height` of `FONT_NORMAL`): the last row
 /// of the cell must stay blank.
 pub const DRAWN_ROWS: usize = 15;
+/// `EXTRA_SYMBOL`: `F9 x` draws glyph `0x100 + x`.
+const EXTRA_SYMBOL: u8 = 0xF9;
 
-/// Codes for authored characters Gen3 has no code for: no Western character in `charmap.txt`
-/// (only kana share these bytes) and a blank glyph in the FR normal font (checked by
-/// [`problems`]). 0x37 up, after the `Lv` (0x34), `=` (0x35) and `;` (0x36) glyphs.
+/// Bytes for authored characters Gen3 has no encoding for: no Western character in
+/// `charmap.txt` (only kana share them) and a blank glyph in the FR normal font (checked by
+/// [`problems`]). 0x37 up, after the `Lv` (0x34), `=` (0x35) and `;` (0x36) glyphs. Unused for
+/// now.
 pub const RESERVED: RangeInclusive<u8> = 0x37..=0x4F;
 
-/// The authored glyphs and their byte codes. Append-only.
-/// - `♥` (U+2665, R-11): a new character, the first reserved code.
-/// - `·` (U+00B7, R-11): Gen3 has it at 0xAF; the authored glyph redraws that code.
-pub const CODES: &[(char, u8)] = &[('\u{2665}', 0x37), ('\u{B7}', 0xAF)];
+/// The authored characters and their byte sequences. Append-only.
+/// - `♥` (U+2665, R-11): Gen3's `{EMOJI_HEART}`, `F9 E7` (2 bytes in a text or a name),
+///   glyph 0x1E7 redrawn.
+/// - `·` (U+00B7, R-11): Gen3's 0xAF, glyph 0xAF redrawn.
+pub const CODES: &[(char, &[u8])] = &[('\u{2665}', &[EXTRA_SYMBOL, 0xE7]), ('\u{B7}', &[0xAF])];
 
 /// Character code of `A`, whose lowest foreground row is the baseline.
-const BASELINE_REF: u8 = 0xBB;
+const BASELINE_REF: u16 = 0xBB;
 
-/// The code of an authored glyph.
-pub fn code(ch: char) -> Option<u8> {
+/// The byte sequence of an authored character.
+pub fn code(ch: char) -> Option<&'static [u8]> {
     CODES.iter().find(|&&(c, _)| c == ch).map(|&(_, b)| b)
 }
 
-/// `text` with each authored character written as its byte, `{0xNN}`, which [`encode_lang`]
-/// reads as a raw byte.
+/// The font glyph a sequence draws: one byte below the control codes (0xF7 up) draws its own
+/// glyph, `F9 x` draws `0x100 + x`.
+pub fn glyph_index(bytes: &[u8]) -> Option<u16> {
+    match *bytes {
+        [b] if b < 0xF7 => Some(u16::from(b)),
+        [EXTRA_SYMBOL, x] => Some(0x100 | u16::from(x)),
+        _ => None,
+    }
+}
+
+/// A Japanese character (kana, CJK punctuation, full-width forms): Gen3's charmap encodes
+/// them on the bytes Western text leaves free, among them [`RESERVED`], so Silice rejects them.
+pub fn is_japanese(c: char) -> bool {
+    ('\u{3000}'..='\u{30FF}').contains(&c) || ('\u{FF00}'..='\u{FFEF}').contains(&c)
+}
+
+/// `text` with each authored character written as its bytes, `{0xNN ...}`, which
+/// [`encode_lang`] reads as raw bytes.
 pub fn substitute(text: &str) -> Cow<'_, str> {
     if !text.chars().any(|c| code(c).is_some()) {
         return Cow::Borrowed(text);
@@ -77,7 +104,10 @@ pub fn substitute(text: &str) -> Cow<'_, str> {
     let mut out = String::with_capacity(text.len() + 8);
     for c in text.chars() {
         match code(c) {
-            Some(b) => out.push_str(&format!("{{0x{b:02X}}}")),
+            Some(b) => {
+                let hex: Vec<String> = b.iter().map(|b| format!("0x{b:02X}")).collect();
+                out.push_str(&format!("{{{}}}", hex.join(" ")));
+            }
             None => out.push(c),
         }
     }
@@ -85,7 +115,11 @@ pub fn substitute(text: &str) -> Cow<'_, str> {
 }
 
 /// [`encode_lang`] in French with the authored glyphs: what the Silice build encodes texts with.
+/// Japanese characters are rejected ([`is_japanese`]).
 pub fn encode_fr(text: &str) -> Result<Vec<u8>> {
+    if let Some((i, c)) = text.chars().enumerate().find(|&(_, c)| is_japanese(c)) {
+        bail!("encoding {text:?}: Japanese character {c:?} at char {i}");
+    }
     encode_lang(&substitute(text), Lang::Fr)
 }
 
@@ -104,7 +138,10 @@ pub struct Glyph {
     /// The file stem it was read from.
     pub name: String,
     pub ch: char,
-    pub code: u8,
+    /// The byte sequence texts write ([`CODES`]).
+    pub bytes: &'static [u8],
+    /// The font glyph it draws ([`glyph_index`]).
+    pub index: u16,
     pub width: u8,
     pub on_baseline: bool,
     /// `CELL * CELL` row-major 2bpp values (0 background, 1 foreground, 2 shadow).
@@ -119,11 +156,14 @@ impl Glyph {
     }
 
     pub fn from_file(name: &str, f: &GlyphFile) -> Result<Glyph> {
-        let Some(code) = code(f.char) else {
+        let Some(bytes) = code(f.char) else {
             bail!(
                 "glyph {name}: {:?} has no code in extract::games::font::CODES",
                 f.char
             );
+        };
+        let Some(index) = glyph_index(bytes) else {
+            bail!("glyph {name}: {bytes:02X?} draws no glyph");
         };
         let w = usize::from(f.width);
         ensure!(
@@ -155,7 +195,8 @@ impl Glyph {
         Ok(Glyph {
             name: name.to_string(),
             ch: f.char,
-            code,
+            bytes,
+            index,
             width: f.width,
             on_baseline: f.on_baseline,
             pixels,
@@ -239,13 +280,22 @@ fn lowest_fg_row(pixels: &[u8]) -> Option<usize> {
         .find(|&y| pixels[y * CELL..(y + 1) * CELL].contains(&1))
 }
 
+/// Whether `bytes` is how Gen3's charmap encodes `ch`: its `CHARS` byte, or a `CONSTANTS`
+/// sequence (`{EMOJI_HEART}`). The constant's name is not matched against the character.
+fn gen3_encodes(ch: char, bytes: &[u8]) -> bool {
+    CHARS.iter().any(|&(c, b)| c == ch && bytes == [b])
+        || CONSTANTS
+            .iter()
+            .any(|&(_, b)| b == bytes && glyph_index(b).is_some())
+}
+
 /// What breaks the extract font's metrics (see the module doc), one message per problem.
-/// `font_px(code)` gives the extract's glyph as 256 pixels ([`decode_latfont`]), or `None`
+/// `font_px(index)` gives the extract's glyph as 256 pixels ([`decode_latfont`]), or `None`
 /// when only the widths are known (the validator without the font png): the baseline and
-/// blank-code checks are then skipped. `widths` are the extract's.
+/// blank-glyph checks are then skipped. `widths` are the extract's, by glyph index.
 pub fn problems(
     glyphs: &[Glyph],
-    font_px: &dyn Fn(u8) -> Option<Vec<u8>>,
+    font_px: &dyn Fn(u16) -> Option<Vec<u8>>,
     widths: &[u8],
 ) -> Vec<String> {
     let mut out = Vec::new();
@@ -257,46 +307,44 @@ pub fn problems(
     }
     for g in glyphs {
         let n = &g.name;
-        let gen3 = CHARS.iter().find(|&&(c, _)| c == g.ch).map(|&(_, b)| b);
-        match gen3 {
-            Some(b) if b != g.code => out.push(format!(
-                "glyph {n}: {:?} is {b:#04X} in the charmap but its code is {:#04X}",
-                g.ch, g.code
-            )),
-            Some(_) => match widths.get(usize::from(g.code)) {
-                Some(&w) if w != g.width => out.push(format!(
-                    "glyph {n}: width {} but the extract draws {:#04X} {w} wide (a redrawn \
-                     code keeps its width)",
-                    g.width, g.code
-                )),
-                Some(_) => {}
-                None => out.push(format!(
-                    "glyph {n}: the extract has no glyph {:#04X}",
-                    g.code
-                )),
-            },
-            None if !RESERVED.contains(&g.code) => out.push(format!(
-                "glyph {n}: code {:#04X} is outside the reserved {:#04X}..={:#04X}",
-                g.code,
-                RESERVED.start(),
-                RESERVED.end()
-            )),
-            None => {
-                if let Some(c) = crate::text::charmap::DECODE_CHARS[usize::from(g.code)] {
+        let i = g.index;
+        match *g.bytes {
+            [b] if RESERVED.contains(&b) => {
+                if CHARS.iter().any(|&(c, _)| c == g.ch) {
                     out.push(format!(
-                        "glyph {n}: code {:#04X} is the charmap's {c:?}",
-                        g.code
+                        "glyph {n}: Gen3 encodes {:?}: redraw its code, not a reserved one",
+                        g.ch
                     ));
                 }
-                if let Some(px) = font_px(g.code)
-                    && px.iter().any(|&p| p != 0)
+                if let Some(c) = DECODE_CHARS[usize::from(b)] {
+                    out.push(format!("glyph {n}: code {b:#04X} is the charmap's {c:?}"));
+                }
+                // 0 and 3 are both background to the printer.
+                if let Some(px) = font_px(i)
+                    && px.iter().any(|&p| p == 1 || p == 2)
                 {
                     out.push(format!(
-                        "glyph {n}: the extract's glyph {:#04X} is not blank (the code is used)",
-                        g.code
+                        "glyph {n}: the extract's glyph {i:#04X} is not blank (the code is used)"
                     ));
                 }
             }
+            _ if !gen3_encodes(g.ch, g.bytes) => out.push(format!(
+                "glyph {n}: {:02X?} is neither Gen3's encoding of {:?} nor a reserved byte \
+                 ({:#04X}..={:#04X})",
+                g.bytes,
+                g.ch,
+                RESERVED.start(),
+                RESERVED.end()
+            )),
+            _ => match widths.get(usize::from(i)) {
+                Some(&w) if w != g.width => out.push(format!(
+                    "glyph {n}: width {} but the extract draws {i:#04X} {w} wide (a redrawn \
+                     glyph keeps its width)",
+                    g.width
+                )),
+                Some(_) => {}
+                None => out.push(format!("glyph {n}: the extract has no glyph {i:#04X}")),
+            },
         }
         if let Some(base) = baseline {
             match g.lowest_fg_row() {
@@ -314,7 +362,7 @@ pub fn problems(
     for &(c, b) in CODES {
         if CODES.iter().filter(|&&(_, o)| o == b).count() > 1 {
             out.push(format!(
-                "code {b:#04X} is given to {c:?} and another character"
+                "code {b:02X?} is given to {c:?} and another character"
             ));
         }
     }
@@ -346,26 +394,41 @@ mod tests {
     fn substitute_writes_codes() {
         let heart = ch(0x2665);
         assert_eq!(substitute("AB"), Cow::Borrowed("AB"));
-        assert_eq!(substitute(&format!("A{heart}B")), format!("A{{0x37}}B"));
-        let b = encode_fr(&format!("A{heart}")).unwrap();
-        assert_eq!(b, vec![0xBB, 0x37, 0xFF]);
+        assert_eq!(substitute(&format!("A{heart}B")), "A{0xF9 0xE7}B");
+        assert_eq!(
+            encode_fr(&format!("A{heart}")).unwrap(),
+            vec![0xBB, 0xF9, 0xE7, 0xFF]
+        );
+        assert_eq!(
+            encode_fr(&format!("A{heart}")).unwrap(),
+            encode_lang("A{EMOJI_HEART}", Lang::Fr).unwrap()
+        );
         let dot = ch(0xB7);
         assert_eq!(encode_fr(&dot.to_string()).unwrap(), vec![0xAF, 0xFF]);
         assert!(encode_lang(&heart.to_string(), Lang::Fr).is_err());
     }
 
     #[test]
-    fn reserved_codes_have_no_western_character() {
+    fn glyph_indices() {
+        assert_eq!(glyph_index(&[0xAF]), Some(0xAF));
+        assert_eq!(glyph_index(&[0xF9, 0xE7]), Some(0x1E7));
+        assert_eq!(glyph_index(&[0xFC, 0x01]), None);
+        assert_eq!(glyph_index(&[0xFE]), None);
+    }
+
+    #[test]
+    fn reserved_bytes_are_kana_only_and_kana_is_rejected() {
         for b in RESERVED {
-            assert!(
-                crate::text::charmap::DECODE_CHARS[usize::from(b)].is_none(),
-                "{b:#04X}"
-            );
+            assert!(DECODE_CHARS[usize::from(b)].is_none(), "{b:#04X}");
+        }
+        for &(c, b) in CHARS.iter().filter(|&&(_, b)| RESERVED.contains(&b)) {
+            assert!(is_japanese(c), "{c:?} on {b:#04X}");
+            assert!(encode_lang(&c.to_string(), Lang::Fr).is_ok());
+            assert!(encode_fr(&c.to_string()).is_err(), "{c:?}");
         }
         for &(c, b) in CODES {
-            let gen3 = CHARS.iter().find(|&&(m, _)| m == c).map(|&(_, b)| b);
             assert!(
-                gen3 == Some(b) || (gen3.is_none() && RESERVED.contains(&b)),
+                gen3_encodes(c, b) || matches!(*b, [r] if RESERVED.contains(&r)),
                 "{c:?}"
             );
         }
@@ -388,7 +451,7 @@ mod tests {
         let mut rows = blank(3);
         rows[5] = "#s.".to_string();
         let ok = Glyph::from_file("t", &file(&rows, 3)).unwrap();
-        assert_eq!(ok.code, 0x37);
+        assert_eq!((ok.bytes, ok.index), (&[0xF9, 0xE7][..], 0x1E7));
         assert_eq!(ok.pixels[5 * CELL], 1);
         assert_eq!(ok.pixels[5 * CELL + 1], 2);
         assert_eq!(ok.lowest_fg_row(), Some(5));
@@ -415,21 +478,23 @@ mod tests {
 
     #[test]
     fn metrics() {
-        // A synthetic font: `A` with its lowest foreground on row 11, · 3 wide.
+        // A synthetic font: `A` with its lowest foreground on row 11; the heart 8 px wide, the
+        // middle dot 3.
         let a = {
             let mut px = vec![0u8; CELL * CELL];
             px[11 * CELL] = 1;
             px
         };
-        let font = move |c: u8| {
+        let font = move |c: u16| {
             Some(if c == BASELINE_REF {
                 a.clone()
             } else {
                 vec![0; 256]
             })
         };
-        let mut widths = vec![3u8; 256];
+        let mut widths = vec![6u8; 512];
         widths[0xAF] = 3;
+        widths[0x1E7] = 8;
         let glyph = |ch: char, w: u8, row: usize, on_baseline: bool| {
             let mut rows = blank(usize::from(w));
             rows[row] = format!("#{}", ".".repeat(usize::from(w) - 1));
@@ -448,7 +513,7 @@ mod tests {
             )
             .is_empty()
         );
-        // Off the baseline, below it, a redrawn code at another width.
+        // Off the baseline, below it, a redrawn glyph at another width.
         assert_eq!(
             problems(&[glyph(heart, 8, 10, true)], &font, &widths).len(),
             1
@@ -458,13 +523,49 @@ mod tests {
             1
         );
         assert_eq!(
+            problems(&[glyph(heart, 9, 11, true)], &font, &widths).len(),
+            1
+        );
+        assert_eq!(
             problems(&[glyph(dot, 4, 8, false)], &font, &widths).len(),
             1
         );
-        // A reserved code the extract draws.
-        let used = |c: u8| Some(vec![if c == 0x37 { 1 } else { 0 }; 256]);
-        assert!(!problems(&[glyph(heart, 8, 11, true)], &used, &widths).is_empty());
         // Widths only: the pixel checks are skipped.
         assert!(problems(&[glyph(heart, 8, 3, true)], &|_| None, &widths).is_empty());
+    }
+
+    #[test]
+    fn reserved_glyph_must_be_blank() {
+        // No CODES entry uses a reserved byte yet: build one by hand.
+        let mut g = Glyph::from_file("t", &file(&blank(3), 3)).unwrap();
+        g.ch = ch(0x2014);
+        g.bytes = &[0x37];
+        g.index = 0x37;
+        let mut px = vec![0u8; 256];
+        px[11 * CELL] = 1;
+        g.pixels = px.clone();
+        let mut widths = vec![6u8; 512];
+        widths[0x37] = 3;
+        let with = |p: u8| {
+            let px = px.clone();
+            move |c: u16| {
+                Some(if c == BASELINE_REF {
+                    px.clone()
+                } else {
+                    vec![if c == 0x37 { p } else { 0 }; 256]
+                })
+            }
+        };
+        // Background 0 or 3 is blank; foreground or shadow is not.
+        assert!(problems(std::slice::from_ref(&g), &with(0), &widths).is_empty());
+        assert!(problems(std::slice::from_ref(&g), &with(3), &widths).is_empty());
+        assert_eq!(
+            problems(std::slice::from_ref(&g), &with(1), &widths).len(),
+            1
+        );
+        assert_eq!(
+            problems(std::slice::from_ref(&g), &with(2), &widths).len(),
+            1
+        );
     }
 }

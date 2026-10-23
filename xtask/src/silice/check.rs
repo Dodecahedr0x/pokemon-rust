@@ -182,12 +182,12 @@ pub fn load(o: &Options) -> Result<Inputs> {
         for &(c, b) in glyphs::CODES {
             // Only when the files loaded: a load error already names the broken file.
             if glyph_problems.is_empty() && !authored.iter().any(|g| g.ch == c) {
-                glyph_problems.push(format!("no glyph file draws {c:?} (code {b:#04X})"));
+                glyph_problems.push(format!("no glyph file draws {c:?} ({b:02X?})"));
             }
         }
     } else {
         notes.push(format!(
-            "no {}: the authored glyphs encode but nothing draws them",
+            "no {}: the authored glyphs encode, drawn with the extract's glyphs",
             font_dir.display()
         ));
     }
@@ -201,7 +201,7 @@ pub fn load(o: &Options) -> Result<Inputs> {
             let mut w = read_ron::<extract::schema::FontFile>(&f)?.widths;
             glyph_problems.extend(glyphs::problems(&authored, &|_| None, &w));
             for g in &authored {
-                if let Some(slot) = w.get_mut(usize::from(g.code)) {
+                if let Some(slot) = w.get_mut(usize::from(g.index)) {
                     *slot = g.width;
                 }
             }
