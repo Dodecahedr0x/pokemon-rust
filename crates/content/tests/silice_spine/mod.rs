@@ -4,7 +4,8 @@
 //! [`driver::Run`]; the explorer's Silice spine can import the same lists ([`ch00::steps`],
 //! [`ch01::steps`], [`ch02::steps`]) and map each step onto its own. A chapter can also start from its documented
 //! start state ([`driver::Start`], e.g. [`ch02::start`]) instead of the chapters before it;
-//! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) only does so for now ([`ch04::start`]).
+//! Chapter 4 (`sil5_ch4.rs`, [`ch04::steps`]) only does so for now ([`ch04::start`]), as do
+//! Chapter 5 (`sil6_ch5.rs`) and Chapter 7 (`sil8_ch7.rs`, [`ch07::start`]).
 //!
 //! **The vocabulary** (minimal on purpose):
 //! - [`Step::Goto`]: walk to a cell of the current map (asserted), on a shortest path that avoids
