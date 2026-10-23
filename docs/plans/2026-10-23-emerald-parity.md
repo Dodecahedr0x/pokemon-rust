@@ -423,9 +423,11 @@ Policy:
 - **Cut, Rock Smash, Strength.** `FLDEFF_USE_CUT_ON_TREE`, `FLDEFF_USE_ROCK_SMASH` and `FLDEFF_USE_STRENGTH` play the same effect timing. Boulders (`OBJ_EVENT_GFX_PUSHABLE_BOULDER`, while `FLAG_SYS_USE_STRENGTH`) slide one cell at `walk_slow` when walked into, the player stepping in place (`TryPushBoulder`). Rock Smash tables are emitted with the water ones.
 - **HM protection.** The learn-move prompt refuses an HM slot with "HM moves can't be forgotten now." (`IsHMMove2`, `STRINGID_HMMOVESCANTBEFORGOTTEN`) and reopens the pick; `GameData::is_hm_move` answers from `content::data::HM_MOVES` (decomp names, HM order). The explorer's `forget_slot` skips HM slots too.
 - **Content.** Surfable behaviours are `Behavior::Water(_)` (waterfalls, no-surfacing and currents approximated as plain water); HM gates and badges per HM.
-- **Explorer.** `GotoAvoiding` now carries the player's elevation (bridges over paths) and never plans up a muddy slope, as `path` does.
+- **Explorer.** `GotoAvoiding` now carries the player's elevation (bridges over paths) and never plans up a muddy slope, as `path` does. A walk's target skips the elevation rule only when nobody walks onto it (a door, an object): a walkable target across a ladder (Fortree's walkways) is planned like any cell, which removed four Fortree `PlannerDivergence` bugs.
 - **Spine.** Petalburg (HM03, `teach-hm-surf`) → Rustboro → Rusturf → Mauville → Route 118 by Surf → Route 119 round every trainer's sight → the Weather Institute (its bed, the grunts, Shelly, Castform) → the rival (`BattlePlan::Fight`: with `Best`, Take Down misses Grovyle twice and Leaf Blade wins) → Fortree.
 
 **Ledger.** Field moves 14: 0 native, 14 missing → 3 native (Surf, Cut, Strength), 1 degraded (Rock Smash: `SPECIAL_RockSmashWildEncounter` unsupported), 10 missing (Fly, Flash, Dive, Waterfall, Teleport, Dig, Secret Power, Soft-Boiled, Milk Drink, Sweet Scent).
+
+**Branches** (`cargo xtask explore branch`): 1,598 branches from 73 origins, 10.7 M frames in 2.1 s; 861 rejoined, 237 diverged as expected, 61 diverged, 51 stranded, 308 aborted, 80 unplayable, no bug. The 61 divergences are the earlier segments' "did not rejoin" ones (woods, devon_goods, badge3, badge4); none from the new origins.
 
 **Not done.** The surf blob and the field-move pose and show-mon sprites are not drawn; using a field move from the party menu (M9); Waterfall, Dive and the currents' forced movement; the Route 119 bridge's surfing encounters; `SPECIAL_RockSmashWildEncounter`.
