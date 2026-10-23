@@ -189,55 +189,6 @@ mod list {
         ..Bypass::NONE
     };
 
-    /// Blocker `briney-sail-camera`: Mr. Briney's yes, then `Route104_EventScript_SailToDewford`
-    /// (the boat and the player `applymovement` down Route 104 off the map's edge, through Route
-    /// 105 and 106, to Dewford) stop on a `RoundTrip` finding: the checkpoint taken mid-sail does
-    /// not restore ("camera far outside the map"). The bypass writes what the talk and the sail
-    /// leave and lands in Dewford.
-    static BRINEY_SAIL_TO_DEWFORD: Bypass = Bypass {
-        issue: "briney-sail-camera",
-        features: &["Route104_EventScript_SailToDewford"],
-        set: &[
-            FLAG_MR_BRINEY_SAILING_INTRO,
-            FLAG_HIDE_BRINEYS_HOUSE_MR_BRINEY,
-            FLAG_HIDE_BRINEYS_HOUSE_PEEKO,
-            FLAG_HIDE_RUSTBORO_CITY_RIVAL,
-            FLAG_HIDE_ROUTE_104_RIVAL,
-            FLAG_HIDE_ROUTE_104_MR_BRINEY,
-            FLAG_HIDE_ROUTE_104_MR_BRINEY_BOAT,
-            FLAG_ENABLE_NORMAN_MATCH_CALL,
-        ],
-        clear: &[
-            FLAG_HIDE_MR_BRINEY_DEWFORD_TOWN,
-            FLAG_HIDE_MR_BRINEY_BOAT_DEWFORD_TOWN,
-        ],
-        vars: &[
-            (VAR_BOARD_BRINEY_BOAT_STATE, 0),
-            (VAR_BRINEY_LOCATION, 1),
-            (VAR_RUSTBORO_CITY_STATE, 8),
-            (VAR_ROUTE104_STATE, 2),
-        ],
-        warp: Some((MAP_DEWFORD_TOWN, 11, 11)),
-    };
-
-    /// `DewfordTown_EventScript_SailToSlateport`: the same scripted sail across map
-    /// connections, the same RoundTrip finding. The bypass writes what the sail leaves (Mr.
-    /// Briney and his boat moved to Route 109) and lands where the player steps off the boat.
-    static BRINEY_SAIL_TO_SLATEPORT: Bypass = Bypass {
-        issue: "briney-sail-camera-slateport",
-        features: &["DewfordTown_EventScript_SailToSlateport"],
-        set: &[
-            FLAG_HIDE_MR_BRINEY_DEWFORD_TOWN,
-            FLAG_HIDE_MR_BRINEY_BOAT_DEWFORD_TOWN,
-        ],
-        clear: &[
-            FLAG_HIDE_ROUTE_109_MR_BRINEY,
-            FLAG_HIDE_ROUTE_109_MR_BRINEY_BOAT,
-        ],
-        vars: &[],
-        warp: Some((MAP_ROUTE109, 21, 23)),
-    };
-
     /// Mauville's gym: its floor switches run `special MauvilleGymSetDefaultBarriers` and
     /// `MauvilleGymPressSwitch` (unsupported), which toggle every beam barrier; without them
     /// the barriers never move and Wattson's dais is walled off. The bypass stands the player
@@ -646,9 +597,12 @@ mod list {
         },
         Step::Walk(Left),
         Step::Face(Up),
-        // Yes to Mr. Briney (`Choose(0)`, `Interact`): his script warps to Route 104's dock,
-        // whose frame script sails to Dewford. Blocked (`briney-sail-camera`).
-        Step::Bypass(&BRINEY_SAIL_TO_DEWFORD),
+        // Yes to Mr. Briney: his script warps to Route 104's dock, whose frame script sails
+        // down Route 104, 105 and 106 to Dewford (the camera follows the player across the
+        // connections).
+        Step::Choose(0),
+        Step::Interact,
+        Step::WaitScript,
         Step::Expect("dewford"),
         Step::Checkpoint("dewford"),
         // ---- Dewford: heal, then north to Granite Cave ----
@@ -688,13 +642,12 @@ mod list {
         enter(MAP_DEWFORD_TOWN, 2, 10, Up),
         use_(MAP_DEWFORD_TOWN_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_DEWFORD_TOWN_POKEMON_CENTER_1F, 7, 8, Down),
-        // Mr. Briney's multichoice: Slateport (1).
         // Mr. Briney on the dock (Talk gives NoPath on him, an explorer gap: stand west of
-        // him). His multichoice's Slateport (1) sails to Route 109. Blocked
-        // (`briney-sail-camera-slateport`).
+        // him). His multichoice's Slateport (1) sails to Route 109.
         goto(MAP_DEWFORD_TOWN, 11, 9),
         Step::Face(Right),
-        Step::Bypass(&BRINEY_SAIL_TO_SLATEPORT),
+        Step::Choose(1),
+        Step::Interact,
         cross(MAP_ROUTE109, 19, 0, Up),
         Step::Expect("slateport"),
         // ---- Slateport: heal, Dock at the shipyard (the grunts at the museum's door leave),
@@ -789,6 +742,20 @@ mod list {
         Step::Expect("mauville"),
         // ---- Mauville: heal, Wally's battle at the gym's door (yes), the gym ----
         Step::Battle(BattlePlan::BestLearn),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // Levels 32 and 33 on Route 110's north grass, healing in Mauville between: at 32 the
+        // lead loses to Wattson.
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train(MAP_ROUTE110, 5, 22, 32),
+        cross(MAP_ROUTE110, 15, 0, Up),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_MAUVILLE_CITY, 15, 19, Down),
+        train(MAP_ROUTE110, 5, 22, 33),
+        cross(MAP_ROUTE110, 15, 0, Up),
         enter(MAP_MAUVILLE_CITY, 22, 5, Up),
         use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
         enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),

@@ -810,8 +810,11 @@ impl<'g, G: GameData + Clone> Exec<'g, G> {
                 } else {
                     let w = live.s.world();
                     Err(err(format!(
-                        "goal {name:?} not reached (frame {}, script {}, transition {})",
+                        "goal {name:?} not reached (frame {}, map {:?} at {:?}, script {}, \
+                         transition {})",
                         w.frame(),
+                        w.map(),
+                        w.objects().player().pos(),
                         w.script_running(),
                         w.transition_active()
                     )))
