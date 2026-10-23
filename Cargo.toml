@@ -22,6 +22,12 @@ rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"
 
 # Studio decision 13: the native game in debug builds runs at about 5 ms per frame (too slow
 # for fast-forward and seeks); optimize the game crates even in dev builds.
+# Host release builds are incremental (parity plan, 2026-10-23): an engine edit rebuilds engine
+# and content in ~7 s instead of ~2 min (content's generated scripts, one mostly single-threaded
+# rustc). Host-only: the ROM is built by crates/game-gba, its own workspace and profile.
+[profile.release]
+incremental = true
+
 [profile.dev.package.engine]
 opt-level = 2
 
