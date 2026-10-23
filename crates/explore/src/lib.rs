@@ -9,6 +9,9 @@
 //! C `db`/`cache`/`rebuild`, D `graph`/`select`/`mutate`/`runner`,
 //! E `detect`/`softlock`/`findings`/`testing`, F `policy`/`balance`. Wave 2: G `wire`/`cli`.
 
+// `cfg(pkr_silice)` (`build.rs`, from `content`'s `links` metadata) is the content's flavour.
+const _: () = assert!(cfg!(pkr_silice) == matches!(content::FLAVOR, content::Flavor::Silice));
+
 pub mod balance; // Task F
 pub mod cache; // Task C
 pub mod cli; // Task G (Wave 2)

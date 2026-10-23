@@ -33,7 +33,7 @@ fn explored(path: &Path) {
 }
 
 fn open(path: &Path) -> Db {
-    Db::open(path, build_hash(&Emerald::for_shells()), content::STUB)
+    Db::open(path, build_hash(&Emerald::for_shells()), content::FLAVOR)
         .unwrap()
         .0
 }
@@ -249,9 +249,12 @@ fn a_changed_trainer_script_reaches_the_maps_its_trainer_sights_on() {
         (s, m, valid(&db, &u))
     };
     assert!(!want.is_empty());
-    // The real game has trainers whose script only sight reads on their map.
+    // The real game has trainers whose script only sight reads on their map (Emerald: Silice's
+    // Wave 0 maps have none yet).
     let maps: Vec<MapId> = content::data::MAP_IDS.to_vec();
-    assert!(!incremental::sighting_maps(&game, &maps).is_empty());
+    if content::FLAVOR == content::Flavor::Emerald {
+        assert!(!incremental::sighting_maps(&game, &maps).is_empty());
+    }
     let template = maps
         .iter()
         .find_map(|&m| game.map(m).objects.first().copied())

@@ -73,9 +73,7 @@ pub fn main(args: Vec<String>) -> anyhow::Result<()> {
             }
             let act = a
                 .take("--act")
-                .map(|s| {
-                    Act::parse(&s).ok_or_else(|| anyhow!("--act {s:?}: slice, act1 or sil_ch0"))
-                })
+                .map(|s| Act::parse_in_build(&s).map_err(|e| anyhow!("--act: {e}")))
                 .transpose()?;
             if let Some(act) = act {
                 cfg.act = act;

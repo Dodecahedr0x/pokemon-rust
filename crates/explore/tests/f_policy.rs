@@ -96,6 +96,7 @@ impl Driver {
 }
 
 /// The frames the route's battles start at (`in_battle` turns true), in order.
+#[cfg(not(pkr_silice))]
 fn battle_starts(rec: &Recording) -> Vec<u32> {
     battles(rec).into_iter().map(|(f, _)| f).collect()
 }
@@ -118,6 +119,7 @@ fn outcome(b: &BattleSummary) -> Option<BattleOutcome> {
     b.outcome.and_then(|o| BattleOutcome::from_u16(o.into()))
 }
 
+#[cfg(not(pkr_silice))]
 fn check(b: &BattleSummary, opts: Opts) {
     assert!(b.frames > 0 && b.frames <= BATTLE_FRAMES, "{b:?}");
     assert!(b.player_level > 0 && b.opponent_level > 0, "{b:?}");
@@ -149,6 +151,7 @@ fn check(b: &BattleSummary, opts: Opts) {
 
 /// Every battle of the route (stub: the grass battle; extracted: Birch's rescue, the wild
 /// battles and May), fought by the policy from its first frame, with and without `run_wild`.
+#[cfg(not(pkr_silice))]
 #[test]
 fn the_policy_wins_the_route_battles_and_runs_from_wild_ones() {
     let rec = cached_route();
@@ -188,6 +191,7 @@ fn the_policy_wins_the_route_battles_and_runs_from_wild_ones() {
 /// to the first one in which the player's mon loses HP, so that the HP record is checked on a
 /// non-zero loss whichever battle the RNG makes it (stub: the grass battle; extracted: Birch's
 /// rescue, then the wild battles).
+#[cfg(not(pkr_silice))]
 #[test]
 fn the_tracker_records_a_battle() {
     let rec = cached_route();
@@ -280,6 +284,7 @@ fn first_damaging_slot_skips_status_and_empty_moves() {
 }
 
 /// The route's `starter_screen` moment, then `Policy::script` picks ball `choice % 3`.
+#[cfg(not(pkr_silice))]
 #[test]
 fn the_starter_screen_takes_the_chosen_ball() {
     if content::STUB {

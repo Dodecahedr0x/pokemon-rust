@@ -1,5 +1,7 @@
 //! Task A: macro candidates, pathfinding, expansion and simulation, on the content build's
-//! flavor (stub or extracted).
+//! flavor (stub or extracted). The `real_*` tests play Emerald's maps: not built on Silice.
+// Their helpers and imports are unused there.
+#![cfg_attr(pkr_silice, allow(dead_code, unused_imports))]
 
 use content::Emerald;
 use engine::checkpoint::{Checkpoint, NotCapturable, state_digest};
@@ -472,6 +474,7 @@ fn a_panic_is_a_finding_with_a_replayable_tail() {
     assert_eq!(e.message, f.message);
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn real_littleroot_start() {
     if content::STUB {
@@ -499,6 +502,7 @@ fn real_littleroot_start() {
     );
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn real_route_moments() {
     if content::STUB {
@@ -684,6 +688,7 @@ fn a_planner_divergence_is_flagged_after_a_stall() {
     assert!(stalled >= expand::STALL_FRAMES, "{stalled}");
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn real_enter_a_house() {
     if content::STUB {
@@ -706,6 +711,7 @@ fn real_enter_a_house() {
     check_steps(&game, Some(&start), &r);
 }
 
+#[cfg(not(pkr_silice))]
 #[test]
 fn real_crossing_spread_is_waited_out() {
     if content::STUB {

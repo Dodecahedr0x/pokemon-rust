@@ -838,8 +838,14 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_secs(3));
         let s = h.status.get();
         let seq = h.frames.seq();
-        // Walking changes the picture (an idle field may not).
-        h.send(RomCmd::Keys(Buttons::LEFT));
+        // Walking changes the picture (an idle field may not). Silice starts in the bar with a
+        // customer west of the player: walk south instead.
+        let walk = if cfg!(pkr_silice) {
+            Buttons::DOWN
+        } else {
+            Buttons::LEFT
+        };
+        h.send(RomCmd::Keys(walk));
         std::thread::sleep(std::time::Duration::from_secs(1));
         let more = h.frames.seq() - seq;
         let s2 = h.status.get();
@@ -860,6 +866,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
+    #[cfg(not(pkr_silice))] // boots a committed node: Silice has none yet (SIL1 Wave 3)
     #[test]
     #[ignore = "needs target/game.gba (cargo xtask rom)"]
     /// Runs on the committed tree layered under a temp local root: the committed tree is never

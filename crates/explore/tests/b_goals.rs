@@ -1,5 +1,7 @@
 //! Task B, Milestone 8 Task K: the goal lists along the parity route (both flavors). Goals are
-//! state predicates.
+//! state predicates. Emerald's and the stub's acts only: not built on Silice
+//! (`cfg(pkr_silice)`; `sil1_d_flavor.rs` checks the acts of every flavour).
+#![cfg(not(pkr_silice))]
 
 use content::Emerald;
 use explore::goals::{self, Act};
