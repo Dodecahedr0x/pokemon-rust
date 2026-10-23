@@ -446,13 +446,13 @@ fn us_export_smoke() {
 }
 
 #[test]
-fn default_export_is_the_slice_without_previews() {
+fn default_export_is_every_map_without_previews() {
     let opts = ExportOptions::default();
-    assert_eq!(opts.maps, MAPS);
     assert!(!opts.previews);
-    let all = ExportOptions::all(false).maps;
-    assert_eq!(all.len(), 518);
-    assert_eq!(all[0], names::MAPS[0].dir);
+    assert_eq!(opts.maps, ExportOptions::all(false).maps);
+    assert_eq!(opts.maps.len(), 518);
+    assert_eq!(opts.maps[0], names::MAPS[0].dir);
+    assert_eq!(ExportOptions::slice(false).maps, MAPS);
 }
 
 // ---- decomp oracles ----

@@ -503,18 +503,12 @@ pub trait GameData {
     fn battle(&self) -> &'static BattleTables {
         &mon::EMPTY_TABLES
     }
-    /// The land encounter table of `map`, if it has one.
-    fn encounters(&self, map: MapId) -> Option<&'static LandEncounters> {
-        let _ = map;
-        None
-    }
-    /// The land table of header `wild_set` of `map` (what the engine reads; Milestone 8). The
-    /// engine passes the value of `SpecialIds::var_wild_set` (Gen3 `VAR_ALTERING_CAVE_WILD_SET`);
-    /// maps with one header ignore it. Water, rock smash and fishing come later (M10). Default:
-    /// [`GameData::encounters`].
+    /// The land table of header `wild_set` of `map`, if it has one (Milestone 8). The engine
+    /// passes the value of `SpecialIds::var_wild_set` (Gen3 `VAR_ALTERING_CAVE_WILD_SET`); maps
+    /// with one header ignore it. Water, rock smash and fishing come later (M10).
     fn wild_encounters(&self, map: MapId, wild_set: u16) -> Option<&'static LandEncounters> {
-        let _ = wild_set;
-        self.encounters(map)
+        let _ = (map, wild_set);
+        None
     }
     fn trainer(&self, id: TrainerId) -> Option<&'static TrainerData> {
         let _ = id;

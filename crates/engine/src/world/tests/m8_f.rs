@@ -284,9 +284,6 @@ impl GameData for Painted {
     fn battle(&self) -> &'static crate::mon::BattleTables {
         Game.battle()
     }
-    fn encounters(&self, _: MapId) -> Option<&'static crate::mon::LandEncounters> {
-        None
-    }
     fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
         Game.trainer(id)
     }

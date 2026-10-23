@@ -324,7 +324,7 @@ fn the_report_lists_the_degradations() {
 #[test]
 fn wild_sets_fall_back_to_the_first_header() {
     for &id in &data::MAP_IDS {
-        let first = Emerald.encounters(id);
+        let first = Emerald.wild_encounters(id, 0);
         let sets = battle::wild_sets(id.0);
         for set in [0, 1, 8, 9, u16::MAX] {
             if set == 0 || set >= sets {

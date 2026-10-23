@@ -436,7 +436,7 @@ impl GameData for Game {
     fn battle(&self) -> &'static crate::mon::BattleTables {
         &crate::battle::test_data::TABLES
     }
-    fn encounters(&self, map: MapId) -> Option<&'static crate::mon::LandEncounters> {
+    fn wild_encounters(&self, map: MapId, _: u16) -> Option<&'static crate::mon::LandEncounters> {
         (map == ROUTE).then_some(&ROUTE_ENCOUNTERS)
     }
     fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
