@@ -1304,6 +1304,12 @@ pub trait GameData {
         let _ = id;
         None
     }
+    /// Whether `m` is an HM move, which the learn-move pick refuses to forget (Gen3
+    /// `IsHMMove2`, `sHMMoves`).
+    fn is_hm_move(&self, m: MoveId) -> bool {
+        let _ = m;
+        false
+    }
     /// The move a TM or HM item teaches.
     fn tm_move(&self, id: ItemId) -> Option<MoveId> {
         let _ = id;

@@ -530,6 +530,8 @@ pub enum Str {
     UsingItemStatRose,
     /// `STRINGID_PKMNFLEDUSINGITS` (Smoke Ball).
     FledUsingIts,
+    /// `STRINGID_HMMOVESCANTBEFORGOTTEN` (the learn-move pick, on an HM move).
+    HmMovesCantBeForgotten,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -737,6 +739,7 @@ impl Str {
             UsedXToGetPumped => 218,
             UsingItemStatRose => 219,
             FledUsingIts => 220,
+            HmMovesCantBeForgotten => 221,
         }
     }
 }

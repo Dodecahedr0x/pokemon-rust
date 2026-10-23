@@ -519,7 +519,9 @@ impl BattleScene {
             Menu::LearnAsk { .. } => OpenMenu::LearnAsk(cursor),
             Menu::LearnPick { .. } => OpenMenu::LearnPick(cursor),
             Menu::StopAsk { .. } => OpenMenu::StopAsk(cursor),
-            Menu::None | Menu::StopMsg { .. } | Menu::Retry { .. } => return None,
+            Menu::None | Menu::StopMsg { .. } | Menu::HmMsg { .. } | Menu::Retry { .. } => {
+                return None;
+            }
         })
     }
 
