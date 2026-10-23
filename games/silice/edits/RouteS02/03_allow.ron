@@ -1,0 +1,4 @@
+// Behaviour warnings accepted on purpose.
+[
+    AllowCollision(cells: [(38, 2), (42, 2), (38, 3), (39, 3), (40, 3), (41, 3), (42, 3), (10, 5), (11, 5), (48, 7), (49, 8), (31, 9), (32, 9), (49, 9)], reason: "the security cables and the pocket walls: a rail metatile stands in for a thin cable (Mauville has none) and is solid here; RouteS02_OnLoad redraws the cut cables walkable"),
+]

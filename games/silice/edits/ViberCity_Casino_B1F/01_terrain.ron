@@ -1,0 +1,17 @@
+// Cells: the source's grid: walls, racks, the terminal, the capsule, the stairs up.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "!#$$$$$!$$$$$$$!",
+        "!%&&&&&(&&&&&&&!",
+        "!&&&&&&$&&&&&&&!",
+        "!&&&&&&&&&&&&&&!",
+        "!&&&&&&(&&&&&&&!",
+        "!$$&$$$$$$$&$$$!",
+        "!&&&&&&&&&&&&&&!",
+        "!&)*)*+&&&)*)*&!",
+        "!&&&&&&&&&&&&&&!",
+        ",,,,!$$$!$&$!,,,",
+        ",,,,!&&&-&&&!,,,",
+        ",,,,,,,,,,,,,,,,",
+    ], legend: {'!': (metatile: 522, collision: 1), '#': (metatile: 692, collision: 1), '$': (metatile: 545, collision: 1), '%': (metatile: 700, collision: 0), '&': (metatile: 552, collision: 0), '(': (metatile: 736, collision: 1), ')': (metatile: 984, collision: 1), '*': (metatile: 985, collision: 1), '+': (metatile: 560, collision: 1), ',': (metatile: 513, collision: 1), '-': (metatile: 1011, collision: 1)}),
+]

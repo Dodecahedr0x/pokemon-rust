@@ -1,0 +1,4 @@
+// Silice Ch3, MAP_VIBER_CITY_CASINO: Casino le Pixel d'Or (20 x 11). Building +
+// MauvilleGameCorner (Emerald tilesets by name: red carpet, slot machines, counters). The
+// neons and the Electric / Ghost symbols are not drawn.
+(name: "ViberCity_Casino", width: 20, height: 11, primary: "Building", secondary: "MauvilleGameCorner", fill: 514, border: [1025, 1025, 1025, 1025])

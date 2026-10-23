@@ -3,7 +3,7 @@
     // Ground plan: T t forest, . grass, , tall grass, : forest path, * flowers, = Team Cocket cables
     // (rail placeholder), p the secret grove's hedge, x synthetic brambles (8, 6), s signposts,
     // h the market's high-tech pot (4, 14), b the Sector Beta barrier (33, 13-14).
-    // The east edge (x 35, y 12-15) stays forest until Route S2 (Ch2) exists: see the plan's as-built.
+    // The east edge (x 35, y 12-15) is drawn as forest here; 05_ch2_connect.ron opens it to Route S2.
     Ascii(x: 0, y: 0, rows: [
         "TtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTtTt",
         "tT.,,,,,.====.....................tT",

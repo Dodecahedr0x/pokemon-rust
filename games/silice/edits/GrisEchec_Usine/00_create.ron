@@ -1,0 +1,4 @@
+// Silice Ch2, MAP_GRIS_ECHEC_USINE: the derelict factory (30 x 24). General + BikeShop (Emerald
+// tilesets by name, the New Mauville set): stopped belts, generators, metal crates, oil puddles.
+// Out-of-map border: the black void, blocked.
+(name: "GrisEchec_Usine", width: 30, height: 24, primary: "General", secondary: "BikeShop", fill: 528, border: [1544, 1544, 1544, 1544])
