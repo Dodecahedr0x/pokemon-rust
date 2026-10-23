@@ -334,6 +334,34 @@ fn every_trainer_resolves() {
     assert!(Emerald.trainer(TrainerId(0)).is_none());
 }
 
+/// Emerald's trainer mons hold nothing (`TRAINER_HELD_ITEMS` is off: the recorded route), and
+/// Emerald has no Mega or Primal forms; the hold effects come from the `ITEM_*` names, in
+/// both modes.
+#[test]
+fn hold_effects_but_no_trainer_items_nor_forms() {
+    use engine::data::ItemId;
+    use engine::mon::{HoldEffect, Type};
+    for &id in &battle::TRAINER_IDS {
+        for m in Emerald.trainer(id).unwrap().party {
+            assert_eq!(m.item, None, "{id:?}");
+        }
+    }
+    assert!(Emerald.form_changes().is_empty());
+    // ITEM_ORAN_BERRY, ITEM_QUICK_CLAW, ITEM_LEFTOVERS, ITEM_CHARCOAL, ITEM_SEA_INCENSE.
+    let cases = [
+        (139, Some(HoldEffect::RestoreHp(10))),
+        (183, Some(HoldEffect::QuickClaw(20))),
+        (200, Some(HoldEffect::Leftovers)),
+        (215, Some(HoldEffect::TypePower(Type::Fire, 10))),
+        (220, Some(HoldEffect::TypePower(Type::Water, 5))),
+        (0, None),
+        (13, None),
+    ];
+    for (id, e) in cases {
+        assert_eq!(Emerald.hold_effect(ItemId(id)), e, "item {id}");
+    }
+}
+
 /// Format 5.1 extracts (Task A) carry trainer money and evolutions; older ones neither.
 #[test]
 fn trainer_money_and_evolutions_when_extracted() {

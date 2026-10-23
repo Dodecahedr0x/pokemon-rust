@@ -14,7 +14,7 @@ use crate::checkpoint::{
 use crate::data::{GameData, Gfx, ObjectEvent, PLAYER};
 use crate::field::Field;
 use crate::flow::{Fader, Input, Transition, Vars};
-use crate::mon::{PARTY_SIZE, Party};
+use crate::mon::{PARTY_SIZE, Party, Pokemon};
 use crate::objects::Objects;
 use crate::rng::Rng;
 use crate::script::Runner;
@@ -91,6 +91,11 @@ impl World {
                 dynamic: s.warp_slots.dynamic.map(warp_dest_snap),
                 escape: s.warp_slots.escape.map(warp_dest_snap),
             },
+            party_held: if s.party.iter().any(|p| p.held.is_some()) {
+                s.party.iter().map(|p| p.held).collect()
+            } else {
+                Vec::new()
+            },
         })
     }
 
@@ -114,7 +119,7 @@ impl World {
     /// (applied with the screen off, like `World::new`'s boot frame). Same build: also checks
     /// `hash() == header.world_hash` (`HashMismatch`).
     pub fn restore(game: &impl GameData, cp: &Checkpoint) -> Result<World, RestoreError> {
-        if cp.header.schema != SCHEMA {
+        if !crate::checkpoint::schema_readable(cp.header.schema) {
             return Err(RestoreError::Schema(cp.header.schema));
         }
         let w = &cp.world;
@@ -140,9 +145,13 @@ impl World {
         }
         Field::check_snapshot(game, &w.field).map_err(RestoreError::Invalid)?;
         Objects::check_snapshot(&w.objects).map_err(RestoreError::Invalid)?;
+        if !w.party_held.is_empty() && w.party_held.len() != w.party.len() {
+            return Err(RestoreError::Invalid("party_held differs from the party"));
+        }
         let mut party = Party::default();
-        for &p in &w.party {
-            let _ = party.push(p);
+        for (i, &p) in w.party.iter().enumerate() {
+            let held = w.party_held.get(i).copied().flatten();
+            let _ = party.push(Pokemon { held, ..p });
         }
         let templates =
             apply_deltas(game.map(w.field.map).objects, &w.templates).map_err(|local_id| {

@@ -52,6 +52,8 @@ pub fn create_trainer_party(t: &BattleTables, trainer: &TrainerData, rng: &mut R
                 p.pp[j] = m.map_or(0, |m| t.move_info(m).pp);
             }
         }
+        // `SetMonData(MON_DATA_HELD_ITEM)` for a `TrainerMonItem*` party (no draw).
+        p.held = mon.item;
         // `take(PARTY_SIZE)` keeps the push in bounds.
         let _ = party.push(p);
     }

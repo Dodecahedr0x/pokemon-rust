@@ -450,9 +450,18 @@ impl Gen<'_> {
                     }
                     None => "None".into(),
                 };
+                let item = match &m.item {
+                    Some(name) if classify::TRAINER_HELD_ITEMS && name != "ITEM_NONE" => {
+                        let v = names::ITEMS
+                            .value(name)
+                            .with_context(|| format!("{}: unknown item {name}", t.id))?;
+                        format!("Some(ItemId({v}))")
+                    }
+                    _ => "None".into(),
+                };
                 write!(
                     party,
-                    "TrainerMon {{ species: {}, level: {}, iv: {}, moves: {moves} }},",
+                    "TrainerMon {{ species: {}, level: {}, iv: {}, moves: {moves}, item: {item} }},",
                     self.species_id(&m.species)?,
                     m.level,
                     m.iv
@@ -496,6 +505,16 @@ impl Gen<'_> {
 
         self.gen_encounters()?;
         self.gen_evolutions_and_money()?;
+        let mut hold_arms = String::new();
+        for (v, name) in names::ITEMS.iter() {
+            if let Some(e) = classify::hold_effect(name) {
+                writeln!(hold_arms, "        {v} => Some({e}), // {name}")?;
+            }
+        }
+        writeln!(
+            self.o,
+            "/// The modelled `holdEffect` of item `id` (`ITEM_*`).\npub fn hold_effect(id: u16) -> Option<HoldEffect> {{\n    match id {{\n{hold_arms}        _ => None,\n    }}\n}}"
+        )?;
         let mut heal_arms = String::new();
         for (name, (map, x, y)) in &b.heal {
             let id = names::HEAL_LOCATIONS

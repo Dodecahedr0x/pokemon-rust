@@ -15,12 +15,14 @@ static PARTY: [TrainerMon; 2] = [
         level: 5,
         iv: 255,
         moves: None,
+        item: None,
     },
     TrainerMon {
         species: ZIGZAGOON,
         level: 3,
         iv: 128,
         moves: Some([Some(BIDE), None, None, None]),
+        item: None,
     },
 ];
 
@@ -77,6 +79,7 @@ fn ivs_scale_to_31_and_custom_moves_replace_the_learnset() {
         level: 5,
         iv: 0,
         moves: None,
+        item: None,
     }];
     let t = TrainerData {
         party: &ZERO,
@@ -107,4 +110,46 @@ fn ot_ids_are_random32_and_never_shiny() {
     // Same seed, same party.
     let q = create_trainer_party(&TABLES, &trainer(false, false), &mut Rng::new(3));
     assert_eq!(p, q);
+}
+
+#[test]
+fn a_trainer_mon_item_is_held_without_drawing() {
+    static HOLDS: [TrainerMon; 1] = [TrainerMon {
+        species: MUDKIP,
+        level: 5,
+        iv: 0,
+        moves: None,
+        item: Some(crate::data::ItemId(139)),
+    }];
+    static PLAIN: [TrainerMon; 1] = [TrainerMon {
+        item: None,
+        ..HOLDS[0]
+    }];
+    let (mut a, mut b) = (Rng::new(3), Rng::new(3));
+    let held = create_trainer_party(
+        &TABLES,
+        &TrainerData {
+            party: &HOLDS,
+            ..trainer(false, false)
+        },
+        &mut a,
+    );
+    let plain = create_trainer_party(
+        &TABLES,
+        &TrainerData {
+            party: &PLAIN,
+            ..trainer(false, false)
+        },
+        &mut b,
+    );
+    assert_eq!(held.get(0).unwrap().held, Some(crate::data::ItemId(139)));
+    assert_eq!(plain.get(0).unwrap().held, None);
+    assert_eq!(a.state(), b.state());
+    assert_eq!(
+        Pokemon {
+            held: None,
+            ..*held.get(0).unwrap()
+        },
+        *plain.get(0).unwrap()
+    );
 }

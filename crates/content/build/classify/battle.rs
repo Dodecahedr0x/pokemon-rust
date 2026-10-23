@@ -68,6 +68,56 @@ pub fn extra_move_flags(id: &str) -> u8 {
     }
 }
 
+/// Whether trainer mons get their `heldItem` (`TrainerMon::item`). **Off for Emerald**: the
+/// recorded route (parity, checkpoints) was played without trainer items, and a trainer that
+/// holds a berry or a Quick Claw changes its battle. Turning it on is a later, deliberate
+/// Emerald route change (re-baseline the parity route and the checkpoint tree).
+pub const TRAINER_HELD_ITEMS: bool = false;
+
+/// `ITEM_*` name -> `HoldEffect` expression (`src/data/items.h` `holdEffect` /
+/// `holdEffectParam`, `sHoldEffectToType`), for the hold effects the engine models; `None`
+/// for any other item.
+pub fn hold_effect(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "ITEM_ORAN_BERRY" => "HoldEffect::RestoreHp(10)",
+        "ITEM_SITRUS_BERRY" => "HoldEffect::RestoreHp(30)",
+        "ITEM_BERRY_JUICE" => "HoldEffect::RestoreHp(20)",
+        "ITEM_CHERI_BERRY" => "HoldEffect::CurePar",
+        "ITEM_CHESTO_BERRY" => "HoldEffect::CureSlp",
+        "ITEM_PECHA_BERRY" => "HoldEffect::CurePsn",
+        "ITEM_RAWST_BERRY" => "HoldEffect::CureBrn",
+        "ITEM_ASPEAR_BERRY" => "HoldEffect::CureFrz",
+        "ITEM_PERSIM_BERRY" => "HoldEffect::CureConfusion",
+        "ITEM_LUM_BERRY" => "HoldEffect::CureStatus",
+        "ITEM_LEFTOVERS" => "HoldEffect::Leftovers",
+        "ITEM_CHOICE_BAND" => "HoldEffect::ChoiceBand",
+        "ITEM_QUICK_CLAW" => "HoldEffect::QuickClaw(20)",
+        "ITEM_KINGS_ROCK" => "HoldEffect::KingsRock(10)",
+        "ITEM_BRIGHT_POWDER" => "HoldEffect::EvasionUp(10)",
+        "ITEM_LAX_INCENSE" => "HoldEffect::EvasionUp(5)",
+        "ITEM_FOCUS_BAND" => "HoldEffect::FocusBand(10)",
+        "ITEM_SILVER_POWDER" => "HoldEffect::TypePower(Type::Bug, 10)",
+        "ITEM_METAL_COAT" => "HoldEffect::TypePower(Type::Steel, 10)",
+        "ITEM_SOFT_SAND" => "HoldEffect::TypePower(Type::Ground, 10)",
+        "ITEM_HARD_STONE" => "HoldEffect::TypePower(Type::Rock, 10)",
+        "ITEM_MIRACLE_SEED" => "HoldEffect::TypePower(Type::Grass, 10)",
+        "ITEM_BLACK_GLASSES" => "HoldEffect::TypePower(Type::Dark, 10)",
+        "ITEM_BLACK_BELT" => "HoldEffect::TypePower(Type::Fighting, 10)",
+        "ITEM_MAGNET" => "HoldEffect::TypePower(Type::Electric, 10)",
+        "ITEM_MYSTIC_WATER" => "HoldEffect::TypePower(Type::Water, 10)",
+        "ITEM_SEA_INCENSE" => "HoldEffect::TypePower(Type::Water, 5)",
+        "ITEM_SHARP_BEAK" => "HoldEffect::TypePower(Type::Flying, 10)",
+        "ITEM_POISON_BARB" => "HoldEffect::TypePower(Type::Poison, 10)",
+        "ITEM_NEVER_MELT_ICE" => "HoldEffect::TypePower(Type::Ice, 10)",
+        "ITEM_SPELL_TAG" => "HoldEffect::TypePower(Type::Ghost, 10)",
+        "ITEM_TWISTED_SPOON" => "HoldEffect::TypePower(Type::Psychic, 10)",
+        "ITEM_CHARCOAL" => "HoldEffect::TypePower(Type::Fire, 10)",
+        "ITEM_DRAGON_FANG" => "HoldEffect::TypePower(Type::Dragon, 10)",
+        "ITEM_SILK_SCARF" => "HoldEffect::TypePower(Type::Normal, 10)",
+        _ => return None,
+    })
+}
+
 /// `ABILITY_*` name -> `Ability` expression; the abilities the engine does not implement are
 /// `Ability::Other`.
 pub fn ability(name: &str) -> &'static str {

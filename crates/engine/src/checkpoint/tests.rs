@@ -65,6 +65,7 @@ fn mon() -> Pokemon {
         status: Status::Sleep(2),
         hp: 19,
         stats: [20, 12, 11, 10, 9, 8],
+        held: None,
     }
 }
 
@@ -171,6 +172,7 @@ fn sample() -> Checkpoint {
             }),
             escape: None,
         },
+        party_held: vec![Some(ItemId(139))],
     };
     Checkpoint {
         header: Header {
@@ -195,7 +197,7 @@ fn hex(bytes: &[u8]) -> String {
 /// `ron` format change) leaves the flash bytes alone and needs no `SCHEMA` bump, but stored RON
 /// files (snapshots, nodes) may need a look.
 const GOLDEN_POSTCARD: &str = concat!(
-    "02ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
+    "03ef9bafcdf8acd191012ad20990e4d0b287d3aeeefe01d209effdb6f50d4000",
     "09bbbcbdffffffffff8de0b75d031f400101031e16060801080a81040101031e",
     "01030202ff03000a0c0a0e030000000a0c010201000001000101040007000201",
     "0101030203010710061006030002100601020100000001110000000102011006",
@@ -203,10 +205,10 @@ const GOLDEN_POSTCARD: &str = concat!(
     "018202f8acd191018de0b75dd4d4cec9caffffffffffff058701010203040506",
     "0000000000000121012d000023280000004600010213140c0b0a090802020000",
     "0200000d030102830201b81702bbbc0020a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
-    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1010300080100",
+    "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a101030008010001018b01",
 );
 const GOLDEN_RON: &str = concat!(
-    "(header:(schema:2,build:(engine:81985529216486895,content:42),frame:1234,",
+    "(header:(schema:3,build:(engine:81985529216486895,content:42),frame:1234,",
     "world_hash:18364758544493064720),world:(frame:1234,rng:3735928559,input:(held:(64),",
     "pressed:(0)),runner_issued:9,player_name:(187,188,189,255,255,255,255,255),",
     "player_id:195948557,field:(map:(3),camera:(-16,32),drawn:Some((-1,-2,15,11)),ring:(3,4),",
@@ -229,7 +231,7 @@ const GOLDEN_RON: &str = concat!(
     "(pocket:KeyItems,index:2,item:(259),qty:1)]),money:3000,str_vars:([187,188],[],[161,161,",
     "161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,161,",
     "161,161,161,161,161,161,161,161]),warp_slots:(dynamic:Some((map:(3),warp:None,x:4,",
-    "y:-1)),escape:None)))",
+    "y:-1)),escape:None),party_held:[Some((139))]))",
 );
 
 #[test]
@@ -238,7 +240,7 @@ fn golden_postcard_bytes() {
     std::println!("synthetic checkpoint: {} postcard bytes", bytes.len());
     assert_eq!(hex(&bytes), GOLDEN_POSTCARD, "DTO change: bump SCHEMA");
     assert_eq!(encoded_len(&sample()), bytes.len());
-    assert_eq!(SCHEMA, 2);
+    assert_eq!(SCHEMA, 3);
 }
 
 #[test]
@@ -267,7 +269,7 @@ fn encoding_starts_with_the_schema() {
 #[test]
 fn another_schema_is_refused_before_decoding() {
     let mut cp = sample();
-    for old_or_new in [1, 3] {
+    for old_or_new in [1, 4] {
         cp.header.schema = old_or_new;
         assert_eq!(
             decode(&encode(&cp)),
@@ -275,12 +277,37 @@ fn another_schema_is_refused_before_decoding() {
         );
     }
     // Only the schema is read: a newer layout behind it does not matter.
-    let mut bytes = postcard::to_allocvec(&3u16).unwrap();
+    let mut bytes = postcard::to_allocvec(&4u16).unwrap();
     bytes.extend_from_slice(&[0xFF; 3]);
-    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 3 }));
+    assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 4 }));
     // A multi-byte varint schema.
     let bytes = postcard::to_allocvec(&300u16).unwrap();
     assert_eq!(decode(&bytes), Err(CodecError::Schema { found: 300 }));
+}
+
+/// A schema-2 checkpoint is a schema-3 one without held items, minus the trailing empty
+/// `party_held`: it decodes (as schema 3), and its digest is the schema-2 bytes' digest.
+#[test]
+fn schema_2_reads_as_3_without_held_items() {
+    let mut cp = sample();
+    cp.world.party_held.clear();
+    let v3 = encode(&cp);
+    assert_eq!(v3.last(), Some(&0));
+    let mut v2 = v3[..v3.len() - 1].to_vec();
+    assert_eq!(v2[0], 3);
+    v2[0] = 2;
+    assert_eq!(decode(&v2), Ok(cp.clone()));
+    let world = postcard::to_allocvec(&cp.world).unwrap();
+    let mut h = Fnv64::new();
+    h.write(&world[..world.len() - 1]);
+    assert_eq!(state_digest(&cp.world), h.finish());
+    // With held items the whole encoding counts.
+    let held = sample().world;
+    let mut h = Fnv64::new();
+    h.write(&postcard::to_allocvec(&held).unwrap());
+    assert_eq!(state_digest(&held), h.finish());
+    assert!(schema_readable(2) && schema_readable(3));
+    assert!(!schema_readable(1) && !schema_readable(4));
 }
 
 #[test]
@@ -416,6 +443,7 @@ fn a_forged_length_cannot_preallocate() {
         w.money,
         &w.str_vars,
         w.warp_slots,
+        &w.party_held,
     ))
     .unwrap();
     let party_at = bytes.len() - after.len() - 1;

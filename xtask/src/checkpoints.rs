@@ -265,7 +265,7 @@ fn promote(committed: &Path, local: &Path, id: &str, label: &str) -> Result<Chec
 /// an error unless it is of this checkpoint schema and reaches its recorded digest.
 fn replay_on_this_build(store: &Store, node: &Node) -> Result<engine::checkpoint::Checkpoint> {
     let id = node.meta.id;
-    if node.meta.schema != engine::checkpoint::SCHEMA {
+    if !engine::checkpoint::schema_readable(node.meta.schema) {
         bail!(
             "{id} is stale (checkpoint schema {}): `cargo xtask checkpoints verify --local` it \
              first",
