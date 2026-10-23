@@ -431,14 +431,15 @@ fn report(s: &mut State, r: Report) {
 }
 
 /// After a win (Gen3 `getmoneyreward` and `TryEvolvePokemon`): the prize money
-/// (`AddMoney`, capped at `MAX_MONEY`), then each mon that gained a level evolves if a level
+/// (`AddMoney`, capped at `SpecialIds::max_money`), then each mon that gained a level evolves if a level
 /// evolution is reached, without the scene (`Report::Degraded("evolution scene")`).
 fn after_win(game: &impl GameData, s: &mut State, battle: &Battle) {
     if let Some(money) = battle.prize() {
-        s.money = s
-            .money
-            .saturating_add(money)
-            .min(super::checkpoint::MAX_MONEY);
+        let max = game.special_ids().max_money;
+        if max == 0 && money > 0 {
+            report(s, Report::Degraded(super::host::NO_MONEY));
+        }
+        s.money = s.money.saturating_add(money).min(max);
     }
     let t = game.battle();
     for i in 0..6 {

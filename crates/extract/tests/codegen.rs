@@ -830,7 +830,7 @@ mod lowering {
         assert!(d.contains("pub const Town_EventScript_Kid: ScriptId = ScriptId(0);"));
         assert!(d.contains(
             "pub static SCRIPTS: [fn(engine::script::Ctx) -> engine::script::Script; 1] = [\n    \
-             |ctx| alloc::boxed::Box::pin(Run(alloc::boxed::Box::pin(crate::scripts::Town::Town_EventScript_Kid(ctx)))),\n];"
+             |ctx| alloc::boxed::Box::pin(Run(crate::scripts::Town::Town_EventScript_Kid(ctx))),\n];"
         ));
         assert!(d.contains("pub fn script(id: u16, ctx: engine::script::Ctx)"));
         // Absolute paths only: the content crate `include!`s it in `crate::data`.

@@ -3,10 +3,13 @@
 use anyhow::{Context, Result, anyhow};
 use engine::Buttons;
 use engine::checkpoint::{BuildHash, FLASH_SIZE};
+use engine::data::{MapId, ScriptId};
 use engine::debug::{
-    INPUT_RING, MAGIC, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE, OFF_FRAME, OFF_HASH,
-    OFF_HASH_LINES_MAX, OFF_INPUTS, OFF_LATE, OFF_LATE_BLACK, OFF_LOOP_LINES_MAX, OFF_SAVE_STATUS,
-    OFF_SAVES, OFF_STEP_LINES_MAX, SIZE,
+    INPUT_RING, MAGIC, NO_SCRIPT, OFF_BOOT, OFF_BUILD_CONTENT, OFF_BUILD_ENGINE,
+    OFF_EVENTS_DROPPED, OFF_FRAME, OFF_HASH, OFF_HASH_LINES_MAX, OFF_HEAP_MAX, OFF_INPUTS,
+    OFF_LAST_SCRIPT, OFF_LATE, OFF_LATE_BLACK, OFF_LOOP_LINES_MAX, OFF_MAP, OFF_PANICKED,
+    OFF_REPORTS, OFF_SAVE_STATUS, OFF_SAVES, OFF_SCAN_PASSES, OFF_STACK_MIN, OFF_STEP_LINES_MAX,
+    SIZE,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -50,12 +53,60 @@ pub struct DebugSnapshot {
     /// Worst scanlines of the whole shell loop body on a visible frame (apply, step, publish,
     /// save tail; a flash write excluded), out of the 228-line frame.
     pub loop_lines_max: u32,
+    /// Heap high-water in bytes (`DebugRegion::heap_max`).
+    pub heap_max: u32,
+    /// The last script started (`World::last_script`).
+    pub last_script: Option<ScriptId>,
+    /// The current map (`World::map`).
+    pub map: MapId,
+    /// `Report` events since boot (saturating).
+    pub reports: u16,
+    /// `World::events_dropped` (saturating).
+    pub events_dropped: u16,
+    /// IWRAM stack bytes never touched (`DebugRegion::stack_min`).
+    pub stack_min: u16,
+    /// The panic location's line once the ROM panicked, else 0.
+    pub panicked: u16,
+    /// Complete scan passes of the ROM's memory watch (`DebugRegion::scan_passes`, wrapping).
+    pub scan_passes: u32,
 }
 
-// `Emu::debug` reads the v2 fields at engine's offsets: inside the region, and the u64s on
-// 8-byte boundaries (read as two 32-bit halves).
+/// A zeroed region (frame 0, no script, map 0), for tests that build snapshots.
+impl Default for DebugSnapshot {
+    fn default() -> Self {
+        DebugSnapshot {
+            frame: 0,
+            hash: 0,
+            inputs: [0; INPUT_RING],
+            late: 0,
+            late_black: 0,
+            build: BuildHash::default(),
+            boot: 0,
+            saves: 0,
+            save_status: 0,
+            hash_lines_max: 0,
+            step_lines_max: 0,
+            loop_lines_max: 0,
+            heap_max: 0,
+            last_script: None,
+            map: MapId(0),
+            reports: 0,
+            events_dropped: 0,
+            stack_min: 0,
+            panicked: 0,
+            scan_passes: 0,
+        }
+    }
+}
+
+// `Emu::debug` reads the v3 fields at engine's offsets: inside the region, the u64s on 8-byte
+// boundaries (read as two 32-bit halves), the u32s on 4-byte and the u16s on 2-byte ones.
 const _: () = {
-    assert!(SIZE == 200 && MAGIC[7] == b'2');
+    assert!(SIZE == 216 && MAGIC[7] == b'3');
+    assert!(OFF_HEAP_MAX == 200 && OFF_LAST_SCRIPT == 204 && OFF_MAP == 206);
+    assert!(OFF_REPORTS == 208 && OFF_EVENTS_DROPPED == 210 && OFF_STACK_MIN == 212);
+    assert!(OFF_PANICKED == 214 && OFF_PANICKED as usize + 2 == SIZE);
+    assert!(OFF_FRAME == 8 && OFF_SCAN_PASSES == 12);
     assert!(OFF_BUILD_ENGINE == 160 && OFF_BUILD_CONTENT == 168);
     assert!(OFF_BOOT == 176 && OFF_SAVES == 180 && OFF_SAVE_STATUS == 184);
     assert!(OFF_HASH_LINES_MAX == 188 && OFF_STEP_LINES_MAX == 192);
@@ -63,6 +114,42 @@ const _: () = {
     assert!(OFF_HASH.is_multiple_of(8) && OFF_BUILD_ENGINE.is_multiple_of(8));
     assert!(OFF_BUILD_CONTENT.is_multiple_of(8));
 };
+
+/// Gate on [`DebugSnapshot::heap_max`] (Milestone 8 decision 7): 160 KiB of the 256 KiB of
+/// EWRAM, the rest being the statics and headroom.
+pub const HEAP_MAX: u32 = 160 << 10;
+/// Gate on [`DebugSnapshot::stack_min`]: at least this much of the IWRAM stack never touched.
+pub const STACK_UNTOUCHED_MIN: u16 = 1 << 10;
+
+/// The memory gates every parity lane and the map tour apply to the ROM's debug region at the
+/// end of a run: [`HEAP_MAX`], [`STACK_UNTOUCHED_MIN`], no dropped events and no panic. Prints
+/// the values.
+pub fn check_memory(what: &str, end: &DebugSnapshot) -> Result<()> {
+    println!(
+        "{what}: heap_max {} B (gate {HEAP_MAX}), stack untouched {} B (gate \
+         {STACK_UNTOUCHED_MIN}), reports {}, events dropped {}",
+        end.heap_max, end.stack_min, end.reports, end.events_dropped
+    );
+    if end.panicked != 0 {
+        return Err(anyhow!("{what}: the ROM panicked (line {})", end.panicked));
+    }
+    if end.heap_max > HEAP_MAX {
+        return Err(anyhow!(
+            "{what}: heap high-water {} B over {HEAP_MAX}",
+            end.heap_max
+        ));
+    }
+    if end.stack_min < STACK_UNTOUCHED_MIN {
+        return Err(anyhow!(
+            "{what}: only {} B of stack never touched (gate {STACK_UNTOUCHED_MIN})",
+            end.stack_min
+        ));
+    }
+    if end.events_dropped != 0 {
+        return Err(anyhow!("{what}: {} events dropped", end.events_dropped));
+    }
+    Ok(())
+}
 
 unsafe extern "C" {
     /// libc's: frees the buffer `mCore::savedataClone` `malloc`ed.
@@ -282,7 +369,45 @@ impl Emu {
             hash_lines_max: self.read32(base + OFF_HASH_LINES_MAX),
             step_lines_max: self.read32(base + OFF_STEP_LINES_MAX),
             loop_lines_max: self.read32(base + OFF_LOOP_LINES_MAX),
+            heap_max: self.read32(base + OFF_HEAP_MAX),
+            last_script: match self.read16(base + OFF_LAST_SCRIPT) {
+                NO_SCRIPT => None,
+                id => Some(ScriptId(id)),
+            },
+            map: MapId(self.read16(base + OFF_MAP)),
+            reports: self.read16(base + OFF_REPORTS),
+            events_dropped: self.read16(base + OFF_EVENTS_DROPPED),
+            stack_min: self.read16(base + OFF_STACK_MIN),
+            panicked: self.read16(base + OFF_PANICKED),
+            scan_passes: self.read32(base + OFF_SCAN_PASSES),
         })
+    }
+
+    /// Runs frames without input until the ROM's memory watch completed two scan passes after
+    /// `from` (the pass under way at `from` may have started before its last step; the next one
+    /// starts after it), within `max_frames` emulator frames. Returns the region then: its
+    /// `heap_max` and `stack_min` include everything written up to `from`'s step. The ROM
+    /// keeps stepping its World meanwhile (idle).
+    pub fn settle(&mut self, from: &DebugSnapshot, max_frames: u32) -> Result<DebugSnapshot> {
+        for _ in 0..max_frames {
+            self.run_frame(Buttons::NONE)?;
+            let s = self
+                .debug()
+                .ok_or_else(|| anyhow!("debug region vanished"))?;
+            if s.panicked != 0 {
+                return Err(anyhow!(
+                    "ROM panicked (line {}) while settling, engine frame {}",
+                    s.panicked,
+                    s.frame
+                ));
+            }
+            if s.scan_passes.wrapping_sub(from.scan_passes) >= 2 {
+                return Ok(s);
+            }
+        }
+        Err(anyhow!(
+            "the ROM's memory watch did not complete two passes in {max_frames} frames"
+        ))
     }
 
     /// Boot until the debug region is visible.
@@ -342,7 +467,8 @@ pub struct RomRun {
     /// The debug region once the ROM published its boot state (frame `start`, its hash, and
     /// the `build` and `boot` fields).
     pub boot: DebugSnapshot,
-    /// The debug region at the end (`saves`, `save_status`, the scanline maxima).
+    /// The debug region at the end (`saves`, `save_status`, the scanline maxima), with the
+    /// memory marks (`heap_max`, `stack_min`, `scan_passes`) of [`Emu::settle`] after it.
     pub end: DebugSnapshot,
     /// The cartridge flash at the end ([`Emu::save_data`]).
     pub save: Vec<u8>,
@@ -358,6 +484,9 @@ pub fn run_rom(
     run_rom_from(rom, None, Some(0), keys, total, picture_frames)
 }
 
+/// Emulator frames [`Emu::settle`] may take at the end of a run (a pass takes a few frames).
+pub const SETTLE_FRAMES: u32 = 600;
+
 /// Emulator frames [`run_rom_from`] waits for the ROM to publish its boot state.
 const BOOT_FRAMES: u32 = 120;
 
@@ -370,7 +499,7 @@ const BOOT_FRAMES: u32 = 120;
 ///
 /// Fails if `expect_start` is given and the ROM booted at another frame (a restore run passes
 /// the checkpoint's frame), if the ROM steps past a picture frame between two samples (two engine steps in one
-/// emulator frame), reports a late frame apply (`DebugRegion::late`), runs more steps than the
+/// emulator frame), reports a late frame apply (`DebugRegion::late`) or a panic, runs more steps than the
 /// input ring holds between reads, or stops advancing.
 pub fn run_rom_from(
     rom: &Path,
@@ -442,6 +571,15 @@ pub fn run_rom_from(
         for f in have + 1..=snap.frame {
             consumed.push(Buttons(snap.inputs[engine::debug::input_slot(f)]));
         }
+        if snap.panicked != 0 {
+            return Err(anyhow!(
+                "ROM panicked (line {}) by engine frame {}, map {:#06x}, last script {:?}",
+                snap.panicked,
+                snap.frame,
+                snap.map.0,
+                snap.last_script
+            ));
+        }
         let counted = late_black_frames.len() as u32;
         late_black_frames.extend((counted..snap.late_black).map(|_| snap.frame));
         if snap.late != 0 {
@@ -473,6 +611,12 @@ pub fn run_rom_from(
             return Err(anyhow!("ROM stopped advancing at frame {}", snap.frame));
         }
     }
+    let save = emu.save_data()?;
+    // The marks once the watch scanned everything the last step wrote.
+    let settled = emu.settle(&snap, SETTLE_FRAMES)?;
+    snap.heap_max = settled.heap_max;
+    snap.stack_min = settled.stack_min;
+    snap.scan_passes = settled.scan_passes;
     Ok(RomRun {
         start,
         consumed,
@@ -482,7 +626,7 @@ pub fn run_rom_from(
         late_black: snap.late_black,
         late_black_frames,
         boot,
-        save: emu.save_data()?,
+        save,
         end: snap,
     })
 }

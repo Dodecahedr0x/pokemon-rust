@@ -42,6 +42,10 @@ pub(super) struct Host<'a, G: GameData> {
 
 const UNIT: Option<Response> = Some(Response::Unit);
 
+/// The `Report::Degraded` of money added (`addmoney`, prize money) in a game whose
+/// `SpecialIds::max_money` is 0: the money stays 0.
+pub(super) const NO_MONEY: &str = "money added without max_money";
+
 impl<G: GameData> Host<'_, G> {
     /// The object a `WaitMove` / `Move` id names (`0` = the last mover, Gen3 `sMovingNpcId`).
     fn mover(&self, obj: u8) -> u8 {

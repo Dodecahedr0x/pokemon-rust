@@ -5,10 +5,9 @@
 //! Gen3's `POCKET_NONE` does; an item the game does not know also answers false and raises
 //! [`Report::Degraded`] (Gen3 would read past `gItems`).
 
-use super::{Host, UNIT};
+use super::{Host, NO_MONEY, UNIT};
 use crate::data::{GameData, ItemId, Pocket};
 use crate::script::{Report, Request, Response};
-use crate::world::checkpoint::MAX_MONEY;
 use crate::world::{Event, State};
 
 /// Logs `r` and raises it as an event, as `Request::Report` does (shared by Task H's handlers).
@@ -42,9 +41,14 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         }
         Request::ItemSpace { item, qty } => pocket(h, item, "checkitemspace: unknown item")
             .is_some_and(|p| h.s.bag.has_space(p, item, qty)),
-        // Gen3 `AddMoney` caps at `MAX_MONEY` (a sum that wraps `u32` is capped too).
+        // Gen3 `AddMoney` caps at `MAX_MONEY` (`SpecialIds::max_money`; a sum that wraps `u32`
+        // is capped too). A game without money (`max_money` 0) reports the addition.
         Request::MoneyAdd(n) => {
-            h.s.money = h.s.money.saturating_add(n).min(MAX_MONEY);
+            let max = h.game.special_ids().max_money;
+            if max == 0 && n > 0 {
+                report(h.s, Report::Degraded(NO_MONEY));
+            }
+            h.s.money = h.s.money.saturating_add(n).min(max);
             return UNIT;
         }
         // Gen3 `RemoveMoney` stops at 0.

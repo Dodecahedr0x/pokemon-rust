@@ -481,8 +481,10 @@ pub struct NewGame {
     pub player_name: &'static [u8],
 }
 
-/// Game constants the engine needs by role, never by name (content fills them in).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+/// Game constants the engine needs by role, never by name (content fills them in). The
+/// default is a game without any: no vars or flags, no money, no bag, and a multichoice
+/// cancel answer (`u16::MAX`) that no list index can take.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SpecialIds {
     /// Set to the player's facing (Gen3 `DIR_*` numbering: `Dir as u16 + 1`) when the player
     /// talks to an object (Gen3 `gSpecialVar_Facing`).
@@ -501,6 +503,33 @@ pub struct SpecialIds {
     pub var_wild_set: Option<VarId>,
     /// Run immediately after a whiteout (Gen3 `EventScript_WhiteOut`, from `DoWhiteOut`).
     pub script_whiteout: Option<ScriptId>,
+    /// The money cap (Gen3 `MAX_MONEY`): money added (scripts, prize money) stops there and a
+    /// restore refuses more. 0 for a game without money.
+    pub max_money: u32,
+    /// A multichoice's answer when B cancels it (Gen3 `MULTI_B_PRESSED`), also the answer of a
+    /// multichoice the engine cannot show.
+    pub multichoice_cancel: u16,
+    /// Slots per bag pocket, in [`Pocket::ALL`] order (Gen3 `BAG_ITEMS_COUNT`,
+    /// `BAG_KEYITEMS_COUNT`, `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT`, `BAG_BERRIES_COUNT`). All 0
+    /// for a game without a bag.
+    pub pocket_slots: [u8; 5],
+}
+
+impl Default for SpecialIds {
+    fn default() -> Self {
+        SpecialIds {
+            var_facing: None,
+            var_last_talked: None,
+            flag_running: None,
+            flags_cleared_on_map_change: &[],
+            respawn_default: 0,
+            var_wild_set: None,
+            script_whiteout: None,
+            max_money: 0,
+            multichoice_cancel: u16::MAX,
+            pocket_slots: [0; 5],
+        }
+    }
 }
 
 /// Everything game-specific the engine reads. Implemented by the `content` crate.

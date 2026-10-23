@@ -2,7 +2,8 @@
 //! (`ScrCmd_multichoice`, `ScriptMenu_Multichoice`, `script_menu.c`). The window itself is
 //! [`crate::menu::Multichoice`], shown and updated by the field text box.
 //!
-//! A list the game does not have (or an empty one) answers [`MULTI_B_PRESSED`] at once and
+//! A list the game does not have (or an empty one) answers the cancel value
+//! (`SpecialIds::multichoice_cancel`, Gen3 `MULTI_B_PRESSED`) at once and
 //! raises [`Report::Degraded`]; so does a multichoice in a map script (Gen3 would stop the
 //! immediate script's context).
 
@@ -10,9 +11,10 @@ use super::Host;
 use super::items::report;
 use crate::data::GameData;
 use crate::menu::Multichoice;
-use crate::script::{MULTI_B_PRESSED, Report, Request, Response};
+use crate::script::{Report, Request, Response};
 
 pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
+    let b_pressed = h.game.special_ids().multichoice_cancel;
     let Request::Multichoice {
         list,
         x,
@@ -21,23 +23,24 @@ pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Res
         cancel,
     } = *r
     else {
-        return Some(Response::Value(MULTI_B_PRESSED));
+        return Some(Response::Value(b_pressed));
     };
     let s = &mut *h.s;
     if h.immediate {
         report(s, Report::Degraded("multichoice in a map script"));
-        return Some(Response::Value(MULTI_B_PRESSED));
+        return Some(Response::Value(b_pressed));
     }
     match h.game.multichoice(list) {
         Some(items) if !items.is_empty() => {
             let font = h.game.font();
+            let cancel = cancel.then_some(b_pressed);
             let menu = Multichoice::new(font, list, items, (x, y), default, cancel);
             s.text.start_multichoice(h.game, menu, h.f);
             None
         }
         _ => {
             report(s, Report::Degraded("multichoice: unknown list"));
-            Some(Response::Value(MULTI_B_PRESSED))
+            Some(Response::Value(b_pressed))
         }
     }
 }
@@ -48,8 +51,8 @@ pub(super) fn done<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> bool {
     !h.s.text.is_multichoice_active()
 }
 
-/// The answer, once the menu has closed (the index, or [`MULTI_B_PRESSED`]). A text box closed
-/// under the menu (nothing does that today) answers [`MULTI_B_PRESSED`].
+/// The answer, once the menu has closed (the index, or the cancel value). A text box closed
+/// under the menu (nothing does that today) answers the cancel value.
 pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
     if !done(h, r) {
         return None;
@@ -57,6 +60,6 @@ pub(super) fn resume<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Re
     let answer =
         h.s.text
             .take_multichoice_result()
-            .unwrap_or(MULTI_B_PRESSED);
+            .unwrap_or(h.game.special_ids().multichoice_cancel);
     Some(Response::Value(answer))
 }

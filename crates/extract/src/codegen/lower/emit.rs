@@ -1015,14 +1015,16 @@ impl<'a> Low<'a> {
             let _ = writeln!(o, "    pub const {name}: ScriptId = ScriptId({i});");
         }
         o.push_str("}\n");
-        // One non-generic adapter (Task L): a generic `async fn run(f: impl Future)` was one more
-        // async body per script for the type checker.
+        // One adapter, not an async body per script (Task L: a generic `async fn run(f: impl
+        // Future)` was one more async body per script for the type checker). Generic over the
+        // script's future and boxed once (Task M; it held a second box before).
         o.push_str(
             "/// A script's future with its `Flow` dropped (the engine's `Script` has no output).\n\
-             struct Run(core::pin::Pin<alloc::boxed::Box<dyn core::future::Future<Output = Flow>>>);\n\
-             impl core::future::Future for Run {\n    type Output = ();\n    \
-             fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<()> {\n        \
-             self.0.as_mut().poll(cx).map(|_| ())\n    }\n}\n",
+             struct Run<F>(F);\n\
+             impl<F: core::future::Future<Output = Flow>> core::future::Future for Run<F> {\n    type Output = ();\n    \
+             fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<()> {\n        \
+             // SAFETY: structural pinning of the only field, which `Run` never moves out.\n        \
+             unsafe { self.map_unchecked_mut(|r| &mut r.0) }.poll(cx).map(|_| ())\n    }\n}\n",
         );
         let _ = write!(
             o,
@@ -1031,7 +1033,7 @@ impl<'a> Low<'a> {
         for (name, module) in &names {
             let _ = writeln!(
                 o,
-                "    |ctx| alloc::boxed::Box::pin(Run(alloc::boxed::Box::pin({SCRIPTS}::{module}::{name}(ctx)))),"
+                "    |ctx| alloc::boxed::Box::pin(Run({SCRIPTS}::{module}::{name}(ctx))),"
             );
         }
         o.push_str("];\n");

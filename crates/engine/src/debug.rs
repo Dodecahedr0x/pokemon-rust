@@ -9,9 +9,10 @@
 //! of `frame - 1`. Harnesses must key on `frame` and the input ring,
 //! never on emulator frame counts (boot adds an offset).
 
-pub const MAGIC: [u8; 8] = *b"PKRDBG02";
+pub const MAGIC: [u8; 8] = *b"PKRDBG03";
 pub const INPUT_RING: usize = 64;
 pub const OFF_FRAME: u32 = 8;
+pub const OFF_SCAN_PASSES: u32 = 12;
 pub const OFF_HASH: u32 = 16;
 pub const OFF_INPUTS: u32 = 24;
 pub const OFF_LATE: u32 = 152;
@@ -24,8 +25,17 @@ pub const OFF_SAVE_STATUS: u32 = 184;
 pub const OFF_HASH_LINES_MAX: u32 = 188;
 pub const OFF_STEP_LINES_MAX: u32 = 192;
 pub const OFF_LOOP_LINES_MAX: u32 = 196;
+pub const OFF_HEAP_MAX: u32 = 200;
+pub const OFF_LAST_SCRIPT: u32 = 204;
+pub const OFF_MAP: u32 = 206;
+pub const OFF_REPORTS: u32 = 208;
+pub const OFF_EVENTS_DROPPED: u32 = 210;
+pub const OFF_STACK_MIN: u32 = 212;
+pub const OFF_PANICKED: u32 = 214;
 /// `size_of::<DebugRegion>()`.
-pub const SIZE: usize = 200;
+pub const SIZE: usize = 216;
+/// [`DebugRegion::last_script`] before any script started.
+pub const NO_SCRIPT: u16 = 0xFFFF;
 
 /// How the ROM's World started (`DebugRegion::boot`).
 pub mod boot {
@@ -62,7 +72,10 @@ pub struct DebugRegion {
     pub magic: [u8; 8],
     /// Number of engine steps completed.
     pub frame: u32,
-    pub _pad: u32,
+    /// v3 (Milestone 8 Task M; v2's padding): complete scan passes of the memory watch (a
+    /// stack pass then a heap pass, see `heap_max` and `stack_min`), wrapping. Marks read
+    /// after this grew twice since a step include everything that step wrote.
+    pub scan_passes: u32,
     /// `World::hash()` after step `frame`.
     pub hash: u64,
     /// Input consumed by step `f` lives at `input_slot(f)`.
@@ -96,10 +109,30 @@ pub struct DebugRegion {
     /// Worst scanlines of the whole shell loop body (apply, step, publish, save tail; a flash
     /// write excluded) on a visible frame, from the vblank wake to the next wait.
     pub loop_lines_max: u32,
+    // ---- v3 (Milestone 8 Task M) ----
+    /// High-water of the heap in bytes, from the heap start (agb's `__ewram_data_end`) to the
+    /// highest EWRAM word ever written. The shell paints the free heap at boot and scans it in
+    /// each frame's slack (agb owns the `#[global_allocator]`, so it cannot be wrapped).
+    pub heap_max: u32,
+    /// `World::last_script()`, [`NO_SCRIPT`] for none.
+    pub last_script: u16,
+    /// `World::map()`.
+    pub map: u16,
+    /// `Event::Report`s seen since boot (saturates at `u16::MAX`).
+    pub reports: u16,
+    /// `World::events_dropped()` (saturates at `u16::MAX`).
+    pub events_dropped: u16,
+    /// IWRAM stack bytes never touched since boot: from agb's IWRAM heap tip at boot (the end
+    /// of the IWRAM statics) to the lowest word written. The shell paints the free stack at boot and scans it in each frame's
+    /// slack.
+    pub stack_min: u16,
+    /// The line of the panic location (saturates at `u16::MAX`) once the ROM panicked, else 0.
+    pub panicked: u16,
 }
 
 const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, frame) == OFF_FRAME as usize);
+    assert!(core::mem::offset_of!(DebugRegion, scan_passes) == OFF_SCAN_PASSES as usize);
     assert!(core::mem::offset_of!(DebugRegion, hash) == OFF_HASH as usize);
     assert!(core::mem::offset_of!(DebugRegion, inputs) == OFF_INPUTS as usize);
     assert!(core::mem::offset_of!(DebugRegion, late) == OFF_LATE as usize);
@@ -112,6 +145,13 @@ const _: () = {
     assert!(core::mem::offset_of!(DebugRegion, hash_lines_max) == OFF_HASH_LINES_MAX as usize);
     assert!(core::mem::offset_of!(DebugRegion, step_lines_max) == OFF_STEP_LINES_MAX as usize);
     assert!(core::mem::offset_of!(DebugRegion, loop_lines_max) == OFF_LOOP_LINES_MAX as usize);
+    assert!(core::mem::offset_of!(DebugRegion, heap_max) == OFF_HEAP_MAX as usize);
+    assert!(core::mem::offset_of!(DebugRegion, last_script) == OFF_LAST_SCRIPT as usize);
+    assert!(core::mem::offset_of!(DebugRegion, map) == OFF_MAP as usize);
+    assert!(core::mem::offset_of!(DebugRegion, reports) == OFF_REPORTS as usize);
+    assert!(core::mem::offset_of!(DebugRegion, events_dropped) == OFF_EVENTS_DROPPED as usize);
+    assert!(core::mem::offset_of!(DebugRegion, stack_min) == OFF_STACK_MIN as usize);
+    assert!(core::mem::offset_of!(DebugRegion, panicked) == OFF_PANICKED as usize);
     assert!(core::mem::size_of::<DebugRegion>() == SIZE);
     // emu scans EWRAM in 8-byte steps.
     assert!(core::mem::align_of::<DebugRegion>() == 8);
@@ -123,7 +163,7 @@ impl DebugRegion {
         Self {
             magic: MAGIC,
             frame: 0,
-            _pad: 0,
+            scan_passes: 0,
             hash: 0,
             inputs: [0; INPUT_RING],
             late: 0,
@@ -136,6 +176,13 @@ impl DebugRegion {
             hash_lines_max: 0,
             step_lines_max: 0,
             loop_lines_max: 0,
+            heap_max: 0,
+            last_script: NO_SCRIPT,
+            map: 0,
+            reports: 0,
+            events_dropped: 0,
+            stack_min: 0,
+            panicked: 0,
         }
     }
 }
