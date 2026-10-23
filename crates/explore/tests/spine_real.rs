@@ -10,10 +10,10 @@ use explore::spine::{self, SpineRun};
 
 /// The spine's frame count when it was recorded: a change means the spine plays differently
 /// (an engine or content change on its path), worth a look before updating it.
-const EMERALD_BADGE1_FRAMES: u64 = 104_879;
+const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 2_992_885;
+const EMERALD_FRAMES: u64 = 2_951_010;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
