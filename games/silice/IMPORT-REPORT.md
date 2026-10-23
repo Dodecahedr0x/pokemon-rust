@@ -15,7 +15,7 @@
 - referenced text ids: 1075
 - dynamic references: 37
 - unresolved dynamic references: 4
-- ids/flags: 574
+- ids/flags: 577
 - ids/vars: 21
 - ids/trainers: 238
 - ids/items: 69
@@ -260,6 +260,9 @@
 - maps/PortRessac_Gym.ron: FLAG_SIL_HIDE_PORT_GYM_GWADA
 - maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_GWADA
 - maps/PortRessac_Taverne.ron: FLAG_SIL_HIDE_PORT_TAVERNE_ADRIEN
+- maps/ReverseCity.ron: FLAG_SIL_HIDE_REVERSE_ROMAIN
+- maps/ReverseCity.ron: FLAG_SIL_HIDE_REVERSE_HABITANT_ACCUEIL
+- maps/ReverseCity_Gym.ron: FLAG_SIL_HIDE_GYM07_PIXELS
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_ADRIEN
 - maps/RouteS02.ron: FLAG_SIL_HIDE_ROUTE_S02_GWADA
 - maps/RouteS03_Depot.ron: FLAG_SIL_HIDE_DEPOT_ROMAIN
