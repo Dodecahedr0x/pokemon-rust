@@ -87,6 +87,45 @@ const fn continues(k: u8) -> bool {
     )
 }
 
+/// The Gen3 `BATTLE_TYPE_*` flags a battle of `trainerbattle` kind `k` has as the engine runs
+/// it: (exact, simplified). The double kinds run as singles (`Degraded("double battle")`), the
+/// two-trainer kinds load no second trainer (`Degraded("double sight")`), and the facility
+/// kinds run no battle.
+pub const fn battle_types_of_kind(k: u8) -> (&'static [&'static str], &'static [&'static str]) {
+    const TRAINER: &[&str] = &["BATTLE_TYPE_IS_MASTER", "BATTLE_TYPE_TRAINER"];
+    match k {
+        kind::PYRAMID | kind::HILL => (&[], &[]),
+        kind::SET_TRAINER_A | kind::SET_TRAINER_B => (TRAINER, &["BATTLE_TYPE_TWO_OPPONENTS"]),
+        k if is_double(k) || k == kind::REMATCH_DOUBLE => (TRAINER, &["BATTLE_TYPE_DOUBLE"]),
+        _ => (TRAINER, &[]),
+    }
+}
+
+/// The flags of the battles scripts start without `trainerbattle`, as the engine runs them:
+/// (exact, simplified). Birch's rescue is `BattleKind::Wild { first_battle: true }`; Wally's
+/// tutorial (`SPECIAL_StartWallyTutorialBattle`) is skipped (`Degraded`).
+pub const WILD_BATTLE_TYPES: (&[&str], &[&str]) = (
+    &["BATTLE_TYPE_IS_MASTER", "BATTLE_TYPE_FIRST_BATTLE"],
+    &["BATTLE_TYPE_WALLY_TUTORIAL"],
+);
+
+/// Every Gen3 `BATTLE_TYPE_*` flag the engine's battles model as Gen3 does (the parity ledger,
+/// `cargo xtask ledger`): [`battle_types_of_kind`] over every kind and [`WILD_BATTLE_TYPES`]
+/// (`battle_type_tables_agree_with_the_kinds`). The other flags (link, the facilities, the
+/// legendaries, roamers, Safari, the in-game partner, …) are missing.
+pub const BATTLE_TYPES_HANDLED: &[&str] = &[
+    "BATTLE_TYPE_FIRST_BATTLE",
+    "BATTLE_TYPE_IS_MASTER",
+    "BATTLE_TYPE_TRAINER",
+];
+
+/// The `BATTLE_TYPE_*` flags the engine runs in a simplified way (see [`BATTLE_TYPES_HANDLED`]).
+pub const BATTLE_TYPES_DEGRADED: &[&str] = &[
+    "BATTLE_TYPE_DOUBLE",
+    "BATTLE_TYPE_TWO_OPPONENTS",
+    "BATTLE_TYPE_WALLY_TUTORIAL",
+];
+
 /// `trainerbattle`: runs the type's `data/scripts/trainer_battle.inc` path and returns whether
 /// the calling script goes on with the code after the `trainerbattle` (Gen3
 /// `gotopostbattlescript`, `true`) or stops there (`false`). Generated code is only
@@ -204,5 +243,24 @@ async fn battle(ctx: &Ctx, trainer: TrainerId, lose: TextId) {
     let outcome = ctx.battle_trainer(trainer, lose).await;
     if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
         ctx.set_flag(trainer_flag(trainer), true).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::std::collections::BTreeSet;
+
+    #[test]
+    fn battle_type_tables_agree_with_the_kinds() {
+        let mut exact: BTreeSet<&str> = WILD_BATTLE_TYPES.0.iter().copied().collect();
+        let mut simplified: BTreeSet<&str> = WILD_BATTLE_TYPES.1.iter().copied().collect();
+        for (k, _) in kind::ALL {
+            let (e, s) = battle_types_of_kind(k);
+            exact.extend(e);
+            simplified.extend(s);
+        }
+        assert_eq!(exact, BATTLE_TYPES_HANDLED.iter().copied().collect());
+        assert_eq!(simplified, BATTLE_TYPES_DEGRADED.iter().copied().collect());
     }
 }

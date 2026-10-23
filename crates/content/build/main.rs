@@ -30,6 +30,7 @@ mod classify;
 mod codegen;
 #[allow(dead_code)]
 mod input;
+mod parity;
 mod scripts;
 mod silice;
 mod stub;
@@ -195,7 +196,13 @@ fn main() {
             scripts::generate(&out, &world).unwrap_or_else(|e| panic!("generating scripts: {e:#}"))
         }
     };
+    let parity = if silice.is_some() {
+        String::new()
+    } else {
+        parity::rows(&world).unwrap_or_else(|e| panic!("the parity rows: {e:#}"))
+    };
     for (name, src) in [
+        ("parity.tsv", &parity),
         ("consts.rs", &g.consts),
         ("data.rs", &g.data),
         ("dispatch.rs", &sc.dispatch),

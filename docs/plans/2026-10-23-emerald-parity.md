@@ -121,3 +121,124 @@ After each merge, the spine is extended past the blocker it removed.
 ## 3. As built
 
 (per task, at merge)
+
+### Task L — the parity ledger (branch `worktree-agent-a5da4b40c92336c41`)
+
+`cargo xtask ledger` writes `target/parity/ledger.{md,ron}`. It needs a built Emerald `content`, `PKR_DECOMP`, and optionally `target/explore/emerald/explore.db` (schema v4) and `target/sweep/report.txt`. The pieces:
+
+- **`crates/parity`** (host-only) holds:
+  - the decomp universe and its per-map uses;
+  - the reach (explorer db and sweep);
+  - the hand lists: story maps per act (`story.rs`), screens and owners (`owners.rs`);
+  - the ranking and the Markdown/RON output.
+- **Engine statuses** come from the code that dispatches:
+  - `build/support/{commands,specials}.ron` and the `degraded(` arms of `prelude/special.rs`;
+  - the classifiers in `content/build/classify` (behaviours, move effects, abilities with `Rules::SILICE`, hold effects, map types);
+  - the new `prelude::BATTLE_TYPES_HANDLED` / `BATTLE_TYPES_DEGRADED`, with a test against `battle_types_of_kind`;
+  - `data::ITEM_USE` (empty) and `battle/core/items.rs` ("Wave 0: refused");
+  - `stub_step(` in the `ui/*` modules;
+  - the engine's `Report::*`/`stub_step` literals.
+- **The downgrade rule:** a "native" entry that the engine reports, or that the explorer saw reported, is downgraded.
+- **`content::PARITY`** (`content/build/parity.rs`) gives the lowering's IR sites per command/special/module, its unsupported report sites and its stale `specialvar` sites.
+
+**Measured** on this branch: master `8d11698` + Task L; spine 78/78 steps, 15 spine maps + 20 by branches, 319 branches; sweep with 60 report kinds; 0 ledger issues.
+
+| category | entries | native | degraded | ignored | unsupported | missing | native % | native+degraded % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| script commands | 229 | 101 | 15 | 42 | 71 | 0 | 44% | 51% |
+| specials | 527 | 15 | 45 | 20 | 447 | 0 | 3% | 11% |
+| metatile behaviours | 240 | 129 | 7 | 88 | 16 | 0 | 54% | 57% |
+| move effects | 214 | 73 | 0 | 0 | 141 | 0 | 34% | 34% |
+| abilities | 78 | 42 | 0 | 0 | 0 | 36 | 54% | 54% |
+| hold effects | 67 | 33 | 0 | 0 | 0 | 34 | 49% | 49% |
+| item field uses | 21 | 0 | 0 | 0 | 0 | 21 | 0% | 0% |
+| item battle uses | 6 | 0 | 0 | 0 | 0 | 6 | 0% | 0% |
+| field moves | 14 | 0 | 0 | 0 | 0 | 14 | 0% | 0% |
+| weathers | 18 | 1 | 0 | 17 | 0 | 0 | 6% | 6% |
+| battle types | 32 | 3 | 3 | 0 | 0 | 26 | 9% | 19% |
+| map types | 10 | 10 | 0 | 0 | 0 | 0 | 100% | 100% |
+| screens | 26 | 1 | 0 | 0 | 0 | 25 | 4% | 4% |
+| engine reports | 28 | 0 | 13 | 0 | 15 | 0 | 0% | 46% |
+
+Gaps on story maps, by act: act1 113, act2 35, act3 64, act4 57, act5 17, act6 47, act7 68, act8 36, league 17 (the ledger's "Gaps per act" table splits them by category).
+
+**Top 30 gaps not owned by M9/M10 (feeding Wave C)** — none of them is story-blocking yet: `story::BLOCKING` is empty, and master's spine has no `Bypass` step.
+
+| # | category | name | status | act | reached | sites |
+|---:|---|---|---|---|---|---:|
+| 1 | command | `dofieldeffect` | unsupported | act1 | reported | 39 |
+| 2 | command | `copyobjectxytoperm` | unsupported | act1 | reported | 23 |
+| 3 | command | `waitfieldeffect` | unsupported | act1 | reported | 14 |
+| 4 | special | `SPECIAL_ShowPokedexRatingMessage` | unsupported | act1 | reported | 1 |
+| 5 | special | `SPECIAL_StartWallyTutorialBattle` | degraded | act1 | reported | 1 |
+| 6 | special | `SPECIAL_ShouldTryRematchBattle` | degraded | act1 | spine | 77 |
+| 7 | command | `setfieldeffectargument` | unsupported | act1 | spine | 57 |
+| 8 | move effect | `EFFECT_ROLLOUT` | unsupported | act1 | spine | 49 |
+| 9 | command | `setmaplayoutindex` | unsupported | act1 | spine | 18 |
+| 10 | move effect | `EFFECT_CURSE` | unsupported | act1 | spine | 18 |
+| 11 | ability | `ABILITY_MAGMA_ARMOR` | missing | act1 | spine | 15 |
+| 12 | ability | `ABILITY_WHITE_SMOKE` | missing | act1 | spine | 13 |
+| 13 | command | `hideplayer` | unsupported | act1 | spine | 11 |
+| 14 | ability | `ABILITY_FLAME_BODY` | missing | act1 | spine | 11 |
+| 15 | command | `checkpartymove` | degraded | act1 | spine | 9 |
+| 16 | command | `pokenavcall` | unsupported | act1 | spine | 8 |
+| 17 | special | `SPECIAL_IsTrainerRegistered` | degraded | act1 | spine | 7 |
+| 18 | special | `SPECIAL_PlayerHasBerries` | degraded | act1 | spine | 7 |
+| 19 | special | `SPECIAL_ObjectEventInteractionGetBerryName` | unsupported | act1 | spine | 5 |
+| 20 | command | `bufferboxname` | unsupported | act1 | spine | 3 |
+| 21 | special | `SPECIAL_ObjectEventInteractionGetBerryCountString` | unsupported | act1 | spine | 3 |
+| 22 | special | `SPECIAL_ObjectEventInteractionGetBerryTreeData` | degraded | act1 | spine | 3 |
+| 23 | special | `SPECIAL_DoWateringBerryTreeAnim` | unsupported | act1 | spine | 2 |
+| 24 | special | `SPECIAL_HasAllHoennMons` | degraded | act1 | spine | 2 |
+| 25 | special | `SPECIAL_ScriptGetPokedexInfo` | degraded | act1 | spine | 2 |
+| 26 | move effect | `EFFECT_HELPING_HAND` | unsupported | act1 | spine | 2 |
+| 27 | ability | `ABILITY_MINUS` | missing | act1 | spine | 2 |
+| 28 | ability | `ABILITY_PLUS` | missing | act1 | spine | 2 |
+| 29 | special | `SPECIAL_BufferUnionRoomPlayerName` | degraded | act1 | spine | 1 |
+| 30 | special | `SPECIAL_CountPlayerTrainerStars` | degraded | act1 | spine | 1 |
+
+**Gaps by owner** (count, of which on a story map):
+
+| owner | gaps | of which on a story map |
+|---|---:|---:|
+| none | 333 | 122 |
+| M13 | 338 | 96 |
+| M11 | 252 | 131 |
+| M10 | 88 | 57 |
+| M12 | 12 | 12 |
+| M9 B | 19 | 14 |
+| M9 M | 16 | 8 |
+| M9 PT | 9 | 2 |
+| M9 W | 8 | 2 |
+| M9 BM | 6 | 5 |
+| M9 S | 6 | 1 |
+| M9 E | 4 | 0 |
+| M9 R | 4 | 0 |
+| M9 SM | 4 | 1 |
+| M9 K | 3 | 3 |
+
+**What the M9/M10 owners hold:**
+- **M9 B:** the 21 item field uses and `SPECIAL_Bag_ChooseBerry`.
+- **M9 BM:** the 6 item battle uses.
+- **M9 M:** `pokemart*`, the PC specials, `shop.c` / `player_pc.c`.
+- **M9 PT:** the party-choice specials, plus the party and summary screens.
+- **M9 W:** the nickname specials and the naming screen.
+- **M9 S / SM:** the save specials and the start, main and option menus.
+- **M9 E:** the evolution scene.
+- **M9 R:** in-game trades.
+- **M9 K:** the money box.
+- **M10:** the field moves, roamers, bikes and Cycling Road, weather specials, and the tide.
+
+**Decisions and issues:**
+- **The owner column** comes from name rules (`owners::owner`).
+  - Battle → M11; audio → M12; contests, coins, the Frontier, berries' minigames, Union Room and the like → M13.
+  - Field effects and `*vobject` are left unowned, on purpose, for Wave C.
+  - `ignored` entries (mostly audio and weathers) are not in the Wave C list.
+- **Reach is per map:** a feature is "reached" when the explorer stood on a map that uses it, which is not proof that it ran. `reported` means the explorer saw the engine report it.
+- **Battle uses per map:**
+  - trainers from `trainerbattle*` lines only, since the gym's `set_gym_trainers` names every gym's trainers;
+  - wild mons: land encounters only, at their max level and with default moves.
+- **Gyms belong to their badge's act:** Petalburg Gym is in act5.
+- **Commands** are the `event.inc` macros that emit `SCR_OP_*`, plus the four handlers without a macro of their own name (`addobjectat`, `applymovementat`, `removeobjectat`, `waitmovementat`).
+- **No `unknown` entries:** every category's status is derived.
+- **Bypass steps:** `story::bypassed` reads the `Bypass` steps of `explore/src/spine/emerald.rs`, so rerun the ledger after Task S merges, and its bypassed features become story-blocking.

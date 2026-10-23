@@ -83,6 +83,11 @@ pub use data::script_ids;
 /// approximations (`build/codegen.rs`).
 pub const REPORT: &str = include_str!(concat!(env!("OUT_DIR"), "/report.txt"));
 
+/// The lowering's sites per command, special and script module, its reports and stale
+/// `specialvar` sites (`build/parity.rs`), for the parity ledger (`cargo xtask ledger`); empty
+/// for the stub and Silice.
+pub const PARITY: &str = include_str!(concat!(env!("OUT_DIR"), "/parity.tsv"));
+
 /// Which game this content build is (`build/main.rs`).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Flavor {

@@ -23,6 +23,8 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 - `cargo xtask explore <command>`: the headless explorer (see Explorer)
 - `cargo xtask sweep [--studio | --repro]`: enter and idle every map natively (see Tests)
 - `cargo xtask silice <import|check|tombstone|move>`: the Silice importer and data checker (see Silice)
+- `cargo xtask ledger [--db <path>] [--sweep <path>] [--out <dir>]`: the Emerald feature-parity
+  ledger (see Parity ledger)
 
 Every xtask command takes `--game emerald|silice` (default: the inherited `PKR_GAME`, else
 Emerald).
@@ -437,6 +439,37 @@ and `--config <path>`, a RON file with the fields of `explore::config::Config` t
 explores the stub world. The db holds ROM-derived states: never commit it or the exported
 traces.
 
+## Parity ledger
+`cargo xtask ledger` (`crates/parity`, host-only; `docs/plans/2026-10-23-emerald-parity.md`
+Task L) lists every Emerald feature the decomp defines (`PKR_DECOMP`) and what our engine does
+with it. Categories: script commands, specials, `MB_*` behaviours, `EFFECT_*`, `ABILITY_*`,
+`HOLD_EFFECT_*`, item field and battle use functions, field moves, weathers, `BATTLE_TYPE_*`,
+map types, the Gen3 screens (a hand-kept list, `parity::owners::SCREENS`) and the engine's own
+`Report` names. For each entry:
+- **status** (native, degraded, ignored, unsupported, missing, unknown), taken from the code
+  that dispatches: the support tables (`content/build/support/*.ron`) and the `Degraded` arms of
+  `prelude::special`, the build's classifiers (`content/build/classify/`),
+  `prelude::BATTLE_TYPES_{HANDLED,DEGRADED}`, `content::data::ITEM_USE`, and whether a screen
+  is still its Wave 0 stub (`xtask/src/ledger.rs`);
+- **uses**: decomp sites and the maps whose scripts (through calls and std scripts), layouts,
+  trainers, land wild mons, items and objects use it; the content build's IR sites, reported and
+  stale `specialvar` sites (`content::PARITY`, written by `content/build/parity.rs`);
+- **story**: the first act (Acts 1–8, the League; `parity::story::ACTS`) whose maps use it, and
+  story-blocking (`parity::story::BLOCKING`, or a spine `Bypass` step);
+- **reach**: reported by the explorer, or a map the spine or a branch stood on
+  (`target/explore/emerald/explore.db`), and the sweep's report counts
+  (`target/sweep/report.txt`), when they exist;
+- **owner**: the M9 task, M10, M11, M12, M13 or none (`parity::owners`).
+
+Gaps are ranked story-blocking > on a story map (earlier act first) > reached > site count. It
+writes `target/parity/ledger.md` (coverage per category, gaps per act, the top gaps M9/M10 do
+not own, gaps by owner, then one table per category and the issues) and `ledger.ron`, and
+prints the coverage and the top 30. It needs the Emerald content build; run
+`cargo xtask explore reset --yes && cargo xtask explore branch` (and `cargo xtask sweep`)
+first for the reach columns. `cargo test -p parity` pins one entry per category on a synthetic
+decomp (`crates/parity/tests/fixture.rs`) and checks the story maps and screen openers against
+the real decomp.
+
 ## Silice
 Pokémon Silice is a second game on the same engine: authored French content
 (`docs/plans/2026-10-23-silice-content.md`) in `games/silice/` (maps, layouts, texts, ids,
@@ -466,6 +499,7 @@ tests that need a capturable start fail (being fixed separately).
 - `crates/game-native`: host shell (software renderer)
 - `crates/emu`: embedded mGBA
 - `crates/explore`: the headless explorer
+- `crates/parity`: the Emerald feature-parity ledger (host-only)
 - `crates/extract`: reads the ROM into `content/extracted/`
 - `xtask`: build and verification tasks
 

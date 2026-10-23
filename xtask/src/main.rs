@@ -3,6 +3,7 @@ mod checkpoints;
 mod explore;
 mod game;
 mod gates;
+mod ledger;
 mod silice;
 mod studio;
 mod sweep;
@@ -523,8 +524,9 @@ fn main() -> Result<()> {
         Some("silice") => silice::main(&args[1..]),
         Some("vanilla") => vanilla::main(&args[1..]),
         Some("gates") => gates::main(&args[1..]),
+        Some("ledger") => ledger::main(&args[1..]),
         _ => bail!(
-            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice|vanilla|gates> \
+            "usage: cargo xtask <rom|parity|shot|extract|checkpoints|studio|explore|sweep|silice|vanilla|gates|ledger> \
              [--game emerald|silice]"
         ),
     }
