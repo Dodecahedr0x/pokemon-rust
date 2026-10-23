@@ -24,6 +24,9 @@
         // Ch1: Bois-Éther's Pokémon Center ("set_respawn à l'entrée"). As Emerald's town heal
         // locations, the cell in front of its door (27, 12).
         (name: "HEAL_LOCATION_SIL_BOIS_ETHER", map: "BoisEther", x: 27, y: 13),
+        // Ch2: Gris-Échec's Centre, set on entering it (GrisEchec_PokemonCenter_OnTransition).
+        // As Ch1's, the cell in front of its door (5, 8).
+        (name: "HEAL_LOCATION_SIL_GRIS_ECHEC", map: "GrisEchec", x: 5, y: 9),
         // Ch4: the Taverne, Port-Ressac's Center (its nurse sets it, "à la première visite").
         // The cell in front of its door (4, 7).
         (name: "HEAL_LOCATION_SIL_PORT_RESSAC", map: "PortRessac", x: 4, y: 8),
