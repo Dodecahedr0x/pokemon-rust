@@ -114,8 +114,16 @@ const fn sp(base: [u8; 6], ty: Type, ability: Ability) -> SpeciesInfo {
 
 static SPECIES: [SpeciesInfo; 4] = [
     sp([0; 6], Type::Normal, Ability::None),
-    sp([70, 110, 70, 90, 115, 70], Type::Fighting, Ability::Steadfast),
-    sp([70, 145, 88, 112, 140, 70], Type::Steel, Ability::Technician),
+    sp(
+        [70, 110, 70, 90, 115, 70],
+        Type::Fighting,
+        Ability::Steadfast,
+    ),
+    sp(
+        [70, 145, 88, 112, 140, 70],
+        Type::Steel,
+        Ability::Technician,
+    ),
     sp([80, 80, 80, 80, 80, 80], Type::Normal, Ability::None),
 ];
 
