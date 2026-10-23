@@ -4,7 +4,6 @@
 //! Route 103 restored them (Act 1 tuning, segment 2).
 
 use content::Emerald;
-use engine::Buttons;
 use explore::config::{Budget, Config};
 use explore::goals::{self, Act};
 use explore::wire::Explore;
@@ -24,12 +23,8 @@ fn stores(dir: &Path) -> Store {
 #[test]
 fn state_progress_counts_up_to_the_last_goal_reached() {
     let mut s = Session::new(Emerald::for_shells());
-    let snap = loop {
-        if let Ok(cp) = s.checkpoint() {
-            break cp.world;
-        }
-        s.step(Buttons::NONE);
-    };
+    game_native::scenario::to_field(&mut s).unwrap_or_else(|e| panic!("{e}"));
+    let snap = s.checkpoint().unwrap().world;
     for act in Act::ALL {
         let all = goals::goals_of(act);
         // A new game: as many goals as `progress` from 0 (none of the later ones hold).
