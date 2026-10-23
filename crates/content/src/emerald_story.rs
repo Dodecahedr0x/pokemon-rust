@@ -42,3 +42,22 @@ pub const RUSTURF: Option<Rusturf> = Some(Rusturf {
     ],
     state: VAR_RUSTURF_TUNNEL_STATE,
 });
+
+/// `ChooseHalfPartyForBattle` sets it to `FACILITY_MULTI_OR_EREADER`.
+pub const FRONTIER_FACILITY: Option<VarId> = Some(VAR_FRONTIER_FACILITY);
+
+/// `DoSpecialTrainerBattle`'s `SPECIAL_BATTLE_STEVEN` foes (`BattleSetup_ConfigureTrainerBattle`
+/// of `MossdeepCity_SpaceCenter_2F_EventScript_MaxieTrainer` and `_TabithaTrainer`): the
+/// trainer and its defeat text's label, Maxie first. The ids are `include/constants/opponents.h`'s
+/// `TRAINER_MAXIE_MOSSDEEP` and `TRAINER_TABITHA_MOSSDEEP` (the stub build has no trainer
+/// constants).
+pub const STEVEN_MULTI_FOES: Option<[(engine::data::TrainerId, &str); 2]> = Some([
+    (
+        engine::data::TrainerId(734),
+        "MossdeepCity_SpaceCenter_2F_Text_JustWantToExpandLand",
+    ),
+    (
+        engine::data::TrainerId(514),
+        "MossdeepCity_SpaceCenter_Text_TabithaDefeat",
+    ),
+]);

@@ -13,7 +13,7 @@ use explore::spine::{self, SpineRun};
 const EMERALD_BADGE1_FRAMES: u64 = 104_523;
 
 /// The whole Emerald spine's frame count (to its last step, to its last checkpoint).
-const EMERALD_FRAMES: u64 = 2_951_010;
+const EMERALD_FRAMES: u64 = 2_930_911;
 
 /// The Emerald spine's checkpoints.
 const EMERALD_LABELS: &[&str] = &[
@@ -70,7 +70,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "water-door-in",
     "water-door-out",
     "mossdeep-gym-puzzle",
-    "steven-multi",
     "dive-seafloor",
     "legendaries-scene",
     "dive-sootopolis",
@@ -80,7 +79,6 @@ const SPINE_BLOCKERS: &[&str] = &[
     "dive-sootopolis",
     "dive-out-sootopolis",
     "waterfall-ever-grande",
-    "league-mart",
     "game-clear",
 ];
 

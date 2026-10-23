@@ -7,8 +7,8 @@ mod lowering {
     use extract::codegen::{self, Class, Lowered, Support};
     use extract::names;
     use extract::schema::{
-        Hex, IrArg, IrInsn, IrLabel, IrMovement, NameOrigin, RootKind, ScriptEntry, ScriptFile,
-        ScriptIndex,
+        Hex, IrArg, IrInsn, IrLabel, IrList, IrMovement, NameOrigin, RootKind, ScriptEntry,
+        ScriptFile, ScriptIndex,
     };
     use std::collections::{BTreeMap, BTreeSet};
     use std::path::Path;
@@ -1231,6 +1231,7 @@ mod lowering {
             i("bufferstdstring", vec![Byte(0), c("STDSTRING_COOL")]),
             i("bufferstring", vec![Byte(0), t("N_Text_Hello")]),
             i("random", vec![Half(3)]),
+            i("pokemart", vec![Items("N_Mart_Items".into())]),
             i("addmoney", vec![Word(300), Byte(0)]),
             i("removemoney", vec![Word(300), Byte(0)]),
             i("checkmoney", vec![Raw(300), Byte(0)]),
@@ -1273,7 +1274,7 @@ mod lowering {
             i("call", vec![s("N_Sub")]),
             i("goto", vec![s("N_Tail")]),
         ];
-        vec![file(
+        let mut files = vec![file(
             "LittlerootTown",
             vec![
                 label("N_Root", Some(RootKind::Object(1)), body, None),
@@ -1305,7 +1306,13 @@ mod lowering {
                 origin: NameOrigin::Decomp,
                 actions: vec!["MOVEMENT_ACTION_WALK_NORMAL_UP".into()],
             }],
-        )]
+        )];
+        files[0].lists.push(IrList {
+            name: "N_Mart_Items".into(),
+            origin: NameOrigin::Decomp,
+            items: vec!["ITEM_POTION".into(), "ITEM_POKE_BALL".into()],
+        });
+        files
     }
 
     #[test]
@@ -1352,6 +1359,8 @@ mod lowering {
             "    add_item(&ctx, ITEM_POTION, 1).await;",
             "    check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await;",
             "check_item_type(&ctx, ITEM_POTION).await;",
+            "mart(&ctx, &crate::scripts::LittlerootTown::N_Mart_Items).await;",
+            "pub static N_Mart_Items: [ItemId; 2] = [ItemId(ITEM_POTION), ItemId(ITEM_POKE_BALL)];",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
             "ctx.move_obj_at(2, MAP_LITTLEROOT_TOWN, &N_Movement_Walk).await;",
             "ctx.wait_move_at(2, MAP_LITTLEROOT_TOWN).await;",
@@ -1670,7 +1679,7 @@ mod lowering {
     }
 
     /// The `content::prelude` modules holding Wave 0's Milestone 8 helpers, copied as they are.
-    const M8_HELPER_MODULES: [&str; 5] = ["field", "items", "menu", "text", "trainer"];
+    const M8_HELPER_MODULES: [&str; 6] = ["field", "items", "mart", "menu", "text", "trainer"];
 
     /// The Milestone 8 prelude over the engine: its types, and Wave 0's helper modules
     /// ([`M8_HELPER_MODULES`]) and `set_warp` (appended by `compile_lowered`).
@@ -1681,12 +1690,14 @@ pub use engine::script::{BufferSrc, Report, WarpSlot};
 
 mod field;
 mod items;
+mod mart;
 mod menu;
 mod text;
 mod trainer;
 
 pub use field::*;
 pub use items::*;
+pub use mart::*;
 pub use menu::*;
 pub use text::*;
 pub use trainer::*;

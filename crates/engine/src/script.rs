@@ -136,6 +136,23 @@ pub enum Report {
     Degraded(&'static str),
 }
 
+/// The party's backup around a battle fought with part of the party (Gen3
+/// `gSaveBlock1Ptr->playerParty` as `SavePlayerParty` / `LoadPlayerParty` use it, and
+/// `gSelectedOrderFromParty`, the order the choose-half party menu answered).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PartyStash {
+    /// `SavePlayerParty`: the backup is the party.
+    Save,
+    /// `LoadPlayerParty`: the party is the backup.
+    Load,
+    /// `ReducePlayerPartyToSelectedMons`: the party is the chosen mons, in the chosen order.
+    Reduce,
+    /// `frontier_saveparty` (`SaveSelectedParty`): each chosen mon goes back to its backup
+    /// slot (`frontier.selectedPartyMons`, which `frontier_set FRONTIER_DATA_SELECTED_MON_ORDER`
+    /// copies from the chosen order).
+    SaveSelected,
+}
+
 /// Everything a script can ask of the world.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Request {
@@ -393,6 +410,9 @@ pub enum Request {
         slot: u8,
         trade: u8,
     },
+    /// The party's backup around a battle with part of the party (Wave F): see [`PartyStash`].
+    /// Answers `Unit`.
+    PartyStash(PartyStash),
     /// Gen3 `AddPCItem` (`addpcitem`, `NewGameInitPCItems`): answers `Bool` (whether it fit).
     PcItemAdd {
         item: ItemId,
@@ -698,6 +718,7 @@ impl Request {
                     PartyMode::UseItem(i) => (3, i.0),
                     PartyMode::GiveItem(i) => (4, i.0),
                     PartyMode::Battle { forced } => (5, forced as u16),
+                    PartyMode::ChooseHalf { max, min } => (6, max as u16 | (min as u16) << 8),
                 };
                 (57, kind, v, 0, 0)
             }
@@ -725,6 +746,7 @@ impl Request {
             Request::AddFriendship { slot, n } => (69, slot as u16, n as u8 as u16, 0, 0),
             Request::PartyMonSpecies(slot) => (70, slot as u16, 0, 0, 0),
             Request::InGameTrade { slot, trade } => (71, slot as u16, trade as u16, 0, 0),
+            Request::PartyStash(op) => (72, op as u16, 0, 0, 0),
             // Tag 100: clear of the tags other requests take in sequence.
             Request::PcItemAdd { item, qty } => (100, item.0, qty, 0, 0),
             // Tag 120: clear of the Milestone 9 requests' 56 and up.
@@ -1449,6 +1471,11 @@ impl Ctx {
     /// A read of the world ([`Query`]).
     pub fn query(&self, q: Query) -> Req<u16> {
         self.req(Request::Query(q), Response::value)
+    }
+
+    /// The party's backup (see [`PartyStash`]).
+    pub fn party_stash(&self, op: PartyStash) -> Req<()> {
+        self.req(Request::PartyStash(op), unit)
     }
 
     /// Gen3 `CreateInGameTradePokemon`.

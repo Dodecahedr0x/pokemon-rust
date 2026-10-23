@@ -73,7 +73,7 @@ impl ScriptHost for Host {
             | Request::ItemRemove { .. }
             | Request::PcItemAdd { .. }
             | Request::MoneyCheck(_) => Response::Bool(true),
-            Request::Multichoice { .. } => Response::Value(0),
+            Request::Multichoice { .. } | Request::ChoosePartyMon(_) => Response::Value(0),
             _ => Response::Unit,
         })
     }

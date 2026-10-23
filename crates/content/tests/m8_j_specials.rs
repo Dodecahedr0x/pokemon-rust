@@ -8,10 +8,12 @@ use content::consts::*;
 use content::prelude::{MsgBox, callstd, msgbox, special};
 use engine::battle::BattleOutcome;
 use engine::berry::BerryTree;
+use engine::data::TrainerId;
 use engine::data::{FlagId, ItemId, TextId, VarId};
 use engine::script::{
     BufferSrc, Ctx, Fade, Query, Report, Request, Response, Runner, Script, ScriptHost,
 };
+use engine::script::{PartyMode, PartyStash};
 use extract::codegen::Class;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -142,6 +144,7 @@ impl Rec {
             Request::CurrentMap => Response::Value(self.map),
             Request::YesNo { .. } | Request::RockSmashEncounter => Response::Bool(false),
             Request::Multichoice { .. } => Response::Value(content::MULTI_B_PRESSED),
+            Request::ChoosePartyMon(_) => Response::Value(1),
             Request::BattleWild { .. } | Request::BattleTrainer { .. } => {
                 Response::Value(BattleOutcome::Won as u16)
             }
@@ -227,6 +230,10 @@ fn every_native_special_has_an_arm() {
             continue;
         }
         let mut h = Rec::with_party(1);
+        // `DoSpecialTrainerBattle` runs `SPECIAL_BATTLE_STEVEN` only (the facilities report).
+        if name == "SPECIAL_DoSpecialTrainerBattle" {
+            h.vars.insert(VAR_0x8004.0, 8);
+        }
         run_special(&mut h, &name);
         assert!(
             !h.log.is_empty(),
@@ -693,6 +700,60 @@ fn native_specials_issue_their_requests_in_order() {
     covered.insert("SPECIAL_SetSootopolisGymCrackedIceMetatiles");
     covered.insert("SPECIAL_CableCarWarp");
     covered.insert("SPECIAL_CableCar");
+    // Wave F: Steven's multi battle.
+    for (name, op) in [
+        ("SPECIAL_SavePlayerParty", PartyStash::Save),
+        ("SPECIAL_LoadPlayerParty", PartyStash::Load),
+        (
+            "SPECIAL_ReducePlayerPartyToSelectedMons",
+            PartyStash::Reduce,
+        ),
+    ] {
+        let mut h = Rec::default();
+        run_special(&mut h, name);
+        assert_eq!(h.log, [Request::PartyStash(op)], "{name}");
+        covered.insert(name);
+    }
+    let mut h = Rec::default();
+    assert_eq!(run_special(&mut h, "SPECIAL_ChooseHalfPartyForBattle"), 1);
+    assert_eq!(
+        h.log,
+        [
+            set(VarId(0x40CF), 9),
+            Request::ChoosePartyMon(PartyMode::ChooseHalf { max: 3, min: 1 }),
+            set(VAR_RESULT, 1),
+            Request::Fade(Fade::FromBlack),
+        ]
+    );
+    covered.insert("SPECIAL_ChooseHalfPartyForBattle");
+    let mut h = Rec::default();
+    h.vars.insert(VAR_0x8004.0, 8);
+    let won = run_special(&mut h, "SPECIAL_DoSpecialTrainerBattle");
+    #[cfg(not(pkr_silice))]
+    {
+        let text = |n| content::prelude::text_named(n).unwrap_or(TextId(0));
+        assert_eq!(won, BattleOutcome::Won as u16);
+        assert_eq!(
+            h.log,
+            [
+                Request::GetVar(VAR_0x8004),
+                degraded("SPECIAL_DoSpecialTrainerBattle"),
+                Request::BattleTrainer {
+                    trainer: TrainerId(734),
+                    defeat: text("MossdeepCity_SpaceCenter_2F_Text_JustWantToExpandLand"),
+                    no_whiteout: false,
+                },
+                Request::BattleTrainer {
+                    trainer: TrainerId(514),
+                    defeat: text("MossdeepCity_SpaceCenter_Text_TabithaDefeat"),
+                    no_whiteout: false,
+                },
+                set(VAR_RESULT, 1),
+            ]
+        );
+    }
+    let _ = won;
+    covered.insert("SPECIAL_DoSpecialTrainerBattle");
     // `GetMomOrDadStringForTVMessage` with `VAR_TEMP_3` already set (a second look at the TV):
     // no random draw, as in Gen3; above 2 by parity.
     for (t3, s) in [(1, MOM), (2, DAD), (5, DAD), (6, MOM)] {

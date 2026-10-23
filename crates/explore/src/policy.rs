@@ -10,6 +10,8 @@ use engine::battle::scene::OpenMenu;
 use engine::battle::{BattleKind, BattleMon, Side};
 use engine::data::{MoveId, SpeciesId};
 use engine::mon::{Ability, BattleTables, Type};
+use engine::ui::party::{Action as PartyAction, CONFIRM, PartyMenu, Prompt as PartyPrompt};
+use engine::ui::{BagMode, PartyMode, ScreenKind, ScreenState};
 use engine::{Buttons, World};
 
 pub struct Policy {
@@ -140,7 +142,22 @@ impl Policy {
             self.yes_nos += 1;
         }
         self.yes_no_open = yes_no;
-        let k = if let Some(starter) = w.starter() {
+        let shop = (w.screens().and_then(|s| s.top())).is_some_and(|(k, _)| {
+            matches!(k, ScreenKind::Mart { .. } | ScreenKind::Bag(BagMode::Sell))
+        });
+        let half = match w.screens().and_then(|s| s.top()) {
+            Some((ScreenKind::Party(PartyMode::ChooseHalf { max, .. }), ScreenState::Party(p))) => {
+                Some(choose_half(w, p, *max))
+            }
+            _ => None,
+        };
+        let k = if let Some(k) = half {
+            k
+        } else if shop {
+            // A clerk's mart (or its SELL bag): B leaves without buying (A would buy the
+            // first item until the money runs out); `Step::Buy` drives a purchase.
+            Buttons::B
+        } else if let Some(starter) = w.starter() {
             // Its own "Do you choose this?" yes/no starts on yes: A confirms the ball.
             let want = opts.choice % 3;
             match starter.selection().cmp(&want) {
@@ -167,6 +184,43 @@ impl Policy {
         };
         self.last = k;
         k
+    }
+}
+
+/// The choose-half party menu (Steven's multi battle): ENTER the party's mons with HP in party
+/// order, up to `max`, then CONFIRM (START moves there); "Cancel the battle?" is answered no.
+fn choose_half(w: &World, p: &PartyMenu, max: u8) -> Buttons {
+    let order = p.order();
+    let entered = order.iter().filter(|&&o| o != 0).count();
+    match p.prompt() {
+        PartyPrompt::Slot { cursor } => {
+            let next = (entered < max as usize)
+                .then(|| {
+                    (w.party().iter().enumerate())
+                        .find(|&(i, m)| m.hp > 0 && !order.contains(&(i as u8 + 1)))
+                        .map(|(i, _)| i as u8)
+                })
+                .flatten();
+            match next {
+                Some(i) if cursor == i => Buttons::A,
+                // CONFIRM and CANCEL sit below the slots: UP walks back to them.
+                Some(i) if cursor > i => Buttons::UP,
+                Some(_) => Buttons::DOWN,
+                None if cursor == CONFIRM => Buttons::A,
+                None => Buttons::START,
+            }
+        }
+        PartyPrompt::Actions { .. } => {
+            let at = p.action_cursor().unwrap_or(0) as usize;
+            match p.actions().iter().position(|&a| a == PartyAction::Enter) {
+                Some(i) if i == at => Buttons::A,
+                Some(i) if i < at => Buttons::UP,
+                Some(_) => Buttons::DOWN,
+                None => Buttons::B,
+            }
+        }
+        PartyPrompt::Message => Buttons::A,
+        _ => Buttons::B,
     }
 }
 
