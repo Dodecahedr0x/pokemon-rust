@@ -44,6 +44,7 @@ const SPINE_BLOCKERS: &[&str] = &[
     "cable-car",
     "lavaridge-gym-warps",
     "petalburg-gym-doors",
+    "teach-hm-surf",
 ];
 
 /// The Silice spine's frame count to the end of Chapter 0.

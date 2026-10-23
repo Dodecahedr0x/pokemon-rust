@@ -355,8 +355,8 @@ mod emerald {
         },
     ];
 
-    /// Act 5: from Flannery's badge to Norman's.
-    pub static ACT5: [Goal; 6] = [
+    /// Act 5: from Flannery's badge to Norman's, then Surf (Wave C) onto Route 119.
+    pub static ACT5: [Goal; 9] = [
         Goal {
             name: "go_goggles",
             // `LavaridgeTown_EventScript_RivalGiveGoGoggles`, on leaving the gym.
@@ -383,6 +383,19 @@ mod emerald {
             name: "hm_surf",
             // `PetalburgCity_WallysHouse_EventScript_GiveHMSurf`.
             reached: |s| flag(s, FLAG_RECEIVED_HM_SURF),
+        },
+        Goal {
+            name: "surfing",
+            // `FldEff_UseSurf`: `PLAYER_AVATAR_FLAG_SURFING`.
+            reached: |s| s.objects.player_surfing(),
+        },
+        Goal {
+            name: "route119",
+            reached: |s| on(s, MAP_ROUTE119),
+        },
+        Goal {
+            name: "fortree",
+            reached: |s| flag(s, FLAG_VISITED_FORTREE_CITY),
         },
     ];
 

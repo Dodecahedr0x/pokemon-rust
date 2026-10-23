@@ -14,6 +14,7 @@ mod forced;
 use forced::ForcedState;
 mod movement;
 mod snapshot;
+pub(crate) use snapshot::SURFING_SNAP;
 mod spawn;
 mod virtual_obj;
 pub use spawn::OBJECT_EVENTS_COUNT;

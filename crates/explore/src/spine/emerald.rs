@@ -22,6 +22,8 @@ mod list {
     /// Gen3's `MOVE_ROCK_SMASH` (`include/constants/moves.h`), named here because the stub
     /// build's `content::consts` has no Emerald moves (this local item shadows the glob import).
     const MOVE_ROCK_SMASH: engine::data::MoveId = engine::data::MoveId(249);
+    /// Gen3's `MOVE_SURF`, for the same reason.
+    const MOVE_SURF: engine::data::MoveId = engine::data::MoveId(57);
 
     const fn goto(map: MapId, x: i16, y: i16) -> Step {
         Step::Goto { map, x, y }
@@ -90,6 +92,16 @@ mod list {
         issue: "teach-hm-rock-smash",
         features: &["party menu: teach an HM"],
         teach: &[(2, MOVE_ROCK_SMASH)],
+        ..Bypass::NONE
+    };
+
+    /// Teaching HM03 needs the party menu, as HM06 (`teach-hm-rock-smash`): the bypass writes
+    /// Surf over the lead's Water Gun (slot 3), so `EventScript_UseSurf`'s `checkpartymove`
+    /// finds it.
+    static TEACH_SURF: Bypass = Bypass {
+        issue: "teach-hm-surf",
+        features: &["party menu: teach an HM"],
+        teach: &[(3, MOVE_SURF)],
         ..Bypass::NONE
     };
 
@@ -945,5 +957,54 @@ mod list {
         enter(MAP_PETALBURG_CITY, 7, 5, Up),
         Step::WaitScript,
         Step::Expect("hm_surf"),
+        // Teach it (blocked: `teach-hm-surf`).
+        Step::Bypass(&TEACH_SURF),
+        // ================= Act 6 (Wave C, M10's field moves): back east to Mauville by the
+        // woods, Rustboro and the tunnel, then Surf across Route 118 to Route 119 =================
+        enter(MAP_PETALBURG_CITY_WALLYS_HOUSE, 3, 7, Down),
+        cross(MAP_PETALBURG_CITY, 0, 13, Left),
+        enter(MAP_ROUTE104, 11, 38, Up),
+        enter(MAP_PETALBURG_WOODS, 15, 5, Up),
+        cross(MAP_ROUTE104, 19, 0, Up),
+        enter(MAP_RUSTBORO_CITY, 16, 38, Up),
+        use_(MAP_RUSTBORO_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_RUSTBORO_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        cross(MAP_RUSTBORO_CITY, 39, 9, Right),
+        Step::GotoAvoiding {
+            map: MAP_ROUTE116,
+            x: 47,
+            y: 9,
+            avoid: &[(22, 13), (22, 14), (22, 15)],
+        },
+        enter(MAP_ROUTE116, 47, 8, Up),
+        // Through the tunnel, its rock smashed, to Verdanturf.
+        enter(MAP_RUSTURF_TUNNEL, 29, 16, Down),
+        cross(MAP_VERDANTURF_TOWN, 19, 9, Right),
+        cross(MAP_ROUTE117, 59, 8, Right),
+        enter(MAP_MAUVILLE_CITY, 22, 5, Up),
+        use_(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 4, Up),
+        enter(MAP_MAUVILLE_CITY_POKEMON_CENTER_1F, 7, 8, Down),
+        // ---- Route 118: Surf across the river (`GetInteractedWaterScript`,
+        // `EventScript_UseSurf` yes, `FLDEFF_USE_SURF`), then off the water on its east bank ----
+        cross(MAP_MAUVILLE_CITY, 39, 8, Right),
+        Step::Choose(0),
+        use_(MAP_ROUTE118, 17, 9, Right),
+        Step::Expect("surfing"),
+        goto(MAP_ROUTE118, 27, 9),
+        Step::Walk(Right),
+        Step::Checkpoint("route118_east"),
+        // North onto Route 119.
+        cross(MAP_ROUTE118, 58, 0, Up),
+        Step::Expect("route119"),
+        Step::Checkpoint("route119"),
+        // North up Route 119 to Fortree.
+        goto(MAP_ROUTE119, 28, 98),
+        goto(MAP_ROUTE119, 28, 84),
+        goto(MAP_ROUTE119, 13, 84),
+        goto(MAP_ROUTE119, 10, 60),
+        goto(MAP_ROUTE119, 26, 40),
+        goto(MAP_ROUTE119, 30, 20),
+        cross(MAP_ROUTE119, 39, 8, Right),
+        Step::Expect("fortree"),
     ];
 }
