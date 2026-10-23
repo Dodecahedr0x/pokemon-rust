@@ -41,11 +41,11 @@ const EWRAM: core::ops::Range<u64> = 0x0200_0000..0x0204_0000;
 /// Milestone 4 shipped 1875 KiB; Milestone 5 measured 1992712 bytes (IWRAM 596, EWRAM 460);
 /// Wave 0's slice build 1761240 (IWRAM 788, EWRAM 460); Task L's full import 9517904; Task M
 /// (debug region v3: EWRAM +16; agb's backtrace screen off; one box per script thunk)
-/// 9211952 (IWRAM 788, EWRAM 476); after the Task M review (master's Silice battle engine
-/// merged, the panic message printed, agb's IWRAM allocator linked by the stack probe: EWRAM
-/// +16) the values below.
+/// 9211952 (IWRAM 788, EWRAM 476); after the Task M review (master's Silice battle engine,
+/// Task S and SIL1 Wave 0 merged, the panic message printed, agb's IWRAM allocator linked by
+/// the stack probe: EWRAM +16) the values below.
 pub const BASELINE: Budget = Budget {
-    rom: 9_293_880,
+    rom: 9_293_736,
     iwram: 788,
     ewram: 492,
 };
