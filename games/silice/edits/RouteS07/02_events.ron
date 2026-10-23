@@ -1,0 +1,42 @@
+// Header, map scripts, warps, objects, coord and bg events.
+[
+    Header((music: "MUS_ROUTE119", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_ROUTE", allow_cycling: true, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // RouteS07_Sc01 runs on entry while VAR_SIL_STORY is 68 (it sets 70).
+    Scripts((on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 68, script: "RouteS07_Sc01")], on_warp_into: [])),
+    // Warp 0: the Secteur Eta gate, to Reverse-City's south gate (its warp 1, the middle mat).
+    Warp(x: 14, y: 1, dest_map: "ReverseCity", dest_warp: 1),
+    // S7-A.
+    Object(x: 16, y: 65, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ROUTE_S07_OUVRIER", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS07_EventScript_Ouvrier"),
+    Object(x: 17, y: 67, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S07_ITEM_FULL_HEAL", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_ItemFullHeal", flag: "FLAG_SIL_ITEM_ROUTE_S07_FULL_HEAL"),
+    Object(x: 14, y: 62, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S07_BLOC_C1", local_id: 3, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Bloc"),
+    Object(x: 17, y: 56, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ROUTE_S07_TECH1", local_id: 4, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS07_EventScript_Technicien1", trainer_type: "TRAINER_TYPE_NORMAL", sight: 5),
+    Object(x: 10, y: 52, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S07_BLOC_C2", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Bloc"),
+    Object(x: 8, y: 52, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S07_ITEM_TWISTED_SPOON", local_id: 6, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_ItemTwistedSpoon", flag: "FLAG_SIL_ITEM_ROUTE_S07_TWISTED_SPOON"),
+    // S7-B: the puzzle. Pascal waits in a niche above the short path's (1, 1) (sight 1 down: the
+    // source's (1, 1) is on the only path and would block it), the trap holds the Rare Candy
+    // and block C-Puzzle, the Ultra Ball is below the y = 1 row.
+    Object(x: 10, y: 36, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ROUTE_S07_PASCAL", local_id: 7, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Pascal", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1),
+    Object(x: 13, y: 40, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S07_ITEM_RARE_CANDY", local_id: 8, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_ItemRareCandy", flag: "FLAG_SIL_ITEM_ROUTE_S07_RARE_CANDY"),
+    Object(x: 12, y: 40, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S07_BLOC_PUZZLE", local_id: 9, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Bloc"),
+    Object(x: 18, y: 38, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S07_ITEM_ULTRA_BALL", local_id: 10, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_ItemUltraBall", flag: "FLAG_SIL_ITEM_ROUTE_S07_ULTRA_BALL"),
+    // S7-C.
+    Object(x: 19, y: 29, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_ROUTE_S07_PHILOSOPHE", local_id: 11, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Philosophe"),
+    Object(x: 14, y: 26, gfx: "OBJ_EVENT_GFX_LASS", id: "LOCALID_ROUTE_S07_SELENE", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Selene", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
+    Object(x: 22, y: 27, gfx: "OBJ_EVENT_GFX_HEX_MANIAC", id: "LOCALID_ROUTE_S07_MIRA", local_id: 13, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS07_EventScript_Mira", trainer_type: "TRAINER_TYPE_NORMAL", sight: 5),
+    // S7-D. The source's six route trainers are five in its trainer list: S7-D gets one.
+    Object(x: 12, y: 16, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_ROUTE_S07_TECH2", local_id: 14, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "RouteS07_EventScript_Technicien2", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    Object(x: 16, y: 9, gfx: "OBJ_EVENT_GFX_BREAKABLE_ROCK", id: "LOCALID_ROUTE_S07_BLOC_C3", local_id: 15, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_Bloc"),
+    Object(x: 18, y: 9, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_ROUTE_S07_ITEM_MAX_REVIVE", local_id: 16, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS07_EventScript_ItemMaxRevive", flag: "FLAG_SIL_ITEM_ROUTE_S07_MAX_REVIVE"),
+    Object(x: 11, y: 2, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_ROUTE_S07_TOURISTE", local_id: 17, movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS07_EventScript_Touriste"),
+    // Route_S07_Sc02, Adrien's call: the only way from the puzzle into S7-C, VAR_SIL_STORY 70.
+    Coord(x: 13, y: 34, var: "VAR_SIL_STORY", value: 70, script: "RouteS07_Sc02"),
+    Coord(x: 14, y: 34, var: "VAR_SIL_STORY", value: 70, script: "RouteS07_Sc02"),
+    Coord(x: 15, y: 34, var: "VAR_SIL_STORY", value: 70, script: "RouteS07_Sc02"),
+    // Signs: the Premisses (south of the puzzle), the route (south), block C1, the Eta gate.
+    Sign(x: 13, y: 45, script: "RouteS07_EventScript_SignPremisses"),
+    Sign(x: 17, y: 69, script: "RouteS07_EventScript_SignEntree"),
+    Sign(x: 13, y: 62, script: "RouteS07_EventScript_SignBloc"),
+    Sign(x: 12, y: 1, script: "RouteS07_EventScript_SignPorte"),
+    // The hidden Ether at the foot of S7-C's railing post.
+    HiddenItem(x: 21, y: 32, item: "ITEM_ETHER", flag: "FLAG_SIL_ITEM_ROUTE_S07_HIDDEN_ETHER"),
+]

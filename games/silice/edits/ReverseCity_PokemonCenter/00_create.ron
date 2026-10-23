@@ -1,0 +1,4 @@
+// Silice Ch7, MAP_REVERSE_CITY_POKEMON_CENTER: the Reverse-City Centre (13 x 9), the city's only room "the
+// right way up". Building + PokemonCenter (Emerald tilesets by name): Viber-City's Centre with its
+// benches by the door. Border: black, blocked.
+(name: "ReverseCity_PokemonCenter", width: 13, height: 9, primary: "Building", secondary: "PokemonCenter", fill: 514, border: [1025, 1025, 1025, 1025])
