@@ -637,10 +637,21 @@ fn table_text(w: &World, s: &str, what: &str) -> Result<Vec<u8>> {
     encode_lang(s, w.lang).with_context(|| format!("{what}: {s:?}"))
 }
 
+/// The `std_string()` id of the first field string (Task L): past every `STDSTRING_*`.
+const FIELD_STRING_BASE: u8 = 0x80;
+
 /// `ITEMS`, `multichoice()`, `std_string()`, `map_section()` (Task C's `tables/`) and `emote()`
 /// (Task A's field-effect pics). Each is empty when the extract lacks its file.
 fn tables(w: &World, blob: &mut BlobOut, o: &mut String) -> Result<()> {
     let t = &w.tables;
+    ensure!(
+        (names::STD_STRINGS.iter().count() as u32) < u32::from(FIELD_STRING_BASE),
+        "STDSTRING_* reach FIELD_STRING_BASE"
+    );
+    writeln!(
+        o,
+        "/// `std_string(FIELD_STRING_BASE + i)` is `extract::tables::FIELD_STRINGS[i]` (Task L).\npub const FIELD_STRING_BASE: u8 = {FIELD_STRING_BASE:#X};"
+    )?;
     let mut items = String::new();
     for (i, it) in t.items.items.iter().enumerate() {
         if let Some(v) = names::ITEMS.value(&it.id) {
@@ -721,6 +732,20 @@ fn tables(w: &World, blob: &mut BlobOut, o: &mut String) -> Result<()> {
                 "        {v} => Some({}), // {name}",
                 blob.bytes(&table_text(w, text, name)?)
             )?;
+        }
+        // Task L: the field strings follow as content's own ids, `FIELD_STRING_BASE + i`
+        // (`extract::tables::FIELD_STRINGS` order; `prelude::special` buffers them).
+        if fun == "std_string" {
+            for (i, name) in extract::tables::FIELD_STRINGS.iter().enumerate() {
+                if let Some(text) = t.field_strings.strings.get(*name) {
+                    writeln!(
+                        arms,
+                        "        {} => Some({}), // {name}",
+                        FIELD_STRING_BASE as usize + i,
+                        blob.bytes(&table_text(w, text, name)?)
+                    )?;
+                }
+            }
         }
         writeln!(
             o,
@@ -886,6 +911,10 @@ pub fn global_digest(w: &World, sources: u64, battle_rs: &str, battle_bin: &[u8]
     h.file(
         "map_sections",
         extract::export::to_ron(&t.map_sections)?.as_bytes(),
+    );
+    h.file(
+        "field_strings",
+        extract::export::to_ron(&t.field_strings)?.as_bytes(),
     );
     for e in &w.emotes {
         let tiles: Vec<u8> = e

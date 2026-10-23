@@ -18,6 +18,7 @@ Design: `docs/plans/2026-10-21-emerald-rust-rework-design.md`.
 - `cargo xtask extract [--rom <path>]`: export the ROM to `content/extracted/` (see Extract)
 - `cargo xtask studio`: run the studio desktop app (release; see Tests for its gates)
 - `cargo xtask explore <command>`: the headless explorer (see Explorer)
+- `cargo xtask sweep [--studio | --repro]`: enter and idle every map natively (see Tests)
 
 ## Play
 1. Extract your ROM (see Extract), then `cargo xtask rom`.
@@ -217,6 +218,19 @@ when engine `.text` on the slice extract grows past its baseline (205448 bytes) 
 when a full import's ROM exceeds 16 MiB; the slice and stub ROM sizes are reported only. The build remaps the checkout, `CARGO_HOME` and sysroot
 paths (`--remap-path-prefix`), so the ROM does not depend on where the repository lives.
 
+`cargo xtask sweep` (`xtask/src/sweep.rs`, release, native) starts a new game on every map of
+the content build (the first warp's cell, else the walkable cell nearest the centre) and idles
+600 frames: no panic, then, when the World is capturable, a checkpoint round trip with an equal
+hash and 60 frames shadowed, and a render. Maps that end uncapturable are listed with a verdict
+(an entry cutscene or question waiting for input, a facility script looping on unsupported
+specials); `Report` events are counted per op and special, and the build report is appended.
+The report goes to `target/sweep/report.txt`; it fails on a panic, a round-trip or shadow
+mismatch, or dropped events. On the full import: 460 of 518 maps end capturable, 58 are listed,
+0 panics, 0 round-trip failures. `--studio` runs the studio's `#[ignore]`d whole-game tests (map
+pixels, views, data views and the map editor on every map) in release; `--repro` builds `content`
+twice with a clean `$OUT_DIR` and fails on any byte of difference. In `cargo test` the studio's
+map tests use `content::samples::map_ids()` (the slice plus a few maps per tileset family).
+
 `crates/engine/src/world/tests/goldens.rs` pins World hashes on a synthetic game, one constant
 per scenario (`golden_hashes`): `GOLDEN_WALK` (`0x66f39427d1ed0a8f` after `World::new` and
 `0x0818a37264360e30` after 25 frames each of Right, A, nothing and Down), `GOLDEN_WARP`,
@@ -252,8 +266,9 @@ the closing webview never acknowledged).
    summary (maps, tilesets, sprites, skipped graphics, script and text files, the codegen
    statistics, any undecoded script instructions).
 3. See the output in `content/extracted/` (format v5, described in `crates/extract/src/schema.rs`).
-   `--maps all|slice|<Dir,Dir,…>` picks the maps (default: the 15-map slice) and `--previews`
-   asks for the map renders (written by default until Milestone 8 turns them off).
+   `--maps all|slice|<Dir,Dir,…>` picks the maps (default `all`, the 518 maps; `slice` is the
+   15-map slice the fixtures use) and `--previews` also writes the map renders (off by default:
+   they are most of the extracted size and the build never reads them).
    Everything is named with decomp identifiers (`LittlerootTown`, `General`, `FLAG_HIDE_…`,
    `OBJ_EVENT_GFX_…`, `SPECIES_…`, `TRAINER_PIC_…`); ROM offsets only appear in the manifest:
    - `manifest.ron`: format, game code, language, ROM sha1, the exported maps, tilesets and
@@ -261,8 +276,9 @@ the closing webview never acknowledged).
    - `maps/<Map>.ron`: header, layout (tileset names, blocks one map row per line), objects,
      warps, coord and bg events, connections and map scripts. Script references use the root
      names of `schema.rs` (`LittlerootTown_Obj1`, `Route101_Coord0`, `OldaleTown_OnTransition`).
-     The 15 maps: Littleroot Town, Routes 101–103, Oldale Town, and the Littleroot and Oldale
-     interiors
+     Every map by default (518; `--maps slice` gives Littleroot Town, Routes 101–103, Oldale
+     Town, and the Littleroot and Oldale interiors)
+   - `layouts/<Layout>.ron`: every layout (418), including those only `setmaplayoutindex` uses
    - `tilesets/<Name>.png` + `.ron`: tiles (with the tileset's first palette), palettes,
      metatiles and attributes
    - `sprites/<Gfx>.png` + `.ron`: overworld sprites the maps use (also through
@@ -270,14 +286,14 @@ the closing webview never acknowledged).
    - `font/latin_normal.png` + `.ron`, `font/latin_small.png` + `.ron`: the Latin fonts and
      their glyph widths
    - `window/message_box.png` + `.ron`: the dialogue window frame, its palette and text colors
-   - `previews/<Map>.png`: map renders
+   - `previews/<Map>.png`: map renders (with `--previews`)
    - `text/<lang>.ron`: every text the scripts use, keyed `<Script>_T<n>`, re-encoding to its
      exact ROM bytes
    - `scripts/<Map>.rs` + `scripts/legacy_index.ron`: the map's event scripts as generated async Rust
      (compiled into `content` by its build script), and the root name to function index
    - `battle/*.ron`: battle data. `species.ron` (stats, types, abilities, learnsets, FR names),
      `moves.ron`, `types.ron` (type chart, type and ability names), `trainers.ron` (every
-     trainer and party), `encounters.ron` (the exported maps' land encounters),
+     trainer and party), `encounters.ron` (every wild table of the exported maps),
      `heal_locations.ron`, `strings.ron` (the French battle strings in decomp `.string` syntax)
    - `battle/gfx/<name>.png` + `.ron`: the battle interface (text box and its tilemap, the two
      healthboxes, HP and EXP bars, status icons, misc, the ball)
@@ -288,10 +304,21 @@ the closing webview never acknowledged).
      side), `trainers/pics.ron` (placement, back pic frame counts)
    - `starter/`: the starter screen's bag, ball and circle graphics (`.png` + `.ron`) and the
      grass tilemap (`grass.ron`)
+   - `tables/`: `items.ron`, `multichoice.ron`, `std_strings.ron`, `map_sections.ron` and
+     `field_strings.ron` (`gText_BigGuy`/`BigGirl`/`Son`/`Daughter`/`Mom`/`Dad`, which the
+     scripts buffer as std strings from `FIELD_STRING_BASE`; the French ROM's BigGuy and
+     BigGirl are empty)
 
    An extract in an older format still builds, as the stub world with a build warning
    (`content::STALE_EXTRACT`), so that `cargo xtask extract` can run to replace it; `cargo
    xtask parity`, `cargo xtask shot` and the route tests refuse it until you extract again.
+
+The content build consumes every exported map: metatile behaviours are classified by
+`content/build/classify/field.rs` (the directional `MB_IMPASSABLE_*` become
+`Behavior::Impassable(sides)`, walls that block crossing those sides of the cell, in collision
+and trainer sight), and the scripts are lowered from the IR (`content::REPORT` lists what is
+still unsupported; `cargo xtask sweep` prints it). Scripts read the current map through
+`Ctx::current_map` (the TV special in Brendan's house).
 
 The output is deterministic: two runs on the same ROM give identical files. The decomp
 identifier tables live in `crates/extract/src/names/generated.rs`, checked against the decomp by

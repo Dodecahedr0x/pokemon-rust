@@ -23,10 +23,10 @@
 //!   player again after the battle.
 //!
 //! Differences from Gen3:
-//! - the path test is the collision bits, elevation and objects only: directionally impassable
-//!   metatiles (`IsMetatileDirectionallyImpassable`, part of Gen3's `GetCollisionFlagsAtCoords`)
-//!   and cells outside the map are not tested, so a trainer sees across a one-way ledge edge or
-//!   past the map's edge where Gen3 would not (sight ranges rarely reach either);
+//! - the path test is the collision bits, walls (`IsMetatileDirectionallyImpassable`, against
+//!   the trainer's own cell as Gen3), elevation and objects: cells outside the map
+//!   (`GetMapBorderIdAt`) are not tested, so a trainer sees past the map's edge where Gen3 would
+//!   not (sight ranges rarely reach it);
 //! - the scan walks the current map's templates (in template order) and looks each one up among
 //!   the spawned objects, where Gen3 walks the active object slots (`gObjectEvents`, slot
 //!   order): a trainer spawned but not in the templates (none in Emerald's maps) is not checked,
@@ -177,8 +177,8 @@ fn path_clear(
 ) -> bool {
     let (dx, dy) = d.delta();
     let at = |k: i16| (from.0 + dx * k, from.1 + dy * k);
-    (1..n).all(|k| s.objects.sight_collision(ground, slot, at(k)) == Collision::None)
-        && s.objects.sight_collision(ground, slot, at(n)) == Collision::Object
+    (1..n).all(|k| s.objects.sight_collision(ground, slot, at(k), d) == Collision::None)
+        && s.objects.sight_collision(ground, slot, at(n), d) == Collision::Object
 }
 
 impl World {
@@ -195,6 +195,7 @@ impl World {
             .objects
             .sight_pending(sighting.obj, sighting.distance);
         let facing = self.s.objects.player().facing;
-        self.start_script(game, sighting.script, Some((sighting.obj, facing, true)));
+        let map = self.s.field.map();
+        self.start_script(game, sighting.script, Some((sighting.obj, facing, map)));
     }
 }

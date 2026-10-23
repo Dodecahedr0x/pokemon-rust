@@ -119,13 +119,25 @@ fn trainer_parties_and_species_trainers_agree() {
 
 #[test]
 fn encounter_slots_sum_to_100_and_species_maps_agree() {
+    // The sampled maps (Milestone 8 Task L): `content::samples::map_ids`.
+    let maps = content::samples::map_ids();
+    encounters_agree(|m| maps.contains(&m));
+}
+
+#[test]
+#[ignore = "every map: cargo xtask sweep --studio"]
+fn encounter_slots_sum_to_100_and_species_maps_agree_every_map() {
+    encounters_agree(|_| true);
+}
+
+fn encounters_agree(on: impl Fn(MapId) -> bool) {
     assert_eq!(
         LAND_SLOT_PERCENT.iter().map(|&p| p as u32).sum::<u32>(),
         100
     );
     let species = data_view::species();
     let enc = data_view::encounters();
-    for e in &enc {
+    for e in enc.iter().filter(|e| on(e.map)) {
         assert!(!e.map_name.is_empty());
         assert_eq!(e.mons.len(), 12);
         assert_eq!(e.mons.iter().map(|m| m.4 as u32).sum::<u32>(), 100);
@@ -138,7 +150,7 @@ fn encounter_slots_sum_to_100_and_species_maps_agree() {
         }
     }
     for s in &species {
-        for m in &s.maps {
+        for m in s.maps.iter().filter(|&&m| on(m)) {
             let e = enc.iter().find(|e| e.map == *m).unwrap();
             assert!(e.mons.iter().any(|x| x.0 == s.id));
         }

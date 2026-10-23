@@ -10,12 +10,14 @@ use crate::objects::Terrain;
 use crate::script::Runner;
 use crate::video::Frame;
 
-/// The talk target of a starting script. `talked` = (local id, player facing, whether the
-/// object belongs to the current map) for object interactions.
-pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u8, Dir, bool)>) {
-    // An NPC left over from the previous map is talked to, but not addressable by local id
-    // (`selected` names a current-map object), so `faceplayer` / `lock` skip it.
-    s.selected = talked.filter(|t| t.2).map(|t| t.0);
+/// The talk target of a starting script. `talked` = (local id, player facing, the object's
+/// map) for object interactions.
+pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u8, Dir, MapId)>) {
+    // Gen3 `GetObjectEventIdByPosition` does not filter by map: an NPC left over from the
+    // previous map after a crossing is selected too, so `faceplayer` / `lock` act on it
+    // (`gSelectedObjectEvent` is a slot). `VAR_LAST_TALKED` gets its local id, which scripts'
+    // `applymovement` resolve on the current map, as Gen3.
+    s.selected = talked.map(|t| (t.0, t.2));
     s.set_var_opt(ids.var_last_talked, talked.map_or(0, |t| t.0 as u16));
     if let Some((_, dir, _)) = talked {
         s.set_var_opt(ids.var_facing, dir as u16 + 1);
@@ -23,12 +25,14 @@ pub(super) fn set_talk_target(s: &mut State, ids: &SpecialIds, talked: Option<(u
 }
 
 impl World {
-    /// Starts a warp through `map.warps[i]`. A warp to [`MAP_DYNAMIC`] goes to the dynamic slot
-    /// (`SetWarpDestinationToDynamicWarp`), and is logged and ignored while that is unset or
-    /// names a map the game lacks; a warp to any other map the game lacks is logged and
-    /// ignored. Deferred (Milestone 8 Task F): Gen3 `SetupWarp`'s implicit `SetDynamicWarp`
-    /// (taking a warp whose destination warp is itself dynamic stores the warp taken) and
-    /// `UpdateEscapeWarp` (needs the map type).
+    /// Starts a warp through `map.warps[i]` (Gen3 `SetupWarp`). A warp to [`MAP_DYNAMIC`] goes
+    /// to the dynamic slot (`SetWarpDestinationToDynamicWarp`), and is logged and ignored while
+    /// that is unset or names a map the game lacks; a warp to any other map the game lacks is
+    /// logged and ignored. Taking a warp whose destination warp is itself dynamic stores the
+    /// warp taken in the dynamic slot (`SetDynamicWarp`: the way back out of the truck, the
+    /// department store elevator, secret bases). Deferred: `UpdateEscapeWarp` (needs the map
+    /// type, which `MapData` does not carry; the escape slot only serves Escape Rope and Dig,
+    /// which the engine lacks).
     pub(super) fn start_warp(&mut self, game: &impl GameData, map: &MapData, i: usize, door: bool) {
         let w = &map.warps[i];
         let dynamic = w.dest_map == MAP_DYNAMIC;
@@ -41,6 +45,19 @@ impl World {
             }
         };
         let s = &mut self.s;
+        // `MAP_DYNAMIC` names no map: only a static destination is looked up.
+        if !dynamic
+            && (game.map(w.dest_map).warps.get(w.dest_warp as usize))
+                .is_some_and(|b| b.dest_map == MAP_DYNAMIC)
+        {
+            let p = s.objects.player();
+            s.warp_slots.dynamic = Some(super::WarpDest {
+                map: s.field.map(),
+                warp: Some(i as u8),
+                x: p.x,
+                y: p.y,
+            });
+        }
         if door {
             s.transition.start_door(game, dest, warp, x, y);
         } else {

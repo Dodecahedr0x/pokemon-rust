@@ -187,6 +187,97 @@ fn sight_needs_range_facing_a_clear_path_and_an_unset_flag() {
     assert_eq!(sees(&mut w, (5, 3), false), None, "beaten");
 }
 
+/// The arena with metatile `block` on (6, 3), between trainer 1 (8, 3, looking left) and the
+/// player on (5, 3). Metatile 6 is walled on its east side, 7 on its north side.
+struct WalledArena(&'static MapData);
+
+impl GameData for WalledArena {
+    fn map(&self, id: MapId) -> &'static MapData {
+        if id == TOWN { self.0 } else { Arena.map(id) }
+    }
+    fn sprite(&self, gfx: GfxId) -> Option<&'static SpriteData> {
+        Arena.sprite(gfx)
+    }
+    fn player_sprite(&self) -> &'static SpriteData {
+        Arena.player_sprite()
+    }
+    fn font(&self) -> &'static Font {
+        Arena.font()
+    }
+    fn window(&self) -> &'static WindowGfx {
+        Arena.window()
+    }
+    fn text(&self, id: TextId) -> &'static [u8] {
+        Arena.text(id)
+    }
+    fn ui_text(&self, t: UiText) -> &'static [u8] {
+        Arena.ui_text(t)
+    }
+    fn behavior(&self, raw: u8) -> Behavior {
+        match raw {
+            6 => Behavior::Impassable(crate::data::Sides::of(&[Dir::Right])),
+            7 => Behavior::Impassable(crate::data::Sides::of(&[Dir::Up])),
+            _ => Arena.behavior(raw),
+        }
+    }
+    fn script(&self, id: ScriptId, ctx: Ctx) -> Script {
+        Arena.script(id, ctx)
+    }
+    fn new_game(&self) -> NewGame {
+        Arena.new_game()
+    }
+    fn trainer_battle_kind(&self, script: ScriptId) -> Option<u8> {
+        Arena.trainer_battle_kind(script)
+    }
+    fn trainer_flag_of(&self, script: ScriptId) -> Option<FlagId> {
+        Arena.trainer_flag_of(script)
+    }
+}
+
+fn walled_arena(block: u16) -> WalledArena {
+    let ts: &'static Tileset = Box::leak(Box::new(Tileset {
+        metatiles: &[[0; 8]; 8],
+        attributes: &[0, 1, 2, 3, 4, 1, 6, 7],
+        ..TS
+    }));
+    let mut blocks = TOWN_BLOCKS;
+    blocks[3 * 10 + 6] = block;
+    WalledArena(Box::leak(Box::new(MapData {
+        name: ARENA.name,
+        width: ARENA.width,
+        height: ARENA.height,
+        blocks: Box::leak(Box::new(blocks)),
+        border: ARENA.border,
+        primary: ts,
+        secondary: ARENA.secondary,
+        objects: ARENA.objects,
+        warps: &[],
+        coords: &[],
+        bgs: &[],
+        connections: &[],
+        scripts: NO_SCRIPTS,
+        allow_running: ARENA.allow_running,
+    })))
+}
+
+/// Gen3 `CheckPathBetweenTrainerAndPlayer` stops at a directional wall across the line
+/// (`GetCollisionAtCoords`: each cell's side facing the trainer, plus the trainer's own cell's
+/// side, never the previous cell of the line), and only at the side the line crosses.
+#[test]
+fn a_wall_across_the_line_blocks_sight() {
+    let mut w = arena(1);
+    w.s.objects.set_pos(PLAYER, 5, 3);
+    assert_eq!(sight::check(&Arena, &w.s).map(|s| s.obj), Some(1), "open");
+    // (6, 3)'s east side faces the trainer: the line from (7, 3) into it crosses the wall.
+    assert_eq!(sight::check(&walled_arena(6), &w.s), None, "walled");
+    // A wall on its north side is along the line, not across it.
+    assert_eq!(
+        sight::check(&walled_arena(7), &w.s).map(|s| s.obj),
+        Some(1),
+        "parallel wall"
+    );
+}
+
 #[test]
 fn buried_trainers_look_all_four_ways_and_other_types_do_not_look() {
     let mut w = arena(1);

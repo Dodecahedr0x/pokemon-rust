@@ -721,3 +721,123 @@ fn battle_probe_mega_turn() {
     assert!(mega > plain);
     assert!(snap.step_lines_max < LOOP_LINES_MAX);
 }
+
+/// A new game ([`content::Emerald::after_starter`]) that starts on `(map, x, y)`.
+#[derive(Clone, Copy)]
+struct StartAt {
+    inner: content::Emerald,
+    map: MapId,
+    x: i16,
+    y: i16,
+}
+
+impl engine::data::GameData for StartAt {
+    explore::forward_game_data!(inner; map has_map special_ids sprite player_sprite font window
+        text ui_text behavior script build_id battle wild_encounters trainer battle_text
+        battle_gfx heal_location m8);
+
+    fn new_game(&self) -> engine::data::NewGame {
+        engine::data::NewGame {
+            map: self.map,
+            x: self.x,
+            y: self.y,
+            ..self.inner.new_game()
+        }
+    }
+}
+
+/// Milestone 8 review I-3: trainer sight on the real build. A new game starts on Route 102
+/// at (35, 17), two cells east of Calvin's line (local id 2 on (33, 14), facing down, sight 3);
+/// holding left walks the player into it. The ROM, booted from a native checkpoint of that
+/// start, plays the steps, the sighting, the `!` and the approach with native's hashes, within
+/// the frame gates. The sighting frame (relative to the first step's input) and the approach's
+/// length are pinned (`SIGHTED_AFTER`, `APPROACH_FRAMES`): they are native's, which the ROM
+/// matches hash for hash; comparing them with Gen3's own counts is carried to Task P.
+#[test]
+#[ignore = "needs target/game.gba; run `cargo xtask parity`"]
+fn rom_trainer_sighting_fits_the_frame() {
+    /// Frames from the first held input to the sighting (the trainer script's start).
+    const SIGHTED_AFTER: u32 = 26;
+    /// Frames from the sighting until Calvin stands settled beside the player.
+    const APPROACH_FRAMES: u32 = 108;
+    use engine::data::GameData;
+    use engine::world::Event;
+    if content::STUB {
+        println!("trainer sighting: stub build, no Route 102");
+        return;
+    }
+    let base = content::Emerald::after_starter();
+    let route102 = *content::data::MAP_IDS
+        .iter()
+        .find(|&&m| base.map(m).name == "Route102")
+        .expect("Route 102");
+    let calvin = base.map(route102).objects.iter().find(|o| o.local_id == 2);
+    assert!(
+        calvin.is_some_and(|o| (o.x, o.y, o.trainer_sight) == (33, 14, 3)),
+        "Calvin's template"
+    );
+    let game = StartAt {
+        inner: base,
+        map: route102,
+        x: 35,
+        y: 17,
+    };
+    let mut s = Session::new(game);
+    while s.world().capturable().is_err() {
+        assert!(s.world().frame() < 600, "the start never settles");
+        s.step(Buttons::NONE);
+    }
+    let start = s.world().frame();
+    let cp = s.checkpoint().expect("capturable");
+    // Hold left 40 frames (a turn, then steps until sight locks the player on (33, 17)), then
+    // nothing.
+    let keys = move |f: u32| {
+        if (start..start + 40).contains(&f) {
+            Buttons::LEFT
+        } else {
+            Buttons::NONE
+        }
+    };
+    const FRAMES: u32 = 400;
+    let end = start + FRAMES;
+    let mut hashes = BTreeMap::new();
+    let mut sighted = None;
+    let mut settled = None;
+    for f in start..end {
+        s.step(keys(f));
+        let w = s.world();
+        hashes.insert(w.frame(), w.hash());
+        if sighted.is_none()
+            && w.events()
+                .iter()
+                .any(|e| matches!(e, Event::ScriptStarted(_)))
+        {
+            sighted = Some(w.frame());
+        }
+        let arrived = w
+            .objects()
+            .get(2)
+            .is_some_and(|o| o.pos() == (33, 16) && o.is_settled());
+        if sighted.is_some() && settled.is_none() && arrived {
+            settled = Some(w.frame());
+        }
+    }
+    let sighted = sighted.expect("Calvin saw the player");
+    let arrived = settled.expect("Calvin walked up to the player");
+    assert_eq!(sighted - start, SIGHTED_AFTER, "sighting frame");
+    assert_eq!(arrived - sighted, APPROACH_FRAMES, "approach length");
+    let sav = flash::encode_sav(&cp).expect("sav");
+    let run = run_rom_from(&rom_path(), Some(&sav), Some(start), keys, end, &[]).expect("ROM run");
+    assert_eq!(run.boot.boot, boot::RESTORED);
+    for &(frame, hash) in &run.hashes {
+        assert_eq!(Some(&hash), hashes.get(&frame), "hash at frame {frame}");
+    }
+    println!(
+        "trainer sighting (Route 102, Calvin): sighted at frame +{} after the first input, \
+         Calvin beside the player from +{}; {} ROM samples identical",
+        sighted - start,
+        arrived - start,
+        run.hashes.len()
+    );
+    check_costs("trainer sighting", &run.end);
+}

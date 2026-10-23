@@ -1,0 +1,4 @@
+// Silice Ch0, MAP_BRICO_BOURG_BAR: Le Shaker, Crow's cocktail bar (14 x 10).
+// Building + Shop (Emerald tilesets by name): amber carpet, a long counter, bottle shelves, purple
+// banquettes. Out-of-map border: the black block, blocked.
+(name: "BricoBourg_Bar", width: 14, height: 10, primary: "Building", secondary: "Shop", fill: 616, border: [1025, 1025, 1025, 1025])

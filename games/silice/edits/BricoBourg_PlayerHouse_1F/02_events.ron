@@ -1,0 +1,13 @@
+// Header, warps, objects, coord and bg events.
+[
+    Header((music: "MUS_LITTLEROOT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // Warps 0-1: the mat, to Brico-Bourg's warp 0 (house door). Warp 2: stairs, to 2F's warp 0.
+    Warp(x: 4, y: 7, dest_map: "BricoBourg", dest_warp: 0),
+    Warp(x: 5, y: 7, dest_map: "BricoBourg", dest_warp: 0),
+    Warp(x: 8, y: 1, dest_map: "BricoBourg_PlayerHouse_2F", dest_warp: 0),
+    // Object 1: MAMAN (source obj 1), in the kitchen; Player_House_Sc03 when talked to.
+    Object(x: 2, y: 2, gfx: "OBJ_EVENT_GFX_MOM", id: "LOCALID_PLAYER_HOUSE_MAMAN", movement: "MOVEMENT_TYPE_FACE_UP", script: "BricoBourg_PlayerHouse_1F_EventScript_Maman"),
+    // Player_House_Sc01 on arrival while VAR_SIL_STORY is 1 (the scene sets 2, which ends it).
+    Scripts((on_load: None, on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [(var: "VAR_SIL_STORY", value: 1, script: "BricoBourg_PlayerHouse_1F_Sc01")], on_warp_into: [])),
+    Sign(x: 6, y: 2, script: "BricoBourg_PlayerHouse_1F_EventScript_Tele"),
+]

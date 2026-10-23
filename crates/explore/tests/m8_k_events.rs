@@ -234,7 +234,7 @@ const NAMES: [&str; 20] = [
 
 impl<G: GameData> GameData for ManyReports<G> {
     explore::forward_game_data!(inner; map has_map special_ids sprite player_sprite font window
-        text ui_text behavior new_game build_id battle encounters trainer battle_text battle_gfx
+        text ui_text behavior new_game build_id battle trainer battle_text battle_gfx
         heal_location wild_encounters m8);
 
     fn script(&self, id: ScriptId, ctx: Ctx) -> Script {

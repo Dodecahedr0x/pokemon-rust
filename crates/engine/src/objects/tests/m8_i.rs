@@ -361,8 +361,8 @@ fn approach_frames_follow_gen3() {
     o.update(&g, &mut rng, false);
     o.sight_pending(1, 4); // three walks
     assert!(o.player().frozen && o.get(1).unwrap().frozen);
-    assert!(o.approach_begin(1));
-    assert!(!o.approach_begin(2));
+    assert!(o.approach_begin());
+    assert!(!o.approach_begin(), "once");
     // Frame-by-frame: the host steps the approach, then objects update.
     let mut events = Vec::new();
     for frame in 0..400u32 {

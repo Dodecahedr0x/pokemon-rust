@@ -3,8 +3,7 @@
 
 use extract::names;
 
-/// Behaviors that are never walkable for now: water that needs Surf, and the directional
-/// `MB_IMPASSABLE_*` (the engine has no directional blocking yet).
+/// Behaviors that are never walkable for now: water that needs Surf.
 pub const BLOCKED: &[&str] = &[
     "MB_POND_WATER",
     "MB_INTERIOR_DEEP_WATER",
@@ -23,18 +22,28 @@ pub const BLOCKED: &[&str] = &[
     // Surfable warps (Gen3 `TILE_FLAG_SURFABLE`): unreachable without Surf.
     "MB_WATER_DOOR",
     "MB_WATER_SOUTH_ARROW_WARP",
-    "MB_IMPASSABLE_EAST",
-    "MB_IMPASSABLE_WEST",
-    "MB_IMPASSABLE_NORTH",
-    "MB_IMPASSABLE_SOUTH",
-    "MB_IMPASSABLE_NORTHEAST",
-    "MB_IMPASSABLE_NORTHWEST",
-    "MB_IMPASSABLE_SOUTHEAST",
-    "MB_IMPASSABLE_SOUTHWEST",
-    "MB_IMPASSABLE_SOUTH_AND_NORTH",
-    "MB_IMPASSABLE_WEST_AND_EAST",
     "MB_SECRET_BASE_IMPASSABLE",
 ];
+
+/// Sides a behavior walls off (Gen3 `MetatileBehavior_Is{North,South,West,East}Blocked`), as
+/// `Dir::` names.
+fn walls(name: &str) -> Option<&'static [&'static str]> {
+    Some(match name {
+        "MB_IMPASSABLE_NORTH" => &["Dir::Up"],
+        "MB_IMPASSABLE_SOUTH" => &["Dir::Down"],
+        "MB_IMPASSABLE_WEST" => &["Dir::Left"],
+        "MB_IMPASSABLE_EAST" => &["Dir::Right"],
+        "MB_IMPASSABLE_NORTHEAST" => &["Dir::Up", "Dir::Right"],
+        "MB_IMPASSABLE_NORTHWEST" => &["Dir::Up", "Dir::Left"],
+        "MB_IMPASSABLE_SOUTHEAST" => &["Dir::Down", "Dir::Right"],
+        "MB_IMPASSABLE_SOUTHWEST" => &["Dir::Down", "Dir::Left"],
+        "MB_IMPASSABLE_SOUTH_AND_NORTH" => &["Dir::Down", "Dir::Up"],
+        "MB_IMPASSABLE_WEST_AND_EAST" | "MB_SECRET_BASE_BREAKABLE_DOOR" => {
+            &["Dir::Left", "Dir::Right"]
+        }
+        _ => return None,
+    })
+}
 
 /// Warp cells entered by stepping on them, as Gen3 `IsWarpMetatileBehavior`
 /// (`field_control_avatar.c`) minus `MetatileBehavior_IsWarpDoor` (`MB_ANIMATED_DOOR`, our
@@ -74,6 +83,9 @@ pub fn behavior(name: &str) -> String {
     if WARPS.contains(&name) {
         return "Warp".into();
     }
+    if let Some(sides) = walls(name) {
+        return format!("Impassable(Sides::of(&[{}]))", sides.join(", "));
+    }
     if let Some(d) = name.strip_prefix("MB_JUMP_").and_then(compass) {
         return format!("Ledge({d})");
     }
@@ -100,7 +112,8 @@ pub fn behavior(name: &str) -> String {
 /// tall grass, ledges, doors, warps, arrow warps and counters, which the engine implements as
 /// Gen3 does. Every other named behavior is an approximation: its Gen3 effect (Surf, currents,
 /// directional blocking, ice, sand, bikes, puddles, hot springs, secret bases, …) is missing,
-/// so it is `Normal` or, for water and the directional walls, `Blocked`. The build lists the
+/// so it is `Normal` or, for water, `Blocked`. The directional walls are exact, except the
+/// secret base's breakable door (walls only; breaking it is missing). The build lists the
 /// approximations in `content::REPORT`.
 pub fn behavior_class(name: &str) -> (String, bool) {
     let v = behavior(name);
@@ -109,6 +122,7 @@ pub fn behavior_class(name: &str) -> (String, bool) {
         || match v.as_str() {
             "Blocked" => false,
             "Normal" => name == "MB_NORMAL" || name.starts_with("MB_0x"),
+            _ if name == "MB_SECRET_BASE_BREAKABLE_DOOR" => false,
             _ => true,
         };
     (v, exact)

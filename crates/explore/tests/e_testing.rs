@@ -70,7 +70,7 @@ fn wrappers_forward_the_rest() {
     };
     assert_eq!(f.map(map).coords.len(), inner.map(map).coords.len() + 1);
     // A Drifting clone starts a fresh counter.
-    let _ = d.encounters(map);
+    let _ = d.wild_encounters(map, 0);
     assert_eq!(d.calls.get(), 1);
     assert_eq!(d.clone().calls.get(), 0);
 }

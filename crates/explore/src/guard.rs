@@ -113,7 +113,7 @@ mod tests {
 
     impl<G: GameData> GameData for Armed<G> {
         crate::forward_game_data!(0; has_map special_ids sprite player_sprite font window text
-            ui_text behavior script new_game build_id battle encounters trainer battle_text
+            ui_text behavior script new_game build_id battle trainer battle_text
             battle_gfx heal_location wild_encounters m8);
 
         fn map(&self, id: MapId) -> &'static MapData {

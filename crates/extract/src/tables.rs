@@ -13,6 +13,14 @@
 //! - `gRegionMapEntries`: 8-byte `{ x, y, width, height, name }` entries; the anchor is the
 //!   region-map geometry of the first three (Littleroot 4,11; Oldale 4,9; Dewford 2,14; each
 //!   1×1).
+//! - The field strings ([`FIELD_STRINGS`], Task L): C strings only code points to, found by
+//!   the literal pools of the functions that copy them into `gStringVar1` (RAM addresses, the
+//!   same on both ROMs). `GetPlayerBigGuyGirlString` and `GetRivalSonDaughterString` are
+//!   adjacent: pools `{gSaveBlock2Ptr, gStringVar1, gText_BigGuy}` and `{gStringVar1,
+//!   gText_BigGirl}`, then 0x38 bytes on `{gSaveBlock2Ptr, gStringVar1, gText_Daughter}` and
+//!   `{gStringVar1, gText_Son}`. `GetMomOrDadStringForTVMessage` opens with `{gSaveBlock1Ptr,
+//!   gSaveBlock2Ptr, gStringVar1, gText_Mom}`; its first later `{gStringVar1, s}` with
+//!   `s != gText_Mom` is `gText_Dad`.
 //!
 //! Every string is decoded with [`text::round_trip_at`], so it re-encodes to its ROM bytes.
 //!
@@ -20,7 +28,7 @@
 //! `ITEM_HMnn` (not `ITEM_TM_FOCUS_PUNCH`): `names::ITEMS` has no `EQUIV_TM` aliases.
 
 use crate::schema::{
-    Item, ItemPocket, ItemsFile, MapSectionsFile, MultichoiceFile, StdStringsFile,
+    FieldStringsFile, Item, ItemPocket, ItemsFile, MapSectionsFile, MultichoiceFile, StdStringsFile,
 };
 use crate::text;
 use crate::{ROM_BASE, Rom, names};
@@ -69,16 +77,37 @@ pub struct Locations {
     pub multichoice_count: u32,
     pub std_strings: u32,
     pub map_sections: u32,
+    /// [`FIELD_STRINGS`] in order: each string's offset.
+    pub field_strings: Vec<u32>,
 }
 
-/// The four decoded tables, as written to `tables/`.
+/// The decoded tables, as written to `tables/`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tables {
     pub items: ItemsFile,
     pub multichoice: MultichoiceFile,
     pub std_strings: StdStringsFile,
     pub map_sections: MapSectionsFile,
+    pub field_strings: FieldStringsFile,
 }
+
+/// The C strings `tables/field_strings.ron` holds (decomp names, `src/strings.c`), in this
+/// order: content numbers them by it.
+pub const FIELD_STRINGS: [&str; 6] = [
+    "gText_BigGuy",
+    "gText_BigGirl",
+    "gText_Son",
+    "gText_Daughter",
+    "gText_Mom",
+    "gText_Dad",
+];
+
+/// `gSaveBlock1Ptr`, `gSaveBlock2Ptr` and `gStringVar1` (the same on BPEE and BPEF).
+const SAVE_BLOCK1_PTR: u32 = 0x0300_5D8C;
+const SAVE_BLOCK2_PTR: u32 = 0x0300_5D90;
+const STRING_VAR1: u32 = 0x0202_1CC4;
+/// `VAR_TEMP_3`, a literal of `GetMomOrDadStringForTVMessage`'s pools.
+const VAR_TEMP_3: u32 = 0x4003;
 
 fn is_rom_ptr(rom: &Rom, v: u32) -> bool {
     v >= ROM_BASE && ((v - ROM_BASE) as usize) < rom.bytes().len()
@@ -150,13 +179,67 @@ pub fn locate(rom: &Rom) -> Result<Locations> {
         std_string_count()
     );
     let map_sections = locate_map_sections(rom)?;
+    let field_strings = locate_field_strings(rom)?;
     Ok(Locations {
         items,
         multichoice,
         multichoice_count,
         std_strings,
         map_sections,
+        field_strings,
     })
+}
+
+/// The offsets of [`FIELD_STRINGS`], by the literal pools described in the module docs.
+fn locate_field_strings(rom: &Rom) -> Result<Vec<u32>> {
+    let word = |o: u32| rom.u32(o).ok();
+    let words = |o: u32, w: &[u32]| (0..w.len()).all(|i| word(o + 4 * i as u32) == Some(w[i]));
+    let string = |o: u32| rom.req_ptr(o, "field string");
+    let aligned = (0..rom.bytes().len() as u32 / 4).map(|i| 4 * i);
+    let big: Vec<u32> = aligned
+        .clone()
+        .filter(|&o| {
+            words(o, &[SAVE_BLOCK2_PTR, STRING_VAR1])
+                && words(o + 0x18, &[STRING_VAR1])
+                && words(o + 0x38, &[SAVE_BLOCK2_PTR, STRING_VAR1])
+                && words(o + 0x50, &[STRING_VAR1])
+        })
+        .collect();
+    let [big] = big[..] else {
+        bail!("GetPlayerBigGuyGirlString: expected 1 literal pool, found {big:#x?}");
+    };
+    let tv: Vec<u32> = aligned
+        .filter(|&o| words(o, &[SAVE_BLOCK1_PTR, SAVE_BLOCK2_PTR, STRING_VAR1]))
+        .collect();
+    let [tv] = tv[..] else {
+        bail!("GetMomOrDadStringForTVMessage: expected 1 literal pool, found {tv:#x?}");
+    };
+    // The function's pools (the same code on BPEE and BPEF): its first holds
+    // `{gSaveBlock1Ptr, gSaveBlock2Ptr, gStringVar1, gText_Mom, VAR_TEMP_3}`; the `== 1` branch's
+    // `{gStringVar1, gText_Mom, VAR_TEMP_3}` sits at +0x74 and the `== 2` branch's
+    // `{gStringVar1, gText_Dad}` at +0x8c.
+    let mom_ptr = word(tv + 12).context("GetMomOrDadStringForTVMessage: gText_Mom")?;
+    ensure!(
+        words(tv + 16, &[VAR_TEMP_3])
+            && words(tv + 0x74, &[STRING_VAR1, mom_ptr, VAR_TEMP_3])
+            && words(tv + 0x8c, &[STRING_VAR1]),
+        "GetMomOrDadStringForTVMessage at {tv:#x}: unexpected literal pools"
+    );
+    let mom = string(tv + 12)?;
+    let dad = tv + 0x8c;
+    let dad_ptr = word(dad + 4).unwrap_or(0);
+    ensure!(
+        is_rom_ptr(rom, dad_ptr) && dad_ptr != mom_ptr,
+        "GetMomOrDadStringForTVMessage at {tv:#x}: no gText_Dad at +0x90"
+    );
+    Ok(vec![
+        string(big + 8)?,
+        string(big + 0x1c)?,
+        string(big + 0x54)?,
+        string(big + 0x40)?,
+        mom,
+        string(dad + 4)?,
+    ])
 }
 
 fn locate_items(rom: &Rom) -> Result<u32> {
@@ -378,10 +461,19 @@ pub fn extract_at(rom: &Rom, loc: &Locations) -> Result<Tables> {
             Ok((id, s))
         })
         .collect::<Result<_>>()?;
+    let field = FIELD_STRINGS
+        .iter()
+        .zip(&loc.field_strings)
+        .map(|(&id, &p)| {
+            let s = text::round_trip_at(rom, p).with_context(|| id.to_string())?;
+            Ok((id.to_string(), s))
+        })
+        .collect::<Result<_>>()?;
     Ok(Tables {
         items: ItemsFile { items },
         multichoice: MultichoiceFile { lists },
         std_strings: StdStringsFile { strings },
         map_sections: MapSectionsFile { sections },
+        field_strings: FieldStringsFile { strings: field },
     })
 }

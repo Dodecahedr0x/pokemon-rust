@@ -110,6 +110,8 @@ pub enum Request {
     PlayerPos,
     /// Answers `Value(dir as u16)` in `Dir` order.
     PlayerFacing,
+    /// Answers `Value` of the current map's id (Gen3 `gSaveBlock1Ptr->location`; Task L).
+    CurrentMap,
     Log(&'static str),
     // ---- text ----
     /// Starts printing a text in the dialogue window (opening it if needed); answers at once.
@@ -404,6 +406,7 @@ impl Request {
             // The report's text is not hashed (as a log line).
             Request::Report(r) => (53, matches!(r, Report::Degraded(_)) as u16, 0, 0, 0),
             Request::TrainerApproach { obj } => (54, obj as u16, 0, 0, 0),
+            Request::CurrentMap => (55, 0, 0, 0, 0),
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -484,6 +487,26 @@ impl Future for Call {
     }
 }
 
+/// The future of a one-request [`Ctx`] method: a named type, not an `async fn`'s opaque one, so
+/// the thousands of generated script bodies that await them type-check faster (Milestone 8
+/// Task L). It issues the same request on its first poll as the `async fn` did.
+#[must_use = "a request does nothing until awaited"]
+pub struct Req<T> {
+    call: Call,
+    map: fn(Response) -> T,
+}
+
+impl<T> Future for Req<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
+        let this = self.get_mut();
+        Pin::new(&mut this.call).poll(cx).map(this.map)
+    }
+}
+
+fn unit(_: Response) {}
+
 impl Ctx {
     pub fn request(&self, request: Request) -> Call {
         Call {
@@ -492,59 +515,68 @@ impl Ctx {
         }
     }
 
-    async fn unit(&self, r: Request) {
-        self.request(r).await;
-    }
-
-    pub async fn flag(&self, f: FlagId) -> bool {
-        self.request(Request::GetFlag(f)).await.bool()
-    }
-
-    pub async fn set_flag(&self, f: FlagId, on: bool) {
-        self.unit(Request::SetFlag(f, on)).await
-    }
-
-    pub async fn var(&self, v: VarId) -> u16 {
-        self.request(Request::GetVar(v)).await.value()
-    }
-
-    pub async fn set_var(&self, v: VarId, value: u16) {
-        self.unit(Request::SetVar(v, value)).await
-    }
-
-    pub async fn random(&self, n: u16) -> u16 {
-        self.request(Request::Random(n)).await.value()
-    }
-
-    pub async fn player_pos(&self) -> (i16, i16) {
-        match self.request(Request::PlayerPos).await {
-            Response::Pos(x, y) => (x, y),
-            r => panic!("expected Pos, got {r:?}"),
+    /// The named future of a one-request method: `r`, its answer mapped by `map`.
+    fn req<T>(&self, r: Request, map: fn(Response) -> T) -> Req<T> {
+        Req {
+            call: self.request(r),
+            map,
         }
     }
 
-    pub async fn player_facing(&self) -> Dir {
-        Dir::ALL[self.request(Request::PlayerFacing).await.value() as usize]
+    pub fn flag(&self, f: FlagId) -> Req<bool> {
+        self.req(Request::GetFlag(f), Response::bool)
     }
 
-    pub async fn log(&self, what: &'static str) {
-        self.unit(Request::Log(what)).await
+    pub fn set_flag(&self, f: FlagId, on: bool) -> Req<()> {
+        self.req(Request::SetFlag(f, on), unit)
     }
 
-    pub async fn message(&self, t: TextId) {
-        self.unit(Request::Message(t)).await
+    pub fn var(&self, v: VarId) -> Req<u16> {
+        self.req(Request::GetVar(v), Response::value)
     }
 
-    pub async fn wait_message(&self) {
-        self.unit(Request::WaitMessage).await
+    pub fn set_var(&self, v: VarId, value: u16) -> Req<()> {
+        self.req(Request::SetVar(v, value), unit)
     }
 
-    pub async fn wait_button(&self) {
-        self.unit(Request::WaitButton).await
+    pub fn random(&self, n: u16) -> Req<u16> {
+        self.req(Request::Random(n), Response::value)
     }
 
-    pub async fn close_message(&self) {
-        self.unit(Request::CloseMessage).await
+    pub fn player_pos(&self) -> Req<(i16, i16)> {
+        self.req(Request::PlayerPos, |r| match r {
+            Response::Pos(x, y) => (x, y),
+            r => panic!("expected Pos, got {r:?}"),
+        })
+    }
+
+    pub fn player_facing(&self) -> Req<Dir> {
+        self.req(Request::PlayerFacing, |r| Dir::ALL[r.value() as usize])
+    }
+
+    /// The map the player is on.
+    pub fn current_map(&self) -> Req<MapId> {
+        self.req(Request::CurrentMap, |r| MapId(r.value()))
+    }
+
+    pub fn log(&self, what: &'static str) -> Req<()> {
+        self.req(Request::Log(what), unit)
+    }
+
+    pub fn message(&self, t: TextId) -> Req<()> {
+        self.req(Request::Message(t), unit)
+    }
+
+    pub fn wait_message(&self) -> Req<()> {
+        self.req(Request::WaitMessage, unit)
+    }
+
+    pub fn wait_button(&self) -> Req<()> {
+        self.req(Request::WaitButton, unit)
+    }
+
+    pub fn close_message(&self) -> Req<()> {
+        self.req(Request::CloseMessage, unit)
     }
 
     /// `message` + `wait_message` + `wait_button`.
@@ -554,153 +586,150 @@ impl Ctx {
         self.wait_button().await;
     }
 
-    pub async fn yes_no(&self) -> bool {
-        self.request(Request::YesNo).await.bool()
+    pub fn yes_no(&self) -> Req<bool> {
+        self.req(Request::YesNo, Response::bool)
     }
 
-    pub async fn lock(&self) {
-        self.unit(Request::Lock).await
+    pub fn lock(&self) -> Req<()> {
+        self.req(Request::Lock, unit)
     }
 
-    pub async fn lock_all(&self) {
-        self.unit(Request::LockAll).await
+    pub fn lock_all(&self) -> Req<()> {
+        self.req(Request::LockAll, unit)
     }
 
-    pub async fn release(&self) {
-        self.unit(Request::Release).await
+    pub fn release(&self) -> Req<()> {
+        self.req(Request::Release, unit)
     }
 
-    pub async fn release_all(&self) {
-        self.unit(Request::ReleaseAll).await
+    pub fn release_all(&self) -> Req<()> {
+        self.req(Request::ReleaseAll, unit)
     }
 
-    pub async fn face_player(&self) {
-        self.unit(Request::FacePlayer).await
+    pub fn face_player(&self) -> Req<()> {
+        self.req(Request::FacePlayer, unit)
     }
 
-    pub async fn move_obj(&self, obj: u8, steps: &'static [Step]) {
-        self.unit(Request::Move { obj, steps }).await
+    pub fn move_obj(&self, obj: u8, steps: &'static [Step]) -> Req<()> {
+        self.req(Request::Move { obj, steps }, unit)
     }
 
-    pub async fn wait_move(&self, obj: u8) {
-        self.unit(Request::WaitMove(obj)).await
+    pub fn wait_move(&self, obj: u8) -> Req<()> {
+        self.req(Request::WaitMove(obj), unit)
     }
 
-    pub async fn set_object_pos(&self, obj: u8, x: i16, y: i16) {
-        self.unit(Request::SetObjectPos { obj, x, y }).await
+    pub fn set_object_pos(&self, obj: u8, x: i16, y: i16) -> Req<()> {
+        self.req(Request::SetObjectPos { obj, x, y }, unit)
     }
 
-    pub async fn show_object(&self, obj: u8) {
-        self.unit(Request::ShowObject(obj)).await
+    pub fn show_object(&self, obj: u8) -> Req<()> {
+        self.req(Request::ShowObject(obj), unit)
     }
 
-    pub async fn hide_object(&self, obj: u8) {
-        self.unit(Request::HideObject(obj)).await
+    pub fn hide_object(&self, obj: u8) -> Req<()> {
+        self.req(Request::HideObject(obj), unit)
     }
 
-    pub async fn add_object(&self, obj: u8) {
-        self.unit(Request::AddObject(obj)).await
+    pub fn add_object(&self, obj: u8) -> Req<()> {
+        self.req(Request::AddObject(obj), unit)
     }
 
-    pub async fn remove_object(&self, obj: u8) {
-        self.unit(Request::RemoveObject(obj)).await
+    pub fn remove_object(&self, obj: u8) -> Req<()> {
+        self.req(Request::RemoveObject(obj), unit)
     }
 
-    pub async fn turn(&self, obj: u8, dir: Dir) {
-        self.unit(Request::Turn { obj, dir }).await
+    pub fn turn(&self, obj: u8, dir: Dir) -> Req<()> {
+        self.req(Request::Turn { obj, dir }, unit)
     }
 
-    pub async fn set_movement_type(&self, obj: u8, movement: MovementType) {
-        self.unit(Request::SetMovementType { obj, movement }).await
+    pub fn set_movement_type(&self, obj: u8, movement: MovementType) -> Req<()> {
+        self.req(Request::SetMovementType { obj, movement }, unit)
     }
 
-    pub async fn delay(&self, frames: u16) {
-        self.unit(Request::Delay(frames)).await
+    pub fn delay(&self, frames: u16) -> Req<()> {
+        self.req(Request::Delay(frames), unit)
     }
 
-    pub async fn fade(&self, f: Fade) {
-        self.unit(Request::Fade(f)).await
+    pub fn fade(&self, f: Fade) -> Req<()> {
+        self.req(Request::Fade(f), unit)
     }
 
-    pub async fn warp(&self, map: MapId, warp: Option<u8>, x: i16, y: i16) {
-        self.unit(Request::Warp { map, warp, x, y }).await
+    pub fn warp(&self, map: MapId, warp: Option<u8>, x: i16, y: i16) -> Req<()> {
+        self.req(Request::Warp { map, warp, x, y }, unit)
     }
 
-    pub async fn set_metatile(&self, x: i16, y: i16, metatile: u16, blocked: bool) {
-        self.unit(Request::SetMetatile {
-            x,
-            y,
-            metatile,
-            blocked,
-        })
-        .await
+    pub fn set_metatile(&self, x: i16, y: i16, metatile: u16, blocked: bool) -> Req<()> {
+        self.req(
+            Request::SetMetatile {
+                x,
+                y,
+                metatile,
+                blocked,
+            },
+            unit,
+        )
     }
 
-    pub async fn redraw_map(&self) {
-        self.unit(Request::RedrawMap).await
+    pub fn redraw_map(&self) -> Req<()> {
+        self.req(Request::RedrawMap, unit)
     }
 
-    pub async fn set_object_template_pos(&self, obj: u8, x: i16, y: i16) {
-        self.unit(Request::SetObjectTemplatePos { obj, x, y }).await
+    pub fn set_object_template_pos(&self, obj: u8, x: i16, y: i16) -> Req<()> {
+        self.req(Request::SetObjectTemplatePos { obj, x, y }, unit)
     }
 
-    pub async fn door(&self, x: i16, y: i16, open: bool) {
-        self.unit(Request::Door { x, y, open }).await
+    pub fn door(&self, x: i16, y: i16, open: bool) -> Req<()> {
+        self.req(Request::Door { x, y, open }, unit)
     }
 
-    pub async fn wait_door(&self) {
-        self.unit(Request::WaitDoor).await
+    pub fn wait_door(&self) -> Req<()> {
+        self.req(Request::WaitDoor, unit)
     }
 
-    pub async fn wait_state(&self) {
-        self.unit(Request::WaitState).await
+    pub fn wait_state(&self) -> Req<()> {
+        self.req(Request::WaitState, unit)
     }
 
     /// Gen3 `givemon`: `MON_GIVEN_TO_PARTY` (0), `MON_GIVEN_TO_PC` (1) or `MON_CANT_GIVE` (2).
-    pub async fn give_mon(&self, species: SpeciesId, level: u8) -> u16 {
-        self.request(Request::GiveMon { species, level })
-            .await
-            .value()
+    pub fn give_mon(&self, species: SpeciesId, level: u8) -> Req<u16> {
+        self.req(Request::GiveMon { species, level }, Response::value)
     }
 
-    pub async fn party_size(&self) -> u16 {
-        self.request(Request::PartySize).await.value()
+    pub fn party_size(&self) -> Req<u16> {
+        self.req(Request::PartySize, Response::value)
     }
 
-    pub async fn heal_party(&self) {
-        self.unit(Request::HealParty).await
+    pub fn heal_party(&self) -> Req<()> {
+        self.req(Request::HealParty, unit)
     }
 
-    pub async fn battle_wild(
+    pub fn battle_wild(
         &self,
         species: SpeciesId,
         level: u8,
         first_battle: bool,
-    ) -> BattleOutcome {
-        outcome(
-            self.request(Request::BattleWild {
+    ) -> Req<BattleOutcome> {
+        self.req(
+            Request::BattleWild {
                 species,
                 level,
                 first_battle,
-            })
-            .await,
+            },
+            outcome,
         )
     }
 
-    pub async fn battle_trainer(&self, trainer: TrainerId, defeat: TextId) -> BattleOutcome {
-        outcome(
-            self.request(Request::BattleTrainer { trainer, defeat })
-                .await,
-        )
+    pub fn battle_trainer(&self, trainer: TrainerId, defeat: TextId) -> Req<BattleOutcome> {
+        self.req(Request::BattleTrainer { trainer, defeat }, outcome)
     }
 
     /// The index (0..3) of the chosen species.
-    pub async fn choose_starter(&self, choices: [SpeciesId; 3]) -> u8 {
-        self.request(Request::ChooseStarter(choices)).await.value() as u8
+    pub fn choose_starter(&self, choices: [SpeciesId; 3]) -> Req<u8> {
+        self.req(Request::ChooseStarter(choices), |r| r.value() as u8)
     }
 
-    pub async fn set_respawn(&self, heal_location: u8) {
-        self.unit(Request::SetRespawn(heal_location)).await
+    pub fn set_respawn(&self, heal_location: u8) -> Req<()> {
+        self.req(Request::SetRespawn(heal_location), unit)
     }
 
     // ---- Milestone 8 ----
@@ -714,68 +743,78 @@ impl Ctx {
         self.0.borrow_mut().cond = o;
     }
 
-    pub async fn item_add(&self, item: ItemId, qty: u16) -> bool {
-        self.request(Request::ItemAdd { item, qty }).await.bool()
+    pub fn item_add(&self, item: ItemId, qty: u16) -> Req<bool> {
+        self.req(Request::ItemAdd { item, qty }, Response::bool)
     }
 
-    pub async fn item_remove(&self, item: ItemId, qty: u16) -> bool {
-        self.request(Request::ItemRemove { item, qty }).await.bool()
+    pub fn item_remove(&self, item: ItemId, qty: u16) -> Req<bool> {
+        self.req(Request::ItemRemove { item, qty }, Response::bool)
     }
 
-    pub async fn item_check(&self, item: ItemId, qty: u16) -> bool {
-        self.request(Request::ItemCheck { item, qty }).await.bool()
+    pub fn item_check(&self, item: ItemId, qty: u16) -> Req<bool> {
+        self.req(Request::ItemCheck { item, qty }, Response::bool)
     }
 
-    pub async fn item_space(&self, item: ItemId, qty: u16) -> bool {
-        self.request(Request::ItemSpace { item, qty }).await.bool()
+    pub fn item_space(&self, item: ItemId, qty: u16) -> Req<bool> {
+        self.req(Request::ItemSpace { item, qty }, Response::bool)
     }
 
-    pub async fn money_add(&self, n: u32) {
-        self.unit(Request::MoneyAdd(n)).await
+    pub fn money_add(&self, n: u32) -> Req<()> {
+        self.req(Request::MoneyAdd(n), unit)
     }
 
-    pub async fn money_remove(&self, n: u32) {
-        self.unit(Request::MoneyRemove(n)).await
+    pub fn money_remove(&self, n: u32) -> Req<()> {
+        self.req(Request::MoneyRemove(n), unit)
     }
 
-    pub async fn money_check(&self, n: u32) -> bool {
-        self.request(Request::MoneyCheck(n)).await.bool()
+    pub fn money_check(&self, n: u32) -> Req<bool> {
+        self.req(Request::MoneyCheck(n), Response::bool)
     }
 
-    pub async fn buffer(&self, slot: u8, src: BufferSrc) {
-        self.unit(Request::Buffer { slot, src }).await
+    pub fn buffer(&self, slot: u8, src: BufferSrc) -> Req<()> {
+        self.req(Request::Buffer { slot, src }, unit)
     }
 
     /// The chosen index, or [`MULTI_B_PRESSED`].
-    pub async fn multichoice(&self, list: u8, x: u8, y: u8, default: u8, cancel: bool) -> u16 {
-        self.request(Request::Multichoice {
-            list,
-            x,
-            y,
-            default,
-            cancel,
-        })
-        .await
-        .value()
+    pub fn multichoice(&self, list: u8, x: u8, y: u8, default: u8, cancel: bool) -> Req<u16> {
+        self.req(
+            Request::Multichoice {
+                list,
+                x,
+                y,
+                default,
+                cancel,
+            },
+            Response::value,
+        )
     }
 
-    pub async fn set_warp(&self, slot: WarpSlot, map: MapId, warp: Option<u8>, x: i16, y: i16) {
-        self.unit(Request::SetWarp {
-            slot,
-            map,
-            warp,
-            x,
-            y,
-        })
-        .await
+    pub fn set_warp(
+        &self,
+        slot: WarpSlot,
+        map: MapId,
+        warp: Option<u8>,
+        x: i16,
+        y: i16,
+    ) -> Req<()> {
+        self.req(
+            Request::SetWarp {
+                slot,
+                map,
+                warp,
+                x,
+                y,
+            },
+            unit,
+        )
     }
 
-    pub async fn report(&self, r: Report) {
-        self.unit(Request::Report(r)).await
+    pub fn report(&self, r: Report) -> Req<()> {
+        self.req(Request::Report(r), unit)
     }
 
-    pub async fn trainer_approach(&self, obj: u8) {
-        self.unit(Request::TrainerApproach { obj }).await
+    pub fn trainer_approach(&self, obj: u8) -> Req<()> {
+        self.req(Request::TrainerApproach { obj }, unit)
     }
 }
 

@@ -126,7 +126,10 @@ const NO_SCRIPTS: MapScripts = MapScripts {
     on_warp_into: &[],
 };
 
-static MAPS: [MapData; 3] = [
+/// A room whose warp 0 leads to [`crate::grid::MAP_DYNAMIC`] (the truck, secret bases).
+pub const DYN_ROOM: MapId = MapId(3);
+
+static MAPS: [MapData; 4] = [
     MapData {
         name: "town",
         width: 10,
@@ -233,6 +236,28 @@ static MAPS: [MapData; 3] = [
             ..NO_SCRIPTS
         },
         allow_running: true,
+    },
+    MapData {
+        name: "dynamic room",
+        width: 10,
+        height: 10,
+        blocks: &TOWN_BLOCKS,
+        border: [WALL; 4],
+        primary: &TS,
+        secondary: &TS2,
+        objects: &[],
+        warps: &[WarpEvent {
+            x: 1,
+            y: 1,
+            elevation: 0,
+            dest_map: crate::grid::MAP_DYNAMIC,
+            dest_warp: 0,
+        }],
+        coords: &[],
+        bgs: &[],
+        connections: &[],
+        scripts: NO_SCRIPTS,
+        allow_running: false,
     },
 ];
 
@@ -437,7 +462,7 @@ impl GameData for Game {
     fn battle(&self) -> &'static crate::mon::BattleTables {
         &crate::battle::test_data::TABLES
     }
-    fn encounters(&self, map: MapId) -> Option<&'static crate::mon::LandEncounters> {
+    fn wild_encounters(&self, map: MapId, _: u16) -> Option<&'static crate::mon::LandEncounters> {
         (map == ROUTE).then_some(&ROUTE_ENCOUNTERS)
     }
     fn trainer(&self, id: TrainerId) -> Option<&'static crate::mon::TrainerData> {
@@ -684,6 +709,84 @@ fn crossing_a_connection_switches_maps() {
     assert_eq!(w.map(), ROUTE, "turning");
     run(&mut w, Buttons::DOWN, 1);
     assert_eq!((w.map(), pos(&w)), (TOWN, (5, 0)), "and back");
+}
+
+/// Gen3 `GetObjectEventIdByPosition` does not filter by map: talking to an NPC of the previous
+/// map, still in view after a crossing, selects it, so `faceplayer` turns it (Task L).
+#[test]
+fn faceplayer_turns_a_previous_map_npc() {
+    let mut w = started();
+    walk(&mut w, Dir::Up, 5);
+    run(&mut w, Buttons::UP, 1);
+    assert_eq!(w.map(), ROUTE);
+    let old = w
+        .objects()
+        .iter()
+        .find(|o| o.map == TOWN && o.local_id != PLAYER)
+        .map(|o| o.local_id)
+        .expect("a town NPC still in view");
+    maps::set_talk_target(&mut w.s, &Game.special_ids(), Some((old, Dir::Up, TOWN)));
+    let facing = |w: &World| {
+        w.objects()
+            .iter()
+            .find(|o| o.map == TOWN && o.local_id == old)
+            .unwrap()
+            .facing
+    };
+    assert_ne!(facing(&w), Dir::Down);
+    let mut host_frame = Frame::default();
+    let mut runner = Runner::new();
+    runner.start(Box::pin({
+        let ctx = runner.ctx();
+        async move { ctx.face_player().await }
+    }));
+    let mut host = Host {
+        game: &Game,
+        s: &mut w.s,
+        f: &mut host_frame,
+        immediate: false,
+    };
+    runner.step(&mut host);
+    assert_eq!(facing(&w), Dir::Down, "the opposite of the player's facing");
+    // The hash and checkpoints keep the local id only (captures happen outside scripts).
+    assert_eq!(w.s.selected, Some((old, TOWN)));
+}
+
+/// The same through a real A press: the talk target found ahead is the previous map's NPC
+/// (`(id, facing, map)` from the interaction), its script's `lock` waits for that NPC to
+/// settle and freezes it, and `faceplayer` turns it.
+#[test]
+fn talking_to_a_previous_map_npc_locks_and_turns_it() {
+    let mut w = started();
+    walk(&mut w, Dir::Up, 5);
+    run(&mut w, Buttons::UP, 1);
+    run(&mut w, Buttons::NONE, 30);
+    assert_eq!(w.map(), ROUTE);
+    assert!(!w.script_running());
+    let town_npc = |w: &World| {
+        w.objects()
+            .iter()
+            .find(|o| o.map == TOWN && o.local_id == 1)
+            .cloned()
+            .expect("the town's NPC 1 still in view")
+    };
+    // The town's NPC (script `npc`: lock, faceplayer, say, release) right below the player.
+    let (px, py) = pos(&w);
+    w.s.objects.set_pos_on(1, TOWN, px, py + 1);
+    w.s.objects.face(PLAYER, Dir::Down);
+    assert_ne!(town_npc(&w).facing, Dir::Up);
+    run(&mut w, Buttons::A, 1);
+    assert!(
+        w.script_running(),
+        "the A press started the town NPC's script"
+    );
+    assert_eq!(w.s.selected, Some((1, TOWN)));
+    run(&mut w, Buttons::NONE, 10);
+    let npc = town_npc(&w);
+    assert!(npc.frozen, "locked");
+    assert_eq!(npc.facing, Dir::Up, "faces the player");
+    assert_eq!(npc.pos(), (px, py + 1));
+    assert!(w.s.text.is_open(), "then says its text");
 }
 
 #[test]

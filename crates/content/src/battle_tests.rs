@@ -466,7 +466,7 @@ mod extracted {
         ] {
             core.extend(
                 Emerald
-                    .encounters(m)
+                    .wild_encounters(m, 0)
                     .unwrap()
                     .mons
                     .iter()
@@ -513,7 +513,7 @@ mod extracted {
             consts::MAP_ROUTE102,
             consts::MAP_ROUTE103,
         ] {
-            let e = Emerald.encounters(m).unwrap();
+            let e = Emerald.wild_encounters(m, 0).unwrap();
             assert_eq!(e.mons.len(), 12);
             assert!(e.rate > 0);
             for w in e.mons {
@@ -521,7 +521,11 @@ mod extracted {
                 assert!(t.species_info(w.species).gfx.is_some());
             }
         }
-        assert!(Emerald.encounters(consts::MAP_LITTLEROOT_TOWN).is_none());
+        assert!(
+            Emerald
+                .wild_encounters(consts::MAP_LITTLEROOT_TOWN, 0)
+                .is_none()
+        );
     }
 
     #[test]
@@ -610,7 +614,7 @@ mod stub {
             })
             .count();
         assert_eq!(grass, 1);
-        let e = Emerald.encounters(g.map).unwrap();
+        let e = Emerald.wild_encounters(g.map, 0).unwrap();
         let t = Emerald.battle();
         assert_eq!(t.species.len(), 3);
         assert_eq!(t.moves.len(), 4);

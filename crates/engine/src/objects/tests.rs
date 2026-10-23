@@ -199,6 +199,47 @@ fn running_moves_2px_per_frame_only_when_allowed() {
     assert_eq!(o.player().offset(), (15, 0));
 }
 
+/// Gen3 `IsMetatileDirectionallyImpassable`: a wall on the current cell's side blocks leaving,
+/// one on the destination's opposite side blocks entering; other directions pass.
+#[test]
+fn walls_block_crossing_their_sides_only() {
+    let mut g = Grid::open();
+    // (5, 5) walled on its east side; (5, 6) walled on its north side.
+    g.set(5, 5, 0, Behavior::Impassable(Sides::of(&[Dir::Right])));
+    g.set(5, 6, 0, Behavior::Impassable(Sides::of(&[Dir::Up])));
+    let bumped = |x, y, d| {
+        let mut o = player_at(x, y, d);
+        o.update_player(&g, hold(d)) == PlayerEvent::Bumped(d)
+    };
+    assert!(bumped(5, 5, Dir::Right), "leaving through the east wall");
+    assert!(bumped(6, 5, Dir::Left), "entering through the east wall");
+    assert!(
+        bumped(5, 5, Dir::Down),
+        "entering (5, 6) through its north wall"
+    );
+    assert!(
+        bumped(5, 6, Dir::Up),
+        "leaving (5, 6) through its north wall"
+    );
+    assert!(!bumped(5, 5, Dir::Left));
+    assert!(!bumped(5, 5, Dir::Up));
+    assert!(!bumped(5, 6, Dir::Down));
+    assert!(!bumped(4, 6, Dir::Right), "(5, 6) is entered from the west");
+
+    // Sight tests walls against the looker's own cell, as Gen3 `currentMetatileBehavior`.
+    let o = player_at(5, 5, Dir::Down);
+    assert_eq!(
+        o.sight_collision(&g, 0, (5, 6), Dir::Down),
+        Collision::Impassable
+    );
+    assert_eq!(
+        o.sight_collision(&g, 0, (5, 8), Dir::Right),
+        Collision::Impassable,
+        "the looker's east wall, whatever the cell"
+    );
+    assert_eq!(o.sight_collision(&g, 0, (5, 8), Dir::Down), Collision::None);
+}
+
 #[test]
 fn collision_bits_and_blocked_behavior_bump() {
     let mut g = Grid::open();

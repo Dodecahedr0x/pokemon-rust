@@ -78,11 +78,10 @@ impl ExportOptions {
 }
 
 impl Default for ExportOptions {
-    /// [`SLICE_MAPS`], without previews. Every map exports and round-trips
-    /// ([`ExportOptions::all`]), but the content build cannot consume all of them yet (Milestone 8
-    /// Task E); Task L makes `all` the default once it does.
+    /// Every map ([`ExportOptions::all`]), without previews (Milestone 8 Task L; `slice` is for
+    /// fixtures).
     fn default() -> ExportOptions {
-        ExportOptions::slice(false)
+        ExportOptions::all(false)
     }
 }
 

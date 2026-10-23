@@ -23,6 +23,14 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 pub const MAP_DYNAMIC: &str = "MAP_DYNAMIC";
 /// Gen3 `WARP_ID_DYNAMIC`.
 pub const WARP_ID_DYNAMIC: u8 = 127;
+/// Gen3 `WARP_ID_SECRET_BASE`: the secret bases' exit, also a [`MAP_DYNAMIC`] warp (Gen3
+/// `SetupWarp` takes the dynamic warp whatever the id).
+pub const WARP_ID_SECRET_BASE: u8 = 126;
+
+/// Whether `id` is a valid destination warp of a [`MAP_DYNAMIC`] warp.
+pub const fn dynamic_warp_id(id: u8) -> bool {
+    id == WARP_ID_DYNAMIC || id == WARP_ID_SECRET_BASE
+}
 
 /// `maps/<Name>.ron`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

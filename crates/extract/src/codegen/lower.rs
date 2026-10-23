@@ -84,6 +84,7 @@ mod digest;
 mod emit;
 mod operands;
 mod regions;
+mod share;
 
 use super::{Class, Lowered, MoveFallback, Stats, Support, is_ident, named};
 use crate::schema::{IrArg, IrInsn, IrMovement, NameOrigin, ScriptFile, ScriptIndex};
@@ -353,6 +354,32 @@ pub fn lower(
         group_src.insert(g, s);
     }
 
+    // Body sharing: the emitted modules call shared shapes; digests keep the unshared sources.
+    let names = share::Names {
+        texts: low
+            .labs
+            .iter()
+            .flat_map(|l| l.insns.iter().flat_map(|i| i.args.iter()))
+            .filter_map(|a| match a {
+                IrArg::Text(t) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect(),
+        movements: low.movements.iter().map(|(&n, &(m, _))| (n, m)).collect(),
+        items: low
+            .fns
+            .iter()
+            .map(|&f| (low.labs[f].name.to_string(), low.labs[f].module))
+            .chain(
+                low.groups
+                    .keys()
+                    .map(|&g| (group_name(low.labs[g].name), low.labs[g].module)),
+            )
+            .collect(),
+    };
+    let mut emitted = sources.clone();
+    let shapes = share::share(&low, &mut emitted, &names)?;
+
     let mut out = Lowered::default();
     let mut movement_src: BTreeMap<&str, String> = BTreeMap::new();
     for file in files {
@@ -368,7 +395,7 @@ pub fn lower(
         }
         for f in fns {
             body.push('\n');
-            body.push_str(&sources[&f]);
+            body.push_str(&emitted[&f]);
             if let Some(g) = group_src.get(&f) {
                 body.push('\n');
                 body.push_str(g);
@@ -381,6 +408,14 @@ pub fn lower(
             movement_src.insert(&m.name, s);
         }
         out.modules.insert(file.module.clone(), body);
+    }
+    if !shapes.is_empty() {
+        ensure!(
+            !out.modules.contains_key(share::SHAPES),
+            "a script module is named {}",
+            share::SHAPES
+        );
+        out.modules.insert(share::SHAPES.to_string(), shapes);
     }
 
     out.script_digests = low.digests(&sources, &group_src, &movement_src);

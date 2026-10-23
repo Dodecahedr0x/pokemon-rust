@@ -5,8 +5,8 @@
 use extract::export::Out;
 use extract::export::tables::{FILES, export_tables};
 use extract::schema::{
-    FORMAT_MINOR, Hex, ItemPocket, ItemsFile, MINOR_FILES, MapSectionsFile, MultichoiceFile,
-    StdStringsFile,
+    FORMAT_MINOR, FieldStringsFile, Hex, ItemPocket, ItemsFile, MINOR_FILES, MapSectionsFile,
+    MultichoiceFile, StdStringsFile,
 };
 use extract::tables::{self, ITEM_SIZE, Tables};
 use extract::{Rom, fixtures, names, text};
@@ -296,6 +296,45 @@ fn us_std_strings_match_decomp() {
     }
 }
 
+/// The field strings (Task L) are `src/strings.c`'s, and the French ROM has each of them.
+#[test]
+fn field_strings_match_decomp() {
+    let (_, t) = us();
+    let strings = decomp_strings();
+    let got = &t.field_strings.strings;
+    assert_eq!(got.len(), tables::FIELD_STRINGS.len());
+    for id in tables::FIELD_STRINGS {
+        assert_eq!(got[id], en(&strings[id]), "{id}");
+    }
+    let (rom, fr) = fr();
+    let keys = |m: &BTreeMap<String, String>| m.keys().cloned().collect::<Vec<_>>();
+    assert_eq!(keys(&fr.field_strings.strings), keys(got));
+    assert_ne!(fr.field_strings, t.field_strings);
+    // The French strings by their ROM byte codes (Gen3 charmap: `A` is 0xBB, `a` 0xD5): the
+    // big guy/girl strings are empty, then "son", "daughter", "mom", "dad" in capitals for the
+    // parents. Each decoded string re-encodes to the bytes at the located pointer.
+    let want: [&[u8]; 6] = [
+        &[],
+        &[],
+        &[0xDA, 0xDD, 0xE0, 0xE7],
+        &[0xDA, 0xDD, 0xE0, 0xE0, 0xD9],
+        &[0xC7, 0xBB, 0xC7, 0xBB, 0xC8],
+        &[0xCA, 0xBB, 0xCA, 0xBB],
+    ];
+    let at = tables::locate(rom).unwrap().field_strings;
+    for (i, id) in tables::FIELD_STRINGS.iter().enumerate() {
+        let s = &fr.field_strings.strings[*id];
+        assert_eq!(
+            text::encode(s).unwrap(),
+            [want[i], &[0xFF]].concat(),
+            "{id}"
+        );
+        let off = at[i] as usize;
+        let end = off + rom.bytes()[off..].iter().position(|&b| b == 0xFF).unwrap();
+        assert_eq!(&rom.bytes()[off..end], want[i], "{id} at {off:#x}");
+    }
+}
+
 #[test]
 fn us_map_sections_match_decomp() {
     let (rom, t) = us();
@@ -414,7 +453,8 @@ fn export_writes_the_four_tables() {
         f.sort();
         f
     });
-    // The four files arrived together in one minor, no newer than the writer's.
+    // The first four files arrived together in one minor, the field strings later; none is
+    // newer than the writer's.
     let minor_of = |path: &str| {
         let m: Vec<u32> = MINOR_FILES
             .iter()
@@ -425,15 +465,18 @@ fn export_writes_the_four_tables() {
         m[0]
     };
     let minor = minor_of(FILES[0]);
-    for f in FILES {
+    for f in &FILES[..4] {
         assert_eq!(minor_of(f), minor, "{f}");
     }
-    assert!(minor <= FORMAT_MINOR);
+    assert!(minor < minor_of(FILES[4]));
+    assert!(minor_of(FILES[4]) <= FORMAT_MINOR);
 
     let items: ItemsFile = read(&dir, FILES[0]);
     let multichoice: MultichoiceFile = read(&dir, FILES[1]);
     let std_strings: StdStringsFile = read(&dir, FILES[2]);
     let map_sections: MapSectionsFile = read(&dir, FILES[3]);
+    let field_strings: FieldStringsFile = read(&dir, FILES[4]);
+    assert_eq!(field_strings, t.field_strings);
     assert_eq!(items, t.items);
     assert_eq!(multichoice, t.multichoice);
     assert_eq!(std_strings, t.std_strings);
@@ -444,5 +487,9 @@ fn export_writes_the_four_tables() {
     assert_eq!(provenance["tables/multichoice"], Hex(loc.multichoice));
     assert_eq!(provenance["tables/std_strings"], Hex(loc.std_strings));
     assert_eq!(provenance["tables/map_sections"], Hex(loc.map_sections));
+    assert_eq!(
+        provenance["tables/field_strings"],
+        Hex(loc.field_strings[0])
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -261,6 +261,7 @@ impl ScriptHost for Host {
             Request::GetVar(_) | Request::Random(_) | Request::PlayerFacing => Response::Value(0),
             Request::PartySize => Response::Value(1),
             Request::PlayerPos => Response::Pos(0, 0),
+            Request::CurrentMap => Response::Value(0),
             _ => Response::Unit,
         })
     }

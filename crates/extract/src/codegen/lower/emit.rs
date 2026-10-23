@@ -351,6 +351,21 @@ impl<'a> Low<'a> {
                 ));
             }
             ("copyvar", [a, c]) => {
+                // A source below VARS_START has no var: Gen3 dereferences NULL there. The BIOS
+                // is read-protected, so the load returns BIOS open bus (the last opcode the
+                // BIOS fetched, after an interrupt or a SWI: non-zero in practice, and not a
+                // value the engine models). The decomp's UBFIX, and this lowering, copy the id
+                // itself (Granite Cave's `copyvar VAR_ICE_STEP_COUNT, 1`, which must leave the
+                // count non-zero; both give that, though not the same number).
+                if let Some(id) = literal_var(c) {
+                    let Some(a) = var_target(a) else {
+                        return Ok(false);
+                    };
+                    out.push(format!(
+                        "ctx.set_var({a}, {id}).await; // copyvar of a literal"
+                    ));
+                    return Ok(true);
+                }
                 let (Some(a), Some(c)) = (var_target(a), var_target(c)) else {
                     return Ok(false);
                 };
@@ -1000,8 +1015,14 @@ impl<'a> Low<'a> {
             let _ = writeln!(o, "    pub const {name}: ScriptId = ScriptId({i});");
         }
         o.push_str("}\n");
+        // One non-generic adapter (Task L): a generic `async fn run(f: impl Future)` was one more
+        // async body per script for the type checker.
         o.push_str(
-            "async fn run(f: impl core::future::Future<Output = Flow>) {\n    f.await;\n}\n",
+            "/// A script's future with its `Flow` dropped (the engine's `Script` has no output).\n\
+             struct Run(core::pin::Pin<alloc::boxed::Box<dyn core::future::Future<Output = Flow>>>);\n\
+             impl core::future::Future for Run {\n    type Output = ();\n    \
+             fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<()> {\n        \
+             self.0.as_mut().poll(cx).map(|_| ())\n    }\n}\n",
         );
         let _ = write!(
             o,
@@ -1010,7 +1031,7 @@ impl<'a> Low<'a> {
         for (name, module) in &names {
             let _ = writeln!(
                 o,
-                "    |ctx| alloc::boxed::Box::pin(run({SCRIPTS}::{module}::{name}(ctx))),"
+                "    |ctx| alloc::boxed::Box::pin(Run(alloc::boxed::Box::pin({SCRIPTS}::{module}::{name}(ctx)))),"
             );
         }
         o.push_str("];\n");
