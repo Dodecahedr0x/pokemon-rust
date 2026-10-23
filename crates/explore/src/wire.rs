@@ -23,9 +23,10 @@ use crate::findings;
 use crate::fitness::{Archive, Evaluator};
 use crate::goals::Act;
 use crate::guard;
+use crate::incremental::{self, Digests};
 use crate::model::{
     AbstractKey, Evaluate, Evaluation, FindingDraft, FindingKind, GenStats, Macro, NodeId, NodeRow,
-    NodeStatus, StepResult,
+    NodeStatus, Plan, StepResult,
 };
 use crate::observe::{NoObserver, StepObserver};
 use crate::policy::Policy;
@@ -131,6 +132,7 @@ fn set_fresh_meta(db: &mut Db, cfg: &Config, root: Option<&Root>) -> anyhow::Res
     let mut kv = vec![
         ("seed", cfg.seed.to_string()),
         ("act", cfg.act.name().to_string()),
+        (incremental::META_KEY, Digests::current().encode()),
     ];
     if let Some(root) = root {
         let base = root
@@ -181,6 +183,8 @@ pub struct GenOutcome {
     pub reports: u32,
     /// The most goals reached by a node this generation inserted (0 if none).
     pub max_progress: u32,
+    /// Softlock probes planned (`Plan::Softlock` jobs).
+    pub probes: u32,
     /// Host time per phase (report-only, never in the db).
     pub phases: Phases,
 }
@@ -212,6 +216,10 @@ pub struct RunSummary {
     pub nodes: u64,
     /// Frames run, the softlock probes' included.
     pub frames: u64,
+    /// Of `frames`, the softlock probes' (Task N: the probe cost).
+    pub probe_frames: u64,
+    /// Softlock probes run (`Plan::Softlock` jobs).
+    pub probes: u64,
     /// Findings raised, the report-only ones included.
     pub findings: u64,
     /// Of `findings`, the report-only ones (`FindingKind::report_only`).
@@ -305,13 +313,25 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             .build()
             .context("building the thread pool")?;
         let mut revalidated = None;
+        let mut kept = 0;
         if opened.build_changed {
-            db.mark_all_stale()?;
+            // Task N: after a content-only change, only the nodes under a changed script or
+            // map are replayed.
+            let root_map = root
+                .as_ref()
+                .map_or(game.new_game().map, |r| r.checkpoint.world.field.map);
+            match incremental::mark(&mut db, &Digests::current(), build_hash(&game), root_map)? {
+                Some(m) => kept = m.kept,
+                None => {
+                    db.mark_all_stale()?;
+                }
+            }
         }
         let start = root.as_ref().map(|r| r.checkpoint.clone());
         if opened.build_changed || db.stats()?.stale > 0 {
-            revalidated =
-                Some(pool.install(|| revalidate_db(&mut db, &game, &cfg, start.clone()))?);
+            let mut r = pool.install(|| revalidate_db(&mut db, &game, &cfg, start.clone()))?;
+            r.kept = kept;
+            revalidated = Some(r);
         }
         let config_changed = db
             .last_run_config()?
@@ -361,6 +381,10 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
         if planned.is_empty() {
             return Ok(None);
         }
+        let probes = planned
+            .iter()
+            .filter(|(_, p)| matches!(p, Plan::Softlock { .. }))
+            .count() as u32;
         let mut err = None;
         let (game, db, cache) = (&self.game, &self.db, &mut self.cache);
         let jobs = runner::jobs(planned, |parent| {
@@ -412,6 +436,7 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
                 .filter(|f| f.0.kind.report_only())
                 .count() as u32,
             max_progress: delta.nodes.iter().map(|n| n.progress).max().unwrap_or(0),
+            probes,
             phases,
         }))
     }
@@ -433,6 +458,8 @@ impl<G: GameData + Clone + Send + Sync + 'static> Explore<G> {
             sum.generations += 1;
             sum.nodes += u64::from(g.stats.inserted);
             sum.frames += g.stats.frames + g.stats.probe_frames;
+            sum.probe_frames += g.stats.probe_frames;
+            sum.probes += u64::from(g.probes);
             sum.findings += u64::from(g.findings);
             sum.reports += u64::from(g.reports);
             sum.slow_frames += u64::from(g.stats.slow_frames);
@@ -497,7 +524,10 @@ fn revalidate_db<G: GameData + Clone + Send + Sync>(
     root: Option<Arc<Checkpoint>>,
 ) -> anyhow::Result<RevalidateReport> {
     let fix = |start: Option<&Checkpoint>, m: &Macro| repair(game, start, m, cfg);
-    Ok(rebuild::revalidate_from(db, game, cfg, root, &fix)?)
+    let r = rebuild::revalidate_from(db, game, cfg, root, &fix)?;
+    // The digests the nodes are now checked on (Task N).
+    db.set_meta(incremental::META_KEY, &Digests::current().encode())?;
+    Ok(r)
 }
 
 /// The revalidation repair: re-expands `m` from `start` (a new game for `None`, the root's

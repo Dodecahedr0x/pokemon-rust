@@ -184,7 +184,8 @@ fn an_unchanged_game_revalidates_every_node() {
         RevalidateReport {
             valid: 4,
             repaired: 0,
-            broken: 0
+            broken: 0,
+            kept: 0
         }
     );
     assert_eq!(calls.load(Ordering::Relaxed), 0);
@@ -222,7 +223,8 @@ fn an_unrepairable_divergence_breaks_the_subtree() {
         RevalidateReport {
             valid: 2,
             repaired: 0,
-            broken: 2
+            broken: 2,
+            kept: 0
         }
     );
     assert_eq!(
@@ -257,7 +259,8 @@ fn a_repair_recomputes_total_frames_down_the_tree() {
         RevalidateReport {
             valid: 3,
             repaired: 1,
-            broken: 0
+            broken: 0,
+            kept: 0
         }
     );
     // Back to the true rows (status and build aside).

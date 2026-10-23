@@ -30,6 +30,9 @@ pub struct RevalidateReport {
     pub repaired: u64,
     /// Newly broken, subtrees included.
     pub broken: u64,
+    /// Moved to the new build without a replay: no script or map they or their ancestors
+    /// touched changed (`incremental::mark`, Task N; filled by the caller).
+    pub kept: u64,
 }
 
 /// What one node's check gave.

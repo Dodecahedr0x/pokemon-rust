@@ -886,6 +886,47 @@ impl Db {
         Ok(n as u64)
     }
 
+    /// The nodes whose `node_touch` names `t` (incremental revalidation, Task N).
+    pub fn touching(&self, t: Touch) -> Result<Vec<NodeId>, DbError> {
+        let (kind, id) = touch_cols(&t);
+        let mut st = self
+            .conn
+            .prepare("SELECT node FROM node_touch WHERE kind = ?1 AND id = ?2")?;
+        let rows = st.query_map(params![kind, id], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// In one transaction: the `kept` nodes and their snapshots move to `build` (their state is
+    /// the same on it; a snapshot's header keeps the capturing build, which is informational),
+    /// and the valid ones of `stale` become stale (incremental revalidation, Task N).
+    pub fn retag(
+        &mut self,
+        kept: &[NodeId],
+        stale: &[NodeId],
+        build: BuildHash,
+    ) -> Result<(), DbError> {
+        let (e, c) = (build.engine as i64, build.content as i64);
+        let tx = self.conn.transaction()?;
+        {
+            let mut node =
+                tx.prepare("UPDATE node SET build_engine = ?2, build_content = ?3 WHERE id = ?1")?;
+            let mut snap = tx.prepare(
+                "UPDATE snapshot SET build_engine = ?2, build_content = ?3 WHERE node = ?1",
+            )?;
+            for id in kept {
+                node.execute(params![id, e, c])?;
+                snap.execute(params![id, e, c])?;
+            }
+            let mut st =
+                tx.prepare("UPDATE node SET status = 'stale' WHERE id = ?1 AND status = 'valid'")?;
+            for id in stale {
+                st.execute([id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// The config (RON) of the last `run` row, if any.
     pub fn last_run_config(&self) -> Result<Option<String>, DbError> {
         Ok(self
