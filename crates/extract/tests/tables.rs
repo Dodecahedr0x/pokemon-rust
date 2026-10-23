@@ -306,10 +306,33 @@ fn field_strings_match_decomp() {
     for id in tables::FIELD_STRINGS {
         assert_eq!(got[id], en(&strings[id]), "{id}");
     }
-    let (_, fr) = fr();
+    let (rom, fr) = fr();
     let keys = |m: &BTreeMap<String, String>| m.keys().cloned().collect::<Vec<_>>();
     assert_eq!(keys(&fr.field_strings.strings), keys(got));
     assert_ne!(fr.field_strings, t.field_strings);
+    // The French strings by their ROM byte codes (Gen3 charmap: `A` is 0xBB, `a` 0xD5): the
+    // big guy/girl strings are empty, then "son", "daughter", "mom", "dad" in capitals for the
+    // parents. Each decoded string re-encodes to the bytes at the located pointer.
+    let want: [&[u8]; 6] = [
+        &[],
+        &[],
+        &[0xDA, 0xDD, 0xE0, 0xE7],
+        &[0xDA, 0xDD, 0xE0, 0xE0, 0xD9],
+        &[0xC7, 0xBB, 0xC7, 0xBB, 0xC8],
+        &[0xCA, 0xBB, 0xCA, 0xBB],
+    ];
+    let at = tables::locate(rom).unwrap().field_strings;
+    for (i, id) in tables::FIELD_STRINGS.iter().enumerate() {
+        let s = &fr.field_strings.strings[*id];
+        assert_eq!(
+            text::encode(s).unwrap(),
+            [want[i], &[0xFF]].concat(),
+            "{id}"
+        );
+        let off = at[i] as usize;
+        let end = off + rom.bytes()[off..].iter().position(|&b| b == 0xFF).unwrap();
+        assert_eq!(&rom.bytes()[off..end], want[i], "{id} at {off:#x}");
+    }
 }
 
 #[test]

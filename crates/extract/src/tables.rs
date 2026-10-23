@@ -106,6 +106,8 @@ pub const FIELD_STRINGS: [&str; 6] = [
 const SAVE_BLOCK1_PTR: u32 = 0x0300_5D8C;
 const SAVE_BLOCK2_PTR: u32 = 0x0300_5D90;
 const STRING_VAR1: u32 = 0x0202_1CC4;
+/// `VAR_TEMP_3`, a literal of `GetMomOrDadStringForTVMessage`'s pools.
+const VAR_TEMP_3: u32 = 0x4003;
 
 fn is_rom_ptr(rom: &Rom, v: u32) -> bool {
     v >= ROM_BASE && ((v - ROM_BASE) as usize) < rom.bytes().len()
@@ -212,14 +214,24 @@ fn locate_field_strings(rom: &Rom) -> Result<Vec<u32>> {
     let [tv] = tv[..] else {
         bail!("GetMomOrDadStringForTVMessage: expected 1 literal pool, found {tv:#x?}");
     };
+    // The function's pools (the same code on BPEE and BPEF): its first holds
+    // `{gSaveBlock1Ptr, gSaveBlock2Ptr, gStringVar1, gText_Mom, VAR_TEMP_3}`; the `== 1` branch's
+    // `{gStringVar1, gText_Mom, VAR_TEMP_3}` sits at +0x74 and the `== 2` branch's
+    // `{gStringVar1, gText_Dad}` at +0x8c.
+    let mom_ptr = word(tv + 12).context("GetMomOrDadStringForTVMessage: gText_Mom")?;
+    ensure!(
+        words(tv + 16, &[VAR_TEMP_3])
+            && words(tv + 0x74, &[STRING_VAR1, mom_ptr, VAR_TEMP_3])
+            && words(tv + 0x8c, &[STRING_VAR1]),
+        "GetMomOrDadStringForTVMessage at {tv:#x}: unexpected literal pools"
+    );
     let mom = string(tv + 12)?;
-    let dad = (tv + 16..tv + 0x200)
-        .step_by(4)
-        .find(|&o| {
-            word(o) == Some(STRING_VAR1)
-                && word(o + 4).is_some_and(|p| is_rom_ptr(rom, p) && p - ROM_BASE != mom)
-        })
-        .context("GetMomOrDadStringForTVMessage: no gText_Dad pool")?;
+    let dad = tv + 0x8c;
+    let dad_ptr = word(dad + 4).unwrap_or(0);
+    ensure!(
+        is_rom_ptr(rom, dad_ptr) && dad_ptr != mom_ptr,
+        "GetMomOrDadStringForTVMessage at {tv:#x}: no gText_Dad at +0x90"
+    );
     Ok(vec![
         string(big + 8)?,
         string(big + 0x1c)?,
