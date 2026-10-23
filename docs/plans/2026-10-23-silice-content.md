@@ -2494,8 +2494,8 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
   - **Palier 3 (y 0–24):** the brambles ravine (west, with ledges back down to palier 2), the braises nook behind a cracked rock, and the pool on top of waterfall 3. The north exit (x 18–21) connects to Évalon.
 - **Evalon:**
   - a cliff ring, with the south portal (x 23–26) on Route S8;
-  - the citadel face at y 2–3, door (25, 3), behind the moat (y 7–8) and its drawbridge. The bridge is drawn raised; `OnLoad` lowers it;
-  - the Porte du Fer (y 13, gate x 24–26) and the belfry;
+  - the citadel face at y 2–3, door (25, 3), behind the moat (y 7–8) and its drawbridge (24–26, 7–8). The bridge is drawn raised, as solid water at elevation 3; `OnLoad` lowers it with `setmetatile(…, false)`;
+  - the Porte du Fer (y 13, gate x 24–26), filled by its three guards until story 83, and the belfry;
   - six houses with doors, plus decorative ones;
   - the square with the dry fountain;
   - the mill pond, whose islet holds the PP Up;
@@ -2524,7 +2524,8 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
   - every other item is reachable.
 - **Évalon:**
   - the village is unreachable from the south portal without crossing Sc01's row (23–26, 45);
-  - the citadel steps are unreachable without crossing Sc07's row y 10;
+  - the yard (y 9–12) is unreachable at story 82, when the three guards fill the gate. Without them, Surf would have crossed the raised drawbridge's moat (fixed in review);
+  - from 83 (guards aside, bridge down), the citadel steps are unreachable without crossing Sc07's row y 10, with or without Surf;
   - every door, the SE path and the PP Up (by Surf) are reachable;
   - the pigeon's pocket opens only once the brambles are cut.
 - **Citadelle:**
@@ -2541,7 +2542,11 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
 - **Galeries:** the warp is on the mouth's floor cell (15, 23) (777), as at Fiery Path. The mouth piece 525–527 is solid.
 
 **Pending links, left solid on purpose:**
-- **Ch7 → Route S8.** The route's south edge (y 78–79) is forest. Ch7 must open x 18–21 and add `Connect((dir: South, …, map: "ReverseCity"))` on both maps. `RouteS08_Sc01`'s coords (18–21, 77) are already placed, on `VAR_SIL_STORY` 76.
+- **Ch7 → Route S8.** The route's south edge (y 78–79) is forest. Ch7 was still in review when this branch merged master, so the link is not made. Ch7's Reverse-City has its north gate as door 545 at (27, 0), solid until its Sc07 and `OnLoad` open it. Reverse-City is General + Sootopolis and Route S8 is General + Fallarbor. A Gen3 connection draws the neighbour with the current map's tilesets, so the seam would show Sootopolis tiles as Fallarbor ones. The link should be a warp pair:
+  - `ReverseCity` (27, 0) → `RouteS08` warp 0;
+  - on Route S8, an arrival cell in the forest edge, for example (19, 78) cut open as a path with an arrow-warp mat back to Reverse-City's gate warp.
+
+  The player then steps north onto `RouteS08_Sc01`'s coords (18–21, 77), which already fire on `VAR_SIL_STORY` 76.
 - **Évalon → Route S9 (Ch9).** The shepherd's path is the dead end at (42–45, 44–45), guarded by `LOCALID_EVALON_GARDE_SE` (hidden by `FLAG_SIL_HIDE_EVALON_GARDE_SE` from story 85). Ch9 must open the cliff and trees there and add the connection (or a warp). `Evalon_Sc10`'s coords at (42–43, 45) already fire on 85.
 
 **Hide flags.** Every story actor has its own persistent flag; no `FLAG_TEMP_*`.
@@ -2554,11 +2559,17 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
   | Evalon | Romain, sbires 1–3 | `_EVALON_ROMAIN`, `_EVALON_SBIRE_1/2/3` | Sc07 shows and hides them; OnTransition sets them |
   | Evalon | the pigeon Plume-d'Argent, the SE path guard | `_EVALON_PIGEON`, `_EVALON_GARDE_SE` | Q3, and OnTransition from story 85 |
   | RouteS08 | the messenger pigeon | `_S08_PIGEON` | OnTransition: shown at 80 only (Sc02) |
-  | Evalon_Taverne | Mathieu, Adrien, Gwada | `_TAVERNE_MATHIEU/_ADRIEN/_GWADA` | OnTransition: shown at 82–83 |
+  | Evalon_Taverne | Mathieu, Adrien, Gwada | `_EVALON_TAVERNE_MATHIEU/_ADRIEN/_GWADA` | OnTransition: shown at 82–83 |
   | Evalon_Citadelle | the left chest (the Electrode) | `_GYM8_COFFRE_GAUCHE` | CoffreGauche after the battle |
   | Evalon_Galeries | the Minerai Ferreux ball (the source gives it no flag) | `FLAG_SIL_ITEM_EVALON_MINERAI` | pick-up |
 
-- **No `new_game_flags` entries.** Ch8 is reached at story 76 at the earliest, and each owner's `OnTransition` sets or clears the flags before the objects spawn. Ch2–Ch3 added theirs to `game.ron`; add Ch8's there too if the engine ever spawns objects before `on_transition`.
+- **`new_game_flags`** (added in review, as for Ch2–Ch6). The flags of every object that starts hidden are set in `game.ron`:
+  - `_S08_PIGEON`;
+  - `_EVALON_AMIS`, `_EVALON_ADRIEN`, `_EVALON_GWADA` and `_EVALON_SCRIBE`;
+  - `_EVALON_GOGO_ROMAIN` (the source sets it by default), `_EVALON_ROMAIN` and `_EVALON_SBIRE_1/2/3`;
+  - `_EVALON_TAVERNE_MATHIEU/_ADRIEN/_GWADA`.
+
+  Plume-d'Argent, the south-east guard and the trapped chest start visible. `game_tests.rs` asserts both groups. The `OnTransition` scripts still own the flags from `VAR_SIL_STORY`, but a scene that shows objects mid-map and a checkpoint taken before the first visit both need these states.
 - **State flags for the scripts, not allocated** (no map references them): `FLAG_SIL_EVALON_TOUR_TRAPPE` (2F crates solved), `FLAG_SIL_EVALON_GYM_PONT` (both golems on their plates) and `FLAG_SIL_EVALON_GYM_SPHINGE_PASSE`. The ch08 scripts allocate them.
 
 **Source fixes and placements.** Each one is noted in the edit comments.
@@ -2569,7 +2580,9 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
 - **Évalon:**
   - the friends (obj 1–3) and the Scribe show by the square at 80–81 for Sc01;
   - Sc07 fires on the whole yard row y 10 (every walkable cell, x 11–38), the only way to the drawbridge, not just "three tiles before the gate";
-  - from 83, OnTransition moves the guards Bertrand, Iolanda and Perceval aside (setobjectxyperm (22, 12), (27, 12), (28, 10)).
+  - the guards Bertrand, Perceval and Iolanda stand in the gate cells (24–26, 13). From 83, OnTransition moves them aside (setobjectxyperm (22, 12), (27, 12), (28, 10));
+  - Sc07's hidden invaders stand off the trigger row y 10 (Gogo (12, 9), Romain (12, 11), sbires (11, 9), (11, 12), (11, 11)), so none can be shown on the player's cell;
+  - Mathieu stands at (24, 40). Sc01's Walk(Down) ×4 then ends on (24, 44), next to the trigger row and not on it.
 - **Évalon's colombophile.** The keeper in the Pigeonnier owns the PC and Q3, so Évalon's obj 20 outside the Pigeonnier is his apprentice (`EventScript_ApprentiColombophile`).
 - **Brambles.** They are metatile 565 plus a bg script on each cell, and `OnLoad` clears them per state. They regrow when the map reloads, as Gen3's cut trees do.
 - **Tour du Scribe music.** It is `MUS_SEALED_CHAMBER`, the source's own fallback: `MUS_RG_SEKAIKAN` is not in the engine's song table, and the content build rejects it.
@@ -2657,6 +2670,66 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
   - the glyphs `♪`, `°`, `#`, `[`, `]`, `_`, `—` in Ch8 texts;
   - the trainer names and class names that are too long (`LOULPIX & DORIS`, `MAÎTRES DU DONJON`).
 - `items.ron`'s §7 places stay the source's; the maps are authoritative.
+
+**Review fixes** (after the first build; edit scripts changed, maps rebuilt). A path search was run with ledges, Surf (elevation rules), waterfalls (pushed south, climbed north) and the pushable blocks modelled.
+1. **Critical: the Épreuve du Fer could be skipped.** At story 82, Bertrand and Iolanda stood beside the gate at (23, 14) and (27, 14), so (24, 13) and (26, 13) were open. The yard was reachable, and Surf crossed the moat under the raised drawbridge. The player could reach the Citadelle before the three trials and the invasion. Now the three guards fill the gate (24–26, 13). Sc04 is still talking to Perceval, from (25, 14).
+2. **Sc07's invaders on the trigger row.** Gogo (12, 10) and sbire 2 (11, 10) stood, hidden, on Sc07's coords. A player who entered the row there would have had an object shown on his cell. They now stand off row y 10.
+3. **The fountain's sign could not be read.** The sign stood at (19, 40), in the middle of the solid 3 × 3 basin. It is now on the south rim, at (19, 41).
+4. **Sc01's Mathieu walked onto the trigger row.** From (24, 41), Walk(Down) ×4 ended on (24, 45), where the player stands. He now starts at (24, 40).
+5. **Duplicate `LOCALID`s after the merge.** Master's `PortRessac_Taverne` already defines `LOCALID_TAVERNE_GWADA` and `LOCALID_TAVERNE_ADRIEN`, and the content build makes `LOCALID_*` global constants. All of Evalon_Taverne's ids are now `LOCALID_EVALON_TAVERNE_*`. Its hide flags are `FLAG_SIL_HIDE_EVALON_TAVERNE_*`, with the same numbers (951–953).
+6. **`new_game_flags`**, as above.
+7. **The lowered drawbridge could not be walked.**
+   - **Before:** the bridge cells were moat water at elevation 1. Gen3's `setmetatile` (and the engine's) keeps a cell's elevation, so the bridge `OnLoad` draws would have stayed at 1, next to the yard and the citadel at 3. That is an elevation mismatch, so the player could not have walked onto it.
+   - **Now:** the six cells are drawn at elevation 3 and solid (`Paint` in `01_terrain`, `AllowCollision` in `03_allow`). Nobody walks or surfs onto them while the bridge is raised. `Evalon_OnLoad` must lower it with `blocked: false`.
+   - The other cells a script opens are at elevation 0, which matches anything:
+     - the Citadelle's bridge (5, 32–33) and door (5, 9–10);
+     - the Tower's trapdoor (10, 1);
+     - the Galeries' breach (3, 5).
+8. **Gaston's sight was empty.** He faced the lake from the east bank, and his first cell was water at elevation 1, which stops a trainer at 3 (`sight_collision`). He now looks down the bank, at (35, 65–67).
+9. **`lint-reach`** (the studio checker merged from master) is now clean on the Ch8 maps: 0 warnings, and 12 allowances in `03_allow.ron`, each with its reason.
+   - **The allowances:**
+     - Route S8's palier 1 and palier 2 items and signs. The lint has no south entry yet (the pending Ch7 link) and does not model waterfalls. Behind them sit the brambles that `RouteS08_EventScript_Ronces` cuts.
+     - Évalon's warp 6, behind the drawbridge.
+     - Tour 2F's trapdoor.
+     - The Citadelle's stairs and its salle 3 and salle 4 signs, behind the golems' bridge.
+   - **The infos left are expected:**
+     - the swimmers' and the far bank's trainers, seen only with Surf;
+     - the PP Up, reached by Surf;
+     - the crackle coords, optional by design;
+     - the slab traps, which the safe path avoids by design;
+     - the Pigeonnier's stair arrival;
+     - Route S8's Sc02 row, which can only be walked round from Évalon's side, before Évalon can be reached.
+10. **`bypass` proofs** (objects with a hide flag hidden, `--open` for the script-drawn cells). In each case, every path crosses the avoided cells:
+    - Évalon's Sc01, from the portal to the Taverne door, with Surf;
+    - Évalon's Sc07, from the yard to the citadel steps, with the bridge open, with and without Surf;
+    - Route S8's Sc02, from the top of waterfall 3 to the north exit;
+    - the Galeries' dark-gallery coord;
+    - in the Citadelle:
+      - Tristan, with the traps avoided too;
+      - Renard and the crypt coord, with the bridge open;
+      - Morgane;
+      - Élise.
+
+    Also:
+    - at story 82, with the guards in the gate, the yard is unreachable even with Surf;
+    - the Tower 1F stairs are unreachable until the bookcases move.
+
+    The checker does not push boulders, so the boulder cases above come from the review's own search.
+11. **Noted, kept:**
+   - Tour 2F's crates move freely across the open room, as in Gen3. A crate pushed onto (2, 2) seals the stairs down, and one on (10, 2) seals the trapdoor. The ch08 scripts must let the Copiste and the escabeau reset the room at any time, before and after his battle. Leaving and coming back resets it too, but here there is no other way out.
+   - In the Citadelle, a golem pushed down the corridor (5, 38) can be followed south. The player then steps on the skull slab (5, 45), and the trap's warp reloads the map. Every other bad push is undone by the room's exits.
+   - Route S8's cracked rock guards the braises nook. The source says it blocks Q3's pigeon, but Q3 is in Évalon's Pré des Joutes, behind the brambles.
+   - The sword, shield and skull slabs (564–566) look alike until the tiles are drawn. Only the coords tell them apart.
+   - The listed deviations hold:
+     - the Tower's music: `MUS_RG_SEKAIKAN` is not in the decomp's song table, and `MUS_SEALED_CHAMBER` is the source's own fallback;
+     - Élise and Morgane beside the path: every route to the stairs still crosses their sight;
+     - the apprentice: the source's Npc_6 stands outside the Pigeonnier, while the keeper owns the PC and Q3 inside.
+12. **Checked clean:**
+   - every warp pair, and the mutual Évalon ↔ Route S8 connection;
+   - both mandatory scenes on Route S8 and Évalon, and every gym trainer and the crypt coord, none of which can be bypassed;
+   - all items and signs, which can be reached;
+   - Route S8: from every reachable state (ledges, waterfalls), the player can still get back to either exit;
+   - the Tower 1F pushes.
 
 **Editor friction (new since Ch2–Ch3):**
 1. **Cave walls.** No autotile. The Galeries' Fiery Path walls come from a small neighbour rule in the generator (one-cell walls: faces, sides, inner and outer corners), simpler than Emerald's two-cell rims. An `Autotile` op per tileset family would help caves and cliffs.
