@@ -100,6 +100,8 @@ impl<'a> Low<'a> {
         let mut s = head;
         if wild {
             s.push_str("    let mut wild: Option<(SpeciesId, u8)> = None;\n");
+            // Gen3 `gBattleOutcome` of the function's `dowildbattle`, for `GetBattleOutcome`.
+            s.push_str("    let mut outcome: u16 = 0;\n");
         }
         if looped {
             if declare_pc {
@@ -130,6 +132,7 @@ impl<'a> Low<'a> {
         let mut out = Vec::new();
         let mut st = BlockState {
             moved: false,
+            trainer: None,
             word0: None,
             wild,
         };
@@ -391,12 +394,12 @@ impl<'a> Low<'a> {
                     "ctx.set_cond(ctx.var({a}).await.cmp(&ctx.var({c}).await));"
                 ));
             }
-            ("special", [s]) => return Ok(self.special(s, None, out)),
+            ("special", [s]) => return Ok(self.special(s, None, st, out)),
             ("specialvar", [v, s]) => {
                 let Some(v) = var_target(v) else {
                     return Ok(false);
                 };
-                return Ok(self.special(s, Some(v), out));
+                return Ok(self.special(s, Some(v), st, out));
             }
             ("waitstate", _) => out.push("ctx.wait_state().await;".to_string()),
             ("delay", [n]) => {
@@ -580,7 +583,11 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.set_movement_type({id}, {t}).await;"));
             }
             ("trainerbattle", [k, tr, local, rest @ ..]) => {
-                return self.trainerbattle(k, tr, local, rest, out);
+                let ok = self.trainerbattle(k, tr, local, rest, out)?;
+                if ok {
+                    st.trainer = trainer_arg(tr, false);
+                }
+                return Ok(ok);
             }
             ("checktrainerflag" | "settrainerflag" | "cleartrainerflag", [t]) => {
                 let Some(t) = trainer_arg(t, true) else {
@@ -608,6 +615,16 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.message({t}).await;{note}"));
             }
             ("closemessage", _) => out.push("ctx.close_message().await;".to_string()),
+            // Gen3 `ShowPokenavFieldMessage`: the call in the field message box (no wait).
+            ("pokenavcall", [Text(t)]) if is_ident(t) => {
+                out.push(format!("ctx.message({t}).await; // pokenavcall"));
+            }
+            ("checkpartymove", [m]) => {
+                let Some(m) = move_arg(m) else {
+                    return Ok(false);
+                };
+                out.push(format!("check_party_move(&ctx, {m}).await;"));
+            }
             ("lock", _) => out.push("ctx.lock().await;".to_string()),
             ("lockall", _) => out.push("ctx.lock_all().await;".to_string()),
             ("release", _) => out.push("ctx.release().await;".to_string()),
@@ -857,7 +874,7 @@ impl<'a> Low<'a> {
                     return Ok(false);
                 }
                 out.push(
-                    "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }"
+                    "if let Some((s, l)) = wild { outcome = ctx.battle_wild(s, l, false).await as u16; }"
                         .to_string(),
                 );
             }
@@ -900,6 +917,7 @@ impl<'a> Low<'a> {
         &mut self,
         s: &IrArg,
         dest: Option<String>,
+        st: &BlockState,
         out: &mut Vec<String>,
     ) -> bool {
         let Some((name, value)) = special_name(s) else {
@@ -916,10 +934,20 @@ impl<'a> Low<'a> {
         } else {
             format!("{value:#x}")
         };
+        // Specials that read script state Gen3 keeps outside vars: the battle outcome of the
+        // function's `dowildbattle` (`gBattleOutcome`), the trainer of the block's
+        // `trainerbattle` (`gTrainerBattleOpponent_A`).
+        let call = match (name.as_str(), &st.trainer) {
+            ("SPECIAL_GetBattleOutcome", _) if st.wild => "outcome".to_string(),
+            (n, Some(t)) if OPPONENT_SPECIALS.contains(&n) => {
+                format!("special_vs(&ctx, {c}, {t}).await")
+            }
+            _ => format!("special(&ctx, {c}).await"),
+        };
         match class {
             Class::Native => out.push(match &dest {
-                Some(v) => format!("ctx.set_var({v}, special(&ctx, {c}).await).await;"),
-                None => format!("special(&ctx, {c}).await;"),
+                Some(v) => format!("ctx.set_var({v}, {call}).await;"),
+                None => format!("{call};"),
             }),
             Class::Ignore => out.push(format!("// special {name}")),
             Class::Default(v) => {
@@ -1123,11 +1151,21 @@ impl<'a> Low<'a> {
 pub(super) struct BlockState {
     /// An `applymovement` ran earlier in the block.
     moved: bool,
+    /// The trainer of the block's last `trainerbattle` (Gen3 `gTrainerBattleOpponent_A`).
+    trainer: Option<String>,
     /// The text of the block's last `loadword 0, <text>`.
     word0: Option<String>,
     /// The function has the `wild` local.
     wild: bool,
 }
+
+/// The specials that read Gen3 `gTrainerBattleOpponent_A`: after a `trainerbattle` in the same
+/// block they lower to `special_vs(&ctx, id, trainer)` (the prelude's `special` answers them
+/// without a trainer).
+pub const OPPONENT_SPECIALS: &[&str] = &[
+    "SPECIAL_ShouldTryRematchBattle",
+    "SPECIAL_IsTrainerReadyForRematch",
+];
 
 /// `// a, b, c` of an unsupported command's operands, or nothing.
 pub(super) fn args_comment(args: &[IrArg]) -> String {

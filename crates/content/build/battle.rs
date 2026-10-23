@@ -17,8 +17,8 @@ use anyhow::{Context, Result, bail, ensure};
 use extract::battle_data::{STAT_NAME_KEYS, TRAINER_MONEY_DEFAULT_CLASS, stat_sharply_is_complete};
 use extract::names::{self, Table};
 use extract::schema::{
-    BattleStringsFile, EncounterHeader, EvolutionsFile, HealLocationsFile, MonCoords, Move,
-    MovesFile, Species, Trainer, TrainerMoneyFile, TypesFile,
+    BattleStringsFile, DexFile, EncounterHeader, EvolutionsFile, HealLocationsFile, MonCoords,
+    Move, MovesFile, RematchesFile, Species, Trainer, TrainerMoneyFile, TypesFile,
 };
 use extract::text::{Lang, encode_lang};
 use std::collections::BTreeMap;
@@ -95,6 +95,10 @@ pub struct BattleIn {
     pub evolutions: EvolutionsFile,
     /// `gTrainerMoneyTable` by class (empty before format 5.1).
     pub trainer_money: TrainerMoneyFile,
+    /// The Hoenn Pokédex order (format 5.6; empty before).
+    pub dex: DexFile,
+    /// `gRematchTable` (format 5.6; empty before).
+    pub rematches: RematchesFile,
     pub player_back: PicIn,
     pub ui: UiGfx,
     pub small_glyphs: Vec<Glyph>,
@@ -900,6 +904,33 @@ impl Gen<'_> {
             self.species_id(&b.starters[2])?,
             self.species_id(&b.first_foe.0)?,
             b.first_foe.1
+        )?;
+        let hoenn = (b.dex.hoenn.iter())
+            .map(|s| self.species_id(s))
+            .collect::<Result<Vec<_>>>()?;
+        writeln!(
+            self.o,
+            "/// The Hoenn Pokédex, `HOENN_DEX_TREECKO` first (Gen3 `sSpeciesToHoennPokedexNum`).\npub static HOENN_DEX: [SpeciesId; {}] = [{}];",
+            hoenn.len(),
+            hoenn.join(", ")
+        )?;
+        let mut rematches = Vec::new();
+        for r in &b.rematches.rematches {
+            let ids = (r.trainers.iter())
+                .map(|t| {
+                    names::TRAINERS
+                        .value(t)
+                        .with_context(|| format!("rematch trainer {t}"))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            ensure!(ids.len() == 5, "rematch of {} stages", ids.len());
+            rematches.push(format!("{ids:?}"));
+        }
+        writeln!(
+            self.o,
+            "/// Gen3 `gRematchTable` in `REMATCH_*` order: the `TRAINER_*` of each stage (`TRAINER_NONE` past the last).\npub static REMATCHES: [[u16; 5]; {}] = [{}];",
+            rematches.len(),
+            rematches.join(", ")
         )?;
         let no_pics: Vec<&str> = b
             .species
