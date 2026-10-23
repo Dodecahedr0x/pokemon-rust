@@ -2578,11 +2578,11 @@ The importer numbered them 804–806; they were renumbered by hand.
 **Link to Manga-Square (Ch6), made by the review.**
 - **Ch6 → Ch7, as warps.** `RouteS07/05_ch6_link.ron` opens the south mats (13–14, 71), Building 6/7 (`MB_SOUTH_ARROW_WARP`), as warps 1–2 to Manga-Square's warp 6, the Grand Torii's exit (37, 0); Manga-Square lands the player on warp 2, the right mat, facing north. A connection is impossible: Manga-Square is General + BattleFrontierOutsideEast. The `03_allow.ron` that kept the mats solid is gone. See the Ch6 section for Manga-Square's side.
 
-**Pending link, left solid on purpose:**
+**Link to Route S8 (Ch8), made by the Ch8 review:**
 - **Ch7 → Ch8.** Reverse-City's Porte Êta-Nord, door 545 at (27, 0), is solid.
   - `Sc07` opens it with `door()` and `set_metatile`;
   - `OnLoad` repaints it open once `FLAG_SIL_REVERSE_PORTE_NORD_OUVERTE` is set;
-  - Ch8 adds `Warp(x: 27, y: 0, dest_map: "RouteS08", …)`, or a north connection if Route S8 shares the General primary.
+  - `ReverseCity/05_ch8_link.ron` adds warp 9 there, to Route S8's south mats. It is a warp, because Route S8 is General + Fallarbor. See the Ch8 section.
 
 **Missing graphics and mechanics (static fallbacks in place):**
 - **No ice, forced walk or slide in the engine.** The `Behavior` enum has none of MB_ICE, MB_WALK_*, MB_SLIDE_* or MB_THIN_ICE.
@@ -2730,12 +2730,13 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
 - **Inside the buildings:** the Taverne's stair warps 2 ↔ 3 (the Pigeonnier); Tour 1F 2 ↔ 2F 0, 2F 1 ↔ 3F 0; Citadelle 2 ↔ 2F 0–1.
 - **Galeries:** the warp is on the mouth's floor cell (15, 23) (777), as at Fiery Path. The mouth piece 525–527 is solid.
 
-**Pending links, left solid on purpose:**
-- **Ch7 → Route S8.** The route's south edge (y 78–79) is forest. Ch7 was still in review when this branch merged master, so the link is not made. Ch7's Reverse-City has its north gate as door 545 at (27, 0), solid until its Sc07 and `OnLoad` open it. Reverse-City is General + Sootopolis and Route S8 is General + Fallarbor. A Gen3 connection draws the neighbour with the current map's tilesets, so the seam would show Sootopolis tiles as Fallarbor ones. The link should be a warp pair:
-  - `ReverseCity` (27, 0) → `RouteS08` warp 0;
-  - on Route S8, an arrival cell in the forest edge, for example (19, 78) cut open as a path with an arrow-warp mat back to Reverse-City's gate warp.
+**Link to Reverse-City (Ch7), made after Ch7 merged.**
+- **Ch7 → Route S8, as warps.** A connection is impossible: Reverse-City is General + Sootopolis and Route S8 is General + Fallarbor, and a Gen3 connection draws the neighbour with the current map's tilesets.
+  - `ReverseCity/05_ch8_link.ron` adds warp 9 on the Porte Êta-Nord, door 545 at (27, 0), to Route S8's warp 0. The door stays solid until `ReverseCity_Sc07` and `ReverseCity_OnLoad` open it, so the cell has an `AllowCollision` and `warp 9` an `AllowReach`. Arriving on the door from Route S8 walks the player down to (27, 1).
+  - `RouteS08/05_ch7_link.ron` cuts a two-cell path (19–20, 78) through the forest edge, down to two mats (19–20, 79), Fallarbor 689/690 (`MB_SOUTH_ARROW_WARP`). These are warps 0–1 to Reverse-City's warp 9. The trees beside the path stay solid, so the only way out is north onto `RouteS08_Sc01`'s coords (18–21, 77), which fire on `VAR_SIL_STORY` 76.
+  - `bypass` from either mat to palier 1 says no. My own search from the mats, with Surf and Waterfall, reaches the north edge only across Sc01 and Sc02.
 
-  The player then steps north onto `RouteS08_Sc01`'s coords (18–21, 77), which already fire on `VAR_SIL_STORY` 76.
+**Pending link, left solid on purpose:**
 - **Évalon → Route S9 (Ch9).** The shepherd's path is the dead end at (42–45, 44–45), guarded by `LOCALID_EVALON_GARDE_SE` (hidden by `FLAG_SIL_HIDE_EVALON_GARDE_SE` from story 85). Ch9 must open the cliff and trees there and add the connection (or a warp). `Evalon_Sc10`'s coords at (42–43, 45) already fire on 85.
 
 **Hide flags.** Every story actor has its own persistent flag; no `FLAG_TEMP_*`.
@@ -2875,9 +2876,9 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
      - the Tower's trapdoor (10, 1);
      - the Galeries' breach (3, 5).
 8. **Gaston's sight was empty.** He faced the lake from the east bank, and his first cell was water at elevation 1, which stops a trainer at 3 (`sight_collision`). He now looks down the bank, at (35, 65–67).
-9. **`lint-reach`** (the studio checker merged from master) is now clean on the Ch8 maps: 0 warnings, and 12 allowances in `03_allow.ron`, each with its reason.
+9. **`lint-reach`** (the studio checker merged from master) is now clean on the Ch8 maps: 0 warnings, and 10 allowances in `03_allow.ron`, each with its reason.
    - **The allowances:**
-     - Route S8's palier 1 and palier 2 items and signs. The lint has no south entry yet (the pending Ch7 link) and does not model waterfalls. Behind them sit the brambles that `RouteS08_EventScript_Ronces` cuts.
+     - Route S8's north edge and its palier 2 items and signs. The lint does not model waterfalls, so from the Reverse-City mats it reaches only palier 1. Behind the Rare Candy sit the brambles that `RouteS08_EventScript_Ronces` cuts.
      - Évalon's warp 6, behind the drawbridge.
      - Tour 2F's trapdoor.
      - The Citadelle's stairs and its salle 3 and salle 4 signs, behind the golems' bridge.
@@ -2887,7 +2888,7 @@ The 12 maps of Chapter 8 (le Bourg d'Évalon) are in `games/silice/{maps,layouts
      - the crackle coords, optional by design;
      - the slab traps, which the safe path avoids by design;
      - the Pigeonnier's stair arrival;
-     - Route S8's Sc02 row, which can only be walked round from Évalon's side, before Évalon can be reached.
+     - Route S8's Sc02 row, which can only be walked round from Évalon's side. Évalon is reached from the south only across that row.
 10. **`bypass` proofs** (objects with a hide flag hidden, `--open` for the script-drawn cells). In each case, every path crosses the avoided cells:
     - Évalon's Sc01, from the portal to the Taverne door, with Surf;
     - Évalon's Sc07, from the yard to the citadel steps, with the bridge open, with and without Surf;
