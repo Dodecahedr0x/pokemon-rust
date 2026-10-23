@@ -141,7 +141,7 @@
     "SPECIAL_DoTVShowInSearchOfTrainers": Default(1), // TV shows are not modelled: ends the show loop (unreachable: Gabby and Ty are off the air)
     "SPECIAL_DoTrainerApproach": Unsupported, // run natively by trainer_battle (Task I); not reached from scripts
     "SPECIAL_DoWaldaNamingScreen": Native, // degraded: no naming screen; VAR_0x8004 = 2 (cancelled, no phrase before), so no phrase is saved and Walda's wallpaper is never given
-    "SPECIAL_DoWateringBerryTreeAnim": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_DoWateringBerryTreeAnim": Native, // degraded: no watering animation (prelude::berry)
     "SPECIAL_DoesContestCategoryHaveMuseumPainting": Unsupported,
     "SPECIAL_DoesPartyHaveEnigmaBerry": Default(0), // no e-Reader Enigma Berry
     "SPECIAL_DoesPlayerHaveNoDecorations": Unsupported,
@@ -254,8 +254,8 @@
     "SPECIAL_HealPlayerParty": Native, // heals the party
     "SPECIAL_HideContestEntryMonPic": Unsupported,
     "SPECIAL_HipsterTryTeachWord": Unsupported,
-    "SPECIAL_IncrementDailyPickedBerries": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_IncrementDailyPlantedBerries": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_IncrementDailyPickedBerries": Native, // tv.c: VAR_DAILY_PICKED_BERRIES + 1
+    "SPECIAL_IncrementDailyPlantedBerries": Native, // tv.c: VAR_DAILY_PLANTED_BERRIES + 1
     "SPECIAL_InitBirchState": Native, // VAR_BIRCH_STATE = 0
     "SPECIAL_InitRoamer": Unsupported, // post-game (the roaming Lati)
     "SPECIAL_InitSecretBaseDecorationSprites": Ignore, // cosmetic: the bedroom decoration sprites (decorations are M9)
@@ -313,13 +313,13 @@
     "SPECIAL_MoveElevator": Unsupported,
     "SPECIAL_MoveOutOfSecretBase": Unsupported,
     "SPECIAL_MoveOutOfSecretBaseFromOutside": Unsupported,
-    "SPECIAL_ObjectEventInteractionGetBerryCountString": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_ObjectEventInteractionGetBerryName": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_ObjectEventInteractionGetBerryTreeData": Native, // degraded: every berry tree is empty soil (berry trees are M10+)
-    "SPECIAL_ObjectEventInteractionPickBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_ObjectEventInteractionPlantBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_ObjectEventInteractionRemoveBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
-    "SPECIAL_ObjectEventInteractionWaterBerryTree": Unsupported, // berry trees: unreachable, the soil is empty (ObjectEventInteractionGetBerryTreeData)
+    "SPECIAL_ObjectEventInteractionGetBerryCountString": Native, // berry.c over the saved trees; the item name, no plural (prelude::berry)
+    "SPECIAL_ObjectEventInteractionGetBerryName": Native, // berry.c; the item name (prelude::berry)
+    "SPECIAL_ObjectEventInteractionGetBerryTreeData": Native, // berry.c over the saved trees; no growth over time, no sparkle (prelude::berry)
+    "SPECIAL_ObjectEventInteractionPickBerryTree": Native, // berry.c: AddBagItem of the yield
+    "SPECIAL_ObjectEventInteractionPlantBerryTree": Native, // berry.c: PlantBerryTree of VAR_ITEM_ID's berry
+    "SPECIAL_ObjectEventInteractionRemoveBerryTree": Native, // berry.c: RemoveBerryTree
+    "SPECIAL_ObjectEventInteractionWaterBerryTree": Native, // berry.c: the stage's watered bit
     "SPECIAL_OffsetCameraForBattle": Unsupported,
     "SPECIAL_OpenPokeblockCaseForContestLady": Unsupported,
     "SPECIAL_OpenPokeblockCaseOnFeeder": Unsupported,

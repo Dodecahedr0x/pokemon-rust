@@ -16,8 +16,6 @@ const PARTY_NOTHING_CHOSEN: u16 = 0xFF;
 const PLAYER_HAS_TWO_USABLE_MONS: u16 = 0;
 /// Gen3 `PLAYER_HAS_ONE_MON`.
 const PLAYER_HAS_ONE_MON: u16 = 1;
-/// Gen3 `BERRY_STAGE_NO_BERRY` (`include/constants/berry.h`).
-const BERRY_STAGE_NO_BERRY: u16 = 0;
 /// The PokéNav entry of the start menu (`ScriptMenu_CreateStartMenuForPokenavTutorial`: Pokédex,
 /// Pokémon, Bag, PokéNav, …), the only answer Rustboro's tutorial accepts.
 const START_MENU_POKENAV: u16 = 3;
@@ -226,7 +224,6 @@ async fn cable_car_destination(ctx: &Ctx) -> MapId {
 ///   - `ShowEasyChatScreen`: `VAR_RESULT` = 0;
 ///   - `Bag_ChooseBerry`: `VAR_ITEM_ID` = 0, then the field fades back in;
 ///   - `FieldShowRegionMap`: the field fades back in;
-///   - `ObjectEventInteractionGetBerryTreeData`: an empty soil patch (no berry trees yet);
 ///   - `ScriptMenu_CreatePCMultichoice`: `VAR_RESULT` = `MULTI_B_PRESSED` (the PC turns off);
 ///   - `ScriptMenu_CreateStartMenuForPokenavTutorial`: the PokéNav entry.
 pub async fn special(ctx: &Ctx, id: u16) -> u16 {
@@ -362,11 +359,40 @@ pub async fn special(ctx: &Ctx, id: u16) -> u16 {
             degraded(ctx, id).await;
             ctx.fade(Fade::FromBlack).await;
         }
+        // ---- Wave E: berry trees (`prelude::berry`) ----
         id if id == SPECIAL_ObjectEventInteractionGetBerryTreeData => {
-            degraded(ctx, id).await;
-            ctx.set_var(VAR_0x8004, BERRY_STAGE_NO_BERRY).await;
-            ctx.set_var(VAR_0x8005, 0).await;
-            ctx.set_var(VAR_0x8006, 0).await;
+            super::berry::get_tree_data(ctx).await
+        }
+        id if id == SPECIAL_ObjectEventInteractionGetBerryName
+            || id == SPECIAL_ObjectEventInteractionGetBerryCountString =>
+        {
+            super::berry::get_name(ctx).await
+        }
+        id if id == SPECIAL_ObjectEventInteractionPlantBerryTree => {
+            super::berry::plant_talked(ctx).await
+        }
+        id if id == SPECIAL_ObjectEventInteractionPickBerryTree => super::berry::pick(ctx).await,
+        id if id == SPECIAL_ObjectEventInteractionRemoveBerryTree => {
+            super::berry::remove(ctx).await
+        }
+        id if id == SPECIAL_ObjectEventInteractionWaterBerryTree => {
+            return super::berry::water(ctx).await;
+        }
+        id if id == SPECIAL_DoWateringBerryTreeAnim => degraded(ctx, id).await,
+        id if id == SPECIAL_IncrementDailyPickedBerries
+            || id == SPECIAL_IncrementDailyPlantedBerries =>
+        {
+            // `tv.c` `IncrementDailyPickedBerries` / `IncrementDailyPlantedBerries`.
+            let var = if id == SPECIAL_IncrementDailyPickedBerries {
+                story::DAILY_PICKED_BERRIES
+            } else {
+                story::DAILY_PLANTED_BERRIES
+            };
+            let Some(var) = var else {
+                return not_in_game(ctx, id).await;
+            };
+            let n = ctx.var(var).await.wrapping_add(1);
+            ctx.set_var(var, n).await;
         }
         id if id == SPECIAL_ScriptMenu_CreatePCMultichoice => {
             degraded(ctx, id).await;
@@ -800,6 +826,8 @@ mod story {
     pub const SHIP_KEYS: [Option<FlagId>; 4] = [None; 4];
     pub const MIRAGE_RND_H: Option<VarId> = None;
     pub const MIRAGE_TOWER: Option<(VarId, FlagId, FlagId)> = None;
+    pub const DAILY_PICKED_BERRIES: Option<VarId> = None;
+    pub const DAILY_PLANTED_BERRIES: Option<VarId> = None;
     pub const HAS_MATCH_CALL: Option<FlagId> = None;
     pub const PACIFIDLOG_TM_DAY: Option<VarId> = None;
     pub const RUSTURF: Option<Rusturf> = None;

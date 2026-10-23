@@ -267,6 +267,7 @@ pub(crate) fn gen3_special_ids() -> engine::data::SpecialIds {
         var_mon_box_pos: Some(consts::VAR_MON_BOX_POS),
         flag_shown_box_was_full: Some(consts::FLAG_SHOWN_BOX_WAS_FULL_MESSAGE),
         var_daily_wilds: None,
+        berry_trees: 0,
     }
 }
 
@@ -558,7 +559,9 @@ impl GameData for Game {
             var_wild_set: Some(consts::VAR_ALTERING_CAVE_WILD_SET),
             // `EventScript_WhiteOut`, once the scripts carry decomp names (Task D2).
             script_whiteout: data::SCRIPT_WHITEOUT,
-            var_daily_wilds: Some(consts::VAR_DAILY_WILDS),
+            var_daily_wilds: Some(emerald_story::DAILY_WILDS),
+            // Gen3 `BERRY_TREES_COUNT`.
+            berry_trees: 128,
             ..gen3_special_ids()
         }
     }

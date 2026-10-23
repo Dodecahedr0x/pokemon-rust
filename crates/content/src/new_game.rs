@@ -132,10 +132,12 @@ const STARTER: u16 = 2;
 
 /// `NewGameInitData`, the parts our engine keeps.
 async fn init_data(ctx: &Ctx) {
-    // `RunScriptImmediately(EventScript_ResetAllMapFlags)` (its berry trees aside).
+    // `RunScriptImmediately(EventScript_ResetAllMapFlags)`, which ends with
+    // `call EventScript_ResetAllBerries`.
     for &f in RESET_ALL_MAP_FLAGS {
         ctx.set_flag(f, true).await;
     }
+    crate::prelude::berry::plant_initial_berries(ctx).await;
     // `SetMoney(&gSaveBlock1Ptr->money, 3000)`.
     ctx.money_add(3000).await;
     ctx.set_var(VAR_SEEDOT_SIZE_RECORD, DEFAULT_MAX_SIZE).await;

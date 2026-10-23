@@ -50,6 +50,8 @@ pub struct Tables {
     pub field_strings: FieldStringsFile,
     /// `tables/tmhm.ron` (format minor 7, Tasks K/PT).
     pub tmhm: extract::schema::TmHmFile,
+    /// `tables/berries.ron` (format minor 9, Wave E).
+    pub berries: extract::schema::BerriesFile,
 }
 
 pub struct World {
@@ -367,6 +369,7 @@ fn read_tables(dir: &Path) -> Result<Tables> {
         map_sections: read_opt!(t.join("map_sections.ron")),
         field_strings: read_opt!(t.join("field_strings.ron")),
         tmhm: read_opt!(t.join("tmhm.ron")),
+        berries: read_opt!(t.join("berries.ron")),
     };
     Ok(tables)
 }

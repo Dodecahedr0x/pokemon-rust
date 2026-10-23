@@ -22,6 +22,11 @@ pub const MIRAGE_TOWER: Option<(VarId, FlagId, FlagId)> = Some((
     FLAG_FORCE_MIRAGE_TOWER_VISIBLE,
     FLAG_MIRAGE_TOWER_VISIBLE,
 ));
+/// `tv.c`'s daily wild battles (`SpecialIds::var_daily_wilds`).
+pub const DAILY_WILDS: VarId = VAR_DAILY_WILDS;
+/// `tv.c`'s daily berry counters.
+pub const DAILY_PICKED_BERRIES: Option<VarId> = Some(VAR_DAILY_PICKED_BERRIES);
+pub const DAILY_PLANTED_BERRIES: Option<VarId> = Some(VAR_DAILY_PLANTED_BERRIES);
 pub const HAS_MATCH_CALL: Option<FlagId> = Some(FLAG_HAS_MATCH_CALL);
 pub const PACIFIDLOG_TM_DAY: Option<VarId> = Some(VAR_PACIFIDLOG_TM_RECEIVED_DAY);
 pub const RUSTURF: Option<Rusturf> = Some(Rusturf {

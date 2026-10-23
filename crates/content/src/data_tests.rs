@@ -61,6 +61,7 @@ impl ScriptHost for Host {
                 Response::Unit
             }
             Request::Random(_) | Request::PlayerFacing | Request::Query(_) => Response::Value(0),
+            Request::BerryTree(_) => Response::Berry(Default::default()),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(0),
             Request::YesNo { .. } => Response::Bool(self.yes),
