@@ -12,6 +12,7 @@ pub fn run(name: &str, gfx: &Path) -> Result<bool> {
     match name {
         "SilGrisEchec" => gris_echec(&gfx.join(name))?,
         "SilGrisEchecGym" => gris_echec_gym(&gfx.join(name))?,
+        "SilMangaSquareGym" => manga_square_gym(&gfx.join(name))?,
         _ => return Ok(false),
     }
     println!("derived art for {name}");
@@ -181,4 +182,20 @@ fn gris_echec_gym(g: &Path) -> Result<()> {
         "bloc_mousse_sol",
         &over(&load(g, "mousse_sol")?, &load(g, "bloc_mousse")?),
     )
+}
+
+/// SilMangaSquareGym: the opened shoji door (`shoji_ouverte`, METATILE_SHOJI_OUVERT): each panel
+/// of `shoji_porte` squeezed to half its width against its side, the stepping stone between.
+fn manga_square_gym(t: &Path) -> Result<()> {
+    let door = load(t, "shoji_porte")?;
+    let mut open = load(t, "dalle")?;
+    for y in 0..16 {
+        for x in 0..4 {
+            let l = get(&door, 2 * x, y);
+            let r = get(&door, 8 + 2 * x, y);
+            set(&mut open, x, y, [l[0], l[1], l[2]]);
+            set(&mut open, 12 + x, y, [r[0], r[1], r[2]]);
+        }
+    }
+    save(t, "shoji_ouverte", &open)
 }
