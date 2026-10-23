@@ -1,6 +1,6 @@
 // Chapter 2: Route S2 to the east (MAP_ROUTE_S02). The east corridor's edge (35, 12-15) becomes the
-// path, and our y 12-15 meets the route's west exit y 2-5.
+// path (General's grass: a connection strip stays primary-only), and our y 12-15 meets the route's west exit y 2-5.
 [
-    Ascii(x: 35, y: 12, rows: [":", ":", ":", ":"], legend: {':': (metatile: 609, collision: 0)}),
+    Ascii(x: 35, y: 12, rows: [":", ":", ":", ":"], legend: {':': (metatile: 1, collision: 0)}),
     Connect((dir: East, offset: 10, map: "RouteS02")),
 ]

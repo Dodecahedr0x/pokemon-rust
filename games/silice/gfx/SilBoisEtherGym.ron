@@ -1,0 +1,139 @@
+// La Grass-Hopper (Ch1, MAP_BOIS_ETHER_GYM): Loic's gym inside the giant hollow tree.
+// contenu-jeu/chapitres/01-bois-ether.md §4: the inside of the trunk turned into decompression
+// airlocks (spore grates, a shower, round hatches) and a tinkerer's workshop (workbenches, vices,
+// flower pots plugged into power strips, hanging tools), up to a greenhouse under a small glass
+// dome ("a dome in the Dome") where potted plants feed a big central pipe.
+// The primary (Building) has no floor metatile, so this spec has no ground: textures are opaque,
+// and the objects' art is composited after prep over the texture it stands on (`sol`, `sol_serre`,
+// the wall `mur`, the glass wall `verriere`), so that no cell keeps a transparent pixel.
+// The airlock doors are two cells (top, bottom), closed and open variants (ch01_gym.rs).
+// `mur` comes before `bois`: a 1x1 stamp of metatile 513 would equal the extract's
+// Route104_Prototype layout (studio map hygiene).
+(
+    name: "SilBoisEtherGym",
+    primary: "Building",
+    ground: None,
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald indoor style (Game Boy Advance), seen from the top-down three-quarter view of Pokemon games. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing.",
+    features: [
+        (
+            name: "sol",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Indoor floor texture seen from above, only 16x16 pixels, chunky details: smooth light honey-coloured wood, the flat cut surface of a tree with two faint darker growth-ring arcs. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "mur",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("An indoor wall segment seen from the front, one tile wide and two tiles tall: the inside of a hollow tree trunk, vertical brown bark planks, a horizontal copper pipe with a bolt running across the upper half from the left edge to the right edge, a darker brown skirting band at the bottom. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "bois",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("Texture seen from above, only 16x16 pixels, chunky details: very dark brown rough bark, almost black, with a few darker vertical cracks. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "porte_sas",
+            cells: ["#", "#"],
+            prompt: Some("One single closed airlock door seen from the front, twice as tall as wide: a grey steel hatch with a rounded top, one round blue porthole window, yellow and black warning stripes at its foot, a small red lamp on top. Only one door, nothing else."),
+        ),
+        (
+            name: "porte_sas_ouverte",
+            cells: [".", "."],
+            prompt: Some("One single open airlock doorway seen from the front, twice as tall as wide: a grey steel frame with a rounded top, the hatch gone, inside a dark passage with a light honey-coloured wooden floor at the bottom, a small green lamp on top. Only one doorway, nothing else."),
+        ),
+        (
+            name: "verriere",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("A greenhouse glass wall seen from the front, one tile wide and two tiles tall: large panes showing a pale blue sky with one small white cloud, thin dark green metal frames, the top pane curving like a dome, a green vine leaf at the bottom. It must tile seamlessly from left to right."),
+        ),
+        (
+            name: "tuyau_central",
+            cells: ["###", "###"],
+            prompt: Some("One single thick vertical copper pipe seen from the front, running straight from the top edge of the picture to the bottom edge, in the middle: two bolted copper rings and a round white pressure gauge on it, and on each side two thin horizontal transparent tubes with green liquid going from the pipe out to the left and right edges. Nothing else."),
+        ),
+        (
+            name: "porte_privee",
+            cells: ["#", "#"],
+            prompt: Some("One single small closed wooden door seen from the front, twice as tall as wide: green painted planks, a round brass handle, a small red plaque with no letters, green ivy leaves on its frame. Only one door, nothing else."),
+        ),
+        (
+            name: "grille",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Metal floor grate texture seen from above, only 16x16 pixels, chunky details: a grey steel grid of square holes with dark shadows, a thin frame. It must tile seamlessly in every direction."),
+        ),
+        (
+            name: "grille_spores",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A metal floor grate seen from above, only 16x16 pixels, chunky details: a grey steel grid of square holes almost hidden under a big round puffy cloud of bright yellow-green spores that covers most of the tile, three darker green spore dots."),
+        ),
+        (
+            name: "douche",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A decontamination shower floor tile seen from above, only 16x16 pixels, chunky details: white square tiles with a round steel drain in the centre and three light blue water drops."),
+        ),
+        (
+            name: "affiche",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The lower part of a brown bark plank wall seen from the front, a darker brown skirting band at the bottom, with a pinned yellowish paper poster showing a red warning triangle and a green mushroom icon (no letters)."),
+        ),
+        (
+            name: "outils",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("An indoor wall segment seen from the front, one tile wide and two tiles tall: vertical brown bark planks with a pegboard holding hanging tools (a wrench, a hammer, pliers), a darker brown skirting band at the bottom."),
+        ),
+        (
+            name: "etabli",
+            cells: ["#####", "#####"],
+            prompt: Some("A long wooden workbench seen from the top-down three-quarter view, much wider than tall: a blue blueprint pinned on the wall behind it, a vice clamp, scattered tools, a few copper pipe parts on the worktop, sturdy wooden legs."),
+        ),
+        (
+            name: "caisse_bleue",
+            cells: ["#"],
+            prompt: Some("A small closed blue metal toolbox crate seen from the top-down three-quarter view, with a handle on its lid."),
+        ),
+        (
+            name: "caisse_rouge",
+            cells: ["#"],
+            prompt: Some("A small closed red metal toolbox crate seen from the top-down three-quarter view, with a handle on its lid."),
+        ),
+        (
+            name: "caisse",
+            cells: ["#"],
+            prompt: Some("A small closed yellow metal toolbox crate seen from the top-down three-quarter view, with a handle on its lid."),
+        ),
+        (
+            name: "etau",
+            cells: ["##"],
+            prompt: Some("A heavy grey steel bench vice bolted on a small wooden stand, seen from the top-down three-quarter view, wider than tall."),
+        ),
+        (
+            name: "pot_multiprise",
+            cells: ["#"],
+            prompt: Some("A terracotta flower pot with a green leafy plant, a black cable running from the pot to a white power strip with a red switch at its foot."),
+        ),
+        (
+            name: "plante_tube",
+            cells: ["#"],
+            prompt: Some("A potted fern in a round clay pot, a thin transparent tube with green liquid coming out of the soil and rising up out of the picture."),
+        ),
+        (
+            name: "statue",
+            cells: ["#", "#"],
+            prompt: Some("A small gym statue seen from the front, taller than wide: two slim copper columns on a stone pedestal with a green fern growing between them."),
+        ),
+        (
+            name: "sol_serre",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Greenhouse floor texture seen from above, only 16x16 pixels, chunky details: four big flat light grey-green square flagstones in two shades, thin bright green moss lines in the joints. Very simple. It must tile seamlessly in every direction."),
+        ),
+    ],
+)
