@@ -48,6 +48,7 @@ impl Colors {
 /// Text colors plus a lookup like Gen3 `sFontHalfRowLookupTable`, by nibble: two font pixels
 /// (2bpp, leftmost in bits 3-2) -> two canvas nibbles (leftmost in the low one). A font byte
 /// (4 pixels, leftmost in bits 7-6) is two lookups. Small, as a pen is made per menu text.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Pen {
     pub(crate) colors: Colors,
     two: [u16; 16],
@@ -86,6 +87,7 @@ const fn fill_word(c: u8) -> u32 {
 
 /// A window's pixels as 4bpp tiles, row-major, with per-tile dirty flags. `flush` uploads the
 /// dirty tiles to `char_block` from tile `win.base()` on.
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Canvas {
     pub(crate) win: Window,
     char_block: u8,
@@ -387,6 +389,7 @@ const fn ab(pressed: Buttons) -> bool {
 /// color codes, with `frames_per_char` frames per drawn glyph (control codes cost nothing) and
 /// A/B speed-up (`hasPrintBeenSpedUp`: a new press skips the current delay, then one glyph per
 /// frame while A or B stays held).
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Printer {
     pub(crate) canvas: Canvas,
     pub(crate) state: State,
