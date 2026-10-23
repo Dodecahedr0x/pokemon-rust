@@ -48,6 +48,8 @@ pub struct Tables {
     pub map_sections: MapSectionsFile,
     /// Task L's field strings (`tables/field_strings.ron`).
     pub field_strings: FieldStringsFile,
+    /// `tables/tmhm.ron` (format minor 7, Tasks K/PT).
+    pub tmhm: extract::schema::TmHmFile,
 }
 
 pub struct World {
@@ -364,6 +366,7 @@ fn read_tables(dir: &Path) -> Result<Tables> {
         std_strings: read_opt!(t.join("std_strings.ron")),
         map_sections: read_opt!(t.join("map_sections.ron")),
         field_strings: read_opt!(t.join("field_strings.ron")),
+        tmhm: read_opt!(t.join("tmhm.ron")),
     };
     Ok(tables)
 }

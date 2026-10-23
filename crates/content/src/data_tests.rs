@@ -1004,7 +1004,10 @@ fn hole_warps_and_step_callbacks() {
         Emerald.hole_warp(MAP_GRANITE_CAVE_B1F),
         Some(MAP_GRANITE_CAVE_B2F)
     );
-    assert_eq!(Emerald.hole_warp(MAP_SKY_PILLAR_4F), Some(MAP_SKY_PILLAR_3F));
+    assert_eq!(
+        Emerald.hole_warp(MAP_SKY_PILLAR_4F),
+        Some(MAP_SKY_PILLAR_3F)
+    );
     assert_eq!(Emerald.hole_warp(MAP_ROUTE101), None);
     assert!(matches!(
         Emerald.step_callback(MAP_SOOTOPOLIS_CITY_GYM_1F),
@@ -1021,4 +1024,26 @@ fn hole_warps_and_step_callbacks() {
         Emerald.fall_script().is_some(),
         Emerald.has_map(MAP_GRANITE_CAVE_B1F)
     );
+}
+
+/// `tables/tmhm.ron` (Tasks K/PT): TM01..HM08 teach Gen3's `sTMHMMoves`, and the bitsets
+/// (`gTMHMLearnsets`) answer `can_learn_tm`; HM06 (item 344) teaches Rock Smash (249), which
+/// Treecko (277, `.ROCK_SMASH = TRUE`) learns and Magikarp (129, no TM/HM) does not.
+#[test]
+fn tm_and_hm_moves_and_compatibility() {
+    use engine::data::{ItemId, SpeciesId};
+    if STUB || fixture() {
+        return;
+    }
+    let hm06 = ItemId(344);
+    assert_eq!(Emerald.tm_move(hm06), Some(MoveId(249)));
+    assert_eq!(
+        Emerald.tm_move(ItemId(289)),
+        Some(MoveId(264)),
+        "TM01 Focus Punch"
+    );
+    assert_eq!(Emerald.tm_move(ItemId(1)), None);
+    assert!(Emerald.can_learn_tm(SpeciesId(277), hm06));
+    assert!(!Emerald.can_learn_tm(SpeciesId(129), hm06));
+    assert_eq!(data::TM_MOVES.len(), 58);
 }

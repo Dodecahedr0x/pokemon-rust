@@ -417,6 +417,7 @@ pub fn export(rom: &Rom, out: &Path, opts: &ExportOptions) -> Result<Manifest> {
     battle_gfx::export(rom, &mut o, &mut provenance)?;
 
     tables::export_tables(rom, &mut o, &mut provenance)?;
+    tables::export_tmhm(rom, &mut o, &mut provenance).context("TM/HM tables")?;
     ui::export_ui(rom, &mut o, &mut provenance)?;
 
     let manifest = Manifest {
