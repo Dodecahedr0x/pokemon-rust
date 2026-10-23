@@ -992,7 +992,8 @@ mod tests {
         let cache = MapCache::default();
         cache.get_blocking(map).unwrap();
         let props = |coverage_db: Option<std::path::PathBuf>, coverage| MapProps {
-            live: Live::from_inspector(map, None),
+            // A live pane on the new-game map, so the tab opens on it (not the first map).
+            live: Live::from_inspector(map, Some((0, 0))),
             coverage_db,
             coverage,
         };
