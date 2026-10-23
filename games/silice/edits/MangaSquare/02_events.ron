@@ -14,8 +14,7 @@
     Warp(x: 3, y: 14, dest_map: "MangaSquare_Mart", dest_warp: 0),
     Warp(x: 9, y: 14, dest_map: "MangaSquare_Toiletteur", dest_warp: 0),
     Warp(x: 1, y: 25, dest_map: "RouteS06", dest_warp: 0),
-    // Ambient NPCs (section 2), then the scene actors. The source numbers Benou 20, the controleur 21 and
-    // Adrien 22; here they are 8, 7 and 9: scripts use the LOCALID_ names.
+    // Ambient NPCs (section 2, local ids 1-6), then the scene actors.
     Object(x: 10, y: 16, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_MANGA_SQUARE_COSPLAYEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "MangaSquare_EventScript_Cosplayeur"),
     Object(x: 20, y: 9, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_MANGA_SQUARE_PURISTE", movement: "MOVEMENT_TYPE_FACE_UP", script: "MangaSquare_EventScript_Puriste"),
     Object(x: 12, y: 26, gfx: "OBJ_EVENT_GFX_WOMAN_3", id: "LOCALID_MANGA_SQUARE_MERE", movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "MangaSquare_EventScript_Mere"),
