@@ -1,5 +1,5 @@
-//! The player's bag (Milestone 8): Gen3 Emerald pockets with their capacities
-//! (`include/constants/global.h`), at most [`slot_capacity`] of an item per slot (99, berries
+//! The player's bag (Milestone 8): Gen3 pockets with the game's slot counts
+//! (`SpecialIds::pocket_slots`), at most [`slot_capacity`] of an item per slot (99, berries
 //! 999), and Gen3 `item.c`'s rules for adding, removing and checking items.
 //!
 //! Every write goes through [`Bag::set_slot`], whose bounds `assert!` is unreachable from the
@@ -13,16 +13,12 @@ use crate::data::{ItemId, Pocket};
 use crate::hash::{Fnv64, splitmix64};
 use alloc::boxed::Box;
 use alloc::vec;
+use alloc::vec::Vec;
 
-/// Slots per pocket, in [`Pocket::ALL`] order (Gen3 `BAG_ITEMS_COUNT`, `BAG_KEYITEMS_COUNT`,
-/// `BAG_POKEBALLS_COUNT`, `BAG_TMHM_COUNT`, `BAG_BERRIES_COUNT`).
-pub const POCKET_CAPACITY: [usize; 5] = [30, 30, 16, 64, 46];
 /// Gen3 `MAX_BAG_ITEM_CAPACITY`: per slot, in every pocket but the berries one.
 pub const MAX_PER_SLOT: u16 = 99;
 /// Gen3 `MAX_BERRY_CAPACITY`: per slot in the berries pocket.
 pub const MAX_BERRIES_PER_SLOT: u16 = 999;
-/// The largest pocket (TMs and HMs).
-const MAX_POCKET: usize = 64;
 
 /// How many of an item one slot of `pocket` holds (Gen3 `AddBagItem`'s `slotCapacity`).
 pub const fn slot_capacity(pocket: Pocket) -> u16 {
@@ -36,8 +32,6 @@ pub const fn slot_capacity(pocket: Pocket) -> u16 {
 const fn single_slot(pocket: Pocket) -> bool {
     matches!(pocket, Pocket::TmHm | Pocket::Berries)
 }
-/// Every slot of every pocket.
-pub const BAG_SLOTS: usize = 30 + 30 + 16 + 64 + 46;
 
 /// One bag slot; `qty` 0 is an empty slot (its item is then `ItemId(0)`, Gen3 `ITEM_NONE`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -61,23 +55,22 @@ pub struct Bag {
     /// Every pocket's slots, pockets in [`Pocket::ALL`] order.
     slots: Box<[Slot]>,
     digest: u64,
+    /// Slots per pocket (`SpecialIds::pocket_slots`).
+    sizes: [u8; 5],
 }
 
-impl Default for Bag {
-    fn default() -> Self {
-        Self::new()
+impl Bag {
+    /// First slot of `pocket` in `slots`.
+    fn start(&self, pocket: Pocket) -> usize {
+        (self.sizes[..pocket as usize].iter())
+            .map(|&n| n as usize)
+            .sum()
     }
-}
 
-/// First slot of `pocket` in `Bag::slots`.
-const fn pocket_start(pocket: Pocket) -> usize {
-    let mut start = 0;
-    let mut i = 0;
-    while i < pocket as usize {
-        start += POCKET_CAPACITY[i];
-        i += 1;
+    /// Slots of `pocket`.
+    pub fn pocket_len(&self, pocket: Pocket) -> usize {
+        self.sizes[pocket as usize] as usize
     }
-    start
 }
 
 /// Digest contribution of slot `i` (0 for an empty slot).
@@ -90,18 +83,21 @@ const fn slot_term(i: usize, s: Slot) -> u64 {
 }
 
 impl Bag {
-    /// An empty bag.
-    pub fn new() -> Self {
+    /// An empty bag with `sizes` slots per pocket, in [`Pocket::ALL`] order
+    /// (`SpecialIds::pocket_slots`).
+    pub fn new(sizes: [u8; 5]) -> Self {
+        let n = sizes.iter().map(|&n| n as usize).sum();
         Bag {
-            slots: vec![Slot::default(); BAG_SLOTS].into_boxed_slice(),
+            slots: vec![Slot::default(); n].into_boxed_slice(),
             digest: 0,
+            sizes,
         }
     }
 
     /// The slots of `pocket` (empty ones included).
     pub fn pocket(&self, pocket: Pocket) -> &[Slot] {
-        let start = pocket_start(pocket);
-        &self.slots[start..start + POCKET_CAPACITY[pocket as usize]]
+        let start = self.start(pocket);
+        &self.slots[start..start + self.pocket_len(pocket)]
     }
 
     /// How many of `item` the bag holds, over every slot.
@@ -114,12 +110,9 @@ impl Bag {
 
     /// Sets slot `index` of `pocket`, keeping the digest (the one writer of `slots`).
     pub fn set_slot(&mut self, pocket: Pocket, index: usize, slot: Slot) {
-        assert!(
-            index < POCKET_CAPACITY[pocket as usize],
-            "bag slot out of range"
-        );
+        assert!(index < self.pocket_len(pocket), "bag slot out of range");
         let slot = if slot.qty == 0 { Slot::default() } else { slot };
-        let i = pocket_start(pocket) + index;
+        let i = self.start(pocket) + index;
         let old = self.slots[i];
         self.digest =
             (self.digest.wrapping_sub(slot_term(i, old))).wrapping_add(slot_term(i, slot));
@@ -149,12 +142,10 @@ impl Bag {
             return false;
         }
         let cap = slot_capacity(pocket);
-        let n = POCKET_CAPACITY[pocket as usize];
         // Gen3 works on a copy (`newItems`) and keeps it only on success.
-        let mut new = [Slot::default(); MAX_POCKET];
-        new[..n].copy_from_slice(self.pocket(pocket));
+        let mut new: Vec<Slot> = self.pocket(pocket).to_vec();
         let mut count = qty;
-        for s in new[..n].iter_mut() {
+        for s in new.iter_mut() {
             if s.qty > 0 && s.item == item {
                 let owned = s.qty;
                 if owned as u32 + count as u32 <= cap as u32 {
@@ -173,7 +164,7 @@ impl Bag {
             }
         }
         if count > 0 {
-            for s in new[..n].iter_mut() {
+            for s in new.iter_mut() {
                 if s.qty == 0 {
                     s.item = item;
                     if count > cap {
@@ -193,7 +184,7 @@ impl Bag {
                 return false;
             }
         }
-        for (i, s) in new[..n].iter().enumerate() {
+        for (i, s) in new.iter().enumerate() {
             if *s != self.pocket(pocket)[i] {
                 self.set_slot(pocket, i, *s);
             }
@@ -217,7 +208,7 @@ impl Bag {
             return false;
         }
         let mut count = qty;
-        for i in 0..POCKET_CAPACITY[pocket as usize] {
+        for i in 0..self.pocket_len(pocket) {
             let s = self.pocket(pocket)[i];
             if s.qty > 0 && s.item == item {
                 let take = s.qty.min(count);
@@ -308,14 +299,14 @@ impl Bag {
         BagSnap { slots }
     }
 
-    /// Rebuilt through [`Bag::set_slot`], so the digest matches the contents. Refuses slots out
-    /// of range, quantities outside `1..=slot_capacity(pocket)`, `ITEM_NONE` and repeated
-    /// slots.
-    pub fn from_snapshot(s: &BagSnap) -> Result<Bag, &'static str> {
-        let mut bag = Bag::new();
+    /// Rebuilt with `sizes` slots per pocket ([`Bag::new`]) through [`Bag::set_slot`], so the
+    /// digest matches the contents. Refuses slots out of range, quantities outside
+    /// `1..=slot_capacity(pocket)`, `ITEM_NONE` and repeated slots.
+    pub fn from_snapshot(s: &BagSnap, sizes: [u8; 5]) -> Result<Bag, &'static str> {
+        let mut bag = Bag::new(sizes);
         for b in &s.slots {
             let index = b.index as usize;
-            if index >= POCKET_CAPACITY[b.pocket as usize] {
+            if index >= bag.pocket_len(b.pocket) {
                 return Err("bag slot out of range");
             }
             if b.qty == 0 || b.qty > slot_capacity(b.pocket) || b.item.0 == 0 {

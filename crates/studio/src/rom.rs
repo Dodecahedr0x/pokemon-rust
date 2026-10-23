@@ -544,6 +544,7 @@ mod tests {
             hash_lines_max: 0,
             step_lines_max: 0,
             loop_lines_max: 0,
+            ..DebugSnapshot::default()
         }
     }
 

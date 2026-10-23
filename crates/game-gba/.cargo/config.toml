@@ -6,4 +6,6 @@ build-std-features = ["compiler-builtins-mem"]
 target = "thumbv4t-none-eabi"
 
 [target.thumbv4t-none-eabi]
-rustflags = ["-Clink-arg=-Tgba.ld", "-Ctarget-cpu=arm7tdmi", "-Cforce-frame-pointers=yes"]
+# No -Cforce-frame-pointers: the target spec keeps them already ("frame-pointer": "always";
+# =yes and =no build the same bytes), and agb's backtrace, which walked them, is off.
+rustflags = ["-Clink-arg=-Tgba.ld", "-Ctarget-cpu=arm7tdmi"]

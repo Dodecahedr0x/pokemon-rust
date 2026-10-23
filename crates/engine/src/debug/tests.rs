@@ -5,6 +5,7 @@ use core::mem::{offset_of, size_of};
 fn layout_is_stable() {
     assert_eq!(offset_of!(DebugRegion, magic), 0);
     assert_eq!(offset_of!(DebugRegion, frame), OFF_FRAME as usize);
+    assert_eq!(offset_of!(DebugRegion, scan_passes), 12);
     assert_eq!(offset_of!(DebugRegion, hash), OFF_HASH as usize);
     assert_eq!(offset_of!(DebugRegion, inputs), OFF_INPUTS as usize);
     assert_eq!(offset_of!(DebugRegion, late), OFF_LATE as usize);
@@ -17,9 +18,16 @@ fn layout_is_stable() {
     assert_eq!(offset_of!(DebugRegion, hash_lines_max), 188);
     assert_eq!(offset_of!(DebugRegion, step_lines_max), 192);
     assert_eq!(offset_of!(DebugRegion, loop_lines_max), 196);
-    assert_eq!(size_of::<DebugRegion>(), 200);
+    assert_eq!(offset_of!(DebugRegion, heap_max), 200);
+    assert_eq!(offset_of!(DebugRegion, last_script), 204);
+    assert_eq!(offset_of!(DebugRegion, map), 206);
+    assert_eq!(offset_of!(DebugRegion, reports), 208);
+    assert_eq!(offset_of!(DebugRegion, events_dropped), 210);
+    assert_eq!(offset_of!(DebugRegion, stack_min), 212);
+    assert_eq!(offset_of!(DebugRegion, panicked), 214);
+    assert_eq!(size_of::<DebugRegion>(), 216);
     assert_eq!(core::mem::align_of::<DebugRegion>(), 8);
-    assert_eq!(&DebugRegion::new().magic, b"PKRDBG02");
+    assert_eq!(&DebugRegion::new().magic, b"PKRDBG03");
 }
 
 #[test]

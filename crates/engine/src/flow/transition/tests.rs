@@ -28,7 +28,7 @@ fn run(t: &mut Transition, fader: &mut Fader, walk: u32) -> Vec<(TransitionStep,
         }
         if let TransitionStep::Load(m, x, y) = s {
             // Arrival facing, checked through `t.facing` by the tests.
-            t.arrive(behavior_at(&Game, Game.map(m), x, y));
+            t.arrive(behavior_at(&Game, Game.map(m), x, y), Dir::Up);
         }
         out.push((s, fader.level(), t.player_hidden()));
         if s == TransitionStep::Done {
@@ -82,7 +82,7 @@ fn the_fade_in_waits_on_black_while_the_map_uploads() {
         let s = t.update_loading(&mut f, false, uploading > 0);
         uploading = match s {
             TransitionStep::Load(m, x, y) => {
-                t.arrive(behavior_at(&Game, Game.map(m), x, y));
+                t.arrive(behavior_at(&Game, Game.map(m), x, y), Dir::Up);
                 3
             }
             _ => uploading.saturating_sub(1),
@@ -134,7 +134,7 @@ fn door_destination_walks_out_south_hidden_during_fade_in() {
 #[test]
 fn stairs_destination_also_walks_out() {
     let mut t = Transition::new();
-    // Town (4, 4) is a `Warp` cell (Gen3 stairs are MB_NON_ANIMATED_DOOR).
+    // Town (4, 4) is a `NonAnimDoor(Down)` cell (Gen3 stairs, MB_NON_ANIMATED_DOOR).
     t.start(&Game, TOWN, Some(1), -1, -1);
     let steps = run(&mut t, &mut Fader::new(), 1);
     assert!(steps.contains(&(TransitionStep::Load(TOWN, 4, 4), FADE_MAX, true)));
@@ -218,11 +218,14 @@ fn arrive_uses_the_live_behavior_and_defaults_to_plain() {
     }
     assert_eq!(step, TransitionStep::Load(HOUSE, 2, 0));
     // The static cell is plain, but a live override made it a door.
-    assert_eq!(t.arrive(Behavior::Door), Dir::Down);
+    assert_eq!(t.arrive(Behavior::Door, Dir::Up), Dir::Down);
     assert!(t.player_hidden());
-    assert_eq!(t.arrive(Behavior::ArrowWarp(Dir::Left)), Dir::Right);
+    assert_eq!(
+        t.arrive(Behavior::ArrowWarp(Dir::Left), Dir::Up),
+        Dir::Right
+    );
     assert!(!t.player_hidden());
-    assert_eq!(t.arrive(Behavior::Door), Dir::Down);
+    assert_eq!(t.arrive(Behavior::Door, Dir::Up), Dir::Down);
     let mut last = step;
     while last != TransitionStep::Done && !matches!(last, TransitionStep::Walk(_)) {
         last = t.update(&mut f, false);
@@ -275,4 +278,64 @@ fn hash_changes_with_progress_and_is_deterministic() {
         a.update(&mut f, false);
     }
     assert_ne!(h(&a), started);
+}
+
+/// Runs a started transition to `Done`, arriving on `behavior` with `warped_facing`. Returns
+/// the arrival facing, the exit walk (if any), and whether the player was hidden on the
+/// frame before it.
+fn arrive_on(behavior: Behavior, warped_facing: Dir) -> (Dir, Option<Dir>, bool) {
+    let mut t = Transition::new();
+    let mut f = Fader::new();
+    t.start(&Game, HOUSE, Some(1), -1, -1);
+    let (mut facing, mut walk, mut hidden) = (None, None, false);
+    for _ in 0..200 {
+        let before = t.player_hidden();
+        match t.update(&mut f, false) {
+            TransitionStep::Load(..) => facing = Some(t.arrive(behavior, warped_facing)),
+            TransitionStep::Walk(d) => (walk, hidden) = (Some(d), before),
+            TransitionStep::Done => return (facing.unwrap(), walk, hidden),
+            _ => {}
+        }
+    }
+    panic!("transition never finished");
+}
+
+/// Gen3 `GetAdjustedInitialDirection` and `SetUpWarpExitTask`, per arrival behavior.
+#[test]
+fn each_warp_kind_has_its_gen3_arrival() {
+    // `Task_ExitDoor`: face south, hidden, walk south.
+    assert_eq!(
+        arrive_on(Behavior::Door, Dir::Up),
+        (Dir::Down, Some(Dir::Down), true)
+    );
+    // `Task_ExitNonAnimDoor`: stairs face south, `MB_DEEP_SOUTH_WARP` faces north; hidden,
+    // then walk the way they face.
+    assert_eq!(
+        arrive_on(Behavior::NonAnimDoor(Dir::Down), Dir::Up),
+        (Dir::Down, Some(Dir::Down), true)
+    );
+    assert_eq!(
+        arrive_on(Behavior::NonAnimDoor(Dir::Up), Dir::Down),
+        (Dir::Up, Some(Dir::Up), true)
+    );
+    // `Task_EscalatorWarpIn`: face and walk east, visible.
+    assert_eq!(
+        arrive_on(Behavior::Escalator(Dir::Right), Dir::Up),
+        (Dir::Right, Some(Dir::Right), false)
+    );
+    // A ladder keeps the facing the player warped with; no exit walk.
+    assert_eq!(
+        arrive_on(Behavior::Ladder, Dir::Left),
+        (Dir::Left, None, false)
+    );
+    // Arrow warps face away from their arrow; other warps face south; neither walks.
+    assert_eq!(
+        arrive_on(Behavior::ArrowWarp(Dir::Up), Dir::Up),
+        (Dir::Down, None, false)
+    );
+    assert_eq!(arrive_on(Behavior::Warp, Dir::Up), (Dir::Down, None, false));
+    assert_eq!(
+        arrive_on(Behavior::Normal, Dir::Up),
+        (Dir::Down, None, false)
+    );
 }

@@ -1,5 +1,8 @@
 use super::*;
 
+/// The cancel answer the tests give (Gen3 `MULTI_B_PRESSED`).
+const B_PRESSED: u16 = 127;
+
 static GLYPHS: [[u8; 64]; 4] = [[0; 64]; 4];
 static FONT: Font = Font {
     glyphs: &GLYPHS,
@@ -24,17 +27,17 @@ fn widths_follow_gen3() {
 #[test]
 fn layout_cuts_lists_to_the_screen_and_the_canvas() {
     static MANY: [&[u8]; 20] = [&[1, 0xFF]; 20];
-    let m = Multichoice::new(&FONT, 0, &MANY, (0, 0), 0, true);
+    let m = Multichoice::new(&FONT, 0, &MANY, (0, 0), 0, Some(B_PRESSED));
     // The top frame row on row 0, nine choices (rows 1..=18), the bottom frame row on row 19.
     assert_eq!(m.window().top(), 1);
     assert_eq!(m.window().height(), 18);
-    let m = Multichoice::new(&FONT, 0, &MANY, (0, 15), 0, true);
+    let m = Multichoice::new(&FONT, 0, &MANY, (0, 15), 0, Some(B_PRESSED));
     assert_eq!(m.window().height(), 2);
     // A top past the screen still shows one choice and its frame.
-    let m = Multichoice::new(&FONT, 0, &MANY, (0, 200), 0, true);
+    let m = Multichoice::new(&FONT, 0, &MANY, (0, 200), 0, Some(B_PRESSED));
     assert_eq!((m.window().top(), m.window().height()), (17, 2));
     static WIDE: [&[u8]; 9] = [&[3; 200]; 9];
-    let m = Multichoice::new(&FONT, 0, &WIDE, (0, 0), 0, true);
+    let m = Multichoice::new(&FONT, 0, &WIDE, (0, 0), 0, Some(B_PRESSED));
     assert_eq!(m.window().height(), 10);
     assert_eq!(m.window().width(), MAX_WIDTH);
     assert!(m.window().width() as usize * m.window().height() as usize <= CANVAS_TILES);
@@ -45,13 +48,13 @@ fn window_sits_inside_its_frame_rect_as_in_gen3() {
     // Gen3 `CreateWindowFromRect(left, top, ..)` puts the window at `(left + 1, top + 1)`:
     // `multichoicedefault 20, 8, MULTI_YESNO, ..` (Battle Arena, Battle Factory) opens at 21, 9.
     static YES_NO: [&[u8]; 2] = [&[1, 2, 0xFF], &[1, 0xFF]];
-    let m = Multichoice::new(&FONT, 0, &YES_NO, (20, 8), 1, false);
+    let m = Multichoice::new(&FONT, 0, &YES_NO, (20, 8), 1, None);
     let w = m.window();
     assert_eq!((w.left(), w.top(), w.width(), w.height()), (21, 9, 3, 4));
     assert_eq!(m.cursor(), 1);
     // `ScriptMenu_AdjustLeftCoordFromWidth` first, then the + 1.
     static WIDE: [&[u8]; 1] = [&[3; 200]];
-    let m = Multichoice::new(&FONT, 0, &WIDE, (5, 0), 0, true);
+    let m = Multichoice::new(&FONT, 0, &WIDE, (5, 0), 0, Some(B_PRESSED));
     assert_eq!((m.window().left(), m.window().top()), (1, 1));
 }
 
@@ -59,7 +62,7 @@ fn window_sits_inside_its_frame_rect_as_in_gen3() {
 fn the_top_frame_row_is_drawn_on_screen_row_0() {
     use crate::video::Cmd;
     static ONE: [&[u8]; 1] = [&[1, 0xFF]];
-    let mut m = Multichoice::new(&FONT, 0, &ONE, (0, 0), 0, true);
+    let mut m = Multichoice::new(&FONT, 0, &ONE, (0, 0), 0, Some(B_PRESSED));
     let mut f = Frame::default();
     let pen = Pen::new(Colors::new(2, 3, 1));
     m.draw_next(&FONT, &pen, GLYPHS_PER_FRAME, &mut f);
@@ -84,7 +87,7 @@ fn a_long_choice_is_drawn_over_several_frames() {
         t[31] = 0xFF;
         t
     }];
-    let mut m = Multichoice::new(&FONT, 0, &LONG, (0, 0), 0, true);
+    let mut m = Multichoice::new(&FONT, 0, &LONG, (0, 0), 0, Some(B_PRESSED));
     let pen = Pen::new(Colors::new(2, 3, 1));
     let maps = |f: &Frame| {
         (f.cmds.iter())
