@@ -1653,7 +1653,7 @@ The nine Chapter 6 maps are in `games/silice/{maps,layouts}/`, made only with th
 - `ms_rock_pen`, a fenced boulder (5 × 3);
 - `ms_planter` (10 × 3).
 
-No other chapter's map was edited. `cargo xtask studio map build` rebuilds all 21 maps and writes the same bytes (checked against a copy of `maps/` and `layouts/`). `validate` reports no errors, `hygiene` (with `games::copies`) is clean, `PKR_GAME=silice cargo test -p content -p extract` passes, and so do `cargo xtask silice check` and `cargo test -p xtask --test silice_games`.
+No other chapter's map was edited. `cargo xtask studio map build` rebuilds all 21 maps (40 after the merge of Ch2–Ch3) and writes the same bytes (checked against a copy of `maps/` and `layouts/`). `validate` reports no errors, `hygiene` (with `games::copies`) is clean, `PKR_GAME=silice cargo test -p content -p extract` passes, and so do `cargo xtask silice check` and `cargo test -p xtask --test silice_games`.
 
 **Names.** The chapter's map constants are `MAP_MANGA_SQUARE` and its `_BIBLIOTHEQUE`, `_DOJO`, `_GYM`, `_MART`, `_POKEMON_CENTER` and `_TOILETTEUR`, plus `MAP_ROUTE_S06` and `MAP_ROUTE_S06_BOIS_SOUPIRS`. The map names are the ones `ids/maps.ron` gives: `MangaSquare`, `MangaSquare_Bibliotheque`, `MangaSquare_Dojo`, `MangaSquare_Gym`, `MangaSquare_Mart`, `MangaSquare_PokemonCenter`, `MangaSquare_Toiletteur`, `RouteS06` and `RouteS06_BoisSoupirs`. Each layout has its map's name.
 - `MAP_MANGA_SQUARE_GYM` had no id: the importer reads map names from headings only, and ch06 names the gym in its §2 and §4 text. It was appended by hand as 115, and its `map-undefined` exception was removed.
@@ -1677,21 +1677,22 @@ No other chapter's map was edited. `cargo xtask studio map build` rebuilds all 2
 Borders: the outdoor maps use General's 2 × 2 forest (468/469/476/477), and Route S6 uses Facility's rock (113). The interiors use black, blocked (1025).
 
 **Warnings and allowances.**
-- `validate`'s only Ch6 warnings are the 77 unwritten scripts (MangaSquare 21, RouteS06 28, Bibliotheque 16, Dojo 15, Gym 14, BoisSoupirs 5, Center 3, Toiletteur 2, Mart 1).
+- `validate`'s only Ch6 warnings are the 78 unwritten scripts (MangaSquare 21, RouteS06 29 with the on-frame Sc01, Bibliotheque 16, Dojo 15, Gym 14, BoisSoupirs 5, Center 3, Toiletteur 2, Mart 1).
 - `MangaSquare_Dojo/03_allow.ron` keeps the signing queue's ribbon (BattleArena 629, y 11) solid. In the Arena it is a walkable court line. Here it fences the queue.
 - Fixed instead of allowed:
   - The ponds (General 368 in the town and the gym) are surfable water: collision 0, elevation 1, as in Emerald.
   - The Bibliothèque's rack shadows (Lab 640) and the desk's left foot (546) are walkable, as in the Lab.
   - Adrien's table and the archivist's counter first used Lab 575 and 573/574. Those are floor shadows, so the table became a Lab desk (538/539/546/547) and the counter became the partition's pieces (607/615).
-- `silice check` still warns about two unused exceptions that are not Ch6's: `sil-prefix` `WEATHER_CLOUDS` and `WEATHER_PETALS`.
+- `silice check` still warns about two unused exceptions that are not Ch6's: `sil-prefix` `WEATHER_CLOUDS` and `WEATHER_PETALS`. After the merge of Ch2–Ch3 it reports no warning.
 
 **New ids** (commit `feat(silice): ids for Ch6 maps`). The hide flags were allocated by `cargo xtask silice import … --out <scratch copy> --force` from the maps, after Ch1's 765–774. Only `ids/flags.ron` was copied back, because the import would also undo the provisional `Tour_Sbire{1,2}_Intro_Ch09` rename. All are appended to `xtask/tests/fixtures/silice/ids.golden`.
+- **Renumbered at the merge of master.** Ch2–Ch3 took 775–803 and Ch4 has 804 onwards in review (about 22 ids), so the Ch6 flags start at 830 and leave the gap to Ch4. `ids/flags.ron` and `ids.golden` were changed together; the golden keeps master's lines unchanged and appends the Ch6 block after them. Maps name flags only, so no map changed.
 - flags:
-  - 775 `FLAG_SIL_HIDE_BIBLIO_ADRIEN`;
-  - 776–777 `FLAG_SIL_HIDE_DOJO_DRONE_1`, `_2`;
-  - 778 `FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR`;
-  - 779 `FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR`;
-  - 780–781 `FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A`, `_B`.
+  - 830 `FLAG_SIL_HIDE_BIBLIO_ADRIEN`;
+  - 831–832 `FLAG_SIL_HIDE_DOJO_DRONE_1`, `_2`;
+  - 833 `FLAG_SIL_HIDE_MANGA_SQUARE_LIVREUR`;
+  - 834 `FLAG_SIL_HIDE_ROUTE_S06_RANDONNEUR`;
+  - 835–836 `FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A`, `_B`.
 - map 115: `MAP_MANGA_SQUARE_GYM`.
 
 Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO_KIMIKO`, `_HIDE_MANGA_SQUARE_{ADRIEN_FIN, BENOU, CONTROLEUR}`, `_HIDE_ROUTE_S06_ADRIEN`, `_GYM06_PORTE_1`–`5`, `_ROUTE_S06_RACCOURCI` and the `FLAG_SIL_ITEM_*` flags. No `FLAG_TEMP_*` is used as a hide flag. The vars are `VAR_SIL_STORY` and, for the gym's every-step coord events, `VAR_TEMP_1`.
@@ -1745,7 +1746,8 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
   - Header: `MUS_ROUTE120`, `WEATHER_FOG_HORIZONTAL`, route.
   - Map scripts:
     - `on_load` `RouteS06_OnLoad` reopens the bamboo curtain (23, 26) once `FLAG_SIL_ROUTE_S06_RACCOURCI` is set;
-    - `on_transition` `RouteS06_OnTransition` sets the hide flags. The sbires and Adrien are hidden outside `VAR_SIL_STORY` 60, and the randonneur before 61. It also runs Route_S06_Sc01 on the first entry (see the script contract).
+    - `on_transition` `RouteS06_OnTransition` sets the hide flags. The sbires and Adrien are hidden outside `VAR_SIL_STORY` 60, and the randonneur before 61;
+    - `on_frame` runs `RouteS06_Sc01` while `VAR_SIL_STORY` is 55, Ch5's last value (Owlys_Sc05). The scene sets 60, so it runs once.
   - Warp 0: the shortcut tunnel (25, 26), to MangaSquare's warp 5.
   - Objects:
     1. Adrien (13, 25), hide flag `_ROUTE_S06_ADRIEN`;
@@ -1762,7 +1764,7 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
     12. the Randonneur (CAMPER) at (20, 41), flag `_RANDONNEUR`;
     13. cracked rock R1 (BREAKABLE_ROCK) at (5, 57);
     14. cracked rock R2 at (22, 41);
-    15. cracked rock R3 at (22, 20). The rocks have no flag, as in Emerald;
+    15. cracked rock R3 at (20, 19), in the one gap of the altar ledge's east wall. The rocks have no flag, as in Emerald. Each is smashed from the path: R1 from (6, 57), R2 from (21, 41), R3 from (19, 19);
     16. item balls: the Hyper Potion (18, 60), the Ultra Ball (23, 2), and behind R1, R2 and R3 the PP Up (3, 56), the Max Ether (24, 40) and the Dragon Scale (23, 18).
   - Coord events: `RouteS06_Sc02`, `VAR_SIL_STORY` 60, on (12–15, 28), the top of the plateau's stairs.
   - Signs:
@@ -1791,7 +1793,7 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
   - Connection: East to RouteS06, offset −25.
 - **MangaSquare_Dojo.**
   - Header: `MUS_CONTEST_LOBBY`, indoor.
-  - `on_transition` `MangaSquare_Dojo_OnTransition` moves the monk aside from `VAR_SIL_STORY` 64 (`setobjectxyperm` to (27, 5)).
+  - `on_transition` `MangaSquare_Dojo_OnTransition` moves the monk aside from `VAR_SIL_STORY` 64 (`setobjectxyperm` to (28, 5), facing left). The door's alcove (27–28, 3) is entered only through (27, 4), from (27, 5), so the monk must not stand on either.
   - Warps:
     - 0: the exit mat (4, 21), to MangaSquare's warp 1;
     - 1: the back door (27, 2), to MangaSquare_Gym's warp 0. It is solid: pushing into it warps.
@@ -1844,10 +1846,11 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
     1. Tak (BRAWLY) at (10, 3), `_Sc03`;
     2. Musashi (EXPERT_M) in the alley's east niche (11, 25), `_Sc01`;
     3. Kojiro (EXPERT_M) in the west niche (9, 22), `_Sc01`;
-    4. Ayame (EXPERT_F) at (14, 10), sight 4;
+    4. Ayame (EXPERT_F) at (12, 10), facing left, sight 4;
     5. Seiji (PSYCHIC_M) at (7, 6), sight 3;
     6. the guide (MAN_2) at (8, 28).
   - Coord events: `_Sc01` on (10, 25) and (10, 22), keyed on `VAR_TEMP_1` 0. The script returns once the samurai's trainer flag is set.
+  - A wrong quiz answer warps to the entrance cell (10, 28), one row above the arrow warp, so `ENTREE_X`, `ENTREE_Y` are 10, 28.
   - Signs: `_Sc02` on the five desks (9, 21), (9, 17), (9, 13), (9, 9) and (9, 5). The script picks the riddle by the row.
   - Terrain, south to north:
     - the entrance row (y 28);
@@ -1873,7 +1876,7 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
   - `_OnTransition`;
   - `_EventScript_{Cosplayeur, Puriste, Mere, Ancien, Livreur, Gamin, Controleur, SignVille, SignStatue, SignGrandTorii, SignEcran}`.
 - RouteS06:
-  - scenes: `RouteS06_Sc02`, and Route_S06_Sc01, which `_OnTransition` must call on the first entry. The source keys it on "first entry" without a story value, so no coord or on-frame event carries it;
+  - scenes: `RouteS06_Sc01` (on-frame, `VAR_SIL_STORY` 55) and `RouteS06_Sc02`;
   - `_OnLoad`, `_OnTransition`;
   - `_EventScript_{Luna, Hoshi, Yumi, Gaston, Kotaro, Pelerine, Coureur, Bonze, Rochers, Rocher, ItemHyperPotion, ItemUltraBall, ItemPpUp, ItemMaxEther, ItemDragonScale, SignEntree, SignEncens, SignRocher, SignAutel}`.
 - RouteS06_BoisSoupirs: `RouteS06_BoisSoupirs_Sc01`, `_EventScript_{Armand, Amoureux, ItemHeartScale}`.
@@ -1882,6 +1885,10 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
   - `_OnTransition`;
   - `_EventScript_{ShinobiGear, Restauratrice, Cosplay1, Cosplay2, Kevin, Bruno, Diane, Kimiko, Moine, SignCode}`.
 - MangaSquare_Bibliotheque: `_Sc01`, `_EventScript_{Archiviste, Prestataire, Etudiant, Livre1, Livre2, Livre3, Livre4, Borne}`.
+- Hide flags the scenes own (no map script sets them):
+  - `MangaSquare_Dojo_Sc01` clears `FLAG_SIL_HIDE_BIBLIO_ADRIEN` as it sets `_HIDE_DOJO_ADRIEN`: Adrien moves to the Bibliothèque, where he stays (Manga_Square_Sc03_T4);
+  - `MangaSquare_Bibliotheque_Sc01` sets `_HIDE_DOJO_DRONE_1` and `_2` with `_HIDE_DOJO_KIMIKO` (§8: Kimiko and her drones leave together);
+  - `MangaSquare_Sc02` and `_Sc03` clear `_HIDE_MANGA_SQUARE_BENOU` and `_ADRIEN_FIN` with `show_object`, and set them again when the actor leaves.
 - MangaSquare_PokemonCenter: `_OnTransition`, `_EventScript_{Nurse, Fan}`.
 - MangaSquare_Mart: `_EventScript_Clerk`.
 - MangaSquare_Toiletteur: `_EventScript_Skitty` (the groomer is `MangaSquare_Sc04`).
@@ -1939,6 +1946,18 @@ Every other flag the maps name already existed: `_HIDE_DOJO_ADRIEN`, `_HIDE_DOJO
 3. **Metatile meaning is guessed from renders.** Lab 573–575 and 640 are floor shadows, not furniture: I learned it from the "walkable in 5 of 5" warnings after the first build. `palette` could mark metatiles whose extracted cells are always walkable.
 4. **The ids importer reads only headings.** `MAP_MANGA_SQUARE_GYM` had to be appended by hand. The import also rewrites `text/` (the Ch09 rename), so it must run on a scratch copy and only `ids/flags.ron` may come back.
 5. **Worktree guard.** Shell variables, `cd` before `git`, and multi-step pipelines are refused. Helper scripts went through `Write` and plain `python3 -I`.
+
+**Review fixes** (after the merge of Ch2–Ch3). A breadth-first search over the layouts (collision, elevation, ledges by behaviour, water without Surf, objects as obstacles) found four map bugs, and the review found two contract bugs:
+- **Critical: the Dojo's back door stayed shut.** The monk's step-aside cell (27, 5) is the only cell below (27, 4), the alcove's one entrance, so moving him there kept the gym unreachable. He now steps to (28, 5).
+- **Critical: R3 could never be smashed.** It stood at (22, 20), whose only neighbours were the cliff top (solid), the wall and the niche itself. The altar ledge's east wall now has one gap, (20, 19), and R3 fills it; (22, 20) is cliff. The Dragon Scale (23, 18) is behind it.
+- **Important: Manga_Square_Sc02 could be walked around.** The Grand Torii's beam (rows 1–2) was walkable and joined the passage to the pond's path on the west and the east path at x 41. A player could reach the controleur at (37, 1) with `VAR_SIL_STORY` 66 and never cross (36–38, 6), so Benou's scene never played. The beam's ends (34 and 40, y 1–2) are solid now; the passage is entered only across the three coord cells. The search confirms it, and that Sc01 (Torii Sud and the shortcut's exit) and Route_S06_Sc02 (the plateau's stairs) cannot be bypassed.
+- **Important: Ayame saw nothing.** At (14, 10), facing left, she faced the slim tree at (13, 9–11), so her sight was empty and she could only be talked to. She stands at (12, 10) now, on the tree's other side, and sees x 8–11 across the path.
+- **Important: Route_S06_Sc01 ran from `on_transition`.** An on-transition script cannot show a message. Ch5 ends at 55 (Owlys_Sc05, the end of its §8 table), so the scene is an on-frame script on 55, as Ch0's Brico_Bourg_Sc02.
+- **Important: no hide flag started set.** Ch0–Ch3 list in `game.ron`'s `new_game_flags` the actors hidden at story 0, and the source says Benou and Adrien (fin) are hidden "au début de la partie". Added: `FLAG_SIL_HIDE_ROUTE_S06_{ADRIEN, SBIRE_A, SBIRE_B, RANDONNEUR}`, `FLAG_SIL_HIDE_MANGA_SQUARE_{BENOU, ADRIEN_FIN, LIVREUR}` and `FLAG_SIL_HIDE_BIBLIO_ADRIEN` (without it Adrien would sit in the Bibliothèque before the signing). The Dojo's Adrien, Kimiko, the drones and the controleur start visible. `game_tests.rs` checks both groups.
+- Noted, not changed:
+  - Ayame and Seiji can be walked past (crossing y 10 away from x 8–11, or y 6 east of x 10). The source does not make them mandatory, unlike the samurai, whose one-cell alley the search confirms.
+  - The Dojo's ribbon fences only the queue's front: the stage can be reached around it. Nothing depends on it, since Dojo_Sc01 starts by talking to Adrien.
+  - The pagoda's top row (17–27, 1) is walkable but unreachable.
 
 #### SIL1 Task A as built: the authored-data loader
 
