@@ -1,0 +1,56 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   | 522/1/0 side wall
+//   = 537/1/0 wall top
+//   a 595/1/0 
+//   b 596/1/0 
+//   c 707/1/0 
+//   d 708/1/0 
+//   e 709/1/0 
+//   W 545/1/0 wall face
+//   f 603/1/0 
+//   g 604/1/0 
+//   h 715/1/0 
+//   i 716/0/3 
+//   j 717/1/0 
+//   . 552/0/3 concrete floor
+//   k 611/1/0 
+//   l 612/1/0 
+//   m 619/0/3 
+//   n 620/0/3 
+//   o 116/1/0 
+//   p 124/1/0 
+//   q 137/1/0 
+//   r 117/1/0 
+//   s 384/0/1 
+//   t 393/0/1 
+//   u 385/0/1 
+//   v 115/1/0 
+//   w 400/0/1 
+//   ~ 368/0/1 water
+//   x 402/0/1 
+//   D 679/0/1 deep water (Dive)
+//   - 617/1/0 railing
+//   _ 621/1/0 bottom wall
+// The cuve (frame x 1-10, y 4-12; water x 2-9, y 5-11; deep water (5-7, 9-11), the arrival (6, 10)),
+// left by Surf at the gap (10, 11). The rail row y 10 (x 11-18) splits the room: its only gap is
+// (14-15, 10), in Sbire 1's sight. The service stairs up (17, 1).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "|=ab==ab========cde|",
+        "|WfgWWfgWWWWWWWWhij|",
+        "|.kl..kl...........|",
+        "|.mn..mn...........|",
+        "|oppppppppq........|",
+        "|rsttttttuv........|",
+        "|rw~~~~~~xv........|",
+        "|rw~~~~~~xv........|",
+        "|rw~~~~~~xv........|",
+        "|rw~~DDD~xv.--.....|",
+        "|rw~~DDD~xv--...---|",
+        "|rw~~DDD~x..--.....|",
+        "|oppppppppq........|",
+        "|..................|",
+        "|..................|",
+        "____________________",
+    ], legend: {'|': (metatile: 522, collision: 1, elevation: 0), '=': (metatile: 537, collision: 1, elevation: 0), 'a': (metatile: 595, collision: 1, elevation: 0), 'b': (metatile: 596, collision: 1, elevation: 0), 'c': (metatile: 707, collision: 1, elevation: 0), 'd': (metatile: 708, collision: 1, elevation: 0), 'e': (metatile: 709, collision: 1, elevation: 0), 'W': (metatile: 545, collision: 1, elevation: 0), 'f': (metatile: 603, collision: 1, elevation: 0), 'g': (metatile: 604, collision: 1, elevation: 0), 'h': (metatile: 715, collision: 1, elevation: 0), 'i': (metatile: 716, collision: 0, elevation: 3), 'j': (metatile: 717, collision: 1, elevation: 0), '.': (metatile: 552, collision: 0, elevation: 3), 'k': (metatile: 611, collision: 1, elevation: 0), 'l': (metatile: 612, collision: 1, elevation: 0), 'm': (metatile: 619, collision: 0, elevation: 3), 'n': (metatile: 620, collision: 0, elevation: 3), 'o': (metatile: 116, collision: 1, elevation: 0), 'p': (metatile: 124, collision: 1, elevation: 0), 'q': (metatile: 137, collision: 1, elevation: 0), 'r': (metatile: 117, collision: 1, elevation: 0), 's': (metatile: 384, collision: 0, elevation: 1), 't': (metatile: 393, collision: 0, elevation: 1), 'u': (metatile: 385, collision: 0, elevation: 1), 'v': (metatile: 115, collision: 1, elevation: 0), 'w': (metatile: 400, collision: 0, elevation: 1), '~': (metatile: 368, collision: 0, elevation: 1), 'x': (metatile: 402, collision: 0, elevation: 1), 'D': (metatile: 679, collision: 0, elevation: 1), '-': (metatile: 617, collision: 1, elevation: 0), '_': (metatile: 621, collision: 1, elevation: 0)}),
+]

@@ -1,0 +1,25 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_AQUA_MAGMA_HIDEOUT", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnLoad: the pump lights drawn red for FLAG_SIL_S09_POMPE_A / _B (set_metatile on the pumps).
+    Scripts((on_load: Some("RouteS09_Station_OnLoad"), on_transition: None, on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the mat, to RouteS09's warp 0 (the station's door).
+    Warp(x: 10, y: 15, dest_map: "RouteS09", dest_warp: 0),
+    Warp(x: 11, y: 15, dest_map: "RouteS09", dest_warp: 0),
+    // 1: GERARD, the Cocket technician (TRAINER_SIL_S09_TECHNICIEN): his sight covers pump B's whole foot
+    // row (11-12, 11); after the battle the script steps him aside.
+    Object(x: 13, y: 11, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_S09_STATION_TECHNICIEN", local_id: 1, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "RouteS09_Station_EventScript_Technicien", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // 2: the maintenance man (Station_Npc_1).
+    Object(x: 15, y: 13, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_S09_STATION_AGENT", local_id: 2, movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "RouteS09_Station_EventScript_Agent"),
+    // 3: the metal cabinet (Champ Magnetique; placeholder: a Strength boulder), pushed east from (1, 2).
+    Object(x: 2, y: 2, gfx: "OBJ_EVENT_GFX_PUSHABLE_BOULDER", id: "LOCALID_S09_STATION_ARMOIRE", local_id: 3, movement: "MOVEMENT_TYPE_LOOK_AROUND", script: "RouteS09_Station_EventScript_Armoire"),
+    // 4: TM24 Thunderbolt in the office drawer. 5: Elixir on pump C's catwalk.
+    Object(x: 7, y: 3, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S09_STATION_ITEM_TM24", local_id: 4, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_Station_EventScript_ItemTM24", flag: "FLAG_SIL_ITEM_S09_CT_TONNERRE"),
+    Object(x: 20, y: 9, gfx: "OBJ_EVENT_GFX_ITEM_BALL", id: "LOCALID_S09_STATION_ITEM_ELIXIR", local_id: 5, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS09_Station_EventScript_ItemElixir", flag: "FLAG_SIL_ITEM_S09_STATION_ELIXIR"),
+    // bg 0-2: the consoles of pumps A, B (Route_S09_Sc03) and C (the warning).
+    Sign(x: 3, y: 10, script: "RouteS09_Station_EventScript_PupitreA"),
+    Sign(x: 11, y: 10, script: "RouteS09_Station_EventScript_PupitreB"),
+    Sign(x: 17, y: 10, script: "RouteS09_Station_EventScript_PompeC"),
+    // bg 3: the breaker behind the cabinet (Sc03_T5, sets FLAG_SIL_S09_DISJONCTEUR).
+    Sign(x: 2, y: 1, script: "RouteS09_Station_EventScript_Disjoncteur"),
+]

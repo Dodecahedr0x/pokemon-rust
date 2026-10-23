@@ -347,9 +347,9 @@
             x: 6,
             y: 4,
             elevation: 0,
-            kind: HiddenItem(
-                item: "ITEM_IRON",
-                flag: "FLAG_SIL_ITEM_GRIS_ECHEC_IRON",
+            kind: Script(
+                facing: 0,
+                script: Some("GrisEchec_EventScript_HiddenIron"),
             ),
         ),
     ],

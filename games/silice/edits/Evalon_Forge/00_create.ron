@@ -1,0 +1,4 @@
+// Silice Ch8, MAP_EVALON_FORGE: the forge of Hilde (quest Q2) (10 x 8). Building + GenericBuilding
+// (Emerald tilesets by name): Fortree's red-wood cabin pieces; the great trunk is the forge's
+// chimney and bellows, the shelves the racks of wooden and iron swords. Out-of-map border: the void.
+(name: "Evalon_Forge", width: 10, height: 8, primary: "Building", secondary: "GenericBuilding", fill: 985, fill_collision: 0, fill_elevation: 3, border: [1537, 1537, 1537, 1537])

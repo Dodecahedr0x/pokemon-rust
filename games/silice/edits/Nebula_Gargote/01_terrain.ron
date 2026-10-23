@@ -1,0 +1,50 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   A 912/1/0 wall, top-left corner
+//   B 913/1/0 wall top
+//   C 914/1/0 wall, top-right corner
+//   E 920/1/0 wall, left side
+//   F 921/1/0 wall face
+//   k 952/1/0 the stove and its pot
+//   l 953/1/0 the stove and its pot
+//   o 951/1/0 jar
+//   b 958/1/0 big barrel
+//   G 922/1/0 wall, right side
+//   I 928/0/3 floor at the left wall's foot
+//   j 929/0/3 floor in the wall's shadow
+//   m 960/0/3 stove foot
+//   n 961/0/3 stove foot
+//   d 966/1/0 big barrel
+//   K 930/0/3 floor at the right wall's foot
+//   . 931/0/3 plank floor
+//   p 744/1/0 counter
+//   q 745/1/0 counter
+//   r 746/1/0 counter
+//   < 942/0/3 chair (faces right)
+//   t 938/1/0 table
+//   u 939/1/0 table
+//   > 943/0/3 chair (faces left)
+//   s 752/1/0 counter
+//   S 753/1/0 counter
+//   T 754/1/0 counter
+//   v 946/1/0 table
+//   w 947/1/0 table
+//   z 998/1/0 bottom-left corner
+//   M 940/0/3 entrance mat (arrow warp)
+//   N 941/0/3 entrance mat (arrow warp)
+//   Z 999/1/0 bottom-right corner
+// The stove and its pot (x 2-3, y 1), Mme Fenouil's counter (x 0-3, y 4-5), three tables;
+// the friends sit round the left-hand one (x 3-4, y 7-8) over the town map.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "ABBBBBBBBBBBC",
+        "EFklFFFFFoobG",
+        "IjmnjjjjjjjdK",
+        "j............",
+        "pqqr....<tu>.",
+        "sSST....<vw>.",
+        "j............",
+        "j.<tu>..<tu>.",
+        "j.<vw>..<vw>.",
+        "z....MN.....Z",
+    ], legend: {'A': (metatile: 912, collision: 1, elevation: 0), 'B': (metatile: 913, collision: 1, elevation: 0), 'C': (metatile: 914, collision: 1, elevation: 0), 'E': (metatile: 920, collision: 1, elevation: 0), 'F': (metatile: 921, collision: 1, elevation: 0), 'k': (metatile: 952, collision: 1, elevation: 0), 'l': (metatile: 953, collision: 1, elevation: 0), 'o': (metatile: 951, collision: 1, elevation: 0), 'b': (metatile: 958, collision: 1, elevation: 0), 'G': (metatile: 922, collision: 1, elevation: 0), 'I': (metatile: 928, collision: 0, elevation: 3), 'j': (metatile: 929, collision: 0, elevation: 3), 'm': (metatile: 960, collision: 0, elevation: 3), 'n': (metatile: 961, collision: 0, elevation: 3), 'd': (metatile: 966, collision: 1, elevation: 0), 'K': (metatile: 930, collision: 0, elevation: 3), '.': (metatile: 931, collision: 0, elevation: 3), 'p': (metatile: 744, collision: 1, elevation: 0), 'q': (metatile: 745, collision: 1, elevation: 0), 'r': (metatile: 746, collision: 1, elevation: 0), '<': (metatile: 942, collision: 0, elevation: 3), 't': (metatile: 938, collision: 1, elevation: 0), 'u': (metatile: 939, collision: 1, elevation: 0), '>': (metatile: 943, collision: 0, elevation: 3), 's': (metatile: 752, collision: 1, elevation: 0), 'S': (metatile: 753, collision: 1, elevation: 0), 'T': (metatile: 754, collision: 1, elevation: 0), 'v': (metatile: 946, collision: 1, elevation: 0), 'w': (metatile: 947, collision: 1, elevation: 0), 'z': (metatile: 998, collision: 1, elevation: 0), 'M': (metatile: 940, collision: 0, elevation: 3), 'N': (metatile: 941, collision: 0, elevation: 3), 'Z': (metatile: 999, collision: 1, elevation: 0)}),
+]

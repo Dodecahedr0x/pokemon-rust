@@ -1,0 +1,14 @@
+// Reachability findings accepted on purpose (lint-reach).
+[
+    // The fuse room is past the CONTREMAITRE, who blocks its door (7, 5) with no hide flag, on purpose: he
+    // must be fought. Station_Lumiere_Sc01 walks him right after his battle and sets
+    // FLAG_SIL_STATION_CONTREMAITRE; ViberCity_StationLumiere_OnLoad puts him on (8, 5) from then on.
+    AllowReach(subject: "bg 0", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 1", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 2", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 3", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 4", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 5", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 6", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+    AllowReach(subject: "bg 7", reason: "past the foreman, whom Station_Lumiere_Sc01 walks aside (FLAG_SIL_STATION_CONTREMAITRE; OnLoad keeps him on (8, 5))"),
+]

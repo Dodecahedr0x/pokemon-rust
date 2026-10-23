@@ -1,0 +1,89 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   # 513/1/0 void
+//   W 551/1/0 wall top
+//   1 571/1/0 stairs up
+//   2 572/1/0 stairs up
+//   3 573/1/0 stairs up
+//   F 559/1/0 wall face
+//   4 579/1/0 stairs up
+//   5 580/0/3 stairs up (warp cell)
+//   6 581/1/0 stairs up
+//   u 702/0/3 floor under the wall
+//   r 519/1/0 rubble
+//   . 701/0/3 flagstones
+//   P 714/1/0 the Game Master's plaque
+//   n 565/0/3 rune
+//   t 568/1/0 pit edge
+//   y 570/1/0 pit edge
+//   l 576/1/0 pit
+//   L 578/1/0 pit
+//   v 585/1/0 pit edge
+//   Y 586/1/0 pit edge
+//   T 569/1/0 pit edge
+//   o 577/1/0 pit
+//   V 589/1/0 pit edge
+//   R 527/1/0 rubble
+//   q 543/1/0 fallen pillar
+//   x 566/0/3 skull slab (trap)
+//   e 564/0/3 sword slab (safe)
+//   M 546/0/3 exit mat (arrow warp)
+//   N 547/0/3 exit mat (arrow warp)
+[
+    Ascii(x: 0, y: 0, rows: [
+        "#WWW123WWW#",
+        "#FFF456FFF#",
+        "#uuur.ruuu#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#P........#",
+        "#.........#",
+        "#WWWWWWWWW#",
+        "#FFFFFFFFF#",
+        "#uuuuuuuuu#",
+        "#.........#",
+        "#.........#",
+        "#P........#",
+        "#.........#",
+        "#WWWW.WWWW#",
+        "#FFFF.FFFF#",
+        "#uuuunuuuu#",
+        "#ty.n...ty#",
+        "#lL.n...lL#",
+        "#vY.n...vY#",
+        "#...n.....#",
+        "#tTTyntTTy#",
+        "#looLnlooL#",
+        "#vVVYnvVVY#",
+        "#P...n....#",
+        "#WWWW.WWWW#",
+        "#FFFF.FFFF#",
+        "#RRR...RRR#",
+        "#RR....RRR#",
+        "#RRq...RRR#",
+        "#tTTTTTTTy#",
+        "#vVVVVVVVY#",
+        "#..n...n..#",
+        "#.........#",
+        "#.........#",
+        "#P........#",
+        "#WWWW.WWWW#",
+        "#FFFF.FFFF#",
+        "#RRRu.uRRR#",
+        "#RxxxexxxR#",
+        "#RxxxnxxxR#",
+        "#RxxxexxxR#",
+        "#RxxxnenxR#",
+        "#RxxxxnexR#",
+        "#RenenenxR#",
+        "#RxexxxxxR#",
+        "#RxnenexxR#",
+        "#RxxxexxxR#",
+        "#P........#",
+        "#.........#",
+        "#.........#",
+        "#.........#",
+        "#####MN####",
+    ], legend: {'#': (metatile: 513, collision: 1, elevation: 0), 'W': (metatile: 551, collision: 1, elevation: 0), '1': (metatile: 571, collision: 1, elevation: 0), '2': (metatile: 572, collision: 1, elevation: 0), '3': (metatile: 573, collision: 1, elevation: 0), 'F': (metatile: 559, collision: 1, elevation: 0), '4': (metatile: 579, collision: 1, elevation: 0), '5': (metatile: 580, collision: 0, elevation: 3), '6': (metatile: 581, collision: 1, elevation: 0), 'u': (metatile: 702, collision: 0, elevation: 3), 'r': (metatile: 519, collision: 1, elevation: 0), '.': (metatile: 701, collision: 0, elevation: 3), 'P': (metatile: 714, collision: 1, elevation: 0), 'n': (metatile: 565, collision: 0, elevation: 3), 't': (metatile: 568, collision: 1, elevation: 0), 'y': (metatile: 570, collision: 1, elevation: 0), 'l': (metatile: 576, collision: 1, elevation: 0), 'L': (metatile: 578, collision: 1, elevation: 0), 'v': (metatile: 585, collision: 1, elevation: 0), 'Y': (metatile: 586, collision: 1, elevation: 0), 'T': (metatile: 569, collision: 1, elevation: 0), 'o': (metatile: 577, collision: 1, elevation: 0), 'V': (metatile: 589, collision: 1, elevation: 0), 'R': (metatile: 527, collision: 1, elevation: 0), 'q': (metatile: 543, collision: 1, elevation: 0), 'x': (metatile: 566, collision: 0, elevation: 3), 'e': (metatile: 564, collision: 0, elevation: 3), 'M': (metatile: 546, collision: 0, elevation: 3), 'N': (metatile: 547, collision: 0, elevation: 3)}),
+]

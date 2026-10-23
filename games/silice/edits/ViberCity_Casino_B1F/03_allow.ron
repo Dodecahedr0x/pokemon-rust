@@ -1,0 +1,7 @@
+// Reachability findings accepted on purpose (lint-reach).
+[
+    // The head croupier blocks (10, 9) on purpose (the source: "il bloque le passage"): his battle moves him
+    // aside and sets FLAG_SIL_CASINO_CHEF, and ViberCity_Casino_B1F_OnTransition keeps him on (6, 10).
+    AllowReach(subject: "object LOCALID_CASINO_B1F_ITEM_RARE_CANDY", reason: "past the head croupier, whom ViberCity_Casino_B1F_EventScript_CroupierChef moves aside after his battle (FLAG_SIL_CASINO_CHEF; OnTransition keeps him on (6, 10))"),
+    AllowReach(subject: "bg 1", reason: "the capsule (Casino_B1F_Sc02), past the head croupier, whom his battle script moves aside (FLAG_SIL_CASINO_CHEF; OnTransition keeps him on (6, 10))"),
+]

@@ -1,0 +1,16 @@
+// Reachability findings accepted on purpose (lint-reach). The raised bridges p2-p5 and the platform's
+// walkway are void in the layout; Owlys_Gym_OnLoad and the lecterns' scripts (LivreRouge, LivreBleu,
+// LivreNoir) draw them posed (cells listed in 02_events.ron). With every bridge posed (`reach --open`),
+// all of these are reached.
+[
+    AllowReach(subject: "warp 1", reason: "the trapdoor on the east islet, reached over bridge p2, which the lecterns pose"),
+    AllowReach(subject: "warp 2", reason: "the trapdoor on the central islet, reached over bridges p3/p4, which the lecterns pose"),
+    AllowReach(subject: "warp 3", reason: "a trapdoor in the Watchers' hall, north of the central islet over bridge p5, which the lecterns pose"),
+    AllowReach(subject: "warp 4", reason: "a trapdoor in the Watchers' hall, north of the central islet over bridge p5, which the lecterns pose"),
+    AllowReach(subject: "object LOCALID_GYM_ITEM_SHARP_BEAK", reason: "on the east islet's perch, reached over bridge p2, which the lecterns pose"),
+    AllowReach(subject: "bg 2", reason: "the black book on the east islet, reached over bridge p2, which the lecterns pose"),
+    AllowReach(subject: "object LOCALID_GYM_VEILLEUR_1", reason: "in the Watchers' hall, reached over bridge p5"),
+    AllowReach(subject: "object LOCALID_GYM_VEILLEUR_2", reason: "in the Watchers' hall, reached over bridge p5"),
+    AllowReach(subject: "object LOCALID_GYM_VEILLEUR_3", reason: "in the Watchers' hall, reached over bridge p5"),
+    AllowReach(subject: "object LOCALID_GYM_VEILLEUR_4", reason: "in the Watchers' hall, reached over bridge p5"),
+]

@@ -9,8 +9,14 @@
     Warp(x: 6, y: 39, dest_map: "BoisEther", dest_warp: 0),
     Warp(x: 7, y: 39, dest_map: "BoisEther", dest_warp: 0),
     Object(x: 5, y: 35, gfx: "OBJ_EVENT_GFX_MAN_2", id: "LOCALID_GYM1_CONSEILLER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_EventScript_Conseiller"),
-    Object(x: 6, y: 23, gfx: "OBJ_EVENT_GFX_PICNICKER", id: "LOCALID_GYM1_IRIS", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BoisEther_Gym_EventScript_Iris", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
-    Object(x: 11, y: 26, gfx: "OBJ_EVENT_GFX_CAMPER", id: "LOCALID_GYM1_JULES", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Jules", trainer_type: "TRAINER_TYPE_NORMAL", sight: 3),
+    // Zone 1's trainers watch the safe path's cells next to them, so that walking up to the
+    // player never blocks it (SIL2 Ch1 scripts fix; the source says sight 3 for both): Jules
+    // sees only (10, 26), the one cell of the path beside him, and Iris (7, 23) and the door's
+    // front cell (8, 23). At sight 3, Jules spotted the player at (9, 26) and walked onto
+    // (10, 26), and Iris spotted the player at (9, 23) and walked onto (8, 23): the safe path
+    // was cut both times, and the only ways on crossed a grate.
+    Object(x: 6, y: 23, gfx: "OBJ_EVENT_GFX_PICNICKER", id: "LOCALID_GYM1_IRIS", movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "BoisEther_Gym_EventScript_Iris", trainer_type: "TRAINER_TYPE_NORMAL", sight: 2),
+    Object(x: 11, y: 26, gfx: "OBJ_EVENT_GFX_CAMPER", id: "LOCALID_GYM1_JULES", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Jules", trainer_type: "TRAINER_TYPE_NORMAL", sight: 1),
     Object(x: 8, y: 17, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_GYM1_MILO", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Milo", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
     Object(x: 11, y: 13, gfx: "OBJ_EVENT_GFX_LASS", id: "LOCALID_GYM1_ROSE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "BoisEther_Gym_EventScript_Rose", trainer_type: "TRAINER_TYPE_NORMAL", sight: 4),
     Object(x: 11, y: 18, gfx: "OBJ_EVENT_GFX_YOUNGSTER", id: "LOCALID_GYM1_PAUL", movement: "MOVEMENT_TYPE_FACE_LEFT", script: "BoisEther_Gym_EventScript_Paul"),
@@ -44,15 +50,19 @@
     Coord(x: 11, y: 28, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
     Coord(x: 6, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
     Coord(x: 9, y: 29, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_Spores"),
+    // Door D's cell (8, 22), once its panel opened it: a contaminated player who steps onto it is
+    // sent back to the shower, as the panel does (SIL2 Ch1 scripts fix: an open door stayed open to
+    // a player who walked back onto a grate).
+    Coord(x: 8, y: 22, var: "VAR_TEMP_1", value: 0, script: "BoisEther_Gym_EventScript_PorteSas1Passage"),
     // Zone 3: the chamber's centre. The scene sets VAR_TEMP_2 to 1, so it plays once per visit.
     Coord(x: 7, y: 10, var: "VAR_TEMP_2", value: 0, script: "BoisEther_Gym_EventScript_Sas2"),
     // Signs: the airlock door D (from either side), the poster, the workbench (front row), the
     // two crates c2 (red, the fuse) and c3 (the spring), the private greenhouse door.
     Sign(x: 8, y: 22, script: "BoisEther_Gym_EventScript_PorteSas1"),
     Sign(x: 4, y: 22, script: "BoisEther_Gym_EventScript_Affiche", facing: 1),
+    // The workbench (x 2-6, y 13-14) is read from its free front cells (3, 15) and (5, 15).
+    Sign(x: 3, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
     Sign(x: 5, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
-    Sign(x: 6, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
-    Sign(x: 7, y: 14, script: "BoisEther_Gym_EventScript_Etabli", facing: 1),
     Sign(x: 4, y: 15, script: "BoisEther_Gym_EventScript_CaisseFusible"),
     Sign(x: 6, y: 15, script: "BoisEther_Gym_EventScript_CaisseRessort"),
     Sign(x: 12, y: 1, script: "BoisEther_Gym_EventScript_SerrePrivee", facing: 1),

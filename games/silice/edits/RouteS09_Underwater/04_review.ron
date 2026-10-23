@@ -1,0 +1,15 @@
+// Review fix: every seaweed cell becomes seaweed that cannot surface (641, MB_SEAWEED_NO_SURFACING).
+// Gen3 lets the player emerge on any underwater cell that is not MB_NO_SURFACING or
+// MB_SEAWEED_NO_SURFACING (MetatileBehavior_IsUnableToEmerge), and the Emerge connection keeps the
+// coordinates. Seaweed 513 (MB_SEAWEED) surfaced the player onto Route S9's quay lip, dam grille
+// and trees from the P2 pool (31-33, 42-44), and outside Route S9 (60 x 50) from the conduit
+// (42-43, 64-65) and the Salle des Filtres (30-32, 67-68): a softlock. The P1 and P3 seaweed
+// surfaced onto plain lake water (harmless), and is changed too, so that the 534 patches under
+// P1-P3 are the only cells that emerge.
+[
+    Rect(x: 19, y: 15, w: 3, h: 2, metatile: 641, collision: 0, elevation: 3),
+    Rect(x: 52, y: 30, w: 3, h: 1, metatile: 641, collision: 0, elevation: 3),
+    Rect(x: 31, y: 42, w: 3, h: 3, metatile: 641, collision: 0, elevation: 3),
+    Rect(x: 42, y: 64, w: 2, h: 2, metatile: 641, collision: 0, elevation: 3),
+    Rect(x: 30, y: 67, w: 3, h: 2, metatile: 641, collision: 0, elevation: 3),
+]

@@ -1,0 +1,64 @@
+// Cells, drawn in one grid. Legend (char: metatile/collision/elevation, what):
+//   A 520/1/0 
+//   B 521/1/0 
+//   x 524/1/0 
+//   w 523/1/0 
+//   y 586/1/0 
+//   z 587/1/0 
+//   P 617/1/0 
+//   Q 618/1/0 
+//   r 527/1/0 
+//   C 528/1/0 
+//   D 529/1/0 
+//   m 4/1/0 
+//   1 584/1/0 
+//   2 546/1/0 
+//   3 547/1/0 
+//   4 594/1/0 
+//   5 595/1/0 
+//   6 585/1/0 
+//   R 625/1/0 
+//   S 626/1/0 
+//   s 535/1/0 
+//   E 536/0/3 
+//   F 537/0/3 
+//   n 548/1/0 
+//   7 592/1/0 
+//   8 554/1/0 
+//   9 555/1/0 
+//   0 519/0/3 
+//   ! 603/1/0 
+//   @ 593/1/0 
+//   U 633/1/0 
+//   V 634/1/0 
+//   t 543/1/0 
+//   G 544/0/3 
+//   H 550/0/3 
+//   o 572/0/3 
+//   # 600/1/0 
+//   $ 545/1/0 
+//   % 517/1/0 
+//   ^ 601/1/0 
+//   . 514/0/3 
+//   u 551/0/3 
+//   j 573/1/0 
+//   k 574/1/0 
+//   l 581/1/0 
+//   q 582/1/0 
+//   b 552/0/3 
+//   e 515/0/3 
+//   f 516/0/3 
+//   c 567/1/0 
+// The standard Center: back wall, the healing counter (x 3-8, y 1-3), the PC, a plant, a table, the mat.
+[
+    Ascii(x: 0, y: 0, rows: [
+        "ABxwwwyzwPQr",
+        "CDm123456RSs",
+        "EFn7890!@UVt",
+        "GHo#$$%$^..u",
+        "G..........u",
+        "G........jku",
+        "G........lqu",
+        "b....ef....c",
+    ], legend: {'A': (metatile: 520, collision: 1, elevation: 0), 'B': (metatile: 521, collision: 1, elevation: 0), 'x': (metatile: 524, collision: 1, elevation: 0), 'w': (metatile: 523, collision: 1, elevation: 0), 'y': (metatile: 586, collision: 1, elevation: 0), 'z': (metatile: 587, collision: 1, elevation: 0), 'P': (metatile: 617, collision: 1, elevation: 0), 'Q': (metatile: 618, collision: 1, elevation: 0), 'r': (metatile: 527, collision: 1, elevation: 0), 'C': (metatile: 528, collision: 1, elevation: 0), 'D': (metatile: 529, collision: 1, elevation: 0), 'm': (metatile: 4, collision: 1, elevation: 0), '1': (metatile: 584, collision: 1, elevation: 0), '2': (metatile: 546, collision: 1, elevation: 0), '3': (metatile: 547, collision: 1, elevation: 0), '4': (metatile: 594, collision: 1, elevation: 0), '5': (metatile: 595, collision: 1, elevation: 0), '6': (metatile: 585, collision: 1, elevation: 0), 'R': (metatile: 625, collision: 1, elevation: 0), 'S': (metatile: 626, collision: 1, elevation: 0), 's': (metatile: 535, collision: 1, elevation: 0), 'E': (metatile: 536, collision: 0, elevation: 3), 'F': (metatile: 537, collision: 0, elevation: 3), 'n': (metatile: 548, collision: 1, elevation: 0), '7': (metatile: 592, collision: 1, elevation: 0), '8': (metatile: 554, collision: 1, elevation: 0), '9': (metatile: 555, collision: 1, elevation: 0), '0': (metatile: 519, collision: 0, elevation: 3), '!': (metatile: 603, collision: 1, elevation: 0), '@': (metatile: 593, collision: 1, elevation: 0), 'U': (metatile: 633, collision: 1, elevation: 0), 'V': (metatile: 634, collision: 1, elevation: 0), 't': (metatile: 543, collision: 1, elevation: 0), 'G': (metatile: 544, collision: 0, elevation: 3), 'H': (metatile: 550, collision: 0, elevation: 3), 'o': (metatile: 572, collision: 0, elevation: 3), '#': (metatile: 600, collision: 1, elevation: 0), '$': (metatile: 545, collision: 1, elevation: 0), '%': (metatile: 517, collision: 1, elevation: 0), '^': (metatile: 601, collision: 1, elevation: 0), '.': (metatile: 514, collision: 0, elevation: 3), 'u': (metatile: 551, collision: 0, elevation: 3), 'j': (metatile: 573, collision: 1, elevation: 0), 'k': (metatile: 574, collision: 1, elevation: 0), 'l': (metatile: 581, collision: 1, elevation: 0), 'q': (metatile: 582, collision: 1, elevation: 0), 'b': (metatile: 552, collision: 0, elevation: 3), 'e': (metatile: 515, collision: 0, elevation: 3), 'f': (metatile: 516, collision: 0, elevation: 3), 'c': (metatile: 567, collision: 1, elevation: 0)}),
+]

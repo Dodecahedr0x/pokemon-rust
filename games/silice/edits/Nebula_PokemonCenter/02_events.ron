@@ -1,0 +1,18 @@
+// Header, map scripts, warps, objects, coord and bg events, connections.
+[
+    Header((music: "MUS_POKE_CENTER", region_map_section: "MAPSEC_NONE", cave: 0, weather: "WEATHER_NONE", map_type: "MAP_TYPE_INDOOR", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
+    // OnTransition: set_respawn (heal location MAP_NEBULA_POKEMON_CENTER, the respawn for all of Ch10).
+    Scripts((on_load: None, on_transition: Some("Nebula_PokemonCenter_OnTransition"), on_resume: None, on_return_to_field: None, on_dive_warp: None, on_frame: [], on_warp_into: [])),
+    // Warps 0-1: the mat, to Nebula's warp 0 (the Center's door).
+    Warp(x: 5, y: 7, dest_map: "Nebula", dest_warp: 0),
+    Warp(x: 6, y: 7, dest_map: "Nebula", dest_warp: 0),
+    // 1: UNITE-SOIN 7, the robot nurse (Nebula_Centre_Soin_T1/T2; grey palette is an engine need).
+    Object(x: 6, y: 2, gfx: "OBJ_EVENT_GFX_NURSE", id: "LOCALID_NEBULA_PC_NURSE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_PokemonCenter_EventScript_Nurse"),
+    // 2: the tired trainer (Nebula_Centre_Npc_1). 3: the man in the waiting room (Npc_2).
+    Object(x: 9, y: 5, gfx: "OBJ_EVENT_GFX_TWIN", id: "LOCALID_NEBULA_PC_DRESSEUSE", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_PokemonCenter_EventScript_Dresseuse"),
+    Object(x: 2, y: 5, gfx: "OBJ_EVENT_GFX_MAN_3", id: "LOCALID_NEBULA_PC_HOMME", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Nebula_PokemonCenter_EventScript_Homme"),
+    // The vending machine on the left counter (Nebula_Distributeur: FRESH_WATER, SODA_POP, LEMONADE).
+    Sign(x: 3, y: 3, script: "Nebula_PokemonCenter_EventScript_Distributeur"),
+    // The Kimiko screen in the waiting room.
+    Sign(x: 10, y: 2, script: "Nebula_PokemonCenter_EventScript_Ecran"),
+]

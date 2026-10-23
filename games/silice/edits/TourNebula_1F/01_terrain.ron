@@ -1,0 +1,46 @@
+// Cells. North: Mathias's bar (rows 2-4), the counter c (9-15, 2), the elevator door X (16, 1) behind it,
+// solid until TourNebula_1F_OnLoad opens it from story 101 (collision 0). The cellar's grille g
+// (10-14, 5), solid until FLAG_SIL_CAVE_GRILLE_OUVERTE (TourNebula_1F_OnLoad: metatile 568, collision 0).
+// The barrel zone (rows 6-10): the stacks f, the tasting barrels A (7, 7), B (10, 7), C (13, 7). The black
+// water ~ (rows 11-12, decor, not surfable) is crossed by two pontoons = (x 7 and x 17); the two iron-bound
+// barrels (objects, Strength: "Champ Magnetique") stand on their north ends (7, 10) and (17, 10). South: the
+// landing, the shop and the elevator door D (11, 22), closed (a sign: going down is locked).
+[
+    Ascii(x: 0, y: 0, rows: [
+        "qaaaaaaaaaaaaaaaaaaaaaaaaQ",
+        "LbbbbbbbbbbbbbbbXbbbbbbbbR",
+        "L####^^^^ccccccc^^^^^####R",
+        "L####................####R",
+        "L####................####R",
+        "LbbbbbbbbbgggggbbbbbbbbbbR",
+        "Lffff................ffffR",
+        "Lffff..A..B..C.......ffffR",
+        "L........ff...ff.........R",
+        "L........ff...ff.........R",
+        "L........................R",
+        "L~~~~~~=~~~~~~~~~=~~~~~~~R",
+        "L~~~~~~=~~~~~~~~~=~~~~~~~R",
+        "L........................R",
+        "L........................R",
+        "L........................R",
+        "L..................ff....R",
+        "L..................ff....R",
+        "L........................R",
+        "L...ff...................R",
+        "L........................R",
+        "L........................R",
+        "LbbbbbbbbbbDbbbbbbbbbbbbbR",
+        "##########################",
+    ], legend: {
+        'q': (metatile: 566, collision: 1, elevation: 0), 'Q': (metatile: 567, collision: 1, elevation: 0),
+        'a': (metatile: 551, collision: 1, elevation: 0), 'b': (metatile: 559, collision: 1, elevation: 0),
+        'L': (metatile: 574, collision: 1, elevation: 0), 'R': (metatile: 575, collision: 1, elevation: 0),
+        '#': (metatile: 513, collision: 1, elevation: 0),
+        '.': (metatile: 568, collision: 0, elevation: 3), '^': (metatile: 571, collision: 0, elevation: 3),
+        'c': (metatile: 553, collision: 1, elevation: 0), 'g': (metatile: 532, collision: 1, elevation: 3),
+        'f': (metatile: 610, collision: 1, elevation: 0),
+        'A': (metatile: 565, collision: 1, elevation: 0), 'B': (metatile: 565, collision: 1, elevation: 0), 'C': (metatile: 565, collision: 1, elevation: 0),
+        '~': (metatile: 722, collision: 1, elevation: 0), '=': (metatile: 745, collision: 0, elevation: 3),
+        'X': (metatile: 694, collision: 1, elevation: 3), 'D': (metatile: 555, collision: 1, elevation: 0),
+    }),
+]

@@ -300,7 +300,7 @@
         ),
         (
             x: 4,
-            y: 8,
+            y: 9,
             elevation: 0,
             kind: Script(
                 facing: 0,

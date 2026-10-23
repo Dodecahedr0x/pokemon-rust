@@ -1,0 +1,4 @@
+// Silice Ch10, MAP_TOUR_NEBULA_1F: the Cellar (Pillar 1, Mathias), 26 x 24 (the source's). General +
+// InsideShip (the Abandoned Ship's wooden walls, red floor, drums as barrels, deck planks as the pontoon and
+// its dark water; Emerald tilesets by name). Border: black, blocked.
+(name: "TourNebula_1F", width: 26, height: 24, primary: "General", secondary: "InsideShip", fill: 568, border: [1537, 1537, 1537, 1537])

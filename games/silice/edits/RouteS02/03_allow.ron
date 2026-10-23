@@ -1,4 +1,8 @@
 // Behaviour warnings accepted on purpose.
 [
     AllowCollision(cells: [(38, 2), (42, 2), (38, 3), (39, 3), (40, 3), (41, 3), (42, 3), (10, 5), (11, 5), (48, 7), (49, 8), (31, 9), (32, 9), (49, 9)], reason: "the security cables and the pocket walls: a rail metatile stands in for a thin cable (Mauville has none) and is solid here; RouteS02_OnLoad redraws the cut cables walkable"),
+    AllowReach(subject: "edge west 2-5", reason: "reached from the east only across cable C (31-32, 9), which RouteS02_EventScript_Cable2 cuts with the Lame-Frequence (Chapter 1's module); the player arrives from the west"),
+    AllowReach(subject: "object LOCALID_ROUTE_S02_ITEM_MAGNET", reason: "behind cable 3 (38, 2), cut by RouteS02_EventScript_Cable3 with the Lame-Frequence"),
+    AllowReach(subject: "object LOCALID_ROUTE_S02_ITEM_GREAT_BALL", reason: "in the server pocket (48, 8-9), opened by RouteS02_EventScript_Serveur with the Champ Magnetique (Chapter 2's badge)"),
+    AllowReach(subject: "coords VAR_SIL_STORY=21", reason: "row 6's fourth cell (50, 6) is Gwada's, shown at story 17-21 (RouteS02_OnTransition), so every way north crosses (48-49, 6) or (51, 6)"),
 ]

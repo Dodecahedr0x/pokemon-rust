@@ -7,22 +7,29 @@
 //! receives its `Ctx` by value and passes `&ctx`.
 //!
 //! **Story and state:** [`story`], [`set_story`] (`VAR_SIL_STORY`), [`defeated`] (a trainer's
-//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight),
+//! beaten flag), [`trainer`] (a route trainer; the registry lists its script for sight) and
+//! [`post_battle`] (its line once beaten),
 //! [`gift`] (an item given once, behind its `FLAG_SIL_ITEM_*`), [`hidden_item`] (a hidden item
 //! as a sign script, a fallback).
 //!
 //! **Module obstacles:** [`cut_obstacle`] (the generic Lame-Frequence obstacle) and
-//! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`].
+//! [`repaint_if`] (its `on_load` repaint), with [`METATILE_RONCES_COUPEES`]; [`Obstacle`] with
+//! [`module_obstacle`] and [`repaint_obstacle`] (any module, several cells, the obstacle's own
+//! texts: Chapter 2's cables, server and crates).
 //!
 //! **Scenes:** [`say`] (a line inside a locked scene), [`ask`] (`msgbox(T, YesNo)` then
 //! `if yes_no`), [`walk`] and the other step builders, [`move_wait`] (`move_obj` then
 //! `wait_move`), [`show`] / [`hide`] (the source's `show_object` / `hide_object`, which keep
 //! the hide flag in step), [`warp`], [`choose_starter`] (the Silice starters of `game.ron`),
-//! [`battle_wild`].
+//! [`battle_wild`], [`battle_trainer`] (a scripted trainer battle, the leader's or a boss's).
+//!
+//! **Buildings:** [`pokecenter_nurse`] (Gen3's nurse), [`mart`] (a fallback until M9's shop).
 //!
 //! **Fallbacks:** [`fallback`] reports `Report::Degraded(name)` and returns, so the scene goes
-//! on: [`screen_shake`] (a fade out and in), [`play_se`] (nothing), [`mallette_call`] and
-//! [`end_call`] (nothing: the call's lines are plain messages).
+//! on: [`screen_shake`] and [`screen_flash`] (a fade out and in), [`play_se`] (nothing),
+//! [`mallette_call`] and [`end_call`] (nothing: the call's lines are plain messages),
+//! [`battle_two_trainers`] (two single battles in a row), [`show_sync`] (the sync gauge: the
+//! scene's text says the value).
 //!
 //! The rest of the source's primitives are `Ctx` methods, called directly: `lock`, `lock_all`,
 //! `release`, `release_all`, `face_player`, `set_flag(f, true)` (`set_flag`) and
@@ -77,6 +84,13 @@ pub async fn trainer(
     trainer_battle(ctx, b).await
 }
 
+/// A beaten [`trainer`] talked to again: `text` as Gen3's `msgbox <PostBattle>, MSGBOX_AUTOCLOSE`
+/// (the trainer is locked and faces the player already). The sources write no post-battle lines:
+/// the scripts pass the defeat text.
+pub async fn post_battle(ctx: &Ctx, text: TextId) {
+    msgbox(ctx, text, MsgBox::Autoclose).await;
+}
+
 /// How [`gift`] tells the player.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Obtain {
@@ -118,7 +132,7 @@ pub async fn hidden_item(ctx: &Ctx, flag: FlagId, item: u16) {
 // ---- module obstacles ----
 
 /// `METATILE_RONCES_COUPEES`: synthetic brambles once cut, General's grass (metatile 1), walkable.
-/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 8),
+/// The same on every map whose brambles stand on the General primary (Brico-Bourg (4, 9),
 /// Bois-Éther (8, 6); "SIL2 Ch1 maps as built").
 pub const METATILE_RONCES_COUPEES: u16 = 1;
 
@@ -155,6 +169,62 @@ pub async fn cut_obstacle(
 pub async fn repaint_if(ctx: &Ctx, flag: FlagId, (x, y): (i16, i16), metatile: u16) {
     if ctx.flag(flag).await {
         ctx.set_metatile(x, y, metatile, false).await;
+    }
+}
+
+/// A module obstacle: cells that a Mallette module clears, once, for good (the source's
+/// `field_move` obstacles: the Lame-Fréquence's cables, the Champ Magnétique's blocks). The
+/// general form of [`cut_obstacle`]; see [`module_obstacle`] and [`repaint_obstacle`].
+#[derive(Clone, Copy, Debug)]
+pub struct Obstacle {
+    /// The module the obstacle needs (`FLAG_SIL_MODULE_*`).
+    pub module: FlagId,
+    /// Set once cleared; the map's `on_load` repaints from it.
+    pub done: FlagId,
+    /// The cells once cleared: (x, y, metatile, blocked).
+    pub paint: &'static [(i16, i16, u16, bool)],
+    /// Shown as a sign without the module.
+    pub blocked: TextId,
+    /// The question with the module (yes/no), or `None` when the module acts at once.
+    pub ask: Option<TextId>,
+    /// Said once the obstacle is cleared.
+    pub cleared: TextId,
+}
+
+/// [`Obstacle`] interacted with: nothing once `done`; without the module, `blocked` as a sign;
+/// else (locked) `ask` (on no, nothing), `cleared`, the cells repainted and redrawn, `done` set.
+/// Returns whether it was cleared now.
+pub async fn module_obstacle(ctx: &Ctx, o: &Obstacle) -> bool {
+    if ctx.flag(o.done).await {
+        return false;
+    }
+    if !ctx.flag(o.module).await {
+        msgbox(ctx, o.blocked, MsgBox::Sign).await;
+        return false;
+    }
+    ctx.lock().await;
+    if let Some(q) = o.ask
+        && !ask(ctx, q).await
+    {
+        ctx.release().await;
+        return false;
+    }
+    say(ctx, o.cleared).await;
+    for &(x, y, m, blocked) in o.paint {
+        ctx.set_metatile(x, y, m, blocked).await;
+    }
+    ctx.redraw_map().await;
+    ctx.set_flag(o.done, true).await;
+    ctx.release().await;
+    true
+}
+
+/// [`Obstacle`]'s `on_load` half: its cells repainted once `done` is set.
+pub async fn repaint_obstacle(ctx: &Ctx, o: &Obstacle) {
+    if ctx.flag(o.done).await {
+        for &(x, y, m, blocked) in o.paint {
+            ctx.set_metatile(x, y, m, blocked).await;
+        }
     }
 }
 
@@ -258,6 +328,14 @@ pub async fn screen_shake(ctx: &Ctx, _magnitude: u8, _frames: u16) {
     ctx.fade(Fade::FromBlack).await;
 }
 
+/// `screen_flash(COLOR)`: no screen flash yet (`Request::ScreenFlash`, SIL2 Wave 0 in the M9
+/// plan); a fade to black and back stands in (the chapters' §9 fallback). Reported.
+pub async fn screen_flash(ctx: &Ctx) {
+    fallback(ctx, "screen_flash").await;
+    ctx.fade(Fade::ToBlack).await;
+    ctx.fade(Fade::FromBlack).await;
+}
+
 /// `play_se(SE_*)`: no sound yet; nothing plays (the texts carry the onomatopoeia). Reported,
 /// and `se` (the decomp or `SE_SIL_*` name, which `cargo xtask silice check` checks in the
 /// scripts; the build has no sound constants yet) logged.
@@ -276,4 +354,68 @@ pub async fn mallette_call(ctx: &Ctx, who: &'static str) {
 /// `end_call()`: closes no call window (see [`mallette_call`]). Reported.
 pub async fn end_call(ctx: &Ctx) {
     fallback(ctx, "end_call").await;
+}
+
+/// The source's `battle_two_trainers(A, B)` (Gen3 `trainerbattle_two_trainers`): no double
+/// battle before Milestone 11, so the source's documented fallback, two single battles in a row
+/// without a heal between them ([`battle_trainer`] each, with each trainer's defeat text).
+/// Reported. Returns the second battle's outcome (a loss in the first whites out).
+pub async fn battle_two_trainers(
+    ctx: &Ctx,
+    (a, a_defeat): (TrainerId, TextId),
+    (b, b_defeat): (TrainerId, TextId),
+) -> BattleOutcome {
+    fallback(ctx, "battle_two_trainers").await;
+    battle_trainer(ctx, a, a_defeat).await;
+    battle_trainer(ctx, b, b_defeat).await
+}
+
+/// The source's `show_sync(n)`: the Mallette's animated synchronisation gauge (`VAR_SIL_SYNC`,
+/// which the scene sets first). No gauge screen yet (the Mallette's panels are SIL2 content on
+/// M9's kit): nothing is drawn; the scene's next text gives the value. Reported.
+pub async fn show_sync(ctx: &Ctx, _percent: u16) {
+    fallback(ctx, "show_sync").await;
+}
+
+/// The source's `mart(MART_*)` (Gen3 `pokemart`): no shop screen before Milestone 9 (its
+/// Task J's `mart`), so the clerk greets and says goodbye on Gen3's own `gText_*` and nothing is
+/// sold. Reported. `_items` is the stock the shop will sell (unused until then), kept at the call
+/// site so that the swap to the real screen is one line.
+pub async fn mart(ctx: &Ctx, _items: &'static [ItemId]) {
+    ctx.lock().await;
+    ctx.face_player().await;
+    say(ctx, gText_HowMayIServeYou).await;
+    fallback(ctx, "mart").await;
+    say(ctx, gText_PleaseComeAgain).await;
+    ctx.release().await;
+}
+
+// ---- battles and buildings ----
+
+/// The source's `battle_trainer(TRAINER, Defeat)`: a scripted trainer battle (a leader, a boss
+/// talked to; not a sight trainer, which is [`trainer`]). Unless the player lost, the trainer's
+/// beaten flag is set, as Gen3 `CB2_EndTrainerBattle` does; a loss whites out and ends the
+/// script.
+pub async fn battle_trainer(ctx: &Ctx, trainer: TrainerId, defeat: TextId) -> BattleOutcome {
+    let outcome = ctx.battle_trainer(trainer, defeat).await;
+    if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
+        ctx.set_flag(trainer_flag(trainer), true).await;
+    }
+    outcome
+}
+
+/// Gen3 `Common_EventScript_PkmnCenterNurse` (`data/scripts/pkmn_center_nurse.inc`) without the
+/// Gold Card, Pokérus and Union Room branches: rest the party (yes/no), heal, goodbye, on Gen3's
+/// own `gText_*`. The heal machine's field effect (`FLDEFF_POKECENTER_HEAL`) is a pause.
+pub async fn pokecenter_nurse(ctx: &Ctx) {
+    ctx.lock().await;
+    ctx.face_player().await;
+    if ask(ctx, gText_WouldYouLikeToRestYourPkmn).await {
+        say(ctx, gText_IllTakeYourPkmn).await;
+        ctx.delay(60).await;
+        ctx.heal_party().await;
+        say(ctx, gText_RestoredPkmnToFullHealth).await;
+    }
+    say(ctx, gText_WeHopeToSeeYouAgain).await;
+    ctx.release().await;
 }
