@@ -1,4 +1,5 @@
 // Silice Ch3, MAP_ROUTE_S03: Route S3, le Goulet de l'Echo (20 x 50, vertical), from Gris-Echec
-// (south) to Viber-City (north). General + Mauville (Emerald tilesets by name, the Route 111
-// north set): a sand canyon between rock walls, the Cocket container wall across the middle.
-(name: "RouteS03", width: 20, height: 50, primary: "General", secondary: "Mauville", fill: 113, fill_collision: 1, border: [1137, 1137, 1137, 1137])
+// (south) to Viber-City (north). General (Emerald, by name: the mountain walls) + SilRoutesS2S3
+// (original): a gravel defile between rock walls strung with Cocket cables, the Cocket container
+// wall across the middle.
+(name: "RouteS03", width: 20, height: 50, primary: "General", secondary: "SilRoutesS2S3", fill: 113, fill_collision: 1, border: [1137, 1137, 1137, 1137])

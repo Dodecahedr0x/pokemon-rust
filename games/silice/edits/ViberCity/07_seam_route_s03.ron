@@ -1,0 +1,8 @@
+// Route S3's seam (SilRoutesS2S3): Route S3 draws our rows 25-31 of x 10-29 with its own
+// tilesets, so row 25 (the seventh) goes primary too: the sidewalk slabs along the lawn become
+// night street (General 35, x 2-18 for one strip), the Jardin des Neons' bottom row of
+// phosphorescent grass (x 25-29) becomes General's tall grass (13, the same encounters).
+[
+    Ascii(x: 2, y: 25, rows: ["-----------------"], legend: {'-': (metatile: 35, collision: 0)}),
+    Ascii(x: 25, y: 25, rows: [",,,,,"], legend: {',': (metatile: 13, collision: 0)}),
+]

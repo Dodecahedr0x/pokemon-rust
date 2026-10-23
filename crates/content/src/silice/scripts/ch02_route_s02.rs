@@ -245,7 +245,6 @@ pub async fn RouteS02_EventScript_Anais(ctx: Ctx) {
     }
 }
 
-
 // ---- ambient NPCs ----
 
 /// The technician (34, 6): the TM Shock Wave, once (`FLAG_SIL_ITEM_ROUTE_S02_TM_SHOCK_WAVE`;
@@ -352,8 +351,8 @@ pub async fn RouteS02_EventScript_SignFalaise(ctx: Ctx) {
 
 // ---- module obstacles (Route_S02_Sc04 and the server block) ----
 
-/// General's grass (metatile 1), walkable: a cut cable (the cables are rail metatile 241 drawn
-/// solid on grass).
+/// General's grass (metatile 1), walkable: a cut cable (the security cables are SilRoutesS2S3's
+/// `cable_secu`, solid, on grass).
 const GRASS: u16 = METATILE_RONCES_COUPEES;
 
 /// A security cable (Route_S02_Sc04, "the same script as Bois_Ether_Sc08" with the cable's
@@ -397,8 +396,8 @@ const SERVEUR: Obstacle = Obstacle {
     ask: None,
     cleared: Depot_Bloc_T2,
 };
-/// The server block's metatile (Mauville 631, the map's `Q`).
-const METATILE_SERVEUR: u16 = 631;
+/// The server block's metatile (SilRoutesS2S3's `serveur`, the map's `Q`).
+const METATILE_SERVEUR: u16 = 550;
 
 pub async fn RouteS02_EventScript_Cable1(ctx: Ctx) {
     module_obstacle(&ctx, &CABLE_1).await;
