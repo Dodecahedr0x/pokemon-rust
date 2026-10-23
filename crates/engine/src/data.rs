@@ -1391,6 +1391,12 @@ pub trait GameData {
         let _ = id;
         ItemUse::None
     }
+    /// The mart's purchase bonus `(item, at least, gift)`: buying at least that many of `item`
+    /// at once adds one `gift` (Gen3 `Task_ReturnToItemListAfterItemPurchase`: 10 Poké Balls,
+    /// a Premier Ball). `None`: no bonus.
+    fn mart_bonus(&self) -> Option<(ItemId, u16, ItemId)> {
+        None
+    }
     /// Gen3-encoded, 0xFF-terminated item description (`gItems[].description`).
     fn item_description(&self, id: ItemId) -> Option<&'static [u8]> {
         let _ = id;

@@ -3,7 +3,8 @@
 //!
 //! A request opens its screen (`world/screens.rs::open`, marked waiting) and is answered once
 //! the last screen has closed, from `State::answer`. Only the screens that exist open: the
-//! party menu (`ChoosePartyMon` / `ChooseMonForMoveTutor`, Task PT). The others (mart, PC,
+//! party menu (`ChoosePartyMon` / `ChooseMonForMoveTutor`, Task PT) and the mart (Task M).
+//! The others (PC,
 //! save dialog, evolution scene) answer their default at once until their owners land, so a
 //! script never waits on a stub. A map script (immediate) never opens a screen: it gets the
 //! default and a log line, as M8 does for waiting requests there.
@@ -18,6 +19,8 @@ use crate::world::screens::{ANSWER_CANCEL, open};
 pub(super) fn begin<G: GameData>(h: &mut Host<'_, G>, r: &Request) -> Option<Response> {
     let kind = match *r {
         Request::ChoosePartyMon(mode) => ScreenKind::Party(mode),
+        // `pokemart` (`CreatePokemartMenu`): the script waits until the shop closes.
+        Request::Mart { items } => ScreenKind::Mart { items },
         _ => return Some(default_answer(r)),
     };
     if h.immediate {

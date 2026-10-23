@@ -17,7 +17,7 @@ use crate::ui::bag::{Action, BagMenu, POCKETS, Prompt};
 use crate::ui::party::{PartyMenu, Prompt as PartyPrompt};
 use crate::ui::{BagMode, ScreenKind, ScreenResult, ScreenState};
 
-const POTION: ItemId = ItemId(13);
+pub(super) const POTION: ItemId = ItemId(13);
 const ANTIDOTE: ItemId = ItemId(14);
 const FULL_RESTORE: ItemId = ItemId(19);
 const REVIVE: ItemId = ItemId(24);
@@ -25,7 +25,9 @@ const PROTEIN: ItemId = ItemId(64);
 const RARE_CANDY: ItemId = ItemId(68);
 const ESCAPE_ROPE: ItemId = ItemId(85);
 const REPEL: ItemId = ItemId(86);
-const POKE_BALL: ItemId = ItemId(4);
+pub(super) const POKE_BALL: ItemId = ItemId(4);
+/// The mart bonus (Gen3 `ITEM_PREMIER_BALL`).
+pub(super) const PREMIER_BALL: ItemId = ItemId(12);
 const BIKE: ItemId = ItemId(259);
 const SUPER_POTION: ItemId = ItemId(22);
 const VAR_REPEL: VarId = VarId(0x4021);
@@ -65,7 +67,7 @@ static BALLS: ItemInfo = info(Pocket::PokeBalls, 200, false);
 static KEYS: ItemInfo = info(Pocket::KeyItems, 0, true);
 
 /// [`UiGame`] with a bag start menu, medicine, a repel, an Escape Rope, a ball and a bike.
-struct BagGame;
+pub(super) struct BagGame;
 
 impl GameData for BagGame {
     fn map(&self, id: MapId) -> &'static MapData {
@@ -114,7 +116,7 @@ impl GameData for BagGame {
     fn item(&self, id: ItemId) -> Option<&'static ItemInfo> {
         match id {
             TM | HM => UiGame.item(id),
-            POKE_BALL => Some(&BALLS),
+            POKE_BALL | PREMIER_BALL => Some(&BALLS),
             BIKE => Some(&KEYS),
             POTION | ANTIDOTE | FULL_RESTORE | REVIVE | PROTEIN | RARE_CANDY | ESCAPE_ROPE
             | REPEL | SUPER_POTION => Some(&ITEMS),
@@ -137,6 +139,9 @@ impl GameData for BagGame {
             _ => ItemUse::None,
         }
     }
+    fn mart_bonus(&self) -> Option<(ItemId, u16, ItemId)> {
+        Some((POKE_BALL, 10, PREMIER_BALL))
+    }
     fn tm_move(&self, id: ItemId) -> Option<MoveId> {
         UiGame.tm_move(id)
     }
@@ -151,9 +156,9 @@ impl GameData for BagGame {
     }
 }
 
-const G: BagGame = BagGame;
+pub(super) const G: BagGame = BagGame;
 
-fn run(w: &mut World, keys: Buttons, frames: u32) {
+pub(super) fn run(w: &mut World, keys: Buttons, frames: u32) {
     for _ in 0..frames {
         let f = w.step(&G, keys);
         f.validate().unwrap();
@@ -166,13 +171,13 @@ fn run(w: &mut World, keys: Buttons, frames: u32) {
     }
 }
 
-fn tap(w: &mut World, keys: Buttons) {
+pub(super) fn tap(w: &mut World, keys: Buttons) {
     run(w, keys, 1);
     run(w, Buttons::NONE, 1);
 }
 
 /// The world after the new-game fade with one Normal mon (level 10, four moves).
-fn world() -> World {
+pub(super) fn world() -> World {
     let mut w = World::new(&G);
     run(&mut w, Buttons::NONE, 16);
     let t = G.battle();
@@ -186,12 +191,12 @@ fn world() -> World {
     w
 }
 
-fn add(w: &mut World, item: ItemId, n: u16) {
+pub(super) fn add(w: &mut World, item: ItemId, n: u16) {
     let pocket = G.item(item).unwrap().pocket;
     assert!(w.s.bag.add(pocket, item, n));
 }
 
-fn top(w: &World) -> Option<&ScreenState> {
+pub(super) fn top(w: &World) -> Option<&ScreenState> {
     w.screens().and_then(|s| s.top()).map(|(_, s)| s)
 }
 
@@ -214,7 +219,7 @@ fn party(w: &World) -> &PartyMenu {
 }
 
 /// Runs idle frames until `done` (fades, prints), at most 200.
-fn until(w: &mut World, done: impl Fn(&World) -> bool) {
+pub(super) fn until(w: &mut World, done: impl Fn(&World) -> bool) {
     for _ in 0..200 {
         if done(w) {
             return;
