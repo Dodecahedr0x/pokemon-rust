@@ -1004,7 +1004,10 @@ fn hole_warps_and_step_callbacks() {
         Emerald.hole_warp(MAP_GRANITE_CAVE_B1F),
         Some(MAP_GRANITE_CAVE_B2F)
     );
-    assert_eq!(Emerald.hole_warp(MAP_SKY_PILLAR_4F), Some(MAP_SKY_PILLAR_3F));
+    assert_eq!(
+        Emerald.hole_warp(MAP_SKY_PILLAR_4F),
+        Some(MAP_SKY_PILLAR_3F)
+    );
     assert_eq!(Emerald.hole_warp(MAP_ROUTE101), None);
     assert!(matches!(
         Emerald.step_callback(MAP_SOOTOPOLIS_CITY_GYM_1F),

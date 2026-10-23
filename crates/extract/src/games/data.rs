@@ -414,6 +414,7 @@ pub const SHARED_GEN3: &[&str] = &[
     "VAR_RESULT",
     "VAR_STARTER_MON",
     "VAR_TEMP_3",
+    "VAR_TEMP_CHALLENGE_STATUS",
 ];
 
 /// [`SHARED_GEN3`] with each name's kind and Gen3 number (`crate::names`).

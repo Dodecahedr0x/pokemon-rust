@@ -50,6 +50,8 @@ fn walk(rom: &Rom, maps: &[MapInput]) -> (BTreeSet<u32>, usize) {
     }
     // The std scripts are roots too (Task D2).
     offs.extend(roots::std_scripts(rom).unwrap().unwrap());
+    // So are the field scripts C starts (Wave C field moves: `EventScript_UseSurf`).
+    offs.extend(roots::field_scripts(rom).unwrap().into_iter().flatten());
     let scan = scripts::walk(rom, &offs).unwrap();
     (scan.visited, scan.unknown.len())
 }

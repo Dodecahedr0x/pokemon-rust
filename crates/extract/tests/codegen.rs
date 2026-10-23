@@ -1131,6 +1131,7 @@ mod lowering {
             i("warpspinenter", vec![map(), Byte(0), Half(1), Half(2)]),
             i("warpmossdeepgym", vec![map(), Byte(0), Half(1), Half(2)]),
             i("warpwhitefade", vec![map(), Byte(0), Half(1), Half(2)]),
+            i("warphole", vec![map()]),
             i("setdynamicwarp", vec![map(), Byte(0xFF), Half(3), Half(4)]),
             i(
                 "setescapewarp",

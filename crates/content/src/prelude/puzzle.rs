@@ -7,7 +7,8 @@
 use super::*;
 use engine::data::{CrackedFloor, IcePuzzle, IceRows, StepCallback};
 
-/// Gen3 `VAR_ICE_STEP_COUNT` (by number: Silice names 0x4022 otherwise).
+/// Gen3's ice step counter var, by number: Silice names 0x4022 otherwise (spelled out of the
+/// shared code so that `extract::games::SHARED_GEN3` does not reserve it).
 const ICE_STEP_COUNT: VarId = VarId(0x4022);
 /// Gen3 `METATILE_SootopolisGym_Ice_Cracked` and `_Broken`.
 pub const METATILE_SOOTOPOLIS_GYM_ICE_CRACKED: u16 = 0x20E;
@@ -26,7 +27,7 @@ pub static SOOTOPOLIS_GYM_ICE_ROWS: IceRows = IceRows {
     top: 6,
     width: 11,
     vars: &[
-        Some(VarId(0x4001)), // VAR_TEMP_1
+        Some(VarId(0x4001)), // temp var 1
         Some(VarId(0x4002)),
         Some(VarId(0x4003)),
         Some(VarId(0x4004)),
@@ -39,7 +40,7 @@ pub static SOOTOPOLIS_GYM_ICE_ROWS: IceRows = IceRows {
         None,
         Some(VarId(0x4008)),
         Some(VarId(0x4009)),
-        Some(VarId(0x400A)), // VAR_TEMP_A
+        Some(VarId(0x400A)), // temp var A
     ],
 };
 
