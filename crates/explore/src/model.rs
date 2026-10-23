@@ -14,12 +14,17 @@ use std::sync::Arc;
 pub struct Opts {
     /// Run from wild battles (not the first battle, never trainers).
     pub run_wild: bool,
-    /// 0 = yes / first option, 1 = no / second, 2 = third (starter ball index).
+    /// 0 = yes / first option, 1 = no / second, 2 = third (starter ball index);
+    /// [`crate::policy::YES_ONCE`] = yes to the first yes/no only.
     pub choice: u8,
     /// Fight with the move of the best expected damage (power, STAB, type matchups) instead
     /// of the first damaging one (the spine's `Battle(Best)`).
     #[serde(default)]
     pub best_move: bool,
+    /// Learn a level-up move when it hits harder than the weakest known one, forgetting that
+    /// one (the spine's `Battle(BestLearn)`); else keep the known moves.
+    #[serde(default)]
+    pub learn: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]

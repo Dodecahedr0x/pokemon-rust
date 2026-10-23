@@ -1,0 +1,115 @@
+// The Sanctuaire du Bushido (Ch6, MAP_MANGA_SQUARE_GYM): Tak's open-air Zen garden behind the Dojo.
+// contenu-jeu/chapitres/06-manga-square.md §4: raked gravel, a wooden bridge over the carp pond,
+// cherry trees, the great cherry tree and the Wishing Dragon statue where Tak prays, five shoji doors
+// (P1-P5) that slide open on a right answer, a scroll desk (pupitre) before each, the Allee des
+// Regards between bamboo. The floor is this tileset's raked gravel; the objects stand on it (`under`).
+// `shoji_ouverte` (METATILE_SHOJI_OUVERT in ch06_gym.rs) is `shoji_porte` slid open, derived.
+(
+    name: "SilMangaSquareGym",
+    primary: "General",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), a Japanese Zen garden at dawn. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing, no letters.",
+    features: [
+        (
+            name: "gravier",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Raked white gravel of a Zen garden seen from straight above: flat pale warm grey (#d8d0c8) with three evenly spaced thin straight horizontal grooves in a slightly darker grey (#b0a8a0) running edge to edge. It must tile seamlessly. Only 16x16 pixels."),
+        ),
+        (
+            name: "pont",
+            cells: ["...", "..."],
+            key: Some("none"),
+            prompt: Some("A small wooden Japanese garden bridge seen from straight above, crossing from the bottom edge to the top edge: honey-brown wooden planks laid left to right across the middle, a vermilion red railing running top to bottom along the left edge and another along the right edge. No water visible. Flat colours."),
+        ),
+        (
+            name: "dalle",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A stepping stone seen from straight above: one big flat rounded grey stone slab filling most of the square, with a thin border of pale raked gravel at the corners. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "shoji",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A wall of Japanese shoji screens seen from the front, tiling left to right: a thick dark brown wooden beam along the top and along the bottom, between them white paper divided by a thin dark brown wooden grid into six small squares (three across, two down), a dark brown post on the left edge. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "shoji_porte",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("ONE single closed sliding shoji door filling the whole picture (not a pattern, not repeated, no tiling): a very thick dark brown wooden frame all around, inside it two tall white paper panels side by side meeting at a thick dark brown vertical bar in the middle, each panel crossed by just one thin horizontal brown bar, one big round red paper seal on the middle bar. Very few, very big shapes: it is shown at only 16x16 pixels."),
+        ),
+        (
+            // Derived: `shoji_porte` with its panels slid aside onto the stepping stone.
+            name: "shoji_ouverte",
+            cells: ["."],
+        ),
+        (
+            name: "pupitre",
+            cells: ["#"],
+            under: Some("gravier"),
+            prompt: Some("A low dark wooden lectern desk seen from 3/4 above, an unrolled cream paper scroll lying on it, a small red tassel hanging from its side. Filling the square. Bold chunky shapes."),
+        ),
+        (
+            name: "cerisier",
+            cells: ["##", "##", "##"],
+            under: Some("gravier"),
+            key: Some("00FF00"),
+            prompt: Some("A big old Japanese cherry tree in full bloom seen from 3/4 above: a wide round crown of pale pink blossoms with darker pink clusters filling the top two thirds, a thick dark brown twisted trunk below it, a few fallen pink petals at its foot. Bold chunky shapes."),
+        ),
+        (
+            name: "etang",
+            cells: ["w"],
+            key: Some("none"),
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 0)},
+            prompt: Some("Calm dark teal-blue pond water seen from straight above (#2c6878), two short light ripple lines (#5898a8). It must tile seamlessly. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "etang_koi",
+            cells: ["w"],
+            key: Some("none"),
+            legend: {'w': (behavior: "MB_POND_WATER", collision: 0)},
+            prompt: Some("Calm dark teal-blue pond water seen from straight above (#2c6878) with one orange and white koi carp swimming diagonally across the middle, filling half the square. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "cerisier_petit",
+            cells: ["#", "#", "#"],
+            under: Some("gravier"),
+            key: Some("00FF00"),
+            prompt: Some("A slender young cherry blossom tree, three times taller than wide, seen from the front: a narrow oval crown of pink blossoms over the top two thirds, a thin dark brown trunk below. Bold chunky shapes."),
+        ),
+        (
+            name: "statue",
+            cells: ["##", "##"],
+            under: Some("gravier"),
+            prompt: Some("A statue of ONE big long jade-green serpent dragon (like a giant snake with a dragon head, small fins, no legs) coiled in an S shape standing up from a low square grey stone pedestal, its head with yellow eyes and a pale yellow jaw raised at the top, dark green outline. Not a plant, not a tree. Bold chunky shapes, few colours."),
+        ),
+        (
+            name: "rocher",
+            cells: ["##", "##"],
+            under: Some("gravier"),
+            prompt: Some("A Zen garden rock group seen from 3/4 above: one big rounded dark grey rock with a patch of green moss on top and one small grey rock beside it. Bold chunky shapes."),
+        ),
+        (
+            name: "bambou",
+            cells: ["##", "##"],
+            key: Some("none"),
+            prompt: Some("A dense bamboo grove seen from the front, a wall of tall vertical bamboo stalks filling the whole picture: six green stalks with lighter green joint rings, a few dark green leaves at the top, dark green-black shadow between the stalks. It must tile seamlessly left-right and top-bottom. Flat colours."),
+        ),
+        (
+            name: "toro",
+            cells: [".", "#"],
+            over: [0],
+            under: Some("gravier"),
+            prompt: Some("A Japanese stone lantern (toro) seen from the front, twice as tall as wide: grey stone, a wide pointed roof-shaped cap, a small square window glowing warm yellow, on a thick stone pillar with a wide base. Bold chunky shapes."),
+        ),
+        (
+            // The exit to the Dojo's back door (south arrow warp).
+            name: "sortie",
+            cells: ["A"],
+            key: Some("none"),
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+            prompt: Some("The threshold of a dojo's back door seen from straight above: polished dark brown wooden floorboards running left to right, a green tatami mat edge with a black border along the bottom. Only 16x16 pixels, chunky."),
+        ),
+    ],
+)

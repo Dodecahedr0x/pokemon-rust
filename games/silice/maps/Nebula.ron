@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_NEBULA_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 33,
             y: 37,
             elevation: 3,
@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_NEBULA_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 25,
             y: 35,
             elevation: 3,
@@ -182,7 +182,7 @@
         (
             local_id: 20,
             id: Some("LOCALID_NEBULA_DRONE"),
-            gfx: "OBJ_EVENT_GFX_CAMERAMAN",
+            gfx: "OBJ_EVENT_GFX_SIL_DRONE",
             x: 36,
             y: 46,
             elevation: 3,
@@ -422,7 +422,7 @@
         (
             local_id: 15,
             id: Some("LOCALID_NEBULA_JULIEN"),
-            gfx: "OBJ_EVENT_GFX_MANIAC",
+            gfx: "OBJ_EVENT_GFX_SIL_JULIEN",
             x: 22,
             y: 9,
             elevation: 3,
@@ -437,7 +437,7 @@
         (
             local_id: 16,
             id: Some("LOCALID_NEBULA_PG_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 20,
             y: 11,
             elevation: 3,

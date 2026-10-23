@@ -18,8 +18,8 @@
     // 1: Mathieu on the bus shelter (32-34, 37), 2: Adrien at the loudspeaker (24, 35); both hidden until
     // Nebula_Sc03 shows them (new flags, set at the start). 3 is Gwada, who is only on the screen
     // (set_metatile), so local id 3 is left free.
-    Object(x: 33, y: 37, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_NEBULA_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_NEBULA_MATHIEU"),
-    Object(x: 25, y: 35, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_NEBULA_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_Adrien", flag: "FLAG_SIL_HIDE_NEBULA_ADRIEN"),
+    Object(x: 33, y: 37, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_NEBULA_MATHIEU", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_Mathieu", flag: "FLAG_SIL_HIDE_NEBULA_MATHIEU"),
+    Object(x: 25, y: 35, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_NEBULA_ADRIEN", local_id: 2, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_Adrien", flag: "FLAG_SIL_HIDE_NEBULA_ADRIEN"),
     // 4-7: Npc_3 the child looking at the sky (quai), Npc_4 the office worker, Npc_6 the sbire at the east
     // barricade, Npc_7 the delivery boy on his bike (quai).
     Object(x: 44, y: 47, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_NEBULA_ENFANT", local_id: 4, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Enfant"),
@@ -33,8 +33,8 @@
     Object(x: 27, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NEBULA_GARDE_PORTE_2", local_id: 12, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
     Object(x: 31, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_NEBULA_GARDE_PORTE_3", local_id: 13, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
     Object(x: 33, y: 12, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_NEBULA_GARDE_PORTE_4", local_id: 14, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Nebula_EventScript_GardePorte"),
-    // 20: the drone (placeholder sprite: the cameraman) that films the screens; Sc01 flies it 6 west.
-    Object(x: 36, y: 46, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_NEBULA_DRONE", local_id: 20, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_Drone"),
+    // 20: the drone (SIL_DRONE) that films the screens; Sc01 flies it 6 west.
+    Object(x: 36, y: 46, gfx: "OBJ_EVENT_GFX_SIL_DRONE", id: "LOCALID_NEBULA_DRONE", local_id: 20, movement: "MOVEMENT_TYPE_FACE_LEFT", script: "Nebula_EventScript_Drone"),
     // 30-39: the crowd (the source's obj 30-39), all facing the screen; Sc03 turns them up.
     // 30: the man before the screen (Npc_1, Npc_1b from 95).
     Object(x: 28, y: 25, gfx: "OBJ_EVENT_GFX_MAN_4", id: "LOCALID_NEBULA_NPC1", local_id: 30, movement: "MOVEMENT_TYPE_FACE_UP", script: "Nebula_EventScript_Npc1"),

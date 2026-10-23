@@ -1,7 +1,18 @@
 //! Abilities: `moveend`'s defrost, Synchronize and contact abilities
-//! (`ABILITYEFFECT_ON_DAMAGE`: Effect Spore, Static, Poison Point, Cute Charm), Intimidate
-//! and Trace on switch-in, Keen Eye, Soundproof (`ABILITYEFFECT_MOVES_BLOCK`), the end-turn
-//! abilities (Shed Skin, Truant), Clear Body (stat drops, Intimidate).
+//! (`ABILITYEFFECT_ON_DAMAGE`: Effect Spore, Static, Poison Point, Flame Body, Rough Skin,
+//! Color Change, Cute Charm), the status-curing abilities (`ABILITYEFFECT_IMMUNITY`:
+//! Immunity, Own Tempo, Limber, Insomnia, Vital Spirit, Water Veil, Magma Armor, Oblivious),
+//! the absorbing abilities (`ABILITYEFFECT_ABSORBING`: Volt / Water Absorb, Flash Fire),
+//! Wonder Guard (`Cmd_typecalc`), Forecast (`CastformDataTypeChange`), Damp
+//! (`Cmd_tryexplosion`), Sticky Hold, Suction Cups, Intimidate and Trace on switch-in, Keen
+//! Eye and Hyper Cutter, Soundproof (`ABILITYEFFECT_MOVES_BLOCK`), the end-turn abilities
+//! (Shed Skin, Truant), Clear Body and White Smoke (stat drops, Intimidate).
+//!
+//! Elsewhere: Immunity, Limber, Water Veil, Magma Armor and Own Tempo's blocks in
+//! [`super::status`] and [`super::moves`]; Pressure in `Battle::attack_string`; Serene Grace
+//! in `Battle::secondary`; Cloud Nine and Air Lock in `Battle::weather`; Plus, Minus and
+//! Flash Fire's boost in `calc::base_damage_x`; Arena Trap in `effects::run_block`.
+//! Cacophony does nothing in Gen3; Lightning Rod (Gen3) only redirects in doubles.
 //!
 //! Elsewhere: Shield Dust and Inner Focus in [`super::status`] (`SetMoveEffect`) and
 //! [`super::moves`] (secondary stat drops); Insomnia / Vital Spirit / Early Bird / Truant's
@@ -22,7 +33,227 @@ pub(super) fn move_end(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<H
     defrost(b, env, u, hit);
     synchronize(b, env, u, u.target, u.attacker);
     on_damage(b, env, u, hit);
+    immunity(b, env);
     synchronize(b, env, u, u.attacker, u.target);
+}
+
+/// `MOVEEND_IMMUNITY_ABILITIES` (`ABILITYEFFECT_IMMUNITY`): the first battler (index order)
+/// whose ability cures what it has is cured (`BattleScript_AbilityCuredStatus`), again until
+/// none. `{B_BUFF1}` is a `gStatusConditionString_*Jpn` the content does not carry: empty.
+pub(super) fn immunity(b: &mut Battle, env: &mut Env) {
+    loop {
+        let found = [Side::Player, Side::Opponent].into_iter().find(|&s| {
+            let m = b.battler(s);
+            match m.ability {
+                Ability::Immunity => matches!(m.mon.status, Status::Poison | Status::Toxic(_)),
+                Ability::OwnTempo => m.confusion > 0,
+                Ability::Limber => m.mon.status == Status::Paralysis,
+                Ability::Insomnia | Ability::VitalSpirit => {
+                    matches!(m.mon.status, Status::Sleep(_))
+                }
+                Ability::WaterVeil => m.mon.status == Status::Burn,
+                Ability::MagmaArmor => m.mon.status == Status::Freeze,
+                Ability::Oblivious => m.v.infatuated,
+                _ => false,
+            }
+        });
+        let Some(side) = found else { return };
+        let m = b.battler_mut(side);
+        let ability = m.ability;
+        match ability {
+            Ability::OwnTempo => m.confusion = 0,
+            Ability::Oblivious => m.v.infatuated = false,
+            _ => m.mon.status = Status::None,
+        }
+        b.write_back(side);
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::None,
+                Buff::None,
+                Buff::Text(Str::AbilityName(ability)),
+            ],
+            wait: LONG,
+            ..msg(Str::PkmnSXCuredItsYProblem, side, side, side)
+        }));
+        env.out.push(BattleEvent::Report(BattleReport::Degraded(
+            "ability cure status name",
+        )));
+        env.out.push(BattleEvent::StatusIcon {
+            side,
+            status: b.battler(side).mon.status,
+        });
+    }
+}
+
+/// `ABILITYEFFECT_ABSORBING` (`JumpIfMoveFailed`, once the move hit): the target's Volt
+/// Absorb / Water Absorb take a damaging move of their type (`BattleScript_MoveHPDrain`: max
+/// HP / 4, at least 1; at full HP `BattleScript_MonMadeMoveUseless`); Flash Fire takes a Fire
+/// move unless frozen (`BattleScript_FlashFireBoost`, `RESOURCE_FLAG_FLASH_FIRE`). Each prints
+/// the attack string (and pays the PP) first. True when absorbed: the move does nothing more.
+pub(super) fn absorbs(b: &mut Battle, env: &mut Env, u: &MoveUse) -> bool {
+    let side = u.target;
+    if side == u.attacker {
+        return false;
+    }
+    let t = b.battler(side);
+    let (ability, hp, max, frozen) = (
+        t.ability,
+        t.mon.hp,
+        t.mon.max_hp,
+        t.mon.status == Status::Freeze,
+    );
+    let drain = match ability {
+        Ability::VoltAbsorb => u.ty == Type::Electric && u.info.power != 0,
+        Ability::WaterAbsorb => u.ty == Type::Water && u.info.power != 0,
+        Ability::FlashFire if u.ty == Type::Fire && !frozen => {
+            b.attack_string(env, u);
+            let boosted = b.battler(side).x.flash_fire;
+            b.battler_mut(side).x.flash_fire = true;
+            let id = if boosted {
+                Str::PkmnSXMadeYIneffective
+            } else {
+                Str::PkmnRaisedFirePowerWith
+            };
+            env.out
+                .push(BattleEvent::Msg(ability_msg(u, id, side, ability)));
+            return true;
+        }
+        _ => false,
+    };
+    if !drain {
+        return false;
+    }
+    b.attack_string(env, u);
+    if hp == max {
+        env.out.push(BattleEvent::Msg(ability_msg(
+            u,
+            Str::PkmnSXMadeYUseless,
+            side,
+            ability,
+        )));
+    } else {
+        let heal = (max / 4).max(1).min(max - hp);
+        b.change_hp_passive(env, side, -(heal as i32));
+        env.out.push(BattleEvent::Msg(ability_msg(
+            u,
+            Str::PkmnRestoredHpUsing,
+            side,
+            ability,
+        )));
+    }
+    true
+}
+
+/// A message about `side` in the move's context naming `ability` (`buffs[2]`).
+fn ability_msg(u: &MoveUse, id: Str, side: Side, ability: Ability) -> Msg {
+    Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(ability)),
+        ],
+        ..u.msg_long(id, side)
+    }
+}
+
+/// `Cmd_typecalc`'s Wonder Guard: a move with power (not Struggle) that is not super effective
+/// on the target "misses" (`B_MSG_AVOIDED_DMG`, which wins over "doesn't affect"). True when
+/// it did, with the message.
+pub(super) fn wonder_guard(b: &mut Battle, env: &mut Env, u: &MoveUse, eff: Effectiveness) -> bool {
+    if b.battler(u.target).ability != Ability::WonderGuard
+        || u.target == u.attacker
+        || u.info.power == 0
+        || u.mov == env.t.struggle
+        || eff == Effectiveness::Super
+        || b.levitates(env, u)
+    {
+        return false;
+    }
+    env.out.push(BattleEvent::Msg(ability_msg(
+        u,
+        Str::AvoidedDamage,
+        u.target,
+        Ability::WonderGuard,
+    )));
+    true
+}
+
+/// `CastformDataTypeChange` for `side`'s Forecast: Normal without weather (or in a
+/// sandstorm), Fire in the sun, Water in the rain (the engine has no hail), then
+/// `BattleScript_CastformChange` ("X transformed!"; the form's sprite has no event). True when
+/// it changed.
+pub(super) fn forecast(b: &mut Battle, env: &mut Env, side: Side) -> bool {
+    use crate::battle::core::Weather;
+    let m = b.battler(side);
+    if m.ability != Ability::Forecast || m.mon.hp == 0 {
+        return false;
+    }
+    let to = match b.weather() {
+        Weather::Sun | Weather::HarshSun => Type::Fire,
+        Weather::Rain | Weather::HeavyRain => Type::Water,
+        // CastformDataTypeChange: hail is Ice.
+        Weather::Hail => Type::Ice,
+        Weather::None | Weather::Sand => Type::Normal,
+    };
+    if m.types.contains(&to) {
+        return false;
+    }
+    b.battler_mut(side).types = [to, to];
+    env.out.push(BattleEvent::Report(BattleReport::Degraded(
+        "castform form sprite",
+    )));
+    env.out.push(BattleEvent::Msg(Msg {
+        wait: LONG,
+        ..msg(Str::PkmnTransformed, side, side, side)
+    }));
+    true
+}
+
+/// `ABILITYEFFECT_FORECAST`: the first Forecast battler (index order) that changes.
+pub(super) fn forecast_all(b: &mut Battle, env: &mut Env) {
+    for side in [Side::Player, Side::Opponent] {
+        if forecast(b, env, side) {
+            return;
+        }
+    }
+}
+
+/// `Cmd_tryexplosion`'s Damp: a battler with Damp (and any HP) on the field prevents the
+/// move (`BattleScript_DampStopsExplosion`: "X's DAMP prevents Y from using Z!"). True when
+/// stopped, with the message.
+#[allow(dead_code)] // for the move effects that call it
+pub(crate) fn damp(b: &mut Battle, env: &mut Env, u: &MoveUse) -> bool {
+    let Some(owner) = [Side::Player, Side::Opponent]
+        .into_iter()
+        .find(|&s| b.battler(s).ability == Ability::Damp && b.battler(s).mon.hp > 0)
+    else {
+        return false;
+    };
+    env.out.push(BattleEvent::Msg(Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(Ability::Damp)),
+        ],
+        wait: LONG,
+        mov: Some(u.mov),
+        ..msg(Str::PkmnPreventsUsage, u.attacker, owner, owner)
+    }));
+    true
+}
+
+/// Sticky Hold keeps `side`'s item from Thief / Covet / Trick / Knock Off
+/// (`MOVE_EFFECT_STEAL_ITEM`, `Cmd_tryswapitems`, `BattleScript_StickyHoldActivates`).
+#[allow(dead_code)] // for the move effects that call it
+pub(crate) fn sticky_hold(b: &Battle, side: Side) -> bool {
+    b.battler(side).ability == Ability::StickyHold
+}
+
+/// Suction Cups keeps `side` from Roar / Whirlwind (`Cmd_forcerandomswitch`'s
+/// `BattleScript_AbilityPreventsPhasingOut`).
+#[allow(dead_code)] // for the move effects that call it
+pub(crate) fn suction_cups(b: &Battle, side: Side) -> bool {
+    b.battler(side).ability == Ability::SuctionCups
 }
 
 /// `MOVEEND_DEFROST`: a Fire move that dealt damage thaws its frozen target
@@ -77,20 +308,31 @@ pub(super) fn move_end_from_on_damage(
     hit: Option<HitResult>,
 ) {
     on_damage(b, env, u, hit);
+    immunity(b, env);
     synchronize(b, env, u, u.attacker, u.target);
 }
 
 /// `ABILITYEFFECT_ON_DAMAGE` of the target's ability on a contact move that damaged it: Effect
-/// Spore (10%: sleep, poison or paralysis), Static and Poison Point (1/3) on the attacker, as a
-/// secondary ability effect (`BattleScript_ApplySecondaryEffect`); Cute Charm (1/3)
-/// infatuates it.
+/// Spore (10%: sleep, poison or paralysis), Static, Poison Point and Flame Body (1/3) on the
+/// attacker, as a secondary ability effect (`BattleScript_ApplySecondaryEffect`); Cute Charm
+/// (1/3) infatuates it; Rough Skin hurts it (max HP / 16). Color Change (any damaging move but
+/// Struggle) turns the target into the move's type.
 fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>) {
     let Some(r) = hit else { return };
     let owner = u.target;
     let ability = b.battler(owner).ability;
+    if ability == Ability::ColorChange {
+        color_change(b, env, u, r);
+        return;
+    }
     if !matches!(
         ability,
-        Ability::EffectSpore | Ability::Static | Ability::PoisonPoint | Ability::CuteCharm
+        Ability::EffectSpore
+            | Ability::Static
+            | Ability::PoisonPoint
+            | Ability::CuteCharm
+            | Ability::FlameBody
+            | Ability::RoughSkin
     ) {
         return;
     }
@@ -120,6 +362,11 @@ fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>)
         }
         Ability::Static if env.rng.random().is_multiple_of(3) => StatusKind::Paralysis,
         Ability::PoisonPoint if env.rng.random().is_multiple_of(3) => StatusKind::Poison,
+        Ability::FlameBody if env.rng.random().is_multiple_of(3) => StatusKind::Burn,
+        Ability::RoughSkin => {
+            rough_skin(b, env, u);
+            return;
+        }
         Ability::CuteCharm => {
             cute_charm(b, env, u);
             return;
@@ -131,6 +378,47 @@ fn on_damage(b: &mut Battle, env: &mut Env, u: &MoveUse, hit: Option<HitResult>)
         ability: Some((owner, ability)),
     };
     status::set_status(b, env, u, u.attacker, kind, cause);
+}
+
+/// Color Change: a damaging move (power, not Struggle) of a type the target does not have
+/// makes it that type (`BattleScript_ColorChangeActivates`).
+fn color_change(b: &mut Battle, env: &mut Env, u: &MoveUse, r: HitResult) {
+    let t = b.battler(u.target);
+    if r.eff == Effectiveness::NoEffect
+        || u.target == u.attacker
+        || u.mov == env.t.struggle
+        || u.info.power == 0
+        || r.hp_dealt == 0
+        || t.types.contains(&u.ty)
+        || t.mon.hp == 0
+    {
+        return;
+    }
+    b.battler_mut(u.target).types = [u.ty, u.ty];
+    env.out.push(BattleEvent::Msg(Msg {
+        buffs: [
+            Buff::Type(u.ty),
+            Buff::None,
+            Buff::Text(Str::AbilityName(Ability::ColorChange)),
+        ],
+        ..u.msg_long(Str::PkmnChangedTypeWith, u.target)
+    }));
+}
+
+/// Rough Skin (`BattleScript_RoughSkinActivates`): the attacker loses max HP / 16 (at least
+/// 1), "X's ROUGH SKIN hurt Y!", then its faint check.
+fn rough_skin(b: &mut Battle, env: &mut Env, u: &MoveUse) {
+    let dmg = (b.battler(u.attacker).mon.max_hp / 16).max(1);
+    b.change_hp_passive(env, u.attacker, dmg as i32);
+    env.out.push(BattleEvent::Msg(Msg {
+        buffs: [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(Ability::RoughSkin)),
+        ],
+        ..u.msg_long(Str::PkmnHurtsWith, u.target)
+    }));
+    b.try_faint(env, u.attacker);
 }
 
 /// Cute Charm (the target's, on a damaging contact move): `Random() % 3 == 0`, then a
@@ -240,13 +528,18 @@ pub(super) fn intimidate(b: &mut Battle, env: &mut Env, side: Side) {
     {
         return;
     }
-    // BattleScript_IntimidatePrevented, before `statbuffchange`.
-    if b.battler(foe).ability == Ability::ClearBody {
+    // BattleScript_IntimidatePrevented (Clear Body, Hyper Cutter, White Smoke), before
+    // `statbuffchange`.
+    let blocker = b.battler(foe).ability;
+    if matches!(
+        blocker,
+        Ability::ClearBody | Ability::HyperCutter | Ability::WhiteSmoke
+    ) {
         env.out.push(BattleEvent::Msg(Msg {
             buffs: [
                 Buff::Text(Str::AbilityName(Ability::Intimidate)),
                 Buff::None,
-                Buff::Text(Str::AbilityName(Ability::ClearBody)),
+                Buff::Text(Str::AbilityName(blocker)),
             ],
             wait: LONG,
             ..msg(Str::PreventedFromWorking, side, foe, side)
@@ -296,9 +589,9 @@ pub(super) fn trace(b: &mut Battle, env: &mut Env, side: Side) {
     }));
 }
 
-/// `ChangeStatBuffs` with `STAT_CHANGE_ALLOW_PTR` (a status move's drop): Clear Body keeps
-/// every stat (`BattleScript_AbilityNoStatLoss`), Keen Eye its accuracy
-/// (`BattleScript_AbilityNoSpecificStatLoss`). True when blocked.
+/// `ChangeStatBuffs` with `STAT_CHANGE_ALLOW_PTR` (a status move's drop): Clear Body and White
+/// Smoke keep every stat (`BattleScript_AbilityNoStatLoss`), Keen Eye its accuracy and Hyper
+/// Cutter its attack (`BattleScript_AbilityNoSpecificStatLoss`). True when blocked.
 pub(super) fn blocks_stat_drop(
     b: &mut Battle,
     env: &mut Env,
@@ -306,23 +599,26 @@ pub(super) fn blocks_stat_drop(
     side: Side,
     stat: Stat,
 ) -> bool {
-    if b.battler(side).ability == Ability::ClearBody {
+    let ability = b.battler(side).ability;
+    if matches!(ability, Ability::ClearBody | Ability::WhiteSmoke) {
         env.out.push(BattleEvent::Msg(Msg {
             buffs: [
                 Buff::None,
                 Buff::None,
-                Buff::Text(Str::AbilityName(Ability::ClearBody)),
+                Buff::Text(Str::AbilityName(ability)),
             ],
             ..u.msg_long(Str::PkmnPreventsStatLossWith, side)
         }));
         return true;
     }
-    if b.battler(side).ability == Ability::KeenEye && stat == Stat::Accuracy {
+    if (ability == Ability::KeenEye && stat == Stat::Accuracy)
+        || (ability == Ability::HyperCutter && stat == Stat::Atk)
+    {
         env.out.push(BattleEvent::Msg(Msg {
             buffs: [
                 Buff::Stat(stat),
                 Buff::None,
-                Buff::Text(Str::AbilityName(Ability::KeenEye)),
+                Buff::Text(Str::AbilityName(ability)),
             ],
             ..u.msg_long(Str::PkmnSXPreventsYLoss, side)
         }));
@@ -332,10 +628,12 @@ pub(super) fn blocks_stat_drop(
 }
 
 /// `ChangeStatBuffs` without `STAT_CHANGE_ALLOW_PTR` (a hit's secondary drop): Clear Body,
-/// Keen Eye (accuracy) and Shield Dust block it silently.
+/// White Smoke, Keen Eye (accuracy), Hyper Cutter (attack) and Shield Dust block it silently.
 pub(super) fn blocks_secondary_drop(b: &Battle, side: Side, stat: Stat) -> bool {
     let a = b.battler(side).ability;
     (a == Ability::KeenEye && stat == Stat::Accuracy)
+        || (a == Ability::HyperCutter && stat == Stat::Atk)
         || a == Ability::ShieldDust
         || a == Ability::ClearBody
+        || a == Ability::WhiteSmoke
 }

@@ -190,6 +190,15 @@ fn protect(b: &mut Battle, env: &mut Env, u: &MoveUse) {
 pub(super) fn roar(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
     let t = u.target;
+    if super::super::abilities::suction_cups(b, t) {
+        super::ability_blocks(
+            env,
+            u,
+            Str::PkmnAnchorsItselfWith,
+            crate::mon::Ability::SuctionCups,
+        );
+        return;
+    }
     if b.battler(t).fx.rooted {
         say(env, u, Str::PkmnAnchoredItself, t);
         return;

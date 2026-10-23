@@ -9,9 +9,9 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["PortRessac_Gym", "PortRessac_Gym_Cale"];
 
-/// The quarterdeck's grille (9–10, 10), opened as the deck's floor (Facility 552, walkable).
+/// The quarterdeck's grille (9–10, 10), opened as the deck (SilPortRessacGym's planks, 512).
 const GRILLE: [(i16, i16); 2] = [(9, 10), (10, 10)];
-const METATILE_PONT: u16 = 552;
+const METATILE_PONT: u16 = 512;
 
 async fn open_grille(ctx: &Ctx) {
     for (x, y) in GRILLE {

@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_ZENITH_ASC_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 2,
             y: 3,
             elevation: 3,
@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_ZENITH_ASC_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 4,
             y: 3,
             elevation: 3,
@@ -47,7 +47,7 @@
         (
             local_id: 3,
             id: Some("LOCALID_ZENITH_ASC_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 2,
             y: 5,
             elevation: 3,
@@ -62,7 +62,7 @@
         (
             local_id: 4,
             id: Some("LOCALID_ZENITH_ASC_JULIEN"),
-            gfx: "OBJ_EVENT_GFX_MANIAC",
+            gfx: "OBJ_EVENT_GFX_SIL_JULIEN",
             x: 4,
             y: 5,
             elevation: 3,

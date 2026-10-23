@@ -96,7 +96,8 @@ pub(super) fn left_field(b: &mut Battle, env: &mut Env, ability: Ability) {
 /// `DoFieldEndTurnEffects`' weather: "Rain continues to fall." / "The sunlight is strong." /
 /// "The sandstorm rages." (permanent weathers never end), then the sandstorm's damage to each
 /// battler in turn order (`BattleScript_DamagingWeatherContinues`: max HP / 16, at least 1;
-/// not Rock / Ground / Steel, nor Sand Force, Gen5).
+/// not Rock / Ground / Steel, nor Sand Force, Gen5, nor Sand Veil, Gen4; none under Cloud Nine
+/// / Air Lock).
 /// Wave C: a move's weather lasts 5 turns (`B_WEATHER_*_TEMPORARY`, "The rain stopped." …);
 /// Hail pelts all but Ice battlers; Dig and Dive dodge both.
 pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
@@ -124,7 +125,8 @@ pub(super) fn field_end_turn(b: &mut Battle, env: &mut Env) {
         return;
     }
     let hail = b.x.weather == Weather::Hail;
-    if b.x.weather != Weather::Sand && !hail {
+    // Cmd_weatherdamage: no damage while Cloud Nine / Air Lock is out (the message stays).
+    if (b.x.weather != Weather::Sand && !hail) || b.weather() != b.x.weather {
         return;
     }
     for side in b.order {
@@ -174,7 +176,7 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
             env.out
                 .push(ability_about(Str::RaisedSpeed, side, Ability::SpeedBoost));
         }
-        Ability::RainDish if b.x.weather.rain() && m.mon.hp < m.mon.max_hp => {
+        Ability::RainDish if b.weather().rain() && m.mon.hp < m.mon.max_hp => {
             let heal = (m.mon.max_hp / 16).max(1).min(m.mon.max_hp - m.mon.hp);
             env.out.push(ability_about(
                 Str::AbilityRestoredHp,
@@ -183,7 +185,7 @@ pub(super) fn end_turn(b: &mut Battle, env: &mut Env, side: Side) {
             ));
             b.change_hp_passive(env, side, -(heal as i32));
         }
-        Ability::SolarPower if b.x.weather.sun() => {
+        Ability::SolarPower if b.weather().sun() => {
             let damage = (m.mon.max_hp / 8).max(1) as i32;
             env.out.push(ability_about(
                 Str::SolarPowerHurt,

@@ -22,8 +22,7 @@
 //! - Future Sight and Perish Song run before the end-of-turn faints are handled (Gen3:
 //!   `HandleWishPerishSongOnTurnEnd` after `HandleFaintedMonActions`).
 //! - Pay Day prints its message; the money is not paid (reported `Degraded`).
-//! - Abilities outside `mon::Ability` act as none: Own Tempo, Suction Cups, Damp, Sticky Hold,
-//!   Immunity, Limber, Water Veil. Mail and the Enigma Berry are not refused by Thief.
+//! - Mail and the Enigma Berry are not refused by Thief / Trick.
 //! - A battler locked into a move it reached through another move (Metronome → Fly) uses it
 //!   without the canceler's Soundproof / primal-weather checks being run again.
 //! - The trainer AI's re-choice after a refused move (Disable, Taunt, Torment) draws its own
@@ -383,6 +382,7 @@ pub(crate) fn damage_extra(
                     w,
                     crate::battle::core::Weather::Sand | crate::battle::core::Weather::Hail
                 )),
+        ..Default::default()
     }
 }
 
@@ -620,4 +620,20 @@ pub(super) fn cancel_locks(b: &mut Battle, side: Side) {
 /// `CancelMultiTurnMoves` in full (Bide, Uproar, Fury Cutter, and the locks).
 pub(super) fn cancel_all(b: &mut Battle, side: Side) {
     status::cancel_multi_turn(b, side);
+}
+
+/// `BattleScript_StickyHoldActivates` / `BattleScript_AbilityPreventsPhasingOut`: the
+/// target's ability names itself.
+pub(super) fn ability_blocks(env: &mut Env, u: &MoveUse, id: Str, ability: crate::mon::Ability) {
+    say_with(
+        env,
+        u,
+        id,
+        u.target,
+        [
+            Buff::None,
+            Buff::None,
+            Buff::Text(Str::AbilityName(ability)),
+        ],
+    );
 }

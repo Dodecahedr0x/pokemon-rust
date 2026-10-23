@@ -1,0 +1,141 @@
+// Manga-Square (Ch6, MAP_MANGA_SQUARE): the City of the Rising Sun, Sector Zeta, "Kura-Shinobi".
+// contenu-jeu/chapitres/06-manga-square.md §2: an electronic quarter mixed with a traditional village,
+// a red torii at the entrance of every street with holographic screens around it (anime trailers,
+// Kimiko's live stream), curved-roof houses, paper lanterns, lit vending machines; the five-roofed
+// pagoda of the Bibliotheque Ancestrale (north), the Grand Dojo (east), the Wishing Dragon statue on
+// the central square, the Grand Torii to Route S7 (north-east); a pink-orange screen sky, perpetual dawn.
+// The streets are this tileset's warm stone (`paves`), under the street objects' transparent pixels
+// (`under`). Footprints keep the doors in one cell: pagoda 5x7 (door (22, 7)), dojo 5x5 (door (36, 16)),
+// houses, the Kawaii Grooming salon and the konbini 3x4 (doors bottom middle). The south strip (rows
+// 31-37, seen from Route S6) stays on primary metatiles.
+(
+    name: "SilMangaSquare",
+    primary: "General",
+    ground: Some(1),
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), a Japanese-style town at dawn. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing, no letters. Palette: vermilion red wood, dark slate-blue roof tiles, cream plaster, warm rose-beige stone, with a few bright accents of cyan and pink light.",
+    features: [
+        (
+            name: "paves",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Stone street paving seen from straight above, ONE single tile of the pattern (not repeated): four square pale rose-beige sandstone flagstones (#d8b4a0) in a 2x2 grid, the two in the bottom row shifted by half a stone like bricks, separated by thin grout lines in darker brown-rose (#a87c6c), one or two tiny lighter chips. Flat, no shading, only 16x16 pixels."),
+        ),
+        (
+            name: "pagode",
+            cells: ["#####", "#####", "#####", "#####", "#####", "#####", "##D##"],
+            under: Some("paves"),
+            prompt: Some("The Ancestral Library, a tall five-storey Japanese pagoda seen from the front: five stacked curved roofs of dark slate-blue tiles with upturned gold-tipped corners, each storey a little narrower than the one below, vermilion red pillars and cream walls between the roofs, small windows glowing faint cyan, a thin golden spire on top, a grey stone base with steps, a big dark wooden double door exactly in the middle of the bottom edge. Tall and narrow: the building fills the whole canvas."),
+        ),
+        (
+            name: "dojo",
+            cells: ["#####", "#####", "#####", "#####", "##D##"],
+            under: Some("paves"),
+            prompt: Some("The Grand Dojo, a wide traditional Japanese hall seen from the front: a big curved dark slate-blue tiled roof with a ridge and upturned ends taking the top half, dark brown wooden beams and white paper shoji walls below, a low wooden veranda, one tall white cloth banner with a red circle on each side of the entrance, a sliding dark wooden door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison",
+            cells: ["###", "###", "###", "#D#"],
+            under: Some("paves"),
+            prompt: Some("A small traditional Japanese town house seen from the front: a curved dark slate-blue tiled roof with upturned eaves taking the top half, cream plaster walls with dark brown wooden beams, one round paper window on the left, a red paper lantern hanging on the right, a sliding wooden door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "maison_b",
+            cells: ["###", "###", "###", "#D#"],
+            mirror: Some("maison"),
+            under: Some("paves"),
+        ),
+        (
+            name: "toiletteur",
+            cells: ["###", "###", "###", "#D#"],
+            under: Some("paves"),
+            key: Some("00FF00"),
+            prompt: Some("Kawaii Grooming, a cute pet grooming salon seen from the front: a curved light pink tiled roof with upturned eaves taking the top half, cream walls, a big round sign with a white cartoon cat face and a pink paw print above the door (no letters), a small shop window with a pink curtain, a glass sliding door exactly in the middle of the bottom edge."),
+        ),
+        (
+            name: "konbini",
+            cells: ["###", "###", "###", "#D#"],
+            under: Some("paves"),
+            prompt: Some("A small Japanese convenience store seen from the front: a flat dark slate-blue tiled roof with a small curved edge, white walls with one horizontal stripe of bright green and one of orange under the roof (no letters), a brightly lit glass shop front showing shelves, a glass sliding door exactly in the middle of the bottom edge."),
+        ),
+        (
+            // A torii (the Grand Torii to Route S7, the Torii Sud, the Dojo's and the street's): the
+            // passage x 1-5 under the beams, x 2-4 between the solid posts, a holographic screen outside
+            // each post.
+            name: "grand_torii",
+            cells: ["#.....#", "#.....#", "##...##", "##...##", "##...##"],
+            over: [0, 1],
+            under: Some("paves"),
+            key: Some("00FF00"),
+            prompt: Some("A huge vermilion red torii gate seen from the front, the city's main gate: a very thick top beam with a black cap curving up at both ends across the whole width, a red tie beam with a small black plaque in its middle (no letters), two very thick round red posts with black feet standing one seventh of the width in from the left and right edges, and outside each post a tall narrow freestanding holographic screen glowing cyan with a pink heart on it. Completely empty between the two posts."),
+        ),
+        (
+            // The way out to Route S7 (warp, Gen3's non-animated door: arriving walks the player down).
+            name: "sortie",
+            cells: ["S"],
+            key: Some("none"),
+            legend: {'S': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("Old grey stone steps going up away from the viewer into a bright pink-orange mist, seen from above, dark green bushes on the left and right edges. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "haie",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A dense dark green hedge of round leafy bushes seen from above, filling the square, two shades of green and a dark outline between the bushes. It must tile seamlessly. Only 16x16 pixels, chunky."),
+        ),
+        (
+            // The Wishing Dragon (Rayquaza, never named): the plaque (sign) is the bottom middle.
+            name: "statue",
+            cells: ["###", "###", "###"],
+            under: Some("paves"),
+            prompt: Some("A statue of a long jade-green serpent dragon with yellow ring markings coiled upward around a grey stone pillar, its head raised to the sky, on a square grey stone pedestal with a small bronze plaque on its front (no letters), seen from the front."),
+        ),
+        (
+            name: "ecran_kimiko",
+            cells: ["##", "##"],
+            under: Some("paves"),
+            key: Some("00FF00"),
+            prompt: Some("A large freestanding holographic screen on a slim black pylon, seen from the front: a glowing cyan frame, inside it a cute anime idol girl with black hair in a futuristic pink kimono making a heart with her hands, two small pink hearts. Bold chunky shapes, few pixels."),
+        ),
+        (
+            name: "ecran_anime",
+            cells: ["##", "##"],
+            under: Some("paves"),
+            key: Some("00FF00"),
+            prompt: Some("A large freestanding holographic screen on a slim black pylon, seen from the front: a glowing cyan frame, inside it an anime trailer image: a spiky-haired hero holding a sword against a big orange rising sun. Bold chunky shapes, few pixels."),
+        ),
+        (
+            name: "lanterne",
+            cells: [".", "#"],
+            over: [0],
+            under: Some("paves"),
+            prompt: Some("A traditional paper lantern post seen from the front, twice as tall as wide: a dark brown wooden post with a small crossbar on top, a big round glowing red-orange paper lantern with a black cap and black base hanging from the crossbar. Bold chunky shapes."),
+        ),
+        (
+            name: "distributeur",
+            cells: [".", "#"],
+            over: [0],
+            under: Some("paves"),
+            prompt: Some("A Japanese drink vending machine seen from the front, twice as tall as wide: a white box with a red top band, a big brightly lit window showing three rows of colourful drink cans, a small black slot at the bottom. Bold chunky shapes."),
+        ),
+        (
+            name: "sakura",
+            cells: ["..", "##"],
+            over: [0],
+            key: Some("00FF00"),
+            prompt: Some("A cherry blossom tree seen from 3/4 above: a big round crown of pale pink blossoms with darker pink clusters filling most of the picture, a short dark brown trunk at the bottom middle. Bold chunky shapes."),
+        ),
+        (
+            name: "panneau",
+            cells: ["#"],
+            under: Some("paves"),
+            prompt: Some("A small wooden notice board on two short posts filling the square: a dark brown wooden frame under a tiny curved black roof, a cream paper sheet inside with three short dark lines (no letters). Bold chunky shapes."),
+        ),
+        (
+            name: "toro",
+            cells: [".", "#"],
+            over: [0],
+            under: Some("paves"),
+            prompt: Some("A Japanese stone lantern (toro) seen from the front, twice as tall as wide: grey stone, a wide pointed roof-shaped cap, a small square window glowing warm yellow, on a thick stone pillar with a wide base. Bold chunky shapes."),
+        ),
+    ],
+)

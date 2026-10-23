@@ -203,6 +203,8 @@ impl Stall {
 struct DirQuery {
     map: MapId,
     from: (i16, i16),
+    /// The player's elevation (the searches carry it).
+    elevation: u8,
     to: (i16, i16),
     occupied: Vec<(i16, i16)>,
 }
@@ -349,6 +351,7 @@ impl<'a, G: GameData> Driver<'a, G> {
             let q = DirQuery {
                 map: self.w().map(),
                 from: self.w().objects().player().pos(),
+                elevation: self.w().objects().player().elevation,
                 to,
                 occupied: grid.occupied_cells().to_vec(),
             };
@@ -781,7 +784,8 @@ impl<'a, G: GameData> Driver<'a, G> {
             let p = w.objects().player();
             let approaches = macros::talk_approaches(&grid, o.pos());
             if let Some(&(_, d)) = approaches.iter().find(|(c, _)| *c == p.pos()) {
-                if p.is_settled() {
+                // A wandering object mid-step is not where its cell says: wait for it.
+                if p.is_settled() && o.is_settled() {
                     self.face_and_press(d, "talk")?;
                 } else {
                     self.press(Buttons::NONE)?;

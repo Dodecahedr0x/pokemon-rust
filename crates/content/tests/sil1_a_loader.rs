@@ -38,6 +38,9 @@ mod codegen;
 #[path = "../build/input.rs"]
 mod input;
 #[allow(dead_code)]
+#[path = "../build/layouts.rs"]
+mod layouts;
+#[allow(dead_code)]
 #[path = "../build/scripts.rs"]
 mod scripts;
 #[allow(dead_code)]
@@ -583,6 +586,38 @@ fn an_unknown_tileset_fails() {
         e.contains("tileset NoSuchTileset is not in the extract"),
         "{e}"
     );
+}
+
+#[test]
+fn the_games_dir_tilesets_are_laid_over_the_extract() {
+    // An original secondary tileset (`games/tilesets/`, made by `xtask silice gfx`): a layout
+    // may name it, and a games dir tileset named like an extract one replaces it.
+    let f = fixture("overlay");
+    std::fs::create_dir_all(f.1.join("tilesets")).unwrap();
+    let ron = std::fs::read_to_string(f.0.join("tilesets/StubSecondary.ron")).unwrap();
+    for name in ["SilTest", "StubPrimary"] {
+        let src = if name == "SilTest" {
+            "StubSecondary"
+        } else {
+            "StubPrimary"
+        };
+        let r = std::fs::read_to_string(f.0.join(format!("tilesets/{src}.ron"))).unwrap();
+        let r = r.replacen(&format!("name: \"{src}\""), &format!("name: \"{name}\""), 1);
+        std::fs::write(f.1.join(format!("tilesets/{name}.ron")), r).unwrap();
+        std::fs::copy(
+            f.0.join(format!("tilesets/{src}.png")),
+            f.1.join(format!("tilesets/{name}.png")),
+        )
+        .unwrap();
+    }
+    assert!(ron.contains("StubSecondary"));
+    let p = f.1.join(format!("layouts/{MAP}.ron"));
+    let s = std::fs::read_to_string(&p).unwrap();
+    std::fs::write(&p, s.replace("StubSecondary", "SilTest")).unwrap();
+    let w = world(&f, true).unwrap().world;
+    let names: Vec<&str> = w.tilesets.iter().map(|t| t.file.name.as_str()).collect();
+    assert_eq!(names.iter().filter(|n| **n == "StubPrimary").count(), 1);
+    assert!(names.contains(&"SilTest"), "{names:?}");
 }
 
 #[test]

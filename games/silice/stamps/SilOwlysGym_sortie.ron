@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilOwlysGym",
+    width: 3,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1582, 559, 1584),
+        (1585, 1586, 1587),
+    ],
+)

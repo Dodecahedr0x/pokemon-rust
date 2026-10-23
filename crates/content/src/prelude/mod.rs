@@ -15,8 +15,9 @@ pub use engine::data::{
     Dir, FlagId, ItemId, MapId, MoveId, MovementType, PLAYER, ScriptId, SpeciesId, TextId,
     TrainerId, VarId,
 };
-pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Report, Speed, Step, WarpSlot};
+pub use engine::script::{BufferSrc, Ctx, Emote, Fade, Query, Report, Speed, Step, WarpSlot};
 
+mod field;
 mod items;
 mod mart;
 mod menu;
@@ -28,6 +29,7 @@ mod text;
 mod trainer;
 
 pub use self::std::*;
+pub use field::*;
 pub use items::*;
 pub use mart::*;
 pub use menu::*;

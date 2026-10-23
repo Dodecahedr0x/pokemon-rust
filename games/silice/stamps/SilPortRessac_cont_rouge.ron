@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilPortRessac",
+    width: 4,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1590, 1591, 1592, 1593),
+        (1594, 1595, 1596, 1597),
+    ],
+)

@@ -7,7 +7,7 @@
     // battle (RouteS06_BoisSoupirs_PG_Sc05). Ho-Oh (hidden until RouteS06_BoisSoupirs_PG_Lib clears
     // FLAG_SIL_HIDE_HO_OH; a capture sets it again).
     Object(x: 12, y: 21, gfx: "OBJ_EVENT_GFX_LIZA", id: "LOCALID_BOIS_SOUPIRS_KIMIKO", local_id: 20, movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_KIMIKO_BOIS"),
-    Object(x: 14, y: 24, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_BOIS_SOUPIRS_ADRIEN", local_id: 21, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_SOUPIRS_ADRIEN"),
+    Object(x: 14, y: 24, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_BOIS_SOUPIRS_ADRIEN", local_id: 21, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_BOIS_SOUPIRS_ADRIEN"),
     Object(x: 11, y: 21, gfx: "OBJ_EVENT_GFX_CAMERAMAN", id: "LOCALID_BOIS_SOUPIRS_DRONE", local_id: 22, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS06_BoisSoupirs_EventScript_Drone", flag: "FLAG_SIL_HIDE_BOIS_SOUPIRS_DRONE"),
     Object(x: 10, y: 23, gfx: "OBJ_EVENT_GFX_HOOH", id: "LOCALID_BOIS_SOUPIRS_HO_OH", local_id: 23, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "RouteS06_BoisSoupirs_EventScript_HoOh", flag: "FLAG_SIL_HIDE_HO_OH"),
     // RouteS06_BoisSoupirs_PG_Sc05 at the clearing's entrance (12, 19), the path's only cell (VAR_TEMP_1 0:

@@ -87,6 +87,22 @@ pub(super) fn set_status(
     if cause.shield_dust(b, effect) || b.battler(effect).mon.hp == 0 {
         return false;
     }
+    // Immunity, Water Veil and Limber come first: a primary effect names them
+    // (`BattleScript_PSNPrevention` …), a chance one is blocked silently.
+    let guard = match (kind, b.battler(effect).ability) {
+        (StatusKind::Poison | StatusKind::Toxic, a @ Ability::Immunity) => {
+            Some((a, Str::PkmnPreventsPoisoningWith))
+        }
+        (StatusKind::Burn, a @ Ability::WaterVeil) => Some((a, Str::PkmnSXPreventsBurns)),
+        (StatusKind::Paralysis, a @ Ability::Limber) => Some((a, Str::PkmnPreventsParalysisWith)),
+        _ => None,
+    };
+    if let Some((ability, id)) = guard {
+        if cause.primary {
+            ability_prevents(env, u, effect, ability, id, cause);
+        }
+        return false;
+    }
     // Safeguard blocks a secondary status silently (`SIDE_STATUS_SAFEGUARD`, effect ≤ 7).
     if !cause.primary && cause.ability.is_none() && super::mech::safeguarded(b, effect) {
         return false;
@@ -99,7 +115,15 @@ pub(super) fn set_status(
     let immune = match kind {
         StatusKind::Poison | StatusKind::Toxic => has(Type::Poison) || has(Type::Steel),
         StatusKind::Burn => has(Type::Fire),
-        StatusKind::Freeze => has(Type::Ice),
+        // The sun (`WEATHER_HAS_EFFECT`) and Magma Armor prevent it, silently.
+        StatusKind::Freeze => {
+            has(Type::Ice)
+                || matches!(
+                    b.weather(),
+                    crate::battle::core::Weather::Sun | crate::battle::core::Weather::HarshSun
+                )
+                || m.ability == Ability::MagmaArmor
+        }
         StatusKind::Paralysis => false,
         // An uproar (unless Soundproof), Insomnia and Vital Spirit keep it awake, silently.
         StatusKind::Sleep => {
@@ -166,8 +190,44 @@ pub(super) fn set_status(
     true
 }
 
+/// The `g*PreventionStringIds` message of `ability` on `effect` blocking a status: `id` for a
+/// move (`B_MSG_ABILITY_PREVENTS_MOVE_STATUS`), `PkmnSXPreventsYSZ` for an ability's effect
+/// (`B_MSG_ABILITY_PREVENTS_ABILITY_STATUS`: "ATK's ability prevents DEF's ability", with
+/// `gBattlerAttacker` the effect battler and the cause's owner the target; both ability
+/// placeholders read `buffs[2]`, so the cause's ability is not named).
+fn ability_prevents(
+    env: &mut Env,
+    u: &MoveUse,
+    effect: Side,
+    ability: Ability,
+    id: Str,
+    cause: Cause,
+) {
+    let buffs = [
+        Buff::None,
+        Buff::None,
+        Buff::Text(Str::AbilityName(ability)),
+    ];
+    let m = match cause.ability {
+        Some((owner, _)) => {
+            env.out
+                .push(BattleEvent::Report(crate::battle::BattleReport::Degraded(
+                    "prevents ability status: one ability name",
+                )));
+            msg(Str::PkmnSXPreventsYSZ, effect, owner, effect)
+        }
+        None => msg(id, u.attacker, effect, effect),
+    };
+    env.out.push(BattleEvent::Msg(Msg {
+        mov: Some(u.mov),
+        buffs,
+        wait: LONG,
+        ..m
+    }));
+}
+
 /// `MOVE_EFFECT_CONFUSION` on `effect`: `Random() % 4 + 2` turns. Nothing when already
-/// confused. True when inflicted.
+/// confused or Own Tempo (silently). True when inflicted.
 pub(super) fn confuse(
     b: &mut Battle,
     env: &mut Env,
@@ -176,7 +236,11 @@ pub(super) fn confuse(
     cause: Cause,
 ) -> bool {
     let m = b.battler(effect);
-    if cause.shield_dust(b, effect) || m.mon.hp == 0 || m.confusion > 0 {
+    if cause.shield_dust(b, effect)
+        || m.mon.hp == 0
+        || m.confusion > 0
+        || m.ability == Ability::OwnTempo
+    {
         return false;
     }
     if !cause.primary && cause.ability.is_none() && super::mech::safeguarded(b, effect) {

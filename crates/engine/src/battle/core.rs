@@ -163,6 +163,8 @@ pub(crate) struct BattlerExt {
     /// `gDisableStructs.isFirstTurn` for Speed Boost: 2 on entry, decremented when a turn
     /// passes (set only for a Speed Boost battler, so other battles hash as before).
     pub first_turn: u8,
+    /// `RESOURCE_FLAG_FLASH_FIRE`: its Fire moves are boosted (cleared by a switch).
+    pub flash_fire: bool,
 }
 
 impl BattlerExt {
@@ -170,6 +172,9 @@ impl BattlerExt {
         h.write_u16(self.item.map_or(0xFFFF, |i| i.0));
         h.write(&self.hold.map_or([0xFF, 0], HoldEffect::code));
         h.write(&[self.first_turn]);
+        if self.flash_fire {
+            h.write(&[0xFF]);
+        }
     }
 }
 
@@ -269,7 +274,7 @@ impl Battler {
             types: self.types,
             ability: self.ability,
             status: self.mon.status,
-            hold: self.x.hold,
+            hold: self.x.hold.and_then(|h| h.for_species(self.mon.species)),
         }
     }
 
@@ -375,6 +380,8 @@ pub(crate) struct BattleExt {
     /// Mega Evolution chosen for this turn (the player's toggle, the AI's choice).
     pub mega_pending: [bool; 2],
     pub weather: Weather,
+    /// `gBattleStruct->moneyMultiplier` 2: a player battler entered holding an Amulet Coin.
+    pub double_prize: bool,
 }
 
 impl BattleExt {
@@ -399,6 +406,9 @@ impl BattleExt {
             ]);
         }
         h.write(&[self.weather as u8]);
+        if self.double_prize {
+            h.write(&[0xDB]);
+        }
     }
 }
 
@@ -448,6 +458,10 @@ pub(crate) enum Step {
         exp: u32,
         sent: u8,
         defeated: SpeciesId,
+        /// With an Exp. Share or a Lucky Egg in the party: `gExpShareExp` (0 without an Exp.
+        /// Share), and `exp` is the participants' share before the per-mon bonuses. `None`:
+        /// `exp` already has the trainer bonus.
+        share: Option<u32>,
     },
     /// One `add_exp_step` of party slot `party` with `rest` exp left.
     AddExp { party: u8, rest: u32 },
@@ -475,10 +489,15 @@ impl Step {
                 exp,
                 sent,
                 defeated,
+                share,
             } => {
                 h.write(&[5, party, sent]);
                 h.write_u32(exp);
                 h.write_u16(defeated.0);
+                if let Some(share) = share {
+                    h.write(&[0xE5]);
+                    h.write_u32(share);
+                }
             }
             Step::AddExp { party, rest } => {
                 h.write(&[6, party]);
@@ -861,8 +880,22 @@ impl Battle {
 
     /// The prize money of a trainer battle (Gen3 `getmoneyreward`), paid on a win; `None` in a
     /// wild battle or without a money table entry.
+    /// `ABILITY_ON_FIELD2` for Plus / Minus: `side` has one and a battler with HP (either side)
+    /// has the other.
+    pub(crate) fn plus_minus(&self, side: Side) -> bool {
+        let partner = match self.battler(side).ability {
+            Ability::Plus => Ability::Minus,
+            Ability::Minus => Ability::Plus,
+            _ => return false,
+        };
+        self.battlers
+            .iter()
+            .any(|b| b.ability == partner && b.mon.hp > 0)
+    }
+
     pub fn prize(&self) -> Option<u32> {
         self.prize
+            .map(|m| if self.x.double_prize { m * 2 } else { m })
     }
 
     /// Gen3 `gLeveledUpInBattle`: a bit per player party slot that gained a level.
@@ -931,6 +964,9 @@ impl Battle {
                     super::effects::on_switch_in(self, env, side);
                 }
                 super::effects::first_turn(self, env);
+                for side in order {
+                    super::effects::items_on_switch_in(self, env, side);
+                }
                 self.steps.push_front(Step::NewTurn);
             }
             Step::NewTurn => self.new_turn(env),
@@ -942,7 +978,8 @@ impl Battle {
                 exp,
                 sent,
                 defeated,
-            } => self.gain_exp(env, party, exp, sent, defeated),
+                share,
+            } => self.gain_exp(env, party, (exp, share), sent, defeated),
             Step::AddExp { party, rest } => self.exp_step(env, party, rest),
             Step::Learn { party, level, next } => self.learn(env, party, level, next),
             Step::SwitchOut { side, party } => {
@@ -1247,7 +1284,8 @@ impl Battle {
             return;
         }
         let (me, foe) = (self.battler(side), self.battler(side.other()));
-        let fled = if me.ability == Ability::RunAway {
+        let fled = if me.x.hold == Some(HoldEffect::CanAlwaysRun) || me.ability == Ability::RunAway
+        {
             // FLEE_ABILITY: Gen3 prints STRINGID_PKMNFLEDUSING; `GotAwaySafely` here.
             true
         } else {
@@ -1347,6 +1385,7 @@ impl Battle {
         self.primal_reversion(env, side);
         super::effects::on_switch_in(self, env, side);
         super::effects::switch_in(self, env, side);
+        super::effects::items_on_switch_in(self, env, side);
     }
 
     /// Gen3 `HandleFaintedMonActions`: exp for a fainted opponent (once per party slot), then
@@ -1360,6 +1399,10 @@ impl Battle {
             if self.battler(side).mon.hp == 0 {
                 next.push(Step::Replace(side));
             }
+        }
+        // Case 6 (no faint to handle): ABILITYEFFECT_FORECAST.
+        if next.is_empty() {
+            super::effects::after_action(self, env);
         }
         for s in next.into_iter().rev() {
             self.steps.push_front(s);
@@ -1381,7 +1424,33 @@ impl Battle {
             .filter(|(i, p)| p.hp > 0 && sent & (1 << i) != 0)
             .count() as u8;
         let base = env.t.species_info(o.mon.species).exp_yield;
-        let exp = calc::exp_yield(base, o.mon.level, self.is_trainer(), participants);
+        // viaExpShare: the standing party mons holding an Exp. Share.
+        let holds = &self.x.holds[Side::Player as usize];
+        let party = &self.parties[Side::Player as usize];
+        let sharers = party
+            .iter()
+            .zip(holds)
+            .filter(|(p, h)| p.hp > 0 && **h == Some(HoldEffect::ExpShare))
+            .count() as u32;
+        let lucky = holds.contains(&Some(HoldEffect::LuckyEgg));
+        let (exp, share) = if sharers > 0 || lucky {
+            // Cmd_getexp case 1: with an Exp. Share, half to the participants and half to the
+            // holders (each at least 1); the Lucky Egg and the trainer bonus come per mon.
+            let calculated = (base as u32 * o.mon.level as u32 / 7) as u16 as u32;
+            let half = if sharers > 0 {
+                calculated / 2
+            } else {
+                calculated
+            };
+            let per = half.checked_div(participants as u32).unwrap_or(0).max(1);
+            let share = (calculated / 2)
+                .checked_div(sharers)
+                .map_or(0, |s| s.max(1));
+            (per, Some(share))
+        } else {
+            let exp = calc::exp_yield(base, o.mon.level, self.is_trainer(), participants);
+            (exp, None)
+        };
         // HandleFaintedMonActions case 2.
         self.sent_in = 1 << self.battler(Side::Player).mon.party;
         Some(Step::GainExp {
@@ -1389,6 +1458,7 @@ impl Battle {
             exp,
             sent,
             defeated: o.mon.species,
+            share,
         })
     }
 
@@ -1462,7 +1532,14 @@ impl Battle {
 
     /// `Cmd_getexp` state 2 for party slot `party`: the message and EVs, then the steps that
     /// give its exp, then the next slot.
-    fn gain_exp(&mut self, env: &mut Env, party: u8, exp: u32, sent: u8, defeated: SpeciesId) {
+    fn gain_exp(
+        &mut self,
+        env: &mut Env,
+        party: u8,
+        (exp, share): (u32, Option<u32>),
+        sent: u8,
+        defeated: SpeciesId,
+    ) {
         let player = &self.parties[Side::Player as usize];
         if party as usize >= PARTY_SIZE || party as usize >= player.len() {
             return;
@@ -1472,18 +1549,37 @@ impl Battle {
             exp,
             sent,
             defeated,
+            share,
         });
         let p = player.get(party as usize).copied().expect("party slot");
-        if sent & (1 << party) == 0 || p.level >= 100 || p.hp == 0 {
+        let hold = self.x.holds[Side::Player as usize][party as usize];
+        let sharer = hold == Some(HoldEffect::ExpShare);
+        let took_part = sent & (1 << party) != 0;
+        if (!took_part && !sharer) || p.level >= 100 || p.hp == 0 {
             return;
         }
+        // Cmd_getexp case 2: the participant's exp plus the Exp. Share's, then the Lucky Egg,
+        // then the trainer bonus (already in `exp` without either item in the party).
+        let exp = match share {
+            None => exp,
+            Some(share) => {
+                let mut e = if took_part { exp } else { 0 } + if sharer { share } else { 0 };
+                if hold == Some(HoldEffect::LuckyEgg) {
+                    e = e * 150 / 100;
+                }
+                if self.is_trainer() {
+                    e = e * 150 / 100;
+                }
+                e
+            }
+        };
         let side = Side::Player;
         env.out.push(BattleEvent::Msg(Msg {
             buffs: [Buff::Mon { side, party }, Buff::None, Buff::Number(exp)],
             ..msg(Str::PkmnGainedExp, side, Side::Opponent, side)
         }));
         if let Some(p) = self.parties[side as usize].get_mut(party as usize) {
-            p.gain_evs(env.t, defeated);
+            p.gain_evs_x(env.t, defeated, hold == Some(HoldEffect::MachoBrace));
         }
         self.steps.push_front(Step::AddExp { party, rest: exp });
     }
@@ -1667,7 +1763,7 @@ impl Battle {
                 env.out.push(BattleEvent::TrainerDefeated);
                 // BattleScript_LocalBattleWonReward: `getmoneyreward` (the caller adds the
                 // money), STRINGID_PLAYERGOTMONEY, `waitmessage B_WAIT_TIME_LONG`.
-                match self.prize {
+                match self.prize() {
                     Some(money) => env.out.push(BattleEvent::Msg(Msg {
                         buffs: [Buff::Number(money), Buff::None, Buff::None],
                         wait: LONG,
@@ -1686,6 +1782,15 @@ impl Battle {
                     ..about(Str::PlayerWhiteout, p)
                 }));
                 env.out.push(button(about(Str::PlayerWhiteout2, p)));
+            }
+            // HandleEndTurn_RanFromBattle: FLEE_ITEM (a Smoke Ball, checked first) names the
+            // item.
+            BattleOutcome::Ran if self.battler(p).x.hold == Some(HoldEffect::CanAlwaysRun) => {
+                let item = self.battler(p).x.item.map_or(Buff::None, Buff::Item);
+                env.out.push(button(Msg {
+                    buffs: [Buff::None, Buff::None, item],
+                    ..about(Str::FledUsingIts, p)
+                }))
             }
             BattleOutcome::Ran => env.out.push(button(about(Str::GotAwaySafely, p))),
             BattleOutcome::MonFled => {

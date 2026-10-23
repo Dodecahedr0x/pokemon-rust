@@ -393,12 +393,131 @@ pub enum Request {
         slot: u8,
         trade: u8,
     },
+    /// Gen3 `AddPCItem` (`addpcitem`, `NewGameInitPCItems`): answers `Bool` (whether it fit).
+    PcItemAdd {
+        item: ItemId,
+        qty: u16,
+    },
     // ---- forced movement ----
     /// Gen3 `warphole`: drops the player to `map` (`None`: the current map's
     /// [`GameData::hole_warp`](crate::data::GameData::hole_warp), Gen3 `MAP_UNDEFINED`), onto
     /// the cell they stand on. Never answered, as `Warp`; logged and answered at once when there
     /// is no such map.
     WarpHole(Option<MapId>),
+    // ---- Wave C: field effects and object commands (`world/host/field.rs`) ----
+    /// Gen3 `setfieldeffectargument`: `gFieldEffectArguments[n] = value` (n < 8).
+    FieldEffectArg {
+        n: u8,
+        value: i16,
+    },
+    /// Gen3 `dofieldeffect` (`FieldEffectStart`): field effect `id` is active for `frames`
+    /// frames (the content gives the Gen3 length of each effect; 0 starts nothing). Answers at
+    /// once, as Gen3 does.
+    FieldEffect {
+        id: u16,
+        frames: u16,
+    },
+    /// Gen3 `waitfieldeffect`: until field effect `id` is no longer active
+    /// (`FieldEffectActiveListContains`).
+    WaitFieldEffect(u16),
+    /// Gen3 `copyobjectxytoperm` (`TryOverrideTemplateCoordsForObjectEvent`): the object's
+    /// template takes its current cell for the rest of the map visit.
+    CopyObjectPosToTemplate(u8),
+    /// Gen3 `setmaplayoutindex` (`SetCurrentMapLayout`): the map being entered takes layout
+    /// `layout` ([`GameData::map_layout`](crate::data::GameData::map_layout)); scripts set it in
+    /// `on_transition`, before the layout loads.
+    SetMapLayout(u16),
+    /// Gen3 `createvobject` (`CreateVirtualObject`): a sprite of object graphics `gfx` standing
+    /// on map cell (x, y) facing `dir`, known to scripts by `id` (not a local id).
+    CreateVirtualObject {
+        gfx: u16,
+        id: u8,
+        x: i16,
+        y: i16,
+        elevation: u8,
+        dir: Dir,
+    },
+    /// Gen3 `turnvobject` (`TurnVirtualObject`).
+    TurnVirtualObject {
+        id: u8,
+        dir: Dir,
+    },
+    /// Gen3 `applymovementat`: [`Request::Move`] for map `map`'s object `obj`, which may be
+    /// another map's after a crossing (Mr. Briney's boat, sailing across Route 105).
+    MoveAt {
+        obj: u8,
+        map: MapId,
+        steps: &'static [Step],
+    },
+    /// Gen3 `waitmovementat`: [`Request::WaitMove`] for map `map`'s object.
+    WaitMoveAt(u8, MapId),
+    /// Gen3 `showobjectat` (`SetObjectInvisibility` of map `map`'s object).
+    ShowObjectAt(u8, MapId),
+    /// Gen3 `hideobjectat`.
+    HideObjectAt(u8, MapId),
+    // ---- Wave C: specials' reads (`world/host/query.rs`) ----
+    /// A read of the world a special needs: answers `Value` at once.
+    Query(Query),
+}
+
+/// Gen3 `PARTY_SIZE`: [`Query::PartyMoveSlot`]'s answer when no party mon knows the move.
+pub const PARTY_SIZE: u16 = 6;
+
+/// What [`Request::Query`] reads (Wave C: the specials of `field_specials.c`, `pokedex.c`,
+/// `berry.c`, … that only read the player's state).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Query {
+    /// Gen3 `GetHoennPokedexCount` / `GetNationalPokedexCount`: how many species of `among`
+    /// (every species when empty) have the seen (or caught) flag.
+    DexCount {
+        caught: bool,
+        among: &'static [SpeciesId],
+    },
+    /// The species in party slot `slot` (Gen3 `GetMonData(MON_DATA_SPECIES)`), 0 for an empty
+    /// slot.
+    PartySpecies(u8),
+    /// The first party slot whose mon knows the move (Gen3 `checkpartymove`'s
+    /// `MonKnowsMove`), else [`PARTY_SIZE`].
+    PartyMoveSlot(MoveId),
+    /// The EV total of party slot `slot` (Gen3 `GetMonEVCount`), 0 for an empty slot.
+    PartyEvTotal(u8),
+    /// The friendship of party slot `slot` (Gen3 `MON_DATA_FRIENDSHIP`), 0 for an empty slot.
+    PartyFriendship(u8),
+    /// The current HP of party slot `slot` (Gen3 `MON_DATA_HP`), 0 for an empty slot.
+    PartyHp(u8),
+    /// The low half of party slot `slot`'s personality, 0 for an empty slot.
+    PartyPersonalityLow(u8),
+    /// The low half of the player's trainer id (Gen3 `playerTrainerId[0] | [1] << 8`).
+    PlayerIdLow,
+    /// 1 when the bag's `pocket` holds an item (Gen3 `IsBagPocketNonEmpty`), else 0.
+    PocketNonEmpty(crate::data::Pocket),
+    /// The metatile of cell (`x`, `y`) of the current map, with `setmetatile`'s changes (Gen3
+    /// `MapGridGetMetatileIdAt`).
+    Metatile { x: i16, y: i16 },
+}
+
+impl Query {
+    /// (kind, a, b) for [`Request::hash_into`]; `DexCount`'s list by length and digest.
+    fn key(self) -> (u16, u16, u16) {
+        match self {
+            Query::DexCount { caught, among } => {
+                let mut h = Fnv64::new();
+                for s in among {
+                    h.write_u16(s.0);
+                }
+                (caught as u16, among.len() as u16, h.finish() as u16)
+            }
+            Query::PartySpecies(slot) => (2, slot as u16, 0),
+            Query::PartyMoveSlot(m) => (3, m.0, 0),
+            Query::PartyEvTotal(slot) => (4, slot as u16, 0),
+            Query::PlayerIdLow => (5, 0, 0),
+            Query::PocketNonEmpty(p) => (6, p as u16, 0),
+            Query::PartyFriendship(slot) => (7, slot as u16, 0),
+            Query::PartyHp(slot) => (8, slot as u16, 0),
+            Query::PartyPersonalityLow(slot) => (9, slot as u16, 0),
+            Query::Metatile { x, y } => (10, x as u16, y as u16),
+        }
+    }
 }
 
 /// Gen3 `PARTY_NOTHING_CHOSEN`: [`Request::ChoosePartyMon`]'s answer to B.
@@ -578,8 +697,48 @@ impl Request {
             Request::AddFriendship { slot, n } => (69, slot as u16, n as u8 as u16, 0, 0),
             Request::PartyMonSpecies(slot) => (70, slot as u16, 0, 0, 0),
             Request::InGameTrade { slot, trade } => (71, slot as u16, trade as u16, 0, 0),
+            // Tag 100: clear of the tags other requests take in sequence.
+            Request::PcItemAdd { item, qty } => (100, item.0, qty, 0, 0),
             // Tag 120: clear of the Milestone 9 requests' 56 and up.
             Request::WarpHole(map) => (120, map.map_or(0xFFFF, |m| m.0), 0, 0, 0),
+            // Wave C field effects and object commands: tags 140 and up.
+            Request::FieldEffectArg { n, value } => (140, n as u16, value as u16, 0, 0),
+            Request::FieldEffect { id, frames } => (141, id, frames, 0, 0),
+            Request::WaitFieldEffect(id) => (142, id, 0, 0, 0),
+            Request::CopyObjectPosToTemplate(obj) => (143, obj as u16, 0, 0, 0),
+            Request::SetMapLayout(layout) => (144, layout, 0, 0, 0),
+            Request::CreateVirtualObject {
+                gfx,
+                id,
+                x,
+                y,
+                elevation,
+                dir,
+            } => (
+                145,
+                gfx,
+                id as u16 | (elevation as u16 & 0xF) << 8 | (dir as u16) << 12,
+                i(x),
+                i(y),
+            ),
+            Request::TurnVirtualObject { id, dir } => (146, id as u16, dir as u16, 0, 0),
+            Request::MoveAt { obj, map, steps } => {
+                let d = steps_digest(steps);
+                (
+                    147,
+                    obj as u16 | (steps.len() as u16) << 8,
+                    map.0,
+                    d as u16,
+                    (d >> 16) as u16,
+                )
+            }
+            Request::WaitMoveAt(obj, map) => (148, obj as u16, map.0, 0, 0),
+            Request::ShowObjectAt(obj, map) => (149, obj as u16, map.0, 0, 0),
+            Request::HideObjectAt(obj, map) => (150, obj as u16, map.0, 0, 0),
+            Request::Query(q) => {
+                let (k, a, b) = q.key();
+                (121, k, a, b, 0)
+            }
         };
         h.write(&[tag]);
         for v in [a, b, c, d] {
@@ -815,6 +974,26 @@ impl Ctx {
         self.req(Request::WaitMove(obj), unit)
     }
 
+    /// Gen3 `applymovementat` (see [`Request::MoveAt`]).
+    pub fn move_obj_at(&self, obj: u8, map: MapId, steps: &'static [Step]) -> Req<()> {
+        self.req(Request::MoveAt { obj, map, steps }, unit)
+    }
+
+    /// Gen3 `waitmovementat` (see [`Request::WaitMoveAt`]).
+    pub fn wait_move_at(&self, obj: u8, map: MapId) -> Req<()> {
+        self.req(Request::WaitMoveAt(obj, map), unit)
+    }
+
+    /// Gen3 `showobjectat` (see [`Request::ShowObjectAt`]).
+    pub fn show_object_at(&self, obj: u8, map: MapId) -> Req<()> {
+        self.req(Request::ShowObjectAt(obj, map), unit)
+    }
+
+    /// Gen3 `hideobjectat` (see [`Request::HideObjectAt`]).
+    pub fn hide_object_at(&self, obj: u8, map: MapId) -> Req<()> {
+        self.req(Request::HideObjectAt(obj, map), unit)
+    }
+
     pub fn set_object_pos(&self, obj: u8, x: i16, y: i16) -> Req<()> {
         self.req(Request::SetObjectPos { obj, x, y }, unit)
     }
@@ -878,6 +1057,58 @@ impl Ctx {
 
     pub fn set_object_template_pos(&self, obj: u8, x: i16, y: i16) -> Req<()> {
         self.req(Request::SetObjectTemplatePos { obj, x, y }, unit)
+    }
+
+    /// Gen3 `copyobjectxytoperm` (see [`Request::CopyObjectPosToTemplate`]).
+    pub fn copy_object_pos_to_template(&self, obj: u8) -> Req<()> {
+        self.req(Request::CopyObjectPosToTemplate(obj), unit)
+    }
+
+    /// Gen3 `createvobject` (see [`Request::CreateVirtualObject`]).
+    pub fn create_virtual_object(
+        &self,
+        gfx: u16,
+        id: u8,
+        (x, y): (i16, i16),
+        elevation: u8,
+        dir: Dir,
+    ) -> Req<()> {
+        self.req(
+            Request::CreateVirtualObject {
+                gfx,
+                id,
+                x,
+                y,
+                elevation,
+                dir,
+            },
+            unit,
+        )
+    }
+
+    /// Gen3 `turnvobject` (see [`Request::TurnVirtualObject`]).
+    pub fn turn_virtual_object(&self, id: u8, dir: Dir) -> Req<()> {
+        self.req(Request::TurnVirtualObject { id, dir }, unit)
+    }
+
+    /// Gen3 `setmaplayoutindex` (see [`Request::SetMapLayout`]).
+    pub fn set_map_layout(&self, layout: u16) -> Req<()> {
+        self.req(Request::SetMapLayout(layout), unit)
+    }
+
+    /// Gen3 `setfieldeffectargument` (see [`Request::FieldEffectArg`]).
+    pub fn field_effect_arg(&self, n: u8, value: i16) -> Req<()> {
+        self.req(Request::FieldEffectArg { n, value }, unit)
+    }
+
+    /// Gen3 `dofieldeffect` (see [`Request::FieldEffect`]).
+    pub fn field_effect(&self, id: u16, frames: u16) -> Req<()> {
+        self.req(Request::FieldEffect { id, frames }, unit)
+    }
+
+    /// Gen3 `waitfieldeffect` (see [`Request::WaitFieldEffect`]).
+    pub fn wait_field_effect(&self, id: u16) -> Req<()> {
+        self.req(Request::WaitFieldEffect(id), unit)
     }
 
     pub fn door(&self, x: i16, y: i16, open: bool) -> Req<()> {
@@ -1163,9 +1394,19 @@ impl Ctx {
         self.req(Request::PartyMonSpecies(slot), Response::value)
     }
 
+    /// A read of the world ([`Query`]).
+    pub fn query(&self, q: Query) -> Req<u16> {
+        self.req(Request::Query(q), Response::value)
+    }
+
     /// Gen3 `CreateInGameTradePokemon`.
     pub fn in_game_trade(&self, slot: u8, trade: u8) -> Req<()> {
         self.req(Request::InGameTrade { slot, trade }, unit)
+    }
+
+    /// Gen3 `AddPCItem`: whether it fit in the PC's item storage.
+    pub fn pc_item_add(&self, item: ItemId, qty: u16) -> Req<bool> {
+        self.req(Request::PcItemAdd { item, qty }, Response::bool)
     }
 }
 

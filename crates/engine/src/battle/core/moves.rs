@@ -215,6 +215,11 @@ impl Battle {
             self.missed(env, u);
             return None;
         }
+        // JumpIfMoveFailed after a hit: ABILITYEFFECT_ABSORBING (Volt / Water Absorb, Flash
+        // Fire) runs its own script instead.
+        if effects::absorbs(self, env, u) {
+            return None;
+        }
         self.attack_string(env, u);
         let r = self.damage(env, u);
         let mut r = self.deal(env, u, r);
@@ -254,10 +259,26 @@ impl Battle {
         env.out
             .push(BattleEvent::Msg(u.msg(Str::UsedMove, u.attacker)));
         if let Some(s) = u.slot {
+            let cost = 1 + self.pressure(u) as u8;
             let pp = &mut self.battler_mut(u.attacker).mon.pp[s as usize];
-            *pp = pp.saturating_sub(1);
+            *pp = pp.saturating_sub(cost);
             self.write_back(u.attacker);
         }
+    }
+
+    /// `Cmd_ppreduce`'s Pressure: the foe's Pressure costs one more PP for the moves that
+    /// target its side (`MOVE_TARGET_BOTH`, `_OPPONENTS_FIELD`, `_FOES_AND_ALLY`), or that
+    /// target it (another battler).
+    fn pressure(&self, u: &MoveUse) -> bool {
+        let foe = match u.info.target {
+            MoveTarget::BothFoes | MoveTarget::OpponentsField | MoveTarget::FoesAndAlly => {
+                u.attacker.other()
+            }
+            _ if u.target != u.attacker => u.target,
+            _ => return false,
+        };
+        let f = self.battler(foe);
+        f.ability == Ability::Pressure && f.mon.hp > 0
     }
 
     /// `Cmd_accuracycheck` with `ACC_CURR_MOVE`: one roll. Under Foresight the target's
@@ -282,15 +303,25 @@ impl Battle {
             eva,
             a.ability,
             u.ty.is_physical(),
-            d.ability == Ability::SandVeil && self.weather() == super::Weather::Sand,
+            matches!(d.ability, Ability::SandVeil | Ability::SandVeilGen3)
+                && self.weather() == super::Weather::Sand,
             d.x.hold,
             env.rng.random(),
         )
     }
 
-    /// The weather, as moves and abilities see it.
+    /// The weather, as moves and abilities see it: none while a battler with Cloud Nine or Air
+    /// Lock is out (`WEATHER_HAS_EFFECT`).
     pub(crate) fn weather(&self) -> super::Weather {
-        self.x.weather
+        let suppressed = self
+            .battlers
+            .iter()
+            .any(|b| matches!(b.ability, Ability::CloudNine | Ability::AirLock) && b.mon.hp > 0);
+        if suppressed {
+            super::Weather::None
+        } else {
+            self.x.weather
+        }
     }
 
     /// Gen3 `CheckWonderGuardAndLevitate` / `Cmd_typecalc`: a Ground move with power against a
@@ -391,7 +422,8 @@ impl Battle {
             && !matches!(d.ability, Ability::ShellArmor | Ability::BattleArmor)
             && {
                 let stage = calc::crit_chance_stage(self.battler(u.attacker).focus_energy)
-                    + effects::crit_bonus(u.info.effect);
+                    + effects::crit_bonus(u.info.effect)
+                    + calc::crit_item_stage(self.battler(u.attacker).x.hold);
                 calc::is_crit(stage, env.rng.random())
             }
     }
@@ -409,7 +441,11 @@ impl Battle {
             _ => calc::DamageWeather::None,
         };
         let power = self.power_with_abilities(env, u, weather);
-        let x = effects::damage_extra(self, u, crit, weather);
+        let x = calc::Extra {
+            flash_fire: self.battler(u.attacker).x.flash_fire,
+            plus_minus: self.plus_minus(u.attacker),
+            ..effects::damage_extra(self, u, crit, weather)
+        };
         let mut damage = calc::base_damage_x(&a, &d, power, u.ty, crit, self.field(), x)
             * if crit { 2 } else { 1 }
             * u.multiplier as i32;
@@ -533,6 +569,15 @@ impl Battle {
         mut r: HitResult,
         anim: bool,
     ) -> HitResult {
+        if effects::wonder_guard(self, env, u, r.eff) {
+            return HitResult {
+                damage: 0,
+                eff: Effectiveness::NoEffect,
+                crit: false,
+                hung: false,
+                ..r
+            };
+        }
         if r.eff == Effectiveness::NoEffect {
             let m = if self.levitates(env, u) {
                 levitate_msg(u)
@@ -601,9 +646,14 @@ impl Battle {
             Some(s) if s.certain && !no_effect => (s.apply)(self, env, u, r),
             _ => {
                 let roll = env.rng.random();
+                // Cmd_seteffectwithchance: Serene Grace doubles the chance.
+                let mut chance = u.info.effect_chance as u16;
+                if self.battler(u.attacker).ability == Ability::SereneGrace {
+                    chance *= 2;
+                }
                 if let Some(s) = secondary
                     && !no_effect
-                    && roll % 100 < u.info.effect_chance as u16
+                    && roll % 100 < chance
                 {
                     (s.apply)(self, env, u, r);
                 }

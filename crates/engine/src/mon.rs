@@ -311,7 +311,7 @@ pub enum Ability {
     /// Speed +1 when it flinches.
     Steadfast,
     // Gen3 (gated as the abilities above).
-    /// No sandstorm damage; the foe's accuracy x80/100 in a sandstorm.
+    /// No sandstorm damage (Gen4); the foe's accuracy x80/100 in a sandstorm.
     SandVeil,
     // Silice rules for Gen3 abilities (the content's Silice switch).
     /// Shadow Tag with Gen4's exemption: a foe with Shadow Tag (Gen4) is not trapped.
@@ -321,15 +321,68 @@ pub enum Ability {
     Stench,
     /// A lead doubles the encounter rate. No battle effect in Gen3.
     Illuminate,
-    /// A lead halves the encounter rate. Its battle effect (Clear Body's) is not modelled, so
-    /// the content leaves its holders `Other` (see `classify::battle::ability_with`).
+    /// A lead halves the encounter rate; in battle, Clear Body's stat-drop guard.
     WhiteSmoke,
-    /// A lead doubles the encounter rate. Its battle effect (trapping) is not modelled, so the
-    /// content leaves its holders `Other`.
+    /// A lead doubles the encounter rate; in battle, the foe cannot run nor switch unless it is
+    /// Flying or Levitate (`IsRunningFromBattleImpossible`).
     ArenaTrap,
-    /// A lead gets the wild table's top level half the time (as Hustle and Vital Spirit). Its
-    /// battle effect (double PP use) is not modelled, so the content leaves its holders `Other`.
+    /// A lead gets the wild table's top level half the time (as Hustle and Vital Spirit); in
+    /// battle, the moves aimed at it cost one more PP (`Cmd_ppreduce`).
     Pressure,
+    // Wave C (appended): the remaining Gen3 abilities.
+    /// Cannot be frozen (`SetMoveEffect`); cured of a freeze (`ABILITYEFFECT_IMMUNITY`). Field:
+    /// a party member halves egg cycles (no eggs in the engine).
+    MagmaArmor,
+    /// Contact: 1/3 to burn the attacker (`ABILITYEFFECT_ON_DAMAGE`). Field: as Magma Armor.
+    FlameBody,
+    /// Sp. Atk x1.5 while a Minus battler is out (`CalculateBaseDamage`, `ABILITY_ON_FIELD2`).
+    Plus,
+    /// Sp. Atk x1.5 while a Plus battler is out.
+    Minus,
+    /// Cannot be burned; cured of a burn.
+    WaterVeil,
+    /// Contact: the attacker loses max HP / 16.
+    RoughSkin,
+    /// Its item cannot be taken (`Cmd_tryswapitems`, Thief / Covet / Knock Off). Field: fishing
+    /// bites (no fishing in the engine).
+    StickyHold,
+    /// Its Attack cannot be lowered (`ChangeStatBuffs`, Intimidate). Field: Cut's range.
+    HyperCutter,
+    /// Cannot be confused; cured of a confusion.
+    OwnTempo,
+    /// A damaging hit of another type makes it that type.
+    ColorChange,
+    /// Cannot be poisoned; cured of a poisoning.
+    Immunity,
+    /// Castform: its type follows the weather (`CastformDataTypeChange`).
+    Forecast,
+    /// Fire moves are absorbed and power its own Fire moves x1.5.
+    FlashFire,
+    /// Electric moves heal it by max HP / 4 instead (`ABILITYEFFECT_ABSORBING`).
+    VoltAbsorb,
+    /// Water moves heal it by max HP / 4 instead.
+    WaterAbsorb,
+    /// Cannot be paralysed; cured of a paralysis.
+    Limber,
+    /// Roar and Whirlwind fail against it. Field: fishing bites.
+    SuctionCups,
+    /// While it is out the weather has no effect (`WEATHER_HAS_EFFECT`).
+    AirLock,
+    CloudNine,
+    /// No effect in Gen3 (no handler, no species).
+    Cacophony,
+    /// Self-Destruct and Explosion fail while it is out (`Cmd_tryexplosion`).
+    Damp,
+    /// Its moves' secondary effect chances are doubled (`Cmd_seteffectwithchance`).
+    SereneGrace,
+    /// Only super-effective moves hit it (`Cmd_typecalc`).
+    WonderGuard,
+    /// Gen3 Lightning Rod: it draws Electric moves in doubles only, so nothing in singles.
+    /// Field: more Match Calls (no Match Call in the engine).
+    LightningRodGen3,
+    /// Gen3 Sand Veil: the foe's accuracy x80/100 in a sandstorm, but the sandstorm still hurts
+    /// it (`Cmd_weatherdamage`). Field: fewer encounters in a sandstorm (no field weather).
+    SandVeilGen3,
 }
 
 /// Gen3 move effect as a mechanic. Content maps `EFFECT_*` (`battle_move_effects.h`).
@@ -841,6 +894,59 @@ pub enum HoldEffect {
     /// (Gen3 `ApplyCleanseTagEncounterRateMod`, which tests `ITEM_CLEANSE_TAG`, the only item
     /// with this effect). No battle effect.
     CleanseTag,
+    // Wave C (appended): the remaining Gen3 hold effects.
+    /// `HOLD_EFFECT_RESTORE_STATS` (White Herb): negative stages back to 0, once.
+    RestoreStats,
+    /// `HOLD_EFFECT_ATTACK_UP` … `SP_DEFENSE_UP` (Liechi, Ganlon, Salac, Petaya, Apicot):
+    /// the stat +1 at max HP / `param` or less, once.
+    StatUp(Stat, u8),
+    /// `HOLD_EFFECT_CRITICAL_UP` (Lansat): Focus Energy at max HP / `param` or less.
+    CriticalUp(u8),
+    /// `HOLD_EFFECT_RANDOM_STAT_UP` (Starf): a random stat +2 at max HP / `param` or less.
+    RandomStatUp(u8),
+    /// `HOLD_EFFECT_CONFUSE_*` (Figy, Wiki, Mago, Aguav, Iapapa): at half HP, heals max HP /
+    /// `param`, and confuses a mon whose nature dislikes the flavour (`FLAVOR_*`, 0..5).
+    ConfuseBerry { flavor: u8, param: u8 },
+    /// `HOLD_EFFECT_RESTORE_PP` (Leppa): `param` PP to the first move at 0 PP.
+    RestorePp(u8),
+    /// `HOLD_EFFECT_CURE_ATTRACT` (Mental Herb): cures infatuation.
+    CureAttract,
+    /// `HOLD_EFFECT_SHELL_BELL`: heals damage dealt / `param`.
+    ShellBell(u8),
+    /// `HOLD_EFFECT_SCOPE_LENS`: critical stage +1.
+    ScopeLens,
+    /// `HOLD_EFFECT_LUCKY_PUNCH` (Chansey) / `HOLD_EFFECT_STICK` (Farfetch'd): critical stage
+    /// +2 for that species.
+    SpeciesCrit(SpeciesId),
+    /// `HOLD_EFFECT_DEEP_SEA_TOOTH`: Sp. Atk x2 for the species (Clamperl).
+    DeepSeaTooth(SpeciesId),
+    /// `HOLD_EFFECT_DEEP_SEA_SCALE`: Sp. Def x2 for the species (Clamperl).
+    DeepSeaScale(SpeciesId),
+    /// `HOLD_EFFECT_LIGHT_BALL`: Sp. Atk x2 for the species (Pikachu).
+    LightBall(SpeciesId),
+    /// `HOLD_EFFECT_METAL_POWDER`: Defense x2 for the species (Ditto).
+    MetalPowder(SpeciesId),
+    /// `HOLD_EFFECT_THICK_CLUB`: Attack x2 for either species (Cubone, Marowak).
+    ThickClub(SpeciesId, SpeciesId),
+    /// `HOLD_EFFECT_SOUL_DEW`: Sp. Atk and Sp. Def x1.5 for either species (Latias, Latios).
+    SoulDew(SpeciesId, SpeciesId),
+    /// `HOLD_EFFECT_MACHO_BRACE`: Speed halved in battle, EVs doubled.
+    MachoBrace,
+    /// `HOLD_EFFECT_CAN_ALWAYS_RUN` (Smoke Ball).
+    CanAlwaysRun,
+    /// `HOLD_EFFECT_DOUBLE_PRIZE` (Amulet Coin): the player's lead doubles the prize money.
+    DoublePrize,
+    /// `HOLD_EFFECT_EXP_SHARE`: half the exp, split among the holders.
+    ExpShare,
+    /// `HOLD_EFFECT_LUCKY_EGG`: exp x1.5.
+    LuckyEgg,
+    /// `HOLD_EFFECT_FRIENDSHIP_UP` (Soothe Bell): friendship gains x1.5 (`AdjustFriendship`).
+    FriendshipUp,
+    /// `HOLD_EFFECT_PREVENT_EVOLVE` (Everstone).
+    PreventEvolve,
+    /// `HOLD_EFFECT_DRAGON_SCALE` / `HOLD_EFFECT_UP_GRADE`: trade evolution items, no battle
+    /// effect in Gen3.
+    TradeItem,
 }
 
 impl HoldEffect {
@@ -864,7 +970,47 @@ impl HoldEffect {
             EvasionUp(p) => [43, p],
             FocusBand(p) => [44, p],
             CleanseTag => [45, 0],
+            RestoreStats => [46, 0],
+            StatUp(s, p) => [47 + s as u8, p],
+            CriticalUp(p) => [56, p],
+            RandomStatUp(p) => [57, p],
+            ConfuseBerry { flavor, param } => [58 + flavor, param],
+            RestorePp(p) => [64, p],
+            CureAttract => [65, 0],
+            ShellBell(p) => [66, p],
+            ScopeLens => [67, 0],
+            // The species' low byte: one item per effect, so the tag tells them apart.
+            SpeciesCrit(s) => [68, s.0 as u8],
+            DeepSeaTooth(s) => [69, s.0 as u8],
+            DeepSeaScale(s) => [70, s.0 as u8],
+            LightBall(s) => [71, s.0 as u8],
+            MetalPowder(s) => [72, s.0 as u8],
+            ThickClub(s, _) => [73, s.0 as u8],
+            SoulDew(s, _) => [74, s.0 as u8],
+            MachoBrace => [75, 0],
+            CanAlwaysRun => [76, 0],
+            DoublePrize => [77, 0],
+            ExpShare => [78, 0],
+            LuckyEgg => [79, 0],
+            FriendshipUp => [80, 0],
+            PreventEvolve => [81, 0],
+            TradeItem => [82, 0],
         }
+    }
+
+    /// The effect as `species` holds it: the species items ([`Self::SpeciesCrit`],
+    /// [`Self::LightBall`] …) do nothing for another species (Gen3 checks the battler's
+    /// species where it reads them).
+    pub fn for_species(self, species: SpeciesId) -> Option<HoldEffect> {
+        use HoldEffect::*;
+        let ok = match self {
+            SpeciesCrit(s) | DeepSeaTooth(s) | DeepSeaScale(s) | LightBall(s) | MetalPowder(s) => {
+                s == species
+            }
+            ThickClub(a, b) | SoulDew(a, b) => a == species || b == species,
+            _ => true,
+        };
+        ok.then_some(self)
     }
 }
 
@@ -1217,13 +1363,20 @@ impl Pokemon {
     /// species' yield, capped by the 510 total (the loop stops once it is reached) and 255 per
     /// stat.
     pub fn gain_evs(&mut self, t: &BattleTables, defeated: SpeciesId) {
-        let yields = t.species_info(defeated).ev_yield;
+        self.gain_evs_x(t, defeated, false);
+    }
+
+    /// [`Self::gain_evs`] with a Macho Brace (`HOLD_EFFECT_MACHO_BRACE`: each yield doubled,
+    /// before the caps) when `macho_brace`.
+    pub fn gain_evs_x(&mut self, t: &BattleTables, defeated: SpeciesId, macho_brace: bool) {
+        let factor = if macho_brace { 2 } else { 1 };
+        let yields = t.species_info(defeated).ev_yield.map(|y| y as u16 * factor);
         let mut total: u16 = self.evs.iter().map(|&e| e as u16).sum();
         for (ev, &gain) in self.evs.iter_mut().zip(&yields) {
             if total >= MAX_TOTAL_EVS {
                 break;
             }
-            let gain = (gain as u16)
+            let gain = gain
                 .min(MAX_TOTAL_EVS - total)
                 .min((MAX_PER_STAT_EVS - *ev) as u16);
             *ev += gain as u8;

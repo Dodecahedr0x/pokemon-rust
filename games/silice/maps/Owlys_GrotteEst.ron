@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_GROTTE_EST_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 6,
             y: 17,
             elevation: 3,

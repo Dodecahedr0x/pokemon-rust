@@ -566,8 +566,6 @@ pub enum Str {
     PkmnWasDefrostedBy,
     /// `STRINGID_PKMNALREADYASLEEP2`.
     PkmnAlreadyAsleep2,
-    /// `STRINGID_PKMNPREVENTSCONFUSIONWITH`.
-    PkmnPreventsConfusionWith,
     /// `STRINGID_PKMNSXBLOCKSY2`.
     PkmnSXBlocksY2,
     /// `STRINGID_STATSWONTINCREASE2`.
@@ -600,6 +598,8 @@ pub enum Str {
     PkmnObtainedX2,
     /// `STRINGID_PKMNOBTAINEDXYOBTAINEDZ`.
     PkmnObtainedXYObtainedZ,
+    /// `STRINGID_PKMNANCHORSITSELFWITH`.
+    PkmnAnchorsItselfWith,
     // Task G.
     /// `STRINGID_PKMNFELLINLOVE`: Attract: the target (`B_DEF`).
     PkmnFellInLove,
@@ -732,6 +732,49 @@ pub enum Str {
     MegaArmed,
     /// Solar Power's HP loss in the sun (`active`, ability).
     SolarPowerHurt,
+    // Wave C: abilities and held items (codes from 200, apart from the move effects').
+    /// `STRINGID_PKMNPREVENTSPARALYSISWITH` (Limber; `target` the effect battler, its ability).
+    PkmnPreventsParalysisWith,
+    /// `STRINGID_PKMNPREVENTSPOISONINGWITH` (Immunity).
+    PkmnPreventsPoisoningWith,
+    /// `STRINGID_PKMNPREVENTSCONFUSIONWITH` (Own Tempo).
+    PkmnPreventsConfusionWith,
+    /// `STRINGID_PKMNSXPREVENTSBURNS` (Water Veil).
+    PkmnSXPreventsBurns,
+    /// `STRINGID_PKMNSXPREVENTSYSZ`: an ability's status blocked by an ability.
+    PkmnSXPreventsYSZ,
+    /// `STRINGID_PKMNRESTOREDHPUSING` (Volt / Water Absorb).
+    PkmnRestoredHpUsing,
+    /// `STRINGID_PKMNSXMADEYUSELESS` (Volt / Water Absorb at full HP).
+    PkmnSXMadeYUseless,
+    /// `STRINGID_PKMNRAISEDFIREPOWERWITH` (Flash Fire).
+    PkmnRaisedFirePowerWith,
+    /// `STRINGID_PKMNSXMADEYINEFFECTIVE` (Flash Fire, already boosted).
+    PkmnSXMadeYIneffective,
+    /// `STRINGID_PKMNCHANGEDTYPEWITH` (Color Change; `buffs[0]` the type).
+    PkmnChangedTypeWith,
+    /// `STRINGID_PKMNHURTSWITH` (Rough Skin).
+    PkmnHurtsWith,
+    /// `STRINGID_PKMNSXCUREDITSYPROBLEM` (`ABILITYEFFECT_IMMUNITY`).
+    PkmnSXCuredItsYProblem,
+    /// `STRINGID_PKMNTRANSFORMED` (Forecast).
+    PkmnTransformed,
+    /// `STRINGID_PKMNPREVENTSUSAGE` (Damp).
+    PkmnPreventsUsage,
+    /// `STRINGID_AVOIDEDDAMAGE` (Wonder Guard).
+    AvoidedDamage,
+    /// `STRINGID_PKMNSITEMRESTOREDSTATUS` (White Herb).
+    ItemRestoredStatus,
+    /// `STRINGID_PKMNSITEMRESTOREDPP` (Leppa Berry; `buffs[0]` the move).
+    ItemRestoredPp,
+    /// `STRINGID_FORXCOMMAYZ` (a confusing berry; `buffs[0]` the flavour text).
+    ForXCommaYZ,
+    /// `STRINGID_PKMNUSEDXTOGETPUMPED` (Lansat Berry).
+    UsedXToGetPumped,
+    /// `STRINGID_USINGITEMSTATOFPKMNROSE` (the stat berries; `buffs` = [stat, rose text, item]).
+    UsingItemStatRose,
+    /// `STRINGID_PKMNFLEDUSINGITS` (Smoke Ball).
+    FledUsingIts,
     /// `gAbilityNames[a]`. The ability codes (`B_ATK_ABILITY`, `B_DEF_ABILITY`,
     /// `B_SCR_ACTIVE_ABILITY`, `B_EFF_ABILITY`, `B_LAST_ABILITY`) expand `Msg::buffs[2]`, which
     /// the core sets to `Buff::Text(Str::AbilityName(..))` for the messages that name one.
@@ -958,7 +1001,6 @@ impl Str {
             PkmnWentToSleep => 402,
             PkmnWasDefrostedBy => 403,
             PkmnAlreadyAsleep2 => 404,
-            PkmnPreventsConfusionWith => 405,
             PkmnSXBlocksY2 => 406,
             StatsWontIncrease2 => 407,
             StatsWontDecrease2 => 408,
@@ -975,6 +1017,7 @@ impl Str {
             PkmnObtainedX => 419,
             PkmnObtainedX2 => 420,
             PkmnObtainedXYObtainedZ => 421,
+            PkmnAnchorsItselfWith => 422,
             AbilityName(a) => 104 << 8 | a as u16,
             // Task G.
             PkmnFellInLove => 105,
@@ -1041,6 +1084,27 @@ impl Str {
             BouncedBack => 165,
             MegaArmed => 166,
             SolarPowerHurt => 167,
+            PkmnPreventsParalysisWith => 200,
+            PkmnPreventsPoisoningWith => 201,
+            PkmnPreventsConfusionWith => 202,
+            PkmnSXPreventsBurns => 203,
+            PkmnSXPreventsYSZ => 204,
+            PkmnRestoredHpUsing => 205,
+            PkmnSXMadeYUseless => 206,
+            PkmnRaisedFirePowerWith => 207,
+            PkmnSXMadeYIneffective => 208,
+            PkmnChangedTypeWith => 209,
+            PkmnHurtsWith => 210,
+            PkmnSXCuredItsYProblem => 211,
+            PkmnTransformed => 212,
+            PkmnPreventsUsage => 213,
+            AvoidedDamage => 214,
+            ItemRestoredStatus => 215,
+            ItemRestoredPp => 216,
+            ForXCommaYZ => 217,
+            UsedXToGetPumped => 218,
+            UsingItemStatRose => 219,
+            FledUsingIts => 220,
         }
     }
 }

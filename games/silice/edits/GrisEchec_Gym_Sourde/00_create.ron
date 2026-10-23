@@ -1,3 +1,4 @@
 // Silice Ch2, MAP_GRIS_ECHEC_GYM_SOURDE: the Chambre Sourde (9 x 7), off Salle 2. Building +
-// MossdeepGym (Emerald tilesets by name): gray walls, the pad back, the chest at the back.
-(name: "GrisEchec_Gym_Sourde", width: 9, height: 7, primary: "Building", secondary: "MossdeepGym", fill: 513, border: [1544, 1544, 1544, 1544])
+// SilGrisEchecGym (shared with the arena): grey acoustic foam on the walls, a felt floor, two foam
+// blocks, the warp pad back, the chest at the back.
+(name: "GrisEchec_Gym_Sourde", width: 9, height: 7, primary: "Building", secondary: "SilGrisEchecGym", fill: 522, border: [1539, 1539, 1539, 1539])

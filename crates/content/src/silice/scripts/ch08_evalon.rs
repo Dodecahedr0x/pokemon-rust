@@ -83,11 +83,11 @@ const FRIENDS_AT_GATE: [(u8, FlagId, (i16, i16)); 3] = [
     (LOCALID_EVALON_MATHIEU, FLAG_SIL_HIDE_EVALON_AMIS, (26, 16)),
 ];
 
-/// The raised drawbridge (24–26, 7–8), solid water in the layout, and Fallarbor's path
-/// (753), walkable, once lowered.
+/// The raised drawbridge (24–26, 7–8), solid water in the layout, and SilEvalon's `pont`
+/// (520, the lowered oak deck), walkable, once lowered.
 const DRAWBRIDGE_X: core::ops::RangeInclusive<i16> = 24..=26;
 const DRAWBRIDGE_Y: core::ops::RangeInclusive<i16> = 7..=8;
-const METATILE_PONT: u16 = 753;
+const METATILE_PONT: u16 = 520;
 
 async fn lower_drawbridge(ctx: &Ctx) {
     for y in DRAWBRIDGE_Y {
@@ -122,7 +122,7 @@ const RONCES: &[(i16, i16)] = &[(44, 26), (44, 27), (44, 28), (44, 29)];
 /// The drawbridge down from `VAR_SIL_STORY` 83; the brambles cut for good once the pigeon is
 /// home (Q3). The fountain is dry in the layout and stays so.
 ///
-/// fallback: the flowing fountain (Q1): Fallarbor has no running-water metatile for the basin
+/// fallback: the flowing fountain (Q1): SilEvalon has no running-water metatile for the basin
 /// (18–20, 39–41); the fountain's sign says the water is back instead (reported `fountain`).
 pub async fn Evalon_OnLoad(ctx: Ctx) {
     if story(&ctx).await >= 83 {

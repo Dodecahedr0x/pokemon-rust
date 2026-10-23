@@ -6,7 +6,9 @@
 //! - `LittlerootTown_BrendansHouse_*` / `LittlerootTown_MaysHouse_*` (intro, meeting May),
 //! - `Route101_EventScript_*` (the rescue: `VAR_ROUTE101_STATE` 3, `FLAG_RESCUED_BIRCH`),
 //! - `LittlerootTown_ProfessorBirchsLab_EventScript_*` (`VAR_BIRCH_LAB_STATE` 3, starter),
-//! - `data/scripts/new_game.inc` `EventScript_ResetAllMapFlags` (objects hidden from the start).
+//! - `new_game.c` `NewGameInitData`: `EventScript_ResetAllMapFlags` (every object hidden from
+//!   the start, `consts::RESET_ALL_MAP_FLAGS`, taken from the decomp script), 3000 money,
+//!   `InitSeedotSizeRecord`/`InitLotadSizeRecord` and `NewGameInitPCItems` (a Potion in the PC).
 //!
 //! [`Start::BeforeRescue`] (`Emerald::default()`, and `Emerald::for_shells()` on the extracted
 //! world): May has been met in her bedroom and the player has left the houses
@@ -33,60 +35,72 @@
 use crate::Start;
 use crate::prelude::*;
 
-/// Flags set when the starter has been received.
-const SET: &[FlagId] = &[
-    FLAG_SYS_POKEMON_GET,
-    FLAG_RESCUED_BIRCH,
-    // Male intro (`InsideOfTruck_EventScript_SetIntroFlagsMale`).
+/// Gen3 `DEFAULT_MAX_SIZE` (`InitSeedotSizeRecord`, `InitLotadSizeRecord`).
+const DEFAULT_MAX_SIZE: u16 = 0x8000;
+
+/// Flags the intro sets (male) on top of `ResetAllMapFlags`, up to meeting May.
+const INTRO_SET: &[FlagId] = &[
+    // `InsideOfTruck_EventScript_SetIntroFlagsMale`.
     FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_MOM,
     FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_TRUCK,
     FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_RIVAL_MOM,
     FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_RIVAL_SIBLING,
     FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F_POKE_BALL,
-    // The truck left, Mom is inside, the clock is set, May has been met.
+    // `LittlerootTown_EventScript_*`: the truck leaves; the Vigoroth movers leave the house.
     FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_TRUCK,
-    FLAG_HIDE_LITTLEROOT_TOWN_MOM_OUTSIDE,
-    FLAG_HIDE_LITTLEROOT_TOWN_PLAYERS_BEDROOM_MOM,
     FLAG_HIDE_LITTLEROOT_TOWN_PLAYERS_HOUSE_VIGOROTH_1,
     FLAG_HIDE_LITTLEROOT_TOWN_PLAYERS_HOUSE_VIGOROTH_2,
-    FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_BRENDAN,
-    FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_RIVAL_BEDROOM,
-    FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_MAY,
-    FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_RIVAL_BEDROOM,
+    // `PlayersHouse_2F_EventScript_SetWallClock` (`players_house.inc`), `StartWallClock`
+    // (`clock.c`).
+    FLAG_SET_WALL_CLOCK,
+    FLAG_SYS_CLOCK_SET,
+    // `PlayersHouse_1F_EventScript_*` (the TV, `players_house.inc`), `tv.inc`.
+    FLAG_SYS_TV_HOME,
+    FLAG_SYS_TV_WATCH,
+    // `LittlerootTown_MaysHouse_1F_EventScript_*` (meeting May's mom).
+    FLAG_MET_RIVAL_MOM,
+    // `SecretBase_EventScript_SetDecorationFlags`, on each 2F's transition.
+    FLAG_DECORATION_1,
+    FLAG_DECORATION_2,
+    FLAG_DECORATION_3,
+    FLAG_DECORATION_4,
+    FLAG_DECORATION_5,
+    FLAG_DECORATION_6,
+    FLAG_DECORATION_7,
+    FLAG_DECORATION_8,
+    FLAG_DECORATION_9,
+    FLAG_DECORATION_10,
+    FLAG_DECORATION_11,
+    FLAG_DECORATION_12,
+    FLAG_DECORATION_13,
+    FLAG_DECORATION_14,
+    // May met in her bedroom: her Poké Ball goes.
     FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_2F_POKE_BALL,
-    // `ResetAllMapFlags`.
-    FLAG_HIDE_PLAYERS_HOUSE_DAD,
-    FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_2F_PICHU_DOLL,
-    FLAG_HIDE_LITTLEROOT_TOWN_BRENDANS_HOUSE_2F_SWABLU_DOLL,
-    FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN,
-    // Rescue and starter: Birch and May left Route 101 / the town, the lab balls are taken.
-    FLAG_HIDE_LITTLEROOT_TOWN_RIVAL,
-    FLAG_HIDE_LITTLEROOT_TOWN_BIRCH,
-    FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_RIVAL,
-    FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_POKEBALL_CYNDAQUIL,
-    FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_POKEBALL_TOTODILE,
-    FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_POKEBALL_CHIKORITA,
-    FLAG_HIDE_ROUTE_101_BIRCH,
-    FLAG_HIDE_ROUTE_101_BIRCH_ZIGZAGOON_BATTLE,
-    FLAG_HIDE_ROUTE_101_BIRCH_STARTERS_BAG,
-    // `Route101_EventScript_StartBirchRescue`: `removeobject LOCALID_ROUTE101_ZIGZAGOON`.
-    FLAG_HIDE_ROUTE_101_ZIGZAGOON,
-    FLAG_HIDE_ROUTE_103_BIRCH,
-    FLAG_HIDE_OLDALE_TOWN_RIVAL,
 ];
 
-/// Flags of [`SET`] that are still clear before the rescue.
-const CLEAR_BEFORE_RESCUE: &[FlagId] = &[
+/// `ResetAllMapFlags` flags the intro clears.
+const INTRO_CLEAR: &[FlagId] = &[
+    // `LittlerootTown_EventScript_*` (line "clearflag FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN"): the
+    // town's fat man shows once the player is out of the house.
+    FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN,
+    // `LittlerootTown_MaysHouse_1F`/`_2F` scripts: May back in her bedroom.
+    FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_RIVAL_BEDROOM,
+];
+
+/// Flags the rescue and the lab set (Route 101, `LittlerootTown_ProfessorBirchsLab_*`).
+const STARTER_SET: &[FlagId] = &[
     FLAG_SYS_POKEMON_GET,
     FLAG_RESCUED_BIRCH,
     FLAG_HIDE_LITTLEROOT_TOWN_MAYS_HOUSE_RIVAL_BEDROOM,
     FLAG_HIDE_ROUTE_101_BIRCH_ZIGZAGOON_BATTLE,
     FLAG_HIDE_ROUTE_101_BIRCH_STARTERS_BAG,
+    // `Route101_EventScript_StartBirchRescue`: `removeobject LOCALID_ROUTE101_ZIGZAGOON`.
     FLAG_HIDE_ROUTE_101_ZIGZAGOON,
 ];
 
-/// Flags set before the rescue that the rescue and the lab clear (`ResetAllMapFlags`).
-const SET_BEFORE_RESCUE: &[FlagId] = &[
+/// `ResetAllMapFlags` flags the rescue and the lab clear: Birch back in his lab, the Route 101
+/// boy out.
+const STARTER_CLEAR: &[FlagId] = &[
     FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH,
     FLAG_HIDE_ROUTE_101_BOY,
 ];
@@ -109,28 +123,51 @@ const VARS: &[(VarId, u16)] = &[
     (VAR_LITTLEROOT_RIVAL_STATE, 3),          // met the rival
     (VAR_BIRCH_LAB_STATE, 3),                 // received the starter
     (VAR_ROUTE101_STATE, 3),                  // Birch rescued
+    // `tv.c` counts the rescue's wild battle (`VarSet(VAR_DAILY_WILDS, … + 1)`).
+    (VAR_DAILY_WILDS, 1),
 ];
 
 /// Mudkip, as `sStarterMon` index (`VAR_STARTER_MON`).
 const STARTER: u16 = 2;
 
+/// `NewGameInitData`, the parts our engine keeps.
+async fn init_data(ctx: &Ctx) {
+    // `RunScriptImmediately(EventScript_ResetAllMapFlags)` (its berry trees aside).
+    for &f in RESET_ALL_MAP_FLAGS {
+        ctx.set_flag(f, true).await;
+    }
+    // `SetMoney(&gSaveBlock1Ptr->money, 3000)`.
+    ctx.money_add(3000).await;
+    ctx.set_var(VAR_SEEDOT_SIZE_RECORD, DEFAULT_MAX_SIZE).await;
+    ctx.set_var(VAR_LOTAD_SIZE_RECORD, DEFAULT_MAX_SIZE).await;
+    // `NewGameInitPCItems` (`sNewGamePCItems`, `player_pc.c`).
+    // The stub build has no items: its PC stays empty (no `addpcitem` report).
+    if crate::FLAVOR != crate::Flavor::Stub {
+        ctx.pc_item_add(ItemId(ITEM_POTION), 1).await;
+    }
+}
+
 /// The new-game script (`NewGame::script`).
 pub async fn new_game(ctx: Ctx, start: Start) {
+    init_data(&ctx).await;
+    for &f in INTRO_SET {
+        ctx.set_flag(f, true).await;
+    }
+    for &f in INTRO_CLEAR {
+        ctx.set_flag(f, false).await;
+    }
     match start {
         Start::BeforeRescue => {
-            for &f in SET.iter().filter(|f| !CLEAR_BEFORE_RESCUE.contains(f)) {
-                ctx.set_flag(f, true).await;
-            }
-            for &f in SET_BEFORE_RESCUE {
-                ctx.set_flag(f, true).await;
-            }
             for &(v, x) in VARS_BEFORE_RESCUE {
                 ctx.set_var(v, x).await;
             }
         }
         Start::AfterStarter => {
-            for &f in SET {
+            for &f in STARTER_SET {
                 ctx.set_flag(f, true).await;
+            }
+            for &f in STARTER_CLEAR {
+                ctx.set_flag(f, false).await;
             }
             for &(v, x) in VARS {
                 ctx.set_var(v, x).await;

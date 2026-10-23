@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_BIBLIO_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 13,
             y: 4,
             elevation: 3,
@@ -77,7 +77,7 @@
         (
             local_id: 10,
             id: Some("LOCALID_BIBLIO_PG_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 15,
             y: 17,
             elevation: 3,
@@ -92,7 +92,7 @@
         (
             local_id: 11,
             id: Some("LOCALID_BIBLIO_PG_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 20,
             y: 17,
             elevation: 3,
@@ -122,7 +122,7 @@
         (
             local_id: 13,
             id: Some("LOCALID_BIBLIO_PG_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 14,
             y: 21,
             elevation: 3,

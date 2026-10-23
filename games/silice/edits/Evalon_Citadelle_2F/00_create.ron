@@ -1,4 +1,4 @@
-// Silice Ch8, MAP_EVALON_CITADELLE_2F: la Salle du Trone (12 x 12), Loulpix and Doris. Building +
-// BattlePike (Emerald tilesets by name): the Pike's red curtains, statues and carpet are the
-// Game Master's stage. Out-of-map border: black, blocked.
-(name: "Evalon_Citadelle_2F", width: 12, height: 12, primary: "Building", secondary: "BattlePike", fill: 705, fill_collision: 0, fill_elevation: 3, border: [1025, 1025, 1025, 1025])
+// Silice Ch8, MAP_EVALON_CITADELLE_2F: la Salle du Trone (12 x 12), Loulpix and Doris at the giant
+// game table. Building (Emerald, by name) + SilEvalonCitadelle (original, games/silice/gfx/
+// SilEvalonCitadelle.ron, shared with the 1F). Out-of-map border: black, blocked.
+(name: "Evalon_Citadelle_2F", width: 12, height: 12, primary: "Building", secondary: "SilEvalonCitadelle", fill: 1, fill_collision: 1, fill_elevation: 0, border: [1025, 1025, 1025, 1025])

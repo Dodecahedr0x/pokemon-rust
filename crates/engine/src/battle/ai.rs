@@ -830,13 +830,17 @@ fn setup_effect(e: MoveEffect) -> bool {
 /// `AI_TrySwitchOrUseItem` for the opponent (`battle_ai_switch_items.c`): the party slot to
 /// switch to, or `None` to choose a move. Trainer battles only. `ShouldSwitch` as the engine
 /// can reach it, drawing every `Random()` Gen3 draws there:
-/// - trapped (Mean Look's `STATUS2_ESCAPE_PREVENTION`, Magnet Pull on the field and a Steel
-///   user): no switch, no draw (Wrap, Ingrain, Shadow Tag, Arena Trap are not in the engine);
+/// - trapped (Mean Look's `STATUS2_ESCAPE_PREVENTION`, Shadow Tag, the foe's Arena Trap
+///   (without Gen3's Flying / Levitate check), Magnet Pull on the field and a Steel user): no
+///   switch, no draw (Wrap and Ingrain are not in the engine);
 /// - nothing to do without another mon that can fight (`availableToSwitch == 0`);
-/// - `ShouldSwitchIfPerishSong` / `ShouldSwitchIfWonderGuard`: no Perish Song nor Wonder Guard;
+/// - `ShouldSwitchIfPerishSong`: no Perish Song;
+/// - `ShouldSwitchIfWonderGuard`: against Wonder Guard with no super effective move, the first
+///   party mon with one (`Random() % 3 < 2` per such move);
 /// - `FindMonThatAbsorbsOpponentsMove`: `HasSuperEffectiveMoveAgainstOpponents(TRUE) &&
-///   Random() % 3 != 0` is drawn; the rest needs Flash Fire / Water Absorb / Volt Absorb in the
-///   party (`Ability::Other` for the engine, assumed absent: no draw);
+///   Random() % 3 != 0` keeps the mon in; otherwise the last move that landed on it (with
+///   power) is Fire / Water / Electric and a party mon has Flash Fire / Water Absorb / Volt
+///   Absorb (`Random() & 1` each);
 /// - `ShouldSwitchIfNaturalCure` is not modelled: an asleep Natural Cure trainer mon at half
 ///   HP or more would draw `Random() & 1` there and switch through
 ///   `GetMostSuitableMonToSwitchInto` (no Act 1 trainer mon has Natural Cure);
@@ -859,6 +863,7 @@ pub fn switch(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
     if me.v.escape_prevented
         || (magnet && me.types.contains(&Type::Steel))
         || super::effects::shadow_tagged(b, USER)
+        || b.battler(TARGET).ability == Ability::ArenaTrap
     {
         return None;
     }
@@ -867,9 +872,13 @@ pub fn switch(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
     if !party.iter().enumerate().any(|(i, p)| others(i, p)) {
         return None;
     }
-    // FindMonThatAbsorbsOpponentsMove's first line (its `&&` draws only after a hit).
-    if super_effective_move(b, t, rng, true) {
-        rng.random();
+    if let Some(i) = switch_if_wonder_guard(b, t, rng) {
+        return Some(i);
+    }
+    // FindMonThatAbsorbsOpponentsMove (its `&&` draws only after a hit).
+    let keep = super_effective_move(b, t, rng, true) && !rng.random().is_multiple_of(3);
+    if !keep && let Some(i) = absorber(b, t, rng) {
+        return Some(i);
     }
     if super_effective_move(b, t, rng, false) {
         return None;
@@ -883,15 +892,79 @@ pub fn switch(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
         .or_else(|| find_mon(b, t, rng, Effectiveness::NotVery, 3))
 }
 
-/// `AI_TypeCalc(move, species, ability)`: the chart on the species' types (Foresight ignored,
-/// no Levitate nor Wonder Guard in the engine); Struggle has no flags.
-fn type_calc(t: &BattleTables, mov: MoveId, species: crate::data::SpeciesId) -> Effectiveness {
+/// `ShouldSwitchIfWonderGuard`: the player's battler has Wonder Guard and no move of the AI's
+/// battler is super effective on it; the first other party mon (with HP) with a super
+/// effective move passing `Random() % 3 < 2`.
+fn switch_if_wonder_guard(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
+    let (me, foe) = (b.battler(USER), b.battler(TARGET));
+    if foe.ability != Ability::WonderGuard {
+        return None;
+    }
+    let (species, ability) = (foe.mon.species, foe.ability);
+    let super_eff = |m: MoveId| type_calc(t, m, species, ability) == Effectiveness::Super;
+    if me.mon.moves.into_iter().flatten().any(super_eff) {
+        return None;
+    }
+    for (i, p) in b.parties[USER as usize].iter().enumerate() {
+        if p.hp == 0 || i == me.mon.party as usize {
+            continue;
+        }
+        for m in p.moves.into_iter().flatten() {
+            if super_eff(m) && rng.random() % 3 < 2 {
+                return Some(i as u8);
+            }
+        }
+    }
+    None
+}
+
+/// `FindMonThatAbsorbsOpponentsMove` after its first line: the move that last landed on the
+/// AI's battler (with power) is Fire / Water / Electric, the battler lacks the absorbing
+/// ability, and an other party mon (with HP) has it, passing `Random() & 1`.
+fn absorber(b: &Battle, t: &BattleTables, rng: &mut Rng) -> Option<u8> {
+    let me = b.battler(USER);
+    let info = t.move_info(me.last_landed?);
+    if info.power == 0 {
+        return None;
+    }
+    let absorbing = match info.ty {
+        Type::Fire => Ability::FlashFire,
+        Type::Water => Ability::WaterAbsorb,
+        Type::Electric => Ability::VoltAbsorb,
+        _ => return None,
+    };
+    if me.ability == absorbing {
+        return None;
+    }
+    for (i, p) in b.parties[USER as usize].iter().enumerate() {
+        if p.hp == 0 || i == me.mon.party as usize {
+            continue;
+        }
+        if p.ability(t) == absorbing && rng.random() & 1 != 0 {
+            return Some(i as u8);
+        }
+    }
+    None
+}
+
+/// `AI_TypeCalc(move, species, ability)`: the chart on the species' types (Foresight ignored);
+/// a Ground move on Levitate and, on Wonder Guard, a move with power that is not super
+/// effective do not affect it; Struggle has no flags.
+fn type_calc(
+    t: &BattleTables,
+    mov: MoveId,
+    species: crate::data::SpeciesId,
+    ability: Ability,
+) -> Effectiveness {
     if mov == t.struggle {
         return Effectiveness::Normal;
     }
     let info = t.move_info(mov);
+    if ability == Ability::Levitate && info.ty == Type::Ground {
+        return Effectiveness::NoEffect;
+    }
     let types = t.species_info(species).types;
-    calc::type_effect(
+    let eff = calc::type_effect(
         t.type_chart,
         t.foresight_split,
         false,
@@ -900,15 +973,20 @@ fn type_calc(t: &BattleTables, mov: MoveId, species: crate::data::SpeciesId) -> 
         info.power,
         1,
     )
-    .eff
+    .eff;
+    if ability == Ability::WonderGuard && eff != Effectiveness::Super && info.power != 0 {
+        return Effectiveness::NoEffect;
+    }
+    eff
 }
 
 /// `HasSuperEffectiveMoveAgainstOpponents(noRng)` (singles): a move of the AI's battler super
 /// effective on the player's species; with RNG each one passes on `Random() % 10 != 0`.
 fn super_effective_move(b: &Battle, t: &BattleTables, rng: &mut Rng, no_rng: bool) -> bool {
-    let foe = b.battler(TARGET).mon.species;
+    let foe = b.battler(TARGET);
+    let (foe, ability) = (foe.mon.species, foe.ability);
     for m in b.battler(USER).mon.moves.into_iter().flatten() {
-        if type_calc(t, m, foe) == Effectiveness::Super
+        if type_calc(t, m, foe, ability) == Effectiveness::Super
             && (no_rng || !rng.random().is_multiple_of(10))
         {
             return true;
@@ -932,13 +1010,19 @@ fn find_mon(
     if t.move_info(last).power == 0 {
         return None;
     }
-    let foe = b.battler(TARGET).mon.species;
+    let foe = b.battler(TARGET);
+    let (foe, ability) = (foe.mon.species, foe.ability);
     for (i, p) in b.parties[USER as usize].iter().enumerate() {
-        if p.hp == 0 || i == me.mon.party as usize || type_calc(t, last, p.species) != flags {
+        if p.hp == 0
+            || i == me.mon.party as usize
+            || type_calc(t, last, p.species, p.ability(t)) != flags
+        {
             continue;
         }
         for m in p.moves.into_iter().flatten() {
-            if type_calc(t, m, foe) == Effectiveness::Super && rng.random().is_multiple_of(modulo) {
+            if type_calc(t, m, foe, ability) == Effectiveness::Super
+                && rng.random().is_multiple_of(modulo)
+            {
                 return Some(i as u8);
             }
         }

@@ -12,7 +12,7 @@
     // Warp 0: the Monks'' shortcut tunnel behind the bamboo curtain, to Manga-Square's warp 5 (Rue des Echoppes).
     Warp(x: 25, y: 26, dest_map: "MangaSquare", dest_warp: 5),
     // Route_S06_Sc02's actors (source obj 1-3) on the Plateau de l'Encens.
-    Object(x: 13, y: 25, gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M", id: "LOCALID_ROUTE_S06_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN"),
+    Object(x: 13, y: 25, gfx: "OBJ_EVENT_GFX_SIL_ADRIEN", id: "LOCALID_ROUTE_S06_ADRIEN", movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_ROUTE_S06_ADRIEN"),
     Object(x: 12, y: 25, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_ROUTE_S06_SBIRE_A", movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_A"),
     Object(x: 14, y: 25, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_F", id: "LOCALID_ROUTE_S06_SBIRE_B", movement: "MOVEMENT_TYPE_FACE_LEFT", flag: "FLAG_SIL_HIDE_ROUTE_S06_SBIRE_B"),
     // Trainers of the climb (section 5): Luna and Hoshi in the Lacets hauts, Yumi in the middle zone,

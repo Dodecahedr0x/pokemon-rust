@@ -638,7 +638,7 @@ mod lowering {
                 Some(RootKind::Object(1)),
                 vec![
                     i("playse", vec![c("SE_PIN")]),
-                    i("checkpartymove", vec![c("MOVE_CUT")]),
+                    i("checkpcitem", vec![c("ITEM_POTION"), Half(1)]),
                     i("checkcoins", vec![v("VAR_0x8005")]),
                     i("pokemart", vec![Raw(0x1234)]),
                     i("special", vec![c("SPECIAL_HealPlayerParty")]),
@@ -663,7 +663,7 @@ mod lowering {
             fn_src(&out.modules["M"], "M_Root"),
             "pub async fn M_Root(ctx: Ctx) -> Flow {\n    \
              // playse SE_PIN\n    \
-             ctx.set_var(VAR_RESULT, 6).await; // checkpartymove (default)\n    \
+             ctx.set_var(VAR_RESULT, 0).await; // checkpcitem (default)\n    \
              ctx.set_var(VAR_0x8005, 0).await; // checkcoins (default)\n    \
              ctx.report(Report::Unsupported(\"pokemart\")).await; // 0x1234\n    \
              special(&ctx, SPECIAL_HealPlayerParty).await;\n    \
@@ -1143,6 +1143,7 @@ mod lowering {
             i("checkitemspace", vec![c("ITEM_POTION"), Half(2)]),
             i("checkitem", vec![c("ITEM_POTION"), v("VAR_0x8005")]),
             i("checkitemtype", vec![c("ITEM_POTION")]),
+            i("checkpartymove", vec![c("MOVE_CUT")]),
             i(
                 "applymovement",
                 vec![c("LOCALID_PLAYER"), mv("N_Movement_Walk")],
@@ -1188,6 +1189,7 @@ mod lowering {
             i("message", vec![t("N_Text_Hello")]),
             i("messageautoscroll", vec![t("N_Text_Hello")]),
             i("messageinstant", vec![t("N_Text_Hello")]),
+            i("pokenavcall", vec![t("N_Text_Hello")]),
             i("waitmessage", vec![]),
             i("closemessage", vec![]),
             i("lockall", vec![]),
@@ -1248,6 +1250,23 @@ mod lowering {
                 vec![c("SPECIES_ZIGZAGOON"), Byte(2), c("ITEM_NONE")],
             ),
             i("dowildbattle", vec![]),
+            i("setfieldeffectargument", vec![Byte(0), v("VAR_RESULT")]),
+            i("dofieldeffect", vec![Half(25)]),
+            i("waitfieldeffect", vec![Half(25)]),
+            i("copyobjectxytoperm", vec![Half(2)]),
+            i("setmaplayoutindex", vec![Half(0x105)]),
+            i(
+                "createvobject",
+                vec![
+                    c("OBJ_EVENT_GFX_RIVAL_MAY_NORMAL"),
+                    Byte(3),
+                    Half(4),
+                    v("VAR_0x8004"),
+                    Byte(3),
+                    Byte(4),
+                ],
+            ),
+            i("turnvobject", vec![Byte(3), Byte(2)]),
             i("goto_if", vec![Byte(5), s("N_Tail")]),
             i("gotostd_if", vec![Byte(0), c("STD_OBTAIN_ITEM")]),
             i("call", vec![s("N_Sub")]),
@@ -1333,7 +1352,9 @@ mod lowering {
             "    check_item(&ctx, ITEM_POTION, ctx.var(VAR_0x8005).await).await;",
             "check_item_type(&ctx, ITEM_POTION).await;",
             "ctx.move_obj(PLAYER, &N_Movement_Walk).await;",
-            "ctx.move_obj(2, &N_Movement_Walk).await; // applymovementat",
+            "ctx.move_obj_at(2, MAP_LITTLEROOT_TOWN, &N_Movement_Walk).await;",
+            "ctx.wait_move_at(2, MAP_LITTLEROOT_TOWN).await;",
+            "ctx.hide_object_at(2, MAP_LITTLEROOT_TOWN).await;",
             "ctx.remove_object(ctx.var(VAR_LAST_TALKED).await as u8).await;",
             "ctx.show_object(PLAYER).await; // showobjectat",
             // The constant name: content maps it once (`classify::movement`).
@@ -1358,7 +1379,14 @@ mod lowering {
             "ctx.set_metatile(3, 4, 513, true).await;",
             "ctx.door(ctx.var(VAR_0x8004).await as i16, 4, false).await;",
             "wild = Some((SPECIES_ZIGZAGOON, 2));",
-            "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }",
+            "field_effect_arg(&ctx, 0, ctx.var(VAR_RESULT).await).await;",
+            "field_effect(&ctx, 25).await;",
+            "ctx.wait_field_effect(25).await;",
+            "ctx.copy_object_pos_to_template(2).await;",
+            "ctx.set_map_layout(261).await;",
+            "ctx.create_virtual_object(OBJ_EVENT_GFX_RIVAL_MAY_NORMAL, 3, (4, ctx.var(VAR_0x8004).await as i16), 3, Dir::Right).await;",
+            "ctx.turn_virtual_object(3, Dir::Up).await;",
+            "if let Some((s, l)) = wild { outcome = ctx.battle_wild(s, l, false).await as u16; }",
             "return Flow::Continue;",
         ] {
             assert!(src.contains(needle), "missing {needle:?} in:\n{src}");
@@ -1641,7 +1669,7 @@ mod lowering {
     }
 
     /// The `content::prelude` modules holding Wave 0's Milestone 8 helpers, copied as they are.
-    const M8_HELPER_MODULES: [&str; 4] = ["items", "menu", "text", "trainer"];
+    const M8_HELPER_MODULES: [&str; 5] = ["field", "items", "menu", "text", "trainer"];
 
     /// The Milestone 8 prelude over the engine: its types, and Wave 0's helper modules
     /// ([`M8_HELPER_MODULES`]) and `set_warp` (appended by `compile_lowered`).
@@ -1650,11 +1678,13 @@ pub use engine::battle::BattleOutcome;
 pub use engine::data::{ItemId, MoveId, ScriptId};
 pub use engine::script::{BufferSrc, Report, WarpSlot};
 
+mod field;
 mod items;
 mod menu;
 mod text;
 mod trainer;
 
+pub use field::*;
 pub use items::*;
 pub use menu::*;
 pub use text::*;

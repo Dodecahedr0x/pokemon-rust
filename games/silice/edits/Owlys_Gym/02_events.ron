@@ -3,7 +3,8 @@
     Header((music: "MUS_GYM", region_map_section: "MAPSEC_NONE", cave: 1, weather: "WEATHER_NONE", map_type: "MAP_TYPE_UNDERGROUND", allow_cycling: false, allow_escaping: false, allow_running: true, show_map_name: false, battle_scene: "MAP_BATTLE_SCENE_NORMAL")),
     // cave: 1 makes it dark until Flash; the engine does not draw darkness yet. The trapdoors should only
     // show under the light (missing mechanic); they are always drawn, as the source's fallback says.
-    // Bridge cells (for the scripts' set_metatile: posed = 700 walkable, raised = 581 solid):
+    // Bridge cells (for the scripts' set_metatile: posed = SilOwlysGym's pont 542 walkable, raised =
+    // its vide 541 solid):
     //   p1: (4,34) (4,35) (4,36) (4,37) (4,38) (4,39) (4,40) (4,41) (4,42) (4,43) (5,43) (6,43) (7,43) (8,43) (9,43) (10,43)
     //   p2: (24,34) (24,35) (24,36) (24,37) (24,38) (24,39) (24,40) (24,41) (24,42) (24,43) (18,43) (19,43) (20,43) (21,43) (22,43) (23,43)
     //   p3: (7,31) (8,31) (9,31) (10,31) (11,31)
@@ -25,7 +26,7 @@
     // shown (hidden, same cell). 3: Mathieu (hidden), on the walkway: he walks up four cells.
     Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_SIDNEY", id: "LOCALID_GYM_SKYCKER_MASQUE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_Gym_Sc01", flag: "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_MASQUE"),
     Object(x: 14, y: 3, gfx: "OBJ_EVENT_GFX_STEVEN", id: "LOCALID_GYM_SKYCKER_VISAGE", local_id: 2, movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_Gym_EventScript_Skycker", flag: "FLAG_SIL_HIDE_OWLYS_GYM_SKYCKER_VISAGE"),
-    Object(x: 14, y: 9, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_GYM_MATHIEU", local_id: 3, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU"),
+    Object(x: 14, y: 9, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_GYM_MATHIEU", local_id: 3, movement: "MOVEMENT_TYPE_FACE_UP", flag: "FLAG_SIL_HIDE_OWLYS_GYM_MATHIEU"),
     // 4-7: the four Watchers (sight 2), by their pillars (Ariane, Morgane, Corvus, Nyx). The source hides
     // them inside the pillars until the player crosses their line of sight (missing mechanic): they stand
     // beside them. Each one's script sets FLAG_SIL_OWLYS_VEILLEUR_n and puts out its statue's eyes.

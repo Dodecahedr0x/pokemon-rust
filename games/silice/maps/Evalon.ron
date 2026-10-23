@@ -17,7 +17,7 @@
         (
             local_id: 1,
             id: Some("LOCALID_EVALON_MATHIEU"),
-            gfx: "OBJ_EVENT_GFX_BLACK_BELT",
+            gfx: "OBJ_EVENT_GFX_SIL_MATHIEU",
             x: 24,
             y: 40,
             elevation: 3,
@@ -32,7 +32,7 @@
         (
             local_id: 2,
             id: Some("LOCALID_EVALON_ADRIEN"),
-            gfx: "OBJ_EVENT_GFX_SCHOOL_KID_M",
+            gfx: "OBJ_EVENT_GFX_SIL_ADRIEN",
             x: 23,
             y: 40,
             elevation: 3,
@@ -47,7 +47,7 @@
         (
             local_id: 3,
             id: Some("LOCALID_EVALON_GWADA"),
-            gfx: "OBJ_EVENT_GFX_BOY_2",
+            gfx: "OBJ_EVENT_GFX_SIL_GWADA",
             x: 26,
             y: 40,
             elevation: 3,
@@ -273,8 +273,8 @@
             local_id: 20,
             id: Some("LOCALID_EVALON_APPRENTI_COLOMBOPHILE"),
             gfx: "OBJ_EVENT_GFX_BOY_1",
-            x: 16,
-            y: 28,
+            x: 19,
+            y: 27,
             elevation: 3,
             movement: "MOVEMENT_TYPE_FACE_DOWN",
             range_x: 0,

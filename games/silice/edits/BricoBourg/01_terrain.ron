@@ -1,15 +1,15 @@
 // Cells: ground plan, then the buildings stamped over it.
 [
-    // Ground plan: T t Y y forest (2x2 pattern), . grass, * flowers, = gravel, { } [ ] ( ) canal (top, banks, end),
-    // r R roots, b synthetic brambles, f fence, s signpost.
+    // Ground plan: T t Y y forest (2x2 pattern), . grass, * flowers, = gravel, { } [ ] ( ) canal (SilBricoBourg's canal_haut, canal, canal_bas),
+    // b synthetic brambles, f fence, s signpost.
     // The Labo door's front cell (4, 8) is a porch fenced at (3, 8) and (5, 8) and closed by the
     // brambles (4, 9): the cell the door's exit walk lands on stays walkable (SIL2 Ch1 scripts fix;
     // the brambles were on (4, 8), solid in the layout).
     Ascii(x: 0, y: 0, rows: [
         "TtTtTtTtTt.==.TtTtTtTtTt",
         "YyYyYyYyYy.==.YyYyYyYyYy",
-        "Tt.......r.==.r....{}tTt",
-        "Yy.......R.==.R....[]yYy",
+        "Tt.........==......{}tTt",
+        "Yy.........==......[]yYy",
         "Tt.......*.==......[]tTt",
         "Yy........s==..**..[]yYy",
         "Tt.........==......[]tTt",
@@ -26,18 +26,27 @@
         "Yy.................()yYy",
         "TtTtTtTtTtTtTtTtTtTtTtTt",
         "YyYyYyYyYyYyYyYyYyYyYyYy",
-    ], legend: {'.': (metatile: 1, collision: 0), '*': (metatile: 4, collision: 0), '=': (metatile: 523, collision: 0), '{': (metatile: 200, collision: 1), '}': (metatile: 202, collision: 1), '[': (metatile: 208, collision: 1), ']': (metatile: 210, collision: 1), '(': (metatile: 216, collision: 1), ')': (metatile: 218, collision: 1), 'r': (metatile: 14, collision: 1), 'R': (metatile: 22, collision: 1), 'b': (metatile: 514, collision: 1), 'f': (metatile: 6, collision: 1), 's': (metatile: 27, collision: 1), 'T': (metatile: 468, collision: 1), 't': (metatile: 469, collision: 1), 'Y': (metatile: 476, collision: 1), 'y': (metatile: 477, collision: 1)}),
-    // LABO (closed botany lab), x 3-6, y 2-7; its door (4, 7) is behind the brambles.
-    // The door is solid (collision 1) until Chapter 1 gives it a warp: a closed, decorative door.
-    Ascii(x: 3, y: 2, rows: ["abcd", "efgh", "ijkl", "mnop", "qrss", "tuvv"], legend: {'a': (metatile: 524, collision: 1), 'b': (metatile: 525, collision: 1), 'c': (metatile: 526, collision: 1), 'd': (metatile: 527, collision: 1), 'e': (metatile: 532, collision: 1), 'f': (metatile: 533, collision: 1), 'g': (metatile: 534, collision: 1), 'h': (metatile: 535, collision: 1), 'i': (metatile: 540, collision: 1), 'j': (metatile: 541, collision: 1), 'k': (metatile: 542, collision: 1), 'l': (metatile: 543, collision: 1), 'm': (metatile: 548, collision: 1), 'n': (metatile: 549, collision: 1), 'o': (metatile: 550, collision: 1), 'p': (metatile: 551, collision: 1), 'q': (metatile: 556, collision: 1), 'r': (metatile: 577, collision: 1), 's': (metatile: 558, collision: 1), 't': (metatile: 564, collision: 1), 'u': (metatile: 585, collision: 1), 'v': (metatile: 566, collision: 1)}),
+    ], legend: {'.': (metatile: 1, collision: 0), '*': (metatile: 4, collision: 0), '=': (metatile: 603, collision: 0), '{': (metatile: 607, collision: 1), '}': (metatile: 608, collision: 1), '[': (metatile: 605, collision: 1), ']': (metatile: 606, collision: 1), '(': (metatile: 609, collision: 1), ')': (metatile: 610, collision: 1), 'b': (metatile: 604, collision: 1), 'f': (metatile: 6, collision: 1), 's': (metatile: 27, collision: 1), 'T': (metatile: 468, collision: 1), 't': (metatile: 469, collision: 1), 'Y': (metatile: 476, collision: 1), 'y': (metatile: 477, collision: 1)}),
+    // The buildings and props: SilBricoBourg's stamps (games/silice/gfx/SilBricoBourg.ron, original art).
+    // LABO (closed botany lab), x 2-6, y 2-7; its door (4, 7) is behind the brambles.
+    // The door is solid until Chapter 1 gives it a warp: a closed, decorative door.
+    Stamp(x: 2, y: 2, name: "SilBricoBourg_labo"),
     // Adrien's family house, x 15-17, y 3-6, door (16, 6), solid as in Emerald (pushing up into it warps).
-    Ascii(x: 15, y: 3, rows: ["abc", "def", "ghi", "jkl"], legend: {'a': (metatile: 8, collision: 1), 'b': (metatile: 9, collision: 1), 'c': (metatile: 10, collision: 1), 'd': (metatile: 16, collision: 1), 'e': (metatile: 17, collision: 1), 'f': (metatile: 18, collision: 1), 'g': (metatile: 24, collision: 1), 'h': (metatile: 25, collision: 1), 'i': (metatile: 26, collision: 1), 'j': (metatile: 32, collision: 1), 'k': (metatile: 33, collision: 1), 'l': (metatile: 34, collision: 1)}),
+    Stamp(x: 15, y: 3, name: "SilBricoBourg_maison_adrien"),
     // Fountain, x 9-10, y 9-10.
-    Ascii(x: 9, y: 9, rows: ["ab", "cd"], legend: {'a': (metatile: 578, collision: 1), 'b': (metatile: 579, collision: 1), 'c': (metatile: 586, collision: 1), 'd': (metatile: 587, collision: 1)}),
+    Stamp(x: 9, y: 9, name: "SilBricoBourg_fontaine"),
     // LE SHAKER, x 13-15, y 9-13, door (14, 13).
-    Ascii(x: 13, y: 9, rows: ["abc", "def", "ghi", "jkl", "mno"], legend: {'a': (metatile: 520, collision: 1), 'b': (metatile: 521, collision: 1), 'c': (metatile: 522, collision: 1), 'd': (metatile: 528, collision: 1), 'e': (metatile: 529, collision: 1), 'f': (metatile: 530, collision: 1), 'g': (metatile: 536, collision: 1), 'h': (metatile: 537, collision: 1), 'i': (metatile: 538, collision: 1), 'j': (metatile: 560, collision: 1), 'k': (metatile: 576, collision: 1), 'l': (metatile: 562, collision: 1), 'm': (metatile: 568, collision: 1), 'n': (metatile: 584, collision: 0), 'o': (metatile: 570, collision: 1)}),
-    // Noobody's house, x 4-6, y 11-14, door (5, 14), solid as in Emerald.
-    Ascii(x: 4, y: 11, rows: ["abc", "def", "ghi", "jkl"], legend: {'a': (metatile: 8, collision: 1), 'b': (metatile: 9, collision: 1), 'c': (metatile: 10, collision: 1), 'd': (metatile: 16, collision: 1), 'e': (metatile: 17, collision: 1), 'f': (metatile: 18, collision: 1), 'g': (metatile: 24, collision: 1), 'h': (metatile: 25, collision: 1), 'i': (metatile: 26, collision: 1), 'j': (metatile: 32, collision: 1), 'k': (metatile: 33, collision: 1), 'l': (metatile: 34, collision: 1)}),
-    // Vegetable garden, x 8-10, y 15-17 (soil walkable).
-    Ascii(x: 8, y: 15, rows: ["abc", "def", "ghi"], legend: {'a': (metatile: 259, collision: 0), 'b': (metatile: 260, collision: 0), 'c': (metatile: 261, collision: 0), 'd': (metatile: 267, collision: 0), 'e': (metatile: 268, collision: 0), 'f': (metatile: 269, collision: 0), 'g': (metatile: 275, collision: 0), 'h': (metatile: 276, collision: 0), 'i': (metatile: 277, collision: 0)}),
+    Stamp(x: 13, y: 9, name: "SilBricoBourg_shaker"),
+    // Noobody's house, x 4-6, y 11-14, door (5, 14).
+    Stamp(x: 4, y: 11, name: "SilBricoBourg_maison_joueur"),
+    // The tinkerer's open workshop, x 7-9, y 4-5 (the BRICOLEUSE stands in front, at (7, 6)).
+    Stamp(x: 7, y: 4, name: "SilBricoBourg_atelier"),
+    // The giant roots flanking the north exit, x 8-9 and 14-15, y 0-2 (in place of the forest's edge trees).
+    Stamp(x: 8, y: 0, name: "SilBricoBourg_racines_g"),
+    Stamp(x: 14, y: 0, name: "SilBricoBourg_racines_d"),
+    // Dismantled bikes in front of the doors.
+    Stamp(x: 7, y: 14, name: "SilBricoBourg_velo"),
+    Stamp(x: 17, y: 7, name: "SilBricoBourg_velo"),
+    // Vegetable garden, x 8-10, y 15-17 (walkable between the rows).
+    Stamp(x: 8, y: 15, name: "SilBricoBourg_potager"),
 ]

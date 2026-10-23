@@ -100,6 +100,8 @@ impl<'a> Low<'a> {
         let mut s = head;
         if wild {
             s.push_str("    let mut wild: Option<(SpeciesId, u8)> = None;\n");
+            // Gen3 `gBattleOutcome` of the function's `dowildbattle`, for `GetBattleOutcome`.
+            s.push_str("    let mut outcome: u16 = 0;\n");
         }
         if looped {
             if declare_pc {
@@ -130,6 +132,7 @@ impl<'a> Low<'a> {
         let mut out = Vec::new();
         let mut st = BlockState {
             moved: false,
+            trainer: None,
             word0: None,
             wild,
         };
@@ -391,12 +394,12 @@ impl<'a> Low<'a> {
                     "ctx.set_cond(ctx.var({a}).await.cmp(&ctx.var({c}).await));"
                 ));
             }
-            ("special", [s]) => return Ok(self.special(s, None, out)),
+            ("special", [s]) => return Ok(self.special(s, None, st, out)),
             ("specialvar", [v, s]) => {
                 let Some(v) = var_target(v) else {
                     return Ok(false);
                 };
-                return Ok(self.special(s, Some(v), out));
+                return Ok(self.special(s, Some(v), st, out));
             }
             ("waitstate", _) => out.push("ctx.wait_state().await;".to_string()),
             ("delay", [n]) => {
@@ -493,12 +496,18 @@ impl<'a> Low<'a> {
                 let (Some(lid), Some(m)) = (local_id(id), self.movement_path(fx.module, m)) else {
                     return Ok(false);
                 };
-                if !at_here(id, at, fx.module) {
-                    return Ok(false);
+                // The player, on any map; another object, of the named map (the previous one
+                // after a crossing mid-script, Gen3 `ScriptMovement_StartObjectMovementScript`).
+                if is_player(id) {
+                    out.push(format!(
+                        "ctx.move_obj({lid}, &{m}).await; // applymovementat"
+                    ));
+                } else {
+                    let Some(at) = map_arg(at) else {
+                        return Ok(false);
+                    };
+                    out.push(format!("ctx.move_obj_at({lid}, {at}, &{m}).await;"));
                 }
-                out.push(format!(
-                    "ctx.move_obj({lid}, &{m}).await; // applymovementat"
-                ));
                 st.moved = true;
             }
             ("waitmovement", [id]) => {
@@ -508,13 +517,20 @@ impl<'a> Low<'a> {
                 out.push(line);
             }
             ("waitmovementat", [id, at]) => {
-                if !at_here(id, at, fx.module) {
-                    return Ok(false);
+                if is_player(id) {
+                    let Some(line) = self.wait_move(id, st) else {
+                        return Ok(false);
+                    };
+                    out.push(format!("{line} // waitmovementat"));
+                } else {
+                    let (Some(lid), Some(at)) = (local_id(id), map_arg(at)) else {
+                        return Ok(false);
+                    };
+                    if lid == "0" && !st.moved {
+                        self.stats.unresolved_waitmovement += 1;
+                    }
+                    out.push(format!("ctx.wait_move_at({lid}, {at}).await;"));
                 }
-                let Some(line) = self.wait_move(id, st) else {
-                    return Ok(false);
-                };
-                out.push(format!("{line} // waitmovementat"));
             }
             ("addobject" | "removeobject", [id]) => {
                 let Some(id) = local_id(id) else {
@@ -522,6 +538,15 @@ impl<'a> Low<'a> {
                 };
                 let f = if op == "addobject" { "add" } else { "remove" };
                 out.push(format!("ctx.{f}_object({id}).await;"));
+            }
+            ("showobjectat" | "hideobjectat", [id, at]) if !is_player(id) => {
+                // Gen3 `SetObjectInvisibility`: the named map's object (the previous map's after
+                // a crossing mid-script).
+                let (Some(lid), Some(at)) = (local_id(id), map_arg(at)) else {
+                    return Ok(false);
+                };
+                let f = &op[..op.len() - "objectat".len()];
+                out.push(format!("ctx.{f}_object_at({lid}, {at}).await;"));
             }
             ("addobjectat" | "removeobjectat" | "showobjectat" | "hideobjectat", [id, at]) => {
                 let Some(lid) = local_id(id) else {
@@ -558,7 +583,11 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.set_movement_type({id}, {t}).await;"));
             }
             ("trainerbattle", [k, tr, local, rest @ ..]) => {
-                return self.trainerbattle(k, tr, local, rest, out);
+                let ok = self.trainerbattle(k, tr, local, rest, out)?;
+                if ok {
+                    st.trainer = trainer_arg(tr, false);
+                }
+                return Ok(ok);
             }
             ("checktrainerflag" | "settrainerflag" | "cleartrainerflag", [t]) => {
                 let Some(t) = trainer_arg(t, true) else {
@@ -586,6 +615,16 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.message({t}).await;{note}"));
             }
             ("closemessage", _) => out.push("ctx.close_message().await;".to_string()),
+            // Gen3 `ShowPokenavFieldMessage`: the call in the field message box (no wait).
+            ("pokenavcall", [Text(t)]) if is_ident(t) => {
+                out.push(format!("ctx.message({t}).await; // pokenavcall"));
+            }
+            ("checkpartymove", [m]) => {
+                let Some(m) = move_arg(m) else {
+                    return Ok(false);
+                };
+                out.push(format!("check_party_move(&ctx, {m}).await;"));
+            }
             ("lock", _) => out.push("ctx.lock().await;".to_string()),
             ("lockall", _) => out.push("ctx.lock_all().await;".to_string()),
             ("release", _) => out.push("ctx.release().await;".to_string()),
@@ -770,6 +809,60 @@ impl<'a> Low<'a> {
                 out.push(format!("ctx.door({x}, {y}, {}).await;", op == "opendoor"));
             }
             ("waitdooranim", _) => out.push("ctx.wait_door().await;".to_string()),
+            // Wave C: field effects (`prelude::field`) and `copyobjectxytoperm`.
+            ("dofieldeffect" | "waitfieldeffect", [id]) => {
+                let Some(id) = u16_expr(id, true) else {
+                    return Ok(false);
+                };
+                out.push(if op == "dofieldeffect" {
+                    format!("field_effect(&ctx, {id}).await;")
+                } else {
+                    format!("ctx.wait_field_effect({id}).await;")
+                });
+            }
+            ("setfieldeffectargument", [n, v]) => {
+                let (Some(n), Some(v)) = (u8_lit(n), u16_expr(v, true)) else {
+                    return Ok(false);
+                };
+                out.push(format!("field_effect_arg(&ctx, {n}, {v}).await;"));
+            }
+            ("createvobject", [gfx, id, x, y, elevation, d]) => {
+                let (Some(gfx), Some(id), Some(x), Some(y), Some(elevation), Some(d)) = (
+                    u16_expr(gfx, false),
+                    u8_lit(id),
+                    coord(x),
+                    coord(y),
+                    u8_lit(elevation),
+                    u8_lit(d).and_then(dir),
+                ) else {
+                    return Ok(false);
+                };
+                out.push(format!(
+                    "ctx.create_virtual_object({gfx}, {id}, ({x}, {y}), {elevation}, {d}).await;"
+                ));
+            }
+            ("turnvobject", [id, d]) => {
+                let (Some(id), Some(d)) = (u8_lit(id), u8_lit(d).and_then(dir)) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.turn_virtual_object({id}, {d}).await;"));
+            }
+            ("setmaplayoutindex", [l]) => {
+                let Some(e) = u16_expr(l, true) else {
+                    return Ok(false);
+                };
+                let note = match l {
+                    Const { name, .. } => format!(" // {name}"),
+                    _ => String::new(),
+                };
+                out.push(format!("ctx.set_map_layout({e}).await;{note}"));
+            }
+            ("copyobjectxytoperm", [id]) => {
+                let Some(id) = local_id(id) else {
+                    return Ok(false);
+                };
+                out.push(format!("ctx.copy_object_pos_to_template({id}).await;"));
+            }
             ("setwildbattle", [s, level, _item]) => {
                 let (Some(s), Some(level)) = (species_arg(s, false), u8_lit(level)) else {
                     return Ok(false);
@@ -781,7 +874,7 @@ impl<'a> Low<'a> {
                     return Ok(false);
                 }
                 out.push(
-                    "if let Some((s, l)) = wild { ctx.battle_wild(s, l, false).await; }"
+                    "if let Some((s, l)) = wild { outcome = ctx.battle_wild(s, l, false).await as u16; }"
                         .to_string(),
                 );
             }
@@ -824,6 +917,7 @@ impl<'a> Low<'a> {
         &mut self,
         s: &IrArg,
         dest: Option<String>,
+        st: &BlockState,
         out: &mut Vec<String>,
     ) -> bool {
         let Some((name, value)) = special_name(s) else {
@@ -840,10 +934,20 @@ impl<'a> Low<'a> {
         } else {
             format!("{value:#x}")
         };
+        // Specials that read script state Gen3 keeps outside vars: the battle outcome of the
+        // function's `dowildbattle` (`gBattleOutcome`), the trainer of the block's
+        // `trainerbattle` (`gTrainerBattleOpponent_A`).
+        let call = match (name.as_str(), &st.trainer) {
+            ("SPECIAL_GetBattleOutcome", _) if st.wild => "outcome".to_string(),
+            (n, Some(t)) if OPPONENT_SPECIALS.contains(&n) => {
+                format!("special_vs(&ctx, {c}, {t}).await")
+            }
+            _ => format!("special(&ctx, {c}).await"),
+        };
         match class {
             Class::Native => out.push(match &dest {
-                Some(v) => format!("ctx.set_var({v}, special(&ctx, {c}).await).await;"),
-                None => format!("special(&ctx, {c}).await;"),
+                Some(v) => format!("ctx.set_var({v}, {call}).await;"),
+                None => format!("{call};"),
             }),
             Class::Ignore => out.push(format!("// special {name}")),
             Class::Default(v) => {
@@ -1047,11 +1151,21 @@ impl<'a> Low<'a> {
 pub(super) struct BlockState {
     /// An `applymovement` ran earlier in the block.
     moved: bool,
+    /// The trainer of the block's last `trainerbattle` (Gen3 `gTrainerBattleOpponent_A`).
+    trainer: Option<String>,
     /// The text of the block's last `loadword 0, <text>`.
     word0: Option<String>,
     /// The function has the `wild` local.
     wild: bool,
 }
+
+/// The specials that read Gen3 `gTrainerBattleOpponent_A`: after a `trainerbattle` in the same
+/// block they lower to `special_vs(&ctx, id, trainer)` (the prelude's `special` answers them
+/// without a trainer).
+pub const OPPONENT_SPECIALS: &[&str] = &[
+    "SPECIAL_ShouldTryRematchBattle",
+    "SPECIAL_IsTrainerReadyForRematch",
+];
 
 /// `// a, b, c` of an unsupported command's operands, or nothing.
 pub(super) fn args_comment(args: &[IrArg]) -> String {

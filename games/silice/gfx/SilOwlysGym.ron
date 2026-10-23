@@ -1,0 +1,126 @@
+// The Owl Sanctuary (Ch5, MAP_OWLYS_GYM and its crypt MAP_OWLYS_GYM_B1F): contenu-jeu/chapitres/
+// 05-owlys.md §4. A dark gothic sanctuary over the void: the Court of Owls (islets of stone slabs,
+// pivoting plank bridges, lecterns with a red, a blue and a black book), the Hall of Pillars (four
+// hollow pillars topped by owl statues with red eyes; a beaten Watcher puts its statue's eyes out),
+// the walkway down to Skycker's round platform; cracked slabs (the trapdoors) drop to the crypt.
+// Both maps share General as primary, so one tileset. Script ids (ch05_gym.rs): `pont` POSE (a
+// bridge or the walkway posed), `vide` RELEVE (raised), `pilier_eteint` the statue's eyes put out.
+// Floors are MB_CAVE (as the first build's Cave floor); collisions keep the first build's cells.
+(
+    name: "SilOwlysGym",
+    primary: "General",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), inside a dark gothic sanctuary at night. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing. Palette: cold dark slate blue-greys, near-black, dark brown wood, with tiny flat accents of blood red and old gold.",
+    features: [
+        (
+            name: "dalle",
+            cells: ["c"],
+            legend: {'c': (behavior: "MB_CAVE", collision: 0)},
+            key: Some("none"),
+            prompt: Some("A dark sanctuary floor tile seen from above: ONE big square dark slate blue-grey stone slab (#30364a) filling the canvas, a thick near-black border line (#16181f) along its top edge and its left edge only, one lighter (#3e4660) pixel line just inside the top-left corner, and a small diamond-shaped carved mark in its centre. Only 16x16 pixels, chunky, no stripes."),
+        ),
+        (
+            name: "plateforme",
+            cells: ["ccccccc", "ccccccc", "ccccccc", "ccccccc"],
+            legend: {'c': (behavior: "MB_CAVE", collision: 0)},
+            key: Some("none"),
+            prompt: Some("Seen from straight above, ONE wide stone platform (not a repeating pattern) filling the whole wide canvas edge to edge: plain flat dark slate blue-grey flagstones, and exactly ONE big round inlaid emblem of a stylised owl face (two round eyes, two ear tufts) drawn in thin old gold lines, centred in the canvas and as tall as half the canvas; a thin dark iron rim along the four outer edges. Nothing else, very few details."),
+        ),
+        (
+            name: "vide",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A bottomless dark void seen from above: almost entirely flat near-black (#08080e), with two tiny very dark purple-navy (#181428) specks. Only 16x16 pixels."),
+        ),
+        (
+            name: "pont",
+            cells: ["c"],
+            legend: {'c': (behavior: "MB_CAVE", collision: 0)},
+            key: Some("none"),
+            prompt: Some("A pivoting wooden bridge deck seen from straight above: two dark brown wooden planks running left to right, each half the height, separated by a thick near-black gap, a black iron rivet band at the left and right ends. Only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "trappe",
+            cells: ["T"],
+            legend: {'T': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+        ),
+        (
+            name: "roche",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("Thick dark masonry seen from above: flat charcoal blue-grey stone (#2a2e3a) in big irregular blocks with chunky near-black joints. It tiles seamlessly. Only 16x16 pixels."),
+        ),
+        (
+            name: "falaise",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A gothic sanctuary wall seen from the front, tiling left to right: dark slate blue-grey stone blocks (#3a4256) with one tall narrow pointed-arch window of dark blood-red stained glass in the middle, a near-black shadow line along the bottom edge. Only 16x16 pixels."),
+        ),
+        (
+            name: "bord_g",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The left side wall of a sanctuary seen from above, tiling top to bottom: the left three quarters are flat charcoal blue-grey masonry (#2a2e3a) with chunky joints, the right quarter is a vertical carved stone moulding (#56607a) with a near-black outline on its right side. Only 16x16 pixels."),
+        ),
+        (
+            name: "bord_d",
+            cells: ["#"],
+            mirror: Some("bord_g"),
+        ),
+        (
+            name: "bord_b",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The bottom wall of a sanctuary seen from above, tiling left to right: the bottom three quarters are flat charcoal blue-grey masonry (#2a2e3a) with chunky joints, the top quarter is a horizontal carved stone moulding (#56607a) with a near-black outline along its top edge. Only 16x16 pixels."),
+        ),
+        (
+            name: "pilier",
+            under: Some("dalle"),
+            cells: ["##", "##"],
+            prompt: Some("A massive square stone pillar as WIDE as it is tall, filling the whole square canvas: a broad dark slate blue-grey stone block base with a dark vertical slit in its front, and on top a big wide stone statue of a round owl (like Hoothoot: round body, two ear tufts, folded wings) with two big bright blood-red (#e01818) round eyes."),
+        ),
+        // Derived (derive.rs): the pillar's top row, the owl's red eyes put out.
+        (
+            name: "pilier_eteint",
+            under: Some("dalle"),
+            cells: ["##"],
+        ),
+        (
+            name: "lutrin_rouge",
+            under: Some("dalle"),
+            cells: ["#"],
+            prompt: Some("A dark wooden church lectern on one foot holding a big open book with a bright red (#d02020) cover."),
+        ),
+        (
+            name: "lutrin_bleu",
+            under: Some("dalle"),
+            cells: ["#"],
+            prompt: Some("A dark wooden church lectern on one foot holding a big open book with a bright royal blue (#2050e0) cover."),
+        ),
+        (
+            name: "lutrin_noir",
+            under: Some("dalle"),
+            cells: ["#"],
+            prompt: Some("A dark wooden church lectern on one foot holding a big open book with a pure black cover and pale pages."),
+        ),
+        (
+            name: "sortie",
+            cells: ["#A#", "###"],
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+            key: Some("none"),
+            prompt: Some("ONE single doorway (not a repeating pattern), the exit of a gothic sanctuary seen from the front: the left third and the right third are plain dark slate blue-grey stone wall blocks; the middle third is one tall dark pointed stone archway with three stone steps going down into black darkness, its top quarter flat floor slabs leading into it."),
+        ),
+        (
+            name: "tombe",
+            under: Some("dalle"),
+            cells: ["#"],
+            prompt: Some("A small old stone tomb in a crypt seen from 3/4 above: a grey stone slab coffin with a carved feather on its lid, a little cracked."),
+        ),
+        (
+            name: "echelle",
+            under: Some("falaise"),
+            cells: ["L"],
+            legend: {'L': (behavior: "MB_LADDER", collision: 0)},
+            prompt: Some("A short old dark brown wooden ladder going straight up, seen from the front, two rails and four rungs, filling the whole height."),
+        ),
+    ],
+)

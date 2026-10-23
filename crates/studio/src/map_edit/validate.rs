@@ -5,7 +5,7 @@
 use super::catalog::Catalog;
 use super::model::Doc;
 use super::schema::{MAP_DYNAMIC, WARP_ID_DYNAMIC, WARP_ID_SECRET_BASE, dynamic_warp_id};
-use engine::data::block_metatile;
+use engine::data::{METATILES_IN_PRIMARY, block_collision, block_metatile};
 use extract::schema::{BgKind, ConnectionDir};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -419,6 +419,7 @@ fn connections(d: &Doc, c: &Catalog, o: &mut Out) {
             (ConnectionDir::East | ConnectionDir::West, Some((_, h))) => (d.height, h),
             _ => continue,
         };
+        seam(d, cn, r, n_len, &at, o);
         if cn.offset >= len as i32 || cn.offset + n_len as i32 <= 0 {
             o.warn(
                 &at,
@@ -428,6 +429,82 @@ fn connections(d: &Doc, c: &Catalog, o: &mut Out) {
                 ),
             );
         }
+    }
+}
+
+/// How deep a neighbour sees into a map across a connection (the camera shows about 7 cells
+/// past the edge; Gen3 keeps that much of the connected map in its view buffer).
+const SEAM_DEPTH: usize = 7;
+
+/// The cells of `d` a neighbour with another secondary tileset shows: Gen3 draws (and the
+/// engine collides) a connected map's cells with the current map's tilesets, so a secondary
+/// metatile (512 and up) there is another metatile from the neighbour. An error on the edge
+/// row's walkable cells (the crossing), a warning deeper in.
+fn seam(
+    d: &Doc,
+    cn: &super::schema::GameConnection,
+    r: &super::catalog::MapRef,
+    n_len: u16,
+    at: &str,
+    o: &mut Out,
+) {
+    let Some(sec) = &r.secondary else { return };
+    if *sec == d.secondary || d.blocks.len() != d.width as usize * d.height as usize {
+        return;
+    }
+    let (w, h) = (d.width as usize, d.height as usize);
+    let along = |i: i32| (0..n_len as i32).contains(&(i - cn.offset));
+    let cell = |depth: usize, i: usize| -> Option<(usize, usize)> {
+        match cn.dir {
+            ConnectionDir::North => (depth < h).then_some((i, depth)),
+            ConnectionDir::South => (depth < h).then(|| (i, h - 1 - depth)),
+            ConnectionDir::West => (depth < w).then_some((depth, i)),
+            ConnectionDir::East => (depth < w).then(|| (w - 1 - depth, i)),
+            _ => None,
+        }
+    };
+    let len = match cn.dir {
+        ConnectionDir::North | ConnectionDir::South => w,
+        ConnectionDir::East | ConnectionDir::West => h,
+        _ => return,
+    };
+    let (mut crossing, mut seen) = (Vec::new(), 0);
+    for depth in 0..SEAM_DEPTH {
+        for i in (0..len).filter(|&i| along(i as i32)) {
+            let Some((x, y)) = cell(depth, i) else {
+                continue;
+            };
+            let b = d.blocks[y * w + x];
+            if block_metatile(b) < METATILES_IN_PRIMARY {
+                continue;
+            }
+            if depth == 0 && block_collision(b) == 0 {
+                crossing.push(format!("({x}, {y})"));
+            } else {
+                seen += 1;
+            }
+        }
+    }
+    if !crossing.is_empty() {
+        o.error(
+            at,
+            format!(
+                "{} ({sec}) walks onto {} with its own tilesets: use primary metatiles there \
+                 (or the same secondary)",
+                cn.map,
+                crossing.join(", ")
+            ),
+        );
+    }
+    if seen > 0 {
+        o.warn(
+            at,
+            format!(
+                "{} ({sec}) shows {seen} secondary cell(s) of this map within {SEAM_DEPTH} of the \
+                 edge with its own tilesets (wrong pictures): prefer primary metatiles there",
+                cn.map
+            ),
+        );
     }
 }
 

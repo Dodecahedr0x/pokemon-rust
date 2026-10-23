@@ -1,0 +1,11 @@
+(
+    primary: "General",
+    secondary: "SilMangaSquare",
+    width: 2,
+    height: 2,
+    elevation: false,
+    blocks: [
+        (1695, 1696),
+        (1697, 1698),
+    ],
+)

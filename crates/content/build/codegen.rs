@@ -197,6 +197,13 @@ pub fn consts(w: &World, battle: &[(String, &'static str, String)]) -> Result<St
     for (i, k) in w.texts.keys().enumerate() {
         c(&mut o, k, "TextId", format!("TextId({i})"))?;
     }
+    // The decomp's `EventScript_ResetAllMapFlags` (`names::RESET_ALL_MAP_FLAGS`), for the
+    // Emerald new game (`new_game.rs`).
+    o.push_str("/// The flags Gen3 `EventScript_ResetAllMapFlags` sets (`NewGameInitData`).\npub const RESET_ALL_MAP_FLAGS: &[FlagId] = &[");
+    for f in names::RESET_ALL_MAP_FLAGS {
+        write!(o, "FlagId({:#X}),", table_value(&names::FLAGS, f)?)?;
+    }
+    o.push_str("];\n");
     Ok(o)
 }
 
@@ -323,6 +330,16 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         );
         writeln!(o, "{line}")?;
     }
+    // By name, for the host tools (the studio paints with tilesets no map uses yet); not on the
+    // GBA, where it would keep every tileset in the ROM.
+    o.push_str(
+        "/// Every tileset by name, with whether it is a secondary one (host builds only).\n\
+         #[cfg(not(target_arch = \"arm\"))]\npub static TILESETS: &[(&str, &Tileset, bool)] = &[",
+    );
+    for t in &w.tilesets {
+        write!(o, "(\"{0}\", &TS_{0}, {1}),", t.file.name, t.file.secondary)?;
+    }
+    o.push_str("];\n");
 
     // ---- maps ----
     let mut map_arms = String::new();
@@ -333,10 +350,28 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         .map(|m| u16::from(m.group) << 8 | u16::from(m.num))
         .collect();
     let mut movement_fallbacks = BTreeSet::new();
-    for m in &w.maps {
+    // Each map, then each map's layout variants (`setmaplayoutindex`, `layouts.rs`): the map's
+    // events with the variant's layout, as `M_<map>__<LAYOUT_*>`.
+    let variants = crate::layouts::variants(w)?;
+    let mut layout_arms = String::new();
+    type Entry<'a> = (
+        &'a extract::schema::MapFile,
+        &'a extract::schema::Layout,
+        String,
+        Option<u16>,
+    );
+    let mut entries: Vec<Entry> = (w.maps.iter())
+        .map(|m| (m, &m.layout, m.name.clone(), None))
+        .collect();
+    for v in &variants {
+        let m = (w.maps.iter().find(|m| m.name == v.map))
+            .with_context(|| format!("layout variant of a missing map {}", v.map))?;
+        entries.push((m, &v.layout, format!("{}__{}", v.map, v.id), Some(v.number)));
+    }
+    for (m, l, static_name, variant) in entries {
         let n = &m.name;
         ensure!(ident_ok(n), "map name {n:?}");
-        let l = &m.layout;
+        ensure!(ident_ok(&static_name), "map static {static_name:?}");
         for ts in [&l.primary, &l.secondary] {
             ensure!(
                 tileset_names.contains(ts.as_str()),
@@ -480,7 +515,7 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         };
         writeln!(
             o,
-            "pub static M_{n}: MapData = MapData {{ name: \"{n}\", width: {}, height: {}, blocks: {blocks}, border: {}, primary: &TS_{}, secondary: &TS_{}, objects: &[{objects}], warps: &[{warps}], coords: &[{coords}], bgs: &[{bgs}], connections: &[{conns}], scripts: MapScripts {{ on_load: {}, on_transition: {}, on_resume: {}, on_return_to_field: {}, on_frame: {}, on_warp_into: {} }}, allow_running: {}, map_type: {} }};",
+            "pub static M_{static_name}: MapData = MapData {{ name: \"{n}\", width: {}, height: {}, blocks: {blocks}, border: {}, primary: &TS_{}, secondary: &TS_{}, objects: &[{objects}], warps: &[{warps}], coords: &[{coords}], bgs: &[{bgs}], connections: &[{conns}], scripts: MapScripts {{ on_load: {}, on_transition: {}, on_resume: {}, on_return_to_field: {}, on_frame: {}, on_warp_into: {} }}, allow_running: {}, map_type: {} }};",
             l.width,
             l.height,
             u16s_lit(&border),
@@ -495,11 +530,15 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
             m.header.allow_running,
             m.header.map_type
         )?;
-        writeln!(
-            map_arms,
-            "        {:#X} => Some(&M_{n}),",
-            u16::from(m.group) << 8 | u16::from(m.num)
-        )?;
+        let id = u16::from(m.group) << 8 | u16::from(m.num);
+        if let Some(number) = variant {
+            writeln!(
+                layout_arms,
+                "        ({id:#X}, {number:#X}) => Some(&M_{static_name}),"
+            )?;
+            continue;
+        }
+        writeln!(map_arms, "        {id:#X} => Some(&M_{n}),")?;
         let ty = classify::map_type(m.header.map_type, n);
         if ty != "Outdoor" {
             writeln!(
@@ -516,6 +555,10 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
     writeln!(
         o,
         "/// The exported map with Gen3 number `id` (`MAP_*`).\npub fn map(id: u16) -> Option<&'static MapData> {{\n    match id {{\n{map_arms}        _ => None,\n    }}\n}}"
+    )?;
+    writeln!(
+        o,
+        "/// Map `id` with layout `layout` (`gMapLayouts` number; Gen3 `setmaplayoutindex`), if a script of the map switches to it.\npub fn map_layout(id: u16, layout: u16) -> Option<&'static MapData> {{\n    match (id, layout) {{\n{layout_arms}        _ => None,\n    }}\n}}"
     )?;
     writeln!(
         o,
@@ -879,11 +922,19 @@ pub fn map_digests(w: &World) -> Result<Vec<(String, u64)>> {
         }
         Ok(())
     };
+    let variants = crate::layouts::variants(w)?;
     let mut out = Vec::new();
     for m in &w.maps {
         let mut h = TreeHash::new();
         h.file("map", extract::export::to_ron(m)?.as_bytes());
         layout(&mut h, m)?;
+        // Its `setmaplayoutindex` variants (Wave C), only when it has some.
+        for v in variants.iter().filter(|v| v.map == m.name) {
+            let mut vm = m.clone();
+            vm.layout = v.layout.clone();
+            h.file(&v.id, extract::export::to_ron(&vm.layout)?.as_bytes());
+            layout(&mut h, &vm)?;
+        }
         for c in &m.connections {
             if let Some(other) = c.map.as_deref().and_then(|n| maps.get(n)) {
                 layout(&mut h, other)?;

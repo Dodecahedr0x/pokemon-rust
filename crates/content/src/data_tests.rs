@@ -60,7 +60,7 @@ impl ScriptHost for Host {
                 self.vars.insert(v.0, x);
                 Response::Unit
             }
-            Request::Random(_) | Request::PlayerFacing => Response::Value(0),
+            Request::Random(_) | Request::PlayerFacing | Request::Query(_) => Response::Value(0),
             Request::PlayerPos => Response::Pos(0, 0),
             Request::CurrentMap => Response::Value(0),
             Request::YesNo { .. } => Response::Bool(self.yes),
@@ -69,6 +69,7 @@ impl ScriptHost for Host {
             | Request::ItemCheck { .. }
             | Request::ItemSpace { .. }
             | Request::ItemRemove { .. }
+            | Request::PcItemAdd { .. }
             | Request::MoneyCheck(_) => Response::Bool(true),
             Request::Multichoice { .. } => Response::Value(0),
             _ => Response::Unit,
@@ -310,6 +311,33 @@ fn a_new_world_starts_after_the_starter() {
         assert!(!w.flag(f), "{f:?}");
     }
     assert!(!w.script_running());
+}
+
+/// `NewGameInitData` (`new_game.rs`): every `ResetAllMapFlags` flag but the ones the intro and
+/// the starter clear, 3000 money, the size records, the Potion in the PC.
+#[test]
+fn a_new_world_has_new_game_init_data() {
+    use consts::*;
+    let w = engine::World::new(&Emerald);
+    let cleared = [
+        FLAG_HIDE_LITTLEROOT_TOWN_FAT_MAN,
+        FLAG_HIDE_LITTLEROOT_TOWN_BIRCHS_LAB_BIRCH,
+        FLAG_HIDE_ROUTE_101_BOY,
+    ];
+    assert!(RESET_ALL_MAP_FLAGS.len() > 150);
+    for &f in RESET_ALL_MAP_FLAGS {
+        assert_eq!(w.flag(f), !cleared.contains(&f), "{f:?}");
+    }
+    assert_eq!(w.money(), 3000);
+    assert_eq!(w.var(VAR_SEEDOT_SIZE_RECORD), 0x8000);
+    assert_eq!(w.var(VAR_LOTAD_SIZE_RECORD), 0x8000);
+    // A world without the Potion in its item table (the stub) reports it instead.
+    if Emerald.item(engine::data::ItemId(ITEM_POTION)).is_some() {
+        assert_eq!(
+            w.pc().item_entries().collect::<Vec<_>>(),
+            [(0, engine::data::ItemId(ITEM_POTION), 1)]
+        );
+    }
 }
 
 #[test]
@@ -612,6 +640,22 @@ fn std_find_item_removes_the_last_talked_object() {
 #[cfg(not(pkr_stub))]
 mod extracted {
     use super::*;
+
+    /// Wave C: `ShowPokedexRatingMessage`'s 22 texts (extract's `C_TEXT_RUNS`) are built.
+    #[test]
+    fn pokedex_rating_texts_are_built() {
+        let rated = data::TEXT_NAMES
+            .iter()
+            .filter(|n| n.starts_with("gBirchDexRatingText_"))
+            .count();
+        assert!(rated >= 22, "{rated}");
+        for n in [
+            "gBirchDexRatingText_LessThan10",
+            "gBirchDexRatingText_DexCompleted",
+        ] {
+            assert!(crate::prelude::text_named(n).is_some(), "{n}");
+        }
+    }
 
     /// The French ROM, when `PKR_ROM_FR` is set and the data was extracted from it.
     pub(super) fn source_rom() -> Option<extract::Rom> {

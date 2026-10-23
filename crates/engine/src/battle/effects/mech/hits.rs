@@ -379,6 +379,10 @@ fn knock_off(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     let Some(item) = b.battler(t).x.item else {
         return;
     };
+    if abilities::sticky_hold(b, t) {
+        super::ability_blocks(env, u, Str::PkmnSXMadeYIneffective, Ability::StickyHold);
+        return;
+    }
     let party = b.battler(t).mon.party;
     let m = b.battler_mut(t);
     m.x.item = None;
@@ -408,6 +412,10 @@ fn thief(b: &mut Battle, env: &mut Env, u: &MoveUse, _r: &HitResult) {
     let Some(item) = tm.x.item else {
         return;
     };
+    if abilities::sticky_hold(b, t) {
+        super::ability_blocks(env, u, Str::PkmnSXMadeYIneffective, Ability::StickyHold);
+        return;
+    }
     let hold = tm.x.hold;
     for (side, party, item, hold) in [
         (a, am.mon.party, Some(item), hold),
@@ -713,6 +721,11 @@ pub(super) fn dream_eater(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<
 /// last. No secondary roll.
 pub(super) fn explosion(b: &mut Battle, env: &mut Env, u: &MoveUse) -> Option<HitResult> {
     b.attack_string(env, u);
+    // `faintifabilitynotdamp`: BattleScript_DampStopsExplosion.
+    if abilities::damp(b, env, u) {
+        b.no_effect = true;
+        return None;
+    }
     let hp = b.battler(u.attacker).mon.hp as i32;
     b.change_hp_passive(env, u.attacker, hp);
     anim(env, u);

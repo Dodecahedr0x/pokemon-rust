@@ -9,13 +9,16 @@
 //! waits ([`fx`], R), party, money and coins ([`party`], R) and the save ([`save`], S). After
 //! Milestone 9 Wave 0 no task edits this file.
 
+pub(in crate::world) use field::FieldEffects;
 pub(in crate::world) use fx::whiteout_allowed;
 
 mod buffers;
+mod field;
 mod fx;
 mod items;
 mod menu;
 mod party;
+mod query;
 mod save;
 mod screens;
 mod trainer;
@@ -76,6 +79,10 @@ impl<G: GameData> Host<'_, G> {
                 let id = self.mover(obj);
                 self.s.objects.moves_done(id)
             }
+            Request::WaitMoveAt(obj, map) => {
+                let id = self.mover(obj);
+                self.s.objects.moves_done_on(id, map)
+            }
             Request::Delay(_) => {
                 s.delay = s.delay.saturating_sub(1);
                 s.delay == 0
@@ -88,6 +95,7 @@ impl<G: GameData> Host<'_, G> {
             Request::Warp { .. } | Request::WarpHole(_) => false,
             Request::Multichoice { .. } => menu::done(self, r),
             Request::TrainerApproach { .. } => trainer::done(self, r),
+            Request::WaitFieldEffect(_) => field::done(self, r),
             _ => true,
         }
     }
@@ -276,11 +284,23 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
                 s.door = DOOR_FRAMES;
                 UNIT
             }
-            Request::WaitMove(obj) => {
+            Request::WaitMove(obj) | Request::WaitMoveAt(obj, _) => {
                 if obj != 0 {
                     s.last_mover = obj;
                 }
                 self.wait(r)
+            }
+            // Gen3 `applymovementat` / `showobjectat` / `hideobjectat`: the object of the named
+            // map, which a crossing may have made the previous one.
+            Request::MoveAt { obj, map, steps } => {
+                s.objects.start_moves_on(obj, map, steps);
+                s.last_mover = obj;
+                UNIT
+            }
+            Request::ShowObjectAt(obj, map) | Request::HideObjectAt(obj, map) => {
+                let visible = matches!(r, Request::ShowObjectAt(..));
+                s.objects.set_visible_on(obj, map, visible);
+                UNIT
             }
             // ---- party and battle (Milestone 4) ----
             Request::GiveMon {
@@ -361,7 +381,8 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::ItemSpace { .. }
             | Request::MoneyAdd(_)
             | Request::MoneyRemove(_)
-            | Request::MoneyCheck(_) => items::begin(self, r),
+            | Request::MoneyCheck(_)
+            | Request::PcItemAdd { .. } => items::begin(self, r),
             Request::Buffer { .. } => buffers::begin(self, r),
             Request::Multichoice { .. } => menu::begin(self, r),
             Request::SetWarp { .. } => warps::begin(self, r),
@@ -383,6 +404,14 @@ impl<G: GameData> ScriptHost for Host<'_, G> {
             | Request::AddFriendship { .. }
             | Request::PartyMonSpecies(_)
             | Request::InGameTrade { .. } => party::begin(self, r),
+            Request::FieldEffectArg { .. }
+            | Request::FieldEffect { .. }
+            | Request::WaitFieldEffect(_)
+            | Request::CopyObjectPosToTemplate(_)
+            | Request::SetMapLayout(_)
+            | Request::CreateVirtualObject { .. }
+            | Request::TurnVirtualObject { .. } => field::begin(self, r),
+            Request::Query(q) => Some(Response::Value(query::answer(self, q))),
             Request::Report(rep) => {
                 s.log(match rep {
                     crate::script::Report::Unsupported(what)

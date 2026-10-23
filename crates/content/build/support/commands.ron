@@ -10,7 +10,7 @@
 //   terminator (`gotopostbattlescript`, `vgoto`, ...) also ends the script.
 // Only Unsupported commands report.
 //
-// Counts: 102 Native, 42 Ignore, 14 Default, 69 Unsupported.
+// Counts: 111 Native, 42 Ignore, 13 Default, 61 Unsupported.
 //
 // Movement fallbacks are in `movements.ron`. Decomp names and classes only: no ROM data.
 {
@@ -114,7 +114,7 @@
     "settrainerflag": Native,
     "cleartrainerflag": Native,
     "setobjectxyperm": Native,
-    "copyobjectxytoperm": Unsupported,
+    "copyobjectxytoperm": Native,
     "setobjectmovementtype": Native,
     "waitmessage": Native,
     "message": Native,
@@ -138,7 +138,7 @@
     "givemon": Native,
     "giveegg": Default(2),                          // VAR_RESULT: MON_CANT_GIVE, the truth: the egg is not given
     "setmonmove": Unsupported,
-    "checkpartymove": Default(6),                   // VAR_RESULT: PARTY_SIZE, no party mon knows the move
+    "checkpartymove": Native,                       // Wave C: prelude check_party_move
     "bufferspeciesname": Native,
     "bufferleadmonspeciesname": Native,
     "bufferpartymonnick": Native,
@@ -170,9 +170,9 @@
     "setflashlevel": Ignore,                        // darkness (Flash) is not drawn
     "animateflash": Ignore,                         // darkness (Flash) is not drawn
     "messageautoscroll": Native,
-    "dofieldeffect": Unsupported,
-    "setfieldeffectargument": Unsupported,
-    "waitfieldeffect": Unsupported,
+    "dofieldeffect": Native,
+    "setfieldeffectargument": Native,
+    "waitfieldeffect": Native,
     "setrespawn": Native,
     "checkplayergender": Native,
     "playmoncry": Ignore,                           // audio (no sound until M12)
@@ -181,11 +181,11 @@
     "setweather": Ignore,                           // weather is not drawn
     "doweather": Ignore,                            // weather is not drawn
     "setstepcallback": Ignore,                      // per-step field effects (ash, ice, footprints) are not modelled
-    "setmaplayoutindex": Unsupported,
+    "setmaplayoutindex": Native,
     "setobjectsubpriority": Ignore,                 // sprite draw order only
     "resetobjectsubpriority": Ignore,               // sprite draw order only
-    "createvobject": Unsupported,
-    "turnvobject": Unsupported,
+    "createvobject": Native,
+    "turnvobject": Native,
     "opendoor": Native,
     "closedoor": Native,
     "waitdooranim": Native,
@@ -237,7 +237,7 @@
     "fadescreenswapbuffers": Native,
     "buffertrainerclassname": Unsupported,
     "buffertrainername": Unsupported,
-    "pokenavcall": Unsupported,
+    "pokenavcall": Native,                          // Wave C: the call's text in the field message box
     "warpwhitefade": Native,
     "buffercontestname": Unsupported,
     "bufferitemnameplural": Native,

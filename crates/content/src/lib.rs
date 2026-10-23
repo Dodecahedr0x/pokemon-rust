@@ -25,6 +25,8 @@ use {
 
 pub mod blob;
 #[cfg(not(pkr_silice))]
+mod emerald_story;
+#[cfg(not(pkr_silice))]
 mod new_game;
 /// Hand-written script overrides (Milestone 8): a script the lowering cannot express as Gen3
 /// does, replaced by hand. The build digests each override's source into the script's
@@ -285,6 +287,14 @@ macro_rules! game_data_tables {
     () => {
         fn map(&self, id: ::engine::data::MapId) -> &'static ::engine::data::MapData {
             $crate::data::map(id.0).unwrap_or(&$crate::data::MISSING_MAP)
+        }
+
+        fn map_layout(
+            &self,
+            id: ::engine::data::MapId,
+            layout: u16,
+        ) -> Option<&'static ::engine::data::MapData> {
+            $crate::data::map_layout(id.0, layout)
         }
 
         fn has_map(&self, id: ::engine::data::MapId) -> bool {

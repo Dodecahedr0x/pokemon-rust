@@ -13,12 +13,11 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     let (a, t) = (u.attacker, u.target);
     match u.info.effect {
         // `accuracycheck BattleScript_ButItFailed, NO_ACC_CALC_CHECK_LOCK_ON` +
-        // `trycopyability`: not no ability nor Wonder Guard (`Ability::Other` in the engine, so
-        // not refused).
+        // `trycopyability`: not no ability nor Wonder Guard.
         MoveEffect::RolePlay => {
             b.attack_string(env, u);
             let ability = b.battler(t).ability;
-            if !no_acc_check(b, u) || ability == Ability::None {
+            if !no_acc_check(b, u) || matches!(ability, Ability::None | Ability::WonderGuard) {
                 b.fail(env, u);
                 return;
             }
@@ -36,11 +35,15 @@ pub(super) fn apply(b: &mut Battle, env: &mut Env, u: &MoveUse) {
                 ],
             );
         }
-        // `tryswapabilities`: not both none, nor Wonder Guard on either side (not modelled).
+        // `tryswapabilities`: not both none, nor Wonder Guard on either side.
         MoveEffect::SkillSwap => {
             b.attack_string(env, u);
             let (x, y) = (b.battler(a).ability, b.battler(t).ability);
-            if !no_acc_check(b, u) || (x == Ability::None && y == Ability::None) {
+            if !no_acc_check(b, u)
+                || (x == Ability::None && y == Ability::None)
+                || x == Ability::WonderGuard
+                || y == Ability::WonderGuard
+            {
                 b.fail(env, u);
                 return;
             }
@@ -108,6 +111,10 @@ fn trick(b: &mut Battle, env: &mut Env, u: &MoveUse) {
         || (am.x.item.is_none() && tm.x.item.is_none())
     {
         b.fail(env, u);
+        return;
+    }
+    if super::super::abilities::sticky_hold(b, t) {
+        super::ability_blocks(env, u, Str::PkmnSXMadeYIneffective, Ability::StickyHold);
         return;
     }
     for (side, party, item, hold) in [

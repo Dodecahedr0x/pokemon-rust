@@ -1,0 +1,81 @@
+// Original overworld sprites (cargo xtask silice gfx sprites). Characters from
+// contenu-jeu/bible/personnages.md. An Emerald name replaces that sprite in Silice (the Magma
+// members are only ever Team Cocket's grunts here); a SIL_ name is a new graphics id that maps
+// name as OBJ_EVENT_GFX_SIL_<NAME>.
+(
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per colour, a 1-pixel dark outline, no anti-aliasing, no gradients.",
+    sprites: [
+        (
+            name: "MAGMA_MEMBER_M",
+            prompt: "A Team Cocket grunt (a man): black suit-like jumpsuit, black cap, white gloves and boots, a red letter-less emblem shaped like a cocktail glass on the chest, thin neon pink and cyan glitch stripes on the sleeves.",
+        ),
+        (
+            name: "MAGMA_MEMBER_F",
+            prompt: "A Team Cocket grunt (a woman with a short ponytail): black suit-like jumpsuit with a short skirt, black cap, white gloves and boots, a red letter-less emblem shaped like a cocktail glass on the chest, thin neon pink and cyan glitch stripes on the sleeves.",
+        ),
+        (
+            name: "SIL_ADRIEN",
+            gfx_id: Some(0x100),
+            prompt: "Adrien, a romantic poet and film buff of about 18: messy brown hair, round glasses, a long beige trench coat over a dark blue sweater, a small notebook in hand.",
+        ),
+        (
+            name: "SIL_GWADA",
+            gfx_id: Some(0x101),
+            prompt: "Gwada, a mixed-race young man of about 18 with a big afro haircut: bright orange short-sleeved shirt with green palm patterns, khaki shorts, sneakers, confident debater's posture.",
+        ),
+        (
+            name: "SIL_MATHIEU",
+            gfx_id: Some(0x102),
+            prompt: "Mathieu, a tall broad-shouldered big-hearted young man (a gentle giant comic-book fan): short dark hair, a red scarf knotted at the neck and flowing behind him like a superhero cape, grey t-shirt with a yellow lightning bolt, blue jeans.",
+        ),
+        (
+            name: "SIL_JULIEN",
+            gfx_id: Some(0x103),
+            prompt: "Julien, a dusty absent-minded traveller, a grown man in his forties with a full brown beard and shaggy shoulder-length hair, a worn olive-green travelling cloak, a big backpack with a rolled blanket, brown boots.",
+        ),
+        (
+            name: "SIL_BENOU",
+            gfx_id: Some(0x104),
+            prompt: "Benou, a systems architect hacker in his thirties: dark grey hoodie with a cyan circuit pattern, headset around the neck, black cargo pants, a laptop under the arm, short black hair.",
+        ),
+        (
+            name: "SIL_LOIC",
+            gfx_id: Some(0x105),
+            prompt: "Loic, a 23-year-old forest technician in light techwear: dark green waterproof jacket with purple straps, thick protective gloves, a filter mask hanging at the neck, short brown hair.",
+        ),
+        // Ch2 (Gris-Échec), ids 0x120..=0x12F.
+        (
+            name: "SIL_YOHAN",
+            gfx_id: Some(0x120),
+            prompt: "Yohan, a calm young chess grandmaster and Psychic-type gym leader: neat short black hair, a long black and white checkered coat over a black turtleneck, black trousers, white gloves, hands clasped behind the back.",
+        ),
+        // Ch3 (Viber-City), ids 0x130..=0x13F.
+        (
+            name: "SIL_TAUBER",
+            gfx_id: Some(0x130),
+            prompt: "Tauber, a calm DJ and mechanic in his late twenties (half of the DJ duo of the Nocturne club): big black headphones around the neck, short dark blond hair, a navy blue mechanic's jumpsuit with rolled sleeves and a cyan neon stripe, a wrench in the back pocket, black boots.",
+        ),
+        (
+            name: "SIL_HOCSEAT",
+            gfx_id: Some(0x131),
+            prompt: "Hocseat, a hyperactive showman DJ in his late twenties (the other half of the DJ duo of the Nocturne club): spiky violet hair, small dark sunglasses on a light-skinned face, a bright violet jacket open over a black t-shirt with a yellow lightning bolt, black trousers, white sneakers, arms at his sides.",
+        ),
+        // Ch7 (Reverse-City), ids 0x170..=0x17F.
+        (
+            name: "SIL_REVERSE",
+            gfx_id: Some(0x170),
+            prompt: "Reverse, a lanky moonwalking dancer and Psychic-type gym leader in his twenties, drawn in negative colours: a white fedora, a black jacket worn back to front with its white buttons on the back, white trousers, a single white glove, shiny black loafers, light-skinned face, arms relaxed.",
+        ),
+        (
+            name: "SIL_EMETTEUR",
+            gfx_id: Some(0x171),
+            prompt: "A Confusion Emitter, an object not a person (the same object in all three views): a thin grey metal antenna mast as tall as a person, standing on a short black tripod, a small dish near the top and a big glowing red light bulb on its tip, a small red cocktail-glass emblem (no letters) on a box at its foot.",
+        ),
+        // Ch9 (Nébula), ids 0x190..=0x19F.
+        (
+            name: "SIL_DRONE",
+            gfx_id: Some(0x190),
+            prompt: "A small hovering surveillance drone (not a person), floating high above the ground with a small dark shadow under it: a compact white and steel-grey quadcopter body with four little black rotors, a round black camera lens with a red light, and a tiny flat screen on its belly showing a pink heart.",
+        ),
+    ],
+)

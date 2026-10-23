@@ -43,7 +43,8 @@ fn route_progress(act: Act) -> Vec<(&'static str, u32)> {
 
 #[test]
 fn the_route_reaches_every_slice_goal_in_order() {
-    for act in Act::EMERALD {
+    // The acts that start at the new game (Act 2 and on start at the previous act's badge).
+    for act in [Act::Slice, Act::Act1] {
         let got = route_progress(act);
         if content::STUB {
             assert_eq!(goals::goals_of(act).len(), 3);
@@ -111,7 +112,20 @@ fn goal_names_follow_the_story_order() {
     for act in Act::ALL {
         assert_eq!(Act::parse(act.name()), Some(act));
     }
-    assert_eq!(Act::parse("act2"), None);
+    assert_eq!(Act::parse("act99"), None);
+    // Task S: the spine's later acts, each from the previous act's badge.
+    if !content::STUB {
+        let names = |a| {
+            goals::goals_of(a)
+                .iter()
+                .map(|g| g.name)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(Act::Act2).last(), Some(&"badge2"));
+        assert_eq!(names(Act::Act3).last(), Some(&"badge3"));
+        assert_eq!(names(Act::Act4).last(), Some(&"badge4"));
+        assert_eq!(names(Act::Act5).last(), Some(&"hm_surf"));
+    }
     // SIL1 Wave 0: Silice's Prologue act exists, with no goal yet (the stub keeps its list).
     assert_eq!(Act::parse("sil_ch0"), Some(Act::SilCh0));
     assert_eq!(Act::SILICE, [Act::SilCh0]);

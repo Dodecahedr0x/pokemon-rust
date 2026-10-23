@@ -215,7 +215,25 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
     let poisoned = matches!(status, Status::Poison | Status::Toxic(_));
     let statused = status != Status::None;
     let target_msg = |id| Some(BattleEvent::Msg(u.msg_long(id, u.target)));
+    // BattleScript_ImmunityProtected / LimberProtected / WaterVeilPrevents
+    // (B_MSG_ABILITY_PREVENTS_MOVE_STATUS, the target's ability).
+    let ability_msg = |id| {
+        Some(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::None,
+                Buff::None,
+                Buff::Text(Str::AbilityName(t.ability)),
+            ],
+            ..u.msg_long(id, u.target)
+        }))
+    };
     let refusal = match kind {
+        StatusKind::Poison | StatusKind::Toxic if t.ability == Ability::Immunity => {
+            ability_msg(Str::PkmnPreventsPoisoningWith)
+        }
+        StatusKind::Paralysis if t.ability == Ability::Limber => {
+            ability_msg(Str::PkmnPreventsParalysisWith)
+        }
         StatusKind::Sleep if matches!(status, Status::Sleep(_)) => {
             target_msg(Str::PkmnAlreadyAsleep)
         }
@@ -247,6 +265,9 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
         }
         StatusKind::Burn if status == Status::Burn => target_msg(Str::PkmnAlreadyHasBurn),
         StatusKind::Burn if t.types.contains(&Type::Fire) => target_msg(Str::ItDoesntAffect),
+        StatusKind::Burn if t.ability == Ability::WaterVeil => {
+            ability_msg(Str::PkmnSXPreventsBurns)
+        }
         // No status move freezes.
         StatusKind::Freeze => Some(BattleEvent::Msg(u.msg_long(Str::ButItFailed, u.attacker))),
         _ if statused => Some(BattleEvent::Msg(u.msg_long(Str::ButItFailed, u.attacker))),
@@ -267,6 +288,17 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
         ));
         return;
     }
+    // JumpIfMoveFailed: Flash Fire takes Will-O-Wisp (the attack string is out already).
+    if super::abilities::absorbs(
+        b,
+        env,
+        &MoveUse {
+            printed: true,
+            ..*u
+        },
+    ) {
+        return;
+    }
     anim(env, u);
     status::set_status(b, env, u, u.target, kind, Cause::PRIMARY);
 }
@@ -274,6 +306,18 @@ fn status_move(b: &mut Battle, env: &mut Env, u: &MoveUse, kind: StatusKind) {
 /// `BattleScript_EffectConfuse`.
 fn confuse_move(b: &mut Battle, env: &mut Env, u: &MoveUse) {
     b.attack_string(env, u);
+    // BattleScript_OwnTempoPrevents.
+    if b.battler(u.target).ability == Ability::OwnTempo {
+        env.out.push(BattleEvent::Msg(Msg {
+            buffs: [
+                Buff::None,
+                Buff::None,
+                Buff::Text(Str::AbilityName(Ability::OwnTempo)),
+            ],
+            ..u.msg_long(Str::PkmnPreventsConfusionWith, u.target)
+        }));
+        return;
+    }
     if b.battler(u.target).confusion > 0 {
         env.out.push(BattleEvent::Msg(
             u.msg_long(Str::PkmnAlreadyConfused, u.target),

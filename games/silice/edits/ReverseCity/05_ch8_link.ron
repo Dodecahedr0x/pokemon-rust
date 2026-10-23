@@ -1,6 +1,6 @@
 // Chapter 8 link: the Porte Eta-Nord to Route S8 (MAP_ROUTE_S08). A warp, not a connection: Route S8 is
-// General + Fallarbor and this city General + Sootopolis, and Gen3 draws a neighbour with the current
-// map's tilesets. The gate door (27, 0; Sootopolis 545, MB_NON_ANIMATED_DOOR) stays solid until Sc07
+// General + Fallarbor and this city General + SilReverseCity, and Gen3 draws a neighbour with the current
+// map's tilesets. The gate door (27, 0; SilReverseCity 626, MB_NON_ANIMATED_DOOR) stays solid until Sc07
 // and ReverseCity_OnLoad open it; stepping on it then leads to Route S8's warp 0, the left south mat,
 // and arriving on it from Route S8 walks the player down to (27, 1).
 [

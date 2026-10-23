@@ -24,7 +24,7 @@
     // Objects. Local ids 1-7 follow the source's obj numbers where it gives them (Mathieu 2,
     // Sbire Est 3, Milo 6, Sbire Ruelle 7); 1, 4 and 5 are ambient NPCs.
     Object(x: 24, y: 30, gfx: "OBJ_EVENT_GFX_OLD_MAN", id: "LOCALID_OWLYS_LANTERNE", local_id: 1, movement: "MOVEMENT_TYPE_FACE_RIGHT", script: "Owlys_EventScript_Lanterne"),
-    Object(x: 31, y: 25, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_OWLYS_MATHIEU", local_id: 2, movement: "MOVEMENT_TYPE_FACE_UP", script: "Owlys_Sc02", flag: "FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE"),
+    Object(x: 31, y: 25, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_OWLYS_MATHIEU", local_id: 2, movement: "MOVEMENT_TYPE_FACE_UP", script: "Owlys_Sc02", flag: "FLAG_SIL_HIDE_OWLYS_MATHIEU_PLACE"),
     Object(x: 24, y: 29, gfx: "OBJ_EVENT_GFX_MAGMA_MEMBER_M", id: "LOCALID_OWLYS_SBIRE_EST", local_id: 3, movement: "MOVEMENT_TYPE_FACE_RIGHT", flag: "FLAG_SIL_HIDE_OWLYS_SBIRE_EST"),
     Object(x: 18, y: 38, gfx: "OBJ_EVENT_GFX_MANIAC", id: "LOCALID_OWLYS_VENDEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Vendeur"),
     Object(x: 36, y: 31, gfx: "OBJ_EVENT_GFX_LITTLE_BOY", id: "LOCALID_OWLYS_GAMIN", movement: "MOVEMENT_TYPE_WANDER_AROUND", range_x: 1, range_y: 1, script: "Owlys_EventScript_Gamin"),
@@ -40,7 +40,7 @@
     Object(x: 45, y: 30, gfx: "OBJ_EVENT_GFX_HIKER", id: "LOCALID_OWLYS_DOCKER", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Docker"),
     Object(x: 22, y: 10, gfx: "OBJ_EVENT_GFX_ARTIST", id: "LOCALID_OWLYS_POETE", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Poete"),
     Object(x: 40, y: 6, gfx: "OBJ_EVENT_GFX_WOMAN_5", id: "LOCALID_OWLYS_RUMEUR", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Rumeur"),
-    Object(x: 28, y: 29, gfx: "OBJ_EVENT_GFX_BLACK_BELT", id: "LOCALID_OWLYS_MATHIEU_APRES", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_MathieuApres", flag: "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES"),
+    Object(x: 28, y: 29, gfx: "OBJ_EVENT_GFX_SIL_MATHIEU", id: "LOCALID_OWLYS_MATHIEU_APRES", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_MathieuApres", flag: "FLAG_SIL_HIDE_OWLYS_MATHIEU_APRES"),
     Object(x: 30, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_OWLYS_VEILLEUR_A", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Veilleur", flag: "FLAG_SIL_HIDE_OWLYS_GARDES_ASCENSEUR"),
     Object(x: 29, y: 4, gfx: "OBJ_EVENT_GFX_EXPERT_M", id: "LOCALID_OWLYS_VEILLEUR_B", movement: "MOVEMENT_TYPE_FACE_DOWN", script: "Owlys_EventScript_Veilleur", flag: "FLAG_SIL_HIDE_OWLYS_GARDE_ASCENSEUR_B"),
     // 15: the warehouse's guard (TRAINER_SIL_OWLYS_SILO_GARDE), beside the door, facing it: stepping on

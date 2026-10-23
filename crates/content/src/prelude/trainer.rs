@@ -238,11 +238,13 @@ pub async fn trainer_battle(ctx: &Ctx, b: TrainerBattle) -> bool {
     false
 }
 
-/// `dotrainerbattle` and `CB2_EndTrainerBattle`'s flag.
+/// `dotrainerbattle` and `CB2_EndTrainerBattle`'s flag, then `RegisterTrainerInMatchCall`
+/// (Wave C): with Match Call, a beaten trainer of `gRematchTable` is registered.
 async fn battle(ctx: &Ctx, trainer: TrainerId, lose: TextId) {
     let outcome = ctx.battle_trainer(trainer, lose).await;
     if !matches!(outcome, BattleOutcome::Lost | BattleOutcome::Drew) {
         ctx.set_flag(trainer_flag(trainer), true).await;
+        super::register_in_match_call(ctx, trainer).await;
     }
 }
 

@@ -16,15 +16,14 @@ use crate::silice::prelude::*;
 /// The maps whose scripts this file owns: strict (every script they name must exist).
 pub const MAPS: &[&str] = &["Evalon_Citadelle", "Evalon_Citadelle_2F"];
 
-/// Sky Pillar's flagstones (701), walkable: the lowered bridge (5, 32–33) and the Sphinge's
-/// open door (5, 9–10).
-const METATILE_DALLE: u16 = 701;
-const PONT: [(i16, i16); 2] = [(5, 32), (5, 33)];
-const PORTE_SPHINGE: [(i16, i16); 2] = [(5, 9), (5, 10)];
+/// SilEvalonCitadelle's lowered drawbridge `pont` (541, 542) over the chasm (5, 32–33), and the
+/// Sphinge's open door `porte_ouverte` (545, 546) in the wall (5, 9–10); all walkable.
+const PONT: [(i16, i16, u16); 2] = [(5, 32, 541), (5, 33, 542)];
+const PORTE_SPHINGE: [(i16, i16, u16); 2] = [(5, 9, 545), (5, 10, 546)];
 
-async fn paint(ctx: &Ctx, cells: [(i16, i16); 2]) {
-    for (x, y) in cells {
-        ctx.set_metatile(x, y, METATILE_DALLE, false).await;
+async fn paint(ctx: &Ctx, cells: [(i16, i16, u16); 2]) {
+    for (x, y, m) in cells {
+        ctx.set_metatile(x, y, m, false).await;
     }
 }
 

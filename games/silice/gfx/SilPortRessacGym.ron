@@ -1,0 +1,91 @@
+// The Zenith-Grog (Ch4, MAP_PORT_RESSAC_GYM): Samuel's pirate ship, the deck and the quarterdeck.
+// contenu-jeu/chapitres/04-port-ressac.md §4: the gangway, the main deck with the great mast, the
+// quarterdeck's stairs barred by a grille, the open hatch down to the hold, Samuel at the helm.
+// The deck is this tileset's own planks (`pont`, METATILE_PONT in ch04_gym.rs): the objects standing on
+// it (cabine, mat, grille, barre, tonneau) have the planks under their transparent pixels (`under`).
+(
+    name: "SilPortRessacGym",
+    primary: "General",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance). Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no tiny decorations, no anti-aliasing.",
+    features: [
+        (
+            name: "pont",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("A pirate ship's deck seen from straight above: exactly two flat wooden planks running from top to bottom, each half the width, the left one honey-brown and the right one a slightly darker warm brown, separated by a THICK dark brown seam (one sixteenth of the canvas wide) and with a thick dark brown line across the right plank where two plank ends meet, a light highlight line along each plank's left edge, no wood grain, no noise."),
+        ),
+        (
+            name: "cloison",
+            cells: ["#", "#"],
+            key: Some("none"),
+            prompt: Some("The front wall of a ship's raised quarterdeck: a thin dark brown wooden rail along the top edge, below it a vertical wall of dark red-brown horizontal hull planks, a darker shadow line at the bottom edge. It tiles left to right."),
+        ),
+        (
+            name: "coque",
+            cells: ["#", "#", "#"],
+            key: Some("none"),
+            prompt: Some("The side of a wooden pirate ship's hull seen from the front: a dark brown rail on top, dark red-brown horizontal planks, a golden yellow stripe in the middle, then the hull meets calm dark blue sea water along the bottom quarter. It tiles left to right."),
+        ),
+        (
+            name: "rambarde_h",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("A ship's wooden railing seen from the front, tiling left to right: the top quarter is a thick dark brown wooden handrail; below it a row of evenly spaced short dark brown wooden balusters standing on honey-brown wooden deck planks. Only brown wood, no water, no sky."),
+        ),
+        (
+            name: "rambarde_g",
+            cells: ["#"],
+            key: Some("none"),
+            prompt: Some("The left side of a ship's deck seen from above: a thick dark brown wooden handrail running from top to bottom along the left third, honey-brown deck planks on the right two thirds. It tiles top to bottom."),
+        ),
+        (
+            name: "rambarde_d",
+            cells: ["#"],
+            mirror: Some("rambarde_g"),
+        ),
+        (
+            name: "escalier",
+            cells: ["#..#", "#..#"],
+            key: Some("none"),
+            prompt: Some("A wooden ship staircase seen from above, filling the whole canvas: in the middle half, honey-brown wooden steps going down from top to bottom; on the left and right quarters, a thick dark brown square wooden post with a round cap. "),
+        ),
+        (
+            name: "sortie",
+            cells: ["#AA#"],
+            key: Some("none"),
+            legend: {'A': (behavior: "MB_SOUTH_ARROW_WARP", collision: 0)},
+            prompt: Some("The bottom of a ship's boarding gangway, filling the whole canvas: in the middle half, the end of a honey-brown wooden plank ramp with rope handrails, ending at a grey stone quay at the bottom edge; on the left and right quarters, dark red-brown hull planks."),
+        ),
+        (
+            name: "cabine",
+            under: Some("pont"),
+            cells: ["###", "###", "#W#"],
+            legend: {'W': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+            prompt: Some("A small wooden deckhouse over a ship's hatch: a dark brown plank roof with a rolled canvas on top, red-brown plank walls, an open dark doorway with a ladder going down exactly in the middle of the bottom edge, a hanging lantern."),
+        ),
+        (
+            name: "mat",
+            under: Some("pont"),
+            cells: ["#", "#", "#"],
+            prompt: Some("The foot of a pirate ship's great mast seen from 3/4 above: a very thick tall round dark brown wooden mast filling half the width, an iron band around it, a big coil of rope and two small wooden pins at its base."),
+        ),
+        (
+            name: "grille",
+            under: Some("pont"),
+            cells: ["##"],
+            prompt: Some("A low black iron grille gate with vertical bars and a heavy padlock in the middle, blocking a passage, seen from 3/4 above."),
+        ),
+        (
+            name: "barre",
+            under: Some("pont"),
+            cells: ["#"],
+            prompt: Some("A ship's steering wheel on a short wooden stand, round dark wooden wheel with eight handles, seen from 3/4 above."),
+        ),
+        (
+            name: "tonneau",
+            under: Some("pont"),
+            cells: ["#"],
+            prompt: Some("A dark wooden rum barrel standing upright, two iron hoops, seen from slightly above."),
+        ),
+    ],
+)
