@@ -647,6 +647,10 @@ pub fn data(w: &World, global_digest: u64) -> Result<(String, Vec<u8>, String)> 
         o,
         "/// The battle tables, items and other tables, texts, the behavior table, the prelude and\n/// every non-generated content source (`build/codegen.rs`, `global_digest`).\npub const GLOBAL_DIGEST: u64 = {global_digest:#018x};"
     )?;
+    // An authored game's own tables (`AuthoredIn::data_rs`).
+    if let Some(a) = &w.authored {
+        o.push_str(&a.data_rs);
+    }
     o.push_str(&blob.static_decl("data.bin"));
     writeln!(
         report,

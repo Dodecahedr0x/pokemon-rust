@@ -91,6 +91,16 @@ pub struct AuthoredIn {
     pub consts: Vec<(String, &'static str, String)>,
     /// The new game's map (file name) and cell.
     pub start: (String, i16, i16),
+    /// Every map number of the game by map file name, built or not: encounters and heal
+    /// locations name maps by it, never by Emerald's names.
+    pub map_numbers: BTreeMap<String, u16>,
+    /// The game's own items built on a Gen3 item: (number, base `ITEM_*`), for their hold
+    /// effect.
+    pub item_bases: Vec<(u16, String)>,
+    /// The battle switches (`classify::Rules`).
+    pub rules: crate::classify::Rules,
+    /// Rust source appended to `data.rs`: the game's own tables (the marts).
+    pub data_rs: String,
 }
 
 /// `read_ron` of a file added within the format (`FORMAT_MINOR`), or the default when an older
