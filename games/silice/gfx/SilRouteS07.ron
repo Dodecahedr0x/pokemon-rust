@@ -1,0 +1,116 @@
+// Route S7 (Ch7, MAP_ROUTE_S07): the Pont de la Logique Brisee, a huge glass-and-steel walkway hung
+// over a gulf of "data fog" (falling digits), concrete piers carrying platforms, from Manga-Square's
+// Grand Torii (south) to Reverse-City's Secteur Eta gate (north). contenu-jeu/chapitres/
+// 07-reverse-city.md (MAP_ROUTE_S07): logic arrows, the violet reversal slabs of the Passerelle des
+// Paradoxes, the collapsed walkways, Team Cocket's maintenance barriers, islands of translucent blue
+// crystal grass; the sky turns from pink (Manga-Square) to violet, then to negative near Reverse-City.
+// Primary `Building` (no floor): every floor is here. The void (2x2) follows the sky: `vide_aube`
+// (pink, S7-A), `vide` (indigo, S7-B and S7-C, also the border), `vide_violet` (S7-D), `vide_negatif`
+// (the gate). Prompted: the steel and concrete decks, the piers. Drawn in derive.rs: the void and its
+// recoloured variants, the arrows (`fleche_*`, MB_SLIDE_*, painted on `beton`), the reversal slab
+// (`retournement`, MB_SLIDE_SOUTH on `verre`, the source's fallback), and, without a prompt because
+// Codex's quota ran out during wave 3 (give them prompts to redraw), the glass `verre`, the crystal
+// grass, the gate, the screens, the barrier, the pylon. The route has no connection (both ends are
+// warps): no seam. `pile` (2x2) comes before the 1x1 floors: a 1x1 stamp of metatile 513 or 524 would
+// equal an extract layout (studio map hygiene).
+(
+    name: "SilRouteS07",
+    primary: "Building",
+    style: "Minimalist 16-bit sprite in the Pokemon Ruby/Emerald overworld style (Game Boy Advance), a futuristic broken bridge of glass and steel over a digital abyss. Simple, iconic, low detail: big flat colour areas, 2-3 shades per material, a 1-pixel dark outline, no texture noise, no gradients, no glow halos, no tiny decorations, no anti-aliasing, no letters. Palette: cold steel greys, pale cyan glass, raw concrete, deep indigo night, with a few flat accents of electric cyan, violet and warning yellow.",
+    features: [
+        (
+            name: "vide",
+            cells: ["##", "##"],
+        ),
+        (
+            name: "vide_aube",
+            cells: ["##", "##"],
+        ),
+        (
+            name: "vide_negatif",
+            cells: ["##", "##"],
+        ),
+        (
+            // A concrete pier under a platform's edge, dropping into the fog (2x2, solid).
+            name: "pile",
+            cells: ["##", "##"],
+            under: Some("vide"),
+            prompt: Some("The top of a massive concrete bridge pier seen from above and the front, square: a pale warm grey concrete column with a darker capital at the top, two rusty rebar stubs, its lower half fading into dark indigo fog with a few cyan digit dashes. Bold chunky shapes."),
+        ),
+        (
+            name: "acier",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("The deck of a steel bridge seen from straight above, ONE single tile: a flat cold grey steel plate (#8890a0) with a thin darker grey seam along the top and left edges, four tiny dark rivets near the corners, and one faint diagonal scratch. Flat, only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "beton",
+            cells: ["."],
+            key: Some("none"),
+            prompt: Some("Raw concrete platform floor seen from straight above, ONE single tile: a flat pale warm grey concrete slab (#b0aca4) with a thin dark grey joint along the top and left edges, two small darker formwork holes, and one thin crack. Flat, only 16x16 pixels, chunky."),
+        ),
+        (
+            name: "verre",
+            cells: ["."],
+        ),
+        (
+            name: "herbe_cristal",
+            cells: ["."],
+        ),
+        (
+            name: "fleche_n",
+            cells: ["n"],
+            legend: {'n': (behavior: "MB_SLIDE_NORTH", collision: 0)},
+        ),
+        (
+            name: "fleche_s",
+            cells: ["s"],
+            legend: {'s': (behavior: "MB_SLIDE_SOUTH", collision: 0)},
+        ),
+        (
+            name: "fleche_e",
+            cells: ["e"],
+            legend: {'e': (behavior: "MB_SLIDE_EAST", collision: 0)},
+        ),
+        (
+            name: "fleche_o",
+            cells: ["o"],
+            legend: {'o': (behavior: "MB_SLIDE_WEST", collision: 0)},
+        ),
+        (
+            name: "retournement",
+            cells: ["s"],
+            legend: {'s': (behavior: "MB_SLIDE_SOUTH", collision: 0)},
+        ),
+        (
+            // The Secteur Eta gate (x 13-15, y 0-1): the passage (14, 1) is warp 0.
+            name: "porte_eta",
+            cells: ["###", "#P#"],
+            under: Some("vide_negatif"),
+            legend: {'P': (behavior: "MB_NON_ANIMATED_DOOR", collision: 0)},
+        ),
+        (
+            // The screens by the gate (12, 1) and before the puzzle (13, 45): signs.
+            name: "ecran",
+            cells: ["#"],
+            under: Some("vide"),
+        ),
+        (
+            // Team Cocket's maintenance barriers (around block C1, the bucket by the worker, the
+            // entrance sign): solid.
+            name: "barriere",
+            cells: ["#"],
+            under: Some("beton"),
+        ),
+        (
+            // The broken railing posts hanging in the void beside the walkways (1x3, solid).
+            name: "pylone",
+            cells: ["#", "#", "#"],
+            under: Some("vide"),
+        ),
+        (
+            name: "vide_violet",
+            cells: ["##", "##"],
+        ),
+    ],
+)
