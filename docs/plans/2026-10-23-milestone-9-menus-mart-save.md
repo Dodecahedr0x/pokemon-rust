@@ -562,7 +562,7 @@ Dependencies inside waves: S's start-menu lane waits for SM (S tests through `sp
 | Task P's "Findings for Milestone 9" | **Wave 0 Step 0** folds each into this table |
 | `SaveMeta` gained the player name, Pokédex caught count and badges (Wave 0): an older slot fails agb's metadata check and boots as a new game (`boot::CORRUPT`) | **Task S** (the main menu shows the metadata; no migration: pre-M9 slots are debug saves) |
 
-**TODO (Wave 0 ran before M8 Task P merged):** Task P's "Findings for Milestone 9" are not on master yet. Fold each into the table above when P merges (owner task or later milestone; done if P fixed it), and re-run the route-usage scan (`m9_route_scan`) on the tree with P's Act 1 nodes.
+**TODO (Wave 0 ran before M8 Task P merged; still true at the Wave 0 review, master `e83d8f6`):** Task P's "Findings for Milestone 9" are not on master yet. Fold each into the table above when P merges (owner task or later milestone; done if P fixed it): the Roxanne battle-start late frame, the explorer policy, and the Unsupported/Degraded list the Act 1 trace reaches. Then re-run the route-usage scan (`m9_route_scan` reads every committed node, so it picks up P's `act1:*` nodes with no change) and re-accept the `act1:*` nodes for the Pokédex digest.
 
 ---
 
@@ -659,6 +659,20 @@ So on today's routes every M9 task is **route-neutral** except the Pokédex dige
 - **Silice gets `start_menu`** through the shared `game_data_tables!` macro (Emerald's Gen3 list) until Task C gives it its own.
 - **`World::screens()`** accessor (the stack, for tests and the debug region) beside `screens_open()`.
 
+### Contracts added by the Wave 0 review
+Each closes a gap that would have made a Wave 1 or 2 task edit a file it does not own.
+- **`ScreenCx`** gains `rng: &mut Rng` (Task E's `on_event` from B's vitamins and Rare Candy), `vars: &mut Vars` (was read-only: B's Repel writes `VAR_REPEL_STEP_COUNT`, M's PC writes `VAR_PC_BOX_TO_SEND_MON`), `map: MapId` and `frame: u32` (S's save info window: location and play time).
+- **`ScreenStack`** carries the waiting results, hashed with it: `saved: Option<bool>` (the World's answer to `ScreenOut::Save`, given once next frame; S's `save_failed` turns it to `false`), `child: Option<ScreenResult>` (a closed screen's result for the one below), and `host: ui::kit::Hosting` (Task K's fade, VRAM-handover and waiting-request state, defined in K's `ui/kit/mod.rs`, so K changes neither `ui/mod.rs` nor `world/mode.rs`). `world/screens.rs` fills `saved` and `child` and raises `Event::Saved { ok }` on `ScreenOut::Save`.
+- **`ScreenOut::UseOnField(ItemId)`** and the hook **`item_use::use_on_field(&mut State, game, item) -> Option<ScriptId>`** (Gen3 `SetUpItemUseOnFieldCallback`): the bag closes, the field comes back, then the item's field use (B's Escape Rope; M10's bikes, rods, Itemfinder). `ScreenOut::RunScript` now raises `Event::ScreenClosed` (it raised nothing: the stack was already out of the mode) and draws the field.
+- **`PartyMode::Battle`** documents that BM hosts the party menu inside the battle with the battle's party in battle order (Gen3 `gBattlePartyCurrentOrder`): the active mon is slot 0, so PT needs no battle state.
+- **Post-battle evolution hook** `world/evolve.rs::after_battle(game, &mut State, &Battle) -> bool`, called by `world/battle.rs` when a won battle leaves, over the black screen, before the field is restored (Gen3 `FreeResetData_ReturnToOvOrDoEvolutions` → `TryEvolvePokemon`). `true` means E opened the evolution scene (`world/screens.rs::open`): the battle ends there (`end_battle`: the objects, the script's answer and the encounter immunity as before) and K's host restores the field when the last screen closes. Wave 0 answers `false` (the silent evolution stays in `after_win`). Without it E would have edited `world/battle.rs` (BM's) to show a scene.
+- **`World::snapshot_unchecked`** (`world/checkpoint.rs`): the snapshot without the capture checks, which `snapshot` now wraps. Task S's `save_now` saves mid-script (`special SaveGame`) or under the save dialog, which `capture` refuses; it normalises this DTO instead of editing F's file.
+- **White fades:** `Fader::is_white()` (R's `flow/fade.rs`, `false` in Wave 0), copied into `Frame::lighten` by `draw_field`; `fx::apply` takes `&mut ScreenFx` (R advances the effects there). `host/mod.rs` routes the polling (`resume`) of the effect and party requests to `host/fx.rs` and `host/party.rs` (they went to the generic `done`), so R's `WaitInputOrTimeout`, flash and shake can wait.
+- **Button mode:** `World::step` calls `Input::update_mode(keys, options.button_mode)` (SM's `flow/input.rs`; Wave 0 ignores the mode), the place Gen3 `ReadKeys` maps L to A.
+- **`SpecialIds`** gains `var_pc_box_to_send_mon`, `var_mon_box_id`, `var_mon_box_pos` and `flag_shown_box_was_full` (Gen3 `CopyMonToPC`), filled for both roots; `SHARED_GEN3` reserves `VAR_MON_BOX_ID`, `VAR_MON_BOX_POS` and `FLAG_SHOWN_BOX_WAS_FULL_MESSAGE` (no Silice id held them).
+- **Schema 3 RON snapshots** (the stores' snapshot caches) read too: the schema 4 fields are `#[serde(default)]`, as `party_held` was in schema 3.
+- **Notes for the owners:** the text speeds keep the engine's frames-per-glyph model (Gen3's printer takes one frame more per glyph at each speed; M3 chose 4 for MID), so SLOW 8 and FAST 1; Gen3's battle messages read the text speed too (`battle_message.c`), which BM wires; Task S's 24 KiB worst-case encode is a heap allocation on the GBA, to count against `heap_max`.
+
 ### State change
 - `SCHEMA` 4; the new state is hashed only away from its default except the Pokédex digest (`0xA3`, once non-empty), so the routes move from their first battle start. Engine goldens: `GOLDEN_WILD_BATTLE` and `GOLDEN_TRAINER` moved; `GOLDEN_SCREEN` and `GOLDEN_SAVE` pinned; the rest unchanged.
 - `cargo xtask checkpoints verify --accept` (`chore(checkpoints): M9 Wave 0 state`, the last commit): Emerald's four `route:*` nodes diverged from `route:lab` +1500 (the starter's Pokédex entry; the rest follow their parent), the stub's three from `route:stub_start` +24 (its new game gives a mon); frames, inputs and maps unchanged, only hashes and digests moved. Silice's tree is empty.
@@ -675,7 +689,8 @@ So on today's routes every M9 task is **route-neutral** except the Pokédex dige
 | File or glob | Owner |
 |---|---|
 | `engine/src/{data.rs, script.rs, checkpoint.rs, world.rs, world/mode.rs, world/host/mod.rs, ui/mod.rs, video.rs, mon.rs, lib.rs, debug.rs}`, `world/tests.rs` (mod lines), `world/tests/goldens.rs`; `emu/src/lib.rs`; `extract/src/{schema.rs, lib.rs}`; `content/src/prelude/mod.rs`, `content/build/main.rs` | Wave 0 (then only `chore(checkpoints)` commits for goldens; `schema.rs` see below) |
-| Wave 0's hook and split edits in files a later task owns: `world/battle.rs`, `battle/core.rs`, `wild.rs`, `mon/*`, `text.rs`, `game-gba/src/{main,save_logic}.rs`, `game-native/src/{lib,store,controls}.rs`, `content/src/lib.rs`, `content/build/{codegen,blob_data}.rs`, `extract/src/export.rs`, `xtask/src/main.rs` | Wave 0 first (merged before any task starts), then the owner below |
+| Wave 0's hook and split edits in files a later task owns: `world/battle.rs`, `world/checkpoint.rs`, `battle/core.rs`, `wild.rs`, `mon/*`, `text.rs`, `flow/{fade,input}.rs`, `fx.rs`, `item_use.rs`, `ui/kit/mod.rs`, `game-gba/src/{main,save_logic}.rs`, `game-native/src/{lib,store,controls}.rs`, `content/src/lib.rs`, `content/build/{codegen,blob_data}.rs`, `extract/src/export.rs`, `xtask/src/main.rs` | Wave 0 first (merged before any task starts), then the owner below |
+| `extract/src/games/data.rs` (`SHARED_GEN3`) | Wave 0; a task whose shared code names a new Gen3 flag or var appends it there (the `sil1_w0_contracts` test fails otherwise) and lists it in its report |
 | `engine/src/ui/kit/**`, `world/screens.rs`, `world/host/screens.rs`, `text.rs`, `text/printer.rs`, `menu.rs` (after Wave 0's text-speed and yes/no edits) | K |
 | `engine/src/world/save.rs`, `ui/save.rs`, `ui/main_menu.rs`, `world/host/save.rs`; `game-gba/src/{save,save_logic,main}.rs`; `game-native/src/{flash,lib}.rs`; `emu/tests/save_logic.rs` | S |
 | `engine/src/fx.rs`, `flow/fade.rs`, `world/host/{fx,party}.rs`; `content/src/silice/prelude.rs` | R |
@@ -683,7 +698,7 @@ So on today's routes every M9 task is **route-neutral** except the Pokédex dige
 | `engine/src/field.rs`, `field/*`, `flow/transition.rs`, `world/maps.rs`, `world/checkpoint.rs`; `content/build/classify/field.rs` | F |
 | `content/build/support/{specials,commands}.ron`, `content/src/prelude/{special,std,mart,party}.rs`; `extract/src/codegen/lower/{emit,operands}.rs` | J |
 | `extract/src/{ui_gfx.rs, export/ui.rs}` | X1 |
-| `extract/src/{ui_text.rs, tables.rs, export/tables.rs}`, `export/scripts.rs` (lists), `labels.rs` (lists) | X2 |
+| `extract/src/{ui_text.rs, tables.rs, export/tables.rs}`, `export/scripts.rs` (lists), `labels.rs` (lists), `scripts.rs` (the `pokemart` operand) | X2 |
 | `content/build/{ui.rs, classify/items.rs}`, `codegen.rs` + `blob_data.rs` (new tables), `content/src/lib.rs` (tables, `gen3_special_ids`), `content/src/silice/mod.rs`, `games/silice/game.ron`, `extract/src/games/game.rs` | C |
 | `studio/**` except `map_edit/**` | T |
 | `explore/**` | D (Wave 1), then N (Wave 3) |
