@@ -1,5 +1,7 @@
-//! Explorer tab (M7 Task S2): start and stop an `explore run`, its live stats, and the findings
-//! table with "Open at frame before", "Export repro" and "Copy repro command" per finding.
+//! Explorer tab (M7 Task S2, spine and branches since the M9 rework): start and stop an
+//! `explore spine` or `explore branch`, its live stats, the spine's checkpoints, the branches
+//! (those needing a look first), and the findings table with "Open at frame before", "Export
+//! repro" and "Copy repro command" per finding.
 //!
 //! - The run is the [`Studio`]'s [`RunSlot`] (app state: leaving the tab keeps it; quitting
 //!   stops it, see `ui::launch`). Starting, stopping and reading it happen on worker threads
@@ -14,9 +16,9 @@
 
 use super::{Studio, Tab, focus_pane, off_thread, sleep};
 use crate::explorer::{
-    self, BudgetKind, OPEN_BEFORE, Poll, Polled, RunForm, RunSlot, RunState, export_repro,
-    finding_cells, next_poll, open_finding_cmds, opened_text, parse_before, poll, repro_command,
-    run_state_text, stats_rows,
+    self, OPEN_BEFORE, Poll, Polled, RunForm, RunKind, RunSlot, RunState, branch_cells,
+    checkpoint_cells, export_repro, finding_cells, next_poll, open_finding_cmds, opened_text,
+    parse_before, poll, repro_command, run_state_text, stats_rows,
 };
 use dioxus::dioxus_core::spawn_forever;
 use dioxus::prelude::*;
@@ -107,7 +109,9 @@ const CSS: &str = r#"
 .explorer .run-state { color: var(--muted); }
 .explorer .run-state.running { color: #7dff7a; }
 .explorer .muted { color: var(--muted); }
-.findings td { vertical-align: top; }
+.findings td, .branches td { vertical-align: top; }
+.branches td.message { max-width: 380px; overflow-wrap: anywhere; }
+.branches tr.bug td.outcome, .branches tr.diverged td.outcome, .branches tr.stranded td.outcome { color: #ffb347; }
 .findings td.message { max-width: 380px; overflow-wrap: anywhere; }
 .findings tr.other-build td.build { color: #ffb347; }
 .findings tr.gone, .findings tr.stale { opacity: 0.65; }
@@ -184,43 +188,47 @@ pub fn Explorer() -> Element {
         style { {CSS} }
         div { class: "explorer",
             div { class: "toolbar",
+                select {
+                    "data-field": "kind",
+                    onchange: move |e| {
+                        if let Some(k) = RunKind::from_key(&e.value()) {
+                            form.write().kind = k;
+                        }
+                    },
+                    for k in RunKind::ALL {
+                        option { value: k.key(), selected: form.read().kind == k, "{k.label()}" }
+                    }
+                }
                 label { "budget "
                     input {
                         "data-field": "budget",
+                        placeholder: "config",
+                        title: "frames per branch",
                         value: "{form.read().budget}",
                         oninput: move |e| form.write().budget = e.value(),
                     }
                 }
-                select {
-                    "data-field": "kind",
-                    onchange: move |e| {
-                        if let Some(k) = BudgetKind::from_key(&e.value()) {
-                            form.write().kind = k;
-                        }
-                    },
-                    for k in BudgetKind::ALL {
-                        option { value: k.key(), selected: form.read().kind == k, "{k.label()}" }
-                    }
-                }
-                label { "threads "
+                label { "jobs "
                     input {
-                        "data-field": "threads",
+                        "data-field": "jobs",
                         placeholder: "default",
-                        value: "{form.read().threads}",
-                        oninput: move |e| form.write().threads = e.value(),
+                        value: "{form.read().jobs}",
+                        oninput: move |e| form.write().jobs = e.value(),
                     }
                 }
-                label { "seed "
+                label { "from "
                     input {
-                        "data-field": "seed",
-                        placeholder: "config",
-                        value: "{form.read().seed}",
-                        oninput: move |e| form.write().seed = e.value(),
+                        "data-field": "from",
+                        placeholder: "all",
+                        title: "branch from this checkpoint's segment only",
+                        list: "spine-checkpoints",
+                        value: "{form.read().from}",
+                        oninput: move |e| form.write().from = e.value(),
                     }
                 }
                 button {
                     disabled: running || busy() || !form_ok,
-                    title: "cargo run -p explore --release -- run … (a first run builds explore)",
+                    title: "cargo run -p explore --release -- spine|branch … (a first run builds explore)",
                     onclick: start,
                     "Start"
                 }
@@ -248,6 +256,79 @@ pub fn Explorer() -> Element {
                         dl { class: "inspector", "data-explorer-stats": "1",
                             for (k, v) in rows {
                                 dt { "{k}" } dd { "{v}" }
+                            }
+                        }
+                        datalist { id: "spine-checkpoints",
+                            for l in m.labels() {
+                                option { value: "{l}" }
+                            }
+                        }
+                        h3 { "Spine" }
+                        if m.checkpoints.is_empty() {
+                            p { class: "muted", "No spine yet: start a run." }
+                        } else {
+                            table { class: "checkpoints", "data-explorer-checkpoints": "1",
+                                thead {
+                                    tr {
+                                        th { "checkpoint" }
+                                        th { "step" }
+                                        th { "frame" }
+                                        th { "map" }
+                                        th { "cell" }
+                                    }
+                                }
+                                tbody {
+                                    for p in m.checkpoints.iter() {
+                                        {
+                                            let c = checkpoint_cells(p);
+                                            rsx! {
+                                                tr { "data-checkpoint": "{c.label}",
+                                                    td { "{c.label}" }
+                                                    td { class: "mono", "{c.step}" }
+                                                    td { class: "mono", "{c.frame}" }
+                                                    td { "{c.map}" }
+                                                    td { class: "mono", "{c.cell}" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        h3 { "Branches" }
+                        if m.branches.is_empty() {
+                            p { class: "muted", "No branches." }
+                        } else {
+                            table { class: "branches",
+                                thead {
+                                    tr {
+                                        th { "id" }
+                                        th { "origin" }
+                                        th { "kind" }
+                                        th { "outcome" }
+                                        th { "frames" }
+                                        th { "new" }
+                                        th { "message" }
+                                    }
+                                }
+                                tbody {
+                                    for b in m.branches.iter() {
+                                        {
+                                            let c = branch_cells(b);
+                                            rsx! {
+                                                tr { class: "{c.outcome}", "data-branch": "{c.id}",
+                                                    td { class: "mono", title: "{c.action}", "{c.id}" }
+                                                    td { class: "mono", "{c.origin}" }
+                                                    td { "{c.kind}" }
+                                                    td { class: "outcome", "{c.outcome}" }
+                                                    td { class: "mono", "{c.frames}" }
+                                                    td { class: "mono", "{c.novelty}" }
+                                                    td { class: "message", title: "{b.message}", "{c.message}" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         h3 { "Findings" }
@@ -407,26 +488,14 @@ pub(crate) mod tests {
     use super::*;
     use crate::explorer::finding_cells;
     use content::Emerald;
-    use engine::data::GameData;
-    use explore::config::{Budget, Config};
-    use explore::testing::WallAround;
-    use explore::wire::Explore;
     use std::path::{Path, PathBuf};
 
-    /// A db at `<dir>/explore.db` filled through the explore API: 4 generations of the game
-    /// walled in at its new-game cell (a `Softlock` finding on the stub world).
+    /// A db at `<dir>/explore.db` filled through the explore API ([`explore::testing::fill_db`]:
+    /// a spine of the game walled in at its new-game cell, its branches and a `Softlock`).
     pub(crate) fn filled_db(dir: &Path) -> PathBuf {
         std::fs::create_dir_all(dir).unwrap();
         let path = dir.join("explore.db");
-        let inner = Emerald::for_shells();
-        let ng = inner.new_game();
-        let game = WallAround {
-            inner,
-            map: ng.map,
-            at: (ng.x, ng.y),
-        };
-        let mut ex = Explore::open(game, &path, Config::default()).unwrap();
-        ex.run(Budget::Generations(4), |_| {}).unwrap();
+        explore::testing::fill_db(Emerald::for_shells(), &path).unwrap();
         path
     }
 
@@ -460,18 +529,47 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_explorer_tab_shows_the_stats_and_a_row_per_finding() {
+    fn the_explorer_tab_shows_the_stats_the_spine_the_branches_and_the_findings() {
         let dir = temp_root("explorer-db");
         let db = filled_db(&dir);
         let p = poll(&db, &RunSlot::default());
         let m = p.model.clone().unwrap();
         assert!(!m.findings.is_empty(), "the walled-in game has a finding");
+        assert_eq!(m.labels(), ["start", "mid", "end"]);
+        assert!(!m.branches.is_empty());
         let html = render(&db, polled(p.clone()));
         for (k, v) in stats_rows(&m, None) {
             assert!(
                 html.contains(&format!("<dt>{k}</dt><dd>{v}</dd>")),
                 "{k} {v}: {html}"
             );
+        }
+        assert_eq!(html.matches("data-checkpoint=").count(), 3, "{html}");
+        for p in &m.checkpoints {
+            let c = checkpoint_cells(p);
+            assert!(html.contains(&format!("data-checkpoint=\"{}\"", c.label)));
+            for cell in [&c.step, &c.frame, &c.map, &c.cell] {
+                assert!(html.contains(&format!(">{cell}<")), "{cell} in {html}");
+            }
+        }
+        assert!(
+            html.contains("<option value=\"start\">"),
+            "the from list: {html}"
+        );
+        assert_eq!(
+            html.matches("data-branch=").count(),
+            m.branches.len(),
+            "{html}"
+        );
+        for b in &m.branches {
+            let c = branch_cells(b);
+            for cell in [&c.outcome, &c.frames, &c.novelty] {
+                assert!(html.contains(&format!(">{cell}<")), "{cell} in {html}");
+            }
+        }
+        assert!(html.contains(">walled in<"), "{html}");
+        for k in RunKind::ALL {
+            assert!(html.contains(k.label()), "{html}");
         }
         assert_eq!(
             html.matches("data-finding=").count(),
@@ -561,12 +659,12 @@ pub(crate) mod tests {
             assert_eq!(state.polled.peek().rate, Some(0.0));
             let mut more = p.clone();
             if let Ok(m) = &mut more.model {
-                m.stats.nodes += 10;
+                m.stats.branches += 10;
                 m.stats.cells += 1;
             }
             state.apply(more, t0 + Duration::from_secs(4));
             assert_eq!(*state.tick.peek(), 2);
-            assert_eq!(state.polled.peek().rate, Some(2.5), "10 nodes over 4 s");
+            assert_eq!(state.polled.peek().rate, Some(2.5), "10 branches over 4 s");
         });
         let _ = std::fs::remove_dir_all(dir);
     }
